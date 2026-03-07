@@ -27,6 +27,7 @@ export default class NovelGraphViewsPlugin extends Plugin {
     });
 
     this.addSettingTab(new NovelGraphViewsSettingTab(this.app, this));
+
   }
 
   onunload() {}
@@ -40,18 +41,11 @@ export default class NovelGraphViewsPlugin extends Plugin {
   }
 
   async activateView() {
-    const { workspace } = this.app;
-
-    let leaf = workspace.getLeavesOfType(VIEW_TYPE_NOVEL_GRAPH)[0];
-    if (!leaf) {
-      const newLeaf = workspace.getRightLeaf(false);
-      if (!newLeaf) return;
-      await newLeaf.setViewState({
-        type: VIEW_TYPE_NOVEL_GRAPH,
-        active: true,
-      });
-      leaf = newLeaf;
-    }
-    workspace.revealLeaf(leaf);
+    const leaf = this.app.workspace.getLeaf('tab');
+    await leaf.setViewState({
+      type: VIEW_TYPE_NOVEL_GRAPH,
+      active: true,
+    });
+    this.app.workspace.revealLeaf(leaf);
   }
 }

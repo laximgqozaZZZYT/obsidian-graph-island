@@ -5,6 +5,8 @@ export interface GraphNode {
   y: number;
   vx: number;
   vy: number;
+  fx?: number | null;
+  fy?: number | null;
   category?: string;
   tags?: string[];
   filePath?: string;
@@ -16,6 +18,8 @@ export interface GraphEdge {
   target: string;
   type?: EdgeType;
   label?: string;
+  /** Excalibrain-style relation name (e.g. "Author", "Location") */
+  relation?: string;
 }
 
 export interface GraphData {
@@ -87,6 +91,16 @@ export interface ShellInfo {
   nodeIds: string[];
   centerX: number;
   centerY: number;
+  angleOffset: number;
+  /** Rotation speed in radians per second (0 = stopped) */
+  rotationSpeed: number;
+  /** 1 = clockwise, -1 = counter-clockwise */
+  rotationDirection: 1 | -1;
+}
+
+export interface ConcentricLayoutResult {
+  data: GraphData;
+  shells: ShellInfo[];
 }
 
 export interface NovelGraphViewsSettings {

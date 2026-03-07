@@ -7,9 +7,14 @@
     "dev": "node esbuild.config.mjs watch",
     "build": "node esbuild.config.mjs production"
   },
-  "keywords": ["obsidian", "graph", "visualization"],
+  "keywords": [
+    "obsidian",
+    "graph",
+    "visualization"
+  ],
   "license": "MIT",
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/d3": "^7.4.3",
     "@types/node": "^20.11.0",
     "esbuild": "^0.24.0",
@@ -17,6 +22,7 @@
     "typescript": "^5.5.0"
   },
   "dependencies": {
-    "d3": "^7.9.0"
+    "d3": "^7.9.0",
+    "pixi.js": "^7.4.3"
   }
 }
