@@ -1,0 +1,68 @@
+.novel-graph-container {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.novel-graph-container svg {
+  width: 100%;
+  height: 100%;
+}
+
+.novel-graph-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.novel-graph-toolbar button {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.novel-graph-toolbar button.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.novel-graph-node text {
+  font-size: 11px;
+  fill: var(--text-normal);
+  pointer-events: none;
+  user-select: none;
+}
+
+.novel-graph-node circle {
+  stroke: var(--background-modifier-border);
+  stroke-width: 1.5;
+  cursor: pointer;
+}
+
+.novel-graph-node circle:hover {
+  stroke: var(--interactive-accent);
+  stroke-width: 2;
+}
+
+.novel-graph-edge {
+  stroke: var(--text-faint);
+  stroke-width: 1;
+  fill: none;
+  opacity: 0.6;
+}
+
+.novel-graph-tooltip {
+  position: absolute;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}

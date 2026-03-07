@@ -1,0 +1,9 @@
+{
+  "id": "novel-graph-views",
+  "name": "Novel Graph Views",
+  "version": "0.1.0",
+  "minAppVersion": "1.0.0",
+  "description": "Multiple graph visualization layouts (concentric, tree, arc, sunburst, force) based on note metadata and links.",
+  "author": "noob-dev",
+  "isDesktopOnly": false
+}
