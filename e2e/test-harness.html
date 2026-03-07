@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Graph Views — E2E Test Harness</title>
+  <style>
+    :root {
+      --background-primary: #1e1e1e;
+      --background-secondary: #262626;
+      --background-modifier-border: #444;
+      --background-modifier-border-hover: #555;
+      --background-modifier-hover: #333;
+      --background-modifier-form-field: #2a2a2a;
+      --text-normal: #ddd;
+      --text-muted: #999;
+      --text-faint: #666;
+      --text-on-accent: #fff;
+      --interactive-accent: #6366f1;
+      --graph-background: #1e1e1e;
+      --graph-text: #999;
+      --graph-line: #555;
+      --graph-line-opacity: 0.4;
+      --graph-text-size: 11px;
+      --font-ui-small: 12px;
+      --font-ui-smaller: 11px;
+      --font-semibold: 600;
+      --input-radius: 4px;
+      --radius-s: 4px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #1e1e1e; color: #ddd; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+  </style>
+  <link rel="stylesheet" href="../styles.css">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+  <div id="root" class="graph-container" style="width:800px;height:600px;"></div>
+
+  <script>
+    // ---- Mock graph data ----
+    const MOCK_NODES = [
+      { id: "a", label: "princess-of-ebony", x: 0, y: 0, vx: 0, vy: 0, category: "character", filePath: "a.md" },
+      { id: "b", label: "dinarzade", x: 0, y: 0, vx: 0, vy: 0, category: "character", filePath: "b.md" },
+      { id: "c", label: "bt10_turkey-report", x: 0, y: 0, vx: 0, vy: 0, category: "episode", filePath: "c.md" },
+      { id: "d", label: "sc21_curse-broken", x: 0, y: 0, vx: 0, vy: 0, category: "scene", filePath: "d.md" },
+      { id: "e", label: "act3_wisdom", x: 0, y: 0, vx: 0, vy: 0, category: "act", filePath: "e.md" },
+      { id: "f", label: "orphan-node", x: 0, y: 0, vx: 0, vy: 0, filePath: "f.md" },
+      { id: "g", label: "bt05_discovery", x: 0, y: 0, vx: 0, vy: 0, category: "episode", filePath: "g.md" },
+      { id: "h", label: "sc02_sisters-pact", x: 0, y: 0, vx: 0, vy: 0, category: "scene", filePath: "h.md" },
+    ];
+
+    const MOCK_EDGES = [
+      { id: "e1", source: "a", target: "b", type: "link" },
+      { id: "e2", source: "a", target: "c", type: "link" },
+      { id: "e3", source: "b", target: "d", type: "link" },
+      { id: "e4", source: "c", target: "e", type: "link" },
+      { id: "e5", source: "d", target: "e", type: "category" },
+      { id: "e6", source: "a", target: "g", type: "link" },
+      { id: "e7", source: "g", target: "h", type: "link" },
+      { id: "e8", source: "h", target: "d", type: "link" },
+      { id: "e9", source: "b", target: "g", type: "link" },
+    ];
+
+    const DEFAULT_COLORS = [
+      "#6366f1", "#ec4899", "#f59e0b", "#10b981",
+      "#3b82f6", "#ef4444", "#8b5cf6", "#14b8a6",
+    ];
+
+    // ---- Helpers ----
+    function computeNodeDegrees(nodes, edges) {
+      const deg = new Map();
+      nodes.forEach(n => deg.set(n.id, 0));
+      edges.forEach(e => {
+        deg.set(e.source, (deg.get(e.source) || 0) + 1);
+        deg.set(e.target, (deg.get(e.target) || 0) + 1);
+      });
+      return deg;
+    }
+
+    function assignColors(nodes) {
+      const cats = [...new Set(nodes.map(n => n.category).filter(Boolean))];
+      const map = new Map();
+      cats.forEach((c, i) => map.set(c, DEFAULT_COLORS[i % DEFAULT_COLORS.length]));
+      return map;
+    }
+
+    function buildAdj(nodes, edges) {
+      const adj = new Map();
+      nodes.forEach(n => adj.set(n.id, new Set()));
+      edges.forEach(e => { adj.get(e.source)?.add(e.target); adj.get(e.target)?.add(e.source); });
+      return adj;
+    }
+
+    // ---- Render force graph (mirrors GraphViewContainer.doRender) ----
+    function renderForceGraph(container, nodes, edges) {
+      const W = 800, H = 600, cx = W / 2, cy = H / 2;
+      const degrees = computeNodeDegrees(nodes, edges);
+      const colorMap = assignColors(nodes);
+      const adj = buildAdj(nodes, edges);
+      const baseSize = 6;
+
+      const nodeR = (n) => Math.max(baseSize, baseSize + Math.sqrt(degrees.get(n.id) || 0) * 1.5);
+      const nodeColor = (n) => n.category ? (colorMap.get(n.category) || DEFAULT_COLORS[0]) : DEFAULT_COLORS[0];
+
+      // Init positions
+      nodes.forEach(n => {
+        n.x = cx + (Math.random() - 0.5) * W * 0.8;
+        n.y = cy + (Math.random() - 0.5) * H * 0.8;
+      });
+
+      const svg = d3.select(container).append("svg")
+        .attr("width", W).attr("height", H);
+
+      // Arrow marker
+      svg.append("defs").append("marker")
+        .attr("id", "arrowhead").attr("viewBox", "0 -3 6 6")
+        .attr("refX", 12).attr("refY", 0)
+        .attr("markerWidth", 6).attr("markerHeight", 6)
+        .attr("orient", "auto")
+        .append("path").attr("d", "M0,-3L6,0L0,3").attr("fill", "var(--text-faint)");
+
+      const g = svg.append("g");
+      const zoom = d3.zoom().scaleExtent([0.02, 10])
+        .on("zoom", (ev) => g.attr("transform", ev.transform));
+      svg.call(zoom);
+
+      const edgeG = g.append("g").attr("class", "edges");
+      const nodeG = g.append("g").attr("class", "nodes");
+
+      const edgeSel = edgeG.selectAll("line")
+        .data(edges).enter().append("line")
+        .attr("class", "graph-edge")
+        .attr("stroke-width", 1);
+
+      const nodeSel = nodeG.selectAll("g")
+        .data(nodes).enter().append("g")
+        .attr("class", "graph-node")
+        .attr("data-id", d => d.id)
+        .attr("data-label", d => d.label.toLowerCase())
+        .style("cursor", "pointer");
+
+      nodeSel.append("circle")
+        .attr("r", d => nodeR(d))
+        .attr("fill", d => nodeColor(d));
+
+      nodeSel.each(function(d) {
+        const deg = degrees.get(d.id) || 0;
+        if (deg > 2) {
+          d3.select(this).append("text")
+            .attr("dx", nodeR(d) + 2).attr("dy", 4)
+            .text(d.label);
+        }
+      });
+
+      // Hover
+      nodeSel.on("mouseenter", (_ev, d) => {
+        const nb = adj.get(d.id);
+        nodeSel.each(function(n) {
+          const el = d3.select(this);
+          if (n.id === d.id || nb?.has(n.id)) {
+            el.select("circle").attr("stroke", "var(--interactive-accent)").attr("stroke-width", 2.5);
+            if (!el.select("text").node()) {
+              el.append("text").attr("dx", nodeR(n) + 2).attr("dy", 4).text(n.label).classed("hover-label", true);
+            }
+          } else {
+            el.style("opacity", "0.12");
+          }
+        });
+        edgeSel.each(function(e) {
+          const el = d3.select(this);
+          const sid = typeof e.source === "object" ? e.source.id : e.source;
+          const tid = typeof e.target === "object" ? e.target.id : e.target;
+          if (sid === d.id || tid === d.id) el.style("opacity", "1").style("stroke-width", "2");
+          else el.style("opacity", "0.04");
+        });
+      }).on("mouseleave", () => {
+        nodeSel.style("opacity", null);
+        nodeSel.select("circle").attr("stroke", null).attr("stroke-width", null);
+        nodeSel.selectAll(".hover-label").remove();
+        edgeSel.style("opacity", null).style("stroke-width", null);
+      });
+
+      // Force simulation
+      const TICK_SKIP = 2;
+      let tickCount = 0;
+      const simulation = d3.forceSimulation(nodes)
+        .force("charge", d3.forceManyBody().strength(-200).theta(0.9))
+        .force("center", d3.forceCenter(cx, cy).strength(0.03))
+        .force("link", d3.forceLink(edges).id(d => d.id).distance(100).strength(0.01))
+        .alphaDecay(0.05)
+        .velocityDecay(0.4)
+        .on("tick", () => {
+          if (++tickCount % TICK_SKIP !== 0) return;
+          edgeSel
+            .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+          nodeSel.attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+      // Expose for test assertions
+      window.__graphState = { simulation, svg, nodeSel, edgeSel, nodes, edges, degrees };
+    }
+
+    // ---- Panel rendering ----
+    function renderPanel(container) {
+      const toolbar = document.createElement("div");
+      toolbar.className = "graph-toolbar";
+
+      const status = document.createElement("span");
+      status.className = "graph-status";
+      status.textContent = "8 nodes, 9 edges";
+      toolbar.appendChild(status);
+
+      const btn = document.createElement("button");
+      btn.className = "graph-settings-btn";
+      btn.textContent = "⚙";
+      btn.setAttribute("aria-label", "グラフ設定");
+      toolbar.appendChild(btn);
+
+      container.prepend(toolbar);
+
+      const main = container.querySelector("svg")?.parentElement || container;
+      const panel = document.createElement("div");
+      panel.className = "graph-panel is-hidden";
+      panel.id = "test-panel";
+
+      // Add a section
+      const section = document.createElement("div");
+      section.className = "graph-panel-section";
+      const header = document.createElement("div");
+      header.className = "graph-panel-header";
+      header.textContent = "フィルタ";
+      const body = document.createElement("div");
+      body.className = "graph-panel-body";
+
+      const row = document.createElement("div");
+      row.className = "ngp-row";
+      const label = document.createElement("label");
+      label.textContent = "オーファン";
+      const toggle = document.createElement("div");
+      toggle.className = "ngp-toggle is-on";
+      toggle.id = "toggle-orphans";
+      toggle.addEventListener("click", () => toggle.classList.toggle("is-on"));
+      row.appendChild(label);
+      row.appendChild(toggle);
+      body.appendChild(row);
+
+      section.appendChild(header);
+      section.appendChild(body);
+      panel.appendChild(section);
+
+      main.parentElement.appendChild(panel);
+
+      btn.addEventListener("click", () => {
+        panel.classList.toggle("is-hidden");
+        btn.classList.toggle("is-active");
+      });
+    }
+
+    // ---- Init ----
+    const root = document.getElementById("root");
+    const svgWrap = document.createElement("div");
+    svgWrap.className = "graph-svg-wrap";
+    root.appendChild(svgWrap);
+
+    renderForceGraph(svgWrap, [...MOCK_NODES.map(n => ({...n}))], [...MOCK_EDGES.map(e => ({...e}))]);
+    renderPanel(root);
+
+    window.__harness = { ready: true };
+  </script>
+</body>
+</html>

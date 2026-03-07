@@ -1,5 +1,5 @@
 {
-  "name": "obsidian-novel-graph-views",
+  "name": "obsidian-graph-views",
   "version": "0.1.0",
   "description": "Multiple graph visualization layouts for Obsidian",
   "main": "main.js",

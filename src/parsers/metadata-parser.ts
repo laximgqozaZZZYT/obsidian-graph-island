@@ -1,10 +1,10 @@
 import { App, TFile } from "obsidian";
-import type { GraphData, GraphNode, GraphEdge, NovelGraphViewsSettings, SunburstData } from "../types";
+import type { GraphData, GraphNode, GraphEdge, GraphViewsSettings, SunburstData } from "../types";
 import { DEFAULT_COLORS } from "../types";
 
 export function buildGraphFromVault(
   app: App,
-  settings: NovelGraphViewsSettings
+  settings: GraphViewsSettings
 ): GraphData {
   const files = app.vault.getMarkdownFiles();
   const nodes: GraphNode[] = [];

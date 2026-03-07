@@ -1,11 +1,11 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
-import type NovelGraphViewsPlugin from "./main";
+import type GraphViewsPlugin from "./main";
 import type { LayoutType } from "./types";
 
-export class NovelGraphViewsSettingTab extends PluginSettingTab {
-  plugin: NovelGraphViewsPlugin;
+export class GraphViewsSettingTab extends PluginSettingTab {
+  plugin: GraphViewsPlugin;
 
-  constructor(app: App, plugin: NovelGraphViewsPlugin) {
+  constructor(app: App, plugin: GraphViewsPlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }

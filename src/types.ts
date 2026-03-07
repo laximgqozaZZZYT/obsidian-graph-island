@@ -103,7 +103,7 @@ export interface ConcentricLayoutResult {
   shells: ShellInfo[];
 }
 
-export interface NovelGraphViewsSettings {
+export interface GraphViewsSettings {
   defaultLayout: LayoutType;
   nodeSize: number;
   showLabels: boolean;
@@ -113,7 +113,7 @@ export interface NovelGraphViewsSettings {
   groupField: string;
 }
 
-export const DEFAULT_SETTINGS: NovelGraphViewsSettings = {
+export const DEFAULT_SETTINGS: GraphViewsSettings = {
   defaultLayout: "force",
   nodeSize: 6,
   showLabels: true,

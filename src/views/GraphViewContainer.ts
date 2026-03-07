@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, Platform, MarkdownRenderer, TFile } from "obsidian";
 import * as PIXI from "pixi.js";
 import * as d3 from "d3";
-import type NovelGraphViewsPlugin from "../main";
+import type GraphViewsPlugin from "../main";
 import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
@@ -11,7 +11,7 @@ import { applyArcLayout } from "../layouts/arc";
 import { computeSunburstArcs } from "../layouts/sunburst";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
 
-export const VIEW_TYPE_NOVEL_GRAPH = "novel-graph-view";
+export const VIEW_TYPE_GRAPH = "graph-view";
 
 const TICK_SKIP = 2;
 
@@ -81,7 +81,7 @@ interface PixiNode {
 // View
 // ---------------------------------------------------------------------------
 export class GraphViewContainer extends ItemView {
-  plugin: NovelGraphViewsPlugin;
+  plugin: GraphViewsPlugin;
   private currentLayout: LayoutType;
   private rawData: GraphData | null = null;
   private ac: AbortController | null = null;
@@ -136,28 +136,28 @@ export class GraphViewContainer extends ItemView {
   // Sunburst SVG fallback
   private svgEl: SVGSVGElement | null = null;
 
-  constructor(leaf: WorkspaceLeaf, plugin: NovelGraphViewsPlugin) {
+  constructor(leaf: WorkspaceLeaf, plugin: GraphViewsPlugin) {
     super(leaf);
     this.plugin = plugin;
     this.currentLayout = plugin.settings.defaultLayout;
     this.panel.nodeSize = plugin.settings.nodeSize;
   }
 
-  getViewType() { return VIEW_TYPE_NOVEL_GRAPH; }
-  getDisplayText() { return "Novel Graph Views"; }
+  getViewType() { return VIEW_TYPE_GRAPH; }
+  getDisplayText() { return "Graph Views"; }
   getIcon() { return "git-fork"; }
 
   async onOpen() {
     const root = this.containerEl.children[1] as HTMLElement;
     root.empty();
-    root.addClass("novel-graph-container");
+    root.addClass("graph-container");
     if (Platform.isMobile) root.addClass("is-mobile");
 
     // --- Toolbar ---
-    const toolbar = root.createDiv({ cls: "novel-graph-toolbar" });
-    this.statusEl = toolbar.createEl("span", { cls: "novel-graph-status" });
+    const toolbar = root.createDiv({ cls: "graph-toolbar" });
+    this.statusEl = toolbar.createEl("span", { cls: "graph-status" });
 
-    const panelToggle = toolbar.createEl("button", { cls: "novel-graph-settings-btn", text: "⚙" });
+    const panelToggle = toolbar.createEl("button", { cls: "graph-settings-btn", text: "⚙" });
     panelToggle.setAttribute("aria-label", "グラフ設定");
     panelToggle.addEventListener("click", () => {
       const hidden = this.panelEl?.hasClass("is-hidden");
@@ -169,15 +169,15 @@ export class GraphViewContainer extends ItemView {
     });
 
     // --- Main area ---
-    const main = root.createDiv({ cls: "novel-graph-main" });
-    this.canvasWrap = main.createDiv({ cls: "novel-graph-svg-wrap" });
+    const main = root.createDiv({ cls: "graph-main" });
+    this.canvasWrap = main.createDiv({ cls: "graph-svg-wrap" });
 
     // --- Control Panel ---
-    this.panelEl = main.createDiv({ cls: "novel-graph-panel is-hidden" });
+    this.panelEl = main.createDiv({ cls: "graph-panel is-hidden" });
     this.buildPanel();
 
     // --- Floating preview window (inside main, not canvasWrap — survives initPixi) ---
-    this.previewWrapEl = main.createDiv({ cls: "novel-graph-preview-wrap" });
+    this.previewWrapEl = main.createDiv({ cls: "graph-preview-wrap" });
     this.setupPreviewDrag();
 
     // --- Resize observer for PIXI canvas ---
@@ -539,9 +539,9 @@ export class GraphViewContainer extends ItemView {
     wrap.addClass("is-visible");
 
     // Title bar (drag handle + close)
-    const titleBar = wrap.createDiv({ cls: "novel-graph-preview-titlebar" });
-    titleBar.createEl("span", { cls: "novel-graph-preview-titlebar-text", text: pn.data.label });
-    const closeBtn = titleBar.createEl("span", { cls: "novel-graph-preview-close", text: "\u00D7" });
+    const titleBar = wrap.createDiv({ cls: "graph-preview-titlebar" });
+    titleBar.createEl("span", { cls: "graph-preview-titlebar-text", text: pn.data.label });
+    const closeBtn = titleBar.createEl("span", { cls: "graph-preview-close", text: "\u00D7" });
     closeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       wrap.removeClass("is-visible");
@@ -549,7 +549,7 @@ export class GraphViewContainer extends ItemView {
     });
 
     // Content area
-    const content = wrap.createDiv({ cls: "novel-graph-preview-content" });
+    const content = wrap.createDiv({ cls: "graph-preview-content" });
 
     // 1. Hovered node
     this.renderPreviewCard(content, pn.data, "ホバー中のノード");
@@ -557,9 +557,9 @@ export class GraphViewContainer extends ItemView {
     // 2. Linked nodes
     const neighbors = this.adj.get(hId);
     if (neighbors && neighbors.size > 0) {
-      const linkedSection = content.createDiv({ cls: "novel-graph-preview-linked" });
-      linkedSection.createEl("div", { cls: "novel-graph-preview-section-title", text: `リンク先 (${neighbors.size})` });
-      const listEl = linkedSection.createDiv({ cls: "novel-graph-preview-list" });
+      const linkedSection = content.createDiv({ cls: "graph-preview-linked" });
+      linkedSection.createEl("div", { cls: "graph-preview-section-title", text: `リンク先 (${neighbors.size})` });
+      const listEl = linkedSection.createDiv({ cls: "graph-preview-list" });
       for (const nId of neighbors) {
         const npn = this.pixiNodes.get(nId);
         if (npn) this.renderPreviewCard(listEl, npn.data);
@@ -580,8 +580,8 @@ export class GraphViewContainer extends ItemView {
     wrap.addEventListener("pointerdown", (e) => {
       const target = e.target as HTMLElement;
       // Only drag from title bar area
-      if (!target.closest(".novel-graph-preview-titlebar")) return;
-      if (target.closest(".novel-graph-preview-close")) return;
+      if (!target.closest(".graph-preview-titlebar")) return;
+      if (target.closest(".graph-preview-close")) return;
       dragging = true;
       startX = e.clientX;
       startY = e.clientY;
@@ -606,25 +606,25 @@ export class GraphViewContainer extends ItemView {
   }
 
   private renderPreviewCard(container: HTMLElement, node: GraphNode, sectionTitle?: string) {
-    const card = container.createDiv({ cls: "novel-graph-preview-card" });
+    const card = container.createDiv({ cls: "graph-preview-card" });
     if (sectionTitle) {
-      card.createEl("div", { cls: "novel-graph-preview-section-title", text: sectionTitle });
+      card.createEl("div", { cls: "graph-preview-section-title", text: sectionTitle });
     }
-    card.createEl("div", { cls: "novel-graph-preview-name", text: node.label });
+    card.createEl("div", { cls: "graph-preview-name", text: node.label });
 
     // Meta info
     const meta: string[] = [];
     if (node.category) meta.push(node.category);
     if (node.tags && node.tags.length > 0) meta.push(node.tags.map(t => `#${t}`).join(" "));
     if (meta.length > 0) {
-      card.createEl("div", { cls: "novel-graph-preview-meta", text: meta.join(" · ") });
+      card.createEl("div", { cls: "graph-preview-meta", text: meta.join(" · ") });
     }
 
     // Render markdown content
     if (node.filePath) {
       const file = this.app.vault.getAbstractFileByPath(node.filePath);
       if (file instanceof TFile) {
-        const bodyEl = card.createDiv({ cls: "novel-graph-preview-body markdown-rendered" });
+        const bodyEl = card.createDiv({ cls: "graph-preview-body markdown-rendered" });
         this.app.vault.cachedRead(file).then(content => {
           const body = content.replace(/^---[\s\S]*?---\n*/, "");
           const preview = body.length > 500 ? body.slice(0, 500) + "\n\n…" : body;

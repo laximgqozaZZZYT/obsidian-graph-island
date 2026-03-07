@@ -1,32 +1,32 @@
 import { Plugin } from "obsidian";
-import { NovelGraphViewsSettingTab } from "./settings";
-import { GraphViewContainer, VIEW_TYPE_NOVEL_GRAPH } from "./views/GraphViewContainer";
-import { DEFAULT_SETTINGS, type NovelGraphViewsSettings } from "./types";
+import { GraphViewsSettingTab } from "./settings";
+import { GraphViewContainer, VIEW_TYPE_GRAPH } from "./views/GraphViewContainer";
+import { DEFAULT_SETTINGS, type GraphViewsSettings } from "./types";
 
-export default class NovelGraphViewsPlugin extends Plugin {
-  settings: NovelGraphViewsSettings = DEFAULT_SETTINGS;
+export default class GraphViewsPlugin extends Plugin {
+  settings: GraphViewsSettings = DEFAULT_SETTINGS;
 
   async onload() {
     await this.loadSettings();
 
     this.registerView(
-      VIEW_TYPE_NOVEL_GRAPH,
+      VIEW_TYPE_GRAPH,
       (leaf) => new GraphViewContainer(leaf, this)
     );
 
-    this.addRibbonIcon("git-fork", "Novel Graph Views", () => {
+    this.addRibbonIcon("git-fork", "Graph Views", () => {
       this.activateView();
     });
 
     this.addCommand({
-      id: "open-novel-graph-view",
+      id: "open-graph-view",
       name: "Open graph view",
       callback: () => {
         this.activateView();
       },
     });
 
-    this.addSettingTab(new NovelGraphViewsSettingTab(this.app, this));
+    this.addSettingTab(new GraphViewsSettingTab(this.app, this));
 
   }
 
@@ -43,7 +43,7 @@ export default class NovelGraphViewsPlugin extends Plugin {
   async activateView() {
     const leaf = this.app.workspace.getLeaf('tab');
     await leaf.setViewState({
-      type: VIEW_TYPE_NOVEL_GRAPH,
+      type: VIEW_TYPE_GRAPH,
       active: true,
     });
     this.app.workspace.revealLeaf(leaf);
