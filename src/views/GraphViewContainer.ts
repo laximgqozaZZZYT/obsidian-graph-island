@@ -41,6 +41,7 @@ interface PanelState {
   colorNodesByCategory: boolean;
   showInheritance: boolean;
   showAggregation: boolean;
+  showTagNodes: boolean;
 }
 
 const DEFAULT_PANEL: PanelState = {
@@ -66,6 +67,7 @@ const DEFAULT_PANEL: PanelState = {
   colorNodesByCategory: true,
   showInheritance: true,
   showAggregation: true,
+  showTagNodes: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -651,7 +653,12 @@ export class GraphViewContainer extends ItemView {
       pn.circle.lineStyle(2.5, 0x6366f1, 1);
     }
     pn.circle.beginFill(pn.color);
-    pn.circle.drawCircle(0, 0, pn.radius);
+    if (pn.data.isTag) {
+      const r = pn.radius;
+      pn.circle.drawPolygon([0, -r * 1.3, r * 1.3, 0, 0, r * 1.3, -r * 1.3, 0]);
+    } else {
+      pn.circle.drawCircle(0, 0, pn.radius);
+    }
     pn.circle.endFill();
   }
 
@@ -694,17 +701,21 @@ export class GraphViewContainer extends ItemView {
     for (const e of this.graphEdges) {
       if (e.type === "inheritance" && !this.panel.showInheritance) continue;
       if (e.type === "aggregation" && !this.panel.showAggregation) continue;
+      if (e.type === "has-tag" && !this.panel.showTagNodes) continue;
 
       const src = typeof e.source === "object" ? (e.source as any) : this.pixiNodes.get(e.source)?.data;
       const tgt = typeof e.target === "object" ? (e.target as any) : this.pixiNodes.get(e.target)?.data;
       if (!src || !tgt) continue;
 
       // Determine color
+      const hasTagColor = 0xa78bfa;
       let lineColor = defaultColor;
       if (e.type === "inheritance") {
         lineColor = inheritanceColor;
       } else if (e.type === "aggregation") {
         lineColor = aggregationColor;
+      } else if (e.type === "has-tag") {
+        lineColor = hasTagColor;
       } else if (useRelColor && e.relation) {
         const css = this.relationColors.get(e.relation);
         if (css) lineColor = cssColorToHex(css);
@@ -712,7 +723,8 @@ export class GraphViewContainer extends ItemView {
 
       // Determine alpha & thickness
       const isOnto = e.type === "inheritance" || e.type === "aggregation";
-      let alpha = isOnto ? 0.6 : 0.4;
+      const isStructural = isOnto || e.type === "has-tag";
+      let alpha = isStructural ? 0.5 : 0.4;
       let lineThick = thickness;
 
       if (!isOnto && e.relation && useRelColor) alpha = 0.7;
@@ -873,7 +885,12 @@ export class GraphViewContainer extends ItemView {
       const color = nodeColor(n);
       const circle = new PIXI.Graphics();
       circle.beginFill(color);
-      circle.drawCircle(0, 0, r);
+      if (n.isTag) {
+        // Diamond shape for tag nodes
+        circle.drawPolygon([0, -r * 1.3, r * 1.3, 0, 0, r * 1.3, -r * 1.3, 0]);
+      } else {
+        circle.drawCircle(0, 0, r);
+      }
       circle.endFill();
       container.addChild(circle);
 
@@ -996,6 +1013,7 @@ export class GraphViewContainer extends ItemView {
       this.addToggle(body, "添付書類", this.panel.showAttachments, (v) => { this.panel.showAttachments = v; this.rawData = null; this.doRender(); });
       this.addToggle(body, "存在するファイルのみ表示", this.panel.existingOnly, (v) => { this.panel.existingOnly = v; this.rawData = null; this.doRender(); });
       this.addToggle(body, "オーファン", this.panel.showOrphans, (v) => { this.panel.showOrphans = v; this.rawData = null; this.doRender(); });
+      this.addToggle(body, "タグノード", this.panel.showTagNodes, (v) => { this.panel.showTagNodes = v; this.rawData = null; this.doRender(); });
       this.addToggle(body, "継承エッジ (is-a)", this.panel.showInheritance, (v) => { this.panel.showInheritance = v; this.markDirty(); });
       this.addToggle(body, "集約エッジ (has-a)", this.panel.showAggregation, (v) => { this.panel.showAggregation = v; this.markDirty(); });
     });
@@ -1154,11 +1172,16 @@ export class GraphViewContainer extends ItemView {
 
     if (this.panel.existingOnly) {
       const existing = new Set(this.app.vault.getMarkdownFiles().map((f) => f.path));
-      nodes = nodes.filter((n) => existing.has(n.id));
+      nodes = nodes.filter((n) => n.isTag || existing.has(n.id));
     }
 
     if (!this.panel.showAttachments) {
       nodes = nodes.filter((n) => !n.id.match(/\.(png|jpg|jpeg|gif|svg|pdf|mp3|mp4|webm|webp|zip)$/i));
+    }
+
+    if (!this.panel.showTagNodes) {
+      nodes = nodes.filter((n) => !n.isTag);
+      edges = edges.filter((e) => e.type !== "has-tag");
     }
 
     const nodeSet = new Set(nodes.map((n) => n.id));

@@ -178,62 +178,108 @@ export function buildGraphFromVault(
     }
   }
 
-  // Build inheritance edges from nested tag hierarchy
-  if (settings.ontology.useTagHierarchy) {
-    const tagEdges = buildTagHierarchyEdges(nodes, edgeSet);
-    edges.push(...tagEdges);
-  }
+  // Build tag virtual nodes + tag hierarchy edges + note-to-tag edges
+  const tagResult = buildTagNodesAndEdges(nodes, nodeMap, edgeSet, settings);
+  nodes.push(...tagResult.nodes);
+  for (const tn of tagResult.nodes) nodeMap.set(tn.id, tn);
+  edges.push(...tagResult.edges);
 
   return { nodes, edges };
 }
 
 /**
- * Build inheritance edges from nested tags.
- * e.g. nodes tagged #entity/character inherit from nodes tagged #entity.
+ * Build virtual tag nodes, tag-to-tag inheritance edges (from nested tags),
+ * and note-to-tag (has-tag) edges.
+ *
+ * Tag nodes get id "tag:<tagName>" and isTag=true.
+ * Nested tags like "entity/character" produce:
+ *   tag:entity/character  ──inheritance──→  tag:entity
+ * Notes produce:
+ *   note.md  ──has-tag──→  tag:entity
  */
-function buildTagHierarchyEdges(
-  nodes: GraphNode[],
-  edgeSet: Set<string>
-): GraphEdge[] {
+function buildTagNodesAndEdges(
+  fileNodes: GraphNode[],
+  nodeMap: Map<string, GraphNode>,
+  edgeSet: Set<string>,
+  settings: GraphViewsSettings
+): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
 
-  const tagToNodes = new Map<string, string[]>();
-  for (const node of nodes) {
+  // Collect all unique tags across all file nodes
+  const allTags = new Set<string>();
+  for (const node of fileNodes) {
     if (!node.tags) continue;
     for (const tag of node.tags) {
-      if (!tagToNodes.has(tag)) tagToNodes.set(tag, []);
-      tagToNodes.get(tag)!.push(node.id);
-    }
-  }
-
-  for (const [tag] of tagToNodes) {
-    const slashIdx = tag.lastIndexOf("/");
-    if (slashIdx === -1) continue;
-    const parentTag = tag.substring(0, slashIdx);
-    if (!tagToNodes.has(parentTag)) continue;
-
-    const childNodes = tagToNodes.get(tag)!;
-    const parentNodes = tagToNodes.get(parentTag)!;
-
-    for (const childId of childNodes) {
-      for (const parentId of parentNodes) {
-        if (childId === parentId) continue;
-        const edgeId = `tag-inherit:${childId}->${parentId}`;
-        if (edgeSet.has(edgeId)) continue;
-        edgeSet.add(edgeId);
-
-        edges.push({
-          id: edgeId,
-          source: childId,
-          target: parentId,
-          type: "inheritance",
-          relation: `${tag} extends ${parentTag}`,
-        });
+      allTags.add(tag);
+      // Also add ancestor tags for hierarchy completeness
+      // e.g. "a/b/c" → also ensure "a/b" and "a" exist
+      const parts = tag.split("/");
+      for (let i = 1; i < parts.length; i++) {
+        allTags.add(parts.slice(0, i).join("/"));
       }
     }
   }
 
-  return edges;
+  // Create virtual tag nodes
+  for (const tag of allTags) {
+    const tagId = `tag:${tag}`;
+    if (nodeMap.has(tagId)) continue;
+    const tagNode: GraphNode = {
+      id: tagId,
+      label: `#${tag}`,
+      x: Math.random() * 800 - 400,
+      y: Math.random() * 600 - 300,
+      vx: 0,
+      vy: 0,
+      isTag: true,
+      tags: [tag],
+    };
+    nodes.push(tagNode);
+    nodeMap.set(tagId, tagNode);
+  }
+
+  // Tag-to-tag inheritance from nested hierarchy (B方式)
+  if (settings.ontology.useTagHierarchy) {
+    for (const tag of allTags) {
+      const slashIdx = tag.lastIndexOf("/");
+      if (slashIdx === -1) continue;
+      const parentTag = tag.substring(0, slashIdx);
+      if (!allTags.has(parentTag)) continue;
+
+      const edgeId = `tag-hierarchy:tag:${tag}->tag:${parentTag}`;
+      if (edgeSet.has(edgeId)) continue;
+      edgeSet.add(edgeId);
+
+      edges.push({
+        id: edgeId,
+        source: `tag:${tag}`,
+        target: `tag:${parentTag}`,
+        type: "inheritance",
+        relation: `#${tag} extends #${parentTag}`,
+      });
+    }
+  }
+
+  // Note-to-tag edges (has-tag)
+  for (const node of fileNodes) {
+    if (!node.tags) continue;
+    for (const tag of node.tags) {
+      const tagId = `tag:${tag}`;
+      const edgeId = `has-tag:${node.id}->${tagId}`;
+      if (edgeSet.has(edgeId)) continue;
+      edgeSet.add(edgeId);
+
+      edges.push({
+        id: edgeId,
+        source: node.id,
+        target: tagId,
+        type: "has-tag",
+      });
+    }
+  }
+
+  return { nodes, edges };
 }
 
 export function buildSunburstData(

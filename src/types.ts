@@ -10,6 +10,8 @@ export interface GraphNode {
   category?: string;
   tags?: string[];
   filePath?: string;
+  /** True for virtual tag nodes (not backed by a file) */
+  isTag?: boolean;
 }
 
 export interface GraphEdge {
@@ -35,7 +37,8 @@ export type EdgeType =
   | "hierarchy"
   | "semantic"
   | "inheritance"
-  | "aggregation";
+  | "aggregation"
+  | "has-tag";
 
 export type LayoutType =
   | "force"
