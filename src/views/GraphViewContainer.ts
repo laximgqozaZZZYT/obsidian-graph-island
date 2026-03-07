@@ -768,6 +768,13 @@ export class GraphViewContainer extends ItemView {
    * - inheritance: hollow triangle at target (UML generalization)
    * - aggregation: hollow diamond at source (UML aggregation)
    */
+  /** Get the background color as a hex number for "hollow" marker fills */
+  private getBgColor(): number {
+    const el = this.canvasWrap ?? this.containerEl;
+    const bg = getComputedStyle(el).getPropertyValue("--background-primary").trim();
+    return bg ? cssColorToHex(bg) : 0x1e1e2e;
+  }
+
   private drawEdgeMarker(
     g: PIXI.Graphics,
     src: { x: number; y: number },
@@ -786,13 +793,14 @@ export class GraphViewContainer extends ItemView {
     const px = -uy;
     const py = ux;
     const sz = 8;
+    const bgColor = this.getBgColor();
 
     if (type === "inheritance") {
       // Hollow triangle at target
       const bx = tgt.x - ux * sz;
       const by = tgt.y - uy * sz;
       g.lineStyle(1.5, color, alpha);
-      g.beginFill(0x1e1e2e, alpha * 0.8);
+      g.beginFill(bgColor, alpha * 0.9);
       g.moveTo(tgt.x, tgt.y);
       g.lineTo(bx + px * sz * 0.5, by + py * sz * 0.5);
       g.lineTo(bx - px * sz * 0.5, by - py * sz * 0.5);
@@ -805,7 +813,7 @@ export class GraphViewContainer extends ItemView {
       const fx = src.x + ux * sz * 2;
       const fy = src.y + uy * sz * 2;
       g.lineStyle(1.5, color, alpha);
-      g.beginFill(0x1e1e2e, alpha * 0.8);
+      g.beginFill(bgColor, alpha * 0.9);
       g.moveTo(src.x, src.y);
       g.lineTo(mx + px * sz * 0.4, my + py * sz * 0.4);
       g.lineTo(fx, fy);
@@ -1050,6 +1058,23 @@ export class GraphViewContainer extends ItemView {
       });
     }
 
+    // Ontology edge legend
+    this.buildSection(p, "エッジ凡例", (body) => {
+      const items: { label: string; color: string; shape: string }[] = [
+        { label: "継承 (is-a)", color: "#9ca3af", shape: "▷" },
+        { label: "集約 (has-a)", color: "#60a5fa", shape: "◇" },
+        { label: "has-tag", color: "#a78bfa", shape: "─" },
+        { label: "通常リンク", color: "#555555", shape: "─" },
+      ];
+      for (const item of items) {
+        const row = body.createDiv({ cls: "setting-item" });
+        const marker = row.createEl("span");
+        marker.style.cssText = `display:inline-flex;align-items:center;justify-content:center;width:20px;height:14px;color:${item.color};font-size:14px;margin-right:6px;`;
+        marker.textContent = item.shape;
+        row.createEl("span", { text: item.label, cls: "setting-item-name" });
+      }
+    });
+
     this.buildSection(p, "力の強さ", (body) => {
       this.addSlider(body, "中心力", 0, 0.2, 0.005, this.panel.centerForce, (v) => { this.panel.centerForce = v; this.updateForces(); });
       this.addSlider(body, "反発力", 0, 1000, 10, this.panel.repelForce, (v) => { this.panel.repelForce = v; this.updateForces(); });
@@ -1266,8 +1291,16 @@ export class GraphViewContainer extends ItemView {
         .force("center", d3.forceCenter(cx, cy).strength(this.panel.centerForce))
         .force("link", d3.forceLink<GraphNode, GraphEdge>(gd.edges)
           .id((d) => d.id)
-          .distance(this.panel.linkDistance)
-          .strength(this.panel.linkForce))
+          .distance((e) => {
+            if (e.type === "inheritance" || e.type === "aggregation") return this.panel.linkDistance * 0.5;
+            if (e.type === "has-tag") return this.panel.linkDistance * 0.7;
+            return this.panel.linkDistance;
+          })
+          .strength((e) => {
+            if (e.type === "inheritance" || e.type === "aggregation") return this.panel.linkForce * 3;
+            if (e.type === "has-tag") return this.panel.linkForce * 1.5;
+            return this.panel.linkForce;
+          }))
         .alphaDecay(0.05)
         .velocityDecay(0.4)
         .on("tick", () => {
@@ -1340,7 +1373,17 @@ export class GraphViewContainer extends ItemView {
       .force("center", d3.forceCenter(W / 2, H / 2).strength(this.panel.centerForce));
     const linkForce = this.simulation.force("link") as d3.ForceLink<GraphNode, GraphEdge> | undefined;
     if (linkForce) {
-      linkForce.distance(this.panel.linkDistance).strength(this.panel.linkForce);
+      linkForce
+        .distance((e: GraphEdge) => {
+          if (e.type === "inheritance" || e.type === "aggregation") return this.panel.linkDistance * 0.5;
+          if (e.type === "has-tag") return this.panel.linkDistance * 0.7;
+          return this.panel.linkDistance;
+        })
+        .strength((e: GraphEdge) => {
+          if (e.type === "inheritance" || e.type === "aggregation") return this.panel.linkForce * 3;
+          if (e.type === "has-tag") return this.panel.linkForce * 1.5;
+          return this.panel.linkForce;
+        });
     }
     this.simulation.alpha(0.5).restart();
     this.wakeRenderLoop();

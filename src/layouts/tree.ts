@@ -21,18 +21,40 @@ export function applyTreeLayout(
 
   const nodesMap = new Map(graph.nodes.map((n) => [n.id, { ...n }]));
 
-  // Build adjacency
+  // Build adjacency — prioritize inheritance/aggregation edges for tree structure
   const undirected = new Map<string, Set<string>>();
   const directed = new Map<string, string[]>();
+  // Track which edges are structural (inheritance/aggregation) for root selection
+  const structuralChildren = new Map<string, string[]>();
 
   for (const n of graph.nodes) {
     undirected.set(n.id, new Set());
   }
-  for (const e of graph.edges) {
+
+  // Sort edges: inheritance/aggregation first so they define primary tree shape
+  const sortedEdges = [...graph.edges].sort((a, b) => {
+    const aStructural = a.type === "inheritance" || a.type === "aggregation" ? 0 : 1;
+    const bStructural = b.type === "inheritance" || b.type === "aggregation" ? 0 : 1;
+    return aStructural - bStructural;
+  });
+
+  for (const e of sortedEdges) {
     undirected.get(e.source)?.add(e.target);
     undirected.get(e.target)?.add(e.source);
     if (!directed.has(e.source)) directed.set(e.source, []);
     directed.get(e.source)!.push(e.target);
+
+    if (e.type === "inheritance" || e.type === "aggregation") {
+      // For inheritance: source extends target, so target is parent
+      // For aggregation: source contains target, so source is parent
+      if (e.type === "inheritance") {
+        if (!structuralChildren.has(e.target)) structuralChildren.set(e.target, []);
+        structuralChildren.get(e.target)!.push(e.source);
+      } else {
+        if (!structuralChildren.has(e.source)) structuralChildren.set(e.source, []);
+        structuralChildren.get(e.source)!.push(e.target);
+      }
+    }
   }
 
   // Connected components
@@ -68,6 +90,19 @@ export function applyTreeLayout(
     let rootId: string | undefined;
     if (options?.rootId && nodeSet.has(options.rootId)) {
       rootId = options.rootId;
+    }
+    if (!rootId) {
+      // Prefer nodes that are structural parents (inheritance targets / aggregation sources)
+      const structuralRoots = nodeIds.filter(
+        (id) => (structuralChildren.get(id)?.length ?? 0) > 0
+          && !nodeIds.some((other) => structuralChildren.get(other)?.includes(id))
+      );
+      if (structuralRoots.length > 0) {
+        structuralRoots.sort(
+          (a, b) => (structuralChildren.get(b)?.length || 0) - (structuralChildren.get(a)?.length || 0)
+        );
+        rootId = structuralRoots[0];
+      }
     }
     if (!rootId) {
       const candidates = nodeIds.filter((id) => (inDegrees.get(id) || 0) === 0);
