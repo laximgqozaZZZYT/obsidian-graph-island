@@ -33,7 +33,9 @@ export type EdgeType =
   | "category"
   | "reference"
   | "hierarchy"
-  | "semantic";
+  | "semantic"
+  | "inheritance"
+  | "aggregation";
 
 export type LayoutType =
   | "force"
@@ -103,6 +105,24 @@ export interface ConcentricLayoutResult {
   shells: ShellInfo[];
 }
 
+export interface OntologyConfig {
+  /** Frontmatter/inline field names treated as inheritance (is-a) */
+  inheritanceFields: string[];
+  /** Frontmatter/inline field names treated as aggregation (has-a) */
+  aggregationFields: string[];
+  /** Derive inheritance edges from nested tags like #a/b/c */
+  useTagHierarchy: boolean;
+  /** Map arbitrary relation names to ontology types (ExcaliBrain compat) */
+  customMappings: Record<string, "inheritance" | "aggregation">;
+}
+
+export const DEFAULT_ONTOLOGY: OntologyConfig = {
+  inheritanceFields: ["parent", "extends", "up"],
+  aggregationFields: ["contains", "parts", "has"],
+  useTagHierarchy: true,
+  customMappings: {},
+};
+
 export interface GraphViewsSettings {
   defaultLayout: LayoutType;
   nodeSize: number;
@@ -111,6 +131,7 @@ export interface GraphViewsSettings {
   edgeFields: string[];
   colorField: string;
   groupField: string;
+  ontology: OntologyConfig;
 }
 
 export const DEFAULT_SETTINGS: GraphViewsSettings = {
@@ -121,6 +142,7 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
   edgeFields: ["tags", "category"],
   colorField: "category",
   groupField: "category",
+  ontology: DEFAULT_ONTOLOGY,
 };
 
 export const DEFAULT_COLORS = [

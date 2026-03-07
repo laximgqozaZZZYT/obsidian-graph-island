@@ -1,6 +1,24 @@
 import { App, TFile } from "obsidian";
-import type { GraphData, GraphNode, GraphEdge, GraphViewsSettings, SunburstData } from "../types";
+import type { GraphData, GraphNode, GraphEdge, GraphViewsSettings, SunburstData, OntologyConfig } from "../types";
 import { DEFAULT_COLORS } from "../types";
+
+/**
+ * Classify a field/relation name into an ontology edge type.
+ * Handles both raw names ("parent") and @-prefixed names ("@Parent").
+ */
+export function classifyRelation(
+  name: string,
+  onto: OntologyConfig
+): "inheritance" | "aggregation" | undefined {
+  const clean = name.startsWith("@") ? name.slice(1).trim() : name.trim();
+  const lower = clean.toLowerCase();
+
+  if (onto.inheritanceFields.some(f => f.toLowerCase() === lower)) return "inheritance";
+  if (onto.aggregationFields.some(f => f.toLowerCase() === lower)) return "aggregation";
+  if (onto.customMappings[clean]) return onto.customMappings[clean];
+
+  return undefined;
+}
 
 export function buildGraphFromVault(
   app: App,
@@ -51,14 +69,14 @@ export function buildGraphFromVault(
       }
     }
 
-    // --- Inline Dataview fields (e.g. Author::[[Jesus]]) ---
-    const inlineRelations = new Map<string, string>(); // targetPath → relation
+    // --- Inline Dataview fields (e.g. Author::[[Jesus]], @Parent::[[Entity]]) ---
+    const inlineRelations = new Map<string, InlineFieldResult>();
     const content = app.vault.cachedRead(file);
     if (content instanceof Promise) {
       // cachedRead may return string synchronously if cached
     } else {
       parseInlineFields(content as unknown as string, file.path, app).forEach(
-        (rel, tPath) => inlineRelations.set(tPath, rel)
+        (result, tPath) => inlineRelations.set(tPath, result)
       );
     }
 
@@ -75,15 +93,25 @@ export function buildGraphFromVault(
         if (edgeSet.has(edgeId)) continue;
         edgeSet.add(edgeId);
 
-        const relation =
-          fmRelations.get(targetFile.path) ??
-          inlineRelations.get(targetFile.path);
+        const inlineResult = inlineRelations.get(targetFile.path);
+        const fmRel = fmRelations.get(targetFile.path);
+        const relation = fmRel ?? inlineResult?.relation;
+        const isOntologyInline = inlineResult?.isOntology ?? false;
+
+        let edgeType: GraphEdge["type"] = relation ? "semantic" : "link";
+        if (relation) {
+          const ontoType = classifyRelation(
+            isOntologyInline ? `@${relation}` : relation,
+            settings.ontology
+          );
+          if (ontoType) edgeType = ontoType;
+        }
 
         edges.push({
           id: edgeId,
           source: file.path,
           target: targetFile.path,
-          type: relation ? "semantic" : "link",
+          type: edgeType,
           relation,
         });
       }
@@ -95,11 +123,14 @@ export function buildGraphFromVault(
       const edgeId = `${file.path}->${targetPath}`;
       if (edgeSet.has(edgeId)) continue;
       edgeSet.add(edgeId);
+
+      const ontoType = classifyRelation(relation, settings.ontology);
+
       edges.push({
         id: edgeId,
         source: file.path,
         target: targetPath,
-        type: "semantic",
+        type: ontoType ?? "semantic",
         relation,
       });
     }
@@ -147,7 +178,62 @@ export function buildGraphFromVault(
     }
   }
 
+  // Build inheritance edges from nested tag hierarchy
+  if (settings.ontology.useTagHierarchy) {
+    const tagEdges = buildTagHierarchyEdges(nodes, edgeSet);
+    edges.push(...tagEdges);
+  }
+
   return { nodes, edges };
+}
+
+/**
+ * Build inheritance edges from nested tags.
+ * e.g. nodes tagged #entity/character inherit from nodes tagged #entity.
+ */
+function buildTagHierarchyEdges(
+  nodes: GraphNode[],
+  edgeSet: Set<string>
+): GraphEdge[] {
+  const edges: GraphEdge[] = [];
+
+  const tagToNodes = new Map<string, string[]>();
+  for (const node of nodes) {
+    if (!node.tags) continue;
+    for (const tag of node.tags) {
+      if (!tagToNodes.has(tag)) tagToNodes.set(tag, []);
+      tagToNodes.get(tag)!.push(node.id);
+    }
+  }
+
+  for (const [tag] of tagToNodes) {
+    const slashIdx = tag.lastIndexOf("/");
+    if (slashIdx === -1) continue;
+    const parentTag = tag.substring(0, slashIdx);
+    if (!tagToNodes.has(parentTag)) continue;
+
+    const childNodes = tagToNodes.get(tag)!;
+    const parentNodes = tagToNodes.get(parentTag)!;
+
+    for (const childId of childNodes) {
+      for (const parentId of parentNodes) {
+        if (childId === parentId) continue;
+        const edgeId = `tag-inherit:${childId}->${parentId}`;
+        if (edgeSet.has(edgeId)) continue;
+        edgeSet.add(edgeId);
+
+        edges.push({
+          id: edgeId,
+          source: childId,
+          target: parentId,
+          type: "inheritance",
+          relation: `${tag} extends ${parentTag}`,
+        });
+      }
+    }
+  }
+
+  return edges;
 }
 
 export function buildSunburstData(
@@ -198,22 +284,29 @@ export function assignNodeColors(
   return colorMap;
 }
 
+interface InlineFieldResult {
+  relation: string;
+  isOntology: boolean;
+}
+
 /**
- * Parse inline Dataview fields like `Author::[[Jesus]]` from file content.
- * Returns Map<targetPath, relationName>.
+ * Parse inline Dataview fields like `Author::[[Jesus]]` and
+ * ontology fields like `@Parent::[[Entity]]` from file content.
  */
 function parseInlineFields(
   content: string,
   sourcePath: string,
   app: App
-): Map<string, string> {
-  const result = new Map<string, string>();
-  const fieldRe = /^([\w][\w\s-]*)::[ \t]*(.+)$/gm;
+): Map<string, InlineFieldResult> {
+  const result = new Map<string, InlineFieldResult>();
+  const fieldRe = /^(@?[\w][\w\s-]*)::\s*(.+)$/gm;
   const linkRe = /\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
   let m: RegExpExecArray | null;
 
   while ((m = fieldRe.exec(content)) !== null) {
-    const relation = m[1].trim();
+    const rawName = m[1].trim();
+    const isOntology = rawName.startsWith("@");
+    const relation = isOntology ? rawName.slice(1).trim() : rawName;
     const value = m[2];
     let lm: RegExpExecArray | null;
     while ((lm = linkRe.exec(value)) !== null) {
@@ -222,7 +315,7 @@ function parseInlineFields(
         sourcePath
       );
       if (targetFile) {
-        result.set(targetFile.path, relation);
+        result.set(targetFile.path, { relation, isOntology });
       }
     }
   }

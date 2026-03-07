@@ -102,5 +102,58 @@ export class GraphViewsSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    // --- Ontology section ---
+    containerEl.createEl("h3", { text: "Ontology" });
+
+    new Setting(containerEl)
+      .setName("Inheritance fields")
+      .setDesc(
+        "Frontmatter field names treated as inheritance (is-a). Also matches @-prefixed inline fields (e.g. @Parent::). Comma-separated."
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("parent, extends, up")
+          .setValue(this.plugin.settings.ontology.inheritanceFields.join(", "))
+          .onChange(async (value) => {
+            this.plugin.settings.ontology.inheritanceFields = value
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean);
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Aggregation fields")
+      .setDesc(
+        "Frontmatter field names treated as aggregation (has-a). Also matches @-prefixed inline fields (e.g. @Contains::). Comma-separated."
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("contains, parts, has")
+          .setValue(this.plugin.settings.ontology.aggregationFields.join(", "))
+          .onChange(async (value) => {
+            this.plugin.settings.ontology.aggregationFields = value
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean);
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Tag hierarchy as inheritance")
+      .setDesc(
+        "Automatically create inheritance edges from nested tags (e.g. #entity/character)."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.ontology.useTagHierarchy)
+          .onChange(async (value) => {
+            this.plugin.settings.ontology.useTagHierarchy = value;
+            await this.plugin.saveSettings();
+          })
+      );
   }
 }

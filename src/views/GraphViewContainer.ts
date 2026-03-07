@@ -39,6 +39,8 @@ interface PanelState {
   searchQuery: string;
   colorEdgesByRelation: boolean;
   colorNodesByCategory: boolean;
+  showInheritance: boolean;
+  showAggregation: boolean;
 }
 
 const DEFAULT_PANEL: PanelState = {
@@ -62,6 +64,8 @@ const DEFAULT_PANEL: PanelState = {
   searchQuery: "",
   colorEdgesByRelation: true,
   colorNodesByCategory: true,
+  showInheritance: true,
+  showAggregation: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -681,34 +685,53 @@ export class GraphViewContainer extends ItemView {
     const hId = this.highlightedNodeId;
     const defaultColor = 0x555555;
     const highlightColor = 0x888888;
+    const inheritanceColor = 0x9ca3af;
+    const aggregationColor = 0x60a5fa;
     const thickness = this.panel.linkThickness;
     const isArc = this.currentLayout === "arc";
     const useRelColor = this.panel.colorEdgesByRelation;
 
     for (const e of this.graphEdges) {
+      if (e.type === "inheritance" && !this.panel.showInheritance) continue;
+      if (e.type === "aggregation" && !this.panel.showAggregation) continue;
+
       const src = typeof e.source === "object" ? (e.source as any) : this.pixiNodes.get(e.source)?.data;
       const tgt = typeof e.target === "object" ? (e.target as any) : this.pixiNodes.get(e.target)?.data;
       if (!src || !tgt) continue;
 
-      // Determine edge color from relation
+      // Determine color
       let lineColor = defaultColor;
-      if (useRelColor && e.relation) {
+      if (e.type === "inheritance") {
+        lineColor = inheritanceColor;
+      } else if (e.type === "aggregation") {
+        lineColor = aggregationColor;
+      } else if (useRelColor && e.relation) {
         const css = this.relationColors.get(e.relation);
         if (css) lineColor = cssColorToHex(css);
       }
+
+      // Determine alpha & thickness
+      const isOnto = e.type === "inheritance" || e.type === "aggregation";
+      let alpha = isOnto ? 0.6 : 0.4;
+      let lineThick = thickness;
+
+      if (!isOnto && e.relation && useRelColor) alpha = 0.7;
 
       if (hId) {
         const sid = src.id ?? e.source;
         const tid = tgt.id ?? e.target;
         if (sid === hId || tid === hId) {
-          g.lineStyle(2, e.relation && useRelColor ? lineColor : highlightColor, 1);
+          lineThick = 2;
+          alpha = 1;
+          if (!isOnto && !e.relation) lineColor = highlightColor;
         } else {
-          g.lineStyle(thickness, lineColor, 0.04);
+          alpha = 0.04;
         }
-      } else {
-        g.lineStyle(thickness, lineColor, e.relation && useRelColor ? 0.7 : 0.4);
       }
 
+      g.lineStyle(lineThick, lineColor, alpha);
+
+      // Draw the line
       if (isArc) {
         const mx = (src.x + tgt.x) / 2;
         const minY = Math.min(src.y, tgt.y);
@@ -720,6 +743,63 @@ export class GraphViewContainer extends ItemView {
         g.moveTo(src.x, src.y);
         g.lineTo(tgt.x, tgt.y);
       }
+
+      // Draw markers for ontology edges
+      if (isOnto) {
+        this.drawEdgeMarker(g, src, tgt, e.type as "inheritance" | "aggregation", lineColor, alpha);
+      }
+    }
+  }
+
+  /**
+   * Draw a marker at the end of an ontology edge.
+   * - inheritance: hollow triangle at target (UML generalization)
+   * - aggregation: hollow diamond at source (UML aggregation)
+   */
+  private drawEdgeMarker(
+    g: PIXI.Graphics,
+    src: { x: number; y: number },
+    tgt: { x: number; y: number },
+    type: "inheritance" | "aggregation",
+    color: number,
+    alpha: number
+  ) {
+    const dx = tgt.x - src.x;
+    const dy = tgt.y - src.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1) return;
+
+    const ux = dx / len;
+    const uy = dy / len;
+    const px = -uy;
+    const py = ux;
+    const sz = 8;
+
+    if (type === "inheritance") {
+      // Hollow triangle at target
+      const bx = tgt.x - ux * sz;
+      const by = tgt.y - uy * sz;
+      g.lineStyle(1.5, color, alpha);
+      g.beginFill(0x1e1e2e, alpha * 0.8);
+      g.moveTo(tgt.x, tgt.y);
+      g.lineTo(bx + px * sz * 0.5, by + py * sz * 0.5);
+      g.lineTo(bx - px * sz * 0.5, by - py * sz * 0.5);
+      g.closePath();
+      g.endFill();
+    } else {
+      // Hollow diamond at source
+      const mx = src.x + ux * sz;
+      const my = src.y + uy * sz;
+      const fx = src.x + ux * sz * 2;
+      const fy = src.y + uy * sz * 2;
+      g.lineStyle(1.5, color, alpha);
+      g.beginFill(0x1e1e2e, alpha * 0.8);
+      g.moveTo(src.x, src.y);
+      g.lineTo(mx + px * sz * 0.4, my + py * sz * 0.4);
+      g.lineTo(fx, fy);
+      g.lineTo(mx - px * sz * 0.4, my - py * sz * 0.4);
+      g.closePath();
+      g.endFill();
     }
   }
 
@@ -916,6 +996,8 @@ export class GraphViewContainer extends ItemView {
       this.addToggle(body, "添付書類", this.panel.showAttachments, (v) => { this.panel.showAttachments = v; this.rawData = null; this.doRender(); });
       this.addToggle(body, "存在するファイルのみ表示", this.panel.existingOnly, (v) => { this.panel.existingOnly = v; this.rawData = null; this.doRender(); });
       this.addToggle(body, "オーファン", this.panel.showOrphans, (v) => { this.panel.showOrphans = v; this.rawData = null; this.doRender(); });
+      this.addToggle(body, "継承エッジ (is-a)", this.panel.showInheritance, (v) => { this.panel.showInheritance = v; this.markDirty(); });
+      this.addToggle(body, "集約エッジ (has-a)", this.panel.showAggregation, (v) => { this.panel.showAggregation = v; this.markDirty(); });
     });
 
     this.buildSection(p, "グループ", (body) => {
