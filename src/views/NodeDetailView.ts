@@ -12,7 +12,7 @@ export class NodeDetailView extends ItemView {
 
   getViewType() { return VIEW_TYPE_NODE_DETAIL; }
   getDisplayText() { return "Graph Node Detail"; }
-  getIcon() { return "info"; }
+  getIcon() { return "git-fork"; }
 
   async onOpen() {
     this.contentEl.empty();

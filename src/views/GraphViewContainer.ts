@@ -22,7 +22,7 @@ import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type Enclosure
 export const VIEW_TYPE_GRAPH = "graph-view";
 
 const TICK_SKIP = 4;
-const EDGE_REDRAW_SKIP = 3; // only redraw edges every Nth dirty frame
+const EDGE_REDRAW_SKIP = 1; // redraw edges every dirty frame so they track node movement
 
 // ---------------------------------------------------------------------------
 // PIXI node wrapper
