@@ -63,8 +63,6 @@ export function buildClusterForce(
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
 ): ((alpha: number) => void) | null {
-  if (cfg.groupBy === "none") return null;
-
   let groups = partitionNodes(nodes, cfg.groupBy, degrees);
   if (groups.size === 0) return null;
 

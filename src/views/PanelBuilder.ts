@@ -306,8 +306,9 @@ export function buildPanel(
     });
   }
 
-  const clusterActive = panel.clusterGroupBy !== "none";
-  if (!clusterActive) {
+  // Force parameters are only relevant when NOT in force layout
+  // (cluster arrangement always active in force layout, suppresses these forces)
+  if (ctx.currentLayout !== "force") {
     buildSection(panelEl, "力の強さ", (body) => {
       addSlider(body, "中心力", 0, 0.2, 0.005, panel.centerForce, (v) => { panel.centerForce = v; cb.updateForces(); });
       addSlider(body, "反発力", 0, 1000, 10, panel.repelForce, (v) => { panel.repelForce = v; cb.updateForces(); });

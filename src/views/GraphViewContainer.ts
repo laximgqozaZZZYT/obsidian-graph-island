@@ -1706,27 +1706,9 @@ export class GraphViewContainer extends ItemView {
   private applyClusterForce() {
     if (!this.simulation) return;
     const { clusterGroupBy, clusterArrangement, clusterNodeSpacing, clusterGroupScale, clusterGroupSpacing } = this.panel;
-    const active = clusterGroupBy !== "none";
 
-    if (!active) {
-      this.simulation.force("clusterArrangement", null);
-      // Restore all forces when cluster is off
-      this.simulation.force("charge", forceManyBody<GraphNode>().strength(-this.panel.repelForce));
-      const rect = this.canvasWrap?.getBoundingClientRect();
-      const W = rect?.width || 600;
-      const H = rect?.height || 400;
-      this.simulation.force("center", forceCenter<GraphNode>(W / 2, H / 2).strength(this.panel.centerForce));
-      this.simulation.force("link", forceLink<GraphNode, GraphEdge>(this.graphEdges)
-        .id((d: GraphNode) => d.id)
-        .distance(() => this.panel.linkDistance)
-        .strength(() => this.panel.linkForce));
-      // Restore directionalGravity and enclosureRepulsion
-      this.applyDirectionalGravityForce();
-      this.applyEnclosureRepulsionForce();
-      return;
-    }
-
-    // When cluster is active, suppress all competing forces:
+    // Cluster arrangement is always active (no "free" option).
+    // Suppress competing forces:
     // - Charge: minimal repulsion just to prevent exact overlaps
     // - Center: removed (group positions already centered)
     // - Link: removed (would pull arranged nodes out of position)

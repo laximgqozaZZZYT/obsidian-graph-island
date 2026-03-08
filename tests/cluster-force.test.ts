@@ -58,10 +58,10 @@ function centroid(nodes: GraphNode[]): { x: number; y: number } {
 // ---------------------------------------------------------------------------
 
 describe("buildClusterForce", () => {
-  it("returns null when groupBy is 'none'", () => {
+  it("returns a force function even when groupBy is 'none' (all nodes in one group)", () => {
     const nodes = [makeNode("a")];
     const result = buildClusterForce(nodes, [], new Map(), baseCfg({ groupBy: "none" }));
-    expect(result).toBeNull();
+    expect(typeof result).toBe("function");
   });
 
   it("returns a force function for valid config", () => {
