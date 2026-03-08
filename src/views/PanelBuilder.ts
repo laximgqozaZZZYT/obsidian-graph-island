@@ -43,7 +43,7 @@ export const DEFAULT_PANEL: PanelState = {
   showArrows: false,
   textFadeThreshold: 0.5,
   nodeSize: 6,
-  linkThickness: 1,
+  linkThickness: 1.5,
   centerForce: 0.03,
   repelForce: 200,
   linkForce: 0.01,
@@ -200,7 +200,7 @@ export function buildPanel(
     addToggle(body, "エッジ色（属性別）", panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); });
     addSlider(body, "テキストフェードの閾値", 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); });
     addSlider(body, "ノードの大きさ", 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
-    addSlider(body, "リンクの太さ", 0.5, 5, 0.5, panel.linkThickness, (v) => { panel.linkThickness = v; cb.markDirty(); });
+    addSlider(body, "リンクの太さ", 1, 5, 0.5, panel.linkThickness, (v) => { panel.linkThickness = v; cb.markDirty(); });
   });
 
   buildSection(panelEl, "方向性重力", (body) => {

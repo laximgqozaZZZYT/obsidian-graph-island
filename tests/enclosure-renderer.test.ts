@@ -36,6 +36,8 @@ function baseCfg(overrides?: Partial<EnclosureConfig>): EnclosureConfig {
     tagRelPairsCache: new Set(),
     resolvePos: () => undefined,
     worldScale: 1,
+    totalNodeCount: 100,
+    enclosureMinRatio: 0,
     ...overrides,
   };
 }
@@ -158,6 +160,49 @@ describe("drawEnclosures", () => {
     // No lineStyle calls beyond the initial clear
     const lineCalls = calls.filter((c) => c.method === "lineStyle");
     expect(lineCalls.length).toBe(0);
+  });
+
+  it("hides enclosures below enclosureMinRatio threshold", () => {
+    const { g, calls } = createMockGraphics();
+    // 3 nodes in a group, 100 total nodes, threshold 0.05 → need 5 nodes minimum
+    const membership = new Map([["small", new Set(["n1", "n2", "n3"])]]);
+    const positions: Record<string, { x: number; y: number }> = {
+      n1: { x: 0, y: 0 }, n2: { x: 50, y: 0 }, n3: { x: 25, y: 40 },
+    };
+    const cfg = baseCfg({
+      tagMembership: membership,
+      resolvePos: (id) => positions[id],
+      totalNodeCount: 100,
+      enclosureMinRatio: 0.05,
+    });
+
+    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+
+    // Group has 3 nodes but needs 5 → no drawing
+    const lineCalls = calls.filter((c) => c.method === "lineStyle");
+    expect(lineCalls.length).toBe(0);
+  });
+
+  it("shows enclosures meeting enclosureMinRatio threshold", () => {
+    const { g, calls } = createMockGraphics();
+    // 6 nodes in a group, 100 total, threshold 0.05 → need 5 → shown
+    const ids = ["n1", "n2", "n3", "n4", "n5", "n6"];
+    const membership = new Map([["big", new Set(ids)]]);
+    const positions: Record<string, { x: number; y: number }> = {
+      n1: { x: 0, y: 0 }, n2: { x: 50, y: 0 }, n3: { x: 100, y: 0 },
+      n4: { x: 0, y: 50 }, n5: { x: 50, y: 50 }, n6: { x: 100, y: 50 },
+    };
+    const cfg = baseCfg({
+      tagMembership: membership,
+      resolvePos: (id) => positions[id],
+      totalNodeCount: 100,
+      enclosureMinRatio: 0.05,
+    });
+
+    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+
+    const lineCalls = calls.filter((c) => c.method === "lineStyle");
+    expect(lineCalls.length).toBeGreaterThan(0);
   });
 
   it("reuses cached overlap counts within 30 frames", () => {

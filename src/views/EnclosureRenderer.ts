@@ -1,6 +1,6 @@
 import * as PIXI from "pixi.js";
 import type { Pt } from "../utils/geometry";
-import { convexHull, expandHull } from "../utils/geometry";
+import { convexHull } from "../utils/geometry";
 import { cssColorToHex } from "../utils/graph-helpers";
 import { DEFAULT_COLORS } from "../types";
 
@@ -16,6 +16,10 @@ export interface EnclosureConfig {
   resolvePos: (id: string) => (Pt & { radius?: number }) | undefined;
   /** Current world scale (zoom level). Used to adapt rendering style. */
   worldScale: number;
+  /** Total number of nodes in the graph. Used with enclosureMinRatio. */
+  totalNodeCount: number;
+  /** Minimum fraction (0–1) of totalNodeCount a group must have to show an enclosure. */
+  enclosureMinRatio: number;
 }
 
 /**
@@ -82,9 +86,12 @@ export function drawEnclosures(
     : 0;
 
   // Phase 1: Collect node positions + radii per tag, compute expanded hull
+  const minCount = Math.max(1, Math.floor(cfg.totalNodeCount * cfg.enclosureMinRatio));
   const enclosures: EncData[] = [];
 
   for (const [tag, memberIds] of cfg.tagMembership) {
+    if (memberIds.size < minCount) continue;
+
     const pts: (Pt & { radius: number })[] = [];
     for (const id of memberIds) {
       const p = cfg.resolvePos(id);
@@ -96,8 +103,16 @@ export function drawEnclosures(
     const cssColor = cfg.nodeColorMap.get(colorKey) || DEFAULT_COLORS[0];
     const hex = cssColorToHex(cssColor);
 
-    const maxR = Math.max(...pts.map((p) => p.radius));
-    const pad = maxR + OUTLINE_PAD;
+    // Generate boundary sample points around each node's circle
+    // so the convex hull fully contains every node regardless of radius.
+    const hullInput: Pt[] = [];
+    for (const p of pts) {
+      const r = p.radius + OUTLINE_PAD;
+      for (let k = 0; k < 8; k++) {
+        const angle = (k / 8) * Math.PI * 2;
+        hullInput.push({ x: p.x + Math.cos(angle) * r, y: p.y + Math.sin(angle) * r });
+      }
+    }
 
     let expanded: Pt[];
     if (pts.length === 1) {
@@ -109,18 +124,8 @@ export function drawEnclosures(
         { x: p.x + r, y: p.y + r },
         { x: p.x - r, y: p.y + r },
       ];
-    } else if (pts.length === 2) {
-      const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
-      const len = Math.hypot(dx, dy) || 1;
-      const ux = dx / len, uy = dy / len, px = -uy, py = ux;
-      expanded = [
-        { x: pts[0].x + px * pad - ux * pad, y: pts[0].y + py * pad - uy * pad },
-        { x: pts[1].x + px * pad + ux * pad, y: pts[1].y + py * pad + uy * pad },
-        { x: pts[1].x - px * pad + ux * pad, y: pts[1].y - py * pad + uy * pad },
-        { x: pts[0].x - px * pad - ux * pad, y: pts[0].y - py * pad - uy * pad },
-      ];
     } else {
-      expanded = expandHull(convexHull(pts), pad);
+      expanded = convexHull(hullInput);
     }
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;

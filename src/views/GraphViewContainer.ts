@@ -111,6 +111,9 @@ export class GraphViewContainer extends ItemView {
   private spatialGrid: Map<string, PixiNode[]> = new Map();
   private spatialCellSize = 50;
 
+  // Node info panel (hover details)
+  private nodeInfoEl: HTMLElement | null = null;
+
   // Sunburst SVG fallback
   private svgEl: SVGSVGElement | null = null;
 
@@ -177,7 +180,14 @@ export class GraphViewContainer extends ItemView {
 
     // --- Main area ---
     const main = root.createDiv({ cls: "graph-main" });
-    this.canvasWrap = main.createDiv({ cls: "graph-svg-wrap" });
+    // canvasWrap is emptied by initPixi / drawSunburstSVG, so nodeInfoEl
+    // lives in a sibling wrapper that won't be cleared.
+    const canvasArea = main.createDiv({ cls: "ngp-canvas-area" });
+    this.canvasWrap = canvasArea.createDiv({ cls: "graph-svg-wrap" });
+
+    // --- Node Info Overlay (floating, survives canvas rebuilds) ---
+    this.nodeInfoEl = canvasArea.createDiv({ cls: "ngp-node-info" });
+    this.nodeInfoEl.style.display = "none";
 
     // --- Control Panel ---
     this.panelEl = main.createDiv({ cls: "graph-panel is-hidden" });
@@ -185,7 +195,7 @@ export class GraphViewContainer extends ItemView {
 
     // --- Resize observer for PIXI canvas ---
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
-    this.resizeObserver.observe(this.canvasWrap);
+    this.resizeObserver.observe(canvasArea);
 
     // Wake render loop when this leaf becomes active again (e.g. tab switch)
     this.registerEvent(
@@ -211,6 +221,7 @@ export class GraphViewContainer extends ItemView {
     this.svgEl = null;
     this.statusEl = null;
     this.panelEl = null;
+    this.nodeInfoEl = null;
     this.canvasWrap = null;
     this.lastHoverEvent = null;
   }
@@ -615,11 +626,15 @@ export class GraphViewContainer extends ItemView {
     this.prevHighlightSet = curSet;
     this.redrawNodeBatch();
     this.triggerPagePreview();
+    this.updateNodeInfo();
   }
 
   /**
    * Trigger Obsidian's core page-preview popover for the hovered node.
-   * Uses the same hover-link event that powers footnote/link previews.
+   *
+   * Page Preview requires:
+   *   - source: a registered view type (we use "markdown" which is always allowed)
+   *   - targetEl: a DOM element at the pointer position for anchor placement
    */
   private triggerPagePreview() {
     const hId = this.highlightedNodeId;
@@ -631,18 +646,91 @@ export class GraphViewContainer extends ItemView {
     const ev = this.lastHoverEvent;
     if (!ev) return;
 
-    // Build a temporary target element at the pointer position so
-    // the popover knows where to anchor.
-    const targetEl = this.contentEl;
+    // Create a temporary anchor element at the pointer position.
+    // Page Preview uses targetEl's bounding rect to position the popover.
+    const anchor = this.contentEl.createEl("span");
+    anchor.style.cssText = `position:fixed;left:${ev.clientX}px;top:${ev.clientY}px;width:1px;height:1px;pointer-events:none;`;
+    // Clean up anchor after popover has had time to read its position
+    setTimeout(() => anchor.remove(), 200);
 
     this.app.workspace.trigger("hover-link", {
       event: ev,
-      source: VIEW_TYPE_GRAPH,
+      source: "preview",
       hoverParent: this,
-      targetEl,
+      targetEl: anchor,
       linktext: pn.data.filePath,
-      sourcePath: pn.data.filePath,
+      sourcePath: "",
     });
+  }
+
+  /**
+   * Notify the dedicated NodeDetailView side-pane about the hovered node.
+   */
+  private notifyDetailPane(node: GraphNode | null) {
+    // Emit a custom event that NodeDetailView listens for
+    this.app.workspace.trigger("graph-views:hover-node", node, this.adj, this.pixiNodes, this.degrees);
+  }
+
+  /**
+   * Update the floating node-info overlay with hovered node details + linked nodes.
+   */
+  private updateNodeInfo() {
+    const el = this.nodeInfoEl;
+    if (!el) return;
+
+    const hId = this.highlightedNodeId;
+    if (!hId) {
+      el.style.display = "none";
+      this.notifyDetailPane(null);
+      return;
+    }
+
+    const pn = this.pixiNodes.get(hId);
+    if (!pn) { el.style.display = "none"; this.notifyDetailPane(null); return; }
+    const node = pn.data;
+
+    this.notifyDetailPane(node);
+
+    el.empty();
+    el.style.display = "";
+
+    // -- Node summary --
+    const nameEl = el.createEl("div", { cls: "ngp-ni-name" });
+    nameEl.textContent = node.label;
+    if (node.isTag) {
+      nameEl.createEl("span", { cls: "ngp-ni-badge", text: "tag" });
+    }
+
+    if (node.category) {
+      el.createEl("div", { cls: "ngp-ni-meta", text: `カテゴリ: ${node.category}` });
+    }
+    if (node.tags && node.tags.length > 0) {
+      el.createEl("div", { cls: "ngp-ni-meta", text: `タグ: ${node.tags.map(t => "#" + t).join(" ")}` });
+    }
+
+    const deg = this.degrees.get(hId) || 0;
+    el.createEl("div", { cls: "ngp-ni-meta", text: `リンク数: ${deg}` });
+
+    // -- Linked node list --
+    const neighbors = this.adj.get(hId);
+    if (neighbors && neighbors.size > 0) {
+      el.createEl("div", { cls: "ngp-ni-section-title", text: "リンク中のノード" });
+      const list = el.createEl("ul", { cls: "ngp-ni-list" });
+      for (const nbId of neighbors) {
+        const nbPn = this.pixiNodes.get(nbId);
+        if (!nbPn) continue;
+        const li = list.createEl("li", { cls: "ngp-ni-list-item" });
+        const link = li.createEl("span", { cls: "ngp-ni-link", text: nbPn.data.label });
+        if (nbPn.data.isTag) {
+          li.createEl("span", { cls: "ngp-ni-badge", text: "tag" });
+        }
+        if (nbPn.data.filePath) {
+          link.addEventListener("click", () => {
+            this.app.workspace.openLinkText(nbPn.data.filePath!, "", false);
+          });
+        }
+      }
+    }
   }
 
   private drawNodeCircle(pn: PixiNode, highlight: boolean) {
@@ -744,6 +832,8 @@ export class GraphViewContainer extends ItemView {
         return pn ? { x: pn.data.x, y: pn.data.y, radius: pn.radius } : undefined;
       },
       worldScale: this.worldContainer?.scale.x ?? 1,
+      totalNodeCount: this.pixiNodes.size,
+      enclosureMinRatio: this.plugin.settings.enclosureMinRatio,
     };
     drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);
   }
@@ -1162,7 +1252,7 @@ export class GraphViewContainer extends ItemView {
     this.enclosureLabels.clear();
     const baseSize = this.panel.nodeSize;
 
-    const nodeR = (n: GraphNode) => Math.max(baseSize, baseSize + Math.sqrt(this.degrees.get(n.id) || 0) * 1.5);
+    const nodeR = (n: GraphNode) => Math.max(baseSize, baseSize + Math.sqrt(this.degrees.get(n.id) || 0) * 2.5);
     const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
     const nodeColor = (n: GraphNode): number => {
       // Manual group overrides take priority

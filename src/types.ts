@@ -143,6 +143,8 @@ export interface GraphViewsSettings {
   showSimilar: boolean;
   /** Directional gravity rules for force layout */
   directionalGravityRules: DirectionalGravityRule[];
+  /** Minimum fraction of total nodes a tag group must have to show an enclosure (0–1). Default 1/20 = 0.05 */
+  enclosureMinRatio: number;
 }
 
 export const DEFAULT_SETTINGS: GraphViewsSettings = {
@@ -156,6 +158,7 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
   ontology: DEFAULT_ONTOLOGY,
   showSimilar: false,
   directionalGravityRules: [],
+  enclosureMinRatio: 0.05,
 };
 
 export const DEFAULT_COLORS = [

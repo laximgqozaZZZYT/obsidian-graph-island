@@ -1,6 +1,7 @@
 import { Plugin } from "obsidian";
 import { GraphViewsSettingTab } from "./settings";
 import { GraphViewContainer, VIEW_TYPE_GRAPH } from "./views/GraphViewContainer";
+import { NodeDetailView, VIEW_TYPE_NODE_DETAIL } from "./views/NodeDetailView";
 import { DEFAULT_SETTINGS, type GraphViewsSettings } from "./types";
 
 export default class GraphViewsPlugin extends Plugin {
@@ -12,6 +13,11 @@ export default class GraphViewsPlugin extends Plugin {
     this.registerView(
       VIEW_TYPE_GRAPH,
       (leaf) => new GraphViewContainer(leaf, this)
+    );
+
+    this.registerView(
+      VIEW_TYPE_NODE_DETAIL,
+      (leaf) => new NodeDetailView(leaf)
     );
 
     this.addRibbonIcon("git-fork", "Graph Views", () => {
@@ -47,5 +53,18 @@ export default class GraphViewsPlugin extends Plugin {
       active: true,
     });
     this.app.workspace.revealLeaf(leaf);
+
+    // Open the detail pane in the right sidebar if not already open
+    this.ensureDetailPane();
+  }
+
+  private ensureDetailPane() {
+    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_NODE_DETAIL);
+    if (existing.length > 0) return;
+
+    const rightLeaf = this.app.workspace.getRightLeaf(false);
+    if (rightLeaf) {
+      rightLeaf.setViewState({ type: VIEW_TYPE_NODE_DETAIL, active: true });
+    }
   }
 }

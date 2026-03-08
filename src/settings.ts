@@ -103,6 +103,26 @@ export class GraphViewsSettingTab extends PluginSettingTab {
           })
       );
 
+    // --- Enclosure section ---
+    containerEl.createEl("h3", { text: "Enclosure" });
+
+    new Setting(containerEl)
+      .setName("Enclosure minimum ratio")
+      .setDesc(
+        "Minimum fraction of total nodes a tag group must contain to display an enclosure. " +
+        "E.g. 0.05 = groups with fewer than 5% of all nodes are hidden."
+      )
+      .addSlider((slider) =>
+        slider
+          .setLimits(0, 0.3, 0.01)
+          .setValue(this.plugin.settings.enclosureMinRatio)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.plugin.settings.enclosureMinRatio = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // --- Ontology section ---
     containerEl.createEl("h3", { text: "Ontology" });
 
