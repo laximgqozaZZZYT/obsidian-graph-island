@@ -1,74 +1,24 @@
-import { ItemView, WorkspaceLeaf, Platform, MarkdownRenderer, TFile } from "obsidian";
+import { ItemView, WorkspaceLeaf, Platform, TFile, setIcon } from "obsidian";
 import * as PIXI from "pixi.js";
 import * as d3 from "d3";
 import type GraphViewsPlugin from "../main";
-import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo } from "../types";
+import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule } from "../types";
 import { DEFAULT_COLORS } from "../types";
+import { resolveDirection, matchesFilter } from "../layouts/force";
 import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
 import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
 import { applyTreeLayout } from "../layouts/tree";
 import { applyArcLayout } from "../layouts/arc";
 import { computeSunburstArcs } from "../layouts/sunburst";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
+import { yieldFrame, buildAdj, cssColorToHex } from "../utils/graph-helpers";
+import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
+import { drawEdges as drawEdgesImpl, type EdgeDrawConfig } from "./EdgeRenderer";
+import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
 
 export const VIEW_TYPE_GRAPH = "graph-view";
 
 const TICK_SKIP = 2;
-
-// ---------------------------------------------------------------------------
-// Panel state
-// ---------------------------------------------------------------------------
-interface PanelState {
-  showTags: boolean;
-  showAttachments: boolean;
-  existingOnly: boolean;
-  showOrphans: boolean;
-  showArrows: boolean;
-  textFadeThreshold: number;
-  nodeSize: number;
-  linkThickness: number;
-  centerForce: number;
-  repelForce: number;
-  linkForce: number;
-  linkDistance: number;
-  concentricMinRadius: number;
-  concentricRadiusStep: number;
-  showOrbitRings: boolean;
-  orbitAutoRotate: boolean;
-  groups: { query: string; color: string }[];
-  searchQuery: string;
-  colorEdgesByRelation: boolean;
-  colorNodesByCategory: boolean;
-  showInheritance: boolean;
-  showAggregation: boolean;
-  showTagNodes: boolean;
-}
-
-const DEFAULT_PANEL: PanelState = {
-  showTags: false,
-  showAttachments: false,
-  existingOnly: false,
-  showOrphans: true,
-  showArrows: false,
-  textFadeThreshold: 0,
-  nodeSize: 6,
-  linkThickness: 1,
-  centerForce: 0.03,
-  repelForce: 200,
-  linkForce: 0.01,
-  linkDistance: 100,
-  concentricMinRadius: 50,
-  concentricRadiusStep: 60,
-  showOrbitRings: true,
-  orbitAutoRotate: true,
-  groups: [],
-  searchQuery: "",
-  colorEdgesByRelation: true,
-  colorNodesByCategory: true,
-  showInheritance: true,
-  showAggregation: true,
-  showTagNodes: true,
-};
 
 // ---------------------------------------------------------------------------
 // PIXI node wrapper
@@ -102,12 +52,20 @@ export class GraphViewContainer extends ItemView {
   private worldContainer: PIXI.Container | null = null;
   private edgeGraphics: PIXI.Graphics | null = null;
   private orbitGraphics: PIXI.Graphics | null = null;
+  private enclosureGraphics: PIXI.Graphics | null = null;
   private pixiNodes: Map<string, PixiNode> = new Map();
   private canvasWrap: HTMLElement | null = null;
   private graphEdges: GraphEdge[] = [];
   private degrees: Map<string, number> = new Map();
   private adj: Map<string, Set<string>> = new Map();
   private relationColors: Map<string, string> = new Map();
+  private nodeColorMap: Map<string, string> = new Map();
+  /** tag name → set of file node IDs that have this tag */
+  private tagMembership: Map<string, Set<string>> = new Map();
+  private enclosureLabels: Map<string, PIXI.Text> = new Map();
+  private overlapCache: OverlapCache = { frame: 0, counts: new Map() };
+  /** Cached tag relationship pairs for fast lookup */
+  private tagRelPairsCache: Set<string> = new Set();
 
   // Interaction state
   private draggedNode: PixiNode | null = null;
@@ -122,8 +80,8 @@ export class GraphViewContainer extends ItemView {
   private needsRedraw = true;
   private _tickerBound = false;
 
-  // Hover info preview
-  private previewWrapEl: HTMLElement | null = null;
+  // Last hover pointer position (for page-preview popover)
+  private lastHoverEvent: PointerEvent | null = null;
 
   // Resize observer
   private resizeObserver: ResizeObserver | null = null;
@@ -163,7 +121,36 @@ export class GraphViewContainer extends ItemView {
     const toolbar = root.createDiv({ cls: "graph-toolbar" });
     this.statusEl = toolbar.createEl("span", { cls: "graph-status" });
 
-    const panelToggle = toolbar.createEl("button", { cls: "graph-settings-btn", text: "⚙" });
+    // --- Zoom / Fit buttons ---
+    const zoomGroup = toolbar.createDiv({ cls: "graph-toolbar-zoom" });
+
+    const fitBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    setIcon(fitBtn, "maximize");
+    fitBtn.setAttribute("aria-label", "全体俯瞰");
+    fitBtn.addEventListener("click", () => {
+      if (!this.canvasWrap) return;
+      const W = this.canvasWrap.clientWidth;
+      const H = this.canvasWrap.clientHeight;
+      this.autoFitView(W, H);
+      this.markDirty();
+    });
+
+    const zoomInBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    setIcon(zoomInBtn, "zoom-in");
+    zoomInBtn.setAttribute("aria-label", "ズームイン");
+    zoomInBtn.addEventListener("click", () => {
+      this.zoomBy(1.3);
+    });
+
+    const zoomOutBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    setIcon(zoomOutBtn, "zoom-out");
+    zoomOutBtn.setAttribute("aria-label", "ズームアウト");
+    zoomOutBtn.addEventListener("click", () => {
+      this.zoomBy(1 / 1.3);
+    });
+
+    const panelToggle = toolbar.createEl("button", { cls: "graph-settings-btn" });
+    setIcon(panelToggle, "settings");
     panelToggle.setAttribute("aria-label", "グラフ設定");
     panelToggle.addEventListener("click", () => {
       const hidden = this.panelEl?.hasClass("is-hidden");
@@ -182,13 +169,20 @@ export class GraphViewContainer extends ItemView {
     this.panelEl = main.createDiv({ cls: "graph-panel is-hidden" });
     this.buildPanel();
 
-    // --- Floating preview window (inside main, not canvasWrap — survives initPixi) ---
-    this.previewWrapEl = main.createDiv({ cls: "graph-preview-wrap" });
-    this.setupPreviewDrag();
-
     // --- Resize observer for PIXI canvas ---
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
     this.resizeObserver.observe(this.canvasWrap);
+
+    // Wake render loop when this leaf becomes active again (e.g. tab switch)
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        if (leaf !== this.leaf) return;
+        if (this.pixiApp) {
+          // Just wake the render loop & resize — don't recreate PIXI
+          this.markDirty();
+        }
+      })
+    );
 
     this.doRender();
   }
@@ -204,7 +198,7 @@ export class GraphViewContainer extends ItemView {
     this.statusEl = null;
     this.panelEl = null;
     this.canvasWrap = null;
-    this.previewWrapEl = null;
+    this.lastHoverEvent = null;
   }
 
   // =========================================================================
@@ -246,14 +240,24 @@ export class GraphViewContainer extends ItemView {
       this.pixiApp.ticker.remove(this.renderTick, this);
       this._tickerBound = false;
     }
-    if (this.pixiApp) {
-      this.pixiApp.destroy(true, { children: true, texture: true });
-      this.pixiApp = null;
+    // Clean up enclosure labels before PIXI destroy (they reference PIXI objects)
+    for (const lbl of this.enclosureLabels.values()) {
+      try { lbl.destroy(); } catch { /* already destroyed */ }
     }
+    this.enclosureLabels.clear();
+    this.pixiNodes.clear();
     this.worldContainer = null;
     this.edgeGraphics = null;
     this.orbitGraphics = null;
-    this.pixiNodes.clear();
+    this.enclosureGraphics = null;
+    if (this.pixiApp) {
+      try {
+        this.pixiApp.destroy(true, { children: true, texture: true });
+      } catch {
+        // PIXI internal state may already be partially torn down
+      }
+      this.pixiApp = null;
+    }
   }
 
   private handleResize() {
@@ -302,6 +306,11 @@ export class GraphViewContainer extends ItemView {
     const orbitGfx = new PIXI.Graphics();
     world.addChild(orbitGfx);
     this.orbitGraphics = orbitGfx;
+
+    // Enclosure layer (tag enclosures, drawn behind edges)
+    const enclosureGfx = new PIXI.Graphics();
+    world.addChild(enclosureGfx);
+    this.enclosureGraphics = enclosureGfx;
 
     // Edge layer (single Graphics object — batch drawn)
     const edgeGfx = new PIXI.Graphics();
@@ -411,6 +420,7 @@ export class GraphViewContainer extends ItemView {
         this.markDirty();
       } else {
         // Hover
+        this.lastHoverEvent = e;
         const worldPt = world.toLocal(new PIXI.Point(mx, my), app.stage);
         const hit = this.hitTestNode(worldPt.x, worldPt.y);
         const newId = hit?.data.id ?? null;
@@ -527,123 +537,34 @@ export class GraphViewContainer extends ItemView {
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; }
       }
     }
-    this.updatePreviewPanel();
+    this.triggerPagePreview();
   }
 
-  private updatePreviewPanel() {
-    const wrap = this.previewWrapEl;
-    if (!wrap) return;
-
+  /**
+   * Trigger Obsidian's core page-preview popover for the hovered node.
+   * Uses the same hover-link event that powers footnote/link previews.
+   */
+  private triggerPagePreview() {
     const hId = this.highlightedNodeId;
-    if (!hId) return; // Don't close on hover-out — user closes manually
+    if (!hId) return;
 
     const pn = this.pixiNodes.get(hId);
-    if (!pn) return;
+    if (!pn?.data.filePath) return;
 
-    // Rebuild content
-    wrap.empty();
-    wrap.addClass("is-visible");
+    const ev = this.lastHoverEvent;
+    if (!ev) return;
 
-    // Title bar (drag handle + close)
-    const titleBar = wrap.createDiv({ cls: "graph-preview-titlebar" });
-    titleBar.createEl("span", { cls: "graph-preview-titlebar-text", text: pn.data.label });
-    const closeBtn = titleBar.createEl("span", { cls: "graph-preview-close", text: "\u00D7" });
-    closeBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      wrap.removeClass("is-visible");
-      wrap.empty();
-    });
+    // Build a temporary target element at the pointer position so
+    // the popover knows where to anchor.
+    const targetEl = this.contentEl;
 
-    // Content area
-    const content = wrap.createDiv({ cls: "graph-preview-content" });
-
-    // 1. Hovered node
-    this.renderPreviewCard(content, pn.data, "ホバー中のノード");
-
-    // 2. Linked nodes
-    const neighbors = this.adj.get(hId);
-    if (neighbors && neighbors.size > 0) {
-      const linkedSection = content.createDiv({ cls: "graph-preview-linked" });
-      linkedSection.createEl("div", { cls: "graph-preview-section-title", text: `リンク先 (${neighbors.size})` });
-      const listEl = linkedSection.createDiv({ cls: "graph-preview-list" });
-      for (const nId of neighbors) {
-        const npn = this.pixiNodes.get(nId);
-        if (npn) this.renderPreviewCard(listEl, npn.data);
-      }
-    }
-  }
-
-  private setupPreviewDrag() {
-    const wrap = this.previewWrapEl;
-    if (!wrap) return;
-
-    let dragging = false;
-    let startX = 0;
-    let startY = 0;
-    let origLeft = 0;
-    let origTop = 0;
-
-    wrap.addEventListener("pointerdown", (e) => {
-      const target = e.target as HTMLElement;
-      // Only drag from title bar area
-      if (!target.closest(".graph-preview-titlebar")) return;
-      if (target.closest(".graph-preview-close")) return;
-      dragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      origLeft = wrap.offsetLeft;
-      origTop = wrap.offsetTop;
-      e.preventDefault();
-    });
-
-    window.addEventListener("pointermove", (e) => {
-      if (!dragging) return;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      wrap.style.left = `${origLeft + dx}px`;
-      wrap.style.top = `${origTop + dy}px`;
-      wrap.style.right = "auto";
-      wrap.style.bottom = "auto";
-    });
-
-    window.addEventListener("pointerup", () => {
-      dragging = false;
-    });
-  }
-
-  private renderPreviewCard(container: HTMLElement, node: GraphNode, sectionTitle?: string) {
-    const card = container.createDiv({ cls: "graph-preview-card" });
-    if (sectionTitle) {
-      card.createEl("div", { cls: "graph-preview-section-title", text: sectionTitle });
-    }
-    card.createEl("div", { cls: "graph-preview-name", text: node.label });
-
-    // Meta info
-    const meta: string[] = [];
-    if (node.category) meta.push(node.category);
-    if (node.tags && node.tags.length > 0) meta.push(node.tags.map(t => `#${t}`).join(" "));
-    if (meta.length > 0) {
-      card.createEl("div", { cls: "graph-preview-meta", text: meta.join(" · ") });
-    }
-
-    // Render markdown content
-    if (node.filePath) {
-      const file = this.app.vault.getAbstractFileByPath(node.filePath);
-      if (file instanceof TFile) {
-        const bodyEl = card.createDiv({ cls: "graph-preview-body markdown-rendered" });
-        this.app.vault.cachedRead(file).then(content => {
-          const body = content.replace(/^---[\s\S]*?---\n*/, "");
-          const preview = body.length > 500 ? body.slice(0, 500) + "\n\n…" : body;
-          MarkdownRenderer.render(this.app, preview, bodyEl, node.filePath!, this);
-        });
-      }
-    }
-
-    // Click to open
-    card.addEventListener("click", () => {
-      if (node.filePath) {
-        this.app.workspace.openLinkText(node.filePath, "", false);
-      }
+    this.app.workspace.trigger("hover-link", {
+      event: ev,
+      source: VIEW_TYPE_GRAPH,
+      hoverParent: this,
+      targetEl,
+      linktext: pn.data.filePath,
+      sourcePath: pn.data.filePath,
     });
   }
 
@@ -653,12 +574,7 @@ export class GraphViewContainer extends ItemView {
       pn.circle.lineStyle(2.5, 0x6366f1, 1);
     }
     pn.circle.beginFill(pn.color);
-    if (pn.data.isTag) {
-      const r = pn.radius;
-      pn.circle.drawPolygon([0, -r * 1.3, r * 1.3, 0, 0, r * 1.3, -r * 1.3, 0]);
-    } else {
-      pn.circle.drawCircle(0, 0, pn.radius);
-    }
+    pn.circle.drawCircle(0, 0, pn.radius);
     pn.circle.endFill();
   }
 
@@ -682,145 +598,48 @@ export class GraphViewContainer extends ItemView {
   }
 
   // =========================================================================
-  // Draw edges (single Graphics batch — fast)
+  // Draw edges (delegated to EdgeRenderer)
   // =========================================================================
   private drawEdges() {
-    const g = this.edgeGraphics;
-    if (!g) return;
-    g.clear();
-
-    const hId = this.highlightedNodeId;
-    const defaultColor = 0x555555;
-    const highlightColor = 0x888888;
-    const inheritanceColor = 0x9ca3af;
-    const aggregationColor = 0x60a5fa;
-    const thickness = this.panel.linkThickness;
-    const isArc = this.currentLayout === "arc";
-    const useRelColor = this.panel.colorEdgesByRelation;
-
-    for (const e of this.graphEdges) {
-      if (e.type === "inheritance" && !this.panel.showInheritance) continue;
-      if (e.type === "aggregation" && !this.panel.showAggregation) continue;
-      if (e.type === "has-tag" && !this.panel.showTagNodes) continue;
-
-      const src = typeof e.source === "object" ? (e.source as any) : this.pixiNodes.get(e.source)?.data;
-      const tgt = typeof e.target === "object" ? (e.target as any) : this.pixiNodes.get(e.target)?.data;
-      if (!src || !tgt) continue;
-
-      // Determine color
-      const hasTagColor = 0xa78bfa;
-      let lineColor = defaultColor;
-      if (e.type === "inheritance") {
-        lineColor = inheritanceColor;
-      } else if (e.type === "aggregation") {
-        lineColor = aggregationColor;
-      } else if (e.type === "has-tag") {
-        lineColor = hasTagColor;
-      } else if (useRelColor && e.relation) {
-        const css = this.relationColors.get(e.relation);
-        if (css) lineColor = cssColorToHex(css);
-      }
-
-      // Determine alpha & thickness
-      const isOnto = e.type === "inheritance" || e.type === "aggregation";
-      const isStructural = isOnto || e.type === "has-tag";
-      let alpha = isStructural ? 0.5 : 0.4;
-      let lineThick = thickness;
-
-      if (!isOnto && e.relation && useRelColor) alpha = 0.7;
-
-      if (hId) {
-        const sid = src.id ?? e.source;
-        const tid = tgt.id ?? e.target;
-        if (sid === hId || tid === hId) {
-          lineThick = 2;
-          alpha = 1;
-          if (!isOnto && !e.relation) lineColor = highlightColor;
-        } else {
-          alpha = 0.04;
-        }
-      }
-
-      g.lineStyle(lineThick, lineColor, alpha);
-
-      // Draw the line
-      if (isArc) {
-        const mx = (src.x + tgt.x) / 2;
-        const minY = Math.min(src.y, tgt.y);
-        const dist = Math.abs(tgt.x - src.x);
-        const cpY = minY - dist * 0.3 - 20;
-        g.moveTo(src.x, src.y);
-        g.quadraticCurveTo(mx, cpY, tgt.x, tgt.y);
-      } else {
-        g.moveTo(src.x, src.y);
-        g.lineTo(tgt.x, tgt.y);
-      }
-
-      // Draw markers for ontology edges
-      if (isOnto) {
-        this.drawEdgeMarker(g, src, tgt, e.type as "inheritance" | "aggregation", lineColor, alpha);
-      }
-    }
-  }
-
-  /**
-   * Draw a marker at the end of an ontology edge.
-   * - inheritance: hollow triangle at target (UML generalization)
-   * - aggregation: hollow diamond at source (UML aggregation)
-   */
-  /** Get the background color as a hex number for "hollow" marker fills */
-  private getBgColor(): number {
+    if (!this.edgeGraphics) return;
     const el = this.canvasWrap ?? this.containerEl;
     const bg = getComputedStyle(el).getPropertyValue("--background-primary").trim();
-    return bg ? cssColorToHex(bg) : 0x1e1e2e;
+    const cfg: EdgeDrawConfig = {
+      linkThickness: this.panel.linkThickness,
+      showInheritance: this.panel.showInheritance,
+      showAggregation: this.panel.showAggregation,
+      showTagNodes: this.panel.showTagNodes,
+      showSimilar: this.panel.showSimilar,
+      colorEdgesByRelation: this.panel.colorEdgesByRelation,
+      isArcLayout: this.currentLayout === "arc",
+      highlightedNodeId: this.highlightedNodeId,
+      bgColor: bg ? cssColorToHex(bg) : 0x1e1e2e,
+      relationColors: this.relationColors,
+    };
+    drawEdgesImpl(
+      this.edgeGraphics,
+      this.graphEdges,
+      (ref) => typeof ref === "object" ? (ref as any) : this.pixiNodes.get(ref as string)?.data,
+      cfg,
+    );
   }
 
-  private drawEdgeMarker(
-    g: PIXI.Graphics,
-    src: { x: number; y: number },
-    tgt: { x: number; y: number },
-    type: "inheritance" | "aggregation",
-    color: number,
-    alpha: number
-  ) {
-    const dx = tgt.x - src.x;
-    const dy = tgt.y - src.y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    if (len < 1) return;
-
-    const ux = dx / len;
-    const uy = dy / len;
-    const px = -uy;
-    const py = ux;
-    const sz = 8;
-    const bgColor = this.getBgColor();
-
-    if (type === "inheritance") {
-      // Hollow triangle at target
-      const bx = tgt.x - ux * sz;
-      const by = tgt.y - uy * sz;
-      g.lineStyle(1.5, color, alpha);
-      g.beginFill(bgColor, alpha * 0.9);
-      g.moveTo(tgt.x, tgt.y);
-      g.lineTo(bx + px * sz * 0.5, by + py * sz * 0.5);
-      g.lineTo(bx - px * sz * 0.5, by - py * sz * 0.5);
-      g.closePath();
-      g.endFill();
-    } else {
-      // Hollow diamond at source
-      const mx = src.x + ux * sz;
-      const my = src.y + uy * sz;
-      const fx = src.x + ux * sz * 2;
-      const fy = src.y + uy * sz * 2;
-      g.lineStyle(1.5, color, alpha);
-      g.beginFill(bgColor, alpha * 0.9);
-      g.moveTo(src.x, src.y);
-      g.lineTo(mx + px * sz * 0.4, my + py * sz * 0.4);
-      g.lineTo(fx, fy);
-      g.lineTo(mx - px * sz * 0.4, my - py * sz * 0.4);
-      g.closePath();
-      g.endFill();
-    }
+  // =========================================================================
+  // Tag enclosures (delegated to EnclosureRenderer)
+  // =========================================================================
+  private drawEnclosures() {
+    if (!this.enclosureGraphics) return;
+    const cfg: EnclosureConfig = {
+      tagDisplay: this.panel.tagDisplay,
+      tagMembership: this.tagMembership,
+      nodeColorMap: this.nodeColorMap,
+      tagRelPairsCache: this.tagRelPairsCache,
+      resolvePos: (id) => {
+        const pn = this.pixiNodes.get(id);
+        return pn ? { x: pn.data.x, y: pn.data.y } : undefined;
+      },
+    };
+    drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);
   }
 
   // =========================================================================
@@ -832,6 +651,7 @@ export class GraphViewContainer extends ItemView {
       pn.gfx.y = pn.data.y;
     }
     this.drawOrbitRings();
+    this.drawEnclosures();
     this.drawEdges();
   }
 
@@ -893,12 +713,7 @@ export class GraphViewContainer extends ItemView {
       const color = nodeColor(n);
       const circle = new PIXI.Graphics();
       circle.beginFill(color);
-      if (n.isTag) {
-        // Diamond shape for tag nodes
-        circle.drawPolygon([0, -r * 1.3, r * 1.3, 0, 0, r * 1.3, -r * 1.3, 0]);
-      } else {
-        circle.drawCircle(0, 0, r);
-      }
+      circle.drawCircle(0, 0, r);
       circle.endFill();
       container.addChild(circle);
 
@@ -951,222 +766,51 @@ export class GraphViewContainer extends ItemView {
     world.y = H / 2 - cy * sc;
   }
 
+  private zoomBy(factor: number) {
+    const world = this.worldContainer;
+    const wrap = this.canvasWrap;
+    if (!world || !wrap) return;
+    const cx = wrap.clientWidth / 2;
+    const cy = wrap.clientHeight / 2;
+    const worldPos = world.toLocal(new PIXI.Point(cx, cy), this.pixiApp!.stage);
+    const s = Math.max(0.02, Math.min(10, world.scale.x * factor));
+    world.scale.set(s);
+    const newScreen = world.toGlobal(worldPos);
+    world.x += cx - newScreen.x;
+    world.y += cy - newScreen.y;
+    this.markDirty();
+  }
+
   // =========================================================================
-  // Control Panel UI
+  // Control Panel UI (delegated to PanelBuilder)
   // =========================================================================
   private buildPanel() {
-    const p = this.panelEl!;
-    p.empty();
-
-    this.buildSection(p, "グラフの種類", (body) => {
-      const select = body.createEl("select", { cls: "ngp-select" });
-      const layouts: { type: LayoutType; label: string }[] = [
-        { type: "force", label: "Force" },
-        { type: "concentric", label: "Concentric" },
-        { type: "tree", label: "Tree" },
-        { type: "arc", label: "Arc" },
-        { type: "sunburst", label: "Sunburst" },
-      ];
-      for (const l of layouts) {
-        const opt = select.createEl("option", { text: l.label, value: l.type });
-        if (l.type === this.currentLayout) opt.selected = true;
-      }
-      select.addEventListener("change", () => {
-        this.currentLayout = select.value as LayoutType;
-        this.buildPanel();
-        this.doRender();
-      });
-    });
-
-    if (this.currentLayout === "concentric") {
-      this.buildSection(p, "同心円レイアウト", (body) => {
-        this.addSlider(body, "最小半径", 10, 200, 5, this.panel.concentricMinRadius, (v) => { this.panel.concentricMinRadius = v; this.doRender(); });
-        this.addSlider(body, "軌道間距離", 10, 200, 5, this.panel.concentricRadiusStep, (v) => { this.panel.concentricRadiusStep = v; this.doRender(); });
-        this.addToggle(body, "軌道リングを表示", this.panel.showOrbitRings, (v) => { this.panel.showOrbitRings = v; this.markDirty(); });
-        this.addToggle(body, "自動回転", this.panel.orbitAutoRotate, (v) => {
-          this.panel.orbitAutoRotate = v;
-          if (v) { this.startOrbitAnimation(); } else { this.stopOrbitAnimation(); }
-        });
-      });
-      if (this.shells.length > 0) {
-        this.buildSection(p, "各軌道の調整", (body) => {
-          this.shells.forEach((shell, i) => {
-            if (i === 0 && shell.nodeIds.length === 1) return; // center node
-            const label = `軌道 ${i} (${shell.nodeIds.length}ノード)`;
-            body.createEl("div", { cls: "ngp-orbit-label", text: label });
-            this.addSlider(body, "半径", 10, 500, 5, shell.radius, (v) => {
-              shell.radius = v;
-              const nodeMap = new Map<string, GraphNode>();
-              for (const pn of this.pixiNodes.values()) nodeMap.set(pn.data.id, pn.data);
-              repositionShell(shell, nodeMap);
-              this.markDirty();
-            });
-            this.addSlider(body, "回転速度", 0, 2, 0.05, shell.rotationSpeed, (v) => {
-              shell.rotationSpeed = v;
-            });
-            this.addDirectionToggle(body, "回転方向", shell.rotationDirection, (v) => {
-              shell.rotationDirection = v;
-            });
-          });
-          body.createEl("p", { cls: "ngp-hint", text: "ドラッグでも軌道を回転できます" });
-        });
-      }
-    }
-
-    this.buildSection(p, "フィルタ", (body) => {
-      const search = body.createEl("input", { cls: "ngp-search", type: "text", placeholder: "ファイルを検索..." });
-      search.value = this.panel.searchQuery;
-      search.addEventListener("input", () => { this.panel.searchQuery = search.value.toLowerCase(); this.applySearch(); });
-      this.addToggle(body, "タグ", this.panel.showTags, (v) => { this.panel.showTags = v; this.rawData = null; this.doRender(); });
-      this.addToggle(body, "添付書類", this.panel.showAttachments, (v) => { this.panel.showAttachments = v; this.rawData = null; this.doRender(); });
-      this.addToggle(body, "存在するファイルのみ表示", this.panel.existingOnly, (v) => { this.panel.existingOnly = v; this.rawData = null; this.doRender(); });
-      this.addToggle(body, "オーファン", this.panel.showOrphans, (v) => { this.panel.showOrphans = v; this.rawData = null; this.doRender(); });
-      this.addToggle(body, "タグノード", this.panel.showTagNodes, (v) => { this.panel.showTagNodes = v; this.rawData = null; this.doRender(); });
-      this.addToggle(body, "継承エッジ (is-a)", this.panel.showInheritance, (v) => { this.panel.showInheritance = v; this.markDirty(); });
-      this.addToggle(body, "集約エッジ (has-a)", this.panel.showAggregation, (v) => { this.panel.showAggregation = v; this.markDirty(); });
-    });
-
-    this.buildSection(p, "グループ", (body) => {
-      const list = body.createDiv();
-      this.renderGroupList(list);
-      const addBtn = body.createEl("button", { cls: "ngp-add-group", text: "新規グループ" });
-      addBtn.addEventListener("click", () => {
-        const idx = this.panel.groups.length;
-        this.panel.groups.push({ query: "", color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length] });
-        this.renderGroupList(list);
-      });
-    });
-
-    this.buildSection(p, "表示", (body) => {
-      this.addToggle(body, "矢印", this.panel.showArrows, (v) => { this.panel.showArrows = v; this.doRender(); });
-      this.addToggle(body, "ノード色（カテゴリ別）", this.panel.colorNodesByCategory, (v) => { this.panel.colorNodesByCategory = v; this.doRender(); });
-      this.addToggle(body, "エッジ色（属性別）", this.panel.colorEdgesByRelation, (v) => { this.panel.colorEdgesByRelation = v; this.markDirty(); });
-      this.addSlider(body, "テキストフェードの閾値", 0, 1, 0.05, this.panel.textFadeThreshold, (v) => { this.panel.textFadeThreshold = v; this.applyTextFade(); });
-      this.addSlider(body, "ノードの大きさ", 2, 20, 1, this.panel.nodeSize, (v) => { this.panel.nodeSize = v; this.doRender(); });
-      this.addSlider(body, "リンクの太さ", 0.5, 5, 0.5, this.panel.linkThickness, (v) => { this.panel.linkThickness = v; this.markDirty(); });
-    });
-
-    // Show relation color legend when edge coloring is on
-    if (this.panel.colorEdgesByRelation && this.relationColors.size > 0) {
-      this.buildSection(p, "属性カラー", (body) => {
-        for (const [rel, color] of this.relationColors) {
-          const row = body.createDiv({ cls: "setting-item" });
-          const dot = row.createEl("span");
-          dot.style.cssText = `display:inline-block;width:12px;height:12px;border-radius:50%;background:${color};margin-right:8px;vertical-align:middle;`;
-          row.createEl("span", { text: rel, cls: "setting-item-name" });
-        }
-      });
-    }
-
-    // Ontology edge legend
-    this.buildSection(p, "エッジ凡例", (body) => {
-      const items: { label: string; color: string; shape: string }[] = [
-        { label: "継承 (is-a)", color: "#9ca3af", shape: "▷" },
-        { label: "集約 (has-a)", color: "#60a5fa", shape: "◇" },
-        { label: "has-tag", color: "#a78bfa", shape: "─" },
-        { label: "通常リンク", color: "#555555", shape: "─" },
-      ];
-      for (const item of items) {
-        const row = body.createDiv({ cls: "setting-item" });
-        const marker = row.createEl("span");
-        marker.style.cssText = `display:inline-flex;align-items:center;justify-content:center;width:20px;height:14px;color:${item.color};font-size:14px;margin-right:6px;`;
-        marker.textContent = item.shape;
-        row.createEl("span", { text: item.label, cls: "setting-item-name" });
-      }
-    });
-
-    this.buildSection(p, "力の強さ", (body) => {
-      this.addSlider(body, "中心力", 0, 0.2, 0.005, this.panel.centerForce, (v) => { this.panel.centerForce = v; this.updateForces(); });
-      this.addSlider(body, "反発力", 0, 1000, 10, this.panel.repelForce, (v) => { this.panel.repelForce = v; this.updateForces(); });
-      this.addSlider(body, "リンクの力", 0, 0.1, 0.002, this.panel.linkForce, (v) => { this.panel.linkForce = v; this.updateForces(); });
-      this.addSlider(body, "リンク距離", 20, 500, 10, this.panel.linkDistance, (v) => { this.panel.linkDistance = v; this.updateForces(); });
-    });
-  }
-
-  private buildSection(container: HTMLElement, title: string, build: (body: HTMLElement) => void) {
-    const section = container.createDiv({ cls: "graph-control-section tree-item" });
-    const header = section.createDiv({ cls: "tree-item-self graph-control-section-header is-clickable" });
-    const collapseIcon = header.createDiv({ cls: "tree-item-icon collapse-icon" });
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("width", "24");
-    svg.setAttribute("height", "24");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    svg.setAttribute("fill", "none");
-    svg.setAttribute("stroke", "currentColor");
-    svg.setAttribute("stroke-width", "2");
-    svg.setAttribute("stroke-linecap", "round");
-    svg.setAttribute("stroke-linejoin", "round");
-    svg.classList.add("svg-icon", "right-triangle");
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", "M3 8L12 17L21 8");
-    svg.appendChild(path);
-    collapseIcon.appendChild(svg);
-    header.createEl("span", { cls: "tree-item-inner", text: title });
-    const body = section.createDiv({ cls: "tree-item-children" });
-    build(body);
-    header.addEventListener("click", () => {
-      const collapsed = section.hasClass("is-collapsed");
-      section.toggleClass("is-collapsed", !collapsed);
-    });
-  }
-
-  private addSlider(container: HTMLElement, label: string, min: number, max: number, step: number, initial: number, onChange: (v: number) => void) {
-    const row = container.createDiv({ cls: "setting-item mod-slider" });
-    const info = row.createDiv({ cls: "setting-item-info" });
-    info.createDiv({ cls: "setting-item-name", text: label });
-    const control = row.createDiv({ cls: "setting-item-control" });
-    const input = control.createEl("input", { type: "range" });
-    input.min = String(min);
-    input.max = String(max);
-    input.step = String(step);
-    input.value = String(initial);
-    input.addEventListener("input", () => onChange(parseFloat(input.value)));
-  }
-
-  private addToggle(container: HTMLElement, label: string, initial: boolean, onChange: (v: boolean) => void) {
-    const row = container.createDiv({ cls: "setting-item mod-toggle" });
-    const info = row.createDiv({ cls: "setting-item-info" });
-    info.createDiv({ cls: "setting-item-name", text: label });
-    const control = row.createDiv({ cls: "setting-item-control" });
-    const toggle = control.createDiv({ cls: "checkbox-container" + (initial ? " is-enabled" : "") });
-    toggle.addEventListener("click", () => {
-      const on = toggle.hasClass("is-enabled");
-      toggle.toggleClass("is-enabled", !on);
-      onChange(!on);
-    });
-  }
-
-  private addDirectionToggle(container: HTMLElement, label: string, initial: 1 | -1, onChange: (v: 1 | -1) => void) {
-    const row = container.createDiv({ cls: "setting-item" });
-    const info = row.createDiv({ cls: "setting-item-info" });
-    info.createDiv({ cls: "setting-item-name", text: label });
-    const control = row.createDiv({ cls: "setting-item-control" });
-    const btn = control.createEl("button", { cls: "ngp-direction-btn", text: initial === 1 ? "時計回り ↻" : "反時計回り ↺" });
-    btn.addEventListener("click", () => {
-      const next: 1 | -1 = btn.textContent?.includes("時計回り ↻") ? -1 : 1;
-      btn.textContent = next === 1 ? "時計回り ↻" : "反時計回り ↺";
-      onChange(next);
-    });
-  }
-
-  private renderGroupList(container: HTMLElement) {
-    container.empty();
-    this.panel.groups.forEach((g, i) => {
-      const row = container.createDiv({ cls: "ngp-group-item" });
-      const colorDot = row.createDiv({ cls: "ngp-group-color" });
-      colorDot.style.background = g.color;
-      colorDot.addEventListener("click", () => {
-        const next = DEFAULT_COLORS[(DEFAULT_COLORS.indexOf(g.color as typeof DEFAULT_COLORS[number]) + 1) % DEFAULT_COLORS.length];
-        g.color = next;
-        colorDot.style.background = next;
-        this.doRender();
-      });
-      const input = row.createEl("input", { cls: "ngp-group-query", type: "text", placeholder: "検索クエリ..." });
-      input.value = g.query;
-      input.addEventListener("input", () => { g.query = input.value.toLowerCase(); this.doRender(); });
-      const rm = row.createEl("span", { cls: "ngp-group-remove", text: "\u00D7" });
-      rm.addEventListener("click", () => { this.panel.groups.splice(i, 1); this.renderGroupList(container); this.doRender(); });
-    });
+    if (!this.panelEl) return;
+    const ctx: PanelContext = {
+      currentLayout: this.currentLayout,
+      setLayout: (l: LayoutType) => { this.currentLayout = l; },
+      shells: this.shells,
+      pixiNodes: this.pixiNodes,
+      relationColors: this.relationColors,
+      simulation: this.simulation,
+    };
+    const cb: PanelCallbacks = {
+      doRender: () => this.doRender(),
+      markDirty: () => this.markDirty(),
+      updateForces: () => this.updateForces(),
+      applySearch: () => this.applySearch(),
+      applyTextFade: () => this.applyTextFade(),
+      applyDirectionalGravityForce: () => this.applyDirectionalGravityForce(),
+      startOrbitAnimation: () => this.startOrbitAnimation(),
+      stopOrbitAnimation: () => this.stopOrbitAnimation(),
+      wakeRenderLoop: () => this.wakeRenderLoop(),
+      rebuildPanel: () => this.buildPanel(),
+      invalidateData: () => { this.rawData = null; this.doRender(); },
+      restartSimulation: (alpha: number) => {
+        if (this.simulation) { this.simulation.alpha(alpha).restart(); this.wakeRenderLoop(); }
+      },
+    };
+    buildPanelUI(this.panelEl, this.panel, ctx, cb);
   }
 
   // =========================================================================
@@ -1204,10 +848,13 @@ export class GraphViewContainer extends ItemView {
       nodes = nodes.filter((n) => !n.id.match(/\.(png|jpg|jpeg|gif|svg|pdf|mp3|mp4|webm|webp|zip)$/i));
     }
 
-    if (!this.panel.showTagNodes) {
+    if (!this.panel.showTagNodes || this.panel.tagDisplay === "enclosure") {
       nodes = nodes.filter((n) => !n.isTag);
       edges = edges.filter((e) => e.type !== "has-tag");
     }
+
+    // Filter out "similar" edges unless the user has enabled them
+    if (!this.panel.showSimilar) edges = edges.filter((e) => e.type !== "similar");
 
     const nodeSet = new Set(nodes.map((n) => n.id));
     edges = edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));
@@ -1258,19 +905,63 @@ export class GraphViewContainer extends ItemView {
 
     this.degrees = computeNodeDegrees(gd.nodes, gd.edges);
     const colorMap = assignNodeColors(gd.nodes, this.plugin.settings.colorField);
+    this.nodeColorMap = colorMap;
     this.relationColors = buildRelationColorMap(gd.edges);
     this.adj = buildAdj(gd);
+
+    // Build tag membership for enclosure mode
+    this.tagMembership.clear();
+    this.tagRelPairsCache.clear();
+    this.cachedOverlapCounts.clear();
+    this.overlapCacheFrame = 0;
+    if (this.panel.tagDisplay === "enclosure") {
+      for (const n of gd.nodes) {
+        if (n.isTag || !n.tags) continue;
+        for (const tag of n.tags) {
+          if (!this.tagMembership.has(tag)) this.tagMembership.set(tag, new Set());
+          this.tagMembership.get(tag)!.add(n.id);
+        }
+      }
+      // Pre-build tag relationship pairs (once per render, not per frame)
+      for (const e of gd.edges) {
+        if (e.type !== "inheritance" && e.type !== "aggregation") continue;
+        const src = typeof e.source === "string" ? e.source : (e.source as any).id;
+        const tgt = typeof e.target === "string" ? e.target : (e.target as any).id;
+        if (src?.startsWith("tag:") && tgt?.startsWith("tag:")) {
+          const t1 = src.slice(4), t2 = tgt.slice(4);
+          this.tagRelPairsCache.add(`${t1}\0${t2}`);
+          this.tagRelPairsCache.add(`${t2}\0${t1}`);
+        }
+      }
+    }
+    // Clear stale labels
+    for (const lbl of this.enclosureLabels.values()) {
+      lbl.parent?.removeChild(lbl);
+      lbl.destroy();
+    }
+    this.enclosureLabels.clear();
     const baseSize = this.panel.nodeSize;
 
     const nodeR = (n: GraphNode) => Math.max(baseSize, baseSize + Math.sqrt(this.degrees.get(n.id) || 0) * 1.5);
     const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
     const nodeColor = (n: GraphNode): number => {
+      // Manual group overrides take priority
       for (const grp of this.panel.groups) {
         if (grp.query && n.label.toLowerCase().includes(grp.query)) return cssColorToHex(grp.color);
       }
       if (!this.panel.colorNodesByCategory) return defaultNodeColor;
-      const css = n.category ? (colorMap.get(n.category) || DEFAULT_COLORS[0]) : DEFAULT_COLORS[0];
-      return cssColorToHex(css);
+      // Category-based coloring
+      if (n.category) {
+        const css = colorMap.get(n.category) || DEFAULT_COLORS[0];
+        return cssColorToHex(css);
+      }
+      // Tag-based coloring: tag nodes use their own tag, file nodes use first tag
+      if (n.tags && n.tags.length > 0) {
+        const tagKey = `tag:${n.tags[0]}`;
+        const css = colorMap.get(tagKey) || DEFAULT_COLORS[0];
+        return cssColorToHex(css);
+      }
+      return defaultNodeColor;
     };
 
     // ==== Force layout ====
@@ -1302,8 +993,15 @@ export class GraphViewContainer extends ItemView {
             return this.panel.linkForce;
           }))
         .alphaDecay(0.05)
-        .velocityDecay(0.4)
-        .on("tick", () => {
+        .velocityDecay(0.4);
+
+      // Apply directional gravity rules from settings + panel
+      this.applyDirectionalGravityForce();
+
+      // Apply enclosure repulsion force (push tag groups apart)
+      this.applyEnclosureRepulsionForce();
+
+      this.simulation.on("tick", () => {
           if (++tickCount % TICK_SKIP !== 0) return;
           this.markDirty();
         });
@@ -1385,8 +1083,132 @@ export class GraphViewContainer extends ItemView {
           return this.panel.linkForce;
         });
     }
+    this.applyDirectionalGravityForce();
+    this.applyEnclosureRepulsionForce();
     this.simulation.alpha(0.5).restart();
     this.wakeRenderLoop();
+  }
+
+  /**
+   * Create or update the d3 custom force for directional gravity rules.
+   * Merges rules from plugin settings and panel-local overrides.
+   */
+  private applyDirectionalGravityForce() {
+    if (!this.simulation) return;
+    const rules = this.getActiveDirectionalGravityRules();
+    if (rules.length === 0) {
+      this.simulation.force("directionalGravity", null);
+      return;
+    }
+    // d3 calls force(alpha) on each simulation tick
+    const sim = this.simulation;
+    const forceFn = (alpha: number) => {
+      const nodes = sim.nodes();
+      for (const rule of rules) {
+        const dir = resolveDirection(rule.direction);
+        const ddx = Math.cos(dir);
+        const ddy = Math.sin(dir);
+        const str = (rule.strength ?? 0.1) * alpha;
+        for (const node of nodes) {
+          if (!matchesFilter(node, rule.filter)) continue;
+          node.vx! += ddx * str * 100;
+          node.vy! += ddy * str * 100;
+        }
+      }
+    };
+    this.simulation.force("directionalGravity", forceFn as unknown as d3.Force<GraphNode, GraphEdge>);
+  }
+
+  /**
+   * Get the combined list of directional gravity rules (from settings + panel).
+   */
+  private getActiveDirectionalGravityRules(): DirectionalGravityRule[] {
+    const settingsRules = this.plugin.settings.directionalGravityRules ?? [];
+    const panelRules = this.panel.directionalGravityRules ?? [];
+    return [...settingsRules, ...panelRules];
+  }
+
+  /**
+   * Custom d3 force that repels enclosure centroids from each other.
+   * Each tag group is treated as a virtual body at its centroid.
+   * Repulsion is distributed to member nodes, pushing overlapping groups apart.
+   * Only active in enclosure mode.
+   */
+  private applyEnclosureRepulsionForce() {
+    if (!this.simulation) return;
+    if (this.panel.tagDisplay !== "enclosure" || this.tagMembership.size === 0) {
+      this.simulation.force("enclosureRepulsion", null);
+      return;
+    }
+
+    const membership = this.tagMembership;
+    const nodeIndex = new Map<string, GraphNode>();
+    for (const n of this.simulation.nodes()) {
+      nodeIndex.set(n.id, n);
+    }
+
+    const relPairs = this.tagRelPairsCache;
+    const tags = [...membership.keys()];
+
+    const forceFn = (alpha: number) => {
+      // Compute centroids
+      const centroids: { tag: string; cx: number; cy: number; count: number; radius: number }[] = [];
+      for (const tag of tags) {
+        const ids = membership.get(tag);
+        if (!ids || ids.size === 0) continue;
+        let sx = 0, sy = 0, cnt = 0;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const id of ids) {
+          const n = nodeIndex.get(id);
+          if (!n) continue;
+          sx += n.x; sy += n.y; cnt++;
+          if (n.x < minX) minX = n.x;
+          if (n.y < minY) minY = n.y;
+          if (n.x > maxX) maxX = n.x;
+          if (n.y > maxY) maxY = n.y;
+        }
+        if (cnt === 0) continue;
+        const r = Math.max(30, Math.hypot(maxX - minX, maxY - minY) / 2);
+        centroids.push({ tag, cx: sx / cnt, cy: sy / cnt, count: cnt, radius: r });
+      }
+
+      // Repel centroid pairs (only unrelated tags)
+      const repStr = 800 * alpha;
+      for (let i = 0; i < centroids.length; i++) {
+        for (let j = i + 1; j < centroids.length; j++) {
+          const a = centroids[i], b = centroids[j];
+          if (relPairs.has(`${a.tag}\0${b.tag}`)) continue;
+
+          const dx = b.cx - a.cx;
+          const dy = b.cy - a.cy;
+          const minDist = a.radius + b.radius;
+          let dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist >= minDist * 1.2) continue; // far enough apart
+          if (dist < 1) dist = 1;
+
+          const overlap = minDist - dist;
+          const force = repStr * Math.max(0, overlap) / dist;
+          const fx = dx * force / dist;
+          const fy = dy * force / dist;
+
+          // Distribute force to member nodes (inversely weighted by group size)
+          const wA = 1 / a.count;
+          const wB = 1 / b.count;
+          const idsA = membership.get(a.tag)!;
+          const idsB = membership.get(b.tag)!;
+          for (const id of idsA) {
+            const n = nodeIndex.get(id);
+            if (n) { n.vx! -= fx * wA; n.vy! -= fy * wA; }
+          }
+          for (const id of idsB) {
+            const n = nodeIndex.get(id);
+            if (n) { n.vx! += fx * wB; n.vy! += fy * wB; }
+          }
+        }
+      }
+    };
+
+    this.simulation.force("enclosureRepulsion", forceFn as unknown as d3.Force<GraphNode, GraphEdge>);
   }
 
   private applySearch() {
@@ -1454,30 +1276,6 @@ export class GraphViewContainer extends ItemView {
     }
     this.setStatus(`${arcs.length} arcs`);
   }
+
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-function yieldFrame(): Promise<void> { return new Promise((r) => requestAnimationFrame(() => r())); }
-
-function buildAdj(gd: GraphData): Map<string, Set<string>> {
-  const adj = new Map<string, Set<string>>();
-  for (const n of gd.nodes) adj.set(n.id, new Set());
-  for (const e of gd.edges) {
-    adj.get(e.source)?.add(e.target);
-    adj.get(e.target)?.add(e.source);
-  }
-  return adj;
-}
-
-function cssColorToHex(css: string): number {
-  if (css.startsWith("#")) {
-    return parseInt(css.slice(1), 16);
-  }
-  const m = css.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-  if (m) {
-    return (parseInt(m[1]) << 16) | (parseInt(m[2]) << 8) | parseInt(m[3]);
-  }
-  return 0x6366f1;
-}

@@ -56,7 +56,7 @@ export function applyConcentricLayout(
       centerX,
       centerY,
       angleOffset: 0,
-      rotationSpeed: 0.3,
+      rotationSpeed: 0.08,
       rotationDirection: i % 2 === 0 ? 1 : -1,
     });
   });

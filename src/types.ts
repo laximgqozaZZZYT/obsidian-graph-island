@@ -22,6 +22,8 @@ export interface GraphEdge {
   label?: string;
   /** Excalibrain-style relation name (e.g. "Author", "Location") */
   relation?: string;
+  /** Similarity score between 0 and 1 (future use) */
+  similarityScore?: number;
 }
 
 export interface GraphData {
@@ -38,7 +40,8 @@ export type EdgeType =
   | "semantic"
   | "inheritance"
   | "aggregation"
-  | "has-tag";
+  | "has-tag"
+  | "similar";
 
 export type LayoutType =
   | "force"
@@ -46,6 +49,15 @@ export type LayoutType =
   | "tree"
   | "arc"
   | "sunburst";
+
+export interface DirectionalGravityRule {
+  /** Filter: "tag:character", "category:protagonist", "isTag", "*" (all) etc. */
+  filter: string;
+  /** Direction in radians. 0=right, PI/2=down, PI=left, 3PI/2=up. Presets: "top"|"bottom"|"left"|"right" */
+  direction: number | "top" | "bottom" | "left" | "right";
+  /** Gravity strength (0-1, default 0.1) */
+  strength: number;
+}
 
 export interface ForceLayoutOptions {
   iterations?: number;
@@ -56,6 +68,7 @@ export interface ForceLayoutOptions {
   gravity?: number;
   centerX?: number;
   centerY?: number;
+  directionalGravity?: DirectionalGravityRule[];
 }
 
 export interface ConcentricLayoutOptions {
@@ -115,13 +128,16 @@ export interface OntologyConfig {
   aggregationFields: string[];
   /** Derive inheritance edges from nested tags like #a/b/c */
   useTagHierarchy: boolean;
+  /** Frontmatter/inline field names treated as similarity (related-to) */
+  similarFields: string[];
   /** Map arbitrary relation names to ontology types (ExcaliBrain compat) */
-  customMappings: Record<string, "inheritance" | "aggregation">;
+  customMappings: Record<string, "inheritance" | "aggregation" | "similar">;
 }
 
 export const DEFAULT_ONTOLOGY: OntologyConfig = {
   inheritanceFields: ["parent", "extends", "up"],
   aggregationFields: ["contains", "parts", "has"],
+  similarFields: ["similar", "related"],
   useTagHierarchy: true,
   customMappings: {},
 };
@@ -135,6 +151,10 @@ export interface GraphViewsSettings {
   colorField: string;
   groupField: string;
   ontology: OntologyConfig;
+  /** Show similar edges in the graph (default false) */
+  showSimilar: boolean;
+  /** Directional gravity rules for force layout */
+  directionalGravityRules: DirectionalGravityRule[];
 }
 
 export const DEFAULT_SETTINGS: GraphViewsSettings = {
@@ -146,6 +166,8 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
   colorField: "category",
   groupField: "category",
   ontology: DEFAULT_ONTOLOGY,
+  showSimilar: false,
+  directionalGravityRules: [],
 };
 
 export const DEFAULT_COLORS = [

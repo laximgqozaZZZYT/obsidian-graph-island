@@ -1,4 +1,4 @@
-import type { GraphData, ForceLayoutOptions, GraphNode } from "../types";
+import type { GraphData, ForceLayoutOptions, GraphNode, DirectionalGravityRule } from "../types";
 
 /**
  * Async force layout. Computes layout without touching DOM.
@@ -93,6 +93,21 @@ export async function applyForceDirectedLayoutAsync(
       }
     }
 
+    // --- Directional gravity ---
+    if (options.directionalGravity) {
+      for (const rule of options.directionalGravity) {
+        const dir = resolveDirection(rule.direction);
+        const ddx = Math.cos(dir);
+        const ddy = Math.sin(dir);
+        const str = rule.strength ?? 0.1;
+        for (let i = 0; i < n; i++) {
+          if (!matchesFilter(nodes[i], rule.filter)) continue;
+          nodes[i].vx += ddx * str * 100;
+          nodes[i].vy += ddy * str * 100;
+        }
+      }
+    }
+
     // --- Apply velocity ---
     for (let i = 0; i < n; i++) {
       nodes[i].x += nodes[i].vx * damping;
@@ -164,4 +179,44 @@ function repulsePair(a: GraphNode, b: GraphNode, strength: number) {
   a.vy -= fy;
   b.vx += fx;
   b.vy += fy;
+}
+
+/**
+ * Convert a direction preset or radian value to radians.
+ */
+export function resolveDirection(dir: DirectionalGravityRule["direction"]): number {
+  if (typeof dir === "number") return dir;
+  switch (dir) {
+    case "top": return -Math.PI / 2;
+    case "bottom": return Math.PI / 2;
+    case "left": return Math.PI;
+    case "right": return 0;
+  }
+}
+
+/**
+ * Check whether a node matches a directional gravity filter string.
+ * Supported filters:
+ *   "*"              - all nodes
+ *   "tag:<name>"     - nodes with a specific tag
+ *   "category:<name>"- nodes with a specific category
+ *   "label:<substr>" - nodes whose label contains the substring
+ *   "isTag"          - virtual tag nodes
+ *   "<other>"        - treated as a tag name
+ */
+export function matchesFilter(node: GraphNode, filter: string): boolean {
+  if (filter === "*") return true;
+  if (filter.startsWith("tag:")) {
+    const tag = filter.slice(4);
+    return node.tags?.includes(tag) ?? false;
+  }
+  if (filter.startsWith("category:")) {
+    return node.category === filter.slice(9);
+  }
+  if (filter.startsWith("label:")) {
+    return node.label.includes(filter.slice(6));
+  }
+  if (filter === "isTag") return node.isTag === true;
+  // Default: treat as tag
+  return node.tags?.includes(filter) ?? false;
 }

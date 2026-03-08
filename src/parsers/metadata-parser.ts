@@ -9,12 +9,13 @@ import { DEFAULT_COLORS } from "../types";
 export function classifyRelation(
   name: string,
   onto: OntologyConfig
-): "inheritance" | "aggregation" | undefined {
+): "inheritance" | "aggregation" | "similar" | undefined {
   const clean = name.startsWith("@") ? name.slice(1).trim() : name.trim();
   const lower = clean.toLowerCase();
 
   if (onto.inheritanceFields.some(f => f.toLowerCase() === lower)) return "inheritance";
   if (onto.aggregationFields.some(f => f.toLowerCase() === lower)) return "aggregation";
+  if (onto.similarFields.some(f => f.toLowerCase() === lower)) return "similar";
   if (onto.customMappings[clean]) return onto.customMappings[clean];
 
   return undefined;
@@ -310,21 +311,40 @@ export function buildSunburstData(
   return { name: "Vault", children };
 }
 
+/**
+ * Build a unified color map for categories and tags.
+ * Keys: category names and "tag:<tagName>" for tag-based coloring.
+ * Tag nodes (isTag) are colored by their tag name.
+ * File nodes are colored by category first, then by first tag.
+ */
 export function assignNodeColors(
   nodes: GraphNode[],
   colorField: string
 ): Map<string, string> {
   const colorMap = new Map<string, string>();
   const categories = new Set<string>();
+  const tags = new Set<string>();
 
   for (const node of nodes) {
     if (node.category) categories.add(node.category);
+    if (node.tags) {
+      for (const t of node.tags) tags.add(t);
+    }
   }
 
   let i = 0;
-  for (const cat of categories) {
+  // Assign colors to categories first
+  for (const cat of [...categories].sort()) {
     colorMap.set(cat, DEFAULT_COLORS[i % DEFAULT_COLORS.length]);
     i++;
+  }
+  // Assign colors to tags (prefixed to avoid collision with category names)
+  for (const tag of [...tags].sort()) {
+    const key = `tag:${tag}`;
+    if (!colorMap.has(key)) {
+      colorMap.set(key, DEFAULT_COLORS[i % DEFAULT_COLORS.length]);
+      i++;
+    }
   }
 
   return colorMap;

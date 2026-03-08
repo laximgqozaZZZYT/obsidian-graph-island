@@ -143,6 +143,36 @@ export class GraphViewsSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Show similar edges")
+      .setDesc("Display edges between similar notes/tags (dashed lines).")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.showSimilar)
+          .onChange(async (value) => {
+            this.plugin.settings.showSimilar = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Similar fields")
+      .setDesc(
+        "Frontmatter field names treated as similarity. Comma-separated."
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("similar, related")
+          .setValue(this.plugin.settings.ontology.similarFields.join(", "))
+          .onChange(async (value) => {
+            this.plugin.settings.ontology.similarFields = value
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean);
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName("Tag hierarchy as inheritance")
       .setDesc(
         "Automatically create inheritance edges from nested tags (e.g. #entity/character)."
@@ -155,5 +185,44 @@ export class GraphViewsSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    // --- Directional Gravity section ---
+    containerEl.createEl("h3", { text: "Directional Gravity" });
+
+    const dgDesc = containerEl.createEl("p", {
+      text: 'JSON array of rules. Each rule: { "filter": "tag:character", "direction": "top"|"bottom"|"left"|"right"|<radians>, "strength": 0.1 }',
+      cls: "setting-item-description",
+    });
+    dgDesc.style.fontSize = "0.85em";
+    dgDesc.style.marginBottom = "8px";
+
+    const dgTextarea = containerEl.createEl("textarea");
+    dgTextarea.style.width = "100%";
+    dgTextarea.style.minHeight = "120px";
+    dgTextarea.style.fontFamily = "monospace";
+    dgTextarea.style.fontSize = "0.85em";
+    dgTextarea.value = JSON.stringify(
+      this.plugin.settings.directionalGravityRules,
+      null,
+      2
+    );
+
+    const dgStatus = containerEl.createEl("div");
+    dgStatus.style.fontSize = "0.85em";
+    dgStatus.style.marginTop = "4px";
+
+    dgTextarea.addEventListener("input", async () => {
+      try {
+        const parsed = JSON.parse(dgTextarea.value);
+        if (!Array.isArray(parsed)) throw new Error("Must be an array");
+        this.plugin.settings.directionalGravityRules = parsed;
+        await this.plugin.saveSettings();
+        dgStatus.textContent = "Saved.";
+        dgStatus.style.color = "var(--text-success)";
+      } catch (e) {
+        dgStatus.textContent = `Invalid JSON: ${(e as Error).message}`;
+        dgStatus.style.color = "var(--text-error)";
+      }
+    });
   }
 }
