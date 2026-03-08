@@ -5,6 +5,7 @@ vi.mock("pixi.js", () => ({
   Text: class MockText {
     x = 0; y = 0; alpha = 1; visible = true; resolution = 1;
     anchor = { set: vi.fn() };
+    scale = { set: vi.fn() };
     constructor(public text: string, public style: any) {}
   },
 }));
@@ -34,6 +35,7 @@ function baseCfg(overrides?: Partial<EnclosureConfig>): EnclosureConfig {
     nodeColorMap: new Map(),
     tagRelPairsCache: new Set(),
     resolvePos: () => undefined,
+    worldScale: 1,
     ...overrides,
   };
 }
@@ -77,7 +79,7 @@ describe("drawEnclosures", () => {
     expect(drawCircle).toBeDefined();
     expect(drawCircle!.args[0]).toBe(50); // x
     expect(drawCircle!.args[1]).toBe(50); // y
-    expect(drawCircle!.args[2]).toBe(24); // basePadding
+    expect(drawCircle!.args[2]).toBe(16); // default radius (6) + OUTLINE_PAD (10)
   });
 
   it("draws a capsule for two-point tag", () => {
@@ -138,9 +140,9 @@ describe("drawEnclosures", () => {
 
     drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Both should be drawn (two beginFill calls)
-    const fillCalls = calls.filter((c) => c.method === "beginFill");
-    expect(fillCalls.length).toBe(2);
+    // Both should be drawn (two lineStyle calls, one per enclosure)
+    const lineCalls = calls.filter((c) => c.method === "lineStyle");
+    expect(lineCalls.length).toBe(2);
   });
 
   it("skips tags with no resolvable positions", () => {
@@ -153,8 +155,9 @@ describe("drawEnclosures", () => {
 
     drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    const fillCalls = calls.filter((c) => c.method === "beginFill");
-    expect(fillCalls.length).toBe(0);
+    // No lineStyle calls beyond the initial clear
+    const lineCalls = calls.filter((c) => c.method === "lineStyle");
+    expect(lineCalls.length).toBe(0);
   });
 
   it("reuses cached overlap counts within 30 frames", () => {
@@ -174,6 +177,46 @@ describe("drawEnclosures", () => {
     // Cache should not have been cleared (frame = 11 now)
     expect(cache.frame).toBe(11);
     expect(cache.counts.get("tag1")).toBe(3);
+  });
+
+  it("uses fill + bold labels when zoomed out", () => {
+    const { g, calls } = createMockGraphics();
+    const membership = new Map([["group", new Set(["n1", "n2", "n3"])]]);
+    const positions: Record<string, { x: number; y: number }> = {
+      n1: { x: 0, y: 0 }, n2: { x: 100, y: 0 }, n3: { x: 50, y: 80 },
+    };
+    const cfg = baseCfg({
+      tagMembership: membership,
+      resolvePos: (id) => positions[id],
+      worldScale: 0.2, // zoomed out (below 0.45 threshold)
+    });
+
+    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+
+    // Should have beginFill for the zoomed-out fill
+    const fillCalls = calls.filter((c) => c.method === "beginFill");
+    expect(fillCalls.length).toBe(1);
+    // Should also have lineStyle for the stroke
+    const lineCalls = calls.filter((c) => c.method === "lineStyle");
+    expect(lineCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("uses stroke only (no fill) when zoomed in", () => {
+    const { g, calls } = createMockGraphics();
+    const membership = new Map([["group", new Set(["n1", "n2", "n3"])]]);
+    const positions: Record<string, { x: number; y: number }> = {
+      n1: { x: 0, y: 0 }, n2: { x: 100, y: 0 }, n3: { x: 50, y: 80 },
+    };
+    const cfg = baseCfg({
+      tagMembership: membership,
+      resolvePos: (id) => positions[id],
+      worldScale: 1, // zoomed in
+    });
+
+    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+
+    const fillCalls = calls.filter((c) => c.method === "beginFill");
+    expect(fillCalls.length).toBe(0);
   });
 
   it("recomputes overlap counts at frame 30", () => {

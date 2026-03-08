@@ -31,6 +31,7 @@ export interface PanelState {
   showTagNodes: boolean;
   tagDisplay: "node" | "enclosure";
   showSimilar: boolean;
+  enclosureSpacing: number;
   directionalGravityRules: DirectionalGravityRule[];
 }
 
@@ -60,6 +61,7 @@ export const DEFAULT_PANEL: PanelState = {
   showTagNodes: true,
   tagDisplay: "enclosure" as const,
   showSimilar: false,
+  enclosureSpacing: 1.5,
   directionalGravityRules: [],
 };
 
@@ -246,6 +248,7 @@ export function buildPanel(
     addSlider(body, "反発力", 0, 1000, 10, panel.repelForce, (v) => { panel.repelForce = v; cb.updateForces(); });
     addSlider(body, "リンクの力", 0, 0.1, 0.002, panel.linkForce, (v) => { panel.linkForce = v; cb.updateForces(); });
     addSlider(body, "リンク距離", 20, 500, 10, panel.linkDistance, (v) => { panel.linkDistance = v; cb.updateForces(); });
+    addSlider(body, "囲い間隔", 0.5, 5, 0.1, panel.enclosureSpacing, (v) => { panel.enclosureSpacing = v; cb.updateForces(); });
   });
 }
 

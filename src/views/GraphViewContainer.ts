@@ -1,6 +1,9 @@
 import { ItemView, WorkspaceLeaf, Platform, TFile, setIcon } from "obsidian";
 import * as PIXI from "pixi.js";
-import * as d3 from "d3";
+import { select as d3select } from "d3-selection";
+import { zoom as d3zoom } from "d3-zoom";
+import { arc as d3arc } from "d3-shape";
+import { forceSimulation, forceManyBody, forceCenter, forceLink, type Simulation, type Force } from "d3-force";
 import type GraphViewsPlugin from "../main";
 import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule } from "../types";
 import { DEFAULT_COLORS } from "../types";
@@ -18,7 +21,8 @@ import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type Enclosure
 
 export const VIEW_TYPE_GRAPH = "graph-view";
 
-const TICK_SKIP = 2;
+const TICK_SKIP = 4;
+const EDGE_REDRAW_SKIP = 3; // only redraw edges every Nth dirty frame
 
 // ---------------------------------------------------------------------------
 // PIXI node wrapper
@@ -44,7 +48,7 @@ export class GraphViewContainer extends ItemView {
   private statusEl: HTMLElement | null = null;
   private panel: PanelState = { ...DEFAULT_PANEL };
   private panelEl: HTMLElement | null = null;
-  private simulation: d3.Simulation<GraphNode, GraphEdge> | null = null;
+  private simulation: Simulation<GraphNode, GraphEdge> | null = null;
   private highlightedNodeId: string | null = null;
 
   // PIXI
@@ -53,6 +57,7 @@ export class GraphViewContainer extends ItemView {
   private edgeGraphics: PIXI.Graphics | null = null;
   private orbitGraphics: PIXI.Graphics | null = null;
   private enclosureGraphics: PIXI.Graphics | null = null;
+  private nodeCircleBatch: PIXI.Graphics | null = null;
   private pixiNodes: Map<string, PixiNode> = new Map();
   private canvasWrap: HTMLElement | null = null;
   private graphEdges: GraphEdge[] = [];
@@ -79,6 +84,8 @@ export class GraphViewContainer extends ItemView {
   private idleFrames = 0;
   private needsRedraw = true;
   private _tickerBound = false;
+  private edgeRedrawCounter = 0;
+  private cachedBgColor: number | null = null;
 
   // Last hover pointer position (for page-preview popover)
   private lastHoverEvent: PointerEvent | null = null;
@@ -96,6 +103,13 @@ export class GraphViewContainer extends ItemView {
   // Orbit auto-rotation animation
   private orbitAnimId: number | null = null;
   private orbitLastTime = 0;
+
+  // Hover diff tracking
+  private prevHighlightSet: Set<string> = new Set();
+
+  // Spatial hash for hit testing
+  private spatialGrid: Map<string, PixiNode[]> = new Map();
+  private spatialCellSize = 50;
 
   // Sunburst SVG fallback
   private svgEl: SVGSVGElement | null = null;
@@ -236,6 +250,7 @@ export class GraphViewContainer extends ItemView {
   // PIXI lifecycle
   // =========================================================================
   private destroyPixi() {
+    this.cancelDeferredBatch();
     if (this._tickerBound && this.pixiApp) {
       this.pixiApp.ticker.remove(this.renderTick, this);
       this._tickerBound = false;
@@ -250,6 +265,8 @@ export class GraphViewContainer extends ItemView {
     this.edgeGraphics = null;
     this.orbitGraphics = null;
     this.enclosureGraphics = null;
+    this.nodeCircleBatch = null;
+    this.spatialGrid.clear();
     if (this.pixiApp) {
       try {
         this.pixiApp.destroy(true, { children: true, texture: true });
@@ -285,8 +302,8 @@ export class GraphViewContainer extends ItemView {
       width,
       height,
       backgroundColor: bgColor,
-      antialias: true,
-      resolution: window.devicePixelRatio || 1,
+      antialias: false,
+      resolution: 1,
       autoDensity: true,
     });
 
@@ -316,6 +333,11 @@ export class GraphViewContainer extends ItemView {
     const edgeGfx = new PIXI.Graphics();
     world.addChild(edgeGfx);
     this.edgeGraphics = edgeGfx;
+
+    // Batch node circle layer — draws all non-highlighted circles in one draw call
+    const batchGfx = new PIXI.Graphics();
+    world.addChild(batchGfx);
+    this.nodeCircleBatch = batchGfx;
 
     this.setupInteraction(canvas, world);
 
@@ -427,7 +449,7 @@ export class GraphViewContainer extends ItemView {
         if (newId !== this.highlightedNodeId) {
           this.highlightedNodeId = newId;
           this.applyHover();
-          this.markDirty();
+          this.markDirty(true);
         }
       }
     });
@@ -453,7 +475,7 @@ export class GraphViewContainer extends ItemView {
             } else {
               this.highlightedNodeId = this.draggedNode.data.id;
               this.applyHover();
-              this.markDirty();
+              this.markDirty(true);
             }
           } else {
             this.app.workspace.openLinkText(this.draggedNode.data.filePath, "", false);
@@ -469,7 +491,7 @@ export class GraphViewContainer extends ItemView {
       if (!Platform.isMobile && this.highlightedNodeId) {
         this.highlightedNodeId = null;
         this.applyHover();
-        this.markDirty();
+        this.markDirty(true);
       }
     });
 
@@ -488,17 +510,41 @@ export class GraphViewContainer extends ItemView {
     }
   }
 
+  /** Rebuild the spatial hash grid from current node positions */
+  private rebuildSpatialGrid() {
+    this.spatialGrid.clear();
+    const cs = this.spatialCellSize;
+    for (const pn of this.pixiNodes.values()) {
+      const key = `${Math.floor(pn.data.x / cs)},${Math.floor(pn.data.y / cs)}`;
+      let cell = this.spatialGrid.get(key);
+      if (!cell) { cell = []; this.spatialGrid.set(key, cell); }
+      cell.push(pn);
+    }
+  }
+
   private hitTestNode(wx: number, wy: number): PixiNode | null {
+    const cs = this.spatialCellSize;
+    const cx = Math.floor(wx / cs);
+    const cy = Math.floor(wy / cs);
+
     let closest: PixiNode | null = null;
     let closestDist = Infinity;
-    for (const pn of this.pixiNodes.values()) {
-      const dx = pn.data.x - wx;
-      const dy = pn.data.y - wy;
-      const dist = dx * dx + dy * dy;
-      const r = pn.radius + 4;
-      if (dist < r * r && dist < closestDist) {
-        closestDist = dist;
-        closest = pn;
+
+    // Check 3x3 neighborhood of grid cells
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const cell = this.spatialGrid.get(`${cx + dx},${cy + dy}`);
+        if (!cell) continue;
+        for (const pn of cell) {
+          const ddx = pn.data.x - wx;
+          const ddy = pn.data.y - wy;
+          const dist = ddx * ddx + ddy * ddy;
+          const r = pn.radius + 4;
+          if (dist < r * r && dist < closestDist) {
+            closestDist = dist;
+            closest = pn;
+          }
+        }
       }
     }
     return closest;
@@ -513,12 +559,40 @@ export class GraphViewContainer extends ItemView {
     const hId = this.highlightedNodeId;
     const neighbors = hId ? this.adj.get(hId) : null;
 
-    for (const pn of this.pixiNodes.values()) {
+    // Build current highlight set
+    const curSet = new Set<string>();
+    if (hId) {
+      curSet.add(hId);
+      if (neighbors) for (const nb of neighbors) curSet.add(nb);
+    }
+
+    // Determine which nodes actually changed state
+    const prev = this.prevHighlightSet;
+    const changed = new Set<string>();
+    // Nodes entering or leaving the highlight set
+    for (const id of curSet) { if (!prev.has(id)) changed.add(id); }
+    for (const id of prev) { if (!curSet.has(id)) changed.add(id); }
+    // If transitioning from "no highlight" to "has highlight" (or vice-versa),
+    // all non-highlighted nodes need alpha update too
+    const wasEmpty = prev.size === 0;
+    const isNowEmpty = curSet.size === 0;
+    const fullSweepNeeded = wasEmpty !== isNowEmpty;
+
+    const nodesToUpdate = fullSweepNeeded
+      ? this.pixiNodes.values()
+      : (function*(pnMap: Map<string, PixiNode>, ids: Set<string>) {
+          for (const id of ids) {
+            const pn = pnMap.get(id);
+            if (pn) yield pn;
+          }
+        })(this.pixiNodes, changed);
+
+    for (const pn of nodesToUpdate) {
       if (!hId) {
         pn.gfx.alpha = 1;
         this.drawNodeCircle(pn, false);
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; }
-      } else if (pn.data.id === hId || neighbors?.has(pn.data.id)) {
+      } else if (curSet.has(pn.data.id)) {
         pn.gfx.alpha = 1;
         this.drawNodeCircle(pn, true);
         if (!pn.label && !pn.hoverLabel) {
@@ -537,6 +611,9 @@ export class GraphViewContainer extends ItemView {
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; }
       }
     }
+
+    this.prevHighlightSet = curSet;
+    this.redrawNodeBatch();
     this.triggerPagePreview();
   }
 
@@ -571,11 +648,35 @@ export class GraphViewContainer extends ItemView {
   private drawNodeCircle(pn: PixiNode, highlight: boolean) {
     pn.circle.clear();
     if (highlight) {
+      // Highlighted nodes use individual Graphics so they appear on top of the batch
+      pn.circle.visible = true;
       pn.circle.lineStyle(2.5, 0x6366f1, 1);
+      pn.circle.beginFill(pn.color);
+      pn.circle.drawCircle(0, 0, pn.radius);
+      pn.circle.endFill();
+    } else {
+      // Non-highlighted nodes are drawn by the batch layer
+      pn.circle.visible = false;
     }
-    pn.circle.beginFill(pn.color);
-    pn.circle.drawCircle(0, 0, pn.radius);
-    pn.circle.endFill();
+  }
+
+  /**
+   * Redraw all non-highlighted node circles in a single batch Graphics.
+   * Reduces GPU draw calls from 1000+ to 1.
+   */
+  private redrawNodeBatch() {
+    const g = this.nodeCircleBatch;
+    if (!g) return;
+    g.clear();
+    const hId = this.highlightedNodeId;
+    const neighbors = hId ? this.adj.get(hId) : null;
+    for (const pn of this.pixiNodes.values()) {
+      // Skip highlighted nodes — they use their own individual Graphics
+      if (hId && (pn.data.id === hId || neighbors?.has(pn.data.id))) continue;
+      g.beginFill(pn.color, hId ? 0.12 : 1);
+      g.drawCircle(pn.data.x, pn.data.y, pn.radius);
+      g.endFill();
+    }
   }
 
   // =========================================================================
@@ -602,8 +703,12 @@ export class GraphViewContainer extends ItemView {
   // =========================================================================
   private drawEdges() {
     if (!this.edgeGraphics) return;
-    const el = this.canvasWrap ?? this.containerEl;
-    const bg = getComputedStyle(el).getPropertyValue("--background-primary").trim();
+    // Cache background color to avoid getComputedStyle on every frame
+    if (this.cachedBgColor === null) {
+      const el = this.canvasWrap ?? this.containerEl;
+      const bg = getComputedStyle(el).getPropertyValue("--background-primary").trim();
+      this.cachedBgColor = bg ? cssColorToHex(bg) : 0x1e1e2e;
+    }
     const cfg: EdgeDrawConfig = {
       linkThickness: this.panel.linkThickness,
       showInheritance: this.panel.showInheritance,
@@ -613,7 +718,7 @@ export class GraphViewContainer extends ItemView {
       colorEdgesByRelation: this.panel.colorEdgesByRelation,
       isArcLayout: this.currentLayout === "arc",
       highlightedNodeId: this.highlightedNodeId,
-      bgColor: bg ? cssColorToHex(bg) : 0x1e1e2e,
+      bgColor: this.cachedBgColor,
       relationColors: this.relationColors,
     };
     drawEdgesImpl(
@@ -636,8 +741,9 @@ export class GraphViewContainer extends ItemView {
       tagRelPairsCache: this.tagRelPairsCache,
       resolvePos: (id) => {
         const pn = this.pixiNodes.get(id);
-        return pn ? { x: pn.data.x, y: pn.data.y } : undefined;
+        return pn ? { x: pn.data.x, y: pn.data.y, radius: pn.radius } : undefined;
       },
+      worldScale: this.worldContainer?.scale.x ?? 1,
     };
     drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);
   }
@@ -645,29 +751,42 @@ export class GraphViewContainer extends ItemView {
   // =========================================================================
   // Update positions
   // =========================================================================
-  private updatePositions() {
+  private updatePositions(forceFullRedraw = false) {
     for (const pn of this.pixiNodes.values()) {
       pn.gfx.x = pn.data.x;
       pn.gfx.y = pn.data.y;
     }
+    this.rebuildSpatialGrid();
+    this.redrawNodeBatch();
     this.drawOrbitRings();
-    this.drawEnclosures();
-    this.drawEdges();
+
+    // Throttle expensive edge + enclosure redraws during simulation.
+    // Node positions update every frame, but edges/enclosures only every Nth.
+    this.edgeRedrawCounter++;
+    if (forceFullRedraw || this.edgeRedrawCounter >= EDGE_REDRAW_SKIP) {
+      this.edgeRedrawCounter = 0;
+      this.drawEnclosures();
+      this.drawEdges();
+    }
   }
 
   // =========================================================================
   // Render loop with idle optimization
   // =========================================================================
-  private markDirty() {
+  private needsFullRedraw = false;
+
+  private markDirty(forceFullRedraw = false) {
     this.needsRedraw = true;
+    if (forceFullRedraw) this.needsFullRedraw = true;
     this.idleFrames = 0;
     this.wakeRenderLoop();
   }
 
   private renderTick = () => {
     if (this.needsRedraw) {
-      this.updatePositions();
+      this.updatePositions(this.needsFullRedraw);
       this.needsRedraw = false;
+      this.needsFullRedraw = false;
       this.idleFrames = 0;
     } else {
       this.idleFrames++;
@@ -696,47 +815,133 @@ export class GraphViewContainer extends ItemView {
   // =========================================================================
   // Create PIXI nodes
   // =========================================================================
+  /** Deferred node stack for progressive rendering */
+  private pendingNodes: GraphNode[] = [];
+  private pendingNodeR: ((n: GraphNode) => number) | null = null;
+  private pendingNodeColor: ((n: GraphNode) => number) | null = null;
+  private pendingLabelThreshold = 3;
+  private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Create PIXI nodes in batches via a deferred stack.
+   * First batch is created synchronously so the graph is immediately visible,
+   * remaining nodes are pushed onto a stack and processed in idle frames.
+   */
   private createPixiNodes(
     nodes: GraphNode[],
     nodeR: (n: GraphNode) => number,
     nodeColor: (n: GraphNode) => number
   ) {
     this.pixiNodes.clear();
+    this.cancelDeferredBatch();
+
+    // Dynamically raise label threshold for large graphs to limit GPU texture memory.
+    const MAX_LABELS = 300;
+    const degValues = nodes.map(n => this.degrees.get(n.id) || 0).sort((a, b) => b - a);
+    this.pendingLabelThreshold = degValues.length > MAX_LABELS
+      ? Math.max(3, degValues[MAX_LABELS - 1])
+      : 3;
+
+    // Sort by degree descending — high-degree nodes render first (most important)
+    const sorted = [...nodes].sort((a, b) =>
+      (this.degrees.get(b.id) || 0) - (this.degrees.get(a.id) || 0)
+    );
+
+    // Immediate batch: create enough nodes for an initial visible graph
+    const IMMEDIATE_BATCH = Math.min(200, sorted.length);
     const world = this.worldContainer!;
 
-    for (const n of nodes) {
-      const container = new PIXI.Container();
-      container.x = n.x;
-      container.y = n.y;
-
-      const r = nodeR(n);
-      const color = nodeColor(n);
-      const circle = new PIXI.Graphics();
-      circle.beginFill(color);
-      circle.drawCircle(0, 0, r);
-      circle.endFill();
-      container.addChild(circle);
-
-      let label: PIXI.Text | null = null;
-      const deg = this.degrees.get(n.id) || 0;
-      if (deg > 2) {
-        label = new PIXI.Text(n.label, {
-          fontSize: 11, fill: 0x999999,
-          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-        });
-        label.x = r + 2;
-        label.y = -6;
-        label.resolution = 2;
-        container.addChild(label);
-      }
-
-      world.addChild(container);
-
-      this.pixiNodes.set(n.id, {
-        data: n, gfx: container, circle, label,
-        hoverLabel: null, radius: r, color,
-      });
+    for (let i = 0; i < IMMEDIATE_BATCH; i++) {
+      this.createSinglePixiNode(sorted[i], nodeR, nodeColor, world);
     }
+
+    // Push remaining nodes onto the deferred stack
+    if (sorted.length > IMMEDIATE_BATCH) {
+      this.pendingNodes = sorted.slice(IMMEDIATE_BATCH);
+      this.pendingNodeR = nodeR;
+      this.pendingNodeColor = nodeColor;
+      this.scheduleDeferredBatch();
+    }
+  }
+
+  private createSinglePixiNode(
+    n: GraphNode,
+    nodeR: (n: GraphNode) => number,
+    nodeColor: (n: GraphNode) => number,
+    world: PIXI.Container,
+  ) {
+    const container = new PIXI.Container();
+    container.x = n.x;
+    container.y = n.y;
+
+    const r = nodeR(n);
+    const color = nodeColor(n);
+    const circle = new PIXI.Graphics();
+    // Individual circle is hidden by default — batch layer draws all circles.
+    // Only made visible when this node is highlighted (drawNodeCircle).
+    circle.visible = false;
+    container.addChild(circle);
+
+    let label: PIXI.Text | null = null;
+    const deg = this.degrees.get(n.id) || 0;
+    if (deg > this.pendingLabelThreshold) {
+      label = new PIXI.Text(n.label, {
+        fontSize: 11, fill: 0x999999,
+        fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+      });
+      label.x = r + 2;
+      label.y = -6;
+      label.resolution = 2;
+      container.addChild(label);
+    }
+
+    world.addChild(container);
+
+    this.pixiNodes.set(n.id, {
+      data: n, gfx: container, circle, label,
+      hoverLabel: null, radius: r, color,
+    });
+  }
+
+  /** Process the next batch of deferred nodes from the stack */
+  private processDeferredBatch = () => {
+    this.deferredBatchId = null;
+    const world = this.worldContainer;
+    if (!world || !this.pendingNodeR || !this.pendingNodeColor) return;
+    if (this.pendingNodes.length === 0) return;
+
+    const BATCH_SIZE = 100;
+    const batch = this.pendingNodes.splice(0, BATCH_SIZE);
+
+    for (const n of batch) {
+      this.createSinglePixiNode(n, this.pendingNodeR, this.pendingNodeColor, world);
+    }
+
+    this.markDirty(true);
+
+    if (this.pendingNodes.length > 0) {
+      this.scheduleDeferredBatch();
+    } else {
+      // All nodes created — final cleanup
+      this.pendingNodeR = null;
+      this.pendingNodeColor = null;
+    }
+  };
+
+  private scheduleDeferredBatch() {
+    if (this.deferredBatchId !== null) return;
+    // Use setTimeout(0) to yield to the browser event loop between batches
+    this.deferredBatchId = setTimeout(this.processDeferredBatch, 0);
+  }
+
+  private cancelDeferredBatch() {
+    if (this.deferredBatchId !== null) {
+      clearTimeout(this.deferredBatchId);
+      this.deferredBatchId = null;
+    }
+    this.pendingNodes = [];
+    this.pendingNodeR = null;
+    this.pendingNodeColor = null;
   }
 
   // =========================================================================
@@ -878,6 +1083,7 @@ export class GraphViewContainer extends ItemView {
     const signal = this.ac.signal;
     this.stopSim();
     this.stopOrbitAnimation();
+    this.cachedBgColor = null; // invalidate bg color cache on re-render
 
     const rect = this.canvasWrap.getBoundingClientRect();
     const W = rect.width || 600;
@@ -915,12 +1121,26 @@ export class GraphViewContainer extends ItemView {
     this.overlapCache.counts.clear();
     this.overlapCache.frame = 0;
     if (this.panel.tagDisplay === "enclosure") {
+      // Pass 1: count members per tag to determine specificity
+      const tagCounts = new Map<string, number>();
       for (const n of gd.nodes) {
         if (n.isTag || !n.tags) continue;
         for (const tag of n.tags) {
-          if (!this.tagMembership.has(tag)) this.tagMembership.set(tag, new Set());
-          this.tagMembership.get(tag)!.add(n.id);
+          tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
         }
+      }
+      // Pass 2: assign each node to ONLY its most specific (smallest) tag.
+      // This prevents parent tags from creating giant overlapping enclosures.
+      for (const n of gd.nodes) {
+        if (n.isTag || !n.tags || n.tags.length === 0) continue;
+        let bestTag = n.tags[0];
+        let bestCount = tagCounts.get(bestTag) ?? Infinity;
+        for (let i = 1; i < n.tags.length; i++) {
+          const c = tagCounts.get(n.tags[i]) ?? Infinity;
+          if (c < bestCount) { bestCount = c; bestTag = n.tags[i]; }
+        }
+        if (!this.tagMembership.has(bestTag)) this.tagMembership.set(bestTag, new Set());
+        this.tagMembership.get(bestTag)!.add(n.id);
       }
       // Pre-build tag relationship pairs (once per render, not per frame)
       for (const e of gd.edges) {
@@ -977,10 +1197,10 @@ export class GraphViewContainer extends ItemView {
       this.createPixiNodes(gd.nodes, nodeR, nodeColor);
 
       let tickCount = 0;
-      this.simulation = d3.forceSimulation<GraphNode>(gd.nodes)
-        .force("charge", d3.forceManyBody().strength(-this.panel.repelForce).theta(0.9))
-        .force("center", d3.forceCenter(cx, cy).strength(this.panel.centerForce))
-        .force("link", d3.forceLink<GraphNode, GraphEdge>(gd.edges)
+      this.simulation = forceSimulation<GraphNode, GraphEdge>(gd.nodes)
+        .force("charge", forceManyBody<GraphNode>().strength(-this.panel.repelForce))
+        .force("center", forceCenter<GraphNode>(cx, cy).strength(this.panel.centerForce))
+        .force("link", forceLink<GraphNode, GraphEdge>(gd.edges)
           .id((d) => d.id)
           .distance((e) => {
             if (e.type === "inheritance" || e.type === "aggregation") return this.panel.linkDistance * 0.5;
@@ -992,8 +1212,8 @@ export class GraphViewContainer extends ItemView {
             if (e.type === "has-tag") return this.panel.linkForce * 1.5;
             return this.panel.linkForce;
           }))
-        .alphaDecay(0.05)
-        .velocityDecay(0.4);
+        .alphaDecay(0.08)
+        .velocityDecay(0.55);
 
       // Apply directional gravity rules from settings + panel
       this.applyDirectionalGravityForce();
@@ -1041,8 +1261,16 @@ export class GraphViewContainer extends ItemView {
     if (signal.aborted) return;
 
     this.graphEdges = ld.edges;
+    this.setStatus(`Creating ${ld.nodes.length} nodes...`);
+    await yieldFrame(); if (signal.aborted) return;
+
     this.createPixiNodes(ld.nodes, nodeR, nodeColor);
-    this.updatePositions();
+    await yieldFrame(); if (signal.aborted) return;
+
+    this.setStatus(`Drawing ${ld.edges.length} edges...`);
+    await yieldFrame(); if (signal.aborted) return;
+
+    this.updatePositions(true);
     this.autoFitView(W, H);
 
     this.setStatus(`${ld.nodes.length} nodes, ${ld.edges.length} edges`);
@@ -1067,22 +1295,20 @@ export class GraphViewContainer extends ItemView {
     const W = rect?.width || 600;
     const H = rect?.height || 400;
     this.simulation
-      .force("charge", d3.forceManyBody().strength(-this.panel.repelForce).theta(0.9))
-      .force("center", d3.forceCenter(W / 2, H / 2).strength(this.panel.centerForce));
-    const linkForce = this.simulation.force("link") as d3.ForceLink<GraphNode, GraphEdge> | undefined;
-    if (linkForce) {
-      linkForce
-        .distance((e: GraphEdge) => {
+      .force("charge", forceManyBody<GraphNode>().strength(-this.panel.repelForce))
+      .force("center", forceCenter<GraphNode>(W / 2, H / 2).strength(this.panel.centerForce))
+      .force("link", forceLink<GraphNode, GraphEdge>(this.graphEdges)
+        .id((d) => d.id)
+        .distance((e) => {
           if (e.type === "inheritance" || e.type === "aggregation") return this.panel.linkDistance * 0.5;
           if (e.type === "has-tag") return this.panel.linkDistance * 0.7;
           return this.panel.linkDistance;
         })
-        .strength((e: GraphEdge) => {
+        .strength((e) => {
           if (e.type === "inheritance" || e.type === "aggregation") return this.panel.linkForce * 3;
           if (e.type === "has-tag") return this.panel.linkForce * 1.5;
           return this.panel.linkForce;
-        });
-    }
+        }));
     this.applyDirectionalGravityForce();
     this.applyEnclosureRepulsionForce();
     this.simulation.alpha(0.5).restart();
@@ -1090,7 +1316,7 @@ export class GraphViewContainer extends ItemView {
   }
 
   /**
-   * Create or update the d3 custom force for directional gravity rules.
+   * Create or update the custom force for directional gravity rules.
    * Merges rules from plugin settings and panel-local overrides.
    */
   private applyDirectionalGravityForce() {
@@ -1100,7 +1326,7 @@ export class GraphViewContainer extends ItemView {
       this.simulation.force("directionalGravity", null);
       return;
     }
-    // d3 calls force(alpha) on each simulation tick
+    // Simulation calls force(alpha) on each tick
     const sim = this.simulation;
     const forceFn = (alpha: number) => {
       const nodes = sim.nodes();
@@ -1116,7 +1342,7 @@ export class GraphViewContainer extends ItemView {
         }
       }
     };
-    this.simulation.force("directionalGravity", forceFn as unknown as d3.Force<GraphNode, GraphEdge>);
+    this.simulation.force("directionalGravity", forceFn as Force<GraphNode, GraphEdge>);
   }
 
   /**
@@ -1149,8 +1375,25 @@ export class GraphViewContainer extends ItemView {
 
     const relPairs = this.tagRelPairsCache;
     const tags = [...membership.keys()];
+    const panel = this.panel;
+
+    // Two-phase enclosure repulsion:
+    //   Phase 1 (alpha > 0.3): Strong repulsion with wide spacing (3× user setting)
+    //     — pushes enclosures far apart before other forces converge
+    //   Phase 2 (alpha ≤ 0.3): Settle to user-configured enclosureSpacing
+    //     — allows graph to compact to the desired density
+    const PHASE_THRESHOLD = 0.3;
 
     const forceFn = (alpha: number) => {
+      const userSpacing = panel.enclosureSpacing;
+      // In phase 1, use 3× spacing so enclosures spread wide first
+      const effectiveSpacing = alpha > PHASE_THRESHOLD
+        ? userSpacing * 3
+        : userSpacing;
+
+      // Stronger base repulsion in phase 1 for decisive separation
+      const baseStr = alpha > PHASE_THRESHOLD ? 4000 : 2000;
+
       // Compute centroids
       const centroids: { tag: string; cx: number; cy: number; count: number; radius: number }[] = [];
       for (const tag of tags) {
@@ -1173,7 +1416,7 @@ export class GraphViewContainer extends ItemView {
       }
 
       // Repel centroid pairs (only unrelated tags)
-      const repStr = 800 * alpha;
+      const repStr = baseStr * alpha;
       for (let i = 0; i < centroids.length; i++) {
         for (let j = i + 1; j < centroids.length; j++) {
           const a = centroids[i], b = centroids[j];
@@ -1181,13 +1424,13 @@ export class GraphViewContainer extends ItemView {
 
           const dx = b.cx - a.cx;
           const dy = b.cy - a.cy;
-          const minDist = a.radius + b.radius;
+          const desiredDist = (a.radius + b.radius) * effectiveSpacing;
           let dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist >= minDist * 1.2) continue; // far enough apart
+          if (dist >= desiredDist) continue; // far enough apart
           if (dist < 1) dist = 1;
 
-          const overlap = minDist - dist;
-          const force = repStr * Math.max(0, overlap) / dist;
+          const overlap = desiredDist - dist;
+          const force = repStr * overlap / dist;
           const fx = dx * force / dist;
           const fy = dy * force / dist;
 
@@ -1208,7 +1451,7 @@ export class GraphViewContainer extends ItemView {
       }
     };
 
-    this.simulation.force("enclosureRepulsion", forceFn as unknown as d3.Force<GraphNode, GraphEdge>);
+    this.simulation.force("enclosureRepulsion", forceFn as Force<GraphNode, GraphEdge>);
   }
 
   private applySearch() {
@@ -1219,7 +1462,8 @@ export class GraphViewContainer extends ItemView {
         this.drawNodeCircle(pn, false);
       } else if (pn.data.label.toLowerCase().includes(q)) {
         pn.gfx.alpha = 1;
-        // Search highlight: yellow stroke
+        // Search highlight: yellow stroke — render via individual Graphics
+        pn.circle.visible = true;
         pn.circle.clear();
         pn.circle.lineStyle(3, 0xf59e0b, 1);
         pn.circle.beginFill(pn.color);
@@ -1255,15 +1499,15 @@ export class GraphViewContainer extends ItemView {
     this.canvasWrap!.appendChild(svgEl);
     this.svgEl = svgEl;
 
-    const svg = d3.select(svgEl);
+    const svg = d3select(svgEl);
     const root = buildSunburstData(this.app, this.plugin.settings.groupField);
     const arcs = computeSunburstArcs(root, W, H);
     const cx = W / 2, cy = H / 2;
     const g = svg.append("g").attr("transform", `translate(${cx},${cy})`);
-    const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 3])
+    const zoomBehavior = d3zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 3])
       .on("zoom", (ev) => g.attr("transform", `translate(${cx},${cy}) ${ev.transform}`));
-    svg.call(zoom);
-    const arcGen = d3.arc<{ x0: number; x1: number; y0: number; y1: number }>()
+    svg.call(zoomBehavior);
+    const arcGen = d3arc<{ x0: number; x1: number; y0: number; y1: number }>()
       .startAngle((d) => d.x0).endAngle((d) => d.x1)
       .innerRadius((d) => d.y0).outerRadius((d) => d.y1);
     for (let i = 0; i < arcs.length; i++) {

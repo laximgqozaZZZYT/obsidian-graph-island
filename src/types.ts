@@ -59,18 +59,6 @@ export interface DirectionalGravityRule {
   strength: number;
 }
 
-export interface ForceLayoutOptions {
-  iterations?: number;
-  repulsionStrength?: number;
-  attractionStrength?: number;
-  damping?: number;
-  idealEdgeLength?: number;
-  gravity?: number;
-  centerX?: number;
-  centerY?: number;
-  directionalGravity?: DirectionalGravityRule[];
-}
-
 export interface ConcentricLayoutOptions {
   centerX?: number;
   centerY?: number;

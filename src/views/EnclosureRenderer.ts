@@ -13,7 +13,9 @@ export interface EnclosureConfig {
   tagMembership: Map<string, Set<string>>;
   nodeColorMap: Map<string, string>;
   tagRelPairsCache: Set<string>;
-  resolvePos: (id: string) => Pt | undefined;
+  resolvePos: (id: string) => (Pt & { radius?: number }) | undefined;
+  /** Current world scale (zoom level). Used to adapt rendering style. */
+  worldScale: number;
 }
 
 /**
@@ -31,26 +33,33 @@ export interface OverlapCache {
 
 interface EncData {
   tag: string;
-  pts: Pt[];
+  pts: (Pt & { radius: number })[];
   hex: number;
   expanded: Pt[];
-  area: number;
   minX: number; minY: number; maxX: number; maxY: number;
 }
 
-const BASE_PADDING = 24;
+/** Extra padding beyond node radius for the outline */
+const OUTLINE_PAD = 10;
+
+/**
+ * Zoom threshold: below this worldScale the view is considered "zoomed out".
+ * In zoomed-out mode enclosures switch to filled regions with prominent labels.
+ */
+const ZOOM_OUT_THRESHOLD = 0.45;
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 /**
- * Draw tag enclosures (convex hulls) into the given PIXI.Graphics.
+ * Draw tag enclosures around node groups.
  *
- * @param g              - The PIXI.Graphics to draw shapes into (will be cleared)
- * @param enclosureLabels - Persistent label cache (owned by caller, mutated here)
- * @param overlapCache    - Persistent overlap cache (owned by caller, mutated here)
- * @param cfg             - Configuration for this frame
+ * Rendering adapts to zoom level:
+ *   - **Zoomed in** (worldScale ≥ threshold): Bold outline strokes hugging
+ *     the outer boundary of member nodes. Labels are small.
+ *   - **Zoomed out** (worldScale < threshold): Semi-transparent coloured fill
+ *     with large, prominent labels so groups are identifiable at a glance.
  */
 export function drawEnclosures(
   g: PIXI.Graphics,
@@ -65,14 +74,21 @@ export function drawEnclosures(
     return;
   }
 
-  // Phase 1: Compute hull + AABB for each tag
+  const ws = cfg.worldScale || 1;
+  const zoomedOut = ws < ZOOM_OUT_THRESHOLD;
+  // Smooth blend factor: 1 = fully zoomed-out style, 0 = fully zoomed-in style
+  const blend = zoomedOut
+    ? Math.min(1, (ZOOM_OUT_THRESHOLD - ws) / (ZOOM_OUT_THRESHOLD * 0.5))
+    : 0;
+
+  // Phase 1: Collect node positions + radii per tag, compute expanded hull
   const enclosures: EncData[] = [];
 
   for (const [tag, memberIds] of cfg.tagMembership) {
-    const pts: Pt[] = [];
+    const pts: (Pt & { radius: number })[] = [];
     for (const id of memberIds) {
       const p = cfg.resolvePos(id);
-      if (p) pts.push({ x: p.x, y: p.y });
+      if (p) pts.push({ x: p.x, y: p.y, radius: p.radius ?? 6 });
     }
     if (pts.length < 1) continue;
 
@@ -80,42 +96,48 @@ export function drawEnclosures(
     const cssColor = cfg.nodeColorMap.get(colorKey) || DEFAULT_COLORS[0];
     const hex = cssColorToHex(cssColor);
 
+    const maxR = Math.max(...pts.map((p) => p.radius));
+    const pad = maxR + OUTLINE_PAD;
+
     let expanded: Pt[];
     if (pts.length === 1) {
       const p = pts[0];
+      const r = p.radius + OUTLINE_PAD;
       expanded = [
-        { x: p.x - BASE_PADDING, y: p.y - BASE_PADDING },
-        { x: p.x + BASE_PADDING, y: p.y - BASE_PADDING },
-        { x: p.x + BASE_PADDING, y: p.y + BASE_PADDING },
-        { x: p.x - BASE_PADDING, y: p.y + BASE_PADDING },
+        { x: p.x - r, y: p.y - r },
+        { x: p.x + r, y: p.y - r },
+        { x: p.x + r, y: p.y + r },
+        { x: p.x - r, y: p.y + r },
       ];
     } else if (pts.length === 2) {
       const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
       const len = Math.hypot(dx, dy) || 1;
       const ux = dx / len, uy = dy / len, px = -uy, py = ux;
       expanded = [
-        { x: pts[0].x + px * BASE_PADDING - ux * BASE_PADDING, y: pts[0].y + py * BASE_PADDING - uy * BASE_PADDING },
-        { x: pts[1].x + px * BASE_PADDING + ux * BASE_PADDING, y: pts[1].y + py * BASE_PADDING + uy * BASE_PADDING },
-        { x: pts[1].x - px * BASE_PADDING + ux * BASE_PADDING, y: pts[1].y - py * BASE_PADDING + uy * BASE_PADDING },
-        { x: pts[0].x - px * BASE_PADDING - ux * BASE_PADDING, y: pts[0].y - py * BASE_PADDING - uy * BASE_PADDING },
+        { x: pts[0].x + px * pad - ux * pad, y: pts[0].y + py * pad - uy * pad },
+        { x: pts[1].x + px * pad + ux * pad, y: pts[1].y + py * pad + uy * pad },
+        { x: pts[1].x - px * pad + ux * pad, y: pts[1].y - py * pad + uy * pad },
+        { x: pts[0].x - px * pad - ux * pad, y: pts[0].y - py * pad - uy * pad },
       ];
     } else {
-      expanded = expandHull(convexHull(pts), BASE_PADDING);
+      expanded = expandHull(convexHull(pts), pad);
     }
 
-    // AABB
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const p of expanded) {
       if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
       if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
     }
-    const area = (maxX - minX) * (maxY - minY);
 
-    enclosures.push({ tag, pts, hex, expanded, area, minX, minY, maxX, maxY });
+    enclosures.push({ tag, pts, hex, expanded, minX, minY, maxX, maxY });
   }
 
-  // Phase 2: Sort large-first for z-order
-  enclosures.sort((a, b) => b.area - a.area);
+  // Phase 2: Sort large-first for z-order (matters for fill overlap)
+  enclosures.sort((a, b) => {
+    const areaA = (a.maxX - a.minX) * (a.maxY - a.minY);
+    const areaB = (b.maxX - b.minX) * (b.maxY - b.minY);
+    return areaB - areaA;
+  });
 
   // Phase 3: Overlap count (recompute every 30 frames for perf)
   overlapCache.frame++;
@@ -140,55 +162,91 @@ export function drawEnclosures(
     const { tag, pts, hex, expanded } = enc;
     const overlaps = overlapCache.counts.get(tag) || 0;
 
-    const fillAlpha = overlaps === 0 ? 0.07 : Math.max(0.01, 0.06 / (1 + overlaps * 0.5));
-    const lineAlpha = overlaps === 0 ? 0.6 : Math.max(0.25, 0.5 / (1 + overlaps * 0.15));
-    const lineWidth = overlaps > 3 ? 1 : 1.5;
+    // --- Stroke style (always present, emphasized when zoomed in) ---
+    const baseLineAlpha = overlaps === 0 ? 0.8 : Math.max(0.4, 0.7 / (1 + overlaps * 0.15));
+    const lineWidth = overlaps > 3 ? 1.5 : 2.5;
+
+    // --- Fill style (only when zoomed out) ---
+    const fillAlpha = blend * (overlaps === 0 ? 0.15 : Math.max(0.05, 0.12 / (1 + overlaps * 0.3)));
 
     let labelX = 0, labelY = 0;
+    let labelCenterX = 0, labelCenterY = 0;
 
-    if (pts.length === 1) {
-      g.lineStyle(lineWidth, hex, lineAlpha);
+    // Draw filled shape first (behind stroke) when zoomed out
+    if (fillAlpha > 0.005) {
+      g.lineStyle(0);
       g.beginFill(hex, fillAlpha);
-      g.drawCircle(pts[0].x, pts[0].y, BASE_PADDING);
-      g.endFill();
-      labelX = pts[0].x; labelY = pts[0].y - BASE_PADDING - 10;
-    } else if (pts.length === 2) {
-      g.lineStyle(lineWidth, hex, lineAlpha);
-      g.beginFill(hex, fillAlpha);
-      drawCapsule(g, pts[0], pts[1], BASE_PADDING);
-      g.endFill();
-      labelX = (pts[0].x + pts[1].x) / 2;
-      labelY = Math.min(pts[0].y, pts[1].y) - BASE_PADDING - 10;
-    } else {
-      g.lineStyle(lineWidth, hex, lineAlpha);
-      g.beginFill(hex, fillAlpha);
-      drawSmoothHull(g, expanded);
-      g.endFill();
-
-      let topY = Infinity;
-      for (const p of expanded) {
-        if (p.y < topY) { topY = p.y; labelX = p.x; }
+      if (pts.length === 1) {
+        g.drawCircle(pts[0].x, pts[0].y, pts[0].radius + OUTLINE_PAD);
+      } else if (pts.length === 2) {
+        drawCapsule(g, pts[0], pts[1], Math.max(pts[0].radius, pts[1].radius) + OUTLINE_PAD);
+      } else {
+        drawSmoothHull(g, expanded);
       }
-      labelY = topY - 10;
+      g.endFill();
     }
 
-    // Reuse or create text label
+    // Draw stroke
+    g.lineStyle(lineWidth, hex, baseLineAlpha);
+    if (pts.length === 1) {
+      const p = pts[0];
+      const r = p.radius + OUTLINE_PAD;
+      g.drawCircle(p.x, p.y, r);
+      labelX = p.x; labelY = p.y - r - 8;
+      labelCenterX = p.x; labelCenterY = p.y;
+    } else if (pts.length === 2) {
+      const r = Math.max(pts[0].radius, pts[1].radius) + OUTLINE_PAD;
+      drawCapsule(g, pts[0], pts[1], r);
+      labelX = (pts[0].x + pts[1].x) / 2;
+      labelY = Math.min(pts[0].y, pts[1].y) - r - 8;
+      labelCenterX = labelX;
+      labelCenterY = (pts[0].y + pts[1].y) / 2;
+    } else {
+      drawSmoothHull(g, expanded);
+      let topY = Infinity;
+      let sumX = 0, sumY = 0;
+      for (const p of expanded) {
+        sumX += p.x; sumY += p.y;
+        if (p.y < topY) { topY = p.y; labelX = p.x; }
+      }
+      labelY = topY - 8;
+      labelCenterX = sumX / expanded.length;
+      labelCenterY = sumY / expanded.length;
+    }
+
+    // --- Label ---
     usedLabels.add(tag);
     let txt = enclosureLabels.get(tag);
     if (!txt) {
       const hexStr = "#" + hex.toString(16).padStart(6, "0");
       txt = new PIXI.Text(`#${tag}`, {
-        fontSize: 11,
+        fontSize: 14,
         fill: hexStr,
         fontFamily: "sans-serif",
+        fontWeight: "bold",
       });
-      txt.anchor.set(0.5, 1);
+      txt.anchor.set(0.5, 0.5);
+      txt.resolution = 2;
       g.parent?.addChild(txt);
       enclosureLabels.set(tag, txt);
     }
-    txt.x = labelX;
-    txt.y = labelY;
-    txt.alpha = Math.max(0.4, 0.7 - overlaps * 0.05);
+
+    // When zoomed out: label centred inside the region, large and prominent
+    // When zoomed in:  label above the top edge, smaller
+    if (zoomedOut) {
+      txt.x = labelCenterX;
+      txt.y = labelCenterY;
+      txt.alpha = Math.max(0.6, 0.95 - overlaps * 0.05);
+      const labelScale = Math.min(8, Math.max(1.5, 1.8 / ws));
+      txt.scale.set(labelScale);
+    } else {
+      txt.x = labelX;
+      txt.y = labelY;
+      txt.alpha = Math.max(0.5, 0.8 - overlaps * 0.05);
+      txt.anchor.set(0.5, 1);
+      const labelScale = Math.min(4, Math.max(1, 1 / ws));
+      txt.scale.set(labelScale);
+    }
     txt.visible = true;
   }
 

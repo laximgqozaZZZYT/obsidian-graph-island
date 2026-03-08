@@ -66,9 +66,10 @@ export function applyTreeLayout(
     if (componentOf.has(n.id)) continue;
     const comp: string[] = [];
     const q = [n.id];
+    let qi = 0;
     componentOf.set(n.id, compIdx);
-    while (q.length > 0) {
-      const cur = q.shift()!;
+    while (qi < q.length) {
+      const cur = q[qi++];
       comp.push(cur);
       for (const nb of undirected.get(cur) ?? []) {
         if (!componentOf.has(nb)) {
@@ -93,9 +94,17 @@ export function applyTreeLayout(
     }
     if (!rootId) {
       // Prefer nodes that are structural parents (inheritance targets / aggregation sources)
+      // Build a set of all nodes that appear as someone's child — O(N)
+      const isChild = new Set<string>();
+      for (const id of nodeIds) {
+        const children = structuralChildren.get(id);
+        if (children) {
+          for (const c of children) isChild.add(c);
+        }
+      }
+      // Structural roots = has children but is not a child itself — O(N)
       const structuralRoots = nodeIds.filter(
-        (id) => (structuralChildren.get(id)?.length ?? 0) > 0
-          && !nodeIds.some((other) => structuralChildren.get(other)?.includes(id))
+        (id) => (structuralChildren.get(id)?.length ?? 0) > 0 && !isChild.has(id)
       );
       if (structuralRoots.length > 0) {
         structuralRoots.sort(
@@ -126,13 +135,14 @@ export function applyTreeLayout(
     const queue: { id: string; level: number }[] = [
       { id: rootId!, level: 0 },
     ];
+    let qIdx = 0;
     visited.add(rootId!);
     levels.set(rootId!, 0);
     const unvisited = new Set(nodeIds);
     unvisited.delete(rootId!);
 
-    while (queue.length > 0 || unvisited.size > 0) {
-      if (queue.length === 0 && unvisited.size > 0) {
+    while (qIdx < queue.length || unvisited.size > 0) {
+      if (qIdx >= queue.length && unvisited.size > 0) {
         const nextId = unvisited.values().next().value!;
         const parentLevel = 0;
         queue.push({ id: nextId, level: parentLevel + 1 });
@@ -141,7 +151,7 @@ export function applyTreeLayout(
         levels.set(nextId, parentLevel + 1);
       }
 
-      const item = queue.shift();
+      const item = queue[qIdx++];
       if (!item) continue;
       const { id, level } = item;
       const children = directed.get(id) || [];

@@ -31,7 +31,7 @@ export function buildGraphFromVault(
   const nodeMap = new Map<string, GraphNode>();
   const edgeSet = new Set<string>();
 
-  // Create nodes from files
+  // Create nodes from files (initial x/y set below after grouping)
   for (const file of files) {
     const cache = app.metadataCache.getFileCache(file);
     const frontmatter = cache?.frontmatter;
@@ -39,8 +39,8 @@ export function buildGraphFromVault(
     const node: GraphNode = {
       id: file.path,
       label: file.basename,
-      x: Math.random() * 800 - 400,
-      y: Math.random() * 600 - 300,
+      x: 0,
+      y: 0,
       vx: 0,
       vy: 0,
       category: frontmatter?.[settings.colorField] as string | undefined,
@@ -49,6 +49,104 @@ export function buildGraphFromVault(
     };
     nodes.push(node);
     nodeMap.set(file.path, node);
+  }
+
+  // Place nodes at their tag-group enclosure center.
+  // Each node is assigned to its SMALLEST tag group (most specific),
+  // so that broad parent tags don't create giant overlapping groups.
+  // Radius ∝ √(member count); groups arranged on a circle sized by
+  // the sum of diameters (not max), guaranteeing no overlap.
+  {
+    // Pass 1: count how many nodes each tag has
+    const tagCounts = new Map<string, number>();
+    for (const node of nodes) {
+      if (!node.tags) continue;
+      for (const tag of node.tags) {
+        tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+      }
+    }
+
+    // Pass 2: assign each node to its smallest (most specific) tag group
+    const tagGroups = new Map<string, GraphNode[]>();
+    const ungrouped: GraphNode[] = [];
+    for (const node of nodes) {
+      if (!node.tags || node.tags.length === 0) {
+        ungrouped.push(node);
+        continue;
+      }
+      let bestTag = node.tags[0];
+      let bestCount = tagCounts.get(bestTag) ?? Infinity;
+      for (let i = 1; i < node.tags.length; i++) {
+        const count = tagCounts.get(node.tags[i]) ?? Infinity;
+        if (count < bestCount) {
+          bestCount = count;
+          bestTag = node.tags[i];
+        }
+      }
+      let group = tagGroups.get(bestTag);
+      if (!group) { group = []; tagGroups.set(bestTag, group); }
+      group.push(node);
+    }
+
+    const groupEntries = [...tagGroups.entries()];
+    const totalGroups = groupEntries.length + (ungrouped.length > 0 ? 1 : 0);
+    const BASE_RADIUS = 30;
+    const GAP = 60;
+
+    // Compute radii for each group
+    const groupRadii = groupEntries.map(([, members]) =>
+      BASE_RADIUS * Math.sqrt(members.length)
+    );
+    const ungroupedRadius = ungrouped.length > 0
+      ? BASE_RADIUS * Math.sqrt(ungrouped.length)
+      : 0;
+
+    // Layout radius from sum of diameters so every group fits without overlap
+    const allRadii = [...groupRadii, ...(ungrouped.length > 0 ? [ungroupedRadius] : [])];
+    const totalCircumference = allRadii.reduce(
+      (sum, r) => sum + 2 * r + GAP, 0
+    );
+    const layoutRadius = totalGroups <= 1
+      ? 0
+      : Math.max(totalCircumference / (2 * Math.PI), 200);
+
+    // Place groups along the circle, advancing angle proportionally
+    let angle = 0;
+    let gi = 0;
+    for (const [, members] of groupEntries) {
+      const r = groupRadii[gi];
+      const arcLen = 2 * r + GAP;
+      const halfArc = arcLen / (2 * layoutRadius);
+      angle += halfArc;
+
+      const cx = Math.cos(angle) * layoutRadius;
+      const cy = Math.sin(angle) * layoutRadius;
+      for (const node of members) {
+        const a = Math.random() * 2 * Math.PI;
+        const d = Math.sqrt(Math.random()) * r;
+        node.x = cx + Math.cos(a) * d;
+        node.y = cy + Math.sin(a) * d;
+      }
+
+      angle += halfArc;
+      gi++;
+    }
+
+    if (ungrouped.length > 0) {
+      const r = ungroupedRadius;
+      const arcLen = 2 * r + GAP;
+      const halfArc = arcLen / (2 * layoutRadius);
+      angle += halfArc;
+
+      const cx = Math.cos(angle) * layoutRadius;
+      const cy = Math.sin(angle) * layoutRadius;
+      for (const node of ungrouped) {
+        const a = Math.random() * 2 * Math.PI;
+        const d = Math.sqrt(Math.random()) * r;
+        node.x = cx + Math.cos(a) * d;
+        node.y = cy + Math.sin(a) * d;
+      }
+    }
   }
 
   // Build edges from internal links + relation-typed edges from
@@ -138,7 +236,13 @@ export function buildGraphFromVault(
   }
 
   // Build edges from shared metadata values
+  // Cap per-group to avoid O(N²) explosion (e.g. 50 nodes sharing a tag → 1,225 edges)
+  const SHARED_EDGE_CAP = 1500;
+  let sharedEdgeCount = 0;
+
   for (const field of settings.edgeFields) {
+    if (sharedEdgeCount >= SHARED_EDGE_CAP) break;
+
     const valueToNodes = new Map<string, string[]>();
 
     for (const node of nodes) {
@@ -159,10 +263,17 @@ export function buildGraphFromVault(
       }
     }
 
-    for (const [, nodeIds] of valueToNodes) {
-      if (nodeIds.length < 2 || nodeIds.length > 50) continue;
+    // Sort by group size ascending so smaller (more meaningful) groups are kept first
+    const groups = [...valueToNodes.values()]
+      .filter(ids => ids.length >= 2 && ids.length <= 50)
+      .sort((a, b) => a.length - b.length);
+
+    for (const nodeIds of groups) {
+      if (sharedEdgeCount >= SHARED_EDGE_CAP) break;
       for (let i = 0; i < nodeIds.length; i++) {
+        if (sharedEdgeCount >= SHARED_EDGE_CAP) break;
         for (let j = i + 1; j < nodeIds.length; j++) {
+          if (sharedEdgeCount >= SHARED_EDGE_CAP) break;
           const edgeId = `${field}:${nodeIds[i]}->${nodeIds[j]}`;
           if (edgeSet.has(edgeId)) continue;
           edgeSet.add(edgeId);
@@ -174,6 +285,7 @@ export function buildGraphFromVault(
             type: field === "tags" ? "tag" : "category",
             label: field,
           });
+          sharedEdgeCount++;
         }
       }
     }

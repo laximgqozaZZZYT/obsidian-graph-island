@@ -55,7 +55,10 @@ export function drawEdges(
 ): void {
   g.clear();
 
-  const { highlightedNodeId: hId, linkThickness: thickness, isArcLayout, colorEdgesByRelation: useRelColor } = cfg;
+  const { highlightedNodeId: hId, linkThickness: thickness, colorEdgesByRelation: useRelColor } = cfg;
+  // Disable arc curves when edge count is high to avoid vertex buffer explosion.
+  // quadraticCurveTo generates ~20 vertices per edge vs 4 for lineTo.
+  const isArcLayout = cfg.isArcLayout && edges.length < 500;
 
   for (const e of edges) {
     if (e.type === "inheritance" && !cfg.showInheritance) continue;
