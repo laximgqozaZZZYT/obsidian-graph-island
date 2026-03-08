@@ -332,8 +332,8 @@ export class GraphViewContainer extends ItemView {
       width,
       height,
       backgroundColor: bgColor,
-      antialias: false,
-      resolution: 1,
+      antialias: true,
+      resolution: window.devicePixelRatio || 1,
       autoDensity: true,
     });
 
