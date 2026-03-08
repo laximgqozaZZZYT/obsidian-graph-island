@@ -168,11 +168,11 @@ export function drawEnclosures(
     const overlaps = overlapCache.counts.get(tag) || 0;
 
     // --- Stroke style (always present, emphasized when zoomed in) ---
-    const baseLineAlpha = overlaps === 0 ? 0.8 : Math.max(0.4, 0.7 / (1 + overlaps * 0.15));
-    const lineWidth = overlaps > 3 ? 1.5 : 2.5;
+    const baseLineAlpha = overlaps === 0 ? 0.7 : Math.max(0.35, 0.6 / (1 + overlaps * 0.15));
+    const lineWidth = overlaps > 3 ? 1.5 : 2;
 
     // --- Fill style (only when zoomed out) ---
-    const fillAlpha = blend * (overlaps === 0 ? 0.15 : Math.max(0.05, 0.12 / (1 + overlaps * 0.3)));
+    const fillAlpha = blend * (overlaps === 0 ? 0.25 : Math.max(0.10, 0.20 / (1 + overlaps * 0.3)));
 
     let labelX = 0, labelY = 0;
     let labelCenterX = 0, labelCenterY = 0;
@@ -241,13 +241,13 @@ export function drawEnclosures(
     if (zoomedOut) {
       txt.x = labelCenterX;
       txt.y = labelCenterY;
-      txt.alpha = Math.max(0.6, 0.95 - overlaps * 0.05);
+      txt.alpha = Math.max(0.7, 0.95 - overlaps * 0.04);
       const labelScale = Math.min(8, Math.max(1.5, 1.8 / ws));
       txt.scale.set(labelScale);
     } else {
       txt.x = labelX;
       txt.y = labelY;
-      txt.alpha = Math.max(0.5, 0.8 - overlaps * 0.05);
+      txt.alpha = Math.max(0.6, 0.85 - overlaps * 0.04);
       txt.anchor.set(0.5, 1);
       const labelScale = Math.min(4, Math.max(1, 1 / ws));
       txt.scale.set(labelScale);

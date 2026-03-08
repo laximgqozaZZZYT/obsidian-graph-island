@@ -59,6 +59,8 @@ export function drawEdges(
   // Disable arc curves when edge count is high to avoid vertex buffer explosion.
   // quadraticCurveTo generates ~20 vertices per edge vs 4 for lineTo.
   const isArcLayout = cfg.isArcLayout && edges.length < 500;
+  // Subtle curves for force/concentric layouts when edge count is manageable
+  const useCurves = !cfg.isArcLayout && edges.length < 400;
 
   for (const e of edges) {
     if (e.type === "inheritance" && !cfg.showInheritance) continue;
@@ -110,7 +112,8 @@ export function drawEdges(
 
     // Draw the line
     if (isSimilar) {
-      drawDottedLine(g, src.x, src.y, tgt.x, tgt.y, lineThick, lineColor, alpha, 6, 4);
+      g.moveTo(src.x, src.y);
+      g.lineTo(tgt.x, tgt.y);
     } else if (isArcLayout) {
       const mx = (src.x + tgt.x) / 2;
       const minY = Math.min(src.y, tgt.y);
@@ -118,6 +121,27 @@ export function drawEdges(
       const cpY = minY - dist * 0.3 - 20;
       g.moveTo(src.x, src.y);
       g.quadraticCurveTo(mx, cpY, tgt.x, tgt.y);
+    } else if (useCurves) {
+      // Subtle bezier: offset control point perpendicular to edge direction.
+      // Use a simple hash of source+target positions to vary curve direction,
+      // preventing all edges from curving the same way.
+      const dx = tgt.x - src.x;
+      const dy = tgt.y - src.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 1) { g.moveTo(src.x, src.y); g.lineTo(tgt.x, tgt.y); }
+      else {
+        // Perpendicular unit vector
+        const px = -dy / len;
+        const py = dx / len;
+        // Vary direction: use floor of src position to get a stable ±1
+        const sign = ((Math.floor(src.x * 73 + src.y * 137) & 1) * 2 - 1);
+        // Offset = 6% of edge length, capped at 30px
+        const offset = sign * Math.min(len * 0.06, 30);
+        const cx = (src.x + tgt.x) / 2 + px * offset;
+        const cy = (src.y + tgt.y) / 2 + py * offset;
+        g.moveTo(src.x, src.y);
+        g.quadraticCurveTo(cx, cy, tgt.x, tgt.y);
+      }
     } else {
       g.moveTo(src.x, src.y);
       g.lineTo(tgt.x, tgt.y);
@@ -185,36 +209,3 @@ function drawEdgeMarker(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Dotted line
-// ---------------------------------------------------------------------------
-
-function drawDottedLine(
-  g: PIXI.Graphics,
-  x1: number, y1: number,
-  x2: number, y2: number,
-  lineWidth: number, color: number, alpha: number,
-  dashLen = 6, gapLen = 4,
-) {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  if (len < 1) return;
-
-  const ux = dx / len;
-  const uy = dy / len;
-  let drawn = 0;
-  let drawing = true;
-
-  while (drawn < len) {
-    const segLen = drawing ? dashLen : gapLen;
-    const end = Math.min(drawn + segLen, len);
-    if (drawing) {
-      g.lineStyle(lineWidth, color, alpha);
-      g.moveTo(x1 + ux * drawn, y1 + uy * drawn);
-      g.lineTo(x1 + ux * end, y1 + uy * end);
-    }
-    drawn = end;
-    drawing = !drawing;
-  }
-}

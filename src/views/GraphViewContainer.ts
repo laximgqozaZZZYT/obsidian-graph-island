@@ -86,6 +86,7 @@ export class GraphViewContainer extends ItemView {
   private _tickerBound = false;
   private edgeRedrawCounter = 0;
   private cachedBgColor: number | null = null;
+  private cachedLabelColor: number | null = null;
 
   // Last hover pointer position (for page-preview popover)
   private lastHoverEvent: PointerEvent | null = null;
@@ -113,6 +114,11 @@ export class GraphViewContainer extends ItemView {
 
   // Node info panel (hover details)
   private nodeInfoEl: HTMLElement | null = null;
+
+  // Marquee zoom
+  private isMarqueeActive = false;
+  private marqueeStart = { x: 0, y: 0 };
+  private marqueeGraphics: PIXI.Graphics | null = null;
 
   // Sunburst SVG fallback
   private svgEl: SVGSVGElement | null = null;
@@ -224,6 +230,7 @@ export class GraphViewContainer extends ItemView {
     this.nodeInfoEl = null;
     this.canvasWrap = null;
     this.lastHoverEvent = null;
+    this.marqueeGraphics = null;
   }
 
   // =========================================================================
@@ -412,10 +419,20 @@ export class GraphViewContainer extends ItemView {
           hit.data.fy = hit.data.y;
           this.simulation.alphaTarget(0.3).restart();
         }
-      } else {
+      } else if (e.button === 1 || e.altKey) {
+        // Middle-click or Alt+drag → pan
         this.isPanning = true;
         this.panStart = { x: mx, y: my };
         this.worldStart = { x: world.x, y: world.y };
+      } else {
+        // Default left-click drag on empty space → marquee zoom
+        this.isMarqueeActive = true;
+        this.marqueeStart = { x: mx, y: my };
+        if (!this.marqueeGraphics) {
+          this.marqueeGraphics = new PIXI.Graphics();
+          this.pixiApp!.stage.addChild(this.marqueeGraphics);
+        }
+        this.marqueeGraphics.clear();
       }
     });
 
@@ -447,6 +464,17 @@ export class GraphViewContainer extends ItemView {
           this.draggedNode.data.fy = ny;
         }
         this.markDirty();
+      } else if (this.isMarqueeActive && this.marqueeGraphics) {
+        this.hasDragged = true;
+        const sx = this.marqueeStart.x;
+        const sy = this.marqueeStart.y;
+        const w = mx - sx;
+        const h = my - sy;
+        this.marqueeGraphics.clear();
+        this.marqueeGraphics.lineStyle(1.5, 0x6366f1, 0.9);
+        this.marqueeGraphics.beginFill(0x6366f1, 0.08);
+        this.marqueeGraphics.drawRect(Math.min(sx, mx), Math.min(sy, my), Math.abs(w), Math.abs(h));
+        this.marqueeGraphics.endFill();
       } else if (this.isPanning) {
         world.x = this.worldStart.x + (mx - this.panStart.x);
         world.y = this.worldStart.y + (my - this.panStart.y);
@@ -466,7 +494,30 @@ export class GraphViewContainer extends ItemView {
     });
 
     // Pointer up
-    canvas.addEventListener("pointerup", () => {
+    canvas.addEventListener("pointerup", (e) => {
+      if (this.isMarqueeActive) {
+        this.isMarqueeActive = false;
+        if (this.marqueeGraphics) {
+          this.marqueeGraphics.clear();
+        }
+        if (this.hasDragged) {
+          const rect = canvas.getBoundingClientRect();
+          const mx = e.clientX - rect.left;
+          const my = e.clientY - rect.top;
+          const sx = this.marqueeStart.x;
+          const sy = this.marqueeStart.y;
+          const minSx = Math.min(sx, mx);
+          const minSy = Math.min(sy, my);
+          const w = Math.abs(mx - sx);
+          const h = Math.abs(my - sy);
+          // Only zoom if rectangle is large enough (> 10px each dimension)
+          if (w > 10 && h > 10) {
+            this.zoomToScreenRect(minSx, minSy, w, h);
+          }
+        }
+        this.hasDragged = false;
+        return;
+      }
       if (this.rotatingShellIdx !== null) {
         this.rotatingShellIdx = null;
         return;
@@ -608,7 +659,7 @@ export class GraphViewContainer extends ItemView {
         this.drawNodeCircle(pn, true);
         if (!pn.label && !pn.hoverLabel) {
           const hl = new PIXI.Text(pn.data.label, {
-            fontSize: 11, fill: 0x999999,
+            fontSize: 11, fill: this.getLabelColor(),
             fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
           });
           hl.x = pn.radius + 2;
@@ -738,7 +789,12 @@ export class GraphViewContainer extends ItemView {
     if (highlight) {
       // Highlighted nodes use individual Graphics so they appear on top of the batch
       pn.circle.visible = true;
-      pn.circle.lineStyle(2.5, 0x6366f1, 1);
+      // Soft glow: large semi-transparent circle behind
+      pn.circle.beginFill(pn.color, 0.15);
+      pn.circle.drawCircle(0, 0, pn.radius * 3);
+      pn.circle.endFill();
+      // Accent ring
+      pn.circle.lineStyle(2, 0x6366f1, 0.8);
       pn.circle.beginFill(pn.color);
       pn.circle.drawCircle(0, 0, pn.radius);
       pn.circle.endFill();
@@ -761,7 +817,10 @@ export class GraphViewContainer extends ItemView {
     for (const pn of this.pixiNodes.values()) {
       // Skip highlighted nodes — they use their own individual Graphics
       if (hId && (pn.data.id === hId || neighbors?.has(pn.data.id))) continue;
-      g.beginFill(pn.color, hId ? 0.12 : 1);
+      const alpha = hId ? 0.12 : 1;
+      // Subtle stroke for definition
+      g.lineStyle(0.8, 0x000000, alpha * 0.15);
+      g.beginFill(pn.color, alpha);
       g.drawCircle(pn.data.x, pn.data.y, pn.radius);
       g.endFill();
     }
@@ -776,14 +835,28 @@ export class GraphViewContainer extends ItemView {
     g.clear();
     if (!this.panel.showOrbitRings || this.currentLayout !== "concentric" || this.shells.length === 0) return;
 
-    const ringColor = 0x555555;
-    const ringAlpha = 0.2;
+    const ringColor = 0x888888;
+    const n = this.shells.length;
 
-    for (const shell of this.shells) {
+    for (let i = 0; i < n; i++) {
+      const shell = this.shells[i];
       if (shell.radius <= 0) continue;
-      g.lineStyle(1, ringColor, ringAlpha);
+      // Inner rings slightly more visible, outer rings fade
+      const t = n > 1 ? i / (n - 1) : 0;
+      const ringAlpha = 0.3 - t * 0.15;  // 0.30 → 0.15
+      const lineWidth = 1.5 - t * 0.5;    // 1.5 → 1.0
+      g.lineStyle(lineWidth, ringColor, ringAlpha);
       g.drawCircle(shell.centerX, shell.centerY, shell.radius);
     }
+  }
+
+  private getLabelColor(): number {
+    if (this.cachedLabelColor === null) {
+      const el = this.canvasWrap ?? this.containerEl;
+      const css = getComputedStyle(el).getPropertyValue("--text-muted").trim();
+      this.cachedLabelColor = css ? cssColorToHex(css) : 0x999999;
+    }
+    return this.cachedLabelColor;
   }
 
   // =========================================================================
@@ -976,7 +1049,7 @@ export class GraphViewContainer extends ItemView {
     const deg = this.degrees.get(n.id) || 0;
     if (deg > this.pendingLabelThreshold) {
       label = new PIXI.Text(n.label, {
-        fontSize: 11, fill: 0x999999,
+        fontSize: 11, fill: this.getLabelColor(),
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
       });
       label.x = r + 2;
@@ -1059,6 +1132,34 @@ export class GraphViewContainer extends ItemView {
     world.scale.set(sc);
     world.x = W / 2 - cx * sc;
     world.y = H / 2 - cy * sc;
+  }
+
+  /**
+   * Zoom the view so that the given screen-space rectangle fills the viewport.
+   */
+  private zoomToScreenRect(sx: number, sy: number, sw: number, sh: number) {
+    const world = this.worldContainer;
+    const wrap = this.canvasWrap;
+    if (!world || !wrap) return;
+
+    const W = wrap.clientWidth;
+    const H = wrap.clientHeight;
+    const stage = this.pixiApp!.stage;
+
+    // Convert screen-space rectangle corners to world coordinates
+    const topLeft = world.toLocal(new PIXI.Point(sx, sy), stage);
+    const bottomRight = world.toLocal(new PIXI.Point(sx + sw, sy + sh), stage);
+
+    const worldW = bottomRight.x - topLeft.x;
+    const worldH = bottomRight.y - topLeft.y;
+    const cx = (topLeft.x + bottomRight.x) / 2;
+    const cy = (topLeft.y + bottomRight.y) / 2;
+
+    const sc = Math.min(W / worldW, H / worldH, 10);
+    world.scale.set(sc);
+    world.x = W / 2 - cx * sc;
+    world.y = H / 2 - cy * sc;
+    this.markDirty();
   }
 
   private zoomBy(factor: number) {
@@ -1174,6 +1275,7 @@ export class GraphViewContainer extends ItemView {
     this.stopSim();
     this.stopOrbitAnimation();
     this.cachedBgColor = null; // invalidate bg color cache on re-render
+    this.cachedLabelColor = null;
 
     const rect = this.canvasWrap.getBoundingClientRect();
     const W = rect.width || 600;
@@ -1552,10 +1654,15 @@ export class GraphViewContainer extends ItemView {
         this.drawNodeCircle(pn, false);
       } else if (pn.data.label.toLowerCase().includes(q)) {
         pn.gfx.alpha = 1;
-        // Search highlight: yellow stroke — render via individual Graphics
+        // Search highlight: yellow glow — render via individual Graphics
         pn.circle.visible = true;
         pn.circle.clear();
-        pn.circle.lineStyle(3, 0xf59e0b, 1);
+        // Soft search glow
+        pn.circle.beginFill(0xf59e0b, 0.15);
+        pn.circle.drawCircle(0, 0, pn.radius * 3);
+        pn.circle.endFill();
+        // Accent ring
+        pn.circle.lineStyle(2.5, 0xf59e0b, 0.9);
         pn.circle.beginFill(pn.color);
         pn.circle.drawCircle(0, 0, pn.radius);
         pn.circle.endFill();

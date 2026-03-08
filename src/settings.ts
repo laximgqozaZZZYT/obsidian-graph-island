@@ -164,7 +164,7 @@ export class GraphViewsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Show similar edges")
-      .setDesc("Display edges between similar notes/tags (dashed lines).")
+      .setDesc("Display edges between similar notes/tags.")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.showSimilar)

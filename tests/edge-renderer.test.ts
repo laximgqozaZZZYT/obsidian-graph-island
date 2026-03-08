@@ -59,9 +59,10 @@ describe("drawEdges", () => {
     const edges: GraphEdge[] = [{ source: "a", target: "b" }];
     drawEdges(g, edges, resolvePos, baseCfg());
     const moveCall = calls.find((c) => c.method === "moveTo");
-    const lineCall = calls.find((c) => c.method === "lineTo");
+    // With < 400 edges useCurves is active, so we get quadraticCurveTo instead of lineTo
+    const drawCall = calls.find((c) => c.method === "lineTo" || c.method === "quadraticCurveTo");
     expect(moveCall).toBeDefined();
-    expect(lineCall).toBeDefined();
+    expect(drawCall).toBeDefined();
   });
 
   it("skips inheritance edges when showInheritance is false", () => {
@@ -112,13 +113,14 @@ describe("drawEdges", () => {
     expect(curveCall).toBeDefined();
   });
 
-  it("draws dotted line for similar edges", () => {
+  it("draws solid line for similar edges", () => {
     const { g, calls } = createMockGraphics();
     const edges: GraphEdge[] = [{ source: "a", target: "b", type: "similar" }];
     drawEdges(g, edges, resolvePos, baseCfg());
-    // Dotted line produces multiple moveTo/lineTo pairs (dash segments)
-    const moveCalls = calls.filter((c) => c.method === "moveTo");
-    expect(moveCalls.length).toBeGreaterThan(1);
+    const moveCall = calls.find((c) => c.method === "moveTo");
+    const lineCall = calls.find((c) => c.method === "lineTo");
+    expect(moveCall).toBeDefined();
+    expect(lineCall).toBeDefined();
   });
 
   it("draws ontology markers for inheritance edges", () => {
