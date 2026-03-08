@@ -141,13 +141,13 @@ describe("drawEdges", () => {
       { source: "b", target: "c" },
     ];
     drawEdges(g, edges, resolvePos, baseCfg({ highlightedNodeId: "a" }));
-    // lineStyle is called for each edge — the first should have alpha=1, the second alpha=0.04
+    // lineStyle is called for each edge — the first should have alpha=1, the second alpha=0.08
     const lineStyleCalls = calls.filter((c) => c.method === "lineStyle");
     expect(lineStyleCalls.length).toBe(2);
     // First edge (a→b) should have alpha=1
     expect(lineStyleCalls[0].args[2]).toBe(1);
-    // Second edge (b→c) should have alpha=0.04
-    expect(lineStyleCalls[1].args[2]).toBe(0.04);
+    // Second edge (b→c) should have alpha=0.08
+    expect(lineStyleCalls[1].args[2]).toBe(0.08);
   });
 
   it("uses relation colors when colorEdgesByRelation is true", () => {

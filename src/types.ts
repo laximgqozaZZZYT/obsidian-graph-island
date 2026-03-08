@@ -50,6 +50,12 @@ export type LayoutType =
   | "arc"
   | "sunburst";
 
+/** How to partition nodes into clusters within the force layout */
+export type ClusterGroupBy = "none" | "tag" | "backlinks" | "node_type";
+
+/** How to arrange nodes within each cluster */
+export type ClusterArrangement = "free" | "spiral" | "concentric" | "tree" | "grid";
+
 export interface DirectionalGravityRule {
   /** Filter: "tag:character", "category:protagonist", "isTag", "*" (all) etc. */
   filter: string;
@@ -149,7 +155,7 @@ export interface GraphViewsSettings {
 
 export const DEFAULT_SETTINGS: GraphViewsSettings = {
   defaultLayout: "force",
-  nodeSize: 6,
+  nodeSize: 8,
   showLabels: true,
   metadataFields: ["tags", "category", "characters", "locations"],
   edgeFields: ["tags", "category"],

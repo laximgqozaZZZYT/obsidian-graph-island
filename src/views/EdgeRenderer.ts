@@ -91,20 +91,20 @@ export function drawEdges(
     const isSimilar = e.type === "similar";
     const isOnto = e.type === "inheritance" || e.type === "aggregation";
     const isStructural = isOnto || e.type === "has-tag" || isSimilar;
-    let alpha = isStructural ? 0.5 : 0.4;
-    let lineThick = thickness;
+    let alpha = isStructural ? 0.7 : 0.65;
+    let lineThick = Math.max(thickness, 1.5);
 
-    if (!isOnto && e.relation && useRelColor) alpha = 0.7;
+    if (!isOnto && e.relation && useRelColor) alpha = 0.8;
 
     if (hId) {
       const sid = src.id ?? (e.source as string);
       const tid = tgt.id ?? (e.target as string);
       if (sid === hId || tid === hId) {
-        lineThick = 2;
+        lineThick = 3;
         alpha = 1;
         if (!isOnto && !e.relation) lineColor = HIGHLIGHT_COLOR;
       } else {
-        alpha = 0.04;
+        alpha = 0.08;
       }
     }
 

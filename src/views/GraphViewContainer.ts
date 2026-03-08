@@ -18,6 +18,7 @@ import { yieldFrame, buildAdj, cssColorToHex } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, type EdgeDrawConfig } from "./EdgeRenderer";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
+import { buildClusterForce } from "../layouts/cluster-force";
 
 export const VIEW_TYPE_GRAPH = "graph-view";
 
@@ -116,9 +117,11 @@ export class GraphViewContainer extends ItemView {
   private nodeInfoEl: HTMLElement | null = null;
 
   // Marquee zoom
+  private marqueeMode = false;        // toggled by toolbar button
   private isMarqueeActive = false;
   private marqueeStart = { x: 0, y: 0 };
   private marqueeGraphics: PIXI.Graphics | null = null;
+  private marqueeBtnEl: HTMLElement | null = null;
 
   // Sunburst SVG fallback
   private svgEl: SVGSVGElement | null = null;
@@ -171,6 +174,15 @@ export class GraphViewContainer extends ItemView {
     zoomOutBtn.addEventListener("click", () => {
       this.zoomBy(1 / 1.3);
     });
+
+    const marqueeBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    setIcon(marqueeBtn, "box-select");
+    marqueeBtn.setAttribute("aria-label", "範囲拡大");
+    marqueeBtn.addEventListener("click", () => {
+      this.marqueeMode = !this.marqueeMode;
+      marqueeBtn.toggleClass("is-active", this.marqueeMode);
+    });
+    this.marqueeBtnEl = marqueeBtn;
 
     const panelToggle = toolbar.createEl("button", { cls: "graph-settings-btn" });
     setIcon(panelToggle, "settings");
@@ -424,8 +436,8 @@ export class GraphViewContainer extends ItemView {
         this.isPanning = true;
         this.panStart = { x: mx, y: my };
         this.worldStart = { x: world.x, y: world.y };
-      } else {
-        // Default left-click drag on empty space → marquee zoom
+      } else if (this.marqueeMode) {
+        // Left-click drag on empty space → marquee zoom (only when mode is active)
         this.isMarqueeActive = true;
         this.marqueeStart = { x: mx, y: my };
         if (!this.marqueeGraphics) {
@@ -515,6 +527,9 @@ export class GraphViewContainer extends ItemView {
             this.zoomToScreenRect(minSx, minSy, w, h);
           }
         }
+        // Auto-disable marquee mode after use
+        this.marqueeMode = false;
+        this.marqueeBtnEl?.removeClass("is-active");
         this.hasDragged = false;
         return;
       }
@@ -814,16 +829,37 @@ export class GraphViewContainer extends ItemView {
     g.clear();
     const hId = this.highlightedNodeId;
     const neighbors = hId ? this.adj.get(hId) : null;
+
+    // Two-pass: first all glows (behind), then all solid circles (on top).
+    // This ensures glows merge into visible "clouds" without occluding nodes.
+    const visible: PixiNode[] = [];
     for (const pn of this.pixiNodes.values()) {
-      // Skip highlighted nodes — they use their own individual Graphics
       if (hId && (pn.data.id === hId || neighbors?.has(pn.data.id))) continue;
-      const alpha = hId ? 0.12 : 1;
-      // Subtle stroke for definition
-      g.lineStyle(0.8, 0x000000, alpha * 0.15);
+      visible.push(pn);
+    }
+
+    const alpha = hId ? 0.12 : 1;
+
+    // Pass 1: Glow halos
+    g.lineStyle(0);
+    for (const pn of visible) {
+      g.beginFill(pn.color, alpha * 0.22);
+      g.drawCircle(pn.data.x, pn.data.y, pn.radius * 3);
+      g.endFill();
+    }
+
+    // Pass 2: Solid circles with contrasting stroke
+    const strokeColor = this.isDarkTheme() ? 0xffffff : 0x000000;
+    for (const pn of visible) {
+      g.lineStyle(1, strokeColor, alpha * 0.25);
       g.beginFill(pn.color, alpha);
       g.drawCircle(pn.data.x, pn.data.y, pn.radius);
       g.endFill();
     }
+  }
+
+  private isDarkTheme(): boolean {
+    return document.body.classList.contains("theme-dark");
   }
 
   // =========================================================================
@@ -1197,6 +1233,7 @@ export class GraphViewContainer extends ItemView {
       applySearch: () => this.applySearch(),
       applyTextFade: () => this.applyTextFade(),
       applyDirectionalGravityForce: () => this.applyDirectionalGravityForce(),
+      applyClusterForce: () => this.applyClusterForce(),
       startOrbitAnimation: () => this.startOrbitAnimation(),
       stopOrbitAnimation: () => this.stopOrbitAnimation(),
       wakeRenderLoop: () => this.wakeRenderLoop(),
@@ -1354,7 +1391,7 @@ export class GraphViewContainer extends ItemView {
     this.enclosureLabels.clear();
     const baseSize = this.panel.nodeSize;
 
-    const nodeR = (n: GraphNode) => Math.max(baseSize, baseSize + Math.sqrt(this.degrees.get(n.id) || 0) * 2.5);
+    const nodeR = (n: GraphNode) => Math.max(baseSize, baseSize + Math.sqrt(this.degrees.get(n.id) || 0) * 3.2);
     const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
     const nodeColor = (n: GraphNode): number => {
       // Manual group overrides take priority
@@ -1412,6 +1449,9 @@ export class GraphViewContainer extends ItemView {
 
       // Apply enclosure repulsion force (push tag groups apart)
       this.applyEnclosureRepulsionForce();
+
+      // Apply cluster arrangement force if configured
+      this.applyClusterForce();
 
       this.simulation.on("tick", () => {
           if (++tickCount % TICK_SKIP !== 0) return;
@@ -1644,6 +1684,67 @@ export class GraphViewContainer extends ItemView {
     };
 
     this.simulation.force("enclosureRepulsion", forceFn as Force<GraphNode, GraphEdge>);
+  }
+
+  /**
+   * Apply cluster arrangement force — computes absolute target positions
+   * per group and blends nodes toward them with full velocity kill.
+   */
+  private applyClusterForce() {
+    if (!this.simulation) return;
+    const { clusterGroupBy, clusterArrangement, clusterStrength, clusterGridCols } = this.panel;
+    const active = clusterArrangement !== "free";
+
+    if (!active) {
+      this.simulation.force("clusterArrangement", null);
+      // Restore all forces when cluster is off
+      this.simulation.force("charge", forceManyBody<GraphNode>().strength(-this.panel.repelForce));
+      const rect = this.canvasWrap?.getBoundingClientRect();
+      const W = rect?.width || 600;
+      const H = rect?.height || 400;
+      this.simulation.force("center", forceCenter<GraphNode>(W / 2, H / 2).strength(this.panel.centerForce));
+      this.simulation.force("link", forceLink<GraphNode, GraphEdge>(this.graphEdges)
+        .id((d: GraphNode) => d.id)
+        .distance(() => this.panel.linkDistance)
+        .strength(() => this.panel.linkForce));
+      // Restore directionalGravity and enclosureRepulsion
+      this.applyDirectionalGravityForce();
+      this.applyEnclosureRepulsionForce();
+      return;
+    }
+
+    // When cluster is active, suppress all competing forces:
+    // - Charge: minimal repulsion just to prevent exact overlaps
+    // - Center: removed (group positions already centered)
+    // - Link: removed (would pull arranged nodes out of position)
+    // - DirectionalGravity: removed (adds velocity that fights cluster positions)
+    // - EnclosureRepulsion: removed (adds strong velocity that disrupts layout)
+    this.simulation.force("charge", forceManyBody<GraphNode>().strength(-10));
+    this.simulation.force("center", null);
+    this.simulation.force("link", null);
+    this.simulation.force("directionalGravity", null);
+    this.simulation.force("enclosureRepulsion", null);
+
+    const rect = this.canvasWrap?.getBoundingClientRect();
+    const W = rect?.width || 600;
+    const H = rect?.height || 400;
+
+    const forceFn = buildClusterForce(
+      this.simulation.nodes(),
+      this.graphEdges,
+      this.degrees,
+      {
+        groupBy: clusterGroupBy,
+        arrangement: clusterArrangement,
+        strength: clusterStrength,
+        gridCols: clusterGridCols,
+        centerX: W / 2,
+        centerY: H / 2,
+        width: W,
+        height: H,
+      },
+    );
+    this.simulation.force("clusterArrangement", forceFn as Force<GraphNode, GraphEdge> | null);
   }
 
   private applySearch() {

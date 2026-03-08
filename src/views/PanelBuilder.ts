@@ -1,4 +1,4 @@
-import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule } from "../types";
+import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterGroupBy, ClusterArrangement } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { repositionShell } from "../layouts/concentric";
 
@@ -33,6 +33,10 @@ export interface PanelState {
   showSimilar: boolean;
   enclosureSpacing: number;
   directionalGravityRules: DirectionalGravityRule[];
+  clusterGroupBy: ClusterGroupBy;
+  clusterArrangement: ClusterArrangement;
+  clusterStrength: number;
+  clusterGridCols: number;
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -42,7 +46,7 @@ export const DEFAULT_PANEL: PanelState = {
   showOrphans: true,
   showArrows: false,
   textFadeThreshold: 0.5,
-  nodeSize: 6,
+  nodeSize: 8,
   linkThickness: 1.5,
   centerForce: 0.03,
   repelForce: 200,
@@ -63,6 +67,10 @@ export const DEFAULT_PANEL: PanelState = {
   showSimilar: false,
   enclosureSpacing: 1.5,
   directionalGravityRules: [],
+  clusterGroupBy: "none" as ClusterGroupBy,
+  clusterArrangement: "free" as ClusterArrangement,
+  clusterStrength: 0.3,
+  clusterGridCols: 5,
 };
 
 // ---------------------------------------------------------------------------
@@ -81,6 +89,7 @@ export interface PanelCallbacks {
   rebuildPanel(): void;
   invalidateData(): void;       // sets rawData = null then doRender
   restartSimulation(alpha: number): void;
+  applyClusterForce(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -243,13 +252,56 @@ export function buildPanel(
     }
   });
 
-  buildSection(panelEl, "力の強さ", (body) => {
-    addSlider(body, "中心力", 0, 0.2, 0.005, panel.centerForce, (v) => { panel.centerForce = v; cb.updateForces(); });
-    addSlider(body, "反発力", 0, 1000, 10, panel.repelForce, (v) => { panel.repelForce = v; cb.updateForces(); });
-    addSlider(body, "リンクの力", 0, 0.1, 0.002, panel.linkForce, (v) => { panel.linkForce = v; cb.updateForces(); });
-    addSlider(body, "リンク距離", 20, 500, 10, panel.linkDistance, (v) => { panel.linkDistance = v; cb.updateForces(); });
-    addSlider(body, "囲い間隔", 0.5, 5, 0.1, panel.enclosureSpacing, (v) => { panel.enclosureSpacing = v; cb.updateForces(); });
-  });
+  if (ctx.currentLayout === "force") {
+    buildSection(panelEl, "クラスター配置", (body) => {
+      addSelect(body, "グループ分け", [
+        { value: "none", label: "なし" },
+        { value: "tag", label: "タグ" },
+        { value: "backlinks", label: "被リンク数" },
+        { value: "node_type", label: "ノードタイプ" },
+      ], panel.clusterGroupBy, (v) => {
+        panel.clusterGroupBy = v as ClusterGroupBy;
+        cb.applyClusterForce();
+        cb.rebuildPanel();
+        cb.restartSimulation(0.5);
+      });
+      addSelect(body, "配置パターン", [
+        { value: "free", label: "無秩序" },
+        { value: "spiral", label: "アルキメデスの螺旋" },
+        { value: "concentric", label: "同心円" },
+        { value: "tree", label: "Tree" },
+        { value: "grid", label: "m,n配置" },
+      ], panel.clusterArrangement, (v) => {
+        panel.clusterArrangement = v as ClusterArrangement;
+        cb.applyClusterForce();
+        cb.rebuildPanel();
+        cb.restartSimulation(0.5);
+      });
+      addSlider(body, "配置の強さ", 0.05, 1, 0.05, panel.clusterStrength, (v) => {
+        panel.clusterStrength = v;
+        cb.applyClusterForce();
+        cb.restartSimulation(0.3);
+      });
+      if (panel.clusterArrangement === "grid") {
+        addSlider(body, "グリッド列数", 2, 20, 1, panel.clusterGridCols, (v) => {
+          panel.clusterGridCols = v;
+          cb.applyClusterForce();
+          cb.restartSimulation(0.3);
+        });
+      }
+    });
+  }
+
+  const clusterActive = panel.clusterArrangement !== "free";
+  if (!clusterActive) {
+    buildSection(panelEl, "力の強さ", (body) => {
+      addSlider(body, "中心力", 0, 0.2, 0.005, panel.centerForce, (v) => { panel.centerForce = v; cb.updateForces(); });
+      addSlider(body, "反発力", 0, 1000, 10, panel.repelForce, (v) => { panel.repelForce = v; cb.updateForces(); });
+      addSlider(body, "リンクの力", 0, 0.1, 0.002, panel.linkForce, (v) => { panel.linkForce = v; cb.updateForces(); });
+      addSlider(body, "リンク距離", 20, 500, 10, panel.linkDistance, (v) => { panel.linkDistance = v; cb.updateForces(); });
+      addSlider(body, "囲い間隔", 0.5, 5, 0.1, panel.enclosureSpacing, (v) => { panel.enclosureSpacing = v; cb.updateForces(); });
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
