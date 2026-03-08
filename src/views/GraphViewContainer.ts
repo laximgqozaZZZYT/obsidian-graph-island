@@ -437,7 +437,7 @@ export class GraphViewContainer extends ItemView {
         this.panStart = { x: mx, y: my };
         this.worldStart = { x: world.x, y: world.y };
       } else if (this.marqueeMode) {
-        // Left-click drag on empty space → marquee zoom (only when mode is active)
+        // Marquee mode active → left-click drag for range zoom
         this.isMarqueeActive = true;
         this.marqueeStart = { x: mx, y: my };
         if (!this.marqueeGraphics) {
@@ -445,6 +445,11 @@ export class GraphViewContainer extends ItemView {
           this.pixiApp!.stage.addChild(this.marqueeGraphics);
         }
         this.marqueeGraphics.clear();
+      } else {
+        // Default left-click drag on empty space → pan
+        this.isPanning = true;
+        this.panStart = { x: mx, y: my };
+        this.worldStart = { x: world.x, y: world.y };
       }
     });
 
@@ -527,9 +532,6 @@ export class GraphViewContainer extends ItemView {
             this.zoomToScreenRect(minSx, minSy, w, h);
           }
         }
-        // Auto-disable marquee mode after use
-        this.marqueeMode = false;
-        this.marqueeBtnEl?.removeClass("is-active");
         this.hasDragged = false;
         return;
       }
