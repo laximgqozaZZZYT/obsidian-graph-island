@@ -14,6 +14,8 @@ export interface EdgeDrawConfig {
   colorEdgesByRelation: boolean;
   isArcLayout: boolean;
   highlightedNodeId: string | null;
+  /** Set of node IDs in the hover highlight (BFS n-hop) */
+  highlightSet: Set<string>;
   bgColor: number;
   relationColors: Map<string, string>;
 }
@@ -99,7 +101,7 @@ export function drawEdges(
     if (hId) {
       const sid = src.id ?? (e.source as string);
       const tid = tgt.id ?? (e.target as string);
-      if (sid === hId || tid === hId) {
+      if (cfg.highlightSet.has(sid) && cfg.highlightSet.has(tid)) {
         lineThick = 3;
         alpha = 1;
         if (!isOnto && !e.relation) lineColor = HIGHLIGHT_COLOR;

@@ -30,8 +30,6 @@ import type { GraphNode, GraphEdge, ClusterGroupBy, ClusterArrangement } from ".
 export interface ClusterForceConfig {
   groupBy: ClusterGroupBy;
   arrangement: ClusterArrangement;
-  /** Grid columns — only used when arrangement = "grid" */
-  gridCols: number;
   /** Canvas center X */
   centerX: number;
   /** Canvas center Y */
@@ -51,11 +49,13 @@ export interface ClusterForceConfig {
   groupScale: number;
   /** Group spacing multiplier (default 2.0) */
   groupSpacing: number;
+  /** Enable recursive sub-grouping within each group */
+  recursive: boolean;
 }
 
 /**
  * Build a d3-compatible force function for cluster arrangement.
- * Returns null if arrangement is "free".
+ * Returns null if groupBy is "none".
  */
 export function buildClusterForce(
   nodes: GraphNode[],
@@ -63,10 +63,15 @@ export function buildClusterForce(
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
 ): ((alpha: number) => void) | null {
-  if (cfg.arrangement === "free") return null;
+  if (cfg.groupBy === "none") return null;
 
-  const groups = partitionNodes(nodes, cfg.groupBy, degrees);
+  let groups = partitionNodes(nodes, cfg.groupBy, degrees);
   if (groups.size === 0) return null;
+
+  // Recursive sub-grouping: split each group into connected components
+  if (cfg.recursive) {
+    groups = splitByConnectedComponents(groups, edges);
+  }
 
   const targets = computeAbsoluteTargets(groups, edges, degrees, cfg);
 
@@ -247,6 +252,65 @@ function partitionNodes(
   return groups;
 }
 
+/**
+ * Split each group into connected components based on edges.
+ * Groups with a single component are unchanged; groups with multiple
+ * components get split into separate sub-groups.
+ */
+function splitByConnectedComponents(
+  groups: Map<string, GraphNode[]>,
+  edges: GraphEdge[],
+): Map<string, GraphNode[]> {
+  const result = new Map<string, GraphNode[]>();
+
+  for (const [key, members] of groups) {
+    if (members.length <= 1) {
+      result.set(key, members);
+      continue;
+    }
+
+    // Build local adjacency
+    const idSet = new Set(members.map(n => n.id));
+    const adj = new Map<string, string[]>();
+    for (const id of idSet) adj.set(id, []);
+    for (const e of edges) {
+      const sid = typeof e.source === "string" ? e.source : (e.source as unknown as GraphNode).id;
+      const tid = typeof e.target === "string" ? e.target : (e.target as unknown as GraphNode).id;
+      if (idSet.has(sid) && idSet.has(tid)) {
+        adj.get(sid)!.push(tid);
+        adj.get(tid)!.push(sid);
+      }
+    }
+
+    // BFS to find connected components
+    const visited = new Set<string>();
+    const nodeMap = new Map(members.map(n => [n.id, n]));
+    let compIdx = 0;
+
+    for (const n of members) {
+      if (visited.has(n.id)) continue;
+      const comp: GraphNode[] = [];
+      const queue = [n.id];
+      visited.add(n.id);
+      while (queue.length > 0) {
+        const cur = queue.shift()!;
+        comp.push(nodeMap.get(cur)!);
+        for (const nb of adj.get(cur) || []) {
+          if (!visited.has(nb)) {
+            visited.add(nb);
+            queue.push(nb);
+          }
+        }
+      }
+      const subKey = compIdx === 0 ? key : `${key}::${compIdx}`;
+      result.set(subKey, comp);
+      compIdx++;
+    }
+  }
+
+  return result;
+}
+
 function backlinkBucket(deg: number): string {
   if (deg === 0) return "0";
   if (deg <= 2) return "1-2";
@@ -265,12 +329,12 @@ function computeOffsets(
   edges: GraphEdge[],
   cfg: ClusterForceConfig,
 ): Map<string, { dx: number; dy: number }> {
-  const { nodeSpacing, groupScale, nodeSize, scaleByDegree, gridCols } = cfg;
+  const { nodeSpacing, groupScale, nodeSize, scaleByDegree } = cfg;
   switch (cfg.arrangement) {
     case "spiral": return spiralOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree);
     case "concentric": return concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree);
     case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, groupScale, nodeSize);
-    case "grid": return gridOffsets(members, degrees, gridCols, nodeSpacing, groupScale, nodeSize);
+    case "grid": return gridOffsets(members, degrees, nodeSpacing, groupScale, nodeSize);
     default: return new Map();
   }
 }
@@ -473,13 +537,12 @@ function treeOffsets(
 }
 
 // ---------------------------------------------------------------------------
-// Grid — m×n grid sorted by degree
+// Grid — square grid sorted by degree (cols = √n)
 // ---------------------------------------------------------------------------
 
 function gridOffsets(
   members: GraphNode[],
   degrees: Map<string, number>,
-  cols: number,
   spacingMul: number,
   groupScale: number,
   nodeSize: number,
@@ -489,7 +552,7 @@ function gridOffsets(
   const n = sorted.length;
   // Grid cell spacing — combines both: nodeSpacing for horizontal, groupScale for overall
   const spacing = nodeSize * 2 * Math.max(spacingMul, groupScale);
-  const c = Math.max(1, cols);
+  const c = Math.max(1, Math.ceil(Math.sqrt(n)));
   const rows = Math.ceil(n / c);
   const totalW = (c - 1) * spacing;
   const totalH = (rows - 1) * spacing;

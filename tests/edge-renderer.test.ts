@@ -31,6 +31,7 @@ function baseCfg(overrides?: Partial<EdgeDrawConfig>): EdgeDrawConfig {
     colorEdgesByRelation: false,
     isArcLayout: false,
     highlightedNodeId: null,
+    highlightSet: new Set<string>(),
     bgColor: 0x1e1e2e,
     relationColors: new Map(),
     ...overrides,
@@ -140,7 +141,7 @@ describe("drawEdges", () => {
       { source: "a", target: "b" },
       { source: "b", target: "c" },
     ];
-    drawEdges(g, edges, resolvePos, baseCfg({ highlightedNodeId: "a" }));
+    drawEdges(g, edges, resolvePos, baseCfg({ highlightedNodeId: "a", highlightSet: new Set(["a", "b"]) }));
     // lineStyle is called for each edge — the first should have alpha=1, the second alpha=0.08
     const lineStyleCalls = calls.filter((c) => c.method === "lineStyle");
     expect(lineStyleCalls.length).toBe(2);

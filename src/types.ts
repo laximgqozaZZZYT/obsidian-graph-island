@@ -54,7 +54,7 @@ export type LayoutType =
 export type ClusterGroupBy = "none" | "tag" | "backlinks" | "node_type";
 
 /** How to arrange nodes within each cluster */
-export type ClusterArrangement = "free" | "spiral" | "concentric" | "tree" | "grid";
+export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid";
 
 export interface DirectionalGravityRule {
   /** Filter: "tag:character", "category:protagonist", "isTag", "*" (all) etc. */

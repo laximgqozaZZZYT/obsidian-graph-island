@@ -34,12 +34,13 @@ export interface PanelState {
   showSimilar: boolean;
   enclosureSpacing: number;
   directionalGravityRules: DirectionalGravityRule[];
+  hoverHops: number;
   clusterGroupBy: ClusterGroupBy;
   clusterArrangement: ClusterArrangement;
-  clusterGridCols: number;
   clusterNodeSpacing: number;
   clusterGroupScale: number;
   clusterGroupSpacing: number;
+  clusterRecursive: boolean;
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -71,12 +72,13 @@ export const DEFAULT_PANEL: PanelState = {
   showSimilar: false,
   enclosureSpacing: 1.5,
   directionalGravityRules: [],
+  hoverHops: 1,
   clusterGroupBy: "none" as ClusterGroupBy,
-  clusterArrangement: "free" as ClusterArrangement,
-  clusterGridCols: 5,
+  clusterArrangement: "spiral" as ClusterArrangement,
   clusterNodeSpacing: 3.0,
   clusterGroupScale: 3.0,
   clusterGroupSpacing: 2.0,
+  clusterRecursive: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -217,6 +219,7 @@ export function buildPanel(
     addSlider(body, "ノードの大きさ", 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
     addToggle(body, "被リンク数でサイズ変更", panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); });
     addSlider(body, "リンクの太さ", 1, 5, 0.5, panel.linkThickness, (v) => { panel.linkThickness = v; cb.markDirty(); });
+    addSlider(body, "ホバー強調ホップ数", 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; });
   });
 
   buildSection(panelEl, "方向性重力", (body) => {
@@ -273,11 +276,10 @@ export function buildPanel(
         cb.restartSimulation(0.5);
       });
       addSelect(body, "配置パターン", [
-        { value: "free", label: "無秩序" },
         { value: "spiral", label: "アルキメデスの螺旋" },
         { value: "concentric", label: "同心円" },
         { value: "tree", label: "Tree" },
-        { value: "grid", label: "m,n配置" },
+        { value: "grid", label: "正方形" },
       ], panel.clusterArrangement, (v) => {
         panel.clusterArrangement = v as ClusterArrangement;
         cb.applyClusterForce();
@@ -299,17 +301,15 @@ export function buildPanel(
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
       });
-      if (panel.clusterArrangement === "grid") {
-        addSlider(body, "グリッド列数", 2, 20, 1, panel.clusterGridCols, (v) => {
-          panel.clusterGridCols = v;
-          cb.applyClusterForce();
-          cb.restartSimulation(0.3);
-        });
-      }
+      addToggle(body, "再帰的グループ分割", panel.clusterRecursive, (v) => {
+        panel.clusterRecursive = v;
+        cb.applyClusterForce();
+        cb.restartSimulation(0.5);
+      });
     });
   }
 
-  const clusterActive = panel.clusterArrangement !== "free";
+  const clusterActive = panel.clusterGroupBy !== "none";
   if (!clusterActive) {
     buildSection(panelEl, "力の強さ", (body) => {
       addSlider(body, "中心力", 0, 0.2, 0.005, panel.centerForce, (v) => { panel.centerForce = v; cb.updateForces(); });

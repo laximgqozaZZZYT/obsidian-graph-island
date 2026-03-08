@@ -19,7 +19,6 @@ function baseCfg(overrides?: Partial<ClusterForceConfig>): ClusterForceConfig {
   return {
     groupBy: "tag",
     arrangement: "spiral",
-    gridCols: 5,
     centerX: 400,
     centerY: 300,
     width: 800,
@@ -29,6 +28,7 @@ function baseCfg(overrides?: Partial<ClusterForceConfig>): ClusterForceConfig {
     nodeSpacing: 3.0,
     groupScale: 3.0,
     groupSpacing: 2.0,
+    recursive: false,
     ...overrides,
   };
 }
@@ -58,15 +58,9 @@ function centroid(nodes: GraphNode[]): { x: number; y: number } {
 // ---------------------------------------------------------------------------
 
 describe("buildClusterForce", () => {
-  it("returns a force when groupBy is 'none' (treats all nodes as one group)", () => {
+  it("returns null when groupBy is 'none'", () => {
     const nodes = [makeNode("a")];
     const result = buildClusterForce(nodes, [], new Map(), baseCfg({ groupBy: "none" }));
-    expect(typeof result).toBe("function");
-  });
-
-  it("returns null when arrangement is 'free'", () => {
-    const nodes = [makeNode("a")];
-    const result = buildClusterForce(nodes, [], new Map(), baseCfg({ arrangement: "free" }));
     expect(result).toBeNull();
   });
 
@@ -360,37 +354,22 @@ describe("tree arrangement", () => {
 // ---------------------------------------------------------------------------
 
 describe("grid arrangement", () => {
-  it("arranges nodes in a grid pattern", () => {
+  it("arranges nodes in a square grid pattern", () => {
     const nodes: GraphNode[] = [];
-    for (let i = 0; i < 12; i++) nodes.push(makeNode(`n${i}`, { tags: ["g1"] }));
+    // 9 nodes → √9 = 3 cols → 3 rows × 3 cols
+    for (let i = 0; i < 9; i++) nodes.push(makeNode(`n${i}`, { tags: ["g1"] }));
     const force = buildClusterForce(
-      nodes, [], new Map(), baseCfg({ arrangement: "grid", gridCols: 4 }),
+      nodes, [], new Map(), baseCfg({ arrangement: "grid" }),
     )!;
     converge(force);
 
-    // With 12 nodes and 4 cols, we expect 3 rows × 4 cols
-    // Collect unique Y values (with tolerance)
     const ys = nodes.map(n => Math.round(n.y * 10) / 10);
     const uniqueYs = [...new Set(ys)].sort((a, b) => a - b);
     expect(uniqueYs.length).toBe(3); // 3 rows
 
-    // Collect unique X values
     const xs = nodes.map(n => Math.round(n.x * 10) / 10);
     const uniqueXs = [...new Set(xs)].sort((a, b) => a - b);
-    expect(uniqueXs.length).toBe(4); // 4 columns
-  });
-
-  it("respects gridCols parameter", () => {
-    const nodes: GraphNode[] = [];
-    for (let i = 0; i < 10; i++) nodes.push(makeNode(`n${i}`, { tags: ["g1"] }));
-    const force = buildClusterForce(
-      nodes, [], new Map(), baseCfg({ arrangement: "grid", gridCols: 2 }),
-    )!;
-    converge(force);
-
-    const xs = nodes.map(n => Math.round(n.x * 10) / 10);
-    const uniqueXs = [...new Set(xs)];
-    expect(uniqueXs.length).toBe(2); // 2 columns
+    expect(uniqueXs.length).toBe(3); // 3 columns (square)
   });
 });
 
@@ -575,15 +554,16 @@ describe("d3 simulation pipeline integration", () => {
     const forceFn = buildClusterForce(nodes, edges, degrees, {
       groupBy: "tag",
       arrangement,
-      gridCols: 5,
       centerX: 400,
       centerY: 300,
       width: 800,
       height: 600,
       nodeSize: 8,
+      scaleByDegree: true,
       nodeSpacing: 3.0,
       groupScale: 3.0,
       groupSpacing: 2.0,
+      recursive: false,
     });
     sim.force("clusterArrangement", forceFn as any);
     sim.alpha(0.5);

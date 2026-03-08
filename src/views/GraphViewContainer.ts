@@ -636,13 +636,22 @@ export class GraphViewContainer extends ItemView {
   // =========================================================================
   private applyHover() {
     const hId = this.highlightedNodeId;
-    const neighbors = hId ? this.adj.get(hId) : null;
 
-    // Build current highlight set
+    // Build current highlight set via BFS up to hoverHops
     const curSet = new Set<string>();
     if (hId) {
       curSet.add(hId);
-      if (neighbors) for (const nb of neighbors) curSet.add(nb);
+      let frontier = [hId];
+      for (let hop = 0; hop < this.panel.hoverHops && frontier.length > 0; hop++) {
+        const next: string[] = [];
+        for (const id of frontier) {
+          const nb = this.adj.get(id);
+          if (nb) for (const n of nb) {
+            if (!curSet.has(n)) { curSet.add(n); next.push(n); }
+          }
+        }
+        frontier = next;
+      }
     }
 
     // Determine which nodes actually changed state
@@ -830,13 +839,13 @@ export class GraphViewContainer extends ItemView {
     if (!g) return;
     g.clear();
     const hId = this.highlightedNodeId;
-    const neighbors = hId ? this.adj.get(hId) : null;
+    const hlSet = this.prevHighlightSet;
 
     // Two-pass: first all glows (behind), then all solid circles (on top).
     // This ensures glows merge into visible "clouds" without occluding nodes.
     const visible: PixiNode[] = [];
     for (const pn of this.pixiNodes.values()) {
-      if (hId && (pn.data.id === hId || neighbors?.has(pn.data.id))) continue;
+      if (hId && hlSet.has(pn.data.id)) continue;
       visible.push(pn);
     }
 
@@ -917,6 +926,7 @@ export class GraphViewContainer extends ItemView {
       colorEdgesByRelation: this.panel.colorEdgesByRelation,
       isArcLayout: this.currentLayout === "arc",
       highlightedNodeId: this.highlightedNodeId,
+      highlightSet: this.prevHighlightSet,
       bgColor: this.cachedBgColor,
       relationColors: this.relationColors,
     };
@@ -1696,8 +1706,8 @@ export class GraphViewContainer extends ItemView {
    */
   private applyClusterForce() {
     if (!this.simulation) return;
-    const { clusterGroupBy, clusterArrangement, clusterGridCols, clusterNodeSpacing, clusterGroupScale, clusterGroupSpacing } = this.panel;
-    const active = clusterArrangement !== "free";
+    const { clusterGroupBy, clusterArrangement, clusterNodeSpacing, clusterGroupScale, clusterGroupSpacing } = this.panel;
+    const active = clusterGroupBy !== "none";
 
     if (!active) {
       this.simulation.force("clusterArrangement", null);
@@ -1740,7 +1750,7 @@ export class GraphViewContainer extends ItemView {
       {
         groupBy: clusterGroupBy,
         arrangement: clusterArrangement,
-        gridCols: clusterGridCols,
+        recursive: this.panel.clusterRecursive,
         centerX: W / 2,
         centerY: H / 2,
         width: W,
