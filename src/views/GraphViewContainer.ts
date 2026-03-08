@@ -1747,21 +1747,68 @@ export class GraphViewContainer extends ItemView {
   }
 
   private applySearch() {
-    const q = this.panel.searchQuery;
+    const raw = this.panel.searchQuery;
+    // Parse hop filters: "hop:name:n" (comma-separated, mixable with text)
+    const hopMatches = [...raw.matchAll(/hop:([^:,]+):(\d+)/gi)];
+    const textParts: string[] = [];
+    let remaining = raw;
+    for (const m of hopMatches) remaining = remaining.replace(m[0], "");
+    const trimmed = remaining.replace(/,/g, " ").trim().toLowerCase();
+    if (trimmed) textParts.push(trimmed);
+
+    // Build hop highlight set via BFS from each specified origin
+    let hopSet: Set<string> | null = null;
+    if (hopMatches.length > 0) {
+      hopSet = new Set<string>();
+      for (const m of hopMatches) {
+        const name = m[1].toLowerCase();
+        const hops = parseInt(m[2], 10);
+        // Find origin node(s) by partial name match
+        const origins: string[] = [];
+        for (const pn of this.pixiNodes.values()) {
+          if (pn.data.label.toLowerCase().includes(name)) origins.push(pn.data.id);
+        }
+        // BFS from each origin
+        for (const origin of origins) {
+          hopSet.add(origin);
+          let frontier = [origin];
+          for (let h = 0; h < hops && frontier.length > 0; h++) {
+            const next: string[] = [];
+            for (const id of frontier) {
+              const nb = this.adj.get(id);
+              if (nb) for (const n of nb) {
+                if (!hopSet.has(n)) { hopSet.add(n); next.push(n); }
+              }
+            }
+            frontier = next;
+          }
+        }
+      }
+    }
+
+    const hasText = textParts.length > 0;
+    const hasFilter = hasText || hopSet !== null;
+
     for (const pn of this.pixiNodes.values()) {
-      if (!q) {
+      if (!hasFilter) {
         pn.gfx.alpha = 1;
         this.drawNodeCircle(pn, false);
-      } else if (pn.data.label.toLowerCase().includes(q)) {
+        continue;
+      }
+
+      const textMatch = hasText && pn.data.label.toLowerCase().includes(textParts[0]);
+      const hopMatch = hopSet !== null && hopSet.has(pn.data.id);
+      const match = (hasText && hopSet !== null) ? (textMatch && hopMatch)
+                  : hasText ? textMatch
+                  : hopMatch;
+
+      if (match) {
         pn.gfx.alpha = 1;
-        // Search highlight: yellow glow — render via individual Graphics
         pn.circle.visible = true;
         pn.circle.clear();
-        // Soft search glow
         pn.circle.beginFill(0xf59e0b, 0.15);
         pn.circle.drawCircle(0, 0, pn.radius * 3);
         pn.circle.endFill();
-        // Accent ring
         pn.circle.lineStyle(2.5, 0xf59e0b, 0.9);
         pn.circle.beginFill(pn.color);
         pn.circle.drawCircle(0, 0, pn.radius);

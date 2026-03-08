@@ -177,9 +177,9 @@ export function buildPanel(
   }
 
   buildSection(panelEl, "フィルタ", (body) => {
-    const search = body.createEl("input", { cls: "ngp-search", type: "text", placeholder: "ファイルを検索..." });
+    const search = body.createEl("input", { cls: "ngp-search", type: "text", placeholder: "検索… hop:名前:2" });
     search.value = panel.searchQuery;
-    search.addEventListener("input", () => { panel.searchQuery = search.value.toLowerCase(); cb.applySearch(); });
+    search.addEventListener("input", () => { panel.searchQuery = search.value; cb.applySearch(); });
     addToggle(body, "タグ", panel.showTags, (v) => { panel.showTags = v; cb.invalidateData(); });
     addToggle(body, "添付書類", panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateData(); });
     addToggle(body, "存在するファイルのみ表示", panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateData(); });
