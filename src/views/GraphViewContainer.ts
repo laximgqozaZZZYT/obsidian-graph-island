@@ -912,8 +912,8 @@ export class GraphViewContainer extends ItemView {
     // Build tag membership for enclosure mode
     this.tagMembership.clear();
     this.tagRelPairsCache.clear();
-    this.cachedOverlapCounts.clear();
-    this.overlapCacheFrame = 0;
+    this.overlapCache.counts.clear();
+    this.overlapCache.frame = 0;
     if (this.panel.tagDisplay === "enclosure") {
       for (const n of gd.nodes) {
         if (n.isTag || !n.tags) continue;
