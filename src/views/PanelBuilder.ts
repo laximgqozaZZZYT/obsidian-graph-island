@@ -35,7 +35,6 @@ export interface PanelState {
   directionalGravityRules: DirectionalGravityRule[];
   clusterGroupBy: ClusterGroupBy;
   clusterArrangement: ClusterArrangement;
-  clusterStrength: number;
   clusterGridCols: number;
   clusterNodeSpacing: number;
   clusterGroupSpacing: number;
@@ -71,10 +70,9 @@ export const DEFAULT_PANEL: PanelState = {
   directionalGravityRules: [],
   clusterGroupBy: "none" as ClusterGroupBy,
   clusterArrangement: "free" as ClusterArrangement,
-  clusterStrength: 0.3,
   clusterGridCols: 5,
-  clusterNodeSpacing: 1.0,
-  clusterGroupSpacing: 1.0,
+  clusterNodeSpacing: 3.0,
+  clusterGroupSpacing: 2.0,
 };
 
 // ---------------------------------------------------------------------------
@@ -281,17 +279,12 @@ export function buildPanel(
         cb.rebuildPanel();
         cb.restartSimulation(0.5);
       });
-      addSlider(body, "配置の強さ", 0.05, 1, 0.05, panel.clusterStrength, (v) => {
-        panel.clusterStrength = v;
-        cb.applyClusterForce();
-        cb.restartSimulation(0.3);
-      });
-      addSlider(body, "ノード間隔", 0.2, 5, 0.1, panel.clusterNodeSpacing, (v) => {
+      addSlider(body, "ノード間隔 (半径×n)", 1, 10, 0.5, panel.clusterNodeSpacing, (v) => {
         panel.clusterNodeSpacing = v;
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
       });
-      addSlider(body, "グループ間隔", 0.2, 5, 0.1, panel.clusterGroupSpacing, (v) => {
+      addSlider(body, "グループ間隔", 0.5, 5, 0.1, panel.clusterGroupSpacing, (v) => {
         panel.clusterGroupSpacing = v;
         cb.applyClusterForce();
         cb.restartSimulation(0.5);

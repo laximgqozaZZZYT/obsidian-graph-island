@@ -14,6 +14,9 @@
  *  - tree: BFS layers top-down
  *  - grid: m×n grid sorted by degree
  *
+ * Spacing is based on nodeSize (base node radius) × multiplier,
+ * so visual spacing scales proportionally with node size.
+ *
  * Uses ABSOLUTE target positions and aggressive position blending with
  * full velocity kill to guarantee visibility.
  */
@@ -26,8 +29,6 @@ import type { GraphNode, GraphEdge, ClusterGroupBy, ClusterArrangement } from ".
 export interface ClusterForceConfig {
   groupBy: ClusterGroupBy;
   arrangement: ClusterArrangement;
-  /** Blend strength toward target position (0–1, default 0.3) */
-  strength: number;
   /** Grid columns — only used when arrangement = "grid" */
   gridCols: number;
   /** Canvas center X */
@@ -38,15 +39,17 @@ export interface ClusterForceConfig {
   width: number;
   /** Canvas height */
   height: number;
-  /** Multiplier for spacing between nodes within a group (default 1.0) */
+  /** Base node size (panel.nodeSize) — used to compute visual radius */
+  nodeSize: number;
+  /** Node spacing = nodeSize × 2 × this multiplier (default 3.0) */
   nodeSpacing: number;
-  /** Multiplier for spacing between groups (default 1.0) */
+  /** Group spacing multiplier (default 2.0) */
   groupSpacing: number;
 }
 
 /**
  * Build a d3-compatible force function for cluster arrangement.
- * Returns null if groupBy is "none" or arrangement is "free".
+ * Returns null if arrangement is "free".
  */
 export function buildClusterForce(
   nodes: GraphNode[],
@@ -60,10 +63,10 @@ export function buildClusterForce(
   if (groups.size === 0) return null;
 
   const targets = computeAbsoluteTargets(groups, edges, degrees, cfg);
-  const str = cfg.strength;
 
   return (_alpha: number) => {
-    const blend = Math.min(0.85, str * 1.5);
+    // Fixed high blend — always snap strongly to target positions
+    const blend = 0.85;
 
     for (const n of nodes) {
       const t = targets.get(n.id);
@@ -74,6 +77,15 @@ export function buildClusterForce(
       n.vy = 0;
     }
   };
+}
+
+// ---------------------------------------------------------------------------
+// Node radius helper (mirrors GraphViewContainer nodeR formula)
+// ---------------------------------------------------------------------------
+
+/** Visual radius of a node — same formula as GraphViewContainer.nodeR */
+function nodeRadius(nodeSize: number, degree: number): number {
+  return Math.max(nodeSize, nodeSize + Math.sqrt(degree) * 3.2);
 }
 
 // ---------------------------------------------------------------------------
@@ -106,7 +118,7 @@ function computeAbsoluteTargets(
   // --- Compute intra-group offsets → absolute positions ---
   for (const [key, members] of groups) {
     const center = groupCenters.get(key)!;
-    const offsets = computeOffsets(members, cfg.arrangement, degrees, edges, cfg.gridCols, cfg.nodeSpacing);
+    const offsets = computeOffsets(members, cfg.arrangement, degrees, edges, cfg.gridCols, cfg.nodeSpacing, cfg.nodeSize);
     for (const n of members) {
       const off = offsets.get(n.id);
       targets.set(n.id, {
@@ -120,8 +132,9 @@ function computeAbsoluteTargets(
 }
 
 /**
- * Place groups in a horizontal row, evenly spaced across the canvas width.
- * Each group gets horizontal space proportional to its member count.
+ * Place groups in a horizontal row.
+ * Total width is derived from actual group sizes so it scales
+ * proportionally with nodeSpacing.
  */
 function layoutGroupsHorizontal(
   keys: string[],
@@ -129,23 +142,30 @@ function layoutGroupsHorizontal(
   cfg: ClusterForceConfig,
   out: Map<string, { x: number; y: number }>,
 ) {
-  const totalNodes = [...groups.values()].reduce((s, m) => s + m.length, 0);
-  const margin = cfg.width * 0.05;
-  const usableW = (cfg.width - margin * 2) * cfg.groupSpacing;
-
-  let xCursor = margin;
+  // Estimate each group's width; total row width = sum of all group widths + gaps
+  const groupWidths: number[] = [];
   for (const key of keys) {
     const members = groups.get(key)!;
-    const share = members.length / totalNodes;
-    const slotW = usableW * share;
-    out.set(key, { x: xCursor + slotW / 2, y: cfg.centerY });
-    xCursor += slotW;
+    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing);
+    groupWidths.push(r * 2);
+  }
+  const gap = cfg.nodeSize * cfg.nodeSpacing * cfg.groupSpacing * 2;
+  const totalW = groupWidths.reduce((s, w) => s + w, 0) + gap * (keys.length - 1);
+
+  let xCursor = cfg.centerX - totalW / 2;
+  for (let i = 0; i < keys.length; i++) {
+    const w = groupWidths[i];
+    out.set(keys[i], { x: xCursor + w / 2, y: cfg.centerY });
+    xCursor += w + gap;
   }
 }
 
 /**
  * Place groups on a circle around the canvas center.
- * Radius adapts to canvas size and the estimated intra-group footprint.
+ * Radius is derived from intra-group footprints so it scales
+ * proportionally with nodeSpacing.  A small floor prevents collapse
+ * for tiny groups; canvas size is NOT used so that spacing changes
+ * always produce proportional layout changes.
  */
 function layoutGroupsCircle(
   keys: string[],
@@ -154,13 +174,17 @@ function layoutGroupsCircle(
   out: Map<string, { x: number; y: number }>,
 ) {
   const nGroups = keys.length;
-  // Estimate the largest group's radius to prevent overlap
-  const maxMembers = Math.max(...[...groups.values()].map(m => m.length));
-  const maxGroupRadius = estimateGroupRadius(maxMembers, cfg.nodeSpacing);
+  // Estimate the largest group's footprint to prevent overlap
+  let maxGroupRadius = 0;
+  for (const members of groups.values()) {
+    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing);
+    if (r > maxGroupRadius) maxGroupRadius = r;
+  }
   // Circle must be large enough so adjacent groups don't overlap
   const minCircleR = (maxGroupRadius * 2 + 40) * nGroups / (2 * Math.PI);
-  const canvasR = Math.min(cfg.width, cfg.height) * 0.35;
-  const groupRadius = Math.max(canvasR, minCircleR) * cfg.groupSpacing;
+  // Floor scales with nodeSpacing so even tiny groups move apart when spacing increases
+  const floor = cfg.nodeSize * cfg.nodeSpacing * 10;
+  const groupRadius = Math.max(floor, minCircleR) * cfg.groupSpacing;
 
   for (let i = 0; i < nGroups; i++) {
     const angle = (i / nGroups) * Math.PI * 2 - Math.PI / 2;
@@ -171,9 +195,15 @@ function layoutGroupsCircle(
   }
 }
 
-/** Rough estimate of a group's visual radius based on member count. */
-function estimateGroupRadius(n: number, nodeSpacing: number): number {
-  return 15 * Math.sqrt(n) * nodeSpacing;
+/** Estimate a group's visual radius based on member count and base node size. */
+function estimateGroupRadius(
+  memberCount: number,
+  nodeSize: number,
+  nodeSpacingMul: number,
+): number {
+  const gap = nodeSize * 2 * nodeSpacingMul;
+  // Approximate footprint: √n nodes across × gap
+  return gap * Math.sqrt(memberCount) / 2;
 }
 
 // ---------------------------------------------------------------------------
@@ -229,61 +259,126 @@ function computeOffsets(
   edges: GraphEdge[],
   gridCols: number,
   nodeSpacing: number,
+  nodeSize: number,
 ): Map<string, { dx: number; dy: number }> {
   switch (arrangement) {
-    case "spiral": return spiralOffsets(members, degrees, nodeSpacing);
-    case "concentric": return concentricOffsets(members, degrees, nodeSpacing);
-    case "tree": return treeOffsets(members, edges, degrees, nodeSpacing);
-    case "grid": return gridOffsets(members, degrees, gridCols, nodeSpacing);
+    case "spiral": return spiralOffsets(members, degrees, nodeSpacing, nodeSize);
+    case "concentric": return concentricOffsets(members, degrees, nodeSpacing, nodeSize);
+    case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, nodeSize);
+    case "grid": return gridOffsets(members, degrees, gridCols, nodeSpacing, nodeSize);
     default: return new Map();
   }
 }
 
 // ---------------------------------------------------------------------------
-// Spiral — Archimedean: r = aθ with equal arc-length spacing
+// Spiral — Archimedean: r = aθ, with adaptive step sizes
 //
-// θ is derived from equal arc-length: s = aθ²/2 → θ = √(2s/a)
-// where s = i * nodeGap (cumulative arc length to the i-th point).
-// armGap controls distance between successive turns (2πa).
+// Each node advances θ enough so that the arc-length between consecutive
+// nodes is at least (radius[i] + radius[i+1]) × spacingMul.
+// This prevents large central nodes from overlapping while keeping
+// smaller outer nodes compact.
 // ---------------------------------------------------------------------------
 
 function spiralOffsets(
   members: GraphNode[],
   degrees: Map<string, number>,
   spacingMul: number,
+  nodeSize: number,
 ): Map<string, { dx: number; dy: number }> {
   const sorted = [...members].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = sorted.length;
   if (n === 0) return offsets;
 
-  // Archimedean spiral: r = a * theta, where a = armGap / (2 * PI).
-  // armGap = radial distance between successive turns.
-  //
-  // Nodes are placed at linearly increasing theta (equal angular step)
-  // which produces clearly visible spiral arms. The total number of
-  // turns is kept moderate (~sqrt(n)/2.5) so arms stay distinguishable.
-  //
-  // A small irrational angular offset (based on the golden ratio)
-  // is added to prevent nodes from aligning on the same radial ray
-  // when n is very small.
-  const armGap = Math.max(16, 32 - n * 0.04) * spacingMul;
-  const a = armGap / (2 * Math.PI);
-  const totalTurns = Math.max(2.5, Math.sqrt(n) / 2.5);
-  const totalTheta = totalTurns * 2 * Math.PI;
-  const dTheta = totalTheta / Math.max(1, n - 1);
-  // Golden-ratio offset (irrational) avoids collinear nodes for small n
-  const goldenOff = 0.3819660112 * Math.PI; // (3 - sqrt(5))/2 * PI
+  // Precompute each node's visual radius
+  const radii = sorted.map(nd => nodeRadius(nodeSize, degrees.get(nd.id) || 0));
 
-  for (let i = 0; i < n; i++) {
-    if (i === 0) {
-      offsets.set(sorted[i].id, { dx: 0, dy: 0 });
-    } else {
-      const theta = i * dTheta + goldenOff;
-      const r = a * i * dTheta; // radius based on unshifted angle for true Archimedean
-      offsets.set(sorted[i].id, {
-        dx: r * Math.cos(theta),
-        dy: r * Math.sin(theta),
+  // armGap controls distance between turns: base node diameter × spacingMul
+  const armGap = nodeSize * 2 * spacingMul;
+  const a = armGap / (2 * Math.PI);
+
+  // Place center node at origin
+  offsets.set(sorted[0].id, { dx: 0, dy: 0 });
+
+  // Start θ so that r(θ) = centerRadius + firstNodeRadius (with padding)
+  let theta = n > 1 ? (radii[0] + radii[1]) * spacingMul / Math.max(a, 0.01) : 0;
+
+  for (let i = 1; i < n; i++) {
+    const r = a * theta;
+    offsets.set(sorted[i].id, {
+      dx: r * Math.cos(theta),
+      dy: r * Math.sin(theta),
+    });
+
+    // Advance θ for next node: arc-length ≥ (this radius + next radius) × spacingMul
+    if (i < n - 1) {
+      const minDist = (radii[i] + radii[i + 1]) * spacingMul;
+      // Arc-length on spiral ≈ r × Δθ (valid when r is large relative to a)
+      // For small r, use minDist directly as Δθ to ensure sufficient angular separation
+      const currentR = Math.max(a * theta, 1);
+      const dTheta = Math.max(minDist / currentR, 0.05);
+      theta += dTheta;
+    }
+  }
+  return offsets;
+}
+
+// ---------------------------------------------------------------------------
+// Concentric rings — adaptive ring spacing
+//
+// Ring 0 holds 1 node (center). Each subsequent ring's radius is computed
+// so that nodes on the ring don't overlap: circumference ≥ sum of diameters.
+// Ring capacity adapts to actual node radii.
+// ---------------------------------------------------------------------------
+
+function concentricOffsets(
+  members: GraphNode[],
+  degrees: Map<string, number>,
+  spacingMul: number,
+  nodeSize: number,
+): Map<string, { dx: number; dy: number }> {
+  const sorted = [...members].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
+  const offsets = new Map<string, { dx: number; dy: number }>();
+  const n = sorted.length;
+  if (n === 0) return offsets;
+
+  // Precompute radii
+  const radii = sorted.map(nd => nodeRadius(nodeSize, degrees.get(nd.id) || 0));
+
+  // Place center node
+  offsets.set(sorted[0].id, { dx: 0, dy: 0 });
+
+  let idx = 1; // next node to place
+  let ringR = 0; // current ring radius
+
+  while (idx < n) {
+    // Determine how many nodes fit on next ring:
+    // Ring radius must be large enough that circumference fits all nodes' diameters.
+    // Start with a minimum ring radius based on inner node + first ring node radii.
+    const prevR = ringR === 0 ? radii[0] : nodeSize; // gap from previous ring
+    const minGap = (prevR + radii[idx]) * spacingMul;
+    ringR = Math.max(ringR + minGap, ringR + nodeSize * 2 * spacingMul);
+
+    // How many nodes can fit? circumference / (avgDiameter * spacingMul)
+    const circumference = 2 * Math.PI * ringR;
+    // Estimate average radius of nodes that will go on this ring
+    let cap = 1;
+    let totalDiamNeeded = radii[idx] * 2 * spacingMul;
+    while (cap < n - idx) {
+      const nextR = radii[idx + cap];
+      const nextDiam = nextR * 2 * spacingMul;
+      if (totalDiamNeeded + nextDiam > circumference) break;
+      totalDiamNeeded += nextDiam;
+      cap++;
+    }
+    cap = Math.max(1, cap);
+
+    // Place nodes on this ring
+    for (let j = 0; j < cap && idx < n; j++, idx++) {
+      const angle = (j / cap) * Math.PI * 2;
+      offsets.set(sorted[idx].id, {
+        dx: ringR * Math.cos(angle),
+        dy: ringR * Math.sin(angle),
       });
     }
   }
@@ -291,52 +386,9 @@ function spiralOffsets(
 }
 
 // ---------------------------------------------------------------------------
-// Concentric rings — radius proportional to group member count
-//
-// Ring i holds 6*i nodes (i≥1); ring 0 holds 1 node (center).
-// Ring spacing = baseRing * √(n) / 10, so outer radius ∝ member count.
-// ---------------------------------------------------------------------------
-
-function concentricOffsets(
-  members: GraphNode[],
-  degrees: Map<string, number>,
-  spacingMul: number,
-): Map<string, { dx: number; dy: number }> {
-  const sorted = [...members].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
-  const offsets = new Map<string, { dx: number; dy: number }>();
-  const n = sorted.length;
-  if (n === 0) return offsets;
-
-  // Ring spacing scales with member count so total radius ∝ n
-  const ringSpacing = Math.max(10, 6 * Math.sqrt(n)) * spacingMul;
-
-  let ringIdx = 0;
-  let posInRing = 0;
-
-  for (let i = 0; i < n; i++) {
-    if (ringIdx === 0) {
-      offsets.set(sorted[i].id, { dx: 0, dy: 0 });
-      posInRing++;
-      if (posInRing >= 1) { ringIdx++; posInRing = 0; }
-      continue;
-    }
-
-    const cap = ringIdx * 6;
-    const angle = (posInRing / cap) * Math.PI * 2;
-    const r = ringSpacing * ringIdx;
-    offsets.set(sorted[i].id, {
-      dx: r * Math.cos(angle),
-      dy: r * Math.sin(angle),
-    });
-
-    posInRing++;
-    if (posInRing >= cap) { ringIdx++; posInRing = 0; }
-  }
-  return offsets;
-}
-
-// ---------------------------------------------------------------------------
 // Tree — BFS from highest-degree node, layered top-down
+// Large disconnected layers are split into multiple rows to avoid
+// ultra-wide single-row layouts.
 // ---------------------------------------------------------------------------
 
 function treeOffsets(
@@ -344,11 +396,13 @@ function treeOffsets(
   edges: GraphEdge[],
   degrees: Map<string, number>,
   spacingMul: number,
+  nodeSize: number,
 ): Map<string, { dx: number; dy: number }> {
   const offsets = new Map<string, { dx: number; dy: number }>();
   if (members.length === 0) return offsets;
 
-  const nodeSpacing = Math.max(10, 25 - members.length * 0.005) * spacingMul;
+  // Node spacing = base node diameter × spacingMul
+  const nodeSpacing = nodeSize * 2 * spacingMul;
   const layerHeight = nodeSpacing * 1.5;
 
   const idSet = new Set(members.map(n => n.id));
@@ -386,9 +440,14 @@ function treeOffsets(
     queue = next;
   }
 
-  // Add disconnected nodes as extra layer
+  // Add disconnected nodes — split into rows of maxCols to prevent ultra-wide layouts
   const disconnected = members.filter(n => !visited.has(n.id)).map(n => n.id);
-  if (disconnected.length > 0) layers.push(disconnected);
+  if (disconnected.length > 0) {
+    const maxCols = Math.max(10, Math.ceil(Math.sqrt(disconnected.length)));
+    for (let start = 0; start < disconnected.length; start += maxCols) {
+      layers.push(disconnected.slice(start, start + maxCols));
+    }
+  }
 
   const totalHeight = (layers.length - 1) * layerHeight;
 
@@ -415,11 +474,13 @@ function gridOffsets(
   degrees: Map<string, number>,
   cols: number,
   spacingMul: number,
+  nodeSize: number,
 ): Map<string, { dx: number; dy: number }> {
   const sorted = [...members].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = sorted.length;
-  const spacing = Math.max(10, 25 - n * 0.005) * spacingMul;
+  // Grid cell spacing = base node diameter × spacingMul
+  const spacing = nodeSize * 2 * spacingMul;
   const c = Math.max(1, cols);
   const rows = Math.ceil(n / c);
   const totalW = (c - 1) * spacing;
