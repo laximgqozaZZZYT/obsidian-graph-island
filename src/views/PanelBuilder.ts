@@ -37,6 +37,8 @@ export interface PanelState {
   clusterArrangement: ClusterArrangement;
   clusterStrength: number;
   clusterGridCols: number;
+  clusterNodeSpacing: number;
+  clusterGroupSpacing: number;
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -71,6 +73,8 @@ export const DEFAULT_PANEL: PanelState = {
   clusterArrangement: "free" as ClusterArrangement,
   clusterStrength: 0.3,
   clusterGridCols: 5,
+  clusterNodeSpacing: 1.0,
+  clusterGroupSpacing: 1.0,
 };
 
 // ---------------------------------------------------------------------------
@@ -281,6 +285,16 @@ export function buildPanel(
         panel.clusterStrength = v;
         cb.applyClusterForce();
         cb.restartSimulation(0.3);
+      });
+      addSlider(body, "ノード間隔", 0.2, 5, 0.1, panel.clusterNodeSpacing, (v) => {
+        panel.clusterNodeSpacing = v;
+        cb.applyClusterForce();
+        cb.restartSimulation(0.5);
+      });
+      addSlider(body, "グループ間隔", 0.2, 5, 0.1, panel.clusterGroupSpacing, (v) => {
+        panel.clusterGroupSpacing = v;
+        cb.applyClusterForce();
+        cb.restartSimulation(0.5);
       });
       if (panel.clusterArrangement === "grid") {
         addSlider(body, "グリッド列数", 2, 20, 1, panel.clusterGridCols, (v) => {

@@ -25,6 +25,8 @@ function baseCfg(overrides?: Partial<ClusterForceConfig>): ClusterForceConfig {
     centerY: 300,
     width: 800,
     height: 600,
+    nodeSpacing: 1.0,
+    groupSpacing: 1.0,
     ...overrides,
   };
 }
@@ -595,6 +597,8 @@ describe("d3 simulation pipeline integration", () => {
       centerY: 300,
       width: 800,
       height: 600,
+      nodeSpacing: 1.0,
+      groupSpacing: 1.0,
     });
     sim.force("clusterArrangement", forceFn as any);
     sim.alpha(0.5);

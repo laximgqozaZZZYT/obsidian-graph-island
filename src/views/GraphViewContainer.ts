@@ -1694,7 +1694,7 @@ export class GraphViewContainer extends ItemView {
    */
   private applyClusterForce() {
     if (!this.simulation) return;
-    const { clusterGroupBy, clusterArrangement, clusterStrength, clusterGridCols } = this.panel;
+    const { clusterGroupBy, clusterArrangement, clusterStrength, clusterGridCols, clusterNodeSpacing, clusterGroupSpacing } = this.panel;
     const active = clusterArrangement !== "free";
 
     if (!active) {
@@ -1744,6 +1744,8 @@ export class GraphViewContainer extends ItemView {
         centerY: H / 2,
         width: W,
         height: H,
+        nodeSpacing: clusterNodeSpacing,
+        groupSpacing: clusterGroupSpacing,
       },
     );
     this.simulation.force("clusterArrangement", forceFn as Force<GraphNode, GraphEdge> | null);

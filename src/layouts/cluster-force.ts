@@ -38,6 +38,10 @@ export interface ClusterForceConfig {
   width: number;
   /** Canvas height */
   height: number;
+  /** Multiplier for spacing between nodes within a group (default 1.0) */
+  nodeSpacing: number;
+  /** Multiplier for spacing between groups (default 1.0) */
+  groupSpacing: number;
 }
 
 /**
@@ -102,7 +106,7 @@ function computeAbsoluteTargets(
   // --- Compute intra-group offsets → absolute positions ---
   for (const [key, members] of groups) {
     const center = groupCenters.get(key)!;
-    const offsets = computeOffsets(members, cfg.arrangement, degrees, edges, cfg.gridCols);
+    const offsets = computeOffsets(members, cfg.arrangement, degrees, edges, cfg.gridCols, cfg.nodeSpacing);
     for (const n of members) {
       const off = offsets.get(n.id);
       targets.set(n.id, {
@@ -127,7 +131,7 @@ function layoutGroupsHorizontal(
 ) {
   const totalNodes = [...groups.values()].reduce((s, m) => s + m.length, 0);
   const margin = cfg.width * 0.05;
-  const usableW = cfg.width - margin * 2;
+  const usableW = (cfg.width - margin * 2) * cfg.groupSpacing;
 
   let xCursor = margin;
   for (const key of keys) {
@@ -152,11 +156,11 @@ function layoutGroupsCircle(
   const nGroups = keys.length;
   // Estimate the largest group's radius to prevent overlap
   const maxMembers = Math.max(...[...groups.values()].map(m => m.length));
-  const maxGroupRadius = estimateGroupRadius(maxMembers);
+  const maxGroupRadius = estimateGroupRadius(maxMembers, cfg.nodeSpacing);
   // Circle must be large enough so adjacent groups don't overlap
   const minCircleR = (maxGroupRadius * 2 + 40) * nGroups / (2 * Math.PI);
   const canvasR = Math.min(cfg.width, cfg.height) * 0.35;
-  const groupRadius = Math.max(canvasR, minCircleR);
+  const groupRadius = Math.max(canvasR, minCircleR) * cfg.groupSpacing;
 
   for (let i = 0; i < nGroups; i++) {
     const angle = (i / nGroups) * Math.PI * 2 - Math.PI / 2;
@@ -168,11 +172,8 @@ function layoutGroupsCircle(
 }
 
 /** Rough estimate of a group's visual radius based on member count. */
-function estimateGroupRadius(n: number): number {
-  // Archimedean spiral: r_max ≈ √(2 * a * gap * n), roughly ∝ √n
-  // Concentric: r_max ≈ ringSpacing * √(n/3)
-  // Use a simple heuristic
-  return 15 * Math.sqrt(n);
+function estimateGroupRadius(n: number, nodeSpacing: number): number {
+  return 15 * Math.sqrt(n) * nodeSpacing;
 }
 
 // ---------------------------------------------------------------------------
@@ -227,12 +228,13 @@ function computeOffsets(
   degrees: Map<string, number>,
   edges: GraphEdge[],
   gridCols: number,
+  nodeSpacing: number,
 ): Map<string, { dx: number; dy: number }> {
   switch (arrangement) {
-    case "spiral": return spiralOffsets(members, degrees);
-    case "concentric": return concentricOffsets(members, degrees);
-    case "tree": return treeOffsets(members, edges, degrees);
-    case "grid": return gridOffsets(members, degrees, gridCols);
+    case "spiral": return spiralOffsets(members, degrees, nodeSpacing);
+    case "concentric": return concentricOffsets(members, degrees, nodeSpacing);
+    case "tree": return treeOffsets(members, edges, degrees, nodeSpacing);
+    case "grid": return gridOffsets(members, degrees, gridCols, nodeSpacing);
     default: return new Map();
   }
 }
@@ -248,6 +250,7 @@ function computeOffsets(
 function spiralOffsets(
   members: GraphNode[],
   degrees: Map<string, number>,
+  spacingMul: number,
 ): Map<string, { dx: number; dy: number }> {
   const sorted = [...members].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
   const offsets = new Map<string, { dx: number; dy: number }>();
@@ -264,7 +267,7 @@ function spiralOffsets(
   // A small irrational angular offset (based on the golden ratio)
   // is added to prevent nodes from aligning on the same radial ray
   // when n is very small.
-  const armGap = Math.max(16, 32 - n * 0.04);
+  const armGap = Math.max(16, 32 - n * 0.04) * spacingMul;
   const a = armGap / (2 * Math.PI);
   const totalTurns = Math.max(2.5, Math.sqrt(n) / 2.5);
   const totalTheta = totalTurns * 2 * Math.PI;
@@ -297,6 +300,7 @@ function spiralOffsets(
 function concentricOffsets(
   members: GraphNode[],
   degrees: Map<string, number>,
+  spacingMul: number,
 ): Map<string, { dx: number; dy: number }> {
   const sorted = [...members].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
   const offsets = new Map<string, { dx: number; dy: number }>();
@@ -304,7 +308,7 @@ function concentricOffsets(
   if (n === 0) return offsets;
 
   // Ring spacing scales with member count so total radius ∝ n
-  const ringSpacing = Math.max(10, 6 * Math.sqrt(n));
+  const ringSpacing = Math.max(10, 6 * Math.sqrt(n)) * spacingMul;
 
   let ringIdx = 0;
   let posInRing = 0;
@@ -339,11 +343,12 @@ function treeOffsets(
   members: GraphNode[],
   edges: GraphEdge[],
   degrees: Map<string, number>,
+  spacingMul: number,
 ): Map<string, { dx: number; dy: number }> {
   const offsets = new Map<string, { dx: number; dy: number }>();
   if (members.length === 0) return offsets;
 
-  const nodeSpacing = Math.max(10, 25 - members.length * 0.005);
+  const nodeSpacing = Math.max(10, 25 - members.length * 0.005) * spacingMul;
   const layerHeight = nodeSpacing * 1.5;
 
   const idSet = new Set(members.map(n => n.id));
@@ -409,11 +414,12 @@ function gridOffsets(
   members: GraphNode[],
   degrees: Map<string, number>,
   cols: number,
+  spacingMul: number,
 ): Map<string, { dx: number; dy: number }> {
   const sorted = [...members].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = sorted.length;
-  const spacing = Math.max(10, 25 - n * 0.005);
+  const spacing = Math.max(10, 25 - n * 0.005) * spacingMul;
   const c = Math.max(1, cols);
   const rows = Math.ceil(n / c);
   const totalW = (c - 1) * spacing;
