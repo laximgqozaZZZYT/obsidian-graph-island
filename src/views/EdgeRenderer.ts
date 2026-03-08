@@ -6,7 +6,6 @@ import { cssColorToHex } from "../utils/graph-helpers";
 // Edge drawing configuration
 // ---------------------------------------------------------------------------
 export interface EdgeDrawConfig {
-  linkThickness: number;
   showInheritance: boolean;
   showAggregation: boolean;
   showTagNodes: boolean;
@@ -57,7 +56,7 @@ export function drawEdges(
 ): void {
   g.clear();
 
-  const { highlightedNodeId: hId, linkThickness: thickness, colorEdgesByRelation: useRelColor } = cfg;
+  const { highlightedNodeId: hId, colorEdgesByRelation: useRelColor } = cfg;
   // Disable arc curves when edge count is high to avoid vertex buffer explosion.
   // quadraticCurveTo generates ~20 vertices per edge vs 4 for lineTo.
   const isArcLayout = cfg.isArcLayout && edges.length < 500;
@@ -94,7 +93,7 @@ export function drawEdges(
     const isOnto = e.type === "inheritance" || e.type === "aggregation";
     const isStructural = isOnto || e.type === "has-tag" || isSimilar;
     let alpha = isStructural ? 0.7 : 0.65;
-    let lineThick = Math.max(thickness, 1.5);
+    let lineThick = 1;
 
     if (!isOnto && e.relation && useRelColor) alpha = 0.8;
 
@@ -102,7 +101,7 @@ export function drawEdges(
       const sid = src.id ?? (e.source as string);
       const tid = tgt.id ?? (e.target as string);
       if (cfg.highlightSet.has(sid) && cfg.highlightSet.has(tid)) {
-        lineThick = 3;
+        lineThick = 1.5;
         alpha = 1;
         if (!isOnto && !e.relation) lineColor = HIGHLIGHT_COLOR;
       } else {

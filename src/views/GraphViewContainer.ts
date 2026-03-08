@@ -918,7 +918,6 @@ export class GraphViewContainer extends ItemView {
       this.cachedBgColor = bg ? cssColorToHex(bg) : 0x1e1e2e;
     }
     const cfg: EdgeDrawConfig = {
-      linkThickness: this.panel.linkThickness,
       showInheritance: this.panel.showInheritance,
       showAggregation: this.panel.showAggregation,
       showTagNodes: this.panel.showTagNodes,

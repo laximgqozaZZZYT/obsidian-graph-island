@@ -23,7 +23,6 @@ import type { GraphEdge } from "../src/types";
 
 function baseCfg(overrides?: Partial<EdgeDrawConfig>): EdgeDrawConfig {
   return {
-    linkThickness: 1.5,
     showInheritance: true,
     showAggregation: true,
     showTagNodes: true,
