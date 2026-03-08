@@ -175,15 +175,21 @@ function main() {
   // FULL D3 SIMULATION — matching GraphViewContainer.ts exactly
   // =========================================================================
 
+  const groupBy = (params.get("groupBy") || "tag") as any;
+
   const cfg: ClusterForceConfig = {
-    groupBy: "tag",
+    groupBy,
     arrangement: arrangement as any,
-    strength: 0.5,
-    gridCols: 5,
     centerX: CANVAS_W / 2,
     centerY: CANVAS_H / 2,
     width: CANVAS_W,
     height: CANVAS_H,
+    nodeSize: 6,
+    scaleByDegree: true,
+    nodeSpacing: 3.0,
+    groupScale: 1.0,
+    groupSpacing: 2.0,
+    recursive: false,
   };
 
   // Step 1: Create simulation with SAME parameters as GraphViewContainer

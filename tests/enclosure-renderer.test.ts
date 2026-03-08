@@ -81,7 +81,7 @@ describe("drawEnclosures", () => {
     expect(drawCircle).toBeDefined();
     expect(drawCircle!.args[0]).toBe(50); // x
     expect(drawCircle!.args[1]).toBe(50); // y
-    expect(drawCircle!.args[2]).toBe(16); // default radius (6) + OUTLINE_PAD (10)
+    expect(drawCircle!.args[2]).toBe(18); // default radius (6) + outlinePad(6) = 6 + 12
   });
 
   it("draws a capsule for two-point tag", () => {

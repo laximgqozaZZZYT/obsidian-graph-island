@@ -1713,7 +1713,7 @@ export class GraphViewContainer extends ItemView {
     // - Center: removed (group positions already centered)
     // - Link: removed (would pull arranged nodes out of position)
     // - DirectionalGravity: removed (adds velocity that fights cluster positions)
-    // - EnclosureRepulsion: removed (adds strong velocity that disrupts layout)
+    // - EnclosureRepulsion: removed (separation now handled via target offsets)
     this.simulation.force("charge", forceManyBody<GraphNode>().strength(-10));
     this.simulation.force("center", null);
     this.simulation.force("link", null);
@@ -1741,6 +1741,8 @@ export class GraphViewContainer extends ItemView {
         nodeSpacing: clusterNodeSpacing,
         groupScale: clusterGroupScale,
         groupSpacing: clusterGroupSpacing,
+        tagMembership: this.panel.tagDisplay === "enclosure" ? this.tagMembership : undefined,
+        enclosureSpacing: this.panel.enclosureSpacing,
       },
     );
     this.simulation.force("clusterArrangement", forceFn as Force<GraphNode, GraphEdge> | null);

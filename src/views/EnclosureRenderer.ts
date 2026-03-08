@@ -43,8 +43,17 @@ interface EncData {
   minX: number; minY: number; maxX: number; maxY: number;
 }
 
-/** Extra padding beyond node radius for the outline */
-const OUTLINE_PAD = 10;
+/** Minimum extra padding beyond node radius for the outline */
+const OUTLINE_PAD_MIN = 12;
+/** Padding scales with node radius: pad = max(MIN, radius × factor) */
+const OUTLINE_PAD_FACTOR = 0.6;
+/** Number of sample points around each node circle for hull generation */
+const HULL_SAMPLES = 12;
+
+/** Compute dynamic padding for a given node radius */
+function outlinePad(radius: number): number {
+  return Math.max(OUTLINE_PAD_MIN, radius * OUTLINE_PAD_FACTOR);
+}
 
 /**
  * Zoom threshold: below this worldScale the view is considered "zoomed out".
@@ -107,9 +116,9 @@ export function drawEnclosures(
     // so the convex hull fully contains every node regardless of radius.
     const hullInput: Pt[] = [];
     for (const p of pts) {
-      const r = p.radius + OUTLINE_PAD;
-      for (let k = 0; k < 8; k++) {
-        const angle = (k / 8) * Math.PI * 2;
+      const r = p.radius + outlinePad(p.radius);
+      for (let k = 0; k < HULL_SAMPLES; k++) {
+        const angle = (k / HULL_SAMPLES) * Math.PI * 2;
         hullInput.push({ x: p.x + Math.cos(angle) * r, y: p.y + Math.sin(angle) * r });
       }
     }
@@ -117,7 +126,7 @@ export function drawEnclosures(
     let expanded: Pt[];
     if (pts.length === 1) {
       const p = pts[0];
-      const r = p.radius + OUTLINE_PAD;
+      const r = p.radius + outlinePad(p.radius);
       expanded = [
         { x: p.x - r, y: p.y - r },
         { x: p.x + r, y: p.y - r },
@@ -167,12 +176,16 @@ export function drawEnclosures(
     const { tag, pts, hex, expanded } = enc;
     const overlaps = overlapCache.counts.get(tag) || 0;
 
-    // --- Stroke style (always present, emphasized when zoomed in) ---
-    const baseLineAlpha = overlaps === 0 ? 0.7 : Math.max(0.35, 0.6 / (1 + overlaps * 0.15));
-    const lineWidth = overlaps > 3 ? 1.5 : 2;
+    // --- Stroke style ---
+    // Overlapping enclosures: thicker outline, slightly reduced alpha
+    const baseLineAlpha = overlaps === 0 ? 0.7 : Math.max(0.45, 0.65 / (1 + overlaps * 0.1));
+    const lineWidth = overlaps === 0 ? 2 : Math.max(2.5, 3 - overlaps * 0.3);
 
-    // --- Fill style (only when zoomed out) ---
-    const fillAlpha = blend * (overlaps === 0 ? 0.25 : Math.max(0.10, 0.20 / (1 + overlaps * 0.3)));
+    // --- Fill style (only when zoomed out AND no overlap) ---
+    // Overlapping enclosures: no fill — outline-only keeps the view clean
+    const fillAlpha = overlaps > 0
+      ? 0
+      : blend * 0.25;
 
     let labelX = 0, labelY = 0;
     let labelCenterX = 0, labelCenterY = 0;
@@ -182,9 +195,11 @@ export function drawEnclosures(
       g.lineStyle(0);
       g.beginFill(hex, fillAlpha);
       if (pts.length === 1) {
-        g.drawCircle(pts[0].x, pts[0].y, pts[0].radius + OUTLINE_PAD);
+        const p0 = pts[0];
+        g.drawCircle(p0.x, p0.y, p0.radius + outlinePad(p0.radius));
       } else if (pts.length === 2) {
-        drawCapsule(g, pts[0], pts[1], Math.max(pts[0].radius, pts[1].radius) + OUTLINE_PAD);
+        const maxR = Math.max(pts[0].radius, pts[1].radius);
+        drawCapsule(g, pts[0], pts[1], maxR + outlinePad(maxR));
       } else {
         drawSmoothHull(g, expanded);
       }
@@ -195,12 +210,13 @@ export function drawEnclosures(
     g.lineStyle(lineWidth, hex, baseLineAlpha);
     if (pts.length === 1) {
       const p = pts[0];
-      const r = p.radius + OUTLINE_PAD;
+      const r = p.radius + outlinePad(p.radius);
       g.drawCircle(p.x, p.y, r);
       labelX = p.x; labelY = p.y - r - 8;
       labelCenterX = p.x; labelCenterY = p.y;
     } else if (pts.length === 2) {
-      const r = Math.max(pts[0].radius, pts[1].radius) + OUTLINE_PAD;
+      const maxR = Math.max(pts[0].radius, pts[1].radius);
+      const r = maxR + outlinePad(maxR);
       drawCapsule(g, pts[0], pts[1], r);
       labelX = (pts[0].x + pts[1].x) / 2;
       labelY = Math.min(pts[0].y, pts[1].y) - r - 8;

@@ -51,6 +51,10 @@ export interface ClusterForceConfig {
   groupSpacing: number;
   /** Enable recursive sub-grouping within each group */
   recursive: boolean;
+  /** When enclosure mode is active, tag membership map for separation */
+  tagMembership?: Map<string, Set<string>>;
+  /** Enclosure spacing multiplier (default 1.5) */
+  enclosureSpacing?: number;
 }
 
 /**
@@ -73,6 +77,11 @@ export function buildClusterForce(
 
   const targets = computeAbsoluteTargets(groups, edges, degrees, cfg);
 
+  // Build node index for enclosure separation (if active)
+  const tagMem = cfg.tagMembership;
+  const encSpacing = cfg.enclosureSpacing ?? 1.5;
+  const nodeIdx = tagMem ? new Map(nodes.map(n => [n.id, n])) : null;
+
   return (_alpha: number) => {
     // Fixed high blend — always snap strongly to target positions
     const blend = 0.85;
@@ -85,6 +94,11 @@ export function buildClusterForce(
       n.vx = 0;
       n.vy = 0;
     }
+
+    // Enclosure separation nudge — disabled pending investigation
+    // if (tagMem && nodeIdx) {
+    //   nudgeEnclosureGroups(nodeIdx, tagMem, encSpacing, cfg.nodeSize);
+    // }
   };
 }
 
@@ -564,4 +578,80 @@ function gridOffsets(
     });
   }
   return offsets;
+}
+
+// ---------------------------------------------------------------------------
+// Enclosure separation — per-tick position nudge (not static target mutation)
+// ---------------------------------------------------------------------------
+
+/**
+ * Apply a mild position nudge to separate overlapping enclosure groups.
+ * Called each tick AFTER the cluster blend, so the pattern is preserved
+ * (blend pulls 85% back to target; nudge creates a small stable offset).
+ *
+ * Max nudge per node per tick is capped to prevent pattern destruction.
+ */
+function nudgeEnclosureGroups(
+  nodeIdx: Map<string, GraphNode>,
+  tagMembership: Map<string, Set<string>>,
+  spacingMul: number,
+  nodeSize: number,
+): void {
+  const tags = [...tagMembership.keys()];
+  if (tags.length < 2) return;
+
+  // Compute centroid + extent per tag from current positions
+  const centroids: { tag: string; cx: number; cy: number; r: number }[] = [];
+  for (const tag of tags) {
+    const ids = tagMembership.get(tag)!;
+    let sx = 0, sy = 0, cnt = 0;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const id of ids) {
+      const n = nodeIdx.get(id);
+      if (!n) continue;
+      sx += n.x; sy += n.y; cnt++;
+      if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x;
+      if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y;
+    }
+    if (cnt === 0) continue;
+    const r = Math.max(30, Math.hypot(maxX - minX, maxY - minY) / 2);
+    centroids.push({ tag, cx: sx / cnt, cy: sy / cnt, r });
+  }
+
+  // Cap: maximum position nudge per node per tick
+  const maxNudge = nodeSize * 0.5;
+
+  for (let i = 0; i < centroids.length; i++) {
+    for (let j = i + 1; j < centroids.length; j++) {
+      const a = centroids[i], b = centroids[j];
+      const dx = b.cx - a.cx;
+      const dy = b.cy - a.cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const desiredDist = (a.r + b.r) * spacingMul;
+      if (dist >= desiredDist) continue;
+
+      const nx = dist > 1 ? dx / dist : 1;
+      const ny = dist > 1 ? dy / dist : 0;
+      // Gentle nudge proportional to overlap, capped
+      const rawNudge = (desiredDist - dist) * 0.02;
+      const nudge = Math.min(rawNudge, maxNudge);
+
+      const idsA = tagMembership.get(a.tag)!;
+      const idsB = tagMembership.get(b.tag)!;
+      for (const id of idsA) {
+        const n = nodeIdx.get(id);
+        if (!n) continue;
+        const w = idsB.has(id) ? 0.05 : 1.0;
+        n.x -= nx * nudge * w;
+        n.y -= ny * nudge * w;
+      }
+      for (const id of idsB) {
+        const n = nodeIdx.get(id);
+        if (!n) continue;
+        const w = idsA.has(id) ? 0.05 : 1.0;
+        n.x += nx * nudge * w;
+        n.y += ny * nudge * w;
+      }
+    }
+  }
 }
