@@ -25,6 +25,7 @@ function baseCfg(overrides?: Partial<ClusterForceConfig>): ClusterForceConfig {
     width: 800,
     height: 600,
     nodeSize: 8,
+    scaleByDegree: true,
     nodeSpacing: 3.0,
     groupScale: 3.0,
     groupSpacing: 2.0,

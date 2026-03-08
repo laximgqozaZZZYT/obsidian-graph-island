@@ -42,6 +42,8 @@ export interface ClusterForceConfig {
   height: number;
   /** Base node size (panel.nodeSize) — used to compute visual radius */
   nodeSize: number;
+  /** Whether node radius scales with degree (backlink count) */
+  scaleByDegree: boolean;
   /** Node spacing = nodeSize × 2 × this multiplier (default 3.0) */
   nodeSpacing: number;
   /** Pattern scale — controls overall group footprint (spiral arm gap,
@@ -88,7 +90,8 @@ export function buildClusterForce(
 // ---------------------------------------------------------------------------
 
 /** Visual radius of a node — same formula as GraphViewContainer.nodeR */
-function nodeRadius(nodeSize: number, degree: number): number {
+function nodeRadius(nodeSize: number, degree: number, scaleByDegree: boolean): number {
+  if (!scaleByDegree) return nodeSize;
   return Math.max(nodeSize, nodeSize + Math.sqrt(degree) * 3.2);
 }
 
@@ -122,7 +125,7 @@ function computeAbsoluteTargets(
   // --- Compute intra-group offsets → absolute positions ---
   for (const [key, members] of groups) {
     const center = groupCenters.get(key)!;
-    const offsets = computeOffsets(members, cfg.arrangement, degrees, edges, cfg.gridCols, cfg.nodeSpacing, cfg.groupScale, cfg.nodeSize);
+    const offsets = computeOffsets(members, degrees, edges, cfg);
     for (const n of members) {
       const off = offsets.get(n.id);
       targets.set(n.id, {
@@ -258,17 +261,14 @@ function backlinkBucket(deg: number): string {
 
 function computeOffsets(
   members: GraphNode[],
-  arrangement: ClusterArrangement,
   degrees: Map<string, number>,
   edges: GraphEdge[],
-  gridCols: number,
-  nodeSpacing: number,
-  groupScale: number,
-  nodeSize: number,
+  cfg: ClusterForceConfig,
 ): Map<string, { dx: number; dy: number }> {
-  switch (arrangement) {
-    case "spiral": return spiralOffsets(members, degrees, nodeSpacing, groupScale, nodeSize);
-    case "concentric": return concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize);
+  const { nodeSpacing, groupScale, nodeSize, scaleByDegree, gridCols } = cfg;
+  switch (cfg.arrangement) {
+    case "spiral": return spiralOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree);
+    case "concentric": return concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree);
     case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, groupScale, nodeSize);
     case "grid": return gridOffsets(members, degrees, gridCols, nodeSpacing, groupScale, nodeSize);
     default: return new Map();
@@ -290,6 +290,7 @@ function spiralOffsets(
   spacingMul: number,
   groupScale: number,
   nodeSize: number,
+  scaleByDegree: boolean,
 ): Map<string, { dx: number; dy: number }> {
   const sorted = [...members].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
   const offsets = new Map<string, { dx: number; dy: number }>();
@@ -297,7 +298,7 @@ function spiralOffsets(
   if (n === 0) return offsets;
 
   // Precompute each node's visual radius
-  const radii = sorted.map(nd => nodeRadius(nodeSize, degrees.get(nd.id) || 0));
+  const radii = sorted.map(nd => nodeRadius(nodeSize, degrees.get(nd.id) || 0, scaleByDegree));
 
   // armGap controls distance between spiral turns — governed by groupScale
   const armGap = nodeSize * 2 * groupScale;
@@ -341,6 +342,7 @@ function concentricOffsets(
   spacingMul: number,
   groupScale: number,
   nodeSize: number,
+  scaleByDegree: boolean,
 ): Map<string, { dx: number; dy: number }> {
   const sorted = [...members].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
   const offsets = new Map<string, { dx: number; dy: number }>();
@@ -348,7 +350,7 @@ function concentricOffsets(
   if (n === 0) return offsets;
 
   // Precompute radii
-  const radii = sorted.map(nd => nodeRadius(nodeSize, degrees.get(nd.id) || 0));
+  const radii = sorted.map(nd => nodeRadius(nodeSize, degrees.get(nd.id) || 0, scaleByDegree));
 
   // Place center node
   offsets.set(sorted[0].id, { dx: 0, dy: 0 });

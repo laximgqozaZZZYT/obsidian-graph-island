@@ -1393,7 +1393,9 @@ export class GraphViewContainer extends ItemView {
     this.enclosureLabels.clear();
     const baseSize = this.panel.nodeSize;
 
-    const nodeR = (n: GraphNode) => Math.max(baseSize, baseSize + Math.sqrt(this.degrees.get(n.id) || 0) * 3.2);
+    const nodeR = this.panel.scaleByDegree
+      ? (n: GraphNode) => Math.max(baseSize, baseSize + Math.sqrt(this.degrees.get(n.id) || 0) * 3.2)
+      : (_n: GraphNode) => baseSize;
     const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
     const nodeColor = (n: GraphNode): number => {
       // Manual group overrides take priority
@@ -1744,6 +1746,7 @@ export class GraphViewContainer extends ItemView {
         width: W,
         height: H,
         nodeSize: this.panel.nodeSize,
+        scaleByDegree: this.panel.scaleByDegree,
         nodeSpacing: clusterNodeSpacing,
         groupScale: clusterGroupScale,
         groupSpacing: clusterGroupSpacing,
