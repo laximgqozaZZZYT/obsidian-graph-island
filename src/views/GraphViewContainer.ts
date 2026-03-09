@@ -144,9 +144,6 @@ export class GraphViewContainer extends ItemView {
   private cachedBgColor: number | null = null;
   private cachedLabelColor: number | null = null;
 
-  // Last hover pointer position (for page-preview popover)
-  private lastHoverEvent: PointerEvent | null = null;
-
   // Resize observer
   private resizeObserver: ResizeObserver | null = null;
 
@@ -235,7 +232,7 @@ export class GraphViewContainer extends ItemView {
   }
 
   getViewType() { return VIEW_TYPE_GRAPH; }
-  getDisplayText() { return "Graph Views"; }
+  getDisplayText() { return "Graph Island"; }
   getIcon() { return "git-fork"; }
 
   // -------------------------------------------------------------------------
@@ -387,7 +384,6 @@ export class GraphViewContainer extends ItemView {
     this.panelEl = null;
     this.nodeInfoEl = null;
     this.canvasWrap = null;
-    this.lastHoverEvent = null;
     this.marqueeGraphics = null;
   }
 
@@ -644,7 +640,6 @@ export class GraphViewContainer extends ItemView {
         this.markDirty();
       } else {
         // Hover
-        this.lastHoverEvent = e;
         const worldPt = world.toLocal(new PIXI.Point(mx, my), app.stage);
         const hit = this.hitTestNode(worldPt.x, worldPt.y);
         const newId = hit?.data.id ?? null;
@@ -868,42 +863,7 @@ export class GraphViewContainer extends ItemView {
 
     this.prevHighlightSet = curSet;
     this.redrawNodeBatch();
-    this.triggerPagePreview();
     this.updateNodeInfo();
-  }
-
-  /**
-   * Trigger Obsidian's core page-preview popover for the hovered node.
-   *
-   * Page Preview requires:
-   *   - source: a registered view type (we use "markdown" which is always allowed)
-   *   - targetEl: a DOM element at the pointer position for anchor placement
-   */
-  private triggerPagePreview() {
-    const hId = this.highlightedNodeId;
-    if (!hId) return;
-
-    const pn = this.pixiNodes.get(hId);
-    if (!pn?.data.filePath) return;
-
-    const ev = this.lastHoverEvent;
-    if (!ev) return;
-
-    // Create a temporary anchor element at the pointer position.
-    // Page Preview uses targetEl's bounding rect to position the popover.
-    const anchor = this.contentEl.createEl("span");
-    anchor.style.cssText = `position:fixed;left:${ev.clientX}px;top:${ev.clientY}px;width:1px;height:1px;pointer-events:none;`;
-    // Clean up anchor after popover has had time to read its position
-    setTimeout(() => anchor.remove(), 200);
-
-    this.app.workspace.trigger("hover-link", {
-      event: ev,
-      source: "preview",
-      hoverParent: this,
-      targetEl: anchor,
-      linktext: pn.data.filePath,
-      sourcePath: "",
-    });
   }
 
   /**
@@ -918,62 +878,12 @@ export class GraphViewContainer extends ItemView {
    * Update the floating node-info overlay with hovered node details + linked nodes.
    */
   private updateNodeInfo() {
-    const el = this.nodeInfoEl;
-    if (!el) return;
+    // Hide the floating overlay — all detail is shown in the NodeDetailView side pane
+    if (this.nodeInfoEl) this.nodeInfoEl.style.display = "none";
 
     const hId = this.highlightedNodeId;
-    if (!hId) {
-      el.style.display = "none";
-      this.notifyDetailPane(null);
-      return;
-    }
-
-    const pn = this.pixiNodes.get(hId);
-    if (!pn) { el.style.display = "none"; this.notifyDetailPane(null); return; }
-    const node = pn.data;
-
-    this.notifyDetailPane(node);
-
-    el.empty();
-    el.style.display = "";
-
-    // -- Node summary --
-    const nameEl = el.createEl("div", { cls: "ngp-ni-name" });
-    nameEl.textContent = node.label;
-    if (node.isTag) {
-      nameEl.createEl("span", { cls: "ngp-ni-badge", text: "tag" });
-    }
-
-    if (node.category) {
-      el.createEl("div", { cls: "ngp-ni-meta", text: `カテゴリ: ${node.category}` });
-    }
-    if (node.tags && node.tags.length > 0) {
-      el.createEl("div", { cls: "ngp-ni-meta", text: `タグ: ${node.tags.map(t => "#" + t).join(" ")}` });
-    }
-
-    const deg = this.degrees.get(hId) || 0;
-    el.createEl("div", { cls: "ngp-ni-meta", text: `リンク数: ${deg}` });
-
-    // -- Linked node list --
-    const neighbors = this.adj.get(hId);
-    if (neighbors && neighbors.size > 0) {
-      el.createEl("div", { cls: "ngp-ni-section-title", text: "リンク中のノード" });
-      const list = el.createEl("ul", { cls: "ngp-ni-list" });
-      for (const nbId of neighbors) {
-        const nbPn = this.pixiNodes.get(nbId);
-        if (!nbPn) continue;
-        const li = list.createEl("li", { cls: "ngp-ni-list-item" });
-        const link = li.createEl("span", { cls: "ngp-ni-link", text: nbPn.data.label });
-        if (nbPn.data.isTag) {
-          li.createEl("span", { cls: "ngp-ni-badge", text: "tag" });
-        }
-        if (nbPn.data.filePath) {
-          link.addEventListener("click", () => {
-            this.app.workspace.openLinkText(nbPn.data.filePath!, "", false);
-          });
-        }
-      }
-    }
+    const pn = hId ? this.pixiNodes.get(hId) : undefined;
+    this.notifyDetailPane(pn?.data ?? null);
   }
 
   private drawNodeCircle(pn: PixiNode, highlight: boolean) {

@@ -20,7 +20,7 @@ export default class GraphViewsPlugin extends Plugin {
       (leaf) => new NodeDetailView(leaf)
     );
 
-    this.addRibbonIcon("git-fork", "Graph Views", () => {
+    this.addRibbonIcon("git-fork", "Graph Island", () => {
       this.activateView();
     });
 
