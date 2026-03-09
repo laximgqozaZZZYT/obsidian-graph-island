@@ -19,7 +19,7 @@ import { yieldFrame, buildAdj, cssColorToHex } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, type EdgeDrawConfig } from "./EdgeRenderer";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
-import { buildClusterForce, type ClusterMetadata } from "../layouts/cluster-force";
+import { buildClusterForce, type ClusterMetadata, type SunburstArc } from "../layouts/cluster-force";
 import { buildMultiSortComparator, type SortMetrics } from "../utils/sort";
 
 /**
@@ -111,6 +111,8 @@ export class GraphViewContainer extends ItemView {
   private edgeGraphics: PIXI.Graphics | null = null;
   private orbitGraphics: PIXI.Graphics | null = null;
   private enclosureGraphics: PIXI.Graphics | null = null;
+  private enclosureLabelContainer: PIXI.Container | null = null;
+  private sunburstGraphics: PIXI.Graphics | null = null;
   private nodeCircleBatch: PIXI.Graphics | null = null;
   private pixiNodes: Map<string, PixiNode> = new Map();
   private canvasWrap: HTMLElement | null = null;
@@ -454,6 +456,8 @@ export class GraphViewContainer extends ItemView {
     this.edgeGraphics = null;
     this.orbitGraphics = null;
     this.enclosureGraphics = null;
+    this.enclosureLabelContainer = null;
+    this.sunburstGraphics = null;
     this.nodeCircleBatch = null;
     this.spatialGrid.clear();
     if (this.pixiApp) {
@@ -513,6 +517,11 @@ export class GraphViewContainer extends ItemView {
     world.addChild(orbitGfx);
     this.orbitGraphics = orbitGfx;
 
+    // Sunburst arc guide lines (drawn behind enclosures)
+    const sunburstGfx = new PIXI.Graphics();
+    world.addChild(sunburstGfx);
+    this.sunburstGraphics = sunburstGfx;
+
     // Enclosure layer (tag enclosures, drawn behind edges)
     const enclosureGfx = new PIXI.Graphics();
     world.addChild(enclosureGfx);
@@ -527,6 +536,11 @@ export class GraphViewContainer extends ItemView {
     const batchGfx = new PIXI.Graphics();
     world.addChild(batchGfx);
     this.nodeCircleBatch = batchGfx;
+
+    // Enclosure label container — on top of nodes so labels are visible & hoverable
+    const labelContainer = new PIXI.Container();
+    world.addChild(labelContainer);
+    this.enclosureLabelContainer = labelContainer;
 
     this.setupInteraction(canvas, world);
 
@@ -1113,6 +1127,10 @@ export class GraphViewContainer extends ItemView {
     const effectiveHighlightSet = ephActive ? this.ephemeralHighlight! : this.prevHighlightSet;
 
     const cfg: EdgeDrawConfig = {
+      showLinks: this.panel.showLinks,
+      showTagEdges: this.panel.showTagEdges,
+      showCategoryEdges: this.panel.showCategoryEdges,
+      showSemanticEdges: this.panel.showSemanticEdges,
       showInheritance: this.panel.showInheritance,
       showAggregation: this.panel.showAggregation,
       showTagNodes: this.panel.showTagNodes,
@@ -1159,8 +1177,151 @@ export class GraphViewContainer extends ItemView {
       worldScale: this.worldContainer?.scale.x ?? 1,
       totalNodeCount: this.pixiNodes.size,
       enclosureMinRatio: this.plugin.settings.enclosureMinRatio,
+      onTagHover: (tag) => {
+        if (tag) {
+          const members = this.tagMembership.get(tag);
+          if (members) this.applyEphemeralHighlight(new Set(members));
+        } else {
+          this.applyEphemeralHighlight(null);
+        }
+      },
+      labelContainer: this.enclosureLabelContainer ?? undefined,
     };
     drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);
+  }
+
+  private drawSunburstArcs() {
+    const gfx = this.sunburstGraphics;
+    if (!gfx) return;
+    gfx.clear();
+
+    const sunburstArcs = this.clusterMeta?.sunburstArcs;
+    if (!sunburstArcs || sunburstArcs.length === 0) return;
+
+    // Build parent group → color index map (sub-groups inherit parent color)
+    const parentColorIdx = new Map<string, number>();
+    let colorIdx = 0;
+    for (const arc of sunburstArcs) {
+      if (arc.groupKey === "__inner__") continue;
+      const parent = arc.groupKey.replace(/::.*$/, "");
+      if (!parentColorIdx.has(parent)) {
+        parentColorIdx.set(parent, colorIdx++);
+      }
+    }
+    // Map any group key to its parent's color index
+    const getColorIdx = (key: string) => {
+      const parent = key.replace(/::.*$/, "");
+      return parentColorIdx.get(parent) ?? 0;
+    };
+
+    const worldScale = this.worldContainer?.scale.x ?? 1;
+    const lineW = Math.max(0.8, 1.5 / worldScale);
+    const thinW = Math.max(0.4, 0.8 / worldScale);
+
+    // --- 1. Draw light filled backgrounds per group sector ---
+    // Find max outer radius per group for the full sector fill
+    const groupMaxR = new Map<string, number>();
+    const groupSector = new Map<string, { start: number; end: number; rMin: number }>();
+    for (const arc of sunburstArcs) {
+      if (arc.groupKey === "__inner__") continue;
+      const prev = groupMaxR.get(arc.groupKey) ?? 0;
+      if (arc.rOuter > prev) groupMaxR.set(arc.groupKey, arc.rOuter);
+      if (!groupSector.has(arc.groupKey)) {
+        groupSector.set(arc.groupKey, { start: arc.startAngle, end: arc.endAngle, rMin: arc.rInner });
+      }
+    }
+
+    // --- 1. Draw light filled backgrounds per parent-group sector ---
+    for (const [groupKey, maxR] of groupMaxR) {
+      const ci = getColorIdx(groupKey);
+      const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
+      const color = cssColorToHex(css);
+      const sector = groupSector.get(groupKey)!;
+      const { cx, cy } = sunburstArcs.find(a => a.groupKey === groupKey)!;
+
+      // Slightly stronger fill for sub-groups to show hierarchy
+      const isSubGroup = groupKey.includes("::");
+      const fillAlpha = isSubGroup ? 0.08 : 0.05;
+      gfx.beginFill(color, fillAlpha);
+      this.drawArcPath(gfx, cx, cy, sector.rMin, maxR, sector.start, sector.end);
+      gfx.endFill();
+    }
+
+    // --- 2. Draw ring outlines (concentric arcs) + radial boundaries ---
+    for (const arc of sunburstArcs) {
+      const { cx, cy, rInner, rOuter, startAngle, endAngle, groupKey } = arc;
+      if (rOuter <= 0 || endAngle - startAngle < 0.001) continue;
+
+      const isInner = groupKey === "__inner__";
+      const isSubGroup = groupKey.includes("::");
+      const ci = isInner ? -1 : getColorIdx(groupKey);
+      const css = isInner ? "" : DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
+      const color = isInner ? 0x888888 : cssColorToHex(css);
+      const alpha = isInner ? 0.2 : (isSubGroup ? 0.25 : 0.4);
+
+      // Concentric arcs (outer and inner boundaries)
+      gfx.lineStyle(thinW, color, alpha);
+      this.drawArcLine(gfx, cx, cy, rOuter, startAngle, endAngle);
+      this.drawArcLine(gfx, cx, cy, rInner, startAngle, endAngle);
+
+      // Radial sector boundaries (thicker for parent groups, thinner for sub-groups)
+      const radW = isSubGroup ? thinW : lineW;
+      const radAlpha = isSubGroup ? alpha * 0.6 : alpha;
+      gfx.lineStyle(radW, color, radAlpha);
+      gfx.moveTo(cx + rInner * Math.cos(startAngle), cy + rInner * Math.sin(startAngle));
+      gfx.lineTo(cx + rOuter * Math.cos(startAngle), cy + rOuter * Math.sin(startAngle));
+      gfx.moveTo(cx + rInner * Math.cos(endAngle), cy + rInner * Math.sin(endAngle));
+      gfx.lineTo(cx + rOuter * Math.cos(endAngle), cy + rOuter * Math.sin(endAngle));
+    }
+  }
+
+  /** Draw an arc line (stroke only, no fill) */
+  private drawArcLine(
+    gfx: PIXI.Graphics,
+    cx: number, cy: number,
+    r: number,
+    startAngle: number, endAngle: number,
+  ) {
+    const steps = Math.max(16, Math.ceil(Math.abs(endAngle - startAngle) * 20));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const a = startAngle + t * (endAngle - startAngle);
+      const x = cx + r * Math.cos(a);
+      const y = cy + r * Math.sin(a);
+      if (i === 0) gfx.moveTo(x, y);
+      else gfx.lineTo(x, y);
+    }
+  }
+
+  /** Draw a baumkuchen-shaped arc path (annular sector) for fills */
+  private drawArcPath(
+    gfx: PIXI.Graphics,
+    cx: number, cy: number,
+    rInner: number, rOuter: number,
+    startAngle: number, endAngle: number,
+  ) {
+    const steps = Math.max(16, Math.ceil(Math.abs(endAngle - startAngle) * 20));
+
+    // Outer arc (clockwise)
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const a = startAngle + t * (endAngle - startAngle);
+      const x = cx + rOuter * Math.cos(a);
+      const y = cy + rOuter * Math.sin(a);
+      if (i === 0) gfx.moveTo(x, y);
+      else gfx.lineTo(x, y);
+    }
+
+    // Inner arc (counter-clockwise)
+    for (let i = steps; i >= 0; i--) {
+      const t = i / steps;
+      const a = startAngle + t * (endAngle - startAngle);
+      const x = cx + rInner * Math.cos(a);
+      const y = cy + rInner * Math.sin(a);
+      gfx.lineTo(x, y);
+    }
+
+    gfx.closePath();
   }
 
   // =========================================================================
@@ -1181,6 +1342,7 @@ export class GraphViewContainer extends ItemView {
     if (forceFullRedraw || this.edgeRedrawCounter >= EDGE_REDRAW_SKIP) {
       this.edgeRedrawCounter = 0;
       this.drawEnclosures();
+      this.drawSunburstArcs();
       this.drawEdges();
     }
   }

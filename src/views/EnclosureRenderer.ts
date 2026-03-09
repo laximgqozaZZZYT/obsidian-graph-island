@@ -20,6 +20,10 @@ export interface EnclosureConfig {
   totalNodeCount: number;
   /** Minimum fraction (0–1) of totalNodeCount a group must have to show an enclosure. */
   enclosureMinRatio: number;
+  /** Called when a tag label is hovered (tag) or unhovered (null). */
+  onTagHover?: (tag: string | null) => void;
+  /** Dedicated container for labels (ensures z-order above nodes). */
+  labelContainer?: PIXI.Container;
 }
 
 /**
@@ -251,27 +255,109 @@ export function drawEnclosures(
       });
       txt.anchor.set(0.5, 0.5);
       txt.resolution = 2;
-      g.parent?.addChild(txt);
       enclosureLabels.set(tag, txt);
     }
 
-    // When zoomed out: label centred inside the region, large and prominent
-    // When zoomed in:  label above the top edge, smaller
-    if (zoomedOut) {
-      txt.x = labelCenterX;
-      txt.y = labelCenterY;
-      txt.alpha = Math.max(0.7, 0.95 - overlaps * 0.04);
-      const labelScale = Math.min(8, Math.max(1.5, 1.8 / ws));
-      txt.scale.set(labelScale);
-    } else {
-      txt.x = labelX;
-      txt.y = labelY;
-      txt.alpha = Math.max(0.6, 0.85 - overlaps * 0.04);
-      txt.anchor.set(0.5, 1);
-      const labelScale = Math.min(4, Math.max(1, 1 / ws));
-      txt.scale.set(labelScale);
+    // Ensure label is interactive & in the correct parent (idempotent).
+    // This runs every draw so that labels created before the hover feature
+    // are retroactively upgraded.
+    if (txt.eventMode !== "static") {
+      txt.eventMode = "static";
+      txt.cursor = "pointer";
+      const capturedTag = tag;
+      txt.on("pointerover", () => cfg.onTagHover?.(capturedTag));
+      txt.on("pointerout", () => cfg.onTagHover?.(null));
     }
+    const targetParent = cfg.labelContainer ?? g.parent;
+    if (txt.parent !== targetParent && targetParent) {
+      targetParent.addChild(txt);
+    }
+
+    // Always place label above the hull top edge (never inside the node cluster).
+    // Label scale adapts to zoom: larger when zoomed out, smaller when zoomed in.
+    const labelScale = zoomedOut
+      ? Math.min(8, Math.max(1.5, 1.8 / ws))
+      : Math.min(4, Math.max(1, 1 / ws));
+    // Label height in world coords (fontSize 14 × scale)
+    const labelWorldH = 14 * labelScale;
+    const gap = labelWorldH * 0.3;
+
+    txt.anchor.set(0.5, 1); // bottom-center anchor: label hangs above the point
+    txt.x = labelCenterX;
+    txt.y = enc.minY - gap;
+    txt.scale.set(labelScale);
+    txt.alpha = zoomedOut
+      ? Math.max(0.7, 0.95 - overlaps * 0.04)
+      : Math.max(0.6, 0.85 - overlaps * 0.04);
     txt.visible = true;
+  }
+
+  // --- Label collision avoidance ---
+  // Collect visible label bounding rects, then nudge overlapping labels apart.
+  // If nudging can't resolve the overlap, hide the smaller group's label.
+  const visibleLabels: { tag: string; txt: PIXI.Text; memberCount: number }[] = [];
+  for (const tag of usedLabels) {
+    const txt = enclosureLabels.get(tag);
+    if (txt && txt.visible) {
+      const members = cfg.tagMembership.get(tag);
+      visibleLabels.push({ tag, txt, memberCount: members?.size ?? 0 });
+    }
+  }
+  // Sort by member count descending — larger groups get priority placement
+  visibleLabels.sort((a, b) => b.memberCount - a.memberCount);
+
+  // Get approximate bounding box for a label (in world coords).
+  // PIXI.Text.width already includes scale, so we use it directly.
+  const labelRect = (txt: PIXI.Text) => {
+    const w = txt.width;
+    const h = txt.height;
+    const ax = txt.anchor.x;
+    const ay = txt.anchor.y;
+    return {
+      x: txt.x - w * ax,
+      y: txt.y - h * ay,
+      w,
+      h,
+    };
+  };
+
+  const rectsOverlap = (
+    a: { x: number; y: number; w: number; h: number },
+    b: { x: number; y: number; w: number; h: number },
+  ) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+  // Greedy nudge: for each label (priority-sorted), push away from collisions.
+  const placedRects: { x: number; y: number; w: number; h: number }[] = [];
+  for (const { txt } of visibleLabels) {
+    let rect = labelRect(txt);
+    let resolved = false;
+
+    for (let attempt = 0; attempt < 6; attempt++) {
+      // Find first overlapping rect
+      const blocker = placedRects.find(pr => rectsOverlap(rect, pr));
+      if (!blocker) { resolved = true; break; }
+
+      // Nudge away from the blocker — choose the shortest escape direction
+      const overlapX = Math.min(rect.x + rect.w - blocker.x, blocker.x + blocker.w - rect.x);
+      const overlapY = Math.min(rect.y + rect.h - blocker.y, blocker.y + blocker.h - rect.y);
+
+      if (overlapY <= overlapX) {
+        // Escape vertically (down from blocker center)
+        const dy = (rect.y + rect.h / 2) > (blocker.y + blocker.h / 2) ? 1 : -1;
+        txt.y += dy * (overlapY + rect.h * 0.15);
+      } else {
+        // Escape horizontally (away from blocker center)
+        const dx = (rect.x + rect.w / 2) > (blocker.x + blocker.w / 2) ? 1 : -1;
+        txt.x += dx * (overlapX + rect.w * 0.15);
+      }
+      rect = labelRect(txt);
+    }
+
+    if (!resolved) {
+      txt.visible = false;
+    } else {
+      placedRects.push(rect);
+    }
   }
 
   // Hide unused labels

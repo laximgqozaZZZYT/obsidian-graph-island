@@ -34,6 +34,10 @@ export interface PanelState {
   showTagNodes: boolean;
   tagDisplay: "node" | "enclosure";
   showSimilar: boolean;
+  showLinks: boolean;
+  showTagEdges: boolean;
+  showCategoryEdges: boolean;
+  showSemanticEdges: boolean;
   enclosureSpacing: number;
   directionalGravityRules: DirectionalGravityRule[];
   hoverHops: number;
@@ -75,6 +79,10 @@ export const DEFAULT_PANEL: PanelState = {
   showTagNodes: true,
   tagDisplay: "enclosure" as const,
   showSimilar: false,
+  showLinks: true,
+  showTagEdges: true,
+  showCategoryEdges: true,
+  showSemanticEdges: true,
   enclosureSpacing: 1.5,
   directionalGravityRules: [],
   hoverHops: 1,
@@ -139,25 +147,26 @@ export function buildPanel(
 ): void {
   panelEl.empty();
 
-  buildSection(panelEl, "グラフの種類", (body) => {
-    const select = body.createEl("select", { cls: "ngp-select" });
-    const layouts: { type: LayoutType; label: string }[] = [
-      { type: "force", label: "Force" },
-      { type: "concentric", label: "Concentric" },
-      { type: "tree", label: "Tree" },
-      { type: "arc", label: "Arc" },
-      { type: "sunburst", label: "Sunburst" },
-    ];
-    for (const l of layouts) {
-      const opt = select.createEl("option", { text: l.label, value: l.type });
-      if (l.type === ctx.currentLayout) opt.selected = true;
-    }
-    select.addEventListener("change", () => {
-      ctx.setLayout(select.value as LayoutType);
-      cb.rebuildPanel();
-      cb.doRender();
-    });
-  }, "グラフのレイアウトアルゴリズムを選択します。\n\nForce: 力学モデル（クラスター配置対応）\nConcentric: 同心円配置\nTree: 階層ツリー\nArc: 弧状配置\nSunburst: 放射状階層配置");
+  // グラフの種類セクション — 一時的に非表示
+  // buildSection(panelEl, "グラフの種類", (body) => {
+  //   const select = body.createEl("select", { cls: "ngp-select" });
+  //   const layouts: { type: LayoutType; label: string }[] = [
+  //     { type: "force", label: "Force" },
+  //     { type: "concentric", label: "Concentric" },
+  //     { type: "tree", label: "Tree" },
+  //     { type: "arc", label: "Arc" },
+  //     { type: "sunburst", label: "Sunburst" },
+  //   ];
+  //   for (const l of layouts) {
+  //     const opt = select.createEl("option", { text: l.label, value: l.type });
+  //     if (l.type === ctx.currentLayout) opt.selected = true;
+  //   }
+  //   select.addEventListener("change", () => {
+  //     ctx.setLayout(select.value as LayoutType);
+  //     cb.rebuildPanel();
+  //     cb.doRender();
+  //   });
+  // }, "グラフのレイアウトアルゴリズムを選択します。\n\nForce: 力学モデル（クラスター配置対応）\nConcentric: 同心円配置\nTree: 階層ツリー\nArc: 弧状配置\nSunburst: 放射状階層配置");
 
   if (ctx.currentLayout === "concentric") {
     buildSection(panelEl, "同心円レイアウト", (body) => {
@@ -212,9 +221,6 @@ export function buildPanel(
       panel.tagDisplay = v === "enclosure" ? "enclosure" : "node";
       cb.invalidateData();
     });
-    addToggle(body, "継承エッジ (is-a)", panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); });
-    addToggle(body, "集約エッジ (has-a)", panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); });
-    addToggle(body, "類似エッジ (similar)", panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateData(); });
   }, "グラフに表示するノードとエッジを制御します。\n\n検索: field:value でノードをフィルタ\n  例: tag:character, hop:名前:2\n\nタグ表示:\n  ノード = タグ自体をノードとして表示\n  囲い = タグをノード群の包絡線として表示");
 
   buildSection(panelEl, "グループ", (body) => {
@@ -238,7 +244,17 @@ export function buildPanel(
     addSlider(body, "ノードの大きさ", 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
     addToggle(body, "被リンク数でサイズ変更", panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); });
     addSlider(body, "ホバー強調ホップ数", 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; });
-  }, "グラフの見た目を調整します。\n\n矢印: エッジに方向を示す矢印を表示\nノード色: category フィールドで自動色分け\nエッジ色: 関係種別ごとに色分け\nテキストフェード: ズームアウト時のラベル消失閾値\nホバー強調: マウスオーバー時に何ホップ先まで強調するか");
+
+    // --- エッジ種別の表示切替 ---
+    body.createEl("div", { cls: "setting-item-heading", text: "結線タイプ" });
+    addToggle(body, "リンク", panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); });
+    addToggle(body, "共有タグ", panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); });
+    addToggle(body, "共有カテゴリ", panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); });
+    addToggle(body, "意味関係 (semantic)", panel.showSemanticEdges, (v) => { panel.showSemanticEdges = v; cb.markDirty(); });
+    addToggle(body, "継承 (is-a)", panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); });
+    addToggle(body, "集約 (has-a)", panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); });
+    addToggle(body, "類似 (similar)", panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateData(); });
+  }, "グラフの見た目を調整します。\n\n矢印: エッジに方向を示す矢印を表示\nノード色: category フィールドで自動色分け\nエッジ色: 関係種別ごとに色分け\nテキストフェード: ズームアウト時のラベル消失閾値\nホバー強調: マウスオーバー時に何ホップ先まで強調するか\n\n結線タイプ: 種別ごとにエッジの表示/非表示を切り替え");
 
   buildSection(panelEl, "ノードルール", (body) => {
     const ruleListEl = body.createDiv({ cls: "ngp-noderule-list" });

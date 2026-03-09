@@ -30,6 +30,26 @@ import type { GraphNode, GraphEdge, ClusterGroupBy, ClusterArrangement, ClusterG
 // Public API
 // ---------------------------------------------------------------------------
 
+/** A single arc segment for sunburst guide lines */
+export interface SunburstArc {
+  /** Group key this arc belongs to */
+  groupKey: string;
+  /** Depth tier (0=core, 1=body, 2=periphery) */
+  depth: number;
+  /** Inner radius of the band */
+  rInner: number;
+  /** Outer radius of the band */
+  rOuter: number;
+  /** Start angle (radians) */
+  startAngle: number;
+  /** End angle (radians) */
+  endAngle: number;
+  /** Center X */
+  cx: number;
+  /** Center Y */
+  cy: number;
+}
+
 /** Metadata about cluster assignments, exposed for edge bundling. */
 export interface ClusterMetadata {
   /** Maps node ID → cluster group key */
@@ -38,6 +58,8 @@ export interface ClusterMetadata {
   clusterCentroids: Map<string, { x: number; y: number }>;
   /** Maps cluster group key → estimated visual radius */
   clusterRadii: Map<string, number>;
+  /** Sunburst arc segments for guide line rendering (only set for sunburst arrangement) */
+  sunburstArcs?: SunburstArc[];
 }
 
 /** Result of buildClusterForce: force function + cluster metadata for bundling. */
@@ -138,7 +160,7 @@ export function buildClusterForce(
   }
   if (groups.size === 0) return null;
 
-  const targets = computeAbsoluteTargets(groups, edges, degrees, cfg);
+  const { targets, sunburstArcs } = computeAbsoluteTargets(groups, edges, degrees, cfg);
 
   // Build cluster metadata for edge bundling
   const nodeClusterMap = new Map<string, string>();
@@ -180,7 +202,7 @@ export function buildClusterForce(
     // }
   };
 
-  return { force, metadata: { nodeClusterMap, clusterCentroids, clusterRadii } };
+  return { force, metadata: { nodeClusterMap, clusterCentroids, clusterRadii, sunburstArcs } };
 }
 
 // ---------------------------------------------------------------------------
@@ -202,12 +224,17 @@ function nodeRadius(nodeSize: number, degree: number, scaleByDegree: boolean): n
 // Absolute target computation
 // ---------------------------------------------------------------------------
 
+interface AbsoluteTargetResult {
+  targets: Map<string, { x: number; y: number }>;
+  sunburstArcs?: SunburstArc[];
+}
+
 function computeAbsoluteTargets(
   groups: Map<string, GraphNode[]>,
   edges: GraphEdge[],
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
-): Map<string, { x: number; y: number }> {
+): AbsoluteTargetResult {
   // Detect parent-child hierarchy from composite keys ("::" from splitByConnectedComponents)
   const parentMap = new Map<string, string[]>();
   for (const key of groups.keys()) {
@@ -219,146 +246,230 @@ function computeAbsoluteTargets(
 
   // SunBurst uses its own global layout (angle sectors per group)
   if (cfg.arrangement === "sunburst") {
-    return computeSunburstTargets(groups, degrees, cfg);
+    return computeSunburstTargets(groups, parentMap, degrees, cfg);
   }
 
   if (hasHierarchy) {
-    return computeHierarchicalTargets(groups, parentMap, edges, degrees, cfg);
+    return { targets: computeHierarchicalTargets(groups, parentMap, edges, degrees, cfg) };
   }
-  return computeFlatTargets(groups, edges, degrees, cfg);
+  return { targets: computeFlatTargets(groups, edges, degrees, cfg) };
 }
 
 // ---------------------------------------------------------------------------
-// SunBurst — hierarchical radial sector layout (sunburst diagram)
+// SunBurst — hierarchical radial sector layout (baumkuchen diagram style)
 //
-// Mimics a real sunburst/baumkuchen diagram with multiple depth levels:
+// Two-level hierarchy:
 //
-//   Level 0 (inner band):  Group "core" — highest-degree hub nodes
-//   Level 1 (middle band): Group "body" — mid-degree nodes
-//   Level 2 (outer band):  Group "periphery" — low-degree leaf nodes
+//   Level 0 (inner band):  Parent groups share the full 360°.
+//     Each parent gets a proportional angular sector.
+//     The highest-priority nodes (by sort) fill the inner ring(s).
 //
-// Each group's angular sector is proportional to its node count.
-// Within the sector, each depth level is a thick ring-band filled with
-// nodes. Outer levels are angularly contained within the parent sector,
-// matching the hierarchical nesting of a true sunburst diagram.
+//   Level 1 (outer bands):  Sub-groups (from recursive CC splitting)
+//     Each sub-group gets a proportional sub-sector within its parent's
+//     angular range.  Remaining nodes fill outward ring by ring.
 //
-// The radial bands are visually separated by gaps, creating the
-// characteristic concentric "baumkuchen" layers.
+// When there is NO hierarchy (flat groups), the inner ring is filled
+// with the top-priority nodes across all groups, then groups fan out.
 // ---------------------------------------------------------------------------
 
 function computeSunburstTargets(
   groups: Map<string, GraphNode[]>,
+  parentMap: Map<string, string[]>,
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
-): Map<string, { x: number; y: number }> {
+): AbsoluteTargetResult {
   const targets = new Map<string, { x: number; y: number }>();
-  const groupKeys = [...groups.keys()];
-  const nGroups = groupKeys.length;
+  const arcs: SunburstArc[] = [];
 
   let totalNodes = 0;
   for (const members of groups.values()) totalNodes += members.length;
-  if (totalNodes === 0) return targets;
+  if (totalNodes === 0) return { targets, sunburstArcs: arcs };
 
   const cx = cfg.centerX;
   const cy = cfg.centerY;
   const nodeDiam = cfg.nodeSize * 2;
 
-  // --- Depth levels: split each group's nodes into tiers by degree ---
-  // Tier boundaries: top 15% → core (inner), next 35% → body (mid), rest → periphery (outer)
-  const TIER_CUTS = [0.15, 0.50]; // cumulative fractions
-  const DEPTH_LEVELS = 3;
+  // --- Ring geometry ---
+  const nodeWidth = nodeDiam * cfg.nodeSpacing;
+  const ringThick = nodeWidth * 1.0;
+  const ringGap = nodeDiam * cfg.groupScale * 0.15;
+  const centerHole = nodeDiam * cfg.groupScale * 2.0;
 
-  // --- Radial geometry ---
-  // Each depth level is a thick band; bands are separated by a gap.
-  const bandThick = nodeDiam * cfg.groupScale * 2.5; // thickness of one band
-  const bandGap = nodeDiam * cfg.groupScale * 0.8;    // gap between bands
-  const centerHole = bandThick * 1.2;                  // empty center
+  // Sort helper
+  const sortNodes = (arr: GraphNode[]) => {
+    if (cfg.sortComparator) return [...arr].sort(cfg.sortComparator);
+    return [...arr].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
+  };
 
-  // --- Angular geometry ---
-  const sectorGap = nGroups > 1 ? 0.05 * Math.max(cfg.groupSpacing, 1) : 0;
-  const totalGapAngle = sectorGap * nGroups;
-  const availableAngle = Math.PI * 2 - totalGapAngle;
+  // --- Build parent-level super groups ---
+  // parentKeys: unique parent group names (without "::" suffix)
+  const parentKeys = [...parentMap.keys()];
+  const parentNodeCount = new Map<string, number>();
+  for (const [parent, childKeys] of parentMap) {
+    let count = 0;
+    for (const ck of childKeys) count += (groups.get(ck)?.length ?? 0);
+    parentNodeCount.set(parent, count);
+  }
 
-  // --- Assign sectors and place nodes ---
-  let angleStart = -Math.PI / 2;
+  // --- Level 0: Assign parent sectors (proportional to node count) ---
+  const nParents = parentKeys.length;
+  const sectorGap = nParents > 1 ? 0.03 * Math.max(cfg.groupSpacing, 1) : 0;
+  const totalGap = sectorGap * nParents;
+  const availAngle = Math.PI * 2 - totalGap;
 
-  for (const key of groupKeys) {
-    const members = groups.get(key)!;
-    const n = members.length;
-    const sectorAngle = (n / totalNodes) * availableAngle;
+  interface Sector { start: number; end: number; sweep: number; }
+  const parentSectors = new Map<string, Sector>();
+  let anglePos = -Math.PI / 2;
+  for (const pk of parentKeys) {
+    const ratio = (parentNodeCount.get(pk) || 1) / totalNodes;
+    const sweep = ratio * availAngle;
+    parentSectors.set(pk, { start: anglePos, end: anglePos + sweep, sweep });
+    anglePos += sweep + sectorGap;
+  }
 
-    // Sort by degree descending
-    const sorted = [...members].sort(
-      (a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0),
-    );
+  // --- Level 0: Fill inner ring(s) with each parent's top-priority nodes ---
+  // Each parent fills its angular sector in ring 0 with its top nodes.
+  const placed = new Set<string>();
+  let maxInnerRing = 0; // track how many rings the inner level uses
 
-    // Split into tiers
-    const tiers: GraphNode[][] = [];
-    const cut0 = Math.max(1, Math.ceil(n * TIER_CUTS[0]));
-    const cut1 = Math.max(cut0 + 1, Math.ceil(n * TIER_CUTS[1]));
-    if (n <= 3) {
-      // Too few for multiple tiers — single tier
-      tiers.push(sorted);
-    } else {
-      tiers.push(sorted.slice(0, cut0));
-      tiers.push(sorted.slice(cut0, cut1));
-      tiers.push(sorted.slice(cut1));
+  for (const pk of parentKeys) {
+    const childKeys = parentMap.get(pk)!;
+    const sector = parentSectors.get(pk)!;
+
+    // Collect all nodes for this parent
+    const parentNodes: GraphNode[] = [];
+    for (const ck of childKeys) {
+      const members = groups.get(ck);
+      if (members) parentNodes.push(...members);
     }
+    const sorted = sortNodes(parentNodes);
 
-    // Place each tier in its ring band — fill from OUTER edge inward.
-    // This ensures bands with few nodes still show a clear arc outline.
-    for (let depth = 0; depth < tiers.length; depth++) {
-      const tier = tiers[depth];
-      if (tier.length === 0) continue;
+    let nodeIdx = 0;
+    let ringIdx = 0;
 
-      const bandInner = centerHole + depth * (bandThick + bandGap);
+    while (nodeIdx < sorted.length) {
+      const rInner = centerHole + ringIdx * (ringThick + ringGap);
+      const rMid = rInner + ringThick * 0.5;
+      const rOuter = rInner + ringThick;
 
-      const nodeWidth = nodeDiam * cfg.nodeSpacing;
-      // How many sub-rings fit in this band?
-      const maxSubRings = Math.max(1, Math.floor(bandThick / nodeWidth));
+      const arcLen = rMid * sector.sweep;
+      const capacity = Math.max(1, Math.floor(arcLen / nodeWidth));
 
-      // Pre-compute sub-ring radii from OUTER to INNER
-      const subRingRadii: number[] = [];
-      for (let sr = 0; sr < maxSubRings; sr++) {
-        // sr=0 → outermost, sr=maxSubRings-1 → innermost
-        const t = maxSubRings === 1 ? 0.5 : 1.0 - sr / (maxSubRings - 1);
-        subRingRadii.push(bandInner + nodeWidth * 0.5 + t * (bandThick - nodeWidth));
+      // For inner ring: only fill up to capacity, remaining go to sub-group phase
+      // Check if this parent has sub-groups (hierarchy). If yes, only fill ring 0.
+      const hasSubGroups = childKeys.length > 1;
+      if (hasSubGroups && ringIdx >= 1) break; // stop at ring 0 for hierarchical parents
+
+      const count = Math.min(capacity, sorted.length - nodeIdx);
+
+      const pad = Math.min(sector.sweep * 0.02, 0.015);
+      const usable = sector.sweep - 2 * pad;
+
+      for (let i = 0; i < count; i++) {
+        const at = count === 1 ? 0.5 : i / (count - 1);
+        const angle = sector.start + pad + at * usable;
+        targets.set(sorted[nodeIdx].id, {
+          x: cx + rMid * Math.cos(angle),
+          y: cy + rMid * Math.sin(angle),
+        });
+        placed.add(sorted[nodeIdx].id);
+        nodeIdx++;
       }
 
+      arcs.push({
+        groupKey: pk,
+        depth: ringIdx,
+        rInner, rOuter,
+        startAngle: sector.start,
+        endAngle: sector.end,
+        cx, cy,
+      });
+
+      if (ringIdx > maxInnerRing) maxInnerRing = ringIdx;
+      ringIdx++;
+
+      // For flat (non-hierarchical) parents, keep filling until done
+      if (!hasSubGroups && nodeIdx >= sorted.length) break;
+    }
+  }
+
+  // --- Level 1: Sub-group fan-out (only for parents with children) ---
+  const subGroupStartRing = maxInnerRing + 1;
+
+  for (const pk of parentKeys) {
+    const childKeys = parentMap.get(pk)!;
+    if (childKeys.length <= 1) continue; // no sub-groups, already fully placed
+
+    const parentSector = parentSectors.get(pk)!;
+
+    // Count unplaced nodes per child
+    const childUnplaced = new Map<string, GraphNode[]>();
+    let totalUnplaced = 0;
+    for (const ck of childKeys) {
+      const members = groups.get(ck) ?? [];
+      const remaining = members.filter(n => !placed.has(n.id));
+      if (remaining.length > 0) {
+        childUnplaced.set(ck, remaining);
+        totalUnplaced += remaining.length;
+      }
+    }
+    if (totalUnplaced === 0) continue;
+
+    // Assign sub-sectors proportional to unplaced node count
+    const subGap = childUnplaced.size > 1 ? 0.02 * Math.max(cfg.groupSpacing, 1) : 0;
+    const subTotalGap = subGap * childUnplaced.size;
+    const subAvail = parentSector.sweep - subTotalGap;
+    let subAngle = parentSector.start;
+
+    for (const [ck, remaining] of childUnplaced) {
+      const ratio = remaining.length / totalUnplaced;
+      const sweep = ratio * subAvail;
+      const subSector: Sector = { start: subAngle, end: subAngle + sweep, sweep };
+
+      const sorted = sortNodes(remaining);
       let nodeIdx = 0;
-      let subRing = 0;
+      let ringIdx = subGroupStartRing;
 
-      while (nodeIdx < tier.length) {
-        const rMid = subRingRadii[subRing % subRingRadii.length];
+      while (nodeIdx < sorted.length) {
+        const rInner = centerHole + ringIdx * (ringThick + ringGap);
+        const rMid = rInner + ringThick * 0.5;
+        const rOuter = rInner + ringThick;
 
-        // How many nodes fit along this arc?
-        const arcLen = rMid * sectorAngle;
+        const arcLen = rMid * subSector.sweep;
         const capacity = Math.max(1, Math.floor(arcLen / nodeWidth));
-        const count = Math.min(capacity, tier.length - nodeIdx);
+        const count = Math.min(capacity, sorted.length - nodeIdx);
 
-        // Angular padding from sector edges
-        const pad = Math.min(sectorAngle * 0.03, 0.02);
-        const usable = sectorAngle - 2 * pad;
+        const pad = Math.min(subSector.sweep * 0.02, 0.015);
+        const usable = subSector.sweep - 2 * pad;
 
         for (let i = 0; i < count; i++) {
           const at = count === 1 ? 0.5 : i / (count - 1);
-          const angle = angleStart + pad + at * usable;
-
-          targets.set(tier[nodeIdx].id, {
+          const angle = subSector.start + pad + at * usable;
+          targets.set(sorted[nodeIdx].id, {
             x: cx + rMid * Math.cos(angle),
             y: cy + rMid * Math.sin(angle),
           });
+          placed.add(sorted[nodeIdx].id);
           nodeIdx++;
         }
 
-        subRing++;
-      }
-    }
+        arcs.push({
+          groupKey: ck,
+          depth: ringIdx,
+          rInner, rOuter,
+          startAngle: subSector.start,
+          endAngle: subSector.end,
+          cx, cy,
+        });
 
-    angleStart += sectorAngle + sectorGap;
+        ringIdx++;
+      }
+
+      subAngle += sweep + subGap;
+    }
   }
 
-  return targets;
+  return { targets, sunburstArcs: arcs };
 }
 
 /** Flat layout — all groups at the same level (no recursive split). */

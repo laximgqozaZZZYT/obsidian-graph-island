@@ -6,6 +6,10 @@ import { cssColorToHex } from "../utils/graph-helpers";
 // Edge drawing configuration
 // ---------------------------------------------------------------------------
 export interface EdgeDrawConfig {
+  showLinks: boolean;
+  showTagEdges: boolean;
+  showCategoryEdges: boolean;
+  showSemanticEdges: boolean;
   showInheritance: boolean;
   showAggregation: boolean;
   showTagNodes: boolean;
@@ -42,6 +46,21 @@ interface Pos {
   x: number;
   y: number;
   id?: string;
+}
+
+/** Returns true if the edge should be skipped based on type visibility toggles. */
+function shouldSkipEdge(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
+  switch (e.type) {
+    case "link": return !cfg.showLinks;
+    case "tag": return !cfg.showTagEdges;
+    case "category": return !cfg.showCategoryEdges;
+    case "semantic": return !cfg.showSemanticEdges;
+    case "inheritance": return !cfg.showInheritance;
+    case "aggregation": return !cfg.showAggregation;
+    case "has-tag": return !cfg.showTagNodes;
+    case "similar": return !cfg.showSimilar;
+    default: return !cfg.showLinks; // untyped edges treated as links
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -124,10 +143,7 @@ function buildDirectionBundles(
   const accum = new Map<string, BundleAccum>();
 
   for (const e of edges) {
-    if (e.type === "similar") continue;
-    if (e.type === "inheritance" && !cfg.showInheritance) continue;
-    if (e.type === "aggregation" && !cfg.showAggregation) continue;
-    if (e.type === "has-tag" && !cfg.showTagNodes) continue;
+    if (shouldSkipEdge(e, cfg)) continue;
 
     const src = resolvePos(e.source);
     const tgt = resolvePos(e.target);
@@ -231,10 +247,7 @@ function buildCables(
   }>();
 
   for (const e of edges) {
-    if (e.type === "similar") continue;
-    if (e.type === "inheritance" && !cfg.showInheritance) continue;
-    if (e.type === "aggregation" && !cfg.showAggregation) continue;
-    if (e.type === "has-tag" && !cfg.showTagNodes) continue;
+    if (shouldSkipEdge(e, cfg)) continue;
 
     const sid = typeof e.source === "string" ? e.source : (e.source as any).id;
     const tid = typeof e.target === "string" ? e.target : (e.target as any).id;
@@ -507,10 +520,7 @@ export function drawEdges(
   for (const e of edges) {
     // Skip edges handled by cable bundling
     if (cabledEdgeIds.has(e.id)) continue;
-    if (e.type === "inheritance" && !cfg.showInheritance) continue;
-    if (e.type === "aggregation" && !cfg.showAggregation) continue;
-    if (e.type === "has-tag" && !cfg.showTagNodes) continue;
-    if (e.type === "similar" && !cfg.showSimilar) continue;
+    if (shouldSkipEdge(e, cfg)) continue;
 
     const src = resolvePos(e.source);
     const tgt = resolvePos(e.target);
