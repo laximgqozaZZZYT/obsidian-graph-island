@@ -228,13 +228,16 @@ export function applyTreeLayout(
           cx += nodeWidth;
         });
       } else {
-        const levelW = levelNodes.length * nodeWidth;
+        const nsMap = options?.nodeSpacingMap;
+        // Compute per-node widths using spacing multiplier
+        const widths = levelNodes.map(id => nodeWidth * (nsMap?.get(id) ?? 1.0));
+        const levelW = widths.reduce((s, w) => s + w, 0);
         let cx = treeCenterX - levelW / 2;
-        levelNodes.forEach((nodeId) => {
+        levelNodes.forEach((nodeId, ni) => {
           const node = nodesMap.get(nodeId)!;
-          node.x = cx + nodeWidth / 2;
+          node.x = cx + widths[ni] / 2;
           node.y = offsetY + lvl * levelHeight;
-          cx += nodeWidth;
+          cx += widths[ni];
         });
       }
     }

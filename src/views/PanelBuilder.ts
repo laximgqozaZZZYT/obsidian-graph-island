@@ -1,4 +1,4 @@
-import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder } from "../types";
+import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { repositionShell } from "../layouts/concentric";
 import type { QueryExpression, BoolOp } from "../utils/query-expr";
@@ -44,6 +44,7 @@ export interface PanelState {
   clusterGroupSpacing: number;
   fadeEdgesByDegree: boolean;
   sortRules: SortRule[];
+  nodeRules: NodeRule[];
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -83,6 +84,7 @@ export const DEFAULT_PANEL: PanelState = {
   clusterGroupSpacing: 2.0,
   fadeEdgesByDegree: false,
   sortRules: [{ key: "degree" as SortKey, order: "desc" as SortOrder }],
+  nodeRules: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -95,6 +97,7 @@ export interface PanelCallbacks {
   applySearch(): void;
   applyTextFade(): void;
   applyDirectionalGravityForce(): void;
+  applyNodeRules(): void;
   startOrbitAnimation(): void;
   stopOrbitAnimation(): void;
   wakeRenderLoop(): void;
@@ -245,15 +248,15 @@ export function buildPanel(
     addSlider(body, "ホバー強調ホップ数", 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; });
   });
 
-  buildSection(panelEl, "方向性重力", (body) => {
-    const ruleListEl = body.createDiv({ cls: "ngp-dgravity-list" });
-    renderDirectionalGravityList(ruleListEl, panel, ctx, cb);
+  buildSection(panelEl, "ノードルール", (body) => {
+    const ruleListEl = body.createDiv({ cls: "ngp-noderule-list" });
+    renderNodeRuleList(ruleListEl, panel, cb);
 
     const addBtn = body.createEl("button", { cls: "ngp-add-group", text: "ルール追加" });
     addBtn.addEventListener("click", () => {
-      panel.directionalGravityRules.push({ filter: "*", direction: "top", strength: 0.1 });
-      renderDirectionalGravityList(ruleListEl, panel, ctx, cb);
-      cb.applyDirectionalGravityForce();
+      panel.nodeRules.push({ query: "*", spacingMultiplier: 1.0, gravityAngle: -1, gravityStrength: 0.1 });
+      renderNodeRuleList(ruleListEl, panel, cb);
+      cb.applyNodeRules();
       cb.restartSimulation(0.3);
     });
   });
@@ -809,6 +812,154 @@ function renderDirectionalGravityList(
       rules.splice(i, 1);
       renderDirectionalGravityList(container, panel, ctx, cb);
       cb.applyDirectionalGravityForce();
+      cb.restartSimulation(0.3);
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Node Rule list (unified spacing + gravity per query)
+// ---------------------------------------------------------------------------
+
+/** Direction presets for gravity dropdown. Angle in degrees. */
+const GRAVITY_DIR_OPTIONS: { value: string; label: string; angle: number }[] = [
+  { value: "none", label: "なし", angle: -1 },
+  { value: "up", label: "↑上", angle: 270 },
+  { value: "down", label: "↓下", angle: 90 },
+  { value: "left", label: "←左", angle: 180 },
+  { value: "right", label: "→右", angle: 0 },
+  { value: "custom", label: "角度指定", angle: -1 },
+];
+
+function angleToPreset(angle: number): string {
+  if (angle < 0) return "none";
+  if (angle === 270) return "up";
+  if (angle === 90) return "down";
+  if (angle === 180) return "left";
+  if (angle === 0) return "right";
+  return "custom";
+}
+
+function renderNodeRuleList(
+  container: HTMLElement,
+  panel: PanelState,
+  cb: PanelCallbacks,
+) {
+  container.empty();
+  const rules = panel.nodeRules;
+  rules.forEach((rule, i) => {
+    const wrapper = container.createDiv({ cls: "ngp-noderule-item" });
+    wrapper.style.cssText = "margin-bottom:6px;border-left:2px solid var(--interactive-accent);padding-left:8px;";
+
+    // Row 1: Query input + delete button
+    const row1 = wrapper.createDiv({ cls: "ngp-group-item" });
+    row1.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:2px;";
+
+    const queryInput = row1.createEl("input", { cls: "ngp-search", type: "text", placeholder: "tag:character, *, degree>5" });
+    queryInput.style.cssText = "flex:1;min-width:0;";
+    queryInput.value = rule.query;
+    queryInput.addEventListener("input", () => {
+      rule.query = queryInput.value;
+      cb.applyNodeRules();
+      cb.restartSimulation(0.3);
+    });
+
+    const rm = row1.createEl("span", { cls: "ngp-group-remove", text: "\u00D7" });
+    rm.style.cssText = "cursor:pointer;flex-shrink:0;font-size:14px;padding:2px 4px;opacity:0.6;";
+    rm.addEventListener("click", () => {
+      rules.splice(i, 1);
+      renderNodeRuleList(container, panel, cb);
+      cb.applyNodeRules();
+      cb.restartSimulation(0.3);
+    });
+
+    // Row 2: spacing slider + gravity controls (indented)
+    const row2 = wrapper.createDiv();
+    row2.style.cssText = "padding-left:12px;";
+
+    // Spacing slider
+    const spacingRow = row2.createDiv({ cls: "setting-item mod-slider" });
+    spacingRow.style.cssText = "padding:2px 0;";
+    const spacingInfo = spacingRow.createDiv({ cls: "setting-item-info" });
+    spacingInfo.createDiv({ cls: "setting-item-name", text: "間隔" });
+    const spacingControl = spacingRow.createDiv({ cls: "setting-item-control" });
+    const spacingSlider = spacingControl.createEl("input", { type: "range" });
+    spacingSlider.min = "0.1";
+    spacingSlider.max = "5.0";
+    spacingSlider.step = "0.1";
+    spacingSlider.value = String(rule.spacingMultiplier);
+    const spacingLabel = spacingControl.createEl("span", { text: String(rule.spacingMultiplier) });
+    spacingLabel.style.cssText = "min-width:30px;text-align:right;font-size:0.85em;";
+    spacingSlider.addEventListener("input", () => {
+      rule.spacingMultiplier = parseFloat(spacingSlider.value);
+      spacingLabel.textContent = spacingSlider.value;
+      cb.applyNodeRules();
+      cb.restartSimulation(0.3);
+    });
+
+    // Gravity direction dropdown
+    const gravRow = row2.createDiv({ cls: "ngp-group-item" });
+    gravRow.style.cssText = "display:flex;align-items:center;gap:4px;padding:2px 0;";
+
+    const gravLabel = gravRow.createEl("span", { cls: "setting-item-name", text: "重力" });
+    gravLabel.style.cssText = "flex-shrink:0;";
+
+    const dirSelect = gravRow.createEl("select", { cls: "dropdown" });
+    dirSelect.style.cssText = "width:90px;";
+    const currentPreset = angleToPreset(rule.gravityAngle);
+    for (const opt of GRAVITY_DIR_OPTIONS) {
+      const el = dirSelect.createEl("option", { text: opt.label, value: opt.value });
+      if (opt.value === currentPreset) el.selected = true;
+    }
+
+    // Custom angle input (hidden unless custom)
+    const angleInput = gravRow.createEl("input", { cls: "ngp-search", type: "number" });
+    angleInput.style.cssText = "width:60px;";
+    angleInput.step = "1";
+    angleInput.min = "0";
+    angleInput.max = "360";
+    angleInput.placeholder = "°";
+    angleInput.value = currentPreset === "custom" ? String(rule.gravityAngle) : "0";
+    angleInput.style.display = currentPreset === "custom" ? "" : "none";
+
+    // Strength slider (hidden if direction=none)
+    const strSlider = gravRow.createEl("input", { type: "range" });
+    strSlider.min = "0.01";
+    strSlider.max = "1";
+    strSlider.step = "0.01";
+    strSlider.value = String(rule.gravityStrength);
+    strSlider.style.cssText = "width:60px;";
+    strSlider.style.display = currentPreset === "none" ? "none" : "";
+
+    dirSelect.addEventListener("change", () => {
+      const val = dirSelect.value;
+      if (val === "none") {
+        rule.gravityAngle = -1;
+        angleInput.style.display = "none";
+        strSlider.style.display = "none";
+      } else if (val === "custom") {
+        rule.gravityAngle = parseFloat(angleInput.value) || 0;
+        angleInput.style.display = "";
+        strSlider.style.display = "";
+      } else {
+        const preset = GRAVITY_DIR_OPTIONS.find(o => o.value === val);
+        rule.gravityAngle = preset?.angle ?? -1;
+        angleInput.style.display = "none";
+        strSlider.style.display = "";
+      }
+      cb.applyNodeRules();
+      cb.restartSimulation(0.3);
+    });
+
+    angleInput.addEventListener("input", () => {
+      rule.gravityAngle = parseFloat(angleInput.value) || 0;
+      cb.applyNodeRules();
+      cb.restartSimulation(0.3);
+    });
+
+    strSlider.addEventListener("input", () => {
+      rule.gravityStrength = parseFloat(strSlider.value);
+      cb.applyNodeRules();
       cb.restartSimulation(0.3);
     });
   });

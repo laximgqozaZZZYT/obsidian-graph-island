@@ -44,8 +44,17 @@ export function applyConcentricLayout(
 
   const shells: ShellInfo[] = [];
 
+  const nodeSpacingMap = options?.nodeSpacingMap;
+
   shellNodes.forEach((shell, i) => {
-    const radius = i === 0 && shell.length === 1 ? 0 : minRadius + i * radiusStep;
+    // Compute per-shell average spacing multiplier from NodeRules
+    let shellSpacing = 1.0;
+    if (nodeSpacingMap && shell.length > 0) {
+      let sum = 0;
+      for (const n of shell) sum += nodeSpacingMap.get(n.id) ?? 1.0;
+      shellSpacing = sum / shell.length;
+    }
+    const radius = i === 0 && shell.length === 1 ? 0 : (minRadius + i * radiusStep) * shellSpacing;
     const angleStep = (2 * Math.PI) / shell.length;
 
     shell.forEach((node, j) => {

@@ -55,6 +55,8 @@ export interface ClusterForceConfig {
   enclosureSpacing?: number;
   /** Custom comparator for node sort order within each group */
   sortComparator?: (a: GraphNode, b: GraphNode) => number;
+  /** Per-node spacing multiplier from NodeRules */
+  nodeSpacingMap?: Map<string, number>;
 }
 
 /**
@@ -146,6 +148,11 @@ export function buildClusterForce(
 // ---------------------------------------------------------------------------
 // Node radius helper (mirrors GraphViewContainer nodeR formula)
 // ---------------------------------------------------------------------------
+
+/** Look up per-node spacing multiplier (defaults to 1.0 if absent). */
+function getSpacing(id: string, map?: Map<string, number>): number {
+  return map?.get(id) ?? 1.0;
+}
 
 /** Visual radius of a node — same formula as GraphViewContainer.nodeR */
 function nodeRadius(nodeSize: number, degree: number, scaleByDegree: boolean): number {
@@ -523,15 +530,15 @@ function computeOffsets(
   edges: GraphEdge[],
   cfg: ClusterForceConfig,
 ): Map<string, { dx: number; dy: number }> {
-  const { nodeSpacing, groupScale, nodeSize, scaleByDegree, sortComparator } = cfg;
+  const { nodeSpacing, groupScale, nodeSize, scaleByDegree, sortComparator, nodeSpacingMap } = cfg;
   // Default sort: degree descending (preserves legacy behaviour)
   const defaultSort = (a: GraphNode, b: GraphNode) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0);
   const cmp = sortComparator ?? defaultSort;
   switch (cfg.arrangement) {
-    case "spiral": return spiralOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp);
-    case "concentric": return concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp);
-    case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, groupScale, nodeSize, cmp);
-    case "grid": return gridOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp);
+    case "spiral": return spiralOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap);
+    case "concentric": return concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap);
+    case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
+    case "grid": return gridOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     default: return new Map();
   }
 }
@@ -553,6 +560,7 @@ function spiralOffsets(
   nodeSize: number,
   scaleByDegree: boolean,
   cmp: (a: GraphNode, b: GraphNode) => number,
+  nodeSpacingMap?: Map<string, number>,
 ): Map<string, { dx: number; dy: number }> {
   const sorted = [...members].sort(cmp);
   const offsets = new Map<string, { dx: number; dy: number }>();
@@ -579,9 +587,10 @@ function spiralOffsets(
       dy: r * Math.sin(theta),
     });
 
-    // Advance θ for next node: arc-length ≥ (this radius + next radius) × spacingMul
+    // Advance θ for next node: arc-length ≥ (this radius + next radius) × spacingMul × avg node spacing
     if (i < n - 1) {
-      const minDist = (radii[i] + radii[i + 1]) * spacingMul;
+      const avgSpacing = (getSpacing(sorted[i].id, nodeSpacingMap) + getSpacing(sorted[i + 1].id, nodeSpacingMap)) / 2;
+      const minDist = (radii[i] + radii[i + 1]) * spacingMul * avgSpacing;
       const currentR = Math.max(a * theta, 1);
       const dTheta = Math.max(minDist / currentR, 0.05);
       theta += dTheta;
@@ -606,6 +615,7 @@ function concentricOffsets(
   nodeSize: number,
   scaleByDegree: boolean,
   cmp: (a: GraphNode, b: GraphNode) => number,
+  nodeSpacingMap?: Map<string, number>,
 ): Map<string, { dx: number; dy: number }> {
   const sorted = [...members].sort(cmp);
   const offsets = new Map<string, { dx: number; dy: number }>();
@@ -631,10 +641,10 @@ function concentricOffsets(
     const circumference = 2 * Math.PI * ringR;
     // Estimate average radius of nodes that will go on this ring
     let cap = 1;
-    let totalDiamNeeded = radii[idx] * 2 * spacingMul;
+    let totalDiamNeeded = radii[idx] * 2 * spacingMul * getSpacing(sorted[idx].id, nodeSpacingMap);
     while (cap < n - idx) {
       const nextR = radii[idx + cap];
-      const nextDiam = nextR * 2 * spacingMul;
+      const nextDiam = nextR * 2 * spacingMul * getSpacing(sorted[idx + cap].id, nodeSpacingMap);
       if (totalDiamNeeded + nextDiam > circumference) break;
       totalDiamNeeded += nextDiam;
       cap++;
@@ -667,6 +677,7 @@ function treeOffsets(
   groupScale: number,
   nodeSize: number,
   cmp: (a: GraphNode, b: GraphNode) => number,
+  nodeSpacingMap?: Map<string, number>,
 ): Map<string, { dx: number; dy: number }> {
   const offsets = new Map<string, { dx: number; dy: number }>();
   if (members.length === 0) return offsets;
@@ -724,12 +735,16 @@ function treeOffsets(
 
   for (let li = 0; li < layers.length; li++) {
     const layer = layers[li];
-    const totalWidth = (layer.length - 1) * nodeSpacing;
+    // Compute per-node widths using spacing multiplier
+    const widths = layer.map(id => nodeSpacing * getSpacing(id, nodeSpacingMap));
+    const totalWidth = widths.reduce((s, w) => s + w, 0) - (widths.length > 0 ? widths[widths.length - 1] : 0);
+    let cx = -totalWidth / 2;
     for (let ni = 0; ni < layer.length; ni++) {
       offsets.set(layer[ni], {
-        dx: ni * nodeSpacing - totalWidth / 2,
+        dx: cx,
         dy: li * layerHeight - totalHeight / 2,
       });
+      cx += widths[ni];
     }
   }
 
@@ -747,6 +762,7 @@ function gridOffsets(
   groupScale: number,
   nodeSize: number,
   cmp: (a: GraphNode, b: GraphNode) => number,
+  nodeSpacingMap?: Map<string, number>,
 ): Map<string, { dx: number; dy: number }> {
   const sorted = [...members].sort(cmp);
   const offsets = new Map<string, { dx: number; dy: number }>();
@@ -761,9 +777,10 @@ function gridOffsets(
   for (let i = 0; i < n; i++) {
     const col = i % c;
     const row = Math.floor(i / c);
+    const ns = getSpacing(sorted[i].id, nodeSpacingMap);
     offsets.set(sorted[i].id, {
-      dx: col * spacing - totalW / 2,
-      dy: row * spacing - totalH / 2,
+      dx: col * spacing * ns - totalW / 2,
+      dy: row * spacing * ns - totalH / 2,
     });
   }
   return offsets;

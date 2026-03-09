@@ -279,5 +279,44 @@ export class GraphViewsSettingTab extends PluginSettingTab {
         dgStatus.style.color = "var(--text-error)";
       }
     });
+
+    // --- Node Rules section ---
+    containerEl.createEl("h3", { text: "Node Rules" });
+
+    const nrDesc = containerEl.createEl("p", {
+      text: 'JSON array of rules. Each: { "query": "tag:character", "spacingMultiplier": 1.0, "gravityAngle": -1, "gravityStrength": 0.1 }. gravityAngle in degrees (0=right, 90=down, 180=left, 270=up, -1=none).',
+      cls: "setting-item-description",
+    });
+    nrDesc.style.fontSize = "0.85em";
+    nrDesc.style.marginBottom = "8px";
+
+    const nrTextarea = containerEl.createEl("textarea");
+    nrTextarea.style.width = "100%";
+    nrTextarea.style.minHeight = "120px";
+    nrTextarea.style.fontFamily = "monospace";
+    nrTextarea.style.fontSize = "0.85em";
+    nrTextarea.value = JSON.stringify(
+      this.plugin.settings.defaultNodeRules ?? [],
+      null,
+      2
+    );
+
+    const nrStatus = containerEl.createEl("div");
+    nrStatus.style.fontSize = "0.85em";
+    nrStatus.style.marginTop = "4px";
+
+    nrTextarea.addEventListener("input", async () => {
+      try {
+        const parsed = JSON.parse(nrTextarea.value);
+        if (!Array.isArray(parsed)) throw new Error("Must be an array");
+        this.plugin.settings.defaultNodeRules = parsed;
+        await this.plugin.saveSettings();
+        nrStatus.textContent = "Saved.";
+        nrStatus.style.color = "var(--text-success)";
+      } catch (e) {
+        nrStatus.textContent = `Invalid JSON: ${(e as Error).message}`;
+        nrStatus.style.color = "var(--text-error)";
+      }
+    });
   }
 }

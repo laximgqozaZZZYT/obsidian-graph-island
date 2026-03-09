@@ -5,7 +5,7 @@ import { zoom as d3zoom } from "d3-zoom";
 import { arc as d3arc } from "d3-shape";
 import { forceSimulation, forceManyBody, forceCenter, forceLink, type Simulation, type Force } from "d3-force";
 import type GraphViewsPlugin from "../main";
-import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule } from "../types";
+import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { resolveDirection, matchesFilter } from "../layouts/force";
@@ -176,6 +176,7 @@ export class GraphViewContainer extends ItemView {
     this.currentLayout = plugin.settings.defaultLayout;
     this.panel.nodeSize = plugin.settings.nodeSize;
     this.panel.sortRules = [...(plugin.settings.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r }));
+    this.panel.nodeRules = [...(plugin.settings.defaultNodeRules ?? [])].map(r => ({ ...r }));
     this.applyGroupPresets();
   }
 
@@ -1404,7 +1405,8 @@ export class GraphViewContainer extends ItemView {
       updateForces: () => { this.updateForces(); this.requestSave(); },
       applySearch: () => this.applySearch(),
       applyTextFade: () => { this.applyTextFade(); this.requestSave(); },
-      applyDirectionalGravityForce: () => { this.applyDirectionalGravityForce(); this.requestSave(); },
+      applyDirectionalGravityForce: () => { this.applyNodeRulesForce(); this.requestSave(); },
+      applyNodeRules: () => { this.applyNodeRulesForce(); this.applyClusterForce(); this.requestSave(); },
       applyClusterForce: () => { this.applyClusterForce(); this.requestSave(); },
       deriveAndApplyClusterRules: () => {
         this.panel.clusterGroupRules = deriveClusterRulesFromQueries(this.panel.commonQueries);
@@ -1453,6 +1455,7 @@ export class GraphViewContainer extends ItemView {
         Object.assign(this.panel, {
           ...DEFAULT_PANEL,
           sortRules: [...(this.plugin.settings.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r })),
+          nodeRules: [...(this.plugin.settings.defaultNodeRules ?? [])].map(r => ({ ...r })),
         });
         this.applyGroupPresets();
         this.buildPanel();
@@ -1664,8 +1667,8 @@ export class GraphViewContainer extends ItemView {
         .alphaDecay(0.08)
         .velocityDecay(0.55);
 
-      // Apply directional gravity rules from settings + panel
-      this.applyDirectionalGravityForce();
+      // Apply directional gravity rules from settings + panel + node rules
+      this.applyNodeRulesForce();
 
       // Apply enclosure repulsion force (push tag groups apart)
       this.applyEnclosureRepulsionForce();
@@ -1693,18 +1696,19 @@ export class GraphViewContainer extends ItemView {
     this.shells = [];
     this.nodeShellIndex.clear();
     const sortCmp = this.buildSortComparator(gd.nodes, gd.edges);
+    const nsMap = this.computeNodeSpacingMap(gd.nodes);
     switch (this.currentLayout) {
       case "concentric": {
-        const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy, minRadius: this.panel.concentricMinRadius, radiusStep: this.panel.concentricRadiusStep, sortComparator: sortCmp });
+        const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy, minRadius: this.panel.concentricMinRadius, radiusStep: this.panel.concentricRadiusStep, sortComparator: sortCmp, nodeSpacingMap: nsMap });
         ld = result.data;
         this.shells = result.shells;
         this.shells.forEach((s, i) => s.nodeIds.forEach((id) => this.nodeShellIndex.set(id, i)));
         break;
       }
-      case "tree": ld = applyTreeLayout(gd, { startX: cx, startY: 40, sortComparator: sortCmp }); break;
+      case "tree": ld = applyTreeLayout(gd, { startX: cx, startY: 40, sortComparator: sortCmp, nodeSpacingMap: nsMap }); break;
       case "arc": ld = applyArcLayout(gd, { centerX: cx, centerY: cy, radius: Math.min(W, H) * 0.4, sortComparator: sortCmp }); break;
       default: {
-        const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy, sortComparator: sortCmp });
+        const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy, sortComparator: sortCmp, nodeSpacingMap: nsMap });
         ld = result.data;
         this.shells = result.shells;
         this.shells.forEach((s, i) => s.nodeIds.forEach((id) => this.nodeShellIndex.set(id, i)));
@@ -1762,7 +1766,7 @@ export class GraphViewContainer extends ItemView {
           if (e.type === "has-tag") return this.panel.linkForce * 1.5;
           return this.panel.linkForce;
         }));
-    this.applyDirectionalGravityForce();
+    this.applyNodeRulesForce();
     this.applyEnclosureRepulsionForce();
     this.simulation.alpha(0.5).restart();
     this.wakeRenderLoop();
@@ -1805,6 +1809,85 @@ export class GraphViewContainer extends ItemView {
     const settingsRules = this.plugin.settings.directionalGravityRules ?? [];
     const panelRules = this.panel.directionalGravityRules ?? [];
     return [...settingsRules, ...panelRules];
+  }
+
+  /**
+   * Unified force from NodeRules gravity + legacy DirectionalGravityRules.
+   * Replaces applyDirectionalGravityForce when NodeRules are present.
+   */
+  private applyNodeRulesForce() {
+    if (!this.simulation) return;
+
+    // Collect gravity entries: legacy rules + nodeRules gravity
+    const legacyRules = this.getActiveDirectionalGravityRules();
+    const nodeRules = this.panel.nodeRules ?? [];
+
+    // Convert legacy DirectionalGravityRules to {filter, angleDeg, strength}
+    type GravEntry = { filter: string; angleRad: number; strength: number };
+    const entries: GravEntry[] = [];
+
+    for (const rule of legacyRules) {
+      entries.push({
+        filter: rule.filter,
+        angleRad: resolveDirection(rule.direction),
+        strength: rule.strength ?? 0.1,
+      });
+    }
+
+    // Convert NodeRule gravity (degrees) to radians
+    for (const rule of nodeRules) {
+      if (rule.gravityAngle < 0) continue; // none
+      const angleRad = (rule.gravityAngle * Math.PI) / 180;
+      entries.push({
+        filter: rule.query,
+        angleRad,
+        strength: rule.gravityStrength ?? 0.1,
+      });
+    }
+
+    if (entries.length === 0) {
+      this.simulation.force("directionalGravity", null);
+      return;
+    }
+
+    const sim = this.simulation;
+    const forceFn = (alpha: number) => {
+      const nodes = sim.nodes();
+      for (const entry of entries) {
+        const ddx = Math.cos(entry.angleRad);
+        const ddy = Math.sin(entry.angleRad);
+        const str = entry.strength * alpha;
+        for (const node of nodes) {
+          if (!matchesFilter(node, entry.filter)) continue;
+          node.vx! += ddx * str * 100;
+          node.vy! += ddy * str * 100;
+        }
+      }
+    };
+    this.simulation.force("directionalGravity", forceFn as Force<GraphNode, GraphEdge>);
+  }
+
+  /**
+   * Compute a per-node spacing multiplier map from panel.nodeRules.
+   * Nodes matching multiple rules get the product of all matching spacings.
+   */
+  private computeNodeSpacingMap(nodes: GraphNode[]): Map<string, number> {
+    const map = new Map<string, number>();
+    const rules = this.panel.nodeRules ?? [];
+    if (rules.length === 0) return map;
+
+    for (const node of nodes) {
+      let spacing = 1.0;
+      for (const rule of rules) {
+        if (matchesFilter(node, rule.query)) {
+          spacing *= rule.spacingMultiplier;
+        }
+      }
+      if (spacing !== 1.0) {
+        map.set(node.id, spacing);
+      }
+    }
+    return map;
   }
 
   /**
@@ -1962,6 +2045,7 @@ export class GraphViewContainer extends ItemView {
         tagMembership: this.panel.tagDisplay === "enclosure" ? this.tagMembership : undefined,
         enclosureSpacing: this.panel.enclosureSpacing,
         sortComparator: this.buildSortComparator(this.simulation.nodes(), this.graphEdges),
+        nodeSpacingMap: this.computeNodeSpacingMap(this.simulation.nodes()),
       },
     );
     this.simulation.force("clusterArrangement", forceFn as Force<GraphNode, GraphEdge> | null);

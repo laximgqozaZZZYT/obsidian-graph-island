@@ -106,6 +106,17 @@ export interface DirectionalGravityRule {
   strength: number;
 }
 
+export interface NodeRule {
+  /** Query filter: "tag:character", "category:protagonist", "*", etc. */
+  query: string;
+  /** Spacing multiplier for this node (0.1–5.0, default 1.0) */
+  spacingMultiplier: number;
+  /** Gravity direction in degrees (0=right, 90=down, 180=left, 270=up). -1 = none */
+  gravityAngle: number;
+  /** Gravity strength (0–1, default 0.1) */
+  gravityStrength: number;
+}
+
 export interface ConcentricLayoutOptions {
   centerX?: number;
   centerY?: number;
@@ -113,6 +124,8 @@ export interface ConcentricLayoutOptions {
   radiusStep?: number;
   sortByInDegree?: boolean;
   sortComparator?: (a: GraphNode, b: GraphNode) => number;
+  /** Per-node spacing multiplier from NodeRules */
+  nodeSpacingMap?: Map<string, number>;
 }
 
 export interface TreeLayoutOptions {
@@ -125,6 +138,8 @@ export interface TreeLayoutOptions {
   categoryGap?: number;
   treeGap?: number;
   sortComparator?: (a: GraphNode, b: GraphNode) => number;
+  /** Per-node spacing multiplier from NodeRules */
+  nodeSpacingMap?: Map<string, number>;
 }
 
 export interface ArcLayoutOptions {
@@ -199,6 +214,8 @@ export interface GraphViewsSettings {
   groupPresets: GroupPreset[];
   /** Default sort rules for node ordering in layouts */
   defaultSortRules: SortRule[];
+  /** Default node rules for spacing and gravity */
+  defaultNodeRules: NodeRule[];
 }
 
 export const DEFAULT_SETTINGS: GraphViewsSettings = {
@@ -221,6 +238,7 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
     },
   ],
   defaultSortRules: [{ key: "degree", order: "desc" }],
+  defaultNodeRules: [],
 };
 
 export const DEFAULT_COLORS = [
