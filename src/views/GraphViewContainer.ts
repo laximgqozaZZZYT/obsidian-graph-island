@@ -176,6 +176,7 @@ export class GraphViewContainer extends ItemView {
     this.currentLayout = plugin.settings.defaultLayout;
     this.panel.nodeSize = plugin.settings.nodeSize;
     this.panel.sortRules = [...(plugin.settings.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r }));
+    this.panel.clusterGroupRules = [...(plugin.settings.defaultClusterGroupRules ?? [])].map(r => ({ ...r }));
     this.panel.nodeRules = [...(plugin.settings.defaultNodeRules ?? [])].map(r => ({ ...r }));
     this.applyGroupPresets();
   }
@@ -1455,6 +1456,7 @@ export class GraphViewContainer extends ItemView {
         Object.assign(this.panel, {
           ...DEFAULT_PANEL,
           sortRules: [...(this.plugin.settings.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r })),
+          clusterGroupRules: [...(this.plugin.settings.defaultClusterGroupRules ?? [])].map(r => ({ ...r })),
           nodeRules: [...(this.plugin.settings.defaultNodeRules ?? [])].map(r => ({ ...r })),
         });
         this.applyGroupPresets();

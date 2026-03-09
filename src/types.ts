@@ -214,6 +214,8 @@ export interface GraphViewsSettings {
   groupPresets: GroupPreset[];
   /** Default sort rules for node ordering in layouts */
   defaultSortRules: SortRule[];
+  /** Default cluster group rules for multi-level grouping */
+  defaultClusterGroupRules: ClusterGroupRule[];
   /** Default node rules for spacing and gravity */
   defaultNodeRules: NodeRule[];
 }
@@ -238,6 +240,7 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
     },
   ],
   defaultSortRules: [{ key: "degree", order: "desc" }],
+  defaultClusterGroupRules: [{ groupBy: "tag", recursive: false }],
   defaultNodeRules: [],
 };
 

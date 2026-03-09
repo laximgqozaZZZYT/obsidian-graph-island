@@ -241,6 +241,41 @@ export class GraphViewsSettingTab extends PluginSettingTab {
       }
     });
 
+    // --- Default Cluster Group Rules section ---
+    containerEl.createEl("h3", { text: "Default Cluster Group Rules" });
+
+    const cgDesc = containerEl.createEl("p", {
+      text: 'JSON array of rules. Each rule: { "groupBy": "tag"|"backlinks"|"node_type", "recursive": true|false }',
+      cls: "setting-item-description",
+    });
+    cgDesc.style.fontSize = "0.85em";
+    cgDesc.style.marginBottom = "8px";
+
+    const cgTextarea = containerEl.createEl("textarea");
+    cgTextarea.style.width = "100%";
+    cgTextarea.style.minHeight = "80px";
+    cgTextarea.style.fontFamily = "monospace";
+    cgTextarea.style.fontSize = "0.85em";
+    cgTextarea.value = JSON.stringify(this.plugin.settings.defaultClusterGroupRules ?? [], null, 2);
+
+    const cgStatus = containerEl.createEl("div");
+    cgStatus.style.fontSize = "0.85em";
+    cgStatus.style.marginTop = "4px";
+
+    cgTextarea.addEventListener("input", async () => {
+      try {
+        const parsed = JSON.parse(cgTextarea.value);
+        if (!Array.isArray(parsed)) throw new Error("Must be an array");
+        this.plugin.settings.defaultClusterGroupRules = parsed;
+        await this.plugin.saveSettings();
+        cgStatus.textContent = "Saved.";
+        cgStatus.style.color = "var(--text-success)";
+      } catch (e) {
+        cgStatus.textContent = `Invalid JSON: ${(e as Error).message}`;
+        cgStatus.style.color = "var(--text-error)";
+      }
+    });
+
     // --- Directional Gravity section ---
     containerEl.createEl("h3", { text: "Directional Gravity" });
 
