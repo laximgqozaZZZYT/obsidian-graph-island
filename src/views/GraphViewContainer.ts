@@ -5,8 +5,9 @@ import { zoom as d3zoom } from "d3-zoom";
 import { arc as d3arc } from "d3-shape";
 import { forceSimulation, forceManyBody, forceCenter, forceLink, type Simulation, type Force } from "d3-force";
 import type GraphViewsPlugin from "../main";
-import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule } from "../types";
+import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset } from "../types";
 import { DEFAULT_COLORS } from "../types";
+import { evaluateExpr } from "../utils/query-expr";
 import { resolveDirection, matchesFilter } from "../layouts/force";
 import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
 import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
@@ -131,6 +132,28 @@ export class GraphViewContainer extends ItemView {
     this.plugin = plugin;
     this.currentLayout = plugin.settings.defaultLayout;
     this.panel.nodeSize = plugin.settings.nodeSize;
+    this.panel.clusterGroupRules = [...(plugin.settings.defaultClusterGroupRules ?? [])].map(r => ({ ...r }));
+    this.applyGroupPresets();
+  }
+
+  private applyGroupPresets() {
+    const presets = this.plugin.settings.groupPresets ?? [];
+    for (const preset of presets) {
+      const cond = preset.condition;
+      if (cond.layout && cond.layout !== this.currentLayout) continue;
+      if (cond.tagDisplay && cond.tagDisplay !== this.panel.tagDisplay) continue;
+      if (cond.clusterGroupRules) {
+        const cur = JSON.stringify(this.panel.clusterGroupRules);
+        const exp = JSON.stringify(cond.clusterGroupRules);
+        if (cur !== exp) continue;
+      }
+      // Match found — apply preset
+      this.panel.groups = preset.groups.map(g => ({
+        ...g,
+        expression: g.expression ? { ...g.expression } : null,
+      }));
+      break;
+    }
   }
 
   getViewType() { return VIEW_TYPE_GRAPH; }
@@ -1253,6 +1276,35 @@ export class GraphViewContainer extends ItemView {
       restartSimulation: (alpha: number) => {
         if (this.simulation) { this.simulation.alpha(alpha).restart(); this.wakeRenderLoop(); }
       },
+      collectFieldSuggestions: () => {
+        return ["label", "tag", "category", "path", "id", "isTag"];
+      },
+      collectValueSuggestions: (field: string) => {
+        const values = new Set<string>();
+        for (const pn of this.pixiNodes.values()) {
+          const n = pn.data;
+          switch (field) {
+            case "tag": (n.tags ?? []).forEach(t => values.add(t)); break;
+            case "category": if (n.category) values.add(n.category); break;
+            case "label": values.add(n.label); break;
+            case "path": if (n.filePath) values.add(n.filePath); break;
+            case "id": values.add(n.id); break;
+          }
+        }
+        return [...values].sort();
+      },
+      saveGroupPreset: () => {
+        const preset: GroupPreset = {
+          condition: {
+            layout: this.currentLayout,
+            tagDisplay: this.panel.tagDisplay,
+            clusterGroupRules: [...this.panel.clusterGroupRules],
+          },
+          groups: this.panel.groups.map(g => ({ ...g })),
+        };
+        this.plugin.settings.groupPresets.push(preset);
+        this.plugin.saveSettings();
+      },
     };
     buildPanelUI(this.panelEl, this.panel, ctx, cb);
   }
@@ -1409,7 +1461,7 @@ export class GraphViewContainer extends ItemView {
     const nodeColor = (n: GraphNode): number => {
       // Manual group overrides take priority
       for (const grp of this.panel.groups) {
-        if (grp.query && n.label.toLowerCase().includes(grp.query)) return cssColorToHex(grp.color);
+        if (grp.expression && evaluateExpr(grp.expression, n)) return cssColorToHex(grp.color);
       }
       if (!this.panel.colorNodesByCategory) return defaultNodeColor;
       // Category-based coloring
@@ -1705,7 +1757,7 @@ export class GraphViewContainer extends ItemView {
    */
   private applyClusterForce() {
     if (!this.simulation) return;
-    const { clusterGroupBy, clusterArrangement, clusterNodeSpacing, clusterGroupScale, clusterGroupSpacing } = this.panel;
+    const { clusterArrangement, clusterNodeSpacing, clusterGroupScale, clusterGroupSpacing } = this.panel;
 
     // Cluster arrangement is always active (no "free" option).
     // Suppress competing forces:
@@ -1729,9 +1781,8 @@ export class GraphViewContainer extends ItemView {
       this.graphEdges,
       this.degrees,
       {
-        groupBy: clusterGroupBy,
+        groupRules: this.panel.clusterGroupRules,
         arrangement: clusterArrangement,
-        recursive: this.panel.clusterRecursive,
         centerX: W / 2,
         centerY: H / 2,
         width: W,
