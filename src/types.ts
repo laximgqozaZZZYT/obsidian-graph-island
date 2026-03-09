@@ -218,6 +218,14 @@ export interface GraphViewsSettings {
   defaultClusterGroupRules: ClusterGroupRule[];
   /** Default node rules for spacing and gravity */
   defaultNodeRules: NodeRule[];
+  /** Default cluster arrangement pattern (spiral | concentric | tree | grid) */
+  defaultClusterArrangement?: ClusterArrangement;
+  /** Default cluster node spacing (1–10, default 3.0) */
+  defaultClusterNodeSpacing?: number;
+  /** Default cluster group scale (0.2–5, default 3.0) */
+  defaultClusterGroupScale?: number;
+  /** Default cluster group spacing (0.5–10, default 2.0) */
+  defaultClusterGroupSpacing?: number;
   /** Vault-relative path for JSON import/export */
   settingsJsonPath: string;
 }

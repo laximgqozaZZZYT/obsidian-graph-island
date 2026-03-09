@@ -182,6 +182,11 @@ export class GraphViewContainer extends ItemView {
     // Apply AFTER presets so user's explicit rules take priority over preset-derived ones
     this.panel.clusterGroupRules = [...(plugin.settings.defaultClusterGroupRules ?? [])].map(r => ({ ...r }));
     this.panel.directionalGravityRules = [...(plugin.settings.directionalGravityRules ?? [])].map(r => ({ ...r }));
+    // Cluster arrangement/spacing from settings (optional — falls back to DEFAULT_PANEL)
+    if (plugin.settings.defaultClusterArrangement) this.panel.clusterArrangement = plugin.settings.defaultClusterArrangement;
+    if (plugin.settings.defaultClusterNodeSpacing != null) this.panel.clusterNodeSpacing = plugin.settings.defaultClusterNodeSpacing;
+    if (plugin.settings.defaultClusterGroupScale != null) this.panel.clusterGroupScale = plugin.settings.defaultClusterGroupScale;
+    if (plugin.settings.defaultClusterGroupSpacing != null) this.panel.clusterGroupSpacing = plugin.settings.defaultClusterGroupSpacing;
   }
 
   private applyGroupPresets() {
@@ -1458,11 +1463,16 @@ export class GraphViewContainer extends ItemView {
         this.plugin.saveSettings();
       },
       resetPanel: () => {
+        const s = this.plugin.settings;
         Object.assign(this.panel, {
           ...DEFAULT_PANEL,
-          sortRules: [...(this.plugin.settings.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r })),
-          clusterGroupRules: [...(this.plugin.settings.defaultClusterGroupRules ?? [])].map(r => ({ ...r })),
-          nodeRules: [...(this.plugin.settings.defaultNodeRules ?? [])].map(r => ({ ...r })),
+          sortRules: [...(s.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r })),
+          clusterGroupRules: [...(s.defaultClusterGroupRules ?? [])].map(r => ({ ...r })),
+          nodeRules: [...(s.defaultNodeRules ?? [])].map(r => ({ ...r })),
+          ...(s.defaultClusterArrangement ? { clusterArrangement: s.defaultClusterArrangement } : {}),
+          ...(s.defaultClusterNodeSpacing != null ? { clusterNodeSpacing: s.defaultClusterNodeSpacing } : {}),
+          ...(s.defaultClusterGroupScale != null ? { clusterGroupScale: s.defaultClusterGroupScale } : {}),
+          ...(s.defaultClusterGroupSpacing != null ? { clusterGroupSpacing: s.defaultClusterGroupSpacing } : {}),
         });
         this.applyGroupPresets();
         this.buildPanel();
