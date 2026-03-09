@@ -56,6 +56,36 @@ export type ClusterGroupBy = "none" | "tag" | "backlinks" | "node_type";
 /** How to arrange nodes within each cluster */
 export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid";
 
+/** A single rule in the multi-level cluster grouping pipeline */
+export interface ClusterGroupRule {
+  groupBy: ClusterGroupBy;
+  recursive: boolean;
+}
+
+import type { QueryExpression } from "./utils/query-expr";
+
+/** A group rule with boolean expression matching */
+export interface GroupRule {
+  expression: QueryExpression | null;  // null = match all
+  color: string;
+}
+
+/** Common query applied across all groups — splits nodes by match pattern */
+export interface CommonGroupQuery {
+  expression: QueryExpression;
+}
+
+/** Preset applied on view load based on display state */
+export interface GroupPreset {
+  condition: {
+    tagDisplay?: "node" | "enclosure";
+    clusterGroupRules?: ClusterGroupRule[];
+    layout?: LayoutType;
+  };
+  groups: GroupRule[];
+  commonQuery?: CommonGroupQuery;
+}
+
 export interface DirectionalGravityRule {
   /** Filter: "tag:character", "category:protagonist", "isTag", "*" (all) etc. */
   filter: string;
@@ -151,6 +181,10 @@ export interface GraphViewsSettings {
   directionalGravityRules: DirectionalGravityRule[];
   /** Minimum fraction of total nodes a tag group must have to show an enclosure (0–1). Default 1/20 = 0.05 */
   enclosureMinRatio: number;
+  /** Default cluster group rules for multi-level grouping */
+  defaultClusterGroupRules: ClusterGroupRule[];
+  /** Group presets applied on view load based on display state */
+  groupPresets: GroupPreset[];
 }
 
 export const DEFAULT_SETTINGS: GraphViewsSettings = {
@@ -165,6 +199,8 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
   showSimilar: false,
   directionalGravityRules: [],
   enclosureMinRatio: 0.05,
+  defaultClusterGroupRules: [{ groupBy: "tag", recursive: false }],
+  groupPresets: [],
 };
 
 export const DEFAULT_COLORS = [
