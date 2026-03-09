@@ -218,6 +218,8 @@ export interface GraphViewsSettings {
   defaultClusterGroupRules: ClusterGroupRule[];
   /** Default node rules for spacing and gravity */
   defaultNodeRules: NodeRule[];
+  /** Vault-relative path for JSON import/export */
+  settingsJsonPath: string;
 }
 
 export const DEFAULT_SETTINGS: GraphViewsSettings = {
@@ -242,6 +244,7 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
   defaultSortRules: [{ key: "degree", order: "desc" }],
   defaultClusterGroupRules: [{ groupBy: "tag", recursive: false }],
   defaultNodeRules: [],
+  settingsJsonPath: "",
 };
 
 export const DEFAULT_COLORS = [

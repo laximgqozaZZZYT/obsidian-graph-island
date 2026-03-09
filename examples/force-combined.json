@@ -1,0 +1,54 @@
+{
+  "defaultLayout": "force",
+  "nodeSize": 9,
+  "showLabels": true,
+  "metadataFields": ["tags", "category", "characters", "locations", "scenes"],
+  "edgeFields": ["tags", "category"],
+  "colorField": "category",
+  "groupField": "category",
+  "ontology": {
+    "inheritanceFields": ["parent", "extends", "up"],
+    "aggregationFields": ["contains", "parts", "has"],
+    "similarFields": ["similar", "related"],
+    "useTagHierarchy": true,
+    "customMappings": {
+      "mentor": "inheritance",
+      "rival": "similar"
+    }
+  },
+  "showSimilar": true,
+  "directionalGravityRules": [
+    { "filter": "tag:character", "direction": "top", "strength": 0.15 },
+    { "filter": "tag:location",  "direction": "bottom", "strength": 0.12 }
+  ],
+  "enclosureMinRatio": 0.02,
+  "groupPresets": [
+    {
+      "condition": { "tagDisplay": "enclosure" },
+      "groups": [],
+      "commonQueries": [{ "query": "tag:*", "recursive": true }]
+    },
+    {
+      "condition": { "layout": "force" },
+      "groups": [
+        { "expression": { "type": "leaf", "field": "tag", "value": "character" }, "color": "#ec4899" },
+        { "expression": { "type": "leaf", "field": "tag", "value": "location" },  "color": "#10b981" },
+        { "expression": { "type": "leaf", "field": "tag", "value": "scene" },     "color": "#f59e0b" }
+      ]
+    }
+  ],
+  "defaultSortRules": [
+    { "key": "importance", "order": "desc" },
+    { "key": "degree", "order": "desc" }
+  ],
+  "defaultClusterGroupRules": [
+    { "groupBy": "tag", "recursive": true },
+    { "groupBy": "backlinks", "recursive": false }
+  ],
+  "defaultNodeRules": [
+    { "query": "tag:character", "spacingMultiplier": 2.0, "gravityAngle": 270, "gravityStrength": 0.1 },
+    { "query": "tag:location",  "spacingMultiplier": 1.8, "gravityAngle": 90,  "gravityStrength": 0.1 },
+    { "query": "tag:scene",     "spacingMultiplier": 0.8, "gravityAngle": 0,   "gravityStrength": 0.05 }
+  ],
+  "settingsJsonPath": ""
+}

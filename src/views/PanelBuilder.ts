@@ -1,8 +1,9 @@
-import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule } from "../types";
+import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { repositionShell } from "../layouts/concentric";
 import type { QueryExpression, BoolOp } from "../utils/query-expr";
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
+import { setIcon } from "obsidian";
 
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
@@ -122,6 +123,8 @@ export interface PanelContext {
   pixiNodes: Map<string, { data: GraphNode }>;
   relationColors: Map<string, string>;
   simulation: unknown | null;  // only used for null-check
+  settings: GraphViewsSettings;
+  saveSettings(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -153,7 +156,7 @@ export function buildPanel(
       cb.rebuildPanel();
       cb.doRender();
     });
-  });
+  }, "グラフのレイアウトアルゴリズムを選択します。\n\nForce: 力学モデル（クラスター配置対応）\nConcentric: 同心円配置\nTree: 階層ツリー\nArc: 弧状配置\nSunburst: 放射状階層配置");
 
   if (ctx.currentLayout === "concentric") {
     buildSection(panelEl, "同心円レイアウト", (body) => {
@@ -210,7 +213,7 @@ export function buildPanel(
     addToggle(body, "継承エッジ (is-a)", panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); });
     addToggle(body, "集約エッジ (has-a)", panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); });
     addToggle(body, "類似エッジ (similar)", panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateData(); });
-  });
+  }, "グラフに表示するノードとエッジを制御します。\n\n検索: field:value でノードをフィルタ\n  例: tag:character, hop:名前:2\n\nタグ表示:\n  ノード = タグ自体をノードとして表示\n  囲い = タグをノード群の包絡線として表示");
 
   buildSection(panelEl, "グループ", (body) => {
     // --- Common queries (multi-level cluster grouping) ---
@@ -235,7 +238,7 @@ export function buildPanel(
       panel.groups.push({ expression: null, color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length] });
       renderGroupList(list, panel, cb);
     });
-  });
+  }, "共通クエリ: クラスタリングのグループ分けルール\n  tag:* = タグ別、category:* = ノードタイプ別\n  複数ルールはパイプライン方式で適用\n\nグループ色: ノードの色分けルール\n  クエリ記法でマッチするノードに色を割り当て\n  例: tag:character → 赤色");
 
   buildSection(panelEl, "表示", (body) => {
     addToggle(body, "矢印", panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); });
@@ -246,7 +249,7 @@ export function buildPanel(
     addSlider(body, "ノードの大きさ", 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
     addToggle(body, "被リンク数でサイズ変更", panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); });
     addSlider(body, "ホバー強調ホップ数", 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; });
-  });
+  }, "グラフの見た目を調整します。\n\n矢印: エッジに方向を示す矢印を表示\nノード色: category フィールドで自動色分け\nエッジ色: 関係種別ごとに色分け\nテキストフェード: ズームアウト時のラベル消失閾値\nホバー強調: マウスオーバー時に何ホップ先まで強調するか");
 
   buildSection(panelEl, "ノードルール", (body) => {
     const ruleListEl = body.createDiv({ cls: "ngp-noderule-list" });
@@ -259,7 +262,7 @@ export function buildPanel(
       cb.applyNodeRules();
       cb.restartSimulation(0.3);
     });
-  });
+  }, "クエリにマッチするノードの間隔や重力を個別制御します。\n\nquery: 対象ノードのクエリ (*, tag:character 等)\n間隔: ノード同士の距離の倍率\n重力: 特定方向への引力 (角度と強度)");
 
   if (panel.colorEdgesByRelation && ctx.relationColors.size > 0) {
     buildSection(panelEl, "属性カラー", (body) => {
@@ -301,20 +304,49 @@ export function buildPanel(
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
       });
+      // --- Cluster group rules sub-section ---
+      const clusterHeader = body.createDiv({ cls: "setting-item" });
+      clusterHeader.createDiv({ cls: "setting-item-name", text: "グループ分けルール" });
+      const clusterListEl = body.createDiv({ cls: "ngp-cluster-rule-list" });
+      renderClusterRuleList(clusterListEl, panel, cb);
+
+      const addClusterBtn = body.createEl("button", { cls: "ngp-add-group", text: "＋ グループルール追加" });
+      addClusterBtn.addEventListener("click", () => {
+        panel.clusterGroupRules.push({ groupBy: "tag", recursive: false });
+        renderClusterRuleList(clusterListEl, panel, cb);
+        cb.applyClusterForce();
+        cb.rebuildPanel();
+        cb.restartSimulation(0.5);
+      });
+
+      // --- Directional gravity rules sub-section ---
+      const gravHeader = body.createDiv({ cls: "setting-item" });
+      gravHeader.createDiv({ cls: "setting-item-name", text: "方向重力ルール" });
+      const gravListEl = body.createDiv({ cls: "ngp-gravity-rule-list" });
+      renderDirectionalGravityList(gravListEl, panel, ctx, cb);
+
+      const addGravBtn = body.createEl("button", { cls: "ngp-add-group", text: "＋ 重力ルール追加" });
+      addGravBtn.addEventListener("click", () => {
+        panel.directionalGravityRules.push({ filter: "*", direction: "top", strength: 0.1 });
+        renderDirectionalGravityList(gravListEl, panel, ctx, cb);
+        cb.applyDirectionalGravityForce();
+        cb.restartSimulation(0.3);
+      });
+
       // --- Sort rules sub-section ---
       const sortHeader = body.createDiv({ cls: "setting-item" });
       sortHeader.createDiv({ cls: "setting-item-name", text: "ソート順" });
       const sortListEl = body.createDiv({ cls: "ngp-sort-list" });
       renderSortRuleList(sortListEl, panel, cb);
 
-      const addSortBtn = body.createEl("button", { cls: "ngp-add-group", text: "＋ ルール追加" });
+      const addSortBtn = body.createEl("button", { cls: "ngp-add-group", text: "＋ ソートルール追加" });
       addSortBtn.addEventListener("click", () => {
         panel.sortRules.push({ key: "label", order: "asc" });
         renderSortRuleList(sortListEl, panel, cb);
         cb.applyClusterForce();
         cb.doRender();
       });
-    });
+    }, "Force レイアウトでのクラスター配置を制御します。\n\n配置パターン: グループの並べ方\nノード間隔: グループ内のノード同士の距離\nグループサイズ/間隔: グループの大きさと距離\nソート順: グループ内のノードの並び順");
   }
 
   // Force parameters are only relevant when NOT in force layout
@@ -326,8 +358,64 @@ export function buildPanel(
       addSlider(body, "リンクの力", 0, 0.1, 0.002, panel.linkForce, (v) => { panel.linkForce = v; cb.updateForces(); });
       addSlider(body, "リンク距離", 20, 500, 10, panel.linkDistance, (v) => { panel.linkDistance = v; cb.updateForces(); });
       addSlider(body, "囲い間隔", 0.5, 5, 0.1, panel.enclosureSpacing, (v) => { panel.enclosureSpacing = v; cb.updateForces(); });
-    });
+    }, "力学シミュレーションのパラメータを調整します。\n\n中心力: ノードを中心に引き寄せる力\n反発力: ノード同士の反発距離\nリンクの力: エッジによる引力強度\nリンク距離: エッジの目標長さ\n囲い間隔: タグ包絡線のパディング");
   }
+
+  // --- プラグイン設定（グラフパネルから直接編集） ---
+  buildSection(panelEl, "プラグイン設定", (body) => {
+    const s = ctx.settings;
+
+    addTextInput(body, "メタデータフィールド", s.metadataFields.join(", "), "tags, category, characters", (v) => {
+      s.metadataFields = v.split(",").map(x => x.trim()).filter(Boolean);
+      ctx.saveSettings();
+      cb.invalidateData();
+    });
+
+    addTextInput(body, "色分けフィールド", s.colorField, "category", (v) => {
+      s.colorField = v.trim();
+      ctx.saveSettings();
+      cb.doRender();
+    });
+
+    addTextInput(body, "グループフィールド", s.groupField, "category", (v) => {
+      s.groupField = v.trim();
+      ctx.saveSettings();
+      cb.invalidateData();
+    });
+
+    addSlider(body, "囲い最小比率", 0, 0.3, 0.01, s.enclosureMinRatio, (v) => {
+      s.enclosureMinRatio = v;
+      ctx.saveSettings();
+      cb.doRender();
+    });
+
+    // --- Ontology sub-section ---
+    body.createEl("div", { cls: "setting-item-name", text: "― オントロジー ―" }).style.cssText = "margin-top:8px;opacity:0.7;font-size:0.85em;";
+
+    addTextInput(body, "継承フィールド (is-a)", s.ontology.inheritanceFields.join(", "), "parent, extends, up", (v) => {
+      s.ontology.inheritanceFields = v.split(",").map(x => x.trim()).filter(Boolean);
+      ctx.saveSettings();
+      cb.invalidateData();
+    });
+
+    addTextInput(body, "集約フィールド (has-a)", s.ontology.aggregationFields.join(", "), "contains, parts, has", (v) => {
+      s.ontology.aggregationFields = v.split(",").map(x => x.trim()).filter(Boolean);
+      ctx.saveSettings();
+      cb.invalidateData();
+    });
+
+    addTextInput(body, "類似フィールド", s.ontology.similarFields.join(", "), "similar, related", (v) => {
+      s.ontology.similarFields = v.split(",").map(x => x.trim()).filter(Boolean);
+      ctx.saveSettings();
+      cb.invalidateData();
+    });
+
+    addToggle(body, "タグ階層から継承エッジ生成", s.ontology.useTagHierarchy, (v) => {
+      s.ontology.useTagHierarchy = v;
+      ctx.saveSettings();
+      cb.invalidateData();
+    });
+  }, "プラグイン全体の設定です。変更は即座に反映されます。\n\nメタデータフィールド: グラフの関係構築に使う frontmatter フィールド名（カンマ区切り）\n色分けフィールド: ノードの自動色分けに使うフィールド\nグループフィールド: 同心円/Sunburst のグループ分けフィールド\n囲い最小比率: 包絡線表示の最小グループサイズ\n\nオントロジー:\n  継承 (is-a): 親子関係のフィールド\n  集約 (has-a): 包含関係のフィールド\n  類似: 関連性のフィールド\n  タグ階層: #a/b → 自動で継承エッジ生成");
 
   // --- 設定保存・初期化ボタン（パネル末尾） ---
   const actionRow = panelEl.createDiv({ cls: "ngp-panel-actions" });
@@ -346,7 +434,7 @@ export function buildPanel(
 // UI helpers
 // ---------------------------------------------------------------------------
 
-function buildSection(container: HTMLElement, title: string, build: (body: HTMLElement) => void) {
+function buildSection(container: HTMLElement, title: string, build: (body: HTMLElement) => void, helpText?: string) {
   const section = container.createDiv({ cls: "graph-control-section tree-item" });
   const header = section.createDiv({ cls: "tree-item-self graph-control-section-header is-clickable" });
   const collapseIcon = header.createDiv({ cls: "tree-item-icon collapse-icon" });
@@ -365,9 +453,25 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
   svg.appendChild(path);
   collapseIcon.appendChild(svg);
   header.createEl("span", { cls: "tree-item-inner", text: title });
+
+  if (helpText) {
+    const helpBtn = header.createEl("span", { cls: "clickable-icon ngp-section-help", attr: { "aria-label": "Help" } });
+    helpBtn.style.cssText = "margin-left:auto;opacity:0.5;";
+    setIcon(helpBtn, "help-circle");
+    helpBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const existing = section.querySelector(".ngp-help-popup");
+      if (existing) { existing.remove(); return; }
+      const popup = section.createDiv({ cls: "ngp-help-popup" });
+      popup.style.cssText = "padding:8px 12px;font-size:0.85em;line-height:1.5;white-space:pre-wrap;background:var(--background-secondary);border-radius:4px;margin:4px 8px;";
+      popup.textContent = helpText;
+    });
+  }
+
   const body = section.createDiv({ cls: "tree-item-children" });
   build(body);
-  header.addEventListener("click", () => {
+  header.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).closest(".ngp-section-help")) return;
     const collapsed = section.hasClass("is-collapsed");
     section.toggleClass("is-collapsed", !collapsed);
   });
@@ -397,6 +501,19 @@ function addToggle(container: HTMLElement, label: string, initial: boolean, onCh
     toggle.toggleClass("is-enabled", !on);
     onChange(!on);
   });
+}
+
+function addTextInput(container: HTMLElement, label: string, initial: string, placeholder: string, onChange: (v: string) => void) {
+  const row = container.createDiv({ cls: "setting-item" });
+  row.style.cssText = "flex-direction:column;align-items:stretch;";
+  const info = row.createDiv({ cls: "setting-item-info" });
+  info.createDiv({ cls: "setting-item-name", text: label });
+  const control = row.createDiv({ cls: "setting-item-control" });
+  control.style.cssText = "justify-content:stretch;";
+  const input = control.createEl("input", { type: "text", placeholder });
+  input.value = initial;
+  input.style.width = "100%";
+  input.addEventListener("change", () => onChange(input.value));
 }
 
 function addSelect(container: HTMLElement, label: string, options: { value: string; label: string }[], initial: string, onChange: (v: string) => void) {
@@ -729,6 +846,71 @@ function renderSortRuleList(
     });
   });
 }
+
+// ---------------------------------------------------------------------------
+// Cluster group rule list
+// ---------------------------------------------------------------------------
+
+const CLUSTER_GROUP_OPTIONS: { value: ClusterGroupBy; label: string }[] = [
+  { value: "tag", label: "タグ" },
+  { value: "backlinks", label: "被リンク数" },
+  { value: "node_type", label: "ノードタイプ" },
+];
+
+function renderClusterRuleList(
+  container: HTMLElement,
+  panel: PanelState,
+  cb: PanelCallbacks,
+) {
+  container.empty();
+  const rules = panel.clusterGroupRules;
+  rules.forEach((rule, i) => {
+    const row = container.createDiv({ cls: "ngp-group-item" });
+
+    // GroupBy dropdown
+    const groupSel = row.createEl("select", { cls: "dropdown" });
+    groupSel.style.flex = "1";
+    for (const opt of CLUSTER_GROUP_OPTIONS) {
+      const el = groupSel.createEl("option", { text: opt.label, value: opt.value });
+      if (opt.value === rule.groupBy) el.selected = true;
+    }
+    groupSel.addEventListener("change", () => {
+      rule.groupBy = groupSel.value as ClusterGroupBy;
+      cb.applyClusterForce();
+      cb.rebuildPanel();
+      cb.restartSimulation(0.5);
+    });
+
+    // Recursive toggle (compact checkbox + label)
+    const recWrap = row.createEl("label");
+    recWrap.style.cssText = "margin-left:4px;display:flex;align-items:center;gap:2px;";
+    const recToggle = recWrap.createDiv({
+      cls: "checkbox-container" + (rule.recursive ? " is-enabled" : ""),
+    });
+    recWrap.createEl("span", { text: "再帰", cls: "ngp-hint" });
+    recToggle.addEventListener("click", () => {
+      rule.recursive = !rule.recursive;
+      recToggle.toggleClass("is-enabled", rule.recursive);
+      cb.applyClusterForce();
+      cb.restartSimulation(0.5);
+    });
+
+    // Remove button
+    const rm = row.createEl("span", { cls: "ngp-group-remove", text: "\u00D7" });
+    rm.style.marginLeft = "4px";
+    rm.addEventListener("click", () => {
+      rules.splice(i, 1);
+      renderClusterRuleList(container, panel, cb);
+      cb.applyClusterForce();
+      cb.rebuildPanel();
+      cb.restartSimulation(0.5);
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Directional gravity rule list
+// ---------------------------------------------------------------------------
 
 function renderDirectionalGravityList(
   container: HTMLElement,

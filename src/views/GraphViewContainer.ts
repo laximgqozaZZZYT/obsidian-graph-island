@@ -175,10 +175,13 @@ export class GraphViewContainer extends ItemView {
     this.plugin = plugin;
     this.currentLayout = plugin.settings.defaultLayout;
     this.panel.nodeSize = plugin.settings.nodeSize;
+    this.panel.showSimilar = plugin.settings.showSimilar ?? false;
     this.panel.sortRules = [...(plugin.settings.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r }));
-    this.panel.clusterGroupRules = [...(plugin.settings.defaultClusterGroupRules ?? [])].map(r => ({ ...r }));
     this.panel.nodeRules = [...(plugin.settings.defaultNodeRules ?? [])].map(r => ({ ...r }));
     this.applyGroupPresets();
+    // Apply AFTER presets so user's explicit rules take priority over preset-derived ones
+    this.panel.clusterGroupRules = [...(plugin.settings.defaultClusterGroupRules ?? [])].map(r => ({ ...r }));
+    this.panel.directionalGravityRules = [...(plugin.settings.directionalGravityRules ?? [])].map(r => ({ ...r }));
   }
 
   private applyGroupPresets() {
@@ -1399,6 +1402,8 @@ export class GraphViewContainer extends ItemView {
       pixiNodes: this.pixiNodes,
       relationColors: this.relationColors,
       simulation: this.simulation,
+      settings: this.plugin.settings,
+      saveSettings: () => { this.plugin.saveSettings(); },
     };
     const cb: PanelCallbacks = {
       doRender: () => { this.doRender(); this.requestSave(); },

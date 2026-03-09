@@ -1,6 +1,156 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, Modal, Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
 import type GraphViewsPlugin from "./main";
-import type { LayoutType } from "./types";
+import type { GraphViewsSettings } from "./types";
+import { DEFAULT_SETTINGS } from "./types";
+
+// ---------------------------------------------------------------------------
+// Help entries (kept for HelpModal reuse from PanelBuilder)
+// ---------------------------------------------------------------------------
+
+interface HelpEntry {
+  title: string;
+  body: string;
+}
+
+const HELP: Record<string, HelpEntry> = {
+  metadataFields: {
+    title: "Metadata Fields",
+    body:
+      "YAML frontmatter のフィールド名をカンマ区切りで指定します。\n" +
+      "ここに列挙されたフィールドの値がリンク先として解釈され、グラフのエッジが生成されます。\n\n" +
+      "例: tags, category, characters, locations\n\n" +
+      "フィールドの値が配列の場合、各要素がそれぞれリンクとして扱われます。",
+  },
+  colorField: {
+    title: "Color Field",
+    body:
+      "ノードの色分けに使用する frontmatter フィールド名です。\n" +
+      "同じ値を持つノードは同じ色でグループ化されます。\n\n" +
+      "例: category → 同じ category 値のノードが同色に",
+  },
+  groupField: {
+    title: "Group Field",
+    body:
+      "同心円 (Concentric) レイアウトのシェル分割、Sunburst の階層に使用する frontmatter フィールド名です。\n" +
+      "同じ値のノードが同じシェル/セクターに配置されます。",
+  },
+  enclosure: {
+    title: "Enclosure",
+    body:
+      "Enclosure（包絡線）は、同じタググループに属するノード群を凸包で囲んで可視化する機能です。\n\n" +
+      "Minimum Ratio: 全ノード数に対するグループの最小割合。\n" +
+      "例: 0.05 = ノード全体の 5% 未満のグループは包絡線を表示しない。\n" +
+      "小さいグループの包絡線が多すぎて見づらい場合に閾値を上げてください。",
+  },
+  ontology: {
+    title: "Ontology",
+    body:
+      "オントロジー設定は、ノート間の意味的な関係をグラフに反映します。\n\n" +
+      "■ Inheritance (継承 / is-a):\n" +
+      "  parent, extends, up などのフィールドを指定。\n" +
+      "  例: Character → Entity（Character は Entity の一種）\n" +
+      "  @-プレフィックス付きインラインフィールド（@Parent::）にも対応。\n\n" +
+      "■ Aggregation (集約 / has-a):\n" +
+      "  contains, parts, has などのフィールドを指定。\n" +
+      "  例: Kingdom → City（Kingdom は City を含む）\n\n" +
+      "■ Similar (類似):\n" +
+      "  similar, related などのフィールドを指定。\n" +
+      "  ノート間の類似関係エッジを表示。\n\n" +
+      "■ Tag Hierarchy:\n" +
+      "  ネストタグ（例: #entity/character）から自動で\n" +
+      "  継承エッジ entity → character を生成。",
+  },
+  groupPresets: {
+    title: "Group Presets",
+    body:
+      "レイアウト条件に応じた色分けグループのプリセットを JSON で定義します。\n\n" +
+      "構造:\n" +
+      '  [{ "condition": { "layout": "force" },\n' +
+      '     "groups": [\n' +
+      '       { "expression": { "type": "leaf", "field": "tag", "value": "character" },\n' +
+      '         "color": "#ff6b6b" }\n' +
+      "     ] }]\n\n" +
+      "■ condition: どのレイアウトで有効にするか\n" +
+      '■ expression: クエリ条件（"leaf" は単純条件、"branch" は AND/OR 等の論理演算）\n' +
+      "■ color: グループの表示色（hex）\n\n" +
+      "クエリ記法の詳細は docs/query-syntax.md を参照。",
+  },
+  clusterGroupRules: {
+    title: "Default Cluster Group Rules",
+    body:
+      "クラスター配置のデフォルトグループ分けルールを JSON 配列で定義します。\n\n" +
+      "構造:\n" +
+      '  [{ "groupBy": "tag", "recursive": false },\n' +
+      '   { "groupBy": "node_type", "recursive": true }]\n\n' +
+      "■ groupBy: グループ分け基準\n" +
+      '  - "tag": タグ別\n' +
+      '  - "backlinks": 被リンク数別\n' +
+      '  - "node_type": ノードタイプ別\n\n' +
+      "■ recursive: true にすると、グループ内をさらに連結成分で分割\n\n" +
+      "複数ルールはパイプライン方式で適用され、\n" +
+      "前段の出力グループを次段がさらに細分化します。\n" +
+      "空配列 = クラスタリング無し。",
+  },
+  directionalGravity: {
+    title: "Directional Gravity",
+    body:
+      "特定のノード群に方向性のある重力を適用するルールです。\n\n" +
+      "構造:\n" +
+      '  [{ "filter": "tag:character",\n' +
+      '     "direction": "top",\n' +
+      '     "strength": 0.1 }]\n\n' +
+      "■ filter: クエリ記法で対象ノードを指定\n" +
+      "  例: tag:character, category:person, path:chapters/\n\n" +
+      '■ direction: 重力方向\n' +
+      '  "top" | "bottom" | "left" | "right" またはラジアン値\n\n' +
+      "■ strength: 重力強度（0〜1）\n\n" +
+      "クエリ記法の詳細は docs/query-syntax.md を参照。",
+  },
+  nodeRules: {
+    title: "Node Rules",
+    body:
+      "ノード個別の間隔・重力を制御するルールです。\n\n" +
+      "構造:\n" +
+      '  [{ "query": "*",\n' +
+      '     "spacingMultiplier": 2.0,\n' +
+      '     "gravityAngle": -1,\n' +
+      '     "gravityStrength": 0 }]\n\n' +
+      "■ query: クエリ記法で対象ノードを指定\n" +
+      "  例: *, tag:character, category:person AND path:chapters/\n\n" +
+      "■ spacingMultiplier: ノード間隔の倍率（0.1〜5.0）\n\n" +
+      "■ gravityAngle: 重力方向（度）\n" +
+      "  0=右, 90=下, 180=左, 270=上, -1=なし\n\n" +
+      "■ gravityStrength: 重力強度（0〜1）\n\n" +
+      "クエリ記法の詳細は docs/query-syntax.md を参照。",
+  },
+};
+
+export { HELP, HelpEntry, HelpModal };
+
+class HelpModal extends Modal {
+  private entry: HelpEntry;
+  constructor(app: App, entry: HelpEntry) {
+    super(app);
+    this.entry = entry;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h2", { text: this.entry.title });
+    const pre = contentEl.createEl("div");
+    pre.style.whiteSpace = "pre-wrap";
+    pre.style.fontFamily = "var(--font-monospace)";
+    pre.style.fontSize = "0.9em";
+    pre.style.lineHeight = "1.6";
+    pre.textContent = this.entry.body;
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Settings Tab — JSON import/export only
+// ---------------------------------------------------------------------------
 
 export class GraphViewsSettingTab extends PluginSettingTab {
   plugin: GraphViewsPlugin;
@@ -14,344 +164,86 @@ export class GraphViewsSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
+    containerEl.createEl("p", {
+      text: "各設定項目はグラフビューのパネルから直接編集できます。ここでは設定の JSON エクスポート / インポートを行えます。",
+    }).style.cssText = "color:var(--text-muted);margin-bottom:16px;";
+
+    // --- Import section ---
     new Setting(containerEl)
-      .setName("Default layout")
-      .setDesc("The layout used when opening a new graph view.")
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOptions({
-            force: "Force-directed",
-            concentric: "Concentric",
-            tree: "Tree",
-            arc: "Arc",
-            sunburst: "Sunburst",
-          })
-          .setValue(this.plugin.settings.defaultLayout)
-          .onChange(async (value) => {
-            this.plugin.settings.defaultLayout = value as LayoutType;
-            await this.plugin.saveSettings();
-          })
+      .setName("設定をインポート")
+      .setDesc("JSON ファイルを選択して設定を読み込みます。現在の設定は上書きされます。")
+      .addButton((btn) =>
+        btn.setButtonText("インポート").onClick(() => {
+          const fileInput = document.createElement("input");
+          fileInput.type = "file";
+          fileInput.accept = ".json";
+          fileInput.style.display = "none";
+          document.body.appendChild(fileInput);
+          fileInput.addEventListener("change", async () => {
+            const file = fileInput.files?.[0];
+            document.body.removeChild(fileInput);
+            if (!file) return;
+            try {
+              const raw = await file.text();
+              const parsed = JSON.parse(raw) as Partial<GraphViewsSettings>;
+              this.plugin.settings = Object.assign({}, DEFAULT_SETTINGS, parsed);
+              this.plugin.settings.settingsJsonPath = file.name;
+              await this.plugin.saveSettings();
+              new Notice(`インポート完了: ${file.name}`);
+              this.display();
+            } catch (e) {
+              new Notice(`インポート失敗: ${(e as Error).message}`);
+            }
+          });
+          fileInput.click();
+        })
       );
 
+    // --- Vault path (for export target and vault-based import) ---
     new Setting(containerEl)
-      .setName("Node size")
-      .setDesc("Default radius for graph nodes.")
-      .addSlider((slider) =>
-        slider
-          .setLimits(3, 20, 1)
-          .setValue(this.plugin.settings.nodeSize)
-          .setDynamicTooltip()
-          .onChange(async (value) => {
-            this.plugin.settings.nodeSize = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Show labels")
-      .setDesc("Display node labels in the graph.")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.showLabels)
-          .onChange(async (value) => {
-            this.plugin.settings.showLabels = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Metadata fields")
-      .setDesc(
-        "YAML frontmatter fields to use for building relationships (comma-separated)."
-      )
+      .setName("設定 JSON ファイルパス")
+      .setDesc("Vault 内の JSON ファイルパス（例: settings/novel-graph.json）。エクスポート先に使用します。")
       .addText((text) =>
         text
-          .setPlaceholder("tags, category, characters, locations")
-          .setValue(this.plugin.settings.metadataFields.join(", "))
+          .setPlaceholder("settings/novel-graph.json")
+          .setValue(this.plugin.settings.settingsJsonPath)
           .onChange(async (value) => {
-            this.plugin.settings.metadataFields = value
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean);
+            this.plugin.settings.settingsJsonPath = value.trim();
             await this.plugin.saveSettings();
           })
       );
 
+    // --- Export button ---
     new Setting(containerEl)
-      .setName("Color field")
-      .setDesc("Frontmatter field used to color-code nodes.")
-      .addText((text) =>
-        text
-          .setPlaceholder("category")
-          .setValue(this.plugin.settings.colorField)
-          .onChange(async (value) => {
-            this.plugin.settings.colorField = value.trim();
-            await this.plugin.saveSettings();
-          })
+      .setName("設定をエクスポート")
+      .setDesc("現在の設定を JSON ファイルに書き出します。")
+      .addButton((btn) =>
+        btn.setButtonText("エクスポート").setCta().onClick(async () => {
+          const path = this.plugin.settings.settingsJsonPath;
+          if (!path) {
+            new Notice("JSON ファイルパスを指定してください。");
+            return;
+          }
+          try {
+            const dir = path.substring(0, path.lastIndexOf("/"));
+            if (dir && !(await this.app.vault.adapter.exists(dir))) {
+              await this.app.vault.adapter.mkdir(dir);
+            }
+            const data = JSON.stringify(this.plugin.settings, null, 2);
+            await this.app.vault.adapter.write(path, data);
+            new Notice(`エクスポート完了: ${path}`);
+          } catch (e) {
+            new Notice(`エクスポート失敗: ${(e as Error).message}`);
+          }
+        })
       );
 
-    new Setting(containerEl)
-      .setName("Group field")
-      .setDesc("Frontmatter field used to group nodes (for concentric shells, sunburst hierarchy).")
-      .addText((text) =>
-        text
-          .setPlaceholder("category")
-          .setValue(this.plugin.settings.groupField)
-          .onChange(async (value) => {
-            this.plugin.settings.groupField = value.trim();
-            await this.plugin.saveSettings();
-          })
-      );
+    // --- Preview: show current settings as read-only JSON ---
+    containerEl.createEl("h3", { text: "現在の設定（プレビュー）" });
 
-    // --- Enclosure section ---
-    containerEl.createEl("h3", { text: "Enclosure" });
-
-    new Setting(containerEl)
-      .setName("Enclosure minimum ratio")
-      .setDesc(
-        "Minimum fraction of total nodes a tag group must contain to display an enclosure. " +
-        "E.g. 0.05 = groups with fewer than 5% of all nodes are hidden."
-      )
-      .addSlider((slider) =>
-        slider
-          .setLimits(0, 0.3, 0.01)
-          .setValue(this.plugin.settings.enclosureMinRatio)
-          .setDynamicTooltip()
-          .onChange(async (value) => {
-            this.plugin.settings.enclosureMinRatio = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    // --- Ontology section ---
-    containerEl.createEl("h3", { text: "Ontology" });
-
-    new Setting(containerEl)
-      .setName("Inheritance fields")
-      .setDesc(
-        "Frontmatter field names treated as inheritance (is-a). Also matches @-prefixed inline fields (e.g. @Parent::). Comma-separated."
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder("parent, extends, up")
-          .setValue(this.plugin.settings.ontology.inheritanceFields.join(", "))
-          .onChange(async (value) => {
-            this.plugin.settings.ontology.inheritanceFields = value
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean);
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Aggregation fields")
-      .setDesc(
-        "Frontmatter field names treated as aggregation (has-a). Also matches @-prefixed inline fields (e.g. @Contains::). Comma-separated."
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder("contains, parts, has")
-          .setValue(this.plugin.settings.ontology.aggregationFields.join(", "))
-          .onChange(async (value) => {
-            this.plugin.settings.ontology.aggregationFields = value
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean);
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Show similar edges")
-      .setDesc("Display edges between similar notes/tags.")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.showSimilar)
-          .onChange(async (value) => {
-            this.plugin.settings.showSimilar = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Similar fields")
-      .setDesc(
-        "Frontmatter field names treated as similarity. Comma-separated."
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder("similar, related")
-          .setValue(this.plugin.settings.ontology.similarFields.join(", "))
-          .onChange(async (value) => {
-            this.plugin.settings.ontology.similarFields = value
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean);
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Tag hierarchy as inheritance")
-      .setDesc(
-        "Automatically create inheritance edges from nested tags (e.g. #entity/character)."
-      )
-      .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.ontology.useTagHierarchy)
-          .onChange(async (value) => {
-            this.plugin.settings.ontology.useTagHierarchy = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    // --- Group Presets section ---
-    containerEl.createEl("h3", { text: "Group Presets" });
-
-    const gpDesc = containerEl.createEl("p", {
-      text: 'JSON array of presets. Each: { "condition": { "layout": "force", ... }, "groups": [{ "expression": {...}, "color": "#hex" }] }',
-      cls: "setting-item-description",
-    });
-    gpDesc.style.fontSize = "0.85em";
-    gpDesc.style.marginBottom = "8px";
-
-    const gpTextarea = containerEl.createEl("textarea");
-    gpTextarea.style.width = "100%";
-    gpTextarea.style.minHeight = "120px";
-    gpTextarea.style.fontFamily = "monospace";
-    gpTextarea.style.fontSize = "0.85em";
-    gpTextarea.value = JSON.stringify(this.plugin.settings.groupPresets ?? [], null, 2);
-
-    const gpStatus = containerEl.createEl("div");
-    gpStatus.style.fontSize = "0.85em";
-    gpStatus.style.marginTop = "4px";
-
-    gpTextarea.addEventListener("input", async () => {
-      try {
-        const parsed = JSON.parse(gpTextarea.value);
-        if (!Array.isArray(parsed)) throw new Error("Must be an array");
-        this.plugin.settings.groupPresets = parsed;
-        await this.plugin.saveSettings();
-        gpStatus.textContent = "Saved.";
-        gpStatus.style.color = "var(--text-success)";
-      } catch (e) {
-        gpStatus.textContent = `Invalid JSON: ${(e as Error).message}`;
-        gpStatus.style.color = "var(--text-error)";
-      }
-    });
-
-    // --- Default Cluster Group Rules section ---
-    containerEl.createEl("h3", { text: "Default Cluster Group Rules" });
-
-    const cgDesc = containerEl.createEl("p", {
-      text: 'JSON array of rules. Each rule: { "groupBy": "tag"|"backlinks"|"node_type", "recursive": true|false }',
-      cls: "setting-item-description",
-    });
-    cgDesc.style.fontSize = "0.85em";
-    cgDesc.style.marginBottom = "8px";
-
-    const cgTextarea = containerEl.createEl("textarea");
-    cgTextarea.style.width = "100%";
-    cgTextarea.style.minHeight = "80px";
-    cgTextarea.style.fontFamily = "monospace";
-    cgTextarea.style.fontSize = "0.85em";
-    cgTextarea.value = JSON.stringify(this.plugin.settings.defaultClusterGroupRules ?? [], null, 2);
-
-    const cgStatus = containerEl.createEl("div");
-    cgStatus.style.fontSize = "0.85em";
-    cgStatus.style.marginTop = "4px";
-
-    cgTextarea.addEventListener("input", async () => {
-      try {
-        const parsed = JSON.parse(cgTextarea.value);
-        if (!Array.isArray(parsed)) throw new Error("Must be an array");
-        this.plugin.settings.defaultClusterGroupRules = parsed;
-        await this.plugin.saveSettings();
-        cgStatus.textContent = "Saved.";
-        cgStatus.style.color = "var(--text-success)";
-      } catch (e) {
-        cgStatus.textContent = `Invalid JSON: ${(e as Error).message}`;
-        cgStatus.style.color = "var(--text-error)";
-      }
-    });
-
-    // --- Directional Gravity section ---
-    containerEl.createEl("h3", { text: "Directional Gravity" });
-
-    const dgDesc = containerEl.createEl("p", {
-      text: 'JSON array of rules. Each rule: { "filter": "tag:character", "direction": "top"|"bottom"|"left"|"right"|<radians>, "strength": 0.1 }',
-      cls: "setting-item-description",
-    });
-    dgDesc.style.fontSize = "0.85em";
-    dgDesc.style.marginBottom = "8px";
-
-    const dgTextarea = containerEl.createEl("textarea");
-    dgTextarea.style.width = "100%";
-    dgTextarea.style.minHeight = "120px";
-    dgTextarea.style.fontFamily = "monospace";
-    dgTextarea.style.fontSize = "0.85em";
-    dgTextarea.value = JSON.stringify(
-      this.plugin.settings.directionalGravityRules,
-      null,
-      2
-    );
-
-    const dgStatus = containerEl.createEl("div");
-    dgStatus.style.fontSize = "0.85em";
-    dgStatus.style.marginTop = "4px";
-
-    dgTextarea.addEventListener("input", async () => {
-      try {
-        const parsed = JSON.parse(dgTextarea.value);
-        if (!Array.isArray(parsed)) throw new Error("Must be an array");
-        this.plugin.settings.directionalGravityRules = parsed;
-        await this.plugin.saveSettings();
-        dgStatus.textContent = "Saved.";
-        dgStatus.style.color = "var(--text-success)";
-      } catch (e) {
-        dgStatus.textContent = `Invalid JSON: ${(e as Error).message}`;
-        dgStatus.style.color = "var(--text-error)";
-      }
-    });
-
-    // --- Node Rules section ---
-    containerEl.createEl("h3", { text: "Node Rules" });
-
-    const nrDesc = containerEl.createEl("p", {
-      text: 'JSON array of rules. Each: { "query": "tag:character", "spacingMultiplier": 1.0, "gravityAngle": -1, "gravityStrength": 0.1 }. gravityAngle in degrees (0=right, 90=down, 180=left, 270=up, -1=none).',
-      cls: "setting-item-description",
-    });
-    nrDesc.style.fontSize = "0.85em";
-    nrDesc.style.marginBottom = "8px";
-
-    const nrTextarea = containerEl.createEl("textarea");
-    nrTextarea.style.width = "100%";
-    nrTextarea.style.minHeight = "120px";
-    nrTextarea.style.fontFamily = "monospace";
-    nrTextarea.style.fontSize = "0.85em";
-    nrTextarea.value = JSON.stringify(
-      this.plugin.settings.defaultNodeRules ?? [],
-      null,
-      2
-    );
-
-    const nrStatus = containerEl.createEl("div");
-    nrStatus.style.fontSize = "0.85em";
-    nrStatus.style.marginTop = "4px";
-
-    nrTextarea.addEventListener("input", async () => {
-      try {
-        const parsed = JSON.parse(nrTextarea.value);
-        if (!Array.isArray(parsed)) throw new Error("Must be an array");
-        this.plugin.settings.defaultNodeRules = parsed;
-        await this.plugin.saveSettings();
-        nrStatus.textContent = "Saved.";
-        nrStatus.style.color = "var(--text-success)";
-      } catch (e) {
-        nrStatus.textContent = `Invalid JSON: ${(e as Error).message}`;
-        nrStatus.style.color = "var(--text-error)";
-      }
-    });
+    const preview = containerEl.createEl("textarea");
+    preview.style.cssText = "width:100%;min-height:300px;font-family:monospace;font-size:0.85em;";
+    preview.readOnly = true;
+    preview.value = JSON.stringify(this.plugin.settings, null, 2);
   }
 }

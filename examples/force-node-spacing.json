@@ -1,0 +1,38 @@
+{
+  "defaultLayout": "force",
+  "nodeSize": 10,
+  "showLabels": true,
+  "metadataFields": ["tags", "category", "characters", "locations"],
+  "edgeFields": ["tags", "category"],
+  "colorField": "category",
+  "groupField": "category",
+  "ontology": {
+    "inheritanceFields": ["parent", "extends", "up"],
+    "aggregationFields": ["contains", "parts", "has"],
+    "similarFields": ["similar", "related"],
+    "useTagHierarchy": true,
+    "customMappings": {}
+  },
+  "showSimilar": false,
+  "directionalGravityRules": [],
+  "enclosureMinRatio": 0.05,
+  "groupPresets": [
+    {
+      "condition": { "tagDisplay": "enclosure" },
+      "groups": [],
+      "commonQueries": [{ "query": "tag:*", "recursive": false }]
+    }
+  ],
+  "defaultSortRules": [
+    { "key": "degree", "order": "desc" },
+    { "key": "label", "order": "asc" }
+  ],
+  "defaultClusterGroupRules": [{ "groupBy": "tag", "recursive": false }],
+  "defaultNodeRules": [
+    { "query": "tag:character", "spacingMultiplier": 3.0, "gravityAngle": -1, "gravityStrength": 0 },
+    { "query": "tag:location",  "spacingMultiplier": 2.0, "gravityAngle": -1, "gravityStrength": 0 },
+    { "query": "tag:scene",     "spacingMultiplier": 0.5, "gravityAngle": -1, "gravityStrength": 0 },
+    { "query": "*",             "spacingMultiplier": 1.0, "gravityAngle": -1, "gravityStrength": 0 }
+  ],
+  "settingsJsonPath": ""
+}
