@@ -279,6 +279,8 @@ export function buildPanel(
         { value: "tree", label: "Tree" },
         { value: "grid", label: "正方形" },
         { value: "triangle", label: "三角形" },
+        { value: "random", label: "無秩序" },
+        { value: "mountain", label: "Mountain" },
       ], panel.clusterArrangement, (v) => {
         panel.clusterArrangement = v as ClusterArrangement;
         cb.applyClusterForce();

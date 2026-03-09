@@ -13,6 +13,8 @@
  *  - concentric: concentric rings, radius ∝ group node count
  *  - tree: BFS layers top-down
  *  - grid: m×n grid sorted by degree
+ *  - mountain: peak-at-top with exponentially widening rows
+ *  - random: seeded scatter with collision avoidance
  *
  * Two independent controls:
  *  - nodeSpacing: minimum gap between adjacent nodes (nodeRadius × n)
@@ -150,7 +152,7 @@ export function buildClusterForce(
       if (t) { sx += t.x; sy += t.y; }
     }
     clusterCentroids.set(key, { x: sx / members.length, y: sy / members.length });
-    clusterRadii.set(key, estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale));
+    clusterRadii.set(key, estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement));
   }
 
   // Build node index for enclosure separation (if active)
@@ -235,7 +237,7 @@ function computeFlatTargets(
 
   if (nGroups === 1) {
     groupCenters.set(groupKeys[0], { x: cfg.centerX, y: cfg.centerY });
-  } else if (cfg.arrangement === "tree") {
+  } else if (cfg.arrangement === "tree" || cfg.arrangement === "mountain") {
     layoutGroupsHorizontal(groupKeys, groups, cfg, groupCenters);
   } else {
     layoutGroupsCircle(groupKeys, groups, cfg, groupCenters);
@@ -289,7 +291,7 @@ function computeHierarchicalTargets(
 
   if (nParents === 1) {
     parentCenters.set(parentKeys[0], { x: cfg.centerX, y: cfg.centerY });
-  } else if (cfg.arrangement === "tree") {
+  } else if (cfg.arrangement === "tree" || cfg.arrangement === "mountain") {
     layoutGroupsHorizontal(parentKeys, superGroups, cfg, parentCenters);
   } else {
     layoutGroupsCircle(parentKeys, superGroups, cfg, parentCenters);
@@ -320,7 +322,7 @@ function computeHierarchicalTargets(
     // Compute local sub-group centers around the parent center
     const subCenters = new Map<string, { x: number; y: number }>();
     const totalNodes = sorted.reduce((s, k) => s + (groups.get(k)?.length ?? 0), 0);
-    const parentR = estimateGroupRadius(totalNodes, cfg.nodeSize, cfg.groupScale);
+    const parentR = estimateGroupRadius(totalNodes, cfg.nodeSize, cfg.groupScale, cfg.arrangement);
 
     if (sorted.length <= 1) {
       subCenters.set(sorted[0], pCenter);
@@ -368,12 +370,16 @@ function layoutGroupsHorizontal(
 ) {
   // Estimate each group's width; total row width = sum of all group widths + gaps
   const groupWidths: number[] = [];
+  let totalNodes = 0;
   for (const key of keys) {
     const members = groups.get(key)!;
-    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale);
+    totalNodes += members.length;
+    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement);
     groupWidths.push(r * 2);
   }
-  const gap = cfg.nodeSize * cfg.groupScale * cfg.groupSpacing * 2;
+  // Gap scales with slider value AND sqrt of total node count
+  const nodeFactor = Math.sqrt(Math.max(totalNodes, 1));
+  const gap = cfg.nodeSize * cfg.groupSpacing * nodeFactor * 0.8;
   const totalW = groupWidths.reduce((s, w) => s + w, 0) + gap * (keys.length - 1);
 
   let xCursor = cfg.centerX - totalW / 2;
@@ -400,14 +406,17 @@ function layoutGroupsCircle(
   const nGroups = keys.length;
   // Estimate the largest group's footprint to prevent overlap
   let maxGroupRadius = 0;
-  for (const members of groups.values()) {
-    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale);
+  let totalNodes = 0;
+  for (const [, members] of groups) {
+    totalNodes += members.length;
+    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement);
     if (r > maxGroupRadius) maxGroupRadius = r;
   }
   // Circle must be large enough so adjacent groups don't overlap
   const minCircleR = (maxGroupRadius * 2 + 40) * nGroups / (2 * Math.PI);
-  // Floor scales with groupScale so even tiny groups move apart when scale increases
-  const floor = cfg.nodeSize * cfg.groupScale * 10;
+  // Floor scales with groupScale AND sqrt of total node count
+  const nodeFactor = Math.sqrt(Math.max(totalNodes, 1));
+  const floor = cfg.nodeSize * nodeFactor * 3;
   const groupRadius = Math.max(floor, minCircleR) * cfg.groupSpacing;
 
   for (let i = 0; i < nGroups; i++) {
@@ -424,9 +433,24 @@ function estimateGroupRadius(
   memberCount: number,
   nodeSize: number,
   nodeSpacingMul: number,
+  arrangement?: ClusterArrangement,
 ): number {
   const gap = nodeSize * 2 * nodeSpacingMul;
-  // Approximate footprint: √n nodes across × gap
+  if (arrangement === "mountain") {
+    // Mountain's widest row determines the radius — simulate row capacities
+    let remaining = memberCount;
+    let row = 0;
+    let maxCols = 1;
+    while (remaining > 0) {
+      const cap = row === 0 ? 1 : Math.ceil(1 + row * 1.6 + row * row * 0.3);
+      const actual = Math.min(cap, remaining);
+      if (actual > maxCols) maxCols = actual;
+      remaining -= actual;
+      row++;
+    }
+    return gap * maxCols / 2;
+  }
+  // Default: approximate footprint √n nodes across × gap
   return gap * Math.sqrt(memberCount) / 2;
 }
 
@@ -575,6 +599,8 @@ function computeOffsets(
     case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     case "grid": return gridOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     case "triangle": return triangleOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
+    case "random": return randomOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, nodeSpacingMap);
+    case "mountain": return mountainOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     default: return new Map();
   }
 }
@@ -871,6 +897,158 @@ function triangleOffsets(
       });
       idx++;
     }
+  }
+  return offsets;
+}
+
+// ---------------------------------------------------------------------------
+// Mountain — peak at top, exponentially widening rows toward base
+//
+// Row 0 holds 1 node (the peak — highest degree). Each subsequent row
+// holds more nodes than the previous, growing by an accelerating factor
+// so the silhouette resembles a mountain: narrow summit, wide base.
+//
+// Row height decreases toward the base (compressed foothills), while
+// row width increases, producing a flattened mountain aspect ratio.
+// ---------------------------------------------------------------------------
+
+function mountainOffsets(
+  members: GraphNode[],
+  degrees: Map<string, number>,
+  spacingMul: number,
+  groupScale: number,
+  nodeSize: number,
+  cmp: (a: GraphNode, b: GraphNode) => number,
+  nodeSpacingMap?: Map<string, number>,
+): Map<string, { dx: number; dy: number }> {
+  const sorted = [...members].sort(cmp);
+  const offsets = new Map<string, { dx: number; dy: number }>();
+  const n = sorted.length;
+  if (n === 0) return offsets;
+
+  const colSpacing = nodeSize * 2 * Math.max(spacingMul, groupScale);
+
+  // Build row capacities: row k gets ceil(1 + k * 1.6 + k²×0.3) nodes
+  // This creates accelerating growth: 1, 3, 5, 8, 12, 17, ...
+  const rows: number[] = [];
+  let remaining = n;
+  let row = 0;
+  while (remaining > 0) {
+    const cap = row === 0 ? 1 : Math.ceil(1 + row * 1.6 + row * row * 0.3);
+    const actual = Math.min(cap, remaining);
+    rows.push(actual);
+    remaining -= actual;
+    row++;
+  }
+  const numRows = rows.length;
+
+  // Row heights: taller near peak, compressed toward base
+  // Peak rows get full spacing, base rows get ~40% spacing
+  const rowHeights: number[] = [];
+  for (let r = 0; r < numRows; r++) {
+    const t = numRows > 1 ? r / (numRows - 1) : 0; // 0 = peak, 1 = base
+    const compression = 1.0 - t * 0.6; // 1.0 at peak → 0.4 at base
+    rowHeights.push(colSpacing * compression);
+  }
+
+  // Compute cumulative Y positions (peak at top = negative Y)
+  const yPositions: number[] = [0];
+  for (let r = 1; r < numRows; r++) {
+    yPositions.push(yPositions[r - 1] + rowHeights[r - 1]);
+  }
+  const totalH = yPositions[numRows - 1];
+
+  // Center vertically
+  const yOffset = -totalH / 2;
+
+  let idx = 0;
+  for (let r = 0; r < numRows; r++) {
+    const count = rows[r];
+    const y = yPositions[r] + yOffset;
+
+    // Row width: nodes spread evenly
+    const rowWidth = (count - 1) * colSpacing;
+
+    for (let c = 0; c < count && idx < n; c++) {
+      const ns = getSpacing(sorted[idx].id, nodeSpacingMap);
+      const x = count === 1 ? 0 : (c * colSpacing - rowWidth / 2) * ns;
+      offsets.set(sorted[idx].id, { dx: x, dy: y });
+      idx++;
+    }
+  }
+  return offsets;
+}
+
+// ---------------------------------------------------------------------------
+// Random — seeded scatter with collision avoidance
+//
+// Nodes are placed at pseudo-random positions within a disc whose radius
+// scales with group size. A simple hash of the node ID seeds position so
+// that the layout is deterministic (same data → same arrangement) yet
+// visually chaotic.
+// ---------------------------------------------------------------------------
+
+function randomOffsets(
+  members: GraphNode[],
+  degrees: Map<string, number>,
+  spacingMul: number,
+  groupScale: number,
+  nodeSize: number,
+  scaleByDegree: boolean,
+  nodeSpacingMap?: Map<string, number>,
+): Map<string, { dx: number; dy: number }> {
+  const offsets = new Map<string, { dx: number; dy: number }>();
+  const n = members.length;
+  if (n === 0) return offsets;
+
+  // Disc radius scales with member count (same formula as estimateGroupRadius)
+  const gap = nodeSize * 2 * Math.max(spacingMul, groupScale);
+  const discR = gap * Math.sqrt(n) / 2;
+
+  // Simple deterministic hash → [0,1) from node ID
+  function hashF(id: string): number {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) {
+      h = ((h << 5) - h + id.charCodeAt(i)) | 0;
+    }
+    return ((h >>> 0) % 10007) / 10007;
+  }
+
+  // Place each node using two hash values for angle and radius
+  const placed: { x: number; y: number; r: number }[] = [];
+  for (const nd of members) {
+    const nr = nodeRadius(nodeSize, degrees.get(nd.id) || 0, scaleByDegree);
+    const ns = getSpacing(nd.id, nodeSpacingMap);
+    const minDist = nr * 2 * spacingMul * ns;
+
+    // Generate candidate from hash
+    const h1 = hashF(nd.id);
+    const h2 = hashF(nd.id + "_2");
+    const angle = h1 * Math.PI * 2;
+    const radius = Math.sqrt(h2) * discR; // sqrt for uniform area distribution
+    let dx = radius * Math.cos(angle);
+    let dy = radius * Math.sin(angle);
+
+    // Nudge away from collisions (simple iterative push)
+    for (let iter = 0; iter < 8; iter++) {
+      let pushed = false;
+      for (const p of placed) {
+        const ddx = dx - p.x;
+        const ddy = dy - p.y;
+        const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+        const required = minDist + p.r;
+        if (dist < required && dist > 0.01) {
+          const push = (required - dist) * 0.6;
+          dx += (ddx / dist) * push;
+          dy += (ddy / dist) * push;
+          pushed = true;
+        }
+      }
+      if (!pushed) break;
+    }
+
+    placed.push({ x: dx, y: dy, r: minDist / 2 });
+    offsets.set(nd.id, { dx, dy });
   }
   return offsets;
 }
