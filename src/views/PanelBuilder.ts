@@ -1,6 +1,8 @@
-import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterGroupBy, ClusterArrangement } from "../types";
+import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterGroupBy, ClusterArrangement, ClusterGroupRule, GroupRule } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { repositionShell } from "../layouts/concentric";
+import type { QueryExpression, BoolOp } from "../utils/query-expr";
+import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
 
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
@@ -22,7 +24,7 @@ export interface PanelState {
   concentricRadiusStep: number;
   showOrbitRings: boolean;
   orbitAutoRotate: boolean;
-  groups: { query: string; color: string }[];
+  groups: GroupRule[];
   searchQuery: string;
   colorEdgesByRelation: boolean;
   colorNodesByCategory: boolean;
@@ -34,12 +36,11 @@ export interface PanelState {
   enclosureSpacing: number;
   directionalGravityRules: DirectionalGravityRule[];
   hoverHops: number;
-  clusterGroupBy: ClusterGroupBy;
+  clusterGroupRules: ClusterGroupRule[];
   clusterArrangement: ClusterArrangement;
   clusterNodeSpacing: number;
   clusterGroupScale: number;
   clusterGroupSpacing: number;
-  clusterRecursive: boolean;
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -71,12 +72,11 @@ export const DEFAULT_PANEL: PanelState = {
   enclosureSpacing: 1.5,
   directionalGravityRules: [],
   hoverHops: 1,
-  clusterGroupBy: "none" as ClusterGroupBy,
+  clusterGroupRules: [],
   clusterArrangement: "spiral" as ClusterArrangement,
   clusterNodeSpacing: 3.0,
   clusterGroupScale: 3.0,
   clusterGroupSpacing: 2.0,
-  clusterRecursive: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -96,6 +96,9 @@ export interface PanelCallbacks {
   invalidateData(): void;       // sets rawData = null then doRender
   restartSimulation(alpha: number): void;
   applyClusterForce(): void;
+  collectFieldSuggestions(): string[];
+  collectValueSuggestions(field: string): string[];
+  saveGroupPreset(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -204,9 +207,12 @@ export function buildPanel(
     const addBtn = body.createEl("button", { cls: "ngp-add-group", text: "新規グループ" });
     addBtn.addEventListener("click", () => {
       const idx = panel.groups.length;
-      panel.groups.push({ query: "", color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length] });
+      panel.groups.push({ expression: null, color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length] });
       renderGroupList(list, panel, cb);
     });
+    const saveBtn = body.createEl("button", { cls: "ngp-add-group", text: "プリセットとして保存" });
+    saveBtn.style.marginLeft = "4px";
+    saveBtn.addEventListener("click", () => cb.saveGroupPreset());
   });
 
   buildSection(panelEl, "表示", (body) => {
@@ -261,17 +267,6 @@ export function buildPanel(
 
   if (ctx.currentLayout === "force") {
     buildSection(panelEl, "クラスター配置", (body) => {
-      addSelect(body, "グループ分け", [
-        { value: "none", label: "なし" },
-        { value: "tag", label: "タグ" },
-        { value: "backlinks", label: "被リンク数" },
-        { value: "node_type", label: "ノードタイプ" },
-      ], panel.clusterGroupBy, (v) => {
-        panel.clusterGroupBy = v as ClusterGroupBy;
-        cb.applyClusterForce();
-        cb.rebuildPanel();
-        cb.restartSimulation(0.5);
-      });
       addSelect(body, "配置パターン", [
         { value: "spiral", label: "アルキメデスの螺旋" },
         { value: "concentric", label: "同心円" },
@@ -283,6 +278,21 @@ export function buildPanel(
         cb.rebuildPanel();
         cb.restartSimulation(0.5);
       });
+
+      const ruleHeader = body.createDiv({ cls: "setting-item" });
+      ruleHeader.createDiv({ cls: "setting-item-name", text: "グループ分けルール" });
+      const ruleListEl = body.createDiv({ cls: "ngp-cluster-rule-list" });
+      renderClusterRuleList(ruleListEl, panel, cb);
+
+      const addRuleBtn = body.createEl("button", { cls: "ngp-add-group", text: "＋ ルール追加" });
+      addRuleBtn.addEventListener("click", () => {
+        panel.clusterGroupRules.push({ groupBy: "tag", recursive: false });
+        renderClusterRuleList(ruleListEl, panel, cb);
+        cb.applyClusterForce();
+        cb.rebuildPanel();
+        cb.restartSimulation(0.5);
+      });
+
       addSlider(body, "ノード間隔 (半径×n)", 1, 10, 0.5, panel.clusterNodeSpacing, (v) => {
         panel.clusterNodeSpacing = v;
         cb.applyClusterForce();
@@ -295,11 +305,6 @@ export function buildPanel(
       });
       addSlider(body, "グループ間隔", 0.5, 5, 0.1, panel.clusterGroupSpacing, (v) => {
         panel.clusterGroupSpacing = v;
-        cb.applyClusterForce();
-        cb.restartSimulation(0.5);
-      });
-      addToggle(body, "再帰的グループ分割", panel.clusterRecursive, (v) => {
-        panel.clusterRecursive = v;
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
       });
@@ -405,7 +410,10 @@ function addDirectionToggle(container: HTMLElement, label: string, initial: 1 | 
 function renderGroupList(container: HTMLElement, panel: PanelState, cb: PanelCallbacks) {
   container.empty();
   panel.groups.forEach((g, i) => {
-    const row = container.createDiv({ cls: "ngp-group-item" });
+    const wrapper = container.createDiv();
+    const row = wrapper.createDiv({ cls: "ngp-group-item" });
+
+    // Color dot
     const colorDot = row.createDiv({ cls: "ngp-group-color" });
     colorDot.style.background = g.color;
     colorDot.addEventListener("click", () => {
@@ -414,11 +422,245 @@ function renderGroupList(container: HTMLElement, panel: PanelState, cb: PanelCal
       colorDot.style.background = next;
       cb.doRender();
     });
-    const input = row.createEl("input", { cls: "ngp-group-query", type: "text", placeholder: "検索クエリ..." });
-    input.value = g.query;
-    input.addEventListener("input", () => { g.query = input.value.toLowerCase(); cb.doRender(); });
+
+    // Expression text input with parse-on-input
+    const exprInput = row.createEl("input", { cls: "ngp-group-query", type: "text", placeholder: 'tag:"character" AND category:"person"' });
+    exprInput.value = g.expression ? serializeExpr(g.expression) : "";
+    exprInput.addEventListener("input", () => {
+      g.expression = parseQueryExpr(exprInput.value);
+      cb.doRender();
+    });
+
+    // Expand button → opens row-based editor
+    const expandBtn = row.createEl("span", { cls: "ngp-group-expand", text: "▼" });
+    expandBtn.style.cssText = "cursor:pointer;margin-left:4px;user-select:none;";
+    let editorEl: HTMLElement | null = null;
+    expandBtn.addEventListener("click", () => {
+      if (editorEl) {
+        editorEl.remove();
+        editorEl = null;
+        expandBtn.textContent = "▼";
+        // Sync text input with current expression
+        exprInput.value = g.expression ? serializeExpr(g.expression) : "";
+        return;
+      }
+      expandBtn.textContent = "▲";
+      editorEl = wrapper.createDiv({ cls: "ngp-expr-editor" });
+      editorEl.style.cssText = "padding:4px 0 4px 12px;border-left:2px solid var(--interactive-accent);margin:4px 0;";
+      renderExprEditor(editorEl, g, exprInput, cb);
+    });
+
+    // Remove button
     const rm = row.createEl("span", { cls: "ngp-group-remove", text: "\u00D7" });
-    rm.addEventListener("click", () => { panel.groups.splice(i, 1); renderGroupList(container, panel, cb); cb.doRender(); });
+    rm.addEventListener("click", () => {
+      panel.groups.splice(i, 1);
+      renderGroupList(container, panel, cb);
+      cb.doRender();
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Row-based expression editor (indent = parentheses)
+// ---------------------------------------------------------------------------
+
+interface ExprRow {
+  field: string;
+  value: string;
+  indent: number;
+  opBefore: BoolOp | null;  // null for first row
+}
+
+function exprToRows(expr: QueryExpression | null): ExprRow[] {
+  if (!expr) return [{ field: "label", value: "", indent: 0, opBefore: null }];
+  const rows: ExprRow[] = [];
+  flattenExpr(expr, 0, null, rows);
+  return rows;
+}
+
+function flattenExpr(expr: QueryExpression, indent: number, opBefore: BoolOp | null, rows: ExprRow[]): void {
+  if (expr.type === "leaf") {
+    rows.push({ field: expr.field, value: expr.value, indent, opBefore });
+    return;
+  }
+  // Left subtree keeps current indent and opBefore
+  flattenExpr(expr.left, indent, opBefore, rows);
+  // Right subtree: increase indent if it's a nested branch with different precedence
+  const rightIndent = expr.right.type === "branch" && needsGrouping(expr.op, expr.right.op) ? indent + 1 : indent;
+  flattenExpr(expr.right, rightIndent, expr.op, rows);
+}
+
+const HIGH_PREC_OPS_SET = new Set<BoolOp>(["AND", "NAND"]);
+
+function needsGrouping(parentOp: BoolOp, childOp: BoolOp): boolean {
+  return HIGH_PREC_OPS_SET.has(parentOp) && !HIGH_PREC_OPS_SET.has(childOp);
+}
+
+function rowsToExpr(rows: ExprRow[]): QueryExpression | null {
+  const valid = rows.filter(r => r.value.trim());
+  if (valid.length === 0) return null;
+  if (valid.length === 1) return { type: "leaf", field: valid[0].field, value: valid[0].value };
+  return buildExprFromRows(valid, 0, valid.length - 1);
+}
+
+function buildExprFromRows(rows: ExprRow[], start: number, end: number): QueryExpression | null {
+  if (start > end) return null;
+  if (start === end) {
+    return { type: "leaf", field: rows[start].field, value: rows[start].value };
+  }
+
+  // Find the minimum indent level in range
+  let minIndent = Infinity;
+  for (let i = start; i <= end; i++) {
+    if (rows[i].indent < minIndent) minIndent = rows[i].indent;
+  }
+
+  // Find split point: lowest-precedence op at minIndent (scan right to left for left-associativity)
+  const LOW_OPS = new Set<BoolOp>(["OR", "NOR", "XOR"]);
+  let splitIdx = -1;
+  let splitIsLow = false;
+
+  for (let i = start + 1; i <= end; i++) {
+    if (rows[i].indent !== minIndent || !rows[i].opBefore) continue;
+    const isLow = LOW_OPS.has(rows[i].opBefore!);
+    if (splitIdx === -1 || isLow || (!splitIsLow && !isLow)) {
+      splitIdx = i;
+      splitIsLow = isLow;
+    }
+  }
+
+  if (splitIdx === -1) {
+    return { type: "leaf", field: rows[start].field, value: rows[start].value };
+  }
+
+  const left = buildExprFromRows(rows, start, splitIdx - 1);
+  const right = buildExprFromRows(rows, splitIdx, end);
+  if (!left || !right) return left || right;
+
+  return { type: "branch", op: rows[splitIdx].opBefore!, left, right };
+}
+
+function renderExprEditor(container: HTMLElement, group: GroupRule, textInput: HTMLInputElement, cb: PanelCallbacks) {
+  const rows = exprToRows(group.expression);
+
+  function rebuild() {
+    group.expression = rowsToExpr(rows);
+    textInput.value = group.expression ? serializeExpr(group.expression) : "";
+    container.empty();
+    renderRows();
+    cb.doRender();
+  }
+
+  function renderRows() {
+    rows.forEach((row, i) => {
+      // Operator dropdown (between rows)
+      if (i > 0) {
+        const opRow = container.createDiv({ cls: "ngp-expr-op-row" });
+        opRow.style.paddingLeft = `${row.indent * 20}px`;
+        const opSel = opRow.createEl("select", { cls: "dropdown ngp-expr-op" });
+        for (const op of ["AND", "OR", "XOR", "NOR", "NAND"] as BoolOp[]) {
+          const el = opSel.createEl("option", { text: op, value: op });
+          if (op === (row.opBefore ?? "AND")) el.selected = true;
+        }
+        opSel.addEventListener("change", () => { row.opBefore = opSel.value as BoolOp; rebuild(); });
+      }
+
+      const rowEl = container.createDiv({ cls: "ngp-expr-row" });
+      rowEl.style.cssText = `display:flex;align-items:center;gap:4px;padding-left:${row.indent * 20}px;margin:2px 0;`;
+
+      // Field input
+      const fieldInput = rowEl.createEl("input", { cls: "ngp-expr-field", type: "text", placeholder: "field" });
+      fieldInput.value = row.field;
+      fieldInput.style.width = "70px";
+      fieldInput.addEventListener("input", () => { row.field = fieldInput.value; rebuild(); });
+
+      rowEl.createEl("span", { text: ":" });
+
+      // Value input
+      const valInput = rowEl.createEl("input", { cls: "ngp-expr-value", type: "text", placeholder: "value" });
+      valInput.value = row.value;
+      valInput.style.flex = "1";
+      valInput.addEventListener("input", () => { row.value = valInput.value; rebuild(); });
+
+      // Indent/dedent buttons
+      const indentBtn = rowEl.createEl("span", { cls: "ngp-expr-btn", text: "→" });
+      indentBtn.style.cssText = "cursor:pointer;user-select:none;";
+      indentBtn.addEventListener("click", () => { row.indent++; rebuild(); });
+      const dedentBtn = rowEl.createEl("span", { cls: "ngp-expr-btn", text: "←" });
+      dedentBtn.style.cssText = "cursor:pointer;user-select:none;";
+      dedentBtn.addEventListener("click", () => { row.indent = Math.max(0, row.indent - 1); rebuild(); });
+
+      // Delete button
+      const rmBtn = rowEl.createEl("span", { cls: "ngp-group-remove", text: "×" });
+      rmBtn.addEventListener("click", () => {
+        rows.splice(i, 1);
+        if (rows.length > 0 && rows[0].opBefore) rows[0].opBefore = null;
+        rebuild();
+      });
+    });
+
+    // Add row button
+    const addBtn = container.createEl("button", { cls: "ngp-add-group", text: "＋ 条件追加" });
+    addBtn.addEventListener("click", () => {
+      rows.push({ field: "label", value: "", indent: 0, opBefore: "AND" });
+      rebuild();
+    });
+  }
+
+  renderRows();
+}
+
+const CLUSTER_GROUP_OPTIONS: { value: string; label: string }[] = [
+  { value: "tag", label: "タグ" },
+  { value: "backlinks", label: "被リンク数" },
+  { value: "node_type", label: "ノードタイプ" },
+];
+
+function renderClusterRuleList(
+  container: HTMLElement,
+  panel: PanelState,
+  cb: PanelCallbacks,
+) {
+  container.empty();
+  const rules = panel.clusterGroupRules;
+  rules.forEach((rule, i) => {
+    const row = container.createDiv({ cls: "ngp-group-item" });
+
+    const groupSel = row.createEl("select", { cls: "dropdown" });
+    groupSel.style.flex = "1";
+    for (const opt of CLUSTER_GROUP_OPTIONS) {
+      const el = groupSel.createEl("option", { text: opt.label, value: opt.value });
+      if (opt.value === rule.groupBy) el.selected = true;
+    }
+    groupSel.addEventListener("change", () => {
+      rule.groupBy = groupSel.value as ClusterGroupBy;
+      cb.applyClusterForce();
+      cb.rebuildPanel();
+      cb.restartSimulation(0.5);
+    });
+
+    const recWrap = row.createEl("label");
+    recWrap.style.cssText = "margin-left:4px;display:flex;align-items:center;gap:2px;";
+    const recToggle = recWrap.createDiv({
+      cls: "checkbox-container" + (rule.recursive ? " is-enabled" : ""),
+    });
+    recWrap.createEl("span", { text: "再帰", cls: "ngp-hint" });
+    recToggle.addEventListener("click", () => {
+      rule.recursive = !rule.recursive;
+      recToggle.toggleClass("is-enabled", rule.recursive);
+      cb.applyClusterForce();
+      cb.restartSimulation(0.5);
+    });
+
+    const rm = row.createEl("span", { cls: "ngp-group-remove", text: "\u00D7" });
+    rm.style.marginLeft = "4px";
+    rm.addEventListener("click", () => {
+      rules.splice(i, 1);
+      renderClusterRuleList(container, panel, cb);
+      cb.applyClusterForce();
+      cb.rebuildPanel();
+      cb.restartSimulation(0.5);
+    });
   });
 }
 
