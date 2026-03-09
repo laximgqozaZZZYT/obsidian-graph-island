@@ -499,6 +499,10 @@
 }
 
 /* === Node Detail Side Pane === */
+.ngp-detail-root {
+  overflow-y: auto;
+}
+
 .ngp-detail-empty {
   color: var(--text-faint);
   font-size: var(--font-ui-small);
@@ -512,11 +516,121 @@
 }
 
 .ngp-detail-header {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+}
+
+.ngp-detail-meta {
+  margin-bottom: 6px;
+}
+
+.ngp-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.ngp-tag-pill {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-accent);
+  background: var(--background-modifier-hover);
+  border-radius: var(--radius-s);
+  padding: 1px 6px;
+}
+
+.ngp-detail-stats {
+  display: flex;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.ngp-stat {
+  white-space: nowrap;
 }
 
 .ngp-detail-open {
-  margin: 8px 0;
+  margin: 6px 0 8px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* --- Preview --- */
+.ngp-detail-preview {
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 8px;
+}
+
+.ngp-preview-content {
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  line-height: 1.5;
+  padding: 4px 0;
+}
+
+.ngp-preview-content p {
+  margin: 0 0 4px;
+}
+
+.ngp-preview-content h1,
+.ngp-preview-content h2,
+.ngp-preview-content h3,
+.ngp-preview-content h4 {
+  font-size: var(--font-ui-small);
+  margin: 4px 0 2px;
+}
+
+/* --- Section labels --- */
+.ngp-detail-section-label {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-medium);
+  color: var(--text-normal);
+  margin-bottom: 4px;
+  cursor: default;
+}
+
+/* --- Collapsible --- */
+.ngp-detail-collapsible {
+  margin-top: 8px;
+}
+
+.ngp-detail-collapsible > summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: disclosure-closed;
+}
+
+.ngp-detail-collapsible[open] > summary {
+  list-style: disclosure-open;
+  margin-bottom: 4px;
+}
+
+.ngp-detail-collapsible .ngp-ni-list {
+  max-height: 300px;
+}
+
+/* --- Properties table --- */
+.ngp-props-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-ui-smaller);
+  margin-top: 4px;
+}
+
+.ngp-props-key {
+  color: var(--text-muted);
+  padding: 2px 8px 2px 0;
+  vertical-align: top;
+  white-space: nowrap;
+  font-weight: var(--font-medium);
+  width: 1%;
+}
+
+.ngp-props-value {
+  color: var(--text-normal);
+  padding: 2px 0;
+  word-break: break-word;
 }

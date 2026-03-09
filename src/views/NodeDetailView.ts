@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile, MarkdownRenderer, Component } from "obsidian";
 import type { GraphNode } from "../types";
 
 export const VIEW_TYPE_NODE_DETAIL = "graph-node-detail";
@@ -8,28 +8,37 @@ export const VIEW_TYPE_NODE_DETAIL = "graph-node-detail";
  * Listens to the custom "graph-views:hover-node" workspace event.
  */
 export class NodeDetailView extends ItemView {
-  private eventRef: ReturnType<typeof this.app.workspace.on> | null = null;
+  private renderComponent: Component | null = null;
 
   getViewType() { return VIEW_TYPE_NODE_DETAIL; }
   getDisplayText() { return "Graph Node Detail"; }
   getIcon() { return "git-fork"; }
 
   async onOpen() {
+    this.contentEl.addClass("ngp-detail-root");
     this.contentEl.empty();
     this.renderEmpty();
 
-    // Listen for hover events from GraphViewContainer
-    this.eventRef = this.app.workspace.on(
-      "graph-views:hover-node" as any,
-      (node: GraphNode | null, adj: Map<string, Set<string>>, pixiNodes: Map<string, any>, degrees: Map<string, number>) => {
-        this.renderNode(node, adj, pixiNodes, degrees);
-      }
+    this.registerEvent(
+      this.app.workspace.on(
+        "graph-views:hover-node" as any,
+        (node: GraphNode | null, adj: Map<string, Set<string>>, pixiNodes: Map<string, any>, degrees: Map<string, number>) => {
+          this.renderNode(node, adj, pixiNodes, degrees);
+        }
+      )
     );
-    this.registerEvent(this.eventRef);
   }
 
   async onClose() {
+    this.cleanupRenderComponent();
     this.contentEl.empty();
+  }
+
+  private cleanupRenderComponent() {
+    if (this.renderComponent) {
+      this.renderComponent.unload();
+      this.renderComponent = null;
+    }
   }
 
   private renderEmpty() {
@@ -40,12 +49,13 @@ export class NodeDetailView extends ItemView {
     });
   }
 
-  private renderNode(
+  private async renderNode(
     node: GraphNode | null,
     adj: Map<string, Set<string>>,
     pixiNodes: Map<string, any>,
     degrees: Map<string, number>,
   ) {
+    this.cleanupRenderComponent();
     this.contentEl.empty();
 
     if (!node) {
@@ -55,7 +65,7 @@ export class NodeDetailView extends ItemView {
 
     const wrap = this.contentEl.createDiv({ cls: "ngp-detail-wrap" });
 
-    // --- Header ---
+    // === Header ===
     const header = wrap.createEl("div", { cls: "ngp-detail-header" });
     const nameEl = header.createEl("div", { cls: "ngp-ni-name" });
     nameEl.textContent = node.label;
@@ -63,18 +73,23 @@ export class NodeDetailView extends ItemView {
       nameEl.createEl("span", { cls: "ngp-ni-badge", text: "tag" });
     }
 
-    // --- Meta ---
-    if (node.category) {
-      wrap.createEl("div", { cls: "ngp-ni-meta", text: `カテゴリ: ${node.category}` });
-    }
+    // === Meta ===
+    const metaWrap = wrap.createEl("div", { cls: "ngp-detail-meta" });
     if (node.tags && node.tags.length > 0) {
-      wrap.createEl("div", { cls: "ngp-ni-meta", text: `タグ: ${node.tags.map(t => "#" + t).join(" ")}` });
+      const tagRow = metaWrap.createEl("div", { cls: "ngp-detail-tags" });
+      for (const t of node.tags) {
+        tagRow.createEl("span", { cls: "ngp-tag-pill", text: `#${t}` });
+      }
     }
 
     const deg = degrees.get(node.id) || 0;
-    wrap.createEl("div", { cls: "ngp-ni-meta", text: `リンク数: ${deg}` });
+    const statsRow = metaWrap.createEl("div", { cls: "ngp-detail-stats" });
+    statsRow.createEl("span", { cls: "ngp-stat", text: `リンク数: ${deg}` });
+    if (node.category) {
+      statsRow.createEl("span", { cls: "ngp-stat", text: `カテゴリ: ${node.category}` });
+    }
 
-    // --- Open file link ---
+    // === Open file ===
     if (node.filePath) {
       const openLink = wrap.createEl("div", { cls: "ngp-detail-open" });
       const btn = openLink.createEl("a", { cls: "ngp-ni-link", text: "ファイルを開く →" });
@@ -83,54 +98,156 @@ export class NodeDetailView extends ItemView {
       });
     }
 
-    // --- Backlinks from vault ---
+    // === File Preview (Markdown render) ===
     if (node.filePath) {
       const tf = this.app.vault.getAbstractFileByPath(node.filePath);
       if (tf instanceof TFile) {
-        const backlinks = this.getBacklinks(tf);
-        if (backlinks.length > 0) {
-          wrap.createEl("div", { cls: "ngp-ni-section-title", text: `バックリンク (${backlinks.length})` });
-          const list = wrap.createEl("ul", { cls: "ngp-ni-list" });
-          for (const bl of backlinks) {
-            const li = list.createEl("li", { cls: "ngp-ni-list-item" });
-            const link = li.createEl("span", { cls: "ngp-ni-link", text: bl.basename });
-            link.addEventListener("click", () => {
-              this.app.workspace.openLinkText(bl.path, "", false);
-            });
-          }
-        }
+        await this.renderPreview(wrap, tf);
+        this.renderProperties(wrap, tf);
+        this.renderBacklinks(wrap, tf);
       }
     }
 
-    // --- Linked nodes from graph ---
+    // === Linked nodes ===
     const neighbors = adj.get(node.id);
     if (neighbors && neighbors.size > 0) {
-      wrap.createEl("div", { cls: "ngp-ni-section-title", text: `リンク中のノード (${neighbors.size})` });
-      const list = wrap.createEl("ul", { cls: "ngp-ni-list" });
-      for (const nbId of neighbors) {
-        const nbPn = pixiNodes.get(nbId);
-        if (!nbPn) continue;
-        const li = list.createEl("li", { cls: "ngp-ni-list-item" });
-        const link = li.createEl("span", { cls: "ngp-ni-link", text: nbPn.data.label });
-        if (nbPn.data.isTag) {
-          li.createEl("span", { cls: "ngp-ni-badge", text: "tag" });
-        }
-        if (nbPn.data.filePath) {
-          link.addEventListener("click", () => {
-            this.app.workspace.openLinkText(nbPn.data.filePath!, "", false);
-          });
-        }
+      this.renderCollapsibleList(
+        wrap,
+        `リンク中のノード (${neighbors.size})`,
+        [...neighbors],
+        (nbId) => {
+          const nbPn = pixiNodes.get(nbId);
+          if (!nbPn) return null;
+          return {
+            label: nbPn.data.label,
+            isTag: nbPn.data.isTag,
+            filePath: nbPn.data.filePath,
+          };
+        },
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Preview
+  // ---------------------------------------------------------------------------
+
+  private async renderPreview(parent: HTMLElement, file: TFile) {
+    let content: string;
+    try {
+      content = await this.app.vault.cachedRead(file);
+    } catch {
+      return;
+    }
+    if (!content.trim()) return;
+
+    // Strip frontmatter
+    const stripped = content.replace(/^---[\s\S]*?---\n?/, "");
+    if (!stripped.trim()) return;
+
+    // Take first ~600 chars (enough for a preview)
+    const maxLen = 600;
+    let preview = stripped.slice(0, maxLen);
+    if (stripped.length > maxLen) preview += "\n\n…";
+
+    const section = parent.createEl("div", { cls: "ngp-detail-preview" });
+    section.createEl("div", { cls: "ngp-detail-section-label", text: "プレビュー" });
+
+    const previewContent = section.createEl("div", { cls: "ngp-preview-content" });
+
+    this.renderComponent = new Component();
+    this.renderComponent.load();
+
+    await MarkdownRenderer.render(
+      this.app,
+      preview,
+      previewContent,
+      file.path,
+      this.renderComponent,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Properties (frontmatter)
+  // ---------------------------------------------------------------------------
+
+  private renderProperties(parent: HTMLElement, file: TFile) {
+    const cache = this.app.metadataCache.getFileCache(file);
+    const fm = cache?.frontmatter;
+    if (!fm) return;
+
+    // Filter out Obsidian internal keys
+    const skip = new Set(["position", "cssclass", "cssclasses", "publish", "aliases"]);
+    const entries = Object.entries(fm).filter(([k]) => !skip.has(k) && !k.startsWith("_"));
+    if (entries.length === 0) return;
+
+    const details = parent.createEl("details", { cls: "ngp-detail-collapsible" });
+    details.createEl("summary", { cls: "ngp-detail-section-label", text: `プロパティ (${entries.length})` });
+
+    const table = details.createEl("table", { cls: "ngp-props-table" });
+    for (const [key, value] of entries) {
+      const tr = table.createEl("tr");
+      tr.createEl("td", { cls: "ngp-props-key", text: key });
+      const valTd = tr.createEl("td", { cls: "ngp-props-value" });
+      const display = Array.isArray(value) ? value.join(", ") : String(value ?? "");
+      valTd.textContent = display;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Backlinks
+  // ---------------------------------------------------------------------------
+
+  private renderBacklinks(parent: HTMLElement, file: TFile) {
+    const backlinks = this.getBacklinks(file);
+    if (backlinks.length === 0) return;
+
+    this.renderCollapsibleList(
+      parent,
+      `バックリンク (${backlinks.length})`,
+      backlinks,
+      (bl) => ({ label: bl.basename, isTag: false, filePath: bl.path }),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Collapsible list helper
+  // ---------------------------------------------------------------------------
+
+  private renderCollapsibleList<T>(
+    parent: HTMLElement,
+    title: string,
+    items: T[],
+    resolve: (item: T) => { label: string; isTag?: boolean; filePath?: string } | null,
+  ) {
+    const details = parent.createEl("details", { cls: "ngp-detail-collapsible" });
+    details.open = true;
+    details.createEl("summary", { cls: "ngp-detail-section-label", text: title });
+
+    const list = details.createEl("ul", { cls: "ngp-ni-list" });
+    for (const item of items) {
+      const info = resolve(item);
+      if (!info) continue;
+      const li = list.createEl("li", { cls: "ngp-ni-list-item" });
+      const link = li.createEl("span", { cls: "ngp-ni-link", text: info.label });
+      if (info.isTag) {
+        li.createEl("span", { cls: "ngp-ni-badge", text: "tag" });
+      }
+      if (info.filePath) {
+        link.addEventListener("click", () => {
+          this.app.workspace.openLinkText(info.filePath!, "", false);
+        });
       }
     }
   }
 
-  /**
-   * Get files that link TO the given file (backlinks) using Obsidian's metadataCache.
-   */
+  // ---------------------------------------------------------------------------
+  // Backlink resolver
+  // ---------------------------------------------------------------------------
+
   private getBacklinks(file: TFile): TFile[] {
     const resolved = this.app.metadataCache.resolvedLinks;
     const results: TFile[] = [];
-    // resolvedLinks: { [sourcePath]: { [targetPath]: linkCount } }
     for (const [sourcePath, targets] of Object.entries(resolved)) {
       if (targets[file.path]) {
         const sourceFile = this.app.vault.getAbstractFileByPath(sourcePath);
