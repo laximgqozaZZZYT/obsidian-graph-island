@@ -36,8 +36,7 @@ export interface PanelState {
   enclosureSpacing: number;
   directionalGravityRules: DirectionalGravityRule[];
   hoverHops: number;
-  commonQuery: string;
-  recursive: boolean;
+  commonQueries: { query: string; recursive: boolean }[];
   clusterGroupRules: ClusterGroupRule[];
   clusterArrangement: ClusterArrangement;
   clusterNodeSpacing: number;
@@ -75,8 +74,7 @@ export const DEFAULT_PANEL: PanelState = {
   enclosureSpacing: 1.5,
   directionalGravityRules: [],
   hoverHops: 1,
-  commonQuery: "",
-  recursive: false,
+  commonQueries: [],
   clusterGroupRules: [],
   clusterArrangement: "spiral" as ClusterArrangement,
   clusterNodeSpacing: 3.0,
@@ -210,21 +208,16 @@ export function buildPanel(
   });
 
   buildSection(panelEl, "グループ", (body) => {
-    // --- Common query (top) ---
-    const cqRow = body.createDiv({ cls: "setting-item" });
-    const cqInfo = cqRow.createDiv({ cls: "setting-item-info" });
-    cqInfo.createDiv({ cls: "setting-item-name", text: "共通クエリ" });
-    const cqControl = cqRow.createDiv({ cls: "setting-item-control" });
-    const cqInput = cqControl.createEl("input", { cls: "ngp-search", type: "text", placeholder: 'tag:* / category:*' });
-    cqInput.value = panel.commonQuery;
-    cqInput.addEventListener("input", () => {
-      panel.commonQuery = cqInput.value;
-      cb.deriveAndApplyClusterRules();
-    });
+    // --- Common queries (multi-level cluster grouping) ---
+    const cqHeader = body.createDiv({ cls: "setting-item" });
+    cqHeader.createDiv({ cls: "setting-item-name", text: "共通クエリ" });
+    const cqListEl = body.createDiv({ cls: "ngp-cq-list" });
+    renderCommonQueryList(cqListEl, panel, cb);
 
-    // --- Recursive toggle (right below common query) ---
-    addToggle(body, "再帰的分割", panel.recursive, (v) => {
-      panel.recursive = v;
+    const addCqBtn = body.createEl("button", { cls: "ngp-add-group", text: "＋ クエリ追加" });
+    addCqBtn.addEventListener("click", () => {
+      panel.commonQueries.push({ query: "tag:*", recursive: false });
+      renderCommonQueryList(cqListEl, panel, cb);
       cb.deriveAndApplyClusterRules();
     });
 
@@ -423,6 +416,45 @@ function addDirectionToggle(container: HTMLElement, label: string, initial: 1 | 
     const next: 1 | -1 = btn.textContent?.includes("時計回り ↻") ? -1 : 1;
     btn.textContent = next === 1 ? "時計回り ↻" : "反時計回り ↺";
     onChange(next);
+  });
+}
+
+function renderCommonQueryList(container: HTMLElement, panel: PanelState, cb: PanelCallbacks) {
+  container.empty();
+  panel.commonQueries.forEach((cq, i) => {
+    const row = container.createDiv({ cls: "ngp-group-item" });
+    row.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:2px;";
+
+    // Query input
+    const input = row.createEl("input", { cls: "ngp-search", type: "text", placeholder: "tag:* / category:*" });
+    input.style.cssText = "flex:1;min-width:0;";
+    input.value = cq.query;
+    input.addEventListener("input", () => {
+      cq.query = input.value;
+      cb.deriveAndApplyClusterRules();
+    });
+
+    // Recursive toggle (compact)
+    const recWrap = row.createEl("label");
+    recWrap.style.cssText = "display:flex;align-items:center;gap:2px;flex-shrink:0;";
+    const recToggle = recWrap.createDiv({
+      cls: "checkbox-container" + (cq.recursive ? " is-enabled" : ""),
+    });
+    recWrap.createEl("span", { text: "再帰", cls: "ngp-hint" });
+    recToggle.addEventListener("click", () => {
+      cq.recursive = !cq.recursive;
+      recToggle.toggleClass("is-enabled", cq.recursive);
+      cb.deriveAndApplyClusterRules();
+    });
+
+    // Remove button
+    const rm = row.createEl("span", { cls: "ngp-group-remove", text: "×" });
+    rm.style.cssText = "cursor:pointer;flex-shrink:0;font-size:14px;padding:2px 4px;opacity:0.6;";
+    rm.addEventListener("click", () => {
+      panel.commonQueries.splice(i, 1);
+      renderCommonQueryList(container, panel, cb);
+      cb.deriveAndApplyClusterRules();
+    });
   });
 }
 

@@ -23,34 +23,44 @@ import { buildClusterForce } from "../layouts/cluster-force";
 import { buildMultiSortComparator, type SortMetrics } from "../utils/sort";
 
 /**
- * Derive ClusterGroupRule[] from a commonQuery expression + recursive flag.
+ * Derive a single ClusterGroupRule from a query string + recursive flag.
  * Supports wildcard patterns like "tag:*" → groupBy: "tag".
  */
-function deriveClusterRulesFromExpr(queryText: string, recursive: boolean): ClusterGroupRule[] {
-  if (!queryText.trim()) return [];
+function deriveOneRule(queryText: string, recursive: boolean): ClusterGroupRule | null {
+  if (!queryText.trim()) return null;
   const expr = parseQueryExpr(queryText.trim());
-  if (!expr) return [];
-  // Handle single leaf with wildcard value: e.g. tag:*
+  if (!expr) return null;
   if (expr.type === "leaf" && expr.value === "*") {
     const fieldToGroupBy: Record<string, "tag" | "backlinks" | "node_type"> = {
       tag: "tag",
       category: "node_type",
     };
     const groupBy = fieldToGroupBy[expr.field];
-    if (groupBy) {
-      return [{ groupBy, recursive }];
-    }
+    if (groupBy) return { groupBy, recursive };
   }
-  // Fallback: if commonQuery exists but isn't a wildcard pattern,
-  // use tag grouping by default
-  return [{ groupBy: "tag", recursive }];
+  return { groupBy: "tag", recursive };
+}
+
+/** Derive ClusterGroupRule[] from multiple common queries (pipeline). */
+function deriveClusterRulesFromQueries(queries: { query: string; recursive: boolean }[]): ClusterGroupRule[] {
+  const rules: ClusterGroupRule[] = [];
+  for (const q of queries) {
+    const rule = deriveOneRule(q.query, q.recursive);
+    if (rule) rules.push(rule);
+  }
+  return rules;
 }
 
 function deriveClusterRules(preset: GroupPreset): ClusterGroupRule[] {
+  if (preset.commonQueries?.length) {
+    return deriveClusterRulesFromQueries(preset.commonQueries);
+  }
+  // Legacy: single commonQuery field
   const cq = preset.commonQuery;
   if (!cq?.expression) return [];
   const queryText = serializeExpr(cq.expression);
-  return deriveClusterRulesFromExpr(queryText, preset.recursive ?? false);
+  const rule = deriveOneRule(queryText, preset.recursive ?? false);
+  return rule ? [rule] : [];
 }
 
 export const VIEW_TYPE_GRAPH = "graph-view";
@@ -181,19 +191,24 @@ export class GraphViewContainer extends ItemView {
         ...g,
         expression: g.expression ? { ...g.expression } : null,
       }));
-      if (preset.commonQuery?.expression) {
-        this.panel.commonQuery = serializeExpr(preset.commonQuery.expression);
+      // Restore commonQueries from preset
+      if (preset.commonQueries?.length) {
+        this.panel.commonQueries = preset.commonQueries.map(q => ({ ...q }));
+      } else if (preset.commonQuery?.expression) {
+        // Legacy single commonQuery → convert to array
+        this.panel.commonQueries = [{
+          query: serializeExpr(preset.commonQuery.expression),
+          recursive: preset.recursive ?? false,
+        }];
       }
-      this.panel.recursive = preset.recursive ?? false;
       this.panel.clusterGroupRules = deriveClusterRules(preset);
       applied = true;
       break;
     }
-    // Fallback: enclosure mode should always have a commonQuery.
-    // Covers both: (1) no preset matched, (2) matched preset lacks commonQuery (old saved data)
-    if (this.panel.tagDisplay === "enclosure" && !this.panel.commonQuery) {
-      this.panel.commonQuery = "tag:*";
-      this.panel.clusterGroupRules = deriveClusterRulesFromExpr("tag:*", this.panel.recursive);
+    // Fallback: enclosure mode should always have a commonQuery
+    if (this.panel.tagDisplay === "enclosure" && this.panel.commonQueries.length === 0) {
+      this.panel.commonQueries = [{ query: "tag:*", recursive: false }];
+      this.panel.clusterGroupRules = deriveClusterRulesFromQueries(this.panel.commonQueries);
     }
   }
 
@@ -1339,10 +1354,7 @@ export class GraphViewContainer extends ItemView {
       applyDirectionalGravityForce: () => this.applyDirectionalGravityForce(),
       applyClusterForce: () => this.applyClusterForce(),
       deriveAndApplyClusterRules: () => {
-        this.panel.clusterGroupRules = deriveClusterRulesFromExpr(
-          this.panel.commonQuery,
-          this.panel.recursive,
-        );
+        this.panel.clusterGroupRules = deriveClusterRulesFromQueries(this.panel.commonQueries);
         this.applyClusterForce();
         if (this.simulation) { this.simulation.alpha(0.5).restart(); this.wakeRenderLoop(); }
       },
@@ -1378,13 +1390,8 @@ export class GraphViewContainer extends ItemView {
             tagDisplay: this.panel.tagDisplay,
           },
           groups: this.panel.groups.map(g => ({ ...g })),
-          recursive: this.panel.recursive,
+          commonQueries: this.panel.commonQueries.map(q => ({ ...q })),
         };
-        // Add commonQuery if present
-        const cqExpr = this.panel.commonQuery.trim() ? parseQueryExpr(this.panel.commonQuery.trim()) : null;
-        if (cqExpr) {
-          preset.commonQuery = { expression: cqExpr };
-        }
         this.plugin.settings.groupPresets.push(preset);
         this.plugin.saveSettings();
       },

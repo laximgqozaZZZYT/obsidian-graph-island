@@ -82,8 +82,11 @@ export interface GroupPreset {
     layout?: LayoutType;
   };
   groups: GroupRule[];
+  /** Multi-level common queries (new format) */
+  commonQueries?: { query: string; recursive: boolean }[];
+  /** @deprecated Legacy single common query — use commonQueries instead */
   commonQuery?: CommonGroupQuery;
-  /** Enable recursive connected-component splitting (effective when commonQuery is set) */
+  /** @deprecated Legacy recursive flag — use commonQueries instead */
   recursive?: boolean;
 }
 
@@ -214,8 +217,7 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
     {
       condition: { tagDisplay: "enclosure" },
       groups: [],
-      commonQuery: { expression: { type: "leaf", field: "tag", value: "*" } },
-      recursive: false,
+      commonQueries: [{ query: "tag:*", recursive: false }],
     },
   ],
   defaultSortRules: [{ key: "degree", order: "desc" }],
