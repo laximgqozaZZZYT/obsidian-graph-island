@@ -27,6 +27,7 @@
 | `src/views/PanelBuilder.ts` | `PanelState.groups` → `GroupRule[]`、行ベースUI |
 | `src/views/GraphViewContainer.ts` | `nodeColor` でAST評価、プリセット適用 |
 | `src/settings.ts` | プリセット永続設定UI |
+| `src/layouts/force.ts` | `matchesFilter` を QueryExpression 対応に更新 |
 
 ---
 
@@ -1083,7 +1084,82 @@ git commit -m "feat: save current groups as preset button"
 
 ---
 
-## Task 9: テスト全体実行 + 最終検証
+## Task 9: フィルタクエリ（検索バー + Directional Gravity）を QueryExpression 対応
+
+**Files:**
+- Modify: `src/views/GraphViewContainer.ts`
+- Modify: `src/views/PanelBuilder.ts`
+- Modify: `src/layouts/force.ts`
+- Modify: `tests/query-expr.test.ts`
+
+**Step 1: `matchesFilter` を `evaluateExpr` ベースに置換**
+
+`src/layouts/force.ts` の `matchesFilter` を更新し、文字列フィルタを `parseQueryExpr` でパースしてから `evaluateExpr` で評価するようにする:
+
+```typescript
+import { parseQueryExpr, evaluateExpr } from "../utils/query-expr";
+
+export function matchesFilter(node: GraphNode, filter: string): boolean {
+  if (filter === "*") return true;
+  const expr = parseQueryExpr(filter);
+  return evaluateExpr(expr, node);
+}
+```
+
+これにより Directional Gravity の `rule.filter` がそのまま新構文に対応する。
+
+**Step 2: 検索バー (`applySearch`) を QueryExpression 対応**
+
+`applySearch` のテキスト部分（`hop:` を除外した残り）を `parseQueryExpr` でパースし、`evaluateExpr` で評価するように更新:
+
+```typescript
+// 旧:
+const textMatch = hasText && pn.data.label.toLowerCase().includes(textParts[0]);
+
+// 新:
+import { parseQueryExpr, evaluateExpr } from "../utils/query-expr";
+// ...
+const searchExpr = hasText ? parseQueryExpr(trimmed) : null;
+// ...
+const textMatch = searchExpr !== null && evaluateExpr(searchExpr, pn.data);
+```
+
+`hop:` 構文は独立したまま維持（QueryExpression とは別処理）。
+
+**Step 3: テスト追加**
+
+`tests/query-expr.test.ts` に `matchesFilter` 互換性テストを追加:
+
+```typescript
+describe("matchesFilter compatibility", () => {
+  it("tag:character matches node with character tag", () => {
+    const expr = parseQueryExpr('tag:"character"');
+    const node = makeNode({ tags: ["character"] });
+    expect(evaluateExpr(expr, node)).toBe(true);
+  });
+
+  it("tag:character AND category:person", () => {
+    const expr = parseQueryExpr('tag:"character" AND category:"person"');
+    const node = makeNode({ tags: ["character"], category: "person" });
+    expect(evaluateExpr(expr, node)).toBe(true);
+  });
+});
+```
+
+**Step 4: ビルド + テスト**
+
+Run: `npm run build && npx vitest run`
+
+**Step 5: コミット**
+
+```bash
+git add src/layouts/force.ts src/views/GraphViewContainer.ts tests/query-expr.test.ts
+git commit -m "feat: filter query and search bar use QueryExpression syntax"
+```
+
+---
+
+## Task 10: テスト全体実行 + 最終検証
 
 **Step 1: 全テスト実行**
 
@@ -1097,3 +1173,6 @@ Expected: 全テストパス
 - 行エディタのインデントで括弧が正しく形成される
 - プリセット保存 → 次回読み込み時に自動適用
 - 設定 JSON textarea でプリセットの直接編集が可能
+- 検索バーで `tag:"character" OR label:"Alice"` が動作
+- Directional Gravity フィルタで新構文が使用可能
+- `matchesFilter("*", node)` → 全ノードマッチ（後方互換）
