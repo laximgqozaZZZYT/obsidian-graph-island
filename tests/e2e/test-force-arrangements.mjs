@@ -65,7 +65,7 @@ async function importAndScreenshot(page, sample) {
   }, { path: vaultPath, content: jsonContent });
 
   await page.evaluate(async ({ path, content }) => {
-    const plugin = app.plugins.plugins['novel-graph-views'];
+    const plugin = app.plugins.plugins['graph-views'];
     if (!plugin) return;
     const parsed = JSON.parse(content);
     const defaults = {
@@ -89,9 +89,9 @@ async function importAndScreenshot(page, sample) {
     const oldLeaves = app.workspace.getLeavesOfType('graph-view');
     for (const l of oldLeaves) l.detach();
     await new Promise(r => setTimeout(r, 200));
-    await app.plugins.disablePlugin('novel-graph-views');
+    await app.plugins.disablePlugin('graph-views');
     await new Promise(r => setTimeout(r, 500));
-    await app.plugins.enablePlugin('novel-graph-views');
+    await app.plugins.enablePlugin('graph-views');
     await new Promise(r => setTimeout(r, 500));
     const newLeaf = app.workspace.getLeaf('tab');
     await newLeaf.setViewState({ type: 'graph-view', active: true });
@@ -106,7 +106,7 @@ async function importAndScreenshot(page, sample) {
   const state = await page.evaluate(() => {
     const leaves = app.workspace.getLeavesOfType('graph-view');
     const view = leaves[0]?.view;
-    const plugin = app.plugins.plugins['novel-graph-views'];
+    const plugin = app.plugins.plugins['graph-views'];
     const s = plugin?.settings;
     return {
       arrangement: view?.panel?.clusterArrangement,
@@ -279,7 +279,7 @@ async function main() {
 
   // Restore defaults
   await page.evaluate(async () => {
-    const plugin = app.plugins.plugins['novel-graph-views'];
+    const plugin = app.plugins.plugins['graph-views'];
     if (!plugin) return;
     plugin.settings = {
       defaultLayout: "force", nodeSize: 8, showLabels: true,

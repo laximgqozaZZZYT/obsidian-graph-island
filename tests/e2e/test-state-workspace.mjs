@@ -20,7 +20,7 @@ async function main() {
   await page.evaluate(() => {
     const leaves = app.workspace.getLeavesOfType('graph-view');
     if (leaves.length === 0) {
-      app.commands.executeCommandById('novel-graph-views:open-graph-view');
+      app.commands.executeCommandById('graph-views:open-graph-view');
     }
   });
   await page.waitForTimeout(3000);

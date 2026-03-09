@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-graph-views",
+  "name": "obsidian-graph-island",
   "version": "0.1.0",
-  "description": "Multiple graph visualization layouts for Obsidian",
+  "description": "Graph Island — Multiple graph visualization layouts for Obsidian",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs watch",

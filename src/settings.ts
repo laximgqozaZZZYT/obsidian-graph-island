@@ -202,10 +202,10 @@ export class GraphViewsSettingTab extends PluginSettingTab {
     // --- Vault path (for export target and vault-based import) ---
     new Setting(containerEl)
       .setName("設定 JSON ファイルパス")
-      .setDesc("Vault 内の JSON ファイルパス（例: settings/novel-graph.json）。エクスポート先に使用します。")
+      .setDesc("Vault 内の JSON ファイルパス（例: settings/graph-island.json）。エクスポート先に使用します。")
       .addText((text) =>
         text
-          .setPlaceholder("settings/novel-graph.json")
+          .setPlaceholder("settings/graph-island.json")
           .setValue(this.plugin.settings.settingsJsonPath)
           .onChange(async (value) => {
             this.plugin.settings.settingsJsonPath = value.trim();

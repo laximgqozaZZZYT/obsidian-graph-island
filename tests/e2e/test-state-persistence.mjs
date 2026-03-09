@@ -24,7 +24,7 @@ async function main() {
   // Step 1: Find plugin ID
   const pluginId = await page.evaluate(() => {
     const plugins = Object.keys(app.plugins.plugins);
-    return plugins.find(id => id.includes('graph-view') || id.includes('novel-graph')) || 'novel-graph-views';
+    return plugins.find(id => id.includes('graph-view') || id.includes('graph-island')) || 'graph-views';
   });
   console.log('Plugin ID:', pluginId);
 
@@ -33,7 +33,7 @@ async function main() {
     const leaves = app.workspace.getLeavesOfType('graph-view');
     if (leaves.length === 0) {
       // Try to open via command
-      app.commands.executeCommandById('novel-graph-views:open-graph-view');
+      app.commands.executeCommandById('graph-views:open-graph-view');
     }
   });
   await page.waitForTimeout(3000);
@@ -146,7 +146,7 @@ async function main() {
     console.log('ERROR:', restoredState.error);
     // Try opening the view
     await page.evaluate(() => {
-      app.commands.executeCommandById('novel-graph-views:open-graph-view');
+      app.commands.executeCommandById('graph-views:open-graph-view');
     });
     await page.waitForTimeout(3000);
   }

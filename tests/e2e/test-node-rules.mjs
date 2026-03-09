@@ -21,7 +21,7 @@ async function main() {
   await page.evaluate(() => {
     const leaves = app.workspace.getLeavesOfType('graph-view');
     if (leaves.length === 0) {
-      app.commands.executeCommandById('novel-graph-views:open-graph-view');
+      app.commands.executeCommandById('graph-views:open-graph-view');
     }
   });
   await page.waitForTimeout(3000);
@@ -71,9 +71,9 @@ async function main() {
 
   console.log('\nReloading plugin...');
   await page.evaluate(async () => {
-    await app.plugins.disablePlugin('novel-graph-views');
+    await app.plugins.disablePlugin('graph-views');
     await new Promise(r => setTimeout(r, 1500));
-    await app.plugins.enablePlugin('novel-graph-views');
+    await app.plugins.enablePlugin('graph-views');
   });
   await page.waitForTimeout(4000);
 

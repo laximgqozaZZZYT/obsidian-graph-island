@@ -13,8 +13,8 @@ async function main() {
   const pluginId = await page.evaluate(() => {
     // Find the correct plugin ID
     const plugins = Object.keys(app.plugins.plugins);
-    const ours = plugins.find(id => id.includes('graph-view') || id.includes('novel-graph'));
-    return ours || 'novel-graph-views';
+    const ours = plugins.find(id => id.includes('graph-view') || id.includes('graph-island'));
+    return ours || 'graph-views';
   });
   console.log('Plugin ID:', pluginId);
   await page.evaluate(async (id) => {

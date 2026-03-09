@@ -1,0 +1,56 @@
+{
+  "defaultLayout": "force",
+  "nodeSize": 10,
+  "showLabels": true,
+  "metadataFields": ["tags", "category", "characters", "locations", "scenes", "foreshadowing"],
+  "edgeFields": ["tags", "category"],
+  "colorField": "category",
+  "groupField": "category",
+  "ontology": {
+    "inheritanceFields": ["parent", "archetype"],
+    "aggregationFields": ["contains", "belongs_to", "appears_in"],
+    "similarFields": ["similar", "contrast", "parallel"],
+    "useTagHierarchy": true,
+    "customMappings": {
+      "mentor": "inheritance",
+      "rival": "similar",
+      "setting": "aggregation"
+    }
+  },
+  "showSimilar": true,
+  "directionalGravityRules": [
+    { "filter": "tag:character", "direction": "top", "strength": 0.15 },
+    { "filter": "tag:location", "direction": "bottom", "strength": 0.1 },
+    { "filter": "tag:scene", "direction": "right", "strength": 0.08 }
+  ],
+  "enclosureMinRatio": 0.03,
+  "groupPresets": [
+    {
+      "condition": { "tagDisplay": "enclosure" },
+      "groups": [],
+      "commonQueries": [{ "query": "tag:*", "recursive": false }]
+    },
+    {
+      "condition": { "layout": "force" },
+      "groups": [
+        { "expression": { "type": "leaf", "field": "tag", "value": "character" }, "color": "#ec4899" },
+        { "expression": { "type": "leaf", "field": "tag", "value": "location" }, "color": "#10b981" },
+        { "expression": { "type": "leaf", "field": "tag", "value": "scene" }, "color": "#f59e0b" },
+        { "expression": { "type": "leaf", "field": "tag", "value": "item" }, "color": "#6366f1" }
+      ]
+    }
+  ],
+  "defaultSortRules": [
+    { "key": "degree", "order": "desc" },
+    { "key": "label", "order": "asc" }
+  ],
+  "defaultClusterGroupRules": [
+    { "groupBy": "tag", "recursive": false },
+    { "groupBy": "node_type", "recursive": true }
+  ],
+  "defaultNodeRules": [
+    { "query": "tag:character", "spacingMultiplier": 1.5, "gravityAngle": -1, "gravityStrength": 0 },
+    { "query": "tag:location", "spacingMultiplier": 2.0, "gravityAngle": -1, "gravityStrength": 0 }
+  ],
+  "settingsJsonPath": ""
+}
