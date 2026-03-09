@@ -206,6 +206,76 @@ export class GraphViewsSettingTab extends PluginSettingTab {
           })
       );
 
+    // --- Group Presets section ---
+    containerEl.createEl("h3", { text: "Group Presets" });
+
+    const gpDesc = containerEl.createEl("p", {
+      text: 'JSON array of presets. Each: { "condition": { "layout": "force", ... }, "groups": [{ "expression": {...}, "color": "#hex" }] }',
+      cls: "setting-item-description",
+    });
+    gpDesc.style.fontSize = "0.85em";
+    gpDesc.style.marginBottom = "8px";
+
+    const gpTextarea = containerEl.createEl("textarea");
+    gpTextarea.style.width = "100%";
+    gpTextarea.style.minHeight = "120px";
+    gpTextarea.style.fontFamily = "monospace";
+    gpTextarea.style.fontSize = "0.85em";
+    gpTextarea.value = JSON.stringify(this.plugin.settings.groupPresets ?? [], null, 2);
+
+    const gpStatus = containerEl.createEl("div");
+    gpStatus.style.fontSize = "0.85em";
+    gpStatus.style.marginTop = "4px";
+
+    gpTextarea.addEventListener("input", async () => {
+      try {
+        const parsed = JSON.parse(gpTextarea.value);
+        if (!Array.isArray(parsed)) throw new Error("Must be an array");
+        this.plugin.settings.groupPresets = parsed;
+        await this.plugin.saveSettings();
+        gpStatus.textContent = "Saved.";
+        gpStatus.style.color = "var(--text-success)";
+      } catch (e) {
+        gpStatus.textContent = `Invalid JSON: ${(e as Error).message}`;
+        gpStatus.style.color = "var(--text-error)";
+      }
+    });
+
+    // --- Default Cluster Group Rules section ---
+    containerEl.createEl("h3", { text: "Default Cluster Group Rules" });
+
+    const cgDesc = containerEl.createEl("p", {
+      text: 'JSON array of rules. Each rule: { "groupBy": "tag"|"backlinks"|"node_type", "recursive": true|false }',
+      cls: "setting-item-description",
+    });
+    cgDesc.style.fontSize = "0.85em";
+    cgDesc.style.marginBottom = "8px";
+
+    const cgTextarea = containerEl.createEl("textarea");
+    cgTextarea.style.width = "100%";
+    cgTextarea.style.minHeight = "80px";
+    cgTextarea.style.fontFamily = "monospace";
+    cgTextarea.style.fontSize = "0.85em";
+    cgTextarea.value = JSON.stringify(this.plugin.settings.defaultClusterGroupRules, null, 2);
+
+    const cgStatus = containerEl.createEl("div");
+    cgStatus.style.fontSize = "0.85em";
+    cgStatus.style.marginTop = "4px";
+
+    cgTextarea.addEventListener("input", async () => {
+      try {
+        const parsed = JSON.parse(cgTextarea.value);
+        if (!Array.isArray(parsed)) throw new Error("Must be an array");
+        this.plugin.settings.defaultClusterGroupRules = parsed;
+        await this.plugin.saveSettings();
+        cgStatus.textContent = "Saved.";
+        cgStatus.style.color = "var(--text-success)";
+      } catch (e) {
+        cgStatus.textContent = `Invalid JSON: ${(e as Error).message}`;
+        cgStatus.style.color = "var(--text-error)";
+      }
+    });
+
     // --- Directional Gravity section ---
     containerEl.createEl("h3", { text: "Directional Gravity" });
 
