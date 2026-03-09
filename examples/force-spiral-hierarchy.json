@@ -22,7 +22,7 @@
     {
       "condition": { "tagDisplay": "enclosure" },
       "groups": [],
-      "commonQueries": [{ "query": "tag:*", "recursive": false }]
+      "commonQueries": [{ "query": "backlinks:*", "recursive": false }]
     }
   ],
   "defaultSortRules": [

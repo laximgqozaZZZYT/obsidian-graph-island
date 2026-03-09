@@ -34,6 +34,7 @@ function deriveOneRule(queryText: string, recursive: boolean): ClusterGroupRule 
     const fieldToGroupBy: Record<string, "tag" | "backlinks" | "node_type"> = {
       tag: "tag",
       category: "node_type",
+      backlinks: "backlinks",
     };
     const groupBy = fieldToGroupBy[expr.field];
     if (groupBy) return { groupBy, recursive };
@@ -1419,12 +1420,6 @@ export class GraphViewContainer extends ItemView {
       applyDirectionalGravityForce: () => { this.applyNodeRulesForce(); this.requestSave(); },
       applyNodeRules: () => { this.applyNodeRulesForce(); this.applyClusterForce(); this.requestSave(); },
       applyClusterForce: () => { this.applyClusterForce(); this.requestSave(); },
-      deriveAndApplyClusterRules: () => {
-        this.panel.clusterGroupRules = deriveClusterRulesFromQueries(this.panel.commonQueries);
-        this.applyClusterForce();
-        if (this.simulation) { this.simulation.alpha(0.5).restart(); this.wakeRenderLoop(); }
-        this.requestSave();
-      },
       startOrbitAnimation: () => { this.startOrbitAnimation(); this.requestSave(); },
       stopOrbitAnimation: () => { this.stopOrbitAnimation(); this.requestSave(); },
       wakeRenderLoop: () => this.wakeRenderLoop(),
@@ -1451,13 +1446,18 @@ export class GraphViewContainer extends ItemView {
         return [...values].sort();
       },
       saveGroupPreset: () => {
+        // Reverse-derive commonQueries from clusterGroupRules for preset backward compat
+        const derivedQueries = this.panel.clusterGroupRules.map(r => {
+          const queryMap: Record<string, string> = { tag: "tag:*", node_type: "category:*", backlinks: "backlinks:*" };
+          return { query: queryMap[r.groupBy] ?? "tag:*", recursive: r.recursive };
+        });
         const preset: GroupPreset = {
           condition: {
             layout: this.currentLayout,
             tagDisplay: this.panel.tagDisplay,
           },
           groups: this.panel.groups.map(g => ({ ...g })),
-          commonQueries: this.panel.commonQueries.map(q => ({ ...q })),
+          commonQueries: derivedQueries,
         };
         this.plugin.settings.groupPresets.push(preset);
         this.plugin.saveSettings();

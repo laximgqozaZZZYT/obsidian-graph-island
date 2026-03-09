@@ -106,7 +106,6 @@ export interface PanelCallbacks {
   invalidateData(): void;       // sets rawData = null then doRender
   restartSimulation(alpha: number): void;
   applyClusterForce(): void;
-  deriveAndApplyClusterRules(): void;
   collectFieldSuggestions(): string[];
   collectValueSuggestions(field: string): string[];
   saveGroupPreset(): void;
@@ -216,20 +215,7 @@ export function buildPanel(
   }, "グラフに表示するノードとエッジを制御します。\n\n検索: field:value でノードをフィルタ\n  例: tag:character, hop:名前:2\n\nタグ表示:\n  ノード = タグ自体をノードとして表示\n  囲い = タグをノード群の包絡線として表示");
 
   buildSection(panelEl, "グループ", (body) => {
-    // --- Common queries (multi-level cluster grouping) ---
-    const cqHeader = body.createDiv({ cls: "setting-item" });
-    cqHeader.createDiv({ cls: "setting-item-name", text: "共通クエリ" });
-    const cqListEl = body.createDiv({ cls: "ngp-cq-list" });
-    renderCommonQueryList(cqListEl, panel, cb);
-
-    const addCqBtn = body.createEl("button", { cls: "ngp-add-group", text: "＋ クエリ追加" });
-    addCqBtn.addEventListener("click", () => {
-      panel.commonQueries.push({ query: "tag:*", recursive: false });
-      renderCommonQueryList(cqListEl, panel, cb);
-      cb.deriveAndApplyClusterRules();
-    });
-
-    // --- Group rules list ---
+    // --- Group color rules list ---
     const list = body.createDiv();
     renderGroupList(list, panel, cb);
     const addBtn = body.createEl("button", { cls: "ngp-add-group", text: "新規グループ" });
@@ -238,7 +224,7 @@ export function buildPanel(
       panel.groups.push({ expression: null, color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length] });
       renderGroupList(list, panel, cb);
     });
-  }, "共通クエリ: クラスタリングのグループ分けルール\n  tag:* = タグ別、category:* = ノードタイプ別\n  複数ルールはパイプライン方式で適用\n\nグループ色: ノードの色分けルール\n  クエリ記法でマッチするノードに色を割り当て\n  例: tag:character → 赤色");
+  }, "ノードの色分けルール\n  クエリ記法でマッチするノードに色を割り当て\n  例: tag:character → 赤色\n\nグループ分けルール（クラスター配置）は\n「クラスター配置」セクションで設定します");
 
   buildSection(panelEl, "表示", (body) => {
     addToggle(body, "矢印", panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); });
@@ -539,45 +525,6 @@ function addDirectionToggle(container: HTMLElement, label: string, initial: 1 | 
     const next: 1 | -1 = btn.textContent?.includes("時計回り ↻") ? -1 : 1;
     btn.textContent = next === 1 ? "時計回り ↻" : "反時計回り ↺";
     onChange(next);
-  });
-}
-
-function renderCommonQueryList(container: HTMLElement, panel: PanelState, cb: PanelCallbacks) {
-  container.empty();
-  panel.commonQueries.forEach((cq, i) => {
-    const row = container.createDiv({ cls: "ngp-group-item" });
-    row.style.cssText = "display:flex;align-items:center;gap:4px;margin-bottom:2px;";
-
-    // Query input
-    const input = row.createEl("input", { cls: "ngp-search", type: "text", placeholder: "tag:* / category:*" });
-    input.style.cssText = "flex:1;min-width:0;";
-    input.value = cq.query;
-    input.addEventListener("input", () => {
-      cq.query = input.value;
-      cb.deriveAndApplyClusterRules();
-    });
-
-    // Recursive toggle (compact)
-    const recWrap = row.createEl("label");
-    recWrap.style.cssText = "display:flex;align-items:center;gap:2px;flex-shrink:0;";
-    const recToggle = recWrap.createDiv({
-      cls: "checkbox-container" + (cq.recursive ? " is-enabled" : ""),
-    });
-    recWrap.createEl("span", { text: "再帰", cls: "ngp-hint" });
-    recToggle.addEventListener("click", () => {
-      cq.recursive = !cq.recursive;
-      recToggle.toggleClass("is-enabled", cq.recursive);
-      cb.deriveAndApplyClusterRules();
-    });
-
-    // Remove button
-    const rm = row.createEl("span", { cls: "ngp-group-remove", text: "×" });
-    rm.style.cssText = "cursor:pointer;flex-shrink:0;font-size:14px;padding:2px 4px;opacity:0.6;";
-    rm.addEventListener("click", () => {
-      panel.commonQueries.splice(i, 1);
-      renderCommonQueryList(container, panel, cb);
-      cb.deriveAndApplyClusterRules();
-    });
   });
 }
 
