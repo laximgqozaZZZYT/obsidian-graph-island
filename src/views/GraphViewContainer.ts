@@ -91,7 +91,7 @@ export class GraphViewContainer extends ItemView {
   private rawData: GraphData | null = null;
   private ac: AbortController | null = null;
   private statusEl: HTMLElement | null = null;
-  private panel: PanelState = { ...DEFAULT_PANEL };
+  private panel: PanelState = JSON.parse(JSON.stringify(DEFAULT_PANEL));
   private panelEl: HTMLElement | null = null;
   private simulation: Simulation<GraphNode, GraphEdge> | null = null;
   private highlightedNodeId: string | null = null;
@@ -240,18 +240,19 @@ export class GraphViewContainer extends ItemView {
   }
 
   async setState(state: any, result: any): Promise<void> {
+    await super.setState(state, result);
     if (state.layout && typeof state.layout === "string") {
       this.currentLayout = state.layout as LayoutType;
     }
     if (state.panel && typeof state.panel === "object") {
-      const saved = state.panel as Partial<PanelState>;
+      // Deep-clone the saved panel to avoid aliasing with Obsidian internals
+      const saved = JSON.parse(JSON.stringify(state.panel)) as Partial<PanelState>;
       for (const key of Object.keys(DEFAULT_PANEL) as (keyof PanelState)[]) {
         if (key in saved && saved[key] !== undefined) {
           (this.panel as any)[key] = saved[key];
         }
       }
     }
-    await super.setState(state, result);
     // If already rendered (onOpen completed), rebuild with restored state
     if (this.panelEl) {
       this.buildPanel();
