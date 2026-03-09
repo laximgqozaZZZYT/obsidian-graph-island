@@ -384,7 +384,7 @@ export class GraphViewContainer extends ItemView {
 
     // Ephemeral highlight from side-panel (property value hover, backlink hover)
     this.registerEvent(
-      this.app.workspace.on("graph-views:highlight-nodes" as any, (nodeIds: Set<string> | null) => {
+      this.app.workspace.on("graph-island:highlight-nodes" as any, (nodeIds: Set<string> | null) => {
         this.applyEphemeralHighlight(nodeIds);
       })
     );
@@ -937,7 +937,7 @@ export class GraphViewContainer extends ItemView {
    */
   private notifyDetailPane(node: GraphNode | null) {
     // Emit a custom event that NodeDetailView listens for
-    this.app.workspace.trigger("graph-views:hover-node", node, this.adj, this.pixiNodes, this.degrees);
+    this.app.workspace.trigger("graph-island:hover-node", node, this.adj, this.pixiNodes, this.degrees);
   }
 
   /**

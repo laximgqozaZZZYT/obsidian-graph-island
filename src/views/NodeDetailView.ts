@@ -6,7 +6,7 @@ export const VIEW_TYPE_NODE_DETAIL = "graph-node-detail";
 
 /**
  * Sidebar pane that shows details for the node hovered in the graph view.
- * Listens to the custom "graph-views:hover-node" workspace event.
+ * Listens to the custom "graph-island:hover-node" workspace event.
  */
 export class NodeDetailView extends ItemView {
   private renderComponent: Component | null = null;
@@ -42,7 +42,7 @@ export class NodeDetailView extends ItemView {
 
     this.registerEvent(
       this.app.workspace.on(
-        "graph-views:hover-node" as any,
+        "graph-island:hover-node" as any,
         (node: GraphNode | null, adj: Map<string, Set<string>>, pixiNodes: Map<string, any>, degrees: Map<string, number>) => {
           if (this.held && this.holdCaptured) return; // locked
           this.pixiNodes = pixiNodes;
@@ -84,7 +84,7 @@ export class NodeDetailView extends ItemView {
   // ---------------------------------------------------------------------------
 
   private triggerHighlight(nodeIds: Set<string> | null) {
-    this.app.workspace.trigger("graph-views:highlight-nodes" as any, nodeIds);
+    this.app.workspace.trigger("graph-island:highlight-nodes" as any, nodeIds);
   }
 
   /** Find all pixi node IDs whose frontmatter[key] contains `value` */
