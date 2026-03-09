@@ -186,6 +186,17 @@ export function applyTreeLayout(
       const levelNodes = tr.levels[lvl];
       if (!levelNodes) continue;
 
+      // Apply custom sort comparator to level nodes if provided
+      if (options?.sortComparator) {
+        const cmp = options.sortComparator;
+        levelNodes.sort((a, b) => {
+          const na = nodesMap.get(a);
+          const nb = nodesMap.get(b);
+          if (!na || !nb) return 0;
+          return cmp(na, nb);
+        });
+      }
+
       if (groupByCategory) {
         levelNodes.sort((a, b) => {
           const catA = nodesMap.get(a)?.category || "";

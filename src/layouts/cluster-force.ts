@@ -55,6 +55,8 @@ export interface ClusterForceConfig {
   tagMembership?: Map<string, Set<string>>;
   /** Enclosure spacing multiplier (default 1.5) */
   enclosureSpacing?: number;
+  /** Custom comparator for node sort order within each group */
+  sortComparator?: (a: GraphNode, b: GraphNode) => number;
 }
 
 /**
@@ -341,12 +343,15 @@ function computeOffsets(
   edges: GraphEdge[],
   cfg: ClusterForceConfig,
 ): Map<string, { dx: number; dy: number }> {
-  const { nodeSpacing, groupScale, nodeSize, scaleByDegree } = cfg;
+  const { nodeSpacing, groupScale, nodeSize, scaleByDegree, sortComparator } = cfg;
+  // Default sort: degree descending (preserves legacy behaviour)
+  const defaultSort = (a: GraphNode, b: GraphNode) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0);
+  const cmp = sortComparator ?? defaultSort;
   switch (cfg.arrangement) {
-    case "spiral": return spiralOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree);
-    case "concentric": return concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree);
-    case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, groupScale, nodeSize);
-    case "grid": return gridOffsets(members, degrees, nodeSpacing, groupScale, nodeSize);
+    case "spiral": return spiralOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp);
+    case "concentric": return concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp);
+    case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, groupScale, nodeSize, cmp);
+    case "grid": return gridOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp);
     default: return new Map();
   }
 }
@@ -367,8 +372,9 @@ function spiralOffsets(
   groupScale: number,
   nodeSize: number,
   scaleByDegree: boolean,
+  cmp: (a: GraphNode, b: GraphNode) => number,
 ): Map<string, { dx: number; dy: number }> {
-  const sorted = [...members].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
+  const sorted = [...members].sort(cmp);
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = sorted.length;
   if (n === 0) return offsets;
@@ -419,8 +425,9 @@ function concentricOffsets(
   groupScale: number,
   nodeSize: number,
   scaleByDegree: boolean,
+  cmp: (a: GraphNode, b: GraphNode) => number,
 ): Map<string, { dx: number; dy: number }> {
-  const sorted = [...members].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
+  const sorted = [...members].sort(cmp);
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = sorted.length;
   if (n === 0) return offsets;
@@ -479,6 +486,7 @@ function treeOffsets(
   spacingMul: number,
   groupScale: number,
   nodeSize: number,
+  cmp: (a: GraphNode, b: GraphNode) => number,
 ): Map<string, { dx: number; dy: number }> {
   const offsets = new Map<string, { dx: number; dy: number }>();
   if (members.length === 0) return offsets;
@@ -502,8 +510,8 @@ function treeOffsets(
     }
   }
 
-  // BFS from highest-degree node
-  const root = [...members].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0))[0];
+  // BFS from first node in sort order (highest priority)
+  const root = [...members].sort(cmp)[0];
   const visited = new Set<string>();
   const layers: string[][] = [];
   let queue = [root.id];
@@ -558,8 +566,9 @@ function gridOffsets(
   spacingMul: number,
   groupScale: number,
   nodeSize: number,
+  cmp: (a: GraphNode, b: GraphNode) => number,
 ): Map<string, { dx: number; dy: number }> {
-  const sorted = [...members].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
+  const sorted = [...members].sort(cmp);
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = sorted.length;
   // Grid cell spacing — combines both: nodeSpacing for horizontal, groupScale for overall

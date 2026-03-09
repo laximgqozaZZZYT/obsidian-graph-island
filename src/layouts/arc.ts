@@ -30,8 +30,10 @@ export function applyArcLayout(
   const nodes: GraphNode[] = graph.nodes.map((n) => ({ ...n }));
   const degrees = computeNodeDegrees(nodes, graph.edges);
 
-  // Sort by chosen criterion (descending importance)
-  if (sortBy === "degree") {
+  // Sort by custom comparator or fallback to sortBy option
+  if (options?.sortComparator) {
+    nodes.sort(options.sortComparator);
+  } else if (sortBy === "degree") {
     nodes.sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
   } else if (sortBy === "category") {
     nodes.sort((a, b) => (a.category || "").localeCompare(b.category || ""));

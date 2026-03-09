@@ -1,4 +1,4 @@
-import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupRule, GroupRule } from "../types";
+import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { repositionShell } from "../layouts/concentric";
 import type { QueryExpression, BoolOp } from "../utils/query-expr";
@@ -36,11 +36,14 @@ export interface PanelState {
   enclosureSpacing: number;
   directionalGravityRules: DirectionalGravityRule[];
   hoverHops: number;
+  commonQuery: string;
+  recursive: boolean;
   clusterGroupRules: ClusterGroupRule[];
   clusterArrangement: ClusterArrangement;
   clusterNodeSpacing: number;
   clusterGroupScale: number;
   clusterGroupSpacing: number;
+  sortRules: SortRule[];
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -72,11 +75,14 @@ export const DEFAULT_PANEL: PanelState = {
   enclosureSpacing: 1.5,
   directionalGravityRules: [],
   hoverHops: 1,
+  commonQuery: "",
+  recursive: false,
   clusterGroupRules: [],
   clusterArrangement: "spiral" as ClusterArrangement,
   clusterNodeSpacing: 3.0,
   clusterGroupScale: 3.0,
   clusterGroupSpacing: 2.0,
+  sortRules: [{ key: "degree" as SortKey, order: "desc" as SortOrder }],
 };
 
 // ---------------------------------------------------------------------------
@@ -96,6 +102,7 @@ export interface PanelCallbacks {
   invalidateData(): void;       // sets rawData = null then doRender
   restartSimulation(alpha: number): void;
   applyClusterForce(): void;
+  deriveAndApplyClusterRules(): void;
   collectFieldSuggestions(): string[];
   collectValueSuggestions(field: string): string[];
   saveGroupPreset(): void;
@@ -202,6 +209,25 @@ export function buildPanel(
   });
 
   buildSection(panelEl, "グループ", (body) => {
+    // --- Common query (top) ---
+    const cqRow = body.createDiv({ cls: "setting-item" });
+    const cqInfo = cqRow.createDiv({ cls: "setting-item-info" });
+    cqInfo.createDiv({ cls: "setting-item-name", text: "共通クエリ" });
+    const cqControl = cqRow.createDiv({ cls: "setting-item-control" });
+    const cqInput = cqControl.createEl("input", { cls: "ngp-search", type: "text", placeholder: 'tag:* / category:*' });
+    cqInput.value = panel.commonQuery;
+    cqInput.addEventListener("input", () => {
+      panel.commonQuery = cqInput.value;
+      cb.deriveAndApplyClusterRules();
+    });
+
+    // --- Recursive toggle (right below common query) ---
+    addToggle(body, "再帰的分割", panel.recursive, (v) => {
+      panel.recursive = v;
+      cb.deriveAndApplyClusterRules();
+    });
+
+    // --- Group rules list ---
     const list = body.createDiv();
     renderGroupList(list, panel, cb);
     const addBtn = body.createEl("button", { cls: "ngp-add-group", text: "新規グループ" });
@@ -293,6 +319,19 @@ export function buildPanel(
         panel.clusterGroupSpacing = v;
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
+      });
+      // --- Sort rules sub-section ---
+      const sortHeader = body.createDiv({ cls: "setting-item" });
+      sortHeader.createDiv({ cls: "setting-item-name", text: "ソート順" });
+      const sortListEl = body.createDiv({ cls: "ngp-sort-list" });
+      renderSortRuleList(sortListEl, panel, cb);
+
+      const addSortBtn = body.createEl("button", { cls: "ngp-add-group", text: "＋ ルール追加" });
+      addSortBtn.addEventListener("click", () => {
+        panel.sortRules.push({ key: "label", order: "asc" });
+        renderSortRuleList(sortListEl, panel, cb);
+        cb.applyClusterForce();
+        cb.doRender();
       });
     });
   }
@@ -396,12 +435,16 @@ function addDirectionToggle(container: HTMLElement, label: string, initial: 1 | 
 function renderGroupList(container: HTMLElement, panel: PanelState, cb: PanelCallbacks) {
   container.empty();
   panel.groups.forEach((g, i) => {
-    const wrapper = container.createDiv();
+    const wrapper = container.createDiv({ cls: "ngp-group-wrapper" });
+    wrapper.style.marginBottom = "4px";
+
+    // Top row: color dot + text input + expand + remove
     const row = wrapper.createDiv({ cls: "ngp-group-item" });
+    row.style.cssText = "display:flex;align-items:center;gap:4px;";
 
     // Color dot
     const colorDot = row.createDiv({ cls: "ngp-group-color" });
-    colorDot.style.background = g.color;
+    colorDot.style.cssText = `width:14px;height:14px;border-radius:50%;background:${g.color};cursor:pointer;flex-shrink:0;`;
     colorDot.addEventListener("click", () => {
       const next = DEFAULT_COLORS[(DEFAULT_COLORS.indexOf(g.color as typeof DEFAULT_COLORS[number]) + 1) % DEFAULT_COLORS.length];
       g.color = next;
@@ -411,6 +454,7 @@ function renderGroupList(container: HTMLElement, panel: PanelState, cb: PanelCal
 
     // Expression text input with parse-on-input
     const exprInput = row.createEl("input", { cls: "ngp-group-query", type: "text", placeholder: 'tag:"character" AND category:"person"' });
+    exprInput.style.cssText = "flex:1;min-width:0;";
     exprInput.value = g.expression ? serializeExpr(g.expression) : "";
     exprInput.addEventListener("input", () => {
       g.expression = parseQueryExpr(exprInput.value);
@@ -419,14 +463,13 @@ function renderGroupList(container: HTMLElement, panel: PanelState, cb: PanelCal
 
     // Expand button → opens row-based editor
     const expandBtn = row.createEl("span", { cls: "ngp-group-expand", text: "▼" });
-    expandBtn.style.cssText = "cursor:pointer;margin-left:4px;user-select:none;";
+    expandBtn.style.cssText = "cursor:pointer;user-select:none;flex-shrink:0;font-size:12px;padding:2px 4px;";
     let editorEl: HTMLElement | null = null;
     expandBtn.addEventListener("click", () => {
       if (editorEl) {
         editorEl.remove();
         editorEl = null;
         expandBtn.textContent = "▼";
-        // Sync text input with current expression
         exprInput.value = g.expression ? serializeExpr(g.expression) : "";
         return;
       }
@@ -437,7 +480,8 @@ function renderGroupList(container: HTMLElement, panel: PanelState, cb: PanelCal
     });
 
     // Remove button
-    const rm = row.createEl("span", { cls: "ngp-group-remove", text: "\u00D7" });
+    const rm = row.createEl("span", { cls: "ngp-group-remove", text: "×" });
+    rm.style.cssText = "cursor:pointer;flex-shrink:0;font-size:14px;padding:2px 4px;opacity:0.6;";
     rm.addEventListener("click", () => {
       panel.groups.splice(i, 1);
       renderGroupList(container, panel, cb);
@@ -594,6 +638,64 @@ function renderExprEditor(container: HTMLElement, group: GroupRule, textInput: H
   }
 
   renderRows();
+}
+
+const SORT_KEY_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: "degree", label: "リンク数" },
+  { value: "in-degree", label: "被リンク数" },
+  { value: "tag", label: "タグ" },
+  { value: "category", label: "カテゴリ" },
+  { value: "label", label: "ラベル" },
+  { value: "importance", label: "伝播重要度" },
+];
+
+function renderSortRuleList(
+  container: HTMLElement,
+  panel: PanelState,
+  cb: PanelCallbacks,
+) {
+  container.empty();
+  const rules = panel.sortRules;
+  rules.forEach((rule, i) => {
+    const row = container.createDiv({ cls: "ngp-group-item" });
+
+    // Sort key dropdown
+    const keySel = row.createEl("select", { cls: "dropdown" });
+    keySel.style.flex = "1";
+    for (const opt of SORT_KEY_OPTIONS) {
+      const el = keySel.createEl("option", { text: opt.label, value: opt.value });
+      if (opt.value === rule.key) el.selected = true;
+    }
+    keySel.addEventListener("change", () => {
+      rule.key = keySel.value as SortKey;
+      cb.applyClusterForce();
+      cb.doRender();
+    });
+
+    // Order toggle button
+    const orderBtn = row.createEl("button", {
+      cls: "ngp-direction-btn",
+      text: rule.order === "asc" ? "↑昇順" : "↓降順",
+    });
+    orderBtn.style.marginLeft = "4px";
+    orderBtn.style.minWidth = "60px";
+    orderBtn.addEventListener("click", () => {
+      rule.order = rule.order === "asc" ? "desc" : "asc";
+      orderBtn.textContent = rule.order === "asc" ? "↑昇順" : "↓降順";
+      cb.applyClusterForce();
+      cb.doRender();
+    });
+
+    // Remove button
+    const rm = row.createEl("span", { cls: "ngp-group-remove", text: "\u00D7" });
+    rm.style.marginLeft = "4px";
+    rm.addEventListener("click", () => {
+      rules.splice(i, 1);
+      renderSortRuleList(container, panel, cb);
+      cb.applyClusterForce();
+      cb.doRender();
+    });
+  });
 }
 
 function renderDirectionalGravityList(

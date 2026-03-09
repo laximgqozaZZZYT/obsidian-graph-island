@@ -87,6 +87,13 @@ export interface GroupPreset {
   recursive?: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Sort
+// ---------------------------------------------------------------------------
+export type SortKey = "degree" | "in-degree" | "tag" | "category" | "label" | "importance";
+export type SortOrder = "asc" | "desc";
+export interface SortRule { key: SortKey; order: SortOrder; }
+
 export interface DirectionalGravityRule {
   /** Filter: "tag:character", "category:protagonist", "isTag", "*" (all) etc. */
   filter: string;
@@ -102,6 +109,7 @@ export interface ConcentricLayoutOptions {
   minRadius?: number;
   radiusStep?: number;
   sortByInDegree?: boolean;
+  sortComparator?: (a: GraphNode, b: GraphNode) => number;
 }
 
 export interface TreeLayoutOptions {
@@ -113,6 +121,7 @@ export interface TreeLayoutOptions {
   groupByCategory?: boolean;
   categoryGap?: number;
   treeGap?: number;
+  sortComparator?: (a: GraphNode, b: GraphNode) => number;
 }
 
 export interface ArcLayoutOptions {
@@ -120,6 +129,7 @@ export interface ArcLayoutOptions {
   centerY?: number;
   radius?: number;
   sortBy?: "degree" | "category" | "label";
+  sortComparator?: (a: GraphNode, b: GraphNode) => number;
 }
 
 export interface SunburstData {
@@ -184,6 +194,8 @@ export interface GraphViewsSettings {
   enclosureMinRatio: number;
   /** Group presets applied on view load based on display state */
   groupPresets: GroupPreset[];
+  /** Default sort rules for node ordering in layouts */
+  defaultSortRules: SortRule[];
 }
 
 export const DEFAULT_SETTINGS: GraphViewsSettings = {
@@ -198,7 +210,15 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
   showSimilar: false,
   directionalGravityRules: [],
   enclosureMinRatio: 0.05,
-  groupPresets: [],
+  groupPresets: [
+    {
+      condition: { tagDisplay: "enclosure" },
+      groups: [],
+      commonQuery: { expression: { type: "leaf", field: "tag", value: "*" } },
+      recursive: false,
+    },
+  ],
+  defaultSortRules: [{ key: "degree", order: "desc" }],
 };
 
 export const DEFAULT_COLORS = [

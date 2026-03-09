@@ -44,9 +44,9 @@ interface EncData {
 }
 
 /** Minimum extra padding beyond node radius for the outline */
-const OUTLINE_PAD_MIN = 12;
+const OUTLINE_PAD_MIN = 4;
 /** Padding scales with node radius: pad = max(MIN, radius × factor) */
-const OUTLINE_PAD_FACTOR = 0.6;
+const OUTLINE_PAD_FACTOR = 0.5;
 /** Number of sample points around each node circle for hull generation */
 const HULL_SAMPLES = 12;
 
@@ -101,11 +101,16 @@ export function drawEnclosures(
   for (const [tag, memberIds] of cfg.tagMembership) {
     if (memberIds.size < minCount) continue;
 
-    const pts: (Pt & { radius: number })[] = [];
+    const allPts: (Pt & { radius: number })[] = [];
     for (const id of memberIds) {
       const p = cfg.resolvePos(id);
-      if (p) pts.push({ x: p.x, y: p.y, radius: p.radius ?? 6 });
+      if (p) allPts.push({ x: p.x, y: p.y, radius: p.radius ?? 6 });
     }
+    if (allPts.length < 1) continue;
+
+    // Filter outliers: keep only nodes within 1.5× IQR of centroid distance.
+    // This prevents scattered tag members from inflating the hull.
+    const pts = filterOutliers(allPts);
     if (pts.length < 1) continue;
 
     const colorKey = `tag:${tag}`;
@@ -177,15 +182,13 @@ export function drawEnclosures(
     const overlaps = overlapCache.counts.get(tag) || 0;
 
     // --- Stroke style ---
-    // Overlapping enclosures: thicker outline, slightly reduced alpha
     const baseLineAlpha = overlaps === 0 ? 0.7 : Math.max(0.45, 0.65 / (1 + overlaps * 0.1));
     const lineWidth = overlaps === 0 ? 2 : Math.max(2.5, 3 - overlaps * 0.3);
 
-    // --- Fill style (only when zoomed out AND no overlap) ---
-    // Overlapping enclosures: no fill — outline-only keeps the view clean
-    const fillAlpha = overlaps > 0
-      ? 0
-      : blend * 0.25;
+    // --- Fill style (zoomed-out: always show fill; overlapping: reduced alpha) ---
+    const fillAlpha = blend > 0
+      ? (overlaps > 0 ? blend * 0.08 : blend * 0.25)
+      : 0;
 
     let labelX = 0, labelY = 0;
     let labelCenterX = 0, labelCenterY = 0;
@@ -321,4 +324,29 @@ export function drawCapsule(g: PIXI.Graphics, p0: Pt, p1: Pt, radius: number) {
   const mid0l = { x: (d.x + a.x) / 2 - ux * r, y: (d.y + a.y) / 2 - uy * r };
   g.quadraticCurveTo(p0out.x, p0out.y, mid0l.x, mid0l.y);
   g.quadraticCurveTo(p0out.x, p0out.y, a.x, a.y);
+}
+
+/**
+ * Filter outlier points using IQR on distance from centroid.
+ * Keeps only points within Q3 + 1.5×IQR of the centroid, preventing
+ * spatially scattered tag members from inflating the convex hull.
+ */
+function filterOutliers<T extends Pt>(pts: T[]): T[] {
+  if (pts.length <= 3) return pts;
+
+  const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+  const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+
+  const dists = pts.map(p => Math.hypot(p.x - cx, p.y - cy));
+  const sorted = [...dists].sort((a, b) => a - b);
+  const q1 = sorted[Math.floor(sorted.length * 0.25)];
+  const q3 = sorted[Math.floor(sorted.length * 0.75)];
+  const iqr = q3 - q1;
+  const cutoff = q3 + 1.5 * iqr;
+
+  const result: T[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    if (dists[i] <= cutoff) result.push(pts[i]);
+  }
+  return result.length >= 1 ? result : pts;
 }

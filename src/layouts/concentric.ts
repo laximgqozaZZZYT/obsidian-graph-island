@@ -22,7 +22,11 @@ export function applyConcentricLayout(
     ? computeInDegree(nodes, graph.edges)
     : computeNodeDegrees(nodes, graph.edges);
 
-  nodes.sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
+  if (options?.sortComparator) {
+    nodes.sort(options.sortComparator);
+  } else {
+    nodes.sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
+  }
 
   const shellNodes: GraphNode[][] = [];
   let currentShell: GraphNode[] = [];

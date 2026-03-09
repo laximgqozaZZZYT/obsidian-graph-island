@@ -7,28 +7,29 @@ import { forceSimulation, forceManyBody, forceCenter, forceLink, type Simulation
 import type GraphViewsPlugin from "../main";
 import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule } from "../types";
 import { DEFAULT_COLORS } from "../types";
-import { evaluateExpr, parseQueryExpr } from "../utils/query-expr";
+import { evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { resolveDirection, matchesFilter } from "../layouts/force";
 import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
 import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
 import { applyTreeLayout } from "../layouts/tree";
 import { applyArcLayout } from "../layouts/arc";
 import { computeSunburstArcs } from "../layouts/sunburst";
-import { computeNodeDegrees } from "../analysis/graph-analysis";
+import { computeNodeDegrees, computeInDegree, computePropagatedImportance } from "../analysis/graph-analysis";
 import { yieldFrame, buildAdj, cssColorToHex } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, type EdgeDrawConfig } from "./EdgeRenderer";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
 import { buildClusterForce } from "../layouts/cluster-force";
+import { buildMultiSortComparator, type SortMetrics } from "../utils/sort";
 
 /**
- * Derive ClusterGroupRule[] from a GroupPreset's commonQuery.
+ * Derive ClusterGroupRule[] from a commonQuery expression + recursive flag.
  * Supports wildcard patterns like "tag:*" → groupBy: "tag".
  */
-function deriveClusterRules(preset: GroupPreset): ClusterGroupRule[] {
-  const cq = preset.commonQuery;
-  if (!cq?.expression) return [];
-  const expr = cq.expression;
+function deriveClusterRulesFromExpr(queryText: string, recursive: boolean): ClusterGroupRule[] {
+  if (!queryText.trim()) return [];
+  const expr = parseQueryExpr(queryText.trim());
+  if (!expr) return [];
   // Handle single leaf with wildcard value: e.g. tag:*
   if (expr.type === "leaf" && expr.value === "*") {
     const fieldToGroupBy: Record<string, "tag" | "backlinks" | "node_type"> = {
@@ -37,12 +38,19 @@ function deriveClusterRules(preset: GroupPreset): ClusterGroupRule[] {
     };
     const groupBy = fieldToGroupBy[expr.field];
     if (groupBy) {
-      return [{ groupBy, recursive: preset.recursive ?? false }];
+      return [{ groupBy, recursive }];
     }
   }
   // Fallback: if commonQuery exists but isn't a wildcard pattern,
   // use tag grouping by default
-  return [{ groupBy: "tag", recursive: preset.recursive ?? false }];
+  return [{ groupBy: "tag", recursive }];
+}
+
+function deriveClusterRules(preset: GroupPreset): ClusterGroupRule[] {
+  const cq = preset.commonQuery;
+  if (!cq?.expression) return [];
+  const queryText = serializeExpr(cq.expression);
+  return deriveClusterRulesFromExpr(queryText, preset.recursive ?? false);
 }
 
 export const VIEW_TYPE_GRAPH = "graph-view";
@@ -61,6 +69,7 @@ interface PixiNode {
   hoverLabel: PIXI.Text | null;
   radius: number;
   color: number;
+  held: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,11 +165,13 @@ export class GraphViewContainer extends ItemView {
     this.plugin = plugin;
     this.currentLayout = plugin.settings.defaultLayout;
     this.panel.nodeSize = plugin.settings.nodeSize;
+    this.panel.sortRules = [...(plugin.settings.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r }));
     this.applyGroupPresets();
   }
 
   private applyGroupPresets() {
     const presets = this.plugin.settings.groupPresets ?? [];
+    let applied = false;
     for (const preset of presets) {
       const cond = preset.condition;
       if (cond.layout && cond.layout !== this.currentLayout) continue;
@@ -170,9 +181,19 @@ export class GraphViewContainer extends ItemView {
         ...g,
         expression: g.expression ? { ...g.expression } : null,
       }));
-      // Derive clusterGroupRules from commonQuery
+      if (preset.commonQuery?.expression) {
+        this.panel.commonQuery = serializeExpr(preset.commonQuery.expression);
+      }
+      this.panel.recursive = preset.recursive ?? false;
       this.panel.clusterGroupRules = deriveClusterRules(preset);
+      applied = true;
       break;
+    }
+    // Fallback: enclosure mode should always have a commonQuery.
+    // Covers both: (1) no preset matched, (2) matched preset lacks commonQuery (old saved data)
+    if (this.panel.tagDisplay === "enclosure" && !this.panel.commonQuery) {
+      this.panel.commonQuery = "tag:*";
+      this.panel.clusterGroupRules = deriveClusterRulesFromExpr("tag:*", this.panel.recursive);
     }
   }
 
@@ -583,27 +604,24 @@ export class GraphViewContainer extends ItemView {
         return;
       }
       if (this.draggedNode) {
-        if (this.simulation) {
-          this.draggedNode.data.fx = null;
-          this.draggedNode.data.fy = null;
-          this.simulation.alphaTarget(0);
-        }
-        // Click (no drag) to open file
-        if (!this.hasDragged && this.draggedNode.data.filePath) {
-          if (Platform.isMobile) {
-            // On mobile: first tap = highlight, second tap = open
-            if (this.highlightedNodeId === this.draggedNode.data.id) {
-              this.app.workspace.openLinkText(this.draggedNode.data.filePath, "", false);
-            } else {
-              this.highlightedNodeId = this.draggedNode.data.id;
-              this.applyHover();
-              this.markDirty(true);
-            }
-          } else {
-            this.app.workspace.openLinkText(this.draggedNode.data.filePath, "", false);
+        const node = this.draggedNode;
+        if (!this.hasDragged) {
+          // Click (no drag) → toggle hold (pin position)
+          if (!e.ctrlKey && !e.metaKey) {
+            // Without Ctrl: clear all other holds first
+            this.clearAllHolds();
+          }
+          this.toggleHold(node);
+        } else {
+          // Drag ended — if node was held, keep it pinned; otherwise release
+          if (!node.held && this.simulation) {
+            node.data.fx = null;
+            node.data.fy = null;
           }
         }
+        if (this.simulation) this.simulation.alphaTarget(0);
         this.draggedNode = null;
+        this.markDirty(true);
       }
       this.isPanning = false;
     });
@@ -670,6 +688,29 @@ export class GraphViewContainer extends ItemView {
       }
     }
     return closest;
+  }
+
+  /** Toggle hold (pin) state for a node */
+  private toggleHold(pn: PixiNode) {
+    pn.held = !pn.held;
+    if (pn.held) {
+      pn.data.fx = pn.data.x;
+      pn.data.fy = pn.data.y;
+    } else {
+      pn.data.fx = null;
+      pn.data.fy = null;
+    }
+  }
+
+  /** Clear all held nodes */
+  private clearAllHolds() {
+    for (const pn of this.pixiNodes.values()) {
+      if (pn.held) {
+        pn.held = false;
+        pn.data.fx = null;
+        pn.data.fy = null;
+      }
+    }
   }
 
 
@@ -908,6 +949,15 @@ export class GraphViewContainer extends ItemView {
       g.lineStyle(1, strokeColor, alpha * 0.25);
       g.beginFill(pn.color, alpha);
       g.drawCircle(pn.data.x, pn.data.y, pn.radius);
+      g.endFill();
+    }
+
+    // Pass 3: Hold indicator ring for pinned nodes
+    for (const pn of visible) {
+      if (!pn.held) continue;
+      g.lineStyle(2, 0xffffff, 0.9);
+      g.beginFill(0, 0);
+      g.drawCircle(pn.data.x, pn.data.y, pn.radius + 4);
       g.endFill();
     }
   }
@@ -1152,7 +1202,7 @@ export class GraphViewContainer extends ItemView {
 
     this.pixiNodes.set(n.id, {
       data: n, gfx: container, circle, label,
-      hoverLabel: null, radius: r, color,
+      hoverLabel: null, radius: r, color, held: false,
     });
   }
 
@@ -1288,6 +1338,14 @@ export class GraphViewContainer extends ItemView {
       applyTextFade: () => this.applyTextFade(),
       applyDirectionalGravityForce: () => this.applyDirectionalGravityForce(),
       applyClusterForce: () => this.applyClusterForce(),
+      deriveAndApplyClusterRules: () => {
+        this.panel.clusterGroupRules = deriveClusterRulesFromExpr(
+          this.panel.commonQuery,
+          this.panel.recursive,
+        );
+        this.applyClusterForce();
+        if (this.simulation) { this.simulation.alpha(0.5).restart(); this.wakeRenderLoop(); }
+      },
       startOrbitAnimation: () => this.startOrbitAnimation(),
       stopOrbitAnimation: () => this.stopOrbitAnimation(),
       wakeRenderLoop: () => this.wakeRenderLoop(),
@@ -1320,7 +1378,13 @@ export class GraphViewContainer extends ItemView {
             tagDisplay: this.panel.tagDisplay,
           },
           groups: this.panel.groups.map(g => ({ ...g })),
+          recursive: this.panel.recursive,
         };
+        // Add commonQuery if present
+        const cqExpr = this.panel.commonQuery.trim() ? parseQueryExpr(this.panel.commonQuery.trim()) : null;
+        if (cqExpr) {
+          preset.commonQuery = { expression: cqExpr };
+        }
         this.plugin.settings.groupPresets.push(preset);
         this.plugin.saveSettings();
       },
@@ -1556,18 +1620,19 @@ export class GraphViewContainer extends ItemView {
     let ld: GraphData;
     this.shells = [];
     this.nodeShellIndex.clear();
+    const sortCmp = this.buildSortComparator(gd.nodes, gd.edges);
     switch (this.currentLayout) {
       case "concentric": {
-        const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy, minRadius: this.panel.concentricMinRadius, radiusStep: this.panel.concentricRadiusStep });
+        const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy, minRadius: this.panel.concentricMinRadius, radiusStep: this.panel.concentricRadiusStep, sortComparator: sortCmp });
         ld = result.data;
         this.shells = result.shells;
         this.shells.forEach((s, i) => s.nodeIds.forEach((id) => this.nodeShellIndex.set(id, i)));
         break;
       }
-      case "tree": ld = applyTreeLayout(gd, { startX: cx, startY: 40 }); break;
-      case "arc": ld = applyArcLayout(gd, { centerX: cx, centerY: cy, radius: Math.min(W, H) * 0.4 }); break;
+      case "tree": ld = applyTreeLayout(gd, { startX: cx, startY: 40, sortComparator: sortCmp }); break;
+      case "arc": ld = applyArcLayout(gd, { centerX: cx, centerY: cy, radius: Math.min(W, H) * 0.4, sortComparator: sortCmp }); break;
       default: {
-        const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy });
+        const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy, sortComparator: sortCmp });
         ld = result.data;
         this.shells = result.shells;
         this.shells.forEach((s, i) => s.nodeIds.forEach((id) => this.nodeShellIndex.set(id, i)));
@@ -1774,6 +1839,17 @@ export class GraphViewContainer extends ItemView {
    * Apply cluster arrangement force — computes absolute target positions
    * per group and blends nodes toward them with full velocity kill.
    */
+  private buildSortComparator(nodes: GraphNode[], edges: GraphEdge[]): ((a: GraphNode, b: GraphNode) => number) | undefined {
+    const rules = this.panel.sortRules;
+    if (!rules || rules.length === 0) return undefined;
+    const metrics: SortMetrics = { degrees: this.degrees };
+    const needsInDegree = rules.some(r => r.key === "in-degree");
+    const needsImportance = rules.some(r => r.key === "importance");
+    if (needsInDegree) metrics.inDegrees = computeInDegree(nodes, edges);
+    if (needsImportance) metrics.importance = computePropagatedImportance(nodes, edges);
+    return buildMultiSortComparator(rules, metrics);
+  }
+
   private applyClusterForce() {
     if (!this.simulation) return;
     const { clusterArrangement, clusterNodeSpacing, clusterGroupScale, clusterGroupSpacing } = this.panel;
@@ -1813,6 +1889,7 @@ export class GraphViewContainer extends ItemView {
         groupSpacing: clusterGroupSpacing,
         tagMembership: this.panel.tagDisplay === "enclosure" ? this.tagMembership : undefined,
         enclosureSpacing: this.panel.enclosureSpacing,
+        sortComparator: this.buildSortComparator(this.simulation.nodes(), this.graphEdges),
       },
     );
     this.simulation.force("clusterArrangement", forceFn as Force<GraphNode, GraphEdge> | null);
