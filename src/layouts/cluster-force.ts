@@ -76,22 +76,44 @@ export function buildClusterForce(
   }
   if (groups.size === 0) return null;
 
-  // Merge tiny groups (< minSize nodes) into a single "__other__" group
-  // to prevent hundreds of singleton groups from exploding the layout.
+  // Parent-aware merge: collapse small connected-component sub-groups
+  // back into their parent tag group, preserving tag-level structure.
   const minGroupSize = nodes.length >= 100 ? Math.max(3, Math.ceil(nodes.length * 0.005)) : 2;
-  const merged = new Map<string, GraphNode[]>();
-  let otherNodes: GraphNode[] = [];
-  for (const [key, members] of groups) {
-    if (members.length < minGroupSize) {
-      otherNodes = otherNodes.concat(members);
-    } else {
-      merged.set(key, members);
+  {
+    // Build parent → child key mapping from "::" separator
+    const pm = new Map<string, string[]>();
+    for (const key of groups.keys()) {
+      const parent = key.replace(/::.*$/, "");
+      if (!pm.has(parent)) pm.set(parent, []);
+      pm.get(parent)!.push(key);
     }
+    // Phase 1: merge small CCs back into their parent tag group
+    for (const [parent, children] of pm) {
+      if (children.length <= 1) continue;
+      let base = groups.get(parent) ?? [];
+      for (const ck of children) {
+        if (ck === parent) continue;
+        const members = groups.get(ck)!;
+        if (members.length < minGroupSize) {
+          base = base.concat(members);
+          groups.delete(ck);
+        }
+      }
+      groups.set(parent, base);
+    }
+    // Phase 2: merge remaining standalone tiny groups into __other__
+    const merged = new Map<string, GraphNode[]>();
+    let otherNodes: GraphNode[] = [];
+    for (const [key, members] of groups) {
+      if (members.length < minGroupSize) {
+        otherNodes = otherNodes.concat(members);
+      } else {
+        merged.set(key, members);
+      }
+    }
+    if (otherNodes.length > 0) merged.set("__other__", otherNodes);
+    groups = merged;
   }
-  if (otherNodes.length > 0) {
-    merged.set("__other__", otherNodes);
-  }
-  groups = merged;
   if (groups.size === 0) return null;
 
   const targets = computeAbsoluteTargets(groups, edges, degrees, cfg);
@@ -141,24 +163,42 @@ function computeAbsoluteTargets(
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
 ): Map<string, { x: number; y: number }> {
+  // Detect parent-child hierarchy from composite keys ("::" from splitByConnectedComponents)
+  const parentMap = new Map<string, string[]>();
+  for (const key of groups.keys()) {
+    const parent = key.replace(/::.*$/, "");
+    if (!parentMap.has(parent)) parentMap.set(parent, []);
+    parentMap.get(parent)!.push(key);
+  }
+  const hasHierarchy = [...parentMap.values()].some(ch => ch.length > 1);
+
+  if (hasHierarchy) {
+    return computeHierarchicalTargets(groups, parentMap, edges, degrees, cfg);
+  }
+  return computeFlatTargets(groups, edges, degrees, cfg);
+}
+
+/** Flat layout — all groups at the same level (no recursive split). */
+function computeFlatTargets(
+  groups: Map<string, GraphNode[]>,
+  edges: GraphEdge[],
+  degrees: Map<string, number>,
+  cfg: ClusterForceConfig,
+): Map<string, { x: number; y: number }> {
   const targets = new Map<string, { x: number; y: number }>();
   const groupKeys = [...groups.keys()];
   const nGroups = groupKeys.length;
 
-  // --- Compute group centers ---
   const groupCenters = new Map<string, { x: number; y: number }>();
 
   if (nGroups === 1) {
     groupCenters.set(groupKeys[0], { x: cfg.centerX, y: cfg.centerY });
   } else if (cfg.arrangement === "tree") {
-    // Tree: arrange groups in a horizontal row
     layoutGroupsHorizontal(groupKeys, groups, cfg, groupCenters);
   } else {
-    // All others: arrange groups on a circle
     layoutGroupsCircle(groupKeys, groups, cfg, groupCenters);
   }
 
-  // --- Compute intra-group offsets → absolute positions ---
   for (const [key, members] of groups) {
     const center = groupCenters.get(key)!;
     const offsets = computeOffsets(members, degrees, edges, cfg);
@@ -168,6 +208,105 @@ function computeAbsoluteTargets(
         x: center.x + (off?.dx ?? 0),
         y: center.y + (off?.dy ?? 0),
       });
+    }
+  }
+  return targets;
+}
+
+/**
+ * Two-level hierarchical layout for recursive splits.
+ *
+ * Level 1: Place parent groups (tag groups) using the normal inter-group layout.
+ * Level 2: Within each parent, spread sub-groups (connected components) locally
+ *          and apply intra-group arrangement within each sub-group.
+ */
+function computeHierarchicalTargets(
+  groups: Map<string, GraphNode[]>,
+  parentMap: Map<string, string[]>,
+  edges: GraphEdge[],
+  degrees: Map<string, number>,
+  cfg: ClusterForceConfig,
+): Map<string, { x: number; y: number }> {
+  const targets = new Map<string, { x: number; y: number }>();
+  const parentKeys = [...parentMap.keys()];
+
+  // Build virtual "super groups" to compute parent-level sizes
+  const superGroups = new Map<string, GraphNode[]>();
+  for (const [parent, childKeys] of parentMap) {
+    const all: GraphNode[] = [];
+    for (const ck of childKeys) {
+      const members = groups.get(ck);
+      if (members) all.push(...members);
+    }
+    superGroups.set(parent, all);
+  }
+
+  // Level 1: place parent centers
+  const parentCenters = new Map<string, { x: number; y: number }>();
+  const nParents = parentKeys.length;
+
+  if (nParents === 1) {
+    parentCenters.set(parentKeys[0], { x: cfg.centerX, y: cfg.centerY });
+  } else if (cfg.arrangement === "tree") {
+    layoutGroupsHorizontal(parentKeys, superGroups, cfg, parentCenters);
+  } else {
+    layoutGroupsCircle(parentKeys, superGroups, cfg, parentCenters);
+  }
+
+  // Level 2: within each parent, lay out sub-groups
+  for (const [parent, childKeys] of parentMap) {
+    const pCenter = parentCenters.get(parent)!;
+
+    if (childKeys.length === 1) {
+      // No sub-groups — single group, apply arrangement directly
+      const members = groups.get(childKeys[0])!;
+      const offsets = computeOffsets(members, degrees, edges, cfg);
+      for (const n of members) {
+        const off = offsets.get(n.id);
+        targets.set(n.id, {
+          x: pCenter.x + (off?.dx ?? 0),
+          y: pCenter.y + (off?.dy ?? 0),
+        });
+      }
+      continue;
+    }
+
+    // Multiple sub-groups: sort by size (largest first) and place in local arrangement
+    const sorted = [...childKeys].sort((a, b) =>
+      (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0));
+
+    // Compute local sub-group centers around the parent center
+    const subCenters = new Map<string, { x: number; y: number }>();
+    const totalNodes = sorted.reduce((s, k) => s + (groups.get(k)?.length ?? 0), 0);
+    const parentR = estimateGroupRadius(totalNodes, cfg.nodeSize, cfg.groupScale);
+
+    if (sorted.length <= 1) {
+      subCenters.set(sorted[0], pCenter);
+    } else {
+      // Place sub-groups in a local circle, radius proportional to parent footprint
+      const subCircleR = parentR * 0.6;
+      for (let i = 0; i < sorted.length; i++) {
+        const angle = (i / sorted.length) * Math.PI * 2 - Math.PI / 2;
+        subCenters.set(sorted[i], {
+          x: pCenter.x + subCircleR * Math.cos(angle),
+          y: pCenter.y + subCircleR * Math.sin(angle),
+        });
+      }
+    }
+
+    // Apply intra-group arrangement within each sub-group
+    for (const ck of sorted) {
+      const members = groups.get(ck);
+      if (!members) continue;
+      const center = subCenters.get(ck)!;
+      const offsets = computeOffsets(members, degrees, edges, cfg);
+      for (const n of members) {
+        const off = offsets.get(n.id);
+        targets.set(n.id, {
+          x: center.x + (off?.dx ?? 0),
+          y: center.y + (off?.dy ?? 0),
+        });
+      }
     }
   }
 
