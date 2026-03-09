@@ -1,4 +1,4 @@
-import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterGroupBy, ClusterArrangement, ClusterGroupRule, GroupRule } from "../types";
+import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupRule, GroupRule } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { repositionShell } from "../layouts/concentric";
 import type { QueryExpression, BoolOp } from "../utils/query-expr";
@@ -274,20 +274,6 @@ export function buildPanel(
         { value: "grid", label: "正方形" },
       ], panel.clusterArrangement, (v) => {
         panel.clusterArrangement = v as ClusterArrangement;
-        cb.applyClusterForce();
-        cb.rebuildPanel();
-        cb.restartSimulation(0.5);
-      });
-
-      const ruleHeader = body.createDiv({ cls: "setting-item" });
-      ruleHeader.createDiv({ cls: "setting-item-name", text: "グループ分けルール" });
-      const ruleListEl = body.createDiv({ cls: "ngp-cluster-rule-list" });
-      renderClusterRuleList(ruleListEl, panel, cb);
-
-      const addRuleBtn = body.createEl("button", { cls: "ngp-add-group", text: "＋ ルール追加" });
-      addRuleBtn.addEventListener("click", () => {
-        panel.clusterGroupRules.push({ groupBy: "tag", recursive: false });
-        renderClusterRuleList(ruleListEl, panel, cb);
         cb.applyClusterForce();
         cb.rebuildPanel();
         cb.restartSimulation(0.5);
@@ -608,60 +594,6 @@ function renderExprEditor(container: HTMLElement, group: GroupRule, textInput: H
   }
 
   renderRows();
-}
-
-const CLUSTER_GROUP_OPTIONS: { value: string; label: string }[] = [
-  { value: "tag", label: "タグ" },
-  { value: "backlinks", label: "被リンク数" },
-  { value: "node_type", label: "ノードタイプ" },
-];
-
-function renderClusterRuleList(
-  container: HTMLElement,
-  panel: PanelState,
-  cb: PanelCallbacks,
-) {
-  container.empty();
-  const rules = panel.clusterGroupRules;
-  rules.forEach((rule, i) => {
-    const row = container.createDiv({ cls: "ngp-group-item" });
-
-    const groupSel = row.createEl("select", { cls: "dropdown" });
-    groupSel.style.flex = "1";
-    for (const opt of CLUSTER_GROUP_OPTIONS) {
-      const el = groupSel.createEl("option", { text: opt.label, value: opt.value });
-      if (opt.value === rule.groupBy) el.selected = true;
-    }
-    groupSel.addEventListener("change", () => {
-      rule.groupBy = groupSel.value as ClusterGroupBy;
-      cb.applyClusterForce();
-      cb.rebuildPanel();
-      cb.restartSimulation(0.5);
-    });
-
-    const recWrap = row.createEl("label");
-    recWrap.style.cssText = "margin-left:4px;display:flex;align-items:center;gap:2px;";
-    const recToggle = recWrap.createDiv({
-      cls: "checkbox-container" + (rule.recursive ? " is-enabled" : ""),
-    });
-    recWrap.createEl("span", { text: "再帰", cls: "ngp-hint" });
-    recToggle.addEventListener("click", () => {
-      rule.recursive = !rule.recursive;
-      recToggle.toggleClass("is-enabled", rule.recursive);
-      cb.applyClusterForce();
-      cb.restartSimulation(0.5);
-    });
-
-    const rm = row.createEl("span", { cls: "ngp-group-remove", text: "\u00D7" });
-    rm.style.marginLeft = "4px";
-    rm.addEventListener("click", () => {
-      rules.splice(i, 1);
-      renderClusterRuleList(container, panel, cb);
-      cb.applyClusterForce();
-      cb.rebuildPanel();
-      cb.restartSimulation(0.5);
-    });
-  });
 }
 
 function renderDirectionalGravityList(

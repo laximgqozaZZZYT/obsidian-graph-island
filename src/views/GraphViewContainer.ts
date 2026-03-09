@@ -5,7 +5,7 @@ import { zoom as d3zoom } from "d3-zoom";
 import { arc as d3arc } from "d3-shape";
 import { forceSimulation, forceManyBody, forceCenter, forceLink, type Simulation, type Force } from "d3-force";
 import type GraphViewsPlugin from "../main";
-import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset } from "../types";
+import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { evaluateExpr, parseQueryExpr } from "../utils/query-expr";
 import { resolveDirection, matchesFilter } from "../layouts/force";
@@ -20,6 +20,30 @@ import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type 
 import { drawEdges as drawEdgesImpl, type EdgeDrawConfig } from "./EdgeRenderer";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
 import { buildClusterForce } from "../layouts/cluster-force";
+
+/**
+ * Derive ClusterGroupRule[] from a GroupPreset's commonQuery.
+ * Supports wildcard patterns like "tag:*" → groupBy: "tag".
+ */
+function deriveClusterRules(preset: GroupPreset): ClusterGroupRule[] {
+  const cq = preset.commonQuery;
+  if (!cq?.expression) return [];
+  const expr = cq.expression;
+  // Handle single leaf with wildcard value: e.g. tag:*
+  if (expr.type === "leaf" && expr.value === "*") {
+    const fieldToGroupBy: Record<string, "tag" | "backlinks" | "node_type"> = {
+      tag: "tag",
+      category: "node_type",
+    };
+    const groupBy = fieldToGroupBy[expr.field];
+    if (groupBy) {
+      return [{ groupBy, recursive: preset.recursive ?? false }];
+    }
+  }
+  // Fallback: if commonQuery exists but isn't a wildcard pattern,
+  // use tag grouping by default
+  return [{ groupBy: "tag", recursive: preset.recursive ?? false }];
+}
 
 export const VIEW_TYPE_GRAPH = "graph-view";
 
@@ -132,7 +156,6 @@ export class GraphViewContainer extends ItemView {
     this.plugin = plugin;
     this.currentLayout = plugin.settings.defaultLayout;
     this.panel.nodeSize = plugin.settings.nodeSize;
-    this.panel.clusterGroupRules = [...(plugin.settings.defaultClusterGroupRules ?? [])].map(r => ({ ...r }));
     this.applyGroupPresets();
   }
 
@@ -142,16 +165,13 @@ export class GraphViewContainer extends ItemView {
       const cond = preset.condition;
       if (cond.layout && cond.layout !== this.currentLayout) continue;
       if (cond.tagDisplay && cond.tagDisplay !== this.panel.tagDisplay) continue;
-      if (cond.clusterGroupRules) {
-        const cur = JSON.stringify(this.panel.clusterGroupRules);
-        const exp = JSON.stringify(cond.clusterGroupRules);
-        if (cur !== exp) continue;
-      }
       // Match found — apply preset
       this.panel.groups = preset.groups.map(g => ({
         ...g,
         expression: g.expression ? { ...g.expression } : null,
       }));
+      // Derive clusterGroupRules from commonQuery
+      this.panel.clusterGroupRules = deriveClusterRules(preset);
       break;
     }
   }
@@ -1298,7 +1318,6 @@ export class GraphViewContainer extends ItemView {
           condition: {
             layout: this.currentLayout,
             tagDisplay: this.panel.tagDisplay,
-            clusterGroupRules: [...this.panel.clusterGroupRules],
           },
           groups: this.panel.groups.map(g => ({ ...g })),
         };

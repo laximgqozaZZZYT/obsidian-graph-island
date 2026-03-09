@@ -79,11 +79,12 @@ export interface CommonGroupQuery {
 export interface GroupPreset {
   condition: {
     tagDisplay?: "node" | "enclosure";
-    clusterGroupRules?: ClusterGroupRule[];
     layout?: LayoutType;
   };
   groups: GroupRule[];
   commonQuery?: CommonGroupQuery;
+  /** Enable recursive connected-component splitting (effective when commonQuery is set) */
+  recursive?: boolean;
 }
 
 export interface DirectionalGravityRule {
@@ -181,8 +182,6 @@ export interface GraphViewsSettings {
   directionalGravityRules: DirectionalGravityRule[];
   /** Minimum fraction of total nodes a tag group must have to show an enclosure (0–1). Default 1/20 = 0.05 */
   enclosureMinRatio: number;
-  /** Default cluster group rules for multi-level grouping */
-  defaultClusterGroupRules: ClusterGroupRule[];
   /** Group presets applied on view load based on display state */
   groupPresets: GroupPreset[];
 }
@@ -199,7 +198,6 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
   showSimilar: false,
   directionalGravityRules: [],
   enclosureMinRatio: 0.05,
-  defaultClusterGroupRules: [{ groupBy: "tag", recursive: false }],
   groupPresets: [],
 };
 
