@@ -5,3 +5,9 @@ dist/
 data.json
 .DS_Store
 .worktrees/
+.playwright-mcp/
+.serena/
+.claude/
+test-results/
+*.log
+tests/e2e/
