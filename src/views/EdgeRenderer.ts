@@ -168,16 +168,25 @@ function buildDirectionBundles(
 // Cable bundling — inter-cluster edge grouping
 // ---------------------------------------------------------------------------
 
-/** Maximum edges per cable */
-const MAX_CABLE_SIZE = 8;
+/** Maximum distinct colors per cable */
+const MAX_CABLE_COLORS = 8;
 
-/** A cable: a group of inter-cluster edges sharing the same cluster pair */
+/** A single color lane within a cable — all edges of one color */
+interface CableLane {
+  color: number;
+  edges: GraphEdge[];
+}
+
+/** A cable: a group of inter-cluster edges sharing the same cluster pair, up to MAX_CABLE_COLORS colors */
 interface Cable {
   /** Ordered pair key: "clusterA|clusterB" (alphabetical) */
   pairKey: string;
   srcCluster: string;
   tgtCluster: string;
-  edges: GraphEdge[];
+  /** Edges grouped by color — each lane draws one trunk line */
+  lanes: CableLane[];
+  /** All edges in this cable (for cabledEdgeIds tracking) */
+  allEdges: GraphEdge[];
   /** Index of this cable within the pair (for parallel offset) */
   cableIndex: number;
   /** Total cables for this pair */
@@ -196,8 +205,9 @@ interface CableLayout {
 }
 
 /**
- * Group inter-cluster edges into cables.
- * Returns cables + set of edge IDs that are handled by cables (so main loop skips them).
+ * Group inter-cluster edges into cables (max MAX_CABLE_COLORS distinct colors per cable).
+ * Same-color edges within a cable share a single trunk line.
+ * Returns cables + set of edge IDs handled by cables (so main loop skips them).
  */
 function buildCables(
   edges: GraphEdge[],
@@ -209,8 +219,12 @@ function buildCables(
   const { nodeClusterMap } = cfg;
   if (!nodeClusterMap) return { cables, cabledEdgeIds };
 
-  // Group inter-cluster edges by cluster pair
-  const pairEdges = new Map<string, { srcCluster: string; tgtCluster: string; edges: GraphEdge[] }>();
+  // Group inter-cluster edges by cluster pair, then by color
+  const pairData = new Map<string, {
+    srcCluster: string;
+    tgtCluster: string;
+    byColor: Map<number, GraphEdge[]>;
+  }>();
 
   for (const e of edges) {
     if (e.type === "similar") continue;
@@ -228,29 +242,41 @@ function buildCables(
     const [a, b] = srcCluster < tgtCluster ? [srcCluster, tgtCluster] : [tgtCluster, srcCluster];
     const pairKey = `${a}|${b}`;
 
-    let pair = pairEdges.get(pairKey);
+    let pair = pairData.get(pairKey);
     if (!pair) {
-      pair = { srcCluster: a, tgtCluster: b, edges: [] };
-      pairEdges.set(pairKey, pair);
+      pair = { srcCluster: a, tgtCluster: b, byColor: new Map() };
+      pairData.set(pairKey, pair);
     }
-    pair.edges.push(e);
+
+    const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors);
+    let colorGroup = pair.byColor.get(color);
+    if (!colorGroup) { colorGroup = []; pair.byColor.set(color, colorGroup); }
+    colorGroup.push(e);
   }
 
-  // Split each pair into cables of max MAX_CABLE_SIZE
-  for (const [pairKey, pair] of pairEdges) {
-    if (pair.edges.length < 2) continue; // single edge: draw normally
-    const totalCables = Math.ceil(pair.edges.length / MAX_CABLE_SIZE);
+  // Split each pair into cables of max MAX_CABLE_COLORS distinct colors
+  for (const [pairKey, pair] of pairData) {
+    const colorEntries = [...pair.byColor.entries()]; // [color, edges[]]
+    if (colorEntries.length === 0) continue;
+    // Single edge total: draw normally
+    const totalEdges = colorEntries.reduce((s, [, es]) => s + es.length, 0);
+    if (totalEdges < 2) continue;
+
+    const totalCables = Math.ceil(colorEntries.length / MAX_CABLE_COLORS);
     for (let ci = 0; ci < totalCables; ci++) {
-      const chunk = pair.edges.slice(ci * MAX_CABLE_SIZE, (ci + 1) * MAX_CABLE_SIZE);
+      const colorChunk = colorEntries.slice(ci * MAX_CABLE_COLORS, (ci + 1) * MAX_CABLE_COLORS);
+      const lanes: CableLane[] = colorChunk.map(([color, edges]) => ({ color, edges }));
+      const allEdges = lanes.flatMap(l => l.edges);
       cables.push({
         pairKey,
         srcCluster: pair.srcCluster,
         tgtCluster: pair.tgtCluster,
-        edges: chunk,
+        lanes,
+        allEdges,
         cableIndex: ci,
         totalCables,
       });
-      for (const e of chunk) cabledEdgeIds.add(e.id);
+      for (const e of allEdges) cabledEdgeIds.add(e.id);
     }
   }
 
@@ -313,7 +339,12 @@ function computeCableLayout(
 }
 
 /**
- * Draw all cables: trunk line + fan-out to individual nodes.
+ * Draw all cables: per-color trunk lines + subtle fan-in/fan-out to individual nodes.
+ *
+ * Each cable contains up to MAX_CABLE_COLORS lanes (one per distinct color).
+ * Each lane draws ONE trunk line in its color — same-color edges are fully merged
+ * into a single visual strand. At group boundaries, thin fan lines connect
+ * individual nodes to the cable endpoint.
  */
 function drawCables(
   g: PIXI.Graphics,
@@ -330,64 +361,93 @@ function drawCables(
     if (!layout) continue;
 
     const { trunkStart, trunkEnd, offsetX, offsetY } = layout;
-    const ts = { x: trunkStart.x + offsetX, y: trunkStart.y + offsetY };
-    const te = { x: trunkEnd.x + offsetX, y: trunkEnd.y + offsetY };
 
-    // Draw each edge through the cable: node → fan-in → trunk → fan-out → node
-    // Each edge retains its own color throughout the entire path
-    for (const e of cable.edges) {
-      const src = resolvePos(e.source);
-      const tgt = resolvePos(e.target);
-      if (!src || !tgt) continue;
+    // Perpendicular unit vector (always computed from trunk direction)
+    const tdx = trunkEnd.x - trunkStart.x;
+    const tdy = trunkEnd.y - trunkStart.y;
+    const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
+    const perpX = tlen > 0 ? -tdy / tlen : 0;
+    const perpY = tlen > 0 ? tdx / tlen : 1;
 
-      const sid = src.id ?? (typeof e.source === "string" ? e.source : (e.source as any).id);
-      const tid = tgt.id ?? (typeof e.target === "string" ? e.target : (e.target as any).id);
-      const srcCluster = cfg.nodeClusterMap!.get(sid);
+    const nLanes = cable.lanes.length;
+    const laneSpacing = 3;
 
-      const lineColor = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors);
-      let alpha = 0.55 * densityScale;
+    for (let li = 0; li < nLanes; li++) {
+      const lane = cable.lanes[li];
+      // Lane offset = cable-level offset + per-lane sub-offset
+      const laneSubOffset = (li - (nLanes - 1) / 2) * laneSpacing;
+      const lox = offsetX + perpX * laneSubOffset;
+      const loy = offsetY + perpY * laneSubOffset;
 
-      // Fade by degree if enabled
-      if (cfg.fadeByDegree && cfg.maxDegree > 0) {
-        const srcDeg = cfg.degrees.get(sid) ?? 0;
-        const tgtDeg = cfg.degrees.get(tid) ?? 0;
-        const minDeg = Math.min(srcDeg, tgtDeg);
-        const t = Math.sqrt(minDeg / cfg.maxDegree);
-        alpha *= 0.15 + 0.85 * t;
-      }
+      const ts = { x: trunkStart.x + lox, y: trunkStart.y + loy };
+      const te = { x: trunkEnd.x + lox, y: trunkEnd.y + loy };
 
-      // Highlight handling
+      // --- Trunk: one line per color, ~2× normal edge thickness, high contrast ---
+      let trunkWidth = 2;
+      let trunkAlpha = 0.85;
+
+      // Highlight: if any edge in this lane connects highlighted nodes, brighten trunk
       if (cfg.highlightedNodeId) {
-        if (cfg.highlightSet.has(sid) && cfg.highlightSet.has(tid)) {
-          alpha = 1;
+        let laneHit = false;
+        for (const e of lane.edges) {
+          const sid = typeof e.source === "string" ? e.source : (e.source as any).id;
+          const tid = typeof e.target === "string" ? e.target : (e.target as any).id;
+          if (cfg.highlightSet.has(sid) && cfg.highlightSet.has(tid)) {
+            laneHit = true;
+            break;
+          }
+        }
+        if (laneHit) {
+          trunkAlpha = 1;
+          trunkWidth = 3;
         } else {
-          alpha = 0.05;
+          trunkAlpha = 0.04;
         }
       }
 
-      // Determine which side of the cable this node is on
-      const isSrcSide = srcCluster === cable.srcCluster;
-      const nearEnd = isSrcSide ? ts : te;
-      const farEnd = isSrcSide ? te : ts;
+      g.lineStyle({ width: trunkWidth, color: lane.color, alpha: trunkAlpha, native: true });
+      g.moveTo(ts.x, ts.y);
+      g.lineTo(te.x, te.y);
 
-      // Fan-in: source node → near trunk endpoint (converging curve)
-      g.lineStyle({ width: 1, color: lineColor, alpha, native: true });
-      g.moveTo(src.x, src.y);
-      const cpx1 = src.x * 0.3 + nearEnd.x * 0.7;
-      const cpy1 = src.y * 0.3 + nearEnd.y * 0.7;
-      g.quadraticCurveTo(cpx1, cpy1, nearEnd.x, nearEnd.y);
+      // --- Fan lines: thin, low-alpha lines from nodes to trunk endpoints ---
+      // Scale alpha down with edge count so dense fans don't overwhelm
+      const fanCount = lane.edges.length;
+      const fanAlpha = Math.min(0.25, 3.0 / fanCount) * densityScale;
 
-      // Trunk segment: near → far (same edge color, slightly thicker)
-      g.lineStyle({ width: 1.5, color: lineColor, alpha: alpha * 0.7, native: true });
-      g.moveTo(nearEnd.x, nearEnd.y);
-      g.lineTo(farEnd.x, farEnd.y);
+      for (const e of lane.edges) {
+        const src = resolvePos(e.source);
+        const tgt = resolvePos(e.target);
+        if (!src || !tgt) continue;
 
-      // Fan-out: far trunk endpoint → target node (diverging curve)
-      g.lineStyle({ width: 1, color: lineColor, alpha, native: true });
-      g.moveTo(farEnd.x, farEnd.y);
-      const cpx2 = farEnd.x * 0.7 + tgt.x * 0.3;
-      const cpy2 = farEnd.y * 0.7 + tgt.y * 0.3;
-      g.quadraticCurveTo(cpx2, cpy2, tgt.x, tgt.y);
+        const sid = src.id ?? (typeof e.source === "string" ? e.source : (e.source as any).id);
+        const tid = tgt.id ?? (typeof e.target === "string" ? e.target : (e.target as any).id);
+        const srcCluster = cfg.nodeClusterMap!.get(sid);
+
+        let alpha = fanAlpha;
+
+        // Highlight: show individual fans clearly on hover
+        if (cfg.highlightedNodeId) {
+          if (cfg.highlightSet.has(sid) && cfg.highlightSet.has(tid)) {
+            alpha = 0.8;
+          } else {
+            alpha = 0.02;
+          }
+        }
+
+        const isSrcSide = srcCluster === cable.srcCluster;
+        const nearEnd = isSrcSide ? ts : te;
+        const farEnd = isSrcSide ? te : ts;
+
+        g.lineStyle({ width: 0.5, color: lane.color, alpha, native: true });
+
+        // Fan-in: source node → near trunk endpoint (straight line for performance)
+        g.moveTo(src.x, src.y);
+        g.lineTo(nearEnd.x, nearEnd.y);
+
+        // Fan-out: far trunk endpoint → target node
+        g.moveTo(farEnd.x, farEnd.y);
+        g.lineTo(tgt.x, tgt.y);
+      }
     }
   }
 }
