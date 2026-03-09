@@ -76,6 +76,24 @@ export function buildClusterForce(
   }
   if (groups.size === 0) return null;
 
+  // Merge tiny groups (< minSize nodes) into a single "__other__" group
+  // to prevent hundreds of singleton groups from exploding the layout.
+  const minGroupSize = nodes.length >= 100 ? Math.max(3, Math.ceil(nodes.length * 0.005)) : 2;
+  const merged = new Map<string, GraphNode[]>();
+  let otherNodes: GraphNode[] = [];
+  for (const [key, members] of groups) {
+    if (members.length < minGroupSize) {
+      otherNodes = otherNodes.concat(members);
+    } else {
+      merged.set(key, members);
+    }
+  }
+  if (otherNodes.length > 0) {
+    merged.set("__other__", otherNodes);
+  }
+  groups = merged;
+  if (groups.size === 0) return null;
+
   const targets = computeAbsoluteTargets(groups, edges, degrees, cfg);
 
   // Build node index for enclosure separation (if active)
