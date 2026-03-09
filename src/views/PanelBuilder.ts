@@ -106,6 +106,7 @@ export interface PanelCallbacks {
   collectFieldSuggestions(): string[];
   collectValueSuggestions(field: string): string[];
   saveGroupPreset(): void;
+  resetPanel(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,9 +237,6 @@ export function buildPanel(
       panel.groups.push({ expression: null, color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length] });
       renderGroupList(list, panel, cb);
     });
-    const saveBtn = body.createEl("button", { cls: "ngp-add-group", text: "プリセットとして保存" });
-    saveBtn.style.marginLeft = "4px";
-    saveBtn.addEventListener("click", () => cb.saveGroupPreset());
   });
 
   buildSection(panelEl, "表示", (body) => {
@@ -274,22 +272,6 @@ export function buildPanel(
       }
     });
   }
-
-  buildSection(panelEl, "エッジ凡例", (body) => {
-    const items: { label: string; color: string; shape: string }[] = [
-      { label: "継承 (is-a)", color: "#9ca3af", shape: "▷" },
-      { label: "集約 (has-a)", color: "#60a5fa", shape: "◇" },
-      { label: "has-tag", color: "#a78bfa", shape: "─" },
-      { label: "通常リンク", color: "#555555", shape: "─" },
-    ];
-    for (const item of items) {
-      const row = body.createDiv({ cls: "setting-item" });
-      const marker = row.createEl("span");
-      marker.style.cssText = `display:inline-flex;align-items:center;justify-content:center;width:20px;height:14px;color:${item.color};font-size:14px;margin-right:6px;`;
-      marker.textContent = item.shape;
-      row.createEl("span", { text: item.label, cls: "setting-item-name" });
-    }
-  });
 
   if (ctx.currentLayout === "force") {
     buildSection(panelEl, "クラスター配置", (body) => {
@@ -347,6 +329,18 @@ export function buildPanel(
       addSlider(body, "囲い間隔", 0.5, 5, 0.1, panel.enclosureSpacing, (v) => { panel.enclosureSpacing = v; cb.updateForces(); });
     });
   }
+
+  // --- 設定保存・初期化ボタン（パネル末尾） ---
+  const actionRow = panelEl.createDiv({ cls: "ngp-panel-actions" });
+  actionRow.style.cssText = "display:flex;gap:6px;padding:8px 12px;";
+
+  const saveBtn = actionRow.createEl("button", { cls: "mod-cta", text: "設定を保存" });
+  saveBtn.style.flex = "1";
+  saveBtn.addEventListener("click", () => cb.saveGroupPreset());
+
+  const resetBtn = actionRow.createEl("button", { text: "初期化" });
+  resetBtn.style.flex = "1";
+  resetBtn.addEventListener("click", () => cb.resetPanel());
 }
 
 // ---------------------------------------------------------------------------

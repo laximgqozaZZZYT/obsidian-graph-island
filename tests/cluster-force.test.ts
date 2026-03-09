@@ -17,7 +17,7 @@ function makeEdge(source: string, target: string): GraphEdge {
 
 function baseCfg(overrides?: Partial<ClusterForceConfig>): ClusterForceConfig {
   return {
-    groupBy: "tag",
+    groupRules: [{ groupBy: "tag", recursive: false }],
     arrangement: "spiral",
     centerX: 400,
     centerY: 300,
@@ -28,7 +28,6 @@ function baseCfg(overrides?: Partial<ClusterForceConfig>): ClusterForceConfig {
     nodeSpacing: 3.0,
     groupScale: 3.0,
     groupSpacing: 2.0,
-    recursive: false,
     ...overrides,
   };
 }
@@ -58,10 +57,10 @@ function centroid(nodes: GraphNode[]): { x: number; y: number } {
 // ---------------------------------------------------------------------------
 
 describe("buildClusterForce", () => {
-  it("returns a force function even when groupBy is 'none' (all nodes in one group)", () => {
+  it("returns null when groupRules is empty (no grouping)", () => {
     const nodes = [makeNode("a")];
-    const result = buildClusterForce(nodes, [], new Map(), baseCfg({ groupBy: "none" }));
-    expect(typeof result).toBe("function");
+    const result = buildClusterForce(nodes, [], new Map(), baseCfg({ groupRules: [] }));
+    expect(result).toBeNull();
   });
 
   it("returns a force function for valid config", () => {
@@ -426,7 +425,7 @@ describe("group separation", () => {
     ];
     const degrees = new Map([["popular", 15], ["medium", 4], ["lonely", 0]]);
     const force = buildClusterForce(
-      nodes, [], degrees, baseCfg({ groupBy: "backlinks", arrangement: "spiral" }),
+      nodes, [], degrees, baseCfg({ groupRules: [{ groupBy: "backlinks", recursive: false }], arrangement: "spiral" }),
     )!;
     converge(force);
 
@@ -443,7 +442,7 @@ describe("group separation", () => {
       makeNode("tag2", { isTag: true }),
     ];
     const force = buildClusterForce(
-      nodes, [], new Map(), baseCfg({ groupBy: "node_type", arrangement: "concentric" }),
+      nodes, [], new Map(), baseCfg({ groupRules: [{ groupBy: "node_type", recursive: false }], arrangement: "concentric" }),
     )!;
     converge(force);
 
@@ -552,7 +551,7 @@ describe("d3 simulation pipeline integration", () => {
     sim.force("link", null);
 
     const forceFn = buildClusterForce(nodes, edges, degrees, {
-      groupBy: "tag",
+      groupRules: [{ groupBy: "tag", recursive: false }],
       arrangement,
       centerX: 400,
       centerY: 300,
@@ -563,7 +562,6 @@ describe("d3 simulation pipeline integration", () => {
       nodeSpacing: 3.0,
       groupScale: 3.0,
       groupSpacing: 2.0,
-      recursive: false,
     });
     sim.force("clusterArrangement", forceFn as any);
     sim.alpha(0.5);

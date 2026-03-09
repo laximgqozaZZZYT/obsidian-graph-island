@@ -1388,6 +1388,16 @@ export class GraphViewContainer extends ItemView {
         this.plugin.settings.groupPresets.push(preset);
         this.plugin.saveSettings();
       },
+      resetPanel: () => {
+        Object.assign(this.panel, {
+          ...DEFAULT_PANEL,
+          sortRules: [...(this.plugin.settings.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r })),
+        });
+        this.applyGroupPresets();
+        this.rebuildPanel();
+        this.applyClusterForce();
+        if (this.simulation) { this.simulation.alpha(0.8).restart(); this.wakeRenderLoop(); }
+      },
     };
     buildPanelUI(this.panelEl, this.panel, ctx, cb);
   }

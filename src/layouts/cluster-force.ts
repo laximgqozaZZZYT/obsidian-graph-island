@@ -21,14 +21,14 @@
  * Uses ABSOLUTE target positions and aggressive position blending with
  * full velocity kill to guarantee visibility.
  */
-import type { GraphNode, GraphEdge, ClusterGroupBy, ClusterArrangement } from "../types";
+import type { GraphNode, GraphEdge, ClusterGroupBy, ClusterArrangement, ClusterGroupRule } from "../types";
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 export interface ClusterForceConfig {
-  groupBy: ClusterGroupBy;
+  groupRules: ClusterGroupRule[];
   arrangement: ClusterArrangement;
   /** Canvas center X */
   centerX: number;
@@ -49,8 +49,6 @@ export interface ClusterForceConfig {
   groupScale: number;
   /** Group spacing multiplier (default 2.0) */
   groupSpacing: number;
-  /** Enable recursive sub-grouping within each group */
-  recursive: boolean;
   /** When enclosure mode is active, tag membership map for separation */
   tagMembership?: Map<string, Set<string>>;
   /** Enclosure spacing multiplier (default 1.5) */
@@ -61,7 +59,7 @@ export interface ClusterForceConfig {
 
 /**
  * Build a d3-compatible force function for cluster arrangement.
- * Returns null if groupBy is "none".
+ * Returns null if groupRules is empty.
  */
 export function buildClusterForce(
   nodes: GraphNode[],
@@ -69,13 +67,14 @@ export function buildClusterForce(
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
 ): ((alpha: number) => void) | null {
-  let groups = partitionNodes(nodes, cfg.groupBy, degrees);
-  if (groups.size === 0) return null;
+  if (cfg.groupRules.length === 0) return null;
 
-  // Recursive sub-grouping: split each group into connected components
-  if (cfg.recursive) {
-    groups = splitByConnectedComponents(groups, edges);
+  // Multi-rule pipeline: each rule subdivides the previous groups
+  let groups = new Map<string, GraphNode[]>([["__all__", [...nodes]]]);
+  for (const rule of cfg.groupRules) {
+    groups = applyGroupRule(groups, rule, edges, degrees);
   }
+  if (groups.size === 0) return null;
 
   const targets = computeAbsoluteTargets(groups, edges, degrees, cfg);
 
@@ -230,6 +229,30 @@ function estimateGroupRadius(
   const gap = nodeSize * 2 * nodeSpacingMul;
   // Approximate footprint: √n nodes across × gap
   return gap * Math.sqrt(memberCount) / 2;
+}
+
+// ---------------------------------------------------------------------------
+// Multi-rule pipeline
+// ---------------------------------------------------------------------------
+
+function applyGroupRule(
+  groups: Map<string, GraphNode[]>,
+  rule: ClusterGroupRule,
+  edges: GraphEdge[],
+  degrees: Map<string, number>,
+): Map<string, GraphNode[]> {
+  const result = new Map<string, GraphNode[]>();
+  for (const [parentKey, members] of groups) {
+    const subGroups = partitionNodes(members, rule.groupBy, degrees);
+    const finalSubs = rule.recursive
+      ? splitByConnectedComponents(subGroups, edges)
+      : subGroups;
+    for (const [subKey, subMembers] of finalSubs) {
+      const compositeKey = parentKey === "__all__" ? subKey : `${parentKey}|${subKey}`;
+      result.set(compositeKey, subMembers);
+    }
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
