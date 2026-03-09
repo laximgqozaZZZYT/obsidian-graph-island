@@ -23,6 +23,16 @@ export interface EdgeDrawConfig {
   degrees: Map<string, number>;
   /** Maximum degree across all nodes (pre-computed for normalization) */
   maxDegree: number;
+  /** Total visible edge count (used to auto-scale alpha for dense graphs) */
+  totalEdgeCount?: number;
+  /** Node ID → cluster group key (null = no clustering / bundling disabled) */
+  nodeClusterMap: Map<string, string> | null;
+  /** Cluster group key → live centroid position */
+  clusterCentroids: Map<string, { x: number; y: number }> | null;
+  /** Cluster group key → estimated visual radius (for cable boundary clipping) */
+  clusterRadii: Map<string, number> | null;
+  /** Edge bundling strength: 0 = straight lines, 1 = full routing through centroids */
+  bundleStrength: number;
 }
 
 // Minimal position data needed for source/target
@@ -41,6 +51,346 @@ const INHERITANCE_COLOR = 0x9ca3af;
 const AGGREGATION_COLOR = 0x60a5fa;
 const SIMILAR_COLOR = 0xfbbf24;
 const HAS_TAG_COLOR = 0xa78bfa;
+
+/** Number of angular bins over [0, π). 6 bins = 30° each. */
+const ANGLE_BINS = 6;
+const BIN_WIDTH = Math.PI / ANGLE_BINS;
+/** Spatial grid cell size in pixels for locality-aware bundling */
+const GRID_CELL = 200;
+/** Minimum edges in a direction-color-cell group to activate bundling */
+const MIN_BUNDLE_SIZE = 4;
+
+// ---------------------------------------------------------------------------
+// Edge color helper (shared between pre-computation and draw loop)
+// ---------------------------------------------------------------------------
+function resolveEdgeColor(
+  e: GraphEdge,
+  useRelColor: boolean,
+  relationColors: Map<string, string>,
+): number {
+  if (e.type === "inheritance") return INHERITANCE_COLOR;
+  if (e.type === "aggregation") return AGGREGATION_COLOR;
+  if (e.type === "similar") return SIMILAR_COLOR;
+  if (e.type === "has-tag") return HAS_TAG_COLOR;
+  if (useRelColor && e.relation) {
+    const css = relationColors.get(e.relation);
+    if (css) return cssColorToHex(css);
+  }
+  return DEFAULT_COLOR;
+}
+
+// ---------------------------------------------------------------------------
+// Direction-color bundle pre-computation
+// ---------------------------------------------------------------------------
+
+/** Accumulated data for a (angleBin, color) group */
+interface BundleAccum {
+  sumMx: number;  // sum of midpoint x
+  sumMy: number;  // sum of midpoint y
+  count: number;
+}
+
+/** Resolved bundle group: centroid of midpoints */
+interface BundleGroup {
+  cx: number;
+  cy: number;
+  count: number;
+}
+
+/**
+ * Normalize an angle to [0, π) — treating opposite directions as the same
+ * "highway" since an edge A→B and B→A share the same visual band.
+ */
+function normalizeAngle(a: number): number {
+  if (a < 0) a += Math.PI;
+  if (a >= Math.PI) a -= Math.PI;
+  return a;
+}
+
+/**
+ * Group edges by (grid cell, direction angle bin, line color) and compute the
+ * centroid of each group's midpoints. Only spatially proximate, same-direction,
+ * same-color edges share a group — producing local "highway" bundles.
+ */
+function buildDirectionBundles(
+  edges: GraphEdge[],
+  resolvePos: (ref: string | object) => Pos | undefined,
+  cfg: EdgeDrawConfig,
+): Map<string, BundleGroup> {
+  const accum = new Map<string, BundleAccum>();
+
+  for (const e of edges) {
+    if (e.type === "similar") continue;
+    if (e.type === "inheritance" && !cfg.showInheritance) continue;
+    if (e.type === "aggregation" && !cfg.showAggregation) continue;
+    if (e.type === "has-tag" && !cfg.showTagNodes) continue;
+
+    const src = resolvePos(e.source);
+    const tgt = resolvePos(e.target);
+    if (!src || !tgt) continue;
+
+    const dx = tgt.x - src.x;
+    const dy = tgt.y - src.y;
+    if (dx * dx + dy * dy < 1) continue;
+
+    const angle = normalizeAngle(Math.atan2(dy, dx));
+    const bin = Math.min(Math.floor(angle / BIN_WIDTH), ANGLE_BINS - 1);
+    const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors);
+
+    // Spatial grid cell based on midpoint
+    const mx = (src.x + tgt.x) / 2;
+    const my = (src.y + tgt.y) / 2;
+    const gx = Math.floor(mx / GRID_CELL);
+    const gy = Math.floor(my / GRID_CELL);
+    const key = `${gx},${gy}|${bin}|${color}`;
+
+    let acc = accum.get(key);
+    if (!acc) { acc = { sumMx: 0, sumMy: 0, count: 0 }; accum.set(key, acc); }
+    acc.sumMx += mx;
+    acc.sumMy += my;
+    acc.count++;
+  }
+
+  const result = new Map<string, BundleGroup>();
+  for (const [key, acc] of accum) {
+    if (acc.count >= MIN_BUNDLE_SIZE) {
+      result.set(key, {
+        cx: acc.sumMx / acc.count,
+        cy: acc.sumMy / acc.count,
+        count: acc.count,
+      });
+    }
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Cable bundling — inter-cluster edge grouping
+// ---------------------------------------------------------------------------
+
+/** Maximum edges per cable */
+const MAX_CABLE_SIZE = 8;
+
+/** A cable: a group of inter-cluster edges sharing the same cluster pair */
+interface Cable {
+  /** Ordered pair key: "clusterA|clusterB" (alphabetical) */
+  pairKey: string;
+  srcCluster: string;
+  tgtCluster: string;
+  edges: GraphEdge[];
+  /** Index of this cable within the pair (for parallel offset) */
+  cableIndex: number;
+  /** Total cables for this pair */
+  totalCables: number;
+}
+
+/** Pre-computed cable layout for a cluster pair */
+interface CableLayout {
+  /** Trunk start point (on source cluster boundary) */
+  trunkStart: { x: number; y: number };
+  /** Trunk end point (on target cluster boundary) */
+  trunkEnd: { x: number; y: number };
+  /** Perpendicular offset for parallel cables */
+  offsetX: number;
+  offsetY: number;
+}
+
+/**
+ * Group inter-cluster edges into cables.
+ * Returns cables + set of edge IDs that are handled by cables (so main loop skips them).
+ */
+function buildCables(
+  edges: GraphEdge[],
+  resolvePos: (ref: string | object) => Pos | undefined,
+  cfg: EdgeDrawConfig,
+): { cables: Cable[]; cabledEdgeIds: Set<string> } {
+  const cables: Cable[] = [];
+  const cabledEdgeIds = new Set<string>();
+  const { nodeClusterMap } = cfg;
+  if (!nodeClusterMap) return { cables, cabledEdgeIds };
+
+  // Group inter-cluster edges by cluster pair
+  const pairEdges = new Map<string, { srcCluster: string; tgtCluster: string; edges: GraphEdge[] }>();
+
+  for (const e of edges) {
+    if (e.type === "similar") continue;
+    if (e.type === "inheritance" && !cfg.showInheritance) continue;
+    if (e.type === "aggregation" && !cfg.showAggregation) continue;
+    if (e.type === "has-tag" && !cfg.showTagNodes) continue;
+
+    const sid = typeof e.source === "string" ? e.source : (e.source as any).id;
+    const tid = typeof e.target === "string" ? e.target : (e.target as any).id;
+    const srcCluster = nodeClusterMap.get(sid);
+    const tgtCluster = nodeClusterMap.get(tid);
+    if (!srcCluster || !tgtCluster || srcCluster === tgtCluster) continue;
+
+    // Canonical pair key (alphabetical order)
+    const [a, b] = srcCluster < tgtCluster ? [srcCluster, tgtCluster] : [tgtCluster, srcCluster];
+    const pairKey = `${a}|${b}`;
+
+    let pair = pairEdges.get(pairKey);
+    if (!pair) {
+      pair = { srcCluster: a, tgtCluster: b, edges: [] };
+      pairEdges.set(pairKey, pair);
+    }
+    pair.edges.push(e);
+  }
+
+  // Split each pair into cables of max MAX_CABLE_SIZE
+  for (const [pairKey, pair] of pairEdges) {
+    if (pair.edges.length < 2) continue; // single edge: draw normally
+    const totalCables = Math.ceil(pair.edges.length / MAX_CABLE_SIZE);
+    for (let ci = 0; ci < totalCables; ci++) {
+      const chunk = pair.edges.slice(ci * MAX_CABLE_SIZE, (ci + 1) * MAX_CABLE_SIZE);
+      cables.push({
+        pairKey,
+        srcCluster: pair.srcCluster,
+        tgtCluster: pair.tgtCluster,
+        edges: chunk,
+        cableIndex: ci,
+        totalCables,
+      });
+      for (const e of chunk) cabledEdgeIds.add(e.id);
+    }
+  }
+
+  return { cables, cabledEdgeIds };
+}
+
+/**
+ * Compute trunk layout for a cable: start/end points clipped to cluster boundaries,
+ * plus perpendicular offset for parallel cables.
+ */
+function computeCableLayout(
+  cable: Cable,
+  centroids: Map<string, { x: number; y: number }>,
+  radii: Map<string, number>,
+): CableLayout | null {
+  const cA = centroids.get(cable.srcCluster);
+  const cB = centroids.get(cable.tgtCluster);
+  if (!cA || !cB) return null;
+
+  const rA = radii.get(cable.srcCluster) ?? 50;
+  const rB = radii.get(cable.tgtCluster) ?? 50;
+
+  const dx = cB.x - cA.x;
+  const dy = cB.y - cA.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 1) return null;
+
+  const ux = dx / dist;
+  const uy = dy / dist;
+
+  // Trunk start/end: clipped at cluster boundary (with small margin)
+  // If clusters overlap (rA + rB > dist), place trunk endpoints at midpoint
+  const margin = 5;
+  const gapDist = dist - rA - rB;
+  let startFrac: number, endFrac: number;
+  if (gapDist > margin * 2) {
+    // Normal case: trunk spans the gap between cluster boundaries
+    startFrac = (rA + margin) / dist;
+    endFrac = (rB + margin) / dist;
+  } else {
+    // Clusters close/overlapping: place trunk at 40%–60% of centroid-centroid line
+    startFrac = 0.4;
+    endFrac = 0.4;
+  }
+  const trunkStart = { x: cA.x + ux * dist * startFrac, y: cA.y + uy * dist * startFrac };
+  const trunkEnd = { x: cB.x - ux * dist * endFrac, y: cB.y - uy * dist * endFrac };
+
+  // Perpendicular offset for parallel cables
+  const px = -uy;
+  const py = ux;
+  const cableSpacing = 4;
+  const centerOffset = (cable.cableIndex - (cable.totalCables - 1) / 2) * cableSpacing;
+
+  return {
+    trunkStart,
+    trunkEnd,
+    offsetX: px * centerOffset,
+    offsetY: py * centerOffset,
+  };
+}
+
+/**
+ * Draw all cables: trunk line + fan-out to individual nodes.
+ */
+function drawCables(
+  g: PIXI.Graphics,
+  cables: Cable[],
+  resolvePos: (ref: string | object) => Pos | undefined,
+  cfg: EdgeDrawConfig,
+  densityScale: number,
+): void {
+  const { clusterCentroids: centroids, clusterRadii: radii } = cfg;
+  if (!centroids || !radii) return;
+
+  for (const cable of cables) {
+    const layout = computeCableLayout(cable, centroids, radii);
+    if (!layout) continue;
+
+    const { trunkStart, trunkEnd, offsetX, offsetY } = layout;
+    const ts = { x: trunkStart.x + offsetX, y: trunkStart.y + offsetY };
+    const te = { x: trunkEnd.x + offsetX, y: trunkEnd.y + offsetY };
+
+    // Draw each edge through the cable: node → fan-in → trunk → fan-out → node
+    // Each edge retains its own color throughout the entire path
+    for (const e of cable.edges) {
+      const src = resolvePos(e.source);
+      const tgt = resolvePos(e.target);
+      if (!src || !tgt) continue;
+
+      const sid = src.id ?? (typeof e.source === "string" ? e.source : (e.source as any).id);
+      const tid = tgt.id ?? (typeof e.target === "string" ? e.target : (e.target as any).id);
+      const srcCluster = cfg.nodeClusterMap!.get(sid);
+
+      const lineColor = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors);
+      let alpha = 0.55 * densityScale;
+
+      // Fade by degree if enabled
+      if (cfg.fadeByDegree && cfg.maxDegree > 0) {
+        const srcDeg = cfg.degrees.get(sid) ?? 0;
+        const tgtDeg = cfg.degrees.get(tid) ?? 0;
+        const minDeg = Math.min(srcDeg, tgtDeg);
+        const t = Math.sqrt(minDeg / cfg.maxDegree);
+        alpha *= 0.15 + 0.85 * t;
+      }
+
+      // Highlight handling
+      if (cfg.highlightedNodeId) {
+        if (cfg.highlightSet.has(sid) && cfg.highlightSet.has(tid)) {
+          alpha = 1;
+        } else {
+          alpha = 0.05;
+        }
+      }
+
+      // Determine which side of the cable this node is on
+      const isSrcSide = srcCluster === cable.srcCluster;
+      const nearEnd = isSrcSide ? ts : te;
+      const farEnd = isSrcSide ? te : ts;
+
+      // Fan-in: source node → near trunk endpoint (converging curve)
+      g.lineStyle({ width: 1, color: lineColor, alpha, native: true });
+      g.moveTo(src.x, src.y);
+      const cpx1 = src.x * 0.3 + nearEnd.x * 0.7;
+      const cpy1 = src.y * 0.3 + nearEnd.y * 0.7;
+      g.quadraticCurveTo(cpx1, cpy1, nearEnd.x, nearEnd.y);
+
+      // Trunk segment: near → far (same edge color, slightly thicker)
+      g.lineStyle({ width: 1.5, color: lineColor, alpha: alpha * 0.7, native: true });
+      g.moveTo(nearEnd.x, nearEnd.y);
+      g.lineTo(farEnd.x, farEnd.y);
+
+      // Fan-out: far trunk endpoint → target node (diverging curve)
+      g.lineStyle({ width: 1, color: lineColor, alpha, native: true });
+      g.moveTo(farEnd.x, farEnd.y);
+      const cpx2 = farEnd.x * 0.7 + tgt.x * 0.3;
+      const cpy2 = farEnd.y * 0.7 + tgt.y * 0.3;
+      g.quadraticCurveTo(cpx2, cpy2, tgt.x, tgt.y);
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -66,10 +416,33 @@ export function drawEdges(
   // Disable arc curves when edge count is high to avoid vertex buffer explosion.
   // quadraticCurveTo generates ~20 vertices per edge vs 4 for lineTo.
   const isArcLayout = cfg.isArcLayout && edges.length < 500;
-  // Subtle curves for force/concentric layouts when edge count is manageable
-  const useCurves = !cfg.isArcLayout && edges.length < 400;
+
+  // Scale base alpha inversely with edge density to keep the graph readable.
+  // <100 edges: full alpha; 100–1000: gentle fade; 1000+: aggressive fade.
+  const edgeCount = cfg.totalEdgeCount ?? edges.length;
+  const densityScale = edgeCount <= 100 ? 1
+    : edgeCount <= 500 ? 1 - 0.35 * ((edgeCount - 100) / 400)
+    : edgeCount <= 2000 ? 0.65 - 0.35 * ((edgeCount - 500) / 1500)
+    : 0.3;
+
+  // Pre-compute direction×color bundles for highway-style edge merging
+  const β = cfg.bundleStrength;
+  const bundles = β > 0 ? buildDirectionBundles(edges, resolvePos, cfg) : null;
+
+  // Cable bundling: group inter-cluster edges into cables
+  const hasClusters = cfg.nodeClusterMap && cfg.clusterCentroids && cfg.clusterRadii;
+  const { cables, cabledEdgeIds } = hasClusters
+    ? buildCables(edges, resolvePos, cfg)
+    : { cables: [] as Cable[], cabledEdgeIds: new Set<string>() };
+
+  // Draw cables first (trunk + fan-out)
+  if (cables.length > 0) {
+    drawCables(g, cables, resolvePos, cfg, densityScale);
+  }
 
   for (const e of edges) {
+    // Skip edges handled by cable bundling
+    if (cabledEdgeIds.has(e.id)) continue;
     if (e.type === "inheritance" && !cfg.showInheritance) continue;
     if (e.type === "aggregation" && !cfg.showAggregation) continue;
     if (e.type === "has-tag" && !cfg.showTagNodes) continue;
@@ -80,28 +453,16 @@ export function drawEdges(
     if (!src || !tgt) continue;
 
     // Determine color
-    let lineColor = DEFAULT_COLOR;
-    if (e.type === "inheritance") {
-      lineColor = INHERITANCE_COLOR;
-    } else if (e.type === "aggregation") {
-      lineColor = AGGREGATION_COLOR;
-    } else if (e.type === "similar") {
-      lineColor = SIMILAR_COLOR;
-    } else if (e.type === "has-tag") {
-      lineColor = HAS_TAG_COLOR;
-    } else if (useRelColor && e.relation) {
-      const css = cfg.relationColors.get(e.relation);
-      if (css) lineColor = cssColorToHex(css);
-    }
+    const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors);
 
     // Determine alpha & thickness
     const isSimilar = e.type === "similar";
     const isOnto = e.type === "inheritance" || e.type === "aggregation";
     const isStructural = isOnto || e.type === "has-tag" || isSimilar;
-    let alpha = isStructural ? 0.7 : 0.65;
+    let alpha = (isStructural ? 0.7 : 0.65) * densityScale;
     let lineThick = 1;
 
-    if (!isOnto && e.relation && useRelColor) alpha = 0.8;
+    if (!isOnto && e.relation && useRelColor) alpha = 0.8 * densityScale;
 
     // Fade by source node degree: low-degree → faint, high-degree → opaque
     if (cfg.fadeByDegree && cfg.maxDegree > 0) {
@@ -121,7 +482,10 @@ export function drawEdges(
       if (cfg.highlightSet.has(sid) && cfg.highlightSet.has(tid)) {
         lineThick = 1.5;
         alpha = 1;
-        if (!isOnto && !e.relation) lineColor = HIGHLIGHT_COLOR;
+        if (!isOnto && !e.relation) {
+          // Keep lineColor from resolveEdgeColor — don't override to HIGHLIGHT_COLOR
+          // so bundled highlight edges still group by their original color
+        }
       } else {
         alpha = 0.08;
       }
@@ -129,10 +493,41 @@ export function drawEdges(
 
     g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
 
-    // Draw the line
+    // --- Draw the edge ---
+
     if (isSimilar) {
+      // Similar edges: always straight lines
       g.moveTo(src.x, src.y);
       g.lineTo(tgt.x, tgt.y);
+    } else if (bundles && !isArcLayout) {
+      // Direction×color bundling: curve edge toward group centroid
+      const dx = tgt.x - src.x;
+      const dy = tgt.y - src.y;
+      const len2 = dx * dx + dy * dy;
+      if (len2 < 1) {
+        g.moveTo(src.x, src.y);
+        g.lineTo(tgt.x, tgt.y);
+      } else {
+        const angle = normalizeAngle(Math.atan2(dy, dx));
+        const bin = Math.min(Math.floor(angle / BIN_WIDTH), ANGLE_BINS - 1);
+        const mx = (src.x + tgt.x) / 2;
+        const my = (src.y + tgt.y) / 2;
+        const gx = Math.floor(mx / GRID_CELL);
+        const gy = Math.floor(my / GRID_CELL);
+        const key = `${gx},${gy}|${bin}|${lineColor}`;
+        const group = bundles.get(key);
+
+        if (group) {
+          const cx = mx + (group.cx - mx) * β;
+          const cy = my + (group.cy - my) * β;
+          g.moveTo(src.x, src.y);
+          g.quadraticCurveTo(cx, cy, tgt.x, tgt.y);
+        } else {
+          // Small group — straight line
+          g.moveTo(src.x, src.y);
+          g.lineTo(tgt.x, tgt.y);
+        }
+      }
     } else if (isArcLayout) {
       const mx = (src.x + tgt.x) / 2;
       const minY = Math.min(src.y, tgt.y);
@@ -140,27 +535,6 @@ export function drawEdges(
       const cpY = minY - dist * 0.3 - 20;
       g.moveTo(src.x, src.y);
       g.quadraticCurveTo(mx, cpY, tgt.x, tgt.y);
-    } else if (useCurves) {
-      // Subtle bezier: offset control point perpendicular to edge direction.
-      // Use a simple hash of source+target positions to vary curve direction,
-      // preventing all edges from curving the same way.
-      const dx = tgt.x - src.x;
-      const dy = tgt.y - src.y;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      if (len < 1) { g.moveTo(src.x, src.y); g.lineTo(tgt.x, tgt.y); }
-      else {
-        // Perpendicular unit vector
-        const px = -dy / len;
-        const py = dx / len;
-        // Vary direction: use floor of src position to get a stable ±1
-        const sign = ((Math.floor(src.x * 73 + src.y * 137) & 1) * 2 - 1);
-        // Offset = 6% of edge length, capped at 30px
-        const offset = sign * Math.min(len * 0.06, 30);
-        const cx = (src.x + tgt.x) / 2 + px * offset;
-        const cy = (src.y + tgt.y) / 2 + py * offset;
-        g.moveTo(src.x, src.y);
-        g.quadraticCurveTo(cx, cy, tgt.x, tgt.y);
-      }
     } else {
       g.moveTo(src.x, src.y);
       g.lineTo(tgt.x, tgt.y);
@@ -227,4 +601,3 @@ function drawEdgeMarker(
     g.endFill();
   }
 }
-

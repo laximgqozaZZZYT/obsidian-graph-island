@@ -19,7 +19,7 @@ import { yieldFrame, buildAdj, cssColorToHex } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, type EdgeDrawConfig } from "./EdgeRenderer";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
-import { buildClusterForce } from "../layouts/cluster-force";
+import { buildClusterForce, type ClusterMetadata } from "../layouts/cluster-force";
 import { buildMultiSortComparator, type SortMetrics } from "../utils/sort";
 
 /**
@@ -65,6 +65,14 @@ function deriveClusterRules(preset: GroupPreset): ClusterGroupRule[] {
 }
 
 export const VIEW_TYPE_GRAPH = "graph-view";
+
+/** Darken a hex color by mixing toward black. factor 0 = unchanged, 1 = black. */
+function darkenColor(hex: number, factor: number): number {
+  const r = ((hex >> 16) & 0xff) * (1 - factor);
+  const g = ((hex >> 8) & 0xff) * (1 - factor);
+  const b = (hex & 0xff) * (1 - factor);
+  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
+}
 
 const TICK_SKIP = 4;
 const EDGE_REDRAW_SKIP = 1; // redraw edges every dirty frame so they track node movement
@@ -115,6 +123,8 @@ export class GraphViewContainer extends ItemView {
   private tagMembership: Map<string, Set<string>> = new Map();
   private enclosureLabels: Map<string, PIXI.Text> = new Map();
   private overlapCache: OverlapCache = { frame: 0, counts: new Map() };
+  /** Cluster metadata for edge bundling (updated when cluster force is applied) */
+  private clusterMeta: ClusterMetadata | null = null;
   /** Cached tag relationship pairs for fast lookup */
   private tagRelPairsCache: Set<string> = new Set();
 
@@ -188,6 +198,7 @@ export class GraphViewContainer extends ItemView {
     if (plugin.settings.defaultClusterNodeSpacing != null) this.panel.clusterNodeSpacing = plugin.settings.defaultClusterNodeSpacing;
     if (plugin.settings.defaultClusterGroupScale != null) this.panel.clusterGroupScale = plugin.settings.defaultClusterGroupScale;
     if (plugin.settings.defaultClusterGroupSpacing != null) this.panel.clusterGroupSpacing = plugin.settings.defaultClusterGroupSpacing;
+    if (plugin.settings.defaultEdgeBundleStrength != null) this.panel.edgeBundleStrength = plugin.settings.defaultEdgeBundleStrength;
   }
 
   private applyGroupPresets() {
@@ -970,12 +981,13 @@ export class GraphViewContainer extends ItemView {
     if (highlight) {
       // Highlighted nodes use individual Graphics so they appear on top of the batch
       pn.circle.visible = true;
-      // Soft glow: large semi-transparent circle behind
-      pn.circle.beginFill(pn.color, 0.15);
-      pn.circle.drawCircle(0, 0, pn.radius * 3);
+      // Soft glow: smaller, subtler
+      pn.circle.beginFill(pn.color, 0.12);
+      pn.circle.drawCircle(0, 0, pn.radius * 2.2);
       pn.circle.endFill();
-      // Accent ring
-      pn.circle.lineStyle(2, 0x6366f1, 0.8);
+      // Accent ring with same-hue stroke
+      const strokeCol = darkenColor(pn.color, 0.3);
+      pn.circle.lineStyle(1.5, strokeCol, 0.85);
       pn.circle.beginFill(pn.color);
       pn.circle.drawCircle(0, 0, pn.radius);
       pn.circle.endFill();
@@ -1005,19 +1017,28 @@ export class GraphViewContainer extends ItemView {
     }
 
     const alpha = hId ? 0.12 : 1;
+    const nodeCount = visible.length;
 
-    // Pass 1: Glow halos
-    g.lineStyle(0);
-    for (const pn of visible) {
-      g.beginFill(pn.color, alpha * 0.22);
-      g.drawCircle(pn.data.x, pn.data.y, pn.radius * 3);
-      g.endFill();
+    // Pass 1: Glow halos — scale down or skip for dense graphs.
+    // Below 300 nodes: soft glow. 300–800: reduced. 800+: off entirely.
+    const showGlow = nodeCount < 800;
+    if (showGlow) {
+      const glowAlpha = nodeCount < 300 ? 0.14 : 0.14 * (1 - (nodeCount - 300) / 500);
+      const glowRadius = nodeCount < 300 ? 2.2 : 2.2 - 0.7 * ((nodeCount - 300) / 500);
+      g.lineStyle(0);
+      for (const pn of visible) {
+        g.beginFill(pn.color, alpha * glowAlpha);
+        g.drawCircle(pn.data.x, pn.data.y, pn.radius * glowRadius);
+        g.endFill();
+      }
     }
 
-    // Pass 2: Solid circles with contrasting stroke
-    const strokeColor = this.isDarkTheme() ? 0xffffff : 0x000000;
+    // Pass 2: Solid circles with subtle same-hue stroke
     for (const pn of visible) {
-      g.lineStyle(1, strokeColor, alpha * 0.25);
+      // Darken the node color for stroke instead of using pure black/white.
+      // This creates a cohesive, polished look.
+      const strokeColor = darkenColor(pn.color, 0.4);
+      g.lineStyle(1, strokeColor, alpha * 0.5);
       g.beginFill(pn.color, alpha);
       g.drawCircle(pn.data.x, pn.data.y, pn.radius);
       g.endFill();
@@ -1100,6 +1121,12 @@ export class GraphViewContainer extends ItemView {
       fadeByDegree: this.panel.fadeEdgesByDegree,
       degrees: this.degrees,
       maxDegree: maxDeg,
+      totalEdgeCount: this.graphEdges.length,
+      // Edge bundling: pass live cluster centroids computed from current node positions
+      nodeClusterMap: this.clusterMeta?.nodeClusterMap ?? null,
+      clusterCentroids: this.computeLiveCentroids(),
+      clusterRadii: this.clusterMeta?.clusterRadii ?? null,
+      bundleStrength: this.panel.edgeBundleStrength,
     };
     drawEdgesImpl(
       this.edgeGraphics,
@@ -1473,6 +1500,7 @@ export class GraphViewContainer extends ItemView {
           ...(s.defaultClusterNodeSpacing != null ? { clusterNodeSpacing: s.defaultClusterNodeSpacing } : {}),
           ...(s.defaultClusterGroupScale != null ? { clusterGroupScale: s.defaultClusterGroupScale } : {}),
           ...(s.defaultClusterGroupSpacing != null ? { clusterGroupSpacing: s.defaultClusterGroupSpacing } : {}),
+          ...(s.defaultEdgeBundleStrength != null ? { edgeBundleStrength: s.defaultEdgeBundleStrength } : {}),
         });
         this.applyGroupPresets();
         this.buildPanel();
@@ -2022,6 +2050,27 @@ export class GraphViewContainer extends ItemView {
     return buildMultiSortComparator(rules, metrics);
   }
 
+  /** Compute live cluster centroids from current node positions (for edge bundling). */
+  private computeLiveCentroids(): Map<string, { x: number; y: number }> | null {
+    const meta = this.clusterMeta;
+    if (!meta) return null;
+    const sums = new Map<string, { sx: number; sy: number; cnt: number }>();
+    for (const [nodeId, clusterKey] of meta.nodeClusterMap) {
+      const pn = this.pixiNodes.get(nodeId);
+      if (!pn) continue;
+      let s = sums.get(clusterKey);
+      if (!s) { s = { sx: 0, sy: 0, cnt: 0 }; sums.set(clusterKey, s); }
+      s.sx += pn.data.x;
+      s.sy += pn.data.y;
+      s.cnt++;
+    }
+    const centroids = new Map<string, { x: number; y: number }>();
+    for (const [key, s] of sums) {
+      centroids.set(key, { x: s.sx / s.cnt, y: s.sy / s.cnt });
+    }
+    return centroids;
+  }
+
   private applyClusterForce() {
     if (!this.simulation) return;
     const { clusterArrangement, clusterNodeSpacing, clusterGroupScale, clusterGroupSpacing } = this.panel;
@@ -2043,7 +2092,7 @@ export class GraphViewContainer extends ItemView {
     const W = rect?.width || 600;
     const H = rect?.height || 400;
 
-    const forceFn = buildClusterForce(
+    const result = buildClusterForce(
       this.simulation.nodes(),
       this.graphEdges,
       this.degrees,
@@ -2065,7 +2114,13 @@ export class GraphViewContainer extends ItemView {
         nodeSpacingMap: this.computeNodeSpacingMap(this.simulation.nodes()),
       },
     );
-    this.simulation.force("clusterArrangement", forceFn as Force<GraphNode, GraphEdge> | null);
+    if (result) {
+      this.simulation.force("clusterArrangement", result.force as Force<GraphNode, GraphEdge>);
+      this.clusterMeta = result.metadata;
+    } else {
+      this.simulation.force("clusterArrangement", null);
+      this.clusterMeta = null;
+    }
   }
 
   private applySearch() {
@@ -2129,10 +2184,10 @@ export class GraphViewContainer extends ItemView {
         pn.gfx.alpha = 1;
         pn.circle.visible = true;
         pn.circle.clear();
-        pn.circle.beginFill(0xf59e0b, 0.15);
-        pn.circle.drawCircle(0, 0, pn.radius * 3);
+        pn.circle.beginFill(0xfbbf24, 0.10);
+        pn.circle.drawCircle(0, 0, pn.radius * 2.2);
         pn.circle.endFill();
-        pn.circle.lineStyle(2.5, 0xf59e0b, 0.9);
+        pn.circle.lineStyle(2, 0xfbbf24, 0.85);
         pn.circle.beginFill(pn.color);
         pn.circle.drawCircle(0, 0, pn.radius);
         pn.circle.endFill();

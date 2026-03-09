@@ -27,6 +27,22 @@ import type { GraphNode, GraphEdge, ClusterGroupBy, ClusterArrangement, ClusterG
 // Public API
 // ---------------------------------------------------------------------------
 
+/** Metadata about cluster assignments, exposed for edge bundling. */
+export interface ClusterMetadata {
+  /** Maps node ID → cluster group key */
+  nodeClusterMap: Map<string, string>;
+  /** Maps cluster group key → target center position */
+  clusterCentroids: Map<string, { x: number; y: number }>;
+  /** Maps cluster group key → estimated visual radius */
+  clusterRadii: Map<string, number>;
+}
+
+/** Result of buildClusterForce: force function + cluster metadata for bundling. */
+export interface ClusterForceResult {
+  force: (alpha: number) => void;
+  metadata: ClusterMetadata;
+}
+
 export interface ClusterForceConfig {
   groupRules: ClusterGroupRule[];
   arrangement: ClusterArrangement;
@@ -62,13 +78,14 @@ export interface ClusterForceConfig {
 /**
  * Build a d3-compatible force function for cluster arrangement.
  * Returns null if groupRules is empty.
+ * Also returns ClusterMetadata for edge bundling.
  */
 export function buildClusterForce(
   nodes: GraphNode[],
   edges: GraphEdge[],
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
-): ((alpha: number) => void) | null {
+): ClusterForceResult | null {
   if (cfg.groupRules.length === 0) return null;
 
   // Multi-rule pipeline: each rule subdivides the previous groups
@@ -120,12 +137,28 @@ export function buildClusterForce(
 
   const targets = computeAbsoluteTargets(groups, edges, degrees, cfg);
 
+  // Build cluster metadata for edge bundling
+  const nodeClusterMap = new Map<string, string>();
+  const clusterCentroids = new Map<string, { x: number; y: number }>();
+  const clusterRadii = new Map<string, number>();
+  for (const [key, members] of groups) {
+    for (const n of members) nodeClusterMap.set(n.id, key);
+    // Compute centroid from target positions (will be updated live by caller)
+    let sx = 0, sy = 0;
+    for (const n of members) {
+      const t = targets.get(n.id);
+      if (t) { sx += t.x; sy += t.y; }
+    }
+    clusterCentroids.set(key, { x: sx / members.length, y: sy / members.length });
+    clusterRadii.set(key, estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale));
+  }
+
   // Build node index for enclosure separation (if active)
   const tagMem = cfg.tagMembership;
   const encSpacing = cfg.enclosureSpacing ?? 1.5;
   const nodeIdx = tagMem ? new Map(nodes.map(n => [n.id, n])) : null;
 
-  return (_alpha: number) => {
+  const force = (_alpha: number) => {
     // Fixed high blend — always snap strongly to target positions
     const blend = 0.85;
 
@@ -143,6 +176,8 @@ export function buildClusterForce(
     //   nudgeEnclosureGroups(nodeIdx, tagMem, encSpacing, cfg.nodeSize);
     // }
   };
+
+  return { force, metadata: { nodeClusterMap, clusterCentroids, clusterRadii } };
 }
 
 // ---------------------------------------------------------------------------
@@ -539,6 +574,7 @@ function computeOffsets(
     case "concentric": return concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap);
     case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     case "grid": return gridOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
+    case "triangle": return triangleOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     default: return new Map();
   }
 }
@@ -782,6 +818,59 @@ function gridOffsets(
       dx: col * spacing * ns - totalW / 2,
       dy: row * spacing * ns - totalH / 2,
     });
+  }
+  return offsets;
+}
+
+// ---------------------------------------------------------------------------
+// Triangle — equilateral-triangle shape
+//
+// Nodes are arranged in a triangular shape: row 0 has 1 node, row 1 has 2,
+// row 2 has 3, etc. Each row is centered horizontally, producing a clear
+// equilateral triangle silhouette pointing upward.
+// ---------------------------------------------------------------------------
+
+function triangleOffsets(
+  members: GraphNode[],
+  degrees: Map<string, number>,
+  spacingMul: number,
+  groupScale: number,
+  nodeSize: number,
+  cmp: (a: GraphNode, b: GraphNode) => number,
+  nodeSpacingMap?: Map<string, number>,
+): Map<string, { dx: number; dy: number }> {
+  const sorted = [...members].sort(cmp);
+  const offsets = new Map<string, { dx: number; dy: number }>();
+  const n = sorted.length;
+  if (n === 0) return offsets;
+
+  const colSpacing = nodeSize * 2 * Math.max(spacingMul, groupScale);
+  // Row spacing for equilateral triangle: h = colSpacing × √3/2
+  const rowSpacing = colSpacing * Math.sqrt(3) / 2;
+
+  // Determine number of rows: row k has (k+1) nodes, total = k*(k+1)/2
+  // Find smallest numRows such that numRows*(numRows+1)/2 >= n
+  let numRows = 1;
+  while (numRows * (numRows + 1) / 2 < n) numRows++;
+
+  // Build row assignments: row k gets (k+1) nodes, last row may be partial
+  const maxRowWidth = (numRows - 1) * colSpacing; // width of the bottom (widest) row
+  const totalH = (numRows - 1) * rowSpacing;
+  let idx = 0;
+
+  for (let row = 0; row < numRows && idx < n; row++) {
+    const nodesInRow = Math.min(row + 1, n - idx);
+    // Center this row: the row has nodesInRow nodes, bottom row has numRows
+    const rowWidth = (nodesInRow - 1) * colSpacing;
+
+    for (let col = 0; col < nodesInRow && idx < n; col++) {
+      const ns = getSpacing(sorted[idx].id, nodeSpacingMap);
+      offsets.set(sorted[idx].id, {
+        dx: (col * colSpacing - rowWidth / 2) * ns,
+        dy: (row * rowSpacing - totalH / 2) * ns,
+      });
+      idx++;
+    }
   }
   return offsets;
 }

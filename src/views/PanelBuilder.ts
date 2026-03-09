@@ -44,6 +44,7 @@ export interface PanelState {
   clusterGroupScale: number;
   clusterGroupSpacing: number;
   fadeEdgesByDegree: boolean;
+  edgeBundleStrength: number;
   sortRules: SortRule[];
   nodeRules: NodeRule[];
 }
@@ -84,6 +85,7 @@ export const DEFAULT_PANEL: PanelState = {
   clusterGroupScale: 3.0,
   clusterGroupSpacing: 2.0,
   fadeEdgesByDegree: false,
+  edgeBundleStrength: 0.65,
   sortRules: [{ key: "degree" as SortKey, order: "desc" as SortOrder }],
   nodeRules: [],
 };
@@ -268,6 +270,7 @@ export function buildPanel(
         { value: "concentric", label: "同心円" },
         { value: "tree", label: "Tree" },
         { value: "grid", label: "正方形" },
+        { value: "triangle", label: "三角形" },
       ], panel.clusterArrangement, (v) => {
         panel.clusterArrangement = v as ClusterArrangement;
         cb.applyClusterForce();
@@ -289,6 +292,10 @@ export function buildPanel(
         panel.clusterGroupSpacing = v;
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
+      });
+      addSlider(body, "エッジ束ね強度", 0, 1, 0.05, panel.edgeBundleStrength, (v) => {
+        panel.edgeBundleStrength = v;
+        cb.markDirty();
       });
       // --- Cluster group rules sub-section ---
       const clusterHeader = body.createDiv({ cls: "setting-item" });
@@ -332,7 +339,7 @@ export function buildPanel(
         cb.applyClusterForce();
         cb.doRender();
       });
-    }, "Force レイアウトでのクラスター配置を制御します。\n\n配置パターン: グループの並べ方\nノード間隔: グループ内のノード同士の距離\nグループサイズ/間隔: グループの大きさと距離\nソート順: グループ内のノードの並び順");
+    }, "Force レイアウトでのクラスター配置を制御します。\n\n配置パターン: グループの並べ方\nノード間隔: グループ内のノード同士の距離\nグループサイズ/間隔: グループの大きさと距離\nエッジ束ね強度: クラスタ間エッジの曲がり具合（0=直線, 1=強い束ね）\nソート順: グループ内のノードの並び順");
   }
 
   // Force parameters are only relevant when NOT in force layout

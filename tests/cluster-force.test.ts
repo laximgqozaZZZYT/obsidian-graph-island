@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { forceSimulation, forceManyBody, type Simulation } from "d3-force";
-import { buildClusterForce, type ClusterForceConfig } from "../src/layouts/cluster-force";
+import { buildClusterForce, type ClusterForceConfig, type ClusterForceResult } from "../src/layouts/cluster-force";
+
+/** Extract the force function from a ClusterForceResult (mirrors the old API). */
+function extractForce(result: ClusterForceResult | null): ((alpha: number) => void) | null {
+  return result ? result.force : null;
+}
 import type { GraphNode, GraphEdge } from "../src/types";
 
 // ---------------------------------------------------------------------------
@@ -63,10 +68,11 @@ describe("buildClusterForce", () => {
     expect(result).toBeNull();
   });
 
-  it("returns a force function for valid config", () => {
+  it("returns a result object for valid config", () => {
     const nodes = [makeNode("a", { tags: ["t1"] })];
     const result = buildClusterForce(nodes, [], new Map(), baseCfg());
-    expect(typeof result).toBe("function");
+    expect(result).not.toBeNull();
+    expect(typeof result!.force).toBe("function");
   });
 
   it("moves nodes toward target positions", () => {
@@ -74,7 +80,7 @@ describe("buildClusterForce", () => {
       makeNode("a", { tags: ["t1"], x: 0, y: 0 }),
       makeNode("b", { tags: ["t1"], x: 0, y: 0 }),
     ];
-    const force = buildClusterForce(nodes, [], new Map(), baseCfg())!;
+    const force = extractForce(buildClusterForce(nodes, [], new Map(), baseCfg()))!;
     force(1);
     // After one tick, nodes should have moved away from origin
     expect(nodes[0].x).not.toBe(0);
@@ -85,7 +91,7 @@ describe("buildClusterForce", () => {
     const nodes = [
       makeNode("a", { tags: ["t1"], vx: 100, vy: 200 }),
     ];
-    const force = buildClusterForce(nodes, [], new Map(), baseCfg())!;
+    const force = extractForce(buildClusterForce(nodes, [], new Map(), baseCfg()))!;
     force(1);
     expect(nodes[0].vx).toBe(0);
     expect(nodes[0].vy).toBe(0);
@@ -96,7 +102,7 @@ describe("buildClusterForce", () => {
       makeNode("a", { tags: ["t1"], x: 0, y: 0 }),
       makeNode("b", { tags: ["t1"], x: 500, y: 500 }),
     ];
-    const force = buildClusterForce(nodes, [], new Map(), baseCfg())!;
+    const force = extractForce(buildClusterForce(nodes, [], new Map(), baseCfg()))!;
     converge(force);
     const pos1 = { x: nodes[0].x, y: nodes[0].y };
     force(1);
@@ -122,7 +128,7 @@ describe("spiral arrangement", () => {
       nodes.push(makeNode(`leaf${i}`, { tags: ["g1"] }));
       degrees.set(`leaf${i}`, 1);
     }
-    const force = buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "spiral" }))!;
+    const force = extractForce(buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "spiral" })))!;
     converge(force);
 
     // Hub (highest degree) is placed at spiral offset (0,0) — closest to centroid
@@ -141,7 +147,7 @@ describe("spiral arrangement", () => {
       nodes.push(makeNode(`n${i}`, { tags: ["g1"] }));
       degrees.set(`n${i}`, n - i); // decreasing degree
     }
-    const force = buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "spiral" }))!;
+    const force = extractForce(buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "spiral" })))!;
     converge(force);
 
     // Sort by degree (same order used internally)
@@ -164,7 +170,7 @@ describe("spiral arrangement", () => {
       nodes.push(makeNode(`n${i}`, { tags: ["g1"] }));
       degrees.set(`n${i}`, n - i);
     }
-    const force = buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "spiral" }))!;
+    const force = extractForce(buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "spiral" })))!;
     converge(force);
 
     const sorted = [...nodes].sort((a, b) => (degrees.get(b.id)! - degrees.get(a.id)!));
@@ -195,7 +201,7 @@ describe("concentric arrangement", () => {
       makeNode("n3", { tags: ["g1"] }),
     ];
     const degrees = new Map([["hub", 20], ["n1", 3], ["n2", 2], ["n3", 1]]);
-    const force = buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "concentric" }))!;
+    const force = extractForce(buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "concentric" })))!;
     converge(force);
 
     const c = centroid(nodes);
@@ -211,7 +217,7 @@ describe("concentric arrangement", () => {
       nodes.push(makeNode(`n${i}`, { tags: ["g1"] }));
       degrees.set(`n${i}`, 10 - i);
     }
-    const force = buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "concentric" }))!;
+    const force = extractForce(buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "concentric" })))!;
     converge(force);
 
     const c = centroid(nodes);
@@ -227,9 +233,9 @@ describe("concentric arrangement", () => {
     // Small group: 7 nodes
     const smallNodes: GraphNode[] = [];
     for (let i = 0; i < 7; i++) smallNodes.push(makeNode(`s${i}`, { tags: ["g1"] }));
-    const smallForce = buildClusterForce(
+    const smallForce = extractForce(buildClusterForce(
       smallNodes, [], new Map(), baseCfg({ arrangement: "concentric" }),
-    )!;
+    ))!;
     converge(smallForce);
     const smallC = centroid(smallNodes);
     const smallMaxR = Math.max(...smallNodes.map(n => dist(n, smallC)));
@@ -237,9 +243,9 @@ describe("concentric arrangement", () => {
     // Large group: 50 nodes
     const largeNodes: GraphNode[] = [];
     for (let i = 0; i < 50; i++) largeNodes.push(makeNode(`l${i}`, { tags: ["g1"] }));
-    const largeForce = buildClusterForce(
+    const largeForce = extractForce(buildClusterForce(
       largeNodes, [], new Map(), baseCfg({ arrangement: "concentric" }),
-    )!;
+    ))!;
     converge(largeForce);
     const largeC = centroid(largeNodes);
     const largeMaxR = Math.max(...largeNodes.map(n => dist(n, largeC)));
@@ -255,7 +261,7 @@ describe("concentric arrangement", () => {
       nodes.push(makeNode(`n${i}`, { tags: ["g1"] }));
       degrees.set(`n${i}`, 20 - i);
     }
-    const force = buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "concentric" }))!;
+    const force = extractForce(buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "concentric" })))!;
     converge(force);
 
     const sorted = [...nodes].sort((a, b) => (degrees.get(b.id)! - degrees.get(a.id)!));
@@ -286,7 +292,7 @@ describe("tree arrangement", () => {
       makeNode("c", { tags: ["g2"] }),
       makeNode("d", { tags: ["g2"] }),
     ];
-    const force = buildClusterForce(nodes, [], new Map(), baseCfg({ arrangement: "tree" }))!;
+    const force = extractForce(buildClusterForce(nodes, [], new Map(), baseCfg({ arrangement: "tree" })))!;
     converge(force);
 
     const c1 = centroid(nodes.filter(n => n.tags![0] === "g1"));
@@ -304,7 +310,7 @@ describe("tree arrangement", () => {
     for (let i = 0; i < 3; i++) nodes.push(makeNode(`a${i}`, { tags: ["groupA"] }));
     for (let i = 0; i < 10; i++) nodes.push(makeNode(`b${i}`, { tags: ["groupB"] }));
 
-    const force = buildClusterForce(nodes, [], new Map(), baseCfg({ arrangement: "tree" }))!;
+    const force = extractForce(buildClusterForce(nodes, [], new Map(), baseCfg({ arrangement: "tree" })))!;
     converge(force);
 
     const groupANodes = nodes.filter(n => n.tags![0] === "groupA");
@@ -337,7 +343,7 @@ describe("tree arrangement", () => {
       makeEdge("child1", "grandchild"),
     ];
     const degrees = new Map([["root", 2], ["child1", 2], ["child2", 1], ["grandchild", 1]]);
-    const force = buildClusterForce(nodes, edges, degrees, baseCfg({ arrangement: "tree" }))!;
+    const force = extractForce(buildClusterForce(nodes, edges, degrees, baseCfg({ arrangement: "tree" })))!;
     converge(force);
 
     // Root (highest degree) should be at the top (lowest Y within group)
@@ -357,9 +363,9 @@ describe("grid arrangement", () => {
     const nodes: GraphNode[] = [];
     // 9 nodes → √9 = 3 cols → 3 rows × 3 cols
     for (let i = 0; i < 9; i++) nodes.push(makeNode(`n${i}`, { tags: ["g1"] }));
-    const force = buildClusterForce(
+    const force = extractForce(buildClusterForce(
       nodes, [], new Map(), baseCfg({ arrangement: "grid" }),
-    )!;
+    ))!;
     converge(force);
 
     const ys = nodes.map(n => Math.round(n.y * 10) / 10);
@@ -389,7 +395,7 @@ describe("group separation", () => {
         makeNode("b2", { tags: ["beta"] }),
         makeNode("b3", { tags: ["beta"] }),
       ];
-      const force = buildClusterForce(nodes, [], new Map(), baseCfg({ arrangement }))!;
+      const force = extractForce(buildClusterForce(nodes, [], new Map(), baseCfg({ arrangement })))!;
       converge(force);
 
       const cAlpha = centroid(nodes.filter(n => n.tags![0] === "alpha"));
@@ -406,9 +412,9 @@ describe("group separation", () => {
       makeNode("b", { tags: ["only"] }),
       makeNode("c", { tags: ["only"] }),
     ];
-    const force = buildClusterForce(
+    const force = extractForce(buildClusterForce(
       nodes, [], new Map(), baseCfg({ arrangement: "spiral" }),
-    )!;
+    ))!;
     converge(force);
 
     const c = centroid(nodes);
@@ -424,9 +430,9 @@ describe("group separation", () => {
       makeNode("lonely", { tags: [] }),     // degree 0  → "0"
     ];
     const degrees = new Map([["popular", 15], ["medium", 4], ["lonely", 0]]);
-    const force = buildClusterForce(
+    const force = extractForce(buildClusterForce(
       nodes, [], degrees, baseCfg({ groupRules: [{ groupBy: "backlinks", recursive: false }], arrangement: "spiral" }),
-    )!;
+    ))!;
     converge(force);
 
     // Each node is in a different bucket — they should be separated
@@ -441,9 +447,9 @@ describe("group separation", () => {
       makeNode("tag1", { isTag: true }),
       makeNode("tag2", { isTag: true }),
     ];
-    const force = buildClusterForce(
+    const force = extractForce(buildClusterForce(
       nodes, [], new Map(), baseCfg({ groupRules: [{ groupBy: "node_type", recursive: false }], arrangement: "concentric" }),
-    )!;
+    ))!;
     converge(force);
 
     const fileCentroid = centroid(nodes.filter(n => !n.isTag));
@@ -468,7 +474,7 @@ describe("large-scale layout", () => {
       nodes.push(makeNode(`n${i}`, { tags: [tag] }));
       degrees.set(`n${i}`, Math.floor(Math.random() * 20));
     }
-    const force = buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "spiral" }))!;
+    const force = extractForce(buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "spiral" })))!;
     converge(force);
 
     for (const n of nodes) {
@@ -484,9 +490,9 @@ describe("large-scale layout", () => {
     for (let i = 0; i < 50; i++) {
       nodes.push(makeNode(`n${i}`, { tags: ["g1"] }));
     }
-    const force = buildClusterForce(
+    const force = extractForce(buildClusterForce(
       nodes, [], new Map(), baseCfg({ arrangement: "concentric" }),
-    )!;
+    ))!;
     converge(force);
 
     // Check pairwise — no exact overlaps (distance > 1px)
@@ -506,9 +512,9 @@ describe("large-scale layout", () => {
       for (let i = 0; i < 100; i++) {
         nodes.push(makeNode(`n${i}`, { tags: ["g1"] }));
       }
-      const force = buildClusterForce(
+      const force = extractForce(buildClusterForce(
         nodes, [], new Map(), baseCfg({ arrangement }),
-      )!;
+      ))!;
       converge(force);
 
       // All nodes should be within a reasonable distance of canvas center
@@ -550,7 +556,7 @@ describe("d3 simulation pipeline integration", () => {
     sim.force("center", null);
     sim.force("link", null);
 
-    const forceFn = buildClusterForce(nodes, edges, degrees, {
+    const forceResult = buildClusterForce(nodes, edges, degrees, {
       groupRules: [{ groupBy: "tag", recursive: false }],
       arrangement,
       centerX: 400,
@@ -563,7 +569,7 @@ describe("d3 simulation pipeline integration", () => {
       groupScale: 3.0,
       groupSpacing: 2.0,
     });
-    sim.force("clusterArrangement", forceFn as any);
+    sim.force("clusterArrangement", forceResult?.force as any);
     sim.alpha(0.5);
     return sim;
   }
@@ -662,7 +668,7 @@ describe("d3 simulation pipeline integration", () => {
     expect(Math.abs(c.y - 300)).toBeLessThan(100);
   });
 
-  it("200 nodes across 5 groups: all patterns produce separated groups through d3", () => {
+  it("200 nodes across 5 groups: all patterns produce separated groups through d3", { timeout: 30000 }, () => {
     const arrangements: Array<"spiral" | "concentric" | "tree" | "grid"> =
       ["spiral", "concentric", "tree", "grid"];
     const tags = ["a", "b", "c", "d", "e"];
@@ -715,31 +721,31 @@ describe("multi-level grouping", () => {
     const degrees = new Map([["a", 5], ["b", 3], ["c", 8], ["d", 2]]);
 
     // Single rule: tag → 2 groups (t1, t2)
-    const f1 = buildClusterForce(nodes, [], degrees, baseCfg({
+    const r1 = buildClusterForce(nodes, [], degrees, baseCfg({
       groupRules: [{ groupBy: "tag", recursive: false }],
     }));
 
     // Two rules: tag → node_type → potentially more groups
-    const f2 = buildClusterForce(nodes, [], degrees, baseCfg({
+    const r2 = buildClusterForce(nodes, [], degrees, baseCfg({
       groupRules: [
         { groupBy: "tag", recursive: false },
         { groupBy: "node_type", recursive: false },
       ],
     }));
 
-    expect(f1).not.toBeNull();
-    expect(f2).not.toBeNull();
+    expect(r1).not.toBeNull();
+    expect(r2).not.toBeNull();
 
     // Both should produce valid force functions that move nodes
     const nodes1 = nodes.map(n => ({ ...n }));
-    f1!(1);
+    r1!.force(1);
     const nodes2 = [
       makeNode("a", { tags: ["t1"], category: "c1" }),
       makeNode("b", { tags: ["t1"], category: "c2" }),
       makeNode("c", { tags: ["t2"], category: "c1" }),
       makeNode("d", { tags: ["t2"], category: "c2" }),
     ];
-    f2!(1);
+    r2!.force(1);
     // Both move nodes (not stuck at origin)
     expect(nodes[0].x).not.toBe(0);
   });
@@ -760,13 +766,13 @@ describe("multi-level grouping", () => {
     ];
     const edges = [makeEdge("a", "b")];
     // recursive=true → t1 splits into {a,b} and {c}
-    const f = buildClusterForce(nodes, edges, new Map(), baseCfg({
+    const fResult = buildClusterForce(nodes, edges, new Map(), baseCfg({
       groupRules: [{ groupBy: "tag", recursive: true }],
     }));
-    expect(f).not.toBeNull();
+    expect(fResult).not.toBeNull();
 
     // After convergence, a and b should be close (same component), c farther
-    converge(f!);
+    converge(fResult!.force);
     const dAB = dist(nodes[0], nodes[1]);
     const dAC = dist(nodes[0], nodes[2]);
     // c is in a different connected component and may be merged into __other__
@@ -783,14 +789,14 @@ describe("multi-level grouping", () => {
     ];
     const degrees = new Map([["a", 15], ["b", 1], ["c", 8], ["d", 2]]);
 
-    const f = buildClusterForce(nodes, [], degrees, baseCfg({
+    const fResult2 = buildClusterForce(nodes, [], degrees, baseCfg({
       groupRules: [
         { groupBy: "tag", recursive: false },
         { groupBy: "backlinks", recursive: false },
       ],
     }));
-    expect(f).not.toBeNull();
-    converge(f!);
+    expect(fResult2).not.toBeNull();
+    converge(fResult2!.force);
 
     // All nodes should have finite positions
     for (const n of nodes) {

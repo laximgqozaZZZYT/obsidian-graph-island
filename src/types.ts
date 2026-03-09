@@ -54,7 +54,7 @@ export type LayoutType =
 export type ClusterGroupBy = "none" | "tag" | "backlinks" | "node_type";
 
 /** How to arrange nodes within each cluster */
-export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid";
+export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid" | "triangle";
 
 /** A single rule in the multi-level cluster grouping pipeline */
 export interface ClusterGroupRule {
@@ -218,7 +218,7 @@ export interface GraphViewsSettings {
   defaultClusterGroupRules: ClusterGroupRule[];
   /** Default node rules for spacing and gravity */
   defaultNodeRules: NodeRule[];
-  /** Default cluster arrangement pattern (spiral | concentric | tree | grid) */
+  /** Default cluster arrangement pattern (spiral | concentric | tree | grid | triangle) */
   defaultClusterArrangement?: ClusterArrangement;
   /** Default cluster node spacing (1–10, default 3.0) */
   defaultClusterNodeSpacing?: number;
@@ -226,6 +226,8 @@ export interface GraphViewsSettings {
   defaultClusterGroupScale?: number;
   /** Default cluster group spacing (0.5–10, default 2.0) */
   defaultClusterGroupSpacing?: number;
+  /** Default edge bundle strength (0–1, default 0.65) */
+  defaultEdgeBundleStrength?: number;
   /** Vault-relative path for JSON import/export */
   settingsJsonPath: string;
 }
@@ -256,7 +258,7 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
 };
 
 export const DEFAULT_COLORS = [
-  "#6366f1", "#ec4899", "#f59e0b", "#10b981",
-  "#3b82f6", "#ef4444", "#8b5cf6", "#14b8a6",
-  "#f97316", "#06b6d4", "#84cc16", "#e11d48",
+  "#818cf8", "#f472b6", "#fbbf24", "#34d399",
+  "#60a5fa", "#f87171", "#a78bfa", "#2dd4bf",
+  "#fb923c", "#22d3ee", "#a3e635", "#fb7185",
 ] as const;
