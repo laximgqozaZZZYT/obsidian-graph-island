@@ -109,7 +109,7 @@ export function drawEdges(
       }
     }
 
-    g.lineStyle(lineThick, lineColor, alpha);
+    g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
 
     // Draw the line
     if (isSimilar) {
@@ -187,7 +187,7 @@ function drawEdgeMarker(
   if (type === "inheritance") {
     const bx = tgt.x - ux * sz;
     const by = tgt.y - uy * sz;
-    g.lineStyle(1.5, color, alpha);
+    g.lineStyle({ width: 1.5, color, alpha, native: true });
     g.beginFill(bgColor, alpha * 0.9);
     g.moveTo(tgt.x, tgt.y);
     g.lineTo(bx + px * sz * 0.5, by + py * sz * 0.5);
@@ -199,7 +199,7 @@ function drawEdgeMarker(
     const my = src.y + uy * sz;
     const fx = src.x + ux * sz * 2;
     const fy = src.y + uy * sz * 2;
-    g.lineStyle(1.5, color, alpha);
+    g.lineStyle({ width: 1.5, color, alpha, native: true });
     g.beginFill(bgColor, alpha * 0.9);
     g.moveTo(src.x, src.y);
     g.lineTo(mx + px * sz * 0.4, my + py * sz * 0.4);
