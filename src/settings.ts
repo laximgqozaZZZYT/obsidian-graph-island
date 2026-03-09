@@ -2,6 +2,7 @@ import { App, Modal, Notice, PluginSettingTab, Setting, setIcon } from "obsidian
 import type GraphViewsPlugin from "./main";
 import type { GraphViewsSettings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
+import { t } from "./i18n";
 
 // ---------------------------------------------------------------------------
 // Help entries (kept for HelpModal reuse from PanelBuilder)
@@ -165,15 +166,15 @@ export class GraphViewsSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     containerEl.createEl("p", {
-      text: "各設定項目はグラフビューのパネルから直接編集できます。ここでは設定の JSON エクスポート / インポートを行えます。",
+      text: t("settingsTab.description"),
     }).style.cssText = "color:var(--text-muted);margin-bottom:16px;";
 
     // --- Import section ---
     new Setting(containerEl)
-      .setName("設定をインポート")
-      .setDesc("JSON ファイルを選択して設定を読み込みます。現在の設定は上書きされます。")
+      .setName(t("settingsTab.import"))
+      .setDesc(t("settingsTab.importDesc"))
       .addButton((btn) =>
-        btn.setButtonText("インポート").onClick(() => {
+        btn.setButtonText(t("settingsTab.importBtn")).onClick(() => {
           const fileInput = document.createElement("input");
           fileInput.type = "file";
           fileInput.accept = ".json";
@@ -189,10 +190,10 @@ export class GraphViewsSettingTab extends PluginSettingTab {
               this.plugin.settings = Object.assign({}, DEFAULT_SETTINGS, parsed);
               this.plugin.settings.settingsJsonPath = file.name;
               await this.plugin.saveSettings();
-              new Notice(`インポート完了: ${file.name}`);
+              new Notice(`${t("settingsTab.importDone")}: ${file.name}`);
               this.display();
             } catch (e) {
-              new Notice(`インポート失敗: ${(e as Error).message}`);
+              new Notice(`${t("settingsTab.importFail")}: ${(e as Error).message}`);
             }
           });
           fileInput.click();
@@ -201,8 +202,8 @@ export class GraphViewsSettingTab extends PluginSettingTab {
 
     // --- Vault path (for export target and vault-based import) ---
     new Setting(containerEl)
-      .setName("設定 JSON ファイルパス")
-      .setDesc("Vault 内の JSON ファイルパス（例: settings/graph-island.json）。エクスポート先に使用します。")
+      .setName(t("settingsTab.jsonPath"))
+      .setDesc(t("settingsTab.jsonPathDesc"))
       .addText((text) =>
         text
           .setPlaceholder("settings/graph-island.json")
@@ -215,13 +216,13 @@ export class GraphViewsSettingTab extends PluginSettingTab {
 
     // --- Export button ---
     new Setting(containerEl)
-      .setName("設定をエクスポート")
-      .setDesc("現在の設定を JSON ファイルに書き出します。")
+      .setName(t("settingsTab.export"))
+      .setDesc(t("settingsTab.exportDesc"))
       .addButton((btn) =>
-        btn.setButtonText("エクスポート").setCta().onClick(async () => {
+        btn.setButtonText(t("settingsTab.exportBtn")).setCta().onClick(async () => {
           const path = this.plugin.settings.settingsJsonPath;
           if (!path) {
-            new Notice("JSON ファイルパスを指定してください。");
+            new Notice(t("settingsTab.exportNoPath"));
             return;
           }
           try {
@@ -231,15 +232,15 @@ export class GraphViewsSettingTab extends PluginSettingTab {
             }
             const data = JSON.stringify(this.plugin.settings, null, 2);
             await this.app.vault.adapter.write(path, data);
-            new Notice(`エクスポート完了: ${path}`);
+            new Notice(`${t("settingsTab.exportDone")}: ${path}`);
           } catch (e) {
-            new Notice(`エクスポート失敗: ${(e as Error).message}`);
+            new Notice(`${t("settingsTab.exportFail")}: ${(e as Error).message}`);
           }
         })
       );
 
     // --- Preview: show current settings as read-only JSON ---
-    containerEl.createEl("h3", { text: "現在の設定（プレビュー）" });
+    containerEl.createEl("h3", { text: t("settingsTab.preview") });
 
     const preview = containerEl.createEl("textarea");
     preview.style.cssText = "width:100%;min-height:300px;font-family:monospace;font-size:0.85em;";

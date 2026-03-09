@@ -4,6 +4,7 @@ import { repositionShell } from "../layouts/concentric";
 import type { QueryExpression, BoolOp } from "../utils/query-expr";
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { setIcon } from "obsidian";
+import { t, tHelp } from "../i18n";
 
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
@@ -120,6 +121,7 @@ export interface PanelCallbacks {
   collectValueSuggestions(field: string): string[];
   saveGroupPreset(): void;
   resetPanel(): void;
+  applyPreset(preset: "simple" | "analysis" | "creative"): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,6 +136,8 @@ export interface PanelContext {
   simulation: unknown | null;  // only used for null-check
   settings: GraphViewsSettings;
   saveSettings(): void;
+  nodeCount: number;
+  edgeCount: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,137 +151,148 @@ export function buildPanel(
 ): void {
   panelEl.empty();
 
-  // グラフの種類セクション — 一時的に非表示
-  // buildSection(panelEl, "グラフの種類", (body) => {
-  //   const select = body.createEl("select", { cls: "ngp-select" });
-  //   const layouts: { type: LayoutType; label: string }[] = [
-  //     { type: "force", label: "Force" },
-  //     { type: "concentric", label: "Concentric" },
-  //     { type: "tree", label: "Tree" },
-  //     { type: "arc", label: "Arc" },
-  //     { type: "sunburst", label: "Sunburst" },
-  //   ];
-  //   for (const l of layouts) {
-  //     const opt = select.createEl("option", { text: l.label, value: l.type });
-  //     if (l.type === ctx.currentLayout) opt.selected = true;
-  //   }
-  //   select.addEventListener("change", () => {
-  //     ctx.setLayout(select.value as LayoutType);
-  //     cb.rebuildPanel();
-  //     cb.doRender();
-  //   });
-  // }, "グラフのレイアウトアルゴリズムを選択します。\n\nForce: 力学モデル（クラスター配置対応）\nConcentric: 同心円配置\nTree: 階層ツリー\nArc: 弧状配置\nSunburst: 放射状階層配置");
+  // =========================================================================
+  // Top bar: Search (always visible, outside sections)
+  // =========================================================================
+  const topBar = panelEl.createDiv({ cls: "ngp-top-bar" });
 
+  // --- Search bar ---
+  const searchBar = topBar.createEl("input", {
+    cls: "ngp-search ngp-top-search",
+    type: "text",
+    placeholder: t("search.placeholder"),
+  });
+  searchBar.value = panel.searchQuery;
+  searchBar.addEventListener("input", () => { panel.searchQuery = searchBar.value; cb.applySearch(); });
+  attachQueryHint(searchBar, (field) => cb.collectValueSuggestions(field));
+
+  // =========================================================================
+  // P2: Empty state — shown when no nodes are in the graph
+  // =========================================================================
+  if (ctx.nodeCount === 0) {
+    const empty = panelEl.createDiv({ cls: "ngp-empty-state" });
+    empty.createEl("div", { cls: "ngp-empty-title", text: t("empty.title") });
+    empty.createEl("p", { cls: "ngp-empty-hint", text: t("empty.hint") });
+    const steps = empty.createEl("ol", { cls: "ngp-empty-steps" });
+    steps.createEl("li", { text: t("empty.step1") });
+    steps.createEl("li", { text: t("empty.step2") });
+    steps.createEl("li", { text: t("empty.step3") });
+  }
+
+  // =========================================================================
+  // P2: Quick presets — one-click configuration templates
+  // =========================================================================
+  buildPresetBar(panelEl, cb);
+
+  // =========================================================================
+  // Layout-specific sections
+  // =========================================================================
   if (ctx.currentLayout === "concentric") {
-    buildSection(panelEl, "同心円レイアウト", (body) => {
-      addSlider(body, "最小半径", 10, 200, 5, panel.concentricMinRadius, (v) => { panel.concentricMinRadius = v; cb.doRender(); });
-      addSlider(body, "軌道間距離", 10, 200, 5, panel.concentricRadiusStep, (v) => { panel.concentricRadiusStep = v; cb.doRender(); });
-      addToggle(body, "軌道リングを表示", panel.showOrbitRings, (v) => { panel.showOrbitRings = v; cb.markDirty(); });
-      addToggle(body, "自動回転", panel.orbitAutoRotate, (v) => {
+    buildSection(panelEl, t("section.concentricLayout"), (body) => {
+      addSlider(body, t("concentric.minRadius"), 10, 200, 5, panel.concentricMinRadius, (v) => { panel.concentricMinRadius = v; cb.doRender(); });
+      addSlider(body, t("concentric.radiusStep"), 10, 200, 5, panel.concentricRadiusStep, (v) => { panel.concentricRadiusStep = v; cb.doRender(); });
+      addToggle(body, t("concentric.showOrbitRings"), panel.showOrbitRings, (v) => { panel.showOrbitRings = v; cb.markDirty(); });
+      addToggle(body, t("concentric.autoRotate"), panel.orbitAutoRotate, (v) => {
         panel.orbitAutoRotate = v;
         if (v) { cb.startOrbitAnimation(); } else { cb.stopOrbitAnimation(); }
       });
     });
     if (ctx.shells.length > 0) {
-      buildSection(panelEl, "各軌道の調整", (body) => {
+      buildSection(panelEl, t("section.orbitAdjust"), (body) => {
         ctx.shells.forEach((shell, i) => {
           if (i === 0 && shell.nodeIds.length === 1) return;
           const label = `軌道 ${i} (${shell.nodeIds.length}ノード)`;
           body.createEl("div", { cls: "ngp-orbit-label", text: label });
-          addSlider(body, "半径", 10, 500, 5, shell.radius, (v) => {
+          addSlider(body, t("orbit.radius"), 10, 500, 5, shell.radius, (v) => {
             shell.radius = v;
             const nodeMap = new Map<string, GraphNode>();
             for (const pn of ctx.pixiNodes.values()) nodeMap.set(pn.data.id, pn.data);
             repositionShell(shell, nodeMap);
             cb.markDirty();
           });
-          addSlider(body, "回転速度", 0, 2, 0.05, shell.rotationSpeed, (v) => {
+          addSlider(body, t("orbit.rotationSpeed"), 0, 2, 0.05, shell.rotationSpeed, (v) => {
             shell.rotationSpeed = v;
           });
-          addDirectionToggle(body, "回転方向", shell.rotationDirection, (v) => {
+          addDirectionToggle(body, t("orbit.rotationDirection"), shell.rotationDirection, (v) => {
             shell.rotationDirection = v;
           });
         });
-        body.createEl("p", { cls: "ngp-hint", text: "ドラッグでも軌道を回転できます" });
-      });
+        body.createEl("p", { cls: "ngp-hint", text: t("orbit.dragHint") });
+      }, undefined, true);
     }
   }
 
-  buildSection(panelEl, "フィルタ", (body) => {
-    const search = body.createEl("input", { cls: "ngp-search", type: "text", placeholder: "検索… hop:名前:2" });
-    search.value = panel.searchQuery;
-    search.addEventListener("input", () => { panel.searchQuery = search.value; cb.applySearch(); });
-    attachQueryHint(search, (field) => cb.collectValueSuggestions(field));
-    addToggle(body, "タグ", panel.showTags, (v) => { panel.showTags = v; cb.invalidateData(); });
-    addToggle(body, "添付書類", panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateData(); });
-    addToggle(body, "存在するファイルのみ表示", panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateData(); });
-    addToggle(body, "オーファン", panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateData(); });
-    addSelect(body, "タグ表示", [
-      { value: "off", label: "非表示" },
-      { value: "node", label: "ノード" },
-      { value: "enclosure", label: "囲い" },
+  buildSection(panelEl, t("section.filter"), (body) => {
+    addToggle(body, t("filter.tags"), panel.showTags, (v) => { panel.showTags = v; cb.invalidateData(); });
+    addToggle(body, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateData(); });
+    addToggle(body, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateData(); });
+    addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateData(); });
+    addSelect(body, t("filter.tagDisplay"), [
+      { value: "off", label: t("filter.tagDisplay.off") },
+      { value: "node", label: t("filter.tagDisplay.node") },
+      { value: "enclosure", label: t("filter.tagDisplay.enclosure") },
     ], !panel.showTagNodes ? "off" : panel.tagDisplay, (v) => {
       panel.showTagNodes = v !== "off";
       panel.tagDisplay = v === "enclosure" ? "enclosure" : "node";
       cb.invalidateData();
     });
-  }, "グラフに表示するノードとエッジを制御します。\n\n検索: field:value でノードをフィルタ\n  例: tag:character, hop:名前:2\n\nタグ表示:\n  ノード = タグ自体をノードとして表示\n  囲い = タグをノード群の包絡線として表示");
+  }, tHelp("help.filter"));
 
-  buildSection(panelEl, "グループ", (body) => {
+  buildSection(panelEl, t("section.groups"), (body) => {
     // --- Group color rules list ---
     const list = body.createDiv();
     renderGroupList(list, panel, cb);
-    const addBtn = body.createEl("button", { cls: "ngp-add-group", text: "新規グループ" });
+    const addBtn = body.createEl("button", { cls: "ngp-add-group", text: t("groups.addGroup") });
     addBtn.addEventListener("click", () => {
       const idx = panel.groups.length;
       panel.groups.push({ expression: null, color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length] });
       renderGroupList(list, panel, cb);
     });
-  }, "ノードの色分けルール\n  クエリ記法でマッチするノードに色を割り当て\n  例: tag:character → 赤色\n\nグループ分けルール（クラスター配置）は\n「クラスター配置」セクションで設定します");
+  }, tHelp("help.groups"));
 
-  buildSection(panelEl, "表示", (body) => {
-    addToggle(body, "矢印", panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); });
-    addToggle(body, "ノード色（自動）", panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); });
-    addToggle(body, "エッジ色（属性別）", panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); });
-    addToggle(body, "結線の濃淡（被リンク数）", panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); });
-    addSlider(body, "テキストフェードの閾値", 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); });
-    addSlider(body, "ノードの大きさ", 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
-    addToggle(body, "被リンク数でサイズ変更", panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); });
-    addSlider(body, "ホバー強調ホップ数", 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; });
+  buildSection(panelEl, t("section.display"), (body) => {
+    addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); });
+    addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); });
+    addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); });
+    addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); });
+    addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); });
+    addSlider(body, t("display.nodeSize"), 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
+    addToggle(body, t("display.scaleByDegree"), panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); });
+    addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; });
 
     // --- エッジ種別の表示切替 ---
-    body.createEl("div", { cls: "setting-item-heading", text: "結線タイプ" });
-    addToggle(body, "リンク", panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); });
-    addToggle(body, "共有タグ", panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); });
-    addToggle(body, "共有カテゴリ", panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); });
-    addToggle(body, "意味関係 (semantic)", panel.showSemanticEdges, (v) => { panel.showSemanticEdges = v; cb.markDirty(); });
-    addToggle(body, "継承 (is-a)", panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); });
-    addToggle(body, "集約 (has-a)", panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); });
-    addToggle(body, "類似 (similar)", panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateData(); });
-  }, "グラフの見た目を調整します。\n\n矢印: エッジに方向を示す矢印を表示\nノード色: category フィールドで自動色分け\nエッジ色: 関係種別ごとに色分け\nテキストフェード: ズームアウト時のラベル消失閾値\nホバー強調: マウスオーバー時に何ホップ先まで強調するか\n\n結線タイプ: 種別ごとにエッジの表示/非表示を切り替え");
+    body.createEl("div", { cls: "setting-item-heading", text: t("display.edgeTypeHeading") });
+    addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); });
+    addToggle(body, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); });
+    addToggle(body, t("display.sharedCategory"), panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); });
+    addToggle(body, t("display.semantic"), panel.showSemanticEdges, (v) => { panel.showSemanticEdges = v; cb.markDirty(); });
+    addToggle(body, t("display.inheritance"), panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); });
+    addToggle(body, t("display.aggregation"), panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); });
+    addToggle(body, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateData(); });
+  }, tHelp("help.display"));
 
-  buildSection(panelEl, "ノードルール", (body) => {
+  buildSection(panelEl, t("section.nodeRules"), (body) => {
     const ruleListEl = body.createDiv({ cls: "ngp-noderule-list" });
     renderNodeRuleList(ruleListEl, panel, cb);
 
-    const addBtn = body.createEl("button", { cls: "ngp-add-group", text: "ルール追加" });
+    const addBtn = body.createEl("button", { cls: "ngp-add-group", text: t("nodeRules.addRule") });
     addBtn.addEventListener("click", () => {
       panel.nodeRules.push({ query: "*", spacingMultiplier: 1.0, gravityAngle: -1, gravityStrength: 0.1 });
       renderNodeRuleList(ruleListEl, panel, cb);
       cb.applyNodeRules();
       cb.restartSimulation(0.3);
     });
-  }, "クエリにマッチするノードの間隔や重力を個別制御します。\n\nquery: 対象ノードのクエリ (*, tag:character 等)\n間隔: ノード同士の距離の倍率\n重力: 特定方向への引力 (角度と強度)");
+  }, tHelp("help.nodeRules"), true);
 
   if (panel.colorEdgesByRelation && ctx.relationColors.size > 0) {
-    buildSection(panelEl, "属性カラー", (body) => {
+    buildSection(panelEl, t("section.relationColors"), (body) => {
       const container = body.createDiv({ cls: "graph-color-groups-container" });
       for (const [rel, color] of ctx.relationColors) {
         const group = container.createDiv({ cls: "graph-color-group" });
         const label = group.createEl("span", { text: rel, cls: "graph-color-group-label" });
         label.style.cssText = "flex:1;font-size:var(--font-ui-small);";
         const picker = group.createEl("input", { type: "color" });
-        picker.setAttribute("aria-label", "クリックで色を変更");
+        picker.setAttribute("aria-label", t("relationColors.changeColor"));
         picker.value = color;
         picker.addEventListener("input", () => {
           ctx.relationColors.set(rel, picker.value);
@@ -288,16 +303,16 @@ export function buildPanel(
   }
 
   if (ctx.currentLayout === "force") {
-    buildSection(panelEl, "クラスター配置", (body) => {
-      addSelect(body, "配置パターン", [
-        { value: "spiral", label: "アルキメデスの螺旋" },
-        { value: "concentric", label: "同心円" },
-        { value: "tree", label: "Tree" },
-        { value: "grid", label: "正方形" },
-        { value: "triangle", label: "三角形" },
-        { value: "random", label: "無秩序" },
-        { value: "mountain", label: "Mountain" },
-        { value: "sunburst", label: "SunBurst" },
+    buildSection(panelEl, t("section.clusterArrangement"), (body) => {
+      addSelect(body, t("cluster.pattern"), [
+        { value: "spiral", label: t("cluster.spiral") },
+        { value: "concentric", label: t("cluster.concentric") },
+        { value: "tree", label: t("cluster.tree") },
+        { value: "grid", label: t("cluster.grid") },
+        { value: "triangle", label: t("cluster.triangle") },
+        { value: "random", label: t("cluster.random") },
+        { value: "mountain", label: t("cluster.mountain") },
+        { value: "sunburst", label: t("cluster.sunburst") },
       ], panel.clusterArrangement, (v) => {
         panel.clusterArrangement = v as ClusterArrangement;
         cb.applyClusterForce();
@@ -305,32 +320,32 @@ export function buildPanel(
         cb.restartSimulation(0.5);
       });
 
-      addSlider(body, "ノード間隔 (半径×n)", 1, 10, 0.5, panel.clusterNodeSpacing, (v) => {
+      addSlider(body, t("cluster.nodeSpacing"), 1, 10, 0.5, panel.clusterNodeSpacing, (v) => {
         panel.clusterNodeSpacing = v;
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
       });
-      addSlider(body, "グループサイズ", 0.2, 5, 0.1, panel.clusterGroupScale, (v) => {
+      addSlider(body, t("cluster.groupSize"), 0.2, 5, 0.1, panel.clusterGroupScale, (v) => {
         panel.clusterGroupScale = v;
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
       });
-      addSlider(body, "グループ間隔", 0.5, 5, 0.1, panel.clusterGroupSpacing, (v) => {
+      addSlider(body, t("cluster.groupSpacing"), 0.5, 5, 0.1, panel.clusterGroupSpacing, (v) => {
         panel.clusterGroupSpacing = v;
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
       });
-      addSlider(body, "エッジ束ね強度", 0, 1, 0.05, panel.edgeBundleStrength, (v) => {
+      addSlider(body, t("cluster.edgeBundleStrength"), 0, 1, 0.05, panel.edgeBundleStrength, (v) => {
         panel.edgeBundleStrength = v;
         cb.markDirty();
       });
       // --- Cluster group rules sub-section ---
       const clusterHeader = body.createDiv({ cls: "setting-item" });
-      clusterHeader.createDiv({ cls: "setting-item-name", text: "グループ分けルール" });
+      clusterHeader.createDiv({ cls: "setting-item-name", text: t("cluster.groupRulesHeading") });
       const clusterListEl = body.createDiv({ cls: "ngp-cluster-rule-list" });
       renderClusterRuleList(clusterListEl, panel, cb);
 
-      const addClusterBtn = body.createEl("button", { cls: "ngp-add-group", text: "＋ グループルール追加" });
+      const addClusterBtn = body.createEl("button", { cls: "ngp-add-group", text: t("cluster.addGroupRule") });
       addClusterBtn.addEventListener("click", () => {
         panel.clusterGroupRules.push({ groupBy: "tag", recursive: false });
         renderClusterRuleList(clusterListEl, panel, cb);
@@ -341,11 +356,11 @@ export function buildPanel(
 
       // --- Directional gravity rules sub-section ---
       const gravHeader = body.createDiv({ cls: "setting-item" });
-      gravHeader.createDiv({ cls: "setting-item-name", text: "方向重力ルール" });
+      gravHeader.createDiv({ cls: "setting-item-name", text: t("cluster.gravityRulesHeading") });
       const gravListEl = body.createDiv({ cls: "ngp-gravity-rule-list" });
       renderDirectionalGravityList(gravListEl, panel, ctx, cb);
 
-      const addGravBtn = body.createEl("button", { cls: "ngp-add-group", text: "＋ 重力ルール追加" });
+      const addGravBtn = body.createEl("button", { cls: "ngp-add-group", text: t("cluster.addGravityRule") });
       addGravBtn.addEventListener("click", () => {
         panel.directionalGravityRules.push({ filter: "*", direction: "top", strength: 0.1 });
         renderDirectionalGravityList(gravListEl, panel, ctx, cb);
@@ -355,97 +370,97 @@ export function buildPanel(
 
       // --- Sort rules sub-section ---
       const sortHeader = body.createDiv({ cls: "setting-item" });
-      sortHeader.createDiv({ cls: "setting-item-name", text: "ソート順" });
+      sortHeader.createDiv({ cls: "setting-item-name", text: t("cluster.sortHeading") });
       const sortListEl = body.createDiv({ cls: "ngp-sort-list" });
       renderSortRuleList(sortListEl, panel, cb);
 
-      const addSortBtn = body.createEl("button", { cls: "ngp-add-group", text: "＋ ソートルール追加" });
+      const addSortBtn = body.createEl("button", { cls: "ngp-add-group", text: t("cluster.addSortRule") });
       addSortBtn.addEventListener("click", () => {
         panel.sortRules.push({ key: "label", order: "asc" });
         renderSortRuleList(sortListEl, panel, cb);
         cb.applyClusterForce();
         cb.doRender();
       });
-    }, "Force レイアウトでのクラスター配置を制御します。\n\n配置パターン: グループの並べ方\nノード間隔: グループ内のノード同士の距離\nグループサイズ/間隔: グループの大きさと距離\nエッジ束ね強度: クラスタ間エッジの曲がり具合（0=直線, 1=強い束ね）\nソート順: グループ内のノードの並び順");
+    }, tHelp("help.clusterArrangement"), true);
   }
 
   // Force parameters are only relevant when NOT in force layout
   // (cluster arrangement always active in force layout, suppresses these forces)
   if (ctx.currentLayout !== "force") {
-    buildSection(panelEl, "力の強さ", (body) => {
-      addSlider(body, "中心力", 0, 0.2, 0.005, panel.centerForce, (v) => { panel.centerForce = v; cb.updateForces(); });
-      addSlider(body, "反発力", 0, 1000, 10, panel.repelForce, (v) => { panel.repelForce = v; cb.updateForces(); });
-      addSlider(body, "リンクの力", 0, 0.1, 0.002, panel.linkForce, (v) => { panel.linkForce = v; cb.updateForces(); });
-      addSlider(body, "リンク距離", 20, 500, 10, panel.linkDistance, (v) => { panel.linkDistance = v; cb.updateForces(); });
-      addSlider(body, "囲い間隔", 0.5, 5, 0.1, panel.enclosureSpacing, (v) => { panel.enclosureSpacing = v; cb.updateForces(); });
-    }, "力学シミュレーションのパラメータを調整します。\n\n中心力: ノードを中心に引き寄せる力\n反発力: ノード同士の反発距離\nリンクの力: エッジによる引力強度\nリンク距離: エッジの目標長さ\n囲い間隔: タグ包絡線のパディング");
+    buildSection(panelEl, t("section.forceStrength"), (body) => {
+      addSlider(body, t("force.centerForce"), 0, 0.2, 0.005, panel.centerForce, (v) => { panel.centerForce = v; cb.updateForces(); });
+      addSlider(body, t("force.repelForce"), 0, 1000, 10, panel.repelForce, (v) => { panel.repelForce = v; cb.updateForces(); });
+      addSlider(body, t("force.linkForce"), 0, 0.1, 0.002, panel.linkForce, (v) => { panel.linkForce = v; cb.updateForces(); });
+      addSlider(body, t("force.linkDistance"), 20, 500, 10, panel.linkDistance, (v) => { panel.linkDistance = v; cb.updateForces(); });
+      addSlider(body, t("force.enclosureSpacing"), 0.5, 5, 0.1, panel.enclosureSpacing, (v) => { panel.enclosureSpacing = v; cb.updateForces(); });
+    }, tHelp("help.forceStrength"), true);
   }
 
   // --- プラグイン設定（グラフパネルから直接編集） ---
-  buildSection(panelEl, "プラグイン設定", (body) => {
+  buildSection(panelEl, t("section.pluginSettings"), (body) => {
     const s = ctx.settings;
 
-    addTextInput(body, "メタデータフィールド", s.metadataFields.join(", "), "tags, category, characters", (v) => {
+    addTextInput(body, t("settings.metadataFields"), s.metadataFields.join(", "), "tags, category, characters", (v) => {
       s.metadataFields = v.split(",").map(x => x.trim()).filter(Boolean);
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addTextInput(body, "色分けフィールド", s.colorField, "category", (v) => {
+    addTextInput(body, t("settings.colorField"), s.colorField, "category", (v) => {
       s.colorField = v.trim();
       ctx.saveSettings();
       cb.doRender();
     });
 
-    addTextInput(body, "グループフィールド", s.groupField, "category", (v) => {
+    addTextInput(body, t("settings.groupField"), s.groupField, "category", (v) => {
       s.groupField = v.trim();
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addSlider(body, "囲い最小比率", 0, 0.3, 0.01, s.enclosureMinRatio, (v) => {
+    addSlider(body, t("settings.enclosureMinRatio"), 0, 0.3, 0.01, s.enclosureMinRatio, (v) => {
       s.enclosureMinRatio = v;
       ctx.saveSettings();
       cb.doRender();
     });
 
     // --- Ontology sub-section ---
-    body.createEl("div", { cls: "setting-item-name", text: "― オントロジー ―" }).style.cssText = "margin-top:8px;opacity:0.7;font-size:0.85em;";
+    body.createEl("div", { cls: "setting-item-name", text: t("settings.ontologyHeading") }).style.cssText = "margin-top:8px;opacity:0.7;font-size:0.85em;";
 
-    addTextInput(body, "継承フィールド (is-a)", s.ontology.inheritanceFields.join(", "), "parent, extends, up", (v) => {
+    addTextInput(body, t("settings.inheritanceFields"), s.ontology.inheritanceFields.join(", "), "parent, extends, up", (v) => {
       s.ontology.inheritanceFields = v.split(",").map(x => x.trim()).filter(Boolean);
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addTextInput(body, "集約フィールド (has-a)", s.ontology.aggregationFields.join(", "), "contains, parts, has", (v) => {
+    addTextInput(body, t("settings.aggregationFields"), s.ontology.aggregationFields.join(", "), "contains, parts, has", (v) => {
       s.ontology.aggregationFields = v.split(",").map(x => x.trim()).filter(Boolean);
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addTextInput(body, "類似フィールド", s.ontology.similarFields.join(", "), "similar, related", (v) => {
+    addTextInput(body, t("settings.similarFields"), s.ontology.similarFields.join(", "), "similar, related", (v) => {
       s.ontology.similarFields = v.split(",").map(x => x.trim()).filter(Boolean);
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addToggle(body, "タグ階層から継承エッジ生成", s.ontology.useTagHierarchy, (v) => {
+    addToggle(body, t("settings.tagHierarchy"), s.ontology.useTagHierarchy, (v) => {
       s.ontology.useTagHierarchy = v;
       ctx.saveSettings();
       cb.invalidateData();
     });
-  }, "プラグイン全体の設定です。変更は即座に反映されます。\n\nメタデータフィールド: グラフの関係構築に使う frontmatter フィールド名（カンマ区切り）\n色分けフィールド: ノードの自動色分けに使うフィールド\nグループフィールド: 同心円/Sunburst のグループ分けフィールド\n囲い最小比率: 包絡線表示の最小グループサイズ\n\nオントロジー:\n  継承 (is-a): 親子関係のフィールド\n  集約 (has-a): 包含関係のフィールド\n  類似: 関連性のフィールド\n  タグ階層: #a/b → 自動で継承エッジ生成");
+  }, tHelp("help.pluginSettings"), true);
 
   // --- 設定保存・初期化ボタン（パネル末尾） ---
   const actionRow = panelEl.createDiv({ cls: "ngp-panel-actions" });
   actionRow.style.cssText = "display:flex;gap:6px;padding:8px 12px;";
 
-  const saveBtn = actionRow.createEl("button", { cls: "mod-cta", text: "設定を保存" });
+  const saveBtn = actionRow.createEl("button", { cls: "mod-cta", text: t("action.save") });
   saveBtn.style.flex = "1";
   saveBtn.addEventListener("click", () => cb.saveGroupPreset());
 
-  const resetBtn = actionRow.createEl("button", { text: "初期化" });
+  const resetBtn = actionRow.createEl("button", { text: t("action.reset") });
   resetBtn.style.flex = "1";
   resetBtn.addEventListener("click", () => cb.resetPanel());
 }
@@ -454,8 +469,9 @@ export function buildPanel(
 // UI helpers
 // ---------------------------------------------------------------------------
 
-function buildSection(container: HTMLElement, title: string, build: (body: HTMLElement) => void, helpText?: string) {
+function buildSection(container: HTMLElement, title: string, build: (body: HTMLElement) => void, helpText?: string, collapsed = false) {
   const section = container.createDiv({ cls: "graph-control-section tree-item" });
+  if (collapsed) section.addClass("is-collapsed");
   const header = section.createDiv({ cls: "tree-item-self graph-control-section-header is-clickable" });
   const collapseIcon = header.createDiv({ cls: "tree-item-icon collapse-icon" });
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -475,7 +491,7 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
   header.createEl("span", { cls: "tree-item-inner", text: title });
 
   if (helpText) {
-    const helpBtn = header.createEl("span", { cls: "clickable-icon ngp-section-help", attr: { "aria-label": "Help" } });
+    const helpBtn = header.createEl("span", { cls: "clickable-icon ngp-section-help", attr: { "aria-label": t("help.ariaLabel") } });
     helpBtn.style.cssText = "margin-left:auto;opacity:0.5;";
     setIcon(helpBtn, "help-circle");
     helpBtn.addEventListener("click", (e) => {
@@ -495,6 +511,21 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
     const collapsed = section.hasClass("is-collapsed");
     section.toggleClass("is-collapsed", !collapsed);
   });
+}
+
+function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
+  const presets: { key: "simple" | "analysis" | "creative"; labelKey: string; descKey: string }[] = [
+    { key: "simple", labelKey: "preset.simple", descKey: "preset.simpleDesc" },
+    { key: "analysis", labelKey: "preset.analysis", descKey: "preset.analysisDesc" },
+    { key: "creative", labelKey: "preset.creative", descKey: "preset.creativeDesc" },
+  ];
+  const bar = container.createDiv({ cls: "ngp-preset-bar" });
+  for (const p of presets) {
+    const btn = bar.createEl("button", { cls: "ngp-preset-btn", text: t(p.labelKey) });
+    btn.setAttribute("aria-label", t(p.descKey));
+    btn.title = t(p.descKey);
+    btn.addEventListener("click", () => cb.applyPreset(p.key));
+  }
 }
 
 function addSlider(container: HTMLElement, label: string, min: number, max: number, step: number, initial: number, onChange: (v: number) => void) {
@@ -539,18 +570,20 @@ function addTextInput(container: HTMLElement, label: string, initial: string, pl
 // ---------------------------------------------------------------------------
 // Search options hint — shown below query inputs on focus, like core graph view
 // ---------------------------------------------------------------------------
-const QUERY_OPTIONS: { prefix: string; desc: string }[] = [
-  { prefix: "path:", desc: "ファイルへのパスに一致" },
-  { prefix: "file:", desc: "ファイル名に一致" },
-  { prefix: "tag:", desc: "タグを検索" },
-  { prefix: "category:", desc: "カテゴリに一致" },
-  { prefix: "id:", desc: "ノードIDに一致" },
-  { prefix: "isTag", desc: "タグノードのみ" },
-  { prefix: "hop:名前:N", desc: "ノードからNホップ以内" },
-  { prefix: "[property]:", desc: "プロパティに一致" },
-  { prefix: "AND / OR", desc: "ブール演算子で結合" },
-  { prefix: "*", desc: "すべてのノードに一致" },
-];
+function getQueryOptions(): { prefix: string; desc: string }[] {
+  return [
+    { prefix: "path:", desc: t("query.pathMatch") },
+    { prefix: "file:", desc: t("query.fileMatch") },
+    { prefix: "tag:", desc: t("query.tagSearch") },
+    { prefix: "category:", desc: t("query.categoryMatch") },
+    { prefix: "id:", desc: t("query.idMatch") },
+    { prefix: "isTag", desc: t("query.isTag") },
+    { prefix: "hop:name:N", desc: t("query.hop") },
+    { prefix: "[property]:", desc: t("query.property") },
+    { prefix: "AND / OR", desc: t("query.boolOps") },
+    { prefix: "*", desc: t("query.all") },
+  ];
+}
 
 /** Maps a search prefix to the field name used by collectValueSuggestions */
 const PREFIX_TO_FIELD: Record<string, string> = {
@@ -623,7 +656,7 @@ function attachQueryHint(input: HTMLInputElement, getSuggestions: (field: string
   };
 
   const buildOptionsList = () => {
-    currentItems = QUERY_OPTIONS.map(opt => ({
+    currentItems = getQueryOptions().map(opt => ({
       text: opt.prefix,
       onSelect: () => {
         insertText(opt.prefix.endsWith(":") ? opt.prefix : opt.prefix + " ");
@@ -664,7 +697,7 @@ function attachQueryHint(input: HTMLInputElement, getSuggestions: (field: string
     headerTitle.createEl("span", { text: headerText });
     const headerAux = headerItem.createDiv({ cls: "suggestion-aux" });
     const infoBtn = headerAux.createDiv({ cls: "list-item-part search-suggest-icon clickable-icon" });
-    infoBtn.setAttribute("aria-label", "詳細を閲覧");
+    infoBtn.setAttribute("aria-label", t("query.viewDetails"));
     setIcon(infoBtn, "info");
 
     // Items
@@ -674,7 +707,7 @@ function attachQueryHint(input: HTMLInputElement, getSuggestions: (field: string
       const content = item.createDiv({ cls: "suggestion-content" });
       const title = content.createDiv({ cls: "suggestion-title" });
       // For options list, show description; for value list, just the value
-      const opt = QUERY_OPTIONS.find(o => o.prefix === ci.text);
+      const opt = getQueryOptions().find(o => o.prefix === ci.text);
       if (opt) {
         title.createEl("span", { text: opt.prefix });
         title.createEl("span", { cls: "search-suggest-info-text", text: opt.desc });
@@ -697,10 +730,10 @@ function attachQueryHint(input: HTMLInputElement, getSuggestions: (field: string
     const pos = input.selectionStart ?? input.value.length;
     const token = parseActiveToken(input.value, pos);
     if (token && buildValueList(token.prefix, token.partial, token.tokenStart)) {
-      renderHint(token.prefix.slice(0, -1) + " の候補");
+      renderHint(token.prefix.slice(0, -1) + " " + t("query.candidates"));
     } else {
       buildOptionsList();
-      renderHint("検索オプション");
+      renderHint(t("query.searchOptions"));
     }
   };
 
@@ -764,10 +797,12 @@ function addDirectionToggle(container: HTMLElement, label: string, initial: 1 | 
   const info = row.createDiv({ cls: "setting-item-info" });
   info.createDiv({ cls: "setting-item-name", text: label });
   const control = row.createDiv({ cls: "setting-item-control" });
-  const btn = control.createEl("button", { cls: "ngp-direction-btn", text: initial === 1 ? "時計回り ↻" : "反時計回り ↺" });
+  const btn = control.createEl("button", { cls: "ngp-direction-btn", text: initial === 1 ? t("direction.clockwise") : t("direction.counterClockwise") });
+  btn.dataset.dir = initial === 1 ? "cw" : "ccw";
   btn.addEventListener("click", () => {
-    const next: 1 | -1 = btn.textContent?.includes("時計回り ↻") ? -1 : 1;
-    btn.textContent = next === 1 ? "時計回り ↻" : "反時計回り ↺";
+    const next: 1 | -1 = btn.dataset.dir === "cw" ? -1 : 1;
+    btn.textContent = next === 1 ? t("direction.clockwise") : t("direction.counterClockwise");
+    btn.dataset.dir = next === 1 ? "cw" : "ccw";
     onChange(next);
   });
 }
@@ -971,7 +1006,7 @@ function renderExprEditor(container: HTMLElement, group: GroupRule, textInput: H
     });
 
     // Add row button
-    const addBtn = container.createEl("button", { cls: "ngp-add-group", text: "＋ 条件追加" });
+    const addBtn = container.createEl("button", { cls: "ngp-add-group", text: t("expr.addCondition") });
     addBtn.addEventListener("click", () => {
       rows.push({ field: "label", value: "", indent: 0, opBefore: "AND" });
       rebuild();
@@ -981,14 +1016,16 @@ function renderExprEditor(container: HTMLElement, group: GroupRule, textInput: H
   renderRows();
 }
 
-const SORT_KEY_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: "degree", label: "リンク数" },
-  { value: "in-degree", label: "被リンク数" },
-  { value: "tag", label: "タグ" },
-  { value: "category", label: "カテゴリ" },
-  { value: "label", label: "ラベル" },
-  { value: "importance", label: "伝播重要度" },
-];
+function getSortKeyOptions(): { value: SortKey; label: string }[] {
+  return [
+    { value: "degree", label: t("sort.degree") },
+    { value: "in-degree", label: t("sort.inDegree") },
+    { value: "tag", label: t("sort.tag") },
+    { value: "category", label: t("sort.category") },
+    { value: "label", label: t("sort.label") },
+    { value: "importance", label: t("sort.importance") },
+  ];
+}
 
 function renderSortRuleList(
   container: HTMLElement,
@@ -1003,7 +1040,7 @@ function renderSortRuleList(
     // Sort key dropdown
     const keySel = row.createEl("select", { cls: "dropdown" });
     keySel.style.flex = "1";
-    for (const opt of SORT_KEY_OPTIONS) {
+    for (const opt of getSortKeyOptions()) {
       const el = keySel.createEl("option", { text: opt.label, value: opt.value });
       if (opt.value === rule.key) el.selected = true;
     }
@@ -1016,13 +1053,13 @@ function renderSortRuleList(
     // Order toggle button
     const orderBtn = row.createEl("button", {
       cls: "ngp-direction-btn",
-      text: rule.order === "asc" ? "↑昇順" : "↓降順",
+      text: rule.order === "asc" ? t("sort.asc") : t("sort.desc"),
     });
     orderBtn.style.marginLeft = "4px";
     orderBtn.style.minWidth = "60px";
     orderBtn.addEventListener("click", () => {
       rule.order = rule.order === "asc" ? "desc" : "asc";
-      orderBtn.textContent = rule.order === "asc" ? "↑昇順" : "↓降順";
+      orderBtn.textContent = rule.order === "asc" ? t("sort.asc") : t("sort.desc");
       cb.applyClusterForce();
       cb.doRender();
     });
@@ -1043,11 +1080,13 @@ function renderSortRuleList(
 // Cluster group rule list
 // ---------------------------------------------------------------------------
 
-const CLUSTER_GROUP_OPTIONS: { value: ClusterGroupBy; label: string }[] = [
-  { value: "tag", label: "タグ" },
-  { value: "backlinks", label: "被リンク数" },
-  { value: "node_type", label: "ノードタイプ" },
-];
+function getClusterGroupOptions(): { value: ClusterGroupBy; label: string }[] {
+  return [
+    { value: "tag", label: t("clusterGroup.tag") },
+    { value: "backlinks", label: t("clusterGroup.backlinks") },
+    { value: "node_type", label: t("clusterGroup.nodeType") },
+  ];
+}
 
 function renderClusterRuleList(
   container: HTMLElement,
@@ -1062,7 +1101,7 @@ function renderClusterRuleList(
     // GroupBy dropdown
     const groupSel = row.createEl("select", { cls: "dropdown" });
     groupSel.style.flex = "1";
-    for (const opt of CLUSTER_GROUP_OPTIONS) {
+    for (const opt of getClusterGroupOptions()) {
       const el = groupSel.createEl("option", { text: opt.label, value: opt.value });
       if (opt.value === rule.groupBy) el.selected = true;
     }
@@ -1079,7 +1118,7 @@ function renderClusterRuleList(
     const recToggle = recWrap.createDiv({
       cls: "checkbox-container" + (rule.recursive ? " is-enabled" : ""),
     });
-    recWrap.createEl("span", { text: "再帰", cls: "ngp-hint" });
+    recWrap.createEl("span", { text: t("clusterGroup.recursive"), cls: "ngp-hint" });
     recToggle.addEventListener("click", () => {
       rule.recursive = !rule.recursive;
       recToggle.toggleClass("is-enabled", rule.recursive);
@@ -1129,11 +1168,11 @@ function renderDirectionalGravityList(
     dirSelect.style.width = "80px";
     dirSelect.style.marginLeft = "4px";
     const dirOptions: { value: string; label: string }[] = [
-      { value: "top", label: "上" },
-      { value: "bottom", label: "下" },
-      { value: "left", label: "左" },
-      { value: "right", label: "右" },
-      { value: "custom", label: "カスタム" },
+      { value: "top", label: t("gravDir.top") },
+      { value: "bottom", label: t("gravDir.bottom") },
+      { value: "left", label: t("gravDir.left") },
+      { value: "right", label: t("gravDir.right") },
+      { value: "custom", label: t("gravDir.custom") },
     ];
     const isCustom = typeof rule.direction === "number";
     for (const opt of dirOptions) {
@@ -1197,14 +1236,16 @@ function renderDirectionalGravityList(
 // ---------------------------------------------------------------------------
 
 /** Direction presets for gravity dropdown. Angle in degrees. */
-const GRAVITY_DIR_OPTIONS: { value: string; label: string; angle: number }[] = [
-  { value: "none", label: "なし", angle: -1 },
-  { value: "up", label: "↑上", angle: 270 },
-  { value: "down", label: "↓下", angle: 90 },
-  { value: "left", label: "←左", angle: 180 },
-  { value: "right", label: "→右", angle: 0 },
-  { value: "custom", label: "角度指定", angle: -1 },
-];
+function getGravityDirOptions(): { value: string; label: string; angle: number }[] {
+  return [
+    { value: "none", label: t("gravDir.none"), angle: -1 },
+    { value: "up", label: t("gravDir.up"), angle: 270 },
+    { value: "down", label: t("gravDir.down"), angle: 90 },
+    { value: "left", label: t("gravDir.left"), angle: 180 },
+    { value: "right", label: t("gravDir.right"), angle: 0 },
+    { value: "custom", label: t("gravDir.custom"), angle: -1 },
+  ];
+}
 
 function angleToPreset(angle: number): string {
   if (angle < 0) return "none";
@@ -1257,7 +1298,7 @@ function renderNodeRuleList(
     const spacingRow = row2.createDiv({ cls: "setting-item mod-slider" });
     spacingRow.style.cssText = "padding:2px 0;";
     const spacingInfo = spacingRow.createDiv({ cls: "setting-item-info" });
-    spacingInfo.createDiv({ cls: "setting-item-name", text: "間隔" });
+    spacingInfo.createDiv({ cls: "setting-item-name", text: t("nodeRules.spacing") });
     const spacingControl = spacingRow.createDiv({ cls: "setting-item-control" });
     const spacingSlider = spacingControl.createEl("input", { type: "range" });
     spacingSlider.min = "0.1";
@@ -1277,13 +1318,13 @@ function renderNodeRuleList(
     const gravRow = row2.createDiv({ cls: "ngp-group-item" });
     gravRow.style.cssText = "display:flex;align-items:center;gap:4px;padding:2px 0;";
 
-    const gravLabel = gravRow.createEl("span", { cls: "setting-item-name", text: "重力" });
+    const gravLabel = gravRow.createEl("span", { cls: "setting-item-name", text: t("nodeRules.gravity") });
     gravLabel.style.cssText = "flex-shrink:0;";
 
     const dirSelect = gravRow.createEl("select", { cls: "dropdown" });
     dirSelect.style.cssText = "width:90px;";
     const currentPreset = angleToPreset(rule.gravityAngle);
-    for (const opt of GRAVITY_DIR_OPTIONS) {
+    for (const opt of getGravityDirOptions()) {
       const el = dirSelect.createEl("option", { text: opt.label, value: opt.value });
       if (opt.value === currentPreset) el.selected = true;
     }
@@ -1318,7 +1359,7 @@ function renderNodeRuleList(
         angleInput.style.display = "";
         strSlider.style.display = "";
       } else {
-        const preset = GRAVITY_DIR_OPTIONS.find(o => o.value === val);
+        const preset = getGravityDirOptions().find(o => o.value === val);
         rule.gravityAngle = preset?.angle ?? -1;
         angleInput.style.display = "none";
         strSlider.style.display = "";

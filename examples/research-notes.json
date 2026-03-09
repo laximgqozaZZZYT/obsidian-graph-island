@@ -1,0 +1,48 @@
+{
+  "defaultLayout": "concentric",
+  "nodeSize": 6,
+  "showLabels": true,
+  "metadataFields": ["tags", "category", "author", "source", "topic", "year"],
+  "edgeFields": ["tags", "topic", "author"],
+  "colorField": "topic",
+  "groupField": "topic",
+  "ontology": {
+    "inheritanceFields": ["parent", "based_on", "extends"],
+    "aggregationFields": ["contains", "cites", "references"],
+    "similarFields": ["related", "similar", "see_also"],
+    "useTagHierarchy": true,
+    "customMappings": {
+      "refutes": "similar",
+      "supports": "similar",
+      "derived_from": "inheritance"
+    }
+  },
+  "showSimilar": true,
+  "directionalGravityRules": [],
+  "enclosureMinRatio": 0.05,
+  "groupPresets": [
+    {
+      "condition": { "tagDisplay": "enclosure" },
+      "groups": [],
+      "commonQueries": [{ "query": "tag:*", "recursive": false }]
+    },
+    {
+      "condition": { "layout": "concentric" },
+      "groups": [
+        { "expression": { "type": "leaf", "field": "tag", "value": "paper" }, "color": "#3b82f6" },
+        { "expression": { "type": "leaf", "field": "tag", "value": "concept" }, "color": "#10b981" },
+        { "expression": { "type": "leaf", "field": "tag", "value": "question" }, "color": "#f59e0b" },
+        { "expression": { "type": "leaf", "field": "tag", "value": "evidence" }, "color": "#6366f1" }
+      ]
+    }
+  ],
+  "defaultSortRules": [
+    { "key": "importance", "order": "desc" },
+    { "key": "degree", "order": "desc" }
+  ],
+  "defaultClusterGroupRules": [
+    { "groupBy": "tag", "recursive": false }
+  ],
+  "defaultNodeRules": [],
+  "settingsJsonPath": ""
+}

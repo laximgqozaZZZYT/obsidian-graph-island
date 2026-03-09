@@ -1,0 +1,56 @@
+{
+  "defaultLayout": "tree",
+  "nodeSize": 8,
+  "showLabels": true,
+  "metadataFields": ["tags", "category", "faction", "region", "ruler", "population", "terrain"],
+  "edgeFields": ["tags", "faction", "region"],
+  "colorField": "faction",
+  "groupField": "region",
+  "ontology": {
+    "inheritanceFields": ["parent", "capital_of", "part_of"],
+    "aggregationFields": ["contains", "territories", "members", "vassal"],
+    "similarFields": ["allied_with", "trade_partner"],
+    "useTagHierarchy": true,
+    "customMappings": {
+      "rules": "aggregation",
+      "borders": "similar",
+      "enemy_of": "similar"
+    }
+  },
+  "showSimilar": true,
+  "directionalGravityRules": [
+    { "filter": "tag:kingdom", "direction": "top", "strength": 0.2 },
+    { "filter": "tag:city", "direction": "bottom", "strength": 0.05 },
+    { "filter": "tag:npc", "direction": "left", "strength": 0.1 }
+  ],
+  "enclosureMinRatio": 0.02,
+  "groupPresets": [
+    {
+      "condition": { "tagDisplay": "enclosure" },
+      "groups": [],
+      "commonQueries": [{ "query": "tag:*", "recursive": true }]
+    },
+    {
+      "condition": { "layout": "tree" },
+      "groups": [
+        { "expression": { "type": "leaf", "field": "tag", "value": "kingdom" }, "color": "#8b5cf6" },
+        { "expression": { "type": "leaf", "field": "tag", "value": "city" }, "color": "#3b82f6" },
+        { "expression": { "type": "leaf", "field": "tag", "value": "npc" }, "color": "#ef4444" },
+        { "expression": { "type": "leaf", "field": "tag", "value": "faction" }, "color": "#f97316" },
+        { "expression": { "type": "leaf", "field": "tag", "value": "item" }, "color": "#14b8a6" }
+      ]
+    }
+  ],
+  "defaultSortRules": [
+    { "key": "in-degree", "order": "desc" }
+  ],
+  "defaultClusterGroupRules": [
+    { "groupBy": "tag", "recursive": true }
+  ],
+  "defaultNodeRules": [
+    { "query": "tag:kingdom", "spacingMultiplier": 3.0, "gravityAngle": -1, "gravityStrength": 0 },
+    { "query": "tag:city", "spacingMultiplier": 1.5, "gravityAngle": -1, "gravityStrength": 0 },
+    { "query": "*", "spacingMultiplier": 1.0, "gravityAngle": -1, "gravityStrength": 0 }
+  ],
+  "settingsJsonPath": ""
+}

@@ -1,5 +1,6 @@
 import { ItemView, WorkspaceLeaf, TFile, MarkdownRenderer, Component, setIcon } from "obsidian";
 import type { GraphNode } from "../types";
+import { t } from "../i18n";
 
 export const VIEW_TYPE_NODE_DETAIL = "graph-node-detail";
 
@@ -32,7 +33,7 @@ export class NodeDetailView extends ItemView {
     const toolbar = this.contentEl.createEl("div", { cls: "ngp-detail-toolbar" });
     this.holdBtn = toolbar.createEl("button", { cls: "ngp-hold-btn" });
     setIcon(this.holdBtn, "pin");
-    this.holdBtn.setAttribute("aria-label", "ホールド（表示を固定）");
+    this.holdBtn.setAttribute("aria-label", t("detail.holdAriaLabel"));
     this.holdBtn.toggleClass("is-active", this.held);
     this.holdBtn.addEventListener("click", () => this.toggleHold());
 
@@ -126,7 +127,7 @@ export class NodeDetailView extends ItemView {
     this.bodyEl.empty();
     this.bodyEl.createEl("div", {
       cls: "ngp-detail-empty",
-      text: "グラフ上のノードにホバーすると詳細が表示されます",
+      text: t("detail.emptyHint"),
     });
   }
 
@@ -172,15 +173,15 @@ export class NodeDetailView extends ItemView {
 
     const deg = degrees.get(node.id) || 0;
     const statsRow = metaWrap.createEl("div", { cls: "ngp-detail-stats" });
-    statsRow.createEl("span", { cls: "ngp-stat", text: `リンク数: ${deg}` });
+    statsRow.createEl("span", { cls: "ngp-stat", text: `${t("detail.linkCount")}: ${deg}` });
     if (node.category) {
-      statsRow.createEl("span", { cls: "ngp-stat", text: `カテゴリ: ${node.category}` });
+      statsRow.createEl("span", { cls: "ngp-stat", text: `${t("detail.category")}: ${node.category}` });
     }
 
     // === Open file ===
     if (node.filePath) {
       const openLink = wrap.createEl("div", { cls: "ngp-detail-open" });
-      const btn = openLink.createEl("a", { cls: "ngp-ni-link", text: "ファイルを開く →" });
+      const btn = openLink.createEl("a", { cls: "ngp-ni-link", text: t("detail.openFile") });
       btn.addEventListener("click", () => {
         this.app.workspace.openLinkText(node.filePath!, "", false);
       });
@@ -201,7 +202,7 @@ export class NodeDetailView extends ItemView {
     if (neighbors && neighbors.size > 0) {
       this.renderCollapsibleList(
         wrap,
-        `リンク中のノード (${neighbors.size})`,
+        `${t("detail.linkedNodes")} (${neighbors.size})`,
         [...neighbors],
         (nbId) => {
           const nbPn = pixiNodes.get(nbId);
@@ -238,7 +239,7 @@ export class NodeDetailView extends ItemView {
     if (stripped.length > maxLen) preview += "\n\n…";
 
     const section = parent.createEl("div", { cls: "ngp-detail-preview" });
-    section.createEl("div", { cls: "ngp-detail-section-label", text: "プレビュー" });
+    section.createEl("div", { cls: "ngp-detail-section-label", text: t("detail.preview") });
 
     const previewContent = section.createEl("div", { cls: "ngp-preview-content" });
 
@@ -266,13 +267,13 @@ export class NodeDetailView extends ItemView {
       return;
     }
     if (!content.trim()) {
-      container.createEl("div", { cls: "ngp-inline-preview-empty", text: "（空のファイル）" });
+      container.createEl("div", { cls: "ngp-inline-preview-empty", text: t("detail.emptyFile") });
       return;
     }
 
     const stripped = content.replace(/^---[\s\S]*?---\n?/, "");
     if (!stripped.trim()) {
-      container.createEl("div", { cls: "ngp-inline-preview-empty", text: "（本文なし）" });
+      container.createEl("div", { cls: "ngp-inline-preview-empty", text: t("detail.noContent") });
       return;
     }
 
@@ -303,7 +304,7 @@ export class NodeDetailView extends ItemView {
     if (entries.length === 0) return;
 
     const details = parent.createEl("details", { cls: "ngp-detail-collapsible" });
-    details.createEl("summary", { cls: "ngp-detail-section-label", text: `プロパティ (${entries.length})` });
+    details.createEl("summary", { cls: "ngp-detail-section-label", text: `${t("detail.properties")} (${entries.length})` });
 
     const table = details.createEl("table", { cls: "ngp-props-table" });
     for (const [key, value] of entries) {
@@ -392,7 +393,7 @@ export class NodeDetailView extends ItemView {
 
     this.renderCollapsibleList(
       parent,
-      `バックリンク (${backlinks.length})`,
+      `${t("detail.backlinks")} (${backlinks.length})`,
       backlinks,
       (bl) => ({
         label: bl.basename,

@@ -807,3 +807,95 @@
   font-style: italic;
   font-size: var(--font-ui-smaller);
 }
+
+/* =========================================================================
+   Top bar: Layout selector + Search (P0 — always visible above sections)
+   ========================================================================= */
+.ngp-top-bar {
+  padding: 8px 12px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: 2px;
+}
+
+.ngp-layout-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ngp-layout-label {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ngp-layout-select {
+  flex: 1;
+  padding: var(--size-4-1) var(--size-4-2);
+  font-size: var(--font-ui-small);
+}
+
+.ngp-top-search {
+  margin-bottom: 0;
+}
+
+/* =========================================================================
+   P2: Empty state
+   ========================================================================= */
+.ngp-empty-state {
+  padding: 16px 12px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.ngp-empty-title {
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+  margin-bottom: 8px;
+}
+
+.ngp-empty-hint {
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.ngp-empty-steps {
+  text-align: left;
+  font-size: var(--font-ui-small);
+  padding-left: 20px;
+  line-height: 1.8;
+  color: var(--text-normal);
+}
+
+/* =========================================================================
+   P2: Preset bar
+   ========================================================================= */
+.ngp-preset-bar {
+  display: flex;
+  gap: 4px;
+  padding: 4px 12px 8px;
+}
+
+.ngp-preset-btn {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: var(--font-ui-smaller);
+  border-radius: var(--radius-s);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.ngp-preset-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+}

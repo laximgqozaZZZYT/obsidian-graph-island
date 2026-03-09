@@ -18,6 +18,7 @@ import { computeNodeDegrees, computeInDegree, computePropagatedImportance } from
 import { yieldFrame, buildAdj, cssColorToHex } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, type EdgeDrawConfig } from "./EdgeRenderer";
+import { t } from "../i18n";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
 import { buildClusterForce, type ClusterMetadata, type SunburstArc } from "../layouts/cluster-force";
 import { buildMultiSortComparator, type SortMetrics } from "../utils/sort";
@@ -300,7 +301,7 @@ export class GraphViewContainer extends ItemView {
 
     const fitBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(fitBtn, "maximize");
-    fitBtn.setAttribute("aria-label", "全体俯瞰");
+    fitBtn.setAttribute("aria-label", t("toolbar.fitAll"));
     fitBtn.addEventListener("click", () => {
       if (!this.canvasWrap) return;
       const W = this.canvasWrap.clientWidth;
@@ -311,21 +312,21 @@ export class GraphViewContainer extends ItemView {
 
     const zoomInBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(zoomInBtn, "zoom-in");
-    zoomInBtn.setAttribute("aria-label", "ズームイン");
+    zoomInBtn.setAttribute("aria-label", t("toolbar.zoomIn"));
     zoomInBtn.addEventListener("click", () => {
       this.zoomBy(1.3);
     });
 
     const zoomOutBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(zoomOutBtn, "zoom-out");
-    zoomOutBtn.setAttribute("aria-label", "ズームアウト");
+    zoomOutBtn.setAttribute("aria-label", t("toolbar.zoomOut"));
     zoomOutBtn.addEventListener("click", () => {
       this.zoomBy(1 / 1.3);
     });
 
     const marqueeBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(marqueeBtn, "box-select");
-    marqueeBtn.setAttribute("aria-label", "範囲拡大");
+    marqueeBtn.setAttribute("aria-label", t("toolbar.marquee"));
     marqueeBtn.addEventListener("click", () => {
       this.marqueeMode = !this.marqueeMode;
       marqueeBtn.toggleClass("is-active", this.marqueeMode);
@@ -334,7 +335,7 @@ export class GraphViewContainer extends ItemView {
 
     const panelToggle = toolbar.createEl("button", { cls: "graph-settings-btn" });
     setIcon(panelToggle, "settings");
-    panelToggle.setAttribute("aria-label", "グラフ設定");
+    panelToggle.setAttribute("aria-label", t("toolbar.graphSettings"));
     panelToggle.addEventListener("click", () => {
       const hidden = this.panelEl?.hasClass("is-hidden");
       this.panelEl?.toggleClass("is-hidden", !hidden);
@@ -1605,6 +1606,8 @@ export class GraphViewContainer extends ItemView {
       simulation: this.simulation,
       settings: this.plugin.settings,
       saveSettings: () => { this.plugin.saveSettings(); },
+      nodeCount: this.pixiNodes.size,
+      edgeCount: 0,
     };
     const cb: PanelCallbacks = {
       doRender: () => { this.doRender(); this.requestSave(); },
@@ -1675,6 +1678,42 @@ export class GraphViewContainer extends ItemView {
         this.buildPanel();
         this.applyClusterForce();
         if (this.simulation) { this.simulation.alpha(0.8).restart(); this.wakeRenderLoop(); }
+        this.requestSave();
+      },
+      applyPreset: (preset: "simple" | "analysis" | "creative") => {
+        // Start from defaults, then overlay preset-specific settings
+        Object.assign(this.panel, { ...DEFAULT_PANEL });
+        switch (preset) {
+          case "simple":
+            Object.assign(this.panel, {
+              showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false,
+              showInheritance: false, showAggregation: false, showSimilar: false,
+              colorEdgesByRelation: false, colorNodesByCategory: false,
+              showTagNodes: false, scaleByDegree: false,
+            });
+            break;
+          case "analysis":
+            Object.assign(this.panel, {
+              showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true,
+              showInheritance: true, showAggregation: true, showSimilar: true,
+              colorEdgesByRelation: true, colorNodesByCategory: true,
+              scaleByDegree: true, fadeEdgesByDegree: true,
+              showTagNodes: true, tagDisplay: "node" as const,
+            });
+            break;
+          case "creative":
+            Object.assign(this.panel, {
+              showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true,
+              showInheritance: false, showAggregation: false, showSimilar: false,
+              colorEdgesByRelation: true, colorNodesByCategory: true,
+              showTagNodes: true, tagDisplay: "enclosure" as const,
+              clusterGroupRules: [{ groupBy: "tag" as const, recursive: false }],
+            });
+            break;
+        }
+        this.buildPanel();
+        this.rawData = null;
+        this.doRender();
         this.requestSave();
       },
     };

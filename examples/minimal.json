@@ -1,0 +1,30 @@
+{
+  "defaultLayout": "force",
+  "nodeSize": 8,
+  "showLabels": true,
+  "metadataFields": ["tags", "category"],
+  "edgeFields": ["tags", "category"],
+  "colorField": "category",
+  "groupField": "category",
+  "ontology": {
+    "inheritanceFields": ["parent"],
+    "aggregationFields": ["contains"],
+    "similarFields": ["related"],
+    "useTagHierarchy": true,
+    "customMappings": {}
+  },
+  "showSimilar": false,
+  "directionalGravityRules": [],
+  "enclosureMinRatio": 0.05,
+  "groupPresets": [
+    {
+      "condition": { "tagDisplay": "enclosure" },
+      "groups": [],
+      "commonQueries": [{ "query": "tag:*", "recursive": false }]
+    }
+  ],
+  "defaultSortRules": [{ "key": "degree", "order": "desc" }],
+  "defaultClusterGroupRules": [{ "groupBy": "tag", "recursive": false }],
+  "defaultNodeRules": [],
+  "settingsJsonPath": ""
+}

@@ -4,8 +4,11 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("pixi.js", () => ({
   Text: class MockText {
     x = 0; y = 0; alpha = 1; visible = true; resolution = 1;
+    eventMode = "auto";
+    cursor = "";
     anchor = { set: vi.fn() };
     scale = { set: vi.fn() };
+    on = vi.fn();
     constructor(public text: string, public style: any) {}
   },
 }));
