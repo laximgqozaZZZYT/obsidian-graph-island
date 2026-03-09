@@ -198,6 +198,7 @@ export function buildPanel(
     const search = body.createEl("input", { cls: "ngp-search", type: "text", placeholder: "検索… hop:名前:2" });
     search.value = panel.searchQuery;
     search.addEventListener("input", () => { panel.searchQuery = search.value; cb.applySearch(); });
+    attachQueryHint(search, (field) => cb.collectValueSuggestions(field));
     addToggle(body, "タグ", panel.showTags, (v) => { panel.showTags = v; cb.invalidateData(); });
     addToggle(body, "添付書類", panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateData(); });
     addToggle(body, "存在するファイルのみ表示", panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateData(); });
@@ -254,11 +255,18 @@ export function buildPanel(
 
   if (panel.colorEdgesByRelation && ctx.relationColors.size > 0) {
     buildSection(panelEl, "属性カラー", (body) => {
+      const container = body.createDiv({ cls: "graph-color-groups-container" });
       for (const [rel, color] of ctx.relationColors) {
-        const row = body.createDiv({ cls: "setting-item" });
-        const dot = row.createEl("span");
-        dot.style.cssText = `display:inline-block;width:12px;height:12px;border-radius:50%;background:${color};margin-right:8px;vertical-align:middle;`;
-        row.createEl("span", { text: rel, cls: "setting-item-name" });
+        const group = container.createDiv({ cls: "graph-color-group" });
+        const label = group.createEl("span", { text: rel, cls: "graph-color-group-label" });
+        label.style.cssText = "flex:1;font-size:var(--font-ui-small);";
+        const picker = group.createEl("input", { type: "color" });
+        picker.setAttribute("aria-label", "クリックで色を変更");
+        picker.value = color;
+        picker.addEventListener("input", () => {
+          ctx.relationColors.set(rel, picker.value);
+          cb.markDirty();
+        });
       }
     });
   }
@@ -509,6 +517,216 @@ function addTextInput(container: HTMLElement, label: string, initial: string, pl
   input.addEventListener("change", () => onChange(input.value));
 }
 
+// ---------------------------------------------------------------------------
+// Search options hint — shown below query inputs on focus, like core graph view
+// ---------------------------------------------------------------------------
+const QUERY_OPTIONS: { prefix: string; desc: string }[] = [
+  { prefix: "path:", desc: "ファイルへのパスに一致" },
+  { prefix: "file:", desc: "ファイル名に一致" },
+  { prefix: "tag:", desc: "タグを検索" },
+  { prefix: "category:", desc: "カテゴリに一致" },
+  { prefix: "id:", desc: "ノードIDに一致" },
+  { prefix: "isTag", desc: "タグノードのみ" },
+  { prefix: "hop:名前:N", desc: "ノードからNホップ以内" },
+  { prefix: "[property]:", desc: "プロパティに一致" },
+  { prefix: "AND / OR", desc: "ブール演算子で結合" },
+  { prefix: "*", desc: "すべてのノードに一致" },
+];
+
+/** Maps a search prefix to the field name used by collectValueSuggestions */
+const PREFIX_TO_FIELD: Record<string, string> = {
+  "path:": "path",
+  "file:": "file",
+  "tag:": "tag",
+  "category:": "category",
+  "id:": "id",
+};
+
+/**
+ * Parse the current input to detect if cursor is inside a `prefix:value` token.
+ * Returns { prefix, partial } if found, null otherwise.
+ */
+function parseActiveToken(value: string, cursorPos: number): { prefix: string; partial: string; tokenStart: number } | null {
+  // Walk backwards from cursor to find the token start
+  const before = value.slice(0, cursorPos);
+  // Find the last space before cursor (or start of string)
+  const lastSpace = before.lastIndexOf(" ");
+  const token = before.slice(lastSpace + 1);
+  const colonIdx = token.indexOf(":");
+  if (colonIdx < 0) return null;
+  const prefix = token.slice(0, colonIdx + 1); // e.g. "path:"
+  if (!(prefix in PREFIX_TO_FIELD)) return null;
+  const partial = token.slice(colonIdx + 1); // e.g. "bibl"
+  return { prefix, partial, tokenStart: lastSpace + 1 + colonIdx + 1 };
+}
+
+function attachQueryHint(input: HTMLInputElement, getSuggestions: (field: string) => string[]) {
+  let hintEl: HTMLElement | null = null;
+  let selectedIdx = -1;
+  let currentItems: { text: string; onSelect: () => void }[] = [];
+
+  // Create anchor wrapper immediately (not during focus, which would steal focus)
+  const anchor = document.createElement("div");
+  anchor.className = "ngp-suggest-anchor";
+  input.parentNode!.insertBefore(anchor, input);
+  anchor.appendChild(input);
+
+  const insertText = (text: string) => {
+    const cur = input.value;
+    const pos = input.selectionStart ?? cur.length;
+    const before = cur.slice(0, pos);
+    const after = cur.slice(pos);
+    const needSpace = before.length > 0 && !before.endsWith(" ") ? " " : "";
+    input.value = before + needSpace + text + after;
+    input.focus();
+    const newPos = (before + needSpace + text).length;
+    input.setSelectionRange(newPos, newPos);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  const replaceTokenValue = (tokenStart: number, value: string) => {
+    const cur = input.value;
+    // Find end of current token (next space or end)
+    let end = cur.indexOf(" ", tokenStart);
+    if (end < 0) end = cur.length;
+    input.value = cur.slice(0, tokenStart) + value + cur.slice(end);
+    input.focus();
+    const newPos = tokenStart + value.length;
+    input.setSelectionRange(newPos, newPos);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  const updateSelection = (container: HTMLElement) => {
+    const rows = container.querySelectorAll(".search-suggest-item:not(.mod-group)");
+    rows.forEach((r, i) => {
+      r.classList.toggle("is-selected", i === selectedIdx);
+    });
+  };
+
+  const buildOptionsList = () => {
+    currentItems = QUERY_OPTIONS.map(opt => ({
+      text: opt.prefix,
+      onSelect: () => {
+        insertText(opt.prefix.endsWith(":") ? opt.prefix : opt.prefix + " ");
+        // After inserting prefix, rebuild to show value suggestions
+        rebuildHint();
+      },
+    }));
+  };
+
+  const buildValueList = (prefix: string, partial: string, tokenStart: number) => {
+    const field = PREFIX_TO_FIELD[prefix];
+    if (!field) return false;
+    const allValues = getSuggestions(field);
+    const lowerPartial = partial.toLowerCase();
+    const filtered = partial
+      ? allValues.filter(v => v.toLowerCase().includes(lowerPartial))
+      : allValues;
+    if (filtered.length === 0) return false;
+    currentItems = filtered.slice(0, 30).map(v => ({
+      text: v,
+      onSelect: () => {
+        replaceTokenValue(tokenStart, v);
+        dismissHint();
+      },
+    }));
+    return true;
+  };
+
+  const renderHint = (headerText: string) => {
+    if (hintEl) hintEl.remove();
+    hintEl = document.createElement("div");
+    hintEl.className = "suggestion-container mod-search-suggestion";
+
+    // Header
+    const headerItem = hintEl.createDiv({ cls: "suggestion-item mod-complex search-suggest-item mod-group" });
+    const headerContent = headerItem.createDiv({ cls: "suggestion-content" });
+    const headerTitle = headerContent.createDiv({ cls: "suggestion-title list-item-part mod-extended" });
+    headerTitle.createEl("span", { text: headerText });
+    const headerAux = headerItem.createDiv({ cls: "suggestion-aux" });
+    const infoBtn = headerAux.createDiv({ cls: "list-item-part search-suggest-icon clickable-icon" });
+    infoBtn.setAttribute("aria-label", "詳細を閲覧");
+    setIcon(infoBtn, "info");
+
+    // Items
+    for (let i = 0; i < currentItems.length; i++) {
+      const ci = currentItems[i];
+      const item = hintEl.createDiv({ cls: "suggestion-item mod-complex search-suggest-item" });
+      const content = item.createDiv({ cls: "suggestion-content" });
+      const title = content.createDiv({ cls: "suggestion-title" });
+      // For options list, show description; for value list, just the value
+      const opt = QUERY_OPTIONS.find(o => o.prefix === ci.text);
+      if (opt) {
+        title.createEl("span", { text: opt.prefix });
+        title.createEl("span", { cls: "search-suggest-info-text", text: opt.desc });
+      } else {
+        title.createEl("span", { text: ci.text });
+      }
+      item.addEventListener("click", () => ci.onSelect());
+      item.addEventListener("mouseenter", () => {
+        selectedIdx = i;
+        updateSelection(hintEl!);
+      });
+    }
+
+    selectedIdx = 0;
+    updateSelection(hintEl);
+    anchor.appendChild(hintEl);
+  };
+
+  const rebuildHint = () => {
+    const pos = input.selectionStart ?? input.value.length;
+    const token = parseActiveToken(input.value, pos);
+    if (token && buildValueList(token.prefix, token.partial, token.tokenStart)) {
+      renderHint(token.prefix.slice(0, -1) + " の候補");
+    } else {
+      buildOptionsList();
+      renderHint("検索オプション");
+    }
+  };
+
+  const dismissHint = () => {
+    hintEl?.remove();
+    hintEl = null;
+    selectedIdx = -1;
+    currentItems = [];
+  };
+
+  const show = () => rebuildHint();
+
+  const hide = () => {
+    if (!hintEl) return;
+    setTimeout(() => {
+      if (input === document.activeElement) return;
+      dismissHint();
+    }, 150);
+  };
+
+  input.addEventListener("focus", show);
+  input.addEventListener("blur", hide);
+  // Rebuild on input to switch between options/values as user types
+  input.addEventListener("input", () => {
+    if (input === document.activeElement) rebuildHint();
+  });
+  input.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (!hintEl || currentItems.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      selectedIdx = (selectedIdx + 1) % currentItems.length;
+      updateSelection(hintEl);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      selectedIdx = (selectedIdx - 1 + currentItems.length) % currentItems.length;
+      updateSelection(hintEl);
+    } else if (e.key === "Enter" && selectedIdx >= 0 && selectedIdx < currentItems.length) {
+      e.preventDefault();
+      currentItems[selectedIdx].onSelect();
+    } else if (e.key === "Escape") {
+      dismissHint();
+    }
+  });
+}
+
 function addSelect(container: HTMLElement, label: string, options: { value: string; label: string }[], initial: string, onChange: (v: string) => void) {
   const row = container.createDiv({ cls: "setting-item" });
   const info = row.createDiv({ cls: "setting-item-info" });
@@ -563,6 +781,7 @@ function renderGroupList(container: HTMLElement, panel: PanelState, cb: PanelCal
       g.expression = parseQueryExpr(exprInput.value);
       cb.doRender();
     });
+    attachQueryHint(exprInput, (field) => cb.collectValueSuggestions(field));
 
     // Expand button → opens row-based editor
     const expandBtn = row.createEl("span", { cls: "ngp-group-expand", text: "▼" });
@@ -885,6 +1104,7 @@ function renderDirectionalGravityList(
       cb.applyDirectionalGravityForce();
       cb.restartSimulation(0.3);
     });
+    attachQueryHint(filterInput, (field) => cb.collectValueSuggestions(field));
 
     const dirSelect = row.createEl("select", { cls: "dropdown" });
     dirSelect.style.width = "80px";
@@ -999,6 +1219,7 @@ function renderNodeRuleList(
       cb.applyNodeRules();
       cb.restartSimulation(0.3);
     });
+    attachQueryHint(queryInput, (field) => cb.collectValueSuggestions(field));
 
     const rm = row1.createEl("span", { cls: "ngp-group-remove", text: "\u00D7" });
     rm.style.cssText = "cursor:pointer;flex-shrink:0;font-size:14px;padding:2px 4px;opacity:0.6;";

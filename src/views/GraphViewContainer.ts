@@ -143,6 +143,9 @@ export class GraphViewContainer extends ItemView {
   private edgeRedrawCounter = 0;
   private cachedBgColor: number | null = null;
   private cachedLabelColor: number | null = null;
+  private cachedIsDark: boolean | null = null;
+  /** Ephemeral highlight set from side-panel hover (null = not active) */
+  private ephemeralHighlight: Set<string> | null = null;
 
   // Resize observer
   private resizeObserver: ResizeObserver | null = null;
@@ -366,6 +369,20 @@ export class GraphViewContainer extends ItemView {
           // Just wake the render loop & resize — don't recreate PIXI
           this.markDirty();
         }
+      })
+    );
+
+    // Theme / CSS snippet change — invalidate color caches and update PIXI background
+    this.registerEvent(
+      this.app.workspace.on("css-change" as any, () => {
+        this.invalidateThemeCache();
+      })
+    );
+
+    // Ephemeral highlight from side-panel (property value hover, backlink hover)
+    this.registerEvent(
+      this.app.workspace.on("graph-views:highlight-nodes" as any, (nodeIds: Set<string> | null) => {
+        this.applyEphemeralHighlight(nodeIds);
       })
     );
 
@@ -630,8 +647,9 @@ export class GraphViewContainer extends ItemView {
         const w = mx - sx;
         const h = my - sy;
         this.marqueeGraphics.clear();
-        this.marqueeGraphics.lineStyle(1.5, 0x6366f1, 0.9);
-        this.marqueeGraphics.beginFill(0x6366f1, 0.08);
+        const marqueeColor = this.getAccentColor();
+        this.marqueeGraphics.lineStyle(1.5, marqueeColor, 0.9);
+        this.marqueeGraphics.beginFill(marqueeColor, 0.08);
         this.marqueeGraphics.drawRect(Math.min(sx, mx), Math.min(sy, my), Math.abs(w), Math.abs(h));
         this.marqueeGraphics.endFill();
       } else if (this.isPanning) {
@@ -867,6 +885,39 @@ export class GraphViewContainer extends ItemView {
   }
 
   /**
+   * Apply ephemeral (temporary) highlight from the side-panel.
+   * When nodeIds is null, the ephemeral highlight is cleared.
+   */
+  private applyEphemeralHighlight(nodeIds: Set<string> | null) {
+    const prev = this.ephemeralHighlight;
+    this.ephemeralHighlight = nodeIds;
+
+    // If there's a normal hover active, ephemeral highlight overlays on top
+    // If no hover and no ephemeral, reset all nodes
+    const activeSet = nodeIds ?? this.prevHighlightSet;
+    const hasAny = activeSet.size > 0;
+
+    for (const pn of this.pixiNodes.values()) {
+      if (!hasAny) {
+        pn.gfx.alpha = 1;
+        this.drawNodeCircle(pn, false);
+      } else if (nodeIds && nodeIds.has(pn.data.id)) {
+        pn.gfx.alpha = 1;
+        this.drawNodeCircle(pn, true);
+      } else if (!nodeIds && this.prevHighlightSet.has(pn.data.id)) {
+        // Restore normal hover highlight
+        pn.gfx.alpha = 1;
+        this.drawNodeCircle(pn, true);
+      } else {
+        pn.gfx.alpha = 0.12;
+      }
+    }
+    this.redrawNodeBatch();
+    this.drawEdges();
+    this.markDirty();
+  }
+
+  /**
    * Notify the dedicated NodeDetailView side-pane about the hovered node.
    */
   private notifyDetailPane(node: GraphNode | null) {
@@ -917,16 +968,21 @@ export class GraphViewContainer extends ItemView {
     g.clear();
     const hId = this.highlightedNodeId;
     const hlSet = this.prevHighlightSet;
+    const eph = this.ephemeralHighlight;
+    const hasHighlight = !!(hId || (eph && eph.size > 0));
+
+    // Effective highlight set: ephemeral overrides normal hover
+    const activeSet = (eph && eph.size > 0) ? eph : hlSet;
 
     // Two-pass: first all glows (behind), then all solid circles (on top).
     // This ensures glows merge into visible "clouds" without occluding nodes.
     const visible: PixiNode[] = [];
     for (const pn of this.pixiNodes.values()) {
-      if (hId && hlSet.has(pn.data.id)) continue;
+      if (hasHighlight && activeSet.has(pn.data.id)) continue;
       visible.push(pn);
     }
 
-    const alpha = hId ? 0.12 : 1;
+    const alpha = hasHighlight ? 0.12 : 1;
     const nodeCount = visible.length;
 
     // Pass 1: Glow halos — scale down or skip for dense graphs.
@@ -957,7 +1013,7 @@ export class GraphViewContainer extends ItemView {
     // Pass 3: Hold indicator ring for pinned nodes
     for (const pn of visible) {
       if (!pn.held) continue;
-      g.lineStyle(2, 0xffffff, 0.9);
+      g.lineStyle(2, this.isDarkTheme() ? 0xffffff : 0x333333, 0.9);
       g.beginFill(0, 0);
       g.drawCircle(pn.data.x, pn.data.y, pn.radius + 4);
       g.endFill();
@@ -965,7 +1021,41 @@ export class GraphViewContainer extends ItemView {
   }
 
   private isDarkTheme(): boolean {
-    return document.body.classList.contains("theme-dark");
+    if (this.cachedIsDark === null) {
+      this.cachedIsDark = document.body.classList.contains("theme-dark");
+    }
+    return this.cachedIsDark;
+  }
+
+  private cachedAccentColor: number | null = null;
+
+  private getAccentColor(): number {
+    if (this.cachedAccentColor === null) {
+      const el = this.canvasWrap ?? this.containerEl;
+      const css = getComputedStyle(el).getPropertyValue("--interactive-accent").trim();
+      this.cachedAccentColor = css ? cssColorToHex(css) : 0x6366f1;
+    }
+    return this.cachedAccentColor;
+  }
+
+  /** Called on css-change event (theme switch, snippet toggle) */
+  private invalidateThemeCache() {
+    this.cachedBgColor = null;
+    this.cachedLabelColor = null;
+    this.cachedIsDark = null;
+    this.cachedAccentColor = null;
+
+    // Update PIXI renderer background color
+    if (this.pixiApp) {
+      const el = this.canvasWrap ?? this.containerEl;
+      const bgStr = getComputedStyle(el).getPropertyValue("--graph-background").trim()
+        || getComputedStyle(el).getPropertyValue("--background-primary").trim();
+      if (bgStr) {
+        try { this.pixiApp.renderer.background.color = cssColorToHex(bgStr); } catch { /* ignore */ }
+      }
+    }
+
+    this.markDirty();
   }
 
   // =========================================================================
@@ -977,7 +1067,7 @@ export class GraphViewContainer extends ItemView {
     g.clear();
     if (!this.panel.showOrbitRings || this.currentLayout !== "concentric" || this.shells.length === 0) return;
 
-    const ringColor = 0x888888;
+    const ringColor = this.isDarkTheme() ? 0x888888 : 0xaaaaaa;
     const n = this.shells.length;
 
     for (let i = 0; i < n; i++) {
@@ -1017,6 +1107,11 @@ export class GraphViewContainer extends ItemView {
     if (this.panel.fadeEdgesByDegree) {
       for (const d of this.degrees.values()) { if (d > maxDeg) maxDeg = d; }
     }
+    // Ephemeral highlight (from side panel hover) overrides normal hover for edge drawing
+    const ephActive = this.ephemeralHighlight && this.ephemeralHighlight.size > 0;
+    const effectiveHighlightId = ephActive ? "__ephemeral__" : this.highlightedNodeId;
+    const effectiveHighlightSet = ephActive ? this.ephemeralHighlight! : this.prevHighlightSet;
+
     const cfg: EdgeDrawConfig = {
       showInheritance: this.panel.showInheritance,
       showAggregation: this.panel.showAggregation,
@@ -1024,8 +1119,8 @@ export class GraphViewContainer extends ItemView {
       showSimilar: this.panel.showSimilar,
       colorEdgesByRelation: this.panel.colorEdgesByRelation,
       isArcLayout: this.currentLayout === "arc",
-      highlightedNodeId: this.highlightedNodeId,
-      highlightSet: this.prevHighlightSet,
+      highlightedNodeId: effectiveHighlightId,
+      highlightSet: effectiveHighlightSet,
       bgColor: this.cachedBgColor,
       relationColors: this.relationColors,
       fadeByDegree: this.panel.fadeEdgesByDegree,
@@ -1037,6 +1132,7 @@ export class GraphViewContainer extends ItemView {
       clusterCentroids: this.computeLiveCentroids(),
       clusterRadii: this.clusterMeta?.clusterRadii ?? null,
       bundleStrength: this.panel.edgeBundleStrength,
+      isDark: this.isDarkTheme(),
     };
     drawEdgesImpl(
       this.edgeGraphics,
@@ -1377,6 +1473,7 @@ export class GraphViewContainer extends ItemView {
             case "category": if (n.category) values.add(n.category); break;
             case "label": values.add(n.label); break;
             case "path": if (n.filePath) values.add(n.filePath); break;
+            case "file": if (n.filePath) values.add(n.filePath.replace(/^.*\//, "").replace(/\.md$/, "")); break;
             case "id": values.add(n.id); break;
           }
         }
@@ -1640,6 +1737,7 @@ export class GraphViewContainer extends ItemView {
       this.simulation.on("end", () => this.setStatus(`${gd.nodes.length} nodes`));
 
       this.startRenderLoop();
+      this.buildPanel();
       return;
     }
 
@@ -1690,10 +1788,10 @@ export class GraphViewContainer extends ItemView {
     this.applySearch();
     this.applyTextFade();
 
-    // Rebuild panel to show per-orbit controls if concentric
+    // Rebuild panel — relationColors and other data are now available
     this.stopOrbitAnimation();
+    this.buildPanel();
     if (this.currentLayout === "concentric" && this.shells.length > 0) {
-      this.buildPanel();
       if (this.panel.orbitAutoRotate) this.startOrbitAnimation();
     }
   }
@@ -2094,10 +2192,11 @@ export class GraphViewContainer extends ItemView {
         pn.gfx.alpha = 1;
         pn.circle.visible = true;
         pn.circle.clear();
-        pn.circle.beginFill(0xfbbf24, 0.10);
+        const searchHitColor = this.getAccentColor();
+        pn.circle.beginFill(searchHitColor, 0.10);
         pn.circle.drawCircle(0, 0, pn.radius * 2.2);
         pn.circle.endFill();
-        pn.circle.lineStyle(2, 0xfbbf24, 0.85);
+        pn.circle.lineStyle(2, searchHitColor, 0.85);
         pn.circle.beginFill(pn.color);
         pn.circle.drawCircle(0, 0, pn.radius);
         pn.circle.endFill();

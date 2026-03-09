@@ -243,6 +243,53 @@
   color: var(--text-faint);
 }
 
+/* Query hint popup (search options) */
+/* Search suggest anchor + dropdown */
+.ngp-suggest-anchor {
+  position: relative;
+  width: 100%;
+}
+.ngp-suggest-anchor input {
+  width: 100%;
+}
+.ngp-suggest-anchor .suggestion-container.mod-search-suggestion {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 2px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  font-size: var(--font-ui-small);
+  z-index: 100;
+  box-shadow: var(--shadow-s);
+}
+.ngp-panel .search-suggest-info-text {
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+
+/* Relation color groups (matches Obsidian core graph style) */
+.graph-color-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.graph-color-group input[type=color] {
+  flex-shrink: 0;
+}
+.ngp-rel-color-dot {
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+@media (hover: hover) {
+  .ngp-rel-color-dot:hover {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 2px var(--background-modifier-border);
+  }
+}
+
 /* Group color chips */
 .ngp-group-item {
   display: flex;
@@ -501,6 +548,25 @@
 /* === Node Detail Side Pane === */
 .ngp-detail-root {
   overflow-y: auto;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  display: flex;
+  flex-direction: column;
+}
+
+.ngp-detail-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  flex-shrink: 0;
+}
+
+.ngp-detail-body {
+  flex: 1;
+  overflow-y: auto;
 }
 
 .ngp-detail-empty {
@@ -517,6 +583,32 @@
 
 .ngp-detail-header {
   margin-bottom: 6px;
+}
+
+/* Hold (pin) button — lives in persistent toolbar */
+.ngp-hold-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--radius-s);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ngp-hold-btn:hover {
+  color: var(--text-muted);
+  background: var(--background-modifier-hover);
+}
+.ngp-hold-btn.is-active {
+  color: var(--text-accent);
+  background: var(--background-modifier-hover);
+}
+.ngp-hold-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 .ngp-detail-meta {
@@ -633,4 +725,85 @@
   color: var(--text-normal);
   padding: 2px 0;
   word-break: break-word;
+}
+
+.ngp-props-group-header td {
+  color: var(--text-muted);
+  font-weight: var(--font-medium);
+  padding: 4px 0 1px;
+  font-size: var(--font-ui-smaller);
+}
+
+.ngp-prop-link {
+  color: var(--text-accent);
+  cursor: pointer;
+  border-bottom: 1px dotted transparent;
+  transition: border-color 0.15s;
+}
+
+@media (hover: hover) {
+  .ngp-prop-link:hover {
+    border-bottom-color: var(--text-accent);
+  }
+}
+
+/* --- Link item with expand --- */
+.ngp-ni-list-item-wrap {
+  margin-bottom: 1px;
+}
+
+.ngp-ni-item-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 0;
+  font-size: var(--font-ui-small);
+}
+
+.ngp-expand-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 10px;
+  line-height: 1;
+  width: 16px;
+  text-align: center;
+}
+.ngp-expand-btn:hover {
+  color: var(--text-muted);
+}
+
+/* --- Inline preview (expanded from ▼) --- */
+.ngp-inline-preview {
+  margin: 4px 0 6px 18px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  border-radius: 0 var(--radius-s) var(--radius-s) 0;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  line-height: 1.5;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.ngp-inline-preview p {
+  margin: 0 0 4px;
+}
+
+.ngp-inline-preview h1,
+.ngp-inline-preview h2,
+.ngp-inline-preview h3,
+.ngp-inline-preview h4 {
+  font-size: var(--font-ui-small);
+  margin: 4px 0 2px;
+}
+
+.ngp-inline-preview-empty {
+  color: var(--text-faint);
+  font-style: italic;
+  font-size: var(--font-ui-smaller);
 }

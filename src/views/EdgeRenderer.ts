@@ -33,6 +33,8 @@ export interface EdgeDrawConfig {
   clusterRadii: Map<string, number> | null;
   /** Edge bundling strength: 0 = straight lines, 1 = full routing through centroids */
   bundleStrength: number;
+  /** Whether the current Obsidian theme is dark (affects edge color defaults) */
+  isDark: boolean;
 }
 
 // Minimal position data needed for source/target
@@ -45,8 +47,9 @@ interface Pos {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const DEFAULT_COLOR = 0x555555;
-const HIGHLIGHT_COLOR = 0x888888;
+// Theme-aware edge colors
+function defaultColor(isDark: boolean) { return isDark ? 0x555555 : 0xbbbbbb; }
+function highlightColor(isDark: boolean) { return isDark ? 0x888888 : 0x666666; }
 const INHERITANCE_COLOR = 0x9ca3af;
 const AGGREGATION_COLOR = 0x60a5fa;
 const SIMILAR_COLOR = 0xfbbf24;
@@ -67,6 +70,7 @@ function resolveEdgeColor(
   e: GraphEdge,
   useRelColor: boolean,
   relationColors: Map<string, string>,
+  isDark: boolean,
 ): number {
   if (e.type === "inheritance") return INHERITANCE_COLOR;
   if (e.type === "aggregation") return AGGREGATION_COLOR;
@@ -76,7 +80,7 @@ function resolveEdgeColor(
     const css = relationColors.get(e.relation);
     if (css) return cssColorToHex(css);
   }
-  return DEFAULT_COLOR;
+  return defaultColor(isDark);
 }
 
 // ---------------------------------------------------------------------------
@@ -135,7 +139,7 @@ function buildDirectionBundles(
 
     const angle = normalizeAngle(Math.atan2(dy, dx));
     const bin = Math.min(Math.floor(angle / BIN_WIDTH), ANGLE_BINS - 1);
-    const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors);
+    const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
 
     // Spatial grid cell based on midpoint
     const mx = (src.x + tgt.x) / 2;
@@ -248,7 +252,7 @@ function buildCables(
       pairData.set(pairKey, pair);
     }
 
-    const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors);
+    const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
     let colorGroup = pair.byColor.get(color);
     if (!colorGroup) { colorGroup = []; pair.byColor.set(color, colorGroup); }
     colorGroup.push(e);
@@ -513,7 +517,7 @@ export function drawEdges(
     if (!src || !tgt) continue;
 
     // Determine color
-    const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors);
+    const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
 
     // Determine alpha & thickness
     const isSimilar = e.type === "similar";
