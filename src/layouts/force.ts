@@ -1,4 +1,5 @@
 import type { GraphNode, DirectionalGravityRule } from "../types";
+import { parseQueryExpr, evaluateExpr } from "../utils/query-expr";
 
 /**
  * Convert a direction preset or radian value to radians.
@@ -25,17 +26,7 @@ export function resolveDirection(dir: DirectionalGravityRule["direction"]): numb
  */
 export function matchesFilter(node: GraphNode, filter: string): boolean {
   if (filter === "*") return true;
-  if (filter.startsWith("tag:")) {
-    const tag = filter.slice(4);
-    return node.tags?.includes(tag) ?? false;
-  }
-  if (filter.startsWith("category:")) {
-    return node.category === filter.slice(9);
-  }
-  if (filter.startsWith("label:")) {
-    return node.label.includes(filter.slice(6));
-  }
-  if (filter === "isTag") return node.isTag === true;
-  // Default: treat as tag
-  return node.tags?.includes(filter) ?? false;
+  const expr = parseQueryExpr(filter);
+  if (!expr) return true; // empty filter matches all
+  return evaluateExpr(expr, node);
 }

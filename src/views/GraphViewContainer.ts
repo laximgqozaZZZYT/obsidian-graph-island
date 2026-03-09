@@ -7,7 +7,7 @@ import { forceSimulation, forceManyBody, forceCenter, forceLink, type Simulation
 import type GraphViewsPlugin from "../main";
 import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset } from "../types";
 import { DEFAULT_COLORS } from "../types";
-import { evaluateExpr } from "../utils/query-expr";
+import { evaluateExpr, parseQueryExpr } from "../utils/query-expr";
 import { resolveDirection, matchesFilter } from "../layouts/force";
 import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
 import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
@@ -1840,6 +1840,7 @@ export class GraphViewContainer extends ItemView {
     }
 
     const hasText = textParts.length > 0;
+    const searchExpr = hasText ? parseQueryExpr(trimmed) : null;
     const hasFilter = hasText || hopSet !== null;
 
     for (const pn of this.pixiNodes.values()) {
@@ -1849,7 +1850,7 @@ export class GraphViewContainer extends ItemView {
         continue;
       }
 
-      const textMatch = hasText && pn.data.label.toLowerCase().includes(textParts[0]);
+      const textMatch = searchExpr !== null && evaluateExpr(searchExpr, pn.data);
       const hopMatch = hopSet !== null && hopSet.has(pn.data.id);
       const match = (hasText && hopSet !== null) ? (textMatch && hopMatch)
                   : hasText ? textMatch

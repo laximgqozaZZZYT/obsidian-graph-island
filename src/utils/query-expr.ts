@@ -100,6 +100,10 @@ export function parseQueryExpr(input: string): QueryExpression | null {
 
   function parseLeaf(): QueryLeaf {
     const tok = advance() ?? "";
+    // Special keyword: bare "isTag" → isTag:true
+    if (tok.toLowerCase() === "istag") {
+      return { type: "leaf", field: "isTag", value: "true" };
+    }
     // Check for field:value pattern
     const colonIdx = tok.indexOf(":");
     if (colonIdx > 0) {
@@ -164,6 +168,7 @@ export function serializeExpr(expr: QueryExpression): string {
 
 function serializeInner(expr: QueryExpression, parentOp: BoolOp | null): string {
   if (expr.type === "leaf") {
+    if (expr.field === "isTag") return "isTag";
     const val = `"${expr.value}"`;
     return expr.field === "label" ? val : `${expr.field}:${val}`;
   }

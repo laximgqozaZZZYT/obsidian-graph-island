@@ -219,3 +219,44 @@ describe("serializeExpr", () => {
     expect(reparsed).toEqual(parsed);
   });
 });
+
+describe("filter compatibility (search bar & directional gravity)", () => {
+  it("bare word is parsed as label leaf", () => {
+    const expr = parseQueryExpr("alice");
+    expect(expr).toEqual({ type: "leaf", field: "label", value: "alice" });
+    expect(evaluateExpr(expr!, makeNode({ label: "Alice" }))).toBe(true);
+    expect(evaluateExpr(expr!, makeNode({ label: "Bob" }))).toBe(false);
+  });
+
+  it("tag:character matches node with that tag", () => {
+    const expr = parseQueryExpr("tag:character");
+    expect(evaluateExpr(expr!, makeNode({ tags: ["character", "protagonist"] }))).toBe(true);
+    expect(evaluateExpr(expr!, makeNode({ tags: ["location"] }))).toBe(false);
+  });
+
+  it("isTag matches virtual tag nodes", () => {
+    const expr = parseQueryExpr("isTag");
+    expect(evaluateExpr(expr!, makeNode({ isTag: true }))).toBe(true);
+    expect(evaluateExpr(expr!, makeNode({ isTag: false }))).toBe(false);
+  });
+
+  it("category:person matches category field", () => {
+    const expr = parseQueryExpr("category:person");
+    expect(evaluateExpr(expr!, makeNode({ category: "person" }))).toBe(true);
+    expect(evaluateExpr(expr!, makeNode({ category: "place" }))).toBe(false);
+  });
+
+  it("* matches all nodes (wildcard)", () => {
+    // Note: matchesFilter treats "*" as a special case before parsing,
+    // but parseQueryExpr("*") should parse as label:"*" which matches via substring
+    const expr = parseQueryExpr("*");
+    // "*" parsed as bare word → label:"*" — wildcard handled at caller level
+    expect(expr).not.toBeNull();
+  });
+
+  it("boolean filter: tag:character AND category:person", () => {
+    const expr = parseQueryExpr("tag:character AND category:person");
+    expect(evaluateExpr(expr!, makeNode({ tags: ["character"], category: "person" }))).toBe(true);
+    expect(evaluateExpr(expr!, makeNode({ tags: ["character"], category: "place" }))).toBe(false);
+  });
+});
