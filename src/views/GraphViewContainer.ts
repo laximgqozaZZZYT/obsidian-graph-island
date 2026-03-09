@@ -216,6 +216,39 @@ export class GraphViewContainer extends ItemView {
   getDisplayText() { return "Graph Views"; }
   getIcon() { return "git-fork"; }
 
+  // -------------------------------------------------------------------------
+  // State persistence — Obsidian calls these to save/restore workspace.json
+  // -------------------------------------------------------------------------
+
+  getState(): Record<string, unknown> {
+    return {
+      layout: this.currentLayout,
+      panel: { ...this.panel },
+    };
+  }
+
+  async setState(state: Record<string, unknown>, result: Record<string, unknown>): Promise<void> {
+    await super.setState(state, result);
+    if (state.layout && typeof state.layout === "string") {
+      this.currentLayout = state.layout as LayoutType;
+    }
+    if (state.panel && typeof state.panel === "object") {
+      const saved = state.panel as Partial<PanelState>;
+      // Merge saved state onto current panel, preserving defaults for missing keys
+      for (const key of Object.keys(DEFAULT_PANEL) as (keyof PanelState)[]) {
+        if (key in saved && saved[key] !== undefined) {
+          (this.panel as any)[key] = saved[key];
+        }
+      }
+    }
+    // If already rendered (onOpen completed), rebuild with restored state
+    if (this.panelEl) {
+      this.buildPanel();
+      this.applyClusterForce();
+      this.doRender();
+    }
+  }
+
   async onOpen() {
     const root = this.containerEl.children[1] as HTMLElement;
     root.empty();
