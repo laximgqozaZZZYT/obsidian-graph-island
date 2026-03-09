@@ -281,6 +281,7 @@ export function buildPanel(
         { value: "triangle", label: "三角形" },
         { value: "random", label: "無秩序" },
         { value: "mountain", label: "Mountain" },
+        { value: "sunburst", label: "SunBurst" },
       ], panel.clusterArrangement, (v) => {
         panel.clusterArrangement = v as ClusterArrangement;
         cb.applyClusterForce();

@@ -54,7 +54,7 @@ export type LayoutType =
 export type ClusterGroupBy = "none" | "tag" | "backlinks" | "node_type";
 
 /** How to arrange nodes within each cluster */
-export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid" | "triangle" | "random" | "mountain";
+export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid" | "triangle" | "random" | "mountain" | "sunburst";
 
 /** A single rule in the multi-level cluster grouping pipeline */
 export interface ClusterGroupRule {

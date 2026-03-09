@@ -15,6 +15,7 @@
  *  - grid: m×n grid sorted by degree
  *  - mountain: peak-at-top with exponentially widening rows
  *  - random: seeded scatter with collision avoidance
+ *  - sunburst: radial sectors with concentric arc-rings per group
  *
  * Two independent controls:
  *  - nodeSpacing: minimum gap between adjacent nodes (nodeRadius × n)
@@ -216,10 +217,148 @@ function computeAbsoluteTargets(
   }
   const hasHierarchy = [...parentMap.values()].some(ch => ch.length > 1);
 
+  // SunBurst uses its own global layout (angle sectors per group)
+  if (cfg.arrangement === "sunburst") {
+    return computeSunburstTargets(groups, degrees, cfg);
+  }
+
   if (hasHierarchy) {
     return computeHierarchicalTargets(groups, parentMap, edges, degrees, cfg);
   }
   return computeFlatTargets(groups, edges, degrees, cfg);
+}
+
+// ---------------------------------------------------------------------------
+// SunBurst — hierarchical radial sector layout (sunburst diagram)
+//
+// Mimics a real sunburst/baumkuchen diagram with multiple depth levels:
+//
+//   Level 0 (inner band):  Group "core" — highest-degree hub nodes
+//   Level 1 (middle band): Group "body" — mid-degree nodes
+//   Level 2 (outer band):  Group "periphery" — low-degree leaf nodes
+//
+// Each group's angular sector is proportional to its node count.
+// Within the sector, each depth level is a thick ring-band filled with
+// nodes. Outer levels are angularly contained within the parent sector,
+// matching the hierarchical nesting of a true sunburst diagram.
+//
+// The radial bands are visually separated by gaps, creating the
+// characteristic concentric "baumkuchen" layers.
+// ---------------------------------------------------------------------------
+
+function computeSunburstTargets(
+  groups: Map<string, GraphNode[]>,
+  degrees: Map<string, number>,
+  cfg: ClusterForceConfig,
+): Map<string, { x: number; y: number }> {
+  const targets = new Map<string, { x: number; y: number }>();
+  const groupKeys = [...groups.keys()];
+  const nGroups = groupKeys.length;
+
+  let totalNodes = 0;
+  for (const members of groups.values()) totalNodes += members.length;
+  if (totalNodes === 0) return targets;
+
+  const cx = cfg.centerX;
+  const cy = cfg.centerY;
+  const nodeDiam = cfg.nodeSize * 2;
+
+  // --- Depth levels: split each group's nodes into tiers by degree ---
+  // Tier boundaries: top 15% → core (inner), next 35% → body (mid), rest → periphery (outer)
+  const TIER_CUTS = [0.15, 0.50]; // cumulative fractions
+  const DEPTH_LEVELS = 3;
+
+  // --- Radial geometry ---
+  // Each depth level is a thick band; bands are separated by a gap.
+  const bandThick = nodeDiam * cfg.groupScale * 2.5; // thickness of one band
+  const bandGap = nodeDiam * cfg.groupScale * 0.8;    // gap between bands
+  const centerHole = bandThick * 1.2;                  // empty center
+
+  // --- Angular geometry ---
+  const sectorGap = nGroups > 1 ? 0.05 * Math.max(cfg.groupSpacing, 1) : 0;
+  const totalGapAngle = sectorGap * nGroups;
+  const availableAngle = Math.PI * 2 - totalGapAngle;
+
+  // --- Assign sectors and place nodes ---
+  let angleStart = -Math.PI / 2;
+
+  for (const key of groupKeys) {
+    const members = groups.get(key)!;
+    const n = members.length;
+    const sectorAngle = (n / totalNodes) * availableAngle;
+
+    // Sort by degree descending
+    const sorted = [...members].sort(
+      (a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0),
+    );
+
+    // Split into tiers
+    const tiers: GraphNode[][] = [];
+    const cut0 = Math.max(1, Math.ceil(n * TIER_CUTS[0]));
+    const cut1 = Math.max(cut0 + 1, Math.ceil(n * TIER_CUTS[1]));
+    if (n <= 3) {
+      // Too few for multiple tiers — single tier
+      tiers.push(sorted);
+    } else {
+      tiers.push(sorted.slice(0, cut0));
+      tiers.push(sorted.slice(cut0, cut1));
+      tiers.push(sorted.slice(cut1));
+    }
+
+    // Place each tier in its ring band — fill from OUTER edge inward.
+    // This ensures bands with few nodes still show a clear arc outline.
+    for (let depth = 0; depth < tiers.length; depth++) {
+      const tier = tiers[depth];
+      if (tier.length === 0) continue;
+
+      const bandInner = centerHole + depth * (bandThick + bandGap);
+
+      const nodeWidth = nodeDiam * cfg.nodeSpacing;
+      // How many sub-rings fit in this band?
+      const maxSubRings = Math.max(1, Math.floor(bandThick / nodeWidth));
+
+      // Pre-compute sub-ring radii from OUTER to INNER
+      const subRingRadii: number[] = [];
+      for (let sr = 0; sr < maxSubRings; sr++) {
+        // sr=0 → outermost, sr=maxSubRings-1 → innermost
+        const t = maxSubRings === 1 ? 0.5 : 1.0 - sr / (maxSubRings - 1);
+        subRingRadii.push(bandInner + nodeWidth * 0.5 + t * (bandThick - nodeWidth));
+      }
+
+      let nodeIdx = 0;
+      let subRing = 0;
+
+      while (nodeIdx < tier.length) {
+        const rMid = subRingRadii[subRing % subRingRadii.length];
+
+        // How many nodes fit along this arc?
+        const arcLen = rMid * sectorAngle;
+        const capacity = Math.max(1, Math.floor(arcLen / nodeWidth));
+        const count = Math.min(capacity, tier.length - nodeIdx);
+
+        // Angular padding from sector edges
+        const pad = Math.min(sectorAngle * 0.03, 0.02);
+        const usable = sectorAngle - 2 * pad;
+
+        for (let i = 0; i < count; i++) {
+          const at = count === 1 ? 0.5 : i / (count - 1);
+          const angle = angleStart + pad + at * usable;
+
+          targets.set(tier[nodeIdx].id, {
+            x: cx + rMid * Math.cos(angle),
+            y: cy + rMid * Math.sin(angle),
+          });
+          nodeIdx++;
+        }
+
+        subRing++;
+      }
+    }
+
+    angleStart += sectorAngle + sectorGap;
+  }
+
+  return targets;
 }
 
 /** Flat layout — all groups at the same level (no recursive split). */
