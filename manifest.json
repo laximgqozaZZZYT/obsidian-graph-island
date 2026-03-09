@@ -3,7 +3,7 @@
   "name": "Graph Island",
   "version": "0.1.0",
   "minAppVersion": "1.0.0",
-  "description": "Multiple graph visualization layouts (concentric, tree, arc, sunburst, force) based on note metadata and links.",
+  "description": "Visualize your vault as interactive graphs with multiple layouts including force, concentric, tree, arc, and sunburst.",
   "author": "noob-dev",
   "isDesktopOnly": false
 }
