@@ -899,3 +899,232 @@
   color: var(--text-normal);
   border-color: var(--interactive-accent);
 }
+
+/* --- Inline-style replacements (Plugin Guidelines compliance) --- */
+
+.ngp-color-group-label {
+  flex: 1;
+  font-size: var(--font-ui-small);
+}
+
+.ngp-help-btn {
+  margin-left: auto;
+  opacity: 0.5;
+}
+
+.ngp-help-popup {
+  padding: 8px 12px;
+  font-size: 0.85em;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  background: var(--background-secondary);
+  border-radius: 4px;
+  margin: 4px 8px;
+}
+
+.ngp-expr-editor {
+  padding: 4px 0 4px 12px;
+  border-left: 2px solid var(--interactive-accent);
+  margin: 4px 0;
+}
+
+.ngp-flex-fill {
+  flex: 1;
+}
+
+.ngp-noderule-item {
+  margin-bottom: 6px;
+  border-left: 2px solid var(--interactive-accent);
+  padding-left: 8px;
+}
+
+.ngp-noderule-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.ngp-slider-label {
+  min-width: 30px;
+  text-align: right;
+  font-size: 0.85em;
+}
+
+.ngp-gravity-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.ngp-gravity-label {
+  flex-shrink: 0;
+}
+
+.ngp-gravity-dir-select {
+  width: 90px;
+}
+
+.ngp-help-body {
+  white-space: pre-wrap;
+  font-family: var(--font-monospace);
+  font-size: 0.9em;
+  line-height: 1.6;
+}
+
+.ngp-settings-description {
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.ngp-settings-preview {
+  width: 100%;
+  min-height: 300px;
+  font-family: var(--font-monospace);
+  font-size: 0.85em;
+}
+
+.ngp-ontology-heading {
+  margin-top: 8px;
+  opacity: 0.7;
+  font-size: 0.85em;
+}
+
+.ngp-action-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.ngp-action-row button {
+  flex: 1;
+}
+
+.ngp-full-width-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.ngp-full-width-row .setting-item-control {
+  justify-content: stretch;
+}
+
+.ngp-full-width-row input[type="text"] {
+  width: 100%;
+}
+
+.ngp-color-group-wrapper {
+  margin-bottom: 4px;
+}
+
+.ngp-color-group-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ngp-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ngp-expr-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ngp-expand-btn {
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 2px 4px;
+}
+
+.ngp-remove-btn {
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 14px;
+  padding: 2px 4px;
+  opacity: 0.6;
+}
+
+.ngp-expr-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0;
+}
+
+.ngp-field-input {
+  width: 70px;
+}
+
+.ngp-val-input {
+  flex: 1;
+}
+
+.ngp-indent-btn {
+  cursor: pointer;
+  user-select: none;
+}
+
+.ngp-order-btn {
+  margin-left: 4px;
+  min-width: 60px;
+}
+
+.ngp-ml-4 {
+  margin-left: 4px;
+}
+
+.ngp-rec-wrap {
+  margin-left: 4px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ngp-filter-input {
+  flex: 1;
+}
+
+.ngp-dir-select {
+  width: 80px;
+  margin-left: 4px;
+}
+
+.ngp-rad-input {
+  width: 60px;
+  margin-left: 4px;
+}
+
+.ngp-str-slider {
+  width: 60px;
+  margin-left: 4px;
+}
+
+.ngp-query-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ngp-noderule-detail {
+  padding-left: 12px;
+}
+
+.ngp-spacing-row {
+  padding: 2px 0;
+}
+
+.ngp-angle-input {
+  width: 60px;
+}
+
+.ngp-file-input-hidden {
+  display: none;
+}

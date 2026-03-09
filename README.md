@@ -137,7 +137,7 @@ Fully localized for **English** and **Japanese**. The UI language follows Obsidi
 ### From Source
 
 ```bash
-git clone https://github.com/<your-repo>/obsidian-graph-island.git
+git clone https://github.com/laximgqozaZZZYT/obsidian-graph-island.git
 cd obsidian-graph-island
 npm install
 npm run build

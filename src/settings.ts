@@ -137,11 +137,7 @@ class HelpModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: this.entry.title });
-    const pre = contentEl.createEl("div");
-    pre.style.whiteSpace = "pre-wrap";
-    pre.style.fontFamily = "var(--font-monospace)";
-    pre.style.fontSize = "0.9em";
-    pre.style.lineHeight = "1.6";
+    const pre = contentEl.createEl("div", { cls: "ngp-help-body" });
     pre.textContent = this.entry.body;
   }
   onClose() {
@@ -167,7 +163,8 @@ export class GraphViewsSettingTab extends PluginSettingTab {
 
     containerEl.createEl("p", {
       text: t("settingsTab.description"),
-    }).style.cssText = "color:var(--text-muted);margin-bottom:16px;";
+      cls: "ngp-settings-description",
+    });
 
     // --- Import section ---
     new Setting(containerEl)
@@ -178,7 +175,7 @@ export class GraphViewsSettingTab extends PluginSettingTab {
           const fileInput = document.createElement("input");
           fileInput.type = "file";
           fileInput.accept = ".json";
-          fileInput.style.display = "none";
+          fileInput.addClass("ngp-file-input-hidden");
           document.body.appendChild(fileInput);
           fileInput.addEventListener("change", async () => {
             const file = fileInput.files?.[0];
@@ -227,11 +224,16 @@ export class GraphViewsSettingTab extends PluginSettingTab {
           }
           try {
             const dir = path.substring(0, path.lastIndexOf("/"));
-            if (dir && !(await this.app.vault.adapter.exists(dir))) {
-              await this.app.vault.adapter.mkdir(dir);
+            if (dir && !this.app.vault.getFolderByPath(dir)) {
+              await this.app.vault.createFolder(dir);
             }
             const data = JSON.stringify(this.plugin.settings, null, 2);
-            await this.app.vault.adapter.write(path, data);
+            const existing = this.app.vault.getFileByPath(path);
+            if (existing) {
+              await this.app.vault.modify(existing, data);
+            } else {
+              await this.app.vault.create(path, data);
+            }
             new Notice(`${t("settingsTab.exportDone")}: ${path}`);
           } catch (e) {
             new Notice(`${t("settingsTab.exportFail")}: ${(e as Error).message}`);
@@ -242,8 +244,7 @@ export class GraphViewsSettingTab extends PluginSettingTab {
     // --- Preview: show current settings as read-only JSON ---
     containerEl.createEl("h3", { text: t("settingsTab.preview") });
 
-    const preview = containerEl.createEl("textarea");
-    preview.style.cssText = "width:100%;min-height:300px;font-family:monospace;font-size:0.85em;";
+    const preview = containerEl.createEl("textarea", { cls: "ngp-settings-preview" });
     preview.readOnly = true;
     preview.value = JSON.stringify(this.plugin.settings, null, 2);
   }
