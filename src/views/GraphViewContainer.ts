@@ -219,28 +219,39 @@ export class GraphViewContainer extends ItemView {
   // -------------------------------------------------------------------------
   // State persistence — Obsidian calls these to save/restore workspace.json
   // -------------------------------------------------------------------------
+  private _saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-  getState(): Record<string, unknown> {
+  /** Debounced workspace save — call after any panel state mutation */
+  private requestSave() {
+    if (this._saveTimer) clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => {
+      this.app.workspace.requestSaveLayout();
+      this._saveTimer = null;
+    }, 500);
+  }
+
+  getState() {
+    const sup = super.getState();
     return {
+      ...sup,
       layout: this.currentLayout,
-      panel: { ...this.panel },
+      panel: JSON.parse(JSON.stringify(this.panel)),  // deep clone for safe serialization
     };
   }
 
-  async setState(state: Record<string, unknown>, result: Record<string, unknown>): Promise<void> {
-    await super.setState(state, result);
+  async setState(state: any, result: any): Promise<void> {
     if (state.layout && typeof state.layout === "string") {
       this.currentLayout = state.layout as LayoutType;
     }
     if (state.panel && typeof state.panel === "object") {
       const saved = state.panel as Partial<PanelState>;
-      // Merge saved state onto current panel, preserving defaults for missing keys
       for (const key of Object.keys(DEFAULT_PANEL) as (keyof PanelState)[]) {
         if (key in saved && saved[key] !== undefined) {
           (this.panel as any)[key] = saved[key];
         }
       }
     }
+    await super.setState(state, result);
     // If already rendered (onOpen completed), rebuild with restored state
     if (this.panelEl) {
       this.buildPanel();
@@ -1372,30 +1383,31 @@ export class GraphViewContainer extends ItemView {
     if (!this.panelEl) return;
     const ctx: PanelContext = {
       currentLayout: this.currentLayout,
-      setLayout: (l: LayoutType) => { this.currentLayout = l; },
+      setLayout: (l: LayoutType) => { this.currentLayout = l; this.requestSave(); },
       shells: this.shells,
       pixiNodes: this.pixiNodes,
       relationColors: this.relationColors,
       simulation: this.simulation,
     };
     const cb: PanelCallbacks = {
-      doRender: () => this.doRender(),
-      markDirty: () => this.markDirty(),
-      updateForces: () => this.updateForces(),
+      doRender: () => { this.doRender(); this.requestSave(); },
+      markDirty: () => { this.markDirty(); this.requestSave(); },
+      updateForces: () => { this.updateForces(); this.requestSave(); },
       applySearch: () => this.applySearch(),
-      applyTextFade: () => this.applyTextFade(),
-      applyDirectionalGravityForce: () => this.applyDirectionalGravityForce(),
-      applyClusterForce: () => this.applyClusterForce(),
+      applyTextFade: () => { this.applyTextFade(); this.requestSave(); },
+      applyDirectionalGravityForce: () => { this.applyDirectionalGravityForce(); this.requestSave(); },
+      applyClusterForce: () => { this.applyClusterForce(); this.requestSave(); },
       deriveAndApplyClusterRules: () => {
         this.panel.clusterGroupRules = deriveClusterRulesFromQueries(this.panel.commonQueries);
         this.applyClusterForce();
         if (this.simulation) { this.simulation.alpha(0.5).restart(); this.wakeRenderLoop(); }
+        this.requestSave();
       },
-      startOrbitAnimation: () => this.startOrbitAnimation(),
-      stopOrbitAnimation: () => this.stopOrbitAnimation(),
+      startOrbitAnimation: () => { this.startOrbitAnimation(); this.requestSave(); },
+      stopOrbitAnimation: () => { this.stopOrbitAnimation(); this.requestSave(); },
       wakeRenderLoop: () => this.wakeRenderLoop(),
-      rebuildPanel: () => this.buildPanel(),
-      invalidateData: () => { this.rawData = null; this.doRender(); },
+      rebuildPanel: () => { this.buildPanel(); this.requestSave(); },
+      invalidateData: () => { this.rawData = null; this.doRender(); this.requestSave(); },
       restartSimulation: (alpha: number) => {
         if (this.simulation) { this.simulation.alpha(alpha).restart(); this.wakeRenderLoop(); }
       },
@@ -1434,9 +1446,10 @@ export class GraphViewContainer extends ItemView {
           sortRules: [...(this.plugin.settings.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r })),
         });
         this.applyGroupPresets();
-        this.rebuildPanel();
+        this.buildPanel();
         this.applyClusterForce();
         if (this.simulation) { this.simulation.alpha(0.8).restart(); this.wakeRenderLoop(); }
+        this.requestSave();
       },
     };
     buildPanelUI(this.panelEl, this.panel, ctx, cb);
