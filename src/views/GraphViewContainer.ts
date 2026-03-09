@@ -1069,6 +1069,11 @@ export class GraphViewContainer extends ItemView {
       const bg = getComputedStyle(el).getPropertyValue("--background-primary").trim();
       this.cachedBgColor = bg ? cssColorToHex(bg) : 0x1e1e2e;
     }
+    // Pre-compute max degree for fade normalization
+    let maxDeg = 0;
+    if (this.panel.fadeEdgesByDegree) {
+      for (const d of this.degrees.values()) { if (d > maxDeg) maxDeg = d; }
+    }
     const cfg: EdgeDrawConfig = {
       showInheritance: this.panel.showInheritance,
       showAggregation: this.panel.showAggregation,
@@ -1080,6 +1085,9 @@ export class GraphViewContainer extends ItemView {
       highlightSet: this.prevHighlightSet,
       bgColor: this.cachedBgColor,
       relationColors: this.relationColors,
+      fadeByDegree: this.panel.fadeEdgesByDegree,
+      degrees: this.degrees,
+      maxDegree: maxDeg,
     };
     drawEdgesImpl(
       this.edgeGraphics,

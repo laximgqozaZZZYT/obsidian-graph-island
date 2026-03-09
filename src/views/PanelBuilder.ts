@@ -42,6 +42,7 @@ export interface PanelState {
   clusterNodeSpacing: number;
   clusterGroupScale: number;
   clusterGroupSpacing: number;
+  fadeEdgesByDegree: boolean;
   sortRules: SortRule[];
 }
 
@@ -80,6 +81,7 @@ export const DEFAULT_PANEL: PanelState = {
   clusterNodeSpacing: 3.0,
   clusterGroupScale: 3.0,
   clusterGroupSpacing: 2.0,
+  fadeEdgesByDegree: false,
   sortRules: [{ key: "degree" as SortKey, order: "desc" as SortOrder }],
 };
 
@@ -236,6 +238,7 @@ export function buildPanel(
     addToggle(body, "矢印", panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); });
     addToggle(body, "ノード色（自動）", panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); });
     addToggle(body, "エッジ色（属性別）", panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); });
+    addToggle(body, "結線の濃淡（被リンク数）", panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); });
     addSlider(body, "テキストフェードの閾値", 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); });
     addSlider(body, "ノードの大きさ", 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
     addToggle(body, "被リンク数でサイズ変更", panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); });

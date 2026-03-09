@@ -17,6 +17,12 @@ export interface EdgeDrawConfig {
   highlightSet: Set<string>;
   bgColor: number;
   relationColors: Map<string, string>;
+  /** Fade edges based on source node degree — low-degree nodes produce fainter edges */
+  fadeByDegree: boolean;
+  /** Node degree map (id → degree count). Required when fadeByDegree is true. */
+  degrees: Map<string, number>;
+  /** Maximum degree across all nodes (pre-computed for normalization) */
+  maxDegree: number;
 }
 
 // Minimal position data needed for source/target
@@ -96,6 +102,18 @@ export function drawEdges(
     let lineThick = 1;
 
     if (!isOnto && e.relation && useRelColor) alpha = 0.8;
+
+    // Fade by source node degree: low-degree → faint, high-degree → opaque
+    if (cfg.fadeByDegree && cfg.maxDegree > 0) {
+      const sid = src.id ?? (e.source as string);
+      const tid = tgt.id ?? (e.target as string);
+      const srcDeg = cfg.degrees.get(sid) ?? 0;
+      const tgtDeg = cfg.degrees.get(tid) ?? 0;
+      const minDeg = Math.min(srcDeg, tgtDeg);
+      // sqrt normalization: 0→MIN_ALPHA, maxDegree→base alpha
+      const t = Math.sqrt(minDeg / cfg.maxDegree);
+      alpha *= 0.15 + 0.85 * t;  // range: 15%-100% of base alpha
+    }
 
     if (hId) {
       const sid = src.id ?? (e.source as string);

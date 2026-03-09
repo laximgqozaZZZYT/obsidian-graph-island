@@ -33,6 +33,9 @@ function baseCfg(overrides?: Partial<EdgeDrawConfig>): EdgeDrawConfig {
     highlightSet: new Set<string>(),
     bgColor: 0x1e1e2e,
     relationColors: new Map(),
+    fadeByDegree: false,
+    degrees: new Map(),
+    maxDegree: 0,
     ...overrides,
   };
 }
@@ -158,5 +161,41 @@ describe("drawEdges", () => {
     const lineStyleCall = calls.find((c) => c.method === "lineStyle");
     // 0xff0000
     expect(lineStyleCall?.args[0].color).toBe(0xff0000);
+  });
+
+  it("fades edges from low-degree nodes when fadeByDegree is true", () => {
+    const { g, calls } = createMockGraphics();
+    const edges: GraphEdge[] = [
+      { source: "a", target: "b" },  // a has degree 1 (low)
+      { source: "c", target: "b" },  // c has degree 10 (high)
+    ];
+    const degrees = new Map([["a", 1], ["b", 5], ["c", 10]]);
+    drawEdges(g, edges, resolvePos, baseCfg({
+      fadeByDegree: true,
+      degrees,
+      maxDegree: 10,
+    }));
+    const lineStyleCalls = calls.filter((c) => c.method === "lineStyle");
+    expect(lineStyleCalls.length).toBe(2);
+    // Edge a→b: min(deg(a)=1, deg(b)=5) = 1 → low alpha
+    // Edge c→b: min(deg(c)=10, deg(b)=5) = 5 → higher alpha
+    expect(lineStyleCalls[0].args[0].alpha).toBeLessThan(lineStyleCalls[1].args[0].alpha);
+  });
+
+  it("does not fade edges when fadeByDegree is false", () => {
+    const { g, calls } = createMockGraphics();
+    const edges: GraphEdge[] = [
+      { source: "a", target: "b" },
+      { source: "c", target: "b" },
+    ];
+    const degrees = new Map([["a", 1], ["b", 5], ["c", 10]]);
+    drawEdges(g, edges, resolvePos, baseCfg({
+      fadeByDegree: false,
+      degrees,
+      maxDegree: 10,
+    }));
+    const lineStyleCalls = calls.filter((c) => c.method === "lineStyle");
+    // Both edges should have the same default alpha (0.65)
+    expect(lineStyleCalls[0].args[0].alpha).toBe(lineStyleCalls[1].args[0].alpha);
   });
 });
