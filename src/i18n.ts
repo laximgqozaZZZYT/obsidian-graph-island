@@ -49,6 +49,9 @@ const en: TranslationMap = {
   "filter.attachments": "Attachments",
   "filter.existingOnly": "Existing Files Only",
   "filter.orphans": "Orphans",
+  "filter.dataviewQuery": "Dataview filter",
+  "filter.dataviewHint": "DQL source (e.g. #tag, \"folder\")",
+  "filter.dataviewUnavailable": "Dataview plugin not installed",
   "filter.tagDisplay": "Tag Display",
   "filter.tagDisplay.off": "Hidden",
   "filter.tagDisplay.node": "Node",
@@ -82,6 +85,16 @@ const en: TranslationMap = {
   "display.groupNone": "None",
   "display.groupTag": "Tag",
   "display.groupCategory": "Category",
+
+  // --- PanelBuilder: node shapes ---
+  "display.nodeShapes": "Node Shapes",
+  "display.tagNodeShape": "Tag node shape",
+  "display.defaultNodeShape": "Default node shape",
+  "shape.circle": "Circle",
+  "shape.triangle": "Triangle",
+  "shape.diamond": "Diamond",
+  "shape.hexagon": "Hexagon",
+  "shape.square": "Square",
 
   // --- PanelBuilder: node rules ---
   "nodeRules.addRule": "Add Rule",
@@ -307,6 +320,9 @@ const ja: TranslationMap = {
   "filter.attachments": "添付書類",
   "filter.existingOnly": "存在するファイルのみ表示",
   "filter.orphans": "オーファン",
+  "filter.dataviewQuery": "Dataview フィルター",
+  "filter.dataviewHint": "DQLソース (例: #tag, \"folder\")",
+  "filter.dataviewUnavailable": "Dataviewプラグイン未インストール",
   "filter.tagDisplay": "タグ表示",
   "filter.tagDisplay.off": "非表示",
   "filter.tagDisplay.node": "ノード",
@@ -340,6 +356,16 @@ const ja: TranslationMap = {
   "display.groupNone": "なし",
   "display.groupTag": "タグ",
   "display.groupCategory": "カテゴリ",
+
+  // --- PanelBuilder: node shapes ---
+  "display.nodeShapes": "ノード形状",
+  "display.tagNodeShape": "タグノードの形状",
+  "display.defaultNodeShape": "デフォルトの形状",
+  "shape.circle": "丸",
+  "shape.triangle": "三角形",
+  "shape.diamond": "ダイヤ",
+  "shape.hexagon": "六角形",
+  "shape.square": "四角形",
 
   // --- PanelBuilder: node rules ---
   "nodeRules.addRule": "ルール追加",

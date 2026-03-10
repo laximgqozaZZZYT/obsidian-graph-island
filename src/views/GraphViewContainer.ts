@@ -23,6 +23,8 @@ import { LayoutController, type LayoutHost } from "./LayoutController";
 import { Minimap, type MinimapHost } from "./Minimap";
 import { LayoutTransition } from "./LayoutTransition";
 import { groupNodesByTag, groupNodesByCategory, collapseGroup, type GroupSpec } from "../utils/node-grouping";
+import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
+import { getNodeShape, drawShape, drawShapeAt } from "../utils/node-shapes";
 
 /**
  * Derive a single ClusterGroupRule from a query string + recursive flag.
@@ -675,6 +677,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return this.plugin.settings.directionalGravityRules ?? [];
   }
   setClusterMeta(meta: ClusterMetadata | null) { this.clusterMeta = meta; }
+  getNodeShapeRules() { return this.panel.nodeShapeRules; }
 
   // =========================================================================
   // Zoom & Hit testing
@@ -1318,6 +1321,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       saveSettings: () => { this.plugin.saveSettings(); },
       nodeCount: this.pixiNodes.size,
       edgeCount: 0,
+      app: this.app,
     };
     const cb: PanelCallbacks = {
       doRender: () => { this.doRender(); this.requestSave(); },
@@ -1475,6 +1479,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Filter out "similar" edges unless the user has enabled them
     if (!this.panel.showSimilar) edges = edges.filter((e) => e.type !== "similar");
+
+    // Dataview query filter
+    if (this.panel.dataviewQuery.trim()) {
+      const matchingPaths = queryDataviewPages(this.app, this.panel.dataviewQuery.trim());
+      if (matchingPaths.size > 0) {
+        nodes = filterNodesByDataview(nodes, matchingPaths, this.panel.showTagNodes);
+      }
+    }
 
     const nodeSet = new Set(nodes.map((n) => n.id));
     edges = edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));
@@ -1854,13 +1866,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         pn.circle.visible = true;
         pn.circle.clear();
         const searchHitColor = this.getAccentColor();
-        pn.circle.beginFill(searchHitColor, 0.10);
-        pn.circle.drawCircle(0, 0, pn.radius * 2.2);
-        pn.circle.endFill();
+        const shape = getNodeShape(pn.data, this.panel.nodeShapeRules);
+        drawShape(pn.circle, shape, pn.radius * 2.2, searchHitColor, 0.10);
         pn.circle.lineStyle(2, searchHitColor, 0.85);
-        pn.circle.beginFill(pn.color);
-        pn.circle.drawCircle(0, 0, pn.radius);
-        pn.circle.endFill();
+        drawShape(pn.circle, shape, pn.radius, pn.color, 1);
       } else {
         pn.gfx.alpha = 0.12;
         this.drawNodeCircle(pn, false);

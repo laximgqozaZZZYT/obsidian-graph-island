@@ -1,6 +1,8 @@
 import * as PIXI from "pixi.js";
 import type { GraphNode } from "../types";
 import type { PixiNode } from "./InteractionManager";
+import { getNodeShape, drawShape, drawShapeAt } from "../utils/node-shapes";
+import type { ShapeRule } from "../utils/node-shapes";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -52,6 +54,8 @@ export interface RenderHost {
   drawSunburstArcs(): void;
   /** Draw edges */
   drawEdges(): void;
+  /** Get the node shape rules */
+  getNodeShapeRules(): ShapeRule[];
 }
 
 // ---------------------------------------------------------------------------
@@ -169,14 +173,11 @@ export class RenderPipeline {
     pn.circle.clear();
     if (highlight) {
       pn.circle.visible = true;
-      pn.circle.beginFill(pn.color, 0.12);
-      pn.circle.drawCircle(0, 0, pn.radius * 2.2);
-      pn.circle.endFill();
+      const shape = getNodeShape(pn.data, this.host.getNodeShapeRules());
+      drawShape(pn.circle, shape, pn.radius * 2.2, pn.color, 0.12);
       const strokeCol = darkenColor(pn.color, 0.3);
       pn.circle.lineStyle(1.5, strokeCol, 0.85);
-      pn.circle.beginFill(pn.color);
-      pn.circle.drawCircle(0, 0, pn.radius);
-      pn.circle.endFill();
+      drawShape(pn.circle, shape, pn.radius, pn.color, 1);
     } else {
       pn.circle.visible = false;
     }
@@ -208,6 +209,7 @@ export class RenderPipeline {
 
     const alpha = hasHighlight ? 0.12 : 1;
     const nodeCount = visible.length;
+    const shapeRules = this.host.getNodeShapeRules();
 
     // Pass 1: Glow halos
     const showGlow = nodeCount < 800;
@@ -216,27 +218,30 @@ export class RenderPipeline {
       const glowRadius = nodeCount < 300 ? 2.2 : 2.2 - 0.7 * ((nodeCount - 300) / 500);
       g.lineStyle(0);
       for (const pn of visible) {
+        const shape = getNodeShape(pn.data, shapeRules);
         g.beginFill(pn.color, alpha * glowAlpha);
-        g.drawCircle(pn.data.x, pn.data.y, pn.radius * glowRadius);
+        drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius * glowRadius);
         g.endFill();
       }
     }
 
-    // Pass 2: Solid circles with subtle same-hue stroke
+    // Pass 2: Solid shapes with subtle same-hue stroke
     for (const pn of visible) {
+      const shape = getNodeShape(pn.data, shapeRules);
       const strokeColor = darkenColor(pn.color, 0.4);
       g.lineStyle(1, strokeColor, alpha * 0.5);
       g.beginFill(pn.color, alpha);
-      g.drawCircle(pn.data.x, pn.data.y, pn.radius);
+      drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius);
       g.endFill();
     }
 
     // Pass 3: Hold indicator ring for pinned nodes
     for (const pn of visible) {
       if (!pn.held) continue;
+      const shape = getNodeShape(pn.data, shapeRules);
       g.lineStyle(2, this.host.isDarkTheme() ? 0xffffff : 0x333333, 0.9);
       g.beginFill(0, 0);
-      g.drawCircle(pn.data.x, pn.data.y, pn.radius + 4);
+      drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius + 4);
       g.endFill();
     }
   }

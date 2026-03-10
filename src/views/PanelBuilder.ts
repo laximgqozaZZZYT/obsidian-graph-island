@@ -5,6 +5,9 @@ import type { QueryExpression, BoolOp } from "../utils/query-expr";
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { setIcon } from "obsidian";
 import { t, tHelp } from "../i18n";
+import { isDataviewAvailable } from "../utils/dataview-source";
+import type { ShapeRule, NodeShape } from "../utils/node-shapes";
+import { ALL_SHAPES } from "../utils/node-shapes";
 
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
@@ -54,6 +57,8 @@ export interface PanelState {
   edgeBundleStrength: number;
   sortRules: SortRule[];
   nodeRules: NodeRule[];
+  nodeShapeRules: ShapeRule[];
+  dataviewQuery: string;
   showEdgeLabels: boolean;
   showMinimap: boolean;
   groupBy: "none" | "tag" | "category";
@@ -105,6 +110,11 @@ export const DEFAULT_PANEL: PanelState = {
   edgeBundleStrength: 0.65,
   sortRules: [{ key: "degree" as SortKey, order: "desc" as SortOrder }],
   nodeRules: [],
+  nodeShapeRules: [
+    { match: "isTag", shape: "triangle" },
+    { match: "default", shape: "circle" },
+  ],
+  dataviewQuery: "",
   showEdgeLabels: false,
   showMinimap: true,
   groupBy: "none" as const,
@@ -152,6 +162,7 @@ export interface PanelContext {
   saveSettings(): void;
   nodeCount: number;
   edgeCount: number;
+  app: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +262,37 @@ export function buildPanel(
       panel.tagDisplay = v === "enclosure" ? "enclosure" : "node";
       cb.invalidateData();
     });
+
+    // --- Dataview filter ---
+    {
+      const dvAvailable = isDataviewAvailable(ctx.app as any);
+      const row = body.createDiv({ cls: "setting-item ngp-full-width-row" });
+      const info = row.createDiv({ cls: "setting-item-info" });
+      info.createDiv({ cls: "setting-item-name", text: t("filter.dataviewQuery") });
+      const control = row.createDiv({ cls: "setting-item-control" });
+      const input = control.createEl("input", {
+        type: "text",
+        placeholder: dvAvailable ? t("filter.dataviewHint") : t("filter.dataviewUnavailable"),
+      });
+      input.value = panel.dataviewQuery;
+      if (!dvAvailable) {
+        input.disabled = true;
+      } else {
+        let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+        input.addEventListener("input", () => {
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            panel.dataviewQuery = input.value;
+            cb.invalidateData();
+          }, 300);
+        });
+        input.addEventListener("change", () => {
+          if (debounceTimer) clearTimeout(debounceTimer);
+          panel.dataviewQuery = input.value;
+          cb.invalidateData();
+        });
+      }
+    }
   }, tHelp("help.filter"));
 
   buildSection(panelEl, t("section.groups"), (body) => {
@@ -282,6 +324,24 @@ export function buildPanel(
     ], panel.groupBy, (v) => {
       panel.groupBy = v as "none" | "tag" | "category";
       panel.collapsedGroups.clear();
+      cb.doRender();
+    });
+
+    // --- ノード形状 ---
+    body.createEl("div", { cls: "setting-item-heading", text: t("display.nodeShapes") });
+    const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
+    const tagRule = panel.nodeShapeRules.find(r => r.match === "isTag");
+    const defaultRule = panel.nodeShapeRules.find(r => r.match === "default");
+    addSelect(body, t("display.tagNodeShape"), shapeOptions, tagRule?.shape ?? "triangle", (v) => {
+      const rule = panel.nodeShapeRules.find(r => r.match === "isTag");
+      if (rule) rule.shape = v as NodeShape;
+      else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
+      cb.doRender();
+    });
+    addSelect(body, t("display.defaultNodeShape"), shapeOptions, defaultRule?.shape ?? "circle", (v) => {
+      const rule = panel.nodeShapeRules.find(r => r.match === "default");
+      if (rule) rule.shape = v as NodeShape;
+      else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
       cb.doRender();
     });
 
