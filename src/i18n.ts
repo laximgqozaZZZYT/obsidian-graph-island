@@ -238,6 +238,8 @@ const en: TranslationMap = {
   "toolbar.zoomIn": "Zoom In",
   "toolbar.zoomOut": "Zoom Out",
   "toolbar.marquee": "Marquee Zoom",
+  "toolbar.exportPng": "Export as PNG",
+  "toolbar.exporting": "Exporting…",
   "toolbar.graphSettings": "Graph Settings",
 
   // --- Error messages ---
@@ -494,6 +496,8 @@ const ja: TranslationMap = {
   "toolbar.zoomIn": "ズームイン",
   "toolbar.zoomOut": "ズームアウト",
   "toolbar.marquee": "範囲拡大",
+  "toolbar.exportPng": "PNGで書き出し",
+  "toolbar.exporting": "書き出し中…",
   "toolbar.graphSettings": "グラフ設定",
 
   // --- Error messages ---

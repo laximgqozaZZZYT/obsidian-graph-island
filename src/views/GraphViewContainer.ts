@@ -318,6 +318,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     });
     this.marqueeBtnEl = marqueeBtn;
 
+    const exportBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    setIcon(exportBtn, "camera");
+    exportBtn.setAttribute("aria-label", t("toolbar.exportPng"));
+    exportBtn.addEventListener("click", async () => {
+      if (!this.pixiApp || !this.worldContainer) return;
+      exportBtn.disabled = true;
+      const origLabel = exportBtn.getAttribute("aria-label") ?? "";
+      exportBtn.setAttribute("aria-label", t("toolbar.exporting"));
+      try {
+        const { exportGraphAsPng, downloadBlob, makeExportFilename } = await import("../utils/export-png");
+        const blob = await exportGraphAsPng(this.pixiApp, this.worldContainer);
+        downloadBlob(blob, makeExportFilename());
+      } catch (e) {
+        console.error("Graph Island: PNG export failed", e);
+      } finally {
+        exportBtn.disabled = false;
+        exportBtn.setAttribute("aria-label", origLabel);
+      }
+    });
+
     const panelToggle = toolbar.createEl("button", { cls: "graph-settings-btn" });
     setIcon(panelToggle, "settings");
     panelToggle.setAttribute("aria-label", t("toolbar.graphSettings"));
