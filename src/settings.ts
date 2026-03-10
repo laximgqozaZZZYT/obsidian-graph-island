@@ -137,7 +137,7 @@ class HelpModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: this.entry.title });
-    const pre = contentEl.createEl("div", { cls: "ngp-help-body" });
+    const pre = contentEl.createEl("div", { cls: "gi-help-body" });
     pre.textContent = this.entry.body;
   }
   onClose() {
@@ -163,7 +163,7 @@ export class GraphViewsSettingTab extends PluginSettingTab {
 
     containerEl.createEl("p", {
       text: t("settingsTab.description"),
-      cls: "ngp-settings-description",
+      cls: "gi-settings-description",
     });
 
     // --- Import section ---
@@ -175,7 +175,7 @@ export class GraphViewsSettingTab extends PluginSettingTab {
           const fileInput = document.createElement("input");
           fileInput.type = "file";
           fileInput.accept = ".json";
-          fileInput.addClass("ngp-file-input-hidden");
+          fileInput.addClass("gi-file-input-hidden");
           document.body.appendChild(fileInput);
           fileInput.addEventListener("change", async () => {
             const file = fileInput.files?.[0];
@@ -241,10 +241,120 @@ export class GraphViewsSettingTab extends PluginSettingTab {
         })
       );
 
+    // --- Ontology field editors ---
+    containerEl.createEl("h3", { text: t("settings.ontologyHeading") });
+
+    new Setting(containerEl)
+      .setName(t("settings.inheritanceFields"))
+      .addText((text) =>
+        text
+          .setPlaceholder("parent, extends, up")
+          .setValue(this.plugin.settings.ontology.inheritanceFields.join(", "))
+          .onChange(async (v) => {
+            this.plugin.settings.ontology.inheritanceFields = v.split(",").map(x => x.trim()).filter(Boolean);
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(t("settings.aggregationFields"))
+      .addText((text) =>
+        text
+          .setPlaceholder("contains, parts, has")
+          .setValue(this.plugin.settings.ontology.aggregationFields.join(", "))
+          .onChange(async (v) => {
+            this.plugin.settings.ontology.aggregationFields = v.split(",").map(x => x.trim()).filter(Boolean);
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(t("settings.reverseInheritanceFields"))
+      .addText((text) =>
+        text
+          .setPlaceholder("child, down")
+          .setValue((this.plugin.settings.ontology.reverseInheritanceFields ?? []).join(", "))
+          .onChange(async (v) => {
+            this.plugin.settings.ontology.reverseInheritanceFields = v.split(",").map(x => x.trim()).filter(Boolean);
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(t("settings.reverseAggregationFields"))
+      .addText((text) =>
+        text
+          .setPlaceholder("part-of, belongs-to")
+          .setValue((this.plugin.settings.ontology.reverseAggregationFields ?? []).join(", "))
+          .onChange(async (v) => {
+            this.plugin.settings.ontology.reverseAggregationFields = v.split(",").map(x => x.trim()).filter(Boolean);
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(t("settings.similarFields"))
+      .addText((text) =>
+        text
+          .setPlaceholder("similar, related")
+          .setValue(this.plugin.settings.ontology.similarFields.join(", "))
+          .onChange(async (v) => {
+            this.plugin.settings.ontology.similarFields = v.split(",").map(x => x.trim()).filter(Boolean);
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(t("settings.siblingFields"))
+      .addText((text) =>
+        text
+          .setPlaceholder("sibling, same")
+          .setValue((this.plugin.settings.ontology.siblingFields ?? []).join(", "))
+          .onChange(async (v) => {
+            this.plugin.settings.ontology.siblingFields = v.split(",").map(x => x.trim()).filter(Boolean);
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(t("settings.sequenceFields"))
+      .addText((text) =>
+        text
+          .setPlaceholder("next")
+          .setValue((this.plugin.settings.ontology.sequenceFields ?? []).join(", "))
+          .onChange(async (v) => {
+            this.plugin.settings.ontology.sequenceFields = v.split(",").map(x => x.trim()).filter(Boolean);
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(t("settings.reverseSequenceFields"))
+      .addText((text) =>
+        text
+          .setPlaceholder("prev, previous")
+          .setValue((this.plugin.settings.ontology.reverseSequenceFields ?? []).join(", "))
+          .onChange(async (v) => {
+            this.plugin.settings.ontology.reverseSequenceFields = v.split(",").map(x => x.trim()).filter(Boolean);
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(t("settings.tagHierarchy"))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.ontology.useTagHierarchy)
+          .onChange(async (v) => {
+            this.plugin.settings.ontology.useTagHierarchy = v;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // --- Preview: show current settings as read-only JSON ---
     containerEl.createEl("h3", { text: t("settingsTab.preview") });
 
-    const preview = containerEl.createEl("textarea", { cls: "ngp-settings-preview" });
+    const preview = containerEl.createEl("textarea", { cls: "gi-settings-preview" });
     preview.readOnly = true;
     preview.value = JSON.stringify(this.plugin.settings, null, 2);
   }
