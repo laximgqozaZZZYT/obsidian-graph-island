@@ -1396,16 +1396,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.requestSave();
       },
       applyPreset: (preset: "simple" | "analysis" | "creative") => {
-        // Start from defaults, then overlay preset-specific settings
-        Object.assign(this.panel, { ...DEFAULT_PANEL });
-        this.panel.collapsedGroups = new Set<string>();
+        // Only modify the properties each preset is designed to control.
+        // All other settings (layout, forces, clustering, sort rules, node rules,
+        // search query, hover hops, etc.) are preserved.
         switch (preset) {
           case "simple":
             Object.assign(this.panel, {
               showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false,
               showInheritance: false, showAggregation: false, showSimilar: false,
               colorEdgesByRelation: false, colorNodesByCategory: false,
-              showTagNodes: false, scaleByDegree: false,
+              showTagNodes: false, scaleByDegree: false, fadeEdgesByDegree: false,
             });
             break;
           case "analysis":

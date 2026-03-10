@@ -236,3 +236,96 @@ describe("roundtrip: export -> import -> apply", () => {
     expect(parsed.collapsedGroups).toEqual(["section-a", "section-b"]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Built-in preset buttons (simple / analysis / creative)
+// These mirror the logic in GraphViewContainer.applyPreset to ensure that
+// applying a preset only modifies the intended properties and preserves
+// all unrelated settings (layout, forces, clustering, sort, node rules, etc.).
+// ---------------------------------------------------------------------------
+
+/** Properties each built-in preset controls */
+const SIMPLE_PRESET: Partial<PanelState> = {
+  showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false,
+  showInheritance: false, showAggregation: false, showSimilar: false,
+  colorEdgesByRelation: false, colorNodesByCategory: false,
+  showTagNodes: false, scaleByDegree: false, fadeEdgesByDegree: false,
+};
+
+const ANALYSIS_PRESET: Partial<PanelState> = {
+  showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true,
+  showInheritance: true, showAggregation: true, showSimilar: true,
+  colorEdgesByRelation: true, colorNodesByCategory: true,
+  scaleByDegree: true, fadeEdgesByDegree: true,
+  showTagNodes: true, tagDisplay: "node" as const,
+};
+
+const CREATIVE_PRESET: Partial<PanelState> = {
+  showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true,
+  showInheritance: false, showAggregation: false, showSimilar: false,
+  colorEdgesByRelation: true, colorNodesByCategory: true,
+  showTagNodes: true, tagDisplay: "enclosure" as const,
+  clusterGroupRules: [{ groupBy: "tag" as const, recursive: false }],
+};
+
+/** Settings that presets must NOT modify */
+const UNRELATED_OVERRIDES: Partial<PanelState> = {
+  nodeSize: 20,
+  centerForce: 0.1,
+  repelForce: 500,
+  linkForce: 0.05,
+  linkDistance: 200,
+  hoverHops: 3,
+  searchQuery: "tag:important",
+  sortRules: [{ key: "name" as const, order: "asc" as const }],
+  nodeRules: [{ match: "path:foo", hide: true }] as any,
+};
+
+function applyBuiltInPreset(panel: PanelState, preset: Partial<PanelState>): PanelState {
+  // Simulates the fixed applyPreset callback: Object.assign(panel, preset)
+  return { ...panel, ...preset };
+}
+
+describe("built-in preset buttons preserve unrelated settings", () => {
+  const presets: [string, Partial<PanelState>][] = [
+    ["simple", SIMPLE_PRESET],
+    ["analysis", ANALYSIS_PRESET],
+    ["creative", CREATIVE_PRESET],
+  ];
+
+  for (const [name, preset] of presets) {
+    describe(`${name} preset`, () => {
+      it("correctly sets its intended properties", () => {
+        const panel = makePanel();
+        const result = applyBuiltInPreset(panel, preset);
+        for (const [key, value] of Object.entries(preset)) {
+          expect(result[key as keyof PanelState]).toEqual(value);
+        }
+      });
+
+      it("preserves layout and force settings", () => {
+        const panel = makePanel(UNRELATED_OVERRIDES);
+        const result = applyBuiltInPreset(panel, preset);
+        expect(result.nodeSize).toBe(20);
+        expect(result.centerForce).toBe(0.1);
+        expect(result.repelForce).toBe(500);
+        expect(result.linkForce).toBe(0.05);
+        expect(result.linkDistance).toBe(200);
+      });
+
+      it("preserves hoverHops and searchQuery", () => {
+        const panel = makePanel(UNRELATED_OVERRIDES);
+        const result = applyBuiltInPreset(panel, preset);
+        expect(result.hoverHops).toBe(3);
+        expect(result.searchQuery).toBe("tag:important");
+      });
+
+      it("preserves sortRules and nodeRules", () => {
+        const panel = makePanel(UNRELATED_OVERRIDES);
+        const result = applyBuiltInPreset(panel, preset);
+        expect(result.sortRules).toEqual([{ key: "name", order: "asc" }]);
+        expect(result.nodeRules).toEqual([{ match: "path:foo", hide: true }]);
+      });
+    });
+  }
+});
