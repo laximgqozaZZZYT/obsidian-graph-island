@@ -1,4 +1,4 @@
-import { forceSimulation, forceManyBody, forceCenter, forceLink, type Simulation, type Force } from "d3-force";
+import { forceSimulation, forceManyBody, forceCenter, forceLink, forceCollide, type Simulation, type Force } from "d3-force";
 import type { GraphNode, GraphEdge, DirectionalGravityRule, ClusterGroupRule, NodeRule } from "../types";
 import type { PanelState } from "./PanelBuilder";
 import { resolveDirection, matchesFilter } from "../layouts/force";
@@ -49,6 +49,28 @@ export class LayoutController {
   }
 
   // =========================================================================
+  // Collision radius — returns a per-node radius accessor for forceCollide
+  // =========================================================================
+  private collideRadius(): (n: GraphNode) => number {
+    const panel = this.host.getPanel();
+    const baseSize = panel.nodeSize;
+    const degrees = this.host.getDegrees();
+    const pixiNodes = this.host.getPixiNodes();
+    const PAD = 2; // px gap between node edges
+    return (n: GraphNode) => {
+      // Use actual PIXI radius if available (accounts for super node scaling + MAX cap)
+      const pn = pixiNodes.get(n.id);
+      if (pn) return pn.radius + PAD;
+      // Fallback: recompute from panel settings
+      if (panel.scaleByDegree) {
+        const deg = degrees.get(n.id) || 0;
+        return Math.min(Math.max(baseSize, baseSize + Math.sqrt(deg) * 3.2), 30) + PAD;
+      }
+      return baseSize + PAD;
+    };
+  }
+
+  // =========================================================================
   // Force updates (live panel adjustments)
   // =========================================================================
   updateForces() {
@@ -64,7 +86,8 @@ export class LayoutController {
       .force("link", forceLink<GraphNode, GraphEdge>(graphEdges)
         .id((d) => d.id)
         .distance((e) => edgeLinkDistance(e, panel.linkDistance))
-        .strength((e) => edgeLinkStrength(e, panel.linkForce)));
+        .strength((e) => edgeLinkStrength(e, panel.linkForce)))
+      .force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(2));
     this.applyNodeRulesForce();
     this.applyEnclosureRepulsionForce();
     sim.alpha(0.5).restart();
@@ -290,6 +313,7 @@ export class LayoutController {
     const { clusterArrangement, clusterNodeSpacing, clusterGroupScale, clusterGroupSpacing } = panel;
 
     sim.force("charge", forceManyBody<GraphNode>().strength(-10));
+    sim.force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(2));
     sim.force("center", null);
     sim.force("link", null);
     sim.force("directionalGravity", null);
@@ -348,6 +372,7 @@ export class LayoutController {
         .id((d) => d.id)
         .distance((e) => edgeLinkDistance(e, panel.linkDistance))
         .strength((e) => edgeLinkStrength(e, panel.linkForce)))
+      .force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(2))
       .alphaDecay(0.08)
       .velocityDecay(0.55);
 

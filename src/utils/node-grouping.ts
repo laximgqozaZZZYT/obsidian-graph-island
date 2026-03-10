@@ -13,58 +13,129 @@ export interface GroupSpec {
   memberIds: string[];
 }
 
-/**
- * Group nodes by their tags. Each tag produces one group containing all nodes
- * that have that tag. A node with multiple tags appears in the group of its
- * first tag only (to avoid duplication).
- */
-export function groupNodesByTag(nodes: GraphNode[]): GroupSpec[] {
-  const tagMap = new Map<string, string[]>();
-  const assigned = new Set<string>();
+/** Options controlling grouping behavior */
+export interface GroupOptions {
+  /** Minimum number of members to form a group (default 2) */
+  minSize?: number;
+  /** Comma-separated filter patterns — only matching group keys are created (empty = all) */
+  filter?: string;
+}
 
-  for (const n of nodes) {
-    if (n.isTag || !n.tags || n.tags.length === 0) continue;
-    // Assign to first tag only to avoid duplication
-    const tag = n.tags[0];
-    if (assigned.has(n.id)) continue;
-    assigned.add(n.id);
-    if (!tagMap.has(tag)) tagMap.set(tag, []);
-    tagMap.get(tag)!.push(n.id);
-  }
+/** Parse comma-separated filter string into lowercase trimmed tokens */
+function parseFilter(filter?: string): string[] {
+  if (!filter || !filter.trim()) return [];
+  return filter.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+}
 
-  const groups: GroupSpec[] = [];
-  for (const [tag, memberIds] of tagMap) {
-    if (memberIds.length < 2) continue; // don't group singletons
-    groups.push({
-      key: `tag:${tag}`,
-      label: tag,
-      memberIds,
-    });
-  }
-  return groups;
+/** Check if a group label matches any of the filter tokens (substring match) */
+function matchesFilter(label: string, tokens: string[]): boolean {
+  if (tokens.length === 0) return true;
+  const lower = label.toLowerCase();
+  return tokens.some(tok => lower.includes(tok));
+}
+
+/** Group nodes by their tags (delegates to groupNodesByField). */
+export function groupNodesByTag(nodes: GraphNode[], opts?: GroupOptions): GroupSpec[] {
+  return groupNodesByField(nodes, "tag", opts);
+}
+
+/** Group nodes by their category field (delegates to groupNodesByField). */
+export function groupNodesByCategory(nodes: GraphNode[], opts?: GroupOptions): GroupSpec[] {
+  return groupNodesByField(nodes, "category", opts);
+}
+
+/** Group nodes by their folder path (delegates to groupNodesByField). */
+export function groupNodesByFolder(nodes: GraphNode[], opts?: GroupOptions): GroupSpec[] {
+  return groupNodesByField(nodes, "folder", opts);
 }
 
 /**
- * Group nodes by their category field. Each unique category value produces
- * one group.
+ * Extract the grouping value(s) for a node given a field name.
+ * Built-in fields: tag, category, folder, path, file, id, isTag.
+ * Anything else looks up node.meta[field].
+ * Returns an array because some fields (e.g. tag) can have multiple values.
  */
-export function groupNodesByCategory(nodes: GraphNode[]): GroupSpec[] {
-  const catMap = new Map<string, string[]>();
+export function getNodeFieldValues(n: GraphNode, field: string): string[] {
+  switch (field) {
+    case "tag":
+      return n.isTag ? [] : (n.tags ?? []);
+    case "category":
+      return n.category ? [n.category] : [];
+    case "folder": {
+      if (!n.filePath) return [];
+      const lastSlash = n.filePath.lastIndexOf("/");
+      return [lastSlash > 0 ? n.filePath.substring(0, lastSlash) : "/"];
+    }
+    case "path":
+      return n.filePath ? [n.filePath] : [];
+    case "file": {
+      if (!n.filePath) return [];
+      return [n.filePath.replace(/^.*\//, "").replace(/\.md$/, "")];
+    }
+    case "id":
+      return [n.id];
+    case "isTag":
+      return n.isTag ? ["true"] : ["false"];
+    default: {
+      // Frontmatter property (including nested: "a.b.c")
+      if (!n.meta) return [];
+      const parts = field.split(".");
+      let val: unknown = n.meta;
+      for (const p of parts) {
+        if (val == null || typeof val !== "object") return [];
+        val = (val as Record<string, unknown>)[p];
+      }
+      if (val == null) return [];
+      if (Array.isArray(val)) return val.map(String);
+      return [String(val)];
+    }
+  }
+}
 
+/**
+ * Generic grouping: group nodes by any field name.
+ * For multi-value fields (e.g. tag), each node is assigned to its largest group
+ * (same dedup logic as groupNodesByTag).
+ */
+export function groupNodesByField(nodes: GraphNode[], field: string, opts?: GroupOptions): GroupSpec[] {
+  if (!field || field === "none") return [];
+  const minSize = opts?.minSize ?? 2;
+  const filterTokens = parseFilter(opts?.filter);
+
+  // Pass 1: count members per value
+  const valueCounts = new Map<string, number>();
   for (const n of nodes) {
-    if (n.isTag || !n.category) continue;
-    if (!catMap.has(n.category)) catMap.set(n.category, []);
-    catMap.get(n.category)!.push(n.id);
+    if (n.isTag) continue;
+    for (const v of getNodeFieldValues(n, field)) {
+      valueCounts.set(v, (valueCounts.get(v) || 0) + 1);
+    }
+  }
+
+  // Pass 2: assign each node to its largest-valued group (dedup)
+  const groupMap = new Map<string, string[]>();
+  const assigned = new Set<string>();
+  for (const n of nodes) {
+    if (n.isTag) continue;
+    if (assigned.has(n.id)) continue;
+    const vals = getNodeFieldValues(n, field);
+    if (vals.length === 0) continue;
+    // Pick the value with the most members
+    let bestVal = vals[0];
+    let bestCount = valueCounts.get(bestVal) || 0;
+    for (let i = 1; i < vals.length; i++) {
+      const cnt = valueCounts.get(vals[i]) || 0;
+      if (cnt > bestCount) { bestVal = vals[i]; bestCount = cnt; }
+    }
+    assigned.add(n.id);
+    if (!groupMap.has(bestVal)) groupMap.set(bestVal, []);
+    groupMap.get(bestVal)!.push(n.id);
   }
 
   const groups: GroupSpec[] = [];
-  for (const [cat, memberIds] of catMap) {
-    if (memberIds.length < 2) continue;
-    groups.push({
-      key: `category:${cat}`,
-      label: cat,
-      memberIds,
-    });
+  for (const [val, memberIds] of groupMap) {
+    if (memberIds.length < minSize) continue;
+    if (!matchesFilter(val, filterTokens)) continue;
+    groups.push({ key: `${field}:${val}`, label: val, memberIds });
   }
   return groups;
 }

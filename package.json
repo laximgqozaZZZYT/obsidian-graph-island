@@ -7,7 +7,9 @@
     "dev": "node esbuild.config.mjs watch",
     "build": "node esbuild.config.mjs production",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "npx playwright test --config=e2e/obsidian-e2e.config.ts",
+    "test:e2e:harness": "npx playwright test --config=playwright.config.ts"
   },
   "keywords": [
     "obsidian",

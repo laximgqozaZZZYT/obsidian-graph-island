@@ -3,6 +3,9 @@ import type { GraphNode, GraphEdge, GraphData } from "../src/types";
 import {
   groupNodesByTag,
   groupNodesByCategory,
+  groupNodesByFolder,
+  groupNodesByField,
+  getNodeFieldValues,
   collapseGroup,
   expandGroup,
   type GroupSpec,
@@ -20,18 +23,103 @@ function makeEdge(source: string, target: string, opts?: Partial<GraphEdge>): Gr
 }
 
 // ---------------------------------------------------------------------------
-// groupNodesByTag
+// getNodeFieldValues
 // ---------------------------------------------------------------------------
-describe("groupNodesByTag", () => {
-  it("groups nodes by their first tag", () => {
-    const nodes: GraphNode[] = [
+describe("getNodeFieldValues", () => {
+  it("returns tags for field='tag'", () => {
+    const n = makeNode("a", { tags: ["x", "y"] });
+    expect(getNodeFieldValues(n, "tag")).toEqual(["x", "y"]);
+  });
+
+  it("returns empty for tag nodes (isTag=true)", () => {
+    const n = makeNode("t", { isTag: true, tags: ["x"] });
+    expect(getNodeFieldValues(n, "tag")).toEqual([]);
+  });
+
+  it("returns empty when no tags", () => {
+    expect(getNodeFieldValues(makeNode("a"), "tag")).toEqual([]);
+  });
+
+  it("returns category as single-element array", () => {
+    const n = makeNode("a", { category: "char" });
+    expect(getNodeFieldValues(n, "category")).toEqual(["char"]);
+  });
+
+  it("returns empty when no category", () => {
+    expect(getNodeFieldValues(makeNode("a"), "category")).toEqual([]);
+  });
+
+  it("extracts folder from filePath", () => {
+    const n = makeNode("a", { filePath: "notes/daily/2024.md" });
+    expect(getNodeFieldValues(n, "folder")).toEqual(["notes/daily"]);
+  });
+
+  it("returns '/' for root-level files", () => {
+    const n = makeNode("a", { filePath: "readme.md" });
+    expect(getNodeFieldValues(n, "folder")).toEqual(["/"]);
+  });
+
+  it("returns empty folder when no filePath", () => {
+    expect(getNodeFieldValues(makeNode("a"), "folder")).toEqual([]);
+  });
+
+  it("returns full filePath for field='path'", () => {
+    const n = makeNode("a", { filePath: "notes/foo.md" });
+    expect(getNodeFieldValues(n, "path")).toEqual(["notes/foo.md"]);
+  });
+
+  it("returns filename without .md for field='file'", () => {
+    const n = makeNode("a", { filePath: "notes/foo.md" });
+    expect(getNodeFieldValues(n, "file")).toEqual(["foo"]);
+  });
+
+  it("returns node id for field='id'", () => {
+    expect(getNodeFieldValues(makeNode("abc"), "id")).toEqual(["abc"]);
+  });
+
+  it("returns 'true'/'false' for field='isTag'", () => {
+    expect(getNodeFieldValues(makeNode("a", { isTag: true }), "isTag")).toEqual(["true"]);
+    expect(getNodeFieldValues(makeNode("b"), "isTag")).toEqual(["false"]);
+  });
+
+  it("reads scalar meta property", () => {
+    const n = makeNode("a", { meta: { status: "draft" } });
+    expect(getNodeFieldValues(n, "status")).toEqual(["draft"]);
+  });
+
+  it("reads array meta property", () => {
+    const n = makeNode("a", { meta: { aliases: ["x", "y"] } });
+    expect(getNodeFieldValues(n, "aliases")).toEqual(["x", "y"]);
+  });
+
+  it("reads nested meta property with dot notation", () => {
+    const n = makeNode("a", { meta: { author: { name: "Alice" } } });
+    expect(getNodeFieldValues(n, "author.name")).toEqual(["Alice"]);
+  });
+
+  it("returns empty for missing meta property", () => {
+    const n = makeNode("a", { meta: { status: "ok" } });
+    expect(getNodeFieldValues(n, "missing")).toEqual([]);
+  });
+
+  it("returns empty for missing meta when no meta at all", () => {
+    expect(getNodeFieldValues(makeNode("a"), "anything")).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// groupNodesByField
+// ---------------------------------------------------------------------------
+describe("groupNodesByField", () => {
+  it("groups nodes by tag", () => {
+    const nodes = [
       makeNode("a", { tags: ["programming", "web"] }),
       makeNode("b", { tags: ["programming"] }),
       makeNode("c", { tags: ["design"] }),
       makeNode("d", { tags: ["design"] }),
       makeNode("e"), // no tags
     ];
-    const groups = groupNodesByTag(nodes);
+    const groups = groupNodesByField(nodes, "tag");
     expect(groups).toHaveLength(2);
 
     const progGroup = groups.find(g => g.key === "tag:programming");
@@ -44,78 +132,181 @@ describe("groupNodesByTag", () => {
     expect(designGroup!.memberIds).toEqual(["c", "d"]);
   });
 
-  it("skips tag nodes (isTag=true)", () => {
-    const nodes: GraphNode[] = [
+  it("skips tag nodes (isTag=true) for tag field", () => {
+    const nodes = [
       makeNode("tag:programming", { isTag: true, tags: ["programming"] }),
       makeNode("a", { tags: ["programming"] }),
       makeNode("b", { tags: ["programming"] }),
     ];
-    const groups = groupNodesByTag(nodes);
+    const groups = groupNodesByField(nodes, "tag");
     expect(groups).toHaveLength(1);
     expect(groups[0].memberIds).toEqual(["a", "b"]);
   });
 
   it("does not create singleton groups", () => {
-    const nodes: GraphNode[] = [
+    const nodes = [
       makeNode("a", { tags: ["unique-tag"] }),
       makeNode("b", { tags: ["common"] }),
       makeNode("c", { tags: ["common"] }),
     ];
-    const groups = groupNodesByTag(nodes);
+    const groups = groupNodesByField(nodes, "tag");
     expect(groups).toHaveLength(1);
     expect(groups[0].key).toBe("tag:common");
   });
 
   it("returns empty array when no tags exist", () => {
-    const nodes: GraphNode[] = [makeNode("a"), makeNode("b")];
-    expect(groupNodesByTag(nodes)).toEqual([]);
+    const nodes = [makeNode("a"), makeNode("b")];
+    expect(groupNodesByField(nodes, "tag")).toEqual([]);
   });
-});
 
-// ---------------------------------------------------------------------------
-// groupNodesByCategory
-// ---------------------------------------------------------------------------
-describe("groupNodesByCategory", () => {
   it("groups nodes by category", () => {
-    const nodes: GraphNode[] = [
+    const nodes = [
       makeNode("a", { category: "character" }),
       makeNode("b", { category: "character" }),
       makeNode("c", { category: "location" }),
       makeNode("d", { category: "location" }),
-      makeNode("e"), // no category
+      makeNode("e"),
     ];
-    const groups = groupNodesByCategory(nodes);
+    const groups = groupNodesByField(nodes, "category");
     expect(groups).toHaveLength(2);
-
-    const charGroup = groups.find(g => g.key === "category:character");
-    expect(charGroup).toBeDefined();
-    expect(charGroup!.memberIds).toEqual(["a", "b"]);
-
-    const locGroup = groups.find(g => g.key === "category:location");
-    expect(locGroup).toBeDefined();
-    expect(locGroup!.memberIds).toEqual(["c", "d"]);
+    expect(groups.find(g => g.key === "category:character")!.memberIds).toEqual(["a", "b"]);
+    expect(groups.find(g => g.key === "category:location")!.memberIds).toEqual(["c", "d"]);
   });
 
-  it("skips tag nodes", () => {
-    const nodes: GraphNode[] = [
-      makeNode("t", { isTag: true, category: "tag" }),
-      makeNode("a", { category: "item" }),
-      makeNode("b", { category: "item" }),
+  it("groups nodes by folder", () => {
+    const nodes = [
+      makeNode("a", { filePath: "notes/daily/a.md" }),
+      makeNode("b", { filePath: "notes/daily/b.md" }),
+      makeNode("c", { filePath: "projects/c.md" }),
+      makeNode("d", { filePath: "projects/d.md" }),
     ];
-    const groups = groupNodesByCategory(nodes);
+    const groups = groupNodesByField(nodes, "folder");
+    expect(groups).toHaveLength(2);
+    expect(groups.find(g => g.key === "folder:notes/daily")!.memberIds).toEqual(["a", "b"]);
+    expect(groups.find(g => g.key === "folder:projects")!.memberIds).toEqual(["c", "d"]);
+  });
+
+  it("handles root-level files in folder grouping", () => {
+    const nodes = [
+      makeNode("a", { filePath: "readme.md" }),
+      makeNode("b", { filePath: "index.md" }),
+    ];
+    const groups = groupNodesByField(nodes, "folder");
     expect(groups).toHaveLength(1);
+    expect(groups[0].key).toBe("folder:/");
     expect(groups[0].memberIds).toEqual(["a", "b"]);
   });
 
-  it("does not create singleton groups", () => {
-    const nodes: GraphNode[] = [
-      makeNode("a", { category: "unique" }),
-      makeNode("b", { category: "shared" }),
-      makeNode("c", { category: "shared" }),
+  it("returns empty for field='none'", () => {
+    const nodes = [makeNode("a", { tags: ["x"] }), makeNode("b", { tags: ["x"] })];
+    expect(groupNodesByField(nodes, "none")).toEqual([]);
+  });
+
+  it("returns empty for empty field string", () => {
+    expect(groupNodesByField([makeNode("a")], "")).toEqual([]);
+  });
+
+  it("respects custom minSize option", () => {
+    const nodes = [
+      makeNode("a", { tags: ["x"] }),
+      makeNode("b", { tags: ["x"] }),
+      makeNode("c", { tags: ["x"] }),
+      makeNode("d", { tags: ["y"] }),
+      makeNode("e", { tags: ["y"] }),
+    ];
+    const groups = groupNodesByField(nodes, "tag", { minSize: 3 });
+    expect(groups).toHaveLength(1);
+    expect(groups[0].key).toBe("tag:x");
+  });
+
+  it("respects filter option", () => {
+    const nodes = [
+      makeNode("a", { tags: ["programming"] }),
+      makeNode("b", { tags: ["programming"] }),
+      makeNode("c", { tags: ["design"] }),
+      makeNode("d", { tags: ["design"] }),
+    ];
+    const groups = groupNodesByField(nodes, "tag", { filter: "prog" });
+    expect(groups).toHaveLength(1);
+    expect(groups[0].key).toBe("tag:programming");
+  });
+
+  it("groups by meta (frontmatter) field", () => {
+    const nodes = [
+      makeNode("a", { meta: { status: "draft" } }),
+      makeNode("b", { meta: { status: "draft" } }),
+      makeNode("c", { meta: { status: "published" } }),
+      makeNode("d", { meta: { status: "published" } }),
+    ];
+    const groups = groupNodesByField(nodes, "status");
+    expect(groups).toHaveLength(2);
+    expect(groups.find(g => g.key === "status:draft")!.memberIds).toEqual(["a", "b"]);
+    expect(groups.find(g => g.key === "status:published")!.memberIds).toEqual(["c", "d"]);
+  });
+
+  it("deduplicates multi-tag nodes into largest group", () => {
+    const nodes = [
+      makeNode("a", { tags: ["small", "big"] }),
+      makeNode("b", { tags: ["big"] }),
+      makeNode("c", { tags: ["big"] }),
+      makeNode("d", { tags: ["small"] }),
+    ];
+    // "big" has 3 mentions (a,b,c), "small" has 2 (a,d)
+    // node "a" should go to "big" (larger count)
+    const groups = groupNodesByField(nodes, "tag");
+    const bigGroup = groups.find(g => g.key === "tag:big");
+    expect(bigGroup!.memberIds).toContain("a");
+    expect(bigGroup!.memberIds).toContain("b");
+    expect(bigGroup!.memberIds).toContain("c");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// groupNodesByTag (wrapper)
+// ---------------------------------------------------------------------------
+describe("groupNodesByTag", () => {
+  it("delegates to groupNodesByField and returns correct groups", () => {
+    const nodes = [
+      makeNode("a", { tags: ["programming"] }),
+      makeNode("b", { tags: ["programming"] }),
+      makeNode("c", { tags: ["design"] }),
+      makeNode("d", { tags: ["design"] }),
+    ];
+    const groups = groupNodesByTag(nodes);
+    expect(groups).toHaveLength(2);
+    expect(groups.find(g => g.key === "tag:programming")!.memberIds).toEqual(["a", "b"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// groupNodesByCategory (wrapper)
+// ---------------------------------------------------------------------------
+describe("groupNodesByCategory", () => {
+  it("delegates to groupNodesByField and returns correct groups", () => {
+    const nodes = [
+      makeNode("a", { category: "character" }),
+      makeNode("b", { category: "character" }),
+      makeNode("c", { category: "location" }),
+      makeNode("d", { category: "location" }),
     ];
     const groups = groupNodesByCategory(nodes);
+    expect(groups).toHaveLength(2);
+    expect(groups.find(g => g.key === "category:character")!.memberIds).toEqual(["a", "b"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// groupNodesByFolder (wrapper)
+// ---------------------------------------------------------------------------
+describe("groupNodesByFolder", () => {
+  it("delegates to groupNodesByField and returns correct groups", () => {
+    const nodes = [
+      makeNode("a", { filePath: "notes/a.md" }),
+      makeNode("b", { filePath: "notes/b.md" }),
+    ];
+    const groups = groupNodesByFolder(nodes);
     expect(groups).toHaveLength(1);
-    expect(groups[0].key).toBe("category:shared");
+    expect(groups[0].key).toBe("folder:notes");
   });
 });
 
@@ -169,9 +360,6 @@ describe("collapseGroup", () => {
     const group: GroupSpec = { key: "tag:t", label: "t", memberIds: ["a", "b"] };
     const result = collapseGroup(data, group);
 
-    // Internal edge (a->b) should be removed
-    // a->c should become super->c
-    // d->b should become d->super
     const superNodeId = "__super__tag:t";
     expect(result.edges.find(e => e.source === superNodeId && e.target === "c")).toBeDefined();
     expect(result.edges.find(e => e.source === "d" && e.target === superNodeId)).toBeDefined();
@@ -214,12 +402,10 @@ describe("expandGroup", () => {
       edges: [makeEdge("a", "c"), makeEdge("a", "b")],
     };
 
-    // First collapse, then expand
     const group: GroupSpec = { key: "tag:prog", label: "prog", memberIds: ["a", "b"] };
     const collapsed = collapseGroup(originalData, group);
     const expanded = expandGroup(collapsed, "__super__tag:prog", originalData);
 
-    // Super node should be gone, members restored
     expect(expanded.nodes.find(n => n.id === "__super__tag:prog")).toBeUndefined();
     expect(expanded.nodes.find(n => n.id === "a")).toBeDefined();
     expect(expanded.nodes.find(n => n.id === "b")).toBeDefined();
@@ -240,7 +426,6 @@ describe("expandGroup", () => {
     const collapsed = collapseGroup(originalData, group);
     const expanded = expandGroup(collapsed, "__super__tag:t", originalData);
 
-    // Should have both original edges
     expect(expanded.edges.find(e => e.source === "a" && e.target === "c")).toBeDefined();
     expect(expanded.edges.find(e => e.source === "a" && e.target === "b")).toBeDefined();
   });
@@ -266,18 +451,15 @@ describe("expandGroup", () => {
     const group: GroupSpec = { key: "tag:t", label: "t", memberIds: ["a", "b"] };
     const collapsed = collapseGroup(originalData, group);
 
-    // Move super node to a specific position
     const superNode = collapsed.nodes.find(n => n.id === "__super__tag:t")!;
     superNode.x = 100;
     superNode.y = 200;
 
     const expanded = expandGroup(collapsed, "__super__tag:t", originalData);
 
-    // Restored nodes should be near the super node position, not at origin
     for (const n of expanded.nodes) {
       const dx = Math.abs(n.x - 100);
       const dy = Math.abs(n.y - 200);
-      // Should be within the spread radius
       expect(dx).toBeLessThan(100);
       expect(dy).toBeLessThan(100);
     }
@@ -306,18 +488,13 @@ describe("edge re-connection round-trip", () => {
 
     const group: GroupSpec = { key: "tag:group", label: "group", memberIds: ["a", "b"] };
 
-    // Collapse
     const collapsed = collapseGroup(originalData, group);
-    // Verify super node connects to c and d
     const superNodeId = "__super__tag:group";
     expect(collapsed.edges.some(e => e.source === superNodeId && e.target === "c")).toBe(true);
     expect(collapsed.edges.some(e => e.source === superNodeId && e.target === "d")).toBe(true);
-    // c->d edge should be untouched
     expect(collapsed.edges.some(e => e.source === "c" && e.target === "d")).toBe(true);
 
-    // Expand
     const expanded = expandGroup(collapsed, superNodeId, originalData);
-    // All original edges should be restored
     expect(expanded.edges.some(e => e.source === "a" && e.target === "c")).toBe(true);
     expect(expanded.edges.some(e => e.source === "b" && e.target === "d")).toBe(true);
     expect(expanded.edges.some(e => e.source === "a" && e.target === "b")).toBe(true);

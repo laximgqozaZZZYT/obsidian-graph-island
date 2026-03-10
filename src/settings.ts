@@ -351,11 +351,110 @@ export class GraphViewsSettingTab extends PluginSettingTab {
           })
       );
 
+    // --- Custom Mappings ---
+    containerEl.createEl("h3", { text: t("settings.customMappingsHeading") });
+    const mappingsListEl = containerEl.createDiv({ cls: "gi-ontology-list" });
+    this.renderSettingsCustomMappings(mappingsListEl);
+
+    // --- Tag Relations ---
+    containerEl.createEl("h3", { text: t("settings.tagRelationsHeading") });
+    const tagRelListEl = containerEl.createDiv({ cls: "gi-ontology-list" });
+    this.renderSettingsTagRelations(tagRelListEl);
+
     // --- Preview: show current settings as read-only JSON ---
     containerEl.createEl("h3", { text: t("settingsTab.preview") });
 
     const preview = containerEl.createEl("textarea", { cls: "gi-settings-preview" });
     preview.readOnly = true;
     preview.value = JSON.stringify(this.plugin.settings, null, 2);
+  }
+
+  private renderSettingsCustomMappings(container: HTMLElement) {
+    container.empty();
+    const onto = this.plugin.settings.ontology;
+    if (!onto.customMappings) onto.customMappings = {};
+    const entries = Object.entries(onto.customMappings);
+
+    for (const [field, type] of entries) {
+      const row = container.createDiv({ cls: "gi-mapping-row" });
+      const fieldInput = row.createEl("input", { type: "text", cls: "gi-mapping-field", placeholder: t("settings.mappingFieldPlaceholder") });
+      fieldInput.value = field;
+
+      const typeSelect = row.createEl("select", { cls: "gi-mapping-type dropdown" });
+      for (const opt of ["inheritance", "aggregation", "similar", "sibling", "sequence"] as const) {
+        const optEl = typeSelect.createEl("option", { value: opt, text: t(`settings.mappingType.${opt}`) });
+        if (opt === type) optEl.selected = true;
+      }
+
+      const removeBtn = row.createEl("button", { cls: "gi-mapping-remove clickable-icon", text: "\u00d7" });
+
+      const update = () => {
+        const oldField = field;
+        const newField = fieldInput.value.trim();
+        const newType = typeSelect.value as "inheritance" | "aggregation" | "similar" | "sibling" | "sequence";
+        if (oldField !== newField) delete onto.customMappings[oldField];
+        if (newField) onto.customMappings[newField] = newType;
+        this.plugin.saveSettings();
+      };
+      fieldInput.addEventListener("change", update);
+      typeSelect.addEventListener("change", update);
+      removeBtn.addEventListener("click", () => {
+        delete onto.customMappings[field];
+        this.plugin.saveSettings();
+        this.renderSettingsCustomMappings(container);
+      });
+    }
+
+    const addBtn = container.createEl("button", { cls: "gi-add-group", text: t("settings.addMapping") });
+    addBtn.addEventListener("click", () => {
+      onto.customMappings[""] = "inheritance";
+      this.renderSettingsCustomMappings(container);
+    });
+  }
+
+  private renderSettingsTagRelations(container: HTMLElement) {
+    container.empty();
+    const onto = this.plugin.settings.ontology;
+    if (!onto.tagRelations) onto.tagRelations = [];
+
+    for (let i = 0; i < onto.tagRelations.length; i++) {
+      const rel = onto.tagRelations[i];
+      const row = container.createDiv({ cls: "gi-tag-rel-row" });
+
+      const srcInput = row.createEl("input", { type: "text", cls: "gi-tag-rel-src", placeholder: t("settings.tagRelSourcePlaceholder") });
+      srcInput.value = rel.source;
+
+      const typeSelect = row.createEl("select", { cls: "gi-tag-rel-type dropdown" });
+      for (const opt of ["inheritance", "aggregation"] as const) {
+        const optEl = typeSelect.createEl("option", { value: opt, text: t(`settings.tagRelType.${opt}`) });
+        if (opt === rel.type) optEl.selected = true;
+      }
+
+      const tgtInput = row.createEl("input", { type: "text", cls: "gi-tag-rel-tgt", placeholder: t("settings.tagRelTargetPlaceholder") });
+      tgtInput.value = rel.target;
+
+      const removeBtn = row.createEl("button", { cls: "gi-tag-rel-remove clickable-icon", text: "\u00d7" });
+
+      const update = () => {
+        rel.source = srcInput.value.trim().replace(/^#/, "");
+        rel.target = tgtInput.value.trim().replace(/^#/, "");
+        rel.type = typeSelect.value as "inheritance" | "aggregation";
+        this.plugin.saveSettings();
+      };
+      srcInput.addEventListener("change", update);
+      tgtInput.addEventListener("change", update);
+      typeSelect.addEventListener("change", update);
+      removeBtn.addEventListener("click", () => {
+        onto.tagRelations.splice(i, 1);
+        this.plugin.saveSettings();
+        this.renderSettingsTagRelations(container);
+      });
+    }
+
+    const addBtn = container.createEl("button", { cls: "gi-add-group", text: t("settings.addTagRelation") });
+    addBtn.addEventListener("click", () => {
+      onto.tagRelations.push({ source: "", target: "", type: "inheritance" });
+      this.renderSettingsTagRelations(container);
+    });
   }
 }

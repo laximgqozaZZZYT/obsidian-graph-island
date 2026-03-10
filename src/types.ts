@@ -16,6 +16,8 @@ export interface GraphNode {
   collapsedMembers?: string[];
   /** If this node is hidden because it belongs to a collapsed group */
   collapsedInto?: string;
+  /** Frontmatter key-value pairs from the source file */
+  meta?: Record<string, unknown>;
 }
 
 export interface GraphEdge {

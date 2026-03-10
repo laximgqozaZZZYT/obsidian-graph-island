@@ -314,6 +314,13 @@ export class InteractionManager {
     if (this.draggedNode) {
       const node = this.draggedNode;
       if (!this.hasDragged) {
+        // Super node single-click → expand children
+        if (node.data.collapsedMembers && node.data.id.startsWith("__super__")) {
+          this.host.handleSuperNodeDblClick(node);
+          this.draggedNode = null;
+          this.host.markDirty(true);
+          return;
+        }
         // Click (no drag) → toggle hold (pin position)
         if (!e.ctrlKey && !e.metaKey) {
           // Without Ctrl: clear all other holds first

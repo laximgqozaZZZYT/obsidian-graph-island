@@ -29,7 +29,7 @@ export type QueryExpression = QueryLeaf | QueryBranch;
  */
 export function evaluateExpr(
   expr: QueryExpression,
-  node: { id: string; label: string; tags?: string[]; category?: string; filePath?: string; isTag?: boolean },
+  node: { id: string; label: string; tags?: string[]; category?: string; filePath?: string; isTag?: boolean; meta?: Record<string, unknown> },
 ): boolean {
   if (expr.type === "leaf") return evaluateLeaf(expr, node);
 
@@ -187,7 +187,7 @@ function serializeInner(expr: QueryExpression, parentOp: BoolOp | null): string 
 
 function evaluateLeaf(
   leaf: QueryLeaf,
-  node: { id: string; label: string; tags?: string[]; category?: string; filePath?: string; isTag?: boolean },
+  node: { id: string; label: string; tags?: string[]; category?: string; filePath?: string; isTag?: boolean; meta?: Record<string, unknown> },
 ): boolean {
   const val = leaf.value.toLowerCase();
 
@@ -202,7 +202,8 @@ function evaluateLeaf(
       const cat = (node.category ?? "").toLowerCase();
       return leaf.exact ? cat === val : cat.includes(val);
     }
-    case "path": {
+    case "path":
+    case "file": {
       const fp = (node.filePath ?? "").toLowerCase();
       return leaf.exact ? fp === val : fp.includes(val);
     }
@@ -212,10 +213,31 @@ function evaluateLeaf(
     }
     case "isTag":
       return String(!!node.isTag) === val;
-    case "label":
-    default: {
+    case "label": {
       const lbl = node.label.toLowerCase();
       return leaf.exact ? lbl === val : lbl.includes(val);
     }
+    default: {
+      // Frontmatter field lookup via node.meta
+      const metaVal = resolveMetaValue(node.meta, leaf.field);
+      if (metaVal.length === 0) return false;
+      return leaf.exact
+        ? metaVal.some(v => v.toLowerCase() === val)
+        : metaVal.some(v => v.toLowerCase().includes(val));
+    }
   }
+}
+
+/** Resolve a frontmatter field value to a list of strings (handles arrays, nested dot paths) */
+function resolveMetaValue(meta: Record<string, unknown> | undefined, field: string): string[] {
+  if (!meta) return [];
+  // Support dot-notation for nested fields (e.g. "power.attack")
+  let current: unknown = meta;
+  for (const key of field.split(".")) {
+    if (current == null || typeof current !== "object") return [];
+    current = (current as Record<string, unknown>)[key];
+  }
+  if (current == null) return [];
+  if (Array.isArray(current)) return current.map(v => String(v));
+  return [String(current)];
 }

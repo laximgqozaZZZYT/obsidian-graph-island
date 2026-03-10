@@ -892,32 +892,6 @@
   color: var(--text-normal);
 }
 
-/* =========================================================================
-   P2: Preset bar
-   ========================================================================= */
-.gi-preset-bar {
-  display: flex;
-  gap: 4px;
-  padding: 4px 12px 8px;
-}
-
-.gi-preset-btn {
-  flex: 1;
-  padding: 4px 6px;
-  font-size: var(--font-ui-smaller);
-  border-radius: var(--radius-s);
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-secondary);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
-}
-
-.gi-preset-btn:hover {
-  background: var(--background-modifier-hover);
-  color: var(--text-normal);
-  border-color: var(--interactive-accent);
-}
 
 /* --- Inline-style replacements (Plugin Guidelines compliance) --- */
 
@@ -941,11 +915,6 @@
   margin: 4px 8px;
 }
 
-.gi-expr-editor {
-  padding: 4px 0 4px 12px;
-  border-left: 2px solid var(--interactive-accent);
-  margin: 4px 0;
-}
 
 .gi-flex-fill {
   flex: 1;
@@ -971,10 +940,7 @@
 }
 
 .gi-gravity-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 0;
+  flex-wrap: wrap;
 }
 
 .gi-gravity-label {
@@ -1068,18 +1034,32 @@
   justify-content: stretch;
 }
 
+.gi-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.gi-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .gi-full-width-row input[type="text"] {
   width: 100%;
 }
 
-.gi-color-group-wrapper {
-  margin-bottom: 4px;
-}
-
-.gi-color-group-row {
+.gi-group-rule-row {
   display: flex;
   align-items: center;
   gap: 4px;
+  margin-bottom: 4px;
+}
+
+.gi-group-rule-row .gi-search {
+  margin-bottom: 0;
 }
 
 .gi-color-dot {
@@ -1088,19 +1068,6 @@
   border-radius: 50%;
   cursor: pointer;
   flex-shrink: 0;
-}
-
-.gi-expr-input {
-  flex: 1;
-  min-width: 0;
-}
-
-.gi-expand-btn {
-  cursor: pointer;
-  user-select: none;
-  flex-shrink: 0;
-  font-size: 12px;
-  padding: 2px 4px;
 }
 
 .gi-remove-btn {
@@ -1136,6 +1103,34 @@
   min-width: 60px;
 }
 
+.gi-multivalue-control {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.gi-multivalue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.gi-multivalue-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gi-multivalue-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.gi-multivalue-add {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
 .gi-ml-4 {
   margin-left: 4px;
 }
@@ -1147,18 +1142,14 @@
   gap: 2px;
 }
 
-.gi-filter-input {
-  flex: 1;
-}
-
-.gi-dir-select {
-  width: 80px;
-  margin-left: 4px;
+.gi-dir-input {
+  max-width: 80px;
+  flex-shrink: 0;
 }
 
 .gi-rad-input {
-  width: 60px;
-  margin-left: 4px;
+  max-width: 60px;
+  flex-shrink: 0;
 }
 
 .gi-str-slider {

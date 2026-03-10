@@ -68,6 +68,8 @@ export function buildGraphFromVault(
       tags: extractTags(frontmatter, cache),
       filePath: file.path,
     };
+    // meta is a live getter — reads from metadataCache on every access
+    defineLiveMeta(node, app);
     nodes.push(node);
     nodeMap.set(file.path, node);
   }
@@ -586,6 +588,27 @@ export function buildRelationColorMap(edges: GraphEdge[]): Map<string, string> {
     i++;
   }
   return colorMap;
+}
+
+/**
+ * Define `meta` as a live getter that reads from metadataCache on every access.
+ * This ensures frontmatter changes are always reflected without manual refresh.
+ */
+export function defineLiveMeta(node: GraphNode, app: App): void {
+  Object.defineProperty(node, "meta", {
+    get() {
+      if (!node.filePath) return undefined;
+      const f = app.vault.getAbstractFileByPath(node.filePath);
+      if (!(f instanceof TFile)) return undefined;
+      const fm = app.metadataCache.getFileCache(f)?.frontmatter;
+      if (!fm) return undefined;
+      return Object.fromEntries(
+        Object.entries(fm).filter(([k]) => k !== "position"),
+      );
+    },
+    enumerable: true,
+    configurable: true,
+  });
 }
 
 function extractTags(

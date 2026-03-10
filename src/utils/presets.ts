@@ -24,18 +24,18 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "textFadeThreshold", "nodeSize", "centerForce", "repelForce", "linkForce",
   "linkDistance", "concentricMinRadius", "concentricRadiusStep",
   "enclosureSpacing", "hoverHops", "clusterNodeSpacing", "clusterGroupScale",
-  "clusterGroupSpacing", "edgeBundleStrength",
+  "clusterGroupSpacing", "edgeBundleStrength", "groupMinSize",
 ];
 
 /** Fields that should be string */
 const STRING_FIELDS: (keyof PanelState)[] = [
-  "searchQuery", "timelineKey",
+  "searchQuery", "timelineKey", "groupFilter", "groupBy",
 ];
 
 /** Fields that should be arrays */
 const ARRAY_FIELDS: (keyof PanelState)[] = [
   "groups", "directionalGravityRules", "commonQueries", "clusterGroupRules",
-  "sortRules", "nodeRules",
+  "sortRules", "nodeRules", "nodeShapeRules",
 ];
 
 /** Valid values for enum-like fields */

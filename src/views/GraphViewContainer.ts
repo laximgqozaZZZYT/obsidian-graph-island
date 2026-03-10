@@ -23,7 +23,7 @@ import { RenderPipeline, darkenColor, type RenderHost } from "./RenderPipeline";
 import { LayoutController, type LayoutHost } from "./LayoutController";
 import { Minimap, type MinimapHost } from "./Minimap";
 import { LayoutTransition } from "./LayoutTransition";
-import { groupNodesByTag, groupNodesByCategory, collapseGroup, type GroupSpec } from "../utils/node-grouping";
+import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
 import { getNodeShape, drawShape, drawShapeAt } from "../utils/node-shapes";
 
@@ -102,6 +102,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private sunburstGraphics: PIXI.Graphics | null = null;
   private edgeLabelContainer: PIXI.Container | null = null;
   private nodeCircleBatch: PIXI.Graphics | null = null;
+  private arrowGraphics: PIXI.Graphics | null = null;
   private pixiNodes: Map<string, PixiNode> = new Map();
   private canvasWrap: HTMLElement | null = null;
   private graphEdges: GraphEdge[] = [];
@@ -109,6 +110,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private adj: Map<string, Set<string>> = new Map();
   private relationColors: Map<string, string> = new Map();
   private nodeColorMap: Map<string, string> = new Map();
+  /** Counter: when > 0, doRender() skips the final buildPanel() call.
+   *  Uses a counter instead of a boolean to avoid race conditions when
+   *  multiple doRenderKeepPanel() calls overlap (previous .finally()
+   *  callbacks would reset a boolean prematurely). */
+  private skipPanelRebuildCount = 0;
   /** tag name → set of file node IDs that have this tag */
   private tagMembership: Map<string, Set<string>> = new Map();
   private enclosureLabels: Map<string, PIXI.Text> = new Map();
@@ -243,10 +249,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   getState() {
     const sup = super.getState();
+    // Serialize panel with special handling for Set (collapsedGroups) and transient fields
+    const panelClone: any = {};
+    for (const [k, v] of Object.entries(this.panel)) {
+      if (k === "collapsedGroups") {
+        panelClone[k] = Array.from(v as Set<string>);
+      } else if (k === "groupByRules") {
+        // Transient editing state — don't persist empty-field rules
+        panelClone[k] = null;
+      } else {
+        panelClone[k] = JSON.parse(JSON.stringify(v));
+      }
+    }
     return {
       ...sup,
       layout: this.currentLayout,
-      panel: JSON.parse(JSON.stringify(this.panel)),  // deep clone for safe serialization
+      panel: panelClone,
     };
   }
 
@@ -256,10 +274,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.currentLayout = state.layout as LayoutType;
     }
     if (state.panel && typeof state.panel === "object") {
-      // Deep-clone the saved panel to avoid aliasing with Obsidian internals
-      const saved = JSON.parse(JSON.stringify(state.panel)) as Partial<PanelState>;
+      const saved = JSON.parse(JSON.stringify(state.panel)) as any;
       for (const key of Object.keys(DEFAULT_PANEL) as (keyof PanelState)[]) {
-        if (key in saved && saved[key] !== undefined) {
+        if (!(key in saved) || saved[key] === undefined) continue;
+        if (key === "collapsedGroups") {
+          // Restore Set from serialized array
+          const arr = Array.isArray(saved[key]) ? saved[key] : [];
+          this.panel.collapsedGroups = new Set<string>(arr);
+        } else if (key === "groupByRules") {
+          // Transient — always re-parse from groupBy string
+          this.panel.groupByRules = null;
+        } else {
           (this.panel as any)[key] = saved[key];
         }
       }
@@ -479,6 +504,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.sunburstLabelContainer = null;
     this.edgeLabelContainer = null;
     this.nodeCircleBatch = null;
+    this.arrowGraphics = null;
     this.spatialGrid.clear();
     if (this.pixiApp) {
       try {
@@ -563,6 +589,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       world.addChild(batchGfx);
       this.nodeCircleBatch = batchGfx;
 
+      // Arrow layer — drawn ON TOP of nodes so directional arrows are visible
+      const arrowGfx = new PIXI.Graphics();
+      world.addChild(arrowGfx);
+      this.arrowGraphics = arrowGfx;
+
       // Enclosure label container — on top of nodes so labels are visible & hoverable
       const labelContainer = new PIXI.Container();
       world.addChild(labelContainer);
@@ -646,10 +677,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return true;
     }
     // Collapse node back into its group
-    if (this.panel.groupBy !== "none" && this.originalGraphData) {
-      const groups = this.panel.groupBy === "tag"
-        ? groupNodesByTag(this.originalGraphData.nodes)
-        : groupNodesByCategory(this.originalGraphData.nodes);
+    if (this.panel.groupBy && this.panel.groupBy !== "none" && this.originalGraphData) {
+      const groupOpts: GroupOptions = { minSize: this.panel.groupMinSize, filter: this.panel.groupFilter };
+      const groups = this.resolveGroupByField(this.originalGraphData.nodes, groupOpts);
       const parentGroup = groups.find(g => g.memberIds.includes(pn.data.id));
       if (parentGroup && !this.panel.collapsedGroups.has(parentGroup.key)) {
         this.panel.collapsedGroups.add(parentGroup.key);
@@ -660,6 +690,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     return false;
   }
+  /** Resolve groupBy string to GroupSpec[] using the generic field grouping.
+   *  Supports both legacy format ("tag, category") and new format ("tag:? AND category:?").
+   *  Operators (AND/OR/XOR/...) are stripped; each field is grouped independently. */
+  private resolveGroupByField(nodes: GraphNode[], opts: GroupOptions): GroupSpec[] {
+    const groupBy = this.panel.groupBy;
+    if (!groupBy || groupBy === "none") return [];
+    // Strip operators (AND, OR, XOR, NOR, NAND, NOT) to extract bare field tokens
+    const withoutOps = groupBy.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",");
+    const fields = withoutOps.split(",").map(s => s.trim()).filter(Boolean);
+    const allGroups: GroupSpec[] = [];
+    for (let raw of fields) {
+      // Strip ":?" suffix from new format (e.g. "tag:?" → "tag")
+      if (raw.endsWith(":?")) raw = raw.slice(0, -2);
+      if (!raw) continue;
+      allGroups.push(...groupNodesByField(nodes, raw, opts));
+    }
+    return allGroups;
+  }
+
   getWorldContainer(): PIXI.Container | null { return this.worldContainer; }
   getNodeCircleBatch(): PIXI.Graphics | null { return this.nodeCircleBatch; }
   getDegrees(): Map<string, number> { return this.degrees; }
@@ -996,6 +1045,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       bundleStrength: this.panel.edgeBundleStrength,
       isDark: this.isDarkTheme(),
       showEdgeLabels: this.panel.showEdgeLabels,
+      showArrows: this.panel.showArrows,
+      nodeRadii: this.panel.showArrows ? this.buildNodeRadiiMap() : null,
     };
     const resolvePos = (ref: string | object) =>
       typeof ref === "object" ? (ref as any) : this.pixiNodes.get(ref as string)?.data;
@@ -1004,6 +1055,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.graphEdges,
       resolvePos,
       cfg,
+      this.arrowGraphics,
     );
     // Draw edge labels into dedicated container (on top of edges, below nodes)
     if (this.edgeLabelContainer) {
@@ -1013,6 +1065,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         resolvePos,
         cfg,
       );
+    }
+    // Ensure arrow layer stays on top of all node containers
+    if (this.arrowGraphics && this.worldContainer) {
+      this.worldContainer.addChild(this.arrowGraphics);
     }
   }
 
@@ -1323,9 +1379,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       nodeCount: this.pixiNodes.size,
       edgeCount: 0,
       app: this.app,
+      frontmatterKeys: this.collectFrontmatterKeys(),
+      availableGroups: this.collectAvailableGroups(),
+      availableTags: this.collectAvailableTags(),
     };
     const cb: PanelCallbacks = {
       doRender: () => { this.doRender(); this.requestSave(); },
+      doRenderKeepPanel: () => { this.skipPanelRebuildCount++; this.doRender().finally(() => { this.skipPanelRebuildCount = Math.max(0, this.skipPanelRebuildCount - 1); }); this.requestSave(); },
       markDirty: () => { this.markDirty(); this.requestSave(); },
       updateForces: () => { this.updateForces(); this.requestSave(); },
       applySearch: () => this.applySearch(),
@@ -1342,20 +1402,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (this.simulation) { this.simulation.alpha(alpha).restart(); this.wakeRenderLoop(); }
       },
       collectFieldSuggestions: () => {
-        return ["label", "tag", "category", "path", "id", "isTag"];
+        const builtIn = ["label", "tag", "category", "folder", "path", "file", "id", "isTag"];
+        const fmKeys = this.collectFrontmatterKeys();
+        return [...new Set([...builtIn, ...fmKeys])];
       },
       collectValueSuggestions: (field: string) => {
         const values = new Set<string>();
         for (const pn of this.pixiNodes.values()) {
-          const n = pn.data;
-          switch (field) {
-            case "tag": (n.tags ?? []).forEach(t => values.add(t)); break;
-            case "category": if (n.category) values.add(n.category); break;
-            case "label": values.add(n.label); break;
-            case "path": if (n.filePath) values.add(n.filePath); break;
-            case "file": if (n.filePath) values.add(n.filePath.replace(/^.*\//, "").replace(/\.md$/, "")); break;
-            case "id": values.add(n.id); break;
-          }
+          for (const v of getNodeFieldValues(pn.data, field)) values.add(v);
+          // "label" is not in getNodeFieldValues, handle explicitly
+          if (field === "label") values.add(pn.data.label);
         }
         return [...values].sort();
       },
@@ -1395,47 +1451,37 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (this.simulation) { this.simulation.alpha(0.8).restart(); this.wakeRenderLoop(); }
         this.requestSave();
       },
-      applyPreset: (preset: "simple" | "analysis" | "creative") => {
-        // Only modify the properties each preset is designed to control.
-        // All other settings (layout, forces, clustering, sort rules, node rules,
-        // search query, hover hops, etc.) are preserved.
-        switch (preset) {
-          case "simple":
-            Object.assign(this.panel, {
-              showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false,
-              showInheritance: false, showAggregation: false, showSimilar: false,
-              colorEdgesByRelation: false, colorNodesByCategory: false,
-              showTagNodes: false, scaleByDegree: false, fadeEdgesByDegree: false,
-            });
-            break;
-          case "analysis":
-            Object.assign(this.panel, {
-              showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true,
-              showInheritance: true, showAggregation: true, showSimilar: true,
-              colorEdgesByRelation: true, colorNodesByCategory: true,
-              scaleByDegree: true, fadeEdgesByDegree: true,
-              showTagNodes: true, tagDisplay: "node" as const,
-            });
-            break;
-          case "creative":
-            Object.assign(this.panel, {
-              showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true,
-              showInheritance: false, showAggregation: false, showSimilar: false,
-              colorEdgesByRelation: true, colorNodesByCategory: true,
-              showTagNodes: true, tagDisplay: "enclosure" as const,
-              clusterGroupRules: [{ groupBy: "tag" as const, recursive: false }],
-            });
-            break;
-        }
-        this.buildPanel();
-        this.rawData = null;
-        this.doRender();
-        this.requestSave();
-      },
       jumpToNode: (nodeId: string) => this.jumpToNode(nodeId),
       getNodeIds: () => [...this.pixiNodes.keys()],
+      recolorNodes: () => { this.recolorNodes(); this.requestSave(); },
     };
     buildPanelUI(this.panelEl, this.panel, ctx, cb);
+  }
+
+  // =========================================================================
+  // Recolor nodes in-place (no graph/panel rebuild)
+  // =========================================================================
+  private recolorNodes() {
+    const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
+    const colorMap = this.nodeColorMap;
+    for (const pn of this.pixiNodes.values()) {
+      const n = pn.data;
+      let color = defaultNodeColor;
+      // Manual group overrides take priority
+      let matched = false;
+      for (const grp of this.panel.groups) {
+        if (grp.expression && evaluateExpr(grp.expression, n)) { color = cssColorToHex(grp.color); matched = true; break; }
+      }
+      if (!matched && this.panel.colorNodesByCategory) {
+        if (n.category) {
+          color = cssColorToHex(colorMap.get(n.category) || DEFAULT_COLORS[0]);
+        } else if (n.tags && n.tags.length > 0) {
+          color = cssColorToHex(colorMap.get(`tag:${n.tags[0]}`) || DEFAULT_COLORS[0]);
+        }
+      }
+      pn.color = color;
+    }
+    this.markDirty(true);
   }
 
   // =========================================================================
@@ -1473,6 +1519,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       nodes = nodes.filter((n) => !n.id.match(/\.(png|jpg|jpeg|gif|svg|pdf|mp3|mp4|webm|webp|zip)$/i));
     }
 
+    // Master switch: hide all tag nodes and tag edges when showTags is off
+    if (!this.panel.showTags) {
+      nodes = nodes.filter((n) => !n.isTag);
+      edges = edges.filter((e) => e.type !== "has-tag");
+    }
+
     if (!this.panel.showTagNodes || this.panel.tagDisplay === "enclosure") {
       nodes = nodes.filter((n) => !n.isTag);
       edges = edges.filter((e) => e.type !== "has-tag");
@@ -1494,11 +1546,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Apply node grouping (collapse groups into super nodes)
     let result: GraphData = { nodes, edges };
-    if (this.panel.groupBy !== "none") {
+    if (this.panel.groupBy && this.panel.groupBy !== "none") {
       this.originalGraphData = { nodes: [...result.nodes], edges: [...result.edges] };
-      const groups = this.panel.groupBy === "tag"
-        ? groupNodesByTag(result.nodes)
-        : groupNodesByCategory(result.nodes);
+      const groupOpts: GroupOptions = {
+        minSize: this.panel.groupMinSize,
+        filter: this.panel.groupFilter,
+      };
+      const groups = this.resolveGroupByField(result.nodes, groupOpts);
       // Auto-collapse all groups when groupBy is first enabled
       if (this.panel.collapsedGroups.size === 0 && groups.length > 0) {
         for (const g of groups) this.panel.collapsedGroups.add(g.key);
@@ -1686,7 +1740,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.simulation.on("end", () => this.setStatus(`${gd.nodes.length} nodes`));
 
       this.startRenderLoop();
-      this.buildPanel();
+      if (this.skipPanelRebuildCount === 0) this.buildPanel();
       return;
     }
 
@@ -1783,7 +1837,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Rebuild panel — relationColors and other data are now available
     this.stopOrbitAnimation();
-    this.buildPanel();
+    if (this.skipPanelRebuildCount === 0) this.buildPanel();
     if (this.currentLayout === "concentric" && this.shells.length > 0) {
       if (this.panel.orbitAutoRotate) this.startOrbitAnimation();
     }
@@ -1802,6 +1856,51 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private buildSortComparator(nodes: GraphNode[], edges: GraphEdge[]) { return this.layoutController.buildSortComparator(nodes, edges); }
   private computeNodeSpacingMap(nodes: GraphNode[]) { return this.layoutController.computeNodeSpacingMap(nodes); }
   private computeLiveCentroids() { return this.layoutController.computeLiveCentroids(this.clusterMeta); }
+
+  /** Collect all frontmatter keys from the vault for field selects */
+  private collectFrontmatterKeys(): string[] {
+    const keys = new Set<string>();
+    const files = (this.app as any).vault?.getMarkdownFiles?.() ?? [];
+    for (const f of files) {
+      const cache = (this.app as any).metadataCache?.getFileCache?.(f);
+      const fm = cache?.frontmatter;
+      if (fm) {
+        for (const k of Object.keys(fm)) {
+          if (k !== "position") keys.add(k);
+        }
+      }
+    }
+    return [...keys].sort();
+  }
+
+  /** Collect available group names based on current groupBy mode */
+  private collectAvailableGroups(): string[] {
+    if (!this.panel.groupBy || this.panel.groupBy === "none") return [];
+    // Use original graph data if available, otherwise pixiNodes
+    const nodes: GraphNode[] = this.originalGraphData
+      ? this.originalGraphData.nodes
+      : [...this.pixiNodes.values()].map(pn => pn.data);
+    const groups = this.resolveGroupByField(nodes, { minSize: this.panel.groupMinSize });
+    return groups.map(g => g.label).sort();
+  }
+
+  /** Collect all unique tag names from graph nodes */
+  private collectAvailableTags(): string[] {
+    const tags = new Set<string>();
+    const nodes = this.originalGraphData
+      ? this.originalGraphData.nodes
+      : [...this.pixiNodes.values()].map(pn => pn.data);
+    for (const n of nodes) {
+      if (n.tags) for (const tag of n.tags) tags.add(tag);
+    }
+    return [...tags].sort();
+  }
+
+  private buildNodeRadiiMap(): Map<string, number> {
+    const m = new Map<string, number>();
+    for (const [id, pn] of this.pixiNodes) m.set(id, pn.radius);
+    return m;
+  }
 
   /**
    * Pan the camera so that the given node is centered on screen, then highlight it.

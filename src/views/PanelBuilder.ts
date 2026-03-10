@@ -13,6 +13,8 @@ import { exportPreset, importPreset, applyPreset } from "../utils/presets";
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
 // ---------------------------------------------------------------------------
+export interface GroupByRule { field: string; op?: string; indent?: number; }
+
 export interface PanelState {
   showTags: boolean;
   showAttachments: boolean;
@@ -63,7 +65,13 @@ export interface PanelState {
   timelineKey: string;
   showEdgeLabels: boolean;
   showMinimap: boolean;
-  groupBy: "none" | "tag" | "category";
+  groupBy: string;
+  /** Editable rules array for the groupBy multi-rule editor.
+   *  Stored directly so that pending (empty-field) rules survive panel rebuilds.
+   *  When null/undefined, rules are parsed from the groupBy string on first render. */
+  groupByRules: GroupByRule[] | null;
+  groupMinSize: number;
+  groupFilter: string;
   collapsedGroups: Set<string>;
 }
 
@@ -121,6 +129,9 @@ export const DEFAULT_PANEL: PanelState = {
   showEdgeLabels: false,
   showMinimap: true,
   groupBy: "none" as const,
+  groupByRules: null,
+  groupMinSize: 2,
+  groupFilter: "",
   collapsedGroups: new Set<string>(),
 };
 
@@ -129,6 +140,8 @@ export const DEFAULT_PANEL: PanelState = {
 // ---------------------------------------------------------------------------
 export interface PanelCallbacks {
   doRender(): void;
+  /** Like doRender but does NOT rebuild the panel DOM (keeps editors open) */
+  doRenderKeepPanel(): void;
   markDirty(): void;
   updateForces(): void;
   applySearch(): void;
@@ -149,6 +162,8 @@ export interface PanelCallbacks {
   applyPreset(preset: "simple" | "analysis" | "creative"): void;
   jumpToNode(nodeId: string): void;
   getNodeIds(): string[];
+  /** Recolor existing nodes without full graph rebuild (keeps panel DOM intact) */
+  recolorNodes(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +181,12 @@ export interface PanelContext {
   nodeCount: number;
   edgeCount: number;
   app: unknown;
+  /** All frontmatter keys discovered in the vault */
+  frontmatterKeys: string[];
+  /** Available group names for current groupBy mode (e.g. tag names, category values, folder paths) */
+  availableGroups: string[];
+  /** All tag names found across nodes in the graph */
+  availableTags: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -209,17 +230,12 @@ export function buildPanel(
   }
 
   // =========================================================================
-  // P2: Quick presets — one-click configuration templates
-  // =========================================================================
-  buildPresetBar(panelEl, cb);
-
-  // =========================================================================
   // Layout-specific sections
   // =========================================================================
   if (ctx.currentLayout === "concentric") {
     buildSection(panelEl, t("section.concentricLayout"), (body) => {
-      addSlider(body, t("concentric.minRadius"), 10, 200, 5, panel.concentricMinRadius, (v) => { panel.concentricMinRadius = v; cb.doRender(); });
-      addSlider(body, t("concentric.radiusStep"), 10, 200, 5, panel.concentricRadiusStep, (v) => { panel.concentricRadiusStep = v; cb.doRender(); });
+      addSlider(body, t("concentric.minRadius"), 10, 200, 10, panel.concentricMinRadius, (v) => { panel.concentricMinRadius = v; cb.doRender(); });
+      addSlider(body, t("concentric.radiusStep"), 10, 200, 10, panel.concentricRadiusStep, (v) => { panel.concentricRadiusStep = v; cb.doRender(); });
       addToggle(body, t("concentric.showOrbitRings"), panel.showOrbitRings, (v) => { panel.showOrbitRings = v; cb.markDirty(); });
       addToggle(body, t("concentric.autoRotate"), panel.orbitAutoRotate, (v) => {
         panel.orbitAutoRotate = v;
@@ -232,14 +248,14 @@ export function buildPanel(
           if (i === 0 && shell.nodeIds.length === 1) return;
           const label = `軌道 ${i} (${shell.nodeIds.length}ノード)`;
           body.createEl("div", { cls: "gi-orbit-label", text: label });
-          addSlider(body, t("orbit.radius"), 10, 500, 5, shell.radius, (v) => {
+          addSlider(body, t("orbit.radius"), 10, 500, 25, shell.radius, (v) => {
             shell.radius = v;
             const nodeMap = new Map<string, GraphNode>();
             for (const pn of ctx.pixiNodes.values()) nodeMap.set(pn.data.id, pn.data);
             repositionShell(shell, nodeMap);
             cb.markDirty();
           });
-          addSlider(body, t("orbit.rotationSpeed"), 0, 2, 0.05, shell.rotationSpeed, (v) => {
+          addSlider(body, t("orbit.rotationSpeed"), 0, 2, 0.1, shell.rotationSpeed, (v) => {
             shell.rotationSpeed = v;
           });
           addDirectionToggle(body, t("orbit.rotationDirection"), shell.rotationDirection, (v) => {
@@ -259,6 +275,7 @@ export function buildPanel(
       input.value = panel.timelineKey;
       input.placeholder = "date";
       input.setAttribute("aria-label", t("timeline.timeKeyHint"));
+      attachDatalist(input, ctx.frontmatterKeys);
       input.addEventListener("change", () => {
         panel.timelineKey = input.value.trim() || "date";
         cb.doRender();
@@ -317,12 +334,12 @@ export function buildPanel(
   buildSection(panelEl, t("section.groups"), (body) => {
     // --- Group color rules list ---
     const list = body.createDiv();
-    renderGroupList(list, panel, cb);
+    renderGroupList(list, panel, ctx, cb);
     const addBtn = body.createEl("button", { cls: "gi-add-group", text: t("groups.addGroup") });
     addBtn.addEventListener("click", () => {
       const idx = panel.groups.length;
       panel.groups.push({ expression: null, color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length] });
-      renderGroupList(list, panel, cb);
+      renderGroupList(list, panel, ctx, cb);
     });
   }, tHelp("help.groups"));
 
@@ -336,15 +353,29 @@ export function buildPanel(
     addToggle(body, t("display.scaleByDegree"), panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); });
     addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; });
 
-    addSelect(body, t("display.groupBy"), [
-      { value: "none", label: t("display.groupNone") },
-      { value: "tag", label: t("display.groupTag") },
-      { value: "category", label: t("display.groupCategory") },
-    ], panel.groupBy, (v) => {
-      panel.groupBy = v as "none" | "tag" | "category";
-      panel.collapsedGroups.clear();
-      cb.doRender();
-    });
+    // --- Grouping: multi-rule input ---
+    {
+      const groupByLabel = body.createDiv({ cls: "setting-item-name", text: t("display.groupBy") });
+      const groupByListEl = body.createDiv({ cls: "gi-multirule-list" });
+      renderGroupByRules(groupByListEl, panel, ctx, cb);
+    }
+    if (panel.groupBy && panel.groupBy !== "none") {
+      addSlider(body, t("display.groupMinSize"), 1, 20, 1, panel.groupMinSize, (v) => {
+        panel.groupMinSize = v;
+        panel.collapsedGroups.clear();
+        cb.doRender();
+      });
+      if (ctx.availableGroups.length > 0) {
+        const currentFilter = panel.groupFilter
+          ? new Set(panel.groupFilter.split(",").map(s => s.trim()).filter(Boolean))
+          : new Set(ctx.availableGroups);
+        addCheckboxGroup(body, t("display.groupFilter"), ctx.availableGroups, currentFilter, (sel) => {
+          panel.groupFilter = sel.size === ctx.availableGroups.length ? "" : [...sel].join(", ");
+          panel.collapsedGroups.clear();
+          cb.doRender();
+        });
+      }
+    }
 
     // --- ノード形状 ---
     body.createEl("div", { cls: "setting-item-heading", text: t("display.nodeShapes") });
@@ -381,12 +412,12 @@ export function buildPanel(
 
   buildSection(panelEl, t("section.nodeRules"), (body) => {
     const ruleListEl = body.createDiv({ cls: "gi-noderule-list" });
-    renderNodeRuleList(ruleListEl, panel, cb);
+    renderNodeRuleList(ruleListEl, panel, ctx, cb);
 
     const addBtn = body.createEl("button", { cls: "gi-add-group", text: t("nodeRules.addRule") });
     addBtn.addEventListener("click", () => {
       panel.nodeRules.push({ query: "*", spacingMultiplier: 1.0, gravityAngle: -1, gravityStrength: 0.1 });
-      renderNodeRuleList(ruleListEl, panel, cb);
+      renderNodeRuleList(ruleListEl, panel, ctx, cb);
       cb.applyNodeRules();
       cb.restartSimulation(0.3);
     });
@@ -432,12 +463,12 @@ export function buildPanel(
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
       });
-      addSlider(body, t("cluster.groupSize"), 0.2, 5, 0.1, panel.clusterGroupScale, (v) => {
+      addSlider(body, t("cluster.groupSize"), 0.5, 5, 0.25, panel.clusterGroupScale, (v) => {
         panel.clusterGroupScale = v;
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
       });
-      addSlider(body, t("cluster.groupSpacing"), 0.5, 5, 0.1, panel.clusterGroupSpacing, (v) => {
+      addSlider(body, t("cluster.groupSpacing"), 0.5, 5, 0.25, panel.clusterGroupSpacing, (v) => {
         panel.clusterGroupSpacing = v;
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
@@ -457,7 +488,6 @@ export function buildPanel(
         panel.clusterGroupRules.push({ groupBy: "tag", recursive: false });
         renderClusterRuleList(clusterListEl, panel, cb);
         cb.applyClusterForce();
-        cb.rebuildPanel();
         cb.restartSimulation(0.5);
       });
 
@@ -495,11 +525,11 @@ export function buildPanel(
   // (cluster arrangement always active in force layout, suppresses these forces)
   if (ctx.currentLayout !== "force") {
     buildSection(panelEl, t("section.forceStrength"), (body) => {
-      addSlider(body, t("force.centerForce"), 0, 0.2, 0.005, panel.centerForce, (v) => { panel.centerForce = v; cb.updateForces(); });
-      addSlider(body, t("force.repelForce"), 0, 1000, 10, panel.repelForce, (v) => { panel.repelForce = v; cb.updateForces(); });
-      addSlider(body, t("force.linkForce"), 0, 0.1, 0.002, panel.linkForce, (v) => { panel.linkForce = v; cb.updateForces(); });
-      addSlider(body, t("force.linkDistance"), 20, 500, 10, panel.linkDistance, (v) => { panel.linkDistance = v; cb.updateForces(); });
-      addSlider(body, t("force.enclosureSpacing"), 0.5, 5, 0.1, panel.enclosureSpacing, (v) => { panel.enclosureSpacing = v; cb.updateForces(); });
+      addSlider(body, t("force.centerForce"), 0, 0.2, 0.01, panel.centerForce, (v) => { panel.centerForce = v; cb.updateForces(); });
+      addSlider(body, t("force.repelForce"), 0, 1000, 50, panel.repelForce, (v) => { panel.repelForce = v; cb.updateForces(); });
+      addSlider(body, t("force.linkForce"), 0, 0.1, 0.005, panel.linkForce, (v) => { panel.linkForce = v; cb.updateForces(); });
+      addSlider(body, t("force.linkDistance"), 20, 500, 25, panel.linkDistance, (v) => { panel.linkDistance = v; cb.updateForces(); });
+      addSlider(body, t("force.enclosureSpacing"), 0.5, 5, 0.25, panel.enclosureSpacing, (v) => { panel.enclosureSpacing = v; cb.updateForces(); });
     }, tHelp("help.forceStrength"), true);
   }
 
@@ -507,25 +537,26 @@ export function buildPanel(
   buildSection(panelEl, t("section.pluginSettings"), (body) => {
     const s = ctx.settings;
 
-    addTextInput(body, t("settings.metadataFields"), s.metadataFields.join(", "), "tags, category, characters", (v) => {
-      s.metadataFields = v.split(",").map(x => x.trim()).filter(Boolean);
+    addMultiValueInput(body, t("settings.metadataFields"), [...s.metadataFields], "tags, category...", getUnifiedFieldSuggestions(ctx), (v) => {
+      s.metadataFields = v;
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addTextInput(body, t("settings.colorField"), s.colorField, "category", (v) => {
+    // colorField / groupField — free text with frontmatter key suggestions
+    addSuggestInput(body, t("settings.colorField"), s.colorField, "category", getUnifiedFieldSuggestions(ctx), (v) => {
       s.colorField = v.trim();
       ctx.saveSettings();
       cb.doRender();
     });
 
-    addTextInput(body, t("settings.groupField"), s.groupField, "category", (v) => {
+    addSuggestInput(body, t("settings.groupField"), s.groupField, "category", getUnifiedFieldSuggestions(ctx), (v) => {
       s.groupField = v.trim();
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addSlider(body, t("settings.enclosureMinRatio"), 0, 0.3, 0.01, s.enclosureMinRatio, (v) => {
+    addSlider(body, t("settings.enclosureMinRatio"), 0, 0.3, 0.02, s.enclosureMinRatio, (v) => {
       s.enclosureMinRatio = v;
       ctx.saveSettings();
       cb.doRender();
@@ -534,50 +565,50 @@ export function buildPanel(
     // --- Ontology sub-section ---
     body.createEl("div", { cls: "setting-item-name gi-ontology-heading", text: t("settings.ontologyHeading") });
 
-    addTextInput(body, t("settings.inheritanceFields"), s.ontology.inheritanceFields.join(", "), "parent, extends, up", (v) => {
-      s.ontology.inheritanceFields = v.split(",").map(x => x.trim()).filter(Boolean);
+    addMultiValueInput(body, t("settings.inheritanceFields"), [...s.ontology.inheritanceFields], "parent, extends...", getUnifiedFieldSuggestions(ctx), (v) => {
+      s.ontology.inheritanceFields = v;
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addTextInput(body, t("settings.aggregationFields"), s.ontology.aggregationFields.join(", "), "contains, parts, has", (v) => {
-      s.ontology.aggregationFields = v.split(",").map(x => x.trim()).filter(Boolean);
+    addMultiValueInput(body, t("settings.aggregationFields"), [...s.ontology.aggregationFields], "contains, parts...", getUnifiedFieldSuggestions(ctx), (v) => {
+      s.ontology.aggregationFields = v;
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addTextInput(body, t("settings.reverseInheritanceFields"), (s.ontology.reverseInheritanceFields ?? []).join(", "), "child, down", (v) => {
-      s.ontology.reverseInheritanceFields = v.split(",").map(x => x.trim()).filter(Boolean);
+    addMultiValueInput(body, t("settings.reverseInheritanceFields"), [...(s.ontology.reverseInheritanceFields ?? [])], "child, down", getUnifiedFieldSuggestions(ctx), (v) => {
+      s.ontology.reverseInheritanceFields = v;
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addTextInput(body, t("settings.reverseAggregationFields"), (s.ontology.reverseAggregationFields ?? []).join(", "), "part-of, belongs-to", (v) => {
-      s.ontology.reverseAggregationFields = v.split(",").map(x => x.trim()).filter(Boolean);
+    addMultiValueInput(body, t("settings.reverseAggregationFields"), [...(s.ontology.reverseAggregationFields ?? [])], "part-of, belongs-to", getUnifiedFieldSuggestions(ctx), (v) => {
+      s.ontology.reverseAggregationFields = v;
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addTextInput(body, t("settings.similarFields"), s.ontology.similarFields.join(", "), "similar, related", (v) => {
-      s.ontology.similarFields = v.split(",").map(x => x.trim()).filter(Boolean);
+    addMultiValueInput(body, t("settings.similarFields"), [...s.ontology.similarFields], "similar, related", getUnifiedFieldSuggestions(ctx), (v) => {
+      s.ontology.similarFields = v;
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addTextInput(body, t("settings.siblingFields"), (s.ontology.siblingFields ?? []).join(", "), "sibling, same", (v) => {
-      s.ontology.siblingFields = v.split(",").map(x => x.trim()).filter(Boolean);
+    addMultiValueInput(body, t("settings.siblingFields"), [...(s.ontology.siblingFields ?? [])], "sibling, same", getUnifiedFieldSuggestions(ctx), (v) => {
+      s.ontology.siblingFields = v;
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addTextInput(body, t("settings.sequenceFields"), (s.ontology.sequenceFields ?? []).join(", "), "next", (v) => {
-      s.ontology.sequenceFields = v.split(",").map(x => x.trim()).filter(Boolean);
+    addMultiValueInput(body, t("settings.sequenceFields"), [...(s.ontology.sequenceFields ?? [])], "next", getUnifiedFieldSuggestions(ctx), (v) => {
+      s.ontology.sequenceFields = v;
       ctx.saveSettings();
       cb.invalidateData();
     });
 
-    addTextInput(body, t("settings.reverseSequenceFields"), (s.ontology.reverseSequenceFields ?? []).join(", "), "prev, previous", (v) => {
-      s.ontology.reverseSequenceFields = v.split(",").map(x => x.trim()).filter(Boolean);
+    addMultiValueInput(body, t("settings.reverseSequenceFields"), [...(s.ontology.reverseSequenceFields ?? [])], "prev, previous", getUnifiedFieldSuggestions(ctx), (v) => {
+      s.ontology.reverseSequenceFields = v;
       ctx.saveSettings();
       cb.invalidateData();
     });
@@ -749,6 +780,255 @@ function addTextInput(container: HTMLElement, label: string, initial: string, pl
   input.addEventListener("change", () => onChange(input.value));
 }
 
+/** Text input with datalist suggestions (autocomplete from known values) */
+function addSuggestInput(container: HTMLElement, label: string, initial: string, placeholder: string, suggestions: string[], onChange: (v: string) => void) {
+  const row = container.createDiv({ cls: "setting-item gi-full-width-row" });
+  const info = row.createDiv({ cls: "setting-item-info" });
+  info.createDiv({ cls: "setting-item-name", text: label });
+  const control = row.createDiv({ cls: "setting-item-control" });
+  const listId = `gi-suggest-${label.replace(/\s+/g, "-")}-${Date.now()}`;
+  const input = control.createEl("input", { type: "text", placeholder });
+  input.value = initial;
+  input.setAttribute("list", listId);
+  const datalist = control.createEl("datalist");
+  datalist.id = listId;
+  for (const s of suggestions) {
+    datalist.createEl("option", { value: s });
+  }
+  input.addEventListener("change", () => onChange(input.value));
+}
+
+/** Attach a datalist to an existing input element for autocomplete */
+function attachDatalist(input: HTMLInputElement, suggestions: string[]) {
+  const listId = `gi-dl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  input.setAttribute("list", listId);
+  const datalist = input.parentElement!.createEl("datalist");
+  datalist.id = listId;
+  for (const s of suggestions) {
+    datalist.createEl("option", { value: s });
+  }
+}
+
+/** Unified field suggestion list: built-in fields + all frontmatter keys (including nested) */
+function getUnifiedFieldSuggestions(ctx: PanelContext): string[] {
+  const builtIn = ["path", "file", "tag", "category", "folder", "id", "isTag"];
+  return [...new Set([...builtIn, ...ctx.frontmatterKeys])];
+}
+
+/** GroupBy suggestion list: returns {value, label} options in "field:?" format */
+function getGroupByOptions(ctx: PanelContext): { value: string; label: string }[] {
+  const builtIn = ["tag", "category", "folder", "path", "file", "id", "isTag"];
+  const allFields = [...new Set([...builtIn, ...ctx.frontmatterKeys])];
+  return allFields.map(f => ({ value: `${f}:?`, label: `${f}:?` }));
+}
+
+/**
+ * Multi-value input: renders a list of values as individual rows with add/delete buttons
+ * and autocomplete suggestions. Replaces comma-separated text inputs for list-type fields.
+ */
+function addMultiValueInput(
+  container: HTMLElement,
+  label: string,
+  values: string[],
+  placeholder: string,
+  suggestions: string[],
+  onChange: (values: string[]) => void,
+) {
+  const row = container.createDiv({ cls: "setting-item gi-full-width-row" });
+  const info = row.createDiv({ cls: "setting-item-info" });
+  info.createDiv({ cls: "setting-item-name", text: label });
+  const control = row.createDiv({ cls: "setting-item-control gi-multivalue-control" });
+
+  const listEl = control.createDiv({ cls: "gi-multivalue-list" });
+
+  function rebuild() {
+    listEl.empty();
+    values.forEach((val, i) => {
+      const itemRow = listEl.createDiv({ cls: "gi-multivalue-row" });
+      const input = itemRow.createEl("input", { type: "text", placeholder, cls: "gi-multivalue-field" });
+      input.value = val;
+      attachDatalist(input, suggestions);
+      input.addEventListener("change", () => {
+        values[i] = input.value.trim();
+        onChange(values.filter(Boolean));
+      });
+      const rmBtn = itemRow.createEl("span", { cls: "gi-group-remove gi-remove-btn", text: "\u00d7" });
+      rmBtn.addEventListener("click", () => {
+        values.splice(i, 1);
+        onChange(values.filter(Boolean));
+        rebuild();
+      });
+    });
+
+    const addBtn = listEl.createEl("button", { cls: "gi-add-group gi-multivalue-add", text: "+" });
+    addBtn.addEventListener("click", () => {
+      values.push("");
+      rebuild();
+      // Focus the newly added input
+      const inputs = listEl.querySelectorAll<HTMLInputElement>(".gi-multivalue-field");
+      inputs[inputs.length - 1]?.focus();
+    });
+  }
+
+  rebuild();
+}
+
+// ---------------------------------------------------------------------------
+// GroupBy multi-rule editor
+// ---------------------------------------------------------------------------
+
+/** Parse groupBy string into individual rules: "tag AND category" → [{field:"tag",op:"AND"},{field:"category"}] */
+function parseGroupByRules(groupBy: string): GroupByRule[] {
+  if (!groupBy || groupBy === "none") return [];
+  // Split by known operators while preserving them
+  const parts = groupBy.split(/\s+(AND|OR|XOR|NOR|NAND|NOT)\s+/i);
+  const rules: GroupByRule[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const trimmed = parts[i].trim();
+    if (!trimmed) continue;
+    if (["AND", "OR", "XOR", "NOR", "NAND", "NOT"].includes(trimmed.toUpperCase())) {
+      // Attach operator to previous rule
+      if (rules.length > 0) rules[rules.length - 1].op = trimmed.toUpperCase();
+    } else {
+      // Could be comma-separated
+      for (const field of trimmed.split(",")) {
+        const f = field.trim();
+        if (f) rules.push({ field: f, indent: 0 });
+      }
+    }
+  }
+  return rules.length > 0 ? rules : [];
+}
+
+function serializeGroupByRules(rules: GroupByRule[]): string {
+  if (rules.length === 0) return "none";
+  return rules.map((r, i) => {
+    const op = i < rules.length - 1 ? ` ${r.op || "AND"} ` : "";
+    return r.field + op;
+  }).join("");
+}
+
+function renderGroupByRules(
+  container: HTMLElement,
+  panel: PanelState,
+  ctx: PanelContext,
+  cb: PanelCallbacks,
+) {
+  container.empty();
+
+  // Use panel.groupByRules as the authoritative source.
+  // Initialize from the groupBy string only on first render.
+  if (!panel.groupByRules) {
+    panel.groupByRules = parseGroupByRules(panel.groupBy);
+  }
+  const rules = panel.groupByRules;
+  const groupByOpts = getGroupByOptions(ctx);
+
+  /** Sync panel.groupBy from rules (only filled fields) and re-render graph. */
+  function syncAndRender() {
+    const filled = rules.filter(r => r.field.trim() !== "");
+    panel.groupBy = filled.length > 0 ? serializeGroupByRules(filled) : "none";
+    panel.collapsedGroups.clear();
+    cb.doRenderKeepPanel();
+  }
+
+  /** Re-render the rows UI from the rules array. */
+  function rebuildUI() {
+    container.empty();
+    renderRows();
+  }
+
+  /** Full rebuild: update UI + sync to graph. */
+  function rebuild() {
+    rebuildUI();
+    syncAndRender();
+  }
+
+  function renderRows() {
+    rules.forEach((rule, i) => {
+      // Operator dropdown between rows
+      if (i > 0) {
+        const opRow = container.createDiv({ cls: "gi-expr-op-row" });
+        opRow.style.paddingLeft = `${(rule.indent ?? 0) * 20}px`;
+        const opSel = opRow.createEl("select", { cls: "dropdown gi-expr-op" });
+        for (const op of ["AND", "OR", "XOR", "NOR", "NAND", "NOT"]) {
+          const el = opSel.createEl("option", { text: op, value: op });
+          if (op === (rules[i - 1].op ?? "AND")) el.selected = true;
+        }
+        opSel.addEventListener("change", () => { rules[i - 1].op = opSel.value; rebuild(); });
+      }
+
+      const rowEl = container.createDiv({ cls: "gi-expr-row" });
+      rowEl.style.paddingLeft = `${(rule.indent ?? 0) * 20}px`;
+
+      // Field input with field:? suggestions (similar to search query UI)
+      const fieldInput = rowEl.createEl("input", { cls: "gi-expr-field", type: "text", placeholder: "tag:?, category:?, folder:?..." });
+      fieldInput.value = rule.field;
+      attachFixedHint(fieldInput, groupByOpts, (val) => {
+        rule.field = val;
+        rebuild();
+      });
+      fieldInput.addEventListener("change", () => {
+        rule.field = fieldInput.value.trim();
+        rebuild();
+      });
+
+      // Indent/dedent
+      const indentBtn = rowEl.createEl("span", { cls: "gi-expr-btn gi-indent-btn", text: "\u2192" });
+      indentBtn.addEventListener("click", () => { rule.indent = (rule.indent ?? 0) + 1; rebuild(); });
+      const dedentBtn = rowEl.createEl("span", { cls: "gi-expr-btn gi-indent-btn", text: "\u2190" });
+      dedentBtn.addEventListener("click", () => { rule.indent = Math.max(0, (rule.indent ?? 0) - 1); rebuild(); });
+
+      // Delete
+      const rmBtn = rowEl.createEl("span", { cls: "gi-group-remove", text: "\u00d7" });
+      rmBtn.addEventListener("click", () => {
+        rules.splice(i, 1);
+        rebuild();
+      });
+    });
+
+    // Add rule button
+    const addBtn = container.createEl("button", { cls: "gi-add-group", text: t("expr.addCondition") });
+    addBtn.addEventListener("click", () => {
+      rules.push({ field: "", indent: 0 });
+      // Only rebuild UI — don't sync to graph or trigger doRenderKeepPanel.
+      // The empty rule lives in panel.groupByRules and survives buildPanel() calls.
+      rebuildUI();
+    });
+  }
+
+  renderRows();
+}
+
+/** Checkbox group — shows items as individually toggleable checkboxes */
+function addCheckboxGroup(
+  container: HTMLElement,
+  label: string,
+  items: string[],
+  selected: Set<string>,
+  onChange: (selected: Set<string>) => void,
+) {
+  const row = container.createDiv({ cls: "setting-item gi-full-width-row" });
+  const info = row.createDiv({ cls: "setting-item-info" });
+  info.createDiv({ cls: "setting-item-name", text: label });
+  const control = row.createDiv({ cls: "setting-item-control gi-checkbox-group" });
+  if (items.length === 0) {
+    control.createEl("span", { cls: "gi-checkbox-empty", text: "—" });
+    return;
+  }
+  for (const item of items) {
+    const lbl = control.createEl("label", { cls: "gi-checkbox-item" });
+    const cb = lbl.createEl("input", { type: "checkbox" });
+    cb.checked = selected.has(item);
+    lbl.createEl("span", { text: item });
+    cb.addEventListener("change", () => {
+      if (cb.checked) selected.add(item);
+      else selected.delete(item);
+      onChange(selected);
+    });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Custom Mappings UI (ExcaliBrain compat)
 // ---------------------------------------------------------------------------
@@ -767,6 +1047,7 @@ function renderCustomMappings(
 
     const fieldInput = row.createEl("input", { type: "text", cls: "gi-mapping-field", placeholder: t("settings.mappingFieldPlaceholder") });
     fieldInput.value = field;
+    attachDatalist(fieldInput, ctx.frontmatterKeys);
 
     const typeSelect = row.createEl("select", { cls: "gi-mapping-type dropdown" });
     for (const opt of ["inheritance", "aggregation", "similar", "sibling", "sequence"] as const) {
@@ -820,6 +1101,7 @@ function renderTagRelations(
 
     const srcInput = row.createEl("input", { type: "text", cls: "gi-tag-rel-src", placeholder: t("settings.tagRelSourcePlaceholder") });
     srcInput.value = rel.source;
+    attachDatalist(srcInput, ctx.availableTags);
 
     const typeSelect = row.createEl("select", { cls: "gi-tag-rel-type dropdown" });
     for (const opt of ["inheritance", "aggregation"] as const) {
@@ -829,6 +1111,7 @@ function renderTagRelations(
 
     const tgtInput = row.createEl("input", { type: "text", cls: "gi-tag-rel-tgt", placeholder: t("settings.tagRelTargetPlaceholder") });
     tgtInput.value = rel.target;
+    attachDatalist(tgtInput, ctx.availableTags);
 
     const removeBtn = row.createEl("button", { cls: "gi-tag-rel-remove clickable-icon", text: "\u00d7" });
 
@@ -875,14 +1158,26 @@ function getQueryOptions(): { prefix: string; desc: string }[] {
   ];
 }
 
-/** Maps a search prefix to the field name used by collectValueSuggestions */
-const PREFIX_TO_FIELD: Record<string, string> = {
+/** Maps a search prefix to the field name used by collectValueSuggestions.
+ *  Known prefixes are listed here; any unknown `xxx:` prefix is also accepted
+ *  dynamically (forwarded as-is to getSuggestions). */
+const KNOWN_PREFIXES: Record<string, string> = {
   "path:": "path",
   "file:": "file",
   "tag:": "tag",
   "category:": "category",
   "id:": "id",
 };
+
+/** Resolve a prefix like "status:" to a field name. Known prefixes are mapped
+ *  explicitly; any other "xxx:" prefix returns the xxx portion, enabling
+ *  frontmatter property value suggestions. */
+function resolvePrefix(prefix: string): string {
+  if (prefix in KNOWN_PREFIXES) return KNOWN_PREFIXES[prefix];
+  // Accept any "field:" pattern — strip trailing colon to get field name
+  if (prefix.endsWith(":") && prefix.length > 1) return prefix.slice(0, -1);
+  return "";
+}
 
 /**
  * Parse the current input to detect if cursor is inside a `prefix:value` token.
@@ -897,7 +1192,7 @@ function parseActiveToken(value: string, cursorPos: number): { prefix: string; p
   const colonIdx = token.indexOf(":");
   if (colonIdx < 0) return null;
   const prefix = token.slice(0, colonIdx + 1); // e.g. "path:"
-  if (!(prefix in PREFIX_TO_FIELD)) return null;
+  if (!resolvePrefix(prefix)) return null;
   const partial = token.slice(colonIdx + 1); // e.g. "bibl"
   return { prefix, partial, tokenStart: lastSpace + 1 + colonIdx + 1 };
 }
@@ -957,7 +1252,7 @@ function attachQueryHint(input: HTMLInputElement, getSuggestions: (field: string
   };
 
   const buildValueList = (prefix: string, partial: string, tokenStart: number) => {
-    const field = PREFIX_TO_FIELD[prefix];
+    const field = resolvePrefix(prefix);
     if (!field) return false;
     const allValues = getSuggestions(field);
     const lowerPartial = partial.toLowerCase();
@@ -1063,6 +1358,101 @@ function attachQueryHint(input: HTMLInputElement, getSuggestions: (field: string
     } else if (e.key === "Enter" && selectedIdx >= 0 && selectedIdx < currentItems.length) {
       e.preventDefault();
       currentItems[selectedIdx].onSelect();
+    } else if (e.key === "Escape") {
+      dismissHint();
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Fixed-option hint (lightweight autocomplete for a small set of choices)
+// ---------------------------------------------------------------------------
+function attachFixedHint(
+  input: HTMLInputElement,
+  options: { value: string; label: string }[],
+  onSelect: (value: string) => void,
+) {
+  let hintEl: HTMLElement | null = null;
+  let selectedIdx = -1;
+  let filteredOpts = options;
+
+  const anchor = document.createElement("div");
+  anchor.className = "gi-suggest-anchor";
+  input.parentNode!.insertBefore(anchor, input);
+  anchor.appendChild(input);
+
+  const updateSelection = (container: HTMLElement) => {
+    const rows = container.querySelectorAll(".search-suggest-item:not(.mod-group)");
+    rows.forEach((r, idx) => r.classList.toggle("is-selected", idx === selectedIdx));
+  };
+
+  const renderHint = () => {
+    if (hintEl) hintEl.remove();
+    if (filteredOpts.length === 0) { hintEl = null; return; }
+    hintEl = document.createElement("div");
+    hintEl.className = "suggestion-container mod-search-suggestion";
+    for (let i = 0; i < filteredOpts.length; i++) {
+      const opt = filteredOpts[i];
+      const item = hintEl.createDiv({ cls: "suggestion-item mod-complex search-suggest-item" });
+      const content = item.createDiv({ cls: "suggestion-content" });
+      const title = content.createDiv({ cls: "suggestion-title" });
+      title.createEl("span", { text: opt.label });
+      if (opt.value !== opt.label) {
+        title.createEl("span", { cls: "search-suggest-info-text", text: opt.value });
+      }
+      item.addEventListener("click", () => {
+        input.value = opt.label;
+        onSelect(opt.value);
+        dismissHint();
+      });
+      item.addEventListener("mouseenter", () => {
+        selectedIdx = i;
+        updateSelection(hintEl!);
+      });
+    }
+    selectedIdx = 0;
+    updateSelection(hintEl);
+    anchor.appendChild(hintEl);
+  };
+
+  const dismissHint = () => {
+    hintEl?.remove();
+    hintEl = null;
+    selectedIdx = -1;
+  };
+
+  const rebuild = () => {
+    const q = input.value.toLowerCase().trim();
+    filteredOpts = q ? options.filter(o => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q)) : options;
+    renderHint();
+  };
+
+  input.addEventListener("focus", rebuild);
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (input === document.activeElement) return;
+      dismissHint();
+    }, 150);
+  });
+  input.addEventListener("input", () => {
+    if (input === document.activeElement) rebuild();
+  });
+  input.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (!hintEl || filteredOpts.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      selectedIdx = (selectedIdx + 1) % filteredOpts.length;
+      updateSelection(hintEl);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      selectedIdx = (selectedIdx - 1 + filteredOpts.length) % filteredOpts.length;
+      updateSelection(hintEl);
+    } else if (e.key === "Enter" && selectedIdx >= 0 && selectedIdx < filteredOpts.length) {
+      e.preventDefault();
+      const opt = filteredOpts[selectedIdx];
+      input.value = opt.label;
+      onSelect(opt.value);
+      dismissHint();
     } else if (e.key === "Escape") {
       dismissHint();
     }
@@ -1212,209 +1602,42 @@ function addDirectionToggle(container: HTMLElement, label: string, initial: 1 | 
   });
 }
 
-function renderGroupList(container: HTMLElement, panel: PanelState, cb: PanelCallbacks) {
+function renderGroupList(container: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks) {
   container.empty();
   panel.groups.forEach((g, i) => {
-    const wrapper = container.createDiv({ cls: "gi-group-wrapper gi-color-group-wrapper" });
+    const row = container.createDiv({ cls: "gi-group-rule-row" });
 
-    // Top row: color dot + text input + expand + remove
-    const row = wrapper.createDiv({ cls: "gi-group-item gi-color-group-row" });
-
-    // Color dot
+    // Color dot (click to cycle)
     const colorDot = row.createDiv({ cls: "gi-group-color gi-color-dot" });
     colorDot.style.background = g.color;
     colorDot.addEventListener("click", () => {
       const next = DEFAULT_COLORS[(DEFAULT_COLORS.indexOf(g.color as typeof DEFAULT_COLORS[number]) + 1) % DEFAULT_COLORS.length];
       g.color = next;
       colorDot.style.background = next;
-      cb.doRender();
+      cb.recolorNodes();
     });
 
-    // Expression text input with parse-on-input
-    const exprInput = row.createEl("input", { cls: "gi-group-query", type: "text", placeholder: 'tag:"character" AND category:"person"' });
-    exprInput.addClass("gi-expr-input");
-    exprInput.value = g.expression ? serializeExpr(g.expression) : "";
-    exprInput.addEventListener("input", () => {
-      g.expression = parseQueryExpr(exprInput.value);
-      cb.doRender();
+    // Search-bar style input (same as top search)
+    const input = row.createEl("input", {
+      cls: "gi-search gi-group-search",
+      type: "text",
+      placeholder: t("search.placeholder"),
     });
-    attachQueryHint(exprInput, (field) => cb.collectValueSuggestions(field));
-
-    // Expand button → opens row-based editor
-    const expandBtn = row.createEl("span", { cls: "gi-group-expand", text: "▼" });
-    expandBtn.addClass("gi-expand-btn");
-    let editorEl: HTMLElement | null = null;
-    expandBtn.addEventListener("click", () => {
-      if (editorEl) {
-        editorEl.remove();
-        editorEl = null;
-        expandBtn.textContent = "▼";
-        exprInput.value = g.expression ? serializeExpr(g.expression) : "";
-        return;
-      }
-      expandBtn.textContent = "▲";
-      editorEl = wrapper.createDiv({ cls: "gi-expr-editor" });
-      renderExprEditor(editorEl, g, exprInput, cb);
+    input.value = g.expression ? serializeExpr(g.expression) : "";
+    input.addEventListener("input", () => {
+      g.expression = parseQueryExpr(input.value);
+      cb.recolorNodes();
     });
+    attachQueryHint(input, (field) => cb.collectValueSuggestions(field));
 
     // Remove button
     const rm = row.createEl("span", { cls: "gi-group-remove gi-remove-btn", text: "×" });
     rm.addEventListener("click", () => {
       panel.groups.splice(i, 1);
-      renderGroupList(container, panel, cb);
-      cb.doRender();
+      renderGroupList(container, panel, ctx, cb);
+      cb.recolorNodes();
     });
   });
-}
-
-// ---------------------------------------------------------------------------
-// Row-based expression editor (indent = parentheses)
-// ---------------------------------------------------------------------------
-
-interface ExprRow {
-  field: string;
-  value: string;
-  indent: number;
-  opBefore: BoolOp | null;  // null for first row
-}
-
-function exprToRows(expr: QueryExpression | null): ExprRow[] {
-  if (!expr) return [{ field: "label", value: "", indent: 0, opBefore: null }];
-  const rows: ExprRow[] = [];
-  flattenExpr(expr, 0, null, rows);
-  return rows;
-}
-
-function flattenExpr(expr: QueryExpression, indent: number, opBefore: BoolOp | null, rows: ExprRow[]): void {
-  if (expr.type === "leaf") {
-    rows.push({ field: expr.field, value: expr.value, indent, opBefore });
-    return;
-  }
-  // Left subtree keeps current indent and opBefore
-  flattenExpr(expr.left, indent, opBefore, rows);
-  // Right subtree: increase indent if it's a nested branch with different precedence
-  const rightIndent = expr.right.type === "branch" && needsGrouping(expr.op, expr.right.op) ? indent + 1 : indent;
-  flattenExpr(expr.right, rightIndent, expr.op, rows);
-}
-
-const HIGH_PREC_OPS_SET = new Set<BoolOp>(["AND", "NAND"]);
-
-function needsGrouping(parentOp: BoolOp, childOp: BoolOp): boolean {
-  return HIGH_PREC_OPS_SET.has(parentOp) && !HIGH_PREC_OPS_SET.has(childOp);
-}
-
-function rowsToExpr(rows: ExprRow[]): QueryExpression | null {
-  const valid = rows.filter(r => r.value.trim());
-  if (valid.length === 0) return null;
-  if (valid.length === 1) return { type: "leaf", field: valid[0].field, value: valid[0].value };
-  return buildExprFromRows(valid, 0, valid.length - 1);
-}
-
-function buildExprFromRows(rows: ExprRow[], start: number, end: number): QueryExpression | null {
-  if (start > end) return null;
-  if (start === end) {
-    return { type: "leaf", field: rows[start].field, value: rows[start].value };
-  }
-
-  // Find the minimum indent level in range
-  let minIndent = Infinity;
-  for (let i = start; i <= end; i++) {
-    if (rows[i].indent < minIndent) minIndent = rows[i].indent;
-  }
-
-  // Find split point: lowest-precedence op at minIndent (scan right to left for left-associativity)
-  const LOW_OPS = new Set<BoolOp>(["OR", "NOR", "XOR"]);
-  let splitIdx = -1;
-  let splitIsLow = false;
-
-  for (let i = start + 1; i <= end; i++) {
-    if (rows[i].indent !== minIndent || !rows[i].opBefore) continue;
-    const isLow = LOW_OPS.has(rows[i].opBefore!);
-    if (splitIdx === -1 || isLow || (!splitIsLow && !isLow)) {
-      splitIdx = i;
-      splitIsLow = isLow;
-    }
-  }
-
-  if (splitIdx === -1) {
-    return { type: "leaf", field: rows[start].field, value: rows[start].value };
-  }
-
-  const left = buildExprFromRows(rows, start, splitIdx - 1);
-  const right = buildExprFromRows(rows, splitIdx, end);
-  if (!left || !right) return left || right;
-
-  return { type: "branch", op: rows[splitIdx].opBefore!, left, right };
-}
-
-function renderExprEditor(container: HTMLElement, group: GroupRule, textInput: HTMLInputElement, cb: PanelCallbacks) {
-  const rows = exprToRows(group.expression);
-
-  function rebuild() {
-    group.expression = rowsToExpr(rows);
-    textInput.value = group.expression ? serializeExpr(group.expression) : "";
-    container.empty();
-    renderRows();
-    cb.doRender();
-  }
-
-  function renderRows() {
-    rows.forEach((row, i) => {
-      // Operator dropdown (between rows)
-      if (i > 0) {
-        const opRow = container.createDiv({ cls: "gi-expr-op-row" });
-        opRow.style.paddingLeft = `${row.indent * 20}px`;
-        const opSel = opRow.createEl("select", { cls: "dropdown gi-expr-op" });
-        for (const op of ["AND", "OR", "XOR", "NOR", "NAND"] as BoolOp[]) {
-          const el = opSel.createEl("option", { text: op, value: op });
-          if (op === (row.opBefore ?? "AND")) el.selected = true;
-        }
-        opSel.addEventListener("change", () => { row.opBefore = opSel.value as BoolOp; rebuild(); });
-      }
-
-      const rowEl = container.createDiv({ cls: "gi-expr-row" });
-      rowEl.style.paddingLeft = `${row.indent * 20}px`;
-
-      // Field input
-      const fieldInput = rowEl.createEl("input", { cls: "gi-expr-field", type: "text", placeholder: "field" });
-      fieldInput.value = row.field;
-      fieldInput.addClass("gi-field-input");
-      fieldInput.addEventListener("input", () => { row.field = fieldInput.value; rebuild(); });
-
-      rowEl.createEl("span", { text: ":" });
-
-      // Value input
-      const valInput = rowEl.createEl("input", { cls: "gi-expr-value", type: "text", placeholder: "value" });
-      valInput.value = row.value;
-      valInput.addClass("gi-val-input");
-      valInput.addEventListener("input", () => { row.value = valInput.value; rebuild(); });
-
-      // Indent/dedent buttons
-      const indentBtn = rowEl.createEl("span", { cls: "gi-expr-btn", text: "→" });
-      indentBtn.addClass("gi-indent-btn");
-      indentBtn.addEventListener("click", () => { row.indent++; rebuild(); });
-      const dedentBtn = rowEl.createEl("span", { cls: "gi-expr-btn", text: "←" });
-      dedentBtn.addClass("gi-indent-btn");
-      dedentBtn.addEventListener("click", () => { row.indent = Math.max(0, row.indent - 1); rebuild(); });
-
-      // Delete button
-      const rmBtn = rowEl.createEl("span", { cls: "gi-group-remove", text: "×" });
-      rmBtn.addEventListener("click", () => {
-        rows.splice(i, 1);
-        if (rows.length > 0 && rows[0].opBefore) rows[0].opBefore = null;
-        rebuild();
-      });
-    });
-
-    // Add row button
-    const addBtn = container.createEl("button", { cls: "gi-add-group", text: t("expr.addCondition") });
-    addBtn.addEventListener("click", () => {
-      rows.push({ field: "label", value: "", indent: 0, opBefore: "AND" });
-      rebuild();
-    });
-  }
-
-  renderRows();
 }
 
 function getSortKeyOptions(): { value: SortKey; label: string }[] {
@@ -1494,20 +1717,21 @@ function renderClusterRuleList(
 ) {
   container.empty();
   const rules = panel.clusterGroupRules;
+  const opts = getClusterGroupOptions();
   rules.forEach((rule, i) => {
-    const row = container.createDiv({ cls: "gi-group-item" });
+    const row = container.createDiv({ cls: "gi-group-rule-row" });
 
-    // GroupBy dropdown
-    const groupSel = row.createEl("select", { cls: "dropdown" });
-    groupSel.addClass("gi-flex-fill");
-    for (const opt of getClusterGroupOptions()) {
-      const el = groupSel.createEl("option", { text: opt.label, value: opt.value });
-      if (opt.value === rule.groupBy) el.selected = true;
-    }
-    groupSel.addEventListener("change", () => {
-      rule.groupBy = groupSel.value as ClusterGroupBy;
+    // GroupBy search-bar input with fixed-option hint
+    const input = row.createEl("input", {
+      cls: "gi-search",
+      type: "text",
+      placeholder: t("clusterGroup.tag"),
+    });
+    const currentOpt = opts.find(o => o.value === rule.groupBy);
+    input.value = currentOpt ? currentOpt.label : rule.groupBy;
+    attachFixedHint(input, opts, (val) => {
+      rule.groupBy = val as ClusterGroupBy;
       cb.applyClusterForce();
-      cb.rebuildPanel();
       cb.restartSimulation(0.5);
     });
 
@@ -1526,12 +1750,11 @@ function renderClusterRuleList(
     });
 
     // Remove button
-    const rm = row.createEl("span", { cls: "gi-group-remove gi-ml-4", text: "\u00D7" });
+    const rm = row.createEl("span", { cls: "gi-group-remove gi-remove-btn", text: "\u00D7" });
     rm.addEventListener("click", () => {
       rules.splice(i, 1);
       renderClusterRuleList(container, panel, cb);
       cb.applyClusterForce();
-      cb.rebuildPanel();
       cb.restartSimulation(0.5);
     });
   });
@@ -1549,12 +1772,23 @@ function renderDirectionalGravityList(
 ) {
   container.empty();
   const rules = panel.directionalGravityRules;
+  const dirOptions: { value: string; label: string }[] = [
+    { value: "top", label: t("gravDir.top") },
+    { value: "bottom", label: t("gravDir.bottom") },
+    { value: "left", label: t("gravDir.left") },
+    { value: "right", label: t("gravDir.right") },
+    { value: "custom", label: t("gravDir.custom") },
+  ];
   rules.forEach((rule, i) => {
-    const row = container.createDiv({ cls: "gi-group-item" });
+    const row = container.createDiv({ cls: "gi-group-rule-row gi-gravity-row" });
 
-    const filterInput = row.createEl("input", { cls: "gi-group-query", type: "text", placeholder: "tag:character, category:protagonist, *" });
+    // Filter search-bar input (with query hint)
+    const filterInput = row.createEl("input", {
+      cls: "gi-search",
+      type: "text",
+      placeholder: "tag:character, category:*, *",
+    });
     filterInput.value = rule.filter;
-    filterInput.addClass("gi-filter-input");
     filterInput.addEventListener("input", () => {
       rule.filter = filterInput.value;
       cb.applyDirectionalGravityForce();
@@ -1562,30 +1796,28 @@ function renderDirectionalGravityList(
     });
     attachQueryHint(filterInput, (field) => cb.collectValueSuggestions(field));
 
-    const dirSelect = row.createEl("select", { cls: "dropdown" });
-    dirSelect.addClass("gi-dir-select");
-    const dirOptions: { value: string; label: string }[] = [
-      { value: "top", label: t("gravDir.top") },
-      { value: "bottom", label: t("gravDir.bottom") },
-      { value: "left", label: t("gravDir.left") },
-      { value: "right", label: t("gravDir.right") },
-      { value: "custom", label: t("gravDir.custom") },
-    ];
+    // Direction search-bar input (with fixed-option hint)
     const isCustom = typeof rule.direction === "number";
-    for (const opt of dirOptions) {
-      const el = dirSelect.createEl("option", { text: opt.label, value: opt.value });
-      if (isCustom && opt.value === "custom") el.selected = true;
-      else if (!isCustom && opt.value === rule.direction) el.selected = true;
+    const dirInput = row.createEl("input", {
+      cls: "gi-search gi-dir-input",
+      type: "text",
+      placeholder: t("gravDir.top"),
+    });
+    if (isCustom) {
+      dirInput.value = t("gravDir.custom");
+    } else {
+      const curDir = dirOptions.find(o => o.value === rule.direction);
+      dirInput.value = curDir ? curDir.label : String(rule.direction);
     }
 
-    const radInput = row.createEl("input", { cls: "gi-group-query gi-rad-input", type: "number" });
+    // Custom radian input (shown only in custom mode)
+    const radInput = row.createEl("input", { cls: "gi-search gi-rad-input", type: "number" });
     radInput.step = "0.1";
     radInput.placeholder = "rad";
     radInput.value = isCustom ? String(rule.direction) : "0";
     radInput.style.display = isCustom ? "" : "none";
 
-    dirSelect.addEventListener("change", () => {
-      const val = dirSelect.value;
+    attachFixedHint(dirInput, dirOptions, (val) => {
       if (val === "custom") {
         rule.direction = parseFloat(radInput.value) || 0;
         radInput.style.display = "";
@@ -1603,6 +1835,7 @@ function renderDirectionalGravityList(
       cb.restartSimulation(0.3);
     });
 
+    // Strength slider
     const strSlider = row.createEl("input", { type: "range" });
     strSlider.min = "0.01";
     strSlider.max = "1";
@@ -1615,7 +1848,8 @@ function renderDirectionalGravityList(
       cb.restartSimulation(0.3);
     });
 
-    const rm = row.createEl("span", { cls: "gi-group-remove", text: "\u00D7" });
+    // Remove button
+    const rm = row.createEl("span", { cls: "gi-group-remove gi-remove-btn", text: "\u00D7" });
     rm.addEventListener("click", () => {
       rules.splice(i, 1);
       renderDirectionalGravityList(container, panel, ctx, cb);
@@ -1653,6 +1887,7 @@ function angleToPreset(angle: number): string {
 function renderNodeRuleList(
   container: HTMLElement,
   panel: PanelState,
+  ctx: PanelContext,
   cb: PanelCallbacks,
 ) {
   container.empty();
@@ -1677,7 +1912,7 @@ function renderNodeRuleList(
     const rm = row1.createEl("span", { cls: "gi-group-remove gi-remove-btn", text: "\u00D7" });
     rm.addEventListener("click", () => {
       rules.splice(i, 1);
-      renderNodeRuleList(container, panel, cb);
+      renderNodeRuleList(container, panel, ctx, cb);
       cb.applyNodeRules();
       cb.restartSimulation(0.3);
     });

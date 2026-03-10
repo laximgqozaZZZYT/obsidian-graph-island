@@ -71,6 +71,9 @@ export class RenderPipeline {
   private _tickerBound = false;
   private edgeRedrawCounter = 0;
 
+  /** Called after every render tick (used by minimap) */
+  onPostRender: (() => void) | null = null;
+
   // Deferred node creation
   private pendingNodes: GraphNode[] = [];
   private pendingNodeR: ((n: GraphNode) => number) | null = null;
@@ -109,6 +112,8 @@ export class RenderPipeline {
         this._tickerBound = false;
       }
     }
+    // Update minimap viewport rect every tick (pan/zoom changes world transform without needsRedraw)
+    this.onPostRender?.();
   };
 
   startRenderLoop() {
@@ -306,7 +311,9 @@ export class RenderPipeline {
 
     const isSuperNode = !!(n.collapsedMembers && n.collapsedMembers.length > 0);
     const memberCount = isSuperNode ? n.collapsedMembers!.length : 0;
-    const r = isSuperNode ? Math.max(nodeR(n), nodeR(n) * (1 + Math.sqrt(memberCount) * 0.5)) : nodeR(n);
+    const MAX_NODE_RADIUS = 30;
+    const rawR = isSuperNode ? Math.max(nodeR(n), nodeR(n) * (1 + Math.sqrt(memberCount) * 0.5)) : nodeR(n);
+    const r = Math.min(rawR, MAX_NODE_RADIUS);
     const color = nodeColor(n);
     const circle = new PIXI.Graphics();
     if (isSuperNode) {

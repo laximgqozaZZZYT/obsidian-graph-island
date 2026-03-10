@@ -43,6 +43,10 @@ export interface EdgeDrawConfig {
   isDark: boolean;
   /** Show relation/type labels on edges */
   showEdgeLabels: boolean;
+  /** Show directional arrows on all edges */
+  showArrows: boolean;
+  /** Node ID → radius (for positioning arrows at node edge) */
+  nodeRadii: Map<string, number> | null;
 }
 
 // Minimal position data needed for source/target
@@ -496,8 +500,10 @@ export function drawEdges(
   edges: GraphEdge[],
   resolvePos: (ref: string | object) => Pos | undefined,
   cfg: EdgeDrawConfig,
+  arrowGfx?: PIXI.Graphics | null,
 ): void {
   g.clear();
+  if (arrowGfx) arrowGfx.clear();
 
   const { highlightedNodeId: hId, colorEdgesByRelation: useRelColor } = cfg;
   // Disable arc curves when edge count is high to avoid vertex buffer explosion.
@@ -634,6 +640,13 @@ export function drawEdges(
     if (e.type === "sequence") {
       drawSequenceArrow(g, src, tgt, lineColor, alpha);
     }
+
+    // Generic directional arrow for all edges when showArrows is enabled
+    // (skip edges that already have their own markers)
+    if (cfg.showArrows && e.type !== "sequence" && !isOnto && arrowGfx) {
+      const tgtR = cfg.nodeRadii?.get(e.target) ?? 4;
+      drawGenericArrow(arrowGfx, src, tgt, lineColor, Math.max(alpha, 0.5), tgtR);
+    }
   }
 }
 
@@ -720,6 +733,45 @@ function drawSequenceArrow(
   g.moveTo(tgt.x, tgt.y);
   g.lineTo(bx + px * sz * 0.4, by + py * sz * 0.4);
   g.lineTo(bx - px * sz * 0.4, by - py * sz * 0.4);
+  g.closePath();
+  g.endFill();
+}
+
+/**
+ * Draw a small filled arrow at the target end of any edge (generic direction indicator).
+ * Smaller than the sequence arrow to avoid visual clutter.
+ */
+function drawGenericArrow(
+  g: PIXI.Graphics,
+  src: Pos,
+  tgt: Pos,
+  color: number,
+  alpha: number,
+  targetRadius: number,
+) {
+  const dx = tgt.x - src.x;
+  const dy = tgt.y - src.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 1) return;
+
+  const ux = dx / len;
+  const uy = dy / len;
+  const px = -uy;
+  const py = ux;
+  // Scale arrow size proportional to target node radius (visible at any zoom)
+  const sz = Math.max(10, targetRadius * 0.35);
+  const hw = sz * 0.45; // half-width
+
+  // Place arrow tip at the edge of the target node circle
+  const tipX = tgt.x - ux * (targetRadius + 2);
+  const tipY = tgt.y - uy * (targetRadius + 2);
+  const bx = tipX - ux * sz;
+  const by = tipY - uy * sz;
+  g.lineStyle({ width: 0 });
+  g.beginFill(color, alpha);
+  g.moveTo(tipX, tipY);
+  g.lineTo(bx + px * hw, by + py * hw);
+  g.lineTo(bx - px * hw, by - py * hw);
   g.closePath();
   g.endFill();
 }

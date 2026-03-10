@@ -17,12 +17,12 @@ export interface MinimapHost {
   wakeRenderLoop(): void;
 }
 
-const MINIMAP_WIDTH = 150;
-const MINIMAP_HEIGHT = 100;
+const MINIMAP_WIDTH = 180;
+const MINIMAP_HEIGHT = 120;
 
 /** When node count exceeds this threshold, draw every Nth node */
-const THIN_THRESHOLD = 1000;
-const THIN_STEP = 10;
+const THIN_THRESHOLD = 800;
+const THIN_STEP = 3;
 
 interface MinimapBounds {
   minX: number;
@@ -90,32 +90,45 @@ export class Minimap {
     ctx.clearRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 
     // Background
-    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fillStyle = "rgba(15,15,25,0.65)";
     ctx.fillRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 
     // Draw nodes as dots (thin if too many)
-    ctx.fillStyle = "rgba(180,180,255,0.7)";
+    ctx.fillStyle = "rgba(140,170,255,0.9)";
     const step = nodes.length > THIN_THRESHOLD ? THIN_STEP : 1;
+    const dotR = nodes.length > 2000 ? 1.5 : nodes.length > 500 ? 2 : 2.5;
     for (let i = 0; i < nodes.length; i += step) {
       const n = nodes[i];
-      ctx.fillRect(toMx(n.x) - 1, toMy(n.y) - 1, 2, 2);
+      ctx.beginPath();
+      ctx.arc(toMx(n.x), toMy(n.y), dotR, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    // Draw viewport rectangle
+    // Draw viewport rectangle (clamped to minimap bounds)
     const wt = this.host.getWorldTransform();
     const vp = this.host.getViewportSize();
-    // Screen rect in world coords: top-left = (-wt.x/wt.scaleX, -wt.y/wt.scaleY)
     const vpWorldX = -wt.x / wt.scaleX;
     const vpWorldY = -wt.y / wt.scaleY;
     const vpWorldW = vp.width / wt.scaleX;
     const vpWorldH = vp.height / wt.scaleY;
 
-    ctx.strokeStyle = "rgba(255,255,255,0.6)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(
-      toMx(vpWorldX), toMy(vpWorldY),
-      vpWorldW * scale, vpWorldH * scale,
-    );
+    let rx = toMx(vpWorldX);
+    let ry = toMy(vpWorldY);
+    let rw = vpWorldW * scale;
+    let rh = vpWorldH * scale;
+
+    // Clamp to minimap canvas
+    if (rx < 0) { rw += rx; rx = 0; }
+    if (ry < 0) { rh += ry; ry = 0; }
+    if (rx + rw > MINIMAP_WIDTH) rw = MINIMAP_WIDTH - rx;
+    if (ry + rh > MINIMAP_HEIGHT) rh = MINIMAP_HEIGHT - ry;
+
+    // Only draw if viewport doesn't cover the entire minimap
+    if (rw > 2 && rh > 2 && (rw < MINIMAP_WIDTH - 2 || rh < MINIMAP_HEIGHT - 2)) {
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(rx, ry, rw, rh);
+    }
   }
 
   private onMouseDown = (e: MouseEvent) => {

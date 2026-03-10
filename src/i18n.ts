@@ -86,6 +86,10 @@ const en: TranslationMap = {
   "display.groupNone": "None",
   "display.groupTag": "Tag",
   "display.groupCategory": "Category",
+  "display.groupFolder": "Folder",
+  "display.groupMinSize": "Min group size",
+  "display.groupFilter": "Group filter",
+  "display.groupFilterPlaceholder": "e.g. project, daily (empty = all)",
 
   // --- PanelBuilder: node shapes ---
   "display.nodeShapes": "Node Shapes",
@@ -371,6 +375,10 @@ const ja: TranslationMap = {
   "display.groupNone": "なし",
   "display.groupTag": "タグ",
   "display.groupCategory": "カテゴリ",
+  "display.groupFolder": "フォルダ",
+  "display.groupMinSize": "最小グループサイズ",
+  "display.groupFilter": "グループフィルタ",
+  "display.groupFilterPlaceholder": "例: project, daily（空＝全対象）",
 
   // --- PanelBuilder: node shapes ---
   "display.nodeShapes": "ノード形状",
