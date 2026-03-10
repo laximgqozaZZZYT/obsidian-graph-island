@@ -22,6 +22,7 @@ import { t } from "../i18n";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
 import { buildClusterForce, type ClusterMetadata, type SunburstArc } from "../layouts/cluster-force";
 import { buildMultiSortComparator, type SortMetrics } from "../utils/sort";
+import { edgeLinkDistance, edgeLinkStrength } from "../utils/force-config";
 
 /**
  * Derive a single ClusterGroupRule from a query string + recursive flag.
@@ -349,11 +350,11 @@ export class GraphViewContainer extends ItemView {
     const main = root.createDiv({ cls: "graph-main" });
     // canvasWrap is emptied by initPixi / drawSunburstSVG, so nodeInfoEl
     // lives in a sibling wrapper that won't be cleared.
-    const canvasArea = main.createDiv({ cls: "ngp-canvas-area" });
+    const canvasArea = main.createDiv({ cls: "gi-canvas-area" });
     this.canvasWrap = canvasArea.createDiv({ cls: "graph-svg-wrap" });
 
     // --- Node Info Overlay (floating, survives canvas rebuilds) ---
-    this.nodeInfoEl = canvasArea.createDiv({ cls: "ngp-node-info" });
+    this.nodeInfoEl = canvasArea.createDiv({ cls: "gi-node-info" });
     this.nodeInfoEl.style.display = "none";
 
     // --- Control Panel ---
@@ -1136,6 +1137,8 @@ export class GraphViewContainer extends ItemView {
       showAggregation: this.panel.showAggregation,
       showTagNodes: this.panel.showTagNodes,
       showSimilar: this.panel.showSimilar,
+      showSibling: this.panel.showSibling,
+      showSequence: this.panel.showSequence,
       colorEdgesByRelation: this.panel.colorEdgesByRelation,
       isArcLayout: this.currentLayout === "arc",
       highlightedNodeId: effectiveHighlightId,
@@ -1907,16 +1910,8 @@ export class GraphViewContainer extends ItemView {
         .force("center", forceCenter<GraphNode>(cx, cy).strength(this.panel.centerForce))
         .force("link", forceLink<GraphNode, GraphEdge>(gd.edges)
           .id((d) => d.id)
-          .distance((e) => {
-            if (e.type === "inheritance" || e.type === "aggregation") return this.panel.linkDistance * 0.5;
-            if (e.type === "has-tag") return this.panel.linkDistance * 0.7;
-            return this.panel.linkDistance;
-          })
-          .strength((e) => {
-            if (e.type === "inheritance" || e.type === "aggregation") return this.panel.linkForce * 3;
-            if (e.type === "has-tag") return this.panel.linkForce * 1.5;
-            return this.panel.linkForce;
-          }))
+          .distance((e) => edgeLinkDistance(e, this.panel.linkDistance))
+          .strength((e) => edgeLinkStrength(e, this.panel.linkForce)))
         .alphaDecay(0.08)
         .velocityDecay(0.55);
 
@@ -2010,16 +2005,8 @@ export class GraphViewContainer extends ItemView {
       .force("center", forceCenter<GraphNode>(W / 2, H / 2).strength(this.panel.centerForce))
       .force("link", forceLink<GraphNode, GraphEdge>(this.graphEdges)
         .id((d) => d.id)
-        .distance((e) => {
-          if (e.type === "inheritance" || e.type === "aggregation") return this.panel.linkDistance * 0.5;
-          if (e.type === "has-tag") return this.panel.linkDistance * 0.7;
-          return this.panel.linkDistance;
-        })
-        .strength((e) => {
-          if (e.type === "inheritance" || e.type === "aggregation") return this.panel.linkForce * 3;
-          if (e.type === "has-tag") return this.panel.linkForce * 1.5;
-          return this.panel.linkForce;
-        }));
+        .distance((e) => edgeLinkDistance(e, this.panel.linkDistance))
+        .strength((e) => edgeLinkStrength(e, this.panel.linkForce)));
     this.applyNodeRulesForce();
     this.applyEnclosureRepulsionForce();
     this.simulation.alpha(0.5).restart();
