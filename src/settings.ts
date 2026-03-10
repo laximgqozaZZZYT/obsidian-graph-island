@@ -81,12 +81,15 @@ const HELP: Record<string, HelpEntry> = {
     body:
       "クラスター配置のデフォルトグループ分けルールを JSON 配列で定義します。\n\n" +
       "構造:\n" +
-      '  [{ "groupBy": "tag", "recursive": false },\n' +
-      '   { "groupBy": "node_type", "recursive": true }]\n\n' +
-      "■ groupBy: グループ分け基準\n" +
-      '  - "tag": タグ別\n' +
-      '  - "backlinks": 被リンク数別\n' +
-      '  - "node_type": ノードタイプ別\n\n' +
+      '  [{ "groupBy": "tag:?", "recursive": false },\n' +
+      '   { "groupBy": "folder:?", "recursive": true }]\n\n' +
+      "■ groupBy: グループ分け基準（field:? 形式）\n" +
+      '  - "tag:?": タグ別\n' +
+      '  - "category:?": カテゴリ別\n' +
+      '  - "folder:?": フォルダ別\n' +
+      '  - "backlinks:?": 被リンク数別\n' +
+      '  - "node_type:?": ノードタイプ別\n' +
+      "  - その他 frontmatter フィールドも使用可能\n\n" +
       "■ recursive: true にすると、グループ内をさらに連結成分で分割\n\n" +
       "複数ルールはパイプライン方式で適用され、\n" +
       "前段の出力グループを次段がさらに細分化します。\n" +

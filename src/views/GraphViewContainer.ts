@@ -36,15 +36,10 @@ function deriveOneRule(queryText: string, recursive: boolean): ClusterGroupRule 
   const expr = parseQueryExpr(queryText.trim());
   if (!expr) return null;
   if (expr.type === "leaf" && expr.value === "*") {
-    const fieldToGroupBy: Record<string, "tag" | "backlinks" | "node_type"> = {
-      tag: "tag",
-      category: "node_type",
-      backlinks: "backlinks",
-    };
-    const groupBy = fieldToGroupBy[expr.field];
-    if (groupBy) return { groupBy, recursive };
+    // Use field:? format (e.g. "tag:?", "category:?")
+    return { groupBy: `${expr.field}:?`, recursive };
   }
-  return { groupBy: "tag", recursive };
+  return { groupBy: "tag:?", recursive };
 }
 
 /** Derive ClusterGroupRule[] from multiple common queries (pipeline). */
@@ -110,6 +105,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private adj: Map<string, Set<string>> = new Map();
   private relationColors: Map<string, string> = new Map();
   private nodeColorMap: Map<string, string> = new Map();
+  /** Node IDs hidden by search filter (gfx.visible = false). Used by resolvePos to skip edges. */
+  private searchHiddenNodes: Set<string> = new Set();
   /** Counter: when > 0, doRender() skips the final buildPanel() call.
    *  Uses a counter instead of a boolean to avoid race conditions when
    *  multiple doRenderKeepPanel() calls overlap (previous .finally()
@@ -728,6 +725,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
   setClusterMeta(meta: ClusterMetadata | null) { this.clusterMeta = meta; }
   getNodeShapeRules() { return this.panel.nodeShapeRules; }
+  getSearchHiddenNodes() { return this.searchHiddenNodes; }
 
   // =========================================================================
   // Zoom & Hit testing
@@ -1048,8 +1046,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       showArrows: this.panel.showArrows,
       nodeRadii: this.panel.showArrows ? this.buildNodeRadiiMap() : null,
     };
-    const resolvePos = (ref: string | object) =>
-      typeof ref === "object" ? (ref as any) : this.pixiNodes.get(ref as string)?.data;
+    const resolvePos = (ref: string | object) => {
+      if (typeof ref === "object") return ref as any;
+      if (this.searchHiddenNodes.has(ref)) return undefined;
+      return this.pixiNodes.get(ref)?.data;
+    };
     drawEdgesImpl(
       this.edgeGraphics,
       this.graphEdges,
@@ -1418,8 +1419,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       saveGroupPreset: () => {
         // Reverse-derive commonQueries from clusterGroupRules for preset backward compat
         const derivedQueries = this.panel.clusterGroupRules.map(r => {
-          const queryMap: Record<string, string> = { tag: "tag:*", node_type: "category:*", backlinks: "backlinks:*" };
-          return { query: queryMap[r.groupBy] ?? "tag:*", recursive: r.recursive };
+          // Convert "field:?" → "field:*" for query format
+          const field = r.groupBy.endsWith(":?") ? r.groupBy.slice(0, -2) : r.groupBy;
+          // Legacy mapping for backward compat
+          const legacyMap: Record<string, string> = { node_type: "category", none: "tag" };
+          const queryField = legacyMap[field] ?? field;
+          return { query: `${queryField}:*`, recursive: r.recursive };
         });
         const preset: GroupPreset = {
           condition: {
@@ -1971,8 +1976,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const searchExpr = hasText ? parseQueryExpr(trimmed) : null;
     const hasFilter = hasText || hopSet !== null;
 
+    this.searchHiddenNodes.clear();
+
     for (const pn of this.pixiNodes.values()) {
       if (!hasFilter) {
+        pn.gfx.visible = true;
         pn.gfx.alpha = 1;
         this.drawNodeCircle(pn, false);
         continue;
@@ -1985,6 +1993,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
                   : hopMatch;
 
       if (match) {
+        pn.gfx.visible = true;
         pn.gfx.alpha = 1;
         pn.circle.visible = true;
         pn.circle.clear();
@@ -1994,10 +2003,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         pn.circle.lineStyle(2, searchHitColor, 0.85);
         drawShape(pn.circle, shape, pn.radius, pn.color, 1);
       } else {
-        pn.gfx.alpha = 0.12;
-        this.drawNodeCircle(pn, false);
+        pn.gfx.visible = false;
+        this.searchHiddenNodes.add(pn.data.id);
       }
     }
+    // Redraw edges so hidden nodes' edges disappear
+    this.drawEdges();
     this.markDirty();
   }
 

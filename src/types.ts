@@ -57,8 +57,10 @@ export type LayoutType =
   | "sunburst"
   | "timeline";
 
-/** How to partition nodes into clusters within the force layout */
-export type ClusterGroupBy = "none" | "tag" | "backlinks" | "node_type";
+/** How to partition nodes into clusters within the force layout.
+ *  Legacy values: "none" | "tag" | "backlinks" | "node_type"
+ *  New: any "field:?" string (e.g. "tag:?", "folder:?", "category:?") */
+export type ClusterGroupBy = string;
 
 /** How to arrange nodes within each cluster */
 export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid" | "triangle" | "random" | "mountain" | "sunburst";
@@ -284,7 +286,7 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
     },
   ],
   defaultSortRules: [{ key: "degree", order: "desc" }],
-  defaultClusterGroupRules: [{ groupBy: "tag", recursive: false }],
+  defaultClusterGroupRules: [{ groupBy: "tag:?", recursive: false }],
   defaultNodeRules: [],
   settingsJsonPath: "",
 };

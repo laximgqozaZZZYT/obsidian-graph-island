@@ -56,6 +56,8 @@ export interface RenderHost {
   drawEdges(): void;
   /** Get the node shape rules */
   getNodeShapeRules(): ShapeRule[];
+  /** Get the set of node IDs hidden by search filter */
+  getSearchHiddenNodes(): Set<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +209,9 @@ export class RenderPipeline {
     // Two-pass: first all glows (behind), then all solid circles (on top).
     const visible: PixiNode[] = [];
     const pixiNodes = this.host.getPixiNodes();
+    const hiddenBySearch = this.host.getSearchHiddenNodes();
     for (const pn of pixiNodes.values()) {
+      if (hiddenBySearch.has(pn.data.id)) continue;
       if (hasHighlight && activeSet.has(pn.data.id)) continue;
       visible.push(pn);
     }

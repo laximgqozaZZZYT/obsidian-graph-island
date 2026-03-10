@@ -24,7 +24,8 @@
  * Uses ABSOLUTE target positions and aggressive position blending with
  * full velocity kill to guarantee visibility.
  */
-import type { GraphNode, GraphEdge, ClusterGroupBy, ClusterArrangement, ClusterGroupRule } from "../types";
+import type { GraphNode, GraphEdge, ClusterArrangement, ClusterGroupRule } from "../types";
+import { getNodeFieldValues } from "../utils/node-grouping";
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -734,25 +735,27 @@ function applyGroupRule(
 
 function partitionNodes(
   nodes: GraphNode[],
-  groupBy: ClusterGroupBy,
+  groupBy: string,
   degrees: Map<string, number>,
 ): Map<string, GraphNode[]> {
   const groups = new Map<string, GraphNode[]>();
 
+  // Normalize "field:?" syntax → extract field name
+  const field = groupBy.endsWith(":?") ? groupBy.slice(0, -2) : groupBy;
+
   for (const n of nodes) {
     let key: string;
-    switch (groupBy) {
-      case "tag":
-        key = (n.tags && n.tags.length > 0) ? n.tags[0] : "__untagged__";
-        break;
-      case "backlinks":
-        key = backlinkBucket(degrees.get(n.id) || 0);
-        break;
-      case "node_type":
-        key = n.isTag ? "tag" : (n.category || "file");
-        break;
-      default:
-        key = "__all__";
+    // Legacy enum values
+    if (field === "backlinks") {
+      key = backlinkBucket(degrees.get(n.id) || 0);
+    } else if (field === "node_type") {
+      key = n.isTag ? "tag" : (n.category || "file");
+    } else if (field === "none") {
+      key = "__all__";
+    } else {
+      // Generic field lookup via getNodeFieldValues (tag, folder, category, frontmatter, etc.)
+      const vals = getNodeFieldValues(n, field);
+      key = vals.length > 0 ? vals[0] : `__no_${field}__`;
     }
     let arr = groups.get(key);
     if (!arr) { arr = []; groups.set(key, arr); }

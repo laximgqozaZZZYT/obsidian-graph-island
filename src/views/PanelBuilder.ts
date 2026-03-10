@@ -5,7 +5,6 @@ import type { QueryExpression, BoolOp } from "../utils/query-expr";
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { setIcon } from "obsidian";
 import { t, tHelp } from "../i18n";
-import { isDataviewAvailable } from "../utils/dataview-source";
 import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
 import { exportPreset, importPreset, applyPreset } from "../utils/presets";
@@ -299,36 +298,6 @@ export function buildPanel(
       cb.invalidateData();
     });
 
-    // --- Dataview filter ---
-    {
-      const dvAvailable = isDataviewAvailable(ctx.app as any);
-      const row = body.createDiv({ cls: "setting-item ngp-full-width-row" });
-      const info = row.createDiv({ cls: "setting-item-info" });
-      info.createDiv({ cls: "setting-item-name", text: t("filter.dataviewQuery") });
-      const control = row.createDiv({ cls: "setting-item-control" });
-      const input = control.createEl("input", {
-        type: "text",
-        placeholder: dvAvailable ? t("filter.dataviewHint") : t("filter.dataviewUnavailable"),
-      });
-      input.value = panel.dataviewQuery;
-      if (!dvAvailable) {
-        input.disabled = true;
-      } else {
-        let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-        input.addEventListener("input", () => {
-          if (debounceTimer) clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => {
-            panel.dataviewQuery = input.value;
-            cb.invalidateData();
-          }, 300);
-        });
-        input.addEventListener("change", () => {
-          if (debounceTimer) clearTimeout(debounceTimer);
-          panel.dataviewQuery = input.value;
-          cb.invalidateData();
-        });
-      }
-    }
   }, tHelp("help.filter"));
 
   buildSection(panelEl, t("section.groups"), (body) => {
@@ -480,13 +449,13 @@ export function buildPanel(
       // --- Cluster group rules sub-section ---
       const clusterHeader = body.createDiv({ cls: "setting-item" });
       clusterHeader.createDiv({ cls: "setting-item-name", text: t("cluster.groupRulesHeading") });
-      const clusterListEl = body.createDiv({ cls: "gi-cluster-rule-list" });
-      renderClusterRuleList(clusterListEl, panel, cb);
+      const clusterListEl = body.createDiv({ cls: "gi-multirule-list" });
+      renderClusterRuleList(clusterListEl, panel, ctx, cb);
 
       const addClusterBtn = body.createEl("button", { cls: "gi-add-group", text: t("cluster.addGroupRule") });
       addClusterBtn.addEventListener("click", () => {
-        panel.clusterGroupRules.push({ groupBy: "tag", recursive: false });
-        renderClusterRuleList(clusterListEl, panel, cb);
+        panel.clusterGroupRules.push({ groupBy: "tag:?", recursive: false });
+        renderClusterRuleList(clusterListEl, panel, ctx, cb);
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
       });
@@ -1713,24 +1682,29 @@ function getClusterGroupOptions(): { value: ClusterGroupBy; label: string }[] {
 function renderClusterRuleList(
   container: HTMLElement,
   panel: PanelState,
+  ctx: PanelContext,
   cb: PanelCallbacks,
 ) {
   container.empty();
   const rules = panel.clusterGroupRules;
-  const opts = getClusterGroupOptions();
+  const groupByOpts = getGroupByOptions(ctx);
   rules.forEach((rule, i) => {
-    const row = container.createDiv({ cls: "gi-group-rule-row" });
+    const row = container.createDiv({ cls: "gi-expr-row" });
 
-    // GroupBy search-bar input with fixed-option hint
+    // Field input with field:? suggestions (same UI as グルーピング)
     const input = row.createEl("input", {
-      cls: "gi-search",
+      cls: "gi-expr-field",
       type: "text",
-      placeholder: t("clusterGroup.tag"),
+      placeholder: "tag:?, category:?, folder:?...",
     });
-    const currentOpt = opts.find(o => o.value === rule.groupBy);
-    input.value = currentOpt ? currentOpt.label : rule.groupBy;
-    attachFixedHint(input, opts, (val) => {
-      rule.groupBy = val as ClusterGroupBy;
+    input.value = rule.groupBy;
+    attachFixedHint(input, groupByOpts, (val) => {
+      rule.groupBy = val;
+      cb.applyClusterForce();
+      cb.restartSimulation(0.5);
+    });
+    input.addEventListener("change", () => {
+      rule.groupBy = input.value.trim();
       cb.applyClusterForce();
       cb.restartSimulation(0.5);
     });
@@ -1750,10 +1724,10 @@ function renderClusterRuleList(
     });
 
     // Remove button
-    const rm = row.createEl("span", { cls: "gi-group-remove gi-remove-btn", text: "\u00D7" });
+    const rm = row.createEl("span", { cls: "gi-group-remove", text: "\u00D7" });
     rm.addEventListener("click", () => {
       rules.splice(i, 1);
-      renderClusterRuleList(container, panel, cb);
+      renderClusterRuleList(container, panel, ctx, cb);
       cb.applyClusterForce();
       cb.restartSimulation(0.5);
     });
