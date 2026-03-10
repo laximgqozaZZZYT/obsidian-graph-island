@@ -1,4 +1,4 @@
-import type { SunburstData } from "../types";
+import type { GraphData, GraphNode, SunburstData } from "../types";
 
 export interface SunburstArc {
   name: string;
@@ -9,6 +9,72 @@ export interface SunburstArc {
   y1: number;
   value: number;
   filePath?: string;
+}
+
+/** Result of applying a sunburst layout: positioned nodes/edges plus arc metadata for rendering */
+export interface SunburstLayoutResult {
+  data: GraphData;
+  arcs: SunburstArc[];
+  cx: number;
+  cy: number;
+}
+
+export interface SunburstLayoutOptions {
+  centerX?: number;
+  centerY?: number;
+  width: number;
+  height: number;
+  groupField: string;
+  /** Sort comparator for consistent node ordering */
+  sortComparator?: (a: GraphNode, b: GraphNode) => number;
+}
+
+/**
+ * Apply a sunburst layout to graph nodes.
+ * Groups nodes by their category/groupField and positions them radially.
+ * Returns the positioned data plus arc metadata for PIXI rendering.
+ */
+export function applySunburstLayout(
+  gd: GraphData,
+  root: SunburstData,
+  opts: SunburstLayoutOptions,
+): SunburstLayoutResult {
+  const cx = opts.centerX ?? opts.width / 2;
+  const cy = opts.centerY ?? opts.height / 2;
+  const radius = Math.min(opts.width, opts.height) / 2 * 0.85;
+
+  const arcs = computeSunburstArcs(root, opts.width, opts.height);
+
+  // Build a map from filePath to arc info for positioning nodes
+  const fileArcMap = new Map<string, SunburstArc>();
+  for (const arc of arcs) {
+    if (arc.filePath) {
+      fileArcMap.set(arc.filePath, arc);
+    }
+  }
+
+  // Position each node at the centroid of its arc
+  const nodes = gd.nodes.map(n => {
+    const arc = n.filePath ? fileArcMap.get(n.filePath) : undefined;
+    if (arc && arc.depth > 0) {
+      const midAngle = (arc.x0 + arc.x1) / 2;
+      const midRadius = (arc.y0 + arc.y1) / 2;
+      return {
+        ...n,
+        x: cx + midRadius * Math.cos(midAngle - Math.PI / 2),
+        y: cy + midRadius * Math.sin(midAngle - Math.PI / 2),
+      };
+    }
+    // Nodes without an arc (not in vault files) go to center
+    return { ...n, x: cx, y: cy };
+  });
+
+  return {
+    data: { nodes, edges: gd.edges },
+    arcs,
+    cx,
+    cy,
+  };
 }
 
 export function computeSunburstArcs(

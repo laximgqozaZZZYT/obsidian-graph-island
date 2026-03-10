@@ -1,8 +1,5 @@
 import { ItemView, WorkspaceLeaf, Platform, TFile, setIcon } from "obsidian";
 import * as PIXI from "pixi.js";
-import { select as d3select } from "d3-selection";
-import { zoom as d3zoom } from "d3-zoom";
-import { arc as d3arc } from "d3-shape";
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
 import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule } from "../types";
@@ -12,7 +9,7 @@ import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunb
 import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
 import { applyTreeLayout } from "../layouts/tree";
 import { applyArcLayout } from "../layouts/arc";
-import { computeSunburstArcs } from "../layouts/sunburst";
+import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
 import { yieldFrame, buildAdj, cssColorToHex } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
@@ -163,8 +160,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Marquee button reference (for toolbar toggle styling)
   private marqueeBtnEl: HTMLElement | null = null;
 
-  // Sunburst SVG fallback
-  private svgEl: SVGSVGElement | null = null;
+  // Sunburst layout arc data for PIXI rendering
+  private sunburstLayoutArcs: LayoutSunburstArc[] = [];
+  private sunburstCenter = { x: 0, y: 0 };
 
   constructor(leaf: WorkspaceLeaf, plugin: GraphViewsPlugin) {
     super(leaf);
@@ -331,7 +329,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // --- Main area ---
     const main = root.createDiv({ cls: "graph-main" });
-    // canvasWrap is emptied by initPixi / drawSunburstSVG, so nodeInfoEl
+    // canvasWrap is emptied by initPixi, so nodeInfoEl
     // lives in a sibling wrapper that won't be cleared.
     const canvasArea = main.createDiv({ cls: "gi-canvas-area" });
     this.canvasWrap = canvasArea.createDiv({ cls: "graph-svg-wrap" });
@@ -385,7 +383,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.interactionManager?.detach();
     this.interactionManager = null;
     this.destroyPixi();
-    this.svgEl = null;
     this.statusEl = null;
     this.panelEl = null;
     this.nodeInfoEl = null;
@@ -440,6 +437,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       try { lbl.destroy(); } catch { /* already destroyed */ }
     }
     this.enclosureLabels.clear();
+    // Clean up sunburst labels
+    for (const lbl of this.sunburstLabels.values()) {
+      try { lbl.destroy(); } catch { /* already destroyed */ }
+    }
+    this.sunburstLabels.clear();
+    this.sunburstLayoutArcs = [];
     this.pixiNodes.clear();
     this.worldContainer = null;
     this.edgeGraphics = null;
@@ -447,6 +450,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.enclosureGraphics = null;
     this.enclosureLabelContainer = null;
     this.sunburstGraphics = null;
+    this.sunburstLabelContainer = null;
     this.edgeLabelContainer = null;
     this.nodeCircleBatch = null;
     this.spatialGrid.clear();
@@ -1177,6 +1181,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.drawOrbitRings();
     this.drawEnclosures();
     this.drawSunburstArcs();
+    this.drawSunburstLayoutArcs();
     this.drawEdges();
   }
 
@@ -1477,13 +1482,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.setStatus(`${gd.nodes.length} nodes, ${gd.edges.length} edges`);
     await yieldFrame(); if (signal.aborted) return;
 
-    // Sunburst uses SVG (arc paths work better with SVG)
-    if (this.currentLayout === "sunburst") {
-      this.destroyPixi();
-      this.drawSunburstSVG(W, H);
-      return;
-    }
-
     // Init PIXI
     const pixiResult = this.initPixi(W, H);
     if (!pixiResult) return;
@@ -1629,6 +1627,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
         case "tree": ld = applyTreeLayout(gd, { startX: cx, startY: 40, sortComparator: sortCmp, nodeSpacingMap: nsMap }); break;
         case "arc": ld = applyArcLayout(gd, { centerX: cx, centerY: cy, radius: Math.min(W, H) * 0.4, sortComparator: sortCmp }); break;
+        case "sunburst": {
+          const root = buildSunburstData(this.app, this.plugin.settings.groupField);
+          const result = applySunburstLayout(gd, root, {
+            centerX: cx,
+            centerY: cy,
+            width: W,
+            height: H,
+            groupField: this.plugin.settings.groupField,
+            sortComparator: sortCmp,
+          });
+          ld = result.data;
+          this.sunburstLayoutArcs = result.arcs;
+          this.sunburstCenter = { x: result.cx, y: result.cy };
+          break;
+        }
         default: {
           const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy, sortComparator: sortCmp, nodeSpacingMap: nsMap });
           ld = result.data;
@@ -1795,39 +1808,120 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   // =========================================================================
-  // Sunburst (SVG fallback — arc paths are inherently SVG)
+  // Sunburst layout arc rendering (PIXI)
   // =========================================================================
-  private drawSunburstSVG(W: number, H: number) {
-    if (this.canvasWrap) this.canvasWrap.empty();
 
-    const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svgEl.setAttribute("width", String(W));
-    svgEl.setAttribute("height", String(H));
-    svgEl.style.width = "100%";
-    svgEl.style.height = "100%";
-    this.canvasWrap!.appendChild(svgEl);
-    this.svgEl = svgEl;
+  /**
+   * Draw sunburst layout arcs behind nodes using PIXI.Graphics.
+   * Called from updatePositions when sunburst layout is active.
+   */
+  private drawSunburstLayoutArcs() {
+    const gfx = this.sunburstGraphics;
+    if (!gfx) return;
+    if (this.currentLayout !== "sunburst") return;
+    if (this.sunburstLayoutArcs.length === 0) return;
 
-    const svg = d3select(svgEl);
-    const root = buildSunburstData(this.app, this.plugin.settings.groupField);
-    const arcs = computeSunburstArcs(root, W, H);
-    const cx = W / 2, cy = H / 2;
-    const g = svg.append("g").attr("transform", `translate(${cx},${cy})`);
-    const zoomBehavior = d3zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 3])
-      .on("zoom", (ev) => g.attr("transform", `translate(${cx},${cy}) ${ev.transform}`));
-    svg.call(zoomBehavior);
-    const arcGen = d3arc<{ x0: number; x1: number; y0: number; y1: number }>()
-      .startAngle((d) => d.x0).endAngle((d) => d.x1)
-      .innerRadius((d) => d.y0).outerRadius((d) => d.y1);
-    for (let i = 0; i < arcs.length; i++) {
-      const a = arcs[i]; if (a.depth === 0) continue;
-      g.append("path").attr("d", arcGen(a)).attr("fill", DEFAULT_COLORS[i % DEFAULT_COLORS.length])
-        .attr("stroke", "var(--background-primary)").attr("stroke-width", 1)
-        .style("cursor", a.filePath ? "pointer" : "default")
-        .on("click", () => { if (a.filePath) this.app.workspace.openLinkText(a.filePath, "", false); })
-        .append("title").text(`${a.name} (${a.value})`);
+    const arcs = this.sunburstLayoutArcs;
+    const { x: cx, y: cy } = this.sunburstCenter;
+
+    // Assign colors by depth-1 group (top-level category)
+    const groupColorMap = new Map<string, number>();
+    let groupIdx = 0;
+    for (const arc of arcs) {
+      if (arc.depth === 1 && !groupColorMap.has(arc.name)) {
+        groupColorMap.set(arc.name, groupIdx++);
+      }
     }
-    this.setStatus(`${arcs.length} arcs`);
+
+    // Find depth-1 ancestor by angle range containment
+    const arcGroupName = (arc: LayoutSunburstArc): string | null => {
+      for (const a of arcs) {
+        if (a.depth === 1 && a.x0 <= arc.x0 && a.x1 >= arc.x1) {
+          return a.name;
+        }
+      }
+      return null;
+    };
+
+    const worldScale = this.worldContainer?.scale.x ?? 1;
+    const strokeW = Math.max(0.5, 1.0 / worldScale);
+
+    for (let i = 0; i < arcs.length; i++) {
+      const arc = arcs[i];
+      if (arc.depth === 0) continue;
+
+      let groupName: string;
+      if (arc.depth === 1) {
+        groupName = arc.name;
+      } else {
+        groupName = arcGroupName(arc) ?? arc.name;
+      }
+      const ci = groupColorMap.get(groupName) ?? 0;
+      const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
+      const color = cssColorToHex(css);
+
+      const fillAlpha = arc.depth === 1 ? 0.25 : 0.15;
+      gfx.beginFill(color, fillAlpha);
+      gfx.lineStyle(strokeW, color, 0.5);
+
+      // Draw annular sector: offset angles by -PI/2 so top is 0
+      this.drawArcPath(gfx, cx, cy, arc.y0, arc.y1, arc.x0 - Math.PI / 2, arc.x1 - Math.PI / 2);
+      gfx.endFill();
+    }
+
+    this.drawSunburstLabels(arcs, cx, cy);
+  }
+
+  /** Sunburst label container for category names */
+  private sunburstLabelContainer: PIXI.Container | null = null;
+  private sunburstLabels: Map<string, PIXI.Text> = new Map();
+
+  private drawSunburstLabels(arcs: LayoutSunburstArc[], cx: number, cy: number) {
+    if (!this.sunburstLabelContainer && this.worldContainer) {
+      this.sunburstLabelContainer = new PIXI.Container();
+      this.worldContainer.addChild(this.sunburstLabelContainer);
+    }
+    const container = this.sunburstLabelContainer;
+    if (!container) return;
+
+    for (const lbl of this.sunburstLabels.values()) {
+      lbl.parent?.removeChild(lbl);
+      lbl.destroy();
+    }
+    this.sunburstLabels.clear();
+
+    const worldScale = this.worldContainer?.scale.x ?? 1;
+    const fontSize = Math.max(8, 12 / worldScale);
+    const isDark = this.cachedIsDark ?? true;
+    const textColor = isDark ? 0xdddddd : 0x333333;
+
+    for (const arc of arcs) {
+      if (arc.depth !== 1) continue;
+
+      const midAngle = (arc.x0 + arc.x1) / 2 - Math.PI / 2;
+      const midRadius = (arc.y0 + arc.y1) / 2;
+      const lx = cx + midRadius * Math.cos(midAngle);
+      const ly = cy + midRadius * Math.sin(midAngle);
+
+      const text = new PIXI.Text(arc.name, {
+        fontSize,
+        fill: textColor,
+        fontWeight: "bold",
+        align: "center",
+      });
+      text.anchor.set(0.5, 0.5);
+      text.x = lx;
+      text.y = ly;
+
+      let rotation = midAngle + Math.PI / 2;
+      if (rotation > Math.PI / 2 && rotation < 3 * Math.PI / 2) {
+        rotation += Math.PI;
+      }
+      text.rotation = rotation;
+
+      container.addChild(text);
+      this.sunburstLabels.set(arc.name, text);
+    }
   }
 
 }
