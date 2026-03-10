@@ -178,6 +178,14 @@ const en: TranslationMap = {
   "preset.creative": "Creative Writing",
   "preset.creativeDesc": "Tags as enclosures, group by tag, semantic edges",
 
+  // --- PanelBuilder: shared presets ---
+  "preset.export": "Export Preset",
+  "preset.import": "Import Preset",
+  "preset.exported": "Preset copied to clipboard",
+  "preset.importError": "Invalid preset JSON",
+  "preset.imported": "Preset applied successfully",
+  "preset.importPrompt": "Paste preset JSON below:",
+
   // --- PanelBuilder: action buttons ---
   "action.save": "Save Settings",
   "action.reset": "Reset",
@@ -448,6 +456,14 @@ const ja: TranslationMap = {
   "preset.analysisDesc": "全エッジ種別、属性色分け、被リンク数でサイズ変更",
   "preset.creative": "創作",
   "preset.creativeDesc": "タグ囲い、タグでグループ化、意味関係エッジ",
+
+  // --- PanelBuilder: shared presets ---
+  "preset.export": "プリセットをエクスポート",
+  "preset.import": "プリセットをインポート",
+  "preset.exported": "プリセットをクリップボードにコピーしました",
+  "preset.importError": "無効なプリセット JSON です",
+  "preset.imported": "プリセットを適用しました",
+  "preset.importPrompt": "プリセット JSON を貼り付けてください:",
 
   // --- PanelBuilder: action buttons ---
   "action.save": "設定を保存",

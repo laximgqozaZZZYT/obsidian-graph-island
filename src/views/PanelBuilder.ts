@@ -8,6 +8,7 @@ import { t, tHelp } from "../i18n";
 import { isDataviewAvailable } from "../utils/dataview-source";
 import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
+import { exportPreset, importPreset, applyPreset } from "../utils/presets";
 
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
@@ -588,6 +589,48 @@ export function buildPanel(
 
   const resetBtn = actionRow.createEl("button", { text: t("action.reset") });
   resetBtn.addEventListener("click", () => cb.resetPanel());
+
+  // --- Export / Import preset buttons ---
+  const presetRow = panelEl.createDiv({ cls: "ngp-panel-actions ngp-action-row" });
+
+  const exportBtn = presetRow.createEl("button", { text: t("preset.export") });
+  exportBtn.addEventListener("click", async () => {
+    const json = exportPreset(panel);
+    try {
+      await navigator.clipboard.writeText(json);
+      exportBtn.textContent = t("preset.exported");
+      setTimeout(() => { exportBtn.textContent = t("preset.export"); }, 2000);
+    } catch { /* clipboard not available */ }
+  });
+
+  const importBtn = presetRow.createEl("button", { text: t("preset.import") });
+  importBtn.addEventListener("click", () => {
+    const modal = panelEl.createDiv({ cls: "ngp-import-modal" });
+    modal.createEl("div", { text: t("preset.importPrompt"), cls: "ngp-import-label" });
+    const textarea = modal.createEl("textarea", { cls: "ngp-import-textarea" });
+    textarea.rows = 8;
+    textarea.placeholder = "{ ... }";
+
+    const btnRow = modal.createDiv({ cls: "ngp-import-btn-row" });
+    const applyBtn = btnRow.createEl("button", { cls: "mod-cta", text: t("preset.import") });
+    const cancelBtn = btnRow.createEl("button", { text: t("action.reset") });
+
+    cancelBtn.addEventListener("click", () => modal.remove());
+
+    applyBtn.addEventListener("click", () => {
+      try {
+        const preset = importPreset(textarea.value);
+        const merged = applyPreset(panel, preset);
+        Object.assign(panel, merged);
+        modal.remove();
+        cb.invalidateData();
+        cb.rebuildPanel();
+      } catch {
+        textarea.addClass("ngp-import-error");
+        modal.querySelector(".ngp-import-label")!.textContent = t("preset.importError");
+      }
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------
