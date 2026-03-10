@@ -107,13 +107,67 @@
   flex-shrink: 0;
   background: var(--background-primary);
   border-left: 1px solid var(--background-modifier-border);
-  overflow-y: auto;
   font-size: var(--font-ui-small);
   padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .graph-panel.is-hidden {
   display: none;
+}
+
+/* === Panel Tab Bar === */
+.gi-tab-bar {
+  display: flex;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  flex-shrink: 0;
+  gap: 0;
+  padding: 0 4px;
+}
+
+.gi-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px 6px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+  border-radius: var(--radius-s) var(--radius-s) 0 0;
+}
+
+.gi-tab-btn .svg-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.gi-tab-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.gi-tab-btn.is-active {
+  color: var(--text-accent);
+  border-bottom-color: var(--interactive-accent);
+}
+
+.gi-tab-content {
+  display: none;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 8px;
+}
+
+.gi-tab-content.is-active {
+  display: flex;
+  flex-direction: column;
 }
 
 /* Mobile: panel as full-width overlay */
@@ -139,9 +193,10 @@
 }
 
 .graph-panel .graph-control-section-header {
-  font-weight: var(--font-medium);
+  font-weight: var(--font-semibold);
   font-size: var(--font-ui-small);
   color: var(--text-normal);
+  letter-spacing: 0.02em;
 }
 
 .graph-panel .tree-item-children {
@@ -547,21 +602,48 @@
 }
 
 /* === Minimap Overlay === */
-.gi-minimap {
+.gi-minimap-wrap {
   position: absolute;
   bottom: 8px;
   right: 8px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s, 4px);
-  background: var(--background-primary-alt, var(--background-primary));
-  cursor: crosshair;
   z-index: 5;
   opacity: 0.85;
   transition: opacity 0.15s;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s, 4px);
+  overflow: hidden;
+  background: var(--background-primary-alt, var(--background-primary));
 }
 
-.gi-minimap:hover {
+.gi-minimap-wrap:hover {
   opacity: 1;
+}
+
+.gi-minimap-handle {
+  height: 10px;
+  cursor: grab;
+  background: var(--background-modifier-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gi-minimap-handle:active {
+  cursor: grabbing;
+  background: var(--background-modifier-border-hover);
+}
+
+.gi-minimap-handle::after {
+  content: "";
+  width: 24px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--text-faint);
+}
+
+.gi-minimap {
+  display: block;
+  cursor: crosshair;
 }
 
 /* === Node Detail Side Pane === */
@@ -1002,6 +1084,143 @@
   font-size: 0.85em;
 }
 
+/* Ontology pair groups (forward/reverse) */
+/* --- Ontology rule rows: [input] [▼rel] [input] [×] --- */
+.gi-ont-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gi-ont-rule {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  position: relative;
+}
+.gi-ont-input {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+  font-size: 11px;
+  padding: 3px 6px;
+}
+.gi-ont-input.is-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Relation dropdown button */
+.gi-ont-rel-btn {
+  flex-shrink: 0;
+  padding: 2px 4px;
+  font-size: 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  color: var(--text-accent);
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: var(--font-semibold);
+  line-height: 1.5;
+}
+.gi-ont-rel-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* Relation popup menu */
+.gi-ont-rel-popup {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  padding: 2px 0;
+  min-width: 80px;
+}
+.gi-ont-rel-item {
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.gi-ont-rel-item:hover {
+  background: var(--background-modifier-hover);
+}
+.gi-ont-rel-item.is-active {
+  color: var(--text-accent);
+  font-weight: var(--font-semibold);
+}
+
+/* Delete button */
+.gi-ont-del-btn {
+  flex-shrink: 0;
+  padding: 2px;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.gi-ont-del-btn:hover {
+  color: var(--text-error);
+}
+.gi-ont-del-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Add rule button */
+.gi-ont-add-btn {
+  width: 100%;
+  padding: 3px 0;
+  font-size: 11px;
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-top: 2px;
+}
+.gi-ont-add-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-accent);
+}
+
+/* --- Autocomplete popup (replaces native datalist) --- */
+.gi-ac-popup {
+  position: absolute;
+  left: 0;
+  z-index: 1000;
+  min-width: 120px;
+  max-width: 200px;
+  max-height: 160px;
+  overflow-y: auto;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  padding: 2px 0;
+}
+.gi-ac-item {
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--text-normal);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gi-ac-item:hover,
+.gi-ac-item.is-selected {
+  background: var(--background-modifier-hover);
+  color: var(--text-accent);
+}
+
 /* Custom Mappings */
 .gi-mapping-row,
 .gi-tag-rel-row {
@@ -1251,4 +1470,79 @@
 .gi-search-result-item:hover,
 .gi-search-result-item.is-selected {
   background: var(--background-modifier-hover);
+}
+
+/* === Preset Bar (Settings tab) === */
+.gi-preset-bar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.gi-preset-btn {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-smaller);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.gi-preset-btn:hover {
+  background: var(--background-modifier-hover);
+  border-color: var(--text-muted);
+}
+
+/* === Import Modal (Settings tab) === */
+.ngp-import-modal {
+  padding: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.ngp-import-label {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.ngp-import-textarea {
+  width: 100%;
+  padding: var(--size-4-2);
+  border-radius: var(--input-radius);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-modifier-form-field);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  font-family: var(--font-monospace);
+  resize: vertical;
+  margin-bottom: 8px;
+}
+
+.ngp-import-textarea.ngp-import-error {
+  border-color: var(--text-error);
+}
+
+.ngp-import-btn-row {
+  display: flex;
+  gap: 6px;
+}
+
+.ngp-import-btn-row button {
+  flex: 1;
+}
+
+.ngp-action-row {
+  display: flex;
+  gap: 6px;
+  padding: 4px 12px 8px;
+}
+
+.ngp-action-row button {
+  flex: 1;
 }

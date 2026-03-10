@@ -1,4 +1,5 @@
-import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings } from "../types";
+import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings, OntologyRule, OntologyRelation } from "../types";
+import { ontologyToRules, rulesToOntologyFields } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { repositionShell } from "../layouts/concentric";
 import type { QueryExpression, BoolOp } from "../utils/query-expr";
@@ -72,6 +73,7 @@ export interface PanelState {
   groupMinSize: number;
   groupFilter: string;
   collapsedGroups: Set<string>;
+  activeTab: "filter" | "display" | "layout" | "settings";
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -132,6 +134,7 @@ export const DEFAULT_PANEL: PanelState = {
   groupMinSize: 2,
   groupFilter: "",
   collapsedGroups: new Set<string>(),
+  activeTab: "filter" as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -255,10 +258,152 @@ export function buildPanel(
   }
 
   // =========================================================================
-  // Layout-specific sections
+  // Tab bar + tab containers
   // =========================================================================
+  const tabContainers = new Map<TabId, HTMLElement>();
+
+  buildTabBar(panelEl, panel.activeTab, tabContainers, (tab) => {
+    panel.activeTab = tab;
+  });
+
+  for (const def of TAB_DEFS) {
+    const container = panelEl.createDiv({ cls: "gi-tab-content" });
+    if (def.id === panel.activeTab) container.addClass("is-active");
+    tabContainers.set(def.id, container);
+  }
+
+  const filterTab = tabContainers.get("filter")!;
+  const displayTab = tabContainers.get("display")!;
+  const layoutTab = tabContainers.get("layout")!;
+  const settingsTab = tabContainers.get("settings")!;
+
+  // =============================================
+  // FILTER TAB
+  // =============================================
+  buildSection(filterTab, t("section.filter"), (body) => {
+    addToggle(body, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateData(); });
+    addToggle(body, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateData(); });
+    addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateData(); });
+    addSelect(body, t("filter.tagDisplay"), [
+      { value: "off", label: t("filter.tagDisplay.off") },
+      { value: "node", label: t("filter.tagDisplay.node") },
+      { value: "enclosure", label: t("filter.tagDisplay.enclosure") },
+    ], !panel.showTagNodes ? "off" : panel.tagDisplay, (v) => {
+      panel.showTagNodes = v !== "off";
+      panel.tagDisplay = v === "enclosure" ? "enclosure" : "node";
+      cb.invalidateData();
+    });
+  }, tHelp("help.filter"));
+
+  buildSection(filterTab, t("section.groups"), (body) => {
+    const list = body.createDiv();
+    renderGroupList(list, panel, ctx, cb);
+    const addBtn = body.createEl("button", { cls: "gi-add-group", text: t("groups.addGroup") });
+    addBtn.addEventListener("click", () => {
+      const idx = panel.groups.length;
+      panel.groups.push({ expression: null, color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length] });
+      renderGroupList(list, panel, ctx, cb);
+    });
+  }, tHelp("help.groups"));
+
+  // =============================================
+  // DISPLAY TAB
+  // =============================================
+  // --- Nodes sub-section ---
+  buildSection(displayTab, t("section.displayNodes"), (body) => {
+    addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); });
+    addSlider(body, t("display.nodeSize"), 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
+    addToggle(body, t("display.scaleByDegree"), panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); });
+    addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); });
+    addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; });
+    // --- ノード形状 ---
+    const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
+    const tagRule = panel.nodeShapeRules.find(r => r.match === "isTag");
+    const defaultRule = panel.nodeShapeRules.find(r => r.match === "default");
+    addSelect(body, t("display.tagNodeShape"), shapeOptions, tagRule?.shape ?? "triangle", (v) => {
+      const rule = panel.nodeShapeRules.find(r => r.match === "isTag");
+      if (rule) rule.shape = v as NodeShape;
+      else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
+      cb.doRender();
+    });
+    addSelect(body, t("display.defaultNodeShape"), shapeOptions, defaultRule?.shape ?? "circle", (v) => {
+      const rule = panel.nodeShapeRules.find(r => r.match === "default");
+      if (rule) rule.shape = v as NodeShape;
+      else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
+      cb.doRender();
+    });
+  });
+
+  // --- Edges sub-section ---
+  buildSection(displayTab, t("section.displayEdges"), (body) => {
+    addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); });
+    addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); });
+    addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); });
+    addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); });
+    addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); });
+    addToggle(body, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); });
+    addToggle(body, t("display.sharedCategory"), panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); });
+    addToggle(body, t("display.semantic"), panel.showSemanticEdges, (v) => { panel.showSemanticEdges = v; cb.markDirty(); });
+    addToggle(body, t("display.inheritance"), panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); });
+    addToggle(body, t("display.aggregation"), panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); });
+    addToggle(body, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateData(); });
+    addToggle(body, t("display.sibling"), panel.showSibling, (v) => { panel.showSibling = v; cb.markDirty(); });
+    addToggle(body, t("display.sequence"), panel.showSequence, (v) => { panel.showSequence = v; cb.markDirty(); });
+  });
+
+  // --- Minimap (stays in Display) ---
+  buildSection(displayTab, t("section.displayOther"), (body) => {
+    addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.wakeRenderLoop(); });
+  });
+
+  if (panel.colorEdgesByRelation && ctx.relationColors.size > 0) {
+    buildSection(displayTab, t("section.relationColors"), (body) => {
+      const container = body.createDiv({ cls: "graph-color-groups-container" });
+      for (const [rel, color] of ctx.relationColors) {
+        const group = container.createDiv({ cls: "graph-color-group" });
+        const label = group.createEl("span", { text: rel, cls: "graph-color-group-label gi-color-group-label" });
+        const picker = group.createEl("input", { type: "color" });
+        picker.setAttribute("aria-label", t("relationColors.changeColor"));
+        picker.value = color;
+        picker.addEventListener("input", () => {
+          ctx.relationColors.set(rel, picker.value);
+          cb.markDirty();
+        });
+      }
+    });
+  }
+
+  // =============================================
+  // LAYOUT TAB
+  // =============================================
+  // --- Grouping (in Layout tab) ---
+  buildSection(layoutTab, t("section.displayGrouping"), (body) => {
+    {
+      const groupByLabel = body.createDiv({ cls: "setting-item-name", text: t("display.groupBy") });
+      const groupByListEl = body.createDiv({ cls: "gi-multirule-list" });
+      renderGroupByRules(groupByListEl, panel, ctx, cb);
+    }
+    if (panel.groupBy && panel.groupBy !== "none") {
+      addSlider(body, t("display.groupMinSize"), 1, 20, 1, panel.groupMinSize, (v) => {
+        panel.groupMinSize = v;
+        panel.collapsedGroups.clear();
+        cb.doRender();
+      });
+      if (ctx.availableGroups.length > 0) {
+        const currentFilter = panel.groupFilter
+          ? new Set(panel.groupFilter.split(",").map(s => s.trim()).filter(Boolean))
+          : new Set(ctx.availableGroups);
+        addCheckboxGroup(body, t("display.groupFilter"), ctx.availableGroups, currentFilter, (sel) => {
+          panel.groupFilter = sel.size === ctx.availableGroups.length ? "" : [...sel].join(", ");
+          panel.collapsedGroups.clear();
+          cb.doRender();
+        });
+      }
+    }
+  });
+
   if (ctx.currentLayout === "concentric") {
-    buildSection(panelEl, t("section.concentricLayout"), (body) => {
+    buildSection(layoutTab, t("section.concentricLayout"), (body) => {
       addSlider(body, t("concentric.minRadius"), 10, 200, 10, panel.concentricMinRadius, (v) => { panel.concentricMinRadius = v; cb.doRender(); });
       addSlider(body, t("concentric.radiusStep"), 10, 200, 10, panel.concentricRadiusStep, (v) => { panel.concentricRadiusStep = v; cb.doRender(); });
       addToggle(body, t("concentric.showOrbitRings"), panel.showOrbitRings, (v) => { panel.showOrbitRings = v; cb.markDirty(); });
@@ -268,7 +413,7 @@ export function buildPanel(
       });
     });
     if (ctx.shells.length > 0) {
-      buildSection(panelEl, t("section.orbitAdjust"), (body) => {
+      buildSection(layoutTab, t("section.orbitAdjust"), (body) => {
         ctx.shells.forEach((shell, i) => {
           if (i === 0 && shell.nodeIds.length === 1) return;
           const label = `軌道 ${i} (${shell.nodeIds.length}ノード)`;
@@ -293,7 +438,7 @@ export function buildPanel(
   }
 
   if (ctx.currentLayout === "timeline") {
-    buildSection(panelEl, t("section.timeline"), (body) => {
+    buildSection(layoutTab, t("section.timeline"), (body) => {
       const row = body.createDiv({ cls: "gi-setting-row" });
       row.createEl("span", { cls: "gi-setting-label", text: t("timeline.timeKey") });
       const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
@@ -309,134 +454,9 @@ export function buildPanel(
     });
   }
 
-  buildSection(panelEl, t("section.filter"), (body) => {
-    addToggle(body, t("filter.tags"), panel.showTags, (v) => { panel.showTags = v; cb.invalidateData(); });
-    addToggle(body, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateData(); });
-    addToggle(body, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateData(); });
-    addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateData(); });
-    addSelect(body, t("filter.tagDisplay"), [
-      { value: "off", label: t("filter.tagDisplay.off") },
-      { value: "node", label: t("filter.tagDisplay.node") },
-      { value: "enclosure", label: t("filter.tagDisplay.enclosure") },
-    ], !panel.showTagNodes ? "off" : panel.tagDisplay, (v) => {
-      panel.showTagNodes = v !== "off";
-      panel.tagDisplay = v === "enclosure" ? "enclosure" : "node";
-      cb.invalidateData();
-    });
-
-  }, tHelp("help.filter"));
-
-  buildSection(panelEl, t("section.groups"), (body) => {
-    // --- Group color rules list ---
-    const list = body.createDiv();
-    renderGroupList(list, panel, ctx, cb);
-    const addBtn = body.createEl("button", { cls: "gi-add-group", text: t("groups.addGroup") });
-    addBtn.addEventListener("click", () => {
-      const idx = panel.groups.length;
-      panel.groups.push({ expression: null, color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length] });
-      renderGroupList(list, panel, ctx, cb);
-    });
-  }, tHelp("help.groups"));
-
-  buildSection(panelEl, t("section.display"), (body) => {
-    addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); });
-    addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); });
-    addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); });
-    addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); });
-    addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); });
-    addSlider(body, t("display.nodeSize"), 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
-    addToggle(body, t("display.scaleByDegree"), panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); });
-    addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; });
-
-    // --- Grouping: multi-rule input ---
-    {
-      const groupByLabel = body.createDiv({ cls: "setting-item-name", text: t("display.groupBy") });
-      const groupByListEl = body.createDiv({ cls: "gi-multirule-list" });
-      renderGroupByRules(groupByListEl, panel, ctx, cb);
-    }
-    if (panel.groupBy && panel.groupBy !== "none") {
-      addSlider(body, t("display.groupMinSize"), 1, 20, 1, panel.groupMinSize, (v) => {
-        panel.groupMinSize = v;
-        panel.collapsedGroups.clear();
-        cb.doRender();
-      });
-      if (ctx.availableGroups.length > 0) {
-        const currentFilter = panel.groupFilter
-          ? new Set(panel.groupFilter.split(",").map(s => s.trim()).filter(Boolean))
-          : new Set(ctx.availableGroups);
-        addCheckboxGroup(body, t("display.groupFilter"), ctx.availableGroups, currentFilter, (sel) => {
-          panel.groupFilter = sel.size === ctx.availableGroups.length ? "" : [...sel].join(", ");
-          panel.collapsedGroups.clear();
-          cb.doRender();
-        });
-      }
-    }
-
-    // --- ノード形状 ---
-    body.createEl("div", { cls: "setting-item-heading", text: t("display.nodeShapes") });
-    const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
-    const tagRule = panel.nodeShapeRules.find(r => r.match === "isTag");
-    const defaultRule = panel.nodeShapeRules.find(r => r.match === "default");
-    addSelect(body, t("display.tagNodeShape"), shapeOptions, tagRule?.shape ?? "triangle", (v) => {
-      const rule = panel.nodeShapeRules.find(r => r.match === "isTag");
-      if (rule) rule.shape = v as NodeShape;
-      else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
-      cb.doRender();
-    });
-    addSelect(body, t("display.defaultNodeShape"), shapeOptions, defaultRule?.shape ?? "circle", (v) => {
-      const rule = panel.nodeShapeRules.find(r => r.match === "default");
-      if (rule) rule.shape = v as NodeShape;
-      else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
-      cb.doRender();
-    });
-
-    // --- エッジ種別の表示切替 ---
-    body.createEl("div", { cls: "setting-item-heading", text: t("display.edgeTypeHeading") });
-    addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); });
-    addToggle(body, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); });
-    addToggle(body, t("display.sharedCategory"), panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); });
-    addToggle(body, t("display.semantic"), panel.showSemanticEdges, (v) => { panel.showSemanticEdges = v; cb.markDirty(); });
-    addToggle(body, t("display.inheritance"), panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); });
-    addToggle(body, t("display.aggregation"), panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); });
-    addToggle(body, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateData(); });
-    addToggle(body, t("display.sibling"), panel.showSibling, (v) => { panel.showSibling = v; cb.markDirty(); });
-    addToggle(body, t("display.sequence"), panel.showSequence, (v) => { panel.showSequence = v; cb.markDirty(); });
-    addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); });
-    addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.wakeRenderLoop(); });
-  }, tHelp("help.display"));
-
-  buildSection(panelEl, t("section.nodeRules"), (body) => {
-    const ruleListEl = body.createDiv({ cls: "gi-noderule-list" });
-    renderNodeRuleList(ruleListEl, panel, ctx, cb);
-
-    const addBtn = body.createEl("button", { cls: "gi-add-group", text: t("nodeRules.addRule") });
-    addBtn.addEventListener("click", () => {
-      panel.nodeRules.push({ query: "*", spacingMultiplier: 1.0, gravityAngle: -1, gravityStrength: 0.1 });
-      renderNodeRuleList(ruleListEl, panel, ctx, cb);
-      cb.applyNodeRules();
-      cb.restartSimulation(0.3);
-    });
-  }, tHelp("help.nodeRules"), true);
-
-  if (panel.colorEdgesByRelation && ctx.relationColors.size > 0) {
-    buildSection(panelEl, t("section.relationColors"), (body) => {
-      const container = body.createDiv({ cls: "graph-color-groups-container" });
-      for (const [rel, color] of ctx.relationColors) {
-        const group = container.createDiv({ cls: "graph-color-group" });
-        const label = group.createEl("span", { text: rel, cls: "graph-color-group-label gi-color-group-label" });
-        const picker = group.createEl("input", { type: "color" });
-        picker.setAttribute("aria-label", t("relationColors.changeColor"));
-        picker.value = color;
-        picker.addEventListener("input", () => {
-          ctx.relationColors.set(rel, picker.value);
-          cb.markDirty();
-        });
-      }
-    });
-  }
-
+  // Cluster arrangement (force layout only)
   if (ctx.currentLayout === "force") {
-    buildSection(panelEl, t("section.clusterArrangement"), (body) => {
+    buildSection(layoutTab, t("section.clusterArrangement"), (body) => {
       addSelect(body, t("cluster.pattern"), [
         { value: "spiral", label: t("cluster.spiral") },
         { value: "concentric", label: t("cluster.concentric") },
@@ -516,10 +536,9 @@ export function buildPanel(
     }, tHelp("help.clusterArrangement"), true);
   }
 
-  // Force parameters are only relevant when NOT in force layout
-  // (cluster arrangement always active in force layout, suppresses these forces)
+  // Force parameters (non-force layouts)
   if (ctx.currentLayout !== "force") {
-    buildSection(panelEl, t("section.forceStrength"), (body) => {
+    buildSection(layoutTab, t("section.forceStrength"), (body) => {
       addSlider(body, t("force.centerForce"), 0, 0.2, 0.01, panel.centerForce, (v) => { panel.centerForce = v; cb.updateForces(); });
       addSlider(body, t("force.repelForce"), 0, 1000, 50, panel.repelForce, (v) => { panel.repelForce = v; cb.updateForces(); });
       addSlider(body, t("force.linkForce"), 0, 0.1, 0.005, panel.linkForce, (v) => { panel.linkForce = v; cb.updateForces(); });
@@ -528,25 +547,29 @@ export function buildPanel(
     }, tHelp("help.forceStrength"), true);
   }
 
-  // --- プラグイン設定（グラフパネルから直接編集） ---
-  buildSection(panelEl, t("section.pluginSettings"), (body) => {
+  // Node rules
+  buildSection(layoutTab, t("section.nodeRules"), (body) => {
+    const ruleListEl = body.createDiv({ cls: "gi-noderule-list" });
+    renderNodeRuleList(ruleListEl, panel, ctx, cb);
+
+    const addBtn = body.createEl("button", { cls: "gi-add-group", text: t("nodeRules.addRule") });
+    addBtn.addEventListener("click", () => {
+      panel.nodeRules.push({ query: "*", spacingMultiplier: 1.0, gravityAngle: -1, gravityStrength: 0.1 });
+      renderNodeRuleList(ruleListEl, panel, ctx, cb);
+      cb.applyNodeRules();
+      cb.restartSimulation(0.3);
+    });
+  }, tHelp("help.nodeRules"), true);
+
+  // =============================================
+  // SETTINGS TAB
+  // =============================================
+  // --- Basic plugin settings ---
+  buildSection(settingsTab, t("section.pluginSettings"), (body) => {
     const s = ctx.settings;
 
     addMultiValueInput(body, t("settings.metadataFields"), [...s.metadataFields], "tags, category...", getUnifiedFieldSuggestions(ctx), (v) => {
       s.metadataFields = v;
-      ctx.saveSettings();
-      cb.invalidateData();
-    });
-
-    // colorField / groupField — free text with frontmatter key suggestions
-    addSuggestInput(body, t("settings.colorField"), s.colorField, "category", getUnifiedFieldSuggestions(ctx), (v) => {
-      s.colorField = v.trim();
-      ctx.saveSettings();
-      cb.doRender();
-    });
-
-    addSuggestInput(body, t("settings.groupField"), s.groupField, "category", getUnifiedFieldSuggestions(ctx), (v) => {
-      s.groupField = v.trim();
       ctx.saveSettings();
       cb.invalidateData();
     });
@@ -556,77 +579,63 @@ export function buildPanel(
       ctx.saveSettings();
       cb.doRender();
     });
+  }, tHelp("help.pluginSettings"));
 
-    // --- Ontology sub-section ---
-    body.createEl("div", { cls: "setting-item-name gi-ontology-heading", text: t("settings.ontologyHeading") });
+  // --- Ontology section (rule-based UI) ---
+  buildSection(settingsTab, t("section.ontology"), (body) => {
+    const s = ctx.settings;
+    // Initialize rules from legacy fields if not present
+    if (!s.ontology.rules || s.ontology.rules.length === 0) {
+      s.ontology.rules = ontologyToRules(s.ontology);
+    }
+    const rules = s.ontology.rules;
 
-    addMultiValueInput(body, t("settings.inheritanceFields"), [...s.ontology.inheritanceFields], "parent, extends...", getUnifiedFieldSuggestions(ctx), (v) => {
-      s.ontology.inheritanceFields = v;
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+    const save = () => {
+      rulesToOntologyFields(rules, s.ontology);
+      s.ontology.rules = rules;
       ctx.saveSettings();
-      cb.invalidateData();
-    });
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => cb.invalidateData(), 2000);
+    };
 
-    addMultiValueInput(body, t("settings.aggregationFields"), [...s.ontology.aggregationFields], "contains, parts...", getUnifiedFieldSuggestions(ctx), (v) => {
-      s.ontology.aggregationFields = v;
-      ctx.saveSettings();
-      cb.invalidateData();
-    });
+    const listEl = body.createDiv({ cls: "gi-ont-rules" });
 
-    addMultiValueInput(body, t("settings.reverseInheritanceFields"), [...(s.ontology.reverseInheritanceFields ?? [])], "child, down", getUnifiedFieldSuggestions(ctx), (v) => {
-      s.ontology.reverseInheritanceFields = v;
-      ctx.saveSettings();
-      cb.invalidateData();
-    });
-
-    addMultiValueInput(body, t("settings.reverseAggregationFields"), [...(s.ontology.reverseAggregationFields ?? [])], "part-of, belongs-to", getUnifiedFieldSuggestions(ctx), (v) => {
-      s.ontology.reverseAggregationFields = v;
-      ctx.saveSettings();
-      cb.invalidateData();
-    });
-
-    addMultiValueInput(body, t("settings.similarFields"), [...s.ontology.similarFields], "similar, related", getUnifiedFieldSuggestions(ctx), (v) => {
-      s.ontology.similarFields = v;
-      ctx.saveSettings();
-      cb.invalidateData();
-    });
-
-    addMultiValueInput(body, t("settings.siblingFields"), [...(s.ontology.siblingFields ?? [])], "sibling, same", getUnifiedFieldSuggestions(ctx), (v) => {
-      s.ontology.siblingFields = v;
-      ctx.saveSettings();
-      cb.invalidateData();
-    });
-
-    addMultiValueInput(body, t("settings.sequenceFields"), [...(s.ontology.sequenceFields ?? [])], "next", getUnifiedFieldSuggestions(ctx), (v) => {
-      s.ontology.sequenceFields = v;
-      ctx.saveSettings();
-      cb.invalidateData();
-    });
-
-    addMultiValueInput(body, t("settings.reverseSequenceFields"), [...(s.ontology.reverseSequenceFields ?? [])], "prev, previous", getUnifiedFieldSuggestions(ctx), (v) => {
-      s.ontology.reverseSequenceFields = v;
-      ctx.saveSettings();
-      cb.invalidateData();
-    });
+    function renderRules() {
+      listEl.empty();
+      for (let i = 0; i < rules.length; i++) {
+        renderOntologyRule(listEl, rules, i, cb, save, () => renderRules());
+      }
+      // Add button
+      const addBtn = listEl.createEl("button", { cls: "gi-ont-add-btn", text: `+ ${t("settings.ontAddRule")}` });
+      addBtn.addEventListener("click", () => {
+        rules.push({ forward: "", relation: "is-a", reverse: "" });
+        save();
+        renderRules();
+      });
+    }
+    renderRules();
 
     addToggle(body, t("settings.tagHierarchy"), s.ontology.useTagHierarchy, (v) => {
       s.ontology.useTagHierarchy = v;
-      ctx.saveSettings();
-      cb.invalidateData();
+      ctx.saveSettings(); cb.invalidateData();
     });
+  }, tHelp("help.ontology"));
 
-    // --- Custom Mappings (ExcaliBrain compat) ---
-    body.createEl("div", { cls: "setting-item-name gi-ontology-heading", text: t("settings.customMappingsHeading") });
+  // --- Custom Mappings ---
+  buildSection(settingsTab, t("section.customMappings"), (body) => {
     const mappingsListEl = body.createDiv({ cls: "gi-mappings-list" });
-    renderCustomMappings(mappingsListEl, s, ctx, cb);
+    renderCustomMappings(mappingsListEl, ctx.settings, ctx, cb);
+  }, tHelp("help.customMappings"), true);
 
-    // --- Tag Relations ---
-    body.createEl("div", { cls: "setting-item-name gi-ontology-heading", text: t("settings.tagRelationsHeading") });
+  // --- Tag Relations ---
+  buildSection(settingsTab, t("section.tagRelations"), (body) => {
     const tagRelListEl = body.createDiv({ cls: "gi-tag-relations-list" });
-    renderTagRelations(tagRelListEl, s, ctx, cb);
-  }, tHelp("help.pluginSettings"), true);
+    renderTagRelations(tagRelListEl, ctx.settings, ctx, cb);
+  }, tHelp("help.tagRelations"), true);
 
-  // --- 設定保存・初期化ボタン（パネル末尾） ---
-  const actionRow = panelEl.createDiv({ cls: "gi-panel-actions gi-action-row" });
+  // --- Action buttons ---
+  const actionRow = settingsTab.createDiv({ cls: "gi-panel-actions gi-action-row" });
 
   const saveBtn = actionRow.createEl("button", { cls: "mod-cta", text: t("action.save") });
   saveBtn.addEventListener("click", () => cb.saveGroupPreset());
@@ -635,7 +644,7 @@ export function buildPanel(
   resetBtn.addEventListener("click", () => cb.resetPanel());
 
   // --- Export / Import preset buttons ---
-  const presetRow = panelEl.createDiv({ cls: "ngp-panel-actions ngp-action-row" });
+  const presetRow = settingsTab.createDiv({ cls: "ngp-panel-actions ngp-action-row" });
 
   const exportBtn = presetRow.createEl("button", { text: t("preset.export") });
   exportBtn.addEventListener("click", async () => {
@@ -649,7 +658,7 @@ export function buildPanel(
 
   const importBtn = presetRow.createEl("button", { text: t("preset.import") });
   importBtn.addEventListener("click", () => {
-    const modal = panelEl.createDiv({ cls: "ngp-import-modal" });
+    const modal = settingsTab.createDiv({ cls: "ngp-import-modal" });
     modal.createEl("div", { text: t("preset.importPrompt"), cls: "ngp-import-label" });
     const textarea = modal.createEl("textarea", { cls: "ngp-import-textarea" });
     textarea.rows = 8;
@@ -724,6 +733,38 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
   });
 }
 
+type TabId = "filter" | "display" | "layout" | "settings";
+
+const TAB_DEFS: { id: TabId; labelKey: string; icon: string }[] = [
+  { id: "filter",   labelKey: "tab.filter",   icon: "filter" },
+  { id: "display",  labelKey: "tab.display",  icon: "eye" },
+  { id: "layout",   labelKey: "tab.layout",   icon: "layout-grid" },
+  { id: "settings", labelKey: "tab.settings", icon: "settings" },
+];
+
+function buildTabBar(
+  container: HTMLElement,
+  activeTab: TabId,
+  tabContainers: Map<TabId, HTMLElement>,
+  onSwitch: (tab: TabId) => void,
+) {
+  const bar = container.createDiv({ cls: "gi-tab-bar" });
+  for (const def of TAB_DEFS) {
+    const label = t(def.labelKey);
+    const btn = bar.createEl("button", { cls: "gi-tab-btn", attr: { "aria-label": label, title: label } });
+    setIcon(btn, def.icon);
+    if (def.id === activeTab) btn.addClass("is-active");
+    btn.addEventListener("click", () => {
+      bar.querySelectorAll(".gi-tab-btn").forEach(b => b.removeClass("is-active"));
+      btn.addClass("is-active");
+      for (const [id, el] of tabContainers) {
+        el.toggleClass("is-active", id === def.id);
+      }
+      onSwitch(def.id);
+    });
+  }
+}
+
 function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
   const presets: { key: "simple" | "analysis" | "creative"; labelKey: string; descKey: string }[] = [
     { key: "simple", labelKey: "preset.simple", descKey: "preset.simpleDesc" },
@@ -793,15 +834,62 @@ function addSuggestInput(container: HTMLElement, label: string, initial: string,
   input.addEventListener("change", () => onChange(input.value));
 }
 
-/** Attach a datalist to an existing input element for autocomplete */
-function attachDatalist(input: HTMLInputElement, suggestions: string[]) {
-  const listId = `gi-dl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  input.setAttribute("list", listId);
-  const datalist = input.parentElement!.createEl("datalist");
-  datalist.id = listId;
-  for (const s of suggestions) {
-    datalist.createEl("option", { value: s });
+/** Custom filtered autocomplete popup (replaces native datalist) */
+function attachAutocomplete(input: HTMLInputElement, suggestions: string[]) {
+  const popup = document.createElement("div");
+  popup.className = "gi-ac-popup";
+  popup.style.display = "none";
+  // Append to the flow/pair container (has position:relative)
+  const anchor = input.closest(".gi-ont-flow") ?? input.closest(".gi-ont-pair") ?? input.parentElement!;
+  anchor.appendChild(popup);
+
+  let selected = -1;
+
+  function show() {
+    const q = input.value.toLowerCase();
+    const filtered = suggestions.filter(s => s.toLowerCase().includes(q)).slice(0, 12);
+    popup.empty();
+    if (filtered.length === 0) { popup.style.display = "none"; return; }
+    for (let i = 0; i < filtered.length; i++) {
+      const item = popup.createDiv({ cls: "gi-ac-item", text: filtered[i] });
+      item.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        input.value = filtered[i];
+        input.dispatchEvent(new Event("change"));
+        popup.style.display = "none";
+      });
+    }
+    // Position below the input
+    const anchorRect = anchor.getBoundingClientRect();
+    const inputRect = input.getBoundingClientRect();
+    popup.style.left = (inputRect.left - anchorRect.left) + "px";
+    popup.style.top = (inputRect.bottom - anchorRect.top + 2) + "px";
+    popup.style.display = "";
+    selected = -1;
   }
+
+  input.addEventListener("focus", show);
+  input.addEventListener("input", show);
+  input.addEventListener("blur", () => { setTimeout(() => popup.style.display = "none", 150); });
+  input.addEventListener("keydown", (e) => {
+    const items = popup.querySelectorAll(".gi-ac-item");
+    if (!items.length) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); selected = Math.min(selected + 1, items.length - 1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); selected = Math.max(selected - 1, 0); }
+    else if (e.key === "Enter" && selected >= 0) {
+      e.preventDefault();
+      input.value = (items[selected] as HTMLElement).textContent ?? "";
+      input.dispatchEvent(new Event("change"));
+      popup.style.display = "none";
+      return;
+    } else return;
+    items.forEach((it, i) => it.toggleClass("is-selected", i === selected));
+  });
+}
+
+/** Legacy alias — other inputs still call this */
+function attachDatalist(input: HTMLInputElement, suggestions: string[]) {
+  attachAutocomplete(input, suggestions);
 }
 
 /** Unified field suggestion list: built-in fields + all frontmatter keys (including nested) */
@@ -815,6 +903,84 @@ function getGroupByOptions(ctx: PanelContext): { value: string; label: string }[
   const builtIn = ["tag", "category", "folder", "path", "file", "id", "isTag"];
   const allFields = [...new Set([...builtIn, ...ctx.frontmatterKeys])];
   return allFields.map(f => ({ value: `${f}:?`, label: `${f}:?` }));
+}
+
+// ---------------------------------------------------------------------------
+// Ontology rule row: [input] [▼ relation] [input] [×]
+// ---------------------------------------------------------------------------
+
+const RELATION_OPTIONS: { value: OntologyRelation; label: string }[] = [
+  { value: "is-a", label: "is-a" },
+  { value: "has-a", label: "has-a" },
+  { value: "is-from", label: "is-from" },
+  { value: "is-alike", label: "is-alike" },
+  { value: "sibling", label: "sibling" },
+];
+
+function renderOntologyRule(
+  container: HTMLElement,
+  rules: OntologyRule[],
+  idx: number,
+  cb: PanelCallbacks,
+  save: () => void,
+  rerender: () => void,
+) {
+  const rule = rules[idx];
+  const row = container.createDiv({ cls: "gi-ont-rule" });
+
+  // Forward input
+  const fwdInput = row.createEl("input", {
+    cls: "gi-search gi-ont-input",
+    type: "text",
+    placeholder: "parent, extends...",
+  });
+  fwdInput.value = rule.forward;
+  fwdInput.addEventListener("change", () => { rule.forward = fwdInput.value; save(); });
+  attachQueryHint(fwdInput, (field) => cb.collectValueSuggestions(field));
+
+  // Relation dropdown
+  const relBtn = row.createEl("button", { cls: "gi-ont-rel-btn" });
+  relBtn.textContent = rule.relation;
+  relBtn.addEventListener("click", () => {
+    // Cycle through options or show popup
+    const popup = row.querySelector(".gi-ont-rel-popup");
+    if (popup) { popup.remove(); return; }
+    const menu = row.createDiv({ cls: "gi-ont-rel-popup" });
+    for (const opt of RELATION_OPTIONS) {
+      const item = menu.createDiv({
+        cls: `gi-ont-rel-item${opt.value === rule.relation ? " is-active" : ""}`,
+        text: opt.label,
+      });
+      item.addEventListener("click", () => {
+        rule.relation = opt.value;
+        relBtn.textContent = opt.label;
+        menu.remove();
+        save();
+      });
+    }
+  });
+
+  // Reverse input (hidden for bidirectional relations)
+  const isBidir = rule.relation === "is-alike" || rule.relation === "sibling";
+  const revInput = row.createEl("input", {
+    cls: "gi-search gi-ont-input",
+    type: "text",
+    placeholder: isBidir ? "(双方向)" : "child, down...",
+  });
+  revInput.value = rule.reverse;
+  revInput.disabled = isBidir;
+  if (isBidir) revInput.classList.add("is-disabled");
+  revInput.addEventListener("change", () => { rule.reverse = revInput.value; save(); });
+  attachQueryHint(revInput, (field) => cb.collectValueSuggestions(field));
+
+  // Delete button
+  const delBtn = row.createEl("button", { cls: "gi-ont-del-btn", attr: { "aria-label": "Delete" } });
+  setIcon(delBtn, "x");
+  delBtn.addEventListener("click", () => {
+    rules.splice(idx, 1);
+    save();
+    rerender();
+  });
 }
 
 /**

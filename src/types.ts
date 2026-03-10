@@ -190,6 +190,14 @@ export interface TagRelation {
   type: "inheritance" | "aggregation";
 }
 
+export type OntologyRelation = "is-a" | "has-a" | "is-from" | "is-alike" | "sibling";
+
+export interface OntologyRule {
+  forward: string;   // comma-separated field names (e.g. "parent, extends")
+  relation: OntologyRelation;
+  reverse: string;   // comma-separated field names (e.g. "child, down"); empty for bidirectional
+}
+
 export interface OntologyConfig {
   /** Frontmatter/inline field names treated as inheritance (is-a) */
   inheritanceFields: string[];
@@ -213,6 +221,51 @@ export interface OntologyConfig {
   customMappings: Record<string, "inheritance" | "aggregation" | "similar" | "sibling" | "sequence">;
   /** Explicit tag-to-tag relationships (without nesting) */
   tagRelations: TagRelation[];
+  /** Rule-based ontology definitions (UI-driven) — synced to field arrays on save */
+  rules?: OntologyRule[];
+}
+
+/** Convert legacy field arrays → rules array */
+export function ontologyToRules(o: OntologyConfig): OntologyRule[] {
+  const rules: OntologyRule[] = [];
+  const join = (a: string[]) => a.join(", ");
+  if (o.inheritanceFields.length || o.reverseInheritanceFields?.length)
+    rules.push({ forward: join(o.inheritanceFields), relation: "is-a", reverse: join(o.reverseInheritanceFields ?? []) });
+  if (o.aggregationFields.length || o.reverseAggregationFields?.length)
+    rules.push({ forward: join(o.aggregationFields), relation: "has-a", reverse: join(o.reverseAggregationFields ?? []) });
+  if (o.sequenceFields?.length || o.reverseSequenceFields?.length)
+    rules.push({ forward: join(o.sequenceFields ?? []), relation: "is-from", reverse: join(o.reverseSequenceFields ?? []) });
+  if (o.similarFields.length)
+    rules.push({ forward: join(o.similarFields), relation: "is-alike", reverse: "" });
+  if (o.siblingFields?.length)
+    rules.push({ forward: join(o.siblingFields ?? []), relation: "sibling", reverse: "" });
+  return rules;
+}
+
+/** Sync rules array → legacy field arrays (for classifyRelation compat) */
+export function rulesToOntologyFields(rules: OntologyRule[], o: OntologyConfig): void {
+  const split = (s: string) => s.split(",").map(x => x.trim()).filter(Boolean);
+  // Clear all
+  o.inheritanceFields = []; o.reverseInheritanceFields = [];
+  o.aggregationFields = []; o.reverseAggregationFields = [];
+  o.sequenceFields = []; o.reverseSequenceFields = [];
+  o.similarFields = []; o.siblingFields = [];
+  for (const r of rules) {
+    const fwd = split(r.forward);
+    const rev = split(r.reverse);
+    switch (r.relation) {
+      case "is-a":
+        o.inheritanceFields.push(...fwd); o.reverseInheritanceFields.push(...rev); break;
+      case "has-a":
+        o.aggregationFields.push(...fwd); o.reverseAggregationFields.push(...rev); break;
+      case "is-from":
+        o.sequenceFields.push(...fwd); o.reverseSequenceFields.push(...rev); break;
+      case "is-alike":
+        o.similarFields.push(...fwd); break;
+      case "sibling":
+        o.siblingFields.push(...fwd); break;
+    }
+  }
 }
 
 export const DEFAULT_ONTOLOGY: OntologyConfig = {

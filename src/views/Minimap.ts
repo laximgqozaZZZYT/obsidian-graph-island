@@ -31,30 +31,52 @@ interface MinimapBounds {
 }
 
 export class Minimap {
+  private wrapper: HTMLElement;
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private host: MinimapHost;
   private visible = true;
-  private isDragging = false;
+  private isPanning = false;
   private bounds: MinimapBounds | null = null;
+
+  // --- Drag-to-move state ---
+  private isMoving = false;
+  private moveStartX = 0;
+  private moveStartY = 0;
+  private moveStartLeft = 0;
+  private moveStartTop = 0;
 
   constructor(host: MinimapHost, parentEl: HTMLElement) {
     this.host = host;
+
+    // Wrapper div for positioning
+    this.wrapper = document.createElement("div");
+    this.wrapper.className = "gi-minimap-wrap";
+    parentEl.appendChild(this.wrapper);
+
+    // Drag handle bar
+    const handle = document.createElement("div");
+    handle.className = "gi-minimap-handle";
+    this.wrapper.appendChild(handle);
+    handle.addEventListener("mousedown", this.onHandleDown);
+
+    // Canvas
     this.canvas = document.createElement("canvas");
     this.canvas.width = MINIMAP_WIDTH;
     this.canvas.height = MINIMAP_HEIGHT;
     this.canvas.className = "gi-minimap";
     this.ctx = this.canvas.getContext("2d")!;
-    parentEl.appendChild(this.canvas);
+    this.wrapper.appendChild(this.canvas);
 
     this.canvas.addEventListener("mousedown", this.onMouseDown);
     this.canvas.addEventListener("mousemove", this.onMouseMove);
     document.addEventListener("mouseup", this.onMouseUp);
+    document.addEventListener("mousemove", this.onHandleMove);
   }
 
   setVisible(v: boolean) {
     this.visible = v;
-    this.canvas.style.display = v ? "block" : "none";
+    this.wrapper.style.display = v ? "" : "none";
   }
 
   draw() {
@@ -131,19 +153,55 @@ export class Minimap {
     }
   }
 
+  // --- Canvas pan (click inside minimap to pan viewport) ---
   private onMouseDown = (e: MouseEvent) => {
     e.stopPropagation();
-    this.isDragging = true;
+    this.isPanning = true;
     this.panToMinimapClick(e);
   };
 
   private onMouseMove = (e: MouseEvent) => {
-    if (!this.isDragging) return;
+    if (!this.isPanning) return;
     this.panToMinimapClick(e);
   };
 
   private onMouseUp = () => {
-    this.isDragging = false;
+    this.isPanning = false;
+    this.isMoving = false;
+  };
+
+  // --- Handle drag (move the minimap itself) ---
+  private onHandleDown = (e: MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    this.isMoving = true;
+    this.moveStartX = e.clientX;
+    this.moveStartY = e.clientY;
+    const rect = this.wrapper.getBoundingClientRect();
+    const parentRect = this.wrapper.parentElement!.getBoundingClientRect();
+    this.moveStartLeft = rect.left - parentRect.left;
+    this.moveStartTop = rect.top - parentRect.top;
+    // Switch from bottom/right to top/left positioning on first drag
+    this.wrapper.style.bottom = "auto";
+    this.wrapper.style.right = "auto";
+    this.wrapper.style.left = this.moveStartLeft + "px";
+    this.wrapper.style.top = this.moveStartTop + "px";
+  };
+
+  private onHandleMove = (e: MouseEvent) => {
+    if (!this.isMoving) return;
+    e.preventDefault();
+    const dx = e.clientX - this.moveStartX;
+    const dy = e.clientY - this.moveStartY;
+    const parentRect = this.wrapper.parentElement!.getBoundingClientRect();
+    const wrapRect = this.wrapper.getBoundingClientRect();
+    let newLeft = this.moveStartLeft + dx;
+    let newTop = this.moveStartTop + dy;
+    // Clamp within parent
+    newLeft = Math.max(0, Math.min(newLeft, parentRect.width - wrapRect.width));
+    newTop = Math.max(0, Math.min(newTop, parentRect.height - wrapRect.height));
+    this.wrapper.style.left = newLeft + "px";
+    this.wrapper.style.top = newTop + "px";
   };
 
   private panToMinimapClick(e: MouseEvent) {
@@ -166,7 +224,8 @@ export class Minimap {
   }
 
   destroy() {
-    this.canvas.remove();
+    this.wrapper.remove();
     document.removeEventListener("mouseup", this.onMouseUp);
+    document.removeEventListener("mousemove", this.onHandleMove);
   }
 }
