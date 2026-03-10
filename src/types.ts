@@ -22,8 +22,6 @@ export interface GraphEdge {
   label?: string;
   /** Excalibrain-style relation name (e.g. "Author", "Location") */
   relation?: string;
-  /** Similarity score between 0 and 1 (future use) */
-  similarityScore?: number;
 }
 
 export interface GraphData {
@@ -41,7 +39,9 @@ export type EdgeType =
   | "inheritance"
   | "aggregation"
   | "has-tag"
-  | "similar";
+  | "similar"
+  | "sibling"
+  | "sequence";
 
 export type LayoutType =
   | "force"
@@ -174,25 +174,50 @@ export interface ConcentricLayoutResult {
   shells: ShellInfo[];
 }
 
+/** Explicit relationship between two tags (without nesting) */
+export interface TagRelation {
+  source: string;
+  target: string;
+  type: "inheritance" | "aggregation";
+}
+
 export interface OntologyConfig {
   /** Frontmatter/inline field names treated as inheritance (is-a) */
   inheritanceFields: string[];
   /** Frontmatter/inline field names treated as aggregation (has-a) */
   aggregationFields: string[];
+  /** Reverse inheritance fields — edge direction is inverted (Breadcrumbs child/down compat) */
+  reverseInheritanceFields: string[];
+  /** Reverse aggregation fields — edge direction is inverted (Breadcrumbs part-of compat) */
+  reverseAggregationFields: string[];
   /** Derive inheritance edges from nested tags like #a/b/c */
   useTagHierarchy: boolean;
   /** Frontmatter/inline field names treated as similarity (related-to) */
   similarFields: string[];
+  /** Frontmatter/inline field names treated as sibling (peer) — Breadcrumbs compat */
+  siblingFields: string[];
+  /** Frontmatter/inline field names treated as sequence (next) — Breadcrumbs compat */
+  sequenceFields: string[];
+  /** Reverse sequence fields (prev/previous) — edge direction is inverted */
+  reverseSequenceFields: string[];
   /** Map arbitrary relation names to ontology types (ExcaliBrain compat) */
-  customMappings: Record<string, "inheritance" | "aggregation" | "similar">;
+  customMappings: Record<string, "inheritance" | "aggregation" | "similar" | "sibling" | "sequence">;
+  /** Explicit tag-to-tag relationships (without nesting) */
+  tagRelations: TagRelation[];
 }
 
 export const DEFAULT_ONTOLOGY: OntologyConfig = {
   inheritanceFields: ["parent", "extends", "up"],
   aggregationFields: ["contains", "parts", "has"],
+  reverseInheritanceFields: ["child", "down"],
+  reverseAggregationFields: ["part-of", "belongs-to"],
   similarFields: ["similar", "related"],
+  siblingFields: ["sibling", "same"],
+  sequenceFields: ["next"],
+  reverseSequenceFields: ["prev", "previous"],
   useTagHierarchy: true,
   customMappings: {},
+  tagRelations: [],
 };
 
 export interface GraphViewsSettings {
