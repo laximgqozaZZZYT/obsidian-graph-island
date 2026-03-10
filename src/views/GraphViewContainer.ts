@@ -16,7 +16,7 @@ import { computeSunburstArcs } from "../layouts/sunburst";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
 import { yieldFrame, buildAdj, cssColorToHex } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
-import { drawEdges as drawEdgesImpl, type EdgeDrawConfig } from "./EdgeRenderer";
+import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
 import type { ClusterMetadata } from "../layouts/cluster-force";
@@ -95,6 +95,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private enclosureGraphics: PIXI.Graphics | null = null;
   private enclosureLabelContainer: PIXI.Container | null = null;
   private sunburstGraphics: PIXI.Graphics | null = null;
+  private edgeLabelContainer: PIXI.Container | null = null;
   private nodeCircleBatch: PIXI.Graphics | null = null;
   private pixiNodes: Map<string, PixiNode> = new Map();
   private canvasWrap: HTMLElement | null = null;
@@ -431,6 +432,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.enclosureGraphics = null;
     this.enclosureLabelContainer = null;
     this.sunburstGraphics = null;
+    this.edgeLabelContainer = null;
     this.nodeCircleBatch = null;
     this.spatialGrid.clear();
     if (this.pixiApp) {
@@ -505,6 +507,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const edgeGfx = new PIXI.Graphics();
       world.addChild(edgeGfx);
       this.edgeGraphics = edgeGfx;
+
+      // Edge label layer (PIXI.Text objects — on top of edges, below nodes)
+      const edgeLabelCont = new PIXI.Container();
+      world.addChild(edgeLabelCont);
+      this.edgeLabelContainer = edgeLabelCont;
 
       // Batch node circle layer — draws all non-highlighted circles in one draw call
       const batchGfx = new PIXI.Graphics();
@@ -883,13 +890,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       clusterRadii: this.clusterMeta?.clusterRadii ?? null,
       bundleStrength: this.panel.edgeBundleStrength,
       isDark: this.isDarkTheme(),
+      showEdgeLabels: this.panel.showEdgeLabels,
     };
+    const resolvePos = (ref: string | object) =>
+      typeof ref === "object" ? (ref as any) : this.pixiNodes.get(ref as string)?.data;
     drawEdgesImpl(
       this.edgeGraphics,
       this.graphEdges,
-      (ref) => typeof ref === "object" ? (ref as any) : this.pixiNodes.get(ref as string)?.data,
+      resolvePos,
       cfg,
     );
+    // Draw edge labels into dedicated container (on top of edges, below nodes)
+    if (this.edgeLabelContainer) {
+      drawEdgeLabelsImpl(
+        this.edgeLabelContainer,
+        this.graphEdges,
+        resolvePos,
+        cfg,
+      );
+    }
   }
 
   // =========================================================================
@@ -1298,6 +1317,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.doRender();
         this.requestSave();
       },
+      jumpToNode: (nodeId: string) => this.jumpToNode(nodeId),
+      getNodeIds: () => [...this.pixiNodes.keys()],
     };
     buildPanelUI(this.panelEl, this.panel, ctx, cb);
   }
@@ -1590,6 +1611,31 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private buildSortComparator(nodes: GraphNode[], edges: GraphEdge[]) { return this.layoutController.buildSortComparator(nodes, edges); }
   private computeNodeSpacingMap(nodes: GraphNode[]) { return this.layoutController.computeNodeSpacingMap(nodes); }
   private computeLiveCentroids() { return this.layoutController.computeLiveCentroids(this.clusterMeta); }
+
+  /**
+   * Pan the camera so that the given node is centered on screen, then highlight it.
+   */
+  private jumpToNode(nodeId: string) {
+    const pn = this.pixiNodes.get(nodeId);
+    if (!pn) return;
+
+    const world = this.worldContainer;
+    const wrap = this.canvasWrap;
+    if (!world || !wrap) return;
+
+    const worldX = pn.data.x;
+    const worldY = pn.data.y;
+    const screenCenterX = wrap.clientWidth / 2;
+    const screenCenterY = wrap.clientHeight / 2;
+
+    world.x = screenCenterX - worldX * world.scale.x;
+    world.y = screenCenterY - worldY * world.scale.y;
+
+    // Highlight the target node via search
+    this.panel.searchQuery = nodeId;
+    this.applySearch();
+    this.wakeRenderLoop();
+  }
 
   private applySearch() {
     const raw = this.panel.searchQuery;

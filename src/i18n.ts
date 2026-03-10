@@ -19,6 +19,7 @@ const en: TranslationMap = {
   "layout.arc": "Arc",
   "layout.sunburst": "Sunburst",
   "search.placeholder": "Search… hop:name:2",
+  "search.jumpHint": "Enter to jump to node",
 
   // --- PanelBuilder: section titles ---
   "section.concentricLayout": "Concentric Layout",
@@ -75,6 +76,7 @@ const en: TranslationMap = {
   "display.similar": "Similar (similar)",
   "display.sibling": "Sibling (peer)",
   "display.sequence": "Sequence (next/prev)",
+  "display.edgeLabels": "Show Edge Labels",
 
   // --- PanelBuilder: node rules ---
   "nodeRules.addRule": "Add Rule",
@@ -268,6 +270,7 @@ const ja: TranslationMap = {
   "layout.arc": "アーク",
   "layout.sunburst": "サンバースト",
   "search.placeholder": "検索… hop:名前:2",
+  "search.jumpHint": "Enterでノードにジャンプ",
 
   // --- PanelBuilder: section titles ---
   "section.concentricLayout": "同心円レイアウト",
@@ -324,6 +327,7 @@ const ja: TranslationMap = {
   "display.similar": "類似 (similar)",
   "display.sibling": "兄弟 (sibling)",
   "display.sequence": "順序 (next/prev)",
+  "display.edgeLabels": "エッジラベル表示",
 
   // --- PanelBuilder: node rules ---
   "nodeRules.addRule": "ルール追加",

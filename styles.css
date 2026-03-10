@@ -1179,3 +1179,40 @@
   font-style: italic;
   text-align: center;
 }
+
+/* =========================================================================
+   Search-jump dropdown (node jump results)
+   ========================================================================= */
+.gi-search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 101;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  margin-top: 2px;
+  box-shadow: var(--shadow-s);
+}
+
+.gi-search-result-hint {
+  padding: 4px 8px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.gi-search-result-item {
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+}
+
+.gi-search-result-item:hover,
+.gi-search-result-item.is-selected {
+  background: var(--background-modifier-hover);
+}

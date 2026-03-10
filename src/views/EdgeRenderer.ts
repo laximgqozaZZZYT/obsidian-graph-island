@@ -14,6 +14,8 @@ export interface EdgeDrawConfig {
   showAggregation: boolean;
   showTagNodes: boolean;
   showSimilar: boolean;
+  showSibling: boolean;
+  showSequence: boolean;
   colorEdgesByRelation: boolean;
   isArcLayout: boolean;
   highlightedNodeId: string | null;
@@ -39,6 +41,8 @@ export interface EdgeDrawConfig {
   bundleStrength: number;
   /** Whether the current Obsidian theme is dark (affects edge color defaults) */
   isDark: boolean;
+  /** Show relation/type labels on edges */
+  showEdgeLabels: boolean;
 }
 
 // Minimal position data needed for source/target
@@ -59,6 +63,8 @@ function shouldSkipEdge(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
     case "aggregation": return !cfg.showAggregation;
     case "has-tag": return !cfg.showTagNodes;
     case "similar": return !cfg.showSimilar;
+    case "sibling": return !cfg.showSibling;
+    case "sequence": return !cfg.showSequence;
     default: return !cfg.showLinks; // untyped edges treated as links
   }
 }
@@ -73,6 +79,8 @@ const INHERITANCE_COLOR = 0x9ca3af;
 const AGGREGATION_COLOR = 0x60a5fa;
 const SIMILAR_COLOR = 0xfbbf24;
 const HAS_TAG_COLOR = 0xa78bfa;
+const SIBLING_COLOR = 0x34d399;   // green — peer relationship
+const SEQUENCE_COLOR = 0xfb923c;  // orange — sequential order
 
 /** Number of angular bins over [0, π). 6 bins = 30° each. */
 const ANGLE_BINS = 6;
@@ -95,6 +103,8 @@ function resolveEdgeColor(
   if (e.type === "aggregation") return AGGREGATION_COLOR;
   if (e.type === "similar") return SIMILAR_COLOR;
   if (e.type === "has-tag") return HAS_TAG_COLOR;
+  if (e.type === "sibling") return SIBLING_COLOR;
+  if (e.type === "sequence") return SEQUENCE_COLOR;
   if (useRelColor && e.relation) {
     const css = relationColors.get(e.relation);
     if (css) return cssColorToHex(css);
@@ -532,7 +542,8 @@ export function drawEdges(
     // Determine alpha & thickness
     const isSimilar = e.type === "similar";
     const isOnto = e.type === "inheritance" || e.type === "aggregation";
-    const isStructural = isOnto || e.type === "has-tag" || isSimilar;
+    const isBreadcrumbs = e.type === "sibling" || e.type === "sequence";
+    const isStructural = isOnto || e.type === "has-tag" || isSimilar || isBreadcrumbs;
     let alpha = (isStructural ? 0.7 : 0.65) * densityScale;
     let lineThick = 1;
 
@@ -618,6 +629,11 @@ export function drawEdges(
     if (isOnto) {
       drawEdgeMarker(g, src, tgt, e.type as "inheritance" | "aggregation", lineColor, alpha, cfg.bgColor);
     }
+
+    // Draw arrow for sequence edges (next/prev)
+    if (e.type === "sequence") {
+      drawSequenceArrow(g, src, tgt, lineColor, alpha);
+    }
   }
 }
 
@@ -673,5 +689,118 @@ function drawEdgeMarker(
     g.lineTo(mx - px * sz * 0.4, my - py * sz * 0.4);
     g.closePath();
     g.endFill();
+  }
+}
+
+/**
+ * Draw a filled arrow at the target end of a sequence edge (→ direction).
+ */
+function drawSequenceArrow(
+  g: PIXI.Graphics,
+  src: Pos,
+  tgt: Pos,
+  color: number,
+  alpha: number,
+) {
+  const dx = tgt.x - src.x;
+  const dy = tgt.y - src.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 1) return;
+
+  const ux = dx / len;
+  const uy = dy / len;
+  const px = -uy;
+  const py = ux;
+  const sz = 7;
+
+  const bx = tgt.x - ux * sz;
+  const by = tgt.y - uy * sz;
+  g.lineStyle({ width: 1, color, alpha, native: true });
+  g.beginFill(color, alpha);
+  g.moveTo(tgt.x, tgt.y);
+  g.lineTo(bx + px * sz * 0.4, by + py * sz * 0.4);
+  g.lineTo(bx - px * sz * 0.4, by - py * sz * 0.4);
+  g.closePath();
+  g.endFill();
+}
+
+// ---------------------------------------------------------------------------
+// Edge label helpers
+// ---------------------------------------------------------------------------
+
+/** Maximum number of edge labels to render (performance guard) */
+const MAX_EDGE_LABELS = 200;
+
+/**
+ * Determine the display label for an edge.
+ * Returns the custom relation name if set, otherwise a short type label.
+ * Returns null for edge types that should not display a label (links, has-tag).
+ */
+function getEdgeLabel(e: GraphEdge): string | null {
+  if (e.relation) return e.relation;
+  switch (e.type) {
+    case "inheritance": return "is-a";
+    case "aggregation": return "has-a";
+    case "similar": return "\u2248"; // ≈
+    case "sibling": return "sibling";
+    case "sequence": return "seq";
+    case "has-tag": return null;
+    default: return null; // plain links — no label
+  }
+}
+
+/**
+ * Draw text labels on edges into a dedicated PIXI.Container.
+ *
+ * Labels are placed at the midpoint of each edge.  When the total number of
+ * labelable edges exceeds MAX_EDGE_LABELS the labels are skipped entirely to
+ * avoid performance degradation from excessive PIXI.Text objects.
+ */
+export function drawEdgeLabels(
+  container: PIXI.Container,
+  edges: GraphEdge[],
+  resolvePos: (ref: string | object) => Pos | undefined,
+  cfg: EdgeDrawConfig,
+): void {
+  // Remove all previous labels
+  container.removeChildren();
+
+  if (!cfg.showEdgeLabels) return;
+
+  // Collect labelable edges (skip hidden types and those without a label)
+  const labelable: { edge: GraphEdge; label: string }[] = [];
+  for (const e of edges) {
+    if (shouldSkipEdge(e, cfg)) continue;
+    const label = getEdgeLabel(e);
+    if (!label) continue;
+    labelable.push({ edge: e, label });
+  }
+
+  // Performance guard: skip labels when there are too many
+  if (labelable.length > MAX_EDGE_LABELS) return;
+
+  const fillColor = cfg.isDark ? 0xcccccc : 0x444444;
+
+  for (const { edge: e, label } of labelable) {
+    const sp = resolvePos(e.source);
+    const tp = resolvePos(e.target);
+    if (!sp || !tp) continue;
+
+    // Place label at edge midpoint
+    const mx = (sp.x + tp.x) / 2;
+    const my = (sp.y + tp.y) / 2;
+
+    const text = new PIXI.Text(label, {
+      fontSize: 10,
+      fill: fillColor,
+      fontFamily: "sans-serif",
+    });
+    text.anchor.set(0.5, 0.5);
+    text.x = mx;
+    text.y = my;
+    text.alpha = 0.7;
+    text.resolution = 2;
+
+    container.addChild(text);
   }
 }

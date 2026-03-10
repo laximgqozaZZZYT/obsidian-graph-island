@@ -35,6 +35,8 @@ export interface PanelState {
   showTagNodes: boolean;
   tagDisplay: "node" | "enclosure";
   showSimilar: boolean;
+  showSibling: boolean;
+  showSequence: boolean;
   showLinks: boolean;
   showTagEdges: boolean;
   showCategoryEdges: boolean;
@@ -52,6 +54,7 @@ export interface PanelState {
   edgeBundleStrength: number;
   sortRules: SortRule[];
   nodeRules: NodeRule[];
+  showEdgeLabels: boolean;
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -80,6 +83,8 @@ export const DEFAULT_PANEL: PanelState = {
   showTagNodes: true,
   tagDisplay: "enclosure" as const,
   showSimilar: false,
+  showSibling: true,
+  showSequence: true,
   showLinks: true,
   showTagEdges: true,
   showCategoryEdges: true,
@@ -97,6 +102,7 @@ export const DEFAULT_PANEL: PanelState = {
   edgeBundleStrength: 0.65,
   sortRules: [{ key: "degree" as SortKey, order: "desc" as SortOrder }],
   nodeRules: [],
+  showEdgeLabels: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -122,6 +128,8 @@ export interface PanelCallbacks {
   saveGroupPreset(): void;
   resetPanel(): void;
   applyPreset(preset: "simple" | "analysis" | "creative"): void;
+  jumpToNode(nodeId: string): void;
+  getNodeIds(): string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -154,26 +162,27 @@ export function buildPanel(
   // =========================================================================
   // Top bar: Search (always visible, outside sections)
   // =========================================================================
-  const topBar = panelEl.createDiv({ cls: "ngp-top-bar" });
+  const topBar = panelEl.createDiv({ cls: "gi-top-bar" });
 
   // --- Search bar ---
   const searchBar = topBar.createEl("input", {
-    cls: "ngp-search ngp-top-search",
+    cls: "gi-search gi-top-search",
     type: "text",
     placeholder: t("search.placeholder"),
   });
   searchBar.value = panel.searchQuery;
   searchBar.addEventListener("input", () => { panel.searchQuery = searchBar.value; cb.applySearch(); });
   attachQueryHint(searchBar, (field) => cb.collectValueSuggestions(field));
+  attachSearchJump(searchBar, cb);
 
   // =========================================================================
   // P2: Empty state — shown when no nodes are in the graph
   // =========================================================================
   if (ctx.nodeCount === 0) {
-    const empty = panelEl.createDiv({ cls: "ngp-empty-state" });
-    empty.createEl("div", { cls: "ngp-empty-title", text: t("empty.title") });
-    empty.createEl("p", { cls: "ngp-empty-hint", text: t("empty.hint") });
-    const steps = empty.createEl("ol", { cls: "ngp-empty-steps" });
+    const empty = panelEl.createDiv({ cls: "gi-empty-state" });
+    empty.createEl("div", { cls: "gi-empty-title", text: t("empty.title") });
+    empty.createEl("p", { cls: "gi-empty-hint", text: t("empty.hint") });
+    const steps = empty.createEl("ol", { cls: "gi-empty-steps" });
     steps.createEl("li", { text: t("empty.step1") });
     steps.createEl("li", { text: t("empty.step2") });
     steps.createEl("li", { text: t("empty.step3") });
@@ -202,7 +211,7 @@ export function buildPanel(
         ctx.shells.forEach((shell, i) => {
           if (i === 0 && shell.nodeIds.length === 1) return;
           const label = `軌道 ${i} (${shell.nodeIds.length}ノード)`;
-          body.createEl("div", { cls: "ngp-orbit-label", text: label });
+          body.createEl("div", { cls: "gi-orbit-label", text: label });
           addSlider(body, t("orbit.radius"), 10, 500, 5, shell.radius, (v) => {
             shell.radius = v;
             const nodeMap = new Map<string, GraphNode>();
@@ -217,7 +226,7 @@ export function buildPanel(
             shell.rotationDirection = v;
           });
         });
-        body.createEl("p", { cls: "ngp-hint", text: t("orbit.dragHint") });
+        body.createEl("p", { cls: "gi-hint", text: t("orbit.dragHint") });
       }, undefined, true);
     }
   }
@@ -242,7 +251,7 @@ export function buildPanel(
     // --- Group color rules list ---
     const list = body.createDiv();
     renderGroupList(list, panel, cb);
-    const addBtn = body.createEl("button", { cls: "ngp-add-group", text: t("groups.addGroup") });
+    const addBtn = body.createEl("button", { cls: "gi-add-group", text: t("groups.addGroup") });
     addBtn.addEventListener("click", () => {
       const idx = panel.groups.length;
       panel.groups.push({ expression: null, color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length] });
@@ -269,13 +278,16 @@ export function buildPanel(
     addToggle(body, t("display.inheritance"), panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); });
     addToggle(body, t("display.aggregation"), panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); });
     addToggle(body, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateData(); });
+    addToggle(body, t("display.sibling"), panel.showSibling, (v) => { panel.showSibling = v; cb.markDirty(); });
+    addToggle(body, t("display.sequence"), panel.showSequence, (v) => { panel.showSequence = v; cb.markDirty(); });
+    addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); });
   }, tHelp("help.display"));
 
   buildSection(panelEl, t("section.nodeRules"), (body) => {
-    const ruleListEl = body.createDiv({ cls: "ngp-noderule-list" });
+    const ruleListEl = body.createDiv({ cls: "gi-noderule-list" });
     renderNodeRuleList(ruleListEl, panel, cb);
 
-    const addBtn = body.createEl("button", { cls: "ngp-add-group", text: t("nodeRules.addRule") });
+    const addBtn = body.createEl("button", { cls: "gi-add-group", text: t("nodeRules.addRule") });
     addBtn.addEventListener("click", () => {
       panel.nodeRules.push({ query: "*", spacingMultiplier: 1.0, gravityAngle: -1, gravityStrength: 0.1 });
       renderNodeRuleList(ruleListEl, panel, cb);
@@ -289,7 +301,7 @@ export function buildPanel(
       const container = body.createDiv({ cls: "graph-color-groups-container" });
       for (const [rel, color] of ctx.relationColors) {
         const group = container.createDiv({ cls: "graph-color-group" });
-        const label = group.createEl("span", { text: rel, cls: "graph-color-group-label ngp-color-group-label" });
+        const label = group.createEl("span", { text: rel, cls: "graph-color-group-label gi-color-group-label" });
         const picker = group.createEl("input", { type: "color" });
         picker.setAttribute("aria-label", t("relationColors.changeColor"));
         picker.value = color;
@@ -341,10 +353,10 @@ export function buildPanel(
       // --- Cluster group rules sub-section ---
       const clusterHeader = body.createDiv({ cls: "setting-item" });
       clusterHeader.createDiv({ cls: "setting-item-name", text: t("cluster.groupRulesHeading") });
-      const clusterListEl = body.createDiv({ cls: "ngp-cluster-rule-list" });
+      const clusterListEl = body.createDiv({ cls: "gi-cluster-rule-list" });
       renderClusterRuleList(clusterListEl, panel, cb);
 
-      const addClusterBtn = body.createEl("button", { cls: "ngp-add-group", text: t("cluster.addGroupRule") });
+      const addClusterBtn = body.createEl("button", { cls: "gi-add-group", text: t("cluster.addGroupRule") });
       addClusterBtn.addEventListener("click", () => {
         panel.clusterGroupRules.push({ groupBy: "tag", recursive: false });
         renderClusterRuleList(clusterListEl, panel, cb);
@@ -356,10 +368,10 @@ export function buildPanel(
       // --- Directional gravity rules sub-section ---
       const gravHeader = body.createDiv({ cls: "setting-item" });
       gravHeader.createDiv({ cls: "setting-item-name", text: t("cluster.gravityRulesHeading") });
-      const gravListEl = body.createDiv({ cls: "ngp-gravity-rule-list" });
+      const gravListEl = body.createDiv({ cls: "gi-gravity-rule-list" });
       renderDirectionalGravityList(gravListEl, panel, ctx, cb);
 
-      const addGravBtn = body.createEl("button", { cls: "ngp-add-group", text: t("cluster.addGravityRule") });
+      const addGravBtn = body.createEl("button", { cls: "gi-add-group", text: t("cluster.addGravityRule") });
       addGravBtn.addEventListener("click", () => {
         panel.directionalGravityRules.push({ filter: "*", direction: "top", strength: 0.1 });
         renderDirectionalGravityList(gravListEl, panel, ctx, cb);
@@ -370,10 +382,10 @@ export function buildPanel(
       // --- Sort rules sub-section ---
       const sortHeader = body.createDiv({ cls: "setting-item" });
       sortHeader.createDiv({ cls: "setting-item-name", text: t("cluster.sortHeading") });
-      const sortListEl = body.createDiv({ cls: "ngp-sort-list" });
+      const sortListEl = body.createDiv({ cls: "gi-sort-list" });
       renderSortRuleList(sortListEl, panel, cb);
 
-      const addSortBtn = body.createEl("button", { cls: "ngp-add-group", text: t("cluster.addSortRule") });
+      const addSortBtn = body.createEl("button", { cls: "gi-add-group", text: t("cluster.addSortRule") });
       addSortBtn.addEventListener("click", () => {
         panel.sortRules.push({ key: "label", order: "asc" });
         renderSortRuleList(sortListEl, panel, cb);
@@ -424,7 +436,7 @@ export function buildPanel(
     });
 
     // --- Ontology sub-section ---
-    body.createEl("div", { cls: "setting-item-name ngp-ontology-heading", text: t("settings.ontologyHeading") });
+    body.createEl("div", { cls: "setting-item-name gi-ontology-heading", text: t("settings.ontologyHeading") });
 
     addTextInput(body, t("settings.inheritanceFields"), s.ontology.inheritanceFields.join(", "), "parent, extends, up", (v) => {
       s.ontology.inheritanceFields = v.split(",").map(x => x.trim()).filter(Boolean);
@@ -438,8 +450,38 @@ export function buildPanel(
       cb.invalidateData();
     });
 
+    addTextInput(body, t("settings.reverseInheritanceFields"), (s.ontology.reverseInheritanceFields ?? []).join(", "), "child, down", (v) => {
+      s.ontology.reverseInheritanceFields = v.split(",").map(x => x.trim()).filter(Boolean);
+      ctx.saveSettings();
+      cb.invalidateData();
+    });
+
+    addTextInput(body, t("settings.reverseAggregationFields"), (s.ontology.reverseAggregationFields ?? []).join(", "), "part-of, belongs-to", (v) => {
+      s.ontology.reverseAggregationFields = v.split(",").map(x => x.trim()).filter(Boolean);
+      ctx.saveSettings();
+      cb.invalidateData();
+    });
+
     addTextInput(body, t("settings.similarFields"), s.ontology.similarFields.join(", "), "similar, related", (v) => {
       s.ontology.similarFields = v.split(",").map(x => x.trim()).filter(Boolean);
+      ctx.saveSettings();
+      cb.invalidateData();
+    });
+
+    addTextInput(body, t("settings.siblingFields"), (s.ontology.siblingFields ?? []).join(", "), "sibling, same", (v) => {
+      s.ontology.siblingFields = v.split(",").map(x => x.trim()).filter(Boolean);
+      ctx.saveSettings();
+      cb.invalidateData();
+    });
+
+    addTextInput(body, t("settings.sequenceFields"), (s.ontology.sequenceFields ?? []).join(", "), "next", (v) => {
+      s.ontology.sequenceFields = v.split(",").map(x => x.trim()).filter(Boolean);
+      ctx.saveSettings();
+      cb.invalidateData();
+    });
+
+    addTextInput(body, t("settings.reverseSequenceFields"), (s.ontology.reverseSequenceFields ?? []).join(", "), "prev, previous", (v) => {
+      s.ontology.reverseSequenceFields = v.split(",").map(x => x.trim()).filter(Boolean);
       ctx.saveSettings();
       cb.invalidateData();
     });
@@ -449,10 +491,20 @@ export function buildPanel(
       ctx.saveSettings();
       cb.invalidateData();
     });
+
+    // --- Custom Mappings (ExcaliBrain compat) ---
+    body.createEl("div", { cls: "setting-item-name gi-ontology-heading", text: t("settings.customMappingsHeading") });
+    const mappingsListEl = body.createDiv({ cls: "gi-mappings-list" });
+    renderCustomMappings(mappingsListEl, s, ctx, cb);
+
+    // --- Tag Relations ---
+    body.createEl("div", { cls: "setting-item-name gi-ontology-heading", text: t("settings.tagRelationsHeading") });
+    const tagRelListEl = body.createDiv({ cls: "gi-tag-relations-list" });
+    renderTagRelations(tagRelListEl, s, ctx, cb);
   }, tHelp("help.pluginSettings"), true);
 
   // --- 設定保存・初期化ボタン（パネル末尾） ---
-  const actionRow = panelEl.createDiv({ cls: "ngp-panel-actions ngp-action-row" });
+  const actionRow = panelEl.createDiv({ cls: "gi-panel-actions gi-action-row" });
 
   const saveBtn = actionRow.createEl("button", { cls: "mod-cta", text: t("action.save") });
   saveBtn.addEventListener("click", () => cb.saveGroupPreset());
@@ -487,14 +539,14 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
   header.createEl("span", { cls: "tree-item-inner", text: title });
 
   if (helpText) {
-    const helpBtn = header.createEl("span", { cls: "clickable-icon ngp-section-help", attr: { "aria-label": t("help.ariaLabel") } });
-    helpBtn.addClass("ngp-help-btn");
+    const helpBtn = header.createEl("span", { cls: "clickable-icon gi-section-help", attr: { "aria-label": t("help.ariaLabel") } });
+    helpBtn.addClass("gi-help-btn");
     setIcon(helpBtn, "help-circle");
     helpBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      const existing = section.querySelector(".ngp-help-popup");
+      const existing = section.querySelector(".gi-help-popup");
       if (existing) { existing.remove(); return; }
-      const popup = section.createDiv({ cls: "ngp-help-popup" });
+      const popup = section.createDiv({ cls: "gi-help-popup" });
       popup.textContent = helpText;
     });
   }
@@ -502,7 +554,7 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
   const body = section.createDiv({ cls: "tree-item-children" });
   build(body);
   header.addEventListener("click", (e) => {
-    if ((e.target as HTMLElement).closest(".ngp-section-help")) return;
+    if ((e.target as HTMLElement).closest(".gi-section-help")) return;
     const collapsed = section.hasClass("is-collapsed");
     section.toggleClass("is-collapsed", !collapsed);
   });
@@ -514,9 +566,9 @@ function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
     { key: "analysis", labelKey: "preset.analysis", descKey: "preset.analysisDesc" },
     { key: "creative", labelKey: "preset.creative", descKey: "preset.creativeDesc" },
   ];
-  const bar = container.createDiv({ cls: "ngp-preset-bar" });
+  const bar = container.createDiv({ cls: "gi-preset-bar" });
   for (const p of presets) {
-    const btn = bar.createEl("button", { cls: "ngp-preset-btn", text: t(p.labelKey) });
+    const btn = bar.createEl("button", { cls: "gi-preset-btn", text: t(p.labelKey) });
     btn.setAttribute("aria-label", t(p.descKey));
     btn.title = t(p.descKey);
     btn.addEventListener("click", () => cb.applyPreset(p.key));
@@ -550,13 +602,121 @@ function addToggle(container: HTMLElement, label: string, initial: boolean, onCh
 }
 
 function addTextInput(container: HTMLElement, label: string, initial: string, placeholder: string, onChange: (v: string) => void) {
-  const row = container.createDiv({ cls: "setting-item ngp-full-width-row" });
+  const row = container.createDiv({ cls: "setting-item gi-full-width-row" });
   const info = row.createDiv({ cls: "setting-item-info" });
   info.createDiv({ cls: "setting-item-name", text: label });
   const control = row.createDiv({ cls: "setting-item-control" });
   const input = control.createEl("input", { type: "text", placeholder });
   input.value = initial;
   input.addEventListener("change", () => onChange(input.value));
+}
+
+// ---------------------------------------------------------------------------
+// Custom Mappings UI (ExcaliBrain compat)
+// ---------------------------------------------------------------------------
+function renderCustomMappings(
+  container: HTMLElement,
+  s: GraphViewsSettings,
+  ctx: PanelContext,
+  cb: PanelCallbacks,
+) {
+  container.empty();
+  if (!s.ontology.customMappings) s.ontology.customMappings = {};
+  const entries = Object.entries(s.ontology.customMappings);
+
+  for (const [field, type] of entries) {
+    const row = container.createDiv({ cls: "gi-mapping-row" });
+
+    const fieldInput = row.createEl("input", { type: "text", cls: "gi-mapping-field", placeholder: t("settings.mappingFieldPlaceholder") });
+    fieldInput.value = field;
+
+    const typeSelect = row.createEl("select", { cls: "gi-mapping-type dropdown" });
+    for (const opt of ["inheritance", "aggregation", "similar", "sibling", "sequence"] as const) {
+      const optEl = typeSelect.createEl("option", { value: opt, text: t(`settings.mappingType.${opt}`) });
+      if (opt === type) optEl.selected = true;
+    }
+
+    const removeBtn = row.createEl("button", { cls: "gi-mapping-remove clickable-icon", text: "\u00d7" });
+
+    const update = () => {
+      const oldField = field;
+      const newField = fieldInput.value.trim();
+      const newType = typeSelect.value as "inheritance" | "aggregation" | "similar";
+      if (oldField !== newField) delete s.ontology.customMappings[oldField];
+      if (newField) s.ontology.customMappings[newField] = newType;
+      ctx.saveSettings();
+      cb.invalidateData();
+    };
+    fieldInput.addEventListener("change", update);
+    typeSelect.addEventListener("change", update);
+    removeBtn.addEventListener("click", () => {
+      delete s.ontology.customMappings[field];
+      ctx.saveSettings();
+      cb.invalidateData();
+      renderCustomMappings(container, s, ctx, cb);
+    });
+  }
+
+  const addBtn = container.createEl("button", { cls: "gi-add-group", text: t("settings.addMapping") });
+  addBtn.addEventListener("click", () => {
+    s.ontology.customMappings[""] = "inheritance";
+    renderCustomMappings(container, s, ctx, cb);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Tag Relations UI (explicit tag-to-tag relationships)
+// ---------------------------------------------------------------------------
+function renderTagRelations(
+  container: HTMLElement,
+  s: GraphViewsSettings,
+  ctx: PanelContext,
+  cb: PanelCallbacks,
+) {
+  container.empty();
+  if (!s.ontology.tagRelations) s.ontology.tagRelations = [];
+
+  for (let i = 0; i < s.ontology.tagRelations.length; i++) {
+    const rel = s.ontology.tagRelations[i];
+    const row = container.createDiv({ cls: "gi-tag-rel-row" });
+
+    const srcInput = row.createEl("input", { type: "text", cls: "gi-tag-rel-src", placeholder: t("settings.tagRelSourcePlaceholder") });
+    srcInput.value = rel.source;
+
+    const typeSelect = row.createEl("select", { cls: "gi-tag-rel-type dropdown" });
+    for (const opt of ["inheritance", "aggregation"] as const) {
+      const optEl = typeSelect.createEl("option", { value: opt, text: t(`settings.tagRelType.${opt}`) });
+      if (opt === rel.type) optEl.selected = true;
+    }
+
+    const tgtInput = row.createEl("input", { type: "text", cls: "gi-tag-rel-tgt", placeholder: t("settings.tagRelTargetPlaceholder") });
+    tgtInput.value = rel.target;
+
+    const removeBtn = row.createEl("button", { cls: "gi-tag-rel-remove clickable-icon", text: "\u00d7" });
+
+    const update = () => {
+      rel.source = srcInput.value.trim().replace(/^#/, "");
+      rel.target = tgtInput.value.trim().replace(/^#/, "");
+      rel.type = typeSelect.value as "inheritance" | "aggregation";
+      ctx.saveSettings();
+      cb.invalidateData();
+    };
+    srcInput.addEventListener("change", update);
+    tgtInput.addEventListener("change", update);
+    typeSelect.addEventListener("change", update);
+    removeBtn.addEventListener("click", () => {
+      s.ontology.tagRelations.splice(i, 1);
+      ctx.saveSettings();
+      cb.invalidateData();
+      renderTagRelations(container, s, ctx, cb);
+    });
+  }
+
+  const addBtn = container.createEl("button", { cls: "gi-add-group", text: t("settings.addTagRelation") });
+  addBtn.addEventListener("click", () => {
+    s.ontology.tagRelations.push({ source: "", target: "", type: "inheritance" });
+    renderTagRelations(container, s, ctx, cb);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -611,7 +771,7 @@ function attachQueryHint(input: HTMLInputElement, getSuggestions: (field: string
 
   // Create anchor wrapper immediately (not during focus, which would steal focus)
   const anchor = document.createElement("div");
-  anchor.className = "ngp-suggest-anchor";
+  anchor.className = "gi-suggest-anchor";
   input.parentNode!.insertBefore(anchor, input);
   anchor.appendChild(input);
 
@@ -771,6 +931,121 @@ function attachQueryHint(input: HTMLInputElement, getSuggestions: (field: string
   });
 }
 
+// ---------------------------------------------------------------------------
+// Search-jump dropdown: shows matching node IDs and jumps to selected node
+// ---------------------------------------------------------------------------
+function attachSearchJump(input: HTMLInputElement, cb: PanelCallbacks) {
+  let dropdownEl: HTMLElement | null = null;
+  let selectedIdx = 0;
+  let filteredIds: string[] = [];
+
+  // The input is already inside an ngp-suggest-anchor wrapper (from attachQueryHint).
+  // We attach our dropdown to the same anchor so it stacks correctly.
+  const getAnchor = (): HTMLElement => input.closest(".ngp-suggest-anchor") ?? input.parentElement!;
+
+  const dismiss = () => {
+    dropdownEl?.remove();
+    dropdownEl = null;
+    filteredIds = [];
+    selectedIdx = 0;
+  };
+
+  const updateSelection = () => {
+    if (!dropdownEl) return;
+    const items = dropdownEl.querySelectorAll(".gi-search-result-item");
+    items.forEach((el, i) => el.classList.toggle("is-selected", i === selectedIdx));
+  };
+
+  const jumpToSelected = () => {
+    if (filteredIds.length > 0 && selectedIdx >= 0 && selectedIdx < filteredIds.length) {
+      cb.jumpToNode(filteredIds[selectedIdx]);
+      dismiss();
+    }
+  };
+
+  const rebuild = () => {
+    const query = input.value.trim().toLowerCase();
+    // Don't show the jump dropdown for structured queries (field:value, hop:, etc.)
+    if (!query || /^[a-z]+:/i.test(query)) {
+      dismiss();
+      return;
+    }
+
+    const allIds = cb.getNodeIds();
+    filteredIds = allIds.filter(id => id.toLowerCase().includes(query)).slice(0, 10);
+
+    if (filteredIds.length === 0) {
+      dismiss();
+      return;
+    }
+
+    if (!dropdownEl) {
+      dropdownEl = document.createElement("div");
+      dropdownEl.className = "gi-search-results";
+      getAnchor().appendChild(dropdownEl);
+    }
+
+    // Clear and rebuild items
+    dropdownEl.empty();
+
+    // Hint header
+    const hint = dropdownEl.createDiv({ cls: "gi-search-result-hint" });
+    hint.textContent = t("search.jumpHint");
+
+    for (let i = 0; i < filteredIds.length; i++) {
+      const id = filteredIds[i];
+      const item = dropdownEl.createDiv({ cls: "gi-search-result-item" });
+      item.textContent = id;
+      item.addEventListener("click", () => {
+        cb.jumpToNode(id);
+        dismiss();
+      });
+      item.addEventListener("mouseenter", () => {
+        selectedIdx = i;
+        updateSelection();
+      });
+    }
+
+    selectedIdx = 0;
+    updateSelection();
+  };
+
+  input.addEventListener("input", () => {
+    // Defer slightly so attachQueryHint processes first
+    setTimeout(rebuild, 50);
+  });
+
+  input.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (!dropdownEl || filteredIds.length === 0) return;
+    if (e.key === "Enter") {
+      // Only handle Enter for jump when the query hint dropdown is NOT visible.
+      const anchor = getAnchor();
+      const queryHint = anchor.querySelector(".suggestion-container.mod-search-suggestion");
+      if (queryHint) return; // let attachQueryHint handle it
+      e.preventDefault();
+      jumpToSelected();
+    } else if (e.key === "Escape") {
+      dismiss();
+    } else if (e.key === "ArrowDown") {
+      if (!getAnchor().querySelector(".suggestion-container.mod-search-suggestion")) {
+        e.preventDefault();
+        selectedIdx = (selectedIdx + 1) % filteredIds.length;
+        updateSelection();
+      }
+    } else if (e.key === "ArrowUp") {
+      if (!getAnchor().querySelector(".suggestion-container.mod-search-suggestion")) {
+        e.preventDefault();
+        selectedIdx = (selectedIdx - 1 + filteredIds.length) % filteredIds.length;
+        updateSelection();
+      }
+    }
+  });
+
+  input.addEventListener("blur", () => {
+    setTimeout(dismiss, 200);
+  });
+}
+
 function addSelect(container: HTMLElement, label: string, options: { value: string; label: string }[], initial: string, onChange: (v: string) => void) {
   const row = container.createDiv({ cls: "setting-item" });
   const info = row.createDiv({ cls: "setting-item-info" });
@@ -789,7 +1064,7 @@ function addDirectionToggle(container: HTMLElement, label: string, initial: 1 | 
   const info = row.createDiv({ cls: "setting-item-info" });
   info.createDiv({ cls: "setting-item-name", text: label });
   const control = row.createDiv({ cls: "setting-item-control" });
-  const btn = control.createEl("button", { cls: "ngp-direction-btn", text: initial === 1 ? t("direction.clockwise") : t("direction.counterClockwise") });
+  const btn = control.createEl("button", { cls: "gi-direction-btn", text: initial === 1 ? t("direction.clockwise") : t("direction.counterClockwise") });
   btn.dataset.dir = initial === 1 ? "cw" : "ccw";
   btn.addEventListener("click", () => {
     const next: 1 | -1 = btn.dataset.dir === "cw" ? -1 : 1;
@@ -802,13 +1077,13 @@ function addDirectionToggle(container: HTMLElement, label: string, initial: 1 | 
 function renderGroupList(container: HTMLElement, panel: PanelState, cb: PanelCallbacks) {
   container.empty();
   panel.groups.forEach((g, i) => {
-    const wrapper = container.createDiv({ cls: "ngp-group-wrapper ngp-color-group-wrapper" });
+    const wrapper = container.createDiv({ cls: "gi-group-wrapper gi-color-group-wrapper" });
 
     // Top row: color dot + text input + expand + remove
-    const row = wrapper.createDiv({ cls: "ngp-group-item ngp-color-group-row" });
+    const row = wrapper.createDiv({ cls: "gi-group-item gi-color-group-row" });
 
     // Color dot
-    const colorDot = row.createDiv({ cls: "ngp-group-color ngp-color-dot" });
+    const colorDot = row.createDiv({ cls: "gi-group-color gi-color-dot" });
     colorDot.style.background = g.color;
     colorDot.addEventListener("click", () => {
       const next = DEFAULT_COLORS[(DEFAULT_COLORS.indexOf(g.color as typeof DEFAULT_COLORS[number]) + 1) % DEFAULT_COLORS.length];
@@ -818,8 +1093,8 @@ function renderGroupList(container: HTMLElement, panel: PanelState, cb: PanelCal
     });
 
     // Expression text input with parse-on-input
-    const exprInput = row.createEl("input", { cls: "ngp-group-query", type: "text", placeholder: 'tag:"character" AND category:"person"' });
-    exprInput.addClass("ngp-expr-input");
+    const exprInput = row.createEl("input", { cls: "gi-group-query", type: "text", placeholder: 'tag:"character" AND category:"person"' });
+    exprInput.addClass("gi-expr-input");
     exprInput.value = g.expression ? serializeExpr(g.expression) : "";
     exprInput.addEventListener("input", () => {
       g.expression = parseQueryExpr(exprInput.value);
@@ -828,8 +1103,8 @@ function renderGroupList(container: HTMLElement, panel: PanelState, cb: PanelCal
     attachQueryHint(exprInput, (field) => cb.collectValueSuggestions(field));
 
     // Expand button → opens row-based editor
-    const expandBtn = row.createEl("span", { cls: "ngp-group-expand", text: "▼" });
-    expandBtn.addClass("ngp-expand-btn");
+    const expandBtn = row.createEl("span", { cls: "gi-group-expand", text: "▼" });
+    expandBtn.addClass("gi-expand-btn");
     let editorEl: HTMLElement | null = null;
     expandBtn.addEventListener("click", () => {
       if (editorEl) {
@@ -840,12 +1115,12 @@ function renderGroupList(container: HTMLElement, panel: PanelState, cb: PanelCal
         return;
       }
       expandBtn.textContent = "▲";
-      editorEl = wrapper.createDiv({ cls: "ngp-expr-editor" });
+      editorEl = wrapper.createDiv({ cls: "gi-expr-editor" });
       renderExprEditor(editorEl, g, exprInput, cb);
     });
 
     // Remove button
-    const rm = row.createEl("span", { cls: "ngp-group-remove ngp-remove-btn", text: "×" });
+    const rm = row.createEl("span", { cls: "gi-group-remove gi-remove-btn", text: "×" });
     rm.addEventListener("click", () => {
       panel.groups.splice(i, 1);
       renderGroupList(container, panel, cb);
@@ -949,9 +1224,9 @@ function renderExprEditor(container: HTMLElement, group: GroupRule, textInput: H
     rows.forEach((row, i) => {
       // Operator dropdown (between rows)
       if (i > 0) {
-        const opRow = container.createDiv({ cls: "ngp-expr-op-row" });
+        const opRow = container.createDiv({ cls: "gi-expr-op-row" });
         opRow.style.paddingLeft = `${row.indent * 20}px`;
-        const opSel = opRow.createEl("select", { cls: "dropdown ngp-expr-op" });
+        const opSel = opRow.createEl("select", { cls: "dropdown gi-expr-op" });
         for (const op of ["AND", "OR", "XOR", "NOR", "NAND"] as BoolOp[]) {
           const el = opSel.createEl("option", { text: op, value: op });
           if (op === (row.opBefore ?? "AND")) el.selected = true;
@@ -959,33 +1234,33 @@ function renderExprEditor(container: HTMLElement, group: GroupRule, textInput: H
         opSel.addEventListener("change", () => { row.opBefore = opSel.value as BoolOp; rebuild(); });
       }
 
-      const rowEl = container.createDiv({ cls: "ngp-expr-row" });
+      const rowEl = container.createDiv({ cls: "gi-expr-row" });
       rowEl.style.paddingLeft = `${row.indent * 20}px`;
 
       // Field input
-      const fieldInput = rowEl.createEl("input", { cls: "ngp-expr-field", type: "text", placeholder: "field" });
+      const fieldInput = rowEl.createEl("input", { cls: "gi-expr-field", type: "text", placeholder: "field" });
       fieldInput.value = row.field;
-      fieldInput.addClass("ngp-field-input");
+      fieldInput.addClass("gi-field-input");
       fieldInput.addEventListener("input", () => { row.field = fieldInput.value; rebuild(); });
 
       rowEl.createEl("span", { text: ":" });
 
       // Value input
-      const valInput = rowEl.createEl("input", { cls: "ngp-expr-value", type: "text", placeholder: "value" });
+      const valInput = rowEl.createEl("input", { cls: "gi-expr-value", type: "text", placeholder: "value" });
       valInput.value = row.value;
-      valInput.addClass("ngp-val-input");
+      valInput.addClass("gi-val-input");
       valInput.addEventListener("input", () => { row.value = valInput.value; rebuild(); });
 
       // Indent/dedent buttons
-      const indentBtn = rowEl.createEl("span", { cls: "ngp-expr-btn", text: "→" });
-      indentBtn.addClass("ngp-indent-btn");
+      const indentBtn = rowEl.createEl("span", { cls: "gi-expr-btn", text: "→" });
+      indentBtn.addClass("gi-indent-btn");
       indentBtn.addEventListener("click", () => { row.indent++; rebuild(); });
-      const dedentBtn = rowEl.createEl("span", { cls: "ngp-expr-btn", text: "←" });
-      dedentBtn.addClass("ngp-indent-btn");
+      const dedentBtn = rowEl.createEl("span", { cls: "gi-expr-btn", text: "←" });
+      dedentBtn.addClass("gi-indent-btn");
       dedentBtn.addEventListener("click", () => { row.indent = Math.max(0, row.indent - 1); rebuild(); });
 
       // Delete button
-      const rmBtn = rowEl.createEl("span", { cls: "ngp-group-remove", text: "×" });
+      const rmBtn = rowEl.createEl("span", { cls: "gi-group-remove", text: "×" });
       rmBtn.addEventListener("click", () => {
         rows.splice(i, 1);
         if (rows.length > 0 && rows[0].opBefore) rows[0].opBefore = null;
@@ -994,7 +1269,7 @@ function renderExprEditor(container: HTMLElement, group: GroupRule, textInput: H
     });
 
     // Add row button
-    const addBtn = container.createEl("button", { cls: "ngp-add-group", text: t("expr.addCondition") });
+    const addBtn = container.createEl("button", { cls: "gi-add-group", text: t("expr.addCondition") });
     addBtn.addEventListener("click", () => {
       rows.push({ field: "label", value: "", indent: 0, opBefore: "AND" });
       rebuild();
@@ -1023,11 +1298,11 @@ function renderSortRuleList(
   container.empty();
   const rules = panel.sortRules;
   rules.forEach((rule, i) => {
-    const row = container.createDiv({ cls: "ngp-group-item" });
+    const row = container.createDiv({ cls: "gi-group-item" });
 
     // Sort key dropdown
     const keySel = row.createEl("select", { cls: "dropdown" });
-    keySel.addClass("ngp-flex-fill");
+    keySel.addClass("gi-flex-fill");
     for (const opt of getSortKeyOptions()) {
       const el = keySel.createEl("option", { text: opt.label, value: opt.value });
       if (opt.value === rule.key) el.selected = true;
@@ -1040,10 +1315,10 @@ function renderSortRuleList(
 
     // Order toggle button
     const orderBtn = row.createEl("button", {
-      cls: "ngp-direction-btn",
+      cls: "gi-direction-btn",
       text: rule.order === "asc" ? t("sort.asc") : t("sort.desc"),
     });
-    orderBtn.addClass("ngp-order-btn");
+    orderBtn.addClass("gi-order-btn");
     orderBtn.addEventListener("click", () => {
       rule.order = rule.order === "asc" ? "desc" : "asc";
       orderBtn.textContent = rule.order === "asc" ? t("sort.asc") : t("sort.desc");
@@ -1052,7 +1327,7 @@ function renderSortRuleList(
     });
 
     // Remove button
-    const rm = row.createEl("span", { cls: "ngp-group-remove ngp-ml-4", text: "\u00D7" });
+    const rm = row.createEl("span", { cls: "gi-group-remove gi-ml-4", text: "\u00D7" });
     rm.addEventListener("click", () => {
       rules.splice(i, 1);
       renderSortRuleList(container, panel, cb);
@@ -1082,11 +1357,11 @@ function renderClusterRuleList(
   container.empty();
   const rules = panel.clusterGroupRules;
   rules.forEach((rule, i) => {
-    const row = container.createDiv({ cls: "ngp-group-item" });
+    const row = container.createDiv({ cls: "gi-group-item" });
 
     // GroupBy dropdown
     const groupSel = row.createEl("select", { cls: "dropdown" });
-    groupSel.addClass("ngp-flex-fill");
+    groupSel.addClass("gi-flex-fill");
     for (const opt of getClusterGroupOptions()) {
       const el = groupSel.createEl("option", { text: opt.label, value: opt.value });
       if (opt.value === rule.groupBy) el.selected = true;
@@ -1100,11 +1375,11 @@ function renderClusterRuleList(
 
     // Recursive toggle (compact checkbox + label)
     const recWrap = row.createEl("label");
-    recWrap.addClass("ngp-rec-wrap");
+    recWrap.addClass("gi-rec-wrap");
     const recToggle = recWrap.createDiv({
       cls: "checkbox-container" + (rule.recursive ? " is-enabled" : ""),
     });
-    recWrap.createEl("span", { text: t("clusterGroup.recursive"), cls: "ngp-hint" });
+    recWrap.createEl("span", { text: t("clusterGroup.recursive"), cls: "gi-hint" });
     recToggle.addEventListener("click", () => {
       rule.recursive = !rule.recursive;
       recToggle.toggleClass("is-enabled", rule.recursive);
@@ -1113,7 +1388,7 @@ function renderClusterRuleList(
     });
 
     // Remove button
-    const rm = row.createEl("span", { cls: "ngp-group-remove ngp-ml-4", text: "\u00D7" });
+    const rm = row.createEl("span", { cls: "gi-group-remove gi-ml-4", text: "\u00D7" });
     rm.addEventListener("click", () => {
       rules.splice(i, 1);
       renderClusterRuleList(container, panel, cb);
@@ -1137,11 +1412,11 @@ function renderDirectionalGravityList(
   container.empty();
   const rules = panel.directionalGravityRules;
   rules.forEach((rule, i) => {
-    const row = container.createDiv({ cls: "ngp-group-item" });
+    const row = container.createDiv({ cls: "gi-group-item" });
 
-    const filterInput = row.createEl("input", { cls: "ngp-group-query", type: "text", placeholder: "tag:character, category:protagonist, *" });
+    const filterInput = row.createEl("input", { cls: "gi-group-query", type: "text", placeholder: "tag:character, category:protagonist, *" });
     filterInput.value = rule.filter;
-    filterInput.addClass("ngp-filter-input");
+    filterInput.addClass("gi-filter-input");
     filterInput.addEventListener("input", () => {
       rule.filter = filterInput.value;
       cb.applyDirectionalGravityForce();
@@ -1150,7 +1425,7 @@ function renderDirectionalGravityList(
     attachQueryHint(filterInput, (field) => cb.collectValueSuggestions(field));
 
     const dirSelect = row.createEl("select", { cls: "dropdown" });
-    dirSelect.addClass("ngp-dir-select");
+    dirSelect.addClass("gi-dir-select");
     const dirOptions: { value: string; label: string }[] = [
       { value: "top", label: t("gravDir.top") },
       { value: "bottom", label: t("gravDir.bottom") },
@@ -1165,7 +1440,7 @@ function renderDirectionalGravityList(
       else if (!isCustom && opt.value === rule.direction) el.selected = true;
     }
 
-    const radInput = row.createEl("input", { cls: "ngp-group-query ngp-rad-input", type: "number" });
+    const radInput = row.createEl("input", { cls: "gi-group-query gi-rad-input", type: "number" });
     radInput.step = "0.1";
     radInput.placeholder = "rad";
     radInput.value = isCustom ? String(rule.direction) : "0";
@@ -1195,14 +1470,14 @@ function renderDirectionalGravityList(
     strSlider.max = "1";
     strSlider.step = "0.01";
     strSlider.value = String(rule.strength);
-    strSlider.addClass("ngp-str-slider");
+    strSlider.addClass("gi-str-slider");
     strSlider.addEventListener("input", () => {
       rule.strength = parseFloat(strSlider.value);
       cb.applyDirectionalGravityForce();
       cb.restartSimulation(0.3);
     });
 
-    const rm = row.createEl("span", { cls: "ngp-group-remove", text: "\u00D7" });
+    const rm = row.createEl("span", { cls: "gi-group-remove", text: "\u00D7" });
     rm.addEventListener("click", () => {
       rules.splice(i, 1);
       renderDirectionalGravityList(container, panel, ctx, cb);
@@ -1245,14 +1520,14 @@ function renderNodeRuleList(
   container.empty();
   const rules = panel.nodeRules;
   rules.forEach((rule, i) => {
-    const wrapper = container.createDiv({ cls: "ngp-noderule-item" });
+    const wrapper = container.createDiv({ cls: "gi-noderule-item" });
 
     // Row 1: Query input + delete button
-    const row1 = wrapper.createDiv({ cls: "ngp-group-item" });
-    row1.addClass("ngp-noderule-row");
+    const row1 = wrapper.createDiv({ cls: "gi-group-item" });
+    row1.addClass("gi-noderule-row");
 
-    const queryInput = row1.createEl("input", { cls: "ngp-search", type: "text", placeholder: "tag:character, *, degree>5" });
-    queryInput.addClass("ngp-query-input");
+    const queryInput = row1.createEl("input", { cls: "gi-search", type: "text", placeholder: "tag:character, *, degree>5" });
+    queryInput.addClass("gi-query-input");
     queryInput.value = rule.query;
     queryInput.addEventListener("input", () => {
       rule.query = queryInput.value;
@@ -1261,7 +1536,7 @@ function renderNodeRuleList(
     });
     attachQueryHint(queryInput, (field) => cb.collectValueSuggestions(field));
 
-    const rm = row1.createEl("span", { cls: "ngp-group-remove ngp-remove-btn", text: "\u00D7" });
+    const rm = row1.createEl("span", { cls: "gi-group-remove gi-remove-btn", text: "\u00D7" });
     rm.addEventListener("click", () => {
       rules.splice(i, 1);
       renderNodeRuleList(container, panel, cb);
@@ -1271,11 +1546,11 @@ function renderNodeRuleList(
 
     // Row 2: spacing slider + gravity controls (indented)
     const row2 = wrapper.createDiv();
-    row2.addClass("ngp-noderule-detail");
+    row2.addClass("gi-noderule-detail");
 
     // Spacing slider
     const spacingRow = row2.createDiv({ cls: "setting-item mod-slider" });
-    spacingRow.addClass("ngp-spacing-row");
+    spacingRow.addClass("gi-spacing-row");
     const spacingInfo = spacingRow.createDiv({ cls: "setting-item-info" });
     spacingInfo.createDiv({ cls: "setting-item-name", text: t("nodeRules.spacing") });
     const spacingControl = spacingRow.createDiv({ cls: "setting-item-control" });
@@ -1285,7 +1560,7 @@ function renderNodeRuleList(
     spacingSlider.step = "0.1";
     spacingSlider.value = String(rule.spacingMultiplier);
     const spacingLabel = spacingControl.createEl("span", { text: String(rule.spacingMultiplier) });
-    spacingLabel.addClass("ngp-slider-label");
+    spacingLabel.addClass("gi-slider-label");
     spacingSlider.addEventListener("input", () => {
       rule.spacingMultiplier = parseFloat(spacingSlider.value);
       spacingLabel.textContent = spacingSlider.value;
@@ -1294,14 +1569,14 @@ function renderNodeRuleList(
     });
 
     // Gravity direction dropdown
-    const gravRow = row2.createDiv({ cls: "ngp-group-item" });
-    gravRow.addClass("ngp-gravity-row");
+    const gravRow = row2.createDiv({ cls: "gi-group-item" });
+    gravRow.addClass("gi-gravity-row");
 
     const gravLabel = gravRow.createEl("span", { cls: "setting-item-name", text: t("nodeRules.gravity") });
-    gravLabel.addClass("ngp-gravity-label");
+    gravLabel.addClass("gi-gravity-label");
 
     const dirSelect = gravRow.createEl("select", { cls: "dropdown" });
-    dirSelect.addClass("ngp-gravity-dir-select");
+    dirSelect.addClass("gi-gravity-dir-select");
     const currentPreset = angleToPreset(rule.gravityAngle);
     for (const opt of getGravityDirOptions()) {
       const el = dirSelect.createEl("option", { text: opt.label, value: opt.value });
@@ -1309,8 +1584,8 @@ function renderNodeRuleList(
     }
 
     // Custom angle input (hidden unless custom)
-    const angleInput = gravRow.createEl("input", { cls: "ngp-search", type: "number" });
-    angleInput.addClass("ngp-angle-input");
+    const angleInput = gravRow.createEl("input", { cls: "gi-search", type: "number" });
+    angleInput.addClass("gi-angle-input");
     angleInput.step = "1";
     angleInput.min = "0";
     angleInput.max = "360";
@@ -1324,7 +1599,7 @@ function renderNodeRuleList(
     strSlider.max = "1";
     strSlider.step = "0.01";
     strSlider.value = String(rule.gravityStrength);
-    strSlider.addClass("ngp-str-slider");
+    strSlider.addClass("gi-str-slider");
     strSlider.style.display = currentPreset === "none" ? "none" : "";
 
     dirSelect.addEventListener("change", () => {

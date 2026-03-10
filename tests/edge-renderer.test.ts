@@ -47,6 +47,7 @@ function baseCfg(overrides?: Partial<EdgeDrawConfig>): EdgeDrawConfig {
     clusterRadii: null,
     bundleStrength: 0,
     isDark: true,
+    showEdgeLabels: false,
     ...overrides,
   };
 }
