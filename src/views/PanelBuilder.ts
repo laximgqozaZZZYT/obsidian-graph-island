@@ -60,6 +60,7 @@ export interface PanelState {
   nodeRules: NodeRule[];
   nodeShapeRules: ShapeRule[];
   dataviewQuery: string;
+  timelineKey: string;
   showEdgeLabels: boolean;
   showMinimap: boolean;
   groupBy: "none" | "tag" | "category";
@@ -116,6 +117,7 @@ export const DEFAULT_PANEL: PanelState = {
     { match: "default", shape: "circle" },
   ],
   dataviewQuery: "",
+  timelineKey: "date",
   showEdgeLabels: false,
   showMinimap: true,
   groupBy: "none" as const,
@@ -247,6 +249,22 @@ export function buildPanel(
         body.createEl("p", { cls: "gi-hint", text: t("orbit.dragHint") });
       }, undefined, true);
     }
+  }
+
+  if (ctx.currentLayout === "timeline") {
+    buildSection(panelEl, t("section.timeline"), (body) => {
+      const row = body.createDiv({ cls: "gi-setting-row" });
+      row.createEl("span", { cls: "gi-setting-label", text: t("timeline.timeKey") });
+      const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
+      input.value = panel.timelineKey;
+      input.placeholder = "date";
+      input.setAttribute("aria-label", t("timeline.timeKeyHint"));
+      input.addEventListener("change", () => {
+        panel.timelineKey = input.value.trim() || "date";
+        cb.doRender();
+      });
+      body.createEl("p", { cls: "gi-hint", text: t("timeline.timeKeyHint") });
+    });
   }
 
   buildSection(panelEl, t("section.filter"), (body) => {

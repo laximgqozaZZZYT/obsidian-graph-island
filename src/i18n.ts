@@ -18,6 +18,7 @@ const en: TranslationMap = {
   "layout.tree": "Tree",
   "layout.arc": "Arc",
   "layout.sunburst": "Sunburst",
+  "layout.timeline": "Timeline",
   "search.placeholder": "Search… hop:name:2",
   "search.jumpHint": "Enter to jump to node",
 
@@ -178,6 +179,11 @@ const en: TranslationMap = {
   "preset.creative": "Creative Writing",
   "preset.creativeDesc": "Tags as enclosures, group by tag, semantic edges",
 
+  // --- PanelBuilder: timeline ---
+  "section.timeline": "Timeline",
+  "timeline.timeKey": "Time Field",
+  "timeline.timeKeyHint": "Frontmatter field for time axis (e.g. date, era, turn)",
+
   // --- PanelBuilder: shared presets ---
   "preset.export": "Export Preset",
   "preset.import": "Import Preset",
@@ -297,6 +303,7 @@ const ja: TranslationMap = {
   "layout.tree": "ツリー",
   "layout.arc": "アーク",
   "layout.sunburst": "サンバースト",
+  "layout.timeline": "タイムライン",
   "search.placeholder": "検索… hop:名前:2",
   "search.jumpHint": "Enterでノードにジャンプ",
 
@@ -456,6 +463,11 @@ const ja: TranslationMap = {
   "preset.analysisDesc": "全エッジ種別、属性色分け、被リンク数でサイズ変更",
   "preset.creative": "創作",
   "preset.creativeDesc": "タグ囲い、タグでグループ化、意味関係エッジ",
+
+  // --- PanelBuilder: timeline ---
+  "section.timeline": "タイムライン",
+  "timeline.timeKey": "時間フィールド",
+  "timeline.timeKeyHint": "時間軸に使うfrontmatterフィールド（例: date, era, turn）",
 
   // --- PanelBuilder: shared presets ---
   "preset.export": "プリセットをエクスポート",

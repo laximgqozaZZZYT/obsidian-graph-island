@@ -10,6 +10,7 @@ import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
 import { applyTreeLayout } from "../layouts/tree";
 import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
+import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
 import { yieldFrame, buildAdj, cssColorToHex } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
@@ -1722,6 +1723,29 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           ld = result.data;
           this.sunburstLayoutArcs = result.arcs;
           this.sunburstCenter = { x: result.cx, y: result.cy };
+          break;
+        }
+        case "timeline": {
+          const timeKey = this.panel.timelineKey || "date";
+          const tlResult = applyTimelineLayout(gd, {
+            timeKey,
+            startX: 60,
+            startY: 60,
+            stepWidth: 120,
+            laneHeight: 80,
+            getNodeProperty: (nodeId: string, key: string) => {
+              // Find the file for this node and read its frontmatter
+              const pn = this.pixiNodes.get(nodeId);
+              const fp = pn?.data.filePath ?? gd.nodes.find(n => n.id === nodeId)?.filePath;
+              if (!fp) return undefined;
+              const tf = this.app.vault.getAbstractFileByPath(fp);
+              if (!(tf instanceof TFile)) return undefined;
+              const cache = this.app.metadataCache.getFileCache(tf);
+              const val = cache?.frontmatter?.[key];
+              return val !== undefined && val !== null ? String(val) : undefined;
+            },
+          });
+          ld = tlResult.data;
           break;
         }
         default: {

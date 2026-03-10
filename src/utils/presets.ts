@@ -29,7 +29,7 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
 
 /** Fields that should be string */
 const STRING_FIELDS: (keyof PanelState)[] = [
-  "searchQuery",
+  "searchQuery", "timelineKey",
 ];
 
 /** Fields that should be arrays */

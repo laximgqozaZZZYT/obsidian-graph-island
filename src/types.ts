@@ -52,7 +52,8 @@ export type LayoutType =
   | "concentric"
   | "tree"
   | "arc"
-  | "sunburst";
+  | "sunburst"
+  | "timeline";
 
 /** How to partition nodes into clusters within the force layout */
 export type ClusterGroupBy = "none" | "tag" | "backlinks" | "node_type";
