@@ -73,6 +73,8 @@ const en: TranslationMap = {
   "display.inheritance": "Inheritance (is-a)",
   "display.aggregation": "Aggregation (has-a)",
   "display.similar": "Similar (similar)",
+  "display.sibling": "Sibling (peer)",
+  "display.sequence": "Sequence (next/prev)",
 
   // --- PanelBuilder: node rules ---
   "nodeRules.addRule": "Add Rule",
@@ -118,8 +120,27 @@ const en: TranslationMap = {
   "settings.ontologyHeading": "— Ontology —",
   "settings.inheritanceFields": "Inheritance Fields (is-a)",
   "settings.aggregationFields": "Aggregation Fields (has-a)",
+  "settings.reverseInheritanceFields": "Reverse Inheritance (child/down)",
+  "settings.reverseAggregationFields": "Reverse Aggregation (part-of)",
   "settings.similarFields": "Similar Fields",
+  "settings.siblingFields": "Sibling Fields (peer)",
+  "settings.sequenceFields": "Sequence Fields (next)",
+  "settings.reverseSequenceFields": "Reverse Sequence (prev)",
   "settings.tagHierarchy": "Generate Inheritance from Tag Hierarchy",
+  "settings.customMappingsHeading": "— Custom Mappings —",
+  "settings.mappingFieldPlaceholder": "field name",
+  "settings.mappingType.inheritance": "is-a",
+  "settings.mappingType.aggregation": "has-a",
+  "settings.mappingType.similar": "similar",
+  "settings.mappingType.sibling": "sibling",
+  "settings.mappingType.sequence": "sequence",
+  "settings.addMapping": "+ Add Mapping",
+  "settings.tagRelationsHeading": "— Tag Relations —",
+  "settings.tagRelSourcePlaceholder": "source tag",
+  "settings.tagRelTargetPlaceholder": "target tag",
+  "settings.tagRelType.inheritance": "is-a",
+  "settings.tagRelType.aggregation": "has-a",
+  "settings.addTagRelation": "+ Add Tag Relation",
 
   // --- PanelBuilder: empty state ---
   "empty.title": "No nodes to display",
@@ -212,6 +233,11 @@ const en: TranslationMap = {
   "toolbar.marquee": "Marquee Zoom",
   "toolbar.graphSettings": "Graph Settings",
 
+  // --- Error messages ---
+  "error.pixiInitFailed": "Graph rendering failed. Your browser may not support WebGL.",
+  "error.graphBuildFailed": "Failed to build graph data. Check console for details.",
+  "error.layoutFailed": "Layout computation failed. Try a different layout.",
+
   // --- Settings Tab ---
   "settingsTab.description": "Each setting can be edited directly from the graph view panel. Here you can export/import settings as JSON.",
   "settingsTab.import": "Import Settings",
@@ -296,6 +322,8 @@ const ja: TranslationMap = {
   "display.inheritance": "継承 (is-a)",
   "display.aggregation": "集約 (has-a)",
   "display.similar": "類似 (similar)",
+  "display.sibling": "兄弟 (sibling)",
+  "display.sequence": "順序 (next/prev)",
 
   // --- PanelBuilder: node rules ---
   "nodeRules.addRule": "ルール追加",
@@ -341,8 +369,27 @@ const ja: TranslationMap = {
   "settings.ontologyHeading": "― オントロジー ―",
   "settings.inheritanceFields": "継承フィールド (is-a)",
   "settings.aggregationFields": "集約フィールド (has-a)",
+  "settings.reverseInheritanceFields": "逆方向の継承 (child/down)",
+  "settings.reverseAggregationFields": "逆方向の集約 (part-of)",
   "settings.similarFields": "類似フィールド",
+  "settings.siblingFields": "兄弟フィールド (sibling)",
+  "settings.sequenceFields": "順序フィールド (next)",
+  "settings.reverseSequenceFields": "逆順序 (prev)",
   "settings.tagHierarchy": "タグ階層から継承エッジ生成",
+  "settings.customMappingsHeading": "― カスタムマッピング ―",
+  "settings.mappingFieldPlaceholder": "フィールド名",
+  "settings.mappingType.inheritance": "継承 (is-a)",
+  "settings.mappingType.aggregation": "集約 (has-a)",
+  "settings.mappingType.similar": "類似",
+  "settings.mappingType.sibling": "兄弟",
+  "settings.mappingType.sequence": "順序",
+  "settings.addMapping": "＋ マッピング追加",
+  "settings.tagRelationsHeading": "― タグ間の関係 ―",
+  "settings.tagRelSourcePlaceholder": "ソースタグ",
+  "settings.tagRelTargetPlaceholder": "ターゲットタグ",
+  "settings.tagRelType.inheritance": "継承 (is-a)",
+  "settings.tagRelType.aggregation": "集約 (has-a)",
+  "settings.addTagRelation": "＋ タグ関係追加",
 
   // --- PanelBuilder: empty state ---
   "empty.title": "表示するノードがありません",
@@ -434,6 +481,11 @@ const ja: TranslationMap = {
   "toolbar.zoomOut": "ズームアウト",
   "toolbar.marquee": "範囲拡大",
   "toolbar.graphSettings": "グラフ設定",
+
+  // --- Error messages ---
+  "error.pixiInitFailed": "グラフの描画に失敗しました。お使いのブラウザがWebGLに対応していない可能性があります。",
+  "error.graphBuildFailed": "グラフデータの構築に失敗しました。コンソールで詳細を確認してください。",
+  "error.layoutFailed": "レイアウト計算に失敗しました。別のレイアウトをお試しください。",
 
   // --- Settings Tab ---
   "settingsTab.description": "各設定項目はグラフビューのパネルから直接編集できます。ここでは設定の JSON エクスポート / インポートを行えます。",

@@ -481,72 +481,84 @@ export class GraphViewContainer extends ItemView {
     this.markDirty();
   }
 
-  private initPixi(width: number, height: number): PIXI.Application {
-    this.destroyPixi();
-    if (this.canvasWrap) this.canvasWrap.empty();
-    this.svgEl = null;
+  private initPixi(width: number, height: number): PIXI.Application | null {
+    try {
+      this.destroyPixi();
+      if (this.canvasWrap) this.canvasWrap.empty();
+      this.svgEl = null;
 
-    // Read CSS background
-    let bgColor = 0x1e1e1e;
-    const style = getComputedStyle(this.canvasWrap!);
-    const bgStr = style.getPropertyValue("--graph-background").trim()
-      || style.getPropertyValue("--background-primary").trim();
-    if (bgStr) { try { bgColor = cssColorToHex(bgStr); } catch { /* keep default */ } }
+      // Read CSS background
+      let bgColor = 0x1e1e1e;
+      const style = getComputedStyle(this.canvasWrap!);
+      const bgStr = style.getPropertyValue("--graph-background").trim()
+        || style.getPropertyValue("--background-primary").trim();
+      if (bgStr) { try { bgColor = cssColorToHex(bgStr); } catch { /* keep default */ } }
 
-    const app = new PIXI.Application({
-      width,
-      height,
-      backgroundColor: bgColor,
-      antialias: true,
-      resolution: window.devicePixelRatio || 1,
-      autoDensity: true,
-    });
+      const app = new PIXI.Application({
+        width,
+        height,
+        backgroundColor: bgColor,
+        antialias: true,
+        resolution: window.devicePixelRatio || 1,
+        autoDensity: true,
+      });
 
-    this.canvasWrap!.appendChild(app.view as HTMLCanvasElement);
-    const canvas = app.view as HTMLCanvasElement;
-    canvas.style.width = "100%";
-    canvas.style.height = "100%";
+      this.canvasWrap!.appendChild(app.view as HTMLCanvasElement);
+      const canvas = app.view as HTMLCanvasElement;
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
 
-    this.pixiApp = app;
+      this.pixiApp = app;
 
-    // World container (for zoom/pan)
-    const world = new PIXI.Container();
-    app.stage.addChild(world);
-    this.worldContainer = world;
+      // World container (for zoom/pan)
+      const world = new PIXI.Container();
+      app.stage.addChild(world);
+      this.worldContainer = world;
 
-    // Orbit ring layer (drawn behind edges)
-    const orbitGfx = new PIXI.Graphics();
-    world.addChild(orbitGfx);
-    this.orbitGraphics = orbitGfx;
+      // Orbit ring layer (drawn behind edges)
+      const orbitGfx = new PIXI.Graphics();
+      world.addChild(orbitGfx);
+      this.orbitGraphics = orbitGfx;
 
-    // Sunburst arc guide lines (drawn behind enclosures)
-    const sunburstGfx = new PIXI.Graphics();
-    world.addChild(sunburstGfx);
-    this.sunburstGraphics = sunburstGfx;
+      // Sunburst arc guide lines (drawn behind enclosures)
+      const sunburstGfx = new PIXI.Graphics();
+      world.addChild(sunburstGfx);
+      this.sunburstGraphics = sunburstGfx;
 
-    // Enclosure layer (tag enclosures, drawn behind edges)
-    const enclosureGfx = new PIXI.Graphics();
-    world.addChild(enclosureGfx);
-    this.enclosureGraphics = enclosureGfx;
+      // Enclosure layer (tag enclosures, drawn behind edges)
+      const enclosureGfx = new PIXI.Graphics();
+      world.addChild(enclosureGfx);
+      this.enclosureGraphics = enclosureGfx;
 
-    // Edge layer (single Graphics object — batch drawn)
-    const edgeGfx = new PIXI.Graphics();
-    world.addChild(edgeGfx);
-    this.edgeGraphics = edgeGfx;
+      // Edge layer (single Graphics object — batch drawn)
+      const edgeGfx = new PIXI.Graphics();
+      world.addChild(edgeGfx);
+      this.edgeGraphics = edgeGfx;
 
-    // Batch node circle layer — draws all non-highlighted circles in one draw call
-    const batchGfx = new PIXI.Graphics();
-    world.addChild(batchGfx);
-    this.nodeCircleBatch = batchGfx;
+      // Batch node circle layer — draws all non-highlighted circles in one draw call
+      const batchGfx = new PIXI.Graphics();
+      world.addChild(batchGfx);
+      this.nodeCircleBatch = batchGfx;
 
-    // Enclosure label container — on top of nodes so labels are visible & hoverable
-    const labelContainer = new PIXI.Container();
-    world.addChild(labelContainer);
-    this.enclosureLabelContainer = labelContainer;
+      // Enclosure label container — on top of nodes so labels are visible & hoverable
+      const labelContainer = new PIXI.Container();
+      world.addChild(labelContainer);
+      this.enclosureLabelContainer = labelContainer;
 
-    this.setupInteraction(canvas, world);
+      this.setupInteraction(canvas, world);
 
-    return app;
+      return app;
+    } catch (err) {
+      console.error("[Graph Island] Failed to initialize PIXI renderer:", err);
+      if (this.canvasWrap) {
+        this.canvasWrap.empty();
+        this.canvasWrap.createEl("div", {
+          cls: "gi-error-fallback",
+          text: t("error.pixiInitFailed"),
+        });
+      }
+      return null;
+    }
   }
 
   // =========================================================================
@@ -1800,7 +1812,14 @@ export class GraphViewContainer extends ItemView {
     this.setStatus("Building...");
     await yieldFrame(); if (signal.aborted) return;
 
-    const gd = this.getGraphData();
+    let gd: GraphData;
+    try {
+      gd = this.getGraphData();
+    } catch (err) {
+      console.error("[Graph Island] Failed to build graph:", err);
+      this.setStatus(t("error.graphBuildFailed"));
+      return;
+    }
     this.setStatus(`${gd.nodes.length} nodes, ${gd.edges.length} edges`);
     await yieldFrame(); if (signal.aborted) return;
 
@@ -1812,7 +1831,8 @@ export class GraphViewContainer extends ItemView {
     }
 
     // Init PIXI
-    this.initPixi(W, H);
+    const pixiResult = this.initPixi(W, H);
+    if (!pixiResult) return;
     if (signal.aborted) { this.destroyPixi(); return; }
 
     this.degrees = computeNodeDegrees(gd.nodes, gd.edges);
@@ -1944,25 +1964,31 @@ export class GraphViewContainer extends ItemView {
     let ld: GraphData;
     this.shells = [];
     this.nodeShellIndex.clear();
-    const sortCmp = this.buildSortComparator(gd.nodes, gd.edges);
-    const nsMap = this.computeNodeSpacingMap(gd.nodes);
-    switch (this.currentLayout) {
-      case "concentric": {
-        const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy, minRadius: this.panel.concentricMinRadius, radiusStep: this.panel.concentricRadiusStep, sortComparator: sortCmp, nodeSpacingMap: nsMap });
-        ld = result.data;
-        this.shells = result.shells;
-        this.shells.forEach((s, i) => s.nodeIds.forEach((id) => this.nodeShellIndex.set(id, i)));
-        break;
+    try {
+      const sortCmp = this.buildSortComparator(gd.nodes, gd.edges);
+      const nsMap = this.computeNodeSpacingMap(gd.nodes);
+      switch (this.currentLayout) {
+        case "concentric": {
+          const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy, minRadius: this.panel.concentricMinRadius, radiusStep: this.panel.concentricRadiusStep, sortComparator: sortCmp, nodeSpacingMap: nsMap });
+          ld = result.data;
+          this.shells = result.shells;
+          this.shells.forEach((s, i) => s.nodeIds.forEach((id) => this.nodeShellIndex.set(id, i)));
+          break;
+        }
+        case "tree": ld = applyTreeLayout(gd, { startX: cx, startY: 40, sortComparator: sortCmp, nodeSpacingMap: nsMap }); break;
+        case "arc": ld = applyArcLayout(gd, { centerX: cx, centerY: cy, radius: Math.min(W, H) * 0.4, sortComparator: sortCmp }); break;
+        default: {
+          const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy, sortComparator: sortCmp, nodeSpacingMap: nsMap });
+          ld = result.data;
+          this.shells = result.shells;
+          this.shells.forEach((s, i) => s.nodeIds.forEach((id) => this.nodeShellIndex.set(id, i)));
+          break;
+        }
       }
-      case "tree": ld = applyTreeLayout(gd, { startX: cx, startY: 40, sortComparator: sortCmp, nodeSpacingMap: nsMap }); break;
-      case "arc": ld = applyArcLayout(gd, { centerX: cx, centerY: cy, radius: Math.min(W, H) * 0.4, sortComparator: sortCmp }); break;
-      default: {
-        const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy, sortComparator: sortCmp, nodeSpacingMap: nsMap });
-        ld = result.data;
-        this.shells = result.shells;
-        this.shells.forEach((s, i) => s.nodeIds.forEach((id) => this.nodeShellIndex.set(id, i)));
-        break;
-      }
+    } catch (err) {
+      console.error("[Graph Island] Layout computation failed:", err);
+      this.setStatus(t("error.layoutFailed"));
+      return;
     }
     if (signal.aborted) return;
 
