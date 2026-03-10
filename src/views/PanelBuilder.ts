@@ -152,6 +152,8 @@ export interface PanelCallbacks {
   wakeRenderLoop(): void;
   rebuildPanel(): void;
   invalidateData(): void;       // sets rawData = null then doRender
+  /** Like invalidateData but keeps the panel DOM intact (for search filtering) */
+  invalidateDataKeepPanel(): void;
   restartSimulation(alpha: number): void;
   applyClusterForce(): void;
   collectFieldSuggestions(): string[];
@@ -211,7 +213,18 @@ export function buildPanel(
     placeholder: t("search.placeholder"),
   });
   searchBar.value = panel.searchQuery;
-  searchBar.addEventListener("input", () => { panel.searchQuery = searchBar.value; cb.applySearch(); });
+  {
+    let searchDebounce: ReturnType<typeof setTimeout> | null = null;
+    searchBar.addEventListener("input", () => {
+      panel.searchQuery = searchBar.value;
+      if (searchDebounce) clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => {
+        // Invalidate cached data so search filter is re-evaluated,
+        // then render keeping the panel (and suggestion UI) alive
+        cb.invalidateDataKeepPanel();
+      }, 400);
+    });
+  }
   attachQueryHint(searchBar, (field) => cb.collectValueSuggestions(field));
   attachSearchJump(searchBar, cb);
 

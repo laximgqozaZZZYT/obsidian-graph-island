@@ -105,8 +105,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private adj: Map<string, Set<string>> = new Map();
   private relationColors: Map<string, string> = new Map();
   private nodeColorMap: Map<string, string> = new Map();
-  /** Node IDs hidden by search filter (gfx.visible = false). Used by resolvePos to skip edges. */
-  private searchHiddenNodes: Set<string> = new Set();
   /** Counter: when > 0, doRender() skips the final buildPanel() call.
    *  Uses a counter instead of a boolean to avoid race conditions when
    *  multiple doRenderKeepPanel() calls overlap (previous .finally()
@@ -725,7 +723,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
   setClusterMeta(meta: ClusterMetadata | null) { this.clusterMeta = meta; }
   getNodeShapeRules() { return this.panel.nodeShapeRules; }
-  getSearchHiddenNodes() { return this.searchHiddenNodes; }
+  getSearchHiddenNodes() { return new Set<string>(); }
 
   // =========================================================================
   // Zoom & Hit testing
@@ -1046,11 +1044,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       showArrows: this.panel.showArrows,
       nodeRadii: this.panel.showArrows ? this.buildNodeRadiiMap() : null,
     };
-    const resolvePos = (ref: string | object) => {
-      if (typeof ref === "object") return ref as any;
-      if (this.searchHiddenNodes.has(ref)) return undefined;
-      return this.pixiNodes.get(ref)?.data;
-    };
+    const resolvePos = (ref: string | object) =>
+      typeof ref === "object" ? (ref as any) : this.pixiNodes.get(ref as string)?.data;
     drawEdgesImpl(
       this.edgeGraphics,
       this.graphEdges,
@@ -1399,6 +1394,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       wakeRenderLoop: () => this.wakeRenderLoop(),
       rebuildPanel: () => { this.buildPanel(); this.requestSave(); },
       invalidateData: () => { this.rawData = null; this.doRender(); this.requestSave(); },
+      invalidateDataKeepPanel: () => { this.rawData = null; this.skipPanelRebuildCount++; this.doRender().finally(() => { this.skipPanelRebuildCount = Math.max(0, this.skipPanelRebuildCount - 1); }); this.requestSave(); },
       restartSimulation: (alpha: number) => {
         if (this.simulation) { this.simulation.alpha(alpha).restart(); this.wakeRenderLoop(); }
       },
@@ -1543,6 +1539,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const matchingPaths = queryDataviewPages(this.app, this.panel.dataviewQuery.trim());
       if (matchingPaths.size > 0) {
         nodes = filterNodesByDataview(nodes, matchingPaths, this.panel.showTagNodes);
+      }
+    }
+
+    // Search query filter — parse the search expression and remove non-matching nodes
+    {
+      const raw = this.panel.searchQuery;
+      // Extract hop: tokens (not used for data filtering, only for visual highlight later)
+      const remaining = raw.replace(/hop:[^:,]+:\d+/gi, "").replace(/,/g, " ").trim();
+      if (remaining) {
+        const searchExpr = parseQueryExpr(remaining);
+        if (searchExpr) {
+          nodes = nodes.filter((n) => evaluateExpr(searchExpr, n));
+        }
       }
     }
 
@@ -1972,28 +1981,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
-    const hasText = textParts.length > 0;
-    const searchExpr = hasText ? parseQueryExpr(trimmed) : null;
-    const hasFilter = hasText || hopSet !== null;
-
-    this.searchHiddenNodes.clear();
+    const hasHop = hopSet !== null;
 
     for (const pn of this.pixiNodes.values()) {
-      if (!hasFilter) {
-        pn.gfx.visible = true;
+      if (!hasHop) {
         pn.gfx.alpha = 1;
         this.drawNodeCircle(pn, false);
         continue;
       }
 
-      const textMatch = searchExpr !== null && evaluateExpr(searchExpr, pn.data);
-      const hopMatch = hopSet !== null && hopSet.has(pn.data.id);
-      const match = (hasText && hopSet !== null) ? (textMatch && hopMatch)
-                  : hasText ? textMatch
-                  : hopMatch;
-
-      if (match) {
-        pn.gfx.visible = true;
+      if (hopSet.has(pn.data.id)) {
         pn.gfx.alpha = 1;
         pn.circle.visible = true;
         pn.circle.clear();
@@ -2003,12 +2000,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         pn.circle.lineStyle(2, searchHitColor, 0.85);
         drawShape(pn.circle, shape, pn.radius, pn.color, 1);
       } else {
-        pn.gfx.visible = false;
-        this.searchHiddenNodes.add(pn.data.id);
+        pn.gfx.alpha = 0.12;
+        this.drawNodeCircle(pn, false);
       }
     }
-    // Redraw edges so hidden nodes' edges disappear
-    this.drawEdges();
     this.markDirty();
   }
 

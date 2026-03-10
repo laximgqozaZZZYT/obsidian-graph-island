@@ -4,7 +4,6 @@ export interface QueryLeaf {
   type: "leaf";
   field: string;
   value: string;
-  exact?: boolean;
 }
 
 export interface QueryBranch {
@@ -185,6 +184,18 @@ function serializeInner(expr: QueryExpression, parentOp: BoolOp | null): string 
   return needsParens ? `(${inner})` : inner;
 }
 
+/**
+ * Match a value against a pattern.
+ * - No wildcards: exact match
+ * - Contains `*`: glob-style matching (e.g. "act*" matches "act1", "*act*" matches "character")
+ */
+function matchValue(target: string, pattern: string): boolean {
+  if (!pattern.includes("*")) return target === pattern;
+  // Convert glob pattern to regex: escape regex chars, then replace * with .*
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`).test(target);
+}
+
 function evaluateLeaf(
   leaf: QueryLeaf,
   node: { id: string; label: string; tags?: string[]; category?: string; filePath?: string; isTag?: boolean; meta?: Record<string, unknown> },
@@ -194,36 +205,32 @@ function evaluateLeaf(
   switch (leaf.field) {
     case "tag": {
       const tags = node.tags ?? [];
-      return leaf.exact
-        ? tags.some(t => t.toLowerCase() === val)
-        : tags.some(t => t.toLowerCase().includes(val));
+      return tags.some(t => matchValue(t.toLowerCase(), val));
     }
     case "category": {
       const cat = (node.category ?? "").toLowerCase();
-      return leaf.exact ? cat === val : cat.includes(val);
+      return matchValue(cat, val);
     }
     case "path":
     case "file": {
       const fp = (node.filePath ?? "").toLowerCase();
-      return leaf.exact ? fp === val : fp.includes(val);
+      return matchValue(fp, val);
     }
     case "id": {
       const id = node.id.toLowerCase();
-      return leaf.exact ? id === val : id.includes(val);
+      return matchValue(id, val);
     }
     case "isTag":
       return String(!!node.isTag) === val;
     case "label": {
       const lbl = node.label.toLowerCase();
-      return leaf.exact ? lbl === val : lbl.includes(val);
+      return matchValue(lbl, val);
     }
     default: {
       // Frontmatter field lookup via node.meta
       const metaVal = resolveMetaValue(node.meta, leaf.field);
       if (metaVal.length === 0) return false;
-      return leaf.exact
-        ? metaVal.some(v => v.toLowerCase() === val)
-        : metaVal.some(v => v.toLowerCase().includes(val));
+      return metaVal.some(v => matchValue(v.toLowerCase(), val));
     }
   }
 }
