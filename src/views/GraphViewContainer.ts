@@ -23,6 +23,7 @@ import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type Enclosure
 import { buildClusterForce, type ClusterMetadata, type SunburstArc } from "../layouts/cluster-force";
 import { buildMultiSortComparator, type SortMetrics } from "../utils/sort";
 import { edgeLinkDistance, edgeLinkStrength } from "../utils/force-config";
+import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
 
 /**
  * Derive a single ClusterGroupRule from a query string + recursive flag.
@@ -79,24 +80,13 @@ function darkenColor(hex: number, factor: number): number {
 const TICK_SKIP = 4;
 const EDGE_REDRAW_SKIP = 1; // redraw edges every dirty frame so they track node movement
 
-// ---------------------------------------------------------------------------
-// PIXI node wrapper
-// ---------------------------------------------------------------------------
-interface PixiNode {
-  data: GraphNode;
-  gfx: PIXI.Container;
-  circle: PIXI.Graphics;
-  label: PIXI.Text | null;
-  hoverLabel: PIXI.Text | null;
-  radius: number;
-  color: number;
-  held: boolean;
-}
+// Re-export PixiNode so other modules can import from either location
+export type { PixiNode } from "./InteractionManager";
 
 // ---------------------------------------------------------------------------
 // View
 // ---------------------------------------------------------------------------
-export class GraphViewContainer extends ItemView {
+export class GraphViewContainer extends ItemView implements InteractionHost {
   plugin: GraphViewsPlugin;
   private currentLayout: LayoutType;
   private rawData: GraphData | null = null;
@@ -132,13 +122,8 @@ export class GraphViewContainer extends ItemView {
   /** Cached tag relationship pairs for fast lookup */
   private tagRelPairsCache: Set<string> = new Set();
 
-  // Interaction state
-  private draggedNode: PixiNode | null = null;
-  private dragOffset = { x: 0, y: 0 };
-  private hasDragged = false;
-  private isPanning = false;
-  private panStart = { x: 0, y: 0 };
-  private worldStart = { x: 0, y: 0 };
+  // Interaction manager (owns pointer events, drag, pan, hover, marquee, shell rotation)
+  private interactionManager: InteractionManager | null = null;
 
   // Idle frame optimization
   private idleFrames = 0;
@@ -157,9 +142,6 @@ export class GraphViewContainer extends ItemView {
   // Concentric shells (for rotation & radius adjustment)
   private shells: ShellInfo[] = [];
   private nodeShellIndex: Map<string, number> = new Map();
-  private rotatingShellIdx: number | null = null;
-  private rotateStartAngle = 0;
-  private rotateStartOffset = 0;
 
   // Orbit auto-rotation animation
   private orbitAnimId: number | null = null;
@@ -175,11 +157,7 @@ export class GraphViewContainer extends ItemView {
   // Node info panel (hover details)
   private nodeInfoEl: HTMLElement | null = null;
 
-  // Marquee zoom
-  private marqueeMode = false;        // toggled by toolbar button
-  private isMarqueeActive = false;
-  private marqueeStart = { x: 0, y: 0 };
-  private marqueeGraphics: PIXI.Graphics | null = null;
+  // Marquee button reference (for toolbar toggle styling)
   private marqueeBtnEl: HTMLElement | null = null;
 
   // Sunburst SVG fallback
@@ -329,8 +307,10 @@ export class GraphViewContainer extends ItemView {
     setIcon(marqueeBtn, "box-select");
     marqueeBtn.setAttribute("aria-label", t("toolbar.marquee"));
     marqueeBtn.addEventListener("click", () => {
-      this.marqueeMode = !this.marqueeMode;
-      marqueeBtn.toggleClass("is-active", this.marqueeMode);
+      if (this.interactionManager) {
+        this.interactionManager.marqueeMode = !this.interactionManager.marqueeMode;
+        marqueeBtn.toggleClass("is-active", this.interactionManager.marqueeMode);
+      }
     });
     this.marqueeBtnEl = marqueeBtn;
 
@@ -399,13 +379,14 @@ export class GraphViewContainer extends ItemView {
     this.ac?.abort();
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.interactionManager?.detach();
+    this.interactionManager = null;
     this.destroyPixi();
     this.svgEl = null;
     this.statusEl = null;
     this.panelEl = null;
     this.nodeInfoEl = null;
     this.canvasWrap = null;
-    this.marqueeGraphics = null;
   }
 
   // =========================================================================
@@ -545,7 +526,9 @@ export class GraphViewContainer extends ItemView {
       world.addChild(labelContainer);
       this.enclosureLabelContainer = labelContainer;
 
-      this.setupInteraction(canvas, world);
+    // Set up interaction handling (pointer events, drag, pan, hover, marquee)
+    this.interactionManager?.detach();
+    this.interactionManager = new InteractionManager(this, canvas, world);
 
       return app;
     } catch (err) {
@@ -562,216 +545,21 @@ export class GraphViewContainer extends ItemView {
   }
 
   // =========================================================================
-  // Zoom & Pan & Hit testing
+  // InteractionHost implementation
   // =========================================================================
-  private setupInteraction(canvas: HTMLCanvasElement, world: PIXI.Container) {
-    const app = this.pixiApp!;
+  getHighlightedNodeId(): string | null { return this.highlightedNodeId; }
+  setHighlightedNodeId(id: string | null) { this.highlightedNodeId = id; }
+  getCurrentLayout(): LayoutType { return this.currentLayout; }
+  getShells(): ShellInfo[] { return this.shells; }
+  getNodeShellIndex(): Map<string, number> { return this.nodeShellIndex; }
+  getPixiNodes(): Map<string, PixiNode> { return this.pixiNodes; }
+  getSimulation(): Simulation<GraphNode, GraphEdge> | null { return this.simulation; }
+  getPixiApp(): PIXI.Application | null { return this.pixiApp; }
+  openFile(filePath: string) { this.app.workspace.openLinkText(filePath, "", false); }
 
-    // Wheel zoom
-    canvas.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      const scaleFactor = e.deltaY < 0 ? 1.1 : 0.9;
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-
-      const worldPos = world.toLocal(new PIXI.Point(mx, my), app.stage);
-      world.scale.x *= scaleFactor;
-      world.scale.y *= scaleFactor;
-      // Clamp scale
-      const s = Math.max(0.02, Math.min(10, world.scale.x));
-      world.scale.set(s);
-      const newScreenPos = world.toGlobal(worldPos);
-      world.x += mx - newScreenPos.x;
-      world.y += my - newScreenPos.y;
-
-      this.markDirty();
-    }, { passive: false });
-
-    // Pointer down
-    canvas.addEventListener("pointerdown", (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      const worldPt = world.toLocal(new PIXI.Point(mx, my), app.stage);
-
-      const hit = this.hitTestNode(worldPt.x, worldPt.y);
-      if (hit) {
-        // Concentric: rotate shell instead of dragging individual node
-        if (this.currentLayout === "concentric" && this.shells.length > 0) {
-          const shellIdx = this.nodeShellIndex.get(hit.data.id);
-          if (shellIdx !== undefined && shellIdx > 0) {
-            const shell = this.shells[shellIdx];
-            this.rotatingShellIdx = shellIdx;
-            this.rotateStartAngle = Math.atan2(worldPt.y - shell.centerY, worldPt.x - shell.centerX);
-            this.rotateStartOffset = shell.angleOffset;
-            this.hasDragged = false;
-            return;
-          }
-        }
-        this.draggedNode = hit;
-        this.hasDragged = false;
-        this.dragOffset.x = worldPt.x - hit.data.x;
-        this.dragOffset.y = worldPt.y - hit.data.y;
-        if (this.simulation) {
-          hit.data.fx = hit.data.x;
-          hit.data.fy = hit.data.y;
-          this.simulation.alphaTarget(0.3).restart();
-        }
-      } else if (e.button === 1 || e.altKey) {
-        // Middle-click or Alt+drag → pan
-        this.isPanning = true;
-        this.panStart = { x: mx, y: my };
-        this.worldStart = { x: world.x, y: world.y };
-      } else if (this.marqueeMode) {
-        // Marquee mode active → left-click drag for range zoom
-        this.isMarqueeActive = true;
-        this.marqueeStart = { x: mx, y: my };
-        if (!this.marqueeGraphics) {
-          this.marqueeGraphics = new PIXI.Graphics();
-          this.pixiApp!.stage.addChild(this.marqueeGraphics);
-        }
-        this.marqueeGraphics.clear();
-      } else {
-        // Default left-click drag on empty space → pan
-        this.isPanning = true;
-        this.panStart = { x: mx, y: my };
-        this.worldStart = { x: world.x, y: world.y };
-      }
-    });
-
-    // Pointer move
-    canvas.addEventListener("pointermove", (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-
-      if (this.rotatingShellIdx !== null) {
-        this.hasDragged = true;
-        const worldPt = world.toLocal(new PIXI.Point(mx, my), app.stage);
-        const shell = this.shells[this.rotatingShellIdx];
-        const currentAngle = Math.atan2(worldPt.y - shell.centerY, worldPt.x - shell.centerX);
-        shell.angleOffset = this.rotateStartOffset + (currentAngle - this.rotateStartAngle);
-        const nodeMap = new Map<string, GraphNode>();
-        for (const pn of this.pixiNodes.values()) nodeMap.set(pn.data.id, pn.data);
-        repositionShell(shell, nodeMap);
-        this.markDirty();
-      } else if (this.draggedNode) {
-        this.hasDragged = true;
-        const worldPt = world.toLocal(new PIXI.Point(mx, my), app.stage);
-        const nx = worldPt.x - this.dragOffset.x;
-        const ny = worldPt.y - this.dragOffset.y;
-        this.draggedNode.data.x = nx;
-        this.draggedNode.data.y = ny;
-        if (this.simulation) {
-          this.draggedNode.data.fx = nx;
-          this.draggedNode.data.fy = ny;
-        }
-        this.markDirty();
-      } else if (this.isMarqueeActive && this.marqueeGraphics) {
-        this.hasDragged = true;
-        const sx = this.marqueeStart.x;
-        const sy = this.marqueeStart.y;
-        const w = mx - sx;
-        const h = my - sy;
-        this.marqueeGraphics.clear();
-        const marqueeColor = this.getAccentColor();
-        this.marqueeGraphics.lineStyle(1.5, marqueeColor, 0.9);
-        this.marqueeGraphics.beginFill(marqueeColor, 0.08);
-        this.marqueeGraphics.drawRect(Math.min(sx, mx), Math.min(sy, my), Math.abs(w), Math.abs(h));
-        this.marqueeGraphics.endFill();
-      } else if (this.isPanning) {
-        world.x = this.worldStart.x + (mx - this.panStart.x);
-        world.y = this.worldStart.y + (my - this.panStart.y);
-        this.markDirty();
-      } else {
-        // Hover
-        const worldPt = world.toLocal(new PIXI.Point(mx, my), app.stage);
-        const hit = this.hitTestNode(worldPt.x, worldPt.y);
-        const newId = hit?.data.id ?? null;
-        if (newId !== this.highlightedNodeId) {
-          this.highlightedNodeId = newId;
-          this.applyHover();
-          this.markDirty(true);
-        }
-      }
-    });
-
-    // Pointer up
-    canvas.addEventListener("pointerup", (e) => {
-      if (this.isMarqueeActive) {
-        this.isMarqueeActive = false;
-        if (this.marqueeGraphics) {
-          this.marqueeGraphics.clear();
-        }
-        if (this.hasDragged) {
-          const rect = canvas.getBoundingClientRect();
-          const mx = e.clientX - rect.left;
-          const my = e.clientY - rect.top;
-          const sx = this.marqueeStart.x;
-          const sy = this.marqueeStart.y;
-          const minSx = Math.min(sx, mx);
-          const minSy = Math.min(sy, my);
-          const w = Math.abs(mx - sx);
-          const h = Math.abs(my - sy);
-          // Only zoom if rectangle is large enough (> 10px each dimension)
-          if (w > 10 && h > 10) {
-            this.zoomToScreenRect(minSx, minSy, w, h);
-          }
-        }
-        this.hasDragged = false;
-        return;
-      }
-      if (this.rotatingShellIdx !== null) {
-        this.rotatingShellIdx = null;
-        return;
-      }
-      if (this.draggedNode) {
-        const node = this.draggedNode;
-        if (!this.hasDragged) {
-          // Click (no drag) → toggle hold (pin position)
-          if (!e.ctrlKey && !e.metaKey) {
-            // Without Ctrl: clear all other holds first
-            this.clearAllHolds();
-          }
-          this.toggleHold(node);
-        } else {
-          // Drag ended — if node was held, keep it pinned; otherwise release
-          if (!node.held && this.simulation) {
-            node.data.fx = null;
-            node.data.fy = null;
-          }
-        }
-        if (this.simulation) this.simulation.alphaTarget(0);
-        this.draggedNode = null;
-        this.markDirty(true);
-      }
-      this.isPanning = false;
-    });
-
-    // Pointer leave
-    canvas.addEventListener("pointerleave", () => {
-      if (!Platform.isMobile && this.highlightedNodeId) {
-        this.highlightedNodeId = null;
-        this.applyHover();
-        this.markDirty(true);
-      }
-    });
-
-    // Double-click to open file (desktop)
-    if (!Platform.isMobile) {
-      canvas.addEventListener("dblclick", (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        const worldPt = world.toLocal(new PIXI.Point(mx, my), app.stage);
-        const hit = this.hitTestNode(worldPt.x, worldPt.y);
-        if (hit?.data.filePath) {
-          this.app.workspace.openLinkText(hit.data.filePath, "", false);
-        }
-      });
-    }
-  }
+  // =========================================================================
+  // Zoom & Hit testing
+  // =========================================================================
 
   /** Rebuild the spatial hash grid from current node positions */
   private rebuildSpatialGrid() {
@@ -785,7 +573,7 @@ export class GraphViewContainer extends ItemView {
     }
   }
 
-  private hitTestNode(wx: number, wy: number): PixiNode | null {
+  hitTestNode(wx: number, wy: number): PixiNode | null {
     const cs = this.spatialCellSize;
     const cx = Math.floor(wx / cs);
     const cy = Math.floor(wy / cs);
@@ -814,7 +602,7 @@ export class GraphViewContainer extends ItemView {
   }
 
   /** Toggle hold (pin) state for a node */
-  private toggleHold(pn: PixiNode) {
+  toggleHold(pn: PixiNode) {
     pn.held = !pn.held;
     if (pn.held) {
       pn.data.fx = pn.data.x;
@@ -826,7 +614,7 @@ export class GraphViewContainer extends ItemView {
   }
 
   /** Clear all held nodes */
-  private clearAllHolds() {
+  clearAllHolds() {
     for (const pn of this.pixiNodes.values()) {
       if (pn.held) {
         pn.held = false;
@@ -841,7 +629,7 @@ export class GraphViewContainer extends ItemView {
   // =========================================================================
   // Hover highlight (PIXI)
   // =========================================================================
-  private applyHover() {
+  applyHover() {
     const hId = this.highlightedNodeId;
 
     // Build current highlight set via BFS up to hoverHops
@@ -1057,7 +845,7 @@ export class GraphViewContainer extends ItemView {
 
   private cachedAccentColor: number | null = null;
 
-  private getAccentColor(): number {
+  getAccentColor(): number {
     if (this.cachedAccentColor === null) {
       const el = this.canvasWrap ?? this.containerEl;
       const css = getComputedStyle(el).getPropertyValue("--interactive-accent").trim();
@@ -1368,7 +1156,7 @@ export class GraphViewContainer extends ItemView {
   // =========================================================================
   private needsFullRedraw = false;
 
-  private markDirty(forceFullRedraw = false) {
+  markDirty(forceFullRedraw = false) {
     this.needsRedraw = true;
     if (forceFullRedraw) this.needsFullRedraw = true;
     this.idleFrames = 0;
@@ -1567,7 +1355,7 @@ export class GraphViewContainer extends ItemView {
   /**
    * Zoom the view so that the given screen-space rectangle fills the viewport.
    */
-  private zoomToScreenRect(sx: number, sy: number, sw: number, sh: number) {
+  zoomToScreenRect(sx: number, sy: number, sw: number, sh: number) {
     const world = this.worldContainer;
     const wrap = this.canvasWrap;
     if (!world || !wrap) return;
