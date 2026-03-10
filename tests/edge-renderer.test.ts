@@ -23,10 +23,16 @@ import type { GraphEdge } from "../src/types";
 
 function baseCfg(overrides?: Partial<EdgeDrawConfig>): EdgeDrawConfig {
   return {
+    showLinks: true,
+    showTagEdges: true,
+    showCategoryEdges: true,
+    showSemanticEdges: true,
     showInheritance: true,
     showAggregation: true,
     showTagNodes: true,
     showSimilar: true,
+    showSibling: true,
+    showSequence: true,
     colorEdgesByRelation: false,
     isArcLayout: false,
     highlightedNodeId: null,
@@ -36,6 +42,11 @@ function baseCfg(overrides?: Partial<EdgeDrawConfig>): EdgeDrawConfig {
     fadeByDegree: false,
     degrees: new Map(),
     maxDegree: 0,
+    nodeClusterMap: null,
+    clusterCentroids: null,
+    clusterRadii: null,
+    bundleStrength: 0,
+    isDark: true,
     ...overrides,
   };
 }
@@ -98,6 +109,32 @@ describe("drawEdges", () => {
     drawEdges(g, edges, resolvePos, baseCfg({ showSimilar: false }));
     const moveCall = calls.find((c) => c.method === "moveTo");
     expect(moveCall).toBeUndefined();
+  });
+
+  it("skips sibling edges when showSibling is false", () => {
+    const { g, calls } = createMockGraphics();
+    const edges: GraphEdge[] = [{ source: "a", target: "b", type: "sibling" }];
+    drawEdges(g, edges, resolvePos, baseCfg({ showSibling: false }));
+    const moveCall = calls.find((c) => c.method === "moveTo");
+    expect(moveCall).toBeUndefined();
+  });
+
+  it("skips sequence edges when showSequence is false", () => {
+    const { g, calls } = createMockGraphics();
+    const edges: GraphEdge[] = [{ source: "a", target: "b", type: "sequence" }];
+    drawEdges(g, edges, resolvePos, baseCfg({ showSequence: false }));
+    const moveCall = calls.find((c) => c.method === "moveTo");
+    expect(moveCall).toBeUndefined();
+  });
+
+  it("draws sequence edges with arrow marker", () => {
+    const { g, calls } = createMockGraphics();
+    const edges: GraphEdge[] = [{ source: "a", target: "b", type: "sequence" }];
+    drawEdges(g, edges, resolvePos, baseCfg());
+    const fillCall = calls.find((c) => c.method === "beginFill");
+    const closeCall = calls.find((c) => c.method === "closePath");
+    expect(fillCall).toBeDefined();
+    expect(closeCall).toBeDefined();
   });
 
   it("skips edges with unresolvable source/target", () => {
