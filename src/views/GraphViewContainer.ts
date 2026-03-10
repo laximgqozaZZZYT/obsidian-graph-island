@@ -24,6 +24,7 @@ import { buildClusterForce, type ClusterMetadata, type SunburstArc } from "../la
 import { buildMultiSortComparator, type SortMetrics } from "../utils/sort";
 import { edgeLinkDistance, edgeLinkStrength } from "../utils/force-config";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
+import { RenderPipeline, darkenColor, type RenderHost } from "./RenderPipeline";
 
 /**
  * Derive a single ClusterGroupRule from a query string + recursive flag.
@@ -69,16 +70,7 @@ function deriveClusterRules(preset: GroupPreset): ClusterGroupRule[] {
 
 export const VIEW_TYPE_GRAPH = "graph-view";
 
-/** Darken a hex color by mixing toward black. factor 0 = unchanged, 1 = black. */
-function darkenColor(hex: number, factor: number): number {
-  const r = ((hex >> 16) & 0xff) * (1 - factor);
-  const g = ((hex >> 8) & 0xff) * (1 - factor);
-  const b = (hex & 0xff) * (1 - factor);
-  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
-}
-
 const TICK_SKIP = 4;
-const EDGE_REDRAW_SKIP = 1; // redraw edges every dirty frame so they track node movement
 
 // Re-export PixiNode so other modules can import from either location
 export type { PixiNode } from "./InteractionManager";
@@ -86,7 +78,7 @@ export type { PixiNode } from "./InteractionManager";
 // ---------------------------------------------------------------------------
 // View
 // ---------------------------------------------------------------------------
-export class GraphViewContainer extends ItemView implements InteractionHost {
+export class GraphViewContainer extends ItemView implements InteractionHost, RenderHost {
   plugin: GraphViewsPlugin;
   private currentLayout: LayoutType;
   private rawData: GraphData | null = null;
@@ -125,11 +117,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost {
   // Interaction manager (owns pointer events, drag, pan, hover, marquee, shell rotation)
   private interactionManager: InteractionManager | null = null;
 
-  // Idle frame optimization
-  private idleFrames = 0;
-  private needsRedraw = true;
-  private _tickerBound = false;
-  private edgeRedrawCounter = 0;
+  // Render pipeline (owns render loop, PIXI node creation, batch drawing)
+  private renderPipeline: RenderPipeline | null = null;
+
+  // Theme caches
   private cachedBgColor: number | null = null;
   private cachedLabelColor: number | null = null;
   private cachedIsDark: boolean | null = null;
@@ -424,10 +415,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost {
   // PIXI lifecycle
   // =========================================================================
   private destroyPixi() {
-    this.cancelDeferredBatch();
-    if (this._tickerBound && this.pixiApp) {
-      this.pixiApp.ticker.remove(this.renderTick, this);
-      this._tickerBound = false;
+    if (this.renderPipeline) {
+      this.renderPipeline.detach();
     }
     // Clean up enclosure labels before PIXI destroy (they reference PIXI objects)
     for (const lbl of this.enclosureLabels.values()) {
@@ -530,6 +519,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost {
     this.interactionManager?.detach();
     this.interactionManager = new InteractionManager(this, canvas, world);
 
+    // Set up render pipeline (render loop, PIXI node creation, batch drawing)
+    this.renderPipeline = new RenderPipeline(this);
+
       return app;
     } catch (err) {
       console.error("[Graph Island] Failed to initialize PIXI renderer:", err);
@@ -545,7 +537,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost {
   }
 
   // =========================================================================
-  // InteractionHost implementation
+  // InteractionHost + RenderHost implementation
   // =========================================================================
   getHighlightedNodeId(): string | null { return this.highlightedNodeId; }
   setHighlightedNodeId(id: string | null) { this.highlightedNodeId = id; }
@@ -556,13 +548,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost {
   getSimulation(): Simulation<GraphNode, GraphEdge> | null { return this.simulation; }
   getPixiApp(): PIXI.Application | null { return this.pixiApp; }
   openFile(filePath: string) { this.app.workspace.openLinkText(filePath, "", false); }
+  getWorldContainer(): PIXI.Container | null { return this.worldContainer; }
+  getNodeCircleBatch(): PIXI.Graphics | null { return this.nodeCircleBatch; }
+  getDegrees(): Map<string, number> { return this.degrees; }
+  getPrevHighlightSet(): Set<string> { return this.prevHighlightSet; }
+  getEphemeralHighlight(): Set<string> | null { return this.ephemeralHighlight; }
 
   // =========================================================================
   // Zoom & Hit testing
   // =========================================================================
 
   /** Rebuild the spatial hash grid from current node positions */
-  private rebuildSpatialGrid() {
+  rebuildSpatialGrid() {
     this.spatialGrid.clear();
     const cs = this.spatialCellSize;
     for (const pn of this.pixiNodes.values()) {
@@ -753,90 +750,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost {
     this.notifyDetailPane(pn?.data ?? null);
   }
 
-  private drawNodeCircle(pn: PixiNode, highlight: boolean) {
-    pn.circle.clear();
-    if (highlight) {
-      // Highlighted nodes use individual Graphics so they appear on top of the batch
-      pn.circle.visible = true;
-      // Soft glow: smaller, subtler
-      pn.circle.beginFill(pn.color, 0.12);
-      pn.circle.drawCircle(0, 0, pn.radius * 2.2);
-      pn.circle.endFill();
-      // Accent ring with same-hue stroke
-      const strokeCol = darkenColor(pn.color, 0.3);
-      pn.circle.lineStyle(1.5, strokeCol, 0.85);
-      pn.circle.beginFill(pn.color);
-      pn.circle.drawCircle(0, 0, pn.radius);
-      pn.circle.endFill();
-    } else {
-      // Non-highlighted nodes are drawn by the batch layer
-      pn.circle.visible = false;
-    }
-  }
-
-  /**
-   * Redraw all non-highlighted node circles in a single batch Graphics.
-   * Reduces GPU draw calls from 1000+ to 1.
-   */
-  private redrawNodeBatch() {
-    const g = this.nodeCircleBatch;
-    if (!g) return;
-    g.clear();
-    const hId = this.highlightedNodeId;
-    const hlSet = this.prevHighlightSet;
-    const eph = this.ephemeralHighlight;
-    const hasHighlight = !!(hId || (eph && eph.size > 0));
-
-    // Effective highlight set: ephemeral overrides normal hover
-    const activeSet = (eph && eph.size > 0) ? eph : hlSet;
-
-    // Two-pass: first all glows (behind), then all solid circles (on top).
-    // This ensures glows merge into visible "clouds" without occluding nodes.
-    const visible: PixiNode[] = [];
-    for (const pn of this.pixiNodes.values()) {
-      if (hasHighlight && activeSet.has(pn.data.id)) continue;
-      visible.push(pn);
-    }
-
-    const alpha = hasHighlight ? 0.12 : 1;
-    const nodeCount = visible.length;
-
-    // Pass 1: Glow halos — scale down or skip for dense graphs.
-    // Below 300 nodes: soft glow. 300–800: reduced. 800+: off entirely.
-    const showGlow = nodeCount < 800;
-    if (showGlow) {
-      const glowAlpha = nodeCount < 300 ? 0.14 : 0.14 * (1 - (nodeCount - 300) / 500);
-      const glowRadius = nodeCount < 300 ? 2.2 : 2.2 - 0.7 * ((nodeCount - 300) / 500);
-      g.lineStyle(0);
-      for (const pn of visible) {
-        g.beginFill(pn.color, alpha * glowAlpha);
-        g.drawCircle(pn.data.x, pn.data.y, pn.radius * glowRadius);
-        g.endFill();
-      }
-    }
-
-    // Pass 2: Solid circles with subtle same-hue stroke
-    for (const pn of visible) {
-      // Darken the node color for stroke instead of using pure black/white.
-      // This creates a cohesive, polished look.
-      const strokeColor = darkenColor(pn.color, 0.4);
-      g.lineStyle(1, strokeColor, alpha * 0.5);
-      g.beginFill(pn.color, alpha);
-      g.drawCircle(pn.data.x, pn.data.y, pn.radius);
-      g.endFill();
-    }
-
-    // Pass 3: Hold indicator ring for pinned nodes
-    for (const pn of visible) {
-      if (!pn.held) continue;
-      g.lineStyle(2, this.isDarkTheme() ? 0xffffff : 0x333333, 0.9);
-      g.beginFill(0, 0);
-      g.drawCircle(pn.data.x, pn.data.y, pn.radius + 4);
-      g.endFill();
-    }
-  }
-
-  private isDarkTheme(): boolean {
+  isDarkTheme(): boolean {
     if (this.cachedIsDark === null) {
       this.cachedIsDark = document.body.classList.contains("theme-dark");
     }
@@ -877,7 +791,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost {
   // =========================================================================
   // Draw orbit rings (concentric circles)
   // =========================================================================
-  private drawOrbitRings() {
+  drawOrbitRings() {
     const g = this.orbitGraphics;
     if (!g) return;
     g.clear();
@@ -898,7 +812,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost {
     }
   }
 
-  private getLabelColor(): number {
+  getLabelColor(): number {
     if (this.cachedLabelColor === null) {
       const el = this.canvasWrap ?? this.containerEl;
       const css = getComputedStyle(el).getPropertyValue("--text-muted").trim();
@@ -910,7 +824,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost {
   // =========================================================================
   // Draw edges (delegated to EdgeRenderer)
   // =========================================================================
-  private drawEdges() {
+  drawEdges() {
     if (!this.edgeGraphics) return;
     // Cache background color to avoid getComputedStyle on every frame
     if (this.cachedBgColor === null) {
@@ -967,7 +881,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost {
   // =========================================================================
   // Tag enclosures (delegated to EnclosureRenderer)
   // =========================================================================
-  private drawEnclosures() {
+  drawEnclosures() {
     if (!this.enclosureGraphics) return;
     const cfg: EnclosureConfig = {
       tagDisplay: this.panel.tagDisplay,
@@ -994,7 +908,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost {
     drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);
   }
 
-  private drawSunburstArcs() {
+  drawSunburstArcs() {
     const gfx = this.sunburstGraphics;
     if (!gfx) return;
     gfx.clear();
@@ -1131,7 +1045,39 @@ export class GraphViewContainer extends ItemView implements InteractionHost {
   // =========================================================================
   // Update positions
   // =========================================================================
+  // Delegated to RenderPipeline
+  // =========================================================================
+  markDirty(forceFullRedraw = false) {
+    this.renderPipeline?.markDirty(forceFullRedraw);
+  }
+
+  private startRenderLoop() {
+    this.renderPipeline?.startRenderLoop();
+  }
+
+  private wakeRenderLoop() {
+    this.renderPipeline?.wakeRenderLoop();
+  }
+
+  private createPixiNodes(
+    nodes: GraphNode[],
+    nodeR: (n: GraphNode) => number,
+    nodeColor: (n: GraphNode) => number
+  ) {
+    this.renderPipeline?.createPixiNodes(nodes, nodeR, nodeColor);
+  }
+
+  private drawNodeCircle(pn: PixiNode, highlight: boolean) {
+    this.renderPipeline?.drawNodeCircle(pn, highlight);
+  }
+
+  private redrawNodeBatch() {
+    this.renderPipeline?.redrawNodeBatch();
+  }
+
   private updatePositions(forceFullRedraw = false) {
+    // Delegate position sync to the pipeline; this method is still called
+    // from doRender for the initial layout draw.
     for (const pn of this.pixiNodes.values()) {
       pn.gfx.x = pn.data.x;
       pn.gfx.y = pn.data.y;
@@ -1139,190 +1085,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost {
     this.rebuildSpatialGrid();
     this.redrawNodeBatch();
     this.drawOrbitRings();
-
-    // Throttle expensive edge + enclosure redraws during simulation.
-    // Node positions update every frame, but edges/enclosures only every Nth.
-    this.edgeRedrawCounter++;
-    if (forceFullRedraw || this.edgeRedrawCounter >= EDGE_REDRAW_SKIP) {
-      this.edgeRedrawCounter = 0;
-      this.drawEnclosures();
-      this.drawSunburstArcs();
-      this.drawEdges();
-    }
-  }
-
-  // =========================================================================
-  // Render loop with idle optimization
-  // =========================================================================
-  private needsFullRedraw = false;
-
-  markDirty(forceFullRedraw = false) {
-    this.needsRedraw = true;
-    if (forceFullRedraw) this.needsFullRedraw = true;
-    this.idleFrames = 0;
-    this.wakeRenderLoop();
-  }
-
-  private renderTick = () => {
-    if (this.needsRedraw) {
-      this.updatePositions(this.needsFullRedraw);
-      this.needsRedraw = false;
-      this.needsFullRedraw = false;
-      this.idleFrames = 0;
-    } else {
-      this.idleFrames++;
-      if (this.idleFrames > 60 && this.pixiApp) {
-        this.pixiApp.ticker.remove(this.renderTick, this);
-        this._tickerBound = false;
-      }
-    }
-  };
-
-  private startRenderLoop() {
-    if (!this.pixiApp) return;
-    if (this._tickerBound) return;
-    this.needsRedraw = true;
-    this.idleFrames = 0;
-    this.pixiApp.ticker.add(this.renderTick, this);
-    this._tickerBound = true;
-  }
-
-  private wakeRenderLoop() {
-    if (!this._tickerBound && this.pixiApp) {
-      this.startRenderLoop();
-    }
-  }
-
-  // =========================================================================
-  // Create PIXI nodes
-  // =========================================================================
-  /** Deferred node stack for progressive rendering */
-  private pendingNodes: GraphNode[] = [];
-  private pendingNodeR: ((n: GraphNode) => number) | null = null;
-  private pendingNodeColor: ((n: GraphNode) => number) | null = null;
-  private pendingLabelThreshold = 3;
-  private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
-
-  /**
-   * Create PIXI nodes in batches via a deferred stack.
-   * First batch is created synchronously so the graph is immediately visible,
-   * remaining nodes are pushed onto a stack and processed in idle frames.
-   */
-  private createPixiNodes(
-    nodes: GraphNode[],
-    nodeR: (n: GraphNode) => number,
-    nodeColor: (n: GraphNode) => number
-  ) {
-    this.pixiNodes.clear();
-    this.cancelDeferredBatch();
-
-    // Dynamically raise label threshold for large graphs to limit GPU texture memory.
-    const MAX_LABELS = 300;
-    const degValues = nodes.map(n => this.degrees.get(n.id) || 0).sort((a, b) => b - a);
-    this.pendingLabelThreshold = degValues.length > MAX_LABELS
-      ? Math.max(3, degValues[MAX_LABELS - 1])
-      : 3;
-
-    // Sort by degree descending — high-degree nodes render first (most important)
-    const sorted = [...nodes].sort((a, b) =>
-      (this.degrees.get(b.id) || 0) - (this.degrees.get(a.id) || 0)
-    );
-
-    // Immediate batch: create enough nodes for an initial visible graph
-    const IMMEDIATE_BATCH = Math.min(200, sorted.length);
-    const world = this.worldContainer!;
-
-    for (let i = 0; i < IMMEDIATE_BATCH; i++) {
-      this.createSinglePixiNode(sorted[i], nodeR, nodeColor, world);
-    }
-
-    // Push remaining nodes onto the deferred stack
-    if (sorted.length > IMMEDIATE_BATCH) {
-      this.pendingNodes = sorted.slice(IMMEDIATE_BATCH);
-      this.pendingNodeR = nodeR;
-      this.pendingNodeColor = nodeColor;
-      this.scheduleDeferredBatch();
-    }
-  }
-
-  private createSinglePixiNode(
-    n: GraphNode,
-    nodeR: (n: GraphNode) => number,
-    nodeColor: (n: GraphNode) => number,
-    world: PIXI.Container,
-  ) {
-    const container = new PIXI.Container();
-    container.x = n.x;
-    container.y = n.y;
-
-    const r = nodeR(n);
-    const color = nodeColor(n);
-    const circle = new PIXI.Graphics();
-    // Individual circle is hidden by default — batch layer draws all circles.
-    // Only made visible when this node is highlighted (drawNodeCircle).
-    circle.visible = false;
-    container.addChild(circle);
-
-    let label: PIXI.Text | null = null;
-    const deg = this.degrees.get(n.id) || 0;
-    if (deg > this.pendingLabelThreshold) {
-      label = new PIXI.Text(n.label, {
-        fontSize: 11, fill: this.getLabelColor(),
-        fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-      });
-      label.x = r + 2;
-      label.y = -6;
-      label.resolution = 2;
-      container.addChild(label);
-    }
-
-    world.addChild(container);
-
-    this.pixiNodes.set(n.id, {
-      data: n, gfx: container, circle, label,
-      hoverLabel: null, radius: r, color, held: false,
-    });
-  }
-
-  /** Process the next batch of deferred nodes from the stack */
-  private processDeferredBatch = () => {
-    this.deferredBatchId = null;
-    const world = this.worldContainer;
-    if (!world || !this.pendingNodeR || !this.pendingNodeColor) return;
-    if (this.pendingNodes.length === 0) return;
-
-    const BATCH_SIZE = 100;
-    const batch = this.pendingNodes.splice(0, BATCH_SIZE);
-
-    for (const n of batch) {
-      this.createSinglePixiNode(n, this.pendingNodeR, this.pendingNodeColor, world);
-    }
-
-    this.markDirty(true);
-
-    if (this.pendingNodes.length > 0) {
-      this.scheduleDeferredBatch();
-    } else {
-      // All nodes created — final cleanup
-      this.pendingNodeR = null;
-      this.pendingNodeColor = null;
-    }
-  };
-
-  private scheduleDeferredBatch() {
-    if (this.deferredBatchId !== null) return;
-    // Use setTimeout(0) to yield to the browser event loop between batches
-    this.deferredBatchId = setTimeout(this.processDeferredBatch, 0);
-  }
-
-  private cancelDeferredBatch() {
-    if (this.deferredBatchId !== null) {
-      clearTimeout(this.deferredBatchId);
-      this.deferredBatchId = null;
-    }
-    this.pendingNodes = [];
-    this.pendingNodeR = null;
-    this.pendingNodeColor = null;
+    this.drawEnclosures();
+    this.drawSunburstArcs();
+    this.drawEdges();
   }
 
   // =========================================================================
