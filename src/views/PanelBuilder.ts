@@ -56,6 +56,8 @@ export interface PanelState {
   nodeRules: NodeRule[];
   showEdgeLabels: boolean;
   showMinimap: boolean;
+  groupBy: "none" | "tag" | "category";
+  collapsedGroups: Set<string>;
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -105,6 +107,8 @@ export const DEFAULT_PANEL: PanelState = {
   nodeRules: [],
   showEdgeLabels: false,
   showMinimap: true,
+  groupBy: "none" as const,
+  collapsedGroups: new Set<string>(),
 };
 
 // ---------------------------------------------------------------------------
@@ -270,6 +274,16 @@ export function buildPanel(
     addSlider(body, t("display.nodeSize"), 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
     addToggle(body, t("display.scaleByDegree"), panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); });
     addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; });
+
+    addSelect(body, t("display.groupBy"), [
+      { value: "none", label: t("display.groupNone") },
+      { value: "tag", label: t("display.groupTag") },
+      { value: "category", label: t("display.groupCategory") },
+    ], panel.groupBy, (v) => {
+      panel.groupBy = v as "none" | "tag" | "category";
+      panel.collapsedGroups.clear();
+      cb.doRender();
+    });
 
     // --- エッジ種別の表示切替 ---
     body.createEl("div", { cls: "setting-item-heading", text: t("display.edgeTypeHeading") });

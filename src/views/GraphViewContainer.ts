@@ -22,6 +22,7 @@ import { RenderPipeline, darkenColor, type RenderHost } from "./RenderPipeline";
 import { LayoutController, type LayoutHost } from "./LayoutController";
 import { Minimap, type MinimapHost } from "./Minimap";
 import { LayoutTransition } from "./LayoutTransition";
+import { groupNodesByTag, groupNodesByCategory, collapseGroup, type GroupSpec } from "../utils/node-grouping";
 
 /**
  * Derive a single ClusterGroupRule from a query string + recursive flag.
@@ -79,9 +80,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   plugin: GraphViewsPlugin;
   private currentLayout: LayoutType;
   private rawData: GraphData | null = null;
+  /** Original (pre-grouping) graph data, used for expand operations */
+  private originalGraphData: GraphData | null = null;
   private ac: AbortController | null = null;
   private statusEl: HTMLElement | null = null;
-  private panel: PanelState = JSON.parse(JSON.stringify(DEFAULT_PANEL));
+  private panel: PanelState = { ...JSON.parse(JSON.stringify(DEFAULT_PANEL)), collapsedGroups: new Set<string>() };
   private panelEl: HTMLElement | null = null;
   private simulation: Simulation<GraphNode, GraphEdge> | null = null;
   private highlightedNodeId: string | null = null;
@@ -610,6 +613,30 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getSimulation(): Simulation<GraphNode, GraphEdge> | null { return this.simulation; }
   getPixiApp(): PIXI.Application | null { return this.pixiApp; }
   openFile(filePath: string) { this.app.workspace.openLinkText(filePath, "", false); }
+  handleSuperNodeDblClick(pn: import("./InteractionManager").PixiNode): boolean {
+    // Expand collapsed super node
+    if (pn.data.collapsedMembers && pn.data.id.startsWith("__super__")) {
+      const groupKey = pn.data.id.replace("__super__", "");
+      this.panel.collapsedGroups.delete(groupKey);
+      this.rawData = null;
+      this.doRender();
+      return true;
+    }
+    // Collapse node back into its group
+    if (this.panel.groupBy !== "none" && this.originalGraphData) {
+      const groups = this.panel.groupBy === "tag"
+        ? groupNodesByTag(this.originalGraphData.nodes)
+        : groupNodesByCategory(this.originalGraphData.nodes);
+      const parentGroup = groups.find(g => g.memberIds.includes(pn.data.id));
+      if (parentGroup && !this.panel.collapsedGroups.has(parentGroup.key)) {
+        this.panel.collapsedGroups.add(parentGroup.key);
+        this.rawData = null;
+        this.doRender();
+        return true;
+      }
+    }
+    return false;
+  }
   getWorldContainer(): PIXI.Container | null { return this.worldContainer; }
   getNodeCircleBatch(): PIXI.Graphics | null { return this.nodeCircleBatch; }
   getDegrees(): Map<string, number> { return this.degrees; }
@@ -1346,6 +1373,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       applyPreset: (preset: "simple" | "analysis" | "creative") => {
         // Start from defaults, then overlay preset-specific settings
         Object.assign(this.panel, { ...DEFAULT_PANEL });
+        this.panel.collapsedGroups = new Set<string>();
         switch (preset) {
           case "simple":
             Object.assign(this.panel, {
@@ -1430,7 +1458,29 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     const nodeSet = new Set(nodes.map((n) => n.id));
     edges = edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));
-    return { nodes, edges };
+
+    // Apply node grouping (collapse groups into super nodes)
+    let result: GraphData = { nodes, edges };
+    if (this.panel.groupBy !== "none") {
+      this.originalGraphData = { nodes: [...result.nodes], edges: [...result.edges] };
+      const groups = this.panel.groupBy === "tag"
+        ? groupNodesByTag(result.nodes)
+        : groupNodesByCategory(result.nodes);
+      // Auto-collapse all groups when groupBy is first enabled
+      if (this.panel.collapsedGroups.size === 0 && groups.length > 0) {
+        for (const g of groups) this.panel.collapsedGroups.add(g.key);
+      }
+      // Apply collapse for each collapsed group
+      for (const g of groups) {
+        if (this.panel.collapsedGroups.has(g.key)) {
+          result = collapseGroup(result, g);
+        }
+      }
+    } else {
+      this.originalGraphData = null;
+    }
+
+    return result;
   }
 
   // =========================================================================

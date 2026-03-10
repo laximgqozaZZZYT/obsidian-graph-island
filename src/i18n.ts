@@ -78,6 +78,10 @@ const en: TranslationMap = {
   "display.sequence": "Sequence (next/prev)",
   "display.edgeLabels": "Show Edge Labels",
   "display.minimap": "Minimap",
+  "display.groupBy": "Group by",
+  "display.groupNone": "None",
+  "display.groupTag": "Tag",
+  "display.groupCategory": "Category",
 
   // --- PanelBuilder: node rules ---
   "nodeRules.addRule": "Add Rule",
@@ -330,6 +334,10 @@ const ja: TranslationMap = {
   "display.sequence": "順序 (next/prev)",
   "display.edgeLabels": "エッジラベル表示",
   "display.minimap": "ミニマップ",
+  "display.groupBy": "グルーピング",
+  "display.groupNone": "なし",
+  "display.groupTag": "タグ",
+  "display.groupCategory": "カテゴリ",
 
   // --- PanelBuilder: node rules ---
   "nodeRules.addRule": "ルール追加",

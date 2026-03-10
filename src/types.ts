@@ -12,6 +12,10 @@ export interface GraphNode {
   filePath?: string;
   /** True for virtual tag nodes (not backed by a file) */
   isTag?: boolean;
+  /** If this node is a collapsed group (super node), the IDs of its member nodes */
+  collapsedMembers?: string[];
+  /** If this node is hidden because it belongs to a collapsed group */
+  collapsedInto?: string;
 }
 
 export interface GraphEdge {

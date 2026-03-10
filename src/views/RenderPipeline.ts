@@ -299,16 +299,30 @@ export class RenderPipeline {
     container.x = n.x;
     container.y = n.y;
 
-    const r = nodeR(n);
+    const isSuperNode = !!(n.collapsedMembers && n.collapsedMembers.length > 0);
+    const memberCount = isSuperNode ? n.collapsedMembers!.length : 0;
+    const r = isSuperNode ? Math.max(nodeR(n), nodeR(n) * (1 + Math.sqrt(memberCount) * 0.5)) : nodeR(n);
     const color = nodeColor(n);
     const circle = new PIXI.Graphics();
-    circle.visible = false;
+    if (isSuperNode) {
+      // Draw double circle for super nodes (visible immediately)
+      circle.lineStyle(2, color, 1);
+      circle.drawCircle(0, 0, r);
+      circle.lineStyle(1.5, color, 0.6);
+      circle.drawCircle(0, 0, r * 0.7);
+      circle.beginFill(color, 0.3);
+      circle.drawCircle(0, 0, r);
+      circle.endFill();
+      circle.visible = true;
+    } else {
+      circle.visible = false;
+    }
     container.addChild(circle);
 
     let label: PIXI.Text | null = null;
     const degrees = this.host.getDegrees();
     const deg = degrees.get(n.id) || 0;
-    if (deg > this.pendingLabelThreshold) {
+    if (isSuperNode || deg > this.pendingLabelThreshold) {
       label = new PIXI.Text(n.label, {
         fontSize: 11, fill: this.host.getLabelColor(),
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",

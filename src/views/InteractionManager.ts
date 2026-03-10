@@ -52,6 +52,8 @@ export interface InteractionHost {
   zoomToScreenRect(sx: number, sy: number, sw: number, sh: number): void;
   /** The PIXI application (for coordinate transforms) */
   getPixiApp(): PIXI.Application | null;
+  /** Handle double-click on a super node (collapsed group) — returns true if handled */
+  handleSuperNodeDblClick(pn: PixiNode): boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -357,7 +359,11 @@ export class InteractionManager {
     const my = e.clientY - rect.top;
     const worldPt = this.world.toLocal(new PIXI.Point(mx, my), app.stage);
     const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
-    if (hit?.data.filePath) {
+    if (!hit) return;
+    // Handle super node expand/collapse first
+    if (this.host.handleSuperNodeDblClick(hit)) return;
+    // Default: open file
+    if (hit.data.filePath) {
       this.host.openFile(hit.data.filePath);
     }
   }
