@@ -915,6 +915,32 @@
   margin: 4px 8px;
 }
 
+.gi-search-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gi-search-row .gi-search {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.gi-search-help {
+  opacity: 0.5;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.gi-search-help:hover {
+  opacity: 1;
+}
+
+.gi-search-help-popup {
+  font-family: var(--font-monospace);
+  font-size: 0.8em;
+}
+
 
 .gi-flex-fill {
   flex: 1;

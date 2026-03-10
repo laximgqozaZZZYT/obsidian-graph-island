@@ -206,8 +206,9 @@ export function buildPanel(
   // =========================================================================
   const topBar = panelEl.createDiv({ cls: "gi-top-bar" });
 
-  // --- Search bar ---
-  const searchBar = topBar.createEl("input", {
+  // --- Search bar with help icon ---
+  const searchRow = topBar.createDiv({ cls: "gi-search-row" });
+  const searchBar = searchRow.createEl("input", {
     cls: "gi-search gi-top-search",
     type: "text",
     placeholder: t("search.placeholder"),
@@ -219,14 +220,26 @@ export function buildPanel(
       panel.searchQuery = searchBar.value;
       if (searchDebounce) clearTimeout(searchDebounce);
       searchDebounce = setTimeout(() => {
-        // Invalidate cached data so search filter is re-evaluated,
-        // then render keeping the panel (and suggestion UI) alive
         cb.invalidateDataKeepPanel();
       }, 400);
     });
   }
   attachQueryHint(searchBar, (field) => cb.collectValueSuggestions(field));
   attachSearchJump(searchBar, cb);
+
+  const searchHelpBtn = searchRow.createEl("span", {
+    cls: "clickable-icon gi-search-help",
+    attr: { "aria-label": t("help.ariaLabel") },
+  });
+  setIcon(searchHelpBtn, "help-circle");
+  searchHelpBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const existing = topBar.querySelector(".gi-help-popup");
+    if (existing) { existing.remove(); return; }
+    const popup = topBar.createDiv({ cls: "gi-help-popup gi-search-help-popup" });
+    popup.style.whiteSpace = "pre-wrap";
+    popup.textContent = t("search.filterHelp");
+  });
 
   // =========================================================================
   // P2: Empty state — shown when no nodes are in the graph
