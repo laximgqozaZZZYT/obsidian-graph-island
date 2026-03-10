@@ -23,6 +23,8 @@ import type { ClusterMetadata } from "../layouts/cluster-force";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
 import { RenderPipeline, darkenColor, type RenderHost } from "./RenderPipeline";
 import { LayoutController, type LayoutHost } from "./LayoutController";
+import { Minimap, type MinimapHost } from "./Minimap";
+import { LayoutTransition } from "./LayoutTransition";
 
 /**
  * Derive a single ClusterGroupRule from a query string + recursive flag.
@@ -119,8 +121,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Render pipeline (owns render loop, PIXI node creation, batch drawing)
   private renderPipeline: RenderPipeline | null = null;
 
+  // Minimap overlay
+  private minimap: Minimap | null = null;
+
   // Layout controller (owns force simulation setup, force management, cluster arrangement)
   private layoutController: LayoutController = new LayoutController(this);
+
+  // Layout transition animation
+  private layoutTransition = new LayoutTransition();
+  /** Saved node positions from before a layout switch (id → {x, y}) */
+  private savedPositions: Map<string, { x: number; y: number }> = new Map();
 
   // Theme caches
   private cachedBgColor: number | null = null;
@@ -418,7 +428,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   private destroyPixi() {
     if (this.renderPipeline) {
+      this.renderPipeline.onPostRender = null;
       this.renderPipeline.detach();
+    }
+    if (this.minimap) {
+      this.minimap.destroy();
+      this.minimap = null;
     }
     // Clean up enclosure labels before PIXI destroy (they reference PIXI objects)
     for (const lbl of this.enclosureLabels.values()) {
@@ -529,6 +544,41 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Set up render pipeline (render loop, PIXI node creation, batch drawing)
     this.renderPipeline = new RenderPipeline(this);
+
+    // Set up minimap overlay
+    this.minimap?.destroy();
+    const minimapHost: MinimapHost = {
+      getNodePositions: () => {
+        const positions: { x: number; y: number; id: string }[] = [];
+        for (const pn of this.pixiNodes.values()) {
+          positions.push({ x: pn.data.x, y: pn.data.y, id: pn.data.id });
+        }
+        return positions;
+      },
+      getWorldTransform: () => ({
+        x: world.x,
+        y: world.y,
+        scaleX: world.scale.x,
+        scaleY: world.scale.y,
+      }),
+      getViewportSize: () => ({
+        width: this.canvasWrap?.clientWidth ?? 600,
+        height: this.canvasWrap?.clientHeight ?? 400,
+      }),
+      setWorldPosition: (x: number, y: number) => {
+        world.x = x;
+        world.y = y;
+      },
+      wakeRenderLoop: () => this.wakeRenderLoop(),
+    };
+    this.minimap = new Minimap(minimapHost, this.canvasWrap!);
+    this.minimap.setVisible(this.panel.showMinimap);
+    this.renderPipeline.onPostRender = () => {
+      if (this.minimap) {
+        this.minimap.setVisible(this.panel.showMinimap);
+        this.minimap.draw();
+      }
+    };
 
       return app;
     } catch (err) {
@@ -1076,6 +1126,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   // =========================================================================
+  // Layout transition animation (called by RenderPipeline each frame)
+  // =========================================================================
+  tickLayoutTransition(): boolean {
+    return this.layoutTransition.tick();
+  }
+
+  // =========================================================================
   // Update positions
   // =========================================================================
   // Delegated to RenderPipeline
@@ -1386,6 +1443,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.ac?.abort();
     this.ac = new AbortController();
     const signal = this.ac.signal;
+    // Cancel any in-progress layout transition
+    this.layoutTransition.cancel();
+
+    // Save current node positions for animated transition
+    this.savedPositions.clear();
+    for (const [id, pn] of this.pixiNodes) {
+      this.savedPositions.set(id, { x: pn.data.x, y: pn.data.y });
+    }
+
     this.stopSim();
     this.stopOrbitAnimation();
     this.cachedBgColor = null; // invalidate bg color cache on re-render
@@ -1503,11 +1569,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // ==== Force layout ====
     if (this.currentLayout === "force") {
       for (const n of gd.nodes) {
-        if (n.x === 0 && n.y === 0) {
+        // Use saved positions from previous layout as starting positions
+        const saved = this.savedPositions.get(n.id);
+        if (saved) {
+          n.x = saved.x;
+          n.y = saved.y;
+        } else if (n.x === 0 && n.y === 0) {
           n.x = cx + (Math.random() - 0.5) * W * 0.8;
           n.y = cy + (Math.random() - 0.5) * H * 0.8;
         }
       }
+      this.savedPositions.clear();
 
       this.graphEdges = gd.edges;
       this.createPixiNodes(gd.nodes, nodeR, nodeColor);

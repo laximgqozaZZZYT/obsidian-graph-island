@@ -77,6 +77,7 @@ const en: TranslationMap = {
   "display.sibling": "Sibling (peer)",
   "display.sequence": "Sequence (next/prev)",
   "display.edgeLabels": "Show Edge Labels",
+  "display.minimap": "Minimap",
 
   // --- PanelBuilder: node rules ---
   "nodeRules.addRule": "Add Rule",
@@ -328,6 +329,7 @@ const ja: TranslationMap = {
   "display.sibling": "兄弟 (sibling)",
   "display.sequence": "順序 (next/prev)",
   "display.edgeLabels": "エッジラベル表示",
+  "display.minimap": "ミニマップ",
 
   // --- PanelBuilder: node rules ---
   "nodeRules.addRule": "ルール追加",

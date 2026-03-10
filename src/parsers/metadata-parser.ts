@@ -2,21 +2,42 @@ import { App, TFile } from "obsidian";
 import type { GraphData, GraphNode, GraphEdge, GraphViewsSettings, SunburstData, OntologyConfig } from "../types";
 import { DEFAULT_COLORS } from "../types";
 
+export interface ClassifyResult {
+  type: "inheritance" | "aggregation" | "similar" | "sibling" | "sequence";
+  /** True when the edge direction should be reversed (child/down/prev fields) */
+  reverse: boolean;
+}
+
 /**
  * Classify a field/relation name into an ontology edge type.
  * Handles both raw names ("parent") and @-prefixed names ("@Parent").
+ * Returns reverse=true for Breadcrumbs-style child/down/prev fields.
  */
 export function classifyRelation(
   name: string,
   onto: OntologyConfig
-): "inheritance" | "aggregation" | "similar" | undefined {
+): ClassifyResult | undefined {
   const clean = name.startsWith("@") ? name.slice(1).trim() : name.trim();
   const lower = clean.toLowerCase();
 
-  if (onto.inheritanceFields.some(f => f.toLowerCase() === lower)) return "inheritance";
-  if (onto.aggregationFields.some(f => f.toLowerCase() === lower)) return "aggregation";
-  if (onto.similarFields.some(f => f.toLowerCase() === lower)) return "similar";
-  if (onto.customMappings[clean]) return onto.customMappings[clean];
+  if (onto.inheritanceFields.some(f => f.toLowerCase() === lower))
+    return { type: "inheritance", reverse: false };
+  if (onto.aggregationFields.some(f => f.toLowerCase() === lower))
+    return { type: "aggregation", reverse: false };
+  if (onto.reverseInheritanceFields?.some(f => f.toLowerCase() === lower))
+    return { type: "inheritance", reverse: true };
+  if (onto.reverseAggregationFields?.some(f => f.toLowerCase() === lower))
+    return { type: "aggregation", reverse: true };
+  if (onto.similarFields.some(f => f.toLowerCase() === lower))
+    return { type: "similar", reverse: false };
+  if (onto.siblingFields?.some(f => f.toLowerCase() === lower))
+    return { type: "sibling", reverse: false };
+  if (onto.sequenceFields?.some(f => f.toLowerCase() === lower))
+    return { type: "sequence", reverse: false };
+  if (onto.reverseSequenceFields?.some(f => f.toLowerCase() === lower))
+    return { type: "sequence", reverse: true };
+  if (onto.customMappings[clean])
+    return { type: onto.customMappings[clean], reverse: false };
 
   return undefined;
 }
@@ -198,18 +219,24 @@ export function buildGraphFromVault(
         const isOntologyInline = inlineResult?.isOntology ?? false;
 
         let edgeType: GraphEdge["type"] = relation ? "semantic" : "link";
+        let reverse = false;
         if (relation) {
-          const ontoType = classifyRelation(
+          const classified = classifyRelation(
             isOntologyInline ? `@${relation}` : relation,
             settings.ontology
           );
-          if (ontoType) edgeType = ontoType;
+          if (classified) {
+            edgeType = classified.type;
+            reverse = classified.reverse;
+          }
         }
 
+        const src = reverse ? targetFile.path : file.path;
+        const tgt = reverse ? file.path : targetFile.path;
         edges.push({
           id: edgeId,
-          source: file.path,
-          target: targetFile.path,
+          source: src,
+          target: tgt,
           type: edgeType,
           relation,
         });
@@ -223,13 +250,16 @@ export function buildGraphFromVault(
       if (edgeSet.has(edgeId)) continue;
       edgeSet.add(edgeId);
 
-      const ontoType = classifyRelation(relation, settings.ontology);
+      const classified = classifyRelation(relation, settings.ontology);
+      const reverse = classified?.reverse ?? false;
+      const src = reverse ? targetPath : file.path;
+      const tgt = reverse ? file.path : targetPath;
 
       edges.push({
         id: edgeId,
-        source: file.path,
-        target: targetPath,
-        type: ontoType ?? "semantic",
+        source: src,
+        target: tgt,
+        type: classified?.type ?? "semantic",
         relation,
       });
     }
@@ -370,6 +400,46 @@ function buildTagNodesAndEdges(
         target: `tag:${parentTag}`,
         type: "inheritance",
         relation: `#${tag} extends #${parentTag}`,
+      });
+    }
+  }
+
+  // Explicit tag-to-tag relationships (without nesting)
+  if (settings.ontology.tagRelations?.length) {
+    for (const rel of settings.ontology.tagRelations) {
+      const srcTag = rel.source;
+      const tgtTag = rel.target;
+      // Ensure both tag nodes exist (create if needed)
+      for (const tag of [srcTag, tgtTag]) {
+        const tagId = `tag:${tag}`;
+        if (!nodeMap.has(tagId)) {
+          allTags.add(tag);
+          const tagNode: GraphNode = {
+            id: tagId,
+            label: `#${tag}`,
+            x: Math.random() * 800 - 400,
+            y: Math.random() * 600 - 300,
+            vx: 0,
+            vy: 0,
+            isTag: true,
+            tags: [tag],
+          };
+          nodes.push(tagNode);
+          nodeMap.set(tagId, tagNode);
+        }
+      }
+      const edgeId = `tag-rel:tag:${srcTag}->tag:${tgtTag}`;
+      if (edgeSet.has(edgeId)) continue;
+      edgeSet.add(edgeId);
+      const label = rel.type === "inheritance"
+        ? `#${srcTag} is-a #${tgtTag}`
+        : `#${tgtTag} has #${srcTag}`;
+      edges.push({
+        id: edgeId,
+        source: `tag:${srcTag}`,
+        target: `tag:${tgtTag}`,
+        type: rel.type,
+        relation: label,
       });
     }
   }

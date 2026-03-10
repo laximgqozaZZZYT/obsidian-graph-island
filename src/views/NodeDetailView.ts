@@ -26,18 +26,18 @@ export class NodeDetailView extends ItemView {
   getIcon() { return "git-fork"; }
 
   async onOpen() {
-    this.contentEl.addClass("ngp-detail-root");
+    this.contentEl.addClass("gi-detail-root");
     this.contentEl.empty();
 
     // Persistent toolbar with hold (pin) button — always visible
-    const toolbar = this.contentEl.createEl("div", { cls: "ngp-detail-toolbar" });
-    this.holdBtn = toolbar.createEl("button", { cls: "ngp-hold-btn" });
+    const toolbar = this.contentEl.createEl("div", { cls: "gi-detail-toolbar" });
+    this.holdBtn = toolbar.createEl("button", { cls: "gi-hold-btn" });
     setIcon(this.holdBtn, "pin");
     this.holdBtn.setAttribute("aria-label", t("detail.holdAriaLabel"));
     this.holdBtn.toggleClass("is-active", this.held);
     this.holdBtn.addEventListener("click", () => this.toggleHold());
 
-    this.bodyEl = this.contentEl.createEl("div", { cls: "ngp-detail-body" });
+    this.bodyEl = this.contentEl.createEl("div", { cls: "gi-detail-body" });
     this.renderEmpty();
 
     this.registerEvent(
@@ -126,7 +126,7 @@ export class NodeDetailView extends ItemView {
     if (!this.bodyEl) return;
     this.bodyEl.empty();
     this.bodyEl.createEl("div", {
-      cls: "ngp-detail-empty",
+      cls: "gi-detail-empty",
       text: t("detail.emptyHint"),
     });
   }
@@ -152,36 +152,36 @@ export class NodeDetailView extends ItemView {
       return;
     }
 
-    const wrap = this.bodyEl.createDiv({ cls: "ngp-detail-wrap" });
+    const wrap = this.bodyEl.createDiv({ cls: "gi-detail-wrap" });
 
     // === Header ===
-    const header = wrap.createEl("div", { cls: "ngp-detail-header" });
-    const nameEl = header.createEl("div", { cls: "ngp-ni-name" });
+    const header = wrap.createEl("div", { cls: "gi-detail-header" });
+    const nameEl = header.createEl("div", { cls: "gi-ni-name" });
     nameEl.textContent = node.label;
     if (node.isTag) {
-      nameEl.createEl("span", { cls: "ngp-ni-badge", text: "tag" });
+      nameEl.createEl("span", { cls: "gi-ni-badge", text: "tag" });
     }
 
     // === Meta ===
-    const metaWrap = wrap.createEl("div", { cls: "ngp-detail-meta" });
+    const metaWrap = wrap.createEl("div", { cls: "gi-detail-meta" });
     if (node.tags && node.tags.length > 0) {
-      const tagRow = metaWrap.createEl("div", { cls: "ngp-detail-tags" });
+      const tagRow = metaWrap.createEl("div", { cls: "gi-detail-tags" });
       for (const t of node.tags) {
-        tagRow.createEl("span", { cls: "ngp-tag-pill", text: `#${t}` });
+        tagRow.createEl("span", { cls: "gi-tag-pill", text: `#${t}` });
       }
     }
 
     const deg = degrees.get(node.id) || 0;
-    const statsRow = metaWrap.createEl("div", { cls: "ngp-detail-stats" });
-    statsRow.createEl("span", { cls: "ngp-stat", text: `${t("detail.linkCount")}: ${deg}` });
+    const statsRow = metaWrap.createEl("div", { cls: "gi-detail-stats" });
+    statsRow.createEl("span", { cls: "gi-stat", text: `${t("detail.linkCount")}: ${deg}` });
     if (node.category) {
-      statsRow.createEl("span", { cls: "ngp-stat", text: `${t("detail.category")}: ${node.category}` });
+      statsRow.createEl("span", { cls: "gi-stat", text: `${t("detail.category")}: ${node.category}` });
     }
 
     // === Open file ===
     if (node.filePath) {
-      const openLink = wrap.createEl("div", { cls: "ngp-detail-open" });
-      const btn = openLink.createEl("a", { cls: "ngp-ni-link", text: t("detail.openFile") });
+      const openLink = wrap.createEl("div", { cls: "gi-detail-open" });
+      const btn = openLink.createEl("a", { cls: "gi-ni-link", text: t("detail.openFile") });
       btn.addEventListener("click", () => {
         this.app.workspace.openLinkText(node.filePath!, "", false);
       });
@@ -238,10 +238,10 @@ export class NodeDetailView extends ItemView {
     let preview = stripped.slice(0, maxLen);
     if (stripped.length > maxLen) preview += "\n\n…";
 
-    const section = parent.createEl("div", { cls: "ngp-detail-preview" });
-    section.createEl("div", { cls: "ngp-detail-section-label", text: t("detail.preview") });
+    const section = parent.createEl("div", { cls: "gi-detail-preview" });
+    section.createEl("div", { cls: "gi-detail-section-label", text: t("detail.preview") });
 
-    const previewContent = section.createEl("div", { cls: "ngp-preview-content" });
+    const previewContent = section.createEl("div", { cls: "gi-preview-content" });
 
     await MarkdownRenderer.render(
       this.app,
@@ -267,13 +267,13 @@ export class NodeDetailView extends ItemView {
       return;
     }
     if (!content.trim()) {
-      container.createEl("div", { cls: "ngp-inline-preview-empty", text: t("detail.emptyFile") });
+      container.createEl("div", { cls: "gi-inline-preview-empty", text: t("detail.emptyFile") });
       return;
     }
 
     const stripped = content.replace(/^---[\s\S]*?---\n?/, "");
     if (!stripped.trim()) {
-      container.createEl("div", { cls: "ngp-inline-preview-empty", text: t("detail.noContent") });
+      container.createEl("div", { cls: "gi-inline-preview-empty", text: t("detail.noContent") });
       return;
     }
 
@@ -303,10 +303,10 @@ export class NodeDetailView extends ItemView {
     const entries = Object.entries(fm).filter(([k]) => !skip.has(k) && !k.startsWith("_"));
     if (entries.length === 0) return;
 
-    const details = parent.createEl("details", { cls: "ngp-detail-collapsible" });
-    details.createEl("summary", { cls: "ngp-detail-section-label", text: `${t("detail.properties")} (${entries.length})` });
+    const details = parent.createEl("details", { cls: "gi-detail-collapsible" });
+    details.createEl("summary", { cls: "gi-detail-section-label", text: `${t("detail.properties")} (${entries.length})` });
 
-    const table = details.createEl("table", { cls: "ngp-props-table" });
+    const table = details.createEl("table", { cls: "gi-props-table" });
     for (const [key, value] of entries) {
       this.renderPropertyRow(table, key, key, value);
     }
@@ -322,8 +322,8 @@ export class NodeDetailView extends ItemView {
         return;
       }
       // Group header
-      const headerTr = table.createEl("tr", { cls: "ngp-props-group-header" });
-      const headerTd = headerTr.createEl("td", { attr: { colspan: "2" }, cls: "ngp-props-key" });
+      const headerTr = table.createEl("tr", { cls: "gi-props-group-header" });
+      const headerTd = headerTr.createEl("td", { attr: { colspan: "2" }, cls: "gi-props-key" });
       headerTd.textContent = `${displayKey}:`;
       for (const [subKey, subVal] of subEntries) {
         this.renderPropertyRow(table, `${rootKey}.${subKey}`, `  ${subKey}`, subVal);
@@ -332,8 +332,8 @@ export class NodeDetailView extends ItemView {
       // Array of primitives — render as comma-separated links
       if (value.length > 0 && typeof value[0] === "object" && value[0] !== null) {
         // Array of objects
-        const headerTr = table.createEl("tr", { cls: "ngp-props-group-header" });
-        const headerTd = headerTr.createEl("td", { attr: { colspan: "2" }, cls: "ngp-props-key" });
+        const headerTr = table.createEl("tr", { cls: "gi-props-group-header" });
+        const headerTd = headerTr.createEl("td", { attr: { colspan: "2" }, cls: "gi-props-key" });
         headerTd.textContent = `${displayKey}: (${value.length})`;
         for (let i = 0; i < value.length; i++) {
           this.renderPropertyRow(table, rootKey, `  [${i}]`, value[i]);
@@ -341,8 +341,8 @@ export class NodeDetailView extends ItemView {
       } else {
         // Array of primitives
         const tr = table.createEl("tr");
-        tr.createEl("td", { cls: "ngp-props-key", text: displayKey });
-        const valTd = tr.createEl("td", { cls: "ngp-props-value" });
+        tr.createEl("td", { cls: "gi-props-key", text: displayKey });
+        const valTd = tr.createEl("td", { cls: "gi-props-value" });
         this.renderArrayValues(valTd, rootKey, value);
       }
     } else {
@@ -353,10 +353,10 @@ export class NodeDetailView extends ItemView {
   /** Render a primitive value as a hoverable link */
   private renderSimpleRow(table: HTMLElement, propKey: string, displayKey: string, value: unknown) {
     const tr = table.createEl("tr");
-    tr.createEl("td", { cls: "ngp-props-key", text: displayKey });
-    const valTd = tr.createEl("td", { cls: "ngp-props-value" });
+    tr.createEl("td", { cls: "gi-props-key", text: displayKey });
+    const valTd = tr.createEl("td", { cls: "gi-props-value" });
     const valStr = String(value ?? "");
-    const link = valTd.createEl("span", { cls: "ngp-prop-link", text: valStr });
+    const link = valTd.createEl("span", { cls: "gi-prop-link", text: valStr });
     this.attachPropertyHover(link, propKey, value);
   }
 
@@ -365,7 +365,7 @@ export class NodeDetailView extends ItemView {
     for (let i = 0; i < values.length; i++) {
       if (i > 0) container.appendText(", ");
       const valStr = String(values[i] ?? "");
-      const link = container.createEl("span", { cls: "ngp-prop-link", text: valStr });
+      const link = container.createEl("span", { cls: "gi-prop-link", text: valStr });
       this.attachPropertyHover(link, propKey, values[i]);
     }
   }
@@ -414,21 +414,21 @@ export class NodeDetailView extends ItemView {
     items: T[],
     resolve: (item: T) => { label: string; isTag?: boolean; filePath?: string; nodeId?: string | null } | null,
   ) {
-    const details = parent.createEl("details", { cls: "ngp-detail-collapsible" });
+    const details = parent.createEl("details", { cls: "gi-detail-collapsible" });
     details.open = true;
-    details.createEl("summary", { cls: "ngp-detail-section-label", text: title });
+    details.createEl("summary", { cls: "gi-detail-section-label", text: title });
 
-    const list = details.createEl("ul", { cls: "ngp-ni-list" });
+    const list = details.createEl("ul", { cls: "gi-ni-list" });
     for (const item of items) {
       const info = resolve(item);
       if (!info) continue;
 
-      const li = list.createEl("li", { cls: "ngp-ni-list-item-wrap" });
-      const row = li.createEl("div", { cls: "ngp-ni-item-row" });
+      const li = list.createEl("li", { cls: "gi-ni-list-item-wrap" });
+      const row = li.createEl("div", { cls: "gi-ni-item-row" });
 
       // ▼ expand button (only for items with files)
       if (info.filePath) {
-        const expandBtn = row.createEl("button", { cls: "ngp-expand-btn", text: "▶" });
+        const expandBtn = row.createEl("button", { cls: "gi-expand-btn", text: "▶" });
         let expanded = false;
         let previewEl: HTMLElement | null = null;
 
@@ -438,7 +438,7 @@ export class NodeDetailView extends ItemView {
           expandBtn.textContent = expanded ? "▼" : "▶";
 
           if (expanded && !previewEl) {
-            previewEl = li.createEl("div", { cls: "ngp-inline-preview" });
+            previewEl = li.createEl("div", { cls: "gi-inline-preview" });
             await this.renderInlinePreview(previewEl, info.filePath!);
           } else if (previewEl) {
             previewEl.style.display = expanded ? "" : "none";
@@ -446,9 +446,9 @@ export class NodeDetailView extends ItemView {
         });
       }
 
-      const link = row.createEl("span", { cls: "ngp-ni-link", text: info.label });
+      const link = row.createEl("span", { cls: "gi-ni-link", text: info.label });
       if (info.isTag) {
-        row.createEl("span", { cls: "ngp-ni-badge", text: "tag" });
+        row.createEl("span", { cls: "gi-ni-badge", text: "tag" });
       }
       if (info.filePath) {
         link.addEventListener("click", () => {

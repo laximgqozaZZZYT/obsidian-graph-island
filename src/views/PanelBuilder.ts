@@ -55,6 +55,7 @@ export interface PanelState {
   sortRules: SortRule[];
   nodeRules: NodeRule[];
   showEdgeLabels: boolean;
+  showMinimap: boolean;
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -103,6 +104,7 @@ export const DEFAULT_PANEL: PanelState = {
   sortRules: [{ key: "degree" as SortKey, order: "desc" as SortOrder }],
   nodeRules: [],
   showEdgeLabels: false,
+  showMinimap: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -281,6 +283,7 @@ export function buildPanel(
     addToggle(body, t("display.sibling"), panel.showSibling, (v) => { panel.showSibling = v; cb.markDirty(); });
     addToggle(body, t("display.sequence"), panel.showSequence, (v) => { panel.showSequence = v; cb.markDirty(); });
     addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); });
+    addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.wakeRenderLoop(); });
   }, tHelp("help.display"));
 
   buildSection(panelEl, t("section.nodeRules"), (body) => {
