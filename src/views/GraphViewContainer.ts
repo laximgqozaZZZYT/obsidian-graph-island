@@ -3,28 +3,26 @@ import * as PIXI from "pixi.js";
 import { select as d3select } from "d3-selection";
 import { zoom as d3zoom } from "d3-zoom";
 import { arc as d3arc } from "d3-shape";
-import { forceSimulation, forceManyBody, forceCenter, forceLink, type Simulation, type Force } from "d3-force";
+import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
 import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
-import { resolveDirection, matchesFilter } from "../layouts/force";
 import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
 import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
 import { applyTreeLayout } from "../layouts/tree";
 import { applyArcLayout } from "../layouts/arc";
 import { computeSunburstArcs } from "../layouts/sunburst";
-import { computeNodeDegrees, computeInDegree, computePropagatedImportance } from "../analysis/graph-analysis";
+import { computeNodeDegrees } from "../analysis/graph-analysis";
 import { yieldFrame, buildAdj, cssColorToHex } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
-import { buildClusterForce, type ClusterMetadata, type SunburstArc } from "../layouts/cluster-force";
-import { buildMultiSortComparator, type SortMetrics } from "../utils/sort";
-import { edgeLinkDistance, edgeLinkStrength } from "../utils/force-config";
+import type { ClusterMetadata } from "../layouts/cluster-force";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
 import { RenderPipeline, darkenColor, type RenderHost } from "./RenderPipeline";
+import { LayoutController, type LayoutHost } from "./LayoutController";
 
 /**
  * Derive a single ClusterGroupRule from a query string + recursive flag.
@@ -78,7 +76,7 @@ export type { PixiNode } from "./InteractionManager";
 // ---------------------------------------------------------------------------
 // View
 // ---------------------------------------------------------------------------
-export class GraphViewContainer extends ItemView implements InteractionHost, RenderHost {
+export class GraphViewContainer extends ItemView implements InteractionHost, RenderHost, LayoutHost {
   plugin: GraphViewsPlugin;
   private currentLayout: LayoutType;
   private rawData: GraphData | null = null;
@@ -119,6 +117,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   // Render pipeline (owns render loop, PIXI node creation, batch drawing)
   private renderPipeline: RenderPipeline | null = null;
+
+  // Layout controller (owns force simulation setup, force management, cluster arrangement)
+  private layoutController: LayoutController = new LayoutController(this);
 
   // Theme caches
   private cachedBgColor: number | null = null;
@@ -553,6 +554,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getDegrees(): Map<string, number> { return this.degrees; }
   getPrevHighlightSet(): Set<string> { return this.prevHighlightSet; }
   getEphemeralHighlight(): Set<string> | null { return this.ephemeralHighlight; }
+  getPanel(): PanelState { return this.panel; }
+  setSimulation(sim: Simulation<GraphNode, GraphEdge> | null) { this.simulation = sim; }
+  getGraphEdges(): GraphEdge[] { return this.graphEdges; }
+  getTagMembership(): Map<string, Set<string>> { return this.tagMembership; }
+  getTagRelPairsCache(): Set<string> { return this.tagRelPairsCache; }
+  getCanvasSize(): { width: number; height: number } {
+    const rect = this.canvasWrap?.getBoundingClientRect();
+    return { width: rect?.width || 600, height: rect?.height || 400 };
+  }
+  getSettingsDirectionalGravityRules(): DirectionalGravityRule[] {
+    return this.plugin.settings.directionalGravityRules ?? [];
+  }
+  setClusterMeta(meta: ClusterMetadata | null) { this.clusterMeta = meta; }
 
   // =========================================================================
   // Zoom & Hit testing
@@ -1055,7 +1069,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.renderPipeline?.startRenderLoop();
   }
 
-  private wakeRenderLoop() {
+  wakeRenderLoop() {
     this.renderPipeline?.wakeRenderLoop();
   }
 
@@ -1478,15 +1492,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.createPixiNodes(gd.nodes, nodeR, nodeColor);
 
       let tickCount = 0;
-      this.simulation = forceSimulation<GraphNode, GraphEdge>(gd.nodes)
-        .force("charge", forceManyBody<GraphNode>().strength(-this.panel.repelForce))
-        .force("center", forceCenter<GraphNode>(cx, cy).strength(this.panel.centerForce))
-        .force("link", forceLink<GraphNode, GraphEdge>(gd.edges)
-          .id((d) => d.id)
-          .distance((e) => edgeLinkDistance(e, this.panel.linkDistance))
-          .strength((e) => edgeLinkStrength(e, this.panel.linkForce)))
-        .alphaDecay(0.08)
-        .velocityDecay(0.55);
+      this.simulation = this.layoutController.createForceSimulation(gd.nodes, gd.edges, cx, cy);
 
       // Apply directional gravity rules from settings + panel + node rules
       this.applyNodeRulesForce();
@@ -1574,329 +1580,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   // Live panel adjustments
   // =========================================================================
-  private updateForces() {
-    if (!this.simulation) return;
-    const rect = this.canvasWrap?.getBoundingClientRect();
-    const W = rect?.width || 600;
-    const H = rect?.height || 400;
-    this.simulation
-      .force("charge", forceManyBody<GraphNode>().strength(-this.panel.repelForce))
-      .force("center", forceCenter<GraphNode>(W / 2, H / 2).strength(this.panel.centerForce))
-      .force("link", forceLink<GraphNode, GraphEdge>(this.graphEdges)
-        .id((d) => d.id)
-        .distance((e) => edgeLinkDistance(e, this.panel.linkDistance))
-        .strength((e) => edgeLinkStrength(e, this.panel.linkForce)));
-    this.applyNodeRulesForce();
-    this.applyEnclosureRepulsionForce();
-    this.simulation.alpha(0.5).restart();
-    this.wakeRenderLoop();
-  }
-
-  /**
-   * Create or update the custom force for directional gravity rules.
-   * Merges rules from plugin settings and panel-local overrides.
-   */
-  private applyDirectionalGravityForce() {
-    if (!this.simulation) return;
-    const rules = this.getActiveDirectionalGravityRules();
-    if (rules.length === 0) {
-      this.simulation.force("directionalGravity", null);
-      return;
-    }
-    // Simulation calls force(alpha) on each tick
-    const sim = this.simulation;
-    const forceFn = (alpha: number) => {
-      const nodes = sim.nodes();
-      for (const rule of rules) {
-        const dir = resolveDirection(rule.direction);
-        const ddx = Math.cos(dir);
-        const ddy = Math.sin(dir);
-        const str = (rule.strength ?? 0.1) * alpha;
-        for (const node of nodes) {
-          if (!matchesFilter(node, rule.filter)) continue;
-          node.vx! += ddx * str * 100;
-          node.vy! += ddy * str * 100;
-        }
-      }
-    };
-    this.simulation.force("directionalGravity", forceFn as Force<GraphNode, GraphEdge>);
-  }
-
-  /**
-   * Get the combined list of directional gravity rules (from settings + panel).
-   */
-  private getActiveDirectionalGravityRules(): DirectionalGravityRule[] {
-    const settingsRules = this.plugin.settings.directionalGravityRules ?? [];
-    const panelRules = this.panel.directionalGravityRules ?? [];
-    return [...settingsRules, ...panelRules];
-  }
-
-  /**
-   * Unified force from NodeRules gravity + legacy DirectionalGravityRules.
-   * Replaces applyDirectionalGravityForce when NodeRules are present.
-   */
-  private applyNodeRulesForce() {
-    if (!this.simulation) return;
-
-    // Collect gravity entries: legacy rules + nodeRules gravity
-    const legacyRules = this.getActiveDirectionalGravityRules();
-    const nodeRules = this.panel.nodeRules ?? [];
-
-    // Convert legacy DirectionalGravityRules to {filter, angleDeg, strength}
-    type GravEntry = { filter: string; angleRad: number; strength: number };
-    const entries: GravEntry[] = [];
-
-    for (const rule of legacyRules) {
-      entries.push({
-        filter: rule.filter,
-        angleRad: resolveDirection(rule.direction),
-        strength: rule.strength ?? 0.1,
-      });
-    }
-
-    // Convert NodeRule gravity (degrees) to radians
-    for (const rule of nodeRules) {
-      if (rule.gravityAngle < 0) continue; // none
-      const angleRad = (rule.gravityAngle * Math.PI) / 180;
-      entries.push({
-        filter: rule.query,
-        angleRad,
-        strength: rule.gravityStrength ?? 0.1,
-      });
-    }
-
-    if (entries.length === 0) {
-      this.simulation.force("directionalGravity", null);
-      return;
-    }
-
-    const sim = this.simulation;
-    const forceFn = (alpha: number) => {
-      const nodes = sim.nodes();
-      for (const entry of entries) {
-        const ddx = Math.cos(entry.angleRad);
-        const ddy = Math.sin(entry.angleRad);
-        const str = entry.strength * alpha;
-        for (const node of nodes) {
-          if (!matchesFilter(node, entry.filter)) continue;
-          node.vx! += ddx * str * 100;
-          node.vy! += ddy * str * 100;
-        }
-      }
-    };
-    this.simulation.force("directionalGravity", forceFn as Force<GraphNode, GraphEdge>);
-  }
-
-  /**
-   * Compute a per-node spacing multiplier map from panel.nodeRules.
-   * Nodes matching multiple rules get the product of all matching spacings.
-   */
-  private computeNodeSpacingMap(nodes: GraphNode[]): Map<string, number> {
-    const map = new Map<string, number>();
-    const rules = this.panel.nodeRules ?? [];
-    if (rules.length === 0) return map;
-
-    for (const node of nodes) {
-      let spacing = 1.0;
-      for (const rule of rules) {
-        if (matchesFilter(node, rule.query)) {
-          spacing *= rule.spacingMultiplier;
-        }
-      }
-      if (spacing !== 1.0) {
-        map.set(node.id, spacing);
-      }
-    }
-    return map;
-  }
-
-  /**
-   * Custom d3 force that repels enclosure centroids from each other.
-   * Each tag group is treated as a virtual body at its centroid.
-   * Repulsion is distributed to member nodes, pushing overlapping groups apart.
-   * Only active in enclosure mode.
-   */
-  private applyEnclosureRepulsionForce() {
-    if (!this.simulation) return;
-    if (this.panel.tagDisplay !== "enclosure" || this.tagMembership.size === 0) {
-      this.simulation.force("enclosureRepulsion", null);
-      return;
-    }
-
-    const membership = this.tagMembership;
-    const nodeIndex = new Map<string, GraphNode>();
-    for (const n of this.simulation.nodes()) {
-      nodeIndex.set(n.id, n);
-    }
-
-    const relPairs = this.tagRelPairsCache;
-    const tags = [...membership.keys()];
-    const panel = this.panel;
-
-    // Two-phase enclosure repulsion:
-    //   Phase 1 (alpha > 0.3): Strong repulsion with wide spacing (3× user setting)
-    //     — pushes enclosures far apart before other forces converge
-    //   Phase 2 (alpha ≤ 0.3): Settle to user-configured enclosureSpacing
-    //     — allows graph to compact to the desired density
-    const PHASE_THRESHOLD = 0.3;
-
-    const forceFn = (alpha: number) => {
-      const userSpacing = panel.enclosureSpacing;
-      // In phase 1, use 3× spacing so enclosures spread wide first
-      const effectiveSpacing = alpha > PHASE_THRESHOLD
-        ? userSpacing * 3
-        : userSpacing;
-
-      // Stronger base repulsion in phase 1 for decisive separation
-      const baseStr = alpha > PHASE_THRESHOLD ? 4000 : 2000;
-
-      // Compute centroids
-      const centroids: { tag: string; cx: number; cy: number; count: number; radius: number }[] = [];
-      for (const tag of tags) {
-        const ids = membership.get(tag);
-        if (!ids || ids.size === 0) continue;
-        let sx = 0, sy = 0, cnt = 0;
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const id of ids) {
-          const n = nodeIndex.get(id);
-          if (!n) continue;
-          sx += n.x; sy += n.y; cnt++;
-          if (n.x < minX) minX = n.x;
-          if (n.y < minY) minY = n.y;
-          if (n.x > maxX) maxX = n.x;
-          if (n.y > maxY) maxY = n.y;
-        }
-        if (cnt === 0) continue;
-        const r = Math.max(30, Math.hypot(maxX - minX, maxY - minY) / 2);
-        centroids.push({ tag, cx: sx / cnt, cy: sy / cnt, count: cnt, radius: r });
-      }
-
-      // Repel centroid pairs (only unrelated tags)
-      const repStr = baseStr * alpha;
-      for (let i = 0; i < centroids.length; i++) {
-        for (let j = i + 1; j < centroids.length; j++) {
-          const a = centroids[i], b = centroids[j];
-          if (relPairs.has(`${a.tag}\0${b.tag}`)) continue;
-
-          const dx = b.cx - a.cx;
-          const dy = b.cy - a.cy;
-          const desiredDist = (a.radius + b.radius) * effectiveSpacing;
-          let dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist >= desiredDist) continue; // far enough apart
-          if (dist < 1) dist = 1;
-
-          const overlap = desiredDist - dist;
-          const force = repStr * overlap / dist;
-          const fx = dx * force / dist;
-          const fy = dy * force / dist;
-
-          // Distribute force to member nodes (inversely weighted by group size)
-          const wA = 1 / a.count;
-          const wB = 1 / b.count;
-          const idsA = membership.get(a.tag)!;
-          const idsB = membership.get(b.tag)!;
-          for (const id of idsA) {
-            const n = nodeIndex.get(id);
-            if (n) { n.vx! -= fx * wA; n.vy! -= fy * wA; }
-          }
-          for (const id of idsB) {
-            const n = nodeIndex.get(id);
-            if (n) { n.vx! += fx * wB; n.vy! += fy * wB; }
-          }
-        }
-      }
-    };
-
-    this.simulation.force("enclosureRepulsion", forceFn as Force<GraphNode, GraphEdge>);
-  }
-
-  /**
-   * Apply cluster arrangement force — computes absolute target positions
-   * per group and blends nodes toward them with full velocity kill.
-   */
-  private buildSortComparator(nodes: GraphNode[], edges: GraphEdge[]): ((a: GraphNode, b: GraphNode) => number) | undefined {
-    const rules = this.panel.sortRules;
-    if (!rules || rules.length === 0) return undefined;
-    const metrics: SortMetrics = { degrees: this.degrees };
-    const needsInDegree = rules.some(r => r.key === "in-degree");
-    const needsImportance = rules.some(r => r.key === "importance");
-    if (needsInDegree) metrics.inDegrees = computeInDegree(nodes, edges);
-    if (needsImportance) metrics.importance = computePropagatedImportance(nodes, edges);
-    return buildMultiSortComparator(rules, metrics);
-  }
-
-  /** Compute live cluster centroids from current node positions (for edge bundling). */
-  private computeLiveCentroids(): Map<string, { x: number; y: number }> | null {
-    const meta = this.clusterMeta;
-    if (!meta) return null;
-    const sums = new Map<string, { sx: number; sy: number; cnt: number }>();
-    for (const [nodeId, clusterKey] of meta.nodeClusterMap) {
-      const pn = this.pixiNodes.get(nodeId);
-      if (!pn) continue;
-      let s = sums.get(clusterKey);
-      if (!s) { s = { sx: 0, sy: 0, cnt: 0 }; sums.set(clusterKey, s); }
-      s.sx += pn.data.x;
-      s.sy += pn.data.y;
-      s.cnt++;
-    }
-    const centroids = new Map<string, { x: number; y: number }>();
-    for (const [key, s] of sums) {
-      centroids.set(key, { x: s.sx / s.cnt, y: s.sy / s.cnt });
-    }
-    return centroids;
-  }
-
-  private applyClusterForce() {
-    if (!this.simulation) return;
-    const { clusterArrangement, clusterNodeSpacing, clusterGroupScale, clusterGroupSpacing } = this.panel;
-
-    // Cluster arrangement is always active (no "free" option).
-    // Suppress competing forces:
-    // - Charge: minimal repulsion just to prevent exact overlaps
-    // - Center: removed (group positions already centered)
-    // - Link: removed (would pull arranged nodes out of position)
-    // - DirectionalGravity: removed (adds velocity that fights cluster positions)
-    // - EnclosureRepulsion: removed (separation now handled via target offsets)
-    this.simulation.force("charge", forceManyBody<GraphNode>().strength(-10));
-    this.simulation.force("center", null);
-    this.simulation.force("link", null);
-    this.simulation.force("directionalGravity", null);
-    this.simulation.force("enclosureRepulsion", null);
-
-    const rect = this.canvasWrap?.getBoundingClientRect();
-    const W = rect?.width || 600;
-    const H = rect?.height || 400;
-
-    const result = buildClusterForce(
-      this.simulation.nodes(),
-      this.graphEdges,
-      this.degrees,
-      {
-        groupRules: this.panel.clusterGroupRules,
-        arrangement: clusterArrangement,
-        centerX: W / 2,
-        centerY: H / 2,
-        width: W,
-        height: H,
-        nodeSize: this.panel.nodeSize,
-        scaleByDegree: this.panel.scaleByDegree,
-        nodeSpacing: clusterNodeSpacing,
-        groupScale: clusterGroupScale,
-        groupSpacing: clusterGroupSpacing,
-        tagMembership: this.panel.tagDisplay === "enclosure" ? this.tagMembership : undefined,
-        enclosureSpacing: this.panel.enclosureSpacing,
-        sortComparator: this.buildSortComparator(this.simulation.nodes(), this.graphEdges),
-        nodeSpacingMap: this.computeNodeSpacingMap(this.simulation.nodes()),
-      },
-    );
-    if (result) {
-      this.simulation.force("clusterArrangement", result.force as Force<GraphNode, GraphEdge>);
-      this.clusterMeta = result.metadata;
-    } else {
-      this.simulation.force("clusterArrangement", null);
-      this.clusterMeta = null;
-    }
-  }
+  // =========================================================================
+  // Delegated to LayoutController
+  // =========================================================================
+  private updateForces() { this.layoutController.updateForces(); }
+  private applyNodeRulesForce() { this.layoutController.applyNodeRulesForce(); }
+  private applyEnclosureRepulsionForce() { this.layoutController.applyEnclosureRepulsionForce(); }
+  private applyClusterForce() { this.layoutController.applyClusterForce(); }
+  private buildSortComparator(nodes: GraphNode[], edges: GraphEdge[]) { return this.layoutController.buildSortComparator(nodes, edges); }
+  private computeNodeSpacingMap(nodes: GraphNode[]) { return this.layoutController.computeNodeSpacingMap(nodes); }
+  private computeLiveCentroids() { return this.layoutController.computeLiveCentroids(this.clusterMeta); }
 
   private applySearch() {
     const raw = this.panel.searchQuery;
