@@ -376,6 +376,19 @@ export function buildPanel(
   // =============================================
   // LAYOUT TAB
   // =============================================
+  // --- Layout type selector ---
+  addSelect(layoutTab, t("layout.label"), [
+    { value: "force", label: t("layout.force") },
+    { value: "concentric", label: t("layout.concentric") },
+    { value: "tree", label: t("layout.tree") },
+    { value: "arc", label: t("layout.arc") },
+    { value: "sunburst", label: t("layout.sunburst") },
+    { value: "timeline", label: t("layout.timeline") },
+  ], ctx.currentLayout, (v) => {
+    ctx.setLayout(v as LayoutType);
+    cb.doRender();
+  });
+
   // --- Grouping (in Layout tab) ---
   buildSection(layoutTab, t("section.displayGrouping"), (body) => {
     {

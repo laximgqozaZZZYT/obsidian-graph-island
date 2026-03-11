@@ -29,6 +29,8 @@ export interface TimelineLayoutOptions {
   startY?: number;
   /** Accessor for node frontmatter values. In tests, override this. */
   getNodeProperty?: (nodeId: string, key: string) => string | undefined;
+  /** When multiple timed nodes share the same time step, stack them vertically within the lane */
+  stackSpacing?: number;
 }
 
 /** A node placed in the timeline with its assigned time slot and lane */
@@ -185,6 +187,7 @@ export function applyTimelineLayout(
     laneHeight = 80,
     startX = 60,
     startY = 60,
+    stackSpacing = 20,
     getNodeProperty,
   } = options;
 
@@ -201,8 +204,14 @@ export function applyTimelineLayout(
     }
   }
 
-  // 2. Compute sorted unique time values
+  // 2. Compute sorted unique time values; dynamically adjust step width for large timelines
   const uniqueTimes = [...new Set(nodeTimeValues.values())];
+  // Auto-shrink step width when too many time steps to prevent extremely wide layouts.
+  // Target: total width should be at most ~40x the lane height for reasonable aspect ratio.
+  const maxDesiredCols = 40;
+  const effectiveStepWidth = uniqueTimes.length > maxDesiredCols
+    ? Math.max(20, Math.round(maxDesiredCols * stepWidth / uniqueTimes.length))
+    : stepWidth;
   uniqueTimes.sort(timeComparator);
   const timeIndexMap = new Map<string, number>();
   uniqueTimes.forEach((t, i) => timeIndexMap.set(t, i));
@@ -217,33 +226,73 @@ export function applyTimelineLayout(
   const timedNodeIds = new Set(nodeTimeValues.keys());
   const dag = buildTimelineDAG(graph.edges, timedNodeIds);
 
-  // 4. Assign lanes
-  const laneMap = assignLanes(dag, nodeTimeIndex);
-  const totalLanes = laneMap.size > 0
-    ? Math.max(...laneMap.values()) + 1
-    : 1;
+  // 4. Check if DAG has any actual edges (sequence links)
+  let hasSequenceEdges = false;
+  for (const [, targets] of dag) {
+    if (targets.length > 0) { hasSequenceEdges = true; break; }
+  }
 
-  // 5. Position timed nodes
+  // 5. Assign lanes — use category swim-lanes when no sequence edges
+  let laneMap: Map<string, number>;
+  let totalLanes: number;
+
+  if (hasSequenceEdges) {
+    laneMap = assignLanes(dag, nodeTimeIndex);
+    totalLanes = laneMap.size > 0 ? Math.max(...laneMap.values()) + 1 : 1;
+  } else {
+    // Category-based swim lanes: group timed nodes by category
+    laneMap = assignLanesByCategory(graph.nodes, timedNodeIds);
+    totalLanes = laneMap.size > 0 ? Math.max(...laneMap.values()) + 1 : 1;
+  }
+
+  // 6. Position timed nodes
   const placements: TimelinePlacement[] = [];
   const positioned = new Map<string, { x: number; y: number }>();
+
+  // Track how many nodes share the same (timeIndex, lane) for stacking
+  const cellCount = new Map<string, number>();
 
   for (const [nodeId, timeVal] of nodeTimeValues) {
     const ti = nodeTimeIndex.get(nodeId)!;
     const lane = laneMap.get(nodeId) ?? 0;
-    const x = startX + ti * stepWidth;
-    const y = startY + lane * laneHeight;
+    const cellKey = `${ti}:${lane}`;
+    const stackIdx = cellCount.get(cellKey) ?? 0;
+    cellCount.set(cellKey, stackIdx + 1);
+
+    const x = startX + ti * effectiveStepWidth;
+    const y = startY + lane * laneHeight + stackIdx * stackSpacing;
     positioned.set(nodeId, { x, y });
     placements.push({ nodeId, timeValue: timeVal, timeIndex: ti, lane });
   }
 
-  // 6. Position non-timed nodes in a row below the timeline
+  // 7. If no nodes had time values, arrange all nodes in a clean grid
   const untimedNodes = graph.nodes.filter(n => !nodeTimeValues.has(n.id));
-  const untimedY = startY + totalLanes * laneHeight + laneHeight;
-  untimedNodes.forEach((n, i) => {
-    positioned.set(n.id, { x: startX + i * (stepWidth * 0.5), y: untimedY });
-  });
+  if (nodeTimeValues.size === 0 && untimedNodes.length > 0) {
+    // All nodes lack time metadata — create a balanced grid sorted by file path.
+    // This produces a clean horizontal/vertical arrangement.
+    const sorted = [...untimedNodes].sort((a, b) =>
+      (a.filePath || a.id).localeCompare(b.filePath || b.id)
+    );
+    const cols = Math.ceil(Math.sqrt(sorted.length));
+    sorted.forEach((n, i) => {
+      positioned.set(n.id, {
+        x: startX + (i % cols) * effectiveStepWidth,
+        y: startY + Math.floor(i / cols) * laneHeight,
+      });
+    });
+  } else if (untimedNodes.length > 0) {
+    // Some nodes have time values, some don't — place untimed in grid at right edge
+    const untimedX = startX + uniqueTimes.length * effectiveStepWidth + effectiveStepWidth;
+    const cols = Math.max(1, Math.ceil(Math.sqrt(untimedNodes.length)));
+    untimedNodes.forEach((n, i) => {
+      positioned.set(n.id, {
+        x: untimedX + (i % cols) * (effectiveStepWidth * 0.6),
+        y: startY + Math.floor(i / cols) * laneHeight,
+      });
+    });
+  }
 
-  // 7. Apply positions to nodes
+  // 8. Apply positions to nodes
   const positionedNodes = graph.nodes.map(n => ({
     ...n,
     x: positioned.get(n.id)?.x ?? n.x,
@@ -256,4 +305,37 @@ export function applyTimelineLayout(
     lanes: totalLanes,
     timeSteps: uniqueTimes,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Category-based lane assignment (fallback when no sequence edges)
+// ---------------------------------------------------------------------------
+
+/**
+ * Assign swim-lanes based on node category.
+ * Each unique category gets its own lane, producing a horizontal timeline
+ * where rows represent categories and columns represent time steps.
+ */
+function assignLanesByCategory(
+  nodes: GraphNode[],
+  timedNodeIds: Set<string>,
+): Map<string, number> {
+  const laneMap = new Map<string, number>();
+  const categoryLanes = new Map<string, number>();
+  let nextLane = 0;
+
+  // Collect categories from timed nodes, sorted for deterministic lanes
+  const timedNodes = nodes.filter(n => timedNodeIds.has(n.id));
+  const categories = [...new Set(timedNodes.map(n => n.category || ""))].sort();
+
+  for (const cat of categories) {
+    categoryLanes.set(cat, nextLane++);
+  }
+
+  for (const n of timedNodes) {
+    const cat = n.category || "";
+    laneMap.set(n.id, categoryLanes.get(cat) ?? 0);
+  }
+
+  return laneMap;
 }

@@ -291,8 +291,8 @@ describe("applyTimelineLayout", () => {
     const posA = result.data.nodes.find(n => n.id === "a")!;
     const posOrphan = result.data.nodes.find(n => n.id === "orphan")!;
 
-    // Orphan should be below all timed nodes
-    expect(posOrphan.y).toBeGreaterThan(posA.y);
+    // Orphan should be placed to the right of timed nodes (grid at right edge)
+    expect(posOrphan.x).toBeGreaterThan(posA.x);
   });
 
   it("handles backtracking — node referencing earlier time", () => {
@@ -317,9 +317,9 @@ describe("applyTimelineLayout", () => {
     const posC = result.data.nodes.find(n => n.id === "c")!;
     // a and c share the same time index, so same X
     expect(posA.x).toBe(posC.x);
-    // In a linear chain (a→b→c), c stays on same lane as a
-    // (no fork happened — backtracking is just revisiting a time point)
-    expect(posA.y).toBe(posC.y);
+    // a and c share same lane, but c stacks below a in the same cell
+    // (both at time T1, lane 0, but with vertical stacking for collisions)
+    expect(posA.y).toBeLessThanOrEqual(posC.y);
   });
 
   it("preserves edges unchanged", () => {

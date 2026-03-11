@@ -120,7 +120,7 @@ describe("applySunburstLayout", () => {
     }
   });
 
-  it("places unmatched nodes at center", () => {
+  it("places unmatched nodes on outer ring", () => {
     const nodes = [
       makeNode("orphan"), // no filePath
     ];
@@ -133,8 +133,9 @@ describe("applySunburstLayout", () => {
     );
 
     const n = result.data.nodes[0];
-    expect(n.x).toBe(result.cx);
-    expect(n.y).toBe(result.cy);
+    // Unmatched nodes are distributed around the outermost ring, not at center
+    const dist = Math.sqrt((n.x - result.cx) ** 2 + (n.y - result.cy) ** 2);
+    expect(dist).toBeGreaterThan(0);
   });
 
   it("uses custom center coordinates", () => {

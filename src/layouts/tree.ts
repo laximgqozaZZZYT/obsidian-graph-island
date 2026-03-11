@@ -130,6 +130,10 @@ export function applyTreeLayout(
       }
     }
 
+    // Limit fan-out per node to force deeper trees on dense graphs.
+    // Use cube root for deeper trees: e.g. 123 nodes → maxFanOut=5, depth≈10
+    const maxFanOut = Math.max(3, Math.ceil(Math.pow(nodeIds.length, 1/3)));
+
     const levels = new Map<string, number>();
     const visited = new Set<string>();
     const queue: { id: string; level: number }[] = [
@@ -140,28 +144,56 @@ export function applyTreeLayout(
     levels.set(rootId!, 0);
     const unvisited = new Set(nodeIds);
     unvisited.delete(rootId!);
+    // Track how many children each node has already claimed
+    const childCount = new Map<string, number>();
 
     while (qIdx < queue.length || unvisited.size > 0) {
       if (qIdx >= queue.length && unvisited.size > 0) {
-        const nextId = unvisited.values().next().value!;
-        const parentLevel = 0;
-        queue.push({ id: nextId, level: parentLevel + 1 });
-        visited.add(nextId);
-        unvisited.delete(nextId);
-        levels.set(nextId, parentLevel + 1);
+        // Pick the unvisited node closest (by edges) to already-visited nodes
+        let bestId: string | undefined;
+        let bestLevel = 0;
+        for (const uid of unvisited) {
+          const neighbors = undirected.get(uid) ?? new Set<string>();
+          for (const nb of neighbors) {
+            if (visited.has(nb)) {
+              const parentLvl = levels.get(nb) ?? 0;
+              if (!bestId || parentLvl < bestLevel) {
+                bestId = uid;
+                bestLevel = parentLvl;
+              }
+              break;
+            }
+          }
+        }
+        if (!bestId) bestId = unvisited.values().next().value!;
+        queue.push({ id: bestId, level: bestLevel + 1 });
+        visited.add(bestId);
+        unvisited.delete(bestId);
+        levels.set(bestId, bestLevel + 1);
       }
 
       const item = queue[qIdx++];
       if (!item) continue;
       const { id, level } = item;
-      const children = directed.get(id) || [];
-      for (const childId of children) {
-        if (!visited.has(childId) && nodeSet.has(childId)) {
-          visited.add(childId);
-          unvisited.delete(childId);
-          levels.set(childId, level + 1);
-          queue.push({ id: childId, level: level + 1 });
-        }
+      const currentFanOut = childCount.get(id) ?? 0;
+      const remaining = maxFanOut - currentFanOut;
+      if (remaining <= 0) continue;
+
+      // Prioritize directed children, then undirected neighbors
+      const directedChildren = (directed.get(id) || []).filter(
+        c => !visited.has(c) && nodeSet.has(c)
+      );
+      const undirectedNeighbors = [...(undirected.get(id) ?? [])].filter(
+        c => !visited.has(c) && nodeSet.has(c) && !directedChildren.includes(c)
+      );
+      const candidates = [...directedChildren, ...undirectedNeighbors].slice(0, remaining);
+
+      childCount.set(id, currentFanOut + candidates.length);
+      for (const childId of candidates) {
+        visited.add(childId);
+        unvisited.delete(childId);
+        levels.set(childId, level + 1);
+        queue.push({ id: childId, level: level + 1 });
       }
     }
 
