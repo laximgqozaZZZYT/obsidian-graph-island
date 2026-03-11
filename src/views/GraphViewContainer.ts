@@ -1624,8 +1624,30 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Save current node positions for animated transition
     this.savedPositions.clear();
+    // Also track super node → member mapping so expanded members get
+    // positioned near their former super node instead of randomly
+    const superNodeMembers = new Map<string, string[]>();
     for (const [id, pn] of this.pixiNodes) {
       this.savedPositions.set(id, { x: pn.data.x, y: pn.data.y });
+      if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
+        superNodeMembers.set(id, pn.data.collapsedMembers);
+      }
+    }
+    // Pre-populate savedPositions for members of super nodes: position them
+    // in a circle around the super node's location so they don't scatter randomly
+    for (const [superId, memberIds] of superNodeMembers) {
+      const superPos = this.savedPositions.get(superId);
+      if (!superPos) continue;
+      const count = memberIds.length;
+      const spreadR = Math.sqrt(count) * 20;
+      for (let i = 0; i < count; i++) {
+        if (this.savedPositions.has(memberIds[i])) continue;
+        const angle = (2 * Math.PI * i) / count;
+        this.savedPositions.set(memberIds[i], {
+          x: superPos.x + Math.cos(angle) * spreadR,
+          y: superPos.y + Math.sin(angle) * spreadR,
+        });
+      }
     }
 
     this.stopSim();
