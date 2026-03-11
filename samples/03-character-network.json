@@ -5,54 +5,74 @@
   "existingOnly": true,
   "showOrphans": false,
   "showArrows": false,
-  "textFadeThreshold": 0.3,
+  "textFadeThreshold": 0.4,
   "nodeSize": 6,
   "scaleByDegree": true,
-  "centerForce": 0.005,
-  "repelForce": 150,
-  "linkForce": 0.03,
-  "linkDistance": 80,
+  "centerForce": 0.001,
+  "repelForce": 120,
+  "linkForce": 0.025,
+  "linkDistance": 70,
   "groups": [],
   "searchQuery": "node_type:character",
   "colorEdgesByRelation": true,
   "colorNodesByCategory": true,
-  "showInheritance": false,
-  "showAggregation": false,
+  "showInheritance": true,
+  "showAggregation": true,
   "showTagNodes": false,
   "tagDisplay": "node",
   "showSimilar": true,
   "showSibling": true,
   "showSequence": false,
-  "showLinks": false,
+  "showLinks": true,
   "showTagEdges": false,
   "showCategoryEdges": false,
   "showSemanticEdges": true,
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
-  "hoverHops": 2,
+  "hoverHops": 3,
   "commonQueries": [],
-  "clusterGroupRules": [{"groupBy": "category:?", "recursive": false}],
+  "clusterGroupRules": [
+    {
+      "groupBy": "folder:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "grid",
-  "clusterNodeSpacing": 4.0,
+  "clusterNodeSpacing": 3.0,
   "clusterGroupScale": 2.5,
-  "clusterGroupSpacing": 2.5,
+  "clusterGroupSpacing": 3.0,
   "fadeEdgesByDegree": false,
-  "edgeBundleStrength": 0.6,
-  "sortRules": [{"key": "degree", "order": "desc"}],
+  "edgeBundleStrength": 0.8,
+  "sortRules": [
+    {
+      "key": "degree",
+      "direction": "desc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    {"match": "category", "category": "deity", "shape": "hexagon"},
-    {"match": "category", "category": "warrior", "shape": "diamond"},
-    {"match": "category", "category": "ruler", "shape": "square"},
-    {"match": "default", "shape": "circle"}
+    {
+      "match": "category",
+      "category": "ruler",
+      "shape": "hexagon"
+    },
+    {
+      "match": "category",
+      "category": "warrior",
+      "shape": "diamond"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "start-date",
   "showEdgeLabels": false,
-  "showMinimap": false,
-  "groupBy": "category:?",
+  "showMinimap": true,
+  "groupBy": "folder:?",
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
   "collapsedGroups": [],
-  "activeTab": "edges"
+  "activeTab": "layout"
 }

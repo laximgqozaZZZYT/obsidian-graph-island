@@ -209,10 +209,14 @@ function evaluateLeaf(
     }
     case "category": {
       const cat = (node.category ?? "").toLowerCase();
-      return matchValue(cat, val);
+      if (cat && matchValue(cat, val)) return true;
+      // Fallback to meta.category (frontmatter)
+      const metaCat = resolveMetaValue(node.meta, "category");
+      return metaCat.some(v => matchValue(v.toLowerCase(), val));
     }
     case "path":
-    case "file": {
+    case "file":
+    case "folder": {
       const fp = (node.filePath ?? "").toLowerCase();
       return matchValue(fp, val);
     }

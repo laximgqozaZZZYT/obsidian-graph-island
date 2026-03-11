@@ -5,15 +5,15 @@
   "existingOnly": true,
   "showOrphans": false,
   "showArrows": true,
-  "textFadeThreshold": 0,
-  "nodeSize": 12,
+  "textFadeThreshold": 0.5,
+  "nodeSize": 5,
   "scaleByDegree": true,
-  "centerForce": 0.01,
-  "repelForce": 250,
-  "linkForce": 0.08,
-  "linkDistance": 150,
+  "centerForce": 0.002,
+  "repelForce": 80,
+  "linkForce": 0.03,
+  "linkDistance": 50,
   "groups": [],
-  "searchQuery": "node_type:character AND path:classic-hamlet*",
+  "searchQuery": "node_type:concept OR node_type:character",
   "colorEdgesByRelation": true,
   "colorNodesByCategory": true,
   "showInheritance": true,
@@ -21,7 +21,7 @@
   "showTagNodes": false,
   "tagDisplay": "node",
   "showSimilar": true,
-  "showSibling": true,
+  "showSibling": false,
   "showSequence": false,
   "showLinks": true,
   "showTagEdges": false,
@@ -29,30 +29,50 @@
   "showSemanticEdges": true,
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
-  "hoverHops": 3,
+  "hoverHops": 2,
   "commonQueries": [],
-  "clusterGroupRules": [],
-  "clusterArrangement": "tree",
-  "clusterNodeSpacing": 3.0,
+  "clusterGroupRules": [
+    {
+      "groupBy": "category:?",
+      "recursive": false
+    }
+  ],
+  "clusterArrangement": "concentric",
+  "clusterNodeSpacing": 2.5,
   "clusterGroupScale": 2.0,
   "clusterGroupSpacing": 2.0,
-  "fadeEdgesByDegree": false,
-  "edgeBundleStrength": 0.4,
-  "sortRules": [{"key": "degree", "order": "desc"}],
+  "fadeEdgesByDegree": true,
+  "edgeBundleStrength": 0.5,
+  "sortRules": [
+    {
+      "key": "degree",
+      "direction": "desc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    {"match": "category", "category": "protagonist", "shape": "hexagon"},
-    {"match": "category", "category": "antagonist", "shape": "diamond"},
-    {"match": "category", "category": "noble", "shape": "square"},
-    {"match": "default", "shape": "circle"}
+    {
+      "match": "category",
+      "category": "deity",
+      "shape": "hexagon"
+    },
+    {
+      "match": "category",
+      "category": "protagonist",
+      "shape": "diamond"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "start-date",
-  "showEdgeLabels": true,
+  "showEdgeLabels": false,
   "showMinimap": false,
-  "groupBy": "none",
+  "groupBy": "category:?",
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
   "collapsedGroups": [],
-  "activeTab": "edges"
+  "activeTab": "layout"
 }

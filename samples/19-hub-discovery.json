@@ -5,50 +5,79 @@
   "existingOnly": true,
   "showOrphans": false,
   "showArrows": false,
-  "textFadeThreshold": 0.3,
-  "nodeSize": 8,
+  "textFadeThreshold": 0.4,
+  "nodeSize": 4,
   "scaleByDegree": true,
-  "centerForce": 0.005,
+  "centerForce": 0.003,
   "repelForce": 80,
-  "linkForce": 0.05,
+  "linkForce": 0.02,
   "linkDistance": 50,
   "groups": [],
-  "searchQuery": "path:classic-divine-comedy*",
-  "colorEdgesByRelation": false,
+  "searchQuery": "path:classic-divine-comedy* OR path:classic-hamlet*",
+  "colorEdgesByRelation": true,
   "colorNodesByCategory": true,
-  "showInheritance": false,
+  "showInheritance": true,
   "showAggregation": false,
   "showTagNodes": false,
   "tagDisplay": "node",
   "showSimilar": false,
-  "showSibling": false,
+  "showSibling": true,
   "showSequence": false,
   "showLinks": true,
   "showTagEdges": false,
-  "showCategoryEdges": false,
+  "showCategoryEdges": true,
   "showSemanticEdges": false,
   "enclosureSpacing": 1.5,
-  "directionalGravityRules": [],
+  "directionalGravityRules": [
+    {
+      "filter": "path:classic-divine-comedy*",
+      "direction": -1.5708,
+      "strength": 0.8
+    },
+    {
+      "filter": "path:classic-hamlet*",
+      "direction": 1.5708,
+      "strength": 0.8
+    }
+  ],
   "hoverHops": 2,
   "commonQueries": [],
-  "clusterGroupRules": [{"groupBy": "category:?", "recursive": false}],
-  "clusterArrangement": "grid",
-  "clusterNodeSpacing": 5.0,
-  "clusterGroupScale": 3.0,
-  "clusterGroupSpacing": 3.0,
+  "clusterGroupRules": [
+    {
+      "groupBy": "category:?",
+      "recursive": false
+    }
+  ],
+  "clusterArrangement": "sunburst",
+  "clusterNodeSpacing": 3.0,
+  "clusterGroupScale": 2.5,
+  "clusterGroupSpacing": 2.5,
   "fadeEdgesByDegree": false,
-  "edgeBundleStrength": 0.0,
-  "sortRules": [{"key": "degree", "order": "desc"}],
+  "edgeBundleStrength": 0.5,
+  "sortRules": [
+    {
+      "key": "importance",
+      "direction": "desc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    {"match": "default", "shape": "circle"}
+    {
+      "match": "category",
+      "category": "protagonist",
+      "shape": "hexagon"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "start-date",
   "showEdgeLabels": false,
   "showMinimap": false,
   "groupBy": "category:?",
   "groupByRules": null,
-  "groupMinSize": 1,
+  "groupMinSize": 2,
   "groupFilter": "",
   "collapsedGroups": [],
   "activeTab": "layout"

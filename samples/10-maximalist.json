@@ -1,54 +1,81 @@
 {
   "layout": "force",
-  "showTags": false,
+  "showTags": true,
   "showAttachments": false,
   "existingOnly": true,
-  "showOrphans": false,
-  "showArrows": false,
-  "textFadeThreshold": 0.3,
-  "nodeSize": 4,
+  "showOrphans": true,
+  "showArrows": true,
+  "textFadeThreshold": 0.8,
+  "nodeSize": 5,
   "scaleByDegree": true,
-  "centerForce": 0.005,
-  "repelForce": 60,
-  "linkForce": 0.05,
-  "linkDistance": 40,
+  "centerForce": 0.002,
+  "repelForce": 130,
+  "linkForce": 0.025,
+  "linkDistance": 70,
   "groups": [],
-  "searchQuery": "path:bible-* OR path:classic-*",
-  "colorEdgesByRelation": false,
+  "searchQuery": "",
+  "colorEdgesByRelation": true,
   "colorNodesByCategory": true,
-  "showInheritance": false,
-  "showAggregation": false,
-  "showTagNodes": false,
-  "tagDisplay": "node",
-  "showSimilar": false,
-  "showSibling": false,
-  "showSequence": false,
+  "showInheritance": true,
+  "showAggregation": true,
+  "showTagNodes": true,
+  "tagDisplay": "enclosure",
+  "showSimilar": true,
+  "showSibling": true,
+  "showSequence": true,
   "showLinks": true,
-  "showTagEdges": false,
-  "showCategoryEdges": false,
-  "showSemanticEdges": false,
-  "enclosureSpacing": 1.5,
+  "showTagEdges": true,
+  "showCategoryEdges": true,
+  "showSemanticEdges": true,
+  "enclosureSpacing": 2.0,
   "directionalGravityRules": [],
-  "hoverHops": 2,
+  "hoverHops": 3,
   "commonQueries": [],
-  "clusterGroupRules": [{"groupBy": "category:?", "recursive": false}],
+  "clusterGroupRules": [
+    {
+      "groupBy": "folder:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "spiral",
   "clusterNodeSpacing": 2.0,
-  "clusterGroupScale": 2.0,
-  "clusterGroupSpacing": 2.0,
-  "fadeEdgesByDegree": false,
-  "edgeBundleStrength": 0.0,
-  "sortRules": [{"key": "degree", "order": "desc"}],
+  "clusterGroupScale": 3.0,
+  "clusterGroupSpacing": 3.0,
+  "fadeEdgesByDegree": true,
+  "edgeBundleStrength": 0.9,
+  "sortRules": [
+    {
+      "key": "degree",
+      "direction": "desc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    {"match": "default", "shape": "circle"}
+    {
+      "match": "isTag",
+      "shape": "triangle"
+    },
+    {
+      "match": "category",
+      "category": "deity",
+      "shape": "hexagon"
+    },
+    {
+      "match": "category",
+      "category": "warrior",
+      "shape": "diamond"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "start-date",
   "showEdgeLabels": false,
   "showMinimap": true,
-  "groupBy": "category:?",
+  "groupBy": "folder:?",
   "groupByRules": null,
-  "groupMinSize": 1,
+  "groupMinSize": 2,
   "groupFilter": "",
   "collapsedGroups": [],
   "activeTab": "layout"
