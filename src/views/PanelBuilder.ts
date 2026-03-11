@@ -76,6 +76,18 @@ export interface PanelState {
   activeTab: "filter" | "display" | "layout" | "settings";
   /** Auto-fit spacing: automatically compute nodeSpacing, groupScale, groupSpacing */
   autoFit: boolean;
+  /** Show duration bars on timeline arrangement */
+  showDurationBars: boolean;
+  /** Frontmatter field for timeline end date */
+  timelineEndKey: string;
+  /** Show arrangement guide lines */
+  showGuideLines: boolean;
+  /** Guide line mode: "shared" merges all timeline T-axes into one; "per-group" draws per group */
+  guideLineMode: "shared" | "per-group";
+  /** Show a grid/boundary overlay per cluster group */
+  showGroupGrid: boolean;
+  /** Comma-separated fields for link-based ordering (next,prev,parent_id,story_order) */
+  timelineOrderFields: string;
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -138,6 +150,12 @@ export const DEFAULT_PANEL: PanelState = {
   collapsedGroups: new Set<string>(),
   activeTab: "filter" as const,
   autoFit: false,
+  showDurationBars: true,
+  timelineEndKey: "end-date",
+  showGuideLines: true,
+  guideLineMode: "per-group" as const,
+  showGroupGrid: true,
+  timelineOrderFields: "next,prev,parent_id,story_order",
 };
 
 // ---------------------------------------------------------------------------
@@ -439,6 +457,40 @@ export function buildPanel(
         cb.restartSimulation(0.5);
       });
       body.createEl("p", { cls: "gi-hint", text: t("timeline.timeKeyHint") });
+
+      // Timeline end key input (for duration bars)
+      const endRow = body.createDiv({ cls: "gi-setting-row" });
+      endRow.createEl("span", { cls: "gi-setting-label", text: t("timeline.endKey") });
+      const endInput = endRow.createEl("input", { cls: "gi-setting-input", type: "text" });
+      endInput.value = panel.timelineEndKey;
+      endInput.placeholder = "end-date";
+      endInput.setAttribute("aria-label", t("timeline.endKeyHint"));
+      attachDatalist(endInput, ctx.frontmatterKeys);
+      endInput.addEventListener("change", () => {
+        panel.timelineEndKey = endInput.value.trim() || "end-date";
+        cb.applyClusterForce();
+        cb.restartSimulation(0.5);
+      });
+
+      // Duration bars toggle
+      addToggle(body, t("timeline.showDurationBars"), panel.showDurationBars, (v) => {
+        panel.showDurationBars = v;
+        cb.markDirty();
+      });
+
+      // Timeline order fields
+      const orderRow = body.createDiv({ cls: "gi-setting-row" });
+      orderRow.createEl("span", { cls: "gi-setting-label", text: t("timeline.orderFields") });
+      const orderInput = orderRow.createEl("input", { cls: "gi-setting-input", type: "text" });
+      orderInput.value = panel.timelineOrderFields;
+      orderInput.placeholder = "next,prev,parent_id,story_order";
+      orderInput.setAttribute("aria-label", t("timeline.orderFieldsHint"));
+      orderInput.addEventListener("change", () => {
+        panel.timelineOrderFields = orderInput.value.trim() || "next,prev,parent_id,story_order";
+        cb.applyClusterForce();
+        cb.restartSimulation(0.5);
+      });
+      body.createEl("p", { cls: "gi-hint", text: t("timeline.orderFieldsHint") });
     }
 
     // Auto-fit toggle — disables manual spacing sliders when ON
@@ -455,6 +507,29 @@ export function buildPanel(
       cb.applyClusterForce();
       cb.restartSimulation(0.5);
       cb.doRenderKeepPanel();
+    });
+
+    // Guide lines toggle
+    addToggle(body, t("cluster.showGuideLines"), panel.showGuideLines, (v) => {
+      panel.showGuideLines = v;
+      cb.markDirty();
+    });
+
+    // Guide line mode (only for timeline)
+    if (panel.clusterArrangement === "timeline") {
+      addSelect(body, t("cluster.guideLineMode"), [
+        { value: "shared", label: t("cluster.guideLineMode.shared") },
+        { value: "per-group", label: t("cluster.guideLineMode.perGroup") },
+      ], panel.guideLineMode, (v) => {
+        panel.guideLineMode = v as "shared" | "per-group";
+        cb.markDirty();
+      });
+    }
+
+    // Group grid toggle
+    addToggle(body, t("cluster.showGroupGrid"), panel.showGroupGrid, (v) => {
+      panel.showGroupGrid = v;
+      cb.markDirty();
     });
 
     spacingSliders.push(addSlider(body, t("cluster.nodeSpacing"), 1, 10, 0.5, panel.clusterNodeSpacing, (v) => {

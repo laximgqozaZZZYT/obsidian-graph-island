@@ -51,6 +51,82 @@ export interface SunburstArc {
   cy: number;
 }
 
+// ---------------------------------------------------------------------------
+// ArrangementResult — unified return type from all *Offsets() functions
+// ---------------------------------------------------------------------------
+
+/** Guide data for timeline arrangement */
+export interface TimelineGuide {
+  type: "timeline";
+  axisY: number;
+  ticks: { x: number; label: string }[];
+}
+
+/** Guide data for spiral arrangement */
+export interface SpiralGuide {
+  type: "spiral";
+  a: number;
+  maxTheta: number;
+}
+
+/** Guide data for grid arrangement */
+export interface GridGuide {
+  type: "grid";
+  verticals: number[];
+  horizontals: number[];
+  bounds: { xMin: number; yMin: number; xMax: number; yMax: number };
+}
+
+/** Guide data for tree arrangement */
+export interface TreeGuide {
+  type: "tree";
+  depthLevels: { y: number; label: string }[];
+  xMin: number;
+  xMax: number;
+}
+
+/** Guide data for triangle arrangement */
+export interface TriangleGuide {
+  type: "triangle";
+  vertices: [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }];
+}
+
+/** Guide data for mountain arrangement */
+export interface MountainGuide {
+  type: "mountain";
+  points: { x: number; y: number }[];
+}
+
+export type ArrangementGuide =
+  | TimelineGuide
+  | SpiralGuide
+  | GridGuide
+  | TreeGuide
+  | TriangleGuide
+  | MountainGuide;
+
+/** Duration bar info for timeline nodes with start+end dates */
+export interface TimelineBarInfo {
+  nodeId: string;
+  xStart: number;
+  xEnd: number;
+  barHeight: number;
+  yCenter: number;
+}
+
+/** Unified result from intra-group arrangement functions */
+export interface ArrangementResult {
+  offsets: Map<string, { dx: number; dy: number }>;
+  guide?: ArrangementGuide;
+  bars?: TimelineBarInfo[];
+}
+
+/** Guide line data collected from all groups */
+export interface GuideLineData {
+  arrangement: string;
+  groups: { groupKey: string; centerX: number; centerY: number; guide: ArrangementGuide }[];
+}
+
 /** Metadata about cluster assignments, exposed for edge bundling. */
 export interface ClusterMetadata {
   /** Maps node ID → cluster group key */
@@ -61,6 +137,10 @@ export interface ClusterMetadata {
   clusterRadii: Map<string, number>;
   /** Sunburst arc segments for guide line rendering (only set for sunburst arrangement) */
   sunburstArcs?: SunburstArc[];
+  /** Timeline bar data (only set for timeline arrangement with duration bars) */
+  timelineBars?: TimelineBarInfo[];
+  /** Guide line data for arrangement visualization */
+  guideLineData?: GuideLineData;
 }
 
 /** Result of buildClusterForce: force function + cluster metadata for bundling. */
@@ -101,6 +181,12 @@ export interface ClusterForceConfig {
   nodeSpacingMap?: Map<string, number>;
   /** Frontmatter key for timeline arrangement (e.g. "date", "era") */
   timelineKey?: string;
+  /** Frontmatter key for timeline end date (e.g. "end-date") */
+  timelineEndKey?: string;
+  /** Comma-separated order fields for link-based ordering (e.g. "next,prev,parent_id,story_order") */
+  timelineOrderFields?: string;
+  /** Guide line mode: "shared" or "per-group" (timeline only) */
+  guideLineMode?: "shared" | "per-group";
   /** Accessor for node frontmatter values (for timeline arrangement) */
   getNodeProperty?: (nodeId: string, key: string) => string | undefined;
 }
@@ -110,6 +196,83 @@ export interface ClusterForceConfig {
  * Returns null if groupRules is empty.
  * Also returns ClusterMetadata for edge bundling.
  */
+/**
+ * Post-process targets to resolve pairwise group overlaps.
+ * For each overlapping group pair, push them apart along the line connecting their centers.
+ * Also shifts all member node targets accordingly.
+ */
+function resolveGroupOverlaps(
+  targets: Map<string, { x: number; y: number }>,
+  groups: Map<string, GraphNode[]>,
+  clusterRadii: Map<string, number>,
+  clusterCentroids: Map<string, { x: number; y: number }>,
+  iterations: number = 3,
+): void {
+  const keys = [...groups.keys()];
+  if (keys.length < 2) return;
+
+  for (let iter = 0; iter < iterations; iter++) {
+    let anyOverlap = false;
+
+    for (let i = 0; i < keys.length; i++) {
+      for (let j = i + 1; j < keys.length; j++) {
+        const kA = keys[i];
+        const kB = keys[j];
+        const cA = clusterCentroids.get(kA);
+        const cB = clusterCentroids.get(kB);
+        if (!cA || !cB) continue;
+
+        const rA = clusterRadii.get(kA) ?? 0;
+        const rB = clusterRadii.get(kB) ?? 0;
+        if (rA < 1 || rB < 1) continue;
+
+        const dx = cB.x - cA.x;
+        const dy = cB.y - cA.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const minDist = (rA + rB) * 1.15; // 15% padding
+
+        if (dist >= minDist) continue;
+        anyOverlap = true;
+
+        // Push apart along center-to-center vector
+        const overlap = minDist - dist;
+        const pushDist = overlap / 2;
+        const nx = dist > 0.01 ? dx / dist : 1;
+        const ny = dist > 0.01 ? dy / dist : 0;
+
+        const shiftAx = -nx * pushDist;
+        const shiftAy = -ny * pushDist;
+        const shiftBx = nx * pushDist;
+        const shiftBy = ny * pushDist;
+
+        // Update centroids
+        cA.x += shiftAx;
+        cA.y += shiftAy;
+        cB.x += shiftBx;
+        cB.y += shiftBy;
+
+        // Shift all member targets
+        const membersA = groups.get(kA);
+        const membersB = groups.get(kB);
+        if (membersA) {
+          for (const m of membersA) {
+            const t = targets.get(m.id);
+            if (t) { t.x += shiftAx; t.y += shiftAy; }
+          }
+        }
+        if (membersB) {
+          for (const m of membersB) {
+            const t = targets.get(m.id);
+            if (t) { t.x += shiftBx; t.y += shiftBy; }
+          }
+        }
+      }
+    }
+
+    if (!anyOverlap) break;
+  }
+}
+
 export function buildClusterForce(
   nodes: GraphNode[],
   edges: GraphEdge[],
@@ -165,7 +328,7 @@ export function buildClusterForce(
   }
   if (groups.size === 0) return null;
 
-  const { targets, sunburstArcs } = computeAbsoluteTargets(groups, edges, degrees, cfg);
+  const { targets, sunburstArcs, guideGroups, allBars } = computeAbsoluteTargets(groups, edges, degrees, cfg);
 
   // Build cluster metadata for edge bundling
   const nodeClusterMap = new Map<string, string>();
@@ -182,6 +345,17 @@ export function buildClusterForce(
     clusterCentroids.set(key, { x: sx / members.length, y: sy / members.length });
     clusterRadii.set(key, estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members));
   }
+
+  // Resolve pairwise group overlaps (especially important after super node expansion)
+  resolveGroupOverlaps(targets, groups, clusterRadii, clusterCentroids);
+
+  // Build guide line data from arrangement results
+  const guideLineData: GuideLineData | undefined = guideGroups && guideGroups.length > 0
+    ? { arrangement: cfg.arrangement, groups: guideGroups }
+    : undefined;
+
+  // Timeline bars (already in absolute coordinates)
+  const timelineBars = allBars && allBars.length > 0 ? allBars : undefined;
 
   // Build node index for enclosure separation (if active)
   const tagMem = cfg.tagMembership;
@@ -207,7 +381,7 @@ export function buildClusterForce(
     // }
   };
 
-  return { force, metadata: { nodeClusterMap, clusterCentroids, clusterRadii, sunburstArcs } };
+  return { force, metadata: { nodeClusterMap, clusterCentroids, clusterRadii, sunburstArcs, timelineBars, guideLineData } };
 }
 
 // ---------------------------------------------------------------------------
@@ -244,6 +418,8 @@ function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, scaleBy
 interface AbsoluteTargetResult {
   targets: Map<string, { x: number; y: number }>;
   sunburstArcs?: SunburstArc[];
+  guideGroups?: FlatTargetResult["guideGroups"];
+  allBars?: TimelineBarInfo[];
 }
 
 function computeAbsoluteTargets(
@@ -267,9 +443,11 @@ function computeAbsoluteTargets(
   }
 
   if (hasHierarchy) {
-    return { targets: computeHierarchicalTargets(groups, parentMap, edges, degrees, cfg) };
+    const r = computeHierarchicalTargets(groups, parentMap, edges, degrees, cfg);
+    return { targets: r.targets, guideGroups: r.guideGroups, allBars: r.allBars };
   }
-  return { targets: computeFlatTargets(groups, edges, degrees, cfg) };
+  const r = computeFlatTargets(groups, edges, degrees, cfg);
+  return { targets: r.targets, guideGroups: r.guideGroups, allBars: r.allBars };
 }
 
 // ---------------------------------------------------------------------------
@@ -489,14 +667,23 @@ function computeSunburstTargets(
   return { targets, sunburstArcs: arcs };
 }
 
+/** Result from flat/hierarchical target computation, includes guide data */
+interface FlatTargetResult {
+  targets: Map<string, { x: number; y: number }>;
+  guideGroups: { groupKey: string; centerX: number; centerY: number; guide: ArrangementGuide }[];
+  allBars: TimelineBarInfo[];
+}
+
 /** Flat layout — all groups at the same level (no recursive split). */
 function computeFlatTargets(
   groups: Map<string, GraphNode[]>,
   edges: GraphEdge[],
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
-): Map<string, { x: number; y: number }> {
+): FlatTargetResult {
   const targets = new Map<string, { x: number; y: number }>();
+  const guideGroups: FlatTargetResult["guideGroups"] = [];
+  const allBars: TimelineBarInfo[] = [];
   const groupKeys = [...groups.keys()];
   const nGroups = groupKeys.length;
 
@@ -512,16 +699,31 @@ function computeFlatTargets(
 
   for (const [key, members] of groups) {
     const center = groupCenters.get(key)!;
-    const offsets = computeOffsets(members, degrees, edges, cfg);
+    const result = computeOffsets(members, degrees, edges, cfg);
     for (const n of members) {
-      const off = offsets.get(n.id);
+      const off = result.offsets.get(n.id);
       targets.set(n.id, {
         x: center.x + (off?.dx ?? 0),
         y: center.y + (off?.dy ?? 0),
       });
     }
+    // Collect guide data with absolute positions
+    if (result.guide) {
+      guideGroups.push({ groupKey: key, centerX: center.x, centerY: center.y, guide: result.guide });
+    }
+    // Collect bar data with absolute positions
+    if (result.bars) {
+      for (const bar of result.bars) {
+        allBars.push({
+          ...bar,
+          xStart: bar.xStart + center.x,
+          xEnd: bar.xEnd + center.x,
+          yCenter: bar.yCenter + center.y,
+        });
+      }
+    }
   }
-  return targets;
+  return { targets, guideGroups, allBars };
 }
 
 /**
@@ -537,8 +739,10 @@ function computeHierarchicalTargets(
   edges: GraphEdge[],
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
-): Map<string, { x: number; y: number }> {
+): FlatTargetResult {
   const targets = new Map<string, { x: number; y: number }>();
+  const guideGroups: FlatTargetResult["guideGroups"] = [];
+  const allBars: TimelineBarInfo[] = [];
   const parentKeys = [...parentMap.keys()];
 
   // Build virtual "super groups" to compute parent-level sizes
@@ -571,13 +775,21 @@ function computeHierarchicalTargets(
     if (childKeys.length === 1) {
       // No sub-groups — single group, apply arrangement directly
       const members = groups.get(childKeys[0])!;
-      const offsets = computeOffsets(members, degrees, edges, cfg);
+      const result = computeOffsets(members, degrees, edges, cfg);
       for (const n of members) {
-        const off = offsets.get(n.id);
+        const off = result.offsets.get(n.id);
         targets.set(n.id, {
           x: pCenter.x + (off?.dx ?? 0),
           y: pCenter.y + (off?.dy ?? 0),
         });
+      }
+      if (result.guide) {
+        guideGroups.push({ groupKey: childKeys[0], centerX: pCenter.x, centerY: pCenter.y, guide: result.guide });
+      }
+      if (result.bars) {
+        for (const bar of result.bars) {
+          allBars.push({ ...bar, xStart: bar.xStart + pCenter.x, xEnd: bar.xEnd + pCenter.x, yCenter: bar.yCenter + pCenter.y });
+        }
       }
       continue;
     }
@@ -610,18 +822,26 @@ function computeHierarchicalTargets(
       const members = groups.get(ck);
       if (!members) continue;
       const center = subCenters.get(ck)!;
-      const offsets = computeOffsets(members, degrees, edges, cfg);
+      const result = computeOffsets(members, degrees, edges, cfg);
       for (const n of members) {
-        const off = offsets.get(n.id);
+        const off = result.offsets.get(n.id);
         targets.set(n.id, {
           x: center.x + (off?.dx ?? 0),
           y: center.y + (off?.dy ?? 0),
         });
       }
+      if (result.guide) {
+        guideGroups.push({ groupKey: ck, centerX: center.x, centerY: center.y, guide: result.guide });
+      }
+      if (result.bars) {
+        for (const bar of result.bars) {
+          allBars.push({ ...bar, xStart: bar.xStart + center.x, xEnd: bar.xEnd + center.x, yCenter: bar.yCenter + center.y });
+        }
+      }
     }
   }
 
-  return targets;
+  return { targets, guideGroups, allBars };
 }
 
 /**
@@ -869,7 +1089,7 @@ function computeOffsets(
   degrees: Map<string, number>,
   edges: GraphEdge[],
   cfg: ClusterForceConfig,
-): Map<string, { dx: number; dy: number }> {
+): ArrangementResult {
   const { nodeSpacing, groupScale, scaleByDegree, sortComparator, nodeSpacingMap } = cfg;
   // Compute effective nodeSize: if any member is a super node, use the
   // largest effective radius so that fixed-spacing arrangements (grid,
@@ -884,14 +1104,14 @@ function computeOffsets(
   const cmp = sortComparator ?? defaultSort;
   switch (cfg.arrangement) {
     case "spiral": return spiralOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap);
-    case "concentric": return concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap);
+    case "concentric": return { offsets: concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap) };
     case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     case "grid": return gridOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     case "triangle": return triangleOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
-    case "random": return randomOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, nodeSpacingMap);
+    case "random": return { offsets: randomOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, nodeSpacingMap) };
     case "mountain": return mountainOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
-    case "timeline": return timelineOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg.timelineKey, cfg.getNodeProperty);
-    default: return new Map();
+    case "timeline": return timelineOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg.timelineKey, cfg.getNodeProperty, cfg.timelineEndKey, cfg.timelineOrderFields);
+    default: return { offsets: new Map() };
   }
 }
 
@@ -913,11 +1133,11 @@ function spiralOffsets(
   scaleByDegree: boolean,
   cmp: (a: GraphNode, b: GraphNode) => number,
   nodeSpacingMap?: Map<string, number>,
-): Map<string, { dx: number; dy: number }> {
+): ArrangementResult {
   const sorted = [...members].sort(cmp);
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = sorted.length;
-  if (n === 0) return offsets;
+  if (n === 0) return { offsets };
 
   // Precompute each node's visual radius
   const radii = sorted.map(nd => effectiveRadius(nd, nodeSize, degrees.get(nd.id) || 0, scaleByDegree));
@@ -948,7 +1168,8 @@ function spiralOffsets(
       theta += dTheta;
     }
   }
-  return offsets;
+  const guide: SpiralGuide = { type: "spiral", a, maxTheta: theta };
+  return { offsets, guide };
 }
 
 // ---------------------------------------------------------------------------
@@ -1030,9 +1251,9 @@ function treeOffsets(
   nodeSize: number,
   cmp: (a: GraphNode, b: GraphNode) => number,
   nodeSpacingMap?: Map<string, number>,
-): Map<string, { dx: number; dy: number }> {
+): ArrangementResult {
   const offsets = new Map<string, { dx: number; dy: number }>();
-  if (members.length === 0) return offsets;
+  if (members.length === 0) return { offsets };
 
   // Horizontal gap between nodes — governed by spacingMul
   const nodeSpacing = nodeSize * 2 * spacingMul;
@@ -1085,6 +1306,9 @@ function treeOffsets(
 
   const totalHeight = (layers.length - 1) * layerHeight;
 
+  // Track global x-extent for guide data
+  let globalXMin = Infinity, globalXMax = -Infinity;
+
   for (let li = 0; li < layers.length; li++) {
     const layer = layers[li];
     // Compute per-node widths using spacing multiplier
@@ -1092,15 +1316,29 @@ function treeOffsets(
     const totalWidth = widths.reduce((s, w) => s + w, 0) - (widths.length > 0 ? widths[widths.length - 1] : 0);
     let cx = -totalWidth / 2;
     for (let ni = 0; ni < layer.length; ni++) {
-      offsets.set(layer[ni], {
-        dx: cx,
-        dy: li * layerHeight - totalHeight / 2,
-      });
+      const dx = cx;
+      const dy = li * layerHeight - totalHeight / 2;
+      offsets.set(layer[ni], { dx, dy });
+      if (dx < globalXMin) globalXMin = dx;
+      if (dx > globalXMax) globalXMax = dx;
       cx += widths[ni];
     }
   }
 
-  return offsets;
+  // Build tree depth guide
+  const depthLevels: { y: number; label: string }[] = [];
+  for (let li = 0; li < layers.length; li++) {
+    const y = li * layerHeight - totalHeight / 2;
+    depthLevels.push({ y, label: `L${li}` });
+  }
+  const guide: TreeGuide = {
+    type: "tree",
+    depthLevels,
+    xMin: globalXMin - nodeSpacing,
+    xMax: globalXMax + nodeSpacing,
+  };
+
+  return { offsets, guide };
 }
 
 // ---------------------------------------------------------------------------
@@ -1115,7 +1353,7 @@ function gridOffsets(
   nodeSize: number,
   cmp: (a: GraphNode, b: GraphNode) => number,
   nodeSpacingMap?: Map<string, number>,
-): Map<string, { dx: number; dy: number }> {
+): ArrangementResult {
   const sorted = [...members].sort(cmp);
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = sorted.length;
@@ -1135,7 +1373,20 @@ function gridOffsets(
       dy: row * spacing * ns - totalH / 2,
     });
   }
-  return offsets;
+
+  // Build grid guide lines
+  const verticals: number[] = [];
+  const horizontals: number[] = [];
+  for (let col = 0; col < c; col++) verticals.push(col * spacing - totalW / 2);
+  for (let row = 0; row < rows; row++) horizontals.push(row * spacing - totalH / 2);
+  const guide: GridGuide = {
+    type: "grid",
+    verticals,
+    horizontals,
+    bounds: { xMin: -totalW / 2 - spacing / 2, yMin: -totalH / 2 - spacing / 2, xMax: totalW / 2 + spacing / 2, yMax: totalH / 2 + spacing / 2 },
+  };
+
+  return { offsets, guide };
 }
 
 // ---------------------------------------------------------------------------
@@ -1154,11 +1405,11 @@ function triangleOffsets(
   nodeSize: number,
   cmp: (a: GraphNode, b: GraphNode) => number,
   nodeSpacingMap?: Map<string, number>,
-): Map<string, { dx: number; dy: number }> {
+): ArrangementResult {
   const sorted = [...members].sort(cmp);
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = sorted.length;
-  if (n === 0) return offsets;
+  if (n === 0) return { offsets };
 
   const colSpacing = nodeSize * 2 * Math.max(spacingMul, groupScale);
   // Row spacing for equilateral triangle: h = colSpacing × √3/2
@@ -1188,7 +1439,21 @@ function triangleOffsets(
       idx++;
     }
   }
-  return offsets;
+
+  // Build triangle guide: 3 vertices of the equilateral triangle
+  const topY = -totalH / 2;
+  const bottomY = totalH / 2;
+  const bottomHalfW = maxRowWidth / 2;
+  const guide: TriangleGuide = {
+    type: "triangle",
+    vertices: [
+      { x: 0, y: topY - rowSpacing * 0.3 },
+      { x: -bottomHalfW - colSpacing * 0.3, y: bottomY + rowSpacing * 0.3 },
+      { x: bottomHalfW + colSpacing * 0.3, y: bottomY + rowSpacing * 0.3 },
+    ],
+  };
+
+  return { offsets, guide };
 }
 
 // ---------------------------------------------------------------------------
@@ -1210,11 +1475,11 @@ function mountainOffsets(
   nodeSize: number,
   cmp: (a: GraphNode, b: GraphNode) => number,
   nodeSpacingMap?: Map<string, number>,
-): Map<string, { dx: number; dy: number }> {
+): ArrangementResult {
   const sorted = [...members].sort(cmp);
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = sorted.length;
-  if (n === 0) return offsets;
+  if (n === 0) return { offsets };
 
   const colSpacing = nodeSize * 2 * Math.max(spacingMul, groupScale);
 
@@ -1266,7 +1531,26 @@ function mountainOffsets(
       idx++;
     }
   }
-  return offsets;
+
+  // Build mountain silhouette guide
+  const mountainPoints: { x: number; y: number }[] = [];
+  for (let r = 0; r < numRows; r++) {
+    const count = rows[r];
+    const y = yPositions[r] + yOffset;
+    const halfW = (count - 1) * colSpacing / 2 + colSpacing * 0.5;
+    // Left edge (going down)
+    mountainPoints.push({ x: -halfW, y });
+  }
+  // Right edge (going back up)
+  for (let r = numRows - 1; r >= 0; r--) {
+    const count = rows[r];
+    const y = yPositions[r] + yOffset;
+    const halfW = (count - 1) * colSpacing / 2 + colSpacing * 0.5;
+    mountainPoints.push({ x: halfW, y });
+  }
+  const guide: MountainGuide = { type: "mountain", points: mountainPoints };
+
+  return { offsets, guide };
 }
 
 // ---------------------------------------------------------------------------
@@ -1296,10 +1580,12 @@ function timelineOffsets(
   nodeSpacingMap?: Map<string, number>,
   timelineKey?: string,
   getNodeProperty?: (nodeId: string, key: string) => string | undefined,
-): Map<string, { dx: number; dy: number }> {
+  timelineEndKey?: string,
+  timelineOrderFields?: string,
+): ArrangementResult {
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = members.length;
-  if (n === 0) return offsets;
+  if (n === 0) return { offsets };
 
   const spacing = nodeSize * 2 * Math.max(spacingMul, groupScale);
 
@@ -1308,7 +1594,7 @@ function timelineOffsets(
 
   // --- Partition: timed vs untimed ---
   const timed: { node: GraphNode; value: string }[] = [];
-  const untimed: GraphNode[] = [];
+  let untimed: GraphNode[] = [];
   for (const nd of members) {
     const val = resolvedKey ? getNodeProperty?.(nd.id, resolvedKey) : undefined;
     if (val !== undefined && val !== "") {
@@ -1318,16 +1604,73 @@ function timelineOffsets(
     }
   }
 
-  // --- Sort timed nodes (detect numeric vs lexicographic) ---
-  const allNumeric = timed.length > 0 && timed.every(t => !isNaN(Number(t.value)));
-  if (allNumeric) {
-    timed.sort((a, b) => Number(a.value) - Number(b.value));
-  } else {
-    timed.sort((a, b) => a.value < b.value ? -1 : a.value > b.value ? 1 : 0);
+  // --- Feature A: Link-based ordering for untimed nodes ---
+  // Parse order fields (default: "next,prev,parent_id,story_order")
+  const orderFieldStr = timelineOrderFields || "next,prev,parent_id,story_order";
+  const orderFields = orderFieldStr.split(",").map(f => f.trim()).filter(Boolean);
+  const hasNext = orderFields.includes("next");
+  const hasPrev = orderFields.includes("prev");
+  const hasParentId = orderFields.includes("parent_id");
+
+  if (untimed.length > 0 && getNodeProperty) {
+    // Try link chain ordering (next/prev)
+    if (hasNext || hasPrev) {
+      const chainOrder = buildLinkChainOrder(untimed, getNodeProperty);
+      if (chainOrder.size > 0) {
+        const chainOrdered: GraphNode[] = [];
+        const remaining: GraphNode[] = [];
+        for (const nd of untimed) {
+          if (chainOrder.has(nd.id)) chainOrdered.push(nd);
+          else remaining.push(nd);
+        }
+        chainOrdered.sort((a, b) => (chainOrder.get(a.id) ?? 0) - (chainOrder.get(b.id) ?? 0));
+        // Convert chain-ordered nodes to timed entries
+        const startIdx = timed.length > 0 ? timed.length : 0;
+        for (let i = 0; i < chainOrdered.length; i++) {
+          timed.push({ node: chainOrdered[i], value: `__chain_${String(startIdx + i).padStart(6, "0")}` });
+        }
+        untimed = remaining;
+      }
+    }
+
+    // Try hierarchy ordering (parent_id + story_order)
+    if (untimed.length > 0 && hasParentId) {
+      const hierOrder = buildHierarchyOrder(untimed, getNodeProperty);
+      if (hierOrder.size > 0) {
+        const hierOrdered: GraphNode[] = [];
+        const remaining: GraphNode[] = [];
+        for (const nd of untimed) {
+          if (hierOrder.has(nd.id)) hierOrdered.push(nd);
+          else remaining.push(nd);
+        }
+        hierOrdered.sort((a, b) => (hierOrder.get(a.id) ?? 0) - (hierOrder.get(b.id) ?? 0));
+        const startIdx = timed.length > 0 ? timed.length : 0;
+        for (let i = 0; i < hierOrdered.length; i++) {
+          timed.push({ node: hierOrdered[i], value: `__hier_${String(startIdx + i).padStart(6, "0")}` });
+        }
+        untimed = remaining;
+      }
+    }
   }
 
+  // --- Sort timed nodes (detect numeric vs lexicographic) ---
+  // Exclude synthetic chain/hier values from numeric check
+  const realTimed = timed.filter(t => !t.value.startsWith("__chain_") && !t.value.startsWith("__hier_"));
+  const allNumeric = realTimed.length > 0 && realTimed.every(t => !isNaN(Number(t.value)));
+  // Sort only real timed nodes; synthetic ones keep their insertion order
+  const syntheticSet = new Set(timed.filter(t => t.value.startsWith("__")).map(t => t.node.id));
+  const realTimedArr = timed.filter(t => !syntheticSet.has(t.node.id));
+  const syntheticArr = timed.filter(t => syntheticSet.has(t.node.id));
+  if (allNumeric) {
+    realTimedArr.sort((a, b) => Number(a.value) - Number(b.value));
+  } else {
+    realTimedArr.sort((a, b) => a.value < b.value ? -1 : a.value > b.value ? 1 : 0);
+  }
+  // Merge: real timed first, then chain/hierarchy ordered
+  const sortedTimed = [...realTimedArr, ...syntheticArr];
+
   // --- Build unique time steps ---
-  const uniqueTimes = [...new Set(timed.map(t => t.value))];
+  const uniqueTimes = [...new Set(sortedTimed.map(t => t.value))];
   const timeIndexMap = new Map<string, number>();
   uniqueTimes.forEach((t, i) => timeIndexMap.set(t, i));
 
@@ -1341,7 +1684,7 @@ function timelineOffsets(
   // --- Place timed nodes: X = time index, Y = stack within same step ---
   const columnStack = new Map<number, number>();
 
-  for (const { node, value } of timed) {
+  for (const { node, value } of sortedTimed) {
     const ti = timeIndexMap.get(value)!;
     const stackIdx = columnStack.get(ti) ?? 0;
     columnStack.set(ti, stackIdx + 1);
@@ -1380,7 +1723,216 @@ function timelineOffsets(
     offsets.set(id, { dx: pos.dx - xCenter, dy: pos.dy - yCenter });
   }
 
-  return offsets;
+  // --- Feature B: Duration bars ---
+  const bars: TimelineBarInfo[] = [];
+  const resolvedEndKey = timelineEndKey || "end-date";
+  if (getNodeProperty && resolvedKey) {
+    for (const { node, value } of sortedTimed) {
+      if (value.startsWith("__")) continue; // Skip synthetic entries
+      const endVal = getNodeProperty(node.id, resolvedEndKey);
+      if (!endVal || endVal === "") continue;
+      // Find xEnd from end value's position on the timeline
+      const endTimeIdx = timeIndexMap.get(endVal);
+      const startOff = offsets.get(node.id);
+      if (!startOff) continue;
+      const xStart = startOff.dx;
+      let xEnd: number;
+      if (endTimeIdx !== undefined) {
+        // End value exists as a time step
+        xEnd = endTimeIdx * effectiveSpacing - xCenter;
+      } else {
+        // Interpolate: find where it would fall
+        if (allNumeric && !isNaN(Number(endVal))) {
+          const endNum = Number(endVal);
+          // Find surrounding time steps
+          let bestIdx = uniqueTimes.length - 1;
+          for (let i = 0; i < uniqueTimes.length; i++) {
+            if (Number(uniqueTimes[i]) >= endNum) { bestIdx = i; break; }
+          }
+          xEnd = bestIdx * effectiveSpacing - xCenter;
+        } else {
+          // Lexicographic interpolation — find nearest time step
+          let bestIdx = uniqueTimes.length - 1;
+          for (let i = 0; i < uniqueTimes.length; i++) {
+            if (uniqueTimes[i] >= endVal) { bestIdx = i; break; }
+          }
+          xEnd = bestIdx * effectiveSpacing - xCenter;
+        }
+      }
+      if (xEnd > xStart) {
+        bars.push({
+          nodeId: node.id,
+          xStart,
+          xEnd,
+          barHeight: nodeSize * 2,
+          yCenter: startOff.dy,
+        });
+      }
+    }
+  }
+
+  // --- Timeline guide (axis + ticks) ---
+  const ticks: { x: number; label: string }[] = [];
+  // Only show ticks for non-synthetic time values
+  for (const tv of uniqueTimes) {
+    if (tv.startsWith("__")) continue;
+    const idx = timeIndexMap.get(tv)!;
+    ticks.push({ x: idx * effectiveSpacing - xCenter, label: tv });
+  }
+  const guide: TimelineGuide = {
+    type: "timeline",
+    axisY: -yCenter, // axis at y=0 before centering
+    ticks,
+  };
+
+  return { offsets, guide, bars: bars.length > 0 ? bars : undefined };
+}
+
+// ---------------------------------------------------------------------------
+// Feature A helpers: link chain ordering and hierarchy ordering
+// ---------------------------------------------------------------------------
+
+/**
+ * Build order from next/prev link chains.
+ * Reads "next" and "prev" fields (wikilink format [[target]]) from frontmatter.
+ */
+function buildLinkChainOrder(
+  members: GraphNode[],
+  getNodeProperty: (id: string, key: string) => string | undefined,
+): Map<string, number> {
+  const order = new Map<string, number>();
+  const idSet = new Set(members.map(n => n.id));
+
+  // Build forward links: id → next id
+  const nextMap = new Map<string, string>();
+  const hasIncoming = new Set<string>();
+
+  for (const nd of members) {
+    const nextVal = getNodeProperty(nd.id, "next");
+    if (nextVal) {
+      const target = extractWikilink(nextVal);
+      if (target && idSet.has(target)) {
+        nextMap.set(nd.id, target);
+        hasIncoming.add(target);
+      }
+    }
+    const prevVal = getNodeProperty(nd.id, "prev");
+    if (prevVal) {
+      const target = extractWikilink(prevVal);
+      if (target && idSet.has(target)) {
+        hasIncoming.add(nd.id); // nd has incoming from target
+        if (!nextMap.has(target)) {
+          nextMap.set(target, nd.id);
+        }
+      }
+    }
+  }
+
+  if (nextMap.size === 0) return order;
+
+  // Find chain heads (nodes with outgoing next but no incoming)
+  const heads: string[] = [];
+  for (const id of nextMap.keys()) {
+    if (!hasIncoming.has(id)) heads.push(id);
+  }
+  // If no clear head found, use any node that has a next link
+  if (heads.length === 0 && nextMap.size > 0) {
+    heads.push(nextMap.keys().next().value!);
+  }
+
+  // Walk each chain
+  let globalIdx = 0;
+  const visited = new Set<string>();
+  for (const head of heads) {
+    let cur: string | undefined = head;
+    while (cur && !visited.has(cur)) {
+      visited.add(cur);
+      order.set(cur, globalIdx++);
+      cur = nextMap.get(cur);
+    }
+  }
+
+  return order;
+}
+
+/**
+ * Build order from parent_id + story_order hierarchy.
+ * Constructs a tree and does DFS traversal in story_order.
+ */
+function buildHierarchyOrder(
+  members: GraphNode[],
+  getNodeProperty: (id: string, key: string) => string | undefined,
+): Map<string, number> {
+  const order = new Map<string, number>();
+  const idSet = new Set(members.map(n => n.id));
+
+  // Build parent→children map
+  const children = new Map<string, { id: string; storyOrder: number }[]>();
+  const hasParent = new Set<string>();
+
+  for (const nd of members) {
+    const parentVal = getNodeProperty(nd.id, "parent_id");
+    if (parentVal) {
+      const parentId = extractWikilink(parentVal) || parentVal;
+      if (idSet.has(parentId)) {
+        hasParent.add(nd.id);
+        if (!children.has(parentId)) children.set(parentId, []);
+        const so = Number(getNodeProperty(nd.id, "story_order") ?? "0") || 0;
+        children.get(parentId)!.push({ id: nd.id, storyOrder: so });
+      }
+    }
+  }
+
+  if (children.size === 0) return order;
+
+  // Sort children by story_order
+  for (const ch of children.values()) {
+    ch.sort((a, b) => a.storyOrder - b.storyOrder);
+  }
+
+  // Find roots (nodes that are parents but have no parent themselves)
+  const roots: string[] = [];
+  for (const id of children.keys()) {
+    if (!hasParent.has(id)) roots.push(id);
+  }
+  // If no roots, use nodes with most children
+  if (roots.length === 0) {
+    let maxChildren = 0;
+    let bestId = "";
+    for (const [id, ch] of children) {
+      if (ch.length > maxChildren) { maxChildren = ch.length; bestId = id; }
+    }
+    if (bestId) roots.push(bestId);
+  }
+
+  // DFS traversal
+  let idx = 0;
+  const visited = new Set<string>();
+  const dfs = (id: string) => {
+    if (visited.has(id)) return;
+    visited.add(id);
+    order.set(id, idx++);
+    const ch = children.get(id);
+    if (ch) {
+      for (const c of ch) dfs(c.id);
+    }
+  };
+  for (const root of roots) dfs(root);
+
+  // Add remaining nodes with parent but not reached
+  for (const nd of members) {
+    if (!visited.has(nd.id) && hasParent.has(nd.id)) {
+      order.set(nd.id, idx++);
+    }
+  }
+
+  return order;
+}
+
+/** Extract a file path from [[wikilink]] or [[wikilink|alias]] format */
+function extractWikilink(val: string): string | null {
+  const m = val.match(/\[\[([^\]|]+)/);
+  return m ? m[1].trim() : null;
 }
 
 /** Try the user key first; if < 30% of nodes have it, scan fallback keys */
@@ -1713,6 +2265,31 @@ export function computeAutoFitSpacing(
             const aArea = (a.maxX - a.minX) * (a.maxY - a.minY);
             const bArea = (b.maxX - b.minX) * (b.maxY - b.minY);
             const ratio = overlapArea / (Math.min(aArea, bArea) || 1);
+            if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
+          }
+        }
+      }
+
+      // 3. Group-level bounding circle overlap check
+      const simRadii = result.metadata.clusterRadii;
+      const simCentroids = result.metadata.clusterCentroids;
+      for (let i = 0; i < groupKeys.length; i++) {
+        for (let j = i + 1; j < groupKeys.length; j++) {
+          const gA = groupKeys[i];
+          const gB = groupKeys[j];
+          const rA = simRadii.get(gA) ?? 0;
+          const rB = simRadii.get(gB) ?? 0;
+          const cA = simCentroids.get(gA);
+          const cB = simCentroids.get(gB);
+          if (!cA || !cB || rA < 1 || rB < 1) continue;
+          const cdx = cB.x - cA.x;
+          const cdy = cB.y - cA.y;
+          const dist = Math.sqrt(cdx * cdx + cdy * cdy);
+          if (dist < (rA + rB) * 1.1) {
+            hasCrossGroupOverlap = true;
+            hasNodeOverlap = true;
+            const circleOverlap = (rA + rB) * 1.1 - dist;
+            const ratio = circleOverlap / ((rA + rB) || 1);
             if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
           }
         }

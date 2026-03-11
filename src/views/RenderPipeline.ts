@@ -58,6 +58,12 @@ export interface RenderHost {
   getNodeShapeRules(): ShapeRule[];
   /** Get the set of node IDs hidden by search filter */
   getSearchHiddenNodes(): Set<string>;
+  /** Draw timeline duration bars */
+  drawTimelineBars(): void;
+  /** Draw arrangement guide lines */
+  drawGuideLines(): void;
+  /** Draw group grid overlay */
+  drawGroupGrid(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -168,6 +174,9 @@ export class RenderPipeline {
       this.edgeRedrawCounter = 0;
       this.host.drawEnclosures();
       this.host.drawSunburstArcs();
+      this.host.drawGuideLines();
+      this.host.drawGroupGrid();
+      this.host.drawTimelineBars();
       this.host.drawEdges();
     }
   }

@@ -17,7 +17,7 @@ import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type 
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
-import type { ClusterMetadata } from "../layouts/cluster-force";
+import type { ClusterMetadata, GuideLineData, TimelineBarInfo, ArrangementGuide } from "../layouts/cluster-force";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
 import { RenderPipeline, darkenColor, type RenderHost } from "./RenderPipeline";
 import { LayoutController, type LayoutHost } from "./LayoutController";
@@ -98,6 +98,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private edgeLabelContainer: PIXI.Container | null = null;
   private nodeCircleBatch: PIXI.Graphics | null = null;
   private arrowGraphics: PIXI.Graphics | null = null;
+  private guideLineGraphics: PIXI.Graphics | null = null;
+  private groupGridGraphics: PIXI.Graphics | null = null;
+  private barGraphics: PIXI.Graphics | null = null;
   private pixiNodes: Map<string, PixiNode> = new Map();
   private canvasWrap: HTMLElement | null = null;
   private graphEdges: GraphEdge[] = [];
@@ -510,6 +513,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.edgeLabelContainer = null;
     this.nodeCircleBatch = null;
     this.arrowGraphics = null;
+    this.guideLineGraphics = null;
+    this.groupGridGraphics = null;
+    this.barGraphics = null;
     this.spatialGrid.clear();
     if (this.pixiApp) {
       try {
@@ -574,6 +580,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       world.addChild(sunburstGfx);
       this.sunburstGraphics = sunburstGfx;
 
+      // Guide line layer (arrangement guides — timeline axis, spiral curve, grid lines, etc.)
+      const guideGfx = new PIXI.Graphics();
+      world.addChild(guideGfx);
+      this.guideLineGraphics = guideGfx;
+
+      // Group grid overlay (bounding circle + cross-hair per cluster group)
+      const groupGridGfx = new PIXI.Graphics();
+      world.addChild(groupGridGfx);
+      this.groupGridGraphics = groupGridGfx;
+
       // Enclosure layer (tag enclosures, drawn behind edges)
       const enclosureGfx = new PIXI.Graphics();
       world.addChild(enclosureGfx);
@@ -588,6 +604,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const edgeLabelCont = new PIXI.Container();
       world.addChild(edgeLabelCont);
       this.edgeLabelContainer = edgeLabelCont;
+
+      // Timeline duration bar layer (drawn behind node circles)
+      const barGfx = new PIXI.Graphics();
+      world.addChild(barGfx);
+      this.barGraphics = barGfx;
 
       // Batch node circle layer — draws all non-highlighted circles in one draw call
       const batchGfx = new PIXI.Graphics();
@@ -1250,6 +1271,304 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
 
     gfx.closePath();
+  }
+
+  // =========================================================================
+  // Timeline duration bars
+  // =========================================================================
+  drawTimelineBars() {
+    const g = this.barGraphics;
+    if (!g) return;
+    g.clear();
+
+    if (!this.panel.showDurationBars) return;
+    const bars = this.clusterMeta?.timelineBars;
+    if (!bars || bars.length === 0) return;
+
+    const worldScale = this.worldContainer?.scale.x ?? 1;
+    const lineW = Math.max(0.5, 1.0 / worldScale);
+
+    for (const bar of bars) {
+      const pn = this.pixiNodes.get(bar.nodeId);
+      const color = pn ? pn.color : 0x888888;
+      const w = bar.xEnd - bar.xStart;
+      const h = bar.barHeight;
+      const x = bar.xStart;
+      const y = bar.yCenter - h / 2;
+      const cornerR = Math.min(h / 2, 4);
+
+      // Fill
+      g.beginFill(color, 0.4);
+      g.drawRoundedRect(x, y, w, h, cornerR);
+      g.endFill();
+
+      // Stroke
+      g.lineStyle(lineW, color, 0.8);
+      g.drawRoundedRect(x, y, w, h, cornerR);
+      g.lineStyle(0);
+    }
+  }
+
+  // =========================================================================
+  // Arrangement guide lines
+  // =========================================================================
+  drawGuideLines() {
+    const g = this.guideLineGraphics;
+    if (!g) return;
+    g.clear();
+
+    if (!this.panel.showGuideLines) return;
+    const guideData = this.clusterMeta?.guideLineData;
+    if (!guideData || guideData.groups.length === 0) return;
+
+    const worldScale = this.worldContainer?.scale.x ?? 1;
+    const lineW = Math.max(0.5, 1.0 / worldScale);
+    const guideColor = this.isDarkTheme() ? 0x666666 : 0xbbbbbb;
+
+    // Shared timeline mode: merge all timeline guides into one axis
+    if (this.panel.guideLineMode === "shared" && guideData.arrangement === "timeline") {
+      const timelineGroups = guideData.groups.filter(gr => gr.guide.type === "timeline");
+      if (timelineGroups.length > 0) {
+        const allTicks: { x: number; label: string }[] = [];
+        let sumY = 0;
+        for (const group of timelineGroups) {
+          const tg = group.guide as Extract<ArrangementGuide, { type: "timeline" }>;
+          sumY += group.centerY + tg.axisY;
+          for (const tick of tg.ticks) {
+            allTicks.push({ x: group.centerX + tick.x, label: tick.label });
+          }
+        }
+        // Deduplicate ticks by label
+        const seen = new Set<string>();
+        const uniqueTicks: { x: number; label: string }[] = [];
+        for (const tick of allTicks) {
+          if (!seen.has(tick.label)) {
+            seen.add(tick.label);
+            uniqueTicks.push(tick);
+          }
+        }
+        const sharedY = sumY / timelineGroups.length;
+        if (uniqueTicks.length > 0) {
+          const xs = uniqueTicks.map(t => t.x);
+          const xMin = Math.min(...xs) - 20;
+          const xMax = Math.max(...xs) + 20;
+          g.lineStyle(lineW * 1.5, guideColor, 0.5);
+          g.moveTo(xMin, sharedY);
+          g.lineTo(xMax, sharedY);
+          const tickH = 6 / worldScale;
+          g.lineStyle(lineW, guideColor, 0.4);
+          for (const tick of uniqueTicks) {
+            g.moveTo(tick.x, sharedY - tickH);
+            g.lineTo(tick.x, sharedY + tickH);
+          }
+        }
+        return;
+      }
+    }
+
+    // Default: per-group rendering
+    for (const group of guideData.groups) {
+      const { centerX: cx, centerY: cy, guide } = group;
+      switch (guide.type) {
+        case "timeline":
+          this.drawTimelineAxis(g, cx, cy, guide, lineW, guideColor, worldScale);
+          break;
+        case "spiral":
+          this.drawSpiralCurve(g, cx, cy, guide, lineW, guideColor);
+          break;
+        case "grid":
+          this.drawGridLines(g, cx, cy, guide, lineW, guideColor);
+          break;
+        case "tree":
+          this.drawTreeDepthLines(g, cx, cy, guide, lineW, guideColor);
+          break;
+        case "triangle":
+          this.drawTriangleOutline(g, cx, cy, guide, lineW, guideColor);
+          break;
+        case "mountain":
+          this.drawMountainSilhouette(g, cx, cy, guide, lineW, guideColor);
+          break;
+      }
+    }
+  }
+
+  drawGroupGrid() {
+    const g = this.groupGridGraphics;
+    if (!g) return;
+    g.clear();
+
+    if (!this.panel.showGroupGrid) return;
+    if (!this.clusterMeta) return;
+
+    const centroids = this.computeLiveCentroids();
+    const radii = this.clusterMeta.clusterRadii;
+    if (!centroids || !radii) return;
+
+    const worldScale = this.worldContainer?.scale.x ?? 1;
+    const lineW = Math.max(0.5, 1.0 / worldScale);
+    const isDark = this.isDarkTheme();
+    const color = isDark ? 0x555555 : 0xcccccc;
+
+    for (const [groupKey, center] of centroids) {
+      const radius = radii.get(groupKey);
+      if (!radius || radius < 5) continue;
+
+      const cx = center.x;
+      const cy = center.y;
+      const r = radius;
+
+      // Bounding circle
+      g.lineStyle(lineW * 1.5, color, 0.3);
+      g.drawCircle(cx, cy, r);
+
+      // Cross-hair at center
+      g.lineStyle(lineW, color, 0.2);
+      // Horizontal line
+      g.moveTo(cx - r, cy);
+      g.lineTo(cx + r, cy);
+      // Vertical line
+      g.moveTo(cx, cy - r);
+      g.lineTo(cx, cy + r);
+
+      // Mid-grid lines (half-radius)
+      const hr = r * 0.5;
+      g.lineStyle(lineW * 0.5, color, 0.12);
+      g.moveTo(cx - r, cy - hr);
+      g.lineTo(cx + r, cy - hr);
+      g.moveTo(cx - r, cy + hr);
+      g.lineTo(cx + r, cy + hr);
+      g.moveTo(cx - hr, cy - r);
+      g.lineTo(cx - hr, cy + r);
+      g.moveTo(cx + hr, cy - r);
+      g.lineTo(cx + hr, cy + r);
+    }
+  }
+
+  private drawTimelineAxis(
+    g: PIXI.Graphics, cx: number, cy: number,
+    guide: Extract<ArrangementGuide, { type: "timeline" }>,
+    lineW: number, color: number, worldScale: number,
+  ) {
+    const y = cy + guide.axisY;
+    // Find extent from ticks
+    if (guide.ticks.length === 0) return;
+    const xs = guide.ticks.map(t => cx + t.x);
+    const xMin = Math.min(...xs) - 20;
+    const xMax = Math.max(...xs) + 20;
+
+    // Main axis line
+    g.lineStyle(lineW * 1.5, color, 0.5);
+    g.moveTo(xMin, y);
+    g.lineTo(xMax, y);
+
+    // Tick marks
+    const tickH = 6 / worldScale;
+    g.lineStyle(lineW, color, 0.4);
+    for (const tick of guide.ticks) {
+      const tx = cx + tick.x;
+      g.moveTo(tx, y - tickH);
+      g.lineTo(tx, y + tickH);
+    }
+  }
+
+  private drawSpiralCurve(
+    g: PIXI.Graphics, cx: number, cy: number,
+    guide: Extract<ArrangementGuide, { type: "spiral" }>,
+    lineW: number, color: number,
+  ) {
+    const { a, maxTheta } = guide;
+    if (maxTheta <= 0) return;
+
+    const SEGMENTS = Math.max(100, Math.ceil(maxTheta * 10));
+    g.lineStyle(lineW, color, 0.3);
+
+    let started = false;
+    for (let i = 0; i <= SEGMENTS; i++) {
+      const theta = (i / SEGMENTS) * maxTheta;
+      const r = a * theta;
+      const x = cx + r * Math.cos(theta);
+      const y = cy + r * Math.sin(theta);
+      if (!started) {
+        g.moveTo(x, y);
+        started = true;
+      } else {
+        g.lineTo(x, y);
+      }
+    }
+  }
+
+  private drawGridLines(
+    g: PIXI.Graphics, cx: number, cy: number,
+    guide: Extract<ArrangementGuide, { type: "grid" }>,
+    lineW: number, color: number,
+  ) {
+    const { verticals, horizontals, bounds } = guide;
+    const yMin = cy + bounds.yMin - 10;
+    const yMax = cy + bounds.yMax + 10;
+    const xMin = cx + bounds.xMin - 10;
+    const xMax = cx + bounds.xMax + 10;
+
+    g.lineStyle(lineW, color, 0.2);
+    for (const vx of verticals) {
+      const x = cx + vx;
+      g.moveTo(x, yMin);
+      g.lineTo(x, yMax);
+    }
+    for (const hy of horizontals) {
+      const y = cy + hy;
+      g.moveTo(xMin, y);
+      g.lineTo(xMax, y);
+    }
+  }
+
+  private drawTreeDepthLines(
+    g: PIXI.Graphics, cx: number, cy: number,
+    guide: Extract<ArrangementGuide, { type: "tree" }>,
+    lineW: number, color: number,
+  ) {
+    const xMin = cx + guide.xMin - 20;
+    const xMax = cx + guide.xMax + 20;
+
+    // Draw dashed horizontal lines for each depth level
+    const dashLen = 8;
+    const gapLen = 4;
+    g.lineStyle(lineW, color, 0.25);
+
+    for (const level of guide.depthLevels) {
+      const y = cy + level.y;
+      let x = xMin;
+      while (x < xMax) {
+        g.moveTo(x, y);
+        g.lineTo(Math.min(x + dashLen, xMax), y);
+        x += dashLen + gapLen;
+      }
+    }
+  }
+
+  private drawTriangleOutline(
+    g: PIXI.Graphics, cx: number, cy: number,
+    guide: Extract<ArrangementGuide, { type: "triangle" }>,
+    lineW: number, color: number,
+  ) {
+    const verts = guide.vertices;
+    g.lineStyle(lineW, color, 0.3);
+    g.moveTo(cx + verts[0].x, cy + verts[0].y);
+    g.lineTo(cx + verts[1].x, cy + verts[1].y);
+    g.lineTo(cx + verts[2].x, cy + verts[2].y);
+    g.lineTo(cx + verts[0].x, cy + verts[0].y);
+  }
+
+  private drawMountainSilhouette(
+    g: PIXI.Graphics, cx: number, cy: number,
+    guide: Extract<ArrangementGuide, { type: "mountain" }>,
+    lineW: number, color: number,
+  ) {
+    if (guide.points.length < 2) return;
+    g.lineStyle(lineW, color, 0.3);
+    g.moveTo(cx + guide.points[0].x, cy + guide.points[0].y);
+    for (let i = 1; i < guide.points.length; i++) {
+      g.lineTo(cx + guide.points[i].x, cy + guide.points[i].y);
+    }
   }
 
   // =========================================================================

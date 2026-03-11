@@ -342,6 +342,9 @@ export class LayoutController {
       sortComparator: this.buildSortComparator(sim.nodes(), graphEdges),
       nodeSpacingMap: this.computeNodeSpacingMap(sim.nodes()),
       timelineKey: panel.timelineKey || "date",
+      timelineEndKey: panel.timelineEndKey || "end-date",
+      timelineOrderFields: panel.timelineOrderFields || "next,prev,parent_id,story_order",
+      guideLineMode: panel.guideLineMode || "per-group",
       getNodeProperty: (nodeId: string, key: string) => this.host.getNodeProperty(nodeId, key),
     };
 

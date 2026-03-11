@@ -207,6 +207,16 @@ const en: TranslationMap = {
   "section.timeline": "Timeline",
   "timeline.timeKey": "Time Field",
   "timeline.timeKeyHint": "Frontmatter field for time axis (e.g. date, era, turn)",
+  "timeline.endKey": "End Time Field",
+  "timeline.endKeyHint": "Frontmatter field for duration end (e.g. end-date, end_time)",
+  "timeline.showDurationBars": "Show Duration Bars",
+  "timeline.orderFields": "Order Fields",
+  "timeline.orderFieldsHint": "Comma-separated fields for link-based ordering (next, prev, parent_id, story_order)",
+  "cluster.showGuideLines": "Show Guide Lines",
+  "cluster.guideLineMode": "Guide Line Mode",
+  "cluster.guideLineMode.shared": "Shared (single axis)",
+  "cluster.guideLineMode.perGroup": "Per Group",
+  "cluster.showGroupGrid": "Show Group Grid",
 
   // --- PanelBuilder: shared presets ---
   "preset.export": "Export Preset",
@@ -516,6 +526,16 @@ const ja: TranslationMap = {
   "section.timeline": "タイムライン",
   "timeline.timeKey": "時間フィールド",
   "timeline.timeKeyHint": "時間軸に使うfrontmatterフィールド（例: date, era, turn）",
+  "timeline.endKey": "終了時間フィールド",
+  "timeline.endKeyHint": "期間の終了を表すfrontmatterフィールド（例: end-date, end_time）",
+  "timeline.showDurationBars": "期間バーを表示",
+  "timeline.orderFields": "順序フィールド",
+  "timeline.orderFieldsHint": "リンクベース順序推論用フィールド（カンマ区切り: next, prev, parent_id, story_order）",
+  "cluster.showGuideLines": "ガイドラインを表示",
+  "cluster.guideLineMode": "ガイドラインモード",
+  "cluster.guideLineMode.shared": "共通（単一軸）",
+  "cluster.guideLineMode.perGroup": "グループ別",
+  "cluster.showGroupGrid": "グループグリッドを表示",
 
   // --- PanelBuilder: shared presets ---
   "preset.export": "プリセットをエクスポート",
