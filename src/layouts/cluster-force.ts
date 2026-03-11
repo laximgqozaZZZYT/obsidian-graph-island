@@ -1238,12 +1238,21 @@ function mountainOffsets(
 }
 
 // ---------------------------------------------------------------------------
-// Timeline — horizontal time axis with vertical stacking
+// Timeline — horizontal line with time-based or fallback ordering
 //
-// Nodes are arranged horizontally by their frontmatter time value.
-// Nodes sharing the same time step stack vertically.
-// Nodes without a time value are placed in a grid at the right edge.
+// 1. Try the user-specified timelineKey (e.g. "date", "era")
+// 2. If few nodes have that key, try fallback keys: start-date, story_order,
+//    order, sequence, created
+// 3. Nodes with a time value are placed left-to-right by sorted value
+// 4. Nodes sharing the same time step stack vertically
+// 5. Nodes WITHOUT any time value are still placed in a single horizontal
+//    line (sorted by label/id), never in a grid
 // ---------------------------------------------------------------------------
+
+const TIMELINE_FALLBACK_KEYS = [
+  "start-date", "story_order", "order", "sequence", "created", "date",
+  "era", "turn", "chapter", "episode", "sort", "priority", "index",
+];
 
 function timelineOffsets(
   members: GraphNode[],
@@ -1261,37 +1270,44 @@ function timelineOffsets(
   if (n === 0) return offsets;
 
   const spacing = nodeSize * 2 * Math.max(spacingMul, groupScale);
-  const key = timelineKey || "date";
 
-  // Partition: timed vs untimed
+  // --- Resolve effective time key with fallback ---
+  const resolvedKey = resolveTimeKey(members, timelineKey || "date", getNodeProperty);
+
+  // --- Partition: timed vs untimed ---
   const timed: { node: GraphNode; value: string }[] = [];
   const untimed: GraphNode[] = [];
   for (const nd of members) {
-    const val = getNodeProperty?.(nd.id, key);
+    const val = resolvedKey ? getNodeProperty?.(nd.id, resolvedKey) : undefined;
     if (val !== undefined && val !== "") {
-      timed.push({ node: nd, value: val });
+      timed.push({ node: nd, value: String(val) });
     } else {
       untimed.push(nd);
     }
   }
 
-  // Sort timed nodes by time value (lexicographic)
-  timed.sort((a, b) => a.value < b.value ? -1 : a.value > b.value ? 1 : 0);
+  // --- Sort timed nodes (detect numeric vs lexicographic) ---
+  const allNumeric = timed.length > 0 && timed.every(t => !isNaN(Number(t.value)));
+  if (allNumeric) {
+    timed.sort((a, b) => Number(a.value) - Number(b.value));
+  } else {
+    timed.sort((a, b) => a.value < b.value ? -1 : a.value > b.value ? 1 : 0);
+  }
 
-  // Build unique time steps
+  // --- Build unique time steps ---
   const uniqueTimes = [...new Set(timed.map(t => t.value))];
   const timeIndexMap = new Map<string, number>();
   uniqueTimes.forEach((t, i) => timeIndexMap.set(t, i));
 
-  // Auto-compress step width for many time steps
-  const maxCols = 30;
-  const effectiveSpacing = uniqueTimes.length > maxCols
-    ? Math.max(nodeSize * 3, spacing * maxCols / uniqueTimes.length)
+  // Auto-compress step width for many columns
+  const totalCols = uniqueTimes.length + untimed.length;
+  const maxCols = 40;
+  const effectiveSpacing = totalCols > maxCols
+    ? Math.max(nodeSize * 3, spacing * maxCols / totalCols)
     : spacing;
 
-  // Place timed nodes: X = time index, Y = stack within same time step
+  // --- Place timed nodes: X = time index, Y = stack within same step ---
   const columnStack = new Map<number, number>();
-  const totalW = (uniqueTimes.length - 1) * effectiveSpacing;
 
   for (const { node, value } of timed) {
     const ti = timeIndexMap.get(value)!;
@@ -1299,39 +1315,73 @@ function timelineOffsets(
     columnStack.set(ti, stackIdx + 1);
     const ns = getSpacing(node.id, nodeSpacingMap);
     offsets.set(node.id, {
-      dx: (ti * effectiveSpacing - totalW / 2) * ns,
+      dx: ti * effectiveSpacing * ns,
       dy: stackIdx * spacing * 0.6 * ns,
     });
   }
 
-  // Place untimed nodes in a grid to the right
+  // --- Place untimed nodes in a SINGLE LINE after timed nodes ---
   if (untimed.length > 0) {
-    untimed.sort(cmp);
-    const cols = Math.max(1, Math.ceil(Math.sqrt(untimed.length)));
-    const gridX = totalW / 2 + effectiveSpacing * 2;
+    // Sort by label/id for deterministic order
+    untimed.sort((a, b) => (a.label || a.id).localeCompare(b.label || b.id));
+    const startCol = uniqueTimes.length;
     for (let i = 0; i < untimed.length; i++) {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
       const ns = getSpacing(untimed[i].id, nodeSpacingMap);
       offsets.set(untimed[i].id, {
-        dx: (gridX + col * spacing * 0.6) * ns,
-        dy: row * spacing * 0.6 * ns,
+        dx: (startCol + i) * effectiveSpacing * ns,
+        dy: 0,
       });
     }
   }
 
-  // Center vertically
-  let minY = Infinity, maxY = -Infinity;
-  for (const { dy } of offsets.values()) {
+  // --- Center both axes ---
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const { dx, dy } of offsets.values()) {
+    if (dx < minX) minX = dx;
+    if (dx > maxX) maxX = dx;
     if (dy < minY) minY = dy;
     if (dy > maxY) maxY = dy;
   }
-  const yCenterOffset = (minY + maxY) / 2;
+  const xCenter = (minX + maxX) / 2;
+  const yCenter = (minY + maxY) / 2;
   for (const [id, pos] of offsets) {
-    offsets.set(id, { dx: pos.dx, dy: pos.dy - yCenterOffset });
+    offsets.set(id, { dx: pos.dx - xCenter, dy: pos.dy - yCenter });
   }
 
   return offsets;
+}
+
+/** Try the user key first; if < 30% of nodes have it, scan fallback keys */
+function resolveTimeKey(
+  members: GraphNode[],
+  primaryKey: string,
+  getNodeProperty?: (nodeId: string, key: string) => string | undefined,
+): string | null {
+  if (!getNodeProperty || members.length === 0) return null;
+
+  // Check primary key coverage
+  const threshold = Math.max(1, Math.floor(members.length * 0.3));
+  let count = 0;
+  for (const nd of members) {
+    const val = getNodeProperty(nd.id, primaryKey);
+    if (val !== undefined && val !== "") count++;
+    if (count >= threshold) return primaryKey;
+  }
+  if (count > 0) return primaryKey; // At least some nodes have it
+
+  // Try fallback keys
+  for (const fallbackKey of TIMELINE_FALLBACK_KEYS) {
+    if (fallbackKey === primaryKey) continue;
+    let fc = 0;
+    for (const nd of members) {
+      const val = getNodeProperty(nd.id, fallbackKey);
+      if (val !== undefined && val !== "") fc++;
+      if (fc >= threshold) return fallbackKey;
+    }
+    if (fc > 0) return fallbackKey;
+  }
+
+  return null; // No usable key found → all nodes will be untimed (single line by label)
 }
 
 // ---------------------------------------------------------------------------
