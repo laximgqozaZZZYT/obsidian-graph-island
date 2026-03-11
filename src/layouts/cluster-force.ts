@@ -99,6 +99,10 @@ export interface ClusterForceConfig {
   sortComparator?: (a: GraphNode, b: GraphNode) => number;
   /** Per-node spacing multiplier from NodeRules */
   nodeSpacingMap?: Map<string, number>;
+  /** Frontmatter key for timeline arrangement (e.g. "date", "era") */
+  timelineKey?: string;
+  /** Accessor for node frontmatter values (for timeline arrangement) */
+  getNodeProperty?: (nodeId: string, key: string) => string | undefined;
 }
 
 /**
@@ -854,6 +858,7 @@ function computeOffsets(
     case "triangle": return triangleOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     case "random": return randomOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, nodeSpacingMap);
     case "mountain": return mountainOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
+    case "timeline": return timelineOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg.timelineKey, cfg.getNodeProperty);
     default: return new Map();
   }
 }
@@ -1229,6 +1234,103 @@ function mountainOffsets(
       idx++;
     }
   }
+  return offsets;
+}
+
+// ---------------------------------------------------------------------------
+// Timeline — horizontal time axis with vertical stacking
+//
+// Nodes are arranged horizontally by their frontmatter time value.
+// Nodes sharing the same time step stack vertically.
+// Nodes without a time value are placed in a grid at the right edge.
+// ---------------------------------------------------------------------------
+
+function timelineOffsets(
+  members: GraphNode[],
+  degrees: Map<string, number>,
+  spacingMul: number,
+  groupScale: number,
+  nodeSize: number,
+  cmp: (a: GraphNode, b: GraphNode) => number,
+  nodeSpacingMap?: Map<string, number>,
+  timelineKey?: string,
+  getNodeProperty?: (nodeId: string, key: string) => string | undefined,
+): Map<string, { dx: number; dy: number }> {
+  const offsets = new Map<string, { dx: number; dy: number }>();
+  const n = members.length;
+  if (n === 0) return offsets;
+
+  const spacing = nodeSize * 2 * Math.max(spacingMul, groupScale);
+  const key = timelineKey || "date";
+
+  // Partition: timed vs untimed
+  const timed: { node: GraphNode; value: string }[] = [];
+  const untimed: GraphNode[] = [];
+  for (const nd of members) {
+    const val = getNodeProperty?.(nd.id, key);
+    if (val !== undefined && val !== "") {
+      timed.push({ node: nd, value: val });
+    } else {
+      untimed.push(nd);
+    }
+  }
+
+  // Sort timed nodes by time value (lexicographic)
+  timed.sort((a, b) => a.value < b.value ? -1 : a.value > b.value ? 1 : 0);
+
+  // Build unique time steps
+  const uniqueTimes = [...new Set(timed.map(t => t.value))];
+  const timeIndexMap = new Map<string, number>();
+  uniqueTimes.forEach((t, i) => timeIndexMap.set(t, i));
+
+  // Auto-compress step width for many time steps
+  const maxCols = 30;
+  const effectiveSpacing = uniqueTimes.length > maxCols
+    ? Math.max(nodeSize * 3, spacing * maxCols / uniqueTimes.length)
+    : spacing;
+
+  // Place timed nodes: X = time index, Y = stack within same time step
+  const columnStack = new Map<number, number>();
+  const totalW = (uniqueTimes.length - 1) * effectiveSpacing;
+
+  for (const { node, value } of timed) {
+    const ti = timeIndexMap.get(value)!;
+    const stackIdx = columnStack.get(ti) ?? 0;
+    columnStack.set(ti, stackIdx + 1);
+    const ns = getSpacing(node.id, nodeSpacingMap);
+    offsets.set(node.id, {
+      dx: (ti * effectiveSpacing - totalW / 2) * ns,
+      dy: stackIdx * spacing * 0.6 * ns,
+    });
+  }
+
+  // Place untimed nodes in a grid to the right
+  if (untimed.length > 0) {
+    untimed.sort(cmp);
+    const cols = Math.max(1, Math.ceil(Math.sqrt(untimed.length)));
+    const gridX = totalW / 2 + effectiveSpacing * 2;
+    for (let i = 0; i < untimed.length; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const ns = getSpacing(untimed[i].id, nodeSpacingMap);
+      offsets.set(untimed[i].id, {
+        dx: (gridX + col * spacing * 0.6) * ns,
+        dy: row * spacing * 0.6 * ns,
+      });
+    }
+  }
+
+  // Center vertically
+  let minY = Infinity, maxY = -Infinity;
+  for (const { dy } of offsets.values()) {
+    if (dy < minY) minY = dy;
+    if (dy > maxY) maxY = dy;
+  }
+  const yCenterOffset = (minY + maxY) / 2;
+  for (const [id, pos] of offsets) {
+    offsets.set(id, { dx: pos.dx, dy: pos.dy - yCenterOffset });
+  }
+
   return offsets;
 }
 

@@ -174,7 +174,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   constructor(leaf: WorkspaceLeaf, plugin: GraphViewsPlugin) {
     super(leaf);
     this.plugin = plugin;
-    this.currentLayout = plugin.settings.defaultLayout;
+    this.currentLayout = "force"; // Always use force layout; arrangement patterns handle visual layout
     this.panel.nodeSize = plugin.settings.nodeSize;
     this.panel.showSimilar = plugin.settings.showSimilar ?? false;
     this.panel.sortRules = [...(plugin.settings.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r }));
@@ -265,9 +265,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   async setState(state: any, result: any): Promise<void> {
     await super.setState(state, result);
-    if (state.layout && typeof state.layout === "string") {
-      this.currentLayout = state.layout as LayoutType;
+    // Layout is always "force"; legacy state values are migrated to cluster arrangement
+    if (state.layout && typeof state.layout === "string" && state.layout !== "force") {
+      // Migrate legacy layout type to cluster arrangement pattern where applicable
+      const legacyMap: Record<string, string> = {
+        "tree": "tree", "concentric": "concentric", "sunburst": "sunburst",
+        "timeline": "timeline", "arc": "concentric",
+      };
+      const mapped = legacyMap[state.layout];
+      if (mapped && state.panel) {
+        state.panel.clusterArrangement = mapped;
+      }
     }
+    this.currentLayout = "force";
     if (state.panel && typeof state.panel === "object") {
       const saved = JSON.parse(JSON.stringify(state.panel)) as any;
       for (const key of Object.keys(DEFAULT_PANEL) as (keyof PanelState)[]) {
@@ -722,6 +732,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return this.plugin.settings.directionalGravityRules ?? [];
   }
   setClusterMeta(meta: ClusterMetadata | null) { this.clusterMeta = meta; }
+  getNodeProperty(nodeId: string, key: string): string | undefined {
+    const pn = this.pixiNodes.get(nodeId);
+    const fp = pn?.data.filePath;
+    if (!fp) return undefined;
+    const tf = this.app.vault.getAbstractFileByPath(fp);
+    if (!(tf instanceof TFile)) return undefined;
+    const cache = this.app.metadataCache.getFileCache(tf);
+    const val = cache?.frontmatter?.[key];
+    return val !== undefined && val !== null ? String(val) : undefined;
+  }
   getNodeShapeRules() { return this.panel.nodeShapeRules; }
   getSearchHiddenNodes() { return new Set<string>(); }
 

@@ -36,6 +36,8 @@ export interface LayoutHost {
   setClusterMeta(meta: ClusterMetadata | null): void;
   /** Wake the render loop after force changes */
   wakeRenderLoop(): void;
+  /** Read a frontmatter property from a node's source file */
+  getNodeProperty(nodeId: string, key: string): string | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -343,6 +345,8 @@ export class LayoutController {
         enclosureSpacing: panel.enclosureSpacing,
         sortComparator: this.buildSortComparator(sim.nodes(), graphEdges),
         nodeSpacingMap: this.computeNodeSpacingMap(sim.nodes()),
+        timelineKey: panel.timelineKey || "date",
+        getNodeProperty: (nodeId: string, key: string) => this.host.getNodeProperty(nodeId, key),
       },
     );
     if (result) {

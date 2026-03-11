@@ -63,7 +63,7 @@ export type LayoutType =
 export type ClusterGroupBy = string;
 
 /** How to arrange nodes within each cluster */
-export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid" | "triangle" | "random" | "mountain" | "sunburst";
+export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid" | "triangle" | "random" | "mountain" | "sunburst" | "timeline";
 
 /** A single rule in the multi-level cluster grouping pipeline */
 export interface ClusterGroupRule {
