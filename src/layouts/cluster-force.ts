@@ -180,7 +180,7 @@ export function buildClusterForce(
       if (t) { sx += t.x; sy += t.y; }
     }
     clusterCentroids.set(key, { x: sx / members.length, y: sy / members.length });
-    clusterRadii.set(key, estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement));
+    clusterRadii.set(key, estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members));
   }
 
   // Build node index for enclosure separation (if active)
@@ -223,6 +223,18 @@ function getSpacing(id: string, map?: Map<string, number>): number {
 function nodeRadius(nodeSize: number, degree: number, scaleByDegree: boolean): number {
   if (!scaleByDegree) return nodeSize;
   return Math.max(nodeSize, nodeSize + Math.sqrt(degree) * 3.2);
+}
+
+const MAX_NODE_RADIUS = 30;
+
+/** Effective visual radius accounting for super nodes (collapsed groups).
+ *  Mirrors RenderPipeline: rawR = nodeR * (1 + sqrt(memberCount) * 0.5), cap 30 */
+function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, scaleByDegree: boolean): number {
+  const baseR = nodeRadius(nodeSize, degree, scaleByDegree);
+  if (n.collapsedMembers && n.collapsedMembers.length > 0) {
+    return Math.min(Math.max(baseR, baseR * (1 + Math.sqrt(n.collapsedMembers.length) * 0.5)), MAX_NODE_RADIUS);
+  }
+  return baseR;
 }
 
 // ---------------------------------------------------------------------------
@@ -629,7 +641,7 @@ function layoutGroupsHorizontal(
   for (const key of keys) {
     const members = groups.get(key)!;
     totalNodes += members.length;
-    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement);
+    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members);
     groupWidths.push(r * 2);
   }
   // Gap scales with slider value AND sqrt of total node count
@@ -664,7 +676,7 @@ function layoutGroupsCircle(
   let totalNodes = 0;
   for (const [, members] of groups) {
     totalNodes += members.length;
-    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement);
+    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members);
     if (r > maxGroupRadius) maxGroupRadius = r;
   }
   // Circle must be large enough so adjacent groups don't overlap
@@ -683,14 +695,26 @@ function layoutGroupsCircle(
   }
 }
 
-/** Estimate a group's visual radius based on member count and base node size. */
+/** Estimate a group's visual radius based on member count and base node size.
+ *  When `members` array is provided, accounts for super node sizes. */
 function estimateGroupRadius(
   memberCount: number,
   nodeSize: number,
   nodeSpacingMul: number,
   arrangement?: ClusterArrangement,
+  members?: GraphNode[],
 ): number {
   const gap = nodeSize * 2 * nodeSpacingMul;
+  // If any member is a super node, inflate the estimate
+  let superBonus = 0;
+  if (members) {
+    for (const m of members) {
+      if (m.collapsedMembers && m.collapsedMembers.length > 0) {
+        const sr = Math.min(nodeSize * (1 + Math.sqrt(m.collapsedMembers.length) * 0.5), MAX_NODE_RADIUS);
+        superBonus = Math.max(superBonus, sr - nodeSize);
+      }
+    }
+  }
   if (arrangement === "mountain") {
     // Mountain's widest row determines the radius — simulate row capacities
     let remaining = memberCount;
@@ -703,10 +727,10 @@ function estimateGroupRadius(
       remaining -= actual;
       row++;
     }
-    return gap * maxCols / 2;
+    return gap * maxCols / 2 + superBonus;
   }
   // Default: approximate footprint √n nodes across × gap
-  return gap * Math.sqrt(memberCount) / 2;
+  return gap * Math.sqrt(memberCount) / 2 + superBonus;
 }
 
 // ---------------------------------------------------------------------------
@@ -846,7 +870,15 @@ function computeOffsets(
   edges: GraphEdge[],
   cfg: ClusterForceConfig,
 ): Map<string, { dx: number; dy: number }> {
-  const { nodeSpacing, groupScale, nodeSize, scaleByDegree, sortComparator, nodeSpacingMap } = cfg;
+  const { nodeSpacing, groupScale, scaleByDegree, sortComparator, nodeSpacingMap } = cfg;
+  // Compute effective nodeSize: if any member is a super node, use the
+  // largest effective radius so that fixed-spacing arrangements (grid,
+  // triangle, mountain, timeline) give enough room.
+  let nodeSize = cfg.nodeSize;
+  for (const m of members) {
+    const er = effectiveRadius(m, cfg.nodeSize, degrees.get(m.id) || 0, scaleByDegree);
+    if (er > nodeSize) nodeSize = er;
+  }
   // Default sort: degree descending (preserves legacy behaviour)
   const defaultSort = (a: GraphNode, b: GraphNode) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0);
   const cmp = sortComparator ?? defaultSort;
@@ -888,7 +920,7 @@ function spiralOffsets(
   if (n === 0) return offsets;
 
   // Precompute each node's visual radius
-  const radii = sorted.map(nd => nodeRadius(nodeSize, degrees.get(nd.id) || 0, scaleByDegree));
+  const radii = sorted.map(nd => effectiveRadius(nd, nodeSize, degrees.get(nd.id) || 0, scaleByDegree));
 
   // armGap controls distance between spiral turns — governed by groupScale
   const armGap = nodeSize * 2 * groupScale;
@@ -942,8 +974,8 @@ function concentricOffsets(
   const n = sorted.length;
   if (n === 0) return offsets;
 
-  // Precompute radii
-  const radii = sorted.map(nd => nodeRadius(nodeSize, degrees.get(nd.id) || 0, scaleByDegree));
+  // Precompute radii (super-node aware)
+  const radii = sorted.map(nd => effectiveRadius(nd, nodeSize, degrees.get(nd.id) || 0, scaleByDegree));
 
   // Place center node
   offsets.set(sorted[0].id, { dx: 0, dy: 0 });
@@ -1422,7 +1454,7 @@ function randomOffsets(
   // Place each node using two hash values for angle and radius
   const placed: { x: number; y: number; r: number }[] = [];
   for (const nd of members) {
-    const nr = nodeRadius(nodeSize, degrees.get(nd.id) || 0, scaleByDegree);
+    const nr = effectiveRadius(nd, nodeSize, degrees.get(nd.id) || 0, scaleByDegree);
     const ns = getSpacing(nd.id, nodeSpacingMap);
     const minDist = nr * 2 * spacingMul * ns;
 
@@ -1532,4 +1564,180 @@ function nudgeEnclosureGroups(
       }
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Auto-fit spacing computation
+// ---------------------------------------------------------------------------
+
+interface BBox {
+  minX: number; minY: number; maxX: number; maxY: number;
+}
+
+/** Alias for effectiveRadius (used by auto-fit computation) */
+const visualRadius = effectiveRadius;
+
+/** Estimate label width for a node (approximation: 7px per char) */
+function estimateLabelWidth(n: GraphNode): number {
+  const label = n.label || n.id;
+  // Super nodes have "(N)" suffix appended
+  const suffix = n.collapsedMembers ? ` (${n.collapsedMembers.length})` : "";
+  return (label.length + suffix.length) * 7;
+}
+
+/**
+ * Compute optimal nodeSpacing, groupScale, and groupSpacing values
+ * that eliminate group/node overlap.
+ *
+ * Algorithm: run buildClusterForce with trial spacing values,
+ * snap nodes to targets, measure pairwise overlap using visual radii
+ * (including super node sizes and label widths), then iteratively
+ * increase spacing until overlaps are resolved (up to 3 passes).
+ */
+export function computeAutoFitSpacing(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  degrees: Map<string, number>,
+  baseCfg: ClusterForceConfig,
+): { nodeSpacing: number; groupScale: number; groupSpacing: number } {
+  // Start from the base config's values (user slider or preset values)
+  let nodeSpacing = baseCfg.nodeSpacing;
+  let groupScale = baseCfg.groupScale;
+  let groupSpacing = baseCfg.groupSpacing;
+
+  // Upper bounds (match slider maximums)
+  const MAX_NODE_SPACING = 10;
+  const MAX_GROUP_SCALE = 5;
+  const MAX_GROUP_SPACING = 5;
+
+  const baseSize = baseCfg.nodeSize;
+
+  for (let iteration = 0; iteration < 5; iteration++) {
+    const cfg: ClusterForceConfig = {
+      ...baseCfg,
+      nodeSpacing,
+      groupScale,
+      groupSpacing,
+    };
+
+    const result = buildClusterForce(nodes, edges, degrees, cfg);
+    if (!result) break;
+
+    // Snapshot positions, apply force once, read targets, restore
+    const saved = nodes.map(n => ({ x: n.x, y: n.y, vx: n.vx, vy: n.vy }));
+    result.force(1.0);
+    const targets = nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
+    for (let i = 0; i < nodes.length; i++) {
+      nodes[i].x = saved[i].x; nodes[i].y = saved[i].y;
+      nodes[i].vx = saved[i].vx; nodes[i].vy = saved[i].vy;
+    }
+
+    // Build per-node info: target position, visual radius, label half-width
+    const nodeInfos = nodes.map((n, i) => {
+      const deg = degrees.get(n.id) ?? 0;
+      const r = visualRadius(n, baseSize, deg, baseCfg.scaleByDegree);
+      const labelHW = estimateLabelWidth(n) / 2;
+      const group = result.metadata.nodeClusterMap.get(n.id) ?? "__none__";
+      return { id: n.id, x: targets[i].x, y: targets[i].y, r, labelHW, group };
+    });
+
+    // --- Detect overlaps ---
+    let maxOverlapRatio = 0;
+    let hasNodeOverlap = false;
+    let hasCrossGroupOverlap = false;
+
+    // 1. Pairwise node overlap detection
+    for (let i = 0; i < nodeInfos.length; i++) {
+      for (let j = i + 1; j < nodeInfos.length; j++) {
+        const a = nodeInfos[i];
+        const b = nodeInfos[j];
+        const dx = Math.abs(a.x - b.x);
+        const dy = Math.abs(a.y - b.y);
+
+        const hExtA = Math.max(a.r, a.labelHW);
+        const hExtB = Math.max(b.r, b.labelHW);
+        const minDx = hExtA + hExtB;
+
+        const LABEL_H = 12;
+        const vExtA = a.r + LABEL_H;
+        const vExtB = b.r + LABEL_H;
+        const minDy = vExtA + vExtB;
+
+        const overlapX = minDx - dx;
+        const overlapY = minDy - dy;
+        if (overlapX > 0 && overlapY > 0) {
+          hasNodeOverlap = true;
+          if (a.group !== b.group) {
+            hasCrossGroupOverlap = true;
+            const overlapArea = overlapX * overlapY;
+            const minExtent = minDx * minDy * 4;
+            const ratio = overlapArea / (minExtent || 1);
+            if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
+          }
+        }
+      }
+    }
+
+    // 2. Group BBox overlap detection (catches cases where individual nodes
+    //    don't overlap but group footprints do)
+    const groupNodes = new Map<string, typeof nodeInfos>();
+    for (const ni of nodeInfos) {
+      if (!groupNodes.has(ni.group)) groupNodes.set(ni.group, []);
+      groupNodes.get(ni.group)!.push(ni);
+    }
+    const groupKeys = [...groupNodes.keys()].filter(k => k !== "__none__");
+    if (groupKeys.length > 1) {
+      const groupBBoxes = new Map<string, BBox>();
+      const pad = baseSize * 2;
+      for (const k of groupKeys) {
+        const members = groupNodes.get(k)!;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const m of members) {
+          if (m.x - m.r < minX) minX = m.x - m.r;
+          if (m.y - m.r < minY) minY = m.y - m.r;
+          if (m.x + m.r > maxX) maxX = m.x + m.r;
+          if (m.y + m.r > maxY) maxY = m.y + m.r;
+        }
+        groupBBoxes.set(k, { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad });
+      }
+      for (let i = 0; i < groupKeys.length; i++) {
+        for (let j = i + 1; j < groupKeys.length; j++) {
+          const a = groupBBoxes.get(groupKeys[i])!;
+          const b = groupBBoxes.get(groupKeys[j])!;
+          const ox = Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX);
+          const oy = Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY);
+          if (ox > 0 && oy > 0) {
+            hasCrossGroupOverlap = true;
+            hasNodeOverlap = true;
+            const overlapArea = ox * oy;
+            const aArea = (a.maxX - a.minX) * (a.maxY - a.minY);
+            const bArea = (b.maxX - b.minX) * (b.maxY - b.minY);
+            const ratio = overlapArea / (Math.min(aArea, bArea) || 1);
+            if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
+          }
+        }
+      }
+    }
+
+    // If no overlaps detected, we're done
+    if (!hasNodeOverlap) break;
+
+    // Adjust spacing values based on overlap type
+    if (hasCrossGroupOverlap) {
+      // Cross-group overlap: increase group spacing and scale
+      const scaleFactor = 1 + Math.max(maxOverlapRatio, 0.3) * 2.0;
+      groupSpacing = Math.min(groupSpacing * scaleFactor, MAX_GROUP_SPACING);
+      groupScale = Math.min(groupScale * (1 + Math.max(maxOverlapRatio, 0.2)), MAX_GROUP_SCALE);
+    }
+    if (hasNodeOverlap && !hasCrossGroupOverlap) {
+      // Intra-group node overlap only: increase node spacing
+      nodeSpacing = Math.min(nodeSpacing * 1.5, MAX_NODE_SPACING);
+    }
+  }
+
+  return {
+    nodeSpacing: Math.round(nodeSpacing * 10) / 10,
+    groupScale: Math.round(groupScale * 10) / 10,
+    groupSpacing: Math.round(groupSpacing * 10) / 10,
+  };
 }

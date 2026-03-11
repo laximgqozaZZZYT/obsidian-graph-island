@@ -74,6 +74,8 @@ export interface PanelState {
   groupFilter: string;
   collapsedGroups: Set<string>;
   activeTab: "filter" | "display" | "layout" | "settings";
+  /** Auto-fit spacing: automatically compute nodeSpacing, groupScale, groupSpacing */
+  autoFit: boolean;
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -135,6 +137,7 @@ export const DEFAULT_PANEL: PanelState = {
   groupFilter: "",
   collapsedGroups: new Set<string>(),
   activeTab: "filter" as const,
+  autoFit: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -438,21 +441,39 @@ export function buildPanel(
       body.createEl("p", { cls: "gi-hint", text: t("timeline.timeKeyHint") });
     }
 
-    addSlider(body, t("cluster.nodeSpacing"), 1, 10, 0.5, panel.clusterNodeSpacing, (v) => {
+    // Auto-fit toggle — disables manual spacing sliders when ON
+    const spacingSliders: HTMLElement[] = [];
+    const setSliderDisabled = (disabled: boolean) => {
+      for (const el of spacingSliders) {
+        el.style.opacity = disabled ? "0.5" : "";
+        el.style.pointerEvents = disabled ? "none" : "";
+      }
+    };
+    addToggle(body, t("cluster.autoFit"), panel.autoFit, (v) => {
+      panel.autoFit = v;
+      setSliderDisabled(v);
+      cb.applyClusterForce();
+      cb.restartSimulation(0.5);
+      cb.doRenderKeepPanel();
+    });
+
+    spacingSliders.push(addSlider(body, t("cluster.nodeSpacing"), 1, 10, 0.5, panel.clusterNodeSpacing, (v) => {
       panel.clusterNodeSpacing = v;
       cb.applyClusterForce();
       cb.restartSimulation(0.5);
-    });
-    addSlider(body, t("cluster.groupSize"), 0.5, 5, 0.25, panel.clusterGroupScale, (v) => {
+    }));
+    spacingSliders.push(addSlider(body, t("cluster.groupSize"), 0.5, 5, 0.25, panel.clusterGroupScale, (v) => {
       panel.clusterGroupScale = v;
       cb.applyClusterForce();
       cb.restartSimulation(0.5);
-    });
-    addSlider(body, t("cluster.groupSpacing"), 0.5, 5, 0.25, panel.clusterGroupSpacing, (v) => {
+    }));
+    spacingSliders.push(addSlider(body, t("cluster.groupSpacing"), 0.5, 5, 0.25, panel.clusterGroupSpacing, (v) => {
       panel.clusterGroupSpacing = v;
       cb.applyClusterForce();
       cb.restartSimulation(0.5);
-    });
+    }));
+    // Apply initial disabled state
+    setSliderDisabled(panel.autoFit);
     addSlider(body, t("cluster.edgeBundleStrength"), 0, 1, 0.05, panel.edgeBundleStrength, (v) => {
       panel.edgeBundleStrength = v;
       cb.markDirty();
@@ -733,7 +754,7 @@ function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
   }
 }
 
-function addSlider(container: HTMLElement, label: string, min: number, max: number, step: number, initial: number, onChange: (v: number) => void) {
+function addSlider(container: HTMLElement, label: string, min: number, max: number, step: number, initial: number, onChange: (v: number) => void): HTMLElement {
   const row = container.createDiv({ cls: "setting-item mod-slider" });
   const info = row.createDiv({ cls: "setting-item-info" });
   info.createDiv({ cls: "setting-item-name", text: label });
@@ -744,6 +765,7 @@ function addSlider(container: HTMLElement, label: string, min: number, max: numb
   input.step = String(step);
   input.value = String(initial);
   input.addEventListener("input", () => onChange(parseFloat(input.value)));
+  return row;
 }
 
 function addToggle(container: HTMLElement, label: string, initial: boolean, onChange: (v: boolean) => void) {

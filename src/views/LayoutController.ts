@@ -2,7 +2,7 @@ import { forceSimulation, forceManyBody, forceCenter, forceLink, forceCollide, t
 import type { GraphNode, GraphEdge, DirectionalGravityRule, ClusterGroupRule, NodeRule } from "../types";
 import type { PanelState } from "./PanelBuilder";
 import { resolveDirection, matchesFilter } from "../layouts/force";
-import { buildClusterForce, type ClusterMetadata } from "../layouts/cluster-force";
+import { buildClusterForce, computeAutoFitSpacing, type ClusterMetadata } from "../layouts/cluster-force";
 import { computeInDegree, computePropagatedImportance } from "../analysis/graph-analysis";
 import { buildMultiSortComparator, type SortMetrics } from "../utils/sort";
 import { edgeLinkDistance, edgeLinkStrength } from "../utils/force-config";
@@ -312,7 +312,7 @@ export class LayoutController {
     const sim = this.host.getSimulation();
     if (!sim) return;
     const panel = this.host.getPanel();
-    const { clusterArrangement, clusterNodeSpacing, clusterGroupScale, clusterGroupSpacing } = panel;
+    let { clusterArrangement, clusterNodeSpacing, clusterGroupScale, clusterGroupSpacing } = panel;
 
     sim.force("charge", forceManyBody<GraphNode>().strength(-10));
     sim.force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(2));
@@ -325,29 +325,47 @@ export class LayoutController {
     const graphEdges = this.host.getGraphEdges();
     const tagMembership = this.host.getTagMembership();
 
+    const baseCfg = {
+      groupRules: panel.clusterGroupRules,
+      arrangement: clusterArrangement,
+      centerX: W / 2,
+      centerY: H / 2,
+      width: W,
+      height: H,
+      nodeSize: panel.nodeSize,
+      scaleByDegree: panel.scaleByDegree,
+      nodeSpacing: clusterNodeSpacing,
+      groupScale: clusterGroupScale,
+      groupSpacing: clusterGroupSpacing,
+      tagMembership: panel.tagDisplay === "enclosure" ? tagMembership : undefined,
+      enclosureSpacing: panel.enclosureSpacing,
+      sortComparator: this.buildSortComparator(sim.nodes(), graphEdges),
+      nodeSpacingMap: this.computeNodeSpacingMap(sim.nodes()),
+      timelineKey: panel.timelineKey || "date",
+      getNodeProperty: (nodeId: string, key: string) => this.host.getNodeProperty(nodeId, key),
+    };
+
+    // Auto-fit: compute optimal spacing values
+    if (panel.autoFit) {
+      const optimal = computeAutoFitSpacing(sim.nodes(), graphEdges, this.host.getDegrees(), baseCfg);
+      clusterNodeSpacing = optimal.nodeSpacing;
+      clusterGroupScale = optimal.groupScale;
+      clusterGroupSpacing = optimal.groupSpacing;
+      // Update panel values so sliders reflect auto-computed values
+      panel.clusterNodeSpacing = clusterNodeSpacing;
+      panel.clusterGroupScale = clusterGroupScale;
+      panel.clusterGroupSpacing = clusterGroupSpacing;
+      // Apply to config
+      baseCfg.nodeSpacing = clusterNodeSpacing;
+      baseCfg.groupScale = clusterGroupScale;
+      baseCfg.groupSpacing = clusterGroupSpacing;
+    }
+
     const result = buildClusterForce(
       sim.nodes(),
       graphEdges,
       this.host.getDegrees(),
-      {
-        groupRules: panel.clusterGroupRules,
-        arrangement: clusterArrangement,
-        centerX: W / 2,
-        centerY: H / 2,
-        width: W,
-        height: H,
-        nodeSize: panel.nodeSize,
-        scaleByDegree: panel.scaleByDegree,
-        nodeSpacing: clusterNodeSpacing,
-        groupScale: clusterGroupScale,
-        groupSpacing: clusterGroupSpacing,
-        tagMembership: panel.tagDisplay === "enclosure" ? tagMembership : undefined,
-        enclosureSpacing: panel.enclosureSpacing,
-        sortComparator: this.buildSortComparator(sim.nodes(), graphEdges),
-        nodeSpacingMap: this.computeNodeSpacingMap(sim.nodes()),
-        timelineKey: panel.timelineKey || "date",
-        getNodeProperty: (nodeId: string, key: string) => this.host.getNodeProperty(nodeId, key),
-      },
+      baseCfg,
     );
     if (result) {
       sim.force("clusterArrangement", result.force as Force<GraphNode, GraphEdge>);
