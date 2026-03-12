@@ -204,6 +204,17 @@
   flex-direction: column;
 }
 
+/* === Coordinate preview plot === */
+.gi-coord-preview {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0 2px;
+}
+.gi-coord-preview canvas {
+  border-radius: var(--radius-s, 4px);
+  border: 1px solid var(--background-modifier-border);
+}
+
 /* Mobile: panel as full-width overlay */
 .graph-panel.is-overlay {
   position: absolute;
@@ -1131,6 +1142,7 @@
 .gi-setting-label { font-size: var(--font-ui-small); color: var(--text-muted); white-space: nowrap; flex-shrink: 0; min-width: 24px; }
 .gi-setting-input { flex: 1; min-width: 0; padding: var(--size-4-1) var(--size-4-2); border-radius: var(--input-radius); border: 1px solid var(--background-modifier-border); background: var(--background-modifier-form-field); color: var(--text-normal); font-size: var(--font-ui-small); }
 .gi-setting-input:focus { border-color: var(--interactive-accent); box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb, 99,102,241), 0.2); outline: none; }
+.gi-expr-textarea { resize: vertical; min-height: 28px; max-height: 120px; font-family: "JetBrains Mono", "Fira Code", monospace; font-size: 12px; line-height: 1.4; white-space: pre-wrap; overflow-y: hidden; }
 
 /* === Setting description text === */
 .gi-setting-desc {
@@ -1753,17 +1765,13 @@
    Phase 5: CSS Micro-interactions
    ========================================================================= */
 
-/* 5-A1: Smooth section collapse animation */
+/* 5-A1: Section collapse — use simple opacity fade (no max-height transition
+   which is expensive with large values and fires on every panel rebuild). */
 .graph-panel .tree-item-children {
   overflow: hidden;
-  transition: max-height 0.25s ease, opacity 0.2s ease;
-  max-height: 800px;
-  opacity: 1;
 }
 .graph-panel .tree-item.is-collapsed > .tree-item-children {
-  max-height: 0;
-  opacity: 0;
-  padding: 0;
+  display: none;
 }
 
 /* 5-A2: Tab switch content fade-in */
@@ -1825,17 +1833,10 @@
    Phase 6: Visual hierarchy & UX improvements
    ========================================================================= */
 
-/* 6-C3: Panel slide open/close animation */
-.graph-panel {
-  transition: width 0.25s ease, opacity 0.2s ease;
-  overflow: hidden;
-}
+/* 6-C3: Panel hide — simple display toggle (width transition on a panel with
+   many children causes expensive layout recalculation every frame). */
 .graph-panel.is-hidden {
-  width: 0;
-  opacity: 0;
-  padding: 0;
-  border-left-width: 0;
-  overflow: hidden;
+  display: none;
 }
 
 /* 6-E1: Suppress focus ring on mouse clicks (keyboard-only visible) */

@@ -11,7 +11,7 @@ import { ALL_SHAPES } from "../utils/node-shapes";
 import { exportPreset, importPreset, applyPreset } from "../utils/presets";
 import { showToast } from "../utils/toast";
 import { ARRANGEMENT_PRESETS, findMatchingPreset, CURVE_REGISTRY } from "../layouts/coordinate-presets";
-import { validateExpr } from "../utils/expr-eval";
+import { validateExpr, parseExpr, evalExpr, setUserVars, type ExprNode } from "../utils/expr-eval";
 import { parseTransformExpr, transformExprToString, getTransformExprSuggestions, TRANSFORM_FUNCTION_NAMES } from "../utils/transform-expr";
 
 // ---------------------------------------------------------------------------
@@ -242,12 +242,9 @@ export interface PanelContext {
 function syncArrangementFromLayout(panel: PanelState): void {
   if (!panel.coordinateLayout) return;
   const match = findMatchingPreset(panel.coordinateLayout);
-  if (match !== "custom") {
-    panel.clusterArrangement = match;
-    panel.coordinateLayout = null; // use preset directly
-  } else {
-    panel.clusterArrangement = "custom";
-  }
+  // Always keep coordinateLayout set so the coordinate engine is used.
+  // Update the arrangement dropdown to reflect the closest matching preset.
+  panel.clusterArrangement = match;
 }
 
 export function buildPanel(
@@ -543,8 +540,7 @@ export function buildPanel(
     }
   }, undefined, false, "layers");
 
-  // Cluster arrangement — only show when groupBy is active
-  if (panel.groupBy && panel.groupBy !== "none") {
+  // Cluster arrangement
   buildSection(layoutTab, t("section.clusterArrangement"), (body) => {
     addSelect(body, t("cluster.pattern"), [
       { value: "spiral", label: t("cluster.spiral") },
@@ -559,10 +555,12 @@ export function buildPanel(
       { value: "custom", label: t("cluster.custom") },
     ], panel.clusterArrangement, (v) => {
       panel.clusterArrangement = v as ClusterArrangement;
-      // "custom" always sets coordinateLayout explicitly so the generic engine is used.
-      // Other presets reset to null to use hardcoded functions.
-      panel.coordinateLayout = v === "custom"
-        ? { ...ARRANGEMENT_PRESETS.custom }
+      // Built-in presets with hand-written layout functions use coordinateLayout = null
+      // so dispatchHardcoded() routes to spiralOffsets, gridOffsets, etc.
+      // Presets without a hardcoded function (sunburst, custom) use the generic engine.
+      const needsGenericEngine = v === "custom" || v === "sunburst";
+      panel.coordinateLayout = needsGenericEngine
+        ? { ...ARRANGEMENT_PRESETS[v as ClusterArrangement] }
         : null;
       cb.applyClusterForce();
       cb.rebuildPanel();
@@ -593,6 +591,12 @@ export function buildPanel(
 
     buildAxisTextInput(body, `${axis1Label}:`, coordLayout.axis1, 1, panel, cb, ctx, axisSuggestions);
     buildAxisTextInput(body, `${axis2Label}:`, coordLayout.axis2, 2, panel, cb, ctx, axisSuggestions);
+
+    // --- Coordinate function preview plot ---
+    buildCoordPreview(body, coordLayout);
+
+    // --- Constants management ---
+    buildConstantsUI(body, panel, cb);
 
     addToggle(body, t("coord.perGroup"), coordLayout.perGroup, (v) => {
       const base = panel.coordinateLayout
@@ -724,20 +728,25 @@ export function buildPanel(
       cb.markDirty();
     });
 
+    let spacingDebounce: ReturnType<typeof setTimeout> | undefined;
+    const debouncedClusterForce = () => {
+      clearTimeout(spacingDebounce);
+      spacingDebounce = setTimeout(() => {
+        cb.applyClusterForce();
+        cb.restartSimulation(0.5);
+      }, 100);
+    };
     spacingSliders.push(addSlider(body, t("cluster.nodeSpacing"), 1, 10, 0.5, panel.clusterNodeSpacing, (v) => {
       panel.clusterNodeSpacing = v;
-      cb.applyClusterForce();
-      cb.restartSimulation(0.5);
+      debouncedClusterForce();
     }));
     spacingSliders.push(addSlider(body, t("cluster.groupSize"), 0.5, 5, 0.25, panel.clusterGroupScale, (v) => {
       panel.clusterGroupScale = v;
-      cb.applyClusterForce();
-      cb.restartSimulation(0.5);
+      debouncedClusterForce();
     }));
     spacingSliders.push(addSlider(body, t("cluster.groupSpacing"), 0.5, 5, 0.25, panel.clusterGroupSpacing, (v) => {
       panel.clusterGroupSpacing = v;
-      cb.applyClusterForce();
-      cb.restartSimulation(0.5);
+      debouncedClusterForce();
     }));
     // Apply initial disabled state
     setSliderDisabled(panel.autoFit);
@@ -787,7 +796,6 @@ export function buildPanel(
       cb.doRender();
     });
   }, tHelp("help.clusterArrangement"), true, "layout-grid");
-  } // end groupBy guard for cluster arrangement
 
   // Node rules
   buildSection(layoutTab, t("section.nodeRules"), (body) => {
@@ -1044,6 +1052,327 @@ function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Coordinate function preview plot
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a representative source value for preview.
+ * Each source kind produces a distinct input distribution so presets
+ * that share the same transform (e.g. tree vs grid) look different.
+ */
+function evalSource(source: AxisSource, i: number, n: number): number {
+  const t = i / Math.max(n - 1, 1);
+  switch (source.kind) {
+    case "index":
+      return t; // uniform ramp
+    case "random": {
+      // Deterministic pseudo-random (mulberry32-style) for consistent preview
+      let s = (i * 2654435761 + (source.seed ?? 42)) >>> 0;
+      s = (s ^ (s >> 16)) * 0x45d9f3b; s = (s ^ (s >> 16)) >>> 0;
+      return (s & 0xffff) / 0xffff;
+    }
+    case "const":
+      return source.value ?? 1;
+    case "metric": {
+      const m = source.metric;
+      if (m === "degree") {
+        // Power-law-like: many low-degree, few high-degree
+        return Math.pow(t, 0.4);
+      }
+      if (m === "bfs-depth") {
+        // Discrete depth levels (0..4)
+        return Math.floor(t * 5) / 4;
+      }
+      if (m === "sibling-rank") {
+        // Sawtooth: resets within each depth level
+        return (t * 5) % 1;
+      }
+      return t;
+    }
+    case "property":
+      return t; // date → monotonic
+    case "field":
+      // Categorical: discrete steps
+      return Math.floor(t * 6) / 5;
+    default:
+      return t;
+  }
+}
+
+/** Evaluate a single transform at input value t, index i of n total. */
+function evalTransform(transform: AxisTransform, t: number, i: number, n: number, constants?: Record<string, number>): number {
+  switch (transform.kind) {
+    case "linear":
+      return t * (transform.scale ?? 1);
+    case "bin": {
+      const count = Math.max(transform.count, 1);
+      return Math.min(Math.floor(t * count), count - 1) / Math.max(count - 1, 1);
+    }
+    case "date-to-index":
+      return t;
+    case "golden-angle":
+      return (i * 2.39996322972865332) % (Math.PI * 2);
+    case "even-divide": {
+      const totalRad = ((transform.totalRange ?? 360) * Math.PI) / 180;
+      return t * totalRad;
+    }
+    case "stack-avoid":
+      return t + Math.sin(i * 9.1) * 0.05;
+    case "curve": {
+      const curveDef = CURVE_REGISTRY[transform.curve];
+      if (!curveDef) return t;
+      const params = { ...curveDef.defaultParams, ...transform.params, ...constants };
+      return curveDef.fn(t * n, params);
+    }
+    case "expression": {
+      const expr = transform.expr || "t";
+      try {
+        const err = validateExpr(expr);
+        if (err) return t;
+        const ast = parseExpr(expr);
+        return evalExpr(ast, { t: t * n, i, n, v: t, pi: Math.PI, e: Math.E, ...constants }) * (transform.scale ?? 1);
+      } catch {
+        return t;
+      }
+    }
+  }
+  return t;
+}
+
+/**
+ * Draw source→transform curve onto a canvas region.
+ * Source distribution shapes the x-input; transform shapes the y-output.
+ */
+function plotCurve(
+  ctx: CanvasRenderingContext2D,
+  axisCfg: AxisConfig,
+  n: number,
+  x0: number, y0: number, w: number, h: number,
+  color: string,
+  label: string,
+  constants?: Record<string, number>,
+): void {
+  const samples: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const srcVal = evalSource(axisCfg.source, i, n);
+    samples.push(evalTransform(axisCfg.transform, srcVal, i, n, constants));
+  }
+  let lo = Infinity, hi = -Infinity;
+  for (const v of samples) { if (v < lo) lo = v; if (v > hi) hi = v; }
+  const range = hi - lo || 1;
+
+  // Axis line
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x0, y0 + h); ctx.lineTo(x0 + w, y0 + h);
+  ctx.moveTo(x0, y0); ctx.lineTo(x0, y0 + h);
+  ctx.stroke();
+
+  // Curve
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const sx = x0 + (i / (n - 1)) * w;
+    const sy = y0 + h - ((samples[i] - lo) / range) * h;
+    i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+  }
+  ctx.stroke();
+
+  // Label (axis name)
+  ctx.fillStyle = "rgba(200, 210, 230, 0.7)";
+  ctx.font = "bold 9px sans-serif";
+  ctx.fillText(label, x0 + 2, y0 + 10);
+
+  // Source + transform subtitle
+  const srcLabel = axisCfg.source.kind === "metric"
+    ? (axisCfg.source as { metric: string }).metric
+    : axisCfg.source.kind;
+  ctx.fillStyle = "rgba(180, 190, 220, 0.5)";
+  ctx.font = "8px sans-serif";
+  ctx.fillText(`${srcLabel} → ${axisCfg.transform.kind}`, x0 + 2, y0 + 19);
+}
+
+/**
+ * Build preview showing axis1 and axis2 transform functions as graphs,
+ * plus a small combined XY/polar scatter for the overall shape.
+ */
+function buildCoordPreview(body: HTMLElement, layout: CoordinateLayout): void {
+  const W = 240, H = 80;
+  const N = 60;
+  const PAD = 4;
+
+  const container = body.createDiv({ cls: "gi-coord-preview" });
+  const canvas = container.createEl("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  canvas.style.width = `${W}px`;
+  canvas.style.height = `${H}px`;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  // Background
+  ctx.fillStyle = "rgba(0,0,0,0.15)";
+  ctx.fillRect(0, 0, W, H);
+
+  const isPolar = layout.system === "polar";
+  const lbl1 = isPolar ? "r" : "X";
+  const lbl2 = isPolar ? "θ" : "Y";
+  const col1 = "rgba(100, 160, 255, 0.8)";
+  const col2 = "rgba(255, 130, 100, 0.8)";
+
+  // Left half: axis1 curve, Right half: axis2 curve
+  const halfW = (W - PAD * 3) / 2;
+  const plotH = H - PAD * 2;
+  plotCurve(ctx, layout.axis1, N, PAD, PAD, halfW, plotH, col1, lbl1, layout.constants);
+  plotCurve(ctx, layout.axis2, N, PAD * 2 + halfW, PAD, halfW, plotH, col2, lbl2, layout.constants);
+}
+
+/** Build the constants management UI — key-value list for user-defined constants */
+function buildConstantsUI(
+  body: HTMLElement,
+  panel: PanelState,
+  cb: PanelCallbacks,
+): void {
+  const constants = panel.coordinateLayout?.constants ?? {};
+  const entries = Object.entries(constants);
+
+  const section = body.createDiv({ cls: "gi-constants-section" });
+
+  // Header
+  const header = section.createDiv({ cls: "gi-setting-row" });
+  header.createEl("span", {
+    cls: "gi-setting-label",
+    text: t("coord.constants"),
+  });
+
+  // Existing constant rows
+  const listEl = section.createDiv({ cls: "gi-constants-list" });
+  for (const [key, val] of entries) {
+    buildConstantRow(listEl, key, val, panel, cb);
+  }
+
+  // Add button
+  const addBtn = section.createEl("button", {
+    cls: "gi-add-group",
+    text: t("coord.addConstant"),
+  });
+  addBtn.addEventListener("click", () => {
+    const base = panel.coordinateLayout
+      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+    const existing = base.constants ?? {};
+    // Find a free single-letter key
+    const alphabet = "abcdefghijklmnopqrstuvwxyz";
+    const reserved = new Set(["t", "i", "n", "v", "e"]);
+    let newKey = "c";
+    for (const ch of alphabet) {
+      if (!reserved.has(ch) && !(ch in existing)) {
+        newKey = ch;
+        break;
+      }
+    }
+    panel.coordinateLayout = {
+      ...base,
+      constants: { ...existing, [newKey]: 1 },
+    };
+    syncUserVarsFromLayout(panel);
+    cb.applyClusterForce();
+    // Add the new row directly instead of rebuilding the entire panel
+    buildConstantRow(listEl, newKey, 1, panel, cb);
+    cb.restartSimulation(0.5);
+  });
+
+  // Hint
+  section.createEl("p", { cls: "gi-hint", text: t("coord.constantsHint") });
+}
+
+/** Build a single constant row: [key input] = [value input] [delete] */
+function buildConstantRow(
+  container: HTMLElement,
+  key: string,
+  value: number,
+  panel: PanelState,
+  cb: PanelCallbacks,
+): void {
+  const row = container.createDiv({ cls: "gi-setting-row gi-constant-row" });
+
+  // Key input (1-2 letters)
+  const keyInput = row.createEl("input", {
+    cls: "gi-setting-input gi-constant-key",
+    type: "text",
+  });
+  keyInput.value = key;
+  keyInput.maxLength = 2;
+  keyInput.style.width = "40px";
+  keyInput.style.textAlign = "center";
+
+  row.createEl("span", { text: " = ", cls: "gi-constant-eq" });
+
+  // Value input
+  const valInput = row.createEl("input", {
+    cls: "gi-setting-input gi-constant-val",
+    type: "number",
+  });
+  valInput.value = String(value);
+  valInput.style.width = "70px";
+  valInput.step = "0.1";
+
+  // Delete button
+  const delBtn = row.createEl("button", { cls: "gi-remove-btn", text: "\u00d7" });
+
+  const applyChange = (oldKey: string, newKey: string, newVal: number) => {
+    const base = panel.coordinateLayout
+      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+    const existing = { ...(base.constants ?? {}) };
+    if (oldKey !== newKey) delete existing[oldKey];
+    existing[newKey] = newVal;
+    panel.coordinateLayout = { ...base, constants: existing };
+    syncUserVarsFromLayout(panel);
+    cb.applyClusterForce();
+    cb.restartSimulation(0.5);
+  };
+
+  keyInput.addEventListener("change", () => {
+    const newKey = keyInput.value.trim().toLowerCase();
+    if (!newKey || newKey.length > 2) { keyInput.value = key; return; }
+    // Reject reserved names
+    const reserved = new Set(["t", "i", "n", "v"]);
+    if (reserved.has(newKey)) { keyInput.value = key; return; }
+    applyChange(key, newKey, parseFloat(valInput.value) || 0);
+  });
+
+  valInput.addEventListener("change", () => {
+    const newVal = parseFloat(valInput.value);
+    if (isNaN(newVal)) return;
+    applyChange(key, keyInput.value.trim().toLowerCase() || key, newVal);
+  });
+
+  delBtn.addEventListener("click", () => {
+    const base = panel.coordinateLayout
+      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+    const existing = { ...(base.constants ?? {}) };
+    delete existing[key];
+    panel.coordinateLayout = {
+      ...base,
+      constants: Object.keys(existing).length > 0 ? existing : undefined,
+    };
+    syncUserVarsFromLayout(panel);
+    cb.applyClusterForce();
+    // Remove the row from DOM directly instead of rebuilding the entire panel
+    row.remove();
+    cb.restartSimulation(0.5);
+  });
+}
+
+/** Sync user-defined variables from layout constants to the expression parser */
+function syncUserVarsFromLayout(panel: PanelState): void {
+  const constants = panel.coordinateLayout?.constants ?? {};
+  setUserVars(new Set(Object.keys(constants)));
+}
+
 /** Unified axis text input — combines source + transform in a single expression.
  *  Syntax: FUNC(source, params...) or just source (implicit linear).
  *  Examples: "COS(tag:?)", "BIN(degree, 5)", "ROSE(index, k=5)", "folder" */
@@ -1059,7 +1388,7 @@ function buildAxisTextInput(
 ) {
   const axisKey = axisNum === 1 ? "axis1" : "axis2";
 
-  const updateAxis = (source: AxisSource, transform: AxisTransform) => {
+  const updateAxis = (source: AxisSource, transform: AxisTransform, skipRebuild = false) => {
     const base = panel.coordinateLayout
       ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
     panel.coordinateLayout = {
@@ -1068,21 +1397,23 @@ function buildAxisTextInput(
     };
     syncArrangementFromLayout(panel);
     cb.applyClusterForce();
-    cb.rebuildPanel();
+    if (!skipRebuild) cb.rebuildPanel();
     cb.restartSimulation(0.5);
   };
 
   // --- Unified expression row ---
   const row = body.createDiv({ cls: "gi-setting-row" });
   row.createEl("span", { cls: "gi-setting-label", text: axisLabel });
-  const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
+  const input = row.createEl("textarea", { cls: "gi-setting-input gi-expr-textarea" }) as HTMLTextAreaElement;
   input.value = transformExprToString(axisCfg.source, axisCfg.transform);
   input.placeholder = t("coord.transformExprHint");
   input.title = t("coord.transformExprHelp");
-
-  // Autocomplete suggestions: plain sources + function-wrapped sources
-  const exprSuggestions = getTransformExprSuggestions(suggestions);
-  attachDatalist(input, exprSuggestions);
+  input.rows = 2;
+  // Auto-expand textarea to fit content
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = input.scrollHeight + "px";
+  });
 
   // Validation indicator
   const indicator = row.createEl("span", { cls: "gi-expr-indicator" });
@@ -1131,7 +1462,7 @@ function buildAxisTextInput(
             curve: curveTransform.curve,
             params: newParams,
             scale: curveTransform.scale ?? 1,
-          });
+          }, true);
         });
       }
     }
@@ -1294,16 +1625,20 @@ function addSlider(container: HTMLElement, label: string, min: number, max: numb
   input.step = String(step);
   input.value = String(initial);
   updateSliderProgress(input);
+  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
   input.addEventListener("input", () => {
     const v = parseFloat(input.value);
     valueSpan.textContent = String(v);
     updateSliderProgress(input);
-    onChange(v);
+    // Debounce the heavy callback (applyClusterForce, restartSimulation, etc.)
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => onChange(v), 120);
   });
   input.addEventListener("dblclick", () => {
     input.value = String(initial);
     valueSpan.textContent = String(initial);
     updateSliderProgress(input);
+    clearTimeout(debounceTimer);
     onChange(initial);
   });
   return row;
