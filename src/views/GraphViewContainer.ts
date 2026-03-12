@@ -407,6 +407,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.nodeInfoEl = canvasArea.createDiv({ cls: "gi-node-info" });
     this.nodeInfoEl.style.display = "none";
 
+    // Escape key closes node info and legend overlays
+    this.registerDomEvent(document, "keydown", (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (this.nodeInfoEl && this.nodeInfoEl.style.display !== "none") {
+          this.nodeInfoEl.style.display = "none";
+          this.nodeInfoEl.classList.remove("is-visible");
+        }
+        if (this.legendEl && this.legendEl.style.display !== "none") {
+          this.legendEl.style.display = "none";
+        }
+      }
+    });
+
     // --- Legend Overlay ---
     this.legendEl = canvasArea.createDiv({ cls: "gi-legend" });
     this.legendEl.style.display = "none";
@@ -1881,9 +1894,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.legendEl.empty();
     this.legendEl.style.display = "";
 
-    // Header with toggle
+    // Header with toggle + close button
     const header = this.legendEl.createDiv({ cls: "gi-legend-header" });
     header.createEl("span", { text: `${colorMap.size} colors` });
+    const closeBtn = header.createEl("span", { cls: "gi-legend-close", text: "\u00d7" });
+    closeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (this.legendEl) this.legendEl.style.display = "none";
+    });
     const body = this.legendEl.createDiv({ cls: "gi-legend-body" });
 
     // Start collapsed if many entries
