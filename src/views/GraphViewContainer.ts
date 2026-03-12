@@ -943,6 +943,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     this.prevHighlightSet = curSet;
     this.redrawNodeBatch();
+    this.drawEdges();   // Redraw edges with hover dimming
     this.updateNodeInfo();
   }
 
