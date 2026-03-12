@@ -97,6 +97,9 @@ export interface PanelState {
   coordinateLayout: CoordinateLayout | null;
   /** Whether to show the background dot grid */
   showDotGrid: boolean;
+  /** Timeline range filter [min, max] normalized 0–1 (0 = earliest, 1 = latest) */
+  timelineRangeMin: number;
+  timelineRangeMax: number;
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -168,6 +171,8 @@ export const DEFAULT_PANEL: PanelState = {
   timelineOrderFields: "next,prev,parent_id,story_order",
   coordinateLayout: null,
   showDotGrid: true,
+  timelineRangeMin: 0,
+  timelineRangeMax: 1,
 };
 
 // ---------------------------------------------------------------------------
@@ -445,19 +450,22 @@ export function buildPanel(
     addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); });
     addToggle(body, "Heatmap (degree)", panel.heatmapMode, (v) => { panel.heatmapMode = v; cb.doRender(); }, "Color nodes by connection count (cold→warm)");
     addSlider(body, t("display.nodeSize"), 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
-    addToggle(body, t("display.scaleByDegree"), panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); }, t("desc.scaleByDegree"));
+    const scaleEl = addToggle(body, t("display.scaleByDegree"), panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); }, t("desc.scaleByDegree"));
+    if (panel.heatmapMode && scaleEl) { scaleEl.style.opacity = "0.5"; scaleEl.title = "Heatmap mode overrides degree scaling colors"; }
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
     addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; }, t("desc.hoverHops"));
     // --- ノード形状 ---
     const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
-    const tagRule = panel.nodeShapeRules.find(r => r.match === "isTag");
     const defaultRule = panel.nodeShapeRules.find(r => r.match === "default");
-    addSelect(body, t("display.tagNodeShape"), shapeOptions, tagRule?.shape ?? "triangle", (v) => {
-      const rule = panel.nodeShapeRules.find(r => r.match === "isTag");
-      if (rule) rule.shape = v as NodeShape;
-      else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
-      cb.doRender();
-    });
+    if (panel.showTagNodes) {
+      const tagRule = panel.nodeShapeRules.find(r => r.match === "isTag");
+      addSelect(body, t("display.tagNodeShape"), shapeOptions, tagRule?.shape ?? "triangle", (v) => {
+        const rule = panel.nodeShapeRules.find(r => r.match === "isTag");
+        if (rule) rule.shape = v as NodeShape;
+        else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
+        cb.doRender();
+      });
+    }
     addSelect(body, t("display.defaultNodeShape"), shapeOptions, defaultRule?.shape ?? "circle", (v) => {
       const rule = panel.nodeShapeRules.find(r => r.match === "default");
       if (rule) rule.shape = v as NodeShape;
@@ -535,7 +543,8 @@ export function buildPanel(
     }
   }, undefined, false, "layers");
 
-  // Cluster arrangement
+  // Cluster arrangement — only show when groupBy is active
+  if (panel.groupBy && panel.groupBy !== "none") {
   buildSection(layoutTab, t("section.clusterArrangement"), (body) => {
     addSelect(body, t("cluster.pattern"), [
       { value: "spiral", label: t("cluster.spiral") },
@@ -665,6 +674,15 @@ export function buildPanel(
         cb.restartSimulation(0.5);
       });
       body.createEl("p", { cls: "gi-hint", text: t("timeline.orderFieldsHint") });
+
+      // Timeline range dual slider
+      buildDualRangeSlider(body, t("timeline.range") || "Time range",
+        panel.timelineRangeMin, panel.timelineRangeMax,
+        (min, max) => {
+          panel.timelineRangeMin = min;
+          panel.timelineRangeMax = max;
+          cb.doRender();
+        });
     }
 
     // Auto-fit toggle — disables manual spacing sliders when ON
@@ -769,6 +787,7 @@ export function buildPanel(
       cb.doRender();
     });
   }, tHelp("help.clusterArrangement"), true, "layout-grid");
+  } // end groupBy guard for cluster arrangement
 
   // Node rules
   buildSection(layoutTab, t("section.nodeRules"), (body) => {
@@ -797,11 +816,13 @@ export function buildPanel(
       cb.invalidateData();
     });
 
-    addSlider(body, t("settings.enclosureMinRatio"), 0, 0.3, 0.02, s.enclosureMinRatio, (v) => {
-      s.enclosureMinRatio = v;
-      ctx.saveSettings();
-      cb.doRender();
-    }, t("desc.enclosureSpacing"));
+    if (panel.showTagNodes && panel.tagDisplay === "enclosure") {
+      addSlider(body, t("settings.enclosureMinRatio"), 0, 0.3, 0.02, s.enclosureMinRatio, (v) => {
+        s.enclosureMinRatio = v;
+        ctx.saveSettings();
+        cb.doRender();
+      }, t("desc.enclosureSpacing"));
+    }
   }, tHelp("help.pluginSettings"), false, "settings");
 
   // --- Ontology section (rule-based UI) ---
@@ -1236,6 +1257,30 @@ function updateSliderProgress(el: HTMLInputElement) {
   el.style.setProperty('--progress', pct + '%');
 }
 
+/** Dual-range slider for selecting a min/max range (0–1) */
+function buildDualRangeSlider(container: HTMLElement, label: string, initialMin: number, initialMax: number, onChange: (min: number, max: number) => void) {
+  const row = container.createDiv({ cls: "setting-item gi-dual-range" });
+  const info = row.createDiv({ cls: "setting-item-info" });
+  info.createDiv({ cls: "setting-item-name", text: label });
+  const rangeLabel = info.createEl("span", { cls: "gi-slider-value", text: `${Math.round(initialMin * 100)}% – ${Math.round(initialMax * 100)}%` });
+  const control = row.createDiv({ cls: "setting-item-control gi-dual-range-control" });
+
+  const minInput = control.createEl("input", { type: "range", cls: "gi-range-min" });
+  minInput.min = "0"; minInput.max = "100"; minInput.step = "1"; minInput.value = String(Math.round(initialMin * 100));
+  const maxInput = control.createEl("input", { type: "range", cls: "gi-range-max" });
+  maxInput.min = "0"; maxInput.max = "100"; maxInput.step = "1"; maxInput.value = String(Math.round(initialMax * 100));
+
+  const update = () => {
+    let lo = parseInt(minInput.value);
+    let hi = parseInt(maxInput.value);
+    if (lo > hi) { const tmp = lo; lo = hi; hi = tmp; }
+    rangeLabel.textContent = `${lo}% – ${hi}%`;
+    onChange(lo / 100, hi / 100);
+  };
+  minInput.addEventListener("input", update);
+  maxInput.addEventListener("input", update);
+}
+
 function addSlider(container: HTMLElement, label: string, min: number, max: number, step: number, initial: number, onChange: (v: number) => void, description?: string): HTMLElement {
   const row = container.createDiv({ cls: "setting-item mod-slider" });
   const info = row.createDiv({ cls: "setting-item-info" });
@@ -1264,7 +1309,7 @@ function addSlider(container: HTMLElement, label: string, min: number, max: numb
   return row;
 }
 
-function addToggle(container: HTMLElement, label: string, initial: boolean, onChange: (v: boolean) => void, description?: string) {
+function addToggle(container: HTMLElement, label: string, initial: boolean, onChange: (v: boolean) => void, description?: string): HTMLElement {
   const row = container.createDiv({ cls: "setting-item mod-toggle" });
   const info = row.createDiv({ cls: "setting-item-info" });
   const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
@@ -1276,6 +1321,7 @@ function addToggle(container: HTMLElement, label: string, initial: boolean, onCh
     toggle.toggleClass("is-enabled", !on);
     onChange(!on);
   });
+  return row;
 }
 
 function addTextInput(container: HTMLElement, label: string, initial: string, placeholder: string, onChange: (v: string) => void) {

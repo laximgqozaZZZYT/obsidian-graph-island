@@ -2154,3 +2154,36 @@
 .gi-panel-resize-handle:has(+ .graph-panel.is-hidden) {
   display: none;
 }
+
+/* === Dual range slider === */
+.gi-dual-range-control {
+  position: relative;
+  height: 20px;
+  display: flex;
+  align-items: center;
+}
+.gi-dual-range-control input[type="range"] {
+  position: absolute;
+  width: 100%;
+  pointer-events: none;
+  -webkit-appearance: none;
+  background: transparent;
+}
+.gi-dual-range-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  pointer-events: all;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+  border: 2px solid var(--background-primary);
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+}
+.gi-dual-range-control .gi-range-min {
+  z-index: 1;
+}
+.gi-dual-range-control .gi-range-max {
+  z-index: 2;
+}

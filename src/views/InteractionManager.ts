@@ -54,6 +54,12 @@ export interface InteractionHost {
   getPixiApp(): CanvasApp | null;
   /** Handle double-click on a super node (collapsed group) — returns true if handled */
   handleSuperNodeDblClick(pn: PixiNode): boolean;
+  /** Set pathfinder start or end node */
+  setPathfinderNode(nodeId: string, role: "start" | "end"): void;
+  /** Clear pathfinder state */
+  clearPathfinder(): void;
+  /** Get current pathfinder state */
+  getPathfinderState(): { startId: string | null; endId: string | null };
 }
 
 // ---------------------------------------------------------------------------
@@ -426,6 +432,27 @@ export class InteractionManager {
         .setIcon("copy")
         .onClick(() => navigator.clipboard.writeText(copyText));
     });
+
+    // Pathfinder
+    menu.addSeparator();
+    const pfState = this.host.getPathfinderState();
+    menu.addItem((item) => {
+      item.setTitle("Path: set start")
+        .setIcon("navigation")
+        .onClick(() => this.host.setPathfinderNode(node.data.id, "start"));
+    });
+    menu.addItem((item) => {
+      item.setTitle("Path: set end")
+        .setIcon("flag")
+        .onClick(() => this.host.setPathfinderNode(node.data.id, "end"));
+    });
+    if (pfState.startId || pfState.endId) {
+      menu.addItem((item) => {
+        item.setTitle("Path: clear")
+          .setIcon("x")
+          .onClick(() => this.host.clearPathfinder());
+      });
+    }
 
     menu.showAtPosition({ x: e.clientX, y: e.clientY });
   }

@@ -242,6 +242,28 @@ export class RenderPipeline {
       visible.push(pn);
     }
 
+    // Timeline range filtering: dim nodes outside range
+    const tlRange = (this.host as any).getTimelineRange?.() as { min: number; max: number; active: boolean } | undefined;
+    let tlMinX = 0, tlMaxX = 0;
+    if (tlRange?.active) {
+      let globalMinX = Infinity, globalMaxX = -Infinity;
+      for (const pn of pixiNodes.values()) {
+        if (pn.data.x < globalMinX) globalMinX = pn.data.x;
+        if (pn.data.x > globalMaxX) globalMaxX = pn.data.x;
+      }
+      const xSpan = globalMaxX - globalMinX;
+      tlMinX = globalMinX + xSpan * tlRange.min;
+      tlMaxX = globalMinX + xSpan * tlRange.max;
+    }
+    const tlFilteredOut = new Set<string>();
+    if (tlRange?.active) {
+      for (const pn of visible) {
+        if (pn.data.x < tlMinX || pn.data.x > tlMaxX) {
+          tlFilteredOut.add(pn.data.id);
+        }
+      }
+    }
+
     const alpha = hasHighlight ? 0.12 : 1;
     const nodeCount = visible.length;
     const shapeRules = this.host.getNodeShapeRules();
@@ -274,14 +296,15 @@ export class RenderPipeline {
     const useGradient = nodeCount < 500;
     for (const pn of visible) {
       const shape = getNodeShape(pn.data, shapeRules);
+      const nodeAlpha = tlFilteredOut.has(pn.data.id) ? alpha * 0.08 : alpha;
       const strokeColor = darkenColor(pn.color, 0.4);
-      g.lineStyle(1, strokeColor, alpha * 0.5);
+      g.lineStyle(1, strokeColor, nodeAlpha * 0.5);
       if (useGradient && shape === "circle") {
         const innerCol = lightenColor(pn.color, 0.25);
         const outerCol = darkenColor(pn.color, 0.15);
-        g.beginRadialFill(pn.data.x, pn.data.y, pn.radius, innerCol, outerCol, alpha, alpha);
+        g.beginRadialFill(pn.data.x, pn.data.y, pn.radius, innerCol, outerCol, nodeAlpha, nodeAlpha);
       } else {
-        g.beginFill(pn.color, alpha);
+        g.beginFill(pn.color, nodeAlpha);
       }
       drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius);
       g.endFill();
@@ -295,6 +318,23 @@ export class RenderPipeline {
       g.beginFill(0, 0);
       drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius + 4);
       g.endFill();
+    }
+
+    // Pass 4: Pathfinder start/end node markers
+    const pfNodes = (this.host as any).getPathfinderNodeSet?.() as Set<string> | null;
+    const pfState = (this.host as any).getPathfinderState?.() as { startId: string | null; endId: string | null } | undefined;
+    if (pfNodes && pfNodes.size > 0) {
+      for (const pn of visible) {
+        if (!pfNodes.has(pn.data.id)) continue;
+        const shape = getNodeShape(pn.data, shapeRules);
+        const isStart = pfState?.startId === pn.data.id;
+        const isEnd = pfState?.endId === pn.data.id;
+        const ringColor = isStart ? 0x22d3ee : isEnd ? 0xf97316 : 0x22d3ee;
+        g.lineStyle(isStart || isEnd ? 3 : 2, ringColor, 0.9);
+        g.beginFill(0, 0);
+        drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius + (isStart || isEnd ? 6 : 3));
+        g.endFill();
+      }
     }
   }
 

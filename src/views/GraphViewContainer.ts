@@ -150,6 +150,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Ephemeral highlight set from side-panel hover (null = not active) */
   private ephemeralHighlight: Set<string> | null = null;
 
+  // Pathfinder state
+  private pathfinderStartId: string | null = null;
+  private pathfinderEndId: string | null = null;
+  /** Set of node IDs on the shortest path (null = no path) */
+  private pathfinderPath: string[] | null = null;
+  /** Set of edge keys on the shortest path for highlight */
+  private pathfinderEdgeSet: Set<string> | null = null;
+
   // Resize observer
   private resizeObserver: ResizeObserver | null = null;
 
@@ -973,6 +981,99 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
+  // =========================================================================
+  // Pathfinder (shortest path between two nodes)
+  // =========================================================================
+  setPathfinderNode(nodeId: string, role: "start" | "end") {
+    if (role === "start") this.pathfinderStartId = nodeId;
+    else this.pathfinderEndId = nodeId;
+    this.computePathfinderPath();
+    this.markDirty(true);
+  }
+
+  clearPathfinder() {
+    this.pathfinderStartId = null;
+    this.pathfinderEndId = null;
+    this.pathfinderPath = null;
+    this.pathfinderEdgeSet = null;
+    this.markDirty(true);
+  }
+
+  getPathfinderState() {
+    return { startId: this.pathfinderStartId, endId: this.pathfinderEndId };
+  }
+
+  /** BFS shortest path using adj map */
+  private computePathfinderPath() {
+    this.pathfinderPath = null;
+    this.pathfinderEdgeSet = null;
+    if (!this.pathfinderStartId || !this.pathfinderEndId) return;
+    if (this.pathfinderStartId === this.pathfinderEndId) return;
+    if (!this.adj.size) return;
+
+    const start = this.pathfinderStartId;
+    const end = this.pathfinderEndId;
+    const visited = new Set<string>([start]);
+    const parent = new Map<string, string>();
+    const queue: string[] = [start];
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (current === end) break;
+      const neighbors = this.adj.get(current);
+      if (!neighbors) continue;
+      for (const n of neighbors) {
+        if (!visited.has(n)) {
+          visited.add(n);
+          parent.set(n, current);
+          queue.push(n);
+        }
+      }
+    }
+
+    if (!parent.has(end)) return; // no path found
+
+    // Reconstruct path
+    const path: string[] = [];
+    let cur = end;
+    while (cur !== start) {
+      path.unshift(cur);
+      cur = parent.get(cur)!;
+    }
+    path.unshift(start);
+    this.pathfinderPath = path;
+
+    // Build edge set for highlighting
+    const edgeSet = new Set<string>();
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = path[i], b = path[i + 1];
+      edgeSet.add(`${a}→${b}`);
+      edgeSet.add(`${b}→${a}`);
+    }
+    this.pathfinderEdgeSet = edgeSet;
+
+    showToast(`Path: ${path.length} nodes, ${path.length - 1} hops`);
+  }
+
+  /** Get the pathfinder node set (for render pipeline highlight) */
+  getPathfinderNodeSet(): Set<string> | null {
+    if (!this.pathfinderPath) return null;
+    return new Set(this.pathfinderPath);
+  }
+
+  /** Get the pathfinder edge set (for edge highlight) */
+  getPathfinderEdgeSet(): Set<string> | null {
+    return this.pathfinderEdgeSet;
+  }
+
+  /** Get timeline range filter state for RenderPipeline */
+  getTimelineRange(): { min: number; max: number; active: boolean } {
+    const min = this.panel.timelineRangeMin;
+    const max = this.panel.timelineRangeMax;
+    const active = (min > 0.001 || max < 0.999) && this.panel.clusterArrangement === "timeline";
+    return { min, max, active };
+  }
+
 
 
   // =========================================================================
@@ -1244,6 +1345,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         cfg,
       );
     }
+    // Draw pathfinder path overlay
+    if (this.pathfinderPath && this.pathfinderPath.length > 1) {
+      const g = this.edgeGraphics;
+      const pathColor = 0x22d3ee; // cyan
+      g.lineStyle(3, pathColor, 0.9);
+      for (let i = 0; i < this.pathfinderPath.length - 1; i++) {
+        const a = this.pixiNodes.get(this.pathfinderPath[i]);
+        const b = this.pixiNodes.get(this.pathfinderPath[i + 1]);
+        if (a && b) {
+          g.moveTo(a.data.x, a.data.y);
+          g.lineTo(b.data.x, b.data.y);
+        }
+      }
+    }
+
     // Ensure arrow layer stays on top of all node containers
     if (this.arrowGraphics && this.worldContainer) {
       this.worldContainer.addChild(this.arrowGraphics);
