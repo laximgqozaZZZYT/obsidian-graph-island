@@ -2243,10 +2243,32 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       ? (n: GraphNode) => Math.max(baseSize, baseSize + Math.sqrt(this.degrees.get(n.id) || 0) * 3.2)
       : (_n: GraphNode) => baseSize;
     const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
+
+    // Heatmap: precompute max degree for normalization
+    let maxDegree = 1;
+    if (this.panel.heatmapMode) {
+      for (const n of gd.nodes) {
+        const d = this.degrees.get(n.id) || 0;
+        if (d > maxDegree) maxDegree = d;
+      }
+    }
+    // Heatmap color ramp: cold (blue 0x3b82f6) → warm (red 0xef4444)
+    const heatmapColor = (degree: number): number => {
+      const t = Math.min(1, degree / maxDegree);
+      const r = Math.round(59 + t * (239 - 59));   // 0x3b → 0xef
+      const g = Math.round(130 - t * (130 - 68));   // 0x82 → 0x44
+      const b = Math.round(246 - t * (246 - 68));   // 0xf6 → 0x44
+      return (r << 16) | (g << 8) | b;
+    };
+
     const nodeColor = (n: GraphNode): number => {
       // Manual group overrides take priority
       for (const grp of this.panel.groups) {
         if (grp.expression && evaluateExpr(grp.expression, n)) return cssColorToHex(grp.color);
+      }
+      // Heatmap mode: color by degree
+      if (this.panel.heatmapMode) {
+        return heatmapColor(this.degrees.get(n.id) || 0);
       }
       if (!this.panel.colorNodesByCategory) return defaultNodeColor;
       // Category-based coloring

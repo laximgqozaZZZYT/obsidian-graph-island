@@ -40,6 +40,7 @@ export interface PanelState {
   searchQuery: string;
   colorEdgesByRelation: boolean;
   colorNodesByCategory: boolean;
+  heatmapMode: boolean;
   showInheritance: boolean;
   showAggregation: boolean;
   showTagNodes: boolean;
@@ -119,6 +120,7 @@ export const DEFAULT_PANEL: PanelState = {
   searchQuery: "",
   colorEdgesByRelation: true,
   colorNodesByCategory: true,
+  heatmapMode: false,
   showInheritance: true,
   showAggregation: true,
   showTagNodes: true,
@@ -441,6 +443,7 @@ export function buildPanel(
   // --- Nodes sub-section ---
   buildSection(displayTab, t("section.displayNodes"), (body) => {
     addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); });
+    addToggle(body, "Heatmap (degree)", panel.heatmapMode, (v) => { panel.heatmapMode = v; cb.doRender(); }, "Color nodes by connection count (cold→warm)");
     addSlider(body, t("display.nodeSize"), 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
     addToggle(body, t("display.scaleByDegree"), panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); }, t("desc.scaleByDegree"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
