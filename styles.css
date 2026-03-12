@@ -1902,3 +1902,28 @@
 .graph-panel button:active {
   transform: scale(0.97);
 }
+
+/* =========================================================================
+   Phase 14: Dropdown & Popup Animation
+   ========================================================================= */
+
+/* 14-A: Popup entrance keyframe */
+@keyframes gi-popup-enter {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* 14-B: Popup entrance animation and layered shadows */
+.gi-ont-rel-popup,
+.gi-ac-popup,
+.gi-search-results {
+  animation: gi-popup-enter 0.15s ease-out;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.12);
+  border-radius: var(--radius-m, 8px);
+}
+
+/* 14-C: Help popup entrance animation */
+.gi-help-popup,
+.gi-search-help-popup {
+  animation: gi-popup-enter 0.15s ease-out;
+}
