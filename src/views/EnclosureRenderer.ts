@@ -22,6 +22,8 @@ export interface EnclosureConfig {
   enclosureMinRatio: number;
   /** Called when a tag label is hovered (tag) or unhovered (null). */
   onTagHover?: (tag: string | null) => void;
+  /** Currently hovered tag (used to boost label alpha). */
+  hoveredTag?: string | null;
   /** Dedicated container for labels (ensures z-order above nodes). */
   labelContainer?: CanvasContainer;
 }
@@ -260,6 +262,11 @@ export function drawEnclosures(
       txt.resolution = 2;
       enclosureLabels.set(tag, txt);
     }
+    // Pill background: darken the enclosure hue for the background
+    txt.bgColor = darkenHex(hex, 0.25);
+    txt.bgAlpha = 0.55;
+    txt.bgPadX = 8;
+    txt.bgPadY = 3;
 
     // Ensure label is in the correct parent (idempotent).
     // Interactive events (eventMode/on) are not supported by CanvasText;
@@ -282,9 +289,13 @@ export function drawEnclosures(
     txt.x = labelCenterX;
     txt.y = enc.minY - gap;
     txt.scale.set(labelScale);
-    txt.alpha = zoomedOut
+    const isHovered = cfg.hoveredTag === tag;
+    const baseAlpha = zoomedOut
       ? Math.max(0.7, 0.95 - overlaps * 0.04)
       : Math.max(0.6, 0.85 - overlaps * 0.04);
+    txt.alpha = isHovered ? Math.min(1, baseAlpha + 0.25) : baseAlpha;
+    // Brighten pill background on hover
+    txt.bgAlpha = isHovered ? 0.75 : 0.55;
     txt.visible = true;
   }
 
@@ -406,6 +417,17 @@ export function drawCapsule(g: CanvasGraphics, p0: Pt, p1: Pt, radius: number) {
   const mid0l = { x: (d.x + a.x) / 2 - ux * r, y: (d.y + a.y) / 2 - uy * r };
   g.quadraticCurveTo(p0out.x, p0out.y, mid0l.x, mid0l.y);
   g.quadraticCurveTo(p0out.x, p0out.y, a.x, a.y);
+}
+
+/**
+ * Darken a hex colour value by a given factor (0–1).
+ * factor=0 → unchanged, factor=1 → black.
+ */
+function darkenHex(hex: number, factor: number): number {
+  const r = Math.round(((hex >> 16) & 0xff) * (1 - factor));
+  const g = Math.round(((hex >> 8) & 0xff) * (1 - factor));
+  const b = Math.round((hex & 0xff) * (1 - factor));
+  return (r << 16) | (g << 8) | b;
 }
 
 /**

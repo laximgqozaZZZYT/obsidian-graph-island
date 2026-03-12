@@ -122,6 +122,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private clusterMeta: ClusterMetadata | null = null;
   /** Cached tag relationship pairs for fast lookup */
   private tagRelPairsCache: Set<string> = new Set();
+  /** Currently hovered enclosure tag (for label highlight) */
+  private hoveredTag: string | null = null;
 
   // Interaction manager (owns pointer events, drag, pan, hover, marquee, shell rotation)
   private interactionManager: InteractionManager | null = null;
@@ -1181,6 +1183,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       totalNodeCount: this.pixiNodes.size,
       enclosureMinRatio: this.plugin.settings.enclosureMinRatio,
       onTagHover: (tag) => {
+        this.hoveredTag = tag;
         if (tag) {
           const members = this.tagMembership.get(tag);
           if (members) this.applyEphemeralHighlight(new Set(members));
@@ -1188,6 +1191,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.applyEphemeralHighlight(null);
         }
       },
+      hoveredTag: this.hoveredTag,
       labelContainer: this.enclosureLabelContainer ?? undefined,
     };
     drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);

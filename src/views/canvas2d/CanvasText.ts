@@ -20,6 +20,15 @@ export class CanvasText {
   text: string;
   style: TextStyle;
 
+  /** Optional pill-shaped background behind the text (hex color number). */
+  bgColor: number | null = null;
+  /** Alpha for the pill background (0–1). Defaults to 0.55. */
+  bgAlpha = 0.55;
+  /** Extra horizontal padding inside the pill (each side). */
+  bgPadX = 6;
+  /** Extra vertical padding inside the pill (top & bottom). */
+  bgPadY = 2;
+
   anchor = { x: 0, y: 0, set(ax: number, ay: number) { this.x = ax; this.y = ay; } };
   scale = { x: 1, y: 1, set(v: number) { this.x = v; this.y = v; } };
 
@@ -55,6 +64,32 @@ export class CanvasText {
 
     const tx = -this.anchor.x * metrics.width;
     const ty = this.anchor.y * fontSize;
+
+    // Draw pill-shaped background behind the text
+    if (this.bgColor !== null && this.bgAlpha > 0) {
+      const pw = metrics.width + this.bgPadX * 2;
+      const ph = fontSize + this.bgPadY * 2;
+      const px = tx - this.bgPadX;
+      const py = ty - fontSize - this.bgPadY;
+      const radius = ph / 2;
+      ctx.save();
+      ctx.fillStyle = hexToRgba(this.bgColor, effAlpha * this.bgAlpha);
+      ctx.beginPath();
+      // roundRect with pill radius
+      if (typeof ctx.roundRect === "function") {
+        ctx.roundRect(px, py, pw, ph, radius);
+      } else {
+        // Fallback for older engines
+        ctx.moveTo(px + radius, py);
+        ctx.arcTo(px + pw, py, px + pw, py + ph, radius);
+        ctx.arcTo(px + pw, py + ph, px, py + ph, radius);
+        ctx.arcTo(px, py + ph, px, py, radius);
+        ctx.arcTo(px, py, px + pw, py, radius);
+        ctx.closePath();
+      }
+      ctx.fill();
+      ctx.restore();
+    }
 
     const fill = this.style.fill;
     if (typeof fill === "number") {
