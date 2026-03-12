@@ -307,6 +307,18 @@ export function buildPanel(
 
   buildTabBar(panelEl, panel.activeTab, tabContainers, (tab) => {
     panel.activeTab = tab;
+    // Clear settings filter when switching tabs
+    if (settingsFilterInput) {
+      settingsFilterInput.value = "";
+      applySettingsFilter("");
+    }
+  });
+
+  // --- Settings filter (searches across all tabs) ---
+  const settingsFilterInput = panelEl.createEl("input", {
+    cls: "gi-settings-filter",
+    type: "text",
+    placeholder: t("settingsFilter.placeholder"),
   });
 
   for (const def of TAB_DEFS) {
@@ -314,6 +326,52 @@ export function buildPanel(
     if (def.id === panel.activeTab) container.addClass("is-active");
     tabContainers.set(def.id, container);
   }
+
+  function applySettingsFilter(query: string) {
+    const q = query.toLowerCase().trim();
+    for (const [, tabEl] of tabContainers) {
+      if (q) {
+        // Show all tabs when filtering
+        tabEl.style.display = "";
+      } else {
+        // Restore tab visibility based on active tab
+        tabEl.style.display = "";
+        tabEl.toggleClass("is-active", tabEl.hasClass("is-active"));
+      }
+      // Filter setting items
+      const items = tabEl.querySelectorAll(".setting-item");
+      for (const item of Array.from(items)) {
+        const text = (item as HTMLElement).textContent?.toLowerCase() || "";
+        (item as HTMLElement).style.display = q && !text.includes(q) ? "none" : "";
+      }
+      // Filter sections: hide if all children hidden
+      const sections = tabEl.querySelectorAll(".graph-control-section");
+      for (const sec of Array.from(sections)) {
+        const header = sec.querySelector(".graph-control-section-header");
+        const headerText = header?.textContent?.toLowerCase() || "";
+        const children = sec.querySelectorAll(".setting-item");
+        const anyVisible = Array.from(children).some(c => (c as HTMLElement).style.display !== "none");
+        const sectionMatch = q && headerText.includes(q);
+        (sec as HTMLElement).style.display = q && !anyVisible && !sectionMatch ? "none" : "";
+        // If section header matches, show all its children
+        if (sectionMatch) {
+          for (const c of Array.from(children)) (c as HTMLElement).style.display = "";
+        }
+      }
+    }
+    // When filtering, show all tabs; when not, restore original tab state
+    if (q) {
+      for (const [, el] of tabContainers) el.style.display = "";
+    } else {
+      for (const [id, el] of tabContainers) {
+        el.toggleClass("is-active", id === panel.activeTab);
+      }
+    }
+  }
+
+  settingsFilterInput.addEventListener("input", () => {
+    applySettingsFilter(settingsFilterInput.value);
+  });
 
   const filterTab = tabContainers.get("filter")!;
   const displayTab = tabContainers.get("display")!;
@@ -823,9 +881,21 @@ export function buildPanel(
 // UI helpers
 // ---------------------------------------------------------------------------
 
+const SECTION_STATE_KEY = "graph-island-section-state";
+function loadSectionStates(): Record<string, boolean> {
+  try { return JSON.parse(localStorage.getItem(SECTION_STATE_KEY) || "{}"); } catch { return {}; }
+}
+function saveSectionState(title: string, collapsed: boolean) {
+  const states = loadSectionStates();
+  states[title] = collapsed;
+  localStorage.setItem(SECTION_STATE_KEY, JSON.stringify(states));
+}
+
 function buildSection(container: HTMLElement, title: string, build: (body: HTMLElement) => void, helpText?: string, collapsed = false) {
   const section = container.createDiv({ cls: "graph-control-section tree-item" });
-  if (collapsed) section.addClass("is-collapsed");
+  const saved = loadSectionStates();
+  const isCollapsed = title in saved ? saved[title] : collapsed;
+  if (isCollapsed) section.addClass("is-collapsed");
   const header = section.createDiv({ cls: "tree-item-self graph-control-section-header is-clickable" });
   const collapseIcon = header.createDiv({ cls: "tree-item-icon collapse-icon" });
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -863,6 +933,7 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
     if ((e.target as HTMLElement).closest(".gi-section-help")) return;
     const collapsed = section.hasClass("is-collapsed");
     section.toggleClass("is-collapsed", !collapsed);
+    saveSectionState(title, !collapsed);
   });
 }
 
@@ -1133,6 +1204,11 @@ function addSlider(container: HTMLElement, label: string, min: number, max: numb
     const v = parseFloat(input.value);
     valueSpan.textContent = String(v);
     onChange(v);
+  });
+  input.addEventListener("dblclick", () => {
+    input.value = String(initial);
+    valueSpan.textContent = String(initial);
+    onChange(initial);
   });
   return row;
 }

@@ -20,6 +20,7 @@ const en: TranslationMap = {
   "layout.sunburst": "Sunburst",
   "layout.timeline": "Timeline",
   "search.placeholder": "Search… hop:name:2",
+  "settingsFilter.placeholder": "Filter settings…",
   "search.jumpHint": "Enter to jump to node",
   "search.filterHelp": "Filter syntax:\n• tag:act — exact tag match\n• tag:act* — prefix match (act, act1, action…)\n• tag:*act* — partial match\n• path:folder* — filter by file path\n• category:note — filter by category\n• key:value — match frontmatter field\n\nCombine with operators:\n• tag:a AND tag:b — both must match\n• tag:a OR tag:b — either matches\n• (tag:a OR tag:b) AND path:x*\n• tag:a NOR tag:b — neither matches\n• tag:a XOR tag:b — exactly one matches\n\nSpecial:\n• hop:name:2 — highlight within N hops",
 
@@ -388,6 +389,7 @@ const ja: TranslationMap = {
   "layout.sunburst": "サンバースト",
   "layout.timeline": "タイムライン",
   "search.placeholder": "検索… hop:名前:2",
+  "settingsFilter.placeholder": "設定を検索…",
   "search.jumpHint": "Enterでノードにジャンプ",
   "search.filterHelp": "フィルタ構文:\n• tag:act — タグ完全一致\n• tag:act* — 前方一致（act, act1, action…）\n• tag:*act* — 部分一致\n• path:folder* — ファイルパスで絞り込み\n• category:note — カテゴリで絞り込み\n• key:value — フロントマターのフィールドで絞り込み\n\n演算子で組み合わせ:\n• tag:a AND tag:b — 両方一致\n• tag:a OR tag:b — どちらか一致\n• (tag:a OR tag:b) AND path:x*\n• tag:a NOR tag:b — どちらも不一致\n• tag:a XOR tag:b — 片方のみ一致\n\n特殊:\n• hop:名前:2 — N ホップ以内を強調表示",
 

@@ -46,6 +46,11 @@ export class Minimap {
   private moveStartLeft = 0;
   private moveStartTop = 0;
 
+  // --- Theme colors (read from CSS variables) ---
+  private colorBg = "rgba(15,15,25,0.65)";
+  private colorDot = "rgba(140,170,255,0.9)";
+  private colorViewport = "rgba(255,255,255,0.85)";
+
   constructor(host: MinimapHost, parentEl: HTMLElement) {
     this.host = host;
 
@@ -72,6 +77,16 @@ export class Minimap {
     this.canvas.addEventListener("mousemove", this.onMouseMove);
     document.addEventListener("mouseup", this.onMouseUp);
     document.addEventListener("mousemove", this.onHandleMove);
+
+    this.refreshColors();
+  }
+
+  /** Read CSS custom properties for theme-aware minimap colors */
+  refreshColors() {
+    const s = getComputedStyle(this.wrapper);
+    this.colorBg = s.getPropertyValue("--gi-minimap-bg").trim() || this.colorBg;
+    this.colorDot = s.getPropertyValue("--gi-minimap-dot").trim() || this.colorDot;
+    this.colorViewport = s.getPropertyValue("--gi-minimap-viewport").trim() || this.colorViewport;
   }
 
   setVisible(v: boolean) {
@@ -112,11 +127,11 @@ export class Minimap {
     ctx.clearRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 
     // Background
-    ctx.fillStyle = "rgba(15,15,25,0.65)";
+    ctx.fillStyle = this.colorBg;
     ctx.fillRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 
     // Draw nodes as dots (thin if too many)
-    ctx.fillStyle = "rgba(140,170,255,0.9)";
+    ctx.fillStyle = this.colorDot;
     const step = nodes.length > THIN_THRESHOLD ? THIN_STEP : 1;
     const dotR = nodes.length > 2000 ? 1.5 : nodes.length > 500 ? 2 : 2.5;
     for (let i = 0; i < nodes.length; i += step) {
@@ -147,7 +162,7 @@ export class Minimap {
 
     // Only draw if viewport doesn't cover the entire minimap
     if (rw > 2 && rh > 2 && (rw < MINIMAP_WIDTH - 2 || rh < MINIMAP_HEIGHT - 2)) {
-      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.strokeStyle = this.colorViewport;
       ctx.lineWidth = 1.5;
       ctx.strokeRect(rx, ry, rw, rh);
     }

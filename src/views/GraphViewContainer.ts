@@ -166,6 +166,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   // Node info panel (hover details)
   private nodeInfoEl: HTMLElement | null = null;
+  private legendEl: HTMLElement | null = null;
 
   // Marquee button reference (for toolbar toggle styling)
   private marqueeBtnEl: HTMLElement | null = null;
@@ -321,6 +322,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const fitBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(fitBtn, "maximize");
     fitBtn.setAttribute("aria-label", t("toolbar.fitAll"));
+    fitBtn.title = t("toolbar.fitAll");
     fitBtn.addEventListener("click", () => {
       if (!this.canvasWrap) return;
       const W = this.canvasWrap.clientWidth;
@@ -332,6 +334,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const zoomInBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(zoomInBtn, "zoom-in");
     zoomInBtn.setAttribute("aria-label", t("toolbar.zoomIn"));
+    zoomInBtn.title = t("toolbar.zoomIn");
     zoomInBtn.addEventListener("click", () => {
       this.zoomBy(1.3);
     });
@@ -339,6 +342,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const zoomOutBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(zoomOutBtn, "zoom-out");
     zoomOutBtn.setAttribute("aria-label", t("toolbar.zoomOut"));
+    zoomOutBtn.title = t("toolbar.zoomOut");
     zoomOutBtn.addEventListener("click", () => {
       this.zoomBy(1 / 1.3);
     });
@@ -346,6 +350,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const marqueeBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(marqueeBtn, "box-select");
     marqueeBtn.setAttribute("aria-label", t("toolbar.marquee"));
+    marqueeBtn.title = t("toolbar.marquee");
     marqueeBtn.addEventListener("click", () => {
       if (this.interactionManager) {
         this.interactionManager.marqueeMode = !this.interactionManager.marqueeMode;
@@ -357,6 +362,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const exportBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(exportBtn, "camera");
     exportBtn.setAttribute("aria-label", t("toolbar.exportPng"));
+    exportBtn.title = t("toolbar.exportPng");
     exportBtn.addEventListener("click", async () => {
       if (!this.pixiApp || !this.worldContainer) return;
       exportBtn.disabled = true;
@@ -377,6 +383,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const panelToggle = toolbar.createEl("button", { cls: "graph-settings-btn" });
     setIcon(panelToggle, "settings");
     panelToggle.setAttribute("aria-label", t("toolbar.graphSettings"));
+    panelToggle.title = t("toolbar.graphSettings");
     panelToggle.addEventListener("click", () => {
       const hidden = this.panelEl?.hasClass("is-hidden");
       this.panelEl?.toggleClass("is-hidden", !hidden);
@@ -396,6 +403,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // --- Node Info Overlay (floating, survives canvas rebuilds) ---
     this.nodeInfoEl = canvasArea.createDiv({ cls: "gi-node-info" });
     this.nodeInfoEl.style.display = "none";
+
+    // --- Legend Overlay ---
+    this.legendEl = canvasArea.createDiv({ cls: "gi-legend" });
+    this.legendEl.style.display = "none";
 
     // --- Control Panel ---
     this.panelEl = main.createDiv({ cls: "graph-panel is-hidden" });
@@ -1852,6 +1863,38 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   private setStatus(t: string) { if (this.statusEl) this.statusEl.textContent = t; }
 
+  /** Update the group color legend overlay */
+  private updateLegend() {
+    if (!this.legendEl) return;
+    const colorMap = this.nodeColorMap;
+    if (colorMap.size === 0) {
+      this.legendEl.style.display = "none";
+      return;
+    }
+    this.legendEl.empty();
+    this.legendEl.style.display = "";
+
+    // Header with toggle
+    const header = this.legendEl.createDiv({ cls: "gi-legend-header" });
+    header.createEl("span", { text: `${colorMap.size} colors` });
+    const body = this.legendEl.createDiv({ cls: "gi-legend-body" });
+
+    // Start collapsed if many entries
+    if (colorMap.size > 8) body.style.display = "none";
+
+    header.addEventListener("click", () => {
+      const hidden = body.style.display === "none";
+      body.style.display = hidden ? "" : "none";
+    });
+
+    for (const [label, cssColor] of colorMap) {
+      const row = body.createDiv({ cls: "gi-legend-item" });
+      const dot = row.createDiv({ cls: "gi-legend-dot" });
+      dot.style.background = cssColor;
+      row.createEl("span", { cls: "gi-legend-label", text: label.replace(/^tag:/, "#") });
+    }
+  }
+
   // =========================================================================
   // Graph data
   // =========================================================================
@@ -2137,6 +2180,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.setStatus(`${gd.nodes.length} nodes — simulating...`);
       this.simulation.on("end", () => this.setStatus(`${gd.nodes.length} nodes`));
 
+      this.updateLegend();
       this.startRenderLoop();
       if (this.skipPanelRebuildCount === 0) this.buildPanel();
       return;
@@ -2228,7 +2272,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.updatePositions(true);
     this.autoFitView(W, H);
 
-    this.setStatus(`${ld.nodes.length} nodes, ${ld.edges.length} edges`);
+    const groupCount = this.nodeColorMap.size;
+    const totalNodes = this.rawData?.nodes.length ?? ld.nodes.length;
+    const totalEdges = this.rawData?.edges.length ?? ld.edges.length;
+    const filtered = totalNodes !== ld.nodes.length;
+    const statusParts = [`${ld.nodes.length}${filtered ? ' / ' + totalNodes : ''} nodes`];
+    statusParts.push(`${ld.edges.length} edges`);
+    if (groupCount > 0) statusParts.push(`${groupCount} groups`);
+    this.setStatus(statusParts.join(', '));
+    this.updateLegend();
     this.startRenderLoop();
     this.applySearch();
     this.applyTextFade();
