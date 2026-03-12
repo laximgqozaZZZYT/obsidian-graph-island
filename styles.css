@@ -116,11 +116,15 @@
 /* .graph-panel.is-hidden — slide animation defined in Phase 6 section below */
 
 /* === Settings Filter Bar === */
+.gi-settings-filter-wrapper {
+  margin: 4px 8px;
+}
 .gi-settings-filter {
   display: block;
-  width: calc(100% - 16px);
-  margin: 4px 8px;
+  width: 100%;
   padding: var(--size-4-1) var(--size-4-2);
+  padding-left: 28px;
+  padding-right: 28px;
   border-radius: var(--input-radius);
   border: 1px solid var(--background-modifier-border);
   background: var(--background-modifier-form-field);
@@ -1150,6 +1154,9 @@
   gap: 4px;
 }
 
+.gi-search-row .gi-search-wrapper {
+  flex: 1;
+}
 .gi-search-row .gi-search {
   flex: 1;
   margin-bottom: 0;
@@ -2024,4 +2031,49 @@
 .graph-panel select,
 .graph-panel .checkbox-container {
   min-height: 28px;
+}
+
+/* =========================================================================
+   Phase 16: Search UX — icon + clear button
+   ========================================================================= */
+.gi-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.gi-search-icon {
+  position: absolute;
+  left: 8px;
+  color: var(--text-faint);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  z-index: 1;
+}
+.gi-search-icon svg {
+  width: 14px;
+  height: 14px;
+}
+.gi-search-wrapper input {
+  padding-left: 28px;
+  padding-right: 28px;
+}
+.gi-search-clear {
+  position: absolute;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  cursor: pointer;
+  border-radius: 50%;
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s;
+  z-index: 1;
+}
+.gi-search-clear:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
 }

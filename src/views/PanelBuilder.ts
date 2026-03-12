@@ -258,22 +258,34 @@ export function buildPanel(
 
   // --- Search bar with help icon ---
   const searchRow = topBar.createDiv({ cls: "gi-search-row" });
-  const searchBar = searchRow.createEl("input", {
+  const searchWrapper = searchRow.createDiv({ cls: "gi-search-wrapper" });
+  const searchIcon = searchWrapper.createEl("span", { cls: "gi-search-icon" });
+  setIcon(searchIcon, "search");
+  const searchBar = searchWrapper.createEl("input", {
     cls: "gi-search gi-top-search",
     type: "text",
     placeholder: t("search.placeholder"),
   });
+  const searchClearBtn = searchWrapper.createEl("span", { cls: "gi-search-clear" });
+  searchClearBtn.textContent = "\u00d7";
+  searchClearBtn.style.display = panel.searchQuery ? "flex" : "none";
   searchBar.value = panel.searchQuery;
   {
     let searchDebounce: ReturnType<typeof setTimeout> | null = null;
     searchBar.addEventListener("input", () => {
       panel.searchQuery = searchBar.value;
+      searchClearBtn.style.display = searchBar.value ? "flex" : "none";
       if (searchDebounce) clearTimeout(searchDebounce);
       searchDebounce = setTimeout(() => {
         cb.invalidateDataKeepPanel();
       }, 400);
     });
   }
+  searchClearBtn.addEventListener("click", () => {
+    searchBar.value = "";
+    searchBar.dispatchEvent(new Event("input"));
+    searchClearBtn.style.display = "none";
+  });
   attachQueryHint(searchBar, (field) => cb.collectValueSuggestions(field));
   attachSearchJump(searchBar, cb);
 
@@ -319,11 +331,17 @@ export function buildPanel(
   });
 
   // --- Settings filter (searches across all tabs) ---
-  const settingsFilterInput = panelEl.createEl("input", {
+  const settingsFilterWrapper = panelEl.createDiv({ cls: "gi-search-wrapper gi-settings-filter-wrapper" });
+  const settingsFilterIcon = settingsFilterWrapper.createEl("span", { cls: "gi-search-icon" });
+  setIcon(settingsFilterIcon, "search");
+  const settingsFilterInput = settingsFilterWrapper.createEl("input", {
     cls: "gi-settings-filter",
     type: "text",
     placeholder: t("settingsFilter.placeholder"),
   });
+  const settingsFilterClearBtn = settingsFilterWrapper.createEl("span", { cls: "gi-search-clear" });
+  settingsFilterClearBtn.textContent = "\u00d7";
+  settingsFilterClearBtn.style.display = "none";
 
   for (const def of TAB_DEFS) {
     const container = panelEl.createDiv({ cls: "gi-tab-content" });
@@ -374,7 +392,13 @@ export function buildPanel(
   }
 
   settingsFilterInput.addEventListener("input", () => {
+    settingsFilterClearBtn.style.display = settingsFilterInput.value ? "flex" : "none";
     applySettingsFilter(settingsFilterInput.value);
+  });
+  settingsFilterClearBtn.addEventListener("click", () => {
+    settingsFilterInput.value = "";
+    settingsFilterInput.dispatchEvent(new Event("input"));
+    settingsFilterClearBtn.style.display = "none";
   });
 
   const filterTab = tabContainers.get("filter")!;
