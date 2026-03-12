@@ -203,16 +203,27 @@ export function drawEnclosures(
     let labelCenterX = 0, labelCenterY = 0;
 
     // Draw filled shape first (behind stroke) when zoomed out
+    // Use radial gradient for a soft glow effect
     if (fillAlpha > 0.005) {
       g.lineStyle(0);
-      g.beginFill(hex, fillAlpha);
       if (pts.length === 1) {
         const p0 = pts[0];
-        g.drawCircle(p0.x, p0.y, p0.radius + outlinePad(p0.radius));
+        const r = p0.radius + outlinePad(p0.radius);
+        g.beginRadialFill(p0.x, p0.y, r, hex, hex, fillAlpha, fillAlpha * 0.15);
+        g.drawCircle(p0.x, p0.y, r);
       } else if (pts.length === 2) {
+        const cx = (pts[0].x + pts[1].x) / 2;
+        const cy = (pts[0].y + pts[1].y) / 2;
         const maxR = Math.max(pts[0].radius, pts[1].radius);
-        drawCapsule(g, pts[0], pts[1], maxR + outlinePad(maxR));
+        const r = maxR + outlinePad(maxR);
+        const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) / 2 + r;
+        g.beginRadialFill(cx, cy, dist, hex, hex, fillAlpha, fillAlpha * 0.15);
+        drawCapsule(g, pts[0], pts[1], r);
       } else {
+        const cx = (enc.minX + enc.maxX) / 2;
+        const cy = (enc.minY + enc.maxY) / 2;
+        const radius = Math.hypot(enc.maxX - enc.minX, enc.maxY - enc.minY) / 2;
+        g.beginRadialFill(cx, cy, radius, hex, hex, fillAlpha, fillAlpha * 0.1);
         drawSmoothHull(g, expanded);
       }
       g.endFill();
