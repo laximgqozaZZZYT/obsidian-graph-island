@@ -584,6 +584,15 @@ export function drawEdges(
 
     g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
 
+    // Edge type dash pattern: semantic=dotted, tag/has-tag=dashed
+    if (e.type === "semantic") {
+      g.setLineDash([3, 3]);
+    } else if (e.type === "tag" || e.type === "has-tag") {
+      g.setLineDash([6, 3]);
+    } else if (isSimilar) {
+      g.setLineDash([2, 4]);
+    }
+
     // --- Draw the edge ---
 
     if (isSimilar) {
@@ -646,6 +655,11 @@ export function drawEdges(
     if (cfg.showArrows && e.type !== "sequence" && !isOnto && arrowGfx) {
       const tgtR = cfg.nodeRadii?.get(e.target) ?? 4;
       drawGenericArrow(arrowGfx, src, tgt, lineColor, Math.max(alpha, 0.5), tgtR);
+    }
+
+    // Reset line dash after edge types that use it
+    if (e.type === "semantic" || e.type === "tag" || e.type === "has-tag" || isSimilar) {
+      g.setLineDash([]);
     }
   }
 }
