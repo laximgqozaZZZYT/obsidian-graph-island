@@ -409,8 +409,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.nodeInfoEl = canvasArea.createDiv({ cls: "gi-node-info" });
     this.nodeInfoEl.style.display = "none";
 
-    // Escape key closes node info and legend overlays
+    // Keyboard shortcuts
     this.registerDomEvent(document, "keydown", (e: KeyboardEvent) => {
+      // Only handle if our view is active
+      const activeLeaf = this.app.workspace.activeLeaf;
+      if (activeLeaf?.view !== this) return;
+
+      // Escape: close overlays
       if (e.key === "Escape") {
         if (this.nodeInfoEl && this.nodeInfoEl.style.display !== "none") {
           this.nodeInfoEl.style.display = "none";
@@ -419,6 +424,47 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (this.legendEl && this.legendEl.style.display !== "none") {
           this.legendEl.style.display = "none";
         }
+        return;
+      }
+
+      // Don't handle shortcuts when typing in an input
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      // Ctrl/Cmd+F: focus search input
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        const search = this.panelEl?.querySelector<HTMLInputElement>(".gi-settings-filter");
+        if (search) {
+          // Ensure panel is visible
+          this.panelEl?.classList.remove("is-hidden");
+          search.focus();
+        }
+        return;
+      }
+
+      // Space: auto-fit view
+      if (e.key === " " && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const wrap = this.containerEl.querySelector<HTMLElement>(".graph-svg-wrap");
+        if (wrap) this.autoFitView(wrap.clientWidth, wrap.clientHeight);
+        return;
+      }
+
+      // 1-4: switch panel tabs
+      if (e.key >= "1" && e.key <= "4" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const idx = parseInt(e.key) - 1;
+        const tabs = this.panelEl?.querySelectorAll<HTMLButtonElement>(".gi-tab-btn");
+        if (tabs && tabs[idx]) {
+          tabs[idx].click();
+        }
+        return;
+      }
+
+      // P: toggle panel visibility
+      if (e.key === "p" && !e.ctrlKey && !e.metaKey) {
+        this.panelEl?.classList.toggle("is-hidden");
+        return;
       }
     });
 
