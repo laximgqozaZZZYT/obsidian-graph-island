@@ -1,4 +1,4 @@
-import * as PIXI from "pixi.js";
+import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { GraphEdge } from "../types";
 import { cssColorToHex } from "../utils/graph-helpers";
 
@@ -378,7 +378,7 @@ function computeCableLayout(
  * individual nodes to the cable endpoint.
  */
 function drawCables(
-  g: PIXI.Graphics,
+  g: CanvasGraphics,
   cables: Cable[],
   resolvePos: (ref: string | object) => Pos | undefined,
   cfg: EdgeDrawConfig,
@@ -488,19 +488,19 @@ function drawCables(
 // ---------------------------------------------------------------------------
 
 /**
- * Draw all edges into a single PIXI.Graphics batch.
+ * Draw all edges into a single CanvasGraphics batch.
  *
- * @param g          - The PIXI.Graphics to draw into (will be cleared first)
+ * @param g          - The CanvasGraphics to draw into (will be cleared first)
  * @param edges      - The graph edges to draw
  * @param resolvePos - Resolves a source/target reference to a position
  * @param cfg        - Drawing configuration
  */
 export function drawEdges(
-  g: PIXI.Graphics,
+  g: CanvasGraphics,
   edges: GraphEdge[],
   resolvePos: (ref: string | object) => Pos | undefined,
   cfg: EdgeDrawConfig,
-  arrowGfx?: PIXI.Graphics | null,
+  arrowGfx?: CanvasGraphics | null,
 ): void {
   g.clear();
   if (arrowGfx) arrowGfx.clear();
@@ -660,7 +660,7 @@ export function drawEdges(
  * - aggregation: hollow diamond at source (UML aggregation)
  */
 function drawEdgeMarker(
-  g: PIXI.Graphics,
+  g: CanvasGraphics,
   src: Pos,
   tgt: Pos,
   type: "inheritance" | "aggregation",
@@ -709,7 +709,7 @@ function drawEdgeMarker(
  * Draw a filled arrow at the target end of a sequence edge (→ direction).
  */
 function drawSequenceArrow(
-  g: PIXI.Graphics,
+  g: CanvasGraphics,
   src: Pos,
   tgt: Pos,
   color: number,
@@ -742,7 +742,7 @@ function drawSequenceArrow(
  * Smaller than the sequence arrow to avoid visual clutter.
  */
 function drawGenericArrow(
-  g: PIXI.Graphics,
+  g: CanvasGraphics,
   src: Pos,
   tgt: Pos,
   color: number,
@@ -802,20 +802,24 @@ function getEdgeLabel(e: GraphEdge): string | null {
 }
 
 /**
- * Draw text labels on edges into a dedicated PIXI.Container.
+ * Draw text labels on edges into a dedicated CanvasContainer.
  *
  * Labels are placed at the midpoint of each edge.  When the total number of
  * labelable edges exceeds MAX_EDGE_LABELS the labels are skipped entirely to
- * avoid performance degradation from excessive PIXI.Text objects.
+ * avoid performance degradation from excessive CanvasText objects.
  */
 export function drawEdgeLabels(
-  container: PIXI.Container,
+  container: CanvasContainer,
   edges: GraphEdge[],
   resolvePos: (ref: string | object) => Pos | undefined,
   cfg: EdgeDrawConfig,
 ): void {
   // Remove all previous labels
-  container.removeChildren();
+  while (container.children.length > 0) {
+    const child = container.children[container.children.length - 1];
+    container.removeChild(child);
+    child.destroy();
+  }
 
   if (!cfg.showEdgeLabels) return;
 
@@ -842,7 +846,7 @@ export function drawEdgeLabels(
     const mx = (sp.x + tp.x) / 2;
     const my = (sp.y + tp.y) / 2;
 
-    const text = new PIXI.Text(label, {
+    const text = new CanvasText(label, {
       fontSize: 10,
       fill: fillColor,
       fontFamily: "sans-serif",

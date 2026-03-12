@@ -1,4 +1,4 @@
-import * as PIXI from "pixi.js";
+import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { Pt } from "../utils/geometry";
 import { convexHull } from "../utils/geometry";
 import { cssColorToHex } from "../utils/graph-helpers";
@@ -23,7 +23,7 @@ export interface EnclosureConfig {
   /** Called when a tag label is hovered (tag) or unhovered (null). */
   onTagHover?: (tag: string | null) => void;
   /** Dedicated container for labels (ensures z-order above nodes). */
-  labelContainer?: PIXI.Container;
+  labelContainer?: CanvasContainer;
 }
 
 /**
@@ -79,8 +79,8 @@ const ZOOM_OUT_THRESHOLD = 0.45;
  *     with large, prominent labels so groups are identifiable at a glance.
  */
 export function drawEnclosures(
-  g: PIXI.Graphics,
-  enclosureLabels: Map<string, PIXI.Text>,
+  g: CanvasGraphics,
+  enclosureLabels: Map<string, CanvasText>,
   overlapCache: OverlapCache,
   cfg: EnclosureConfig,
 ): void {
@@ -247,7 +247,7 @@ export function drawEnclosures(
     let txt = enclosureLabels.get(tag);
     if (!txt) {
       const hexStr = "#" + hex.toString(16).padStart(6, "0");
-      txt = new PIXI.Text(`#${tag}`, {
+      txt = new CanvasText(`#${tag}`, {
         fontSize: 14,
         fill: hexStr,
         fontFamily: "sans-serif",
@@ -258,17 +258,10 @@ export function drawEnclosures(
       enclosureLabels.set(tag, txt);
     }
 
-    // Ensure label is interactive & in the correct parent (idempotent).
-    // This runs every draw so that labels created before the hover feature
-    // are retroactively upgraded.
-    if (txt.eventMode !== "static") {
-      txt.eventMode = "static";
-      txt.cursor = "pointer";
-      const capturedTag = tag;
-      txt.on("pointerover", () => cfg.onTagHover?.(capturedTag));
-      txt.on("pointerout", () => cfg.onTagHover?.(null));
-    }
-    const targetParent = cfg.labelContainer ?? g.parent;
+    // Ensure label is in the correct parent (idempotent).
+    // Interactive events (eventMode/on) are not supported by CanvasText;
+    // hover callbacks are handled at the container level instead.
+    const targetParent = cfg.labelContainer ?? (g.parent as CanvasContainer | null);
     if (txt.parent !== targetParent && targetParent) {
       targetParent.addChild(txt);
     }
@@ -295,7 +288,7 @@ export function drawEnclosures(
   // --- Label collision avoidance ---
   // Collect visible label bounding rects, then nudge overlapping labels apart.
   // If nudging can't resolve the overlap, hide the smaller group's label.
-  const visibleLabels: { tag: string; txt: PIXI.Text; memberCount: number }[] = [];
+  const visibleLabels: { tag: string; txt: CanvasText; memberCount: number }[] = [];
   for (const tag of usedLabels) {
     const txt = enclosureLabels.get(tag);
     if (txt && txt.visible) {
@@ -307,8 +300,8 @@ export function drawEnclosures(
   visibleLabels.sort((a, b) => b.memberCount - a.memberCount);
 
   // Get approximate bounding box for a label (in world coords).
-  // PIXI.Text.width already includes scale, so we use it directly.
-  const labelRect = (txt: PIXI.Text) => {
+  // CanvasText.width/height include scale.
+  const labelRect = (txt: CanvasText) => {
     const w = txt.width;
     const h = txt.height;
     const ax = txt.anchor.x;
@@ -370,7 +363,7 @@ export function drawEnclosures(
 // Drawing helpers
 // ---------------------------------------------------------------------------
 
-export function drawSmoothHull(g: PIXI.Graphics, points: Pt[]) {
+export function drawSmoothHull(g: CanvasGraphics, points: Pt[]) {
   if (points.length < 3) return;
   const n = points.length;
   const mid = (a: Pt, b: Pt): Pt => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
@@ -384,7 +377,7 @@ export function drawSmoothHull(g: PIXI.Graphics, points: Pt[]) {
   }
 }
 
-export function drawCapsule(g: PIXI.Graphics, p0: Pt, p1: Pt, radius: number) {
+export function drawCapsule(g: CanvasGraphics, p0: Pt, p1: Pt, radius: number) {
   const dx = p1.x - p0.x;
   const dy = p1.y - p0.y;
   const len = Math.hypot(dx, dy) || 1;

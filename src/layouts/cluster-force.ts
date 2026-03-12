@@ -119,6 +119,8 @@ export interface ArrangementResult {
   offsets: Map<string, { dx: number; dy: number }>;
   guide?: ArrangementGuide;
   bars?: TimelineBarInfo[];
+  /** Synthetic sequence edges connecting temporally adjacent nodes */
+  sequenceEdges?: GraphEdge[];
 }
 
 /** Guide line data collected from all groups */
@@ -141,6 +143,8 @@ export interface ClusterMetadata {
   timelineBars?: TimelineBarInfo[];
   /** Guide line data for arrangement visualization */
   guideLineData?: GuideLineData;
+  /** Synthetic sequence edges generated from timeline ordering */
+  sequenceEdges?: GraphEdge[];
 }
 
 /** Result of buildClusterForce: force function + cluster metadata for bundling. */
@@ -206,10 +210,30 @@ function resolveGroupOverlaps(
   groups: Map<string, GraphNode[]>,
   clusterRadii: Map<string, number>,
   clusterCentroids: Map<string, { x: number; y: number }>,
-  iterations: number = 3,
+  iterations: number = 5,
 ): void {
   const keys = [...groups.keys()];
   if (keys.length < 2) return;
+
+  // Compute actual radii from target positions (more accurate than estimateGroupRadius)
+  const actualRadii = new Map<string, number>();
+  for (const key of keys) {
+    const members = groups.get(key);
+    const centroid = clusterCentroids.get(key);
+    if (!members || !centroid) continue;
+    let maxDist = 0;
+    for (const m of members) {
+      const t = targets.get(m.id);
+      if (!t) continue;
+      const d = Math.sqrt((t.x - centroid.x) ** 2 + (t.y - centroid.y) ** 2);
+      if (d > maxDist) maxDist = d;
+    }
+    // Use the larger of estimated and actual radius (actual captures orbit rings, etc.)
+    const estimated = clusterRadii.get(key) ?? 0;
+    const effective = Math.max(estimated, maxDist + 10); // +10 for node visual extent
+    actualRadii.set(key, effective);
+    clusterRadii.set(key, effective); // Update for downstream consumers
+  }
 
   for (let iter = 0; iter < iterations; iter++) {
     let anyOverlap = false;
@@ -222,28 +246,32 @@ function resolveGroupOverlaps(
         const cB = clusterCentroids.get(kB);
         if (!cA || !cB) continue;
 
-        const rA = clusterRadii.get(kA) ?? 0;
-        const rB = clusterRadii.get(kB) ?? 0;
+        const rA = actualRadii.get(kA) ?? 0;
+        const rB = actualRadii.get(kB) ?? 0;
         if (rA < 1 || rB < 1) continue;
 
         const dx = cB.x - cA.x;
         const dy = cB.y - cA.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const minDist = (rA + rB) * 1.15; // 15% padding
+        const minDist = (rA + rB) * 1.3; // 30% padding for visual breathing room
 
         if (dist >= minDist) continue;
         anyOverlap = true;
 
-        // Push apart along center-to-center vector
+        // Asymmetric push: smaller group moves more than larger group
         const overlap = minDist - dist;
-        const pushDist = overlap / 2;
+        const totalR = rA + rB;
+        // Weight inversely proportional to radius — small group gets pushed more
+        const wB = totalR > 0 ? rA / totalR : 0.5; // wB is fraction B moves
+        const wA = 1 - wB;                          // wA is fraction A moves
+
         const nx = dist > 0.01 ? dx / dist : 1;
         const ny = dist > 0.01 ? dy / dist : 0;
 
-        const shiftAx = -nx * pushDist;
-        const shiftAy = -ny * pushDist;
-        const shiftBx = nx * pushDist;
-        const shiftBy = ny * pushDist;
+        const shiftAx = -nx * overlap * wA;
+        const shiftAy = -ny * overlap * wA;
+        const shiftBx = nx * overlap * wB;
+        const shiftBy = ny * overlap * wB;
 
         // Update centroids
         cA.x += shiftAx;
@@ -328,7 +356,7 @@ export function buildClusterForce(
   }
   if (groups.size === 0) return null;
 
-  const { targets, sunburstArcs, guideGroups, allBars } = computeAbsoluteTargets(groups, edges, degrees, cfg);
+  const { targets, sunburstArcs, guideGroups, allBars, allSequenceEdges } = computeAbsoluteTargets(groups, edges, degrees, cfg);
 
   // Build cluster metadata for edge bundling
   const nodeClusterMap = new Map<string, string>();
@@ -346,15 +374,54 @@ export function buildClusterForce(
     clusterRadii.set(key, estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members));
   }
 
+  // Snapshot bar node positions before overlap resolution
+  const barNodePosBefore = new Map<string, { x: number; y: number }>();
+  if (allBars && allBars.length > 0) {
+    for (const bar of allBars) {
+      const t = targets.get(bar.nodeId);
+      if (t) barNodePosBefore.set(bar.nodeId, { x: t.x, y: t.y });
+    }
+  }
+
   // Resolve pairwise group overlaps (especially important after super node expansion)
-  resolveGroupOverlaps(targets, groups, clusterRadii, clusterCentroids);
+  // Skip for timeline: unified timeline already handles Y-band separation
+  // Skip for sunburst: all groups share a single center — overlap resolution destroys radial layout
+  if (cfg.arrangement !== "timeline" && cfg.arrangement !== "sunburst") {
+    resolveGroupOverlaps(targets, groups, clusterRadii, clusterCentroids);
+  }
+
+  // Re-align timeline bars with post-overlap node target positions
+  if (allBars && allBars.length > 0) {
+    for (const bar of allBars) {
+      const before = barNodePosBefore.get(bar.nodeId);
+      const after = targets.get(bar.nodeId);
+      if (before && after) {
+        const deltaX = after.x - before.x;
+        const deltaY = after.y - before.y;
+        bar.xStart += deltaX;
+        bar.xEnd += deltaX;
+        bar.yCenter += deltaY;
+      }
+    }
+  }
+
+  // Also re-align guide line data with post-overlap positions
+  if (guideGroups && guideGroups.length > 0) {
+    for (const gg of guideGroups) {
+      const centroid = clusterCentroids.get(gg.groupKey);
+      if (centroid) {
+        gg.centerX = centroid.x;
+        gg.centerY = centroid.y;
+      }
+    }
+  }
 
   // Build guide line data from arrangement results
   const guideLineData: GuideLineData | undefined = guideGroups && guideGroups.length > 0
     ? { arrangement: cfg.arrangement, groups: guideGroups }
     : undefined;
 
-  // Timeline bars (already in absolute coordinates)
+  // Timeline bars (already in absolute coordinates, adjusted for overlap resolution)
   const timelineBars = allBars && allBars.length > 0 ? allBars : undefined;
 
   // Build node index for enclosure separation (if active)
@@ -381,7 +448,7 @@ export function buildClusterForce(
     // }
   };
 
-  return { force, metadata: { nodeClusterMap, clusterCentroids, clusterRadii, sunburstArcs, timelineBars, guideLineData } };
+  return { force, metadata: { nodeClusterMap, clusterCentroids, clusterRadii, sunburstArcs, timelineBars, guideLineData, sequenceEdges: allSequenceEdges } };
 }
 
 // ---------------------------------------------------------------------------
@@ -420,6 +487,7 @@ interface AbsoluteTargetResult {
   sunburstArcs?: SunburstArc[];
   guideGroups?: FlatTargetResult["guideGroups"];
   allBars?: TimelineBarInfo[];
+  allSequenceEdges?: GraphEdge[];
 }
 
 function computeAbsoluteTargets(
@@ -444,10 +512,10 @@ function computeAbsoluteTargets(
 
   if (hasHierarchy) {
     const r = computeHierarchicalTargets(groups, parentMap, edges, degrees, cfg);
-    return { targets: r.targets, guideGroups: r.guideGroups, allBars: r.allBars };
+    return { targets: r.targets, guideGroups: r.guideGroups, allBars: r.allBars, allSequenceEdges: r.allSequenceEdges };
   }
   const r = computeFlatTargets(groups, edges, degrees, cfg);
-  return { targets: r.targets, guideGroups: r.guideGroups, allBars: r.allBars };
+  return { targets: r.targets, guideGroups: r.guideGroups, allBars: r.allBars, allSequenceEdges: r.allSequenceEdges };
 }
 
 // ---------------------------------------------------------------------------
@@ -485,10 +553,15 @@ function computeSunburstTargets(
   const nodeDiam = cfg.nodeSize * 2;
 
   // --- Ring geometry ---
-  const nodeWidth = nodeDiam * cfg.nodeSpacing;
-  const ringThick = nodeWidth * 1.0;
-  const ringGap = nodeDiam * cfg.groupScale * 0.15;
-  const centerHole = nodeDiam * cfg.groupScale * 2.0;
+  // For sunburst, use tighter packing than other arrangements:
+  // - Angular spacing uses nodeWidth (node diameter * nodeSpacing) but scaled down
+  //   since radial separation already provides visual distinction.
+  // - Ring thickness matches nodeDiam with minimal spacing.
+  // - Center hole is compact to maximize usable area.
+  const nodeWidth = nodeDiam * Math.max(cfg.nodeSpacing * 0.5, 1.0);
+  const ringThick = nodeDiam * Math.max(cfg.nodeSpacing * 0.5, 1.0);
+  const ringGap = nodeDiam * cfg.groupScale * 0.06;
+  const centerHole = nodeDiam * cfg.groupScale * 1.0;
 
   // Sort helper
   const sortNodes = (arr: GraphNode[]) => {
@@ -672,6 +745,7 @@ interface FlatTargetResult {
   targets: Map<string, { x: number; y: number }>;
   guideGroups: { groupKey: string; centerX: number; centerY: number; guide: ArrangementGuide }[];
   allBars: TimelineBarInfo[];
+  allSequenceEdges?: GraphEdge[];
 }
 
 /** Flat layout — all groups at the same level (no recursive split). */
@@ -689,6 +763,12 @@ function computeFlatTargets(
 
   const groupCenters = new Map<string, { x: number; y: number }>();
 
+  // Timeline with multiple groups: merge all nodes into a single unified timeline
+  // then separate groups by Y-band offset
+  if (cfg.arrangement === "timeline" && nGroups > 1) {
+    return computeUnifiedTimelineTargets(groups, edges, degrees, cfg);
+  }
+
   if (nGroups === 1) {
     groupCenters.set(groupKeys[0], { x: cfg.centerX, y: cfg.centerY });
   } else if (cfg.arrangement === "tree" || cfg.arrangement === "mountain") {
@@ -697,6 +777,7 @@ function computeFlatTargets(
     layoutGroupsCircle(groupKeys, groups, cfg, groupCenters);
   }
 
+  const allSeqEdges: GraphEdge[] = [];
   for (const [key, members] of groups) {
     const center = groupCenters.get(key)!;
     const result = computeOffsets(members, degrees, edges, cfg);
@@ -722,8 +803,213 @@ function computeFlatTargets(
         });
       }
     }
+    // Collect sequence edges
+    if (result.sequenceEdges) {
+      allSeqEdges.push(...result.sequenceEdges);
+    }
   }
-  return { targets, guideGroups, allBars };
+  return { targets, guideGroups, allBars, allSequenceEdges: allSeqEdges.length > 0 ? allSeqEdges : undefined };
+}
+
+/**
+ * Unified timeline: all groups share a single X-axis (same date -> same X
+ * column).  Y positions are re-stacked per-group so each group's nodes
+ * stack independently within each time column, keeping vertical extent
+ * compact while maintaining globally consistent X positions.
+ *
+ * Strategy:
+ *   1. Run timelineOffsets on ALL nodes merged to get shared X positions
+ *      (global time axis with consistent effectiveSpacing).
+ *   2. Re-compute Y stacking per-group: within each time column, only
+ *      stack that group's nodes, not all groups mixed together.
+ *   3. Lay groups out in Y-bands separated by a small gap.
+ */
+function computeUnifiedTimelineTargets(
+  groups: Map<string, GraphNode[]>,
+  edges: GraphEdge[],
+  degrees: Map<string, number>,
+  cfg: ClusterForceConfig,
+): FlatTargetResult {
+  const targets = new Map<string, { x: number; y: number }>();
+  const guideGroups: FlatTargetResult["guideGroups"] = [];
+  const allBars: TimelineBarInfo[] = [];
+  const nodeSize = cfg.nodeSize;
+  const groupKeys = [...groups.keys()];
+
+  // --- Step 1: compute unified X positions from ALL nodes ---
+  const allMembers: GraphNode[] = [];
+  for (const members of groups.values()) allMembers.push(...members);
+
+  const cmp = cfg.sortComparator ?? ((a: GraphNode, b: GraphNode) =>
+    (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
+  const unified = timelineOffsets(
+    allMembers, degrees, cfg.nodeSpacing, cfg.groupScale, nodeSize, cmp,
+    cfg.nodeSpacingMap, cfg.timelineKey, cfg.getNodeProperty,
+    cfg.timelineEndKey, cfg.timelineOrderFields,
+  );
+
+  // Build group membership lookup
+  const groupOfNode = new Map<string, string>();
+  for (const [key, members] of groups) {
+    for (const n of members) groupOfNode.set(n.id, key);
+  }
+
+  // --- Step 2: re-stack Y per group ---
+  // Collect nodes by (group, X-column) for independent per-group stacking
+  const nodesByGroupCol = new Map<string, Map<number, string[]>>();
+  for (const key of groupKeys) nodesByGroupCol.set(key, new Map());
+
+  // Round dx to find column identity (nodes at same time step share dx)
+  const nodeDx = new Map<string, number>();
+  for (const [nodeId, off] of unified.offsets) {
+    nodeDx.set(nodeId, off.dx);
+    const gk = groupOfNode.get(nodeId) ?? groupKeys[0];
+    const colKey = Math.round(off.dx * 100); // quantize to avoid float issues
+    const cols = nodesByGroupCol.get(gk)!;
+    let list = cols.get(colKey);
+    if (!list) { list = []; cols.set(colKey, list); }
+    list.push(nodeId);
+  }
+
+  // Compute per-group Y stacking using the same spacing logic as timelineOffsets.
+  // Derive effectiveSpacing from the actual X range and number of unique X positions.
+  const uniqueXPositions = new Set<number>();
+  for (const { dx } of unified.offsets.values()) uniqueXPositions.add(Math.round(dx * 100));
+  const nCols = Math.max(1, uniqueXPositions.size);
+  let effectiveSpacing: number;
+  if (nCols >= 2) {
+    // Infer spacing from the actual range
+    let minDx = Infinity, maxDx = -Infinity;
+    for (const { dx } of unified.offsets.values()) {
+      if (dx < minDx) minDx = dx;
+      if (dx > maxDx) maxDx = dx;
+    }
+    effectiveSpacing = (maxDx - minDx) / (nCols - 1);
+  } else {
+    effectiveSpacing = nodeSize * 2;
+  }
+  // Match the bar-aware minimum from timelineOffsets
+  const barH = nodeSize * 2;
+  const barGapMin = nodeSize * 1.5;
+  const minYStack = barH + barGapMin;
+  const yStackSpacing = Math.max(effectiveSpacing * 0.6, minYStack);
+  const minNodeGap = Math.max(nodeSize * 1.5, yStackSpacing);
+
+  // Per-group offsets: keep original dx, re-compute dy
+  const perGroupOffsets = new Map<string, Map<string, { dx: number; dy: number }>>();
+  for (const [gk, cols] of nodesByGroupCol) {
+    const offsets = new Map<string, { dx: number; dy: number }>();
+    for (const [, nodeIds] of cols) {
+      // Sort by degree (higher degree first, same as original)
+      nodeIds.sort((a, b) => (degrees.get(b) || 0) - (degrees.get(a) || 0));
+      for (let i = 0; i < nodeIds.length; i++) {
+        const nid = nodeIds[i];
+        offsets.set(nid, {
+          dx: nodeDx.get(nid) ?? 0,
+          dy: i * minNodeGap,
+        });
+      }
+    }
+    // Center Y per group
+    let minY = Infinity, maxY = -Infinity;
+    for (const { dy } of offsets.values()) {
+      if (dy < minY) minY = dy;
+      if (dy > maxY) maxY = dy;
+    }
+    const yAdj = (minY + maxY) / 2;
+    for (const [id, pos] of offsets) {
+      offsets.set(id, { dx: pos.dx, dy: pos.dy - yAdj });
+    }
+    perGroupOffsets.set(gk, offsets);
+  }
+
+  // --- Step 3: compute per-group Y extents and assign Y-bands ---
+  const groupYRanges = new Map<string, { minDy: number; maxDy: number }>();
+  for (const [gk, offsets] of perGroupOffsets) {
+    let minDy = Infinity, maxDy = -Infinity;
+    for (const { dy } of offsets.values()) {
+      if (dy < minDy) minDy = dy;
+      if (dy > maxDy) maxDy = dy;
+    }
+    groupYRanges.set(gk, {
+      minDy: minDy === Infinity ? 0 : minDy,
+      maxDy: maxDy === -Infinity ? 0 : maxDy,
+    });
+  }
+
+  const bandGap = nodeSize * cfg.groupSpacing * 2;
+  const groupYOffset = new Map<string, number>();
+  let yCursor = 0;
+  for (const key of groupKeys) {
+    const range = groupYRanges.get(key);
+    const bandHeight = range ? (range.maxDy - range.minDy) : 0;
+    groupYOffset.set(key, yCursor);
+    yCursor += bandHeight + bandGap;
+  }
+  const totalHeight = yCursor - (groupKeys.length > 0 ? bandGap : 0);
+  const yCenter = totalHeight / 2;
+
+  // --- Step 4: apply targets ---
+  for (const [gk, offsets] of perGroupOffsets) {
+    const bandOff = groupYOffset.get(gk) ?? 0;
+    const range = groupYRanges.get(gk);
+    for (const [nodeId, off] of offsets) {
+      const relDy = range ? (off.dy - range.minDy) : off.dy;
+      targets.set(nodeId, {
+        x: cfg.centerX + off.dx,
+        y: cfg.centerY + bandOff + relDy - yCenter,
+      });
+    }
+  }
+
+  // --- Step 5: collect guide data ---
+  if (unified.guide) {
+    guideGroups.push({
+      groupKey: "__unified__",
+      centerX: cfg.centerX,
+      centerY: cfg.centerY,
+      guide: unified.guide,
+    });
+  }
+
+  // --- Step 6: collect bars with per-group Y adjustments ---
+  // Bars come from unified offsets but need Y adjusted to per-group positions
+  if (unified.bars) {
+    for (const bar of unified.bars) {
+      const gk = groupOfNode.get(bar.nodeId) ?? groupKeys[0];
+      const bandOff = groupYOffset.get(gk) ?? 0;
+      const range = groupYRanges.get(gk);
+      // Find the node's per-group dy for bar alignment
+      const pgOff = perGroupOffsets.get(gk)?.get(bar.nodeId);
+      if (!pgOff) continue;
+      const relDy = range ? (pgOff.dy - range.minDy) : pgOff.dy;
+      allBars.push({
+        ...bar,
+        xStart: bar.xStart + cfg.centerX,
+        xEnd: bar.xEnd + cfg.centerX,
+        yCenter: cfg.centerY + bandOff + relDy - yCenter,
+      });
+    }
+  }
+
+  // Filter sequence edges to within-group only (unified timeline merges all
+  // groups, so raw edges may cross mythology→mythology boundaries).
+  let filteredSeqEdges: GraphEdge[] | undefined;
+  if (unified.sequenceEdges) {
+    filteredSeqEdges = unified.sequenceEdges.filter(e => {
+      const sg = groupOfNode.get(e.source);
+      const tg = groupOfNode.get(e.target);
+      return sg != null && sg === tg;
+    });
+    if (filteredSeqEdges.length === 0) filteredSeqEdges = undefined;
+  }
+
+  return {
+    targets,
+    guideGroups,
+    allBars,
+    allSequenceEdges: filteredSeqEdges,
+  };
 }
 
 /**
@@ -740,6 +1026,11 @@ function computeHierarchicalTargets(
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
 ): FlatTargetResult {
+  // Timeline with hierarchy: use unified timeline across all groups
+  if (cfg.arrangement === "timeline") {
+    return computeUnifiedTimelineTargets(groups, edges, degrees, cfg);
+  }
+
   const targets = new Map<string, { x: number; y: number }>();
   const guideGroups: FlatTargetResult["guideGroups"] = [];
   const allBars: TimelineBarInfo[] = [];
@@ -762,6 +1053,8 @@ function computeHierarchicalTargets(
 
   if (nParents === 1) {
     parentCenters.set(parentKeys[0], { x: cfg.centerX, y: cfg.centerY });
+  } else if (cfg.arrangement === "timeline") {
+    layoutGroupsVertical(parentKeys, superGroups, cfg, parentCenters);
   } else if (cfg.arrangement === "tree" || cfg.arrangement === "mountain") {
     layoutGroupsHorizontal(parentKeys, superGroups, cfg, parentCenters);
   } else {
@@ -878,6 +1171,35 @@ function layoutGroupsHorizontal(
 }
 
 /**
+ * Stack groups vertically (same X center, different Y bands).
+ * Used by timeline arrangement so all groups share the same time axis.
+ */
+function layoutGroupsVertical(
+  keys: string[],
+  groups: Map<string, GraphNode[]>,
+  cfg: ClusterForceConfig,
+  out: Map<string, { x: number; y: number }>,
+) {
+  const groupHeights: number[] = [];
+  for (const key of keys) {
+    const members = groups.get(key)!;
+    // Estimate height: number of stacked nodes in the tallest time column
+    // Use a simpler heuristic: sqrt(memberCount) * nodeSize * spacing
+    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members);
+    groupHeights.push(r * 2);
+  }
+  const gap = cfg.nodeSize * cfg.groupSpacing * 4;
+  const totalH = groupHeights.reduce((s, h) => s + h, 0) + gap * (keys.length - 1);
+
+  let yCursor = cfg.centerY - totalH / 2;
+  for (let i = 0; i < keys.length; i++) {
+    const h = groupHeights[i];
+    out.set(keys[i], { x: cfg.centerX, y: yCursor + h / 2 });
+    yCursor += h + gap;
+  }
+}
+
+/**
  * Place groups on a circle around the canvas center.
  * Radius is derived from intra-group footprints so it scales
  * proportionally with nodeSpacing.  A small floor prevents collapse
@@ -970,7 +1292,7 @@ function applyGroupRule(
       ? splitByConnectedComponents(subGroups, edges)
       : subGroups;
     for (const [subKey, subMembers] of finalSubs) {
-      const compositeKey = parentKey === "__all__" ? subKey : `${parentKey}|${subKey}`;
+      const compositeKey = parentKey === "__all__" ? subKey : `${parentKey}::${subKey}`;
       result.set(compositeKey, subMembers);
     }
   }
@@ -1674,12 +1996,33 @@ function timelineOffsets(
   const timeIndexMap = new Map<string, number>();
   uniqueTimes.forEach((t, i) => timeIndexMap.set(t, i));
 
-  // Auto-compress step width for many columns
-  const totalCols = uniqueTimes.length + untimed.length;
+  // Auto-compress step width for many columns.
+  // For large datasets (hundreds of time columns), we compress aggressively
+  // so the total layout fits in a reasonable viewport.
+  const nTimedCols = uniqueTimes.length;
+  // Untimed nodes are placed in a compact grid, not individual columns
+  const untimedGridCols = untimed.length > 0
+    ? Math.ceil(Math.sqrt(untimed.length))
+    : 0;
+  const totalCols = nTimedCols + untimedGridCols;
   const maxCols = 40;
+  // Adaptive floor: for very large datasets, allow much tighter packing
+  const minSpacing = totalCols > 200
+    ? nodeSize * 1.2
+    : totalCols > 100
+      ? nodeSize * 1.8
+      : nodeSize * 3;
   const effectiveSpacing = totalCols > maxCols
-    ? Math.max(nodeSize * 3, spacing * maxCols / totalCols)
+    ? Math.max(minSpacing, spacing * maxCols / totalCols)
     : spacing;
+
+  // Y-axis stacking spacing: must use effectiveSpacing (not raw spacing)
+  // to keep columns compact when X is compressed.
+  // When duration bars are present, ensure minimum gap so bars don't overlap.
+  const barH = nodeSize * 2;   // barHeight used in TimelineBarInfo
+  const barGap = nodeSize * 1.5; // minimum vertical gap between bars
+  const minYStack = barH + barGap; // ~3.5 × nodeSize
+  const yStackSpacing = Math.max(effectiveSpacing * 0.6, minYStack);
 
   // --- Place timed nodes: X = time index, Y = stack within same step ---
   const columnStack = new Map<number, number>();
@@ -1690,21 +2033,23 @@ function timelineOffsets(
     columnStack.set(ti, stackIdx + 1);
     const ns = getSpacing(node.id, nodeSpacingMap);
     offsets.set(node.id, {
-      dx: ti * effectiveSpacing * ns,
-      dy: stackIdx * spacing * 0.6 * ns,
+      dx: ti * effectiveSpacing,          // X is purely column-based (no per-node spacing)
+      dy: stackIdx * yStackSpacing * ns,
     });
   }
 
-  // --- Place untimed nodes in a SINGLE LINE after timed nodes ---
+  // --- Place untimed nodes in a compact GRID after timed columns ---
   if (untimed.length > 0) {
     // Sort by label/id for deterministic order
     untimed.sort((a, b) => (a.label || a.id).localeCompare(b.label || b.id));
-    const startCol = uniqueTimes.length;
+    const gridCols = Math.max(1, Math.ceil(Math.sqrt(untimed.length)));
+    const startX = nTimedCols * effectiveSpacing + effectiveSpacing * 2; // gap after timed
     for (let i = 0; i < untimed.length; i++) {
-      const ns = getSpacing(untimed[i].id, nodeSpacingMap);
+      const col = i % gridCols;
+      const row = Math.floor(i / gridCols);
       offsets.set(untimed[i].id, {
-        dx: (startCol + i) * effectiveSpacing * ns,
-        dy: 0,
+        dx: startX + col * effectiveSpacing,
+        dy: row * yStackSpacing,
       });
     }
   }
@@ -1771,6 +2116,112 @@ function timelineOffsets(
     }
   }
 
+  // --- Resolve bar overlaps using compact lane assignment ---
+  // Assigns each bar to a Y-lane where it doesn't overlap with any existing bar.
+  // Bars are sorted by their original Y (from column stacking) to preserve locality.
+  // Lane spacing is minimal: just enough to prevent visual overlap.
+  if (bars.length > 1) {
+    const laneH = barH + 2; // minimal lane spacing: just barHeight + 2px gap
+    const maxLanes = 200; // cap to prevent extreme vertical spread
+
+    // Sort by original yCenter to preserve column-based ordering
+    bars.sort((a, b) => a.yCenter - b.yCenter || a.xStart - b.xStart);
+
+    // Each lane tracks active X intervals (xEnd values sorted)
+    const laneEnds: number[] = []; // laneEnds[i] = max xEnd currently in lane i
+
+    for (const bar of bars) {
+      // Find first lane where bar doesn't overlap in X
+      let assigned = -1;
+      for (let l = 0; l < Math.min(laneEnds.length, maxLanes); l++) {
+        if (bar.xStart >= laneEnds[l]) {
+          assigned = l;
+          break;
+        }
+      }
+      if (assigned < 0 && laneEnds.length < maxLanes) {
+        assigned = laneEnds.length;
+        laneEnds.push(-Infinity);
+      }
+      if (assigned < 0) {
+        // Exceeded max lanes — find lane with smallest xEnd to minimize overlap
+        let minEnd = Infinity, minL = 0;
+        for (let l = 0; l < laneEnds.length; l++) {
+          if (laneEnds[l] < minEnd) { minEnd = laneEnds[l]; minL = l; }
+        }
+        assigned = minL;
+      }
+      laneEnds[assigned] = bar.xEnd;
+
+      const laneY = assigned * laneH;
+      bar.yCenter = laneY;
+      const off = offsets.get(bar.nodeId);
+      if (off) offsets.set(bar.nodeId, { dx: off.dx, dy: laneY });
+    }
+
+    // Compact scaling: if total lane height exceeds a reasonable target,
+    // scale down Y positions and bar heights proportionally.
+    // Target: fit bars in ~1200px world height so they're visible at moderate zoom.
+    const totalLaneH = laneEnds.length * laneH;
+    const targetH = Math.max(600, n * 0.8); // proportional to node count, min 600
+    if (totalLaneH > targetH) {
+      const scale = targetH / totalLaneH;
+      for (const bar of bars) {
+        bar.yCenter *= scale;
+        bar.barHeight *= scale;
+        const off = offsets.get(bar.nodeId);
+        if (off) offsets.set(bar.nodeId, { dx: off.dx, dy: bar.yCenter });
+      }
+    }
+  }
+
+  // Push apart non-bar nodes that share a time column
+  {
+    const minNodeGap = Math.max(nodeSize * 1.5, yStackSpacing);
+    const barNodeIds = new Set(bars.map(b => b.nodeId));
+    const byColumn = new Map<number, string[]>();
+    for (const { node, value } of sortedTimed) {
+      if (barNodeIds.has(node.id)) continue; // bar nodes already positioned by lane
+      const ti = timeIndexMap.get(value);
+      if (ti === undefined) continue;
+      let col = byColumn.get(ti);
+      if (!col) { col = []; byColumn.set(ti, col); }
+      col.push(node.id);
+    }
+    for (const ids of byColumn.values()) {
+      if (ids.length < 2) continue;
+      const items = ids.map(id => ({ id, off: offsets.get(id)! })).filter(x => x.off);
+      items.sort((a, b) => a.off.dy - b.off.dy);
+      for (let i = 1; i < items.length; i++) {
+        const prev = items[i - 1], cur = items[i];
+        const gap = cur.off.dy - prev.off.dy;
+        if (gap < minNodeGap) {
+          const newDy = prev.off.dy + minNodeGap;
+          offsets.set(cur.id, { dx: cur.off.dx, dy: newDy });
+          cur.off = { dx: cur.off.dx, dy: newDy };
+        }
+      }
+    }
+  }
+
+  // --- Re-center after lane assignment ---
+  {
+    let minY2 = Infinity, maxY2 = -Infinity;
+    for (const { dy } of offsets.values()) {
+      if (dy < minY2) minY2 = dy;
+      if (dy > maxY2) maxY2 = dy;
+    }
+    const yAdj = (minY2 + maxY2) / 2;
+    if (Math.abs(yAdj) > 0.1) {
+      for (const [id, pos] of offsets) {
+        offsets.set(id, { dx: pos.dx, dy: pos.dy - yAdj });
+      }
+      for (const bar of bars) {
+        bar.yCenter -= yAdj;
+      }
+    }
+  }
+
   // --- Timeline guide (axis + ticks) ---
   const ticks: { x: number; label: string }[] = [];
   // Only show ticks for non-synthetic time values
@@ -1785,7 +2236,40 @@ function timelineOffsets(
     ticks,
   };
 
-  return { offsets, guide, bars: bars.length > 0 ? bars : undefined };
+  // --- Generate synthetic sequence edges between temporally adjacent nodes ---
+  // Within the sorted timed array, connect consecutive nodes (same time axis order).
+  // Only connect "real" timed nodes (skip synthetic __chain_/__hier_ entries unless
+  // they are adjacent to each other in the same synthetic ordering scheme).
+  const seqEdges: GraphEdge[] = [];
+  if (sortedTimed.length >= 2) {
+    for (let i = 1; i < sortedTimed.length; i++) {
+      const prev = sortedTimed[i - 1];
+      const cur = sortedTimed[i];
+      // Connect if both are real timed OR both are from same synthetic scheme
+      const prevSynth = prev.value.startsWith("__");
+      const curSynth = cur.value.startsWith("__");
+      if (prevSynth !== curSynth) continue; // don't bridge real↔synthetic
+      if (prevSynth && curSynth) {
+        // Both synthetic: only connect if same scheme (chain or hier)
+        const prevScheme = prev.value.split("_")[2]; // e.g. "chain" or "hier"
+        const curScheme = cur.value.split("_")[2];
+        if (prevScheme !== curScheme) continue;
+      }
+      seqEdges.push({
+        id: `__seq__${prev.node.id}__${cur.node.id}`,
+        source: prev.node.id,
+        target: cur.node.id,
+        type: "sequence",
+      });
+    }
+  }
+
+  return {
+    offsets,
+    guide,
+    bars: bars.length > 0 ? bars : undefined,
+    sequenceEdges: seqEdges.length > 0 ? seqEdges : undefined,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -2152,15 +2636,17 @@ export function computeAutoFitSpacing(
   degrees: Map<string, number>,
   baseCfg: ClusterForceConfig,
 ): { nodeSpacing: number; groupScale: number; groupSpacing: number } {
-  // Start from the base config's values (user slider or preset values)
-  let nodeSpacing = baseCfg.nodeSpacing;
-  let groupScale = baseCfg.groupScale;
-  let groupSpacing = baseCfg.groupSpacing;
-
   // Upper bounds (match slider maximums)
-  const MAX_NODE_SPACING = 10;
-  const MAX_GROUP_SCALE = 5;
-  const MAX_GROUP_SPACING = 5;
+  // Timeline: lane assignment handles bar overlap, so keep spacing moderate
+  const isTimeline = baseCfg.arrangement === "timeline";
+  const MAX_NODE_SPACING = isTimeline ? 4 : 10;
+  const MAX_GROUP_SCALE = isTimeline ? 3 : 5;
+  const MAX_GROUP_SPACING = isTimeline ? 2 : 5;
+
+  // Start from the base config's values, clamped to current maximums
+  let nodeSpacing = Math.min(baseCfg.nodeSpacing, MAX_NODE_SPACING);
+  let groupScale = Math.min(baseCfg.groupScale, MAX_GROUP_SCALE);
+  let groupSpacing = Math.min(baseCfg.groupSpacing, MAX_GROUP_SPACING);
 
   const baseSize = baseCfg.nodeSize;
 

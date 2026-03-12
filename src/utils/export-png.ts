@@ -1,23 +1,21 @@
 // ---------------------------------------------------------------------------
 // Export graph view as PNG
 // ---------------------------------------------------------------------------
-import type * as PIXI from "pixi.js";
+import type { CanvasApp } from "../views/canvas2d";
 
 /**
- * Extract the current PIXI world container as a PNG Blob.
+ * Extract the current Canvas 2D graph view as a PNG Blob.
  *
- * Uses PIXI v7 renderer.extract API to capture the world container,
- * then converts the resulting canvas to a PNG blob.
+ * With the Canvas 2D adapter, `app.view` is already an HTMLCanvasElement,
+ * so we can convert it directly to a PNG blob without any extraction step.
  *
- * @param app - The PIXI.Application instance
- * @param worldContainer - The world container holding all graph elements
+ * @param app - The CanvasApp instance
  * @returns A Promise resolving to a PNG Blob
  */
 export async function exportGraphAsPng(
-  app: PIXI.Application,
-  worldContainer: PIXI.Container,
+  app: CanvasApp,
 ): Promise<Blob> {
-  const canvas = app.renderer.extract.canvas(worldContainer) as HTMLCanvasElement;
+  const canvas = app.view;
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(

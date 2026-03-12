@@ -1,4 +1,4 @@
-import * as PIXI from "pixi.js";
+import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { GraphNode } from "../types";
 import type { PixiNode } from "./InteractionManager";
 import { getNodeShape, drawShape, drawShapeAt } from "../utils/node-shapes";
@@ -24,14 +24,14 @@ export function darkenColor(hex: number, factor: number): number {
 // RenderHost — the interface the RenderPipeline needs from its parent
 // ---------------------------------------------------------------------------
 export interface RenderHost {
-  /** Get the PIXI application */
-  getPixiApp(): PIXI.Application | null;
+  /** Get the CanvasApp instance */
+  getPixiApp(): CanvasApp | null;
   /** Get the PIXI node map */
   getPixiNodes(): Map<string, PixiNode>;
   /** Get the world container */
-  getWorldContainer(): PIXI.Container | null;
+  getWorldContainer(): CanvasContainer | null;
   /** Get the batch graphics layer for non-highlighted node circles */
-  getNodeCircleBatch(): PIXI.Graphics | null;
+  getNodeCircleBatch(): CanvasGraphics | null;
   /** Get the degrees map */
   getDegrees(): Map<string, number>;
   /** Get the label color for PIXI text */
@@ -316,9 +316,9 @@ export class RenderPipeline {
     n: GraphNode,
     nodeR: (n: GraphNode) => number,
     nodeColor: (n: GraphNode) => number,
-    world: PIXI.Container,
+    world: CanvasContainer,
   ) {
-    const container = new PIXI.Container();
+    const container = new CanvasContainer();
     container.x = n.x;
     container.y = n.y;
 
@@ -328,7 +328,7 @@ export class RenderPipeline {
     const rawR = isSuperNode ? Math.max(nodeR(n), nodeR(n) * (1 + Math.sqrt(memberCount) * 0.5)) : nodeR(n);
     const r = Math.min(rawR, MAX_NODE_RADIUS);
     const color = nodeColor(n);
-    const circle = new PIXI.Graphics();
+    const circle = new CanvasGraphics();
     if (isSuperNode) {
       // Draw double circle for super nodes (visible immediately)
       circle.lineStyle(2, color, 1);
@@ -344,17 +344,16 @@ export class RenderPipeline {
     }
     container.addChild(circle);
 
-    let label: PIXI.Text | null = null;
+    let label: CanvasText | null = null;
     const degrees = this.host.getDegrees();
     const deg = degrees.get(n.id) || 0;
     if (isSuperNode || deg > this.pendingLabelThreshold) {
-      label = new PIXI.Text(n.label, {
+      label = new CanvasText(n.label, {
         fontSize: 11, fill: this.host.getLabelColor(),
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
       });
       label.x = r + 2;
       label.y = -6;
-      label.resolution = 2;
       container.addChild(label);
     }
 

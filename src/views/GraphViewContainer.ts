@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf, Platform, TFile, setIcon } from "obsidian";
-import * as PIXI from "pixi.js";
+import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
 import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule } from "../types";
@@ -87,20 +87,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private simulation: Simulation<GraphNode, GraphEdge> | null = null;
   private highlightedNodeId: string | null = null;
 
-  // PIXI
-  private pixiApp: PIXI.Application | null = null;
-  private worldContainer: PIXI.Container | null = null;
-  private edgeGraphics: PIXI.Graphics | null = null;
-  private orbitGraphics: PIXI.Graphics | null = null;
-  private enclosureGraphics: PIXI.Graphics | null = null;
-  private enclosureLabelContainer: PIXI.Container | null = null;
-  private sunburstGraphics: PIXI.Graphics | null = null;
-  private edgeLabelContainer: PIXI.Container | null = null;
-  private nodeCircleBatch: PIXI.Graphics | null = null;
-  private arrowGraphics: PIXI.Graphics | null = null;
-  private guideLineGraphics: PIXI.Graphics | null = null;
-  private groupGridGraphics: PIXI.Graphics | null = null;
-  private barGraphics: PIXI.Graphics | null = null;
+  // Canvas 2D
+  private pixiApp: CanvasApp | null = null;
+  private worldContainer: CanvasContainer | null = null;
+  private edgeGraphics: CanvasGraphics | null = null;
+  private orbitGraphics: CanvasGraphics | null = null;
+  private enclosureGraphics: CanvasGraphics | null = null;
+  private enclosureLabelContainer: CanvasContainer | null = null;
+  private sunburstGraphics: CanvasGraphics | null = null;
+  private edgeLabelContainer: CanvasContainer | null = null;
+  private nodeCircleBatch: CanvasGraphics | null = null;
+  private arrowGraphics: CanvasGraphics | null = null;
+  private guideLineGraphics: CanvasGraphics | null = null;
+  private groupGridGraphics: CanvasGraphics | null = null;
+  private barGraphics: CanvasGraphics | null = null;
   private pixiNodes: Map<string, PixiNode> = new Map();
   private canvasWrap: HTMLElement | null = null;
   private graphEdges: GraphEdge[] = [];
@@ -115,7 +115,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private skipPanelRebuildCount = 0;
   /** tag name → set of file node IDs that have this tag */
   private tagMembership: Map<string, Set<string>> = new Map();
-  private enclosureLabels: Map<string, PIXI.Text> = new Map();
+  private enclosureLabels: Map<string, CanvasText> = new Map();
   private overlapCache: OverlapCache = { frame: 0, counts: new Map() };
   /** Cluster metadata for edge bundling (updated when cluster force is applied) */
   private clusterMeta: ClusterMetadata | null = null;
@@ -125,7 +125,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Interaction manager (owns pointer events, drag, pan, hover, marquee, shell rotation)
   private interactionManager: InteractionManager | null = null;
 
-  // Render pipeline (owns render loop, PIXI node creation, batch drawing)
+  // Render pipeline (owns render loop, Canvas 2D node creation, batch drawing)
   private renderPipeline: RenderPipeline | null = null;
 
   // Minimap overlay
@@ -170,7 +170,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Marquee button reference (for toolbar toggle styling)
   private marqueeBtnEl: HTMLElement | null = null;
 
-  // Sunburst layout arc data for PIXI rendering
+  // Sunburst layout arc data for Canvas 2D rendering
   private sunburstLayoutArcs: LayoutSunburstArc[] = [];
   private sunburstCenter = { x: 0, y: 0 };
 
@@ -364,7 +364,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       exportBtn.setAttribute("aria-label", t("toolbar.exporting"));
       try {
         const { exportGraphAsPng, downloadBlob, makeExportFilename } = await import("../utils/export-png");
-        const blob = await exportGraphAsPng(this.pixiApp, this.worldContainer);
+        const blob = await exportGraphAsPng(this.pixiApp);
         downloadBlob(blob, makeExportFilename());
       } catch (e) {
         console.error("Graph Island: PNG export failed", e);
@@ -401,7 +401,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.panelEl = main.createDiv({ cls: "graph-panel is-hidden" });
     this.buildPanel();
 
-    // --- Resize observer for PIXI canvas ---
+    // --- Resize observer for Canvas 2D ---
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
     this.resizeObserver.observe(canvasArea);
 
@@ -410,13 +410,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.app.workspace.on("active-leaf-change", (leaf) => {
         if (leaf !== this.leaf) return;
         if (this.pixiApp) {
-          // Just wake the render loop & resize — don't recreate PIXI
+          // Just wake the render loop & resize — don't recreate canvas
           this.markDirty();
         }
       })
     );
 
-    // Theme / CSS snippet change — invalidate color caches and update PIXI background
+    // Theme / CSS snippet change — invalidate color caches and update canvas background
     this.registerEvent(
       this.app.workspace.on("css-change" as any, () => {
         this.invalidateThemeCache();
@@ -480,7 +480,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   // =========================================================================
-  // PIXI lifecycle
+  // Canvas 2D lifecycle
   // =========================================================================
   private destroyPixi() {
     if (this.renderPipeline) {
@@ -491,7 +491,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.minimap.destroy();
       this.minimap = null;
     }
-    // Clean up enclosure labels before PIXI destroy (they reference PIXI objects)
+    // Clean up enclosure labels before canvas destroy
     for (const lbl of this.enclosureLabels.values()) {
       try { lbl.destroy(); } catch { /* already destroyed */ }
     }
@@ -519,9 +519,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.spatialGrid.clear();
     if (this.pixiApp) {
       try {
-        this.pixiApp.destroy(true, { children: true, texture: true });
+        this.pixiApp.destroy();
       } catch {
-        // PIXI internal state may already be partially torn down
+        // Canvas app state may already be partially torn down
       }
       this.pixiApp = null;
     }
@@ -532,11 +532,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const rect = this.canvasWrap.getBoundingClientRect();
     const w = rect.width || 600;
     const h = rect.height || 400;
-    this.pixiApp.renderer.resize(w, h);
+    this.pixiApp.resize(w, h);
     this.markDirty();
   }
 
-  private initPixi(width: number, height: number): PIXI.Application | null {
+  private initPixi(width: number, height: number): CanvasApp | null {
     try {
       this.destroyPixi();
       if (this.canvasWrap) this.canvasWrap.empty();
@@ -549,79 +549,77 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         || style.getPropertyValue("--background-primary").trim();
       if (bgStr) { try { bgColor = cssColorToHex(bgStr); } catch { /* keep default */ } }
 
-      const app = new PIXI.Application({
+      const app = new CanvasApp({
         width,
         height,
         backgroundColor: bgColor,
-        antialias: true,
         resolution: window.devicePixelRatio || 1,
-        autoDensity: true,
       });
 
-      this.canvasWrap!.appendChild(app.view as HTMLCanvasElement);
-      const canvas = app.view as HTMLCanvasElement;
+      this.canvasWrap!.appendChild(app.view);
+      const canvas = app.view;
       canvas.style.width = "100%";
       canvas.style.height = "100%";
 
       this.pixiApp = app;
 
       // World container (for zoom/pan)
-      const world = new PIXI.Container();
+      const world = new CanvasContainer();
       app.stage.addChild(world);
       this.worldContainer = world;
 
       // Orbit ring layer (drawn behind edges)
-      const orbitGfx = new PIXI.Graphics();
+      const orbitGfx = new CanvasGraphics();
       world.addChild(orbitGfx);
       this.orbitGraphics = orbitGfx;
 
       // Sunburst arc guide lines (drawn behind enclosures)
-      const sunburstGfx = new PIXI.Graphics();
+      const sunburstGfx = new CanvasGraphics();
       world.addChild(sunburstGfx);
       this.sunburstGraphics = sunburstGfx;
 
       // Guide line layer (arrangement guides — timeline axis, spiral curve, grid lines, etc.)
-      const guideGfx = new PIXI.Graphics();
+      const guideGfx = new CanvasGraphics();
       world.addChild(guideGfx);
       this.guideLineGraphics = guideGfx;
 
       // Group grid overlay (bounding circle + cross-hair per cluster group)
-      const groupGridGfx = new PIXI.Graphics();
+      const groupGridGfx = new CanvasGraphics();
       world.addChild(groupGridGfx);
       this.groupGridGraphics = groupGridGfx;
 
       // Enclosure layer (tag enclosures, drawn behind edges)
-      const enclosureGfx = new PIXI.Graphics();
+      const enclosureGfx = new CanvasGraphics();
       world.addChild(enclosureGfx);
       this.enclosureGraphics = enclosureGfx;
 
       // Edge layer (single Graphics object — batch drawn)
-      const edgeGfx = new PIXI.Graphics();
+      const edgeGfx = new CanvasGraphics();
       world.addChild(edgeGfx);
       this.edgeGraphics = edgeGfx;
 
-      // Edge label layer (PIXI.Text objects — on top of edges, below nodes)
-      const edgeLabelCont = new PIXI.Container();
+      // Edge label layer (CanvasText objects — on top of edges, below nodes)
+      const edgeLabelCont = new CanvasContainer();
       world.addChild(edgeLabelCont);
       this.edgeLabelContainer = edgeLabelCont;
 
       // Timeline duration bar layer (drawn behind node circles)
-      const barGfx = new PIXI.Graphics();
+      const barGfx = new CanvasGraphics();
       world.addChild(barGfx);
       this.barGraphics = barGfx;
 
       // Batch node circle layer — draws all non-highlighted circles in one draw call
-      const batchGfx = new PIXI.Graphics();
+      const batchGfx = new CanvasGraphics();
       world.addChild(batchGfx);
       this.nodeCircleBatch = batchGfx;
 
       // Arrow layer — drawn ON TOP of nodes so directional arrows are visible
-      const arrowGfx = new PIXI.Graphics();
+      const arrowGfx = new CanvasGraphics();
       world.addChild(arrowGfx);
       this.arrowGraphics = arrowGfx;
 
       // Enclosure label container — on top of nodes so labels are visible & hoverable
-      const labelContainer = new PIXI.Container();
+      const labelContainer = new CanvasContainer();
       world.addChild(labelContainer);
       this.enclosureLabelContainer = labelContainer;
 
@@ -629,7 +627,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.interactionManager?.detach();
     this.interactionManager = new InteractionManager(this, canvas, world);
 
-    // Set up render pipeline (render loop, PIXI node creation, batch drawing)
+    // Set up render pipeline (render loop, Canvas 2D node creation, batch drawing)
     this.renderPipeline = new RenderPipeline(this);
 
     // Set up minimap overlay
@@ -669,7 +667,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
       return app;
     } catch (err) {
-      console.error("[Graph Island] Failed to initialize PIXI renderer:", err);
+      console.error("[Graph Island] Failed to initialize Canvas 2D renderer:", err);
       if (this.canvasWrap) {
         this.canvasWrap.empty();
         this.canvasWrap.createEl("div", {
@@ -691,7 +689,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getNodeShellIndex(): Map<string, number> { return this.nodeShellIndex; }
   getPixiNodes(): Map<string, PixiNode> { return this.pixiNodes; }
   getSimulation(): Simulation<GraphNode, GraphEdge> | null { return this.simulation; }
-  getPixiApp(): PIXI.Application | null { return this.pixiApp; }
+  getPixiApp(): CanvasApp | null { return this.pixiApp; }
   openFile(filePath: string) { this.app.workspace.openLinkText(filePath, "", false); }
   handleSuperNodeDblClick(pn: import("./InteractionManager").PixiNode): boolean {
     // Expand collapsed super node
@@ -735,8 +733,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return allGroups;
   }
 
-  getWorldContainer(): PIXI.Container | null { return this.worldContainer; }
-  getNodeCircleBatch(): PIXI.Graphics | null { return this.nodeCircleBatch; }
+  getWorldContainer(): CanvasContainer | null { return this.worldContainer; }
+  getNodeCircleBatch(): CanvasGraphics | null { return this.nodeCircleBatch; }
   getDegrees(): Map<string, number> { return this.degrees; }
   getPrevHighlightSet(): Set<string> { return this.prevHighlightSet; }
   getEphemeralHighlight(): Set<string> | null { return this.ephemeralHighlight; }
@@ -752,7 +750,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getSettingsDirectionalGravityRules(): DirectionalGravityRule[] {
     return this.plugin.settings.directionalGravityRules ?? [];
   }
-  setClusterMeta(meta: ClusterMetadata | null) { this.clusterMeta = meta; }
+  setClusterMeta(meta: ClusterMetadata | null) {
+    this.clusterMeta = meta;
+    // Merge/remove synthetic sequence edges from graphEdges
+    // First remove any existing synthetic sequence edges
+    this.graphEdges = this.graphEdges.filter(e => !e.id.startsWith("__seq__"));
+    // Then add new ones from the cluster metadata
+    if (meta?.sequenceEdges && meta.sequenceEdges.length > 0) {
+      this.graphEdges = [...this.graphEdges, ...meta.sequenceEdges];
+    }
+  }
   getNodeProperty(nodeId: string, key: string): string | undefined {
     const pn = this.pixiNodes.get(nodeId);
     const fp = pn?.data.filePath;
@@ -807,6 +814,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
       }
     }
+
+    // If no circle hit, check timeline duration bars (rectangles)
+    if (!closest) {
+      const bars = this.clusterMeta?.timelineBars;
+      if (bars && bars.length > 0) {
+        for (const bar of bars) {
+          const halfH = bar.barHeight / 2;
+          if (wx >= bar.xStart && wx <= bar.xEnd &&
+              wy >= bar.yCenter - halfH && wy <= bar.yCenter + halfH) {
+            const pn = this.pixiNodes.get(bar.nodeId);
+            if (pn) { closest = pn; break; }
+          }
+        }
+      }
+    }
+
     return closest;
   }
 
@@ -836,7 +859,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 
   // =========================================================================
-  // Hover highlight (PIXI)
+  // Hover highlight (Canvas 2D)
   // =========================================================================
   applyHover() {
     const hId = this.highlightedNodeId;
@@ -888,7 +911,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         pn.gfx.alpha = 1;
         this.drawNodeCircle(pn, true);
         if (!pn.label && !pn.hoverLabel) {
-          const hl = new PIXI.Text(pn.data.label, {
+          const hl = new CanvasText(pn.data.label, {
             fontSize: 11, fill: this.getLabelColor(),
             fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
           });
@@ -987,13 +1010,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.cachedIsDark = null;
     this.cachedAccentColor = null;
 
-    // Update PIXI renderer background color
+    // Update canvas background color
     if (this.pixiApp) {
       const el = this.canvasWrap ?? this.containerEl;
       const bgStr = getComputedStyle(el).getPropertyValue("--graph-background").trim()
         || getComputedStyle(el).getPropertyValue("--background-primary").trim();
       if (bgStr) {
-        try { this.pixiApp.renderer.background.color = cssColorToHex(bgStr); } catch { /* ignore */ }
+        try { this.pixiApp.setBackgroundColor(cssColorToHex(bgStr)); } catch { /* ignore */ }
       }
     }
 
@@ -1226,7 +1249,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Draw an arc line (stroke only, no fill) */
   private drawArcLine(
-    gfx: PIXI.Graphics,
+    gfx: CanvasGraphics,
     cx: number, cy: number,
     r: number,
     startAngle: number, endAngle: number,
@@ -1244,7 +1267,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Draw a baumkuchen-shaped arc path (annular sector) for fills */
   private drawArcPath(
-    gfx: PIXI.Graphics,
+    gfx: CanvasGraphics,
     cx: number, cy: number,
     rInner: number, rOuter: number,
     startAngle: number, endAngle: number,
@@ -1445,7 +1468,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   private drawTimelineAxis(
-    g: PIXI.Graphics, cx: number, cy: number,
+    g: CanvasGraphics, cx: number, cy: number,
     guide: Extract<ArrangementGuide, { type: "timeline" }>,
     lineW: number, color: number, worldScale: number,
   ) {
@@ -1472,7 +1495,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   private drawSpiralCurve(
-    g: PIXI.Graphics, cx: number, cy: number,
+    g: CanvasGraphics, cx: number, cy: number,
     guide: Extract<ArrangementGuide, { type: "spiral" }>,
     lineW: number, color: number,
   ) {
@@ -1498,7 +1521,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   private drawGridLines(
-    g: PIXI.Graphics, cx: number, cy: number,
+    g: CanvasGraphics, cx: number, cy: number,
     guide: Extract<ArrangementGuide, { type: "grid" }>,
     lineW: number, color: number,
   ) {
@@ -1522,7 +1545,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   private drawTreeDepthLines(
-    g: PIXI.Graphics, cx: number, cy: number,
+    g: CanvasGraphics, cx: number, cy: number,
     guide: Extract<ArrangementGuide, { type: "tree" }>,
     lineW: number, color: number,
   ) {
@@ -1546,7 +1569,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   private drawTriangleOutline(
-    g: PIXI.Graphics, cx: number, cy: number,
+    g: CanvasGraphics, cx: number, cy: number,
     guide: Extract<ArrangementGuide, { type: "triangle" }>,
     lineW: number, color: number,
   ) {
@@ -1559,7 +1582,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   private drawMountainSilhouette(
-    g: PIXI.Graphics, cx: number, cy: number,
+    g: CanvasGraphics, cx: number, cy: number,
     guide: Extract<ArrangementGuide, { type: "mountain" }>,
     lineW: number, color: number,
   ) {
@@ -1667,8 +1690,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const stage = this.pixiApp!.stage;
 
     // Convert screen-space rectangle corners to world coordinates
-    const topLeft = world.toLocal(new PIXI.Point(sx, sy), stage);
-    const bottomRight = world.toLocal(new PIXI.Point(sx + sw, sy + sh), stage);
+    const topLeft = world.toLocal({ x: sx, y: sy }, stage);
+    const bottomRight = world.toLocal({ x: sx + sw, y: sy + sh }, stage);
 
     const worldW = bottomRight.x - topLeft.x;
     const worldH = bottomRight.y - topLeft.y;
@@ -1688,7 +1711,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!world || !wrap) return;
     const cx = wrap.clientWidth / 2;
     const cy = wrap.clientHeight / 2;
-    const worldPos = world.toLocal(new PIXI.Point(cx, cy), this.pixiApp!.stage);
+    const worldPos = world.toLocal({ x: cx, y: cy }, this.pixiApp!.stage);
     const s = Math.max(0.02, Math.min(10, world.scale.x * factor));
     world.scale.set(s);
     const newScreen = world.toGlobal(worldPos);
@@ -1994,7 +2017,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.setStatus(`${gd.nodes.length} nodes, ${gd.edges.length} edges`);
     await yieldFrame(); if (signal.aborted) return;
 
-    // Init PIXI
+    // Init Canvas 2D
     const pixiResult = this.initPixi(W, H);
     if (!pixiResult) return;
     if (signal.aborted) { this.destroyPixi(); return; }
@@ -2227,7 +2250,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private updateForces() { this.layoutController.updateForces(); }
   private applyNodeRulesForce() { this.layoutController.applyNodeRulesForce(); }
   private applyEnclosureRepulsionForce() { this.layoutController.applyEnclosureRepulsionForce(); }
-  private applyClusterForce() { this.layoutController.applyClusterForce(); }
+  private applyClusterForce() {
+    this.layoutController.applyClusterForce();
+    // Schedule auto-fit after arrangement changes so layout fills the viewport
+    if (this.canvasWrap) {
+      const wrap = this.canvasWrap;
+      clearTimeout(this._autoFitTimer);
+      this._autoFitTimer = window.setTimeout(() => {
+        this.autoFitView(wrap.clientWidth, wrap.clientHeight);
+        this.markDirty();
+      }, 600);
+    }
+  }
+  private _autoFitTimer: number = 0;
   private buildSortComparator(nodes: GraphNode[], edges: GraphEdge[]) { return this.layoutController.buildSortComparator(nodes, edges); }
   private computeNodeSpacingMap(nodes: GraphNode[]) { return this.layoutController.computeNodeSpacingMap(nodes); }
   private computeLiveCentroids() { return this.layoutController.computeLiveCentroids(this.clusterMeta); }
@@ -2377,11 +2412,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   // =========================================================================
-  // Sunburst layout arc rendering (PIXI)
+  // Sunburst layout arc rendering (Canvas 2D)
   // =========================================================================
 
   /**
-   * Draw sunburst layout arcs behind nodes using PIXI.Graphics.
+   * Draw sunburst layout arcs behind nodes using CanvasGraphics.
    * Called from updatePositions when sunburst layout is active.
    */
   private drawSunburstLayoutArcs() {
@@ -2442,12 +2477,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   /** Sunburst label container for category names */
-  private sunburstLabelContainer: PIXI.Container | null = null;
-  private sunburstLabels: Map<string, PIXI.Text> = new Map();
+  private sunburstLabelContainer: CanvasContainer | null = null;
+  private sunburstLabels: Map<string, CanvasText> = new Map();
 
   private drawSunburstLabels(arcs: LayoutSunburstArc[], cx: number, cy: number) {
     if (!this.sunburstLabelContainer && this.worldContainer) {
-      this.sunburstLabelContainer = new PIXI.Container();
+      this.sunburstLabelContainer = new CanvasContainer();
       this.worldContainer.addChild(this.sunburstLabelContainer);
     }
     const container = this.sunburstLabelContainer;
@@ -2472,7 +2507,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const lx = cx + midRadius * Math.cos(midAngle);
       const ly = cy + midRadius * Math.sin(midAngle);
 
-      const text = new PIXI.Text(arc.name, {
+      const text = new CanvasText(arc.name, {
         fontSize,
         fill: textColor,
         fontWeight: "bold",

@@ -1,4 +1,4 @@
-import * as PIXI from "pixi.js";
+import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import { Platform } from "obsidian";
 import type { GraphNode, LayoutType, ShellInfo } from "../types";
 import { repositionShell } from "../layouts/concentric";
@@ -9,10 +9,10 @@ import type { Simulation } from "d3-force";
 // ---------------------------------------------------------------------------
 export interface PixiNode {
   data: GraphNode;
-  gfx: PIXI.Container;
-  circle: PIXI.Graphics;
-  label: PIXI.Text | null;
-  hoverLabel: PIXI.Text | null;
+  gfx: CanvasContainer;
+  circle: CanvasGraphics;
+  label: CanvasText | null;
+  hoverLabel: CanvasText | null;
   radius: number;
   color: number;
   held: boolean;
@@ -50,8 +50,8 @@ export interface InteractionHost {
   getAccentColor(): number;
   /** Zoom the view to fit a screen-space rectangle */
   zoomToScreenRect(sx: number, sy: number, sw: number, sh: number): void;
-  /** The PIXI application (for coordinate transforms) */
-  getPixiApp(): PIXI.Application | null;
+  /** The CanvasApp instance (for coordinate transforms) */
+  getPixiApp(): CanvasApp | null;
   /** Handle double-click on a super node (collapsed group) — returns true if handled */
   handleSuperNodeDblClick(pn: PixiNode): boolean;
 }
@@ -62,7 +62,7 @@ export interface InteractionHost {
 export class InteractionManager {
   private host: InteractionHost;
   private canvas: HTMLCanvasElement;
-  private world: PIXI.Container;
+  private world: CanvasContainer;
 
   // Interaction state
   private draggedNode: PixiNode | null = null;
@@ -81,7 +81,7 @@ export class InteractionManager {
   marqueeMode = false;
   private isMarqueeActive = false;
   private marqueeStart = { x: 0, y: 0 };
-  private marqueeGraphics: PIXI.Graphics | null = null;
+  private marqueeGraphics: CanvasGraphics | null = null;
 
   // Bound handlers for removal
   private _onWheel: (e: WheelEvent) => void;
@@ -91,7 +91,7 @@ export class InteractionManager {
   private _onPointerLeave: () => void;
   private _onDblClick: ((e: MouseEvent) => void) | null = null;
 
-  constructor(host: InteractionHost, canvas: HTMLCanvasElement, world: PIXI.Container) {
+  constructor(host: InteractionHost, canvas: HTMLCanvasElement, world: CanvasContainer) {
     this.host = host;
     this.canvas = canvas;
     this.world = world;
@@ -144,7 +144,7 @@ export class InteractionManager {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
-    const worldPos = world.toLocal(new PIXI.Point(mx, my), app.stage);
+    const worldPos = world.toLocal({ x: mx, y: my }, app.stage);
     world.scale.x *= scaleFactor;
     world.scale.y *= scaleFactor;
     // Clamp scale
@@ -168,7 +168,7 @@ export class InteractionManager {
     const rect = this.canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
-    const worldPt = world.toLocal(new PIXI.Point(mx, my), app.stage);
+    const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
 
     const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
     if (hit) {
@@ -204,7 +204,7 @@ export class InteractionManager {
       this.isMarqueeActive = true;
       this.marqueeStart = { x: mx, y: my };
       if (!this.marqueeGraphics) {
-        this.marqueeGraphics = new PIXI.Graphics();
+        this.marqueeGraphics = new CanvasGraphics();
         app.stage.addChild(this.marqueeGraphics);
       }
       this.marqueeGraphics.clear();
@@ -230,7 +230,7 @@ export class InteractionManager {
 
     if (this.rotatingShellIdx !== null) {
       this.hasDragged = true;
-      const worldPt = world.toLocal(new PIXI.Point(mx, my), app.stage);
+      const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
       const shell = this.host.getShells()[this.rotatingShellIdx];
       const currentAngle = Math.atan2(worldPt.y - shell.centerY, worldPt.x - shell.centerX);
       shell.angleOffset = this.rotateStartOffset + (currentAngle - this.rotateStartAngle);
@@ -240,7 +240,7 @@ export class InteractionManager {
       this.host.markDirty();
     } else if (this.draggedNode) {
       this.hasDragged = true;
-      const worldPt = world.toLocal(new PIXI.Point(mx, my), app.stage);
+      const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
       const nx = worldPt.x - this.dragOffset.x;
       const ny = worldPt.y - this.dragOffset.y;
       this.draggedNode.data.x = nx;
@@ -269,7 +269,7 @@ export class InteractionManager {
       this.host.markDirty();
     } else {
       // Hover
-      const worldPt = world.toLocal(new PIXI.Point(mx, my), app.stage);
+      const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
       const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
       const newId = hit?.data.id ?? null;
       if (newId !== this.host.getHighlightedNodeId()) {
@@ -364,7 +364,7 @@ export class InteractionManager {
     const rect = this.canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
-    const worldPt = this.world.toLocal(new PIXI.Point(mx, my), app.stage);
+    const worldPt = this.world.toLocal({ x: mx, y: my }, app.stage);
     const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
     if (!hit) return;
     // Handle super node expand/collapse first
