@@ -468,10 +468,14 @@ export function buildPanel(
 
     const axisSourceOptions = [
       { value: "index", label: "index" },
+      { value: "field", label: t("coord.field") },
       { value: "property", label: t("coord.property") },
       { value: "degree", label: "degree" },
+      { value: "in-degree", label: "in-degree" },
+      { value: "out-degree", label: "out-degree" },
       { value: "bfs-depth", label: "BFS depth" },
       { value: "sibling-rank", label: "sibling rank" },
+      { value: "hop", label: "hop" },
       { value: "random", label: "random" },
       { value: "const", label: "const" },
     ];
@@ -490,27 +494,8 @@ export function buildPanel(
       cb.restartSimulation(0.5);
     });
 
-    if (coordLayout.axis1.source.kind === "property") {
-      const propRow = body.createDiv({ cls: "gi-setting-row" });
-      propRow.createEl("span", { cls: "gi-setting-label", text: `${axis1Label} ${t("coord.propertyKey")}` });
-      const propInput = propRow.createEl("input", { cls: "gi-setting-input", type: "text" });
-      propInput.value = (coordLayout.axis1.source as { kind: "property"; key: string }).key;
-      propInput.placeholder = "date";
-      attachDatalist(propInput, ctx.frontmatterKeys);
-      propInput.addEventListener("change", () => {
-        const base = panel.coordinateLayout
-          ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
-        panel.coordinateLayout = {
-          ...base,
-          axis1: {
-            ...base.axis1,
-            source: { kind: "property", key: propInput.value.trim() || "date" },
-          },
-        };
-        cb.applyClusterForce();
-        cb.restartSimulation(0.5);
-      });
-    }
+    // Axis1 sub-inputs: field, property, hop
+    buildAxisSubInput(body, axis1Label, coordLayout.axis1, 1, panel, cb, ctx);
 
     addSelect(body, `${axis2Label}:`, axisSourceOptions,
       getSourceValue(coordLayout.axis2.source), (v) => {
@@ -526,27 +511,8 @@ export function buildPanel(
       cb.restartSimulation(0.5);
     });
 
-    if (coordLayout.axis2.source.kind === "property") {
-      const propRow2 = body.createDiv({ cls: "gi-setting-row" });
-      propRow2.createEl("span", { cls: "gi-setting-label", text: `${axis2Label} ${t("coord.propertyKey")}` });
-      const propInput2 = propRow2.createEl("input", { cls: "gi-setting-input", type: "text" });
-      propInput2.value = (coordLayout.axis2.source as { kind: "property"; key: string }).key;
-      propInput2.placeholder = "end-date";
-      attachDatalist(propInput2, ctx.frontmatterKeys);
-      propInput2.addEventListener("change", () => {
-        const base = panel.coordinateLayout
-          ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
-        panel.coordinateLayout = {
-          ...base,
-          axis2: {
-            ...base.axis2,
-            source: { kind: "property", key: propInput2.value.trim() || "end-date" },
-          },
-        };
-        cb.applyClusterForce();
-        cb.restartSimulation(0.5);
-      });
-    }
+    // Axis2 sub-inputs: field, property, hop
+    buildAxisSubInput(body, axis2Label, coordLayout.axis2, 2, panel, cb, ctx);
 
     addToggle(body, t("coord.perGroup"), coordLayout.perGroup, (v) => {
       const base = panel.coordinateLayout
@@ -963,24 +929,88 @@ function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
   }
 }
 
+/** Render sub-input row for field/property/hop axis sources */
+function buildAxisSubInput(
+  body: HTMLElement,
+  axisLabel: string,
+  axisCfg: AxisConfig,
+  axisNum: 1 | 2,
+  panel: PanelState,
+  cb: PanelCallbacks,
+  ctx: PanelContext,
+) {
+  const src = axisCfg.source;
+  const axisKey = axisNum === 1 ? "axis1" : "axis2";
+
+  const applySource = (newSource: AxisSource) => {
+    const base = panel.coordinateLayout
+      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+    panel.coordinateLayout = {
+      ...base,
+      [axisKey]: { ...base[axisKey], source: newSource },
+    };
+    cb.applyClusterForce();
+    cb.restartSimulation(0.5);
+  };
+
+  if (src.kind === "field") {
+    const row = body.createDiv({ cls: "gi-setting-row" });
+    row.createEl("span", { cls: "gi-setting-label", text: `${axisLabel} ${t("coord.fieldName")}` });
+    const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
+    input.value = src.field;
+    input.placeholder = "folder";
+    attachDatalist(input, getUnifiedFieldSuggestions(ctx));
+    input.addEventListener("change", () => {
+      applySource({ kind: "field", field: input.value.trim() || "folder" });
+    });
+  }
+
+  if (src.kind === "property") {
+    const row = body.createDiv({ cls: "gi-setting-row" });
+    row.createEl("span", { cls: "gi-setting-label", text: `${axisLabel} ${t("coord.propertyKey")}` });
+    const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
+    input.value = (src as { kind: "property"; key: string }).key;
+    input.placeholder = axisNum === 1 ? "date" : "end-date";
+    attachDatalist(input, ctx.frontmatterKeys);
+    input.addEventListener("change", () => {
+      applySource({ kind: "property", key: input.value.trim() || "date" });
+    });
+  }
+
+  if (src.kind === "hop") {
+    const row = body.createDiv({ cls: "gi-setting-row" });
+    row.createEl("span", { cls: "gi-setting-label", text: `${axisLabel} ${t("coord.hopFrom")}` });
+    const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
+    input.value = src.from;
+    input.placeholder = "node-id";
+    input.addEventListener("change", () => {
+      applySource({ kind: "hop", from: input.value.trim() });
+    });
+  }
+}
+
 function buildAxisSource(value: string, current: AxisConfig): AxisSource {
   switch (value) {
     case "index": return { kind: "index" };
+    case "field": return { kind: "field", field: current.source.kind === "field" ? current.source.field : "folder" };
     case "property": return { kind: "property", key: current.source.kind === "property" ? current.source.key : "date" };
     case "degree": return { kind: "metric", metric: "degree" };
     case "in-degree": return { kind: "metric", metric: "in-degree" };
     case "out-degree": return { kind: "metric", metric: "out-degree" };
     case "bfs-depth": return { kind: "metric", metric: "bfs-depth" };
     case "sibling-rank": return { kind: "metric", metric: "sibling-rank" };
+    case "hop": return { kind: "hop", from: current.source.kind === "hop" ? current.source.from : "" };
     case "random": return { kind: "random", seed: 42 };
     case "const": return { kind: "const", value: 1 };
-    default: return current.source; // "auto" keeps current
+    default: return current.source;
   }
 }
 
 function getSourceValue(src: AxisSource): string {
   if (src.kind === "metric") return src.metric;
   if (src.kind === "property") return "property";
+  if (src.kind === "field") return "field";
+  if (src.kind === "hop") return "hop";
   return src.kind;
 }
 
