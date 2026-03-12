@@ -60,6 +60,12 @@ export const ARRANGEMENT_PRESETS: Record<ClusterArrangement, CoordinateLayout> =
     axis2: { source: { kind: "index" }, transform: { kind: "stack-avoid" } },
     perGroup: true,
   },
+  custom: {
+    system: "cartesian",
+    axis1: { source: { kind: "field", field: "folder" }, transform: { kind: "linear", scale: 1 } },
+    axis2: { source: { kind: "metric", metric: "degree" }, transform: { kind: "linear", scale: 1 } },
+    perGroup: true,
+  },
 };
 
 /**

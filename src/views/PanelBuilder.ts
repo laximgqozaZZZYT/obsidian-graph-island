@@ -439,9 +439,14 @@ export function buildPanel(
       { value: "mountain", label: t("cluster.mountain") },
       { value: "sunburst", label: t("cluster.sunburst") },
       { value: "timeline", label: t("cluster.timeline") },
+      { value: "custom", label: t("cluster.custom") },
     ], panel.clusterArrangement, (v) => {
       panel.clusterArrangement = v as ClusterArrangement;
-      panel.coordinateLayout = null; // Reset to use preset
+      // "custom" always sets coordinateLayout explicitly so the generic engine is used.
+      // Other presets reset to null to use hardcoded functions.
+      panel.coordinateLayout = v === "custom"
+        ? { ...ARRANGEMENT_PRESETS.custom }
+        : null;
       cb.applyClusterForce();
       cb.rebuildPanel();
       cb.restartSimulation(0.5);
@@ -466,53 +471,10 @@ export function buildPanel(
     const axis1Label = coordLayout.system === "polar" ? "r" : "X";
     const axis2Label = coordLayout.system === "polar" ? "θ" : "Y";
 
-    const axisSourceOptions = [
-      { value: "index", label: "index" },
-      { value: "field", label: t("coord.field") },
-      { value: "property", label: t("coord.property") },
-      { value: "degree", label: "degree" },
-      { value: "in-degree", label: "in-degree" },
-      { value: "out-degree", label: "out-degree" },
-      { value: "bfs-depth", label: "BFS depth" },
-      { value: "sibling-rank", label: "sibling rank" },
-      { value: "hop", label: "hop" },
-      { value: "random", label: "random" },
-      { value: "const", label: "const" },
-    ];
+    const axisSuggestions = getAxisSourceSuggestions(ctx);
 
-    addSelect(body, `${axis1Label}:`, axisSourceOptions,
-      getSourceValue(coordLayout.axis1.source), (v) => {
-      const base = panel.coordinateLayout
-        ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
-      const newSource = buildAxisSource(v, coordLayout.axis1);
-      panel.coordinateLayout = {
-        ...base,
-        axis1: { ...base.axis1, source: newSource },
-      };
-      cb.applyClusterForce();
-      cb.rebuildPanel();
-      cb.restartSimulation(0.5);
-    });
-
-    // Axis1 sub-inputs: field, property, hop
-    buildAxisSubInput(body, axis1Label, coordLayout.axis1, 1, panel, cb, ctx);
-
-    addSelect(body, `${axis2Label}:`, axisSourceOptions,
-      getSourceValue(coordLayout.axis2.source), (v) => {
-      const base = panel.coordinateLayout
-        ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
-      const newSource = buildAxisSource(v, coordLayout.axis2);
-      panel.coordinateLayout = {
-        ...base,
-        axis2: { ...base.axis2, source: newSource },
-      };
-      cb.applyClusterForce();
-      cb.rebuildPanel();
-      cb.restartSimulation(0.5);
-    });
-
-    // Axis2 sub-inputs: field, property, hop
-    buildAxisSubInput(body, axis2Label, coordLayout.axis2, 2, panel, cb, ctx);
+    buildAxisTextInput(body, `${axis1Label}:`, coordLayout.axis1, 1, panel, cb, ctx, axisSuggestions);
+    buildAxisTextInput(body, `${axis2Label}:`, coordLayout.axis2, 2, panel, cb, ctx, axisSuggestions);
 
     addToggle(body, t("coord.perGroup"), coordLayout.perGroup, (v) => {
       const base = panel.coordinateLayout
@@ -929,89 +891,138 @@ function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
   }
 }
 
-/** Render sub-input row for field/property/hop axis sources */
-function buildAxisSubInput(
+/** Unified axis source text input with autocomplete.
+ *  Users type a source descriptor string (e.g. "folder", "degree", "hop:name:5")
+ *  which is parsed into an AxisSource on change. */
+function buildAxisTextInput(
   body: HTMLElement,
   axisLabel: string,
   axisCfg: AxisConfig,
   axisNum: 1 | 2,
   panel: PanelState,
   cb: PanelCallbacks,
-  ctx: PanelContext,
+  _ctx: PanelContext,
+  suggestions: string[],
 ) {
-  const src = axisCfg.source;
   const axisKey = axisNum === 1 ? "axis1" : "axis2";
-
-  const applySource = (newSource: AxisSource) => {
+  const row = body.createDiv({ cls: "gi-setting-row" });
+  row.createEl("span", { cls: "gi-setting-label", text: axisLabel });
+  const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
+  input.value = axisSourceToString(axisCfg.source);
+  input.placeholder = t("coord.axisSourceHint");
+  attachDatalist(input, suggestions);
+  input.addEventListener("change", () => {
+    const parsed = parseAxisSourceString(input.value);
+    if (!parsed) return;
     const base = panel.coordinateLayout
       ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
     panel.coordinateLayout = {
       ...base,
-      [axisKey]: { ...base[axisKey], source: newSource },
+      [axisKey]: { ...base[axisKey], source: parsed },
     };
     cb.applyClusterForce();
+    cb.rebuildPanel();
     cb.restartSimulation(0.5);
-  };
+  });
+}
 
-  if (src.kind === "field") {
-    const row = body.createDiv({ cls: "gi-setting-row" });
-    row.createEl("span", { cls: "gi-setting-label", text: `${axisLabel} ${t("coord.fieldName")}` });
-    const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
-    input.value = src.field;
-    input.placeholder = "folder";
-    attachDatalist(input, getUnifiedFieldSuggestions(ctx));
-    input.addEventListener("change", () => {
-      applySource({ kind: "field", field: input.value.trim() || "folder" });
-    });
-  }
-
-  if (src.kind === "property") {
-    const row = body.createDiv({ cls: "gi-setting-row" });
-    row.createEl("span", { cls: "gi-setting-label", text: `${axisLabel} ${t("coord.propertyKey")}` });
-    const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
-    input.value = (src as { kind: "property"; key: string }).key;
-    input.placeholder = axisNum === 1 ? "date" : "end-date";
-    attachDatalist(input, ctx.frontmatterKeys);
-    input.addEventListener("change", () => {
-      applySource({ kind: "property", key: input.value.trim() || "date" });
-    });
-  }
-
-  if (src.kind === "hop") {
-    const row = body.createDiv({ cls: "gi-setting-row" });
-    row.createEl("span", { cls: "gi-setting-label", text: `${axisLabel} ${t("coord.hopFrom")}` });
-    const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
-    input.value = src.from;
-    input.placeholder = "node-id";
-    input.addEventListener("change", () => {
-      applySource({ kind: "hop", from: input.value.trim() });
-    });
-  }
+/** Generate autocomplete suggestions for axis source input */
+function getAxisSourceSuggestions(ctx: PanelContext): string[] {
+  const keywords = ["index", "degree", "in-degree", "out-degree", "bfs-depth", "sibling-rank", "random", "const"];
+  const fields = getUnifiedFieldSuggestions(ctx);
+  return [...keywords, ...fields, "hop:"];
 }
 
 function buildAxisSource(value: string, current: AxisConfig): AxisSource {
-  switch (value) {
-    case "index": return { kind: "index" };
-    case "field": return { kind: "field", field: current.source.kind === "field" ? current.source.field : "folder" };
-    case "property": return { kind: "property", key: current.source.kind === "property" ? current.source.key : "date" };
-    case "degree": return { kind: "metric", metric: "degree" };
-    case "in-degree": return { kind: "metric", metric: "in-degree" };
-    case "out-degree": return { kind: "metric", metric: "out-degree" };
-    case "bfs-depth": return { kind: "metric", metric: "bfs-depth" };
-    case "sibling-rank": return { kind: "metric", metric: "sibling-rank" };
-    case "hop": return { kind: "hop", from: current.source.kind === "hop" ? current.source.from : "" };
-    case "random": return { kind: "random", seed: 42 };
-    case "const": return { kind: "const", value: 1 };
-    default: return current.source;
-  }
+  return parseAxisSourceString(value) ?? current.source;
 }
 
 function getSourceValue(src: AxisSource): string {
-  if (src.kind === "metric") return src.metric;
-  if (src.kind === "property") return "property";
-  if (src.kind === "field") return "field";
-  if (src.kind === "hop") return "hop";
-  return src.kind;
+  return axisSourceToString(src);
+}
+
+// ---------------------------------------------------------------------------
+// Axis source string ↔ AxisSource conversion
+// ---------------------------------------------------------------------------
+// Supported syntax:
+//   index                       → { kind: "index" }
+//   random                      → { kind: "random", seed: 42 }
+//   random:123                  → { kind: "random", seed: 123 }
+//   const:5                     → { kind: "const", value: 5 }
+//   degree / in-degree / out-degree / bfs-depth / sibling-rank
+//                               → { kind: "metric", metric: "..." }
+//   hop:nodeName                → { kind: "hop", from: "nodeName" }
+//   hop:nodeName:5              → { kind: "hop", from: "nodeName", maxDepth: 5 }
+//   path / file / folder / tag / category / id / isTag
+//                               → { kind: "field", field: "..." }
+//   [anyFrontmatterKey]         → { kind: "field", field: "..." }
+// ---------------------------------------------------------------------------
+
+const METRIC_NAMES = new Set(["degree", "in-degree", "out-degree", "bfs-depth", "sibling-rank"]);
+const BUILT_IN_FIELDS = new Set(["path", "file", "folder", "tag", "category", "id", "isTag"]);
+
+export function parseAxisSourceString(s: string): AxisSource | null {
+  const trimmed = s.trim();
+  if (!trimmed) return null;
+
+  // Exact matches for keywords
+  if (trimmed === "index") return { kind: "index" };
+  if (METRIC_NAMES.has(trimmed)) return { kind: "metric", metric: trimmed as import("../types").MetricKind };
+
+  // random / random:seed
+  if (trimmed === "random") return { kind: "random", seed: 42 };
+  if (trimmed.startsWith("random:")) {
+    const seed = parseInt(trimmed.slice(7), 10);
+    return { kind: "random", seed: isNaN(seed) ? 42 : seed };
+  }
+
+  // const:value
+  if (trimmed.startsWith("const")) {
+    if (trimmed === "const") return { kind: "const", value: 1 };
+    if (trimmed.startsWith("const:")) {
+      const v = parseFloat(trimmed.slice(6));
+      return { kind: "const", value: isNaN(v) ? 1 : v };
+    }
+  }
+
+  // hop:from or hop:from:maxDepth
+  if (trimmed.startsWith("hop:")) {
+    const parts = trimmed.slice(4).split(":");
+    const from = parts[0] || "";
+    const maxDepth = parts[1] ? parseInt(parts[1], 10) : undefined;
+    return { kind: "hop", from, ...(maxDepth != null && !isNaN(maxDepth) ? { maxDepth } : {}) };
+  }
+  if (trimmed === "hop") return { kind: "hop", from: "" };
+
+  // Built-in fields (path, file, folder, tag, category, id, isTag)
+  if (BUILT_IN_FIELDS.has(trimmed)) return { kind: "field", field: trimmed };
+
+  // Anything else with ":" suffix pattern like "tag:?" → treat as field name before ":"
+  // But "tag:?" is just "tag" effectively, so strip trailing ":?" or ":*"
+  const fieldMatch = trimmed.replace(/:[\?\*]?$/, "");
+  if (fieldMatch && fieldMatch !== trimmed) {
+    return { kind: "field", field: fieldMatch };
+  }
+
+  // Fallback: treat as a frontmatter field name
+  return { kind: "field", field: trimmed };
+}
+
+export function axisSourceToString(src: AxisSource): string {
+  switch (src.kind) {
+    case "index": return "index";
+    case "metric": return src.metric;
+    case "random": return src.seed === 42 ? "random" : `random:${src.seed}`;
+    case "const": return src.value === 1 ? "const" : `const:${src.value}`;
+    case "hop": {
+      let s = `hop:${src.from}`;
+      if (src.maxDepth != null) s += `:${src.maxDepth}`;
+      return s;
+    }
+    case "field": return src.field;
+    case "property": return src.key; // legacy — display as field name
+    default: return "index";
+  }
 }
 
 function addSlider(container: HTMLElement, label: string, min: number, max: number, step: number, initial: number, onChange: (v: number) => void): HTMLElement {

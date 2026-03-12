@@ -63,7 +63,7 @@ export type LayoutType =
 export type ClusterGroupBy = string;
 
 /** How to arrange nodes within each cluster */
-export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid" | "triangle" | "random" | "mountain" | "sunburst" | "timeline";
+export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid" | "triangle" | "random" | "mountain" | "sunburst" | "timeline" | "custom";
 
 /** Source of values for a coordinate axis.
  *

@@ -1436,12 +1436,14 @@ function computeOffsets(
   // 3. Custom config → dispatch to generic coordinate engine
   // 4. No coordinateLayout → legacy switch on arrangement name
   if (cfg.coordinateLayout) {
-    if (isExactPreset(cfg.coordinateLayout)) {
+    if (cfg.arrangement !== "custom" && isExactPreset(cfg.coordinateLayout)) {
       // Exact preset match — use hardcoded function for optimal spacing.
       // Use cfg.arrangement directly instead of resolveArrangementFromLayout()
       // because some arrangements share identical coordinate configs (e.g. grid
       // and triangle both use index×index), and resolveArrangementFromLayout()
       // cannot distinguish them from the layout JSON alone.
+      // "custom" always uses the generic engine even if its initial layout
+      // happens to match a preset JSON.
       return dispatchHardcoded(cfg.arrangement, members, degrees, edges, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg);
     }
     // Custom coordinate config — use generic engine
