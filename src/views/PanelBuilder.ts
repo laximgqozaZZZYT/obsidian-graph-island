@@ -933,10 +933,6 @@ function getAxisSourceSuggestions(ctx: PanelContext): string[] {
   return [...keywords, ...fields, "hop:"];
 }
 
-function buildAxisSource(value: string, current: AxisConfig): AxisSource {
-  return parseAxisSourceString(value) ?? current.source;
-}
-
 function getSourceValue(src: AxisSource): string {
   return axisSourceToString(src);
 }

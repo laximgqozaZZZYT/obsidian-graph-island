@@ -1039,6 +1039,7 @@ function computeHierarchicalTargets(
   const targets = new Map<string, { x: number; y: number }>();
   const guideGroups: FlatTargetResult["guideGroups"] = [];
   const allBars: TimelineBarInfo[] = [];
+  const allSeqEdges: GraphEdge[] = [];
   const parentKeys = [...parentMap.keys()];
 
   // Build virtual "super groups" to compute parent-level sizes
@@ -1089,6 +1090,9 @@ function computeHierarchicalTargets(
           allBars.push({ ...bar, xStart: bar.xStart + pCenter.x, xEnd: bar.xEnd + pCenter.x, yCenter: bar.yCenter + pCenter.y });
         }
       }
+      if (result.sequenceEdges) {
+        allSeqEdges.push(...result.sequenceEdges);
+      }
       continue;
     }
 
@@ -1136,10 +1140,13 @@ function computeHierarchicalTargets(
           allBars.push({ ...bar, xStart: bar.xStart + center.x, xEnd: bar.xEnd + center.x, yCenter: bar.yCenter + center.y });
         }
       }
+      if (result.sequenceEdges) {
+        allSeqEdges.push(...result.sequenceEdges);
+      }
     }
   }
 
-  return { targets, guideGroups, allBars };
+  return { targets, guideGroups, allBars, allSequenceEdges: allSeqEdges.length > 0 ? allSeqEdges : undefined };
 }
 
 /**

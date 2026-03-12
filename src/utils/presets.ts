@@ -44,7 +44,7 @@ const ARRAY_FIELDS: (keyof PanelState)[] = [
 /** Valid values for enum-like fields */
 const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   tagDisplay: ["node", "enclosure"] as const,
-  clusterArrangement: ["spiral", "concentric", "tree", "grid", "triangle", "random", "mountain", "sunburst", "timeline"] as const,
+  clusterArrangement: ["spiral", "concentric", "tree", "grid", "triangle", "random", "mountain", "sunburst", "timeline", "custom"] as const,
   guideLineMode: ["shared", "per-group"] as const,
   activeTab: ["filter", "display", "layout", "settings"] as const,
 };
