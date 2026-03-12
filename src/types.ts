@@ -65,6 +65,43 @@ export type ClusterGroupBy = string;
 /** How to arrange nodes within each cluster */
 export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid" | "triangle" | "random" | "mountain" | "sunburst" | "timeline";
 
+/** Source of values for a coordinate axis */
+export type AxisSource =
+  | { kind: "index" }
+  | { kind: "property"; key: string }
+  | { kind: "metric"; metric: MetricKind }
+  | { kind: "random"; seed: number }
+  | { kind: "const"; value: number };
+
+/** Graph-structure-derived metrics */
+export type MetricKind = "degree" | "in-degree" | "out-degree" | "bfs-depth" | "sibling-rank";
+
+/** How raw values are transformed into coordinates */
+export type AxisTransform =
+  | { kind: "linear"; scale: number }
+  | { kind: "bin"; count: number }
+  | { kind: "date-to-index" }
+  | { kind: "stack-avoid" }
+  | { kind: "golden-angle" }
+  | { kind: "even-divide"; totalRange: number };
+
+/** Full axis configuration */
+export interface AxisConfig {
+  source: AxisSource;
+  transform: AxisTransform;
+}
+
+/** Coordinate system type */
+export type CoordinateSystem = "cartesian" | "polar";
+
+/** Complete coordinate layout configuration */
+export interface CoordinateLayout {
+  system: CoordinateSystem;
+  axis1: AxisConfig;  // x (cartesian) or r (polar)
+  axis2: AxisConfig;  // y (cartesian) or θ (polar)
+  perGroup: boolean;
+}
+
 /** A single rule in the multi-level cluster grouping pipeline */
 export interface ClusterGroupRule {
   groupBy: ClusterGroupBy;

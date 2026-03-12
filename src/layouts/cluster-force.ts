@@ -24,8 +24,9 @@
  * Uses ABSOLUTE target positions and aggressive position blending with
  * full velocity kill to guarantee visibility.
  */
-import type { GraphNode, GraphEdge, ClusterArrangement, ClusterGroupRule } from "../types";
+import type { GraphNode, GraphEdge, ClusterArrangement, ClusterGroupRule, CoordinateLayout } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
+import { resolveArrangementFromLayout } from "./coordinate-presets";
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -193,6 +194,8 @@ export interface ClusterForceConfig {
   guideLineMode?: "shared" | "per-group";
   /** Accessor for node frontmatter values (for timeline arrangement) */
   getNodeProperty?: (nodeId: string, key: string) => string | undefined;
+  /** Resolved coordinate layout configuration */
+  coordinateLayout?: CoordinateLayout;
 }
 
 /**
@@ -1424,7 +1427,12 @@ function computeOffsets(
   // Default sort: degree descending (preserves legacy behaviour)
   const defaultSort = (a: GraphNode, b: GraphNode) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0);
   const cmp = sortComparator ?? defaultSort;
-  switch (cfg.arrangement) {
+  // Resolve effective arrangement: coordinateLayout takes precedence
+  const effectiveArrangement = cfg.coordinateLayout
+    ? resolveArrangementFromLayout(cfg.coordinateLayout)
+    : cfg.arrangement;
+
+  switch (effectiveArrangement) {
     case "spiral": return spiralOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap);
     case "concentric": return { offsets: concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap) };
     case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);

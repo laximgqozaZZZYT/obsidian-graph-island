@@ -15,8 +15,10 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showTags", "showAttachments", "existingOnly", "showOrphans", "showArrows",
   "scaleByDegree", "showOrbitRings", "orbitAutoRotate", "colorEdgesByRelation",
   "colorNodesByCategory", "showInheritance", "showAggregation", "showTagNodes",
-  "showSimilar", "showLinks", "showTagEdges", "showCategoryEdges",
-  "showSemanticEdges", "fadeEdgesByDegree",
+  "showSimilar", "showSibling", "showSequence", "showLinks", "showTagEdges",
+  "showCategoryEdges", "showSemanticEdges", "fadeEdgesByDegree",
+  "showEdgeLabels", "showMinimap", "autoFit", "showDurationBars",
+  "showGuideLines", "showGroupGrid",
 ];
 
 /** Fields that should be number */
@@ -30,6 +32,7 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
 /** Fields that should be string */
 const STRING_FIELDS: (keyof PanelState)[] = [
   "searchQuery", "timelineKey", "groupFilter", "groupBy",
+  "dataviewQuery", "timelineEndKey", "timelineOrderFields",
 ];
 
 /** Fields that should be arrays */
@@ -41,8 +44,15 @@ const ARRAY_FIELDS: (keyof PanelState)[] = [
 /** Valid values for enum-like fields */
 const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   tagDisplay: ["node", "enclosure"] as const,
-  clusterArrangement: ["spiral", "concentric", "tree", "grid", "triangle", "random", "mountain", "sunburst"] as const,
+  clusterArrangement: ["spiral", "concentric", "tree", "grid", "triangle", "random", "mountain", "sunburst", "timeline"] as const,
+  guideLineMode: ["shared", "per-group"] as const,
+  activeTab: ["filter", "display", "layout", "settings"] as const,
 };
+
+/** Fields that are nullable objects (object | null) — passed through if object or null */
+const NULLABLE_OBJECT_FIELDS: (keyof PanelState)[] = [
+  "coordinateLayout",
+];
 
 /** All valid PanelState keys — derived from the field lists above plus enums */
 const VALID_KEYS = new Set<string>([
@@ -51,6 +61,7 @@ const VALID_KEYS = new Set<string>([
   ...STRING_FIELDS,
   ...ARRAY_FIELDS,
   ...Object.keys(ENUM_VALUES),
+  ...NULLABLE_OBJECT_FIELDS,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -134,6 +145,14 @@ export function importPreset(json: string): Partial<PanelState> {
     // Array fields
     if ((ARRAY_FIELDS as string[]).includes(key)) {
       if (Array.isArray(value)) {
+        (result as any)[k] = value;
+      }
+      continue;
+    }
+
+    // Nullable object fields (object | null)
+    if ((NULLABLE_OBJECT_FIELDS as string[]).includes(key)) {
+      if (value === null || (typeof value === "object" && !Array.isArray(value))) {
         (result as any)[k] = value;
       }
       continue;

@@ -3,6 +3,7 @@ import type { GraphNode, GraphEdge, DirectionalGravityRule, ClusterGroupRule, No
 import type { PanelState } from "./PanelBuilder";
 import { resolveDirection, matchesFilter } from "../layouts/force";
 import { buildClusterForce, computeAutoFitSpacing, type ClusterMetadata } from "../layouts/cluster-force";
+import { resolveCoordinateLayout } from "../layouts/coordinate-presets";
 import { computeInDegree, computePropagatedImportance } from "../analysis/graph-analysis";
 import { buildMultiSortComparator, type SortMetrics } from "../utils/sort";
 import { edgeLinkDistance, edgeLinkStrength } from "../utils/force-config";
@@ -346,7 +347,14 @@ export class LayoutController {
       timelineOrderFields: panel.timelineOrderFields || "next,prev,parent_id,story_order",
       guideLineMode: panel.guideLineMode || "per-group",
       getNodeProperty: (nodeId: string, key: string) => this.host.getNodeProperty(nodeId, key),
+      coordinateLayout: resolveCoordinateLayout(clusterArrangement, panel.coordinateLayout ?? null),
     };
+
+    // If coordinateLayout specifies a property source, use it as timelineKey
+    const resolved = baseCfg.coordinateLayout;
+    if (resolved && resolved.axis1.source.kind === "property") {
+      baseCfg.timelineKey = (resolved.axis1.source as { kind: "property"; key: string }).key;
+    }
 
     // Auto-fit: compute optimal spacing values
     if (panel.autoFit) {

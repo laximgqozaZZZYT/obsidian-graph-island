@@ -153,10 +153,38 @@ describe("importPreset", () => {
   });
 
   it("accepts all valid clusterArrangement values", () => {
-    for (const v of ["spiral", "concentric", "tree", "grid", "triangle", "random", "mountain", "sunburst"]) {
+    for (const v of ["spiral", "concentric", "tree", "grid", "triangle", "random", "mountain", "sunburst", "timeline"]) {
       const preset = importPreset(JSON.stringify({ clusterArrangement: v }));
       expect(preset.clusterArrangement).toBe(v);
     }
+  });
+
+  it("accepts coordinateLayout as object", () => {
+    const layout = {
+      system: "polar",
+      axis1: { source: { kind: "index" }, transform: { kind: "golden-angle" } },
+      axis2: { source: { kind: "index" }, transform: { kind: "linear", scale: 1 } },
+      perGroup: true,
+    };
+    const preset = importPreset(JSON.stringify({ coordinateLayout: layout }));
+    expect(preset).toHaveProperty("coordinateLayout");
+    expect((preset as any).coordinateLayout).toEqual(layout);
+  });
+
+  it("accepts coordinateLayout as null", () => {
+    const preset = importPreset(JSON.stringify({ coordinateLayout: null }));
+    expect(preset).toHaveProperty("coordinateLayout");
+    expect((preset as any).coordinateLayout).toBeNull();
+  });
+
+  it("drops coordinateLayout if it is an array", () => {
+    const preset = importPreset(JSON.stringify({ coordinateLayout: [1, 2, 3] }));
+    expect(preset).not.toHaveProperty("coordinateLayout");
+  });
+
+  it("drops coordinateLayout if it is a string", () => {
+    const preset = importPreset(JSON.stringify({ coordinateLayout: "invalid" }));
+    expect(preset).not.toHaveProperty("coordinateLayout");
   });
 });
 
@@ -234,6 +262,30 @@ describe("roundtrip: export -> import -> apply", () => {
     const parsed = JSON.parse(json);
     // In JSON, the Set becomes an array
     expect(parsed.collapsedGroups).toEqual(["section-a", "section-b"]);
+  });
+
+  it("roundtrips coordinateLayout through export/import/apply", () => {
+    const layout = {
+      system: "cartesian",
+      axis1: { source: { kind: "property", key: "date" }, transform: { kind: "date-to-index" } },
+      axis2: { source: { kind: "index" }, transform: { kind: "stack-avoid" } },
+      perGroup: true,
+    };
+    const original = makePanel() as any;
+    original.coordinateLayout = layout;
+    const json = exportPreset(original);
+    const preset = importPreset(json);
+    const result = applyPreset(makePanel() as any, preset);
+    expect((result as any).coordinateLayout).toEqual(layout);
+  });
+
+  it("roundtrips coordinateLayout=null through export/import/apply", () => {
+    const original = makePanel() as any;
+    original.coordinateLayout = null;
+    const json = exportPreset(original);
+    const preset = importPreset(json);
+    const result = applyPreset(makePanel() as any, preset);
+    expect((result as any).coordinateLayout).toBeNull();
   });
 });
 

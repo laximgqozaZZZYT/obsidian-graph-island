@@ -1,4 +1,4 @@
-import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings, OntologyRule, OntologyRelation } from "../types";
+import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings, OntologyRule, OntologyRelation, CoordinateLayout, CoordinateSystem, AxisSource, AxisConfig } from "../types";
 import { ontologyToRules, rulesToOntologyFields } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { repositionShell } from "../layouts/concentric";
@@ -9,6 +9,7 @@ import { t, tHelp } from "../i18n";
 import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
 import { exportPreset, importPreset, applyPreset } from "../utils/presets";
+import { ARRANGEMENT_PRESETS } from "../layouts/coordinate-presets";
 
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
@@ -88,6 +89,8 @@ export interface PanelState {
   showGroupGrid: boolean;
   /** Comma-separated fields for link-based ordering (next,prev,parent_id,story_order) */
   timelineOrderFields: string;
+  /** Coordinate layout override — when set, takes precedence over clusterArrangement */
+  coordinateLayout: CoordinateLayout | null;
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -156,6 +159,7 @@ export const DEFAULT_PANEL: PanelState = {
   guideLineMode: "per-group" as const,
   showGroupGrid: true,
   timelineOrderFields: "next,prev,parent_id,story_order",
+  coordinateLayout: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -437,13 +441,143 @@ export function buildPanel(
       { value: "timeline", label: t("cluster.timeline") },
     ], panel.clusterArrangement, (v) => {
       panel.clusterArrangement = v as ClusterArrangement;
+      panel.coordinateLayout = null; // Reset to use preset
       cb.applyClusterForce();
       cb.rebuildPanel();
       cb.restartSimulation(0.5);
     });
 
+    // --- Coordinate Layout Controls ---
+    const coordLayout = panel.coordinateLayout
+      ?? ARRANGEMENT_PRESETS[panel.clusterArrangement];
+
+    addSelect(body, t("coord.system"), [
+      { value: "cartesian", label: t("coord.cartesian") },
+      { value: "polar", label: t("coord.polar") },
+    ], coordLayout.system, (v) => {
+      const base = panel.coordinateLayout
+        ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+      panel.coordinateLayout = { ...base, system: v as CoordinateSystem };
+      cb.applyClusterForce();
+      cb.rebuildPanel();
+      cb.restartSimulation(0.5);
+    });
+
+    const axis1Label = coordLayout.system === "polar" ? "r" : "X";
+    const axis2Label = coordLayout.system === "polar" ? "θ" : "Y";
+
+    const axisSourceOptions = [
+      { value: "index", label: "index" },
+      { value: "property", label: t("coord.property") },
+      { value: "degree", label: "degree" },
+      { value: "bfs-depth", label: "BFS depth" },
+      { value: "sibling-rank", label: "sibling rank" },
+      { value: "random", label: "random" },
+      { value: "const", label: "const" },
+    ];
+
+    addSelect(body, `${axis1Label}:`, axisSourceOptions,
+      getSourceValue(coordLayout.axis1.source), (v) => {
+      const base = panel.coordinateLayout
+        ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+      const newSource = buildAxisSource(v, coordLayout.axis1);
+      panel.coordinateLayout = {
+        ...base,
+        axis1: { ...base.axis1, source: newSource },
+      };
+      cb.applyClusterForce();
+      cb.rebuildPanel();
+      cb.restartSimulation(0.5);
+    });
+
+    if (coordLayout.axis1.source.kind === "property") {
+      const propRow = body.createDiv({ cls: "gi-setting-row" });
+      propRow.createEl("span", { cls: "gi-setting-label", text: `${axis1Label} ${t("coord.propertyKey")}` });
+      const propInput = propRow.createEl("input", { cls: "gi-setting-input", type: "text" });
+      propInput.value = (coordLayout.axis1.source as { kind: "property"; key: string }).key;
+      propInput.placeholder = "date";
+      attachDatalist(propInput, ctx.frontmatterKeys);
+      propInput.addEventListener("change", () => {
+        const base = panel.coordinateLayout
+          ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+        panel.coordinateLayout = {
+          ...base,
+          axis1: {
+            ...base.axis1,
+            source: { kind: "property", key: propInput.value.trim() || "date" },
+          },
+        };
+        cb.applyClusterForce();
+        cb.restartSimulation(0.5);
+      });
+    }
+
+    addSelect(body, `${axis2Label}:`, axisSourceOptions,
+      getSourceValue(coordLayout.axis2.source), (v) => {
+      const base = panel.coordinateLayout
+        ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+      const newSource = buildAxisSource(v, coordLayout.axis2);
+      panel.coordinateLayout = {
+        ...base,
+        axis2: { ...base.axis2, source: newSource },
+      };
+      cb.applyClusterForce();
+      cb.rebuildPanel();
+      cb.restartSimulation(0.5);
+    });
+
+    if (coordLayout.axis2.source.kind === "property") {
+      const propRow2 = body.createDiv({ cls: "gi-setting-row" });
+      propRow2.createEl("span", { cls: "gi-setting-label", text: `${axis2Label} ${t("coord.propertyKey")}` });
+      const propInput2 = propRow2.createEl("input", { cls: "gi-setting-input", type: "text" });
+      propInput2.value = (coordLayout.axis2.source as { kind: "property"; key: string }).key;
+      propInput2.placeholder = "end-date";
+      attachDatalist(propInput2, ctx.frontmatterKeys);
+      propInput2.addEventListener("change", () => {
+        const base = panel.coordinateLayout
+          ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+        panel.coordinateLayout = {
+          ...base,
+          axis2: {
+            ...base.axis2,
+            source: { kind: "property", key: propInput2.value.trim() || "end-date" },
+          },
+        };
+        cb.applyClusterForce();
+        cb.restartSimulation(0.5);
+      });
+    }
+
+    addToggle(body, t("coord.perGroup"), coordLayout.perGroup, (v) => {
+      const base = panel.coordinateLayout
+        ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+      panel.coordinateLayout = { ...base, perGroup: v };
+      cb.applyClusterForce();
+      cb.restartSimulation(0.5);
+    });
+
+    if (coordLayout.system === "polar" && coordLayout.axis2.transform.kind === "even-divide") {
+      addSlider(body, `${axis2Label} ${t("coord.range")} (°)`, 30, 360, 10,
+        coordLayout.axis2.transform.totalRange, (v) => {
+        const base = panel.coordinateLayout
+          ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+        panel.coordinateLayout = {
+          ...base,
+          axis2: {
+            ...base.axis2,
+            transform: { kind: "even-divide", totalRange: v },
+          },
+        };
+        cb.applyClusterForce();
+        cb.restartSimulation(0.5);
+      });
+    }
+
     // Timeline-specific: time key input
-    if (panel.clusterArrangement === "timeline") {
+    const effectiveLayout = panel.coordinateLayout ?? ARRANGEMENT_PRESETS[panel.clusterArrangement];
+    const hasPropertyAxis = effectiveLayout.axis1.source.kind === "property"
+      || effectiveLayout.axis2.source.kind === "property";
+    if (panel.clusterArrangement === "timeline" || hasPropertyAxis) {
       const row = body.createDiv({ cls: "gi-setting-row" });
       row.createEl("span", { cls: "gi-setting-label", text: t("timeline.timeKey") });
       const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
@@ -827,6 +961,27 @@ function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
     btn.title = t(p.descKey);
     btn.addEventListener("click", () => cb.applyPreset(p.key));
   }
+}
+
+function buildAxisSource(value: string, current: AxisConfig): AxisSource {
+  switch (value) {
+    case "index": return { kind: "index" };
+    case "property": return { kind: "property", key: current.source.kind === "property" ? current.source.key : "date" };
+    case "degree": return { kind: "metric", metric: "degree" };
+    case "in-degree": return { kind: "metric", metric: "in-degree" };
+    case "out-degree": return { kind: "metric", metric: "out-degree" };
+    case "bfs-depth": return { kind: "metric", metric: "bfs-depth" };
+    case "sibling-rank": return { kind: "metric", metric: "sibling-rank" };
+    case "random": return { kind: "random", seed: 42 };
+    case "const": return { kind: "const", value: 1 };
+    default: return current.source; // "auto" keeps current
+  }
+}
+
+function getSourceValue(src: AxisSource): string {
+  if (src.kind === "metric") return src.metric;
+  if (src.kind === "property") return "property";
+  return src.kind;
 }
 
 function addSlider(container: HTMLElement, label: string, min: number, max: number, step: number, initial: number, onChange: (v: number) => void): HTMLElement {
