@@ -100,6 +100,9 @@ export type CurveKind =
   | "lissajous"
   | "golden";
 
+/** Shape kinds for node-packing layouts */
+export type ShapeFillKind = "square" | "triangle" | "hexagon" | "diamond" | "circle";
+
 /** How raw values are transformed into coordinates */
 export type AxisTransform =
   | { kind: "linear"; scale: number }
@@ -109,7 +112,8 @@ export type AxisTransform =
   | { kind: "golden-angle" }
   | { kind: "even-divide"; totalRange: number }
   | { kind: "expression"; expr: string; scale?: number }
-  | { kind: "curve"; curve: CurveKind; params?: Record<string, number>; scale?: number };
+  | { kind: "curve"; curve: CurveKind; params?: Record<string, number>; scale?: number }
+  | { kind: "shape-fill"; shape: ShapeFillKind; axis: 1 | 2 };
 
 /** Full axis configuration */
 export interface AxisConfig {
@@ -126,6 +130,8 @@ export interface CoordinateLayout {
   axis1: AxisConfig;  // x (cartesian) or r (polar)
   axis2: AxisConfig;  // y (cartesian) or θ (polar)
   perGroup: boolean;
+  /** User-defined constants available in expressions (e.g. { a: 1, b: 0.3, k: 3 }) */
+  constants?: Record<string, number>;
 }
 
 /** A single rule in the multi-level cluster grouping pipeline */

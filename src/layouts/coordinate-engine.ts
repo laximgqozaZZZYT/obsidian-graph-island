@@ -19,6 +19,7 @@ import type {
   AxisTransform,
   CoordinateLayout,
   CoordinateSystem,
+  ShapeFillKind,
 } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
 import type { ArrangementResult } from "./cluster-force";
@@ -349,6 +350,7 @@ export function applyTransform(
   transform: AxisTransform,
   spacing: number,
   otherAxisValues?: Map<string, number>,
+  constants?: Record<string, number>,
 ): Map<string, number> {
   const result = new Map<string, number>();
 
@@ -468,7 +470,8 @@ export function applyTransform(
         }
         break;
       }
-      const params = { ...def.defaultParams, ...transform.params };
+      // Merge: defaults < transform params < user constants
+      const params = { ...def.defaultParams, ...transform.params, ...constants };
       const scale = transform.scale ?? 1;
       // Normalize raw values to t ∈ [0, 1]
       let min = Infinity, max = -Infinity;
@@ -480,6 +483,16 @@ export function applyTransform(
       for (const [id, v] of rawValues) {
         const t = (v - min) / range;
         result.set(id, def.fn(t, params) * scale * spacing);
+      }
+      break;
+    }
+
+    case "shape-fill": {
+      const n = rawValues.size;
+      const coords = computeShapeFill(transform.shape, n, spacing);
+      const ids = [...rawValues.keys()];
+      for (let j = 0; j < ids.length; j++) {
+        result.set(ids[j], transform.axis === 1 ? coords[j].x : coords[j].y);
       }
       break;
     }
@@ -507,7 +520,7 @@ export function applyTransform(
       let idx = 0;
       for (const [id, v] of rawValues) {
         const t = (v - min) / range;
-        const val = evalExpr(ast, { t, i: idx, n, v });
+        const val = evalExpr(ast, { t, i: idx, n, v, ...constants });
         result.set(id, val * scale * spacing);
         idx++;
       }
@@ -593,7 +606,8 @@ export function coordinateOffsets(
   // Phase 2: apply transforms
   // For stack-avoid, we need to pass the other axis's transformed values
   // Do axis1 first, then axis2 with axis1 results available for stack-avoid
-  const t1 = applyTransform(raw1, layout.axis1.transform, spacing);
+  const userConsts = layout.constants;
+  const t1 = applyTransform(raw1, layout.axis1.transform, spacing, undefined, userConsts);
 
   // For stack-avoid and even-divide on axis2, pass transformed axis1 values.
   // even-divide uses other-axis values to distribute nodes per-ring (prevents
@@ -601,12 +615,12 @@ export function coordinateOffsets(
   const axis2NeedsOther = layout.axis2.transform.kind === "stack-avoid"
     || layout.axis2.transform.kind === "even-divide";
   const t2 = axis2NeedsOther
-    ? applyTransform(raw2, layout.axis2.transform, spacing, t1)
-    : applyTransform(raw2, layout.axis2.transform, spacing);
+    ? applyTransform(raw2, layout.axis2.transform, spacing, t1, userConsts)
+    : applyTransform(raw2, layout.axis2.transform, spacing, undefined, userConsts);
 
   // Similarly for axis1 if it has stack-avoid (unusual but supported)
   const finalT1 = layout.axis1.transform.kind === "stack-avoid"
-    ? applyTransform(raw1, layout.axis1.transform, spacing, t2)
+    ? applyTransform(raw1, layout.axis1.transform, spacing, t2, userConsts)
     : t1;
 
   // Phase 3: convert to Cartesian (dx, dy)
@@ -620,6 +634,143 @@ export function coordinateOffsets(
   };
 
   return { offsets, guide };
+}
+
+// ---------------------------------------------------------------------------
+// Shape-fill algorithms
+// ---------------------------------------------------------------------------
+
+interface Point2D { x: number; y: number; }
+
+/** Dispatch to shape-specific packing function */
+function computeShapeFill(shape: ShapeFillKind, n: number, sp: number): Point2D[] {
+  switch (shape) {
+    case "square":   return squareFill(n, sp);
+    case "triangle": return triangleFill(n, sp);
+    case "hexagon":  return hexagonFill(n, sp);
+    case "diamond":  return diamondFill(n, sp);
+    case "circle":   return circleFill(n, sp);
+  }
+}
+
+/** Standard grid: cols = ceil(sqrt(n)), centered around origin */
+function squareFill(n: number, sp: number): Point2D[] {
+  if (n === 0) return [];
+  const cols = Math.ceil(Math.sqrt(n));
+  const rows = Math.ceil(n / cols);
+  const pts: Point2D[] = [];
+  const cx = (cols - 1) / 2;
+  const cy = (rows - 1) / 2;
+  for (let i = 0; i < n; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    pts.push({ x: (col - cx) * sp, y: (row - cy) * sp });
+  }
+  return pts;
+}
+
+/**
+ * Triangular packing: row k has (k+1) nodes, each row centered.
+ * Find numRows where numRows*(numRows+1)/2 >= n.
+ */
+function triangleFill(n: number, sp: number): Point2D[] {
+  if (n === 0) return [];
+  // Find minimum rows needed
+  let numRows = 1;
+  while (numRows * (numRows + 1) / 2 < n) numRows++;
+  const rowH = sp * Math.sqrt(3) / 2;
+  const totalH = (numRows - 1) * rowH;
+  const pts: Point2D[] = [];
+  let placed = 0;
+  for (let row = 0; row < numRows && placed < n; row++) {
+    const nodesInRow = Math.min(row + 1, n - placed);
+    const y = row * rowH - totalH / 2;
+    const rowWidth = (nodesInRow - 1) * sp;
+    for (let j = 0; j < nodesInRow; j++) {
+      const x = j * sp - rowWidth / 2;
+      pts.push({ x, y });
+      placed++;
+    }
+  }
+  return pts;
+}
+
+/**
+ * Hexagonal rings: center node, then ring 1 (6 nodes), ring 2 (12), etc.
+ * Each ring r has 6*r nodes. Interpolate between corner positions.
+ */
+function hexagonFill(n: number, sp: number): Point2D[] {
+  if (n === 0) return [];
+  const pts: Point2D[] = [{ x: 0, y: 0 }]; // center node
+  if (n === 1) return pts;
+
+  let ring = 1;
+  while (pts.length < n) {
+    const nodesInRing = 6 * ring;
+    // Corner directions for a flat-top hexagon
+    const corners: Point2D[] = [];
+    for (let c = 0; c < 6; c++) {
+      const angle = (Math.PI / 3) * c;
+      corners.push({
+        x: ring * sp * Math.cos(angle),
+        y: ring * sp * Math.sin(angle),
+      });
+    }
+    // Interpolate between corners
+    for (let i = 0; i < nodesInRing && pts.length < n; i++) {
+      const side = Math.floor(i / ring);
+      const step = i % ring;
+      const from = corners[side];
+      const to = corners[(side + 1) % 6];
+      const t = step / ring;
+      pts.push({
+        x: from.x + (to.x - from.x) * t,
+        y: from.y + (to.y - from.y) * t,
+      });
+    }
+    ring++;
+  }
+  return pts;
+}
+
+/**
+ * Rotated square grid (45 degrees):
+ * x = (col - row) * sp * 0.707, y = (col + row) * sp * 0.707, centered.
+ */
+function diamondFill(n: number, sp: number): Point2D[] {
+  if (n === 0) return [];
+  const cols = Math.ceil(Math.sqrt(n));
+  const rows = Math.ceil(n / cols);
+  const factor = sp * Math.SQRT1_2; // 0.707...
+  const pts: Point2D[] = [];
+  const cCol = (cols - 1) / 2;
+  const cRow = (rows - 1) / 2;
+  for (let i = 0; i < n; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const dc = col - cCol;
+    const dr = row - cRow;
+    pts.push({
+      x: (dc - dr) * factor,
+      y: (dc + dr) * factor,
+    });
+  }
+  return pts;
+}
+
+/**
+ * Sunflower / golden-angle packing:
+ * r = sp * sqrt(i), angle = i * GOLDEN_ANGLE, convert to (x,y).
+ */
+function circleFill(n: number, sp: number): Point2D[] {
+  const GOLDEN_ANGLE = 2.39996322972865332;
+  const pts: Point2D[] = [];
+  for (let i = 0; i < n; i++) {
+    const r = sp * Math.sqrt(i);
+    const angle = i * GOLDEN_ANGLE;
+    pts.push({ x: r * Math.cos(angle), y: r * Math.sin(angle) });
+  }
+  return pts;
 }
 
 // ---------------------------------------------------------------------------

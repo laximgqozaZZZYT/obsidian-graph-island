@@ -364,6 +364,118 @@ describe("applyTransform", () => {
     const t = applyTransform(raw, { kind: "expression", expr: "t", scale: 2 }, spacing);
     expect(t.get("c")!).toBeCloseTo(2.0 * spacing);
   });
+
+  // --- shape-fill transforms ---
+
+  describe("shape-fill", () => {
+    const ids25 = Array.from({ length: 25 }, (_, i) => [`n${i}`, i] as [string, number]);
+    const raw25 = new Map(ids25);
+
+    it("square: all nodes get coordinates", () => {
+      const t = applyTransform(raw25, { kind: "shape-fill", shape: "square", axis: 1 }, spacing);
+      expect(t.size).toBe(25);
+    });
+
+    it("square: x values cluster into ceil(sqrt(n)) discrete columns", () => {
+      const t = applyTransform(raw25, { kind: "shape-fill", shape: "square", axis: 1 }, spacing);
+      const cols = new Set([...t.values()].map(v => Math.round(v * 1000) / 1000));
+      // ceil(sqrt(25)) = 5 columns
+      expect(cols.size).toBe(5);
+    });
+
+    it("square: axis 2 returns y coordinates", () => {
+      const tx = applyTransform(raw25, { kind: "shape-fill", shape: "square", axis: 1 }, spacing);
+      const ty = applyTransform(raw25, { kind: "shape-fill", shape: "square", axis: 2 }, spacing);
+      // x and y should not be identical for all nodes (grid has distinct rows and columns)
+      let anyDiff = false;
+      for (const [id] of raw25) {
+        if (Math.abs(tx.get(id)! - ty.get(id)!) > 0.001) { anyDiff = true; break; }
+      }
+      expect(anyDiff).toBe(true);
+    });
+
+    it("triangle: all nodes get coordinates", () => {
+      const raw10 = new Map(Array.from({ length: 10 }, (_, i) => [`n${i}`, i] as [string, number]));
+      const t = applyTransform(raw10, { kind: "shape-fill", shape: "triangle", axis: 1 }, spacing);
+      expect(t.size).toBe(10);
+    });
+
+    it("triangle: x values centered per row, rows have increasing node count", () => {
+      // 10 nodes → rows: 1, 2, 3, 4 (=10 total)
+      const raw10 = new Map(Array.from({ length: 10 }, (_, i) => [`n${i}`, i] as [string, number]));
+      const ty = applyTransform(raw10, { kind: "shape-fill", shape: "triangle", axis: 2 }, spacing);
+      // Should have 4 distinct y values (4 rows)
+      const yVals = new Set([...ty.values()].map(v => Math.round(v * 1000) / 1000));
+      expect(yVals.size).toBe(4);
+    });
+
+    it("hexagon: all nodes get coordinates", () => {
+      const raw7 = new Map(Array.from({ length: 7 }, (_, i) => [`n${i}`, i] as [string, number]));
+      const t = applyTransform(raw7, { kind: "shape-fill", shape: "hexagon", axis: 1 }, spacing);
+      expect(t.size).toBe(7);
+    });
+
+    it("hexagon: center node at (0,0), ring 1 has 6 nodes", () => {
+      const raw7 = new Map(Array.from({ length: 7 }, (_, i) => [`n${i}`, i] as [string, number]));
+      const tx = applyTransform(raw7, { kind: "shape-fill", shape: "hexagon", axis: 1 }, spacing);
+      const ty = applyTransform(raw7, { kind: "shape-fill", shape: "hexagon", axis: 2 }, spacing);
+      // First node (center) should be at (0,0)
+      expect(tx.get("n0")).toBeCloseTo(0);
+      expect(ty.get("n0")).toBeCloseTo(0);
+      // Ring 1 nodes should have non-zero distance from center
+      for (let i = 1; i < 7; i++) {
+        const x = tx.get(`n${i}`)!;
+        const y = ty.get(`n${i}`)!;
+        const dist = Math.sqrt(x * x + y * y);
+        expect(dist).toBeGreaterThan(0);
+      }
+    });
+
+    it("diamond: all nodes get coordinates", () => {
+      const t = applyTransform(raw25, { kind: "shape-fill", shape: "diamond", axis: 1 }, spacing);
+      expect(t.size).toBe(25);
+    });
+
+    it("diamond: coordinates are rotated (not axis-aligned grid)", () => {
+      const tx = applyTransform(raw25, { kind: "shape-fill", shape: "diamond", axis: 1 }, spacing);
+      const ty = applyTransform(raw25, { kind: "shape-fill", shape: "diamond", axis: 2 }, spacing);
+      // In a diamond (rotated grid), most nodes should not be on the same x or y line
+      const xVals = new Set([...tx.values()].map(v => Math.round(v * 100) / 100));
+      const yVals = new Set([...ty.values()].map(v => Math.round(v * 100) / 100));
+      // A rotated 5x5 grid produces more distinct x/y values than an axis-aligned one
+      expect(xVals.size).toBeGreaterThan(5);
+      expect(yVals.size).toBeGreaterThan(5);
+    });
+
+    it("circle: all nodes get coordinates", () => {
+      const t = applyTransform(raw25, { kind: "shape-fill", shape: "circle", axis: 1 }, spacing);
+      expect(t.size).toBe(25);
+    });
+
+    it("circle: radii increase with index (sqrt pattern)", () => {
+      const tx = applyTransform(raw25, { kind: "shape-fill", shape: "circle", axis: 1 }, spacing);
+      const ty = applyTransform(raw25, { kind: "shape-fill", shape: "circle", axis: 2 }, spacing);
+      // Compute radii for first and last few nodes
+      const radii: number[] = [];
+      for (let i = 0; i < 25; i++) {
+        const x = tx.get(`n${i}`)!;
+        const y = ty.get(`n${i}`)!;
+        radii.push(Math.sqrt(x * x + y * y));
+      }
+      // Average radius of last 5 nodes should be greater than average of first 5
+      const avgFirst5 = radii.slice(0, 5).reduce((a, b) => a + b, 0) / 5;
+      const avgLast5 = radii.slice(20).reduce((a, b) => a + b, 0) / 5;
+      expect(avgLast5).toBeGreaterThan(avgFirst5);
+    });
+
+    it("shape-fill: single node produces (0,0)", () => {
+      const raw1 = new Map([["only", 0]]);
+      const tx = applyTransform(raw1, { kind: "shape-fill", shape: "square", axis: 1 }, spacing);
+      const ty = applyTransform(raw1, { kind: "shape-fill", shape: "square", axis: 2 }, spacing);
+      expect(tx.get("only")).toBeCloseTo(0);
+      expect(ty.get("only")).toBeCloseTo(0);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
