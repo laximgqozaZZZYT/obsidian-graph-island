@@ -1437,9 +1437,12 @@ function computeOffsets(
   // 4. No coordinateLayout → legacy switch on arrangement name
   if (cfg.coordinateLayout) {
     if (isExactPreset(cfg.coordinateLayout)) {
-      // Exact preset match — use hardcoded function for optimal spacing
-      const arrangementName = resolveArrangementFromLayout(cfg.coordinateLayout);
-      return dispatchHardcoded(arrangementName, members, degrees, edges, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg);
+      // Exact preset match — use hardcoded function for optimal spacing.
+      // Use cfg.arrangement directly instead of resolveArrangementFromLayout()
+      // because some arrangements share identical coordinate configs (e.g. grid
+      // and triangle both use index×index), and resolveArrangementFromLayout()
+      // cannot distinguish them from the layout JSON alone.
+      return dispatchHardcoded(cfg.arrangement, members, degrees, edges, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg);
     }
     // Custom coordinate config — use generic engine
     const ctx: CoordinateContext = {

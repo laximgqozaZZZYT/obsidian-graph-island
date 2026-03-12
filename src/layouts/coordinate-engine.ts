@@ -148,8 +148,9 @@ export function resolveAxisValues(
       }
 
       if (!root) {
-        // No matching root — all nodes get maxDepth+1
-        for (const m of members) result.set(m.id, maxDepth + 1);
+        // No matching root — assign sequential index as fallback so all nodes
+        // get finite, well-spread coordinates (maxDepth+1 could be Infinity).
+        for (let i = 0; i < members.length; i++) result.set(members[i].id, i);
         break;
       }
 

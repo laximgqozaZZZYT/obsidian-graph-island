@@ -226,6 +226,16 @@ describe("resolveAxisValues", () => {
     expect(vals.get("c")).toBeGreaterThan(1);
   });
 
+  it("hop: no matching root produces finite fallback values (no Infinity)", () => {
+    // 'zzz' matches no node — previously produced Infinity when maxDepth=Infinity
+    const edges = [makeEdge("a", "b"), makeEdge("b", "c")];
+    const ctx2 = baseCtx({ edges, degrees: new Map([["a", 1], ["b", 2], ["c", 1]]) });
+    const vals = resolveAxisValues(nodes, { kind: "hop", from: "zzz" }, ctx2);
+    for (const [, v] of vals) {
+      expect(Number.isFinite(v)).toBe(true);
+    }
+  });
+
   it("hop: substring match on node id", () => {
     const edges = [makeEdge("a", "b"), makeEdge("b", "c")];
     const ctx2 = baseCtx({ edges, degrees: new Map([["a", 1], ["b", 2], ["c", 1]]) });
