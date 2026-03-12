@@ -139,7 +139,9 @@ const en: TranslationMap = {
   "cluster.custom": "Custom",
   "coord.axisSourceHint": "e.g. folder, tag:?, degree, hop:name:5",
   "coord.transformExprHint": "e.g. COS(tag:?), BIN(degree, 5), ROSE(index)",
-  "coord.transformExprHelp": "Source: index, degree, folder, tag:?, hop:name:3\nTransforms: LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\nCurves: ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS, ...\nMath: SIN, COS, SQRT, LOG, EXP, POW\nFormat: FUNC(source, params...)",
+  "coord.transformExprHelp": "Source: index, degree, folder, tag:?, hop:name:3\nTransforms: LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\nCurves: ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS, ...\nMath: sin, cos, tan, sqrt, abs, log, exp, floor, ceil, min, max, pow, atan2\nOperators: + - * / % ^ (power)\nVariables: t (0–1), i (index), n (count), v (value)\nConstants: pi, e, tau  |  Greek: π=pi, θ=t, α→a, etc.\nImplicit ×: 2t → 2*t, πr → pi*r\nFormat: FUNC(source, params...) or raw expression",
+  "coord.exprLibrary": "Expression Library",
+  "coord.libraryHint": "Click to insert into the axis expression",
   "cluster.autoFit": "Auto-fit spacing",
   "cluster.nodeSpacing": "Node Spacing (radius×n)",
   "cluster.groupSize": "Group Size",
@@ -523,7 +525,9 @@ const ja: TranslationMap = {
   "cluster.custom": "カスタム",
   "coord.axisSourceHint": "例: folder, tag:?, degree, hop:名前:5",
   "coord.transformExprHint": "例: COS(tag:?), BIN(degree, 5), ROSE(index)",
-  "coord.transformExprHelp": "ソース: index, degree, folder, tag:?, hop:名前:3\n変換: LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n曲線: ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS, ...\n数学: SIN, COS, SQRT, LOG, EXP, POW\n書式: 関数(ソース, パラメータ...)",
+  "coord.transformExprHelp": "ソース: index, degree, folder, tag:?, hop:名前:3\n変換: LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n曲線: ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS, ...\n数学: sin, cos, tan, sqrt, abs, log, exp, floor, ceil, min, max, pow, atan2\n演算子: + - * / % ^ (べき乗)\n変数: t (0–1), i (インデックス), n (個数), v (値)\n定数: pi, e, tau  |  ギリシャ文字: π=pi, θ=t, α→a 等\n暗黙の乗算: 2t → 2*t, πr → pi*r\n書式: 関数(ソース, パラメータ...) または数式",
+  "coord.exprLibrary": "式ライブラリ",
+  "coord.libraryHint": "クリックして軸の式に挿入",
   "cluster.autoFit": "間隔を自動調整",
   "cluster.nodeSpacing": "ノード間隔 (半径×n)",
   "cluster.groupSize": "グループサイズ",
@@ -791,6 +795,7 @@ const helpEn: TranslationMap = {
   "help.customMappings": "Map custom frontmatter fields to ontology relation types.\n\nUseful for ExcaliBrain compatibility or custom field names.\ne.g. 'up' → is-a, 'contains' → has-a",
   "help.tagRelations": "Define explicit relationships between tags.\n\ne.g. #character is-a #entity\nThese create edges between all notes sharing these tags.",
   "help.concentricLayout": "Adjust concentric layout parameters.\n\nMin radius: inner orbit radius\nOrbit spacing: distance between orbits\nOrbit rings: show/hide orbit circles\nAuto rotate: enable orbital animation",
+  "help.exprReference": "── Expression Reference ──\n\nVariables:\n  t = normalized position (0–1)\n  i = node index (0, 1, 2, ...)\n  n = total node count in group\n  v = raw axis source value\n\nConstants:\n  pi (π), e, tau (τ=2π)\n  Greek letters: α→a β→b θ→t π→pi τ→tau\n\nFunctions:\n  sin  cos  tan  sqrt  abs\n  log  exp  floor  ceil\n  min(a,b)  max(a,b)  pow(a,b)  atan2(y,x)\n\nOperators:\n  +  -  *  /  % (mod)  ^ (power)\n  Implicit ×: 2t = 2*t, πr² = pi*r^2\n\nSources (FUNC syntax):\n  index, degree, folder, tag:?, hop:name:3\n\nTransforms (FUNC syntax):\n  LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n\nCurves:\n  ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS,\n  HYPOTROCHOID, EPITROCHOID, BUTTERFLY",
 };
 
 const helpJa: TranslationMap = {
@@ -805,6 +810,7 @@ const helpJa: TranslationMap = {
   "help.customMappings": "カスタムフィールドをオントロジーの関係種別にマッピングします。\n\nExcaliBrain互換や独自フィールド名に便利です。\n例: 'up' → is-a, 'contains' → has-a",
   "help.tagRelations": "タグ間の明示的な関係を定義します。\n\n例: #character is-a #entity\nこれらのタグを持つノート間にエッジが生成されます。",
   "help.concentricLayout": "同心円レイアウトのパラメータを調整します。\n\n最小半径: 最も内側の軌道の半径\n軌道間距離: 軌道同士の間隔\n軌道リング: 軌道の円を表示/非表示\n自動回転: 軌道アニメーションの有効化",
+  "help.exprReference": "── 式リファレンス ──\n\n変数:\n  t = 正規化位置 (0–1)\n  i = ノードインデックス (0, 1, 2, ...)\n  n = グループ内ノード総数\n  v = 軸ソースの生値\n\n定数:\n  pi (π), e, tau (τ=2π)\n  ギリシャ文字: α→a β→b θ→t π→pi τ→tau\n\n関数:\n  sin  cos  tan  sqrt  abs\n  log  exp  floor  ceil\n  min(a,b)  max(a,b)  pow(a,b)  atan2(y,x)\n\n演算子:\n  +  -  *  /  % (余り)  ^ (べき乗)\n  暗黙の乗算: 2t = 2*t, πr² = pi*r^2\n\nソース (関数書式):\n  index, degree, folder, tag:?, hop:名前:3\n\n変換 (関数書式):\n  LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n\n曲線:\n  ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS,\n  HYPOTROCHOID, EPITROCHOID, BUTTERFLY",
 };
 
 // ---------------------------------------------------------------------------

@@ -1191,6 +1191,59 @@
   margin: 4px 8px;
 }
 
+/* === Expression Library === */
+.gi-expr-library {
+  margin: 6px 0;
+}
+.gi-expr-library-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  padding: 4px 0;
+  cursor: pointer;
+  user-select: none;
+}
+.gi-expr-library-header:hover { color: var(--text-normal); }
+.gi-expr-library-header .gi-help-btn { margin-left: auto; }
+.gi-expr-library-chevron {
+  font-size: 10px;
+  width: 12px;
+  text-align: center;
+}
+.gi-expr-library-body {
+  margin: 2px 0 4px 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.gi-expr-library-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.gi-expr-library-item:hover {
+  background: var(--background-modifier-hover);
+}
+.gi-expr-library-name {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  color: var(--text-accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.gi-expr-library-desc {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .gi-search-row {
   display: flex;
   align-items: center;

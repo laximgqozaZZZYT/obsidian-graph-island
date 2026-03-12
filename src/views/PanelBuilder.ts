@@ -595,6 +595,9 @@ export function buildPanel(
     // --- Coordinate function preview plot ---
     buildCoordPreview(body, coordLayout);
 
+    // --- Expression library (preset formulas) ---
+    buildExprLibrary(body, panel, cb);
+
     // --- Constants management ---
     buildConstantsUI(body, panel, cb);
 
@@ -1229,6 +1232,167 @@ function buildCoordPreview(body: HTMLElement, layout: CoordinateLayout): void {
   const plotH = H - PAD * 2;
   plotCurve(ctx, layout.axis1, N, PAD, PAD, halfW, plotH, col1, lbl1, layout.constants);
   plotCurve(ctx, layout.axis2, N, PAD * 2 + halfW, PAD, halfW, plotH, col2, lbl2, layout.constants);
+}
+
+// ---------------------------------------------------------------------------
+// Expression Library — preset formulas for common shapes and patterns
+// ---------------------------------------------------------------------------
+
+interface ExprLibraryEntry {
+  /** Display name (i18n key or literal) */
+  name: string;
+  /** Description */
+  desc: string;
+  /** Axis 1 expression */
+  axis1: string;
+  /** Axis 2 expression */
+  axis2: string;
+  /** Coordinate system */
+  system?: "cartesian" | "polar";
+}
+
+const EXPR_LIBRARY: ExprLibraryEntry[] = [
+  // ── Shape fills ──
+  {
+    name: "Grid",
+    desc: "i % ceil(sqrt(n)) × floor(i / ceil(sqrt(n)))",
+    axis1: "i % ceil(sqrt(n))",
+    axis2: "floor(i / ceil(sqrt(n)))",
+  },
+  {
+    name: "Triangle",
+    desc: "row k → k+1 nodes, centered",
+    axis1: "i - floor((-1+sqrt(1+8*i))/2)*(floor((-1+sqrt(1+8*i))/2)+1)/2 - floor((-1+sqrt(1+8*i))/2)/2",
+    axis2: "floor((-1+sqrt(1+8*i))/2)",
+  },
+  {
+    name: "Diamond",
+    desc: "rhombus — triangle top + mirrored bottom",
+    axis1: "i - floor((-1+sqrt(1+8*(i%floor(n/2))))/2)*(floor((-1+sqrt(1+8*(i%floor(n/2))))/2)+1)/2 - floor((-1+sqrt(1+8*(i%floor(n/2))))/2)/2",
+    axis2: "floor((-1+sqrt(1+8*(i%floor(n/2))))/2) * (1 - 2*floor(i/floor(n/2)))",
+  },
+  // ── Spirals & curves ──
+  {
+    name: "Sunflower",
+    desc: "r=√t, θ=golden angle (137.5°)",
+    axis1: "sqrt(t)",
+    axis2: "i * 137.508",
+    system: "polar",
+  },
+  {
+    name: "Archimedean Spiral",
+    desc: "r=t, θ=t×360°",
+    axis1: "t",
+    axis2: "t * 720",
+    system: "polar",
+  },
+  {
+    name: "Fermat Spiral",
+    desc: "r=√t, θ=t×720°",
+    axis1: "sqrt(t)",
+    axis2: "t * 720",
+    system: "polar",
+  },
+  // ── Mathematical patterns ──
+  {
+    name: "Sine Wave",
+    desc: "X=t, Y=sin(2πt)",
+    axis1: "t",
+    axis2: "sin(t * tau)",
+  },
+  {
+    name: "Lissajous",
+    desc: "sin(3t) × cos(2t)",
+    axis1: "sin(3 * t * tau)",
+    axis2: "cos(2 * t * tau)",
+  },
+  {
+    name: "Concentric Rings",
+    desc: "r=floor(sqrt(i)), θ evenly spaced per ring",
+    axis1: "floor(sqrt(i))",
+    axis2: "i * 137.508",
+    system: "polar",
+  },
+  {
+    name: "Diagonal",
+    desc: "X=i, Y=i (simple baseline)",
+    axis1: "i",
+    axis2: "i",
+  },
+];
+
+/** Build the expression library UI — collapsible list of preset formulas */
+function buildExprLibrary(
+  body: HTMLElement,
+  panel: PanelState,
+  cb: PanelCallbacks,
+): void {
+  const wrapper = body.createDiv({ cls: "gi-expr-library" });
+
+  // Header (collapsible)
+  const header = wrapper.createDiv({ cls: "gi-expr-library-header clickable-icon" });
+  const chevron = header.createEl("span", { cls: "gi-expr-library-chevron", text: "▸" });
+  header.createEl("span", { text: ` ${t("coord.exprLibrary")}` });
+
+  // Help icon
+  const helpBtn = header.createEl("span", { cls: "gi-help-btn clickable-icon" });
+  setIcon(helpBtn, "help-circle");
+  helpBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const existing = wrapper.querySelector(".gi-help-popup");
+    if (existing) { existing.remove(); return; }
+    const popup = wrapper.createDiv({ cls: "gi-help-popup" });
+    popup.textContent = tHelp("help.exprReference");
+  });
+
+  // Body (initially hidden)
+  const listBody = wrapper.createDiv({ cls: "gi-expr-library-body" });
+  listBody.style.display = "none";
+
+  header.addEventListener("click", () => {
+    const open = listBody.style.display !== "none";
+    listBody.style.display = open ? "none" : "block";
+    chevron.textContent = open ? "▸" : "▾";
+  });
+
+  // Hint
+  listBody.createEl("div", {
+    cls: "gi-hint",
+    text: t("coord.libraryHint"),
+  });
+
+  // Library entries
+  for (const entry of EXPR_LIBRARY) {
+    const item = listBody.createDiv({ cls: "gi-expr-library-item" });
+    const nameEl = item.createEl("span", { cls: "gi-expr-library-name", text: entry.name });
+    item.createEl("span", { cls: "gi-expr-library-desc", text: entry.desc });
+
+    item.addEventListener("click", () => {
+      // Apply the preset to panel
+      const base = panel.coordinateLayout
+        ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+      panel.coordinateLayout = {
+        ...base,
+        system: entry.system ?? "cartesian",
+        axis1: {
+          source: { kind: "index" },
+          transform: { kind: "expression", expr: entry.axis1, scale: 1 },
+        },
+        axis2: {
+          source: { kind: "index" },
+          transform: { kind: "expression", expr: entry.axis2, scale: 1 },
+        },
+      };
+      panel.clusterArrangement = "custom";
+      cb.applyClusterForce();
+      cb.rebuildPanel();
+      cb.restartSimulation(0.5);
+
+      // Brief highlight
+      nameEl.style.color = "var(--text-success, #4f4)";
+      setTimeout(() => { nameEl.style.color = ""; }, 600);
+    });
+  }
 }
 
 /** Build the constants management UI — key-value list for user-defined constants */
