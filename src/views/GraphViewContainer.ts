@@ -16,6 +16,7 @@ import { yieldFrame, buildAdj, cssColorToHex } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
+import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
 import type { ClusterMetadata, GuideLineData, TimelineBarInfo, ArrangementGuide } from "../layouts/cluster-force";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
@@ -372,8 +373,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const { exportGraphAsPng, downloadBlob, makeExportFilename } = await import("../utils/export-png");
         const blob = await exportGraphAsPng(this.pixiApp);
         downloadBlob(blob, makeExportFilename());
+        showToast(t("toast.pngExported"));
       } catch (e) {
         console.error("Graph Island: PNG export failed", e);
+        showToast(t("toast.pngFailed"), 5000);
       } finally {
         exportBtn.disabled = false;
         exportBtn.setAttribute("aria-label", origLabel);

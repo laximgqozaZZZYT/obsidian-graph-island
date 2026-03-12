@@ -9,6 +9,7 @@ import { t, tHelp } from "../i18n";
 import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
 import { exportPreset, importPreset, applyPreset } from "../utils/presets";
+import { showToast } from "../utils/toast";
 import { ARRANGEMENT_PRESETS, findMatchingPreset, CURVE_REGISTRY } from "../layouts/coordinate-presets";
 import { validateExpr } from "../utils/expr-eval";
 import { parseTransformExpr, transformExprToString, getTransformExprSuggestions, TRANSFORM_FUNCTION_NAMES } from "../utils/transform-expr";
@@ -980,7 +981,10 @@ function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
     const btn = bar.createEl("button", { cls: "gi-preset-btn", text: t(p.labelKey) });
     btn.setAttribute("aria-label", t(p.descKey));
     btn.title = t(p.descKey);
-    btn.addEventListener("click", () => cb.applyPreset(p.key));
+    btn.addEventListener("click", () => {
+      cb.applyPreset(p.key);
+      showToast(t("toast.presetApplied").replace("{name}", t(p.labelKey)));
+    });
   }
 }
 

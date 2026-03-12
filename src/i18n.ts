@@ -264,6 +264,13 @@ const en: TranslationMap = {
   "preset.imported": "Preset applied successfully",
   "preset.importPrompt": "Paste preset JSON below:",
 
+  // --- Toast notifications ---
+  "toast.presetApplied": "Applied preset: {name}",
+  "toast.pngExported": "PNG exported",
+  "toast.pngFailed": "PNG export failed",
+  "toast.filterResult": "{count} nodes displayed",
+  "toast.layoutChanged": "Layout: {name}",
+
   // --- PanelBuilder: action buttons ---
   "action.save": "Save Settings",
   "action.reset": "Reset",
@@ -632,6 +639,13 @@ const ja: TranslationMap = {
   "preset.importError": "無効なプリセット JSON です",
   "preset.imported": "プリセットを適用しました",
   "preset.importPrompt": "プリセット JSON を貼り付けてください:",
+
+  // --- Toast notifications ---
+  "toast.presetApplied": "プリセット適用: {name}",
+  "toast.pngExported": "PNG をエクスポートしました",
+  "toast.pngFailed": "PNG エクスポート失敗",
+  "toast.filterResult": "{count} ノードを表示中",
+  "toast.layoutChanged": "レイアウト: {name}",
 
   // --- PanelBuilder: action buttons ---
   "action.save": "設定を保存",
