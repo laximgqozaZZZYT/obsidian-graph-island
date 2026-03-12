@@ -1960,3 +1960,34 @@
   width: 14px;
   height: 14px;
 }
+
+/* ========== Phase 18: Form state visualization ========== */
+
+/* 18-A: Disabled state enhancement */
+.graph-panel input:disabled,
+.graph-panel select:disabled,
+.graph-panel button:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* 18-B: Focus ring enhancement */
+.graph-panel input:focus-visible,
+.graph-panel select:focus-visible,
+.graph-panel textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+
+/* 18-C: Skeleton loading pulse animation */
+@keyframes gi-skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+.gi-skeleton {
+  background: var(--background-modifier-border);
+  border-radius: var(--radius-s, 4px);
+  animation: gi-skeleton-pulse 1.5s ease-in-out infinite;
+}
