@@ -1806,3 +1806,89 @@
   background: var(--text-faint);
 }
 .gi-legend-body::-webkit-scrollbar { width: 4px; }
+
+/* =========================================================================
+   Phase 12: Button Hierarchy & Press Feedback
+   ========================================================================= */
+
+/* 12-A: Primary action buttons (filled accent) */
+.graph-panel .gi-action-row button,
+.graph-panel .ngp-action-row button,
+.graph-panel .ngp-import-btn-row button {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: var(--radius-s, 4px);
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+  font-family: inherit;
+  transition: transform 0.1s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+@media (hover: hover) {
+  .graph-panel .gi-action-row button:hover,
+  .graph-panel .ngp-action-row button:hover,
+  .graph-panel .ngp-import-btn-row button:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+    background: var(--interactive-accent-hover, var(--interactive-accent));
+  }
+}
+.graph-panel .gi-action-row button:active,
+.graph-panel .ngp-action-row button:active,
+.graph-panel .ngp-import-btn-row button:active {
+  transform: scale(0.97);
+  box-shadow: none;
+}
+
+/* 12-B: Secondary buttons (preset buttons — outline style) */
+.gi-preset-btn {
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+@media (hover: hover) {
+  .gi-preset-btn:hover {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+  }
+}
+.gi-preset-btn:active {
+  transform: scale(0.97);
+  box-shadow: none;
+}
+
+/* 12-C: Toolbar button press feedback */
+.graph-toolbar button {
+  transition: color 0.15s ease, background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+@media (hover: hover) {
+  .graph-toolbar button:hover {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+  }
+}
+.graph-toolbar button:active {
+  transform: scale(0.97);
+  box-shadow: none;
+}
+
+/* 12-D: Tab button press feedback */
+.gi-tab-btn {
+  transition: color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+}
+.gi-tab-btn:active {
+  transform: scale(0.97);
+}
+
+/* 12-E: Destructive / remove buttons — red accent on hover */
+.gi-group-remove:hover,
+.gi-ont-del-btn:hover,
+.gi-remove-btn:hover,
+.gi-mapping-remove:hover,
+.gi-tag-rel-remove:hover {
+  color: var(--text-error);
+}
+
+/* 12-F: General interactive press feedback for all panel buttons */
+.graph-panel button:active {
+  transform: scale(0.97);
+}
