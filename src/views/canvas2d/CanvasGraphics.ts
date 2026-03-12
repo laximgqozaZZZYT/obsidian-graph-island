@@ -13,11 +13,22 @@ type DrawCmd =
   | { t: "setLineDash"; segments: number[] }
   | { t: "roundedRect"; x: number; y: number; w: number; h: number; r: number };
 
+const _rgbaCache = new Map<number, string>();
+const _RGBA_CACHE_MAX = 512;
+
 export function hexToRgba(hex: number, alpha: number): string {
+  // Pack hex (24-bit) + quantized alpha (8-bit) into a single key
+  const aQ = (alpha * 255 + 0.5) | 0;
+  const key = (hex << 8) | aQ;
+  let result = _rgbaCache.get(key);
+  if (result !== undefined) return result;
   const r = (hex >> 16) & 0xff;
   const g = (hex >> 8) & 0xff;
   const b = hex & 0xff;
-  return `rgba(${r},${g},${b},${alpha})`;
+  result = `rgba(${r},${g},${b},${aQ / 255})`;
+  if (_rgbaCache.size >= _RGBA_CACHE_MAX) _rgbaCache.clear();
+  _rgbaCache.set(key, result);
+  return result;
 }
 
 export class CanvasGraphics {

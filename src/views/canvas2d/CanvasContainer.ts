@@ -80,16 +80,34 @@ export class CanvasContainer {
 
   _flush(ctx: CanvasRenderingContext2D, parentAlpha: number) {
     if (!this.visible) return;
+
+    const children = this.children;
+    const len = children.length;
+    if (len === 0) return;
+
+    // Quick scan: skip save/restore if no child is visible
+    let anyVisible = false;
+    for (let i = 0; i < len; i++) {
+      if (children[i].visible) { anyVisible = true; break; }
+    }
+    if (!anyVisible) return;
+
     const effAlpha = parentAlpha * this.alpha;
+    const needsTransform = this.x !== 0 || this.y !== 0 ||
+      this.scale.x !== 1 || this.scale.y !== 1;
 
-    ctx.save();
-    if (this.x !== 0 || this.y !== 0) ctx.translate(this.x, this.y);
-    if (this.scale.x !== 1 || this.scale.y !== 1) ctx.scale(this.scale.x, this.scale.y);
-
-    for (const child of this.children) {
-      (child as any)._flush(ctx, effAlpha);
+    if (needsTransform) {
+      ctx.save();
+      if (this.x !== 0 || this.y !== 0) ctx.translate(this.x, this.y);
+      if (this.scale.x !== 1 || this.scale.y !== 1) ctx.scale(this.scale.x, this.scale.y);
     }
 
-    ctx.restore();
+    for (let i = 0; i < len; i++) {
+      (children[i] as any)._flush(ctx, effAlpha);
+    }
+
+    if (needsTransform) {
+      ctx.restore();
+    }
   }
 }

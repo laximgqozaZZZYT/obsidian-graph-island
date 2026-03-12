@@ -33,6 +33,8 @@ export class CanvasText {
   scale = { x: 1, y: 1, set(v: number) { this.x = v; this.y = v; } };
 
   private _measuredWidth = 0;
+  private _measuredText = "";      // cached text for width measurement
+  private _measuredFont = "";      // cached font string
   get width(): number { return this._measuredWidth * this.scale.x; }
   get height(): number { return (this.style.fontSize ?? 11) * this.scale.y; }
 
@@ -57,17 +59,23 @@ export class CanvasText {
     const fontSize = this.style.fontSize ?? 11;
     const fontWeight = this.style.fontWeight ?? "normal";
     const fontFamily = this.style.fontFamily ?? "-apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    const fontStr = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    ctx.font = fontStr;
 
-    const metrics = ctx.measureText(this.text);
-    this._measuredWidth = metrics.width;
+    // Cache measureText result — only re-measure when text or font changes
+    if (this.text !== this._measuredText || fontStr !== this._measuredFont) {
+      this._measuredWidth = ctx.measureText(this.text).width;
+      this._measuredText = this.text;
+      this._measuredFont = fontStr;
+    }
 
-    const tx = -this.anchor.x * metrics.width;
+    const measuredW = this._measuredWidth;
+    const tx = -this.anchor.x * measuredW;
     const ty = this.anchor.y * fontSize;
 
     // Draw pill-shaped background behind the text
     if (this.bgColor !== null && this.bgAlpha > 0) {
-      const pw = metrics.width + this.bgPadX * 2;
+      const pw = measuredW + this.bgPadX * 2;
       const ph = fontSize + this.bgPadY * 2;
       const px = tx - this.bgPadX;
       const py = ty - fontSize - this.bgPadY;

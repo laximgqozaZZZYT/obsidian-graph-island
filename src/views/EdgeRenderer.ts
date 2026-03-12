@@ -47,6 +47,8 @@ export interface EdgeDrawConfig {
   showArrows: boolean;
   /** Node ID → radius (for positioning arrows at node edge) */
   nodeRadii: Map<string, number> | null;
+  /** Current world container scale (for zoom-dependent rendering) */
+  worldScale?: number;
 }
 
 // Minimal position data needed for source/target
@@ -149,12 +151,17 @@ function normalizeAngle(a: number): number {
  * centroid of each group's midpoints. Only spatially proximate, same-direction,
  * same-color edges share a group — producing local "highway" bundles.
  */
+// Module-level reusable Maps for direction bundle computation — avoids per-call Map allocation
+const _bundleAccumPool = new Map<string, BundleAccum>();
+const _bundleResultPool = new Map<string, BundleGroup>();
+
 function buildDirectionBundles(
   edges: GraphEdge[],
   resolvePos: (ref: string | object) => Pos | undefined,
   cfg: EdgeDrawConfig,
 ): Map<string, BundleGroup> {
-  const accum = new Map<string, BundleAccum>();
+  const accum = _bundleAccumPool;
+  accum.clear();
 
   for (const e of edges) {
     if (shouldSkipEdge(e, cfg)) continue;
@@ -185,7 +192,8 @@ function buildDirectionBundles(
     acc.count++;
   }
 
-  const result = new Map<string, BundleGroup>();
+  const result = _bundleResultPool;
+  result.clear();
   for (const [key, acc] of accum) {
     if (acc.count >= MIN_BUNDLE_SIZE) {
       result.set(key, {
@@ -287,17 +295,28 @@ function buildCables(
 
   // Split each pair into cables of max MAX_CABLE_COLORS distinct colors
   for (const [pairKey, pair] of pairData) {
-    const colorEntries = [...pair.byColor.entries()]; // [color, edges[]]
-    if (colorEntries.length === 0) continue;
+    // Iterate byColor entries directly — avoid spread into temporary array
+    const colorEntriesArr: [number, GraphEdge[]][] = [];
+    let totalEdges = 0;
+    for (const entry of pair.byColor) {
+      colorEntriesArr.push(entry);
+      totalEdges += entry[1].length;
+    }
+    if (colorEntriesArr.length === 0) continue;
     // Single edge total: draw normally
-    const totalEdges = colorEntries.reduce((s, [, es]) => s + es.length, 0);
     if (totalEdges < 2) continue;
 
-    const totalCables = Math.ceil(colorEntries.length / MAX_CABLE_COLORS);
+    const totalCables = Math.ceil(colorEntriesArr.length / MAX_CABLE_COLORS);
     for (let ci = 0; ci < totalCables; ci++) {
-      const colorChunk = colorEntries.slice(ci * MAX_CABLE_COLORS, (ci + 1) * MAX_CABLE_COLORS);
-      const lanes: CableLane[] = colorChunk.map(([color, edges]) => ({ color, edges }));
-      const allEdges = lanes.flatMap(l => l.edges);
+      const startIdx = ci * MAX_CABLE_COLORS;
+      const endIdx = Math.min(startIdx + MAX_CABLE_COLORS, colorEntriesArr.length);
+      const lanes: CableLane[] = [];
+      const allEdges: GraphEdge[] = [];
+      for (let k = startIdx; k < endIdx; k++) {
+        const [color, edges] = colorEntriesArr[k];
+        lanes.push({ color, edges });
+        for (const e of edges) allEdges.push(e);
+      }
       cables.push({
         pairKey,
         srcCluster: pair.srcCluster,
@@ -436,7 +455,7 @@ function drawCables(
         }
       }
 
-      g.lineStyle({ width: trunkWidth, color: lane.color, alpha: trunkAlpha, native: true });
+      g.lineStyle({ width: trunkWidth, color: lane.color, alpha: trunkAlpha * densityScale, native: true });
       g.moveTo(ts.x, ts.y);
       g.lineTo(te.x, te.y);
 
@@ -484,6 +503,26 @@ function drawCables(
 }
 
 // ---------------------------------------------------------------------------
+// Direction bundle cache — avoids recomputing every frame during animation
+// ---------------------------------------------------------------------------
+let _bundleCache: Map<string, BundleGroup> | null = null;
+let _bundleDirty = true;
+let _bundleFrameCount = 0;
+/** Recompute bundles every Nth frame during animation (reduces cost by ~66%) */
+const BUNDLE_SKIP = 3;
+
+// Cable bundling cache (same invalidation as direction bundles)
+let _cableCache: { cables: Cable[]; cabledEdgeIds: Set<string> } | null = null;
+let _cableDirty = true;
+
+/** Mark the direction bundle cache as stale (call when edges, visibility, or
+ *  layout change significantly — e.g. toggling edge types, loading new data). */
+export function invalidateBundleCache(): void {
+  _bundleDirty = true;
+  _cableDirty = true;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -513,20 +552,44 @@ export function drawEdges(
   // Scale base alpha inversely with edge density to keep the graph readable.
   // <100 edges: full alpha; 100–1000: gentle fade; 1000+: aggressive fade.
   const edgeCount = cfg.totalEdgeCount ?? edges.length;
-  const densityScale = edgeCount <= 100 ? 1
+  const densityScaleBase = edgeCount <= 100 ? 1
     : edgeCount <= 500 ? 1 - 0.35 * ((edgeCount - 100) / 400)
     : edgeCount <= 2000 ? 0.65 - 0.35 * ((edgeCount - 500) / 1500)
     : 0.3;
+  // At extreme zoom-out (scale < 0.05), further reduce alpha so edges don't
+  // obscure nodes rendered with min-radius inflation.
+  const ws = cfg.worldScale ?? 1;
+  const zoomFade = ws >= 0.05 ? 1 : Math.max(0.15, ws / 0.05);
+  const densityScale = densityScaleBase * zoomFade;
 
   // Pre-compute direction×color bundles for highway-style edge merging
   const β = cfg.bundleStrength;
-  const bundles = β > 0 ? buildDirectionBundles(edges, resolvePos, cfg) : null;
+  let bundles: Map<string, BundleGroup> | null = null;
+  if (β > 0) {
+    _bundleFrameCount++;
+    if (_bundleDirty || !_bundleCache || _bundleFrameCount >= BUNDLE_SKIP) {
+      _bundleCache = buildDirectionBundles(edges, resolvePos, cfg);
+      _bundleDirty = false;
+      _bundleFrameCount = 0;
+    }
+    bundles = _bundleCache;
+  }
 
-  // Cable bundling: group inter-cluster edges into cables
+  // Cable bundling: group inter-cluster edges into cables (cached like direction bundles)
   const hasClusters = cfg.nodeClusterMap && cfg.clusterCentroids && cfg.clusterRadii;
-  const { cables, cabledEdgeIds } = hasClusters
-    ? buildCables(edges, resolvePos, cfg)
-    : { cables: [] as Cable[], cabledEdgeIds: new Set<string>() };
+  let cables: Cable[];
+  let cabledEdgeIds: Set<string>;
+  if (hasClusters) {
+    if (_cableDirty || !_cableCache) {
+      _cableCache = buildCables(edges, resolvePos, cfg);
+      _cableDirty = false;
+    }
+    cables = _cableCache.cables;
+    cabledEdgeIds = _cableCache.cabledEdgeIds;
+  } else {
+    cables = [];
+    cabledEdgeIds = new Set<string>();
+  }
 
   // Draw cables first (trunk + fan-out)
   if (cables.length > 0) {

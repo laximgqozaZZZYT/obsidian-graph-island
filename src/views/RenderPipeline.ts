@@ -7,7 +7,7 @@ import type { ShapeRule } from "../utils/node-shapes";
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const EDGE_REDRAW_SKIP = 1;
+const EDGE_REDRAW_SKIP = 3;
 
 // ---------------------------------------------------------------------------
 // darkenColor utility (shared with GraphViewContainer)
@@ -74,11 +74,36 @@ export interface RenderHost {
   drawGroupGrid(): void;
   /** Tick layout transition animation; returns true if still running */
   tickLayoutTransition(): boolean;
+  /** Get the canvas viewport dimensions (CSS pixels) */
+  getCanvasDimensions(): { width: number; height: number };
 }
 
 // ---------------------------------------------------------------------------
 // RenderPipeline — owns the PIXI render loop, node creation, and batch drawing
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// quickSelect — O(n) average k-th smallest element (Hoare's selection algorithm)
+// ---------------------------------------------------------------------------
+function quickSelect(arr: number[], k: number): number {
+  if (arr.length <= 1) return arr[0] ?? 0;
+  let lo = 0, hi = arr.length - 1;
+  while (lo < hi) {
+    const pivot = arr[(lo + hi) >> 1];
+    let i = lo, j = hi;
+    while (i <= j) {
+      while (arr[i] < pivot) i++;
+      while (arr[j] > pivot) j--;
+      if (i <= j) {
+        const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+        i++; j--;
+      }
+    }
+    if (j < k) lo = i;
+    if (i > k) hi = j;
+  }
+  return arr[k];
+}
+
 export class RenderPipeline {
   private host: RenderHost;
 
@@ -88,6 +113,10 @@ export class RenderPipeline {
   private idleFrames = 0;
   private _tickerBound = false;
   private edgeRedrawCounter = 0;
+
+  // Array pools for redrawNodeBatch() — reuse across frames to reduce GC
+  private _visiblePool: PixiNode[] = [];
+  private _degreesPool: number[] = [];
 
   /** Called after every render tick (used by minimap) */
   onPostRender: (() => void) | null = null;
@@ -196,6 +225,8 @@ export class RenderPipeline {
       this.host.drawTimelineBars();
       this.host.drawEdges();
     }
+    // Signal CanvasApp that content changed and needs re-rendering
+    this.host.getPixiApp()?.markNeedsRender();
   }
 
   // =========================================================================
@@ -219,6 +250,13 @@ export class RenderPipeline {
   /**
    * Redraw all non-highlighted node circles in a single batch Graphics.
    * Reduces GPU draw calls from 1000+ to 1.
+   *
+   * Optimizations:
+   *  - Viewport culling: off-screen nodes are skipped entirely
+   *  - LOD tiers: extreme zoom → dots, mid zoom → all circles (no shape lookup),
+   *    normal zoom → full shape + gradient rendering
+   *  - Array pooling: visible[] and degrees[] reused across frames
+   *  - quickSelect: O(n) p90 calculation instead of sort O(n log n)
    */
   redrawNodeBatch() {
     const g = this.host.getNodeCircleBatch();
@@ -232,19 +270,36 @@ export class RenderPipeline {
     // Effective highlight set: ephemeral overrides normal hover
     const activeSet = (eph && eph.size > 0) ? eph : hlSet;
 
-    // Two-pass: first all glows (behind), then all solid circles (on top).
-    const visible: PixiNode[] = [];
+    // --- Viewport culling bounds (world coordinates) ---
+    const world = this.host.getWorldContainer();
+    const worldScale = world?.scale?.x ?? 1;
+    const { width: cw, height: ch } = this.host.getCanvasDimensions();
+    const wx = world?.x ?? 0;
+    const wy = world?.y ?? 0;
+    // Margin in world units so nodes at the edge aren't clipped mid-circle
+    const margin = 60 / worldScale;
+    const vpMinX = -wx / worldScale - margin;
+    const vpMinY = -wy / worldScale - margin;
+    const vpMaxX = vpMinX + cw / worldScale + margin * 2;
+    const vpMaxY = vpMinY + ch / worldScale + margin * 2;
+
+    // Reuse pooled array to avoid per-frame allocation
+    const visible = this._visiblePool;
+    visible.length = 0;
     const pixiNodes = this.host.getPixiNodes();
     const hiddenBySearch = this.host.getSearchHiddenNodes();
     for (const pn of pixiNodes.values()) {
       if (hiddenBySearch.has(pn.data.id)) continue;
       if (hasHighlight && activeSet.has(pn.data.id)) continue;
+      // Viewport culling: skip nodes outside visible area
+      const nx = pn.data.x, ny = pn.data.y;
+      if (nx < vpMinX || nx > vpMaxX || ny < vpMinY || ny > vpMaxY) continue;
       visible.push(pn);
     }
 
-    // Timeline range filtering: dim nodes outside range
+    // Timeline range filtering: dim nodes outside range (only when active)
+    let tlFilteredOut: Set<string> | null = null;
     const tlRange = (this.host as any).getTimelineRange?.() as { min: number; max: number; active: boolean } | undefined;
-    let tlMinX = 0, tlMaxX = 0;
     if (tlRange?.active) {
       let globalMinX = Infinity, globalMaxX = -Infinity;
       for (const pn of pixiNodes.values()) {
@@ -252,11 +307,9 @@ export class RenderPipeline {
         if (pn.data.x > globalMaxX) globalMaxX = pn.data.x;
       }
       const xSpan = globalMaxX - globalMinX;
-      tlMinX = globalMinX + xSpan * tlRange.min;
-      tlMaxX = globalMinX + xSpan * tlRange.max;
-    }
-    const tlFilteredOut = new Set<string>();
-    if (tlRange?.active) {
+      const tlMinX = globalMinX + xSpan * tlRange.min;
+      const tlMaxX = globalMinX + xSpan * tlRange.max;
+      tlFilteredOut = new Set<string>();
       for (const pn of visible) {
         if (pn.data.x < tlMinX || pn.data.x > tlMaxX) {
           tlFilteredOut.add(pn.data.id);
@@ -268,52 +321,89 @@ export class RenderPipeline {
     const nodeCount = visible.length;
     const shapeRules = this.host.getNodeShapeRules();
 
-    // Pass 1: Glow halos (enhanced for hub nodes)
-    const showGlow = nodeCount < 800;
+    // Minimum screen-space node size: ensure nodes are visible at extreme zoom-out
+    const nodeScreenPx = 30 * worldScale; // typical node radius in screen pixels
+    // LOD tiers based on zoom level:
+    //   extreme (< 1.5px): fixed-size dot rectangles
+    //   mid (< 4px): all circles, no shape lookup, no gradient
+    //   normal: full shape + gradient rendering
+    const isExtremeZoom = nodeScreenPx < 1.5;
+    const isMidZoom = !isExtremeZoom && nodeScreenPx < 4;
+    // For normal zoom, use min-radius to keep nodes visible when slightly small
+    const minWorldRadius = isExtremeZoom ? 0 : Math.max(0, 1.5 / worldScale);
+
+    // Pass 1: Glow halos (enhanced for hub nodes) — skip at extreme/mid zoom
+    const showGlow = nodeCount < 800 && !isExtremeZoom && !isMidZoom;
     if (showGlow) {
       const baseGlowAlpha = nodeCount < 300 ? 0.14 : 0.14 * (1 - (nodeCount - 300) / 500);
       const baseGlowRadius = nodeCount < 300 ? 2.2 : 2.2 - 0.7 * ((nodeCount - 300) / 500);
-      // Compute degree percentile for hub detection
-      const degrees = visible.map(pn => pn.data.degree ?? 0);
-      const sorted = [...degrees].sort((a, b) => a - b);
-      const p90 = sorted[Math.floor(sorted.length * 0.9)] || 1;
+      // Reuse degree buffer + O(n) quickSelect instead of sort O(n log n)
+      const degArr = this._degreesPool;
+      degArr.length = visible.length;
+      for (let i = 0; i < visible.length; i++) degArr[i] = visible[i].data.degree ?? 0;
+      const targetIdx = Math.floor(visible.length * 0.9);
+      const p90 = quickSelect(degArr, targetIdx) || 1;
       g.lineStyle(0);
       for (let i = 0; i < visible.length; i++) {
         const pn = visible[i];
         const shape = getNodeShape(pn.data, shapeRules);
         const deg = pn.data.degree ?? 0;
-        // Hub nodes get brighter, larger glow
         const hubFactor = deg >= p90 ? 1.6 : 1;
         const glowAlpha = baseGlowAlpha * hubFactor;
         const glowRadius = baseGlowRadius * (deg >= p90 ? 1.3 : 1);
+        const effR = Math.max(pn.radius, minWorldRadius);
         g.beginFill(pn.color, alpha * glowAlpha);
-        drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius * glowRadius);
+        drawShapeAt(g, shape, pn.data.x, pn.data.y, effR * glowRadius);
         g.endFill();
       }
     }
 
-    // Pass 2: Nodes with radial gradient (circles) or solid fill (other shapes)
-    const useGradient = nodeCount < 500;
-    for (const pn of visible) {
-      const shape = getNodeShape(pn.data, shapeRules);
-      const nodeAlpha = tlFilteredOut.has(pn.data.id) ? alpha * 0.08 : alpha;
-      const strokeColor = darkenColor(pn.color, 0.4);
-      g.lineStyle(1, strokeColor, nodeAlpha * 0.5);
-      if (useGradient && shape === "circle") {
-        const innerCol = lightenColor(pn.color, 0.25);
-        const outerCol = darkenColor(pn.color, 0.15);
-        g.beginRadialFill(pn.data.x, pn.data.y, pn.radius, innerCol, outerCol, nodeAlpha, nodeAlpha);
-      } else {
+    // Pass 2: Nodes — LOD-tiered rendering
+    if (isExtremeZoom) {
+      // Extreme zoom-out: draw fixed-size rectangles (1×1 screen pixel)
+      const dotSize = 1 / worldScale;
+      g.lineStyle(0);
+      for (const pn of visible) {
+        const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * 0.08 : alpha;
         g.beginFill(pn.color, nodeAlpha);
+        g.drawRect(pn.data.x - dotSize / 2, pn.data.y - dotSize / 2, dotSize, dotSize);
+        g.endFill();
       }
-      drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius);
-      g.endFill();
+    } else if (isMidZoom) {
+      // Mid zoom: all circles (skip shape lookup + gradient for speed)
+      g.lineStyle(0);
+      for (const pn of visible) {
+        const effR = Math.max(pn.radius, minWorldRadius);
+        const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * 0.08 : alpha;
+        g.beginFill(pn.color, nodeAlpha);
+        g.drawCircle(pn.data.x, pn.data.y, effR);
+        g.endFill();
+      }
+    } else {
+      // Normal zoom: full shape + optional gradient
+      const useGradient = nodeCount < 500;
+      for (const pn of visible) {
+        const shape = getNodeShape(pn.data, shapeRules);
+        const effR = Math.max(pn.radius, minWorldRadius);
+        const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * 0.08 : alpha;
+        const strokeColor = darkenColor(pn.color, 0.4);
+        g.lineStyle(1, strokeColor, nodeAlpha * 0.5);
+        if (useGradient && shape === "circle") {
+          const innerCol = lightenColor(pn.color, 0.25);
+          const outerCol = darkenColor(pn.color, 0.15);
+          g.beginRadialFill(pn.data.x, pn.data.y, effR, innerCol, outerCol, nodeAlpha, nodeAlpha);
+        } else {
+          g.beginFill(pn.color, nodeAlpha);
+        }
+        drawShapeAt(g, shape, pn.data.x, pn.data.y, effR);
+        g.endFill();
+      }
     }
 
     // Pass 3: Hold indicator ring for pinned nodes
     for (const pn of visible) {
       if (!pn.held) continue;
-      const shape = getNodeShape(pn.data, shapeRules);
+      const shape = isMidZoom ? "circle" as const : getNodeShape(pn.data, shapeRules);
       g.lineStyle(2, this.host.isDarkTheme() ? 0xffffff : 0x333333, 0.9);
       g.beginFill(0, 0);
       drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius + 4);

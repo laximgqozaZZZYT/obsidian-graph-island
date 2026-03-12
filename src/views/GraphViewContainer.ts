@@ -14,7 +14,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
 import { yieldFrame, buildAdj, cssColorToHex } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
-import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, type EdgeDrawConfig } from "./EdgeRenderer";
+import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
@@ -145,6 +145,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   // Theme caches
   private cachedBgColor: number | null = null;
+  private _centroidCache: Map<string, { x: number; y: number }> | null = null;
+  private _centroidCacheFrame = -1;
+  private _nodeRadiiCache: Map<string, number> | null = null;
+  private _nodeRadiiCacheFrame = -1;
+  private _frameCounter = 0;
   private cachedLabelColor: number | null = null;
   private cachedIsDark: boolean | null = null;
   /** Ephemeral highlight set from side-panel hover (null = not active) */
@@ -155,8 +160,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private pathfinderEndId: string | null = null;
   /** Set of node IDs on the shortest path (null = no path) */
   private pathfinderPath: string[] | null = null;
+  /** Cached Set of node IDs on the path (avoid per-frame allocation) */
+  private pathfinderNodeSet: Set<string> | null = null;
   /** Set of edge keys on the shortest path for highlight */
   private pathfinderEdgeSet: Set<string> | null = null;
+
+  // Reusable EdgeDrawConfig — mutated in-place each frame to avoid per-frame allocation
+  private _edgeDrawCfg: EdgeDrawConfig | null = null;
 
   // Resize observer
   private resizeObserver: ResizeObserver | null = null;
@@ -884,6 +894,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (meta?.sequenceEdges && meta.sequenceEdges.length > 0) {
       this.graphEdges = [...this.graphEdges, ...meta.sequenceEdges];
     }
+    invalidateBundleCache();
   }
   getNodeProperty(nodeId: string, key: string): string | undefined {
     const pn = this.pixiNodes.get(nodeId);
@@ -897,14 +908,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
   getNodeShapeRules() { return this.panel.nodeShapeRules; }
   getSearchHiddenNodes() { return new Set<string>(); }
+  getCanvasDimensions() {
+    return {
+      width: this.canvasWrap?.clientWidth ?? 600,
+      height: this.canvasWrap?.clientHeight ?? 400,
+    };
+  }
 
   // =========================================================================
   // Zoom & Hit testing
   // =========================================================================
 
-  /** Rebuild the spatial hash grid from current node positions */
+  /** Rebuild the spatial hash grid from current node positions.
+   *  Reuses existing cell arrays to reduce GC pressure. */
   rebuildSpatialGrid() {
-    this.spatialGrid.clear();
+    // Clear cell arrays without deallocating them
+    for (const cell of this.spatialGrid.values()) cell.length = 0;
     const cs = this.spatialCellSize;
     for (const pn of this.pixiNodes.values()) {
       const key = `${Math.floor(pn.data.x / cs)},${Math.floor(pn.data.y / cs)}`;
@@ -995,6 +1014,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.pathfinderStartId = null;
     this.pathfinderEndId = null;
     this.pathfinderPath = null;
+    this.pathfinderNodeSet = null;
     this.pathfinderEdgeSet = null;
     this.markDirty(true);
   }
@@ -1042,6 +1062,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     path.unshift(start);
     this.pathfinderPath = path;
+    this.pathfinderNodeSet = new Set(path);
 
     // Build edge set for highlighting
     const edgeSet = new Set<string>();
@@ -1057,8 +1078,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Get the pathfinder node set (for render pipeline highlight) */
   getPathfinderNodeSet(): Set<string> | null {
-    if (!this.pathfinderPath) return null;
-    return new Set(this.pathfinderPath);
+    return this.pathfinderNodeSet;
   }
 
   /** Get the pathfinder edge set (for edge highlight) */
@@ -1278,8 +1298,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   // Draw edges (delegated to EdgeRenderer)
   // =========================================================================
+  /** Resolve an edge source/target reference to a position object.
+   *  Bound method — avoids per-frame closure allocation. */
+  private _resolveEdgePos = (ref: string | object) =>
+    typeof ref === "object" ? (ref as any) : this.pixiNodes.get(ref as string)?.data;
+
+  /** Resolve an enclosure member node ID to position + radius.
+   *  Bound method — avoids per-frame closure allocation. */
+  private _resolveEnclosurePos = (id: string) => {
+    const pn = this.pixiNodes.get(id);
+    return pn ? { x: pn.data.x, y: pn.data.y, radius: pn.radius } : undefined;
+  };
+
   drawEdges() {
     if (!this.edgeGraphics) return;
+    this._frameCounter++;
     // Cache background color to avoid getComputedStyle on every frame
     if (this.cachedBgColor === null) {
       const el = this.canvasWrap ?? this.containerEl;
@@ -1296,43 +1329,57 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const effectiveHighlightId = ephActive ? "__ephemeral__" : this.highlightedNodeId;
     const effectiveHighlightSet = ephActive ? this.ephemeralHighlight! : this.prevHighlightSet;
 
-    const cfg: EdgeDrawConfig = {
-      showLinks: this.panel.showLinks,
-      showTagEdges: this.panel.showTagEdges,
-      showCategoryEdges: this.panel.showCategoryEdges,
-      showSemanticEdges: this.panel.showSemanticEdges,
-      showInheritance: this.panel.showInheritance,
-      showAggregation: this.panel.showAggregation,
-      showTagNodes: this.panel.showTagNodes,
-      showSimilar: this.panel.showSimilar,
-      showSibling: this.panel.showSibling,
-      showSequence: this.panel.showSequence,
-      colorEdgesByRelation: this.panel.colorEdgesByRelation,
-      isArcLayout: this.currentLayout === "arc",
-      highlightedNodeId: effectiveHighlightId,
-      highlightSet: effectiveHighlightSet,
-      bgColor: this.cachedBgColor,
-      relationColors: this.relationColors,
-      fadeByDegree: this.panel.fadeEdgesByDegree,
-      degrees: this.degrees,
-      maxDegree: maxDeg,
-      totalEdgeCount: this.graphEdges.length,
-      // Edge bundling: pass live cluster centroids computed from current node positions
-      nodeClusterMap: this.clusterMeta?.nodeClusterMap ?? null,
-      clusterCentroids: this.computeLiveCentroids(),
-      clusterRadii: this.clusterMeta?.clusterRadii ?? null,
-      bundleStrength: this.panel.edgeBundleStrength,
-      isDark: this.isDarkTheme(),
-      showEdgeLabels: this.panel.showEdgeLabels,
-      showArrows: this.panel.showArrows,
-      nodeRadii: this.panel.showArrows ? this.buildNodeRadiiMap() : null,
-    };
-    const resolvePos = (ref: string | object) =>
-      typeof ref === "object" ? (ref as any) : this.pixiNodes.get(ref as string)?.data;
+    // Reuse EdgeDrawConfig object — mutate in place to avoid per-frame allocation
+    let cfg = this._edgeDrawCfg;
+    if (!cfg) {
+      cfg = {
+        showLinks: false, showTagEdges: false, showCategoryEdges: false,
+        showSemanticEdges: false, showInheritance: false, showAggregation: false,
+        showTagNodes: false, showSimilar: false, showSibling: false, showSequence: false,
+        colorEdgesByRelation: false, isArcLayout: false,
+        highlightedNodeId: null, highlightSet: new Set(),
+        bgColor: 0, relationColors: new Map(), fadeByDegree: false,
+        degrees: new Map(), maxDegree: 0,
+        nodeClusterMap: null, clusterCentroids: null, clusterRadii: null,
+        bundleStrength: 0, isDark: false, showEdgeLabels: false, showArrows: false,
+        nodeRadii: null,
+      } as EdgeDrawConfig;
+      this._edgeDrawCfg = cfg;
+    }
+    cfg.showLinks = this.panel.showLinks;
+    cfg.showTagEdges = this.panel.showTagEdges;
+    cfg.showCategoryEdges = this.panel.showCategoryEdges;
+    cfg.showSemanticEdges = this.panel.showSemanticEdges;
+    cfg.showInheritance = this.panel.showInheritance;
+    cfg.showAggregation = this.panel.showAggregation;
+    cfg.showTagNodes = this.panel.showTagNodes;
+    cfg.showSimilar = this.panel.showSimilar;
+    cfg.showSibling = this.panel.showSibling;
+    cfg.showSequence = this.panel.showSequence;
+    cfg.colorEdgesByRelation = this.panel.colorEdgesByRelation;
+    cfg.isArcLayout = this.currentLayout === "arc";
+    cfg.highlightedNodeId = effectiveHighlightId;
+    cfg.highlightSet = effectiveHighlightSet;
+    cfg.bgColor = this.cachedBgColor;
+    cfg.relationColors = this.relationColors;
+    cfg.fadeByDegree = this.panel.fadeEdgesByDegree;
+    cfg.degrees = this.degrees;
+    cfg.maxDegree = maxDeg;
+    cfg.totalEdgeCount = this.graphEdges.length;
+    cfg.nodeClusterMap = this.clusterMeta?.nodeClusterMap ?? null;
+    cfg.clusterCentroids = this.getCachedCentroids();
+    cfg.clusterRadii = this.clusterMeta?.clusterRadii ?? null;
+    cfg.bundleStrength = this.panel.edgeBundleStrength;
+    cfg.isDark = this.isDarkTheme();
+    cfg.showEdgeLabels = this.panel.showEdgeLabels;
+    cfg.showArrows = this.panel.showArrows;
+    cfg.nodeRadii = this.panel.showArrows ? this.getCachedNodeRadii() : null;
+    cfg.worldScale = this.worldContainer?.scale?.x ?? 1;
+
     drawEdgesImpl(
       this.edgeGraphics,
       this.graphEdges,
-      resolvePos,
+      this._resolveEdgePos,
       cfg,
       this.arrowGraphics,
     );
@@ -1341,7 +1388,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       drawEdgeLabelsImpl(
         this.edgeLabelContainer,
         this.graphEdges,
-        resolvePos,
+        this._resolveEdgePos,
         cfg,
       );
     }
@@ -1376,10 +1423,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       tagMembership: this.tagMembership,
       nodeColorMap: this.nodeColorMap,
       tagRelPairsCache: this.tagRelPairsCache,
-      resolvePos: (id) => {
-        const pn = this.pixiNodes.get(id);
-        return pn ? { x: pn.data.x, y: pn.data.y, radius: pn.radius } : undefined;
-      },
+      resolvePos: this._resolveEnclosurePos,
       worldScale: this.worldContainer?.scale.x ?? 1,
       totalNodeCount: this.pixiNodes.size,
       enclosureMinRatio: this.plugin.settings.enclosureMinRatio,
@@ -2417,6 +2461,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.savedPositions.clear();
 
       this.graphEdges = gd.edges;
+      invalidateBundleCache();
       this.createPixiNodes(gd.nodes, nodeR, nodeColor);
 
       let tickCount = 0;
@@ -2519,6 +2564,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (signal.aborted) return;
 
     this.graphEdges = ld.edges;
+    invalidateBundleCache();
     this.setStatus(`Creating ${ld.nodes.length} nodes...`);
     await yieldFrame(); if (signal.aborted) return;
 
@@ -2599,7 +2645,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private computeLiveCentroids() { return this.layoutController.computeLiveCentroids(this.clusterMeta); }
 
   /** Collect all frontmatter keys from the vault for field selects */
+  private _fmKeysCache: string[] | null = null;
+  private _fmKeysCacheTime = 0;
+
   private collectFrontmatterKeys(): string[] {
+    // Cache for 5 seconds — vault metadata rarely changes mid-interaction
+    const now = Date.now();
+    if (this._fmKeysCache && now - this._fmKeysCacheTime < 5000) {
+      return this._fmKeysCache;
+    }
     const keys = new Set<string>();
     const files = (this.app as any).vault?.getMarkdownFiles?.() ?? [];
     for (const f of files) {
@@ -2611,7 +2665,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
       }
     }
-    return [...keys].sort();
+    this._fmKeysCache = [...keys].sort();
+    this._fmKeysCacheTime = now;
+    return this._fmKeysCache;
   }
 
   /** Collect available group names based on current groupBy mode */
@@ -2641,6 +2697,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const m = new Map<string, number>();
     for (const [id, pn] of this.pixiNodes) m.set(id, pn.radius);
     return m;
+  }
+
+  /** Cached version of computeLiveCentroids — recomputes max once per frame */
+  private getCachedCentroids(): Map<string, { x: number; y: number }> | null {
+    if (this._centroidCacheFrame === this._frameCounter && this._centroidCache) {
+      return this._centroidCache;
+    }
+    this._centroidCache = this.computeLiveCentroids();
+    this._centroidCacheFrame = this._frameCounter;
+    return this._centroidCache;
+  }
+
+  /** Cached version of buildNodeRadiiMap — recomputes max once per frame */
+  private getCachedNodeRadii(): Map<string, number> {
+    if (this._nodeRadiiCacheFrame === this._frameCounter && this._nodeRadiiCache) {
+      return this._nodeRadiiCache;
+    }
+    this._nodeRadiiCache = this.buildNodeRadiiMap();
+    this._nodeRadiiCacheFrame = this._frameCounter;
+    return this._nodeRadiiCache;
   }
 
   /**

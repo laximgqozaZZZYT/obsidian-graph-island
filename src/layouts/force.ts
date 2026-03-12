@@ -14,6 +14,10 @@ export function resolveDirection(dir: DirectionalGravityRule["direction"]): numb
   }
 }
 
+/** LRU cache for parsed query expressions — avoids re-parsing on every force tick */
+const _exprCache = new Map<string, ReturnType<typeof parseQueryExpr>>();
+const _EXPR_CACHE_MAX = 64;
+
 /**
  * Check whether a node matches a directional gravity filter string.
  * Supported filters:
@@ -26,7 +30,12 @@ export function resolveDirection(dir: DirectionalGravityRule["direction"]): numb
  */
 export function matchesFilter(node: GraphNode, filter: string): boolean {
   if (filter === "*") return true;
-  const expr = parseQueryExpr(filter);
-  if (!expr) return true; // empty filter matches all
+  let expr = _exprCache.get(filter);
+  if (expr === undefined) {
+    expr = parseQueryExpr(filter);
+    if (_exprCache.size >= _EXPR_CACHE_MAX) _exprCache.clear();
+    _exprCache.set(filter, expr);
+  }
+  if (!expr) return true;
   return evaluateExpr(expr, node);
 }

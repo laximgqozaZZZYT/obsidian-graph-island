@@ -67,6 +67,10 @@ function outlinePad(radius: number): number {
  */
 const ZOOM_OUT_THRESHOLD = 0.45;
 
+// Module-level reusable buffers — reduce per-frame allocations
+const _hullInputBuf: Pt[] = [];
+const _enclosuresBuf: EncData[] = [];
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -102,7 +106,9 @@ export function drawEnclosures(
 
   // Phase 1: Collect node positions + radii per tag, compute expanded hull
   const minCount = Math.max(1, Math.floor(cfg.totalNodeCount * cfg.enclosureMinRatio));
-  const enclosures: EncData[] = [];
+  // Reuse enclosures array across frames
+  _enclosuresBuf.length = 0;
+  const enclosures = _enclosuresBuf;
 
   for (const [tag, memberIds] of cfg.tagMembership) {
     if (memberIds.size < minCount) continue;
@@ -127,12 +133,13 @@ export function drawEnclosures(
 
     // Generate boundary sample points around each node's circle
     // so the convex hull fully contains every node regardless of radius.
-    const hullInput: Pt[] = [];
+    // Reuse module-level buffer to reduce per-tag array allocation
+    _hullInputBuf.length = 0;
     for (const p of pts) {
       const r = p.radius + outlinePad(p.radius);
       for (let k = 0; k < HULL_SAMPLES; k++) {
         const angle = (k / HULL_SAMPLES) * Math.PI * 2;
-        hullInput.push({ x: p.x + Math.cos(angle) * r, y: p.y + Math.sin(angle) * r });
+        _hullInputBuf.push({ x: p.x + Math.cos(angle) * r, y: p.y + Math.sin(angle) * r });
       }
     }
 
@@ -147,7 +154,7 @@ export function drawEnclosures(
         { x: p.x - r, y: p.y + r },
       ];
     } else {
-      expanded = convexHull(hullInput);
+      expanded = convexHull(_hullInputBuf);
     }
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -441,27 +448,41 @@ function darkenHex(hex: number, factor: number): number {
   return (r << 16) | (g << 8) | b;
 }
 
+// Reusable buffers for filterOutliers — eliminates per-call array allocations
+const _distBuf: number[] = [];
+const _sortBuf: number[] = [];
+
 /**
  * Filter outlier points using IQR on distance from centroid.
  * Keeps only points within Q3 + 1.5×IQR of the centroid, preventing
  * spatially scattered tag members from inflating the convex hull.
+ *
+ * Uses module-level buffers for distance/sort arrays to reduce GC pressure
+ * (~40 tags × 2 arrays = 80 array allocations saved per 3 frames).
  */
 function filterOutliers<T extends Pt>(pts: T[]): T[] {
   if (pts.length <= 3) return pts;
 
-  const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-  const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+  const n = pts.length;
+  let cx = 0, cy = 0;
+  for (let i = 0; i < n; i++) { cx += pts[i].x; cy += pts[i].y; }
+  cx /= n; cy /= n;
 
-  const dists = pts.map(p => Math.hypot(p.x - cx, p.y - cy));
-  const sorted = [...dists].sort((a, b) => a - b);
-  const q1 = sorted[Math.floor(sorted.length * 0.25)];
-  const q3 = sorted[Math.floor(sorted.length * 0.75)];
-  const iqr = q3 - q1;
-  const cutoff = q3 + 1.5 * iqr;
+  _distBuf.length = n;
+  _sortBuf.length = n;
+  for (let i = 0; i < n; i++) {
+    const d = Math.hypot(pts[i].x - cx, pts[i].y - cy);
+    _distBuf[i] = d;
+    _sortBuf[i] = d;
+  }
+  _sortBuf.sort((a, b) => a - b);
+  const q1 = _sortBuf[Math.floor(n * 0.25)];
+  const q3 = _sortBuf[Math.floor(n * 0.75)];
+  const cutoff = q3 + 1.5 * (q3 - q1);
 
   const result: T[] = [];
-  for (let i = 0; i < pts.length; i++) {
-    if (dists[i] <= cutoff) result.push(pts[i]);
+  for (let i = 0; i < n; i++) {
+    if (_distBuf[i] <= cutoff) result.push(pts[i]);
   }
   return result.length >= 1 ? result : pts;
 }

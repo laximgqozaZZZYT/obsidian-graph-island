@@ -142,16 +142,26 @@ export class LayoutController {
       return;
     }
 
+    // Pre-compute filter matches once (instead of per-tick × per-node × per-rule)
+    const nodes = sim.nodes();
+    const precomputed = entries.map(entry => {
+      const ddx = Math.cos(entry.angleRad);
+      const ddy = Math.sin(entry.angleRad);
+      const matchingIndices: number[] = [];
+      for (let i = 0; i < nodes.length; i++) {
+        if (matchesFilter(nodes[i], entry.filter)) matchingIndices.push(i);
+      }
+      return { ddx, ddy, strength: entry.strength, matchingIndices };
+    });
+
     const forceFn = (alpha: number) => {
-      const nodes = sim.nodes();
-      for (const entry of entries) {
-        const ddx = Math.cos(entry.angleRad);
-        const ddy = Math.sin(entry.angleRad);
-        const str = entry.strength * alpha;
-        for (const node of nodes) {
-          if (!matchesFilter(node, entry.filter)) continue;
-          node.vx! += ddx * str * 100;
-          node.vy! += ddy * str * 100;
+      const currentNodes = sim.nodes();
+      for (const pre of precomputed) {
+        const str = pre.strength * alpha * 100;
+        for (const idx of pre.matchingIndices) {
+          const node = currentNodes[idx];
+          node.vx! += pre.ddx * str;
+          node.vy! += pre.ddy * str;
         }
       }
     };
@@ -406,7 +416,7 @@ export class LayoutController {
         .distance((e) => edgeLinkDistance(e, panel.linkDistance))
         .strength((e) => edgeLinkStrength(e, panel.linkForce)))
       .force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(2))
-      .alphaDecay(0.08)
+      .alphaDecay(0.18)
       .velocityDecay(0.55);
 
     this.host.setSimulation(sim);

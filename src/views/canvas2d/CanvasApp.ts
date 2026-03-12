@@ -71,6 +71,11 @@ export class CanvasApp {
   /** Whether to show the background dot grid */
   showDotGrid = true;
 
+  /** Dirty flag — only re-render when true. Call markNeedsRender() after
+   *  modifying any CanvasGraphics, CanvasText, or transform. */
+  private _needsRender = true;
+  markNeedsRender() { this._needsRender = true; }
+
   constructor(opts: CanvasAppOptions) {
     this.view = document.createElement("canvas");
     this.dpr = opts.resolution ?? (window.devicePixelRatio || 1);
@@ -90,6 +95,7 @@ export class CanvasApp {
 
   setBackgroundColor(color: number) {
     this.bgColor = color;
+    this._needsRender = true;
   }
 
   resize(width: number, height: number) {
@@ -97,6 +103,7 @@ export class CanvasApp {
     this.view.height = height * this.dpr;
     this.renderer.width = width;
     this.renderer.height = height;
+    this._needsRender = true;
   }
 
   getContext(): CanvasRenderingContext2D {
@@ -133,16 +140,20 @@ export class CanvasApp {
       : `rgba(255,255,255,${dotAlpha})`;
 
     ctx.fillStyle = dotColor;
+    ctx.beginPath();
     for (let x = startX; x < w; x += spacing) {
       for (let y = startY; y < h; y += spacing) {
-        ctx.beginPath();
+        ctx.moveTo(x + dotR, y);
         ctx.arc(x, y, dotR, 0, Math.PI * 2);
-        ctx.fill();
       }
     }
+    ctx.fill();
   }
 
   private _render() {
+    if (!this._needsRender) return;
+    this._needsRender = false;
+
     const ctx = this.ctx;
     const w = this.view.width;
     const h = this.view.height;
