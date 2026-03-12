@@ -68,6 +68,9 @@ export class CanvasApp {
   private bgColor: number;
   private dpr: number;
 
+  /** Whether to show the background dot grid */
+  showDotGrid = true;
+
   constructor(opts: CanvasAppOptions) {
     this.view = document.createElement("canvas");
     this.dpr = opts.resolution ?? (window.devicePixelRatio || 1);
@@ -100,6 +103,45 @@ export class CanvasApp {
     return this.ctx;
   }
 
+  private _drawDotGrid(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    if (!this.showDotGrid) return;
+
+    // Get world transform from stage's first child (the world container)
+    const world = this.stage.children[0];
+    if (!world) return;
+    const wx = world.x * this.dpr;
+    const wy = world.y * this.dpr;
+    const ws = (world.scale?.x ?? 1) * this.dpr;
+
+    const spacing = 30 * ws;          // 30 world-units between dots
+    if (spacing < 4) return;           // Don't draw when too zoomed out (dots merge)
+
+    const dotR = Math.max(0.5, ws * 0.8); // Dot radius scales with zoom
+
+    // Determine visible grid range
+    const startX = wx % spacing;
+    const startY = wy % spacing;
+
+    // Use theme-aware dot color (slightly brighter/darker than background)
+    const r = (this.bgColor >> 16) & 0xff;
+    const g = (this.bgColor >> 8) & 0xff;
+    const b = this.bgColor & 0xff;
+    const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+    const dotAlpha = brightness > 128 ? 0.08 : 0.12;
+    const dotColor = brightness > 128
+      ? `rgba(0,0,0,${dotAlpha})`
+      : `rgba(255,255,255,${dotAlpha})`;
+
+    ctx.fillStyle = dotColor;
+    for (let x = startX; x < w; x += spacing) {
+      for (let y = startY; y < h; y += spacing) {
+        ctx.beginPath();
+        ctx.arc(x, y, dotR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
   private _render() {
     const ctx = this.ctx;
     const w = this.view.width;
@@ -110,6 +152,8 @@ export class CanvasApp {
     const b = this.bgColor & 0xff;
     ctx.fillStyle = `rgb(${r},${g},${b})`;
     ctx.fillRect(0, 0, w, h);
+
+    this._drawDotGrid(ctx, w, h);
 
     ctx.save();
     ctx.scale(this.dpr, this.dpr);

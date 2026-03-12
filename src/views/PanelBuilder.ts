@@ -94,6 +94,8 @@ export interface PanelState {
   timelineOrderFields: string;
   /** Coordinate layout override — when set, takes precedence over clusterArrangement */
   coordinateLayout: CoordinateLayout | null;
+  /** Whether to show the background dot grid */
+  showDotGrid: boolean;
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -163,6 +165,7 @@ export const DEFAULT_PANEL: PanelState = {
   showGroupGrid: true,
   timelineOrderFields: "next,prev,parent_id,story_order",
   coordinateLayout: null,
+  showDotGrid: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -456,6 +459,7 @@ export function buildPanel(
   // --- Minimap (stays in Display) ---
   buildSection(displayTab, t("section.displayOther"), (body) => {
     addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.wakeRenderLoop(); });
+    addToggle(body, t("display.dotGrid"), panel.showDotGrid, (v) => { panel.showDotGrid = v; cb.markDirty(); });
   });
 
   if (panel.colorEdgesByRelation && ctx.relationColors.size > 0) {

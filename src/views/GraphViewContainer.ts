@@ -673,6 +673,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.minimap = new Minimap(minimapHost, this.canvasWrap!);
     this.minimap.setVisible(this.panel.showMinimap);
     this.renderPipeline.onPostRender = () => {
+      if (this.pixiApp) {
+        this.pixiApp.showDotGrid = this.panel.showDotGrid;
+      }
       if (this.minimap) {
         this.minimap.setVisible(this.panel.showMinimap);
         this.minimap.draw();
