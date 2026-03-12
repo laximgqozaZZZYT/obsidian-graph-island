@@ -1738,10 +1738,20 @@
 }
 
 /* 5-A4: Custom slider thumb styling */
+/* Phase 13: Slider track fill */
+.graph-panel input[type="range"] {
+  --progress: 50%;
+}
 .graph-panel input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 2px;
-  background: var(--background-modifier-border);
+  background: linear-gradient(
+    to right,
+    var(--interactive-accent) 0%,
+    var(--interactive-accent) var(--progress),
+    var(--background-modifier-border) var(--progress),
+    var(--background-modifier-border) 100%
+  );
 }
 .graph-panel input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;

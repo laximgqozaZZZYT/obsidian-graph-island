@@ -1196,6 +1196,15 @@ export function axisSourceToString(src: AxisSource): string {
   }
 }
 
+/** Update --progress CSS variable on a range input for track fill */
+function updateSliderProgress(el: HTMLInputElement) {
+  const min = parseFloat(el.min) || 0;
+  const max = parseFloat(el.max) || 100;
+  const val = parseFloat(el.value);
+  const pct = ((val - min) / (max - min)) * 100;
+  el.style.setProperty('--progress', pct + '%');
+}
+
 function addSlider(container: HTMLElement, label: string, min: number, max: number, step: number, initial: number, onChange: (v: number) => void, description?: string): HTMLElement {
   const row = container.createDiv({ cls: "setting-item mod-slider" });
   const info = row.createDiv({ cls: "setting-item-info" });
@@ -1208,14 +1217,17 @@ function addSlider(container: HTMLElement, label: string, min: number, max: numb
   input.max = String(max);
   input.step = String(step);
   input.value = String(initial);
+  updateSliderProgress(input);
   input.addEventListener("input", () => {
     const v = parseFloat(input.value);
     valueSpan.textContent = String(v);
+    updateSliderProgress(input);
     onChange(v);
   });
   input.addEventListener("dblclick", () => {
     input.value = String(initial);
     valueSpan.textContent = String(initial);
+    updateSliderProgress(input);
     onChange(initial);
   });
   return row;
@@ -2438,8 +2450,10 @@ function renderDirectionalGravityList(
     strSlider.step = "0.01";
     strSlider.value = String(rule.strength);
     strSlider.addClass("gi-str-slider");
+    updateSliderProgress(strSlider);
     strSlider.addEventListener("input", () => {
       rule.strength = parseFloat(strSlider.value);
+      updateSliderProgress(strSlider);
       cb.applyDirectionalGravityForce();
       cb.restartSimulation(0.3);
     });
@@ -2528,11 +2542,13 @@ function renderNodeRuleList(
     spacingSlider.max = "5.0";
     spacingSlider.step = "0.1";
     spacingSlider.value = String(rule.spacingMultiplier);
+    updateSliderProgress(spacingSlider);
     const spacingLabel = spacingControl.createEl("span", { text: String(rule.spacingMultiplier) });
     spacingLabel.addClass("gi-slider-label");
     spacingSlider.addEventListener("input", () => {
       rule.spacingMultiplier = parseFloat(spacingSlider.value);
       spacingLabel.textContent = spacingSlider.value;
+      updateSliderProgress(spacingSlider);
       cb.applyNodeRules();
       cb.restartSimulation(0.3);
     });
@@ -2569,6 +2585,7 @@ function renderNodeRuleList(
     strSlider.step = "0.01";
     strSlider.value = String(rule.gravityStrength);
     strSlider.addClass("gi-str-slider");
+    updateSliderProgress(strSlider);
     strSlider.style.display = currentPreset === "none" ? "none" : "";
 
     dirSelect.addEventListener("change", () => {
@@ -2599,6 +2616,7 @@ function renderNodeRuleList(
 
     strSlider.addEventListener("input", () => {
       rule.gravityStrength = parseFloat(strSlider.value);
+      updateSliderProgress(strSlider);
       cb.applyNodeRules();
       cb.restartSimulation(0.3);
     });
