@@ -111,7 +111,21 @@ export function parseTransformExpr(
     return { source, transform: { kind: "linear", scale: 1 } };
   }
 
-  // Treat as raw expression (e.g. "t * 2 + 1", "sin(t * pi)")
+  // Try matching against known curve formulas (math notation → curve transform)
+  const curveMatch = matchCurveFormula(trimmed);
+  if (curveMatch && fallbackSource) {
+    return { source: fallbackSource, transform: curveMatch };
+  }
+
+  // Treat as raw expression if it contains 't' variable (e.g. "t * 2 + 1", "sin(t * pi)")
+  if (fallbackSource && /\bt\b/.test(trimmed)) {
+    return {
+      source: fallbackSource,
+      transform: { kind: "expression", expr: trimmed, scale: 1 },
+    };
+  }
+
+  // Fallback: any non-empty string with a fallback source → expression
   if (fallbackSource) {
     return {
       source: fallbackSource,
@@ -133,7 +147,7 @@ export function transformExprToString(source: AxisSource, transform: AxisTransfo
   switch (transform.kind) {
     case "linear":
       if (transform.scale === 1) return srcStr;
-      return `LINEAR(${srcStr}, ${transform.scale})`;
+      return `${transform.scale}*t`;
 
     case "bin":
       return `BIN(${srcStr}, ${transform.count})`;
@@ -151,19 +165,16 @@ export function transformExprToString(source: AxisSource, transform: AxisTransfo
       return `EVEN(${srcStr}, ${transform.totalRange})`;
 
     case "curve": {
+      // Display as mathematical formula
+      const curveDef = CURVE_REGISTRY[transform.curve];
+      if (curveDef) return curveDef.formula;
+      // Fallback for unknown curves
       const name = curveToFuncName(transform.curve);
-      const paramStr = formatCurveParams(transform.curve, transform.params);
-      if (paramStr) return `${name}(${srcStr}, ${paramStr})`;
-      return `${name}(${srcStr})`;
+      return `${name}(t)`;
     }
 
-    case "expression": {
-      // Check if it matches a known math function pattern
-      const mathFunc = exprToMathFunc(transform.expr);
-      if (mathFunc) return `${mathFunc}(${srcStr})`;
-      // Otherwise show as raw expression — source is embedded contextually
+    case "expression":
       return transform.expr;
-    }
   }
 }
 
@@ -320,6 +331,30 @@ function exprToMathFunc(expr: string): string | null {
     "ceil(t*10)": "CEIL",
   };
   return MAP[normalized] ?? null;
+}
+
+/**
+ * Try to match an expression string against known curve formulas.
+ * Returns a curve AxisTransform if matched, null otherwise.
+ *
+ * Example: "a + b*t" → { kind: "curve", curve: "archimedean", params: {a:0, b:1}, scale: 1 }
+ */
+function matchCurveFormula(input: string): AxisTransform | null {
+  const normalized = input.replace(/\s+/g, "").toLowerCase();
+
+  for (const [curveName, def] of Object.entries(CURVE_REGISTRY)) {
+    const formulaNorm = def.formula.replace(/\s+/g, "").toLowerCase();
+    if (normalized === formulaNorm) {
+      return {
+        kind: "curve",
+        curve: curveName as CurveKind,
+        params: { ...def.defaultParams },
+        scale: 1,
+      };
+    }
+  }
+
+  return null;
 }
 
 /** Get all suggestion strings for autocomplete in the transform expression input */

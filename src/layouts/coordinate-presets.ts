@@ -7,6 +7,8 @@ import type { CoordinateLayout, ClusterArrangement, AxisConfig, AxisSource, Curv
 export interface CurveDefinition {
   label: string;
   labelJa: string;
+  /** Mathematical formula using param names as variables (e.g. "a + b*t") */
+  formula: string;
   defaultParams: Record<string, number>;
   paramLabels: Record<string, string>;
   paramLabelsJa: Record<string, string>;
@@ -18,66 +20,73 @@ export const CURVE_REGISTRY: Record<CurveKind, CurveDefinition> = {
   archimedean: {
     label: "Archimedean Spiral",
     labelJa: "アルキメデスの螺旋",
+    formula: "a + b*t",
     defaultParams: { a: 0, b: 1 },
-    paramLabels: { a: "Offset", b: "Growth" },
-    paramLabelsJa: { a: "オフセット", b: "成長率" },
+    paramLabels: { a: "Offset (a)", b: "Growth (b)" },
+    paramLabelsJa: { a: "オフセット (a)", b: "成長率 (b)" },
     fn: (t, p) => (p.a ?? 0) + (p.b ?? 1) * t,
   },
   logarithmic: {
     label: "Logarithmic Spiral",
     labelJa: "対数螺旋",
+    formula: "a*exp(b*t*tau)",
     defaultParams: { a: 1, b: 0.3 },
-    paramLabels: { a: "Scale", b: "Growth Rate" },
-    paramLabelsJa: { a: "スケール", b: "成長率" },
+    paramLabels: { a: "Scale (a)", b: "Growth (b)" },
+    paramLabelsJa: { a: "スケール (a)", b: "成長率 (b)" },
     fn: (t, p) => (p.a ?? 1) * Math.exp((p.b ?? 0.3) * t * Math.PI * 2),
   },
   fermat: {
     label: "Fermat Spiral",
     labelJa: "フェルマーの螺旋",
+    formula: "a*sqrt(t)",
     defaultParams: { a: 1 },
-    paramLabels: { a: "Scale" },
-    paramLabelsJa: { a: "スケール" },
+    paramLabels: { a: "Scale (a)" },
+    paramLabelsJa: { a: "スケール (a)" },
     fn: (t, p) => (p.a ?? 1) * Math.sqrt(t),
   },
   hyperbolic: {
     label: "Hyperbolic Spiral",
     labelJa: "双曲螺旋",
+    formula: "a/t",
     defaultParams: { a: 1 },
-    paramLabels: { a: "Scale" },
-    paramLabelsJa: { a: "スケール" },
+    paramLabels: { a: "Scale (a)" },
+    paramLabelsJa: { a: "スケール (a)" },
     fn: (t, p) => t > 0 ? (p.a ?? 1) / t : (p.a ?? 1) * 10,
   },
   cardioid: {
     label: "Cardioid",
     labelJa: "カージオイド",
+    formula: "a*(1 + cos(t*tau))",
     defaultParams: { a: 1 },
-    paramLabels: { a: "Scale" },
-    paramLabelsJa: { a: "スケール" },
+    paramLabels: { a: "Scale (a)" },
+    paramLabelsJa: { a: "スケール (a)" },
     fn: (t, p) => (p.a ?? 1) * (1 + Math.cos(t * Math.PI * 2)),
   },
   rose: {
     label: "Rose Curve",
     labelJa: "バラ曲線",
+    formula: "a*cos(k*t*tau)",
     defaultParams: { k: 3, a: 1 },
-    paramLabels: { k: "Petals", a: "Scale" },
-    paramLabelsJa: { k: "花弁数", a: "スケール" },
+    paramLabels: { k: "Petals (k)", a: "Scale (a)" },
+    paramLabelsJa: { k: "花弁数 (k)", a: "スケール (a)" },
     fn: (t, p) => (p.a ?? 1) * Math.cos((p.k ?? 3) * t * Math.PI * 2),
   },
   lissajous: {
     label: "Lissajous",
     labelJa: "リサージュ",
+    formula: "sin(a*t*tau + delta)",
     defaultParams: { a: 3, b: 2, delta: 0.5 },
-    paramLabels: { a: "Freq X", b: "Freq Y", delta: "Phase" },
-    paramLabelsJa: { a: "X周波数", b: "Y周波数", delta: "位相差" },
-    // For the primary axis, we use sin(a * t * 2pi + delta)
+    paramLabels: { a: "Freq X (a)", b: "Freq Y (b)", delta: "Phase (δ)" },
+    paramLabelsJa: { a: "X周波数 (a)", b: "Y周波数 (b)", delta: "位相差 (δ)" },
     fn: (t, p) => Math.sin((p.a ?? 3) * t * Math.PI * 2 + (p.delta ?? 0.5)),
   },
   golden: {
     label: "Golden Spiral",
     labelJa: "黄金螺旋",
+    formula: "a*1.618^(t*4)",
     defaultParams: { a: 1 },
-    paramLabels: { a: "Scale" },
-    paramLabelsJa: { a: "スケール" },
+    paramLabels: { a: "Scale (a)" },
+    paramLabelsJa: { a: "スケール (a)" },
     fn: (t, p) => (p.a ?? 1) * Math.pow(1.6180339887, t * 4),
   },
 };

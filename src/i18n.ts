@@ -252,6 +252,12 @@ const en: TranslationMap = {
   "curve.lissajous": "Lissajous",
   "curve.golden": "Golden Spiral",
 
+  "coord.constants": "Constants",
+  "coord.constantsHint": "Define variables for use in expressions (e.g. a=1, k=3)",
+  "coord.addConstant": "+ Add Constant",
+  "coord.constantKey": "Name",
+  "coord.constantValue": "Value",
+
   "cluster.showGuideLines": "Show Guide Lines",
   "cluster.guideLineMode": "Guide Line Mode",
   "cluster.guideLineMode.shared": "Shared (single axis)",
@@ -629,6 +635,12 @@ const ja: TranslationMap = {
   "curve.rose": "バラ曲線",
   "curve.lissajous": "リサージュ",
   "curve.golden": "黄金螺旋",
+
+  "coord.constants": "定数",
+  "coord.constantsHint": "数式で使う変数を定義 (例: a=1, k=3)",
+  "coord.addConstant": "+ 定数を追加",
+  "coord.constantKey": "名前",
+  "coord.constantValue": "値",
 
   "cluster.showGuideLines": "ガイドラインを表示",
   "cluster.guideLineMode": "ガイドラインモード",

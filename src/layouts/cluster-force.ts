@@ -2731,7 +2731,10 @@ export function computeAutoFitSpacing(
 
   const baseSize = baseCfg.nodeSize;
 
-  for (let iteration = 0; iteration < 5; iteration++) {
+  // Limit iterations for large graphs — O(n²) overlap detection is too expensive
+  const maxIterations = nodes.length > 500 ? 2 : 5;
+
+  for (let iteration = 0; iteration < maxIterations; iteration++) {
     const cfg: ClusterForceConfig = {
       ...baseCfg,
       nodeSpacing,
@@ -2765,33 +2768,66 @@ export function computeAutoFitSpacing(
     let hasNodeOverlap = false;
     let hasCrossGroupOverlap = false;
 
-    // 1. Pairwise node overlap detection
-    for (let i = 0; i < nodeInfos.length; i++) {
-      for (let j = i + 1; j < nodeInfos.length; j++) {
-        const a = nodeInfos[i];
-        const b = nodeInfos[j];
-        const dx = Math.abs(a.x - b.x);
-        const dy = Math.abs(a.y - b.y);
-
-        const hExtA = Math.max(a.r, a.labelHW);
-        const hExtB = Math.max(b.r, b.labelHW);
-        const minDx = hExtA + hExtB;
-
-        const LABEL_H = 12;
-        const vExtA = a.r + LABEL_H;
-        const vExtB = b.r + LABEL_H;
-        const minDy = vExtA + vExtB;
-
-        const overlapX = minDx - dx;
-        const overlapY = minDy - dy;
-        if (overlapX > 0 && overlapY > 0) {
-          hasNodeOverlap = true;
-          if (a.group !== b.group) {
-            hasCrossGroupOverlap = true;
-            const overlapArea = overlapX * overlapY;
-            const minExtent = minDx * minDy * 4;
-            const ratio = overlapArea / (minExtent || 1);
-            if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
+    // 1. Grid-based node overlap detection — O(n) instead of O(n²)
+    //    Bucket nodes into spatial grid cells, only compare within neighboring cells.
+    {
+      const LABEL_H = 12;
+      // Cell size: max extent of any node (radius + label)
+      let maxExtent = 40;
+      for (const ni of nodeInfos) {
+        const ext = Math.max(ni.r, ni.labelHW) + ni.r + LABEL_H;
+        if (ext > maxExtent) maxExtent = ext;
+      }
+      const cellSize = maxExtent * 2;
+      const grid = new Map<string, number[]>();
+      for (let i = 0; i < nodeInfos.length; i++) {
+        const ni = nodeInfos[i];
+        const gx = Math.floor(ni.x / cellSize);
+        const gy = Math.floor(ni.y / cellSize);
+        const key = `${gx},${gy}`;
+        let arr = grid.get(key);
+        if (!arr) { arr = []; grid.set(key, arr); }
+        arr.push(i);
+      }
+      // Check 3×3 neighborhood per cell (avoids duplicates via i < j)
+      for (const [key, indices] of grid) {
+        const [gxStr, gyStr] = key.split(",");
+        const gx = parseInt(gxStr, 10);
+        const gy = parseInt(gyStr, 10);
+        // Collect neighboring indices
+        const neighbors: number[] = [];
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            const nk = `${gx + dx},${gy + dy}`;
+            const arr = grid.get(nk);
+            if (arr) neighbors.push(...arr);
+          }
+        }
+        for (const i of indices) {
+          const a = nodeInfos[i];
+          for (const j of neighbors) {
+            if (j <= i) continue;
+            const b = nodeInfos[j];
+            const ddx = Math.abs(a.x - b.x);
+            const ddy = Math.abs(a.y - b.y);
+            const hExtA = Math.max(a.r, a.labelHW);
+            const hExtB = Math.max(b.r, b.labelHW);
+            const minDx = hExtA + hExtB;
+            const vExtA = a.r + LABEL_H;
+            const vExtB = b.r + LABEL_H;
+            const minDy = vExtA + vExtB;
+            const overlapX = minDx - ddx;
+            const overlapY = minDy - ddy;
+            if (overlapX > 0 && overlapY > 0) {
+              hasNodeOverlap = true;
+              if (a.group !== b.group) {
+                hasCrossGroupOverlap = true;
+                const overlapArea = overlapX * overlapY;
+                const minExtent = minDx * minDy * 4;
+                const ratio = overlapArea / (minExtent || 1);
+                if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
+              }
+            }
           }
         }
       }
