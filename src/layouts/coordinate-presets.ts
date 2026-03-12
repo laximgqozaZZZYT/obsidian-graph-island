@@ -1,4 +1,86 @@
-import type { CoordinateLayout, ClusterArrangement, AxisConfig, AxisSource } from "../types";
+import type { CoordinateLayout, ClusterArrangement, AxisConfig, AxisSource, CurveKind } from "../types";
+
+// ---------------------------------------------------------------------------
+// Curve Registry — parametric curve presets for the "curve" transform
+// ---------------------------------------------------------------------------
+
+export interface CurveDefinition {
+  label: string;
+  labelJa: string;
+  defaultParams: Record<string, number>;
+  paramLabels: Record<string, string>;
+  paramLabelsJa: Record<string, string>;
+  /** Returns (r, θ) or (x, y) depending on usage. First element is the primary axis value. */
+  fn: (t: number, params: Record<string, number>) => number;
+}
+
+export const CURVE_REGISTRY: Record<CurveKind, CurveDefinition> = {
+  archimedean: {
+    label: "Archimedean Spiral",
+    labelJa: "アルキメデスの螺旋",
+    defaultParams: { a: 0, b: 1 },
+    paramLabels: { a: "Offset", b: "Growth" },
+    paramLabelsJa: { a: "オフセット", b: "成長率" },
+    fn: (t, p) => (p.a ?? 0) + (p.b ?? 1) * t,
+  },
+  logarithmic: {
+    label: "Logarithmic Spiral",
+    labelJa: "対数螺旋",
+    defaultParams: { a: 1, b: 0.3 },
+    paramLabels: { a: "Scale", b: "Growth Rate" },
+    paramLabelsJa: { a: "スケール", b: "成長率" },
+    fn: (t, p) => (p.a ?? 1) * Math.exp((p.b ?? 0.3) * t * Math.PI * 2),
+  },
+  fermat: {
+    label: "Fermat Spiral",
+    labelJa: "フェルマーの螺旋",
+    defaultParams: { a: 1 },
+    paramLabels: { a: "Scale" },
+    paramLabelsJa: { a: "スケール" },
+    fn: (t, p) => (p.a ?? 1) * Math.sqrt(t),
+  },
+  hyperbolic: {
+    label: "Hyperbolic Spiral",
+    labelJa: "双曲螺旋",
+    defaultParams: { a: 1 },
+    paramLabels: { a: "Scale" },
+    paramLabelsJa: { a: "スケール" },
+    fn: (t, p) => t > 0 ? (p.a ?? 1) / t : (p.a ?? 1) * 10,
+  },
+  cardioid: {
+    label: "Cardioid",
+    labelJa: "カージオイド",
+    defaultParams: { a: 1 },
+    paramLabels: { a: "Scale" },
+    paramLabelsJa: { a: "スケール" },
+    fn: (t, p) => (p.a ?? 1) * (1 + Math.cos(t * Math.PI * 2)),
+  },
+  rose: {
+    label: "Rose Curve",
+    labelJa: "バラ曲線",
+    defaultParams: { k: 3, a: 1 },
+    paramLabels: { k: "Petals", a: "Scale" },
+    paramLabelsJa: { k: "花弁数", a: "スケール" },
+    fn: (t, p) => (p.a ?? 1) * Math.cos((p.k ?? 3) * t * Math.PI * 2),
+  },
+  lissajous: {
+    label: "Lissajous",
+    labelJa: "リサージュ",
+    defaultParams: { a: 3, b: 2, delta: 0.5 },
+    paramLabels: { a: "Freq X", b: "Freq Y", delta: "Phase" },
+    paramLabelsJa: { a: "X周波数", b: "Y周波数", delta: "位相差" },
+    // For the primary axis, we use sin(a * t * 2pi + delta)
+    fn: (t, p) => Math.sin((p.a ?? 3) * t * Math.PI * 2 + (p.delta ?? 0.5)),
+  },
+  golden: {
+    label: "Golden Spiral",
+    labelJa: "黄金螺旋",
+    defaultParams: { a: 1 },
+    paramLabels: { a: "Scale" },
+    paramLabelsJa: { a: "スケール" },
+    fn: (t, p) => (p.a ?? 1) * Math.pow(1.6180339887, t * 4),
+  },
+};
 
 /**
  * Maps each legacy arrangement name to its equivalent CoordinateLayout.

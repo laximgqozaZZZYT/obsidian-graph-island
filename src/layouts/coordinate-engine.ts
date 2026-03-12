@@ -22,6 +22,8 @@ import type {
 } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
 import type { ArrangementResult } from "./cluster-force";
+import { CURVE_REGISTRY } from "./coordinate-presets";
+import { parseExpr, evalExpr, type ExprNode } from "../utils/expr-eval";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -369,7 +371,10 @@ export function applyTransform(
       const range = max - min || 1;
       for (const [id, v] of rawValues) {
         const bin = Math.min(Math.floor(((v - min) / range) * count), count - 1);
-        result.set(id, bin * spacing);
+        // Use (bin + 1) so that the lowest bin has non-zero spacing.
+        // This is essential for polar layouts where bin=0 → radius=0
+        // would collapse all lowest-value nodes to the center point.
+        result.set(id, (bin + 1) * spacing);
       }
       break;
     }
@@ -393,13 +398,32 @@ export function applyTransform(
 
     case "even-divide": {
       const totalRad = (transform.totalRange * Math.PI) / 180;
-      let maxVal = 0;
-      for (const v of rawValues.values()) {
-        if (v > maxVal) maxVal = v;
-      }
-      const divisor = maxVal > 0 ? maxVal + 1 : 1;
-      for (const [id, v] of rawValues) {
-        result.set(id, (v / divisor) * totalRad);
+      if (otherAxisValues && otherAxisValues.size > 0) {
+        // Per-ring even-divide: group nodes by their other-axis value (e.g. radius bin),
+        // then distribute angles evenly within each ring.
+        // This prevents the diagonal-stripe artifact where angle correlates with radius.
+        const rings = new Map<number, string[]>();
+        for (const [id] of rawValues) {
+          const ringVal = otherAxisValues.get(id) ?? 0;
+          if (!rings.has(ringVal)) rings.set(ringVal, []);
+          rings.get(ringVal)!.push(id);
+        }
+        for (const [, ids] of rings) {
+          const n = ids.length;
+          for (let i = 0; i < n; i++) {
+            result.set(ids[i], (i / n) * totalRad);
+          }
+        }
+      } else {
+        // Global even-divide: distribute all nodes across the full range
+        let maxVal = 0;
+        for (const v of rawValues.values()) {
+          if (v > maxVal) maxVal = v;
+        }
+        const divisor = maxVal > 0 ? maxVal + 1 : 1;
+        for (const [id, v] of rawValues) {
+          result.set(id, (v / divisor) * totalRad);
+        }
       }
       break;
     }
@@ -431,6 +455,61 @@ export function applyTransform(
         for (let i = 0; i < n; i++) {
           result.set(ids[i], (offset + i) * spacing);
         }
+      }
+      break;
+    }
+
+    case "curve": {
+      const def = CURVE_REGISTRY[transform.curve];
+      if (!def) {
+        // Unknown curve — fallback to linear
+        for (const [id, v] of rawValues) {
+          result.set(id, v * spacing);
+        }
+        break;
+      }
+      const params = { ...def.defaultParams, ...transform.params };
+      const scale = transform.scale ?? 1;
+      // Normalize raw values to t ∈ [0, 1]
+      let min = Infinity, max = -Infinity;
+      for (const v of rawValues.values()) {
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      const range = max - min || 1;
+      for (const [id, v] of rawValues) {
+        const t = (v - min) / range;
+        result.set(id, def.fn(t, params) * scale * spacing);
+      }
+      break;
+    }
+
+    case "expression": {
+      const scale = transform.scale ?? 1;
+      let ast: ExprNode;
+      try {
+        ast = parseExpr(transform.expr);
+      } catch {
+        // Invalid expression — fallback to linear
+        for (const [id, v] of rawValues) {
+          result.set(id, v * spacing);
+        }
+        break;
+      }
+      // Normalize raw values to t ∈ [0, 1]
+      let min = Infinity, max = -Infinity;
+      for (const v of rawValues.values()) {
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      const range = max - min || 1;
+      const n = rawValues.size;
+      let idx = 0;
+      for (const [id, v] of rawValues) {
+        const t = (v - min) / range;
+        const val = evalExpr(ast, { t, i: idx, n, v });
+        result.set(id, val * scale * spacing);
+        idx++;
       }
       break;
     }
@@ -516,8 +595,12 @@ export function coordinateOffsets(
   // Do axis1 first, then axis2 with axis1 results available for stack-avoid
   const t1 = applyTransform(raw1, layout.axis1.transform, spacing);
 
-  // For stack-avoid on axis2, pass transformed axis1 values
-  const t2 = layout.axis2.transform.kind === "stack-avoid"
+  // For stack-avoid and even-divide on axis2, pass transformed axis1 values.
+  // even-divide uses other-axis values to distribute nodes per-ring (prevents
+  // diagonal-stripe artifacts in polar layouts like concentric).
+  const axis2NeedsOther = layout.axis2.transform.kind === "stack-avoid"
+    || layout.axis2.transform.kind === "even-divide";
+  const t2 = axis2NeedsOther
     ? applyTransform(raw2, layout.axis2.transform, spacing, t1)
     : applyTransform(raw2, layout.axis2.transform, spacing);
 

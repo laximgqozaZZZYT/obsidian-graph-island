@@ -266,12 +266,13 @@ describe("applyTransform", () => {
     expect(t.get("c")).toBe(-2 * spacing);
   });
 
-  it("bin: distributes into count bins", () => {
+  it("bin: distributes into count bins (1-indexed for polar safety)", () => {
     const wide = new Map([["a", 0], ["b", 50], ["c", 100]]);
     const t = applyTransform(wide, { kind: "bin", count: 2 }, spacing);
-    expect(t.get("a")).toBe(0); // bin 0: floor(0/100*2)=0
-    expect(t.get("b")).toBe(spacing); // bin 1: floor(50/100*2)=1
-    expect(t.get("c")).toBe(spacing); // bin 1: max clamped to count-1
+    // (bin+1)*spacing ensures non-zero radius for polar coordinate layouts
+    expect(t.get("a")).toBe(1 * spacing); // bin 0 → (0+1)*spacing
+    expect(t.get("b")).toBe(2 * spacing); // bin 1 → (1+1)*spacing
+    expect(t.get("c")).toBe(2 * spacing); // bin 1 (clamped) → (1+1)*spacing
   });
 
   it("date-to-index: sorts and assigns sequential indices", () => {
@@ -309,6 +310,59 @@ describe("applyTransform", () => {
     expect(sorted[0]).toBeLessThan(0);
     expect(sorted[1]).toBeCloseTo(0);
     expect(sorted[2]).toBeGreaterThan(0);
+  });
+
+  it("curve:archimedean: values increase with t", () => {
+    const t = applyTransform(raw, { kind: "curve", curve: "archimedean", scale: 1 }, spacing);
+    // a=0 (t=0), b=1 (t=0.5), c=2 (t=1.0)
+    // Archimedean: a + b*t → monotonically increasing
+    expect(t.get("a")!).toBeLessThan(t.get("b")!);
+    expect(t.get("b")!).toBeLessThan(t.get("c")!);
+  });
+
+  it("curve:rose: produces non-linear values", () => {
+    const vals = new Map([["a", 0], ["b", 1], ["c", 2], ["d", 3], ["e", 4]]);
+    const t = applyTransform(vals, { kind: "curve", curve: "rose", params: { k: 3, a: 1 }, scale: 1 }, spacing);
+    expect(t.size).toBe(5);
+    // Rose curve produces oscillating values — not all should be equal
+    const values = [...t.values()];
+    const allSame = values.every(v => Math.abs(v - values[0]) < 0.001);
+    expect(allSame).toBe(false);
+  });
+
+  it("curve: unknown curve falls back to linear", () => {
+    const t = applyTransform(raw, { kind: "curve", curve: "nonexistent" as any, scale: 1 }, spacing);
+    // Should still produce values for all nodes
+    expect(t.size).toBe(3);
+  });
+
+  it("expression: simple 't' identity", () => {
+    const t = applyTransform(raw, { kind: "expression", expr: "t", scale: 1 }, spacing);
+    // t is normalized 0..1, so a=0, b=0.5, c=1.0 (times spacing)
+    expect(t.get("a")!).toBeCloseTo(0);
+    expect(t.get("b")!).toBeCloseTo(0.5 * spacing);
+    expect(t.get("c")!).toBeCloseTo(1.0 * spacing);
+  });
+
+  it("expression: sin(t * pi)", () => {
+    const vals = new Map([["a", 0], ["b", 1], ["c", 2]]);
+    const t = applyTransform(vals, { kind: "expression", expr: "sin(t * pi)", scale: 1 }, spacing);
+    // t=0 → sin(0)=0, t=0.5 → sin(π/2)=1, t=1 → sin(π)≈0
+    expect(t.get("a")!).toBeCloseTo(0);
+    expect(t.get("b")!).toBeCloseTo(1.0 * spacing);
+    expect(t.get("c")!).toBeCloseTo(0, 5);
+  });
+
+  it("expression: invalid expression falls back to linear", () => {
+    const t = applyTransform(raw, { kind: "expression", expr: "invalid!!!", scale: 1 }, spacing);
+    // Should still produce values for all nodes (linear fallback)
+    expect(t.size).toBe(3);
+    expect(t.get("a")).toBe(0);
+  });
+
+  it("expression: scale parameter multiplies result", () => {
+    const t = applyTransform(raw, { kind: "expression", expr: "t", scale: 2 }, spacing);
+    expect(t.get("c")!).toBeCloseTo(2.0 * spacing);
   });
 });
 

@@ -89,6 +89,17 @@ export type AxisSource =
 /** Graph-structure-derived metrics */
 export type MetricKind = "degree" | "in-degree" | "out-degree" | "bfs-depth" | "sibling-rank";
 
+/** Parametric curve preset names */
+export type CurveKind =
+  | "archimedean"
+  | "logarithmic"
+  | "fermat"
+  | "hyperbolic"
+  | "cardioid"
+  | "rose"
+  | "lissajous"
+  | "golden";
+
 /** How raw values are transformed into coordinates */
 export type AxisTransform =
   | { kind: "linear"; scale: number }
@@ -96,7 +107,9 @@ export type AxisTransform =
   | { kind: "date-to-index" }
   | { kind: "stack-avoid" }
   | { kind: "golden-angle" }
-  | { kind: "even-divide"; totalRange: number };
+  | { kind: "even-divide"; totalRange: number }
+  | { kind: "expression"; expr: string; scale?: number }
+  | { kind: "curve"; curve: CurveKind; params?: Record<string, number>; scale?: number };
 
 /** Full axis configuration */
 export interface AxisConfig {

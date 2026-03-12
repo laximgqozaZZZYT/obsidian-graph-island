@@ -1,4 +1,4 @@
-import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings, OntologyRule, OntologyRelation, CoordinateLayout, CoordinateSystem, AxisSource, AxisConfig } from "../types";
+import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings, OntologyRule, OntologyRelation, CoordinateLayout, CoordinateSystem, AxisSource, AxisConfig, AxisTransform, CurveKind } from "../types";
 import { ontologyToRules, rulesToOntologyFields } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { repositionShell } from "../layouts/concentric";
@@ -9,7 +9,8 @@ import { t, tHelp } from "../i18n";
 import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
 import { exportPreset, importPreset, applyPreset } from "../utils/presets";
-import { ARRANGEMENT_PRESETS, findMatchingPreset } from "../layouts/coordinate-presets";
+import { ARRANGEMENT_PRESETS, findMatchingPreset, CURVE_REGISTRY } from "../layouts/coordinate-presets";
+import { validateExpr } from "../utils/expr-eval";
 
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
@@ -911,9 +912,10 @@ function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
   }
 }
 
-/** Unified axis source text input with autocomplete.
+/** Unified axis source text input with autocomplete + transform dropdown.
  *  Users type a source descriptor string (e.g. "folder", "degree", "hop:name:5")
- *  which is parsed into an AxisSource on change. */
+ *  which is parsed into an AxisSource on change.
+ *  Below the source input, a Transform dropdown lets users pick how values are mapped. */
 function buildAxisTextInput(
   body: HTMLElement,
   axisLabel: string,
@@ -925,6 +927,8 @@ function buildAxisTextInput(
   suggestions: string[],
 ) {
   const axisKey = axisNum === 1 ? "axis1" : "axis2";
+
+  // --- Axis source row ---
   const row = body.createDiv({ cls: "gi-setting-row" });
   row.createEl("span", { cls: "gi-setting-label", text: axisLabel });
   const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
@@ -945,6 +949,132 @@ function buildAxisTextInput(
     cb.rebuildPanel();
     cb.restartSimulation(0.5);
   });
+
+  // --- Transform dropdown row ---
+  const transformKinds: { value: string; label: string }[] = [
+    { value: "linear", label: t("transform.linear") },
+    { value: "bin", label: t("transform.bin") },
+    { value: "date-to-index", label: t("transform.dateToIndex") },
+    { value: "stack-avoid", label: t("transform.stackAvoid") },
+    { value: "golden-angle", label: t("transform.goldenAngle") },
+    { value: "even-divide", label: t("transform.evenDivide") },
+    { value: "curve", label: t("transform.curve") },
+    { value: "expression", label: t("transform.expression") },
+  ];
+
+  const updateTransform = (newTransform: AxisTransform) => {
+    const base = panel.coordinateLayout
+      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+    panel.coordinateLayout = {
+      ...base,
+      [axisKey]: { ...base[axisKey], transform: newTransform },
+    };
+    syncArrangementFromLayout(panel);
+    cb.applyClusterForce();
+    cb.rebuildPanel();
+    cb.restartSimulation(0.5);
+  };
+
+  addSelect(body, `${axisLabel} ${t("transform.label")}`, transformKinds,
+    axisCfg.transform.kind, (v) => {
+      // When transform kind changes, create a default transform of the new kind
+      const newTransform = createDefaultTransform(v);
+      updateTransform(newTransform);
+    });
+
+  // --- Conditional UI for curve/expression ---
+  if (axisCfg.transform.kind === "curve") {
+    const curveTransform = axisCfg.transform;
+    const curveOptions: { value: string; label: string }[] = Object.entries(CURVE_REGISTRY).map(
+      ([key, def]) => ({ value: key, label: t(`curve.${key}`) || def.label }),
+    );
+    addSelect(body, `${axisLabel} ${t("transform.curveType")}`, curveOptions,
+      curveTransform.curve, (v) => {
+        const curveDef = CURVE_REGISTRY[v as CurveKind];
+        updateTransform({
+          kind: "curve",
+          curve: v as CurveKind,
+          params: curveDef ? { ...curveDef.defaultParams } : {},
+          scale: curveTransform.scale ?? 1,
+        });
+      });
+
+    // Parameter sliders for the selected curve
+    const curveDef = CURVE_REGISTRY[curveTransform.curve];
+    if (curveDef) {
+      const currentParams = { ...curveDef.defaultParams, ...curveTransform.params };
+      for (const [pKey, defaultVal] of Object.entries(curveDef.defaultParams)) {
+        const paramLabel = curveDef.paramLabels[pKey] ?? pKey;
+        const currentVal = currentParams[pKey] ?? defaultVal;
+        const minVal = pKey === "k" ? 1 : -5;
+        const maxVal = pKey === "k" ? 12 : 5;
+        addSlider(body, `  ${paramLabel}`, minVal, maxVal, 0.1, currentVal, (v) => {
+          const newParams = { ...currentParams, [pKey]: v };
+          updateTransform({
+            kind: "curve",
+            curve: curveTransform.curve,
+            params: newParams,
+            scale: curveTransform.scale ?? 1,
+          });
+        });
+      }
+    }
+  }
+
+  if (axisCfg.transform.kind === "expression") {
+    const exprTransform = axisCfg.transform;
+    const exprRow = body.createDiv({ cls: "gi-setting-row" });
+    exprRow.createEl("span", { cls: "gi-setting-label", text: `${axisLabel} expr` });
+    const exprInput = exprRow.createEl("input", { cls: "gi-setting-input", type: "text" });
+    exprInput.value = exprTransform.expr;
+    exprInput.placeholder = t("transform.exprPlaceholder");
+
+    // Validation indicator
+    const indicator = exprRow.createEl("span", { cls: "gi-expr-indicator" });
+    const updateIndicator = (expr: string) => {
+      const error = validateExpr(expr);
+      if (error) {
+        indicator.textContent = " ✗";
+        indicator.title = error;
+        indicator.style.color = "var(--text-error, #f44)";
+      } else {
+        indicator.textContent = " ✓";
+        indicator.title = t("transform.exprValid");
+        indicator.style.color = "var(--text-success, #4f4)";
+      }
+    };
+    updateIndicator(exprTransform.expr);
+
+    exprInput.addEventListener("input", () => {
+      updateIndicator(exprInput.value);
+    });
+    exprInput.addEventListener("change", () => {
+      const expr = exprInput.value.trim();
+      if (!expr) return;
+      const error = validateExpr(expr);
+      if (error) return; // Don't apply invalid expressions
+      updateTransform({
+        kind: "expression",
+        expr,
+        scale: exprTransform.scale ?? 1,
+      });
+    });
+  }
+}
+
+/** Create a default AxisTransform for the given kind */
+function createDefaultTransform(kind: string): AxisTransform {
+  switch (kind) {
+    case "linear": return { kind: "linear", scale: 1 };
+    case "bin": return { kind: "bin", count: 5 };
+    case "date-to-index": return { kind: "date-to-index" };
+    case "stack-avoid": return { kind: "stack-avoid" };
+    case "golden-angle": return { kind: "golden-angle" };
+    case "even-divide": return { kind: "even-divide", totalRange: 360 };
+    case "curve": return { kind: "curve", curve: "archimedean", params: { ...CURVE_REGISTRY.archimedean.defaultParams }, scale: 1 };
+    case "expression": return { kind: "expression", expr: "t", scale: 1 };
+    default: return { kind: "linear", scale: 1 };
+  }
 }
 
 /** Generate autocomplete suggestions for axis source input */
