@@ -99,8 +99,8 @@ export const CURVE_REGISTRY: Record<CurveKind, CurveDefinition> = {
 export const ARRANGEMENT_PRESETS: Record<ClusterArrangement, CoordinateLayout> = {
   spiral: {
     system: "polar",
-    axis1: { source: { kind: "index" }, transform: { kind: "linear", scale: 1 } },
-    axis2: { source: { kind: "index" }, transform: { kind: "golden-angle" } },
+    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "sqrt(t)", scale: 1 } },
+    axis2: { source: { kind: "index" }, transform: { kind: "expression", expr: "i * 137.508", scale: 1 } },
     perGroup: true,
   },
   concentric: {
@@ -117,14 +117,14 @@ export const ARRANGEMENT_PRESETS: Record<ClusterArrangement, CoordinateLayout> =
   },
   grid: {
     system: "cartesian",
-    axis1: { source: { kind: "index" }, transform: { kind: "linear", scale: 1 } },
-    axis2: { source: { kind: "index" }, transform: { kind: "linear", scale: 1 } },
+    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "i % ceil(sqrt(n))", scale: 1 } },
+    axis2: { source: { kind: "index" }, transform: { kind: "expression", expr: "floor(i / ceil(sqrt(n)))", scale: 1 } },
     perGroup: true,
   },
   triangle: {
     system: "cartesian",
-    axis1: { source: { kind: "index" }, transform: { kind: "linear", scale: 1 } },
-    axis2: { source: { kind: "index" }, transform: { kind: "linear", scale: 1 } },
+    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "i - floor((-1+sqrt(1+8*i))/2)*(floor((-1+sqrt(1+8*i))/2)+1)/2 - floor((-1+sqrt(1+8*i))/2)/2", scale: 1 } },
+    axis2: { source: { kind: "index" }, transform: { kind: "expression", expr: "floor((-1+sqrt(1+8*i))/2)", scale: 1 } },
     perGroup: true,
   },
   random: {

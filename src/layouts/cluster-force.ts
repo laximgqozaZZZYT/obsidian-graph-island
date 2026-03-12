@@ -1468,20 +1468,19 @@ function computeOffsets(
   const cmp = sortComparator ?? defaultSort;
 
   // --- Routing ---
-  // Arrangements with hardcoded layout functions (producing guides, proper spacing, etc.)
-  // take priority over the generic coordinate engine. The coordinate engine is used only
-  // when (a) no hardcoded function exists, or (b) the user has explicitly customized
-  // coordinateLayout via the UI (panel.coordinateLayout is non-null).
-  //
-  // Note: resolveCoordinateLayout() always returns non-null (falling back to ARRANGEMENT_PRESETS),
-  // so we check the *arrangement name* to decide whether to use the hardcoded path.
+  // Arrangements whose presets use expression transforms (grid, triangle, spiral)
+  // are handled entirely by the coordinate engine — no hardcoded function needed.
+  // Other hardcoded arrangements (concentric, tree, mountain, timeline, random)
+  // keep their specialised functions when the layout matches the exact preset.
   const HARDCODED_ARRANGEMENTS = new Set<ClusterArrangement>([
-    "spiral", "concentric", "tree", "grid", "triangle", "random", "mountain", "timeline",
+    "concentric", "tree", "random", "mountain", "timeline",
   ]);
 
-  if (HARDCODED_ARRANGEMENTS.has(cfg.arrangement) && isExactPreset(cfg.coordinateLayout!)) {
-    // Arrangement has a hardcoded function AND the coordinateLayout matches a built-in preset
-    // (i.e. the user hasn't customized the axis config) → use the richer hardcoded path.
+  const hasExpr = cfg.coordinateLayout &&
+    (cfg.coordinateLayout.axis1.transform.kind === "expression" ||
+     cfg.coordinateLayout.axis2.transform.kind === "expression");
+
+  if (!hasExpr && HARDCODED_ARRANGEMENTS.has(cfg.arrangement) && isExactPreset(cfg.coordinateLayout!)) {
     return dispatchHardcoded(cfg.arrangement, members, degrees, edges, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg);
   }
 

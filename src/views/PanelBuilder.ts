@@ -555,13 +555,10 @@ export function buildPanel(
       { value: "custom", label: t("cluster.custom") },
     ], panel.clusterArrangement, (v) => {
       panel.clusterArrangement = v as ClusterArrangement;
-      // Built-in presets with hand-written layout functions use coordinateLayout = null
-      // so dispatchHardcoded() routes to spiralOffsets, gridOffsets, etc.
-      // Presets without a hardcoded function (sunburst, custom) use the generic engine.
-      const needsGenericEngine = v === "custom" || v === "sunburst";
-      panel.coordinateLayout = needsGenericEngine
-        ? { ...ARRANGEMENT_PRESETS[v as ClusterArrangement] }
-        : null;
+      // Always set coordinateLayout from preset so X/Y textareas show the
+      // actual formulas. Arrangements with expression transforms (grid,
+      // triangle, spiral) are rendered by the coordinate engine directly.
+      panel.coordinateLayout = { ...ARRANGEMENT_PRESETS[v as ClusterArrangement] };
       cb.applyClusterForce();
       cb.rebuildPanel();
       cb.restartSimulation(0.5);
