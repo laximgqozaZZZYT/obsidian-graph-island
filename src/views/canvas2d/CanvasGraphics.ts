@@ -1,6 +1,7 @@
 type DrawCmd =
   | { t: "lineStyle"; width: number; color: number; alpha: number }
   | { t: "beginFill"; color: number; alpha: number }
+  | { t: "beginRadialFill"; cx: number; cy: number; r: number; innerColor: number; outerColor: number; innerAlpha: number; outerAlpha: number }
   | { t: "endFill" }
   | { t: "moveTo"; x: number; y: number }
   | { t: "lineTo"; x: number; y: number }
@@ -9,6 +10,7 @@ type DrawCmd =
   | { t: "quadraticCurveTo"; cx: number; cy: number; x: number; y: number }
   | { t: "closePath" }
   | { t: "arc"; cx: number; cy: number; r: number; start: number; end: number; ccw: boolean }
+  | { t: "setLineDash"; segments: number[] }
   | { t: "roundedRect"; x: number; y: number; w: number; h: number; r: number };
 
 export function hexToRgba(hex: number, alpha: number): string {
@@ -55,6 +57,14 @@ export class CanvasGraphics {
 
   beginFill(color: number, alpha = 1) {
     this.commands.push({ t: "beginFill", color, alpha });
+  }
+
+  beginRadialFill(cx: number, cy: number, r: number, innerColor: number, outerColor: number, innerAlpha = 1, outerAlpha = 1) {
+    this.commands.push({ t: "beginRadialFill", cx, cy, r, innerColor, outerColor, innerAlpha, outerAlpha });
+  }
+
+  setLineDash(segments: number[]) {
+    this.commands.push({ t: "setLineDash", segments });
   }
 
   endFill() {
@@ -111,6 +121,7 @@ export class CanvasGraphics {
     let strokeAlpha = 1;
     let inPath = false;
     let hasFill = false;
+    let radialGradient: CanvasGradient | null = null;
 
     const beginNewPath = () => {
       if (!inPath) { ctx.beginPath(); inPath = true; }
@@ -119,7 +130,11 @@ export class CanvasGraphics {
     const flushShape = () => {
       if (!inPath) return;
       if (hasFill) {
-        ctx.fillStyle = hexToRgba(fillColor, fillAlpha * effAlpha);
+        if (radialGradient) {
+          ctx.fillStyle = radialGradient;
+        } else {
+          ctx.fillStyle = hexToRgba(fillColor, fillAlpha * effAlpha);
+        }
         ctx.fill();
       }
       if (strokeWidth > 0 && strokeAlpha > 0) {
@@ -146,11 +161,27 @@ export class CanvasGraphics {
           fillColor = cmd.color;
           fillAlpha = cmd.alpha;
           hasFill = true;
+          radialGradient = null;
           beginNewPath();
           break;
+        case "beginRadialFill": {
+          flushShape();
+          const grad = ctx.createRadialGradient(cmd.cx, cmd.cy, 0, cmd.cx, cmd.cy, cmd.r);
+          grad.addColorStop(0, hexToRgba(cmd.innerColor, cmd.innerAlpha * effAlpha));
+          grad.addColorStop(1, hexToRgba(cmd.outerColor, cmd.outerAlpha * effAlpha));
+          radialGradient = grad;
+          hasFill = true;
+          beginNewPath();
+          break;
+        }
         case "endFill":
           flushShape();
           hasFill = false;
+          radialGradient = null;
+          break;
+        case "setLineDash":
+          flushShape();
+          ctx.setLineDash(cmd.segments);
           break;
         case "moveTo":
           beginNewPath();

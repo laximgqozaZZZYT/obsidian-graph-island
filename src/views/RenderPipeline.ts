@@ -20,6 +20,14 @@ export function darkenColor(hex: number, factor: number): number {
   return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
 }
 
+/** Lighten a hex color by mixing toward white. factor 0 = unchanged, 1 = white. */
+function lightenColor(hex: number, factor: number): number {
+  const r = ((hex >> 16) & 0xff) + (255 - ((hex >> 16) & 0xff)) * factor;
+  const g = ((hex >> 8) & 0xff) + (255 - ((hex >> 8) & 0xff)) * factor;
+  const b = (hex & 0xff) + (255 - (hex & 0xff)) * factor;
+  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
+}
+
 // ---------------------------------------------------------------------------
 // RenderHost — the interface the RenderPipeline needs from its parent
 // ---------------------------------------------------------------------------
@@ -238,26 +246,43 @@ export class RenderPipeline {
     const nodeCount = visible.length;
     const shapeRules = this.host.getNodeShapeRules();
 
-    // Pass 1: Glow halos
+    // Pass 1: Glow halos (enhanced for hub nodes)
     const showGlow = nodeCount < 800;
     if (showGlow) {
-      const glowAlpha = nodeCount < 300 ? 0.14 : 0.14 * (1 - (nodeCount - 300) / 500);
-      const glowRadius = nodeCount < 300 ? 2.2 : 2.2 - 0.7 * ((nodeCount - 300) / 500);
+      const baseGlowAlpha = nodeCount < 300 ? 0.14 : 0.14 * (1 - (nodeCount - 300) / 500);
+      const baseGlowRadius = nodeCount < 300 ? 2.2 : 2.2 - 0.7 * ((nodeCount - 300) / 500);
+      // Compute degree percentile for hub detection
+      const degrees = visible.map(pn => pn.data.degree ?? 0);
+      const sorted = [...degrees].sort((a, b) => a - b);
+      const p90 = sorted[Math.floor(sorted.length * 0.9)] || 1;
       g.lineStyle(0);
-      for (const pn of visible) {
+      for (let i = 0; i < visible.length; i++) {
+        const pn = visible[i];
         const shape = getNodeShape(pn.data, shapeRules);
+        const deg = pn.data.degree ?? 0;
+        // Hub nodes get brighter, larger glow
+        const hubFactor = deg >= p90 ? 1.6 : 1;
+        const glowAlpha = baseGlowAlpha * hubFactor;
+        const glowRadius = baseGlowRadius * (deg >= p90 ? 1.3 : 1);
         g.beginFill(pn.color, alpha * glowAlpha);
         drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius * glowRadius);
         g.endFill();
       }
     }
 
-    // Pass 2: Solid shapes with subtle same-hue stroke
+    // Pass 2: Nodes with radial gradient (circles) or solid fill (other shapes)
+    const useGradient = nodeCount < 500;
     for (const pn of visible) {
       const shape = getNodeShape(pn.data, shapeRules);
       const strokeColor = darkenColor(pn.color, 0.4);
       g.lineStyle(1, strokeColor, alpha * 0.5);
-      g.beginFill(pn.color, alpha);
+      if (useGradient && shape === "circle") {
+        const innerCol = lightenColor(pn.color, 0.25);
+        const outerCol = darkenColor(pn.color, 0.15);
+        g.beginRadialFill(pn.data.x, pn.data.y, pn.radius, innerCol, outerCol, alpha, alpha);
+      } else {
+        g.beginFill(pn.color, alpha);
+      }
       drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius);
       g.endFill();
     }
