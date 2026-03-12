@@ -165,8 +165,35 @@ function tokenize(input: string): Token[] {
     throw new ExprError(`Unexpected character: '${ch}'`);
   }
 
-  tokens.push({ type: "eof" });
-  return tokens;
+  // Post-processing: insert implicit multiplication tokens
+  const expanded: Token[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (i > 0 && needsImplicitMul(tokens[i - 1], tokens[i])) {
+      expanded.push({ type: "op", op: "*" });
+    }
+    expanded.push(tokens[i]);
+  }
+
+  expanded.push({ type: "eof" });
+  return expanded;
+}
+
+/**
+ * Determine whether an implicit `*` should be inserted between two adjacent tokens.
+ */
+function needsImplicitMul(left: Token, right: Token): boolean {
+  // number followed by ident or lparen
+  if (left.type === "number" && (right.type === "ident" || right.type === "lparen")) return true;
+  // rparen followed by lparen, ident, or number
+  if (left.type === "rparen" && (right.type === "lparen" || right.type === "ident" || right.type === "number")) return true;
+  // ident followed by lparen when ident is NOT a known function
+  if (left.type === "ident" && right.type === "lparen") {
+    const name = (left as { type: "ident"; name: string }).name;
+    if (!(name in FUNCTIONS)) return true;
+  }
+  // ident followed by ident (e.g., Greek letters producing adjacent idents: αθ → a * t)
+  if (left.type === "ident" && right.type === "ident") return true;
+  return false;
 }
 
 // ---------------------------------------------------------------------------

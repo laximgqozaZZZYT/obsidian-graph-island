@@ -47,8 +47,9 @@ describe("parseExpr", () => {
     expect(() => parseExpr("xyz")).toThrow(/Unknown identifier/);
   });
 
-  it("throws on unknown function", () => {
-    expect(() => parseExpr("foobar(1)")).toThrow(/Unknown function/);
+  it("throws on unknown multi-letter identifier (implicit mul prevents function call)", () => {
+    // With implicit multiplication, foobar(1) becomes foobar * (1), and foobar is unknown
+    expect(() => parseExpr("foobar(1)")).toThrow(/Unknown identifier/);
   });
 });
 
@@ -257,6 +258,52 @@ describe("evalExpr — Greek letters and Unicode symbols", () => {
   it("mixed: sin(α*θ) + π", () => {
     const vars = { t: 0.5, i: 0, n: 1, v: 0, a: 2 };
     expect(evaluate("sin(α*θ) + π", vars)).toBeCloseTo(Math.sin(2 * 0.5) + Math.PI);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// evalExpr — implicit multiplication
+// ---------------------------------------------------------------------------
+
+describe("evalExpr — implicit multiplication", () => {
+  it("2t → 2*t", () => {
+    expect(evaluate("2t", { t: 3, i: 0, n: 1, v: 0 })).toBe(6);
+  });
+
+  it("2π → 2*pi", () => {
+    expect(evaluate("2π")).toBeCloseTo(2 * Math.PI);
+  });
+
+  it("3sin(t) → 3*sin(t)", () => {
+    expect(evaluate("3sin(t)", { t: Math.PI / 2, i: 0, n: 1, v: 0 })).toBeCloseTo(3);
+  });
+
+  it("t(1+t) → t*(1+t)", () => {
+    expect(evaluate("t(1+t)", { t: 3, i: 0, n: 1, v: 0 })).toBe(12);
+  });
+
+  it("(1+t)(2+t) → (1+t)*(2+t)", () => {
+    expect(evaluate("(1+t)(2+t)", { t: 1, i: 0, n: 1, v: 0 })).toBe(6);
+  });
+
+  it("2αθ^k → 2*a*t^k", () => {
+    expect(evaluate("2αθ^k", { t: 2, i: 0, n: 1, v: 0, a: 3, k: 2 })).toBe(24);
+  });
+
+  it("(t)2 → (t)*2", () => {
+    expect(evaluate("(t)2", { t: 5, i: 0, n: 1, v: 0 })).toBe(10);
+  });
+
+  it("sin(x) stays as function call (no implicit mul)", () => {
+    expect(evaluate("sin(t)", { t: Math.PI / 2, i: 0, n: 1, v: 0 })).toBeCloseTo(1);
+  });
+
+  it("2(x+1) → 2*(x+1)", () => {
+    expect(evaluate("2(t+1)", { t: 2, i: 0, n: 1, v: 0 })).toBe(6);
+  });
+
+  it("(a)t → (a)*t", () => {
+    expect(evaluate("(t)n", { t: 3, i: 0, n: 4, v: 0 })).toBe(12);
   });
 });
 
