@@ -155,6 +155,8 @@ export class InteractionManager {
     world.y += my - newScreenPos.y;
 
     this.host.markDirty();
+    // Update label visibility for semantic zoom
+    (this.host as any).updateLabelsForZoom?.();
   }
 
   // -----------------------------------------------------------------------

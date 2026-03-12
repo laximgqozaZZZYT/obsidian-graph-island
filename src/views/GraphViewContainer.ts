@@ -1720,7 +1720,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.scale.set(sc);
     world.x = W / 2 - cx * sc;
     world.y = H / 2 - cy * sc;
-    this.markDirty();
+    this.applyTextFade();
   }
 
   private zoomBy(factor: number) {
@@ -2463,11 +2463,46 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   private applyTextFade() {
-    const opacity = 1 - this.panel.textFadeThreshold;
+    const baseOpacity = 1 - this.panel.textFadeThreshold;
+    const zoom = this.worldContainer?.scale.x ?? 1;
+    const degrees = this.degrees;
+
+    // Compute degree percentiles for progressive label display
+    const degValues = Array.from(degrees.values()).sort((a, b) => b - a);
+    const p90 = degValues[Math.floor(degValues.length * 0.10)] ?? 1;
+    const p70 = degValues[Math.floor(degValues.length * 0.30)] ?? 1;
+    const p50 = degValues[Math.floor(degValues.length * 0.50)] ?? 1;
+
     for (const pn of this.pixiNodes.values()) {
-      if (pn.label) pn.label.alpha = opacity;
+      if (!pn.label) continue;
+
+      // Super nodes (collapsed groups) always visible
+      if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
+        pn.label.alpha = baseOpacity;
+        continue;
+      }
+
+      const deg = degrees.get(pn.data.id) ?? 0;
+      let labelAlpha = baseOpacity;
+
+      // Semantic zoom: fade labels based on zoom level + node importance
+      if (zoom < 0.15) {
+        labelAlpha = deg >= p90 ? baseOpacity : 0;
+      } else if (zoom < 0.35) {
+        labelAlpha = deg >= p70 ? baseOpacity : 0;
+      } else if (zoom < 0.7) {
+        labelAlpha = deg >= p50 ? baseOpacity : baseOpacity * 0.3;
+      }
+      // zoom >= 0.7: show all labels at baseOpacity (current behavior)
+
+      pn.label.alpha = labelAlpha;
     }
     this.markDirty();
+  }
+
+  /** Called by InteractionManager after zoom changes to update label visibility */
+  updateLabelsForZoom() {
+    this.applyTextFade();
   }
 
   // =========================================================================
