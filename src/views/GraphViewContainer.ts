@@ -83,6 +83,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private originalGraphData: GraphData | null = null;
   private ac: AbortController | null = null;
   private statusEl: HTMLElement | null = null;
+  private zoomIndicatorEl: HTMLElement | null = null;
   private panel: PanelState = { ...JSON.parse(JSON.stringify(DEFAULT_PANEL)), collapsedGroups: new Set<string>() };
   private panelEl: HTMLElement | null = null;
   private simulation: Simulation<GraphNode, GraphEdge> | null = null;
@@ -350,6 +351,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.zoomBy(1 / 1.3);
     });
 
+    // Zoom percentage indicator
+    this.zoomIndicatorEl = zoomGroup.createEl("span", { cls: "gi-zoom-indicator", text: "100%" });
+    this.zoomIndicatorEl.title = "Zoom level";
+
     const marqueeBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(marqueeBtn, "box-select");
     marqueeBtn.setAttribute("aria-label", t("toolbar.marquee"));
@@ -383,6 +388,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         exportBtn.disabled = false;
         exportBtn.setAttribute("aria-label", origLabel);
       }
+    });
+
+    // Fullscreen toggle
+    const fullscreenBtn = toolbar.createEl("button", { cls: "graph-toolbar-btn gi-fullscreen-btn" });
+    setIcon(fullscreenBtn, "expand");
+    fullscreenBtn.setAttribute("aria-label", "Fullscreen");
+    fullscreenBtn.title = "Fullscreen";
+    fullscreenBtn.addEventListener("click", () => {
+      const container = this.containerEl.querySelector<HTMLElement>(".graph-container");
+      if (!container) return;
+      const isFs = container.classList.toggle("gi-fullscreen");
+      setIcon(fullscreenBtn, isFs ? "shrink" : "expand");
     });
 
     const panelToggle = toolbar.createEl("button", { cls: "graph-settings-btn" });
@@ -1798,7 +1815,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const newScreen = world.toGlobal(worldPos);
     world.x += cx - newScreen.x;
     world.y += cy - newScreen.y;
+    this.updateZoomIndicator(s);
     this.markDirty();
+  }
+
+  private updateZoomIndicator(scale?: number) {
+    if (!this.zoomIndicatorEl) return;
+    const s = scale ?? this.worldContainer?.scale?.x ?? 1;
+    this.zoomIndicatorEl.textContent = `${Math.round(s * 100)}%`;
   }
 
   // =========================================================================

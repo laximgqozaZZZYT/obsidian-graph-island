@@ -157,6 +157,8 @@ export class InteractionManager {
     this.host.markDirty();
     // Update label visibility for semantic zoom
     (this.host as any).updateLabelsForZoom?.();
+    // Update zoom percentage indicator
+    (this.host as any).updateZoomIndicator?.(s);
   }
 
   // -----------------------------------------------------------------------

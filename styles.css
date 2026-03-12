@@ -2108,3 +2108,31 @@
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
+
+/* === Zoom Indicator === */
+.gi-zoom-indicator {
+  font-size: var(--font-ui-smaller, 11px);
+  color: var(--text-muted);
+  min-width: 36px;
+  text-align: center;
+  user-select: none;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+/* === Fullscreen === */
+.gi-fullscreen {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 999;
+  border-radius: 0;
+}
+.gi-fullscreen .graph-toolbar {
+  background: var(--background-primary);
+}
+.gi-fullscreen-btn {
+  margin-left: 4px;
+}
