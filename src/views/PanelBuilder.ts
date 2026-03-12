@@ -398,7 +398,7 @@ export function buildPanel(
       panel.tagDisplay = v === "enclosure" ? "enclosure" : "node";
       cb.invalidateData();
     });
-  }, tHelp("help.filter"));
+  }, tHelp("help.filter"), false, "filter");
 
   buildSection(filterTab, t("section.groups"), (body) => {
     const list = body.createDiv();
@@ -409,7 +409,7 @@ export function buildPanel(
       panel.groups.push({ expression: null, color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length] });
       renderGroupList(list, panel, ctx, cb);
     });
-  }, tHelp("help.groups"));
+  }, tHelp("help.groups"), false, "layers");
 
   // =============================================
   // DISPLAY TAB
@@ -437,7 +437,7 @@ export function buildPanel(
       else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
       cb.doRender();
     });
-  });
+  }, undefined, false, "circle-dot");
 
   // --- Edges sub-section ---
   buildSection(displayTab, t("section.displayEdges"), (body) => {
@@ -454,13 +454,13 @@ export function buildPanel(
     addToggle(body, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateData(); });
     addToggle(body, t("display.sibling"), panel.showSibling, (v) => { panel.showSibling = v; cb.markDirty(); });
     addToggle(body, t("display.sequence"), panel.showSequence, (v) => { panel.showSequence = v; cb.markDirty(); });
-  });
+  }, undefined, false, "git-branch");
 
   // --- Minimap (stays in Display) ---
   buildSection(displayTab, t("section.displayOther"), (body) => {
     addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.wakeRenderLoop(); });
     addToggle(body, t("display.dotGrid"), panel.showDotGrid, (v) => { panel.showDotGrid = v; cb.markDirty(); });
-  });
+  }, undefined, false, "eye");
 
   if (panel.colorEdgesByRelation && ctx.relationColors.size > 0) {
     buildSection(displayTab, t("section.relationColors"), (body) => {
@@ -476,7 +476,7 @@ export function buildPanel(
           cb.markDirty();
         });
       }
-    });
+    }, undefined, false, "palette");
   }
 
   // =============================================
@@ -506,7 +506,7 @@ export function buildPanel(
         });
       }
     }
-  });
+  }, undefined, false, "layers");
 
   // Cluster arrangement
   buildSection(layoutTab, t("section.clusterArrangement"), (body) => {
@@ -741,7 +741,7 @@ export function buildPanel(
       cb.applyClusterForce();
       cb.doRender();
     });
-  }, tHelp("help.clusterArrangement"), true);
+  }, tHelp("help.clusterArrangement"), true, "layout-grid");
 
   // Node rules
   buildSection(layoutTab, t("section.nodeRules"), (body) => {
@@ -755,7 +755,7 @@ export function buildPanel(
       cb.applyNodeRules();
       cb.restartSimulation(0.3);
     });
-  }, tHelp("help.nodeRules"), true);
+  }, tHelp("help.nodeRules"), true, "sliders-horizontal");
 
   // =============================================
   // SETTINGS TAB
@@ -775,7 +775,7 @@ export function buildPanel(
       ctx.saveSettings();
       cb.doRender();
     }, t("desc.enclosureSpacing"));
-  }, tHelp("help.pluginSettings"));
+  }, tHelp("help.pluginSettings"), false, "settings");
 
   // --- Ontology section (rule-based UI) ---
   buildSection(settingsTab, t("section.ontology"), (body) => {
@@ -816,19 +816,19 @@ export function buildPanel(
       s.ontology.useTagHierarchy = v;
       ctx.saveSettings(); cb.invalidateData();
     });
-  }, tHelp("help.ontology"));
+  }, tHelp("help.ontology"), false, "network");
 
   // --- Custom Mappings ---
   buildSection(settingsTab, t("section.customMappings"), (body) => {
     const mappingsListEl = body.createDiv({ cls: "gi-mappings-list" });
     renderCustomMappings(mappingsListEl, ctx.settings, ctx, cb);
-  }, tHelp("help.customMappings"), true);
+  }, tHelp("help.customMappings"), true, "map");
 
   // --- Tag Relations ---
   buildSection(settingsTab, t("section.tagRelations"), (body) => {
     const tagRelListEl = body.createDiv({ cls: "gi-tag-relations-list" });
     renderTagRelations(tagRelListEl, ctx.settings, ctx, cb);
-  }, tHelp("help.tagRelations"), true);
+  }, tHelp("help.tagRelations"), true, "tag");
 
   // --- Action buttons ---
   const actionRow = settingsTab.createDiv({ cls: "gi-panel-actions gi-action-row" });
@@ -896,7 +896,7 @@ function saveSectionState(title: string, collapsed: boolean) {
   localStorage.setItem(SECTION_STATE_KEY, JSON.stringify(states));
 }
 
-function buildSection(container: HTMLElement, title: string, build: (body: HTMLElement) => void, helpText?: string, collapsed = false) {
+function buildSection(container: HTMLElement, title: string, build: (body: HTMLElement) => void, helpText?: string, collapsed = false, icon?: string) {
   const section = container.createDiv({ cls: "graph-control-section tree-item" });
   const saved = loadSectionStates();
   const isCollapsed = title in saved ? saved[title] : collapsed;
@@ -917,6 +917,10 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
   path.setAttribute("d", "M3 8L12 17L21 8");
   svg.appendChild(path);
   collapseIcon.appendChild(svg);
+  if (icon) {
+    const iconEl = header.createEl("span", { cls: "gi-section-icon" });
+    setIcon(iconEl, icon);
+  }
   header.createEl("span", { cls: "tree-item-inner", text: title });
 
   if (helpText) {

@@ -1927,3 +1927,36 @@
 .gi-search-help-popup {
   animation: gi-popup-enter 0.15s ease-out;
 }
+
+/* ========== Phase 17: Section header enhancements ========== */
+
+/* 17-A: Collapse arrow rotation animation */
+.graph-panel .graph-control-section-header .tree-item-icon {
+  transition: transform 0.25s ease;
+}
+.graph-panel .tree-item.is-collapsed .graph-control-section-header .tree-item-icon {
+  transform: rotate(-90deg);
+}
+
+/* 17-B: Separator line below headers */
+.graph-panel .graph-control-section-header {
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+.graph-panel .tree-item.is-collapsed .graph-control-section-header {
+  border-bottom-color: transparent;
+}
+
+/* 17-C: Section icons */
+.gi-section-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-faint);
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+.gi-section-icon .svg-icon {
+  width: 14px;
+  height: 14px;
+}
