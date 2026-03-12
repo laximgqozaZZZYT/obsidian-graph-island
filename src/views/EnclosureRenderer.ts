@@ -1,7 +1,7 @@
 import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { Pt } from "../utils/geometry";
 import { convexHull } from "../utils/geometry";
-import { cssColorToHex } from "../utils/graph-helpers";
+import { cssColorToHex, shiftHue } from "../utils/graph-helpers";
 import { DEFAULT_COLORS } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -119,7 +119,9 @@ export function drawEnclosures(
 
     const colorKey = `tag:${tag}`;
     const cssColor = cfg.nodeColorMap.get(colorKey) || DEFAULT_COLORS[0];
-    const hex = cssColorToHex(cssColor);
+    const nodeHex = cssColorToHex(cssColor);
+    // Shift hue by 150° so enclosure color is visually distinct from node color
+    const hex = shiftHue(nodeHex, 150);
 
     // Generate boundary sample points around each node's circle
     // so the convex hull fully contains every node regardless of radius.
@@ -186,13 +188,14 @@ export function drawEnclosures(
     const overlaps = overlapCache.counts.get(tag) || 0;
 
     // --- Stroke style ---
-    const baseLineAlpha = overlaps === 0 ? 0.7 : Math.max(0.45, 0.65 / (1 + overlaps * 0.1));
-    const lineWidth = overlaps === 0 ? 2 : Math.max(2.5, 3 - overlaps * 0.3);
+    const baseLineAlpha = overlaps === 0 ? 0.6 : Math.max(0.35, 0.55 / (1 + overlaps * 0.1));
+    const lineWidth = overlaps === 0 ? 1.5 : Math.max(2, 2.5 - overlaps * 0.3);
 
-    // --- Fill style (zoomed-out: always show fill; overlapping: reduced alpha) ---
-    const fillAlpha = blend > 0
-      ? (overlaps > 0 ? blend * 0.08 : blend * 0.25)
-      : 0;
+    // --- Fill style (zoomed-out: light tint; large groups get lighter to avoid obscuring nodes) ---
+    const memberCount = pts.length;
+    const sizeFade = Math.max(0.3, 1 - memberCount / 200); // large groups → lower alpha
+    const baseFill = overlaps > 0 ? 0.04 : 0.10;
+    const fillAlpha = blend > 0 ? blend * baseFill * sizeFade : 0;
 
     let labelX = 0, labelY = 0;
     let labelCenterX = 0, labelCenterY = 0;

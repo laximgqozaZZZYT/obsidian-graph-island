@@ -26,7 +26,7 @@
  */
 import type { GraphNode, GraphEdge, ClusterArrangement, ClusterGroupRule, CoordinateLayout } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
-import { resolveArrangementFromLayout, isExactPreset } from "./coordinate-presets";
+import { resolveArrangementFromLayout } from "./coordinate-presets";
 import { coordinateOffsets, type CoordinateGuide, type CoordinateContext } from "./coordinate-engine";
 
 // ---------------------------------------------------------------------------
@@ -501,6 +501,36 @@ function computeAbsoluteTargets(
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
 ): AbsoluteTargetResult {
+  // coordinateLayout with perGroup=false: compute offsets across ALL nodes at once,
+  // ignoring group boundaries and hierarchy.  This is essential for layouts like
+  // concentric rings where degree-based binning must span the full graph.
+  if (cfg.coordinateLayout && !cfg.coordinateLayout.perGroup) {
+    const allMembers: GraphNode[] = [];
+    for (const members of groups.values()) allMembers.push(...members);
+    const ctx: CoordinateContext = {
+      degrees,
+      edges,
+      nodeSize: cfg.nodeSize,
+      nodeSpacing: cfg.nodeSpacing,
+      groupScale: cfg.groupScale,
+      getNodeProperty: cfg.getNodeProperty,
+    };
+    const result = coordinateOffsets(allMembers, degrees, edges, cfg.coordinateLayout, ctx);
+    const targets = new Map<string, { x: number; y: number }>();
+    for (const n of allMembers) {
+      const off = result.offsets.get(n.id);
+      targets.set(n.id, {
+        x: cfg.centerX + (off?.dx ?? 0),
+        y: cfg.centerY + (off?.dy ?? 0),
+      });
+    }
+    const guideGroups: FlatTargetResult["guideGroups"] = [];
+    if (result.guide) {
+      guideGroups.push({ groupKey: "__all__", centerX: cfg.centerX, centerY: cfg.centerY, guide: result.guide });
+    }
+    return { targets, guideGroups, allBars: [], allSequenceEdges: undefined };
+  }
+
   // Detect parent-child hierarchy from composite keys ("::" from splitByConnectedComponents)
   const parentMap = new Map<string, string[]>();
   for (const key of groups.keys()) {
@@ -1437,23 +1467,15 @@ function computeOffsets(
   const defaultSort = (a: GraphNode, b: GraphNode) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0);
   const cmp = sortComparator ?? defaultSort;
 
-  // --- Hybrid routing ---
-  // 1. If coordinateLayout is set, check if it's an exact preset match
-  // 2. Preset match → dispatch to existing hardcoded function (preserves tuned spacing)
-  // 3. Custom config → dispatch to generic coordinate engine
-  // 4. No coordinateLayout → legacy switch on arrangement name
+  // --- Routing ---
+  // coordinateLayout is non-null → generic coordinate engine (honours all axis/transform config)
+  // coordinateLayout is null     → legacy hardcoded function (per arrangement name)
+  //
+  // When the user selects a preset from the dropdown, coordinateLayout is null
+  // and the hardcoded function is used. When coordinate fields are modified
+  // (via UI or JSON import), coordinateLayout becomes non-null and the generic
+  // engine takes over — even if the values happen to match a built-in preset.
   if (cfg.coordinateLayout) {
-    if (cfg.arrangement !== "custom" && isExactPreset(cfg.coordinateLayout)) {
-      // Exact preset match — use hardcoded function for optimal spacing.
-      // Use cfg.arrangement directly instead of resolveArrangementFromLayout()
-      // because some arrangements share identical coordinate configs (e.g. grid
-      // and triangle both use index×index), and resolveArrangementFromLayout()
-      // cannot distinguish them from the layout JSON alone.
-      // "custom" always uses the generic engine even if its initial layout
-      // happens to match a preset JSON.
-      return dispatchHardcoded(cfg.arrangement, members, degrees, edges, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg);
-    }
-    // Custom coordinate config — use generic engine
     const ctx: CoordinateContext = {
       degrees,
       edges,

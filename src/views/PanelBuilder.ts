@@ -11,6 +11,7 @@ import { ALL_SHAPES } from "../utils/node-shapes";
 import { exportPreset, importPreset, applyPreset } from "../utils/presets";
 import { ARRANGEMENT_PRESETS, findMatchingPreset, CURVE_REGISTRY } from "../layouts/coordinate-presets";
 import { validateExpr } from "../utils/expr-eval";
+import { parseTransformExpr, transformExprToString, getTransformExprSuggestions, TRANSFORM_FUNCTION_NAMES } from "../utils/transform-expr";
 
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
@@ -324,8 +325,8 @@ export function buildPanel(
   // =============================================
   buildSection(filterTab, t("section.filter"), (body) => {
     addToggle(body, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateData(); });
-    addToggle(body, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateData(); });
-    addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateData(); });
+    addToggle(body, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateData(); }, t("desc.existingOnly"));
+    addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateData(); }, t("desc.orphans"));
     addSelect(body, t("filter.tagDisplay"), [
       { value: "off", label: t("filter.tagDisplay.off") },
       { value: "node", label: t("filter.tagDisplay.node") },
@@ -355,9 +356,9 @@ export function buildPanel(
   buildSection(displayTab, t("section.displayNodes"), (body) => {
     addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); });
     addSlider(body, t("display.nodeSize"), 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
-    addToggle(body, t("display.scaleByDegree"), panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); });
-    addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); });
-    addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; });
+    addToggle(body, t("display.scaleByDegree"), panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); }, t("desc.scaleByDegree"));
+    addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
+    addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; }, t("desc.hoverHops"));
     // --- ノード形状 ---
     const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
     const tagRule = panel.nodeShapeRules.find(r => r.match === "isTag");
@@ -380,7 +381,7 @@ export function buildPanel(
   buildSection(displayTab, t("section.displayEdges"), (body) => {
     addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); });
     addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); });
-    addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); });
+    addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
     addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); });
     addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); });
     addToggle(body, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); });
@@ -430,7 +431,7 @@ export function buildPanel(
         panel.groupMinSize = v;
         panel.collapsedGroups.clear();
         cb.doRender();
-      });
+      }, t("desc.groupMinSize"));
       if (ctx.availableGroups.length > 0) {
         const currentFilter = panel.groupFilter
           ? new Set(panel.groupFilter.split(",").map(s => s.trim()).filter(Boolean))
@@ -590,7 +591,7 @@ export function buildPanel(
       cb.applyClusterForce();
       cb.restartSimulation(0.5);
       cb.doRenderKeepPanel();
-    });
+    }, t("desc.autoFit"));
 
     // Guide lines toggle
     addToggle(body, t("cluster.showGuideLines"), panel.showGuideLines, (v) => {
@@ -635,7 +636,7 @@ export function buildPanel(
     addSlider(body, t("cluster.edgeBundleStrength"), 0, 1, 0.05, panel.edgeBundleStrength, (v) => {
       panel.edgeBundleStrength = v;
       cb.markDirty();
-    });
+    }, t("desc.edgeBundleStrength"));
     // --- Cluster group rules sub-section ---
     const clusterHeader = body.createDiv({ cls: "setting-item" });
     clusterHeader.createDiv({ cls: "setting-item-name", text: t("cluster.groupRulesHeading") });
@@ -710,7 +711,7 @@ export function buildPanel(
       s.enclosureMinRatio = v;
       ctx.saveSettings();
       cb.doRender();
-    });
+    }, t("desc.enclosureSpacing"));
   }, tHelp("help.pluginSettings"));
 
   // --- Ontology section (rule-based UI) ---
@@ -912,10 +913,9 @@ function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
   }
 }
 
-/** Unified axis source text input with autocomplete + transform dropdown.
- *  Users type a source descriptor string (e.g. "folder", "degree", "hop:name:5")
- *  which is parsed into an AxisSource on change.
- *  Below the source input, a Transform dropdown lets users pick how values are mapped. */
+/** Unified axis text input — combines source + transform in a single expression.
+ *  Syntax: FUNC(source, params...) or just source (implicit linear).
+ *  Examples: "COS(tag:?)", "BIN(degree, 5)", "ROSE(index, k=5)", "folder" */
 function buildAxisTextInput(
   body: HTMLElement,
   axisLabel: string,
@@ -928,46 +928,12 @@ function buildAxisTextInput(
 ) {
   const axisKey = axisNum === 1 ? "axis1" : "axis2";
 
-  // --- Axis source row ---
-  const row = body.createDiv({ cls: "gi-setting-row" });
-  row.createEl("span", { cls: "gi-setting-label", text: axisLabel });
-  const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
-  input.value = axisSourceToString(axisCfg.source);
-  input.placeholder = t("coord.axisSourceHint");
-  attachDatalist(input, suggestions);
-  input.addEventListener("change", () => {
-    const parsed = parseAxisSourceString(input.value);
-    if (!parsed) return;
+  const updateAxis = (source: AxisSource, transform: AxisTransform) => {
     const base = panel.coordinateLayout
       ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
     panel.coordinateLayout = {
       ...base,
-      [axisKey]: { ...base[axisKey], source: parsed },
-    };
-    syncArrangementFromLayout(panel);
-    cb.applyClusterForce();
-    cb.rebuildPanel();
-    cb.restartSimulation(0.5);
-  });
-
-  // --- Transform dropdown row ---
-  const transformKinds: { value: string; label: string }[] = [
-    { value: "linear", label: t("transform.linear") },
-    { value: "bin", label: t("transform.bin") },
-    { value: "date-to-index", label: t("transform.dateToIndex") },
-    { value: "stack-avoid", label: t("transform.stackAvoid") },
-    { value: "golden-angle", label: t("transform.goldenAngle") },
-    { value: "even-divide", label: t("transform.evenDivide") },
-    { value: "curve", label: t("transform.curve") },
-    { value: "expression", label: t("transform.expression") },
-  ];
-
-  const updateTransform = (newTransform: AxisTransform) => {
-    const base = panel.coordinateLayout
-      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
-    panel.coordinateLayout = {
-      ...base,
-      [axisKey]: { ...base[axisKey], transform: newTransform },
+      [axisKey]: { ...base[axisKey], source, transform },
     };
     syncArrangementFromLayout(panel);
     cb.applyClusterForce();
@@ -975,31 +941,50 @@ function buildAxisTextInput(
     cb.restartSimulation(0.5);
   };
 
-  addSelect(body, `${axisLabel} ${t("transform.label")}`, transformKinds,
-    axisCfg.transform.kind, (v) => {
-      // When transform kind changes, create a default transform of the new kind
-      const newTransform = createDefaultTransform(v);
-      updateTransform(newTransform);
-    });
+  // --- Unified expression row ---
+  const row = body.createDiv({ cls: "gi-setting-row" });
+  row.createEl("span", { cls: "gi-setting-label", text: axisLabel });
+  const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
+  input.value = transformExprToString(axisCfg.source, axisCfg.transform);
+  input.placeholder = t("coord.transformExprHint");
+  input.title = t("coord.transformExprHelp");
 
-  // --- Conditional UI for curve/expression ---
+  // Autocomplete suggestions: plain sources + function-wrapped sources
+  const exprSuggestions = getTransformExprSuggestions(suggestions);
+  attachDatalist(input, exprSuggestions);
+
+  // Validation indicator
+  const indicator = row.createEl("span", { cls: "gi-expr-indicator" });
+  const updateIndicator = (value: string) => {
+    const result = parseTransformExpr(value, axisCfg.source);
+    if (result) {
+      indicator.textContent = " \u2713";
+      indicator.title = t("transform.exprValid");
+      indicator.style.color = "var(--text-success, #4f4)";
+    } else if (value.trim()) {
+      indicator.textContent = " \u2717";
+      indicator.title = t("transform.exprError");
+      indicator.style.color = "var(--text-error, #f44)";
+    } else {
+      indicator.textContent = "";
+    }
+  };
+  updateIndicator(input.value);
+
+  input.addEventListener("input", () => {
+    updateIndicator(input.value);
+  });
+
+  input.addEventListener("change", () => {
+    const result = parseTransformExpr(input.value, axisCfg.source);
+    if (!result) return;
+    updateAxis(result.source, result.transform);
+  });
+
+  // --- Conditional sub-UI for curve params (when current transform is curve) ---
   if (axisCfg.transform.kind === "curve") {
+    const sub = body.createDiv({ cls: "gi-transform-sub" });
     const curveTransform = axisCfg.transform;
-    const curveOptions: { value: string; label: string }[] = Object.entries(CURVE_REGISTRY).map(
-      ([key, def]) => ({ value: key, label: t(`curve.${key}`) || def.label }),
-    );
-    addSelect(body, `${axisLabel} ${t("transform.curveType")}`, curveOptions,
-      curveTransform.curve, (v) => {
-        const curveDef = CURVE_REGISTRY[v as CurveKind];
-        updateTransform({
-          kind: "curve",
-          curve: v as CurveKind,
-          params: curveDef ? { ...curveDef.defaultParams } : {},
-          scale: curveTransform.scale ?? 1,
-        });
-      });
-
-    // Parameter sliders for the selected curve
     const curveDef = CURVE_REGISTRY[curveTransform.curve];
     if (curveDef) {
       const currentParams = { ...curveDef.defaultParams, ...curveTransform.params };
@@ -1008,9 +993,9 @@ function buildAxisTextInput(
         const currentVal = currentParams[pKey] ?? defaultVal;
         const minVal = pKey === "k" ? 1 : -5;
         const maxVal = pKey === "k" ? 12 : 5;
-        addSlider(body, `  ${paramLabel}`, minVal, maxVal, 0.1, currentVal, (v) => {
+        addSlider(sub, `  ${paramLabel}`, minVal, maxVal, 0.1, currentVal, (v) => {
           const newParams = { ...currentParams, [pKey]: v };
-          updateTransform({
+          updateAxis(axisCfg.source, {
             kind: "curve",
             curve: curveTransform.curve,
             params: newParams,
@@ -1019,46 +1004,6 @@ function buildAxisTextInput(
         });
       }
     }
-  }
-
-  if (axisCfg.transform.kind === "expression") {
-    const exprTransform = axisCfg.transform;
-    const exprRow = body.createDiv({ cls: "gi-setting-row" });
-    exprRow.createEl("span", { cls: "gi-setting-label", text: `${axisLabel} expr` });
-    const exprInput = exprRow.createEl("input", { cls: "gi-setting-input", type: "text" });
-    exprInput.value = exprTransform.expr;
-    exprInput.placeholder = t("transform.exprPlaceholder");
-
-    // Validation indicator
-    const indicator = exprRow.createEl("span", { cls: "gi-expr-indicator" });
-    const updateIndicator = (expr: string) => {
-      const error = validateExpr(expr);
-      if (error) {
-        indicator.textContent = " ✗";
-        indicator.title = error;
-        indicator.style.color = "var(--text-error, #f44)";
-      } else {
-        indicator.textContent = " ✓";
-        indicator.title = t("transform.exprValid");
-        indicator.style.color = "var(--text-success, #4f4)";
-      }
-    };
-    updateIndicator(exprTransform.expr);
-
-    exprInput.addEventListener("input", () => {
-      updateIndicator(exprInput.value);
-    });
-    exprInput.addEventListener("change", () => {
-      const expr = exprInput.value.trim();
-      if (!expr) return;
-      const error = validateExpr(expr);
-      if (error) return; // Don't apply invalid expressions
-      updateTransform({
-        kind: "expression",
-        expr,
-        scale: exprTransform.scale ?? 1,
-      });
-    });
   }
 }
 
@@ -1172,24 +1117,31 @@ export function axisSourceToString(src: AxisSource): string {
   }
 }
 
-function addSlider(container: HTMLElement, label: string, min: number, max: number, step: number, initial: number, onChange: (v: number) => void): HTMLElement {
+function addSlider(container: HTMLElement, label: string, min: number, max: number, step: number, initial: number, onChange: (v: number) => void, description?: string): HTMLElement {
   const row = container.createDiv({ cls: "setting-item mod-slider" });
   const info = row.createDiv({ cls: "setting-item-info" });
-  info.createDiv({ cls: "setting-item-name", text: label });
+  const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
+  if (description) nameEl.title = description;
+  const valueSpan = info.createEl("span", { cls: "gi-slider-value", text: String(initial) });
   const control = row.createDiv({ cls: "setting-item-control" });
   const input = control.createEl("input", { type: "range" });
   input.min = String(min);
   input.max = String(max);
   input.step = String(step);
   input.value = String(initial);
-  input.addEventListener("input", () => onChange(parseFloat(input.value)));
+  input.addEventListener("input", () => {
+    const v = parseFloat(input.value);
+    valueSpan.textContent = String(v);
+    onChange(v);
+  });
   return row;
 }
 
-function addToggle(container: HTMLElement, label: string, initial: boolean, onChange: (v: boolean) => void) {
+function addToggle(container: HTMLElement, label: string, initial: boolean, onChange: (v: boolean) => void, description?: string) {
   const row = container.createDiv({ cls: "setting-item mod-toggle" });
   const info = row.createDiv({ cls: "setting-item-info" });
-  info.createDiv({ cls: "setting-item-name", text: label });
+  const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
+  if (description) nameEl.title = description;
   const control = row.createDiv({ cls: "setting-item-control" });
   const toggle = control.createDiv({ cls: "checkbox-container" + (initial ? " is-enabled" : "") });
   toggle.addEventListener("click", () => {
@@ -2128,10 +2080,11 @@ function attachSearchJump(input: HTMLInputElement, cb: PanelCallbacks) {
   });
 }
 
-function addSelect(container: HTMLElement, label: string, options: { value: string; label: string }[], initial: string, onChange: (v: string) => void) {
+function addSelect(container: HTMLElement, label: string, options: { value: string; label: string }[], initial: string, onChange: (v: string) => void, description?: string) {
   const row = container.createDiv({ cls: "setting-item" });
   const info = row.createDiv({ cls: "setting-item-info" });
-  info.createDiv({ cls: "setting-item-name", text: label });
+  const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
+  if (description) nameEl.title = description;
   const control = row.createDiv({ cls: "setting-item-control" });
   const sel = control.createEl("select", { cls: "dropdown" });
   for (const opt of options) {

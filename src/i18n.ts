@@ -136,6 +136,8 @@ const en: TranslationMap = {
   "cluster.timeline": "Timeline",
   "cluster.custom": "Custom",
   "coord.axisSourceHint": "e.g. folder, tag:?, degree, hop:name:5",
+  "coord.transformExprHint": "e.g. COS(tag:?), BIN(degree, 5), ROSE(index)",
+  "coord.transformExprHelp": "Source: index, degree, folder, tag:?, hop:name:3\nTransforms: LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\nCurves: ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS, ...\nMath: SIN, COS, SQRT, LOG, EXP, POW\nFormat: FUNC(source, params...)",
   "cluster.autoFit": "Auto-fit spacing",
   "cluster.nodeSpacing": "Node Spacing (radius×n)",
   "cluster.groupSize": "Group Size",
@@ -343,6 +345,18 @@ const en: TranslationMap = {
   "error.graphBuildFailed": "Failed to build graph data. Check console for details.",
   "error.layoutFailed": "Layout computation failed. Try a different layout.",
 
+  // --- Setting descriptions (tooltips) ---
+  "desc.existingOnly": "Hide notes without files",
+  "desc.orphans": "Show/hide unconnected nodes",
+  "desc.scaleByDegree": "Scale by connection count",
+  "desc.textFade": "Zoom level for label fadeout",
+  "desc.hoverHops": "Highlight depth on hover",
+  "desc.edgeBundleStrength": "0=straight, 1=fully curved",
+  "desc.autoFit": "Auto-spacing from node count",
+  "desc.fadeEdges": "Fade less-connected edges",
+  "desc.enclosureSpacing": "Hull padding",
+  "desc.groupMinSize": "Merge groups smaller than this",
+
   // --- Settings Tab ---
   "settingsTab.description": "Each setting can be edited directly from the graph view panel. Here you can export/import settings as JSON.",
   "settingsTab.import": "Import Settings",
@@ -490,6 +504,8 @@ const ja: TranslationMap = {
   "cluster.timeline": "タイムライン",
   "cluster.custom": "カスタム",
   "coord.axisSourceHint": "例: folder, tag:?, degree, hop:名前:5",
+  "coord.transformExprHint": "例: COS(tag:?), BIN(degree, 5), ROSE(index)",
+  "coord.transformExprHelp": "ソース: index, degree, folder, tag:?, hop:名前:3\n変換: LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n曲線: ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS, ...\n数学: SIN, COS, SQRT, LOG, EXP, POW\n書式: 関数(ソース, パラメータ...)",
   "cluster.autoFit": "間隔を自動調整",
   "cluster.nodeSpacing": "ノード間隔 (半径×n)",
   "cluster.groupSize": "グループサイズ",
@@ -696,6 +712,18 @@ const ja: TranslationMap = {
   "error.pixiInitFailed": "グラフの描画に失敗しました。お使いのブラウザがWebGLに対応していない可能性があります。",
   "error.graphBuildFailed": "グラフデータの構築に失敗しました。コンソールで詳細を確認してください。",
   "error.layoutFailed": "レイアウト計算に失敗しました。別のレイアウトをお試しください。",
+
+  // --- Setting descriptions (tooltips) ---
+  "desc.existingOnly": "ファイルのないノートを非表示",
+  "desc.orphans": "接続のないノードの表示/非表示",
+  "desc.scaleByDegree": "接続数でサイズ拡縮",
+  "desc.textFade": "ラベルが消えるズームレベル",
+  "desc.hoverHops": "ホバー時の強調範囲",
+  "desc.edgeBundleStrength": "0=直線, 1=完全に束ねる",
+  "desc.autoFit": "ノード数から間隔を自動計算",
+  "desc.fadeEdges": "接続の少ないエッジを薄く",
+  "desc.enclosureSpacing": "包絡線のパディング",
+  "desc.groupMinSize": "これ未満のグループを統合",
 
   // --- Settings Tab ---
   "settingsTab.description": "各設定項目はグラフビューのパネルから直接編集できます。ここでは設定の JSON エクスポート / インポートを行えます。",

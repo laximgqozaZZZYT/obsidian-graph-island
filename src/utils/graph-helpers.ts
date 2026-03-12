@@ -24,3 +24,47 @@ export function cssColorToHex(css: string): number {
   }
   return 0x6366f1;
 }
+
+/**
+ * Shift the hue of a 0xRRGGBB color by `degrees` (0–360).
+ * Used to generate enclosure colors that are visually distinct from node colors.
+ */
+export function shiftHue(hex: number, degrees: number): number {
+  const r = ((hex >> 16) & 0xff) / 255;
+  const g = ((hex >> 8) & 0xff) / 255;
+  const b = (hex & 0xff) / 255;
+
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0;
+  const s = max === 0 ? 0 : d / max;
+  const v = max;
+
+  if (d > 0) {
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+
+  h = ((h * 360 + degrees) % 360) / 360;
+  if (h < 0) h += 1;
+
+  // HSV to RGB
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+
+  let ro: number, go: number, bo: number;
+  switch (i % 6) {
+    case 0: ro = v; go = t; bo = p; break;
+    case 1: ro = q; go = v; bo = p; break;
+    case 2: ro = p; go = v; bo = t; break;
+    case 3: ro = p; go = q; bo = v; break;
+    case 4: ro = t; go = p; bo = v; break;
+    default: ro = v; go = p; bo = q; break;
+  }
+
+  return ((Math.round(ro * 255) << 16) | (Math.round(go * 255) << 8) | Math.round(bo * 255));
+}
