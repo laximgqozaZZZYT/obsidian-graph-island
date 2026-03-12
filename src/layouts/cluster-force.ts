@@ -26,7 +26,7 @@
  */
 import type { GraphNode, GraphEdge, ClusterArrangement, ClusterGroupRule, CoordinateLayout } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
-import { resolveArrangementFromLayout } from "./coordinate-presets";
+import { resolveArrangementFromLayout, isExactPreset } from "./coordinate-presets";
 import { coordinateOffsets, type CoordinateGuide, type CoordinateContext } from "./coordinate-engine";
 
 // ---------------------------------------------------------------------------
@@ -1468,13 +1468,23 @@ function computeOffsets(
   const cmp = sortComparator ?? defaultSort;
 
   // --- Routing ---
-  // coordinateLayout is non-null → generic coordinate engine (honours all axis/transform config)
-  // coordinateLayout is null     → legacy hardcoded function (per arrangement name)
+  // Arrangements with hardcoded layout functions (producing guides, proper spacing, etc.)
+  // take priority over the generic coordinate engine. The coordinate engine is used only
+  // when (a) no hardcoded function exists, or (b) the user has explicitly customized
+  // coordinateLayout via the UI (panel.coordinateLayout is non-null).
   //
-  // When the user selects a preset from the dropdown, coordinateLayout is null
-  // and the hardcoded function is used. When coordinate fields are modified
-  // (via UI or JSON import), coordinateLayout becomes non-null and the generic
-  // engine takes over — even if the values happen to match a built-in preset.
+  // Note: resolveCoordinateLayout() always returns non-null (falling back to ARRANGEMENT_PRESETS),
+  // so we check the *arrangement name* to decide whether to use the hardcoded path.
+  const HARDCODED_ARRANGEMENTS = new Set<ClusterArrangement>([
+    "spiral", "concentric", "tree", "grid", "triangle", "random", "mountain", "timeline",
+  ]);
+
+  if (HARDCODED_ARRANGEMENTS.has(cfg.arrangement) && isExactPreset(cfg.coordinateLayout!)) {
+    // Arrangement has a hardcoded function AND the coordinateLayout matches a built-in preset
+    // (i.e. the user hasn't customized the axis config) → use the richer hardcoded path.
+    return dispatchHardcoded(cfg.arrangement, members, degrees, edges, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg);
+  }
+
   if (cfg.coordinateLayout) {
     const ctx: CoordinateContext = {
       degrees,
@@ -1487,7 +1497,7 @@ function computeOffsets(
     return coordinateOffsets(members, degrees, edges, cfg.coordinateLayout, ctx);
   }
 
-  // No coordinateLayout — legacy path
+  // Fallback — legacy path
   return dispatchHardcoded(cfg.arrangement, members, degrees, edges, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg);
 }
 
