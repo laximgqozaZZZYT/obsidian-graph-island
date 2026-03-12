@@ -489,6 +489,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.legendEl = canvasArea.createDiv({ cls: "gi-legend" });
     this.legendEl.style.display = "none";
 
+    // --- Panel resize handle (sibling of panelEl so panelEl.empty() won't destroy it) ---
+    const resizeHandle = main.createDiv({ cls: "gi-panel-resize-handle" });
+    let startX = 0, startW = 0;
+    const onMove = (ev: PointerEvent) => {
+      const delta = startX - ev.clientX;
+      const newW = Math.max(180, Math.min(500, startW + delta));
+      this.panelEl!.style.width = `${newW}px`;
+    };
+    const onUp = () => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      resizeHandle.removeClass("is-dragging");
+    };
+    resizeHandle.addEventListener("pointerdown", (ev: PointerEvent) => {
+      ev.preventDefault();
+      startX = ev.clientX;
+      startW = this.panelEl!.offsetWidth;
+      resizeHandle.addClass("is-dragging");
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+    });
+
     // --- Control Panel ---
     this.panelEl = main.createDiv({ cls: "graph-panel is-hidden" });
     this.buildPanel();

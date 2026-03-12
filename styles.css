@@ -2136,3 +2136,21 @@
 .gi-fullscreen-btn {
   margin-left: 4px;
 }
+
+/* === Panel Resize Handle === */
+.gi-panel-resize-handle {
+  width: 4px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  z-index: 10;
+  transition: background 0.15s;
+}
+.gi-panel-resize-handle:hover,
+.gi-panel-resize-handle.is-dragging {
+  background: var(--interactive-accent);
+  opacity: 0.5;
+}
+/* Hide resize handle when panel is hidden (handle is previous sibling) */
+.gi-panel-resize-handle:has(+ .graph-panel.is-hidden) {
+  display: none;
+}
