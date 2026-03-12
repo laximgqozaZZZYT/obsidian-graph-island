@@ -18,7 +18,9 @@ export type ExprNode =
   | { type: "binary"; op: "+" | "-" | "*" | "/" | "%" | "^"; left: ExprNode; right: ExprNode }
   | { type: "call"; fn: string; args: ExprNode[] };
 
-/** Variables available during expression evaluation */
+/** Variables available during expression evaluation.
+ *  Built-in: t (normalized 0–1), i (index), n (count), v (raw value).
+ *  Additional user-defined constants can be added via [key: string]. */
 export interface ExprVars {
   /** Normalized position 0–1 */
   t: number;
@@ -28,6 +30,8 @@ export interface ExprVars {
   n: number;
   /** Raw axis value */
   v: number;
+  /** User-defined constants */
+  [key: string]: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,7 +60,41 @@ const FUNCTIONS: Record<string, (...args: number[]) => number> = {
   atan2: Math.atan2,
 };
 
-const VARIABLE_NAMES = new Set(["t", "i", "n", "v"]);
+const BUILTIN_VARIABLE_NAMES = new Set(["t", "i", "n", "v"]);
+
+/** Additional user-defined variable names (set before parsing to allow custom constants) */
+let userDefinedVars = new Set<string>();
+
+/** Register user-defined variable names so the parser accepts them */
+export function setUserVars(vars: Set<string>) {
+  userDefinedVars = vars;
+}
+
+function isKnownVariable(name: string): boolean {
+  return BUILTIN_VARIABLE_NAMES.has(name) || userDefinedVars.has(name);
+}
+
+// ---------------------------------------------------------------------------
+// Greek letter aliases
+// ---------------------------------------------------------------------------
+
+/** Greek letter → Latin alias mapping for mathematical notation */
+const GREEK_ALIASES: Record<string, string> = {
+  "α": "a", "β": "b", "γ": "c", "δ": "d", "ε": "e",
+  "ζ": "f", "η": "g", "θ": "t", "ι": "h", "κ": "k",
+  "λ": "l", "μ": "m", "ν": "j", "ξ": "x", "ρ": "r",
+  "σ": "s", "φ": "p", "χ": "q", "ψ": "w", "ω": "o",
+  "π": "pi", "τ": "tau",
+};
+
+function isIdentStart(ch: string): boolean {
+  return (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || ch === "_" || ch in GREEK_ALIASES;
+}
+
+function isIdentContinue(ch: string): boolean {
+  return (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z")
+    || (ch >= "0" && ch <= "9") || ch === "_";
+}
 
 // ---------------------------------------------------------------------------
 // Tokenizer
@@ -95,10 +133,18 @@ function tokenize(input: string): Token[] {
       continue;
     }
 
-    // Identifier (function, variable, constant)
-    if ((ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || ch === "_") {
+    // Identifier (function, variable, constant) — including Greek letters
+    if (isIdentStart(ch)) {
+      // Greek letter: resolve alias immediately (each Greek letter is a standalone token)
+      if (ch in GREEK_ALIASES) {
+        const alias = GREEK_ALIASES[ch];
+        pos++; // Greek letters are single code points but may be multi-byte; JS string indexing is by code point here
+        tokens.push({ type: "ident", name: alias });
+        continue;
+      }
+      // ASCII identifier
       let name = "";
-      while (pos < len && ((input[pos] >= "a" && input[pos] <= "z") || (input[pos] >= "A" && input[pos] <= "Z") || (input[pos] >= "0" && input[pos] <= "9") || input[pos] === "_")) {
+      while (pos < len && isIdentContinue(input[pos])) {
         name += input[pos++];
       }
       tokens.push({ type: "ident", name: name.toLowerCase() });
@@ -262,8 +308,13 @@ class Parser {
         return { type: "number", value: CONSTANTS[name] };
       }
 
-      // Variable
-      if (VARIABLE_NAMES.has(name)) {
+      // Variable (built-in or user-defined)
+      if (isKnownVariable(name)) {
+        return { type: "variable", name };
+      }
+
+      // Allow any single-letter identifier as a potential user constant
+      if (name.length <= 2) {
         return { type: "variable", name };
       }
 

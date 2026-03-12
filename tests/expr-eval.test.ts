@@ -224,6 +224,46 @@ describe("evalExpr — complex expressions", () => {
 // validateExpr
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// evalExpr — Greek letters and Unicode symbols
+// ---------------------------------------------------------------------------
+
+describe("evalExpr — Greek letters and Unicode symbols", () => {
+  it("α as variable alias for a", () => {
+    expect(evaluate("α", { t: 0, i: 0, n: 1, v: 0, a: 5 })).toBe(5);
+  });
+
+  it("θ as variable alias for t", () => {
+    expect(evaluate("θ", { t: 0.75, i: 0, n: 1, v: 0 })).toBe(0.75);
+  });
+
+  it("π as constant for pi", () => {
+    expect(evaluate("π")).toBeCloseTo(Math.PI);
+  });
+
+  it("τ as constant for tau", () => {
+    expect(evaluate("τ")).toBeCloseTo(Math.PI * 2);
+  });
+
+  it("complex expression: α*θ^k", () => {
+    expect(evaluate("α*θ^k", { t: 2, i: 0, n: 1, v: 0, a: 3, k: 2 })).toBe(12);
+  });
+
+  it("β as variable alias for b", () => {
+    const vars = { t: 0, i: 0, n: 1, v: 0, b: 7 };
+    expect(evaluate("β", vars)).toBe(7);
+  });
+
+  it("mixed: sin(α*θ) + π", () => {
+    const vars = { t: 0.5, i: 0, n: 1, v: 0, a: 2 };
+    expect(evaluate("sin(α*θ) + π", vars)).toBeCloseTo(Math.sin(2 * 0.5) + Math.PI);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validateExpr
+// ---------------------------------------------------------------------------
+
 describe("validateExpr", () => {
   it("returns null for valid expressions", () => {
     expect(validateExpr("t * 2 + 1")).toBeNull();
