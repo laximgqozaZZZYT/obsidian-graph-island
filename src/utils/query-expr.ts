@@ -4,6 +4,8 @@ export interface QueryLeaf {
   type: "leaf";
   field: string;
   value: string;
+  /** When true, require exact match instead of substring match (for label and path fields) */
+  exact?: boolean;
 }
 
 export interface QueryBranch {
@@ -218,7 +220,7 @@ function evaluateLeaf(
     case "file":
     case "folder": {
       const fp = (node.filePath ?? "").toLowerCase();
-      return matchValue(fp, val);
+      return leaf.exact ? matchValue(fp, val) : (val.includes("*") ? matchValue(fp, val) : fp.includes(val));
     }
     case "id": {
       const id = node.id.toLowerCase();
@@ -228,7 +230,7 @@ function evaluateLeaf(
       return String(!!node.isTag) === val;
     case "label": {
       const lbl = node.label.toLowerCase();
-      return matchValue(lbl, val);
+      return leaf.exact ? matchValue(lbl, val) : (val.includes("*") ? matchValue(lbl, val) : lbl.includes(val));
     }
     default: {
       // Frontmatter field lookup via node.meta

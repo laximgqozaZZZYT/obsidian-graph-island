@@ -26,7 +26,8 @@
  */
 import type { GraphNode, GraphEdge, ClusterArrangement, ClusterGroupRule, CoordinateLayout } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
-import { resolveArrangementFromLayout } from "./coordinate-presets";
+import { resolveArrangementFromLayout, isExactPreset } from "./coordinate-presets";
+import { coordinateOffsets, type CoordinateGuide, type CoordinateContext } from "./coordinate-engine";
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -104,7 +105,8 @@ export type ArrangementGuide =
   | GridGuide
   | TreeGuide
   | TriangleGuide
-  | MountainGuide;
+  | MountainGuide
+  | CoordinateGuide;
 
 /** Duration bar info for timeline nodes with start+end dates */
 export interface TimelineBarInfo {
@@ -1427,12 +1429,49 @@ function computeOffsets(
   // Default sort: degree descending (preserves legacy behaviour)
   const defaultSort = (a: GraphNode, b: GraphNode) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0);
   const cmp = sortComparator ?? defaultSort;
-  // Resolve effective arrangement: coordinateLayout takes precedence
-  const effectiveArrangement = cfg.coordinateLayout
-    ? resolveArrangementFromLayout(cfg.coordinateLayout)
-    : cfg.arrangement;
 
-  switch (effectiveArrangement) {
+  // --- Hybrid routing ---
+  // 1. If coordinateLayout is set, check if it's an exact preset match
+  // 2. Preset match → dispatch to existing hardcoded function (preserves tuned spacing)
+  // 3. Custom config → dispatch to generic coordinate engine
+  // 4. No coordinateLayout → legacy switch on arrangement name
+  if (cfg.coordinateLayout) {
+    if (isExactPreset(cfg.coordinateLayout)) {
+      // Exact preset match — use hardcoded function for optimal spacing
+      const arrangementName = resolveArrangementFromLayout(cfg.coordinateLayout);
+      return dispatchHardcoded(arrangementName, members, degrees, edges, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg);
+    }
+    // Custom coordinate config — use generic engine
+    const ctx: CoordinateContext = {
+      degrees,
+      edges,
+      nodeSize,
+      nodeSpacing,
+      groupScale,
+      getNodeProperty: cfg.getNodeProperty,
+    };
+    return coordinateOffsets(members, degrees, edges, cfg.coordinateLayout, ctx);
+  }
+
+  // No coordinateLayout — legacy path
+  return dispatchHardcoded(cfg.arrangement, members, degrees, edges, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg);
+}
+
+/** Dispatch to the hardcoded arrangement offset function by name */
+function dispatchHardcoded(
+  arrangement: ClusterArrangement,
+  members: GraphNode[],
+  degrees: Map<string, number>,
+  edges: GraphEdge[],
+  nodeSpacing: number,
+  groupScale: number,
+  nodeSize: number,
+  scaleByDegree: boolean,
+  cmp: (a: GraphNode, b: GraphNode) => number,
+  nodeSpacingMap: Map<string, number> | undefined,
+  cfg: ClusterForceConfig,
+): ArrangementResult {
+  switch (arrangement) {
     case "spiral": return spiralOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap);
     case "concentric": return { offsets: concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap) };
     case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);

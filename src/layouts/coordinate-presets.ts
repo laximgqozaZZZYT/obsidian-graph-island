@@ -113,3 +113,24 @@ export function resolveArrangementFromLayout(layout: CoordinateLayout): ClusterA
 
   return "spiral"; // fallback
 }
+
+// ---------------------------------------------------------------------------
+// Preset detection
+// ---------------------------------------------------------------------------
+
+/** Pre-computed JSON strings for all presets (for fast membership check) */
+const PRESET_JSON_SET: Set<string> = new Set(
+  Object.values(ARRANGEMENT_PRESETS).map(p => JSON.stringify(p)),
+);
+
+/**
+ * Check if a CoordinateLayout exactly matches any built-in preset.
+ * Returns true if the layout is a known preset, false for custom configs.
+ *
+ * Note: does NOT return the preset name because some presets share identical
+ * coordinate configs (e.g. grid and triangle). Use resolveArrangementFromLayout()
+ * to determine which hardcoded function to dispatch to.
+ */
+export function isExactPreset(layout: CoordinateLayout): boolean {
+  return PRESET_JSON_SET.has(JSON.stringify(layout));
+}
