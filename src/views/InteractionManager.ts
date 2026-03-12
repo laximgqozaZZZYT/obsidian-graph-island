@@ -1,5 +1,5 @@
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
-import { Platform } from "obsidian";
+import { Menu, Platform } from "obsidian";
 import type { GraphNode, LayoutType, ShellInfo } from "../types";
 import { repositionShell } from "../layouts/concentric";
 import type { Simulation } from "d3-force";
@@ -90,6 +90,7 @@ export class InteractionManager {
   private _onPointerUp: (e: PointerEvent) => void;
   private _onPointerLeave: () => void;
   private _onDblClick: ((e: MouseEvent) => void) | null = null;
+  private _onContextMenu: ((e: MouseEvent) => void) | null = null;
 
   constructor(host: InteractionHost, canvas: HTMLCanvasElement, world: CanvasContainer) {
     this.host = host;
@@ -111,6 +112,8 @@ export class InteractionManager {
     if (!Platform.isMobile) {
       this._onDblClick = this.handleDblClick.bind(this);
       canvas.addEventListener("dblclick", this._onDblClick);
+      this._onContextMenu = this.handleContextMenu.bind(this);
+      canvas.addEventListener("contextmenu", this._onContextMenu);
     }
   }
 
@@ -123,6 +126,9 @@ export class InteractionManager {
     this.canvas.removeEventListener("pointerleave", this._onPointerLeave);
     if (this._onDblClick) {
       this.canvas.removeEventListener("dblclick", this._onDblClick);
+    }
+    if (this._onContextMenu) {
+      this.canvas.removeEventListener("contextmenu", this._onContextMenu);
     }
     if (this.marqueeGraphics) {
       this.marqueeGraphics.destroy();
@@ -377,5 +383,50 @@ export class InteractionManager {
     if (hit.data.filePath) {
       this.host.openFile(hit.data.filePath);
     }
+  }
+
+  // -----------------------------------------------------------------------
+  // Context menu (right-click on node)
+  // -----------------------------------------------------------------------
+  private handleContextMenu(e: MouseEvent) {
+    const app = this.host.getPixiApp();
+    if (!app) return;
+
+    const rect = this.canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const worldPt = this.world.toLocal({ x: mx, y: my }, app.stage);
+    const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
+    if (!hit) return;
+
+    e.preventDefault();
+    const menu = new Menu();
+    const node = hit;
+
+    // Open file
+    if (node.data.filePath) {
+      menu.addItem((item) => {
+        item.setTitle("Open file")
+          .setIcon("file-text")
+          .onClick(() => this.host.openFile(node.data.filePath!));
+      });
+    }
+
+    // Pin / Unpin
+    menu.addItem((item) => {
+      item.setTitle(node.held ? "Unpin" : "Pin")
+        .setIcon(node.held ? "pin-off" : "pin")
+        .onClick(() => this.host.toggleHold(node));
+    });
+
+    // Copy node ID / path
+    const copyText = node.data.filePath || node.data.id;
+    menu.addItem((item) => {
+      item.setTitle("Copy path")
+        .setIcon("copy")
+        .onClick(() => navigator.clipboard.writeText(copyText));
+    });
+
+    menu.showAtPosition({ x: e.clientX, y: e.clientY });
   }
 }
