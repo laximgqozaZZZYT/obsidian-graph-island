@@ -2273,6 +2273,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.createPixiNodes(ld.nodes, nodeR, nodeColor);
     await yieldFrame(); if (signal.aborted) return;
 
+    // Build transition data: from saved positions, to new layout positions
+    const transitionData: { data: { x: number; y: number }; fromX: number; fromY: number; toX: number; toY: number }[] = [];
+    for (const pn of this.pixiNodes.values()) {
+      const saved = this.savedPositions.get(pn.data.id);
+      if (saved && (Math.abs(saved.x - pn.data.x) > 1 || Math.abs(saved.y - pn.data.y) > 1)) {
+        transitionData.push({
+          data: pn.data,
+          fromX: saved.x, fromY: saved.y,
+          toX: pn.data.x, toY: pn.data.y,
+        });
+      }
+    }
+    this.savedPositions.clear();
+
+    if (transitionData.length > 0) {
+      this.layoutTransition.start(transitionData, () => {
+        this.markDirty(true);
+      });
+    }
+
     this.setStatus(`Drawing ${ld.edges.length} edges...`);
     await yieldFrame(); if (signal.aborted) return;
 

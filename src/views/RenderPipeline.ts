@@ -64,6 +64,8 @@ export interface RenderHost {
   drawGuideLines(): void;
   /** Draw group grid overlay */
   drawGroupGrid(): void;
+  /** Tick layout transition animation; returns true if still running */
+  tickLayoutTransition(): boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,6 +109,13 @@ export class RenderPipeline {
   // Render loop
   // =========================================================================
   private renderTick = () => {
+    // Layout transition always ticks (even when needsRedraw is false)
+    const transitioning = this.host.tickLayoutTransition();
+    if (transitioning) {
+      this.needsRedraw = true;
+      this.idleFrames = 0;
+    }
+
     if (this.needsRedraw) {
       this.updatePositions(this.needsFullRedraw);
       this.needsRedraw = false;
