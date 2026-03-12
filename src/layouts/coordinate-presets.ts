@@ -140,3 +140,18 @@ const PRESET_JSON_SET: Set<string> = new Set(
 export function isExactPreset(layout: CoordinateLayout): boolean {
   return PRESET_JSON_SET.has(JSON.stringify(layout));
 }
+
+/**
+ * Find which arrangement preset matches the given layout, if any.
+ * Returns the arrangement name, or "custom" if no preset matches.
+ * When multiple presets share the same layout (e.g. grid/triangle),
+ * the first match wins (iteration order of ARRANGEMENT_PRESETS).
+ */
+export function findMatchingPreset(layout: CoordinateLayout): ClusterArrangement {
+  const json = JSON.stringify(layout);
+  for (const [name, preset] of Object.entries(ARRANGEMENT_PRESETS)) {
+    if (name === "custom") continue;
+    if (JSON.stringify(preset) === json) return name as ClusterArrangement;
+  }
+  return "custom";
+}

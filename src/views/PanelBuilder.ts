@@ -9,7 +9,7 @@ import { t, tHelp } from "../i18n";
 import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
 import { exportPreset, importPreset, applyPreset } from "../utils/presets";
-import { ARRANGEMENT_PRESETS } from "../layouts/coordinate-presets";
+import { ARRANGEMENT_PRESETS, findMatchingPreset } from "../layouts/coordinate-presets";
 
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
@@ -221,6 +221,22 @@ export interface PanelContext {
 // ---------------------------------------------------------------------------
 // PanelBuilder
 // ---------------------------------------------------------------------------
+/**
+ * After any coordinate-layout field is changed, sync the arrangement dropdown.
+ * If the new layout matches a known preset, switch to that preset and clear the override.
+ * Otherwise, switch to "custom".
+ */
+function syncArrangementFromLayout(panel: PanelState): void {
+  if (!panel.coordinateLayout) return;
+  const match = findMatchingPreset(panel.coordinateLayout);
+  if (match !== "custom") {
+    panel.clusterArrangement = match;
+    panel.coordinateLayout = null; // use preset directly
+  } else {
+    panel.clusterArrangement = "custom";
+  }
+}
+
 export function buildPanel(
   panelEl: HTMLElement,
   panel: PanelState,
@@ -463,6 +479,7 @@ export function buildPanel(
       const base = panel.coordinateLayout
         ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
       panel.coordinateLayout = { ...base, system: v as CoordinateSystem };
+      syncArrangementFromLayout(panel);
       cb.applyClusterForce();
       cb.rebuildPanel();
       cb.restartSimulation(0.5);
@@ -480,7 +497,9 @@ export function buildPanel(
       const base = panel.coordinateLayout
         ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
       panel.coordinateLayout = { ...base, perGroup: v };
+      syncArrangementFromLayout(panel);
       cb.applyClusterForce();
+      cb.rebuildPanel();
       cb.restartSimulation(0.5);
     });
 
@@ -496,6 +515,7 @@ export function buildPanel(
             transform: { kind: "even-divide", totalRange: v },
           },
         };
+        syncArrangementFromLayout(panel);
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
       });
@@ -920,6 +940,7 @@ function buildAxisTextInput(
       ...base,
       [axisKey]: { ...base[axisKey], source: parsed },
     };
+    syncArrangementFromLayout(panel);
     cb.applyClusterForce();
     cb.rebuildPanel();
     cb.restartSimulation(0.5);
