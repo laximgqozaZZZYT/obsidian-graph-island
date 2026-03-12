@@ -1237,7 +1237,7 @@ function addSlider(container: HTMLElement, label: string, min: number, max: numb
   const row = container.createDiv({ cls: "setting-item mod-slider" });
   const info = row.createDiv({ cls: "setting-item-info" });
   const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
-  if (description) nameEl.title = description;
+  nameEl.title = description || label;
   const valueSpan = info.createEl("span", { cls: "gi-slider-value", text: String(initial) });
   const control = row.createDiv({ cls: "setting-item-control" });
   const input = control.createEl("input", { type: "range" });
@@ -1265,7 +1265,7 @@ function addToggle(container: HTMLElement, label: string, initial: boolean, onCh
   const row = container.createDiv({ cls: "setting-item mod-toggle" });
   const info = row.createDiv({ cls: "setting-item-info" });
   const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
-  if (description) nameEl.title = description;
+  nameEl.title = description || label;
   const control = row.createDiv({ cls: "setting-item-control" });
   const toggle = control.createDiv({ cls: "checkbox-container" + (initial ? " is-enabled" : "") });
   toggle.addEventListener("click", () => {
@@ -1278,7 +1278,8 @@ function addToggle(container: HTMLElement, label: string, initial: boolean, onCh
 function addTextInput(container: HTMLElement, label: string, initial: string, placeholder: string, onChange: (v: string) => void) {
   const row = container.createDiv({ cls: "setting-item gi-full-width-row" });
   const info = row.createDiv({ cls: "setting-item-info" });
-  info.createDiv({ cls: "setting-item-name", text: label });
+  const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
+  nameEl.title = label;
   const control = row.createDiv({ cls: "setting-item-control" });
   const input = control.createEl("input", { type: "text", placeholder });
   input.value = initial;
@@ -1289,7 +1290,8 @@ function addTextInput(container: HTMLElement, label: string, initial: string, pl
 function addSuggestInput(container: HTMLElement, label: string, initial: string, placeholder: string, suggestions: string[], onChange: (v: string) => void) {
   const row = container.createDiv({ cls: "setting-item gi-full-width-row" });
   const info = row.createDiv({ cls: "setting-item-info" });
-  info.createDiv({ cls: "setting-item-name", text: label });
+  const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
+  nameEl.title = label;
   const control = row.createDiv({ cls: "setting-item-control" });
   const listId = `gi-suggest-${label.replace(/\s+/g, "-")}-${Date.now()}`;
   const input = control.createEl("input", { type: "text", placeholder });
@@ -1466,7 +1468,8 @@ function addMultiValueInput(
 ) {
   const row = container.createDiv({ cls: "setting-item gi-full-width-row" });
   const info = row.createDiv({ cls: "setting-item-info" });
-  info.createDiv({ cls: "setting-item-name", text: label });
+  const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
+  nameEl.title = label;
   const control = row.createDiv({ cls: "setting-item-control gi-multivalue-control" });
 
   const listEl = control.createDiv({ cls: "gi-multivalue-list" });
@@ -1640,7 +1643,8 @@ function addCheckboxGroup(
 ) {
   const row = container.createDiv({ cls: "setting-item gi-full-width-row" });
   const info = row.createDiv({ cls: "setting-item-info" });
-  info.createDiv({ cls: "setting-item-name", text: label });
+  const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
+  nameEl.title = label;
   const control = row.createDiv({ cls: "setting-item-control gi-checkbox-group" });
   if (items.length === 0) {
     control.createEl("span", { cls: "gi-checkbox-empty", text: "—" });
@@ -2208,7 +2212,7 @@ function addSelect(container: HTMLElement, label: string, options: { value: stri
   const row = container.createDiv({ cls: "setting-item" });
   const info = row.createDiv({ cls: "setting-item-info" });
   const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
-  if (description) nameEl.title = description;
+  nameEl.title = description || label;
   const control = row.createDiv({ cls: "setting-item-control" });
   const sel = control.createEl("select", { cls: "dropdown" });
   for (const opt of options) {
@@ -2221,7 +2225,8 @@ function addSelect(container: HTMLElement, label: string, options: { value: stri
 function addDirectionToggle(container: HTMLElement, label: string, initial: 1 | -1, onChange: (v: 1 | -1) => void) {
   const row = container.createDiv({ cls: "setting-item" });
   const info = row.createDiv({ cls: "setting-item-info" });
-  info.createDiv({ cls: "setting-item-name", text: label });
+  const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
+  nameEl.title = label;
   const control = row.createDiv({ cls: "setting-item-control" });
   const btn = control.createEl("button", { cls: "gi-direction-btn", text: initial === 1 ? t("direction.clockwise") : t("direction.counterClockwise") });
   btn.dataset.dir = initial === 1 ? "cw" : "ccw";
