@@ -65,11 +65,24 @@ export type ClusterGroupBy = string;
 /** How to arrange nodes within each cluster */
 export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid" | "triangle" | "random" | "mountain" | "sunburst" | "timeline";
 
-/** Source of values for a coordinate axis */
+/** Source of values for a coordinate axis.
+ *
+ *  - index: sort position (0..n-1)
+ *  - field: any node attribute — built-in fields (path, file, folder, tag,
+ *           category, id, isTag) or arbitrary frontmatter property.
+ *           Uses the same resolution as getNodeFieldValues().
+ *  - property: (legacy) frontmatter-only lookup — prefer "field" for new uses
+ *  - metric: graph-structure-derived values (degree, bfs-depth, …)
+ *  - hop: BFS distance from a specific node (identified by id substring)
+ *  - random: deterministic pseudo-random in [0, 1)
+ *  - const: fixed numeric value
+ */
 export type AxisSource =
   | { kind: "index" }
+  | { kind: "field"; field: string }
   | { kind: "property"; key: string }
   | { kind: "metric"; metric: MetricKind }
+  | { kind: "hop"; from: string; maxDepth?: number }
   | { kind: "random"; seed: number }
   | { kind: "const"; value: number };
 

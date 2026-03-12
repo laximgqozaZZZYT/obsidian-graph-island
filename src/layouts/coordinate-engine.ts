@@ -20,6 +20,7 @@ import type {
   CoordinateLayout,
   CoordinateSystem,
 } from "../types";
+import { getNodeFieldValues } from "../utils/node-grouping";
 import type { ArrangementResult } from "./cluster-force";
 
 // ---------------------------------------------------------------------------
@@ -72,6 +73,32 @@ export function resolveAxisValues(
       break;
     }
 
+    case "field": {
+      // Unified node attribute source — handles built-in fields (path, file,
+      // folder, tag, category, id, isTag) and any frontmatter property.
+      const field = source.field;
+      const rawValues: { id: string; raw: string }[] = [];
+      for (const m of members) {
+        const vals = getNodeFieldValues(m, field);
+        // Use the first value (multi-value fields like tag take the first)
+        rawValues.push({ id: m.id, raw: vals[0] ?? "" });
+      }
+      // Try numeric parse; fall back to lexicographic index
+      const allNumeric = rawValues.every(v => v.raw === "" || !isNaN(Number(v.raw)));
+      if (allNumeric) {
+        for (const v of rawValues) {
+          result.set(v.id, v.raw === "" ? 0 : Number(v.raw));
+        }
+      } else {
+        const sorted = [...new Set(rawValues.map(v => v.raw))].sort();
+        const indexMap = new Map(sorted.map((s, i) => [s, i]));
+        for (const v of rawValues) {
+          result.set(v.id, indexMap.get(v.raw) ?? 0);
+        }
+      }
+      break;
+    }
+
     case "property": {
       const key = source.key;
       // Collect raw string values, then convert to numbers
@@ -101,6 +128,61 @@ export function resolveAxisValues(
         for (const v of rawValues) {
           result.set(v.id, indexMap.get(v.raw) ?? 0);
         }
+      }
+      break;
+    }
+
+    case "hop": {
+      // BFS distance from a specific node (identified by substring match on id)
+      const fromPattern = source.from.toLowerCase();
+      const maxDepth = source.maxDepth ?? Infinity;
+      const memberSet = new Set(members.map(m => m.id));
+
+      // Find the root node by id substring match
+      let root: string | undefined;
+      for (const m of members) {
+        if (m.id.toLowerCase().includes(fromPattern)) {
+          root = m.id;
+          break;
+        }
+      }
+
+      if (!root) {
+        // No matching root — all nodes get maxDepth+1
+        for (const m of members) result.set(m.id, maxDepth + 1);
+        break;
+      }
+
+      // Build adjacency list within members
+      const adj = new Map<string, string[]>();
+      for (const id of memberSet) adj.set(id, []);
+      for (const e of ctx.edges) {
+        if (memberSet.has(e.source) && memberSet.has(e.target)) {
+          adj.get(e.source)!.push(e.target);
+          adj.get(e.target)!.push(e.source);
+        }
+      }
+
+      // BFS from root
+      const depth = new Map<string, number>();
+      depth.set(root, 0);
+      const queue = [root];
+      let head = 0;
+      while (head < queue.length) {
+        const cur = queue[head++];
+        const d = depth.get(cur)!;
+        if (d >= maxDepth) continue;
+        for (const nb of adj.get(cur) ?? []) {
+          if (!depth.has(nb)) {
+            depth.set(nb, d + 1);
+            queue.push(nb);
+          }
+        }
+      }
+
+      const fallback = (depth.size > 0 ? Math.max(...depth.values()) : 0) + 1;
+      for (const m of members) {
+        result.set(m.id, depth.get(m.id) ?? fallback);
       }
       break;
     }

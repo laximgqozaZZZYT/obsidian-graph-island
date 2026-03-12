@@ -146,6 +146,93 @@ describe("resolveAxisValues", () => {
     expect(vals.get("c")).toBe(1); // green
     expect(vals.get("a")).toBe(2); // red
   });
+
+  // --- field source (unified node attribute access) ---
+
+  it("field:category: resolves category values", () => {
+    const nodes2 = [
+      makeNode("a", {}),
+      makeNode("b", {}),
+      makeNode("c", {}),
+    ];
+    nodes2[0].category = "protagonist";
+    nodes2[1].category = "antagonist";
+    nodes2[2].category = "protagonist";
+    const vals = resolveAxisValues(nodes2, { kind: "field", field: "category" }, ctx);
+    // Lex sort: antagonist=0, protagonist=1
+    expect(vals.get("b")).toBe(0);
+    expect(vals.get("a")).toBe(1);
+    expect(vals.get("c")).toBe(1);
+  });
+
+  it("field:folder: groups by folder path", () => {
+    const nodes2 = [
+      makeNode("a", {}),
+      makeNode("b", {}),
+      makeNode("c", {}),
+    ];
+    nodes2[0].filePath = "characters/alice.md";
+    nodes2[1].filePath = "locations/town.md";
+    nodes2[2].filePath = "characters/bob.md";
+    const vals = resolveAxisValues(nodes2, { kind: "field", field: "folder" }, ctx);
+    // Lex sort: characters=0, locations=1
+    expect(vals.get("a")).toBe(0);
+    expect(vals.get("c")).toBe(0);
+    expect(vals.get("b")).toBe(1);
+  });
+
+  it("field:isTag: boolean field → 0/1 index", () => {
+    const nodes2 = [makeNode("a"), makeNode("b"), makeNode("c")];
+    nodes2[1].isTag = true;
+    const vals = resolveAxisValues(nodes2, { kind: "field", field: "isTag" }, ctx);
+    // "false"=0, "true"=1
+    expect(vals.get("a")).toBe(0);
+    expect(vals.get("b")).toBe(1);
+    expect(vals.get("c")).toBe(0);
+  });
+
+  it("field with frontmatter: reads arbitrary meta property", () => {
+    const nodes2 = [
+      makeNode("a", { node_type: "character" }),
+      makeNode("b", { node_type: "location" }),
+      makeNode("c", { node_type: "character" }),
+    ];
+    const vals = resolveAxisValues(nodes2, { kind: "field", field: "node_type" }, ctx);
+    // Lex sort: character=0, location=1
+    expect(vals.get("a")).toBe(0);
+    expect(vals.get("b")).toBe(1);
+    expect(vals.get("c")).toBe(0);
+  });
+
+  // --- hop source ---
+
+  it("hop: BFS distance from specified node", () => {
+    // a—b—c chain
+    const edges = [makeEdge("a", "b"), makeEdge("b", "c")];
+    const ctx2 = baseCtx({ edges, degrees: new Map([["a", 1], ["b", 2], ["c", 1]]) });
+    const vals = resolveAxisValues(nodes, { kind: "hop", from: "a" }, ctx2);
+    expect(vals.get("a")).toBe(0);
+    expect(vals.get("b")).toBe(1);
+    expect(vals.get("c")).toBe(2);
+  });
+
+  it("hop: respects maxDepth", () => {
+    const edges = [makeEdge("a", "b"), makeEdge("b", "c")];
+    const ctx2 = baseCtx({ edges, degrees: new Map([["a", 1], ["b", 2], ["c", 1]]) });
+    const vals = resolveAxisValues(nodes, { kind: "hop", from: "a", maxDepth: 1 }, ctx2);
+    expect(vals.get("a")).toBe(0);
+    expect(vals.get("b")).toBe(1);
+    // c is unreachable within maxDepth=1 → gets fallback value
+    expect(vals.get("c")).toBeGreaterThan(1);
+  });
+
+  it("hop: substring match on node id", () => {
+    const edges = [makeEdge("a", "b"), makeEdge("b", "c")];
+    const ctx2 = baseCtx({ edges, degrees: new Map([["a", 1], ["b", 2], ["c", 1]]) });
+    // "a" is a substring of node id "a" — should match
+    const vals = resolveAxisValues(nodes, { kind: "hop", from: "a" }, ctx2);
+    expect(vals.get("a")).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
