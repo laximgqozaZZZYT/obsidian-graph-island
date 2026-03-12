@@ -2,24 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { exportGraphAsPng, downloadBlob, makeExportFilename } from "../src/utils/export-png";
 
 describe("exportGraphAsPng", () => {
-  it("calls renderer.extract.canvas with the world container", async () => {
+  it("calls app.view.toBlob and resolves with a PNG Blob", async () => {
     const fakeCanvas = {
       toBlob: vi.fn((cb: (blob: Blob | null) => void) => {
         cb(new Blob(["fake"], { type: "image/png" }));
       }),
     };
     const mockApp = {
-      renderer: {
-        extract: {
-          canvas: vi.fn(() => fakeCanvas),
-        },
-      },
+      view: fakeCanvas,
     } as any;
-    const mockWorld = {} as any;
 
-    const blob = await exportGraphAsPng(mockApp, mockWorld);
+    const blob = await exportGraphAsPng(mockApp);
 
-    expect(mockApp.renderer.extract.canvas).toHaveBeenCalledWith(mockWorld);
+    expect(fakeCanvas.toBlob).toHaveBeenCalled();
     expect(blob).toBeInstanceOf(Blob);
     expect(blob.type).toBe("image/png");
   });
@@ -31,14 +26,10 @@ describe("exportGraphAsPng", () => {
       }),
     };
     const mockApp = {
-      renderer: {
-        extract: {
-          canvas: vi.fn(() => fakeCanvas),
-        },
-      },
+      view: fakeCanvas,
     } as any;
 
-    await expect(exportGraphAsPng(mockApp, {} as any)).rejects.toThrow(
+    await expect(exportGraphAsPng(mockApp)).rejects.toThrow(
       "Failed to create PNG blob from canvas",
     );
   });
