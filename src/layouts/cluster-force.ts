@@ -198,6 +198,8 @@ export interface ClusterForceConfig {
   getNodeProperty?: (nodeId: string, key: string) => string | undefined;
   /** Resolved coordinate layout configuration */
   coordinateLayout?: CoordinateLayout;
+  /** User-defined constants from coordinateLayout (includes _blend, _overlapPad, _minGap) */
+  userConstants?: Record<string, number>;
 }
 
 /**
@@ -435,16 +437,26 @@ export function buildClusterForce(
   const nodeIdx = tagMem ? new Map(nodes.map(n => [n.id, n])) : null;
 
   const force = (_alpha: number) => {
-    // Fixed high blend — always snap strongly to target positions
-    const blend = 0.85;
+    // Read blend initial value from user constants (default 0.85)
+    const blendInitial = cfg.userConstants?._blend ?? 0.85;
+    // Decay: as simulation cools (alpha → 0), reduce blend to let collide work
+    // alpha starts at ~1.0 and decays to alphaMin (~0.001)
+    // We use alpha directly as the decay factor
+    const blend = blendInitial * Math.min(1, _alpha * 3);
 
     for (const n of nodes) {
       const t = targets.get(n.id);
       if (!t) continue;
       n.x += (t.x - n.x) * blend;
       n.y += (t.y - n.y) * blend;
-      n.vx = 0;
-      n.vy = 0;
+      // Only kill velocity when blend is strong; let collide influence when blend is weak
+      if (blend > 0.5) {
+        n.vx = 0;
+        n.vy = 0;
+      } else {
+        n.vx *= (1 - blend);
+        n.vy *= (1 - blend);
+      }
     }
 
     // Enclosure separation nudge — disabled pending investigation

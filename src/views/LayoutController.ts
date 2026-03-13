@@ -358,6 +358,7 @@ export class LayoutController {
       guideLineMode: panel.guideLineMode || "per-group",
       getNodeProperty: (nodeId: string, key: string) => this.host.getNodeProperty(nodeId, key),
       coordinateLayout: resolveCoordinateLayout(clusterArrangement, panel.coordinateLayout ?? null),
+      userConstants: panel.coordinateLayout?.constants,
     };
 
     // If coordinateLayout specifies a property source, use it as timelineKey
