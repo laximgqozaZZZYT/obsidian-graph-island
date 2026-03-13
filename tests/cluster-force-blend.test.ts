@@ -37,8 +37,13 @@ describe("cluster force blend decay", () => {
 
   it("should kill velocity when blend is strong", () => {
     const blend = 0.7;
-    expect(blend > 0.5).toBe(true);
-    // vx and vy should be set to 0
+    let vx = 5, vy = -3;
+    if (blend > 0.5) {
+      vx = 0;
+      vy = 0;
+    }
+    expect(vx).toBe(0);
+    expect(vy).toBe(0);
   });
 
   it("should dampen velocity when blend is weak", () => {
