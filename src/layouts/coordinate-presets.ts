@@ -144,6 +144,7 @@ export const ARRANGEMENT_PRESETS: Record<ClusterArrangement, CoordinateLayout> =
     axis1: { source: { kind: "const", value: 1 }, transform: { kind: "linear", scale: 1 } },
     axis2: { source: { kind: "index" }, transform: { kind: "even-divide", totalRange: 360 } },
     perGroup: false,
+    constants: { _ringW: 0.4, _ringGap: 0.03, _hole: 1.8, _sectorGap: 0.02 },
   },
   timeline: {
     system: "cartesian",

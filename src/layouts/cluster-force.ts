@@ -665,16 +665,17 @@ function computeSunburstTargets(
   const cy = cfg.centerY;
   const nodeDiam = cfg.nodeSize * 2;
 
-  // --- Ring geometry ---
-  // For sunburst, use tighter packing than other arrangements:
-  // - Angular spacing uses nodeWidth (node diameter * nodeSpacing) but scaled down
-  //   since radial separation already provides visual distinction.
-  // - Ring thickness matches nodeDiam with minimal spacing.
-  // - Center hole is compact to maximize usable area.
-  const nodeWidth = nodeDiam * Math.max(cfg.nodeSpacing * 0.5, 1.0);
-  const ringThick = nodeDiam * Math.max(cfg.nodeSpacing * 0.5, 1.0);
-  const ringGap = nodeDiam * cfg.groupScale * 0.06;
-  const centerHole = nodeDiam * cfg.groupScale * 1.0;
+  // --- Ring geometry (configurable via constants) ---
+  const uc = cfg.userConstants;
+  const ringWFactor = uc?._ringW ?? 0.4;
+  const ringGapFactor = uc?._ringGap ?? 0.03;
+  const holeFactor = uc?._hole ?? 1.8;
+  const sectorGapFactor = uc?._sectorGap ?? 0.02;
+
+  const nodeWidth = nodeDiam * Math.max(cfg.nodeSpacing * ringWFactor, 1.0);
+  const ringThick = nodeDiam * Math.max(cfg.nodeSpacing * ringWFactor, 1.0);
+  const ringGap = nodeDiam * cfg.groupScale * ringGapFactor;
+  const centerHole = nodeDiam * cfg.groupScale * holeFactor;
 
   // Sort helper
   const sortNodes = (arr: GraphNode[]) => {
@@ -694,7 +695,7 @@ function computeSunburstTargets(
 
   // --- Level 0: Assign parent sectors (proportional to node count) ---
   const nParents = parentKeys.length;
-  const sectorGap = nParents > 1 ? 0.03 * Math.max(cfg.groupSpacing, 1) : 0;
+  const sectorGap = nParents > 1 ? sectorGapFactor * Math.max(cfg.groupSpacing, 1) : 0;
   const totalGap = sectorGap * nParents;
   const availAngle = Math.PI * 2 - totalGap;
 
@@ -797,7 +798,7 @@ function computeSunburstTargets(
     if (totalUnplaced === 0) continue;
 
     // Assign sub-sectors proportional to unplaced node count
-    const subGap = childUnplaced.size > 1 ? 0.02 * Math.max(cfg.groupSpacing, 1) : 0;
+    const subGap = childUnplaced.size > 1 ? sectorGapFactor * Math.max(cfg.groupSpacing, 1) : 0;
     const subTotalGap = subGap * childUnplaced.size;
     const subAvail = parentSector.sweep - subTotalGap;
     let subAngle = parentSector.start;

@@ -1494,12 +1494,22 @@ function buildConstantsUI(
     cb.restartSimulation(0.5);
   });
 
-  // --- System constants (overlap control) ---
+  // --- System constants (overlap control + arrangement-specific) ---
   const SYSTEM_CONSTANTS: Record<string, { default: number; hint: string }> = {
     _blend: { default: 0.85, hint: t("coord.sysBlend") },
     _overlapPad: { default: 1.3, hint: t("coord.sysOverlapPad") },
     _minGap: { default: 0, hint: t("coord.sysMinGap") },
   };
+
+  // Add sunburst-specific constants when arrangement is sunburst
+  if (panel.clusterArrangement === "sunburst") {
+    Object.assign(SYSTEM_CONSTANTS, {
+      _ringW: { default: 0.4, hint: t("coord.sysRingW") },
+      _ringGap: { default: 0.03, hint: t("coord.sysRingGap") },
+      _hole: { default: 1.8, hint: t("coord.sysHole") },
+      _sectorGap: { default: 0.02, hint: t("coord.sysSectorGap") },
+    });
+  }
 
   const sysHeader = section.createDiv({ cls: "gi-setting-row" });
   sysHeader.createEl("span", {

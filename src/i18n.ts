@@ -262,6 +262,10 @@ const en: TranslationMap = {
   "coord.sysBlend": "snap strength",
   "coord.sysOverlapPad": "group padding",
   "coord.sysMinGap": "min node gap",
+  "coord.sysRingW": "ring width",
+  "coord.sysRingGap": "ring gap",
+  "coord.sysHole": "center hole",
+  "coord.sysSectorGap": "sector gap",
   "coord.constantKey": "Name",
   "coord.constantValue": "Value",
 
@@ -653,6 +657,10 @@ const ja: TranslationMap = {
   "coord.sysBlend": "スナップ強度",
   "coord.sysOverlapPad": "グループ余白",
   "coord.sysMinGap": "最小ノード間隔",
+  "coord.sysRingW": "リング幅",
+  "coord.sysRingGap": "リング間隔",
+  "coord.sysHole": "中心穴",
+  "coord.sysSectorGap": "セクター間隔",
   "coord.constantKey": "名前",
   "coord.constantValue": "値",
 
