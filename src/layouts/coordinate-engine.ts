@@ -52,6 +52,10 @@ export interface CoordinateGuide {
   system: CoordinateSystem;
   axis1Label: string;
   axis2Label: string;
+  bounds?: {
+    xMin: number; yMin: number; xMax: number; yMax: number;
+    maxR?: number;  // polar layouts only
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -626,11 +630,26 @@ export function coordinateOffsets(
   // Phase 3: convert to Cartesian (dx, dy)
   const offsets = toCartesian(finalT1, t2, layout.system);
 
+  // Compute bounds from offsets for guide rendering
+  let bxMin = Infinity, byMin = Infinity, bxMax = -Infinity, byMax = -Infinity;
+  let maxR = 0;
+  for (const { dx, dy } of offsets.values()) {
+    if (dx < bxMin) bxMin = dx;
+    if (dy < byMin) byMin = dy;
+    if (dx > bxMax) bxMax = dx;
+    if (dy > byMax) byMax = dy;
+    const r = Math.sqrt(dx * dx + dy * dy);
+    if (r > maxR) maxR = r;
+  }
+
   const guide: CoordinateGuide = {
     type: "coordinate",
     system: layout.system,
     axis1Label: describeAxis(layout.axis1),
     axis2Label: describeAxis(layout.axis2),
+    bounds: offsets.size > 0
+      ? { xMin: bxMin, yMin: byMin, xMax: bxMax, yMax: byMax, ...(layout.system === "polar" ? { maxR } : {}) }
+      : undefined,
   };
 
   return { offsets, guide };

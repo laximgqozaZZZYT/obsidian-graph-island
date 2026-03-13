@@ -662,4 +662,52 @@ describe("coordinateOffsets", () => {
     const result = coordinateOffsets([], new Map(), [], layout, ctx);
     expect(result.offsets.size).toBe(0);
   });
+
+  it("cartesian layout produces guide with bounds (xMin <= xMax, yMin <= yMax)", () => {
+    const layout: CoordinateLayout = {
+      system: "cartesian",
+      axis1: { source: { kind: "index" }, transform: { kind: "linear", scale: 1 } },
+      axis2: { source: { kind: "metric", metric: "degree" }, transform: { kind: "linear", scale: -1 } },
+      perGroup: true,
+    };
+    const ctx = baseCtx({ degrees, edges });
+    const result = coordinateOffsets(nodes, degrees, edges, layout, ctx);
+    expect(result.guide).toBeDefined();
+    expect(result.guide!.bounds).toBeDefined();
+    const b = result.guide!.bounds!;
+    expect(b.xMin).toBeLessThanOrEqual(b.xMax);
+    expect(b.yMin).toBeLessThanOrEqual(b.yMax);
+    expect(b.maxR).toBeUndefined();
+  });
+
+  it("polar layout produces guide with bounds including maxR > 0", () => {
+    const layout: CoordinateLayout = {
+      system: "polar",
+      axis1: { source: { kind: "metric", metric: "degree" }, transform: { kind: "linear", scale: 1 } },
+      axis2: { source: { kind: "index" }, transform: { kind: "golden-angle" } },
+      perGroup: true,
+    };
+    const ctx = baseCtx({ degrees, edges });
+    const result = coordinateOffsets(nodes, degrees, edges, layout, ctx);
+    expect(result.guide).toBeDefined();
+    expect(result.guide!.bounds).toBeDefined();
+    const b = result.guide!.bounds!;
+    expect(b.xMin).toBeLessThanOrEqual(b.xMax);
+    expect(b.yMin).toBeLessThanOrEqual(b.yMax);
+    expect(b.maxR).toBeDefined();
+    expect(b.maxR!).toBeGreaterThan(0);
+  });
+
+  it("empty node list produces no guide (early return)", () => {
+    const layout: CoordinateLayout = {
+      system: "cartesian",
+      axis1: { source: { kind: "index" }, transform: { kind: "linear", scale: 1 } },
+      axis2: { source: { kind: "index" }, transform: { kind: "linear", scale: 1 } },
+      perGroup: true,
+    };
+    const ctx = baseCtx();
+    const result = coordinateOffsets([], new Map(), [], layout, ctx);
+    expect(result.offsets.size).toBe(0);
+    expect(result.guide).toBeUndefined();
+  });
 });
