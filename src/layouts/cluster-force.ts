@@ -217,7 +217,10 @@ function resolveGroupOverlaps(
   groups: Map<string, GraphNode[]>,
   clusterRadii: Map<string, number>,
   clusterCentroids: Map<string, { x: number; y: number }>,
-  iterations: number = 5,
+  nodeSize: number,
+  degrees: Map<string, number>,
+  scaleByDegree: boolean,
+  overlapPad: number = 1.3,
 ): void {
   const keys = [...groups.keys()];
   if (keys.length < 2) return;
@@ -232,17 +235,19 @@ function resolveGroupOverlaps(
     for (const m of members) {
       const t = targets.get(m.id);
       if (!t) continue;
-      const d = Math.sqrt((t.x - centroid.x) ** 2 + (t.y - centroid.y) ** 2);
+      // Include effective radius of each node in group extent
+      const nodeR = effectiveRadius(m, nodeSize, degrees.get(m.id) ?? 0, scaleByDegree);
+      const d = Math.sqrt((t.x - centroid.x) ** 2 + (t.y - centroid.y) ** 2) + nodeR;
       if (d > maxDist) maxDist = d;
     }
-    // Use the larger of estimated and actual radius (actual captures orbit rings, etc.)
     const estimated = clusterRadii.get(key) ?? 0;
-    const effective = Math.max(estimated, maxDist + 10); // +10 for node visual extent
+    const effective = Math.max(estimated, maxDist);
     actualRadii.set(key, effective);
-    clusterRadii.set(key, effective); // Update for downstream consumers
+    clusterRadii.set(key, effective);
   }
 
-  for (let iter = 0; iter < iterations; iter++) {
+  const maxIter = Math.min(keys.length, 10);
+  for (let iter = 0; iter < maxIter; iter++) {
     let anyOverlap = false;
 
     for (let i = 0; i < keys.length; i++) {
@@ -260,7 +265,7 @@ function resolveGroupOverlaps(
         const dx = cB.x - cA.x;
         const dy = cB.y - cA.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const minDist = (rA + rB) * 1.3; // 30% padding for visual breathing room
+        const minDist = (rA + rB) * overlapPad;
 
         if (dist >= minDist) continue;
         anyOverlap = true;
@@ -394,7 +399,8 @@ export function buildClusterForce(
   // Skip for timeline: unified timeline already handles Y-band separation
   // Skip for sunburst: all groups share a single center — overlap resolution destroys radial layout
   if (cfg.arrangement !== "timeline" && cfg.arrangement !== "sunburst") {
-    resolveGroupOverlaps(targets, groups, clusterRadii, clusterCentroids);
+    const overlapPad = cfg.userConstants?._overlapPad ?? 1.3;
+    resolveGroupOverlaps(targets, groups, clusterRadii, clusterCentroids, cfg.nodeSize, degrees, cfg.scaleByDegree, overlapPad);
   }
 
   // Re-align timeline bars with post-overlap node target positions
