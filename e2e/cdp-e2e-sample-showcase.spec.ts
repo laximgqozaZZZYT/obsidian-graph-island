@@ -5,7 +5,7 @@
  * and produce nodes with correct arrangement properties.
  *
  * Samples:
- *   23: random scatter (tag:? grouping)
+ *   23: spiral galaxy (tag:? grouping, spiral arrangement)
  *   24: baobab sunburst (large center hole via _hole=3.0)
  *   25: rose curve (5-petal polar expression, k=5)
  *   26: lissajous figure (cartesian sin expressions, a=3, b=2)
@@ -182,20 +182,20 @@ const SHOWCASE_SAMPLES: Array<{
   checks: (result: RenderResult) => void;
 }> = [
   {
-    file: "23-random-scatter.json",
-    name: "23-random-scatter",
-    arrangement: "random",
+    file: "23-spiral-galaxy.json",
+    name: "23-spiral-galaxy",
+    arrangement: "spiral",
     hasCustomCoord: false,
     groupBy: "tag:?",
     checks: (r) => {
-      // Random: nodes should be spread out, not all on a single point
+      // Spiral: nodes should be spread out in a spiral pattern
       if (r.nodePositions.length >= 3) {
         const xs = r.nodePositions.map(p => p.x);
         const ys = r.nodePositions.map(p => p.y);
         const xRange = Math.max(...xs) - Math.min(...xs);
         const yRange = Math.max(...ys) - Math.min(...ys);
-        expect(xRange, "random x-spread should be > 0").toBeGreaterThan(0);
-        expect(yRange, "random y-spread should be > 0").toBeGreaterThan(0);
+        expect(xRange, "spiral x-spread should be > 0").toBeGreaterThan(0);
+        expect(yRange, "spiral y-spread should be > 0").toBeGreaterThan(0);
       }
     },
   },

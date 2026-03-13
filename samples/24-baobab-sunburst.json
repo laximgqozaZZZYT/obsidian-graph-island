@@ -59,9 +59,9 @@
   "activeTab": "layout",
   "autoFit": true,
   "showDurationBars": false,
-  "showGuideLines": false,
+  "showGuideLines": true,
   "guideLineMode": "shared",
-  "showGroupGrid": false,
+  "showGroupGrid": true,
   "coordinateLayout": {
     "system": "polar",
     "axis1": { "source": { "kind": "const", "value": 1 }, "transform": { "kind": "linear", "scale": 1 } },

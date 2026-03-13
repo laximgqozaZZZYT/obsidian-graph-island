@@ -15,7 +15,7 @@
   "searchQuery": "",
   "colorEdgesByRelation": true,
   "colorNodesByCategory": true,
-  "heatmapMode": false,
+  "heatmapMode": true,
   "showInheritance": false,
   "showAggregation": false,
   "showTagNodes": false,
@@ -37,7 +37,7 @@
   "clusterGroupScale": 2.0,
   "clusterGroupSpacing": 2.0,
   "fadeEdgesByDegree": true,
-  "edgeBundleStrength": 0.5,
+  "edgeBundleStrength": 0.8,
   "sortRules": [{ "key": "degree", "order": "desc" }],
   "nodeRules": [],
   "nodeShapeRules": [
@@ -59,9 +59,9 @@
   "activeTab": "layout",
   "autoFit": true,
   "showDurationBars": false,
-  "showGuideLines": false,
+  "showGuideLines": true,
   "guideLineMode": "shared",
-  "showGroupGrid": false,
+  "showGroupGrid": true,
   "timelineRangeMin": 0,
   "timelineRangeMax": 1
 }

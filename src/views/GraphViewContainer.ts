@@ -921,6 +921,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     };
   }
 
+  isRingChartMode(): boolean {
+    return this.panel.ringChartMode && this.panel.clusterArrangement === "sunburst";
+  }
+
   // =========================================================================
   // Zoom & Hit testing
   // =========================================================================
@@ -1318,6 +1322,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   drawEdges() {
     if (!this.edgeGraphics) return;
+    // Ring chart mode: hide all edges
+    if (this.panel.ringChartMode && this.panel.clusterArrangement === "sunburst") {
+      this.edgeGraphics.clear();
+      return;
+    }
     this._frameCounter++;
     // Cache background color to avoid getComputedStyle on every frame
     if (this.cachedBgColor === null) {
@@ -1424,6 +1433,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   drawEnclosures() {
     if (!this.enclosureGraphics) return;
+    // Ring chart mode: hide enclosures
+    if (this.isRingChartMode()) { this.enclosureGraphics.clear(); return; }
     const cfg: EnclosureConfig = {
       tagDisplay: this.panel.tagDisplay,
       tagMembership: this.tagMembership,
@@ -1466,7 +1477,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         parentColorIdx.set(parent, colorIdx++);
       }
     }
-    // Map any group key to its parent's color index
     const getColorIdx = (key: string) => {
       const parent = key.replace(/::.*$/, "");
       return parentColorIdx.get(parent) ?? 0;
@@ -1476,8 +1486,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const lineW = Math.max(0.8, 1.5 / worldScale);
     const thinW = Math.max(0.4, 0.8 / worldScale);
 
-    // --- 1. Draw light filled backgrounds per group sector ---
-    // Find max outer radius per group for the full sector fill
+    const isRingChart = this.panel.ringChartMode;
+
+    // Pre-compute group sectors
     const groupMaxR = new Map<string, number>();
     const groupSector = new Map<string, { start: number; end: number; rMin: number }>();
     for (const arc of sunburstArcs) {
@@ -1489,47 +1500,65 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
-    // --- 1. Draw light filled backgrounds per parent-group sector ---
-    for (const [groupKey, maxR] of groupMaxR) {
-      const ci = getColorIdx(groupKey);
-      const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
-      const color = cssColorToHex(css);
-      const sector = groupSector.get(groupKey)!;
-      const { cx, cy } = sunburstArcs.find(a => a.groupKey === groupKey)!;
+    if (isRingChart) {
+      // === Ring Chart Mode: opaque filled sectors (baumkuchen style) ===
+      const borderW = Math.max(0.6, 1.0 / worldScale);
 
-      // Slightly stronger fill for sub-groups to show hierarchy
-      const isSubGroup = groupKey.includes("::");
-      const fillAlpha = isSubGroup ? 0.08 : 0.05;
-      gfx.beginFill(color, fillAlpha);
-      this.drawArcPath(gfx, cx, cy, sector.rMin, maxR, sector.start, sector.end);
-      gfx.endFill();
-    }
+      for (const arc of sunburstArcs) {
+        const { cx, cy, rInner, rOuter, startAngle, endAngle, groupKey } = arc;
+        if (rOuter <= 0 || endAngle - startAngle < 0.001) continue;
 
-    // --- 2. Draw ring outlines (concentric arcs) + radial boundaries ---
-    for (const arc of sunburstArcs) {
-      const { cx, cy, rInner, rOuter, startAngle, endAngle, groupKey } = arc;
-      if (rOuter <= 0 || endAngle - startAngle < 0.001) continue;
+        const isInner = groupKey === "__inner__";
+        const isSubGroup = groupKey.includes("::");
+        const ci = isInner ? -1 : getColorIdx(groupKey);
+        const css = isInner ? "" : DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
+        const color = isInner ? 0x666666 : cssColorToHex(css);
+        const fillAlpha = isInner ? 0.5 : (isSubGroup ? 0.6 : 0.7);
 
-      const isInner = groupKey === "__inner__";
-      const isSubGroup = groupKey.includes("::");
-      const ci = isInner ? -1 : getColorIdx(groupKey);
-      const css = isInner ? "" : DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
-      const color = isInner ? 0x888888 : cssColorToHex(css);
-      const alpha = isInner ? 0.2 : (isSubGroup ? 0.25 : 0.4);
+        gfx.lineStyle(borderW, 0xffffff, 0.3);
+        gfx.beginFill(color, fillAlpha);
+        this.drawArcPath(gfx, cx, cy, rInner, rOuter, startAngle, endAngle);
+        gfx.endFill();
+      }
+    } else {
+      // === Normal Mode: light filled backgrounds + outlines ===
+      for (const [groupKey, maxR] of groupMaxR) {
+        const ci = getColorIdx(groupKey);
+        const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
+        const color = cssColorToHex(css);
+        const sector = groupSector.get(groupKey)!;
+        const { cx, cy } = sunburstArcs.find(a => a.groupKey === groupKey)!;
 
-      // Concentric arcs (outer and inner boundaries)
-      gfx.lineStyle(thinW, color, alpha);
-      this.drawArcLine(gfx, cx, cy, rOuter, startAngle, endAngle);
-      this.drawArcLine(gfx, cx, cy, rInner, startAngle, endAngle);
+        const isSubGroup = groupKey.includes("::");
+        const fillAlpha = isSubGroup ? 0.08 : 0.05;
+        gfx.beginFill(color, fillAlpha);
+        this.drawArcPath(gfx, cx, cy, sector.rMin, maxR, sector.start, sector.end);
+        gfx.endFill();
+      }
 
-      // Radial sector boundaries (thicker for parent groups, thinner for sub-groups)
-      const radW = isSubGroup ? thinW : lineW;
-      const radAlpha = isSubGroup ? alpha * 0.6 : alpha;
-      gfx.lineStyle(radW, color, radAlpha);
-      gfx.moveTo(cx + rInner * Math.cos(startAngle), cy + rInner * Math.sin(startAngle));
-      gfx.lineTo(cx + rOuter * Math.cos(startAngle), cy + rOuter * Math.sin(startAngle));
-      gfx.moveTo(cx + rInner * Math.cos(endAngle), cy + rInner * Math.sin(endAngle));
-      gfx.lineTo(cx + rOuter * Math.cos(endAngle), cy + rOuter * Math.sin(endAngle));
+      for (const arc of sunburstArcs) {
+        const { cx, cy, rInner, rOuter, startAngle, endAngle, groupKey } = arc;
+        if (rOuter <= 0 || endAngle - startAngle < 0.001) continue;
+
+        const isInner = groupKey === "__inner__";
+        const isSubGroup = groupKey.includes("::");
+        const ci = isInner ? -1 : getColorIdx(groupKey);
+        const css = isInner ? "" : DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
+        const color = isInner ? 0x888888 : cssColorToHex(css);
+        const alpha = isInner ? 0.2 : (isSubGroup ? 0.25 : 0.4);
+
+        gfx.lineStyle(thinW, color, alpha);
+        this.drawArcLine(gfx, cx, cy, rOuter, startAngle, endAngle);
+        this.drawArcLine(gfx, cx, cy, rInner, startAngle, endAngle);
+
+        const radW = isSubGroup ? thinW : lineW;
+        const radAlpha = isSubGroup ? alpha * 0.6 : alpha;
+        gfx.lineStyle(radW, color, radAlpha);
+        gfx.moveTo(cx + rInner * Math.cos(startAngle), cy + rInner * Math.sin(startAngle));
+        gfx.lineTo(cx + rOuter * Math.cos(startAngle), cy + rOuter * Math.sin(startAngle));
+        gfx.moveTo(cx + rInner * Math.cos(endAngle), cy + rInner * Math.sin(endAngle));
+        gfx.lineTo(cx + rOuter * Math.cos(endAngle), cy + rOuter * Math.sin(endAngle));
+      }
     }
   }
 
@@ -1699,10 +1728,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.drawMountainSilhouette(g, cx, cy, guide, lineW, gColor);
           break;
         case "coordinate":
-          this.drawCoordinateGuide(g, cx, cy, guide as any, lineW, gColor);
+          this.drawCoordinateGuide(g, cx, cy, guide as Extract<ArrangementGuide, { type: "coordinate" }>, lineW, gColor);
           break;
         case "concentric":
-          this.drawConcentricGuide(g, cx, cy, guide as any, lineW, gColor);
+          this.drawConcentricGuide(g, cx, cy, guide as Extract<ArrangementGuide, { type: "concentric" }>, lineW, gColor);
           break;
       }
     }
@@ -1979,7 +2008,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const { xMin, yMin, xMax, yMax } = bounds;
       const xRange = xMax - xMin;
       const yRange = yMax - yMin;
-      if (xRange < 1 && yRange < 1) return;
+      if (xRange < 1 || yRange < 1) return;
 
       const divisions = 4;
       // Grid lines
