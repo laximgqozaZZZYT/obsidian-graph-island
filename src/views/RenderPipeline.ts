@@ -76,6 +76,8 @@ export interface RenderHost {
   tickLayoutTransition(): boolean;
   /** Get the canvas viewport dimensions (CSS pixels) */
   getCanvasDimensions(): { width: number; height: number };
+  /** Whether ring chart mode is active (sunburst + ringChartMode) */
+  isRingChartMode(): boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +264,8 @@ export class RenderPipeline {
     const g = this.host.getNodeCircleBatch();
     if (!g) return;
     g.clear();
+    // Ring chart mode: hide all nodes
+    if (this.host.isRingChartMode()) return;
     const hId = this.host.getHighlightedNodeId();
     const hlSet = this.host.getPrevHighlightSet();
     const eph = this.host.getEphemeralHighlight();

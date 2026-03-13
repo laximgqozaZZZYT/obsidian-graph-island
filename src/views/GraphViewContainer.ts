@@ -19,6 +19,7 @@ import { t } from "../i18n";
 import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
 import type { ClusterMetadata, GuideLineData, TimelineBarInfo, ArrangementGuide } from "../layouts/cluster-force";
+import type { ResolvedGridInfo, ResolvedGridLine } from "../layouts/coordinate-engine";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
 import { RenderPipeline, darkenColor, type RenderHost } from "./RenderPipeline";
 import { LayoutController, type LayoutHost } from "./LayoutController";
@@ -27,6 +28,18 @@ import { LayoutTransition } from "./LayoutTransition";
 import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
 import { getNodeShape, drawShape, drawShapeAt } from "../utils/node-shapes";
+
+/** Find the cell index for a value given sorted boundary positions */
+function findCellIndex(value: number, positions: number[]): number {
+  for (let i = 0; i < positions.length - 1; i++) {
+    if (value >= positions[i] && value < positions[i + 1]) return i;
+  }
+  // Check last cell (inclusive upper bound)
+  if (positions.length >= 2 && value >= positions[positions.length - 2]) {
+    return positions.length - 2;
+  }
+  return -1;
+}
 
 /**
  * Derive a single ClusterGroupRule from a query string + recursive flag.
@@ -639,6 +652,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     this.sunburstLabels.clear();
     this.sunburstLayoutArcs = [];
+    this.clearCustomGridLabels();
+    this.customGridLabelContainer = null;
     this.pixiNodes.clear();
     this.worldContainer = null;
     this.edgeGraphics = null;
@@ -1655,9 +1670,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!g) return;
     g.clear();
 
-    if (!this.panel.showGuideLines) return;
+    if (!this.panel.showGuideLines) {
+      this.clearCustomGridLabels();
+      return;
+    }
     const guideData = this.clusterMeta?.guideLineData;
-    if (!guideData || guideData.groups.length === 0) return;
+    if (!guideData || guideData.groups.length === 0) {
+      this.clearCustomGridLabels();
+      return;
+    }
 
     const worldScale = this.worldContainer?.scale.x ?? 1;
     const lineW = Math.max(0.5, 1.0 / worldScale);
@@ -1981,11 +2002,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   private drawCoordinateGuide(
     g: CanvasGraphics, cx: number, cy: number,
-    guide: { type: "coordinate"; system: string; bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number } },
+    guide: { type: "coordinate"; system: string; bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number }; gridInfo?: ResolvedGridInfo },
     lineW: number, color: number,
   ) {
     const bounds = guide.bounds;
     if (!bounds) return;
+
+    // Custom grid takes precedence when enabled
+    if (guide.gridInfo && this.panel.gridTableMode) {
+      this.drawCustomGrid(g, cx, cy, guide.gridInfo, bounds, lineW, color);
+      return;
+    }
 
     if (guide.system === "polar" && bounds.maxR) {
       // Polar: concentric reference circles + radial lines
@@ -2030,6 +2057,293 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       g.moveTo(cx, cy + yMin);
       g.lineTo(cx, cy + yMax);
     }
+  }
+
+  private drawCustomGrid(
+    g: CanvasGraphics, cx: number, cy: number,
+    gridInfo: ResolvedGridInfo,
+    bounds: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number },
+    lineW: number, color: number,
+  ) {
+    const { axis1Lines, axis2Lines, axis1Shape, axis2Shape, style, cellShading } = gridInfo;
+    const isDark = this.isDarkTheme();
+    const worldScale = this.worldContainer?.scale.x ?? 1;
+
+    // Cell shading (table mode)
+    if (cellShading && style === "table" && axis1Lines.length > 1 && axis2Lines.length > 1) {
+      this.drawCellShading(g, cx, cy, axis1Lines, axis2Lines, bounds, color);
+    }
+
+    // Draw axis1 grid lines (vertical in cartesian, circles/radials in polar)
+    const lineAlpha = style === "table" ? 0.3 : 0.15;
+    for (const line of axis1Lines) {
+      this.drawGridLine(g, cx, cy, line, axis1Shape, bounds, 1, lineW, color, lineAlpha);
+    }
+
+    // Draw axis2 grid lines (horizontal in cartesian, circles/radials in polar)
+    for (const line of axis2Lines) {
+      this.drawGridLine(g, cx, cy, line, axis2Shape, bounds, 2, lineW, color, lineAlpha);
+    }
+
+    // Draw tick marks at each grid line position
+    this.drawGridTicks(g, cx, cy, axis1Lines, axis2Lines, axis1Shape, axis2Shape, bounds, lineW, color, worldScale);
+
+    // Draw labels
+    if (this.panel.gridShowHeaders) {
+      this.drawGridLabels(cx, cy, axis1Lines, axis2Lines, axis1Shape, axis2Shape, bounds, worldScale, isDark);
+    } else {
+      this.clearCustomGridLabels();
+    }
+  }
+
+  private drawGridLine(
+    g: CanvasGraphics, cx: number, cy: number,
+    line: ResolvedGridLine,
+    shape: { kind: string; expr?: string },
+    bounds: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number },
+    axis: 1 | 2,
+    lineW: number, color: number, alpha: number,
+  ) {
+    g.lineStyle(lineW * 0.8, color, alpha);
+    const pos = line.position;
+    const margin = 5;
+
+    switch (shape.kind) {
+      case "line":
+        if (axis === 1) {
+          // Vertical line at x = pos
+          g.moveTo(cx + pos, cy + bounds.yMin - margin);
+          g.lineTo(cx + pos, cy + bounds.yMax + margin);
+        } else {
+          // Horizontal line at y = pos
+          g.moveTo(cx + bounds.xMin - margin, cy + pos);
+          g.lineTo(cx + bounds.xMax + margin, cy + pos);
+        }
+        break;
+
+      case "circle":
+        // Concentric circle with radius = pos
+        if (pos > 0) {
+          g.drawCircle(cx, cy, Math.abs(pos));
+        }
+        break;
+
+      case "radial":
+        // Radial line from center at angle = pos (radians)
+        {
+          const maxR = bounds.maxR ?? Math.max(
+            Math.abs(bounds.xMax), Math.abs(bounds.xMin),
+            Math.abs(bounds.yMax), Math.abs(bounds.yMin),
+          );
+          g.moveTo(cx, cy);
+          g.lineTo(cx + maxR * Math.cos(pos), cy + maxR * Math.sin(pos));
+        }
+        break;
+
+      case "curve":
+        // Parametric curve defined by expression
+        if ("expr" in shape && shape.expr) {
+          this.drawCurveGridLine(g, cx, cy, shape.expr, pos, bounds);
+        }
+        break;
+    }
+  }
+
+  private drawCurveGridLine(
+    g: CanvasGraphics, cx: number, cy: number,
+    expr: string, offset: number,
+    bounds: { xMin: number; yMin: number; xMax: number; yMax: number },
+  ) {
+    try {
+      const { parseExpr, evalExpr } = require("../utils/expr-eval");
+      const ast = parseExpr(expr);
+      const segments = 60;
+      const range = bounds.xMax - bounds.xMin || 1;
+      let started = false;
+      for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const x = bounds.xMin + t * range;
+        const y = evalExpr(ast, { t, x, v: offset, i, n: segments + 1 });
+        const px = cx + x;
+        const py = cy + y;
+        if (!started) { g.moveTo(px, py); started = true; }
+        else { g.lineTo(px, py); }
+      }
+    } catch {
+      // Invalid expression — skip
+    }
+  }
+
+  private drawCellShading(
+    g: CanvasGraphics, cx: number, cy: number,
+    axis1Lines: ResolvedGridLine[], axis2Lines: ResolvedGridLine[],
+    bounds: { xMin: number; yMin: number; xMax: number; yMax: number },
+    color: number,
+  ) {
+    // Count nodes per cell
+    const cellCounts = new Map<string, number>();
+    let maxCount = 0;
+
+    // Build cell boundaries from line positions
+    const xPositions = axis1Lines.map(l => l.position).sort((a, b) => a - b);
+    const yPositions = axis2Lines.map(l => l.position).sort((a, b) => a - b);
+    if (xPositions.length < 2 || yPositions.length < 2) return;
+
+    // Count nodes in each cell
+    const nodes = this.currentData?.nodes;
+    if (!nodes) return;
+
+    const clusterMap = this.clusterMeta?.nodeClusterMap;
+    for (const node of nodes) {
+      // Get node position relative to group center
+      const nodeX = node.x - cx;
+      const nodeY = node.y - cy;
+
+      // Find cell indices
+      const xi = findCellIndex(nodeX, xPositions);
+      const yi = findCellIndex(nodeY, yPositions);
+      if (xi >= 0 && yi >= 0) {
+        const key = `${xi}-${yi}`;
+        const count = (cellCounts.get(key) ?? 0) + 1;
+        cellCounts.set(key, count);
+        if (count > maxCount) maxCount = count;
+      }
+    }
+
+    if (maxCount === 0) return;
+
+    // Draw shaded rectangles
+    for (let xi = 0; xi < xPositions.length - 1; xi++) {
+      for (let yi = 0; yi < yPositions.length - 1; yi++) {
+        const count = cellCounts.get(`${xi}-${yi}`) ?? 0;
+        if (count === 0) continue;
+        const alpha = 0.05 + (count / maxCount) * 0.25;
+        g.beginFill(color, alpha);
+        const x = cx + xPositions[xi];
+        const y = cy + yPositions[yi];
+        const w = xPositions[xi + 1] - xPositions[xi];
+        const h = yPositions[yi + 1] - yPositions[yi];
+        g.drawRect(x, y, w, h);
+        g.endFill();
+      }
+    }
+  }
+
+  private drawGridTicks(
+    g: CanvasGraphics, cx: number, cy: number,
+    axis1Lines: ResolvedGridLine[], axis2Lines: ResolvedGridLine[],
+    axis1Shape: { kind: string }, axis2Shape: { kind: string },
+    bounds: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number },
+    lineW: number, color: number, worldScale: number,
+  ) {
+    const tickLen = 6 / worldScale;
+    g.lineStyle(lineW, color, 0.4);
+
+    // Axis1 ticks — small marks at grid edge
+    for (const line of axis1Lines) {
+      if (!line.label) continue;
+      if (axis1Shape.kind === "line") {
+        const x = cx + line.position;
+        const y = cy + bounds.yMin;
+        g.moveTo(x, y - tickLen);
+        g.lineTo(x, y);
+      }
+    }
+
+    // Axis2 ticks
+    for (const line of axis2Lines) {
+      if (!line.label) continue;
+      if (axis2Shape.kind === "line") {
+        const x = cx + bounds.xMin;
+        const y = cy + line.position;
+        g.moveTo(x - tickLen, y);
+        g.lineTo(x, y);
+      }
+    }
+  }
+
+  private drawGridLabels(
+    cx: number, cy: number,
+    axis1Lines: ResolvedGridLine[], axis2Lines: ResolvedGridLine[],
+    axis1Shape: { kind: string }, axis2Shape: { kind: string },
+    bounds: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number },
+    worldScale: number, isDark: boolean,
+  ) {
+    this.clearCustomGridLabels();
+
+    if (!this.customGridLabelContainer && this.worldContainer) {
+      this.customGridLabelContainer = new CanvasContainer();
+      this.worldContainer.addChild(this.customGridLabelContainer);
+    }
+    const container = this.customGridLabelContainer;
+    if (!container) return;
+
+    const fontSize = Math.max(7, Math.min(13, 11 / worldScale));
+    const textColor = isDark ? 0xbbbbbb : 0x555555;
+    const bgColor = isDark ? 0x1e1e1e : 0xf5f5f5;
+    const labelOffset = 12 / worldScale;
+
+    // Axis1 labels — placed above the grid, aligned to each grid line
+    for (const line of axis1Lines) {
+      if (!line.label) continue;
+      const text = new CanvasText(line.label, {
+        fontSize,
+        fill: textColor,
+        fontWeight: "500",
+      });
+      text.bgColor = bgColor;
+      text.bgAlpha = 0.6;
+
+      if (axis1Shape.kind === "radial") {
+        // Radial: label at outer edge of the radial line
+        const maxR = bounds.maxR ?? Math.max(Math.abs(bounds.xMax), Math.abs(bounds.yMax));
+        const angle = line.position;
+        text.anchor.set(0.5, 0.5);
+        text.x = cx + (maxR + labelOffset * 2) * Math.cos(angle);
+        text.y = cy + (maxR + labelOffset * 2) * Math.sin(angle);
+      } else {
+        // Vertical grid line: label above
+        text.anchor.set(0.5, 1);
+        text.x = cx + line.position;
+        text.y = cy + bounds.yMin - labelOffset;
+      }
+      container.addChild(text);
+      this.customGridLabels.push(text);
+    }
+
+    // Axis2 labels — placed to the left of the grid
+    for (const line of axis2Lines) {
+      if (!line.label) continue;
+      const text = new CanvasText(line.label, {
+        fontSize,
+        fill: textColor,
+        fontWeight: "500",
+      });
+      text.bgColor = bgColor;
+      text.bgAlpha = 0.6;
+
+      if (axis2Shape.kind === "circle") {
+        // Circle: label at the right edge of each ring
+        text.anchor.set(0, 0.5);
+        text.x = cx + Math.abs(line.position) + labelOffset * 0.5;
+        text.y = cy - labelOffset * 0.5;
+      } else {
+        // Horizontal grid line: label to the left
+        text.anchor.set(1, 0.5);
+        text.x = cx + bounds.xMin - labelOffset;
+        text.y = cy + line.position;
+      }
+      container.addChild(text);
+      this.customGridLabels.push(text);
+    }
+  }
+
+  private clearCustomGridLabels() {
+    for (const lbl of this.customGridLabels) {
+      lbl.parent?.removeChild(lbl);
+      lbl.destroy();
+    }
+    this.customGridLabels = [];
   }
 
   private drawConcentricGuide(
@@ -3114,6 +3428,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Group grid label container for group names */
   private groupGridLabelContainer: CanvasContainer | null = null;
   private groupGridLabels: Map<string, CanvasText> = new Map();
+  private customGridLabelContainer: CanvasContainer | null = null;
+  private customGridLabels: CanvasText[] = [];
 
   /** Sunburst label container for category names */
   private sunburstLabelContainer: CanvasContainer | null = null;

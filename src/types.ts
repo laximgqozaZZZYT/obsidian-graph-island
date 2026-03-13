@@ -132,6 +132,59 @@ export interface CoordinateLayout {
   perGroup: boolean;
   /** User-defined constants available in expressions (e.g. { a: 1, b: 0.3, k: 3 }) */
   constants?: Record<string, number>;
+  /** Custom grid overlay configuration */
+  grid?: GridConfig;
+}
+
+// ---------------------------------------------------------------------------
+// Custom grid configuration
+// ---------------------------------------------------------------------------
+
+/** Source of grid line positions */
+export type GridPositionSource =
+  | { kind: "auto" }
+  | { kind: "count"; n: number }
+  | { kind: "step"; step: number }
+  | { kind: "values"; values: number[] }
+  | { kind: "field"; field: string }
+  | { kind: "expression"; expr: string };
+
+/** Shape of grid lines */
+export type GridShape =
+  | { kind: "line" }
+  | { kind: "circle" }
+  | { kind: "radial" }
+  | { kind: "curve"; expr: string };
+
+/** Source of tick labels */
+export type GridLabelSource =
+  | { kind: "auto" }
+  | { kind: "field"; field: string }
+  | { kind: "custom"; values: string[] };
+
+/** Tick/label configuration for a grid axis */
+export interface GridTickConfig {
+  show: boolean;
+  labels: GridLabelSource;
+  position?: "start" | "end" | "center";
+}
+
+/** Configuration for one set of grid lines */
+export interface GridAxisConfig {
+  positions: GridPositionSource;
+  shape: GridShape;
+  ticks?: GridTickConfig;
+}
+
+/** Overall grid display style */
+export type GridStyle = "lines" | "table";
+
+/** Complete grid configuration */
+export interface GridConfig {
+  axis1Grid?: GridAxisConfig;
+  axis2Grid?: GridAxisConfig;
+  style: GridStyle;
+  cellShading?: boolean;
 }
 
 /** A single rule in the multi-level cluster grouping pipeline */

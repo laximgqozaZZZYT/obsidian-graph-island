@@ -20,6 +20,11 @@ import type {
   CoordinateLayout,
   CoordinateSystem,
   ShapeFillKind,
+  GridConfig,
+  GridAxisConfig,
+  GridShape,
+  GridPositionSource,
+  GridStyle,
 } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
 import type { ArrangementResult } from "./cluster-force";
@@ -46,6 +51,22 @@ export interface CoordinateContext {
   getNodeProperty?: (nodeId: string, key: string) => string | undefined;
 }
 
+/** A single resolved grid line with position and optional label */
+export interface ResolvedGridLine {
+  position: number;
+  label?: string;
+}
+
+/** Fully resolved grid information for rendering */
+export interface ResolvedGridInfo {
+  axis1Lines: ResolvedGridLine[];
+  axis2Lines: ResolvedGridLine[];
+  axis1Shape: GridShape;
+  axis2Shape: GridShape;
+  style: GridStyle;
+  cellShading: boolean;
+}
+
 /** Guide data for generic coordinate layout */
 export interface CoordinateGuide {
   type: "coordinate";
@@ -56,6 +77,7 @@ export interface CoordinateGuide {
     xMin: number; yMin: number; xMax: number; yMax: number;
     maxR?: number;  // polar layouts only
   };
+  gridInfo?: ResolvedGridInfo;
 }
 
 // ---------------------------------------------------------------------------
@@ -652,7 +674,307 @@ export function coordinateOffsets(
       : undefined,
   };
 
+  // Resolve custom grid if configured
+  if (layout.grid && offsets.size > 0) {
+    const defaultShape1: GridShape = layout.system === "polar"
+      ? { kind: "circle" } : { kind: "line" };
+    const defaultShape2: GridShape = layout.system === "polar"
+      ? { kind: "radial" } : { kind: "line" };
+
+    const axis1Grid = layout.grid.axis1Grid ?? {
+      positions: { kind: "auto" as const },
+      shape: defaultShape1,
+      ticks: { show: true, labels: { kind: "auto" as const } },
+    };
+    const axis2Grid = layout.grid.axis2Grid ?? {
+      positions: { kind: "auto" as const },
+      shape: defaultShape2,
+      ticks: { show: true, labels: { kind: "auto" as const } },
+    };
+
+    // Compute centroid shift applied by toCartesian() so grid lines align
+    // with actual node positions after normalization.
+    let centroidShift1 = 0, centroidShift2 = 0;
+    if (layout.system === "cartesian" && offsets.size > 0) {
+      let sum1 = 0, sum2 = 0, count = 0;
+      for (const [id] of finalT1) {
+        sum1 += finalT1.get(id) ?? 0;
+        sum2 += t2.get(id) ?? 0;
+        count++;
+      }
+      if (count > 0) {
+        centroidShift1 = sum1 / count;
+        centroidShift2 = sum2 / count;
+      }
+    }
+
+    const rawAxis1Lines = resolveGridLines(
+      axis1Grid, layout.axis1.source, members, ctx,
+      finalT1, spacing, layout.constants,
+    );
+    const rawAxis2Lines = resolveGridLines(
+      axis2Grid, layout.axis2.source, members, ctx,
+      t2, spacing, layout.constants,
+    );
+
+    // Apply centroid shift to grid line positions
+    const axis1Lines = rawAxis1Lines.map(l => ({
+      ...l,
+      position: l.position - centroidShift1,
+    }));
+    const axis2Lines = rawAxis2Lines.map(l => ({
+      ...l,
+      position: l.position - centroidShift2,
+    }));
+
+    guide.gridInfo = {
+      axis1Lines,
+      axis2Lines,
+      axis1Shape: axis1Grid.shape,
+      axis2Shape: axis2Grid.shape,
+      style: layout.grid.style,
+      cellShading: layout.grid.cellShading ?? false,
+    };
+  }
+
   return { offsets, guide };
+}
+
+// ---------------------------------------------------------------------------
+// Grid resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract category labels from an axis source.
+ * Returns sorted unique string values for field/property sources,
+ * or undefined for continuous sources.
+ */
+export function resolveAxisCategories(
+  members: GraphNode[],
+  source: AxisSource,
+  ctx: CoordinateContext,
+): string[] | undefined {
+  if (source.kind === "field") {
+    const rawValues: string[] = [];
+    for (const m of members) {
+      const vals = getNodeFieldValues(m, source.field);
+      rawValues.push(vals[0] ?? "");
+    }
+    const allNumeric = rawValues.every(v => v === "" || !isNaN(Number(v)));
+    if (!allNumeric) {
+      return [...new Set(rawValues)].sort();
+    }
+    return undefined; // numeric field → continuous
+  }
+  if (source.kind === "property") {
+    const rawValues: string[] = [];
+    for (const m of members) {
+      let val: string | undefined;
+      if (ctx.getNodeProperty) {
+        val = ctx.getNodeProperty(m.id, source.key);
+      }
+      if (val === undefined && m.meta) {
+        const mv = m.meta[source.key];
+        val = mv != null ? String(mv) : undefined;
+      }
+      rawValues.push(val ?? "");
+    }
+    const numeric = rawValues.every(v => v === "" || !isNaN(Number(v)));
+    if (!numeric) {
+      return [...new Set(rawValues)].sort();
+    }
+    return undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Resolve grid line positions and labels for one axis.
+ * Positions are returned in the TRANSFORMED coordinate space.
+ */
+function resolveGridLines(
+  gridAxis: GridAxisConfig,
+  axisSource: AxisSource,
+  members: GraphNode[],
+  ctx: CoordinateContext,
+  transformedValues: Map<string, number>,
+  spacing: number,
+  constants?: Record<string, number>,
+): ResolvedGridLine[] {
+  const { positions, ticks } = gridAxis;
+
+  // Compute bounds from transformed values
+  let tMin = Infinity, tMax = -Infinity;
+  for (const v of transformedValues.values()) {
+    if (v < tMin) tMin = v;
+    if (v > tMax) tMax = v;
+  }
+  if (!isFinite(tMin)) { tMin = 0; tMax = spacing; }
+  const tRange = tMax - tMin || 1;
+
+  let linePositions: number[] = [];
+  let autoLabels: string[] | undefined;
+
+  // Resolve positions
+  switch (positions.kind) {
+    case "auto": {
+      const cats = resolveAxisCategories(members, axisSource, ctx);
+      if (cats) {
+        // Category-based: collect unique transformed values per category
+        const catPositions = collectCategoryPositions(
+          members, axisSource, ctx, transformedValues,
+        );
+        linePositions = catPositions.map(c => c.position);
+        autoLabels = catPositions.map(c => c.label);
+      } else {
+        // Continuous: 5 equal divisions
+        const divs = 5;
+        for (let i = 0; i <= divs; i++) {
+          linePositions.push(tMin + (tRange / divs) * i);
+        }
+      }
+      break;
+    }
+    case "count": {
+      const n = Math.max(positions.n, 1);
+      for (let i = 0; i <= n; i++) {
+        linePositions.push(tMin + (tRange / n) * i);
+      }
+      break;
+    }
+    case "step": {
+      const step = Math.abs(positions.step) || 1;
+      for (let v = tMin; v <= tMax + step * 0.01; v += step) {
+        linePositions.push(v);
+      }
+      break;
+    }
+    case "values": {
+      linePositions = positions.values;
+      break;
+    }
+    case "field": {
+      const fieldSource: AxisSource = { kind: "field", field: positions.field };
+      const catPositions = collectCategoryPositions(
+        members, fieldSource, ctx, transformedValues,
+      );
+      linePositions = catPositions.map(c => c.position);
+      autoLabels = catPositions.map(c => c.label);
+      break;
+    }
+    case "expression": {
+      try {
+        const ast = parseExpr(positions.expr);
+        // Generate positions: evaluate expr for t in [0, 1] with 20 sample points
+        const samples = 20;
+        for (let i = 0; i <= samples; i++) {
+          const t = i / samples;
+          const val = evalExpr(ast, {
+            t, i, n: samples + 1, v: tMin + t * tRange,
+            ...constants,
+          });
+          linePositions.push(val);
+        }
+        // Deduplicate and sort
+        linePositions = [...new Set(linePositions.map(v => Math.round(v * 1000) / 1000))].sort((a, b) => a - b);
+      } catch {
+        // Invalid expr — fall back to 5 divisions
+        for (let i = 0; i <= 5; i++) {
+          linePositions.push(tMin + (tRange / 5) * i);
+        }
+      }
+      break;
+    }
+  }
+
+  // Resolve labels from ticks config (default: auto labels with show=true)
+  const showLabels = ticks?.show !== false;
+  let labels: string[] | undefined = autoLabels;
+
+  const labelSource = ticks?.labels ?? { kind: "auto" as const };
+  switch (labelSource.kind) {
+    case "auto":
+      // Use category-derived autoLabels if available, otherwise format numbers
+      if (!labels) {
+        labels = linePositions.map(v => formatGridValue(v, spacing));
+      }
+      break;
+    case "field": {
+      const fieldCats = resolveAxisCategories(
+        members, { kind: "field", field: labelSource.field }, ctx,
+      );
+      if (fieldCats) labels = fieldCats;
+      break;
+    }
+    case "custom":
+      labels = labelSource.values;
+      break;
+  }
+
+  return linePositions.map((pos, i) => ({
+    position: pos,
+    label: showLabels ? (labels?.[i] ?? formatGridValue(pos, spacing)) : undefined,
+  }));
+}
+
+/** Collect unique category positions by matching categories to their transformed values */
+function collectCategoryPositions(
+  members: GraphNode[],
+  source: AxisSource,
+  ctx: CoordinateContext,
+  transformedValues: Map<string, number>,
+): { position: number; label: string }[] {
+  // Resolve raw values to get category→index mapping
+  const rawMap = resolveAxisValues(members, source, ctx);
+  // Group nodes by raw value (category index)
+  const groups = new Map<number, { ids: string[]; label: string }>();
+
+  if (source.kind === "field") {
+    const rawEntries: { id: string; raw: string }[] = [];
+    for (const m of members) {
+      const vals = getNodeFieldValues(m, source.field);
+      rawEntries.push({ id: m.id, raw: vals[0] ?? "" });
+    }
+    const allNumeric = rawEntries.every(v => v.raw === "" || !isNaN(Number(v.raw)));
+    if (!allNumeric) {
+      const sorted = [...new Set(rawEntries.map(v => v.raw))].sort();
+      for (let i = 0; i < sorted.length; i++) {
+        groups.set(i, { ids: [], label: sorted[i] });
+      }
+      for (const entry of rawEntries) {
+        const idx = rawMap.get(entry.id) ?? 0;
+        const g = groups.get(idx);
+        if (g) g.ids.push(entry.id);
+      }
+    }
+  }
+
+  if (groups.size === 0) return [];
+
+  // Compute average transformed position per category
+  const result: { position: number; label: string }[] = [];
+  for (const [, group] of [...groups.entries()].sort((a, b) => a[0] - b[0])) {
+    let sum = 0, count = 0;
+    for (const id of group.ids) {
+      const tv = transformedValues.get(id);
+      if (tv !== undefined) { sum += tv; count++; }
+    }
+    if (count > 0) {
+      result.push({ position: sum / count, label: group.label });
+    }
+  }
+  return result;
+}
+
+/** Format a grid value for display */
+function formatGridValue(v: number, spacing: number): string {
+  if (spacing > 0) {
+    const normalized = v / spacing;
+    if (Math.abs(normalized - Math.round(normalized)) < 0.01) {
+      return String(Math.round(normalized));
+    }
+  }
+  return Math.abs(v) < 10 ? v.toFixed(1) : v.toFixed(0);
 }
 
 // ---------------------------------------------------------------------------

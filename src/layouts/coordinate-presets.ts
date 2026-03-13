@@ -107,7 +107,7 @@ export const ARRANGEMENT_PRESETS: Record<ClusterArrangement, CoordinateLayout> =
     system: "polar",
     axis1: { source: { kind: "metric", metric: "degree" }, transform: { kind: "bin", count: 5 } },
     axis2: { source: { kind: "index" }, transform: { kind: "even-divide", totalRange: 360 } },
-    perGroup: true,
+    perGroup: false,
   },
   tree: {
     system: "cartesian",

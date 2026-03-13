@@ -100,6 +100,16 @@ export interface PanelState {
   /** Timeline range filter [min, max] normalized 0–1 (0 = earliest, 1 = latest) */
   timelineRangeMin: number;
   timelineRangeMax: number;
+  /** Display sunburst as filled ring chart instead of nodes */
+  ringChartMode: boolean;
+  /** Enable custom grid overlay on coordinate layout */
+  gridTableMode: boolean;
+  /** Show row/column header labels on grid */
+  gridShowHeaders: boolean;
+  /** Shade cells by node density */
+  gridCellShading: boolean;
+  /** Grid display style */
+  gridStyle: "lines" | "table";
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -173,6 +183,11 @@ export const DEFAULT_PANEL: PanelState = {
   showDotGrid: true,
   timelineRangeMin: 0,
   timelineRangeMax: 1,
+  ringChartMode: false,
+  gridTableMode: false,
+  gridShowHeaders: true,
+  gridCellShading: false,
+  gridStyle: "lines" as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -564,6 +579,14 @@ export function buildPanel(
       cb.restartSimulation(0.5);
     });
 
+    // Ring chart mode toggle (sunburst only)
+    if (panel.clusterArrangement === "sunburst") {
+      addToggle(body, t("cluster.ringChartMode"), panel.ringChartMode, (v) => {
+        panel.ringChartMode = v;
+        cb.doRenderKeepPanel();
+      }, t("cluster.ringChartModeDesc"));
+    }
+
     // --- Coordinate Layout Controls ---
     const coordLayout = panel.coordinateLayout
       ?? ARRANGEMENT_PRESETS[panel.clusterArrangement];
@@ -727,6 +750,55 @@ export function buildPanel(
       panel.showGroupGrid = v;
       cb.markDirty();
     });
+
+    // Custom grid settings (visible when coordinate layout is active)
+    if (panel.coordinateLayout) {
+      addToggle(body, t("guide.gridTableMode"), panel.gridTableMode, (v) => {
+        panel.gridTableMode = v;
+        // Sync grid config to coordinateLayout
+        if (v && panel.coordinateLayout) {
+          panel.coordinateLayout.grid = {
+            style: panel.gridStyle,
+            cellShading: panel.gridCellShading,
+          };
+        } else if (panel.coordinateLayout) {
+          panel.coordinateLayout.grid = undefined;
+        }
+        cb.applyClusterForce();
+        cb.restartSimulation(0.3);
+        cb.rebuildPanel();
+      }, t("guide.gridTableModeDesc"));
+
+      if (panel.gridTableMode) {
+        addSelect(body, t("guide.gridStyle"), [
+          { value: "lines", label: t("guide.gridStyle.lines") },
+          { value: "table", label: t("guide.gridStyle.table") },
+        ], panel.gridStyle, (v) => {
+          panel.gridStyle = v as "lines" | "table";
+          if (panel.coordinateLayout?.grid) {
+            panel.coordinateLayout.grid.style = panel.gridStyle;
+          }
+          cb.applyClusterForce();
+          cb.restartSimulation(0.3);
+          cb.doRenderKeepPanel();
+        });
+
+        addToggle(body, t("guide.gridShowHeaders"), panel.gridShowHeaders, (v) => {
+          panel.gridShowHeaders = v;
+          cb.markDirty();
+        }, t("guide.gridShowHeadersDesc"));
+
+        addToggle(body, t("guide.gridCellShading"), panel.gridCellShading, (v) => {
+          panel.gridCellShading = v;
+          if (panel.coordinateLayout?.grid) {
+            panel.coordinateLayout.grid.cellShading = v;
+          }
+          cb.applyClusterForce();
+          cb.restartSimulation(0.3);
+          cb.doRenderKeepPanel();
+        }, t("guide.gridCellShadingDesc"));
+      }
+    }
 
     let spacingDebounce: ReturnType<typeof setTimeout> | undefined;
     const debouncedClusterForce = () => {

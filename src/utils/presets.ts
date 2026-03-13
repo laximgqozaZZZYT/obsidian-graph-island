@@ -14,11 +14,11 @@ import type { PanelState } from "../views/PanelBuilder";
 const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showTags", "showAttachments", "existingOnly", "showOrphans", "showArrows",
   "scaleByDegree", "showOrbitRings", "orbitAutoRotate", "colorEdgesByRelation",
-  "colorNodesByCategory", "showInheritance", "showAggregation", "showTagNodes",
+  "colorNodesByCategory", "heatmapMode", "showInheritance", "showAggregation", "showTagNodes",
   "showSimilar", "showSibling", "showSequence", "showLinks", "showTagEdges",
   "showCategoryEdges", "showSemanticEdges", "fadeEdgesByDegree",
   "showEdgeLabels", "showMinimap", "autoFit", "showDurationBars",
-  "showGuideLines", "showGroupGrid",
+  "showGuideLines", "showGroupGrid", "showDotGrid",
 ];
 
 /** Fields that should be number */
@@ -27,6 +27,7 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "linkDistance", "concentricMinRadius", "concentricRadiusStep",
   "enclosureSpacing", "hoverHops", "clusterNodeSpacing", "clusterGroupScale",
   "clusterGroupSpacing", "edgeBundleStrength", "groupMinSize",
+  "timelineRangeMin", "timelineRangeMax",
 ];
 
 /** Fields that should be string */
@@ -38,7 +39,7 @@ const STRING_FIELDS: (keyof PanelState)[] = [
 /** Fields that should be arrays */
 const ARRAY_FIELDS: (keyof PanelState)[] = [
   "groups", "directionalGravityRules", "commonQueries", "clusterGroupRules",
-  "sortRules", "nodeRules", "nodeShapeRules",
+  "sortRules", "nodeRules", "nodeShapeRules", "groupByRules",
 ];
 
 /** Valid values for enum-like fields */
@@ -48,6 +49,11 @@ const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   guideLineMode: ["shared", "per-group"] as const,
   activeTab: ["filter", "display", "layout", "settings"] as const,
 };
+
+/** Fields that are Set<string> — exported as arrays, imported as arrays, converted back to Set in apply */
+const SET_FIELDS: (keyof PanelState)[] = [
+  "collapsedGroups",
+];
 
 /** Fields that are nullable objects (object | null) — passed through if object or null */
 const NULLABLE_OBJECT_FIELDS: (keyof PanelState)[] = [
@@ -61,6 +67,7 @@ const VALID_KEYS = new Set<string>([
   ...STRING_FIELDS,
   ...ARRAY_FIELDS,
   ...Object.keys(ENUM_VALUES),
+  ...SET_FIELDS,
   ...NULLABLE_OBJECT_FIELDS,
 ]);
 
@@ -142,8 +149,16 @@ export function importPreset(json: string): Partial<PanelState> {
       continue;
     }
 
-    // Array fields
+    // Array fields (some are nullable, e.g. groupByRules)
     if ((ARRAY_FIELDS as string[]).includes(key)) {
+      if (Array.isArray(value) || value === null) {
+        (result as any)[k] = value;
+      }
+      continue;
+    }
+
+    // Set fields — accept arrays (will be converted to Set in applyPreset)
+    if ((SET_FIELDS as string[]).includes(key)) {
       if (Array.isArray(value)) {
         (result as any)[k] = value;
       }
