@@ -628,6 +628,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       try { lbl.destroy(); } catch { /* already destroyed */ }
     }
     this.enclosureLabels.clear();
+    // Clean up group grid labels
+    for (const lbl of this.groupGridLabels.values()) {
+      try { lbl.destroy(); } catch { /* already destroyed */ }
+    }
+    this.groupGridLabels.clear();
     // Clean up sunburst labels
     for (const lbl of this.sunburstLabels.values()) {
       try { lbl.destroy(); } catch { /* already destroyed */ }
@@ -647,6 +652,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.arrowGraphics = null;
     this.guideLineGraphics = null;
     this.groupGridGraphics = null;
+    this.groupGridLabelContainer = null;
     this.barGraphics = null;
     this.spatialGrid.clear();
     if (this.pixiApp) {
@@ -1706,8 +1712,27 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!g) return;
     g.clear();
 
-    if (!this.panel.showGroupGrid) return;
-    if (!this.clusterMeta) return;
+    if (!this.panel.showGroupGrid) {
+      // Also hide labels when group grid is off
+      if (this.groupGridLabelContainer) {
+        for (const lbl of this.groupGridLabels.values()) {
+          lbl.parent?.removeChild(lbl);
+          lbl.destroy();
+        }
+        this.groupGridLabels.clear();
+      }
+      return;
+    }
+    if (!this.clusterMeta) {
+      if (this.groupGridLabelContainer) {
+        for (const lbl of this.groupGridLabels.values()) {
+          lbl.parent?.removeChild(lbl);
+          lbl.destroy();
+        }
+        this.groupGridLabels.clear();
+      }
+      return;
+    }
 
     const centroids = this.computeLiveCentroids();
     const radii = this.clusterMeta.clusterRadii;
@@ -1750,6 +1775,47 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       g.lineTo(cx - hr, cy + r);
       g.moveTo(cx + hr, cy - r);
       g.lineTo(cx + hr, cy + r);
+    }
+
+    // --- Group name labels ---
+    if (!this.groupGridLabelContainer && this.worldContainer) {
+      this.groupGridLabelContainer = new CanvasContainer();
+      this.worldContainer.addChild(this.groupGridLabelContainer);
+    }
+    const labelContainer = this.groupGridLabelContainer;
+    if (labelContainer) {
+      // Clean up old labels
+      for (const lbl of this.groupGridLabels.values()) {
+        lbl.parent?.removeChild(lbl);
+        lbl.destroy();
+      }
+      this.groupGridLabels.clear();
+
+      const fontSize = Math.max(8, Math.min(14, 11 / worldScale));
+      const textColor = isDark ? 0xbbbbbb : 0x555555;
+      const bgColor = isDark ? 0x1e1e1e : 0xf5f5f5;
+
+      for (const [groupKey, center] of centroids) {
+        const radius = radii.get(groupKey);
+        if (!radius || radius < 5) continue;
+
+        // Display name: strip prefix (e.g. "tag:fiction" → "fiction")
+        const displayName = groupKey.includes(":") ? groupKey.split(":").pop()! : groupKey;
+
+        const text = new CanvasText(displayName, {
+          fontSize,
+          fill: textColor,
+          fontWeight: "600",
+        });
+        text.anchor.set(0.5, 0);
+        text.x = center.x;
+        text.y = center.y - radius - fontSize * 1.5 / worldScale;
+        text.bgColor = bgColor;
+        text.bgAlpha = 0.6;
+
+        labelContainer.addChild(text);
+        this.groupGridLabels.set(groupKey, text);
+      }
     }
   }
 
@@ -2998,6 +3064,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     this.drawSunburstLabels(arcs, cx, cy);
   }
+
+  /** Group grid label container for group names */
+  private groupGridLabelContainer: CanvasContainer | null = null;
+  private groupGridLabels: Map<string, CanvasText> = new Map();
 
   /** Sunburst label container for category names */
   private sunburstLabelContainer: CanvasContainer | null = null;
