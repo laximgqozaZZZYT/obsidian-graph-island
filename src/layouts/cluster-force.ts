@@ -99,6 +99,12 @@ export interface MountainGuide {
   points: { x: number; y: number }[];
 }
 
+/** Guide data for concentric arrangement */
+export interface ConcentricGuide {
+  type: "concentric";
+  rings: number[];  // radius of each ring
+}
+
 export type ArrangementGuide =
   | TimelineGuide
   | SpiralGuide
@@ -106,6 +112,7 @@ export type ArrangementGuide =
   | TreeGuide
   | TriangleGuide
   | MountainGuide
+  | ConcentricGuide
   | CoordinateGuide;
 
 /** Duration bar info for timeline nodes with start+end dates */
@@ -1595,7 +1602,7 @@ function dispatchHardcoded(
 ): ArrangementResult {
   switch (arrangement) {
     case "spiral": return spiralOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap);
-    case "concentric": return { offsets: concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap) };
+    case "concentric": return concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap);
     case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     case "grid": return gridOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     case "triangle": return triangleOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
@@ -1680,11 +1687,12 @@ function concentricOffsets(
   scaleByDegree: boolean,
   cmp: (a: GraphNode, b: GraphNode) => number,
   nodeSpacingMap?: Map<string, number>,
-): Map<string, { dx: number; dy: number }> {
+): ArrangementResult {
   const sorted = [...members].sort(cmp);
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = sorted.length;
-  if (n === 0) return offsets;
+  if (n === 0) return { offsets };
+  const ringRadii: number[] = [];
 
   // Precompute radii (super-node aware)
   const radii = sorted.map(nd => effectiveRadius(nd, nodeSize, degrees.get(nd.id) || 0, scaleByDegree));
@@ -1700,6 +1708,7 @@ function concentricOffsets(
     const prevR = ringR === 0 ? radii[0] : nodeSize;
     const minGap = (prevR + radii[idx]) * groupScale;
     ringR = Math.max(ringR + minGap, ringR + nodeSize * 2 * groupScale);
+    ringRadii.push(ringR);
 
     // Capacity — governed by spacingMul (node-to-node gap on the ring)
     const circumference = 2 * Math.PI * ringR;
@@ -1724,7 +1733,7 @@ function concentricOffsets(
       });
     }
   }
-  return offsets;
+  return { offsets, guide: { type: "concentric" as const, rings: ringRadii } };
 }
 
 // ---------------------------------------------------------------------------

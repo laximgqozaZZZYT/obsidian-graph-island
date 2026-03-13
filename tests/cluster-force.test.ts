@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { forceSimulation, forceManyBody, type Simulation } from "d3-force";
-import { buildClusterForce, type ClusterForceConfig, type ClusterForceResult } from "../src/layouts/cluster-force";
+import { buildClusterForce, type ClusterForceConfig, type ClusterForceResult, type ConcentricGuide } from "../src/layouts/cluster-force";
 
 /** Extract the force function from a ClusterForceResult (mirrors the old API). */
 function extractForce(result: ClusterForceResult | null): ((alpha: number) => void) | null {
@@ -277,6 +277,31 @@ describe("concentric arrangement", () => {
     const ratio = ring2Avg / ring1Avg;
     expect(ratio).toBeGreaterThan(1.5);
     expect(ratio).toBeLessThan(2.5);
+  });
+
+  it("concentricOffsets returns ConcentricGuide with ring radii", () => {
+    const nodes: GraphNode[] = [];
+    const degrees = new Map<string, number>();
+    for (let i = 0; i < 20; i++) {
+      nodes.push(makeNode(`n${i}`, { tags: ["g1"] }));
+      degrees.set(`n${i}`, 20 - i);
+    }
+    const result = buildClusterForce(nodes, [], degrees, baseCfg({ arrangement: "concentric" }));
+    expect(result).not.toBeNull();
+
+    const guideData = result!.metadata.guideLineData;
+    expect(guideData).toBeDefined();
+    expect(guideData!.groups.length).toBeGreaterThan(0);
+
+    const guide = guideData!.groups[0].guide as ConcentricGuide;
+    expect(guide).toBeDefined();
+    expect(guide.type).toBe("concentric");
+    expect(guide.rings.length).toBeGreaterThan(0);
+
+    // Rings should be in ascending order (each ring is farther from center)
+    for (let i = 1; i < guide.rings.length; i++) {
+      expect(guide.rings[i]).toBeGreaterThan(guide.rings[i - 1]);
+    }
   });
 });
 
