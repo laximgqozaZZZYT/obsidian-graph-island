@@ -2,8 +2,8 @@ import { ItemView, WorkspaceLeaf, Platform, TFile, setIcon } from "obsidian";
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
-import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule } from "../types";
-import { DEFAULT_COLORS } from "../types";
+import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig } from "../types";
+import { DEFAULT_COLORS, DEFAULT_RENDER_THRESHOLDS, DEFAULT_CARD_RENDER_CONFIG } from "../types";
 import { evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
 import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
@@ -116,6 +116,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private guideLineGraphics: CanvasGraphics | null = null;
   private groupGridGraphics: CanvasGraphics | null = null;
   private barGraphics: CanvasGraphics | null = null;
+  private barLabelContainer: CanvasContainer | null = null;
   private pixiNodes: Map<string, PixiNode> = new Map();
   private canvasWrap: HTMLElement | null = null;
   private graphEdges: GraphEdge[] = [];
@@ -669,6 +670,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.groupGridGraphics = null;
     this.groupGridLabelContainer = null;
     this.barGraphics = null;
+    this.barLabelContainer = null;
     this.spatialGrid.clear();
     if (this.pixiApp) {
       try {
@@ -770,6 +772,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const arrowGfx = new CanvasGraphics();
       world.addChild(arrowGfx);
       this.arrowGraphics = arrowGfx;
+
+      // Bar label container — ON TOP of nodes/arrows so bar text is always readable
+      const barLabelCont = new CanvasContainer();
+      world.addChild(barLabelCont);
+      this.barLabelContainer = barLabelCont;
 
       // Enclosure label container — on top of nodes so labels are visible & hoverable
       const labelContainer = new CanvasContainer();
@@ -939,6 +946,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   isRingChartMode(): boolean {
     return this.panel.ringChartMode && this.panel.clusterArrangement === "sunburst";
   }
+
+  getNodeDisplayMode() { return this.panel.nodeDisplayMode ?? "node"; }
+  getCardDisplayConfig() { return this.panel.cardDisplayConfig ?? { fields: [], maxWidth: 120, showIcon: false }; }
+  getDonutDisplayConfig() { return this.panel.donutDisplayConfig ?? { innerRadius: 0.6 }; }
 
   // =========================================================================
   // Zoom & Hit testing
@@ -1165,13 +1176,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           }
         })(this.pixiNodes, changed);
 
+    const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
+    const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
+
     for (const pn of nodesToUpdate) {
       if (!hId) {
         pn.gfx.alpha = 1;
+        if (isCardMode) pn.gfx.scale.set(1);
         this.drawNodeCircle(pn, false);
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; }
       } else if (curSet.has(pn.data.id)) {
         pn.gfx.alpha = 1;
+        if (isCardMode && pn.data.id === hId) {
+          pn.gfx.scale.set(crc.cardHoverScale);
+        } else if (isCardMode) {
+          pn.gfx.scale.set(1);
+        }
         this.drawNodeCircle(pn, true);
         if (!pn.label && !pn.hoverLabel) {
           const hl = new CanvasText(pn.data.label, {
@@ -1186,6 +1206,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
       } else {
         pn.gfx.alpha = 0.12;
+        if (isCardMode) pn.gfx.scale.set(1);
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; }
       }
     }
@@ -1193,6 +1214,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.prevHighlightSet = curSet;
     this.redrawNodeBatch();
     this.drawEdges();   // Redraw edges with hover dimming
+    this.drawTimelineBars();  // Redraw bars with hover highlight
     this.updateNodeInfo();
   }
 
@@ -1403,8 +1425,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.isDark = this.isDarkTheme();
     cfg.showEdgeLabels = this.panel.showEdgeLabels;
     cfg.showArrows = this.panel.showArrows;
-    cfg.nodeRadii = this.panel.showArrows ? this.getCachedNodeRadii() : null;
+    cfg.nodeRadii = (this.panel.showArrows || this.panel.edgeCardinalityMode !== "none") ? this.getCachedNodeRadii() : null;
     cfg.worldScale = this.worldContainer?.scale?.x ?? 1;
+    cfg.edgeCardinalityMode = this.panel.edgeCardinalityMode;
+    cfg.cardinalityRules = this.panel.cardinalityRules;
+    cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
 
     drawEdgesImpl(
       this.edgeGraphics,
@@ -1634,12 +1659,30 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!g) return;
     g.clear();
 
+    // Clear previous bar labels
+    if (this.barLabelContainer) {
+      for (const child of [...this.barLabelContainer.children]) {
+        this.barLabelContainer.removeChild(child);
+        child.destroy();
+      }
+    }
+
     if (!this.panel.showDurationBars) return;
     const bars = this.clusterMeta?.timelineBars;
     if (!bars || bars.length === 0) return;
 
     const worldScale = this.worldContainer?.scale.x ?? 1;
     const lineW = Math.max(0.5, 1.0 / worldScale);
+
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const fillAlpha = rt.timelineBarFillAlpha;
+    const strokeAlpha = rt.timelineBarStrokeAlpha;
+    const hoverAlpha = rt.timelineBarHoverAlpha;
+    const barCornerRBase = rt.timelineBarCornerRadius;
+    const hoveredId = this.highlightedNodeId;
+    const showBarLabel = rt.timelineBarShowLabel;
+    const barLabelMinW = rt.timelineBarLabelMinWidth;
+    const barLabelFontSize = rt.timelineBarLabelFontSize;
 
     for (const bar of bars) {
       const pn = this.pixiNodes.get(bar.nodeId);
@@ -1648,17 +1691,38 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const h = bar.barHeight;
       const x = bar.xStart;
       const y = bar.yCenter - h / 2;
-      const cornerR = Math.min(h / 2, 4);
+      const cornerR = Math.min(h / 2, barCornerRBase);
+      const isHovered = hoveredId === bar.nodeId;
+      const barFillAlpha = isHovered ? hoverAlpha : fillAlpha;
 
       // Fill
-      g.beginFill(color, 0.4);
+      g.beginFill(color, barFillAlpha);
       g.drawRoundedRect(x, y, w, h, cornerR);
       g.endFill();
 
       // Stroke
-      g.lineStyle(lineW, color, 0.8);
+      g.lineStyle(lineW, color, strokeAlpha);
       g.drawRoundedRect(x, y, w, h, cornerR);
       g.lineStyle(0);
+
+      // Bar label — displayed above the bar's left edge with pill background
+      if (showBarLabel && this.barLabelContainer && pn) {
+        const fontSize = Math.max(7, barLabelFontSize / worldScale);
+        const label = new CanvasText(pn.data.label, {
+          fontSize,
+          fontWeight: "bold",
+          fill: this.isDarkTheme() ? 0xffffff : 0x111111,
+          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+        });
+        label.bgColor = color;
+        label.bgAlpha = 0.7;
+        label.bgPadX = 4 / worldScale;
+        label.bgPadY = 2 / worldScale;
+        label.x = x;
+        label.y = y - fontSize * 0.3;
+        label.maxWidth = Math.max(w, 40 / worldScale);
+        this.barLabelContainer.addChild(label);
+      }
     }
   }
 
@@ -1845,7 +1909,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       this.groupGridLabels.clear();
 
-      const fontSize = Math.max(8, Math.min(14, 11 / worldScale));
+      const rtL = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+      const fontSize = Math.max(rtL.gridLabelFontSizeMin + 1, Math.min(rtL.gridLabelFontSizeMax + 1, rtL.gridLabelFontSizeBase / worldScale));
       const textColor = isDark ? 0xbbbbbb : 0x555555;
       const bgColor = isDark ? 0x1e1e1e : 0xf5f5f5;
 
@@ -1882,17 +1947,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Find extent from ticks
     if (guide.ticks.length === 0) return;
     const xs = guide.ticks.map(t => cx + t.x);
-    const xMin = Math.min(...xs) - 20;
-    const xMax = Math.max(...xs) + 20;
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const margin = rt.gridLineMargin;
+    const xMin = Math.min(...xs) - margin;
+    const xMax = Math.max(...xs) + margin;
+    const wFactor = rt.gridLineWidthFactor;
+    const alpha = rt.gridLineAlpha;
 
     // Main axis line
-    g.lineStyle(lineW * 1.5, color, 0.5);
+    g.lineStyle(lineW * 1.5 * wFactor, color, alpha);
     g.moveTo(xMin, y);
     g.lineTo(xMax, y);
 
     // Tick marks
     const tickH = 6 / worldScale;
-    g.lineStyle(lineW, color, 0.4);
+    g.lineStyle(lineW * wFactor, color, alpha);
     for (const tick of guide.ticks) {
       const tx = cx + tick.x;
       g.moveTo(tx, y - tickH);
@@ -2075,7 +2144,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
 
     // Draw axis1 grid lines (vertical in cartesian, circles/radials in polar)
-    const lineAlpha = style === "table" ? 0.3 : 0.15;
+    const thresholds = this.getPanel().renderThresholds ?? {};
+    const lineAlpha = style === "table"
+      ? (thresholds.gridTableLineAlpha ?? DEFAULT_RENDER_THRESHOLDS.gridTableLineAlpha)
+      : (thresholds.gridLineAlpha ?? DEFAULT_RENDER_THRESHOLDS.gridLineAlpha);
     for (const line of axis1Lines) {
       this.drawGridLine(g, cx, cy, line, axis1Shape, bounds, 1, lineW, color, lineAlpha);
     }
@@ -2104,9 +2176,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     axis: 1 | 2,
     lineW: number, color: number, alpha: number,
   ) {
-    g.lineStyle(lineW * 0.8, color, alpha);
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    g.lineStyle(lineW * rt.gridLineWidthFactor, color, alpha);
     const pos = line.position;
-    const margin = 5;
+    const margin = rt.gridLineMargin;
 
     switch (shape.kind) {
       case "line":
@@ -2193,11 +2266,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const nodes = this.currentData?.nodes;
     if (!nodes) return;
 
-    const clusterMap = this.clusterMeta?.nodeClusterMap;
+    const xExtentMin = xPositions[0];
+    const xExtentMax = xPositions[xPositions.length - 1];
+    const yExtentMin = yPositions[0];
+    const yExtentMax = yPositions[yPositions.length - 1];
     for (const node of nodes) {
       // Get node position relative to group center
       const nodeX = node.x - cx;
       const nodeY = node.y - cy;
+
+      // Skip nodes outside grid extent (e.g. from other groups)
+      if (nodeX < xExtentMin - 1 || nodeX > xExtentMax + 1) continue;
+      if (nodeY < yExtentMin - 1 || nodeY > yExtentMax + 1) continue;
 
       // Find cell indices
       const xi = findCellIndex(nodeX, xPositions);
@@ -2213,11 +2293,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (maxCount === 0) return;
 
     // Draw shaded rectangles
+    const rt = this.getPanel().renderThresholds ?? {};
+    const shadingMin = rt.gridCellShadingMin ?? DEFAULT_RENDER_THRESHOLDS.gridCellShadingMin;
+    const shadingRange = rt.gridCellShadingRange ?? DEFAULT_RENDER_THRESHOLDS.gridCellShadingRange;
     for (let xi = 0; xi < xPositions.length - 1; xi++) {
       for (let yi = 0; yi < yPositions.length - 1; yi++) {
         const count = cellCounts.get(`${xi}-${yi}`) ?? 0;
         if (count === 0) continue;
-        const alpha = 0.05 + (count / maxCount) * 0.25;
+        const alpha = shadingMin + (count / maxCount) * shadingRange;
         g.beginFill(color, alpha);
         const x = cx + xPositions[xi];
         const y = cy + yPositions[yi];
@@ -2278,63 +2361,90 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const container = this.customGridLabelContainer;
     if (!container) return;
 
-    const fontSize = Math.max(7, Math.min(13, 11 / worldScale));
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const fontSize = Math.max(rt.gridLabelFontSizeMin, Math.min(rt.gridLabelFontSizeMax, rt.gridLabelFontSizeBase / worldScale));
     const textColor = isDark ? 0xbbbbbb : 0x555555;
     const bgColor = isDark ? 0x1e1e1e : 0xf5f5f5;
-    const labelOffset = 12 / worldScale;
+    const labelOffset = rt.gridLabelOffset / worldScale;
 
-    // Axis1 labels — placed above the grid, aligned to each grid line
-    for (const line of axis1Lines) {
-      if (!line.label) continue;
-      const text = new CanvasText(line.label, {
+    const placement = this.panel.gridLabelPlacement ?? "on-line";
+    const useBetween = placement === "between";
+
+    // Helper: create a text label and add to container
+    const addLabel = (label: string, x: number, y: number, anchorX: number, anchorY: number) => {
+      const text = new CanvasText(label, {
         fontSize,
         fill: textColor,
         fontWeight: "500",
       });
       text.bgColor = bgColor;
       text.bgAlpha = 0.6;
-
-      if (axis1Shape.kind === "radial") {
-        // Radial: label at outer edge of the radial line
-        const maxR = bounds.maxR ?? Math.max(Math.abs(bounds.xMax), Math.abs(bounds.yMax));
-        const angle = line.position;
-        text.anchor.set(0.5, 0.5);
-        text.x = cx + (maxR + labelOffset * 2) * Math.cos(angle);
-        text.y = cy + (maxR + labelOffset * 2) * Math.sin(angle);
-      } else {
-        // Vertical grid line: label above
-        text.anchor.set(0.5, 1);
-        text.x = cx + line.position;
-        text.y = cy + bounds.yMin - labelOffset;
-      }
+      text.anchor.set(anchorX, anchorY);
+      text.x = x;
+      text.y = y;
       container.addChild(text);
       this.customGridLabels.push(text);
+    };
+
+    // Axis1 labels — placed above the grid
+    if (useBetween && axis1Lines.length >= 2) {
+      // Between mode: place label i between axis1Lines[i] and axis1Lines[i+1]
+      // Labels come from axis1Lines[i].label (N labels for N+1 boundary lines)
+      for (let i = 0; i + 1 < axis1Lines.length; i++) {
+        const label = axis1Lines[i].label;
+        if (!label) continue;
+        const midPos = (axis1Lines[i].position + axis1Lines[i + 1].position) / 2;
+
+        if (axis1Shape.kind === "radial") {
+          const maxR = bounds.maxR ?? Math.max(Math.abs(bounds.xMax), Math.abs(bounds.yMax));
+          const angle = midPos;
+          addLabel(label, cx + (maxR + labelOffset * 2) * Math.cos(angle),
+            cy + (maxR + labelOffset * 2) * Math.sin(angle), 0.5, 0.5);
+        } else {
+          addLabel(label, cx + midPos, cy + bounds.yMin - labelOffset, 0.5, 1);
+        }
+      }
+    } else {
+      // On-line mode (default): label at each grid line position
+      for (const line of axis1Lines) {
+        if (!line.label) continue;
+        if (axis1Shape.kind === "radial") {
+          const maxR = bounds.maxR ?? Math.max(Math.abs(bounds.xMax), Math.abs(bounds.yMax));
+          const angle = line.position;
+          addLabel(line.label, cx + (maxR + labelOffset * 2) * Math.cos(angle),
+            cy + (maxR + labelOffset * 2) * Math.sin(angle), 0.5, 0.5);
+        } else {
+          addLabel(line.label, cx + line.position, cy + bounds.yMin - labelOffset, 0.5, 1);
+        }
+      }
     }
 
     // Axis2 labels — placed to the left of the grid
-    for (const line of axis2Lines) {
-      if (!line.label) continue;
-      const text = new CanvasText(line.label, {
-        fontSize,
-        fill: textColor,
-        fontWeight: "500",
-      });
-      text.bgColor = bgColor;
-      text.bgAlpha = 0.6;
+    if (useBetween && axis2Lines.length >= 2) {
+      // Between mode: place label i between axis2Lines[i] and axis2Lines[i+1]
+      for (let i = 0; i + 1 < axis2Lines.length; i++) {
+        const label = axis2Lines[i].label;
+        if (!label) continue;
+        const midPos = (axis2Lines[i].position + axis2Lines[i + 1].position) / 2;
 
-      if (axis2Shape.kind === "circle") {
-        // Circle: label at the right edge of each ring
-        text.anchor.set(0, 0.5);
-        text.x = cx + Math.abs(line.position) + labelOffset * 0.5;
-        text.y = cy - labelOffset * 0.5;
-      } else {
-        // Horizontal grid line: label to the left
-        text.anchor.set(1, 0.5);
-        text.x = cx + bounds.xMin - labelOffset;
-        text.y = cy + line.position;
+        if (axis2Shape.kind === "circle") {
+          addLabel(label, cx + Math.abs(midPos) + labelOffset * 0.5,
+            cy - labelOffset * 0.5, 0, 0.5);
+        } else {
+          addLabel(label, cx + bounds.xMin - labelOffset, cy + midPos, 1, 0.5);
+        }
       }
-      container.addChild(text);
-      this.customGridLabels.push(text);
+    } else {
+      // On-line mode (default): label at each grid line position
+      for (const line of axis2Lines) {
+        if (!line.label) continue;
+        if (axis2Shape.kind === "circle") {
+          addLabel(line.label, cx + Math.abs(line.position) + labelOffset * 0.5,
+            cy - labelOffset * 0.5, 0, 0.5);
+        } else {
+          addLabel(line.label, cx + bounds.xMin - labelOffset, cy + line.position, 1, 0.5);
+        }
+      }
     }
   }
 
@@ -2354,14 +2464,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (guide.rings.length === 0) return;
 
     // Draw concentric ring circles
-    g.lineStyle(lineW * 0.8, color, 0.2);
+    g.lineStyle(lineW * 0.8, color, 0.3);
     for (const r of guide.rings) {
       g.drawCircle(cx, cy, r);
     }
 
     // Light cross at center spanning to max ring
     const maxR = guide.rings[guide.rings.length - 1];
-    g.lineStyle(lineW * 0.5, color, 0.1);
+    g.lineStyle(lineW * 0.5, color, 0.15);
     g.moveTo(cx - maxR, cy);
     g.lineTo(cx + maxR, cy);
     g.moveTo(cx, cy - maxR);
@@ -2427,10 +2537,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   // Auto-fit view
   // =========================================================================
+
+  /**
+   * Public entry point for triggering a one-shot auto-fit from outside the
+   * class (e.g. E2E tests, external toolbar buttons).  Reads the current
+   * canvas dimensions and delegates to the private autoFitView() helper,
+   * then wakes the render loop so the new transform is painted.
+   */
+  autoFitOnce() {
+    if (!this.canvasWrap) return;
+    this.autoFitView(this.canvasWrap.clientWidth, this.canvasWrap.clientHeight);
+    this.markDirty();
+  }
+
   private autoFitView(W: number, H: number) {
     const world = this.worldContainer;
     if (!world || this.pixiNodes.size === 0) return;
 
+    const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
+
+    // Pass 1: compute bounding box from node positions only (no card size)
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const pn of this.pixiNodes.values()) {
       const r = pn.radius;
@@ -2440,9 +2568,52 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (pn.data.y + r > maxY) maxY = pn.data.y + r;
     }
 
-    const bw = maxX - minX + 40;
-    const bh = maxY - minY + 40;
-    const sc = Math.min(W / bw, H / bh, 1.5);
+    const padding = isCardMode ? rt.autoFitCardPadding * 2 : 40;
+
+    if (isCardMode) {
+      // Two-pass auto-fit for card mode:
+      // 1. Estimate worldScale from node positions
+      const bw0 = maxX - minX + padding;
+      const bh0 = maxY - minY + padding;
+      let sc0 = Math.min(W / bw0, H / bh0, 1.5);
+      if (rt.autoFitMinScale > 0) sc0 = Math.max(sc0, rt.autoFitMinScale);
+      if (this.pixiNodes.size > 0) {
+        const sampleR = this.pixiNodes.values().next().value?.radius ?? 1;
+        const lodMin = rt.cardLODNormalPx / Math.max(sampleR, 1);
+        sc0 = Math.max(sc0, lodMin);
+      }
+
+      // 2. Compute actual card dimensions at estimated scale
+      const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
+      const cardConfig = this.panel.cardDisplayConfig ?? { fields: [] };
+      const numFields = (cardConfig.fields ?? []).length;
+      const hH = crc.tableHeaderHeight / sc0;
+      const fLH = crc.fieldLineHeight / sc0;
+      const padW = crc.cardPadding / sc0;
+      const totalH = hH + numFields * fLH + padW * 2;
+      const cardHalfW = (totalH * cardAR) / 2;
+      const cardHalfH = totalH / 2;
+
+      // 3. Recompute bounding box with actual card extents
+      minX = Infinity; minY = Infinity; maxX = -Infinity; maxY = -Infinity;
+      for (const pn of this.pixiNodes.values()) {
+        if (pn.data.x - cardHalfW < minX) minX = pn.data.x - cardHalfW;
+        if (pn.data.y - cardHalfH < minY) minY = pn.data.y - cardHalfH;
+        if (pn.data.x + cardHalfW > maxX) maxX = pn.data.x + cardHalfW;
+        if (pn.data.y + cardHalfH > maxY) maxY = pn.data.y + cardHalfH;
+      }
+    }
+
+    const bw = maxX - minX + padding;
+    const bh = maxY - minY + padding;
+    let sc = Math.min(W / bw, H / bh, 1.5);
+    if (rt.autoFitMinScale > 0) sc = Math.max(sc, rt.autoFitMinScale);
+    // Card mode: ensure scale is high enough for LOD to show cards (not circles)
+    if (isCardMode && this.pixiNodes.size > 0) {
+      const sampleRadius = this.pixiNodes.values().next().value?.radius ?? 1;
+      const lodMin = rt.cardLODNormalPx / Math.max(sampleRadius, 1);
+      sc = Math.max(sc, lodMin);
+    }
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
 
@@ -2976,7 +3147,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         });
 
       this.setStatus(`${gd.nodes.length} nodes — simulating...`);
-      this.simulation.on("end", () => this.setStatus(`${gd.nodes.length} nodes`));
+      this.simulation.on("end", () => {
+        this.setStatus(`${gd.nodes.length} nodes`);
+        if (this.panel.autoFit) {
+          this.updatePositions(true);
+          const wrap = this.canvasWrap;
+          if (wrap) {
+            this.autoFitView(wrap.clientWidth, wrap.clientHeight);
+            this.markDirty();
+          }
+        }
+      });
 
       this.updateLegend();
       this.startRenderLoop();

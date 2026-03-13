@@ -96,8 +96,26 @@ const en: TranslationMap = {
   "display.sibling": "Sibling (peer)",
   "display.sequence": "Sequence (next/prev)",
   "display.edgeLabels": "Show Edge Labels",
+  "display.edgeCardinality": "Cardinality Markers",
+  "display.edgeCardinalityDesc": "Show ER-style cardinality on edges",
+  "display.cardinalityNone": "None",
+  "display.cardinalityCrowsfoot": "Crow's Foot",
   "display.minimap": "Minimap",
   "display.dotGrid": "Background dot grid",
+
+  // --- PanelBuilder: rendering thresholds ---
+  "section.renderThresholds": "Rendering Thresholds",
+  "render.cardTextNodeCount": "Card text limit",
+  "render.cardTextNodeCountDesc": "Max node count for rendering card text labels",
+  "render.gradientNodeCount": "Gradient limit",
+  "render.gradientNodeCountDesc": "Max node count for gradient rendering (higher = more GPU load)",
+  "render.glowNodeCount": "Glow limit",
+  "render.glowNodeCountDesc": "Max node count for glow halo rendering",
+  "render.clusterChargeForce": "Cluster charge",
+  "render.clusterChargeForceDesc": "Repulsion strength in cluster simulation (negative = repel)",
+  "render.gridLabelOffset": "Grid label offset",
+  "render.gridLabelOffsetDesc": "Distance (px) between grid lines and their labels",
+
   "display.groupBy": "Group by",
   "display.groupNone": "None",
   "display.groupTag": "Tag",
@@ -121,6 +139,16 @@ const en: TranslationMap = {
   "nodeRules.addRule": "Add Rule",
   "nodeRules.spacing": "Spacing",
   "nodeRules.gravity": "Gravity",
+
+  // --- PanelBuilder: gravity coefficients ---
+  "gravity.centerGravity": "Center Gravity",
+  "gravity.centerGravityDesc": "Per-node center pull multiplier (Force layout)",
+  "gravity.repelMultiplier": "Repel Multiplier",
+  "gravity.repelMultiplierDesc": "Per-node repulsion multiplier (Force layout)",
+  "gravity.interGroupAttraction": "Group Attraction",
+  "gravity.interGroupAttractionDesc": "Higher values bring groups closer together",
+  "gravity.intraGroupDensity": "Group Density",
+  "gravity.intraGroupDensityDesc": "Higher values pack nodes more tightly within groups",
 
   // --- PanelBuilder: relation colors ---
   "relationColors.changeColor": "Click to change color",
@@ -154,6 +182,9 @@ const en: TranslationMap = {
   "cluster.addGravityRule": "+ Add Gravity Rule",
   "cluster.sortHeading": "Sort Order",
   "cluster.addSortRule": "+ Add Sort Rule",
+  "cluster.followsGroupBy": "Follow Grouping",
+  "cluster.followsGroupByDesc": "Use groupBy setting for cluster grouping",
+  "cluster.usingGroupBy": "Using groupBy setting",
 
   // --- PanelBuilder: force strength ---
   "force.centerForce": "Center Force",
@@ -285,6 +316,29 @@ const en: TranslationMap = {
   "guide.gridShowHeadersDesc": "Show row and column header labels",
   "guide.gridCellShading": "Cell Shading",
   "guide.gridCellShadingDesc": "Shade cells by node density",
+  "guide.labelPlacement": "Label Placement",
+  "guide.labelPlacementDesc": "Position labels on grid lines or between them",
+  "guide.labelOnLine": "On Line (Tick)",
+  "guide.labelBetween": "Between (Title)",
+
+  // --- PanelBuilder: node display mode ---
+  "display.nodeDisplayMode": "Display Mode",
+  "display.nodeDisplayModeDesc": "How nodes are rendered",
+  "display.modeNode": "Node (Shape)",
+  "display.modeCard": "Card",
+  "display.modeDonut": "Donut",
+  "display.modeSunburst": "Sunburst Segment",
+  "display.cardFields": "Card Fields",
+  "display.cardFieldsDesc": "Metadata fields to show on card",
+  "display.cardMaxWidth": "Card Width",
+  "display.cardShowIcon": "Show Icon",
+  "display.cardHeaderStyle": "Card Style",
+  "display.cardStylePlain": "Plain",
+  "display.cardStyleTable": "Table (ER)",
+  "display.donutBreakdown": "Breakdown Field",
+  "display.donutBreakdownDesc": "Field for sector breakdown (super nodes)",
+  "display.donutInnerRadius": "Inner Radius",
+  "display.sunburstArcAngle": "Arc Angle",
 
   // --- PanelBuilder: shared presets ---
   "preset.export": "Export Preset",
@@ -502,8 +556,26 @@ const ja: TranslationMap = {
   "display.sibling": "兄弟 (sibling)",
   "display.sequence": "順序 (next/prev)",
   "display.edgeLabels": "エッジラベル表示",
+  "display.edgeCardinality": "カーディナリティ記号",
+  "display.edgeCardinalityDesc": "エッジにER図のカーディナリティを表示",
+  "display.cardinalityNone": "なし",
+  "display.cardinalityCrowsfoot": "鳥の足記法",
   "display.minimap": "ミニマップ",
   "display.dotGrid": "背景ドットグリッド",
+
+  // --- Rendering thresholds ---
+  "section.renderThresholds": "描画パフォーマンス",
+  "render.cardTextNodeCount": "カードテキスト上限",
+  "render.cardTextNodeCountDesc": "カードにテキストを描画するノード数の上限",
+  "render.gradientNodeCount": "グラデーション上限",
+  "render.gradientNodeCountDesc": "グラデーション描画を行うノード数上限（大きいほどGPU負荷増）",
+  "render.glowNodeCount": "グロー上限",
+  "render.glowNodeCountDesc": "グローハロー描画を行うノード数上限",
+  "render.clusterChargeForce": "クラスタ斥力",
+  "render.clusterChargeForceDesc": "クラスタシミュレーションの反発力（負の値＝反発）",
+  "render.gridLabelOffset": "グリッドラベル距離",
+  "render.gridLabelOffsetDesc": "グリッド線とラベルの間の距離（px）",
+
   "display.groupBy": "グルーピング",
   "display.groupNone": "なし",
   "display.groupTag": "タグ",
@@ -527,6 +599,16 @@ const ja: TranslationMap = {
   "nodeRules.addRule": "ルール追加",
   "nodeRules.spacing": "間隔",
   "nodeRules.gravity": "重力",
+
+  // --- PanelBuilder: gravity coefficients ---
+  "gravity.centerGravity": "中心引力",
+  "gravity.centerGravityDesc": "ノード個別の中心引力係数（Forceレイアウト用）",
+  "gravity.repelMultiplier": "反発係数",
+  "gravity.repelMultiplierDesc": "ノード個別の反発力係数（Forceレイアウト用）",
+  "gravity.interGroupAttraction": "グループ間引力",
+  "gravity.interGroupAttractionDesc": "値が大きいほどグループ同士が近づく",
+  "gravity.intraGroupDensity": "グループ内密度",
+  "gravity.intraGroupDensityDesc": "値が大きいほどグループ内のノードが密集する",
 
   // --- PanelBuilder: relation colors ---
   "relationColors.changeColor": "クリックで色を変更",
@@ -560,6 +642,9 @@ const ja: TranslationMap = {
   "cluster.addGravityRule": "＋ 重力ルール追加",
   "cluster.sortHeading": "ソート順",
   "cluster.addSortRule": "＋ ソートルール追加",
+  "cluster.followsGroupBy": "グルーピングに連動",
+  "cluster.followsGroupByDesc": "グルーピング設定をクラスター配置にも使用",
+  "cluster.usingGroupBy": "グルーピング設定を使用中",
 
   // --- PanelBuilder: force strength ---
   "force.centerForce": "中心力",
@@ -691,6 +776,29 @@ const ja: TranslationMap = {
   "guide.gridShowHeadersDesc": "行・列のヘッダーラベルを表示",
   "guide.gridCellShading": "セルシェーディング",
   "guide.gridCellShadingDesc": "ノード密度でセルを着色",
+  "guide.labelPlacement": "ラベル配置",
+  "guide.labelPlacementDesc": "グリッド線上か間にラベルを配置",
+  "guide.labelOnLine": "線上（目盛り）",
+  "guide.labelBetween": "線間（タイトル）",
+
+  // --- PanelBuilder: node display mode ---
+  "display.nodeDisplayMode": "表示モード",
+  "display.nodeDisplayModeDesc": "ノードの表示方式",
+  "display.modeNode": "ノード（図形）",
+  "display.modeCard": "カード",
+  "display.modeDonut": "ドーナツ",
+  "display.modeSunburst": "サンバーストセグメント",
+  "display.cardFields": "カード表示フィールド",
+  "display.cardFieldsDesc": "カードに表示するメタデータ",
+  "display.cardMaxWidth": "カード幅",
+  "display.cardShowIcon": "アイコン表示",
+  "display.cardHeaderStyle": "カードスタイル",
+  "display.cardStylePlain": "シンプル",
+  "display.cardStyleTable": "テーブル（ER図）",
+  "display.donutBreakdown": "内訳フィールド",
+  "display.donutBreakdownDesc": "セクター内訳に使用するフィールド",
+  "display.donutInnerRadius": "内径",
+  "display.sunburstArcAngle": "弧の角度",
 
   // --- PanelBuilder: shared presets ---
   "preset.export": "プリセットをエクスポート",

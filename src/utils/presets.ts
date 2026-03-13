@@ -19,6 +19,8 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showCategoryEdges", "showSemanticEdges", "fadeEdgesByDegree",
   "showEdgeLabels", "showMinimap", "autoFit", "showDurationBars",
   "showGuideLines", "showGroupGrid", "showDotGrid",
+  "gridTableMode", "gridShowHeaders", "gridCellShading",
+  "clusterFollowsGroupBy",
 ];
 
 /** Fields that should be number */
@@ -34,12 +36,14 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
 const STRING_FIELDS: (keyof PanelState)[] = [
   "searchQuery", "timelineKey", "groupFilter", "groupBy",
   "dataviewQuery", "timelineEndKey", "timelineOrderFields",
+  "gridStyle", "gridLabelPlacement", "edgeCardinalityMode",
 ];
 
 /** Fields that should be arrays */
 const ARRAY_FIELDS: (keyof PanelState)[] = [
   "groups", "directionalGravityRules", "commonQueries", "clusterGroupRules",
   "sortRules", "nodeRules", "nodeShapeRules", "groupByRules",
+  "cardinalityRules",
 ];
 
 /** Valid values for enum-like fields */
@@ -47,6 +51,8 @@ const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   tagDisplay: ["node", "enclosure"] as const,
   clusterArrangement: ["spiral", "concentric", "tree", "grid", "triangle", "random", "mountain", "sunburst", "timeline", "custom"] as const,
   guideLineMode: ["shared", "per-group"] as const,
+  nodeDisplayMode: ["node", "card", "donut", "sunburst-segment"] as const,
+  edgeCardinalityMode: ["none", "crowsfoot"] as const,
   activeTab: ["filter", "display", "layout", "settings"] as const,
 };
 
@@ -58,6 +64,12 @@ const SET_FIELDS: (keyof PanelState)[] = [
 /** Fields that are nullable objects (object | null) — passed through if object or null */
 const NULLABLE_OBJECT_FIELDS: (keyof PanelState)[] = [
   "coordinateLayout",
+  "clusterGravity",
+  "cardDisplayConfig",
+  "donutDisplayConfig",
+  "cardRenderConfig",
+  "cardinalityRenderConfig",
+  "renderThresholds",
 ];
 
 /** All valid PanelState keys — derived from the field lists above plus enums */

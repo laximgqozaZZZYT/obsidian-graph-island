@@ -1,4 +1,5 @@
-import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings, OntologyRule, OntologyRelation, CoordinateLayout, CoordinateSystem, AxisSource, AxisConfig, AxisTransform, CurveKind } from "../types";
+import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings, OntologyRule, OntologyRelation, CoordinateLayout, CoordinateSystem, AxisSource, AxisConfig, AxisTransform, CurveKind, ClusterGravityConfig, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, EdgeCardinalityMode, CardinalityRule, CardRenderConfig, CardinalityRenderConfig, RenderThresholds } from "../types";
+import { DEFAULT_CARD_RENDER_CONFIG, DEFAULT_CARDINALITY_RENDER_CONFIG, DEFAULT_RENDER_THRESHOLDS } from "../types";
 import { ontologyToRules, rulesToOntologyFields } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { repositionShell } from "../layouts/concentric";
@@ -17,7 +18,7 @@ import { parseTransformExpr, transformExprToString, getTransformExprSuggestions,
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
 // ---------------------------------------------------------------------------
-export interface GroupByRule { field: string; op?: string; indent?: number; }
+export interface GroupByRule { field: string; op?: string; indent?: number; recursive?: boolean; }
 
 export interface PanelState {
   showTags: boolean;
@@ -110,6 +111,28 @@ export interface PanelState {
   gridCellShading: boolean;
   /** Grid display style */
   gridStyle: "lines" | "table";
+  /** Grid label placement mode: on grid lines or between them */
+  gridLabelPlacement: "on-line" | "between";
+  /** Cluster-level gravity coefficients for group spacing */
+  clusterGravity: ClusterGravityConfig;
+  /** When true, clusterGroupRules are auto-derived from groupByRules */
+  clusterFollowsGroupBy: boolean;
+  /** Node display mode: how nodes are rendered */
+  nodeDisplayMode: NodeDisplayMode;
+  /** Card display configuration */
+  cardDisplayConfig: CardDisplayConfig;
+  /** Donut display configuration */
+  donutDisplayConfig: DonutDisplayConfig;
+  /** Edge cardinality marker mode */
+  edgeCardinalityMode: EdgeCardinalityMode;
+  /** Custom cardinality rules (matched in order, first match wins) */
+  cardinalityRules: CardinalityRule[];
+  /** Card rendering visual config (opacity, dimensions, typography) */
+  cardRenderConfig?: CardRenderConfig;
+  /** Cardinality marker rendering config */
+  cardinalityRenderConfig?: CardinalityRenderConfig;
+  /** Rendering performance thresholds and misc numeric settings */
+  renderThresholds?: RenderThresholds;
 }
 
 export const DEFAULT_PANEL: PanelState = {
@@ -188,6 +211,14 @@ export const DEFAULT_PANEL: PanelState = {
   gridShowHeaders: true,
   gridCellShading: false,
   gridStyle: "lines" as const,
+  gridLabelPlacement: "on-line" as const,
+  clusterGravity: { interGroupAttraction: 0.5, intraGroupDensity: 1.0 },
+  clusterFollowsGroupBy: true,
+  nodeDisplayMode: "node" as NodeDisplayMode,
+  cardDisplayConfig: { fields: [], maxWidth: 120, showIcon: false },
+  donutDisplayConfig: { innerRadius: 0.6 },
+  edgeCardinalityMode: "none" as EdgeCardinalityMode,
+  cardinalityRules: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -486,6 +517,60 @@ export function buildPanel(
     });
   }, undefined, false, "circle-dot");
 
+  // --- Node Display Mode sub-section ---
+  buildSection(displayTab, t("display.nodeDisplayMode"), (body) => {
+    const modeOptions = [
+      { value: "node", label: t("display.modeNode") },
+      { value: "card", label: t("display.modeCard") },
+      { value: "donut", label: t("display.modeDonut") },
+      { value: "sunburst-segment", label: t("display.modeSunburst") },
+    ];
+    addSelect(body, t("display.nodeDisplayMode"), modeOptions, panel.nodeDisplayMode, (v) => {
+      panel.nodeDisplayMode = v as NodeDisplayMode;
+      cb.doRender();
+      cb.rebuildPanel();
+    }, t("display.nodeDisplayModeDesc"));
+
+    // Progressive disclosure: show sub-settings based on mode
+    if (panel.nodeDisplayMode === "card") {
+      addTextInput(body, t("display.cardFields"),
+        panel.cardDisplayConfig.fields.join(", "),
+        "e.g. category, tags, node_type",
+        (v) => {
+          panel.cardDisplayConfig.fields = v.split(",").map(s => s.trim()).filter(Boolean);
+          cb.doRender();
+        });
+      addSlider(body, t("display.cardMaxWidth"), 60, 300, 10, panel.cardDisplayConfig.maxWidth ?? 120, (v) => {
+        panel.cardDisplayConfig.maxWidth = v;
+        cb.doRender();
+      });
+      addToggle(body, t("display.cardShowIcon"), panel.cardDisplayConfig.showIcon ?? false, (v) => {
+        panel.cardDisplayConfig.showIcon = v;
+        cb.doRender();
+      });
+      addSelect(body, t("display.cardHeaderStyle"), [
+        { value: "plain", label: t("display.cardStylePlain") },
+        { value: "table", label: t("display.cardStyleTable") },
+      ], panel.cardDisplayConfig.headerStyle ?? "plain", (v) => {
+        panel.cardDisplayConfig.headerStyle = v as "plain" | "table";
+        cb.doRenderKeepPanel();
+      });
+    } else if (panel.nodeDisplayMode === "donut") {
+      addTextInput(body, t("display.donutBreakdown"),
+        panel.donutDisplayConfig.breakdownField ?? "",
+        "e.g. category, node_type",
+        (v) => {
+          panel.donutDisplayConfig.breakdownField = v.trim() || undefined;
+          cb.doRender();
+        });
+      addSlider(body, t("display.donutInnerRadius"), 0, 0.9, 0.05, panel.donutDisplayConfig.innerRadius ?? 0.6, (v) => {
+        panel.donutDisplayConfig.innerRadius = v;
+        cb.doRender();
+      });
+    }
+    // sunburst-segment mode: uses default arcAngle (30 degrees)
+  }, t("display.nodeDisplayModeDesc"), false, "layout-grid");
+
   // --- Edges sub-section ---
   buildSection(displayTab, t("section.displayEdges"), (body) => {
     addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); });
@@ -501,6 +586,14 @@ export function buildPanel(
     addToggle(body, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateData(); });
     addToggle(body, t("display.sibling"), panel.showSibling, (v) => { panel.showSibling = v; cb.markDirty(); });
     addToggle(body, t("display.sequence"), panel.showSequence, (v) => { panel.showSequence = v; cb.markDirty(); });
+    // Cardinality markers (crow's foot)
+    addSelect(body, t("display.edgeCardinality"), [
+      { value: "none", label: t("display.cardinalityNone") },
+      { value: "crowsfoot", label: t("display.cardinalityCrowsfoot") },
+    ], panel.edgeCardinalityMode, (v) => {
+      panel.edgeCardinalityMode = v as EdgeCardinalityMode;
+      cb.markDirty();
+    }, t("display.edgeCardinalityDesc"));
   }, undefined, false, "git-branch");
 
   // --- Minimap (stays in Display) ---
@@ -508,6 +601,41 @@ export function buildPanel(
     addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.wakeRenderLoop(); });
     addToggle(body, t("display.dotGrid"), panel.showDotGrid, (v) => { panel.showDotGrid = v; cb.markDirty(); });
   }, undefined, false, "eye");
+
+  // --- Rendering Thresholds ---
+  buildSection(displayTab, t("section.renderThresholds"), (body) => {
+    const rt = panel.renderThresholds ?? {};
+    addSlider(body, t("render.cardTextNodeCount"), 50, 1000, 50,
+      rt.cardTextNodeCount ?? DEFAULT_RENDER_THRESHOLDS.cardTextNodeCount, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.cardTextNodeCount = v;
+        cb.markDirty();
+      }, t("render.cardTextNodeCountDesc"));
+    addSlider(body, t("render.gradientNodeCount"), 100, 2000, 100,
+      rt.gradientNodeCount ?? DEFAULT_RENDER_THRESHOLDS.gradientNodeCount, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.gradientNodeCount = v;
+        cb.markDirty();
+      }, t("render.gradientNodeCountDesc"));
+    addSlider(body, t("render.glowNodeCount"), 100, 2000, 100,
+      rt.glowNodeCount ?? DEFAULT_RENDER_THRESHOLDS.glowNodeCount, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.glowNodeCount = v;
+        cb.markDirty();
+      }, t("render.glowNodeCountDesc"));
+    addSlider(body, t("render.clusterChargeForce"), -50, 0, 1,
+      rt.clusterChargeForce ?? DEFAULT_RENDER_THRESHOLDS.clusterChargeForce, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.clusterChargeForce = v;
+        cb.doRender();
+      }, t("render.clusterChargeForceDesc"));
+    addSlider(body, t("render.gridLabelOffset"), 0, 40, 1,
+      rt.gridLabelOffset ?? DEFAULT_RENDER_THRESHOLDS.gridLabelOffset, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.gridLabelOffset = v;
+        cb.markDirty();
+      }, t("render.gridLabelOffsetDesc"));
+  }, undefined, true, "sliders");
 
   if (panel.colorEdgesByRelation && ctx.relationColors.size > 0) {
     buildSection(displayTab, t("section.relationColors"), (body) => {
@@ -553,6 +681,17 @@ export function buildPanel(
         });
       }
     }
+    // Follow toggle: sync clusterGroupRules from groupByRules
+    addToggle(body, t("cluster.followsGroupBy"), panel.clusterFollowsGroupBy, (v) => {
+      panel.clusterFollowsGroupBy = v;
+      if (v && panel.groupByRules) {
+        const filled = panel.groupByRules.filter(r => r.field.trim() !== "");
+        panel.clusterGroupRules = deriveClusterRulesFromGroupBy(filled);
+      }
+      cb.applyClusterForce();
+      cb.restartSimulation(0.5);
+      cb.rebuildPanel();
+    }, t("cluster.followsGroupByDesc"));
   }, undefined, false, "layers");
 
   // Cluster arrangement
@@ -788,6 +927,14 @@ export function buildPanel(
           cb.markDirty();
         }, t("guide.gridShowHeadersDesc"));
 
+        addSelect(body, t("guide.labelPlacement"), [
+          { value: "on-line", label: t("guide.labelOnLine") },
+          { value: "between", label: t("guide.labelBetween") },
+        ], panel.gridLabelPlacement, (v) => {
+          panel.gridLabelPlacement = v as "on-line" | "between";
+          cb.markDirty();
+        });
+
         addToggle(body, t("guide.gridCellShading"), panel.gridCellShading, (v) => {
           panel.gridCellShading = v;
           if (panel.coordinateLayout?.grid) {
@@ -822,6 +969,23 @@ export function buildPanel(
     }));
     // Apply initial disabled state
     setSliderDisabled(panel.autoFit);
+
+    // Cluster gravity sliders (only when groupBy is active)
+    if (panel.groupBy && panel.groupBy !== "none") {
+      // Ensure clusterGravity exists (backward compat)
+      if (!panel.clusterGravity) {
+        panel.clusterGravity = { interGroupAttraction: 0.5, intraGroupDensity: 1.0 };
+      }
+      addSlider(body, t("gravity.interGroupAttraction"), 0, 2, 0.1, panel.clusterGravity.interGroupAttraction, (v) => {
+        panel.clusterGravity.interGroupAttraction = v;
+        debouncedClusterForce();
+      }, t("gravity.interGroupAttractionDesc"));
+      addSlider(body, t("gravity.intraGroupDensity"), 0.1, 3, 0.1, panel.clusterGravity.intraGroupDensity, (v) => {
+        panel.clusterGravity.intraGroupDensity = v;
+        debouncedClusterForce();
+      }, t("gravity.intraGroupDensityDesc"));
+    }
+
     addSlider(body, t("cluster.edgeBundleStrength"), 0, 1, 0.05, panel.edgeBundleStrength, (v) => {
       panel.edgeBundleStrength = v;
       cb.markDirty();
@@ -829,16 +993,24 @@ export function buildPanel(
     // --- Cluster group rules sub-section ---
     const clusterHeader = body.createDiv({ cls: "setting-item" });
     clusterHeader.createDiv({ cls: "setting-item-name", text: t("cluster.groupRulesHeading") });
-    const clusterListEl = body.createDiv({ cls: "gi-multirule-list" });
-    renderClusterRuleList(clusterListEl, panel, ctx, cb);
 
-    const addClusterBtn = body.createEl("button", { cls: "gi-add-group", text: t("cluster.addGroupRule") });
-    addClusterBtn.addEventListener("click", () => {
-      panel.clusterGroupRules.push({ groupBy: "tag:?", recursive: false });
+    if (panel.clusterFollowsGroupBy) {
+      // Follow mode: show info text instead of the rule editor
+      const infoEl = body.createDiv({ cls: "setting-item-description gi-follow-info" });
+      infoEl.textContent = t("cluster.usingGroupBy");
+    } else {
+      // Independent mode: show the full cluster rule editor
+      const clusterListEl = body.createDiv({ cls: "gi-multirule-list" });
       renderClusterRuleList(clusterListEl, panel, ctx, cb);
-      cb.applyClusterForce();
-      cb.restartSimulation(0.5);
-    });
+
+      const addClusterBtn = body.createEl("button", { cls: "gi-add-group", text: t("cluster.addGroupRule") });
+      addClusterBtn.addEventListener("click", () => {
+        panel.clusterGroupRules.push({ groupBy: "tag:?", recursive: false });
+        renderClusterRuleList(clusterListEl, panel, ctx, cb);
+        cb.applyClusterForce();
+        cb.restartSimulation(0.5);
+      });
+    }
 
     // --- Directional gravity rules sub-section ---
     const gravHeader = body.createDiv({ cls: "setting-item" });
@@ -876,7 +1048,7 @@ export function buildPanel(
 
     const addBtn = body.createEl("button", { cls: "gi-add-group", text: t("nodeRules.addRule") });
     addBtn.addEventListener("click", () => {
-      panel.nodeRules.push({ query: "*", spacingMultiplier: 1.0, gravityAngle: -1, gravityStrength: 0.1 });
+      panel.nodeRules.push({ query: "*", spacingMultiplier: 1.0, gravityAngle: -1, gravityStrength: 0.1, centerGravity: 1.0, repelMultiplier: 1.0 });
       renderNodeRuleList(ruleListEl, panel, ctx, cb);
       cb.applyNodeRules();
       cb.restartSimulation(0.3);
@@ -2289,6 +2461,16 @@ function parseGroupByRules(groupBy: string): GroupByRule[] {
   return rules.length > 0 ? rules : [];
 }
 
+/** Derive clusterGroupRules from groupByRules (used in follow mode). */
+export function deriveClusterRulesFromGroupBy(rules: GroupByRule[]): ClusterGroupRule[] {
+  return rules
+    .filter(r => r.field.trim() !== "")
+    .map(r => ({
+      groupBy: (r.field.endsWith(":?") ? r.field : r.field + ":?") as ClusterGroupBy,
+      recursive: r.recursive ?? false,
+    }));
+}
+
 function serializeGroupByRules(rules: GroupByRule[]): string {
   if (rules.length === 0) return "none";
   return rules.map((r, i) => {
@@ -2318,6 +2500,14 @@ function renderGroupByRules(
     const filled = rules.filter(r => r.field.trim() !== "");
     panel.groupBy = filled.length > 0 ? serializeGroupByRules(filled) : "none";
     panel.collapsedGroups.clear();
+
+    // Follow mode: auto-sync clusterGroupRules from groupByRules
+    if (panel.clusterFollowsGroupBy) {
+      panel.clusterGroupRules = deriveClusterRulesFromGroupBy(filled);
+      cb.applyClusterForce();
+      cb.restartSimulation(0.5);
+    }
+
     cb.doRenderKeepPanel();
   }
 
@@ -3406,6 +3596,50 @@ function renderNodeRuleList(
     strSlider.addEventListener("input", () => {
       rule.gravityStrength = parseFloat(strSlider.value);
       updateSliderProgress(strSlider);
+      cb.applyNodeRules();
+      cb.restartSimulation(0.3);
+    });
+
+    // Center gravity slider (Force layout per-node center pull)
+    const cgRow = row2.createDiv({ cls: "setting-item mod-slider" });
+    cgRow.addClass("gi-spacing-row");
+    const cgInfo = cgRow.createDiv({ cls: "setting-item-info" });
+    cgInfo.createDiv({ cls: "setting-item-name", text: t("gravity.centerGravity") });
+    const cgControl = cgRow.createDiv({ cls: "setting-item-control" });
+    const cgSlider = cgControl.createEl("input", { type: "range" });
+    cgSlider.min = "0";
+    cgSlider.max = "2";
+    cgSlider.step = "0.1";
+    cgSlider.value = String(rule.centerGravity ?? 1.0);
+    updateSliderProgress(cgSlider);
+    const cgLabel = cgControl.createEl("span", { text: String(rule.centerGravity ?? 1.0) });
+    cgLabel.addClass("gi-slider-label");
+    cgSlider.addEventListener("input", () => {
+      rule.centerGravity = parseFloat(cgSlider.value);
+      cgLabel.textContent = cgSlider.value;
+      updateSliderProgress(cgSlider);
+      cb.applyNodeRules();
+      cb.restartSimulation(0.3);
+    });
+
+    // Repel multiplier slider (Force layout per-node repulsion)
+    const rmRow = row2.createDiv({ cls: "setting-item mod-slider" });
+    rmRow.addClass("gi-spacing-row");
+    const rmInfo = rmRow.createDiv({ cls: "setting-item-info" });
+    rmInfo.createDiv({ cls: "setting-item-name", text: t("gravity.repelMultiplier") });
+    const rmControl = rmRow.createDiv({ cls: "setting-item-control" });
+    const rmSlider = rmControl.createEl("input", { type: "range" });
+    rmSlider.min = "0";
+    rmSlider.max = "3";
+    rmSlider.step = "0.1";
+    rmSlider.value = String(rule.repelMultiplier ?? 1.0);
+    updateSliderProgress(rmSlider);
+    const rmLabel = rmControl.createEl("span", { text: String(rule.repelMultiplier ?? 1.0) });
+    rmLabel.addClass("gi-slider-label");
+    rmSlider.addEventListener("input", () => {
+      rule.repelMultiplier = parseFloat(rmSlider.value);
+      rmLabel.textContent = rmSlider.value;
+      updateSliderProgress(rmSlider);
       cb.applyNodeRules();
       cb.restartSimulation(0.3);
     });

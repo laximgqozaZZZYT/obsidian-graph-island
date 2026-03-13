@@ -166,7 +166,7 @@ export type GridLabelSource =
 export interface GridTickConfig {
   show: boolean;
   labels: GridLabelSource;
-  position?: "start" | "end" | "center";
+  position?: "on-line" | "between";
 }
 
 /** Configuration for one set of grid lines */
@@ -246,6 +246,18 @@ export interface NodeRule {
   gravityAngle: number;
   /** Gravity strength (0–1, default 0.1) */
   gravityStrength: number;
+  /** Center gravity multiplier (0–2, default 1.0). Force layout only. */
+  centerGravity?: number;
+  /** Repel force multiplier (0–3, default 1.0). Force layout only. */
+  repelMultiplier?: number;
+}
+
+/** Cluster-level gravity coefficients for group spacing */
+export interface ClusterGravityConfig {
+  /** Inter-group distance coefficient (0–2, default 0.5). Higher = groups closer together */
+  interGroupAttraction: number;
+  /** Intra-group density coefficient (0.1–3, default 1.0). Higher = nodes packed tighter */
+  intraGroupDensity: number;
 }
 
 export interface ConcentricLayoutOptions {
@@ -464,6 +476,327 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
   defaultClusterGroupRules: [{ groupBy: "tag:?", recursive: false }],
   defaultNodeRules: [],
   settingsJsonPath: "",
+};
+
+// ---------------------------------------------------------------------------
+// Node display mode types
+// ---------------------------------------------------------------------------
+
+/** How nodes are rendered on the canvas */
+export type NodeDisplayMode = "node" | "card" | "donut" | "sunburst-segment";
+
+/** Card display configuration */
+export interface CardDisplayConfig {
+  fields: string[];        // Metadata fields to show on card
+  maxWidth?: number;       // Card max width in pixels (default: 120)
+  showIcon?: boolean;      // Show file icon (default: false)
+  headerStyle?: "plain" | "table";  // Card rendering style (default: "plain")
+  /** Field display format: "key-value" (default) shows "field: value",
+   *  "value-only" shows just the value */
+  fieldFormat?: "key-value" | "value-only";
+}
+
+/** Donut display configuration */
+export interface DonutDisplayConfig {
+  breakdownField?: string; // Field for sector breakdown (super nodes)
+  innerRadius?: number;    // Inner radius ratio 0-0.9 (default: 0.6)
+}
+
+/** Sunburst segment display configuration */
+export interface SunburstSegmentConfig {
+  arcAngle?: number;       // Segment angle in degrees (default: 30)
+}
+
+/** Display configuration (PanelState level or ShapeRule level) */
+export interface DisplayConfig {
+  mode: NodeDisplayMode;
+  card?: CardDisplayConfig;
+  donut?: DonutDisplayConfig;
+  sunburst?: SunburstSegmentConfig;
+}
+
+// ---------------------------------------------------------------------------
+// Edge cardinality (crow's foot notation)
+// ---------------------------------------------------------------------------
+
+/** Edge cardinality marker style */
+export type EdgeCardinalityMode = "none" | "crowsfoot";
+
+/** Cardinality specification for an edge endpoint */
+export type Cardinality = "1" | "0..1" | "N" | "0..N" | "1..N";
+
+/** Rule for mapping edge types/relations to cardinality markers */
+export interface CardinalityRule {
+  /** Match by edge type */
+  edgeType?: EdgeType;
+  /** Match by relation name (substring) */
+  relation?: string;
+  /** Cardinality at source end */
+  sourceCardinality: Cardinality;
+  /** Cardinality at target end */
+  targetCardinality: Cardinality;
+}
+
+// ---------------------------------------------------------------------------
+// Rendering config objects (replacing hardcoded magic numbers)
+// ---------------------------------------------------------------------------
+
+/** Card visual rendering configuration.
+ *  All values have sensible defaults — override via preset JSON or UI. */
+export interface CardRenderConfig {
+  // ---- Opacity / alpha ----
+  /** Alpha multiplier for timeline-filtered-out nodes (default 0.08) */
+  filteredNodeAlpha?: number;
+  /** Darken factor for stroke color (default 0.4) */
+  strokeDarken?: number;
+  /** Alpha multiplier for outer stroke (default 0.5) */
+  strokeAlpha?: number;
+  /** Lighten factor for gradient highlight (default 0.25) */
+  gradientHighlight?: number;
+  /** Darken factor for gradient shadow (default 0.15) */
+  gradientShadow?: number;
+
+  // ---- Table card (ER-style) ----
+  /** Card background alpha (default 0.15) */
+  cardBackgroundAlpha?: number;
+  /** Header bar alpha (default 0.6) */
+  cardHeaderAlpha?: number;
+  /** Divider darken factor (default 0.3) */
+  cardDividerDarken?: number;
+  /** Divider alpha (default 0.7) */
+  cardDividerAlpha?: number;
+  /** Even-row alpha (default 0.05) */
+  cardRowAlphaEven?: number;
+  /** Odd-row alpha (default 0.08) */
+  cardRowAlphaOdd?: number;
+
+  // ---- Plain card ----
+  /** Plain card stroke alpha (default 0.4) */
+  plainCardStrokeAlpha?: number;
+  /** Plain card fill alpha (default 0.8) */
+  plainCardFillAlpha?: number;
+
+  // ---- Card dimensions (in screen pixels, divided by worldScale at render) ----
+  /** Table card header height (default 16) */
+  tableHeaderHeight?: number;
+  /** Field row line height (default 12) */
+  fieldLineHeight?: number;
+  /** Card internal padding (default 4) */
+  cardPadding?: number;
+  /** Card corner radius (default 3) */
+  cardCornerRadius?: number;
+  /** Card width factor relative to node radius (default 4).
+   *  Used as fallback when cardAspectRatio is not set. */
+  cardWidthFactor?: number;
+  /** Card aspect ratio (width / height). Default 1.618 (golden ratio).
+   *  When set, card width = content height × this value, overriding cardWidthFactor. */
+  cardAspectRatio?: number;
+  /** Plain card base height (default 20) */
+  plainCardHeight?: number;
+  /** Plain card width factor relative to node radius (default 3) */
+  plainCardWidthFactor?: number;
+
+  // ---- Card typography ----
+  /** Header font size min (default 8) */
+  headerFontSizeMin?: number;
+  /** Header font size base (default 11) */
+  headerFontSizeBase?: number;
+  /** Field font size min (default 7) */
+  fieldFontSizeMin?: number;
+  /** Field font size base (default 9) */
+  fieldFontSizeBase?: number;
+  /** Vertical baseline offset factor (default 0.3) */
+  fontBaselineOffset?: number;
+
+  // ---- Card shadow & hover ----
+  /** Card shadow alpha (default 0.12) */
+  cardShadowAlpha?: number;
+  /** Card shadow offset in screen pixels (default 2) */
+  cardShadowOffset?: number;
+  /** Card scale multiplier on hover (default 1.08) */
+  cardHoverScale?: number;
+  /** Card glow alpha on hover (default 0.3) */
+  cardHoverGlowAlpha?: number;
+}
+
+/** Cardinality marker rendering configuration */
+export interface CardinalityRenderConfig {
+  /** Minimum marker size in pixels (default 6) */
+  markerSizeMin?: number;
+  /** Marker size as fraction of node radius (default 0.3) */
+  markerSizeRatio?: number;
+  /** Offset distance from node boundary in pixels (default 3) */
+  markerOffset?: number;
+  /** Line width (default 1.5) */
+  lineWidth?: number;
+  /** Alpha multiplier (default 0.8) */
+  alpha?: number;
+  /** Crow's foot fork distance factor (default 0.8) */
+  crowsFootForkFactor?: number;
+  /** Circle radius as fraction of marker size (default 0.25) */
+  circleRadiusFactor?: number;
+  /** Circle offset factor (default 0.6 for 0..1, 1.2 for 0..N) */
+  circleOffsetFactor01?: number;
+  circleOffsetFactor0N?: number;
+}
+
+/** Level-of-detail thresholds for performance tuning */
+export interface RenderThresholds {
+  /** Node count below which gradient rendering is used (default 500) */
+  gradientNodeCount?: number;
+  /** Node count below which card text is rendered (default 200) */
+  cardTextNodeCount?: number;
+  /** Node count below which glow halos are shown (default 800) */
+  glowNodeCount?: number;
+  /** Grid label offset in pixels (default 12) */
+  gridLabelOffset?: number;
+  /** Cluster simulation charge force strength (default -10) */
+  clusterChargeForce?: number;
+  /** Grid divisions for continuous coordinate axes (default 5) */
+  coordinateGridDivisions?: number;
+  /** Grid line alpha for normal mode (default 0.4) */
+  gridLineAlpha?: number;
+  /** Grid line alpha for table mode (default 0.6) */
+  gridTableLineAlpha?: number;
+  /** Cell shading minimum alpha (default 0.08) */
+  gridCellShadingMin?: number;
+  /** Cell shading dynamic range (default 0.35) */
+  gridCellShadingRange?: number;
+  /** Extra collision radius when nodeDisplayMode is card (default 40) */
+  cardCollisionPadding?: number;
+
+  // ---- Timeline bar visual ----
+  /** Timeline bar fill alpha (default 0.35) */
+  timelineBarFillAlpha?: number;
+  /** Timeline bar stroke alpha (default 0.8) */
+  timelineBarStrokeAlpha?: number;
+  /** Timeline bar corner radius in pixels (default 4) */
+  timelineBarCornerRadius?: number;
+  /** Timeline bar fill alpha on hover (default 0.6) */
+  timelineBarHoverAlpha?: number;
+
+  // ---- Grid line visual ----
+  /** Grid line margin beyond bounds in world px (default 20) */
+  gridLineMargin?: number;
+  /** Grid line width multiplier (default 0.8) */
+  gridLineWidthFactor?: number;
+  /** Grid label font-size minimum (default 7) */
+  gridLabelFontSizeMin?: number;
+  /** Grid label font-size maximum (default 13) */
+  gridLabelFontSizeMax?: number;
+  /** Grid label font-size base for 1/worldScale scaling (default 11) */
+  gridLabelFontSizeBase?: number;
+
+  // ---- Auto-fit ----
+  /** Extra padding (px) added to bounding-box when nodeDisplayMode is card (default 20) */
+  autoFitCardPadding?: number;
+
+  // ---- LOD & auto-fit ----
+  /** LOD: below this screen-px, render circles instead of cards. Default 4.0 */
+  cardLODNormalPx?: number;
+  /** LOD: below this screen-px, render as 1px dots. Default 1.5 */
+  cardLODExtremePx?: number;
+  /** Minimum scale for autoFitView (0 = no minimum). Default 0 */
+  autoFitMinScale?: number;
+
+  // ---- Label overlap culling ----
+  /** Enable label overlap culling (default true) */
+  labelOverlapCulling?: boolean;
+  /** Extra margin around label bounding box for overlap test (world px, default 4) */
+  labelOverlapMargin?: number;
+
+  // ---- Timeline bar labels ----
+  /** Show text labels inside timeline bars (default true) */
+  timelineBarShowLabel?: boolean;
+  /** Minimum bar screen-px width to show label (default 30) */
+  timelineBarLabelMinWidth?: number;
+  /** Font size for timeline bar labels (default 9) */
+  timelineBarLabelFontSize?: number;
+
+  // ---- Card text truncation ----
+  /** Enable card text truncation with ellipsis (default true) */
+  cardTextTruncation?: boolean;
+}
+
+/** Default card rendering config */
+export const DEFAULT_CARD_RENDER_CONFIG: Required<CardRenderConfig> = {
+  filteredNodeAlpha: 0.08,
+  strokeDarken: 0.4,
+  strokeAlpha: 0.5,
+  gradientHighlight: 0.25,
+  gradientShadow: 0.15,
+  cardBackgroundAlpha: 0.15,
+  cardHeaderAlpha: 0.6,
+  cardDividerDarken: 0.3,
+  cardDividerAlpha: 0.7,
+  cardRowAlphaEven: 0.05,
+  cardRowAlphaOdd: 0.08,
+  plainCardStrokeAlpha: 0.4,
+  plainCardFillAlpha: 0.8,
+  tableHeaderHeight: 16,
+  fieldLineHeight: 12,
+  cardPadding: 4,
+  cardCornerRadius: 3,
+  cardWidthFactor: 4,
+  cardAspectRatio: 1.618,
+  plainCardHeight: 20,
+  plainCardWidthFactor: 3,
+  headerFontSizeMin: 8,
+  headerFontSizeBase: 11,
+  fieldFontSizeMin: 7,
+  fieldFontSizeBase: 9,
+  fontBaselineOffset: 0.3,
+  cardShadowAlpha: 0.12,
+  cardShadowOffset: 2,
+  cardHoverScale: 1.08,
+  cardHoverGlowAlpha: 0.3,
+};
+
+/** Default cardinality marker config */
+export const DEFAULT_CARDINALITY_RENDER_CONFIG: Required<CardinalityRenderConfig> = {
+  markerSizeMin: 6,
+  markerSizeRatio: 0.3,
+  markerOffset: 3,
+  lineWidth: 1.5,
+  alpha: 0.8,
+  crowsFootForkFactor: 0.8,
+  circleRadiusFactor: 0.25,
+  circleOffsetFactor01: 0.6,
+  circleOffsetFactor0N: 1.2,
+};
+
+/** Default rendering thresholds */
+export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
+  gradientNodeCount: 500,
+  cardTextNodeCount: 200,
+  glowNodeCount: 800,
+  gridLabelOffset: 12,
+  clusterChargeForce: -10,
+  coordinateGridDivisions: 5,
+  gridLineAlpha: 0.4,
+  gridTableLineAlpha: 0.6,
+  gridCellShadingMin: 0.08,
+  gridCellShadingRange: 0.35,
+  cardCollisionPadding: 40,
+  timelineBarFillAlpha: 0.35,
+  timelineBarStrokeAlpha: 0.8,
+  timelineBarCornerRadius: 4,
+  timelineBarHoverAlpha: 0.6,
+  gridLineMargin: 20,
+  gridLineWidthFactor: 0.8,
+  gridLabelFontSizeMin: 7,
+  gridLabelFontSizeMax: 13,
+  gridLabelFontSizeBase: 11,
+  autoFitCardPadding: 20,
+  cardLODNormalPx: 4.0,
+  cardLODExtremePx: 1.5,
+  autoFitMinScale: 0,
+  labelOverlapCulling: true,
+  labelOverlapMargin: 4,
+  timelineBarShowLabel: true,
+  timelineBarLabelMinWidth: 30,
+  timelineBarLabelFontSize: 9,
+  cardTextTruncation: true,
 };
 
 export const DEFAULT_COLORS = [

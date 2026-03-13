@@ -1,7 +1,8 @@
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
-import type { GraphNode } from "../types";
+import type { GraphNode, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, CardRenderConfig, RenderThresholds } from "../types";
+import { DEFAULT_CARD_RENDER_CONFIG, DEFAULT_RENDER_THRESHOLDS } from "../types";
 import type { PixiNode } from "./InteractionManager";
-import { getNodeShape, drawShape, drawShapeAt } from "../utils/node-shapes";
+import { getNodeShape, drawShape, drawShapeAt, getNodeDisplayConfig } from "../utils/node-shapes";
 import type { ShapeRule } from "../utils/node-shapes";
 
 // ---------------------------------------------------------------------------
@@ -78,6 +79,16 @@ export interface RenderHost {
   getCanvasDimensions(): { width: number; height: number };
   /** Whether ring chart mode is active (sunburst + ringChartMode) */
   isRingChartMode(): boolean;
+  /** Get the current node display mode */
+  getNodeDisplayMode(): NodeDisplayMode;
+  /** Get the card display configuration */
+  getCardDisplayConfig(): CardDisplayConfig;
+  /** Get the donut display configuration */
+  getDonutDisplayConfig(): DonutDisplayConfig;
+  /** Get the card render config (visual tuning) */
+  getCardRenderConfig?(): CardRenderConfig;
+  /** Get the render thresholds (LOD tuning) */
+  getRenderThresholds?(): RenderThresholds;
 }
 
 // ---------------------------------------------------------------------------
@@ -264,6 +275,9 @@ export class RenderPipeline {
     const g = this.host.getNodeCircleBatch();
     if (!g) return;
     g.clear();
+    // Resolve config with defaults
+    const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...this.host.getCardRenderConfig?.() };
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
     // Ring chart mode: hide all nodes
     if (this.host.isRingChartMode()) return;
     const hId = this.host.getHighlightedNodeId();
@@ -331,13 +345,13 @@ export class RenderPipeline {
     //   extreme (< 1.5px): fixed-size dot rectangles
     //   mid (< 4px): all circles, no shape lookup, no gradient
     //   normal: full shape + gradient rendering
-    const isExtremeZoom = nodeScreenPx < 1.5;
-    const isMidZoom = !isExtremeZoom && nodeScreenPx < 4;
+    const isExtremeZoom = nodeScreenPx < rt.cardLODExtremePx;
+    const isMidZoom = !isExtremeZoom && nodeScreenPx < rt.cardLODNormalPx;
     // For normal zoom, use min-radius to keep nodes visible when slightly small
     const minWorldRadius = isExtremeZoom ? 0 : Math.max(0, 1.5 / worldScale);
 
     // Pass 1: Glow halos (enhanced for hub nodes) — skip at extreme/mid zoom
-    const showGlow = nodeCount < 800 && !isExtremeZoom && !isMidZoom;
+    const showGlow = nodeCount < rt.glowNodeCount && !isExtremeZoom && !isMidZoom;
     if (showGlow) {
       const baseGlowAlpha = nodeCount < 300 ? 0.14 : 0.14 * (1 - (nodeCount - 300) / 500);
       const baseGlowRadius = nodeCount < 300 ? 2.2 : 2.2 - 0.7 * ((nodeCount - 300) / 500);
@@ -363,12 +377,25 @@ export class RenderPipeline {
     }
 
     // Pass 2: Nodes — LOD-tiered rendering
+    // Pre-pass: clean up table-card text at extreme/mid zoom (text not visible at these LODs)
+    if (isExtremeZoom || isMidZoom) {
+      for (const pn of pixiNodes.values()) {
+        const gfx = pn.gfx;
+        for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
+          if ((gfx.children[ci] as any)._isCardText) {
+            const child = gfx.children[ci];
+            gfx.removeChild(child);
+            child.destroy();
+          }
+        }
+      }
+    }
     if (isExtremeZoom) {
       // Extreme zoom-out: draw fixed-size rectangles (1×1 screen pixel)
       const dotSize = 1 / worldScale;
       g.lineStyle(0);
       for (const pn of visible) {
-        const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * 0.08 : alpha;
+        const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
         g.beginFill(pn.color, nodeAlpha);
         g.drawRect(pn.data.x - dotSize / 2, pn.data.y - dotSize / 2, dotSize, dotSize);
         g.endFill();
@@ -378,29 +405,300 @@ export class RenderPipeline {
       g.lineStyle(0);
       for (const pn of visible) {
         const effR = Math.max(pn.radius, minWorldRadius);
-        const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * 0.08 : alpha;
+        const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
         g.beginFill(pn.color, nodeAlpha);
         g.drawCircle(pn.data.x, pn.data.y, effR);
         g.endFill();
       }
     } else {
-      // Normal zoom: full shape + optional gradient
-      const useGradient = nodeCount < 500;
-      for (const pn of visible) {
-        const shape = getNodeShape(pn.data, shapeRules);
-        const effR = Math.max(pn.radius, minWorldRadius);
-        const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * 0.08 : alpha;
-        const strokeColor = darkenColor(pn.color, 0.4);
-        g.lineStyle(1, strokeColor, nodeAlpha * 0.5);
-        if (useGradient && shape === "circle") {
-          const innerCol = lightenColor(pn.color, 0.25);
-          const outerCol = darkenColor(pn.color, 0.15);
-          g.beginRadialFill(pn.data.x, pn.data.y, effR, innerCol, outerCol, nodeAlpha, nodeAlpha);
-        } else {
-          g.beginFill(pn.color, nodeAlpha);
+      // Normal zoom: full shape + optional gradient, with display mode support
+      const displayMode = this.host.getNodeDisplayMode();
+      const useGradient = nodeCount < rt.gradientNodeCount;
+
+      // Clean up any previous table-card text children when NOT in table card mode
+      // (prevents stale text when switching modes or when nodes leave viewport)
+      if (displayMode !== "card" || (this.host.getCardDisplayConfig().headerStyle ?? "plain") !== "table") {
+        for (const pn of pixiNodes.values()) {
+          const gfx = pn.gfx;
+          for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
+            if ((gfx.children[ci] as any)._isCardText) {
+              const child = gfx.children[ci];
+              gfx.removeChild(child);
+              child.destroy();
+            }
+          }
         }
-        drawShapeAt(g, shape, pn.data.x, pn.data.y, effR);
-        g.endFill();
+      }
+
+      if (displayMode === "node") {
+        // Default mode: unchanged shape rendering
+        for (const pn of visible) {
+          const shape = getNodeShape(pn.data, shapeRules);
+          const effR = Math.max(pn.radius, minWorldRadius);
+          const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+          const strokeColor = darkenColor(pn.color, crc.strokeDarken);
+          g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
+          if (useGradient && shape === "circle") {
+            const innerCol = lightenColor(pn.color, crc.gradientHighlight);
+            const outerCol = darkenColor(pn.color, crc.gradientShadow);
+            g.beginRadialFill(pn.data.x, pn.data.y, effR, innerCol, outerCol, nodeAlpha, nodeAlpha);
+          } else {
+            g.beginFill(pn.color, nodeAlpha);
+          }
+          drawShapeAt(g, shape, pn.data.x, pn.data.y, effR);
+          g.endFill();
+        }
+      } else if (displayMode === "card") {
+        // Card mode: draw rounded rectangle background
+        const cardConfig = this.host.getCardDisplayConfig();
+        const headerStyle = cardConfig.headerStyle ?? "plain";
+        const cardMaxW = (cardConfig.maxWidth ?? 120) / worldScale;
+
+        // Clean up any previous card text children from ALL nodes
+        // (handles mode switches, viewport culling, and node count changes)
+        for (const pn of pixiNodes.values()) {
+          const gfx = pn.gfx;
+          for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
+            const child = gfx.children[ci];
+            if ((child as any)._isCardText) {
+              gfx.removeChild(child);
+              child.destroy();
+            }
+          }
+        }
+
+        if (headerStyle === "table") {
+          // ---- Table (ER-diagram) card style ----
+          const headerH = crc.tableHeaderHeight / worldScale;
+          const fieldLineH = crc.fieldLineHeight / worldScale;
+          const pad = crc.cardPadding / worldScale;
+          const cornerR = crc.cardCornerRadius / worldScale;
+          const showMeta = nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
+          const fieldCount = showMeta ? cardConfig.fields.length : 0;
+          const totalH = headerH + fieldCount * fieldLineH + pad * 2;
+
+          // Track nodes that need text rendering
+          const tableCardNodes: PixiNode[] = [];
+
+          // Card width: golden ratio (or custom aspect ratio) based on content height
+          const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
+          const arHalfW = (totalH * cardAR) / 2;
+
+          for (const pn of visible) {
+            const effR = Math.max(pn.radius, minWorldRadius);
+            const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+            // Use aspect-ratio width if set, otherwise fall back to radius-based
+            const halfW = Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor);
+            const cardW = halfW * 2;
+            const cardX = pn.data.x - halfW;
+            const cardY = pn.data.y - totalH / 2;
+
+            // 0. Drop shadow (behind card)
+            if (crc.cardShadowAlpha > 0) {
+              const shadowOff = crc.cardShadowOffset / worldScale;
+              g.lineStyle(0);
+              g.beginFill(0x000000, nodeAlpha * crc.cardShadowAlpha);
+              g.drawRoundedRect(cardX + shadowOff, cardY + shadowOff, cardW, totalH, cornerR);
+              g.endFill();
+            }
+
+            // 1. Card background (thin fill)
+            g.lineStyle(0);
+            g.beginFill(pn.color, nodeAlpha * crc.cardBackgroundAlpha);
+            g.drawRoundedRect(cardX, cardY, cardW, totalH, cornerR);
+            g.endFill();
+
+            // 2. Header region (colored bar at top)
+            g.beginFill(pn.color, nodeAlpha * crc.cardHeaderAlpha);
+            // Top corners rounded, bottom corners square — approximate with full rounded rect clipped by body
+            g.drawRoundedRect(cardX, cardY, cardW, headerH + cornerR, cornerR);
+            g.endFill();
+            // Fill the corner overlap area at bottom of header
+            g.beginFill(pn.color, nodeAlpha * crc.cardHeaderAlpha);
+            g.drawRect(cardX, cardY + headerH, cardW, cornerR);
+            g.endFill();
+
+            // 3. Divider line below header
+            const divColor = darkenColor(pn.color, crc.cardDividerDarken);
+            g.lineStyle(1 / worldScale, divColor, nodeAlpha * crc.cardDividerAlpha);
+            g.moveTo(cardX, cardY + headerH);
+            g.lineTo(cardX + cardW, cardY + headerH);
+
+            // 4. Striped field rows
+            if (fieldCount > 0) {
+              g.lineStyle(0);
+              for (let fi = 0; fi < fieldCount; fi++) {
+                const rowY = cardY + headerH + fi * fieldLineH;
+                const rowAlpha = fi % 2 === 0 ? crc.cardRowAlphaEven : crc.cardRowAlphaOdd;
+                g.beginFill(pn.color, nodeAlpha * rowAlpha);
+                g.drawRect(cardX, rowY, cardW, fieldLineH);
+                g.endFill();
+              }
+            }
+
+            // Outer border
+            const strokeColor = darkenColor(pn.color, crc.strokeDarken);
+            g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
+            g.beginFill(0, 0);
+            g.drawRoundedRect(cardX, cardY, cardW, totalH, cornerR);
+            g.endFill();
+
+            if (nodeCount < rt.cardTextNodeCount) tableCardNodes.push(pn);
+          }
+
+          // ---- Text pass for table cards (only when node count < 200) ----
+          if (tableCardNodes.length > 0) {
+            const labelColor = this.host.getLabelColor();
+
+            for (const pn of tableCardNodes) {
+              const effR = Math.max(pn.radius, minWorldRadius);
+              const halfW = Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor);
+              const cardY = -totalH / 2;  // relative to pn.gfx
+              const textPadX = pad;
+              const fontSize = Math.max(crc.headerFontSizeMin, crc.headerFontSizeBase / worldScale);
+              const smallFontSize = Math.max(crc.fieldFontSizeMin, crc.fieldFontSizeBase / worldScale);
+              const fieldCount2 = cardConfig.fields.length;
+              const gfx = pn.gfx;
+
+              // Available text width inside the card
+              const availableTextW = halfW * 2 - textPadX * 2;
+
+              // Header text (bold, white)
+              const headerText = new CanvasText(pn.data.label, {
+                fontSize,
+                fontWeight: "bold",
+                fill: 0xffffff,
+                fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+              });
+              (headerText as any)._isCardText = true;
+              headerText.x = -halfW + textPadX;
+              headerText.y = cardY + headerH / 2 + fontSize * crc.fontBaselineOffset;
+              if (rt.cardTextTruncation !== false) headerText.maxWidth = availableTextW;
+              gfx.addChild(headerText);
+
+              // Field rows
+              const meta = pn.data.meta ?? {};
+              const fieldValueOnly = cardConfig.fieldFormat === "value-only";
+              for (let fi = 0; fi < fieldCount2; fi++) {
+                const fieldName = cardConfig.fields[fi];
+                const rawVal = meta[fieldName];
+                const valStr = rawVal == null ? "" : String(rawVal);
+                const displayText = fieldValueOnly ? valStr : `${fieldName}: ${valStr}`;
+                const fieldText = new CanvasText(displayText, {
+                  fontSize: smallFontSize,
+                  fill: labelColor,
+                  fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+                });
+                (fieldText as any)._isCardText = true;
+                fieldText.x = -halfW + textPadX;
+                fieldText.y = cardY + headerH + fi * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
+                if (rt.cardTextTruncation !== false) fieldText.maxWidth = availableTextW;
+                gfx.addChild(fieldText);
+              }
+            }
+          }
+        } else {
+          // ---- Plain card style (original, unchanged) ----
+          const cardH = crc.plainCardHeight / worldScale; // base card height
+          const showMeta = nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
+          const fieldLineH = crc.fieldLineHeight / worldScale;
+
+          for (const pn of visible) {
+            const effR = Math.max(pn.radius, minWorldRadius);
+            const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+            const halfW = Math.min(cardMaxW / 2, effR * crc.plainCardWidthFactor);
+            const totalH = showMeta ? cardH + cardConfig.fields.length * fieldLineH : cardH;
+            const halfH = totalH / 2;
+
+            // Card background
+            const strokeColor = darkenColor(pn.color, crc.strokeDarken);
+            g.lineStyle(1, strokeColor, nodeAlpha * crc.plainCardStrokeAlpha);
+            g.beginFill(pn.color, nodeAlpha * crc.plainCardFillAlpha);
+            g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, halfW * 2, totalH, crc.cardCornerRadius / worldScale);
+            g.endFill();
+          }
+        }
+      } else if (displayMode === "donut") {
+        // Donut mode: draw ring (outer circle with inner cutout)
+        const donutConfig = this.host.getDonutDisplayConfig();
+        const innerR = donutConfig.innerRadius ?? 0.6;
+        const bgColor = this.host.isDarkTheme() ? 0x1e1e1e : 0xffffff;
+
+        for (const pn of visible) {
+          const effR = Math.max(pn.radius, minWorldRadius);
+          const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+
+          // Check if this is a super node with breakdown data
+          const isSuperNode = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
+          if (isSuperNode && donutConfig.breakdownField) {
+            // Draw sector breakdown for super nodes
+            // Collect member categories from pixiNodes
+            const members = pn.data.collapsedMembers!;
+            const valueCounts = new Map<string, number>();
+            for (const memberId of members) {
+              const memberPn = this.host.getPixiNodes().get(memberId);
+              const val = memberPn?.data?.meta?.[donutConfig.breakdownField] as string ?? "other";
+              valueCounts.set(val, (valueCounts.get(val) ?? 0) + 1);
+            }
+
+            // Draw sectors
+            let startAngle = -Math.PI / 2;
+            const total = members.length;
+            let colorIdx = 0;
+            const sectorColors = [0x818cf8, 0xf472b6, 0xfbbf24, 0x34d399, 0x60a5fa, 0xf87171, 0xa78bfa, 0x2dd4bf];
+            g.lineStyle(0);
+            for (const [, count] of valueCounts) {
+              const sliceAngle = (count / total) * Math.PI * 2;
+              const endAngle = startAngle + sliceAngle;
+              const sColor = sectorColors[colorIdx % sectorColors.length];
+              g.beginFill(sColor, nodeAlpha);
+              g.moveTo(pn.data.x, pn.data.y);
+              g.arc(pn.data.x, pn.data.y, effR, startAngle, endAngle);
+              g.lineTo(pn.data.x, pn.data.y);
+              g.endFill();
+              startAngle = endAngle;
+              colorIdx++;
+            }
+            // Inner circle cutout (draw background-color circle on top)
+            g.beginFill(bgColor, 1);
+            g.drawCircle(pn.data.x, pn.data.y, effR * innerR);
+            g.endFill();
+          } else {
+            // Single-color ring for individual nodes
+            const strokeColor = darkenColor(pn.color, 0.4);
+            g.lineStyle(1, strokeColor, nodeAlpha * 0.5);
+            g.beginFill(pn.color, nodeAlpha);
+            g.drawCircle(pn.data.x, pn.data.y, effR);
+            g.endFill();
+            // Inner cutout
+            g.lineStyle(0);
+            g.beginFill(bgColor, 1);
+            g.drawCircle(pn.data.x, pn.data.y, effR * innerR);
+            g.endFill();
+          }
+        }
+      } else if (displayMode === "sunburst-segment") {
+        // Sunburst segment mode: draw arc segments
+        const arcAngleDeg = 30; // default arc angle
+        const arcAngle = (arcAngleDeg * Math.PI) / 180;
+
+        for (let i = 0; i < visible.length; i++) {
+          const pn = visible[i];
+          const effR = Math.max(pn.radius, minWorldRadius);
+          const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+          // Compute angle offset based on index for uniform distribution
+          const angleOffset = (i / Math.max(visible.length, 1)) * Math.PI * 2 - Math.PI / 2;
+          const startAngle = angleOffset - arcAngle / 2;
+          const endAngle = angleOffset + arcAngle / 2;
+
+          const strokeColor = darkenColor(pn.color, 0.4);
+          g.lineStyle(1, strokeColor, nodeAlpha * 0.5);
+          g.beginFill(pn.color, nodeAlpha);
+          g.moveTo(pn.data.x, pn.data.y);
+          g.arc(pn.data.x, pn.data.y, effR, startAngle, endAngle);
+          g.lineTo(pn.data.x, pn.data.y);
+          g.endFill();
+        }
       }
     }
 
@@ -477,6 +775,8 @@ export class RenderPipeline {
       this.pendingNodeR = nodeR;
       this.pendingNodeColor = nodeColor;
       this.scheduleDeferredBatch();
+    } else {
+      this.cullOverlappingLabels();
     }
   }
 
@@ -555,6 +855,7 @@ export class RenderPipeline {
     } else {
       this.pendingNodeR = null;
       this.pendingNodeColor = null;
+      this.cullOverlappingLabels();
     }
   };
 
@@ -571,5 +872,68 @@ export class RenderPipeline {
     this.pendingNodes = [];
     this.pendingNodeR = null;
     this.pendingNodeColor = null;
+  }
+
+  // =========================================================================
+  // Label overlap culling — hide labels that overlap higher-priority ones
+  // =========================================================================
+  cullOverlappingLabels() {
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+    if (!rt.labelOverlapCulling) return;
+
+    const margin = rt.labelOverlapMargin;
+    const pixiNodes = this.host.getPixiNodes();
+    const degrees = this.host.getDegrees();
+
+    // Collect label info: {pn, worldX, worldY, width, height}
+    interface LabelRect {
+      label: CanvasText;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      degree: number;
+    }
+    const rects: LabelRect[] = [];
+
+    for (const pn of pixiNodes.values()) {
+      const label = pn.label;
+      if (!label || !label.text) continue;
+      // Approximate label dimensions
+      const fontSize = label.style.fontSize ?? 11;
+      const charW = fontSize * 0.6;
+      const w = label.text.length * charW * label.scale.x;
+      const h = fontSize * label.scale.y;
+      // World position
+      const wx = pn.data.x + label.x;
+      const wy = pn.data.y + label.y;
+      rects.push({ label, x: wx, y: wy, w, h, degree: degrees.get(pn.data.id) ?? 0 });
+    }
+
+    // Sort by degree descending — high-degree labels get priority
+    rects.sort((a, b) => b.degree - a.degree);
+
+    // O(n²) AABB overlap check — acceptable since MAX_LABELS ≤ 300
+    const placed: LabelRect[] = [];
+    for (const r of rects) {
+      let overlaps = false;
+      for (const p of placed) {
+        if (
+          r.x - margin < p.x + p.w + margin &&
+          r.x + r.w + margin > p.x - margin &&
+          r.y - margin < p.y + p.h + margin &&
+          r.y + r.h + margin > p.y - margin
+        ) {
+          overlaps = true;
+          break;
+        }
+      }
+      if (overlaps) {
+        r.label.visible = false;
+      } else {
+        r.label.visible = true;
+        placed.push(r);
+      }
+    }
   }
 }

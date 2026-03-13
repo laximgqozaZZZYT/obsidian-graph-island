@@ -26,6 +26,7 @@ import type {
   GridPositionSource,
   GridStyle,
 } from "../types";
+import { DEFAULT_RENDER_THRESHOLDS } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
 import type { ArrangementResult } from "./cluster-force";
 import { CURVE_REGISTRY } from "./coordinate-presets";
@@ -49,6 +50,8 @@ export interface CoordinateContext {
   groupScale: number;
   /** Accessor for frontmatter properties */
   getNodeProperty?: (nodeId: string, key: string) => string | undefined;
+  /** Number of equal divisions for continuous grid axes (default from DEFAULT_RENDER_THRESHOLDS) */
+  coordinateGridDivisions?: number;
 }
 
 /** A single resolved grid line with position and optional label */
@@ -708,13 +711,14 @@ export function coordinateOffsets(
       }
     }
 
+    const gridStyle = layout.grid.style ?? "lines";
     const rawAxis1Lines = resolveGridLines(
       axis1Grid, layout.axis1.source, members, ctx,
-      finalT1, spacing, layout.constants,
+      finalT1, spacing, layout.constants, gridStyle,
     );
     const rawAxis2Lines = resolveGridLines(
       axis2Grid, layout.axis2.source, members, ctx,
-      t2, spacing, layout.constants,
+      t2, spacing, layout.constants, gridStyle,
     );
 
     // Apply centroid shift to grid line positions
@@ -735,6 +739,18 @@ export function coordinateOffsets(
       style: layout.grid.style,
       cellShading: layout.grid.cellShading ?? false,
     };
+
+    // Extend bounds to cover all grid line positions so lines aren't clipped
+    if (guide.bounds) {
+      for (const l of axis1Lines) {
+        if (l.position < guide.bounds.xMin) guide.bounds.xMin = l.position;
+        if (l.position > guide.bounds.xMax) guide.bounds.xMax = l.position;
+      }
+      for (const l of axis2Lines) {
+        if (l.position < guide.bounds.yMin) guide.bounds.yMin = l.position;
+        if (l.position > guide.bounds.yMax) guide.bounds.yMax = l.position;
+      }
+    }
   }
 
   return { offsets, guide };
@@ -800,6 +816,7 @@ function resolveGridLines(
   transformedValues: Map<string, number>,
   spacing: number,
   constants?: Record<string, number>,
+  gridStyle?: string,
 ): ResolvedGridLine[] {
   const { positions, ticks } = gridAxis;
 
@@ -824,11 +841,33 @@ function resolveGridLines(
         const catPositions = collectCategoryPositions(
           members, axisSource, ctx, transformedValues,
         );
-        linePositions = catPositions.map(c => c.position);
-        autoLabels = catPositions.map(c => c.label);
+        if (catPositions.length > 0 && gridStyle === "table") {
+          // Table style: convert N category centers → N+1 cell boundaries
+          // so grid lines form cell walls with nodes inside cells
+          const centers = catPositions.map(c => c.position);
+          const boundaries: number[] = [];
+          const halfFirst = centers.length > 1
+            ? (centers[1] - centers[0]) / 2
+            : spacing / 2;
+          boundaries.push(centers[0] - halfFirst);
+          for (let i = 0; i + 1 < centers.length; i++) {
+            boundaries.push((centers[i] + centers[i + 1]) / 2);
+          }
+          const halfLast = centers.length > 1
+            ? (centers[centers.length - 1] - centers[centers.length - 2]) / 2
+            : spacing / 2;
+          boundaries.push(centers[centers.length - 1] + halfLast);
+          linePositions = boundaries;
+          // N labels for N cells (placed "between" pairs of N+1 boundary lines)
+          autoLabels = catPositions.map(c => c.label);
+        } else if (catPositions.length > 0) {
+          // Lines style: grid lines at category centers (original behavior)
+          linePositions = catPositions.map(c => c.position);
+          autoLabels = catPositions.map(c => c.label);
+        }
       } else {
-        // Continuous: 5 equal divisions
-        const divs = 5;
+        // Continuous: equal divisions (configurable)
+        const divs = ctx.coordinateGridDivisions ?? DEFAULT_RENDER_THRESHOLDS.coordinateGridDivisions;
         for (let i = 0; i <= divs; i++) {
           linePositions.push(tMin + (tRange / divs) * i);
         }
@@ -858,8 +897,53 @@ function resolveGridLines(
       const catPositions = collectCategoryPositions(
         members, fieldSource, ctx, transformedValues,
       );
-      linePositions = catPositions.map(c => c.position);
-      autoLabels = catPositions.map(c => c.label);
+      if (catPositions.length > 0 && gridStyle === "table") {
+        const centers = catPositions.map(c => c.position);
+        const boundaries: number[] = [];
+        const halfFirst = centers.length > 1
+          ? (centers[1] - centers[0]) / 2
+          : spacing / 2;
+        boundaries.push(centers[0] - halfFirst);
+        for (let i = 0; i + 1 < centers.length; i++) {
+          boundaries.push((centers[i] + centers[i + 1]) / 2);
+        }
+        const halfLast = centers.length > 1
+          ? (centers[centers.length - 1] - centers[centers.length - 2]) / 2
+          : spacing / 2;
+        boundaries.push(centers[centers.length - 1] + halfLast);
+        linePositions = boundaries;
+        autoLabels = catPositions.map(c => c.label);
+      } else if (catPositions.length > 0) {
+        linePositions = catPositions.map(c => c.position);
+        autoLabels = catPositions.map(c => c.label);
+      }
+      break;
+    }
+    case "property": {
+      const propSource: AxisSource = { kind: "property", key: positions.key };
+      const catPositions = collectCategoryPositions(
+        members, propSource, ctx, transformedValues,
+      );
+      if (catPositions.length > 0 && gridStyle === "table") {
+        const centers = catPositions.map(c => c.position);
+        const boundaries: number[] = [];
+        const halfFirst = centers.length > 1
+          ? (centers[1] - centers[0]) / 2
+          : spacing / 2;
+        boundaries.push(centers[0] - halfFirst);
+        for (let i = 0; i + 1 < centers.length; i++) {
+          boundaries.push((centers[i] + centers[i + 1]) / 2);
+        }
+        const halfLast = centers.length > 1
+          ? (centers[centers.length - 1] - centers[centers.length - 2]) / 2
+          : spacing / 2;
+        boundaries.push(centers[centers.length - 1] + halfLast);
+        linePositions = boundaries;
+        autoLabels = catPositions.map(c => c.label);
+      } else if (catPositions.length > 0) {
+        linePositions = catPositions.map(c => c.position);
+        autoLabels = catPositions.map(c => c.label);
+      }
       break;
     }
     case "expression": {
@@ -878,9 +962,10 @@ function resolveGridLines(
         // Deduplicate and sort
         linePositions = [...new Set(linePositions.map(v => Math.round(v * 1000) / 1000))].sort((a, b) => a - b);
       } catch {
-        // Invalid expr — fall back to 5 divisions
-        for (let i = 0; i <= 5; i++) {
-          linePositions.push(tMin + (tRange / 5) * i);
+        // Invalid expr — fall back to configurable divisions
+        const fallbackDivs = ctx.coordinateGridDivisions ?? DEFAULT_RENDER_THRESHOLDS.coordinateGridDivisions;
+        for (let i = 0; i <= fallbackDivs; i++) {
+          linePositions.push(tMin + (tRange / fallbackDivs) * i);
         }
       }
       break;
@@ -929,11 +1014,24 @@ function collectCategoryPositions(
   // Group nodes by raw value (category index)
   const groups = new Map<number, { ids: string[]; label: string }>();
 
-  if (source.kind === "field") {
+  if (source.kind === "field" || source.kind === "property") {
     const rawEntries: { id: string; raw: string }[] = [];
     for (const m of members) {
-      const vals = getNodeFieldValues(m, source.field);
-      rawEntries.push({ id: m.id, raw: vals[0] ?? "" });
+      if (source.kind === "field") {
+        const vals = getNodeFieldValues(m, source.field);
+        rawEntries.push({ id: m.id, raw: vals[0] ?? "" });
+      } else {
+        // property kind — mirror resolveAxisValues logic
+        let val: string | undefined;
+        if (ctx.getNodeProperty) {
+          val = ctx.getNodeProperty(m.id, source.key);
+        }
+        if (val === undefined && m.meta) {
+          const mv = m.meta[source.key];
+          val = mv != null ? String(mv) : undefined;
+        }
+        rawEntries.push({ id: m.id, raw: val ?? "" });
+      }
     }
     const allNumeric = rawEntries.every(v => v.raw === "" || !isNaN(Number(v.raw)));
     if (!allNumeric) {

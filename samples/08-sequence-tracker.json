@@ -76,6 +76,23 @@
   "timelineOrderFields": "next,prev,parent_id,story_order",
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
-  "coordinateLayout": null,
+  "gridTableMode": true,
+  "gridShowHeaders": true,
+  "gridCellShading": false,
+  "gridStyle": "lines",
+  "coordinateLayout": {
+    "system": "cartesian",
+    "axis1": { "source": { "kind": "property", "key": "story_order" }, "transform": { "kind": "date-to-index" } },
+    "axis2": { "source": { "kind": "index" }, "transform": { "kind": "stack-avoid" } },
+    "perGroup": true,
+    "grid": {
+      "axis1Grid": {
+        "positions": { "kind": "count", "n": 8 },
+        "shape": { "kind": "line" },
+        "ticks": { "show": true, "labels": { "kind": "auto" } }
+      },
+      "style": "lines"
+    }
+  },
   "dataviewQuery": ""
 }

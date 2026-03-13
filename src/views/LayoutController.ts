@@ -1,5 +1,6 @@
 import { forceSimulation, forceManyBody, forceCenter, forceLink, forceCollide, type Simulation, type Force } from "d3-force";
 import type { GraphNode, GraphEdge, DirectionalGravityRule, ClusterGroupRule, NodeRule } from "../types";
+import { DEFAULT_RENDER_THRESHOLDS } from "../types";
 import type { PanelState } from "./PanelBuilder";
 import { resolveDirection, matchesFilter } from "../layouts/force";
 import { buildClusterForce, computeAutoFitSpacing, type ClusterMetadata } from "../layouts/cluster-force";
@@ -60,10 +61,18 @@ export class LayoutController {
     const degrees = this.host.getDegrees();
     const pixiNodes = this.host.getPixiNodes();
     const PAD = 2; // px gap between node edges
+    const thresholds = panel.renderThresholds ?? {};
     return (n: GraphNode) => {
       // Use actual PIXI radius if available (accounts for super node scaling + MAX cap)
       const pn = pixiNodes.get(n.id);
-      if (pn) return pn.radius + PAD;
+      if (pn) {
+        // Card display mode uses larger collision radius to prevent overlap
+        if (panel.nodeDisplayMode === "card") {
+          const cardPad = thresholds.cardCollisionPadding ?? DEFAULT_RENDER_THRESHOLDS.cardCollisionPadding;
+          return Math.max(pn.radius + PAD, cardPad);
+        }
+        return pn.radius + PAD;
+      }
       // Fallback: compute effective radius including super node expansion
       const deg = degrees.get(n.id) || 0;
       let r = baseSize;
@@ -85,17 +94,56 @@ export class LayoutController {
     const sim = this.host.getSimulation();
     if (!sim) return;
     const panel = this.host.getPanel();
+
+    // If a cluster arrangement is active, it manages its own charge/link/center
+    // forces via applyClusterForce(). Re-delegate there instead of overwriting.
+    if (sim.force("clusterArrangement") != null) {
+      this.applyClusterForce();
+      sim.alpha(0.5).restart();
+      this.host.wakeRenderLoop();
+      return;
+    }
     const { width: W, height: H } = this.host.getCanvasSize();
     const graphEdges = this.host.getGraphEdges();
 
+    // Per-node repel multiplier from NodeRules
+    const repelMap = this.computeNodeRepelMap(sim.nodes());
+    const hasCustomRepel = repelMap.size > 0;
+
     sim
-      .force("charge", forceManyBody<GraphNode>().strength(-panel.repelForce))
-      .force("center", forceCenter<GraphNode>(W / 2, H / 2).strength(panel.centerForce))
+      .force("charge", forceManyBody<GraphNode>().strength(hasCustomRepel
+        ? ((n: GraphNode) => {
+            const mult = repelMap.get(n.id) ?? 1.0;
+            return -panel.repelForce * mult;
+          })
+        : -panel.repelForce))
       .force("link", forceLink<GraphNode, GraphEdge>(graphEdges)
         .id((d) => d.id)
         .distance((e) => edgeLinkDistance(e, panel.linkDistance))
         .strength((e) => edgeLinkStrength(e, panel.linkForce)))
       .force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(2));
+
+    // Per-node center gravity from NodeRules
+    const centerGravMap = this.computeCenterGravityMap(sim.nodes());
+    if (centerGravMap.size > 0) {
+      // Replace d3 forceCenter with custom per-node center force
+      sim.force("center", null);
+      const cx = W / 2, cy = H / 2;
+      const centerStr = panel.centerForce;
+      const centerForceFn = (alpha: number) => {
+        for (const n of sim.nodes()) {
+          const mult = centerGravMap.get(n.id) ?? 1.0;
+          const str = centerStr * mult * alpha;
+          n.vx! -= (n.x - cx) * str;
+          n.vy! -= (n.y - cy) * str;
+        }
+      };
+      sim.force("customCenter", centerForceFn as Force<GraphNode, GraphEdge>);
+    } else {
+      sim.force("customCenter", null);
+      sim.force("center", forceCenter<GraphNode>(W / 2, H / 2).strength(panel.centerForce));
+    }
+
     this.applyNodeRulesForce();
     this.applyEnclosureRepulsionForce();
     sim.alpha(0.5).restart();
@@ -171,6 +219,44 @@ export class LayoutController {
       }
     };
     sim.force("directionalGravity", forceFn as Force<GraphNode, GraphEdge>);
+  }
+
+  // =========================================================================
+  // Per-node repel multiplier map (from NodeRules)
+  // =========================================================================
+  private computeNodeRepelMap(nodes: GraphNode[]): Map<string, number> {
+    const map = new Map<string, number>();
+    const rules = this.host.getPanel().nodeRules ?? [];
+    if (rules.length === 0) return map;
+    for (const node of nodes) {
+      let mult = 1.0;
+      for (const rule of rules) {
+        if (matchesFilter(node, rule.query)) {
+          mult *= (rule.repelMultiplier ?? 1.0);
+        }
+      }
+      if (mult !== 1.0) map.set(node.id, mult);
+    }
+    return map;
+  }
+
+  // =========================================================================
+  // Per-node center gravity map (from NodeRules)
+  // =========================================================================
+  private computeCenterGravityMap(nodes: GraphNode[]): Map<string, number> {
+    const map = new Map<string, number>();
+    const rules = this.host.getPanel().nodeRules ?? [];
+    if (rules.length === 0) return map;
+    for (const node of nodes) {
+      let mult = 1.0;
+      for (const rule of rules) {
+        if (matchesFilter(node, rule.query)) {
+          mult *= (rule.centerGravity ?? 1.0);
+        }
+      }
+      if (mult !== 1.0) map.set(node.id, mult);
+    }
+    return map;
   }
 
   // =========================================================================
@@ -329,8 +415,11 @@ export class LayoutController {
     if (!sim) return;
     const panel = this.host.getPanel();
     let { clusterArrangement, clusterNodeSpacing, clusterGroupScale, clusterGroupSpacing } = panel;
+    const grav = panel.clusterGravity ?? { interGroupAttraction: 0.5, intraGroupDensity: 1.0 };
 
-    sim.force("charge", forceManyBody<GraphNode>().strength(-10));
+    const chargeForce = this.host.getPanel().renderThresholds?.clusterChargeForce
+      ?? DEFAULT_RENDER_THRESHOLDS.clusterChargeForce;
+    sim.force("charge", forceManyBody<GraphNode>().strength(chargeForce));
     sim.force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(2));
     sim.force("center", null);
     sim.force("link", null);
@@ -364,6 +453,14 @@ export class LayoutController {
       getNodeProperty: (nodeId: string, key: string) => this.host.getNodeProperty(nodeId, key),
       coordinateLayout: resolveCoordinateLayout(clusterArrangement, panel.coordinateLayout ?? null),
       userConstants: panel.coordinateLayout?.constants,
+      // Arrangement presets inter-group layout mode and overlap resolution strategy
+      groupLayoutMode: (
+        clusterArrangement === "tree" || clusterArrangement === "mountain" ? "horizontal" :
+        clusterArrangement === "concentric" ? "concentric" :
+        clusterArrangement === "timeline" ? "vertical" :
+        "circle"
+      ) as "circle" | "horizontal" | "concentric" | "vertical",
+      skipGroupOverlap: clusterArrangement === "timeline" || clusterArrangement === "sunburst",
     };
 
     // If coordinateLayout specifies a property source, use it as timelineKey
@@ -386,6 +483,16 @@ export class LayoutController {
       baseCfg.nodeSpacing = clusterNodeSpacing;
       baseCfg.groupScale = clusterGroupScale;
       baseCfg.groupSpacing = clusterGroupSpacing;
+    }
+
+    // Apply cluster gravity coefficients (after auto-fit so coefficients modify final values)
+    const interAttr = grav.interGroupAttraction || 0.5;
+    const intraDens = grav.intraGroupDensity || 1.0;
+    if (interAttr !== 1.0) {
+      baseCfg.groupSpacing = baseCfg.groupSpacing / interAttr;
+    }
+    if (intraDens !== 1.0) {
+      baseCfg.nodeSpacing = baseCfg.nodeSpacing / intraDens;
     }
 
     const result = buildClusterForce(
@@ -414,9 +521,17 @@ export class LayoutController {
   ): Simulation<GraphNode, GraphEdge> {
     const panel = this.host.getPanel();
 
+    // Per-node repel multiplier from NodeRules
+    const repelMap = this.computeNodeRepelMap(nodes);
+    const hasCustomRepel = repelMap.size > 0;
+
     const sim = forceSimulation<GraphNode, GraphEdge>(nodes)
-      .force("charge", forceManyBody<GraphNode>().strength(-panel.repelForce))
-      .force("center", forceCenter<GraphNode>(cx, cy).strength(panel.centerForce))
+      .force("charge", forceManyBody<GraphNode>().strength(hasCustomRepel
+        ? ((n: GraphNode) => {
+            const mult = repelMap.get(n.id) ?? 1.0;
+            return -panel.repelForce * mult;
+          })
+        : -panel.repelForce))
       .force("link", forceLink<GraphNode, GraphEdge>(edges)
         .id((d) => d.id)
         .distance((e) => edgeLinkDistance(e, panel.linkDistance))
@@ -424,6 +539,23 @@ export class LayoutController {
       .force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(2))
       .alphaDecay(0.18)
       .velocityDecay(0.55);
+
+    // Per-node center gravity from NodeRules
+    const centerGravMap = this.computeCenterGravityMap(nodes);
+    if (centerGravMap.size > 0) {
+      const centerStr = panel.centerForce;
+      const centerForceFn = (alpha: number) => {
+        for (const n of sim.nodes()) {
+          const mult = centerGravMap.get(n.id) ?? 1.0;
+          const str = centerStr * mult * alpha;
+          n.vx! -= (n.x - cx) * str;
+          n.vy! -= (n.y - cy) * str;
+        }
+      };
+      sim.force("customCenter", centerForceFn as Force<GraphNode, GraphEdge>);
+    } else {
+      sim.force("center", forceCenter<GraphNode>(cx, cy).strength(panel.centerForce));
+    }
 
     this.host.setSimulation(sim);
     return sim;

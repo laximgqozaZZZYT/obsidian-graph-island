@@ -1,5 +1,6 @@
 import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
-import type { GraphEdge } from "../types";
+import type { GraphEdge, EdgeCardinalityMode, Cardinality, CardinalityRule, CardinalityRenderConfig } from "../types";
+import { DEFAULT_CARDINALITY_RENDER_CONFIG } from "../types";
 import { cssColorToHex } from "../utils/graph-helpers";
 
 // ---------------------------------------------------------------------------
@@ -49,6 +50,12 @@ export interface EdgeDrawConfig {
   nodeRadii: Map<string, number> | null;
   /** Current world container scale (for zoom-dependent rendering) */
   worldScale?: number;
+  /** Edge cardinality marker mode */
+  edgeCardinalityMode?: EdgeCardinalityMode;
+  /** Custom cardinality rules */
+  cardinalityRules?: CardinalityRule[];
+  /** Cardinality marker render config (sizes, offsets, line widths) */
+  cardinalityRenderConfig?: CardinalityRenderConfig;
 }
 
 // Minimal position data needed for source/target
@@ -720,6 +727,18 @@ export function drawEdges(
       drawGenericArrow(arrowGfx, src, tgt, lineColor, Math.max(alpha, 0.5), tgtR);
     }
 
+    // Draw cardinality markers (crow's foot notation) — additive, after existing markers
+    if (cfg.edgeCardinalityMode === "crowsfoot") {
+      const rule = resolveCardinality(e, cfg.cardinalityRules ?? []);
+      if (rule) {
+        const srcR = cfg.nodeRadii?.get(typeof e.source === "string" ? e.source : (e.source as any).id) ?? 4;
+        const tgtR = cfg.nodeRadii?.get(typeof e.target === "string" ? e.target : (e.target as any).id) ?? 4;
+        const cardCfg = { ...DEFAULT_CARDINALITY_RENDER_CONFIG, ...(cfg.cardinalityRenderConfig ?? {}) };
+        drawCardinalityMarker(g, src, tgt, rule.sourceCardinality, lineColor, alpha, srcR, cardCfg);
+        drawCardinalityMarker(g, tgt, src, rule.targetCardinality, lineColor, alpha, tgtR, cardCfg);
+      }
+    }
+
     // Reset line dash after edge types that use it
     if (e.type === "semantic" || e.type === "tag" || e.type === "has-tag" || isSimilar) {
       g.setLineDash([]);
@@ -851,6 +870,136 @@ function drawGenericArrow(
   g.lineTo(bx - px * hw, by - py * hw);
   g.closePath();
   g.endFill();
+}
+
+// ---------------------------------------------------------------------------
+// Cardinality (crow's foot) helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve which cardinality rule applies to an edge.
+ * Checks user-defined rules first (first match wins), then falls back
+ * to default cardinality based on edge type.
+ */
+function resolveCardinality(edge: GraphEdge, rules: CardinalityRule[]): CardinalityRule | null {
+  for (const rule of rules) {
+    if (rule.edgeType && rule.edgeType !== edge.type) continue;
+    if (rule.relation && !edge.relation?.includes(rule.relation)) continue;
+    return rule;
+  }
+  return getDefaultCardinality(edge);
+}
+
+/**
+ * Default cardinality inference based on edge type.
+ * Returns null for unknown types (no markers drawn).
+ */
+function getDefaultCardinality(edge: GraphEdge): CardinalityRule | null {
+  switch (edge.type) {
+    case "inheritance": return { sourceCardinality: "1", targetCardinality: "0..N" };
+    case "aggregation": return { sourceCardinality: "1", targetCardinality: "0..N" };
+    case "has-tag": return { sourceCardinality: "N", targetCardinality: "1" };
+    case "link": return { sourceCardinality: "1", targetCardinality: "0..1" };
+    case "sequence": return { sourceCardinality: "1", targetCardinality: "1" };
+    default: return null;
+  }
+}
+
+/**
+ * Draw a cardinality symbol near a node endpoint.
+ *
+ * @param g         - Graphics context
+ * @param nearNode  - The node this symbol is drawn next to
+ * @param farNode   - The node on the opposite end
+ * @param cardinality - Which symbol to draw
+ * @param color     - Line color
+ * @param alpha     - Line alpha
+ * @param nodeRadius - Radius of the near node
+ */
+function drawCardinalityMarker(
+  g: CanvasGraphics,
+  nearNode: Pos,
+  farNode: Pos,
+  cardinality: Cardinality,
+  color: number,
+  alpha: number,
+  nodeRadius: number,
+  cfg: Required<CardinalityRenderConfig>,
+) {
+  const dx = farNode.x - nearNode.x;
+  const dy = farNode.y - nearNode.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 1) return;
+
+  // Unit vector from nearNode toward farNode
+  const ux = dx / len;
+  const uy = dy / len;
+  // Perpendicular vector
+  const px = -uy;
+  const py = ux;
+
+  const sz = Math.max(cfg.markerSizeMin, nodeRadius * cfg.markerSizeRatio);
+  const offset = nodeRadius + cfg.markerOffset;
+
+  // Base point: just outside the node boundary
+  const bx = nearNode.x + ux * offset;
+  const by = nearNode.y + uy * offset;
+
+  g.lineStyle({ width: cfg.lineWidth, color, alpha: alpha * cfg.alpha, native: true });
+
+  switch (cardinality) {
+    case "1":
+      // Single perpendicular bar
+      g.moveTo(bx + px * sz * 0.5, by + py * sz * 0.5);
+      g.lineTo(bx - px * sz * 0.5, by - py * sz * 0.5);
+      break;
+
+    case "0..1":
+      // Perpendicular bar + small circle further out
+      g.moveTo(bx + px * sz * 0.5, by + py * sz * 0.5);
+      g.lineTo(bx - px * sz * 0.5, by - py * sz * 0.5);
+      g.drawCircle(bx + ux * sz * cfg.circleOffsetFactor01, by + uy * sz * cfg.circleOffsetFactor01, sz * cfg.circleRadiusFactor);
+      break;
+
+    case "N": {
+      // Crow's foot (three lines converging) + perpendicular bar
+      g.moveTo(bx + px * sz * 0.5, by + py * sz * 0.5);
+      g.lineTo(bx - px * sz * 0.5, by - py * sz * 0.5);
+      const forkX = bx + ux * sz * cfg.crowsFootForkFactor;
+      const forkY = by + uy * sz * cfg.crowsFootForkFactor;
+      g.moveTo(forkX, forkY);
+      g.lineTo(bx + px * sz * 0.5, by + py * sz * 0.5);
+      g.moveTo(forkX, forkY);
+      g.lineTo(bx - px * sz * 0.5, by - py * sz * 0.5);
+      g.moveTo(forkX, forkY);
+      g.lineTo(bx, by);
+      break;
+    }
+
+    case "0..N":
+      // Crow's foot + small circle
+      g.moveTo(bx + px * sz * 0.5, by + py * sz * 0.5);
+      g.lineTo(bx + ux * sz * cfg.crowsFootForkFactor, by + uy * sz * cfg.crowsFootForkFactor);
+      g.moveTo(bx - px * sz * 0.5, by - py * sz * 0.5);
+      g.lineTo(bx + ux * sz * cfg.crowsFootForkFactor, by + uy * sz * cfg.crowsFootForkFactor);
+      g.moveTo(bx, by);
+      g.lineTo(bx + ux * sz * cfg.crowsFootForkFactor, by + uy * sz * cfg.crowsFootForkFactor);
+      g.drawCircle(bx + ux * sz * cfg.circleOffsetFactor0N, by + uy * sz * cfg.circleOffsetFactor0N, sz * cfg.circleRadiusFactor);
+      break;
+
+    case "1..N": {
+      // Crow's foot + perpendicular bar
+      g.moveTo(bx + px * sz * 0.5, by + py * sz * 0.5);
+      g.lineTo(bx - px * sz * 0.5, by - py * sz * 0.5);
+      const forkX2 = bx + ux * sz * cfg.crowsFootForkFactor;
+      const forkY2 = by + uy * sz * cfg.crowsFootForkFactor;
+      g.moveTo(forkX2, forkY2);
+      g.lineTo(bx + px * sz * 0.5, by + py * sz * 0.5);
+      g.moveTo(forkX2, forkY2);
+      g.lineTo(bx - px * sz * 0.5, by - py * sz * 0.5);
+      break;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

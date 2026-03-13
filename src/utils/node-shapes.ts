@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Node shape drawing utilities
 // ---------------------------------------------------------------------------
-import type { GraphNode } from "../types";
+import type { GraphNode, DisplayConfig, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig } from "../types";
 
 export type NodeShape = "circle" | "triangle" | "diamond" | "hexagon" | "square";
 
@@ -11,6 +11,7 @@ export interface ShapeRule {
   match: "isTag" | "category" | "default";
   category?: string;  // only used when match === "category"
   shape: NodeShape;
+  display?: DisplayConfig;  // optional per-rule display override
 }
 
 // Pre-computed constants for triangle and hexagon vertices
@@ -121,4 +122,36 @@ export function getNodeShape(
     }
   }
   return "circle";
+}
+
+/**
+ * Determine the display configuration for a given node.
+ * Evaluates rules top-to-bottom; the first match with a `display` field wins.
+ * Falls back to the provided default mode and config.
+ */
+export function getNodeDisplayConfig(
+  node: GraphNode,
+  rules: ShapeRule[],
+  defaultMode: NodeDisplayMode,
+  defaultCard?: CardDisplayConfig,
+  defaultDonut?: DonutDisplayConfig,
+): DisplayConfig {
+  for (const rule of rules) {
+    if (!rule.display) continue;
+    switch (rule.match) {
+      case "isTag":
+        if (node.isTag) return rule.display;
+        break;
+      case "category":
+        if (rule.category && node.category === rule.category) return rule.display;
+        break;
+      case "default":
+        return rule.display;
+    }
+  }
+  return {
+    mode: defaultMode,
+    card: defaultCard,
+    donut: defaultDonut,
+  };
 }

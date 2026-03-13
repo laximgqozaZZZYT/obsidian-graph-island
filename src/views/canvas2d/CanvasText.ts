@@ -20,6 +20,9 @@ export class CanvasText {
   text: string;
   style: TextStyle;
 
+  /** Maximum display width in local units. Text exceeding this is truncated with "…". */
+  maxWidth: number | null = null;
+
   /** Optional pill-shaped background behind the text (hex color number). */
   bgColor: number | null = null;
   /** Alpha for the pill background (0–1). Defaults to 0.55. */
@@ -35,6 +38,14 @@ export class CanvasText {
   private _measuredWidth = 0;
   private _measuredText = "";      // cached text for width measurement
   private _measuredFont = "";      // cached font string
+
+  // Truncation cache — avoids re-computing when text/font/maxWidth unchanged
+  private _truncatedDisplay = "";
+  private _truncatedWidth = 0;
+  private _truncCacheText = "";
+  private _truncCacheFont = "";
+  private _truncCacheMaxW: number | null = null;
+
   get width(): number { return this._measuredWidth * this.scale.x; }
   get height(): number { return (this.style.fontSize ?? 11) * this.scale.y; }
 
@@ -45,6 +56,47 @@ export class CanvasText {
 
   destroy() {
     // No GPU resources to free
+  }
+
+  /** Compute truncated text with ellipsis using binary search. */
+  private _getTruncatedText(ctx: CanvasRenderingContext2D): string {
+    const maxW = this.maxWidth!;
+    const text = this.text;
+    const font = ctx.font;
+
+    // Check cache
+    if (text === this._truncCacheText && font === this._truncCacheFont && maxW === this._truncCacheMaxW) {
+      return this._truncatedDisplay;
+    }
+
+    const ellipsis = "…";
+    const ellipsisW = ctx.measureText(ellipsis).width;
+    const availW = maxW - ellipsisW;
+
+    if (availW <= 0) {
+      this._truncatedDisplay = ellipsis;
+      this._truncatedWidth = ellipsisW;
+    } else {
+      // Binary search for the longest prefix that fits within availW
+      let lo = 0, hi = text.length;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (ctx.measureText(text.slice(0, mid)).width <= availW) {
+          lo = mid;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      const truncText = text.slice(0, lo) + ellipsis;
+      this._truncatedDisplay = truncText;
+      this._truncatedWidth = ctx.measureText(truncText).width;
+    }
+
+    // Update cache
+    this._truncCacheText = text;
+    this._truncCacheFont = font;
+    this._truncCacheMaxW = maxW;
+    return this._truncatedDisplay;
   }
 
   _flush(ctx: CanvasRenderingContext2D, parentAlpha: number) {
@@ -69,13 +121,17 @@ export class CanvasText {
       this._measuredFont = fontStr;
     }
 
-    const measuredW = this._measuredWidth;
-    const tx = -this.anchor.x * measuredW;
+    // Determine display text (truncated if maxWidth is set and exceeded)
+    const needsTruncation = this.maxWidth !== null && this._measuredWidth > this.maxWidth;
+    const displayText = needsTruncation ? this._getTruncatedText(ctx) : this.text;
+    const displayWidth = needsTruncation ? this._truncatedWidth : this._measuredWidth;
+
+    const tx = -this.anchor.x * displayWidth;
     const ty = this.anchor.y * fontSize;
 
     // Draw pill-shaped background behind the text
     if (this.bgColor !== null && this.bgAlpha > 0) {
-      const pw = measuredW + this.bgPadX * 2;
+      const pw = displayWidth + this.bgPadX * 2;
       const ph = fontSize + this.bgPadY * 2;
       const px = tx - this.bgPadX;
       const py = ty - fontSize - this.bgPadY;
@@ -109,7 +165,7 @@ export class CanvasText {
       ctx.fillStyle = hexToRgba(0xffffff, effAlpha);
     }
 
-    ctx.fillText(this.text, tx, ty);
+    ctx.fillText(displayText, tx, ty);
     ctx.restore();
   }
 }

@@ -131,6 +131,8 @@ export interface ArrangementResult {
   bars?: TimelineBarInfo[];
   /** Synthetic sequence edges connecting temporally adjacent nodes */
   sequenceEdges?: GraphEdge[];
+  /** Per-node ring radius (relative to group center) for concentric projection */
+  ringAssignments?: Map<string, number>;
 }
 
 /** Guide line data collected from all groups */
@@ -207,6 +209,15 @@ export interface ClusterForceConfig {
   coordinateLayout?: CoordinateLayout;
   /** User-defined constants from coordinateLayout (includes _blend, _overlapPad, _minGap) */
   userConstants?: Record<string, number>;
+  /** Inter-group layout strategy — preset by arrangement pattern.
+   *  "circle" (default): groups on a circle.
+   *  "horizontal": groups in a line (tree, mountain).
+   *  "concentric": groups on concentric rings.
+   *  "vertical": groups stacked vertically (timeline). */
+  groupLayoutMode?: "circle" | "horizontal" | "concentric" | "vertical";
+  /** Skip inter-group overlap resolution (preset by arrangements like
+   *  timeline/sunburst that handle spacing internally) */
+  skipGroupOverlap?: boolean;
 }
 
 /**
@@ -429,7 +440,7 @@ export function buildClusterForce(
   }
   if (groups.size === 0) return null;
 
-  const { targets, sunburstArcs, guideGroups, allBars, allSequenceEdges } = computeAbsoluteTargets(groups, edges, degrees, cfg);
+  const { targets, sunburstArcs, guideGroups, allBars, allSequenceEdges, ringConstraints } = computeAbsoluteTargets(groups, edges, degrees, cfg);
 
   // Build cluster metadata for edge bundling
   const nodeClusterMap = new Map<string, string>();
@@ -463,9 +474,10 @@ export function buildClusterForce(
   }
 
   // Resolve pairwise group overlaps (especially important after super node expansion)
-  // Skip for timeline: unified timeline already handles Y-band separation
-  // Skip for sunburst: all groups share a single center — overlap resolution destroys radial layout
-  if (cfg.arrangement !== "timeline" && cfg.arrangement !== "sunburst") {
+  // Skipped when skipGroupOverlap is set (timeline/sunburst handle spacing internally)
+  // Also skip for global coordinate layout (perGroup=false): positions are absolute
+  const isGlobalCoordLayout = cfg.coordinateLayout && !cfg.coordinateLayout.perGroup;
+  if (!cfg.skipGroupOverlap && !isGlobalCoordLayout) {
     const overlapPad = cfg.userConstants?._overlapPad ?? 1.3;
     resolveGroupOverlaps(targets, groups, clusterRadii, clusterCentroids, cfg.nodeSize, degrees, cfg.scaleByDegree, overlapPad);
   }
@@ -532,10 +544,35 @@ export function buildClusterForce(
       }
     }
 
-    // Enclosure separation nudge — disabled pending investigation
-    // if (tagMem && nodeIdx) {
-    //   nudgeEnclosureGroups(nodeIdx, tagMem, encSpacing, cfg.nodeSize);
-    // }
+    // Ring snap: project nodes onto their assigned concentric ring.
+    // The ring (cx, cy, r) is a geometric constraint — like a grid line.
+    // After force blending, preserve the node's angle but enforce distance = r.
+    if (ringConstraints) {
+      for (const n of nodes) {
+        const rc = ringConstraints.get(n.id);
+        if (!rc) continue;
+        if (rc.r === 0) {
+          // Center node — snap to center
+          n.x = rc.cx;
+          n.y = rc.cy;
+        } else {
+          const dx = n.x - rc.cx;
+          const dy = n.y - rc.cy;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > 0.01) {
+            // Preserve angle, enforce radius
+            n.x = rc.cx + (dx / dist) * rc.r;
+            n.y = rc.cy + (dy / dist) * rc.r;
+          } else {
+            // Node collapsed to center — place at target angle
+            const t = targets.get(n.id);
+            if (t) { n.x = t.x; n.y = t.y; }
+          }
+        }
+        n.vx = 0;
+        n.vy = 0;
+      }
+    }
   };
 
   return { force, metadata: { nodeClusterMap, clusterCentroids, clusterRadii, sunburstArcs, timelineBars, guideLineData, sequenceEdges: allSequenceEdges } };
@@ -578,6 +615,7 @@ interface AbsoluteTargetResult {
   guideGroups?: FlatTargetResult["guideGroups"];
   allBars?: TimelineBarInfo[];
   allSequenceEdges?: GraphEdge[];
+  ringConstraints?: Map<string, RingConstraint>;
 }
 
 function computeAbsoluteTargets(
@@ -635,7 +673,7 @@ function computeAbsoluteTargets(
     return { targets: r.targets, guideGroups: r.guideGroups, allBars: r.allBars, allSequenceEdges: r.allSequenceEdges };
   }
   const r = computeFlatTargets(groups, edges, degrees, cfg);
-  return { targets: r.targets, guideGroups: r.guideGroups, allBars: r.allBars, allSequenceEdges: r.allSequenceEdges };
+  return { targets: r.targets, guideGroups: r.guideGroups, allBars: r.allBars, allSequenceEdges: r.allSequenceEdges, ringConstraints: r.ringConstraints };
 }
 
 // ---------------------------------------------------------------------------
@@ -862,11 +900,20 @@ function computeSunburstTargets(
 }
 
 /** Result from flat/hierarchical target computation, includes guide data */
+/** Per-node ring constraint for concentric snap: center + radius */
+interface RingConstraint {
+  cx: number;
+  cy: number;
+  r: number;
+}
+
 interface FlatTargetResult {
   targets: Map<string, { x: number; y: number }>;
   guideGroups: { groupKey: string; centerX: number; centerY: number; guide: ArrangementGuide }[];
   allBars: TimelineBarInfo[];
   allSequenceEdges?: GraphEdge[];
+  /** Concentric ring constraints — node snaps to circle(cx,cy,r) */
+  ringConstraints?: Map<string, RingConstraint>;
 }
 
 /** Flat layout — all groups at the same level (no recursive split). */
@@ -892,13 +939,21 @@ function computeFlatTargets(
 
   if (nGroups === 1) {
     groupCenters.set(groupKeys[0], { x: cfg.centerX, y: cfg.centerY });
-  } else if (cfg.arrangement === "tree" || cfg.arrangement === "mountain") {
-    layoutGroupsHorizontal(groupKeys, groups, cfg, groupCenters);
   } else {
-    layoutGroupsCircle(groupKeys, groups, cfg, groupCenters);
+    const mode = cfg.groupLayoutMode ?? "circle";
+    if (mode === "horizontal") {
+      layoutGroupsHorizontal(groupKeys, groups, cfg, groupCenters);
+    } else if (mode === "concentric") {
+      layoutGroupsConcentric(groupKeys, groups, cfg, groupCenters);
+    } else {
+      layoutGroupsCircle(groupKeys, groups, cfg, groupCenters);
+    }
   }
 
   const allSeqEdges: GraphEdge[] = [];
+  // Ring constraints are data-driven: built when any arrangement returns ringAssignments
+  let ringConstraints: Map<string, RingConstraint> | undefined;
+
   for (const [key, members] of groups) {
     const center = groupCenters.get(key)!;
     const result = computeOffsets(members, degrees, edges, cfg);
@@ -908,6 +963,14 @@ function computeFlatTargets(
         x: center.x + (off?.dx ?? 0),
         y: center.y + (off?.dy ?? 0),
       });
+    }
+    // Build absolute ring constraints from ringAssignments (data-driven — any
+    // arrangement that returns ringAssignments triggers ring snap)
+    if (result.ringAssignments) {
+      if (!ringConstraints) ringConstraints = new Map<string, RingConstraint>();
+      for (const [nodeId, r] of result.ringAssignments) {
+        ringConstraints.set(nodeId, { cx: center.x, cy: center.y, r });
+      }
     }
     // Collect guide data with absolute positions
     if (result.guide) {
@@ -929,7 +992,7 @@ function computeFlatTargets(
       allSeqEdges.push(...result.sequenceEdges);
     }
   }
-  return { targets, guideGroups, allBars, allSequenceEdges: allSeqEdges.length > 0 ? allSeqEdges : undefined };
+  return { targets, guideGroups, allBars, ringConstraints, allSequenceEdges: allSeqEdges.length > 0 ? allSeqEdges : undefined };
 }
 
 /**
@@ -966,7 +1029,7 @@ function computeUnifiedTimelineTargets(
   const unified = timelineOffsets(
     allMembers, degrees, cfg.nodeSpacing, cfg.groupScale, nodeSize, cmp,
     cfg.nodeSpacingMap, cfg.timelineKey, cfg.getNodeProperty,
-    cfg.timelineEndKey, cfg.timelineOrderFields,
+    cfg.timelineEndKey, cfg.timelineOrderFields, cfg.userConstants,
   );
 
   // Build group membership lookup
@@ -1011,10 +1074,10 @@ function computeUnifiedTimelineTargets(
   }
   // Match the bar-aware minimum from timelineOffsets
   const barH = nodeSize * 2;
-  const barGapMin = nodeSize * 1.5;
+  const barGapMin = nodeSize * (cfg.userConstants?._barGapFactor ?? 1.5);
   const minYStack = barH + barGapMin;
-  const yStackSpacing = Math.max(effectiveSpacing * 0.6, minYStack);
-  const minNodeGap = Math.max(nodeSize * 1.5, yStackSpacing);
+  const yStackSpacing = Math.max(effectiveSpacing * (cfg.userConstants?._yStackFactor ?? 0.6), minYStack);
+  const minNodeGap = Math.max(nodeSize * (cfg.userConstants?._barGapFactor ?? 1.5), yStackSpacing);
 
   // Per-group offsets: keep original dx, re-compute dy
   const perGroupOffsets = new Map<string, Map<string, { dx: number; dy: number }>>();
@@ -1058,7 +1121,7 @@ function computeUnifiedTimelineTargets(
     });
   }
 
-  const bandGap = nodeSize * cfg.groupSpacing * 2;
+  const bandGap = nodeSize * cfg.groupSpacing * (cfg.userConstants?._bandGapFactor ?? 2);
   const groupYOffset = new Map<string, number>();
   let yCursor = 0;
   for (const key of groupKeys) {
@@ -1175,12 +1238,17 @@ function computeHierarchicalTargets(
 
   if (nParents === 1) {
     parentCenters.set(parentKeys[0], { x: cfg.centerX, y: cfg.centerY });
-  } else if (cfg.arrangement === "timeline") {
-    layoutGroupsVertical(parentKeys, superGroups, cfg, parentCenters);
-  } else if (cfg.arrangement === "tree" || cfg.arrangement === "mountain") {
-    layoutGroupsHorizontal(parentKeys, superGroups, cfg, parentCenters);
   } else {
-    layoutGroupsCircle(parentKeys, superGroups, cfg, parentCenters);
+    const mode = cfg.groupLayoutMode ?? "circle";
+    if (mode === "vertical") {
+      layoutGroupsVertical(parentKeys, superGroups, cfg, parentCenters);
+    } else if (mode === "horizontal") {
+      layoutGroupsHorizontal(parentKeys, superGroups, cfg, parentCenters);
+    } else if (mode === "concentric") {
+      layoutGroupsConcentric(parentKeys, superGroups, cfg, parentCenters);
+    } else {
+      layoutGroupsCircle(parentKeys, superGroups, cfg, parentCenters);
+    }
   }
 
   // Level 2: within each parent, lay out sub-groups
@@ -1362,6 +1430,73 @@ function layoutGroupsCircle(
       x: cfg.centerX + groupRadius * Math.cos(angle),
       y: cfg.centerY + groupRadius * Math.sin(angle),
     });
+  }
+}
+
+/**
+ * Place groups on concentric rings around the canvas center.
+ * The largest group goes to the center; remaining groups are distributed
+ * across concentric rings so that each ring holds groups whose combined
+ * angular extent fits the circumference.  This produces a "solar system"
+ * layout where each orbit ring hosts one or more group clusters.
+ */
+function layoutGroupsConcentric(
+  keys: string[],
+  groups: Map<string, GraphNode[]>,
+  cfg: ClusterForceConfig,
+  out: Map<string, { x: number; y: number }>,
+) {
+  if (keys.length === 0) return;
+
+  // Sort groups by size descending — largest group goes to center
+  const sorted = [...keys].sort((a, b) => (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0));
+
+  // Estimate radii for each group
+  const groupRadii = new Map<string, number>();
+  for (const key of sorted) {
+    const members = groups.get(key);
+    if (!members) continue;
+    groupRadii.set(key, estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members));
+  }
+
+  // Place the largest group at center
+  out.set(sorted[0], { x: cfg.centerX, y: cfg.centerY });
+
+  if (sorted.length === 1) return;
+
+  // Distribute remaining groups across concentric rings
+  const centerR = groupRadii.get(sorted[0]) ?? 0;
+  const ringGap = cfg.nodeSize * 4 * cfg.groupSpacing;
+  let ringRadius = centerR + ringGap;
+  let idx = 1;
+
+  while (idx < sorted.length) {
+    // How many groups fit on this ring?
+    const circumference = 2 * Math.PI * ringRadius;
+    const ringGroups: string[] = [];
+    let totalDiam = 0;
+
+    while (idx < sorted.length) {
+      const r = groupRadii.get(sorted[idx]) ?? 0;
+      const diam = r * 2 + cfg.nodeSize * 4;
+      if (ringGroups.length > 0 && totalDiam + diam > circumference) break;
+      ringGroups.push(sorted[idx]);
+      totalDiam += diam;
+      idx++;
+    }
+
+    // Place groups evenly on this ring
+    for (let j = 0; j < ringGroups.length; j++) {
+      const angle = (j / ringGroups.length) * Math.PI * 2 - Math.PI / 2;
+      out.set(ringGroups[j], {
+        x: cfg.centerX + ringRadius * Math.cos(angle),
+        y: cfg.centerY + ringRadius * Math.sin(angle),
+      });
+    }
+
+    // Next ring
+    const maxR = Math.max(...ringGroups.map(k => groupRadii.get(k) ?? 0));
+    ringRadius += maxR * 2 + ringGap;
   }
 }
 
@@ -1608,7 +1743,7 @@ function dispatchHardcoded(
     case "triangle": return triangleOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     case "random": return { offsets: randomOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, nodeSpacingMap) };
     case "mountain": return mountainOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
-    case "timeline": return timelineOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg.timelineKey, cfg.getNodeProperty, cfg.timelineEndKey, cfg.timelineOrderFields);
+    case "timeline": return timelineOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg.timelineKey, cfg.getNodeProperty, cfg.timelineEndKey, cfg.timelineOrderFields, cfg.userConstants);
     default: return { offsets: new Map() };
   }
 }
@@ -1690,6 +1825,7 @@ function concentricOffsets(
 ): ArrangementResult {
   const sorted = [...members].sort(cmp);
   const offsets = new Map<string, { dx: number; dy: number }>();
+  const ringAssignments = new Map<string, number>();
   const n = sorted.length;
   if (n === 0) return { offsets };
   const ringRadii: number[] = [];
@@ -1697,8 +1833,9 @@ function concentricOffsets(
   // Precompute radii (super-node aware)
   const radii = sorted.map(nd => effectiveRadius(nd, nodeSize, degrees.get(nd.id) || 0, scaleByDegree));
 
-  // Place center node
+  // Place center node (ring radius = 0)
   offsets.set(sorted[0].id, { dx: 0, dy: 0 });
+  ringAssignments.set(sorted[0].id, 0);
 
   let idx = 1; // next node to place
   let ringR = 0; // current ring radius
@@ -1731,9 +1868,10 @@ function concentricOffsets(
         dx: ringR * Math.cos(angle),
         dy: ringR * Math.sin(angle),
       });
+      ringAssignments.set(sorted[idx].id, ringR);
     }
   }
-  return { offsets, guide: { type: "concentric" as const, rings: ringRadii } };
+  return { offsets, ringAssignments, guide: { type: "concentric" as const, rings: ringRadii } };
 }
 
 // ---------------------------------------------------------------------------
@@ -2082,6 +2220,7 @@ function timelineOffsets(
   getNodeProperty?: (nodeId: string, key: string) => string | undefined,
   timelineEndKey?: string,
   timelineOrderFields?: string,
+  userConstants?: Record<string, number>,
 ): ArrangementResult {
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = members.length;
@@ -2198,9 +2337,9 @@ function timelineOffsets(
   // to keep columns compact when X is compressed.
   // When duration bars are present, ensure minimum gap so bars don't overlap.
   const barH = nodeSize * 2;   // barHeight used in TimelineBarInfo
-  const barGap = nodeSize * 1.5; // minimum vertical gap between bars
+  const barGap = nodeSize * (userConstants?._barGapFactor ?? 1.5); // minimum vertical gap between bars
   const minYStack = barH + barGap; // ~3.5 × nodeSize
-  const yStackSpacing = Math.max(effectiveSpacing * 0.6, minYStack);
+  const yStackSpacing = Math.max(effectiveSpacing * (userConstants?._yStackFactor ?? 0.6), minYStack);
 
   // --- Place timed nodes: X = time index, Y = stack within same step ---
   const columnStack = new Map<number, number>();
@@ -2299,7 +2438,7 @@ function timelineOffsets(
   // Bars are sorted by their original Y (from column stacking) to preserve locality.
   // Lane spacing is minimal: just enough to prevent visual overlap.
   if (bars.length > 1) {
-    const laneH = barH + 2; // minimal lane spacing: just barHeight + 2px gap
+    const laneH = barH + (userConstants?._laneGap ?? 2); // lane spacing: barHeight + configurable gap
     const maxLanes = 200; // cap to prevent extreme vertical spread
 
     // Sort by original yCenter to preserve column-based ordering
@@ -2355,7 +2494,7 @@ function timelineOffsets(
 
   // Push apart non-bar nodes that share a time column
   {
-    const minNodeGap = Math.max(nodeSize * 1.5, yStackSpacing);
+    const minNodeGap = Math.max(nodeSize * (userConstants?._barGapFactor ?? 1.5), yStackSpacing);
     const barNodeIds = new Set(bars.map(b => b.nodeId));
     const byColumn = new Map<number, string[]>();
     for (const { node, value } of sortedTimed) {
@@ -2815,11 +2954,11 @@ export function computeAutoFitSpacing(
   baseCfg: ClusterForceConfig,
 ): { nodeSpacing: number; groupScale: number; groupSpacing: number } {
   // Upper bounds (match slider maximums)
-  // Timeline: lane assignment handles bar overlap, so keep spacing moderate
-  const isTimeline = baseCfg.arrangement === "timeline";
-  const MAX_NODE_SPACING = isTimeline ? 4 : 10;
-  const MAX_GROUP_SCALE = isTimeline ? 3 : 5;
-  const MAX_GROUP_SPACING = isTimeline ? 2 : 5;
+  // When group overlap is skipped (e.g. timeline), keep spacing moderate
+  const constrained = !!baseCfg.skipGroupOverlap;
+  const MAX_NODE_SPACING = constrained ? 4 : 10;
+  const MAX_GROUP_SCALE = constrained ? 3 : 5;
+  const MAX_GROUP_SPACING = constrained ? 2 : 5;
 
   // Start from the base config's values, clamped to current maximums
   let nodeSpacing = Math.min(baseCfg.nodeSpacing, MAX_NODE_SPACING);
