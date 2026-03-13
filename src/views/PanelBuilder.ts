@@ -5,7 +5,7 @@ import { repositionShell } from "../layouts/concentric";
 import type { QueryExpression, BoolOp } from "../utils/query-expr";
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { setIcon } from "obsidian";
-import { t, tHelp } from "../i18n";
+import { t, tHelp, getLocale } from "../i18n";
 import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
 import { exportPreset, importPreset, applyPreset } from "../utils/presets";
@@ -1246,6 +1246,8 @@ interface ExprLibraryEntry {
   axis2: string;
   /** Coordinate system */
   system?: "cartesian" | "polar";
+  /** User-defined constants to set alongside the expressions */
+  constants?: Record<string, number>;
 }
 
 const EXPR_LIBRARY: ExprLibraryEntry[] = [
@@ -1267,6 +1269,25 @@ const EXPR_LIBRARY: ExprLibraryEntry[] = [
     desc: "rhombus — triangle top + mirrored bottom",
     axis1: "i - floor((-1+sqrt(1+8*(i%floor(n/2))))/2)*(floor((-1+sqrt(1+8*(i%floor(n/2))))/2)+1)/2 - floor((-1+sqrt(1+8*(i%floor(n/2))))/2)/2",
     axis2: "floor((-1+sqrt(1+8*(i%floor(n/2))))/2) * (1 - 2*floor(i/floor(n/2)))",
+  },
+  {
+    name: "Octagon",
+    desc: "regular octagon outline — nodes on edges",
+    axis1: "cos(floor(8*i/n)*pi/4+pi/8)*(1-8*i/n+floor(8*i/n))+cos((floor(8*i/n)+1)*pi/4+pi/8)*(8*i/n-floor(8*i/n))",
+    axis2: "sin(floor(8*i/n)*pi/4+pi/8)*(1-8*i/n+floor(8*i/n))+sin((floor(8*i/n)+1)*pi/4+pi/8)*(8*i/n-floor(8*i/n))",
+  },
+  {
+    name: "Hexagon",
+    desc: "regular hexagon outline — nodes on edges",
+    axis1: "cos(floor(6*i/n)*pi/3+pi/6)*(1-6*i/n+floor(6*i/n))+cos((floor(6*i/n)+1)*pi/3+pi/6)*(6*i/n-floor(6*i/n))",
+    axis2: "sin(floor(6*i/n)*pi/3+pi/6)*(1-6*i/n+floor(6*i/n))+sin((floor(6*i/n)+1)*pi/3+pi/6)*(6*i/n-floor(6*i/n))",
+  },
+  {
+    name: "Filled Polygon",
+    desc: "golden-angle fill shaped to k-gon (k=sides, d=density)",
+    axis1: "(i/n)^d*(cos(pi/k)/cos(i*2.39996%(2*pi/k)-pi/k))*cos(i*2.39996)",
+    axis2: "(i/n)^d*(cos(pi/k)/cos(i*2.39996%(2*pi/k)-pi/k))*sin(i*2.39996)",
+    constants: { k: 6, d: 0.5 },
   },
   // ── Spirals & curves ──
   {
@@ -1318,6 +1339,29 @@ const EXPR_LIBRARY: ExprLibraryEntry[] = [
   },
 ];
 
+/** Variable reference entries: name → [description_en, description_ja, range] */
+const VARIABLE_REFERENCE: Array<{ name: string; desc: string; descJa: string; range: string }> = [
+  { name: "i", desc: "Node index in group (0-based)", descJa: "グループ内インデックス（0始まり）", range: "0, 1, …, n−1" },
+  { name: "n", desc: "Total node count in group", descJa: "グループ内ノード総数", range: "≥ 1" },
+  { name: "t", desc: "Normalized position (min→0, max→1)", descJa: "正規化位置（最小→0, 最大→1）", range: "[0, 1]" },
+  { name: "v", desc: "Raw source value (before normalization)", descJa: "ソースの生値（正規化前）", range: "any" },
+];
+
+/** Build a compact variable reference table inside the expression library */
+function buildVariableReference(container: HTMLElement): void {
+  const section = container.createDiv({ cls: "gi-var-reference" });
+  const header = section.createDiv({ cls: "gi-var-reference-header" });
+  header.createEl("span", { text: t("coord.variableReference"), cls: "gi-setting-label" });
+
+  const table = section.createEl("table", { cls: "gi-var-table" });
+  for (const v of VARIABLE_REFERENCE) {
+    const tr = table.createEl("tr");
+    tr.createEl("td", { text: v.name, cls: "gi-var-name" });
+    tr.createEl("td", { text: getLocale() === "ja" ? v.descJa : v.desc, cls: "gi-var-desc" });
+    tr.createEl("td", { text: v.range, cls: "gi-var-range" });
+  }
+}
+
 /** Build the expression library UI — collapsible list of preset formulas */
 function buildExprLibrary(
   body: HTMLElement,
@@ -1358,6 +1402,9 @@ function buildExprLibrary(
     text: t("coord.libraryHint"),
   });
 
+  // Variable reference table
+  buildVariableReference(listBody);
+
   // Library entries
   for (const entry of EXPR_LIBRARY) {
     const item = listBody.createDiv({ cls: "gi-expr-library-item" });
@@ -1379,6 +1426,7 @@ function buildExprLibrary(
           source: { kind: "index" },
           transform: { kind: "expression", expr: entry.axis2, scale: 1 },
         },
+        ...(entry.constants ? { constants: { ...entry.constants } } : {}),
       };
       panel.clusterArrangement = "custom";
       cb.applyClusterForce();
@@ -1445,6 +1493,26 @@ function buildConstantsUI(
     buildConstantRow(listEl, newKey, 1, panel, cb);
     cb.restartSimulation(0.5);
   });
+
+  // --- System constants (overlap control) ---
+  const SYSTEM_CONSTANTS: Record<string, { default: number; hint: string }> = {
+    _blend: { default: 0.85, hint: t("coord.sysBlend") },
+    _overlapPad: { default: 1.3, hint: t("coord.sysOverlapPad") },
+    _minGap: { default: 0, hint: t("coord.sysMinGap") },
+  };
+
+  const sysHeader = section.createDiv({ cls: "gi-setting-row" });
+  sysHeader.createEl("span", {
+    cls: "gi-setting-label gi-system-constants-label",
+    text: t("coord.systemConstants"),
+  });
+
+  const sysListEl = section.createDiv({ cls: "gi-constants-list gi-system-constants" });
+  for (const [sysKey, sysDef] of Object.entries(SYSTEM_CONSTANTS)) {
+    const currentVal = constants[sysKey] ?? sysDef.default;
+    const isDefault = !(sysKey in constants);
+    buildSystemConstantRow(sysListEl, sysKey, currentVal, isDefault, sysDef.hint, panel, cb);
+  }
 
   // Hint
   section.createEl("p", { cls: "gi-hint", text: t("coord.constantsHint") });
@@ -1524,6 +1592,67 @@ function buildConstantRow(
     cb.applyClusterForce();
     // Remove the row from DOM directly instead of rebuilding the entire panel
     row.remove();
+    cb.restartSimulation(0.5);
+  });
+}
+
+/** Build a system constant row: [fixed label] = [value input] [reset] */
+function buildSystemConstantRow(
+  container: HTMLElement,
+  key: string,
+  value: number,
+  isDefault: boolean,
+  hint: string,
+  panel: PanelState,
+  cb: PanelCallbacks,
+): void {
+  const row = container.createDiv({ cls: "gi-setting-row gi-constant-row gi-system-constant-row" });
+  if (isDefault) row.classList.add("gi-constant-default");
+
+  // Fixed label (not editable)
+  const label = row.createEl("span", {
+    cls: "gi-constant-key gi-system-constant-key",
+    text: key,
+    attr: { title: hint },
+  });
+  label.style.width = "80px";
+  label.style.display = "inline-block";
+  label.style.fontSize = "11px";
+
+  row.createEl("span", { text: " = ", cls: "gi-constant-eq" });
+
+  // Value input
+  const valInput = row.createEl("input", {
+    cls: "gi-setting-input gi-constant-val",
+    type: "number",
+  });
+  valInput.value = String(value);
+  valInput.style.width = "70px";
+  valInput.step = key === "_minGap" ? "1" : "0.05";
+  if (isDefault) valInput.style.opacity = "0.5";
+
+  // Hint text
+  const hintEl = row.createEl("span", {
+    cls: "gi-hint gi-constant-hint",
+    text: hint,
+  });
+  hintEl.style.fontSize = "10px";
+  hintEl.style.marginLeft = "4px";
+  hintEl.style.opacity = "0.6";
+
+  valInput.addEventListener("change", () => {
+    const newVal = parseFloat(valInput.value);
+    if (isNaN(newVal)) return;
+    const base = panel.coordinateLayout
+      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+    const existing = { ...(base.constants ?? {}) };
+    existing[key] = newVal;
+    panel.coordinateLayout = { ...base, constants: existing };
+    syncUserVarsFromLayout(panel);
+    // Remove default styling
+    row.classList.remove("gi-constant-default");
+    valInput.style.opacity = "1";
+    cb.applyClusterForce();
     cb.restartSimulation(0.5);
   });
 }

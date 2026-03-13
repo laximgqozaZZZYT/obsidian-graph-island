@@ -142,6 +142,7 @@ const en: TranslationMap = {
   "coord.transformExprHelp": "Source: index, degree, folder, tag:?, hop:name:3\nTransforms: LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\nCurves: ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS, ...\nMath: sin, cos, tan, sqrt, abs, log, exp, floor, ceil, min, max, pow, atan2\nOperators: + - * / % ^ (power)\nVariables: t (0–1), i (index), n (count), v (value)\nConstants: pi, e, tau  |  Greek: π=pi, θ=t, α→a, etc.\nImplicit ×: 2t → 2*t, πr → pi*r\nFormat: FUNC(source, params...) or raw expression",
   "coord.exprLibrary": "Expression Library",
   "coord.libraryHint": "Click to insert into the axis expression",
+  "coord.variableReference": "Variables",
   "cluster.autoFit": "Auto-fit spacing",
   "cluster.nodeSpacing": "Node Spacing (radius×n)",
   "cluster.groupSize": "Group Size",
@@ -255,8 +256,12 @@ const en: TranslationMap = {
   "curve.golden": "Golden Spiral",
 
   "coord.constants": "Constants",
-  "coord.constantsHint": "Define variables for use in expressions (e.g. a=1, k=3)",
+  "coord.constantsHint": "Define variables for use in expressions (e.g. k=6 sides, d=0.5 density)",
   "coord.addConstant": "+ Add Constant",
+  "coord.systemConstants": "Overlap Control",
+  "coord.sysBlend": "snap strength",
+  "coord.sysOverlapPad": "group padding",
+  "coord.sysMinGap": "min node gap",
   "coord.constantKey": "Name",
   "coord.constantValue": "Value",
 
@@ -528,6 +533,7 @@ const ja: TranslationMap = {
   "coord.transformExprHelp": "ソース: index, degree, folder, tag:?, hop:名前:3\n変換: LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n曲線: ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS, ...\n数学: sin, cos, tan, sqrt, abs, log, exp, floor, ceil, min, max, pow, atan2\n演算子: + - * / % ^ (べき乗)\n変数: t (0–1), i (インデックス), n (個数), v (値)\n定数: pi, e, tau  |  ギリシャ文字: π=pi, θ=t, α→a 等\n暗黙の乗算: 2t → 2*t, πr → pi*r\n書式: 関数(ソース, パラメータ...) または数式",
   "coord.exprLibrary": "式ライブラリ",
   "coord.libraryHint": "クリックして軸の式に挿入",
+  "coord.variableReference": "変数一覧",
   "cluster.autoFit": "間隔を自動調整",
   "cluster.nodeSpacing": "ノード間隔 (半径×n)",
   "cluster.groupSize": "グループサイズ",
@@ -641,8 +647,12 @@ const ja: TranslationMap = {
   "curve.golden": "黄金螺旋",
 
   "coord.constants": "定数",
-  "coord.constantsHint": "数式で使う変数を定義 (例: a=1, k=3)",
+  "coord.constantsHint": "数式で使う変数を定義 (例: k=6 辺数, d=0.5 密度)",
   "coord.addConstant": "+ 定数を追加",
+  "coord.systemConstants": "重複制御",
+  "coord.sysBlend": "スナップ強度",
+  "coord.sysOverlapPad": "グループ余白",
+  "coord.sysMinGap": "最小ノード間隔",
   "coord.constantKey": "名前",
   "coord.constantValue": "値",
 
@@ -795,7 +805,7 @@ const helpEn: TranslationMap = {
   "help.customMappings": "Map custom frontmatter fields to ontology relation types.\n\nUseful for ExcaliBrain compatibility or custom field names.\ne.g. 'up' → is-a, 'contains' → has-a",
   "help.tagRelations": "Define explicit relationships between tags.\n\ne.g. #character is-a #entity\nThese create edges between all notes sharing these tags.",
   "help.concentricLayout": "Adjust concentric layout parameters.\n\nMin radius: inner orbit radius\nOrbit spacing: distance between orbits\nOrbit rings: show/hide orbit circles\nAuto rotate: enable orbital animation",
-  "help.exprReference": "── Expression Reference ──\n\nVariables:\n  t = normalized position (0–1)\n  i = node index (0, 1, 2, ...)\n  n = total node count in group\n  v = raw axis source value\n\nConstants:\n  pi (π), e, tau (τ=2π)\n  Greek letters: α→a β→b θ→t π→pi τ→tau\n\nFunctions:\n  sin  cos  tan  sqrt  abs\n  log  exp  floor  ceil\n  min(a,b)  max(a,b)  pow(a,b)  atan2(y,x)\n\nOperators:\n  +  -  *  /  % (mod)  ^ (power)\n  Implicit ×: 2t = 2*t, πr² = pi*r^2\n\nSources (FUNC syntax):\n  index, degree, folder, tag:?, hop:name:3\n\nTransforms (FUNC syntax):\n  LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n\nCurves:\n  ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS,\n  HYPOTROCHOID, EPITROCHOID, BUTTERFLY",
+  "help.exprReference": "── Expression Reference ──\n\nVariables:\n  t = normalized position (0–1)\n  i = node index (0, 1, 2, ...)\n  n = total node count in group\n  v = raw axis source value\n\nBuilt-in constants:\n  pi (π), e, tau (τ=2π)\n  Greek letters: α→a β→b θ→t π→pi τ→tau\n\nUser-defined constants:\n  Add via the Constants section below.\n  Use any single letter (a–z) in expressions.\n  Filled Polygon preset:\n    k = number of sides (3–∞)\n    d = density (0.5=uniform, >0.5=sparse center)\n\nFunctions:\n  sin  cos  tan  sqrt  abs\n  log  exp  floor  ceil\n  min(a,b)  max(a,b)  pow(a,b)  atan2(y,x)\n\nOperators:\n  +  -  *  /  % (mod)  ^ (power)\n  Implicit ×: 2t = 2*t, πr² = pi*r^2\n\nSources (FUNC syntax):\n  index, degree, folder, tag:?, hop:name:3\n\nTransforms (FUNC syntax):\n  LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n\nCurves:\n  ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS,\n  HYPOTROCHOID, EPITROCHOID, BUTTERFLY",
 };
 
 const helpJa: TranslationMap = {
@@ -810,7 +820,7 @@ const helpJa: TranslationMap = {
   "help.customMappings": "カスタムフィールドをオントロジーの関係種別にマッピングします。\n\nExcaliBrain互換や独自フィールド名に便利です。\n例: 'up' → is-a, 'contains' → has-a",
   "help.tagRelations": "タグ間の明示的な関係を定義します。\n\n例: #character is-a #entity\nこれらのタグを持つノート間にエッジが生成されます。",
   "help.concentricLayout": "同心円レイアウトのパラメータを調整します。\n\n最小半径: 最も内側の軌道の半径\n軌道間距離: 軌道同士の間隔\n軌道リング: 軌道の円を表示/非表示\n自動回転: 軌道アニメーションの有効化",
-  "help.exprReference": "── 式リファレンス ──\n\n変数:\n  t = 正規化位置 (0–1)\n  i = ノードインデックス (0, 1, 2, ...)\n  n = グループ内ノード総数\n  v = 軸ソースの生値\n\n定数:\n  pi (π), e, tau (τ=2π)\n  ギリシャ文字: α→a β→b θ→t π→pi τ→tau\n\n関数:\n  sin  cos  tan  sqrt  abs\n  log  exp  floor  ceil\n  min(a,b)  max(a,b)  pow(a,b)  atan2(y,x)\n\n演算子:\n  +  -  *  /  % (余り)  ^ (べき乗)\n  暗黙の乗算: 2t = 2*t, πr² = pi*r^2\n\nソース (関数書式):\n  index, degree, folder, tag:?, hop:名前:3\n\n変換 (関数書式):\n  LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n\n曲線:\n  ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS,\n  HYPOTROCHOID, EPITROCHOID, BUTTERFLY",
+  "help.exprReference": "── 式リファレンス ──\n\n変数:\n  t = 正規化位置 (0–1)\n  i = ノードインデックス (0, 1, 2, ...)\n  n = グループ内ノード総数\n  v = 軸ソースの生値\n\n組み込み定数:\n  pi (π), e, tau (τ=2π)\n  ギリシャ文字: α→a β→b θ→t π→pi τ→tau\n\nユーザー定義定数:\n  下の「定数」セクションで追加できます。\n  式中で任意の1文字 (a–z) を変数として使用。\n  充填多角形プリセット:\n    k = 辺の数 (3–∞)\n    d = 密度 (0.5=均一, >0.5=中心が疎)\n\n関数:\n  sin  cos  tan  sqrt  abs\n  log  exp  floor  ceil\n  min(a,b)  max(a,b)  pow(a,b)  atan2(y,x)\n\n演算子:\n  +  -  *  /  % (余り)  ^ (べき乗)\n  暗黙の乗算: 2t = 2*t, πr² = pi*r^2\n\nソース (関数書式):\n  index, degree, folder, tag:?, hop:名前:3\n\n変換 (関数書式):\n  LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n\n曲線:\n  ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS,\n  HYPOTROCHOID, EPITROCHOID, BUTTERFLY",
 };
 
 // ---------------------------------------------------------------------------
