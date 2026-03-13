@@ -79,5 +79,18 @@
   "groupMinSize": 2,
   "groupFilter": "",
   "collapsedGroups": [],
-  "activeTab": "layout"
+  "activeTab": "layout",
+  "heatmapMode": false,
+  "showDotGrid": true,
+  "autoFit": true,
+  "showGuideLines": false,
+  "guideLineMode": "shared",
+  "showGroupGrid": false,
+  "showDurationBars": false,
+  "timelineEndKey": "end-date",
+  "timelineOrderFields": "next,prev",
+  "timelineRangeMin": 0,
+  "timelineRangeMax": 1,
+  "coordinateLayout": null,
+  "dataviewQuery": ""
 }
