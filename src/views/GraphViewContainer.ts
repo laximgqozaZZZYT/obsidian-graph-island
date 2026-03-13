@@ -1678,30 +1678,31 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Default: per-group rendering
     for (const group of guideData.groups) {
       const { centerX: cx, centerY: cy, guide } = group;
+      const gColor = this.getClusterGroupColor(group.groupKey);
       switch (guide.type) {
         case "timeline":
-          this.drawTimelineAxis(g, cx, cy, guide, lineW, guideColor, worldScale);
+          this.drawTimelineAxis(g, cx, cy, guide, lineW, gColor, worldScale);
           break;
         case "spiral":
-          this.drawSpiralCurve(g, cx, cy, guide, lineW, guideColor);
+          this.drawSpiralCurve(g, cx, cy, guide, lineW, gColor);
           break;
         case "grid":
-          this.drawGridLines(g, cx, cy, guide, lineW, guideColor);
+          this.drawGridLines(g, cx, cy, guide, lineW, gColor);
           break;
         case "tree":
-          this.drawTreeDepthLines(g, cx, cy, guide, lineW, guideColor);
+          this.drawTreeDepthLines(g, cx, cy, guide, lineW, gColor);
           break;
         case "triangle":
-          this.drawTriangleOutline(g, cx, cy, guide, lineW, guideColor);
+          this.drawTriangleOutline(g, cx, cy, guide, lineW, gColor);
           break;
         case "mountain":
-          this.drawMountainSilhouette(g, cx, cy, guide, lineW, guideColor);
+          this.drawMountainSilhouette(g, cx, cy, guide, lineW, gColor);
           break;
         case "coordinate":
-          this.drawCoordinateGuide(g, cx, cy, guide as any, lineW, guideColor);
+          this.drawCoordinateGuide(g, cx, cy, guide as any, lineW, gColor);
           break;
         case "concentric":
-          this.drawConcentricGuide(g, cx, cy, guide as any, lineW, guideColor);
+          this.drawConcentricGuide(g, cx, cy, guide as any, lineW, gColor);
           break;
       }
     }
@@ -1741,32 +1742,31 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const worldScale = this.worldContainer?.scale.x ?? 1;
     const lineW = Math.max(0.5, 1.0 / worldScale);
     const isDark = this.isDarkTheme();
-    const color = isDark ? 0x555555 : 0xcccccc;
+    const fallbackColor = isDark ? 0x555555 : 0xcccccc;
 
     for (const [groupKey, center] of centroids) {
       const radius = radii.get(groupKey);
       if (!radius || radius < 5) continue;
 
+      const groupColor = this.getClusterGroupColor(groupKey);
       const cx = center.x;
       const cy = center.y;
       const r = radius;
 
-      // Bounding circle
-      g.lineStyle(lineW * 1.5, color, 0.3);
+      // Bounding circle — group color, semi-transparent
+      g.lineStyle(lineW * 1.5, groupColor, 0.25);
       g.drawCircle(cx, cy, r);
 
-      // Cross-hair at center
-      g.lineStyle(lineW, color, 0.2);
-      // Horizontal line
+      // Cross-hair at center — more subtle
+      g.lineStyle(lineW, groupColor, 0.15);
       g.moveTo(cx - r, cy);
       g.lineTo(cx + r, cy);
-      // Vertical line
       g.moveTo(cx, cy - r);
       g.lineTo(cx, cy + r);
 
       // Mid-grid lines (half-radius)
       const hr = r * 0.5;
-      g.lineStyle(lineW * 0.5, color, 0.12);
+      g.lineStyle(lineW * 0.5, groupColor, 0.1);
       g.moveTo(cx - r, cy - hr);
       g.lineTo(cx + r, cy - hr);
       g.moveTo(cx - r, cy + hr);
@@ -2790,6 +2790,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private buildSortComparator(nodes: GraphNode[], edges: GraphEdge[]) { return this.layoutController.buildSortComparator(nodes, edges); }
   private computeNodeSpacingMap(nodes: GraphNode[]) { return this.layoutController.computeNodeSpacingMap(nodes); }
   private computeLiveCentroids() { return this.layoutController.computeLiveCentroids(this.clusterMeta); }
+
+  /** Get a hex color for a cluster group, cycling through DEFAULT_COLORS palette */
+  private getClusterGroupColor(groupKey: string): number {
+    const centroids = this.clusterMeta?.clusterCentroids;
+    if (!centroids) return 0x666666;
+
+    // Get sorted group keys for stable color assignment
+    const keys = [...centroids.keys()].sort();
+    const idx = keys.indexOf(groupKey);
+    if (idx < 0) return 0x666666;
+
+    return cssColorToHex(DEFAULT_COLORS[idx % DEFAULT_COLORS.length]);
+  }
 
   /** Collect all frontmatter keys from the vault for field selects */
   private _fmKeysCache: string[] | null = null;
