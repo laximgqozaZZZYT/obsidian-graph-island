@@ -71,14 +71,14 @@ describe("anti-overlap integration", () => {
       expect(deserialized.constants.d).toBe(0.5);
     });
 
-    it("system constants are excluded from user var sync", () => {
-      // System constants start with _ — they should still work in expressions
-      // but are primarily read by the engine, not as user expression variables
+    it("system constants coexist with user constants in key set", () => {
       const constants = { k: 6, _blend: 0.85, _minGap: 0 };
-      const userVarKeys = Object.keys(constants);
-      expect(userVarKeys).toContain("k");
-      expect(userVarKeys).toContain("_blend");
-      expect(userVarKeys).toContain("_minGap");
+      const keys = Object.keys(constants);
+      // Both user constants and system constants are present
+      expect(keys).toContain("k");
+      expect(keys).toContain("_blend");
+      expect(keys).toContain("_minGap");
+      expect(keys).toHaveLength(3);
     });
   });
 
@@ -141,13 +141,15 @@ describe("anti-overlap integration", () => {
       expect(superR).toBe(30);
     });
 
-    it("non-super node radius is unchanged", () => {
+    it("non-super node radius equals base radius", () => {
       const baseR = 5;
       const collapsedMembers: string[] = [];
-      if (collapsedMembers.length > 0) {
-        // Would expand - but won't enter this branch
-      }
-      expect(baseR).toBe(5);
+      // effectiveRadius returns baseR when no collapsed members
+      const result = collapsedMembers.length > 0
+        ? Math.min(Math.max(baseR, baseR * (1 + Math.sqrt(collapsedMembers.length) * 0.5)), 30)
+        : baseR;
+      expect(result).toBe(baseR);
+      expect(result).toBe(5);
     });
   });
 });

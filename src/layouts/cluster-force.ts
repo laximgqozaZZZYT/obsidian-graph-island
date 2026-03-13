@@ -246,7 +246,7 @@ function resolveGroupOverlaps(
     clusterRadii.set(key, effective);
   }
 
-  const maxIter = Math.min(keys.length, 10);
+  const maxIter = Math.max(5, Math.min(keys.length, 10));
   for (let iter = 0; iter < maxIter; iter++) {
     let anyOverlap = false;
 
