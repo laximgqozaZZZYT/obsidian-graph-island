@@ -1691,6 +1691,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         case "mountain":
           this.drawMountainSilhouette(g, cx, cy, guide, lineW, guideColor);
           break;
+        case "coordinate":
+          this.drawCoordinateGuide(g, cx, cy, guide as any, lineW, guideColor);
+          break;
+        case "concentric":
+          this.drawConcentricGuide(g, cx, cy, guide as any, lineW, guideColor);
+          break;
       }
     }
   }
@@ -1872,6 +1878,81 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     for (let i = 1; i < guide.points.length; i++) {
       g.lineTo(cx + guide.points[i].x, cy + guide.points[i].y);
     }
+  }
+
+  private drawCoordinateGuide(
+    g: CanvasGraphics, cx: number, cy: number,
+    guide: { type: "coordinate"; system: string; bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number } },
+    lineW: number, color: number,
+  ) {
+    const bounds = guide.bounds;
+    if (!bounds) return;
+
+    if (guide.system === "polar" && bounds.maxR) {
+      // Polar: concentric reference circles + radial lines
+      const maxR = bounds.maxR;
+      const ringCount = 3;
+      g.lineStyle(lineW * 0.8, color, 0.15);
+      for (let i = 1; i <= ringCount; i++) {
+        const r = (maxR / ringCount) * i;
+        g.drawCircle(cx, cy, r);
+      }
+      // 6 radial lines (every 60 degrees)
+      g.lineStyle(lineW * 0.5, color, 0.1);
+      for (let a = 0; a < 6; a++) {
+        const angle = (a / 6) * Math.PI * 2;
+        g.moveTo(cx, cy);
+        g.lineTo(cx + maxR * Math.cos(angle), cy + maxR * Math.sin(angle));
+      }
+    } else {
+      // Cartesian: grid lines
+      const { xMin, yMin, xMax, yMax } = bounds;
+      const xRange = xMax - xMin;
+      const yRange = yMax - yMin;
+      if (xRange < 1 && yRange < 1) return;
+
+      const divisions = 4;
+      // Grid lines
+      g.lineStyle(lineW * 0.8, color, 0.15);
+      for (let i = 0; i <= divisions; i++) {
+        const x = cx + xMin + (xRange / divisions) * i;
+        g.moveTo(x, cy + yMin);
+        g.lineTo(x, cy + yMax);
+      }
+      for (let i = 0; i <= divisions; i++) {
+        const y = cy + yMin + (yRange / divisions) * i;
+        g.moveTo(cx + xMin, y);
+        g.lineTo(cx + xMax, y);
+      }
+      // Origin cross (stronger)
+      g.lineStyle(lineW, color, 0.25);
+      g.moveTo(cx + xMin, cy);
+      g.lineTo(cx + xMax, cy);
+      g.moveTo(cx, cy + yMin);
+      g.lineTo(cx, cy + yMax);
+    }
+  }
+
+  private drawConcentricGuide(
+    g: CanvasGraphics, cx: number, cy: number,
+    guide: { type: "concentric"; rings: number[] },
+    lineW: number, color: number,
+  ) {
+    if (guide.rings.length === 0) return;
+
+    // Draw concentric ring circles
+    g.lineStyle(lineW * 0.8, color, 0.2);
+    for (const r of guide.rings) {
+      g.drawCircle(cx, cy, r);
+    }
+
+    // Light cross at center spanning to max ring
+    const maxR = guide.rings[guide.rings.length - 1];
+    g.lineStyle(lineW * 0.5, color, 0.1);
+    g.moveTo(cx - maxR, cy);
+    g.lineTo(cx + maxR, cy);
+    g.moveTo(cx, cy - maxR);
+    g.lineTo(cx, cy + maxR);
   }
 
   // =========================================================================
