@@ -1757,24 +1757,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       g.lineStyle(lineW * 1.5, groupColor, 0.25);
       g.drawCircle(cx, cy, r);
 
-      // Cross-hair at center — more subtle
-      g.lineStyle(lineW, groupColor, 0.15);
-      g.moveTo(cx - r, cy);
-      g.lineTo(cx + r, cy);
-      g.moveTo(cx, cy - r);
-      g.lineTo(cx, cy + r);
+      // Skip cross-hair and mid-grid when guideLines already show structure
+      const hasGuides = this.panel.showGuideLines && !!this.clusterMeta?.guideLineData;
+      if (!hasGuides) {
+        // Cross-hair at center — more subtle
+        g.lineStyle(lineW, groupColor, 0.15);
+        g.moveTo(cx - r, cy);
+        g.lineTo(cx + r, cy);
+        g.moveTo(cx, cy - r);
+        g.lineTo(cx, cy + r);
 
-      // Mid-grid lines (half-radius)
-      const hr = r * 0.5;
-      g.lineStyle(lineW * 0.5, groupColor, 0.1);
-      g.moveTo(cx - r, cy - hr);
-      g.lineTo(cx + r, cy - hr);
-      g.moveTo(cx - r, cy + hr);
-      g.lineTo(cx + r, cy + hr);
-      g.moveTo(cx - hr, cy - r);
-      g.lineTo(cx - hr, cy + r);
-      g.moveTo(cx + hr, cy - r);
-      g.lineTo(cx + hr, cy + r);
+        // Mid-grid lines (half-radius)
+        const hr = r * 0.5;
+        g.lineStyle(lineW * 0.5, groupColor, 0.1);
+        g.moveTo(cx - r, cy - hr);
+        g.lineTo(cx + r, cy - hr);
+        g.moveTo(cx - r, cy + hr);
+        g.lineTo(cx + r, cy + hr);
+        g.moveTo(cx - hr, cy - r);
+        g.lineTo(cx - hr, cy + r);
+        g.moveTo(cx + hr, cy - r);
+        g.lineTo(cx + hr, cy + r);
+      }
     }
 
     // --- Group name labels ---

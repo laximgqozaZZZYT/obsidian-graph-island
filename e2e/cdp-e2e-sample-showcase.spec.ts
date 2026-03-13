@@ -88,6 +88,8 @@ interface RenderResult {
   centerX: number;
   centerY: number;
   consoleErrors: string[];
+  hasGuideLineData: boolean;
+  guideLineArrangement: string;
 }
 
 /**
@@ -155,6 +157,8 @@ async function applyAndRender(config: Record<string, unknown>): Promise<RenderRe
       centerX: cx,
       centerY: cy,
       consoleErrors: errors,
+      hasGuideLineData: !!view.clusterMeta?.guideLineData,
+      guideLineArrangement: view.clusterMeta?.guideLineData?.arrangement ?? "none",
     };
   }, config);
 }
@@ -226,6 +230,7 @@ const SHOWCASE_SAMPLES: Array<{
         const maxDist = Math.max(...dists);
         expect(maxDist, "rose curve should have radial extent").toBeGreaterThan(0);
       }
+      expect(r.hasGuideLineData, "rose curve should have guide data").toBe(true);
     },
   },
   {
@@ -290,6 +295,7 @@ const SHOWCASE_SAMPLES: Array<{
         const maxDist = Math.max(...dists);
         expect(maxDist, "concentric radial spread").toBeGreaterThan(0);
       }
+      expect(r.hasGuideLineData, "concentric should have guide data").toBe(true);
     },
   },
   {
