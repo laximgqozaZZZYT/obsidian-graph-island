@@ -64,12 +64,17 @@ export class LayoutController {
       // Use actual PIXI radius if available (accounts for super node scaling + MAX cap)
       const pn = pixiNodes.get(n.id);
       if (pn) return pn.radius + PAD;
-      // Fallback: recompute from panel settings
+      // Fallback: compute effective radius including super node expansion
+      const deg = degrees.get(n.id) || 0;
+      let r = baseSize;
       if (panel.scaleByDegree) {
-        const deg = degrees.get(n.id) || 0;
-        return Math.min(Math.max(baseSize, baseSize + Math.sqrt(deg) * 3.2), 30) + PAD;
+        r = Math.min(Math.max(baseSize, baseSize + Math.sqrt(deg) * 3.2), 30);
       }
-      return baseSize + PAD;
+      // Super node expansion (mirrors effectiveRadius in cluster-force.ts)
+      if (n.collapsedMembers && n.collapsedMembers.length > 0) {
+        r = Math.min(Math.max(r, r * (1 + Math.sqrt(n.collapsedMembers.length) * 0.5)), 30);
+      }
+      return r + PAD;
     };
   }
 
