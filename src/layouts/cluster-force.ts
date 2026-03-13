@@ -313,6 +313,60 @@ function resolveGroupOverlaps(
   }
 }
 
+/**
+ * Post-expression minimum gap correction.
+ * For each group, find node pairs closer than minGap and push them apart.
+ * Uses up to 3 iterations of pairwise repulsion.
+ */
+function resolveIntraGroupGaps(
+  targets: Map<string, { x: number; y: number }>,
+  groups: Map<string, GraphNode[]>,
+  minGap: number,
+  nodeSize: number,
+  degrees: Map<string, number>,
+  scaleByDegree: boolean,
+): void {
+  if (minGap <= 0) return;
+
+  for (const [, members] of groups) {
+    if (members.length < 2) continue;
+
+    for (let iter = 0; iter < 3; iter++) {
+      let anyPush = false;
+      for (let i = 0; i < members.length; i++) {
+        const ti = targets.get(members[i].id);
+        if (!ti) continue;
+        const ri = effectiveRadius(members[i], nodeSize, degrees.get(members[i].id) ?? 0, scaleByDegree);
+
+        for (let j = i + 1; j < members.length; j++) {
+          const tj = targets.get(members[j].id);
+          if (!tj) continue;
+          const rj = effectiveRadius(members[j], nodeSize, degrees.get(members[j].id) ?? 0, scaleByDegree);
+
+          const dx = tj.x - ti.x;
+          const dy = tj.y - ti.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const required = ri + rj + minGap;
+
+          if (dist >= required) continue;
+          anyPush = true;
+
+          const overlap = required - dist;
+          const nx = dist > 0.01 ? dx / dist : 1;
+          const ny = dist > 0.01 ? dy / dist : 0;
+          const half = overlap / 2;
+
+          ti.x -= nx * half;
+          ti.y -= ny * half;
+          tj.x += nx * half;
+          tj.y += ny * half;
+        }
+      }
+      if (!anyPush) break;
+    }
+  }
+}
+
 export function buildClusterForce(
   nodes: GraphNode[],
   edges: GraphEdge[],
@@ -393,6 +447,12 @@ export function buildClusterForce(
       const t = targets.get(bar.nodeId);
       if (t) barNodePosBefore.set(bar.nodeId, { x: t.x, y: t.y });
     }
+  }
+
+  // Post-expression intra-group gap correction
+  const minGap = cfg.userConstants?._minGap ?? 0;
+  if (minGap > 0) {
+    resolveIntraGroupGaps(targets, groups, minGap, cfg.nodeSize, degrees, cfg.scaleByDegree);
   }
 
   // Resolve pairwise group overlaps (especially important after super node expansion)
