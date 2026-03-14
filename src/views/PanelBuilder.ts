@@ -107,6 +107,10 @@ export interface PanelState {
   gridTableMode: boolean;
   /** Show row/column header labels on grid */
   gridShowHeaders: boolean;
+  /** Show axis name titles on coordinate grid */
+  showAxisTitles: boolean;
+  /** Show tick labels on timeline axis */
+  showTimelineTickLabels: boolean;
   /** Shade cells by node density */
   gridCellShading: boolean;
   /** Grid display style */
@@ -229,6 +233,8 @@ export const DEFAULT_PANEL: PanelState = {
   ringChartMode: false,
   gridTableMode: false,
   gridShowHeaders: true,
+  showAxisTitles: true,
+  showTimelineTickLabels: true,
   gridCellShading: false,
   gridStyle: "lines" as const,
   gridLabelPlacement: "on-line" as const,
@@ -925,6 +931,12 @@ export function buildPanel(
         cb.markDirty();
       });
 
+      // Timeline tick labels toggle
+      addToggle(body, t("timeline.showTickLabels"), panel.showTimelineTickLabels, (v) => {
+        panel.showTimelineTickLabels = v;
+        cb.doRenderKeepPanel();
+      }, t("timeline.showTickLabelsDesc"));
+
       // Timeline order fields
       const orderRow = body.createDiv({ cls: "gi-setting-row" });
       orderRow.createEl("span", { cls: "gi-setting-label", text: t("timeline.orderFields") });
@@ -1024,6 +1036,11 @@ export function buildPanel(
           panel.gridShowHeaders = v;
           cb.doRenderKeepPanel();
         }, t("guide.gridShowHeadersDesc"));
+
+        addToggle(body, t("guide.showAxisTitles"), panel.showAxisTitles, (v) => {
+          panel.showAxisTitles = v;
+          cb.doRenderKeepPanel();
+        }, t("guide.showAxisTitlesDesc"));
 
         addSelect(body, t("guide.labelPlacement"), [
           { value: "on-line", label: t("guide.labelOnLine") },

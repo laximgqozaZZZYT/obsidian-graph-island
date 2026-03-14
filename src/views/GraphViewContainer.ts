@@ -2004,7 +2004,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
         // Shared timeline axis labels
         const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-        if (rt.timelineAxisShowLabels && uniqueTicks.length > 0) {
+        if (rt.timelineAxisShowLabels && this.panel.showTimelineTickLabels !== false && uniqueTicks.length > 0) {
           const maxLabels = rt.timelineAxisLabelMaxCount!;
           let labelTicks = uniqueTicks;
           if (labelTicks.length > maxLabels) {
@@ -2221,7 +2221,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Axis tick labels
     const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-    if (rt2.timelineAxisShowLabels && guide.ticks.length > 0) {
+    if (rt2.timelineAxisShowLabels && this.panel.showTimelineTickLabels !== false && guide.ticks.length > 0) {
       const maxLabels = rt2.timelineAxisLabelMaxCount!;
       let labelTicks = guide.ticks;
       if (labelTicks.length > maxLabels) {
@@ -2783,7 +2783,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.clearAxisTitles();
 
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-    if (!rt.axisTitleShow) return;
+    if (!rt.axisTitleShow || this.panel.showAxisTitles === false) return;
     if (!axis1Title && !axis2Title) return;
 
     const container = this.customGridLabelContainer ?? this.worldContainer;
