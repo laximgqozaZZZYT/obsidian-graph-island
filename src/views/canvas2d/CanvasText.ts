@@ -37,12 +37,20 @@ export class CanvasText {
   /** Stroke width in local units. */
   strokeWidth = 0;
 
+  /** Letter spacing in em units (0 = normal). Applied character-by-character. */
+  letterSpacing = 0;
+
+  /** Corner radius for the background pill/rect in local px.
+   *  Defaults to null which uses a full pill shape (height/2). */
+  cornerRadius: number | null = null;
+
   anchor = { x: 0, y: 0, set(ax: number, ay: number) { this.x = ax; this.y = ay; } };
   scale = { x: 1, y: 1, set(v: number) { this.x = v; this.y = v; } };
 
   private _measuredWidth = 0;
   private _measuredText = "";      // cached text for width measurement
   private _measuredFont = "";      // cached font string
+  private _measuredLetterSpacing = 0; // cached letter spacing for width
 
   // Truncation cache — avoids re-computing when text/font/maxWidth unchanged
   private _truncatedDisplay = "";
@@ -61,6 +69,14 @@ export class CanvasText {
 
   destroy() {
     // No GPU resources to free
+  }
+
+  /** Measure text width accounting for letter spacing. */
+  private _measureWithSpacing(ctx: CanvasRenderingContext2D, text: string): number {
+    if (this.letterSpacing <= 0) return ctx.measureText(text).width;
+    const fontSize = this.style.fontSize ?? 11;
+    const spacingPx = this.letterSpacing * fontSize;
+    return ctx.measureText(text).width + spacingPx * Math.max(0, text.length - 1);
   }
 
   /** Compute truncated text with ellipsis using binary search. */
@@ -86,7 +102,7 @@ export class CanvasText {
       let lo = 0, hi = text.length;
       while (lo < hi) {
         const mid = (lo + hi + 1) >> 1;
-        if (ctx.measureText(text.slice(0, mid)).width <= availW) {
+        if (this._measureWithSpacing(ctx, text.slice(0, mid)) <= availW) {
           lo = mid;
         } else {
           hi = mid - 1;
@@ -94,7 +110,7 @@ export class CanvasText {
       }
       const truncText = text.slice(0, lo) + ellipsis;
       this._truncatedDisplay = truncText;
-      this._truncatedWidth = ctx.measureText(truncText).width;
+      this._truncatedWidth = this._measureWithSpacing(ctx, truncText);
     }
 
     // Update cache
@@ -102,6 +118,28 @@ export class CanvasText {
     this._truncCacheFont = font;
     this._truncCacheMaxW = maxW;
     return this._truncatedDisplay;
+  }
+
+  /** Draw text with letter spacing applied character by character. */
+  private _drawTextWithSpacing(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    tx: number,
+    ty: number,
+    mode: "fill" | "stroke"
+  ) {
+    const fontSize = this.style.fontSize ?? 11;
+    const spacingPx = this.letterSpacing * fontSize;
+    let cx = tx;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (mode === "stroke") {
+        ctx.strokeText(ch, cx, ty);
+      } else {
+        ctx.fillText(ch, cx, ty);
+      }
+      cx += ctx.measureText(ch).width + spacingPx;
+    }
   }
 
   _flush(ctx: CanvasRenderingContext2D, parentAlpha: number) {
@@ -119,11 +157,12 @@ export class CanvasText {
     const fontStr = `${fontWeight} ${fontSize}px ${fontFamily}`;
     ctx.font = fontStr;
 
-    // Cache measureText result — only re-measure when text or font changes
-    if (this.text !== this._measuredText || fontStr !== this._measuredFont) {
-      this._measuredWidth = ctx.measureText(this.text).width;
+    // Cache measureText result — only re-measure when text, font, or letterSpacing changes
+    if (this.text !== this._measuredText || fontStr !== this._measuredFont || this.letterSpacing !== this._measuredLetterSpacing) {
+      this._measuredWidth = this._measureWithSpacing(ctx, this.text);
       this._measuredText = this.text;
       this._measuredFont = fontStr;
+      this._measuredLetterSpacing = this.letterSpacing;
     }
 
     // Determine display text (truncated if maxWidth is set and exceeded)
@@ -131,16 +170,17 @@ export class CanvasText {
     const displayText = needsTruncation ? this._getTruncatedText(ctx) : this.text;
     const displayWidth = needsTruncation ? this._truncatedWidth : this._measuredWidth;
 
+    const useSpacing = this.letterSpacing > 0;
     const tx = -this.anchor.x * displayWidth;
     const ty = this.anchor.y * fontSize;
 
-    // Draw pill-shaped background behind the text
+    // Draw pill-shaped background behind the text (halo)
     if (this.bgColor !== null && this.bgAlpha > 0) {
       const pw = displayWidth + this.bgPadX * 2;
       const ph = fontSize + this.bgPadY * 2;
       const px = tx - this.bgPadX;
       const py = ty - fontSize - this.bgPadY;
-      const radius = ph / 2;
+      const radius = this.cornerRadius !== null ? Math.min(this.cornerRadius, ph / 2) : ph / 2;
       ctx.save();
       ctx.fillStyle = hexToRgba(this.bgColor, effAlpha * this.bgAlpha);
       ctx.beginPath();
@@ -166,7 +206,11 @@ export class CanvasText {
       ctx.lineWidth = this.strokeWidth;
       ctx.lineJoin = "round";
       ctx.miterLimit = 2;
-      ctx.strokeText(displayText, tx, ty);
+      if (useSpacing) {
+        this._drawTextWithSpacing(ctx, displayText, tx, ty, "stroke");
+      } else {
+        ctx.strokeText(displayText, tx, ty);
+      }
     }
 
     const fill = this.style.fill;
@@ -179,7 +223,11 @@ export class CanvasText {
       ctx.fillStyle = hexToRgba(0xffffff, effAlpha);
     }
 
-    ctx.fillText(displayText, tx, ty);
+    if (useSpacing) {
+      this._drawTextWithSpacing(ctx, displayText, tx, ty, "fill");
+    } else {
+      ctx.fillText(displayText, tx, ty);
+    }
     ctx.restore();
   }
 }

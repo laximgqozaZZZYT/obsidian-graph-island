@@ -1082,6 +1082,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getDonutDisplayConfig() { return this.panel.donutDisplayConfig ?? { innerRadius: 0.6 }; }
   getRenderThresholds() { return this.panel.renderThresholds ?? {}; }
   getScaleByDegree() { return this.panel.scaleByDegree; }
+  getAdjacency() { return this.adj; }
 
   // =========================================================================
   // Zoom & Hit testing
@@ -1329,16 +1330,55 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           pn.gfx.scale.set(1);
         }
         this.drawNodeCircle(pn, true);
-        if (!pn.label && !pn.hoverLabel) {
-          const hl = new CanvasText(pn.data.label, {
-            fontSize: 11, fill: this.getLabelColor(),
-            fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-          });
-          hl.x = pn.radius + 2;
-          hl.y = -(pn.radius * 0.4 + 2);
-          hl.resolution = 2;
-          pn.gfx.addChild(hl);
-          pn.hoverLabel = hl;
+        if (!pn.hoverLabel) {
+          // Build combined tooltip: name + tags + group
+          // For nodes that already have a visible label, only show extra info (tags/group)
+          // to avoid duplicating the node name. For unlabeled nodes, show everything.
+          const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+          const showTooltip = rt.hoverTooltipShow ?? true;
+          const hasVisibleLabel = !!(pn.label && pn.label.visible);
+          let tooltipText = hasVisibleLabel ? "" : pn.data.label;
+          if (showTooltip) {
+            // Append tag info if tags exist (and not already shown via tagLabel)
+            const hasVisibleTagLabel = !!(pn.tagLabel && pn.tagLabel.visible);
+            if (pn.data.tags && pn.data.tags.length > 0 && !hasVisibleTagLabel) {
+              const tagLine = pn.data.tags.map((t: string) => `#${t}`).join(" ");
+              tooltipText = tooltipText ? tooltipText + "\n" + tagLine : tagLine;
+            }
+            if (pn.data.category) {
+              const catLine = "[" + pn.data.category + "]";
+              tooltipText = tooltipText ? tooltipText + "\n" + catLine : catLine;
+            }
+          }
+          // Only create tooltip if there is content to show
+          if (tooltipText) {
+            const tooltipFontSize = rt.hoverTooltipFontSize ?? 10;
+            const hl = new CanvasText(tooltipText, {
+              fontSize: tooltipFontSize, fill: this.getLabelColor(),
+              fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+            });
+            hl.bgColor = rt.labelBgColor ?? 0x1a1a2e;
+            hl.bgAlpha = rt.labelBgAlpha ?? 0.85;
+            hl.bgPadX = 6;
+            hl.bgPadY = 3;
+            hl.cornerRadius = rt.labelHaloCornerRadius ?? null;
+            // Position tooltip below the node when label is above, otherwise beside the node
+            if (hasVisibleLabel) {
+              hl.anchor.set(0.5, 0);
+              hl.x = 0;
+              hl.y = pn.radius + (pn.tagLabel ? (rt.tagLabelFontSize ?? 9) + 8 : 4);
+            } else {
+              hl.x = pn.radius + 2;
+              hl.y = -(pn.radius * 0.4 + 2);
+            }
+            hl.resolution = 2;
+            pn.gfx.addChild(hl);
+            pn.hoverLabel = hl;
+          }
+        }
+        // When hovering, also force-show tag label if present but hidden by LOD
+        if (pn.tagLabel && !pn.tagLabel.visible) {
+          pn.tagLabel.visible = true;
         }
       } else {
         pn.gfx.alpha = 0.12;
@@ -2155,8 +2195,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
       const rtL = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
       const fontSize = Math.max(rtL.gridLabelFontSizeMin + 1, Math.min(rtL.gridLabelFontSizeMax + 1, rtL.gridLabelFontSizeBase / worldScale));
-      const textColor = isDark ? 0xbbbbbb : 0x555555;
+      // Group labels use text-tertiary color and reduced alpha per spec
+      const textColor = isDark ? 0x999999 : 0x777777;
       const bgColor = isDark ? 0x1e1e1e : 0xf5f5f5;
+      const groupLabelAlpha = rtL.groupLabelAlpha ?? 0.45;
+      const groupLetterSpacing = rtL.groupLabelLetterSpacing ?? 0.15;
+      const hullOffset = rtL.groupLabelHullOffset ?? 20;
 
       for (const [groupKey, center] of centroids) {
         const radius = radii.get(groupKey);
@@ -2165,20 +2209,51 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         // Display name: strip prefix (e.g. "tag:fiction" → "fiction")
         const displayName = groupKey.includes(":") ? groupKey.split(":").pop()! : groupKey;
 
+        // Convex hull placement: find farthest node direction from centroid
+        // and place label beyond it.
+        let labelX = center.x;
+        let labelY = center.y - radius - hullOffset / worldScale;
+        const groupNodes = this.getGroupNodePositions(groupKey);
+        if (groupNodes.length > 0) {
+          let maxDist = 0;
+          let farthestDx = 0;
+          let farthestDy = -1; // default: above
+          for (const gn of groupNodes) {
+            const dx = gn.x - center.x;
+            const dy = gn.y - center.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > maxDist) {
+              maxDist = dist;
+              farthestDx = dx;
+              farthestDy = dy;
+            }
+          }
+          if (maxDist > 0) {
+            const norm = Math.sqrt(farthestDx * farthestDx + farthestDy * farthestDy);
+            const nx = farthestDx / norm;
+            const ny = farthestDy / norm;
+            labelX = center.x + nx * (maxDist + hullOffset / worldScale);
+            labelY = center.y + ny * (maxDist + hullOffset / worldScale);
+          }
+        }
+
         const text = new CanvasText(displayName, {
-          fontSize,
+          fontSize: Math.min(fontSize, 11),
           fill: textColor,
-          fontWeight: "bold",
+          fontWeight: "400",
         });
+        text.letterSpacing = groupLetterSpacing;
+        text.alpha = groupLabelAlpha;
         text.anchor.set(0.5, 0);
-        text.x = center.x;
-        text.y = center.y - radius - fontSize * 1.5 / worldScale;
+        text.x = labelX;
+        text.y = labelY;
         text.bgColor = bgColor;
-        text.bgAlpha = 0.75;
+        text.bgAlpha = 0.6;
         text.bgPadX = 10;
         text.bgPadY = 4;
+        text.cornerRadius = rtL.labelHaloCornerRadius ?? null;
         text.strokeColor = 0x000000;
-        text.strokeWidth = 3;
+        text.strokeWidth = 2;
 
         labelContainer.addChild(text);
         this.groupGridLabels.set(groupKey, text);
@@ -2943,6 +3018,126 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.markDirty();
   }
 
+  /**
+   * Scale node world positions outward so the graph fills at least
+   * minViewportUtilization of the viewport at z=1.0.
+   * Called after layout computation, before autoFitView/rendering.
+   */
+  private ensureViewportUtilization(vpW: number, vpH: number): void {
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const minUtil = rt.minViewportUtilization ?? 0.10;
+    if (minUtil <= 0 || this.pixiNodes.size < 2) return;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const pn of this.pixiNodes.values()) {
+      const r = pn.radius ?? 6;
+      minX = Math.min(minX, pn.data.x - r);
+      minY = Math.min(minY, pn.data.y - r);
+      maxX = Math.max(maxX, pn.data.x + r);
+      maxY = Math.max(maxY, pn.data.y + r);
+    }
+
+    const bboxW = maxX - minX;
+    const bboxH = maxY - minY;
+    const bboxArea = bboxW * bboxH;
+    const vpArea = vpW * vpH;
+    if (vpArea <= 0) return;
+
+    const util = bboxArea / vpArea;
+    if (util >= minUtil) return;
+
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+
+    if (bboxArea < 1) {
+      // All nodes at same position — spread in a circle
+      // R = sqrt(vpW * vpH * minUtil) / 2 ensures bbox (2R × 2R) meets threshold
+      const defaultR = Math.sqrt(vpW * vpH * minUtil) / 2;
+      const nodes = Array.from(this.pixiNodes.values());
+      const n = nodes.length;
+      nodes.forEach((pn, i) => {
+        const angle = (2 * Math.PI * i) / n;
+        pn.data.x = cx + defaultR * Math.cos(angle);
+        pn.data.y = cy + defaultR * Math.sin(angle);
+      });
+      return;
+    }
+
+    // Detect degenerate (line-like) distributions where one dimension
+    // is near-zero relative to the other.  Uniform scaling cannot fix
+    // these because (coord - center) ≈ 0 along the flat axis.
+    // Spread nodes along the flat axis so the bbox becomes roughly square
+    // before applying uniform scaling.
+    const avgNodeR = (() => {
+      let sum = 0;
+      for (const pn of this.pixiNodes.values()) sum += pn.radius ?? 6;
+      return sum / this.pixiNodes.size;
+    })();
+    const degenerateThreshold = avgNodeR * 4; // axis range < 4× avg radius = degenerate
+    if (bboxW > degenerateThreshold && bboxH < degenerateThreshold) {
+      // Flat horizontally — spread nodes vertically to match the non-degenerate axis.
+      // Target: bboxH ≈ minUtil * vpArea / bboxW so that after this fix,
+      // the area already meets the threshold without needing further scaling.
+      const targetH = Math.max(bboxW * 0.3, minUtil * vpArea / bboxW);
+      const nodes = Array.from(this.pixiNodes.values());
+      const n = nodes.length;
+      nodes.forEach((pn, i) => {
+        const t = n > 1 ? (i / (n - 1) - 0.5) : 0;
+        pn.data.y = cy + t * targetH;
+      });
+    } else if (bboxH > degenerateThreshold && bboxW < degenerateThreshold) {
+      // Flat vertically — spread nodes horizontally
+      const targetW = Math.max(bboxH * 0.3, minUtil * vpArea / bboxH);
+      const nodes = Array.from(this.pixiNodes.values());
+      const n = nodes.length;
+      nodes.forEach((pn, i) => {
+        const t = n > 1 ? (i / (n - 1) - 0.5) : 0;
+        pn.data.x = cx + t * targetW;
+      });
+    }
+
+    // Recompute bbox after degenerate fix
+    let minX2 = Infinity, minY2 = Infinity, maxX2 = -Infinity, maxY2 = -Infinity;
+    for (const pn of this.pixiNodes.values()) {
+      const r = pn.radius ?? 6;
+      minX2 = Math.min(minX2, pn.data.x - r);
+      minY2 = Math.min(minY2, pn.data.y - r);
+      maxX2 = Math.max(maxX2, pn.data.x + r);
+      maxY2 = Math.max(maxY2, pn.data.y + r);
+    }
+    const bboxArea2 = (maxX2 - minX2) * (maxY2 - minY2);
+    const util2 = bboxArea2 / vpArea;
+    if (util2 >= minUtil) return;
+
+    const cx2 = (minX2 + maxX2) / 2;
+    const cy2 = (minY2 + maxY2) / 2;
+    // scaleFactor must be computed on the POSITION SPAN, not the full bbox.
+    // The bbox includes one node-radius on each edge; scaling only moves centers —
+    // radii stay constant.  So applying sqrt(minUtil/util2) to positions yields a
+    // final bboxArea that is still below minUtil because:
+    //   newBboxW = posSpanW * sf + 2r   (not bboxW * sf)
+    //   newBboxH = posSpanH * sf + 2r   (not bboxH * sf)
+    // Fix: solve the quadratic exactly.
+    //   A*sf^2 + B*sf + (4r^2 - minUtil*vpArea) = 0
+    //   where A = posSpanW * posSpanH,  B = 2r*(posSpanW + posSpanH)
+    const bboxW2 = maxX2 - minX2;
+    const bboxH2 = maxY2 - minY2;
+    const avgR2 = (() => { let s = 0; for (const pn of this.pixiNodes.values()) s += pn.radius ?? 6; return s / this.pixiNodes.size; })();
+    const posSpanW2 = Math.max(bboxW2 - 2 * avgR2, 1);
+    const posSpanH2 = Math.max(bboxH2 - 2 * avgR2, 1);
+    const A2 = posSpanW2 * posSpanH2;
+    const B2 = 2 * avgR2 * (posSpanW2 + posSpanH2);
+    const C2 = 4 * avgR2 * avgR2 - minUtil * vpArea;
+    const disc2 = B2 * B2 - 4 * A2 * C2;
+    const scaleFactor = disc2 >= 0
+      ? (-B2 + Math.sqrt(disc2)) / (2 * A2)
+      : Math.sqrt(minUtil / util2); // fallback (degenerate: all nodes coincident)
+    for (const pn of this.pixiNodes.values()) {
+      pn.data.x = cx2 + (pn.data.x - cx2) * scaleFactor;
+      pn.data.y = cy2 + (pn.data.y - cy2) * scaleFactor;
+    }
+  }
+
   private autoFitView(W: number, H: number) {
     const world = this.worldContainer;
     if (!world || this.pixiNodes.size === 0) return;
@@ -3643,14 +3838,31 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.setStatus(`${gd.nodes.length} nodes — simulating...`);
       this.simulation.on("end", () => {
         this.setStatus(`${gd.nodes.length} nodes`);
+        const wrap = this.canvasWrap;
+        // Ensure minimum viewport utilization regardless of autoFit
+        {
+          let evW = wrap?.clientWidth ?? 0;
+          let evH = wrap?.clientHeight ?? 0;
+          // Fallback to renderer size if DOM element has zero dimensions
+          if (evW <= 0 || evH <= 0) {
+            const renderer = this.pixiApp?.renderer;
+            evW = renderer?.width ?? 800;
+            evH = renderer?.height ?? 600;
+          }
+          if (evW > 0 && evH > 0) {
+            this.ensureViewportUtilization(evW, evH);
+          }
+        }
         if (this.panel.autoFit) {
           this.updatePositions(true);
-          const wrap = this.canvasWrap;
           if (wrap) {
             this.autoFitView(wrap.clientWidth, wrap.clientHeight);
             this.markDirty();
           }
         }
+        // Re-cull labels after simulation settles to fix overlap
+        // caused by node positions changing during simulation
+        this.updateLabelsForZoom();
       });
 
       this.updateLegend();
@@ -3740,6 +3952,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.createPixiNodes(ld.nodes, nodeR, nodeColor);
     await yieldFrame(); if (signal.aborted) return;
 
+    // Ensure viewport utilization BEFORE building transition data,
+    // so the expanded positions become the animation target (toX/toY).
+    this.ensureViewportUtilization(W, H);
+
+    // updatePositions + autoFitView BEFORE layoutTransition.start(),
+    // because start() immediately resets data.x/y = fromX/fromY.
+    // If we wait until after, autoFitView would compute bbox from
+    // the old saved positions instead of the new layout targets.
+    this.updatePositions(true);
+    this.autoFitView(W, H);
+
     // Build transition data: from saved positions, to new layout positions
     const transitionData: { data: { x: number; y: number }; fromX: number; fromY: number; toX: number; toY: number }[] = [];
     for (const pn of this.pixiNodes.values()) {
@@ -3762,9 +3985,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     this.setStatus(`Drawing ${ld.edges.length} edges...`);
     await yieldFrame(); if (signal.aborted) return;
-
-    this.updatePositions(true);
-    this.autoFitView(W, H);
 
     const groupCount = this.nodeColorMap.size;
     const totalNodes = this.rawData?.nodes.length ?? ld.nodes.length;
@@ -3815,6 +4035,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private buildSortComparator(nodes: GraphNode[], edges: GraphEdge[]) { return this.layoutController.buildSortComparator(nodes, edges); }
   private computeNodeSpacingMap(nodes: GraphNode[]) { return this.layoutController.computeNodeSpacingMap(nodes); }
   private computeLiveCentroids() { return this.layoutController.computeLiveCentroids(this.clusterMeta); }
+
+  /** Get positions of nodes belonging to a specific group (for convex hull placement). */
+  private getGroupNodePositions(groupKey: string): { x: number; y: number }[] {
+    const ncm = this.clusterMeta?.nodeClusterMap;
+    if (!ncm) return [];
+    const result: { x: number; y: number }[] = [];
+    for (const [nodeId, cluster] of ncm) {
+      if (cluster !== groupKey) continue;
+      const pn = this.pixiNodes.get(nodeId);
+      if (pn) result.push({ x: pn.data.x, y: pn.data.y });
+    }
+    return result;
+  }
 
   /** Get a hex color for a cluster group, cycling through DEFAULT_COLORS palette */
   private getClusterGroupColor(groupKey: string): number {
@@ -4089,9 +4322,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const degrees = this.degrees;
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
 
-    // Compute degree percentiles for progressive label display
+    // Compute degree percentiles for progressive label display.
+    // Within tier-1 (zoom < labelZoomTier1), further tighten the percentile
+    // proportionally to zoom so that extreme zoom-out has fewer candidates.
+    // effectivePct = basePct * clamp(zoom / tierThreshold, 0, 1)
     const degValues = Array.from(degrees.values()).sort((a, b) => b - a);
-    const pTier1 = degValues[Math.floor(degValues.length * rt.labelDegreePctTier1)] ?? 1;
+    const tier1Ratio = Math.min(1, Math.max(0.05, zoom / rt.labelZoomTier1));
+    const effectivePctTier1 = rt.labelDegreePctTier1 * tier1Ratio;
+    const pTier1 = degValues[Math.floor(degValues.length * effectivePctTier1)] ?? 1;
     const pTier2 = degValues[Math.floor(degValues.length * rt.labelDegreePctTier2)] ?? 1;
     const pTier3 = degValues[Math.floor(degValues.length * rt.labelDegreePctTier3)] ?? 1;
 
@@ -4112,27 +4350,83 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     interface LabelCandidate { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean; }
     const candidates: LabelCandidate[] = [];
 
+    // Zoom-aware label truncation (AP-5 fix):
+    // At extreme zoom-out, shorten label text to reduce AABB width so more labels fit.
+    // Chars scale proportionally: at z=0.03 with truncateZoom=0.1, ratio=0.3 → ~3 chars.
+    const truncateZoom = rt.labelTruncateZoom ?? 0.1;
+    const truncateMaxChars = rt.labelTruncateMaxChars ?? 8;
+    const truncateMinChars = rt.labelTruncateMinChars ?? 3;
+    const shouldTruncate = zoom < truncateZoom;
+    const effectiveMaxChars = shouldTruncate
+      ? Math.max(truncateMinChars, Math.round(truncateMaxChars * (zoom / truncateZoom)))
+      : Infinity;
+
+    // Tag label LOD threshold
+    const tagLabelZoomMin = rt.tagLabelZoomMin ?? 0.75;
+    // Node name label LOD threshold (zoom >= 0.4)
+    const nodeLabelZoomMin = 0.4;
+
     for (const pn of this.pixiNodes.values()) {
+      // --- Tag label LOD ---
+      if (pn.tagLabel) {
+        if (zoom >= tagLabelZoomMin) {
+          pn.tagLabel.visible = true;
+          pn.tagLabel.scale.set(counterScale);
+        } else {
+          pn.tagLabel.visible = false;
+        }
+      }
+
       if (!pn.label) continue;
 
       // Apply counter-scaling so labels stay readable at any zoom
       pn.label.scale.set(counterScale);
 
-      // Reset label to default position (nodeR + 2, offset above) before overlap cull
+      // Truncate label text at extreme zoom to reduce AABB footprint
+      if (shouldTruncate && pn.label.text) {
+        const fullText = pn.data.label || pn.data.id;
+        if (fullText.length > effectiveMaxChars) {
+          pn.label.text = fullText.slice(0, effectiveMaxChars - 1) + '…';
+        } else {
+          pn.label.text = fullText;
+        }
+      } else if (pn.label.text) {
+        // Restore full text when not truncating
+        pn.label.text = pn.data.label || pn.data.id;
+      }
+
+      // Reset label position before overlap cull.
+      // Use zone-based placement if enabled, falling back to fixed offset.
       const r = pn.radius ?? 6;
-      pn.label.x = r + 2;
-      pn.label.y = -(r * 0.4 + 2);
+      if (rt.labelZonePlacement && this.renderPipeline) {
+        const placement = (this.renderPipeline as any).computeZonePlacement(
+          pn.data, r, rt.labelZoneOffset ?? 6
+        );
+        pn.label.x = placement.x;
+        pn.label.y = placement.y;
+        pn.label.anchor.set(placement.anchorX, 0);
+      } else {
+        pn.label.x = r + 2;
+        pn.label.y = -(r * 0.4 + 2);
+      }
 
       const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
       const isHovered = hoverSet.size > 0 && hoverSet.has(pn.data.id);
       const deg = degrees.get(pn.data.id) ?? 0;
 
-      // Semantic zoom: determine eligibility based on zoom level + importance
+      // Semantic zoom: determine eligibility based on zoom level + importance.
+      // Node name labels have a LOD threshold of nodeLabelZoomMin (0.4).
+      // Group labels are always visible (zoom >= 0.0), managed separately below.
       let eligible: boolean;
       if (isSuper) {
         eligible = true; // super nodes always eligible
-      } else if (zoom < rt.labelZoomTier1) {
-        eligible = deg >= pTier1;
+      } else if (zoom < nodeLabelZoomMin) {
+        // Below node label LOD threshold: only show top-tier nodes
+        if (zoom < rt.labelZoomTier1) {
+          eligible = deg >= pTier1;
+        } else {
+          eligible = deg >= pTier2;
+        }
       } else if (zoom < rt.labelZoomTier2) {
         eligible = deg >= pTier2;
       } else if (zoom < rt.labelZoomTier3) {
@@ -4144,10 +4438,43 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (!eligible && !isHovered) {
         pn.label.visible = false;
         pn.label.alpha = 0;
+        // Also hide tag label when node label is hidden
+        if (pn.tagLabel) pn.tagLabel.visible = false;
         continue;
       }
 
       candidates.push({ pn, deg, isSuper, isHovered });
+    }
+
+    // AP-5 semantic-zoom diversity guarantee: if eligible non-super candidates
+    // are too few, promote top non-super nodes by degree so that
+    // cullOverlappingLabels has regulars to work with for concession swaps.
+    const eligibleNonSuper = candidates.filter(c => !c.isSuper).length;
+    const eligibleSuper = candidates.filter(c => c.isSuper).length;
+    // Need enough regulars for both initial placement AND concession pool.
+    // Target: at least 50% of super count, minimum labelMinNonSuper.
+    // The concession in cullOverlappingLabels needs hiddenRegulars to swap in,
+    // so we must promote enough that some survive into the hidden pool.
+    const targetRegulars = Math.max(rt.labelMinNonSuper ?? 5, Math.ceil(eligibleSuper * 0.50));
+    if (eligibleNonSuper < targetRegulars) {
+      const needed = targetRegulars - eligibleNonSuper;
+      // Collect non-super nodes with labels that were filtered out
+      const hiddenNonSupers: { pn: PixiNode; deg: number }[] = [];
+      for (const pn of this.pixiNodes.values()) {
+        if (!pn.label || !pn.label.text) continue;
+        const isS = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
+        if (isS) continue;
+        if (candidates.some(c => c.pn === pn)) continue; // already eligible
+        const d = degrees.get(pn.data.id) ?? 0;
+        hiddenNonSupers.push({ pn, deg: d });
+      }
+      hiddenNonSupers.sort((a, b) => b.deg - a.deg);
+      for (let i = 0; i < Math.min(needed, hiddenNonSupers.length); i++) {
+        const { pn: npn, deg: ndeg } = hiddenNonSupers[i];
+        npn.label.visible = true;
+        npn.label.alpha = Math.max(rt.labelAlphaMin, baseOpacity);
+        candidates.push({ pn: npn, deg: ndeg, isSuper: false, isHovered: false });
+      }
     }
 
     // --- Pass 2: apply maxVisible cap (degree-sorted, hovered nodes exempt) ---
@@ -4170,6 +4497,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (maxVisible > 0 && visCount >= maxVisible) {
         pn.label.visible = false;
         pn.label.alpha = 0;
+        if (pn.tagLabel) pn.tagLabel.visible = false;
         continue;
       }
       pn.label.visible = true;

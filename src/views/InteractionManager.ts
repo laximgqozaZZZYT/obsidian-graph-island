@@ -12,6 +12,8 @@ export interface PixiNode {
   gfx: CanvasContainer;
   circle: CanvasGraphics;
   label: CanvasText | null;
+  /** Tag label displayed below the node (LOD-gated) */
+  tagLabel: CanvasText | null;
   hoverLabel: CanvasText | null;
   leaderLine: CanvasGraphics | null;
   radius: number;

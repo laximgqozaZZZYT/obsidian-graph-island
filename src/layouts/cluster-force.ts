@@ -226,6 +226,16 @@ export interface ClusterForceConfig {
   totalNodeCount?: number;
   /** Maximum node radius in world units (0 = unlimited, default 60) */
   maxNodeRadius?: number;
+  /** Panel repelForce — used for adaptive sunburst blend */
+  repelForce?: number;
+  /** Subset of RenderThresholds for blend/layout tuning */
+  blendConfig?: {
+    sunburstBlendBase?: number;
+    sunburstBlendCeiling?: number;
+    sunburstBlendRepelSensitivity?: number;
+    clusterBlendDefault?: number;
+    clusterBlendDecayFactor?: number;
+  };
 }
 
 /**
@@ -536,12 +546,25 @@ export function buildClusterForce(
   const nodeIdx = tagMem ? new Map(nodes.map(n => [n.id, n])) : null;
 
   const force = (_alpha: number) => {
-    // Read blend initial value from user constants (default 0.85)
-    const blendInitial = cfg.userConstants?._blend ?? 0.85;
+    // Read blend initial value from user constants.
+    // Sunburst uses a higher default because its concentric arc structure
+    // is more sensitive to charge-induced drift than other arrangements.
+    // Scale blend with repelForce: higher repel → higher blend to counteract drift.
+    const bc = cfg.blendConfig;
+    const repelForce = Math.abs(cfg.repelForce ?? 60);
+    const sbBase = bc?.sunburstBlendBase ?? 0.93;
+    const sbCeiling = bc?.sunburstBlendCeiling ?? 0.99;
+    const sbSensitivity = bc?.sunburstBlendRepelSensitivity ?? 0.0008;
+    const sunburstBlend = Math.min(sbCeiling, sbBase + repelForce * sbSensitivity);
+    const blendDefault = cfg.arrangement === "sunburst"
+      ? sunburstBlend
+      : (bc?.clusterBlendDefault ?? 0.85);
+    const blendInitial = cfg.userConstants?._blend ?? blendDefault;
     // Decay: as simulation cools (alpha → 0), reduce blend to let collide work
-    // alpha starts at ~1.0 and decays to alphaMin (~0.001)
-    // We use alpha directly as the decay factor
-    const blend = blendInitial * Math.min(1, _alpha * 3);
+    const decayFactor = bc?.clusterBlendDecayFactor ?? 3;
+    const blend = cfg.arrangement === "sunburst"
+      ? blendInitial  // never decay for sunburst — keep target positions dominant
+      : blendInitial * Math.min(1, _alpha * decayFactor);
 
     for (const n of nodes) {
       const t = targets.get(n.id);
@@ -898,6 +921,8 @@ function computeSunburstTargets(
   const sectorGapFactor = uc?._sectorGap ?? 0.02;
   const maxDepth = uc?._sunburstMaxDepth ?? 6;
 
+  // Per-node angular spacing in computeSunburstTargets handles degree-based
+  // sizing directly. nodeWidth here is the fallback cap calculation.
   const nodeWidth = nodeDiam * Math.max(cfg.nodeSpacing * ringWFactor, 1.0);
   const ringThick = nodeDiam * Math.max(cfg.nodeSpacing * ringWFactor, 1.0);
   const ringGap = nodeDiam * cfg.groupScale * ringGapFactor;
@@ -920,6 +945,9 @@ function computeSunburstTargets(
   const totalGapAngle = sectorGap * nTopChildren;
   const availAngle = Math.PI * 2 - totalGapAngle;
 
+  /** Normalize angle to [0, 2π) so arc ranges match Math.atan2-based consumers. */
+  const normAngle = (a: number) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+
   /** Recursively allocate angular sectors (d3-partition style). */
   const allocate = (
     hNode: HierarchyNode,
@@ -939,8 +967,8 @@ function computeSunburstTargets(
         groupKey: hNode.id,
         depth: depthRing,
         rInner, rOuter,
-        startAngle,
-        endAngle,
+        startAngle: normAngle(startAngle),
+        endAngle: normAngle(startAngle) + sweepAngle,
         cx, cy,
         parentKey: depthRing > 0 ? findRootAncestorKey(hNode.id, tree) : undefined,
         leafCount: hNode.leafCount,
@@ -961,20 +989,42 @@ function computeSunburstTargets(
         const srInner = centerHole + sr * (ringThick + ringGap);
         const srMid = srInner + ringThick * 0.5;
 
-        const srArcLen = srMid * memberSweep;
-        const cap = Math.max(1, Math.floor(srArcLen / nodeWidth));
-        const count = Math.min(cap, sorted.length - nodeIdx);
+        // Compute per-node angular width based on degree-scaled radius.
+        // This prevents overlap when scaleByDegree is active.
+        const remaining = sorted.slice(nodeIdx);
+        const nodeAngularWidths: number[] = [];
+        for (const n of remaining) {
+          const deg = degrees.get(n.id) || 0;
+          const nodeR = effectiveRadius(n, cfg.nodeSize, deg, cfg.scaleByDegree, cfg.maxNodeRadius ?? 60);
+          const angularW = srMid > 0 ? (nodeR * 2 * cfg.nodeSpacing) / srMid : 0.01;
+          nodeAngularWidths.push(angularW);
+        }
 
+        // How many nodes fit in this sub-ring?
         const pad = Math.min(memberSweep * 0.02, 0.015);
         const usable = memberSweep - 2 * pad;
+        let count = 0;
+        let usedAngle = 0;
+        for (let k = 0; k < nodeAngularWidths.length; k++) {
+          if (usedAngle + nodeAngularWidths[k] > usable && count > 0) break;
+          usedAngle += nodeAngularWidths[k];
+          count++;
+        }
+        count = Math.max(1, count);
+
+        // Place nodes with proportional angular spacing
+        const actualTotalW = nodeAngularWidths.slice(0, count).reduce((a, b) => a + b, 0);
+        const scale = actualTotalW > 0 ? usable / actualTotalW : 1;
+        let cumAngle = memberStart + pad;
 
         for (let i = 0; i < count; i++) {
-          const at = count === 1 ? 0.5 : i / (count - 1);
-          const angle = memberStart + pad + at * usable;
+          const halfW = nodeAngularWidths[i] * scale * 0.5;
+          const angle = cumAngle + halfW;
           targets.set(sorted[nodeIdx].id, {
             x: cx + srMid * Math.cos(angle),
             y: cy + srMid * Math.sin(angle),
           });
+          cumAngle += nodeAngularWidths[i] * scale;
           nodeIdx++;
         }
 
@@ -984,8 +1034,8 @@ function computeSunburstTargets(
             depth: sr,
             rInner: srInner,
             rOuter: srInner + ringThick,
-            startAngle: memberStart,
-            endAngle: memberStart + memberSweep,
+            startAngle: normAngle(memberStart),
+            endAngle: normAngle(memberStart) + memberSweep,
             cx, cy,
             parentKey: depthRing > 0 ? findRootAncestorKey(hNode.id, tree) : undefined,
             leafCount: count,
@@ -2731,7 +2781,9 @@ function timelineOffsets(
     // scale down Y positions and bar heights proportionally.
     // Target: fit bars in ~1200px world height so they're visible at moderate zoom.
     const totalLaneH = laneEnds.length * laneH;
-    const targetH = Math.max(600, n * 0.8); // proportional to node count, min 600
+    const timelineMinH = cfg.userConstants?._timelineMinH ?? 600;
+    const timelineHPerNode = cfg.userConstants?._timelineHPerNode ?? 0.8;
+    const targetH = Math.max(timelineMinH, n * timelineHPerNode);
     if (totalLaneH > targetH) {
       const scale = targetH / totalLaneH;
       for (const bar of bars) {

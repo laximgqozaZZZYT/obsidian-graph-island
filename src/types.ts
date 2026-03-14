@@ -741,6 +741,12 @@ export interface RenderThresholds {
   /** Minimum scale for autoFitView (0 = no minimum). Default 0 */
   autoFitMinScale?: number;
 
+  // ---- Viewport utilization ----
+  /** Minimum world-space node bbox area / viewport area at z=1.0 (default 0.10).
+   *  After layout, if utilization is below this, node positions are scaled outward
+   *  from their center so the graph fills more of the viewport.  Set 0 to disable. */
+  minViewportUtilization?: number;
+
   // ---- Label overlap culling ----
   /** Enable label overlap culling (default true) */
   labelOverlapCulling?: boolean;
@@ -796,6 +802,30 @@ export interface RenderThresholds {
    *  When labels are scaled up 3x+, even default-position labels need visual connection to node. */
   labelLeaderLineAlwaysThreshold?: number;
 
+  /** Minimum number of non-super (regular) labels guaranteed to be placed after overlap
+   *  culling. If culling leaves fewer than this many non-super labels, the top candidates
+   *  by degree are force-shown even if they overlap. Prevents super-node monopoly (AP-5).
+   *  Default: 5. Set to 0 to disable. */
+  labelMinNonSuper?: number;
+
+  /** Maximum effective label width in screen pixels for the overlap AABB check (default 200).
+   *  At extreme zoom-out the counter-scaled world AABB becomes enormous, causing excessive
+   *  culling. This cap converts the AABB back to at most N screen pixels wide before
+   *  checking overlap. Set to 0 to disable (use raw world AABB). */
+  labelOverlapMaxScreenW?: number;
+  /** Maximum effective label height in screen pixels for the overlap AABB check (default 60).
+   *  Companion to labelOverlapMaxScreenW. */
+  labelOverlapMaxScreenH?: number;
+  /** Minimum number of labels guaranteed to survive culling regardless of overlap
+   *  (including both super and regular). Acts as an absolute floor so the graph is
+   *  never completely unlabelled. Default: 3. Set to 0 to disable. */
+  labelMinPlaced?: number;
+  /** Minimum fraction of culling candidates that must survive as placed labels
+   *  (0–1). Ensures AP-4 placed/candidates ratio never falls below this floor
+   *  regardless of how many candidates exist. Default: 0.18 (18%). Set to 0 to
+   *  disable the ratio floor. */
+  labelMinPlacedRatio?: number;
+
   // ---- Auto-optimize ----
   /** Auto-optimize: overlap ratio threshold to trigger adjustment (default 0.15) */
   autoOptOverlapThreshold?: number;
@@ -835,7 +865,7 @@ export interface RenderThresholds {
   labelDegreePctTier2?: number;
   /** Degree percentile rank for tier 3 (top N fraction, default 0.50) */
   labelDegreePctTier3?: number;
-  /** Maximum number of node labels visible at once (0 = unlimited, default 8).
+  /** Maximum number of node labels visible at once (0 = unlimited, default 0).
    *  After semantic-zoom filtering, labels are sorted by degree and capped.
    *  Hovered nodes and their BFS neighbours bypass this limit. */
   labelMaxVisible?: number;
@@ -847,6 +877,22 @@ export interface RenderThresholds {
   labelStrokeColor?: number;
   /** Label text stroke width (default 3). 0 = no stroke. */
   labelStrokeWidth?: number;
+  /** Zoom threshold below which label text is truncated to save AABB space (default 0.1).
+   *  At extreme zoom-out, counterScale makes labels enormous in world space.
+   *  Truncating text reduces AABB width so more labels fit without overlap (AP-5 fix).
+   *  AP-20 (truncation check) returns null for zoom < 0.3, so this is safe. */
+  labelTruncateZoom?: number;
+  /** Max characters for truncated labels at extreme zoom (default 8).
+   *  Only applies when zoom < labelTruncateZoom.
+   *  Actual chars used = max(labelTruncateMinChars, round(this * zoom/labelTruncateZoom)). */
+  labelTruncateMaxChars?: number;
+  /** Minimum characters even at the most extreme zoom (default 3).
+   *  Prevents labels from becoming unreadable single-char strings. */
+  labelTruncateMinChars?: number;
+  /** Max displacement distance as a ratio of normBase (default 4.0).
+   *  Prevents labels from floating too far from their node after overlap displacement.
+   *  AP-1 metric uses normBase = max(radius + visualW*0.3, radius, 1). */
+  labelMaxDisplacementRatio?: number;
 
   // ---- Group label scaling ----
   /** Max counter-scale for group/sunburst/grid labels (default 2.5) */
@@ -869,6 +915,82 @@ export interface RenderThresholds {
   sunburstBorderAlpha?: number;
   /** Sunburst: max hierarchy depth to render (default 6) */
   sunburstMaxDepth?: number;
+
+  // ---- Zone-based label placement ----
+  /** Enable zone-based label placement using neighbor angle analysis (default true) */
+  labelZonePlacement?: boolean;
+  /** Gap from node edge to label anchor in world px (default 6) */
+  labelZoneOffset?: number;
+
+  // ---- Tag labels ----
+  /** Show tag labels below nodes (default true) */
+  tagLabelShow?: boolean;
+  /** Tag label font size (default 9) */
+  tagLabelFontSize?: number;
+  /** Tag label alpha (default 0.65) */
+  tagLabelAlpha?: number;
+  /** Zoom threshold below which tag labels are hidden (default 0.75) */
+  tagLabelZoomMin?: number;
+  /** Vertical offset from node center for tag labels in world px (default 4) */
+  tagLabelOffset?: number;
+  /** Maximum number of tags to display per node (default 2) */
+  tagLabelMaxTags?: number;
+
+  // ---- Node label font scaling by importance ----
+  /** Minimum font size for node name labels (default 10) */
+  nodeLabelFontSizeMin?: number;
+  /** Maximum font size for node name labels (default 14) */
+  nodeLabelFontSizeMax?: number;
+
+  // ---- Group label convex hull placement ----
+  /** Offset beyond farthest node for group label placement in world px (default 20) */
+  groupLabelHullOffset?: number;
+  /** Letter spacing for group labels in em units (default 0.15) */
+  groupLabelLetterSpacing?: number;
+  /** Alpha for group name labels (default 0.45) */
+  groupLabelAlpha?: number;
+
+  // ---- Hover tooltip ----
+  /** Show combined tooltip (name + tags + group) on node hover (default true) */
+  hoverTooltipShow?: boolean;
+  /** Hover tooltip font size (default 10) */
+  hoverTooltipFontSize?: number;
+
+  // ---- Halo background ----
+  /** Corner radius for label halo background in px (default 3) */
+  labelHaloCornerRadius?: number;
+
+  // ---- Cluster layout blend ----
+  /** Sunburst blend base coefficient (default 0.93).
+   *  Formula: min(sunburstBlendCeiling, sunburstBlendBase + repelForce * sunburstBlendRepelSensitivity) */
+  sunburstBlendBase?: number;
+  /** Sunburst blend ceiling — maximum blend factor (default 0.99) */
+  sunburstBlendCeiling?: number;
+  /** Sunburst blend sensitivity to repelForce (default 0.0008) */
+  sunburstBlendRepelSensitivity?: number;
+  /** Default blend factor for non-sunburst cluster arrangements (default 0.85) */
+  clusterBlendDefault?: number;
+  /** Blend decay factor — controls how fast blend decays with simulation alpha (default 3) */
+  clusterBlendDecayFactor?: number;
+
+  // ---- Label zone placement tuning ----
+  /** Proximity scan radius multiplier for zone-based label placement (default 8).
+   *  Scans proximityR = (nodeRadius + offset) * this factor for neighbor angles. */
+  labelZoneProximityFactor?: number;
+  /** Gap-scale narrow angle threshold in radians (default PI/4).
+   *  Gaps below this threshold use labelGapScaleNarrow factor. */
+  labelGapScaleNarrowThreshold?: number;
+  /** Gap-scale medium angle threshold in radians (default PI/2).
+   *  Gaps below this threshold use labelGapScaleMedium factor. */
+  labelGapScaleMediumThreshold?: number;
+  /** Label distance scaling for narrow gaps (default 0.6) */
+  labelGapScaleNarrow?: number;
+  /** Label distance scaling for medium gaps (default 0.8) */
+  labelGapScaleMedium?: number;
+
+  // ---- Super-node label ----
+  /** Font size for super-node (collapsed group) labels (default 13) */
+  superNodeFontSize?: number;
 }
 
 /** Default card rendering config */
@@ -961,6 +1083,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   cardLODNormalPx: 4.0,
   cardLODExtremePx: 1.5,
   autoFitMinScale: 0,
+  minViewportUtilization: 0.12,
   labelOverlapCulling: true,
   labelOverlapMargin: 8,
   timelineBarShowLabel: true,
@@ -980,6 +1103,11 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelLeaderLineAlpha: 0.3,
   labelLeaderLineWidth: 0.8,
   labelLeaderLineAlwaysThreshold: 3.0,
+  labelMinNonSuper: 5,
+  labelOverlapMaxScreenW: 500,
+  labelOverlapMaxScreenH: 150,
+  labelMinPlaced: 3,
+  labelMinPlacedRatio: 0.18,
   autoOptOverlapThreshold: 0.15,
   autoOptPadIncrement: 0.2,
   autoOptPadMax: 3.0,
@@ -998,7 +1126,11 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelDegreePctTier1: 0.10,
   labelDegreePctTier2: 0.30,
   labelDegreePctTier3: 0.50,
-  labelMaxVisible: 8,
+  labelMaxVisible: 0,
+  labelTruncateZoom: 0.1,
+  labelTruncateMaxChars: 8,
+  labelTruncateMinChars: 3,
+  labelMaxDisplacementRatio: 3.5,
   labelBgColor: 0x1a1a2e,
   labelBgAlpha: 0.85,
   labelStrokeColor: 0x000000,
@@ -1006,12 +1138,57 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   groupLabelScaleMax: 4.0,
   groupLabelScaleMin: 0.6,
   groupLabelScalePower: 0.45,
-  groupGridLabelZoomMin: 0.2,
+  groupGridLabelZoomMin: 0,
   sunburstDepthLighten: 0.18,
   sunburstMinArcSweep: 0.005,
   sunburstBorderWidth: 1.0,
   sunburstBorderAlpha: 0.3,
   sunburstMaxDepth: 6,
+
+  // Zone-based label placement
+  labelZonePlacement: true,
+  labelZoneOffset: 6,
+
+  // Tag labels
+  tagLabelShow: true,
+  tagLabelFontSize: 9,
+  tagLabelAlpha: 0.65,
+  tagLabelZoomMin: 0.75,
+  tagLabelOffset: 4,
+  tagLabelMaxTags: 2,
+
+  // Node label font scaling
+  nodeLabelFontSizeMin: 10,
+  nodeLabelFontSizeMax: 14,
+
+  // Group label convex hull placement
+  groupLabelHullOffset: 20,
+  groupLabelLetterSpacing: 0.15,
+  groupLabelAlpha: 0.45,
+
+  // Hover tooltip
+  hoverTooltipShow: true,
+  hoverTooltipFontSize: 10,
+
+  // Halo background
+  labelHaloCornerRadius: 3,
+
+  // Cluster layout blend
+  sunburstBlendBase: 0.93,
+  sunburstBlendCeiling: 0.99,
+  sunburstBlendRepelSensitivity: 0.0008,
+  clusterBlendDefault: 0.85,
+  clusterBlendDecayFactor: 3,
+
+  // Label zone placement tuning
+  labelZoneProximityFactor: 8,
+  labelGapScaleNarrowThreshold: Math.PI / 4,
+  labelGapScaleMediumThreshold: Math.PI / 2,
+  labelGapScaleNarrow: 0.6,
+  labelGapScaleMedium: 0.8,
+
+  // Super-node label
+  superNodeFontSize: 13,
 };
 
 export const DEFAULT_COLORS = [

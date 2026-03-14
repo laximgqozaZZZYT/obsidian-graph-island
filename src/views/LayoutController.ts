@@ -471,6 +471,14 @@ export class LayoutController {
       ) as "circle" | "horizontal" | "concentric" | "vertical",
       skipGroupOverlap: clusterArrangement === "timeline" || clusterArrangement === "sunburst",
       maxNodeRadius: panel.renderThresholds?.maxNodeRadius ?? 60,
+      repelForce: panel.repelForce,
+      blendConfig: {
+        sunburstBlendBase: panel.renderThresholds?.sunburstBlendBase,
+        sunburstBlendCeiling: panel.renderThresholds?.sunburstBlendCeiling,
+        sunburstBlendRepelSensitivity: panel.renderThresholds?.sunburstBlendRepelSensitivity,
+        clusterBlendDefault: panel.renderThresholds?.clusterBlendDefault,
+        clusterBlendDecayFactor: panel.renderThresholds?.clusterBlendDecayFactor,
+      },
     };
 
     // If coordinateLayout specifies a property source, use it as timelineKey

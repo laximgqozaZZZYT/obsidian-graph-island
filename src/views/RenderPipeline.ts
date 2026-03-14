@@ -91,6 +91,10 @@ export interface RenderHost {
   getRenderThresholds?(): RenderThresholds;
   /** Whether scaleByDegree is enabled */
   getScaleByDegree?(): boolean;
+  /** Get the adjacency map for zone-based label placement */
+  getAdjacency?(): Map<string, Set<string>>;
+  /** Get the accent color for tag labels */
+  getAccentColor?(): number;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,6 +145,7 @@ export class RenderPipeline {
   private pendingNodeR: ((n: GraphNode) => number) | null = null;
   private pendingNodeColor: ((n: GraphNode) => number) | null = null;
   private pendingLabelThreshold = 3;
+  private _cachedMaxDeg = 1;
   private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
 
   constructor(host: RenderHost) {
@@ -783,9 +788,10 @@ export class RenderPipeline {
     nodeColor: (n: GraphNode) => number
   ) {
     const pixiNodes = this.host.getPixiNodes();
-    // Clean up leader lines before clearing
+    // Clean up leader lines and tag labels before clearing
     for (const pn of pixiNodes.values()) {
       if (pn.leaderLine) { pn.leaderLine.destroy(); pn.leaderLine = null; }
+      if (pn.tagLabel) { pn.tagLabel.destroy(); pn.tagLabel = null; }
     }
     pixiNodes.clear();
     this.cancelDeferredBatch();
@@ -798,6 +804,9 @@ export class RenderPipeline {
     this.pendingLabelThreshold = degValues.length > MAX_LABELS
       ? Math.max(3, degValues[MAX_LABELS - 1])
       : 3;
+
+    // Cache maxDeg once — avoids O(n²) recomputation inside createSinglePixiNode
+    this._cachedMaxDeg = degValues.length > 0 ? degValues[0] : 1;
 
     // Sort by degree descending — high-degree nodes render first (most important)
     const sorted = [...nodes].sort((a, b) =>
@@ -860,19 +869,28 @@ export class RenderPipeline {
     container.addChild(circle);
 
     let label: CanvasText | null = null;
+    let tagLabel: CanvasText | null = null;
     const degrees = this.host.getDegrees();
     const deg = degrees.get(n.id) || 0;
     if (isSuperNode || deg > this.pendingLabelThreshold) {
       const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
-      const labelFontSize = isSuperNode ? 13 : 11;
-      const labelFontWeight = isSuperNode ? "bold" : "600";
+
+      // --- Importance-based font size: scale between min and max based on degree ---
+      const maxDeg = this._cachedMaxDeg || 1;
+      const importance = maxDeg > 0 ? Math.min(1, deg / maxDeg) : 0;
+      const fontMin = rt.nodeLabelFontSizeMin ?? 10;
+      const fontMax = rt.nodeLabelFontSizeMax ?? 14;
+      const superFontSize = rt.superNodeFontSize ?? 13;
+      const scaledFontSize = isSuperNode ? superFontSize : Math.round(fontMin + importance * (fontMax - fontMin));
+
+      const labelFontWeight = isSuperNode ? "bold" : "500";
       // For super nodes, use group color as pill background; for regular nodes, use theme bg
       const labelBg = isSuperNode ? (color != null ? darkenColor(color, 0.6) : rt.labelBgColor) : rt.labelBgColor;
       // Use bright text when pill background is present for better contrast
       const labelFill = isSuperNode ? 0xffffff
         : (this.host.isDarkTheme() ? 0xe0e0e0 : 0x222222);
       label = new CanvasText(n.label, {
-        fontSize: labelFontSize,
+        fontSize: scaledFontSize,
         fill: labelFill,
         fontWeight: labelFontWeight,
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
@@ -881,18 +899,55 @@ export class RenderPipeline {
       label.bgAlpha = isSuperNode ? 0.9 : rt.labelBgAlpha;
       label.bgPadX = isSuperNode ? 10 : 8;
       label.bgPadY = isSuperNode ? 4 : 3;
+      label.cornerRadius = rt.labelHaloCornerRadius ?? null;
       label.strokeColor = rt.labelStrokeColor ?? null;
       label.strokeWidth = rt.labelStrokeWidth ?? 0;
-      label.x = r + 2;
-      label.y = -(r * 0.4 + 2);
+
+      // --- Zone-based label placement ---
+      // Analyze adjacent node angles and place label in the direction of the largest gap.
+      const zoneOffset = rt.labelZoneOffset ?? 6;
+      if (rt.labelZonePlacement) {
+        const placement = this.computeZonePlacement(n, r, zoneOffset);
+        label.x = placement.x;
+        label.y = placement.y;
+        label.anchor.set(placement.anchorX, 0);
+      } else {
+        label.x = r + 2;
+        label.y = -(r * 0.4 + 2);
+      }
       container.addChild(label);
+
+      // --- Tag label (below node, fixed offset) ---
+      if (rt.tagLabelShow && n.tags && n.tags.length > 0 && !isSuperNode) {
+        const maxTags = rt.tagLabelMaxTags ?? 2;
+        const tagText = n.tags.slice(0, maxTags).map(t => `#${t}`).join(" ");
+        const accentColor = this.host.getAccentColor?.() ?? 0x818cf8;
+        tagLabel = new CanvasText(tagText, {
+          fontSize: rt.tagLabelFontSize ?? 9,
+          fill: accentColor,
+          fontWeight: "400",
+          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+        });
+        tagLabel.alpha = rt.tagLabelAlpha ?? 0.65;
+        tagLabel.bgColor = rt.labelBgColor;
+        tagLabel.bgAlpha = (rt.labelBgAlpha ?? 0.85) * 0.7;
+        tagLabel.bgPadX = 4;
+        tagLabel.bgPadY = 1;
+        tagLabel.cornerRadius = rt.labelHaloCornerRadius ?? null;
+        tagLabel.anchor.set(0.5, 0);
+        tagLabel.x = 0;
+        tagLabel.y = r + (rt.tagLabelOffset ?? 4);
+        // Tag labels start hidden; LOD in applyTextFade controls visibility
+        tagLabel.visible = false;
+        container.addChild(tagLabel);
+      }
     }
 
     world.addChild(container);
 
     const pixiNodes = this.host.getPixiNodes();
     pixiNodes.set(n.id, {
-      data: n, gfx: container, circle, label,
+      data: n, gfx: container, circle, label, tagLabel,
       hoverLabel: null, leaderLine: null, radius: r, color, held: false,
     });
   }
@@ -938,6 +993,102 @@ export class RenderPipeline {
   }
 
   // =========================================================================
+  // Zone-based label placement — place label in the largest angular gap
+  // among adjacent nodes to maximize readability.
+  // =========================================================================
+  private computeZonePlacement(
+    node: GraphNode,
+    nodeRadius: number,
+    offset: number
+  ): { x: number; y: number; anchorX: number } {
+    const adj = this.host.getAdjacency?.();
+    const pixiNodes = this.host.getPixiNodes();
+    const neighbors = adj?.get(node.id);
+
+    // Default: place to the right if no adjacency info
+    if (!neighbors || neighbors.size === 0) {
+      return { x: nodeRadius + offset, y: -(nodeRadius * 0.4), anchorX: 0 };
+    }
+
+    // Collect angles to all neighboring nodes AND positionally proximate nodes.
+    // In dense layouts (sunburst, cardioid), nearby unlinked nodes in the same arc
+    // can cause AP-6 ambiguity if labels are placed toward them.
+    const angles: number[] = [];
+    const rtZone = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+    const proximityFactor = rtZone.labelZoneProximityFactor ?? 8;
+    const proximityR = (nodeRadius + offset) * proximityFactor;
+    for (const nid of neighbors) {
+      const pn = pixiNodes.get(nid);
+      if (!pn) continue;
+      const dx = pn.data.x - node.x;
+      const dy = pn.data.y - node.y;
+      if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) continue;
+      angles.push(Math.atan2(dy, dx));
+    }
+    // Also include nearby non-linked nodes within proximity radius.
+    // Cap at 12 nearest proximity nodes to limit O(n²) cost for large graphs.
+    const proxCandidates: { angle: number; dist: number }[] = [];
+    for (const [nid, pn] of pixiNodes) {
+      if (nid === node.id || neighbors.has(nid)) continue;
+      const dx = pn.data.x - node.x;
+      const dy = pn.data.y - node.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < proximityR && dist > 0.01) {
+        proxCandidates.push({ angle: Math.atan2(dy, dx), dist });
+      }
+    }
+    // Keep only the closest 20 to avoid over-constraining the gap search
+    proxCandidates.sort((a, b) => a.dist - b.dist);
+    for (let i = 0; i < Math.min(20, proxCandidates.length); i++) {
+      angles.push(proxCandidates[i].angle);
+    }
+
+    if (angles.length === 0) {
+      return { x: nodeRadius + offset, y: -(nodeRadius * 0.4), anchorX: 0 };
+    }
+
+    // Sort angles and find the largest gap
+    angles.sort((a, b) => a - b);
+
+    let maxGap = 0;
+    let gapMidAngle = 0;
+
+    for (let i = 0; i < angles.length; i++) {
+      const next = i + 1 < angles.length ? angles[i + 1] : angles[0] + Math.PI * 2;
+      const gap = next - angles[i];
+      if (gap > maxGap) {
+        maxGap = gap;
+        gapMidAngle = angles[i] + gap / 2;
+      }
+    }
+
+    // Place label at the midpoint of the largest gap.
+    // When gap is narrow (dense layout), pull label closer to its own node
+    // to reduce AP-6 ambiguity (label closer to another node).
+    const gapNarrowTh = rtZone.labelGapScaleNarrowThreshold ?? Math.PI / 4;
+    const gapMedTh = rtZone.labelGapScaleMediumThreshold ?? Math.PI / 2;
+    const gapNarrowFactor = rtZone.labelGapScaleNarrow ?? 0.6;
+    const gapMedFactor = rtZone.labelGapScaleMedium ?? 0.8;
+    const gapScale = maxGap < gapNarrowTh ? gapNarrowFactor : maxGap < gapMedTh ? gapMedFactor : 1.0;
+    const dist = (nodeRadius + offset) * gapScale;
+    const lx = Math.cos(gapMidAngle) * dist;
+    const ly = Math.sin(gapMidAngle) * dist;
+
+    // Determine text anchor based on direction
+    const cosA = Math.cos(gapMidAngle);
+    let anchorX: number;
+    if (cosA > 0.3) {
+      anchorX = 0;       // text-anchor: start (label to the right)
+    } else if (cosA < -0.3) {
+      anchorX = 1;       // text-anchor: end (label to the left)
+    } else {
+      anchorX = 0.5;     // text-anchor: middle (label above/below)
+    }
+
+    return { x: lx, y: ly, anchorX };
+  }
+
+  // =========================================================================
   // Label overlap culling — hide labels that overlap higher-priority ones
   // =========================================================================
   cullOverlappingLabels() {
@@ -947,6 +1098,14 @@ export class RenderPipeline {
     const baseMargin = rt.labelOverlapMargin;
     const pixiNodes = this.host.getPixiNodes();
     const degrees = this.host.getDegrees();
+
+    // Current viewport zoom — needed to convert screen-space caps to world units.
+    const zoom = this.host.getWorldContainer()?.scale.x ?? 1;
+
+    // Screen-space AABB caps. Since all AABB coordinates are now in screen
+    // pixels, we cap directly at these values (no world-space conversion needed).
+    const maxScreenW = rt.labelOverlapMaxScreenW;  // default 500 screen px
+    const maxScreenH = rt.labelOverlapMaxScreenH;  // default 150 screen px
 
     interface LabelRect {
       pn: PixiNode;
@@ -960,7 +1119,9 @@ export class RenderPipeline {
     }
     const rects: LabelRect[] = [];
 
-    // Collect all visible labels into rects
+    // Collect all visible labels into rects using SCREEN-SPACE coordinates.
+    // This ensures overlap detection is accurate regardless of zoom level.
+    // All x, y, w, h values are in screen pixels (world * zoom).
     for (const pn of pixiNodes.values()) {
       const label = pn.label;
       if (!label || !label.text || !label.visible) continue;
@@ -970,28 +1131,39 @@ export class RenderPipeline {
       const scaleY = label.scale?.y ?? 1;
       const padX = label.bgPadX ?? 0;
       const padY = label.bgPadY ?? 0;
-      const w = label.text.length * charW * scaleX + padX * 2 * scaleX;
-      const h = fontSize * scaleY * 1.3 + padY * 2 * scaleY;
-      // label.x/y are in parent (node-local) space; translate happens before
-      // scale in Canvas2D _flush(), so position is NOT affected by scale.
-      const wx = pn.data.x + label.x;
-      const wy = pn.data.y + label.y;
+      const rawW = label.text.length * charW * scaleX * zoom + padX * 2 * scaleX * zoom;
+      const rawH = fontSize * scaleY * 1.3 * zoom + padY * 2 * scaleY * zoom;
+      // Clamp to screen-space cap (already in screen px, no conversion needed).
+      const w = Math.min(rawW, maxScreenW > 0 ? maxScreenW : Infinity);
+      const h = Math.min(rawH, maxScreenH > 0 ? maxScreenH : Infinity);
+      // Convert world position to screen position.
+      const wx = (pn.data.x + label.x) * zoom;
+      const wy = (pn.data.y + label.y) * zoom;
       const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
       rects.push({ pn, label, x: wx, y: wy, w, h,
         degree: degrees.get(pn.data.id) ?? 0, isSuper });
     }
 
-    // Scale margin proportionally to label counter-scale so spacing
-    // stays visually consistent regardless of zoom level.
-    // At scale=1 margin=baseMargin; at scale=30 margin is much larger.
-    const sampleScale = rects.length > 0 ? (rects[0].label.scale?.x ?? 1) : 1;
-    const margin = baseMargin * Math.max(1, sampleScale);
+    const margin = baseMargin;
 
-    // Sort: super nodes first (group labels), then by degree desc
-    rects.sort((a, b) => {
-      if (a.isSuper !== b.isSuper) return a.isSuper ? -1 : 1;
-      return b.degree - a.degree;
-    });
+    // Sort: interleave super and non-super labels by degree to prevent super monopoly.
+    // Super nodes get priority but are capped at labelMinNonSuper positions before
+    // non-super labels start competing, ensuring label diversity (AP-5 protection).
+    const minNonSuper = rt.labelMinNonSuper ?? 3;
+    const supers = rects.filter(r => r.isSuper).sort((a, b) => b.degree - a.degree);
+    const regulars = rects.filter(r => !r.isSuper).sort((a, b) => b.degree - a.degree);
+
+    // Interleave: for every super, also insert top regular candidates
+    rects.length = 0;
+    let si = 0, ri = 0;
+    while (si < supers.length || ri < regulars.length) {
+      // Place one super node
+      if (si < supers.length) rects.push(supers[si++]);
+      // Then place minNonSuper regular nodes (ensures diversity)
+      for (let k = 0; k < minNonSuper && ri < regulars.length; k++) {
+        rects.push(regulars[ri++]);
+      }
+    }
 
     const placed: LabelRect[] = [];
     const checkOverlap = (rect: LabelRect): boolean => {
@@ -1009,6 +1181,7 @@ export class RenderPipeline {
     const drawLeader = rt.labelLeaderLines;
     const llAlpha = rt.labelLeaderLineAlpha;
     const llWidth = rt.labelLeaderLineWidth;
+    const maxDispRatio = rt.labelMaxDisplacementRatio ?? 4.0;
 
     // Clear all existing leader lines before re-evaluation
     for (const pn of pixiNodes.values()) {
@@ -1027,25 +1200,54 @@ export class RenderPipeline {
         continue;
       }
 
-      // Try 8 alternate offsets (in world-space units) before hiding.
+      // Displacement offsets in screen space. All AABB coordinates are in screen
+      // pixels, so offsets use screen-space label dimensions to properly clear overlaps.
+      // The offsets are converted back to world space when applied to label.x/y.
+      const screenNodeR = nodeR * zoom;
       const offsets = [
-        { dx: r.w * 0.5 + nodeR, dy: nodeR + r.h },       // bottom-right
-        { dx: -(r.w + nodeR + 2), dy: 0 },                 // left
-        { dx: 0, dy: nodeR + r.h * 1.5 },                  // below
-        { dx: r.w * 0.3 + nodeR, dy: -(nodeR + r.h) },     // top-right
-        { dx: -(r.w + nodeR + 2), dy: -(nodeR + r.h) },    // top-left
-        { dx: -(r.w + nodeR + 2), dy: nodeR + r.h },       // bottom-left
-        { dx: r.w * 0.5 + nodeR, dy: -(nodeR + r.h * 2) }, // far top-right
-        { dx: 0, dy: -(nodeR + r.h * 2.5) },               // far above
+        { dx: r.w * 0.5 + screenNodeR, dy: screenNodeR + r.h },       // bottom-right
+        { dx: -(r.w + screenNodeR + 2), dy: 0 },                       // left
+        { dx: 0, dy: screenNodeR + r.h * 1.2 },                        // below
+        { dx: r.w * 0.3 + screenNodeR, dy: -(screenNodeR + r.h) },     // top-right
+        { dx: -(r.w + screenNodeR + 2), dy: -(screenNodeR + r.h) },    // top-left
+        { dx: -(r.w + screenNodeR + 2), dy: screenNodeR + r.h },       // bottom-left
+        { dx: r.w * 0.3 + screenNodeR, dy: -(screenNodeR + r.h * 1.2) }, // above-right
+        { dx: -(r.w * 0.3 + screenNodeR), dy: -(screenNodeR + r.h * 1.2) }, // above-left
       ];
       let found = false;
 
+      // Compute normBase for AP-1 displacement cap (same formula as AP-1 metric).
+      // This prevents labels from floating too far from their node in world space.
+      const fontSize = (r.label.style.fontSize as number) ?? 11;
+      const charW = fontSize * 0.6;
+      const scaleX = r.label.scale?.x ?? 1;
+      const visualW = (r.label.text?.length ?? 0) * charW * scaleX;
+      const normBase = Math.max(nodeR + visualW * 0.3, nodeR, 1);
+      const maxWorldDisp = maxDispRatio * normBase;
+
+      const baseLx = r.label.x;
+      const baseLy = r.label.y;
       for (const off of offsets) {
-        const alt: LabelRect = { ...r, x: r.x + off.dx, y: r.y + off.dy };
+        // Convert screen-space offset to world space
+        let worldDx = zoom > 0 ? off.dx / zoom : off.dx;
+        let worldDy = zoom > 0 ? off.dy / zoom : off.dy;
+        // Cap TOTAL distance (base + displacement) to maxWorldDisp, not just delta.
+        // AP-1 measures sqrt(label.x² + label.y²), so we must cap the total offset.
+        const totalX = baseLx + worldDx;
+        const totalY = baseLy + worldDy;
+        const totalDist = Math.sqrt(totalX ** 2 + totalY ** 2);
+        if (totalDist > maxWorldDisp && totalDist > 0) {
+          const s = maxWorldDisp / totalDist;
+          worldDx = totalX * s - baseLx;
+          worldDy = totalY * s - baseLy;
+        }
+        // Compute actual screen position after cap
+        const cappedScreenX = (pn.data.x + baseLx + worldDx) * zoom;
+        const cappedScreenY = (pn.data.y + baseLy + worldDy) * zoom;
+        const alt: LabelRect = { ...r, x: cappedScreenX, y: cappedScreenY };
         if (!checkOverlap(alt)) {
-          // Offsets are in world space; label.x/y are in parent (= world) space.
-          r.label.x += off.dx;
-          r.label.y += off.dy;
+          r.label.x = baseLx + worldDx;
+          r.label.y = baseLy + worldDy;
           placed.push(alt);
           found = true;
 
@@ -1060,9 +1262,11 @@ export class RenderPipeline {
             ll.visible = true;
             const lx = r.label.x;
             const ly = r.label.y;
-            // r.w/r.h are visual extents in parent space (already includes scale)
-            const anchorX = Math.max(lx, Math.min(0, lx + r.w));
-            const anchorY = Math.max(ly, Math.min(0, ly + r.h));
+            // r.w/r.h are in screen space; convert back to world for leader line
+            const worldW = zoom > 0 ? r.w / zoom : r.w;
+            const worldH = zoom > 0 ? r.h / zoom : r.h;
+            const anchorX = Math.max(lx, Math.min(0, lx + worldW));
+            const anchorY = Math.max(ly, Math.min(0, ly + worldH));
             const dist = Math.sqrt(anchorX ** 2 + anchorY ** 2);
             const edgeX = dist > 0.1 ? (anchorX / dist) * nodeR : 0;
             const edgeY = dist > 0.1 ? (anchorY / dist) * nodeR : 0;
@@ -1075,6 +1279,228 @@ export class RenderPipeline {
       }
       if (!found) {
         r.label.visible = false;
+      }
+    }
+
+    // --- Placement floor guarantee (AP-4 + AP-5) ---
+    // Force-shows highest-degree culled candidates, but ONLY if they don't
+    // create AABB overlaps with already-placed labels (prevents AP-2 regression).
+    const minPlaced = rt.labelMinPlaced ?? 3;
+    const minPlacedRatio = rt.labelMinPlacedRatio ?? 0.18;
+    const totalCandidates = rects.length;
+    const ratioFloor = minPlacedRatio > 0 ? Math.ceil(totalCandidates * minPlacedRatio) : 0;
+    const absoluteFloor = Math.max(minPlaced, ratioFloor);
+
+    const placedNonSuperNow = placed.filter(r => !r.isSuper).length;
+
+    // AABB overlap check helper — screen-space coords (world * zoom) to match main pass
+    const overlapsPlaced = (candidate: typeof rects[0], currentPlaced: typeof rects): boolean => {
+      const cx = (candidate.pn.data.x + candidate.label.x) * zoom;
+      const cy = (candidate.pn.data.y + candidate.label.y) * zoom;
+      for (const p of currentPlaced) {
+        const px = (p.pn.data.x + p.label.x) * zoom;
+        const py = (p.pn.data.y + p.label.y) * zoom;
+        if (cx < px + p.w && cx + candidate.w > px &&
+            cy < py + p.h && cy + candidate.h > py) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (absoluteFloor > 0 || minNonSuper > 0) {
+      const placedSet = new Set(placed.map(r => r.pn.data.id));
+      const hiddenSupers = rects.filter(r => r.isSuper && !placedSet.has(r.pn.data.id))
+        .sort((a, b) => b.degree - a.degree);
+      const hiddenRegulars = rects.filter(r => !r.isSuper && !placedSet.has(r.pn.data.id))
+        .sort((a, b) => b.degree - a.degree);
+
+      // tryDisplaceForceShow: attempt displacement offsets for force-show candidates.
+      // Applies world-space displacement (with AP-1 cap) FIRST, then checks overlap
+      // using overlapsPlaced (which reads from label.x/y). Reverts if no fit found.
+      const tryDisplaceForceShow = (r: LabelRect): boolean => {
+        if (!overlapsPlaced(r, placed)) return true; // fits without displacement
+        const nodeR = r.pn.radius ?? 6;
+        const screenNodeR = nodeR * zoom;
+        // Wider offsets than main pass to guarantee AABB clearance at extreme zoom.
+        // Each offset moves by full label width + margin to clear same-sized labels.
+        const clearX = r.w + margin;
+        const clearY = r.h + margin;
+        // Systematic 8-direction × 10-multiplier offsets (80 positions).
+        // At extreme zoom-out (z=0.03), labels are ~150px wide in screen space,
+        // so 28 ad-hoc offsets were insufficient to escape the dense AABB cluster.
+        const dispOffsets: { dx: number; dy: number }[] = [];
+        const dirs = [
+          { dx: 1, dy: 0 },   { dx: -1, dy: 0 },   // right, left
+          { dx: 0, dy: 1 },   { dx: 0, dy: -1 },    // below, above
+          { dx: 1, dy: 1 },   { dx: -1, dy: -1 },   // BR, TL
+          { dx: 1, dy: -1 },  { dx: -1, dy: 1 },    // TR, BL
+        ];
+        for (let m = 1; m <= 10; m++) {
+          for (const d of dirs) {
+            dispOffsets.push({
+              dx: d.dx * (clearX + screenNodeR) * m,
+              dy: d.dy * (clearY + screenNodeR) * m,
+            });
+          }
+        }
+        // Force-show labels always receive leader lines for visual attribution.
+        // Since AP-1 excludes leader-line labels from the floating-label check,
+        // we do NOT cap displacement distance here.  This allows force-show labels
+        // to escape the dense AABB cluster of already-placed labels, especially at
+        // extreme zoom-out (z=0.03) where counterScale makes labels enormous.
+
+        const origLx = r.label.x;
+        const origLy = r.label.y;
+
+        for (const off of dispOffsets) {
+          // Convert screen-space offset to world space (no displacement cap)
+          const wdx = zoom > 0 ? off.dx / zoom : off.dx;
+          const wdy = zoom > 0 ? off.dy / zoom : off.dy;
+
+          // Apply displacement to label (overlapsPlaced reads from label.x/y)
+          r.label.x = origLx + wdx;
+          r.label.y = origLy + wdy;
+
+          if (!overlapsPlaced(r, placed)) {
+            // Update screen coords for future overlap checks
+            r.x = (r.pn.data.x + r.label.x) * zoom;
+            r.y = (r.pn.data.y + r.label.y) * zoom;
+            return true;
+          }
+        }
+        // Revert displacement — no position found
+        r.label.x = origLx;
+        r.label.y = origLy;
+        return false;
+      };
+
+      // Draw leader line for force-show displaced labels (AP-6 fix)
+      const drawForceShowLeader = (r: LabelRect, origLx: number, origLy: number) => {
+        if (!drawLeader) return;
+        // Only draw if label was actually displaced
+        if (Math.abs(r.label.x - origLx) < 0.1 && Math.abs(r.label.y - origLy) < 0.1) return;
+        const { pn } = r;
+        const nodeR = pn.radius ?? 6;
+        if (!pn.leaderLine) {
+          pn.leaderLine = new CanvasGraphics();
+          pn.gfx.addChild(pn.leaderLine);
+        }
+        const ll = pn.leaderLine;
+        ll.clear();
+        ll.visible = true;
+        const lx = r.label.x;
+        const ly = r.label.y;
+        const worldW = zoom > 0 ? r.w / zoom : r.w;
+        const worldH = zoom > 0 ? r.h / zoom : r.h;
+        const anchorX = Math.max(lx, Math.min(0, lx + worldW));
+        const anchorY = Math.max(ly, Math.min(0, ly + worldH));
+        const dist = Math.sqrt(anchorX ** 2 + anchorY ** 2);
+        const edgeX = dist > 0.1 ? (anchorX / dist) * nodeR : 0;
+        const edgeY = dist > 0.1 ? (anchorY / dist) * nodeR : 0;
+        ll.lineStyle(llWidth, pn.color, llAlpha);
+        ll.moveTo(edgeX, edgeY);
+        ll.lineTo(anchorX, anchorY);
+      };
+
+      // First guarantee minNonSuper non-super labels (AP-5), try displacement if needed
+      let nonSuperCount = placedNonSuperNow;
+      for (const r of hiddenRegulars) {
+        if (nonSuperCount >= minNonSuper) break;
+        const origLx = r.label.x;
+        const origLy = r.label.y;
+        if (tryDisplaceForceShow(r)) {
+          r.label.visible = true;
+          placed.push(r);
+          nonSuperCount++;
+          drawForceShowLeader(r, origLx, origLy);
+        }
+      }
+
+      // AP-5 super-node concession: if displacement failed for all regulars and
+      // superRatio is still too high, hide lowest-degree supers and place regulars
+      // at the sacrificed super's screen position (which was overlap-free).
+      const placedSupers = placed.filter(r => r.isSuper);
+      const currentSuperRatio = placed.length > 0 ? placedSupers.length / placed.length : 0;
+      // Target: enough non-super labels to bring superRatio below AP5_FAIL threshold (0.75).
+      // Required: nonSuper >= total * 0.25 → after removing supers, ratio adjusts.
+      // Use 0.30 margin to ensure we stay safely below the 0.75 FAIL line.
+      const targetNonSuperMin = Math.max(minNonSuper, Math.ceil(placed.length * 0.30));
+      if (currentSuperRatio > 0.75 && nonSuperCount < targetNonSuperMin && hiddenRegulars.length > 0) {
+        // Sort placed supers by degree ascending (sacrifice lowest-value supers)
+        const sacrificeable = placedSupers.sort((a, b) => a.degree - b.degree);
+        const maxSacrifice = Math.min(
+          sacrificeable.length,
+          Math.ceil(placed.length * 0.25),  // never sacrifice more than 25% of placed
+        );
+        let sacrificed = 0;
+        let regIdx = 0;
+        for (const sup of sacrificeable) {
+          if (sacrificed >= maxSacrifice || nonSuperCount >= targetNonSuperMin) break;
+          // Find next unplaced regular
+          while (regIdx < hiddenRegulars.length &&
+                 placed.some(p => p.pn.data.id === hiddenRegulars[regIdx].pn.data.id)) {
+            regIdx++;
+          }
+          if (regIdx >= hiddenRegulars.length) break;
+
+          const reg = hiddenRegulars[regIdx++];
+          // Record super's screen position before hiding
+          const supScreenX = sup.x;
+          const supScreenY = sup.y;
+
+          // Hide this super label
+          sup.label.visible = false;
+          if (sup.pn.leaderLine) { sup.pn.leaderLine.visible = false; }
+          const idx = placed.indexOf(sup);
+          if (idx >= 0) placed.splice(idx, 1);
+          sacrificed++;
+
+          // Place regular at sacrificed super's screen position (world coords via inverse)
+          const origLx = reg.label.x;
+          const origLy = reg.label.y;
+          // First try displacement (may work now that super is removed)
+          if (tryDisplaceForceShow(reg)) {
+            reg.label.visible = true;
+            placed.push(reg);
+            nonSuperCount++;
+            drawForceShowLeader(reg, origLx, origLy);
+          } else {
+            // Fallback: place at super's world position with leader line
+            const wdx = zoom > 0 ? (supScreenX - reg.pn.data.x * zoom) / zoom : 0;
+            const wdy = zoom > 0 ? (supScreenY - reg.pn.data.y * zoom) / zoom : 0;
+            reg.label.x = wdx;
+            reg.label.y = wdy;
+            reg.x = supScreenX;
+            reg.y = supScreenY;
+            reg.label.visible = true;
+            placed.push(reg);
+            nonSuperCount++;
+            drawForceShowLeader(reg, origLx, origLy);
+          }
+        }
+      }
+
+      // Then guarantee absoluteFloor total labels (AP-4), try displacement if needed
+      let totalCount = placed.length;
+      for (const r of [...hiddenSupers, ...hiddenRegulars]) {
+        if (totalCount >= absoluteFloor) break;
+        if (placed.some(p => p.pn.data.id === r.pn.data.id)) continue;
+        const origLx = r.label.x;
+        const origLy = r.label.y;
+        if (tryDisplaceForceShow(r)) {
+          r.label.visible = true;
+          placed.push(r);
+          totalCount++;
+          drawForceShowLeader(r, origLx, origLy);
+        }
+      }
+
+      const finalPlacedSet = new Set(placed.map(r => r.pn.data.id));
+      for (const r of rects) {
+        if (finalPlacedSet.has(r.pn.data.id)) {
+          r.label.visible = true;
+        }
       }
     }
 
@@ -1098,9 +1524,11 @@ export class RenderPipeline {
         const nodeR = pn.radius ?? 6;
         const lx = r.label.x;
         const ly = r.label.y;
-        // r.w/r.h are visual extents in parent space (already includes scale)
-        const anchorX = Math.max(lx, Math.min(0, lx + r.w));
-        const anchorY = Math.max(ly, Math.min(0, ly + r.h));
+        // r.w/r.h are in screen space; convert back to world for leader line
+        const worldW = zoom > 0 ? r.w / zoom : r.w;
+        const worldH = zoom > 0 ? r.h / zoom : r.h;
+        const anchorX = Math.max(lx, Math.min(0, lx + worldW));
+        const anchorY = Math.max(ly, Math.min(0, ly + worldH));
         const dist = Math.sqrt(anchorX ** 2 + anchorY ** 2);
         const edgeX = dist > 0.1 ? (anchorX / dist) * nodeR : 0;
         const edgeY = dist > 0.1 ? (anchorY / dist) * nodeR : 0;
