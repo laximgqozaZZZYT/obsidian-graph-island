@@ -850,10 +850,13 @@ export class RenderPipeline {
     const degrees = this.host.getDegrees();
     const deg = degrees.get(n.id) || 0;
     if (isSuperNode || deg > this.pendingLabelThreshold) {
+      const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
       label = new CanvasText(n.label, {
         fontSize: 11, fill: this.host.getLabelColor(),
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
       });
+      label.bgColor = rt.labelBgColor;
+      label.bgAlpha = rt.labelBgAlpha;
       label.x = r + 2;
       label.y = -(r * 0.4 + 2);
       container.addChild(label);
@@ -919,8 +922,9 @@ export class RenderPipeline {
     const pixiNodes = this.host.getPixiNodes();
     const degrees = this.host.getDegrees();
 
-    // Collect label info: {pn, worldX, worldY, width, height}
+    // Build label-to-pixiNode map for O(1) lookups
     interface LabelRect {
+      pn: PixiNode;
       label: CanvasText;
       x: number;
       y: number;
@@ -932,22 +936,23 @@ export class RenderPipeline {
 
     for (const pn of pixiNodes.values()) {
       const label = pn.label;
-      if (!label || !label.text) continue;
-      // Approximate label dimensions
-      const fontSize = label.style.fontSize ?? 11;
+      if (!label || !label.text || !label.visible) continue;
+      // Approximate label dimensions (scale-aware)
+      const fontSize = (label.style.fontSize as number) ?? 11;
       const charW = fontSize * 0.6;
-      const w = label.text.length * charW * label.scale.x;
-      const h = fontSize * label.scale.y;
+      const scaleX = label.scale?.x ?? 1;
+      const scaleY = label.scale?.y ?? 1;
+      const w = label.text.length * charW * scaleX;
+      const h = fontSize * scaleY * 1.3;
       // World position
-      const wx = pn.data.x + label.x;
-      const wy = pn.data.y + label.y;
-      rects.push({ label, x: wx, y: wy, w, h, degree: degrees.get(pn.data.id) ?? 0 });
+      const wx = pn.data.x + label.x * scaleX;
+      const wy = pn.data.y + label.y * scaleY;
+      rects.push({ pn, label, x: wx, y: wy, w, h, degree: degrees.get(pn.data.id) ?? 0 });
     }
 
     // Sort by degree descending — high-degree labels get priority
     rects.sort((a, b) => b.degree - a.degree);
 
-    // O(n² × 4) AABB overlap check with alternate placement — acceptable since MAX_LABELS ≤ 300
     const placed: LabelRect[] = [];
     const checkOverlap = (rect: LabelRect): boolean => {
       for (const p of placed) {
@@ -974,41 +979,38 @@ export class RenderPipeline {
     }
 
     for (const r of rects) {
-      const pn = [...pixiNodes.values()].find(p => p.label === r.label);
-      const nodeR = pn?.radius ?? 6;
+      const { pn } = r;
+      const nodeR = pn.radius ?? 6;
 
       if (!checkOverlap(r)) {
         // Original position works — no leader line needed
-        r.label.visible = true;
         placed.push(r);
         continue;
       }
 
-      // DQ-12: Try 3 alternate offsets before hiding
+      // Try 4 alternate offsets (in world-space units) before hiding.
+      // Offsets account for label scale via r.w/r.h which are already scaled.
       const offsets = [
         { dx: r.w * 0.5 + nodeR, dy: nodeR + r.h },     // bottom-right
         { dx: -(r.w + nodeR + 2), dy: 0 },               // left
-        { dx: 0, dy: nodeR + r.h },                       // below
+        { dx: 0, dy: nodeR + r.h * 1.5 },                // below (further)
+        { dx: r.w * 0.3 + nodeR, dy: -(nodeR + r.h) },   // top-right
       ];
       let found = false;
+      const scaleX = r.label.scale?.x ?? 1;
+      const scaleY = r.label.scale?.y ?? 1;
+
       for (const off of offsets) {
-        const alt: LabelRect = {
-          ...r,
-          x: r.x + off.dx,
-          y: r.y + off.dy,
-        };
+        const alt: LabelRect = { ...r, x: r.x + off.dx, y: r.y + off.dy };
         if (!checkOverlap(alt)) {
-          // Apply offset to the label (label coords are relative to parent gfx)
-          if (pn) {
-            r.label.x += off.dx;
-            r.label.y += off.dy;
-          }
-          r.label.visible = true;
+          // Apply offset in label-local coords (divide by scale since world offset)
+          r.label.x += off.dx / scaleX;
+          r.label.y += off.dy / scaleY;
           placed.push(alt);
           found = true;
 
           // Draw leader line from node edge to nearest point on displaced label
-          if (drawLeader && pn) {
+          if (drawLeader) {
             if (!pn.leaderLine) {
               pn.leaderLine = new CanvasGraphics();
               pn.gfx.addChild(pn.leaderLine);
@@ -1016,11 +1018,11 @@ export class RenderPipeline {
             const ll = pn.leaderLine;
             ll.clear();
             ll.visible = true;
-            // Label rect in local coords (label.x, label.y is top-left relative to gfx)
+            // Label rect in local coords
             const lx = r.label.x;
             const ly = r.label.y;
-            const lw = r.w / (r.label.scale?.x ?? 1);
-            const lh = r.h / (r.label.scale?.y ?? 1);
+            const lw = r.w / scaleX;
+            const lh = r.h / scaleY;
             // Closest point on label rect to node center (0,0)
             const anchorX = Math.max(lx, Math.min(0, lx + lw));
             const anchorY = Math.max(ly, Math.min(0, ly + lh));

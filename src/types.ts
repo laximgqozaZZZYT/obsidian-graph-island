@@ -675,6 +675,18 @@ export interface RenderThresholds {
   /** Extra collision radius when nodeDisplayMode is card (default 40) */
   cardCollisionPadding?: number;
 
+  // ---- Timeline axis labels ----
+  /** Show text labels on timeline axis ticks (default true) */
+  timelineAxisShowLabels?: boolean;
+  /** Timeline axis label font size (default 9) */
+  timelineAxisLabelFontSize?: number;
+  /** Timeline axis label alpha (default 0.7) */
+  timelineAxisLabelAlpha?: number;
+  /** Timeline axis label offset below tick in px (default 10) */
+  timelineAxisLabelOffset?: number;
+  /** Max number of axis labels before thinning (default 30) */
+  timelineAxisLabelMaxCount?: number;
+
   // ---- Timeline bar visual ----
   /** Timeline bar fill alpha (default 0.35) */
   timelineBarFillAlpha?: number;
@@ -773,6 +785,44 @@ export interface RenderThresholds {
   /** Auto-optimize: close-pair detection radius as multiple of avg node radius (default 3.0) */
   autoOptCloseThreshold?: number;
 
+  // ---- Semantic zoom / label scaling ----
+  /** Minimum on-screen pixel size for node labels (default 14) */
+  labelMinScreenPx?: number;
+  /** Counter-scale power exponent — controls shrink rate when zooming out (default 0.4) */
+  labelScalePower?: number;
+  /** Maximum counter-scale factor for labels (default 12) */
+  labelScaleMax?: number;
+  /** Minimum counter-scale factor for labels (default 0.8) */
+  labelScaleMin?: number;
+  /** Minimum alpha for visible labels regardless of textFadeThreshold (default 0.7) */
+  labelAlphaMin?: number;
+  /** Zoom threshold: below this only top-10% degree nodes show labels (default 0.15) */
+  labelZoomTier1?: number;
+  /** Zoom threshold: below this only top-30% degree nodes show labels (default 0.35) */
+  labelZoomTier2?: number;
+  /** Zoom threshold: below this only top-50% degree nodes show labels (default 0.7) */
+  labelZoomTier3?: number;
+  /** Degree percentile rank for tier 1 (top N fraction, default 0.10) */
+  labelDegreePctTier1?: number;
+  /** Degree percentile rank for tier 2 (top N fraction, default 0.30) */
+  labelDegreePctTier2?: number;
+  /** Degree percentile rank for tier 3 (top N fraction, default 0.50) */
+  labelDegreePctTier3?: number;
+  /** Label pill background color (hex, default 0x1a1a2e) */
+  labelBgColor?: number;
+  /** Label pill background alpha (default 0.75) */
+  labelBgAlpha?: number;
+
+  // ---- Group label scaling ----
+  /** Max counter-scale for group/sunburst/grid labels (default 2.5) */
+  groupLabelScaleMax?: number;
+  /** Min counter-scale for group/sunburst/grid labels (default 0.5) */
+  groupLabelScaleMin?: number;
+  /** Power exponent for group label counter-scaling (default 0.35) */
+  groupLabelScalePower?: number;
+  /** Zoom threshold to hide group grid labels (default 0.2) */
+  groupGridLabelZoomMin?: number;
+
   // ---- Sunburst hierarchy ----
   /** Sunburst: lighten color per depth level (0-1, default 0.18) */
   sunburstDepthLighten?: number;
@@ -850,6 +900,11 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   gridCellShadingMin: 0.08,
   gridCellShadingRange: 0.35,
   cardCollisionPadding: 40,
+  timelineAxisShowLabels: true,
+  timelineAxisLabelFontSize: 9,
+  timelineAxisLabelAlpha: 0.7,
+  timelineAxisLabelOffset: 10,
+  timelineAxisLabelMaxCount: 30,
   timelineBarFillAlpha: 0.35,
   timelineBarStrokeAlpha: 0.8,
   timelineBarCornerRadius: 4,
@@ -887,6 +942,23 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   autoOptLinkScale: 1.2,
   autoOptMaxPasses: 3,
   autoOptCloseThreshold: 3.0,
+  labelMinScreenPx: 14,
+  labelScalePower: 0.4,
+  labelScaleMax: 80,
+  labelScaleMin: 0.8,
+  labelAlphaMin: 0.7,
+  labelZoomTier1: 0.15,
+  labelZoomTier2: 0.35,
+  labelZoomTier3: 0.7,
+  labelDegreePctTier1: 0.10,
+  labelDegreePctTier2: 0.30,
+  labelDegreePctTier3: 0.50,
+  labelBgColor: 0x1a1a2e,
+  labelBgAlpha: 0.75,
+  groupLabelScaleMax: 2.5,
+  groupLabelScaleMin: 0.5,
+  groupLabelScalePower: 0.35,
+  groupGridLabelZoomMin: 0.2,
   sunburstDepthLighten: 0.18,
   sunburstMinArcSweep: 0.005,
   sunburstBorderWidth: 1.0,

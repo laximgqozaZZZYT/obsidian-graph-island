@@ -781,6 +781,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.clusterSunburstLabelContainer = null;
     this.sunburstLayoutArcs = [];
     this.clearCustomGridLabels();
+    this.clearTimelineAxisLabels();
     this.customGridLabelContainer = null;
     this.pixiNodes.clear();
     this.worldContainer = null;
@@ -1942,6 +1943,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const g = this.guideLineGraphics;
     if (!g) return;
     g.clear();
+    this.clearTimelineAxisLabels();
 
     if (!this.panel.showGuideLines) {
       this.clearCustomGridLabels();
@@ -1992,6 +1994,34 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           for (const tick of uniqueTicks) {
             g.moveTo(tick.x, sharedY - tickH);
             g.lineTo(tick.x, sharedY + tickH);
+          }
+        }
+
+        // Shared timeline axis labels
+        const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+        if (rt.timelineAxisShowLabels && uniqueTicks.length > 0) {
+          const maxLabels = rt.timelineAxisLabelMaxCount!;
+          let labelTicks = uniqueTicks;
+          if (labelTicks.length > maxLabels) {
+            const step = Math.ceil(labelTicks.length / maxLabels);
+            labelTicks = labelTicks.filter((_: any, i: number) => i % step === 0);
+          }
+          const fontSize = rt.timelineAxisLabelFontSize! / worldScale;
+          const labelOffset = rt.timelineAxisLabelOffset! / worldScale;
+          const tickH2 = 6 / worldScale;
+          for (const tick of labelTicks) {
+            const text = new CanvasText(tick.label, {
+              fontSize,
+              fill: guideColor,
+              fontWeight: "400",
+            });
+            text.anchor.set(0.5, 0);
+            text.x = tick.x;
+            text.y = sharedY + tickH2 + labelOffset;
+            text.alpha = rt.timelineAxisLabelAlpha!;
+            text.rotation = Math.PI / 4;
+            g.parent?.addChild(text);
+            this.timelineAxisLabels.push(text);
           }
         }
         return;
@@ -2178,6 +2208,36 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const tx = cx + tick.x;
       g.moveTo(tx, y - tickH);
       g.lineTo(tx, y + tickH);
+    }
+
+    // Axis tick labels
+    const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    if (rt2.timelineAxisShowLabels && guide.ticks.length > 0) {
+      const maxLabels = rt2.timelineAxisLabelMaxCount!;
+      let labelTicks = guide.ticks;
+      if (labelTicks.length > maxLabels) {
+        const step = Math.ceil(labelTicks.length / maxLabels);
+        labelTicks = labelTicks.filter((_: any, i: number) => i % step === 0);
+      }
+      const fontSize = rt2.timelineAxisLabelFontSize! / worldScale;
+      const labelOffset = rt2.timelineAxisLabelOffset! / worldScale;
+      const labelAlpha = rt2.timelineAxisLabelAlpha!;
+      const labelColor = color;
+      for (const tick of labelTicks) {
+        const tx = cx + tick.x;
+        const text = new CanvasText(tick.label, {
+          fontSize,
+          fill: labelColor,
+          fontWeight: "400",
+        });
+        text.anchor.set(0.5, 0);
+        text.x = tx;
+        text.y = y + tickH + labelOffset;
+        text.alpha = labelAlpha;
+        text.rotation = Math.PI / 4;
+        this.guideLineGraphics?.parent?.addChild(text);
+        this.timelineAxisLabels.push(text);
+      }
     }
   }
 
@@ -2668,6 +2728,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.customGridLabels = [];
   }
 
+  private clearTimelineAxisLabels() {
+    for (const label of this.timelineAxisLabels) {
+      label.parent?.removeChild(label);
+      label.destroy();
+    }
+    this.timelineAxisLabels = [];
+  }
+
   private drawConcentricGuide(
     g: CanvasGraphics, cx: number, cy: number,
     guide: { type: "concentric"; rings: number[] },
@@ -2844,6 +2912,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.scale.set(sc);
     world.x = W / 2 - cx * sc;
     world.y = H / 2 - cy * sc;
+    this.updateLabelsForZoom();
   }
 
   /**
@@ -2871,7 +2940,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.scale.set(sc);
     world.x = W / 2 - cx * sc;
     world.y = H / 2 - cy * sc;
-    this.applyTextFade();
+    this.updateLabelsForZoom();
   }
 
   private zoomBy(factor: number) {
@@ -2887,6 +2956,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.x += cx - newScreen.x;
     world.y += cy - newScreen.y;
     this.updateZoomIndicator(s);
+    this.updateLabelsForZoom();
     this.markDirty();
   }
 
@@ -2903,6 +2973,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.x += cx - newScreen.x;
     world.y += cy - newScreen.y;
     this.updateZoomIndicator(s);
+    this.updateLabelsForZoom();
     this.markDirty();
   }
 
@@ -3594,7 +3665,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.updateLegend();
     this.startRenderLoop();
     this.applySearch();
-    this.applyTextFade();
+    // updateLabelsForZoom is also called inside autoFitView above,
+    // but we call it again here after applySearch so search-highlighted
+    // labels respect semantic zoom visibility.
+    this.updateLabelsForZoom();
 
     // Rebuild panel — relationColors and other data are now available
     this.stopOrbitAnimation();
@@ -3901,23 +3975,32 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const baseOpacity = 1 - this.panel.textFadeThreshold;
     const zoom = this.worldContainer?.scale.x ?? 1;
     const degrees = this.degrees;
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
 
     // Compute degree percentiles for progressive label display
     const degValues = Array.from(degrees.values()).sort((a, b) => b - a);
-    const p90 = degValues[Math.floor(degValues.length * 0.10)] ?? 1;
-    const p70 = degValues[Math.floor(degValues.length * 0.30)] ?? 1;
-    const p50 = degValues[Math.floor(degValues.length * 0.50)] ?? 1;
+    const pTier1 = degValues[Math.floor(degValues.length * rt.labelDegreePctTier1)] ?? 1;
+    const pTier2 = degValues[Math.floor(degValues.length * rt.labelDegreePctTier2)] ?? 1;
+    const pTier3 = degValues[Math.floor(degValues.length * rt.labelDegreePctTier3)] ?? 1;
 
-    // Partial counter-scale: labels shrink with zoom but not proportionally.
-    // Using sqrt(1/zoom) keeps labels readable at low zoom without overwhelming
-    // the view. At zoom=1 → scale=1, zoom=0.25 → scale=2, zoom=0.04 → scale=5 (clamped).
-    const counterScale = Math.min(4, Math.max(0.7, 1 / Math.sqrt(zoom)));
+    // Counter-scaling with minimum screen-size guarantee.
+    // screenPx = LABEL_FONT * counterScale * zoom  ≥  labelMinScreenPx
+    // The floor formula guarantees readability at any zoom level.
+    const LABEL_FONT = 11;
+    const rawScale = 1 / Math.pow(zoom, rt.labelScalePower);
+    const floorScale = rt.labelMinScreenPx / (LABEL_FONT * zoom);
+    const counterScale = Math.min(rt.labelScaleMax, Math.max(rt.labelScaleMin, rawScale, floorScale));
 
     for (const pn of this.pixiNodes.values()) {
       if (!pn.label) continue;
 
       // Apply counter-scaling so labels stay readable at any zoom
       pn.label.scale.set(counterScale);
+
+      // Reset label to default position (nodeR + 2, offset above) before overlap cull
+      const r = pn.radius ?? 6;
+      pn.label.x = r + 2;
+      pn.label.y = -(r * 0.4 + 2);
 
       // Super nodes (collapsed groups) always visible
       if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
@@ -3929,38 +4012,38 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const deg = degrees.get(pn.data.id) ?? 0;
 
       // Semantic zoom: show/hide labels based on zoom level + node importance
-      if (zoom < 0.15) {
-        pn.label.visible = deg >= p90;
-      } else if (zoom < 0.35) {
-        pn.label.visible = deg >= p70;
-      } else if (zoom < 0.7) {
-        pn.label.visible = deg >= p50;
+      if (zoom < rt.labelZoomTier1) {
+        pn.label.visible = deg >= pTier1;
+      } else if (zoom < rt.labelZoomTier2) {
+        pn.label.visible = deg >= pTier2;
+      } else if (zoom < rt.labelZoomTier3) {
+        pn.label.visible = deg >= pTier3;
       } else {
         pn.label.visible = true;
       }
 
-      pn.label.alpha = pn.label.visible ? baseOpacity : 0;
+      pn.label.alpha = pn.label.visible ? Math.max(rt.labelAlphaMin, baseOpacity) : 0;
     }
 
     // Enclosure labels are managed by EnclosureRenderer (drawEnclosuresImpl)
     // which runs every frame with its own zoom-dependent scaling (1/ws).
     // We only handle sunburst/grid labels here.
 
-    const groupLabelScale = Math.min(2.5, Math.max(0.7, 1 / Math.pow(zoom, 0.35)));
+    const groupLabelScale = Math.min(rt.groupLabelScaleMax,
+      Math.max(rt.groupLabelScaleMin, 1 / Math.pow(zoom, rt.groupLabelScalePower)));
 
     // --- Cluster sunburst labels: hide at low zoom ---
     for (const [, lbl] of this.clusterSunburstLabels) {
-      if (zoom < 0.15) {
+      if (zoom < rt.labelZoomTier1) {
         lbl.visible = false;
       } else {
-        // visibility already set by cullOverlappingRotatedLabels; just scale
         lbl.scale.set(groupLabelScale);
       }
     }
 
     // --- Sunburst layout labels ---
     for (const [, lbl] of this.sunburstLabels) {
-      if (zoom < 0.15) {
+      if (zoom < rt.labelZoomTier1) {
         lbl.visible = false;
       } else {
         lbl.scale.set(groupLabelScale);
@@ -3969,7 +4052,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // --- Group grid labels ---
     for (const [, lbl] of this.groupGridLabels) {
-      if (zoom < 0.2) {
+      if (zoom < rt.groupGridLabelZoomMin) {
         lbl.visible = false;
       } else {
         lbl.scale.set(groupLabelScale);
@@ -3982,6 +4065,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Called by InteractionManager after zoom changes to update label visibility */
   updateLabelsForZoom() {
     this.applyTextFade();
+    // Re-cull node labels with leader lines after counter-scale changes
+    this.renderPipeline?.cullOverlappingLabels();
     // Re-cull rotated labels after zoom change (screen-space overlap changes)
     this.cullOverlappingRotatedLabels(this.clusterSunburstLabels);
     this.cullOverlappingRotatedLabels(this.sunburstLabels);
@@ -4064,6 +4149,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private sunburstLabels: Map<string, CanvasText> = new Map();
   private clusterSunburstLabelContainer: CanvasContainer | null = null;
   private clusterSunburstLabels: Map<string, CanvasText> = new Map();
+  private timelineAxisLabels: CanvasText[] = [];
 
   private drawSunburstLabels(arcs: LayoutSunburstArc[], cx: number, cy: number) {
     if (!this.sunburstLabelContainer && this.worldContainer) {

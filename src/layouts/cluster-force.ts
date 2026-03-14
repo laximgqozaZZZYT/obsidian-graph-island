@@ -400,7 +400,10 @@ export function buildClusterForce(
   // perGroup=false layouts (concentric, sunburst) compute offsets across all nodes
   // regardless of grouping — they still need the force to run even without group rules.
   const isGlobalLayout = cfg.coordinateLayout && !cfg.coordinateLayout.perGroup;
-  if (cfg.groupRules.length === 0 && !isGlobalLayout) return null;
+  // Hardcoded arrangements (timeline, tree, etc.) need layout even without group
+  // rules — they'll operate on the single "__all__" group created below.
+  const NEEDS_LAYOUT = new Set(["concentric", "radial", "tree", "random", "mountain", "timeline", "sunburst"]);
+  if (cfg.groupRules.length === 0 && !isGlobalLayout && !NEEDS_LAYOUT.has(cfg.arrangement)) return null;
 
   // Multi-rule pipeline: each rule subdivides the previous groups
   let groups = new Map<string, GraphNode[]>([["__all__", [...nodes]]]);
