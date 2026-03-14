@@ -719,6 +719,16 @@ export interface RenderThresholds {
   /** Grid label font-size base for 1/worldScale scaling (default 11) */
   gridLabelFontSizeBase?: number;
 
+  // ---- Coordinate axis titles ----
+  /** Show axis titles on coordinate grid (default true) */
+  axisTitleShow?: boolean;
+  /** Axis title font size (default 12) */
+  axisTitleFontSize?: number;
+  /** Axis title alpha (default 0.8) */
+  axisTitleAlpha?: number;
+  /** Axis title offset from grid edge in px (default 18) */
+  axisTitleOffset?: number;
+
   // ---- Auto-fit ----
   /** Extra padding (px) added to bounding-box when nodeDisplayMode is card (default 20) */
   autoFitCardPadding?: number;
@@ -771,6 +781,10 @@ export interface RenderThresholds {
   /** Minimum density scale for edge/cable alpha — prevents edges from becoming invisible at high count + low zoom (default 0.08) */
   edgeDensityFloor?: number;
 
+  // ---- Node radius cap ----
+  /** Maximum node radius in world units (default 60). Set 0 = unlimited. */
+  maxNodeRadius?: number;
+
   // ---- Label leader lines ----
   /** Draw thin leader lines from displaced labels to their node (default true) */
   labelLeaderLines?: boolean;
@@ -778,6 +792,9 @@ export interface RenderThresholds {
   labelLeaderLineAlpha?: number;
   /** Leader line stroke width in px (default 0.8) */
   labelLeaderLineWidth?: number;
+  /** Counter-scale threshold above which leader lines are always drawn (default 3.0).
+   *  When labels are scaled up 3x+, even default-position labels need visual connection to node. */
+  labelLeaderLineAlwaysThreshold?: number;
 
   // ---- Auto-optimize ----
   /** Auto-optimize: overlap ratio threshold to trigger adjustment (default 0.15) */
@@ -818,10 +835,18 @@ export interface RenderThresholds {
   labelDegreePctTier2?: number;
   /** Degree percentile rank for tier 3 (top N fraction, default 0.50) */
   labelDegreePctTier3?: number;
+  /** Maximum number of node labels visible at once (0 = unlimited, default 8).
+   *  After semantic-zoom filtering, labels are sorted by degree and capped.
+   *  Hovered nodes and their BFS neighbours bypass this limit. */
+  labelMaxVisible?: number;
   /** Label pill background color (hex, default 0x1a1a2e) */
   labelBgColor?: number;
-  /** Label pill background alpha (default 0.75) */
+  /** Label pill background alpha (default 0.85) */
   labelBgAlpha?: number;
+  /** Label text stroke/outline color (hex, default 0x000000) */
+  labelStrokeColor?: number;
+  /** Label text stroke width (default 3). 0 = no stroke. */
+  labelStrokeWidth?: number;
 
   // ---- Group label scaling ----
   /** Max counter-scale for group/sunburst/grid labels (default 2.5) */
@@ -928,12 +953,16 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   gridLabelFontSizeMin: 7,
   gridLabelFontSizeMax: 13,
   gridLabelFontSizeBase: 11,
+  axisTitleShow: true,
+  axisTitleFontSize: 12,
+  axisTitleAlpha: 0.8,
+  axisTitleOffset: 18,
   autoFitCardPadding: 20,
   cardLODNormalPx: 4.0,
   cardLODExtremePx: 1.5,
   autoFitMinScale: 0,
   labelOverlapCulling: true,
-  labelOverlapMargin: 4,
+  labelOverlapMargin: 8,
   timelineBarShowLabel: true,
   timelineBarLabelMinWidth: 30,
   timelineBarLabelFontSize: 9,
@@ -946,9 +975,11 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   minimapThinStep: 3,
   minimapThinThreshold: 800,
   edgeDensityFloor: 0.08,
+  maxNodeRadius: 60,
   labelLeaderLines: true,
   labelLeaderLineAlpha: 0.3,
   labelLeaderLineWidth: 0.8,
+  labelLeaderLineAlwaysThreshold: 3.0,
   autoOptOverlapThreshold: 0.15,
   autoOptPadIncrement: 0.2,
   autoOptPadMax: 3.0,
@@ -967,11 +998,14 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelDegreePctTier1: 0.10,
   labelDegreePctTier2: 0.30,
   labelDegreePctTier3: 0.50,
+  labelMaxVisible: 8,
   labelBgColor: 0x1a1a2e,
-  labelBgAlpha: 0.75,
-  groupLabelScaleMax: 2.5,
-  groupLabelScaleMin: 0.5,
-  groupLabelScalePower: 0.35,
+  labelBgAlpha: 0.85,
+  labelStrokeColor: 0x000000,
+  labelStrokeWidth: 3,
+  groupLabelScaleMax: 4.0,
+  groupLabelScaleMin: 0.6,
+  groupLabelScalePower: 0.45,
   groupGridLabelZoomMin: 0.2,
   sunburstDepthLighten: 0.18,
   sunburstMinArcSweep: 0.005,

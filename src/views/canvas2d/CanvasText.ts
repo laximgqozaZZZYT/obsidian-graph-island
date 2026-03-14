@@ -32,6 +32,11 @@ export class CanvasText {
   /** Extra vertical padding inside the pill (top & bottom). */
   bgPadY = 2;
 
+  /** Optional text stroke/outline color (hex). null = no stroke. */
+  strokeColor: number | null = null;
+  /** Stroke width in local units. */
+  strokeWidth = 0;
+
   anchor = { x: 0, y: 0, set(ax: number, ay: number) { this.x = ax; this.y = ay; } };
   scale = { x: 1, y: 1, set(v: number) { this.x = v; this.y = v; } };
 
@@ -153,6 +158,15 @@ export class CanvasText {
       }
       ctx.fill();
       ctx.restore();
+    }
+
+    // Draw text stroke/outline for readability (drawn before fill)
+    if (this.strokeColor !== null && this.strokeWidth > 0) {
+      ctx.strokeStyle = hexToRgba(this.strokeColor, effAlpha * 0.8);
+      ctx.lineWidth = this.strokeWidth;
+      ctx.lineJoin = "round";
+      ctx.miterLimit = 2;
+      ctx.strokeText(displayText, tx, ty);
     }
 
     const fill = this.style.fill;

@@ -224,6 +224,8 @@ export interface ClusterForceConfig {
   skipGroupOverlap?: boolean;
   /** Total number of nodes across all groups (exposed as built-in variable N in expressions) */
   totalNodeCount?: number;
+  /** Maximum node radius in world units (0 = unlimited, default 60) */
+  maxNodeRadius?: number;
 }
 
 /**
@@ -467,7 +469,7 @@ export function buildClusterForce(
       if (t) { sx += t.x; sy += t.y; }
     }
     clusterCentroids.set(key, { x: sx / members.length, y: sy / members.length });
-    clusterRadii.set(key, estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members));
+    clusterRadii.set(key, estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60));
   }
 
   // Snapshot bar node positions before overlap resolution
@@ -605,14 +607,13 @@ function nodeRadius(nodeSize: number, degree: number, scaleByDegree: boolean): n
   return Math.max(nodeSize, nodeSize + Math.sqrt(degree) * 3.2);
 }
 
-const MAX_NODE_RADIUS = 30;
-
 /** Effective visual radius accounting for super nodes (collapsed groups).
- *  Mirrors RenderPipeline: rawR = nodeR * (1 + sqrt(memberCount) * 0.5), cap 30 */
-function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, scaleByDegree: boolean): number {
+ *  Mirrors RenderPipeline: rawR = nodeR * (1 + sqrt(memberCount) * 0.5), capped by maxNodeRadius */
+function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, scaleByDegree: boolean, maxNodeRadius = 60): number {
   const baseR = nodeRadius(nodeSize, degree, scaleByDegree);
+  const cap = maxNodeRadius > 0 ? maxNodeRadius : Infinity;
   if (n.collapsedMembers && n.collapsedMembers.length > 0 && scaleByDegree) {
-    return Math.min(Math.max(baseR, baseR * (1 + Math.sqrt(n.collapsedMembers.length) * 0.5)), MAX_NODE_RADIUS);
+    return Math.min(Math.max(baseR, baseR * (1 + Math.sqrt(n.collapsedMembers.length) * 0.5)), cap);
   }
   return baseR;
 }
@@ -1477,7 +1478,7 @@ function computeHierarchicalTargets(
     // Compute local sub-group centers around the parent center
     const subCenters = new Map<string, { x: number; y: number }>();
     const totalNodes = sorted.reduce((s, k) => s + (groups.get(k)?.length ?? 0), 0);
-    const parentR = estimateGroupRadius(totalNodes, cfg.nodeSize, cfg.groupScale, cfg.arrangement);
+    const parentR = estimateGroupRadius(totalNodes, cfg.nodeSize, cfg.groupScale, cfg.arrangement, undefined, cfg.maxNodeRadius ?? 60);
 
     if (sorted.length <= 1) {
       subCenters.set(sorted[0], pCenter);
@@ -1540,7 +1541,7 @@ function layoutGroupsHorizontal(
   for (const key of keys) {
     const members = groups.get(key)!;
     totalNodes += members.length;
-    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members);
+    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60);
     groupWidths.push(r * 2);
   }
   // Gap scales with slider value AND sqrt of total node count
@@ -1571,7 +1572,7 @@ function layoutGroupsVertical(
     const members = groups.get(key)!;
     // Estimate height: number of stacked nodes in the tallest time column
     // Use a simpler heuristic: sqrt(memberCount) * nodeSize * spacing
-    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members);
+    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60);
     groupHeights.push(r * 2);
   }
   const gap = cfg.nodeSize * cfg.groupSpacing * 4;
@@ -1604,7 +1605,7 @@ function layoutGroupsCircle(
   let totalNodes = 0;
   for (const [, members] of groups) {
     totalNodes += members.length;
-    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members);
+    const r = estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60);
     if (r > maxGroupRadius) maxGroupRadius = r;
   }
   // Circle must be large enough so adjacent groups don't overlap
@@ -1646,7 +1647,7 @@ function layoutGroupsConcentric(
   for (const key of keys) {
     const members = groups.get(key);
     if (!members) continue;
-    groupRadii.set(key, estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members));
+    groupRadii.set(key, estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60));
   }
 
   // Place the first group at center
@@ -1698,6 +1699,7 @@ function estimateGroupRadius(
   nodeSpacingMul: number,
   arrangement?: ClusterArrangement,
   members?: GraphNode[],
+  maxNodeRadius = 60,
 ): number {
   const gap = nodeSize * 2 * nodeSpacingMul;
   // If any member is a super node, inflate the estimate
@@ -1705,7 +1707,8 @@ function estimateGroupRadius(
   if (members) {
     for (const m of members) {
       if (m.collapsedMembers && m.collapsedMembers.length > 0) {
-        const sr = Math.min(nodeSize * (1 + Math.sqrt(m.collapsedMembers.length) * 0.5), MAX_NODE_RADIUS);
+        const maxR = maxNodeRadius > 0 ? maxNodeRadius : Infinity;
+        const sr = Math.min(nodeSize * (1 + Math.sqrt(m.collapsedMembers.length) * 0.5), maxR);
         superBonus = Math.max(superBonus, sr - nodeSize);
       }
     }
@@ -1871,7 +1874,7 @@ function computeOffsets(
   // triangle, mountain, timeline) give enough room.
   let nodeSize = cfg.nodeSize;
   for (const m of members) {
-    const er = effectiveRadius(m, cfg.nodeSize, degrees.get(m.id) || 0, scaleByDegree);
+    const er = effectiveRadius(m, cfg.nodeSize, degrees.get(m.id) || 0, scaleByDegree, cfg.maxNodeRadius ?? 60);
     if (er > nodeSize) nodeSize = er;
   }
   // Default sort: degree descending (preserves legacy behaviour)

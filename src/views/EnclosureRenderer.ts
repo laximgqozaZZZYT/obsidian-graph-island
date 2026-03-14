@@ -273,20 +273,22 @@ export function drawEnclosures(
     if (!txt) {
       const hexStr = "#" + hex.toString(16).padStart(6, "0");
       txt = new CanvasText(`#${tag}`, {
-        fontSize: 14,
+        fontSize: 16,
         fill: hexStr,
-        fontFamily: "sans-serif",
+        fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
         fontWeight: "bold",
       });
       txt.anchor.set(0.5, 0.5);
       txt.resolution = 2;
+      txt.strokeColor = 0x000000;
+      txt.strokeWidth = 3;
       enclosureLabels.set(tag, txt);
     }
     // Pill background: darken the enclosure hue for the background
     txt.bgColor = darkenHex(hex, 0.25);
-    txt.bgAlpha = 0.55;
-    txt.bgPadX = 8;
-    txt.bgPadY = 3;
+    txt.bgAlpha = 0.7;
+    txt.bgPadX = 10;
+    txt.bgPadY = 4;
 
     // Ensure label is in the correct parent (idempotent).
     // Interactive events (eventMode/on) are not supported by CanvasText;
@@ -315,7 +317,7 @@ export function drawEnclosures(
       : Math.max(0.6, 0.85 - overlaps * 0.04);
     txt.alpha = isHovered ? Math.min(1, baseAlpha + 0.25) : baseAlpha;
     // Brighten pill background on hover
-    txt.bgAlpha = isHovered ? 0.75 : 0.55;
+    txt.bgAlpha = isHovered ? 0.85 : 0.7;
     txt.visible = true;
   }
 

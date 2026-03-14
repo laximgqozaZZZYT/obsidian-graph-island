@@ -835,12 +835,13 @@ export class RenderPipeline {
 
     const isSuperNode = !!(n.collapsedMembers && n.collapsedMembers.length > 0);
     const memberCount = isSuperNode ? n.collapsedMembers!.length : 0;
-    const MAX_NODE_RADIUS = 30;
+    const rtNode = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+    const maxR = rtNode.maxNodeRadius > 0 ? rtNode.maxNodeRadius : Infinity;
     const scaleByDegree = this.host.getScaleByDegree?.() ?? true;
     const rawR = (isSuperNode && scaleByDegree)
       ? Math.max(nodeR(n), nodeR(n) * (1 + Math.sqrt(memberCount) * 0.5))
       : nodeR(n);
-    const r = Math.min(rawR, MAX_NODE_RADIUS);
+    const r = Math.min(rawR, maxR);
     const color = nodeColor(n);
     const circle = new CanvasGraphics();
     if (isSuperNode) {
@@ -863,12 +864,25 @@ export class RenderPipeline {
     const deg = degrees.get(n.id) || 0;
     if (isSuperNode || deg > this.pendingLabelThreshold) {
       const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+      const labelFontSize = isSuperNode ? 13 : 11;
+      const labelFontWeight = isSuperNode ? "bold" : "600";
+      // For super nodes, use group color as pill background; for regular nodes, use theme bg
+      const labelBg = isSuperNode ? (color != null ? darkenColor(color, 0.6) : rt.labelBgColor) : rt.labelBgColor;
+      // Use bright text when pill background is present for better contrast
+      const labelFill = isSuperNode ? 0xffffff
+        : (this.host.isDarkTheme() ? 0xe0e0e0 : 0x222222);
       label = new CanvasText(n.label, {
-        fontSize: 11, fill: this.host.getLabelColor(),
+        fontSize: labelFontSize,
+        fill: labelFill,
+        fontWeight: labelFontWeight,
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
       });
-      label.bgColor = rt.labelBgColor;
-      label.bgAlpha = rt.labelBgAlpha;
+      label.bgColor = labelBg;
+      label.bgAlpha = isSuperNode ? 0.9 : rt.labelBgAlpha;
+      label.bgPadX = isSuperNode ? 10 : 8;
+      label.bgPadY = isSuperNode ? 4 : 3;
+      label.strokeColor = rt.labelStrokeColor ?? null;
+      label.strokeWidth = rt.labelStrokeWidth ?? 0;
       label.x = r + 2;
       label.y = -(r * 0.4 + 2);
       container.addChild(label);
@@ -930,11 +944,10 @@ export class RenderPipeline {
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
     if (!rt.labelOverlapCulling) return;
 
-    const margin = rt.labelOverlapMargin;
+    const baseMargin = rt.labelOverlapMargin;
     const pixiNodes = this.host.getPixiNodes();
     const degrees = this.host.getDegrees();
 
-    // Build label-to-pixiNode map for O(1) lookups
     interface LabelRect {
       pn: PixiNode;
       label: CanvasText;
@@ -943,27 +956,42 @@ export class RenderPipeline {
       w: number;
       h: number;
       degree: number;
+      isSuper: boolean;
     }
     const rects: LabelRect[] = [];
 
+    // Collect all visible labels into rects
     for (const pn of pixiNodes.values()) {
       const label = pn.label;
       if (!label || !label.text || !label.visible) continue;
-      // Approximate label dimensions (scale-aware)
       const fontSize = (label.style.fontSize as number) ?? 11;
       const charW = fontSize * 0.6;
       const scaleX = label.scale?.x ?? 1;
       const scaleY = label.scale?.y ?? 1;
-      const w = label.text.length * charW * scaleX;
-      const h = fontSize * scaleY * 1.3;
-      // World position
-      const wx = pn.data.x + label.x * scaleX;
-      const wy = pn.data.y + label.y * scaleY;
-      rects.push({ pn, label, x: wx, y: wy, w, h, degree: degrees.get(pn.data.id) ?? 0 });
+      const padX = label.bgPadX ?? 0;
+      const padY = label.bgPadY ?? 0;
+      const w = label.text.length * charW * scaleX + padX * 2 * scaleX;
+      const h = fontSize * scaleY * 1.3 + padY * 2 * scaleY;
+      // label.x/y are in parent (node-local) space; translate happens before
+      // scale in Canvas2D _flush(), so position is NOT affected by scale.
+      const wx = pn.data.x + label.x;
+      const wy = pn.data.y + label.y;
+      const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
+      rects.push({ pn, label, x: wx, y: wy, w, h,
+        degree: degrees.get(pn.data.id) ?? 0, isSuper });
     }
 
-    // Sort by degree descending — high-degree labels get priority
-    rects.sort((a, b) => b.degree - a.degree);
+    // Scale margin proportionally to label counter-scale so spacing
+    // stays visually consistent regardless of zoom level.
+    // At scale=1 margin=baseMargin; at scale=30 margin is much larger.
+    const sampleScale = rects.length > 0 ? (rects[0].label.scale?.x ?? 1) : 1;
+    const margin = baseMargin * Math.max(1, sampleScale);
+
+    // Sort: super nodes first (group labels), then by degree desc
+    rects.sort((a, b) => {
+      if (a.isSuper !== b.isSuper) return a.isSuper ? -1 : 1;
+      return b.degree - a.degree;
+    });
 
     const placed: LabelRect[] = [];
     const checkOverlap = (rect: LabelRect): boolean => {
@@ -995,33 +1023,33 @@ export class RenderPipeline {
       const nodeR = pn.radius ?? 6;
 
       if (!checkOverlap(r)) {
-        // Original position works — no leader line needed
         placed.push(r);
         continue;
       }
 
-      // Try 4 alternate offsets (in world-space units) before hiding.
-      // Offsets account for label scale via r.w/r.h which are already scaled.
+      // Try 8 alternate offsets (in world-space units) before hiding.
       const offsets = [
-        { dx: r.w * 0.5 + nodeR, dy: nodeR + r.h },     // bottom-right
-        { dx: -(r.w + nodeR + 2), dy: 0 },               // left
-        { dx: 0, dy: nodeR + r.h * 1.5 },                // below (further)
-        { dx: r.w * 0.3 + nodeR, dy: -(nodeR + r.h) },   // top-right
+        { dx: r.w * 0.5 + nodeR, dy: nodeR + r.h },       // bottom-right
+        { dx: -(r.w + nodeR + 2), dy: 0 },                 // left
+        { dx: 0, dy: nodeR + r.h * 1.5 },                  // below
+        { dx: r.w * 0.3 + nodeR, dy: -(nodeR + r.h) },     // top-right
+        { dx: -(r.w + nodeR + 2), dy: -(nodeR + r.h) },    // top-left
+        { dx: -(r.w + nodeR + 2), dy: nodeR + r.h },       // bottom-left
+        { dx: r.w * 0.5 + nodeR, dy: -(nodeR + r.h * 2) }, // far top-right
+        { dx: 0, dy: -(nodeR + r.h * 2.5) },               // far above
       ];
       let found = false;
-      const scaleX = r.label.scale?.x ?? 1;
-      const scaleY = r.label.scale?.y ?? 1;
 
       for (const off of offsets) {
         const alt: LabelRect = { ...r, x: r.x + off.dx, y: r.y + off.dy };
         if (!checkOverlap(alt)) {
-          // Apply offset in label-local coords (divide by scale since world offset)
-          r.label.x += off.dx / scaleX;
-          r.label.y += off.dy / scaleY;
+          // Offsets are in world space; label.x/y are in parent (= world) space.
+          r.label.x += off.dx;
+          r.label.y += off.dy;
           placed.push(alt);
           found = true;
 
-          // Draw leader line from node edge to nearest point on displaced label
+          // Draw leader line from node edge to label
           if (drawLeader) {
             if (!pn.leaderLine) {
               pn.leaderLine = new CanvasGraphics();
@@ -1030,14 +1058,11 @@ export class RenderPipeline {
             const ll = pn.leaderLine;
             ll.clear();
             ll.visible = true;
-            // Label rect in local coords
             const lx = r.label.x;
             const ly = r.label.y;
-            const lw = r.w / scaleX;
-            const lh = r.h / scaleY;
-            // Closest point on label rect to node center (0,0)
-            const anchorX = Math.max(lx, Math.min(0, lx + lw));
-            const anchorY = Math.max(ly, Math.min(0, ly + lh));
+            // r.w/r.h are visual extents in parent space (already includes scale)
+            const anchorX = Math.max(lx, Math.min(0, lx + r.w));
+            const anchorY = Math.max(ly, Math.min(0, ly + r.h));
             const dist = Math.sqrt(anchorX ** 2 + anchorY ** 2);
             const edgeX = dist > 0.1 ? (anchorX / dist) * nodeR : 0;
             const edgeY = dist > 0.1 ? (anchorY / dist) * nodeR : 0;
@@ -1050,6 +1075,38 @@ export class RenderPipeline {
       }
       if (!found) {
         r.label.visible = false;
+      }
+    }
+
+    // Draw leader lines for non-displaced labels when counter-scale exceeds threshold.
+    // At high zoom-out, even default-position labels are visually far from their node.
+    if (drawLeader) {
+      const alwaysThreshold = rt.labelLeaderLineAlwaysThreshold ?? 3.0;
+      for (const r of placed) {
+        const { pn } = r;
+        if (pn.leaderLine?.visible) continue; // already has leader line from displacement
+        const labelScale = r.label.scale?.x ?? 1;
+        if (labelScale < alwaysThreshold) continue;
+
+        if (!pn.leaderLine) {
+          pn.leaderLine = new CanvasGraphics();
+          pn.gfx.addChild(pn.leaderLine);
+        }
+        const ll = pn.leaderLine;
+        ll.clear();
+        ll.visible = true;
+        const nodeR = pn.radius ?? 6;
+        const lx = r.label.x;
+        const ly = r.label.y;
+        // r.w/r.h are visual extents in parent space (already includes scale)
+        const anchorX = Math.max(lx, Math.min(0, lx + r.w));
+        const anchorY = Math.max(ly, Math.min(0, ly + r.h));
+        const dist = Math.sqrt(anchorX ** 2 + anchorY ** 2);
+        const edgeX = dist > 0.1 ? (anchorX / dist) * nodeR : 0;
+        const edgeY = dist > 0.1 ? (anchorY / dist) * nodeR : 0;
+        ll.lineStyle(llWidth, pn.color, llAlpha * 0.6); // slightly fainter for non-displaced
+        ll.moveTo(edgeX, edgeY);
+        ll.lineTo(anchorX, anchorY);
       }
     }
   }

@@ -1264,11 +1264,11 @@ function describeAxis(axis: AxisConfig): string {
   const src = axis.source;
   switch (src.kind) {
     case "index": return "index";
-    case "field": return `field:${src.field}`;
-    case "property": return `property:${src.key}`;
-    case "metric": return `metric:${src.metric}`;
+    case "field": return src.field;
+    case "property": return src.key;
+    case "metric": return src.metric;
     case "hop": return `hop:${src.from}`;
     case "random": return "random";
-    case "const": return `const(${src.value})`;
+    case "const": return `${src.value}`;
   }
 }

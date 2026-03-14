@@ -470,6 +470,7 @@ export class LayoutController {
         "circle"
       ) as "circle" | "horizontal" | "concentric" | "vertical",
       skipGroupOverlap: clusterArrangement === "timeline" || clusterArrangement === "sunburst",
+      maxNodeRadius: panel.renderThresholds?.maxNodeRadius ?? 60,
     };
 
     // If coordinateLayout specifies a property source, use it as timelineKey

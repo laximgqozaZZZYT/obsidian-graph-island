@@ -782,6 +782,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.sunburstLayoutArcs = [];
     this.clearCustomGridLabels();
     this.clearTimelineAxisLabels();
+    this.clearAxisTitles();
     this.customGridLabelContainer = null;
     this.pixiNodes.clear();
     this.worldContainer = null;
@@ -1788,12 +1789,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const displayName = arc.groupKey.replace(/::.*$/, "").split("/").pop() || arc.groupKey;
 
       const text = new CanvasText(displayName, {
-        fontSize: arc.depth === 0 ? fontSize * 1.1 : fontSize,
+        fontSize: arc.depth === 0 ? fontSize * 1.2 : fontSize,
         fill: textColor,
-        fontWeight: arc.depth === 0 ? "bold" : "normal",
+        fontWeight: arc.depth === 0 ? "bold" : "600",
         align: "center",
       });
       text.anchor.set(0.5, 0.5);
+      text.strokeColor = 0x000000;
+      text.strokeWidth = arc.depth === 0 ? 3 : 2;
       text.x = lx;
       text.y = ly;
 
@@ -1945,6 +1948,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!g) return;
     g.clear();
     this.clearTimelineAxisLabels();
+    this.clearAxisTitles();
 
     if (!this.panel.showGuideLines) {
       this.clearCustomGridLabels();
@@ -2164,13 +2168,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const text = new CanvasText(displayName, {
           fontSize,
           fill: textColor,
-          fontWeight: "600",
+          fontWeight: "bold",
         });
         text.anchor.set(0.5, 0);
         text.x = center.x;
         text.y = center.y - radius - fontSize * 1.5 / worldScale;
         text.bgColor = bgColor;
-        text.bgAlpha = 0.6;
+        text.bgAlpha = 0.75;
+        text.bgPadX = 10;
+        text.bgPadY = 4;
+        text.strokeColor = 0x000000;
+        text.strokeWidth = 3;
 
         labelContainer.addChild(text);
         this.groupGridLabels.set(groupKey, text);
@@ -2344,17 +2352,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   private drawCoordinateGuide(
     g: CanvasGraphics, cx: number, cy: number,
-    guide: { type: "coordinate"; system: string; bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number }; gridInfo?: ResolvedGridInfo },
+    guide: { type: "coordinate"; system: string; axis1Label?: string; axis2Label?: string; bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number }; gridInfo?: ResolvedGridInfo },
     lineW: number, color: number,
   ) {
     const bounds = guide.bounds;
     if (!bounds) return;
 
+    const worldScale = this.worldContainer?.scale.x ?? 1;
+    const isDark = this.isDarkTheme();
+
     // Custom grid takes precedence when enabled
     if (guide.gridInfo && this.panel.gridTableMode) {
-      this.drawCustomGrid(g, cx, cy, guide.gridInfo, bounds, lineW, color);
+      this.drawCustomGrid(g, cx, cy, guide.gridInfo, bounds, lineW, color, guide.axis1Label, guide.axis2Label);
+      // Axis titles drawn inside drawCustomGrid's drawAxisTitles
+      this.drawAxisTitles(cx, cy, guide.gridInfo.axis1Shape, guide.gridInfo.axis2Shape, bounds, worldScale, isDark, guide.axis1Label, guide.axis2Label);
       return;
     }
+
+    // Determine shapes for axis title placement
+    const defaultAxis1Shape = guide.system === "polar" ? { kind: "radial" } : { kind: "linear" };
+    const defaultAxis2Shape = guide.system === "polar" ? { kind: "circle" } : { kind: "linear" };
 
     if (guide.system === "polar" && bounds.maxR) {
       // Polar: concentric reference circles + radial lines
@@ -2399,6 +2416,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       g.moveTo(cx, cy + yMin);
       g.lineTo(cx, cy + yMax);
     }
+
+    // Draw axis titles for fallback grid too
+    this.drawAxisTitles(cx, cy, defaultAxis1Shape, defaultAxis2Shape, bounds, worldScale, isDark, guide.axis1Label, guide.axis2Label);
   }
 
   private drawCustomGrid(
@@ -2406,6 +2426,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     gridInfo: ResolvedGridInfo,
     bounds: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number },
     lineW: number, color: number,
+    axis1Title?: string, axis2Title?: string,
   ) {
     const { axis1Lines, axis2Lines, axis1Shape, axis2Shape, style, cellShading } = gridInfo;
     const isDark = this.isDarkTheme();
@@ -2439,6 +2460,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     } else {
       this.clearCustomGridLabels();
     }
+
   }
 
   private drawGridLine(
@@ -2648,10 +2670,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const text = new CanvasText(label, {
         fontSize,
         fill: textColor,
-        fontWeight: "500",
+        fontWeight: "600",
       });
       text.bgColor = bgColor;
-      text.bgAlpha = 0.6;
+      text.bgAlpha = 0.75;
+      text.bgPadX = 8;
+      text.bgPadY = 3;
+      text.strokeColor = 0x000000;
+      text.strokeWidth = 2;
       text.anchor.set(anchorX, anchorY);
       text.x = x;
       text.y = y;
@@ -2735,6 +2761,91 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       label.destroy();
     }
     this.timelineAxisLabels = [];
+  }
+
+  private axisTitleLabels: CanvasText[] = [];
+
+  private clearAxisTitles() {
+    for (const lbl of this.axisTitleLabels) {
+      lbl.parent?.removeChild(lbl);
+      lbl.destroy();
+    }
+    this.axisTitleLabels = [];
+  }
+
+  private drawAxisTitles(
+    cx: number, cy: number,
+    axis1Shape: { kind: string }, axis2Shape: { kind: string },
+    bounds: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number },
+    worldScale: number, isDark: boolean,
+    axis1Title?: string, axis2Title?: string,
+  ) {
+    this.clearAxisTitles();
+
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    if (!rt.axisTitleShow) return;
+    if (!axis1Title && !axis2Title) return;
+
+    const container = this.customGridLabelContainer ?? this.worldContainer;
+    if (!container) return;
+
+    const fontSize = Math.max(8, Math.min(16, rt.axisTitleFontSize / worldScale));
+    const offset = rt.axisTitleOffset / worldScale;
+    // Grid category label height estimate for placing axis title beyond them
+    const gridLabelH = Math.max(8, Math.min(13, (rt.gridLabelFontSizeBase ?? 11) / worldScale)) * 1.5;
+    const textColor = isDark ? 0xcccccc : 0x444444;
+    const alpha = rt.axisTitleAlpha;
+
+    // Axis1 title — centered above the grid (for cartesian) or at top (for polar)
+    if (axis1Title) {
+      const text = new CanvasText(axis1Title, {
+        fontSize,
+        fill: textColor,
+        fontWeight: "700",
+      });
+      text.alpha = alpha;
+
+      if (axis1Shape.kind === "radial") {
+        const maxR = bounds.maxR ?? Math.max(Math.abs(bounds.xMax), Math.abs(bounds.yMax));
+        text.anchor.set(0.5, 1);
+        text.x = cx;
+        text.y = cy - maxR - offset - gridLabelH;
+      } else {
+        // Cartesian: center top, beyond grid category labels
+        const midX = (bounds.xMin + bounds.xMax) / 2;
+        text.anchor.set(0.5, 1);
+        text.x = cx + midX;
+        text.y = cy + bounds.yMin - offset - gridLabelH;
+      }
+      container.addChild(text);
+      this.axisTitleLabels.push(text);
+    }
+
+    // Axis2 title — to the left of the grid (for cartesian), rotated -90°
+    if (axis2Title) {
+      const text = new CanvasText(axis2Title, {
+        fontSize,
+        fill: textColor,
+        fontWeight: "700",
+      });
+      text.alpha = alpha;
+
+      if (axis2Shape.kind === "circle") {
+        // Polar axis2: label at right side
+        text.anchor.set(0, 0.5);
+        text.x = cx + (bounds.maxR ?? Math.abs(bounds.xMax)) + offset + gridLabelH;
+        text.y = cy;
+      } else {
+        // Cartesian: left side, rotated, beyond grid category labels
+        const midY = (bounds.yMin + bounds.yMax) / 2;
+        text.anchor.set(0.5, 1);
+        text.x = cx + bounds.xMin - offset - gridLabelH;
+        text.y = cy + midY;
+        text.rotation = -Math.PI / 2;
+      }
+      container.addChild(text);
+      this.axisTitleLabels.push(text);
+    }
   }
 
   private drawConcentricGuide(
@@ -3992,6 +4103,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const floorScale = rt.labelMinScreenPx / (LABEL_FONT * zoom);
     const counterScale = Math.min(rt.labelScaleMax, Math.max(rt.labelScaleMin, rawScale, floorScale));
 
+    // Hovered/linked nodes bypass the maxVisible cap
+    const hoverSet = this.prevHighlightSet;
+    const maxVisible = rt.labelMaxVisible ?? 0; // 0 = unlimited
+
+    // --- Pass 1: apply counter-scale, reset position, determine zoom-tier eligibility ---
+    // Collect candidates that pass semantic-zoom filter for maxVisible capping.
+    interface LabelCandidate { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean; }
+    const candidates: LabelCandidate[] = [];
+
     for (const pn of this.pixiNodes.values()) {
       if (!pn.label) continue;
 
@@ -4003,27 +4123,58 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       pn.label.x = r + 2;
       pn.label.y = -(r * 0.4 + 2);
 
-      // Super nodes (collapsed groups) always visible
-      if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
-        pn.label.visible = true;
-        pn.label.alpha = baseOpacity;
+      const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
+      const isHovered = hoverSet.size > 0 && hoverSet.has(pn.data.id);
+      const deg = degrees.get(pn.data.id) ?? 0;
+
+      // Semantic zoom: determine eligibility based on zoom level + importance
+      let eligible: boolean;
+      if (isSuper) {
+        eligible = true; // super nodes always eligible
+      } else if (zoom < rt.labelZoomTier1) {
+        eligible = deg >= pTier1;
+      } else if (zoom < rt.labelZoomTier2) {
+        eligible = deg >= pTier2;
+      } else if (zoom < rt.labelZoomTier3) {
+        eligible = deg >= pTier3;
+      } else {
+        eligible = true;
+      }
+
+      if (!eligible && !isHovered) {
+        pn.label.visible = false;
+        pn.label.alpha = 0;
         continue;
       }
 
-      const deg = degrees.get(pn.data.id) ?? 0;
+      candidates.push({ pn, deg, isSuper, isHovered });
+    }
 
-      // Semantic zoom: show/hide labels based on zoom level + node importance
-      if (zoom < rt.labelZoomTier1) {
-        pn.label.visible = deg >= pTier1;
-      } else if (zoom < rt.labelZoomTier2) {
-        pn.label.visible = deg >= pTier2;
-      } else if (zoom < rt.labelZoomTier3) {
-        pn.label.visible = deg >= pTier3;
-      } else {
+    // --- Pass 2: apply maxVisible cap (degree-sorted, hovered nodes exempt) ---
+    // Sort: super nodes first, then by degree descending
+    candidates.sort((a, b) => {
+      if (a.isSuper !== b.isSuper) return a.isSuper ? -1 : 1;
+      return b.deg - a.deg;
+    });
+
+    let visCount = 0;
+    for (const c of candidates) {
+      const { pn, isHovered } = c;
+      // Hovered/linked nodes always visible (bypass cap)
+      if (isHovered) {
         pn.label.visible = true;
+        pn.label.alpha = Math.max(rt.labelAlphaMin, baseOpacity);
+        continue;
       }
-
-      pn.label.alpha = pn.label.visible ? Math.max(rt.labelAlphaMin, baseOpacity) : 0;
+      // Apply maxVisible cap (0 = unlimited)
+      if (maxVisible > 0 && visCount >= maxVisible) {
+        pn.label.visible = false;
+        pn.label.alpha = 0;
+        continue;
+      }
+      pn.label.visible = true;
+      pn.label.alpha = Math.max(rt.labelAlphaMin, baseOpacity);
+      visCount++;
     }
 
     // Enclosure labels are managed by EnclosureRenderer (drawEnclosuresImpl)
