@@ -1679,6 +1679,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       },
       hoveredTag: this.hoveredTag,
       labelContainer: this.enclosureLabelContainer ?? undefined,
+      groupLabelFontSize: rt.groupLabelFontSize,
+      groupLabelFontWeight: rt.groupLabelFontWeight as string | undefined,
+      groupLabelLetterSpacing: rt.groupLabelLetterSpacing,
+      groupLabelAlpha: rt.groupLabelAlpha,
+      groupLabelHullOffset: rt.groupLabelHullOffset,
+      groupLabelBgAlpha: rt.groupLabelBgAlpha,
     };
     drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);
   }

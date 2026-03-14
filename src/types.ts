@@ -1158,13 +1158,16 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   tagLabelMaxTags: 2,
 
   // Node label font scaling
-  nodeLabelFontSizeMin: 10,
+  nodeLabelFontSizeMin: 11,
   nodeLabelFontSizeMax: 14,
 
   // Group label convex hull placement
   groupLabelHullOffset: 20,
   groupLabelLetterSpacing: 0.15,
   groupLabelAlpha: 0.45,
+  groupLabelFontSize: 11,
+  groupLabelFontWeight: "400",
+  groupLabelBgAlpha: 0.55,
 
   // Hover tooltip
   hoverTooltipShow: true,

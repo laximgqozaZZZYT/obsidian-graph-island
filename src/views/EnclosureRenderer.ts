@@ -26,6 +26,13 @@ export interface EnclosureConfig {
   hoveredTag?: string | null;
   /** Dedicated container for labels (ensures z-order above nodes). */
   labelContainer?: CanvasContainer;
+  /** RenderThresholds for group label styling. */
+  groupLabelFontSize?: number;
+  groupLabelFontWeight?: string;
+  groupLabelLetterSpacing?: number;
+  groupLabelAlpha?: number;
+  groupLabelHullOffset?: number;
+  groupLabelBgAlpha?: number;
 }
 
 /**
@@ -269,26 +276,34 @@ export function drawEnclosures(
 
     // --- Label ---
     usedLabels.add(tag);
+    const glFontSize = cfg.groupLabelFontSize ?? 11;
+    const glFontWeight = cfg.groupLabelFontWeight ?? "400";
+    const glLetterSpacing = cfg.groupLabelLetterSpacing ?? 0.15;
+    const glAlpha = cfg.groupLabelAlpha ?? 0.45;
+    const glBgAlpha = cfg.groupLabelBgAlpha ?? 0.55;
+    const glHullOffset = cfg.groupLabelHullOffset ?? 20;
+
     let txt = enclosureLabels.get(tag);
     if (!txt) {
       const hexStr = "#" + hex.toString(16).padStart(6, "0");
       txt = new CanvasText(`#${tag}`, {
-        fontSize: 16,
+        fontSize: glFontSize,
         fill: hexStr,
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-        fontWeight: "bold",
+        fontWeight: glFontWeight,
       });
       txt.anchor.set(0.5, 0.5);
       txt.resolution = 2;
+      txt.letterSpacing = glLetterSpacing;
       txt.strokeColor = 0x000000;
-      txt.strokeWidth = 3;
+      txt.strokeWidth = 2;
       enclosureLabels.set(tag, txt);
     }
     // Pill background: darken the enclosure hue for the background
     txt.bgColor = darkenHex(hex, 0.25);
-    txt.bgAlpha = 0.7;
-    txt.bgPadX = 10;
-    txt.bgPadY = 4;
+    txt.bgAlpha = glBgAlpha;
+    txt.bgPadX = 8;
+    txt.bgPadY = 3;
 
     // Ensure label is in the correct parent (idempotent).
     // Interactive events (eventMode/on) are not supported by CanvasText;
@@ -298,26 +313,43 @@ export function drawEnclosures(
       targetParent.addChild(txt);
     }
 
-    // Always place label above the hull top edge (never inside the node cluster).
+    // Place label outside the hull in the direction of the farthest node from centroid.
     // Label scale adapts to zoom: larger when zoomed out, smaller when zoomed in.
     const labelScale = zoomedOut
       ? Math.min(8, Math.max(1.5, 1.8 / ws))
       : Math.min(4, Math.max(1, 1 / ws));
-    // Label height in world coords (fontSize 14 × scale)
-    const labelWorldH = 14 * labelScale;
-    const gap = labelWorldH * 0.3;
 
-    txt.anchor.set(0.5, 1); // bottom-center anchor: label hangs above the point
-    txt.x = labelCenterX;
-    txt.y = enc.minY - gap;
+    // Find farthest node from centroid to determine label direction
+    let farthestDist = 0;
+    let farthestX = labelCenterX;
+    let farthestY = labelCenterY - 1; // default: above centroid
+    for (const p of expanded) {
+      const dx = p.x - labelCenterX;
+      const dy = p.y - labelCenterY;
+      const d = dx * dx + dy * dy;
+      if (d > farthestDist) {
+        farthestDist = d;
+        farthestX = p.x;
+        farthestY = p.y;
+      }
+    }
+    // Direction unit vector from centroid to farthest point
+    const dirX = farthestX - labelCenterX;
+    const dirY = farthestY - labelCenterY;
+    const dirLen = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+    const ux = dirX / dirLen;
+    const uy = dirY / dirLen;
+
+    // Place label at farthest point + offset along the direction
+    txt.anchor.set(0.5, 0.5);
+    txt.x = farthestX + ux * glHullOffset;
+    txt.y = farthestY + uy * glHullOffset;
     txt.scale.set(labelScale);
     const isHovered = cfg.hoveredTag === tag;
-    const baseAlpha = zoomedOut
-      ? Math.max(0.7, 0.95 - overlaps * 0.04)
-      : Math.max(0.6, 0.85 - overlaps * 0.04);
-    txt.alpha = isHovered ? Math.min(1, baseAlpha + 0.25) : baseAlpha;
+    const baseAlpha = isHovered ? Math.min(1, glAlpha + 0.3) : glAlpha;
+    txt.alpha = baseAlpha;
     // Brighten pill background on hover
-    txt.bgAlpha = isHovered ? 0.85 : 0.7;
+    txt.bgAlpha = isHovered ? glBgAlpha + 0.2 : glBgAlpha;
     txt.visible = true;
   }
 
