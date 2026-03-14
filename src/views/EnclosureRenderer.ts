@@ -1,7 +1,7 @@
 import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { Pt } from "../utils/geometry";
 import { convexHull } from "../utils/geometry";
-import { cssColorToHex, shiftHue } from "../utils/graph-helpers";
+import { cssColorToHex, shiftHue, hslToHex, stringHash } from "../utils/graph-helpers";
 import { DEFAULT_COLORS } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -57,8 +57,10 @@ const OUTLINE_PAD_FACTOR = 0.5;
 const HULL_SAMPLES = 12;
 
 /** Compute dynamic padding for a given node radius */
-function outlinePad(radius: number): number {
-  return Math.max(OUTLINE_PAD_MIN, radius * OUTLINE_PAD_FACTOR);
+function outlinePad(radius: number, memberCount?: number): number {
+  const base = Math.max(OUTLINE_PAD_MIN, radius * OUTLINE_PAD_FACTOR);
+  // DQ-10: Shrink padding for very small groups (1-3 members)
+  return memberCount != null && memberCount <= 3 ? base * 0.6 : base;
 }
 
 /**
@@ -125,18 +127,18 @@ export function drawEnclosures(
     const pts = filterOutliers(allPts);
     if (pts.length < 1) continue;
 
-    const colorKey = `tag:${tag}`;
-    const cssColor = cfg.nodeColorMap.get(colorKey) || DEFAULT_COLORS[0];
-    const nodeHex = cssColorToHex(cssColor);
-    // Shift hue by 150° so enclosure color is visually distinct from node color
-    const hex = shiftHue(nodeHex, 150);
+    // Deterministic enclosure color from tag name hash (DQ-06)
+    // Using tag name hash ensures color stays consistent regardless of filter order.
+    const hue = stringHash(tag, 360);
+    const hex = hslToHex(hue, 0.55, 0.55);
 
     // Generate boundary sample points around each node's circle
     // so the convex hull fully contains every node regardless of radius.
     // Reuse module-level buffer to reduce per-tag array allocation
     _hullInputBuf.length = 0;
+    const mc = pts.length; // member count for padding calculation
     for (const p of pts) {
-      const r = p.radius + outlinePad(p.radius);
+      const r = p.radius + outlinePad(p.radius, mc);
       for (let k = 0; k < HULL_SAMPLES; k++) {
         const angle = (k / HULL_SAMPLES) * Math.PI * 2;
         _hullInputBuf.push({ x: p.x + Math.cos(angle) * r, y: p.y + Math.sin(angle) * r });
@@ -146,7 +148,7 @@ export function drawEnclosures(
     let expanded: Pt[];
     if (pts.length === 1) {
       const p = pts[0];
-      const r = p.radius + outlinePad(p.radius);
+      const r = p.radius + outlinePad(p.radius, mc);
       expanded = [
         { x: p.x - r, y: p.y - r },
         { x: p.x + r, y: p.y - r },
@@ -215,14 +217,14 @@ export function drawEnclosures(
       g.lineStyle(0);
       if (pts.length === 1) {
         const p0 = pts[0];
-        const r = p0.radius + outlinePad(p0.radius);
+        const r = p0.radius + outlinePad(p0.radius, memberCount);
         g.beginRadialFill(p0.x, p0.y, r, hex, hex, fillAlpha, fillAlpha * 0.15);
         g.drawCircle(p0.x, p0.y, r);
       } else if (pts.length === 2) {
         const cx = (pts[0].x + pts[1].x) / 2;
         const cy = (pts[0].y + pts[1].y) / 2;
         const maxR = Math.max(pts[0].radius, pts[1].radius);
-        const r = maxR + outlinePad(maxR);
+        const r = maxR + outlinePad(maxR, memberCount);
         const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) / 2 + r;
         g.beginRadialFill(cx, cy, dist, hex, hex, fillAlpha, fillAlpha * 0.15);
         drawCapsule(g, pts[0], pts[1], r);
@@ -240,13 +242,13 @@ export function drawEnclosures(
     g.lineStyle(lineWidth, hex, baseLineAlpha);
     if (pts.length === 1) {
       const p = pts[0];
-      const r = p.radius + outlinePad(p.radius);
+      const r = p.radius + outlinePad(p.radius, memberCount);
       g.drawCircle(p.x, p.y, r);
       labelX = p.x; labelY = p.y - r - 8;
       labelCenterX = p.x; labelCenterY = p.y;
     } else if (pts.length === 2) {
       const maxR = Math.max(pts[0].radius, pts[1].radius);
-      const r = maxR + outlinePad(maxR);
+      const r = maxR + outlinePad(maxR, memberCount);
       drawCapsule(g, pts[0], pts[1], r);
       labelX = (pts[0].x + pts[1].x) / 2;
       labelY = Math.min(pts[0].y, pts[1].y) - r - 8;

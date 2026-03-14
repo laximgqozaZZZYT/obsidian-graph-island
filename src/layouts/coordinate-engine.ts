@@ -30,7 +30,7 @@ import { DEFAULT_RENDER_THRESHOLDS } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
 import type { ArrangementResult } from "./cluster-force";
 import { CURVE_REGISTRY } from "./coordinate-presets";
-import { parseExpr, evalExpr, type ExprNode } from "../utils/expr-eval";
+import { parseExpr, evalExpr, setUserVars, type ExprNode } from "../utils/expr-eval";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -52,6 +52,8 @@ export interface CoordinateContext {
   getNodeProperty?: (nodeId: string, key: string) => string | undefined;
   /** Number of equal divisions for continuous grid axes (default from DEFAULT_RENDER_THRESHOLDS) */
   coordinateGridDivisions?: number;
+  /** Total number of nodes across all groups (exposed as built-in variable N) */
+  totalNodeCount?: number;
 }
 
 /** A single resolved grid line with position and optional label */
@@ -439,6 +441,7 @@ export function applyTransform(
           if (!rings.has(ringVal)) rings.set(ringVal, []);
           rings.get(ringVal)!.push(id);
         }
+        // Rings grouped by other-axis value; each ring distributes angles evenly
         for (const [, ids] of rings) {
           const n = ids.length;
           for (let i = 0; i < n; i++) {
@@ -528,11 +531,14 @@ export function applyTransform(
 
     case "expression": {
       const scale = transform.scale ?? 1;
+      // Register constant names so the parser accepts them as variables
+      if (constants) setUserVars(new Set(Object.keys(constants)));
       let ast: ExprNode;
       try {
         ast = parseExpr(transform.expr);
-      } catch {
+      } catch (parseErr) {
         // Invalid expression — fallback to linear
+        // Invalid expression — fallback to linear spacing
         for (const [id, v] of rawValues) {
           result.set(id, v * spacing);
         }
@@ -546,10 +552,19 @@ export function applyTransform(
       }
       const range = max - min || 1;
       const n = rawValues.size;
+      // Built-in mathematical & context constants
+      const builtins: Record<string, number> = { pi: Math.PI, e: Math.E, N: constants?.N ?? n };
+      // Lowercase constant keys to match the tokenizer's case normalization
+      const lcConsts: Record<string, number> = {};
+      if (constants) {
+        for (const [k, val] of Object.entries(constants)) {
+          lcConsts[k.toLowerCase()] = val as number;
+        }
+      }
       let idx = 0;
       for (const [id, v] of rawValues) {
         const t = (v - min) / range;
-        const val = evalExpr(ast, { t, i: idx, n, v, ...constants });
+        const val = evalExpr(ast, { t, i: idx, n, v, ...builtins, ...lcConsts });
         result.set(id, val * scale * spacing);
         idx++;
       }
@@ -627,6 +642,14 @@ export function coordinateOffsets(
   if (members.length === 0) return { offsets: new Map() };
 
   const spacing = ctx.nodeSize * 2 * ctx.nodeSpacing * ctx.groupScale;
+  // In polar mode, axis2 is an angle (radians) — spacing must not scale it.
+  const isPolar = layout.system === "polar";
+  const axis2Spacing = isPolar ? 1 : spacing;
+
+  // Merge user constants with context-level built-ins (totalNodeCount → N)
+  const userConsts = ctx.totalNodeCount != null
+    ? { ...layout.constants, N: ctx.totalNodeCount }
+    : layout.constants;
 
   // Phase 1: resolve raw values for both axes
   const raw1 = resolveAxisValues(members, layout.axis1.source, ctx);
@@ -635,7 +658,6 @@ export function coordinateOffsets(
   // Phase 2: apply transforms
   // For stack-avoid, we need to pass the other axis's transformed values
   // Do axis1 first, then axis2 with axis1 results available for stack-avoid
-  const userConsts = layout.constants;
   const t1 = applyTransform(raw1, layout.axis1.transform, spacing, undefined, userConsts);
 
   // For stack-avoid and even-divide on axis2, pass transformed axis1 values.
@@ -644,8 +666,8 @@ export function coordinateOffsets(
   const axis2NeedsOther = layout.axis2.transform.kind === "stack-avoid"
     || layout.axis2.transform.kind === "even-divide";
   const t2 = axis2NeedsOther
-    ? applyTransform(raw2, layout.axis2.transform, spacing, t1, userConsts)
-    : applyTransform(raw2, layout.axis2.transform, spacing, undefined, userConsts);
+    ? applyTransform(raw2, layout.axis2.transform, axis2Spacing, t1, userConsts)
+    : applyTransform(raw2, layout.axis2.transform, axis2Spacing, undefined, userConsts);
 
   // Similarly for axis1 if it has stack-avoid (unusual but supported)
   const finalT1 = layout.axis1.transform.kind === "stack-avoid"
@@ -948,14 +970,22 @@ function resolveGridLines(
     }
     case "expression": {
       try {
+        if (constants) setUserVars(new Set(Object.keys(constants)));
         const ast = parseExpr(positions.expr);
+        // Lowercase constant keys for tokenizer compatibility
+        const lcGridConsts: Record<string, number> = {};
+        if (constants) {
+          for (const [k, val2] of Object.entries(constants)) {
+            lcGridConsts[k.toLowerCase()] = val2 as number;
+          }
+        }
         // Generate positions: evaluate expr for t in [0, 1] with 20 sample points
         const samples = 20;
         for (let i = 0; i <= samples; i++) {
           const t = i / samples;
           const val = evalExpr(ast, {
             t, i, n: samples + 1, v: tMin + t * tRange,
-            ...constants,
+            ...lcGridConsts,
           });
           linePositions.push(val);
         }

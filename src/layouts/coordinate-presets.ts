@@ -99,15 +99,30 @@ export const CURVE_REGISTRY: Record<CurveKind, CurveDefinition> = {
 export const ARRANGEMENT_PRESETS: Record<ClusterArrangement, CoordinateLayout> = {
   spiral: {
     system: "polar",
-    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "sqrt(t)", scale: 1 } },
-    axis2: { source: { kind: "index" }, transform: { kind: "expression", expr: "i * 137.508", scale: 1 } },
+    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "_a + _b * i", scale: 1 } },
+    axis2: { source: { kind: "index" }, transform: { kind: "expression", expr: "i * _step", scale: 1 } },
     perGroup: true,
+    constants: { _a: 0, _b: 0.8, _step: 2.4 },
   },
   concentric: {
     system: "polar",
-    axis1: { source: { kind: "metric", metric: "degree" }, transform: { kind: "bin", count: 5 } },
+    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "floor(i / _ringSize) + 1", scale: 1 } },
     axis2: { source: { kind: "index" }, transform: { kind: "even-divide", totalRange: 360 } },
     perGroup: false,
+    constants: { _ringSize: 12 },
+  },
+  radial: {
+    system: "polar",
+    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "floor(i / _spokeCount) + 1", scale: 1 } },
+    axis2: { source: { kind: "index" }, transform: { kind: "expression", expr: "(i % _spokeCount) * (360 / _spokeCount)", scale: 1 } },
+    perGroup: true,
+    constants: { _spokeCount: 8 },
+  },
+  phyllotaxis: {
+    system: "polar",
+    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "sqrt(i)", scale: 1 } },
+    axis2: { source: { kind: "index" }, transform: { kind: "expression", expr: "i * pi * (3 - sqrt(5))", scale: 1 } },
+    perGroup: true,
   },
   tree: {
     system: "cartesian",
@@ -180,6 +195,10 @@ export function resolveCoordinateLayout(
  * NOT the coordinate system. This ensures polar can be used with timeline, etc.
  */
 export function resolveArrangementFromLayout(layout: CoordinateLayout): ClusterArrangement {
+  // Fast path: exact preset match
+  const exact = findMatchingPreset(layout);
+  if (exact !== "custom") return exact;
+
   const s1 = layout.axis1.source.kind;
   const s2 = layout.axis2.source.kind;
   const t1 = layout.axis1.transform.kind;
@@ -194,17 +213,14 @@ export function resolveArrangementFromLayout(layout: CoordinateLayout): ClusterA
   // Metric: bfs-depth → tree
   if (s1 === "metric" && (layout.axis1.source as { kind: "metric"; metric: string }).metric === "bfs-depth") return "tree";
 
-  // Metric: degree on axis1 with bin → concentric
-  if (s1 === "metric" && (layout.axis1.source as { kind: "metric"; metric: string }).metric === "degree" && t1 === "bin") return "concentric";
+  // Index on axis1 with expression + even-divide on axis2 + perGroup=false → concentric
+  if (s1 === "index" && t1 === "expression" && t2 === "even-divide" && !layout.perGroup) return "concentric";
 
   // Metric: degree on axis2 with negative scale → mountain
   if (s2 === "metric" && (layout.axis2.source as { kind: "metric"; metric: string }).metric === "degree") return "mountain";
 
   // Const on axis1 + even-divide → sunburst
   if (s1 === "const" && t2 === "even-divide" && !layout.perGroup) return "sunburst";
-
-  // Golden angle transform → spiral
-  if (t2 === "golden-angle") return "spiral";
 
   // Index + index with specific transforms
   if (s1 === "index" && s2 === "index") return "grid";

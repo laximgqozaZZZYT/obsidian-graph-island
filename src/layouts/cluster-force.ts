@@ -26,7 +26,7 @@
  */
 import type { GraphNode, GraphEdge, ClusterArrangement, ClusterGroupRule, CoordinateLayout } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
-import { resolveArrangementFromLayout, isExactPreset } from "./coordinate-presets";
+import { resolveArrangementFromLayout, isExactPreset, ARRANGEMENT_PRESETS } from "./coordinate-presets";
 import { coordinateOffsets, type CoordinateGuide, type CoordinateContext } from "./coordinate-engine";
 
 // ---------------------------------------------------------------------------
@@ -37,7 +37,7 @@ import { coordinateOffsets, type CoordinateGuide, type CoordinateContext } from 
 export interface SunburstArc {
   /** Group key this arc belongs to */
   groupKey: string;
-  /** Depth tier (0=core, 1=body, 2=periphery) */
+  /** Depth tier (0=root, 1=first level, 2+=deeper) */
   depth: number;
   /** Inner radius of the band */
   rInner: number;
@@ -51,6 +51,10 @@ export interface SunburstArc {
   cx: number;
   /** Center Y */
   cy: number;
+  /** Parent group key (undefined for root-level arcs) */
+  parentKey?: string;
+  /** Number of descendant leaf nodes (for label sizing / color mapping) */
+  leafCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -218,6 +222,8 @@ export interface ClusterForceConfig {
   /** Skip inter-group overlap resolution (preset by arrangements like
    *  timeline/sunburst that handle spacing internally) */
   skipGroupOverlap?: boolean;
+  /** Total number of nodes across all groups (exposed as built-in variable N in expressions) */
+  totalNodeCount?: number;
 }
 
 /**
@@ -391,7 +397,10 @@ export function buildClusterForce(
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
 ): ClusterForceResult | null {
-  if (cfg.groupRules.length === 0) return null;
+  // perGroup=false layouts (concentric, sunburst) compute offsets across all nodes
+  // regardless of grouping — they still need the force to run even without group rules.
+  const isGlobalLayout = cfg.coordinateLayout && !cfg.coordinateLayout.perGroup;
+  if (cfg.groupRules.length === 0 && !isGlobalLayout) return null;
 
   // Multi-rule pipeline: each rule subdivides the previous groups
   let groups = new Map<string, GraphNode[]>([["__all__", [...nodes]]]);
@@ -624,21 +633,29 @@ function computeAbsoluteTargets(
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
 ): AbsoluteTargetResult {
+  // SunBurst uses its own global layout (angle sectors per group) — must be checked
+  // BEFORE the generic perGroup=false path so its hierarchy-aware algorithm runs.
+  if (cfg.arrangement === "sunburst") {
+    const parentMap = new Map<string, string[]>();
+    for (const key of groups.keys()) {
+      const parent = key.replace(/::.*$/, "");
+      if (!parentMap.has(parent)) parentMap.set(parent, []);
+      parentMap.get(parent)!.push(key);
+    }
+    return computeSunburstTargets(groups, parentMap, edges, degrees, cfg);
+  }
+
   // coordinateLayout with perGroup=false: compute offsets across ALL nodes at once,
   // ignoring group boundaries and hierarchy.  This is essential for layouts like
   // concentric rings where degree-based binning must span the full graph.
   if (cfg.coordinateLayout && !cfg.coordinateLayout.perGroup) {
     const allMembers: GraphNode[] = [];
     for (const members of groups.values()) allMembers.push(...members);
-    const ctx: CoordinateContext = {
-      degrees,
-      edges,
-      nodeSize: cfg.nodeSize,
-      nodeSpacing: cfg.nodeSpacing,
-      groupScale: cfg.groupScale,
-      getNodeProperty: cfg.getNodeProperty,
-    };
-    const result = coordinateOffsets(allMembers, degrees, edges, cfg.coordinateLayout, ctx);
+
+    // Route through computeOffsets (which dispatches to hardcoded functions
+    // for concentric, sunburst, etc.) instead of going directly to coordinateOffsets.
+    const result = computeOffsets(allMembers, degrees, edges, cfg);
+
     const targets = new Map<string, { x: number; y: number }>();
     for (const n of allMembers) {
       const off = result.offsets.get(n.id);
@@ -663,11 +680,6 @@ function computeAbsoluteTargets(
   }
   const hasHierarchy = [...parentMap.values()].some(ch => ch.length > 1);
 
-  // SunBurst uses its own global layout (angle sectors per group)
-  if (cfg.arrangement === "sunburst") {
-    return computeSunburstTargets(groups, parentMap, degrees, cfg);
-  }
-
   if (hasHierarchy) {
     const r = computeHierarchicalTargets(groups, parentMap, edges, degrees, cfg);
     return { targets: r.targets, guideGroups: r.guideGroups, allBars: r.allBars, allSequenceEdges: r.allSequenceEdges };
@@ -677,25 +689,189 @@ function computeAbsoluteTargets(
 }
 
 // ---------------------------------------------------------------------------
-// SunBurst — hierarchical radial sector layout (baumkuchen diagram style)
+// SunBurst — hierarchical radial sector layout (true multi-level sunburst)
 //
-// Two-level hierarchy:
+// Builds a hierarchy tree from:
+//   1. inheritance/aggregation/has-tag edges (directed parent→child)
+//   2. Folder-path fallback when no hierarchy edges exist
 //
-//   Level 0 (inner band):  Parent groups share the full 360°.
-//     Each parent gets a proportional angular sector.
-//     The highest-priority nodes (by sort) fill the inner ring(s).
-//
-//   Level 1 (outer bands):  Sub-groups (from recursive CC splitting)
-//     Each sub-group gets a proportional sub-sector within its parent's
-//     angular range.  Remaining nodes fill outward ring by ring.
-//
-// When there is NO hierarchy (flat groups), the inner ring is filled
-// with the top-priority nodes across all groups, then groups fan out.
+// Then allocates angular sectors proportional to descendant leaf count
+// (d3-partition style), placing nodes at the deepest level of their arc.
 // ---------------------------------------------------------------------------
+
+/** Internal tree node for hierarchy construction */
+interface HierarchyNode {
+  id: string;
+  children: HierarchyNode[];
+  members: GraphNode[];
+  depth: number;
+  leafCount: number;
+}
+
+/**
+ * Build a directed tree from group-level inheritance/aggregation/has-tag edges.
+ * Falls back to folder-path hierarchy when no hierarchy edges are found.
+ */
+function buildHierarchyTree(
+  groups: Map<string, GraphNode[]>,
+  edges: GraphEdge[],
+  maxDepth: number,
+): HierarchyNode {
+  const nodeGroupMap = new Map<string, string>();
+  for (const [gk, members] of groups) {
+    for (const m of members) nodeGroupMap.set(m.id, gk);
+  }
+
+  const groupChildren = new Map<string, Set<string>>();
+  const groupKeys = new Set(groups.keys());
+  let hierarchyEdgeCount = 0;
+
+  for (const e of edges) {
+    const srcGroup = nodeGroupMap.get(e.source);
+    const tgtGroup = nodeGroupMap.get(e.target);
+    if (!srcGroup || !tgtGroup || srcGroup === tgtGroup) continue;
+    if (!groupKeys.has(srcGroup) || !groupKeys.has(tgtGroup)) continue;
+
+    let parentG: string | undefined;
+    let childG: string | undefined;
+
+    if (e.type === "inheritance") {
+      parentG = tgtGroup; childG = srcGroup;   // source=child → target=parent
+    } else if (e.type === "aggregation") {
+      parentG = srcGroup; childG = tgtGroup;   // source=parent → target=child
+    } else if (e.type === "has-tag") {
+      parentG = tgtGroup; childG = srcGroup;   // tag is parent
+    } else {
+      continue;
+    }
+
+    if (!groupChildren.has(parentG)) groupChildren.set(parentG, new Set());
+    groupChildren.get(parentG)!.add(childG);
+    hierarchyEdgeCount++;
+  }
+
+  // Remove bidirectional cycles
+  for (const [p, children] of groupChildren) {
+    for (const c of children) groupChildren.get(c)?.delete(p);
+  }
+
+  const allGroupKeys = [...groupKeys];
+
+  if (hierarchyEdgeCount === 0) {
+    return buildFolderHierarchy(allGroupKeys, groups, maxDepth);
+  }
+
+  // BFS tree from roots (in-degree 0)
+  const hasIncoming = new Set<string>();
+  for (const children of groupChildren.values()) {
+    for (const c of children) hasIncoming.add(c);
+  }
+  const roots = allGroupKeys.filter(k => !hasIncoming.has(k));
+  if (roots.length === 0) roots.push(allGroupKeys[0]);
+
+  const visited = new Set<string>();
+  const rootNode: HierarchyNode = {
+    id: "__root__", children: [], members: [], depth: 0, leafCount: 0,
+  };
+
+  const buildSubtree = (groupKey: string, depth: number): HierarchyNode => {
+    visited.add(groupKey);
+    const node: HierarchyNode = {
+      id: groupKey, children: [], members: groups.get(groupKey) ?? [], depth, leafCount: 0,
+    };
+    if (depth < maxDepth) {
+      const cks = groupChildren.get(groupKey);
+      if (cks) for (const ck of cks) {
+        if (!visited.has(ck)) node.children.push(buildSubtree(ck, depth + 1));
+      }
+    }
+    return node;
+  };
+
+  for (const rk of roots) {
+    if (!visited.has(rk)) rootNode.children.push(buildSubtree(rk, 1));
+  }
+  for (const gk of allGroupKeys) {
+    if (!visited.has(gk)) {
+      rootNode.children.push({
+        id: gk, children: [], members: groups.get(gk) ?? [], depth: 1, leafCount: 0,
+      });
+    }
+  }
+  computeLeafCounts(rootNode);
+  return rootNode;
+}
+
+/** Build hierarchy from group key "/" segments (folder-path fallback) */
+function buildFolderHierarchy(
+  groupKeys: string[],
+  groups: Map<string, GraphNode[]>,
+  maxDepth: number,
+): HierarchyNode {
+  interface TrieNode {
+    segment: string;
+    children: Map<string, TrieNode>;
+    groupKey?: string;
+    members: GraphNode[];
+  }
+  const trie: TrieNode = { segment: "__root__", children: new Map(), members: [] };
+
+  for (const gk of groupKeys) {
+    const parts = gk.split("/").filter(Boolean);
+    const useParts = parts.length > maxDepth ? parts.slice(0, maxDepth) : parts;
+    let cur = trie;
+    for (const seg of useParts) {
+      if (!cur.children.has(seg)) {
+        cur.children.set(seg, { segment: seg, children: new Map(), members: [] });
+      }
+      cur = cur.children.get(seg)!;
+    }
+    cur.groupKey = gk;
+    cur.members = groups.get(gk) ?? [];
+  }
+
+  const convert = (t: TrieNode, depth: number): HierarchyNode => {
+    const hNode: HierarchyNode = {
+      id: t.groupKey ?? t.segment, children: [], members: t.members, depth, leafCount: 0,
+    };
+    for (const [, child] of t.children) {
+      let effective = child;
+      while (effective.children.size === 1 && effective.members.length === 0) {
+        effective = [...effective.children.values()][0];
+      }
+      hNode.children.push(convert(effective, depth + 1));
+    }
+    return hNode;
+  };
+
+  const root = convert(trie, 0);
+  computeLeafCounts(root);
+  return root;
+}
+
+function computeLeafCounts(node: HierarchyNode): number {
+  let count = node.members.length;
+  for (const child of node.children) count += computeLeafCounts(child);
+  node.leafCount = count;
+  return count;
+}
+
+function findRootAncestorKey(nodeId: string, root: HierarchyNode): string | undefined {
+  const search = (tree: HierarchyNode, target: string): boolean => {
+    if (tree.id === target) return true;
+    for (const c of tree.children) { if (search(c, target)) return true; }
+    return false;
+  };
+  for (const topChild of root.children) {
+    if (search(topChild, nodeId)) return topChild.id;
+  }
+  return undefined;
+}
 
 function computeSunburstTargets(
   groups: Map<string, GraphNode[]>,
-  parentMap: Map<string, string[]>,
+  _parentMap: Map<string, string[]>,
+  edges: GraphEdge[],
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
 ): AbsoluteTargetResult {
@@ -710,12 +886,13 @@ function computeSunburstTargets(
   const cy = cfg.centerY;
   const nodeDiam = cfg.nodeSize * 2;
 
-  // --- Ring geometry (configurable via constants) ---
+  // Ring geometry (configurable via user constants)
   const uc = cfg.userConstants;
   const ringWFactor = uc?._ringW ?? 0.4;
   const ringGapFactor = uc?._ringGap ?? 0.03;
   const holeFactor = uc?._hole ?? 1.8;
   const sectorGapFactor = uc?._sectorGap ?? 0.02;
+  const maxDepth = uc?._sunburstMaxDepth ?? 6;
 
   const nodeWidth = nodeDiam * Math.max(cfg.nodeSpacing * ringWFactor, 1.0);
   const ringThick = nodeDiam * Math.max(cfg.nodeSpacing * ringWFactor, 1.0);
@@ -728,172 +905,124 @@ function computeSunburstTargets(
     return [...arr].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0));
   };
 
-  // --- Build parent-level super groups ---
-  // parentKeys: unique parent group names (without "::" suffix)
-  const parentKeys = [...parentMap.keys()];
-  const parentNodeCount = new Map<string, number>();
-  for (const [parent, childKeys] of parentMap) {
-    let count = 0;
-    for (const ck of childKeys) count += (groups.get(ck)?.length ?? 0);
-    parentNodeCount.set(parent, count);
-  }
+  // Build hierarchy tree from edges (or folder-path fallback)
+  const tree = buildHierarchyTree(groups, edges, maxDepth);
+  const totalLeaves = tree.leafCount;
+  if (totalLeaves === 0) return { targets, sunburstArcs: arcs };
 
-  // --- Level 0: Assign parent sectors (proportional to node count) ---
-  const nParents = parentKeys.length;
-  const sectorGap = nParents > 1 ? sectorGapFactor * Math.max(cfg.groupSpacing, 1) : 0;
-  const totalGap = sectorGap * nParents;
-  const availAngle = Math.PI * 2 - totalGap;
+  // Top-level sector gap
+  const nTopChildren = tree.children.length;
+  const sectorGap = nTopChildren > 1 ? sectorGapFactor * Math.max(cfg.groupSpacing, 1) : 0;
+  const totalGapAngle = sectorGap * nTopChildren;
+  const availAngle = Math.PI * 2 - totalGapAngle;
 
-  interface Sector { start: number; end: number; sweep: number; }
-  const parentSectors = new Map<string, Sector>();
-  let anglePos = -Math.PI / 2;
-  for (const pk of parentKeys) {
-    const ratio = (parentNodeCount.get(pk) || 1) / totalNodes;
-    const sweep = ratio * availAngle;
-    parentSectors.set(pk, { start: anglePos, end: anglePos + sweep, sweep });
-    anglePos += sweep + sectorGap;
-  }
+  /** Recursively allocate angular sectors (d3-partition style). */
+  const allocate = (
+    hNode: HierarchyNode,
+    startAngle: number,
+    sweepAngle: number,
+    depthRing: number,
+  ) => {
+    if (sweepAngle < 0.001 || hNode.leafCount === 0) return;
 
-  // --- Level 0: Fill inner ring(s) with each parent's top-priority nodes ---
-  // Each parent fills its angular sector in ring 0 with its top nodes.
-  const placed = new Set<string>();
-  let maxInnerRing = 0; // track how many rings the inner level uses
+    const rInner = centerHole + depthRing * (ringThick + ringGap);
+    const rOuter = rInner + ringThick;
+    const endAngle = startAngle + sweepAngle;
 
-  for (const pk of parentKeys) {
-    const childKeys = parentMap.get(pk)!;
-    const sector = parentSectors.get(pk)!;
-
-    // Collect all nodes for this parent
-    const parentNodes: GraphNode[] = [];
-    for (const ck of childKeys) {
-      const members = groups.get(ck);
-      if (members) parentNodes.push(...members);
-    }
-    const sorted = sortNodes(parentNodes);
-
-    let nodeIdx = 0;
-    let ringIdx = 0;
-
-    while (nodeIdx < sorted.length) {
-      const rInner = centerHole + ringIdx * (ringThick + ringGap);
-      const rMid = rInner + ringThick * 0.5;
-      const rOuter = rInner + ringThick;
-
-      const arcLen = rMid * sector.sweep;
-      const capacity = Math.max(1, Math.floor(arcLen / nodeWidth));
-
-      // For inner ring: only fill up to capacity, remaining go to sub-group phase
-      // Check if this parent has sub-groups (hierarchy). If yes, only fill ring 0.
-      const hasSubGroups = childKeys.length > 1;
-      if (hasSubGroups && ringIdx >= 1) break; // stop at ring 0 for hierarchical parents
-
-      const count = Math.min(capacity, sorted.length - nodeIdx);
-
-      const pad = Math.min(sector.sweep * 0.02, 0.015);
-      const usable = sector.sweep - 2 * pad;
-
-      for (let i = 0; i < count; i++) {
-        const at = count === 1 ? 0.5 : i / (count - 1);
-        const angle = sector.start + pad + at * usable;
-        targets.set(sorted[nodeIdx].id, {
-          x: cx + rMid * Math.cos(angle),
-          y: cy + rMid * Math.sin(angle),
-        });
-        placed.add(sorted[nodeIdx].id);
-        nodeIdx++;
-      }
-
+    // Emit arc (skip virtual root)
+    if (hNode.id !== "__root__") {
       arcs.push({
-        groupKey: pk,
-        depth: ringIdx,
+        groupKey: hNode.id,
+        depth: depthRing,
         rInner, rOuter,
-        startAngle: sector.start,
-        endAngle: sector.end,
+        startAngle,
+        endAngle,
         cx, cy,
+        parentKey: depthRing > 0 ? findRootAncestorKey(hNode.id, tree) : undefined,
+        leafCount: hNode.leafCount,
       });
-
-      if (ringIdx > maxInnerRing) maxInnerRing = ringIdx;
-      ringIdx++;
-
-      // For flat (non-hierarchical) parents, keep filling until done
-      if (!hasSubGroups && nodeIdx >= sorted.length) break;
     }
-  }
 
-  // --- Level 1: Sub-group fan-out (only for parents with children) ---
-  const subGroupStartRing = maxInnerRing + 1;
+    // Place this node's own members along the arc
+    if (hNode.members.length > 0) {
+      const sorted = sortNodes(hNode.members);
+      const memberFraction = hNode.members.length / Math.max(1, hNode.leafCount);
+      const memberSweep = sweepAngle * memberFraction;
+      const memberStart = startAngle;
 
-  for (const pk of parentKeys) {
-    const childKeys = parentMap.get(pk)!;
-    if (childKeys.length <= 1) continue; // no sub-groups, already fully placed
-
-    const parentSector = parentSectors.get(pk)!;
-
-    // Count unplaced nodes per child
-    const childUnplaced = new Map<string, GraphNode[]>();
-    let totalUnplaced = 0;
-    for (const ck of childKeys) {
-      const members = groups.get(ck) ?? [];
-      const remaining = members.filter(n => !placed.has(n.id));
-      if (remaining.length > 0) {
-        childUnplaced.set(ck, remaining);
-        totalUnplaced += remaining.length;
-      }
-    }
-    if (totalUnplaced === 0) continue;
-
-    // Assign sub-sectors proportional to unplaced node count
-    const subGap = childUnplaced.size > 1 ? sectorGapFactor * Math.max(cfg.groupSpacing, 1) : 0;
-    const subTotalGap = subGap * childUnplaced.size;
-    const subAvail = parentSector.sweep - subTotalGap;
-    let subAngle = parentSector.start;
-
-    for (const [ck, remaining] of childUnplaced) {
-      const ratio = remaining.length / totalUnplaced;
-      const sweep = ratio * subAvail;
-      const subSector: Sector = { start: subAngle, end: subAngle + sweep, sweep };
-
-      const sorted = sortNodes(remaining);
       let nodeIdx = 0;
-      let ringIdx = subGroupStartRing;
-
+      let subRing = 0;
       while (nodeIdx < sorted.length) {
-        const rInner = centerHole + ringIdx * (ringThick + ringGap);
-        const rMid = rInner + ringThick * 0.5;
-        const rOuter = rInner + ringThick;
+        const sr = depthRing + subRing;
+        const srInner = centerHole + sr * (ringThick + ringGap);
+        const srMid = srInner + ringThick * 0.5;
 
-        const arcLen = rMid * subSector.sweep;
-        const capacity = Math.max(1, Math.floor(arcLen / nodeWidth));
-        const count = Math.min(capacity, sorted.length - nodeIdx);
+        const srArcLen = srMid * memberSweep;
+        const cap = Math.max(1, Math.floor(srArcLen / nodeWidth));
+        const count = Math.min(cap, sorted.length - nodeIdx);
 
-        const pad = Math.min(subSector.sweep * 0.02, 0.015);
-        const usable = subSector.sweep - 2 * pad;
+        const pad = Math.min(memberSweep * 0.02, 0.015);
+        const usable = memberSweep - 2 * pad;
 
         for (let i = 0; i < count; i++) {
           const at = count === 1 ? 0.5 : i / (count - 1);
-          const angle = subSector.start + pad + at * usable;
+          const angle = memberStart + pad + at * usable;
           targets.set(sorted[nodeIdx].id, {
-            x: cx + rMid * Math.cos(angle),
-            y: cy + rMid * Math.sin(angle),
+            x: cx + srMid * Math.cos(angle),
+            y: cy + srMid * Math.sin(angle),
           });
-          placed.add(sorted[nodeIdx].id);
           nodeIdx++;
         }
 
-        arcs.push({
-          groupKey: ck,
-          depth: ringIdx,
-          rInner, rOuter,
-          startAngle: subSector.start,
-          endAngle: subSector.end,
-          cx, cy,
-        });
-
-        ringIdx++;
+        if (subRing > 0) {
+          arcs.push({
+            groupKey: hNode.id,
+            depth: sr,
+            rInner: srInner,
+            rOuter: srInner + ringThick,
+            startAngle: memberStart,
+            endAngle: memberStart + memberSweep,
+            cx, cy,
+            parentKey: depthRing > 0 ? findRootAncestorKey(hNode.id, tree) : undefined,
+            leafCount: count,
+          });
+        }
+        subRing++;
       }
-
-      subAngle += sweep + subGap;
     }
+
+    // Recurse into children
+    if (hNode.children.length > 0) {
+      const childLeaves = hNode.children.reduce((s, c) => s + c.leafCount, 0);
+      if (childLeaves === 0) return;
+
+      const memberFraction = hNode.members.length / Math.max(1, hNode.leafCount);
+      const childSweep = sweepAngle * (1 - memberFraction);
+      const childStart = startAngle + sweepAngle * memberFraction;
+
+      const childGap = hNode.children.length > 1
+        ? Math.min(sectorGapFactor * 0.5, childSweep * 0.02)
+        : 0;
+      const childTotalGap = childGap * hNode.children.length;
+      const childAvail = childSweep - childTotalGap;
+
+      let cAngle = childStart;
+      for (const child of hNode.children) {
+        const ratio = child.leafCount / childLeaves;
+        const cSweep = ratio * childAvail;
+        allocate(child, cAngle, cSweep, depthRing + 1);
+        cAngle += cSweep + childGap;
+      }
+    }
+  };
+
+  // Allocate from root's children (root itself is virtual)
+  let angle = -Math.PI / 2;
+  for (const topChild of tree.children) {
+    const ratio = topChild.leafCount / totalLeaves;
+    const sweep = ratio * availAngle;
+    allocate(topChild, angle, sweep, 0);
+    angle += sweep + sectorGap;
   }
 
   return { targets, sunburstArcs: arcs };
@@ -926,7 +1055,28 @@ function computeFlatTargets(
   const targets = new Map<string, { x: number; y: number }>();
   const guideGroups: FlatTargetResult["guideGroups"] = [];
   const allBars: TimelineBarInfo[] = [];
-  const groupKeys = [...groups.keys()];
+  let groupKeys = [...groups.keys()];
+
+  // Sort cluster keys by their representative node (first node per sortComparator)
+  // so that clusters whose "best" node comes first in sort order get the smallest
+  // positions (center, top-left, angle 0, etc.).
+  if (cfg.sortComparator && groupKeys.length > 1) {
+    const cmp = cfg.sortComparator;
+    const reps = new Map<string, GraphNode>();
+    for (const key of groupKeys) {
+      const members = groups.get(key);
+      if (members && members.length > 0) {
+        reps.set(key, [...members].sort(cmp)[0]);
+      }
+    }
+    groupKeys.sort((a, b) => {
+      const ra = reps.get(a);
+      const rb = reps.get(b);
+      if (!ra || !rb) return 0;
+      return cmp(ra, rb);
+    });
+  }
+
   const nGroups = groupKeys.length;
 
   const groupCenters = new Map<string, { x: number; y: number }>();
@@ -1219,7 +1369,7 @@ function computeHierarchicalTargets(
   const guideGroups: FlatTargetResult["guideGroups"] = [];
   const allBars: TimelineBarInfo[] = [];
   const allSeqEdges: GraphEdge[] = [];
-  const parentKeys = [...parentMap.keys()];
+  let parentKeys = [...parentMap.keys()];
 
   // Build virtual "super groups" to compute parent-level sizes
   const superGroups = new Map<string, GraphNode[]>();
@@ -1230,6 +1380,24 @@ function computeHierarchicalTargets(
       if (members) all.push(...members);
     }
     superGroups.set(parent, all);
+  }
+
+  // Sort parent keys by representative node (same logic as computeFlatTargets)
+  if (cfg.sortComparator && parentKeys.length > 1) {
+    const cmp = cfg.sortComparator;
+    const reps = new Map<string, GraphNode>();
+    for (const key of parentKeys) {
+      const members = superGroups.get(key);
+      if (members && members.length > 0) {
+        reps.set(key, [...members].sort(cmp)[0]);
+      }
+    }
+    parentKeys.sort((a, b) => {
+      const ra = reps.get(a);
+      const rb = reps.get(b);
+      if (!ra || !rb) return 0;
+      return cmp(ra, rb);
+    });
   }
 
   // Level 1: place parent centers
@@ -1280,9 +1448,28 @@ function computeHierarchicalTargets(
       continue;
     }
 
-    // Multiple sub-groups: sort by size (largest first) and place in local arrangement
-    const sorted = [...childKeys].sort((a, b) =>
-      (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0));
+    // Multiple sub-groups: sort by representative node if sortComparator exists,
+    // otherwise fall back to size (largest first)
+    let sorted: string[];
+    if (cfg.sortComparator) {
+      const cmp = cfg.sortComparator;
+      const reps = new Map<string, GraphNode>();
+      for (const ck of childKeys) {
+        const members = groups.get(ck);
+        if (members && members.length > 0) {
+          reps.set(ck, [...members].sort(cmp)[0]);
+        }
+      }
+      sorted = [...childKeys].sort((a, b) => {
+        const ra = reps.get(a);
+        const rb = reps.get(b);
+        if (!ra || !rb) return 0;
+        return cmp(ra, rb);
+      });
+    } else {
+      sorted = [...childKeys].sort((a, b) =>
+        (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0));
+    }
 
     // Compute local sub-group centers around the parent center
     const subCenters = new Map<string, { x: number; y: number }>();
@@ -1435,10 +1622,10 @@ function layoutGroupsCircle(
 
 /**
  * Place groups on concentric rings around the canvas center.
- * The largest group goes to the center; remaining groups are distributed
+ * The first key goes to the center; remaining groups are distributed
  * across concentric rings so that each ring holds groups whose combined
- * angular extent fits the circumference.  This produces a "solar system"
- * layout where each orbit ring hosts one or more group clusters.
+ * angular extent fits the circumference.  Key order is determined by
+ * the caller (sorted by sortComparator representative node).
  */
 function layoutGroupsConcentric(
   keys: string[],
@@ -1448,39 +1635,39 @@ function layoutGroupsConcentric(
 ) {
   if (keys.length === 0) return;
 
-  // Sort groups by size descending — largest group goes to center
-  const sorted = [...keys].sort((a, b) => (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0));
+  // Keys are already sorted by the caller (computeFlatTargets) using sortComparator.
+  // First key → center, remaining keys → concentric rings in order.
 
   // Estimate radii for each group
   const groupRadii = new Map<string, number>();
-  for (const key of sorted) {
+  for (const key of keys) {
     const members = groups.get(key);
     if (!members) continue;
     groupRadii.set(key, estimateGroupRadius(members.length, cfg.nodeSize, cfg.groupScale, cfg.arrangement, members));
   }
 
-  // Place the largest group at center
-  out.set(sorted[0], { x: cfg.centerX, y: cfg.centerY });
+  // Place the first group at center
+  out.set(keys[0], { x: cfg.centerX, y: cfg.centerY });
 
-  if (sorted.length === 1) return;
+  if (keys.length === 1) return;
 
   // Distribute remaining groups across concentric rings
-  const centerR = groupRadii.get(sorted[0]) ?? 0;
+  const centerR = groupRadii.get(keys[0]) ?? 0;
   const ringGap = cfg.nodeSize * 4 * cfg.groupSpacing;
   let ringRadius = centerR + ringGap;
   let idx = 1;
 
-  while (idx < sorted.length) {
+  while (idx < keys.length) {
     // How many groups fit on this ring?
     const circumference = 2 * Math.PI * ringRadius;
     const ringGroups: string[] = [];
     let totalDiam = 0;
 
-    while (idx < sorted.length) {
-      const r = groupRadii.get(sorted[idx]) ?? 0;
+    while (idx < keys.length) {
+      const r = groupRadii.get(keys[idx]) ?? 0;
       const diam = r * 2 + cfg.nodeSize * 4;
       if (ringGroups.length > 0 && totalDiam + diam > circumference) break;
-      ringGroups.push(sorted[idx]);
+      ringGroups.push(keys[idx]);
       totalDiam += diam;
       idx++;
     }
@@ -1694,15 +1881,18 @@ function computeOffsets(
   // Other hardcoded arrangements (concentric, tree, mountain, timeline, random)
   // keep their specialised functions when the layout matches the exact preset.
   const HARDCODED_ARRANGEMENTS = new Set<ClusterArrangement>([
-    "concentric", "tree", "random", "mountain", "timeline",
+    "concentric", "radial", "tree", "random", "mountain", "timeline",
   ]);
 
-  const hasExpr = cfg.coordinateLayout &&
-    (cfg.coordinateLayout.axis1.transform.kind === "expression" ||
-     cfg.coordinateLayout.axis2.transform.kind === "expression");
-
-  if (!hasExpr && HARDCODED_ARRANGEMENTS.has(cfg.arrangement) && isExactPreset(cfg.coordinateLayout!)) {
-    return dispatchHardcoded(cfg.arrangement, members, degrees, edges, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg);
+  // Hardcoded arrangements use their specialised function when the coordinate
+  // layout hasn't been customized (null or matches the arrangement's preset).
+  if (HARDCODED_ARRANGEMENTS.has(cfg.arrangement)) {
+    const preset = ARRANGEMENT_PRESETS[cfg.arrangement];
+    const isDefault = !cfg.coordinateLayout ||
+      JSON.stringify(cfg.coordinateLayout) === JSON.stringify(preset);
+    if (isDefault) {
+      return dispatchHardcoded(cfg.arrangement, members, degrees, edges, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg);
+    }
   }
 
   if (cfg.coordinateLayout) {
@@ -1713,6 +1903,7 @@ function computeOffsets(
       nodeSpacing,
       groupScale,
       getNodeProperty: cfg.getNodeProperty,
+      totalNodeCount: cfg.totalNodeCount ?? members.length,
     };
     return coordinateOffsets(members, degrees, edges, cfg.coordinateLayout, ctx);
   }
@@ -1737,7 +1928,9 @@ function dispatchHardcoded(
 ): ArrangementResult {
   switch (arrangement) {
     case "spiral": return spiralOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap);
+    case "phyllotaxis": return spiralOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap);
     case "concentric": return concentricOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap);
+    case "radial": return radialOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg.userConstants?._spokeCount);
     case "tree": return treeOffsets(members, edges, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     case "grid": return gridOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
     case "triangle": return triangleOffsets(members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap);
@@ -1795,7 +1988,7 @@ function spiralOffsets(
     // Advance θ for next node: arc-length ≥ (this radius + next radius) × spacingMul × avg node spacing
     if (i < n - 1) {
       const avgSpacing = (getSpacing(sorted[i].id, nodeSpacingMap) + getSpacing(sorted[i + 1].id, nodeSpacingMap)) / 2;
-      const minDist = (radii[i] + radii[i + 1]) * spacingMul * avgSpacing;
+      const minDist = Math.max((radii[i] + radii[i + 1]) * spacingMul * avgSpacing, nodeSize * 0.5);
       const currentR = Math.max(a * theta, 1);
       const dTheta = Math.max(minDist / currentR, 0.05);
       theta += dTheta;
@@ -1833,37 +2026,44 @@ function concentricOffsets(
   // Precompute radii (super-node aware)
   const radii = sorted.map(nd => effectiveRadius(nd, nodeSize, degrees.get(nd.id) || 0, scaleByDegree));
 
-  // Place center node (ring radius = 0)
+  // Place center node at origin
   offsets.set(sorted[0].id, { dx: 0, dy: 0 });
   ringAssignments.set(sorted[0].id, 0);
 
-  let idx = 1; // next node to place
-  let ringR = 0; // current ring radius
+  let idx = 1;
+  let ringR = 0;
+  let ringIdx = 0; // for angular offset per ring
 
   while (idx < n) {
-    // Ring increment — governed by groupScale (overall ring spacing)
+    // Advance to next ring
     const prevR = ringR === 0 ? radii[0] : nodeSize;
     const minGap = (prevR + radii[idx]) * groupScale;
     ringR = Math.max(ringR + minGap, ringR + nodeSize * 2 * groupScale);
     ringRadii.push(ringR);
+    ringIdx++;
 
-    // Capacity — governed by spacingMul (node-to-node gap on the ring)
+    // Compute how many nodes fit on this ring (capacity from circumference)
     const circumference = 2 * Math.PI * ringR;
-    // Estimate average radius of nodes that will go on this ring
-    let cap = 1;
-    let totalDiamNeeded = radii[idx] * 2 * spacingMul * getSpacing(sorted[idx].id, nodeSpacingMap);
+    let cap = 0;
+    let totalDiam = 0;
     while (cap < n - idx) {
-      const nextR = radii[idx + cap];
-      const nextDiam = nextR * 2 * spacingMul * getSpacing(sorted[idx + cap].id, nodeSpacingMap);
-      if (totalDiamNeeded + nextDiam > circumference) break;
-      totalDiamNeeded += nextDiam;
+      const d = radii[idx + cap] * 2 * spacingMul * getSpacing(sorted[idx + cap].id, nodeSpacingMap);
+      if (cap > 0 && totalDiam + d > circumference) break;
+      totalDiam += d;
       cap++;
     }
     cap = Math.max(1, cap);
 
-    // Place nodes on this ring
+    // Extend capacity to include all tied nodes at the boundary
+    // (prefer keeping tied nodes on the same ring over strict capacity)
+    while (cap < n - idx && cmp(sorted[idx + cap - 1], sorted[idx + cap]) === 0) {
+      cap++;
+    }
+
+    // Place nodes on this ring with angular offset to avoid spoke alignment
+    const angleOffset = (ringIdx % 2 === 0) ? 0 : Math.PI / cap;
     for (let j = 0; j < cap && idx < n; j++, idx++) {
-      const angle = (j / cap) * Math.PI * 2;
+      const angle = (j / cap) * Math.PI * 2 + angleOffset;
       offsets.set(sorted[idx].id, {
         dx: ringR * Math.cos(angle),
         dy: ringR * Math.sin(angle),
@@ -1872,6 +2072,50 @@ function concentricOffsets(
     }
   }
   return { offsets, ringAssignments, guide: { type: "concentric" as const, rings: ringRadii } };
+}
+
+// ---------------------------------------------------------------------------
+// Radial — nodes distributed along radial spokes from center
+// Each spoke holds multiple nodes at increasing radii.
+// spokeCount defaults to ceil(sqrt(n)), configurable via _spokeCount constant.
+// ---------------------------------------------------------------------------
+
+function radialOffsets(
+  members: GraphNode[],
+  degrees: Map<string, number>,
+  spacingMul: number,
+  groupScale: number,
+  nodeSize: number,
+  scaleByDegree: boolean,
+  cmp: (a: GraphNode, b: GraphNode) => number,
+  nodeSpacingMap?: Map<string, number>,
+  spokeCount?: number,
+): ArrangementResult {
+  const sorted = [...members].sort(cmp);
+  const offsets = new Map<string, { dx: number; dy: number }>();
+  const n = sorted.length;
+  if (n === 0) return { offsets };
+
+  const radii = sorted.map(nd => effectiveRadius(nd, nodeSize, degrees.get(nd.id) || 0, scaleByDegree));
+  const nSpokes = Math.max(2, spokeCount ?? Math.ceil(Math.sqrt(n)));
+
+  // Place center node at origin
+  offsets.set(sorted[0].id, { dx: 0, dy: 0 });
+
+  // Distribute remaining nodes across spokes
+  for (let i = 1; i < n; i++) {
+    const spoke = (i - 1) % nSpokes;
+    const posOnSpoke = Math.floor((i - 1) / nSpokes) + 1;
+    const angle = (spoke / nSpokes) * 2 * Math.PI;
+    // Cumulative radius: each position steps outward by node diameter + gap
+    const gap = (radii[i] * 2 + nodeSize) * groupScale * spacingMul * getSpacing(sorted[i].id, nodeSpacingMap);
+    const r = posOnSpoke * gap;
+    offsets.set(sorted[i].id, {
+      dx: r * Math.cos(angle),
+      dy: r * Math.sin(angle),
+    });
+  }
+  return { offsets };
 }
 
 // ---------------------------------------------------------------------------
@@ -1996,7 +2240,8 @@ function gridOffsets(
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = sorted.length;
   // Grid cell spacing — combines both: nodeSpacing for horizontal, groupScale for overall
-  const spacing = nodeSize * 2 * Math.max(spacingMul, groupScale);
+  // DQ-15: ensure minimum spacing of one nodeSize to prevent overlap
+  const spacing = Math.max(nodeSize * 2 * Math.max(spacingMul, groupScale), nodeSize);
   const c = Math.max(1, Math.ceil(Math.sqrt(n)));
   const rows = Math.ceil(n / c);
   const totalW = (c - 1) * spacing;
@@ -2976,6 +3221,7 @@ export function computeAutoFitSpacing(
       nodeSpacing,
       groupScale,
       groupSpacing,
+      totalNodeCount: nodes.length,
     };
 
     const result = buildClusterForce(nodes, edges, degrees, cfg);
@@ -3155,5 +3401,94 @@ export function computeAutoFitSpacing(
     nodeSpacing: Math.round(nodeSpacing * 10) / 10,
     groupScale: Math.round(groupScale * 10) / 10,
     groupSpacing: Math.round(groupSpacing * 10) / 10,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Auto-optimize: overlap analysis
+// ---------------------------------------------------------------------------
+export function analyzeOverlap(
+  nodes: { id: string; x: number; y: number }[],
+  radii: Map<string, number>,
+  closeThresholdFactor: number,
+): { overlapRatio: number; avgRadius: number; closePairs: number; overlapPairs: number } {
+  if (nodes.length < 2) return { overlapRatio: 0, avgRadius: 0, closePairs: 0, overlapPairs: 0 };
+
+  // Sample if too many nodes
+  const MAX_SAMPLE = 500;
+  let sample = nodes;
+  if (nodes.length > MAX_SAMPLE) {
+    const shuffled = [...nodes];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    sample = shuffled.slice(0, MAX_SAMPLE);
+  }
+
+  let totalR = 0;
+  let rCount = 0;
+  for (const n of sample) {
+    const r = radii.get(n.id);
+    if (r !== undefined) { totalR += r; rCount++; }
+  }
+  const avgRadius = rCount > 0 ? totalR / rCount : 6;
+  const closeThreshold = avgRadius * closeThresholdFactor;
+
+  let closePairs = 0;
+  let overlapPairs = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const a = sample[i];
+    const ra = radii.get(a.id) ?? avgRadius;
+    for (let j = i + 1; j < sample.length; j++) {
+      const b = sample[j];
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < closeThreshold) {
+        closePairs++;
+        const rb = radii.get(b.id) ?? avgRadius;
+        if (dist < ra + rb) overlapPairs++;
+      }
+    }
+  }
+
+  return {
+    overlapRatio: overlapPairs / Math.max(1, closePairs),
+    avgRadius,
+    closePairs,
+    overlapPairs,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Auto-optimize: compute adjusted parameters
+// ---------------------------------------------------------------------------
+export function computeAutoOptimize(
+  overlapRatio: number,
+  avgRadius: number,
+  currentConstants: Record<string, number>,
+  currentRepel: number,
+  currentLinkDist: number,
+  cfg: {
+    overlapThreshold: number; padIncrement: number; padMax: number;
+    repelScale: number; linkScale: number;
+  },
+): { constants: Record<string, number>; repelForce: number; linkDistance: number; needsMore: boolean } {
+  if (overlapRatio <= cfg.overlapThreshold) {
+    return { constants: { ...currentConstants }, repelForce: currentRepel, linkDistance: currentLinkDist, needsMore: false };
+  }
+
+  const constants = { ...currentConstants };
+  const curPad = constants["_overlapPad"] ?? 0;
+  constants["_overlapPad"] = Math.min(curPad + cfg.padIncrement, cfg.padMax);
+  const curGap = constants["_minGap"] ?? 0;
+  constants["_minGap"] = Math.max(curGap, avgRadius * 0.5);
+
+  return {
+    constants,
+    repelForce: currentRepel * cfg.repelScale,
+    linkDistance: currentLinkDist * cfg.linkScale,
+    needsMore: true,
   };
 }

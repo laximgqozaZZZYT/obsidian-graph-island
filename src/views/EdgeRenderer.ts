@@ -56,6 +56,20 @@ export interface EdgeDrawConfig {
   cardinalityRules?: CardinalityRule[];
   /** Cardinality marker render config (sizes, offsets, line widths) */
   cardinalityRenderConfig?: CardinalityRenderConfig;
+  /** Cable bundling mode: auto (when clusters exist), always, never */
+  cableBundleMode?: "auto" | "always" | "never";
+  /** Cable trunk line width (px) */
+  cableTrunkWidth?: number;
+  /** Cable trunk opacity (0-1) */
+  cableTrunkAlpha?: number;
+  /** Spacing between parallel cables (px) */
+  cableSpacing?: number;
+  /** Fan wire width (px) */
+  cableFanWidth?: number;
+  /** Fan wire opacity (0-1) */
+  cableFanAlpha?: number;
+  /** Minimum density scale floor — prevents edges vanishing at high count + low zoom */
+  edgeDensityFloor?: number;
 }
 
 // Minimal position data needed for source/target
@@ -86,8 +100,8 @@ function shouldSkipEdge(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
 // Constants
 // ---------------------------------------------------------------------------
 // Theme-aware edge colors
-function defaultColor(isDark: boolean) { return isDark ? 0x555555 : 0xbbbbbb; }
-function highlightColor(isDark: boolean) { return isDark ? 0x888888 : 0x666666; }
+function defaultColor(isDark: boolean) { return isDark ? 0x666666 : 0x999999; }
+function highlightColor(isDark: boolean) { return isDark ? 0x999999 : 0x555555; }
 const INHERITANCE_COLOR = 0x9ca3af;
 const AGGREGATION_COLOR = 0x60a5fa;
 const SIMILAR_COLOR = 0xfbbf24;
@@ -348,6 +362,7 @@ function computeCableLayout(
   cable: Cable,
   centroids: Map<string, { x: number; y: number }>,
   radii: Map<string, number>,
+  cfg?: EdgeDrawConfig,
 ): CableLayout | null {
   const cA = centroids.get(cable.srcCluster);
   const cB = centroids.get(cable.tgtCluster);
@@ -384,7 +399,7 @@ function computeCableLayout(
   // Perpendicular offset for parallel cables
   const px = -uy;
   const py = ux;
-  const cableSpacing = 4;
+  const cableSpacing = cfg?.cableSpacing ?? 4;
   const centerOffset = (cable.cableIndex - (cable.totalCables - 1) / 2) * cableSpacing;
 
   return {
@@ -414,7 +429,7 @@ function drawCables(
   if (!centroids || !radii) return;
 
   for (const cable of cables) {
-    const layout = computeCableLayout(cable, centroids, radii);
+    const layout = computeCableLayout(cable, centroids, radii, cfg);
     if (!layout) continue;
 
     const { trunkStart, trunkEnd, offsetX, offsetY } = layout;
@@ -440,8 +455,8 @@ function drawCables(
       const te = { x: trunkEnd.x + lox, y: trunkEnd.y + loy };
 
       // --- Trunk: one line per color, ~2× normal edge thickness, high contrast ---
-      let trunkWidth = 2;
-      let trunkAlpha = 0.85;
+      let trunkWidth = cfg.cableTrunkWidth ?? 2;
+      let trunkAlpha = cfg.cableTrunkAlpha ?? 0.85;
 
       // Highlight: if any edge in this lane connects highlighted nodes, brighten trunk
       if (cfg.highlightedNodeId) {
@@ -466,10 +481,12 @@ function drawCables(
       g.moveTo(ts.x, ts.y);
       g.lineTo(te.x, te.y);
 
-      // --- Fan lines: thin, low-alpha lines from nodes to trunk endpoints ---
-      // Scale alpha down with edge count so dense fans don't overwhelm
+      // --- Fan lines: configurable lines from nodes to trunk endpoints ---
+      const fanWidth = cfg.cableFanWidth ?? 1;
+      const baseFanAlpha = cfg.cableFanAlpha ?? 0.45;
       const fanCount = lane.edges.length;
-      const fanAlpha = Math.min(0.25, 3.0 / fanCount) * densityScale;
+      const crowdFactor = Math.min(1, 6.0 / fanCount);  // 6本以下は100%、増えると減衰
+      const fanAlpha = baseFanAlpha * (0.4 + 0.6 * crowdFactor) * densityScale;
 
       for (const e of lane.edges) {
         const src = resolvePos(e.source);
@@ -495,7 +512,7 @@ function drawCables(
         const nearEnd = isSrcSide ? ts : te;
         const farEnd = isSrcSide ? te : ts;
 
-        g.lineStyle({ width: 0.5, color: lane.color, alpha, native: true });
+        g.lineStyle({ width: fanWidth, color: lane.color, alpha, native: true });
 
         // Fan-in: source node → near trunk endpoint (straight line for performance)
         g.moveTo(src.x, src.y);
@@ -567,7 +584,7 @@ export function drawEdges(
   // obscure nodes rendered with min-radius inflation.
   const ws = cfg.worldScale ?? 1;
   const zoomFade = ws >= 0.05 ? 1 : Math.max(0.15, ws / 0.05);
-  const densityScale = densityScaleBase * zoomFade;
+  const densityScale = Math.max(cfg.edgeDensityFloor ?? 0.08, densityScaleBase * zoomFade);
 
   // Pre-compute direction×color bundles for highway-style edge merging
   const β = cfg.bundleStrength;
@@ -583,7 +600,12 @@ export function drawEdges(
   }
 
   // Cable bundling: group inter-cluster edges into cables (cached like direction bundles)
-  const hasClusters = cfg.nodeClusterMap && cfg.clusterCentroids && cfg.clusterRadii;
+  const clustersAvailable = !!(cfg.nodeClusterMap && cfg.clusterCentroids && cfg.clusterRadii);
+  const cableMode = cfg.cableBundleMode ?? "auto";
+  // "never" → always off; "always" → on if cluster data exists (graceful skip otherwise); "auto" → on if clusters
+  const hasClusters = cableMode === "never" ? false
+    : cableMode === "always" ? clustersAvailable
+    : clustersAvailable;
   let cables: Cable[];
   let cabledEdgeIds: Set<string>;
   if (hasClusters) {
@@ -621,7 +643,7 @@ export function drawEdges(
     const isBreadcrumbs = e.type === "sibling" || e.type === "sequence";
     const isStructural = isOnto || e.type === "has-tag" || isSimilar || isBreadcrumbs;
     let alpha = (isStructural ? 0.7 : 0.65) * densityScale;
-    let lineThick = 1;
+    let lineThick = 1.2;
 
     if (!isOnto && e.relation && useRelColor) alpha = 0.8 * densityScale;
 
@@ -641,26 +663,27 @@ export function drawEdges(
       const sid = src.id ?? (e.source as string);
       const tid = tgt.id ?? (e.target as string);
       if (cfg.highlightSet.has(sid) && cfg.highlightSet.has(tid)) {
-        lineThick = 1.5;
+        lineThick = 2.0;
         alpha = 1;
         if (!isOnto && !e.relation) {
           // Keep lineColor from resolveEdgeColor — don't override to HIGHLIGHT_COLOR
           // so bundled highlight edges still group by their original color
         }
       } else {
-        alpha = 0.08;
+        alpha = 0.15;
       }
     }
 
     g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
 
-    // Edge type dash pattern: semantic=dotted, tag/has-tag=dashed
+    // Edge type dash pattern: scale by lineThick so dashes stay visible (DQ-13)
+    const s = lineThick;
     if (e.type === "semantic") {
-      g.setLineDash([3, 3]);
+      g.setLineDash([4 * s, 4 * s]);
     } else if (e.type === "tag" || e.type === "has-tag") {
-      g.setLineDash([6, 3]);
+      g.setLineDash([8 * s, 3 * s]);
     } else if (isSimilar) {
-      g.setLineDash([2, 4]);
+      g.setLineDash([3 * s, 5 * s]);
     }
 
     // --- Draw the edge ---
@@ -1058,8 +1081,18 @@ export function drawEdgeLabels(
     labelable.push({ edge: e, label });
   }
 
-  // Performance guard: skip labels when there are too many
-  if (labelable.length > MAX_EDGE_LABELS) return;
+  // Performance guard: show only the most important labels when count exceeds limit.
+  // Prioritize edges whose endpoints have higher combined degree (more connected = more visible).
+  if (labelable.length > MAX_EDGE_LABELS) {
+    if (cfg.degrees && cfg.degrees.size > 0) {
+      labelable.sort((a, b) => {
+        const da = (cfg.degrees.get(a.edge.source as string) ?? 0) + (cfg.degrees.get(a.edge.target as string) ?? 0);
+        const db = (cfg.degrees.get(b.edge.source as string) ?? 0) + (cfg.degrees.get(b.edge.target as string) ?? 0);
+        return db - da;
+      });
+    }
+    labelable.length = MAX_EDGE_LABELS;
+  }
 
   const fillColor = cfg.isDark ? 0xcccccc : 0x444444;
 

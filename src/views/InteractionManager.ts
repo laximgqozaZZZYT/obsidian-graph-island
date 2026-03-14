@@ -13,6 +13,7 @@ export interface PixiNode {
   circle: CanvasGraphics;
   label: CanvasText | null;
   hoverLabel: CanvasText | null;
+  leaderLine: CanvasGraphics | null;
   radius: number;
   color: number;
   held: boolean;

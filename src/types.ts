@@ -63,7 +63,7 @@ export type LayoutType =
 export type ClusterGroupBy = string;
 
 /** How to arrange nodes within each cluster */
-export type ClusterArrangement = "spiral" | "concentric" | "tree" | "grid" | "triangle" | "random" | "mountain" | "sunburst" | "timeline" | "custom";
+export type ClusterArrangement = "spiral" | "concentric" | "radial" | "phyllotaxis" | "tree" | "grid" | "triangle" | "random" | "mountain" | "sunburst" | "timeline" | "custom";
 
 /** Source of values for a coordinate axis.
  *
@@ -617,6 +617,16 @@ export interface CardRenderConfig {
   cardHoverScale?: number;
   /** Card glow alpha on hover (default 0.3) */
   cardHoverGlowAlpha?: number;
+
+  // ---- Highlight ----
+  /** Alpha for background nodes when a node is highlighted (default 0.15) */
+  highlightDimAlpha?: number;
+  /** Halo radius multiplier for highlighted nodes (default 2.2) */
+  highlightHaloRadius?: number;
+  /** Halo alpha for highlighted nodes (default 0.15) */
+  highlightHaloAlpha?: number;
+  /** Stroke width for highlighted nodes (default 1.8) */
+  highlightStrokeWidth?: number;
 }
 
 /** Cardinality marker rendering configuration */
@@ -716,13 +726,71 @@ export interface RenderThresholds {
   // ---- Card text truncation ----
   /** Enable card text truncation with ellipsis (default true) */
   cardTextTruncation?: boolean;
+
+  // ---- Glow halos ----
+  /** Base glow alpha for node halos (default 0.18) */
+  glowBaseAlpha?: number;
+  /** Base glow radius multiplier (default 2.2) */
+  glowBaseRadius?: number;
+  /** Glow alpha for hub nodes (top 10% degree) multiplier (default 1.6) */
+  glowHubFactor?: number;
+  /** Glow radius for hub nodes multiplier (default 1.3) */
+  glowHubRadiusFactor?: number;
+
+  // ---- Minimap ----
+  /** Minimap node dot radius in px (default 2.5) */
+  minimapDotRadius?: number;
+  /** Minimap node thinning step when above threshold (default 3) */
+  minimapThinStep?: number;
+  /** Minimap node thinning threshold (default 800) */
+  minimapThinThreshold?: number;
+
+  // ---- Edge density ----
+  /** Minimum density scale for edge/cable alpha — prevents edges from becoming invisible at high count + low zoom (default 0.08) */
+  edgeDensityFloor?: number;
+
+  // ---- Label leader lines ----
+  /** Draw thin leader lines from displaced labels to their node (default true) */
+  labelLeaderLines?: boolean;
+  /** Leader line stroke alpha (default 0.3) */
+  labelLeaderLineAlpha?: number;
+  /** Leader line stroke width in px (default 0.8) */
+  labelLeaderLineWidth?: number;
+
+  // ---- Auto-optimize ----
+  /** Auto-optimize: overlap ratio threshold to trigger adjustment (default 0.15) */
+  autoOptOverlapThreshold?: number;
+  /** Auto-optimize: _overlapPad increment per pass (default 0.2) */
+  autoOptPadIncrement?: number;
+  /** Auto-optimize: maximum _overlapPad value (default 3.0) */
+  autoOptPadMax?: number;
+  /** Auto-optimize: repelForce scale factor per pass (default 1.3) */
+  autoOptRepelScale?: number;
+  /** Auto-optimize: linkDistance scale factor per pass (default 1.2) */
+  autoOptLinkScale?: number;
+  /** Auto-optimize: maximum iteration passes (default 3) */
+  autoOptMaxPasses?: number;
+  /** Auto-optimize: close-pair detection radius as multiple of avg node radius (default 3.0) */
+  autoOptCloseThreshold?: number;
+
+  // ---- Sunburst hierarchy ----
+  /** Sunburst: lighten color per depth level (0-1, default 0.18) */
+  sunburstDepthLighten?: number;
+  /** Sunburst: minimum arc sweep angle in radians to draw (default 0.005) */
+  sunburstMinArcSweep?: number;
+  /** Sunburst: border width between sectors (default 1.0) */
+  sunburstBorderWidth?: number;
+  /** Sunburst: border alpha between sectors (default 0.3) */
+  sunburstBorderAlpha?: number;
+  /** Sunburst: max hierarchy depth to render (default 6) */
+  sunburstMaxDepth?: number;
 }
 
 /** Default card rendering config */
 export const DEFAULT_CARD_RENDER_CONFIG: Required<CardRenderConfig> = {
-  filteredNodeAlpha: 0.08,
+  filteredNodeAlpha: 0.15,
   strokeDarken: 0.4,
-  strokeAlpha: 0.5,
+  strokeAlpha: 0.65,
   gradientHighlight: 0.25,
   gradientShadow: 0.15,
   cardBackgroundAlpha: 0.15,
@@ -750,6 +818,10 @@ export const DEFAULT_CARD_RENDER_CONFIG: Required<CardRenderConfig> = {
   cardShadowOffset: 2,
   cardHoverScale: 1.08,
   cardHoverGlowAlpha: 0.3,
+  highlightDimAlpha: 0.15,
+  highlightHaloRadius: 2.2,
+  highlightHaloAlpha: 0.15,
+  highlightStrokeWidth: 1.8,
 };
 
 /** Default cardinality marker config */
@@ -797,6 +869,29 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   timelineBarLabelMinWidth: 30,
   timelineBarLabelFontSize: 9,
   cardTextTruncation: true,
+  glowBaseAlpha: 0.18,
+  glowBaseRadius: 2.2,
+  glowHubFactor: 1.6,
+  glowHubRadiusFactor: 1.3,
+  minimapDotRadius: 2.5,
+  minimapThinStep: 3,
+  minimapThinThreshold: 800,
+  edgeDensityFloor: 0.08,
+  labelLeaderLines: true,
+  labelLeaderLineAlpha: 0.3,
+  labelLeaderLineWidth: 0.8,
+  autoOptOverlapThreshold: 0.15,
+  autoOptPadIncrement: 0.2,
+  autoOptPadMax: 3.0,
+  autoOptRepelScale: 1.3,
+  autoOptLinkScale: 1.2,
+  autoOptMaxPasses: 3,
+  autoOptCloseThreshold: 3.0,
+  sunburstDepthLighten: 0.18,
+  sunburstMinArcSweep: 0.005,
+  sunburstBorderWidth: 1.0,
+  sunburstBorderAlpha: 0.3,
+  sunburstMaxDepth: 6,
 };
 
 export const DEFAULT_COLORS = [

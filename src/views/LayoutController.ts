@@ -456,7 +456,7 @@ export class LayoutController {
       // Arrangement presets inter-group layout mode and overlap resolution strategy
       groupLayoutMode: (
         clusterArrangement === "tree" || clusterArrangement === "mountain" ? "horizontal" :
-        clusterArrangement === "concentric" ? "concentric" :
+        clusterArrangement === "concentric" || clusterArrangement === "radial" ? "concentric" :
         clusterArrangement === "timeline" ? "vertical" :
         "circle"
       ) as "circle" | "horizontal" | "concentric" | "vertical",

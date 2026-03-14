@@ -4,6 +4,8 @@
  * Click or drag on the minimap to pan the main view.
  */
 
+import type { RenderThresholds } from "../types";
+
 export interface MinimapHost {
   /** Get all node positions (world coordinates) */
   getNodePositions(): { x: number; y: number; id: string }[];
@@ -20,10 +22,6 @@ export interface MinimapHost {
 const MINIMAP_WIDTH = 180;
 const MINIMAP_HEIGHT = 120;
 
-/** When node count exceeds this threshold, draw every Nth node */
-const THIN_THRESHOLD = 800;
-const THIN_STEP = 3;
-
 interface MinimapBounds {
   minX: number;
   minY: number;
@@ -38,6 +36,7 @@ export class Minimap {
   private visible = true;
   private isPanning = false;
   private bounds: MinimapBounds | null = null;
+  private renderThresholds: RenderThresholds | null = null;
 
   // --- Drag-to-move state ---
   private isMoving = false;
@@ -47,7 +46,7 @@ export class Minimap {
   private moveStartTop = 0;
 
   // --- Theme colors (read from CSS variables) ---
-  private colorBg = "rgba(15,15,25,0.65)";
+  private colorBg = "rgba(30,30,50,0.80)";
   private colorDot = "rgba(140,170,255,0.9)";
   private colorViewport = "rgba(255,255,255,0.85)";
 
@@ -87,6 +86,10 @@ export class Minimap {
     this.colorBg = s.getPropertyValue("--gi-minimap-bg").trim() || this.colorBg;
     this.colorDot = s.getPropertyValue("--gi-minimap-dot").trim() || this.colorDot;
     this.colorViewport = s.getPropertyValue("--gi-minimap-viewport").trim() || this.colorViewport;
+  }
+
+  setRenderThresholds(rt: RenderThresholds) {
+    this.renderThresholds = rt;
   }
 
   setVisible(v: boolean) {
@@ -132,8 +135,12 @@ export class Minimap {
 
     // Draw nodes as dots (thin if too many)
     ctx.fillStyle = this.colorDot;
-    const step = nodes.length > THIN_THRESHOLD ? THIN_STEP : 1;
-    const dotR = nodes.length > 2000 ? 1.5 : nodes.length > 500 ? 2 : 2.5;
+    const thinThreshold = this.renderThresholds?.minimapThinThreshold ?? 800;
+    const thinStep = this.renderThresholds?.minimapThinStep ?? 3;
+    const baseDotR = this.renderThresholds?.minimapDotRadius ?? 2.5;
+    const step = nodes.length > thinThreshold ? thinStep : 1;
+    // Scale dot radius down slightly for very large graphs
+    const dotR = nodes.length > 2000 ? baseDotR * 0.6 : nodes.length > 500 ? baseDotR * 0.8 : baseDotR;
     for (let i = 0; i < nodes.length; i += step) {
       const n = nodes[i];
       ctx.beginPath();

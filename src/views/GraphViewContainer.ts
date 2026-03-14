@@ -19,6 +19,7 @@ import { t } from "../i18n";
 import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
 import type { ClusterMetadata, GuideLineData, TimelineBarInfo, ArrangementGuide } from "../layouts/cluster-force";
+import { analyzeOverlap, computeAutoOptimize } from "../layouts/cluster-force";
 import type { ResolvedGridInfo, ResolvedGridLine } from "../layouts/coordinate-engine";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
 import { RenderPipeline, darkenColor, type RenderHost } from "./RenderPipeline";
@@ -652,6 +653,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       try { lbl.destroy(); } catch { /* already destroyed */ }
     }
     this.sunburstLabels.clear();
+    for (const lbl of this.clusterSunburstLabels.values()) {
+      try { lbl.destroy(); } catch { /* already destroyed */ }
+    }
+    this.clusterSunburstLabels.clear();
+    this.clusterSunburstLabelContainer = null;
     this.sunburstLayoutArcs = [];
     this.clearCustomGridLabels();
     this.customGridLabelContainer = null;
@@ -823,6 +829,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.pixiApp.showDotGrid = this.panel.showDotGrid;
       }
       if (this.minimap) {
+        this.minimap.setRenderThresholds(this.panel.renderThresholds ?? {});
         this.minimap.setVisible(this.panel.showMinimap);
         this.minimap.draw();
       }
@@ -950,6 +957,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getNodeDisplayMode() { return this.panel.nodeDisplayMode ?? "node"; }
   getCardDisplayConfig() { return this.panel.cardDisplayConfig ?? { fields: [], maxWidth: 120, showIcon: false }; }
   getDonutDisplayConfig() { return this.panel.donutDisplayConfig ?? { innerRadius: 0.6 }; }
+  getRenderThresholds() { return this.panel.renderThresholds ?? {}; }
 
   // =========================================================================
   // Zoom & Hit testing
@@ -1199,7 +1207,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
           });
           hl.x = pn.radius + 2;
-          hl.y = -6;
+          hl.y = -(pn.radius * 0.4 + 2);
           hl.resolution = 2;
           pn.gfx.addChild(hl);
           pn.hoverLabel = hl;
@@ -1422,6 +1430,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.clusterCentroids = this.getCachedCentroids();
     cfg.clusterRadii = this.clusterMeta?.clusterRadii ?? null;
     cfg.bundleStrength = this.panel.edgeBundleStrength;
+    cfg.cableBundleMode = this.panel.cableBundleMode;
+    cfg.cableTrunkWidth = this.panel.cableTrunkWidth;
+    cfg.cableTrunkAlpha = this.panel.cableTrunkAlpha;
+    cfg.cableSpacing = this.panel.cableSpacing;
+    cfg.cableFanWidth = this.panel.cableFanWidth;
+    cfg.cableFanAlpha = this.panel.cableFanAlpha;
+    cfg.edgeDensityFloor = (this.panel.renderThresholds ?? {}).edgeDensityFloor;
     cfg.isDark = this.isDarkTheme();
     cfg.showEdgeLabels = this.panel.showEdgeLabels;
     cfg.showArrows = this.panel.showArrows;
@@ -1507,98 +1522,162 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const sunburstArcs = this.clusterMeta?.sunburstArcs;
     if (!sunburstArcs || sunburstArcs.length === 0) return;
 
-    // Build parent group → color index map (sub-groups inherit parent color)
-    const parentColorIdx = new Map<string, number>();
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const depthLighten = rt.sunburstDepthLighten ?? 0.18;
+    const borderWidth = rt.sunburstBorderWidth ?? 1.0;
+    const borderAlpha = rt.sunburstBorderAlpha ?? 0.3;
+
+    // Build root-level group → color index map
+    // depth=0 arcs are root level; deeper arcs inherit via parentKey
+    const rootColorIdx = new Map<string, number>();
     let colorIdx = 0;
     for (const arc of sunburstArcs) {
-      if (arc.groupKey === "__inner__") continue;
-      const parent = arc.groupKey.replace(/::.*$/, "");
-      if (!parentColorIdx.has(parent)) {
-        parentColorIdx.set(parent, colorIdx++);
+      if (arc.depth === 0 && !rootColorIdx.has(arc.groupKey)) {
+        rootColorIdx.set(arc.groupKey, colorIdx++);
       }
     }
-    const getColorIdx = (key: string) => {
-      const parent = key.replace(/::.*$/, "");
-      return parentColorIdx.get(parent) ?? 0;
+    // Resolve color index for any arc (via parentKey for deeper arcs)
+    const getColorIdx = (arc: typeof sunburstArcs[0]) => {
+      if (arc.depth === 0) return rootColorIdx.get(arc.groupKey) ?? 0;
+      if (arc.parentKey) return rootColorIdx.get(arc.parentKey) ?? 0;
+      // Fallback: strip "::" and look up
+      const parent = arc.groupKey.replace(/::.*$/, "");
+      return rootColorIdx.get(parent) ?? 0;
     };
 
     const worldScale = this.worldContainer?.scale.x ?? 1;
     const lineW = Math.max(0.8, 1.5 / worldScale);
     const thinW = Math.max(0.4, 0.8 / worldScale);
+    const bdrW = Math.max(0.5, borderWidth / worldScale);
 
     const isRingChart = this.panel.ringChartMode;
 
-    // Pre-compute group sectors
-    const groupMaxR = new Map<string, number>();
-    const groupSector = new Map<string, { start: number; end: number; rMin: number }>();
-    for (const arc of sunburstArcs) {
-      if (arc.groupKey === "__inner__") continue;
-      const prev = groupMaxR.get(arc.groupKey) ?? 0;
-      if (arc.rOuter > prev) groupMaxR.set(arc.groupKey, arc.rOuter);
-      if (!groupSector.has(arc.groupKey)) {
-        groupSector.set(arc.groupKey, { start: arc.startAngle, end: arc.endAngle, rMin: arc.rInner });
-      }
-    }
-
     if (isRingChart) {
-      // === Ring Chart Mode: opaque filled sectors (baumkuchen style) ===
-      const borderW = Math.max(0.6, 1.0 / worldScale);
-
+      // === Ring Chart Mode: opaque filled sectors with depth gradient ===
       for (const arc of sunburstArcs) {
-        const { cx, cy, rInner, rOuter, startAngle, endAngle, groupKey } = arc;
+        const { cx, cy, rInner, rOuter, startAngle, endAngle, depth } = arc;
         if (rOuter <= 0 || endAngle - startAngle < 0.001) continue;
 
-        const isInner = groupKey === "__inner__";
-        const isSubGroup = groupKey.includes("::");
-        const ci = isInner ? -1 : getColorIdx(groupKey);
-        const css = isInner ? "" : DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
-        const color = isInner ? 0x666666 : cssColorToHex(css);
-        const fillAlpha = isInner ? 0.5 : (isSubGroup ? 0.6 : 0.7);
+        const ci = getColorIdx(arc);
+        const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
+        const baseColor = cssColorToHex(css);
+        const color = this.lightenHexColor(baseColor, depth * depthLighten);
+        const fillAlpha = Math.max(0.3, 0.7 - depth * 0.08);
 
-        gfx.lineStyle(borderW, 0xffffff, 0.3);
+        gfx.lineStyle(bdrW, 0xffffff, borderAlpha);
         gfx.beginFill(color, fillAlpha);
         this.drawArcPath(gfx, cx, cy, rInner, rOuter, startAngle, endAngle);
         gfx.endFill();
       }
     } else {
-      // === Normal Mode: light filled backgrounds + outlines ===
-      for (const [groupKey, maxR] of groupMaxR) {
-        const ci = getColorIdx(groupKey);
-        const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
-        const color = cssColorToHex(css);
-        const sector = groupSector.get(groupKey)!;
-        const { cx, cy } = sunburstArcs.find(a => a.groupKey === groupKey)!;
-
-        const isSubGroup = groupKey.includes("::");
-        const fillAlpha = isSubGroup ? 0.08 : 0.05;
-        gfx.beginFill(color, fillAlpha);
-        this.drawArcPath(gfx, cx, cy, sector.rMin, maxR, sector.start, sector.end);
-        gfx.endFill();
-      }
-
+      // === Normal Mode: light fill + outlines with depth gradient ===
       for (const arc of sunburstArcs) {
-        const { cx, cy, rInner, rOuter, startAngle, endAngle, groupKey } = arc;
+        const { cx, cy, rInner, rOuter, startAngle, endAngle, depth } = arc;
         if (rOuter <= 0 || endAngle - startAngle < 0.001) continue;
 
-        const isInner = groupKey === "__inner__";
-        const isSubGroup = groupKey.includes("::");
-        const ci = isInner ? -1 : getColorIdx(groupKey);
-        const css = isInner ? "" : DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
-        const color = isInner ? 0x888888 : cssColorToHex(css);
-        const alpha = isInner ? 0.2 : (isSubGroup ? 0.25 : 0.4);
+        const ci = getColorIdx(arc);
+        const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
+        const baseColor = cssColorToHex(css);
+        const color = this.lightenHexColor(baseColor, depth * depthLighten);
+        const fillAlpha = Math.max(0.02, 0.1 - depth * 0.015);
+        const strokeAlpha = Math.max(0.15, 0.4 - depth * 0.05);
 
-        gfx.lineStyle(thinW, color, alpha);
+        // Light fill
+        gfx.beginFill(color, fillAlpha);
+        this.drawArcPath(gfx, cx, cy, rInner, rOuter, startAngle, endAngle);
+        gfx.endFill();
+
+        // Outlines
+        const w = depth > 0 ? thinW : lineW;
+        gfx.lineStyle(w, color, strokeAlpha);
         this.drawArcLine(gfx, cx, cy, rOuter, startAngle, endAngle);
         this.drawArcLine(gfx, cx, cy, rInner, startAngle, endAngle);
 
-        const radW = isSubGroup ? thinW : lineW;
-        const radAlpha = isSubGroup ? alpha * 0.6 : alpha;
-        gfx.lineStyle(radW, color, radAlpha);
+        // Radial separators
+        gfx.lineStyle(w, color, strokeAlpha * 0.7);
         gfx.moveTo(cx + rInner * Math.cos(startAngle), cy + rInner * Math.sin(startAngle));
         gfx.lineTo(cx + rOuter * Math.cos(startAngle), cy + rOuter * Math.sin(startAngle));
         gfx.moveTo(cx + rInner * Math.cos(endAngle), cy + rInner * Math.sin(endAngle));
         gfx.lineTo(cx + rOuter * Math.cos(endAngle), cy + rOuter * Math.sin(endAngle));
       }
+    }
+  }
+
+  /** Lighten a hex color by a factor (0-1). factor=0.2 means 20% lighter. */
+  private lightenHexColor(hex: number, factor: number): number {
+    const r = Math.min(255, ((hex >> 16) & 0xff) + Math.round(255 * factor));
+    const g = Math.min(255, ((hex >> 8) & 0xff) + Math.round(255 * factor));
+    const b = Math.min(255, (hex & 0xff) + Math.round(255 * factor));
+    return (r << 16) | (g << 8) | b;
+  }
+
+  /** Draw labels on cluster sunburst arcs (depth ≤ 1 only, wide arcs) */
+  private drawClusterSunburstLabels() {
+    const sunburstArcs = this.clusterMeta?.sunburstArcs;
+    if (!sunburstArcs || sunburstArcs.length === 0) {
+      // Clear existing labels
+      for (const lbl of this.clusterSunburstLabels.values()) {
+        lbl.parent?.removeChild(lbl);
+        lbl.destroy();
+      }
+      this.clusterSunburstLabels.clear();
+      return;
+    }
+
+    if (!this.clusterSunburstLabelContainer && this.worldContainer) {
+      this.clusterSunburstLabelContainer = new CanvasContainer();
+      this.worldContainer.addChild(this.clusterSunburstLabelContainer);
+    }
+    const container = this.clusterSunburstLabelContainer;
+    if (!container) return;
+
+    // Clear old labels
+    for (const lbl of this.clusterSunburstLabels.values()) {
+      lbl.parent?.removeChild(lbl);
+      lbl.destroy();
+    }
+    this.clusterSunburstLabels.clear();
+
+    const worldScale = this.worldContainer?.scale.x ?? 1;
+    const fontSize = Math.max(8, 12 / worldScale);
+    const isDark = this.cachedIsDark ?? true;
+    const textColor = isDark ? 0xdddddd : 0x333333;
+
+    const minSweep = 0.15; // minimum arc sweep to draw label (radians)
+
+    for (const arc of sunburstArcs) {
+      // Only label depth 0-1 arcs with sufficient width
+      if (arc.depth > 1) continue;
+      const sweep = arc.endAngle - arc.startAngle;
+      if (sweep < minSweep) continue;
+
+      const midAngle = (arc.startAngle + arc.endAngle) / 2;
+      const midR = (arc.rInner + arc.rOuter) / 2;
+      const lx = arc.cx + midR * Math.cos(midAngle);
+      const ly = arc.cy + midR * Math.sin(midAngle);
+
+      // Display name: strip "::" suffixes
+      const displayName = arc.groupKey.replace(/::.*$/, "").split("/").pop() || arc.groupKey;
+
+      const text = new CanvasText(displayName, {
+        fontSize: arc.depth === 0 ? fontSize * 1.1 : fontSize,
+        fill: textColor,
+        fontWeight: arc.depth === 0 ? "bold" : "normal",
+        align: "center",
+      });
+      text.anchor.set(0.5, 0.5);
+      text.x = lx;
+      text.y = ly;
+
+      // Rotate text along arc direction
+      let rotation = midAngle + Math.PI / 2;
+      if (rotation > Math.PI / 2 && rotation < 3 * Math.PI / 2) {
+        rotation += Math.PI;
+      }
+      text.rotation = rotation;
+
+      container.addChild(text);
+      this.clusterSunburstLabels.set(`${arc.groupKey}:${arc.depth}`, text);
     }
   }
 
@@ -1706,7 +1785,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       g.lineStyle(0);
 
       // Bar label — displayed above the bar's left edge with pill background
-      if (showBarLabel && this.barLabelContainer && pn) {
+      // Skip label when bar is too narrow to be readable (DQ-01)
+      if (showBarLabel && this.barLabelContainer && pn && w * worldScale >= barLabelMinW) {
         const fontSize = Math.max(7, barLabelFontSize / worldScale);
         const label = new CanvasText(pn.data.label, {
           fontSize,
@@ -1868,14 +1948,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const r = radius;
 
       // Bounding circle — group color, semi-transparent
-      g.lineStyle(lineW * 1.5, groupColor, 0.25);
+      g.lineStyle(lineW * 1.5, groupColor, 0.35);
       g.drawCircle(cx, cy, r);
 
       // Skip cross-hair and mid-grid when guideLines already show structure
       const hasGuides = this.panel.showGuideLines && !!this.clusterMeta?.guideLineData;
       if (!hasGuides) {
         // Cross-hair at center — more subtle
-        g.lineStyle(lineW, groupColor, 0.15);
+        g.lineStyle(lineW, groupColor, 0.25);
         g.moveTo(cx - r, cy);
         g.lineTo(cx + r, cy);
         g.moveTo(cx, cy - r);
@@ -1883,7 +1963,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
         // Mid-grid lines (half-radius)
         const hr = r * 0.5;
-        g.lineStyle(lineW * 0.5, groupColor, 0.1);
+        g.lineStyle(lineW * 0.5, groupColor, 0.15);
         g.moveTo(cx - r, cy - hr);
         g.lineTo(cx + r, cy - hr);
         g.moveTo(cx - r, cy + hr);
@@ -2530,6 +2610,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.drawOrbitRings();
     this.drawEnclosures();
     this.drawSunburstArcs();
+    this.drawClusterSunburstLabels();
     this.drawSunburstLayoutArcs();
     this.drawEdges();
   }
@@ -2602,6 +2683,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (pn.data.x + cardHalfW > maxX) maxX = pn.data.x + cardHalfW;
         if (pn.data.y + cardHalfH > maxY) maxY = pn.data.y + cardHalfH;
       }
+    }
+
+    // DQ-09: Expand bounding box when enclosures or guidelines are active
+    // so they are not clipped at viewport edges after auto-fit.
+    if (this.panel.tagDisplay === "enclosure") {
+      const encPad = 30; // OUTLINE_PAD + typical label height
+      minX -= encPad; minY -= encPad; maxX += encPad; maxY += encPad;
+    }
+    if (this.panel.showGuideLines && this.clusterMeta?.guideLineData) {
+      const guidePad = 20; // gridLabelFontSize margin
+      minX -= guidePad; minY -= guidePad; maxX += guidePad; maxY += guidePad;
     }
 
     const bw = maxX - minX + padding;
@@ -2696,7 +2788,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const cb: PanelCallbacks = {
       doRender: () => { this.doRender(); this.requestSave(); },
       doRenderKeepPanel: () => { this.skipPanelRebuildCount++; this.doRender().finally(() => { this.skipPanelRebuildCount = Math.max(0, this.skipPanelRebuildCount - 1); }); this.requestSave(); },
-      markDirty: () => { this.markDirty(); this.requestSave(); },
+      markDirty: () => { invalidateBundleCache(); this.markDirty(true); this.requestSave(); },
       updateForces: () => { this.updateForces(); this.requestSave(); },
       applySearch: () => this.applySearch(),
       applyTextFade: () => { this.applyTextFade(); this.requestSave(); },
@@ -2769,6 +2861,47 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       jumpToNode: (nodeId: string) => this.jumpToNode(nodeId),
       getNodeIds: () => [...this.pixiNodes.keys()],
       recolorNodes: () => { this.recolorNodes(); this.requestSave(); },
+      autoOptimize: () => {
+        const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+        const maxPasses = rt.autoOptMaxPasses ?? 3;
+        const nodes: { id: string; x: number; y: number }[] = [];
+        const radii = new Map<string, number>();
+        for (const [id, pn] of this.pixiNodes) {
+          nodes.push({ id, x: pn.data.x, y: pn.data.y });
+          radii.set(id, pn.radius);
+        }
+        const runPass = (pass: number) => {
+          if (pass >= maxPasses) { this.buildPanel(); this.requestSave(); return; }
+          const result = analyzeOverlap(nodes, radii, rt.autoOptCloseThreshold ?? 3.0);
+          const constants = this.panel.coordinateLayout?.constants ?? {};
+          const opt = computeAutoOptimize(
+            result.overlapRatio, result.avgRadius, constants,
+            this.panel.repelForce, this.panel.linkDistance,
+            { overlapThreshold: rt.autoOptOverlapThreshold ?? 0.15,
+              padIncrement: rt.autoOptPadIncrement ?? 0.2,
+              padMax: rt.autoOptPadMax ?? 3.0,
+              repelScale: rt.autoOptRepelScale ?? 1.3,
+              linkScale: rt.autoOptLinkScale ?? 1.2 });
+          if (!opt.needsMore) { this.buildPanel(); this.requestSave(); return; }
+          if (this.panel.coordinateLayout) {
+            this.panel.coordinateLayout.constants = { ...constants, ...opt.constants };
+          }
+          this.panel.repelForce = opt.repelForce;
+          this.panel.linkDistance = opt.linkDistance;
+          this.applyClusterForce();
+          this.updateForces();
+          if (this.simulation) { this.simulation.alpha(0.8).restart(); this.wakeRenderLoop(); }
+          // Re-read positions after simulation settles
+          setTimeout(() => {
+            for (const [id, pn] of this.pixiNodes) {
+              const n = nodes.find(nd => nd.id === id);
+              if (n) { n.x = pn.data.x; n.y = pn.data.y; }
+            }
+            runPass(pass + 1);
+          }, 1500);
+        };
+        runPass(0);
+      },
     };
     buildPanelUI(this.panelEl, this.panel, ctx, cb);
   }
@@ -2826,7 +2959,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const body = this.legendEl.createDiv({ cls: "gi-legend-body" });
 
     // Start collapsed if many entries
-    if (colorMap.size > 8) body.style.display = "none";
+    if (colorMap.size > 10) body.style.display = "none";
 
     header.addEventListener("click", () => {
       const hidden = body.style.display === "none";
@@ -3615,6 +3748,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Sunburst label container for category names */
   private sunburstLabelContainer: CanvasContainer | null = null;
   private sunburstLabels: Map<string, CanvasText> = new Map();
+  private clusterSunburstLabelContainer: CanvasContainer | null = null;
+  private clusterSunburstLabels: Map<string, CanvasText> = new Map();
 
   private drawSunburstLabels(arcs: LayoutSunburstArc[], cx: number, cy: number) {
     if (!this.sunburstLabelContainer && this.worldContainer) {

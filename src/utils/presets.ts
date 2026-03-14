@@ -30,6 +30,7 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "enclosureSpacing", "hoverHops", "clusterNodeSpacing", "clusterGroupScale",
   "clusterGroupSpacing", "edgeBundleStrength", "groupMinSize",
   "timelineRangeMin", "timelineRangeMax",
+  "cableTrunkWidth", "cableTrunkAlpha", "cableSpacing", "cableFanWidth", "cableFanAlpha",
 ];
 
 /** Fields that should be string */
@@ -37,6 +38,7 @@ const STRING_FIELDS: (keyof PanelState)[] = [
   "searchQuery", "timelineKey", "groupFilter", "groupBy",
   "dataviewQuery", "timelineEndKey", "timelineOrderFields",
   "gridStyle", "gridLabelPlacement", "edgeCardinalityMode",
+  "cableBundleMode",
 ];
 
 /** Fields that should be arrays */
@@ -53,6 +55,7 @@ const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   guideLineMode: ["shared", "per-group"] as const,
   nodeDisplayMode: ["node", "card", "donut", "sunburst-segment"] as const,
   edgeCardinalityMode: ["none", "crowsfoot"] as const,
+  cableBundleMode: ["auto", "always", "never"] as const,
   activeTab: ["filter", "display", "layout", "settings"] as const,
 };
 

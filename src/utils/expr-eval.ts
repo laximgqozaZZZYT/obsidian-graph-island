@@ -60,14 +60,15 @@ const FUNCTIONS: Record<string, (...args: number[]) => number> = {
   atan2: Math.atan2,
 };
 
-const BUILTIN_VARIABLE_NAMES = new Set(["t", "i", "n", "v"]);
+const BUILTIN_VARIABLE_NAMES = new Set(["t", "i", "n", "v", "pi", "e", "N"]);
 
 /** Additional user-defined variable names (set before parsing to allow custom constants) */
 let userDefinedVars = new Set<string>();
 
-/** Register user-defined variable names so the parser accepts them */
+/** Register user-defined variable names so the parser accepts them.
+ *  Names are lowercased to match the tokenizer's case normalization. */
 export function setUserVars(vars: Set<string>) {
-  userDefinedVars = vars;
+  userDefinedVars = new Set([...vars].map(v => v.toLowerCase()));
 }
 
 function isKnownVariable(name: string): boolean {

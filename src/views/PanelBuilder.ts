@@ -127,6 +127,18 @@ export interface PanelState {
   edgeCardinalityMode: EdgeCardinalityMode;
   /** Custom cardinality rules (matched in order, first match wins) */
   cardinalityRules: CardinalityRule[];
+  /** Cable bundling mode: auto (when clusters exist), always, never */
+  cableBundleMode: "auto" | "always" | "never";
+  /** Cable trunk line width (px) */
+  cableTrunkWidth: number;
+  /** Cable trunk opacity (0-1) */
+  cableTrunkAlpha: number;
+  /** Spacing between parallel cables (px) */
+  cableSpacing: number;
+  /** Fan wire width (px) — lines from cable endpoints to individual nodes */
+  cableFanWidth: number;
+  /** Fan wire opacity (0-1) */
+  cableFanAlpha: number;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -142,7 +154,7 @@ export const DEFAULT_PANEL: PanelState = {
   showOrphans: true,
   showArrows: false,
   textFadeThreshold: 0.5,
-  nodeSize: 8,
+  nodeSize: 10,
   scaleByDegree: true,
   centerForce: 0.03,
   repelForce: 200,
@@ -219,6 +231,12 @@ export const DEFAULT_PANEL: PanelState = {
   donutDisplayConfig: { innerRadius: 0.6 },
   edgeCardinalityMode: "none" as EdgeCardinalityMode,
   cardinalityRules: [],
+  cableBundleMode: "auto" as const,
+  cableTrunkWidth: 2,
+  cableTrunkAlpha: 0.85,
+  cableSpacing: 4,
+  cableFanWidth: 1,
+  cableFanAlpha: 0.45,
 };
 
 // ---------------------------------------------------------------------------
@@ -252,6 +270,8 @@ export interface PanelCallbacks {
   getNodeIds(): string[];
   /** Recolor existing nodes without full graph rebuild (keeps panel DOM intact) */
   recolorNodes(): void;
+  /** Auto-optimize: analyze overlaps and adjust force parameters iteratively */
+  autoOptimize(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -472,6 +492,24 @@ export function buildPanel(
       panel.tagDisplay = v === "enclosure" ? "enclosure" : "node";
       cb.invalidateData();
     });
+    // Dataview query filter
+    const dvRow = body.createDiv({ cls: "gi-setting-row" });
+    dvRow.createEl("span", { cls: "gi-setting-label", text: t("filter.dataviewQuery") });
+    const dvInput = dvRow.createEl("input", { cls: "gi-setting-input", type: "text" });
+    dvInput.value = panel.dataviewQuery;
+    dvInput.placeholder = '#tag, "folder"';
+    dvInput.setAttribute("aria-label", t("filter.dataviewHint"));
+    // Check if Dataview plugin is available
+    const dvApi = (ctx.app as any)?.plugins?.plugins?.dataview?.api;
+    if (!dvApi) {
+      dvInput.disabled = true;
+      dvInput.placeholder = t("filter.dataviewUnavailable");
+    }
+    dvInput.addEventListener("change", () => {
+      panel.dataviewQuery = dvInput.value.trim();
+      cb.invalidateData();
+    });
+    body.createEl("p", { cls: "gi-hint", text: t("filter.dataviewHint") });
   }, tHelp("help.filter"), false, "filter");
 
   buildSection(filterTab, t("section.groups"), (body) => {
@@ -492,11 +530,11 @@ export function buildPanel(
   buildSection(displayTab, t("section.displayNodes"), (body) => {
     addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); });
     addToggle(body, "Heatmap (degree)", panel.heatmapMode, (v) => { panel.heatmapMode = v; cb.doRender(); }, "Color nodes by connection count (cold→warm)");
-    addSlider(body, t("display.nodeSize"), 2, 20, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
+    addSlider(body, t("display.nodeSize"), 2, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
     const scaleEl = addToggle(body, t("display.scaleByDegree"), panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); }, t("desc.scaleByDegree"));
     if (panel.heatmapMode && scaleEl) { scaleEl.style.opacity = "0.5"; scaleEl.title = "Heatmap mode overrides degree scaling colors"; }
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
-    addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; }, t("desc.hoverHops"));
+    addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.markDirty(); }, t("desc.hoverHops"));
     // --- ノード形状 ---
     const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
     const defaultRule = panel.nodeShapeRules.find(r => r.match === "default");
@@ -594,6 +632,40 @@ export function buildPanel(
       panel.edgeCardinalityMode = v as EdgeCardinalityMode;
       cb.markDirty();
     }, t("display.edgeCardinalityDesc"));
+
+    // Cable bundling controls
+    addSelect(body, t("display.cableBundleMode"), [
+      { value: "auto", label: t("display.cableModeAuto") },
+      { value: "always", label: t("display.cableModeAlways") },
+      { value: "never", label: t("display.cableModeNever") },
+    ], panel.cableBundleMode, (v) => {
+      panel.cableBundleMode = v as "auto" | "always" | "never";
+      cb.markDirty();
+    }, t("desc.cableBundleMode"));
+
+    // Progressive disclosure: show sub-settings only when cables can be active
+    if (panel.cableBundleMode !== "never") {
+      addSlider(body, t("display.cableTrunkWidth"), 1, 6, 0.5, panel.cableTrunkWidth, (v) => {
+        panel.cableTrunkWidth = v;
+        cb.markDirty();
+      });
+      addSlider(body, t("display.cableTrunkAlpha"), 0.1, 1, 0.05, panel.cableTrunkAlpha, (v) => {
+        panel.cableTrunkAlpha = v;
+        cb.markDirty();
+      });
+      addSlider(body, t("display.cableSpacing"), 1, 12, 1, panel.cableSpacing, (v) => {
+        panel.cableSpacing = v;
+        cb.markDirty();
+      });
+      addSlider(body, t("display.cableFanWidth"), 0.3, 3, 0.1, panel.cableFanWidth, (v) => {
+        panel.cableFanWidth = v;
+        cb.markDirty();
+      });
+      addSlider(body, t("display.cableFanAlpha"), 0.05, 1, 0.05, panel.cableFanAlpha, (v) => {
+        panel.cableFanAlpha = v;
+        cb.markDirty();
+      });
+    }
   }, undefined, false, "git-branch");
 
   // --- Minimap (stays in Display) ---
@@ -699,6 +771,8 @@ export function buildPanel(
     addSelect(body, t("cluster.pattern"), [
       { value: "spiral", label: t("cluster.spiral") },
       { value: "concentric", label: t("cluster.concentric") },
+      { value: "radial", label: t("cluster.radial") },
+      { value: "phyllotaxis", label: t("cluster.phyllotaxis") },
       { value: "tree", label: t("cluster.tree") },
       { value: "grid", label: t("cluster.grid") },
       { value: "triangle", label: t("cluster.triangle") },
@@ -724,6 +798,18 @@ export function buildPanel(
         panel.ringChartMode = v;
         cb.doRenderKeepPanel();
       }, t("cluster.ringChartModeDesc"));
+    }
+
+    // Concentric orbit options
+    if (panel.clusterArrangement === "concentric") {
+      addToggle(body, t("concentric.showOrbitRings"), panel.showOrbitRings, (v) => {
+        panel.showOrbitRings = v;
+        cb.markDirty();
+      });
+      addToggle(body, t("concentric.autoRotate"), panel.orbitAutoRotate, (v) => {
+        panel.orbitAutoRotate = v;
+        if (v) cb.startOrbitAnimation(); else cb.stopOrbitAnimation();
+      });
     }
 
     // --- Coordinate Layout Controls ---
@@ -924,7 +1010,7 @@ export function buildPanel(
 
         addToggle(body, t("guide.gridShowHeaders"), panel.gridShowHeaders, (v) => {
           panel.gridShowHeaders = v;
-          cb.markDirty();
+          cb.doRenderKeepPanel();
         }, t("guide.gridShowHeadersDesc"));
 
         addSelect(body, t("guide.labelPlacement"), [
@@ -932,7 +1018,7 @@ export function buildPanel(
           { value: "between", label: t("guide.labelBetween") },
         ], panel.gridLabelPlacement, (v) => {
           panel.gridLabelPlacement = v as "on-line" | "between";
-          cb.markDirty();
+          cb.doRenderKeepPanel();
         });
 
         addToggle(body, t("guide.gridCellShading"), panel.gridCellShading, (v) => {
@@ -990,6 +1076,33 @@ export function buildPanel(
       panel.edgeBundleStrength = v;
       cb.markDirty();
     }, t("desc.edgeBundleStrength"));
+
+    // --- Force simulation parameters ---
+    let forceDebounce: ReturnType<typeof setTimeout> | undefined;
+    const debouncedForceUpdate = () => {
+      clearTimeout(forceDebounce);
+      forceDebounce = setTimeout(() => {
+        cb.updateForces();
+        cb.restartSimulation(0.3);
+      }, 150);
+    };
+    addSlider(body, t("force.centerForce"), 0, 0.15, 0.005, panel.centerForce, (v) => {
+      panel.centerForce = v;
+      debouncedForceUpdate();
+    });
+    addSlider(body, t("force.repelForce"), 0, 500, 10, panel.repelForce, (v) => {
+      panel.repelForce = v;
+      debouncedForceUpdate();
+    });
+    addSlider(body, t("force.linkForce"), 0, 0.1, 0.005, panel.linkForce, (v) => {
+      panel.linkForce = v;
+      debouncedForceUpdate();
+    });
+    addSlider(body, t("force.linkDistance"), 10, 300, 10, panel.linkDistance, (v) => {
+      panel.linkDistance = v;
+      debouncedForceUpdate();
+    });
+
     // --- Cluster group rules sub-section ---
     const clusterHeader = body.createDiv({ cls: "setting-item" });
     clusterHeader.createDiv({ cls: "setting-item-name", text: t("cluster.groupRulesHeading") });
@@ -1682,6 +1795,24 @@ function buildExprLibrary(
       setTimeout(() => { nameEl.style.color = ""; }, 600);
     });
   }
+
+  // Auto-optimize button
+  const optRow = listBody.createDiv({ cls: "gi-auto-optimize-row" });
+  const optBtn = optRow.createEl("button", {
+    cls: "gi-auto-optimize-btn",
+    text: t("coord.autoOptimize"),
+  });
+  optBtn.addEventListener("click", () => {
+    optBtn.disabled = true;
+    optBtn.textContent = t("coord.autoOptimizeRunning");
+    cb.autoOptimize();
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...panel.renderThresholds };
+    const waitMs = (rt.autoOptMaxPasses ?? 3) * 1500 + 500;
+    setTimeout(() => {
+      optBtn.disabled = false;
+      optBtn.textContent = t("coord.autoOptimize");
+    }, waitMs);
+  });
 }
 
 /** Build the constants management UI — key-value list for user-defined constants */

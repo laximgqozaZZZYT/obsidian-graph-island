@@ -1243,6 +1243,18 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.gi-auto-optimize-row {
+  padding: 6px 0;
+  border-top: 1px solid var(--background-modifier-border);
+}
+.gi-auto-optimize-btn {
+  width: 100%;
+  cursor: pointer;
+}
+.gi-auto-optimize-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
 
 /* Variable reference table */
 .gi-var-reference { margin: 4px 0 8px 0; }
@@ -2266,4 +2278,71 @@
 }
 .gi-dual-range-control .gi-range-max {
   z-index: 2;
+}
+
+/* === Accessibility: Focus states === */
+.graph-panel .checkbox-container:focus-within {
+  box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb, 99, 102, 241), 0.3);
+  border-radius: var(--radius-s);
+}
+
+.graph-panel input[type="range"]:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.graph-panel button:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+/* Slider value display: better readability */
+.gi-slider-value {
+  min-width: 2.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-normal);
+  font-weight: var(--font-medium, 500);
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .gi-tab-btn,
+  .gi-tab-btn::after,
+  .graph-panel .checkbox-container,
+  .gi-select,
+  .gi-search,
+  .gi-group-query,
+  .graph-color-group input[type=color],
+  .gi-rel-color-dot,
+  .gi-group-remove,
+  .gi-group-color,
+  .graph-toolbar button,
+  .gi-settings-filter {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Touch target minimum size for mobile */
+@media (pointer: coarse) {
+  .graph-panel .setting-item {
+    min-height: 44px;
+  }
+  .graph-panel .checkbox-container {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .graph-panel .graph-control-section-header {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+  .gi-group-remove {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .gi-tab-btn {
+    min-height: 44px;
+  }
 }

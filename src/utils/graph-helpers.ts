@@ -68,3 +68,34 @@ export function shiftHue(hex: number, degrees: number): number {
 
   return ((Math.round(ro * 255) << 16) | (Math.round(go * 255) << 8) | Math.round(bo * 255));
 }
+
+/**
+ * Convert HSL values to a 0xRRGGBB hex color.
+ * h: 0–360, s: 0–1, l: 0–1.
+ */
+export function hslToHex(h: number, s: number, l: number): number {
+  h = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60)       { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else               { r = c; b = x; }
+  return (Math.round((r + m) * 255) << 16) | (Math.round((g + m) * 255) << 8) | Math.round((b + m) * 255);
+}
+
+/**
+ * Deterministic hash of a string to a number in [0, range).
+ * Uses djb2 algorithm for fast, well-distributed hashing.
+ */
+export function stringHash(str: string, range: number): number {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+  }
+  return ((hash % range) + range) % range;
+}

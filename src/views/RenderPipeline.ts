@@ -250,10 +250,11 @@ export class RenderPipeline {
     pn.circle.clear();
     if (highlight) {
       pn.circle.visible = true;
+      const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...this.host.getCardRenderConfig?.() };
       const shape = getNodeShape(pn.data, this.host.getNodeShapeRules());
-      drawShape(pn.circle, shape, pn.radius * 2.2, pn.color, 0.12);
-      const strokeCol = darkenColor(pn.color, 0.3);
-      pn.circle.lineStyle(1.5, strokeCol, 0.85);
+      drawShape(pn.circle, shape, pn.radius * crc.highlightHaloRadius, pn.color, crc.highlightHaloAlpha);
+      const strokeCol = darkenColor(pn.color, crc.strokeDarken);
+      pn.circle.lineStyle(crc.highlightStrokeWidth, strokeCol, 0.85);
       drawShape(pn.circle, shape, pn.radius, pn.color, 1);
     } else {
       pn.circle.visible = false;
@@ -335,7 +336,7 @@ export class RenderPipeline {
       }
     }
 
-    const alpha = hasHighlight ? 0.12 : 1;
+    const alpha = hasHighlight ? crc.highlightDimAlpha : 1;
     const nodeCount = visible.length;
     const shapeRules = this.host.getNodeShapeRules();
 
@@ -353,8 +354,8 @@ export class RenderPipeline {
     // Pass 1: Glow halos (enhanced for hub nodes) — skip at extreme/mid zoom
     const showGlow = nodeCount < rt.glowNodeCount && !isExtremeZoom && !isMidZoom;
     if (showGlow) {
-      const baseGlowAlpha = nodeCount < 300 ? 0.14 : 0.14 * (1 - (nodeCount - 300) / 500);
-      const baseGlowRadius = nodeCount < 300 ? 2.2 : 2.2 - 0.7 * ((nodeCount - 300) / 500);
+      const baseGlowAlpha = nodeCount < 300 ? rt.glowBaseAlpha : rt.glowBaseAlpha * (1 - (nodeCount - 300) / 500);
+      const baseGlowRadius = nodeCount < 300 ? rt.glowBaseRadius : rt.glowBaseRadius - 0.7 * ((nodeCount - 300) / 500);
       // Reuse degree buffer + O(n) quickSelect instead of sort O(n log n)
       const degArr = this._degreesPool;
       degArr.length = visible.length;
@@ -366,9 +367,9 @@ export class RenderPipeline {
         const pn = visible[i];
         const shape = getNodeShape(pn.data, shapeRules);
         const deg = pn.data.degree ?? 0;
-        const hubFactor = deg >= p90 ? 1.6 : 1;
+        const hubFactor = deg >= p90 ? rt.glowHubFactor : 1;
         const glowAlpha = baseGlowAlpha * hubFactor;
-        const glowRadius = baseGlowRadius * (deg >= p90 ? 1.3 : 1);
+        const glowRadius = baseGlowRadius * (deg >= p90 ? rt.glowHubRadiusFactor : 1);
         const effR = Math.max(pn.radius, minWorldRadius);
         g.beginFill(pn.color, alpha * glowAlpha);
         drawShapeAt(g, shape, pn.data.x, pn.data.y, effR * glowRadius);
@@ -453,6 +454,7 @@ export class RenderPipeline {
         const cardConfig = this.host.getCardDisplayConfig();
         const headerStyle = cardConfig.headerStyle ?? "plain";
         const cardMaxW = (cardConfig.maxWidth ?? 120) / worldScale;
+        const showIcon = cardConfig.showIcon === true;
 
         // Clean up any previous card text children from ALL nodes
         // (handles mode switches, viewport culling, and node count changes)
@@ -518,6 +520,32 @@ export class RenderPipeline {
             g.drawRect(cardX, cardY + headerH, cardW, cornerR);
             g.endFill();
 
+            // 2b. File icon in header (when showIcon enabled)
+            if (showIcon) {
+              const iconS = headerH * 0.55;
+              const foldS = iconS * 0.28;
+              const iconX = cardX + pad;
+              const iconY = cardY + (headerH - iconS) / 2;
+              // Page body outline
+              g.lineStyle(0.5 / worldScale, 0xffffff, nodeAlpha * 0.7);
+              g.beginFill(0xffffff, nodeAlpha * 0.25);
+              g.moveTo(iconX, iconY);
+              g.lineTo(iconX + iconS - foldS, iconY);
+              g.lineTo(iconX + iconS, iconY + foldS);
+              g.lineTo(iconX + iconS, iconY + iconS);
+              g.lineTo(iconX, iconY + iconS);
+              g.closePath();
+              g.endFill();
+              // Fold triangle
+              g.lineStyle(0);
+              g.beginFill(0xffffff, nodeAlpha * 0.15);
+              g.moveTo(iconX + iconS - foldS, iconY);
+              g.lineTo(iconX + iconS - foldS, iconY + foldS);
+              g.lineTo(iconX + iconS, iconY + foldS);
+              g.closePath();
+              g.endFill();
+            }
+
             // 3. Divider line below header
             const divColor = darkenColor(pn.color, crc.cardDividerDarken);
             g.lineStyle(1 / worldScale, divColor, nodeAlpha * crc.cardDividerAlpha);
@@ -560,8 +588,10 @@ export class RenderPipeline {
               const fieldCount2 = cardConfig.fields.length;
               const gfx = pn.gfx;
 
+              // Icon offset for header text
+              const iconOffset = showIcon ? (headerH * 0.55 + pad) : 0;
               // Available text width inside the card
-              const availableTextW = halfW * 2 - textPadX * 2;
+              const availableTextW = halfW * 2 - textPadX * 2 - iconOffset;
 
               // Header text (bold, white)
               const headerText = new CanvasText(pn.data.label, {
@@ -571,7 +601,7 @@ export class RenderPipeline {
                 fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
               });
               (headerText as any)._isCardText = true;
-              headerText.x = -halfW + textPadX;
+              headerText.x = -halfW + textPadX + iconOffset;
               headerText.y = cardY + headerH / 2 + fontSize * crc.fontBaselineOffset;
               if (rt.cardTextTruncation !== false) headerText.maxWidth = availableTextW;
               gfx.addChild(headerText);
@@ -744,6 +774,10 @@ export class RenderPipeline {
     nodeColor: (n: GraphNode) => number
   ) {
     const pixiNodes = this.host.getPixiNodes();
+    // Clean up leader lines before clearing
+    for (const pn of pixiNodes.values()) {
+      if (pn.leaderLine) { pn.leaderLine.destroy(); pn.leaderLine = null; }
+    }
     pixiNodes.clear();
     this.cancelDeferredBatch();
 
@@ -821,7 +855,7 @@ export class RenderPipeline {
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
       });
       label.x = r + 2;
-      label.y = -6;
+      label.y = -(r * 0.4 + 2);
       container.addChild(label);
     }
 
@@ -830,7 +864,7 @@ export class RenderPipeline {
     const pixiNodes = this.host.getPixiNodes();
     pixiNodes.set(n.id, {
       data: n, gfx: container, circle, label,
-      hoverLabel: null, radius: r, color, held: false,
+      hoverLabel: null, leaderLine: null, radius: r, color, held: false,
     });
   }
 
@@ -913,26 +947,95 @@ export class RenderPipeline {
     // Sort by degree descending — high-degree labels get priority
     rects.sort((a, b) => b.degree - a.degree);
 
-    // O(n²) AABB overlap check — acceptable since MAX_LABELS ≤ 300
+    // O(n² × 4) AABB overlap check with alternate placement — acceptable since MAX_LABELS ≤ 300
     const placed: LabelRect[] = [];
-    for (const r of rects) {
-      let overlaps = false;
+    const checkOverlap = (rect: LabelRect): boolean => {
       for (const p of placed) {
         if (
-          r.x - margin < p.x + p.w + margin &&
-          r.x + r.w + margin > p.x - margin &&
-          r.y - margin < p.y + p.h + margin &&
-          r.y + r.h + margin > p.y - margin
-        ) {
-          overlaps = true;
+          rect.x - margin < p.x + p.w + margin &&
+          rect.x + rect.w + margin > p.x - margin &&
+          rect.y - margin < p.y + p.h + margin &&
+          rect.y + rect.h + margin > p.y - margin
+        ) return true;
+      }
+      return false;
+    };
+
+    const drawLeader = rt.labelLeaderLines;
+    const llAlpha = rt.labelLeaderLineAlpha;
+    const llWidth = rt.labelLeaderLineWidth;
+
+    // Clear all existing leader lines before re-evaluation
+    for (const pn of pixiNodes.values()) {
+      if (pn.leaderLine) {
+        pn.leaderLine.clear();
+        pn.leaderLine.visible = false;
+      }
+    }
+
+    for (const r of rects) {
+      const pn = [...pixiNodes.values()].find(p => p.label === r.label);
+      const nodeR = pn?.radius ?? 6;
+
+      if (!checkOverlap(r)) {
+        // Original position works — no leader line needed
+        r.label.visible = true;
+        placed.push(r);
+        continue;
+      }
+
+      // DQ-12: Try 3 alternate offsets before hiding
+      const offsets = [
+        { dx: r.w * 0.5 + nodeR, dy: nodeR + r.h },     // bottom-right
+        { dx: -(r.w + nodeR + 2), dy: 0 },               // left
+        { dx: 0, dy: nodeR + r.h },                       // below
+      ];
+      let found = false;
+      for (const off of offsets) {
+        const alt: LabelRect = {
+          ...r,
+          x: r.x + off.dx,
+          y: r.y + off.dy,
+        };
+        if (!checkOverlap(alt)) {
+          // Apply offset to the label (label coords are relative to parent gfx)
+          if (pn) {
+            r.label.x += off.dx;
+            r.label.y += off.dy;
+          }
+          r.label.visible = true;
+          placed.push(alt);
+          found = true;
+
+          // Draw leader line from node edge to nearest point on displaced label
+          if (drawLeader && pn) {
+            if (!pn.leaderLine) {
+              pn.leaderLine = new CanvasGraphics();
+              pn.gfx.addChild(pn.leaderLine);
+            }
+            const ll = pn.leaderLine;
+            ll.clear();
+            ll.visible = true;
+            // Label rect in local coords (label.x, label.y is top-left relative to gfx)
+            const lx = r.label.x;
+            const ly = r.label.y;
+            const lw = r.w / (r.label.scale?.x ?? 1);
+            const lh = r.h / (r.label.scale?.y ?? 1);
+            // Closest point on label rect to node center (0,0)
+            const anchorX = Math.max(lx, Math.min(0, lx + lw));
+            const anchorY = Math.max(ly, Math.min(0, ly + lh));
+            const dist = Math.sqrt(anchorX ** 2 + anchorY ** 2);
+            const edgeX = dist > 0.1 ? (anchorX / dist) * nodeR : 0;
+            const edgeY = dist > 0.1 ? (anchorY / dist) * nodeR : 0;
+            ll.lineStyle(llWidth, pn.color, llAlpha);
+            ll.moveTo(edgeX, edgeY);
+            ll.lineTo(anchorX, anchorY);
+          }
           break;
         }
       }
-      if (overlaps) {
+      if (!found) {
         r.label.visible = false;
-      } else {
-        r.label.visible = true;
-        placed.push(r);
       }
     }
   }
