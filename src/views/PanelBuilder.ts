@@ -801,7 +801,7 @@ export function buildPanel(
       panel.coordinateLayout = { ...ARRANGEMENT_PRESETS[v as ClusterArrangement] };
       cb.applyClusterForce();
       cb.rebuildPanel();
-      cb.restartSimulation(0.5);
+      cb.restartSimulation(1.0);
     });
 
     // Ring chart mode toggle (sunburst only)

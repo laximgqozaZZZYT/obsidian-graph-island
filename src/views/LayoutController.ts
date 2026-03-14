@@ -426,6 +426,15 @@ export class LayoutController {
     sim.force("directionalGravity", null);
     sim.force("enclosureRepulsion", null);
 
+    // Reset velocities and release pinned nodes so the new arrangement
+    // starts from a clean slate without residual momentum or frozen positions.
+    for (const n of sim.nodes()) {
+      n.vx = 0;
+      n.vy = 0;
+      n.fx = null;
+      n.fy = null;
+    }
+
     const { width: W, height: H } = this.host.getCanvasSize();
     const graphEdges = this.host.getGraphEdges();
     const tagMembership = this.host.getTagMembership();
