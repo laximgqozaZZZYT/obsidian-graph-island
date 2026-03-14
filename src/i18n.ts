@@ -112,6 +112,9 @@ const en: TranslationMap = {
   "desc.cableBundleMode": "How inter-cluster edges are grouped into cables",
   "display.minimap": "Minimap",
   "display.dotGrid": "Background dot grid",
+  "display.syncWithEditor": "Sync with Editor",
+  "display.edgeWeightThickness": "Edge Weight (thickness)",
+  "display.localGraphHops": "Local Graph Hops",
 
   // --- PanelBuilder: rendering thresholds ---
   "section.renderThresholds": "Rendering Thresholds",
@@ -368,6 +371,10 @@ const en: TranslationMap = {
   "toast.presetApplied": "Applied preset: {name}",
   "toast.pngExported": "PNG exported",
   "toast.pngFailed": "PNG export failed",
+  "toast.copiedToClipboard": "Copied to clipboard",
+  "toast.clipboardFailed": "Clipboard copy failed",
+  "toast.localGraphOn": "Local: {name} ({hops} hops)",
+  "toast.localGraphOff": "Global graph",
   "toast.filterResult": "{count} nodes displayed",
   "toast.layoutChanged": "Layout: {name}",
 
@@ -446,6 +453,8 @@ const en: TranslationMap = {
   "toolbar.marquee": "Marquee Zoom",
   "toolbar.exportPng": "Export as PNG",
   "toolbar.exporting": "Exporting…",
+  "toolbar.copyClipboard": "Copy to Clipboard",
+  "toolbar.localGraph": "Local Graph",
   "toolbar.graphSettings": "Graph Settings",
 
   // --- Error messages ---
@@ -588,6 +597,9 @@ const ja: TranslationMap = {
   "desc.cableBundleMode": "クラスタ間エッジのケーブル化方法",
   "display.minimap": "ミニマップ",
   "display.dotGrid": "背景ドットグリッド",
+  "display.syncWithEditor": "エディタと同期",
+  "display.edgeWeightThickness": "エッジ太さ（重み）",
+  "display.localGraphHops": "ローカルグラフ ホップ数",
 
   // --- Rendering thresholds ---
   "section.renderThresholds": "描画パフォーマンス",
@@ -844,6 +856,10 @@ const ja: TranslationMap = {
   "toast.presetApplied": "プリセット適用: {name}",
   "toast.pngExported": "PNG をエクスポートしました",
   "toast.pngFailed": "PNG エクスポート失敗",
+  "toast.copiedToClipboard": "クリップボードにコピーしました",
+  "toast.clipboardFailed": "クリップボードコピー失敗",
+  "toast.localGraphOn": "ローカル: {name} ({hops} ホップ)",
+  "toast.localGraphOff": "グローバルグラフ",
   "toast.filterResult": "{count} ノードを表示中",
   "toast.layoutChanged": "レイアウト: {name}",
 
@@ -922,6 +938,8 @@ const ja: TranslationMap = {
   "toolbar.marquee": "範囲拡大",
   "toolbar.exportPng": "PNGで書き出し",
   "toolbar.exporting": "書き出し中…",
+  "toolbar.copyClipboard": "クリップボードにコピー",
+  "toolbar.localGraph": "ローカルグラフ",
   "toolbar.graphSettings": "グラフ設定",
 
   // --- Error messages ---

@@ -139,6 +139,14 @@ export interface PanelState {
   cableFanWidth: number;
   /** Fan wire opacity (0-1) */
   cableFanAlpha: number;
+  /** Sync graph highlight with active editor file */
+  syncWithEditor: boolean;
+  /** Local graph center file path (null = global view) */
+  localGraphCenter: string | null;
+  /** Local graph BFS hop depth (1-5, default 2) */
+  localGraphHops: number;
+  /** Show edge weight via line thickness (same source-target pair count) */
+  edgeWeightThickness: boolean;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -237,6 +245,10 @@ export const DEFAULT_PANEL: PanelState = {
   cableSpacing: 4,
   cableFanWidth: 1,
   cableFanAlpha: 0.45,
+  syncWithEditor: true,
+  localGraphCenter: null,
+  localGraphHops: 2,
+  edgeWeightThickness: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -1171,6 +1183,21 @@ export function buildPanel(
   // =============================================
   // SETTINGS TAB
   // =============================================
+  // --- Graph Sync & Local Graph ---
+  buildSection(settingsTab, "Graph Sync", (body) => {
+    addToggle(body, t("display.syncWithEditor"), panel.syncWithEditor, (v) => {
+      panel.syncWithEditor = v;
+    });
+    addSlider(body, t("display.localGraphHops"), 1, 5, 1, panel.localGraphHops, (v) => {
+      panel.localGraphHops = v;
+      if (panel.localGraphCenter) cb.doRender();
+    });
+    addToggle(body, t("display.edgeWeightThickness"), panel.edgeWeightThickness, (v) => {
+      panel.edgeWeightThickness = v;
+      cb.markDirty();
+    });
+  }, undefined, false, "settings");
+
   // --- Basic plugin settings ---
   buildSection(settingsTab, t("section.pluginSettings"), (body) => {
     const s = ctx.settings;

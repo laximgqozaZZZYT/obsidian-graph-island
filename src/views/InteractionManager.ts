@@ -61,6 +61,10 @@ export interface InteractionHost {
   clearPathfinder(): void;
   /** Get current pathfinder state */
   getPathfinderState(): { startId: string | null; endId: string | null };
+  /** Get the Obsidian App instance (for hover-link events) */
+  getApp(): any;
+  /** Get the view's container element (for hover-link parent) */
+  getContainerEl(): HTMLElement;
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +93,9 @@ export class InteractionManager {
   private isMarqueeActive = false;
   private marqueeStart = { x: 0, y: 0 };
   private marqueeGraphics: CanvasGraphics | null = null;
+
+  // Hover preview: track last hovered node to avoid redundant hover-link events
+  private lastHoveredId: string | null = null;
 
   // Bound handlers for removal
   private _onWheel: (e: WheelEvent) => void;
@@ -293,6 +300,23 @@ export class InteractionManager {
         this.host.setHighlightedNodeId(newId);
         this.host.applyHover();
         this.host.markDirty(true);
+      }
+      // Hover preview: fire Obsidian hover-link event (once per node)
+      if (newId && newId !== this.lastHoveredId) {
+        this.lastHoveredId = newId;
+        const filePath = hit?.data.filePath;
+        if (filePath) {
+          this.host.getApp().workspace.trigger("hover-link", {
+            event: e,
+            source: "graph-island",
+            hoverParent: this.host.getContainerEl(),
+            targetEl: e.target,
+            linktext: filePath,
+            sourcePath: filePath,
+          });
+        }
+      } else if (!newId) {
+        this.lastHoveredId = null;
       }
     }
   }

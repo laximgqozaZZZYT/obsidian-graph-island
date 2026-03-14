@@ -423,6 +423,41 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     });
 
+    // Local graph toggle button
+    const localGraphBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    setIcon(localGraphBtn, "locate-fixed");
+    localGraphBtn.setAttribute("aria-label", t("toolbar.localGraph"));
+    localGraphBtn.title = t("toolbar.localGraph");
+    localGraphBtn.addEventListener("click", () => {
+      if (this.panel.localGraphCenter) {
+        // Turn off local graph
+        this.panel.localGraphCenter = null;
+        localGraphBtn.classList.remove("is-active");
+        showToast(t("toast.localGraphOff"));
+      } else {
+        // Turn on: use active editor file
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile) {
+          this.panel.localGraphCenter = activeFile.path;
+          localGraphBtn.classList.add("is-active");
+          const name = activeFile.basename;
+          showToast(t("toast.localGraphOn").replace("{name}", name).replace("{hops}", String(this.panel.localGraphHops)));
+        }
+      }
+      this.doRender();
+    });
+
+    // Clipboard copy button (next to camera/export)
+    const clipboardBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    setIcon(clipboardBtn, "clipboard-copy");
+    clipboardBtn.setAttribute("aria-label", t("toolbar.copyClipboard"));
+    clipboardBtn.title = t("toolbar.copyClipboard");
+    clipboardBtn.addEventListener("click", async () => {
+      clipboardBtn.disabled = true;
+      await this.copyGraphToClipboard();
+      clipboardBtn.disabled = false;
+    });
+
     // Fullscreen toggle
     const fullscreenBtn = toolbar.createEl("button", { cls: "graph-toolbar-btn gi-fullscreen-btn" });
     setIcon(fullscreenBtn, "expand");
@@ -516,6 +551,77 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.panelEl?.classList.toggle("is-hidden");
         return;
       }
+
+      // +/=: zoom in
+      if ((e.key === "+" || e.key === "=") && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        this.zoomBy(1.2);
+        return;
+      }
+      // -: zoom out
+      if (e.key === "-" && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        this.zoomBy(1 / 1.2);
+        return;
+      }
+      // 0: zoom reset (100%)
+      if (e.key === "0" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        this.setZoom(1.0);
+        return;
+      }
+      // F: fit view (same as Space)
+      if (e.key === "f" && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const wrap = this.containerEl.querySelector<HTMLElement>(".graph-svg-wrap");
+        if (wrap) this.autoFitView(wrap.clientWidth, wrap.clientHeight);
+        return;
+      }
+      // L: toggle legend
+      if (e.key === "l" && !e.ctrlKey && !e.metaKey) {
+        if (this.legendEl) {
+          this.legendEl.style.display = this.legendEl.style.display === "none" ? "" : "none";
+        }
+        return;
+      }
+      // M: toggle minimap
+      if (e.key === "m" && !e.ctrlKey && !e.metaKey) {
+        this.panel.showMinimap = !this.panel.showMinimap;
+        this.markDirty(true);
+        return;
+      }
+      // G: toggle grid
+      if (e.key === "g" && !e.ctrlKey && !e.metaKey) {
+        this.panel.showDotGrid = !this.panel.showDotGrid;
+        this.markDirty(true);
+        return;
+      }
+      // [: decrease hoverHops
+      if (e.key === "[" && !e.ctrlKey && !e.metaKey) {
+        this.panel.hoverHops = Math.max(0, this.panel.hoverHops - 1);
+        this.applyHover();
+        this.markDirty(true);
+        return;
+      }
+      // ]: increase hoverHops
+      if (e.key === "]" && !e.ctrlKey && !e.metaKey) {
+        this.panel.hoverHops = Math.min(10, this.panel.hoverHops + 1);
+        this.applyHover();
+        this.markDirty(true);
+        return;
+      }
+      // Ctrl/Cmd+Shift+C: copy graph to clipboard as PNG
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "C") {
+        e.preventDefault();
+        this.copyGraphToClipboard();
+        return;
+      }
+      // Tab / Shift+Tab: cycle focus through nodes
+      if (e.key === "Tab") {
+        e.preventDefault();
+        this.cycleFocusNode(e.shiftKey ? -1 : 1);
+        return;
+      }
     });
 
     // --- Legend Overlay ---
@@ -553,12 +659,27 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.resizeObserver.observe(canvasArea);
 
     // Wake render loop when this leaf becomes active again (e.g. tab switch)
+    // Also sync graph highlight with active editor file (A-2 editor↔graph sync)
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
-        if (leaf !== this.leaf) return;
-        if (this.pixiApp) {
-          // Just wake the render loop & resize — don't recreate canvas
-          this.markDirty();
+        if (leaf?.view === this) {
+          // Our leaf became active — just wake render loop
+          if (this.pixiApp) this.markDirty();
+          return;
+        }
+        // Another leaf is active — sync if enabled
+        if (!this.panel.syncWithEditor) return;
+        const file = (leaf?.view as any)?.file as TFile | undefined;
+        if (!file || !this.pixiNodes.size) return;
+        const nodeId = this.findNodeIdByPath(file.path);
+        if (!nodeId) return;
+        this.setHighlightedNodeId(nodeId);
+        this.applyHover();
+        this.panToNode(nodeId);
+        // If local graph mode is on, update the center
+        if (this.panel.localGraphCenter !== null) {
+          this.panel.localGraphCenter = file.path;
+          this.doRender();
         }
       })
     );
@@ -1067,6 +1188,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return { startId: this.pathfinderStartId, endId: this.pathfinderEndId };
   }
 
+  // -- InteractionHost: Obsidian App access (for hover-link preview) --
+  getApp() { return this.app; }
+  getContainerEl(): HTMLElement { return this.containerEl; }
+
   /** BFS shortest path using adj map */
   private computePathfinderPath() {
     this.pathfinderPath = null;
@@ -1445,6 +1570,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.edgeCardinalityMode = this.panel.edgeCardinalityMode;
     cfg.cardinalityRules = this.panel.cardinalityRules;
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
+    cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
 
     drawEdgesImpl(
       this.edgeGraphics,
@@ -1679,6 +1805,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       container.addChild(text);
       this.clusterSunburstLabels.set(`${arc.groupKey}:${arc.depth}`, text);
     }
+
+    // --- Label collision avoidance for rotated labels ---
+    this.cullOverlappingRotatedLabels(this.clusterSunburstLabels);
   }
 
   /** Draw an arc line (stroke only, no fill) */
@@ -2015,6 +2144,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         labelContainer.addChild(text);
         this.groupGridLabels.set(groupKey, text);
       }
+
+      // --- Label collision avoidance for group grid labels ---
+      this.cullOverlappingRotatedLabels(this.groupGridLabels);
     }
   }
 
@@ -2758,6 +2890,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.markDirty();
   }
 
+  private setZoom(level: number) {
+    const world = this.worldContainer;
+    const wrap = this.canvasWrap;
+    if (!world || !wrap) return;
+    const cx = wrap.clientWidth / 2;
+    const cy = wrap.clientHeight / 2;
+    const worldPos = world.toLocal({ x: cx, y: cy }, this.pixiApp!.stage);
+    const s = Math.max(0.02, Math.min(10, level));
+    world.scale.set(s);
+    const newScreen = world.toGlobal(worldPos);
+    world.x += cx - newScreen.x;
+    world.y += cy - newScreen.y;
+    this.updateZoomIndicator(s);
+    this.markDirty();
+  }
+
   private updateZoomIndicator(scale?: number) {
     if (!this.zoomIndicatorEl) return;
     const s = scale ?? this.worldContainer?.scale?.x ?? 1;
@@ -2988,6 +3136,36 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       source: typeof e.source === "object" ? (e.source as any).id : e.source,
       target: typeof e.target === "object" ? (e.target as any).id : e.target,
     }));
+
+    // Local graph: BFS N-hop filter from center node
+    if (this.panel.localGraphCenter) {
+      const centerId = nodes.find(n => n.filePath === this.panel.localGraphCenter || n.id === this.panel.localGraphCenter)?.id;
+      if (centerId) {
+        // Build adjacency for BFS
+        const adj = new Map<string, Set<string>>();
+        for (const e of edges) {
+          if (!adj.has(e.source)) adj.set(e.source, new Set());
+          if (!adj.has(e.target)) adj.set(e.target, new Set());
+          adj.get(e.source)!.add(e.target);
+          adj.get(e.target)!.add(e.source);
+        }
+        // BFS
+        const reachable = new Set<string>([centerId]);
+        let frontier = [centerId];
+        for (let h = 0; h < this.panel.localGraphHops && frontier.length > 0; h++) {
+          const next: string[] = [];
+          for (const id of frontier) {
+            const nb = adj.get(id);
+            if (nb) for (const n of nb) {
+              if (!reachable.has(n)) { reachable.add(n); next.push(n); }
+            }
+          }
+          frontier = next;
+        }
+        nodes = nodes.filter(n => reachable.has(n.id));
+        edges = edges.filter(e => reachable.has(e.source) && reachable.has(e.target));
+      }
+    }
 
     if (!this.panel.showOrphans) {
       const connected = new Set<string>();
@@ -3502,6 +3680,44 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return groups.map(g => g.label).sort();
   }
 
+  // -- Tab focus navigation --
+  private focusNodeIndex = -1;
+  private focusNodeOrder: string[] = [];
+
+  private cycleFocusNode(direction: 1 | -1) {
+    // Build sorted node list on first use or when nodes change
+    if (this.focusNodeOrder.length !== this.pixiNodes.size) {
+      this.focusNodeOrder = [...this.pixiNodes.keys()].sort((a, b) => {
+        const pa = this.pixiNodes.get(a)!;
+        const pb = this.pixiNodes.get(b)!;
+        return pa.data.label.localeCompare(pb.data.label);
+      });
+      this.focusNodeIndex = -1;
+    }
+    if (this.focusNodeOrder.length === 0) return;
+    this.focusNodeIndex = (this.focusNodeIndex + direction + this.focusNodeOrder.length) % this.focusNodeOrder.length;
+    const nodeId = this.focusNodeOrder[this.focusNodeIndex];
+    this.setHighlightedNodeId(nodeId);
+    this.applyHover();
+    this.panToNode(nodeId);
+  }
+
+  /** Copy the current graph view as PNG to clipboard */
+  private async copyGraphToClipboard() {
+    if (!this.pixiApp) return;
+    try {
+      const { exportGraphAsPng } = await import("../utils/export-png");
+      const blob = await exportGraphAsPng(this.pixiApp);
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob }),
+      ]);
+      showToast(t("toast.copiedToClipboard"));
+    } catch (e) {
+      console.error("Graph Island: clipboard copy failed", e);
+      showToast(t("toast.clipboardFailed"), 5000);
+    }
+  }
+
   /** Collect all unique tag names from graph nodes */
   private collectAvailableTags(): string[] {
     const tags = new Set<string>();
@@ -3538,6 +3754,56 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this._nodeRadiiCache = this.buildNodeRadiiMap();
     this._nodeRadiiCacheFrame = this._frameCounter;
     return this._nodeRadiiCache;
+  }
+
+  /**
+   * Find the node ID corresponding to a vault file path.
+   */
+  private findNodeIdByPath(path: string): string | null {
+    for (const [id, pn] of this.pixiNodes) {
+      if (pn.data.filePath === path) return id;
+    }
+    return null;
+  }
+
+  /**
+   * Smoothly pan the camera so that the given node is centered on screen.
+   * Uses 200ms ease-out animation; skips animation when prefers-reduced-motion is set.
+   */
+  private panToNode(nodeId: string) {
+    const pn = this.pixiNodes.get(nodeId);
+    if (!pn) return;
+    const world = this.worldContainer;
+    const wrap = this.canvasWrap;
+    if (!world || !wrap) return;
+
+    const targetX = wrap.clientWidth / 2 - pn.data.x * world.scale.x;
+    const targetY = wrap.clientHeight / 2 - pn.data.y * world.scale.y;
+
+    // Reduced motion: jump immediately
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReduced) {
+      world.x = targetX;
+      world.y = targetY;
+      this.markDirty(true);
+      return;
+    }
+
+    // Animated pan (200ms ease-out)
+    const startX = world.x;
+    const startY = world.y;
+    const duration = 200;
+    const startTime = performance.now();
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      const ease = 1 - (1 - t) * (1 - t); // ease-out quadratic
+      world.x = startX + (targetX - startX) * ease;
+      world.y = startY + (targetY - startY) * ease;
+      this.markDirty();
+      if (t < 1) requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
   }
 
   /**
@@ -3642,36 +3908,84 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const p70 = degValues[Math.floor(degValues.length * 0.30)] ?? 1;
     const p50 = degValues[Math.floor(degValues.length * 0.50)] ?? 1;
 
+    // Partial counter-scale: labels shrink with zoom but not proportionally.
+    // Using sqrt(1/zoom) keeps labels readable at low zoom without overwhelming
+    // the view. At zoom=1 → scale=1, zoom=0.25 → scale=2, zoom=0.04 → scale=5 (clamped).
+    const counterScale = Math.min(4, Math.max(0.7, 1 / Math.sqrt(zoom)));
+
     for (const pn of this.pixiNodes.values()) {
       if (!pn.label) continue;
 
+      // Apply counter-scaling so labels stay readable at any zoom
+      pn.label.scale.set(counterScale);
+
       // Super nodes (collapsed groups) always visible
       if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
+        pn.label.visible = true;
         pn.label.alpha = baseOpacity;
         continue;
       }
 
       const deg = degrees.get(pn.data.id) ?? 0;
-      let labelAlpha = baseOpacity;
 
-      // Semantic zoom: fade labels based on zoom level + node importance
+      // Semantic zoom: show/hide labels based on zoom level + node importance
       if (zoom < 0.15) {
-        labelAlpha = deg >= p90 ? baseOpacity : 0;
+        pn.label.visible = deg >= p90;
       } else if (zoom < 0.35) {
-        labelAlpha = deg >= p70 ? baseOpacity : 0;
+        pn.label.visible = deg >= p70;
       } else if (zoom < 0.7) {
-        labelAlpha = deg >= p50 ? baseOpacity : baseOpacity * 0.3;
+        pn.label.visible = deg >= p50;
+      } else {
+        pn.label.visible = true;
       }
-      // zoom >= 0.7: show all labels at baseOpacity (current behavior)
 
-      pn.label.alpha = labelAlpha;
+      pn.label.alpha = pn.label.visible ? baseOpacity : 0;
     }
+
+    // Enclosure labels are managed by EnclosureRenderer (drawEnclosuresImpl)
+    // which runs every frame with its own zoom-dependent scaling (1/ws).
+    // We only handle sunburst/grid labels here.
+
+    const groupLabelScale = Math.min(2.5, Math.max(0.7, 1 / Math.pow(zoom, 0.35)));
+
+    // --- Cluster sunburst labels: hide at low zoom ---
+    for (const [, lbl] of this.clusterSunburstLabels) {
+      if (zoom < 0.15) {
+        lbl.visible = false;
+      } else {
+        // visibility already set by cullOverlappingRotatedLabels; just scale
+        lbl.scale.set(groupLabelScale);
+      }
+    }
+
+    // --- Sunburst layout labels ---
+    for (const [, lbl] of this.sunburstLabels) {
+      if (zoom < 0.15) {
+        lbl.visible = false;
+      } else {
+        lbl.scale.set(groupLabelScale);
+      }
+    }
+
+    // --- Group grid labels ---
+    for (const [, lbl] of this.groupGridLabels) {
+      if (zoom < 0.2) {
+        lbl.visible = false;
+      } else {
+        lbl.scale.set(groupLabelScale);
+      }
+    }
+
     this.markDirty();
   }
 
   /** Called by InteractionManager after zoom changes to update label visibility */
   updateLabelsForZoom() {
     this.applyTextFade();
+    // Re-cull rotated labels after zoom change (screen-space overlap changes)
+    this.cullOverlappingRotatedLabels(this.clusterSunburstLabels);
+    this.cullOverlappingRotatedLabels(this.sunburstLabels);
+    this.cullOverlappingRotatedLabels(this.groupGridLabels);
   }
 
   // =========================================================================
@@ -3796,6 +4110,62 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
       container.addChild(text);
       this.sunburstLabels.set(arc.name, text);
+    }
+
+    // --- Label collision avoidance for rotated labels ---
+    this.cullOverlappingRotatedLabels(this.sunburstLabels);
+  }
+
+  /**
+   * Hide rotated labels that overlap with higher-priority labels.
+   * Uses rotated bounding-box AABB approximation with pre-render width estimation.
+   */
+  private cullOverlappingRotatedLabels(labels: Map<string, CanvasText>) {
+    if (labels.size === 0) return;
+
+    // Estimate text width before first render (measureText hasn't run yet)
+    const estimateWidth = (txt: CanvasText): number => {
+      if (txt.width > 0) return txt.width;
+      const fontSize = txt.style.fontSize ?? 11;
+      const isBold = txt.style.fontWeight === "bold" || txt.style.fontWeight === "600";
+      // Average character width ≈ 0.6 × fontSize (proportional font heuristic)
+      return txt.text.length * fontSize * (isBold ? 0.65 : 0.58);
+    };
+
+    // Compute AABB for each rotated label in world coordinates
+    const rotatedAABB = (txt: CanvasText) => {
+      const w = estimateWidth(txt);
+      const h = txt.height || (txt.style.fontSize ?? 11);
+      const cos = Math.abs(Math.cos(txt.rotation));
+      const sin = Math.abs(Math.sin(txt.rotation));
+      // Rotated bounding box width/height
+      const bw = w * cos + h * sin;
+      const bh = w * sin + h * cos;
+      return {
+        x: txt.x - bw * txt.anchor.x,
+        y: txt.y - bh * txt.anchor.y,
+        w: bw,
+        h: bh,
+      };
+    };
+
+    const rectsOverlap = (
+      a: { x: number; y: number; w: number; h: number },
+      b: { x: number; y: number; w: number; h: number },
+    ) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+    const placedRects: { x: number; y: number; w: number; h: number }[] = [];
+    for (const [, txt] of labels) {
+      if (!txt.visible) continue;
+      const rect = rotatedAABB(txt);
+
+      // Check against all placed rects
+      const overlaps = placedRects.some(pr => rectsOverlap(rect, pr));
+      if (overlaps) {
+        txt.visible = false;
+      } else {
+        placedRects.push(rect);
+      }
     }
   }
 

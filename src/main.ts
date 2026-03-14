@@ -34,6 +34,16 @@ export default class GraphViewsPlugin extends Plugin {
 
     this.addSettingTab(new GraphViewsSettingTab(this.app, this));
 
+    // Code block processor for embedded mini-graphs in notes
+    this.registerMarkdownCodeBlockProcessor("graph-island", (source, el, ctx) => {
+      import("./views/EmbeddedGraphRenderer").then(({ renderEmbeddedGraph }) => {
+        renderEmbeddedGraph(el, source, this.app, this.settings);
+      }).catch((e) => {
+        el.createDiv({ cls: "gi-embed-error", text: "Graph Island: render failed" });
+        console.error("Graph Island embed error:", e);
+      });
+    });
+
   }
 
   onunload() {}

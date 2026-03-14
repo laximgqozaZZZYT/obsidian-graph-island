@@ -70,6 +70,8 @@ export interface EdgeDrawConfig {
   cableFanAlpha?: number;
   /** Minimum density scale floor — prevents edges vanishing at high count + low zoom */
   edgeDensityFloor?: number;
+  /** Show edge weight via line thickness (same source-target pair count) */
+  edgeWeightThickness?: boolean;
 }
 
 // Minimal position data needed for source/target
@@ -456,6 +458,10 @@ function drawCables(
 
       // --- Trunk: one line per color, ~2× normal edge thickness, high contrast ---
       let trunkWidth = cfg.cableTrunkWidth ?? 2;
+      // Apply edge weight to trunk width: scale by sqrt of lane edge count
+      if (cfg.edgeWeightThickness && lane.edges.length > 1) {
+        trunkWidth *= Math.sqrt(lane.edges.length);
+      }
       let trunkAlpha = cfg.cableTrunkAlpha ?? 0.85;
 
       // Highlight: if any edge in this lane connects highlighted nodes, brighten trunk
@@ -586,6 +592,16 @@ export function drawEdges(
   const zoomFade = ws >= 0.05 ? 1 : Math.max(0.15, ws / 0.05);
   const densityScale = Math.max(cfg.edgeDensityFloor ?? 0.08, densityScaleBase * zoomFade);
 
+  // Pre-compute edge pair counts for weight-based thickness
+  let pairCount: Map<string, number> | null = null;
+  if (cfg.edgeWeightThickness) {
+    pairCount = new Map();
+    for (const e of edges) {
+      const key = [e.source, e.target].sort().join(":");
+      pairCount.set(key, (pairCount.get(key) ?? 0) + 1);
+    }
+  }
+
   // Pre-compute direction×color bundles for highway-style edge merging
   const β = cfg.bundleStrength;
   let bundles: Map<string, BundleGroup> | null = null;
@@ -644,6 +660,15 @@ export function drawEdges(
     const isStructural = isOnto || e.type === "has-tag" || isSimilar || isBreadcrumbs;
     let alpha = (isStructural ? 0.7 : 0.65) * densityScale;
     let lineThick = 1.2;
+
+    // Edge weight: thicken based on same source-target pair count
+    if (pairCount) {
+      const pairKey = [e.source, e.target].sort().join(":");
+      const weight = pairCount.get(pairKey) ?? 1;
+      lineThick = 1.2 + Math.log2(weight) * 0.6;
+      // Slightly increase alpha for heavy edges
+      if (weight > 2) alpha *= Math.min(1.3, 1 + (weight - 2) * 0.05);
+    }
 
     if (!isOnto && e.relation && useRelColor) alpha = 0.8 * densityScale;
 

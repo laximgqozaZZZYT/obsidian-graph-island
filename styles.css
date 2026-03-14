@@ -2346,3 +2346,43 @@
     min-height: 44px;
   }
 }
+
+/* === Embedded Graph (code block) === */
+.gi-embed {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--background-secondary);
+}
+.gi-embed canvas {
+  display: block;
+}
+.gi-embed-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.gi-embed-error {
+  padding: 8px 12px;
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+}
+
+/* === Local Graph Badge === */
+.gi-local-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
