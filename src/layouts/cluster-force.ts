@@ -611,7 +611,7 @@ const MAX_NODE_RADIUS = 30;
  *  Mirrors RenderPipeline: rawR = nodeR * (1 + sqrt(memberCount) * 0.5), cap 30 */
 function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, scaleByDegree: boolean): number {
   const baseR = nodeRadius(nodeSize, degree, scaleByDegree);
-  if (n.collapsedMembers && n.collapsedMembers.length > 0) {
+  if (n.collapsedMembers && n.collapsedMembers.length > 0 && scaleByDegree) {
     return Math.min(Math.max(baseR, baseR * (1 + Math.sqrt(n.collapsedMembers.length) * 0.5)), MAX_NODE_RADIUS);
   }
   return baseR;

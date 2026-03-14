@@ -89,6 +89,8 @@ export interface RenderHost {
   getCardRenderConfig?(): CardRenderConfig;
   /** Get the render thresholds (LOD tuning) */
   getRenderThresholds?(): RenderThresholds;
+  /** Whether scaleByDegree is enabled */
+  getScaleByDegree?(): boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -448,6 +450,13 @@ export class RenderPipeline {
           }
           drawShapeAt(g, shape, pn.data.x, pn.data.y, effR);
           g.endFill();
+          // Double outline for super nodes (collapsed groups)
+          if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
+            const innerR = effR * rt.superNodeInnerRatio;
+            g.lineStyle(rt.superNodeInnerStroke / worldScale, strokeColor, nodeAlpha * rt.superNodeInnerAlpha);
+            g.drawCircle(pn.data.x, pn.data.y, innerR);
+            g.lineStyle(0);
+          }
         }
       } else if (displayMode === "card") {
         // Card mode: draw rounded rectangle background
@@ -827,16 +836,19 @@ export class RenderPipeline {
     const isSuperNode = !!(n.collapsedMembers && n.collapsedMembers.length > 0);
     const memberCount = isSuperNode ? n.collapsedMembers!.length : 0;
     const MAX_NODE_RADIUS = 30;
-    const rawR = isSuperNode ? Math.max(nodeR(n), nodeR(n) * (1 + Math.sqrt(memberCount) * 0.5)) : nodeR(n);
+    const scaleByDegree = this.host.getScaleByDegree?.() ?? true;
+    const rawR = (isSuperNode && scaleByDegree)
+      ? Math.max(nodeR(n), nodeR(n) * (1 + Math.sqrt(memberCount) * 0.5))
+      : nodeR(n);
     const r = Math.min(rawR, MAX_NODE_RADIUS);
     const color = nodeColor(n);
     const circle = new CanvasGraphics();
     if (isSuperNode) {
-      // Draw double circle for super nodes (visible immediately)
-      circle.lineStyle(2, color, 1);
+      const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+      circle.lineStyle(rt.superNodeOuterStroke, color, 1);
       circle.drawCircle(0, 0, r);
-      circle.lineStyle(1.5, color, 0.6);
-      circle.drawCircle(0, 0, r * 0.7);
+      circle.lineStyle(rt.superNodeInnerStroke, color, rt.superNodeInnerAlpha);
+      circle.drawCircle(0, 0, r * rt.superNodeInnerRatio);
       circle.beginFill(color, 0.3);
       circle.drawCircle(0, 0, r);
       circle.endFill();

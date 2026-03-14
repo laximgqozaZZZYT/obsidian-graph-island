@@ -1080,6 +1080,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getCardDisplayConfig() { return this.panel.cardDisplayConfig ?? { fields: [], maxWidth: 120, showIcon: false }; }
   getDonutDisplayConfig() { return this.panel.donutDisplayConfig ?? { innerRadius: 0.6 }; }
   getRenderThresholds() { return this.panel.renderThresholds ?? {}; }
+  getScaleByDegree() { return this.panel.scaleByDegree; }
 
   // =========================================================================
   // Zoom & Hit testing

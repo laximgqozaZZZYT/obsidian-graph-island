@@ -675,6 +675,16 @@ export interface RenderThresholds {
   /** Extra collision radius when nodeDisplayMode is card (default 40) */
   cardCollisionPadding?: number;
 
+  // ---- Super node double outline ----
+  /** Inner circle radius ratio for super node double outline (default 0.65) */
+  superNodeInnerRatio?: number;
+  /** Outer stroke width for super node double outline (default 1.5) */
+  superNodeOuterStroke?: number;
+  /** Inner stroke width for super node double outline (default 1.0) */
+  superNodeInnerStroke?: number;
+  /** Inner stroke alpha for super node double outline (default 0.5) */
+  superNodeInnerAlpha?: number;
+
   // ---- Timeline axis labels ----
   /** Show text labels on timeline axis ticks (default true) */
   timelineAxisShowLabels?: boolean;
@@ -900,6 +910,10 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   gridCellShadingMin: 0.08,
   gridCellShadingRange: 0.35,
   cardCollisionPadding: 40,
+  superNodeInnerRatio: 0.65,
+  superNodeOuterStroke: 1.5,
+  superNodeInnerStroke: 1.0,
+  superNodeInnerAlpha: 0.5,
   timelineAxisShowLabels: true,
   timelineAxisLabelFontSize: 9,
   timelineAxisLabelAlpha: 0.7,
