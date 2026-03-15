@@ -13,6 +13,20 @@ import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../l
 import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
 import { buildRoadNetwork, type RoadNetwork } from "../layouts/road-network";
+
+/**
+ * Global cache for the densest road network ever built — survives module reloads.
+ * Stored on window to persist across plugin disable/enable cycles.
+ */
+function _getBestRoadNetwork(): RoadNetwork | null {
+  return (window as any).__gi_bestRoadNetwork ?? null;
+}
+function _setBestRoadNetwork(rn: RoadNetwork) {
+  const cur = _getBestRoadNetwork();
+  if (!cur || rn.intersections.length > cur.intersections.length) {
+    (window as any).__gi_bestRoadNetwork = rn;
+  }
+}
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
@@ -924,7 +938,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.routeGraphics = null;
     this.routeData = null;
     this.roadGraphics = null;
-    this.roadNetworkData = null;
+    // Keep roadNetworkData across destroyPixi — only rebuild via simulation end handler
+    this._roadNetworkFinalized = false;
     this.barGraphics = null;
     this.barLabelContainer = null;
     this.spatialGrid.clear();
@@ -1835,7 +1850,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cardinalityRules = this.panel.cardinalityRules;
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
     cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
-    cfg.roadNetwork = this.roadNetworkData;
+    cfg.roadNetwork = this.getRoadNetwork();
     const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
     cfg.enableRoadRouting = !!rt2.roadRouteEdges && !!this.roadNetworkData;
     return cfg;
@@ -2255,9 +2270,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Road Network — auto-generated roads from coordinate grid lines
   // =========================================================================
 
-  private buildRoadNetwork() {
+  private _roadNetworkFinalized = false;
+
+  private buildRoadNetwork(final = false) {
+    // Once finalized (by simulation end), don't rebuild unless explicitly requested
+    if (this._roadNetworkFinalized && !final) return;
+    this._buildRoadNetworkInner();
+    if (final) {
+      this._roadNetworkFinalized = true;
+    }
+  }
+
+  /** Update global cache if new network is denser */
+  private _updateRoadCache() {
+    const n = this.roadNetworkData;
+    if (n) _setBestRoadNetwork(n);
+  }
+
+  private _buildRoadNetworkInner() {
     const meta = this.clusterMeta;
-    if (!meta) { this.roadNetworkData = null; return; }
+    if (!meta) return;
 
     // Collect all positioned nodes (skip nodes still at origin from early ticks)
     const allNodes: GraphNode[] = [];
@@ -2266,43 +2298,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         allNodes.push(pn.data);
       }
     }
-    if (allNodes.length === 0) { this.roadNetworkData = null; return; }
+    if (allNodes.length === 0) return; // Keep existing road network if no positioned nodes yet
 
     // Try to derive road network from guide data attached to cluster metadata.
     // Each guide type maps to a different road topology.
     const guides = meta.groupGuides;
     if (guides && guides.length > 0) {
+      const coordGuides: { guide: { system: string; gridInfo: ResolvedGridInfo; bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number } }; centerX: number; centerY: number }[] = [];
       for (const gg of guides) {
         const g = gg.guide;
         if (!g) continue;
 
-        // CoordinateGuide: use gridInfo axis lines + shape directly
+        // CoordinateGuide: collect axis lines — don't return yet, merge all groups first
         if (g.type === GUIDE_TYPE_COORDINATE && (g as any).gridInfo) {
-          const cg = g as { type: "coordinate"; system: string; gridInfo: ResolvedGridInfo; bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number } };
-          // Densify: add midpoints between existing axis lines for higher intersection density
-          const rawA1 = cg.gridInfo.axis1Lines.map(l => l.position).sort((a, b) => a - b);
-          const rawA2 = cg.gridInfo.axis2Lines.map(l => l.position).sort((a, b) => a - b);
-          const densifyLines = (arr: number[]): { position: number }[] => {
-            const out: { position: number }[] = [];
-            for (let i = 0; i < arr.length; i++) {
-              out.push({ position: arr[i] });
-              if (i < arr.length - 1) {
-                out.push({ position: (arr[i] + arr[i + 1]) / 2 });
-              }
-            }
-            return out;
-          };
-          this.roadNetworkData = buildRoadNetwork({
-            system: cg.system === "polar" ? "polar" : "cartesian",
-            axis1Lines: densifyLines(rawA1),
-            axis2Lines: densifyLines(rawA2),
-            axis1Shape: cg.gridInfo.axis1Shape?.kind ?? "line",
-            axis2Shape: cg.gridInfo.axis2Shape?.kind ?? "line",
-            cx: gg.centerX, cy: gg.centerY,
-            bounds: cg.bounds ?? this.computeNodeBounds(allNodes),
-            nodes: allNodes,
-          });
-          return;
+          coordGuides.push({ guide: g as any, centerX: gg.centerX, centerY: gg.centerY });
         }
 
         // ConcentricGuide: rings become circle roads, uniform spokes become radial roads
@@ -2332,6 +2341,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
               bounds: { xMin: -maxRing, yMin: -maxRing, xMax: maxRing, yMax: maxRing, maxR: maxRing },
               nodes: allNodes,
             });
+            this._updateRoadCache();
             return;
           }
         }
@@ -2361,6 +2371,52 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             bounds: gg2.bounds ?? this.computeNodeBounds(allNodes),
             nodes: allNodes,
           });
+          this._updateRoadCache();
+          return;
+        }
+
+        // TriangleGuide: horizontal roads at each row, vertical roads spanning columns
+        if (g.type === ARRANGEMENT_TRIANGLE) {
+          const tg = g as { type: "triangle"; vertices: [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }] };
+          const [top, bottomLeft, bottomRight] = tg.vertices;
+          const triHeight = bottomLeft.y - top.y;
+          const triWidth = bottomRight.x - bottomLeft.x;
+          // Estimate rows from node count: smallest numRows such that numRows*(numRows+1)/2 >= n
+          let numRows = 1;
+          while (numRows * (numRows + 1) / 2 < allNodes.length) numRows++;
+          numRows = Math.max(numRows, 2);
+          const rowSpacing = triHeight / (numRows - 1 || 1);
+          // Horizontal roads: one per row
+          const horizLines: { position: number }[] = [];
+          for (let r = 0; r < numRows; r++) {
+            horizLines.push({ position: top.y + r * rowSpacing });
+          }
+          // Vertical roads: divide bottom row width into columns
+          const numCols = Math.max(numRows, Math.ceil(Math.sqrt(allNodes.length)));
+          const colSpacing = triWidth / (numCols - 1 || 1);
+          const vertLines: { position: number }[] = [];
+          for (let c = 0; c < numCols; c++) {
+            vertLines.push({ position: bottomLeft.x + c * colSpacing });
+          }
+          // Densify: add midpoints between adjacent lines
+          const densify = (arr: { position: number }[]): { position: number }[] => {
+            const out: { position: number }[] = [];
+            for (let i = 0; i < arr.length; i++) {
+              out.push(arr[i]);
+              if (i < arr.length - 1) out.push({ position: (arr[i].position + arr[i + 1].position) / 2 });
+            }
+            return out;
+          };
+          this.roadNetworkData = buildRoadNetwork({
+            system: "cartesian",
+            axis1Lines: densify(vertLines),
+            axis2Lines: densify(horizLines),
+            axis1Shape: "line", axis2Shape: "line",
+            cx: gg.centerX, cy: gg.centerY,
+            bounds: { xMin: bottomLeft.x, yMin: top.y, xMax: bottomRight.x, yMax: bottomLeft.y },
+            nodes: allNodes,
+          });
+          this._updateRoadCache();
           return;
         }
 
@@ -2376,8 +2432,85 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             bounds: this.computeNodeBounds(allNodes),
             nodes: allNodes,
           });
+          this._updateRoadCache();
           return;
         }
+      }
+
+      // Merge all collected CoordinateGuide axis lines into a single dense road network
+      if (coordGuides.length > 0) {
+        const sys = coordGuides[0].guide.system;
+        const bounds = this.computeNodeBounds(allNodes);
+        const densify = (arr: number[]): { position: number }[] => {
+          const out: { position: number }[] = [];
+          for (let i = 0; i < arr.length; i++) {
+            out.push({ position: arr[i] });
+            if (i < arr.length - 1) out.push({ position: (arr[i] + arr[i + 1]) / 2 });
+          }
+          return out;
+        };
+
+        if (sys === "polar") {
+          // Polar: recompute global road parameters from node positions
+          // instead of merging per-group local radius values which don't
+          // translate to correct world coordinates when groups differ.
+          const gcx = (bounds.xMin + bounds.xMax) / 2;
+          const gcy = (bounds.yMin + bounds.yMax) / 2;
+          const dists = allNodes.map(n => Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2)).sort((a, b) => a - b);
+          // Ring radii from quantile-based distribution
+          const guideA2Count = coordGuides.reduce((max, cg) => Math.max(max, cg.guide.gridInfo.axis2Lines.length), 0);
+          const ringCount = Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5)));
+          const rings: { position: number }[] = [];
+          for (let i = 0; i < ringCount; i++) {
+            const r = dists[Math.floor(dists.length * (i + 1) / (ringCount + 1))] ?? 1;
+            rings.push({ position: r });
+          }
+          // Spoke count: max of guide axis2 lines and sqrt-scaled estimate
+          const spokeCount = Math.max(guideA2Count, Math.ceil(Math.sqrt(allNodes.length) * 1.5));
+          const spokes: { position: number }[] = Array.from({ length: spokeCount }, (_, i) => ({
+            position: (i / spokeCount) * Math.PI * 2,
+          }));
+          // Densify rings (spokes are already evenly distributed)
+          const denseRings: { position: number }[] = [];
+          const sortedRings = rings.sort((a, b) => a.position - b.position);
+          for (let i = 0; i < sortedRings.length; i++) {
+            denseRings.push(sortedRings[i]);
+            if (i < sortedRings.length - 1) denseRings.push({ position: (sortedRings[i].position + sortedRings[i + 1].position) / 2 });
+          }
+          const maxR = dists[dists.length - 1] ?? 1;
+          this.roadNetworkData = buildRoadNetwork({
+            system: "polar",
+            axis1Lines: denseRings,
+            axis2Lines: spokes,
+            axis1Shape: "circle", axis2Shape: "radial",
+            cx: gcx, cy: gcy,
+            bounds: { ...bounds, maxR },
+            nodes: allNodes,
+          });
+        } else {
+          // Cartesian: merge axis lines with world-space offsets (existing logic)
+          const allA1 = new Set<number>();
+          const allA2 = new Set<number>();
+          for (const cg of coordGuides) {
+            const gi = cg.guide.gridInfo;
+            for (const l of gi.axis1Lines) allA1.add(l.position + cg.centerX);
+            for (const l of gi.axis2Lines) allA2.add(l.position + cg.centerY);
+          }
+          const sortedA1 = [...allA1].sort((a, b) => a - b);
+          const sortedA2 = [...allA2].sort((a, b) => a - b);
+          this.roadNetworkData = buildRoadNetwork({
+            system: "cartesian",
+            axis1Lines: densify(sortedA1),
+            axis2Lines: densify(sortedA2),
+            axis1Shape: coordGuides[0].guide.gridInfo.axis1Shape?.kind ?? "line",
+            axis2Shape: coordGuides[0].guide.gridInfo.axis2Shape?.kind ?? "line",
+            cx: (bounds.xMin + bounds.xMax) / 2, cy: (bounds.yMin + bounds.yMax) / 2,
+            bounds,
+            nodes: allNodes,
+          });
+        }
+        this._updateRoadCache();
+        return;
       }
     }
 
@@ -2387,10 +2520,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const gcy = (bounds.yMin + bounds.yMax) / 2;
     const dists = allNodes.map(n => Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2)).sort((a, b) => a - b);
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-    const ringCount = rt.roadRingCount || Math.max(3, Math.min(8, Math.ceil(Math.sqrt(allNodes.length / 30))));
-    const spokeCount = rt.roadSpokeCount || Math.max(6, ringCount * 2);
+    // Dense fallback: scale with sqrt(nodeCount) for adequate coverage
+    const ringCount = rt.roadRingCount || Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5)));
+    const spokeCount = rt.roadSpokeCount || Math.max(16, Math.ceil(Math.sqrt(allNodes.length) * 1.5));
 
-    this.roadNetworkData = buildRoadNetwork({
+    const fallbackNetwork = buildRoadNetwork({
       system: "polar",
       axis1Lines: Array.from({ length: ringCount }, (_, i) => ({
         position: dists[Math.floor(dists.length * (i + 1) / (ringCount + 1))] ?? 1,
@@ -2403,6 +2537,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       bounds: { ...bounds, maxR: dists[dists.length - 1] ?? 1 },
       nodes: allNodes,
     });
+    this.roadNetworkData = fallbackNetwork;
+    this._updateRoadCache();
   }
 
   /** Compute axis-aligned bounding box from node positions */
@@ -2416,16 +2552,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   drawRoadNetwork() {
-    // Only (re)build when nodes exist and have settled away from the origin.
-    // During early simulation ticks all positions are 0,0 which produces a
-    // degenerate network.
-    if (this.pixiNodes.size > 0) {
+    // Build road network if not finalized and not yet built
+    if (!this._roadNetworkFinalized && !this.roadNetworkData && this.pixiNodes.size > 0) {
       let hasPosition = false;
       for (const pn of this.pixiNodes.values()) {
-        if (Math.abs(pn.data.x) > 1 || Math.abs(pn.data.y) > 1) {
-          hasPosition = true;
-          break;
-        }
+        if (Math.abs(pn.data.x) > 1 || Math.abs(pn.data.y) > 1) { hasPosition = true; break; }
       }
       if (hasPosition) this.buildRoadNetwork();
     }
@@ -2434,7 +2565,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!g) return;
     g.clear();
 
-    const network = this.roadNetworkData;
+    const network = this.getRoadNetwork();
     if (!network || network.intersections.length === 0) return;
 
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
@@ -2478,7 +2609,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Get road network for edge routing */
   getRoadNetwork(): RoadNetwork | null {
-    return this.roadNetworkData;
+    const best = _getBestRoadNetwork();
+    const inst = this.roadNetworkData;
+    if (best && inst) {
+      return (best.intersections.length >= inst.intersections.length) ? best : inst;
+    }
+    return best ?? inst;
   }
 
 
@@ -4073,7 +4209,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
       }
       // Rebuild road network now that final node positions are available
-      this.buildRoadNetwork();
+      this.buildRoadNetwork(true);
       // Force full redraw now that all positions are final
       this.updatePositions(true);
       if (this.panel.autoFit && wrap) {
