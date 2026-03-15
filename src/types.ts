@@ -1299,9 +1299,9 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 
   // Road network
   showRoadNetwork: true,
-  roadWidth: 4,
-  roadAlpha: 0.30,
-  roadIntersectionRadius: 2.5,
+  roadWidth: 8,
+  roadAlpha: 0.6,
+  roadIntersectionRadius: 4,
   roadRouteEdges: true,
 };
 

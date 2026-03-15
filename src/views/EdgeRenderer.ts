@@ -2,6 +2,8 @@ import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { GraphEdge, EdgeCardinalityMode, Cardinality, CardinalityRule, CardinalityRenderConfig } from "../types";
 import { DEFAULT_CARDINALITY_RENDER_CONFIG } from "../types";
 import { cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
+import type { RoadNetwork } from "../layouts/road-network";
+import { routeEdge } from "../layouts/road-network";
 import {
   EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_SEQUENCE,
   EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_HAS_TAG,
@@ -81,6 +83,10 @@ export interface EdgeDrawConfig {
   highlightEdgeNonMatchAlpha?: number;
   /** Show edge weight via line thickness (same source-target pair count) */
   edgeWeightThickness?: boolean;
+  /** Road network for edge routing (edges follow roads when available) */
+  roadNetwork?: RoadNetwork | null;
+  /** Enable road-based edge routing (default true when roadNetwork is available) */
+  enableRoadRouting?: boolean;
 }
 
 // Minimal position data needed for source/target
@@ -756,15 +762,35 @@ function drawEdgeSegment(
   isArcLayout: boolean,
   bundles: Map<string, BundleGroup> | null,
   bundleStrength: number,
+  roadNetwork?: RoadNetwork | null,
 ): void {
+  // Road routing: all edge types follow roads when available
+  if (roadNetwork && roadNetwork.intersections.length > 0 && !isArcLayout) {
+    const srcId = typeof e.source === "string" ? e.source : (e.source as any)?.id ?? "";
+    const tgtId = typeof e.target === "string" ? e.target : (e.target as any)?.id ?? "";
+    const waypoints = routeEdge(roadNetwork, srcId, tgtId);
+    if (waypoints.length >= 2) {
+      // Draw edge along road waypoints
+      g.moveTo(src.x, src.y);
+      // Connect source to first waypoint
+      g.lineTo(waypoints[0].x, waypoints[0].y);
+      // Follow road waypoints
+      for (let i = 1; i < waypoints.length; i++) {
+        g.lineTo(waypoints[i].x, waypoints[i].y);
+      }
+      // Connect last waypoint to target
+      g.lineTo(tgt.x, tgt.y);
+      return;
+    }
+    // Fallback if no route found: straight line
+  }
+
   const isSimilar = e.type === EDGE_TYPE_SIMILAR;
 
   if (isSimilar) {
-    // Similar edges: always straight lines
     g.moveTo(src.x, src.y);
     g.lineTo(tgt.x, tgt.y);
   } else if (bundles && !isArcLayout) {
-    // Direction x color bundling: curve edge toward group centroid
     drawBundledSegment(g, src, tgt, lineColor, bundles, bundleStrength);
   } else if (isArcLayout) {
     const mx = (src.x + tgt.x) / 2;
@@ -984,7 +1010,8 @@ export function drawEdges(
     g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
     const hasDash = applyDashPattern(g, e, lineThick);
 
-    drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength);
+    const roadNet = (cfg.enableRoadRouting !== false) ? cfg.roadNetwork : null;
+    drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength, roadNet);
     drawEdgeDecorations(g, e, src, tgt, lineColor, alpha, cfg, arrowGfx);
 
     if (hasDash) g.setLineDash([]);

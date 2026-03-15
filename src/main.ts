@@ -94,7 +94,7 @@ export default class GraphViewsPlugin extends Plugin {
     this.settings.ontology.tagRelations = detected;
     await this.saveSettings();
 
-    console.log(`Graph Island: auto-detected ${detected.length} tag relationships from vault`);
+    console.info(`Graph Island: auto-detected ${detected.length} tag relationships from vault`);
   }
 
   private ensureDetailPane() {

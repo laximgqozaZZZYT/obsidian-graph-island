@@ -326,6 +326,18 @@ export interface PanelContext {
 }
 
 // ---------------------------------------------------------------------------
+// Shared context for cluster arrangement sub-builders
+// ---------------------------------------------------------------------------
+interface ClusterSectionCtx {
+  body: HTMLElement;
+  panel: PanelState;
+  cb: PanelCallbacks;
+  ctx: PanelContext;
+  /** Slider elements that should be disabled when autoFit is ON */
+  spacingSliders: HTMLElement[];
+}
+
+// ---------------------------------------------------------------------------
 // PanelBuilder
 // ---------------------------------------------------------------------------
 /**
@@ -794,409 +806,17 @@ export function buildPanel(
 
   // Cluster arrangement
   buildSection(layoutTab, t("section.clusterArrangement"), (body) => {
-    addSelect(body, t("cluster.pattern"), [
-      { value: "concentric", label: t("cluster.concentric") },
-      { value: "radial", label: t("cluster.radial") },
-      { value: "phyllotaxis", label: t("cluster.phyllotaxis") },
-      { value: "grid", label: t("cluster.grid") },
-      { value: "triangle", label: t("cluster.triangle") },
-      { value: "random", label: t("cluster.random") },
-      { value: "timeline", label: t("cluster.timeline") },
-      { value: "custom", label: t("cluster.custom") },
-    ], panel.clusterArrangement, (v) => {
-      panel.clusterArrangement = v as ClusterArrangement;
-      // Always set coordinateLayout from preset so X/Y textareas show the
-      // actual formulas. Arrangements with expression transforms (grid,
-      // triangle, spiral) are rendered by the coordinate engine directly.
-      panel.coordinateLayout = { ...ARRANGEMENT_PRESETS[v as ClusterArrangement] };
-      cb.applyClusterForce();
-      cb.rebuildPanel();
-      cb.restartSimulation(1.0);
-    });
-
-    // Concentric orbit options
-    if (panel.clusterArrangement === ARRANGEMENT_CONCENTRIC) {
-      addToggle(body, t("concentric.showOrbitRings"), panel.showOrbitRings, (v) => {
-        panel.showOrbitRings = v;
-        cb.markDirty();
-      });
-      addToggle(body, t("concentric.autoRotate"), panel.orbitAutoRotate, (v) => {
-        panel.orbitAutoRotate = v;
-        if (v) cb.startOrbitAnimation(); else cb.stopOrbitAnimation();
-      });
-    }
-
-    // --- Coordinate Layout Controls ---
-    const coordLayout = panel.coordinateLayout
-      ?? ARRANGEMENT_PRESETS[panel.clusterArrangement];
-
-    addSelect(body, t("coord.system"), [
-      { value: "cartesian", label: t("coord.cartesian") },
-      { value: "polar", label: t("coord.polar") },
-    ], coordLayout.system, (v) => {
-      const base = panel.coordinateLayout
-        ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
-      panel.coordinateLayout = { ...base, system: v as CoordinateSystem };
-      syncArrangementFromLayout(panel);
-      cb.applyClusterForce();
-      cb.rebuildPanel();
-      cb.restartSimulation(0.5);
-    });
-
-    const axis1Label = coordLayout.system === "polar" ? "r" : "X";
-    const axis2Label = coordLayout.system === "polar" ? "θ" : "Y";
-
-    const axisSuggestions = getAxisSourceSuggestions(ctx);
-
-    buildAxisTextInput(body, `${axis1Label}:`, coordLayout.axis1, 1, panel, cb, ctx, axisSuggestions);
-    buildAxisTextInput(body, `${axis2Label}:`, coordLayout.axis2, 2, panel, cb, ctx, axisSuggestions);
-
-    // --- Coordinate function preview plot ---
-    buildCoordPreview(body, coordLayout);
-
-    // --- Expression library (preset formulas) ---
-    buildExprLibrary(body, panel, cb);
-
-    // --- Constants management ---
-    buildConstantsUI(body, panel, cb);
-
-    addToggle(body, t("coord.perGroup"), coordLayout.perGroup, (v) => {
-      const base = panel.coordinateLayout
-        ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
-      panel.coordinateLayout = { ...base, perGroup: v };
-      syncArrangementFromLayout(panel);
-      cb.applyClusterForce();
-      cb.rebuildPanel();
-      cb.restartSimulation(0.5);
-    });
-
-    if (coordLayout.system === "polar" && coordLayout.axis2.transform.kind === TRANSFORM_EVEN_DIVIDE) {
-      addSlider(body, `${axis2Label} ${t("coord.range")} (°)`, 30, 360, 10,
-        coordLayout.axis2.transform.totalRange, (v) => {
-        const base = panel.coordinateLayout
-          ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
-        panel.coordinateLayout = {
-          ...base,
-          axis2: {
-            ...base.axis2,
-            transform: { kind: "even-divide", totalRange: v },
-          },
-        };
-        syncArrangementFromLayout(panel);
-        cb.applyClusterForce();
-        cb.restartSimulation(0.5);
-      });
-    }
-
-    // Timeline-specific: time key input
-    const effectiveLayout = panel.coordinateLayout ?? ARRANGEMENT_PRESETS[panel.clusterArrangement];
-    const hasPropertyAxis = effectiveLayout.axis1.source.kind === SOURCE_PROPERTY
-      || effectiveLayout.axis2.source.kind === SOURCE_PROPERTY;
-    if (panel.clusterArrangement === ARRANGEMENT_TIMELINE || hasPropertyAxis) {
-      const row = body.createDiv({ cls: "gi-setting-row" });
-      row.createEl("span", { cls: "gi-setting-label", text: t("timeline.timeKey") });
-      const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
-      input.value = panel.timelineKey;
-      input.placeholder = "date";
-      input.setAttribute("aria-label", t("timeline.timeKeyHint"));
-      attachDatalist(input, ctx.frontmatterKeys);
-      input.addEventListener("change", () => {
-        panel.timelineKey = input.value.trim() || "date";
-        cb.applyClusterForce();
-        cb.restartSimulation(0.5);
-      });
-      body.createEl("p", { cls: "gi-hint", text: t("timeline.timeKeyHint") });
-
-      // Timeline end key input (for duration bars)
-      const endRow = body.createDiv({ cls: "gi-setting-row" });
-      endRow.createEl("span", { cls: "gi-setting-label", text: t("timeline.endKey") });
-      const endInput = endRow.createEl("input", { cls: "gi-setting-input", type: "text" });
-      endInput.value = panel.timelineEndKey;
-      endInput.placeholder = "end-date";
-      endInput.setAttribute("aria-label", t("timeline.endKeyHint"));
-      attachDatalist(endInput, ctx.frontmatterKeys);
-      endInput.addEventListener("change", () => {
-        panel.timelineEndKey = endInput.value.trim() || "end-date";
-        cb.applyClusterForce();
-        cb.restartSimulation(0.5);
-      });
-
-      // Duration bars toggle
-      addToggle(body, t("timeline.showDurationBars"), panel.showDurationBars, (v) => {
-        panel.showDurationBars = v;
-        cb.markDirty();
-      });
-
-      // Timeline route lines toggle
-      addToggle(body, t("timeline.showRoutes"), panel.showTimelineRoutes, (v) => {
-        panel.showTimelineRoutes = v;
-        cb.markDirty();
-      });
-
-      // Timeline tick labels toggle
-      addToggle(body, t("timeline.showTickLabels"), panel.showTimelineTickLabels, (v) => {
-        panel.showTimelineTickLabels = v;
-        cb.doRenderKeepPanel();
-      }, t("timeline.showTickLabelsDesc"));
-
-      // Timeline order fields
-      const orderRow = body.createDiv({ cls: "gi-setting-row" });
-      orderRow.createEl("span", { cls: "gi-setting-label", text: t("timeline.orderFields") });
-      const orderInput = orderRow.createEl("input", { cls: "gi-setting-input", type: "text" });
-      orderInput.value = panel.timelineOrderFields;
-      orderInput.placeholder = "parent_id,story_order";
-      orderInput.setAttribute("aria-label", t("timeline.orderFieldsHint"));
-      orderInput.addEventListener("change", () => {
-        panel.timelineOrderFields = orderInput.value.trim();
-        cb.applyClusterForce();
-        cb.restartSimulation(0.5);
-      });
-      body.createEl("p", { cls: "gi-hint", text: t("timeline.orderFieldsHint") });
-
-      // Timeline range dual slider
-      buildDualRangeSlider(body, t("timeline.range") || "Time range",
-        panel.timelineRangeMin, panel.timelineRangeMax,
-        (min, max) => {
-          panel.timelineRangeMin = min;
-          panel.timelineRangeMax = max;
-          cb.doRender();
-        });
-    }
-
-    // Auto-fit toggle — disables manual spacing sliders when ON
-    const spacingSliders: HTMLElement[] = [];
-    const setSliderDisabled = (disabled: boolean) => {
-      for (const el of spacingSliders) {
-        el.style.opacity = disabled ? "0.5" : "";
-        el.style.pointerEvents = disabled ? "none" : "";
-      }
-    };
-    addToggle(body, t("cluster.autoFit"), panel.autoFit, (v) => {
-      panel.autoFit = v;
-      setSliderDisabled(v);
-      cb.applyClusterForce();
-      cb.restartSimulation(0.5);
-      cb.doRenderKeepPanel();
-    }, t("desc.autoFit"));
-
-    // Guide lines toggle
-    addToggle(body, t("cluster.showGuideLines"), panel.showGuideLines, (v) => {
-      panel.showGuideLines = v;
-      cb.markDirty();
-    });
-
-    // Guide line mode (only for timeline)
-    if (panel.clusterArrangement === ARRANGEMENT_TIMELINE) {
-      addSelect(body, t("cluster.guideLineMode"), [
-        { value: "shared", label: t("cluster.guideLineMode.shared") },
-        { value: "per-group", label: t("cluster.guideLineMode.perGroup") },
-      ], panel.guideLineMode, (v) => {
-        panel.guideLineMode = v as "shared" | "per-group";
-        cb.markDirty();
-      });
-    }
-
-    // Group grid toggle
-    addToggle(body, t("cluster.showGroupGrid"), panel.showGroupGrid, (v) => {
-      panel.showGroupGrid = v;
-      cb.markDirty();
-    });
-
-    // Custom grid settings (visible when coordinate layout is active)
-    if (panel.coordinateLayout) {
-      addToggle(body, t("guide.gridTableMode"), panel.gridTableMode, (v) => {
-        panel.gridTableMode = v;
-        // Sync grid config to coordinateLayout
-        if (v && panel.coordinateLayout) {
-          panel.coordinateLayout.grid = {
-            style: panel.gridStyle,
-            cellShading: panel.gridCellShading,
-          };
-        } else if (panel.coordinateLayout) {
-          panel.coordinateLayout.grid = undefined;
-        }
-        cb.applyClusterForce();
-        cb.restartSimulation(0.3);
-        cb.rebuildPanel();
-      }, t("guide.gridTableModeDesc"));
-
-      if (panel.gridTableMode) {
-        addSelect(body, t("guide.gridStyle"), [
-          { value: "lines", label: t("guide.gridStyle.lines") },
-          { value: "table", label: t("guide.gridStyle.table") },
-        ], panel.gridStyle, (v) => {
-          panel.gridStyle = v as "lines" | "table";
-          if (panel.coordinateLayout?.grid) {
-            panel.coordinateLayout.grid.style = panel.gridStyle;
-          }
-          cb.applyClusterForce();
-          cb.restartSimulation(0.3);
-          cb.doRenderKeepPanel();
-        });
-
-        addToggle(body, t("guide.gridShowHeaders"), panel.gridShowHeaders, (v) => {
-          panel.gridShowHeaders = v;
-          cb.doRenderKeepPanel();
-        }, t("guide.gridShowHeadersDesc"));
-
-        addToggle(body, t("guide.showAxisTitles"), panel.showAxisTitles, (v) => {
-          panel.showAxisTitles = v;
-          cb.doRenderKeepPanel();
-        }, t("guide.showAxisTitlesDesc"));
-
-        addSelect(body, t("guide.labelPlacement"), [
-          { value: "on-line", label: t("guide.labelOnLine") },
-          { value: "between", label: t("guide.labelBetween") },
-        ], panel.gridLabelPlacement, (v) => {
-          panel.gridLabelPlacement = v as "on-line" | "between";
-          cb.doRenderKeepPanel();
-        });
-
-        addToggle(body, t("guide.gridCellShading"), panel.gridCellShading, (v) => {
-          panel.gridCellShading = v;
-          if (panel.coordinateLayout?.grid) {
-            panel.coordinateLayout.grid.cellShading = v;
-          }
-          cb.applyClusterForce();
-          cb.restartSimulation(0.3);
-          cb.doRenderKeepPanel();
-        }, t("guide.gridCellShadingDesc"));
-      }
-    }
-
-    let spacingDebounce: ReturnType<typeof setTimeout> | undefined;
-    const debouncedClusterForce = () => {
-      clearTimeout(spacingDebounce);
-      spacingDebounce = setTimeout(() => {
-        cb.applyClusterForce(false);
-        cb.restartSimulation(0.5);
-      }, 100);
-    };
-    spacingSliders.push(addSlider(body, t("cluster.nodeSpacing"), 1, 10, 0.5, panel.clusterNodeSpacing, (v) => {
-      panel.clusterNodeSpacing = v;
-      debouncedClusterForce();
-    }));
-    // Inter-group arrangement dropdown
-    addSelect(body, t("cluster.groupArrangement"), [
-      { value: "auto", label: t("cluster.groupArrangementAuto") },
-      { value: "circle", label: t("cluster.groupArrangementCircle") },
-      { value: "horizontal", label: t("cluster.groupArrangementHorizontal") },
-      { value: "vertical", label: t("cluster.groupArrangementVertical") },
-      { value: "concentric", label: t("cluster.groupArrangementConcentric") },
-      { value: "grid", label: t("cluster.groupArrangementGrid") },
-    ], panel.clusterGroupArrangement, (v) => {
-      panel.clusterGroupArrangement = v as ClusterGroupArrangement;
-      cb.applyClusterForce();
-      cb.restartSimulation(1.0);
-    });
-
-    spacingSliders.push(addSlider(body, t("cluster.groupSize"), 0.5, 5, 0.25, panel.clusterGroupScale, (v) => {
-      panel.clusterGroupScale = v;
-      debouncedClusterForce();
-    }));
-    spacingSliders.push(addSlider(body, t("cluster.groupSpacing"), 0.5, 5, 0.25, panel.clusterGroupSpacing, (v) => {
-      panel.clusterGroupSpacing = v;
-      debouncedClusterForce();
-    }));
-    // Apply initial disabled state
-    setSliderDisabled(panel.autoFit);
-
-    // Cluster gravity sliders (only when groupBy is active)
-    if (panel.groupBy && panel.groupBy !== "none") {
-      // Ensure clusterGravity exists (backward compat)
-      if (!panel.clusterGravity) {
-        panel.clusterGravity = { interGroupAttraction: 0.5, intraGroupDensity: 1.0 };
-      }
-      addSlider(body, t("gravity.interGroupAttraction"), 0, 2, 0.1, panel.clusterGravity.interGroupAttraction, (v) => {
-        panel.clusterGravity.interGroupAttraction = v;
-        debouncedClusterForce();
-      }, t("gravity.interGroupAttractionDesc"));
-      addSlider(body, t("gravity.intraGroupDensity"), 0.1, 3, 0.1, panel.clusterGravity.intraGroupDensity, (v) => {
-        panel.clusterGravity.intraGroupDensity = v;
-        debouncedClusterForce();
-      }, t("gravity.intraGroupDensityDesc"));
-    }
-
-    addSlider(body, t("cluster.edgeBundleStrength"), 0, 1, 0.05, panel.edgeBundleStrength, (v) => {
-      panel.edgeBundleStrength = v;
-      cb.markDirty();
-    }, t("desc.edgeBundleStrength"));
-
-    // --- Force simulation parameters ---
-    let forceDebounce: ReturnType<typeof setTimeout> | undefined;
-    const debouncedForceUpdate = () => {
-      clearTimeout(forceDebounce);
-      forceDebounce = setTimeout(() => {
-        cb.updateForces();
-        cb.restartSimulation(0.3);
-      }, 150);
-    };
-    addSlider(body, t("force.centerForce"), 0, 0.15, 0.005, panel.centerForce, (v) => {
-      panel.centerForce = v;
-      debouncedForceUpdate();
-    });
-    addSlider(body, t("force.repelForce"), 0, 500, 10, panel.repelForce, (v) => {
-      panel.repelForce = v;
-      debouncedForceUpdate();
-    });
-    addSlider(body, t("force.linkForce"), 0, 0.1, 0.005, panel.linkForce, (v) => {
-      panel.linkForce = v;
-      debouncedForceUpdate();
-    });
-    addSlider(body, t("force.linkDistance"), 10, 300, 10, panel.linkDistance, (v) => {
-      panel.linkDistance = v;
-      debouncedForceUpdate();
-    });
-
-    // --- Cluster group rules sub-section ---
-    const clusterHeader = body.createDiv({ cls: "setting-item" });
-    clusterHeader.createDiv({ cls: "setting-item-name", text: t("cluster.groupRulesHeading") });
-
-    if (panel.clusterFollowsGroupBy) {
-      // Follow mode: show info text instead of the rule editor
-      const infoEl = body.createDiv({ cls: "setting-item-description gi-follow-info" });
-      infoEl.textContent = t("cluster.usingGroupBy");
-    } else {
-      // Independent mode: show the full cluster rule editor
-      const clusterListEl = body.createDiv({ cls: "gi-multirule-list" });
-      renderClusterRuleList(clusterListEl, panel, ctx, cb);
-
-      const addClusterBtn = body.createEl("button", { cls: "gi-add-group", text: t("cluster.addGroupRule") });
-      addClusterBtn.addEventListener("click", () => {
-        panel.clusterGroupRules.push({ groupBy: "tag:?", recursive: false });
-        renderClusterRuleList(clusterListEl, panel, ctx, cb);
-        cb.applyClusterForce();
-        cb.restartSimulation(0.5);
-      });
-    }
-
-    // --- Directional gravity rules sub-section ---
-    const gravHeader = body.createDiv({ cls: "setting-item" });
-    gravHeader.createDiv({ cls: "setting-item-name", text: t("cluster.gravityRulesHeading") });
-    const gravListEl = body.createDiv({ cls: "gi-gravity-rule-list" });
-    renderDirectionalGravityList(gravListEl, panel, ctx, cb);
-
-    const addGravBtn = body.createEl("button", { cls: "gi-add-group", text: t("cluster.addGravityRule") });
-    addGravBtn.addEventListener("click", () => {
-      panel.directionalGravityRules.push({ filter: "*", direction: "top", strength: 0.1 });
-      renderDirectionalGravityList(gravListEl, panel, ctx, cb);
-      cb.applyDirectionalGravityForce();
-      cb.restartSimulation(0.3);
-    });
-
-    // --- Sort rules sub-section ---
-    const sortHeader = body.createDiv({ cls: "setting-item" });
-    sortHeader.createDiv({ cls: "setting-item-name", text: t("cluster.sortHeading") });
-    const sortListEl = body.createDiv({ cls: "gi-sort-list" });
-    renderSortRuleList(sortListEl, panel, cb);
-
-    const addSortBtn = body.createEl("button", { cls: "gi-add-group", text: t("cluster.addSortRule") });
-    addSortBtn.addEventListener("click", () => {
-      panel.sortRules.push({ key: "label", order: "asc" });
-      renderSortRuleList(sortListEl, panel, cb);
-      cb.applyClusterForce();
-      cb.doRender();
-    });
+    const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
+    _buildArrangementPatternSelect(sctx);
+    _buildConcentricOptions(sctx);
+    _buildCoordinateControls(sctx);
+    _buildTimelineControls(sctx);
+    _buildAutoFitAndGuides(sctx);
+    _buildSpacingAndGroupArrangement(sctx);
+    _buildForceParameters(sctx);
+    _buildClusterGroupRules(sctx);
+    _buildDirectionalGravityRules(sctx);
+    _buildSortRules(sctx);
   }, tHelp("help.clusterArrangement"), true, "layout-grid");
 
   // Node rules
@@ -1352,6 +972,449 @@ export function buildPanel(
         modal.querySelector(".ngp-import-label")!.textContent = t("preset.importError");
       }
     });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Cluster arrangement section helpers (extracted from buildPanel)
+// ---------------------------------------------------------------------------
+
+/** Arrangement pattern dropdown */
+function _buildArrangementPatternSelect(s: ClusterSectionCtx): void {
+  addSelect(s.body, t("cluster.pattern"), [
+    { value: "concentric", label: t("cluster.concentric") },
+    { value: "radial", label: t("cluster.radial") },
+    { value: "phyllotaxis", label: t("cluster.phyllotaxis") },
+    { value: "grid", label: t("cluster.grid") },
+    { value: "triangle", label: t("cluster.triangle") },
+    { value: "random", label: t("cluster.random") },
+    { value: "timeline", label: t("cluster.timeline") },
+    { value: "custom", label: t("cluster.custom") },
+  ], s.panel.clusterArrangement, (v) => {
+    s.panel.clusterArrangement = v as ClusterArrangement;
+    s.panel.coordinateLayout = { ...ARRANGEMENT_PRESETS[v as ClusterArrangement] };
+    s.cb.applyClusterForce();
+    s.cb.rebuildPanel();
+    s.cb.restartSimulation(1.0);
+  });
+}
+
+/** Concentric orbit toggles (only shown for concentric arrangement) */
+function _buildConcentricOptions(s: ClusterSectionCtx): void {
+  if (s.panel.clusterArrangement !== ARRANGEMENT_CONCENTRIC) return;
+  addToggle(s.body, t("concentric.showOrbitRings"), s.panel.showOrbitRings, (v) => {
+    s.panel.showOrbitRings = v;
+    s.cb.markDirty();
+  });
+  addToggle(s.body, t("concentric.autoRotate"), s.panel.orbitAutoRotate, (v) => {
+    s.panel.orbitAutoRotate = v;
+    if (v) s.cb.startOrbitAnimation(); else s.cb.stopOrbitAnimation();
+  });
+}
+
+/** Coordinate system, axis inputs, preview, expression library, constants, perGroup, polar range */
+function _buildCoordinateControls(s: ClusterSectionCtx): void {
+  const { body, panel, cb, ctx } = s;
+  const coordLayout = panel.coordinateLayout
+    ?? ARRANGEMENT_PRESETS[panel.clusterArrangement];
+
+  addSelect(body, t("coord.system"), [
+    { value: "cartesian", label: t("coord.cartesian") },
+    { value: "polar", label: t("coord.polar") },
+  ], coordLayout.system, (v) => {
+    const base = panel.coordinateLayout
+      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+    panel.coordinateLayout = { ...base, system: v as CoordinateSystem };
+    syncArrangementFromLayout(panel);
+    cb.applyClusterForce();
+    cb.rebuildPanel();
+    cb.restartSimulation(0.5);
+  });
+
+  const axis1Label = coordLayout.system === "polar" ? "r" : "X";
+  const axis2Label = coordLayout.system === "polar" ? "θ" : "Y";
+
+  const axisSuggestions = getAxisSourceSuggestions(ctx);
+
+  buildAxisTextInput(body, `${axis1Label}:`, coordLayout.axis1, 1, panel, cb, ctx, axisSuggestions);
+  buildAxisTextInput(body, `${axis2Label}:`, coordLayout.axis2, 2, panel, cb, ctx, axisSuggestions);
+
+  // Coordinate function preview plot
+  buildCoordPreview(body, coordLayout);
+
+  // Expression library (preset formulas)
+  buildExprLibrary(body, panel, cb);
+
+  // Constants management
+  buildConstantsUI(body, panel, cb);
+
+  addToggle(body, t("coord.perGroup"), coordLayout.perGroup, (v) => {
+    const base = panel.coordinateLayout
+      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+    panel.coordinateLayout = { ...base, perGroup: v };
+    syncArrangementFromLayout(panel);
+    cb.applyClusterForce();
+    cb.rebuildPanel();
+    cb.restartSimulation(0.5);
+  });
+
+  if (coordLayout.system === "polar" && coordLayout.axis2.transform.kind === TRANSFORM_EVEN_DIVIDE) {
+    addSlider(body, `${axis2Label} ${t("coord.range")} (°)`, 30, 360, 10,
+      coordLayout.axis2.transform.totalRange, (v) => {
+      const base = panel.coordinateLayout
+        ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+      panel.coordinateLayout = {
+        ...base,
+        axis2: {
+          ...base.axis2,
+          transform: { kind: "even-divide", totalRange: v },
+        },
+      };
+      syncArrangementFromLayout(panel);
+      cb.applyClusterForce();
+      cb.restartSimulation(0.5);
+    });
+  }
+}
+
+/** Timeline-specific controls: time key, end key, duration bars, routes, tick labels, order fields, range */
+function _buildTimelineControls(s: ClusterSectionCtx): void {
+  const { body, panel, cb, ctx } = s;
+  const effectiveLayout = panel.coordinateLayout ?? ARRANGEMENT_PRESETS[panel.clusterArrangement];
+  const hasPropertyAxis = effectiveLayout.axis1.source.kind === SOURCE_PROPERTY
+    || effectiveLayout.axis2.source.kind === SOURCE_PROPERTY;
+  if (panel.clusterArrangement !== ARRANGEMENT_TIMELINE && !hasPropertyAxis) return;
+
+  const row = body.createDiv({ cls: "gi-setting-row" });
+  row.createEl("span", { cls: "gi-setting-label", text: t("timeline.timeKey") });
+  const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
+  input.value = panel.timelineKey;
+  input.placeholder = "date";
+  input.setAttribute("aria-label", t("timeline.timeKeyHint"));
+  attachDatalist(input, ctx.frontmatterKeys);
+  input.addEventListener("change", () => {
+    panel.timelineKey = input.value.trim() || "date";
+    cb.applyClusterForce();
+    cb.restartSimulation(0.5);
+  });
+  body.createEl("p", { cls: "gi-hint", text: t("timeline.timeKeyHint") });
+
+  // Timeline end key input (for duration bars)
+  const endRow = body.createDiv({ cls: "gi-setting-row" });
+  endRow.createEl("span", { cls: "gi-setting-label", text: t("timeline.endKey") });
+  const endInput = endRow.createEl("input", { cls: "gi-setting-input", type: "text" });
+  endInput.value = panel.timelineEndKey;
+  endInput.placeholder = "end-date";
+  endInput.setAttribute("aria-label", t("timeline.endKeyHint"));
+  attachDatalist(endInput, ctx.frontmatterKeys);
+  endInput.addEventListener("change", () => {
+    panel.timelineEndKey = endInput.value.trim() || "end-date";
+    cb.applyClusterForce();
+    cb.restartSimulation(0.5);
+  });
+
+  // Duration bars toggle
+  addToggle(body, t("timeline.showDurationBars"), panel.showDurationBars, (v) => {
+    panel.showDurationBars = v;
+    cb.markDirty();
+  });
+
+  // Timeline route lines toggle
+  addToggle(body, t("timeline.showRoutes"), panel.showTimelineRoutes, (v) => {
+    panel.showTimelineRoutes = v;
+    cb.markDirty();
+  });
+
+  // Timeline tick labels toggle
+  addToggle(body, t("timeline.showTickLabels"), panel.showTimelineTickLabels, (v) => {
+    panel.showTimelineTickLabels = v;
+    cb.doRenderKeepPanel();
+  }, t("timeline.showTickLabelsDesc"));
+
+  // Timeline order fields
+  const orderRow = body.createDiv({ cls: "gi-setting-row" });
+  orderRow.createEl("span", { cls: "gi-setting-label", text: t("timeline.orderFields") });
+  const orderInput = orderRow.createEl("input", { cls: "gi-setting-input", type: "text" });
+  orderInput.value = panel.timelineOrderFields;
+  orderInput.placeholder = "parent_id,story_order";
+  orderInput.setAttribute("aria-label", t("timeline.orderFieldsHint"));
+  orderInput.addEventListener("change", () => {
+    panel.timelineOrderFields = orderInput.value.trim();
+    cb.applyClusterForce();
+    cb.restartSimulation(0.5);
+  });
+  body.createEl("p", { cls: "gi-hint", text: t("timeline.orderFieldsHint") });
+
+  // Timeline range dual slider
+  buildDualRangeSlider(body, t("timeline.range") || "Time range",
+    panel.timelineRangeMin, panel.timelineRangeMax,
+    (min, max) => {
+      panel.timelineRangeMin = min;
+      panel.timelineRangeMax = max;
+      cb.doRender();
+    });
+}
+
+/** Auto-fit toggle, guide lines, group grid, and custom grid settings */
+function _buildAutoFitAndGuides(s: ClusterSectionCtx): void {
+  const { body, panel, cb } = s;
+
+  // Auto-fit toggle — disables manual spacing sliders when ON
+  const setSliderDisabled = (disabled: boolean) => {
+    for (const el of s.spacingSliders) {
+      el.style.opacity = disabled ? "0.5" : "";
+      el.style.pointerEvents = disabled ? "none" : "";
+    }
+  };
+  addToggle(body, t("cluster.autoFit"), panel.autoFit, (v) => {
+    panel.autoFit = v;
+    setSliderDisabled(v);
+    cb.applyClusterForce();
+    cb.restartSimulation(0.5);
+    cb.doRenderKeepPanel();
+  }, t("desc.autoFit"));
+
+  // Guide lines toggle
+  addToggle(body, t("cluster.showGuideLines"), panel.showGuideLines, (v) => {
+    panel.showGuideLines = v;
+    cb.markDirty();
+  });
+
+  // Guide line mode (only for timeline)
+  if (panel.clusterArrangement === ARRANGEMENT_TIMELINE) {
+    addSelect(body, t("cluster.guideLineMode"), [
+      { value: "shared", label: t("cluster.guideLineMode.shared") },
+      { value: "per-group", label: t("cluster.guideLineMode.perGroup") },
+    ], panel.guideLineMode, (v) => {
+      panel.guideLineMode = v as "shared" | "per-group";
+      cb.markDirty();
+    });
+  }
+
+  // Group grid toggle
+  addToggle(body, t("cluster.showGroupGrid"), panel.showGroupGrid, (v) => {
+    panel.showGroupGrid = v;
+    cb.markDirty();
+  });
+
+  // Custom grid settings (visible when coordinate layout is active)
+  if (panel.coordinateLayout) {
+    addToggle(body, t("guide.gridTableMode"), panel.gridTableMode, (v) => {
+      panel.gridTableMode = v;
+      if (v && panel.coordinateLayout) {
+        panel.coordinateLayout.grid = {
+          style: panel.gridStyle,
+          cellShading: panel.gridCellShading,
+        };
+      } else if (panel.coordinateLayout) {
+        panel.coordinateLayout.grid = undefined;
+      }
+      cb.applyClusterForce();
+      cb.restartSimulation(0.3);
+      cb.rebuildPanel();
+    }, t("guide.gridTableModeDesc"));
+
+    if (panel.gridTableMode) {
+      addSelect(body, t("guide.gridStyle"), [
+        { value: "lines", label: t("guide.gridStyle.lines") },
+        { value: "table", label: t("guide.gridStyle.table") },
+      ], panel.gridStyle, (v) => {
+        panel.gridStyle = v as "lines" | "table";
+        if (panel.coordinateLayout?.grid) {
+          panel.coordinateLayout.grid.style = panel.gridStyle;
+        }
+        cb.applyClusterForce();
+        cb.restartSimulation(0.3);
+        cb.doRenderKeepPanel();
+      });
+
+      addToggle(body, t("guide.gridShowHeaders"), panel.gridShowHeaders, (v) => {
+        panel.gridShowHeaders = v;
+        cb.doRenderKeepPanel();
+      }, t("guide.gridShowHeadersDesc"));
+
+      addToggle(body, t("guide.showAxisTitles"), panel.showAxisTitles, (v) => {
+        panel.showAxisTitles = v;
+        cb.doRenderKeepPanel();
+      }, t("guide.showAxisTitlesDesc"));
+
+      addSelect(body, t("guide.labelPlacement"), [
+        { value: "on-line", label: t("guide.labelOnLine") },
+        { value: "between", label: t("guide.labelBetween") },
+      ], panel.gridLabelPlacement, (v) => {
+        panel.gridLabelPlacement = v as "on-line" | "between";
+        cb.doRenderKeepPanel();
+      });
+
+      addToggle(body, t("guide.gridCellShading"), panel.gridCellShading, (v) => {
+        panel.gridCellShading = v;
+        if (panel.coordinateLayout?.grid) {
+          panel.coordinateLayout.grid.cellShading = v;
+        }
+        cb.applyClusterForce();
+        cb.restartSimulation(0.3);
+        cb.doRenderKeepPanel();
+      }, t("guide.gridCellShadingDesc"));
+    }
+  }
+}
+
+/** Node spacing, group arrangement, group size/spacing, cluster gravity, edge bundle */
+function _buildSpacingAndGroupArrangement(s: ClusterSectionCtx): void {
+  const { body, panel, cb } = s;
+
+  let spacingDebounce: ReturnType<typeof setTimeout> | undefined;
+  const debouncedClusterForce = () => {
+    clearTimeout(spacingDebounce);
+    spacingDebounce = setTimeout(() => {
+      cb.applyClusterForce(false);
+      cb.restartSimulation(0.5);
+    }, 100);
+  };
+
+  s.spacingSliders.push(addSlider(body, t("cluster.nodeSpacing"), 1, 10, 0.5, panel.clusterNodeSpacing, (v) => {
+    panel.clusterNodeSpacing = v;
+    debouncedClusterForce();
+  }));
+
+  // Inter-group arrangement dropdown
+  addSelect(body, t("cluster.groupArrangement"), [
+    { value: "auto", label: t("cluster.groupArrangementAuto") },
+    { value: "circle", label: t("cluster.groupArrangementCircle") },
+    { value: "horizontal", label: t("cluster.groupArrangementHorizontal") },
+    { value: "vertical", label: t("cluster.groupArrangementVertical") },
+    { value: "concentric", label: t("cluster.groupArrangementConcentric") },
+    { value: "grid", label: t("cluster.groupArrangementGrid") },
+  ], panel.clusterGroupArrangement, (v) => {
+    panel.clusterGroupArrangement = v as ClusterGroupArrangement;
+    cb.applyClusterForce();
+    cb.restartSimulation(1.0);
+  });
+
+  s.spacingSliders.push(addSlider(body, t("cluster.groupSize"), 0.5, 5, 0.25, panel.clusterGroupScale, (v) => {
+    panel.clusterGroupScale = v;
+    debouncedClusterForce();
+  }));
+  s.spacingSliders.push(addSlider(body, t("cluster.groupSpacing"), 0.5, 5, 0.25, panel.clusterGroupSpacing, (v) => {
+    panel.clusterGroupSpacing = v;
+    debouncedClusterForce();
+  }));
+
+  // Apply initial disabled state for autoFit
+  for (const el of s.spacingSliders) {
+    el.style.opacity = panel.autoFit ? "0.5" : "";
+    el.style.pointerEvents = panel.autoFit ? "none" : "";
+  }
+
+  // Cluster gravity sliders (only when groupBy is active)
+  if (panel.groupBy && panel.groupBy !== "none") {
+    if (!panel.clusterGravity) {
+      panel.clusterGravity = { interGroupAttraction: 0.5, intraGroupDensity: 1.0 };
+    }
+    addSlider(body, t("gravity.interGroupAttraction"), 0, 2, 0.1, panel.clusterGravity.interGroupAttraction, (v) => {
+      panel.clusterGravity.interGroupAttraction = v;
+      debouncedClusterForce();
+    }, t("gravity.interGroupAttractionDesc"));
+    addSlider(body, t("gravity.intraGroupDensity"), 0.1, 3, 0.1, panel.clusterGravity.intraGroupDensity, (v) => {
+      panel.clusterGravity.intraGroupDensity = v;
+      debouncedClusterForce();
+    }, t("gravity.intraGroupDensityDesc"));
+  }
+
+  addSlider(body, t("cluster.edgeBundleStrength"), 0, 1, 0.05, panel.edgeBundleStrength, (v) => {
+    panel.edgeBundleStrength = v;
+    cb.markDirty();
+  }, t("desc.edgeBundleStrength"));
+}
+
+/** Force simulation parameter sliders (center, repel, link force, link distance) */
+function _buildForceParameters(s: ClusterSectionCtx): void {
+  const { body, panel, cb } = s;
+
+  let forceDebounce: ReturnType<typeof setTimeout> | undefined;
+  const debouncedForceUpdate = () => {
+    clearTimeout(forceDebounce);
+    forceDebounce = setTimeout(() => {
+      cb.updateForces();
+      cb.restartSimulation(0.3);
+    }, 150);
+  };
+
+  addSlider(body, t("force.centerForce"), 0, 0.15, 0.005, panel.centerForce, (v) => {
+    panel.centerForce = v;
+    debouncedForceUpdate();
+  });
+  addSlider(body, t("force.repelForce"), 0, 500, 10, panel.repelForce, (v) => {
+    panel.repelForce = v;
+    debouncedForceUpdate();
+  });
+  addSlider(body, t("force.linkForce"), 0, 0.1, 0.005, panel.linkForce, (v) => {
+    panel.linkForce = v;
+    debouncedForceUpdate();
+  });
+  addSlider(body, t("force.linkDistance"), 10, 300, 10, panel.linkDistance, (v) => {
+    panel.linkDistance = v;
+    debouncedForceUpdate();
+  });
+}
+
+/** Cluster group rules sub-section (follow-mode info or independent rule editor) */
+function _buildClusterGroupRules(s: ClusterSectionCtx): void {
+  const { body, panel, ctx, cb } = s;
+
+  const clusterHeader = body.createDiv({ cls: "setting-item" });
+  clusterHeader.createDiv({ cls: "setting-item-name", text: t("cluster.groupRulesHeading") });
+
+  if (panel.clusterFollowsGroupBy) {
+    const infoEl = body.createDiv({ cls: "setting-item-description gi-follow-info" });
+    infoEl.textContent = t("cluster.usingGroupBy");
+  } else {
+    const clusterListEl = body.createDiv({ cls: "gi-multirule-list" });
+    renderClusterRuleList(clusterListEl, panel, ctx, cb);
+
+    const addClusterBtn = body.createEl("button", { cls: "gi-add-group", text: t("cluster.addGroupRule") });
+    addClusterBtn.addEventListener("click", () => {
+      panel.clusterGroupRules.push({ groupBy: "tag:?", recursive: false });
+      renderClusterRuleList(clusterListEl, panel, ctx, cb);
+      cb.applyClusterForce();
+      cb.restartSimulation(0.5);
+    });
+  }
+}
+
+/** Directional gravity rules sub-section */
+function _buildDirectionalGravityRules(s: ClusterSectionCtx): void {
+  const { body, panel, ctx, cb } = s;
+
+  const gravHeader = body.createDiv({ cls: "setting-item" });
+  gravHeader.createDiv({ cls: "setting-item-name", text: t("cluster.gravityRulesHeading") });
+  const gravListEl = body.createDiv({ cls: "gi-gravity-rule-list" });
+  renderDirectionalGravityList(gravListEl, panel, ctx, cb);
+
+  const addGravBtn = body.createEl("button", { cls: "gi-add-group", text: t("cluster.addGravityRule") });
+  addGravBtn.addEventListener("click", () => {
+    panel.directionalGravityRules.push({ filter: "*", direction: "top", strength: 0.1 });
+    renderDirectionalGravityList(gravListEl, panel, ctx, cb);
+    cb.applyDirectionalGravityForce();
+    cb.restartSimulation(0.3);
+  });
+}
+
+/** Sort rules sub-section */
+function _buildSortRules(s: ClusterSectionCtx): void {
+  const { body, panel, cb } = s;
+
+  const sortHeader = body.createDiv({ cls: "setting-item" });
+  sortHeader.createDiv({ cls: "setting-item-name", text: t("cluster.sortHeading") });
+  const sortListEl = body.createDiv({ cls: "gi-sort-list" });
+  renderSortRuleList(sortListEl, panel, cb);
+
+  const addSortBtn = body.createEl("button", { cls: "gi-add-group", text: t("cluster.addSortRule") });
+  addSortBtn.addEventListener("click", () => {
+    panel.sortRules.push({ key: "label", order: "asc" });
+    renderSortRuleList(sortListEl, panel, cb);
+    cb.applyClusterForce();
+    cb.doRender();
   });
 }
 

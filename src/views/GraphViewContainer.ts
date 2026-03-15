@@ -400,9 +400,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const toolbar = root.createDiv({ cls: "graph-toolbar", attr: { role: "toolbar", "aria-label": "Graph controls" } });
     this.statusEl = toolbar.createEl("span", { cls: "graph-status", attr: { "aria-live": "polite" } });
 
-    // --- Zoom / Fit buttons ---
     const zoomGroup = toolbar.createDiv({ cls: "graph-toolbar-zoom" });
+    this._initZoomButtons(zoomGroup);
+    this._initActionButtons(zoomGroup);
+    this._initSettingsButtons(toolbar);
+  }
 
+  /** Create zoom in/out, fit, and marquee buttons. */
+  private _initZoomButtons(zoomGroup: HTMLElement): void {
     const fitBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(fitBtn, "maximize");
     fitBtn.setAttribute("aria-label", t("toolbar.fitAll"));
@@ -446,7 +451,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     });
     this.marqueeBtnEl = marqueeBtn;
+  }
 
+  /** Create export, clipboard, and local graph buttons. */
+  private _initActionButtons(zoomGroup: HTMLElement): void {
     const exportBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(exportBtn, "camera");
     exportBtn.setAttribute("aria-label", t("toolbar.exportPng"));
@@ -504,7 +512,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       await this.copyGraphToClipboard();
       clipboardBtn.disabled = false;
     });
+  }
 
+  /** Create fullscreen toggle and settings panel toggle buttons. */
+  private _initSettingsButtons(toolbar: HTMLElement): void {
     // Fullscreen toggle
     const fullscreenBtn = toolbar.createEl("button", { cls: "graph-toolbar-btn gi-fullscreen-btn" });
     setIcon(fullscreenBtn, "expand");
@@ -920,6 +931,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.guideLineGraphics = null;
     this.routeGraphics = null;
     this.routeData = null;
+    this.roadGraphics = null;
+    this.roadNetworkData = null;
     this.groupGridGraphics = null;
     this.groupGridLabelContainer = null;
     this.barGraphics = null;
@@ -950,110 +963,146 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (this.canvasWrap) this.canvasWrap.empty();
       this.svgEl = null;
 
-      // Read CSS background
-      let bgColor = 0x1e1e1e;
-      const style = getComputedStyle(this.canvasWrap!);
-      const bgStr = style.getPropertyValue("--graph-background").trim()
-        || style.getPropertyValue("--background-primary").trim();
-      if (bgStr) { try { bgColor = cssColorToHex(bgStr); } catch { /* keep default */ } }
-
-      const app = new CanvasApp({
-        width,
-        height,
-        backgroundColor: bgColor,
-        resolution: window.devicePixelRatio || 1,
-      });
-
-      this.canvasWrap!.appendChild(app.view);
+      const app = this._createCanvasApp(width, height);
       const canvas = app.view;
-      canvas.style.width = "100%";
-      canvas.style.height = "100%";
-
-      // Accessibility: make canvas focusable and identifiable to assistive technology
-      canvas.setAttribute("role", "img");
-      canvas.setAttribute("aria-label", t("a11y.canvasLabel") ?? "Interactive graph visualization. Use Tab to cycle nodes, +/- to zoom.");
-      canvas.setAttribute("tabindex", "0");
-
-      // aria-live region for screen reader announcements (focus, zoom changes)
-      if (!this._ariaLiveEl) {
-        this._ariaLiveEl = this.canvasWrap!.createEl("span", {
-          attr: { "aria-live": "polite", "aria-atomic": "true" },
-        });
-        this._ariaLiveEl.addClass("sr-only");
-      }
-
       this.pixiApp = app;
 
-      // World container (for zoom/pan)
-      const world = new CanvasContainer();
-      app.stage.addChild(world);
-      this.worldContainer = world;
+      const world = this._setupGraphicsLayers(app);
+      this._wireCanvasManagers(canvas, world);
 
-      // Orbit ring layer (drawn behind edges)
-      const orbitGfx = new CanvasGraphics();
-      world.addChild(orbitGfx);
-      this.orbitGraphics = orbitGfx;
+      return app;
+    } catch (err) {
+      console.error("[Graph Island] Failed to initialize Canvas 2D renderer:", err);
+      if (this.canvasWrap) {
+        this.canvasWrap.empty();
+        this.canvasWrap.createEl("div", {
+          cls: "gi-error-fallback",
+          text: t("error.pixiInitFailed"),
+        });
+      }
+      return null;
+    }
+  }
 
-      // Sunburst arc guide lines (drawn behind enclosures)
-      const sunburstGfx = new CanvasGraphics();
-      world.addChild(sunburstGfx);
-      this.sunburstGraphics = sunburstGfx;
+  /** Create the CanvasApp, attach the canvas element, and set up accessibility attributes. */
+  private _createCanvasApp(width: number, height: number): CanvasApp {
+    // Read CSS background
+    let bgColor = 0x1e1e1e;
+    const style = getComputedStyle(this.canvasWrap!);
+    const bgStr = style.getPropertyValue("--graph-background").trim()
+      || style.getPropertyValue("--background-primary").trim();
+    if (bgStr) { try { bgColor = cssColorToHex(bgStr); } catch { /* keep default */ } }
 
-      // Guide line layer (arrangement guides — timeline axis, spiral curve, grid lines, etc.)
-      const guideGfx = new CanvasGraphics();
-      world.addChild(guideGfx);
-      this.guideLineGraphics = guideGfx;
+    const app = new CanvasApp({
+      width,
+      height,
+      backgroundColor: bgColor,
+      resolution: window.devicePixelRatio || 1,
+    });
 
-      // Route line layer (transit map style — per-group colored paths)
-      const routeGfx = new CanvasGraphics();
-      world.addChild(routeGfx);
-      this.routeGraphics = routeGfx;
+    this.canvasWrap!.appendChild(app.view);
+    const canvas = app.view;
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
 
-      // Group grid overlay (bounding circle + cross-hair per cluster group)
-      const groupGridGfx = new CanvasGraphics();
-      world.addChild(groupGridGfx);
-      this.groupGridGraphics = groupGridGfx;
+    // Accessibility: make canvas focusable and identifiable to assistive technology
+    canvas.setAttribute("role", "img");
+    canvas.setAttribute("aria-label", t("a11y.canvasLabel") ?? "Interactive graph visualization. Use Tab to cycle nodes, +/- to zoom.");
+    canvas.setAttribute("tabindex", "0");
 
-      // Enclosure layer (tag enclosures, drawn behind edges)
-      const enclosureGfx = new CanvasGraphics();
-      world.addChild(enclosureGfx);
-      this.enclosureGraphics = enclosureGfx;
+    // aria-live region for screen reader announcements (focus, zoom changes)
+    if (!this._ariaLiveEl) {
+      this._ariaLiveEl = this.canvasWrap!.createEl("span", {
+        attr: { "aria-live": "polite", "aria-atomic": "true" },
+      });
+      this._ariaLiveEl.addClass("sr-only");
+    }
 
-      // Edge layer (single Graphics object — batch drawn)
-      const edgeGfx = new CanvasGraphics();
-      world.addChild(edgeGfx);
-      this.edgeGraphics = edgeGfx;
+    return app;
+  }
 
-      // Edge label layer (CanvasText objects — on top of edges, below nodes)
-      const edgeLabelCont = new CanvasContainer();
-      world.addChild(edgeLabelCont);
-      this.edgeLabelContainer = edgeLabelCont;
+  /** Create the world container and all graphics layers in correct z-order. */
+  private _setupGraphicsLayers(app: CanvasApp): CanvasContainer {
+    // World container (for zoom/pan)
+    const world = new CanvasContainer();
+    app.stage.addChild(world);
+    this.worldContainer = world;
 
-      // Timeline duration bar layer (drawn behind node circles)
-      const barGfx = new CanvasGraphics();
-      world.addChild(barGfx);
-      this.barGraphics = barGfx;
+    // Orbit ring layer (drawn behind edges)
+    const orbitGfx = new CanvasGraphics();
+    world.addChild(orbitGfx);
+    this.orbitGraphics = orbitGfx;
 
-      // Batch node circle layer — draws all non-highlighted circles in one draw call
-      const batchGfx = new CanvasGraphics();
-      world.addChild(batchGfx);
-      this.nodeCircleBatch = batchGfx;
+    // Sunburst arc guide lines (drawn behind enclosures)
+    const sunburstGfx = new CanvasGraphics();
+    world.addChild(sunburstGfx);
+    this.sunburstGraphics = sunburstGfx;
 
-      // Arrow layer — drawn ON TOP of nodes so directional arrows are visible
-      const arrowGfx = new CanvasGraphics();
-      world.addChild(arrowGfx);
-      this.arrowGraphics = arrowGfx;
+    // Guide line layer (arrangement guides — timeline axis, spiral curve, grid lines, etc.)
+    const guideGfx = new CanvasGraphics();
+    world.addChild(guideGfx);
+    this.guideLineGraphics = guideGfx;
 
-      // Bar label container — ON TOP of nodes/arrows so bar text is always readable
-      const barLabelCont = new CanvasContainer();
-      world.addChild(barLabelCont);
-      this.barLabelContainer = barLabelCont;
+    // Route line layer (transit map style — per-group colored paths)
+    const routeGfx = new CanvasGraphics();
+    world.addChild(routeGfx);
+    this.routeGraphics = routeGfx;
 
-      // Enclosure label container — on top of nodes so labels are visible & hoverable
-      const labelContainer = new CanvasContainer();
-      world.addChild(labelContainer);
-      this.enclosureLabelContainer = labelContainer;
+    // Road network layer (auto-generated roads from coordinate grid)
+    const roadGfx = new CanvasGraphics();
+    world.addChild(roadGfx);
+    this.roadGraphics = roadGfx;
 
+    // Group grid overlay (bounding circle + cross-hair per cluster group)
+    const groupGridGfx = new CanvasGraphics();
+    world.addChild(groupGridGfx);
+    this.groupGridGraphics = groupGridGfx;
+
+    // Enclosure layer (tag enclosures, drawn behind edges)
+    const enclosureGfx = new CanvasGraphics();
+    world.addChild(enclosureGfx);
+    this.enclosureGraphics = enclosureGfx;
+
+    // Edge layer (single Graphics object — batch drawn)
+    const edgeGfx = new CanvasGraphics();
+    world.addChild(edgeGfx);
+    this.edgeGraphics = edgeGfx;
+
+    // Edge label layer (CanvasText objects — on top of edges, below nodes)
+    const edgeLabelCont = new CanvasContainer();
+    world.addChild(edgeLabelCont);
+    this.edgeLabelContainer = edgeLabelCont;
+
+    // Timeline duration bar layer (drawn behind node circles)
+    const barGfx = new CanvasGraphics();
+    world.addChild(barGfx);
+    this.barGraphics = barGfx;
+
+    // Batch node circle layer — draws all non-highlighted circles in one draw call
+    const batchGfx = new CanvasGraphics();
+    world.addChild(batchGfx);
+    this.nodeCircleBatch = batchGfx;
+
+    // Arrow layer — drawn ON TOP of nodes so directional arrows are visible
+    const arrowGfx = new CanvasGraphics();
+    world.addChild(arrowGfx);
+    this.arrowGraphics = arrowGfx;
+
+    // Bar label container — ON TOP of nodes/arrows so bar text is always readable
+    const barLabelCont = new CanvasContainer();
+    world.addChild(barLabelCont);
+    this.barLabelContainer = barLabelCont;
+
+    // Enclosure label container — on top of nodes so labels are visible & hoverable
+    const labelContainer = new CanvasContainer();
+    world.addChild(labelContainer);
+    this.enclosureLabelContainer = labelContainer;
+
+    return world;
+  }
+
+  /** Wire up InteractionManager, RenderPipeline, and Minimap to the canvas. */
+  private _wireCanvasManagers(canvas: HTMLCanvasElement, world: CanvasContainer): void {
     // Set up interaction handling (pointer events, drag, pan, hover, marquee)
     this.interactionManager?.detach();
     this.interactionManager = new InteractionManager(this, canvas, world);
@@ -1099,19 +1148,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.minimap.draw();
       }
     };
-
-      return app;
-    } catch (err) {
-      console.error("[Graph Island] Failed to initialize Canvas 2D renderer:", err);
-      if (this.canvasWrap) {
-        this.canvasWrap.empty();
-        this.canvasWrap.createEl("div", {
-          cls: "gi-error-fallback",
-          text: t("error.pixiInitFailed"),
-        });
-      }
-      return null;
-    }
   }
 
   // =========================================================================
@@ -1194,7 +1230,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   setClusterMeta(meta: ClusterMetadata | null) {
     this.clusterMeta = meta;
     this.routeData = meta?.timelineRoutes ?? null;
-    this.buildRoadNetwork();
+    // Road network is rebuilt in the simulation "end" handler when node positions are final
     // Merge/remove synthetic sequence edges from graphEdges
     // First remove any existing synthetic sequence edges
     this.graphEdges = this.graphEdges.filter(e => !e.id.startsWith("__seq__"));
@@ -2416,16 +2452,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   drawRoadNetwork() {
-    let g = this.roadGraphics;
-    if (!g) {
-      g = new CanvasGraphics();
-      // Insert road layer into world container
-      const world = this.worldContainer;
-      if (world) {
-        world.addChild(g);
-      }
-      this.roadGraphics = g;
-    }
+    if (this.pixiNodes.size > 0) this.buildRoadNetwork();
+    const g = this.roadGraphics;
+    if (!g) return;
     g.clear();
 
     const network = this.roadNetworkData;
@@ -2435,7 +2464,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!(rt.showRoadNetwork ?? true)) return;
 
     const isDark = this.isDarkTheme();
-    const roadColor = rt.roadColor ?? (isDark ? 0x6666aa : 0x9999cc);
+    const roadColor = rt.roadColor ?? (isDark ? 0x8888dd : 0x6666aa);
     const worldScale = this.worldContainer?.scale.x ?? 1;
     // Road width scales inversely with zoom so roads remain visible when zoomed out
     const baseRoadWidth = rt.roadWidth ?? 4;
@@ -3953,33 +3982,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Cancel any in-progress layout transition
     this.layoutTransition.cancel();
 
-    // Save current node positions for animated transition
-    this.savedPositions.clear();
-    // Also track super node → member mapping so expanded members get
-    // positioned near their former super node instead of randomly
-    const superNodeMembers = new Map<string, string[]>();
-    for (const [id, pn] of this.pixiNodes) {
-      this.savedPositions.set(id, { x: pn.data.x, y: pn.data.y });
-      if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
-        superNodeMembers.set(id, pn.data.collapsedMembers);
-      }
-    }
-    // Pre-populate savedPositions for members of super nodes: position them
-    // in a circle around the super node's location so they don't scatter randomly
-    for (const [superId, memberIds] of superNodeMembers) {
-      const superPos = this.savedPositions.get(superId);
-      if (!superPos) continue;
-      const count = memberIds.length;
-      const spreadR = Math.sqrt(count) * 20;
-      for (let i = 0; i < count; i++) {
-        if (this.savedPositions.has(memberIds[i])) continue;
-        const angle = (2 * Math.PI * i) / count;
-        this.savedPositions.set(memberIds[i], {
-          x: superPos.x + Math.cos(angle) * spreadR,
-          y: superPos.y + Math.sin(angle) * spreadR,
-        });
-      }
-    }
+    this._savePositionsForTransition();
 
     this.stopSim();
     this.stopOrbitAnimation();
@@ -4014,13 +4017,70 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!pixiResult) return;
     if (signal.aborted) { this.destroyPixi(); return; }
 
+    this._buildGraphMetadata(gd);
+    this._buildTagMembership(gd);
+
+    const nodeR = this._buildNodeRadiusFn();
+    const nodeColor = this._buildNodeColorFn(gd);
+
+    // ==== Force layout ====
+    if (this.currentLayout === LAYOUT_FORCE) {
+      this._setupForceLayout(gd, nodeR, nodeColor, cx, cy, W, H);
+      return;
+    }
+
+    // ==== Static layouts ====
+    this.setStatus("Computing layout...");
+    await yieldFrame(); if (signal.aborted) return;
+
+    const ld = this._computeStaticLayout(gd, cx, cy, W, H);
+    if (!ld) return;
+    if (signal.aborted) return;
+
+    await this._finalizeStaticLayout(ld, nodeR, nodeColor, W, H, signal);
+  }
+
+  /** Save current node positions for animated transition, including super node member spreading. */
+  private _savePositionsForTransition(): void {
+    this.savedPositions.clear();
+    // Also track super node -> member mapping so expanded members get
+    // positioned near their former super node instead of randomly
+    const superNodeMembers = new Map<string, string[]>();
+    for (const [id, pn] of this.pixiNodes) {
+      this.savedPositions.set(id, { x: pn.data.x, y: pn.data.y });
+      if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
+        superNodeMembers.set(id, pn.data.collapsedMembers);
+      }
+    }
+    // Pre-populate savedPositions for members of super nodes: position them
+    // in a circle around the super node's location so they don't scatter randomly
+    for (const [superId, memberIds] of superNodeMembers) {
+      const superPos = this.savedPositions.get(superId);
+      if (!superPos) continue;
+      const count = memberIds.length;
+      const spreadR = Math.sqrt(count) * 20;
+      for (let i = 0; i < count; i++) {
+        if (this.savedPositions.has(memberIds[i])) continue;
+        const angle = (2 * Math.PI * i) / count;
+        this.savedPositions.set(memberIds[i], {
+          x: superPos.x + Math.cos(angle) * spreadR,
+          y: superPos.y + Math.sin(angle) * spreadR,
+        });
+      }
+    }
+  }
+
+  /** Compute degrees, colors, relation colors, and adjacency from graph data. */
+  private _buildGraphMetadata(gd: GraphData): void {
     this.degrees = computeNodeDegrees(gd.nodes, gd.edges);
     const colorMap = assignNodeColors(gd.nodes, this.plugin.settings.colorField);
     this.nodeColorMap = colorMap;
     this.relationColors = buildRelationColorMap(gd.edges);
     this.adj = buildAdj(gd);
+  }
 
-    // Build tag membership for enclosure mode
+  /** Build tag membership map for enclosure mode and clear stale enclosure labels. */
+  private _buildTagMembership(gd: GraphData): void {
     this.tagMembership.clear();
     this.tagRelPairsCache.clear();
     this.overlapCache.counts.clear();
@@ -4065,10 +4125,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       lbl.destroy();
     }
     this.enclosureLabels.clear();
-    const baseSize = this.panel.nodeSize;
+  }
 
+  /** Build the node radius function based on current panel settings. */
+  private _buildNodeRadiusFn(): (n: GraphNode) => number {
+    const baseSize = this.panel.nodeSize;
     const degs = this.degrees;
-    const nodeR = (n: GraphNode) => nodeRadius(baseSize, degs.get(n.id) || 0);
+    return (n: GraphNode) => nodeRadius(baseSize, degs.get(n.id) || 0);
+  }
+
+  /** Build the node color function considering groups, heatmap, and category coloring. */
+  private _buildNodeColorFn(gd: GraphData): (n: GraphNode) => number {
+    const colorMap = this.nodeColorMap;
     const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
 
     // Heatmap: precompute max degree for normalization
@@ -4079,16 +4147,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (d > maxDegree) maxDegree = d;
       }
     }
-    // Heatmap color ramp: cold (blue 0x3b82f6) → warm (red 0xef4444)
+    // Heatmap color ramp: cold (blue 0x3b82f6) -> warm (red 0xef4444)
     const heatmapColor = (degree: number): number => {
       const t = Math.min(1, degree / maxDegree);
-      const r = Math.round(59 + t * (239 - 59));   // 0x3b → 0xef
-      const g = Math.round(130 - t * (130 - 68));   // 0x82 → 0x44
-      const b = Math.round(246 - t * (246 - 68));   // 0xf6 → 0x44
+      const r = Math.round(59 + t * (239 - 59));   // 0x3b -> 0xef
+      const g = Math.round(130 - t * (130 - 68));   // 0x82 -> 0x44
+      const b = Math.round(246 - t * (246 - 68));   // 0xf6 -> 0x44
       return (r << 16) | (g << 8) | b;
     };
 
-    const nodeColor = (n: GraphNode): number => {
+    return (n: GraphNode): number => {
       // Manual group overrides take priority
       for (const grp of this.panel.groups) {
         if (grp.expression && evaluateExpr(grp.expression, n)) return cssColorToHex(grp.color);
@@ -4111,90 +4179,97 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       return defaultNodeColor;
     };
+  }
 
-    // ==== Force layout ====
-    if (this.currentLayout === LAYOUT_FORCE) {
-      for (const n of gd.nodes) {
-        // Use saved positions from previous layout as starting positions
-        const saved = this.savedPositions.get(n.id);
-        if (saved) {
-          n.x = saved.x;
-          n.y = saved.y;
-        } else if (n.x === 0 && n.y === 0) {
-          n.x = cx + (Math.random() - 0.5) * W * 0.8;
-          n.y = cy + (Math.random() - 0.5) * H * 0.8;
-        }
+  /** Set up force-directed layout: create simulation, apply forces, and wire tick/end events. */
+  private _setupForceLayout(
+    gd: GraphData,
+    nodeR: (n: GraphNode) => number,
+    nodeColor: (n: GraphNode) => number,
+    cx: number, cy: number, W: number, H: number,
+  ): void {
+    for (const n of gd.nodes) {
+      // Use saved positions from previous layout as starting positions
+      const saved = this.savedPositions.get(n.id);
+      if (saved) {
+        n.x = saved.x;
+        n.y = saved.y;
+      } else if (n.x === 0 && n.y === 0) {
+        n.x = cx + (Math.random() - 0.5) * W * 0.8;
+        n.y = cy + (Math.random() - 0.5) * H * 0.8;
       }
-      this.savedPositions.clear();
+    }
+    this.savedPositions.clear();
 
-      this.graphEdges = gd.edges;
-      invalidateBundleCache();
-      this.createPixiNodes(gd.nodes, nodeR, nodeColor);
-      this.computeSortRanks();
+    this.graphEdges = gd.edges;
+    invalidateBundleCache();
+    this.createPixiNodes(gd.nodes, nodeR, nodeColor);
+    this.computeSortRanks();
 
-      let tickCount = 0;
-      this.simulation = this.layoutController.createForceSimulation(gd.nodes, gd.edges, cx, cy);
+    let tickCount = 0;
+    this.simulation = this.layoutController.createForceSimulation(gd.nodes, gd.edges, cx, cy);
 
-      // Apply directional gravity rules from settings + panel + node rules
-      this.applyNodeRulesForce();
+    // Apply directional gravity rules from settings + panel + node rules
+    this.applyNodeRulesForce();
 
-      // Apply enclosure repulsion force (push tag groups apart)
-      this.applyEnclosureRepulsionForce();
+    // Apply enclosure repulsion force (push tag groups apart)
+    this.applyEnclosureRepulsionForce();
 
-      // Apply cluster arrangement force if configured
-      this.applyClusterForce();
+    // Apply cluster arrangement force if configured
+    this.applyClusterForce();
 
-      // Hide world until 6-step pipeline completes (simulation end).
-      // This prevents partial/in-progress layout from being displayed.
-      if (this.worldContainer) this.worldContainer.visible = false;
+    // Hide world until 6-step pipeline completes (simulation end).
+    // This prevents partial/in-progress layout from being displayed.
+    if (this.worldContainer) this.worldContainer.visible = false;
 
-      this.simulation.on("tick", () => {
-          // Do NOT call markDirty() during simulation — rendering is deferred
-          // until all 6 steps are complete (simulation "end" event).
-          tickCount++;
-        });
-
-      this.setStatus(`${gd.nodes.length} nodes — simulating...`);
-      this.simulation.on("end", () => {
-        // 6-step pipeline complete — reveal world and render final positions
-        if (this.worldContainer) this.worldContainer.visible = true;
-        this.setStatus(`${gd.nodes.length} nodes`);
-        const wrap = this.canvasWrap;
-        // Ensure minimum viewport utilization regardless of autoFit
-        {
-          let evW = wrap?.clientWidth ?? 0;
-          let evH = wrap?.clientHeight ?? 0;
-          // Fallback to renderer size if DOM element has zero dimensions
-          if (evW <= 0 || evH <= 0) {
-            const renderer = this.pixiApp?.renderer;
-            evW = renderer?.width ?? 800;
-            evH = renderer?.height ?? 600;
-          }
-          if (evW > 0 && evH > 0) {
-            this.ensureViewportUtilization(evW, evH);
-          }
-        }
-        // Force full redraw now that all positions are final
-        this.updatePositions(true);
-        if (this.panel.autoFit && wrap) {
-          this.autoFitView(wrap.clientWidth, wrap.clientHeight);
-        }
-        this.markDirty(true);
-        // Re-cull labels after simulation settles to fix overlap
-        // caused by node positions changing during simulation
-        this.updateLabelsForZoom();
+    this.simulation.on("tick", () => {
+        // Do NOT call markDirty() during simulation — rendering is deferred
+        // until all 6 steps are complete (simulation "end" event).
+        tickCount++;
       });
 
-      this.updateLegend();
-      this.startRenderLoop();
-      if (this.skipPanelRebuildCount === 0) this.buildPanel();
-      return;
-    }
+    this.setStatus(`${gd.nodes.length} nodes — simulating...`);
+    this.simulation.on("end", () => {
+      // 6-step pipeline complete — reveal world and render final positions
+      if (this.worldContainer) this.worldContainer.visible = true;
+      this.setStatus(`${gd.nodes.length} nodes`);
+      const wrap = this.canvasWrap;
+      // Ensure minimum viewport utilization regardless of autoFit
+      {
+        let evW = wrap?.clientWidth ?? 0;
+        let evH = wrap?.clientHeight ?? 0;
+        // Fallback to renderer size if DOM element has zero dimensions
+        if (evW <= 0 || evH <= 0) {
+          const renderer = this.pixiApp?.renderer;
+          evW = renderer?.width ?? 800;
+          evH = renderer?.height ?? 600;
+        }
+        if (evW > 0 && evH > 0) {
+          this.ensureViewportUtilization(evW, evH);
+        }
+      }
+      // Rebuild road network now that final node positions are available
+      this.buildRoadNetwork();
+      // Force full redraw now that all positions are final
+      this.updatePositions(true);
+      if (this.panel.autoFit && wrap) {
+        this.autoFitView(wrap.clientWidth, wrap.clientHeight);
+      }
+      this.markDirty(true);
+      // Re-cull labels after simulation settles to fix overlap
+      // caused by node positions changing during simulation
+      this.updateLabelsForZoom();
+    });
 
-    // ==== Static layouts ====
-    this.setStatus("Computing layout...");
-    await yieldFrame(); if (signal.aborted) return;
+    this.updateLegend();
+    this.startRenderLoop();
+    if (this.skipPanelRebuildCount === 0) this.buildPanel();
+  }
 
+  /** Compute a static layout (concentric, tree, arc, sunburst, timeline) and return the result. */
+  private _computeStaticLayout(
+    gd: GraphData, cx: number, cy: number, W: number, H: number,
+  ): GraphData | null {
     let ld: GraphData;
     this.shells = [];
     this.nodeShellIndex.clear();
@@ -4260,10 +4335,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     } catch (err) {
       console.error("[Graph Island] Layout computation failed:", err);
       this.setStatus(t("error.layoutFailed"));
-      return;
+      return null;
     }
-    if (signal.aborted) return;
+    return ld;
+  }
 
+  /** Create nodes, build transition animation, and finalize the static layout render. */
+  private async _finalizeStaticLayout(
+    ld: GraphData,
+    nodeR: (n: GraphNode) => number,
+    nodeColor: (n: GraphNode) => number,
+    W: number, H: number,
+    signal: AbortSignal,
+  ): Promise<void> {
     this.graphEdges = ld.edges;
     invalidateBundleCache();
     this.setStatus(`Creating ${ld.nodes.length} nodes...`);
@@ -4307,6 +4391,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.setStatus(`Drawing ${ld.edges.length} edges...`);
     await yieldFrame(); if (signal.aborted) return;
 
+    this._postRenderUpdate(ld);
+  }
+
+  /** Update status, legend, search, and panel after static layout render completes. */
+  private _postRenderUpdate(ld: GraphData): void {
     const groupCount = this.nodeColorMap.size;
     const totalNodes = this.rawData?.nodes.length ?? ld.nodes.length;
     const totalEdges = this.rawData?.edges.length ?? ld.edges.length;
@@ -4654,62 +4743,80 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const degrees = this.degrees;
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
 
-    // =====================================================================
-    // Priority-Grid LOD: Google Maps-style label visibility
-    // =====================================================================
+    // Step 1: Compute priority scores and minShowZoom (once per rebuild)
+    this._computeLabelPriorityScores(rt);
 
-    // --- Step 1: Compute priority scores and minShowZoom (once per rebuild) ---
-    // Priority scores are cached on PixiNode; recompute only when needed.
-    const pixiArr = [...this.pixiNodes.values()];
-    // Recompute when scores are uninitialized. Use -1 sentinel instead of 0
-    // to avoid false positives for nodes with genuinely zero degree.
-    const needsScoreRecompute = pixiArr.length > 0 && pixiArr[0].priorityScore <= 0;
-    if (needsScoreRecompute) {
-      let maxDeg = 0;
-      for (const d of degrees.values()) { if (d > maxDeg) maxDeg = d; }
-      // Assign priority scores
-      for (const pn of pixiArr) {
-        const deg = degrees.get(pn.data.id) ?? 0;
-        const degPct = maxDeg > 0 ? deg / maxDeg : 0;
-        const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
-        // Priority: super=150+degPct*50, regular=degPct*100
-        pn.priorityScore = isSuper ? 150 + degPct * 50 : degPct * 100;
-      }
-      // Sort by priority and assign minShowZoom based on rank
-      const sorted = [...pixiArr].filter(p => p.label).sort((a, b) => b.priorityScore - a.priorityScore);
-      const n = sorted.length;
-      // LOD tiers — all boundaries from RenderThresholds (no hardcoded values)
-      const lodZoom1 = rt.labelZoomTier1;   // default 0.15
-      const lodZoom2 = rt.labelZoomTier2;   // default 0.35
-      const lodZoom3 = rt.labelZoomTier3;   // default 0.70
-      const lodPct1 = rt.labelDegreePctTier1; // default 0.10 (top 10%)
-      const lodPct2 = rt.labelDegreePctTier2; // default 0.30 (top 30%)
-      const lodPct3 = rt.labelDegreePctTier3; // default 0.50 (top 50%)
-      // Interpolation: rank percentile → minShowZoom
-      // top lodPct1 → lodZoom1, top lodPct2 → lodZoom2, top lodPct3 → lodZoom3, rest → nodeLabelZoomMin
-      const lodZoomFloor = rt.nodeLabelZoomMin ?? 0.9;
-      for (let i = 0; i < n; i++) {
-        const pct = i / n; // 0 = highest priority, 1 = lowest
-        let minZ: number;
-        if (pct < lodPct1 * 0.1) minZ = lodZoom1 * 0.2; // top ~1%: near-always visible
-        else if (pct < lodPct1)  minZ = lodZoom1;         // top tier1%
-        else if (pct < lodPct2)  minZ = lodZoom2;         // top tier2%
-        else if (pct < lodPct3)  minZ = lodZoom3;         // top tier3%
-        else                     minZ = lodZoomFloor;     // rest
-        sorted[i].minShowZoom = minZ;
-      }
-    }
-
-    // --- Step 2: Counter-scaling with minimum screen-size guarantee ---
+    // Step 2: Counter-scaling with minimum screen-size guarantee
     const LABEL_FONT = rt.nodeLabelFontSizeMin;
     const rawScale = 1 / Math.pow(zoom, rt.labelScalePower);
     const floorScale = rt.labelMinScreenPx / (LABEL_FONT * zoom);
     const counterScale = Math.min(rt.labelScaleMax, Math.max(rt.labelScaleMin, rawScale, floorScale));
 
-    const hoverSet = this.prevHighlightSet;
-    const maxVisible = rt.labelMaxVisible ?? 0;
+    // Step 3-4: Per-node LOD evaluation (truncation, placement, hysteresis)
+    const candidates = this._evaluateNodeLabelLOD(zoom, counterScale, rt, degrees, baseOpacity);
 
-    // --- Step 3: Zoom-aware label truncation ---
+    // Step 5: Diversity guarantee and maxVisible cap
+    this._applyLabelDiversityAndCap(candidates, rt, degrees, baseOpacity);
+
+    // Step 6: Group/sunburst/grid label scaling
+    this._scaleGroupLabels(zoom, rt);
+
+    this.markDirty();
+  }
+
+  /** Compute priority scores and minShowZoom for all PixiNodes (cached, recomputed only when needed). */
+  private _computeLabelPriorityScores(rt: Record<string, any>): void {
+    const degrees = this.degrees;
+    const pixiArr = [...this.pixiNodes.values()];
+    // Recompute when scores are uninitialized. Use -1 sentinel instead of 0
+    // to avoid false positives for nodes with genuinely zero degree.
+    const needsScoreRecompute = pixiArr.length > 0 && pixiArr[0].priorityScore <= 0;
+    if (!needsScoreRecompute) return;
+
+    let maxDeg = 0;
+    for (const d of degrees.values()) { if (d > maxDeg) maxDeg = d; }
+    // Assign priority scores
+    for (const pn of pixiArr) {
+      const deg = degrees.get(pn.data.id) ?? 0;
+      const degPct = maxDeg > 0 ? deg / maxDeg : 0;
+      const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
+      // Priority: super=150+degPct*50, regular=degPct*100
+      pn.priorityScore = isSuper ? 150 + degPct * 50 : degPct * 100;
+    }
+    // Sort by priority and assign minShowZoom based on rank
+    const sorted = [...pixiArr].filter(p => p.label).sort((a, b) => b.priorityScore - a.priorityScore);
+    const n = sorted.length;
+    // LOD tiers — all boundaries from RenderThresholds (no hardcoded values)
+    const lodZoom1 = rt.labelZoomTier1;   // default 0.15
+    const lodZoom2 = rt.labelZoomTier2;   // default 0.35
+    const lodZoom3 = rt.labelZoomTier3;   // default 0.70
+    const lodPct1 = rt.labelDegreePctTier1; // default 0.10 (top 10%)
+    const lodPct2 = rt.labelDegreePctTier2; // default 0.30 (top 30%)
+    const lodPct3 = rt.labelDegreePctTier3; // default 0.50 (top 50%)
+    // Interpolation: rank percentile -> minShowZoom
+    const lodZoomFloor = rt.nodeLabelZoomMin ?? 0.9;
+    for (let i = 0; i < n; i++) {
+      const pct = i / n; // 0 = highest priority, 1 = lowest
+      let minZ: number;
+      if (pct < lodPct1 * 0.1) minZ = lodZoom1 * 0.2; // top ~1%: near-always visible
+      else if (pct < lodPct1)  minZ = lodZoom1;         // top tier1%
+      else if (pct < lodPct2)  minZ = lodZoom2;         // top tier2%
+      else if (pct < lodPct3)  minZ = lodZoom3;         // top tier3%
+      else                     minZ = lodZoomFloor;     // rest
+      sorted[i].minShowZoom = minZ;
+    }
+  }
+
+  /** Evaluate per-node label visibility: apply counter-scaling, truncation, placement, and LOD hysteresis.
+   *  Returns the list of eligible label candidates. */
+  private _evaluateNodeLabelLOD(
+    zoom: number, counterScale: number,
+    rt: Record<string, any>, degrees: Map<string, number>,
+    baseOpacity: number,
+  ): { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[] {
+    const hoverSet = this.prevHighlightSet;
+
+    // Zoom-aware label truncation
     const truncateZoom = rt.labelTruncateZoom ?? 0.1;
     const truncateMaxChars = rt.labelTruncateMaxChars ?? 8;
     const truncateMinChars = rt.labelTruncateMinChars ?? 3;
@@ -4721,12 +4828,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Tag label LOD threshold
     const tagLabelZoomMin = rt.tagLabelZoomMin ?? 1.2;
 
-    // --- Step 4: Apply LOD with hysteresis ---
     // Hysteresis: once visible, keep visible until zoom drops 30% below threshold
     const hysteresisHideFactor = rt.labelHysteresisHideFactor ?? 0.7;
 
-    interface LabelCandidate { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean; }
-    const candidates: LabelCandidate[] = [];
+    const candidates: { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[] = [];
 
     for (const pn of this.pixiNodes.values()) {
       // --- Tag label LOD ---
@@ -4741,35 +4846,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       pn.label.scale.set(counterScale);
 
       // Smart truncation: preserve the distinguishing part of the label
-      if (shouldTruncate && pn.label.text) {
-        const fullText = pn.data.label || pn.data.id;
-        if (fullText.length > effectiveMaxChars) {
-          const slashIdx = fullText.lastIndexOf('/');
-          const dashIdx = fullText.indexOf('-');
-          if (slashIdx > 0 && slashIdx < fullText.length - 1) {
-            // Path label ("classic-othello/characters (15)")
-            // → show distinguishing parent + child hint ("othello/cha")
-            const parent = fullText.slice(0, slashIdx);
-            const distinctStart = dashIdx > 0 && dashIdx < slashIdx ? dashIdx + 1 : 0;
-            const parentDistinct = parent.slice(distinctStart, distinctStart + Math.max(3, effectiveMaxChars - 2));
-            const child = fullText.slice(slashIdx + 1);
-            const childHint = child.length > 3 ? child.slice(0, 3) : child;
-            pn.label.text = parentDistinct + '/' + childHint;
-          } else if (dashIdx > 0 && dashIdx < effectiveMaxChars) {
-            // Hyphenated: preserve after first dash
-            const afterDash = fullText.slice(dashIdx + 1);
-            pn.label.text = afterDash.length > effectiveMaxChars
-              ? afterDash.slice(0, effectiveMaxChars - 1) + '…'
-              : afterDash;
-          } else {
-            pn.label.text = fullText.slice(0, effectiveMaxChars - 1) + '…';
-          }
-        } else {
-          pn.label.text = fullText;
-        }
-      } else if (pn.label.text) {
-        pn.label.text = pn.data.label || pn.data.id;
-      }
+      this._applyLabelTruncation(pn, shouldTruncate, effectiveMaxChars);
 
       // Reset label position (zone-based or fixed)
       const r = pn.radius ?? 6;
@@ -4814,6 +4891,52 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       candidates.push({ pn, deg, isSuper, isHovered });
     }
 
+    return candidates;
+  }
+
+  /** Apply smart truncation to a node label based on zoom level. */
+  private _applyLabelTruncation(pn: PixiNode, shouldTruncate: boolean, effectiveMaxChars: number): void {
+    if (!pn.label) return;
+    if (shouldTruncate && pn.label.text) {
+      const fullText = pn.data.label || pn.data.id;
+      if (fullText.length > effectiveMaxChars) {
+        const slashIdx = fullText.lastIndexOf('/');
+        const dashIdx = fullText.indexOf('-');
+        if (slashIdx > 0 && slashIdx < fullText.length - 1) {
+          // Path label ("classic-othello/characters (15)")
+          // -> show distinguishing parent + child hint ("othello/cha")
+          const parent = fullText.slice(0, slashIdx);
+          const distinctStart = dashIdx > 0 && dashIdx < slashIdx ? dashIdx + 1 : 0;
+          const parentDistinct = parent.slice(distinctStart, distinctStart + Math.max(3, effectiveMaxChars - 2));
+          const child = fullText.slice(slashIdx + 1);
+          const childHint = child.length > 3 ? child.slice(0, 3) : child;
+          pn.label.text = parentDistinct + '/' + childHint;
+        } else if (dashIdx > 0 && dashIdx < effectiveMaxChars) {
+          // Hyphenated: preserve after first dash
+          const afterDash = fullText.slice(dashIdx + 1);
+          pn.label.text = afterDash.length > effectiveMaxChars
+            ? afterDash.slice(0, effectiveMaxChars - 1) + '\u2026'
+            : afterDash;
+        } else {
+          pn.label.text = fullText.slice(0, effectiveMaxChars - 1) + '\u2026';
+        }
+      } else {
+        pn.label.text = fullText;
+      }
+    } else if (pn.label.text) {
+      pn.label.text = pn.data.label || pn.data.id;
+    }
+  }
+
+  /** AP-5 diversity guarantee (promote non-super nodes) and apply maxVisible cap. */
+  private _applyLabelDiversityAndCap(
+    candidates: { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[],
+    rt: Record<string, any>,
+    degrees: Map<string, number>,
+    baseOpacity: number,
+  ): void {
+    const maxVisible = rt.labelMaxVisible ?? 0;
+
     // AP-5 diversity guarantee: promote top non-super nodes if too few
     const eligibleNonSuper = candidates.filter(c => !c.isSuper).length;
     const eligibleSuper = candidates.filter(c => c.isSuper).length;
@@ -4838,7 +4961,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
-    // --- Pass 2: sort by priority score, apply maxVisible cap ---
+    // Sort by priority score, apply maxVisible cap
     candidates.sort((a, b) => b.pn.priorityScore - a.pn.priorityScore);
 
     let visCount = 0;
@@ -4862,7 +4985,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       pn.labelWasVisible = true;
       visCount++;
     }
+  }
 
+  /** Scale sunburst, cluster sunburst, and group grid labels based on zoom level. */
+  private _scaleGroupLabels(zoom: number, rt: Record<string, any>): void {
     // Enclosure labels are managed by EnclosureRenderer (drawEnclosuresImpl)
     // which runs every frame with its own zoom-dependent scaling (1/ws).
     // We only handle sunburst/grid labels here.
@@ -4896,8 +5022,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         lbl.scale.set(groupLabelScale);
       }
     }
-
-    this.markDirty();
   }
 
   /** Called by InteractionManager after zoom changes to update label visibility */
