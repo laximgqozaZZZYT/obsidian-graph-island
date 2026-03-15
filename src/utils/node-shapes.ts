@@ -5,6 +5,17 @@ import type { GraphNode, DisplayConfig, NodeDisplayMode, CardDisplayConfig, Donu
 
 export type NodeShape = "circle" | "triangle" | "diamond" | "hexagon" | "square";
 
+/** Minimal graphics interface for shape drawing (compatible with both CanvasGraphics and PIXI.Graphics) */
+export interface ShapeGraphics {
+  beginFill(color: number, alpha: number): void;
+  endFill(): void;
+  drawCircle(x: number, y: number, r: number): void;
+  drawRect(x: number, y: number, w: number, h: number): void;
+  moveTo(x: number, y: number): void;
+  lineTo(x: number, y: number): void;
+  closePath(): void;
+}
+
 export const ALL_SHAPES: NodeShape[] = ["circle", "triangle", "diamond", "hexagon", "square"];
 
 export interface ShapeRule {
@@ -26,7 +37,7 @@ for (let i = 0; i < 6; i++) {
  * Calls beginFill/endFill internally.
  */
 export function drawShape(
-  g: any, // PIXI.Graphics
+  g: ShapeGraphics,
   shape: NodeShape,
   radius: number,
   fillColor: number,
@@ -42,7 +53,7 @@ export function drawShape(
  * Used within batch drawing where beginFill is called externally.
  */
 export function drawShapeAt(
-  g: any, // PIXI.Graphics
+  g: ShapeGraphics,
   shape: NodeShape,
   cx: number,
   cy: number,
@@ -55,7 +66,7 @@ export function drawShapeAt(
  * Internal: draw the shape path at given center coordinates.
  */
 function drawShapePath(
-  g: any,
+  g: ShapeGraphics,
   shape: NodeShape,
   cx: number,
   cy: number,

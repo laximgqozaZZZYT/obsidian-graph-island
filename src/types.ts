@@ -1059,6 +1059,20 @@ export interface RenderThresholds {
   /** Maximum displacement for force-show labels, in multiples of node radius
    *  (default 5). Labels that cannot be placed within this range are hidden. */
   labelForceShowMaxRadii?: number;
+
+  // ---- Road network ----
+  /** Show auto-generated road network overlay (default true) */
+  showRoadNetwork?: boolean;
+  /** Road line width in world units (default 4) */
+  roadWidth?: number;
+  /** Road alpha (default 0.30) */
+  roadAlpha?: number;
+  /** Road color override — if not set, uses theme-aware default */
+  roadColor?: number;
+  /** Intersection dot radius in world units (default 2.5) */
+  roadIntersectionRadius?: number;
+  /** Route edges along road network when available (default true) */
+  roadRouteEdges?: boolean;
 }
 
 /** Default card rendering config */
@@ -1282,6 +1296,13 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   superNodeFontSize: 13,
   superNodeLabelBgAlpha: 0.9,
   labelForceShowMaxRadii: 5,
+
+  // Road network
+  showRoadNetwork: true,
+  roadWidth: 4,
+  roadAlpha: 0.30,
+  roadIntersectionRadius: 2.5,
+  roadRouteEdges: true,
 };
 
 export const DEFAULT_COLORS = [

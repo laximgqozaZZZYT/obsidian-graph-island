@@ -3,17 +3,17 @@ import { CanvasContainer } from "./CanvasContainer";
 type TickerCallback = () => void;
 
 class Ticker {
-  private callbacks: { fn: TickerCallback; context: any }[] = [];
+  private callbacks: { fn: TickerCallback; context: unknown }[] = [];
   private _rafId: number | null = null;
   private _running = false;
 
-  add(fn: TickerCallback, context?: any) {
+  add(fn: TickerCallback, context?: unknown) {
     if (this.callbacks.some(cb => cb.fn === fn && cb.context === context)) return;
     this.callbacks.push({ fn, context });
     if (!this._running) this._start();
   }
 
-  remove(fn: TickerCallback, context?: any) {
+  remove(fn: TickerCallback, context?: unknown) {
     this.callbacks = this.callbacks.filter(
       cb => !(cb.fn === fn && cb.context === context),
     );

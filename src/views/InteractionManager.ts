@@ -1,5 +1,5 @@
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
-import { Menu, Platform } from "obsidian";
+import { Menu, Platform, type App } from "obsidian";
 import type { GraphNode, LayoutType, ShellInfo } from "../types";
 import { repositionShell } from "../layouts/concentric";
 import type { Simulation } from "d3-force";
@@ -73,7 +73,7 @@ export interface InteractionHost {
   /** Get current pathfinder state */
   getPathfinderState(): { startId: string | null; endId: string | null };
   /** Get the Obsidian App instance (for hover-link events) */
-  getApp(): any;
+  getApp(): App;
   /** Get the view's container element (for hover-link parent) */
   getContainerEl(): HTMLElement;
   /** Called when zoom changes — debounced layout recalculation */

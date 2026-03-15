@@ -222,6 +222,7 @@ export interface RenderHost {
   drawGuideLines(): void;
   /** Draw per-group route lines (transit map style) */
   drawRouteLines(): void;
+  drawRoadNetwork(): void;
   /** Draw group grid overlay */
   drawGroupGrid(): void;
   /** Tick layout transition animation; returns true if still running */
@@ -401,6 +402,7 @@ export class RenderPipeline {
       this.host.drawSunburstArcs();
       this.host.drawGuideLines();
       this.host.drawRouteLines();
+      this.host.drawRoadNetwork();
       this.host.drawGroupGrid();
       this.host.drawTimelineBars();
       this.host.drawEdges();
@@ -714,14 +716,19 @@ export class RenderPipeline {
       this._cleanupCardTextAll(pixiNodes);
     }
 
-    if (displayMode === "node") {
-      this._renderNodeMode(g, ctx, crc, rt);
-    } else if (displayMode === "card") {
-      this._renderCardMode(g, ctx, crc, rt);
-    } else if (displayMode === "donut") {
-      this._renderDonutMode(g, ctx, crc, rt);
-    } else if (displayMode === "sunburst-segment") {
-      this._renderSunburstSegmentMode(g, ctx, crc);
+    switch (displayMode) {
+      case "node":
+        this._renderNodeMode(g, ctx, crc, rt);
+        break;
+      case "card":
+        this._renderCardMode(g, ctx, crc, rt);
+        break;
+      case "donut":
+        this._renderDonutMode(g, ctx, crc, rt);
+        break;
+      case "sunburst-segment":
+        this._renderSunburstSegmentMode(g, ctx, crc);
+        break;
     }
   }
 

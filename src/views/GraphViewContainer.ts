@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon } from "obsidian";
+import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, type ViewStateResult } from "obsidian";
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
@@ -12,6 +12,7 @@ import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
+import { buildRoadNetwork, type RoadNetwork } from "../layouts/road-network";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
@@ -36,6 +37,7 @@ import {
   TAG_DISPLAY_ENCLOSURE, TAG_DISPLAY_NODE,
   ARRANGEMENT_TIMELINE, ARRANGEMENT_CONCENTRIC, ARRANGEMENT_GRID, ARRANGEMENT_TRIANGLE,
   GUIDE_TYPE_COORDINATE,
+  EVENT_HOVER_NODE, EVENT_HIGHLIGHT_NODES,
 } from "../constants";
 
 /** Find the cell index for a value given sorted boundary positions */
@@ -129,6 +131,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private guideLineGraphics: CanvasGraphics | null = null;
   private routeGraphics: CanvasGraphics | null = null;
   private routeData: TimelineRoute[] | null = null;
+  private roadNetworkData: RoadNetwork | null = null;
+  private roadGraphics: CanvasGraphics | null = null;
   private groupGridGraphics: CanvasGraphics | null = null;
   private barGraphics: CanvasGraphics | null = null;
   private barLabelContainer: CanvasContainer | null = null;
@@ -301,7 +305,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getState() {
     const sup = super.getState();
     // Serialize panel with special handling for Set (collapsedGroups) and transient fields
-    const panelClone: any = {};
+    const panelClone: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(this.panel)) {
       if (k === "collapsedGroups") {
         panelClone[k] = Array.from(v as Set<string>);
@@ -319,7 +323,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     };
   }
 
-  async setState(state: any, result: any): Promise<void> {
+  async setState(state: any, result: ViewStateResult): Promise<void> {
     await super.setState(state, result);
     // Layout is always "force"; legacy state values are migrated to cluster arrangement
     if (state.layout && typeof state.layout === "string" && state.layout !== LAYOUT_FORCE) {
@@ -813,7 +817,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Ephemeral highlight from side-panel (property value hover, backlink hover)
     this.registerEvent(
       // Custom plugin event not in Obsidian's Workspace type definitions
-      this.app.workspace.on("graph-island:highlight-nodes" as any, (nodeIds: Set<string> | null) => {
+      this.app.workspace.on(EVENT_HIGHLIGHT_NODES as any, (nodeIds: Set<string> | null) => {
         this.applyEphemeralHighlight(nodeIds);
       })
     );
@@ -1190,6 +1194,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   setClusterMeta(meta: ClusterMetadata | null) {
     this.clusterMeta = meta;
     this.routeData = meta?.timelineRoutes ?? null;
+    this.buildRoadNetwork();
     // Merge/remove synthetic sequence edges from graphEdges
     // First remove any existing synthetic sequence edges
     this.graphEdges = this.graphEdges.filter(e => !e.id.startsWith("__seq__"));
@@ -1589,7 +1594,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
    */
   private notifyDetailPane(node: GraphNode | null) {
     // Emit a custom event that NodeDetailView listens for
-    this.app.workspace.trigger("graph-island:hover-node", node, this.adj, this.pixiNodes, this.degrees);
+    this.app.workspace.trigger(EVENT_HOVER_NODE, node, this.adj, this.pixiNodes, this.degrees);
   }
 
   /**
@@ -2220,7 +2225,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           let labelTicks = uniqueTicks;
           if (labelTicks.length > maxLabels) {
             const step = Math.ceil(labelTicks.length / maxLabels);
-            labelTicks = labelTicks.filter((_: any, i: number) => i % step === 0);
+            labelTicks = labelTicks.filter((_: unknown, i: number) => i % step === 0);
           }
           const fontSize = rt.timelineAxisLabelFontSize! / worldScale;
           const labelOffset = rt.timelineAxisLabelOffset! / worldScale;
@@ -2320,6 +2325,156 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         g.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
       }
     }
+  }
+
+  // =========================================================================
+  // Road Network — auto-generated roads from coordinate grid lines
+  // =========================================================================
+
+  private buildRoadNetwork() {
+    const meta = this.clusterMeta;
+    if (!meta) { this.roadNetworkData = null; return; }
+
+    // buildRoadNetwork imported at top level
+
+    // Collect all nodes and compute global bounds
+    const allNodes: GraphNode[] = [];
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const pn of this.pixiNodes.values()) {
+      allNodes.push(pn.data);
+      if (pn.data.x < minX) minX = pn.data.x;
+      if (pn.data.x > maxX) maxX = pn.data.x;
+      if (pn.data.y < minY) minY = pn.data.y;
+      if (pn.data.y > maxY) maxY = pn.data.y;
+    }
+    if (allNodes.length === 0) { this.roadNetworkData = null; return; }
+
+    // Global center
+    const gcx = (minX + maxX) / 2;
+    const gcy = (minY + maxY) / 2;
+    const halfW = (maxX - minX) / 2;
+    const halfH = (maxY - minY) / 2;
+    const maxR = Math.sqrt(halfW * halfW + halfH * halfH);
+
+    // Determine system from arrangement
+    const guide = meta.guideLineData;
+    const arrangement = guide?.arrangement ?? this.panel.clusterArrangement ?? "concentric";
+    const isPolar = arrangement === "concentric" || arrangement === "radial" || arrangement === "phyllotaxis";
+
+    if (isPolar) {
+      // Generate ring roads + radial avenues from node radial distribution
+      // Compute node distances from center and bin into rings
+      const dists: number[] = [];
+      for (const n of allNodes) {
+        dists.push(Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2));
+      }
+      dists.sort((a, b) => a - b);
+
+      // Create rings at evenly spaced radii (not percentile — nodes cluster near center)
+      const ringCount = Math.max(3, Math.min(10, Math.ceil(Math.sqrt(allNodes.length / 20))));
+      const axis1Lines: { position: number }[] = [];
+      for (let i = 1; i <= ringCount; i++) {
+        axis1Lines.push({ position: (maxR / (ringCount + 1)) * i });
+      }
+
+      // Create radial avenues (evenly spaced)
+      const spokeCount = Math.max(6, Math.min(16, ringCount * 2));
+      const axis2Lines: { position: number }[] = [];
+      for (let s = 0; s < spokeCount; s++) {
+        axis2Lines.push({ position: (s / spokeCount) * Math.PI * 2 });
+      }
+
+      this.roadNetworkData = buildRoadNetwork({
+        system: "polar", axis1Lines, axis2Lines,
+        axis1Shape: "circle", axis2Shape: "radial",
+        cx: gcx, cy: gcy,
+        bounds: { xMin: minX - gcx, yMin: minY - gcy, xMax: maxX - gcx, yMax: maxY - gcy, maxR },
+        nodes: allNodes,
+      });
+    } else {
+      // Cartesian: create grid roads from node distribution
+      const xValues = allNodes.map(n => n.x).sort((a, b) => a - b);
+      const yValues = allNodes.map(n => n.y).sort((a, b) => a - b);
+      const gridSize = Math.max(3, Math.min(8, Math.ceil(Math.sqrt(allNodes.length / 30))));
+
+      const axis1Lines: { position: number }[] = [];
+      const axis2Lines: { position: number }[] = [];
+      for (let i = 0; i <= gridSize; i++) {
+        const pct = i / gridSize;
+        axis1Lines.push({ position: xValues[Math.floor(xValues.length * pct)] ?? minX + (maxX - minX) * pct });
+        axis2Lines.push({ position: yValues[Math.floor(yValues.length * pct)] ?? minY + (maxY - minY) * pct });
+      }
+
+      this.roadNetworkData = buildRoadNetwork({
+        system: "cartesian", axis1Lines, axis2Lines,
+        axis1Shape: "line", axis2Shape: "line",
+        cx: 0, cy: 0, // cartesian uses absolute positions
+        bounds: { xMin: minX, yMin: minY, xMax: maxX, yMax: maxY },
+        nodes: allNodes,
+      });
+    }
+  }
+
+  drawRoadNetwork() {
+    let g = this.roadGraphics;
+    if (!g) {
+      g = new CanvasGraphics();
+      // Insert road layer into world container
+      const world = this.worldContainer;
+      if (world) {
+        world.addChild(g);
+      }
+      this.roadGraphics = g;
+    }
+    g.clear();
+
+    const network = this.roadNetworkData;
+    if (!network || network.intersections.length === 0) return;
+
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+    if (!(rt.showRoadNetwork ?? true)) return;
+
+    const isDark = this.isDarkTheme();
+    const roadColor = rt.roadColor ?? (isDark ? 0x6666aa : 0x9999cc);
+    const worldScale = this.worldContainer?.scale.x ?? 1;
+    // Road width scales inversely with zoom so roads remain visible when zoomed out
+    const baseRoadWidth = rt.roadWidth ?? 4;
+    const roadWidth = Math.max(baseRoadWidth, baseRoadWidth / Math.max(worldScale, 0.05));
+    const roadAlpha = rt.roadAlpha ?? 0.35;
+    const isectRadius = Math.max(rt.roadIntersectionRadius ?? 2.5, 3 / Math.max(worldScale, 0.05));
+
+    g.setLineCap("round");
+    g.setLineJoin("round");
+
+    // Draw road segments
+    g.lineStyle(roadWidth, roadColor, roadAlpha);
+    for (const seg of network.segments) {
+      const from = network.intersections[seg.from];
+      const to = network.intersections[seg.to];
+      if (!from || !to) continue;
+
+      g.moveTo(from.x, from.y);
+      if (seg.waypoints.length > 0) {
+        // Curved segment (ring road arc)
+        for (const wp of seg.waypoints) {
+          g.lineTo(wp.x, wp.y);
+        }
+      }
+      g.lineTo(to.x, to.y);
+    }
+
+    // Draw intersection dots
+    g.lineStyle(0);
+    for (const isect of network.intersections) {
+      g.beginFill(roadColor, roadAlpha * 1.5);
+      g.drawCircle(isect.x, isect.y, isectRadius);
+      g.endFill();
+    }
+  }
+
+  /** Get road network for edge routing */
+  getRoadNetwork(): RoadNetwork | null {
+    return this.roadNetworkData;
   }
 
   drawGroupGrid() {
@@ -2517,7 +2672,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       let labelTicks = guide.ticks;
       if (labelTicks.length > maxLabels) {
         const step = Math.ceil(labelTicks.length / maxLabels);
-        labelTicks = labelTicks.filter((_: any, i: number) => i % step === 0);
+        labelTicks = labelTicks.filter((_: unknown, i: number) => i % step === 0);
       }
       const fontSize = rt2.timelineAxisLabelFontSize! / worldScale;
       const labelOffset = rt2.timelineAxisLabelOffset! / worldScale;

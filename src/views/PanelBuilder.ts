@@ -2970,35 +2970,15 @@ function attachQueryHint(input: HTMLInputElement, getSuggestions: (field: string
   anchor.appendChild(input);
 
   const insertText = (text: string) => {
-    const cur = input.value;
-    const pos = input.selectionStart ?? cur.length;
-    const before = cur.slice(0, pos);
-    const after = cur.slice(pos);
-    const needSpace = before.length > 0 && !before.endsWith(" ") ? " " : "";
-    input.value = before + needSpace + text + after;
-    input.focus();
-    const newPos = (before + needSpace + text).length;
-    input.setSelectionRange(newPos, newPos);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
+    _insertTextAtCursor(input, text);
   };
 
   const replaceTokenValue = (tokenStart: number, value: string) => {
-    const cur = input.value;
-    // Find end of current token (next space or end)
-    let end = cur.indexOf(" ", tokenStart);
-    if (end < 0) end = cur.length;
-    input.value = cur.slice(0, tokenStart) + value + cur.slice(end);
-    input.focus();
-    const newPos = tokenStart + value.length;
-    input.setSelectionRange(newPos, newPos);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
+    _replaceTokenAtPosition(input, tokenStart, value);
   };
 
   const updateSelection = (container: HTMLElement) => {
-    const rows = container.querySelectorAll(".search-suggest-item:not(.mod-group)");
-    rows.forEach((r, i) => {
-      r.classList.toggle("is-selected", i === selectedIdx);
-    });
+    _updateHintSelection(container, selectedIdx);
   };
 
   const buildOptionsList = () => {
@@ -3033,40 +3013,10 @@ function attachQueryHint(input: HTMLInputElement, getSuggestions: (field: string
 
   const renderHint = (headerText: string) => {
     if (hintEl) hintEl.remove();
-    hintEl = document.createElement("div");
-    hintEl.className = "suggestion-container mod-search-suggestion";
-
-    // Header
-    const headerItem = hintEl.createDiv({ cls: "suggestion-item mod-complex search-suggest-item mod-group" });
-    const headerContent = headerItem.createDiv({ cls: "suggestion-content" });
-    const headerTitle = headerContent.createDiv({ cls: "suggestion-title list-item-part mod-extended" });
-    headerTitle.createEl("span", { text: headerText });
-    const headerAux = headerItem.createDiv({ cls: "suggestion-aux" });
-    const infoBtn = headerAux.createDiv({ cls: "list-item-part search-suggest-icon clickable-icon" });
-    infoBtn.setAttribute("aria-label", t("query.viewDetails"));
-    setIcon(infoBtn, "info");
-
-    // Items
-    for (let i = 0; i < currentItems.length; i++) {
-      const ci = currentItems[i];
-      const item = hintEl.createDiv({ cls: "suggestion-item mod-complex search-suggest-item" });
-      const content = item.createDiv({ cls: "suggestion-content" });
-      const title = content.createDiv({ cls: "suggestion-title" });
-      // For options list, show description; for value list, just the value
-      const opt = getQueryOptions().find(o => o.prefix === ci.text);
-      if (opt) {
-        title.createEl("span", { text: opt.prefix });
-        title.createEl("span", { cls: "search-suggest-info-text", text: opt.desc });
-      } else {
-        title.createEl("span", { text: ci.text });
-      }
-      item.addEventListener("click", () => ci.onSelect());
-      item.addEventListener("mouseenter", () => {
-        selectedIdx = i;
-        updateSelection(hintEl!);
-      });
-    }
-
+    hintEl = _buildQueryHintContainer(headerText, currentItems, (i) => {
+      selectedIdx = i;
+      updateSelection(hintEl!);
+    });
     selectedIdx = 0;
     updateSelection(hintEl);
     anchor.appendChild(hintEl);
@@ -3090,37 +3040,136 @@ function attachQueryHint(input: HTMLInputElement, getSuggestions: (field: string
     currentItems = [];
   };
 
-  const show = () => rebuildHint();
+  _setupQueryHintListeners(input, {
+    show: () => rebuildHint(),
+    hide: () => {
+      if (!hintEl) return;
+      setTimeout(() => {
+        if (input === document.activeElement) return;
+        dismissHint();
+      }, 150);
+    },
+    rebuildHint,
+    getHintEl: () => hintEl,
+    getItems: () => currentItems,
+    getSelectedIdx: () => selectedIdx,
+    setSelectedIdx: (i: number) => { selectedIdx = i; },
+    updateSelection: () => { if (hintEl) updateSelection(hintEl); },
+    dismissHint,
+  });
+}
 
-  const hide = () => {
-    if (!hintEl) return;
-    setTimeout(() => {
-      if (input === document.activeElement) return;
-      dismissHint();
-    }, 150);
-  };
+/** Insert text at cursor position in an input element. */
+function _insertTextAtCursor(input: HTMLInputElement, text: string) {
+  const cur = input.value;
+  const pos = input.selectionStart ?? cur.length;
+  const before = cur.slice(0, pos);
+  const after = cur.slice(pos);
+  const needSpace = before.length > 0 && !before.endsWith(" ") ? " " : "";
+  input.value = before + needSpace + text + after;
+  input.focus();
+  const newPos = (before + needSpace + text).length;
+  input.setSelectionRange(newPos, newPos);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
 
-  input.addEventListener("focus", show);
-  input.addEventListener("blur", hide);
+/** Replace the token at a given position with a new value. */
+function _replaceTokenAtPosition(input: HTMLInputElement, tokenStart: number, value: string) {
+  const cur = input.value;
+  // Find end of current token (next space or end)
+  let end = cur.indexOf(" ", tokenStart);
+  if (end < 0) end = cur.length;
+  input.value = cur.slice(0, tokenStart) + value + cur.slice(end);
+  input.focus();
+  const newPos = tokenStart + value.length;
+  input.setSelectionRange(newPos, newPos);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+/** Update the is-selected class on hint suggestion items. */
+function _updateHintSelection(container: HTMLElement, selectedIdx: number) {
+  const rows = container.querySelectorAll(".search-suggest-item:not(.mod-group)");
+  rows.forEach((r, i) => {
+    r.classList.toggle("is-selected", i === selectedIdx);
+  });
+}
+
+/** Build the DOM container for query hint suggestions. */
+function _buildQueryHintContainer(
+  headerText: string,
+  items: { text: string; onSelect: () => void }[],
+  onHover: (index: number) => void,
+): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "suggestion-container mod-search-suggestion";
+
+  // Header
+  const headerItem = el.createDiv({ cls: "suggestion-item mod-complex search-suggest-item mod-group" });
+  const headerContent = headerItem.createDiv({ cls: "suggestion-content" });
+  const headerTitle = headerContent.createDiv({ cls: "suggestion-title list-item-part mod-extended" });
+  headerTitle.createEl("span", { text: headerText });
+  const headerAux = headerItem.createDiv({ cls: "suggestion-aux" });
+  const infoBtn = headerAux.createDiv({ cls: "list-item-part search-suggest-icon clickable-icon" });
+  infoBtn.setAttribute("aria-label", t("query.viewDetails"));
+  setIcon(infoBtn, "info");
+
+  // Items
+  for (let i = 0; i < items.length; i++) {
+    const ci = items[i];
+    const item = el.createDiv({ cls: "suggestion-item mod-complex search-suggest-item" });
+    const content = item.createDiv({ cls: "suggestion-content" });
+    const title = content.createDiv({ cls: "suggestion-title" });
+    // For options list, show description; for value list, just the value
+    const opt = getQueryOptions().find(o => o.prefix === ci.text);
+    if (opt) {
+      title.createEl("span", { text: opt.prefix });
+      title.createEl("span", { cls: "search-suggest-info-text", text: opt.desc });
+    } else {
+      title.createEl("span", { text: ci.text });
+    }
+    item.addEventListener("click", () => ci.onSelect());
+    item.addEventListener("mouseenter", () => onHover(i));
+  }
+
+  return el;
+}
+
+/** Wire up focus/blur/input/keydown listeners for query hint. */
+function _setupQueryHintListeners(input: HTMLInputElement, ctx: {
+  show: () => void;
+  hide: () => void;
+  rebuildHint: () => void;
+  getHintEl: () => HTMLElement | null;
+  getItems: () => { text: string; onSelect: () => void }[];
+  getSelectedIdx: () => number;
+  setSelectedIdx: (i: number) => void;
+  updateSelection: () => void;
+  dismissHint: () => void;
+}) {
+  input.addEventListener("focus", ctx.show);
+  input.addEventListener("blur", ctx.hide);
   // Rebuild on input to switch between options/values as user types
   input.addEventListener("input", () => {
-    if (input === document.activeElement) rebuildHint();
+    if (input === document.activeElement) ctx.rebuildHint();
   });
   input.addEventListener("keydown", (e: KeyboardEvent) => {
-    if (!hintEl || currentItems.length === 0) return;
+    const hintEl = ctx.getHintEl();
+    const items = ctx.getItems();
+    if (!hintEl || items.length === 0) return;
+    const idx = ctx.getSelectedIdx();
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      selectedIdx = (selectedIdx + 1) % currentItems.length;
-      updateSelection(hintEl);
+      ctx.setSelectedIdx((idx + 1) % items.length);
+      ctx.updateSelection();
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      selectedIdx = (selectedIdx - 1 + currentItems.length) % currentItems.length;
-      updateSelection(hintEl);
-    } else if (e.key === "Enter" && selectedIdx >= 0 && selectedIdx < currentItems.length) {
+      ctx.setSelectedIdx((idx - 1 + items.length) % items.length);
+      ctx.updateSelection();
+    } else if (e.key === "Enter" && idx >= 0 && idx < items.length) {
       e.preventDefault();
-      currentItems[selectedIdx].onSelect();
+      items[idx].onSelect();
     } else if (e.key === "Escape") {
-      dismissHint();
+      ctx.dismissHint();
     }
   });
 }
@@ -3268,70 +3317,113 @@ function attachSearchJump(input: HTMLInputElement, cb: PanelCallbacks) {
       return;
     }
 
-    if (!dropdownEl) {
-      dropdownEl = document.createElement("div");
-      dropdownEl.className = "gi-search-results";
-      getAnchor().appendChild(dropdownEl);
-    }
-
-    // Clear and rebuild items
-    dropdownEl.empty();
-
-    // Hint header
-    const hint = dropdownEl.createDiv({ cls: "gi-search-result-hint" });
-    hint.textContent = t("search.jumpHint");
-
-    for (let i = 0; i < filteredIds.length; i++) {
-      const id = filteredIds[i];
-      const item = dropdownEl.createDiv({ cls: "gi-search-result-item" });
-      item.textContent = id;
-      item.addEventListener("click", () => {
-        cb.jumpToNode(id);
-        dismiss();
-      });
-      item.addEventListener("mouseenter", () => {
-        selectedIdx = i;
-        updateSelection();
-      });
-    }
-
+    dropdownEl = _rebuildSearchDropdown(dropdownEl, getAnchor(), filteredIds, cb, dismiss, (i) => {
+      selectedIdx = i;
+      updateSelection();
+    });
     selectedIdx = 0;
     updateSelection();
   };
 
+  _setupSearchJumpListeners(input, {
+    rebuild,
+    dismiss,
+    getAnchor,
+    getDropdownEl: () => dropdownEl,
+    getFilteredIds: () => filteredIds,
+    getSelectedIdx: () => selectedIdx,
+    setSelectedIdx: (i: number) => { selectedIdx = i; },
+    updateSelection,
+    jumpToSelected,
+  });
+}
+
+/** Build or rebuild the search jump dropdown DOM. Returns the dropdown element. */
+function _rebuildSearchDropdown(
+  existing: HTMLElement | null,
+  anchor: HTMLElement,
+  ids: string[],
+  cb: PanelCallbacks,
+  dismiss: () => void,
+  onHover: (index: number) => void,
+): HTMLElement {
+  const dropdownEl = existing ?? (() => {
+    const el = document.createElement("div");
+    el.className = "gi-search-results";
+    anchor.appendChild(el);
+    return el;
+  })();
+
+  // Clear and rebuild items
+  dropdownEl.empty();
+
+  // Hint header
+  const hint = dropdownEl.createDiv({ cls: "gi-search-result-hint" });
+  hint.textContent = t("search.jumpHint");
+
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i];
+    const item = dropdownEl.createDiv({ cls: "gi-search-result-item" });
+    item.textContent = id;
+    item.addEventListener("click", () => {
+      cb.jumpToNode(id);
+      dismiss();
+    });
+    item.addEventListener("mouseenter", () => onHover(i));
+  }
+
+  return dropdownEl;
+}
+
+/** Wire up input/keydown/blur listeners for search jump. */
+function _setupSearchJumpListeners(input: HTMLInputElement, ctx: {
+  rebuild: () => void;
+  dismiss: () => void;
+  getAnchor: () => HTMLElement;
+  getDropdownEl: () => HTMLElement | null;
+  getFilteredIds: () => string[];
+  getSelectedIdx: () => number;
+  setSelectedIdx: (i: number) => void;
+  updateSelection: () => void;
+  jumpToSelected: () => void;
+}) {
   input.addEventListener("input", () => {
     // Defer slightly so attachQueryHint processes first
-    setTimeout(rebuild, 50);
+    setTimeout(ctx.rebuild, 50);
   });
 
   input.addEventListener("keydown", (e: KeyboardEvent) => {
-    if (!dropdownEl || filteredIds.length === 0) return;
+    const dropdownEl = ctx.getDropdownEl();
+    const ids = ctx.getFilteredIds();
+    if (!dropdownEl || ids.length === 0) return;
     if (e.key === "Enter") {
       // Only handle Enter for jump when the query hint dropdown is NOT visible.
-      const anchor = getAnchor();
+      const anchor = ctx.getAnchor();
       const queryHint = anchor.querySelector(".suggestion-container.mod-search-suggestion");
       if (queryHint) return; // let attachQueryHint handle it
       e.preventDefault();
-      jumpToSelected();
+      ctx.jumpToSelected();
     } else if (e.key === "Escape") {
-      dismiss();
+      ctx.dismiss();
     } else if (e.key === "ArrowDown") {
-      if (!getAnchor().querySelector(".suggestion-container.mod-search-suggestion")) {
+      if (!ctx.getAnchor().querySelector(".suggestion-container.mod-search-suggestion")) {
         e.preventDefault();
-        selectedIdx = (selectedIdx + 1) % filteredIds.length;
-        updateSelection();
+        const idx = ctx.getSelectedIdx();
+        ctx.setSelectedIdx((idx + 1) % ids.length);
+        ctx.updateSelection();
       }
     } else if (e.key === "ArrowUp") {
-      if (!getAnchor().querySelector(".suggestion-container.mod-search-suggestion")) {
+      if (!ctx.getAnchor().querySelector(".suggestion-container.mod-search-suggestion")) {
         e.preventDefault();
-        selectedIdx = (selectedIdx - 1 + filteredIds.length) % filteredIds.length;
-        updateSelection();
+        const idx = ctx.getSelectedIdx();
+        ctx.setSelectedIdx((idx - 1 + ids.length) % ids.length);
+        ctx.updateSelection();
       }
     }
   });
 
   input.addEventListener("blur", () => {
-    setTimeout(dismiss, 200);
+    setTimeout(ctx.dismiss, 200);
   });
 }
 

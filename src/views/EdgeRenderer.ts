@@ -723,17 +723,20 @@ function resolveEdgeStyle(
 /** Apply a dash pattern based on edge type. Returns true if a dash was set. */
 function applyDashPattern(g: CanvasGraphics, e: GraphEdge, lineThick: number): boolean {
   const s = lineThick;
-  if (e.type === "semantic") {
-    g.setLineDash([4 * s, 4 * s]);
-    return true;
-  } else if (e.type === EDGE_TYPE_TAG || e.type === EDGE_TYPE_HAS_TAG) {
-    g.setLineDash([8 * s, 3 * s]);
-    return true;
-  } else if (e.type === EDGE_TYPE_SIMILAR) {
-    g.setLineDash([3 * s, 5 * s]);
-    return true;
+  switch (e.type) {
+    case "semantic":
+      g.setLineDash([4 * s, 4 * s]);
+      return true;
+    case EDGE_TYPE_TAG:
+    case EDGE_TYPE_HAS_TAG:
+      g.setLineDash([8 * s, 3 * s]);
+      return true;
+    case EDGE_TYPE_SIMILAR:
+      g.setLineDash([3 * s, 5 * s]);
+      return true;
+    default:
+      return false;
   }
-  return false;
 }
 
 // ---------------------------------------------------------------------------

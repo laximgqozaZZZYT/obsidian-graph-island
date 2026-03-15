@@ -960,16 +960,22 @@ function computeFlatTargets(
     groupCenters.set(groupKeys[0], { x: cfg.centerX, y: cfg.centerY });
   } else {
     const mode = cfg.groupLayoutMode ?? "circle";
-    if (mode === GROUP_ARRANGEMENT_HORIZONTAL) {
-      layoutGroupsHorizontal(groupKeys, groups, cfg, groupCenters, actualRadii);
-    } else if (mode === GROUP_ARRANGEMENT_VERTICAL) {
-      layoutGroupsVertical(groupKeys, groups, cfg, groupCenters, actualRadii);
-    } else if (mode === GROUP_ARRANGEMENT_CONCENTRIC) {
-      layoutGroupsConcentric(groupKeys, groups, cfg, groupCenters, actualRadii);
-    } else if (mode === GROUP_ARRANGEMENT_GRID) {
-      layoutGroupsGrid(groupKeys, groups, cfg, groupCenters, actualRadii);
-    } else {
-      layoutGroupsCircle(groupKeys, groups, cfg, groupCenters, actualRadii);
+    switch (mode) {
+      case GROUP_ARRANGEMENT_HORIZONTAL:
+        layoutGroupsHorizontal(groupKeys, groups, cfg, groupCenters, actualRadii);
+        break;
+      case GROUP_ARRANGEMENT_VERTICAL:
+        layoutGroupsVertical(groupKeys, groups, cfg, groupCenters, actualRadii);
+        break;
+      case GROUP_ARRANGEMENT_CONCENTRIC:
+        layoutGroupsConcentric(groupKeys, groups, cfg, groupCenters, actualRadii);
+        break;
+      case GROUP_ARRANGEMENT_GRID:
+        layoutGroupsGrid(groupKeys, groups, cfg, groupCenters, actualRadii);
+        break;
+      default:
+        layoutGroupsCircle(groupKeys, groups, cfg, groupCenters, actualRadii);
+        break;
     }
   }
 
@@ -1485,16 +1491,22 @@ function computeHierarchicalTargets(
     parentCenters.set(parentKeys[0], { x: cfg.centerX, y: cfg.centerY });
   } else {
     const mode = cfg.groupLayoutMode ?? "circle";
-    if (mode === GROUP_ARRANGEMENT_VERTICAL) {
-      layoutGroupsVertical(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
-    } else if (mode === GROUP_ARRANGEMENT_HORIZONTAL) {
-      layoutGroupsHorizontal(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
-    } else if (mode === GROUP_ARRANGEMENT_CONCENTRIC) {
-      layoutGroupsConcentric(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
-    } else if (mode === GROUP_ARRANGEMENT_GRID) {
-      layoutGroupsGrid(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
-    } else {
-      layoutGroupsCircle(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
+    switch (mode) {
+      case GROUP_ARRANGEMENT_VERTICAL:
+        layoutGroupsVertical(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
+        break;
+      case GROUP_ARRANGEMENT_HORIZONTAL:
+        layoutGroupsHorizontal(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
+        break;
+      case GROUP_ARRANGEMENT_CONCENTRIC:
+        layoutGroupsConcentric(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
+        break;
+      case GROUP_ARRANGEMENT_GRID:
+        layoutGroupsGrid(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
+        break;
+      default:
+        layoutGroupsCircle(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
+        break;
     }
   }
 
@@ -1939,16 +1951,22 @@ function partitionNodes(
   for (const n of nodes) {
     let key: string;
     // Legacy enum values
-    if (field === "backlinks") {
-      key = backlinkBucket(degrees.get(n.id) || 0);
-    } else if (field === "node_type") {
-      key = n.isTag ? "tag" : (n.category || "file");
-    } else if (field === "none") {
-      key = "__all__";
-    } else {
-      // Generic field lookup via getNodeFieldValues (tag, folder, category, frontmatter, etc.)
-      const vals = getNodeFieldValues(n, field);
-      key = vals.length > 0 ? vals[0] : `__no_${field}__`;
+    switch (field) {
+      case "backlinks":
+        key = backlinkBucket(degrees.get(n.id) || 0);
+        break;
+      case "node_type":
+        key = n.isTag ? "tag" : (n.category || "file");
+        break;
+      case "none":
+        key = "__all__";
+        break;
+      default: {
+        // Generic field lookup via getNodeFieldValues (tag, folder, category, frontmatter, etc.)
+        const vals = getNodeFieldValues(n, field);
+        key = vals.length > 0 ? vals[0] : `__no_${field}__`;
+        break;
+      }
     }
     let arr = groups.get(key);
     if (!arr) { arr = []; groups.set(key, arr); }

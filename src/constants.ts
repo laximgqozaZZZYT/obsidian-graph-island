@@ -94,3 +94,9 @@ export const SHAPE_FILL_HEXAGON  = "hexagon" as const;
 export const SHAPE_FILL_SQUARE   = "square" as const;
 export const SHAPE_FILL_DIAMOND  = "diamond" as const;
 export const SHAPE_FILL_CIRCLE   = "circle" as const;
+
+// ---------------------------------------------------------------------------
+// Custom workspace event names
+// ---------------------------------------------------------------------------
+export const EVENT_HOVER_NODE      = "graph-island:hover-node" as const;
+export const EVENT_HIGHLIGHT_NODES = "graph-island:highlight-nodes" as const;
