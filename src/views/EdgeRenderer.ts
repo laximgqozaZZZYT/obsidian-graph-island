@@ -3,7 +3,7 @@ import type { GraphEdge, EdgeCardinalityMode, Cardinality, CardinalityRule, Card
 import { DEFAULT_CARDINALITY_RENDER_CONFIG } from "../types";
 import { cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
 import type { RoadNetwork } from "../layouts/road-network";
-import { routeEdge } from "../layouts/road-network";
+import { routeEdge, findNearestIntersection, findShortestPath, pathToWaypoints } from "../layouts/road-network";
 import {
   EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_SEQUENCE,
   EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_HAS_TAG,
@@ -586,8 +586,29 @@ function drawCables(
       }
 
       g.lineStyle({ width: trunkWidth, color: lane.color, alpha: trunkAlpha * densityScale, native: true });
-      g.moveTo(ts.x, ts.y);
-      g.lineTo(te.x, te.y);
+      // Route trunk through road network if available
+      if (cfg.roadNetwork && cfg.enableRoadRouting !== false && cfg.roadNetwork.intersections.length > 0) {
+        const startIsect = findNearestIntersection(cfg.roadNetwork, ts.x, ts.y);
+        const endIsect = findNearestIntersection(cfg.roadNetwork, te.x, te.y);
+        if (startIsect >= 0 && endIsect >= 0 && startIsect !== endIsect) {
+          const path = findShortestPath(cfg.roadNetwork, startIsect, endIsect);
+          const wps = pathToWaypoints(cfg.roadNetwork, path);
+          if (wps.length >= 2) {
+            g.moveTo(ts.x, ts.y);
+            for (const wp of wps) g.lineTo(wp.x, wp.y);
+            g.lineTo(te.x, te.y);
+          } else {
+            g.moveTo(ts.x, ts.y);
+            g.lineTo(te.x, te.y);
+          }
+        } else {
+          g.moveTo(ts.x, ts.y);
+          g.lineTo(te.x, te.y);
+        }
+      } else {
+        g.moveTo(ts.x, ts.y);
+        g.lineTo(te.x, te.y);
+      }
 
       // --- Fan lines: configurable lines from nodes to trunk endpoints ---
       const fanWidth = cfg.cableFanWidth ?? 1;

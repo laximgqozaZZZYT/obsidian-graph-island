@@ -19,7 +19,7 @@ import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, inval
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
-import type { ClusterMetadata, TimelineBarInfo, ArrangementGuide, TimelineRoute } from "../layouts/cluster-force";
+import type { ClusterMetadata, TimelineBarInfo, ArrangementGuide, TimelineRoute, GroupGuideEntry } from "../layouts/cluster-force";
 import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from "../layouts/cluster-force";
 import type { ResolvedGridInfo, ResolvedGridLine } from "../layouts/coordinate-engine";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
@@ -2258,66 +2258,124 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const meta = this.clusterMeta;
     if (!meta) { this.roadNetworkData = null; return; }
 
-    // buildRoadNetwork imported at top level
-
-    // Collect all nodes and compute global bounds
+    // Collect all positioned nodes (skip nodes still at origin from early ticks)
     const allNodes: GraphNode[] = [];
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const pn of this.pixiNodes.values()) {
-      allNodes.push(pn.data);
-      if (pn.data.x < minX) minX = pn.data.x;
-      if (pn.data.x > maxX) maxX = pn.data.x;
-      if (pn.data.y < minY) minY = pn.data.y;
-      if (pn.data.y > maxY) maxY = pn.data.y;
+      if (Math.abs(pn.data.x) > 1 || Math.abs(pn.data.y) > 1) {
+        allNodes.push(pn.data);
+      }
     }
     if (allNodes.length === 0) { this.roadNetworkData = null; return; }
 
-    // Global center
-    const gcx = (minX + maxX) / 2;
-    const gcy = (minY + maxY) / 2;
-    const halfW = (maxX - minX) / 2;
-    const halfH = (maxY - minY) / 2;
-    const maxR = Math.sqrt(halfW * halfW + halfH * halfH);
+    // Try to derive road network from guide data attached to cluster metadata.
+    // Each guide type maps to a different road topology.
+    const guides = meta.groupGuides;
+    if (guides && guides.length > 0) {
+      for (const gg of guides) {
+        const g = gg.guide;
+        if (!g) continue;
 
-    // Always generate polar (Paris-style) road network — ring roads + radial avenues.
-    // This works for all arrangements because nodes are distributed around a center.
-    // Cartesian grid roads produce ugly L-shaped routing; polar roads produce natural curves.
-    {
-      // Generate ring roads + radial avenues from node radial distribution
-      // Compute node distances from center and bin into rings
-      const dists: number[] = [];
-      for (const n of allNodes) {
-        dists.push(Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2));
+        // CoordinateGuide: use gridInfo axis lines + shape directly
+        if (g.type === GUIDE_TYPE_COORDINATE && (g as any).gridInfo) {
+          const cg = g as { type: "coordinate"; system: string; gridInfo: ResolvedGridInfo; bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number } };
+          this.roadNetworkData = buildRoadNetwork({
+            system: cg.system === "polar" ? "polar" : "cartesian",
+            axis1Lines: cg.gridInfo.axis1Lines.map(l => ({ position: l.position })),
+            axis2Lines: cg.gridInfo.axis2Lines.map(l => ({ position: l.position })),
+            axis1Shape: cg.gridInfo.axis1Shape?.kind ?? "line",
+            axis2Shape: cg.gridInfo.axis2Shape?.kind ?? "line",
+            cx: gg.centerX, cy: gg.centerY,
+            bounds: cg.bounds ?? this.computeNodeBounds(allNodes),
+            nodes: allNodes,
+          });
+          return;
+        }
+
+        // ConcentricGuide: rings become circle roads, uniform spokes become radial roads
+        if (g.type === "concentric") {
+          const cg = g as { type: "concentric"; rings: number[] };
+          if (cg.rings.length > 0) {
+            const spokeCount = Math.max(4, cg.rings.length * 2);
+            const maxRing = Math.max(...cg.rings);
+            this.roadNetworkData = buildRoadNetwork({
+              system: "polar",
+              axis1Lines: cg.rings.map(r => ({ position: r })),
+              axis2Lines: Array.from({ length: spokeCount }, (_, i) => ({
+                position: (i / spokeCount) * Math.PI * 2,
+              })),
+              axis1Shape: "circle", axis2Shape: "radial",
+              cx: gg.centerX, cy: gg.centerY,
+              bounds: { xMin: -maxRing, yMin: -maxRing, xMax: maxRing, yMax: maxRing, maxR: maxRing },
+              nodes: allNodes,
+            });
+            return;
+          }
+        }
+
+        // GridGuide: verticals/horizontals become line roads
+        if (g.type === "grid") {
+          const gg2 = g as { type: "grid"; verticals: number[]; horizontals: number[]; bounds: { xMin: number; yMin: number; xMax: number; yMax: number } };
+          this.roadNetworkData = buildRoadNetwork({
+            system: "cartesian",
+            axis1Lines: (gg2.verticals ?? []).map((x: number) => ({ position: x })),
+            axis2Lines: (gg2.horizontals ?? []).map((y: number) => ({ position: y })),
+            axis1Shape: "line", axis2Shape: "line",
+            cx: 0, cy: 0,
+            bounds: gg2.bounds ?? this.computeNodeBounds(allNodes),
+            nodes: allNodes,
+          });
+          return;
+        }
+
+        // TimelineGuide: ticks become vertical roads, axisY becomes horizontal road
+        if (g.type === "timeline") {
+          const tl = g as { type: "timeline"; axisY: number; ticks: { x: number; label: string }[] };
+          this.roadNetworkData = buildRoadNetwork({
+            system: "cartesian",
+            axis1Lines: (tl.ticks ?? []).map((t: { x: number }) => ({ position: t.x })),
+            axis2Lines: [{ position: tl.axisY ?? 0 }],
+            axis1Shape: "line", axis2Shape: "line",
+            cx: 0, cy: 0,
+            bounds: this.computeNodeBounds(allNodes),
+            nodes: allNodes,
+          });
+          return;
+        }
       }
-      dists.sort((a, b) => a - b);
-
-      // Create rings at percentile radii of actual node distribution.
-      // Evenly-spaced rings across maxR fail because nodes cluster near center
-      // while maxR includes distant outliers → all nodes map to center intersection.
-      const ringCount = Math.max(3, Math.min(10, Math.ceil(Math.sqrt(allNodes.length / 20))));
-      const axis1Lines: { position: number }[] = [];
-      for (let i = 1; i <= ringCount; i++) {
-        const pct = i / (ringCount + 1);
-        const idx = Math.min(Math.floor(dists.length * pct), dists.length - 1);
-        const r = dists[idx];
-        if (r > 0.1) axis1Lines.push({ position: r });
-      }
-
-      // Create radial avenues (evenly spaced)
-      const spokeCount = Math.max(6, Math.min(16, ringCount * 2));
-      const axis2Lines: { position: number }[] = [];
-      for (let s = 0; s < spokeCount; s++) {
-        axis2Lines.push({ position: (s / spokeCount) * Math.PI * 2 });
-      }
-
-      this.roadNetworkData = buildRoadNetwork({
-        system: "polar", axis1Lines, axis2Lines,
-        axis1Shape: "circle", axis2Shape: "radial",
-        cx: gcx, cy: gcy,
-        bounds: { xMin: minX - gcx, yMin: minY - gcy, xMax: maxX - gcx, yMax: maxY - gcy, maxR },
-        nodes: allNodes,
-      });
     }
+
+    // Fallback: no guide data available — generate polar roads from node distribution
+    const bounds = this.computeNodeBounds(allNodes);
+    const gcx = (bounds.xMin + bounds.xMax) / 2;
+    const gcy = (bounds.yMin + bounds.yMax) / 2;
+    const dists = allNodes.map(n => Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2)).sort((a, b) => a - b);
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+    const ringCount = rt.roadRingCount || Math.max(3, Math.min(8, Math.ceil(Math.sqrt(allNodes.length / 30))));
+    const spokeCount = rt.roadSpokeCount || Math.max(6, ringCount * 2);
+
+    this.roadNetworkData = buildRoadNetwork({
+      system: "polar",
+      axis1Lines: Array.from({ length: ringCount }, (_, i) => ({
+        position: dists[Math.floor(dists.length * (i + 1) / (ringCount + 1))] ?? 1,
+      })),
+      axis2Lines: Array.from({ length: spokeCount }, (_, i) => ({
+        position: (i / spokeCount) * Math.PI * 2,
+      })),
+      axis1Shape: "circle", axis2Shape: "radial",
+      cx: gcx, cy: gcy,
+      bounds: { ...bounds, maxR: dists[dists.length - 1] ?? 1 },
+      nodes: allNodes,
+    });
+  }
+
+  /** Compute axis-aligned bounding box from node positions */
+  private computeNodeBounds(nodes: GraphNode[]): { xMin: number; yMin: number; xMax: number; yMax: number } {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const n of nodes) {
+      if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x;
+      if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y;
+    }
+    return { xMin: minX, yMin: minY, xMax: maxX, yMax: maxY };
   }
 
   drawRoadNetwork() {
@@ -2357,16 +2415,39 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     g.setLineCap("round");
     g.setLineJoin("round");
 
-    // --- Pass 1: wide translucent belt (the "road surface") ---
-    g.lineStyle(roadWidth * 3, roadColor, roadAlpha * 0.3);
+    // --- Pass 1: road surface (semi-transparent filled band) ---
+    const roadSurfaceWidth = roadWidth * 3;
+    g.lineStyle(roadSurfaceWidth, roadColor, roadAlpha * 0.15);
     for (const seg of network.segments) {
       const from = network.intersections[seg.from];
       const to = network.intersections[seg.to];
       if (!from || !to) continue;
-
       g.moveTo(from.x, from.y);
       for (const wp of seg.waypoints) g.lineTo(wp.x, wp.y);
       g.lineTo(to.x, to.y);
+    }
+
+    // --- Pass 2: road edges (two parallel lines forming road boundary) ---
+    const edgeOffset = roadSurfaceWidth * 0.45;
+    g.lineStyle(Math.max(1, roadWidth * 0.3), roadColor, roadAlpha * 0.5);
+    for (const seg of network.segments) {
+      const from = network.intersections[seg.from];
+      const to = network.intersections[seg.to];
+      if (!from || !to) continue;
+      // Compute perpendicular for offset
+      const pts = [from, ...seg.waypoints.map(w => ({ x: w.x, y: w.y })), to];
+      for (let side = -1; side <= 1; side += 2) {
+        for (let pi = 0; pi < pts.length - 1; pi++) {
+          const dx = pts[pi + 1].x - pts[pi].x;
+          const dy = pts[pi + 1].y - pts[pi].y;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          if (len < 0.1) continue;
+          const nx = -dy / len * edgeOffset * side;
+          const ny = dx / len * edgeOffset * side;
+          if (pi === 0) g.moveTo(pts[pi].x + nx, pts[pi].y + ny);
+          g.lineTo(pts[pi + 1].x + nx, pts[pi + 1].y + ny);
+        }
+      }
     }
 
     // --- Pass 2: center line (thin, brighter) ---

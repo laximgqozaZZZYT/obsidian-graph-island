@@ -105,6 +105,13 @@ export interface TimelineRoute {
 }
 
 /** Metadata about cluster assignments, exposed for edge bundling. */
+/** Per-group guide entry — associates arrangement guide data with group center */
+export interface GroupGuideEntry {
+  guide: ArrangementGuide;
+  centerX: number;
+  centerY: number;
+}
+
 export interface ClusterMetadata {
   /** Maps node ID → cluster group key */
   nodeClusterMap: Map<string, string>;
@@ -118,6 +125,8 @@ export interface ClusterMetadata {
   sequenceEdges?: GraphEdge[];
   /** Per-group route data for transit map rendering */
   timelineRoutes?: TimelineRoute[];
+  /** Per-group arrangement guide data (grid lines, rings, etc.) for road network generation */
+  groupGuides?: GroupGuideEntry[];
 }
 
 /** Result of buildClusterForce: force function + cluster metadata for bundling. */
@@ -470,7 +479,7 @@ export function buildClusterForce(
     cfg = { ...cfg, nodeSize: cfg.nodeSize + p70 * 0.5 };
   }
 
-  const { targets, allBars, allSequenceEdges, ringConstraints, timelineRoutes } = computeAbsoluteTargets(groups, edges, degrees, cfg);
+  const { targets, allBars, allSequenceEdges, ringConstraints, timelineRoutes, groupGuides } = computeAbsoluteTargets(groups, edges, degrees, cfg);
 
   // Build cluster metadata from targets
   const { nodeClusterMap, clusterCentroids, clusterRadii } = buildClusterMetadataFromTargets(groups, targets, cfg);
@@ -501,7 +510,7 @@ export function buildClusterForce(
   // Build force function
   const force = buildClusterForceFunction(nodes, targets, ringConstraints, cfg);
 
-  return { force, metadata: { nodeClusterMap, clusterCentroids, clusterRadii, timelineBars, sequenceEdges: allSequenceEdges, timelineRoutes } };
+  return { force, metadata: { nodeClusterMap, clusterCentroids, clusterRadii, timelineBars, sequenceEdges: allSequenceEdges, timelineRoutes, groupGuides } };
 }
 
 // ---------------------------------------------------------------------------
@@ -768,6 +777,8 @@ interface AbsoluteTargetResult {
   allSequenceEdges?: GraphEdge[];
   ringConstraints?: Map<string, RingConstraint>;
   timelineRoutes?: TimelineRoute[];
+  /** Per-group guide data for road network generation */
+  groupGuides?: GroupGuideEntry[];
 }
 
 function computeAbsoluteTargets(
@@ -795,7 +806,11 @@ function computeAbsoluteTargets(
         y: cfg.centerY + (off?.dy ?? 0),
       });
     }
-    return { targets, allBars: [], allSequenceEdges: undefined };
+    const globalGuides: GroupGuideEntry[] = [];
+    if (result.guide) {
+      globalGuides.push({ guide: result.guide, centerX: cfg.centerX, centerY: cfg.centerY });
+    }
+    return { targets, allBars: [], allSequenceEdges: undefined, groupGuides: globalGuides.length > 0 ? globalGuides : undefined };
   }
 
   // Detect parent-child hierarchy from composite keys ("::" from splitByConnectedComponents)
@@ -809,10 +824,10 @@ function computeAbsoluteTargets(
 
   if (hasHierarchy) {
     const r = computeHierarchicalTargets(groups, parentMap, edges, degrees, cfg);
-    return { targets: r.targets, allBars: r.allBars, allSequenceEdges: r.allSequenceEdges, timelineRoutes: r.timelineRoutes };
+    return { targets: r.targets, allBars: r.allBars, allSequenceEdges: r.allSequenceEdges, timelineRoutes: r.timelineRoutes, groupGuides: r.groupGuides };
   }
   const r = computeFlatTargets(groups, edges, degrees, cfg);
-  return { targets: r.targets, allBars: r.allBars, allSequenceEdges: r.allSequenceEdges, ringConstraints: r.ringConstraints, timelineRoutes: r.timelineRoutes };
+  return { targets: r.targets, allBars: r.allBars, allSequenceEdges: r.allSequenceEdges, ringConstraints: r.ringConstraints, timelineRoutes: r.timelineRoutes, groupGuides: r.groupGuides };
 }
 
 /** Result from flat/hierarchical target computation, includes guide data */
@@ -831,6 +846,8 @@ interface FlatTargetResult {
   ringConstraints?: Map<string, RingConstraint>;
   /** Per-group route data for transit map rendering */
   timelineRoutes?: TimelineRoute[];
+  /** Per-group guide data for road network generation */
+  groupGuides?: GroupGuideEntry[];
 }
 
 /** Flat layout — all groups at the same level (no recursive split). */
@@ -946,6 +963,7 @@ function computeFlatTargets(
   // ─── Step 6: Node position (absolute = group center + offset) ───
   const allSeqEdges: GraphEdge[] = [];
   let ringConstraints: Map<string, RingConstraint> | undefined;
+  const groupGuides: GroupGuideEntry[] = [];
 
   for (const key of groupKeys) {
     const members = groups.get(key)!;
@@ -979,6 +997,10 @@ function computeFlatTargets(
     }
     if (result.sequenceEdges) {
       allSeqEdges.push(...result.sequenceEdges);
+    }
+    // Collect guide data for road network generation
+    if (result.guide) {
+      groupGuides.push({ guide: result.guide, centerX: center.x, centerY: center.y });
     }
   }
 
@@ -1032,7 +1054,7 @@ function computeFlatTargets(
     if (routes.length > 0) timelineRoutes = routes;
   }
 
-  return { targets, allBars, ringConstraints, allSequenceEdges: allSeqEdges.length > 0 ? allSeqEdges : undefined, timelineRoutes };
+  return { targets, allBars, ringConstraints, allSequenceEdges: allSeqEdges.length > 0 ? allSeqEdges : undefined, timelineRoutes, groupGuides: groupGuides.length > 0 ? groupGuides : undefined };
 }
 
 /**
@@ -1117,11 +1139,18 @@ function computeUnifiedTimelineTargets(
   // --- Route data ---
   const timelineRoutes = unifiedTimelineCollectRoutes(groups, groupKeys, unified.nodeChains, targets);
 
+  // Propagate guide data from unified timeline computation
+  const groupGuides: GroupGuideEntry[] = [];
+  if (unified.guide) {
+    groupGuides.push({ guide: unified.guide, centerX: cfg.centerX, centerY: cfg.centerY });
+  }
+
   return {
     targets,
     allBars,
     allSequenceEdges: filteredSeqEdges,
     timelineRoutes: timelineRoutes.length > 0 ? timelineRoutes : undefined,
+    groupGuides: groupGuides.length > 0 ? groupGuides : undefined,
   };
 }
 
@@ -1458,6 +1487,7 @@ function computeHierarchicalTargets(
   }
 
   // ─── Step 6: Combine group centers + offsets ───
+  const groupGuides: GroupGuideEntry[] = [];
   for (const [parent, childKeys] of parentMap) {
     const pCenter = parentCenters.get(parent)!;
 
@@ -1479,6 +1509,9 @@ function computeHierarchicalTargets(
       const result2 = allGroupResults.get(childKeys[0])!;
       if (result2.sequenceEdges) {
         allSeqEdges.push(...result2.sequenceEdges);
+      }
+      if (result.guide) {
+        groupGuides.push({ guide: result.guide, centerX: pCenter.x, centerY: pCenter.y });
       }
       continue;
     }
@@ -1549,10 +1582,13 @@ function computeHierarchicalTargets(
       if (result.sequenceEdges) {
         allSeqEdges.push(...result.sequenceEdges);
       }
+      if (result.guide) {
+        groupGuides.push({ guide: result.guide, centerX: center.x, centerY: center.y });
+      }
     }
   }
 
-  return { targets, allBars, allSequenceEdges: allSeqEdges.length > 0 ? allSeqEdges : undefined };
+  return { targets, allBars, allSequenceEdges: allSeqEdges.length > 0 ? allSeqEdges : undefined, groupGuides: groupGuides.length > 0 ? groupGuides : undefined };
 }
 
 /**

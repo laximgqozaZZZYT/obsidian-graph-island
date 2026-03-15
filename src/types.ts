@@ -1070,6 +1070,12 @@ export interface RenderThresholds {
   roadIntersectionRadius?: number;
   /** Route edges along road network when available (default true) */
   roadRouteEdges?: boolean;
+
+  // ---- Road network fallback (used only when no guide data is available) ----
+  /** Fallback ring count when no grid info available (default: auto-computed from node count) */
+  roadRingCount?: number;
+  /** Fallback spoke count when no grid info available (default: auto-computed from ring count) */
+  roadSpokeCount?: number;
 }
 
 /** Default card rendering config */
@@ -1299,6 +1305,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   roadAlpha: 0.6,
   roadIntersectionRadius: 4,
   roadRouteEdges: true,
+  roadRingCount: 0,
+  roadSpokeCount: 0,
 };
 
 export const DEFAULT_COLORS = [

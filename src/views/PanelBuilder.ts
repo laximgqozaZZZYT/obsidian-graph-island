@@ -344,6 +344,11 @@ function syncArrangementFromLayout(panel: PanelState): void {
   panel.clusterArrangement = match;
 }
 
+/** Safe accessor for ARRANGEMENT_PRESETS — returns grid preset as fallback */
+function getPreset(arrangement: ClusterArrangement): CoordinateLayout {
+  return ARRANGEMENT_PRESETS[arrangement] ?? ARRANGEMENT_PRESETS.grid;
+}
+
 export function buildPanel(
   panelEl: HTMLElement,
   panel: PanelState,
@@ -983,7 +988,7 @@ function _buildArrangementPatternSelect(s: ClusterSectionCtx): void {
     { value: "custom", label: t("cluster.custom") },
   ], s.panel.clusterArrangement, (v) => {
     s.panel.clusterArrangement = v as ClusterArrangement;
-    s.panel.coordinateLayout = { ...ARRANGEMENT_PRESETS[v as ClusterArrangement] };
+    s.panel.coordinateLayout = { ...getPreset(v as ClusterArrangement) };
     s.cb.applyClusterForce();
     s.cb.rebuildPanel();
     s.cb.restartSimulation(1.0);
@@ -1007,14 +1012,14 @@ function _buildConcentricOptions(s: ClusterSectionCtx): void {
 function _buildCoordinateControls(s: ClusterSectionCtx): void {
   const { body, panel, cb, ctx } = s;
   const coordLayout = panel.coordinateLayout
-    ?? ARRANGEMENT_PRESETS[panel.clusterArrangement];
+    ?? getPreset(panel.clusterArrangement);
 
   addSelect(body, t("coord.system"), [
     { value: "cartesian", label: t("coord.cartesian") },
     { value: "polar", label: t("coord.polar") },
   ], coordLayout.system, (v) => {
     const base = panel.coordinateLayout
-      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+      ?? { ...getPreset(panel.clusterArrangement) };
     panel.coordinateLayout = { ...base, system: v as CoordinateSystem };
     syncArrangementFromLayout(panel);
     cb.applyClusterForce();
@@ -1041,7 +1046,7 @@ function _buildCoordinateControls(s: ClusterSectionCtx): void {
 
   addToggle(body, t("coord.perGroup"), coordLayout.perGroup, (v) => {
     const base = panel.coordinateLayout
-      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+      ?? { ...getPreset(panel.clusterArrangement) };
     panel.coordinateLayout = { ...base, perGroup: v };
     syncArrangementFromLayout(panel);
     cb.applyClusterForce();
@@ -1053,7 +1058,7 @@ function _buildCoordinateControls(s: ClusterSectionCtx): void {
     addSlider(body, `${axis2Label} ${t("coord.range")} (°)`, 30, 360, 10,
       coordLayout.axis2.transform.totalRange, (v) => {
       const base = panel.coordinateLayout
-        ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+        ?? { ...getPreset(panel.clusterArrangement) };
       panel.coordinateLayout = {
         ...base,
         axis2: {
@@ -1071,7 +1076,8 @@ function _buildCoordinateControls(s: ClusterSectionCtx): void {
 /** Timeline-specific controls: time key, end key, duration bars, routes, tick labels, order fields, range */
 function _buildTimelineControls(s: ClusterSectionCtx): void {
   const { body, panel, cb, ctx } = s;
-  const effectiveLayout = panel.coordinateLayout ?? ARRANGEMENT_PRESETS[panel.clusterArrangement];
+  const effectiveLayout = panel.coordinateLayout ?? getPreset(panel.clusterArrangement);
+  if (!effectiveLayout) return;
   const hasPropertyAxis = effectiveLayout.axis1.source.kind === SOURCE_PROPERTY
     || effectiveLayout.axis2.source.kind === SOURCE_PROPERTY;
   if (panel.clusterArrangement !== ARRANGEMENT_TIMELINE && !hasPropertyAxis) return;
@@ -1862,7 +1868,7 @@ function buildExprLibrary(
     item.addEventListener("click", () => {
       // Apply the preset to panel
       const base = panel.coordinateLayout
-        ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+        ?? { ...getPreset(panel.clusterArrangement) };
       panel.coordinateLayout = {
         ...base,
         system: entry.system ?? "cartesian",
@@ -1937,7 +1943,7 @@ function buildConstantsUI(
   });
   addBtn.addEventListener("click", () => {
     const base = panel.coordinateLayout
-      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+      ?? { ...getPreset(panel.clusterArrangement) };
     const existing = base.constants ?? {};
     // Find a free single-letter key
     const alphabet = "abcdefghijklmnopqrstuvwxyz";
@@ -2020,7 +2026,7 @@ function buildConstantRow(
 
   const applyChange = (oldKey: string, newKey: string, newVal: number) => {
     const base = panel.coordinateLayout
-      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+      ?? { ...getPreset(panel.clusterArrangement) };
     const existing = { ...(base.constants ?? {}) };
     if (oldKey !== newKey) delete existing[oldKey];
     existing[newKey] = newVal;
@@ -2047,7 +2053,7 @@ function buildConstantRow(
 
   delBtn.addEventListener("click", () => {
     const base = panel.coordinateLayout
-      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+      ?? { ...getPreset(panel.clusterArrangement) };
     const existing = { ...(base.constants ?? {}) };
     delete existing[key];
     panel.coordinateLayout = {
@@ -2110,7 +2116,7 @@ function buildSystemConstantRow(
     const newVal = parseFloat(valInput.value);
     if (isNaN(newVal)) return;
     const base = panel.coordinateLayout
-      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+      ?? { ...getPreset(panel.clusterArrangement) };
     const existing = { ...(base.constants ?? {}) };
     existing[key] = newVal;
     panel.coordinateLayout = { ...base, constants: existing };
@@ -2146,7 +2152,7 @@ function buildAxisTextInput(
 
   const updateAxis = (source: AxisSource, transform: AxisTransform, skipRebuild = false) => {
     const base = panel.coordinateLayout
-      ?? { ...ARRANGEMENT_PRESETS[panel.clusterArrangement] };
+      ?? { ...getPreset(panel.clusterArrangement) };
     panel.coordinateLayout = {
       ...base,
       [axisKey]: { ...base[axisKey], source, transform },
