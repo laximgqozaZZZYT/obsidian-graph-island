@@ -19,6 +19,8 @@ export interface PixiNode {
   radius: number;
   color: number;
   held: boolean;
+  /** Sort rank (0 = highest/most prominent, increases downward). -1 = unranked. */
+  sortRank: number;
 }
 
 // ---------------------------------------------------------------------------

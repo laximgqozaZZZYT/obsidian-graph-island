@@ -28,7 +28,6 @@ export interface PanelState {
   showArrows: boolean;
   textFadeThreshold: number;
   nodeSize: number;
-  scaleByDegree: boolean;
   centerForce: number;
   repelForce: number;
   linkForce: number;
@@ -167,7 +166,6 @@ export const DEFAULT_PANEL: PanelState = {
   showArrows: false,
   textFadeThreshold: 0.5,
   nodeSize: 10,
-  scaleByDegree: true,
   centerForce: 0.03,
   repelForce: 200,
   linkForce: 0.01,
@@ -549,8 +547,6 @@ export function buildPanel(
     addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); });
     addToggle(body, "Heatmap (degree)", panel.heatmapMode, (v) => { panel.heatmapMode = v; cb.doRender(); }, "Color nodes by connection count (cold→warm)");
     addSlider(body, t("display.nodeSize"), 2, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
-    const scaleEl = addToggle(body, t("display.scaleByDegree"), panel.scaleByDegree, (v) => { panel.scaleByDegree = v; cb.doRender(); }, t("desc.scaleByDegree"));
-    if (panel.heatmapMode && scaleEl) { scaleEl.style.opacity = "0.5"; scaleEl.title = "Heatmap mode overrides degree scaling colors"; }
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
     addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.markDirty(); }, t("desc.hoverHops"));
     // --- ノード形状 ---

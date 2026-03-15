@@ -7,7 +7,6 @@
   "showArrows": true,
   "textFadeThreshold": 0.3,
   "nodeSize": 7,
-  "scaleByDegree": false,
   "centerForce": 0.005,
   "repelForce": 80,
   "linkForce": 0.01,

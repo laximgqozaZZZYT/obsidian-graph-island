@@ -30,6 +30,19 @@ function lightenColor(hex: number, factor: number): number {
   return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
 }
 
+/** Desaturate a 0xRRGGBB color toward gray. factor=1 is original, factor=0 is fully gray. */
+function desaturateColor(color: number, factor: number): number {
+  if (factor >= 1) return color;
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  const gray = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
+  const nr = Math.round(gray + (r - gray) * factor);
+  const ng = Math.round(gray + (g - gray) * factor);
+  const nb = Math.round(gray + (b - gray) * factor);
+  return (nr << 16) | (ng << 8) | nb;
+}
+
 // ---------------------------------------------------------------------------
 // RenderHost — the interface the RenderPipeline needs from its parent
 // ---------------------------------------------------------------------------
@@ -90,8 +103,6 @@ export interface RenderHost {
   getCardRenderConfig?(): CardRenderConfig;
   /** Get the render thresholds (LOD tuning) */
   getRenderThresholds?(): RenderThresholds;
-  /** Whether scaleByDegree is enabled */
-  getScaleByDegree?(): boolean;
   /** Get current node size */
   getNodeSize?(): number;
   /** Get the adjacency map for zone-based label placement */
@@ -465,23 +476,32 @@ export class RenderPipeline {
 
       if (displayMode === "node") {
         // Default mode: unchanged shape rendering
+        const prominentN = rt.prominentTopN ?? 5;
+        const nonPromSat = rt.nonProminentSaturation ?? 0.4;
         for (const pn of visible) {
           const shape = getNodeShape(pn.data, shapeRules);
           const effR = Math.max(pn.radius, minWorldRadius);
           const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
-          const strokeColor = darkenColor(pn.color, crc.strokeDarken);
+          // Desaturate non-prominent nodes
+          let drawColor = pn.color;
+          if (pn.sortRank >= 0 && pn.sortRank >= prominentN) {
+            drawColor = desaturateColor(pn.color, nonPromSat);
+          }
+          const strokeColor = darkenColor(drawColor, crc.strokeDarken);
           g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
           if (useGradient && shape === "circle") {
-            const innerCol = lightenColor(pn.color, crc.gradientHighlight);
-            const outerCol = darkenColor(pn.color, crc.gradientShadow);
+            const innerCol = lightenColor(drawColor, crc.gradientHighlight);
+            const outerCol = darkenColor(drawColor, crc.gradientShadow);
             g.beginRadialFill(pn.data.x, pn.data.y, effR, innerCol, outerCol, nodeAlpha, nodeAlpha);
           } else {
-            g.beginFill(pn.color, nodeAlpha);
+            g.beginFill(drawColor, nodeAlpha);
           }
           drawShapeAt(g, shape, pn.data.x, pn.data.y, effR);
           g.endFill();
-          // Double outline for super nodes (collapsed groups)
-          if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
+          // Double outline for super nodes (collapsed groups) or top-N prominent nodes
+          const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
+          const isProminent = pn.sortRank >= 0 && pn.sortRank < prominentN;
+          if (isSuper || isProminent) {
             const innerR = effR * rt.superNodeInnerRatio;
             g.lineStyle(rt.superNodeInnerStroke / worldScale, strokeColor, nodeAlpha * rt.superNodeInnerAlpha);
             g.drawCircle(pn.data.x, pn.data.y, innerR);
@@ -870,10 +890,9 @@ export class RenderPipeline {
     const isSuperNode = !!(n.collapsedMembers && n.collapsedMembers.length > 0);
     const rtNode = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
     const maxR = rtNode.maxNodeRadius > 0 ? rtNode.maxNodeRadius : Infinity;
-    const scaleByDegree = this.host.getScaleByDegree?.() ?? true;
     const ns = this.host.getNodeSize?.() ?? nodeR(n);
     const nodeDeg = this.host.getDegrees().get(n.id) || 0;
-    const r = effectiveRadius(n, ns, nodeDeg, scaleByDegree, maxR, rtNode.minNodeRadius);
+    const r = effectiveRadius(n, ns, nodeDeg, maxR, rtNode.minNodeRadius);
     const color = nodeColor(n);
     const circle = new CanvasGraphics();
     if (isSuperNode) {
@@ -971,7 +990,7 @@ export class RenderPipeline {
     const pixiNodes = this.host.getPixiNodes();
     pixiNodes.set(n.id, {
       data: n, gfx: container, circle, label, tagLabel,
-      hoverLabel: null, leaderLine: null, radius: r, color, held: false,
+      hoverLabel: null, leaderLine: null, radius: r, color, held: false, sortRank: -1,
     });
   }
 

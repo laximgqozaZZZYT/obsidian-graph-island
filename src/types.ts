@@ -689,6 +689,12 @@ export interface RenderThresholds {
   /** Inner stroke alpha for super node double outline (default 0.5) */
   superNodeInnerAlpha?: number;
 
+  // ---- Sort-rank prominence ----
+  /** Number of top-sorted nodes to emphasize with double outline (default 5) */
+  prominentTopN?: number;
+  /** Saturation multiplier for non-prominent nodes (0-1, default 0.4). Lower = more washed out. */
+  nonProminentSaturation?: number;
+
   // ---- Timeline axis labels ----
   /** Show text labels on timeline axis ticks (default true) */
   timelineAxisShowLabels?: boolean;
@@ -1099,6 +1105,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   superNodeOuterStroke: 1.5,
   superNodeInnerStroke: 1.0,
   superNodeInnerAlpha: 0.5,
+  prominentTopN: 5,
+  nonProminentSaturation: 0.4,
   timelineAxisShowLabels: true,
   timelineAxisLabelFontSize: 9,
   timelineAxisLabelAlpha: 0.7,

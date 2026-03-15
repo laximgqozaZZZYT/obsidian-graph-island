@@ -81,7 +81,7 @@ export class LayoutController {
       }
       // Fallback: compute effective radius using canonical formula
       const deg = degrees.get(n.id) || 0;
-      const r = effectiveRadius(n, baseSize, deg, panel.scaleByDegree, maxR);
+      const r = effectiveRadius(n, baseSize, deg, maxR);
       if (n.collapsedMembers && n.collapsedMembers.length > 0) {
         return r + superCollidePad;
       }
@@ -418,7 +418,6 @@ export class LayoutController {
       width: W,
       height: H,
       nodeSize: panel.nodeSize,
-      scaleByDegree: panel.scaleByDegree,
       nodeSpacing: panel.clusterNodeSpacing ?? 3,
       groupScale: panel.clusterGroupScale ?? 3,
       groupSpacing: panel.clusterGroupSpacing ?? 2,

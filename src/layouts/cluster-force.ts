@@ -127,8 +127,6 @@ export interface ClusterForceConfig {
   height: number;
   /** Base node size (panel.nodeSize) — used to compute visual radius */
   nodeSize: number;
-  /** Whether node radius scales with degree (backlink count) */
-  scaleByDegree: boolean;
   /** Node spacing = nodeSize × 2 × this multiplier (default 3.0) */
   nodeSpacing: number;
   /** Pattern scale — controls overall group footprint (spiral arm gap,
@@ -203,7 +201,6 @@ function resolveGroupOverlaps(
   clusterCentroids: Map<string, { x: number; y: number }>,
   nodeSize: number,
   degrees: Map<string, number>,
-  scaleByDegree: boolean,
   overlapPad: number = 1.3,
 ): void {
   const keys = [...groups.keys()];
@@ -308,13 +305,12 @@ function resolveIntraGroupGaps(
   minGap: number,
   nodeSize: number,
   degrees: Map<string, number>,
-  scaleByDegree: boolean,
   maxNodeRadius = 60,
   minNodeRadius = 3,
 ): void {
   if (minGap <= 0) return;
 
-  const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, scaleByDegree, maxNodeRadius, minNodeRadius);
+  const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, maxNodeRadius, minNodeRadius);
 
   for (const [, members] of groups) {
     if (members.length < 2) continue;
@@ -462,7 +458,7 @@ export function buildClusterForce(
   // Post-expression intra-group gap correction
   const minGap = cfg.userConstants?._minGap ?? 0;
   if (minGap > 0) {
-    resolveIntraGroupGaps(targets, groups, minGap, cfg.nodeSize, degrees, cfg.scaleByDegree, cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 3);
+    resolveIntraGroupGaps(targets, groups, minGap, cfg.nodeSize, degrees, cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 3);
   }
 
   // Resolve pairwise group overlaps (especially important after super node expansion)
@@ -471,7 +467,7 @@ export function buildClusterForce(
   const isGlobalCoordLayout = cfg.coordinateLayout && !cfg.coordinateLayout.perGroup;
   if (!cfg.skipGroupOverlap && !isGlobalCoordLayout) {
     const overlapPad = cfg.userConstants?._overlapPad ?? 1.3;
-    resolveGroupOverlaps(targets, groups, clusterRadii, clusterCentroids, cfg.nodeSize, degrees, cfg.scaleByDegree, overlapPad);
+    resolveGroupOverlaps(targets, groups, clusterRadii, clusterCentroids, cfg.nodeSize, degrees, overlapPad);
   }
 
   // Re-align timeline bars with post-overlap node target positions
@@ -603,20 +599,17 @@ function pairwiseGap(r1: number, r2: number, spacing: number): number {
 
 /** Visual radius of a node — canonical formula used across the codebase.
  *  Enforces minNodeRadius floor so nodes remain hoverable/clickable. */
-export function nodeRadius(nodeSize: number, degree: number, scaleByDegree: boolean, minNodeRadius = 3): number {
-  const raw = scaleByDegree
-    ? Math.max(nodeSize, nodeSize + Math.sqrt(degree) * 3.2)
-    : nodeSize;
-  return Math.max(raw, minNodeRadius);
+export function nodeRadius(nodeSize: number, _degree: number, minNodeRadius = 3): number {
+  return Math.max(nodeSize, minNodeRadius);
 }
 
 /** Effective visual radius accounting for super nodes (collapsed groups).
  *  Canonical formula: baseR = nodeRadius(); superR = baseR * (1 + sqrt(memberCount) * 0.5); capped by maxNodeRadius.
  *  Enforces minNodeRadius floor. */
-export function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, scaleByDegree: boolean, maxNodeRadius = 60, minNodeRadius = 3): number {
-  const baseR = nodeRadius(nodeSize, degree, scaleByDegree, minNodeRadius);
+export function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, maxNodeRadius = 60, minNodeRadius = 3): number {
+  const baseR = nodeRadius(nodeSize, degree, minNodeRadius);
   const cap = maxNodeRadius > 0 ? maxNodeRadius : Infinity;
-  if (n.collapsedMembers && n.collapsedMembers.length > 0 && scaleByDegree) {
+  if (n.collapsedMembers && n.collapsedMembers.length > 0) {
     return Math.max(Math.min(Math.max(baseR, baseR * (1 + Math.sqrt(n.collapsedMembers.length) * 0.5)), cap), minNodeRadius);
   }
   return Math.max(baseR, minNodeRadius);
@@ -636,7 +629,6 @@ interface ArrangementParams {
   groupScale: number;
   nodeSize: number;
   maxGroupNodeR: number;
-  scaleByDegree: boolean;
   cmp: (a: GraphNode, b: GraphNode) => number;
   nodeSpacingMap?: Map<string, number>;
   cfg: ClusterForceConfig;
@@ -900,11 +892,11 @@ function computeUnifiedTimelineTargets(
 
   // Compute max group node radius for timeline params
   let maxGroupNodeR = nodeSize;
-  if (cfg.scaleByDegree && allMembers.length > 0) {
+  if (allMembers.length > 0) {
     const maxR = cfg.maxNodeRadius ?? 60;
     const minR = cfg.minNodeRadius ?? 3;
     for (const m of allMembers) {
-      const r = effectiveRadius(m, cfg.nodeSize, degrees.get(m.id) ?? 0, cfg.scaleByDegree, maxR, minR);
+      const r = effectiveRadius(m, cfg.nodeSize, degrees.get(m.id) ?? 0, maxR, minR);
       if (r > maxGroupNodeR) maxGroupNodeR = r;
     }
   }
@@ -912,7 +904,7 @@ function computeUnifiedTimelineTargets(
   const unified = timelineOffsets({
     members: allMembers, degrees, edges, nodeSpacing: cfg.nodeSpacing,
     groupScale: cfg.groupScale, nodeSize, maxGroupNodeR,
-    scaleByDegree: cfg.scaleByDegree, cmp, nodeSpacingMap: cfg.nodeSpacingMap, cfg,
+    cmp, nodeSpacingMap: cfg.nodeSpacingMap, cfg,
   });
 
   // Build group membership lookup
@@ -1504,7 +1496,7 @@ function estimateGroupRadius(
   if (members) {
     for (const m of members) {
       if (m.collapsedMembers && m.collapsedMembers.length > 0) {
-        const sr = effectiveRadius(m, nodeSize, 0, true, maxNodeRadius, 3);
+        const sr = effectiveRadius(m, nodeSize, 0, maxNodeRadius, 3);
         superBonus = Math.max(superBonus, sr - nodeSize);
       }
     }
@@ -1650,7 +1642,7 @@ function computeOffsets(
   edges: GraphEdge[],
   cfg: ClusterForceConfig,
 ): ArrangementResult {
-  const { nodeSpacing, groupScale, scaleByDegree, sortComparator, nodeSpacingMap } = cfg;
+  const { nodeSpacing, groupScale, sortComparator, nodeSpacingMap } = cfg;
   const maxR = cfg.maxNodeRadius ?? 60;
   const minR = cfg.minNodeRadius ?? 4;
 
@@ -1675,9 +1667,9 @@ function computeOffsets(
   // Step 1: Keep nodeSize as user-set base; compute max group node radius
   // separately for uniform-spacing patterns (grid, triangle, mountain).
   const nodeSize = Math.max(cfg.nodeSize, minR);
-  const effR = (n: GraphNode) => effectiveRadius(n, cfg.nodeSize, degrees.get(n.id) ?? 0, scaleByDegree, maxR, minR);
+  const effR = (n: GraphNode) => effectiveRadius(n, cfg.nodeSize, degrees.get(n.id) ?? 0, maxR, minR);
   let maxGroupNodeR = nodeSize;
-  if (scaleByDegree && members.length > 0) {
+  if (members.length > 0) {
     for (const m of members) {
       const r = effR(m);
       if (r > maxGroupNodeR) maxGroupNodeR = r;
@@ -1706,7 +1698,7 @@ function computeOffsets(
     const isDefault = !cfg.coordinateLayout ||
       JSON.stringify(cfg.coordinateLayout) === JSON.stringify(preset);
     if (isDefault) {
-      result = dispatchHardcoded(cfg.arrangement, members, degrees, edges, nodeSpacing, groupScale, nodeSize, maxGroupNodeR, scaleByDegree, cmp, nodeSpacingMap, cfg);
+      result = dispatchHardcoded(cfg.arrangement, members, degrees, edges, nodeSpacing, groupScale, nodeSize, maxGroupNodeR, cmp, nodeSpacingMap, cfg);
       normalizeSpread(result, members.length, nodeSize, nodeSpacing, groupScale, cfg);
       return result;
     }
@@ -1728,7 +1720,7 @@ function computeOffsets(
   }
 
   // Fallback — legacy path
-  result = dispatchHardcoded(cfg.arrangement, members, degrees, edges, nodeSpacing, groupScale, nodeSize, maxGroupNodeR, scaleByDegree, cmp, nodeSpacingMap, cfg);
+  result = dispatchHardcoded(cfg.arrangement, members, degrees, edges, nodeSpacing, groupScale, nodeSize, maxGroupNodeR, cmp, nodeSpacingMap, cfg);
   normalizeSpread(result, members.length, nodeSize, nodeSpacing, groupScale, cfg);
   return result;
 }
@@ -1847,7 +1839,6 @@ function dispatchHardcoded(
   groupScale: number,
   nodeSize: number,
   maxGroupNodeR: number,
-  scaleByDegree: boolean,
   cmp: (a: GraphNode, b: GraphNode) => number,
   nodeSpacingMap: Map<string, number> | undefined,
   cfg: ClusterForceConfig,
@@ -1855,7 +1846,7 @@ function dispatchHardcoded(
   // Build unified params object once for all arrangement functions
   const p: ArrangementParams = {
     members, degrees, edges, nodeSpacing, groupScale,
-    nodeSize, maxGroupNodeR, scaleByDegree, cmp, nodeSpacingMap, cfg,
+    nodeSize, maxGroupNodeR, cmp, nodeSpacingMap, cfg,
   };
 
   // Step 2: Inter-node distance uses pairwise max reference.
@@ -1881,10 +1872,10 @@ function dispatchHardcoded(
 // ---------------------------------------------------------------------------
 
 function concentricOffsets(p: ArrangementParams): ArrangementResult {
-  const { members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg } = p;
+  const { members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg } = p;
   const maxR = cfg.maxNodeRadius ?? 60;
   const minR = cfg.minNodeRadius ?? 3;
-  const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, scaleByDegree, maxR, minR);
+  const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, maxR, minR);
 
   const sorted = [...members].sort(cmp);
   const offsets = new Map<string, { dx: number; dy: number }>();
@@ -1951,10 +1942,10 @@ function concentricOffsets(p: ArrangementParams): ArrangementResult {
 // ---------------------------------------------------------------------------
 
 function radialOffsets(p: ArrangementParams): ArrangementResult {
-  const { members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, cmp, nodeSpacingMap, cfg } = p;
+  const { members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg } = p;
   const maxR = cfg.maxNodeRadius ?? 60;
   const minR = cfg.minNodeRadius ?? 3;
-  const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, scaleByDegree, maxR, minR);
+  const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, maxR, minR);
   const spokeCount = cfg.userConstants?._spokeCount;
 
   const sorted = [...members].sort(cmp);
@@ -2672,10 +2663,10 @@ function resolveTimeKey(
 // ---------------------------------------------------------------------------
 
 function randomOffsets(p: ArrangementParams): Map<string, { dx: number; dy: number }> {
-  const { members, degrees, nodeSpacing, groupScale, nodeSize, scaleByDegree, nodeSpacingMap, cfg } = p;
+  const { members, degrees, nodeSpacing, groupScale, nodeSize, nodeSpacingMap, cfg } = p;
   const maxR = cfg.maxNodeRadius ?? 60;
   const minR = cfg.minNodeRadius ?? 3;
-  const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, scaleByDegree, maxR, minR);
+  const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, maxR, minR);
 
   const offsets = new Map<string, { dx: number; dy: number }>();
   const n = members.length;
@@ -2883,7 +2874,7 @@ export function computeAutoFitSpacing(
     // Build per-node info: target position, visual radius, label half-width
     const nodeInfos = nodes.map((n, i) => {
       const deg = degrees.get(n.id) ?? 0;
-      const r = effectiveRadius(n, baseSize, deg, baseCfg.scaleByDegree);
+      const r = effectiveRadius(n, baseSize, deg);
       const labelHW = estimateLabelWidth(n) / 2;
       const group = result.metadata.nodeClusterMap.get(n.id) ?? "__none__";
       return { id: n.id, x: targets[i].x, y: targets[i].y, r, labelHW, group };

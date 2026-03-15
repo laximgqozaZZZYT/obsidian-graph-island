@@ -83,7 +83,6 @@ const en: TranslationMap = {
   "display.fadeEdges": "Edge Fade (by Degree)",
   "display.textFade": "Text Fade Threshold",
   "display.nodeSize": "Node Size",
-  "display.scaleByDegree": "Scale by Degree",
   "display.hoverHops": "Hover Highlight Hops",
   "display.edgeTypeHeading": "Edge Types",
   "display.links": "Links",
@@ -465,7 +464,6 @@ const en: TranslationMap = {
   // --- Setting descriptions (tooltips) ---
   "desc.existingOnly": "Hide notes without files",
   "desc.orphans": "Show/hide unconnected nodes",
-  "desc.scaleByDegree": "Scale by connection count",
   "desc.textFade": "Zoom level for label fadeout",
   "desc.hoverHops": "Highlight depth on hover",
   "desc.edgeBundleStrength": "0=straight, 1=fully curved",
@@ -568,7 +566,6 @@ const ja: TranslationMap = {
   "display.fadeEdges": "結線の濃淡（被リンク数）",
   "display.textFade": "テキストフェードの閾値",
   "display.nodeSize": "ノードの大きさ",
-  "display.scaleByDegree": "被リンク数でサイズ変更",
   "display.hoverHops": "ホバー強調ホップ数",
   "display.edgeTypeHeading": "結線タイプ",
   "display.links": "リンク",
@@ -950,7 +947,6 @@ const ja: TranslationMap = {
   // --- Setting descriptions (tooltips) ---
   "desc.existingOnly": "ファイルのないノートを非表示",
   "desc.orphans": "接続のないノードの表示/非表示",
-  "desc.scaleByDegree": "接続数でサイズ拡縮",
   "desc.textFade": "ラベルが消えるズームレベル",
   "desc.hoverHops": "ホバー時の強調範囲",
   "desc.edgeBundleStrength": "0=直線, 1=完全に束ねる",

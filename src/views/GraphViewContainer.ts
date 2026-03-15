@@ -1170,7 +1170,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getCardDisplayConfig() { return this.panel.cardDisplayConfig ?? { fields: [], maxWidth: 120, showIcon: false }; }
   getDonutDisplayConfig() { return this.panel.donutDisplayConfig ?? { innerRadius: 0.6 }; }
   getRenderThresholds() { return this.panel.renderThresholds ?? {}; }
-  getScaleByDegree() { return this.panel.scaleByDegree; }
   getNodeSize() { return this.panel.nodeSize; }
   getAdjacency() { return this.adj; }
 
@@ -3792,9 +3791,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.enclosureLabels.clear();
     const baseSize = this.panel.nodeSize;
 
-    const sbd = this.panel.scaleByDegree;
     const degs = this.degrees;
-    const nodeR = (n: GraphNode) => nodeRadius(baseSize, degs.get(n.id) || 0, sbd);
+    const nodeR = (n: GraphNode) => nodeRadius(baseSize, degs.get(n.id) || 0);
     const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
 
     // Heatmap: precompute max degree for normalization
@@ -3856,6 +3854,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.graphEdges = gd.edges;
       invalidateBundleCache();
       this.createPixiNodes(gd.nodes, nodeR, nodeColor);
+      this.computeSortRanks();
 
       let tickCount = 0;
       this.simulation = this.layoutController.createForceSimulation(gd.nodes, gd.edges, cx, cy);
@@ -3995,6 +3994,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     await yieldFrame(); if (signal.aborted) return;
 
     this.createPixiNodes(ld.nodes, nodeR, nodeColor);
+    this.computeSortRanks();
     await yieldFrame(); if (signal.aborted) return;
 
     // Ensure viewport utilization BEFORE building transition data,
@@ -4641,13 +4641,30 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Recalculate and apply visual radii for all PixiNodes based on current panel.nodeSize. */
   private recalcNodeRadii() {
     const ns = this.panel.nodeSize;
-    const sbd = this.panel.scaleByDegree;
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
     const maxR = rt.maxNodeRadius > 0 ? rt.maxNodeRadius : Infinity;
     const minR = rt.minNodeRadius;
     for (const pn of this.pixiNodes.values()) {
-      pn.radius = effectiveRadius(pn.data, ns, this.degrees.get(pn.data.id) || 0, sbd, maxR, minR);
+      pn.radius = effectiveRadius(pn.data, ns, this.degrees.get(pn.data.id) || 0, maxR, minR);
     }
+  }
+
+  /** Compute sort ranks for all PixiNodes. Rank 0 = most prominent. */
+  private computeSortRanks() {
+    const cmp = this.layoutController?.buildSortComparator(
+      Array.from(this.pixiNodes.values()).map(pn => pn.data),
+      this.graphEdges
+    );
+    if (!cmp) {
+      // No sort rules -- rank by degree (default behavior)
+      const sorted = Array.from(this.pixiNodes.values())
+        .sort((a, b) => (this.degrees.get(b.data.id) ?? 0) - (this.degrees.get(a.data.id) ?? 0));
+      sorted.forEach((pn, i) => { pn.sortRank = i; });
+      return;
+    }
+    const sorted = Array.from(this.pixiNodes.values())
+      .sort((a, b) => cmp(a.data, b.data));
+    sorted.forEach((pn, i) => { pn.sortRank = i; });
   }
 
   // =========================================================================

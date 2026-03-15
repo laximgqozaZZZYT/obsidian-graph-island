@@ -13,7 +13,7 @@ import type { PanelState } from "../views/PanelBuilder";
 /** Fields that should be boolean */
 const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showTags", "showAttachments", "existingOnly", "showOrphans", "showArrows",
-  "scaleByDegree", "showOrbitRings", "orbitAutoRotate", "colorEdgesByRelation",
+  "showOrbitRings", "orbitAutoRotate", "colorEdgesByRelation",
   "colorNodesByCategory", "heatmapMode", "showInheritance", "showAggregation", "showTagNodes",
   "showSimilar", "showSibling", "showSequence", "showLinks", "showTagEdges",
   "showCategoryEdges", "showSemanticEdges", "fadeEdgesByDegree",
@@ -117,8 +117,11 @@ export function exportPreset(panel: PanelState): string {
  * Parse a JSON string and return only the valid PanelState fields.
  * Throws on invalid JSON. Silently drops unknown or invalid fields.
  */
-/** Removed arrangement patterns — silently migrated to "grid" on import */
+/** Removed arrangement patterns -- silently migrated to "grid" on import */
 const REMOVED_ARRANGEMENTS = new Set(["spiral", "mountain", "sunburst", "tree"]);
+
+/** Deprecated settings -- silently stripped on import */
+const REMOVED_SETTINGS = new Set(["scaleByDegree"]);
 
 export function importPreset(json: string): Partial<PanelState> {
   const raw = JSON.parse(json);
@@ -130,6 +133,11 @@ export function importPreset(json: string): Partial<PanelState> {
   // Migrate removed arrangement patterns to "grid"
   if (typeof raw.clusterArrangement === "string" && REMOVED_ARRANGEMENTS.has(raw.clusterArrangement)) {
     raw.clusterArrangement = "grid";
+  }
+
+  // Strip deprecated settings
+  for (const key of REMOVED_SETTINGS) {
+    delete raw[key];
   }
 
   const result: Partial<PanelState> = {};
