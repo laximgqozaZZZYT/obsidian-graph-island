@@ -2517,30 +2517,60 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
-    // Fallback: no guide data available — generate polar roads from node distribution
+    // Fallback: no guide data available — generate roads from node distribution
     const bounds = this.computeNodeBounds(allNodes);
     const gcx = (bounds.xMin + bounds.xMax) / 2;
     const gcy = (bounds.yMin + bounds.yMax) / 2;
-    const dists = allNodes.map(n => Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2)).sort((a, b) => a - b);
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-    // Dense fallback: scale with sqrt(nodeCount) for adequate coverage
-    const ringCount = rt.roadRingCount || Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5)));
-    const spokeCount = rt.roadSpokeCount || Math.max(16, Math.ceil(Math.sqrt(allNodes.length) * 1.5));
 
-    const fallbackNetwork = buildRoadNetwork({
-      system: "polar",
-      axis1Lines: Array.from({ length: ringCount }, (_, i) => ({
-        position: dists[Math.floor(dists.length * (i + 1) / (ringCount + 1))] ?? 1,
-      })),
-      axis2Lines: Array.from({ length: spokeCount }, (_, i) => ({
-        position: (i / spokeCount) * Math.PI * 2,
-      })),
-      axis1Shape: "circle", axis2Shape: "radial",
-      cx: gcx, cy: gcy,
-      bounds: { ...bounds, maxR: dists[dists.length - 1] ?? 1 },
-      nodes: allNodes,
-    });
-    this.roadNetworkData = fallbackNetwork;
+    const arrangement = this.panel.clusterArrangement;
+    const isCartesian = arrangement === "grid" || arrangement === "triangle" || arrangement === "square";
+
+    if (isCartesian) {
+      // Cartesian fallback: generate grid from node bounding box
+      const width = bounds.xMax - bounds.xMin || 1;
+      const height = bounds.yMax - bounds.yMin || 1;
+      const gridSize = Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 2)));
+      const xStep = width / gridSize;
+      const yStep = height / gridSize;
+
+      const xLines: { position: number }[] = [];
+      const yLines: { position: number }[] = [];
+      for (let i = 0; i <= gridSize; i++) {
+        xLines.push({ position: bounds.xMin + i * xStep });
+        yLines.push({ position: bounds.yMin + i * yStep });
+      }
+
+      const rounds = densifyRounds(allNodes.length, gridSize * gridSize);
+      this.roadNetworkData = buildRoadNetwork({
+        system: "cartesian",
+        axis1Lines: multiDensify(xLines, rounds),
+        axis2Lines: multiDensify(yLines, rounds),
+        axis1Shape: "line", axis2Shape: "line",
+        cx: gcx, cy: gcy,
+        bounds,
+        nodes: allNodes,
+      });
+    } else {
+      // Polar fallback: generate rings + spokes from node distance distribution
+      const dists = allNodes.map(n => Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2)).sort((a, b) => a - b);
+      const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+      const ringCount = rt.roadRingCount || Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5)));
+      const spokeCount = rt.roadSpokeCount || Math.max(16, Math.ceil(Math.sqrt(allNodes.length) * 1.5));
+
+      this.roadNetworkData = buildRoadNetwork({
+        system: "polar",
+        axis1Lines: Array.from({ length: ringCount }, (_, i) => ({
+          position: dists[Math.floor(dists.length * (i + 1) / (ringCount + 1))] ?? 1,
+        })),
+        axis2Lines: Array.from({ length: spokeCount }, (_, i) => ({
+          position: (i / spokeCount) * Math.PI * 2,
+        })),
+        axis1Shape: "circle", axis2Shape: "radial",
+        cx: gcx, cy: gcy,
+        bounds: { ...bounds, maxR: dists[dists.length - 1] ?? 1 },
+        nodes: allNodes,
+      });
+    }
     this._finishRoadNetwork(allNodes);
   }
 
