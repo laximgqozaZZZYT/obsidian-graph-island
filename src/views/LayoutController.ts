@@ -432,7 +432,6 @@ export class LayoutController {
       timelineOrderFields: panel.timelineOrderFields || "",
       sequenceFields: this.host.getSequenceFields(),
       reverseSequenceFields: this.host.getReverseSequenceFields(),
-      guideLineMode: panel.guideLineMode || "per-group",
       getNodeProperty: (nodeId: string, key: string) => this.host.getNodeProperty(nodeId, key),
       coordinateLayout: resolveCoordinateLayout(clusterArrangement, panel.coordinateLayout ?? null),
       userConstants: panel.coordinateLayout?.constants,

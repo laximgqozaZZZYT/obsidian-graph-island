@@ -218,13 +218,9 @@ export interface RenderHost {
   getSearchHiddenNodes(): Set<string>;
   /** Draw timeline duration bars */
   drawTimelineBars(): void;
-  /** Draw arrangement guide lines */
-  drawGuideLines(): void;
   /** Draw per-group route lines (transit map style) */
   drawRouteLines(): void;
   drawRoadNetwork(): void;
-  /** Draw group grid overlay */
-  drawGroupGrid(): void;
   /** Tick layout transition animation; returns true if still running */
   tickLayoutTransition(): boolean;
   /** Get the canvas viewport dimensions (CSS pixels) */
@@ -400,10 +396,8 @@ export class RenderPipeline {
       this.edgeRedrawCounter = 0;
       this.host.drawEnclosures();
       this.host.drawSunburstArcs();
-      this.host.drawGuideLines();
       this.host.drawRouteLines();
       this.host.drawRoadNetwork();
-      this.host.drawGroupGrid();
       this.host.drawTimelineBars();
       this.host.drawEdges();
     }

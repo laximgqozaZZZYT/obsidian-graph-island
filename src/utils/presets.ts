@@ -19,7 +19,7 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showSimilar", "showSibling", "showSequence", "showLinks", "showTagEdges",
   "showCategoryEdges", "showSemanticEdges", "fadeEdgesByDegree",
   "showEdgeLabels", "showMinimap", "autoFit", "showDurationBars",
-  "showGuideLines", "showGroupGrid", "showDotGrid",
+  "showDotGrid",
   "gridTableMode", "gridShowHeaders", "gridCellShading",
   "clusterFollowsGroupBy",
 ];
@@ -53,7 +53,6 @@ const ARRAY_FIELDS: (keyof PanelState)[] = [
 const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   tagDisplay: ["node", "enclosure"] as const,
   clusterArrangement: ["concentric", "radial", "phyllotaxis", "grid", "triangle", "random", "timeline", "custom"] as const,
-  guideLineMode: ["shared", "per-group"] as const,
   nodeDisplayMode: ["node", "card", "donut", "sunburst-segment"] as const,
   edgeCardinalityMode: ["none", "crowsfoot"] as const,
   cableBundleMode: ["auto", "always", "never"] as const,

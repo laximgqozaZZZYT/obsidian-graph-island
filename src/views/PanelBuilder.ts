@@ -95,12 +95,6 @@ export interface PanelState {
   showTimelineRoutes: boolean;
   /** Frontmatter field for timeline end date */
   timelineEndKey: string;
-  /** Show arrangement guide lines */
-  showGuideLines: boolean;
-  /** Guide line mode: "shared" merges all timeline T-axes into one; "per-group" draws per group */
-  guideLineMode: "shared" | "per-group";
-  /** Show a grid/boundary overlay per cluster group */
-  showGroupGrid: boolean;
   /** Comma-separated fields for hierarchy-based ordering (e.g. parent_id,story_order). Sequence fields (next/prev) come from ontology settings. */
   timelineOrderFields: string;
   /** Coordinate layout override — when set, takes precedence over clusterArrangement */
@@ -232,9 +226,6 @@ export const DEFAULT_PANEL: PanelState = {
   showDurationBars: true,
   showTimelineRoutes: true,
   timelineEndKey: "end-date",
-  showGuideLines: true,
-  guideLineMode: "per-group" as const,
-  showGroupGrid: true,
   timelineOrderFields: "",
   coordinateLayout: null,
   showDotGrid: true,
@@ -1173,29 +1164,6 @@ function _buildAutoFitAndGuides(s: ClusterSectionCtx): void {
     cb.restartSimulation(0.5);
     cb.doRenderKeepPanel();
   }, t("desc.autoFit"));
-
-  // Guide lines toggle
-  addToggle(body, t("cluster.showGuideLines"), panel.showGuideLines, (v) => {
-    panel.showGuideLines = v;
-    cb.markDirty();
-  });
-
-  // Guide line mode (only for timeline)
-  if (panel.clusterArrangement === ARRANGEMENT_TIMELINE) {
-    addSelect(body, t("cluster.guideLineMode"), [
-      { value: "shared", label: t("cluster.guideLineMode.shared") },
-      { value: "per-group", label: t("cluster.guideLineMode.perGroup") },
-    ], panel.guideLineMode, (v) => {
-      panel.guideLineMode = v as "shared" | "per-group";
-      cb.markDirty();
-    });
-  }
-
-  // Group grid toggle
-  addToggle(body, t("cluster.showGroupGrid"), panel.showGroupGrid, (v) => {
-    panel.showGroupGrid = v;
-    cb.markDirty();
-  });
 
   // Custom grid settings (visible when coordinate layout is active)
   if (panel.coordinateLayout) {

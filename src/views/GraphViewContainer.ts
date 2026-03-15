@@ -19,7 +19,7 @@ import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, inval
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
-import type { ClusterMetadata, GuideLineData, TimelineBarInfo, ArrangementGuide, TimelineRoute } from "../layouts/cluster-force";
+import type { ClusterMetadata, TimelineBarInfo, ArrangementGuide, TimelineRoute } from "../layouts/cluster-force";
 import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from "../layouts/cluster-force";
 import type { ResolvedGridInfo, ResolvedGridLine } from "../layouts/coordinate-engine";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
@@ -128,12 +128,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private edgeLabelContainer: CanvasContainer | null = null;
   private nodeCircleBatch: CanvasGraphics | null = null;
   private arrowGraphics: CanvasGraphics | null = null;
-  private guideLineGraphics: CanvasGraphics | null = null;
   private routeGraphics: CanvasGraphics | null = null;
   private routeData: TimelineRoute[] | null = null;
   private roadNetworkData: RoadNetwork | null = null;
   private roadGraphics: CanvasGraphics | null = null;
-  private groupGridGraphics: CanvasGraphics | null = null;
   private barGraphics: CanvasGraphics | null = null;
   private barLabelContainer: CanvasContainer | null = null;
   private pixiNodes: Map<string, PixiNode> = new Map();
@@ -897,11 +895,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       try { lbl.destroy(); } catch { /* already destroyed */ }
     }
     this.enclosureLabels.clear();
-    // Clean up group grid labels
-    for (const lbl of this.groupGridLabels.values()) {
-      try { lbl.destroy(); } catch { /* already destroyed */ }
-    }
-    this.groupGridLabels.clear();
     // Clean up sunburst labels
     for (const lbl of this.sunburstLabels.values()) {
       try { lbl.destroy(); } catch { /* already destroyed */ }
@@ -928,13 +921,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.edgeLabelContainer = null;
     this.nodeCircleBatch = null;
     this.arrowGraphics = null;
-    this.guideLineGraphics = null;
     this.routeGraphics = null;
     this.routeData = null;
     this.roadGraphics = null;
     this.roadNetworkData = null;
-    this.groupGridGraphics = null;
-    this.groupGridLabelContainer = null;
     this.barGraphics = null;
     this.barLabelContainer = null;
     this.spatialGrid.clear();
@@ -1038,11 +1028,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.addChild(sunburstGfx);
     this.sunburstGraphics = sunburstGfx;
 
-    // Guide line layer (arrangement guides — timeline axis, spiral curve, grid lines, etc.)
-    const guideGfx = new CanvasGraphics();
-    world.addChild(guideGfx);
-    this.guideLineGraphics = guideGfx;
-
     // Route line layer (transit map style — per-group colored paths)
     const routeGfx = new CanvasGraphics();
     world.addChild(routeGfx);
@@ -1052,11 +1037,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const roadGfx = new CanvasGraphics();
     world.addChild(roadGfx);
     this.roadGraphics = roadGfx;
-
-    // Group grid overlay (bounding circle + cross-hair per cluster group)
-    const groupGridGfx = new CanvasGraphics();
-    world.addChild(groupGridGfx);
-    this.groupGridGraphics = groupGridGfx;
 
     // Enclosure layer (tag enclosures, drawn behind edges)
     const enclosureGfx = new CanvasGraphics();
@@ -2216,123 +2196,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
-  // =========================================================================
-  // Arrangement guide lines
-  // =========================================================================
-  drawGuideLines() {
-    const g = this.guideLineGraphics;
-    if (!g) return;
-    g.clear();
-    this.clearTimelineAxisLabels();
-    this.clearAxisTitles();
-
-    if (!this.panel.showGuideLines) {
-      this.clearCustomGridLabels();
-      return;
-    }
-    const guideData = this.clusterMeta?.guideLineData;
-    if (!guideData || guideData.groups.length === 0) {
-      this.clearCustomGridLabels();
-      return;
-    }
-
-    const worldScale = this.worldContainer?.scale.x ?? 1;
-    const lineW = Math.max(0.5, 1.0 / worldScale);
-    const guideColor = this.isDarkTheme() ? 0x666666 : 0xbbbbbb;
-
-    // Shared timeline mode: merge all timeline guides into one axis
-    if (this.panel.guideLineMode === "shared" && guideData.arrangement === ARRANGEMENT_TIMELINE) {
-      const timelineGroups = guideData.groups.filter(gr => gr.guide.type === ARRANGEMENT_TIMELINE);
-      if (timelineGroups.length > 0) {
-        const allTicks: { x: number; label: string }[] = [];
-        let sumY = 0;
-        for (const group of timelineGroups) {
-          const tg = group.guide as Extract<ArrangementGuide, { type: "timeline" }>;
-          sumY += group.centerY + tg.axisY;
-          for (const tick of tg.ticks) {
-            allTicks.push({ x: group.centerX + tick.x, label: tick.label });
-          }
-        }
-        // Deduplicate ticks by label
-        const seen = new Set<string>();
-        const uniqueTicks: { x: number; label: string }[] = [];
-        for (const tick of allTicks) {
-          if (!seen.has(tick.label)) {
-            seen.add(tick.label);
-            uniqueTicks.push(tick);
-          }
-        }
-        const sharedY = sumY / timelineGroups.length;
-        if (uniqueTicks.length > 0) {
-          const xs = uniqueTicks.map(t => t.x);
-          const xMin = Math.min(...xs) - 20;
-          const xMax = Math.max(...xs) + 20;
-          g.lineStyle(lineW * 1.5, guideColor, 0.5);
-          g.moveTo(xMin, sharedY);
-          g.lineTo(xMax, sharedY);
-          const tickH = 6 / worldScale;
-          g.lineStyle(lineW, guideColor, 0.4);
-          for (const tick of uniqueTicks) {
-            g.moveTo(tick.x, sharedY - tickH);
-            g.lineTo(tick.x, sharedY + tickH);
-          }
-        }
-
-        // Shared timeline axis labels
-        const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-        if (rt.timelineAxisShowLabels && this.panel.showTimelineTickLabels !== false && uniqueTicks.length > 0) {
-          const maxLabels = rt.timelineAxisLabelMaxCount!;
-          let labelTicks = uniqueTicks;
-          if (labelTicks.length > maxLabels) {
-            const step = Math.ceil(labelTicks.length / maxLabels);
-            labelTicks = labelTicks.filter((_: unknown, i: number) => i % step === 0);
-          }
-          const fontSize = rt.timelineAxisLabelFontSize! / worldScale;
-          const labelOffset = rt.timelineAxisLabelOffset! / worldScale;
-          const tickH2 = 6 / worldScale;
-          for (const tick of labelTicks) {
-            const text = new CanvasText(tick.label, {
-              fontSize,
-              fill: guideColor,
-              fontWeight: "400",
-            });
-            text.anchor.set(0.5, 0);
-            text.x = tick.x;
-            text.y = sharedY + tickH2 + labelOffset;
-            text.alpha = rt.timelineAxisLabelAlpha!;
-            text.rotation = Math.PI / 4;
-            g.parent?.addChild(text);
-            this.timelineAxisLabels.push(text);
-          }
-        }
-        return;
-      }
-    }
-
-    // Default: per-group rendering
-    for (const group of guideData.groups) {
-      const { centerX: cx, centerY: cy, guide } = group;
-      const gColor = this.getClusterGroupColor(group.groupKey);
-      switch (guide.type) {
-        case ARRANGEMENT_TIMELINE:
-          this.drawTimelineAxis(g, cx, cy, guide, lineW, gColor, worldScale);
-          break;
-        case ARRANGEMENT_GRID:
-          this.drawGridLines(g, cx, cy, guide, lineW, gColor);
-          break;
-        case ARRANGEMENT_TRIANGLE:
-          this.drawTriangleOutline(g, cx, cy, guide, lineW, gColor);
-          break;
-        case GUIDE_TYPE_COORDINATE:
-          this.drawCoordinateGuide(g, cx, cy, guide as Extract<ArrangementGuide, { type: "coordinate" }>, lineW, gColor);
-          break;
-        case ARRANGEMENT_CONCENTRIC:
-          this.drawConcentricGuide(g, cx, cy, guide as Extract<ArrangementGuide, { type: "concentric" }>, lineW, gColor);
-          break;
-      }
-    }
-  }
-
   drawRouteLines() {
     const g = this.routeGraphics;
     if (!g) return;
@@ -2428,11 +2291,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       dists.sort((a, b) => a - b);
 
-      // Create rings at evenly spaced radii (not percentile — nodes cluster near center)
+      // Create rings at percentile radii of actual node distribution.
+      // Evenly-spaced rings across maxR fail because nodes cluster near center
+      // while maxR includes distant outliers → all nodes map to center intersection.
       const ringCount = Math.max(3, Math.min(10, Math.ceil(Math.sqrt(allNodes.length / 20))));
       const axis1Lines: { position: number }[] = [];
       for (let i = 1; i <= ringCount; i++) {
-        axis1Lines.push({ position: (maxR / (ringCount + 1)) * i });
+        const pct = i / (ringCount + 1);
+        const idx = Math.min(Math.floor(dists.length * pct), dists.length - 1);
+        const r = dists[idx];
+        if (r > 0.1) axis1Lines.push({ position: r });
       }
 
       // Create radial avenues (evenly spaced)
@@ -2453,7 +2321,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   drawRoadNetwork() {
-    if (this.pixiNodes.size > 0) this.buildRoadNetwork();
+    // Only (re)build when nodes exist and have settled away from the origin.
+    // During early simulation ticks all positions are 0,0 which produces a
+    // degenerate network.
+    if (this.pixiNodes.size > 0) {
+      let hasPosition = false;
+      for (const pn of this.pixiNodes.values()) {
+        if (Math.abs(pn.data.x) > 1 || Math.abs(pn.data.y) > 1) {
+          hasPosition = true;
+          break;
+        }
+      }
+      if (hasPosition) this.buildRoadNetwork();
+    }
+
     const g = this.roadGraphics;
     if (!g) return;
     g.clear();
@@ -2476,28 +2357,35 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     g.setLineCap("round");
     g.setLineJoin("round");
 
-    // Draw road segments
-    g.lineStyle(roadWidth, roadColor, roadAlpha);
+    // --- Pass 1: wide translucent belt (the "road surface") ---
+    g.lineStyle(roadWidth * 3, roadColor, roadAlpha * 0.3);
     for (const seg of network.segments) {
       const from = network.intersections[seg.from];
       const to = network.intersections[seg.to];
       if (!from || !to) continue;
 
       g.moveTo(from.x, from.y);
-      if (seg.waypoints.length > 0) {
-        // Curved segment (ring road arc)
-        for (const wp of seg.waypoints) {
-          g.lineTo(wp.x, wp.y);
-        }
-      }
+      for (const wp of seg.waypoints) g.lineTo(wp.x, wp.y);
       g.lineTo(to.x, to.y);
     }
 
-    // Draw intersection dots
+    // --- Pass 2: center line (thin, brighter) ---
+    g.lineStyle(Math.max(1, roadWidth * 0.5), roadColor, Math.min(1, roadAlpha * 1.2));
+    for (const seg of network.segments) {
+      const from = network.intersections[seg.from];
+      const to = network.intersections[seg.to];
+      if (!from || !to) continue;
+
+      g.moveTo(from.x, from.y);
+      for (const wp of seg.waypoints) g.lineTo(wp.x, wp.y);
+      g.lineTo(to.x, to.y);
+    }
+
+    // --- Intersection dots (enlarged for visibility) ---
     g.lineStyle(0);
     for (const isect of network.intersections) {
-      g.beginFill(roadColor, roadAlpha * 1.5);
-      g.drawCircle(isect.x, isect.y, isectRadius);
+      g.beginFill(roadColor, Math.min(1, roadAlpha * 1.5));
+      g.drawCircle(isect.x, isect.y, isectRadius * 2);
       g.endFill();
     }
   }
@@ -2507,171 +2395,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return this.roadNetworkData;
   }
 
-  drawGroupGrid() {
-    const g = this.groupGridGraphics;
-    if (!g) return;
-    g.clear();
-
-    if (!this.panel.showGroupGrid || !this.clusterMeta) {
-      this._clearGroupGridLabels();
-      return;
-    }
-
-    const centroids = this.computeLiveCentroids();
-    const radii = this.clusterMeta.clusterRadii;
-    if (!centroids || !radii) return;
-
-    const worldScale = this.worldContainer?.scale.x ?? 1;
-    const isDark = this.isDarkTheme();
-
-    this._drawGroupGridCircles(g, centroids, radii, worldScale);
-    this._drawGroupGridLabels(centroids, radii, worldScale, isDark);
-  }
-
-  /** Remove and destroy all group grid labels. */
-  private _clearGroupGridLabels() {
-    if (this.groupGridLabelContainer) {
-      for (const lbl of this.groupGridLabels.values()) {
-        lbl.parent?.removeChild(lbl);
-        lbl.destroy();
-      }
-      this.groupGridLabels.clear();
-    }
-  }
-
-  /** Draw bounding circles and cross-hair grid lines for each cluster group. */
-  private _drawGroupGridCircles(
-    g: CanvasGraphics,
-    centroids: Map<string, { x: number; y: number }>,
-    radii: Map<string, number>,
-    worldScale: number,
-  ) {
-    const lineW = Math.max(0.5, 1.0 / worldScale);
-
-    for (const [groupKey, center] of centroids) {
-      const radius = radii.get(groupKey);
-      if (!radius || radius < 5) continue;
-
-      const groupColor = this.getClusterGroupColor(groupKey);
-      const cx = center.x;
-      const cy = center.y;
-      const r = radius;
-
-      // Bounding circle — group color, semi-transparent
-      g.lineStyle(lineW * 1.5, groupColor, 0.35);
-      g.drawCircle(cx, cy, r);
-
-      // Skip cross-hair and mid-grid when guideLines already show structure
-      const hasGuides = this.panel.showGuideLines && !!this.clusterMeta?.guideLineData;
-      if (!hasGuides) {
-        // Cross-hair at center — more subtle
-        g.lineStyle(lineW, groupColor, 0.25);
-        g.moveTo(cx - r, cy);
-        g.lineTo(cx + r, cy);
-        g.moveTo(cx, cy - r);
-        g.lineTo(cx, cy + r);
-
-        // Mid-grid lines (half-radius)
-        const hr = r * 0.5;
-        g.lineStyle(lineW * 0.5, groupColor, 0.15);
-        g.moveTo(cx - r, cy - hr);
-        g.lineTo(cx + r, cy - hr);
-        g.moveTo(cx - r, cy + hr);
-        g.lineTo(cx + r, cy + hr);
-        g.moveTo(cx - hr, cy - r);
-        g.lineTo(cx - hr, cy + r);
-        g.moveTo(cx + hr, cy - r);
-        g.lineTo(cx + hr, cy + r);
-      }
-    }
-  }
-
-  /** Create and position group name labels at convex hull edges. */
-  private _drawGroupGridLabels(
-    centroids: Map<string, { x: number; y: number }>,
-    radii: Map<string, number>,
-    worldScale: number,
-    isDark: boolean,
-  ) {
-    if (!this.groupGridLabelContainer && this.worldContainer) {
-      this.groupGridLabelContainer = new CanvasContainer();
-      this.worldContainer.addChild(this.groupGridLabelContainer);
-    }
-    const labelContainer = this.groupGridLabelContainer;
-    if (!labelContainer) return;
-
-    // Clean up old labels
-    this._clearGroupGridLabels();
-
-    const rtL = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-    const fontSize = Math.max(rtL.gridLabelFontSizeMin + 1, Math.min(rtL.gridLabelFontSizeMax + 1, rtL.gridLabelFontSizeBase / worldScale));
-    // Group labels use text-tertiary color and reduced alpha per spec
-    const textColor = isDark ? 0x999999 : 0x777777;
-    const bgColor = isDark ? 0x1e1e1e : 0xf5f5f5;
-    const groupLabelAlpha = rtL.groupLabelAlpha ?? 0.45;
-    const groupLetterSpacing = rtL.groupLabelLetterSpacing ?? 0.15;
-    const hullOffset = rtL.groupLabelHullOffset ?? 20;
-
-    for (const [groupKey, center] of centroids) {
-      const radius = radii.get(groupKey);
-      if (!radius || radius < 5) continue;
-
-      // Display name: strip prefix (e.g. "tag:fiction" → "fiction")
-      const displayName = groupKey.includes(":") ? groupKey.split(":").pop()! : groupKey;
-
-      // Convex hull placement: find farthest node direction from centroid
-      // and place label beyond it.
-      let labelX = center.x;
-      let labelY = center.y - radius - hullOffset / worldScale;
-      const groupNodes = this.getGroupNodePositions(groupKey);
-      if (groupNodes.length > 0) {
-        let maxDist = 0;
-        let farthestDx = 0;
-        let farthestDy = -1; // default: above
-        for (const gn of groupNodes) {
-          const dx = gn.x - center.x;
-          const dy = gn.y - center.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist > maxDist) {
-            maxDist = dist;
-            farthestDx = dx;
-            farthestDy = dy;
-          }
-        }
-        if (maxDist > 0) {
-          const norm = Math.sqrt(farthestDx * farthestDx + farthestDy * farthestDy);
-          const nx = farthestDx / norm;
-          const ny = farthestDy / norm;
-          labelX = center.x + nx * (maxDist + hullOffset / worldScale);
-          labelY = center.y + ny * (maxDist + hullOffset / worldScale);
-        }
-      }
-
-      const text = new CanvasText(displayName, {
-        fontSize: Math.min(fontSize, rtL.groupLabelFontSize ?? 12),
-        fill: textColor,
-        fontWeight: rtL.groupLabelFontWeight ?? "500",
-      });
-      text.letterSpacing = groupLetterSpacing;
-      text.alpha = groupLabelAlpha;
-      text.anchor.set(0.5, 0);
-      text.x = labelX;
-      text.y = labelY;
-      text.bgColor = bgColor;
-      text.bgAlpha = 0.6;
-      text.bgPadX = 10;
-      text.bgPadY = 4;
-      text.cornerRadius = rtL.labelHaloCornerRadius ?? null;
-      text.strokeColor = 0x000000;
-      text.strokeWidth = 2;
-
-      labelContainer.addChild(text);
-      this.groupGridLabels.set(groupKey, text);
-    }
-
-    // --- Label collision avoidance for group grid labels ---
-    this.cullOverlappingRotatedLabels(this.groupGridLabels);
-  }
 
   private drawTimelineAxis(
     g: CanvasGraphics, cx: number, cy: number,
@@ -2728,7 +2451,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         text.y = y + tickH + labelOffset;
         text.alpha = labelAlpha;
         text.rotation = Math.PI / 4;
-        this.guideLineGraphics?.parent?.addChild(text);
+        g.parent?.addChild(text);
         this.timelineAxisLabels.push(text);
       }
     }
@@ -3539,15 +3262,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
-    // DQ-09: Expand bounding box when enclosures or guidelines are active
+    // DQ-09: Expand bounding box when enclosures are active
     // so they are not clipped at viewport edges after auto-fit.
     if (this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
       const encPad = 30; // OUTLINE_PAD + typical label height
       minX -= encPad; minY -= encPad; maxX += encPad; maxY += encPad;
-    }
-    if (this.panel.showGuideLines && this.clusterMeta?.guideLineData) {
-      const guidePad = rt.autoFitGuidePad ?? 50;
-      minX -= guidePad; minY -= guidePad; maxX += guidePad; maxY += guidePad;
     }
 
     const bw = maxX - minX + padding;
@@ -5033,14 +4752,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
-    // --- Group grid labels ---
-    for (const [, lbl] of this.groupGridLabels) {
-      if (zoom < rt.groupGridLabelZoomMin) {
-        lbl.visible = false;
-      } else {
-        lbl.scale.set(groupLabelScale);
-      }
-    }
   }
 
   /** Called by InteractionManager after zoom changes to update label visibility */
@@ -5051,7 +4762,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Re-cull rotated labels after zoom change (screen-space overlap changes)
     this.cullOverlappingRotatedLabels(this.clusterSunburstLabels);
     this.cullOverlappingRotatedLabels(this.sunburstLabels);
-    this.cullOverlappingRotatedLabels(this.groupGridLabels);
   }
 
   /** Called by InteractionManager (debounced) when zoom changes.
@@ -5177,9 +4887,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.drawSunburstLabels(arcs, cx, cy);
   }
 
-  /** Group grid label container for group names */
-  private groupGridLabelContainer: CanvasContainer | null = null;
-  private groupGridLabels: Map<string, CanvasText> = new Map();
   private customGridLabelContainer: CanvasContainer | null = null;
   private customGridLabels: CanvasText[] = [];
 

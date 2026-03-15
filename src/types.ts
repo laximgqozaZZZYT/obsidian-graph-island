@@ -947,9 +947,6 @@ export interface RenderThresholds {
   groupLabelScaleMin?: number;
   /** Power exponent for group label counter-scaling (default 0.35) */
   groupLabelScalePower?: number;
-  /** Zoom threshold to hide group grid labels (default 0.2) */
-  groupGridLabelZoomMin?: number;
-
   // ---- Sunburst hierarchy ----
   /** Sunburst: lighten color per depth level (0-1, default 0.18) */
   sunburstDepthLighten?: number;
@@ -1234,7 +1231,6 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   groupLabelScaleMax: 4.0,
   groupLabelScaleMin: 0.6,
   groupLabelScalePower: 0.45,
-  groupGridLabelZoomMin: 0,
   sunburstDepthLighten: 0.18,
   sunburstMinArcSweep: 0.005,
   sunburstBorderWidth: 1.0,
