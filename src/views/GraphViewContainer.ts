@@ -12,7 +12,7 @@ import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
-import { buildRoadNetwork, type RoadNetwork } from "../layouts/road-network";
+import { buildRoadNetwork, addTrunkRoads, type RoadNetwork } from "../layouts/road-network";
 
 /**
  * Global cache for the densest road network ever built — survives module reloads.
@@ -2287,6 +2287,35 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (n) _setBestRoadNetwork(n);
   }
 
+  /** Add trunk roads between group centroids and update road cache */
+  private _finishRoadNetwork(allNodes: GraphNode[]) {
+    if (!this.roadNetworkData) return;
+    // Add trunk roads between group centroids
+    const meta = this.clusterMeta;
+    if (meta?.clusterCentroids) {
+      const centroids: { x: number; y: number }[] = [];
+      for (const [, c] of meta.clusterCentroids) {
+        centroids.push({ x: c.x, y: c.y });
+      }
+      if (centroids.length > 1) {
+        addTrunkRoads(this.roadNetworkData, centroids);
+        // Re-map nodes to nearest intersection (trunk roads may provide closer access)
+        for (const node of allNodes) {
+          let bestId = 0;
+          let bestDist = Infinity;
+          for (const isect of this.roadNetworkData.intersections) {
+            const dx = node.x - isect.x;
+            const dy = node.y - isect.y;
+            const d = dx * dx + dy * dy;
+            if (d < bestDist) { bestDist = d; bestId = isect.id; }
+          }
+          this.roadNetworkData.nodeAccess.set(node.id, bestId);
+        }
+      }
+    }
+    this._updateRoadCache();
+  }
+
   private _buildRoadNetworkInner() {
     const meta = this.clusterMeta;
     if (!meta) return;
@@ -2341,7 +2370,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
               bounds: { xMin: -maxRing, yMin: -maxRing, xMax: maxRing, yMax: maxRing, maxR: maxRing },
               nodes: allNodes,
             });
-            this._updateRoadCache();
+            this._finishRoadNetwork(allNodes);
             return;
           }
         }
@@ -2371,7 +2400,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             bounds: gg2.bounds ?? this.computeNodeBounds(allNodes),
             nodes: allNodes,
           });
-          this._updateRoadCache();
+          this._finishRoadNetwork(allNodes);
           return;
         }
 
@@ -2416,7 +2445,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             bounds: { xMin: bottomLeft.x, yMin: top.y, xMax: bottomRight.x, yMax: bottomLeft.y },
             nodes: allNodes,
           });
-          this._updateRoadCache();
+          this._finishRoadNetwork(allNodes);
           return;
         }
 
@@ -2432,7 +2461,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             bounds: this.computeNodeBounds(allNodes),
             nodes: allNodes,
           });
-          this._updateRoadCache();
+          this._finishRoadNetwork(allNodes);
           return;
         }
       }
@@ -2509,7 +2538,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             nodes: allNodes,
           });
         }
-        this._updateRoadCache();
+        this._finishRoadNetwork(allNodes);
         return;
       }
     }
@@ -2538,7 +2567,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       nodes: allNodes,
     });
     this.roadNetworkData = fallbackNetwork;
-    this._updateRoadCache();
+    this._finishRoadNetwork(allNodes);
   }
 
   /** Compute axis-aligned bounding box from node positions */

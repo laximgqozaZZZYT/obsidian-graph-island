@@ -330,6 +330,82 @@ export function routeEdge(
   return pathToWaypoints(network, path);
 }
 
+/**
+ * Add trunk roads connecting group centroids to the existing road network.
+ * This ensures cross-group edges can be routed through the road system.
+ */
+export function addTrunkRoads(
+  network: RoadNetwork,
+  groupCentroids: { x: number; y: number }[],
+): void {
+  if (groupCentroids.length < 2) return;
+
+  // For each centroid, find or create the nearest intersection
+  const centroidIsects: number[] = [];
+  for (const c of groupCentroids) {
+    let bestId = -1;
+    let bestDist = Infinity;
+    for (const isect of network.intersections) {
+      const dx = c.x - isect.x;
+      const dy = c.y - isect.y;
+      const d = dx * dx + dy * dy;
+      if (d < bestDist) { bestDist = d; bestId = isect.id; }
+    }
+    if (bestId >= 0 && bestDist < 1e8) {
+      centroidIsects.push(bestId);
+    } else {
+      // Create new intersection at centroid
+      const id = network.intersections.length;
+      network.intersections.push({ id, x: c.x, y: c.y });
+      if (!network.adjacency.has(id)) network.adjacency.set(id, []);
+      centroidIsects.push(id);
+    }
+  }
+
+  // Connect consecutive centroids with trunk road segments
+  for (let i = 0; i < centroidIsects.length - 1; i++) {
+    const fromId = centroidIsects[i];
+    const toId = centroidIsects[i + 1];
+    if (fromId === toId) continue; // skip if same intersection
+    const fromIsect = network.intersections[fromId];
+    const toIsect = network.intersections[toId];
+    if (!fromIsect || !toIsect) continue;
+
+    const dx = toIsect.x - fromIsect.x;
+    const dy = toIsect.y - fromIsect.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    const segIdx = network.segments.length;
+    network.segments.push({ from: fromId, to: toId, waypoints: [], length: dist });
+
+    if (!network.adjacency.has(fromId)) network.adjacency.set(fromId, []);
+    if (!network.adjacency.has(toId)) network.adjacency.set(toId, []);
+    network.adjacency.get(fromId)!.push({ to: toId, weight: dist, segIdx });
+    network.adjacency.get(toId)!.push({ to: fromId, weight: dist, segIdx });
+  }
+
+  // Also connect first and last for circular arrangements
+  if (centroidIsects.length > 2) {
+    const firstId = centroidIsects[0];
+    const lastId = centroidIsects[centroidIsects.length - 1];
+    if (firstId !== lastId) {
+      const firstIsect = network.intersections[firstId];
+      const lastIsect = network.intersections[lastId];
+      if (firstIsect && lastIsect) {
+        const dx = lastIsect.x - firstIsect.x;
+        const dy = lastIsect.y - firstIsect.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const segIdx = network.segments.length;
+        network.segments.push({ from: firstId, to: lastId, waypoints: [], length: dist });
+        if (!network.adjacency.has(firstId)) network.adjacency.set(firstId, []);
+        if (!network.adjacency.has(lastId)) network.adjacency.set(lastId, []);
+        network.adjacency.get(firstId)!.push({ to: lastId, weight: dist, segIdx });
+        network.adjacency.get(lastId)!.push({ to: firstId, weight: dist, segIdx });
+      }
+    }
+  }
+}
+
 /** Find nearest intersection to an arbitrary (x, y) position. Returns intersection ID or -1. */
 export function findNearestIntersection(network: RoadNetwork, x: number, y: number): number {
   let bestId = -1;
