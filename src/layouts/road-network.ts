@@ -448,3 +448,43 @@ function generateArcWaypoints(
 function arcLength(r: number, theta1: number, theta2: number): number {
   return Math.abs(r * (theta2 - theta1));
 }
+
+// ---------------------------------------------------------------------------
+// Dynamic densification
+// ---------------------------------------------------------------------------
+
+/**
+ * Densify grid lines by recursively adding midpoints.
+ * @param lines Sorted array of grid line positions
+ * @param rounds Number of densification rounds (each round doubles the line count)
+ */
+export function multiDensify(
+  lines: { position: number; label?: string }[],
+  rounds: number,
+): { position: number; label?: string }[] {
+  let result = [...lines].sort((a, b) => a.position - b.position);
+  for (let r = 0; r < rounds; r++) {
+    const next: { position: number; label?: string }[] = [];
+    for (let i = 0; i < result.length; i++) {
+      next.push(result[i]);
+      if (i < result.length - 1) {
+        next.push({ position: (result[i].position + result[i + 1].position) / 2 });
+      }
+    }
+    result = next;
+  }
+  return result;
+}
+
+/**
+ * Compute appropriate densification rounds based on node count.
+ * Target: ~2-4 intersections per node for adequate routing granularity.
+ */
+export function densifyRounds(nodeCount: number, baseLineCount: number): number {
+  if (baseLineCount === 0) return 0;
+  const targetIntersections = nodeCount * 3;
+  const currentIntersections = baseLineCount * baseLineCount;
+  if (currentIntersections >= targetIntersections) return 0;
+  const ratio = targetIntersections / currentIntersections;
+  return Math.min(Math.ceil(Math.log2(Math.sqrt(ratio))), 3); // max 3 rounds
+}

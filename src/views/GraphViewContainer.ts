@@ -12,7 +12,7 @@ import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
-import { buildRoadNetwork, addTrunkRoads, type RoadNetwork } from "../layouts/road-network";
+import { buildRoadNetwork, addTrunkRoads, multiDensify, densifyRounds, type RoadNetwork } from "../layouts/road-network";
 
 /**
  * Global cache for the densest road network ever built — survives module reloads.
@@ -2350,15 +2350,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             // Dense spokes: scale with sqrt of node count for adequate coverage
             const spokeCount = Math.max(12, Math.ceil(Math.sqrt(allNodes.length) * 1.5));
             const maxRing = Math.max(...cg.rings);
-            // Add intermediate rings between existing ones for denser grid
-            const denseRings: { position: number }[] = [];
+            // Densify rings based on node count for adequate routing granularity
             const sortedRings = [...cg.rings].sort((a, b) => a - b);
-            for (let ri = 0; ri < sortedRings.length; ri++) {
-              denseRings.push({ position: sortedRings[ri] });
-              if (ri < sortedRings.length - 1) {
-                denseRings.push({ position: (sortedRings[ri] + sortedRings[ri + 1]) / 2 });
-              }
-            }
+            const baseLines = sortedRings.map(r => ({ position: r }));
+            const rounds = densifyRounds(allNodes.length, sortedRings.length * spokeCount);
+            const denseRings = multiDensify(baseLines, rounds);
             this.roadNetworkData = buildRoadNetwork({
               system: "polar",
               axis1Lines: denseRings,
@@ -2380,17 +2376,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           const gg2 = g as { type: "grid"; verticals: number[]; horizontals: number[]; bounds: { xMin: number; yMin: number; xMax: number; yMax: number } };
           const verts = (gg2.verticals ?? []).sort((a: number, b: number) => a - b);
           const horiz = (gg2.horizontals ?? []).sort((a: number, b: number) => a - b);
-          // Add midpoints between existing grid lines for denser intersections
-          const denseVerts: { position: number }[] = [];
-          for (let i = 0; i < verts.length; i++) {
-            denseVerts.push({ position: verts[i] });
-            if (i < verts.length - 1) denseVerts.push({ position: (verts[i] + verts[i + 1]) / 2 });
-          }
-          const denseHoriz: { position: number }[] = [];
-          for (let i = 0; i < horiz.length; i++) {
-            denseHoriz.push({ position: horiz[i] });
-            if (i < horiz.length - 1) denseHoriz.push({ position: (horiz[i] + horiz[i + 1]) / 2 });
-          }
+          // Densify grid lines based on node count for adequate routing granularity
+          const rounds = densifyRounds(allNodes.length, verts.length * horiz.length);
+          const denseVerts = multiDensify(verts.map(v => ({ position: v })), rounds);
+          const denseHoriz = multiDensify(horiz.map(h => ({ position: h })), rounds);
           this.roadNetworkData = buildRoadNetwork({
             system: "cartesian",
             axis1Lines: denseVerts,
@@ -2427,19 +2416,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           for (let c = 0; c < numCols; c++) {
             vertLines.push({ position: bottomLeft.x + c * colSpacing });
           }
-          // Densify: add midpoints between adjacent lines
-          const densify = (arr: { position: number }[]): { position: number }[] => {
-            const out: { position: number }[] = [];
-            for (let i = 0; i < arr.length; i++) {
-              out.push(arr[i]);
-              if (i < arr.length - 1) out.push({ position: (arr[i].position + arr[i + 1].position) / 2 });
-            }
-            return out;
-          };
+          // Densify based on node count for adequate routing granularity
+          const triRounds = densifyRounds(allNodes.length, vertLines.length * horizLines.length);
           this.roadNetworkData = buildRoadNetwork({
             system: "cartesian",
-            axis1Lines: densify(vertLines),
-            axis2Lines: densify(horizLines),
+            axis1Lines: multiDensify(vertLines, triRounds),
+            axis2Lines: multiDensify(horizLines, triRounds),
             axis1Shape: "line", axis2Shape: "line",
             cx: gg.centerX, cy: gg.centerY,
             bounds: { xMin: bottomLeft.x, yMin: top.y, xMax: bottomRight.x, yMax: bottomLeft.y },
@@ -2470,14 +2452,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (coordGuides.length > 0) {
         const sys = coordGuides[0].guide.system;
         const bounds = this.computeNodeBounds(allNodes);
-        const densify = (arr: number[]): { position: number }[] => {
-          const out: { position: number }[] = [];
-          for (let i = 0; i < arr.length; i++) {
-            out.push({ position: arr[i] });
-            if (i < arr.length - 1) out.push({ position: (arr[i] + arr[i + 1]) / 2 });
-          }
-          return out;
-        };
 
         if (sys === "polar") {
           // Polar: recompute global road parameters from node positions
@@ -2499,13 +2473,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           const spokes: { position: number }[] = Array.from({ length: spokeCount }, (_, i) => ({
             position: (i / spokeCount) * Math.PI * 2,
           }));
-          // Densify rings (spokes are already evenly distributed)
-          const denseRings: { position: number }[] = [];
+          // Densify rings based on node count (spokes are already evenly distributed)
           const sortedRings = rings.sort((a, b) => a.position - b.position);
-          for (let i = 0; i < sortedRings.length; i++) {
-            denseRings.push(sortedRings[i]);
-            if (i < sortedRings.length - 1) denseRings.push({ position: (sortedRings[i].position + sortedRings[i + 1].position) / 2 });
-          }
+          const polarRounds = densifyRounds(allNodes.length, sortedRings.length * spokeCount);
+          const denseRings = multiDensify(sortedRings, polarRounds);
           const maxR = dists[dists.length - 1] ?? 1;
           this.roadNetworkData = buildRoadNetwork({
             system: "polar",
@@ -2527,10 +2498,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           }
           const sortedA1 = [...allA1].sort((a, b) => a - b);
           const sortedA2 = [...allA2].sort((a, b) => a - b);
+          const cartRounds = densifyRounds(allNodes.length, sortedA1.length * sortedA2.length);
+          const denseA1 = multiDensify(sortedA1.map(p => ({ position: p })), cartRounds);
+          const denseA2 = multiDensify(sortedA2.map(p => ({ position: p })), cartRounds);
           this.roadNetworkData = buildRoadNetwork({
             system: "cartesian",
-            axis1Lines: densify(sortedA1),
-            axis2Lines: densify(sortedA2),
+            axis1Lines: denseA1,
+            axis2Lines: denseA2,
             axis1Shape: coordGuides[0].guide.gridInfo.axis1Shape?.kind ?? "line",
             axis2Shape: coordGuides[0].guide.gridInfo.axis2Shape?.kind ?? "line",
             cx: (bounds.xMin + bounds.xMax) / 2, cy: (bounds.yMin + bounds.yMax) / 2,
