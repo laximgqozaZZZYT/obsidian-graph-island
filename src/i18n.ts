@@ -455,6 +455,9 @@ const en: TranslationMap = {
   "detail.linkedNodes": "Linked Nodes",
   "detail.backlinks": "Backlinks",
 
+  // --- Accessibility ---
+  "a11y.canvasLabel": "Interactive graph visualization. Use Tab to cycle nodes, +/- to zoom.",
+
   // --- GraphViewContainer: toolbar ---
   "toolbar.fitAll": "Fit All",
   "toolbar.zoomIn": "Zoom In",
@@ -947,6 +950,9 @@ const ja: TranslationMap = {
   "detail.properties": "プロパティ",
   "detail.linkedNodes": "リンク中のノード",
   "detail.backlinks": "バックリンク",
+
+  // --- Accessibility ---
+  "a11y.canvasLabel": "グラフ可視化キャンバス。Tabでノード切り替え、+/-でズーム。",
 
   // --- GraphViewContainer: toolbar ---
   "toolbar.fitAll": "全体俯瞰",
