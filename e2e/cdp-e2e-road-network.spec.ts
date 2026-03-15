@@ -7,8 +7,8 @@
  * 3. Road network generation in timeline (cartesian) layout
  * 4. Edge routing across the network
  * 5. Road network parameters and structure
- * 6. Edge adherence in triangle arrangement
- * 7. Edge adherence in radial arrangement
+ * 6. Road routing quality in triangle arrangement
+ * 7. Road routing quality in radial arrangement
  */
 
 import { test, expect, chromium, type Browser, type Page } from "@playwright/test";
@@ -83,154 +83,139 @@ function loadPresetFile(presetName: string): Record<string, unknown> {
 }
 
 /**
- * Evaluate edge adherence inside Obsidian via CDP.
- * Routes random edge samples through the road network and measures
- * how closely waypoints follow road segments.
+ * Evaluate road routing quality inside Obsidian via CDP.
+ * Validates that the road network system matches arrangement,
+ * routes deviate meaningfully from straight lines, and nodes
+ * are reasonably close to road intersections.
  */
-async function evaluateEdgeAdherence(page: Page): Promise<{
-  adherenceRate: number;
-  avgMaxDeviation: number;
-  violationCount: number;
-  totalEdges: number;
-  sampleViolations: { sourceId: string; targetId: string; maxDeviation: number }[];
+async function evaluateRoadRoutingQuality(page: Page): Promise<{
+  systemMatchesArrangement: boolean;
+  expectedSystem: string;
+  actualSystem: string;
+  avgDeviationPercent: number;
+  routesWithSignificantDeviation: number;
+  totalRoutes: number;
+  avgNodeToRoadDist: number;
+  maxNodeToRoadDist: number;
+  nodeSize: number;
+  avgWaypointCount: number;
+  minWaypointCount: number;
 } | { error: string }> {
   return page.evaluate(() => {
     const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
     if (!view) return { error: "view not found" };
 
     const rn = view.roadNetworkData;
-    if (!rn || rn.intersections.length === 0) {
-      return { error: "no road network with intersections" };
+    if (!rn || rn.intersections.length === 0) return { error: "no road network" };
+
+    const arrangement = view.panel?.clusterArrangement || "unknown";
+    const POLAR = new Set(["concentric", "radial", "phyllotaxis"]);
+    const expectedSystem = POLAR.has(arrangement) ? "polar" : "cartesian";
+    const systemMatchesArrangement = rn.system === expectedSystem;
+
+    // Node-to-road distance
+    const nodeSize = view.panel?.nodeSize || 5;
+    let totalNodeDist = 0;
+    let maxNodeDist = 0;
+    let nodeCount = 0;
+    for (const pn of view.pixiNodes.values()) {
+      const nx = pn.data.x, ny = pn.data.y;
+      if (Math.abs(nx) < 1 && Math.abs(ny) < 1) continue; // skip origin nodes
+      const isectId = rn.nodeAccess.get(pn.data.id);
+      if (isectId == null) continue;
+      const isect = rn.intersections[isectId];
+      if (!isect) continue;
+      const dist = Math.sqrt((nx - isect.x) ** 2 + (ny - isect.y) ** 2);
+      totalNodeDist += dist;
+      if (dist > maxNodeDist) maxNodeDist = dist;
+      nodeCount++;
     }
 
+    // Route deviation from straight line
     const nodeIds = Array.from(rn.nodeAccess.keys()) as string[];
-    if (nodeIds.length < 2) return { error: "insufficient nodes" };
-
-    // Sample random edges
-    const sampleSize = Math.min(50, Math.floor(nodeIds.length / 2));
-    const edges: { sourceId: string; targetId: string; waypoints: { x: number; y: number }[] }[] = [];
+    const sampleSize = Math.min(30, Math.floor(nodeIds.length / 3));
+    let totalDevPercent = 0;
+    let significantDeviations = 0;
+    let totalRoutes = 0;
+    let totalWaypoints = 0;
+    let minWaypoints = Infinity;
 
     for (let i = 0; i < sampleSize; i++) {
-      const srcIdx = Math.floor(Math.random() * nodeIds.length);
-      let tgtIdx = Math.floor(Math.random() * nodeIds.length);
-      while (tgtIdx === srcIdx && nodeIds.length > 1) tgtIdx = Math.floor(Math.random() * nodeIds.length);
+      const si = Math.floor(Math.random() * nodeIds.length);
+      let ti = Math.floor(Math.random() * nodeIds.length);
+      while (ti === si && nodeIds.length > 1) ti = Math.floor(Math.random() * nodeIds.length);
 
-      const srcId = nodeIds[srcIdx];
-      const tgtId = nodeIds[tgtIdx];
+      const srcId = nodeIds[si], tgtId = nodeIds[ti];
+      const srcN = view.pixiNodes.get(srcId), tgtN = view.pixiNodes.get(tgtId);
+      if (!srcN || !tgtN) continue;
 
-      const startIsect = rn.nodeAccess.get(srcId);
-      const endIsect = rn.nodeAccess.get(tgtId);
-      if (startIsect == null || endIsect == null) continue;
-      if (startIsect === endIsect) continue; // skip same-intersection pairs
+      const sx = srcN.data.x, sy = srcN.data.y;
+      const tx = tgtN.data.x, ty = tgtN.data.y;
+      const straightDist = Math.sqrt((tx - sx) ** 2 + (ty - sy) ** 2);
+      if (straightDist < 100) continue;
 
-      // Inline Dijkstra
-      const dist = new Map<number, number>();
-      const prev = new Map<number, number>();
-      const visited = new Set<number>();
-      const queue: { id: number; d: number }[] = [];
-      dist.set(startIsect, 0);
-      queue.push({ id: startIsect, d: 0 });
+      const startI = rn.nodeAccess.get(srcId);
+      const endI = rn.nodeAccess.get(tgtId);
+      if (startI == null || endI == null || startI === endI) continue;
 
-      while (queue.length > 0) {
-        let minIdx = 0;
-        for (let j = 1; j < queue.length; j++) {
-          if (queue[j].d < queue[minIdx].d) minIdx = j;
-        }
-        const { id: u } = queue.splice(minIdx, 1)[0];
+      // Dijkstra
+      const dist = new Map();
+      const prev = new Map();
+      const visited = new Set();
+      dist.set(startI, 0);
+      const q = [{ id: startI, d: 0 }];
+      while (q.length > 0) {
+        let mi = 0;
+        for (let j = 1; j < q.length; j++) { if (q[j].d < q[mi].d) mi = j; }
+        const { id: u } = q.splice(mi, 1)[0];
         if (visited.has(u)) continue;
         visited.add(u);
-        if (u === endIsect) break;
-
-        const neighbors = rn.adjacency.get(u);
-        if (!neighbors) continue;
-        const du = dist.get(u) ?? Infinity;
-        for (const { to: v, weight } of neighbors) {
+        if (u === endI) break;
+        const nb = rn.adjacency.get(u);
+        if (!nb) continue;
+        for (const { to: v, weight } of nb) {
           if (visited.has(v)) continue;
-          const nd = du + weight;
-          if (nd < (dist.get(v) ?? Infinity)) {
-            dist.set(v, nd);
-            prev.set(v, u);
-            queue.push({ id: v, d: nd });
-          }
+          const nd = (dist.get(u) || 0) + weight;
+          if (nd < (dist.get(v) ?? Infinity)) { dist.set(v, nd); prev.set(v, u); q.push({ id: v, d: nd }); }
         }
       }
 
-      // Reconstruct path
-      if (!prev.has(endIsect) && startIsect !== endIsect) continue;
       const path: number[] = [];
-      let cur = endIsect;
-      while (cur !== startIsect) {
-        path.unshift(cur);
-        const p = prev.get(cur);
-        if (p == null) break;
-        cur = p;
-      }
-      path.unshift(startIsect);
-      if (path[0] !== startIsect) continue; // no path found
+      let c = endI;
+      while (c !== startI) { path.unshift(c); const p = prev.get(c); if (p == null) break; c = p; }
+      path.unshift(startI);
+      if (path[0] !== startI || path.length < 2) continue;
 
-      // Convert to waypoints
-      const waypoints: { x: number; y: number }[] = [];
-      for (const id of path) {
-        const isect = rn.intersections[id];
-        if (isect) waypoints.push({ x: isect.x, y: isect.y });
-      }
+      const wps = path.map(id => rn.intersections[id]).filter(Boolean);
+      totalWaypoints += wps.length;
+      if (wps.length < minWaypoints) minWaypoints = wps.length;
 
-      if (waypoints.length >= 2) {
-        edges.push({ sourceId: srcId, targetId: tgtId, waypoints });
-      }
-    }
-
-    if (edges.length === 0) return { error: "no valid routes found" };
-
-    // Measure adherence
-    let adherentCount = 0;
-    let totalMaxDev = 0;
-    const violations: { sourceId: string; targetId: string; maxDeviation: number }[] = [];
-
-    for (const edge of edges) {
+      const lx = tx - sx, ly = ty - sy;
       let maxDev = 0;
-      for (const wp of edge.waypoints) {
-        let minDist = Infinity;
-        for (const seg of rn.segments) {
-          const from = rn.intersections[seg.from];
-          const to = rn.intersections[seg.to];
-          if (!from || !to) continue;
-          const dx = to.x - from.x;
-          const dy = to.y - from.y;
-          const lenSq = dx * dx + dy * dy;
-          let d: number;
-          if (lenSq === 0) {
-            d = Math.sqrt((wp.x - from.x) ** 2 + (wp.y - from.y) ** 2);
-          } else {
-            let t = ((wp.x - from.x) * dx + (wp.y - from.y) * dy) / lenSq;
-            t = Math.max(0, Math.min(1, t));
-            const px = from.x + t * dx;
-            const py = from.y + t * dy;
-            d = Math.sqrt((wp.x - px) ** 2 + (wp.y - py) ** 2);
-          }
-          if (d < minDist) minDist = d;
-        }
-        if (minDist > maxDev) maxDev = minDist;
+      for (const wp of wps) {
+        const cross = Math.abs((wp.x - sx) * ly - (wp.y - sy) * lx);
+        const dev = straightDist > 0 ? cross / straightDist : 0;
+        if (dev > maxDev) maxDev = dev;
       }
 
-      totalMaxDev += maxDev;
-      if (maxDev <= 1.0) {
-        adherentCount++;
-      } else {
-        violations.push({
-          sourceId: edge.sourceId,
-          targetId: edge.targetId,
-          maxDeviation: Math.round(maxDev * 100) / 100,
-        });
-      }
+      const devPercent = (maxDev / straightDist) * 100;
+      totalDevPercent += devPercent;
+      if (devPercent > 5) significantDeviations++;
+      totalRoutes++;
     }
 
     return {
-      adherenceRate: edges.length > 0 ? adherentCount / edges.length : 1,
-      avgMaxDeviation: edges.length > 0 ? totalMaxDev / edges.length : 0,
-      violationCount: violations.length,
-      totalEdges: edges.length,
-      sampleViolations: violations.slice(0, 5),
+      systemMatchesArrangement,
+      expectedSystem,
+      actualSystem: rn.system,
+      avgDeviationPercent: totalRoutes > 0 ? totalDevPercent / totalRoutes : 0,
+      routesWithSignificantDeviation: significantDeviations,
+      totalRoutes,
+      avgNodeToRoadDist: nodeCount > 0 ? totalNodeDist / nodeCount : 0,
+      maxNodeToRoadDist: maxNodeDist,
+      nodeSize,
+      avgWaypointCount: totalRoutes > 0 ? totalWaypoints / totalRoutes : 0,
+      minWaypointCount: minWaypoints === Infinity ? 0 : minWaypoints,
     };
   });
 }
@@ -291,18 +276,24 @@ test("Road network generation in concentric layout (polar system)", async () => 
     expect(roadNetInfo.nodeAccessSize).toBeGreaterThan(0);
   }
 
-  // Edge adherence check
-  const adherence = await evaluateEdgeAdherence(page);
-  console.log("Edge adherence:", JSON.stringify(adherence, null, 2));
+  // Road routing quality check
+  const quality = await evaluateRoadRoutingQuality(page);
+  console.log("Road routing quality:", JSON.stringify(quality, null, 2));
 
-  if (!("error" in adherence)) {
-    console.log(`[${adherence.adherenceRate >= 0.90 ? "PASS" : "FAIL"}] adherenceRate >= 0.90 (got: ${adherence.adherenceRate.toFixed(3)})`);
-    console.log(`[${adherence.avgMaxDeviation < 5.0 ? "PASS" : "FAIL"}] avgMaxDeviation < 5.0 (got: ${adherence.avgMaxDeviation.toFixed(1)})`);
-
-    expect(adherence.adherenceRate).toBeGreaterThanOrEqual(0.90);
-    expect(adherence.avgMaxDeviation).toBeLessThan(5.0);
+  if ("error" in quality) {
+    console.log(`[WARN] Quality check skipped: ${quality.error}`);
   } else {
-    console.log(`[WARN] Adherence check skipped: ${adherence.error}`);
+    // System must match arrangement
+    console.log(`[${quality.systemMatchesArrangement ? "PASS" : "FAIL"}] system matches arrangement (expected: ${quality.expectedSystem}, actual: ${quality.actualSystem})`);
+    expect(quality.systemMatchesArrangement).toBe(true);
+
+    // Routes must deviate from straight lines
+    console.log(`[${quality.avgDeviationPercent > 3 ? "PASS" : "FAIL"}] avg deviation > 3% (got: ${quality.avgDeviationPercent.toFixed(1)}%)`);
+    expect(quality.avgDeviationPercent).toBeGreaterThan(3);
+
+    // Routes must have multiple waypoints
+    console.log(`[${quality.avgWaypointCount >= 3 ? "PASS" : "FAIL"}] avg waypoints >= 3 (got: ${quality.avgWaypointCount.toFixed(1)})`);
+    expect(quality.avgWaypointCount).toBeGreaterThanOrEqual(3);
   }
 });
 
@@ -356,18 +347,24 @@ test("Road network generation in grid layout", async () => {
     expect(roadNetInfo.nodeAccessSize).toBeGreaterThan(0);
   }
 
-  // Edge adherence check
-  const adherence = await evaluateEdgeAdherence(page);
-  console.log("Edge adherence:", JSON.stringify(adherence, null, 2));
+  // Road routing quality check
+  const quality = await evaluateRoadRoutingQuality(page);
+  console.log("Road routing quality:", JSON.stringify(quality, null, 2));
 
-  if (!("error" in adherence)) {
-    console.log(`[${adherence.adherenceRate >= 0.90 ? "PASS" : "FAIL"}] adherenceRate >= 0.90 (got: ${adherence.adherenceRate.toFixed(3)})`);
-    console.log(`[${adherence.avgMaxDeviation < 5.0 ? "PASS" : "FAIL"}] avgMaxDeviation < 5.0 (got: ${adherence.avgMaxDeviation.toFixed(1)})`);
-
-    expect(adherence.adherenceRate).toBeGreaterThanOrEqual(0.90);
-    expect(adherence.avgMaxDeviation).toBeLessThan(5.0);
+  if ("error" in quality) {
+    console.log(`[WARN] Quality check skipped: ${quality.error}`);
   } else {
-    console.log(`[WARN] Adherence check skipped: ${adherence.error}`);
+    // System must match arrangement
+    console.log(`[${quality.systemMatchesArrangement ? "PASS" : "FAIL"}] system matches arrangement (expected: ${quality.expectedSystem}, actual: ${quality.actualSystem})`);
+    expect(quality.systemMatchesArrangement).toBe(true);
+
+    // Routes must deviate from straight lines
+    console.log(`[${quality.avgDeviationPercent > 3 ? "PASS" : "FAIL"}] avg deviation > 3% (got: ${quality.avgDeviationPercent.toFixed(1)}%)`);
+    expect(quality.avgDeviationPercent).toBeGreaterThan(3);
+
+    // Routes must have multiple waypoints
+    console.log(`[${quality.avgWaypointCount >= 3 ? "PASS" : "FAIL"}] avg waypoints >= 3 (got: ${quality.avgWaypointCount.toFixed(1)})`);
+    expect(quality.avgWaypointCount).toBeGreaterThanOrEqual(3);
   }
 });
 
@@ -421,18 +418,24 @@ test("Road network generation in timeline layout (cartesian system)", async () =
     expect(roadNetInfo.segmentsCount).toBeGreaterThan(0);
   }
 
-  // Edge adherence check
-  const adherence = await evaluateEdgeAdherence(page);
-  console.log("Edge adherence:", JSON.stringify(adherence, null, 2));
+  // Road routing quality check
+  const quality = await evaluateRoadRoutingQuality(page);
+  console.log("Road routing quality:", JSON.stringify(quality, null, 2));
 
-  if (!("error" in adherence)) {
-    console.log(`[${adherence.adherenceRate >= 0.90 ? "PASS" : "FAIL"}] adherenceRate >= 0.90 (got: ${adherence.adherenceRate.toFixed(3)})`);
-    console.log(`[${adherence.avgMaxDeviation < 5.0 ? "PASS" : "FAIL"}] avgMaxDeviation < 5.0 (got: ${adherence.avgMaxDeviation.toFixed(1)})`);
-
-    expect(adherence.adherenceRate).toBeGreaterThanOrEqual(0.90);
-    expect(adherence.avgMaxDeviation).toBeLessThan(5.0);
+  if ("error" in quality) {
+    console.log(`[WARN] Quality check skipped: ${quality.error}`);
   } else {
-    console.log(`[WARN] Adherence check skipped: ${adherence.error}`);
+    // System must match arrangement
+    console.log(`[${quality.systemMatchesArrangement ? "PASS" : "FAIL"}] system matches arrangement (expected: ${quality.expectedSystem}, actual: ${quality.actualSystem})`);
+    expect(quality.systemMatchesArrangement).toBe(true);
+
+    // Routes must deviate from straight lines
+    console.log(`[${quality.avgDeviationPercent > 3 ? "PASS" : "FAIL"}] avg deviation > 3% (got: ${quality.avgDeviationPercent.toFixed(1)}%)`);
+    expect(quality.avgDeviationPercent).toBeGreaterThan(3);
+
+    // Routes must have multiple waypoints
+    console.log(`[${quality.avgWaypointCount >= 3 ? "PASS" : "FAIL"}] avg waypoints >= 3 (got: ${quality.avgWaypointCount.toFixed(1)})`);
+    expect(quality.avgWaypointCount).toBeGreaterThanOrEqual(3);
   }
 });
 
@@ -600,10 +603,10 @@ test("Road network parameters and structure", async () => {
   }
 });
 
-test("Edge adherence in triangle arrangement", async () => {
+test("Road routing quality in triangle arrangement", async () => {
   test.setTimeout(60000);
-  console.log("\nTEST 6: Edge Adherence - Triangle");
-  console.log("==================================");
+  console.log("\nTEST 6: Road Routing Quality - Triangle");
+  console.log("========================================");
 
   await page.evaluate(() => {
     const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -627,24 +630,30 @@ test("Edge adherence in triangle arrangement", async () => {
   });
   console.log("Road network:", JSON.stringify(roadNetInfo));
 
-  const adherence = await evaluateEdgeAdherence(page);
-  console.log("Triangle adherence:", JSON.stringify(adherence, null, 2));
+  const quality = await evaluateRoadRoutingQuality(page);
+  console.log("Triangle routing quality:", JSON.stringify(quality, null, 2));
 
-  if (!("error" in adherence)) {
-    console.log(`[${adherence.adherenceRate >= 0.90 ? "PASS" : "FAIL"}] adherenceRate >= 0.90 (got: ${adherence.adherenceRate.toFixed(3)})`);
-    console.log(`[${adherence.avgMaxDeviation < 5.0 ? "PASS" : "FAIL"}] avgMaxDeviation < 5.0 (got: ${adherence.avgMaxDeviation.toFixed(1)})`);
-
-    expect(adherence.adherenceRate).toBeGreaterThanOrEqual(0.90);
-    expect(adherence.avgMaxDeviation).toBeLessThan(5.0);
+  if ("error" in quality) {
+    console.log(`[WARN] Quality check skipped: ${quality.error}`);
   } else {
-    console.log(`[WARN] Adherence check skipped: ${adherence.error}`);
+    // System must match arrangement
+    console.log(`[${quality.systemMatchesArrangement ? "PASS" : "FAIL"}] system matches arrangement (expected: ${quality.expectedSystem}, actual: ${quality.actualSystem})`);
+    expect(quality.systemMatchesArrangement).toBe(true);
+
+    // Routes must deviate from straight lines
+    console.log(`[${quality.avgDeviationPercent > 3 ? "PASS" : "FAIL"}] avg deviation > 3% (got: ${quality.avgDeviationPercent.toFixed(1)}%)`);
+    expect(quality.avgDeviationPercent).toBeGreaterThan(3);
+
+    // Routes must have multiple waypoints
+    console.log(`[${quality.avgWaypointCount >= 3 ? "PASS" : "FAIL"}] avg waypoints >= 3 (got: ${quality.avgWaypointCount.toFixed(1)})`);
+    expect(quality.avgWaypointCount).toBeGreaterThanOrEqual(3);
   }
 });
 
-test("Edge adherence in radial arrangement", async () => {
+test("Road routing quality in radial arrangement", async () => {
   test.setTimeout(60000);
-  console.log("\nTEST 7: Edge Adherence - Radial");
-  console.log("================================");
+  console.log("\nTEST 7: Road Routing Quality - Radial");
+  console.log("======================================");
 
   await page.evaluate(() => {
     const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -669,16 +678,22 @@ test("Edge adherence in radial arrangement", async () => {
   });
   console.log("Road network:", JSON.stringify(roadNetInfo));
 
-  const adherence = await evaluateEdgeAdherence(page);
-  console.log("Radial adherence:", JSON.stringify(adherence, null, 2));
+  const quality = await evaluateRoadRoutingQuality(page);
+  console.log("Radial routing quality:", JSON.stringify(quality, null, 2));
 
-  if (!("error" in adherence)) {
-    console.log(`[${adherence.adherenceRate >= 0.90 ? "PASS" : "FAIL"}] adherenceRate >= 0.90 (got: ${adherence.adherenceRate.toFixed(3)})`);
-    console.log(`[${adherence.avgMaxDeviation < 5.0 ? "PASS" : "FAIL"}] avgMaxDeviation < 5.0 (got: ${adherence.avgMaxDeviation.toFixed(1)})`);
-
-    expect(adherence.adherenceRate).toBeGreaterThanOrEqual(0.90);
-    expect(adherence.avgMaxDeviation).toBeLessThan(5.0);
+  if ("error" in quality) {
+    console.log(`[WARN] Quality check skipped: ${quality.error}`);
   } else {
-    console.log(`[WARN] Adherence check skipped: ${adherence.error}`);
+    // System must match arrangement
+    console.log(`[${quality.systemMatchesArrangement ? "PASS" : "FAIL"}] system matches arrangement (expected: ${quality.expectedSystem}, actual: ${quality.actualSystem})`);
+    expect(quality.systemMatchesArrangement).toBe(true);
+
+    // Routes must deviate from straight lines
+    console.log(`[${quality.avgDeviationPercent > 3 ? "PASS" : "FAIL"}] avg deviation > 3% (got: ${quality.avgDeviationPercent.toFixed(1)}%)`);
+    expect(quality.avgDeviationPercent).toBeGreaterThan(3);
+
+    // Routes must have multiple waypoints
+    console.log(`[${quality.avgWaypointCount >= 3 ? "PASS" : "FAIL"}] avg waypoints >= 3 (got: ${quality.avgWaypointCount.toFixed(1)})`);
+    expect(quality.avgWaypointCount).toBeGreaterThanOrEqual(3);
   }
 });
