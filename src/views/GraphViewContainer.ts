@@ -1474,21 +1474,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const hId = this.highlightedNodeId;
 
     // Build current highlight set via BFS up to hoverHops
-    const curSet = new Set<string>();
-    if (hId) {
-      curSet.add(hId);
-      let frontier = [hId];
-      for (let hop = 0; hop < this.panel.hoverHops && frontier.length > 0; hop++) {
-        const next: string[] = [];
-        for (const id of frontier) {
-          const nb = this.adj.get(id);
-          if (nb) for (const n of nb) {
-            if (!curSet.has(n)) { curSet.add(n); next.push(n); }
-          }
-        }
-        frontier = next;
-      }
-    }
+    const curSet = this._buildHoverHighlightSet(hId);
 
     // Determine which nodes actually changed state
     const prev = this.prevHighlightSet;
@@ -1529,50 +1515,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
         this.drawNodeCircle(pn, true);
         if (!pn.hoverLabel) {
-          // Build combined tooltip: name + tags + group
-          // For nodes that already have a visible label, only show extra info (tags/group)
-          // to avoid duplicating the node name. For unlabeled nodes, show everything.
-          const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-          const showTooltip = rt.hoverTooltipShow ?? true;
-          const hasVisibleLabel = !!(pn.label && pn.label.visible);
-          let tooltipText = hasVisibleLabel ? "" : pn.data.label;
-          if (showTooltip) {
-            // Append tag info if tags exist (and not already shown via tagLabel)
-            const hasVisibleTagLabel = !!(pn.tagLabel && pn.tagLabel.visible);
-            if (pn.data.tags && pn.data.tags.length > 0 && !hasVisibleTagLabel) {
-              const tagLine = pn.data.tags.map((t: string) => `#${t}`).join(" ");
-              tooltipText = tooltipText ? tooltipText + "\n" + tagLine : tagLine;
-            }
-            if (pn.data.category) {
-              const catLine = "[" + pn.data.category + "]";
-              tooltipText = tooltipText ? tooltipText + "\n" + catLine : catLine;
-            }
-          }
-          // Only create tooltip if there is content to show
-          if (tooltipText) {
-            const tooltipFontSize = rt.hoverTooltipFontSize ?? 10;
-            const hl = new CanvasText(tooltipText, {
-              fontSize: tooltipFontSize, fill: this.getLabelColor(),
-              fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-            });
-            hl.bgColor = rt.labelBgColor ?? 0x1a1a2e;
-            hl.bgAlpha = rt.labelBgAlpha ?? 0.85;
-            hl.bgPadX = 6;
-            hl.bgPadY = 3;
-            hl.cornerRadius = rt.labelHaloCornerRadius ?? null;
-            // Position tooltip below the node when label is above, otherwise beside the node
-            if (hasVisibleLabel) {
-              hl.anchor.set(0.5, 0);
-              hl.x = 0;
-              hl.y = pn.radius + (pn.tagLabel ? (rt.tagLabelFontSize ?? 9) + 8 : 4);
-            } else {
-              hl.x = pn.radius + 2;
-              hl.y = -(pn.radius * 0.4 + 2);
-            }
-            hl.resolution = 2;
-            pn.gfx.addChild(hl);
-            pn.hoverLabel = hl;
-          }
+          this._createHoverTooltip(pn);
         }
         // When hovering, also force-show tag label if present but hidden by LOD
         if (pn.tagLabel && !pn.tagLabel.visible) {
@@ -1590,6 +1533,74 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.drawEdges();   // Redraw edges with hover dimming
     this.drawTimelineBars();  // Redraw bars with hover highlight
     this.updateNodeInfo();
+  }
+
+  /** Build the set of node IDs within hoverHops of the given node via BFS. */
+  private _buildHoverHighlightSet(hId: string | null): Set<string> {
+    const curSet = new Set<string>();
+    if (hId) {
+      curSet.add(hId);
+      let frontier = [hId];
+      for (let hop = 0; hop < this.panel.hoverHops && frontier.length > 0; hop++) {
+        const next: string[] = [];
+        for (const id of frontier) {
+          const nb = this.adj.get(id);
+          if (nb) for (const n of nb) {
+            if (!curSet.has(n)) { curSet.add(n); next.push(n); }
+          }
+        }
+        frontier = next;
+      }
+    }
+    return curSet;
+  }
+
+  /** Create and attach a hover tooltip label to the given PixiNode. */
+  private _createHoverTooltip(pn: PixiNode) {
+    // Build combined tooltip: name + tags + group
+    // For nodes that already have a visible label, only show extra info (tags/group)
+    // to avoid duplicating the node name. For unlabeled nodes, show everything.
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+    const showTooltip = rt.hoverTooltipShow ?? true;
+    const hasVisibleLabel = !!(pn.label && pn.label.visible);
+    let tooltipText = hasVisibleLabel ? "" : pn.data.label;
+    if (showTooltip) {
+      // Append tag info if tags exist (and not already shown via tagLabel)
+      const hasVisibleTagLabel = !!(pn.tagLabel && pn.tagLabel.visible);
+      if (pn.data.tags && pn.data.tags.length > 0 && !hasVisibleTagLabel) {
+        const tagLine = pn.data.tags.map((t: string) => `#${t}`).join(" ");
+        tooltipText = tooltipText ? tooltipText + "\n" + tagLine : tagLine;
+      }
+      if (pn.data.category) {
+        const catLine = "[" + pn.data.category + "]";
+        tooltipText = tooltipText ? tooltipText + "\n" + catLine : catLine;
+      }
+    }
+    // Only create tooltip if there is content to show
+    if (tooltipText) {
+      const tooltipFontSize = rt.hoverTooltipFontSize ?? 10;
+      const hl = new CanvasText(tooltipText, {
+        fontSize: tooltipFontSize, fill: this.getLabelColor(),
+        fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+      });
+      hl.bgColor = rt.labelBgColor ?? 0x1a1a2e;
+      hl.bgAlpha = rt.labelBgAlpha ?? 0.85;
+      hl.bgPadX = 6;
+      hl.bgPadY = 3;
+      hl.cornerRadius = rt.labelHaloCornerRadius ?? null;
+      // Position tooltip below the node when label is above, otherwise beside the node
+      if (hasVisibleLabel) {
+        hl.anchor.set(0.5, 0);
+        hl.x = 0;
+        hl.y = pn.radius + (pn.tagLabel ? (rt.tagLabelFontSize ?? 9) + 8 : 4);
+      } else {
+        hl.x = pn.radius + 2;
+        hl.y = -(pn.radius * 0.4 + 2);
+      }
+      hl.resolution = 2;
+      pn.gfx.addChild(hl);
+      pn.hoverLabel = hl;
+    }
   }
 
   /**
@@ -1745,6 +1756,35 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const bg = getComputedStyle(el).getPropertyValue("--background-primary").trim();
       this.cachedBgColor = bg ? cssColorToHex(bg) : 0x1e1e2e;
     }
+
+    const cfg = this._buildEdgeDrawConfig();
+
+    drawEdgesImpl(
+      this.edgeGraphics,
+      this.graphEdges,
+      this._resolveEdgePos,
+      cfg,
+      this.arrowGraphics,
+    );
+    // Draw edge labels into dedicated container (on top of edges, below nodes)
+    if (this.edgeLabelContainer) {
+      drawEdgeLabelsImpl(
+        this.edgeLabelContainer,
+        this.graphEdges,
+        this._resolveEdgePos,
+        cfg,
+      );
+    }
+    this._drawPathfinderOverlay();
+
+    // Ensure arrow layer stays on top of all node containers
+    if (this.arrowGraphics && this.worldContainer) {
+      this.worldContainer.addChild(this.arrowGraphics);
+    }
+  }
+
+  /** Assemble the EdgeDrawConfig from current panel state (reuses object to avoid allocation). */
+  private _buildEdgeDrawConfig(): EdgeDrawConfig {
     // Pre-compute max degree for fade normalization
     let maxDeg = 0;
     if (this.panel.fadeEdgesByDegree) {
@@ -1786,7 +1826,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.isArcLayout = this.currentLayout === LAYOUT_ARC;
     cfg.highlightedNodeId = effectiveHighlightId;
     cfg.highlightSet = effectiveHighlightSet;
-    cfg.bgColor = this.cachedBgColor;
+    cfg.bgColor = this.cachedBgColor!;
     cfg.relationColors = this.relationColors;
     cfg.fadeByDegree = this.panel.fadeEdgesByDegree;
     cfg.degrees = this.degrees;
@@ -1815,26 +1855,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cardinalityRules = this.panel.cardinalityRules;
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
     cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
+    cfg.roadNetwork = this.roadNetworkData;
+    cfg.enableRoadRouting = (this.panel.renderThresholds?.roadRouteEdges ?? true) && !!this.roadNetworkData;
+    return cfg;
+  }
 
-    drawEdgesImpl(
-      this.edgeGraphics,
-      this.graphEdges,
-      this._resolveEdgePos,
-      cfg,
-      this.arrowGraphics,
-    );
-    // Draw edge labels into dedicated container (on top of edges, below nodes)
-    if (this.edgeLabelContainer) {
-      drawEdgeLabelsImpl(
-        this.edgeLabelContainer,
-        this.graphEdges,
-        this._resolveEdgePos,
-        cfg,
-      );
-    }
-    // Draw pathfinder path overlay
+  /** Draw the pathfinder path overlay on top of edges. */
+  private _drawPathfinderOverlay() {
     if (this.pathfinderPath && this.pathfinderPath.length > 1) {
-      const g = this.edgeGraphics;
+      const g = this.edgeGraphics!;
       const pathColor = 0x22d3ee; // cyan
       g.lineStyle(3, pathColor, 0.9);
       for (let i = 0; i < this.pathfinderPath.length - 1; i++) {
@@ -1845,11 +1874,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           g.lineTo(b.data.x, b.data.y);
         }
       }
-    }
-
-    // Ensure arrow layer stays on top of all node containers
-    if (this.arrowGraphics && this.worldContainer) {
-      this.worldContainer.addChild(this.arrowGraphics);
     }
   }
 
@@ -2392,12 +2416,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const halfH = (maxY - minY) / 2;
     const maxR = Math.sqrt(halfW * halfW + halfH * halfH);
 
-    // Determine system from arrangement
-    const guide = meta.guideLineData;
-    const arrangement = guide?.arrangement ?? this.panel.clusterArrangement ?? "concentric";
-    const isPolar = arrangement === "concentric" || arrangement === "radial" || arrangement === "phyllotaxis";
-
-    if (isPolar) {
+    // Always generate polar (Paris-style) road network — ring roads + radial avenues.
+    // This works for all arrangements because nodes are distributed around a center.
+    // Cartesian grid roads produce ugly L-shaped routing; polar roads produce natural curves.
+    {
       // Generate ring roads + radial avenues from node radial distribution
       // Compute node distances from center and bin into rings
       const dists: number[] = [];
@@ -2425,27 +2447,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         axis1Shape: "circle", axis2Shape: "radial",
         cx: gcx, cy: gcy,
         bounds: { xMin: minX - gcx, yMin: minY - gcy, xMax: maxX - gcx, yMax: maxY - gcy, maxR },
-        nodes: allNodes,
-      });
-    } else {
-      // Cartesian: create grid roads from node distribution
-      const xValues = allNodes.map(n => n.x).sort((a, b) => a - b);
-      const yValues = allNodes.map(n => n.y).sort((a, b) => a - b);
-      const gridSize = Math.max(3, Math.min(8, Math.ceil(Math.sqrt(allNodes.length / 30))));
-
-      const axis1Lines: { position: number }[] = [];
-      const axis2Lines: { position: number }[] = [];
-      for (let i = 0; i <= gridSize; i++) {
-        const pct = i / gridSize;
-        axis1Lines.push({ position: xValues[Math.floor(xValues.length * pct)] ?? minX + (maxX - minX) * pct });
-        axis2Lines.push({ position: yValues[Math.floor(yValues.length * pct)] ?? minY + (maxY - minY) * pct });
-      }
-
-      this.roadNetworkData = buildRoadNetwork({
-        system: "cartesian", axis1Lines, axis2Lines,
-        axis1Shape: "line", axis2Shape: "line",
-        cx: 0, cy: 0, // cartesian uses absolute positions
-        bounds: { xMin: minX, yMin: minY, xMax: maxX, yMax: maxY },
         nodes: allNodes,
       });
     }
@@ -2511,25 +2512,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!g) return;
     g.clear();
 
-    if (!this.panel.showGroupGrid) {
-      // Also hide labels when group grid is off
-      if (this.groupGridLabelContainer) {
-        for (const lbl of this.groupGridLabels.values()) {
-          lbl.parent?.removeChild(lbl);
-          lbl.destroy();
-        }
-        this.groupGridLabels.clear();
-      }
-      return;
-    }
-    if (!this.clusterMeta) {
-      if (this.groupGridLabelContainer) {
-        for (const lbl of this.groupGridLabels.values()) {
-          lbl.parent?.removeChild(lbl);
-          lbl.destroy();
-        }
-        this.groupGridLabels.clear();
-      }
+    if (!this.panel.showGroupGrid || !this.clusterMeta) {
+      this._clearGroupGridLabels();
       return;
     }
 
@@ -2538,9 +2522,31 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!centroids || !radii) return;
 
     const worldScale = this.worldContainer?.scale.x ?? 1;
-    const lineW = Math.max(0.5, 1.0 / worldScale);
     const isDark = this.isDarkTheme();
-    const fallbackColor = isDark ? 0x555555 : 0xcccccc;
+
+    this._drawGroupGridCircles(g, centroids, radii, worldScale);
+    this._drawGroupGridLabels(centroids, radii, worldScale, isDark);
+  }
+
+  /** Remove and destroy all group grid labels. */
+  private _clearGroupGridLabels() {
+    if (this.groupGridLabelContainer) {
+      for (const lbl of this.groupGridLabels.values()) {
+        lbl.parent?.removeChild(lbl);
+        lbl.destroy();
+      }
+      this.groupGridLabels.clear();
+    }
+  }
+
+  /** Draw bounding circles and cross-hair grid lines for each cluster group. */
+  private _drawGroupGridCircles(
+    g: CanvasGraphics,
+    centroids: Map<string, { x: number; y: number }>,
+    radii: Map<string, number>,
+    worldScale: number,
+  ) {
+    const lineW = Math.max(0.5, 1.0 / worldScale);
 
     for (const [groupKey, center] of centroids) {
       const radius = radii.get(groupKey);
@@ -2578,90 +2584,93 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         g.lineTo(cx + hr, cy + r);
       }
     }
+  }
 
-    // --- Group name labels ---
+  /** Create and position group name labels at convex hull edges. */
+  private _drawGroupGridLabels(
+    centroids: Map<string, { x: number; y: number }>,
+    radii: Map<string, number>,
+    worldScale: number,
+    isDark: boolean,
+  ) {
     if (!this.groupGridLabelContainer && this.worldContainer) {
       this.groupGridLabelContainer = new CanvasContainer();
       this.worldContainer.addChild(this.groupGridLabelContainer);
     }
     const labelContainer = this.groupGridLabelContainer;
-    if (labelContainer) {
-      // Clean up old labels
-      for (const lbl of this.groupGridLabels.values()) {
-        lbl.parent?.removeChild(lbl);
-        lbl.destroy();
-      }
-      this.groupGridLabels.clear();
+    if (!labelContainer) return;
 
-      const rtL = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-      const fontSize = Math.max(rtL.gridLabelFontSizeMin + 1, Math.min(rtL.gridLabelFontSizeMax + 1, rtL.gridLabelFontSizeBase / worldScale));
-      // Group labels use text-tertiary color and reduced alpha per spec
-      const textColor = isDark ? 0x999999 : 0x777777;
-      const bgColor = isDark ? 0x1e1e1e : 0xf5f5f5;
-      const groupLabelAlpha = rtL.groupLabelAlpha ?? 0.45;
-      const groupLetterSpacing = rtL.groupLabelLetterSpacing ?? 0.15;
-      const hullOffset = rtL.groupLabelHullOffset ?? 20;
+    // Clean up old labels
+    this._clearGroupGridLabels();
 
-      for (const [groupKey, center] of centroids) {
-        const radius = radii.get(groupKey);
-        if (!radius || radius < 5) continue;
+    const rtL = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const fontSize = Math.max(rtL.gridLabelFontSizeMin + 1, Math.min(rtL.gridLabelFontSizeMax + 1, rtL.gridLabelFontSizeBase / worldScale));
+    // Group labels use text-tertiary color and reduced alpha per spec
+    const textColor = isDark ? 0x999999 : 0x777777;
+    const bgColor = isDark ? 0x1e1e1e : 0xf5f5f5;
+    const groupLabelAlpha = rtL.groupLabelAlpha ?? 0.45;
+    const groupLetterSpacing = rtL.groupLabelLetterSpacing ?? 0.15;
+    const hullOffset = rtL.groupLabelHullOffset ?? 20;
 
-        // Display name: strip prefix (e.g. "tag:fiction" → "fiction")
-        const displayName = groupKey.includes(":") ? groupKey.split(":").pop()! : groupKey;
+    for (const [groupKey, center] of centroids) {
+      const radius = radii.get(groupKey);
+      if (!radius || radius < 5) continue;
 
-        // Convex hull placement: find farthest node direction from centroid
-        // and place label beyond it.
-        let labelX = center.x;
-        let labelY = center.y - radius - hullOffset / worldScale;
-        const groupNodes = this.getGroupNodePositions(groupKey);
-        if (groupNodes.length > 0) {
-          let maxDist = 0;
-          let farthestDx = 0;
-          let farthestDy = -1; // default: above
-          for (const gn of groupNodes) {
-            const dx = gn.x - center.x;
-            const dy = gn.y - center.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist > maxDist) {
-              maxDist = dist;
-              farthestDx = dx;
-              farthestDy = dy;
-            }
-          }
-          if (maxDist > 0) {
-            const norm = Math.sqrt(farthestDx * farthestDx + farthestDy * farthestDy);
-            const nx = farthestDx / norm;
-            const ny = farthestDy / norm;
-            labelX = center.x + nx * (maxDist + hullOffset / worldScale);
-            labelY = center.y + ny * (maxDist + hullOffset / worldScale);
+      // Display name: strip prefix (e.g. "tag:fiction" → "fiction")
+      const displayName = groupKey.includes(":") ? groupKey.split(":").pop()! : groupKey;
+
+      // Convex hull placement: find farthest node direction from centroid
+      // and place label beyond it.
+      let labelX = center.x;
+      let labelY = center.y - radius - hullOffset / worldScale;
+      const groupNodes = this.getGroupNodePositions(groupKey);
+      if (groupNodes.length > 0) {
+        let maxDist = 0;
+        let farthestDx = 0;
+        let farthestDy = -1; // default: above
+        for (const gn of groupNodes) {
+          const dx = gn.x - center.x;
+          const dy = gn.y - center.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > maxDist) {
+            maxDist = dist;
+            farthestDx = dx;
+            farthestDy = dy;
           }
         }
-
-        const text = new CanvasText(displayName, {
-          fontSize: Math.min(fontSize, rtL.groupLabelFontSize ?? 12),
-          fill: textColor,
-          fontWeight: rtL.groupLabelFontWeight ?? "500",
-        });
-        text.letterSpacing = groupLetterSpacing;
-        text.alpha = groupLabelAlpha;
-        text.anchor.set(0.5, 0);
-        text.x = labelX;
-        text.y = labelY;
-        text.bgColor = bgColor;
-        text.bgAlpha = 0.6;
-        text.bgPadX = 10;
-        text.bgPadY = 4;
-        text.cornerRadius = rtL.labelHaloCornerRadius ?? null;
-        text.strokeColor = 0x000000;
-        text.strokeWidth = 2;
-
-        labelContainer.addChild(text);
-        this.groupGridLabels.set(groupKey, text);
+        if (maxDist > 0) {
+          const norm = Math.sqrt(farthestDx * farthestDx + farthestDy * farthestDy);
+          const nx = farthestDx / norm;
+          const ny = farthestDy / norm;
+          labelX = center.x + nx * (maxDist + hullOffset / worldScale);
+          labelY = center.y + ny * (maxDist + hullOffset / worldScale);
+        }
       }
 
-      // --- Label collision avoidance for group grid labels ---
-      this.cullOverlappingRotatedLabels(this.groupGridLabels);
+      const text = new CanvasText(displayName, {
+        fontSize: Math.min(fontSize, rtL.groupLabelFontSize ?? 12),
+        fill: textColor,
+        fontWeight: rtL.groupLabelFontWeight ?? "500",
+      });
+      text.letterSpacing = groupLetterSpacing;
+      text.alpha = groupLabelAlpha;
+      text.anchor.set(0.5, 0);
+      text.x = labelX;
+      text.y = labelY;
+      text.bgColor = bgColor;
+      text.bgAlpha = 0.6;
+      text.bgPadX = 10;
+      text.bgPadY = 4;
+      text.cornerRadius = rtL.labelHaloCornerRadius ?? null;
+      text.strokeColor = 0x000000;
+      text.strokeWidth = 2;
+
+      labelContainer.addChild(text);
+      this.groupGridLabels.set(groupKey, text);
     }
+
+    // --- Label collision avoidance for group grid labels ---
+    this.cullOverlappingRotatedLabels(this.groupGridLabels);
   }
 
   private drawTimelineAxis(
@@ -3635,7 +3644,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   private buildPanel() {
     if (!this.panelEl) return;
-    const ctx: PanelContext = {
+    const ctx = this._buildPanelContext();
+    const cb = this._buildPanelCallbacks();
+    buildPanelUI(this.panelEl, this.panel, ctx, cb);
+  }
+
+  /** Build the context object describing current graph state for the panel UI. */
+  private _buildPanelContext(): PanelContext {
+    return {
       currentLayout: this.currentLayout,
       setLayout: (l: LayoutType) => { this.currentLayout = l; this.requestSave(); },
       shells: this.shells,
@@ -3651,7 +3667,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       availableGroups: this.collectAvailableGroups(),
       availableTags: this.collectAvailableTags(),
     };
-    const cb: PanelCallbacks = {
+  }
+
+  /** Build the callbacks object wiring panel UI actions to graph view methods. */
+  private _buildPanelCallbacks(): PanelCallbacks {
+    return {
       doRender: () => { this.doRender(); this.requestSave(); },
       doRenderKeepPanel: () => { this.skipPanelRebuildCount++; this.doRender().finally(() => { this.skipPanelRebuildCount = Math.max(0, this.skipPanelRebuildCount - 1); }); this.requestSave(); },
       markDirty: () => { invalidateBundleCache(); this.markDirty(true); this.requestSave(); },
@@ -3769,7 +3789,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         runPass(0);
       },
     };
-    buildPanelUI(this.panelEl, this.panel, ctx, cb);
   }
 
   // =========================================================================
