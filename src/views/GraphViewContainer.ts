@@ -1836,8 +1836,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
     cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
     cfg.roadNetwork = this.roadNetworkData;
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-    cfg.enableRoadRouting = !!rt.roadRouteEdges && !!this.roadNetworkData;
+    const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+    cfg.enableRoadRouting = !!rt2.roadRouteEdges && !!this.roadNetworkData;
     return cfg;
   }
 
@@ -2279,10 +2279,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         // CoordinateGuide: use gridInfo axis lines + shape directly
         if (g.type === GUIDE_TYPE_COORDINATE && (g as any).gridInfo) {
           const cg = g as { type: "coordinate"; system: string; gridInfo: ResolvedGridInfo; bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number } };
+          // Densify: add midpoints between existing axis lines for higher intersection density
+          const rawA1 = cg.gridInfo.axis1Lines.map(l => l.position).sort((a, b) => a - b);
+          const rawA2 = cg.gridInfo.axis2Lines.map(l => l.position).sort((a, b) => a - b);
+          const densifyLines = (arr: number[]): { position: number }[] => {
+            const out: { position: number }[] = [];
+            for (let i = 0; i < arr.length; i++) {
+              out.push({ position: arr[i] });
+              if (i < arr.length - 1) {
+                out.push({ position: (arr[i] + arr[i + 1]) / 2 });
+              }
+            }
+            return out;
+          };
           this.roadNetworkData = buildRoadNetwork({
             system: cg.system === "polar" ? "polar" : "cartesian",
-            axis1Lines: cg.gridInfo.axis1Lines.map(l => ({ position: l.position })),
-            axis2Lines: cg.gridInfo.axis2Lines.map(l => ({ position: l.position })),
+            axis1Lines: densifyLines(rawA1),
+            axis2Lines: densifyLines(rawA2),
             axis1Shape: cg.gridInfo.axis1Shape?.kind ?? "line",
             axis2Shape: cg.gridInfo.axis2Shape?.kind ?? "line",
             cx: gg.centerX, cy: gg.centerY,
@@ -2296,11 +2309,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (g.type === "concentric") {
           const cg = g as { type: "concentric"; rings: number[] };
           if (cg.rings.length > 0) {
-            const spokeCount = Math.max(4, cg.rings.length * 2);
+            // Dense spokes: scale with sqrt of node count for adequate coverage
+            const spokeCount = Math.max(12, Math.ceil(Math.sqrt(allNodes.length) * 1.5));
             const maxRing = Math.max(...cg.rings);
+            // Add intermediate rings between existing ones for denser grid
+            const denseRings: { position: number }[] = [];
+            const sortedRings = [...cg.rings].sort((a, b) => a - b);
+            for (let ri = 0; ri < sortedRings.length; ri++) {
+              denseRings.push({ position: sortedRings[ri] });
+              if (ri < sortedRings.length - 1) {
+                denseRings.push({ position: (sortedRings[ri] + sortedRings[ri + 1]) / 2 });
+              }
+            }
             this.roadNetworkData = buildRoadNetwork({
               system: "polar",
-              axis1Lines: cg.rings.map(r => ({ position: r })),
+              axis1Lines: denseRings,
               axis2Lines: Array.from({ length: spokeCount }, (_, i) => ({
                 position: (i / spokeCount) * Math.PI * 2,
               })),
@@ -2316,10 +2339,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         // GridGuide: verticals/horizontals become line roads
         if (g.type === "grid") {
           const gg2 = g as { type: "grid"; verticals: number[]; horizontals: number[]; bounds: { xMin: number; yMin: number; xMax: number; yMax: number } };
+          const verts = (gg2.verticals ?? []).sort((a: number, b: number) => a - b);
+          const horiz = (gg2.horizontals ?? []).sort((a: number, b: number) => a - b);
+          // Add midpoints between existing grid lines for denser intersections
+          const denseVerts: { position: number }[] = [];
+          for (let i = 0; i < verts.length; i++) {
+            denseVerts.push({ position: verts[i] });
+            if (i < verts.length - 1) denseVerts.push({ position: (verts[i] + verts[i + 1]) / 2 });
+          }
+          const denseHoriz: { position: number }[] = [];
+          for (let i = 0; i < horiz.length; i++) {
+            denseHoriz.push({ position: horiz[i] });
+            if (i < horiz.length - 1) denseHoriz.push({ position: (horiz[i] + horiz[i + 1]) / 2 });
+          }
           this.roadNetworkData = buildRoadNetwork({
             system: "cartesian",
-            axis1Lines: (gg2.verticals ?? []).map((x: number) => ({ position: x })),
-            axis2Lines: (gg2.horizontals ?? []).map((y: number) => ({ position: y })),
+            axis1Lines: denseVerts,
+            axis2Lines: denseHoriz,
             axis1Shape: "line", axis2Shape: "line",
             cx: 0, cy: 0,
             bounds: gg2.bounds ?? this.computeNodeBounds(allNodes),
@@ -2407,17 +2443,29 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const isDark = this.isDarkTheme();
     const roadColor = rt.roadColor ?? (isDark ? 0x555577 : 0xaaaacc);
     const worldScale = this.worldContainer?.scale.x ?? 1;
-    // Road width: fixed in world space, scales gently with zoom
-    const baseRoadWidth = rt.roadWidth ?? 12;
-    const roadWidth = baseRoadWidth * Math.min(1.5, Math.max(0.4, 1 / Math.sqrt(worldScale)));
-    const roadAlpha = rt.roadAlpha ?? 0.18;
+
+    // LOD: roads are only meaningful at medium-to-high zoom.
+    // Below 10% zoom the entire graph is visible and roads just create noise.
+    const roadMinZoom = rt.roadMinZoom ?? 0.10;
+    if (worldScale < roadMinZoom) return;
+
+    // Road width: fixed in world space (no zoom scaling).
+    // Roads are drawn as thin bands in world coordinates.
+    const baseRoadWidth = rt.roadWidth ?? 4;
+
+    // Alpha fades in between roadMinZoom and 2× roadMinZoom
+    const baseAlpha = rt.roadAlpha ?? 0.12;
+    const fadeRange = roadMinZoom * 2;
+    const fadeFactor = worldScale < fadeRange
+      ? (worldScale - roadMinZoom) / (fadeRange - roadMinZoom)
+      : 1;
+    const roadAlpha = baseAlpha * fadeFactor;
 
     g.setLineCap("round");
     g.setLineJoin("round");
 
     // --- Single pass: semi-transparent band (the "road surface") ---
-    // Wide, low-alpha fill creates the asphalt-like band appearance
-    g.lineStyle(roadWidth, roadColor, roadAlpha);
+    g.lineStyle(baseRoadWidth, roadColor, roadAlpha);
     for (const seg of network.segments) {
       const from = network.intersections[seg.from];
       const to = network.intersections[seg.to];

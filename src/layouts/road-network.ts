@@ -302,6 +302,28 @@ export function routeEdge(
   const endIsect = network.nodeAccess.get(targetNodeId);
   if (startIsect == null || endIsect == null) return [];
 
+  // Same intersection: route through a neighbor to create a visible road path
+  if (startIsect === endIsect) {
+    const neighbors = network.adjacency.get(startIsect);
+    if (!neighbors || neighbors.length === 0) return [];
+    // Pick the neighbor whose intersection is closest to the midpoint of source/target nodes
+    const sn = network.intersections[startIsect];
+    if (!sn) return [];
+    let bestNeighbor = neighbors[0].to;
+    let bestDist = Infinity;
+    for (const nb of neighbors) {
+      const nbIsect = network.intersections[nb.to];
+      if (!nbIsect) continue;
+      // Prefer short segments (nearby intersections)
+      if (nb.weight < bestDist) { bestDist = nb.weight; bestNeighbor = nb.to; }
+    }
+    // Route: start → neighbor → start (out and back via road)
+    const outPath = pathToWaypoints(network, [startIsect, bestNeighbor]);
+    if (outPath.length < 2) return [];
+    // Return just the outward path (edge will curve through the neighbor)
+    return outPath;
+  }
+
   const path = findShortestPath(network, startIsect, endIsect);
   if (path.length < 2) return [];
 

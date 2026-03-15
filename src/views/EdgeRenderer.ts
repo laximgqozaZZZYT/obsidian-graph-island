@@ -639,6 +639,10 @@ function drawCables(
 // ---------------------------------------------------------------------------
 let _bundleCache: Map<string, BundleGroup> | null = null;
 let _bundleDirty = true;
+
+// Road routing cache — invalidated when road network reference changes
+let _roadRouteCache = new Map<string, { x: number; y: number }[]>();
+let _roadRouteCacheNetwork: RoadNetwork | null = null;
 let _bundleFrameCount = 0;
 /** Recompute bundles every Nth frame during animation (reduces cost by ~66%) */
 const BUNDLE_SKIP = 3;
@@ -652,6 +656,8 @@ let _cableDirty = true;
 export function invalidateBundleCache(): void {
   _bundleDirty = true;
   _cableDirty = true;
+  _roadRouteCache.clear();
+  _roadRouteCacheNetwork = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -764,22 +770,38 @@ function drawEdgeSegment(
   bundleStrength: number,
   roadNetwork?: RoadNetwork | null,
 ): void {
-  // Road routing: all edge types follow roads when available
+  // Road routing: all edge types follow roads when available.
+  // Waypoints are connected with smooth quadratic curves (not straight segments)
+  // to avoid ugly L-shaped paths from Dijkstra routing on grids.
   if (roadNetwork && roadNetwork.intersections.length > 0 && !isArcLayout) {
     const srcId = typeof e.source === "string" ? e.source : (e.source as any)?.id ?? "";
     const tgtId = typeof e.target === "string" ? e.target : (e.target as any)?.id ?? "";
-    const waypoints = routeEdge(roadNetwork, srcId, tgtId);
+    // Cache route lookups (invalidate when network reference changes)
+    if (roadNetwork !== _roadRouteCacheNetwork) {
+      _roadRouteCache.clear();
+      _roadRouteCacheNetwork = roadNetwork;
+    }
+    const cacheKey = srcId < tgtId ? `${srcId}|${tgtId}` : `${tgtId}|${srcId}`;
+    let waypoints = _roadRouteCache.get(cacheKey);
+    if (!waypoints) {
+      waypoints = routeEdge(roadNetwork, srcId, tgtId);
+      _roadRouteCache.set(cacheKey, waypoints);
+    }
     if (waypoints.length >= 2) {
-      // Draw edge along road waypoints
-      g.moveTo(src.x, src.y);
-      // Connect source to first waypoint
-      g.lineTo(waypoints[0].x, waypoints[0].y);
-      // Follow road waypoints
-      for (let i = 1; i < waypoints.length; i++) {
-        g.lineTo(waypoints[i].x, waypoints[i].y);
+      // Build full point sequence: source → waypoints → target
+      const pts = [src, ...waypoints, tgt];
+      g.moveTo(pts[0].x, pts[0].y);
+      // Draw smooth curve through waypoints using Catmull-Rom → quadratic conversion
+      for (let i = 1; i < pts.length - 1; i++) {
+        const cpx = pts[i].x;
+        const cpy = pts[i].y;
+        const nx = (pts[i].x + pts[i + 1].x) / 2;
+        const ny = (pts[i].y + pts[i + 1].y) / 2;
+        g.quadraticCurveTo(cpx, cpy, nx, ny);
       }
-      // Connect last waypoint to target
-      g.lineTo(tgt.x, tgt.y);
+      // Final segment to target
+      const last = pts[pts.length - 1];
+      g.lineTo(last.x, last.y);
       return;
     }
     // Fallback if no route found: straight line
