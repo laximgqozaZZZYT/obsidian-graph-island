@@ -95,6 +95,8 @@ export interface RenderHost {
   getAdjacency?(): Map<string, Set<string>>;
   /** Get the accent color for tag labels */
   getAccentColor?(): number;
+  /** Whether the highlighted node was focused via keyboard (Tab) */
+  getIsKeyboardFocused?(): boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -259,7 +261,27 @@ export class RenderPipeline {
       pn.circle.visible = true;
       const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...this.host.getCardRenderConfig?.() };
       const shape = getNodeShape(pn.data, this.host.getNodeShapeRules());
-      drawShape(pn.circle, shape, pn.radius * crc.highlightHaloRadius, pn.color, crc.highlightHaloAlpha);
+      const isKbFocused = this.host.getIsKeyboardFocused?.() ?? false;
+
+      if (isKbFocused) {
+        // Keyboard focus: dashed ring instead of halo — high-contrast white outline
+        const focusRadius = pn.radius * 1.6;
+        const segments = 12;
+        const gap = 0.4; // fraction of arc to skip (0..1)
+        pn.circle.lineStyle(2.5, 0xffffff, 0.95);
+        for (let i = 0; i < segments; i++) {
+          const startAngle = (i / segments) * Math.PI * 2;
+          const endAngle = startAngle + ((1 - gap) / segments) * Math.PI * 2;
+          pn.circle.arc(0, 0, focusRadius, startAngle, endAngle);
+          pn.circle.moveTo(
+            Math.cos(endAngle) * focusRadius,
+            Math.sin(endAngle) * focusRadius,
+          );
+        }
+      } else {
+        drawShape(pn.circle, shape, pn.radius * crc.highlightHaloRadius, pn.color, crc.highlightHaloAlpha);
+      }
+
       const strokeCol = darkenColor(pn.color, crc.strokeDarken);
       pn.circle.lineStyle(crc.highlightStrokeWidth, strokeCol, 0.85);
       drawShape(pn.circle, shape, pn.radius, pn.color, 1);
@@ -689,7 +711,7 @@ export class RenderPipeline {
             let startAngle = -Math.PI / 2;
             const total = members.length;
             let colorIdx = 0;
-            const sectorColors = [0x818cf8, 0xf472b6, 0xfbbf24, 0x34d399, 0x60a5fa, 0xf87171, 0xa78bfa, 0x2dd4bf];
+            const sectorColors = [0x818cf8, 0xf472b6, 0xfbbf24, 0x34d399, 0x60a5fa, 0xf87171, 0xb4a0ff, 0x2dd4bf];
             g.lineStyle(0);
             for (const [, count] of valueCounts) {
               const sliceAngle = (count / total) * Math.PI * 2;

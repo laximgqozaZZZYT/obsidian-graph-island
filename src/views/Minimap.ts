@@ -56,6 +56,8 @@ export class Minimap {
     // Wrapper div for positioning
     this.wrapper = document.createElement("div");
     this.wrapper.className = "gi-minimap-wrap";
+    this.wrapper.setAttribute("role", "img");
+    this.wrapper.setAttribute("aria-label", "Graph minimap — drag to navigate");
     parentEl.appendChild(this.wrapper);
 
     // Drag handle bar

@@ -107,7 +107,7 @@ function highlightColor(isDark: boolean) { return isDark ? 0x999999 : 0x555555; 
 const INHERITANCE_COLOR = 0x9ca3af;
 const AGGREGATION_COLOR = 0x60a5fa;
 const SIMILAR_COLOR = 0xfbbf24;
-const HAS_TAG_COLOR = 0xa78bfa;
+const HAS_TAG_COLOR = 0xb4a0ff;
 const SIBLING_COLOR = 0x34d399;   // green — peer relationship
 const SEQUENCE_COLOR = 0xfb923c;  // orange — sequential order
 

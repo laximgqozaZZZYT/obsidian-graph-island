@@ -49,6 +49,17 @@ export class LayoutTransition {
     this.running = true;
     this.onComplete = onComplete ?? null;
 
+    // prefers-reduced-motion: skip animation, jump to final positions
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      for (const n of this.nodes) {
+        n.data.x = n.toX;
+        n.data.y = n.toY;
+      }
+      this.running = false;
+      this.onComplete?.();
+      return;
+    }
+
     // Set initial positions to from
     for (const n of this.nodes) {
       n.data.x = n.fromX;

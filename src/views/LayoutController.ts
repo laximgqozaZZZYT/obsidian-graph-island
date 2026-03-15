@@ -60,8 +60,10 @@ export class LayoutController {
     const baseSize = panel.nodeSize;
     const degrees = this.host.getDegrees();
     const pixiNodes = this.host.getPixiNodes();
-    const PAD = 2; // px gap between node edges
     const thresholds = panel.renderThresholds ?? {};
+    const maxR = thresholds.maxNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.maxNodeRadius;
+    const collidePad = thresholds.collisionPadding ?? DEFAULT_RENDER_THRESHOLDS.collisionPadding;
+    const superCollidePad = thresholds.superNodeCollisionPadding ?? DEFAULT_RENDER_THRESHOLDS.superNodeCollisionPadding;
     return (n: GraphNode) => {
       // Use actual PIXI radius if available (accounts for super node scaling + MAX cap)
       const pn = pixiNodes.get(n.id);
@@ -69,21 +71,25 @@ export class LayoutController {
         // Card display mode uses larger collision radius to prevent overlap
         if (panel.nodeDisplayMode === "card") {
           const cardPad = thresholds.cardCollisionPadding ?? DEFAULT_RENDER_THRESHOLDS.cardCollisionPadding;
-          return Math.max(pn.radius + PAD, cardPad);
+          return Math.max(pn.radius + collidePad, cardPad);
         }
-        return pn.radius + PAD;
+        // Super nodes (collapsed groups): use dedicated padding so they don't pile up
+        if (n.collapsedMembers && n.collapsedMembers.length > 0) {
+          return pn.radius + superCollidePad;
+        }
+        return pn.radius + collidePad;
       }
       // Fallback: compute effective radius including super node expansion
       const deg = degrees.get(n.id) || 0;
       let r = baseSize;
       if (panel.scaleByDegree) {
-        r = Math.min(Math.max(baseSize, baseSize + Math.sqrt(deg) * 3.2), 30);
+        r = Math.min(Math.max(baseSize, baseSize + Math.sqrt(deg) * 3.2), maxR);
       }
-      // Super node expansion (mirrors effectiveRadius in cluster-force.ts)
       if (n.collapsedMembers && n.collapsedMembers.length > 0) {
-        r = Math.min(Math.max(r, r * (1 + Math.sqrt(n.collapsedMembers.length) * 0.5)), 30);
+        r = Math.min(Math.max(r, r * (1 + Math.sqrt(n.collapsedMembers.length) * 0.5)), maxR);
+        return r + superCollidePad;
       }
-      return r + PAD;
+      return r + collidePad;
     };
   }
 
@@ -470,7 +476,7 @@ export class LayoutController {
         "circle"
       ) as "circle" | "horizontal" | "concentric" | "vertical",
       skipGroupOverlap: clusterArrangement === "timeline" || clusterArrangement === "sunburst",
-      maxNodeRadius: panel.renderThresholds?.maxNodeRadius ?? 60,
+      maxNodeRadius: panel.renderThresholds?.maxNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.maxNodeRadius,
       repelForce: panel.repelForce,
       blendConfig: {
         sunburstBlendBase: panel.renderThresholds?.sunburstBlendBase,

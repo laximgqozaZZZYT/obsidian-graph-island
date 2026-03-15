@@ -674,6 +674,10 @@ export interface RenderThresholds {
   gridCellShadingRange?: number;
   /** Extra collision radius when nodeDisplayMode is card (default 40) */
   cardCollisionPadding?: number;
+  /** Collision padding added to regular node radius in forceCollide (default 2) */
+  collisionPadding?: number;
+  /** Collision padding added to super node (collapsed group) radius in forceCollide (default 8) */
+  superNodeCollisionPadding?: number;
 
   // ---- Super node double outline ----
   /** Inner circle radius ratio for super node double outline (default 0.65) */
@@ -1057,6 +1061,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   gridCellShadingMin: 0.08,
   gridCellShadingRange: 0.35,
   cardCollisionPadding: 40,
+  collisionPadding: 2,
+  superNodeCollisionPadding: 2,
   superNodeInnerRatio: 0.65,
   superNodeOuterStroke: 1.5,
   superNodeInnerStroke: 1.0,
@@ -1196,6 +1202,6 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 
 export const DEFAULT_COLORS = [
   "#818cf8", "#f472b6", "#fbbf24", "#34d399",
-  "#60a5fa", "#f87171", "#a78bfa", "#2dd4bf",
+  "#60a5fa", "#f87171", "#b4a0ff", "#2dd4bf",
   "#fb923c", "#22d3ee", "#a3e635", "#fb7185",
 ] as const;

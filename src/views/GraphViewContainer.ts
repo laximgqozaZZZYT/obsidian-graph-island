@@ -102,6 +102,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private panelEl: HTMLElement | null = null;
   private simulation: Simulation<GraphNode, GraphEdge> | null = null;
   private highlightedNodeId: string | null = null;
+  /** True when the current highlight was set via keyboard (Tab), false when via mouse hover. */
+  private _isKeyboardFocused = false;
+  /** aria-live element for screen reader announcements (zoom, focus changes). */
+  private _ariaLiveEl: HTMLElement | null = null;
 
   // Canvas 2D
   private pixiApp: CanvasApp | null = null;
@@ -204,6 +208,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Node info panel (hover details)
   private nodeInfoEl: HTMLElement | null = null;
   private legendEl: HTMLElement | null = null;
+  private shortcutHelpEl: HTMLElement | null = null;
 
   // Marquee button reference (for toolbar toggle styling)
   private marqueeBtnEl: HTMLElement | null = null;
@@ -350,8 +355,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (Platform.isMobile) root.addClass("is-mobile");
 
     // --- Toolbar ---
-    const toolbar = root.createDiv({ cls: "graph-toolbar" });
-    this.statusEl = toolbar.createEl("span", { cls: "graph-status" });
+    const toolbar = root.createDiv({ cls: "graph-toolbar", attr: { role: "toolbar", "aria-label": "Graph controls" } });
+    this.statusEl = toolbar.createEl("span", { cls: "graph-status", attr: { "aria-live": "polite" } });
 
     // --- Zoom / Fit buttons ---
     const zoomGroup = toolbar.createDiv({ cls: "graph-toolbar-zoom" });
@@ -487,7 +492,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const main = root.createDiv({ cls: "graph-main" });
     // canvasWrap is emptied by initPixi, so nodeInfoEl
     // lives in a sibling wrapper that won't be cleared.
-    const canvasArea = main.createDiv({ cls: "gi-canvas-area" });
+    const canvasArea = main.createDiv({ cls: "gi-canvas-area", attr: { role: "main", "aria-label": "Graph canvas" } });
     this.canvasWrap = canvasArea.createDiv({ cls: "graph-svg-wrap" });
 
     // --- Node Info Overlay (floating, survives canvas rebuilds) ---
@@ -500,14 +505,27 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const activeLeaf = this.app.workspace.activeLeaf;
       if (activeLeaf?.view !== this) return;
 
-      // Escape: close overlays
+      // Escape: close overlays or clear keyboard focus
       if (e.key === "Escape") {
         if (this.nodeInfoEl && this.nodeInfoEl.style.display !== "none") {
           this.nodeInfoEl.style.display = "none";
           this.nodeInfoEl.classList.remove("is-visible");
+          return;
         }
         if (this.legendEl && this.legendEl.style.display !== "none") {
           this.legendEl.style.display = "none";
+          return;
+        }
+        if (this.shortcutHelpEl && this.shortcutHelpEl.style.display !== "none") {
+          this.shortcutHelpEl.style.display = "none";
+          return;
+        }
+        // Clear keyboard focus on graph nodes
+        if (this._isKeyboardFocused) {
+          this._isKeyboardFocused = false;
+          this.setHighlightedNodeId(null);
+          this.applyHover();
+          this.markDirty(true);
         }
         return;
       }
@@ -616,6 +634,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.copyGraphToClipboard();
         return;
       }
+      // Enter: activate (open file of) keyboard-focused node
+      if (e.key === "Enter" && this._isKeyboardFocused && this.highlightedNodeId) {
+        e.preventDefault();
+        const pn = this.pixiNodes.get(this.highlightedNodeId);
+        if (pn?.data.filePath) {
+          const file = this.app.vault.getAbstractFileByPath(pn.data.filePath);
+          if (file) this.app.workspace.getLeaf(false).openFile(file as any);
+        }
+        return;
+      }
+      // ?: toggle shortcut help
+      if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
+        if (this.shortcutHelpEl) {
+          this.shortcutHelpEl.style.display = this.shortcutHelpEl.style.display === "none" ? "" : "none";
+        }
+        return;
+      }
       // Tab / Shift+Tab: cycle focus through nodes
       if (e.key === "Tab") {
         e.preventDefault();
@@ -627,6 +662,41 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // --- Legend Overlay ---
     this.legendEl = canvasArea.createDiv({ cls: "gi-legend" });
     this.legendEl.style.display = "none";
+
+    // --- Keyboard Shortcut Help Overlay ---
+    this.shortcutHelpEl = canvasArea.createDiv({ cls: "gi-shortcut-help" });
+    this.shortcutHelpEl.style.display = "none";
+    this.shortcutHelpEl.setAttribute("role", "dialog");
+    this.shortcutHelpEl.setAttribute("aria-label", "Keyboard shortcuts");
+    {
+      const titleEl = this.shortcutHelpEl.createDiv({ cls: "gi-shortcut-help-title" });
+      titleEl.textContent = "Keyboard Shortcuts";
+      const table = this.shortcutHelpEl.createEl("table", { cls: "gi-shortcut-help-table" });
+      const shortcuts: [string, string][] = [
+        ["Tab / Shift+Tab", "Cycle focus through nodes"],
+        ["Enter", "Open focused node's file"],
+        ["Escape", "Close overlay / clear focus"],
+        ["+/= / \u2212", "Zoom in / out"],
+        ["0", "Reset zoom (100%)"],
+        ["Space / F", "Fit graph to view"],
+        ["P", "Toggle settings panel"],
+        ["L", "Toggle legend"],
+        ["M", "Toggle minimap"],
+        ["G", "Toggle dot grid"],
+        ["[ / ]", "Decrease / increase hover hops"],
+        ["1\u20134", "Switch panel tab"],
+        ["Ctrl+F", "Focus search"],
+        ["Ctrl+Shift+C", "Copy graph as PNG"],
+        ["?", "Toggle this help"],
+      ];
+      for (const [key, desc] of shortcuts) {
+        const tr = table.createEl("tr");
+        const tdKey = tr.createEl("td", { cls: "gi-shortcut-key" });
+        tdKey.textContent = key;
+        const tdDesc = tr.createEl("td");
+        tdDesc.textContent = desc;
+      }
+    }
 
     // --- Panel resize handle (sibling of panelEl so panelEl.empty() won't destroy it) ---
     const resizeHandle = main.createDiv({ cls: "gi-panel-resize-handle" });
@@ -651,7 +721,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     });
 
     // --- Control Panel ---
-    this.panelEl = main.createDiv({ cls: "graph-panel is-hidden" });
+    this.panelEl = main.createDiv({ cls: "graph-panel is-hidden", attr: { role: "complementary", "aria-label": "Graph settings" } });
     this.buildPanel();
 
     // --- Resize observer for Canvas 2D ---
@@ -845,6 +915,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       canvas.style.width = "100%";
       canvas.style.height = "100%";
 
+      // Accessibility: make canvas focusable and identifiable to assistive technology
+      canvas.setAttribute("role", "img");
+      canvas.setAttribute("aria-label", t("a11y.canvasLabel") ?? "Interactive graph visualization. Use Tab to cycle nodes, +/- to zoom.");
+      canvas.setAttribute("tabindex", "0");
+
+      // aria-live region for screen reader announcements (focus, zoom changes)
+      if (!this._ariaLiveEl) {
+        this._ariaLiveEl = this.canvasWrap!.createEl("span", {
+          attr: { "aria-live": "polite", "aria-atomic": "true" },
+        });
+        this._ariaLiveEl.addClass("sr-only");
+      }
+
       this.pixiApp = app;
 
       // World container (for zoom/pan)
@@ -976,7 +1059,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // InteractionHost + RenderHost implementation
   // =========================================================================
   getHighlightedNodeId(): string | null { return this.highlightedNodeId; }
-  setHighlightedNodeId(id: string | null) { this.highlightedNodeId = id; }
+  setHighlightedNodeId(id: string | null) {
+    this.highlightedNodeId = id;
+    // Mouse hover clears keyboard focus flag (cycleFocusNode sets it back to true)
+    this._isKeyboardFocused = false;
+  }
+  /** Whether the current highlight was set via keyboard (Tab cycling). */
+  getIsKeyboardFocused(): boolean { return this._isKeyboardFocused; }
   getCurrentLayout(): LayoutType { return this.currentLayout; }
   getShells(): ShellInfo[] { return this.shells; }
   getNodeShellIndex(): Map<string, number> { return this.nodeShellIndex; }
@@ -3293,7 +3382,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private updateZoomIndicator(scale?: number) {
     if (!this.zoomIndicatorEl) return;
     const s = scale ?? this.worldContainer?.scale?.x ?? 1;
-    this.zoomIndicatorEl.textContent = `${Math.round(s * 100)}%`;
+    const pct = `${Math.round(s * 100)}%`;
+    this.zoomIndicatorEl.textContent = pct;
+    this._announceA11y(`Zoom: ${pct}`);
   }
 
   // =========================================================================
@@ -4122,9 +4213,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (this.focusNodeOrder.length === 0) return;
     this.focusNodeIndex = (this.focusNodeIndex + direction + this.focusNodeOrder.length) % this.focusNodeOrder.length;
     const nodeId = this.focusNodeOrder[this.focusNodeIndex];
+    this._isKeyboardFocused = true;
     this.setHighlightedNodeId(nodeId);
     this.applyHover();
     this.panToNode(nodeId);
+    // Announce focused node to screen readers
+    this._announceA11y(this.pixiNodes.get(nodeId)?.data.label ?? nodeId);
+  }
+
+  /** Push a short message into the aria-live region for screen reader users. */
+  private _announceA11y(msg: string) {
+    if (!this._ariaLiveEl) return;
+    // Toggle text to force re-announcement even if same content
+    this._ariaLiveEl.textContent = "";
+    requestAnimationFrame(() => { if (this._ariaLiveEl) this._ariaLiveEl.textContent = msg; });
   }
 
   /** Copy the current graph view as PNG to clipboard */
