@@ -5,6 +5,7 @@
  */
 
 import type { RenderThresholds } from "../types";
+import { computeBoundingBox } from "../utils/geometry";
 
 export interface MinimapHost {
   /** Get all node positions (world coordinates) */
@@ -21,6 +22,23 @@ export interface MinimapHost {
 
 const MINIMAP_WIDTH = 180;
 const MINIMAP_HEIGHT = 120;
+
+/** World bounds padding for node extent calculation */
+const MINIMAP_BOUNDS_PAD = 50;
+
+/** Dot radius scale threshold — large graphs (>2000 nodes) */
+const MINIMAP_LARGE_GRAPH_THRESHOLD = 2000;
+/** Dot radius scale threshold — medium graphs (>500 nodes) */
+const MINIMAP_MEDIUM_GRAPH_THRESHOLD = 500;
+/** Dot radius multiplier for large graphs */
+const MINIMAP_DOT_SCALE_LARGE = 0.6;
+/** Dot radius multiplier for medium graphs */
+const MINIMAP_DOT_SCALE_MEDIUM = 0.8;
+
+/** Viewport rectangle stroke width */
+const MINIMAP_VIEWPORT_LINE_WIDTH = 1.5;
+/** Minimum viewport rect dimension to trigger drawing */
+const MINIMAP_VIEWPORT_MIN_SIZE = 2;
 
 interface MinimapBounds {
   minX: number;
@@ -109,14 +127,9 @@ export class Minimap {
     }
 
     // Compute bounds of all nodes
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const n of nodes) {
-      if (n.x < minX) minX = n.x;
-      if (n.y < minY) minY = n.y;
-      if (n.x > maxX) maxX = n.x;
-      if (n.y > maxY) maxY = n.y;
-    }
-    const pad = 50;
+    const bb = computeBoundingBox(nodes);
+    let { minX, minY, maxX, maxY } = bb;
+    const pad = MINIMAP_BOUNDS_PAD;
     minX -= pad; minY -= pad; maxX += pad; maxY += pad;
     const worldW = maxX - minX || 1;
     const worldH = maxY - minY || 1;
@@ -142,7 +155,7 @@ export class Minimap {
     const baseDotR = this.renderThresholds?.minimapDotRadius ?? 2.5;
     const step = nodes.length > thinThreshold ? thinStep : 1;
     // Scale dot radius down slightly for very large graphs
-    const dotR = nodes.length > 2000 ? baseDotR * 0.6 : nodes.length > 500 ? baseDotR * 0.8 : baseDotR;
+    const dotR = nodes.length > MINIMAP_LARGE_GRAPH_THRESHOLD ? baseDotR * MINIMAP_DOT_SCALE_LARGE : nodes.length > MINIMAP_MEDIUM_GRAPH_THRESHOLD ? baseDotR * MINIMAP_DOT_SCALE_MEDIUM : baseDotR;
     for (let i = 0; i < nodes.length; i += step) {
       const n = nodes[i];
       ctx.beginPath();
@@ -170,9 +183,9 @@ export class Minimap {
     if (ry + rh > MINIMAP_HEIGHT) rh = MINIMAP_HEIGHT - ry;
 
     // Only draw if viewport doesn't cover the entire minimap
-    if (rw > 2 && rh > 2 && (rw < MINIMAP_WIDTH - 2 || rh < MINIMAP_HEIGHT - 2)) {
+    if (rw > MINIMAP_VIEWPORT_MIN_SIZE && rh > MINIMAP_VIEWPORT_MIN_SIZE && (rw < MINIMAP_WIDTH - MINIMAP_VIEWPORT_MIN_SIZE || rh < MINIMAP_HEIGHT - MINIMAP_VIEWPORT_MIN_SIZE)) {
       ctx.strokeStyle = this.colorViewport;
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = MINIMAP_VIEWPORT_LINE_WIDTH;
       ctx.strokeRect(rx, ry, rw, rh);
     }
   }

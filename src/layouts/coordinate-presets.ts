@@ -1,10 +1,17 @@
 import type { CoordinateLayout, ClusterArrangement, AxisConfig, AxisSource, CurveKind } from "../types";
+import {
+  SOURCE_PROPERTY, SOURCE_RANDOM, SOURCE_INDEX, SOURCE_FIELD, SOURCE_METRIC,
+  TRANSFORM_DATE_INDEX, TRANSFORM_EXPRESSION, TRANSFORM_EVEN_DIVIDE,
+  TRANSFORM_LINEAR, TRANSFORM_STACK_AVOID,
+  ARRANGEMENT_TIMELINE, ARRANGEMENT_RANDOM, ARRANGEMENT_CONCENTRIC,
+  ARRANGEMENT_GRID, ARRANGEMENT_CUSTOM,
+} from "../constants";
 
 // ---------------------------------------------------------------------------
 // Curve Registry — parametric curve presets for the "curve" transform
 // ---------------------------------------------------------------------------
 
-export interface CurveDefinition {
+interface CurveDefinition {
   label: string;
   labelJa: string;
   /** Mathematical formula using param names as variables (e.g. "a + b*t") */
@@ -99,52 +106,52 @@ export const CURVE_REGISTRY: Record<CurveKind, CurveDefinition> = {
 export const ARRANGEMENT_PRESETS: Record<ClusterArrangement, CoordinateLayout> = {
   concentric: {
     system: "polar",
-    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "floor(i / _ringSize) + 1", scale: 1 } },
-    axis2: { source: { kind: "index" }, transform: { kind: "even-divide", totalRange: 360 } },
+    axis1: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_EXPRESSION, expr: "floor(i / _ringSize) + 1", scale: 1 } },
+    axis2: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_EVEN_DIVIDE, totalRange: 360 } },
     perGroup: false,
     constants: { _ringSize: 12 },
   },
   radial: {
     system: "polar",
-    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "floor(i / _spokeCount) + 1", scale: 1 } },
-    axis2: { source: { kind: "index" }, transform: { kind: "expression", expr: "(i % _spokeCount) * (360 / _spokeCount)", scale: 1 } },
+    axis1: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_EXPRESSION, expr: "floor(i / _spokeCount) + 1", scale: 1 } },
+    axis2: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_EXPRESSION, expr: "(i % _spokeCount) * (360 / _spokeCount)", scale: 1 } },
     perGroup: true,
     constants: { _spokeCount: 8 },
   },
   phyllotaxis: {
     system: "polar",
-    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "sqrt(i)", scale: 1 } },
-    axis2: { source: { kind: "index" }, transform: { kind: "expression", expr: "i * pi * (3 - sqrt(5))", scale: 1 } },
+    axis1: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_EXPRESSION, expr: "sqrt(i)", scale: 1 } },
+    axis2: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_EXPRESSION, expr: "i * pi * (3 - sqrt(5))", scale: 1 } },
     perGroup: true,
   },
   grid: {
     system: "cartesian",
-    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "i % ceil(sqrt(n))", scale: 1 } },
-    axis2: { source: { kind: "index" }, transform: { kind: "expression", expr: "floor(i / ceil(sqrt(n)))", scale: 1 } },
+    axis1: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_EXPRESSION, expr: "i % ceil(sqrt(n))", scale: 1 } },
+    axis2: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_EXPRESSION, expr: "floor(i / ceil(sqrt(n)))", scale: 1 } },
     perGroup: true,
   },
   triangle: {
     system: "cartesian",
-    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "i - floor((-1+sqrt(1+8*i))/2)*(floor((-1+sqrt(1+8*i))/2)+1)/2 - floor((-1+sqrt(1+8*i))/2)/2", scale: 1 } },
-    axis2: { source: { kind: "index" }, transform: { kind: "expression", expr: "floor((-1+sqrt(1+8*i))/2)", scale: 1 } },
+    axis1: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_EXPRESSION, expr: "i - floor((-1+sqrt(1+8*i))/2)*(floor((-1+sqrt(1+8*i))/2)+1)/2 - floor((-1+sqrt(1+8*i))/2)/2", scale: 1 } },
+    axis2: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_EXPRESSION, expr: "floor((-1+sqrt(1+8*i))/2)", scale: 1 } },
     perGroup: true,
   },
   random: {
     system: "cartesian",
-    axis1: { source: { kind: "random", seed: 42 }, transform: { kind: "linear", scale: 1 } },
-    axis2: { source: { kind: "random", seed: 42 }, transform: { kind: "linear", scale: 1 } },
+    axis1: { source: { kind: SOURCE_RANDOM, seed: 42 }, transform: { kind: TRANSFORM_LINEAR, scale: 1 } },
+    axis2: { source: { kind: SOURCE_RANDOM, seed: 42 }, transform: { kind: TRANSFORM_LINEAR, scale: 1 } },
     perGroup: true,
   },
   timeline: {
     system: "cartesian",
-    axis1: { source: { kind: "property", key: "date" }, transform: { kind: "date-to-index" } },
-    axis2: { source: { kind: "index" }, transform: { kind: "stack-avoid" } },
+    axis1: { source: { kind: SOURCE_PROPERTY, key: "date" }, transform: { kind: TRANSFORM_DATE_INDEX } },
+    axis2: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_STACK_AVOID } },
     perGroup: true,
   },
   custom: {
     system: "cartesian",
-    axis1: { source: { kind: "field", field: "folder" }, transform: { kind: "linear", scale: 1 } },
-    axis2: { source: { kind: "metric", metric: "degree" }, transform: { kind: "linear", scale: 1 } },
+    axis1: { source: { kind: SOURCE_FIELD, field: "folder" }, transform: { kind: TRANSFORM_LINEAR, scale: 1 } },
+    axis2: { source: { kind: SOURCE_METRIC, metric: "degree" }, transform: { kind: TRANSFORM_LINEAR, scale: 1 } },
     perGroup: true,
   },
 };
@@ -171,7 +178,7 @@ export function resolveCoordinateLayout(
 export function resolveArrangementFromLayout(layout: CoordinateLayout): ClusterArrangement {
   // Fast path: exact preset match
   const exact = findMatchingPreset(layout);
-  if (exact !== "custom") return exact;
+  if (exact !== ARRANGEMENT_CUSTOM) return exact;
 
   const s1 = layout.axis1.source.kind;
   const s2 = layout.axis2.source.kind;
@@ -179,18 +186,18 @@ export function resolveArrangementFromLayout(layout: CoordinateLayout): ClusterA
   const t2 = layout.axis2.transform.kind;
 
   // Property + date-to-index on axis1 → timeline
-  if (s1 === "property" && t1 === "date-to-index") return "timeline";
+  if (s1 === SOURCE_PROPERTY && t1 === TRANSFORM_DATE_INDEX) return ARRANGEMENT_TIMELINE;
 
   // Random sources → random
-  if (s1 === "random" || s2 === "random") return "random";
+  if (s1 === SOURCE_RANDOM || s2 === SOURCE_RANDOM) return ARRANGEMENT_RANDOM;
 
   // Index on axis1 with expression + even-divide on axis2 + perGroup=false → concentric
-  if (s1 === "index" && t1 === "expression" && t2 === "even-divide" && !layout.perGroup) return "concentric";
+  if (s1 === SOURCE_INDEX && t1 === TRANSFORM_EXPRESSION && t2 === TRANSFORM_EVEN_DIVIDE && !layout.perGroup) return ARRANGEMENT_CONCENTRIC;
 
   // Index + index with specific transforms
-  if (s1 === "index" && s2 === "index") return "grid";
+  if (s1 === SOURCE_INDEX && s2 === SOURCE_INDEX) return ARRANGEMENT_GRID;
 
-  return "grid"; // fallback
+  return ARRANGEMENT_GRID; // fallback
 }
 
 // ---------------------------------------------------------------------------
@@ -223,8 +230,8 @@ export function isExactPreset(layout: CoordinateLayout): boolean {
 export function findMatchingPreset(layout: CoordinateLayout): ClusterArrangement {
   const json = JSON.stringify(layout);
   for (const [name, preset] of Object.entries(ARRANGEMENT_PRESETS)) {
-    if (name === "custom") continue;
+    if (name === ARRANGEMENT_CUSTOM) continue;
     if (JSON.stringify(preset) === json) return name as ClusterArrangement;
   }
-  return "custom";
+  return ARRANGEMENT_CUSTOM;
 }

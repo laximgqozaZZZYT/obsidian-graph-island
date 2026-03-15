@@ -3,6 +3,7 @@ import { Menu, Platform } from "obsidian";
 import type { GraphNode, LayoutType, ShellInfo } from "../types";
 import { repositionShell } from "../layouts/concentric";
 import type { Simulation } from "d3-force";
+import { LAYOUT_CONCENTRIC } from "../constants";
 
 // ---------------------------------------------------------------------------
 // PixiNode shape (mirrors the one in GraphViewContainer)
@@ -21,6 +22,12 @@ export interface PixiNode {
   held: boolean;
   /** Sort rank (0 = highest/most prominent, increases downward). -1 = unranked. */
   sortRank: number;
+  /** Pre-computed LOD priority score (higher = shown at lower zoom). */
+  priorityScore: number;
+  /** Minimum zoom level at which this node's label becomes visible. */
+  minShowZoom: number;
+  /** Whether label was visible in the previous zoom update (hysteresis). */
+  labelWasVisible: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +78,38 @@ export interface InteractionHost {
   getContainerEl(): HTMLElement;
   /** Called when zoom changes — debounced layout recalculation */
   onZoomLayoutUpdate?(zoom: number): void;
+  /** Update label visibility for semantic zoom */
+  updateLabelsForZoom?(): void;
+  /** Update the on-screen zoom percentage indicator */
+  updateZoomIndicator?(scale: number): void;
 }
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Scale multiplier per wheel tick (zoom in / zoom out) */
+const ZOOM_IN_FACTOR = 1.1;
+const ZOOM_OUT_FACTOR = 0.9;
+
+/** Minimum/maximum scale clamp for wheel zoom */
+const ZOOM_SCALE_MIN = 0.02;
+const ZOOM_SCALE_MAX = 10;
+
+/** d3 simulation alphaTarget when dragging a node */
+const DRAG_ALPHA_TARGET = 0.3;
+
+/** Minimum marquee rectangle size (px) to trigger zoom */
+const MARQUEE_MIN_SIZE_PX = 10;
+
+/** Debounce delay (ms) for zoom-dependent layout recalculation */
+const ZOOM_LAYOUT_DEBOUNCE_MS = 400;
+/** Marquee selection stroke width */
+const MARQUEE_STROKE_WIDTH = 1.5;
+/** Marquee selection stroke alpha */
+const MARQUEE_STROKE_ALPHA = 0.9;
+/** Marquee selection fill alpha */
+const MARQUEE_FILL_ALPHA = 0.08;
 
 // ---------------------------------------------------------------------------
 // InteractionManager — owns all pointer/wheel event handling
@@ -168,7 +206,7 @@ export class InteractionManager {
     if (!app) return;
     const world = this.world;
 
-    const scaleFactor = e.deltaY < 0 ? 1.1 : 0.9;
+    const scaleFactor = e.deltaY < 0 ? ZOOM_IN_FACTOR : ZOOM_OUT_FACTOR;
     const rect = this.canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -177,7 +215,7 @@ export class InteractionManager {
     world.scale.x *= scaleFactor;
     world.scale.y *= scaleFactor;
     // Clamp scale
-    const s = Math.max(0.02, Math.min(10, world.scale.x));
+    const s = Math.max(ZOOM_SCALE_MIN, Math.min(ZOOM_SCALE_MAX, world.scale.x));
     world.scale.set(s);
     const newScreenPos = world.toGlobal(worldPos);
     world.x += mx - newScreenPos.x;
@@ -185,14 +223,14 @@ export class InteractionManager {
 
     this.host.markDirty();
     // Update label visibility for semantic zoom
-    (this.host as any).updateLabelsForZoom?.();
+    this.host.updateLabelsForZoom?.();
     // Update zoom percentage indicator
-    (this.host as any).updateZoomIndicator?.(s);
+    this.host.updateZoomIndicator?.(s);
     // Debounced layout recalculation for zoom-correlated node sizes
     clearTimeout(this._zoomLayoutTimer);
     this._zoomLayoutTimer = window.setTimeout(() => {
       this.host.onZoomLayoutUpdate?.(s);
-    }, 400) as unknown as number;
+    }, ZOOM_LAYOUT_DEBOUNCE_MS) as unknown as number;
   }
 
   // -----------------------------------------------------------------------
@@ -211,7 +249,7 @@ export class InteractionManager {
     const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
     if (hit) {
       // Concentric: rotate shell instead of dragging individual node
-      if (this.host.getCurrentLayout() === "concentric" && this.host.getShells().length > 0) {
+      if (this.host.getCurrentLayout() === LAYOUT_CONCENTRIC && this.host.getShells().length > 0) {
         const shellIdx = this.host.getNodeShellIndex().get(hit.data.id);
         if (shellIdx !== undefined && shellIdx > 0) {
           const shell = this.host.getShells()[shellIdx];
@@ -230,7 +268,7 @@ export class InteractionManager {
       if (sim) {
         hit.data.fx = hit.data.x;
         hit.data.fy = hit.data.y;
-        sim.alphaTarget(0.3).restart();
+        sim.alphaTarget(DRAG_ALPHA_TARGET).restart();
       }
     } else if (e.button === 1 || e.altKey) {
       // Middle-click or Alt+drag → pan
@@ -297,8 +335,8 @@ export class InteractionManager {
       const h = my - sy;
       this.marqueeGraphics.clear();
       const marqueeColor = this.host.getAccentColor();
-      this.marqueeGraphics.lineStyle(1.5, marqueeColor, 0.9);
-      this.marqueeGraphics.beginFill(marqueeColor, 0.08);
+      this.marqueeGraphics.lineStyle(MARQUEE_STROKE_WIDTH, marqueeColor, MARQUEE_STROKE_ALPHA);
+      this.marqueeGraphics.beginFill(marqueeColor, MARQUEE_FILL_ALPHA);
       this.marqueeGraphics.drawRect(Math.min(sx, mx), Math.min(sy, my), Math.abs(w), Math.abs(h));
       this.marqueeGraphics.endFill();
     } else if (this.isPanning) {
@@ -355,7 +393,7 @@ export class InteractionManager {
         const w = Math.abs(mx - sx);
         const h = Math.abs(my - sy);
         // Only zoom if rectangle is large enough (> 10px each dimension)
-        if (w > 10 && h > 10) {
+        if (w > MARQUEE_MIN_SIZE_PX && h > MARQUEE_MIN_SIZE_PX) {
           this.host.zoomToScreenRect(minSx, minSy, w, h);
         }
       }

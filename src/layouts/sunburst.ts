@@ -1,5 +1,14 @@
 import type { GraphData, GraphNode, SunburstData } from "../types";
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Minimum coverage fraction to use the provided hierarchy (vs fallback) */
+const COVERAGE_THRESHOLD = 0.5;
+/** Radius fraction for placing unmatched nodes on the outermost ring */
+const UNMATCHED_RADIUS_FACTOR = 0.95;
+
 export interface SunburstArc {
   name: string;
   depth: number;
@@ -12,14 +21,14 @@ export interface SunburstArc {
 }
 
 /** Result of applying a sunburst layout: positioned nodes/edges plus arc metadata for rendering */
-export interface SunburstLayoutResult {
+interface SunburstLayoutResult {
   data: GraphData;
   arcs: SunburstArc[];
   cx: number;
   cy: number;
 }
 
-export interface SunburstLayoutOptions {
+interface SunburstLayoutOptions {
   centerX?: number;
   centerY?: number;
   width: number;
@@ -55,7 +64,7 @@ export function applySunburstLayout(
   }
 
   // If less than 50% coverage or root has only 1 group ("Uncategorized"), use fallback
-  const effectiveRoot = (matched < graphFilePaths.size * 0.5 || countDirectChildren(root) <= 1)
+  const effectiveRoot = (matched < graphFilePaths.size * COVERAGE_THRESHOLD || countDirectChildren(root) <= 1)
     ? buildSunburstFromGraphNodes(gd.nodes)
     : root;
 
@@ -91,8 +100,8 @@ export function applySunburstLayout(
       : 0;
     return {
       ...n,
-      x: cx + outerRadius * 0.95 * Math.cos(angle - Math.PI / 2),
-      y: cy + outerRadius * 0.95 * Math.sin(angle - Math.PI / 2),
+      x: cx + outerRadius * UNMATCHED_RADIUS_FACTOR * Math.cos(angle - Math.PI / 2),
+      y: cy + outerRadius * UNMATCHED_RADIUS_FACTOR * Math.sin(angle - Math.PI / 2),
     };
   });
 

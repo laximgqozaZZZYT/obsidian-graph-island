@@ -5,11 +5,146 @@ import type { PixiNode } from "./InteractionManager";
 import { getNodeShape, drawShape, drawShapeAt, getNodeDisplayConfig } from "../utils/node-shapes";
 import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
+import { clamp } from "../utils/geometry";
+
+// ---------------------------------------------------------------------------
+// CardText — CanvasText with a marker flag for card-mode text children
+// ---------------------------------------------------------------------------
+/** CanvasText child that belongs to a card-mode node (header or field row). */
+interface CardText extends CanvasText {
+  _isCardText: true;
+}
+
+/** Type guard: is the given canvas child a CardText? */
+function isCardText(obj: unknown): obj is CardText {
+  return obj instanceof CanvasText && (obj as CardText)._isCardText === true;
+}
+
+/** Mark a CanvasText as card text and return it typed as CardText. */
+function markAsCardText(t: CanvasText): CardText {
+  (t as CardText)._isCardText = true;
+  return t as CardText;
+}
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 const EDGE_REDRAW_SKIP = 3;
+
+/** Number of frames the render loop idles before detaching the ticker */
+const IDLE_FRAME_DETACH_THRESHOLD = 60;
+
+/** Screen-space node radius estimate used for LOD tier calculations (px) */
+const NODE_SCREEN_PX_BASE = 30;
+
+/** Minimum world radius applied at non-extreme zoom to keep nodes visible */
+const MIN_WORLD_RADIUS_PX = 1.5;
+
+/** Viewport culling margin in world units (divided by worldScale) */
+const VIEWPORT_CULL_MARGIN_PX = 60;
+
+/** Maximum number of labels created before dynamically raising degree threshold */
+const MAX_LABEL_COUNT = 300;
+
+/** Default minimum degree threshold for showing node labels */
+const DEFAULT_LABEL_DEGREE_THRESHOLD = 3;
+
+/** Number of nodes created synchronously before deferring the rest */
+const IMMEDIATE_BATCH_SIZE = 200;
+
+/** Number of nodes processed per deferred batch frame */
+const DEFERRED_BATCH_SIZE = 100;
+
+/** Sunburst segment default arc angle in degrees */
+const SUNBURST_SEGMENT_ARC_DEG = 30;
+
+/** Hold indicator ring line width */
+const HOLD_RING_LINE_WIDTH = 2;
+/** Hold indicator ring padding beyond node radius */
+const HOLD_RING_PADDING = 4;
+
+/** Zone placement text-anchor cosine thresholds */
+const ZONE_ANCHOR_COS_POSITIVE = 0.3;
+const ZONE_ANCHOR_COS_NEGATIVE = -0.3;
+
+/** Maximum proximity candidates for zone placement to limit O(n^2) cost */
+const ZONE_MAX_PROXIMITY_CANDIDATES = 20;
+
+/** Keyboard focus ring dashed segments */
+const KB_FOCUS_SEGMENTS = 12;
+/** Keyboard focus ring gap fraction (0..1) */
+const KB_FOCUS_GAP_FRACTION = 0.4;
+/** Keyboard focus ring radius multiplier */
+const KB_FOCUS_RADIUS_FACTOR = 1.6;
+
+/** Super node fill alpha */
+const SUPER_NODE_FILL_ALPHA = 0.3;
+
+/** Donut/sunburst ring stroke darken factor (applied via darkenColor) */
+const RING_STROKE_DARKEN = 0.4;
+/** Donut/sunburst ring stroke alpha multiplier */
+const RING_STROKE_ALPHA = 0.5;
+/** Hold ring / pathfinder ring stroke alpha */
+const INDICATOR_RING_ALPHA = 0.9;
+/** Pathfinder line width for start/end nodes */
+const PF_ENDPOINT_LINE_WIDTH = 3;
+/** Pathfinder line width for intermediate path nodes */
+const PF_INTERMEDIATE_LINE_WIDTH = 2;
+/** Pathfinder radius padding for start/end nodes */
+const PF_ENDPOINT_RADIUS_PAD = 6;
+/** Pathfinder radius padding for intermediate path nodes */
+const PF_INTERMEDIATE_RADIUS_PAD = 3;
+
+/** Keyboard focus ring line width */
+const KB_FOCUS_LINE_WIDTH = 2.5;
+/** Keyboard focus ring line alpha */
+const KB_FOCUS_LINE_ALPHA = 0.95;
+
+/** Character width estimation factor relative to font size */
+const LABEL_CHAR_WIDTH_FACTOR = 0.6;
+/** Line height factor for label bounding box estimation */
+const LABEL_LINE_HEIGHT_FACTOR = 1.3;
+/** Label default Y offset factor (fraction of node radius) */
+const LABEL_Y_OFFSET_FACTOR = 0.4;
+/** Label default X/Y offset from node edge (px) */
+const LABEL_EDGE_OFFSET = 2;
+
+/** Super node label background pill padding (px) */
+const SUPER_LABEL_PAD_X = 10;
+const SUPER_LABEL_PAD_Y = 4;
+/** Regular node label background pill padding (px) */
+const REGULAR_LABEL_PAD_X = 8;
+const REGULAR_LABEL_PAD_Y = 3;
+/** Tag label background pill padding (px) */
+const TAG_LABEL_PAD_X = 4;
+const TAG_LABEL_PAD_Y = 1;
+/** Tag label background alpha dampen relative to main label bg alpha */
+const TAG_BG_ALPHA_DAMPEN = 0.7;
+
+/** Card icon size ratio relative to header height */
+const CARD_ICON_SIZE_RATIO = 0.55;
+/** Card icon fold triangle ratio relative to icon size */
+const CARD_ICON_FOLD_RATIO = 0.28;
+/** Card icon outline stroke alpha */
+const CARD_ICON_OUTLINE_ALPHA = 0.7;
+/** Card icon body fill alpha */
+const CARD_ICON_FILL_ALPHA = 0.25;
+/** Card icon fold fill alpha */
+const CARD_ICON_FOLD_ALPHA = 0.15;
+
+/** Spatial hash grid cell size for label overlap detection (screen px) */
+const OVERLAP_GRID_CELL_SIZE = 120;
+/** Spatial hash grid prime for cell key computation */
+const OVERLAP_GRID_HASH_PRIME = 100003;
+
+/** Glow attenuation node count threshold (above this, glow starts fading) */
+const GLOW_ATTENUATE_THRESHOLD = 300;
+/** Glow attenuation range (from threshold to threshold+range, glow fades to zero) */
+const GLOW_ATTENUATE_RANGE = 500;
+/** Glow radius attenuation max factor */
+const GLOW_RADIUS_ATTENUATE_FACTOR = 0.7;
+/** P90 percentile fraction for hub node glow detection */
+const GLOW_P90_FRACTION = 0.9;
 
 // ---------------------------------------------------------------------------
 // darkenColor utility (shared with GraphViewContainer)
@@ -85,6 +220,8 @@ export interface RenderHost {
   drawTimelineBars(): void;
   /** Draw arrangement guide lines */
   drawGuideLines(): void;
+  /** Draw per-group route lines (transit map style) */
+  drawRouteLines(): void;
   /** Draw group grid overlay */
   drawGroupGrid(): void;
   /** Tick layout transition animation; returns true if still running */
@@ -111,6 +248,12 @@ export interface RenderHost {
   getAccentColor?(): number;
   /** Whether the highlighted node was focused via keyboard (Tab) */
   getIsKeyboardFocused?(): boolean;
+  /** Get the active timeline range for filtering */
+  getTimelineRange?(): { min: number; max: number; active: boolean };
+  /** Get the set of node IDs on the pathfinder route */
+  getPathfinderNodeSet?(): Set<string> | null;
+  /** Get the pathfinder start/end state */
+  getPathfinderState?(): { startId: string | null; endId: string | null };
 }
 
 // ---------------------------------------------------------------------------
@@ -197,7 +340,7 @@ export class RenderPipeline {
     } else {
       this.idleFrames++;
       const app = this.host.getPixiApp();
-      if (this.idleFrames > 60 && app) {
+      if (this.idleFrames > IDLE_FRAME_DETACH_THRESHOLD && app) {
         app.ticker.remove(this.renderTick, this);
         this._tickerBound = false;
       }
@@ -257,6 +400,7 @@ export class RenderPipeline {
       this.host.drawEnclosures();
       this.host.drawSunburstArcs();
       this.host.drawGuideLines();
+      this.host.drawRouteLines();
       this.host.drawGroupGrid();
       this.host.drawTimelineBars();
       this.host.drawEdges();
@@ -279,10 +423,10 @@ export class RenderPipeline {
 
       if (isKbFocused) {
         // Keyboard focus: dashed ring instead of halo — high-contrast white outline
-        const focusRadius = pn.radius * 1.6;
-        const segments = 12;
-        const gap = 0.4; // fraction of arc to skip (0..1)
-        pn.circle.lineStyle(2.5, 0xffffff, 0.95);
+        const focusRadius = pn.radius * KB_FOCUS_RADIUS_FACTOR;
+        const segments = KB_FOCUS_SEGMENTS;
+        const gap = KB_FOCUS_GAP_FRACTION; // fraction of arc to skip (0..1)
+        pn.circle.lineStyle(KB_FOCUS_LINE_WIDTH, 0xffffff, KB_FOCUS_LINE_ALPHA);
         for (let i = 0; i < segments; i++) {
           const startAngle = (i / segments) * Math.PI * 2;
           const endAngle = startAngle + ((1 - gap) / segments) * Math.PI * 2;
@@ -319,33 +463,59 @@ export class RenderPipeline {
     const g = this.host.getNodeCircleBatch();
     if (!g) return;
     g.clear();
+
     // Resolve config with defaults
     const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...this.host.getCardRenderConfig?.() };
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+
     // Ring chart mode: hide all nodes
     if (this.host.isRingChartMode()) return;
+
+    // Build shared render context for sub-methods
+    const ctx = this._buildBatchContext(crc, rt);
+
+    // Pass 1: Glow halos (enhanced for hub nodes) — skip at extreme/mid zoom
+    if (ctx.nodeCount < rt.glowNodeCount && !ctx.isExtremeZoom && !ctx.isMidZoom) {
+      this._renderGlowPass(g, ctx, rt);
+    }
+
+    // Pass 2: Nodes — LOD-tiered rendering
+    this._renderNodesPass(g, ctx, crc, rt);
+
+    // Pass 3: Hold indicator ring for pinned nodes
+    this._renderHoldRings(g, ctx);
+
+    // Pass 4: Pathfinder start/end node markers
+    this._renderPathfinderMarkers(g, ctx);
+  }
+
+  // =========================================================================
+  // Batch render context — shared state for all sub-passes
+  // =========================================================================
+  /** Shared state computed once per redrawNodeBatch call and passed to sub-methods. */
+  private _buildBatchContext(
+    crc: ReturnType<typeof Object.assign>,
+    rt: ReturnType<typeof Object.assign>,
+  ) {
     const hId = this.host.getHighlightedNodeId();
     const hlSet = this.host.getPrevHighlightSet();
     const eph = this.host.getEphemeralHighlight();
     const hasHighlight = !!(hId || (eph && eph.size > 0));
-
-    // Effective highlight set: ephemeral overrides normal hover
     const activeSet = (eph && eph.size > 0) ? eph : hlSet;
 
-    // --- Viewport culling bounds (world coordinates) ---
+    // Viewport culling bounds (world coordinates)
     const world = this.host.getWorldContainer();
     const worldScale = world?.scale?.x ?? 1;
     const { width: cw, height: ch } = this.host.getCanvasDimensions();
     const wx = world?.x ?? 0;
     const wy = world?.y ?? 0;
-    // Margin in world units so nodes at the edge aren't clipped mid-circle
-    const margin = 60 / worldScale;
+    const margin = VIEWPORT_CULL_MARGIN_PX / worldScale;
     const vpMinX = -wx / worldScale - margin;
     const vpMinY = -wy / worldScale - margin;
     const vpMaxX = vpMinX + cw / worldScale + margin * 2;
     const vpMaxY = vpMinY + ch / worldScale + margin * 2;
 
-    // Reuse pooled array to avoid per-frame allocation
+    // Collect visible nodes (reuse pooled array)
     const visible = this._visiblePool;
     visible.length = 0;
     const pixiNodes = this.host.getPixiNodes();
@@ -353,469 +523,660 @@ export class RenderPipeline {
     for (const pn of pixiNodes.values()) {
       if (hiddenBySearch.has(pn.data.id)) continue;
       if (hasHighlight && activeSet.has(pn.data.id)) continue;
-      // Viewport culling: skip nodes outside visible area
       const nx = pn.data.x, ny = pn.data.y;
       if (nx < vpMinX || nx > vpMaxX || ny < vpMinY || ny > vpMaxY) continue;
       visible.push(pn);
     }
 
-    // Timeline range filtering: dim nodes outside range (only when active)
-    let tlFilteredOut: Set<string> | null = null;
-    const tlRange = (this.host as any).getTimelineRange?.() as { min: number; max: number; active: boolean } | undefined;
-    if (tlRange?.active) {
-      let globalMinX = Infinity, globalMaxX = -Infinity;
-      for (const pn of pixiNodes.values()) {
-        if (pn.data.x < globalMinX) globalMinX = pn.data.x;
-        if (pn.data.x > globalMaxX) globalMaxX = pn.data.x;
-      }
-      const xSpan = globalMaxX - globalMinX;
-      const tlMinX = globalMinX + xSpan * tlRange.min;
-      const tlMaxX = globalMinX + xSpan * tlRange.max;
-      tlFilteredOut = new Set<string>();
-      for (const pn of visible) {
-        if (pn.data.x < tlMinX || pn.data.x > tlMaxX) {
-          tlFilteredOut.add(pn.data.id);
-        }
-      }
-    }
+    // Timeline range filtering
+    const tlFilteredOut = this._computeTimelineFilter(visible, pixiNodes);
 
     const alpha = hasHighlight ? crc.highlightDimAlpha : 1;
     const nodeCount = visible.length;
     const shapeRules = this.host.getNodeShapeRules();
 
-    // Minimum screen-space node size: ensure nodes are visible at extreme zoom-out
-    const nodeScreenPx = 30 * worldScale; // typical node radius in screen pixels
-    // LOD tiers based on zoom level:
-    //   extreme (< 1.5px): fixed-size dot rectangles
-    //   mid (< 4px): all circles, no shape lookup, no gradient
-    //   normal: full shape + gradient rendering
+    // LOD tiers
+    const nodeScreenPx = NODE_SCREEN_PX_BASE * worldScale;
     const isExtremeZoom = nodeScreenPx < rt.cardLODExtremePx;
     const isMidZoom = !isExtremeZoom && nodeScreenPx < rt.cardLODNormalPx;
-    // For normal zoom, use min-radius to keep nodes visible when slightly small
-    const minWorldRadius = isExtremeZoom ? 0 : Math.max(0, 1.5 / worldScale);
+    const minWorldRadius = isExtremeZoom ? 0 : Math.max(0, MIN_WORLD_RADIUS_PX / worldScale);
 
-    // Pass 1: Glow halos (enhanced for hub nodes) — skip at extreme/mid zoom
-    const showGlow = nodeCount < rt.glowNodeCount && !isExtremeZoom && !isMidZoom;
-    if (showGlow) {
-      const baseGlowAlpha = nodeCount < 300 ? rt.glowBaseAlpha : rt.glowBaseAlpha * (1 - (nodeCount - 300) / 500);
-      const baseGlowRadius = nodeCount < 300 ? rt.glowBaseRadius : rt.glowBaseRadius - 0.7 * ((nodeCount - 300) / 500);
-      // Reuse degree buffer + O(n) quickSelect instead of sort O(n log n)
-      const degArr = this._degreesPool;
-      degArr.length = visible.length;
-      for (let i = 0; i < visible.length; i++) degArr[i] = visible[i].data.degree ?? 0;
-      const targetIdx = Math.floor(visible.length * 0.9);
-      const p90 = quickSelect(degArr, targetIdx) || 1;
-      g.lineStyle(0);
-      for (let i = 0; i < visible.length; i++) {
-        const pn = visible[i];
-        const shape = getNodeShape(pn.data, shapeRules);
-        const deg = pn.data.degree ?? 0;
-        const hubFactor = deg >= p90 ? rt.glowHubFactor : 1;
-        const glowAlpha = baseGlowAlpha * hubFactor;
-        const glowRadius = baseGlowRadius * (deg >= p90 ? rt.glowHubRadiusFactor : 1);
-        const effR = Math.max(pn.radius, minWorldRadius);
-        g.beginFill(pn.color, alpha * glowAlpha);
-        drawShapeAt(g, shape, pn.data.x, pn.data.y, effR * glowRadius);
-        g.endFill();
+    return {
+      visible, pixiNodes, tlFilteredOut, alpha, nodeCount,
+      shapeRules, worldScale, isExtremeZoom, isMidZoom, minWorldRadius,
+    };
+  }
+
+  /** Compute the set of node IDs outside the active timeline range. */
+  private _computeTimelineFilter(
+    visible: PixiNode[],
+    pixiNodes: Map<string, PixiNode>,
+  ): Set<string> | null {
+    const tlRange = this.host.getTimelineRange?.();
+    if (!tlRange?.active) return null;
+
+    let globalMinX = Infinity, globalMaxX = -Infinity;
+    for (const pn of pixiNodes.values()) {
+      if (pn.data.x < globalMinX) globalMinX = pn.data.x;
+      if (pn.data.x > globalMaxX) globalMaxX = pn.data.x;
+    }
+    const xSpan = globalMaxX - globalMinX;
+    const tlMinX = globalMinX + xSpan * tlRange.min;
+    const tlMaxX = globalMinX + xSpan * tlRange.max;
+    const filtered = new Set<string>();
+    for (const pn of visible) {
+      if (pn.data.x < tlMinX || pn.data.x > tlMaxX) {
+        filtered.add(pn.data.id);
       }
     }
+    return filtered;
+  }
 
-    // Pass 2: Nodes — LOD-tiered rendering
-    // Pre-pass: clean up table-card text at extreme/mid zoom (text not visible at these LODs)
+  // =========================================================================
+  // Pass 1: Glow halos
+  // =========================================================================
+  /** Render glow halos behind nodes (enhanced for hub nodes). */
+  private _renderGlowPass(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[]; shapeRules: ShapeRule[]; alpha: number; nodeCount: number; minWorldRadius: number },
+    rt: ReturnType<typeof Object.assign>,
+  ) {
+    const { visible, shapeRules, alpha, nodeCount, minWorldRadius } = ctx;
+    const baseGlowAlpha = nodeCount < GLOW_ATTENUATE_THRESHOLD
+      ? rt.glowBaseAlpha
+      : rt.glowBaseAlpha * (1 - (nodeCount - GLOW_ATTENUATE_THRESHOLD) / GLOW_ATTENUATE_RANGE);
+    const baseGlowRadius = nodeCount < GLOW_ATTENUATE_THRESHOLD
+      ? rt.glowBaseRadius
+      : rt.glowBaseRadius - GLOW_RADIUS_ATTENUATE_FACTOR * ((nodeCount - GLOW_ATTENUATE_THRESHOLD) / GLOW_ATTENUATE_RANGE);
+
+    // Reuse degree buffer + O(n) quickSelect instead of sort O(n log n)
+    const degArr = this._degreesPool;
+    degArr.length = visible.length;
+    for (let i = 0; i < visible.length; i++) degArr[i] = visible[i].data.degree ?? 0;
+    const targetIdx = Math.floor(visible.length * GLOW_P90_FRACTION);
+    const p90 = quickSelect(degArr, targetIdx) || 1;
+
+    g.lineStyle(0);
+    for (let i = 0; i < visible.length; i++) {
+      const pn = visible[i];
+      const shape = getNodeShape(pn.data, shapeRules);
+      const deg = pn.data.degree ?? 0;
+      const hubFactor = deg >= p90 ? rt.glowHubFactor : 1;
+      const glowAlpha = baseGlowAlpha * hubFactor;
+      const glowRadius = baseGlowRadius * (deg >= p90 ? rt.glowHubRadiusFactor : 1);
+      const effR = Math.max(pn.radius, minWorldRadius);
+      g.beginFill(pn.color, alpha * glowAlpha);
+      drawShapeAt(g, shape, pn.data.x, pn.data.y, effR * glowRadius);
+      g.endFill();
+    }
+  }
+
+  // =========================================================================
+  // Pass 2: Node rendering (LOD-tiered)
+  // =========================================================================
+  /** Main node rendering pass with LOD tiers. */
+  private _renderNodesPass(
+    g: CanvasGraphics,
+    ctx: {
+      visible: PixiNode[]; pixiNodes: Map<string, PixiNode>;
+      tlFilteredOut: Set<string> | null; alpha: number; nodeCount: number;
+      shapeRules: ShapeRule[]; worldScale: number;
+      isExtremeZoom: boolean; isMidZoom: boolean; minWorldRadius: number;
+    },
+    crc: ReturnType<typeof Object.assign>,
+    rt: ReturnType<typeof Object.assign>,
+  ) {
+    const { visible, pixiNodes, tlFilteredOut, alpha, nodeCount,
+            worldScale, isExtremeZoom, isMidZoom, minWorldRadius } = ctx;
+
+    // Pre-pass: clean up table-card text at extreme/mid zoom
     if (isExtremeZoom || isMidZoom) {
-      for (const pn of pixiNodes.values()) {
-        const gfx = pn.gfx;
-        for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
-          if ((gfx.children[ci] as any)._isCardText) {
-            const child = gfx.children[ci];
-            gfx.removeChild(child);
-            child.destroy();
-          }
+      this._cleanupCardTextAll(pixiNodes);
+    }
+
+    if (isExtremeZoom) {
+      this._renderExtremeZoom(g, visible, tlFilteredOut, alpha, worldScale, crc);
+    } else if (isMidZoom) {
+      this._renderMidZoom(g, visible, tlFilteredOut, alpha, minWorldRadius, crc);
+    } else {
+      this._renderNormalZoom(g, ctx, crc, rt);
+    }
+  }
+
+  /** Remove all CardText children from every node's gfx container. */
+  private _cleanupCardTextAll(pixiNodes: Map<string, PixiNode>) {
+    for (const pn of pixiNodes.values()) {
+      const gfx = pn.gfx;
+      for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
+        if (isCardText(gfx.children[ci])) {
+          const child = gfx.children[ci];
+          gfx.removeChild(child);
+          child.destroy();
         }
       }
     }
-    if (isExtremeZoom) {
-      // Extreme zoom-out: draw fixed-size rectangles (1×1 screen pixel)
-      const dotSize = 1 / worldScale;
-      g.lineStyle(0);
-      for (const pn of visible) {
-        const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
-        g.beginFill(pn.color, nodeAlpha);
-        g.drawRect(pn.data.x - dotSize / 2, pn.data.y - dotSize / 2, dotSize, dotSize);
+  }
+
+  /** Extreme zoom-out: draw fixed-size rectangles (1x1 screen pixel). */
+  private _renderExtremeZoom(
+    g: CanvasGraphics,
+    visible: PixiNode[],
+    tlFilteredOut: Set<string> | null,
+    alpha: number,
+    worldScale: number,
+    crc: ReturnType<typeof Object.assign>,
+  ) {
+    const dotSize = 1 / worldScale;
+    g.lineStyle(0);
+    for (const pn of visible) {
+      const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+      g.beginFill(pn.color, nodeAlpha);
+      g.drawRect(pn.data.x - dotSize / 2, pn.data.y - dotSize / 2, dotSize, dotSize);
+      g.endFill();
+    }
+  }
+
+  /** Mid zoom: all circles (skip shape lookup + gradient for speed). */
+  private _renderMidZoom(
+    g: CanvasGraphics,
+    visible: PixiNode[],
+    tlFilteredOut: Set<string> | null,
+    alpha: number,
+    minWorldRadius: number,
+    crc: ReturnType<typeof Object.assign>,
+  ) {
+    g.lineStyle(0);
+    for (const pn of visible) {
+      const effR = Math.max(pn.radius, minWorldRadius);
+      const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+      g.beginFill(pn.color, nodeAlpha);
+      g.drawCircle(pn.data.x, pn.data.y, effR);
+      g.endFill();
+    }
+  }
+
+  /** Normal zoom: full shape + optional gradient, with display mode support. */
+  private _renderNormalZoom(
+    g: CanvasGraphics,
+    ctx: {
+      visible: PixiNode[]; pixiNodes: Map<string, PixiNode>;
+      tlFilteredOut: Set<string> | null; alpha: number; nodeCount: number;
+      shapeRules: ShapeRule[]; worldScale: number; minWorldRadius: number;
+    },
+    crc: ReturnType<typeof Object.assign>,
+    rt: ReturnType<typeof Object.assign>,
+  ) {
+    const { pixiNodes } = ctx;
+    const displayMode = this.host.getNodeDisplayMode();
+
+    // Clean up stale card text when NOT in table card mode
+    if (displayMode !== "card" || (this.host.getCardDisplayConfig().headerStyle ?? "plain") !== "table") {
+      this._cleanupCardTextAll(pixiNodes);
+    }
+
+    if (displayMode === "node") {
+      this._renderNodeMode(g, ctx, crc, rt);
+    } else if (displayMode === "card") {
+      this._renderCardMode(g, ctx, crc, rt);
+    } else if (displayMode === "donut") {
+      this._renderDonutMode(g, ctx, crc, rt);
+    } else if (displayMode === "sunburst-segment") {
+      this._renderSunburstSegmentMode(g, ctx, crc);
+    }
+  }
+
+  /** Node display mode: shape rendering with gradient and prominence. */
+  private _renderNodeMode(
+    g: CanvasGraphics,
+    ctx: {
+      visible: PixiNode[]; tlFilteredOut: Set<string> | null;
+      alpha: number; nodeCount: number; shapeRules: ShapeRule[];
+      worldScale: number; minWorldRadius: number;
+    },
+    crc: ReturnType<typeof Object.assign>,
+    rt: ReturnType<typeof Object.assign>,
+  ) {
+    const { visible, tlFilteredOut, alpha, nodeCount, shapeRules, worldScale, minWorldRadius } = ctx;
+    const prominentN = rt.prominentTopN ?? 5;
+    const nonPromSat = rt.nonProminentSaturation ?? 0.4;
+    const useGradient = nodeCount < rt.gradientNodeCount;
+
+    for (const pn of visible) {
+      const shape = getNodeShape(pn.data, shapeRules);
+      const effR = Math.max(pn.radius, minWorldRadius);
+      const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+
+      // Desaturate non-prominent nodes
+      let drawColor = pn.color;
+      if (pn.sortRank >= 0 && pn.sortRank >= prominentN) {
+        drawColor = desaturateColor(pn.color, nonPromSat);
+      }
+      const strokeColor = darkenColor(drawColor, crc.strokeDarken);
+      g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
+      if (useGradient && shape === "circle") {
+        const innerCol = lightenColor(drawColor, crc.gradientHighlight);
+        const outerCol = darkenColor(drawColor, crc.gradientShadow);
+        g.beginRadialFill(pn.data.x, pn.data.y, effR, innerCol, outerCol, nodeAlpha, nodeAlpha);
+      } else {
+        g.beginFill(drawColor, nodeAlpha);
+      }
+      drawShapeAt(g, shape, pn.data.x, pn.data.y, effR);
+      g.endFill();
+
+      // Double outline for super nodes (collapsed groups) or top-N prominent nodes
+      const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
+      const isProminent = pn.sortRank >= 0 && pn.sortRank < prominentN;
+      if (isSuper || isProminent) {
+        const innerR = effR * rt.superNodeInnerRatio;
+        g.lineStyle(rt.superNodeInnerStroke / worldScale, strokeColor, nodeAlpha * rt.superNodeInnerAlpha);
+        g.drawCircle(pn.data.x, pn.data.y, innerR);
+        g.lineStyle(0);
+      }
+    }
+  }
+
+  /** Card display mode: dispatch to table or plain card style. */
+  private _renderCardMode(
+    g: CanvasGraphics,
+    ctx: {
+      visible: PixiNode[]; pixiNodes: Map<string, PixiNode>;
+      tlFilteredOut: Set<string> | null; alpha: number; nodeCount: number;
+      worldScale: number; minWorldRadius: number;
+    },
+    crc: ReturnType<typeof Object.assign>,
+    rt: ReturnType<typeof Object.assign>,
+  ) {
+    const { pixiNodes, worldScale } = ctx;
+    const cardConfig = this.host.getCardDisplayConfig();
+    const headerStyle = cardConfig.headerStyle ?? "plain";
+    const cardMaxW = (cardConfig.maxWidth ?? 120) / worldScale;
+    const showIcon = cardConfig.showIcon === true;
+
+    // Clean up previous card text children from ALL nodes
+    this._cleanupCardTextAll(pixiNodes);
+
+    if (headerStyle === "table") {
+      this._renderTableCard(g, ctx, crc, rt, cardConfig, cardMaxW, showIcon);
+    } else {
+      this._renderPlainCard(g, ctx, crc, rt, cardConfig, cardMaxW);
+    }
+  }
+
+  /** Table (ER-diagram) card style rendering. */
+  private _renderTableCard(
+    g: CanvasGraphics,
+    ctx: {
+      visible: PixiNode[]; tlFilteredOut: Set<string> | null;
+      alpha: number; nodeCount: number; worldScale: number; minWorldRadius: number;
+    },
+    crc: ReturnType<typeof Object.assign>,
+    rt: ReturnType<typeof Object.assign>,
+    cardConfig: CardDisplayConfig,
+    cardMaxW: number,
+    showIcon: boolean,
+  ) {
+    const { visible, tlFilteredOut, alpha, nodeCount, worldScale, minWorldRadius } = ctx;
+    const headerH = crc.tableHeaderHeight / worldScale;
+    const fieldLineH = crc.fieldLineHeight / worldScale;
+    const pad = crc.cardPadding / worldScale;
+    const cornerR = crc.cardCornerRadius / worldScale;
+    const showMeta = nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
+    const fieldCount = showMeta ? cardConfig.fields.length : 0;
+    const totalH = headerH + fieldCount * fieldLineH + pad * 2;
+
+    const tableCardNodes: PixiNode[] = [];
+
+    // Card width: golden ratio (or custom aspect ratio) based on content height
+    const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
+    const arHalfW = (totalH * cardAR) / 2;
+
+    for (const pn of visible) {
+      const effR = Math.max(pn.radius, minWorldRadius);
+      const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+      const halfW = Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor);
+      const cardW = halfW * 2;
+      const cardX = pn.data.x - halfW;
+      const cardY = pn.data.y - totalH / 2;
+
+      // 0. Drop shadow (behind card)
+      if (crc.cardShadowAlpha > 0) {
+        const shadowOff = crc.cardShadowOffset / worldScale;
+        g.lineStyle(0);
+        g.beginFill(0x000000, nodeAlpha * crc.cardShadowAlpha);
+        g.drawRoundedRect(cardX + shadowOff, cardY + shadowOff, cardW, totalH, cornerR);
         g.endFill();
       }
-    } else if (isMidZoom) {
-      // Mid zoom: all circles (skip shape lookup + gradient for speed)
+
+      // 1. Card background (thin fill)
       g.lineStyle(0);
-      for (const pn of visible) {
-        const effR = Math.max(pn.radius, minWorldRadius);
-        const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+      g.beginFill(pn.color, nodeAlpha * crc.cardBackgroundAlpha);
+      g.drawRoundedRect(cardX, cardY, cardW, totalH, cornerR);
+      g.endFill();
+
+      // 2. Header region (colored bar at top)
+      g.beginFill(pn.color, nodeAlpha * crc.cardHeaderAlpha);
+      g.drawRoundedRect(cardX, cardY, cardW, headerH + cornerR, cornerR);
+      g.endFill();
+      g.beginFill(pn.color, nodeAlpha * crc.cardHeaderAlpha);
+      g.drawRect(cardX, cardY + headerH, cardW, cornerR);
+      g.endFill();
+
+      // 2b. File icon in header (when showIcon enabled)
+      if (showIcon) {
+        this._renderCardIcon(g, cardX, cardY, headerH, pad, worldScale, nodeAlpha);
+      }
+
+      // 3. Divider line below header
+      const divColor = darkenColor(pn.color, crc.cardDividerDarken);
+      g.lineStyle(1 / worldScale, divColor, nodeAlpha * crc.cardDividerAlpha);
+      g.moveTo(cardX, cardY + headerH);
+      g.lineTo(cardX + cardW, cardY + headerH);
+
+      // 4. Striped field rows
+      if (fieldCount > 0) {
+        g.lineStyle(0);
+        for (let fi = 0; fi < fieldCount; fi++) {
+          const rowY = cardY + headerH + fi * fieldLineH;
+          const rowAlpha = fi % 2 === 0 ? crc.cardRowAlphaEven : crc.cardRowAlphaOdd;
+          g.beginFill(pn.color, nodeAlpha * rowAlpha);
+          g.drawRect(cardX, rowY, cardW, fieldLineH);
+          g.endFill();
+        }
+      }
+
+      // Outer border
+      const strokeColor = darkenColor(pn.color, crc.strokeDarken);
+      g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
+      g.beginFill(0, 0);
+      g.drawRoundedRect(cardX, cardY, cardW, totalH, cornerR);
+      g.endFill();
+
+      if (nodeCount < rt.cardTextNodeCount) tableCardNodes.push(pn);
+    }
+
+    // Text pass for table cards (only when node count < threshold)
+    if (tableCardNodes.length > 0) {
+      this._renderTableCardText(tableCardNodes, crc, rt, cardConfig, cardMaxW,
+        showIcon, headerH, fieldLineH, pad, totalH, arHalfW, worldScale, minWorldRadius);
+    }
+  }
+
+  /** Render file icon inside a table card header. */
+  private _renderCardIcon(
+    g: CanvasGraphics,
+    cardX: number, cardY: number,
+    headerH: number, pad: number,
+    worldScale: number, nodeAlpha: number,
+  ) {
+    const iconS = headerH * CARD_ICON_SIZE_RATIO;
+    const foldS = iconS * CARD_ICON_FOLD_RATIO;
+    const iconX = cardX + pad;
+    const iconY = cardY + (headerH - iconS) / 2;
+    // Page body outline
+    g.lineStyle(0.5 / worldScale, 0xffffff, nodeAlpha * CARD_ICON_OUTLINE_ALPHA);
+    g.beginFill(0xffffff, nodeAlpha * CARD_ICON_FILL_ALPHA);
+    g.moveTo(iconX, iconY);
+    g.lineTo(iconX + iconS - foldS, iconY);
+    g.lineTo(iconX + iconS, iconY + foldS);
+    g.lineTo(iconX + iconS, iconY + iconS);
+    g.lineTo(iconX, iconY + iconS);
+    g.closePath();
+    g.endFill();
+    // Fold triangle
+    g.lineStyle(0);
+    g.beginFill(0xffffff, nodeAlpha * CARD_ICON_FOLD_ALPHA);
+    g.moveTo(iconX + iconS - foldS, iconY);
+    g.lineTo(iconX + iconS - foldS, iconY + foldS);
+    g.lineTo(iconX + iconS, iconY + foldS);
+    g.closePath();
+    g.endFill();
+  }
+
+  /** Render text labels for table (ER-diagram) cards. */
+  private _renderTableCardText(
+    tableCardNodes: PixiNode[],
+    crc: ReturnType<typeof Object.assign>,
+    rt: ReturnType<typeof Object.assign>,
+    cardConfig: CardDisplayConfig,
+    cardMaxW: number,
+    showIcon: boolean,
+    headerH: number, fieldLineH: number, pad: number,
+    totalH: number, arHalfW: number,
+    worldScale: number, minWorldRadius: number,
+  ) {
+    const labelColor = this.host.getLabelColor();
+
+    for (const pn of tableCardNodes) {
+      const effR = Math.max(pn.radius, minWorldRadius);
+      const halfW = Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor);
+      const cardY = -totalH / 2;  // relative to pn.gfx
+      const textPadX = pad;
+      const fontSize = Math.max(crc.headerFontSizeMin, crc.headerFontSizeBase / worldScale);
+      const smallFontSize = Math.max(crc.fieldFontSizeMin, crc.fieldFontSizeBase / worldScale);
+      const fieldCount2 = cardConfig.fields.length;
+      const gfx = pn.gfx;
+
+      // Icon offset for header text
+      const iconOffset = showIcon ? (headerH * CARD_ICON_SIZE_RATIO + pad) : 0;
+      const availableTextW = halfW * 2 - textPadX * 2 - iconOffset;
+
+      // Header text (bold, white)
+      const headerText = new CanvasText(pn.data.label, {
+        fontSize,
+        fontWeight: "bold",
+        fill: 0xffffff,
+        fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+      });
+      markAsCardText(headerText);
+      headerText.x = -halfW + textPadX + iconOffset;
+      headerText.y = cardY + headerH / 2 + fontSize * crc.fontBaselineOffset;
+      if (rt.cardTextTruncation !== false) headerText.maxWidth = availableTextW;
+      gfx.addChild(headerText);
+
+      // Field rows
+      const meta = pn.data.meta ?? {};
+      const fieldValueOnly = cardConfig.fieldFormat === "value-only";
+      for (let fi = 0; fi < fieldCount2; fi++) {
+        const fieldName = cardConfig.fields[fi];
+        const rawVal = meta[fieldName];
+        const valStr = rawVal == null ? "" : String(rawVal);
+        const displayText = fieldValueOnly ? valStr : `${fieldName}: ${valStr}`;
+        const fieldText = new CanvasText(displayText, {
+          fontSize: smallFontSize,
+          fill: labelColor,
+          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+        });
+        markAsCardText(fieldText);
+        fieldText.x = -halfW + textPadX;
+        fieldText.y = cardY + headerH + fi * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
+        if (rt.cardTextTruncation !== false) fieldText.maxWidth = availableTextW;
+        gfx.addChild(fieldText);
+      }
+    }
+  }
+
+  /** Plain card style rendering. */
+  private _renderPlainCard(
+    g: CanvasGraphics,
+    ctx: {
+      visible: PixiNode[]; tlFilteredOut: Set<string> | null;
+      alpha: number; nodeCount: number; worldScale: number; minWorldRadius: number;
+    },
+    crc: ReturnType<typeof Object.assign>,
+    rt: ReturnType<typeof Object.assign>,
+    cardConfig: CardDisplayConfig,
+    cardMaxW: number,
+  ) {
+    const { visible, tlFilteredOut, alpha, nodeCount, worldScale, minWorldRadius } = ctx;
+    const cardH = crc.plainCardHeight / worldScale;
+    const showMeta = nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
+    const fieldLineH = crc.fieldLineHeight / worldScale;
+
+    for (const pn of visible) {
+      const effR = Math.max(pn.radius, minWorldRadius);
+      const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+      const halfW = Math.min(cardMaxW / 2, effR * crc.plainCardWidthFactor);
+      const totalH = showMeta ? cardH + cardConfig.fields.length * fieldLineH : cardH;
+      const halfH = totalH / 2;
+
+      // Card background
+      const strokeColor = darkenColor(pn.color, crc.strokeDarken);
+      g.lineStyle(1, strokeColor, nodeAlpha * crc.plainCardStrokeAlpha);
+      g.beginFill(pn.color, nodeAlpha * crc.plainCardFillAlpha);
+      g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, halfW * 2, totalH, crc.cardCornerRadius / worldScale);
+      g.endFill();
+    }
+  }
+
+  /** Donut mode: draw ring (outer circle with inner cutout). */
+  private _renderDonutMode(
+    g: CanvasGraphics,
+    ctx: {
+      visible: PixiNode[]; tlFilteredOut: Set<string> | null;
+      alpha: number; minWorldRadius: number;
+    },
+    crc: ReturnType<typeof Object.assign>,
+    _rt: ReturnType<typeof Object.assign>,
+  ) {
+    const { visible, tlFilteredOut, alpha, minWorldRadius } = ctx;
+    const donutConfig = this.host.getDonutDisplayConfig();
+    const innerR = donutConfig.innerRadius ?? 0.6;
+    const bgColor = this.host.isDarkTheme() ? 0x1e1e1e : 0xffffff;
+
+    for (const pn of visible) {
+      const effR = Math.max(pn.radius, minWorldRadius);
+      const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+
+      const isSuperNode = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
+      if (isSuperNode && donutConfig.breakdownField) {
+        this._renderDonutBreakdown(g, pn, effR, nodeAlpha, innerR, bgColor, donutConfig.breakdownField);
+      } else {
+        // Single-color ring for individual nodes
+        const strokeColor = darkenColor(pn.color, RING_STROKE_DARKEN);
+        g.lineStyle(1, strokeColor, nodeAlpha * RING_STROKE_ALPHA);
         g.beginFill(pn.color, nodeAlpha);
         g.drawCircle(pn.data.x, pn.data.y, effR);
         g.endFill();
-      }
-    } else {
-      // Normal zoom: full shape + optional gradient, with display mode support
-      const displayMode = this.host.getNodeDisplayMode();
-      const useGradient = nodeCount < rt.gradientNodeCount;
-
-      // Clean up any previous table-card text children when NOT in table card mode
-      // (prevents stale text when switching modes or when nodes leave viewport)
-      if (displayMode !== "card" || (this.host.getCardDisplayConfig().headerStyle ?? "plain") !== "table") {
-        for (const pn of pixiNodes.values()) {
-          const gfx = pn.gfx;
-          for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
-            if ((gfx.children[ci] as any)._isCardText) {
-              const child = gfx.children[ci];
-              gfx.removeChild(child);
-              child.destroy();
-            }
-          }
-        }
-      }
-
-      if (displayMode === "node") {
-        // Default mode: unchanged shape rendering
-        const prominentN = rt.prominentTopN ?? 5;
-        const nonPromSat = rt.nonProminentSaturation ?? 0.4;
-        for (const pn of visible) {
-          const shape = getNodeShape(pn.data, shapeRules);
-          const effR = Math.max(pn.radius, minWorldRadius);
-          const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
-          // Desaturate non-prominent nodes
-          let drawColor = pn.color;
-          if (pn.sortRank >= 0 && pn.sortRank >= prominentN) {
-            drawColor = desaturateColor(pn.color, nonPromSat);
-          }
-          const strokeColor = darkenColor(drawColor, crc.strokeDarken);
-          g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
-          if (useGradient && shape === "circle") {
-            const innerCol = lightenColor(drawColor, crc.gradientHighlight);
-            const outerCol = darkenColor(drawColor, crc.gradientShadow);
-            g.beginRadialFill(pn.data.x, pn.data.y, effR, innerCol, outerCol, nodeAlpha, nodeAlpha);
-          } else {
-            g.beginFill(drawColor, nodeAlpha);
-          }
-          drawShapeAt(g, shape, pn.data.x, pn.data.y, effR);
-          g.endFill();
-          // Double outline for super nodes (collapsed groups) or top-N prominent nodes
-          const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
-          const isProminent = pn.sortRank >= 0 && pn.sortRank < prominentN;
-          if (isSuper || isProminent) {
-            const innerR = effR * rt.superNodeInnerRatio;
-            g.lineStyle(rt.superNodeInnerStroke / worldScale, strokeColor, nodeAlpha * rt.superNodeInnerAlpha);
-            g.drawCircle(pn.data.x, pn.data.y, innerR);
-            g.lineStyle(0);
-          }
-        }
-      } else if (displayMode === "card") {
-        // Card mode: draw rounded rectangle background
-        const cardConfig = this.host.getCardDisplayConfig();
-        const headerStyle = cardConfig.headerStyle ?? "plain";
-        const cardMaxW = (cardConfig.maxWidth ?? 120) / worldScale;
-        const showIcon = cardConfig.showIcon === true;
-
-        // Clean up any previous card text children from ALL nodes
-        // (handles mode switches, viewport culling, and node count changes)
-        for (const pn of pixiNodes.values()) {
-          const gfx = pn.gfx;
-          for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
-            const child = gfx.children[ci];
-            if ((child as any)._isCardText) {
-              gfx.removeChild(child);
-              child.destroy();
-            }
-          }
-        }
-
-        if (headerStyle === "table") {
-          // ---- Table (ER-diagram) card style ----
-          const headerH = crc.tableHeaderHeight / worldScale;
-          const fieldLineH = crc.fieldLineHeight / worldScale;
-          const pad = crc.cardPadding / worldScale;
-          const cornerR = crc.cardCornerRadius / worldScale;
-          const showMeta = nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
-          const fieldCount = showMeta ? cardConfig.fields.length : 0;
-          const totalH = headerH + fieldCount * fieldLineH + pad * 2;
-
-          // Track nodes that need text rendering
-          const tableCardNodes: PixiNode[] = [];
-
-          // Card width: golden ratio (or custom aspect ratio) based on content height
-          const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
-          const arHalfW = (totalH * cardAR) / 2;
-
-          for (const pn of visible) {
-            const effR = Math.max(pn.radius, minWorldRadius);
-            const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
-            // Use aspect-ratio width if set, otherwise fall back to radius-based
-            const halfW = Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor);
-            const cardW = halfW * 2;
-            const cardX = pn.data.x - halfW;
-            const cardY = pn.data.y - totalH / 2;
-
-            // 0. Drop shadow (behind card)
-            if (crc.cardShadowAlpha > 0) {
-              const shadowOff = crc.cardShadowOffset / worldScale;
-              g.lineStyle(0);
-              g.beginFill(0x000000, nodeAlpha * crc.cardShadowAlpha);
-              g.drawRoundedRect(cardX + shadowOff, cardY + shadowOff, cardW, totalH, cornerR);
-              g.endFill();
-            }
-
-            // 1. Card background (thin fill)
-            g.lineStyle(0);
-            g.beginFill(pn.color, nodeAlpha * crc.cardBackgroundAlpha);
-            g.drawRoundedRect(cardX, cardY, cardW, totalH, cornerR);
-            g.endFill();
-
-            // 2. Header region (colored bar at top)
-            g.beginFill(pn.color, nodeAlpha * crc.cardHeaderAlpha);
-            // Top corners rounded, bottom corners square — approximate with full rounded rect clipped by body
-            g.drawRoundedRect(cardX, cardY, cardW, headerH + cornerR, cornerR);
-            g.endFill();
-            // Fill the corner overlap area at bottom of header
-            g.beginFill(pn.color, nodeAlpha * crc.cardHeaderAlpha);
-            g.drawRect(cardX, cardY + headerH, cardW, cornerR);
-            g.endFill();
-
-            // 2b. File icon in header (when showIcon enabled)
-            if (showIcon) {
-              const iconS = headerH * 0.55;
-              const foldS = iconS * 0.28;
-              const iconX = cardX + pad;
-              const iconY = cardY + (headerH - iconS) / 2;
-              // Page body outline
-              g.lineStyle(0.5 / worldScale, 0xffffff, nodeAlpha * 0.7);
-              g.beginFill(0xffffff, nodeAlpha * 0.25);
-              g.moveTo(iconX, iconY);
-              g.lineTo(iconX + iconS - foldS, iconY);
-              g.lineTo(iconX + iconS, iconY + foldS);
-              g.lineTo(iconX + iconS, iconY + iconS);
-              g.lineTo(iconX, iconY + iconS);
-              g.closePath();
-              g.endFill();
-              // Fold triangle
-              g.lineStyle(0);
-              g.beginFill(0xffffff, nodeAlpha * 0.15);
-              g.moveTo(iconX + iconS - foldS, iconY);
-              g.lineTo(iconX + iconS - foldS, iconY + foldS);
-              g.lineTo(iconX + iconS, iconY + foldS);
-              g.closePath();
-              g.endFill();
-            }
-
-            // 3. Divider line below header
-            const divColor = darkenColor(pn.color, crc.cardDividerDarken);
-            g.lineStyle(1 / worldScale, divColor, nodeAlpha * crc.cardDividerAlpha);
-            g.moveTo(cardX, cardY + headerH);
-            g.lineTo(cardX + cardW, cardY + headerH);
-
-            // 4. Striped field rows
-            if (fieldCount > 0) {
-              g.lineStyle(0);
-              for (let fi = 0; fi < fieldCount; fi++) {
-                const rowY = cardY + headerH + fi * fieldLineH;
-                const rowAlpha = fi % 2 === 0 ? crc.cardRowAlphaEven : crc.cardRowAlphaOdd;
-                g.beginFill(pn.color, nodeAlpha * rowAlpha);
-                g.drawRect(cardX, rowY, cardW, fieldLineH);
-                g.endFill();
-              }
-            }
-
-            // Outer border
-            const strokeColor = darkenColor(pn.color, crc.strokeDarken);
-            g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
-            g.beginFill(0, 0);
-            g.drawRoundedRect(cardX, cardY, cardW, totalH, cornerR);
-            g.endFill();
-
-            if (nodeCount < rt.cardTextNodeCount) tableCardNodes.push(pn);
-          }
-
-          // ---- Text pass for table cards (only when node count < 200) ----
-          if (tableCardNodes.length > 0) {
-            const labelColor = this.host.getLabelColor();
-
-            for (const pn of tableCardNodes) {
-              const effR = Math.max(pn.radius, minWorldRadius);
-              const halfW = Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor);
-              const cardY = -totalH / 2;  // relative to pn.gfx
-              const textPadX = pad;
-              const fontSize = Math.max(crc.headerFontSizeMin, crc.headerFontSizeBase / worldScale);
-              const smallFontSize = Math.max(crc.fieldFontSizeMin, crc.fieldFontSizeBase / worldScale);
-              const fieldCount2 = cardConfig.fields.length;
-              const gfx = pn.gfx;
-
-              // Icon offset for header text
-              const iconOffset = showIcon ? (headerH * 0.55 + pad) : 0;
-              // Available text width inside the card
-              const availableTextW = halfW * 2 - textPadX * 2 - iconOffset;
-
-              // Header text (bold, white)
-              const headerText = new CanvasText(pn.data.label, {
-                fontSize,
-                fontWeight: "bold",
-                fill: 0xffffff,
-                fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-              });
-              (headerText as any)._isCardText = true;
-              headerText.x = -halfW + textPadX + iconOffset;
-              headerText.y = cardY + headerH / 2 + fontSize * crc.fontBaselineOffset;
-              if (rt.cardTextTruncation !== false) headerText.maxWidth = availableTextW;
-              gfx.addChild(headerText);
-
-              // Field rows
-              const meta = pn.data.meta ?? {};
-              const fieldValueOnly = cardConfig.fieldFormat === "value-only";
-              for (let fi = 0; fi < fieldCount2; fi++) {
-                const fieldName = cardConfig.fields[fi];
-                const rawVal = meta[fieldName];
-                const valStr = rawVal == null ? "" : String(rawVal);
-                const displayText = fieldValueOnly ? valStr : `${fieldName}: ${valStr}`;
-                const fieldText = new CanvasText(displayText, {
-                  fontSize: smallFontSize,
-                  fill: labelColor,
-                  fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-                });
-                (fieldText as any)._isCardText = true;
-                fieldText.x = -halfW + textPadX;
-                fieldText.y = cardY + headerH + fi * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
-                if (rt.cardTextTruncation !== false) fieldText.maxWidth = availableTextW;
-                gfx.addChild(fieldText);
-              }
-            }
-          }
-        } else {
-          // ---- Plain card style (original, unchanged) ----
-          const cardH = crc.plainCardHeight / worldScale; // base card height
-          const showMeta = nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
-          const fieldLineH = crc.fieldLineHeight / worldScale;
-
-          for (const pn of visible) {
-            const effR = Math.max(pn.radius, minWorldRadius);
-            const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
-            const halfW = Math.min(cardMaxW / 2, effR * crc.plainCardWidthFactor);
-            const totalH = showMeta ? cardH + cardConfig.fields.length * fieldLineH : cardH;
-            const halfH = totalH / 2;
-
-            // Card background
-            const strokeColor = darkenColor(pn.color, crc.strokeDarken);
-            g.lineStyle(1, strokeColor, nodeAlpha * crc.plainCardStrokeAlpha);
-            g.beginFill(pn.color, nodeAlpha * crc.plainCardFillAlpha);
-            g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, halfW * 2, totalH, crc.cardCornerRadius / worldScale);
-            g.endFill();
-          }
-        }
-      } else if (displayMode === "donut") {
-        // Donut mode: draw ring (outer circle with inner cutout)
-        const donutConfig = this.host.getDonutDisplayConfig();
-        const innerR = donutConfig.innerRadius ?? 0.6;
-        const bgColor = this.host.isDarkTheme() ? 0x1e1e1e : 0xffffff;
-
-        for (const pn of visible) {
-          const effR = Math.max(pn.radius, minWorldRadius);
-          const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
-
-          // Check if this is a super node with breakdown data
-          const isSuperNode = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
-          if (isSuperNode && donutConfig.breakdownField) {
-            // Draw sector breakdown for super nodes
-            // Collect member categories from pixiNodes
-            const members = pn.data.collapsedMembers!;
-            const valueCounts = new Map<string, number>();
-            for (const memberId of members) {
-              const memberPn = this.host.getPixiNodes().get(memberId);
-              const val = memberPn?.data?.meta?.[donutConfig.breakdownField] as string ?? "other";
-              valueCounts.set(val, (valueCounts.get(val) ?? 0) + 1);
-            }
-
-            // Draw sectors
-            let startAngle = -Math.PI / 2;
-            const total = members.length;
-            let colorIdx = 0;
-            const sectorColors = [0x818cf8, 0xf472b6, 0xfbbf24, 0x34d399, 0x60a5fa, 0xf87171, 0xb4a0ff, 0x2dd4bf];
-            g.lineStyle(0);
-            for (const [, count] of valueCounts) {
-              const sliceAngle = (count / total) * Math.PI * 2;
-              const endAngle = startAngle + sliceAngle;
-              const sColor = sectorColors[colorIdx % sectorColors.length];
-              g.beginFill(sColor, nodeAlpha);
-              g.moveTo(pn.data.x, pn.data.y);
-              g.arc(pn.data.x, pn.data.y, effR, startAngle, endAngle);
-              g.lineTo(pn.data.x, pn.data.y);
-              g.endFill();
-              startAngle = endAngle;
-              colorIdx++;
-            }
-            // Inner circle cutout (draw background-color circle on top)
-            g.beginFill(bgColor, 1);
-            g.drawCircle(pn.data.x, pn.data.y, effR * innerR);
-            g.endFill();
-          } else {
-            // Single-color ring for individual nodes
-            const strokeColor = darkenColor(pn.color, 0.4);
-            g.lineStyle(1, strokeColor, nodeAlpha * 0.5);
-            g.beginFill(pn.color, nodeAlpha);
-            g.drawCircle(pn.data.x, pn.data.y, effR);
-            g.endFill();
-            // Inner cutout
-            g.lineStyle(0);
-            g.beginFill(bgColor, 1);
-            g.drawCircle(pn.data.x, pn.data.y, effR * innerR);
-            g.endFill();
-          }
-        }
-      } else if (displayMode === "sunburst-segment") {
-        // Sunburst segment mode: draw arc segments
-        const arcAngleDeg = 30; // default arc angle
-        const arcAngle = (arcAngleDeg * Math.PI) / 180;
-
-        for (let i = 0; i < visible.length; i++) {
-          const pn = visible[i];
-          const effR = Math.max(pn.radius, minWorldRadius);
-          const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
-          // Compute angle offset based on index for uniform distribution
-          const angleOffset = (i / Math.max(visible.length, 1)) * Math.PI * 2 - Math.PI / 2;
-          const startAngle = angleOffset - arcAngle / 2;
-          const endAngle = angleOffset + arcAngle / 2;
-
-          const strokeColor = darkenColor(pn.color, 0.4);
-          g.lineStyle(1, strokeColor, nodeAlpha * 0.5);
-          g.beginFill(pn.color, nodeAlpha);
-          g.moveTo(pn.data.x, pn.data.y);
-          g.arc(pn.data.x, pn.data.y, effR, startAngle, endAngle);
-          g.lineTo(pn.data.x, pn.data.y);
-          g.endFill();
-        }
+        // Inner cutout
+        g.lineStyle(0);
+        g.beginFill(bgColor, 1);
+        g.drawCircle(pn.data.x, pn.data.y, effR * innerR);
+        g.endFill();
       }
     }
+  }
 
-    // Pass 3: Hold indicator ring for pinned nodes
+  /** Draw sector breakdown donut for a super node. */
+  private _renderDonutBreakdown(
+    g: CanvasGraphics,
+    pn: PixiNode,
+    effR: number, nodeAlpha: number,
+    innerR: number, bgColor: number,
+    breakdownField: string,
+  ) {
+    const members = pn.data.collapsedMembers!;
+    const valueCounts = new Map<string, number>();
+    for (const memberId of members) {
+      const memberPn = this.host.getPixiNodes().get(memberId);
+      const val = memberPn?.data?.meta?.[breakdownField] as string ?? "other";
+      valueCounts.set(val, (valueCounts.get(val) ?? 0) + 1);
+    }
+
+    let startAngle = -Math.PI / 2;
+    const total = members.length;
+    let colorIdx = 0;
+    const sectorColors = [0x818cf8, 0xf472b6, 0xfbbf24, 0x34d399, 0x60a5fa, 0xf87171, 0xb4a0ff, 0x2dd4bf];
+    g.lineStyle(0);
+    for (const [, count] of valueCounts) {
+      const sliceAngle = (count / total) * Math.PI * 2;
+      const endAngle = startAngle + sliceAngle;
+      const sColor = sectorColors[colorIdx % sectorColors.length];
+      g.beginFill(sColor, nodeAlpha);
+      g.moveTo(pn.data.x, pn.data.y);
+      g.arc(pn.data.x, pn.data.y, effR, startAngle, endAngle);
+      g.lineTo(pn.data.x, pn.data.y);
+      g.endFill();
+      startAngle = endAngle;
+      colorIdx++;
+    }
+    // Inner circle cutout
+    g.beginFill(bgColor, 1);
+    g.drawCircle(pn.data.x, pn.data.y, effR * innerR);
+    g.endFill();
+  }
+
+  /** Sunburst segment mode: draw arc segments. */
+  private _renderSunburstSegmentMode(
+    g: CanvasGraphics,
+    ctx: {
+      visible: PixiNode[]; tlFilteredOut: Set<string> | null;
+      alpha: number; minWorldRadius: number;
+    },
+    crc: ReturnType<typeof Object.assign>,
+  ) {
+    const { visible, tlFilteredOut, alpha, minWorldRadius } = ctx;
+    const arcAngle = (SUNBURST_SEGMENT_ARC_DEG * Math.PI) / 180;
+
+    for (let i = 0; i < visible.length; i++) {
+      const pn = visible[i];
+      const effR = Math.max(pn.radius, minWorldRadius);
+      const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+      const angleOffset = (i / Math.max(visible.length, 1)) * Math.PI * 2 - Math.PI / 2;
+      const startAngle = angleOffset - arcAngle / 2;
+      const endAngle = angleOffset + arcAngle / 2;
+
+      const strokeColor = darkenColor(pn.color, RING_STROKE_DARKEN);
+      g.lineStyle(1, strokeColor, nodeAlpha * RING_STROKE_ALPHA);
+      g.beginFill(pn.color, nodeAlpha);
+      g.moveTo(pn.data.x, pn.data.y);
+      g.arc(pn.data.x, pn.data.y, effR, startAngle, endAngle);
+      g.lineTo(pn.data.x, pn.data.y);
+      g.endFill();
+    }
+  }
+
+  // =========================================================================
+  // Pass 3: Hold indicator rings
+  // =========================================================================
+  /** Render hold indicator ring for pinned nodes. */
+  private _renderHoldRings(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[]; shapeRules: ShapeRule[]; isMidZoom: boolean },
+  ) {
+    const { visible, shapeRules, isMidZoom } = ctx;
     for (const pn of visible) {
       if (!pn.held) continue;
       const shape = isMidZoom ? "circle" as const : getNodeShape(pn.data, shapeRules);
-      g.lineStyle(2, this.host.isDarkTheme() ? 0xffffff : 0x333333, 0.9);
+      g.lineStyle(HOLD_RING_LINE_WIDTH, this.host.isDarkTheme() ? 0xffffff : 0x333333, INDICATOR_RING_ALPHA);
       g.beginFill(0, 0);
-      drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius + 4);
+      drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius + HOLD_RING_PADDING);
       g.endFill();
     }
+  }
 
-    // Pass 4: Pathfinder start/end node markers
-    const pfNodes = (this.host as any).getPathfinderNodeSet?.() as Set<string> | null;
-    const pfState = (this.host as any).getPathfinderState?.() as { startId: string | null; endId: string | null } | undefined;
-    if (pfNodes && pfNodes.size > 0) {
-      for (const pn of visible) {
-        if (!pfNodes.has(pn.data.id)) continue;
-        const shape = getNodeShape(pn.data, shapeRules);
-        const isStart = pfState?.startId === pn.data.id;
-        const isEnd = pfState?.endId === pn.data.id;
-        const ringColor = isStart ? 0x22d3ee : isEnd ? 0xf97316 : 0x22d3ee;
-        g.lineStyle(isStart || isEnd ? 3 : 2, ringColor, 0.9);
-        g.beginFill(0, 0);
-        drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius + (isStart || isEnd ? 6 : 3));
-        g.endFill();
-      }
+  // =========================================================================
+  // Pass 4: Pathfinder markers
+  // =========================================================================
+  /** Render pathfinder start/end node markers. */
+  private _renderPathfinderMarkers(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[]; shapeRules: ShapeRule[] },
+  ) {
+    const pfNodes = this.host.getPathfinderNodeSet?.() ?? null;
+    const pfState = this.host.getPathfinderState?.();
+    if (!pfNodes || pfNodes.size === 0) return;
+
+    const { visible, shapeRules } = ctx;
+    for (const pn of visible) {
+      if (!pfNodes.has(pn.data.id)) continue;
+      const shape = getNodeShape(pn.data, shapeRules);
+      const isStart = pfState?.startId === pn.data.id;
+      const isEnd = pfState?.endId === pn.data.id;
+      const ringColor = isStart ? 0x22d3ee : isEnd ? 0xf97316 : 0x22d3ee;
+      g.lineStyle(isStart || isEnd ? PF_ENDPOINT_LINE_WIDTH : PF_INTERMEDIATE_LINE_WIDTH, ringColor, INDICATOR_RING_ALPHA);
+      g.beginFill(0, 0);
+      drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius + (isStart || isEnd ? PF_ENDPOINT_RADIUS_PAD : PF_INTERMEDIATE_RADIUS_PAD));
+      g.endFill();
     }
   }
 
@@ -844,11 +1205,10 @@ export class RenderPipeline {
     const degrees = this.host.getDegrees();
 
     // Dynamically raise label threshold for large graphs to limit GPU texture memory.
-    const MAX_LABELS = 300;
     const degValues = nodes.map(n => degrees.get(n.id) || 0).sort((a, b) => b - a);
-    this.pendingLabelThreshold = degValues.length > MAX_LABELS
-      ? Math.max(3, degValues[MAX_LABELS - 1])
-      : 3;
+    this.pendingLabelThreshold = degValues.length > MAX_LABEL_COUNT
+      ? Math.max(DEFAULT_LABEL_DEGREE_THRESHOLD, degValues[MAX_LABEL_COUNT - 1])
+      : DEFAULT_LABEL_DEGREE_THRESHOLD;
 
     // Cache maxDeg once — avoids O(n²) recomputation inside createSinglePixiNode
     this._cachedMaxDeg = degValues.length > 0 ? degValues[0] : 1;
@@ -859,7 +1219,7 @@ export class RenderPipeline {
     );
 
     // Immediate batch: create enough nodes for an initial visible graph
-    const IMMEDIATE_BATCH = Math.min(200, sorted.length);
+    const IMMEDIATE_BATCH = Math.min(IMMEDIATE_BATCH_SIZE, sorted.length);
     const world = this.host.getWorldContainer()!;
 
     for (let i = 0; i < IMMEDIATE_BATCH; i++) {
@@ -901,7 +1261,7 @@ export class RenderPipeline {
       circle.drawCircle(0, 0, r);
       circle.lineStyle(rt.superNodeInnerStroke, color, rt.superNodeInnerAlpha);
       circle.drawCircle(0, 0, r * rt.superNodeInnerRatio);
-      circle.beginFill(color, 0.3);
+      circle.beginFill(color, SUPER_NODE_FILL_ALPHA);
       circle.drawCircle(0, 0, r);
       circle.endFill();
       circle.visible = true;
@@ -938,9 +1298,9 @@ export class RenderPipeline {
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
       });
       label.bgColor = labelBg;
-      label.bgAlpha = isSuperNode ? 0.9 : rt.labelBgAlpha;
-      label.bgPadX = isSuperNode ? 10 : 8;
-      label.bgPadY = isSuperNode ? 4 : 3;
+      label.bgAlpha = isSuperNode ? (rt.superNodeLabelBgAlpha ?? 0.9) : rt.labelBgAlpha;
+      label.bgPadX = isSuperNode ? SUPER_LABEL_PAD_X : REGULAR_LABEL_PAD_X;
+      label.bgPadY = isSuperNode ? SUPER_LABEL_PAD_Y : REGULAR_LABEL_PAD_Y;
       label.cornerRadius = rt.labelHaloCornerRadius ?? null;
       label.strokeColor = rt.labelStrokeColor ?? null;
       label.strokeWidth = rt.labelStrokeWidth ?? 0;
@@ -954,8 +1314,8 @@ export class RenderPipeline {
         label.y = placement.y;
         label.anchor.set(placement.anchorX, 0);
       } else {
-        label.x = r + 2;
-        label.y = -(r * 0.4 + 2);
+        label.x = r + LABEL_EDGE_OFFSET;
+        label.y = -(r * LABEL_Y_OFFSET_FACTOR + LABEL_EDGE_OFFSET);
       }
       container.addChild(label);
 
@@ -972,9 +1332,9 @@ export class RenderPipeline {
         });
         tagLabel.alpha = rt.tagLabelAlpha ?? 0.65;
         tagLabel.bgColor = rt.labelBgColor;
-        tagLabel.bgAlpha = (rt.labelBgAlpha ?? 0.85) * 0.7;
-        tagLabel.bgPadX = 4;
-        tagLabel.bgPadY = 1;
+        tagLabel.bgAlpha = (rt.labelBgAlpha ?? 0.85) * TAG_BG_ALPHA_DAMPEN;
+        tagLabel.bgPadX = TAG_LABEL_PAD_X;
+        tagLabel.bgPadY = TAG_LABEL_PAD_Y;
         tagLabel.cornerRadius = rt.labelHaloCornerRadius ?? null;
         tagLabel.anchor.set(0.5, 0);
         tagLabel.x = 0;
@@ -991,6 +1351,7 @@ export class RenderPipeline {
     pixiNodes.set(n.id, {
       data: n, gfx: container, circle, label, tagLabel,
       hoverLabel: null, leaderLine: null, radius: r, color, held: false, sortRank: -1,
+      priorityScore: -1, minShowZoom: 1.0, labelWasVisible: false,
     });
   }
 
@@ -1001,7 +1362,7 @@ export class RenderPipeline {
     if (!world || !this.pendingNodeR || !this.pendingNodeColor) return;
     if (this.pendingNodes.length === 0) return;
 
-    const BATCH_SIZE = 100;
+    const BATCH_SIZE = DEFERRED_BATCH_SIZE;
     const batch = this.pendingNodes.splice(0, BATCH_SIZE);
 
     for (const n of batch) {
@@ -1038,7 +1399,7 @@ export class RenderPipeline {
   // Zone-based label placement — place label in the largest angular gap
   // among adjacent nodes to maximize readability.
   // =========================================================================
-  private computeZonePlacement(
+  computeZonePlacement(
     node: GraphNode,
     nodeRadius: number,
     offset: number
@@ -1049,7 +1410,7 @@ export class RenderPipeline {
 
     // Default: place to the right if no adjacency info
     if (!neighbors || neighbors.size === 0) {
-      return { x: nodeRadius + offset, y: -(nodeRadius * 0.4), anchorX: 0 };
+      return { x: nodeRadius + offset, y: -(nodeRadius * LABEL_Y_OFFSET_FACTOR), anchorX: 0 };
     }
 
     // Collect angles to all neighboring nodes AND positionally proximate nodes.
@@ -1081,12 +1442,12 @@ export class RenderPipeline {
     }
     // Keep only the closest 20 to avoid over-constraining the gap search
     proxCandidates.sort((a, b) => a.dist - b.dist);
-    for (let i = 0; i < Math.min(20, proxCandidates.length); i++) {
+    for (let i = 0; i < Math.min(ZONE_MAX_PROXIMITY_CANDIDATES, proxCandidates.length); i++) {
       angles.push(proxCandidates[i].angle);
     }
 
     if (angles.length === 0) {
-      return { x: nodeRadius + offset, y: -(nodeRadius * 0.4), anchorX: 0 };
+      return { x: nodeRadius + offset, y: -(nodeRadius * LABEL_Y_OFFSET_FACTOR), anchorX: 0 };
     }
 
     // Sort angles and find the largest gap
@@ -1119,9 +1480,9 @@ export class RenderPipeline {
     // Determine text anchor based on direction
     const cosA = Math.cos(gapMidAngle);
     let anchorX: number;
-    if (cosA > 0.3) {
+    if (cosA > ZONE_ANCHOR_COS_POSITIVE) {
       anchorX = 0;       // text-anchor: start (label to the right)
-    } else if (cosA < -0.3) {
+    } else if (cosA < ZONE_ANCHOR_COS_NEGATIVE) {
       anchorX = 1;       // text-anchor: end (label to the left)
     } else {
       anchorX = 0.5;     // text-anchor: middle (label above/below)
@@ -1137,89 +1498,24 @@ export class RenderPipeline {
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
     if (!rt.labelOverlapCulling) return;
 
-    const baseMargin = rt.labelOverlapMargin;
+    const margin = rt.labelOverlapMargin;
     const pixiNodes = this.host.getPixiNodes();
     const degrees = this.host.getDegrees();
-
-    // Current viewport zoom — needed to convert screen-space caps to world units.
     const zoom = this.host.getWorldContainer()?.scale.x ?? 1;
+    const maxScreenW = rt.labelOverlapMaxScreenW;
+    const maxScreenH = rt.labelOverlapMaxScreenH;
 
-    // Screen-space AABB caps. Since all AABB coordinates are now in screen
-    // pixels, we cap directly at these values (no world-space conversion needed).
-    const maxScreenW = rt.labelOverlapMaxScreenW;  // default 500 screen px
-    const maxScreenH = rt.labelOverlapMaxScreenH;  // default 150 screen px
+    // 1. Collect all visible labels into screen-space rects
+    const rects = this._collectLabelRects(pixiNodes, degrees, zoom, maxScreenW, maxScreenH);
 
-    interface LabelRect {
-      pn: PixiNode;
-      label: CanvasText;
-      x: number;
-      y: number;
-      w: number;
-      h: number;
-      degree: number;
-      isSuper: boolean;
-    }
-    const rects: LabelRect[] = [];
+    // 2. Build spatial hash grid for overlap detection
+    const grid = this._createOverlapGrid(margin);
 
-    // Collect all visible labels into rects using SCREEN-SPACE coordinates.
-    // This ensures overlap detection is accurate regardless of zoom level.
-    // All x, y, w, h values are in screen pixels (world * zoom).
-    for (const pn of pixiNodes.values()) {
-      const label = pn.label;
-      if (!label || !label.text || !label.visible) continue;
-      const fontSize = (label.style.fontSize as number) ?? 11;
-      const charW = fontSize * 0.6;
-      const scaleX = label.scale?.x ?? 1;
-      const scaleY = label.scale?.y ?? 1;
-      const padX = label.bgPadX ?? 0;
-      const padY = label.bgPadY ?? 0;
-      const rawW = label.text.length * charW * scaleX * zoom + padX * 2 * scaleX * zoom;
-      const rawH = fontSize * scaleY * 1.3 * zoom + padY * 2 * scaleY * zoom;
-      // Clamp to screen-space cap (already in screen px, no conversion needed).
-      const w = Math.min(rawW, maxScreenW > 0 ? maxScreenW : Infinity);
-      const h = Math.min(rawH, maxScreenH > 0 ? maxScreenH : Infinity);
-      // Convert world position to screen position.
-      const wx = (pn.data.x + label.x) * zoom;
-      const wy = (pn.data.y + label.y) * zoom;
-      const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
-      rects.push({ pn, label, x: wx, y: wy, w, h,
-        degree: degrees.get(pn.data.id) ?? 0, isSuper });
-    }
-
-    const margin = baseMargin;
-
-    // Sort: interleave super and non-super labels by degree to prevent super monopoly.
-    // Super nodes get priority but are capped at labelMinNonSuper positions before
-    // non-super labels start competing, ensuring label diversity (AP-5 protection).
+    // 3. Sort by priority score — highest priority first (Google Maps-style)
     const minNonSuper = rt.labelMinNonSuper ?? 3;
-    const supers = rects.filter(r => r.isSuper).sort((a, b) => b.degree - a.degree);
-    const regulars = rects.filter(r => !r.isSuper).sort((a, b) => b.degree - a.degree);
+    rects.sort((a, b) => b.pn.priorityScore - a.pn.priorityScore);
 
-    // Interleave: for every super, also insert top regular candidates
-    rects.length = 0;
-    let si = 0, ri = 0;
-    while (si < supers.length || ri < regulars.length) {
-      // Place one super node
-      if (si < supers.length) rects.push(supers[si++]);
-      // Then place minNonSuper regular nodes (ensures diversity)
-      for (let k = 0; k < minNonSuper && ri < regulars.length; k++) {
-        rects.push(regulars[ri++]);
-      }
-    }
-
-    const placed: LabelRect[] = [];
-    const checkOverlap = (rect: LabelRect): boolean => {
-      for (const p of placed) {
-        if (
-          rect.x - margin < p.x + p.w + margin &&
-          rect.x + rect.w + margin > p.x - margin &&
-          rect.y - margin < p.y + p.h + margin &&
-          rect.y + rect.h + margin > p.y - margin
-        ) return true;
-      }
-      return false;
-    };
-
+    const placed: CullLabelRect[] = [];
     const drawLeader = rt.labelLeaderLines;
     const llAlpha = rt.labelLeaderLineAlpha;
     const llWidth = rt.labelLeaderLineWidth;
@@ -1233,100 +1529,236 @@ export class RenderPipeline {
       }
     }
 
+    // 4. Place labels with displacement when overlapping
     for (const r of rects) {
-      const { pn } = r;
-      const nodeR = pn.radius ?? 6;
-
-      if (!checkOverlap(r)) {
+      if (!grid.checkOverlap(r)) {
         placed.push(r);
+        grid.insert(r);
         continue;
       }
 
-      // Displacement offsets in screen space. All AABB coordinates are in screen
-      // pixels, so offsets use screen-space label dimensions to properly clear overlaps.
-      // The offsets are converted back to world space when applied to label.x/y.
-      const screenNodeR = nodeR * zoom;
-      const offsets = [
-        { dx: r.w * 0.5 + screenNodeR, dy: screenNodeR + r.h },       // bottom-right
-        { dx: -(r.w + screenNodeR + 2), dy: 0 },                       // left
-        { dx: 0, dy: screenNodeR + r.h * 1.2 },                        // below
-        { dx: r.w * 0.3 + screenNodeR, dy: -(screenNodeR + r.h) },     // top-right
-        { dx: -(r.w + screenNodeR + 2), dy: -(screenNodeR + r.h) },    // top-left
-        { dx: -(r.w + screenNodeR + 2), dy: screenNodeR + r.h },       // bottom-left
-        { dx: r.w * 0.3 + screenNodeR, dy: -(screenNodeR + r.h * 1.2) }, // above-right
-        { dx: -(r.w * 0.3 + screenNodeR), dy: -(screenNodeR + r.h * 1.2) }, // above-left
-      ];
-      let found = false;
-
-      // Compute normBase for AP-1 displacement cap (same formula as AP-1 metric).
-      // This prevents labels from floating too far from their node in world space.
-      const fontSize = (r.label.style.fontSize as number) ?? 11;
-      const charW = fontSize * 0.6;
-      const scaleX = r.label.scale?.x ?? 1;
-      const visualW = (r.label.text?.length ?? 0) * charW * scaleX;
-      const normBase = Math.max(nodeR + visualW * 0.3, nodeR, 1);
-      const maxWorldDisp = maxDispRatio * normBase;
-
-      const baseLx = r.label.x;
-      const baseLy = r.label.y;
-      for (const off of offsets) {
-        // Convert screen-space offset to world space
-        let worldDx = zoom > 0 ? off.dx / zoom : off.dx;
-        let worldDy = zoom > 0 ? off.dy / zoom : off.dy;
-        // Cap TOTAL distance (base + displacement) to maxWorldDisp, not just delta.
-        // AP-1 measures sqrt(label.x² + label.y²), so we must cap the total offset.
-        const totalX = baseLx + worldDx;
-        const totalY = baseLy + worldDy;
-        const totalDist = Math.sqrt(totalX ** 2 + totalY ** 2);
-        if (totalDist > maxWorldDisp && totalDist > 0) {
-          const s = maxWorldDisp / totalDist;
-          worldDx = totalX * s - baseLx;
-          worldDy = totalY * s - baseLy;
-        }
-        // Compute actual screen position after cap
-        const cappedScreenX = (pn.data.x + baseLx + worldDx) * zoom;
-        const cappedScreenY = (pn.data.y + baseLy + worldDy) * zoom;
-        const alt: LabelRect = { ...r, x: cappedScreenX, y: cappedScreenY };
-        if (!checkOverlap(alt)) {
-          r.label.x = baseLx + worldDx;
-          r.label.y = baseLy + worldDy;
-          placed.push(alt);
-          found = true;
-
-          // Draw leader line from node edge to label
-          if (drawLeader) {
-            if (!pn.leaderLine) {
-              pn.leaderLine = new CanvasGraphics();
-              pn.gfx.addChild(pn.leaderLine);
-            }
-            const ll = pn.leaderLine;
-            ll.clear();
-            ll.visible = true;
-            const lx = r.label.x;
-            const ly = r.label.y;
-            // r.w/r.h are in screen space; convert back to world for leader line
-            const worldW = zoom > 0 ? r.w / zoom : r.w;
-            const worldH = zoom > 0 ? r.h / zoom : r.h;
-            const anchorX = Math.max(lx, Math.min(0, lx + worldW));
-            const anchorY = Math.max(ly, Math.min(0, ly + worldH));
-            const dist = Math.sqrt(anchorX ** 2 + anchorY ** 2);
-            const edgeX = dist > 0.1 ? (anchorX / dist) * nodeR : 0;
-            const edgeY = dist > 0.1 ? (anchorY / dist) * nodeR : 0;
-            ll.lineStyle(llWidth, pn.color, llAlpha);
-            ll.moveTo(edgeX, edgeY);
-            ll.lineTo(anchorX, anchorY);
-          }
-          break;
-        }
-      }
-      if (!found) {
+      const found = this._tryDisplaceLabel(r, zoom, maxDispRatio, grid, drawLeader, llWidth, llAlpha);
+      if (found) {
+        placed.push(found);
+        grid.insert(found);
+      } else {
         r.label.visible = false;
       }
     }
 
-    // --- Placement floor guarantee (AP-4 + AP-5) ---
-    // Force-shows highest-degree culled candidates, but ONLY if they don't
-    // create AABB overlaps with already-placed labels (prevents AP-2 regression).
+    // 5. Guarantee placement floor (AP-4 + AP-5)
+    this._guaranteePlacementFloor(rt, rects, placed, grid, zoom, margin,
+      minNonSuper, drawLeader, llWidth, llAlpha);
+
+    // 6. Draw leader lines for non-displaced labels at high counter-scale
+    this._drawCounterScaleLeaderLines(rt, placed, zoom, drawLeader, llWidth, llAlpha);
+  }
+
+  // =========================================================================
+  // cullOverlappingLabels — extracted sub-methods
+  // =========================================================================
+
+  /**
+   * Collect all visible labels into screen-space rects for overlap detection.
+   * All x, y, w, h values are in screen pixels (world * zoom).
+   */
+  private _collectLabelRects(
+    pixiNodes: Map<string, PixiNode>,
+    degrees: Map<string, number>,
+    zoom: number,
+    maxScreenW: number,
+    maxScreenH: number,
+  ): CullLabelRect[] {
+    const rects: CullLabelRect[] = [];
+    for (const pn of pixiNodes.values()) {
+      const label = pn.label;
+      if (!label || !label.text || !label.visible) continue;
+      const fontSize = (label.style.fontSize as number) ?? 11;
+      const charW = fontSize * LABEL_CHAR_WIDTH_FACTOR;
+      const scaleX = label.scale?.x ?? 1;
+      const scaleY = label.scale?.y ?? 1;
+      const padX = label.bgPadX ?? 0;
+      const padY = label.bgPadY ?? 0;
+      const rawW = label.text.length * charW * scaleX * zoom + padX * 2 * scaleX * zoom;
+      const rawH = fontSize * scaleY * LABEL_LINE_HEIGHT_FACTOR * zoom + padY * 2 * scaleY * zoom;
+      const w = Math.min(rawW, maxScreenW > 0 ? maxScreenW : Infinity);
+      const h = Math.min(rawH, maxScreenH > 0 ? maxScreenH : Infinity);
+      const wx = (pn.data.x + label.x) * zoom;
+      const wy = (pn.data.y + label.y) * zoom;
+      const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
+      rects.push({ pn, label, x: wx, y: wy, w, h,
+        degree: degrees.get(pn.data.id) ?? 0, isSuper });
+    }
+    return rects;
+  }
+
+  /**
+   * Create a spatial hash grid for O(n*k) overlap detection.
+   * Returns an object with insert() and checkOverlap() methods.
+   */
+  private _createOverlapGrid(margin: number): CullOverlapGrid {
+    const CELL_SIZE = OVERLAP_GRID_CELL_SIZE;
+    const gridMap = new Map<number, CullLabelRect[]>();
+    const cellKey = (cx: number, cy: number) => cx * OVERLAP_GRID_HASH_PRIME + cy;
+
+    const getCellRange = (rect: CullLabelRect) => ({
+      x0: Math.floor((rect.x - margin) / CELL_SIZE),
+      y0: Math.floor((rect.y - margin) / CELL_SIZE),
+      x1: Math.floor((rect.x + rect.w + margin) / CELL_SIZE),
+      y1: Math.floor((rect.y + rect.h + margin) / CELL_SIZE),
+    });
+
+    return {
+      insert(rect: CullLabelRect) {
+        const { x0, y0, x1, y1 } = getCellRange(rect);
+        for (let cx = x0; cx <= x1; cx++) {
+          for (let cy = y0; cy <= y1; cy++) {
+            const k = cellKey(cx, cy);
+            const arr = gridMap.get(k);
+            if (arr) arr.push(rect); else gridMap.set(k, [rect]);
+          }
+        }
+      },
+      checkOverlap(rect: CullLabelRect): boolean {
+        const { x0, y0, x1, y1 } = getCellRange(rect);
+        for (let cx = x0; cx <= x1; cx++) {
+          for (let cy = y0; cy <= y1; cy++) {
+            const arr = gridMap.get(cellKey(cx, cy));
+            if (!arr) continue;
+            for (const p of arr) {
+              if (
+                rect.x - margin < p.x + p.w + margin &&
+                rect.x + rect.w + margin > p.x - margin &&
+                rect.y - margin < p.y + p.h + margin &&
+                rect.y + rect.h + margin > p.y - margin
+              ) return true;
+            }
+          }
+        }
+        return false;
+      },
+    };
+  }
+
+  /**
+   * Try to displace a label to avoid overlap. Returns the placed rect on success,
+   * or null if no displacement position was found.
+   * Applies AP-1 displacement cap and draws leader line when displaced.
+   */
+  private _tryDisplaceLabel(
+    r: CullLabelRect,
+    zoom: number,
+    maxDispRatio: number,
+    grid: CullOverlapGrid,
+    drawLeader: boolean,
+    llWidth: number,
+    llAlpha: number,
+  ): CullLabelRect | null {
+    const { pn } = r;
+    const nodeR = pn.radius ?? 6;
+    const screenNodeR = nodeR * zoom;
+
+    // Displacement offsets in screen space
+    const offsets = [
+      { dx: r.w * 0.5 + screenNodeR, dy: screenNodeR + r.h },       // bottom-right
+      { dx: -(r.w + screenNodeR + 2), dy: 0 },                       // left
+      { dx: 0, dy: screenNodeR + r.h * 1.2 },                        // below
+      { dx: r.w * 0.3 + screenNodeR, dy: -(screenNodeR + r.h) },     // top-right
+      { dx: -(r.w + screenNodeR + 2), dy: -(screenNodeR + r.h) },    // top-left
+      { dx: -(r.w + screenNodeR + 2), dy: screenNodeR + r.h },       // bottom-left
+      { dx: r.w * 0.3 + screenNodeR, dy: -(screenNodeR + r.h * 1.2) }, // above-right
+      { dx: -(r.w * 0.3 + screenNodeR), dy: -(screenNodeR + r.h * 1.2) }, // above-left
+    ];
+
+    // Compute normBase for AP-1 displacement cap
+    const fontSize = (r.label.style.fontSize as number) ?? 11;
+    const charW = fontSize * LABEL_CHAR_WIDTH_FACTOR;
+    const scaleX = r.label.scale?.x ?? 1;
+    const visualW = (r.label.text?.length ?? 0) * charW * scaleX;
+    const normBase = Math.max(nodeR + visualW * 0.3, nodeR, 1);
+    const maxWorldDisp = maxDispRatio * normBase;
+
+    const baseLx = r.label.x;
+    const baseLy = r.label.y;
+    for (const off of offsets) {
+      let worldDx = zoom > 0 ? off.dx / zoom : off.dx;
+      let worldDy = zoom > 0 ? off.dy / zoom : off.dy;
+      // Cap TOTAL distance to maxWorldDisp
+      const totalX = baseLx + worldDx;
+      const totalY = baseLy + worldDy;
+      const totalDist = Math.sqrt(totalX ** 2 + totalY ** 2);
+      if (totalDist > maxWorldDisp && totalDist > 0) {
+        const s = maxWorldDisp / totalDist;
+        worldDx = totalX * s - baseLx;
+        worldDy = totalY * s - baseLy;
+      }
+      const cappedScreenX = (pn.data.x + baseLx + worldDx) * zoom;
+      const cappedScreenY = (pn.data.y + baseLy + worldDy) * zoom;
+      const alt: CullLabelRect = { ...r, x: cappedScreenX, y: cappedScreenY };
+      if (!grid.checkOverlap(alt)) {
+        r.label.x = baseLx + worldDx;
+        r.label.y = baseLy + worldDy;
+
+        // Draw leader line from node edge to label
+        if (drawLeader) {
+          this._drawLeaderLine(pn, r, zoom, llWidth, llAlpha);
+        }
+        return alt;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Draw a leader line from node edge to the label anchor point.
+   * Used for displaced labels and force-show labels.
+   */
+  private _drawLeaderLine(
+    pn: PixiNode,
+    r: CullLabelRect,
+    zoom: number,
+    llWidth: number,
+    llAlpha: number,
+    alphaMultiplier = 1.0,
+  ): void {
+    const nodeR = pn.radius ?? 6;
+    if (!pn.leaderLine) {
+      pn.leaderLine = new CanvasGraphics();
+      pn.gfx.addChild(pn.leaderLine);
+    }
+    const ll = pn.leaderLine;
+    ll.clear();
+    ll.visible = true;
+    const lx = r.label.x;
+    const ly = r.label.y;
+    const worldW = zoom > 0 ? r.w / zoom : r.w;
+    const worldH = zoom > 0 ? r.h / zoom : r.h;
+    const anchorX = clamp(0, lx, lx + worldW);
+    const anchorY = clamp(0, ly, ly + worldH);
+    const dist = Math.sqrt(anchorX ** 2 + anchorY ** 2);
+    const edgeX = dist > 0.1 ? (anchorX / dist) * nodeR : 0;
+    const edgeY = dist > 0.1 ? (anchorY / dist) * nodeR : 0;
+    ll.lineStyle(llWidth, pn.color, llAlpha * alphaMultiplier);
+    ll.moveTo(edgeX, edgeY);
+    ll.lineTo(anchorX, anchorY);
+  }
+
+  /**
+   * Placement floor guarantee (AP-4 + AP-5).
+   * Force-shows highest-degree culled candidates without creating AABB overlaps.
+   */
+  private _guaranteePlacementFloor(
+    rt: RenderThresholds,
+    rects: CullLabelRect[],
+    placed: CullLabelRect[],
+    grid: CullOverlapGrid,
+    zoom: number,
+    margin: number,
+    minNonSuper: number,
+    drawLeader: boolean,
+    llWidth: number,
+    llAlpha: number,
+  ): void {
     const minPlaced = rt.labelMinPlaced ?? 3;
     const minPlacedRatio = rt.labelMinPlacedRatio ?? 0.18;
     const totalCandidates = rects.length;
@@ -1335,249 +1767,210 @@ export class RenderPipeline {
 
     const placedNonSuperNow = placed.filter(r => !r.isSuper).length;
 
-    // AABB overlap check helper — screen-space coords (world * zoom) to match main pass
-    const overlapsPlaced = (candidate: typeof rects[0], currentPlaced: typeof rects): boolean => {
+    // AABB overlap check helper — uses spatial hash grid for O(k) lookup
+    const overlapsPlaced = (candidate: CullLabelRect): boolean => {
       const cx = (candidate.pn.data.x + candidate.label.x) * zoom;
       const cy = (candidate.pn.data.y + candidate.label.y) * zoom;
-      for (const p of currentPlaced) {
-        const px = (p.pn.data.x + p.label.x) * zoom;
-        const py = (p.pn.data.y + p.label.y) * zoom;
-        if (cx < px + p.w && cx + candidate.w > px &&
-            cy < py + p.h && cy + candidate.h > py) {
-          return true;
-        }
-      }
-      return false;
+      const testRect: CullLabelRect = { ...candidate, x: cx, y: cy };
+      return grid.checkOverlap(testRect);
     };
 
-    if (absoluteFloor > 0 || minNonSuper > 0) {
-      const placedSet = new Set(placed.map(r => r.pn.data.id));
-      const hiddenSupers = rects.filter(r => r.isSuper && !placedSet.has(r.pn.data.id))
-        .sort((a, b) => b.degree - a.degree);
-      const hiddenRegulars = rects.filter(r => !r.isSuper && !placedSet.has(r.pn.data.id))
-        .sort((a, b) => b.degree - a.degree);
+    if (!(absoluteFloor > 0 || minNonSuper > 0)) return;
 
-      // tryDisplaceForceShow: attempt displacement offsets for force-show candidates.
-      // Applies world-space displacement (with AP-1 cap) FIRST, then checks overlap
-      // using overlapsPlaced (which reads from label.x/y). Reverts if no fit found.
-      const tryDisplaceForceShow = (r: LabelRect): boolean => {
-        if (!overlapsPlaced(r, placed)) return true; // fits without displacement
-        const nodeR = r.pn.radius ?? 6;
-        const screenNodeR = nodeR * zoom;
-        // Wider offsets than main pass to guarantee AABB clearance at extreme zoom.
-        // Each offset moves by full label width + margin to clear same-sized labels.
-        const clearX = r.w + margin;
-        const clearY = r.h + margin;
-        // Systematic 8-direction × 10-multiplier offsets (80 positions).
-        // At extreme zoom-out (z=0.03), labels are ~150px wide in screen space,
-        // so 28 ad-hoc offsets were insufficient to escape the dense AABB cluster.
-        const dispOffsets: { dx: number; dy: number }[] = [];
-        const dirs = [
-          { dx: 1, dy: 0 },   { dx: -1, dy: 0 },   // right, left
-          { dx: 0, dy: 1 },   { dx: 0, dy: -1 },    // below, above
-          { dx: 1, dy: 1 },   { dx: -1, dy: -1 },   // BR, TL
-          { dx: 1, dy: -1 },  { dx: -1, dy: 1 },    // TR, BL
-        ];
-        for (let m = 1; m <= 10; m++) {
-          for (const d of dirs) {
-            dispOffsets.push({
-              dx: d.dx * (clearX + screenNodeR) * m,
-              dy: d.dy * (clearY + screenNodeR) * m,
-            });
-          }
-        }
-        // Force-show labels always receive leader lines for visual attribution.
-        // Since AP-1 excludes leader-line labels from the floating-label check,
-        // we do NOT cap displacement distance here.  This allows force-show labels
-        // to escape the dense AABB cluster of already-placed labels, especially at
-        // extreme zoom-out (z=0.03) where counterScale makes labels enormous.
+    const placedSet = new Set(placed.map(r => r.pn.data.id));
+    const hiddenSupers = rects.filter(r => r.isSuper && !placedSet.has(r.pn.data.id))
+      .sort((a, b) => b.degree - a.degree);
+    const hiddenRegulars = rects.filter(r => !r.isSuper && !placedSet.has(r.pn.data.id))
+      .sort((a, b) => b.degree - a.degree);
 
-        const origLx = r.label.x;
-        const origLy = r.label.y;
+    // tryDisplaceForceShow: attempt displacement offsets for force-show candidates.
+    // Displacement is capped to labelForceShowMaxRadii × nodeRadius in world space.
+    // If no position found within range, label is hidden (not forced far away).
+    const forceShowMaxRadii = rt.labelForceShowMaxRadii ?? 5;
+    const tryDisplaceForceShow = (r: CullLabelRect): boolean => {
+      if (!overlapsPlaced(r)) return true; // fits without displacement
+      const nodeR = r.pn.radius ?? 6;
+      const screenNodeR = nodeR * zoom;
+      const maxWorldDisp = nodeR * forceShowMaxRadii;
+      const clearX = r.w + margin;
+      const clearY = r.h + margin;
+      // Systematic 8-direction × 5-multiplier offsets (40 positions, capped)
+      const dirs = [
+        { dx: 1, dy: 0 },   { dx: -1, dy: 0 },
+        { dx: 0, dy: 1 },   { dx: 0, dy: -1 },
+        { dx: 1, dy: 1 },   { dx: -1, dy: -1 },
+        { dx: 1, dy: -1 },  { dx: -1, dy: 1 },
+      ];
 
-        for (const off of dispOffsets) {
-          // Convert screen-space offset to world space (no displacement cap)
-          const wdx = zoom > 0 ? off.dx / zoom : off.dx;
-          const wdy = zoom > 0 ? off.dy / zoom : off.dy;
+      const origLx = r.label.x;
+      const origLy = r.label.y;
 
-          // Apply displacement to label (overlapsPlaced reads from label.x/y)
+      for (let m = 1; m <= 5; m++) {
+        for (const d of dirs) {
+          const wdx = zoom > 0 ? (d.dx * (clearX + screenNodeR) * m) / zoom : 0;
+          const wdy = zoom > 0 ? (d.dy * (clearY + screenNodeR) * m) / zoom : 0;
+          // Enforce displacement cap
+          const totalDist = Math.sqrt((origLx + wdx) ** 2 + (origLy + wdy) ** 2);
+          if (totalDist > maxWorldDisp) continue;
+
           r.label.x = origLx + wdx;
           r.label.y = origLy + wdy;
 
-          if (!overlapsPlaced(r, placed)) {
-            // Update screen coords for future overlap checks
+          if (!overlapsPlaced(r)) {
             r.x = (r.pn.data.x + r.label.x) * zoom;
             r.y = (r.pn.data.y + r.label.y) * zoom;
             return true;
           }
         }
-        // Revert displacement — no position found
-        r.label.x = origLx;
-        r.label.y = origLy;
-        return false;
-      };
+      }
+      r.label.x = origLx;
+      r.label.y = origLy;
+      return false;
+    };
 
-      // Draw leader line for force-show displaced labels (AP-6 fix)
-      const drawForceShowLeader = (r: LabelRect, origLx: number, origLy: number) => {
-        if (!drawLeader) return;
-        // Only draw if label was actually displaced
-        if (Math.abs(r.label.x - origLx) < 0.1 && Math.abs(r.label.y - origLy) < 0.1) return;
-        const { pn } = r;
-        const nodeR = pn.radius ?? 6;
-        if (!pn.leaderLine) {
-          pn.leaderLine = new CanvasGraphics();
-          pn.gfx.addChild(pn.leaderLine);
+    // Draw leader line for force-show displaced labels (AP-6 fix)
+    const drawForceShowLeader = (r: CullLabelRect, origLx: number, origLy: number) => {
+      if (!drawLeader) return;
+      if (Math.abs(r.label.x - origLx) < 0.1 && Math.abs(r.label.y - origLy) < 0.1) return;
+      this._drawLeaderLine(r.pn, r, zoom, llWidth, llAlpha);
+    };
+
+    // First guarantee minNonSuper non-super labels (AP-5)
+    let nonSuperCount = placedNonSuperNow;
+    for (const r of hiddenRegulars) {
+      if (nonSuperCount >= minNonSuper) break;
+      const origLx = r.label.x;
+      const origLy = r.label.y;
+      if (tryDisplaceForceShow(r)) {
+        r.label.visible = true;
+        placed.push(r);
+        grid.insert(r);
+        nonSuperCount++;
+        drawForceShowLeader(r, origLx, origLy);
+      }
+    }
+
+    // AP-5 super-node concession: hide lowest-degree supers and place regulars
+    const placedSupers = placed.filter(r => r.isSuper);
+    const currentSuperRatio = placed.length > 0 ? placedSupers.length / placed.length : 0;
+    const targetNonSuperMin = Math.max(minNonSuper, Math.ceil(placed.length * 0.30));
+    if (currentSuperRatio > 0.75 && nonSuperCount < targetNonSuperMin && hiddenRegulars.length > 0) {
+      const sacrificeable = placedSupers.sort((a, b) => a.degree - b.degree);
+      const maxSacrifice = Math.min(
+        sacrificeable.length,
+        Math.ceil(placed.length * 0.25),
+      );
+      let sacrificed = 0;
+      let regIdx = 0;
+      for (const sup of sacrificeable) {
+        if (sacrificed >= maxSacrifice || nonSuperCount >= targetNonSuperMin) break;
+        while (regIdx < hiddenRegulars.length &&
+               placed.some(p => p.pn.data.id === hiddenRegulars[regIdx].pn.data.id)) {
+          regIdx++;
         }
-        const ll = pn.leaderLine;
-        ll.clear();
-        ll.visible = true;
-        const lx = r.label.x;
-        const ly = r.label.y;
-        const worldW = zoom > 0 ? r.w / zoom : r.w;
-        const worldH = zoom > 0 ? r.h / zoom : r.h;
-        const anchorX = Math.max(lx, Math.min(0, lx + worldW));
-        const anchorY = Math.max(ly, Math.min(0, ly + worldH));
-        const dist = Math.sqrt(anchorX ** 2 + anchorY ** 2);
-        const edgeX = dist > 0.1 ? (anchorX / dist) * nodeR : 0;
-        const edgeY = dist > 0.1 ? (anchorY / dist) * nodeR : 0;
-        ll.lineStyle(llWidth, pn.color, llAlpha);
-        ll.moveTo(edgeX, edgeY);
-        ll.lineTo(anchorX, anchorY);
-      };
+        if (regIdx >= hiddenRegulars.length) break;
 
-      // First guarantee minNonSuper non-super labels (AP-5), try displacement if needed
-      let nonSuperCount = placedNonSuperNow;
-      for (const r of hiddenRegulars) {
-        if (nonSuperCount >= minNonSuper) break;
-        const origLx = r.label.x;
-        const origLy = r.label.y;
-        if (tryDisplaceForceShow(r)) {
-          r.label.visible = true;
-          placed.push(r);
+        const reg = hiddenRegulars[regIdx++];
+        const supScreenX = sup.x;
+        const supScreenY = sup.y;
+
+        sup.label.visible = false;
+        if (sup.pn.leaderLine) { sup.pn.leaderLine.visible = false; }
+        const idx = placed.indexOf(sup);
+        if (idx >= 0) placed.splice(idx, 1);
+        sacrificed++;
+
+        const origLx = reg.label.x;
+        const origLy = reg.label.y;
+        if (tryDisplaceForceShow(reg)) {
+          reg.label.visible = true;
+          placed.push(reg);
+          grid.insert(reg);
           nonSuperCount++;
-          drawForceShowLeader(r, origLx, origLy);
-        }
-      }
-
-      // AP-5 super-node concession: if displacement failed for all regulars and
-      // superRatio is still too high, hide lowest-degree supers and place regulars
-      // at the sacrificed super's screen position (which was overlap-free).
-      const placedSupers = placed.filter(r => r.isSuper);
-      const currentSuperRatio = placed.length > 0 ? placedSupers.length / placed.length : 0;
-      // Target: enough non-super labels to bring superRatio below AP5_FAIL threshold (0.75).
-      // Required: nonSuper >= total * 0.25 → after removing supers, ratio adjusts.
-      // Use 0.30 margin to ensure we stay safely below the 0.75 FAIL line.
-      const targetNonSuperMin = Math.max(minNonSuper, Math.ceil(placed.length * 0.30));
-      if (currentSuperRatio > 0.75 && nonSuperCount < targetNonSuperMin && hiddenRegulars.length > 0) {
-        // Sort placed supers by degree ascending (sacrifice lowest-value supers)
-        const sacrificeable = placedSupers.sort((a, b) => a.degree - b.degree);
-        const maxSacrifice = Math.min(
-          sacrificeable.length,
-          Math.ceil(placed.length * 0.25),  // never sacrifice more than 25% of placed
-        );
-        let sacrificed = 0;
-        let regIdx = 0;
-        for (const sup of sacrificeable) {
-          if (sacrificed >= maxSacrifice || nonSuperCount >= targetNonSuperMin) break;
-          // Find next unplaced regular
-          while (regIdx < hiddenRegulars.length &&
-                 placed.some(p => p.pn.data.id === hiddenRegulars[regIdx].pn.data.id)) {
-            regIdx++;
-          }
-          if (regIdx >= hiddenRegulars.length) break;
-
-          const reg = hiddenRegulars[regIdx++];
-          // Record super's screen position before hiding
-          const supScreenX = sup.x;
-          const supScreenY = sup.y;
-
-          // Hide this super label
-          sup.label.visible = false;
-          if (sup.pn.leaderLine) { sup.pn.leaderLine.visible = false; }
-          const idx = placed.indexOf(sup);
-          if (idx >= 0) placed.splice(idx, 1);
-          sacrificed++;
-
-          // Place regular at sacrificed super's screen position (world coords via inverse)
-          const origLx = reg.label.x;
-          const origLy = reg.label.y;
-          // First try displacement (may work now that super is removed)
-          if (tryDisplaceForceShow(reg)) {
-            reg.label.visible = true;
-            placed.push(reg);
-            nonSuperCount++;
-            drawForceShowLeader(reg, origLx, origLy);
-          } else {
-            // Fallback: place at super's world position with leader line
-            const wdx = zoom > 0 ? (supScreenX - reg.pn.data.x * zoom) / zoom : 0;
-            const wdy = zoom > 0 ? (supScreenY - reg.pn.data.y * zoom) / zoom : 0;
-            reg.label.x = wdx;
-            reg.label.y = wdy;
-            reg.x = supScreenX;
-            reg.y = supScreenY;
-            reg.label.visible = true;
-            placed.push(reg);
-            nonSuperCount++;
-            drawForceShowLeader(reg, origLx, origLy);
-          }
-        }
-      }
-
-      // Then guarantee absoluteFloor total labels (AP-4), try displacement if needed
-      let totalCount = placed.length;
-      for (const r of [...hiddenSupers, ...hiddenRegulars]) {
-        if (totalCount >= absoluteFloor) break;
-        if (placed.some(p => p.pn.data.id === r.pn.data.id)) continue;
-        const origLx = r.label.x;
-        const origLy = r.label.y;
-        if (tryDisplaceForceShow(r)) {
-          r.label.visible = true;
-          placed.push(r);
-          totalCount++;
-          drawForceShowLeader(r, origLx, origLy);
-        }
-      }
-
-      const finalPlacedSet = new Set(placed.map(r => r.pn.data.id));
-      for (const r of rects) {
-        if (finalPlacedSet.has(r.pn.data.id)) {
-          r.label.visible = true;
+          drawForceShowLeader(reg, origLx, origLy);
+        } else {
+          // Fallback: place at super's world position with leader line
+          const wdx = zoom > 0 ? (supScreenX - reg.pn.data.x * zoom) / zoom : 0;
+          const wdy = zoom > 0 ? (supScreenY - reg.pn.data.y * zoom) / zoom : 0;
+          reg.label.x = wdx;
+          reg.label.y = wdy;
+          reg.x = supScreenX;
+          reg.y = supScreenY;
+          reg.label.visible = true;
+          placed.push(reg);
+          grid.insert(reg);
+          nonSuperCount++;
+          drawForceShowLeader(reg, origLx, origLy);
         }
       }
     }
 
-    // Draw leader lines for non-displaced labels when counter-scale exceeds threshold.
-    // At high zoom-out, even default-position labels are visually far from their node.
-    if (drawLeader) {
-      const alwaysThreshold = rt.labelLeaderLineAlwaysThreshold ?? 3.0;
-      for (const r of placed) {
-        const { pn } = r;
-        if (pn.leaderLine?.visible) continue; // already has leader line from displacement
-        const labelScale = r.label.scale?.x ?? 1;
-        if (labelScale < alwaysThreshold) continue;
+    // Then guarantee absoluteFloor total labels (AP-4)
+    let totalCount = placed.length;
+    for (const r of [...hiddenSupers, ...hiddenRegulars]) {
+      if (totalCount >= absoluteFloor) break;
+      if (placed.some(p => p.pn.data.id === r.pn.data.id)) continue;
+      const origLx = r.label.x;
+      const origLy = r.label.y;
+      if (tryDisplaceForceShow(r)) {
+        r.label.visible = true;
+        placed.push(r);
+        grid.insert(r);
+        totalCount++;
+        drawForceShowLeader(r, origLx, origLy);
+      }
+    }
 
-        if (!pn.leaderLine) {
-          pn.leaderLine = new CanvasGraphics();
-          pn.gfx.addChild(pn.leaderLine);
-        }
-        const ll = pn.leaderLine;
-        ll.clear();
-        ll.visible = true;
-        const nodeR = pn.radius ?? 6;
-        const lx = r.label.x;
-        const ly = r.label.y;
-        // r.w/r.h are in screen space; convert back to world for leader line
-        const worldW = zoom > 0 ? r.w / zoom : r.w;
-        const worldH = zoom > 0 ? r.h / zoom : r.h;
-        const anchorX = Math.max(lx, Math.min(0, lx + worldW));
-        const anchorY = Math.max(ly, Math.min(0, ly + worldH));
-        const dist = Math.sqrt(anchorX ** 2 + anchorY ** 2);
-        const edgeX = dist > 0.1 ? (anchorX / dist) * nodeR : 0;
-        const edgeY = dist > 0.1 ? (anchorY / dist) * nodeR : 0;
-        ll.lineStyle(llWidth, pn.color, llAlpha * 0.6); // slightly fainter for non-displaced
-        ll.moveTo(edgeX, edgeY);
-        ll.lineTo(anchorX, anchorY);
+    const finalPlacedSet = new Set(placed.map(r => r.pn.data.id));
+    for (const r of rects) {
+      if (finalPlacedSet.has(r.pn.data.id)) {
+        r.label.visible = true;
       }
     }
   }
+
+  /**
+   * Draw leader lines for non-displaced labels when counter-scale exceeds threshold.
+   * At high zoom-out, even default-position labels are visually far from their node.
+   */
+  private _drawCounterScaleLeaderLines(
+    rt: RenderThresholds,
+    placed: CullLabelRect[],
+    zoom: number,
+    drawLeader: boolean,
+    llWidth: number,
+    llAlpha: number,
+  ): void {
+    if (!drawLeader) return;
+    const alwaysThreshold = rt.labelLeaderLineAlwaysThreshold ?? 3.0;
+    for (const r of placed) {
+      const { pn } = r;
+      if (pn.leaderLine?.visible) continue; // already has leader line from displacement
+      const labelScale = r.label.scale?.x ?? 1;
+      if (labelScale < alwaysThreshold) continue;
+      this._drawLeaderLine(pn, r, zoom, llWidth, llAlpha, 0.6);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Types used by cullOverlappingLabels sub-methods
+// ---------------------------------------------------------------------------
+
+/** Screen-space label bounding rect for overlap culling */
+interface CullLabelRect {
+  pn: PixiNode;
+  label: CanvasText;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  degree: number;
+  isSuper: boolean;
+}
+
+/** Spatial hash grid interface for label overlap detection */
+interface CullOverlapGrid {
+  insert(rect: CullLabelRect): void;
+  checkOverlap(rect: CullLabelRect): boolean;
 }

@@ -13,7 +13,7 @@ export class CanvasContainer {
   children: CanvasChild[] = [];
 
   addChild(child: CanvasChild): CanvasChild {
-    (child as any).parent = this;
+    child.parent = this;
     this.children.push(child);
     return child;
   }
@@ -22,14 +22,14 @@ export class CanvasContainer {
     const idx = this.children.indexOf(child);
     if (idx >= 0) {
       this.children.splice(idx, 1);
-      (child as any).parent = null;
+      child.parent = null;
     }
     return child;
   }
 
   removeChildren(): CanvasChild[] {
     const removed = this.children.splice(0);
-    for (const c of removed) (c as any).parent = null;
+    for (const c of removed) c.parent = null;
     return removed;
   }
 
@@ -100,7 +100,7 @@ export class CanvasContainer {
     if (this.scale.x !== 1 || this.scale.y !== 1) ctx.scale(this.scale.x, this.scale.y);
 
     for (let i = 0; i < len; i++) {
-      (children[i] as any)._flush(ctx, effAlpha);
+      children[i]._flush(ctx, effAlpha);
     }
 
     ctx.restore();

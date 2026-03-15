@@ -3,12 +3,18 @@ import { GraphViewsSettingTab } from "./settings";
 import { GraphViewContainer, VIEW_TYPE_GRAPH } from "./views/GraphViewContainer";
 import { NodeDetailView, VIEW_TYPE_NODE_DETAIL } from "./views/NodeDetailView";
 import { DEFAULT_SETTINGS, type GraphViewsSettings } from "./types";
+import { detectTagRelations } from "./utils/tag-relation-presets";
 
 export default class GraphViewsPlugin extends Plugin {
   settings: GraphViewsSettings = DEFAULT_SETTINGS;
 
   async onload() {
     await this.loadSettings();
+
+    // Auto-detect tag relationships on first load (when tagRelations is empty)
+    this.app.workspace.onLayoutReady(() => {
+      this.autoDetectTagRelationsIfNeeded();
+    });
 
     this.registerView(
       VIEW_TYPE_GRAPH,
@@ -66,6 +72,29 @@ export default class GraphViewsPlugin extends Plugin {
 
     // Open the detail pane in the right sidebar if not already open
     this.ensureDetailPane();
+  }
+
+  /**
+   * On first load, scan the vault to detect tag co-occurrence patterns
+   * and generate tag-to-tag relationships as a starting preset.
+   * Runs only when ontology.tagRelations is empty (never overwrites user edits).
+   */
+  private async autoDetectTagRelationsIfNeeded() {
+    const ontology = this.settings.ontology;
+    if (!ontology || (ontology.tagRelations && ontology.tagRelations.length > 0)) {
+      return; // already has relations — respect user's configuration
+    }
+
+    const detected = detectTagRelations(this.app);
+    if (detected.length === 0) return;
+
+    if (!this.settings.ontology) {
+      this.settings.ontology = { ...DEFAULT_SETTINGS.ontology };
+    }
+    this.settings.ontology.tagRelations = detected;
+    await this.saveSettings();
+
+    console.log(`Graph Island: auto-detected ${detected.length} tag relationships from vault`);
   }
 
   private ensureDetailPane() {

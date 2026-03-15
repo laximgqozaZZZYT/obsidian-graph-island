@@ -31,6 +31,16 @@ import { getNodeFieldValues } from "../utils/node-grouping";
 import type { ArrangementResult } from "./cluster-force";
 import { CURVE_REGISTRY } from "./coordinate-presets";
 import { parseExpr, evalExpr, setUserVars, type ExprNode } from "../utils/expr-eval";
+import {
+  SOURCE_PROPERTY, SOURCE_INDEX, SOURCE_FIELD, SOURCE_METRIC,
+  SOURCE_HOP, SOURCE_RANDOM, SOURCE_CONST,
+  TRANSFORM_LINEAR, TRANSFORM_BIN, TRANSFORM_DATE_INDEX,
+  TRANSFORM_GOLDEN, TRANSFORM_EVEN_DIVIDE, TRANSFORM_STACK_AVOID,
+  TRANSFORM_CURVE, TRANSFORM_SHAPE_FILL, TRANSFORM_EXPRESSION,
+  SHAPE_FILL_TRIANGLE, SHAPE_FILL_HEXAGON, SHAPE_FILL_SQUARE,
+  SHAPE_FILL_DIAMOND, SHAPE_FILL_CIRCLE,
+  GUIDE_TYPE_COORDINATE,
+} from "../constants";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -86,6 +96,23 @@ export interface CoordinateGuide {
 }
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Gap fraction of range used for positioning nodes with missing values */
+const MISSING_VALUE_GAP_FRACTION = 0.15;
+/** Number of sample points for grid expression evaluation */
+const GRID_EXPR_SAMPLES = 20;
+/** BFS fallback depth when node has no assigned depth */
+const BFS_FALLBACK_DEPTH = 999;
+/** Precision factor for deduplicating grid line positions */
+const GRID_DEDUP_PRECISION = 1000;
+/** Threshold for treating a normalized value as an integer in label formatting */
+const FORMAT_INTEGER_THRESHOLD = 0.01;
+/** Golden angle in radians (used for phyllotaxis / sunflower patterns) */
+const GOLDEN_ANGLE = 2.39996322972865332;
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -116,7 +143,7 @@ function assignNumericWithMissingAtEnd(
       const max = Math.max(...withValue.map(wv => wv.val));
       const min = Math.min(...withValue.map(wv => wv.val));
       const range = max - min || 1;
-      const gap = range * 0.15;
+      const gap = range * MISSING_VALUE_GAP_FRACTION;
       for (const id of missing) {
         result.set(id, max + gap);
       }
@@ -125,6 +152,240 @@ function assignNumericWithMissingAtEnd(
       for (const id of missing) {
         result.set(id, 0);
       }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Phase 1: Resolve axis values — per-source helpers
+// ---------------------------------------------------------------------------
+
+/** Resolve SOURCE_FIELD: built-in fields + frontmatter properties */
+function resolveSourceField(
+  members: GraphNode[],
+  field: string,
+  result: Map<string, number>,
+): void {
+  const rawValues: { id: string; raw: string }[] = [];
+  for (const m of members) {
+    const vals = getNodeFieldValues(m, field);
+    // Use the first value (multi-value fields like tag take the first)
+    rawValues.push({ id: m.id, raw: vals[0] ?? "" });
+  }
+  // Try numeric parse; fall back to lexicographic index
+  const allNumeric = rawValues.every(v => v.raw === "" || !isNaN(Number(v.raw)));
+  if (allNumeric) {
+    assignNumericWithMissingAtEnd(rawValues, result);
+  } else {
+    const sorted = [...new Set(rawValues.map(v => v.raw))].sort();
+    const indexMap = new Map(sorted.map((s, i) => [s, i]));
+    for (const v of rawValues) {
+      result.set(v.id, indexMap.get(v.raw) ?? 0);
+    }
+  }
+}
+
+/** Resolve SOURCE_PROPERTY: frontmatter property by key */
+function resolveSourceProperty(
+  members: GraphNode[],
+  key: string,
+  ctx: CoordinateContext,
+  result: Map<string, number>,
+): void {
+  const rawValues: { id: string; raw: string }[] = [];
+  for (const m of members) {
+    let val: string | undefined;
+    if (ctx.getNodeProperty) {
+      val = ctx.getNodeProperty(m.id, key);
+    }
+    if (val === undefined && m.meta) {
+      const mv = m.meta[key];
+      val = mv != null ? String(mv) : undefined;
+    }
+    rawValues.push({ id: m.id, raw: val ?? "" });
+  }
+
+  // Try numeric parse first; fall back to lexicographic index
+  const numeric = rawValues.every(v => v.raw === "" || !isNaN(Number(v.raw)));
+  if (numeric) {
+    assignNumericWithMissingAtEnd(rawValues, result);
+  } else {
+    // Lexicographic sort → index
+    const sorted = [...new Set(rawValues.map(v => v.raw))].sort();
+    const indexMap = new Map(sorted.map((s, i) => [s, i]));
+    for (const v of rawValues) {
+      result.set(v.id, indexMap.get(v.raw) ?? 0);
+    }
+  }
+}
+
+/** Resolve SOURCE_HOP: BFS distance from a specific node */
+function resolveSourceHop(
+  members: GraphNode[],
+  fromPattern: string,
+  maxDepth: number,
+  ctx: CoordinateContext,
+  result: Map<string, number>,
+): void {
+  const memberSet = new Set(members.map(m => m.id));
+
+  // Find the root node by id substring match
+  let root: string | undefined;
+  for (const m of members) {
+    if (m.id.toLowerCase().includes(fromPattern)) {
+      root = m.id;
+      break;
+    }
+  }
+
+  if (!root) {
+    // No matching root — assign sequential index as fallback so all nodes
+    // get finite, well-spread coordinates (maxDepth+1 could be Infinity).
+    for (let i = 0; i < members.length; i++) result.set(members[i].id, i);
+    return;
+  }
+
+  // Build adjacency list within members
+  const adj = buildAdjacencyList(memberSet, ctx.edges);
+
+  // BFS from root
+  const depth = new Map<string, number>();
+  depth.set(root, 0);
+  const queue = [root];
+  let head = 0;
+  while (head < queue.length) {
+    const cur = queue[head++];
+    const d = depth.get(cur)!;
+    if (d >= maxDepth) continue;
+    for (const nb of adj.get(cur) ?? []) {
+      if (!depth.has(nb)) {
+        depth.set(nb, d + 1);
+        queue.push(nb);
+      }
+    }
+  }
+
+  const fallback = (depth.size > 0 ? Math.max(...depth.values()) : 0) + 1;
+  for (const m of members) {
+    result.set(m.id, depth.get(m.id) ?? fallback);
+  }
+}
+
+/** Build an adjacency list for members from edges */
+function buildAdjacencyList(
+  memberSet: Set<string>,
+  edges: GraphEdge[],
+): Map<string, string[]> {
+  const adj = new Map<string, string[]>();
+  for (const id of memberSet) adj.set(id, []);
+  for (const e of edges) {
+    if (memberSet.has(e.source) && memberSet.has(e.target)) {
+      adj.get(e.source)!.push(e.target);
+      adj.get(e.target)!.push(e.source);
+    }
+  }
+  return adj;
+}
+
+/** BFS from highest-degree node, return depth map */
+function bfsFromHighestDegree(
+  members: GraphNode[],
+  ctx: CoordinateContext,
+): Map<string, number> {
+  const memberSet = new Set(members.map(m => m.id));
+  const adj = buildAdjacencyList(memberSet, ctx.edges);
+
+  // Root = highest degree node
+  let root = members[0]?.id;
+  let maxDeg = -1;
+  for (const m of members) {
+    const d = ctx.degrees.get(m.id) ?? 0;
+    if (d > maxDeg) { maxDeg = d; root = m.id; }
+  }
+
+  // BFS
+  const depth = new Map<string, number>();
+  depth.set(root, 0);
+  const queue = [root];
+  let head = 0;
+  while (head < queue.length) {
+    const cur = queue[head++];
+    const d = depth.get(cur)!;
+    for (const nb of adj.get(cur) ?? []) {
+      if (!depth.has(nb)) {
+        depth.set(nb, d + 1);
+        queue.push(nb);
+      }
+    }
+  }
+  return depth;
+}
+
+/** Resolve SOURCE_METRIC: degree, in-degree, out-degree, bfs-depth, sibling-rank */
+function resolveSourceMetric(
+  members: GraphNode[],
+  metric: string,
+  ctx: CoordinateContext,
+  result: Map<string, number>,
+): void {
+  switch (metric) {
+    case "degree": {
+      for (const m of members) {
+        result.set(m.id, ctx.degrees.get(m.id) ?? 0);
+      }
+      break;
+    }
+    case "in-degree": {
+      const inDeg = new Map<string, number>();
+      const memberSet = new Set(members.map(m => m.id));
+      for (const e of ctx.edges) {
+        if (memberSet.has(e.target)) {
+          inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
+        }
+      }
+      for (const m of members) {
+        result.set(m.id, inDeg.get(m.id) ?? 0);
+      }
+      break;
+    }
+    case "out-degree": {
+      const outDeg = new Map<string, number>();
+      const memberSet = new Set(members.map(m => m.id));
+      for (const e of ctx.edges) {
+        if (memberSet.has(e.source)) {
+          outDeg.set(e.source, (outDeg.get(e.source) ?? 0) + 1);
+        }
+      }
+      for (const m of members) {
+        result.set(m.id, outDeg.get(m.id) ?? 0);
+      }
+      break;
+    }
+    case "bfs-depth": {
+      result.clear();
+      const depth = bfsFromHighestDegree(members, ctx);
+      const queue = [...depth.entries()];
+      const maxDepthVal = queue.length > 0 ? Math.max(...depth.values()) : 0;
+      for (const m of members) {
+        result.set(m.id, depth.get(m.id) ?? maxDepthVal + 1);
+      }
+      break;
+    }
+    case "sibling-rank": {
+      const depth = bfsFromHighestDegree(members, ctx);
+      // Group by depth, assign rank within each level
+      const byDepth = new Map<number, string[]>();
+      for (const m of members) {
+        const d = depth.get(m.id) ?? BFS_FALLBACK_DEPTH;
+        if (!byDepth.has(d)) byDepth.set(d, []);
+        byDepth.get(d)!.push(m.id);
+      }
+      for (const [, ids] of byDepth) {
+        for (let i = 0; i < ids.length; i++) {
+          result.set(ids[i], i);
+        }
+      }
+      break;
     }
   }
 }
@@ -144,248 +405,37 @@ export function resolveAxisValues(
   const result = new Map<string, number>();
 
   switch (source.kind) {
-    case "index": {
+    case SOURCE_INDEX: {
       for (let i = 0; i < members.length; i++) {
         result.set(members[i].id, i);
       }
       break;
     }
 
-    case "field": {
-      // Unified node attribute source — handles built-in fields (path, file,
-      // folder, tag, category, id, isTag) and any frontmatter property.
-      const field = source.field;
-      const rawValues: { id: string; raw: string }[] = [];
-      for (const m of members) {
-        const vals = getNodeFieldValues(m, field);
-        // Use the first value (multi-value fields like tag take the first)
-        rawValues.push({ id: m.id, raw: vals[0] ?? "" });
-      }
-      // Try numeric parse; fall back to lexicographic index
-      const allNumeric = rawValues.every(v => v.raw === "" || !isNaN(Number(v.raw)));
-      if (allNumeric) {
-        assignNumericWithMissingAtEnd(rawValues, result);
-      } else {
-        const sorted = [...new Set(rawValues.map(v => v.raw))].sort();
-        const indexMap = new Map(sorted.map((s, i) => [s, i]));
-        for (const v of rawValues) {
-          result.set(v.id, indexMap.get(v.raw) ?? 0);
-        }
-      }
+    case SOURCE_FIELD: {
+      resolveSourceField(members, source.field, result);
       break;
     }
 
-    case "property": {
-      const key = source.key;
-      // Collect raw string values, then convert to numbers
-      const rawValues: { id: string; raw: string }[] = [];
-      for (const m of members) {
-        let val: string | undefined;
-        if (ctx.getNodeProperty) {
-          val = ctx.getNodeProperty(m.id, key);
-        }
-        if (val === undefined && m.meta) {
-          const mv = m.meta[key];
-          val = mv != null ? String(mv) : undefined;
-        }
-        rawValues.push({ id: m.id, raw: val ?? "" });
-      }
-
-      // Try numeric parse first; fall back to lexicographic index
-      const numeric = rawValues.every(v => v.raw === "" || !isNaN(Number(v.raw)));
-      if (numeric) {
-        assignNumericWithMissingAtEnd(rawValues, result);
-      } else {
-        // Lexicographic sort → index
-        const sorted = [...new Set(rawValues.map(v => v.raw))].sort();
-        const indexMap = new Map(sorted.map((s, i) => [s, i]));
-        for (const v of rawValues) {
-          result.set(v.id, indexMap.get(v.raw) ?? 0);
-        }
-      }
+    case SOURCE_PROPERTY: {
+      resolveSourceProperty(members, source.key, ctx, result);
       break;
     }
 
-    case "hop": {
-      // BFS distance from a specific node (identified by substring match on id)
-      const fromPattern = source.from.toLowerCase();
-      const maxDepth = source.maxDepth ?? Infinity;
-      const memberSet = new Set(members.map(m => m.id));
-
-      // Find the root node by id substring match
-      let root: string | undefined;
-      for (const m of members) {
-        if (m.id.toLowerCase().includes(fromPattern)) {
-          root = m.id;
-          break;
-        }
-      }
-
-      if (!root) {
-        // No matching root — assign sequential index as fallback so all nodes
-        // get finite, well-spread coordinates (maxDepth+1 could be Infinity).
-        for (let i = 0; i < members.length; i++) result.set(members[i].id, i);
-        break;
-      }
-
-      // Build adjacency list within members
-      const adj = new Map<string, string[]>();
-      for (const id of memberSet) adj.set(id, []);
-      for (const e of ctx.edges) {
-        if (memberSet.has(e.source) && memberSet.has(e.target)) {
-          adj.get(e.source)!.push(e.target);
-          adj.get(e.target)!.push(e.source);
-        }
-      }
-
-      // BFS from root
-      const depth = new Map<string, number>();
-      depth.set(root, 0);
-      const queue = [root];
-      let head = 0;
-      while (head < queue.length) {
-        const cur = queue[head++];
-        const d = depth.get(cur)!;
-        if (d >= maxDepth) continue;
-        for (const nb of adj.get(cur) ?? []) {
-          if (!depth.has(nb)) {
-            depth.set(nb, d + 1);
-            queue.push(nb);
-          }
-        }
-      }
-
-      const fallback = (depth.size > 0 ? Math.max(...depth.values()) : 0) + 1;
-      for (const m of members) {
-        result.set(m.id, depth.get(m.id) ?? fallback);
-      }
+    case SOURCE_HOP: {
+      resolveSourceHop(
+        members, source.from.toLowerCase(),
+        source.maxDepth ?? Infinity, ctx, result,
+      );
       break;
     }
 
-    case "metric": {
-      switch (source.metric) {
-        case "degree": {
-          for (const m of members) {
-            result.set(m.id, ctx.degrees.get(m.id) ?? 0);
-          }
-          break;
-        }
-        case "in-degree": {
-          const inDeg = new Map<string, number>();
-          const memberSet = new Set(members.map(m => m.id));
-          for (const e of ctx.edges) {
-            if (memberSet.has(e.target)) {
-              inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
-            }
-          }
-          for (const m of members) {
-            result.set(m.id, inDeg.get(m.id) ?? 0);
-          }
-          break;
-        }
-        case "out-degree": {
-          const outDeg = new Map<string, number>();
-          const memberSet = new Set(members.map(m => m.id));
-          for (const e of ctx.edges) {
-            if (memberSet.has(e.source)) {
-              outDeg.set(e.source, (outDeg.get(e.source) ?? 0) + 1);
-            }
-          }
-          for (const m of members) {
-            result.set(m.id, outDeg.get(m.id) ?? 0);
-          }
-          break;
-        }
-        case "bfs-depth": {
-          result.clear();
-          const memberSet = new Set(members.map(m => m.id));
-          // Build adjacency list within the subgraph
-          const adj = new Map<string, string[]>();
-          for (const id of memberSet) adj.set(id, []);
-          for (const e of ctx.edges) {
-            if (memberSet.has(e.source) && memberSet.has(e.target)) {
-              adj.get(e.source)!.push(e.target);
-              adj.get(e.target)!.push(e.source);
-            }
-          }
-          // Root = highest degree node
-          let root = members[0]?.id;
-          let maxDeg = -1;
-          for (const m of members) {
-            const d = ctx.degrees.get(m.id) ?? 0;
-            if (d > maxDeg) { maxDeg = d; root = m.id; }
-          }
-          // BFS
-          const depth = new Map<string, number>();
-          depth.set(root, 0);
-          const queue = [root];
-          let head = 0;
-          while (head < queue.length) {
-            const cur = queue[head++];
-            const d = depth.get(cur)!;
-            for (const nb of adj.get(cur) ?? []) {
-              if (!depth.has(nb)) {
-                depth.set(nb, d + 1);
-                queue.push(nb);
-              }
-            }
-          }
-          const maxDepth = queue.length > 0 ? (depth.get(queue[queue.length - 1]) ?? 0) : 0;
-          for (const m of members) {
-            result.set(m.id, depth.get(m.id) ?? maxDepth + 1);
-          }
-          break;
-        }
-        case "sibling-rank": {
-          // First compute BFS depth, then rank within each depth level
-          const memberSet = new Set(members.map(m => m.id));
-          const adj = new Map<string, string[]>();
-          for (const id of memberSet) adj.set(id, []);
-          for (const e of ctx.edges) {
-            if (memberSet.has(e.source) && memberSet.has(e.target)) {
-              adj.get(e.source)!.push(e.target);
-              adj.get(e.target)!.push(e.source);
-            }
-          }
-          let root = members[0]?.id;
-          let maxDeg = -1;
-          for (const m of members) {
-            const d = ctx.degrees.get(m.id) ?? 0;
-            if (d > maxDeg) { maxDeg = d; root = m.id; }
-          }
-          const depth = new Map<string, number>();
-          depth.set(root, 0);
-          const queue = [root];
-          let head = 0;
-          while (head < queue.length) {
-            const cur = queue[head++];
-            const d = depth.get(cur)!;
-            for (const nb of adj.get(cur) ?? []) {
-              if (!depth.has(nb)) {
-                depth.set(nb, d + 1);
-                queue.push(nb);
-              }
-            }
-          }
-          // Group by depth, assign rank within each level
-          const byDepth = new Map<number, string[]>();
-          for (const m of members) {
-            const d = depth.get(m.id) ?? 999;
-            if (!byDepth.has(d)) byDepth.set(d, []);
-            byDepth.get(d)!.push(m.id);
-          }
-          for (const [, ids] of byDepth) {
-            for (let i = 0; i < ids.length; i++) {
-              result.set(ids[i], i);
-            }
-          }
-          break;
-        }
-      }
+    case SOURCE_METRIC: {
+      resolveSourceMetric(members, source.metric, ctx, result);
       break;
     }
 
-    case "random": {
+    case SOURCE_RANDOM: {
       const seed = source.seed;
       for (const m of members) {
         result.set(m.id, seededHash(m.id, seed));
@@ -393,7 +443,7 @@ export function resolveAxisValues(
       break;
     }
 
-    case "const": {
+    case SOURCE_CONST: {
       const v = source.value;
       for (const m of members) {
         result.set(m.id, v);
@@ -403,6 +453,189 @@ export function resolveAxisValues(
   }
 
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: Apply transform — per-kind helpers
+// ---------------------------------------------------------------------------
+
+/** TRANSFORM_BIN: bucket raw values into equal-width bins */
+function transformBin(
+  rawValues: Map<string, number>,
+  count: number,
+  spacing: number,
+  result: Map<string, number>,
+): void {
+  const binCount = Math.max(count, 1);
+  let min = Infinity, max = -Infinity;
+  for (const v of rawValues.values()) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  const range = max - min || 1;
+  for (const [id, v] of rawValues) {
+    const bin = Math.min(Math.floor(((v - min) / range) * binCount), binCount - 1);
+    // Use (bin + 1) so that the lowest bin has non-zero spacing.
+    // This is essential for polar layouts where bin=0 → radius=0
+    // would collapse all lowest-value nodes to the center point.
+    result.set(id, (bin + 1) * spacing);
+  }
+}
+
+/** TRANSFORM_EVEN_DIVIDE: distribute nodes evenly across an angular range */
+function transformEvenDivide(
+  rawValues: Map<string, number>,
+  totalRange: number,
+  otherAxisValues: Map<string, number> | undefined,
+  result: Map<string, number>,
+): void {
+  const totalRad = (totalRange * Math.PI) / 180;
+  if (otherAxisValues && otherAxisValues.size > 0) {
+    // Per-ring even-divide: group nodes by their other-axis value (e.g. radius bin),
+    // then distribute angles evenly within each ring.
+    // This prevents the diagonal-stripe artifact where angle correlates with radius.
+    const rings = new Map<number, string[]>();
+    for (const [id] of rawValues) {
+      const ringVal = otherAxisValues.get(id) ?? 0;
+      if (!rings.has(ringVal)) rings.set(ringVal, []);
+      rings.get(ringVal)!.push(id);
+    }
+    // Rings grouped by other-axis value; each ring distributes angles evenly
+    for (const [, ids] of rings) {
+      const n = ids.length;
+      for (let i = 0; i < n; i++) {
+        result.set(ids[i], (i / n) * totalRad);
+      }
+    }
+  } else {
+    // Global even-divide: distribute all nodes across the full range
+    let maxVal = 0;
+    for (const v of rawValues.values()) {
+      if (v > maxVal) maxVal = v;
+    }
+    const divisor = maxVal > 0 ? maxVal + 1 : 1;
+    for (const [id, v] of rawValues) {
+      result.set(id, (v / divisor) * totalRad);
+    }
+  }
+}
+
+/** TRANSFORM_STACK_AVOID: spread nodes within same-column bins */
+function transformStackAvoid(
+  rawValues: Map<string, number>,
+  spacing: number,
+  otherAxisValues: Map<string, number> | undefined,
+  result: Map<string, number>,
+): void {
+  if (!otherAxisValues) {
+    // Fallback: just use linear spacing
+    for (const [id, v] of rawValues) {
+      result.set(id, v * spacing);
+    }
+    return;
+  }
+
+  // Bin other-axis values to group nodes in same "column"
+  const bins = new Map<number, string[]>();
+  for (const [id] of rawValues) {
+    const otherVal = otherAxisValues.get(id) ?? 0;
+    // Round to nearest spacing unit to group nearby values
+    const binKey = Math.round(otherVal / (spacing || 1));
+    if (!bins.has(binKey)) bins.set(binKey, []);
+    bins.get(binKey)!.push(id);
+  }
+
+  // Within each bin, spread nodes vertically
+  for (const [, ids] of bins) {
+    const n = ids.length;
+    const offset = -(n - 1) / 2;
+    for (let i = 0; i < n; i++) {
+      result.set(ids[i], (offset + i) * spacing);
+    }
+  }
+}
+
+/** TRANSFORM_CURVE: apply a registered parametric curve */
+function transformCurve(
+  rawValues: Map<string, number>,
+  curveName: string,
+  transformScale: number | undefined,
+  transformParams: Record<string, number> | undefined,
+  spacing: number,
+  constants: Record<string, number> | undefined,
+  result: Map<string, number>,
+): void {
+  const def = CURVE_REGISTRY[curveName];
+  if (!def) {
+    // Unknown curve — fallback to linear
+    for (const [id, v] of rawValues) {
+      result.set(id, v * spacing);
+    }
+    return;
+  }
+  // Merge: defaults < transform params < user constants
+  const params = { ...def.defaultParams, ...transformParams, ...constants };
+  const scale = transformScale ?? 1;
+  // Normalize raw values to t ∈ [0, 1]
+  let min = Infinity, max = -Infinity;
+  for (const v of rawValues.values()) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  const range = max - min || 1;
+  for (const [id, v] of rawValues) {
+    const t = (v - min) / range;
+    result.set(id, def.fn(t, params) * scale * spacing);
+  }
+}
+
+/** TRANSFORM_EXPRESSION: evaluate a user-provided math expression per node */
+function transformExpression(
+  rawValues: Map<string, number>,
+  expr: string,
+  transformScale: number | undefined,
+  spacing: number,
+  constants: Record<string, number> | undefined,
+  result: Map<string, number>,
+): void {
+  const scale = transformScale ?? 1;
+  // Register constant names so the parser accepts them as variables
+  if (constants) setUserVars(new Set(Object.keys(constants)));
+  let ast: ExprNode;
+  try {
+    ast = parseExpr(expr);
+  } catch (parseErr) {
+    // Invalid expression — fallback to linear
+    // Invalid expression — fallback to linear spacing
+    for (const [id, v] of rawValues) {
+      result.set(id, v * spacing);
+    }
+    return;
+  }
+  // Normalize raw values to t ∈ [0, 1]
+  let min = Infinity, max = -Infinity;
+  for (const v of rawValues.values()) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  const range = max - min || 1;
+  const n = rawValues.size;
+  // Built-in mathematical & context constants
+  const builtins: Record<string, number> = { pi: Math.PI, e: Math.E, N: constants?.N ?? n };
+  // Lowercase constant keys to match the tokenizer's case normalization
+  const lcConsts: Record<string, number> = {};
+  if (constants) {
+    for (const [k, val] of Object.entries(constants)) {
+      lcConsts[k.toLowerCase()] = val as number;
+    }
+  }
+  let idx = 0;
+  for (const [id, v] of rawValues) {
+    const t = (v - min) / range;
+    const val = evalExpr(ast, { t, i: idx, n, v, ...builtins, ...lcConsts });
+    result.set(id, val * scale * spacing);
+    idx++;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -426,7 +659,7 @@ export function applyTransform(
   const result = new Map<string, number>();
 
   switch (transform.kind) {
-    case "linear": {
+    case TRANSFORM_LINEAR: {
       const scale = transform.scale;
       for (const [id, v] of rawValues) {
         result.set(id, v * scale * spacing);
@@ -434,25 +667,12 @@ export function applyTransform(
       break;
     }
 
-    case "bin": {
-      const count = Math.max(transform.count, 1);
-      let min = Infinity, max = -Infinity;
-      for (const v of rawValues.values()) {
-        if (v < min) min = v;
-        if (v > max) max = v;
-      }
-      const range = max - min || 1;
-      for (const [id, v] of rawValues) {
-        const bin = Math.min(Math.floor(((v - min) / range) * count), count - 1);
-        // Use (bin + 1) so that the lowest bin has non-zero spacing.
-        // This is essential for polar layouts where bin=0 → radius=0
-        // would collapse all lowest-value nodes to the center point.
-        result.set(id, (bin + 1) * spacing);
-      }
+    case TRANSFORM_BIN: {
+      transformBin(rawValues, transform.count, spacing, result);
       break;
     }
 
-    case "date-to-index": {
+    case TRANSFORM_DATE_INDEX: {
       // Sort by raw string value (dates sort lexicographically for ISO format)
       const entries = [...rawValues.entries()].sort((a, b) => a[1] - b[1]);
       for (let i = 0; i < entries.length; i++) {
@@ -461,105 +681,29 @@ export function applyTransform(
       break;
     }
 
-    case "golden-angle": {
-      const GOLDEN_ANGLE = 2.39996322972865332; // radians
+    case TRANSFORM_GOLDEN: {
       for (const [id, v] of rawValues) {
         result.set(id, v * GOLDEN_ANGLE);
       }
       break;
     }
 
-    case "even-divide": {
-      const totalRad = (transform.totalRange * Math.PI) / 180;
-      if (otherAxisValues && otherAxisValues.size > 0) {
-        // Per-ring even-divide: group nodes by their other-axis value (e.g. radius bin),
-        // then distribute angles evenly within each ring.
-        // This prevents the diagonal-stripe artifact where angle correlates with radius.
-        const rings = new Map<number, string[]>();
-        for (const [id] of rawValues) {
-          const ringVal = otherAxisValues.get(id) ?? 0;
-          if (!rings.has(ringVal)) rings.set(ringVal, []);
-          rings.get(ringVal)!.push(id);
-        }
-        // Rings grouped by other-axis value; each ring distributes angles evenly
-        for (const [, ids] of rings) {
-          const n = ids.length;
-          for (let i = 0; i < n; i++) {
-            result.set(ids[i], (i / n) * totalRad);
-          }
-        }
-      } else {
-        // Global even-divide: distribute all nodes across the full range
-        let maxVal = 0;
-        for (const v of rawValues.values()) {
-          if (v > maxVal) maxVal = v;
-        }
-        const divisor = maxVal > 0 ? maxVal + 1 : 1;
-        for (const [id, v] of rawValues) {
-          result.set(id, (v / divisor) * totalRad);
-        }
-      }
+    case TRANSFORM_EVEN_DIVIDE: {
+      transformEvenDivide(rawValues, transform.totalRange, otherAxisValues, result);
       break;
     }
 
-    case "stack-avoid": {
-      // Group nodes by their OTHER axis value (binned), then spread within each bin
-      if (!otherAxisValues) {
-        // Fallback: just use linear spacing
-        for (const [id, v] of rawValues) {
-          result.set(id, v * spacing);
-        }
-        break;
-      }
-
-      // Bin other-axis values to group nodes in same "column"
-      const bins = new Map<number, string[]>();
-      for (const [id] of rawValues) {
-        const otherVal = otherAxisValues.get(id) ?? 0;
-        // Round to nearest spacing unit to group nearby values
-        const binKey = Math.round(otherVal / (spacing || 1));
-        if (!bins.has(binKey)) bins.set(binKey, []);
-        bins.get(binKey)!.push(id);
-      }
-
-      // Within each bin, spread nodes vertically
-      for (const [, ids] of bins) {
-        const n = ids.length;
-        const offset = -(n - 1) / 2;
-        for (let i = 0; i < n; i++) {
-          result.set(ids[i], (offset + i) * spacing);
-        }
-      }
+    case TRANSFORM_STACK_AVOID: {
+      transformStackAvoid(rawValues, spacing, otherAxisValues, result);
       break;
     }
 
-    case "curve": {
-      const def = CURVE_REGISTRY[transform.curve];
-      if (!def) {
-        // Unknown curve — fallback to linear
-        for (const [id, v] of rawValues) {
-          result.set(id, v * spacing);
-        }
-        break;
-      }
-      // Merge: defaults < transform params < user constants
-      const params = { ...def.defaultParams, ...transform.params, ...constants };
-      const scale = transform.scale ?? 1;
-      // Normalize raw values to t ∈ [0, 1]
-      let min = Infinity, max = -Infinity;
-      for (const v of rawValues.values()) {
-        if (v < min) min = v;
-        if (v > max) max = v;
-      }
-      const range = max - min || 1;
-      for (const [id, v] of rawValues) {
-        const t = (v - min) / range;
-        result.set(id, def.fn(t, params) * scale * spacing);
-      }
+    case TRANSFORM_CURVE: {
+      transformCurve(rawValues, transform.curve, transform.scale, transform.params, spacing, constants, result);
       break;
     }
 
-    case "shape-fill": {
+    case TRANSFORM_SHAPE_FILL: {
       const n = rawValues.size;
       const coords = computeShapeFill(transform.shape, n, spacing);
       const ids = [...rawValues.keys()];
@@ -569,45 +713,8 @@ export function applyTransform(
       break;
     }
 
-    case "expression": {
-      const scale = transform.scale ?? 1;
-      // Register constant names so the parser accepts them as variables
-      if (constants) setUserVars(new Set(Object.keys(constants)));
-      let ast: ExprNode;
-      try {
-        ast = parseExpr(transform.expr);
-      } catch (parseErr) {
-        // Invalid expression — fallback to linear
-        // Invalid expression — fallback to linear spacing
-        for (const [id, v] of rawValues) {
-          result.set(id, v * spacing);
-        }
-        break;
-      }
-      // Normalize raw values to t ∈ [0, 1]
-      let min = Infinity, max = -Infinity;
-      for (const v of rawValues.values()) {
-        if (v < min) min = v;
-        if (v > max) max = v;
-      }
-      const range = max - min || 1;
-      const n = rawValues.size;
-      // Built-in mathematical & context constants
-      const builtins: Record<string, number> = { pi: Math.PI, e: Math.E, N: constants?.N ?? n };
-      // Lowercase constant keys to match the tokenizer's case normalization
-      const lcConsts: Record<string, number> = {};
-      if (constants) {
-        for (const [k, val] of Object.entries(constants)) {
-          lcConsts[k.toLowerCase()] = val as number;
-        }
-      }
-      let idx = 0;
-      for (const [id, v] of rawValues) {
-        const t = (v - min) / range;
-        const val = evalExpr(ast, { t, i: idx, n, v, ...builtins, ...lcConsts });
-        result.set(id, val * scale * spacing);
-        idx++;
-      }
+    case TRANSFORM_EXPRESSION: {
+      transformExpression(rawValues, transform.expr, transform.scale, spacing, constants, result);
       break;
     }
   }
@@ -665,6 +772,100 @@ export function toCartesian(
 }
 
 // ---------------------------------------------------------------------------
+// Grid resolution for coordinateOffsets
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve and attach grid info (axis lines, shapes, shading) to the guide.
+ * Always generates gridInfo so axis labels/ticks render even without explicit
+ * grid configuration. When layout.grid is absent, uses a default "lines" style.
+ */
+function resolveCoordinateGrid(
+  layout: CoordinateLayout,
+  members: GraphNode[],
+  ctx: CoordinateContext,
+  finalT1: Map<string, number>,
+  t2: Map<string, number>,
+  spacing: number,
+  offsets: Map<string, { dx: number; dy: number }>,
+  guide: CoordinateGuide,
+): void {
+  const effectiveGrid = layout.grid ?? { style: "lines" as const };
+  const defaultShape1: GridShape = layout.system === "polar"
+    ? { kind: "circle" } : { kind: "line" };
+  const defaultShape2: GridShape = layout.system === "polar"
+    ? { kind: "radial" } : { kind: "line" };
+
+  const axis1Grid = effectiveGrid.axis1Grid ?? {
+    positions: { kind: "auto" as const },
+    shape: defaultShape1,
+    ticks: { show: true, labels: { kind: "auto" as const } },
+  };
+  const axis2Grid = effectiveGrid.axis2Grid ?? {
+    positions: { kind: "auto" as const },
+    shape: defaultShape2,
+    ticks: { show: true, labels: { kind: "auto" as const } },
+  };
+
+  // Compute centroid shift applied by toCartesian() so grid lines align
+  // with actual node positions after normalization.
+  let centroidShift1 = 0, centroidShift2 = 0;
+  if (layout.system === "cartesian" && offsets.size > 0) {
+    let sum1 = 0, sum2 = 0, count = 0;
+    for (const [id] of finalT1) {
+      sum1 += finalT1.get(id) ?? 0;
+      sum2 += t2.get(id) ?? 0;
+      count++;
+    }
+    if (count > 0) {
+      centroidShift1 = sum1 / count;
+      centroidShift2 = sum2 / count;
+    }
+  }
+
+  const gridStyle = effectiveGrid.style ?? "lines";
+  const rawAxis1Lines = resolveGridLines(
+    axis1Grid, layout.axis1.source, members, ctx,
+    finalT1, spacing, layout.constants, gridStyle,
+  );
+  const rawAxis2Lines = resolveGridLines(
+    axis2Grid, layout.axis2.source, members, ctx,
+    t2, spacing, layout.constants, gridStyle,
+  );
+
+  // Apply centroid shift to grid line positions
+  const axis1Lines = rawAxis1Lines.map(l => ({
+    ...l,
+    position: l.position - centroidShift1,
+  }));
+  const axis2Lines = rawAxis2Lines.map(l => ({
+    ...l,
+    position: l.position - centroidShift2,
+  }));
+
+  guide.gridInfo = {
+    axis1Lines,
+    axis2Lines,
+    axis1Shape: axis1Grid.shape,
+    axis2Shape: axis2Grid.shape,
+    style: effectiveGrid.style,
+    cellShading: effectiveGrid.cellShading ?? false,
+  };
+
+  // Extend bounds to cover all grid line positions so lines aren't clipped
+  if (guide.bounds) {
+    for (const l of axis1Lines) {
+      if (l.position < guide.bounds.xMin) guide.bounds.xMin = l.position;
+      if (l.position > guide.bounds.xMax) guide.bounds.xMax = l.position;
+    }
+    for (const l of axis2Lines) {
+      if (l.position < guide.bounds.yMin) guide.bounds.yMin = l.position;
+      if (l.position > guide.bounds.yMax) guide.bounds.yMax = l.position;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
@@ -708,14 +909,14 @@ export function coordinateOffsets(
   // For stack-avoid and even-divide on axis2, pass transformed axis1 values.
   // even-divide uses other-axis values to distribute nodes per-ring (prevents
   // diagonal-stripe artifacts in polar layouts like concentric).
-  const axis2NeedsOther = layout.axis2.transform.kind === "stack-avoid"
-    || layout.axis2.transform.kind === "even-divide";
+  const axis2NeedsOther = layout.axis2.transform.kind === TRANSFORM_STACK_AVOID
+    || layout.axis2.transform.kind === TRANSFORM_EVEN_DIVIDE;
   const t2 = axis2NeedsOther
     ? applyTransform(raw2, layout.axis2.transform, axis2Spacing, t1, userConsts)
     : applyTransform(raw2, layout.axis2.transform, axis2Spacing, undefined, userConsts);
 
   // Similarly for axis1 if it has stack-avoid (unusual but supported)
-  const finalT1 = layout.axis1.transform.kind === "stack-avoid"
+  const finalT1 = layout.axis1.transform.kind === TRANSFORM_STACK_AVOID
     ? applyTransform(raw1, layout.axis1.transform, spacing, t2, userConsts)
     : t1;
 
@@ -735,7 +936,7 @@ export function coordinateOffsets(
   }
 
   const guide: CoordinateGuide = {
-    type: "coordinate",
+    type: GUIDE_TYPE_COORDINATE,
     system: layout.system,
     axis1Label: describeAxis(layout.axis1),
     axis2Label: describeAxis(layout.axis2),
@@ -745,86 +946,106 @@ export function coordinateOffsets(
   };
 
   // Resolve grid info for axis labels and tick marks.
-  // Always generate gridInfo for coordinate layouts so axis labels/ticks render
-  // even without explicit grid configuration (gridTableMode).
-  // When layout.grid is absent, use a default "lines" style grid.
-  const effectiveGrid = layout.grid ?? { style: "lines" as const };
   if (offsets.size > 0) {
-    const defaultShape1: GridShape = layout.system === "polar"
-      ? { kind: "circle" } : { kind: "line" };
-    const defaultShape2: GridShape = layout.system === "polar"
-      ? { kind: "radial" } : { kind: "line" };
-
-    const axis1Grid = effectiveGrid.axis1Grid ?? {
-      positions: { kind: "auto" as const },
-      shape: defaultShape1,
-      ticks: { show: true, labels: { kind: "auto" as const } },
-    };
-    const axis2Grid = effectiveGrid.axis2Grid ?? {
-      positions: { kind: "auto" as const },
-      shape: defaultShape2,
-      ticks: { show: true, labels: { kind: "auto" as const } },
-    };
-
-    // Compute centroid shift applied by toCartesian() so grid lines align
-    // with actual node positions after normalization.
-    let centroidShift1 = 0, centroidShift2 = 0;
-    if (layout.system === "cartesian" && offsets.size > 0) {
-      let sum1 = 0, sum2 = 0, count = 0;
-      for (const [id] of finalT1) {
-        sum1 += finalT1.get(id) ?? 0;
-        sum2 += t2.get(id) ?? 0;
-        count++;
-      }
-      if (count > 0) {
-        centroidShift1 = sum1 / count;
-        centroidShift2 = sum2 / count;
-      }
-    }
-
-    const gridStyle = effectiveGrid.style ?? "lines";
-    const rawAxis1Lines = resolveGridLines(
-      axis1Grid, layout.axis1.source, members, ctx,
-      finalT1, spacing, layout.constants, gridStyle,
+    resolveCoordinateGrid(
+      layout, members, ctx, finalT1, t2, spacing, offsets, guide,
     );
-    const rawAxis2Lines = resolveGridLines(
-      axis2Grid, layout.axis2.source, members, ctx,
-      t2, spacing, layout.constants, gridStyle,
-    );
-
-    // Apply centroid shift to grid line positions
-    const axis1Lines = rawAxis1Lines.map(l => ({
-      ...l,
-      position: l.position - centroidShift1,
-    }));
-    const axis2Lines = rawAxis2Lines.map(l => ({
-      ...l,
-      position: l.position - centroidShift2,
-    }));
-
-    guide.gridInfo = {
-      axis1Lines,
-      axis2Lines,
-      axis1Shape: axis1Grid.shape,
-      axis2Shape: axis2Grid.shape,
-      style: effectiveGrid.style,
-      cellShading: effectiveGrid.cellShading ?? false,
-    };
-
-    // Extend bounds to cover all grid line positions so lines aren't clipped
-    if (guide.bounds) {
-      for (const l of axis1Lines) {
-        if (l.position < guide.bounds.xMin) guide.bounds.xMin = l.position;
-        if (l.position > guide.bounds.xMax) guide.bounds.xMax = l.position;
-      }
-      for (const l of axis2Lines) {
-        if (l.position < guide.bounds.yMin) guide.bounds.yMin = l.position;
-        if (l.position > guide.bounds.yMax) guide.bounds.yMax = l.position;
-      }
-    }
   }
 
   return { offsets, guide };
+}
+
+// ---------------------------------------------------------------------------
+// Grid resolution — helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert N category center positions into N+1 cell boundary positions
+ * for table-style grids (cell walls with nodes inside cells).
+ */
+function categoryToBoundaries(
+  centers: number[],
+  spacing: number,
+): number[] {
+  const boundaries: number[] = [];
+  const halfFirst = centers.length > 1
+    ? (centers[1] - centers[0]) / 2
+    : spacing / 2;
+  boundaries.push(centers[0] - halfFirst);
+  for (let i = 0; i + 1 < centers.length; i++) {
+    boundaries.push((centers[i] + centers[i + 1]) / 2);
+  }
+  const halfLast = centers.length > 1
+    ? (centers[centers.length - 1] - centers[centers.length - 2]) / 2
+    : spacing / 2;
+  boundaries.push(centers[centers.length - 1] + halfLast);
+  return boundaries;
+}
+
+/**
+ * Resolve category-based grid positions, applying table-boundary conversion
+ * when gridStyle === "table".
+ */
+function resolveCategoryGridPositions(
+  catPositions: { position: number; label: string }[],
+  gridStyle: string | undefined,
+  spacing: number,
+): { linePositions: number[]; autoLabels: string[] | undefined } {
+  if (catPositions.length === 0) {
+    return { linePositions: [], autoLabels: undefined };
+  }
+  if (gridStyle === "table") {
+    const centers = catPositions.map(c => c.position);
+    const boundaries = categoryToBoundaries(centers, spacing);
+    // N labels for N cells (placed "between" pairs of N+1 boundary lines)
+    return { linePositions: boundaries, autoLabels: catPositions.map(c => c.label) };
+  }
+  // Lines style: grid lines at category centers (original behavior)
+  return {
+    linePositions: catPositions.map(c => c.position),
+    autoLabels: catPositions.map(c => c.label),
+  };
+}
+
+/** Resolve grid positions for the "expression" kind */
+function resolveExpressionGridPositions(
+  expr: string,
+  tMin: number,
+  tRange: number,
+  constants: Record<string, number> | undefined,
+  ctx: CoordinateContext,
+): number[] {
+  let linePositions: number[] = [];
+  try {
+    if (constants) setUserVars(new Set(Object.keys(constants)));
+    const ast = parseExpr(expr);
+    // Lowercase constant keys for tokenizer compatibility
+    const lcGridConsts: Record<string, number> = {};
+    if (constants) {
+      for (const [k, val2] of Object.entries(constants)) {
+        lcGridConsts[k.toLowerCase()] = val2 as number;
+      }
+    }
+    // Generate positions: evaluate expr for t in [0, 1] with 20 sample points
+    const samples = GRID_EXPR_SAMPLES;
+    for (let i = 0; i <= samples; i++) {
+      const t = i / samples;
+      const val = evalExpr(ast, {
+        t, i, n: samples + 1, v: tMin + t * tRange,
+        ...lcGridConsts,
+      });
+      linePositions.push(val);
+    }
+    // Deduplicate and sort
+    linePositions = [...new Set(linePositions.map(v => Math.round(v * GRID_DEDUP_PRECISION) / GRID_DEDUP_PRECISION))].sort((a, b) => a - b);
+  } catch {
+    // Invalid expr — fall back to configurable divisions
+    const fallbackDivs = ctx.coordinateGridDivisions ?? DEFAULT_RENDER_THRESHOLDS.coordinateGridDivisions;
+    for (let i = 0; i <= fallbackDivs; i++) {
+      linePositions.push(tMin + (tRange / fallbackDivs) * i);
+    }
+  }
+  return linePositions;
 }
 
 // ---------------------------------------------------------------------------
@@ -841,7 +1062,7 @@ export function resolveAxisCategories(
   source: AxisSource,
   ctx: CoordinateContext,
 ): string[] | undefined {
-  if (source.kind === "field") {
+  if (source.kind === SOURCE_FIELD) {
     const rawValues: string[] = [];
     for (const m of members) {
       const vals = getNodeFieldValues(m, source.field);
@@ -853,7 +1074,7 @@ export function resolveAxisCategories(
     }
     return undefined; // numeric field → continuous
   }
-  if (source.kind === "property") {
+  if (source.kind === SOURCE_PROPERTY) {
     const rawValues: string[] = [];
     for (const m of members) {
       let val: string | undefined;
@@ -908,34 +1129,12 @@ function resolveGridLines(
     case "auto": {
       const cats = resolveAxisCategories(members, axisSource, ctx);
       if (cats) {
-        // Category-based: collect unique transformed values per category
         const catPositions = collectCategoryPositions(
           members, axisSource, ctx, transformedValues,
         );
-        if (catPositions.length > 0 && gridStyle === "table") {
-          // Table style: convert N category centers → N+1 cell boundaries
-          // so grid lines form cell walls with nodes inside cells
-          const centers = catPositions.map(c => c.position);
-          const boundaries: number[] = [];
-          const halfFirst = centers.length > 1
-            ? (centers[1] - centers[0]) / 2
-            : spacing / 2;
-          boundaries.push(centers[0] - halfFirst);
-          for (let i = 0; i + 1 < centers.length; i++) {
-            boundaries.push((centers[i] + centers[i + 1]) / 2);
-          }
-          const halfLast = centers.length > 1
-            ? (centers[centers.length - 1] - centers[centers.length - 2]) / 2
-            : spacing / 2;
-          boundaries.push(centers[centers.length - 1] + halfLast);
-          linePositions = boundaries;
-          // N labels for N cells (placed "between" pairs of N+1 boundary lines)
-          autoLabels = catPositions.map(c => c.label);
-        } else if (catPositions.length > 0) {
-          // Lines style: grid lines at category centers (original behavior)
-          linePositions = catPositions.map(c => c.position);
-          autoLabels = catPositions.map(c => c.label);
-        }
+        const resolved = resolveCategoryGridPositions(catPositions, gridStyle, spacing);
+        linePositions = resolved.linePositions;
+        autoLabels = resolved.autoLabels;
       } else {
         // Continuous: equal divisions (configurable)
         const divs = ctx.coordinateGridDivisions ?? DEFAULT_RENDER_THRESHOLDS.coordinateGridDivisions;
@@ -964,89 +1163,29 @@ function resolveGridLines(
       break;
     }
     case "field": {
-      const fieldSource: AxisSource = { kind: "field", field: positions.field };
+      const fieldSource: AxisSource = { kind: SOURCE_FIELD, field: positions.field };
       const catPositions = collectCategoryPositions(
         members, fieldSource, ctx, transformedValues,
       );
-      if (catPositions.length > 0 && gridStyle === "table") {
-        const centers = catPositions.map(c => c.position);
-        const boundaries: number[] = [];
-        const halfFirst = centers.length > 1
-          ? (centers[1] - centers[0]) / 2
-          : spacing / 2;
-        boundaries.push(centers[0] - halfFirst);
-        for (let i = 0; i + 1 < centers.length; i++) {
-          boundaries.push((centers[i] + centers[i + 1]) / 2);
-        }
-        const halfLast = centers.length > 1
-          ? (centers[centers.length - 1] - centers[centers.length - 2]) / 2
-          : spacing / 2;
-        boundaries.push(centers[centers.length - 1] + halfLast);
-        linePositions = boundaries;
-        autoLabels = catPositions.map(c => c.label);
-      } else if (catPositions.length > 0) {
-        linePositions = catPositions.map(c => c.position);
-        autoLabels = catPositions.map(c => c.label);
-      }
+      const resolved = resolveCategoryGridPositions(catPositions, gridStyle, spacing);
+      linePositions = resolved.linePositions;
+      autoLabels = resolved.autoLabels;
       break;
     }
     case "property": {
-      const propSource: AxisSource = { kind: "property", key: positions.key };
+      const propSource: AxisSource = { kind: SOURCE_PROPERTY, key: positions.key };
       const catPositions = collectCategoryPositions(
         members, propSource, ctx, transformedValues,
       );
-      if (catPositions.length > 0 && gridStyle === "table") {
-        const centers = catPositions.map(c => c.position);
-        const boundaries: number[] = [];
-        const halfFirst = centers.length > 1
-          ? (centers[1] - centers[0]) / 2
-          : spacing / 2;
-        boundaries.push(centers[0] - halfFirst);
-        for (let i = 0; i + 1 < centers.length; i++) {
-          boundaries.push((centers[i] + centers[i + 1]) / 2);
-        }
-        const halfLast = centers.length > 1
-          ? (centers[centers.length - 1] - centers[centers.length - 2]) / 2
-          : spacing / 2;
-        boundaries.push(centers[centers.length - 1] + halfLast);
-        linePositions = boundaries;
-        autoLabels = catPositions.map(c => c.label);
-      } else if (catPositions.length > 0) {
-        linePositions = catPositions.map(c => c.position);
-        autoLabels = catPositions.map(c => c.label);
-      }
+      const resolved = resolveCategoryGridPositions(catPositions, gridStyle, spacing);
+      linePositions = resolved.linePositions;
+      autoLabels = resolved.autoLabels;
       break;
     }
     case "expression": {
-      try {
-        if (constants) setUserVars(new Set(Object.keys(constants)));
-        const ast = parseExpr(positions.expr);
-        // Lowercase constant keys for tokenizer compatibility
-        const lcGridConsts: Record<string, number> = {};
-        if (constants) {
-          for (const [k, val2] of Object.entries(constants)) {
-            lcGridConsts[k.toLowerCase()] = val2 as number;
-          }
-        }
-        // Generate positions: evaluate expr for t in [0, 1] with 20 sample points
-        const samples = 20;
-        for (let i = 0; i <= samples; i++) {
-          const t = i / samples;
-          const val = evalExpr(ast, {
-            t, i, n: samples + 1, v: tMin + t * tRange,
-            ...lcGridConsts,
-          });
-          linePositions.push(val);
-        }
-        // Deduplicate and sort
-        linePositions = [...new Set(linePositions.map(v => Math.round(v * 1000) / 1000))].sort((a, b) => a - b);
-      } catch {
-        // Invalid expr — fall back to configurable divisions
-        const fallbackDivs = ctx.coordinateGridDivisions ?? DEFAULT_RENDER_THRESHOLDS.coordinateGridDivisions;
-        for (let i = 0; i <= fallbackDivs; i++) {
-          linePositions.push(tMin + (tRange / fallbackDivs) * i);
-        }
-      }
+      linePositions = resolveExpressionGridPositions(
+        positions.expr, tMin, tRange, constants, ctx,
+      );
       break;
     }
   }
@@ -1065,7 +1204,7 @@ function resolveGridLines(
       break;
     case "field": {
       const fieldCats = resolveAxisCategories(
-        members, { kind: "field", field: labelSource.field }, ctx,
+        members, { kind: SOURCE_FIELD, field: labelSource.field }, ctx,
       );
       if (fieldCats) labels = fieldCats;
       break;
@@ -1093,10 +1232,10 @@ function collectCategoryPositions(
   // Group nodes by raw value (category index)
   const groups = new Map<number, { ids: string[]; label: string }>();
 
-  if (source.kind === "field" || source.kind === "property") {
+  if (source.kind === SOURCE_FIELD || source.kind === SOURCE_PROPERTY) {
     const rawEntries: { id: string; raw: string }[] = [];
     for (const m of members) {
-      if (source.kind === "field") {
+      if (source.kind === SOURCE_FIELD) {
         const vals = getNodeFieldValues(m, source.field);
         rawEntries.push({ id: m.id, raw: vals[0] ?? "" });
       } else {
@@ -1147,7 +1286,7 @@ function collectCategoryPositions(
 function formatGridValue(v: number, spacing: number): string {
   if (spacing > 0) {
     const normalized = v / spacing;
-    if (Math.abs(normalized - Math.round(normalized)) < 0.01) {
+    if (Math.abs(normalized - Math.round(normalized)) < FORMAT_INTEGER_THRESHOLD) {
       return String(Math.round(normalized));
     }
   }
@@ -1163,11 +1302,11 @@ interface Point2D { x: number; y: number; }
 /** Dispatch to shape-specific packing function */
 function computeShapeFill(shape: ShapeFillKind, n: number, sp: number): Point2D[] {
   switch (shape) {
-    case "square":   return squareFill(n, sp);
-    case "triangle": return triangleFill(n, sp);
-    case "hexagon":  return hexagonFill(n, sp);
-    case "diamond":  return diamondFill(n, sp);
-    case "circle":   return circleFill(n, sp);
+    case SHAPE_FILL_SQUARE:   return squareFill(n, sp);
+    case SHAPE_FILL_TRIANGLE: return triangleFill(n, sp);
+    case SHAPE_FILL_HEXAGON:  return hexagonFill(n, sp);
+    case SHAPE_FILL_DIAMOND:  return diamondFill(n, sp);
+    case SHAPE_FILL_CIRCLE:   return circleFill(n, sp);
   }
 }
 
@@ -1281,7 +1420,6 @@ function diamondFill(n: number, sp: number): Point2D[] {
  * r = sp * sqrt(i), angle = i * GOLDEN_ANGLE, convert to (x,y).
  */
 function circleFill(n: number, sp: number): Point2D[] {
-  const GOLDEN_ANGLE = 2.39996322972865332;
   const pts: Point2D[] = [];
   for (let i = 0; i < n; i++) {
     const r = sp * Math.sqrt(i);

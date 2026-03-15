@@ -1,5 +1,17 @@
 import type { GraphData } from "../types";
 
+/**
+ * Extract node ID from a d3-force edge endpoint.
+ * During simulation, d3 replaces string IDs with node objects.
+ */
+export function edgeSourceId(e: { source: string | { id: string } }): string {
+  return typeof e.source === "string" ? e.source : e.source.id;
+}
+
+export function edgeTargetId(e: { target: string | { id: string } }): string {
+  return typeof e.target === "string" ? e.target : e.target.id;
+}
+
 export function yieldFrame(): Promise<void> {
   return new Promise((r) => requestAnimationFrame(() => r()));
 }

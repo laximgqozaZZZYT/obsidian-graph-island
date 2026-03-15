@@ -207,7 +207,7 @@ function needsImplicitMul(left: Token, right: Token): boolean {
 //   unary: -
 //   primary: number, variable, constant, function call, (expr)
 
-export class ExprError extends Error {
+class ExprError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "ExprError";

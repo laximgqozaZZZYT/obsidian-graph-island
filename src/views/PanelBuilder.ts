@@ -1,4 +1,4 @@
-import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings, OntologyRule, OntologyRelation, CoordinateLayout, CoordinateSystem, AxisSource, AxisConfig, AxisTransform, CurveKind, ClusterGravityConfig, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, EdgeCardinalityMode, CardinalityRule, CardRenderConfig, CardinalityRenderConfig, RenderThresholds } from "../types";
+import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings, OntologyRule, OntologyRelation, CoordinateLayout, CoordinateSystem, AxisSource, AxisConfig, AxisTransform, CurveKind, ClusterGravityConfig, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, EdgeCardinalityMode, CardinalityRule, CardRenderConfig, CardinalityRenderConfig, RenderThresholds } from "../types";
 import { DEFAULT_CARD_RENDER_CONFIG, DEFAULT_CARDINALITY_RENDER_CONFIG, DEFAULT_RENDER_THRESHOLDS } from "../types";
 import { ontologyToRules, rulesToOntologyFields } from "../types";
 import { DEFAULT_COLORS } from "../types";
@@ -14,11 +14,16 @@ import { showToast } from "../utils/toast";
 import { ARRANGEMENT_PRESETS, findMatchingPreset, CURVE_REGISTRY } from "../layouts/coordinate-presets";
 import { validateExpr, parseExpr, evalExpr, setUserVars, type ExprNode } from "../utils/expr-eval";
 import { parseTransformExpr, transformExprToString, getTransformExprSuggestions, TRANSFORM_FUNCTION_NAMES } from "../utils/transform-expr";
+import {
+  TAG_DISPLAY_ENCLOSURE, TAG_DISPLAY_NODE,
+  ARRANGEMENT_CONCENTRIC, ARRANGEMENT_TIMELINE,
+  SOURCE_PROPERTY, TRANSFORM_EVEN_DIVIDE, EDGE_TYPE_INHERITANCE,
+} from "../constants";
 
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
 // ---------------------------------------------------------------------------
-export interface GroupByRule { field: string; op?: string; indent?: number; recursive?: boolean; }
+interface GroupByRule { field: string; op?: string; indent?: number; recursive?: boolean; }
 
 export interface PanelState {
   showTags: boolean;
@@ -58,6 +63,9 @@ export interface PanelState {
   commonQueries: { query: string; recursive: boolean }[];
   clusterGroupRules: ClusterGroupRule[];
   clusterArrangement: ClusterArrangement;
+  /** Inter-group layout: how groups are positioned relative to each other.
+   *  "auto" derives from clusterArrangement (legacy behavior). */
+  clusterGroupArrangement: ClusterGroupArrangement;
   clusterNodeSpacing: number;
   clusterGroupScale: number;
   clusterGroupSpacing: number;
@@ -83,6 +91,8 @@ export interface PanelState {
   autoFit: boolean;
   /** Show duration bars on timeline arrangement */
   showDurationBars: boolean;
+  /** Show per-group route lines on timeline arrangement (transit map style) */
+  showTimelineRoutes: boolean;
   /** Frontmatter field for timeline end date */
   timelineEndKey: string;
   /** Show arrangement guide lines */
@@ -91,7 +101,7 @@ export interface PanelState {
   guideLineMode: "shared" | "per-group";
   /** Show a grid/boundary overlay per cluster group */
   showGroupGrid: boolean;
-  /** Comma-separated fields for link-based ordering (next,prev,parent_id,story_order) */
+  /** Comma-separated fields for hierarchy-based ordering (e.g. parent_id,story_order). Sequence fields (next/prev) come from ontology settings. */
   timelineOrderFields: string;
   /** Coordinate layout override — when set, takes precedence over clusterArrangement */
   coordinateLayout: CoordinateLayout | null;
@@ -182,7 +192,7 @@ export const DEFAULT_PANEL: PanelState = {
   showInheritance: true,
   showAggregation: true,
   showTagNodes: true,
-  tagDisplay: "enclosure" as const,
+  tagDisplay: TAG_DISPLAY_ENCLOSURE,
   showSimilar: false,
   showSibling: true,
   showSequence: true,
@@ -196,6 +206,7 @@ export const DEFAULT_PANEL: PanelState = {
   commonQueries: [],
   clusterGroupRules: [],
   clusterArrangement: "grid" as ClusterArrangement,
+  clusterGroupArrangement: "auto" as ClusterGroupArrangement,
   clusterNodeSpacing: 3.0,
   clusterGroupScale: 3.0,
   clusterGroupSpacing: 2.0,
@@ -219,11 +230,12 @@ export const DEFAULT_PANEL: PanelState = {
   activeTab: "filter" as const,
   autoFit: false,
   showDurationBars: true,
+  showTimelineRoutes: true,
   timelineEndKey: "end-date",
   showGuideLines: true,
   guideLineMode: "per-group" as const,
   showGroupGrid: true,
-  timelineOrderFields: "next,prev,parent_id,story_order",
+  timelineOrderFields: "",
   coordinateLayout: null,
   showDotGrid: true,
   timelineRangeMin: 0,
@@ -505,7 +517,7 @@ export function buildPanel(
       { value: "enclosure", label: t("filter.tagDisplay.enclosure") },
     ], !panel.showTagNodes ? "off" : panel.tagDisplay, (v) => {
       panel.showTagNodes = v !== "off";
-      panel.tagDisplay = v === "enclosure" ? "enclosure" : "node";
+      panel.tagDisplay = v === TAG_DISPLAY_ENCLOSURE ? TAG_DISPLAY_ENCLOSURE : TAG_DISPLAY_NODE;
       cb.invalidateData();
     });
     // Dataview query filter
@@ -803,7 +815,7 @@ export function buildPanel(
     });
 
     // Concentric orbit options
-    if (panel.clusterArrangement === "concentric") {
+    if (panel.clusterArrangement === ARRANGEMENT_CONCENTRIC) {
       addToggle(body, t("concentric.showOrbitRings"), panel.showOrbitRings, (v) => {
         panel.showOrbitRings = v;
         cb.markDirty();
@@ -858,7 +870,7 @@ export function buildPanel(
       cb.restartSimulation(0.5);
     });
 
-    if (coordLayout.system === "polar" && coordLayout.axis2.transform.kind === "even-divide") {
+    if (coordLayout.system === "polar" && coordLayout.axis2.transform.kind === TRANSFORM_EVEN_DIVIDE) {
       addSlider(body, `${axis2Label} ${t("coord.range")} (°)`, 30, 360, 10,
         coordLayout.axis2.transform.totalRange, (v) => {
         const base = panel.coordinateLayout
@@ -878,9 +890,9 @@ export function buildPanel(
 
     // Timeline-specific: time key input
     const effectiveLayout = panel.coordinateLayout ?? ARRANGEMENT_PRESETS[panel.clusterArrangement];
-    const hasPropertyAxis = effectiveLayout.axis1.source.kind === "property"
-      || effectiveLayout.axis2.source.kind === "property";
-    if (panel.clusterArrangement === "timeline" || hasPropertyAxis) {
+    const hasPropertyAxis = effectiveLayout.axis1.source.kind === SOURCE_PROPERTY
+      || effectiveLayout.axis2.source.kind === SOURCE_PROPERTY;
+    if (panel.clusterArrangement === ARRANGEMENT_TIMELINE || hasPropertyAxis) {
       const row = body.createDiv({ cls: "gi-setting-row" });
       row.createEl("span", { cls: "gi-setting-label", text: t("timeline.timeKey") });
       const input = row.createEl("input", { cls: "gi-setting-input", type: "text" });
@@ -915,6 +927,12 @@ export function buildPanel(
         cb.markDirty();
       });
 
+      // Timeline route lines toggle
+      addToggle(body, t("timeline.showRoutes"), panel.showTimelineRoutes, (v) => {
+        panel.showTimelineRoutes = v;
+        cb.markDirty();
+      });
+
       // Timeline tick labels toggle
       addToggle(body, t("timeline.showTickLabels"), panel.showTimelineTickLabels, (v) => {
         panel.showTimelineTickLabels = v;
@@ -926,10 +944,10 @@ export function buildPanel(
       orderRow.createEl("span", { cls: "gi-setting-label", text: t("timeline.orderFields") });
       const orderInput = orderRow.createEl("input", { cls: "gi-setting-input", type: "text" });
       orderInput.value = panel.timelineOrderFields;
-      orderInput.placeholder = "next,prev,parent_id,story_order";
+      orderInput.placeholder = "parent_id,story_order";
       orderInput.setAttribute("aria-label", t("timeline.orderFieldsHint"));
       orderInput.addEventListener("change", () => {
-        panel.timelineOrderFields = orderInput.value.trim() || "next,prev,parent_id,story_order";
+        panel.timelineOrderFields = orderInput.value.trim();
         cb.applyClusterForce();
         cb.restartSimulation(0.5);
       });
@@ -968,7 +986,7 @@ export function buildPanel(
     });
 
     // Guide line mode (only for timeline)
-    if (panel.clusterArrangement === "timeline") {
+    if (panel.clusterArrangement === ARRANGEMENT_TIMELINE) {
       addSelect(body, t("cluster.guideLineMode"), [
         { value: "shared", label: t("cluster.guideLineMode.shared") },
         { value: "per-group", label: t("cluster.guideLineMode.perGroup") },
@@ -1058,6 +1076,20 @@ export function buildPanel(
       panel.clusterNodeSpacing = v;
       debouncedClusterForce();
     }));
+    // Inter-group arrangement dropdown
+    addSelect(body, t("cluster.groupArrangement"), [
+      { value: "auto", label: t("cluster.groupArrangementAuto") },
+      { value: "circle", label: t("cluster.groupArrangementCircle") },
+      { value: "horizontal", label: t("cluster.groupArrangementHorizontal") },
+      { value: "vertical", label: t("cluster.groupArrangementVertical") },
+      { value: "concentric", label: t("cluster.groupArrangementConcentric") },
+      { value: "grid", label: t("cluster.groupArrangementGrid") },
+    ], panel.clusterGroupArrangement, (v) => {
+      panel.clusterGroupArrangement = v as ClusterGroupArrangement;
+      cb.applyClusterForce();
+      cb.restartSimulation(1.0);
+    });
+
     spacingSliders.push(addSlider(body, t("cluster.groupSize"), 0.5, 5, 0.25, panel.clusterGroupScale, (v) => {
       panel.clusterGroupScale = v;
       debouncedClusterForce();
@@ -1209,7 +1241,7 @@ export function buildPanel(
       cb.invalidateData();
     });
 
-    if (panel.showTagNodes && panel.tagDisplay === "enclosure") {
+    if (panel.showTagNodes && panel.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
       addSlider(body, t("settings.enclosureMinRatio"), 0, 0.3, 0.02, s.enclosureMinRatio, (v) => {
         s.enclosureMinRatio = v;
         ctx.saveSettings();
@@ -2611,7 +2643,7 @@ function parseGroupByRules(groupBy: string): GroupByRule[] {
 }
 
 /** Derive clusterGroupRules from groupByRules (used in follow mode). */
-export function deriveClusterRulesFromGroupBy(rules: GroupByRule[]): ClusterGroupRule[] {
+function deriveClusterRulesFromGroupBy(rules: GroupByRule[]): ClusterGroupRule[] {
   return rules
     .filter(r => r.field.trim() !== "")
     .map(r => ({
@@ -2807,7 +2839,7 @@ function renderCustomMappings(
 
   const addBtn = container.createEl("button", { cls: "gi-add-group", text: t("settings.addMapping") });
   addBtn.addEventListener("click", () => {
-    s.ontology.customMappings[""] = "inheritance";
+    s.ontology.customMappings[""] = EDGE_TYPE_INHERITANCE;
     renderCustomMappings(container, s, ctx, cb);
   });
 }
@@ -2864,7 +2896,7 @@ function renderTagRelations(
 
   const addBtn = container.createEl("button", { cls: "gi-add-group", text: t("settings.addTagRelation") });
   addBtn.addEventListener("click", () => {
-    s.ontology.tagRelations.push({ source: "", target: "", type: "inheritance" });
+    s.ontology.tagRelations.push({ source: "", target: "", type: EDGE_TYPE_INHERITANCE });
     renderTagRelations(container, s, ctx, cb);
   });
 }

@@ -1,5 +1,50 @@
 export type Pt = { x: number; y: number };
 
+export interface BBox {
+  minX: number; minY: number; maxX: number; maxY: number;
+}
+
+export interface BBoxWithCentroid extends BBox {
+  cx: number; cy: number; count: number;
+}
+
+/**
+ * Compute axis-aligned bounding box for a collection of points.
+ */
+export function computeBoundingBox(points: Iterable<{x: number; y: number}>): BBox {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+/**
+ * Compute bounding box together with centroid and point count.
+ */
+export function computeBBoxWithCentroid(points: Iterable<{x: number; y: number}>): BBoxWithCentroid {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let sx = 0, sy = 0, cnt = 0;
+  for (const p of points) {
+    sx += p.x; sy += p.y; cnt++;
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return { minX, minY, maxX, maxY, cx: cnt ? sx / cnt : 0, cy: cnt ? sy / cnt : 0, count: cnt };
+}
+
+/**
+ * Clamp a numeric value to the range [min, max].
+ */
+export function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
 /**
  * Compute the convex hull of a set of 2D points using Andrew's monotone chain.
  * Returns vertices in counter-clockwise order.
@@ -31,44 +76,3 @@ export function convexHull(points: Pt[]): Pt[] {
   return lower.concat(upper);
 }
 
-/**
- * Expand a convex hull outward by `pad` pixels along the bisector at each vertex.
- */
-export function expandHull(hull: Pt[], pad: number): Pt[] {
-  if (hull.length < 3) {
-    return hull.map((p) => ({ x: p.x, y: p.y }));
-  }
-  const n = hull.length;
-  const result: Pt[] = [];
-  for (let i = 0; i < n; i++) {
-    const prev = hull[(i - 1 + n) % n];
-    const cur = hull[i];
-    const next = hull[(i + 1) % n];
-    const dx1 = cur.x - prev.x, dy1 = cur.y - prev.y;
-    const dx2 = next.x - cur.x, dy2 = next.y - cur.y;
-    const len1 = Math.hypot(dx1, dy1) || 1;
-    const len2 = Math.hypot(dx2, dy2) || 1;
-    const nx1 = -dy1 / len1, ny1 = dx1 / len1;
-    const nx2 = -dy2 / len2, ny2 = dx2 / len2;
-    let bx = nx1 + nx2, by = ny1 + ny2;
-    const blen = Math.hypot(bx, by) || 1;
-    bx /= blen;
-    by /= blen;
-    result.push({ x: cur.x + bx * pad, y: cur.y + by * pad });
-  }
-  return result;
-}
-
-/**
- * Polygon area via the shoelace formula (absolute value).
- */
-export function polygonArea(pts: Pt[]): number {
-  let area = 0;
-  const n = pts.length;
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    area += pts[i].x * pts[j].y;
-    area -= pts[j].x * pts[i].y;
-  }
-  return Math.abs(area) / 2;
-}

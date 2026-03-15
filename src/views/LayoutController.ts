@@ -1,11 +1,18 @@
 import { forceSimulation, forceManyBody, forceCenter, forceLink, forceCollide, type Simulation, type Force } from "d3-force";
 import type { GraphNode, GraphEdge, DirectionalGravityRule, ClusterGroupRule, NodeRule } from "../types";
+import {
+  TAG_DISPLAY_ENCLOSURE, SOURCE_PROPERTY,
+  ARRANGEMENT_CONCENTRIC, ARRANGEMENT_RADIAL, ARRANGEMENT_TIMELINE,
+  GROUP_ARRANGEMENT_AUTO, GROUP_ARRANGEMENT_CONCENTRIC,
+  GROUP_ARRANGEMENT_VERTICAL, GROUP_ARRANGEMENT_CIRCLE,
+} from "../constants";
 import { DEFAULT_RENDER_THRESHOLDS } from "../types";
 import type { PanelState } from "./PanelBuilder";
 import { resolveDirection, matchesFilter } from "../layouts/force";
 import { buildClusterForce, computeAutoFitSpacing, effectiveRadius, type ClusterMetadata } from "../layouts/cluster-force";
 import { resolveCoordinateLayout } from "../layouts/coordinate-presets";
 import { computeInDegree, computePropagatedImportance } from "../analysis/graph-analysis";
+import { computeBBoxWithCentroid } from "../utils/geometry";
 import { buildMultiSortComparator, type SortMetrics } from "../utils/sort";
 import { edgeLinkDistance, edgeLinkStrength } from "../utils/force-config";
 import type { PixiNode } from "./InteractionManager";
@@ -40,6 +47,10 @@ export interface LayoutHost {
   wakeRenderLoop(): void;
   /** Read a frontmatter property from a node's source file */
   getNodeProperty(nodeId: string, key: string): string | undefined;
+  /** Get ontology sequence field names (forward direction, e.g. ["next"]) */
+  getSequenceFields(): string[];
+  /** Get ontology reverse sequence field names (e.g. ["prev", "previous"]) */
+  getReverseSequenceFields(): string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -256,7 +267,7 @@ export class LayoutController {
     const panel = this.host.getPanel();
     const tagMembership = this.host.getTagMembership();
 
-    if (panel.tagDisplay !== "enclosure" || tagMembership.size === 0) {
+    if (panel.tagDisplay !== TAG_DISPLAY_ENCLOSURE || tagMembership.size === 0) {
       sim.force("enclosureRepulsion", null);
       return;
     }
@@ -282,20 +293,11 @@ export class LayoutController {
       for (const tag of tags) {
         const ids = tagMembership.get(tag);
         if (!ids || ids.size === 0) continue;
-        let sx = 0, sy = 0, cnt = 0;
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const id of ids) {
-          const n = nodeIndex.get(id);
-          if (!n) continue;
-          sx += n.x; sy += n.y; cnt++;
-          if (n.x < minX) minX = n.x;
-          if (n.y < minY) minY = n.y;
-          if (n.x > maxX) maxX = n.x;
-          if (n.y > maxY) maxY = n.y;
-        }
-        if (cnt === 0) continue;
-        const r = Math.max(30, Math.hypot(maxX - minX, maxY - minY) / 2);
-        centroids.push({ tag, cx: sx / cnt, cy: sy / cnt, count: cnt, radius: r });
+        const points = [...ids].map(id => nodeIndex.get(id)).filter((n): n is GraphNode => !!n);
+        if (points.length === 0) continue;
+        const bb = computeBBoxWithCentroid(points);
+        const r = Math.max(30, Math.hypot(bb.maxX - bb.minX, bb.maxY - bb.minY) / 2);
+        centroids.push({ tag, cx: bb.cx, cy: bb.cy, count: bb.count, radius: r });
       }
 
       const repStr = baseStr * alpha;
@@ -421,24 +423,28 @@ export class LayoutController {
       nodeSpacing: panel.clusterNodeSpacing ?? 3,
       groupScale: panel.clusterGroupScale ?? 3,
       groupSpacing: panel.clusterGroupSpacing ?? 2,
-      tagMembership: panel.tagDisplay === "enclosure" ? tagMembership : undefined,
+      tagMembership: panel.tagDisplay === TAG_DISPLAY_ENCLOSURE ? tagMembership : undefined,
       enclosureSpacing: panel.enclosureSpacing,
       sortComparator: this.buildSortComparator(sim.nodes(), graphEdges),
       nodeSpacingMap: this.computeNodeSpacingMap(sim.nodes()),
       timelineKey: panel.timelineKey || "date",
       timelineEndKey: panel.timelineEndKey || "end-date",
-      timelineOrderFields: panel.timelineOrderFields || "next,prev,parent_id,story_order",
+      timelineOrderFields: panel.timelineOrderFields || "",
+      sequenceFields: this.host.getSequenceFields(),
+      reverseSequenceFields: this.host.getReverseSequenceFields(),
       guideLineMode: panel.guideLineMode || "per-group",
       getNodeProperty: (nodeId: string, key: string) => this.host.getNodeProperty(nodeId, key),
       coordinateLayout: resolveCoordinateLayout(clusterArrangement, panel.coordinateLayout ?? null),
       userConstants: panel.coordinateLayout?.constants,
-      // Arrangement presets inter-group layout mode and overlap resolution strategy
+      // Inter-group layout: explicit setting overrides auto-derived mode
       groupLayoutMode: (
-        clusterArrangement === "concentric" || clusterArrangement === "radial" ? "concentric" :
-        clusterArrangement === "timeline" ? "vertical" :
-        "circle"
-      ) as "circle" | "horizontal" | "concentric" | "vertical",
-      skipGroupOverlap: clusterArrangement === "timeline",
+        panel.clusterGroupArrangement && panel.clusterGroupArrangement !== GROUP_ARRANGEMENT_AUTO
+          ? panel.clusterGroupArrangement
+          : clusterArrangement === ARRANGEMENT_CONCENTRIC || clusterArrangement === ARRANGEMENT_RADIAL ? GROUP_ARRANGEMENT_CONCENTRIC
+          : clusterArrangement === ARRANGEMENT_TIMELINE ? GROUP_ARRANGEMENT_VERTICAL
+          : GROUP_ARRANGEMENT_CIRCLE
+      ) as "circle" | "horizontal" | "concentric" | "vertical" | "grid",
+      skipGroupOverlap: clusterArrangement === ARRANGEMENT_TIMELINE,
       maxNodeRadius: panel.renderThresholds?.maxNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.maxNodeRadius,
       minNodeRadius: panel.renderThresholds?.minNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.minNodeRadius,
       repelForce: panel.repelForce,
@@ -447,12 +453,15 @@ export class LayoutController {
         clusterBlendDecayFactor: panel.renderThresholds?.clusterBlendDecayFactor,
       },
       normalizeArrangementSpread: panel.renderThresholds?.normalizeArrangementSpread,
+      labelSpacingFactor: panel.renderThresholds?.labelSpacingFactor ?? DEFAULT_RENDER_THRESHOLDS.labelSpacingFactor,
+      nodeLabelFontSizeMin: panel.renderThresholds?.nodeLabelFontSizeMin ?? DEFAULT_RENDER_THRESHOLDS.nodeLabelFontSizeMin,
+      nodeLabelFontSizeMax: panel.renderThresholds?.nodeLabelFontSizeMax ?? DEFAULT_RENDER_THRESHOLDS.nodeLabelFontSizeMax,
     };
 
     // If coordinateLayout specifies a property source, use it as timelineKey
     const resolved = baseCfg.coordinateLayout;
-    if (resolved && resolved.axis1.source.kind === "property") {
-      baseCfg.timelineKey = (resolved.axis1.source as { kind: "property"; key: string }).key;
+    if (resolved && resolved.axis1.source.kind === SOURCE_PROPERTY) {
+      baseCfg.timelineKey = (resolved.axis1.source as { kind: typeof SOURCE_PROPERTY; key: string }).key;
     }
 
     // Auto-fit: compute optimal spacing values

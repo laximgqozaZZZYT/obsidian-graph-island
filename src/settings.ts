@@ -3,6 +3,10 @@ import type GraphViewsPlugin from "./main";
 import type { GraphViewsSettings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 import { t } from "./i18n";
+import {
+  EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_SIMILAR,
+  EDGE_TYPE_SIBLING, EDGE_TYPE_SEQUENCE,
+} from "./constants";
 
 // ---------------------------------------------------------------------------
 // Help entries (kept for HelpModal reuse from PanelBuilder)
@@ -384,7 +388,7 @@ export class GraphViewsSettingTab extends PluginSettingTab {
       fieldInput.value = field;
 
       const typeSelect = row.createEl("select", { cls: "gi-mapping-type dropdown" });
-      for (const opt of ["inheritance", "aggregation", "similar", "sibling", "sequence"] as const) {
+      for (const opt of [EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_SEQUENCE] as const) {
         const optEl = typeSelect.createEl("option", { value: opt, text: t(`settings.mappingType.${opt}`) });
         if (opt === type) optEl.selected = true;
       }
@@ -410,7 +414,7 @@ export class GraphViewsSettingTab extends PluginSettingTab {
 
     const addBtn = container.createEl("button", { cls: "gi-add-group", text: t("settings.addMapping") });
     addBtn.addEventListener("click", () => {
-      onto.customMappings[""] = "inheritance";
+      onto.customMappings[""] = EDGE_TYPE_INHERITANCE;
       this.renderSettingsCustomMappings(container);
     });
   }
@@ -428,7 +432,7 @@ export class GraphViewsSettingTab extends PluginSettingTab {
       srcInput.value = rel.source;
 
       const typeSelect = row.createEl("select", { cls: "gi-tag-rel-type dropdown" });
-      for (const opt of ["inheritance", "aggregation"] as const) {
+      for (const opt of [EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION] as const) {
         const optEl = typeSelect.createEl("option", { value: opt, text: t(`settings.tagRelType.${opt}`) });
         if (opt === rel.type) optEl.selected = true;
       }
@@ -456,7 +460,7 @@ export class GraphViewsSettingTab extends PluginSettingTab {
 
     const addBtn = container.createEl("button", { cls: "gi-add-group", text: t("settings.addTagRelation") });
     addBtn.addEventListener("click", () => {
-      onto.tagRelations.push({ source: "", target: "", type: "inheritance" });
+      onto.tagRelations.push({ source: "", target: "", type: EDGE_TYPE_INHERITANCE });
       this.renderSettingsTagRelations(container);
     });
   }

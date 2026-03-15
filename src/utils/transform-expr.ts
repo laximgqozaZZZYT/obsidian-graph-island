@@ -13,6 +13,13 @@
 // ---------------------------------------------------------------------------
 
 import type { AxisSource, AxisTransform, CurveKind } from "../types";
+import {
+  TRANSFORM_EVEN_DIVIDE, TRANSFORM_EXPRESSION, TRANSFORM_LINEAR,
+  TRANSFORM_BIN, TRANSFORM_DATE_INDEX, TRANSFORM_STACK_AVOID,
+  TRANSFORM_GOLDEN, TRANSFORM_CURVE,
+  SOURCE_PROPERTY, SOURCE_INDEX, SOURCE_FIELD, SOURCE_METRIC,
+  SOURCE_HOP, SOURCE_RANDOM, SOURCE_CONST,
+} from "../constants";
 import { CURVE_REGISTRY } from "../layouts/coordinate-presets";
 
 /** Result of parsing a transform expression */
@@ -30,12 +37,12 @@ type TransformFactory = (args: string[]) => AxisTransform;
 /** Transform functions (case-insensitive lookup via uppercase keys) */
 const TRANSFORM_FUNCTIONS: Record<string, TransformFactory> = {
   // --- Basic transforms ---
-  LINEAR:      (args) => ({ kind: "linear", scale: parseNumArg(args[0], 1) }),
-  BIN:         (args) => ({ kind: "bin", count: parseNumArg(args[0], 5) }),
-  DATE_INDEX:  ()     => ({ kind: "date-to-index" }),
-  STACK:       ()     => ({ kind: "stack-avoid" }),
-  GOLDEN:      ()     => ({ kind: "golden-angle" }),
-  EVEN:        (args) => ({ kind: "even-divide", totalRange: parseNumArg(args[0], 360) }),
+  LINEAR:      (args) => ({ kind: TRANSFORM_LINEAR, scale: parseNumArg(args[0], 1) }),
+  BIN:         (args) => ({ kind: TRANSFORM_BIN, count: parseNumArg(args[0], 5) }),
+  DATE_INDEX:  ()     => ({ kind: TRANSFORM_DATE_INDEX }),
+  STACK:       ()     => ({ kind: TRANSFORM_STACK_AVOID }),
+  GOLDEN:      ()     => ({ kind: TRANSFORM_GOLDEN }),
+  EVEN:        (args) => ({ kind: TRANSFORM_EVEN_DIVIDE, totalRange: parseNumArg(args[0], 360) }),
 
   // --- Curve transforms ---
   ARCHIMEDEAN:   (args) => makeCurveTransform("archimedean", args),
@@ -49,16 +56,16 @@ const TRANSFORM_FUNCTIONS: Record<string, TransformFactory> = {
   GOLDEN_SPIRAL: (args) => makeCurveTransform("golden", args),
 
   // --- Math functions → expression transforms ---
-  SIN:   () => ({ kind: "expression", expr: "sin(t * pi * 2)", scale: 1 }),
-  COS:   () => ({ kind: "expression", expr: "cos(t * pi * 2)", scale: 1 }),
-  TAN:   () => ({ kind: "expression", expr: "tan(t * pi)", scale: 1 }),
-  SQRT:  () => ({ kind: "expression", expr: "sqrt(t)", scale: 1 }),
-  ABS:   () => ({ kind: "expression", expr: "abs(t)", scale: 1 }),
-  LOG:   () => ({ kind: "expression", expr: "log(t + 0.01)", scale: 1 }),
-  EXP:   () => ({ kind: "expression", expr: "exp(t)", scale: 1 }),
-  FLOOR: () => ({ kind: "expression", expr: "floor(t * 10)", scale: 1 }),
-  CEIL:  () => ({ kind: "expression", expr: "ceil(t * 10)", scale: 1 }),
-  POW:   (args) => ({ kind: "expression", expr: `pow(t, ${parseNumArg(args[0], 2)})`, scale: 1 }),
+  SIN:   () => ({ kind: TRANSFORM_EXPRESSION, expr: "sin(t * pi * 2)", scale: 1 }),
+  COS:   () => ({ kind: TRANSFORM_EXPRESSION, expr: "cos(t * pi * 2)", scale: 1 }),
+  TAN:   () => ({ kind: TRANSFORM_EXPRESSION, expr: "tan(t * pi)", scale: 1 }),
+  SQRT:  () => ({ kind: TRANSFORM_EXPRESSION, expr: "sqrt(t)", scale: 1 }),
+  ABS:   () => ({ kind: TRANSFORM_EXPRESSION, expr: "abs(t)", scale: 1 }),
+  LOG:   () => ({ kind: TRANSFORM_EXPRESSION, expr: "log(t + 0.01)", scale: 1 }),
+  EXP:   () => ({ kind: TRANSFORM_EXPRESSION, expr: "exp(t)", scale: 1 }),
+  FLOOR: () => ({ kind: TRANSFORM_EXPRESSION, expr: "floor(t * 10)", scale: 1 }),
+  CEIL:  () => ({ kind: TRANSFORM_EXPRESSION, expr: "ceil(t * 10)", scale: 1 }),
+  POW:   (args) => ({ kind: TRANSFORM_EXPRESSION, expr: `pow(t, ${parseNumArg(args[0], 2)})`, scale: 1 }),
 };
 
 /** All known function names (for autocomplete) */
@@ -108,7 +115,7 @@ export function parseTransformExpr(
   // Try plain source (no function wrapper) → linear transform
   const source = parseAxisSource(trimmed);
   if (source) {
-    return { source, transform: { kind: "linear", scale: 1 } };
+    return { source, transform: { kind: TRANSFORM_LINEAR, scale: 1 } };
   }
 
   // Try matching against known curve formulas (math notation → curve transform)
@@ -121,7 +128,7 @@ export function parseTransformExpr(
   if (fallbackSource && /\bt\b/.test(trimmed)) {
     return {
       source: fallbackSource,
-      transform: { kind: "expression", expr: trimmed, scale: 1 },
+      transform: { kind: TRANSFORM_EXPRESSION, expr: trimmed, scale: 1 },
     };
   }
 
@@ -129,7 +136,7 @@ export function parseTransformExpr(
   if (fallbackSource) {
     return {
       source: fallbackSource,
-      transform: { kind: "expression", expr: trimmed, scale: 1 },
+      transform: { kind: TRANSFORM_EXPRESSION, expr: trimmed, scale: 1 },
     };
   }
 
@@ -145,26 +152,26 @@ export function transformExprToString(source: AxisSource, transform: AxisTransfo
   const srcStr = axisSourceStr(source);
 
   switch (transform.kind) {
-    case "linear":
+    case TRANSFORM_LINEAR:
       if (transform.scale === 1) return srcStr;
       return `${transform.scale}*t`;
 
-    case "bin":
+    case TRANSFORM_BIN:
       return `BIN(${srcStr}, ${transform.count})`;
 
-    case "date-to-index":
+    case TRANSFORM_DATE_INDEX:
       return `DATE_INDEX(${srcStr})`;
 
-    case "stack-avoid":
+    case TRANSFORM_STACK_AVOID:
       return `STACK(${srcStr})`;
 
-    case "golden-angle":
+    case TRANSFORM_GOLDEN:
       return `GOLDEN(${srcStr})`;
 
-    case "even-divide":
+    case TRANSFORM_EVEN_DIVIDE:
       return `EVEN(${srcStr}, ${transform.totalRange})`;
 
-    case "curve": {
+    case TRANSFORM_CURVE: {
       // Display as mathematical formula
       const curveDef = CURVE_REGISTRY[transform.curve];
       if (curveDef) return curveDef.formula;
@@ -173,7 +180,7 @@ export function transformExprToString(source: AxisSource, transform: AxisTransfo
       return `${name}(t)`;
     }
 
-    case "expression":
+    case TRANSFORM_EXPRESSION:
       return transform.expr;
   }
 }
@@ -213,7 +220,7 @@ function makeCurveTransform(curve: CurveKind, extraArgs: string[]): AxisTransfor
     }
   }
 
-  return { kind: "curve", curve, params, scale: 1 };
+  return { kind: TRANSFORM_CURVE, curve, params, scale: 1 };
 }
 
 /** Split arguments respecting nested parentheses */
@@ -244,45 +251,45 @@ function parseAxisSource(s: string): AxisSource | null {
   const trimmed = s.trim();
   if (!trimmed) return null;
 
-  if (trimmed === "index") return { kind: "index" };
-  if (METRIC_NAMES.has(trimmed)) return { kind: "metric", metric: trimmed as import("../types").MetricKind };
+  if (trimmed === "index") return { kind: SOURCE_INDEX };
+  if (METRIC_NAMES.has(trimmed)) return { kind: SOURCE_METRIC, metric: trimmed as import("../types").MetricKind };
 
-  if (trimmed === "random") return { kind: "random", seed: 42 };
+  if (trimmed === "random") return { kind: SOURCE_RANDOM, seed: 42 };
   if (trimmed.startsWith("random:")) {
     const seed = parseInt(trimmed.slice(7), 10);
-    return { kind: "random", seed: isNaN(seed) ? 42 : seed };
+    return { kind: SOURCE_RANDOM, seed: isNaN(seed) ? 42 : seed };
   }
 
-  if (trimmed === "const") return { kind: "const", value: 1 };
+  if (trimmed === "const") return { kind: SOURCE_CONST, value: 1 };
   if (trimmed.startsWith("const:")) {
     const v = parseFloat(trimmed.slice(6));
-    return { kind: "const", value: isNaN(v) ? 1 : v };
+    return { kind: SOURCE_CONST, value: isNaN(v) ? 1 : v };
   }
 
   if (trimmed.startsWith("hop:")) {
     const parts = trimmed.slice(4).split(":");
     const from = parts[0] || "";
     const maxDepth = parts[1] ? parseInt(parts[1], 10) : undefined;
-    return { kind: "hop", from, ...(maxDepth != null && !isNaN(maxDepth) ? { maxDepth } : {}) };
+    return { kind: SOURCE_HOP, from, ...(maxDepth != null && !isNaN(maxDepth) ? { maxDepth } : {}) };
   }
 
   // Everything else is a field
-  return { kind: "field", field: trimmed };
+  return { kind: SOURCE_FIELD, field: trimmed };
 }
 
 function axisSourceStr(src: AxisSource): string {
   switch (src.kind) {
-    case "index": return "index";
-    case "metric": return src.metric;
-    case "random": return src.seed === 42 ? "random" : `random:${src.seed}`;
-    case "const": return src.value === 1 ? "const" : `const:${src.value}`;
-    case "hop": {
+    case SOURCE_INDEX: return "index";
+    case SOURCE_METRIC: return src.metric;
+    case SOURCE_RANDOM: return src.seed === 42 ? "random" : `random:${src.seed}`;
+    case SOURCE_CONST: return src.value === 1 ? "const" : `const:${src.value}`;
+    case SOURCE_HOP: {
       let s = `hop:${src.from}`;
       if (src.maxDepth != null) s += `:${src.maxDepth}`;
       return s;
     }
-    case "field": return src.field;
-    case "property": return src.key;
+    case SOURCE_FIELD: return src.field;
+    case SOURCE_PROPERTY: return src.key;
     default: return "index";
   }
 }
@@ -346,7 +353,7 @@ function matchCurveFormula(input: string): AxisTransform | null {
     const formulaNorm = def.formula.replace(/\s+/g, "").toLowerCase();
     if (normalized === formulaNorm) {
       return {
-        kind: "curve",
+        kind: TRANSFORM_CURVE,
         curve: curveName as CurveKind,
         params: { ...def.defaultParams },
         scale: 1,

@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import type { PanelState } from "../views/PanelBuilder";
+import { ARRANGEMENT_GRID } from "../constants";
 
 // ---------------------------------------------------------------------------
 // Field metadata for validation
@@ -132,7 +133,7 @@ export function importPreset(json: string): Partial<PanelState> {
 
   // Migrate removed arrangement patterns to "grid"
   if (typeof raw.clusterArrangement === "string" && REMOVED_ARRANGEMENTS.has(raw.clusterArrangement)) {
-    raw.clusterArrangement = "grid";
+    raw.clusterArrangement = ARRANGEMENT_GRID;
   }
 
   // Strip deprecated settings
@@ -141,16 +142,18 @@ export function importPreset(json: string): Partial<PanelState> {
   }
 
   const result: Partial<PanelState> = {};
+  // Use a string-keyed record view for dynamic property assignment.
+  // This is safe because every key written is validated against VALID_KEYS
+  // and type-checked per category before assignment.
+  const out = result as Record<string, unknown>;
 
   for (const [key, value] of Object.entries(raw)) {
     if (!VALID_KEYS.has(key)) continue;
 
-    const k = key as keyof PanelState;
-
     // Boolean fields
     if ((BOOLEAN_FIELDS as string[]).includes(key)) {
       if (typeof value === "boolean") {
-        (result as any)[k] = value;
+        out[key] = value;
       }
       continue;
     }
@@ -158,7 +161,7 @@ export function importPreset(json: string): Partial<PanelState> {
     // Number fields
     if ((NUMBER_FIELDS as string[]).includes(key)) {
       if (typeof value === "number" && isFinite(value)) {
-        (result as any)[k] = value;
+        out[key] = value;
       }
       continue;
     }
@@ -166,16 +169,17 @@ export function importPreset(json: string): Partial<PanelState> {
     // String fields
     if ((STRING_FIELDS as string[]).includes(key)) {
       if (typeof value === "string") {
-        (result as any)[k] = value;
+        out[key] = value;
       }
       continue;
     }
 
     // Enum fields
     if (key in ENUM_VALUES) {
+      const k = key as keyof PanelState;
       const allowed = ENUM_VALUES[k];
       if (allowed && typeof value === "string" && allowed.includes(value)) {
-        (result as any)[k] = value;
+        out[key] = value;
       }
       continue;
     }
@@ -183,7 +187,7 @@ export function importPreset(json: string): Partial<PanelState> {
     // Array fields (some are nullable, e.g. groupByRules)
     if ((ARRAY_FIELDS as string[]).includes(key)) {
       if (Array.isArray(value) || value === null) {
-        (result as any)[k] = value;
+        out[key] = value;
       }
       continue;
     }
@@ -191,7 +195,7 @@ export function importPreset(json: string): Partial<PanelState> {
     // Set fields — accept arrays (will be converted to Set in applyPreset)
     if ((SET_FIELDS as string[]).includes(key)) {
       if (Array.isArray(value)) {
-        (result as any)[k] = value;
+        out[key] = value;
       }
       continue;
     }
@@ -199,7 +203,7 @@ export function importPreset(json: string): Partial<PanelState> {
     // Nullable object fields (object | null)
     if ((NULLABLE_OBJECT_FIELDS as string[]).includes(key)) {
       if (value === null || (typeof value === "object" && !Array.isArray(value))) {
-        (result as any)[k] = value;
+        out[key] = value;
       }
       continue;
     }
@@ -221,16 +225,19 @@ export function applyPreset(
   preset: Partial<PanelState>,
 ): PanelState {
   const merged = { ...current };
+  // String-keyed record views for dynamic property access.
+  // Safe because keys come from Object.entries(preset) which was
+  // validated by importPreset().
+  const src = current as unknown as Record<string, unknown>;
+  const dst = merged as unknown as Record<string, unknown>;
 
   for (const [key, value] of Object.entries(preset)) {
-    const k = key as keyof PanelState;
-
     // If the current value is a Set and the incoming value is an array,
     // convert array back to Set
-    if ((current as any)[k] instanceof Set && Array.isArray(value)) {
-      (merged as any)[k] = new Set(value as unknown[]);
+    if (src[key] instanceof Set && Array.isArray(value)) {
+      dst[key] = new Set(value as unknown[]);
     } else {
-      (merged as any)[k] = value;
+      dst[key] = value;
     }
   }
 

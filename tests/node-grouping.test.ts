@@ -2,8 +2,6 @@ import { describe, it, expect } from "vitest";
 import type { GraphNode, GraphEdge, GraphData } from "../src/types";
 import {
   groupNodesByTag,
-  groupNodesByCategory,
-  groupNodesByFolder,
   groupNodesByField,
   getNodeFieldValues,
   collapseGroup,
@@ -275,38 +273,6 @@ describe("groupNodesByTag", () => {
     const groups = groupNodesByTag(nodes);
     expect(groups).toHaveLength(2);
     expect(groups.find(g => g.key === "tag:programming")!.memberIds).toEqual(["a", "b"]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// groupNodesByCategory (wrapper)
-// ---------------------------------------------------------------------------
-describe("groupNodesByCategory", () => {
-  it("delegates to groupNodesByField and returns correct groups", () => {
-    const nodes = [
-      makeNode("a", { category: "character" }),
-      makeNode("b", { category: "character" }),
-      makeNode("c", { category: "location" }),
-      makeNode("d", { category: "location" }),
-    ];
-    const groups = groupNodesByCategory(nodes);
-    expect(groups).toHaveLength(2);
-    expect(groups.find(g => g.key === "category:character")!.memberIds).toEqual(["a", "b"]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// groupNodesByFolder (wrapper)
-// ---------------------------------------------------------------------------
-describe("groupNodesByFolder", () => {
-  it("delegates to groupNodesByField and returns correct groups", () => {
-    const nodes = [
-      makeNode("a", { filePath: "notes/a.md" }),
-      makeNode("b", { filePath: "notes/b.md" }),
-    ];
-    const groups = groupNodesByFolder(nodes);
-    expect(groups).toHaveLength(1);
-    expect(groups[0].key).toBe("folder:notes");
   });
 });
 

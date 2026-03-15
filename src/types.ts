@@ -65,6 +65,10 @@ export type ClusterGroupBy = string;
 /** How to arrange nodes within each cluster */
 export type ClusterArrangement = "concentric" | "radial" | "phyllotaxis" | "grid" | "triangle" | "random" | "timeline" | "custom";
 
+/** How to arrange groups relative to each other (inter-group layout).
+ *  "auto" preserves legacy behavior — derived from clusterArrangement. */
+export type ClusterGroupArrangement = "auto" | "circle" | "horizontal" | "vertical" | "concentric" | "grid";
+
 /** Source of values for a coordinate axis.
  *
  *  - index: sort position (0..n-1)
@@ -989,8 +993,20 @@ export interface RenderThresholds {
   groupLabelHullOffset?: number;
   /** Letter spacing for group labels in em units (default 0.15) */
   groupLabelLetterSpacing?: number;
-  /** Alpha for group name labels (default 0.45) */
+  /** Alpha for group name labels (default 0.6) */
   groupLabelAlpha?: number;
+  /** Font size for group labels (default 12) */
+  groupLabelFontSize?: number;
+  /** Font weight for group labels (default "500") */
+  groupLabelFontWeight?: string;
+  /** Background alpha for group label pill (default 0.65) */
+  groupLabelBgAlpha?: number;
+
+  // ---- Label spacing in layout ----
+  /** Factor (0–1) controlling how much estimated label width inflates
+   *  node spacing during layout.  0 = ignore labels (legacy), 1 = full
+   *  label width added to gap.  Default 0.7. */
+  labelSpacingFactor?: number;
 
   // ---- Hover tooltip ----
   /** Show combined tooltip (name + tags + group) on node hover (default true) */
@@ -1030,9 +1046,19 @@ export interface RenderThresholds {
   /** Label distance scaling for medium gaps (default 0.8) */
   labelGapScaleMedium?: number;
 
+  // ---- Label LOD hysteresis ----
+  /** Hysteresis hide factor: once visible, label stays until zoom drops to
+   *  minShowZoom × this factor (default 0.7 = 30% margin). */
+  labelHysteresisHideFactor?: number;
+
   // ---- Super-node label ----
   /** Font size for super-node (collapsed group) labels (default 13) */
   superNodeFontSize?: number;
+  /** Background alpha for super-node label pill (default 0.9) */
+  superNodeLabelBgAlpha?: number;
+  /** Maximum displacement for force-show labels, in multiples of node radius
+   *  (default 5). Labels that cannot be placed within this range are hidden. */
+  labelForceShowMaxRadii?: number;
 }
 
 /** Default card rendering config */
@@ -1134,7 +1160,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   normalizeArrangementSpread: true,
   minViewportUtilization: 0.12,
   labelOverlapCulling: true,
-  labelOverlapMargin: 8,
+  labelOverlapMargin: 12,
   timelineBarShowLabel: true,
   timelineBarLabelMinWidth: 30,
   timelineBarLabelFontSize: 9,
@@ -1154,8 +1180,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   minHoverScreenPx: 4,
   zoomNodeSizeAdapt: true,
   labelLeaderLines: true,
-  labelLeaderLineAlpha: 0.3,
-  labelLeaderLineWidth: 0.8,
+  labelLeaderLineAlpha: 0.45,
+  labelLeaderLineWidth: 1.2,
   labelLeaderLineAlwaysThreshold: 3.0,
   labelMinNonSuper: 5,
   labelOverlapMaxScreenW: 500,
@@ -1171,7 +1197,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   autoOptCloseThreshold: 3.0,
   labelMinScreenPx: 14,
   labelScalePower: 0.4,
-  labelScaleMax: 80,
+  labelScaleMax: 20,
   labelScaleMin: 0.8,
   labelAlphaMin: 0.7,
   labelZoomTier1: 0.15,
@@ -1186,11 +1212,11 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelTruncateMinChars: 5,
   nodeLabelZoomMin: 0.4,
   enclosureOutlierFactor: 2.0,
-  labelMaxDisplacementRatio: 3.5,
+  labelMaxDisplacementRatio: 2.5,
   labelBgColor: 0x1a1a2e,
   labelBgAlpha: 0.85,
   labelStrokeColor: 0x000000,
-  labelStrokeWidth: 3,
+  labelStrokeWidth: 3.5,
   groupLabelScaleMax: 4.0,
   groupLabelScaleMin: 0.6,
   groupLabelScalePower: 0.45,
@@ -1208,8 +1234,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   // Tag labels
   tagLabelShow: true,
   tagLabelFontSize: 9,
-  tagLabelAlpha: 0.65,
-  tagLabelZoomMin: 0.75,
+  tagLabelAlpha: 0.75,
+  tagLabelZoomMin: 1.2,
   tagLabelOffset: 4,
   tagLabelMaxTags: 2,
 
@@ -1217,13 +1243,16 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   nodeLabelFontSizeMin: 11,
   nodeLabelFontSizeMax: 14,
 
+  // Label spacing in layout
+  labelSpacingFactor: 0.7,
+
   // Group label convex hull placement
-  groupLabelHullOffset: 20,
+  groupLabelHullOffset: 24,
   groupLabelLetterSpacing: 0.15,
-  groupLabelAlpha: 0.45,
-  groupLabelFontSize: 11,
-  groupLabelFontWeight: "400",
-  groupLabelBgAlpha: 0.55,
+  groupLabelAlpha: 0.6,
+  groupLabelFontSize: 12,
+  groupLabelFontWeight: "500",
+  groupLabelBgAlpha: 0.65,
 
   // Hover tooltip
   hoverTooltipShow: true,
@@ -1239,6 +1268,9 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   clusterBlendDefault: 0.85,
   clusterBlendDecayFactor: 3,
 
+  // Label LOD hysteresis
+  labelHysteresisHideFactor: 0.7,
+
   // Label zone placement tuning
   labelZoneProximityFactor: 8,
   labelGapScaleNarrowThreshold: Math.PI / 4,
@@ -1248,6 +1280,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 
   // Super-node label
   superNodeFontSize: 13,
+  superNodeLabelBgAlpha: 0.9,
+  labelForceShowMaxRadii: 5,
 };
 
 export const DEFAULT_COLORS = [

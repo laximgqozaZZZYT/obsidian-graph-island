@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { convexHull, expandHull, polygonArea } from "../src/utils/geometry";
+import { convexHull, computeBoundingBox, computeBBoxWithCentroid, clamp } from "../src/utils/geometry";
 
 describe("convexHull", () => {
   it("returns empty for no points", () => {
@@ -50,71 +50,67 @@ describe("convexHull", () => {
   });
 });
 
-describe("expandHull", () => {
-  it("returns copy for fewer than 3 points", () => {
-    const pts = [{ x: 0, y: 0 }, { x: 1, y: 0 }];
-    const result = expandHull(pts, 10);
-    expect(result).toEqual(pts); // same values, different references
-    expect(result[0]).not.toBe(pts[0]);
+describe("computeBoundingBox", () => {
+  it("computes bbox for multiple points", () => {
+    const pts = [{ x: 1, y: 5 }, { x: -3, y: 2 }, { x: 4, y: -1 }];
+    const bb = computeBoundingBox(pts);
+    expect(bb).toEqual({ minX: -3, minY: -1, maxX: 4, maxY: 5 });
   });
 
-  it("expands a triangle outward", () => {
-    const tri = [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 2, y: 3 }];
-    const hull = convexHull(tri);
-    const expanded = expandHull(hull, 5);
-
-    expect(expanded).toHaveLength(hull.length);
-
-    // Expanded hull should have larger area
-    const origArea = polygonArea(hull);
-    const expArea = polygonArea(expanded);
-    expect(expArea).toBeGreaterThan(origArea);
+  it("returns Infinity bounds for empty input", () => {
+    const bb = computeBoundingBox([]);
+    expect(bb.minX).toBe(Infinity);
+    expect(bb.maxX).toBe(-Infinity);
   });
 
-  it("moves vertices along bisector direction proportional to pad", () => {
-    const hull = convexHull([
-      { x: 0, y: 0 }, { x: 100, y: 0 },
-      { x: 100, y: 100 }, { x: 0, y: 100 },
-    ]);
-    const exp5 = expandHull(hull, 5);
-    const exp10 = expandHull(hull, 10);
-
-    // Larger padding should move vertices further from original
-    const distFromOrig = (expanded: typeof hull) => {
-      let sum = 0;
-      for (let i = 0; i < hull.length; i++) {
-        sum += Math.hypot(expanded[i].x - hull[i].x, expanded[i].y - hull[i].y);
-      }
-      return sum;
-    };
-    expect(distFromOrig(exp10)).toBeGreaterThan(distFromOrig(exp5));
+  it("handles single point", () => {
+    const bb = computeBoundingBox([{ x: 7, y: 3 }]);
+    expect(bb).toEqual({ minX: 7, minY: 3, maxX: 7, maxY: 3 });
   });
 });
 
-describe("polygonArea", () => {
-  it("returns 0 for empty polygon", () => {
-    expect(polygonArea([])).toBe(0);
+describe("computeBBoxWithCentroid", () => {
+  it("computes bbox, centroid, and count", () => {
+    const pts = [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 4 }, { x: 0, y: 4 }];
+    const bb = computeBBoxWithCentroid(pts);
+    expect(bb.minX).toBe(0);
+    expect(bb.maxX).toBe(4);
+    expect(bb.minY).toBe(0);
+    expect(bb.maxY).toBe(4);
+    expect(bb.cx).toBe(2);
+    expect(bb.cy).toBe(2);
+    expect(bb.count).toBe(4);
   });
 
-  it("computes area of unit square", () => {
-    const square = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
-    expect(polygonArea(square)).toBeCloseTo(1);
-  });
-
-  it("computes area of 3x4 rectangle", () => {
-    const rect = [{ x: 0, y: 0 }, { x: 3, y: 0 }, { x: 3, y: 4 }, { x: 0, y: 4 }];
-    expect(polygonArea(rect)).toBeCloseTo(12);
-  });
-
-  it("computes area of right triangle", () => {
-    const tri = [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 0, y: 3 }];
-    expect(polygonArea(tri)).toBeCloseTo(6);
-  });
-
-  it("returns positive area regardless of winding order", () => {
-    const cw = [{ x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 0 }];
-    const ccw = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
-    expect(polygonArea(cw)).toBeCloseTo(polygonArea(ccw));
-    expect(polygonArea(cw)).toBeCloseTo(1);
+  it("returns zero centroid for empty input", () => {
+    const bb = computeBBoxWithCentroid([]);
+    expect(bb.cx).toBe(0);
+    expect(bb.cy).toBe(0);
+    expect(bb.count).toBe(0);
   });
 });
+
+describe("clamp", () => {
+  it("returns value when within range", () => {
+    expect(clamp(5, 0, 10)).toBe(5);
+  });
+
+  it("clamps to min", () => {
+    expect(clamp(-3, 0, 10)).toBe(0);
+  });
+
+  it("clamps to max", () => {
+    expect(clamp(15, 0, 10)).toBe(10);
+  });
+
+  it("handles equal min and max", () => {
+    expect(clamp(5, 3, 3)).toBe(3);
+  });
+
+  it("handles negative ranges", () => {
+    expect(clamp(-5, -10, -2)).toBe(-5);
+    expect(clamp(-15, -10, -2)).toBe(-10);
+    expect(clamp(0, -10, -2)).toBe(-2);
+  });
+});
+

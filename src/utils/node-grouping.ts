@@ -2,6 +2,7 @@
 // Node Grouping — collapse/expand nodes by tag or category into super nodes
 // ---------------------------------------------------------------------------
 import type { GraphNode, GraphEdge, GraphData } from "../types";
+import { edgeSourceId, edgeTargetId } from "./graph-helpers";
 
 /** Specification for a group of nodes */
 export interface GroupSpec {
@@ -37,16 +38,6 @@ function matchesFilter(label: string, tokens: string[]): boolean {
 /** Group nodes by their tags (delegates to groupNodesByField). */
 export function groupNodesByTag(nodes: GraphNode[], opts?: GroupOptions): GroupSpec[] {
   return groupNodesByField(nodes, "tag", opts);
-}
-
-/** Group nodes by their category field (delegates to groupNodesByField). */
-export function groupNodesByCategory(nodes: GraphNode[], opts?: GroupOptions): GroupSpec[] {
-  return groupNodesByField(nodes, "category", opts);
-}
-
-/** Group nodes by their folder path (delegates to groupNodesByField). */
-export function groupNodesByFolder(nodes: GraphNode[], opts?: GroupOptions): GroupSpec[] {
-  return groupNodesByField(nodes, "folder", opts);
 }
 
 /**
@@ -292,8 +283,8 @@ export function expandGroup(
 
   // Restore original edges involving member nodes
   for (const e of originalData.edges) {
-    const src = typeof e.source === "string" ? e.source : (e.source as any).id;
-    const tgt = typeof e.target === "string" ? e.target : (e.target as any).id;
+    const src = edgeSourceId(e);
+    const tgt = edgeTargetId(e);
     if (!activeNodeIds.has(src) || !activeNodeIds.has(tgt)) continue;
     const key = `${src}->${tgt}`;
     if (!seenEdges.has(key)) {

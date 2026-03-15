@@ -1,8 +1,9 @@
 import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { Pt } from "../utils/geometry";
-import { convexHull } from "../utils/geometry";
+import { convexHull, clamp } from "../utils/geometry";
 import { cssColorToHex, shiftHue, hslToHex, stringHash } from "../utils/graph-helpers";
 import { DEFAULT_COLORS } from "../types";
+import { TAG_DISPLAY_ENCLOSURE } from "../constants";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,6 +68,53 @@ const OUTLINE_PAD_FACTOR = 0.5;
 /** Number of sample points around each node circle for hull generation */
 const HULL_SAMPLES = 12;
 
+/** Overlap re-computation interval in frames */
+const OVERLAP_RECOMPUTE_FRAMES = 30;
+
+/** Size fade divisor: large groups → lower alpha */
+const SIZE_FADE_DIVISOR = 200;
+
+/** Base fill alpha for non-overlapping enclosures (zoomed out) */
+const FILL_ALPHA_BASE = 0.10;
+/** Base fill alpha for overlapping enclosures (zoomed out) */
+const FILL_ALPHA_OVERLAP = 0.04;
+
+/** Maximum label collision resolution attempts */
+const LABEL_COLLISION_MAX_ATTEMPTS = 6;
+
+/** Label offset beyond hull for placement direction */
+const LABEL_OFFSET_DEFAULT = 8;
+
+/** Capsule end-cap curve factor (scales beyond 1.0 for rounder ends) */
+const CAPSULE_CURVE_FACTOR = 1.1;
+
+/** Stroke alpha for non-overlapping enclosures */
+const STROKE_ALPHA_NO_OVERLAP = 0.6;
+/** Minimum stroke alpha for overlapping enclosures */
+const STROKE_ALPHA_OVERLAP_MIN = 0.35;
+/** Stroke alpha numerator for overlapping enclosures */
+const STROKE_ALPHA_OVERLAP_BASE = 0.55;
+/** Stroke line width for non-overlapping enclosures */
+const STROKE_WIDTH_NO_OVERLAP = 1.5;
+/** Stroke line width base for overlapping enclosures */
+const STROKE_WIDTH_OVERLAP_BASE = 2.5;
+/** Minimum stroke width for overlapping enclosures */
+const STROKE_WIDTH_OVERLAP_MIN = 2;
+/** Size fade minimum fraction (large groups don't fully disappear) */
+const SIZE_FADE_MIN = 0.3;
+/** Fill alpha visibility threshold */
+const FILL_ALPHA_VISIBILITY_THRESHOLD = 0.005;
+/** Radial fill edge alpha factor */
+const RADIAL_FILL_EDGE_ALPHA = 0.15;
+/** Label darken factor for background pill */
+const LABEL_DARKEN_FACTOR = 0.25;
+/** Label pill padding (horizontal) */
+const LABEL_PILL_PAD_X = 8;
+/** Label pill padding (vertical) */
+const LABEL_PILL_PAD_Y = 3;
+/** Collision escape margin factor */
+const COLLISION_ESCAPE_MARGIN = 0.15;
+
 /** Compute dynamic padding for a given node radius */
 function outlinePad(radius: number, memberCount?: number): number {
   const base = Math.max(OUTLINE_PAD_MIN, radius * OUTLINE_PAD_FACTOR);
@@ -105,7 +153,7 @@ export function drawEnclosures(
 ): void {
   g.clear();
 
-  if (cfg.tagDisplay !== "enclosure") {
+  if (cfg.tagDisplay !== TAG_DISPLAY_ENCLOSURE) {
     for (const lbl of enclosureLabels.values()) lbl.visible = false;
     return;
   }
@@ -188,7 +236,7 @@ export function drawEnclosures(
 
   // Phase 3: Overlap count (recompute every 30 frames for perf)
   overlapCache.frame++;
-  if (overlapCache.frame >= 30) {
+  if (overlapCache.frame >= OVERLAP_RECOMPUTE_FRAMES) {
     overlapCache.frame = 0;
     overlapCache.counts.clear();
     const relPairs = cfg.tagRelPairsCache;
@@ -210,13 +258,13 @@ export function drawEnclosures(
     const overlaps = overlapCache.counts.get(tag) || 0;
 
     // --- Stroke style ---
-    const baseLineAlpha = overlaps === 0 ? 0.6 : Math.max(0.35, 0.55 / (1 + overlaps * 0.1));
-    const lineWidth = overlaps === 0 ? 1.5 : Math.max(2, 2.5 - overlaps * 0.3);
+    const baseLineAlpha = overlaps === 0 ? STROKE_ALPHA_NO_OVERLAP : Math.max(STROKE_ALPHA_OVERLAP_MIN, STROKE_ALPHA_OVERLAP_BASE / (1 + overlaps * 0.1));
+    const lineWidth = overlaps === 0 ? STROKE_WIDTH_NO_OVERLAP : Math.max(STROKE_WIDTH_OVERLAP_MIN, STROKE_WIDTH_OVERLAP_BASE - overlaps * 0.3);
 
     // --- Fill style (zoomed-out: light tint; large groups get lighter to avoid obscuring nodes) ---
     const memberCount = pts.length;
-    const sizeFade = Math.max(0.3, 1 - memberCount / 200); // large groups → lower alpha
-    const baseFill = overlaps > 0 ? 0.04 : 0.10;
+    const sizeFade = Math.max(SIZE_FADE_MIN, 1 - memberCount / SIZE_FADE_DIVISOR);
+    const baseFill = overlaps > 0 ? FILL_ALPHA_OVERLAP : FILL_ALPHA_BASE;
     const fillAlpha = blend > 0 ? blend * baseFill * sizeFade : 0;
 
     let labelX = 0, labelY = 0;
@@ -224,12 +272,12 @@ export function drawEnclosures(
 
     // Draw filled shape first (behind stroke) when zoomed out
     // Use radial gradient for a soft glow effect
-    if (fillAlpha > 0.005) {
+    if (fillAlpha > FILL_ALPHA_VISIBILITY_THRESHOLD) {
       g.lineStyle(0);
       if (pts.length === 1) {
         const p0 = pts[0];
         const r = p0.radius + outlinePad(p0.radius, memberCount);
-        g.beginRadialFill(p0.x, p0.y, r, hex, hex, fillAlpha, fillAlpha * 0.15);
+        g.beginRadialFill(p0.x, p0.y, r, hex, hex, fillAlpha, fillAlpha * RADIAL_FILL_EDGE_ALPHA);
         g.drawCircle(p0.x, p0.y, r);
       } else if (pts.length === 2) {
         const cx = (pts[0].x + pts[1].x) / 2;
@@ -237,7 +285,7 @@ export function drawEnclosures(
         const maxR = Math.max(pts[0].radius, pts[1].radius);
         const r = maxR + outlinePad(maxR, memberCount);
         const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) / 2 + r;
-        g.beginRadialFill(cx, cy, dist, hex, hex, fillAlpha, fillAlpha * 0.15);
+        g.beginRadialFill(cx, cy, dist, hex, hex, fillAlpha, fillAlpha * RADIAL_FILL_EDGE_ALPHA);
         drawCapsule(g, pts[0], pts[1], r);
       } else {
         const cx = (enc.minX + enc.maxX) / 2;
@@ -255,14 +303,14 @@ export function drawEnclosures(
       const p = pts[0];
       const r = p.radius + outlinePad(p.radius, memberCount);
       g.drawCircle(p.x, p.y, r);
-      labelX = p.x; labelY = p.y - r - 8;
+      labelX = p.x; labelY = p.y - r - LABEL_OFFSET_DEFAULT;
       labelCenterX = p.x; labelCenterY = p.y;
     } else if (pts.length === 2) {
       const maxR = Math.max(pts[0].radius, pts[1].radius);
       const r = maxR + outlinePad(maxR, memberCount);
       drawCapsule(g, pts[0], pts[1], r);
       labelX = (pts[0].x + pts[1].x) / 2;
-      labelY = Math.min(pts[0].y, pts[1].y) - r - 8;
+      labelY = Math.min(pts[0].y, pts[1].y) - r - LABEL_OFFSET_DEFAULT;
       labelCenterX = labelX;
       labelCenterY = (pts[0].y + pts[1].y) / 2;
     } else {
@@ -273,19 +321,19 @@ export function drawEnclosures(
         sumX += p.x; sumY += p.y;
         if (p.y < topY) { topY = p.y; labelX = p.x; }
       }
-      labelY = topY - 8;
+      labelY = topY - LABEL_OFFSET_DEFAULT;
       labelCenterX = sumX / expanded.length;
       labelCenterY = sumY / expanded.length;
     }
 
     // --- Label ---
     usedLabels.add(tag);
-    const glFontSize = cfg.groupLabelFontSize ?? 11;
-    const glFontWeight = cfg.groupLabelFontWeight ?? "400";
+    const glFontSize = cfg.groupLabelFontSize ?? 12;
+    const glFontWeight = cfg.groupLabelFontWeight ?? "500";
     const glLetterSpacing = cfg.groupLabelLetterSpacing ?? 0.15;
-    const glAlpha = cfg.groupLabelAlpha ?? 0.45;
-    const glBgAlpha = cfg.groupLabelBgAlpha ?? 0.55;
-    const glHullOffset = cfg.groupLabelHullOffset ?? 20;
+    const glAlpha = cfg.groupLabelAlpha ?? 0.6;
+    const glBgAlpha = cfg.groupLabelBgAlpha ?? 0.65;
+    const glHullOffset = cfg.groupLabelHullOffset ?? 24;
 
     let txt = enclosureLabels.get(tag);
     if (!txt) {
@@ -304,10 +352,10 @@ export function drawEnclosures(
       enclosureLabels.set(tag, txt);
     }
     // Pill background: darken the enclosure hue for the background
-    txt.bgColor = darkenHex(hex, 0.25);
+    txt.bgColor = darkenHex(hex, LABEL_DARKEN_FACTOR);
     txt.bgAlpha = glBgAlpha;
-    txt.bgPadX = 8;
-    txt.bgPadY = 3;
+    txt.bgPadX = LABEL_PILL_PAD_X;
+    txt.bgPadY = LABEL_PILL_PAD_Y;
 
     // Ensure label is in the correct parent (idempotent).
     // Interactive events (eventMode/on) are not supported by CanvasText;
@@ -320,8 +368,8 @@ export function drawEnclosures(
     // Place label outside the hull in the direction of the farthest node from centroid.
     // Label scale adapts to zoom: larger when zoomed out, smaller when zoomed in.
     const labelScale = zoomedOut
-      ? Math.min(8, Math.max(1.5, 1.8 / ws))
-      : Math.min(4, Math.max(1, 1 / ws));
+      ? clamp(1.8 / ws, 1.5, 8)
+      : clamp(1 / ws, 1, 4);
 
     // Find farthest node from centroid to determine label direction
     let farthestDist = 0;
@@ -397,7 +445,7 @@ export function drawEnclosures(
     let rect = labelRect(txt);
     let resolved = false;
 
-    for (let attempt = 0; attempt < 6; attempt++) {
+    for (let attempt = 0; attempt < LABEL_COLLISION_MAX_ATTEMPTS; attempt++) {
       // Find first overlapping rect
       const blocker = placedRects.find(pr => rectsOverlap(rect, pr));
       if (!blocker) { resolved = true; break; }
@@ -409,11 +457,11 @@ export function drawEnclosures(
       if (overlapY <= overlapX) {
         // Escape vertically (down from blocker center)
         const dy = (rect.y + rect.h / 2) > (blocker.y + blocker.h / 2) ? 1 : -1;
-        txt.y += dy * (overlapY + rect.h * 0.15);
+        txt.y += dy * (overlapY + rect.h * COLLISION_ESCAPE_MARGIN);
       } else {
         // Escape horizontally (away from blocker center)
         const dx = (rect.x + rect.w / 2) > (blocker.x + blocker.w / 2) ? 1 : -1;
-        txt.x += dx * (overlapX + rect.w * 0.15);
+        txt.x += dx * (overlapX + rect.w * COLLISION_ESCAPE_MARGIN);
       }
       rect = labelRect(txt);
     }
@@ -462,7 +510,7 @@ export function drawCapsule(g: CanvasGraphics, p0: Pt, p1: Pt, radius: number) {
   const c = { x: p1.x - px * r, y: p1.y - py * r };
   const d = { x: p0.x - px * r, y: p0.y - py * r };
 
-  const k = 1.1;
+  const k = CAPSULE_CURVE_FACTOR;
   const p1out = { x: p1.x + ux * r * k, y: p1.y + uy * r * k };
   const p0out = { x: p0.x - ux * r * k, y: p0.y - uy * r * k };
 

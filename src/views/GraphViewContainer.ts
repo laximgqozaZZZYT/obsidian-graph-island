@@ -1,9 +1,9 @@
-import { ItemView, WorkspaceLeaf, Platform, TFile, setIcon } from "obsidian";
+import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon } from "obsidian";
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
 import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig } from "../types";
-import { DEFAULT_COLORS, DEFAULT_RENDER_THRESHOLDS, DEFAULT_CARD_RENDER_CONFIG } from "../types";
+import { DEFAULT_COLORS, DEFAULT_RENDER_THRESHOLDS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY } from "../types";
 import { evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
 import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
@@ -12,13 +12,13 @@ import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
-import { yieldFrame, buildAdj, cssColorToHex } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
-import type { ClusterMetadata, GuideLineData, TimelineBarInfo, ArrangementGuide } from "../layouts/cluster-force";
+import type { ClusterMetadata, GuideLineData, TimelineBarInfo, ArrangementGuide, TimelineRoute } from "../layouts/cluster-force";
 import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from "../layouts/cluster-force";
 import type { ResolvedGridInfo, ResolvedGridLine } from "../layouts/coordinate-engine";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
@@ -29,6 +29,14 @@ import { LayoutTransition } from "./LayoutTransition";
 import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
 import { getNodeShape, drawShape, drawShapeAt } from "../utils/node-shapes";
+import {
+  EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_HAS_TAG,
+  EDGE_TYPE_SIMILAR, LAYOUT_FORCE, LAYOUT_CONCENTRIC, LAYOUT_TREE,
+  LAYOUT_ARC, LAYOUT_SUNBURST, LAYOUT_TIMELINE,
+  TAG_DISPLAY_ENCLOSURE, TAG_DISPLAY_NODE,
+  ARRANGEMENT_TIMELINE, ARRANGEMENT_CONCENTRIC, ARRANGEMENT_GRID, ARRANGEMENT_TRIANGLE,
+  GUIDE_TYPE_COORDINATE,
+} from "../constants";
 
 /** Find the cell index for a value given sorted boundary positions */
 function findCellIndex(value: number, positions: number[]): number {
@@ -119,6 +127,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private nodeCircleBatch: CanvasGraphics | null = null;
   private arrowGraphics: CanvasGraphics | null = null;
   private guideLineGraphics: CanvasGraphics | null = null;
+  private routeGraphics: CanvasGraphics | null = null;
+  private routeData: TimelineRoute[] | null = null;
   private groupGridGraphics: CanvasGraphics | null = null;
   private barGraphics: CanvasGraphics | null = null;
   private barLabelContainer: CanvasContainer | null = null;
@@ -220,7 +230,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   constructor(leaf: WorkspaceLeaf, plugin: GraphViewsPlugin) {
     super(leaf);
     this.plugin = plugin;
-    this.currentLayout = "force"; // Always use force layout; arrangement patterns handle visual layout
+    this.currentLayout = LAYOUT_FORCE; // Always use force layout; arrangement patterns handle visual layout
     this.panel.nodeSize = plugin.settings.nodeSize;
     this.panel.showSimilar = plugin.settings.showSimilar ?? false;
     this.panel.sortRules = [...(plugin.settings.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r }));
@@ -264,7 +274,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       break;
     }
     // Fallback: enclosure mode should always have a commonQuery
-    if (this.panel.tagDisplay === "enclosure" && this.panel.commonQueries.length === 0) {
+    if (this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE && this.panel.commonQueries.length === 0) {
       this.panel.commonQueries = [{ query: "tag:*", recursive: false }];
       this.panel.clusterGroupRules = deriveClusterRulesFromQueries(this.panel.commonQueries);
     }
@@ -312,20 +322,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   async setState(state: any, result: any): Promise<void> {
     await super.setState(state, result);
     // Layout is always "force"; legacy state values are migrated to cluster arrangement
-    if (state.layout && typeof state.layout === "string" && state.layout !== "force") {
+    if (state.layout && typeof state.layout === "string" && state.layout !== LAYOUT_FORCE) {
       // Migrate legacy layout type to cluster arrangement pattern where applicable
       const legacyMap: Record<string, string> = {
-        "tree": "grid", "concentric": "concentric", "sunburst": "grid",
-        "timeline": "timeline", "arc": "concentric",
+        [LAYOUT_TREE]: ARRANGEMENT_GRID, [LAYOUT_CONCENTRIC]: ARRANGEMENT_CONCENTRIC, [LAYOUT_SUNBURST]: ARRANGEMENT_GRID,
+        [LAYOUT_TIMELINE]: ARRANGEMENT_TIMELINE, [LAYOUT_ARC]: ARRANGEMENT_CONCENTRIC,
       };
       const mapped = legacyMap[state.layout];
       if (mapped && state.panel) {
         state.panel.clusterArrangement = mapped;
       }
     }
-    this.currentLayout = "force";
+    this.currentLayout = LAYOUT_FORCE;
     if (state.panel && typeof state.panel === "object") {
-      const saved = JSON.parse(JSON.stringify(state.panel)) as any;
+      const saved = JSON.parse(JSON.stringify(state.panel)) as Record<string, unknown>;
       for (const key of Object.keys(DEFAULT_PANEL) as (keyof PanelState)[]) {
         if (!(key in saved) || saved[key] === undefined) continue;
         if (key === "collapsedGroups") {
@@ -336,7 +346,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           // Transient — always re-parse from groupBy string
           this.panel.groupByRules = null;
         } else {
-          (this.panel as any)[key] = saved[key];
+          // Safe: key is validated against DEFAULT_PANEL keys above
+          (this.panel as Record<string, unknown>)[key] = saved[key];
         }
       }
     }
@@ -355,6 +366,33 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (Platform.isMobile) root.addClass("is-mobile");
 
     // --- Toolbar ---
+    this._initToolbar(root);
+
+    // --- Main area ---
+    const main = root.createDiv({ cls: "graph-main" });
+    const canvasArea = this._initCanvasArea(main);
+
+    // --- Keyboard shortcuts ---
+    this._registerKeyboardShortcuts();
+
+    // --- Overlays (legend, shortcut help) ---
+    this._initOverlays(canvasArea);
+
+    // --- Panel resize handle + control panel ---
+    this._initPanelWithResize(main);
+
+    // --- Resize observer for Canvas 2D ---
+    this.resizeObserver = new ResizeObserver(() => this.handleResize());
+    this.resizeObserver.observe(canvasArea);
+
+    // --- Workspace event subscriptions ---
+    this._registerWorkspaceEvents();
+
+    this.doRender();
+  }
+
+  /** Create the toolbar with zoom, fit, export, local graph, fullscreen, and settings buttons. */
+  private _initToolbar(root: HTMLElement): void {
     const toolbar = root.createDiv({ cls: "graph-toolbar", attr: { role: "toolbar", "aria-label": "Graph controls" } });
     this.statusEl = toolbar.createEl("span", { cls: "graph-status", attr: { "aria-live": "polite" } });
 
@@ -487,9 +525,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       panelToggle.toggleClass("is-active", !!hidden);
     });
+  }
 
-    // --- Main area ---
-    const main = root.createDiv({ cls: "graph-main" });
+  /** Create the canvas area with the canvas wrap and node info overlay. */
+  private _initCanvasArea(main: HTMLElement): HTMLElement {
     // canvasWrap is emptied by initPixi, so nodeInfoEl
     // lives in a sibling wrapper that won't be cleared.
     const canvasArea = main.createDiv({ cls: "gi-canvas-area", attr: { role: "main", "aria-label": "Graph canvas" } });
@@ -499,7 +538,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.nodeInfoEl = canvasArea.createDiv({ cls: "gi-node-info" });
     this.nodeInfoEl.style.display = "none";
 
-    // Keyboard shortcuts
+    return canvasArea;
+  }
+
+  /** Register all keyboard shortcuts for the graph view. */
+  private _registerKeyboardShortcuts(): void {
     this.registerDomEvent(document, "keydown", (e: KeyboardEvent) => {
       // Only handle if our view is active
       const activeLeaf = this.app.workspace.activeLeaf;
@@ -640,7 +683,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const pn = this.pixiNodes.get(this.highlightedNodeId);
         if (pn?.data.filePath) {
           const file = this.app.vault.getAbstractFileByPath(pn.data.filePath);
-          if (file) this.app.workspace.getLeaf(false).openFile(file as any);
+          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
         }
         return;
       }
@@ -658,7 +701,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         return;
       }
     });
+  }
 
+  /** Create legend and keyboard shortcut help overlays. */
+  private _initOverlays(canvasArea: HTMLElement): void {
     // --- Legend Overlay ---
     this.legendEl = canvasArea.createDiv({ cls: "gi-legend" });
     this.legendEl.style.display = "none";
@@ -697,7 +743,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         tdDesc.textContent = desc;
       }
     }
+  }
 
+  /** Create panel resize handle and control panel element. */
+  private _initPanelWithResize(main: HTMLElement): void {
     // --- Panel resize handle (sibling of panelEl so panelEl.empty() won't destroy it) ---
     const resizeHandle = main.createDiv({ cls: "gi-panel-resize-handle" });
     let startX = 0, startW = 0;
@@ -723,11 +772,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // --- Control Panel ---
     this.panelEl = main.createDiv({ cls: "graph-panel is-hidden", attr: { role: "complementary", "aria-label": "Graph settings" } });
     this.buildPanel();
+  }
 
-    // --- Resize observer for Canvas 2D ---
-    this.resizeObserver = new ResizeObserver(() => this.handleResize());
-    this.resizeObserver.observe(canvasArea);
-
+  /** Subscribe to workspace events (active-leaf-change, css-change, ephemeral highlight). */
+  private _registerWorkspaceEvents(): void {
     // Wake render loop when this leaf becomes active again (e.g. tab switch)
     // Also sync graph highlight with active editor file (A-2 editor↔graph sync)
     this.registerEvent(
@@ -739,7 +787,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
         // Another leaf is active — sync if enabled
         if (!this.panel.syncWithEditor) return;
-        const file = (leaf?.view as any)?.file as TFile | undefined;
+        const file = (leaf?.view instanceof FileView) ? leaf.view.file : undefined;
         if (!file || !this.pixiNodes.size) return;
         const nodeId = this.findNodeIdByPath(file.path);
         if (!nodeId) return;
@@ -756,6 +804,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Theme / CSS snippet change — invalidate color caches and update canvas background
     this.registerEvent(
+      // "css-change" is an undocumented Obsidian workspace event not in the public type definitions
       this.app.workspace.on("css-change" as any, () => {
         this.invalidateThemeCache();
       })
@@ -763,12 +812,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Ephemeral highlight from side-panel (property value hover, backlink hover)
     this.registerEvent(
+      // Custom plugin event not in Obsidian's Workspace type definitions
       this.app.workspace.on("graph-island:highlight-nodes" as any, (nodeIds: Set<string> | null) => {
         this.applyEphemeralHighlight(nodeIds);
       })
     );
-
-    this.doRender();
   }
 
   async onClose() {
@@ -866,6 +914,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.nodeCircleBatch = null;
     this.arrowGraphics = null;
     this.guideLineGraphics = null;
+    this.routeGraphics = null;
+    this.routeData = null;
     this.groupGridGraphics = null;
     this.groupGridLabelContainer = null;
     this.barGraphics = null;
@@ -949,6 +999,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const guideGfx = new CanvasGraphics();
       world.addChild(guideGfx);
       this.guideLineGraphics = guideGfx;
+
+      // Route line layer (transit map style — per-group colored paths)
+      const routeGfx = new CanvasGraphics();
+      world.addChild(routeGfx);
+      this.routeGraphics = routeGfx;
 
       // Group grid overlay (bounding circle + cross-hair per cluster group)
       const groupGridGfx = new CanvasGraphics();
@@ -1134,6 +1189,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
   setClusterMeta(meta: ClusterMetadata | null) {
     this.clusterMeta = meta;
+    this.routeData = meta?.timelineRoutes ?? null;
     // Merge/remove synthetic sequence edges from graphEdges
     // First remove any existing synthetic sequence edges
     this.graphEdges = this.graphEdges.filter(e => !e.id.startsWith("__seq__"));
@@ -1152,6 +1208,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const cache = this.app.metadataCache.getFileCache(tf);
     const val = cache?.frontmatter?.[key];
     return val !== undefined && val !== null ? String(val) : undefined;
+  }
+  getSequenceFields(): string[] {
+    const fields = this.plugin.settings.ontology?.sequenceFields;
+    return fields && fields.length > 0 ? fields : DEFAULT_ONTOLOGY.sequenceFields;
+  }
+  getReverseSequenceFields(): string[] {
+    const fields = this.plugin.settings.ontology?.reverseSequenceFields;
+    return fields && fields.length > 0 ? fields : DEFAULT_ONTOLOGY.reverseSequenceFields;
   }
   getNodeShapeRules() { return this.panel.nodeShapeRules; }
   getSearchHiddenNodes() { return new Set<string>(); }
@@ -1356,7 +1420,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getTimelineRange(): { min: number; max: number; active: boolean } {
     const min = this.panel.timelineRangeMin;
     const max = this.panel.timelineRangeMax;
-    const active = (min > 0.001 || max < 0.999) && this.panel.clusterArrangement === "timeline";
+    const active = (min > 0.001 || max < 0.999) && this.panel.clusterArrangement === ARRANGEMENT_TIMELINE;
     return { min, max, active };
   }
 
@@ -1585,7 +1649,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const g = this.orbitGraphics;
     if (!g) return;
     g.clear();
-    if (!this.panel.showOrbitRings || this.currentLayout !== "concentric" || this.shells.length === 0) return;
+    if (!this.panel.showOrbitRings || this.currentLayout !== LAYOUT_CONCENTRIC || this.shells.length === 0) return;
 
     const ringColor = this.isDarkTheme() ? 0x888888 : 0xaaaaaa;
     const n = this.shells.length;
@@ -1616,8 +1680,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   /** Resolve an edge source/target reference to a position object.
    *  Bound method — avoids per-frame closure allocation. */
-  private _resolveEdgePos = (ref: string | object) =>
-    typeof ref === "object" ? (ref as any) : this.pixiNodes.get(ref as string)?.data;
+  private _resolveEdgePos = (ref: string | object): { x: number; y: number; id?: string } | undefined =>
+    typeof ref === "object" ? (ref as { x: number; y: number; id?: string }) : this.pixiNodes.get(ref)?.data;
 
   /** Resolve an enclosure member node ID to position + radius.
    *  Bound method — avoids per-frame closure allocation. */
@@ -1678,7 +1742,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.showSibling = this.panel.showSibling;
     cfg.showSequence = this.panel.showSequence;
     cfg.colorEdgesByRelation = this.panel.colorEdgesByRelation;
-    cfg.isArcLayout = this.currentLayout === "arc";
+    cfg.isArcLayout = this.currentLayout === LAYOUT_ARC;
     cfg.highlightedNodeId = effectiveHighlightId;
     cfg.highlightSet = effectiveHighlightSet;
     cfg.bgColor = this.cachedBgColor;
@@ -1911,12 +1975,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     this.clusterSunburstLabels.clear();
 
+    const rtSb = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
     const worldScale = this.worldContainer?.scale.x ?? 1;
-    const fontSize = Math.max(8, 12 / worldScale);
+    const sbFontBase = rtSb.groupLabelFontSize ?? 12;
+    const sbFontMin = rtSb.groupLabelScaleMin ?? 0.6;
+    const fontSize = Math.max(sbFontBase * sbFontMin, sbFontBase / worldScale);
     const isDark = this.cachedIsDark ?? true;
     const textColor = isDark ? 0xdddddd : 0x333333;
 
-    const minSweep = 0.15; // minimum arc sweep to draw label (radians)
+    const minSweep = rtSb.sunburstMinArcSweep ?? 0.005;
 
     for (const arc of sunburstArcs) {
       // Only label depth 0-1 arcs with sufficient width
@@ -2109,8 +2176,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const guideColor = this.isDarkTheme() ? 0x666666 : 0xbbbbbb;
 
     // Shared timeline mode: merge all timeline guides into one axis
-    if (this.panel.guideLineMode === "shared" && guideData.arrangement === "timeline") {
-      const timelineGroups = guideData.groups.filter(gr => gr.guide.type === "timeline");
+    if (this.panel.guideLineMode === "shared" && guideData.arrangement === ARRANGEMENT_TIMELINE) {
+      const timelineGroups = guideData.groups.filter(gr => gr.guide.type === ARRANGEMENT_TIMELINE);
       if (timelineGroups.length > 0) {
         const allTicks: { x: number; label: string }[] = [];
         let sumY = 0;
@@ -2182,21 +2249,75 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const { centerX: cx, centerY: cy, guide } = group;
       const gColor = this.getClusterGroupColor(group.groupKey);
       switch (guide.type) {
-        case "timeline":
+        case ARRANGEMENT_TIMELINE:
           this.drawTimelineAxis(g, cx, cy, guide, lineW, gColor, worldScale);
           break;
-        case "grid":
+        case ARRANGEMENT_GRID:
           this.drawGridLines(g, cx, cy, guide, lineW, gColor);
           break;
-        case "triangle":
+        case ARRANGEMENT_TRIANGLE:
           this.drawTriangleOutline(g, cx, cy, guide, lineW, gColor);
           break;
-        case "coordinate":
+        case GUIDE_TYPE_COORDINATE:
           this.drawCoordinateGuide(g, cx, cy, guide as Extract<ArrangementGuide, { type: "coordinate" }>, lineW, gColor);
           break;
-        case "concentric":
+        case ARRANGEMENT_CONCENTRIC:
           this.drawConcentricGuide(g, cx, cy, guide as Extract<ArrangementGuide, { type: "concentric" }>, lineW, gColor);
           break;
+      }
+    }
+  }
+
+  drawRouteLines() {
+    const g = this.routeGraphics;
+    if (!g) return;
+    g.clear();
+
+    const routes = this.routeData;
+    if (!routes || routes.length === 0) return;
+    if (!this.panel.showTimelineRoutes) return;
+
+    const worldScale = this.worldContainer?.scale.x ?? 1;
+    // Route line width: ensure at least 2px on screen
+    const baseWidth = Math.max(3, 6 / Math.max(worldScale, 0.1));
+    const alpha = 0.55;
+
+    const centroids = this.clusterMeta?.clusterCentroids;
+    if (!centroids) return;
+    const sortedKeys = [...centroids.keys()].sort();
+
+    // Set round line caps and joins for smooth curves
+    g.setLineCap("round");
+    g.setLineJoin("round");
+
+    for (const route of routes) {
+      if (route.waypoints.length < 2) continue;
+
+      // Get group color from DEFAULT_COLORS palette
+      const colorIdx = sortedKeys.indexOf(route.groupKey);
+      const colorHex = DEFAULT_COLORS[(colorIdx >= 0 ? colorIdx : 0) % DEFAULT_COLORS.length];
+      const color = cssColorToHex(colorHex);
+
+      g.lineStyle(baseWidth, color, alpha);
+
+      const pts = route.waypoints;
+      g.moveTo(pts[0].x, pts[0].y);
+
+      // Catmull-Rom to cubic Bezier conversion for smooth curves
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[Math.max(0, i - 1)];
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const p3 = pts[Math.min(pts.length - 1, i + 2)];
+
+        // Catmull-Rom -> Bezier control points (tension = 0.5)
+        const t = 0.5;
+        const cp1x = p1.x + (p2.x - p0.x) / (6 * t);
+        const cp1y = p1.y + (p2.y - p0.y) / (6 * t);
+        const cp2x = p2.x - (p3.x - p1.x) / (6 * t);
+        const cp2y = p2.y - (p3.y - p1.y) / (6 * t);
+
+        g.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
       }
     }
   }
@@ -2333,9 +2454,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
 
         const text = new CanvasText(displayName, {
-          fontSize: Math.min(fontSize, 11),
+          fontSize: Math.min(fontSize, rtL.groupLabelFontSize ?? 12),
           fill: textColor,
-          fontWeight: "400",
+          fontWeight: rtL.groupLabelFontWeight ?? "500",
         });
         text.letterSpacing = groupLetterSpacing;
         text.alpha = groupLabelAlpha;
@@ -3227,7 +3348,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // DQ-09: Expand bounding box when enclosures or guidelines are active
     // so they are not clipped at viewport edges after auto-fit.
-    if (this.panel.tagDisplay === "enclosure") {
+    if (this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
       const encPad = 30; // OUTLINE_PAD + typical label height
       minX -= encPad; minY -= encPad; maxX += encPad; maxY += encPad;
     }
@@ -3546,8 +3667,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     edges = edges.map(e => ({
       ...e,
-      source: typeof e.source === "object" ? (e.source as any).id : e.source,
-      target: typeof e.target === "object" ? (e.target as any).id : e.target,
+      source: edgeSourceId(e),
+      target: edgeTargetId(e),
     }));
 
     // Local graph: BFS N-hop filter from center node
@@ -3598,16 +3719,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Master switch: hide all tag nodes and tag edges when showTags is off
     if (!this.panel.showTags) {
       nodes = nodes.filter((n) => !n.isTag);
-      edges = edges.filter((e) => e.type !== "has-tag");
+      edges = edges.filter((e) => e.type !== EDGE_TYPE_HAS_TAG);
     }
 
-    if (!this.panel.showTagNodes || this.panel.tagDisplay === "enclosure") {
+    if (!this.panel.showTagNodes || this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
       nodes = nodes.filter((n) => !n.isTag);
-      edges = edges.filter((e) => e.type !== "has-tag");
+      edges = edges.filter((e) => e.type !== EDGE_TYPE_HAS_TAG);
     }
 
     // Filter out "similar" edges unless the user has enabled them
-    if (!this.panel.showSimilar) edges = edges.filter((e) => e.type !== "similar");
+    if (!this.panel.showSimilar) edges = edges.filter((e) => e.type !== EDGE_TYPE_SIMILAR);
 
     // Dataview query filter
     if (this.panel.dataviewQuery.trim()) {
@@ -3749,7 +3870,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.tagRelPairsCache.clear();
     this.overlapCache.counts.clear();
     this.overlapCache.frame = 0;
-    if (this.panel.tagDisplay === "enclosure") {
+    if (this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
       // Pass 1: count members per tag to determine specificity
       const tagCounts = new Map<string, number>();
       for (const n of gd.nodes) {
@@ -3773,9 +3894,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       // Pre-build tag relationship pairs (once per render, not per frame)
       for (const e of gd.edges) {
-        if (e.type !== "inheritance" && e.type !== "aggregation") continue;
-        const src = typeof e.source === "string" ? e.source : (e.source as any).id;
-        const tgt = typeof e.target === "string" ? e.target : (e.target as any).id;
+        if (e.type !== EDGE_TYPE_INHERITANCE && e.type !== EDGE_TYPE_AGGREGATION) continue;
+        const src = edgeSourceId(e);
+        const tgt = edgeTargetId(e);
         if (src?.startsWith("tag:") && tgt?.startsWith("tag:")) {
           const t1 = src.slice(4), t2 = tgt.slice(4);
           this.tagRelPairsCache.add(`${t1}\0${t2}`);
@@ -3837,7 +3958,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     };
 
     // ==== Force layout ====
-    if (this.currentLayout === "force") {
+    if (this.currentLayout === LAYOUT_FORCE) {
       for (const n of gd.nodes) {
         // Use saved positions from previous layout as starting positions
         const saved = this.savedPositions.get(n.id);
@@ -3926,16 +4047,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const sortCmp = this.buildSortComparator(gd.nodes, gd.edges);
       const nsMap = this.computeNodeSpacingMap(gd.nodes);
       switch (this.currentLayout) {
-        case "concentric": {
+        case LAYOUT_CONCENTRIC: {
           const result = applyConcentricLayout(gd, { centerX: cx, centerY: cy, minRadius: this.panel.concentricMinRadius, radiusStep: this.panel.concentricRadiusStep, sortComparator: sortCmp, nodeSpacingMap: nsMap });
           ld = result.data;
           this.shells = result.shells;
           this.shells.forEach((s, i) => s.nodeIds.forEach((id) => this.nodeShellIndex.set(id, i)));
           break;
         }
-        case "tree": ld = applyTreeLayout(gd, { startX: cx, startY: 40, sortComparator: sortCmp, nodeSpacingMap: nsMap }); break;
-        case "arc": ld = applyArcLayout(gd, { centerX: cx, centerY: cy, radius: Math.min(W, H) * 0.4, sortComparator: sortCmp }); break;
-        case "sunburst": {
+        case LAYOUT_TREE: ld = applyTreeLayout(gd, { startX: cx, startY: 40, sortComparator: sortCmp, nodeSpacingMap: nsMap }); break;
+        case LAYOUT_ARC: ld = applyArcLayout(gd, { centerX: cx, centerY: cy, radius: Math.min(W, H) * 0.4, sortComparator: sortCmp }); break;
+        case LAYOUT_SUNBURST: {
           const root = buildSunburstData(this.app, this.plugin.settings.groupField);
           const result = applySunburstLayout(gd, root, {
             centerX: cx,
@@ -3950,7 +4071,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.sunburstCenter = { x: result.cx, y: result.cy };
           break;
         }
-        case "timeline": {
+        case LAYOUT_TIMELINE: {
           const timeKey = this.panel.timelineKey || "date";
           const tlResult = applyTimelineLayout(gd, {
             timeKey,
@@ -4050,7 +4171,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Rebuild panel — relationColors and other data are now available
     this.stopOrbitAnimation();
     if (this.skipPanelRebuildCount === 0) this.buildPanel();
-    if (this.currentLayout === "concentric" && this.shells.length > 0) {
+    if (this.currentLayout === LAYOUT_CONCENTRIC && this.shells.length > 0) {
       if (this.panel.orbitAutoRotate) this.startOrbitAnimation();
     }
   }
@@ -4118,9 +4239,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return this._fmKeysCache;
     }
     const keys = new Set<string>();
-    const files = (this.app as any).vault?.getMarkdownFiles?.() ?? [];
+    const files = this.app.vault.getMarkdownFiles();
     for (const f of files) {
-      const cache = (this.app as any).metadataCache?.getFileCache?.(f);
+      const cache = this.app.metadataCache.getFileCache(f);
       const fm = cache?.frontmatter;
       if (fm) {
         for (const k of Object.keys(fm)) {
@@ -4378,37 +4499,62 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const degrees = this.degrees;
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
 
-    // Compute degree percentiles for progressive label display.
-    // Within tier-1 (zoom < labelZoomTier1), further tighten the percentile
-    // proportionally to zoom so that extreme zoom-out has fewer candidates.
-    // effectivePct = basePct * clamp(zoom / tierThreshold, 0, 1)
-    const degValues = Array.from(degrees.values()).sort((a, b) => b - a);
-    const tier1Ratio = Math.min(1, Math.max(0.05, zoom / rt.labelZoomTier1));
-    const effectivePctTier1 = rt.labelDegreePctTier1 * tier1Ratio;
-    const pTier1 = degValues[Math.floor(degValues.length * effectivePctTier1)] ?? 1;
-    const pTier2 = degValues[Math.floor(degValues.length * rt.labelDegreePctTier2)] ?? 1;
-    const pTier3 = degValues[Math.floor(degValues.length * rt.labelDegreePctTier3)] ?? 1;
+    // =====================================================================
+    // Priority-Grid LOD: Google Maps-style label visibility
+    // =====================================================================
 
-    // Counter-scaling with minimum screen-size guarantee.
-    // screenPx = LABEL_FONT * counterScale * zoom  ≥  labelMinScreenPx
-    // The floor formula guarantees readability at any zoom level.
-    const LABEL_FONT = 11;
+    // --- Step 1: Compute priority scores and minShowZoom (once per rebuild) ---
+    // Priority scores are cached on PixiNode; recompute only when needed.
+    const pixiArr = [...this.pixiNodes.values()];
+    // Recompute when scores are uninitialized. Use -1 sentinel instead of 0
+    // to avoid false positives for nodes with genuinely zero degree.
+    const needsScoreRecompute = pixiArr.length > 0 && pixiArr[0].priorityScore <= 0;
+    if (needsScoreRecompute) {
+      let maxDeg = 0;
+      for (const d of degrees.values()) { if (d > maxDeg) maxDeg = d; }
+      // Assign priority scores
+      for (const pn of pixiArr) {
+        const deg = degrees.get(pn.data.id) ?? 0;
+        const degPct = maxDeg > 0 ? deg / maxDeg : 0;
+        const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
+        // Priority: super=150+degPct*50, regular=degPct*100
+        pn.priorityScore = isSuper ? 150 + degPct * 50 : degPct * 100;
+      }
+      // Sort by priority and assign minShowZoom based on rank
+      const sorted = [...pixiArr].filter(p => p.label).sort((a, b) => b.priorityScore - a.priorityScore);
+      const n = sorted.length;
+      // LOD tiers — all boundaries from RenderThresholds (no hardcoded values)
+      const lodZoom1 = rt.labelZoomTier1;   // default 0.15
+      const lodZoom2 = rt.labelZoomTier2;   // default 0.35
+      const lodZoom3 = rt.labelZoomTier3;   // default 0.70
+      const lodPct1 = rt.labelDegreePctTier1; // default 0.10 (top 10%)
+      const lodPct2 = rt.labelDegreePctTier2; // default 0.30 (top 30%)
+      const lodPct3 = rt.labelDegreePctTier3; // default 0.50 (top 50%)
+      // Interpolation: rank percentile → minShowZoom
+      // top lodPct1 → lodZoom1, top lodPct2 → lodZoom2, top lodPct3 → lodZoom3, rest → nodeLabelZoomMin
+      const lodZoomFloor = rt.nodeLabelZoomMin ?? 0.9;
+      for (let i = 0; i < n; i++) {
+        const pct = i / n; // 0 = highest priority, 1 = lowest
+        let minZ: number;
+        if (pct < lodPct1 * 0.1) minZ = lodZoom1 * 0.2; // top ~1%: near-always visible
+        else if (pct < lodPct1)  minZ = lodZoom1;         // top tier1%
+        else if (pct < lodPct2)  minZ = lodZoom2;         // top tier2%
+        else if (pct < lodPct3)  minZ = lodZoom3;         // top tier3%
+        else                     minZ = lodZoomFloor;     // rest
+        sorted[i].minShowZoom = minZ;
+      }
+    }
+
+    // --- Step 2: Counter-scaling with minimum screen-size guarantee ---
+    const LABEL_FONT = rt.nodeLabelFontSizeMin;
     const rawScale = 1 / Math.pow(zoom, rt.labelScalePower);
     const floorScale = rt.labelMinScreenPx / (LABEL_FONT * zoom);
     const counterScale = Math.min(rt.labelScaleMax, Math.max(rt.labelScaleMin, rawScale, floorScale));
 
-    // Hovered/linked nodes bypass the maxVisible cap
     const hoverSet = this.prevHighlightSet;
-    const maxVisible = rt.labelMaxVisible ?? 0; // 0 = unlimited
+    const maxVisible = rt.labelMaxVisible ?? 0;
 
-    // --- Pass 1: apply counter-scale, reset position, determine zoom-tier eligibility ---
-    // Collect candidates that pass semantic-zoom filter for maxVisible capping.
-    interface LabelCandidate { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean; }
-    const candidates: LabelCandidate[] = [];
-
-    // Zoom-aware label truncation (AP-5 fix):
-    // At extreme zoom-out, shorten label text to reduce AABB width so more labels fit.
-    // Chars scale proportionally: at z=0.03 with truncateZoom=0.1, ratio=0.3 → ~3 chars.
+    // --- Step 3: Zoom-aware label truncation ---
     const truncateZoom = rt.labelTruncateZoom ?? 0.1;
     const truncateMaxChars = rt.labelTruncateMaxChars ?? 8;
     const truncateMinChars = rt.labelTruncateMinChars ?? 3;
@@ -4418,44 +4564,62 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       : Infinity;
 
     // Tag label LOD threshold
-    const tagLabelZoomMin = rt.tagLabelZoomMin ?? 0.75;
-    // Node name label LOD threshold
-    const nodeLabelZoomMin = rt.nodeLabelZoomMin ?? 0.4;
+    const tagLabelZoomMin = rt.tagLabelZoomMin ?? 1.2;
+
+    // --- Step 4: Apply LOD with hysteresis ---
+    // Hysteresis: once visible, keep visible until zoom drops 30% below threshold
+    const hysteresisHideFactor = rt.labelHysteresisHideFactor ?? 0.7;
+
+    interface LabelCandidate { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean; }
+    const candidates: LabelCandidate[] = [];
 
     for (const pn of this.pixiNodes.values()) {
       // --- Tag label LOD ---
       if (pn.tagLabel) {
-        if (zoom >= tagLabelZoomMin) {
-          pn.tagLabel.visible = true;
-          pn.tagLabel.scale.set(counterScale);
-        } else {
-          pn.tagLabel.visible = false;
-        }
+        pn.tagLabel.visible = zoom >= tagLabelZoomMin;
+        if (pn.tagLabel.visible) pn.tagLabel.scale.set(counterScale);
       }
 
       if (!pn.label) continue;
 
-      // Apply counter-scaling so labels stay readable at any zoom
+      // Apply counter-scaling
       pn.label.scale.set(counterScale);
 
-      // Truncate label text at extreme zoom to reduce AABB footprint
+      // Smart truncation: preserve the distinguishing part of the label
       if (shouldTruncate && pn.label.text) {
         const fullText = pn.data.label || pn.data.id;
         if (fullText.length > effectiveMaxChars) {
-          pn.label.text = fullText.slice(0, effectiveMaxChars - 1) + '…';
+          const slashIdx = fullText.lastIndexOf('/');
+          const dashIdx = fullText.indexOf('-');
+          if (slashIdx > 0 && slashIdx < fullText.length - 1) {
+            // Path label ("classic-othello/characters (15)")
+            // → show distinguishing parent + child hint ("othello/cha")
+            const parent = fullText.slice(0, slashIdx);
+            const distinctStart = dashIdx > 0 && dashIdx < slashIdx ? dashIdx + 1 : 0;
+            const parentDistinct = parent.slice(distinctStart, distinctStart + Math.max(3, effectiveMaxChars - 2));
+            const child = fullText.slice(slashIdx + 1);
+            const childHint = child.length > 3 ? child.slice(0, 3) : child;
+            pn.label.text = parentDistinct + '/' + childHint;
+          } else if (dashIdx > 0 && dashIdx < effectiveMaxChars) {
+            // Hyphenated: preserve after first dash
+            const afterDash = fullText.slice(dashIdx + 1);
+            pn.label.text = afterDash.length > effectiveMaxChars
+              ? afterDash.slice(0, effectiveMaxChars - 1) + '…'
+              : afterDash;
+          } else {
+            pn.label.text = fullText.slice(0, effectiveMaxChars - 1) + '…';
+          }
         } else {
           pn.label.text = fullText;
         }
       } else if (pn.label.text) {
-        // Restore full text when not truncating
         pn.label.text = pn.data.label || pn.data.id;
       }
 
-      // Reset label position before overlap cull.
-      // Use zone-based placement if enabled, falling back to fixed offset.
+      // Reset label position (zone-based or fixed)
       const r = pn.radius ?? 6;
       if (rt.labelZonePlacement && this.renderPipeline) {
-        const placement = (this.renderPipeline as any).computeZonePlacement(
+        const placement = this.renderPipeline.computeZonePlacement(
           pn.data, r, rt.labelZoneOffset ?? 6
         );
         pn.label.x = placement.x;
@@ -4470,31 +4634,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const isHovered = hoverSet.size > 0 && hoverSet.has(pn.data.id);
       const deg = degrees.get(pn.data.id) ?? 0;
 
-      // Semantic zoom: determine eligibility based on zoom level + importance.
-      // Node name labels have a LOD threshold of nodeLabelZoomMin (0.4).
-      // Group labels are always visible (zoom >= 0.0), managed separately below.
+      // --- Priority-based LOD with hysteresis ---
+      const showThreshold = pn.minShowZoom;
+      const hideThreshold = showThreshold * hysteresisHideFactor;
       let eligible: boolean;
-      if (isSuper) {
-        eligible = true; // super nodes always eligible
-      } else if (zoom < nodeLabelZoomMin) {
-        // Below node label LOD threshold: only show top-tier nodes
-        if (zoom < rt.labelZoomTier1) {
-          eligible = deg >= pTier1;
-        } else {
-          eligible = deg >= pTier2;
-        }
-      } else if (zoom < rt.labelZoomTier2) {
-        eligible = deg >= pTier2;
-      } else if (zoom < rt.labelZoomTier3) {
-        eligible = deg >= pTier3;
-      } else {
+      if (isSuper || isHovered) {
         eligible = true;
+      } else if (pn.labelWasVisible) {
+        // Was visible: keep until zoom drops below hide threshold
+        eligible = zoom >= hideThreshold;
+      } else {
+        // Was hidden: only show when zoom reaches show threshold
+        eligible = zoom >= showThreshold;
       }
 
-      if (!eligible && !isHovered) {
+      if (!eligible) {
         pn.label.visible = false;
         pn.label.alpha = 0;
-        // Also hide tag label when node label is hidden
+        pn.labelWasVisible = false;
         if (pn.tagLabel) pn.tagLabel.visible = false;
         continue;
       }
@@ -4502,25 +4659,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       candidates.push({ pn, deg, isSuper, isHovered });
     }
 
-    // AP-5 semantic-zoom diversity guarantee: if eligible non-super candidates
-    // are too few, promote top non-super nodes by degree so that
-    // cullOverlappingLabels has regulars to work with for concession swaps.
+    // AP-5 diversity guarantee: promote top non-super nodes if too few
     const eligibleNonSuper = candidates.filter(c => !c.isSuper).length;
     const eligibleSuper = candidates.filter(c => c.isSuper).length;
-    // Need enough regulars for both initial placement AND concession pool.
-    // Target: at least 50% of super count, minimum labelMinNonSuper.
-    // The concession in cullOverlappingLabels needs hiddenRegulars to swap in,
-    // so we must promote enough that some survive into the hidden pool.
     const targetRegulars = Math.max(rt.labelMinNonSuper ?? 5, Math.ceil(eligibleSuper * 0.50));
     if (eligibleNonSuper < targetRegulars) {
       const needed = targetRegulars - eligibleNonSuper;
-      // Collect non-super nodes with labels that were filtered out
       const hiddenNonSupers: { pn: PixiNode; deg: number }[] = [];
       for (const pn of this.pixiNodes.values()) {
         if (!pn.label || !pn.label.text) continue;
         const isS = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
         if (isS) continue;
-        if (candidates.some(c => c.pn === pn)) continue; // already eligible
+        if (candidates.some(c => c.pn === pn)) continue;
         const d = degrees.get(pn.data.id) ?? 0;
         hiddenNonSupers.push({ pn, deg: d });
       }
@@ -4533,31 +4683,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
-    // --- Pass 2: apply maxVisible cap (degree-sorted, hovered nodes exempt) ---
-    // Sort: super nodes first, then by degree descending
-    candidates.sort((a, b) => {
-      if (a.isSuper !== b.isSuper) return a.isSuper ? -1 : 1;
-      return b.deg - a.deg;
-    });
+    // --- Pass 2: sort by priority score, apply maxVisible cap ---
+    candidates.sort((a, b) => b.pn.priorityScore - a.pn.priorityScore);
 
     let visCount = 0;
     for (const c of candidates) {
       const { pn, isHovered } = c;
-      // Hovered/linked nodes always visible (bypass cap)
       if (isHovered) {
         pn.label.visible = true;
         pn.label.alpha = Math.max(rt.labelAlphaMin, baseOpacity);
+        pn.labelWasVisible = true;
         continue;
       }
-      // Apply maxVisible cap (0 = unlimited)
       if (maxVisible > 0 && visCount >= maxVisible) {
         pn.label.visible = false;
         pn.label.alpha = 0;
+        pn.labelWasVisible = false;
         if (pn.tagLabel) pn.tagLabel.visible = false;
         continue;
       }
       pn.label.visible = true;
       pn.label.alpha = Math.max(rt.labelAlphaMin, baseOpacity);
+      pn.labelWasVisible = true;
       visCount++;
     }
 
@@ -4678,7 +4825,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private drawSunburstLayoutArcs() {
     const gfx = this.sunburstGraphics;
     if (!gfx) return;
-    if (this.currentLayout !== "sunburst") return;
+    if (this.currentLayout !== LAYOUT_SUNBURST) return;
     if (this.sunburstLayoutArcs.length === 0) return;
 
     const arcs = this.sunburstLayoutArcs;
@@ -4759,8 +4906,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     this.sunburstLabels.clear();
 
+    const rtSb2 = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
     const worldScale = this.worldContainer?.scale.x ?? 1;
-    const fontSize = Math.max(8, 12 / worldScale);
+    const sbFontBase2 = rtSb2.groupLabelFontSize ?? 12;
+    const sbFontMin2 = rtSb2.groupLabelScaleMin ?? 0.6;
+    const fontSize = Math.max(sbFontBase2 * sbFontMin2, sbFontBase2 / worldScale);
     const isDark = this.cachedIsDark ?? true;
     const textColor = isDark ? 0xdddddd : 0x333333;
 

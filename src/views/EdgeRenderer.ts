@@ -1,7 +1,12 @@
 import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { GraphEdge, EdgeCardinalityMode, Cardinality, CardinalityRule, CardinalityRenderConfig } from "../types";
 import { DEFAULT_CARDINALITY_RENDER_CONFIG } from "../types";
-import { cssColorToHex } from "../utils/graph-helpers";
+import { cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
+import {
+  EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_SEQUENCE,
+  EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_HAS_TAG,
+  EDGE_TYPE_LINK, EDGE_TYPE_TAG,
+} from "../constants";
 
 // ---------------------------------------------------------------------------
 // Edge drawing configuration
@@ -88,16 +93,16 @@ interface Pos {
 /** Returns true if the edge should be skipped based on type visibility toggles. */
 function shouldSkipEdge(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
   switch (e.type) {
-    case "link": return !cfg.showLinks;
-    case "tag": return !cfg.showTagEdges;
+    case EDGE_TYPE_LINK: return !cfg.showLinks;
+    case EDGE_TYPE_TAG: return !cfg.showTagEdges;
     case "category": return !cfg.showCategoryEdges;
     case "semantic": return !cfg.showSemanticEdges;
-    case "inheritance": return !cfg.showInheritance;
-    case "aggregation": return !cfg.showAggregation;
-    case "has-tag": return !cfg.showTagNodes;
-    case "similar": return !cfg.showSimilar;
-    case "sibling": return !cfg.showSibling;
-    case "sequence": return !cfg.showSequence;
+    case EDGE_TYPE_INHERITANCE: return !cfg.showInheritance;
+    case EDGE_TYPE_AGGREGATION: return !cfg.showAggregation;
+    case EDGE_TYPE_HAS_TAG: return !cfg.showTagNodes;
+    case EDGE_TYPE_SIMILAR: return !cfg.showSimilar;
+    case EDGE_TYPE_SIBLING: return !cfg.showSibling;
+    case EDGE_TYPE_SEQUENCE: return !cfg.showSequence;
     default: return !cfg.showLinks; // untyped edges treated as links
   }
 }
@@ -123,6 +128,93 @@ const GRID_CELL = 200;
 /** Minimum edges in a direction-color-cell group to activate bundling */
 const MIN_BUNDLE_SIZE = 4;
 
+/** Edge alpha for structural edge types */
+const STRUCTURAL_EDGE_ALPHA = 0.7;
+/** Edge alpha for non-structural edge types */
+const NON_STRUCTURAL_EDGE_ALPHA = 0.65;
+/** Default line thickness for edges */
+const DEFAULT_LINE_THICKNESS = 1.2;
+/** Edge weight additional thickness per log2 step */
+const WEIGHT_THICKNESS_FACTOR = 0.6;
+/** Fade-by-degree minimum alpha fraction */
+const FADE_BY_DEGREE_MIN_ALPHA = 0.15;
+/** Alpha for relation-colored edges */
+const RELATION_COLOR_ALPHA = 0.8;
+/** Highlighted edge line thickness */
+const HIGHLIGHT_LINE_THICKNESS = 2.0;
+/** Highlighted cable trunk width */
+const HIGHLIGHT_CABLE_TRUNK_WIDTH = 3;
+/** Cable fan crowd attenuation threshold (edges) */
+const CABLE_FAN_CROWD_THRESHOLD = 6.0;
+/** Cable fan crowd min alpha fraction */
+const CABLE_FAN_CROWD_MIN_FRACTION = 0.4;
+/** Cable fan alpha factor for highlighted (connected) edges */
+const CABLE_FAN_CONNECTED_FACTOR = 0.8;
+/** Cable fan alpha dampen factor for non-matching edges during hover */
+const CABLE_FAN_NON_MATCH_DAMPEN = 0.15;
+/** Cable lane spacing in pixels */
+const CABLE_LANE_SPACING = 3;
+/** Cable layout margin from cluster boundary */
+const CABLE_LAYOUT_MARGIN = 5;
+/** Cable layout overlap start/end fraction */
+const CABLE_OVERLAP_FRAC = 0.4;
+/** Default fallback cluster radius */
+const DEFAULT_CLUSTER_RADIUS = 50;
+/** Arc layout control point height factor */
+const ARC_CP_HEIGHT_FACTOR = 0.3;
+/** Arc layout control point vertical offset */
+const ARC_CP_VERTICAL_OFFSET = 20;
+/** Arc layout max edge count before disabling curves */
+const ARC_MAX_EDGE_COUNT = 500;
+/** Edge marker size for ontology markers */
+const EDGE_MARKER_SIZE = 8;
+/** Sequence arrow marker size */
+const SEQUENCE_ARROW_SIZE = 7;
+/** Generic arrow minimum size */
+const GENERIC_ARROW_MIN_SIZE = 10;
+/** Generic arrow radius proportion */
+const GENERIC_ARROW_RADIUS_FACTOR = 0.35;
+/** Generic arrow half-width proportion */
+const GENERIC_ARROW_HALF_WIDTH = 0.45;
+/** Generic arrow tip offset from node boundary */
+const GENERIC_ARROW_TIP_OFFSET = 2;
+/** Sequence/ontology arrow half-width factor */
+const ARROW_HALF_WIDTH_FACTOR = 0.4;
+/** Edge marker stroke width */
+const MARKER_STROKE_WIDTH = 1.5;
+/** Edge marker fill alpha ratio (relative to line alpha) */
+const MARKER_FILL_ALPHA_RATIO = 0.9;
+/** Edge marker half-width ratio (for inheritance triangle and aggregation diamond) */
+const MARKER_HALF_WIDTH = 0.5;
+/** Density scale: edge count threshold for full alpha */
+const DENSITY_FULL_ALPHA_THRESHOLD = 100;
+/** Density scale: gentle fade upper bound */
+const DENSITY_GENTLE_THRESHOLD = 500;
+/** Density scale: aggressive fade upper bound */
+const DENSITY_AGGRESSIVE_THRESHOLD = 2000;
+/** Density scale: gentle fade reduction factor */
+const DENSITY_GENTLE_REDUCTION = 0.35;
+/** Density scale: aggressive fade mid-alpha */
+const DENSITY_AGGRESSIVE_MID_ALPHA = 0.65;
+/** Density scale: aggressive fade reduction */
+const DENSITY_AGGRESSIVE_REDUCTION = 0.35;
+/** Density scale: floor alpha */
+const DENSITY_MIN_ALPHA = 0.3;
+/** Zoom fade threshold for extreme zoom-out */
+const ZOOM_FADE_THRESHOLD = 0.05;
+/** Zoom fade minimum alpha */
+const ZOOM_FADE_MIN_ALPHA = 0.4;
+/** Default density floor */
+const DEFAULT_DENSITY_FLOOR = 0.25;
+/** Edge label font size */
+const EDGE_LABEL_FONT_SIZE = 10;
+/** Edge label alpha */
+const EDGE_LABEL_ALPHA = 0.7;
+/** Edge label resolution */
+const EDGE_LABEL_RESOLUTION = 2;
+/** Maximum number of edge labels rendered */
+const MAX_EDGE_LABELS = 200;
+
 // ---------------------------------------------------------------------------
 // Edge color helper (shared between pre-computation and draw loop)
 // ---------------------------------------------------------------------------
@@ -132,12 +224,12 @@ function resolveEdgeColor(
   relationColors: Map<string, string>,
   isDark: boolean,
 ): number {
-  if (e.type === "inheritance") return INHERITANCE_COLOR;
-  if (e.type === "aggregation") return AGGREGATION_COLOR;
-  if (e.type === "similar") return SIMILAR_COLOR;
-  if (e.type === "has-tag") return HAS_TAG_COLOR;
-  if (e.type === "sibling") return SIBLING_COLOR;
-  if (e.type === "sequence") return SEQUENCE_COLOR;
+  if (e.type === EDGE_TYPE_INHERITANCE) return INHERITANCE_COLOR;
+  if (e.type === EDGE_TYPE_AGGREGATION) return AGGREGATION_COLOR;
+  if (e.type === EDGE_TYPE_SIMILAR) return SIMILAR_COLOR;
+  if (e.type === EDGE_TYPE_HAS_TAG) return HAS_TAG_COLOR;
+  if (e.type === EDGE_TYPE_SIBLING) return SIBLING_COLOR;
+  if (e.type === EDGE_TYPE_SEQUENCE) return SEQUENCE_COLOR;
   if (useRelColor && e.relation) {
     const css = relationColors.get(e.relation);
     if (css) return cssColorToHex(css);
@@ -298,8 +390,8 @@ function buildCables(
   for (const e of edges) {
     if (shouldSkipEdge(e, cfg)) continue;
 
-    const sid = typeof e.source === "string" ? e.source : (e.source as any).id;
-    const tid = typeof e.target === "string" ? e.target : (e.target as any).id;
+    const sid = edgeSourceId(e);
+    const tid = edgeTargetId(e);
     const srcCluster = nodeClusterMap.get(sid);
     const tgtCluster = nodeClusterMap.get(tid);
     if (!srcCluster || !tgtCluster || srcCluster === tgtCluster) continue;
@@ -374,8 +466,8 @@ function computeCableLayout(
   const cB = centroids.get(cable.tgtCluster);
   if (!cA || !cB) return null;
 
-  const rA = radii.get(cable.srcCluster) ?? 50;
-  const rB = radii.get(cable.tgtCluster) ?? 50;
+  const rA = radii.get(cable.srcCluster) ?? DEFAULT_CLUSTER_RADIUS;
+  const rB = radii.get(cable.tgtCluster) ?? DEFAULT_CLUSTER_RADIUS;
 
   const dx = cB.x - cA.x;
   const dy = cB.y - cA.y;
@@ -387,7 +479,7 @@ function computeCableLayout(
 
   // Trunk start/end: clipped at cluster boundary (with small margin)
   // If clusters overlap (rA + rB > dist), place trunk endpoints at midpoint
-  const margin = 5;
+  const margin = CABLE_LAYOUT_MARGIN;
   const gapDist = dist - rA - rB;
   let startFrac: number, endFrac: number;
   if (gapDist > margin * 2) {
@@ -396,8 +488,8 @@ function computeCableLayout(
     endFrac = (rB + margin) / dist;
   } else {
     // Clusters close/overlapping: place trunk at 40%–60% of centroid-centroid line
-    startFrac = 0.4;
-    endFrac = 0.4;
+    startFrac = CABLE_OVERLAP_FRAC;
+    endFrac = CABLE_OVERLAP_FRAC;
   }
   const trunkStart = { x: cA.x + ux * dist * startFrac, y: cA.y + uy * dist * startFrac };
   const trunkEnd = { x: cB.x - ux * dist * endFrac, y: cB.y - uy * dist * endFrac };
@@ -448,7 +540,7 @@ function drawCables(
     const perpY = tlen > 0 ? tdx / tlen : 1;
 
     const nLanes = cable.lanes.length;
-    const laneSpacing = 3;
+    const laneSpacing = CABLE_LANE_SPACING;
 
     for (let li = 0; li < nLanes; li++) {
       const lane = cable.lanes[li];
@@ -472,8 +564,8 @@ function drawCables(
       if (cfg.highlightedNodeId) {
         let laneHit = false;
         for (const e of lane.edges) {
-          const sid = typeof e.source === "string" ? e.source : (e.source as any).id;
-          const tid = typeof e.target === "string" ? e.target : (e.target as any).id;
+          const sid = edgeSourceId(e);
+          const tid = edgeTargetId(e);
           if (cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid)) {
             laneHit = true;
             break;
@@ -481,9 +573,9 @@ function drawCables(
         }
         if (laneHit) {
           trunkAlpha = cfg.highlightEdgeAlpha ?? 1.0;
-          trunkWidth = 3;
+          trunkWidth = HIGHLIGHT_CABLE_TRUNK_WIDTH;
         } else {
-          trunkAlpha = cfg.highlightEdgeNonMatchAlpha ?? 0.15;
+          trunkAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
         }
       }
 
@@ -495,16 +587,16 @@ function drawCables(
       const fanWidth = cfg.cableFanWidth ?? 1;
       const baseFanAlpha = cfg.cableFanAlpha ?? 0.45;
       const fanCount = lane.edges.length;
-      const crowdFactor = Math.min(1, 6.0 / fanCount);  // 6本以下は100%、増えると減衰
-      const fanAlpha = baseFanAlpha * (0.4 + 0.6 * crowdFactor) * densityScale;
+      const crowdFactor = Math.min(1, CABLE_FAN_CROWD_THRESHOLD / fanCount);
+      const fanAlpha = baseFanAlpha * (CABLE_FAN_CROWD_MIN_FRACTION + (1 - CABLE_FAN_CROWD_MIN_FRACTION) * crowdFactor) * densityScale;
 
       for (const e of lane.edges) {
         const src = resolvePos(e.source);
         const tgt = resolvePos(e.target);
         if (!src || !tgt) continue;
 
-        const sid = src.id ?? (typeof e.source === "string" ? e.source : (e.source as any).id);
-        const tid = tgt.id ?? (typeof e.target === "string" ? e.target : (e.target as any).id);
+        const sid = src.id ?? edgeSourceId(e);
+        const tid = tgt.id ?? edgeTargetId(e);
         const srcCluster = cfg.nodeClusterMap!.get(sid);
 
         let alpha = fanAlpha;
@@ -512,9 +604,9 @@ function drawCables(
         // Highlight: show individual fans clearly on hover
         if (cfg.highlightedNodeId) {
           if (cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid)) {
-            alpha = (cfg.highlightEdgeAlpha ?? 1.0) * 0.8;
+            alpha = (cfg.highlightEdgeAlpha ?? 1.0) * CABLE_FAN_CONNECTED_FACTOR;
           } else {
-            alpha = (cfg.highlightEdgeNonMatchAlpha ?? 0.15) * 0.15;
+            alpha = (cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA) * CABLE_FAN_NON_MATCH_DAMPEN;
           }
         }
 
@@ -557,6 +649,245 @@ export function invalidateBundleCache(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Edge style resolution — alpha and line thickness per edge
+// ---------------------------------------------------------------------------
+
+/** Resolved visual style for a single edge */
+interface EdgeStyle {
+  alpha: number;
+  lineThick: number;
+}
+
+/**
+ * Compute alpha and line thickness for a single edge based on type,
+ * relation coloring, degree fading, edge weight, and hover highlight.
+ */
+function resolveEdgeStyle(
+  e: GraphEdge,
+  src: Pos,
+  tgt: Pos,
+  cfg: EdgeDrawConfig,
+  densityScale: number,
+  pairCount: Map<string, number> | null,
+): EdgeStyle {
+  const isOnto = e.type === EDGE_TYPE_INHERITANCE || e.type === EDGE_TYPE_AGGREGATION;
+  const isSimilar = e.type === EDGE_TYPE_SIMILAR;
+  const isBreadcrumbs = e.type === EDGE_TYPE_SIBLING || e.type === EDGE_TYPE_SEQUENCE;
+  const isStructural = isOnto || e.type === EDGE_TYPE_HAS_TAG || isSimilar || isBreadcrumbs;
+  let alpha = (isStructural ? STRUCTURAL_EDGE_ALPHA : NON_STRUCTURAL_EDGE_ALPHA) * densityScale;
+  let lineThick = DEFAULT_LINE_THICKNESS;
+
+  // Edge weight: thicken based on same source-target pair count
+  if (pairCount) {
+    const pairKey = [e.source, e.target].sort().join(":");
+    const weight = pairCount.get(pairKey) ?? 1;
+    lineThick = DEFAULT_LINE_THICKNESS + Math.log2(weight) * WEIGHT_THICKNESS_FACTOR;
+    // Slightly increase alpha for heavy edges
+    if (weight > 2) alpha *= Math.min(1.3, 1 + (weight - 2) * 0.05);
+  }
+
+  if (!isOnto && e.relation && cfg.colorEdgesByRelation) alpha = RELATION_COLOR_ALPHA * densityScale;
+
+  // Fade by source node degree: low-degree -> faint, high-degree -> opaque
+  if (cfg.fadeByDegree && cfg.maxDegree > 0) {
+    const sid = src.id ?? (e.source as string);
+    const tid = tgt.id ?? (e.target as string);
+    const srcDeg = cfg.degrees.get(sid) ?? 0;
+    const tgtDeg = cfg.degrees.get(tid) ?? 0;
+    const minDeg = Math.min(srcDeg, tgtDeg);
+    // sqrt normalization: 0->MIN_ALPHA, maxDegree->base alpha
+    const t = Math.sqrt(minDeg / cfg.maxDegree);
+    alpha *= FADE_BY_DEGREE_MIN_ALPHA + (1 - FADE_BY_DEGREE_MIN_ALPHA) * t;
+  }
+
+  if (cfg.highlightedNodeId) {
+    const sid = src.id ?? (e.source as string);
+    const tid = tgt.id ?? (e.target as string);
+    // An edge is highlighted when at least one endpoint is in the highlight set
+    const highlighted = cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid);
+    if (highlighted) {
+      lineThick = HIGHLIGHT_LINE_THICKNESS;
+      alpha = cfg.highlightEdgeAlpha ?? 1.0;
+    } else {
+      alpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
+    }
+  }
+
+  return { alpha, lineThick };
+}
+
+// ---------------------------------------------------------------------------
+// Dash pattern helpers
+// ---------------------------------------------------------------------------
+
+/** Apply a dash pattern based on edge type. Returns true if a dash was set. */
+function applyDashPattern(g: CanvasGraphics, e: GraphEdge, lineThick: number): boolean {
+  const s = lineThick;
+  if (e.type === "semantic") {
+    g.setLineDash([4 * s, 4 * s]);
+    return true;
+  } else if (e.type === EDGE_TYPE_TAG || e.type === EDGE_TYPE_HAS_TAG) {
+    g.setLineDash([8 * s, 3 * s]);
+    return true;
+  } else if (e.type === EDGE_TYPE_SIMILAR) {
+    g.setLineDash([3 * s, 5 * s]);
+    return true;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Edge segment drawing — geometry path per layout mode
+// ---------------------------------------------------------------------------
+
+/**
+ * Draw the edge path (line or curve) based on the active layout mode.
+ * Chooses between straight lines, direction-bundle curves, and arc curves.
+ */
+function drawEdgeSegment(
+  g: CanvasGraphics,
+  src: Pos,
+  tgt: Pos,
+  e: GraphEdge,
+  lineColor: number,
+  isArcLayout: boolean,
+  bundles: Map<string, BundleGroup> | null,
+  bundleStrength: number,
+): void {
+  const isSimilar = e.type === EDGE_TYPE_SIMILAR;
+
+  if (isSimilar) {
+    // Similar edges: always straight lines
+    g.moveTo(src.x, src.y);
+    g.lineTo(tgt.x, tgt.y);
+  } else if (bundles && !isArcLayout) {
+    // Direction x color bundling: curve edge toward group centroid
+    drawBundledSegment(g, src, tgt, lineColor, bundles, bundleStrength);
+  } else if (isArcLayout) {
+    const mx = (src.x + tgt.x) / 2;
+    const minY = Math.min(src.y, tgt.y);
+    const dist = Math.abs(tgt.x - src.x);
+    const cpY = minY - dist * ARC_CP_HEIGHT_FACTOR - ARC_CP_VERTICAL_OFFSET;
+    g.moveTo(src.x, src.y);
+    g.quadraticCurveTo(mx, cpY, tgt.x, tgt.y);
+  } else {
+    g.moveTo(src.x, src.y);
+    g.lineTo(tgt.x, tgt.y);
+  }
+}
+
+/**
+ * Draw a direction-bundled edge segment. Computes the bundle group key
+ * from angle bin + grid cell and curves toward the group centroid.
+ */
+function drawBundledSegment(
+  g: CanvasGraphics,
+  src: Pos,
+  tgt: Pos,
+  lineColor: number,
+  bundles: Map<string, BundleGroup>,
+  bundleStrength: number,
+): void {
+  const dx = tgt.x - src.x;
+  const dy = tgt.y - src.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1) {
+    g.moveTo(src.x, src.y);
+    g.lineTo(tgt.x, tgt.y);
+    return;
+  }
+
+  const angle = normalizeAngle(Math.atan2(dy, dx));
+  const bin = Math.min(Math.floor(angle / BIN_WIDTH), ANGLE_BINS - 1);
+  const mx = (src.x + tgt.x) / 2;
+  const my = (src.y + tgt.y) / 2;
+  const gx = Math.floor(mx / GRID_CELL);
+  const gy = Math.floor(my / GRID_CELL);
+  const key = `${gx},${gy}|${bin}|${lineColor}`;
+  const group = bundles.get(key);
+
+  if (group) {
+    const cx = mx + (group.cx - mx) * bundleStrength;
+    const cy = my + (group.cy - my) * bundleStrength;
+    g.moveTo(src.x, src.y);
+    g.quadraticCurveTo(cx, cy, tgt.x, tgt.y);
+  } else {
+    g.moveTo(src.x, src.y);
+    g.lineTo(tgt.x, tgt.y);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Edge markers and arrows — post-segment decorations
+// ---------------------------------------------------------------------------
+
+/**
+ * Draw all post-segment decorations for a single edge: ontology markers,
+ * sequence arrows, generic arrows, and cardinality markers.
+ */
+function drawEdgeDecorations(
+  g: CanvasGraphics,
+  e: GraphEdge,
+  src: Pos,
+  tgt: Pos,
+  lineColor: number,
+  alpha: number,
+  cfg: EdgeDrawConfig,
+  arrowGfx?: CanvasGraphics | null,
+): void {
+  const isOnto = e.type === EDGE_TYPE_INHERITANCE || e.type === EDGE_TYPE_AGGREGATION;
+
+  // Ontology markers (inheritance triangle / aggregation diamond)
+  if (isOnto) {
+    drawEdgeMarker(g, src, tgt, e.type as typeof EDGE_TYPE_INHERITANCE | typeof EDGE_TYPE_AGGREGATION, lineColor, alpha, cfg.bgColor);
+  }
+
+  // Sequence arrow (next/prev direction)
+  if (e.type === EDGE_TYPE_SEQUENCE) {
+    drawSequenceArrow(g, src, tgt, lineColor, alpha);
+  }
+
+  // Generic directional arrow (skip edges that already have their own markers)
+  if (cfg.showArrows && e.type !== EDGE_TYPE_SEQUENCE && !isOnto && arrowGfx) {
+    const tgtR = cfg.nodeRadii?.get(e.target) ?? 4;
+    drawGenericArrow(arrowGfx, src, tgt, lineColor, Math.max(alpha, 0.5), tgtR);
+  }
+
+  // Cardinality markers (crow's foot notation)
+  if (cfg.edgeCardinalityMode === "crowsfoot") {
+    const rule = resolveCardinality(e, cfg.cardinalityRules ?? []);
+    if (rule) {
+      const srcR = cfg.nodeRadii?.get(edgeSourceId(e)) ?? 4;
+      const tgtR = cfg.nodeRadii?.get(edgeTargetId(e)) ?? 4;
+      const cardCfg = { ...DEFAULT_CARDINALITY_RENDER_CONFIG, ...(cfg.cardinalityRenderConfig ?? {}) };
+      drawCardinalityMarker(g, src, tgt, rule.sourceCardinality, lineColor, alpha, srcR, cardCfg);
+      drawCardinalityMarker(g, tgt, src, rule.targetCardinality, lineColor, alpha, tgtR, cardCfg);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Density scale computation
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the density-based alpha scale factor.
+ * Reduces edge opacity as edge count grows to keep the graph readable.
+ * Also applies zoom-out fade at extreme zoom levels.
+ */
+function computeDensityScale(cfg: EdgeDrawConfig, edgeCount: number): number {
+  const densityScaleBase = edgeCount <= DENSITY_FULL_ALPHA_THRESHOLD ? 1
+    : edgeCount <= DENSITY_GENTLE_THRESHOLD ? 1 - DENSITY_GENTLE_REDUCTION * ((edgeCount - DENSITY_FULL_ALPHA_THRESHOLD) / (DENSITY_GENTLE_THRESHOLD - DENSITY_FULL_ALPHA_THRESHOLD))
+    : edgeCount <= DENSITY_AGGRESSIVE_THRESHOLD ? DENSITY_AGGRESSIVE_MID_ALPHA - DENSITY_AGGRESSIVE_REDUCTION * ((edgeCount - DENSITY_GENTLE_THRESHOLD) / (DENSITY_AGGRESSIVE_THRESHOLD - DENSITY_GENTLE_THRESHOLD))
+    : DENSITY_MIN_ALPHA;
+  // At extreme zoom-out (scale < ZOOM_FADE_THRESHOLD), further reduce alpha so edges don't
+  // obscure nodes rendered with min-radius inflation.
+  const ws = cfg.worldScale ?? 1;
+  const zoomFade = ws >= ZOOM_FADE_THRESHOLD ? 1 : Math.max(ZOOM_FADE_MIN_ALPHA, ws / ZOOM_FADE_THRESHOLD);
+  return Math.max(cfg.edgeDensityFloor ?? DEFAULT_DENSITY_FLOOR, densityScaleBase * zoomFade);
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -578,23 +909,13 @@ export function drawEdges(
   g.clear();
   if (arrowGfx) arrowGfx.clear();
 
-  const { highlightedNodeId: hId, colorEdgesByRelation: useRelColor } = cfg;
+  const { colorEdgesByRelation: useRelColor } = cfg;
   // Disable arc curves when edge count is high to avoid vertex buffer explosion.
   // quadraticCurveTo generates ~20 vertices per edge vs 4 for lineTo.
-  const isArcLayout = cfg.isArcLayout && edges.length < 500;
+  const isArcLayout = cfg.isArcLayout && edges.length < ARC_MAX_EDGE_COUNT;
 
-  // Scale base alpha inversely with edge density to keep the graph readable.
-  // <100 edges: full alpha; 100–1000: gentle fade; 1000+: aggressive fade.
   const edgeCount = cfg.totalEdgeCount ?? edges.length;
-  const densityScaleBase = edgeCount <= 100 ? 1
-    : edgeCount <= 500 ? 1 - 0.35 * ((edgeCount - 100) / 400)
-    : edgeCount <= 2000 ? 0.65 - 0.35 * ((edgeCount - 500) / 1500)
-    : 0.3;
-  // At extreme zoom-out (scale < 0.05), further reduce alpha so edges don't
-  // obscure nodes rendered with min-radius inflation.
-  const ws = cfg.worldScale ?? 1;
-  const zoomFade = ws >= 0.05 ? 1 : Math.max(0.4, ws / 0.05);
-  const densityScale = Math.max(cfg.edgeDensityFloor ?? 0.25, densityScaleBase * zoomFade);
+  const densityScale = computeDensityScale(cfg, edgeCount);
 
   // Pre-compute edge pair counts for weight-based thickness
   let pairCount: Map<string, number> | null = null;
@@ -607,9 +928,9 @@ export function drawEdges(
   }
 
   // Pre-compute direction×color bundles for highway-style edge merging
-  const β = cfg.bundleStrength;
+  const bundleStrength = cfg.bundleStrength;
   let bundles: Map<string, BundleGroup> | null = null;
-  if (β > 0) {
+  if (bundleStrength > 0) {
     _bundleFrameCount++;
     if (_bundleDirty || !_bundleCache || _bundleFrameCount >= BUNDLE_SKIP) {
       _bundleCache = buildDirectionBundles(edges, resolvePos, cfg);
@@ -622,7 +943,7 @@ export function drawEdges(
   // Cable bundling: group inter-cluster edges into cables (cached like direction bundles)
   const clustersAvailable = !!(cfg.nodeClusterMap && cfg.clusterCentroids && cfg.clusterRadii);
   const cableMode = cfg.cableBundleMode ?? "auto";
-  // "never" → always off; "always" → on if cluster data exists (graceful skip otherwise); "auto" → on if clusters
+  // "never" -> always off; "always" -> on if cluster data exists; "auto" -> on if clusters
   const hasClusters = cableMode === "never" ? false
     : cableMode === "always" ? clustersAvailable
     : clustersAvailable;
@@ -654,147 +975,16 @@ export function drawEdges(
     const tgt = resolvePos(e.target);
     if (!src || !tgt) continue;
 
-    // Determine color
     const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
-
-    // Determine alpha & thickness
-    const isSimilar = e.type === "similar";
-    const isOnto = e.type === "inheritance" || e.type === "aggregation";
-    const isBreadcrumbs = e.type === "sibling" || e.type === "sequence";
-    const isStructural = isOnto || e.type === "has-tag" || isSimilar || isBreadcrumbs;
-    let alpha = (isStructural ? 0.7 : 0.65) * densityScale;
-    let lineThick = 1.2;
-
-    // Edge weight: thicken based on same source-target pair count
-    if (pairCount) {
-      const pairKey = [e.source, e.target].sort().join(":");
-      const weight = pairCount.get(pairKey) ?? 1;
-      lineThick = 1.2 + Math.log2(weight) * 0.6;
-      // Slightly increase alpha for heavy edges
-      if (weight > 2) alpha *= Math.min(1.3, 1 + (weight - 2) * 0.05);
-    }
-
-    if (!isOnto && e.relation && useRelColor) alpha = 0.8 * densityScale;
-
-    // Fade by source node degree: low-degree → faint, high-degree → opaque
-    if (cfg.fadeByDegree && cfg.maxDegree > 0) {
-      const sid = src.id ?? (e.source as string);
-      const tid = tgt.id ?? (e.target as string);
-      const srcDeg = cfg.degrees.get(sid) ?? 0;
-      const tgtDeg = cfg.degrees.get(tid) ?? 0;
-      const minDeg = Math.min(srcDeg, tgtDeg);
-      // sqrt normalization: 0→MIN_ALPHA, maxDegree→base alpha
-      const t = Math.sqrt(minDeg / cfg.maxDegree);
-      alpha *= 0.15 + 0.85 * t;  // range: 15%-100% of base alpha
-    }
-
-    if (hId) {
-      const sid = src.id ?? (e.source as string);
-      const tid = tgt.id ?? (e.target as string);
-      // An edge is highlighted when at least one endpoint is in the highlight set
-      // (covers hoverHops=0 where only hId itself is in the set, and multi-hop cases
-      // where the far endpoint may not be in the set but the near endpoint is).
-      const highlighted = cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid);
-      if (highlighted) {
-        lineThick = 2.0;
-        alpha = cfg.highlightEdgeAlpha ?? 1.0;
-      } else {
-        alpha = cfg.highlightEdgeNonMatchAlpha ?? 0.15;
-      }
-    }
+    const { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
 
     g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
+    const hasDash = applyDashPattern(g, e, lineThick);
 
-    // Edge type dash pattern: scale by lineThick so dashes stay visible (DQ-13)
-    const s = lineThick;
-    if (e.type === "semantic") {
-      g.setLineDash([4 * s, 4 * s]);
-    } else if (e.type === "tag" || e.type === "has-tag") {
-      g.setLineDash([8 * s, 3 * s]);
-    } else if (isSimilar) {
-      g.setLineDash([3 * s, 5 * s]);
-    }
+    drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength);
+    drawEdgeDecorations(g, e, src, tgt, lineColor, alpha, cfg, arrowGfx);
 
-    // --- Draw the edge ---
-
-    if (isSimilar) {
-      // Similar edges: always straight lines
-      g.moveTo(src.x, src.y);
-      g.lineTo(tgt.x, tgt.y);
-    } else if (bundles && !isArcLayout) {
-      // Direction×color bundling: curve edge toward group centroid
-      const dx = tgt.x - src.x;
-      const dy = tgt.y - src.y;
-      const len2 = dx * dx + dy * dy;
-      if (len2 < 1) {
-        g.moveTo(src.x, src.y);
-        g.lineTo(tgt.x, tgt.y);
-      } else {
-        const angle = normalizeAngle(Math.atan2(dy, dx));
-        const bin = Math.min(Math.floor(angle / BIN_WIDTH), ANGLE_BINS - 1);
-        const mx = (src.x + tgt.x) / 2;
-        const my = (src.y + tgt.y) / 2;
-        const gx = Math.floor(mx / GRID_CELL);
-        const gy = Math.floor(my / GRID_CELL);
-        const key = `${gx},${gy}|${bin}|${lineColor}`;
-        const group = bundles.get(key);
-
-        if (group) {
-          const cx = mx + (group.cx - mx) * β;
-          const cy = my + (group.cy - my) * β;
-          g.moveTo(src.x, src.y);
-          g.quadraticCurveTo(cx, cy, tgt.x, tgt.y);
-        } else {
-          // Small group — straight line
-          g.moveTo(src.x, src.y);
-          g.lineTo(tgt.x, tgt.y);
-        }
-      }
-    } else if (isArcLayout) {
-      const mx = (src.x + tgt.x) / 2;
-      const minY = Math.min(src.y, tgt.y);
-      const dist = Math.abs(tgt.x - src.x);
-      const cpY = minY - dist * 0.3 - 20;
-      g.moveTo(src.x, src.y);
-      g.quadraticCurveTo(mx, cpY, tgt.x, tgt.y);
-    } else {
-      g.moveTo(src.x, src.y);
-      g.lineTo(tgt.x, tgt.y);
-    }
-
-    // Draw markers for ontology edges
-    if (isOnto) {
-      drawEdgeMarker(g, src, tgt, e.type as "inheritance" | "aggregation", lineColor, alpha, cfg.bgColor);
-    }
-
-    // Draw arrow for sequence edges (next/prev)
-    if (e.type === "sequence") {
-      drawSequenceArrow(g, src, tgt, lineColor, alpha);
-    }
-
-    // Generic directional arrow for all edges when showArrows is enabled
-    // (skip edges that already have their own markers)
-    if (cfg.showArrows && e.type !== "sequence" && !isOnto && arrowGfx) {
-      const tgtR = cfg.nodeRadii?.get(e.target) ?? 4;
-      drawGenericArrow(arrowGfx, src, tgt, lineColor, Math.max(alpha, 0.5), tgtR);
-    }
-
-    // Draw cardinality markers (crow's foot notation) — additive, after existing markers
-    if (cfg.edgeCardinalityMode === "crowsfoot") {
-      const rule = resolveCardinality(e, cfg.cardinalityRules ?? []);
-      if (rule) {
-        const srcR = cfg.nodeRadii?.get(typeof e.source === "string" ? e.source : (e.source as any).id) ?? 4;
-        const tgtR = cfg.nodeRadii?.get(typeof e.target === "string" ? e.target : (e.target as any).id) ?? 4;
-        const cardCfg = { ...DEFAULT_CARDINALITY_RENDER_CONFIG, ...(cfg.cardinalityRenderConfig ?? {}) };
-        drawCardinalityMarker(g, src, tgt, rule.sourceCardinality, lineColor, alpha, srcR, cardCfg);
-        drawCardinalityMarker(g, tgt, src, rule.targetCardinality, lineColor, alpha, tgtR, cardCfg);
-      }
-    }
-
-    // Reset line dash after edge types that use it
-    if (e.type === "semantic" || e.type === "tag" || e.type === "has-tag" || isSimilar) {
-      g.setLineDash([]);
-    }
+    if (hasDash) g.setLineDash([]);
   }
 }
 
@@ -811,7 +1001,7 @@ function drawEdgeMarker(
   g: CanvasGraphics,
   src: Pos,
   tgt: Pos,
-  type: "inheritance" | "aggregation",
+  type: typeof EDGE_TYPE_INHERITANCE | typeof EDGE_TYPE_AGGREGATION,
   color: number,
   alpha: number,
   bgColor: number,
@@ -825,16 +1015,16 @@ function drawEdgeMarker(
   const uy = dy / len;
   const px = -uy;
   const py = ux;
-  const sz = 8;
+  const sz = EDGE_MARKER_SIZE;
 
-  if (type === "inheritance") {
+  if (type === EDGE_TYPE_INHERITANCE) {
     const bx = tgt.x - ux * sz;
     const by = tgt.y - uy * sz;
-    g.lineStyle({ width: 1.5, color, alpha, native: true });
-    g.beginFill(bgColor, alpha * 0.9);
+    g.lineStyle({ width: MARKER_STROKE_WIDTH, color, alpha, native: true });
+    g.beginFill(bgColor, alpha * MARKER_FILL_ALPHA_RATIO);
     g.moveTo(tgt.x, tgt.y);
-    g.lineTo(bx + px * sz * 0.5, by + py * sz * 0.5);
-    g.lineTo(bx - px * sz * 0.5, by - py * sz * 0.5);
+    g.lineTo(bx + px * sz * MARKER_HALF_WIDTH, by + py * sz * MARKER_HALF_WIDTH);
+    g.lineTo(bx - px * sz * MARKER_HALF_WIDTH, by - py * sz * MARKER_HALF_WIDTH);
     g.closePath();
     g.endFill();
   } else {
@@ -842,12 +1032,12 @@ function drawEdgeMarker(
     const my = src.y + uy * sz;
     const fx = src.x + ux * sz * 2;
     const fy = src.y + uy * sz * 2;
-    g.lineStyle({ width: 1.5, color, alpha, native: true });
-    g.beginFill(bgColor, alpha * 0.9);
+    g.lineStyle({ width: MARKER_STROKE_WIDTH, color, alpha, native: true });
+    g.beginFill(bgColor, alpha * MARKER_FILL_ALPHA_RATIO);
     g.moveTo(src.x, src.y);
-    g.lineTo(mx + px * sz * 0.4, my + py * sz * 0.4);
+    g.lineTo(mx + px * sz * ARROW_HALF_WIDTH_FACTOR, my + py * sz * ARROW_HALF_WIDTH_FACTOR);
     g.lineTo(fx, fy);
-    g.lineTo(mx - px * sz * 0.4, my - py * sz * 0.4);
+    g.lineTo(mx - px * sz * ARROW_HALF_WIDTH_FACTOR, my - py * sz * ARROW_HALF_WIDTH_FACTOR);
     g.closePath();
     g.endFill();
   }
@@ -872,15 +1062,15 @@ function drawSequenceArrow(
   const uy = dy / len;
   const px = -uy;
   const py = ux;
-  const sz = 7;
+  const sz = SEQUENCE_ARROW_SIZE;
 
   const bx = tgt.x - ux * sz;
   const by = tgt.y - uy * sz;
   g.lineStyle({ width: 1, color, alpha, native: true });
   g.beginFill(color, alpha);
   g.moveTo(tgt.x, tgt.y);
-  g.lineTo(bx + px * sz * 0.4, by + py * sz * 0.4);
-  g.lineTo(bx - px * sz * 0.4, by - py * sz * 0.4);
+  g.lineTo(bx + px * sz * ARROW_HALF_WIDTH_FACTOR, by + py * sz * ARROW_HALF_WIDTH_FACTOR);
+  g.lineTo(bx - px * sz * ARROW_HALF_WIDTH_FACTOR, by - py * sz * ARROW_HALF_WIDTH_FACTOR);
   g.closePath();
   g.endFill();
 }
@@ -907,12 +1097,12 @@ function drawGenericArrow(
   const px = -uy;
   const py = ux;
   // Scale arrow size proportional to target node radius (visible at any zoom)
-  const sz = Math.max(10, targetRadius * 0.35);
-  const hw = sz * 0.45; // half-width
+  const sz = Math.max(GENERIC_ARROW_MIN_SIZE, targetRadius * GENERIC_ARROW_RADIUS_FACTOR);
+  const hw = sz * GENERIC_ARROW_HALF_WIDTH;
 
   // Place arrow tip at the edge of the target node circle
-  const tipX = tgt.x - ux * (targetRadius + 2);
-  const tipY = tgt.y - uy * (targetRadius + 2);
+  const tipX = tgt.x - ux * (targetRadius + GENERIC_ARROW_TIP_OFFSET);
+  const tipY = tgt.y - uy * (targetRadius + GENERIC_ARROW_TIP_OFFSET);
   const bx = tipX - ux * sz;
   const by = tipY - uy * sz;
   g.lineStyle({ width: 0 });
@@ -948,11 +1138,11 @@ function resolveCardinality(edge: GraphEdge, rules: CardinalityRule[]): Cardinal
  */
 function getDefaultCardinality(edge: GraphEdge): CardinalityRule | null {
   switch (edge.type) {
-    case "inheritance": return { sourceCardinality: "1", targetCardinality: "0..N" };
-    case "aggregation": return { sourceCardinality: "1", targetCardinality: "0..N" };
-    case "has-tag": return { sourceCardinality: "N", targetCardinality: "1" };
-    case "link": return { sourceCardinality: "1", targetCardinality: "0..1" };
-    case "sequence": return { sourceCardinality: "1", targetCardinality: "1" };
+    case EDGE_TYPE_INHERITANCE: return { sourceCardinality: "1", targetCardinality: "0..N" };
+    case EDGE_TYPE_AGGREGATION: return { sourceCardinality: "1", targetCardinality: "0..N" };
+    case EDGE_TYPE_HAS_TAG: return { sourceCardinality: "N", targetCardinality: "1" };
+    case EDGE_TYPE_LINK: return { sourceCardinality: "1", targetCardinality: "0..1" };
+    case EDGE_TYPE_SEQUENCE: return { sourceCardinality: "1", targetCardinality: "1" };
     default: return null;
   }
 }
@@ -1058,9 +1248,6 @@ function drawCardinalityMarker(
 // Edge label helpers
 // ---------------------------------------------------------------------------
 
-/** Maximum number of edge labels to render (performance guard) */
-const MAX_EDGE_LABELS = 200;
-
 /**
  * Determine the display label for an edge.
  * Returns the custom relation name if set, otherwise a short type label.
@@ -1069,12 +1256,12 @@ const MAX_EDGE_LABELS = 200;
 function getEdgeLabel(e: GraphEdge): string | null {
   if (e.relation) return e.relation;
   switch (e.type) {
-    case "inheritance": return "is-a";
-    case "aggregation": return "has-a";
-    case "similar": return "\u2248"; // ≈
-    case "sibling": return "sibling";
-    case "sequence": return "seq";
-    case "has-tag": return null;
+    case EDGE_TYPE_INHERITANCE: return "is-a";
+    case EDGE_TYPE_AGGREGATION: return "has-a";
+    case EDGE_TYPE_SIMILAR: return "\u2248"; // ≈
+    case EDGE_TYPE_SIBLING: return "sibling";
+    case EDGE_TYPE_SEQUENCE: return "seq";
+    case EDGE_TYPE_HAS_TAG: return null;
     default: return null; // plain links — no label
   }
 }
@@ -1135,15 +1322,15 @@ export function drawEdgeLabels(
     const my = (sp.y + tp.y) / 2;
 
     const text = new CanvasText(label, {
-      fontSize: 10,
+      fontSize: EDGE_LABEL_FONT_SIZE,
       fill: fillColor,
       fontFamily: "sans-serif",
     });
     text.anchor.set(0.5, 0.5);
     text.x = mx;
     text.y = my;
-    text.alpha = 0.7;
-    text.resolution = 2;
+    text.alpha = EDGE_LABEL_ALPHA;
+    text.resolution = EDGE_LABEL_RESOLUTION;
 
     container.addChild(text);
   }

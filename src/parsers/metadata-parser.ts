@@ -1,8 +1,13 @@
 import { App, TFile } from "obsidian";
 import type { GraphData, GraphNode, GraphEdge, GraphViewsSettings, SunburstData, OntologyConfig } from "../types";
 import { DEFAULT_COLORS } from "../types";
+import {
+  EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_SEQUENCE,
+  EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_LINK, EDGE_TYPE_TAG,
+  EDGE_TYPE_HAS_TAG,
+} from "../constants";
 
-export interface ClassifyResult {
+interface ClassifyResult {
   type: "inheritance" | "aggregation" | "similar" | "sibling" | "sequence";
   /** True when the edge direction should be reversed (child/down/prev fields) */
   reverse: boolean;
@@ -21,21 +26,21 @@ export function classifyRelation(
   const lower = clean.toLowerCase();
 
   if (onto.inheritanceFields.some(f => f.toLowerCase() === lower))
-    return { type: "inheritance", reverse: false };
+    return { type: EDGE_TYPE_INHERITANCE, reverse: false };
   if (onto.aggregationFields.some(f => f.toLowerCase() === lower))
-    return { type: "aggregation", reverse: false };
+    return { type: EDGE_TYPE_AGGREGATION, reverse: false };
   if (onto.reverseInheritanceFields?.some(f => f.toLowerCase() === lower))
-    return { type: "inheritance", reverse: true };
+    return { type: EDGE_TYPE_INHERITANCE, reverse: true };
   if (onto.reverseAggregationFields?.some(f => f.toLowerCase() === lower))
-    return { type: "aggregation", reverse: true };
+    return { type: EDGE_TYPE_AGGREGATION, reverse: true };
   if (onto.similarFields.some(f => f.toLowerCase() === lower))
-    return { type: "similar", reverse: false };
+    return { type: EDGE_TYPE_SIMILAR, reverse: false };
   if (onto.siblingFields?.some(f => f.toLowerCase() === lower))
-    return { type: "sibling", reverse: false };
+    return { type: EDGE_TYPE_SIBLING, reverse: false };
   if (onto.sequenceFields?.some(f => f.toLowerCase() === lower))
-    return { type: "sequence", reverse: false };
+    return { type: EDGE_TYPE_SEQUENCE, reverse: false };
   if (onto.reverseSequenceFields?.some(f => f.toLowerCase() === lower))
-    return { type: "sequence", reverse: true };
+    return { type: EDGE_TYPE_SEQUENCE, reverse: true };
   if (onto.customMappings[clean])
     return { type: onto.customMappings[clean], reverse: false };
 
@@ -220,7 +225,7 @@ export function buildGraphFromVault(
         const relation = fmRel ?? inlineResult?.relation;
         const isOntologyInline = inlineResult?.isOntology ?? false;
 
-        let edgeType: GraphEdge["type"] = relation ? "semantic" : "link";
+        let edgeType: GraphEdge["type"] = relation ? "semantic" : EDGE_TYPE_LINK;
         let reverse = false;
         if (relation) {
           const classified = classifyRelation(
@@ -314,7 +319,7 @@ export function buildGraphFromVault(
             id: edgeId,
             source: nodeIds[i],
             target: nodeIds[j],
-            type: field === "tags" ? "tag" : "category",
+            type: field === "tags" ? EDGE_TYPE_TAG : "category",
             label: field,
           });
           sharedEdgeCount++;
@@ -400,7 +405,7 @@ function buildTagNodesAndEdges(
         id: edgeId,
         source: `tag:${tag}`,
         target: `tag:${parentTag}`,
-        type: "inheritance",
+        type: EDGE_TYPE_INHERITANCE,
         relation: `#${tag} extends #${parentTag}`,
       });
     }
@@ -433,7 +438,7 @@ function buildTagNodesAndEdges(
       const edgeId = `tag-rel:tag:${srcTag}->tag:${tgtTag}`;
       if (edgeSet.has(edgeId)) continue;
       edgeSet.add(edgeId);
-      const label = rel.type === "inheritance"
+      const label = rel.type === EDGE_TYPE_INHERITANCE
         ? `#${srcTag} is-a #${tgtTag}`
         : `#${tgtTag} has #${srcTag}`;
       edges.push({
@@ -459,7 +464,7 @@ function buildTagNodesAndEdges(
         id: edgeId,
         source: node.id,
         target: tagId,
-        type: "has-tag",
+        type: EDGE_TYPE_HAS_TAG,
       });
     }
   }

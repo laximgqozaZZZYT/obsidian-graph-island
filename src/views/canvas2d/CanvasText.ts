@@ -15,7 +15,7 @@ export class CanvasText {
   visible = true;
   resolution = 1;
   rotation = 0;
-  parent: any = null;
+  parent: import("./CanvasContainer").CanvasContainer | null = null;
 
   text: string;
   style: TextStyle;

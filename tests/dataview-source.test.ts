@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { filterNodesByDataview, isDataviewAvailable } from "../src/utils/dataview-source";
+import { filterNodesByDataview } from "../src/utils/dataview-source";
 import type { GraphNode } from "../src/types";
 
 function makeNode(id: string, opts: Partial<GraphNode> = {}): GraphNode {
@@ -49,24 +49,3 @@ describe("filterNodesByDataview", () => {
   });
 });
 
-describe("isDataviewAvailable", () => {
-  it("returns false when plugins object is missing", () => {
-    const app = {} as any;
-    expect(isDataviewAvailable(app)).toBe(false);
-  });
-
-  it("returns false when dataview plugin is not installed", () => {
-    const app = { plugins: { plugins: {} } } as any;
-    expect(isDataviewAvailable(app)).toBe(false);
-  });
-
-  it("returns false when dataview has no api", () => {
-    const app = { plugins: { plugins: { dataview: {} } } } as any;
-    expect(isDataviewAvailable(app)).toBe(false);
-  });
-
-  it("returns true when dataview api is present", () => {
-    const app = { plugins: { plugins: { dataview: { api: { pages: () => [] } } } } } as any;
-    expect(isDataviewAvailable(app)).toBe(true);
-  });
-});

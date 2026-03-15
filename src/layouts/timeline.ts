@@ -9,6 +9,28 @@
 // ---------------------------------------------------------------------------
 
 import type { GraphData, GraphNode, GraphEdge } from "../types";
+import { EDGE_TYPE_SEQUENCE } from "../constants";
+
+// ---------------------------------------------------------------------------
+// Constants — default layout parameters
+// ---------------------------------------------------------------------------
+
+/** Default horizontal spacing between time steps (px) */
+const DEFAULT_STEP_WIDTH = 120;
+/** Default vertical spacing between lanes (px) */
+const DEFAULT_LANE_HEIGHT = 80;
+/** Default starting X position */
+const DEFAULT_START_X = 60;
+/** Default starting Y position */
+const DEFAULT_START_Y = 60;
+/** Default vertical spacing for nodes stacked in the same cell */
+const DEFAULT_STACK_SPACING = 20;
+/** Maximum desired columns before auto-shrinking step width */
+const MAX_DESIRED_COLS = 40;
+/** Minimum step width when auto-shrinking (px) */
+const MIN_STEP_WIDTH = 20;
+/** Horizontal spacing factor for untimed nodes (fraction of effectiveStepWidth) */
+const UNTIMED_NODE_SPACING_FACTOR = 0.6;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,7 +64,7 @@ export interface TimelinePlacement {
 }
 
 /** Result of timeline layout computation */
-export interface TimelineLayoutResult {
+interface TimelineLayoutResult {
   data: GraphData;
   placements: TimelinePlacement[];
   lanes: number;           // total number of lanes used
@@ -74,7 +96,7 @@ export function buildTimelineDAG(
     dag.set(id, []);
   }
   for (const e of edges) {
-    if (e.type !== "sequence") continue;
+    if (e.type !== EDGE_TYPE_SEQUENCE) continue;
     if (!nodesWithTime.has(e.source) || !nodesWithTime.has(e.target)) continue;
     dag.get(e.source)!.push(e.target);
   }
@@ -183,11 +205,11 @@ export function applyTimelineLayout(
   const {
     timeKey,
     timeComparator = defaultTimeComparator,
-    stepWidth = 120,
-    laneHeight = 80,
-    startX = 60,
-    startY = 60,
-    stackSpacing = 20,
+    stepWidth = DEFAULT_STEP_WIDTH,
+    laneHeight = DEFAULT_LANE_HEIGHT,
+    startX = DEFAULT_START_X,
+    startY = DEFAULT_START_Y,
+    stackSpacing = DEFAULT_STACK_SPACING,
     getNodeProperty,
   } = options;
 
@@ -208,9 +230,8 @@ export function applyTimelineLayout(
   const uniqueTimes = [...new Set(nodeTimeValues.values())];
   // Auto-shrink step width when too many time steps to prevent extremely wide layouts.
   // Target: total width should be at most ~40x the lane height for reasonable aspect ratio.
-  const maxDesiredCols = 40;
-  const effectiveStepWidth = uniqueTimes.length > maxDesiredCols
-    ? Math.max(20, Math.round(maxDesiredCols * stepWidth / uniqueTimes.length))
+  const effectiveStepWidth = uniqueTimes.length > MAX_DESIRED_COLS
+    ? Math.max(MIN_STEP_WIDTH, Math.round(MAX_DESIRED_COLS * stepWidth / uniqueTimes.length))
     : stepWidth;
   uniqueTimes.sort(timeComparator);
   const timeIndexMap = new Map<string, number>();
@@ -286,7 +307,7 @@ export function applyTimelineLayout(
     const cols = Math.max(1, Math.ceil(Math.sqrt(untimedNodes.length)));
     untimedNodes.forEach((n, i) => {
       positioned.set(n.id, {
-        x: untimedX + (i % cols) * (effectiveStepWidth * 0.6),
+        x: untimedX + (i % cols) * (effectiveStepWidth * UNTIMED_NODE_SPACING_FACTOR),
         y: startY + Math.floor(i / cols) * laneHeight,
       });
     });

@@ -6,6 +6,9 @@ import type { App } from "obsidian";
 import type { GraphViewsSettings, GraphNode, GraphEdge, GraphData } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { buildGraphFromVault, assignNodeColors } from "../parsers/metadata-parser";
+import { EDGE_TYPE_HAS_TAG } from "../constants";
+import { edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
+import { computeBoundingBox } from "../utils/geometry";
 
 interface EmbedConfig {
   center?: string;   // file path for local graph center
@@ -29,8 +32,8 @@ function filterLocalGraph(data: GraphData, centerPath: string, hops: number): Gr
 
   const adj = new Map<string, Set<string>>();
   for (const e of data.edges) {
-    const s = typeof e.source === "object" ? (e.source as any).id : e.source;
-    const t = typeof e.target === "object" ? (e.target as any).id : e.target;
+    const s = edgeSourceId(e);
+    const t = edgeTargetId(e);
     if (!adj.has(s)) adj.set(s, new Set());
     if (!adj.has(t)) adj.set(t, new Set());
     adj.get(s)!.add(t);
@@ -52,8 +55,8 @@ function filterLocalGraph(data: GraphData, centerPath: string, hops: number): Gr
 
   const nodes = data.nodes.filter(n => reachable.has(n.id));
   const edges = data.edges.filter(e => {
-    const s = typeof e.source === "object" ? (e.source as any).id : e.source;
-    const t = typeof e.target === "object" ? (e.target as any).id : e.target;
+    const s = edgeSourceId(e);
+    const t = edgeTargetId(e);
     return reachable.has(s) && reachable.has(t);
   });
   return { nodes, edges };
@@ -137,7 +140,7 @@ function doRender(
   // Filter out tag nodes and has-tag edges for cleaner embed
   data = {
     nodes: data.nodes.filter(n => !n.isTag),
-    edges: data.edges.filter(e => e.type !== "has-tag"),
+    edges: data.edges.filter(e => e.type !== EDGE_TYPE_HAS_TAG),
   };
 
   // Apply local graph filter if center is specified
@@ -169,11 +172,7 @@ function doRender(
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 
   // Compute bounding box and fit to canvas
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const n of data.nodes) {
-    minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x);
-    minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
-  }
+  const { minX, maxX, minY, maxY } = computeBoundingBox(data.nodes);
   const pad = 40;
   const dataW = (maxX - minX) || 1;
   const dataH = (maxY - minY) || 1;

@@ -48,6 +48,8 @@ function baseCfg(overrides?: Partial<EdgeDrawConfig>): EdgeDrawConfig {
     bundleStrength: 0,
     isDark: true,
     showEdgeLabels: false,
+    showArrows: false,
+    nodeRadii: null,
     ...overrides,
   };
 }
@@ -177,18 +179,20 @@ describe("drawEdges", () => {
 
   it("highlights edges connected to highlighted node", () => {
     const { g, calls } = createMockGraphics();
+    // Edge a→b is connected to highlighted node "a"; edge b→c has neither endpoint in highlight set
+    // highlightSet contains only "a" (hoverHops=0 scenario)
     const edges: GraphEdge[] = [
       { source: "a", target: "b" },
       { source: "b", target: "c" },
     ];
-    drawEdges(g, edges, resolvePos, baseCfg({ highlightedNodeId: "a", highlightSet: new Set(["a", "b"]) }));
+    drawEdges(g, edges, resolvePos, baseCfg({ highlightedNodeId: "a", highlightSet: new Set(["a"]) }));
     // lineStyle is called with an options object for each edge
     const lineStyleCalls = calls.filter((c) => c.method === "lineStyle");
     expect(lineStyleCalls.length).toBe(2);
-    // First edge (a→b) should have alpha=1
+    // First edge (a→b) should have highlight alpha=1 (one endpoint "a" in highlightSet)
     expect(lineStyleCalls[0].args[0].alpha).toBe(1);
-    // Second edge (b→c) should have alpha=0.08
-    expect(lineStyleCalls[1].args[0].alpha).toBe(0.08);
+    // Second edge (b→c) should have non-highlight alpha (default 0.15)
+    expect(lineStyleCalls[1].args[0].alpha).toBe(0.15);
   });
 
   it("uses relation colors when colorEdgesByRelation is true", () => {

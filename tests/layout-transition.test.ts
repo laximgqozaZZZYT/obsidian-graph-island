@@ -5,8 +5,20 @@ describe("LayoutTransition", () => {
   let transition: LayoutTransition;
   let perfNowMock: ReturnType<typeof vi.spyOn>;
   let currentTime: number;
-
   beforeEach(() => {
+    // Mock window.matchMedia (not available in Node/vitest env)
+    vi.stubGlobal("window", {
+      matchMedia: (query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }),
+    });
     transition = new LayoutTransition();
     currentTime = 0;
     perfNowMock = vi.spyOn(performance, "now").mockImplementation(() => currentTime);
@@ -14,6 +26,7 @@ describe("LayoutTransition", () => {
 
   afterEach(() => {
     perfNowMock.mockRestore();
+    vi.unstubAllGlobals();
   });
 
   it("should not be running initially", () => {

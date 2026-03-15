@@ -516,8 +516,8 @@ describe("toCartesian", () => {
 // ---------------------------------------------------------------------------
 
 describe("isExactPreset", () => {
-  it("matches spiral preset", () => {
-    expect(isExactPreset(ARRANGEMENT_PRESETS.spiral)).toBe(true);
+  it("matches grid preset", () => {
+    expect(isExactPreset(ARRANGEMENT_PRESETS.grid)).toBe(true);
   });
 
   it("matches all presets", () => {

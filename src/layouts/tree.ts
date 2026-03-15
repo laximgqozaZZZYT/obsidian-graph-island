@@ -1,5 +1,21 @@
 import type { GraphData, GraphNode, TreeLayoutOptions } from "../types";
 import { computeInDegree } from "../analysis/graph-analysis";
+import { EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION } from "../constants";
+
+// ---------------------------------------------------------------------------
+// Constants — default layout parameters
+// ---------------------------------------------------------------------------
+
+/** Default vertical spacing between tree levels (px) */
+const DEFAULT_LEVEL_HEIGHT = 80;
+/** Default horizontal spacing per node (px) */
+const DEFAULT_NODE_WIDTH = 60;
+/** Default extra spacing when grouping by category (px) */
+const DEFAULT_CATEGORY_GAP = 40;
+/** Default vertical gap between separate trees (px) */
+const DEFAULT_TREE_GAP = 80;
+/** Minimum fan-out per node (controls tree depth vs breadth) */
+const MIN_FANOUT = 3;
 
 export function applyTreeLayout(
   graph: GraphData,
@@ -12,11 +28,11 @@ export function applyTreeLayout(
   const {
     startX = 0,
     startY = 0,
-    levelHeight = 80,
-    nodeWidth = 60,
+    levelHeight = DEFAULT_LEVEL_HEIGHT,
+    nodeWidth = DEFAULT_NODE_WIDTH,
     groupByCategory = false,
-    categoryGap = 40,
-    treeGap = 80,
+    categoryGap = DEFAULT_CATEGORY_GAP,
+    treeGap = DEFAULT_TREE_GAP,
   } = options ?? {};
 
   const nodesMap = new Map(graph.nodes.map((n) => [n.id, { ...n }]));
@@ -33,8 +49,8 @@ export function applyTreeLayout(
 
   // Sort edges: inheritance/aggregation first so they define primary tree shape
   const sortedEdges = [...graph.edges].sort((a, b) => {
-    const aStructural = a.type === "inheritance" || a.type === "aggregation" ? 0 : 1;
-    const bStructural = b.type === "inheritance" || b.type === "aggregation" ? 0 : 1;
+    const aStructural = a.type === EDGE_TYPE_INHERITANCE || a.type === EDGE_TYPE_AGGREGATION ? 0 : 1;
+    const bStructural = b.type === EDGE_TYPE_INHERITANCE || b.type === EDGE_TYPE_AGGREGATION ? 0 : 1;
     return aStructural - bStructural;
   });
 
@@ -44,10 +60,10 @@ export function applyTreeLayout(
     if (!directed.has(e.source)) directed.set(e.source, []);
     directed.get(e.source)!.push(e.target);
 
-    if (e.type === "inheritance" || e.type === "aggregation") {
+    if (e.type === EDGE_TYPE_INHERITANCE || e.type === EDGE_TYPE_AGGREGATION) {
       // For inheritance: source extends target, so target is parent
       // For aggregation: source contains target, so source is parent
-      if (e.type === "inheritance") {
+      if (e.type === EDGE_TYPE_INHERITANCE) {
         if (!structuralChildren.has(e.target)) structuralChildren.set(e.target, []);
         structuralChildren.get(e.target)!.push(e.source);
       } else {
@@ -132,7 +148,7 @@ export function applyTreeLayout(
 
     // Limit fan-out per node to force deeper trees on dense graphs.
     // Use cube root for deeper trees: e.g. 123 nodes → maxFanOut=5, depth≈10
-    const maxFanOut = Math.max(3, Math.ceil(Math.pow(nodeIds.length, 1/3)));
+    const maxFanOut = Math.max(MIN_FANOUT, Math.ceil(Math.pow(nodeIds.length, 1/3)));
 
     const levels = new Map<string, number>();
     const visited = new Set<string>();

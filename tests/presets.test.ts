@@ -11,8 +11,7 @@ const DEFAULT_PANEL = {
   showOrphans: true,
   showArrows: false,
   textFadeThreshold: 0.5,
-  nodeSize: 8,
-  scaleByDegree: true,
+  nodeSize: 10,
   centerForce: 0.03,
   repelForce: 200,
   linkForce: 0.01,
@@ -25,11 +24,14 @@ const DEFAULT_PANEL = {
   searchQuery: "",
   colorEdgesByRelation: true,
   colorNodesByCategory: true,
+  heatmapMode: false,
   showInheritance: true,
   showAggregation: true,
   showTagNodes: true,
   tagDisplay: "enclosure" as const,
   showSimilar: false,
+  showSibling: true,
+  showSequence: true,
   showLinks: true,
   showTagEdges: true,
   showCategoryEdges: true,
@@ -39,7 +41,7 @@ const DEFAULT_PANEL = {
   hoverHops: 1,
   commonQueries: [],
   clusterGroupRules: [],
-  clusterArrangement: "spiral" as const,
+  clusterArrangement: "grid" as const,
   clusterNodeSpacing: 3.0,
   clusterGroupScale: 3.0,
   clusterGroupSpacing: 2.0,
@@ -47,6 +49,56 @@ const DEFAULT_PANEL = {
   edgeBundleStrength: 0.65,
   sortRules: [{ key: "degree" as const, order: "desc" as const }],
   nodeRules: [],
+  nodeShapeRules: [
+    { match: "isTag", shape: "triangle" },
+    { match: "default", shape: "circle" },
+  ],
+  dataviewQuery: "",
+  timelineKey: "date",
+  showEdgeLabels: false,
+  showMinimap: true,
+  groupBy: "none" as const,
+  groupByRules: null,
+  groupMinSize: 2,
+  groupFilter: "",
+  collapsedGroups: new Set<string>(),
+  activeTab: "filter" as const,
+  autoFit: false,
+  showDurationBars: true,
+  timelineEndKey: "end-date",
+  showGuideLines: true,
+  guideLineMode: "per-group" as const,
+  showGroupGrid: true,
+  timelineOrderFields: "",
+  coordinateLayout: null,
+  showDotGrid: true,
+  timelineRangeMin: 0,
+  timelineRangeMax: 1,
+  ringChartMode: false,
+  gridTableMode: false,
+  gridShowHeaders: true,
+  showAxisTitles: true,
+  showTimelineTickLabels: true,
+  gridCellShading: false,
+  gridStyle: "lines" as const,
+  gridLabelPlacement: "on-line" as const,
+  clusterGravity: { interGroupAttraction: 0.5, intraGroupDensity: 1.0 },
+  clusterFollowsGroupBy: true,
+  nodeDisplayMode: "node" as const,
+  cardDisplayConfig: { fields: [], maxWidth: 120, showIcon: false },
+  donutDisplayConfig: { innerRadius: 0.6 },
+  edgeCardinalityMode: "none" as const,
+  cardinalityRules: [],
+  cableBundleMode: "auto" as const,
+  cableTrunkWidth: 2,
+  cableTrunkAlpha: 0.85,
+  cableSpacing: 4,
+  cableFanWidth: 1,
+  cableFanAlpha: 0.45,
+  syncWithEditor: true,
+  localGraphCenter: null,
+  localGraphHops: 2,
+  edgeWeightThickness: true,
 };
 
 type PanelState = typeof DEFAULT_PANEL;
@@ -153,9 +205,16 @@ describe("importPreset", () => {
   });
 
   it("accepts all valid clusterArrangement values", () => {
-    for (const v of ["spiral", "concentric", "tree", "grid", "triangle", "random", "mountain", "sunburst", "timeline"]) {
+    for (const v of ["concentric", "radial", "phyllotaxis", "grid", "triangle", "random", "timeline", "custom"]) {
       const preset = importPreset(JSON.stringify({ clusterArrangement: v }));
       expect(preset.clusterArrangement).toBe(v);
+    }
+  });
+
+  it("migrates removed arrangement patterns to grid", () => {
+    for (const v of ["spiral", "mountain", "sunburst", "tree"]) {
+      const preset = importPreset(JSON.stringify({ clusterArrangement: v }));
+      expect(preset.clusterArrangement).toBe("grid");
     }
   });
 

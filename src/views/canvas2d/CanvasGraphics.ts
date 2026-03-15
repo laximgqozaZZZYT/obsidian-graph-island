@@ -11,7 +11,10 @@ type DrawCmd =
   | { t: "closePath" }
   | { t: "arc"; cx: number; cy: number; r: number; start: number; end: number; ccw: boolean }
   | { t: "setLineDash"; segments: number[] }
-  | { t: "roundedRect"; x: number; y: number; w: number; h: number; r: number };
+  | { t: "roundedRect"; x: number; y: number; w: number; h: number; r: number }
+  | { t: "bezierCurveTo"; cp1x: number; cp1y: number; cp2x: number; cp2y: number; x: number; y: number }
+  | { t: "setLineCap"; cap: CanvasLineCap }
+  | { t: "setLineJoin"; join: CanvasLineJoin };
 
 const _rgbaCache = new Map<number, string>();
 const _RGBA_CACHE_MAX = 512;
@@ -36,7 +39,7 @@ export class CanvasGraphics {
   y = 0;
   alpha = 1;
   visible = true;
-  parent: any = null;
+  parent: import("./CanvasContainer").CanvasContainer | null = null;
 
   private commands: DrawCmd[] = [];
 
@@ -100,6 +103,18 @@ export class CanvasGraphics {
 
   quadraticCurveTo(cx: number, cy: number, x: number, y: number) {
     this.commands.push({ t: "quadraticCurveTo", cx, cy, x, y });
+  }
+
+  bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number) {
+    this.commands.push({ t: "bezierCurveTo", cp1x, cp1y, cp2x, cp2y, x, y });
+  }
+
+  setLineCap(cap: CanvasLineCap) {
+    this.commands.push({ t: "setLineCap", cap });
+  }
+
+  setLineJoin(join: CanvasLineJoin) {
+    this.commands.push({ t: "setLineJoin", join });
   }
 
   closePath() {
@@ -221,6 +236,18 @@ export class CanvasGraphics {
         case "arc":
           beginNewPath();
           ctx.arc(cmd.cx, cmd.cy, cmd.r, cmd.start, cmd.end, cmd.ccw);
+          break;
+        case "bezierCurveTo":
+          beginNewPath();
+          ctx.bezierCurveTo(cmd.cp1x, cmd.cp1y, cmd.cp2x, cmd.cp2y, cmd.x, cmd.y);
+          break;
+        case "setLineCap":
+          flushShape();
+          ctx.lineCap = cmd.cap;
+          break;
+        case "setLineJoin":
+          flushShape();
+          ctx.lineJoin = cmd.join;
           break;
         case "roundedRect": {
           beginNewPath();

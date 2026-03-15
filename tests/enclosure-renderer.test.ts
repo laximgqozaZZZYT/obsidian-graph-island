@@ -84,7 +84,7 @@ describe("drawEnclosures", () => {
     expect(drawCircle).toBeDefined();
     expect(drawCircle!.args[0]).toBe(50); // x
     expect(drawCircle!.args[1]).toBe(50); // y
-    expect(drawCircle!.args[2]).toBe(10); // default radius (6) + outlinePad(6) = 6 + max(4, 6×0.5) = 6 + 4
+    expect(drawCircle!.args[2]).toBeCloseTo(8.4); // default radius (6) + outlinePad(6, 1) = 6 + max(4, 6×0.5)*0.6 = 6 + 2.4
   });
 
   it("draws a capsule for two-point tag", () => {
@@ -241,8 +241,8 @@ describe("drawEnclosures", () => {
 
     drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Should have beginFill for the zoomed-out fill
-    const fillCalls = calls.filter((c) => c.method === "beginFill");
+    // Should have beginRadialFill for the zoomed-out fill (uses radial gradient)
+    const fillCalls = calls.filter((c) => c.method === "beginRadialFill");
     expect(fillCalls.length).toBe(1);
     // Should also have lineStyle for the stroke
     const lineCalls = calls.filter((c) => c.method === "lineStyle");

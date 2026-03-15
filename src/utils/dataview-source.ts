@@ -2,14 +2,6 @@ import type { App } from "obsidian";
 import type { GraphNode } from "../types";
 
 /**
- * Check if the Dataview plugin is installed and its API is available.
- */
-export function isDataviewAvailable(app: App): boolean {
-  const dv = (app as any).plugins?.plugins?.["dataview"];
-  return !!(dv?.api);
-}
-
-/**
  * Get the Dataview API instance, or null if unavailable.
  */
 function getDataviewApi(app: App): any | null {
