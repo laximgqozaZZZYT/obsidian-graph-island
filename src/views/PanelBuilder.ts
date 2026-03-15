@@ -2034,6 +2034,7 @@ function buildConstantRow(
   const keyInput = row.createEl("input", {
     cls: "gi-setting-input gi-constant-key",
     type: "text",
+    attr: { "aria-label": t("coord.constantKey") },
   });
   keyInput.value = key;
   keyInput.maxLength = 2;
@@ -2046,6 +2047,7 @@ function buildConstantRow(
   const valInput = row.createEl("input", {
     cls: "gi-setting-input gi-constant-val",
     type: "number",
+    attr: { "aria-label": t("coord.constantValue") },
   });
   valInput.value = String(value);
   valInput.style.width = "70px";
@@ -2127,6 +2129,7 @@ function buildSystemConstantRow(
   const valInput = row.createEl("input", {
     cls: "gi-setting-input gi-constant-val",
     type: "number",
+    attr: { "aria-label": key + " " + t("coord.constantValue") },
   });
   valInput.value = String(value);
   valInput.style.width = "70px";

@@ -3,7 +3,7 @@ import type { GraphEdge, EdgeCardinalityMode, Cardinality, CardinalityRule, Card
 import { DEFAULT_CARDINALITY_RENDER_CONFIG } from "../types";
 import { cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
 import type { RoadNetwork } from "../layouts/road-network";
-import { routeEdge, findNearestIntersection, findShortestPath, pathToWaypoints } from "../layouts/road-network";
+import { routeEdge } from "../layouts/road-network";
 import {
   EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_SEQUENCE,
   EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_HAS_TAG,
@@ -586,21 +586,8 @@ function drawCables(
       }
 
       g.lineStyle({ width: trunkWidth, color: lane.color, alpha: trunkAlpha * densityScale, native: true });
-      // Route trunk through road network if available (cached)
-      if (cfg.roadNetwork && cfg.enableRoadRouting !== false && cfg.roadNetwork.intersections.length > 0) {
-        const wps = getCachedCableTrunkRoute(cfg.roadNetwork, ts.x, ts.y, te.x, te.y);
-        if (wps.length >= 2) {
-          g.moveTo(ts.x, ts.y);
-          for (const wp of wps) g.lineTo(wp.x, wp.y);
-          g.lineTo(te.x, te.y);
-        } else {
-          g.moveTo(ts.x, ts.y);
-          g.lineTo(te.x, te.y);
-        }
-      } else {
-        g.moveTo(ts.x, ts.y);
-        g.lineTo(te.x, te.y);
-      }
+      g.moveTo(ts.x, ts.y);
+      g.lineTo(te.x, te.y);
 
       // --- Fan lines: configurable lines from nodes to trunk endpoints ---
       const fanWidth = cfg.cableFanWidth ?? 1;
@@ -660,123 +647,11 @@ const BUNDLE_SKIP = 3;
 let _cableCache: { cables: Cable[]; cabledEdgeIds: Set<string> } | null = null;
 let _cableDirty = true;
 
-// ---------------------------------------------------------------------------
-// Road routing cache — invalidated when road network changes
-// ---------------------------------------------------------------------------
-let _roadRouteCache = new Map<string, { x: number; y: number }[]>();
-let _roadRouteCacheNetwork: RoadNetwork | null = null;
-
-/**
- * Return a cached route for the given source/target node pair.
- * The cache is automatically invalidated when the network reference changes
- * (i.e. after a layout rebuild).
- */
-function getCachedRoute(
-  network: RoadNetwork,
-  srcId: string,
-  tgtId: string,
-): { x: number; y: number }[] {
-  // Invalidate if network reference changed
-  if (network !== _roadRouteCacheNetwork) {
-    _roadRouteCache.clear();
-    _roadRouteCacheNetwork = network;
-  }
-
-  const key = srcId < tgtId ? `${srcId}|${tgtId}` : `${tgtId}|${srcId}`;
-  let cached = _roadRouteCache.get(key);
-  if (!cached) {
-    cached = routeEdge(network, srcId, tgtId);
-    _roadRouteCache.set(key, cached);
-  }
-  return cached;
-}
-
-/**
- * Return a cached route for coordinate-based cable trunk routing.
- * Uses truncated coordinates as the cache key since cable endpoints
- * are centroids rather than node IDs.
- */
-function getCachedCableTrunkRoute(
-  network: RoadNetwork,
-  sx: number, sy: number,
-  ex: number, ey: number,
-): { x: number; y: number }[] {
-  // Invalidate if network reference changed
-  if (network !== _roadRouteCacheNetwork) {
-    _roadRouteCache.clear();
-    _roadRouteCacheNetwork = network;
-  }
-
-  const cableKey = `cable:${Math.round(sx)}:${Math.round(sy)}:${Math.round(ex)}:${Math.round(ey)}`;
-  let cached = _roadRouteCache.get(cableKey);
-  if (!cached) {
-    const startIsect = findNearestIntersection(network, sx, sy);
-    const endIsect = findNearestIntersection(network, ex, ey);
-    if (startIsect >= 0 && endIsect >= 0 && startIsect !== endIsect) {
-      const path = findShortestPath(network, startIsect, endIsect);
-      cached = pathToWaypoints(network, path);
-    } else {
-      cached = [];
-    }
-    _roadRouteCache.set(cableKey, cached);
-  }
-  return cached;
-}
-
-// ---------------------------------------------------------------------------
-// Segment usage tracking — visual bundling for road-routed edges
-// ---------------------------------------------------------------------------
-
-/** Per-frame segment usage counts for visual bundling effect */
-let _segmentUsageMap = new Map<string, number>();
-
-/**
- * Track road segment usage for visual bundling.
- * Each consecutive waypoint pair is a segment; increment its usage count.
- */
-function canonicalSegmentKey(ax: number, ay: number, bx: number, by: number): string {
-  const rax = Math.round(ax), ray = Math.round(ay);
-  const rbx = Math.round(bx), rby = Math.round(by);
-  // Canonical order: smaller coordinate pair first to avoid directional duplicates
-  return rax < rbx || (rax === rbx && ray < rby)
-    ? `${rax},${ray}-${rbx},${rby}`
-    : `${rbx},${rby}-${rax},${ray}`;
-}
-
-function trackSegmentUsage(
-  waypoints: { x: number; y: number }[],
-  usageMap: Map<string, number>,
-): void {
-  for (let i = 0; i < waypoints.length - 1; i++) {
-    const key = canonicalSegmentKey(waypoints[i].x, waypoints[i].y, waypoints[i + 1].x, waypoints[i + 1].y);
-    usageMap.set(key, (usageMap.get(key) ?? 0) + 1);
-  }
-}
-
-/**
- * Look up the maximum segment usage count along a route.
- * Returns 1 if no segments are tracked (no bundling effect).
- */
-function getRouteMaxUsage(
-  waypoints: { x: number; y: number }[],
-  usageMap: Map<string, number>,
-): number {
-  let max = 1;
-  for (let i = 0; i < waypoints.length - 1; i++) {
-    const key = canonicalSegmentKey(waypoints[i].x, waypoints[i].y, waypoints[i + 1].x, waypoints[i + 1].y);
-    const count = usageMap.get(key) ?? 1;
-    if (count > max) max = count;
-  }
-  return max;
-}
-
 /** Mark the direction bundle cache as stale (call when edges, visibility, or
  *  layout change significantly — e.g. toggling edge types, loading new data). */
 export function invalidateBundleCache(): void {
   _bundleDirty = true;
   _cableDirty = true;
-  _roadRouteCache.clear();
-  _roadRouteCacheNetwork = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -893,7 +768,7 @@ function drawEdgeSegment(
   if (roadNetwork && roadNetwork.intersections.length > 0 && !isArcLayout) {
     const srcId = typeof e.source === "string" ? e.source : (e.source as any)?.id ?? "";
     const tgtId = typeof e.target === "string" ? e.target : (e.target as any)?.id ?? "";
-    const waypoints = getCachedRoute(roadNetwork, srcId, tgtId);
+    const waypoints = routeEdge(roadNetwork, srcId, tgtId);
     if (waypoints.length >= 2) {
       // Draw edge along road waypoints
       g.moveTo(src.x, src.y);
@@ -1115,42 +990,9 @@ export function drawEdges(
     cabledEdgeIds = new Set<string>();
   }
 
-  // Draw cables first (trunk + fan-out).
-  // Pre-check: remove edges from cabledEdgeIds if their cable layout will fail
-  // (e.g., nodes still at origin, clusters overlapping). This ensures those edges
-  // fall back to normal straight-line drawing instead of silently disappearing.
+  // Draw cables first (trunk + fan-out)
   if (cables.length > 0) {
-    const centroids = cfg.clusterCentroids;
-    const radii = cfg.clusterRadii;
-    if (centroids && radii) {
-      for (const cable of cables) {
-        const layout = computeCableLayout(cable, centroids, radii, cfg);
-        if (!layout) {
-          for (const lane of cable.lanes) {
-            for (const e of lane.edges) cabledEdgeIds.delete(e.id);
-          }
-        }
-      }
-    }
     drawCables(g, cables, resolvePos, cfg, densityScale);
-  }
-
-  // Pre-pass: build segment usage counts for visual bundling on road-routed edges.
-  // This lets us render shared road segments wider + more transparent.
-  const roadNet = (cfg.enableRoadRouting !== false) ? cfg.roadNetwork : null;
-  const useRoadRouting = !!(roadNet && roadNet.intersections.length > 0 && !isArcLayout);
-  _segmentUsageMap.clear();
-  if (useRoadRouting) {
-    for (const e of edges) {
-      if (cabledEdgeIds.has(e.id)) continue;
-      if (shouldSkipEdge(e, cfg)) continue;
-      const srcId = typeof e.source === "string" ? e.source : (e.source as any)?.id ?? "";
-      const tgtId = typeof e.target === "string" ? e.target : (e.target as any)?.id ?? "";
-      const waypoints = getCachedRoute(roadNet!, srcId, tgtId);
-      if (waypoints.length >= 2) {
-        trackSegmentUsage(waypoints, _segmentUsageMap);
-      }
-    }
   }
 
   for (const e of edges) {
@@ -1163,26 +1005,12 @@ export function drawEdges(
     if (!src || !tgt) continue;
 
     const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
-    let { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
-
-    // Visual bundling: adjust style for edges sharing road segments
-    if (useRoadRouting) {
-      const srcId = typeof e.source === "string" ? e.source : (e.source as any)?.id ?? "";
-      const tgtId = typeof e.target === "string" ? e.target : (e.target as any)?.id ?? "";
-      const waypoints = getCachedRoute(roadNet!, srcId, tgtId);
-      if (waypoints.length >= 2) {
-        const usageCount = getRouteMaxUsage(waypoints, _segmentUsageMap);
-        if (usageCount > 1) {
-          const sqrtUsage = Math.sqrt(usageCount);
-          lineThick = Math.min(lineThick * sqrtUsage, 8);
-          alpha = alpha / sqrtUsage;
-        }
-      }
-    }
+    const { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
 
     g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
     const hasDash = applyDashPattern(g, e, lineThick);
 
+    const roadNet = (cfg.enableRoadRouting !== false) ? cfg.roadNetwork : null;
     drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength, roadNet);
     drawEdgeDecorations(g, e, src, tgt, lineColor, alpha, cfg, arrowGfx);
 
