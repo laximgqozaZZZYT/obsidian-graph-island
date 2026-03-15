@@ -366,7 +366,10 @@ export function buildClusterForce(
   const isGlobalLayout = cfg.coordinateLayout && !cfg.coordinateLayout.perGroup;
   // Hardcoded arrangements (timeline, etc.) need layout even without group
   // rules — they'll operate on the single "__all__" group created below.
-  const NEEDS_LAYOUT = new Set(["concentric", "radial", "random", "timeline"]);
+  // Also include all coordinate-preset arrangements (grid, triangle, phyllotaxis, custom)
+  // which have perGroup=true and therefore do not satisfy isGlobalLayout, but still
+  // need the force to run so nodes spread out from their initial center position.
+  const NEEDS_LAYOUT = new Set(["concentric", "radial", "random", "timeline", "grid", "triangle", "phyllotaxis", "custom"]);
   if (cfg.groupRules.length === 0 && !isGlobalLayout && !NEEDS_LAYOUT.has(cfg.arrangement)) return null;
 
   // Multi-rule pipeline: each rule subdivides the previous groups

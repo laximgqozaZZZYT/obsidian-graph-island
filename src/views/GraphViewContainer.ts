@@ -3869,13 +3869,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // Apply cluster arrangement force if configured
       this.applyClusterForce();
 
+      // Hide world until 6-step pipeline completes (simulation end).
+      // This prevents partial/in-progress layout from being displayed.
+      if (this.worldContainer) this.worldContainer.visible = false;
+
       this.simulation.on("tick", () => {
-          if (++tickCount % TICK_SKIP !== 0) return;
-          this.markDirty();
+          // Do NOT call markDirty() during simulation — rendering is deferred
+          // until all 6 steps are complete (simulation "end" event).
+          tickCount++;
         });
 
       this.setStatus(`${gd.nodes.length} nodes — simulating...`);
       this.simulation.on("end", () => {
+        // 6-step pipeline complete — reveal world and render final positions
+        if (this.worldContainer) this.worldContainer.visible = true;
         this.setStatus(`${gd.nodes.length} nodes`);
         const wrap = this.canvasWrap;
         // Ensure minimum viewport utilization regardless of autoFit
@@ -3892,13 +3899,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             this.ensureViewportUtilization(evW, evH);
           }
         }
-        if (this.panel.autoFit) {
-          this.updatePositions(true);
-          if (wrap) {
-            this.autoFitView(wrap.clientWidth, wrap.clientHeight);
-            this.markDirty();
-          }
+        // Force full redraw now that all positions are final
+        this.updatePositions(true);
+        if (this.panel.autoFit && wrap) {
+          this.autoFitView(wrap.clientWidth, wrap.clientHeight);
         }
+        this.markDirty(true);
         // Re-cull labels after simulation settles to fix overlap
         // caused by node positions changing during simulation
         this.updateLabelsForZoom();
