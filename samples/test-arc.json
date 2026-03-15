@@ -1,23 +1,23 @@
 {
-  "layout": "force",
+  "layout": "arc",
   "showTags": false,
   "showAttachments": false,
   "existingOnly": true,
   "showOrphans": false,
   "showArrows": true,
-  "textFadeThreshold": 0.4,
-  "nodeSize": 5,
+  "textFadeThreshold": 0,
+  "nodeSize": 6,
   "scaleByDegree": true,
-  "centerForce": 0.001,
+  "centerForce": 0.005,
   "repelForce": 80,
-  "linkForce": 0.03,
-  "linkDistance": 55,
+  "linkForce": 0.05,
+  "linkDistance": 50,
   "groups": [],
-  "searchQuery": "path:classic-sangokushi*",
+  "searchQuery": "path:classic-hamlet* OR path:classic-macbeth*",
   "colorEdgesByRelation": true,
   "colorNodesByCategory": true,
-  "showInheritance": true,
-  "showAggregation": true,
+  "showInheritance": false,
+  "showAggregation": false,
   "showTagNodes": false,
   "tagDisplay": "node",
   "showSimilar": false,
@@ -25,53 +25,31 @@
   "showSequence": true,
   "showLinks": true,
   "showTagEdges": false,
-  "showCategoryEdges": true,
+  "showCategoryEdges": false,
   "showSemanticEdges": false,
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 2,
   "commonQueries": [],
-  "clusterGroupRules": [
-    {
-      "groupBy": "category:?",
-      "recursive": false
-    }
-  ],
+  "clusterGroupRules": [],
   "clusterArrangement": "grid",
-  "clusterNodeSpacing": 2.5,
+  "clusterNodeSpacing": 3.0,
   "clusterGroupScale": 2.0,
   "clusterGroupSpacing": 2.0,
   "fadeEdgesByDegree": true,
-  "edgeBundleStrength": 0.6,
-  "sortRules": [
-    {
-      "key": "degree",
-      "direction": "desc"
-    }
-  ],
+  "edgeBundleStrength": 0.5,
+  "sortRules": [{"key": "degree", "order": "desc"}],
   "nodeRules": [],
   "nodeShapeRules": [
-    {
-      "match": "category",
-      "category": "warrior",
-      "shape": "diamond"
-    },
-    {
-      "match": "category",
-      "category": "ruler",
-      "shape": "hexagon"
-    },
-    {
-      "match": "default",
-      "shape": "circle"
-    }
+    {"match": "category", "category": "protagonist", "shape": "hexagon"},
+    {"match": "default", "shape": "circle"}
   ],
-  "timelineKey": "story_order",
+  "timelineKey": "start-date",
   "showEdgeLabels": false,
   "showMinimap": false,
-  "groupBy": "category:?",
+  "groupBy": "none",
   "groupByRules": null,
-  "groupMinSize": 2,
+  "groupMinSize": 1,
   "groupFilter": "",
   "collapsedGroups": [],
   "activeTab": "layout"

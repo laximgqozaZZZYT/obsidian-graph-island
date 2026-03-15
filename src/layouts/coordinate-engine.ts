@@ -681,15 +681,20 @@ export function coordinateOffsets(
 ): ArrangementResult {
   if (members.length === 0) return { offsets: new Map() };
 
-  const spacing = ctx.nodeSize * 2 * ctx.nodeSpacing * ctx.groupScale;
+  // Spacing formula must match hardcoded arrangements and normalizeSpread:
+  //   gap = nodeSize × 2 × max(nodeSpacing, groupScale)
+  // Using max() ensures spacing grows with the larger of the two factors
+  // rather than multiplying them (which can produce excessive gaps).
+  const spacing = ctx.nodeSize * 2 * Math.max(ctx.nodeSpacing, ctx.groupScale);
   // In polar mode, axis2 is an angle (radians) — spacing must not scale it.
   const isPolar = layout.system === "polar";
   const axis2Spacing = isPolar ? 1 : spacing;
 
-  // Merge user constants with context-level built-ins (totalNodeCount → N)
-  const userConsts = ctx.totalNodeCount != null
-    ? { ...layout.constants, N: ctx.totalNodeCount }
-    : layout.constants;
+  // Merge user constants with context-level built-ins
+  // N = totalNodeCount, S = nodeSize (base node radius in world units)
+  const userConsts: Record<string, number> = { ...layout.constants };
+  if (ctx.totalNodeCount != null) userConsts.N = ctx.totalNodeCount;
+  userConsts.S = ctx.nodeSize;
 
   // Phase 1: resolve raw values for both axes
   const raw1 = resolveAxisValues(members, layout.axis1.source, ctx);

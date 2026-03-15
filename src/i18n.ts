@@ -168,16 +168,12 @@ const en: TranslationMap = {
 
   // --- PanelBuilder: cluster arrangement ---
   "cluster.pattern": "Arrangement Pattern",
-  "cluster.spiral": "Spiral",
   "cluster.concentric": "Concentric",
   "cluster.radial": "Radial",
   "cluster.phyllotaxis": "Phyllotaxis",
-  "cluster.tree": "Tree",
   "cluster.grid": "Grid",
   "cluster.triangle": "Triangle",
   "cluster.random": "Random",
-  "cluster.mountain": "Mountain",
-  "cluster.sunburst": "Sunburst",
   "cluster.timeline": "Timeline",
   "cluster.custom": "Custom",
   "coord.axisSourceHint": "e.g. folder, tag:?, degree, hop:name:5",
@@ -657,16 +653,12 @@ const ja: TranslationMap = {
 
   // --- PanelBuilder: cluster arrangement ---
   "cluster.pattern": "配置パターン",
-  "cluster.spiral": "螺旋",
   "cluster.concentric": "同心円",
   "cluster.radial": "放射",
   "cluster.phyllotaxis": "フィロタキシス",
-  "cluster.tree": "ツリー",
   "cluster.grid": "正方形",
   "cluster.triangle": "三角形",
   "cluster.random": "無秩序",
-  "cluster.mountain": "マウンテン",
-  "cluster.sunburst": "サンバースト",
   "cluster.timeline": "タイムライン",
   "cluster.custom": "カスタム",
   "coord.axisSourceHint": "例: folder, tag:?, degree, hop:名前:5",

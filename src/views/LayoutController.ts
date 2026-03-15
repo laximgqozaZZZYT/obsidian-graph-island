@@ -3,7 +3,7 @@ import type { GraphNode, GraphEdge, DirectionalGravityRule, ClusterGroupRule, No
 import { DEFAULT_RENDER_THRESHOLDS } from "../types";
 import type { PanelState } from "./PanelBuilder";
 import { resolveDirection, matchesFilter } from "../layouts/force";
-import { buildClusterForce, computeAutoFitSpacing, type ClusterMetadata } from "../layouts/cluster-force";
+import { buildClusterForce, computeAutoFitSpacing, effectiveRadius, type ClusterMetadata } from "../layouts/cluster-force";
 import { resolveCoordinateLayout } from "../layouts/coordinate-presets";
 import { computeInDegree, computePropagatedImportance } from "../analysis/graph-analysis";
 import { buildMultiSortComparator, type SortMetrics } from "../utils/sort";
@@ -79,14 +79,10 @@ export class LayoutController {
         }
         return pn.radius + collidePad;
       }
-      // Fallback: compute effective radius including super node expansion
+      // Fallback: compute effective radius using canonical formula
       const deg = degrees.get(n.id) || 0;
-      let r = baseSize;
-      if (panel.scaleByDegree) {
-        r = Math.min(Math.max(baseSize, baseSize + Math.sqrt(deg) * 3.2), maxR);
-      }
+      const r = effectiveRadius(n, baseSize, deg, panel.scaleByDegree, maxR);
       if (n.collapsedMembers && n.collapsedMembers.length > 0) {
-        r = Math.min(Math.max(r, r * (1 + Math.sqrt(n.collapsedMembers.length) * 0.5)), maxR);
         return r + superCollidePad;
       }
       return r + collidePad;
@@ -105,8 +101,6 @@ export class LayoutController {
     // forces via applyClusterForce(). Re-delegate there instead of overwriting.
     if (sim.force("clusterArrangement") != null) {
       this.applyClusterForce();
-      sim.alpha(0.5).restart();
-      this.host.wakeRenderLoop();
       return;
     }
     const { width: W, height: H } = this.host.getCanvasSize();
@@ -228,9 +222,12 @@ export class LayoutController {
   }
 
   // =========================================================================
-  // Per-node repel multiplier map (from NodeRules)
+  // Generic per-node rule multiplier map (from NodeRules)
   // =========================================================================
-  private computeNodeRepelMap(nodes: GraphNode[]): Map<string, number> {
+  private computeNodeRuleMap(
+    nodes: GraphNode[],
+    ruleKey: "repelMultiplier" | "centerGravity" | "spacingMultiplier",
+  ): Map<string, number> {
     const map = new Map<string, number>();
     const rules = this.host.getPanel().nodeRules ?? [];
     if (rules.length === 0) return map;
@@ -238,7 +235,7 @@ export class LayoutController {
       let mult = 1.0;
       for (const rule of rules) {
         if (matchesFilter(node, rule.query)) {
-          mult *= (rule.repelMultiplier ?? 1.0);
+          mult *= (rule[ruleKey] ?? 1.0);
         }
       }
       if (mult !== 1.0) map.set(node.id, mult);
@@ -246,46 +243,9 @@ export class LayoutController {
     return map;
   }
 
-  // =========================================================================
-  // Per-node center gravity map (from NodeRules)
-  // =========================================================================
-  private computeCenterGravityMap(nodes: GraphNode[]): Map<string, number> {
-    const map = new Map<string, number>();
-    const rules = this.host.getPanel().nodeRules ?? [];
-    if (rules.length === 0) return map;
-    for (const node of nodes) {
-      let mult = 1.0;
-      for (const rule of rules) {
-        if (matchesFilter(node, rule.query)) {
-          mult *= (rule.centerGravity ?? 1.0);
-        }
-      }
-      if (mult !== 1.0) map.set(node.id, mult);
-    }
-    return map;
-  }
-
-  // =========================================================================
-  // Node spacing map
-  // =========================================================================
-  computeNodeSpacingMap(nodes: GraphNode[]): Map<string, number> {
-    const map = new Map<string, number>();
-    const rules = this.host.getPanel().nodeRules ?? [];
-    if (rules.length === 0) return map;
-
-    for (const node of nodes) {
-      let spacing = 1.0;
-      for (const rule of rules) {
-        if (matchesFilter(node, rule.query)) {
-          spacing *= rule.spacingMultiplier;
-        }
-      }
-      if (spacing !== 1.0) {
-        map.set(node.id, spacing);
-      }
-    }
-    return map;
-  }
+  private computeNodeRepelMap(nodes: GraphNode[]) { return this.computeNodeRuleMap(nodes, "repelMultiplier"); }
+  private computeCenterGravityMap(nodes: GraphNode[]) { return this.computeNodeRuleMap(nodes, "centerGravity"); }
+  computeNodeSpacingMap(nodes: GraphNode[]) { return this.computeNodeRuleMap(nodes, "spacingMultiplier"); }
 
   // =========================================================================
   // Enclosure repulsion force
@@ -416,14 +376,14 @@ export class LayoutController {
   // =========================================================================
   // Cluster force
   // =========================================================================
-  applyClusterForce() {
+  applyClusterForce(resetPositions = true) {
     const sim = this.host.getSimulation();
     if (!sim) return;
     const panel = this.host.getPanel();
-    let { clusterArrangement, clusterNodeSpacing, clusterGroupScale, clusterGroupSpacing } = panel;
+    const { clusterArrangement } = panel;
     const grav = panel.clusterGravity ?? { interGroupAttraction: 0.5, intraGroupDensity: 1.0 };
 
-    const chargeForce = this.host.getPanel().renderThresholds?.clusterChargeForce
+    const chargeForce = panel.renderThresholds?.clusterChargeForce
       ?? DEFAULT_RENDER_THRESHOLDS.clusterChargeForce;
     sim.force("charge", forceManyBody<GraphNode>().strength(chargeForce));
     sim.force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(2));
@@ -432,16 +392,21 @@ export class LayoutController {
     sim.force("directionalGravity", null);
     sim.force("enclosureRepulsion", null);
 
-    // Reset velocities and release pinned nodes so the new arrangement
-    // starts from a clean slate without residual momentum or frozen positions.
+    const { width: W, height: H } = this.host.getCanvasSize();
+    const cx = W / 2, cy = H / 2;
+
+    // Reset velocities and release pinned nodes.
+    // When resetPositions=true (arrangement change), also reset positions to center.
     for (const n of sim.nodes()) {
+      if (resetPositions) {
+        n.x = cx + (Math.random() - 0.5) * 2;
+        n.y = cy + (Math.random() - 0.5) * 2;
+      }
       n.vx = 0;
       n.vy = 0;
       n.fx = null;
       n.fy = null;
     }
-
-    const { width: W, height: H } = this.host.getCanvasSize();
     const graphEdges = this.host.getGraphEdges();
     const tagMembership = this.host.getTagMembership();
 
@@ -454,9 +419,9 @@ export class LayoutController {
       height: H,
       nodeSize: panel.nodeSize,
       scaleByDegree: panel.scaleByDegree,
-      nodeSpacing: clusterNodeSpacing,
-      groupScale: clusterGroupScale,
-      groupSpacing: clusterGroupSpacing,
+      nodeSpacing: panel.clusterNodeSpacing ?? 3,
+      groupScale: panel.clusterGroupScale ?? 3,
+      groupSpacing: panel.clusterGroupSpacing ?? 2,
       tagMembership: panel.tagDisplay === "enclosure" ? tagMembership : undefined,
       enclosureSpacing: panel.enclosureSpacing,
       sortComparator: this.buildSortComparator(sim.nodes(), graphEdges),
@@ -470,21 +435,19 @@ export class LayoutController {
       userConstants: panel.coordinateLayout?.constants,
       // Arrangement presets inter-group layout mode and overlap resolution strategy
       groupLayoutMode: (
-        clusterArrangement === "tree" || clusterArrangement === "mountain" ? "horizontal" :
         clusterArrangement === "concentric" || clusterArrangement === "radial" ? "concentric" :
         clusterArrangement === "timeline" ? "vertical" :
         "circle"
       ) as "circle" | "horizontal" | "concentric" | "vertical",
-      skipGroupOverlap: clusterArrangement === "timeline" || clusterArrangement === "sunburst",
+      skipGroupOverlap: clusterArrangement === "timeline",
       maxNodeRadius: panel.renderThresholds?.maxNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.maxNodeRadius,
+      minNodeRadius: panel.renderThresholds?.minNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.minNodeRadius,
       repelForce: panel.repelForce,
       blendConfig: {
-        sunburstBlendBase: panel.renderThresholds?.sunburstBlendBase,
-        sunburstBlendCeiling: panel.renderThresholds?.sunburstBlendCeiling,
-        sunburstBlendRepelSensitivity: panel.renderThresholds?.sunburstBlendRepelSensitivity,
         clusterBlendDefault: panel.renderThresholds?.clusterBlendDefault,
         clusterBlendDecayFactor: panel.renderThresholds?.clusterBlendDecayFactor,
       },
+      normalizeArrangementSpread: panel.renderThresholds?.normalizeArrangementSpread,
     };
 
     // If coordinateLayout specifies a property source, use it as timelineKey
@@ -496,17 +459,14 @@ export class LayoutController {
     // Auto-fit: compute optimal spacing values
     if (panel.autoFit) {
       const optimal = computeAutoFitSpacing(sim.nodes(), graphEdges, this.host.getDegrees(), baseCfg);
-      clusterNodeSpacing = optimal.nodeSpacing;
-      clusterGroupScale = optimal.groupScale;
-      clusterGroupSpacing = optimal.groupSpacing;
       // Update panel values so sliders reflect auto-computed values
-      panel.clusterNodeSpacing = clusterNodeSpacing;
-      panel.clusterGroupScale = clusterGroupScale;
-      panel.clusterGroupSpacing = clusterGroupSpacing;
+      panel.clusterNodeSpacing = optimal.nodeSpacing;
+      panel.clusterGroupScale = optimal.groupScale;
+      panel.clusterGroupSpacing = optimal.groupSpacing;
       // Apply to config
-      baseCfg.nodeSpacing = clusterNodeSpacing;
-      baseCfg.groupScale = clusterGroupScale;
-      baseCfg.groupSpacing = clusterGroupSpacing;
+      baseCfg.nodeSpacing = optimal.nodeSpacing;
+      baseCfg.groupScale = optimal.groupScale;
+      baseCfg.groupSpacing = optimal.groupSpacing;
     }
 
     // Apply cluster gravity coefficients (after auto-fit so coefficients modify final values)
@@ -532,6 +492,10 @@ export class LayoutController {
       sim.force("clusterArrangement", null);
       this.host.setClusterMeta(null);
     }
+
+    // Reheat simulation: alpha=1.0 for full reset, 0.5 for parameter-only changes
+    sim.alpha(resetPositions ? 1.0 : 0.5).restart();
+    this.host.wakeRenderLoop();
   }
 
   // =========================================================================

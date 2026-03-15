@@ -51,7 +51,7 @@ const ARRAY_FIELDS: (keyof PanelState)[] = [
 /** Valid values for enum-like fields */
 const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   tagDisplay: ["node", "enclosure"] as const,
-  clusterArrangement: ["spiral", "concentric", "tree", "grid", "triangle", "random", "mountain", "sunburst", "timeline", "custom"] as const,
+  clusterArrangement: ["concentric", "radial", "phyllotaxis", "grid", "triangle", "random", "timeline", "custom"] as const,
   guideLineMode: ["shared", "per-group"] as const,
   nodeDisplayMode: ["node", "card", "donut", "sunburst-segment"] as const,
   edgeCardinalityMode: ["none", "crowsfoot"] as const,
@@ -117,11 +117,19 @@ export function exportPreset(panel: PanelState): string {
  * Parse a JSON string and return only the valid PanelState fields.
  * Throws on invalid JSON. Silently drops unknown or invalid fields.
  */
+/** Removed arrangement patterns — silently migrated to "grid" on import */
+const REMOVED_ARRANGEMENTS = new Set(["spiral", "mountain", "sunburst", "tree"]);
+
 export function importPreset(json: string): Partial<PanelState> {
   const raw = JSON.parse(json);
 
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new Error("Preset must be a JSON object");
+  }
+
+  // Migrate removed arrangement patterns to "grid"
+  if (typeof raw.clusterArrangement === "string" && REMOVED_ARRANGEMENTS.has(raw.clusterArrangement)) {
+    raw.clusterArrangement = "grid";
   }
 
   const result: Partial<PanelState> = {};

@@ -70,6 +70,10 @@ export interface EdgeDrawConfig {
   cableFanAlpha?: number;
   /** Minimum density scale floor — prevents edges vanishing at high count + low zoom */
   edgeDensityFloor?: number;
+  /** Alpha for edges directly connected to the hovered node (default 1.0). Overrides densityScale. */
+  highlightEdgeAlpha?: number;
+  /** Alpha for edges NOT connected to the hovered node while hover is active (default 0.15). */
+  highlightEdgeNonMatchAlpha?: number;
   /** Show edge weight via line thickness (same source-target pair count) */
   edgeWeightThickness?: boolean;
 }
@@ -464,22 +468,22 @@ function drawCables(
       }
       let trunkAlpha = cfg.cableTrunkAlpha ?? 0.85;
 
-      // Highlight: if any edge in this lane connects highlighted nodes, brighten trunk
+      // Highlight: if any edge in this lane connects to a highlighted node, brighten trunk
       if (cfg.highlightedNodeId) {
         let laneHit = false;
         for (const e of lane.edges) {
           const sid = typeof e.source === "string" ? e.source : (e.source as any).id;
           const tid = typeof e.target === "string" ? e.target : (e.target as any).id;
-          if (cfg.highlightSet.has(sid) && cfg.highlightSet.has(tid)) {
+          if (cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid)) {
             laneHit = true;
             break;
           }
         }
         if (laneHit) {
-          trunkAlpha = 1;
+          trunkAlpha = cfg.highlightEdgeAlpha ?? 1.0;
           trunkWidth = 3;
         } else {
-          trunkAlpha = 0.04;
+          trunkAlpha = cfg.highlightEdgeNonMatchAlpha ?? 0.15;
         }
       }
 
@@ -507,10 +511,10 @@ function drawCables(
 
         // Highlight: show individual fans clearly on hover
         if (cfg.highlightedNodeId) {
-          if (cfg.highlightSet.has(sid) && cfg.highlightSet.has(tid)) {
-            alpha = 0.8;
+          if (cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid)) {
+            alpha = (cfg.highlightEdgeAlpha ?? 1.0) * 0.8;
           } else {
-            alpha = 0.02;
+            alpha = (cfg.highlightEdgeNonMatchAlpha ?? 0.15) * 0.15;
           }
         }
 
@@ -589,8 +593,8 @@ export function drawEdges(
   // At extreme zoom-out (scale < 0.05), further reduce alpha so edges don't
   // obscure nodes rendered with min-radius inflation.
   const ws = cfg.worldScale ?? 1;
-  const zoomFade = ws >= 0.05 ? 1 : Math.max(0.15, ws / 0.05);
-  const densityScale = Math.max(cfg.edgeDensityFloor ?? 0.08, densityScaleBase * zoomFade);
+  const zoomFade = ws >= 0.05 ? 1 : Math.max(0.4, ws / 0.05);
+  const densityScale = Math.max(cfg.edgeDensityFloor ?? 0.25, densityScaleBase * zoomFade);
 
   // Pre-compute edge pair counts for weight-based thickness
   let pairCount: Map<string, number> | null = null;
@@ -687,15 +691,15 @@ export function drawEdges(
     if (hId) {
       const sid = src.id ?? (e.source as string);
       const tid = tgt.id ?? (e.target as string);
-      if (cfg.highlightSet.has(sid) && cfg.highlightSet.has(tid)) {
+      // An edge is highlighted when at least one endpoint is in the highlight set
+      // (covers hoverHops=0 where only hId itself is in the set, and multi-hop cases
+      // where the far endpoint may not be in the set but the near endpoint is).
+      const highlighted = cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid);
+      if (highlighted) {
         lineThick = 2.0;
-        alpha = 1;
-        if (!isOnto && !e.relation) {
-          // Keep lineColor from resolveEdgeColor — don't override to HIGHLIGHT_COLOR
-          // so bundled highlight edges still group by their original color
-        }
+        alpha = cfg.highlightEdgeAlpha ?? 1.0;
       } else {
-        alpha = 0.15;
+        alpha = cfg.highlightEdgeNonMatchAlpha ?? 0.15;
       }
     }
 

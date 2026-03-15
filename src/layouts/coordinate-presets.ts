@@ -97,13 +97,6 @@ export const CURVE_REGISTRY: Record<CurveKind, CurveDefinition> = {
  * The coordinate system is NOT coupled to the arrangement; users can override freely.
  */
 export const ARRANGEMENT_PRESETS: Record<ClusterArrangement, CoordinateLayout> = {
-  spiral: {
-    system: "polar",
-    axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "_a + _b * i", scale: 1 } },
-    axis2: { source: { kind: "index" }, transform: { kind: "expression", expr: "i * _step", scale: 1 } },
-    perGroup: true,
-    constants: { _a: 0, _b: 0.8, _step: 2.4 },
-  },
   concentric: {
     system: "polar",
     axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "floor(i / _ringSize) + 1", scale: 1 } },
@@ -124,12 +117,6 @@ export const ARRANGEMENT_PRESETS: Record<ClusterArrangement, CoordinateLayout> =
     axis2: { source: { kind: "index" }, transform: { kind: "expression", expr: "i * pi * (3 - sqrt(5))", scale: 1 } },
     perGroup: true,
   },
-  tree: {
-    system: "cartesian",
-    axis1: { source: { kind: "metric", metric: "bfs-depth" }, transform: { kind: "linear", scale: 1 } },
-    axis2: { source: { kind: "metric", metric: "sibling-rank" }, transform: { kind: "linear", scale: 1 } },
-    perGroup: true,
-  },
   grid: {
     system: "cartesian",
     axis1: { source: { kind: "index" }, transform: { kind: "expression", expr: "i % ceil(sqrt(n))", scale: 1 } },
@@ -147,19 +134,6 @@ export const ARRANGEMENT_PRESETS: Record<ClusterArrangement, CoordinateLayout> =
     axis1: { source: { kind: "random", seed: 42 }, transform: { kind: "linear", scale: 1 } },
     axis2: { source: { kind: "random", seed: 42 }, transform: { kind: "linear", scale: 1 } },
     perGroup: true,
-  },
-  mountain: {
-    system: "cartesian",
-    axis1: { source: { kind: "index" }, transform: { kind: "linear", scale: 1 } },
-    axis2: { source: { kind: "metric", metric: "degree" }, transform: { kind: "linear", scale: -1 } },
-    perGroup: true,
-  },
-  sunburst: {
-    system: "polar",
-    axis1: { source: { kind: "const", value: 1 }, transform: { kind: "linear", scale: 1 } },
-    axis2: { source: { kind: "index" }, transform: { kind: "even-divide", totalRange: 360 } },
-    perGroup: false,
-    constants: { _ringW: 0.4, _ringGap: 0.03, _hole: 1.8, _sectorGap: 0.02 },
   },
   timeline: {
     system: "cartesian",
@@ -210,22 +184,13 @@ export function resolveArrangementFromLayout(layout: CoordinateLayout): ClusterA
   // Random sources → random
   if (s1 === "random" || s2 === "random") return "random";
 
-  // Metric: bfs-depth → tree
-  if (s1 === "metric" && (layout.axis1.source as { kind: "metric"; metric: string }).metric === "bfs-depth") return "tree";
-
   // Index on axis1 with expression + even-divide on axis2 + perGroup=false → concentric
   if (s1 === "index" && t1 === "expression" && t2 === "even-divide" && !layout.perGroup) return "concentric";
-
-  // Metric: degree on axis2 with negative scale → mountain
-  if (s2 === "metric" && (layout.axis2.source as { kind: "metric"; metric: string }).metric === "degree") return "mountain";
-
-  // Const on axis1 + even-divide → sunburst
-  if (s1 === "const" && t2 === "even-divide" && !layout.perGroup) return "sunburst";
 
   // Index + index with specific transforms
   if (s1 === "index" && s2 === "index") return "grid";
 
-  return "spiral"; // fallback
+  return "grid"; // fallback
 }
 
 // ---------------------------------------------------------------------------

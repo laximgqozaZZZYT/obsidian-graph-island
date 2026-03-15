@@ -67,6 +67,8 @@ export interface InteractionHost {
   getApp(): any;
   /** Get the view's container element (for hover-link parent) */
   getContainerEl(): HTMLElement;
+  /** Called when zoom changes — debounced layout recalculation */
+  onZoomLayoutUpdate?(zoom: number): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +97,9 @@ export class InteractionManager {
   private isMarqueeActive = false;
   private marqueeStart = { x: 0, y: 0 };
   private marqueeGraphics: CanvasGraphics | null = null;
+
+  // Debounced zoom layout recalculation
+  private _zoomLayoutTimer = 0;
 
   // Hover preview: track last hovered node to avoid redundant hover-link events
   private lastHoveredId: string | null = null;
@@ -181,6 +186,11 @@ export class InteractionManager {
     (this.host as any).updateLabelsForZoom?.();
     // Update zoom percentage indicator
     (this.host as any).updateZoomIndicator?.(s);
+    // Debounced layout recalculation for zoom-correlated node sizes
+    clearTimeout(this._zoomLayoutTimer);
+    this._zoomLayoutTimer = window.setTimeout(() => {
+      this.host.onZoomLayoutUpdate?.(s);
+    }, 400) as unknown as number;
   }
 
   // -----------------------------------------------------------------------

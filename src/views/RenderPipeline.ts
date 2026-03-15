@@ -4,6 +4,7 @@ import { DEFAULT_CARD_RENDER_CONFIG, DEFAULT_RENDER_THRESHOLDS } from "../types"
 import type { PixiNode } from "./InteractionManager";
 import { getNodeShape, drawShape, drawShapeAt, getNodeDisplayConfig } from "../utils/node-shapes";
 import type { ShapeRule } from "../utils/node-shapes";
+import { effectiveRadius } from "../layouts/cluster-force";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -91,6 +92,8 @@ export interface RenderHost {
   getRenderThresholds?(): RenderThresholds;
   /** Whether scaleByDegree is enabled */
   getScaleByDegree?(): boolean;
+  /** Get current node size */
+  getNodeSize?(): number;
   /** Get the adjacency map for zone-based label placement */
   getAdjacency?(): Map<string, Set<string>>;
   /** Get the accent color for tag labels */
@@ -865,14 +868,12 @@ export class RenderPipeline {
     container.y = n.y;
 
     const isSuperNode = !!(n.collapsedMembers && n.collapsedMembers.length > 0);
-    const memberCount = isSuperNode ? n.collapsedMembers!.length : 0;
     const rtNode = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
     const maxR = rtNode.maxNodeRadius > 0 ? rtNode.maxNodeRadius : Infinity;
     const scaleByDegree = this.host.getScaleByDegree?.() ?? true;
-    const rawR = (isSuperNode && scaleByDegree)
-      ? Math.max(nodeR(n), nodeR(n) * (1 + Math.sqrt(memberCount) * 0.5))
-      : nodeR(n);
-    const r = Math.min(rawR, maxR);
+    const ns = this.host.getNodeSize?.() ?? nodeR(n);
+    const nodeDeg = this.host.getDegrees().get(n.id) || 0;
+    const r = effectiveRadius(n, ns, nodeDeg, scaleByDegree, maxR, rtNode.minNodeRadius);
     const color = nodeColor(n);
     const circle = new CanvasGraphics();
     if (isSuperNode) {

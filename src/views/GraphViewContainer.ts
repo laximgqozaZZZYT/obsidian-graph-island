@@ -19,7 +19,7 @@ import { t } from "../i18n";
 import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
 import type { ClusterMetadata, GuideLineData, TimelineBarInfo, ArrangementGuide } from "../layouts/cluster-force";
-import { analyzeOverlap, computeAutoOptimize } from "../layouts/cluster-force";
+import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from "../layouts/cluster-force";
 import type { ResolvedGridInfo, ResolvedGridLine } from "../layouts/coordinate-engine";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
 import { RenderPipeline, darkenColor, type RenderHost } from "./RenderPipeline";
@@ -315,7 +315,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (state.layout && typeof state.layout === "string" && state.layout !== "force") {
       // Migrate legacy layout type to cluster arrangement pattern where applicable
       const legacyMap: Record<string, string> = {
-        "tree": "tree", "concentric": "concentric", "sunburst": "sunburst",
+        "tree": "grid", "concentric": "concentric", "sunburst": "grid",
         "timeline": "timeline", "arc": "concentric",
       };
       const mapped = legacyMap[state.layout];
@@ -1163,7 +1163,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   isRingChartMode(): boolean {
-    return this.panel.ringChartMode && this.panel.clusterArrangement === "sunburst";
+    return false;
   }
 
   getNodeDisplayMode() { return this.panel.nodeDisplayMode ?? "node"; }
@@ -1171,6 +1171,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getDonutDisplayConfig() { return this.panel.donutDisplayConfig ?? { innerRadius: 0.6 }; }
   getRenderThresholds() { return this.panel.renderThresholds ?? {}; }
   getScaleByDegree() { return this.panel.scaleByDegree; }
+  getNodeSize() { return this.panel.nodeSize; }
   getAdjacency() { return this.adj; }
 
   // =========================================================================
@@ -1208,7 +1209,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           const ddx = pn.data.x - wx;
           const ddy = pn.data.y - wy;
           const dist = ddx * ddx + ddy * ddy;
-          const r = pn.radius + 4;
+          // Ensure hit area is large enough in screen pixels for hover/click
+          const rt = this.panel.renderThresholds ?? {};
+          const minScreenPx = rt.minHoverScreenPx ?? DEFAULT_RENDER_THRESHOLDS.minHoverScreenPx;
+          const zoom = this.world?.scale?.x ?? 1;
+          const r = Math.max(pn.radius, minScreenPx / zoom) + (rt.collisionPadding ?? DEFAULT_RENDER_THRESHOLDS.collisionPadding);
           if (dist < r * r && dist < closestDist) {
             closestDist = dist;
             closest = pn;
@@ -1624,8 +1629,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   drawEdges() {
     if (!this.edgeGraphics) return;
-    // Ring chart mode: hide all edges
-    if (this.panel.ringChartMode && this.panel.clusterArrangement === "sunburst") {
+    // Ring chart mode: hide all edges (retained for backward compat)
+    if (this.isRingChartMode()) {
       this.edgeGraphics.clear();
       return;
     }
@@ -1693,7 +1698,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cableSpacing = this.panel.cableSpacing;
     cfg.cableFanWidth = this.panel.cableFanWidth;
     cfg.cableFanAlpha = this.panel.cableFanAlpha;
-    cfg.edgeDensityFloor = (this.panel.renderThresholds ?? {}).edgeDensityFloor;
+    const edgeRt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    cfg.edgeDensityFloor = edgeRt.edgeDensityFloor;
+    cfg.highlightEdgeAlpha = edgeRt.highlightEdgeAlpha;
+    cfg.highlightEdgeNonMatchAlpha = edgeRt.highlightEdgeNonMatchAlpha;
     cfg.isDark = this.isDarkTheme();
     cfg.showEdgeLabels = this.panel.showEdgeLabels;
     cfg.showArrows = this.panel.showArrows;
@@ -1748,6 +1756,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!this.enclosureGraphics) return;
     // Ring chart mode: hide enclosures
     if (this.isRingChartMode()) { this.enclosureGraphics.clear(); return; }
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
     const cfg: EnclosureConfig = {
       tagDisplay: this.panel.tagDisplay,
       tagMembership: this.tagMembership,
@@ -2177,20 +2186,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         case "timeline":
           this.drawTimelineAxis(g, cx, cy, guide, lineW, gColor, worldScale);
           break;
-        case "spiral":
-          this.drawSpiralCurve(g, cx, cy, guide, lineW, gColor);
-          break;
         case "grid":
           this.drawGridLines(g, cx, cy, guide, lineW, gColor);
           break;
-        case "tree":
-          this.drawTreeDepthLines(g, cx, cy, guide, lineW, gColor);
-          break;
         case "triangle":
           this.drawTriangleOutline(g, cx, cy, guide, lineW, gColor);
-          break;
-        case "mountain":
-          this.drawMountainSilhouette(g, cx, cy, guide, lineW, gColor);
           break;
         case "coordinate":
           this.drawCoordinateGuide(g, cx, cy, guide as Extract<ArrangementGuide, { type: "coordinate" }>, lineW, gColor);
@@ -2421,32 +2421,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
-  private drawSpiralCurve(
-    g: CanvasGraphics, cx: number, cy: number,
-    guide: Extract<ArrangementGuide, { type: "spiral" }>,
-    lineW: number, color: number,
-  ) {
-    const { a, maxTheta } = guide;
-    if (maxTheta <= 0) return;
-
-    const SEGMENTS = Math.max(100, Math.ceil(maxTheta * 10));
-    g.lineStyle(lineW, color, 0.3);
-
-    let started = false;
-    for (let i = 0; i <= SEGMENTS; i++) {
-      const theta = (i / SEGMENTS) * maxTheta;
-      const r = a * theta;
-      const x = cx + r * Math.cos(theta);
-      const y = cy + r * Math.sin(theta);
-      if (!started) {
-        g.moveTo(x, y);
-        started = true;
-      } else {
-        g.lineTo(x, y);
-      }
-    }
-  }
-
   private drawGridLines(
     g: CanvasGraphics, cx: number, cy: number,
     guide: Extract<ArrangementGuide, { type: "grid" }>,
@@ -2471,30 +2445,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
-  private drawTreeDepthLines(
-    g: CanvasGraphics, cx: number, cy: number,
-    guide: Extract<ArrangementGuide, { type: "tree" }>,
-    lineW: number, color: number,
-  ) {
-    const xMin = cx + guide.xMin - 20;
-    const xMax = cx + guide.xMax + 20;
-
-    // Draw dashed horizontal lines for each depth level
-    const dashLen = 8;
-    const gapLen = 4;
-    g.lineStyle(lineW, color, 0.25);
-
-    for (const level of guide.depthLevels) {
-      const y = cy + level.y;
-      let x = xMin;
-      while (x < xMax) {
-        g.moveTo(x, y);
-        g.lineTo(Math.min(x + dashLen, xMax), y);
-        x += dashLen + gapLen;
-      }
-    }
-  }
-
   private drawTriangleOutline(
     g: CanvasGraphics, cx: number, cy: number,
     guide: Extract<ArrangementGuide, { type: "triangle" }>,
@@ -2506,19 +2456,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     g.lineTo(cx + verts[1].x, cy + verts[1].y);
     g.lineTo(cx + verts[2].x, cy + verts[2].y);
     g.lineTo(cx + verts[0].x, cy + verts[0].y);
-  }
-
-  private drawMountainSilhouette(
-    g: CanvasGraphics, cx: number, cy: number,
-    guide: Extract<ArrangementGuide, { type: "mountain" }>,
-    lineW: number, color: number,
-  ) {
-    if (guide.points.length < 2) return;
-    g.lineStyle(lineW, color, 0.3);
-    g.moveTo(cx + guide.points[0].x, cy + guide.points[0].y);
-    for (let i = 1; i < guide.points.length; i++) {
-      g.lineTo(cx + guide.points[i].x, cy + guide.points[i].y);
-    }
   }
 
   private drawCoordinateGuide(
@@ -3419,7 +3356,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       applyTextFade: () => { this.applyTextFade(); this.requestSave(); },
       applyDirectionalGravityForce: () => { this.applyNodeRulesForce(); this.requestSave(); },
       applyNodeRules: () => { this.applyNodeRulesForce(); this.applyClusterForce(); this.requestSave(); },
-      applyClusterForce: () => { this.applyClusterForce(); this.requestSave(); },
+      applyClusterForce: (reset?: boolean) => { this.applyClusterForce(reset); this.requestSave(); },
       startOrbitAnimation: () => { this.startOrbitAnimation(); this.requestSave(); },
       stopOrbitAnimation: () => { this.stopOrbitAnimation(); this.requestSave(); },
       wakeRenderLoop: () => this.wakeRenderLoop(),
@@ -3774,6 +3711,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.cachedBgColor = null; // invalidate bg color cache on re-render
     this.cachedLabelColor = null;
 
+    // Capture baseline nodeSize for zoom-correlated sizing (once per render cycle)
+    this._zoomBaseNodeSize = this.panel.nodeSize;
+
     const rect = this.canvasWrap.getBoundingClientRect();
     const W = rect.width || 600;
     const H = rect.height || 400;
@@ -3852,9 +3792,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.enclosureLabels.clear();
     const baseSize = this.panel.nodeSize;
 
-    const nodeR = this.panel.scaleByDegree
-      ? (n: GraphNode) => Math.max(baseSize, baseSize + Math.sqrt(this.degrees.get(n.id) || 0) * 3.2)
-      : (_n: GraphNode) => baseSize;
+    const sbd = this.panel.scaleByDegree;
+    const degs = this.degrees;
+    const nodeR = (n: GraphNode) => nodeRadius(baseSize, degs.get(n.id) || 0, sbd);
     const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
 
     // Heatmap: precompute max degree for normalization
@@ -4118,10 +4058,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private updateForces() { this.layoutController.updateForces(); }
   private applyNodeRulesForce() { this.layoutController.applyNodeRulesForce(); }
   private applyEnclosureRepulsionForce() { this.layoutController.applyEnclosureRepulsionForce(); }
-  private applyClusterForce() {
-    this.layoutController.applyClusterForce();
+  private applyClusterForce(resetPositions = true) {
+    this.layoutController.applyClusterForce(resetPositions);
     // Schedule auto-fit after arrangement changes so layout fills the viewport
-    if (this.canvasWrap) {
+    if (resetPositions && this.canvasWrap) {
       const wrap = this.canvasWrap;
       clearTimeout(this._autoFitTimer);
       this._autoFitTimer = window.setTimeout(() => {
@@ -4661,6 +4601,47 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.cullOverlappingRotatedLabels(this.clusterSunburstLabels);
     this.cullOverlappingRotatedLabels(this.sunburstLabels);
     this.cullOverlappingRotatedLabels(this.groupGridLabels);
+  }
+
+  /** Called by InteractionManager (debounced) when zoom changes.
+   *  Adjusts effective node size based on zoom level and recalculates layout. */
+  onZoomLayoutUpdate(zoom: number) {
+    if (!this.simulation) return;
+    const t = this.panel.renderThresholds ?? {};
+    const zoomAdapt = t.zoomNodeSizeAdapt ?? DEFAULT_RENDER_THRESHOLDS.zoomNodeSizeAdapt;
+    if (!zoomAdapt) return;
+
+    // Effective node size: counter-scale to maintain consistent screen-space size.
+    // At zoom=1 use panel.nodeSize as-is; at zoom<1 enlarge, at zoom>1 shrink.
+    // Dampened by sqrt to avoid extreme size changes.
+    const baseSize = this._zoomBaseNodeSize ?? this.panel.nodeSize;
+    const factor = 1 / Math.sqrt(Math.max(0.02, zoom));
+    this.panel.nodeSize = Math.max(
+      t.minNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.minNodeRadius,
+      Math.round(baseSize * factor * 10) / 10,
+    );
+
+    // Update visual radii of all existing PixiNodes to reflect new nodeSize
+    this.recalcNodeRadii();
+
+    // Recalculate layout without position reset (smooth transition)
+    this.applyClusterForce(false);
+    this.markDirty();
+  }
+
+  /** Stores the original nodeSize before zoom-adaptation (set once on first render) */
+  private _zoomBaseNodeSize: number | null = null;
+
+  /** Recalculate and apply visual radii for all PixiNodes based on current panel.nodeSize. */
+  private recalcNodeRadii() {
+    const ns = this.panel.nodeSize;
+    const sbd = this.panel.scaleByDegree;
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+    const maxR = rt.maxNodeRadius > 0 ? rt.maxNodeRadius : Infinity;
+    const minR = rt.minNodeRadius;
+    for (const pn of this.pixiNodes.values()) {
+      pn.radius = effectiveRadius(pn.data, ns, this.degrees.get(pn.data.id) || 0, sbd, maxR, minR);
+    }
   }
 
   // =========================================================================

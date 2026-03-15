@@ -37,7 +37,7 @@
       "recursive": false
     }
   ],
-  "clusterArrangement": "spiral",
+  "clusterArrangement": "grid",
   "clusterNodeSpacing": 2.0,
   "clusterGroupScale": 3.0,
   "clusterGroupSpacing": 3.0,

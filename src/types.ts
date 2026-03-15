@@ -63,7 +63,7 @@ export type LayoutType =
 export type ClusterGroupBy = string;
 
 /** How to arrange nodes within each cluster */
-export type ClusterArrangement = "spiral" | "concentric" | "radial" | "phyllotaxis" | "tree" | "grid" | "triangle" | "random" | "mountain" | "sunburst" | "timeline" | "custom";
+export type ClusterArrangement = "concentric" | "radial" | "phyllotaxis" | "grid" | "triangle" | "random" | "timeline" | "custom";
 
 /** Source of values for a coordinate axis.
  *
@@ -748,7 +748,10 @@ export interface RenderThresholds {
   autoFitGuidePad?: number;
   /** Base padding (px) for non-card auto-fit (default 40). */
   autoFitBasePadding?: number;
-
+  /** Normalize spread across arrangement patterns so nodes appear the same
+   *  screen size after autoFitView (default true). When true, each pattern's
+   *  bounding radius is scaled to match a grid-equivalent reference. */
+  normalizeArrangementSpread?: boolean;
   // ---- Viewport utilization ----
   /** Minimum world-space node bbox area / viewport area at z=1.0 (default 0.10).
    *  After layout, if utilization is below this, node positions are scaled outward
@@ -795,9 +798,26 @@ export interface RenderThresholds {
   /** Minimum density scale for edge/cable alpha — prevents edges from becoming invisible at high count + low zoom (default 0.08) */
   edgeDensityFloor?: number;
 
+  // ---- Hover edge highlight ----
+  /** Alpha for edges connected to the hovered node (default 1.0). Applied regardless of densityScale. */
+  highlightEdgeAlpha?: number;
+  /** Alpha for edges NOT connected to the hovered node while hover is active (default 0.15). */
+  highlightEdgeNonMatchAlpha?: number;
+
   // ---- Node radius cap ----
   /** Maximum node radius in world units (default 60). Set 0 = unlimited. */
   maxNodeRadius?: number;
+  /** Minimum node radius in world units (default 3). Prevents nodes from becoming
+   *  too small to hover/click. Applied after all size calculations. */
+  minNodeRadius?: number;
+  /** Whether to adapt node size based on zoom level (default true).
+   *  When enabled, nodeSize counter-scales with zoom to maintain consistent
+   *  screen-space size, and layout is recalculated on zoom changes. */
+  zoomNodeSizeAdapt?: boolean;
+  /** Minimum hit-test radius in screen pixels (default 4).
+   *  Ensures nodes remain hoverable even when very small in world units.
+   *  Applied in hitTestNode: effective hit radius = max(worldRadius, minHoverScreenPx / zoom). */
+  minHoverScreenPx?: number;
 
   // ---- Label leader lines ----
   /** Draw thin leader lines from displaced labels to their node (default true) */
@@ -1103,6 +1123,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   autoFitMinScale: 0,
   autoFitGuidePad: 50,
   autoFitBasePadding: 40,
+  normalizeArrangementSpread: true,
   minViewportUtilization: 0.12,
   labelOverlapCulling: true,
   labelOverlapMargin: 8,
@@ -1117,8 +1138,13 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   minimapDotRadius: 2.5,
   minimapThinStep: 3,
   minimapThinThreshold: 800,
-  edgeDensityFloor: 0.08,
+  edgeDensityFloor: 0.25,
+  highlightEdgeAlpha: 1.0,
+  highlightEdgeNonMatchAlpha: 0.15,
   maxNodeRadius: 60,
+  minNodeRadius: 4,
+  minHoverScreenPx: 4,
+  zoomNodeSizeAdapt: true,
   labelLeaderLines: true,
   labelLeaderLineAlpha: 0.3,
   labelLeaderLineWidth: 0.8,

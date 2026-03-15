@@ -37,7 +37,7 @@
   "hoverHops": 2,
   "commonQueries": [],
   "clusterGroupRules": [{"groupBy": "folder:?", "recursive": false}],
-  "clusterArrangement": "mountain",
+  "clusterArrangement": "grid",
   "clusterNodeSpacing": 2.5,
   "clusterGroupScale": 2.5,
   "clusterGroupSpacing": 3.0,

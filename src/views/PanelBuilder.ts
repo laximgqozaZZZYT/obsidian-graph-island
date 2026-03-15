@@ -197,7 +197,7 @@ export const DEFAULT_PANEL: PanelState = {
   hoverHops: 1,
   commonQueries: [],
   clusterGroupRules: [],
-  clusterArrangement: "spiral" as ClusterArrangement,
+  clusterArrangement: "grid" as ClusterArrangement,
   clusterNodeSpacing: 3.0,
   clusterGroupScale: 3.0,
   clusterGroupSpacing: 2.0,
@@ -278,7 +278,7 @@ export interface PanelCallbacks {
   /** Like invalidateData but keeps the panel DOM intact (for search filtering) */
   invalidateDataKeepPanel(): void;
   restartSimulation(alpha: number): void;
-  applyClusterForce(): void;
+  applyClusterForce(resetPositions?: boolean): void;
   collectFieldSuggestions(): string[];
   collectValueSuggestions(field: string): string[];
   saveGroupPreset(): void;
@@ -787,16 +787,12 @@ export function buildPanel(
   // Cluster arrangement
   buildSection(layoutTab, t("section.clusterArrangement"), (body) => {
     addSelect(body, t("cluster.pattern"), [
-      { value: "spiral", label: t("cluster.spiral") },
       { value: "concentric", label: t("cluster.concentric") },
       { value: "radial", label: t("cluster.radial") },
       { value: "phyllotaxis", label: t("cluster.phyllotaxis") },
-      { value: "tree", label: t("cluster.tree") },
       { value: "grid", label: t("cluster.grid") },
       { value: "triangle", label: t("cluster.triangle") },
       { value: "random", label: t("cluster.random") },
-      { value: "mountain", label: t("cluster.mountain") },
-      { value: "sunburst", label: t("cluster.sunburst") },
       { value: "timeline", label: t("cluster.timeline") },
       { value: "custom", label: t("cluster.custom") },
     ], panel.clusterArrangement, (v) => {
@@ -809,14 +805,6 @@ export function buildPanel(
       cb.rebuildPanel();
       cb.restartSimulation(1.0);
     });
-
-    // Ring chart mode toggle (sunburst only)
-    if (panel.clusterArrangement === "sunburst") {
-      addToggle(body, t("cluster.ringChartMode"), panel.ringChartMode, (v) => {
-        panel.ringChartMode = v;
-        cb.doRenderKeepPanel();
-      }, t("cluster.ringChartModeDesc"));
-    }
 
     // Concentric orbit options
     if (panel.clusterArrangement === "concentric") {
@@ -1066,7 +1054,7 @@ export function buildPanel(
     const debouncedClusterForce = () => {
       clearTimeout(spacingDebounce);
       spacingDebounce = setTimeout(() => {
-        cb.applyClusterForce();
+        cb.applyClusterForce(false);
         cb.restartSimulation(0.5);
       }, 100);
     };
@@ -1919,16 +1907,6 @@ function buildConstantsUI(
     _overlapPad: { default: 1.3, hint: t("coord.sysOverlapPad") },
     _minGap: { default: 0, hint: t("coord.sysMinGap") },
   };
-
-  // Add sunburst-specific constants when arrangement is sunburst
-  if (panel.clusterArrangement === "sunburst") {
-    Object.assign(SYSTEM_CONSTANTS, {
-      _ringW: { default: 0.4, hint: t("coord.sysRingW") },
-      _ringGap: { default: 0.03, hint: t("coord.sysRingGap") },
-      _hole: { default: 1.8, hint: t("coord.sysHole") },
-      _sectorGap: { default: 0.02, hint: t("coord.sysSectorGap") },
-    });
-  }
 
   const sysHeader = section.createDiv({ cls: "gi-setting-row" });
   sysHeader.createEl("span", {
