@@ -1774,6 +1774,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       groupLabelAlpha: rt.groupLabelAlpha,
       groupLabelHullOffset: rt.groupLabelHullOffset,
       groupLabelBgAlpha: rt.groupLabelBgAlpha,
+      enclosureOutlierFactor: rt.enclosureOutlierFactor,
     };
     drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);
   }
@@ -2531,10 +2532,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const worldScale = this.worldContainer?.scale.x ?? 1;
     const isDark = this.isDarkTheme();
 
-    // Custom grid takes precedence when enabled
-    if (guide.gridInfo && this.panel.gridTableMode) {
+    // Draw grid lines and tick labels when gridInfo is available.
+    // gridTableMode controls table-specific styling (cell shading, table line alpha);
+    // without it, we still render grid lines and tick labels using "lines" style.
+    if (guide.gridInfo) {
       this.drawCustomGrid(g, cx, cy, guide.gridInfo, bounds, lineW, color, guide.axis1Label, guide.axis2Label);
-      // Axis titles drawn inside drawCustomGrid's drawAxisTitles
       this.drawAxisTitles(cx, cy, guide.gridInfo.axis1Shape, guide.gridInfo.axis2Shape, bounds, worldScale, isDark, guide.axis1Label, guide.axis2Label);
       return;
     }
@@ -3251,7 +3253,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (pn.data.y + r > maxY) maxY = pn.data.y + r;
     }
 
-    const padding = isCardMode ? rt.autoFitCardPadding * 2 : 40;
+    const padding = isCardMode ? rt.autoFitCardPadding * 2 : (rt.autoFitBasePadding ?? 40);
 
     if (isCardMode) {
       // Two-pass auto-fit for card mode:
@@ -3294,7 +3296,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       minX -= encPad; minY -= encPad; maxX += encPad; maxY += encPad;
     }
     if (this.panel.showGuideLines && this.clusterMeta?.guideLineData) {
-      const guidePad = 20; // gridLabelFontSize margin
+      const guidePad = rt.autoFitGuidePad ?? 50;
       minX -= guidePad; minY -= guidePad; maxX += guidePad; maxY += guidePad;
     }
 
@@ -4471,8 +4473,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Tag label LOD threshold
     const tagLabelZoomMin = rt.tagLabelZoomMin ?? 0.75;
-    // Node name label LOD threshold (zoom >= 0.4)
-    const nodeLabelZoomMin = 0.4;
+    // Node name label LOD threshold
+    const nodeLabelZoomMin = rt.nodeLabelZoomMin ?? 0.4;
 
     for (const pn of this.pixiNodes.values()) {
       // --- Tag label LOD ---

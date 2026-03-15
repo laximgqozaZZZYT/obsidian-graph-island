@@ -86,6 +86,50 @@ export interface CoordinateGuide {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Assign numeric values to nodes, placing nodes with missing values (raw === "")
+ * at the END of the range rather than at 0 (which would create left-edge outliers).
+ * Missing-value nodes are placed at max + rangeGap, where rangeGap is proportional
+ * to the data range to visually separate them.
+ */
+function assignNumericWithMissingAtEnd(
+  rawValues: { id: string; raw: string }[],
+  result: Map<string, number>,
+) {
+  const withValue: { id: string; val: number }[] = [];
+  const missing: string[] = [];
+  for (const v of rawValues) {
+    if (v.raw === "") {
+      missing.push(v.id);
+    } else {
+      withValue.push({ id: v.id, val: Number(v.raw) });
+    }
+  }
+  for (const wv of withValue) {
+    result.set(wv.id, wv.val);
+  }
+  if (missing.length > 0) {
+    if (withValue.length > 0) {
+      const max = Math.max(...withValue.map(wv => wv.val));
+      const min = Math.min(...withValue.map(wv => wv.val));
+      const range = max - min || 1;
+      const gap = range * 0.15;
+      for (const id of missing) {
+        result.set(id, max + gap);
+      }
+    } else {
+      // All nodes missing — place at index 0
+      for (const id of missing) {
+        result.set(id, 0);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Phase 1: Resolve axis values
 // ---------------------------------------------------------------------------
 
@@ -120,9 +164,7 @@ export function resolveAxisValues(
       // Try numeric parse; fall back to lexicographic index
       const allNumeric = rawValues.every(v => v.raw === "" || !isNaN(Number(v.raw)));
       if (allNumeric) {
-        for (const v of rawValues) {
-          result.set(v.id, v.raw === "" ? 0 : Number(v.raw));
-        }
+        assignNumericWithMissingAtEnd(rawValues, result);
       } else {
         const sorted = [...new Set(rawValues.map(v => v.raw))].sort();
         const indexMap = new Map(sorted.map((s, i) => [s, i]));
@@ -152,9 +194,7 @@ export function resolveAxisValues(
       // Try numeric parse first; fall back to lexicographic index
       const numeric = rawValues.every(v => v.raw === "" || !isNaN(Number(v.raw)));
       if (numeric) {
-        for (const v of rawValues) {
-          result.set(v.id, v.raw === "" ? 0 : Number(v.raw));
-        }
+        assignNumericWithMissingAtEnd(rawValues, result);
       } else {
         // Lexicographic sort → index
         const sorted = [...new Set(rawValues.map(v => v.raw))].sort();
@@ -699,19 +739,23 @@ export function coordinateOffsets(
       : undefined,
   };
 
-  // Resolve custom grid if configured
-  if (layout.grid && offsets.size > 0) {
+  // Resolve grid info for axis labels and tick marks.
+  // Always generate gridInfo for coordinate layouts so axis labels/ticks render
+  // even without explicit grid configuration (gridTableMode).
+  // When layout.grid is absent, use a default "lines" style grid.
+  const effectiveGrid = layout.grid ?? { style: "lines" as const };
+  if (offsets.size > 0) {
     const defaultShape1: GridShape = layout.system === "polar"
       ? { kind: "circle" } : { kind: "line" };
     const defaultShape2: GridShape = layout.system === "polar"
       ? { kind: "radial" } : { kind: "line" };
 
-    const axis1Grid = layout.grid.axis1Grid ?? {
+    const axis1Grid = effectiveGrid.axis1Grid ?? {
       positions: { kind: "auto" as const },
       shape: defaultShape1,
       ticks: { show: true, labels: { kind: "auto" as const } },
     };
-    const axis2Grid = layout.grid.axis2Grid ?? {
+    const axis2Grid = effectiveGrid.axis2Grid ?? {
       positions: { kind: "auto" as const },
       shape: defaultShape2,
       ticks: { show: true, labels: { kind: "auto" as const } },
@@ -733,7 +777,7 @@ export function coordinateOffsets(
       }
     }
 
-    const gridStyle = layout.grid.style ?? "lines";
+    const gridStyle = effectiveGrid.style ?? "lines";
     const rawAxis1Lines = resolveGridLines(
       axis1Grid, layout.axis1.source, members, ctx,
       finalT1, spacing, layout.constants, gridStyle,
@@ -758,8 +802,8 @@ export function coordinateOffsets(
       axis2Lines,
       axis1Shape: axis1Grid.shape,
       axis2Shape: axis2Grid.shape,
-      style: layout.grid.style,
-      cellShading: layout.grid.cellShading ?? false,
+      style: effectiveGrid.style,
+      cellShading: effectiveGrid.cellShading ?? false,
     };
 
     // Extend bounds to cover all grid line positions so lines aren't clipped

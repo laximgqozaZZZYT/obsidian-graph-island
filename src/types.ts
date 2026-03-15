@@ -744,6 +744,10 @@ export interface RenderThresholds {
   cardLODExtremePx?: number;
   /** Minimum scale for autoFitView (0 = no minimum). Default 0 */
   autoFitMinScale?: number;
+  /** Extra padding (px) for guide lines / axis titles in auto-fit (default 50). */
+  autoFitGuidePad?: number;
+  /** Base padding (px) for non-card auto-fit (default 40). */
+  autoFitBasePadding?: number;
 
   // ---- Viewport utilization ----
   /** Minimum world-space node bbox area / viewport area at z=1.0 (default 0.10).
@@ -890,9 +894,17 @@ export interface RenderThresholds {
    *  Only applies when zoom < labelTruncateZoom.
    *  Actual chars used = max(labelTruncateMinChars, round(this * zoom/labelTruncateZoom)). */
   labelTruncateMaxChars?: number;
-  /** Minimum characters even at the most extreme zoom (default 3).
-   *  Prevents labels from becoming unreadable single-char strings. */
+  /** Minimum characters even at the most extreme zoom (default 5).
+   *  Prevents labels from becoming unreadable single-char strings.
+   *  The actual displayed chars = min(this, textLength) - 1 + ellipsis. */
   labelTruncateMinChars?: number;
+  /** Zoom threshold below which node-name labels are hidden unless high-degree (default 0.4).
+   *  Super nodes are always eligible. Below this, labels follow tier1/tier2/tier3 rules. */
+  nodeLabelZoomMin?: number;
+  /** IQR multiplier for enclosure outlier filtering (default 2.0).
+   *  Nodes beyond Q3 + factor×IQR from centroid are excluded from the hull.
+   *  Higher values include more outliers. */
+  enclosureOutlierFactor?: number;
   /** Max displacement distance as a ratio of normBase (default 4.0).
    *  Prevents labels from floating too far from their node after overlap displacement.
    *  AP-1 metric uses normBase = max(radius + visualW*0.3, radius, 1). */
@@ -1089,6 +1101,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   cardLODNormalPx: 4.0,
   cardLODExtremePx: 1.5,
   autoFitMinScale: 0,
+  autoFitGuidePad: 50,
+  autoFitBasePadding: 40,
   minViewportUtilization: 0.12,
   labelOverlapCulling: true,
   labelOverlapMargin: 8,
@@ -1135,7 +1149,9 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelMaxVisible: 0,
   labelTruncateZoom: 0.1,
   labelTruncateMaxChars: 8,
-  labelTruncateMinChars: 3,
+  labelTruncateMinChars: 5,
+  nodeLabelZoomMin: 0.4,
+  enclosureOutlierFactor: 2.0,
   labelMaxDisplacementRatio: 3.5,
   labelBgColor: 0x1a1a2e,
   labelBgAlpha: 0.85,

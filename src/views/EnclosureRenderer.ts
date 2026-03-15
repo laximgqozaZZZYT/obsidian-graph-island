@@ -33,6 +33,8 @@ export interface EnclosureConfig {
   groupLabelAlpha?: number;
   groupLabelHullOffset?: number;
   groupLabelBgAlpha?: number;
+  /** IQR multiplier for outlier filtering (default 2.0). Higher = more inclusive. */
+  enclosureOutlierFactor?: number;
 }
 
 /**
@@ -56,7 +58,9 @@ interface EncData {
   minX: number; minY: number; maxX: number; maxY: number;
 }
 
-/** Minimum extra padding beyond node radius for the outline */
+/** Minimum extra padding beyond node radius for the outline.
+ *  These are rendering constants — not user-facing tuning parameters.
+ *  They affect hull geometry, not layout behavior. */
 const OUTLINE_PAD_MIN = 4;
 /** Padding scales with node radius: pad = max(MIN, radius × factor) */
 const OUTLINE_PAD_FACTOR = 0.5;
@@ -129,9 +133,9 @@ export function drawEnclosures(
     }
     if (allPts.length < 1) continue;
 
-    // Filter outliers: keep only nodes within 1.5× IQR of centroid distance.
+    // Filter outliers: keep only nodes within factor×IQR of centroid distance.
     // This prevents scattered tag members from inflating the hull.
-    const pts = filterOutliers(allPts);
+    const pts = filterOutliers(allPts, cfg.enclosureOutlierFactor ?? 2.0);
     if (pts.length < 1) continue;
 
     // Deterministic enclosure color from tag name hash (DQ-06)
@@ -490,13 +494,15 @@ const _sortBuf: number[] = [];
 
 /**
  * Filter outlier points using IQR on distance from centroid.
- * Keeps only points within Q3 + 1.5×IQR of the centroid, preventing
+ * Keeps only points within Q3 + factor×IQR of the centroid, preventing
  * spatially scattered tag members from inflating the convex hull.
+ *
+ * @param iqrFactor IQR multiplier for the cutoff (default 2.0). Higher = more inclusive.
  *
  * Uses module-level buffers for distance/sort arrays to reduce GC pressure
  * (~40 tags × 2 arrays = 80 array allocations saved per 3 frames).
  */
-function filterOutliers<T extends Pt>(pts: T[]): T[] {
+function filterOutliers<T extends Pt>(pts: T[], iqrFactor = 2.0): T[] {
   if (pts.length <= 3) return pts;
 
   const n = pts.length;
@@ -514,7 +520,7 @@ function filterOutliers<T extends Pt>(pts: T[]): T[] {
   _sortBuf.sort((a, b) => a - b);
   const q1 = _sortBuf[Math.floor(n * 0.25)];
   const q3 = _sortBuf[Math.floor(n * 0.75)];
-  const cutoff = q3 + 1.5 * (q3 - q1);
+  const cutoff = q3 + iqrFactor * (q3 - q1);
 
   const result: T[] = [];
   for (let i = 0; i < n; i++) {
