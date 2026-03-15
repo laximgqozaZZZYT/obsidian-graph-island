@@ -1836,7 +1836,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
     cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
     cfg.roadNetwork = this.roadNetworkData;
-    cfg.enableRoadRouting = (this.panel.renderThresholds?.roadRouteEdges ?? true) && !!this.roadNetworkData;
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+    cfg.enableRoadRouting = !!rt.roadRouteEdges && !!this.roadNetworkData;
     return cfg;
   }
 
@@ -2404,20 +2405,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!(rt.showRoadNetwork ?? true)) return;
 
     const isDark = this.isDarkTheme();
-    const roadColor = rt.roadColor ?? (isDark ? 0x8888dd : 0x6666aa);
+    const roadColor = rt.roadColor ?? (isDark ? 0x555577 : 0xaaaacc);
     const worldScale = this.worldContainer?.scale.x ?? 1;
-    // Road width scales inversely with zoom so roads remain visible when zoomed out
-    const baseRoadWidth = rt.roadWidth ?? 4;
-    const roadWidth = Math.max(baseRoadWidth, baseRoadWidth / Math.max(worldScale, 0.05));
-    const roadAlpha = rt.roadAlpha ?? 0.35;
-    const isectRadius = Math.max(rt.roadIntersectionRadius ?? 2.5, 3 / Math.max(worldScale, 0.05));
+    // Road width: fixed in world space, scales gently with zoom
+    const baseRoadWidth = rt.roadWidth ?? 12;
+    const roadWidth = baseRoadWidth * Math.min(1.5, Math.max(0.4, 1 / Math.sqrt(worldScale)));
+    const roadAlpha = rt.roadAlpha ?? 0.18;
 
     g.setLineCap("round");
     g.setLineJoin("round");
 
-    // --- Pass 1: road surface (semi-transparent filled band) ---
-    const roadSurfaceWidth = roadWidth * 3;
-    g.lineStyle(roadSurfaceWidth, roadColor, roadAlpha * 0.15);
+    // --- Single pass: semi-transparent band (the "road surface") ---
+    // Wide, low-alpha fill creates the asphalt-like band appearance
+    g.lineStyle(roadWidth, roadColor, roadAlpha);
     for (const seg of network.segments) {
       const from = network.intersections[seg.from];
       const to = network.intersections[seg.to];
@@ -2425,49 +2425,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       g.moveTo(from.x, from.y);
       for (const wp of seg.waypoints) g.lineTo(wp.x, wp.y);
       g.lineTo(to.x, to.y);
-    }
-
-    // --- Pass 2: road edges (two parallel lines forming road boundary) ---
-    const edgeOffset = roadSurfaceWidth * 0.45;
-    g.lineStyle(Math.max(1, roadWidth * 0.3), roadColor, roadAlpha * 0.5);
-    for (const seg of network.segments) {
-      const from = network.intersections[seg.from];
-      const to = network.intersections[seg.to];
-      if (!from || !to) continue;
-      // Compute perpendicular for offset
-      const pts = [from, ...seg.waypoints.map(w => ({ x: w.x, y: w.y })), to];
-      for (let side = -1; side <= 1; side += 2) {
-        for (let pi = 0; pi < pts.length - 1; pi++) {
-          const dx = pts[pi + 1].x - pts[pi].x;
-          const dy = pts[pi + 1].y - pts[pi].y;
-          const len = Math.sqrt(dx * dx + dy * dy);
-          if (len < 0.1) continue;
-          const nx = -dy / len * edgeOffset * side;
-          const ny = dx / len * edgeOffset * side;
-          if (pi === 0) g.moveTo(pts[pi].x + nx, pts[pi].y + ny);
-          g.lineTo(pts[pi + 1].x + nx, pts[pi + 1].y + ny);
-        }
-      }
-    }
-
-    // --- Pass 2: center line (thin, brighter) ---
-    g.lineStyle(Math.max(1, roadWidth * 0.5), roadColor, Math.min(1, roadAlpha * 1.2));
-    for (const seg of network.segments) {
-      const from = network.intersections[seg.from];
-      const to = network.intersections[seg.to];
-      if (!from || !to) continue;
-
-      g.moveTo(from.x, from.y);
-      for (const wp of seg.waypoints) g.lineTo(wp.x, wp.y);
-      g.lineTo(to.x, to.y);
-    }
-
-    // --- Intersection dots (enlarged for visibility) ---
-    g.lineStyle(0);
-    for (const isect of network.intersections) {
-      g.beginFill(roadColor, Math.min(1, roadAlpha * 1.5));
-      g.drawCircle(isect.x, isect.y, isectRadius * 2);
-      g.endFill();
     }
   }
 

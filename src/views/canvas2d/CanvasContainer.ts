@@ -13,8 +13,22 @@ export class CanvasContainer {
   children: CanvasChild[] = [];
 
   addChild(child: CanvasChild): CanvasChild {
+    // Prevent duplicate insertion (e.g., arrow layer re-added every tick)
+    if (child.parent === this && this.children.indexOf(child) >= 0) {
+      return child;
+    }
     child.parent = this;
     this.children.push(child);
+    return child;
+  }
+
+  addChildAt(child: CanvasChild, index: number): CanvasChild {
+    if (child.parent === this && this.children.indexOf(child) >= 0) {
+      return child;
+    }
+    child.parent = this;
+    const clamped = Math.max(0, Math.min(index, this.children.length));
+    this.children.splice(clamped, 0, child);
     return child;
   }
 

@@ -1060,13 +1060,13 @@ export interface RenderThresholds {
   // ---- Road network ----
   /** Show auto-generated road network overlay (default true) */
   showRoadNetwork?: boolean;
-  /** Road line width in world units (default 4) */
+  /** Road line width in world units (default 6) */
   roadWidth?: number;
-  /** Road alpha (default 0.30) */
+  /** Road alpha (default 0.25) */
   roadAlpha?: number;
   /** Road color override — if not set, uses theme-aware default */
   roadColor?: number;
-  /** Intersection dot radius in world units (default 2.5) */
+  /** Intersection dot radius in world units (default 0, effectively disabled) */
   roadIntersectionRadius?: number;
   /** Route edges along road network when available (default true) */
   roadRouteEdges?: boolean;
@@ -1301,10 +1301,11 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 
   // Road network
   showRoadNetwork: true,
-  roadWidth: 8,
-  roadAlpha: 0.6,
-  roadIntersectionRadius: 4,
-  roadRouteEdges: true,
+  roadWidth: 12,
+  roadAlpha: 0.18,
+  roadColor: 0x9999bb,
+  roadIntersectionRadius: 0,
+  roadRouteEdges: false,
   roadRingCount: 0,
   roadSpokeCount: 0,
 };

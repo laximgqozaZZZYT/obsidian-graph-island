@@ -371,6 +371,7 @@ export function buildPanel(
     cls: "gi-search gi-top-search",
     type: "text",
     placeholder: t("search.placeholder"),
+    attr: { "aria-label": t("search.placeholder") },
   });
   const searchClearBtn = searchWrapper.createEl("span", { cls: "gi-search-clear" });
   searchClearBtn.textContent = "\u00d7";
@@ -444,6 +445,7 @@ export function buildPanel(
     cls: "gi-settings-filter",
     type: "text",
     placeholder: t("settingsFilter.placeholder"),
+    attr: { "aria-label": t("settingsFilter.placeholder") },
   });
   const settingsFilterClearBtn = settingsFilterWrapper.createEl("span", { cls: "gi-search-clear" });
   settingsFilterClearBtn.textContent = "\u00d7";
@@ -701,6 +703,34 @@ export function buildPanel(
       });
     }
   }, undefined, false, "git-branch");
+
+  // --- Road Network ---
+  buildSection(displayTab, t("section.roadNetwork"), (body) => {
+    const rt = panel.renderThresholds ?? {};
+    addToggle(body, t("display.showRoadNetwork"), rt.showRoadNetwork ?? DEFAULT_RENDER_THRESHOLDS.showRoadNetwork, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.showRoadNetwork = v;
+      cb.doRenderKeepPanel();
+    }, t("desc.showRoadNetwork"));
+    // Progressive disclosure: show sub-settings only when road network is active
+    if (rt.showRoadNetwork ?? DEFAULT_RENDER_THRESHOLDS.showRoadNetwork) {
+      addToggle(body, t("display.roadRouteEdges"), rt.roadRouteEdges ?? DEFAULT_RENDER_THRESHOLDS.roadRouteEdges, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.roadRouteEdges = v;
+        cb.doRenderKeepPanel();
+      }, t("desc.roadRouteEdges"));
+      addSlider(body, t("display.roadAlpha"), 0.05, 0.8, 0.05, rt.roadAlpha ?? DEFAULT_RENDER_THRESHOLDS.roadAlpha, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.roadAlpha = v;
+        cb.doRenderKeepPanel();
+      });
+      addSlider(body, t("display.roadWidth"), 2, 20, 1, rt.roadWidth ?? DEFAULT_RENDER_THRESHOLDS.roadWidth, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.roadWidth = v;
+        cb.doRenderKeepPanel();
+      });
+    }
+  }, undefined, false, "map");
 
   // --- Minimap (stays in Display) ---
   buildSection(displayTab, t("section.displayOther"), (body) => {
@@ -2381,7 +2411,7 @@ function addSlider(container: HTMLElement, label: string, min: number, max: numb
   nameEl.title = description || label;
   const valueSpan = info.createEl("span", { cls: "gi-slider-value", text: String(initial) });
   const control = row.createDiv({ cls: "setting-item-control" });
-  const input = control.createEl("input", { type: "range" });
+  const input = control.createEl("input", { type: "range", attr: { "aria-label": label } });
   input.min = String(min);
   input.max = String(max);
   input.step = String(step);
@@ -2412,10 +2442,11 @@ function addToggle(container: HTMLElement, label: string, initial: boolean, onCh
   const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
   nameEl.title = description || label;
   const control = row.createDiv({ cls: "setting-item-control" });
-  const toggle = control.createDiv({ cls: "checkbox-container" + (initial ? " is-enabled" : "") });
+  const toggle = control.createDiv({ cls: "checkbox-container" + (initial ? " is-enabled" : ""), attr: { role: "switch", "aria-label": label, "aria-checked": String(initial) } });
   toggle.addEventListener("click", () => {
     const on = toggle.hasClass("is-enabled");
     toggle.toggleClass("is-enabled", !on);
+    toggle.setAttribute("aria-checked", String(!on));
     onChange(!on);
   });
   return row;
@@ -2427,7 +2458,7 @@ function addTextInput(container: HTMLElement, label: string, initial: string, pl
   const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
   nameEl.title = label;
   const control = row.createDiv({ cls: "setting-item-control" });
-  const input = control.createEl("input", { type: "text", placeholder });
+  const input = control.createEl("input", { type: "text", placeholder, attr: { "aria-label": label } });
   input.value = initial;
   input.addEventListener("change", () => onChange(input.value));
 }
@@ -2440,7 +2471,7 @@ function addSuggestInput(container: HTMLElement, label: string, initial: string,
   nameEl.title = label;
   const control = row.createDiv({ cls: "setting-item-control" });
   const listId = `gi-suggest-${label.replace(/\s+/g, "-")}-${Date.now()}`;
-  const input = control.createEl("input", { type: "text", placeholder });
+  const input = control.createEl("input", { type: "text", placeholder, attr: { "aria-label": label } });
   input.value = initial;
   input.setAttribute("list", listId);
   const datalist = control.createEl("datalist");
@@ -2550,6 +2581,7 @@ function renderOntologyRule(
     cls: "gi-search gi-ont-input",
     type: "text",
     placeholder: "parent, extends...",
+    attr: { "aria-label": "Forward relation label" },
   });
   fwdInput.value = rule.forward;
   fwdInput.addEventListener("change", () => { rule.forward = fwdInput.value; save(); });
@@ -2583,6 +2615,7 @@ function renderOntologyRule(
     cls: "gi-search gi-ont-input",
     type: "text",
     placeholder: isBidir ? "(双方向)" : "child, down...",
+    attr: { "aria-label": "Reverse relation label" },
   });
   revInput.value = rule.reverse;
   revInput.disabled = isBidir;
@@ -3470,7 +3503,7 @@ function addSelect(container: HTMLElement, label: string, options: { value: stri
   const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
   nameEl.title = description || label;
   const control = row.createDiv({ cls: "setting-item-control" });
-  const sel = control.createEl("select", { cls: "dropdown" });
+  const sel = control.createEl("select", { cls: "dropdown", attr: { "aria-label": label } });
   for (const opt of options) {
     const el = sel.createEl("option", { text: opt.label, value: opt.value });
     if (opt.value === initial) el.selected = true;
@@ -3514,6 +3547,7 @@ function renderGroupList(container: HTMLElement, panel: PanelState, ctx: PanelCo
       cls: "gi-search gi-group-search",
       type: "text",
       placeholder: t("search.placeholder"),
+      attr: { "aria-label": t("search.placeholder") },
     });
     input.value = g.expression ? serializeExpr(g.expression) : "";
     input.addEventListener("input", () => {
@@ -3684,6 +3718,7 @@ function renderDirectionalGravityList(
       cls: "gi-search",
       type: "text",
       placeholder: "tag:character, category:*, *",
+      attr: { "aria-label": "Gravity rule filter" },
     });
     filterInput.value = rule.filter;
     filterInput.addEventListener("input", () => {
@@ -3699,6 +3734,7 @@ function renderDirectionalGravityList(
       cls: "gi-search gi-dir-input",
       type: "text",
       placeholder: t("gravDir.top"),
+      attr: { "aria-label": "Gravity direction" },
     });
     if (isCustom) {
       dirInput.value = t("gravDir.custom");
@@ -3708,7 +3744,7 @@ function renderDirectionalGravityList(
     }
 
     // Custom radian input (shown only in custom mode)
-    const radInput = row.createEl("input", { cls: "gi-search gi-rad-input", type: "number" });
+    const radInput = row.createEl("input", { cls: "gi-search gi-rad-input", type: "number", attr: { "aria-label": "Gravity custom angle (radians)" } });
     radInput.step = "0.1";
     radInput.placeholder = "rad";
     radInput.value = isCustom ? String(rule.direction) : "0";
@@ -3798,7 +3834,7 @@ function renderNodeRuleList(
     const row1 = wrapper.createDiv({ cls: "gi-group-item" });
     row1.addClass("gi-noderule-row");
 
-    const queryInput = row1.createEl("input", { cls: "gi-search", type: "text", placeholder: "tag:character, *, degree>5" });
+    const queryInput = row1.createEl("input", { cls: "gi-search", type: "text", placeholder: "tag:character, *, degree>5", attr: { "aria-label": "Node rule query" } });
     queryInput.addClass("gi-query-input");
     queryInput.value = rule.query;
     queryInput.addEventListener("input", () => {
@@ -3826,7 +3862,7 @@ function renderNodeRuleList(
     const spacingInfo = spacingRow.createDiv({ cls: "setting-item-info" });
     spacingInfo.createDiv({ cls: "setting-item-name", text: t("nodeRules.spacing") });
     const spacingControl = spacingRow.createDiv({ cls: "setting-item-control" });
-    const spacingSlider = spacingControl.createEl("input", { type: "range" });
+    const spacingSlider = spacingControl.createEl("input", { type: "range", attr: { "aria-label": t("nodeRules.spacing") } });
     spacingSlider.min = "0.1";
     spacingSlider.max = "5.0";
     spacingSlider.step = "0.1";
@@ -3849,7 +3885,7 @@ function renderNodeRuleList(
     const gravLabel = gravRow.createEl("span", { cls: "setting-item-name", text: t("nodeRules.gravity") });
     gravLabel.addClass("gi-gravity-label");
 
-    const dirSelect = gravRow.createEl("select", { cls: "dropdown" });
+    const dirSelect = gravRow.createEl("select", { cls: "dropdown", attr: { "aria-label": t("nodeRules.gravity") } });
     dirSelect.addClass("gi-gravity-dir-select");
     const currentPreset = angleToPreset(rule.gravityAngle);
     for (const opt of getGravityDirOptions()) {
@@ -3858,7 +3894,7 @@ function renderNodeRuleList(
     }
 
     // Custom angle input (hidden unless custom)
-    const angleInput = gravRow.createEl("input", { cls: "gi-search", type: "number" });
+    const angleInput = gravRow.createEl("input", { cls: "gi-search", type: "number", attr: { "aria-label": "Gravity custom angle (degrees)" } });
     angleInput.addClass("gi-angle-input");
     angleInput.step = "1";
     angleInput.min = "0";
@@ -3868,7 +3904,7 @@ function renderNodeRuleList(
     angleInput.style.display = currentPreset === "custom" ? "" : "none";
 
     // Strength slider (hidden if direction=none)
-    const strSlider = gravRow.createEl("input", { type: "range" });
+    const strSlider = gravRow.createEl("input", { type: "range", attr: { "aria-label": "Gravity strength" } });
     strSlider.min = "0.01";
     strSlider.max = "1";
     strSlider.step = "0.01";
