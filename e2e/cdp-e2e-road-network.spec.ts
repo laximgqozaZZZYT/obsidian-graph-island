@@ -47,8 +47,12 @@ test.beforeAll(async () => {
       throw new Error("app not available");
     }
 
-    // Ensure plugin is enabled
-    if (app.plugins.plugins.get("graph-island")) {
+    // Ensure plugin is enabled (plugins may be Map or plain object)
+    const plugins = app.plugins.plugins;
+    const hasPlugin = typeof plugins.get === "function"
+      ? plugins.get("graph-island")
+      : plugins["graph-island"];
+    if (hasPlugin) {
       const existing = app.workspace.getLeavesOfType("graph-view");
       if (existing.length === 0) {
         await app.commands.executeCommandById("graph-island:open-graph-view");
