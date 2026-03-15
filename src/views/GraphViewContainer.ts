@@ -2329,6 +2329,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     if (allNodes.length === 0) return; // Keep existing road network if no positioned nodes yet
 
+    // Determine road topology from arrangement name, NOT from guide system.
+    // The guide system can be overridden by panel.coordinateLayout (always cartesian),
+    // so we use the arrangement name which reflects the user's actual intent.
+    const arrangement = this.panel.clusterArrangement;
+    const POLAR_ARRANGEMENTS = new Set(["concentric", "radial", "phyllotaxis"]);
+    const isPolarArrangement = POLAR_ARRANGEMENTS.has(arrangement);
+
     // Try to derive road network from guide data attached to cluster metadata.
     // Each guide type maps to a different road topology.
     const guides = meta.groupGuides;
@@ -2450,43 +2457,46 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
       // Merge all collected CoordinateGuide axis lines into a single dense road network
       if (coordGuides.length > 0) {
-        const sys = coordGuides[0].guide.system;
         const bounds = this.computeNodeBounds(allNodes);
 
-        if (sys === "polar") {
-          // Polar: recompute global road parameters from node positions
-          // instead of merging per-group local radius values which don't
-          // translate to correct world coordinates when groups differ.
+        if (isPolarArrangement) {
+          // Polar: generate rings + spokes from node positions, independent of guide axis lines.
+          // Guide system may report "cartesian" due to panel.coordinateLayout override,
+          // but the actual node layout is polar — so we derive roads from node coordinates.
           const gcx = (bounds.xMin + bounds.xMax) / 2;
           const gcy = (bounds.yMin + bounds.yMax) / 2;
-          const dists = allNodes.map(n => Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2)).sort((a, b) => a - b);
-          // Ring radii from quantile-based distribution
-          const guideA2Count = coordGuides.reduce((max, cg) => Math.max(max, cg.guide.gridInfo.axis2Lines.length), 0);
-          const ringCount = Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5)));
-          const rings: { position: number }[] = [];
-          for (let i = 0; i < ringCount; i++) {
-            const r = dists[Math.floor(dists.length * (i + 1) / (ringCount + 1))] ?? 1;
-            rings.push({ position: r });
+
+          // Ring radii: quantile-based from node distance distribution
+          const dists = allNodes.map(n =>
+            Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2)
+          ).sort((a, b) => a - b);
+          const maxR = dists[dists.length - 1] || 1;
+          const ringCount = Math.max(6, Math.ceil(Math.sqrt(allNodes.length / 3)));
+          const ringRadii: { position: number }[] = [];
+          for (let i = 1; i <= ringCount; i++) {
+            const q = dists[Math.floor(dists.length * i / (ringCount + 1))] ?? (maxR * i / ringCount);
+            ringRadii.push({ position: q });
           }
-          // Spoke count: max of guide axis2 lines and sqrt-scaled estimate
-          const spokeCount = Math.max(guideA2Count, Math.ceil(Math.sqrt(allNodes.length) * 1.5));
-          const spokes: { position: number }[] = Array.from({ length: spokeCount }, (_, i) => ({
+
+          // Spokes: uniform for adequate coverage
+          const spokeCount = Math.max(16, Math.ceil(Math.sqrt(allNodes.length) * 1.5));
+          const spokeAngles: { position: number }[] = Array.from({ length: spokeCount }, (_, i) => ({
             position: (i / spokeCount) * Math.PI * 2,
           }));
-          // Densify rings based on node count (spokes are already evenly distributed)
-          const sortedRings = rings.sort((a, b) => a.position - b.position);
-          const polarRounds = densifyRounds(allNodes.length, sortedRings.length * spokeCount);
-          const denseRings = multiDensify(sortedRings, polarRounds);
-          const maxR = dists[dists.length - 1] ?? 1;
+
+          // Densify rings (spokes are already uniform, don't densify)
+          const rounds = densifyRounds(allNodes.length, ringCount * spokeCount);
           this.roadNetworkData = buildRoadNetwork({
             system: "polar",
-            axis1Lines: denseRings,
-            axis2Lines: spokes,
+            axis1Lines: multiDensify(ringRadii, rounds),
+            axis2Lines: spokeAngles,
             axis1Shape: "circle", axis2Shape: "radial",
             cx: gcx, cy: gcy,
             bounds: { ...bounds, maxR },
             nodes: allNodes,
           });
+          this._finishRoadNetwork(allNodes);
+          return;
         } else {
           // Cartesian: merge axis lines with world-space offsets (existing logic)
           const allA1 = new Set<number>();
@@ -2522,7 +2532,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const gcx = (bounds.xMin + bounds.xMax) / 2;
     const gcy = (bounds.yMin + bounds.yMax) / 2;
 
-    const arrangement = this.panel.clusterArrangement;
     const isCartesian = arrangement === "grid" || arrangement === "triangle" || arrangement === "square";
 
     if (isCartesian) {
