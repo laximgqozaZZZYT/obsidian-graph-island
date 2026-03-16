@@ -697,46 +697,34 @@ function buildIntraGroupCables(
 
       if (targetPositions.size === 0 && !connectsExternal) continue;
 
-      // Junction = average position of all involved nodes, snapped to
-      // the gap between the two nearest node rows (avoids crossing nodes)
+      // ── Junction = average position of all connected nodes ──
       let jx = 0, jy = 0;
       for (const p of nodePositions) { jx += p.x; jy += p.y; }
       jx /= nodePositions.length;
       jy /= nodePositions.length;
-      // Snap jy to the nearest inter-row gap
-      let snappedJy = jy + portOffset; // default: just offset
-      if (sortedYs.length >= 2) {
-        // Find the two consecutive row Y values that jy falls between
-        let bestGapY = jy + portOffset;
-        let bestDist = Infinity;
+      const junction = { x: jx, y: jy };
+
+      // ── Row gap for cable routing ──
+      // Cables must NOT cross nodes. They route through the gap between
+      // node rows, passing through the junction on the way.
+      // routeY = the inter-row gap nearest to but BELOW the junction Y.
+      const halfGap = sortedYs.length >= 2
+        ? (sortedYs[sortedYs.length - 1] - sortedYs[0]) / (sortedYs.length - 1) / 2
+        : portOffset;
+      const findGapBelow = (y: number): number => {
         for (let ri = 0; ri < sortedYs.length - 1; ri++) {
-          const gapY = (sortedYs[ri] + sortedYs[ri + 1]) / 2; // midpoint between rows
-          const d = Math.abs(gapY - jy);
-          if (d < bestDist) { bestDist = d; bestGapY = gapY; }
+          const gap = (sortedYs[ri] + sortedYs[ri + 1]) / 2;
+          if (gap > y + 1) return gap; // first gap below y
         }
-        snappedJy = bestGapY;
-      }
-      const junction = { x: jx, y: snappedJy };
-
-      // Node ports: snap to nearest inter-row gap below the node
-      const snapToGap = (ny: number): number => {
-        if (sortedYs.length < 2) return ny + portOffset;
-        for (let ri = 0; ri < sortedYs.length - 1; ri++) {
-          if (sortedYs[ri] <= ny && ny <= sortedYs[ri + 1]) {
-            return (sortedYs[ri] + sortedYs[ri + 1]) / 2;
-          }
-        }
-        // Node is at or beyond the last row — use gap below last row
-        return ny + portOffset;
+        // Below last row
+        return sortedYs[sortedYs.length - 1] + halfGap;
       };
+      const routeY = findGapBelow(jy);
 
-      const srcPort: NodePort = {
-        nodeId: sourceNodeId,
-        x: srcPos.x,
-        y: snapToGap(srcPos.y),
-      };
-
-      // Build branches: srcPort → junction → each tgtPort (Manhattan)
+      // ── Build branches ──
+      // Each branch path: src → (down to routeY) → junction X → (across to tgt X) → tgt
+      // This ensures cables pass through junction and never cross node rows.
+      // Route: src(x,y) → src(x, routeY) → jct(jx, routeY) → tgt(x, routeY) → tgt(x, y)
       const branches: IntraGroupCable["branches"] = [];
 
       for (const e of edgeList) {
@@ -746,19 +734,27 @@ function buildIntraGroupCables(
 
         let branch = branches.find(b => b.nodePort.nodeId === tid);
         if (!branch) {
-          const tgtPort: NodePort = {
-            nodeId: tid,
-            x: tgtPos.x,
-            y: snapToGap(tgtPos.y),
-          };
-          // Path: srcPort → junction → tgtPort (all Manhattan segments)
-          const path = [
-            { x: srcPort.x, y: srcPort.y },
-            { x: srcPort.x, y: junction.y },   // vertical to junction row
-            { x: junction.x, y: junction.y },   // horizontal to junction
-            { x: tgtPort.x, y: junction.y },    // horizontal to target column
-            { x: tgtPort.x, y: tgtPort.y },     // vertical to target port
-          ];
+          const tgtPort: NodePort = { nodeId: tid, x: tgtPos.x, y: tgtPos.y };
+
+          // Check if src and tgt are adjacent (within 1.5× column spacing)
+          const colDist = Math.abs(srcPos.x - tgtPos.x);
+          const rowDist = Math.abs(srcPos.y - tgtPos.y);
+          const isAdjacent = colDist < halfGap * 3 && rowDist < halfGap * 3;
+
+          let path: { x: number; y: number }[];
+          if (isAdjacent) {
+            // Adjacent: direct line allowed
+            path = [{ x: srcPos.x, y: srcPos.y }, { x: tgtPos.x, y: tgtPos.y }];
+          } else {
+            // Non-adjacent: must go through junction via gap row
+            path = [
+              { x: srcPos.x, y: srcPos.y },     // start at source
+              { x: srcPos.x, y: routeY },        // drop down to routing gap
+              { x: jx, y: routeY },              // across to junction X (passes through junction)
+              { x: tgtPos.x, y: routeY },        // across to target X
+              { x: tgtPos.x, y: tgtPos.y },      // up to target
+            ];
+          }
           branch = { nodePort: tgtPort, path, edges: [] };
           branches.push(branch);
         }
@@ -768,15 +764,15 @@ function buildIntraGroupCables(
 
       if (branches.length === 0 && !connectsExternal) continue;
 
-      // Group port branch: srcPort → junction → groupPort (all inside group)
+      // Group port branch: source → (gap) → junction → (gap) → groupPort
       let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
       if (connectsExternal && groupPort) {
         const path = [
-          { x: srcPort.x, y: srcPort.y },
-          { x: srcPort.x, y: junction.y },      // vertical to junction row
-          { x: junction.x, y: junction.y },      // horizontal to junction
-          { x: groupPort.x, y: junction.y },     // horizontal toward group port
-          { x: groupPort.x, y: groupPort.y },    // vertical to group port
+          { x: srcPos.x, y: srcPos.y },
+          { x: srcPos.x, y: routeY },             // drop to routing gap
+          { x: jx, y: routeY },                   // across to junction X
+          { x: groupPort.x, y: routeY },          // across to group port X
+          { x: groupPort.x, y: groupPort.y },     // up/down to group port
         ];
         groupPortBranch = { path };
       }
