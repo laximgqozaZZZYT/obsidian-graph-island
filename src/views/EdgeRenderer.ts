@@ -677,35 +677,55 @@ function routeViaJunctionGrid(
   // Find rowGap between the two Y positions
   const rowGap = findGapBetween(grid.rowGaps, from.y, to.y);
 
-  if (srcColGap !== null && tgtColGap !== null && rowGap !== null) {
-    // Standard 碁盤 routing: 4 segments, all through junction points
-    // 1. from → srcColGap (horizontal move to column aisle)
-    addPt(srcColGap, from.y);
-    // 2. srcColGap → rowGap (vertical move to row aisle)
-    addPt(srcColGap, rowGap);
-    // 3. rowGap → tgtColGap (horizontal move along row aisle)
-    addPt(tgtColGap, rowGap);
-    // 4. tgtColGap → target Y (vertical move to target row)
-    addPt(tgtColGap, to.y);
-  } else if (srcColGap !== null && rowGap !== null) {
-    addPt(srcColGap, from.y);
-    addPt(srcColGap, rowGap);
-    addPt(to.x, rowGap);
-  } else if (tgtColGap !== null && rowGap !== null) {
-    addPt(from.x, rowGap);
-    addPt(tgtColGap, rowGap);
-    addPt(tgtColGap, to.y);
-  } else if (rowGap !== null) {
-    addPt(from.x, rowGap);
-    addPt(to.x, rowGap);
+  // Find rowGap nearest to source (to avoid running along a node row)
+  const srcRowGap = findNearestGap(grid.rowGaps, from.y);
+  // Find rowGap nearest to target
+  const tgtRowGap = findNearestGap(grid.rowGaps, to.y);
+  // Find rowGap between the two Y positions (for horizontal traverse)
+  const midRowGap = findGapBetween(grid.rowGaps, from.y, to.y);
+
+  if (srcColGap !== null && tgtColGap !== null && midRowGap !== null) {
+    // Full 碁盤 routing: all segments through junction points
+    // 1. from → (from.x, srcRowGap) — vertical to nearest row gap
+    if (srcRowGap !== null) addPt(from.x, srcRowGap);
+    // 2. → (srcColGap, srcRowGap) — horizontal to source col gap
+    addPt(srcColGap, srcRowGap ?? from.y);
+    // 3. → (srcColGap, midRowGap) — vertical to traverse row gap
+    addPt(srcColGap, midRowGap);
+    // 4. → (tgtColGap, midRowGap) — horizontal along traverse row gap
+    addPt(tgtColGap, midRowGap);
+    // 5. → (tgtColGap, tgtRowGap) — vertical to target's row gap
+    if (tgtRowGap !== null) addPt(tgtColGap, tgtRowGap);
+    // 6. → (to.x, tgtRowGap) — horizontal to target X
+    addPt(to.x, tgtRowGap ?? to.y);
+  } else if (srcColGap !== null && midRowGap !== null) {
+    if (srcRowGap !== null) addPt(from.x, srcRowGap);
+    addPt(srcColGap, srcRowGap ?? from.y);
+    addPt(srcColGap, midRowGap);
+    addPt(to.x, midRowGap);
+  } else if (tgtColGap !== null && midRowGap !== null) {
+    addPt(from.x, midRowGap);
+    addPt(tgtColGap, midRowGap);
+    if (tgtRowGap !== null) addPt(tgtColGap, tgtRowGap);
+    addPt(to.x, tgtRowGap ?? to.y);
+  } else if (midRowGap !== null && srcRowGap !== null) {
+    addPt(from.x, srcRowGap);
+    addPt(from.x, midRowGap);
+    addPt(to.x, midRowGap);
   } else if (srcColGap !== null) {
-    addPt(srcColGap, from.y);
+    if (srcRowGap !== null) addPt(from.x, srcRowGap);
+    addPt(srcColGap, srcRowGap ?? from.y);
     addPt(srcColGap, to.y);
   } else {
-    // No grid at all — L-shape fallback through midpoint
-    const midY = (from.y + to.y) / 2;
-    addPt(from.x, midY);
-    addPt(to.x, midY);
+    // No grid — route through nearest available gaps
+    if (srcRowGap !== null) {
+      addPt(from.x, srcRowGap);
+      addPt(to.x, srcRowGap);
+    } else {
+      const midY = (from.y + to.y) / 2;
+      addPt(from.x, midY);
+      addPt(to.x, midY);
+    }
   }
 
   addPt(to.x, to.y);
@@ -1389,7 +1409,7 @@ function drawIntraGroupCables(
 
   if (cfg.highlightedNodeId) {
     // Draw dim wires first, then bright wires on top
-    // Skip dim wires entirely for cleaner hover visualization
+    _drawBranchWires("dim");
     _drawBranchWires("bright");
   } else {
     _drawBranchWires(null);
@@ -1431,7 +1451,7 @@ function drawIntraGroupCables(
         }
       }
     };
-    // Skip dim gpb wires for cleaner hover visualization
+    _drawGpbWires("dim");
     _drawGpbWires("bright");
   } else {
     for (const cable of cables) {
@@ -1668,7 +1688,7 @@ function drawTrunks(
     // Called as final pass — only draw bright wires
     _drawTrunkWires("bright");
   } else if (cfg.highlightedNodeId) {
-    // Skip dim trunk wires for cleaner hover visualization
+    _drawTrunkWires("dim");
     _drawTrunkWires("bright");
   } else {
     _drawTrunkWires(null);
