@@ -937,33 +937,39 @@ function drawIntraGroupCables(
       }
     }
 
-    // PASS 2b: Group port branch wires (引込口 → グループ内)
+    // PASS 2b: Group port branch wires — deduplicate by color, spread at port
     if (cable.groupPortBranch && cable.groupPortBranch.edges) {
       const gpb = cable.groupPortBranch;
       const gpEdges = gpb.edges;
-      const nGP = gpEdges.length;
-      if (nGP > 0) {
+      if (gpEdges.length > 0) {
         const gp0 = gpb.path[0], gpN = gpb.path[gpb.path.length - 1];
         const gpdx = gpN.x - gp0.x, gpdy = gpN.y - gp0.y;
         const gplen = Math.sqrt(gpdx * gpdx + gpdy * gpdy);
         const gppX = gplen > 0 ? -gpdy / gplen : 0;
         const gppY = gplen > 0 ? gpdx / gplen : 1;
 
-        for (let ei = 0; ei < nGP; ei++) {
-          const e = gpEdges[ei];
-          const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+        // Merge same-colored edges
+        const gpColorMap = new Map<number, GraphEdge[]>();
+        for (const e of gpEdges) {
+          const c = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+          const ex = gpColorMap.get(c);
+          if (ex) ex.push(e); else gpColorMap.set(c, [e]);
+        }
+        const gpColors = [...gpColorMap.keys()];
+        const nUnique = gpColors.length;
+
+        for (let ci = 0; ci < nUnique; ci++) {
+          const color = gpColors[ci];
+          const edges = gpColorMap.get(color)!;
+          const gpHighlight = getBranchHighlight(edges);
           let wireAlpha = WIRE_BASE_ALPHA;
-          const gpHighlight = getBranchHighlight([e]);
           if (gpHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
           else if (gpHighlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
-          const off = nGP > 1 ? (ei - (nGP - 1) / 2) * STUB_WIRE_SPACING : 0;
-          // Taper offset to zero at the port end so wires converge at the group port
-          const lastIdx = gpb.path.length - 1;
+
+          const off = nUnique > 1 ? (ci - (nUnique - 1) / 2) * STUB_WIRE_SPACING : 0;
           const wirePath = off === 0 ? gpb.path
-            : gpb.path.map((p, pi) => {
-                const t = lastIdx > 0 ? 1 - pi / lastIdx : 0; // 1 at start, 0 at port
-                return { x: p.x + gppX * off * t, y: p.y + gppY * off * t };
-              });
+            : gpb.path.map(p => ({ x: p.x + gppX * off, y: p.y + gppY * off }));
+
           const gpFinalAlpha = gpHighlight === "bright"
             ? wireAlpha
             : Math.max(wireAlpha * densityScale * crowdAlpha, gpHighlight === "dim" ? 0.05 : 0.25);
@@ -1057,12 +1063,8 @@ function drawTrunks(
       if (highlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
       else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
-      // Taper offset to zero at both ends so wires converge at group ports
-      const tLastIdx = trunk.path.length - 1;
-      const wirePath = trunk.path.map((p, pi) => {
-        const t = tLastIdx > 0 ? 4 * (pi / tLastIdx) * (1 - pi / tLastIdx) : 0; // parabola: 0 at ends, 1 at middle
-        return { x: p.x + ox * t, y: p.y + oy * t };
-      });
+      // Keep offset at endpoints so wires are spread at group ports (port has width)
+      const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
       const finalAlpha = highlight === "bright"
         ? wireAlpha
         : Math.max(wireAlpha * densityScale, highlight === "dim" ? 0.05 : 0.35);
