@@ -505,6 +505,25 @@ function buildTrunks(
   const groupKeys = new Set(connections.keys());
   const ports = computeGroupPorts(groupKeys, centroids, radii, connections);
 
+  // Compute junction point per group: a shared point where all trunks from
+  // this group converge before fanning out. This is offset from the Port
+  // in the direction away from the group centroid.
+  const junctions = new Map<string, { x: number; y: number }>();
+  for (const [gk, port] of ports) {
+    const c = centroids.get(gk);
+    if (!c) { junctions.set(gk, { x: port.x, y: port.y }); continue; }
+    const r = radii.get(gk) ?? DEFAULT_CLUSTER_RADIUS;
+    // Junction = Port + offset outward (away from centroid), distance = 30% of radius
+    const dx = port.x - c.x, dy = port.y - c.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1) { junctions.set(gk, { x: port.x, y: port.y }); continue; }
+    const junctionDist = r * 0.3;
+    junctions.set(gk, {
+      x: port.x + (dx / len) * junctionDist,
+      y: port.y + (dy / len) * junctionDist,
+    });
+  }
+
   for (const [pairKey, pair] of pairData) {
     const cables: TrunkCable[] = [];
     const allEdges: GraphEdge[] = [];
@@ -514,14 +533,40 @@ function buildTrunks(
       for (const e of edgeList) allEdges.push(e);
       totalEdges += edgeList.length;
     }
-    if (totalEdges < 2) continue;
-
+    // All inter-group edges go through trunks — no minimum count
     const portA = ports.get(pair.srcGroup);
     const portB = ports.get(pair.tgtGroup);
     if (!portA || !portB) continue;
 
-    // L-shape routing: horizontal then vertical (Manhattan path aligned to grid)
-    const path = buildManhattanPath(portA, portB, cfg.clusterArrangement);
+    const jctA = junctions.get(pair.srcGroup) ?? portA;
+    const jctB = junctions.get(pair.tgtGroup) ?? portB;
+
+    // Path: PortA → JunctionA → (Manhattan middle) → JunctionB → PortB
+    const middle = buildManhattanPath(jctA, jctB, cfg.clusterArrangement);
+    // Full path: Port → Junction → middle route → Junction → Port
+    const path: { x: number; y: number }[] = [];
+    path.push({ x: portA.x, y: portA.y });
+    // Add junction only if it differs from port
+    if (Math.abs(jctA.x - portA.x) > 1 || Math.abs(jctA.y - portA.y) > 1) {
+      path.push({ x: jctA.x, y: jctA.y });
+    }
+    // Add middle points (skip first/last if they duplicate junction)
+    for (let i = 0; i < middle.length; i++) {
+      const p = middle[i];
+      const prev = path[path.length - 1];
+      if (Math.abs(p.x - prev.x) > 1 || Math.abs(p.y - prev.y) > 1) {
+        path.push(p);
+      }
+    }
+    // Add junction B and port B
+    const lastPt = path[path.length - 1];
+    if (Math.abs(jctB.x - lastPt.x) > 1 || Math.abs(jctB.y - lastPt.y) > 1) {
+      path.push({ x: jctB.x, y: jctB.y });
+    }
+    if (Math.abs(portB.x - path[path.length - 1].x) > 1 || Math.abs(portB.y - path[path.length - 1].y) > 1) {
+      path.push({ x: portB.x, y: portB.y });
+    }
+
     trunks.push({ pairKey, srcGroup: pair.srcGroup, tgtGroup: pair.tgtGroup, path, cables, allEdges });
     for (const e of allEdges) cabledEdgeIds.add(e.id);
   }
@@ -1052,7 +1097,7 @@ export function drawEdges(
   }
 
   for (const e of edges) {
-    // Skip edges handled by cable bundling
+    // Skip edges handled by trunk bundling
     if (cabledEdgeIds.has(e.id)) continue;
     if (shouldSkipEdge(e, cfg)) continue;
 
