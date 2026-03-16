@@ -514,9 +514,23 @@ export function buildPanel(
   const layoutTab = tabContainers.get("layout")!;
   const settingsTab = tabContainers.get("settings")!;
 
-  // =============================================
-  // FILTER TAB
-  // =============================================
+  // Build each tab
+  buildFilterTab(filterTab, panel, ctx, cb);
+  buildDisplayTab(displayTab, panel, ctx, cb);
+  buildLayoutTab(layoutTab, panel, ctx, cb);
+  buildSettingsTab(settingsTab, panel, ctx, cb);
+}
+
+// ---------------------------------------------------------------------------
+// Tab builders — extracted from buildPanel() for readability
+// ---------------------------------------------------------------------------
+
+function buildFilterTab(
+  filterTab: HTMLElement,
+  panel: PanelState,
+  ctx: PanelContext,
+  cb: PanelCallbacks,
+): void {
   buildSection(filterTab, t("section.filter"), (body) => {
     addToggle(body, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateData(); });
     addToggle(body, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateData(); }, t("desc.existingOnly"));
@@ -560,10 +574,14 @@ export function buildPanel(
       renderGroupList(list, panel, ctx, cb);
     });
   }, tHelp("help.groups"), false, "layers");
+}
 
-  // =============================================
-  // DISPLAY TAB
-  // =============================================
+function buildDisplayTab(
+  displayTab: HTMLElement,
+  panel: PanelState,
+  ctx: PanelContext,
+  cb: PanelCallbacks,
+): void {
   // --- Nodes sub-section ---
   buildSection(displayTab, t("section.displayNodes"), (body) => {
     addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); });
@@ -789,10 +807,14 @@ export function buildPanel(
       }
     }, undefined, false, "palette");
   }
+}
 
-  // =============================================
-  // LAYOUT TAB
-  // =============================================
+function buildLayoutTab(
+  layoutTab: HTMLElement,
+  panel: PanelState,
+  ctx: PanelContext,
+  cb: PanelCallbacks,
+): void {
   // --- Grouping (in Layout tab) ---
   buildSection(layoutTab, t("section.displayGrouping"), (body) => {
     {
@@ -858,10 +880,14 @@ export function buildPanel(
       cb.restartSimulation(0.3);
     });
   }, tHelp("help.nodeRules"), true, "sliders-horizontal");
+}
 
-  // =============================================
-  // SETTINGS TAB
-  // =============================================
+function buildSettingsTab(
+  settingsTab: HTMLElement,
+  panel: PanelState,
+  ctx: PanelContext,
+  cb: PanelCallbacks,
+): void {
   // --- Graph Sync & Local Graph ---
   buildSection(settingsTab, "Graph Sync", (body) => {
     addToggle(body, t("display.syncWithEditor"), panel.syncWithEditor, (v) => {

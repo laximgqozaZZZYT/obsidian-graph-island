@@ -37,8 +37,9 @@ const IDLE_FRAME_DETACH_THRESHOLD = 60;
 /** Screen-space node radius estimate used for LOD tier calculations (px) */
 const NODE_SCREEN_PX_BASE = 30;
 
-/** Minimum world radius applied at non-extreme zoom to keep nodes visible */
-const MIN_WORLD_RADIUS_PX = 5;
+/** Minimum world radius applied at non-extreme zoom to keep nodes visible.
+ *  Nodes are always at least 2×this value in screen-pixel diameter. */
+export const MIN_WORLD_RADIUS_PX = 8;
 
 /** Viewport culling margin in world units (divided by worldScale) */
 const VIEWPORT_CULL_MARGIN_PX = 60;

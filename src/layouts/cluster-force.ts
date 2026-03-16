@@ -338,7 +338,7 @@ function resolveIntraGroupGaps(
   nodeSize: number,
   degrees: Map<string, number>,
   maxNodeRadius = 60,
-  minNodeRadius = 3,
+  minNodeRadius = 8,
   labelSpacingFactor = 0,
   fontMin = 11,
   fontMax = 14,
@@ -412,62 +412,104 @@ export function buildClusterForce(
   const NEEDS_LAYOUT = new Set([ARRANGEMENT_CONCENTRIC, ARRANGEMENT_RADIAL, ARRANGEMENT_RANDOM, ARRANGEMENT_TIMELINE, ARRANGEMENT_GRID, ARRANGEMENT_TRIANGLE, ARRANGEMENT_PHYLLOTAXIS, ARRANGEMENT_CUSTOM]);
   if (cfg.groupRules.length === 0 && !isGlobalLayout && !NEEDS_LAYOUT.has(cfg.arrangement)) return null;
 
-  // Multi-rule pipeline: each rule subdivides the previous groups
+  // Phase 1: Group subdivision
+  let groups = applyAllGroupRules(nodes, edges, degrees, cfg.groupRules);
+  if (groups.size === 0) return null;
+
+  // Phase 2: Merge small groups
+  groups = mergeSmallGroups(groups, nodes.length);
+  if (groups.size === 0) return null;
+
+  // Phase 3: Label spacing inflation
+  cfg = inflateLabelSpacing(nodes, degrees, cfg);
+
+  // Phase 4: Target computation + metadata
+  const { targets, allBars, allSequenceEdges, ringConstraints, timelineRoutes, groupGuides } = computeAbsoluteTargets(groups, edges, degrees, cfg);
+  const { nodeClusterMap, clusterCentroids, clusterRadii } = buildClusterMetadataFromTargets(groups, targets, cfg);
+
+  // Phase 5: Gap + overlap resolution
+  resolveGapsAndOverlaps(targets, groups, allBars, clusterRadii, clusterCentroids, cfg, degrees);
+
+  // Assemble final metadata
+  const timelineBars = allBars && allBars.length > 0 ? allBars : undefined;
+
+  // Build force function
+  const force = buildClusterForceFunction(nodes, targets, ringConstraints, cfg);
+
+  return { force, metadata: { nodeClusterMap, clusterCentroids, clusterRadii, timelineBars, sequenceEdges: allSequenceEdges, timelineRoutes, groupGuides } };
+}
+
+// ---------------------------------------------------------------------------
+// buildClusterForce phase functions — file-private
+// ---------------------------------------------------------------------------
+
+/** Multi-rule pipeline: subdivide groups by each rule, then filter empty */
+function applyAllGroupRules(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  degrees: Map<string, number>,
+  groupRules: ClusterGroupRule[],
+): Map<string, GraphNode[]> {
   let groups = new Map<string, GraphNode[]>([["__all__", [...nodes]]]);
-  for (const rule of cfg.groupRules) {
+  for (const rule of groupRules) {
     groups = applyGroupRule(groups, rule, edges, degrees);
   }
-  if (groups.size === 0) return null;
+  return groups;
+}
 
-  // Parent-aware merge: collapse small connected-component sub-groups
-  // back into their parent tag group, preserving tag-level structure.
-  const minGroupSize = nodes.length >= 100 ? Math.max(3, Math.ceil(nodes.length * 0.005)) : 2;
-  {
-    // Build parent → child key mapping from "::" separator
-    const pm = new Map<string, string[]>();
-    for (const key of groups.keys()) {
-      const parent = key.replace(/::.*$/, "");
-      if (!pm.has(parent)) pm.set(parent, []);
-      pm.get(parent)!.push(key);
-    }
-    // Phase 1: merge small CCs back into their parent tag group
-    for (const [parent, children] of pm) {
-      if (children.length <= 1) continue;
-      let base = groups.get(parent) ?? [];
-      for (const ck of children) {
-        if (ck === parent) continue;
-        const members = groups.get(ck)!;
-        if (members.length < minGroupSize) {
-          base = base.concat(members);
-          groups.delete(ck);
-        }
-      }
-      groups.set(parent, base);
-    }
-    // Phase 2: merge remaining standalone tiny groups into __other__
-    const merged = new Map<string, GraphNode[]>();
-    let otherNodes: GraphNode[] = [];
-    for (const [key, members] of groups) {
-      if (members.length < minGroupSize) {
-        otherNodes = otherNodes.concat(members);
-      } else {
-        merged.set(key, members);
-      }
-    }
-    if (otherNodes.length > 0) merged.set("__other__", otherNodes);
-    groups = merged;
+/** Parent-aware merge: collapse small CCs back into parent, then remaining tiny → __other__ */
+function mergeSmallGroups(
+  groups: Map<string, GraphNode[]>,
+  nodeCount: number,
+): Map<string, GraphNode[]> {
+  const minGroupSize = nodeCount >= 100 ? Math.max(3, Math.ceil(nodeCount * 0.005)) : 2;
+
+  // Build parent → child key mapping from "::" separator
+  const pm = new Map<string, string[]>();
+  for (const key of groups.keys()) {
+    const parent = key.replace(/::.*$/, "");
+    if (!pm.has(parent)) pm.set(parent, []);
+    pm.get(parent)!.push(key);
   }
-  if (groups.size === 0) return null;
+  // Sub-phase 1: merge small CCs back into their parent tag group
+  for (const [parent, children] of pm) {
+    if (children.length <= 1) continue;
+    let base = groups.get(parent) ?? [];
+    for (const ck of children) {
+      if (ck === parent) continue;
+      const members = groups.get(ck)!;
+      if (members.length < minGroupSize) {
+        base = base.concat(members);
+        groups.delete(ck);
+      }
+    }
+    groups.set(parent, base);
+  }
+  // Sub-phase 2: merge remaining standalone tiny groups into __other__
+  const merged = new Map<string, GraphNode[]>();
+  let otherNodes: GraphNode[] = [];
+  for (const [key, members] of groups) {
+    if (members.length < minGroupSize) {
+      otherNodes = otherNodes.concat(members);
+    } else {
+      merged.set(key, members);
+    }
+  }
+  if (otherNodes.length > 0) merged.set("__other__", otherNodes);
+  return merged;
+}
 
-  // --- Label-aware spacing: inflate nodeSize used for layout calculations ---
-  // Compute average label extent across all nodes and add it to nodeSize so that
-  // ALL arrangement functions (concentric, grid, random, etc.) automatically
-  // produce wider spacing that accounts for label width.
+/** Label-aware spacing: inflate cfg.nodeSize based on p70 label extent */
+function inflateLabelSpacing(
+  nodes: GraphNode[],
+  degrees: Map<string, number>,
+  cfg: ClusterForceConfig,
+): ClusterForceConfig {
   const lsf = cfg.labelSpacingFactor ?? 0;
   if (lsf > 0 && nodes.length > 0) {
     let maxDeg = 0;
     for (const d of degrees.values()) { if (d > maxDeg) maxDeg = d; }
-    // Compute average label extent across nodes (use median-ish approach: 70th percentile)
+    // Compute label extent across nodes (use median-ish approach: 70th percentile)
     const extents = nodes.map(n => estimateLabelExtent(
       n, cfg.nodeSize, degrees.get(n.id) ?? 0, maxDeg, lsf,
       cfg.nodeLabelFontSizeMin ?? 11, cfg.nodeLabelFontSizeMax ?? 14,
@@ -476,15 +518,22 @@ export function buildClusterForce(
     const p70 = extents[Math.floor(extents.length * 0.7)] ?? 0;
     // Add half the representative label extent (labels extend in one direction,
     // and two adjacent labels share the space between nodes).
-    cfg = { ...cfg, nodeSize: cfg.nodeSize + p70 * 0.5 };
+    return { ...cfg, nodeSize: cfg.nodeSize + p70 * 0.5 };
   }
+  return cfg;
+}
 
-  const { targets, allBars, allSequenceEdges, ringConstraints, timelineRoutes, groupGuides } = computeAbsoluteTargets(groups, edges, degrees, cfg);
-
-  // Build cluster metadata from targets
-  const { nodeClusterMap, clusterCentroids, clusterRadii } = buildClusterMetadataFromTargets(groups, targets, cfg);
-
-  // Snapshot bar positions, resolve gaps/overlaps, re-align bars and guides
+/** Post-computation gap correction + group overlap resolution + bar realignment */
+function resolveGapsAndOverlaps(
+  targets: Map<string, { x: number; y: number }>,
+  groups: Map<string, GraphNode[]>,
+  allBars: TimelineBarInfo[] | undefined,
+  clusterRadii: Map<string, number>,
+  clusterCentroids: Map<string, { x: number; y: number }>,
+  cfg: ClusterForceConfig,
+  degrees: Map<string, number>,
+): void {
+  // Snapshot bar positions before adjustments
   const barNodePosBefore = snapshotBarPositions(allBars, targets);
 
   // Post-expression intra-group gap correction
@@ -493,7 +542,7 @@ export function buildClusterForce(
   if (minGap > 0 || lsfIntra > 0) {
     resolveIntraGroupGaps(
       targets, groups, minGap, cfg.nodeSize, degrees,
-      cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 3,
+      cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 8,
       lsfIntra, cfg.nodeLabelFontSizeMin ?? 11, cfg.nodeLabelFontSizeMax ?? 14,
     );
   }
@@ -503,14 +552,6 @@ export function buildClusterForce(
 
   // Re-align bars after overlap resolution
   realignBarsAfterOverlap(allBars, barNodePosBefore, targets);
-
-  // Assemble final metadata
-  const timelineBars = allBars && allBars.length > 0 ? allBars : undefined;
-
-  // Build force function
-  const force = buildClusterForceFunction(nodes, targets, ringConstraints, cfg);
-
-  return { force, metadata: { nodeClusterMap, clusterCentroids, clusterRadii, timelineBars, sequenceEdges: allSequenceEdges, timelineRoutes, groupGuides } };
 }
 
 // ---------------------------------------------------------------------------
@@ -732,14 +773,14 @@ function estimateLabelExtent(
 
 /** Visual radius of a node — canonical formula used across the codebase.
  *  Enforces minNodeRadius floor so nodes remain hoverable/clickable. */
-export function nodeRadius(nodeSize: number, _degree: number, minNodeRadius = 3): number {
+export function nodeRadius(nodeSize: number, _degree: number, minNodeRadius = 8): number {
   return Math.max(nodeSize, minNodeRadius);
 }
 
 /** Effective visual radius accounting for super nodes (collapsed groups).
  *  Canonical formula: baseR = nodeRadius(); superR = baseR * (1 + sqrt(memberCount) * 0.5); capped by maxNodeRadius.
  *  Enforces minNodeRadius floor. */
-export function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, maxNodeRadius = 60, minNodeRadius = 3): number {
+export function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, maxNodeRadius = 60, minNodeRadius = 8): number {
   const baseR = nodeRadius(nodeSize, degree, minNodeRadius);
   const cap = maxNodeRadius > 0 ? maxNodeRadius : Infinity;
   if (n.collapsedMembers && n.collapsedMembers.length > 0) {
@@ -1092,7 +1133,7 @@ function computeUnifiedTimelineTargets(
   let maxGroupNodeR = nodeSize;
   if (allMembers.length > 0) {
     const maxR = cfg.maxNodeRadius ?? 60;
-    const minR = cfg.minNodeRadius ?? 3;
+    const minR = cfg.minNodeRadius ?? 8;
     for (const m of allMembers) {
       const r = effectiveRadius(m, cfg.nodeSize, degrees.get(m.id) ?? 0, maxR, minR);
       if (r > maxGroupNodeR) maxGroupNodeR = r;
@@ -2032,7 +2073,7 @@ function computeOffsets(
 ): ArrangementResult {
   const { nodeSpacing, groupScale, sortComparator, nodeSpacingMap } = cfg;
   const maxR = cfg.maxNodeRadius ?? 60;
-  const minR = cfg.minNodeRadius ?? 4;
+  const minR = cfg.minNodeRadius ?? 8;
 
   // ═══════════════════════════════════════════════════════════════════
   // 6-Step Pipeline — order is FIXED regardless of arrangement pattern
@@ -2262,7 +2303,7 @@ function dispatchHardcoded(
 function concentricOffsets(p: ArrangementParams): ArrangementResult {
   const { members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg } = p;
   const maxR = cfg.maxNodeRadius ?? 60;
-  const minR = cfg.minNodeRadius ?? 3;
+  const minR = cfg.minNodeRadius ?? 8;
   const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, maxR, minR);
 
   const sorted = [...members].sort(cmp);
@@ -2332,7 +2373,7 @@ function concentricOffsets(p: ArrangementParams): ArrangementResult {
 function radialOffsets(p: ArrangementParams): ArrangementResult {
   const { members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg } = p;
   const maxR = cfg.maxNodeRadius ?? 60;
-  const minR = cfg.minNodeRadius ?? 3;
+  const minR = cfg.minNodeRadius ?? 8;
   const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, maxR, minR);
   const spokeCount = cfg.userConstants?._spokeCount;
 
@@ -3167,7 +3208,7 @@ function resolveTimeKey(
 function randomOffsets(p: ArrangementParams): Map<string, { dx: number; dy: number }> {
   const { members, degrees, nodeSpacing, groupScale, nodeSize, nodeSpacingMap, cfg } = p;
   const maxR = cfg.maxNodeRadius ?? 60;
-  const minR = cfg.minNodeRadius ?? 3;
+  const minR = cfg.minNodeRadius ?? 8;
   const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, maxR, minR);
 
   const offsets = new Map<string, { dx: number; dy: number }>();
