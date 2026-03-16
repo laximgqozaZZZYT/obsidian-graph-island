@@ -900,12 +900,38 @@ function drawIntraGroupCables(
     return "dim";
   };
 
-  // PASS 0: Junction points — visible dots (cross shape, 4px native)
+  // PASS 0: Group port stubs — junction markers at group boundary
+  // Collect all unique group ports and the wire colors that pass through them
+  const portStubs = new Map<string, { x: number; y: number; colors: Set<number> }>();
   for (const cable of cables) {
-    const j = cable.junction;
-    g.lineStyle({ width: 4, color: 0xff4444, alpha: 0.8, native: true });
-    g.moveTo(j.x - 0.5, j.y);
-    g.lineTo(j.x + 0.5, j.y);
+    if (!cable.groupPortBranch) continue;
+    const path = cable.groupPortBranch.path;
+    const port = path[path.length - 1]; // last point = group port
+    const key = `${Math.round(port.x)},${Math.round(port.y)}`;
+    let stub = portStubs.get(key);
+    if (!stub) { stub = { x: port.x, y: port.y, colors: new Set() }; portStubs.set(key, stub); }
+    if (cable.groupPortBranch.edges) {
+      for (const e of cable.groupPortBranch.edges) {
+        stub.colors.add(resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark));
+      }
+    }
+  }
+  // Draw stub markers: colored dots at each group port
+  for (const [, stub] of portStubs) {
+    const colors = [...stub.colors];
+    const nColors = colors.length;
+    const stubRadius = Math.max(3, nColors * 1.5);
+    for (let i = 0; i < nColors; i++) {
+      const angle = (i / nColors) * Math.PI * 2;
+      const r = nColors > 1 ? stubRadius * 0.5 : 0;
+      g.lineStyle(0);
+      g.beginFill(colors[i], 0.9);
+      g.drawCircle(stub.x + Math.cos(angle) * r, stub.y + Math.sin(angle) * r, 2.5);
+      g.endFill();
+    }
+    // Outer ring
+    g.lineStyle({ width: 1.5, color: 0xaaaaaa, alpha: 0.5, native: true });
+    g.drawCircle(stub.x, stub.y, stubRadius + 1);
   }
 
   // PASS 1: Cable conduits — CABLE_SCREEN_WIDTH, semi-transparent
