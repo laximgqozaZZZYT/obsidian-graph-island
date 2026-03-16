@@ -417,11 +417,16 @@ export class RenderPipeline {
       const shape = getNodeShape(pn.data, this.host.getNodeShapeRules());
       const isKbFocused = this.host.getIsKeyboardFocused?.() ?? false;
 
+      // Use the same minWorldRadius as batch rendering so highlighted nodes
+      // don't shrink compared to their batch-rendered size at low zoom.
+      const worldScale = this.host.getWorldContainer()?.scale?.x ?? 1;
+      const minWorldRadius = Math.max(0, MIN_WORLD_RADIUS_PX / worldScale);
+      const effR = Math.max(pn.radius, minWorldRadius);
+
       if (isKbFocused) {
-        // Keyboard focus: dashed ring instead of halo — high-contrast white outline
-        const focusRadius = pn.radius * KB_FOCUS_RADIUS_FACTOR;
+        const focusRadius = effR * KB_FOCUS_RADIUS_FACTOR;
         const segments = KB_FOCUS_SEGMENTS;
-        const gap = KB_FOCUS_GAP_FRACTION; // fraction of arc to skip (0..1)
+        const gap = KB_FOCUS_GAP_FRACTION;
         pn.circle.lineStyle(KB_FOCUS_LINE_WIDTH, 0xffffff, KB_FOCUS_LINE_ALPHA);
         for (let i = 0; i < segments; i++) {
           const startAngle = (i / segments) * Math.PI * 2;
@@ -433,12 +438,12 @@ export class RenderPipeline {
           );
         }
       } else {
-        drawShape(pn.circle, shape, pn.radius * crc.highlightHaloRadius, pn.color, crc.highlightHaloAlpha);
+        drawShape(pn.circle, shape, effR * crc.highlightHaloRadius, pn.color, crc.highlightHaloAlpha);
       }
 
       const strokeCol = darkenColor(pn.color, crc.strokeDarken);
       pn.circle.lineStyle(crc.highlightStrokeWidth, strokeCol, 0.85);
-      drawShape(pn.circle, shape, pn.radius, pn.color, 1);
+      drawShape(pn.circle, shape, effR, pn.color, 1);
     } else {
       pn.circle.visible = false;
     }
