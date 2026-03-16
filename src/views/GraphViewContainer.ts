@@ -12,19 +12,19 @@ import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
-import { buildCableTray, buildCableTrayFromPhantoms, addTrunkCables, type CableTray } from "../layouts/cable-tray";
+import { buildRoadNetwork, buildRoadNetworkFromPhantoms, addTrunkRoads, type RoadNetwork } from "../layouts/cable-tray";
 
 /**
  * Global cache for the densest road network ever built — survives module reloads.
  * Stored on window to persist across plugin disable/enable cycles.
  */
-function _getBestCableTray(): CableTray | null {
-  return (window as any).__gi_bestCableTray ?? null;
+function _getBestRoadNetwork(): RoadNetwork | null {
+  return (window as any).__gi_bestRoadNetwork ?? null;
 }
-function _setBestCableTray(rn: CableTray) {
-  const cur = _getBestCableTray();
+function _setBestRoadNetwork(rn: RoadNetwork) {
+  const cur = _getBestRoadNetwork();
   if (!cur || rn.intersections.length > cur.intersections.length) {
-    (window as any).__gi_bestCableTray = rn;
+    (window as any).__gi_bestRoadNetwork = rn;
   }
 }
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
@@ -144,7 +144,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private arrowGraphics: CanvasGraphics | null = null;
   private routeGraphics: CanvasGraphics | null = null;
   private routeData: TimelineRoute[] | null = null;
-  private cableTrayData: CableTray | null = null;
+  private cableTrayData: RoadNetwork | null = null;
   private trayGraphics: CanvasGraphics | null = null;
   private barGraphics: CanvasGraphics | null = null;
   private barLabelContainer: CanvasContainer | null = null;
@@ -1851,7 +1851,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cardinalityRules = this.panel.cardinalityRules;
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
     cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
-    cfg.roadNetwork = this.getCableTray();
+    cfg.roadNetwork = this.getRoadNetwork();
     const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
     cfg.routeWiresOnTray = !!rt2.routeWiresOnTray && !!this.cableTrayData;
     return cfg;
@@ -2351,10 +2351,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** When true, the road graphics commands are up-to-date and skip redraw */
   private _roadDrawn = false;
 
-  private buildCableTray(final = false) {
+  private _rebuildRoadNetwork(final = false) {
     // Once finalized (by simulation end), don't rebuild unless explicitly requested
     if (this._cableTrayFinalized && !final) return;
-    this._buildCableTrayInner();
+    this._buildRoadNetworkInner();
     this._roadDrawn = false; // invalidate draw cache
     if (final) {
       this._cableTrayFinalized = true;
@@ -2364,11 +2364,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Update global cache if new network is denser */
   private _updateTrayCache() {
     const n = this.cableTrayData;
-    if (n) _setBestCableTray(n);
+    if (n) _setBestRoadNetwork(n);
   }
 
   /** Add trunk roads between group centroids and update road cache */
-  private _finishCableTray(allNodes: GraphNode[]) {
+  private _finishRoadNetwork(allNodes: GraphNode[]) {
     if (!this.cableTrayData) return;
     // Add trunk roads between group centroids
     const meta = this.clusterMeta;
@@ -2379,7 +2379,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       if (centroids.length > 1) {
         const groupArrangement = this.panel.clusterGroupArrangement || "auto";
-        addTrunkCables(this.cableTrayData, centroids, groupArrangement);
+        addTrunkRoads(this.cableTrayData, centroids);
         // Re-map nodes to nearest intersection (trunk roads may provide closer access)
         for (const node of allNodes) {
           let bestId = 0;
@@ -2397,7 +2397,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this._updateTrayCache();
   }
 
-  private _buildCableTrayInner() {
+  private _buildRoadNetworkInner() {
     const meta = this.clusterMeta;
     if (!meta) return;
 
@@ -2411,22 +2411,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (allNodes.length === 0) return; // Keep existing road network if no positioned nodes yet
 
     // Phantom-based road network: if simulation has phantom nodes, use them
-    const simNodes = this.simulation?.nodes?.() as GraphNode[] | undefined;
-    const phantomNodes = simNodes?.filter(n => n.isPhantom && (Math.abs(n.x) > 1 || Math.abs(n.y) > 1));
-    if (phantomNodes && phantomNodes.length > 0) {
-      const arrangement = this.panel.clusterArrangement;
-      const POLAR = new Set(["concentric", "radial", "phyllotaxis"]);
-      const bounds = this.computeNodeBounds(allNodes);
-      const gcx = (bounds.xMin + bounds.xMax) / 2;
-      const gcy = (bounds.yMin + bounds.yMax) / 2;
-      this.cableTrayData = buildCableTrayFromPhantoms(
-        phantomNodes, allNodes,
-        POLAR.has(arrangement) ? "polar" : "cartesian",
-        gcx, gcy,
-      );
-      this._finishCableTray(allNodes);
-      return;
-    }
+    if (this._buildRoadFromPhantoms(allNodes)) return;
 
     // Determine road topology from arrangement name, NOT from guide system.
     // The guide system can be overridden by panel.coordinateLayout (always cartesian),
@@ -2444,179 +2429,217 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const g = gg.guide;
         if (!g) continue;
 
-        // CoordinateGuide: collect axis lines — don't return yet, merge all groups first
         if (g.type === GUIDE_TYPE_COORDINATE && (g as any).gridInfo) {
           coordGuides.push({ guide: g as any, centerX: gg.centerX, centerY: gg.centerY });
         }
-
-        // ConcentricGuide: rings become circle roads, uniform spokes become radial roads
-        if (g.type === "concentric") {
-          const cg = g as { type: "concentric"; rings: number[] };
-          if (cg.rings.length > 0) {
-            // Sparse spokes: 8-16 for visual clarity (no densification needed)
-            const spokeCount = Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5))));
-            const maxRing = Math.max(...cg.rings);
-            const sortedRings = [...cg.rings].sort((a, b) => a - b);
-            // No densification — keep roads sparse and visible
-            this.cableTrayData = buildCableTray({
-              system: "polar",
-              axis1Lines: sortedRings.map(r => ({ position: r })),
-              axis2Lines: Array.from({ length: spokeCount }, (_, i) => ({
-                position: (i / spokeCount) * Math.PI * 2,
-              })),
-              axis1Shape: "circle", axis2Shape: "radial",
-              cx: gg.centerX, cy: gg.centerY,
-              bounds: { xMin: -maxRing, yMin: -maxRing, xMax: maxRing, yMax: maxRing, maxR: maxRing },
-              nodes: allNodes,
-            });
-            this._finishCableTray(allNodes);
-            return;
-          }
-        }
-
-        // GridGuide: verticals/horizontals become line roads
-        if (g.type === "grid") {
-          const gg2 = g as { type: "grid"; verticals: number[]; horizontals: number[]; bounds: { xMin: number; yMin: number; xMax: number; yMax: number } };
-          const verts = (gg2.verticals ?? []).sort((a: number, b: number) => a - b);
-          const horiz = (gg2.horizontals ?? []).sort((a: number, b: number) => a - b);
-          // No densification — sparse grid for pattern-forced routing
-          this.cableTrayData = buildCableTray({
-            system: "cartesian",
-            axis1Lines: verts.map(v => ({ position: v })),
-            axis2Lines: horiz.map(h => ({ position: h })),
-            axis1Shape: "line", axis2Shape: "line",
-            cx: 0, cy: 0,
-            bounds: gg2.bounds ?? this.computeNodeBounds(allNodes),
-            nodes: allNodes,
-          });
-          this._finishCableTray(allNodes);
-          return;
-        }
-
-        // TriangleGuide: horizontal roads at each row, vertical roads spanning columns
-        if (g.type === ARRANGEMENT_TRIANGLE) {
-          const tg = g as { type: "triangle"; vertices: [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }] };
-          const [top, bottomLeft, bottomRight] = tg.vertices;
-          const triHeight = bottomLeft.y - top.y;
-          const triWidth = bottomRight.x - bottomLeft.x;
-          // Estimate rows from node count: smallest numRows such that numRows*(numRows+1)/2 >= n
-          let numRows = 1;
-          while (numRows * (numRows + 1) / 2 < allNodes.length) numRows++;
-          numRows = Math.max(numRows, 2);
-          const rowSpacing = triHeight / (numRows - 1 || 1);
-          // Horizontal roads: one per row
-          const horizLines: { position: number }[] = [];
-          for (let r = 0; r < numRows; r++) {
-            horizLines.push({ position: top.y + r * rowSpacing });
-          }
-          // Vertical roads: divide bottom row width into columns
-          const numCols = Math.max(numRows, Math.ceil(Math.sqrt(allNodes.length)));
-          const colSpacing = triWidth / (numCols - 1 || 1);
-          const vertLines: { position: number }[] = [];
-          for (let c = 0; c < numCols; c++) {
-            vertLines.push({ position: bottomLeft.x + c * colSpacing });
-          }
-          // No densification — sparse grid for pattern-forced routing
-          this.cableTrayData = buildCableTray({
-            system: "cartesian",
-            axis1Lines: vertLines,
-            axis2Lines: horizLines,
-            axis1Shape: "line", axis2Shape: "line",
-            cx: gg.centerX, cy: gg.centerY,
-            bounds: { xMin: bottomLeft.x, yMin: top.y, xMax: bottomRight.x, yMax: bottomLeft.y },
-            nodes: allNodes,
-          });
-          this._finishCableTray(allNodes);
-          return;
-        }
-
-        // TimelineGuide: ticks become vertical roads, axisY becomes horizontal road
-        if (g.type === "timeline") {
-          const tl = g as { type: "timeline"; axisY: number; ticks: { x: number; label: string }[] };
-          this.cableTrayData = buildCableTray({
-            system: "cartesian",
-            axis1Lines: (tl.ticks ?? []).map((t: { x: number }) => ({ position: t.x })),
-            axis2Lines: [{ position: tl.axisY ?? 0 }],
-            axis1Shape: "line", axis2Shape: "line",
-            cx: 0, cy: 0,
-            bounds: this.computeNodeBounds(allNodes),
-            nodes: allNodes,
-          });
-          this._finishCableTray(allNodes);
-          return;
-        }
+        if (this._buildRoadFromConcentric(g, gg, allNodes)) return;
+        if (this._buildRoadFromGrid(g, gg, allNodes)) return;
+        if (this._buildRoadFromTriangle(g, gg, allNodes)) return;
+        if (this._buildRoadFromTimeline(g, allNodes)) return;
       }
 
-      // Merge all collected CoordinateGuide axis lines into a single dense road network
-      if (coordGuides.length > 0) {
-        const bounds = this.computeNodeBounds(allNodes);
-
-        if (isPolarArrangement) {
-          // Polar: generate rings + spokes from node positions, independent of guide axis lines.
-          // Guide system may report "cartesian" due to panel.coordinateLayout override,
-          // but the actual node layout is polar — so we derive roads from node coordinates.
-          const gcx = (bounds.xMin + bounds.xMax) / 2;
-          const gcy = (bounds.yMin + bounds.yMax) / 2;
-
-          // Ring radii: quantile-based from node distance distribution
-          const dists = allNodes.map(n =>
-            Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2)
-          ).sort((a, b) => a - b);
-          const maxR = dists[dists.length - 1] || 1;
-          // Sparse rings: 6-12 (no densification)
-          const ringCount = Math.min(12, Math.max(6, Math.ceil(Math.sqrt(allNodes.length / 10))));
-          const ringRadii: { position: number }[] = [];
-          for (let i = 1; i <= ringCount; i++) {
-            const q = dists[Math.floor(dists.length * i / (ringCount + 1))] ?? (maxR * i / ringCount);
-            ringRadii.push({ position: q });
-          }
-
-          // Sparse spokes: 8-16 (no densification)
-          const spokeCount = Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5))));
-          const spokeAngles: { position: number }[] = Array.from({ length: spokeCount }, (_, i) => ({
-            position: (i / spokeCount) * Math.PI * 2,
-          }));
-
-          // No densification — sparse roads for pattern-forced routing
-          this.cableTrayData = buildCableTray({
-            system: "polar",
-            axis1Lines: ringRadii,
-            axis2Lines: spokeAngles,
-            axis1Shape: "circle", axis2Shape: "radial",
-            cx: gcx, cy: gcy,
-            bounds: { ...bounds, maxR },
-            nodes: allNodes,
-          });
-          this._finishCableTray(allNodes);
-          return;
-        } else {
-          // Cartesian: merge axis lines with world-space offsets (no densification)
-          const allA1 = new Set<number>();
-          const allA2 = new Set<number>();
-          for (const cg of coordGuides) {
-            const gi = cg.guide.gridInfo;
-            for (const l of gi.axis1Lines) allA1.add(l.position + cg.centerX);
-            for (const l of gi.axis2Lines) allA2.add(l.position + cg.centerY);
-          }
-          const sortedA1 = [...allA1].sort((a, b) => a - b);
-          const sortedA2 = [...allA2].sort((a, b) => a - b);
-          this.cableTrayData = buildCableTray({
-            system: "cartesian",
-            axis1Lines: sortedA1.map(p => ({ position: p })),
-            axis2Lines: sortedA2.map(p => ({ position: p })),
-            axis1Shape: coordGuides[0].guide.gridInfo.axis1Shape?.kind ?? "line",
-            axis2Shape: coordGuides[0].guide.gridInfo.axis2Shape?.kind ?? "line",
-            cx: (bounds.xMin + bounds.xMax) / 2, cy: (bounds.yMin + bounds.yMax) / 2,
-            bounds,
-            nodes: allNodes,
-          });
-        }
-        this._finishCableTray(allNodes);
-        return;
-      }
+      if (this._buildRoadFromCoordinates(coordGuides, isPolarArrangement, allNodes)) return;
     }
 
     // Fallback: no guide data available — generate roads from node distribution
+    this._buildRoadFallback(arrangement, allNodes);
+  }
+
+  /** Phantom node-based road network from simulation phantom nodes */
+  private _buildRoadFromPhantoms(allNodes: GraphNode[]): boolean {
+    const simNodes = this.simulation?.nodes?.() as GraphNode[] | undefined;
+    const phantomNodes = simNodes?.filter(n => n.isPhantom && (Math.abs(n.x) > 1 || Math.abs(n.y) > 1));
+    if (!phantomNodes || phantomNodes.length === 0) return false;
+
+    const arrangement = this.panel.clusterArrangement;
+    const POLAR = new Set(["concentric", "radial", "phyllotaxis"]);
+    const bounds = this.computeNodeBounds(allNodes);
+    const gcx = (bounds.xMin + bounds.xMax) / 2;
+    const gcy = (bounds.yMin + bounds.yMax) / 2;
+    this.cableTrayData = buildRoadNetworkFromPhantoms(
+      phantomNodes, allNodes,
+      POLAR.has(arrangement) ? "polar" : "cartesian",
+      gcx, gcy,
+    );
+    this._finishRoadNetwork(allNodes);
+    return true;
+  }
+
+  /** ConcentricGuide: rings become circle roads, uniform spokes become radial roads */
+  private _buildRoadFromConcentric(g: any, gg: { centerX: number; centerY: number }, allNodes: GraphNode[]): boolean {
+    if (g.type !== "concentric") return false;
+    const cg = g as { type: "concentric"; rings: number[] };
+    if (cg.rings.length === 0) return false;
+
+    // Sparse spokes: 8-16 for visual clarity (no densification needed)
+    const spokeCount = Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5))));
+    const maxRing = Math.max(...cg.rings);
+    const sortedRings = [...cg.rings].sort((a, b) => a - b);
+    // No densification — keep roads sparse and visible
+    this.cableTrayData = buildRoadNetwork({
+      system: "polar",
+      axis1Lines: sortedRings.map(r => ({ position: r })),
+      axis2Lines: Array.from({ length: spokeCount }, (_, i) => ({
+        position: (i / spokeCount) * Math.PI * 2,
+      })),
+      axis1Shape: "circle", axis2Shape: "radial",
+      cx: gg.centerX, cy: gg.centerY,
+      bounds: { xMin: -maxRing, yMin: -maxRing, xMax: maxRing, yMax: maxRing, maxR: maxRing },
+      nodes: allNodes,
+    });
+    this._finishRoadNetwork(allNodes);
+    return true;
+  }
+
+  /** GridGuide: verticals/horizontals become line roads */
+  private _buildRoadFromGrid(g: any, gg: { centerX: number; centerY: number }, allNodes: GraphNode[]): boolean {
+    if (g.type !== "grid") return false;
+    const gg2 = g as { type: "grid"; verticals: number[]; horizontals: number[]; bounds: { xMin: number; yMin: number; xMax: number; yMax: number } };
+    const verts = (gg2.verticals ?? []).sort((a: number, b: number) => a - b);
+    const horiz = (gg2.horizontals ?? []).sort((a: number, b: number) => a - b);
+    // No densification — sparse grid for pattern-forced routing
+    this.cableTrayData = buildRoadNetwork({
+      system: "cartesian",
+      axis1Lines: verts.map(v => ({ position: v })),
+      axis2Lines: horiz.map(h => ({ position: h })),
+      axis1Shape: "line", axis2Shape: "line",
+      cx: 0, cy: 0,
+      bounds: gg2.bounds ?? this.computeNodeBounds(allNodes),
+      nodes: allNodes,
+    });
+    this._finishRoadNetwork(allNodes);
+    return true;
+  }
+
+  /** TriangleGuide: horizontal roads at each row, vertical roads spanning columns */
+  private _buildRoadFromTriangle(g: any, gg: { centerX: number; centerY: number }, allNodes: GraphNode[]): boolean {
+    if (g.type !== ARRANGEMENT_TRIANGLE) return false;
+    const tg = g as { type: "triangle"; vertices: [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }] };
+    const [top, bottomLeft, bottomRight] = tg.vertices;
+    const triHeight = bottomLeft.y - top.y;
+    const triWidth = bottomRight.x - bottomLeft.x;
+    // Estimate rows from node count: smallest numRows such that numRows*(numRows+1)/2 >= n
+    let numRows = 1;
+    while (numRows * (numRows + 1) / 2 < allNodes.length) numRows++;
+    numRows = Math.max(numRows, 2);
+    const rowSpacing = triHeight / (numRows - 1 || 1);
+    // Horizontal roads: one per row
+    const horizLines: { position: number }[] = [];
+    for (let r = 0; r < numRows; r++) {
+      horizLines.push({ position: top.y + r * rowSpacing });
+    }
+    // Vertical roads: divide bottom row width into columns
+    const numCols = Math.max(numRows, Math.ceil(Math.sqrt(allNodes.length)));
+    const colSpacing = triWidth / (numCols - 1 || 1);
+    const vertLines: { position: number }[] = [];
+    for (let c = 0; c < numCols; c++) {
+      vertLines.push({ position: bottomLeft.x + c * colSpacing });
+    }
+    // No densification — sparse grid for pattern-forced routing
+    this.cableTrayData = buildRoadNetwork({
+      system: "cartesian",
+      axis1Lines: vertLines,
+      axis2Lines: horizLines,
+      axis1Shape: "line", axis2Shape: "line",
+      cx: gg.centerX, cy: gg.centerY,
+      bounds: { xMin: bottomLeft.x, yMin: top.y, xMax: bottomRight.x, yMax: bottomLeft.y },
+      nodes: allNodes,
+    });
+    this._finishRoadNetwork(allNodes);
+    return true;
+  }
+
+  /** TimelineGuide: ticks become vertical roads, axisY becomes horizontal road */
+  private _buildRoadFromTimeline(g: any, allNodes: GraphNode[]): boolean {
+    if (g.type !== "timeline") return false;
+    const tl = g as { type: "timeline"; axisY: number; ticks: { x: number; label: string }[] };
+    this.cableTrayData = buildRoadNetwork({
+      system: "cartesian",
+      axis1Lines: (tl.ticks ?? []).map((t: { x: number }) => ({ position: t.x })),
+      axis2Lines: [{ position: tl.axisY ?? 0 }],
+      axis1Shape: "line", axis2Shape: "line",
+      cx: 0, cy: 0,
+      bounds: this.computeNodeBounds(allNodes),
+      nodes: allNodes,
+    });
+    this._finishRoadNetwork(allNodes);
+    return true;
+  }
+
+  /** CoordinateGuide: merge axis lines into road network (polar or cartesian) */
+  private _buildRoadFromCoordinates(
+    coordGuides: { guide: { system: string; gridInfo: ResolvedGridInfo; bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number } }; centerX: number; centerY: number }[],
+    isPolarArrangement: boolean,
+    allNodes: GraphNode[],
+  ): boolean {
+    if (coordGuides.length === 0) return false;
+
+    const bounds = this.computeNodeBounds(allNodes);
+
+    if (isPolarArrangement) {
+      // Polar: generate rings + spokes from node positions, independent of guide axis lines.
+      // Guide system may report "cartesian" due to panel.coordinateLayout override,
+      // but the actual node layout is polar — so we derive roads from node coordinates.
+      const gcx = (bounds.xMin + bounds.xMax) / 2;
+      const gcy = (bounds.yMin + bounds.yMax) / 2;
+
+      // Ring radii: quantile-based from node distance distribution
+      const dists = allNodes.map(n =>
+        Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2)
+      ).sort((a, b) => a - b);
+      const maxR = dists[dists.length - 1] || 1;
+      // Sparse rings: 6-12 (no densification)
+      const ringCount = Math.min(12, Math.max(6, Math.ceil(Math.sqrt(allNodes.length / 10))));
+      const ringRadii: { position: number }[] = [];
+      for (let i = 1; i <= ringCount; i++) {
+        const q = dists[Math.floor(dists.length * i / (ringCount + 1))] ?? (maxR * i / ringCount);
+        ringRadii.push({ position: q });
+      }
+
+      // Sparse spokes: 8-16 (no densification)
+      const spokeCount = Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5))));
+      const spokeAngles: { position: number }[] = Array.from({ length: spokeCount }, (_, i) => ({
+        position: (i / spokeCount) * Math.PI * 2,
+      }));
+
+      // No densification — sparse roads for pattern-forced routing
+      this.cableTrayData = buildRoadNetwork({
+        system: "polar",
+        axis1Lines: ringRadii,
+        axis2Lines: spokeAngles,
+        axis1Shape: "circle", axis2Shape: "radial",
+        cx: gcx, cy: gcy,
+        bounds: { ...bounds, maxR },
+        nodes: allNodes,
+      });
+    } else {
+      // Cartesian: merge axis lines with world-space offsets (no densification)
+      const allA1 = new Set<number>();
+      const allA2 = new Set<number>();
+      for (const cg of coordGuides) {
+        const gi = cg.guide.gridInfo;
+        for (const l of gi.axis1Lines) allA1.add(l.position + cg.centerX);
+        for (const l of gi.axis2Lines) allA2.add(l.position + cg.centerY);
+      }
+      const sortedA1 = [...allA1].sort((a, b) => a - b);
+      const sortedA2 = [...allA2].sort((a, b) => a - b);
+      this.cableTrayData = buildRoadNetwork({
+        system: "cartesian",
+        axis1Lines: sortedA1.map(p => ({ position: p })),
+        axis2Lines: sortedA2.map(p => ({ position: p })),
+        axis1Shape: coordGuides[0].guide.gridInfo.axis1Shape?.kind ?? "line",
+        axis2Shape: coordGuides[0].guide.gridInfo.axis2Shape?.kind ?? "line",
+        cx: (bounds.xMin + bounds.xMax) / 2, cy: (bounds.yMin + bounds.yMax) / 2,
+        bounds,
+        nodes: allNodes,
+      });
+    }
+    this._finishRoadNetwork(allNodes);
+    return true;
+  }
+
+  /** Fallback: no guide data — derive road network from node distribution */
+  private _buildRoadFallback(arrangement: string, allNodes: GraphNode[]) {
     const bounds = this.computeNodeBounds(allNodes);
     const gcx = (bounds.xMin + bounds.xMax) / 2;
     const gcy = (bounds.yMin + bounds.yMax) / 2;
@@ -2640,7 +2663,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
 
       // No densification — sparse roads for pattern-forced routing
-      this.cableTrayData = buildCableTray({
+      this.cableTrayData = buildRoadNetwork({
         system: "cartesian",
         axis1Lines: xLines,
         axis2Lines: yLines,
@@ -2657,7 +2680,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const ringCount = rt.roadRingCount || Math.min(12, Math.max(6, Math.ceil(Math.sqrt(allNodes.length / 10))));
       const spokeCount = rt.roadSpokeCount || Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5))));
 
-      this.cableTrayData = buildCableTray({
+      this.cableTrayData = buildRoadNetwork({
         system: "polar",
         axis1Lines: Array.from({ length: ringCount }, (_, i) => ({
           position: dists[Math.floor(dists.length * (i + 1) / (ringCount + 1))] ?? 1,
@@ -2671,7 +2694,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         nodes: allNodes,
       });
     }
-    this._finishCableTray(allNodes);
+    this._finishRoadNetwork(allNodes);
   }
 
   /** Compute axis-aligned bounding box from node positions */
@@ -2684,14 +2707,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return { xMin: minX, yMin: minY, xMax: maxX, yMax: maxY };
   }
 
-  drawCableTray() {
+  drawRoadNetwork() {
     // Build road network if not finalized and not yet built
     if (!this._cableTrayFinalized && !this.cableTrayData && this.pixiNodes.size > 0) {
       let hasPosition = false;
       for (const pn of this.pixiNodes.values()) {
         if (Math.abs(pn.data.x) > 1 || Math.abs(pn.data.y) > 1) { hasPosition = true; break; }
       }
-      if (hasPosition) this.buildCableTray();
+      if (hasPosition) this._rebuildRoadNetwork();
     }
 
     const g = this.trayGraphics;
@@ -2703,13 +2726,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     g.clear();
 
     // Use instance-level network for drawing (sparse, ~200 segments).
-    // getCableTray() may return a densified global cache (~60K segments)
+    // getRoadNetwork() may return a densified global cache (~60K segments)
     // which is useful for edge routing but far too heavy for visual rendering.
     const network = this.cableTrayData;
     if (!network || network.intersections.length === 0) return;
 
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-    if (!(rt.showCableTray ?? true)) return;
+    if (!(rt.showRoadNetwork ?? true)) return;
 
     const isDark = this.isDarkTheme();
     const roadColor = rt.roadColor ?? (isDark ? 0x555577 : 0xaaaacc);
@@ -2750,8 +2773,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   /** Get road network for edge routing */
-  getCableTray(): CableTray | null {
-    const best = _getBestCableTray();
+  getRoadNetwork(): RoadNetwork | null {
+    const best = _getBestRoadNetwork();
     const inst = this.cableTrayData;
     if (best && inst) {
       return (best.intersections.length >= inst.intersections.length) ? best : inst;
@@ -4360,7 +4383,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
       }
       // Rebuild road network now that final node positions are available
-      this.buildCableTray(true);
+      this._rebuildRoadNetwork(true);
       // Force full redraw now that all positions are final
       this.updatePositions(true);
       if (this.panel.autoFit && wrap) {

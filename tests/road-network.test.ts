@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildCableTray as buildRoadNetwork,
-  routeWire as routeEdge,
-  type CableTrayConfig as RoadNetworkConfig,
+  buildRoadNetwork,
+  routeEdge,
+  type RoadNetworkConfig,
 } from "../src/layouts/cable-tray";
 import type { GraphNode } from "../src/types";
 
