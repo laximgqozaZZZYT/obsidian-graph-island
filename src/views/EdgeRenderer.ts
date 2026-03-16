@@ -589,68 +589,115 @@ const NODE_PORT_OFFSET_RATIO = 0.5;
 /** Minimum node port offset distance (world units) */
 const NODE_PORT_MIN_OFFSET = 50;
 
+/** Cable routing options */
+interface CableRouteOpts {
+  /** Row gap midpoints for cartesian L-shape routing */
+  rowGaps?: number[];
+  /** Polar mode: center of the coordinate system */
+  center?: { x: number; y: number };
+  /** Polar mode: ring gap radii (midpoints between adjacent node rings) */
+  ringGaps?: number[];
+}
+
 /**
- * Compute a cable path that runs through row gaps (between node rows),
- * then branches vertically to the target node.
+ * Compute a cable path that avoids nodes by running through gaps.
  *
- * Path: from → (from.x, gapY) → (to.x, gapY) → to
- * where gapY is the midpoint between the target's row and the adjacent row.
- * This ensures cables travel through gaps between nodes, never through them.
+ * Cartesian: L-shape through row gaps
+ *   from → (from.x, gapY) → (to.x, gapY) → to
+ *
+ * Polar: arc through ring gaps
+ *   from → (radial to gapRing) → (arc along gapRing) → (radial to target) → to
  */
 function computeCablePath(
   from: { x: number; y: number },
   to: { x: number; y: number },
-  _offset: number,
-  rowGaps?: number[],
+  offset: number,
+  opts?: CableRouteOpts,
 ): { x: number; y: number }[] {
   if (Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1) {
     return [{ x: from.x, y: from.y }, { x: to.x, y: to.y }];
   }
 
-  // Find the best gap Y to route through (between source and target rows)
-  let gapY: number;
-  if (rowGaps && rowGaps.length > 0) {
-    // Pick the gap nearest to the midpoint of from/to
+  // ── Polar routing ──
+  if (opts?.center && opts?.ringGaps && opts.ringGaps.length > 0) {
+    const cx = opts.center.x, cy = opts.center.y;
+    const fromR = Math.sqrt((from.x - cx) ** 2 + (from.y - cy) ** 2);
+    const toR = Math.sqrt((to.x - cx) ** 2 + (to.y - cy) ** 2);
+    const fromA = Math.atan2(from.y - cy, from.x - cx);
+    const toA = Math.atan2(to.y - cy, to.x - cx);
+
+    // Pick the ring gap between from and to radii
+    const midR = (fromR + toR) / 2;
+    let gapR = opts.ringGaps[0];
+    let bestDist = Math.abs(gapR - midR);
+    for (const r of opts.ringGaps) {
+      const d = Math.abs(r - midR);
+      if (d < bestDist) { bestDist = d; gapR = r; }
+    }
+
+    // Arc interpolation along the gap ring from fromAngle to toAngle
+    let dAngle = toA - fromA;
+    // Shortest arc direction
+    if (dAngle > Math.PI) dAngle -= 2 * Math.PI;
+    if (dAngle < -Math.PI) dAngle += 2 * Math.PI;
+
+    const ARC_STEPS = Math.max(4, Math.ceil(Math.abs(dAngle) / (Math.PI / 12)));
+    const path: { x: number; y: number }[] = [{ x: from.x, y: from.y }];
+
+    // Radial move: from → gap ring at from's angle
+    path.push({ x: cx + gapR * Math.cos(fromA), y: cy + gapR * Math.sin(fromA) });
+
+    // Arc along gap ring
+    for (let i = 1; i < ARC_STEPS; i++) {
+      const t = i / ARC_STEPS;
+      const a = fromA + dAngle * t;
+      path.push({ x: cx + gapR * Math.cos(a), y: cy + gapR * Math.sin(a) });
+    }
+
+    // Radial move: gap ring at to's angle → to
+    path.push({ x: cx + gapR * Math.cos(toA), y: cy + gapR * Math.sin(toA) });
+    path.push({ x: to.x, y: to.y });
+
+    return path;
+  }
+
+  // ── Cartesian routing ──
+  if (opts?.rowGaps && opts.rowGaps.length > 0) {
     const midY = (from.y + to.y) / 2;
-    gapY = rowGaps[0];
+    let gapY = opts.rowGaps[0];
     let bestDist = Math.abs(gapY - midY);
-    for (const g of rowGaps) {
+    for (const g of opts.rowGaps) {
       const d = Math.abs(g - midY);
       if (d < bestDist) { bestDist = d; gapY = g; }
     }
-    // Ensure gapY is BETWEEN from.y and to.y (not beyond both)
+    // Prefer a gap between from and to
     const minY = Math.min(from.y, to.y);
     const maxY = Math.max(from.y, to.y);
     if (gapY < minY || gapY > maxY) {
-      // Find a gap that's actually between the two points
-      for (const g of rowGaps) {
+      for (const g of opts.rowGaps) {
         if (g >= minY && g <= maxY) {
           const d = Math.abs(g - midY);
           if (d < bestDist) { bestDist = d; gapY = g; }
         }
       }
     }
-  } else {
-    // Fallback: perpendicular offset at midpoint
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    const perpX = -dy / len;
-    const perpY = dx / len;
-    const sign = perpY >= 0 ? 1 : -1;
     return [
       { x: from.x, y: from.y },
-      { x: (from.x + to.x) / 2 + perpX * _offset * sign,
-        y: (from.y + to.y) / 2 + perpY * _offset * sign },
+      { x: from.x, y: gapY },
+      { x: to.x, y: gapY },
       { x: to.x, y: to.y },
     ];
   }
 
-  // L-shape through the gap: from → drop to gap → across to target X → up to target
+  // ── Fallback: perpendicular offset ──
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const perpX = -dy / len, perpY = dx / len;
+  const sign = perpY >= 0 ? 1 : -1;
   return [
     { x: from.x, y: from.y },
-    { x: from.x, y: gapY },
-    { x: to.x, y: gapY },
+    { x: (from.x + to.x) / 2 + perpX * offset * sign,
+      y: (from.y + to.y) / 2 + perpY * offset * sign },
     { x: to.x, y: to.y },
   ];
 }
@@ -759,6 +806,32 @@ function buildIntraGroupCables(
         rowGaps.push((sortedYs[i] + sortedYs[i + 1]) / 2);
       }
 
+      // Detect polar layout: if nodes are arranged in rings around centroid
+      let routeOpts: CableRouteOpts = { rowGaps };
+      const cx = centroid.x, cy = centroid.y;
+      const dists = new Set<number>();
+      for (const [nid] of sourceMap) {
+        const p = resolvePos(nid);
+        if (p) dists.add(Math.round(Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2)));
+      }
+      for (const [, el] of sourceMap) {
+        for (const e of el) {
+          const p = resolvePos(e.target);
+          if (p) dists.add(Math.round(Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2)));
+        }
+      }
+      const sortedDists = [...dists].sort((a, b) => a - b);
+      // If there are distinct rings (many nodes at similar radii) → polar mode
+      const uniqueRings = sortedDists.filter((d, i) => i === 0 || d - sortedDists[i - 1] > 10);
+      if (uniqueRings.length >= 2 && uniqueRings.length < sortedYs.length * 0.7) {
+        // Polar layout detected — compute ring gaps
+        const ringGaps: number[] = [];
+        for (let i = 0; i < uniqueRings.length - 1; i++) {
+          ringGaps.push((uniqueRings[i] + uniqueRings[i + 1]) / 2);
+        }
+        routeOpts = { center: { x: cx, y: cy }, ringGaps };
+      }
+
       // ── Build branches ──
       const branches: IntraGroupCable["branches"] = [];
 
@@ -771,7 +844,7 @@ function buildIntraGroupCables(
         if (!branch) {
           const tgtPort: NodePort = { nodeId: tid, x: tgtPos.x, y: tgtPos.y };
 
-          const path = computeCablePath(srcPos, tgtPos, cableOffset, rowGaps);
+          const path = computeCablePath(srcPos, tgtPos, cableOffset, routeOpts);
 
           branch = { nodePort: tgtPort, path, edges: [] };
           branches.push(branch);
@@ -785,7 +858,7 @@ function buildIntraGroupCables(
       // Group port branch: same routing rule as intra-group cables
       let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
       if (connectsExternal && groupPort) {
-        const path = computeCablePath(srcPos, groupPort, cableOffset, rowGaps);
+        const path = computeCablePath(srcPos, groupPort, cableOffset, routeOpts);
         groupPortBranch = { path, edges: externalEdges };
       }
 
