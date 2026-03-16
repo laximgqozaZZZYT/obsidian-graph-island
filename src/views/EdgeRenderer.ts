@@ -818,6 +818,246 @@ function routeViaJunctionGrid(
 }
 
 // ---------------------------------------------------------------------------
+// Polar junction grid — ring/radial gap routing for polar coordinate groups
+// ---------------------------------------------------------------------------
+
+/** Junction grid for polar coordinate groups */
+interface PolarJunctionGrid {
+  /** Sorted ring radii where nodes are placed (relative to group center) */
+  rings: number[];
+  /** Sorted angles (radians) where nodes are placed */
+  angles: number[];
+  /** Midpoint radii between adjacent rings (routing corridors) */
+  ringGaps: number[];
+  /** Midpoint angles between adjacent node angles (routing corridors) */
+  angleGaps: number[];
+  /** Group center in world coordinates */
+  cx: number;
+  cy: number;
+}
+
+/** Compute a polar junction grid from node positions within a group. */
+function computePolarJunctionGrid(
+  groupKey: string,
+  resolvePos: (ref: string | object) => Pos | undefined,
+  nodeClusterMap: Map<string, string>,
+  center: { x: number; y: number },
+): PolarJunctionGrid {
+  const radii: number[] = [];
+  const angles: number[] = [];
+
+  for (const [nid, gk] of nodeClusterMap) {
+    if (gk !== groupKey) continue;
+    const p = resolvePos(nid);
+    if (!p) continue;
+    const dx = p.x - center.x, dy = p.y - center.y;
+    const r = Math.sqrt(dx * dx + dy * dy);
+    const a = Math.atan2(dy, dx);
+    radii.push(Math.round(r * 10) / 10);
+    angles.push(a);
+  }
+
+  radii.sort((a, b) => a - b);
+  angles.sort((a, b) => a - b);
+
+  // Merge nearby radii (same approach as mergeNearbyValues for cartesian)
+  let minSpacing = 20;
+  if (radii.length >= 2) {
+    const gaps: number[] = [];
+    for (let i = 1; i < radii.length; i++) {
+      const g = radii[i] - radii[i - 1];
+      if (g > 1) gaps.push(g);
+    }
+    if (gaps.length > 0) {
+      gaps.sort((a, b) => a - b);
+      minSpacing = gaps[Math.floor(gaps.length / 2)] * 0.4;
+    }
+  }
+  const mergedRings = mergeNearbyValues(radii, minSpacing);
+
+  // Merge nearby angles (wrap-aware: consider gap between last and first+2π)
+  const minAngleSpacing = angles.length >= 2 ? Math.PI / (angles.length * 2) : 0.1;
+  const mergedAngles = mergeNearbyValues(angles, minAngleSpacing);
+
+  // Compute ring gaps (midpoints between adjacent merged rings)
+  const ringGaps: number[] = [];
+  for (let i = 0; i < mergedRings.length - 1; i++) {
+    if (mergedRings[i + 1] - mergedRings[i] > minSpacing) {
+      ringGaps.push((mergedRings[i] + mergedRings[i + 1]) / 2);
+    }
+  }
+
+  // Compute angle gaps (midpoints between adjacent merged angles)
+  const angleGaps: number[] = [];
+  for (let i = 0; i < mergedAngles.length - 1; i++) {
+    angleGaps.push((mergedAngles[i] + mergedAngles[i + 1]) / 2);
+  }
+  // Wrap-around gap: between last angle and first angle + 2π
+  if (mergedAngles.length >= 2) {
+    const wrapGap = (mergedAngles[mergedAngles.length - 1] + mergedAngles[0] + Math.PI * 2) / 2;
+    // Normalize to [-π, π]
+    const normGap = wrapGap > Math.PI ? wrapGap - Math.PI * 2 : wrapGap;
+    angleGaps.push(normGap);
+  }
+
+  return {
+    rings: mergedRings, angles: mergedAngles,
+    ringGaps, angleGaps,
+    cx: center.x, cy: center.y,
+  };
+}
+
+/**
+ * Filter a PolarJunctionGrid to exclude the ring gap closest to the port.
+ * The port faces the graph center, so the innermost ringGap is on the port face.
+ */
+function filterPolarGridForPort(grid: PolarJunctionGrid, portR: number): PolarJunctionGrid {
+  if (grid.ringGaps.length <= 0) return grid;
+
+  // Find which ringGap is closest to the port radius
+  let closestIdx = 0;
+  let closestDist = Math.abs(grid.ringGaps[0] - portR);
+  for (let i = 1; i < grid.ringGaps.length; i++) {
+    const d = Math.abs(grid.ringGaps[i] - portR);
+    if (d < closestDist) { closestDist = d; closestIdx = i; }
+  }
+
+  // Remove that ringGap
+  const filtered = [...grid.ringGaps];
+  filtered.splice(closestIdx, 1);
+  return { ...grid, ringGaps: filtered };
+}
+
+/**
+ * Route between two points within a polar group using the ring/angle grid.
+ * Wires run along ringGap arcs and radial lines through angleGaps.
+ *
+ * Path: from → (fromAngle, srcRingGap) → arc to (toAngle, midRingGap) → to
+ */
+function routeViaPolarGrid(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  grid: PolarJunctionGrid,
+): { x: number; y: number }[] {
+  const { cx, cy, ringGaps, angleGaps } = grid;
+
+  if (Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1) {
+    return [from, to];
+  }
+
+  const fromR = Math.sqrt((from.x - cx) ** 2 + (from.y - cy) ** 2);
+  const toR = Math.sqrt((to.x - cx) ** 2 + (to.y - cy) ** 2);
+  const fromA = Math.atan2(from.y - cy, from.x - cx);
+  const toA = Math.atan2(to.y - cy, to.x - cx);
+
+  const path: { x: number; y: number }[] = [{ x: from.x, y: from.y }];
+  const addPt = (x: number, y: number) => {
+    const last = path[path.length - 1];
+    if (Math.abs(x - last.x) > 1 || Math.abs(y - last.y) > 1) {
+      path.push({ x, y });
+    }
+  };
+
+  // Find the best ringGap to route through (between from and to radii)
+  const midR = (fromR + toR) / 2;
+  let gapR: number | null = null;
+  if (ringGaps.length > 0) {
+    gapR = ringGaps[0];
+    let bestDist = Math.abs(gapR - midR);
+    // Prefer gap between the two radii
+    const loR = Math.min(fromR, toR), hiR = Math.max(fromR, toR);
+    for (const r of ringGaps) {
+      if (r > loR && r < hiR) {
+        const d = Math.abs(r - midR);
+        if (d < bestDist) { bestDist = d; gapR = r; }
+      }
+    }
+    // If none between, use nearest
+    if (!(gapR > loR && gapR < hiR)) {
+      gapR = ringGaps[0];
+      bestDist = Math.abs(gapR - midR);
+      for (const r of ringGaps) {
+        const d = Math.abs(r - midR);
+        if (d < bestDist) { bestDist = d; gapR = r; }
+      }
+    }
+  }
+
+  // Find angleGap nearest to from's angle (for radial exit)
+  const findAngleGap = (targetA: number): number | null => {
+    if (angleGaps.length === 0) return null;
+    let best = angleGaps[0];
+    let bestD = angleDist(best, targetA);
+    for (const a of angleGaps) {
+      const d = angleDist(a, targetA);
+      if (d < bestD) { bestD = d; best = a; }
+    }
+    return best;
+  };
+
+  const srcAngleGap = findAngleGap(fromA);
+  const tgtAngleGap = findAngleGap(toA);
+
+  if (gapR !== null && srcAngleGap !== null && tgtAngleGap !== null) {
+    // Full polar routing:
+    // 1. Radial from source to srcAngleGap at source's ring
+    addPt(cx + fromR * Math.cos(srcAngleGap), cy + fromR * Math.sin(srcAngleGap));
+    // 2. Move to ringGap along srcAngleGap
+    addPt(cx + gapR * Math.cos(srcAngleGap), cy + gapR * Math.sin(srcAngleGap));
+    // 3. Arc along ringGap from srcAngleGap to tgtAngleGap
+    let dAngle = tgtAngleGap - srcAngleGap;
+    if (dAngle > Math.PI) dAngle -= 2 * Math.PI;
+    if (dAngle < -Math.PI) dAngle += 2 * Math.PI;
+    const arcSteps = Math.max(4, Math.ceil(Math.abs(dAngle) / (Math.PI / 12)));
+    for (let i = 1; i < arcSteps; i++) {
+      const t = i / arcSteps;
+      const a = srcAngleGap + dAngle * t;
+      addPt(cx + gapR * Math.cos(a), cy + gapR * Math.sin(a));
+    }
+    // 4. Arrive at tgtAngleGap on ringGap
+    addPt(cx + gapR * Math.cos(tgtAngleGap), cy + gapR * Math.sin(tgtAngleGap));
+    // 5. Radial to target's ring at tgtAngleGap
+    addPt(cx + toR * Math.cos(tgtAngleGap), cy + toR * Math.sin(tgtAngleGap));
+  } else if (gapR !== null) {
+    // No angle gaps: just radial out, arc, radial in
+    addPt(cx + gapR * Math.cos(fromA), cy + gapR * Math.sin(fromA));
+    let dAngle = toA - fromA;
+    if (dAngle > Math.PI) dAngle -= 2 * Math.PI;
+    if (dAngle < -Math.PI) dAngle += 2 * Math.PI;
+    const arcSteps = Math.max(4, Math.ceil(Math.abs(dAngle) / (Math.PI / 12)));
+    for (let i = 1; i < arcSteps; i++) {
+      const t = i / arcSteps;
+      const a = fromA + dAngle * t;
+      addPt(cx + gapR * Math.cos(a), cy + gapR * Math.sin(a));
+    }
+    addPt(cx + gapR * Math.cos(toA), cy + gapR * Math.sin(toA));
+  } else {
+    // No ring gaps: direct radial (fallback)
+    const midA = fromA + shortestAngleDelta(fromA, toA) / 2;
+    const outerR = Math.max(fromR, toR) * 1.2;
+    addPt(cx + outerR * Math.cos(midA), cy + outerR * Math.sin(midA));
+  }
+
+  addPt(to.x, to.y);
+  return path;
+}
+
+/** Shortest unsigned angle distance */
+function angleDist(a: number, b: number): number {
+  let d = Math.abs(a - b);
+  if (d > Math.PI) d = 2 * Math.PI - d;
+  return d;
+}
+
+/** Shortest signed angle delta from a to b */
+function shortestAngleDelta(a: number, b: number): number {
+  let d = b - a;
+  if (d > Math.PI) d -= 2 * Math.PI;
+  if (d < -Math.PI) d += 2 * Math.PI;
+  return d;
+}
+
+// ---------------------------------------------------------------------------
 // Consolidated edge render cache — replaces scattered module-level let vars
 // ---------------------------------------------------------------------------
 class EdgeRenderCache {
@@ -1302,12 +1542,14 @@ function buildIntraGroupCables(
   }
 
   // Step 2: Pre-compute group bboxes, perimeter paths, and junction grids
+  const isPolar = cfg.coordinateSystem === "polar";
   const groupPerimeters = new Map<string, {
     bbox: GroupBBox;
     face: BBoxFace;
     port: { x: number; y: number };
     perimeterPath: { x: number; y: number }[];
     grid: JunctionGrid;
+    polarGrid?: PolarJunctionGrid;
   }>();
 
   const graphCenter = _cache.graphCenter ?? computeGraphCenter(clusterCentroids);
@@ -1348,7 +1590,17 @@ function buildIntraGroupCables(
     const port = faceCenter(bbox, face);
     const perimeterPath = buildPerimeterPath(bbox, face, port);
     const grid = computeJunctionGrid(groupKey, resolvePos, nodeClusterMap);
-    groupPerimeters.set(groupKey, { bbox, face, port, perimeterPath, grid });
+
+    // For polar coordinate systems, also compute the polar junction grid
+    let polarGrid: PolarJunctionGrid | undefined;
+    if (isPolar) {
+      const centroid = clusterCentroids.get(groupKey);
+      if (centroid) {
+        polarGrid = computePolarJunctionGrid(groupKey, resolvePos, nodeClusterMap, centroid);
+      }
+    }
+
+    groupPerimeters.set(groupKey, { bbox, face, port, perimeterPath, grid, polarGrid });
   }
 
   // Step 3: Build cables with perimeter routing
@@ -1359,73 +1611,12 @@ function buildIntraGroupCables(
     const perimInfo = groupPerimeters.get(groupKey);
 
     for (const [sourceNodeId, edgeList] of sourceMap) {
-      const srcPos = resolvePos(sourceNodeId);
-      if (!srcPos) continue;
-
-      const targetPositions = new Map<string, { x: number; y: number }>();
-      const externalEdges = groupExternalMap.get(groupKey)?.get(sourceNodeId) ?? [];
-      const connectsExternal = externalEdges.length > 0;
-
-      for (const e of edgeList) {
-        const tid = edgeTargetId(e);
-        const tgtGroup = nodeClusterMap.get(tid);
-        if (tgtGroup && tgtGroup !== groupKey) continue;
-        if (targetPositions.has(tid)) continue;
-        const tgtPos = resolvePos(e.target) ?? resolvePos(tid);
-        if (!tgtPos) continue;
-        targetPositions.set(tid, { x: tgtPos.x, y: tgtPos.y });
-      }
-
-      if (targetPositions.size === 0 && !connectsExternal) continue;
-
-      const junction = { x: centroid.x, y: centroid.y };
-
-      // ── Build branches: route via junction grid (碁盤) ──
-      // Use a filtered grid that excludes the port-face gap to avoid
-      // branching wires on the same face as the entry port (引き込み口).
-      const branches: IntraGroupCable["branches"] = [];
-      const branchGrid = perimInfo
-        ? filterGridForPortFace(perimInfo.grid, perimInfo.face)
-        : null;
-
-      for (const e of edgeList) {
-        const tid = edgeTargetId(e);
-        const tgtPos = targetPositions.get(tid);
-        if (!tgtPos) continue;
-
-        let branch = branches.find(b => b.nodePort.nodeId === tid);
-        if (!branch) {
-          const tgtPort: NodePort = { nodeId: tid, x: tgtPos.x, y: tgtPos.y };
-
-          // Route through junction grid: src → colGap → rowGap → colGap → target
-          const path = branchGrid
-            ? deduplicatePath(routeViaJunctionGrid(srcPos, tgtPos, branchGrid))
-            : [{ x: srcPos.x, y: srcPos.y }, { x: tgtPos.x, y: tgtPos.y }];
-
-          branch = { nodePort: tgtPort, path, edges: [] };
-          branches.push(branch);
-        }
-        branch.edges.push(e);
-        handledEdgeIds.add(e.id);
-      }
-
-      if (branches.length === 0 && !connectsExternal) continue;
-
-      // Group port branch: route from source node to port via junction grid.
-      // Use the filtered grid (excluding port-face gap) so that the wire
-      // approaches the port perpendicularly — no branching on the port face.
-      let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
-      if (connectsExternal && portForKey && perimInfo) {
-        const gpbGrid = branchGrid ?? filterGridForPortFace(perimInfo.grid, perimInfo.face);
-        let path = routeViaJunctionGrid(srcPos, portForKey, gpbGrid);
-        path = deduplicatePath(path);
-        groupPortBranch = { path, edges: [...externalEdges] };
-      } else if (connectsExternal && portForKey) {
-        const path = [{ x: srcPos.x, y: srcPos.y }, { x: portForKey.x, y: portForKey.y }];
-        groupPortBranch = { path, edges: [...externalEdges] };
-      }
-
-      cables.push({ groupKey, junction, branches, groupPortBranch });
+      const cable = _routeSingleIntraCable(
+        sourceNodeId, edgeList, groupKey, centroid, portForKey ?? null,
+        perimInfo ?? null, isPolar, resolvePos, nodeClusterMap,
+        groupExternalMap, handledEdgeIds,
+      );
+      if (cable) cables.push(cable);
     }
   }
 
@@ -1442,23 +1633,11 @@ function buildIntraGroupCables(
     for (const [nodeId, externalEdges] of extNodeMap) {
       if (sourceMap?.has(nodeId)) continue;
 
-      const nodePos = resolvePos(nodeId);
-      if (!nodePos) continue;
-      if (externalEdges.length === 0) continue;
-
-      const junction = { x: centroid.x, y: centroid.y };
-
-      let path: { x: number; y: number }[];
-      if (perimInfo) {
-        // Route through filtered junction grid to avoid branching on port face
-        const filteredGrid = filterGridForPortFace(perimInfo.grid, perimInfo.face);
-        path = deduplicatePath(routeViaJunctionGrid(nodePos, portForKey, filteredGrid));
-      } else {
-        path = [{ x: nodePos.x, y: nodePos.y }, { x: portForKey.x, y: portForKey.y }];
-      }
-
-      const groupPortBranch: IntraGroupCable["groupPortBranch"] = { path, edges: [...externalEdges] };
-      cables.push({ groupKey, junction, branches: [], groupPortBranch });
+      const cable = _routeExternalOnlyNode(
+        nodeId, externalEdges, groupKey, centroid, portForKey,
+        perimInfo ?? null, isPolar, resolvePos,
+      );
+      if (cable) cables.push(cable);
     }
   }
 
