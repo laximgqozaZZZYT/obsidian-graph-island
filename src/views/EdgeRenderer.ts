@@ -160,8 +160,8 @@ const CABLE_FAN_CROWD_MIN_FRACTION = 0.4;
 const CABLE_FAN_CONNECTED_FACTOR = 0.8;
 /** Cable fan alpha dampen factor for non-matching edges during hover */
 const CABLE_FAN_NON_MATCH_DAMPEN = 0.15;
-/** Cable lane spacing in screen pixels */
-const CABLE_LANE_SPACING = 3;
+/** Cable lane spacing in screen pixels — wide enough to distinguish parallel cables */
+const CABLE_LANE_SPACING = 8;
 /** Cable layout margin from cluster boundary */
 const CABLE_LAYOUT_MARGIN = 5;
 /** Cable layout overlap start/end fraction */
@@ -172,8 +172,8 @@ const TRUNK_CONDUIT_ALPHA = 0.18;
 const CABLE_CONDUIT_ALPHA = 0.12;
 /** Wire alpha — most opaque layer, clearly visible */
 const WIRE_BASE_ALPHA = 0.7;
-/** Stub wire spacing at node end (screen pixels between wires) */
-const STUB_WIRE_SPACING = 2;
+/** Wire spacing within a cable (screen pixels between parallel wires) */
+const STUB_WIRE_SPACING = 3;
 /** Maximum conduit width in screen pixels */
 const MAX_CONDUIT_WIDTH = 16;
 /** Trunk conduit screen width (px) — thickest layer */
@@ -841,11 +841,14 @@ function drawTrunks(
   // Lane spacing for parallel cables within a trunk (screen px)
   const laneSpacing = CABLE_LANE_SPACING;
 
-  // PASS 1: Trunk conduits — thickest, semi-transparent gray
+  // PASS 1: Trunk conduits — width adapts to cable count so all lanes fit inside
   for (const trunk of trunks) {
+    const nCables = trunk.cables.length;
+    // Trunk width = enough to enclose all cable lanes with padding
+    const trunkWidth = Math.max(nCables * laneSpacing + CABLE_SCREEN_WIDTH, TRUNK_SCREEN_WIDTH);
     const highlight = getTrunkHighlight(trunk);
     const trunkAlpha = highlight === "dim" ? 0.04 : highlight === "bright" ? 0.25 : TRUNK_CONDUIT_ALPHA;
-    _drawSmoothPath(g, trunk.path, TRUNK_SCREEN_WIDTH, 0x888888, trunkAlpha * densityScale);
+    _drawSmoothPath(g, trunk.path, trunkWidth, 0x888888, trunkAlpha * densityScale);
   }
 
   // PASS 2: Cable conduits — medium width, semi-transparent gray, one per color lane
