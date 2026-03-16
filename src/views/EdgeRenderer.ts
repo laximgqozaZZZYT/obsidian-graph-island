@@ -160,22 +160,28 @@ const CABLE_FAN_CROWD_MIN_FRACTION = 0.4;
 const CABLE_FAN_CONNECTED_FACTOR = 0.8;
 /** Cable fan alpha dampen factor for non-matching edges during hover */
 const CABLE_FAN_NON_MATCH_DAMPEN = 0.15;
-/** Cable lane spacing in pixels */
-const CABLE_LANE_SPACING = 2;
+/** Cable lane spacing in screen pixels */
+const CABLE_LANE_SPACING = 3;
 /** Cable layout margin from cluster boundary */
 const CABLE_LAYOUT_MARGIN = 5;
 /** Cable layout overlap start/end fraction */
 const CABLE_OVERLAP_FRAC = 0.4;
-/** Trunk conduit alpha (semi-transparent pipe) */
-const TRUNK_CONDUIT_ALPHA = 0.06;
-/** Cable conduit alpha */
-const CABLE_CONDUIT_ALPHA = 0.04;
-/** Wire alpha (colored lines inside conduits) */
-const WIRE_BASE_ALPHA = 0.45;
-/** Stub wire spacing at node end (pixels between wires) */
-const STUB_WIRE_SPACING = 1.5;
-/** Maximum conduit width in pixels (prevents "fat pillar" overflow) */
-const MAX_CONDUIT_WIDTH = 10;
+/** Trunk conduit alpha — semi-transparent so wires show through */
+const TRUNK_CONDUIT_ALPHA = 0.18;
+/** Cable conduit alpha — semi-transparent so wires show through */
+const CABLE_CONDUIT_ALPHA = 0.12;
+/** Wire alpha — most opaque layer, clearly visible */
+const WIRE_BASE_ALPHA = 0.7;
+/** Stub wire spacing at node end (screen pixels between wires) */
+const STUB_WIRE_SPACING = 2;
+/** Maximum conduit width in screen pixels */
+const MAX_CONDUIT_WIDTH = 16;
+/** Trunk conduit screen width (px) — thickest layer */
+const TRUNK_SCREEN_WIDTH = 12;
+/** Cable conduit screen width (px) — medium layer */
+const CABLE_SCREEN_WIDTH = 6;
+/** Wire screen width (px) — thinnest layer */
+const WIRE_SCREEN_WIDTH = 1.5;
 /** Default fallback cluster radius */
 const DEFAULT_CLUSTER_RADIUS = 50;
 /** Arc layout control point height factor */
@@ -759,31 +765,25 @@ function drawIntraGroupCables(
     return "dim";
   };
 
-  // PASS 1: Cable conduits (semi-transparent pipes along each branch)
+  // PASS 1: Cable conduits — CABLE_SCREEN_WIDTH, semi-transparent
   for (const cable of cables) {
     for (const branch of cable.branches) {
-      const nEdges = branch.edges.length;
-      const conduitWidth = Math.min(nEdges * CABLE_LANE_SPACING + CABLE_LANE_SPACING * 2, MAX_CONDUIT_WIDTH);
       const highlight = getBranchHighlight(branch.edges);
-      const conduitAlpha = (highlight === "dim" ? 0.015 : highlight === "bright" ? 0.08 : CABLE_CONDUIT_ALPHA)
-        * densityScale * crowdAlpha;
-      _drawSmoothPath(g, branch.path, conduitWidth, 0x888888, conduitAlpha, false);
+      const conduitAlpha = highlight === "dim" ? 0.03 : highlight === "bright" ? 0.18 : CABLE_CONDUIT_ALPHA;
+      _drawSmoothPath(g, branch.path, CABLE_SCREEN_WIDTH, 0x888888, conduitAlpha * densityScale * crowdAlpha);
     }
-    // Group port branch conduit
     if (cable.groupPortBranch) {
-      _drawSmoothPath(g, cable.groupPortBranch.path, CABLE_LANE_SPACING * 2, 0x888888,
-        CABLE_CONDUIT_ALPHA * densityScale * crowdAlpha * 0.5, false);
+      _drawSmoothPath(g, cable.groupPortBranch.path, CABLE_SCREEN_WIDTH, 0x888888,
+        CABLE_CONDUIT_ALPHA * densityScale * crowdAlpha * 0.7);
     }
   }
 
-  // PASS 2: Wires (colored, one per edge)
-  const wireWidth = cfg.cableFanWidth ?? 1;
+  // PASS 2: Wires — WIRE_SCREEN_WIDTH, colored, visible through conduit
   for (const cable of cables) {
     for (const branch of cable.branches) {
       const nEdges = branch.edges.length;
       const highlight = getBranchHighlight(branch.edges);
 
-      // Compute perpendicular offset direction for lane spreading
       const p0 = branch.path[0], pN = branch.path[branch.path.length - 1];
       const tdx = pN.x - p0.x, tdy = pN.y - p0.y;
       const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
@@ -798,12 +798,11 @@ function drawIntraGroupCables(
         if (highlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
         else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
-        // Lane offset for multiple wires in the same branch
         const off = nEdges > 1 ? (ei - (nEdges - 1) / 2) * STUB_WIRE_SPACING : 0;
         const wirePath = off === 0 ? branch.path
           : branch.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
 
-        _drawSmoothPath(g, wirePath, wireWidth, color, wireAlpha * densityScale * crowdAlpha, true);
+        _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, wireAlpha * densityScale * crowdAlpha);
       }
     }
   }
@@ -825,24 +824,8 @@ function drawTrunks(
 ): void {
   if (trunks.length === 0) return;
 
-  // Trunk count attenuation — prevent overload when many trunks exist
-  const trunkCount = trunks.length;
-  const crowdAlpha = trunkCount <= 10 ? 1.0
-    : trunkCount <= 30 ? 0.5
-    : trunkCount <= 80 ? 0.25
-    : 0.15;
-
-  // World-scale lane spacing: proportional to average trunk length
-  let totalLen = 0;
-  for (const t of trunks) {
-    const p0 = t.path[0], pN = t.path[t.path.length - 1];
-    totalLen += Math.sqrt((pN.x - p0.x) ** 2 + (pN.y - p0.y) ** 2);
-  }
-  const avgLen = totalLen / trunks.length;
-  // Lane spacing = 1.5% of average trunk length, clamped
-  const worldLaneSpacing = Math.max(Math.min(avgLen * 0.015, 200), 10);
-  // Trunk conduit width = proportional to cable count
-  const worldConduitMaxWidth = worldLaneSpacing * 6;
+  // All layers use native=true (screen pixels) for consistent visibility at any zoom.
+  // Layer widths: Trunk(12px) > Cable(6px) > Wire(1.5px) — clearly distinguishable.
 
   // Highlight helper
   const getTrunkHighlight = (trunk: Trunk): "normal" | "bright" | "dim" => {
@@ -855,16 +838,17 @@ function drawTrunks(
     return "dim";
   };
 
-  // PASS 1: Trunk conduits (world-coordinate width, semi-transparent)
+  // Lane spacing for parallel cables within a trunk (screen px)
+  const laneSpacing = CABLE_LANE_SPACING;
+
+  // PASS 1: Trunk conduits — thickest, semi-transparent gray
   for (const trunk of trunks) {
-    const nCables = trunk.cables.length;
-    const trunkWidth = Math.min(nCables * worldLaneSpacing + worldLaneSpacing, worldConduitMaxWidth);
     const highlight = getTrunkHighlight(trunk);
-    const trunkAlpha = (highlight === "dim" ? 0.02 : highlight === "bright" ? 0.12 : TRUNK_CONDUIT_ALPHA) * densityScale * crowdAlpha;
-    _drawSmoothPath(g, trunk.path, trunkWidth, 0x888888, trunkAlpha, false);
+    const trunkAlpha = highlight === "dim" ? 0.04 : highlight === "bright" ? 0.25 : TRUNK_CONDUIT_ALPHA;
+    _drawSmoothPath(g, trunk.path, TRUNK_SCREEN_WIDTH, 0x888888, trunkAlpha * densityScale);
   }
 
-  // PASS 2: Cable conduits (per-lane, world-coordinate)
+  // PASS 2: Cable conduits — medium width, semi-transparent gray, one per color lane
   for (const trunk of trunks) {
     const nCables = trunk.cables.length;
     if (nCables <= 1) continue;
@@ -875,15 +859,14 @@ function drawTrunks(
     const perpX = tlen > 0 ? -tdy / tlen : 0;
     const perpY = tlen > 0 ? tdx / tlen : 1;
 
-    const cableWidth = worldLaneSpacing * 0.6;
     for (let ci = 0; ci < nCables; ci++) {
-      const off = (ci - (nCables - 1) / 2) * worldLaneSpacing;
+      const off = (ci - (nCables - 1) / 2) * laneSpacing;
       const cablePath = trunk.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
-      _drawSmoothPath(g, cablePath, cableWidth, 0x888888, CABLE_CONDUIT_ALPHA * densityScale * crowdAlpha, false);
+      _drawSmoothPath(g, cablePath, CABLE_SCREEN_WIDTH, 0x888888, CABLE_CONDUIT_ALPHA * densityScale);
     }
   }
 
-  // PASS 3: Wires (colored, native=true so visible at any zoom)
+  // PASS 3: Wires — thinnest, colored, clearly visible through conduits
   for (const trunk of trunks) {
     const nCables = trunk.cables.length;
     const p0 = trunk.path[0], pN = trunk.path[trunk.path.length - 1];
@@ -893,11 +876,10 @@ function drawTrunks(
     const perpY = tlen > 0 ? tdx / tlen : 1;
 
     const highlight = getTrunkHighlight(trunk);
-    const wireWidth = cfg.cableFanWidth ?? 1;
 
     for (let ci = 0; ci < nCables; ci++) {
       const cable = trunk.cables[ci];
-      const off = (ci - (nCables - 1) / 2) * worldLaneSpacing;
+      const off = (ci - (nCables - 1) / 2) * laneSpacing;
       const ox = perpX * off, oy = perpY * off;
 
       let wireAlpha = WIRE_BASE_ALPHA;
@@ -905,7 +887,7 @@ function drawTrunks(
       else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
       const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
-      _drawSmoothPath(g, wirePath, wireWidth, cable.color, wireAlpha * densityScale * crowdAlpha, true);
+      _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, cable.color, wireAlpha * densityScale);
     }
   }
 }
