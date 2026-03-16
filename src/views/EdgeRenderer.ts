@@ -411,9 +411,209 @@ function portLaneKey(groupKey: string, dir: PortDirection): string {
   return `${groupKey}|${dir}`;
 }
 
+// ---------------------------------------------------------------------------
+// Group BBox & Perimeter routing helpers
+// ---------------------------------------------------------------------------
+
+/** Face of a bounding box */
+type BBoxFace = "N" | "S" | "E" | "W";
+
+/** Bounding box with margin */
+interface GroupBBox {
+  minX: number; minY: number; maxX: number; maxY: number;
+}
+
+/** Compute the graph-wide center from all cluster centroids */
+function computeGraphCenter(
+  centroids: Map<string, { x: number; y: number }>,
+): { x: number; y: number } {
+  let sx = 0, sy = 0, n = 0;
+  for (const c of centroids.values()) { sx += c.x; sy += c.y; n++; }
+  if (n === 0) return { x: 0, y: 0 };
+  return { x: sx / n, y: sy / n };
+}
+
 /**
- * Compute 1 Port per group on the group boundary.
- * Direction = average vector toward all connected groups (or screen-up fallback).
+ * Compute the bounding box of all nodes belonging to a group, with margin.
+ * Returns null if no nodes found.
+ */
+function computeGroupBBox(
+  groupKey: string,
+  resolvePos: (ref: string | object) => Pos | undefined,
+  nodeClusterMap: Map<string, string>,
+  margin: number,
+): GroupBBox | null {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let found = false;
+  for (const [nid, gk] of nodeClusterMap) {
+    if (gk !== groupKey) continue;
+    const p = resolvePos(nid);
+    if (!p) continue;
+    found = true;
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  if (!found) return null;
+  return { minX: minX - margin, minY: minY - margin, maxX: maxX + margin, maxY: maxY + margin };
+}
+
+/** Determine which face of the bbox is closest to the graph center */
+function computePortFace(
+  bbox: GroupBBox,
+  graphCenter: { x: number; y: number },
+): BBoxFace {
+  const cx = (bbox.minX + bbox.maxX) / 2;
+  const cy = (bbox.minY + bbox.maxY) / 2;
+  // Face center candidates
+  const faces: { face: BBoxFace; x: number; y: number }[] = [
+    { face: "N", x: cx, y: bbox.minY },
+    { face: "S", x: cx, y: bbox.maxY },
+    { face: "W", x: bbox.minX, y: cy },
+    { face: "E", x: bbox.maxX, y: cy },
+  ];
+  let best = faces[0];
+  let bestDist = (best.x - graphCenter.x) ** 2 + (best.y - graphCenter.y) ** 2;
+  for (let i = 1; i < faces.length; i++) {
+    const d = (faces[i].x - graphCenter.x) ** 2 + (faces[i].y - graphCenter.y) ** 2;
+    if (d < bestDist) { bestDist = d; best = faces[i]; }
+  }
+  return best.face;
+}
+
+/** Get the port position (center of the chosen face) */
+function faceCenter(bbox: GroupBBox, face: BBoxFace): { x: number; y: number } {
+  const cx = (bbox.minX + bbox.maxX) / 2;
+  const cy = (bbox.minY + bbox.maxY) / 2;
+  switch (face) {
+    case "N": return { x: cx, y: bbox.minY };
+    case "S": return { x: cx, y: bbox.maxY };
+    case "W": return { x: bbox.minX, y: cy };
+    case "E": return { x: bbox.maxX, y: cy };
+  }
+}
+
+/** Get the perpendicular (tangent) direction at a face */
+function facePerpendicular(face: BBoxFace): { perpX: number; perpY: number } {
+  // Tangent along the face edge
+  switch (face) {
+    case "N": case "S": return { perpX: 1, perpY: 0 }; // horizontal face
+    case "E": case "W": return { perpX: 0, perpY: 1 }; // vertical face
+  }
+}
+
+/**
+ * Build the counter-clockwise perimeter path starting from the port position.
+ * Screen coordinates: Y-axis points down.
+ *
+ * Counter-clockwise (screen coords, Y-down):
+ *   S face: port → right(SE) → up(NE) → left(NW) → down(SW) → back
+ *   N face: port → left(NW) → down(SW) → right(SE) → up(NE) → back
+ *   E face: port → up(NE) → left(NW) → down(SW) → right(SE) → back
+ *   W face: port → down(SW) → right(SE) → up(NE) → left(NW) → back
+ */
+function buildPerimeterPath(
+  bbox: GroupBBox,
+  portFace: BBoxFace,
+  port: { x: number; y: number },
+): { x: number; y: number }[] {
+  // Corners: NW, NE, SE, SW (screen coords, Y-down)
+  const NW = { x: bbox.minX, y: bbox.minY };
+  const NE = { x: bbox.maxX, y: bbox.minY };
+  const SE = { x: bbox.maxX, y: bbox.maxY };
+  const SW = { x: bbox.minX, y: bbox.maxY };
+
+  // Counter-clockwise order in screen coords (Y-down): NW → SW → SE → NE → NW
+  // Starting from each face's port, we traverse CCW
+  switch (portFace) {
+    case "S": // port on bottom face center
+      // → right to SE → up to NE → left to NW → down to SW → back to port
+      return [port, SE, NE, NW, SW, port];
+    case "N": // port on top face center
+      // → left to NW → down to SW → right to SE → up to NE → back to port
+      return [port, NW, SW, SE, NE, port];
+    case "E": // port on right face center
+      // → up to NE → left to NW → down to SW → right to SE → back to port
+      return [port, NE, NW, SW, SE, port];
+    case "W": // port on left face center
+      // → down to SW → right to SE → up to NE → left to NW → back to port
+      return [port, SW, SE, NE, NW, port];
+  }
+}
+
+/**
+ * Find the point on the perimeter path closest to the target position.
+ * Returns the segment index and the projected point on that segment.
+ */
+function findPerimeterBranchPoint(
+  perimeterPath: { x: number; y: number }[],
+  targetX: number,
+  targetY: number,
+): { index: number; point: { x: number; y: number } } {
+  let bestDist = Infinity;
+  let bestIdx = 0;
+  let bestPt = perimeterPath[0];
+
+  for (let i = 0; i < perimeterPath.length - 1; i++) {
+    const a = perimeterPath[i];
+    const b = perimeterPath[i + 1];
+    // Project target onto segment a→b
+    const abx = b.x - a.x, aby = b.y - a.y;
+    const apx = targetX - a.x, apy = targetY - a.y;
+    const ab2 = abx * abx + aby * aby;
+    if (ab2 < 0.01) continue;
+    let t = (apx * abx + apy * aby) / ab2;
+    t = Math.max(0, Math.min(1, t));
+    const px = a.x + abx * t;
+    const py = a.y + aby * t;
+    const d = (px - targetX) ** 2 + (py - targetY) ** 2;
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+      bestPt = { x: px, y: py };
+    }
+  }
+  return { index: bestIdx, point: bestPt };
+}
+
+/**
+ * Build an L-shaped branch path from a perimeter branch point to the target node.
+ * Uses Manhattan routing (horizontal then vertical or vice versa) to avoid overlapping nodes.
+ */
+function buildBranchToNode(
+  branchPoint: { x: number; y: number },
+  target: { x: number; y: number },
+): { x: number; y: number }[] {
+  const dx = target.x - branchPoint.x;
+  const dy = target.y - branchPoint.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 1) return [branchPoint, target];
+
+  // Manhattan L-shape: prefer the direction that makes a cleaner right-angle
+  if (Math.abs(dx) < 1 || Math.abs(dy) < 1) {
+    // Already axis-aligned
+    return [branchPoint, target];
+  }
+
+  // Two options for L-shape bend
+  // Option A: horizontal first → bend at (target.x, branchPoint.y)
+  // Option B: vertical first → bend at (branchPoint.x, target.y)
+  // Pick the one with the longer first segment for visual clarity
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return [branchPoint, { x: target.x, y: branchPoint.y }, target];
+  } else {
+    return [branchPoint, { x: branchPoint.x, y: target.y }, target];
+  }
+}
+
+// Cache for group bboxes (invalidated with other caches)
+let _groupBBoxCache: Map<string, GroupBBox | null> = new Map();
+let _graphCenter: { x: number; y: number } | null = null;
+
+/**
+ * Compute 1 Port per group on the group bbox face closest to the graph center.
+ * The port is placed at the center of that face.
  */
 function computeGroupPorts(
   groupKeys: Set<string>,
@@ -422,39 +622,64 @@ function computeGroupPorts(
   connections: Map<string, Set<string>>,
   _coordinateSystem?: "cartesian" | "polar",
   _polarCenter?: { x: number; y: number },
+  resolvePos?: (ref: string | object) => Pos | undefined,
+  nodeClusterMap?: Map<string, string>,
 ): Map<string, GroupPort> {
   const ports: Map<string, GroupPort> = new Map();
+
+  // Compute graph center from all centroids
+  const graphCenter = computeGraphCenter(centroids);
+  _graphCenter = graphCenter;
+
+  // Estimate margin from node spacing (will be refined per-group if resolvePos available)
+  const defaultMargin = 30;
 
   for (const gk of groupKeys) {
     const c = centroids.get(gk);
     if (!c) continue;
-    const r = radii.get(gk) ?? DEFAULT_CLUSTER_RADIUS;
 
-    // Average direction toward connected groups
-    let dirX = 0, dirY = 0;
-    const conns = connections.get(gk);
-    if (conns && conns.size > 0) {
-      for (const other of conns) {
-        const oc = centroids.get(other);
-        if (!oc) continue;
-        const dx = oc.x - c.x, dy = oc.y - c.y;
-        const len = Math.sqrt(dx * dx + dy * dy);
-        if (len > 1) { dirX += dx / len; dirY += dy / len; }
+    // Try to compute real bbox from node positions
+    let bbox: GroupBBox | null = null;
+    if (resolvePos && nodeClusterMap) {
+      // Estimate node spacing from all nodes in this group
+      const positions: { x: number; y: number }[] = [];
+      for (const [nid, g] of nodeClusterMap) {
+        if (g !== gk) continue;
+        const p = resolvePos(nid);
+        if (p) positions.push({ x: p.x, y: p.y });
       }
+      let margin = defaultMargin;
+      if (positions.length >= 2) {
+        // Estimate spacing as min distance between any two nodes
+        let minDist = Infinity;
+        for (let i = 0; i < Math.min(positions.length, 50); i++) {
+          for (let j = i + 1; j < Math.min(positions.length, 50); j++) {
+            const d = Math.sqrt((positions[i].x - positions[j].x) ** 2 + (positions[i].y - positions[j].y) ** 2);
+            if (d > 1 && d < minDist) minDist = d;
+          }
+        }
+        if (minDist < Infinity) margin = minDist * 0.5;
+      }
+      bbox = computeGroupBBox(gk, resolvePos, nodeClusterMap, margin);
+      _groupBBoxCache.set(gk, bbox);
     }
-    // Normalize or fallback to screen-up
-    const dirLen = Math.sqrt(dirX * dirX + dirY * dirY);
-    if (dirLen < 0.01) { dirX = 0; dirY = -1; }
-    else { dirX /= dirLen; dirY /= dirLen; }
 
-    // Perpendicular = 90° CW rotation of direction vector
-    const perpX = -dirY, perpY = dirX;
-    ports.set(gk, {
-      groupKey: gk,
-      x: c.x + dirX * r,
-      y: c.y + dirY * r,
-      perpX, perpY,
-    });
+    if (bbox) {
+      const face = computePortFace(bbox, graphCenter);
+      const pos = faceCenter(bbox, face);
+      const { perpX, perpY } = facePerpendicular(face);
+      ports.set(gk, { groupKey: gk, x: pos.x, y: pos.y, perpX, perpY });
+    } else {
+      // Fallback: use centroid + radius toward graph center
+      const r = radii.get(gk) ?? DEFAULT_CLUSTER_RADIUS;
+      let dirX = graphCenter.x - c.x;
+      let dirY = graphCenter.y - c.y;
+      const dirLen = Math.sqrt(dirX * dirX + dirY * dirY);
+      if (dirLen < 0.01) { dirX = 0; dirY = -1; }
+      else { dirX /= dirLen; dirY /= dirLen; }
+      const perpX = -dirY, perpY = dirX;
+      ports.set(gk, { groupKey: gk, x: c.x + dirX * r, y: c.y + dirY * r, perpX, perpY });
+    }
   }
   return ports;
 }
@@ -560,7 +785,7 @@ function buildTrunks(
       for (const c of centroids.values()) { sx += c.x; sy += c.y; }
       polarCenter = { x: sx / centroids.size, y: sy / centroids.size };
     }
-    ports = computeGroupPorts(groupKeys, centroids, radii, connections, cfg.coordinateSystem, polarCenter);
+    ports = computeGroupPorts(groupKeys, centroids, radii, connections, cfg.coordinateSystem, polarCenter, resolvePos, cfg.nodeClusterMap ?? undefined);
   }
 
   // Compute a single trunk endpoint per group pointing toward the other group.
@@ -764,9 +989,15 @@ function computeCablePath(
 }
 
 /**
- * Build intra-group cables: edges within the same cluster group are bundled
- * by shared source node. Each cable branches from a junction (source node pos)
- * to multiple target node ports via Manhattan paths.
+ * Build intra-group cables using perimeter routing.
+ *
+ * Each group has a single port (on the bbox face closest to graph center).
+ * Wires enter at the port and travel counter-clockwise around the group's
+ * bounding box perimeter. When a wire reaches the row/column of its target
+ * node, it branches inward via an L-shaped Manhattan path.
+ *
+ * External (cross-group) edges also route from the node to the port via
+ * the perimeter path.
  */
 function buildIntraGroupCables(
   edges: GraphEdge[],
@@ -781,7 +1012,6 @@ function buildIntraGroupCables(
 
   // Step 1: Collect intra-group and external edges, grouped by (group, source node)
   const groupSourceMap = new Map<string, Map<string, GraphEdge[]>>();
-  // External edges per (group, source node) — for group port wires
   const groupExternalMap = new Map<string, Map<string, GraphEdge[]>>();
 
   for (const e of edges) {
@@ -792,7 +1022,6 @@ function buildIntraGroupCables(
     const tgtGroup = nodeClusterMap.get(tid);
     if (!srcGroup || !tgtGroup) continue;
     if (srcGroup === tgtGroup) {
-      // Same group — intra-group edge
       let sourceMap = groupSourceMap.get(srcGroup);
       if (!sourceMap) { sourceMap = new Map(); groupSourceMap.set(srcGroup, sourceMap); }
       let edgeList = sourceMap.get(sid);
@@ -800,13 +1029,11 @@ function buildIntraGroupCables(
       edgeList.push(e);
     } else {
       // Cross-group — external edge (for group port wiring on BOTH sides)
-      // Source side: source node → group port
       let extMap = groupExternalMap.get(srcGroup);
       if (!extMap) { extMap = new Map(); groupExternalMap.set(srcGroup, extMap); }
       let extList = extMap.get(sid);
       if (!extList) { extList = []; extMap.set(sid, extList); }
       extList.push(e);
-      // Target side: target node → group port (so trunk wires connect on both ends)
       let tgtExtMap = groupExternalMap.get(tgtGroup);
       if (!tgtExtMap) { tgtExtMap = new Map(); groupExternalMap.set(tgtGroup, tgtExtMap); }
       let tgtExtList = tgtExtMap.get(tid);
@@ -815,15 +1042,60 @@ function buildIntraGroupCables(
     }
   }
 
-  // Step 2: Build cables using road network routing (cable tray).
-  // Road network intersections sit at the centers of 2x2 node cells,
-  // so cables naturally pass through the gaps between nodes.
-  const roadNet = cfg.roadNetwork;
+  // Step 2: Pre-compute group bboxes and perimeter paths (one per group)
+  const groupPerimeters = new Map<string, {
+    bbox: GroupBBox;
+    face: BBoxFace;
+    port: { x: number; y: number };
+    perimeterPath: { x: number; y: number }[];
+  }>();
 
+  const graphCenter = _graphCenter ?? computeGraphCenter(clusterCentroids);
+
+  // Collect all group keys that need perimeter info
+  const allGroupKeys = new Set<string>();
+  for (const gk of groupSourceMap.keys()) allGroupKeys.add(gk);
+  for (const gk of groupExternalMap.keys()) allGroupKeys.add(gk);
+
+  for (const groupKey of allGroupKeys) {
+    // Try cached bbox first
+    let bbox = _groupBBoxCache.get(groupKey) ?? null;
+    if (!bbox) {
+      // Estimate margin from node spacing
+      const positions: { x: number; y: number }[] = [];
+      for (const [nid, g] of nodeClusterMap) {
+        if (g !== groupKey) continue;
+        const p = resolvePos(nid);
+        if (p) positions.push({ x: p.x, y: p.y });
+      }
+      let margin = 30;
+      if (positions.length >= 2) {
+        let minDist = Infinity;
+        for (let i = 0; i < Math.min(positions.length, 50); i++) {
+          for (let j = i + 1; j < Math.min(positions.length, 50); j++) {
+            const d = Math.sqrt((positions[i].x - positions[j].x) ** 2 + (positions[i].y - positions[j].y) ** 2);
+            if (d > 1 && d < minDist) minDist = d;
+          }
+        }
+        if (minDist < Infinity) margin = minDist * 0.5;
+      }
+      bbox = computeGroupBBox(groupKey, resolvePos, nodeClusterMap, margin);
+      _groupBBoxCache.set(groupKey, bbox);
+    }
+    if (!bbox) continue;
+
+    const face = computePortFace(bbox, graphCenter);
+    const port = faceCenter(bbox, face);
+    const perimeterPath = buildPerimeterPath(bbox, face, port);
+    groupPerimeters.set(groupKey, { bbox, face, port, perimeterPath });
+  }
+
+  // Step 3: Build cables with perimeter routing
   for (const [groupKey, sourceMap] of groupSourceMap) {
     const centroid = clusterCentroids.get(groupKey);
     if (!centroid) continue;
     const portForKey = groupPorts.get(groupKey);
+    const perimInfo = groupPerimeters.get(groupKey);
 
     for (const [sourceNodeId, edgeList] of sourceMap) {
       const srcPos = resolvePos(sourceNodeId);
@@ -847,62 +1119,7 @@ function buildIntraGroupCables(
 
       const junction = { x: centroid.x, y: centroid.y };
 
-      // ── Compute row spacing for this group ──
-      const groupYs = new Set<number>();
-      for (const [nid] of sourceMap) {
-        const p = resolvePos(nid);
-        if (p) groupYs.add(Math.round(p.y));
-      }
-      for (const [, el] of sourceMap) {
-        for (const e of el) {
-          const p = resolvePos(e.target);
-          if (p) groupYs.add(Math.round(p.y));
-        }
-      }
-      const sortedYs = [...groupYs].sort((a, b) => a - b);
-      let rowGap = 0;
-      for (let i = 1; i < sortedYs.length; i++) {
-        const g = sortedYs[i] - sortedYs[i - 1];
-        if (g > 1 && (rowGap === 0 || g < rowGap)) rowGap = g;
-      }
-      if (rowGap === 0) rowGap = 100; // fallback
-      const cableOffset = rowGap * 0.5;
-
-      // Compute row gap midpoints (between each pair of adjacent rows)
-      const rowGaps: number[] = [];
-      for (let i = 0; i < sortedYs.length - 1; i++) {
-        rowGaps.push((sortedYs[i] + sortedYs[i + 1]) / 2);
-      }
-
-      // Determine routing mode from cfg.coordinateSystem (set from panel settings)
-      let routeOpts: CableRouteOpts = { rowGaps };
-      const cx = centroid.x, cy = centroid.y;
-
-      if (cfg.coordinateSystem === "polar") {
-        // Polar: compute ring gaps from node distances to centroid
-        const distSet = new Set<number>();
-        for (const [nid] of sourceMap) {
-          const p = resolvePos(nid);
-          if (p) distSet.add(Math.round(Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2)));
-        }
-        for (const [, el] of sourceMap) {
-          for (const e of el) {
-            const p = resolvePos(e.target);
-            if (p) distSet.add(Math.round(Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2)));
-          }
-        }
-        const sortedDists = [...distSet].sort((a, b) => a - b);
-        const uniqueRings = sortedDists.filter((d, i) => i === 0 || d - sortedDists[i - 1] > 10);
-        if (uniqueRings.length >= 2) {
-          const ringGaps: number[] = [];
-          for (let i = 0; i < uniqueRings.length - 1; i++) {
-            ringGaps.push((uniqueRings[i] + uniqueRings[i + 1]) / 2);
-          }
-          routeOpts = { center: { x: cx, y: cy }, ringGaps };
-        }
-      }
-
-      // ── Build branches ──
+      // ── Build branches using perimeter routing ──
       const branches: IntraGroupCable["branches"] = [];
 
       for (const e of edgeList) {
@@ -914,7 +1131,49 @@ function buildIntraGroupCables(
         if (!branch) {
           const tgtPort: NodePort = { nodeId: tid, x: tgtPos.x, y: tgtPos.y };
 
-          const path = computeCablePath(srcPos, tgtPos, cableOffset, routeOpts);
+          let path: { x: number; y: number }[];
+          if (perimInfo) {
+            // Route: source → perimeter branch point near source →
+            //         perimeter segments → perimeter branch point near target → target
+            const srcBranch = findPerimeterBranchPoint(perimInfo.perimeterPath, srcPos.x, srcPos.y);
+            const tgtBranch = findPerimeterBranchPoint(perimInfo.perimeterPath, tgtPos.x, tgtPos.y);
+
+            // Build path: source → srcBranchPoint → perimeter → tgtBranchPoint → target
+            const srcInward = buildBranchToNode(srcBranch.point, srcPos);
+            const tgtInward = buildBranchToNode(tgtBranch.point, tgtPos);
+
+            // Extract perimeter segment between src and tgt branch points
+            const periSeg: { x: number; y: number }[] = [];
+            if (srcBranch.index <= tgtBranch.index) {
+              for (let i = srcBranch.index + 1; i <= tgtBranch.index; i++) {
+                periSeg.push(perimInfo.perimeterPath[i]);
+              }
+            } else {
+              // Wrap around
+              for (let i = srcBranch.index + 1; i < perimInfo.perimeterPath.length; i++) {
+                periSeg.push(perimInfo.perimeterPath[i]);
+              }
+              for (let i = 1; i <= tgtBranch.index; i++) {
+                periSeg.push(perimInfo.perimeterPath[i]);
+              }
+            }
+
+            // Assemble full path: srcInward reversed → srcBranchPt → periSeg → tgtBranchPt → tgtInward
+            path = [];
+            // Source node to perimeter (reverse inward path)
+            for (let i = srcInward.length - 1; i >= 0; i--) path.push(srcInward[i]);
+            // Perimeter segments
+            for (const p of periSeg) path.push(p);
+            // Branch point to target
+            path.push(tgtBranch.point);
+            for (let i = 1; i < tgtInward.length; i++) path.push(tgtInward[i]);
+
+            // Deduplicate consecutive near-identical points
+            path = deduplicatePath(path);
+          } else {
+            // Fallback: straight line
+            path = [{ x: srcPos.x, y: srcPos.y }, { x: tgtPos.x, y: tgtPos.y }];
+          }
 
           branch = { nodePort: tgtPort, path, edges: [] };
           branches.push(branch);
@@ -925,10 +1184,28 @@ function buildIntraGroupCables(
 
       if (branches.length === 0 && !connectsExternal) continue;
 
-      // Single group port branch: all external edges route to the one port
+      // Group port branch: route from source node to port via perimeter
       let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
-      if (connectsExternal && portForKey) {
-        const path = computeCablePath(srcPos, portForKey, cableOffset, routeOpts);
+      if (connectsExternal && portForKey && perimInfo) {
+        const srcBranch = findPerimeterBranchPoint(perimInfo.perimeterPath, srcPos.x, srcPos.y);
+        // Path: source → srcBranchPoint → perimeter back to port (index 0)
+        const srcInward = buildBranchToNode(srcBranch.point, srcPos);
+
+        const periSeg: { x: number; y: number }[] = [];
+        // From srcBranch to end of perimeter (which loops back to port)
+        for (let i = srcBranch.index + 1; i < perimInfo.perimeterPath.length; i++) {
+          periSeg.push(perimInfo.perimeterPath[i]);
+        }
+
+        let path: { x: number; y: number }[] = [];
+        for (let i = srcInward.length - 1; i >= 0; i--) path.push(srcInward[i]);
+        for (const p of periSeg) path.push(p);
+        path = deduplicatePath(path);
+
+        groupPortBranch = { path, edges: [...externalEdges] };
+      } else if (connectsExternal && portForKey) {
+        // Fallback without perimeter
+        const path = [{ x: srcPos.x, y: srcPos.y }, { x: portForKey.x, y: portForKey.y }];
         groupPortBranch = { path, edges: [...externalEdges] };
       }
 
@@ -936,8 +1213,7 @@ function buildIntraGroupCables(
     }
   }
 
-  // Step 3: Handle nodes that are only targets of cross-group edges
-  // (they have entries in groupExternalMap but not in groupSourceMap)
+  // Step 4: Handle nodes that are only targets of cross-group edges
   for (const [groupKey, extNodeMap] of groupExternalMap) {
     const centroid = clusterCentroids.get(groupKey);
     if (!centroid) continue;
@@ -945,9 +1221,9 @@ function buildIntraGroupCables(
     if (!portForKey) continue;
 
     const sourceMap = groupSourceMap.get(groupKey);
+    const perimInfo = groupPerimeters.get(groupKey);
 
     for (const [nodeId, externalEdges] of extNodeMap) {
-      // Skip if already processed as a source in groupSourceMap
       if (sourceMap?.has(nodeId)) continue;
 
       const nodePos = resolvePos(nodeId);
@@ -956,17 +1232,43 @@ function buildIntraGroupCables(
 
       const junction = { x: centroid.x, y: centroid.y };
 
-      // Single group port branch: all external edges route to the one port
-      const cableOffset = 50;
-      const routeOpts: CableRouteOpts = {};
-      const path = computeCablePath(nodePos, portForKey, cableOffset, routeOpts);
-      const groupPortBranch: IntraGroupCable["groupPortBranch"] = { path, edges: [...externalEdges] };
+      let path: { x: number; y: number }[];
+      if (perimInfo) {
+        const nodeBranch = findPerimeterBranchPoint(perimInfo.perimeterPath, nodePos.x, nodePos.y);
+        const nodeInward = buildBranchToNode(nodeBranch.point, nodePos);
 
+        const periSeg: { x: number; y: number }[] = [];
+        for (let i = nodeBranch.index + 1; i < perimInfo.perimeterPath.length; i++) {
+          periSeg.push(perimInfo.perimeterPath[i]);
+        }
+
+        path = [];
+        for (let i = nodeInward.length - 1; i >= 0; i--) path.push(nodeInward[i]);
+        for (const p of periSeg) path.push(p);
+        path = deduplicatePath(path);
+      } else {
+        path = [{ x: nodePos.x, y: nodePos.y }, { x: portForKey.x, y: portForKey.y }];
+      }
+
+      const groupPortBranch: IntraGroupCable["groupPortBranch"] = { path, edges: [...externalEdges] };
       cables.push({ groupKey, junction, branches: [], groupPortBranch });
     }
   }
 
   return { cables, handledEdgeIds };
+}
+
+/** Remove consecutive near-identical points from a path */
+function deduplicatePath(path: { x: number; y: number }[]): { x: number; y: number }[] {
+  if (path.length <= 1) return path;
+  const result = [path[0]];
+  for (let i = 1; i < path.length; i++) {
+    const prev = result[result.length - 1];
+    if (Math.abs(path[i].x - prev.x) > 0.5 || Math.abs(path[i].y - prev.y) > 0.5) {
+      result.push(path[i]);
+    }
+  }
+  return result;
 }
 
 /**
@@ -1394,6 +1696,8 @@ export function invalidateBundleCache(): void {
   _intraCableDirty = true;
   _portColorLanes = null;
   _cachedGroupPorts = null;
+  _groupBBoxCache.clear();
+  _graphCenter = null;
   _roadRouteCache.clear();
   _roadRouteCacheNetwork = null;
   invalidatePathCache();
@@ -1790,7 +2094,8 @@ export function drawEdges(
         connections.get(sg)!.add(tg);
         connections.get(tg)!.add(sg);
       }
-      const allGroupPorts = computeGroupPorts(groupKeys, centroids, radii, connections, cfg.coordinateSystem, polarCenter);
+      _groupBBoxCache.clear(); // clear bbox cache when recomputing ports
+      const allGroupPorts = computeGroupPorts(groupKeys, centroids, radii, connections, cfg.coordinateSystem, polarCenter, resolvePos, cfg.nodeClusterMap ?? undefined);
       _cachedGroupPorts = allGroupPorts;
       _cableCache = buildTrunks(edges, resolvePos, cfg, allGroupPorts);
       _cableDirty = false;
@@ -1823,7 +2128,7 @@ export function drawEdges(
           for (const c of centroids.values()) { sx += c.x; sy += c.y; }
           pc = { x: sx / centroids.size, y: sy / centroids.size };
         }
-        _cachedGroupPorts = computeGroupPorts(groupKeys, centroids, radii, connections, cfg.coordinateSystem, pc);
+        _cachedGroupPorts = computeGroupPorts(groupKeys, centroids, radii, connections, cfg.coordinateSystem, pc, resolvePos, cfg.nodeClusterMap ?? undefined);
       }
       _intraCableCache = buildIntraGroupCables(edges, resolvePos, cfg, _cachedGroupPorts);
       _intraCableDirty = false;
