@@ -969,8 +969,13 @@ function drawIntraGroupCables(
           if (gpHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
           else if (gpHighlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
           const off = nGP > 1 ? (ei - (nGP - 1) / 2) * STUB_WIRE_SPACING : 0;
+          // Taper offset to zero at the port end so wires converge at the group port
+          const lastIdx = gpb.path.length - 1;
           const wirePath = off === 0 ? gpb.path
-            : gpb.path.map(p => ({ x: p.x + gppX * off, y: p.y + gppY * off }));
+            : gpb.path.map((p, pi) => {
+                const t = lastIdx > 0 ? 1 - pi / lastIdx : 0; // 1 at start, 0 at port
+                return { x: p.x + gppX * off * t, y: p.y + gppY * off * t };
+              });
           const gpFinalAlpha = gpHighlight === "bright"
             ? wireAlpha
             : Math.max(wireAlpha * densityScale * crowdAlpha, gpHighlight === "dim" ? 0.05 : 0.25);
@@ -1085,7 +1090,12 @@ function drawTrunks(
       if (highlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
       else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
-      const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
+      // Taper offset to zero at both ends so wires converge at group ports
+      const tLastIdx = trunk.path.length - 1;
+      const wirePath = trunk.path.map((p, pi) => {
+        const t = tLastIdx > 0 ? 4 * (pi / tLastIdx) * (1 - pi / tLastIdx) : 0; // parabola: 0 at ends, 1 at middle
+        return { x: p.x + ox * t, y: p.y + oy * t };
+      });
       const finalAlpha = highlight === "bright"
         ? wireAlpha
         : Math.max(wireAlpha * densityScale, highlight === "dim" ? 0.05 : 0.35);
