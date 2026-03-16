@@ -355,13 +355,12 @@ function buildDirectionBundles(
 // 3-Layer Wiring Model: 幹線 (Trunk) → Port (引き込み口) → ケーブル (Cable) → 電線 (Wire)
 // ---------------------------------------------------------------------------
 
-/** 引込口の方向 */
+/** 引込口の方向 (将来のグループ内ルーティング用に残す) */
 type PortDirection = "N" | "S" | "E" | "W";
 
-/** 引き込み口: 各グループに4つ、N/S/E/W に配置 */
+/** 引き込み口: 各グループに1つ、接続先グループ方向の平均ベクトルで配置 */
 interface GroupPort {
   groupKey: string;
-  direction: PortDirection;
   x: number;
   y: number;
   /** Perpendicular direction at the port (tangent to group boundary).
@@ -369,12 +368,6 @@ interface GroupPort {
   perpX: number;
   perpY: number;
 }
-
-/** 1グループの4方向引込口セット */
-type GroupPorts = Map<PortDirection, GroupPort>;
-
-/** 全グループの引込口マップ: groupKey → GroupPorts */
-type AllGroupPorts = Map<string, GroupPorts>;
 
 /** 幹線: グループペア間を結ぶ。内部にケーブルを収容。1ペア1本。 */
 interface Trunk {
@@ -419,67 +412,51 @@ function portLaneKey(groupKey: string, dir: PortDirection): string {
 }
 
 /**
- * Compute 4 Ports per group on the group boundary (N/S/E/W).
- * N = toward polar center (or screen up in cartesian), S = opposite, E = 90°CW, W = 90°CCW.
+ * Compute 1 Port per group on the group boundary.
+ * Direction = average vector toward all connected groups (or screen-up fallback).
  */
 function computeGroupPorts(
   groupKeys: Set<string>,
   centroids: Map<string, { x: number; y: number }>,
   radii: Map<string, number>,
-  _connections: Map<string, Set<string>>,
-  coordinateSystem?: "cartesian" | "polar",
-  polarCenter?: { x: number; y: number },
-): AllGroupPorts {
-  const allPorts: AllGroupPorts = new Map();
+  connections: Map<string, Set<string>>,
+  _coordinateSystem?: "cartesian" | "polar",
+  _polarCenter?: { x: number; y: number },
+): Map<string, GroupPort> {
+  const ports: Map<string, GroupPort> = new Map();
 
   for (const gk of groupKeys) {
     const c = centroids.get(gk);
     if (!c) continue;
     const r = radii.get(gk) ?? DEFAULT_CLUSTER_RADIUS;
-    const ports: GroupPorts = new Map();
 
-    // Compute N direction based on coordinate system
-    let nDirX: number, nDirY: number;
-    if (coordinateSystem === "polar" && polarCenter) {
-      // N = toward polar center
-      const dx = polarCenter.x - c.x, dy = polarCenter.y - c.y;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      if (len < 1) { nDirX = 0; nDirY = -1; }
-      else { nDirX = dx / len; nDirY = dy / len; }
-    } else {
-      // Cartesian: N = screen up
-      nDirX = 0; nDirY = -1;
+    // Average direction toward connected groups
+    let dirX = 0, dirY = 0;
+    const conns = connections.get(gk);
+    if (conns && conns.size > 0) {
+      for (const other of conns) {
+        const oc = centroids.get(other);
+        if (!oc) continue;
+        const dx = oc.x - c.x, dy = oc.y - c.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 1) { dirX += dx / len; dirY += dy / len; }
+      }
     }
+    // Normalize or fallback to screen-up
+    const dirLen = Math.sqrt(dirX * dirX + dirY * dirY);
+    if (dirLen < 0.01) { dirX = 0; dirY = -1; }
+    else { dirX /= dirLen; dirY /= dirLen; }
 
-    // S = opposite of N
-    const sDirX = -nDirX, sDirY = -nDirY;
-    // E = N rotated 90° clockwise
-    const eDirX = -nDirY, eDirY = nDirX;
-    // W = N rotated 90° counter-clockwise
-    const wDirX = nDirY, wDirY = -nDirX;
-
-    const dirs: [PortDirection, number, number][] = [
-      ["N", nDirX, nDirY],
-      ["S", sDirX, sDirY],
-      ["E", eDirX, eDirY],
-      ["W", wDirX, wDirY],
-    ];
-
-    for (const [dir, dx, dy] of dirs) {
-      // Perpendicular = 90° CW rotation of direction vector
-      const perpX = -dy, perpY = dx;
-      ports.set(dir, {
-        groupKey: gk,
-        direction: dir,
-        x: c.x + dx * r,
-        y: c.y + dy * r,
-        perpX, perpY,
-      });
-    }
-
-    allPorts.set(gk, ports);
+    // Perpendicular = 90° CW rotation of direction vector
+    const perpX = -dirY, perpY = dirX;
+    ports.set(gk, {
+      groupKey: gk,
+      x: c.x + dirX * r,
+      y: c.y + dirY * r,
+      perpX, perpY,
+    });
   }
-  return allPorts;
+  return ports;
 }
 
 /**
@@ -529,7 +506,7 @@ function buildTrunks(
   edges: GraphEdge[],
   resolvePos: (ref: string | object) => Pos | undefined,
   cfg: EdgeDrawConfig,
-  allPorts?: AllGroupPorts,
+  allPorts?: Map<string, GroupPort>,
 ): { trunks: Trunk[]; cabledEdgeIds: Set<string> } {
   const trunks: Trunk[] = [];
   const cabledEdgeIds = new Set<string>();
@@ -666,7 +643,7 @@ interface IntraGroupCable {
   groupKey: string;
   junction: { x: number; y: number };
   branches: { nodePort: NodePort; path: { x: number; y: number }[]; edges: GraphEdge[] }[];
-  groupPortBranches: Map<PortDirection, { path: { x: number; y: number }[]; edges: GraphEdge[] }>;
+  groupPortBranch: { path: { x: number; y: number }[]; edges: GraphEdge[] } | null;
 }
 
 /** Node port offset: fraction of node spacing to place port below/beside node */
@@ -796,7 +773,7 @@ function buildIntraGroupCables(
   edges: GraphEdge[],
   resolvePos: (ref: string | object) => Pos | undefined,
   cfg: EdgeDrawConfig,
-  allGroupPorts: AllGroupPorts,
+  groupPorts: Map<string, GroupPort>,
 ): { cables: IntraGroupCable[]; handledEdgeIds: Set<string> } {
   const cables: IntraGroupCable[] = [];
   const handledEdgeIds = new Set<string>();
@@ -847,7 +824,7 @@ function buildIntraGroupCables(
   for (const [groupKey, sourceMap] of groupSourceMap) {
     const centroid = clusterCentroids.get(groupKey);
     if (!centroid) continue;
-    const groupPortsForKey = allGroupPorts.get(groupKey);
+    const portForKey = groupPorts.get(groupKey);
 
     for (const [sourceNodeId, edgeList] of sourceMap) {
       const srcPos = resolvePos(sourceNodeId);
@@ -949,27 +926,14 @@ function buildIntraGroupCables(
 
       if (branches.length === 0 && !connectsExternal) continue;
 
-      // Group port branches: classify external edges by direction, route to appropriate port
-      const groupPortBranches = new Map<PortDirection, { path: { x: number; y: number }[]; edges: GraphEdge[] }>();
-      if (connectsExternal && groupPortsForKey) {
-        // Classify external edges by direction
-        const dirEdges = new Map<PortDirection, GraphEdge[]>();
-        for (const e of externalEdges) {
-          const dir = classifyEdgePort(e, sourceNodeId);
-          let arr = dirEdges.get(dir);
-          if (!arr) { arr = []; dirEdges.set(dir, arr); }
-          arr.push(e);
-        }
-        // Build path to each direction's port
-        for (const [dir, edges] of dirEdges) {
-          const port = groupPortsForKey.get(dir);
-          if (!port) continue;
-          const path = computeCablePath(srcPos, port, cableOffset, routeOpts);
-          groupPortBranches.set(dir, { path, edges });
-        }
+      // Single group port branch: all external edges route to the one port
+      let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
+      if (connectsExternal && portForKey) {
+        const path = computeCablePath(srcPos, portForKey, cableOffset, routeOpts);
+        groupPortBranch = { path, edges: [...externalEdges] };
       }
 
-      cables.push({ groupKey, junction, branches, groupPortBranches });
+      cables.push({ groupKey, junction, branches, groupPortBranch });
     }
   }
 
@@ -978,8 +942,8 @@ function buildIntraGroupCables(
   for (const [groupKey, extNodeMap] of groupExternalMap) {
     const centroid = clusterCentroids.get(groupKey);
     if (!centroid) continue;
-    const groupPortsForKey = allGroupPorts.get(groupKey);
-    if (!groupPortsForKey) continue;
+    const portForKey = groupPorts.get(groupKey);
+    if (!portForKey) continue;
 
     const sourceMap = groupSourceMap.get(groupKey);
 
@@ -993,25 +957,13 @@ function buildIntraGroupCables(
 
       const junction = { x: centroid.x, y: centroid.y };
 
-      // Classify external edges by direction and route to appropriate port
-      const groupPortBranches = new Map<PortDirection, { path: { x: number; y: number }[]; edges: GraphEdge[] }>();
-      const dirEdges = new Map<PortDirection, GraphEdge[]>();
-      for (const e of externalEdges) {
-        const dir = classifyEdgePort(e, nodeId);
-        let arr = dirEdges.get(dir);
-        if (!arr) { arr = []; dirEdges.set(dir, arr); }
-        arr.push(e);
-      }
+      // Single group port branch: all external edges route to the one port
       const cableOffset = 50;
       const routeOpts: CableRouteOpts = {};
-      for (const [dir, edges] of dirEdges) {
-        const port = groupPortsForKey.get(dir);
-        if (!port) continue;
-        const path = computeCablePath(nodePos, port, cableOffset, routeOpts);
-        groupPortBranches.set(dir, { path, edges });
-      }
+      const path = computeCablePath(nodePos, portForKey, cableOffset, routeOpts);
+      const groupPortBranch: IntraGroupCable["groupPortBranch"] = { path, edges: [...externalEdges] };
 
-      cables.push({ groupKey, junction, branches: [], groupPortBranches });
+      cables.push({ groupKey, junction, branches: [], groupPortBranch });
     }
   }
 
@@ -1097,62 +1049,17 @@ function drawIntraGroupCables(
     _drawBranchWires(null);
   }
 
-  // PASS 2: Group port branch wires (4-directional).
+  // PASS 2: Single group port branch wires (1 port per group).
   // When highlighting: draw per-cable for accurate path-specific highlighting.
-  // When idle: merge same-colored wires across cables for cleaner visuals.
+  // When idle: draw all wires at normal alpha.
   const isHighlighting = !!cfg.highlightedNodeId;
 
   if (isHighlighting) {
     // Per-cable drawing with 2 sub-passes: dim first, bright on top.
     const _drawGpbWires = (filterHL: "dim" | "bright") => {
       for (const cable of cables) {
-        if (!cable.groupPortBranches || cable.groupPortBranches.size === 0) continue;
-
-        for (const [dir, gpb] of cable.groupPortBranches) {
-          if (gpb.edges.length === 0) continue;
-
-          const gpColorMap = new Map<number, GraphEdge[]>();
-          for (const e of gpb.edges) {
-            const c = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
-            const ex = gpColorMap.get(c);
-            if (ex) ex.push(e); else gpColorMap.set(c, [e]);
-          }
-
-          const portInfo = portColorLanes?.get(portLaneKey(cable.groupKey, dir));
-
-          for (const [color, edges] of gpColorMap) {
-            const gpHighlight = getBranchHighlight(edges);
-            if (gpHighlight !== filterHL) continue;
-
-            let wireAlpha = WIRE_BASE_ALPHA;
-            if (gpHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
-            else wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
-
-            const wirePath = gpb.path.map(p => ({ x: p.x, y: p.y }));
-            const laneEndpoint = portInfo
-              ? getPortLaneEndpoint(portInfo, color, CABLE_LANE_SPACING)
-              : null;
-            if (laneEndpoint) {
-              wirePath[wirePath.length - 1] = laneEndpoint;
-            }
-
-            const gpFinalAlpha = gpHighlight === "bright"
-              ? wireAlpha
-              : Math.max(wireAlpha * densityScale, 0.05);
-            _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, gpFinalAlpha);
-          }
-        }
-      }
-    };
-    _drawGpbWires("dim");
-    _drawGpbWires("bright");
-  } else {
-    // Per-cable drawing (same as highlight mode but all wires at normal alpha).
-    // Each cable uses its own path so all source nodes are visually connected.
-    for (const cable of cables) {
-      if (!cable.groupPortBranches || cable.groupPortBranches.size === 0) continue;
-      for (const [dir, gpb] of cable.groupPortBranches) {
-        if (gpb.edges.length === 0) continue;
+        const gpb = cable.groupPortBranch;
+        if (!gpb || gpb.edges.length === 0) continue;
 
         const gpColorMap = new Map<number, GraphEdge[]>();
         for (const e of gpb.edges) {
@@ -1161,20 +1068,41 @@ function drawIntraGroupCables(
           if (ex) ex.push(e); else gpColorMap.set(c, [e]);
         }
 
-        const portInfo = portColorLanes?.get(portLaneKey(cable.groupKey, dir));
+        for (const [color, edges] of gpColorMap) {
+          const gpHighlight = getBranchHighlight(edges);
+          if (gpHighlight !== filterHL) continue;
 
-        for (const [color] of gpColorMap) {
+          let wireAlpha = WIRE_BASE_ALPHA;
+          if (gpHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
+          else wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
+
           const wirePath = gpb.path.map(p => ({ x: p.x, y: p.y }));
-          const laneEndpoint = portInfo
-            ? getPortLaneEndpoint(portInfo, color, CABLE_LANE_SPACING)
-            : null;
-          if (laneEndpoint) {
-            wirePath[wirePath.length - 1] = laneEndpoint;
-          }
 
-          const gpFinalAlpha = Math.max(WIRE_BASE_ALPHA * densityScale, 0.35);
+          const gpFinalAlpha = gpHighlight === "bright"
+            ? wireAlpha
+            : Math.max(wireAlpha * densityScale, 0.05);
           _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, gpFinalAlpha);
         }
+      }
+    };
+    _drawGpbWires("dim");
+    _drawGpbWires("bright");
+  } else {
+    for (const cable of cables) {
+      const gpb = cable.groupPortBranch;
+      if (!gpb || gpb.edges.length === 0) continue;
+
+      const gpColorMap = new Map<number, GraphEdge[]>();
+      for (const e of gpb.edges) {
+        const c = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+        const ex = gpColorMap.get(c);
+        if (ex) ex.push(e); else gpColorMap.set(c, [e]);
+      }
+
+      for (const [color] of gpColorMap) {
+        const wirePath = gpb.path.map(p => ({ x: p.x, y: p.y }));
+        const gpFinalAlpha = Math.max(WIRE_BASE_ALPHA * densityScale, 0.35);
+        _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, gpFinalAlpha);
       }
     }
   }
@@ -1183,7 +1111,7 @@ function drawIntraGroupCables(
 // Intra-group cable cache (same invalidation as trunks)
 let _intraCableCache: { cables: IntraGroupCable[]; handledEdgeIds: Set<string> } | null = null;
 let _intraCableDirty = true;
-let _cachedGroupPorts: AllGroupPorts | null = null;
+let _cachedGroupPorts: Map<string, GroupPort> | null = null;
 
 /**
  * Shared color→lane mapping per group port.
@@ -1205,18 +1133,17 @@ type PortColorLanes = Map<string, PortLaneInfo>;
 let _portColorLanes: PortColorLanes | null = null;
 
 /**
- * Build a shared color→lane mapping for each group port.
- * Collects colors from trunk cables per group + groupPortBranch edges per group.
- * Sorts colors numerically and computes per-color fixed endpoint coordinates
- * so that both trunk and internal wires terminate at the exact same point.
+ * Build a shared color→lane mapping for each group port (1 port per group).
+ * Collects colors from groupPortBranch edges per group.
+ * Key: groupKey (not "groupKey|dir" since there is only 1 port).
  */
 function buildPortColorLanes(
   trunks: Trunk[],
-  cables: { groupKey: string; groupPortBranches: Map<PortDirection, { edges: GraphEdge[] }> }[],
+  cables: { groupKey: string; groupPortBranch: { edges: GraphEdge[] } | null }[],
   cfg: EdgeDrawConfig,
-  allGroupPorts: AllGroupPorts,
+  groupPorts: Map<string, GroupPort>,
 ): PortColorLanes {
-  // Key: "groupKey|dir"
+  // Key: groupKey
   const portColors = new Map<string, Set<number>>();
 
   const ensure = (key: string): Set<number> => {
@@ -1225,33 +1152,24 @@ function buildPortColorLanes(
     return s;
   };
 
-  // Trunk colors are not added to directional port lanes — trunks use their own
-  // path-perpendicular offsets. Port lane alignment is only for groupPortBranch.
-
-  // Collect colors from groupPortBranches edges (per direction)
+  // Collect colors from groupPortBranch edges
   for (const cable of cables) {
-    if (!cable.groupPortBranches || cable.groupPortBranches.size === 0) continue;
-    for (const [dir, gpb] of cable.groupPortBranches) {
-      const key = portLaneKey(cable.groupKey, dir);
-      const s = ensure(key);
-      for (const e of gpb.edges) {
-        const c = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
-        s.add(c);
-      }
+    const gpb = cable.groupPortBranch;
+    if (!gpb || gpb.edges.length === 0) continue;
+    const s = ensure(cable.groupKey);
+    for (const e of gpb.edges) {
+      const c = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+      s.add(c);
     }
   }
 
   // Build PortLaneInfo with fixed endpoint coordinates per color
   const result: PortColorLanes = new Map();
-  for (const [key, colorSet] of portColors) {
-    // Parse "groupKey|dir" back
-    const lastPipe = key.lastIndexOf("|");
-    const gk = key.substring(0, lastPipe);
-    const dir = key.substring(lastPipe + 1) as PortDirection;
-    const port = allGroupPorts.get(gk)?.get(dir);
+  for (const [gk, colorSet] of portColors) {
+    const port = groupPorts.get(gk);
     if (!port) continue;
     const colors = [...colorSet].sort((a, b) => a - b);
-    result.set(key, {
+    result.set(gk, {
       colors,
       portX: port.x,
       portY: port.y,
@@ -1844,12 +1762,22 @@ export function drawEdges(
     }
 
     if (_cableDirty || !_cableCache) {
-      // Pre-compute allGroupPorts for buildTrunks
+      // Pre-compute group ports for buildTrunks
       const centroids = cfg.clusterCentroids!;
       const radii = cfg.clusterRadii!;
       const groupKeys = new Set(cfg.nodeClusterMap!.values());
+      // Build connection map from edges (which groups connect to which)
       const connections = new Map<string, Set<string>>();
-      // We need a preliminary connection map — buildTrunks will refine internally
+      for (const e of edges) {
+        if (shouldSkipEdge(e, cfg)) continue;
+        const sg = cfg.nodeClusterMap!.get(edgeSourceId(e));
+        const tg = cfg.nodeClusterMap!.get(edgeTargetId(e));
+        if (!sg || !tg || sg === tg) continue;
+        if (!connections.has(sg)) connections.set(sg, new Set());
+        if (!connections.has(tg)) connections.set(tg, new Set());
+        connections.get(sg)!.add(tg);
+        connections.get(tg)!.add(sg);
+      }
       const allGroupPorts = computeGroupPorts(groupKeys, centroids, radii, connections, cfg.coordinateSystem, polarCenter);
       _cachedGroupPorts = allGroupPorts;
       _cableCache = buildTrunks(edges, resolvePos, cfg, allGroupPorts);
