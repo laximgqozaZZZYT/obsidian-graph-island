@@ -623,42 +623,20 @@ function buildIntraGroupCables(
     edgeList.push(e);
   }
 
-  // Step 2: Build cables for each group's source nodes
+  // Step 2: Build cables using road network routing (cable tray).
+  // Road network intersections sit at the centers of 2x2 node cells,
+  // so cables naturally pass through the gaps between nodes.
+  const roadNet = cfg.roadNetwork;
+
   for (const [groupKey, sourceMap] of groupSourceMap) {
     const centroid = clusterCentroids.get(groupKey);
     if (!centroid) continue;
     const groupPort = groupPorts.get(groupKey);
 
-    // Compute node row spacing to place cable ports between rows.
-    // Collect Y coordinates of all nodes in this group, find min gap.
-    const groupNodeYs = new Set<number>();
-    for (const [nid] of sourceMap) {
-      const p = resolvePos(nid);
-      if (p) groupNodeYs.add(Math.round(p.y));
-    }
-    // Also collect target node Ys
-    for (const [, edgeList] of sourceMap) {
-      for (const e of edgeList) {
-        const tp = resolvePos(e.target);
-        if (tp) groupNodeYs.add(Math.round(tp.y));
-      }
-    }
-    const sortedYs = [...groupNodeYs].sort((a, b) => a - b);
-    let minRowGap = Infinity;
-    for (let i = 1; i < sortedYs.length; i++) {
-      const gap = sortedYs[i] - sortedYs[i - 1];
-      if (gap > 1 && gap < minRowGap) minRowGap = gap;
-    }
-    // Port offset = half of row spacing (cables run between rows)
-    const portOffset = minRowGap < Infinity ? minRowGap * 0.45 : NODE_PORT_MIN_OFFSET;
-
     for (const [sourceNodeId, edgeList] of sourceMap) {
-
       const srcPos = resolvePos(sourceNodeId);
       if (!srcPos) continue;
 
-      // Collect all node positions for this cable (source + all targets)
-      const nodePositions: { x: number; y: number }[] = [{ x: srcPos.x, y: srcPos.y }];
       const targetPositions = new Map<string, { x: number; y: number }>();
       let connectsExternal = false;
 
@@ -673,63 +651,13 @@ function buildIntraGroupCables(
         const tgtPos = resolvePos(e.target) ?? resolvePos(tid);
         if (!tgtPos) continue;
         targetPositions.set(tid, { x: tgtPos.x, y: tgtPos.y });
-        nodePositions.push({ x: tgtPos.x, y: tgtPos.y });
       }
 
       if (targetPositions.size === 0 && !connectsExternal) continue;
 
-      // ── Junction = average position of ALL nodes in this group ──
-      // Computed from actual node positions (not clusterMeta centroids).
-      let allGroupX = 0, allGroupY = 0, allGroupN = 0;
-      for (const [nid] of sourceMap) {
-        const p = resolvePos(nid);
-        if (p) { allGroupX += p.x; allGroupY += p.y; allGroupN++; }
-      }
-      // Also include target nodes that may not be sources
-      const countedIds = new Set(sourceMap.keys());
-      for (const [, edgeList] of sourceMap) {
-        for (const e of edgeList) {
-          const tid = edgeTargetId(e);
-          if (countedIds.has(tid)) continue;
-          countedIds.add(tid);
-          const tg = nodeClusterMap.get(tid);
-          if (tg !== groupKey) continue;
-          const p = resolvePos(e.target) ?? resolvePos(tid);
-          if (p) { allGroupX += p.x; allGroupY += p.y; allGroupN++; }
-        }
-      }
-      const junction = allGroupN > 0
-        ? { x: allGroupX / allGroupN, y: allGroupY / allGroupN }
-        : { x: centroid.x, y: centroid.y };
+      const junction = { x: centroid.x, y: centroid.y };
 
-      // ── Row gap for cable routing ──
-      // Cables must NOT cross nodes. They route through the gap between
-      // node rows, never on the same Y as any node.
-      const halfGap = sortedYs.length >= 2
-        ? (sortedYs[sortedYs.length - 1] - sortedYs[0]) / (sortedYs.length - 1) / 2
-        : portOffset;
-      const minClearance = Math.max(portOffset * 0.3, 8); // minimum distance from any node row
-
-      const findGapBelow = (y: number): number => {
-        for (let ri = 0; ri < sortedYs.length - 1; ri++) {
-          const gap = (sortedYs[ri] + sortedYs[ri + 1]) / 2;
-          if (gap > y + 1) return gap;
-        }
-        return sortedYs[sortedYs.length - 1] + halfGap;
-      };
-
-      let routeY = findGapBelow(junction.y);
-      // Ensure routeY doesn't overlap any node row
-      for (const ny of sortedYs) {
-        if (Math.abs(routeY - ny) < minClearance) {
-          routeY = ny + minClearance;
-        }
-      }
-
-      // ── Build branches ──
-      // Each branch path: src → (down to routeY) → junction X → (across to tgt X) → tgt
-      // This ensures cables pass through junction and never cross node rows.
-      // Route: src → (drop to routeY) → junction.x → tgt.x → (rise to tgt)
+      // ── Build branches via road network ──
       const branches: IntraGroupCable["branches"] = [];
 
       for (const e of edgeList) {
@@ -741,14 +669,20 @@ function buildIntraGroupCables(
         if (!branch) {
           const tgtPort: NodePort = { nodeId: tid, x: tgtPos.x, y: tgtPos.y };
 
-          // ALL cables route through junction via gap row — no direct lines
-          const path = [
-            { x: srcPos.x, y: srcPos.y },     // start at source
-            { x: srcPos.x, y: routeY },        // drop to routing gap
-            { x: junction.x, y: routeY },      // across to junction X
-            { x: tgtPos.x, y: routeY },        // across to target X
-            { x: tgtPos.x, y: tgtPos.y },      // up to target
-          ];
+          // Route through road network intersections (cell centers between nodes)
+          let path: { x: number; y: number }[];
+          if (roadNet && roadNet.intersections.length > 0) {
+            const waypoints = routeEdge(roadNet, sourceNodeId, tid);
+            if (waypoints.length >= 2) {
+              path = [{ x: srcPos.x, y: srcPos.y }, ...waypoints, { x: tgtPos.x, y: tgtPos.y }];
+            } else {
+              // Fallback: straight line
+              path = [{ x: srcPos.x, y: srcPos.y }, { x: tgtPos.x, y: tgtPos.y }];
+            }
+          } else {
+            path = [{ x: srcPos.x, y: srcPos.y }, { x: tgtPos.x, y: tgtPos.y }];
+          }
+
           branch = { nodePort: tgtPort, path, edges: [] };
           branches.push(branch);
         }
@@ -758,15 +692,12 @@ function buildIntraGroupCables(
 
       if (branches.length === 0 && !connectsExternal) continue;
 
-      // Group port branch: source → (gap) → junction → (gap) → groupPort
+      // Group port branch
       let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
       if (connectsExternal && groupPort) {
         const path = [
           { x: srcPos.x, y: srcPos.y },
-          { x: srcPos.x, y: routeY },             // drop to routing gap
-          { x: junction.x, y: routeY },                   // across to junction X
-          { x: groupPort.x, y: routeY },          // across to group port X
-          { x: groupPort.x, y: groupPort.y },     // up/down to group port
+          { x: groupPort.x, y: groupPort.y },
         ];
         groupPortBranch = { path };
       }
