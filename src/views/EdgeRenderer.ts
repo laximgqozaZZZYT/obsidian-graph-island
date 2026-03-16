@@ -647,22 +647,28 @@ function buildIntraGroupCables(
     if (!centroid) continue;
     const groupPort = groupPorts.get(groupKey);
 
-    // Compute average edge length within this group for port offset
-    let totalLen = 0;
-    let edgeCount = 0;
+    // Compute node row spacing to place cable ports between rows.
+    // Collect Y coordinates of all nodes in this group, find min gap.
+    const groupNodeYs = new Set<number>();
+    for (const [nid] of sourceMap) {
+      const p = resolvePos(nid);
+      if (p) groupNodeYs.add(Math.round(p.y));
+    }
+    // Also collect target node Ys
     for (const [, edgeList] of sourceMap) {
       for (const e of edgeList) {
-        const sp = resolvePos(e.source);
         const tp = resolvePos(e.target);
-        if (sp && tp) {
-          const dx = tp.x - sp.x, dy = tp.y - sp.y;
-          totalLen += Math.sqrt(dx * dx + dy * dy);
-          edgeCount++;
-        }
+        if (tp) groupNodeYs.add(Math.round(tp.y));
       }
     }
-    const avgEdgeLen = edgeCount > 0 ? totalLen / edgeCount : 100;
-    const portOffset = Math.max(avgEdgeLen * NODE_PORT_OFFSET_RATIO, NODE_PORT_MIN_OFFSET);
+    const sortedYs = [...groupNodeYs].sort((a, b) => a - b);
+    let minRowGap = Infinity;
+    for (let i = 1; i < sortedYs.length; i++) {
+      const gap = sortedYs[i] - sortedYs[i - 1];
+      if (gap > 1 && gap < minRowGap) minRowGap = gap;
+    }
+    // Port offset = half of row spacing (cables run between rows)
+    const portOffset = minRowGap < Infinity ? minRowGap * 0.45 : NODE_PORT_MIN_OFFSET;
 
     for (const [sourceNodeId, edgeList] of sourceMap) {
       if (edgeList.length < 2) continue;
