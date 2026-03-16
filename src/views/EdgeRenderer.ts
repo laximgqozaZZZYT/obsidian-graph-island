@@ -682,6 +682,7 @@ const BUNDLE_SKIP = 3;
 // Trunk bundling cache (same invalidation as direction bundles)
 let _cableCache: { trunks: Trunk[]; cabledEdgeIds: Set<string> } | null = null;
 let _cableDirty = true;
+let _cableCentroidCount = 0; // track centroid count to auto-invalidate
 
 /** Mark the direction bundle cache as stale (call when edges, visibility, or
  *  layout change significantly — e.g. toggling edge types, loading new data). */
@@ -1032,6 +1033,12 @@ export function drawEdges(
     : clustersAvailable;
   let cabledEdgeIds: Set<string>;
   if (hasClusters) {
+    // Auto-invalidate when centroid count changes (e.g. simulation startup → stable)
+    const curCentroidCount = cfg.clusterCentroids?.size ?? 0;
+    if (curCentroidCount !== _cableCentroidCount) {
+      _cableDirty = true;
+      _cableCentroidCount = curCentroidCount;
+    }
     if (_cableDirty || !_cableCache) {
       _cableCache = buildTrunks(edges, resolvePos, cfg);
       _cableDirty = false;

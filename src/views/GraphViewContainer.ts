@@ -1829,7 +1829,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.maxDegree = maxDeg;
     cfg.totalEdgeCount = this.graphEdges.length;
     cfg.nodeClusterMap = this.clusterMeta?.nodeClusterMap ?? null;
-    cfg.clusterCentroids = this.getCachedCentroids();
+    // Use live centroids when available, fall back to target centroids from clusterMeta
+    const liveCentroids = this.getCachedCentroids();
+    const metaCentroids = this.clusterMeta?.clusterCentroids ?? null;
+    // Live centroids may have fewer entries during simulation startup (nodes overlap)
+    // Use whichever has more entries
+    cfg.clusterCentroids = (liveCentroids && metaCentroids && liveCentroids.size < metaCentroids.size)
+      ? metaCentroids
+      : liveCentroids ?? metaCentroids;
     cfg.clusterRadii = this.clusterMeta?.clusterRadii ?? null;
     cfg.bundleStrength = this.panel.edgeBundleStrength;
     cfg.cableBundleMode = this.panel.cableBundleMode;
