@@ -573,31 +573,30 @@ function buildTrunks(
       for (const e of edgeList) allEdges.push(e);
     }
 
-    const cA = centroids.get(pair.srcGroup);
-    const cB = centroids.get(pair.tgtGroup);
-    if (!cA || !cB) continue;
+    // Use the SAME shared ports from computeGroupPorts so that trunk endpoints
+    // match groupPortBranch endpoints exactly (no gap).
+    const portA = ports.get(pair.srcGroup);
+    const portB = ports.get(pair.tgtGroup);
+    if (!portA || !portB) continue;
+
     const rA = radii.get(pair.srcGroup) ?? DEFAULT_CLUSTER_RADIUS;
     const rB = radii.get(pair.tgtGroup) ?? DEFAULT_CLUSTER_RADIUS;
+    const cA = centroids.get(pair.srcGroup);
+    const cB = centroids.get(pair.tgtGroup);
 
-    // Port on A boundary pointing toward B
-    const dxAB = cB.x - cA.x, dyAB = cB.y - cA.y;
-    const lenAB = Math.sqrt(dxAB * dxAB + dyAB * dyAB);
-    const portA = lenAB > 1
-      ? { x: cA.x + (dxAB / lenAB) * rA, y: cA.y + (dyAB / lenAB) * rA }
-      : { x: cA.x + rA, y: cA.y };
-    const portB = lenAB > 1
-      ? { x: cB.x - (dxAB / lenAB) * rB, y: cB.y - (dyAB / lenAB) * rB }
-      : { x: cB.x - rB, y: cB.y };
-
-    // Junction = port + 30% radius outward
+    // Junction = port + 30% radius outward (away from centroid)
     const jDistA = rA * 0.3;
     const jDistB = rB * 0.3;
-    const jctA = lenAB > 1
-      ? { x: portA.x + (dxAB / lenAB) * jDistA, y: portA.y + (dyAB / lenAB) * jDistA }
-      : portA;
-    const jctB = lenAB > 1
-      ? { x: portB.x - (dxAB / lenAB) * jDistB, y: portB.y - (dyAB / lenAB) * jDistB }
-      : portB;
+    const dxA = portA.x - (cA?.x ?? portA.x), dyA = portA.y - (cA?.y ?? portA.y);
+    const lenA = Math.sqrt(dxA * dxA + dyA * dyA);
+    const jctA = lenA > 1
+      ? { x: portA.x + (dxA / lenA) * jDistA, y: portA.y + (dyA / lenA) * jDistA }
+      : { x: portA.x, y: portA.y };
+    const dxB = portB.x - (cB?.x ?? portB.x), dyB = portB.y - (cB?.y ?? portB.y);
+    const lenB = Math.sqrt(dxB * dxB + dyB * dyB);
+    const jctB = lenB > 1
+      ? { x: portB.x + (dxB / lenB) * jDistB, y: portB.y + (dyB / lenB) * jDistB }
+      : { x: portB.x, y: portB.y };
 
     // Path: PortA → JunctionA → (Manhattan middle) → JunctionB → PortB
     const middle = buildManhattanPath(jctA, jctB, cfg.clusterArrangement);
@@ -1268,39 +1267,52 @@ function drawTrunks(
         }
       }
 
-      // Trunk wires use simple path-perpendicular offsets (no port lane alignment)
+      // When highlighting, check per-EDGE (not per-color) to avoid lighting up
+      // unrelated wires that happen to share the same color.
       const uniqueColors = [...colorMap.keys()];
       const nUnique = uniqueColors.length;
 
       for (let ci = 0; ci < nUnique; ci++) {
         const color = uniqueColors[ci];
-
         const wireEdges = colorMap.get(color)!;
-        let wireHighlight: "normal" | "bright" | "dim" = "normal";
-        if (cfg.highlightedNodeId) {
-          wireHighlight = "dim";
-          for (const e of wireEdges) {
-            if (cfg.highlightSet.has(edgeSourceId(e)) || cfg.highlightSet.has(edgeTargetId(e))) {
-              wireHighlight = "bright";
-              break;
-            }
-          }
-        }
-
-        if (filterHighlight !== null && wireHighlight !== filterHighlight) continue;
-
-        let wireAlpha = WIRE_BASE_ALPHA;
-        if (wireHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
-        else if (wireHighlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
         const off = (ci - (nUnique - 1) / 2) * laneSpacing;
         const ox = perpX * off, oy = perpY * off;
-        const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
 
-        const finalAlpha = wireHighlight === "bright"
-          ? wireAlpha
-          : Math.max(wireAlpha * densityScale, wireHighlight === "dim" ? 0.05 : 0.35);
-        _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, finalAlpha);
+        if (cfg.highlightedNodeId) {
+          // Split edges into bright vs dim, draw separately
+          const brightEdges: GraphEdge[] = [];
+          const dimEdges: GraphEdge[] = [];
+          for (const e of wireEdges) {
+            if (cfg.highlightSet.has(edgeSourceId(e)) || cfg.highlightSet.has(edgeTargetId(e))) {
+              brightEdges.push(e);
+            } else {
+              dimEdges.push(e);
+            }
+          }
+
+          // Draw dim wire if there are dim edges (and filter allows)
+          if (dimEdges.length > 0 && (filterHighlight === null || filterHighlight === "dim")) {
+            const dimAlpha = Math.max(
+              (cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA) * densityScale,
+              0.05,
+            );
+            const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
+            _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, dimAlpha);
+          }
+          // Draw bright wire if there are bright edges (and filter allows)
+          if (brightEdges.length > 0 && (filterHighlight === null || filterHighlight === "bright")) {
+            const brightAlpha = cfg.highlightEdgeAlpha ?? 1.0;
+            const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
+            _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, brightAlpha);
+          }
+        } else {
+          // No highlight — draw all as normal
+          if (filterHighlight !== null && filterHighlight !== "normal") continue;
+          const wireAlpha = Math.max(WIRE_BASE_ALPHA * densityScale, 0.35);
+          const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
+          _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, wireAlpha);
+        }
       }
     }
   };
