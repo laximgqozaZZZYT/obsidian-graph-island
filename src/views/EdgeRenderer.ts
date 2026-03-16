@@ -625,14 +625,33 @@ function findNearestGap(gaps: number[], target: number): number | null {
 }
 
 /**
+ * Find a gap BETWEEN two coordinates (strictly between minV and maxV).
+ * If none found strictly between, fall back to nearest gap overall.
+ */
+function findGapBetween(gaps: number[], a: number, b: number): number | null {
+  if (gaps.length === 0) return null;
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  // Prefer a gap strictly between a and b
+  let best: number | null = null;
+  let bestDist = Infinity;
+  const mid = (a + b) / 2;
+  for (const g of gaps) {
+    if (g > lo + 1 && g < hi - 1) {
+      const d = Math.abs(g - mid);
+      if (d < bestDist) { bestDist = d; best = g; }
+    }
+  }
+  if (best !== null) return best;
+  // Same row/col: pick the gap just below or above
+  return findNearestGap(gaps, mid);
+}
+
+/**
  * Route between two points within a group using the junction grid (碁盤).
- * Wires run exclusively through row gaps (horizontal) and column gaps (vertical).
+ * Wires run EXCLUSIVELY through column gaps (vertical runs) and row gaps (horizontal runs).
+ * Every segment is axis-aligned and passes through junction midpoints.
  *
- * from → (nearest colGap to from, from.y)
- *      → (that colGap, nearest rowGap to target.y)
- *      → (nearest colGap to target.x, that rowGap)
- *      → (that colGap, target.y)
- *      → target
+ * Path: from → srcColGap → rowGap → tgtColGap → to
  */
 function routeViaJunctionGrid(
   from: { x: number; y: number },
@@ -643,16 +662,7 @@ function routeViaJunctionGrid(
     return [from, to];
   }
 
-  // Find colGap nearest to source (to exit the source node's column)
-  const srcColGap = findNearestGap(grid.colGaps, from.x);
-  // Find colGap nearest to target (to enter the target node's column)
-  const tgtColGap = findNearestGap(grid.colGaps, to.x);
-  // Find rowGap between source and target rows
-  const midY = (from.y + to.y) / 2;
-  const rowGap = findNearestGap(grid.rowGaps, midY);
-
   const path: { x: number; y: number }[] = [{ x: from.x, y: from.y }];
-
   const addPt = (x: number, y: number) => {
     const last = path[path.length - 1];
     if (Math.abs(x - last.x) > 1 || Math.abs(y - last.y) > 1) {
@@ -660,23 +670,43 @@ function routeViaJunctionGrid(
     }
   };
 
+  // Find colGap nearest to source X (the "aisle" to exit the source node)
+  const srcColGap = findNearestGap(grid.colGaps, from.x);
+  // Find colGap nearest to target X (the "aisle" to enter the target node)
+  const tgtColGap = findNearestGap(grid.colGaps, to.x);
+  // Find rowGap between the two Y positions
+  const rowGap = findGapBetween(grid.rowGaps, from.y, to.y);
+
   if (srcColGap !== null && tgtColGap !== null && rowGap !== null) {
-    // Full junction routing:
-    // from → srcColGap (horizontal) → rowGap (vertical) → tgtColGap (horizontal) → target (vertical)
-    addPt(srcColGap, from.y);     // move to source col gap
-    addPt(srcColGap, rowGap);     // move down/up to row gap
-    addPt(tgtColGap, rowGap);     // move along row gap to target col gap
-    addPt(tgtColGap, to.y);       // move to target row
+    // Standard 碁盤 routing: 4 segments, all through junction points
+    // 1. from → srcColGap (horizontal move to column aisle)
+    addPt(srcColGap, from.y);
+    // 2. srcColGap → rowGap (vertical move to row aisle)
+    addPt(srcColGap, rowGap);
+    // 3. rowGap → tgtColGap (horizontal move along row aisle)
+    addPt(tgtColGap, rowGap);
+    // 4. tgtColGap → target Y (vertical move to target row)
+    addPt(tgtColGap, to.y);
+  } else if (srcColGap !== null && rowGap !== null) {
+    addPt(srcColGap, from.y);
+    addPt(srcColGap, rowGap);
+    addPt(to.x, rowGap);
+  } else if (tgtColGap !== null && rowGap !== null) {
+    addPt(from.x, rowGap);
+    addPt(tgtColGap, rowGap);
+    addPt(tgtColGap, to.y);
   } else if (rowGap !== null) {
-    // No col gaps — use row gap with direct X movement
     addPt(from.x, rowGap);
     addPt(to.x, rowGap);
   } else if (srcColGap !== null) {
-    // No row gaps — use col gap with direct Y movement
     addPt(srcColGap, from.y);
     addPt(srcColGap, to.y);
+  } else {
+    // No grid at all — L-shape fallback through midpoint
+    const midY = (from.y + to.y) / 2;
+    addPt(from.x, midY);
+    addPt(to.x, midY);
   }
-  // else: no grid at all, just straight line
 
   addPt(to.x, to.y);
   return path;
