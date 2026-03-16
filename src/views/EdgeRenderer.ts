@@ -1333,11 +1333,17 @@ export function drawEdges(
     : clustersAvailable;
   let cabledEdgeIds: Set<string>;
   if (hasClusters) {
-    // Auto-invalidate when centroid count changes (e.g. simulation startup → stable)
+    // Auto-invalidate when centroid count changes or on bundle skip cycle
+    // (ensures cable paths update as nodes spread during simulation)
     const curCentroidCount = cfg.clusterCentroids?.size ?? 0;
     if (curCentroidCount !== _cableCentroidCount) {
       _cableDirty = true;
+      _intraCableDirty = true;
       _cableCentroidCount = curCentroidCount;
+    }
+    if (_bundleFrameCount === 0) {
+      _cableDirty = true;
+      _intraCableDirty = true;
     }
     if (_cableDirty || !_cableCache) {
       _cableCache = buildTrunks(edges, resolvePos, cfg);
