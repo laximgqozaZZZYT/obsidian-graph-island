@@ -12,7 +12,7 @@ import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
-import { buildRoadNetwork, addTrunkRoads, multiDensify, densifyRounds, type RoadNetwork } from "../layouts/road-network";
+import { buildRoadNetwork, buildRoadNetworkFromPhantoms, addTrunkRoads, type RoadNetwork } from "../layouts/road-network";
 
 /**
  * Global cache for the densest road network ever built — survives module reloads.
@@ -940,6 +940,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.roadGraphics = null;
     // Keep roadNetworkData across destroyPixi — only rebuild via simulation end handler
     this._roadNetworkFinalized = false;
+    this._roadDrawn = false;
     this.barGraphics = null;
     this.barLabelContainer = null;
     this.spatialGrid.clear();
@@ -2267,15 +2268,94 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   // =========================================================================
+  // Phantom Nodes — invisible junction points for road network
+  // =========================================================================
+
+  /**
+   * Generate phantom nodes at layout pattern intersections.
+   * These participate in the simulation (forces, arrangement, auto-adjustment)
+   * but are never rendered (isPhantom = true, nodeR = 0).
+   *
+   * Polar layouts: spoke × ring intersections
+   * Cartesian layouts: grid intersections
+   */
+  private _generatePhantomNodes(
+    realNodes: GraphNode[],
+    cx: number, cy: number,
+  ): GraphNode[] {
+    const arrangement = this.panel.clusterArrangement;
+    const POLAR = new Set(["concentric", "radial", "phyllotaxis"]);
+    const isPolar = POLAR.has(arrangement);
+    const phantoms: GraphNode[] = [];
+
+    if (isPolar) {
+      const spokeCount = Math.min(12, Math.max(8, Math.ceil(Math.sqrt(realNodes.length / 5))));
+      const ringCount = Math.min(8, Math.max(4, Math.ceil(Math.sqrt(realNodes.length / 10))));
+      // Estimate max radius from node positions (or use viewport)
+      let maxR = 0;
+      for (const n of realNodes) {
+        if (n.isPhantom) continue;
+        const d = Math.sqrt((n.x - cx) ** 2 + (n.y - cy) ** 2);
+        if (d > maxR) maxR = d;
+      }
+      if (maxR < 10) maxR = 500;
+
+      for (let ri = 1; ri <= ringCount; ri++) {
+        const r = (maxR * ri) / (ringCount + 1);
+        for (let si = 0; si < spokeCount; si++) {
+          const theta = (si / spokeCount) * Math.PI * 2;
+          phantoms.push({
+            id: `__phantom_r${ri}_s${si}`,
+            label: "",
+            x: cx + r * Math.cos(theta),
+            y: cy + r * Math.sin(theta),
+            vx: 0, vy: 0,
+            isPhantom: true,
+          });
+        }
+      }
+    } else {
+      const gridSize = Math.min(10, Math.max(6, Math.ceil(Math.sqrt(realNodes.length / 8))));
+      let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+      for (const n of realNodes) {
+        if (n.isPhantom) continue;
+        if (n.x < xMin) xMin = n.x; if (n.x > xMax) xMax = n.x;
+        if (n.y < yMin) yMin = n.y; if (n.y > yMax) yMax = n.y;
+      }
+      if (xMin === Infinity) { xMin = cx - 250; xMax = cx + 250; yMin = cy - 250; yMax = cy + 250; }
+      const w = (xMax - xMin) || 500;
+      const h = (yMax - yMin) || 500;
+
+      for (let xi = 0; xi <= gridSize; xi++) {
+        for (let yi = 0; yi <= gridSize; yi++) {
+          phantoms.push({
+            id: `__phantom_x${xi}_y${yi}`,
+            label: "",
+            x: xMin + (w * xi) / gridSize,
+            y: yMin + (h * yi) / gridSize,
+            vx: 0, vy: 0,
+            isPhantom: true,
+          });
+        }
+      }
+    }
+
+    return phantoms;
+  }
+
+  // =========================================================================
   // Road Network — auto-generated roads from coordinate grid lines
   // =========================================================================
 
   private _roadNetworkFinalized = false;
+  /** When true, the road graphics commands are up-to-date and skip redraw */
+  private _roadDrawn = false;
 
   private buildRoadNetwork(final = false) {
     // Once finalized (by simulation end), don't rebuild unless explicitly requested
     if (this._roadNetworkFinalized && !final) return;
     this._buildRoadNetworkInner();
+    this._roadDrawn = false; // invalidate draw cache
     if (final) {
       this._roadNetworkFinalized = true;
     }
@@ -2298,7 +2378,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         centroids.push({ x: c.x, y: c.y });
       }
       if (centroids.length > 1) {
-        addTrunkRoads(this.roadNetworkData, centroids);
+        const groupArrangement = this.panel.clusterGroupArrangement || "auto";
+        addTrunkRoads(this.roadNetworkData, centroids, groupArrangement);
         // Re-map nodes to nearest intersection (trunk roads may provide closer access)
         for (const node of allNodes) {
           let bestId = 0;
@@ -2329,6 +2410,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     if (allNodes.length === 0) return; // Keep existing road network if no positioned nodes yet
 
+    // Phantom-based road network: if simulation has phantom nodes, use them
+    const simNodes = this.simulation?.nodes?.() as GraphNode[] | undefined;
+    const phantomNodes = simNodes?.filter(n => n.isPhantom && (Math.abs(n.x) > 1 || Math.abs(n.y) > 1));
+    if (phantomNodes && phantomNodes.length > 0) {
+      const arrangement = this.panel.clusterArrangement;
+      const POLAR = new Set(["concentric", "radial", "phyllotaxis"]);
+      const bounds = this.computeNodeBounds(allNodes);
+      const gcx = (bounds.xMin + bounds.xMax) / 2;
+      const gcy = (bounds.yMin + bounds.yMax) / 2;
+      this.roadNetworkData = buildRoadNetworkFromPhantoms(
+        phantomNodes, allNodes,
+        POLAR.has(arrangement) ? "polar" : "cartesian",
+        gcx, gcy,
+      );
+      this._finishRoadNetwork(allNodes);
+      return;
+    }
+
     // Determine road topology from arrangement name, NOT from guide system.
     // The guide system can be overridden by panel.coordinateLayout (always cartesian),
     // so we use the arrangement name which reflects the user's actual intent.
@@ -2354,17 +2453,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (g.type === "concentric") {
           const cg = g as { type: "concentric"; rings: number[] };
           if (cg.rings.length > 0) {
-            // Dense spokes: scale with sqrt of node count for adequate coverage
-            const spokeCount = Math.max(12, Math.ceil(Math.sqrt(allNodes.length) * 1.5));
+            // Sparse spokes: 8-16 for visual clarity (no densification needed)
+            const spokeCount = Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5))));
             const maxRing = Math.max(...cg.rings);
-            // Densify rings based on node count for adequate routing granularity
             const sortedRings = [...cg.rings].sort((a, b) => a - b);
-            const baseLines = sortedRings.map(r => ({ position: r }));
-            const rounds = densifyRounds(allNodes.length, sortedRings.length * spokeCount);
-            const denseRings = multiDensify(baseLines, rounds);
+            // No densification — keep roads sparse and visible
             this.roadNetworkData = buildRoadNetwork({
               system: "polar",
-              axis1Lines: denseRings,
+              axis1Lines: sortedRings.map(r => ({ position: r })),
               axis2Lines: Array.from({ length: spokeCount }, (_, i) => ({
                 position: (i / spokeCount) * Math.PI * 2,
               })),
@@ -2383,14 +2479,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           const gg2 = g as { type: "grid"; verticals: number[]; horizontals: number[]; bounds: { xMin: number; yMin: number; xMax: number; yMax: number } };
           const verts = (gg2.verticals ?? []).sort((a: number, b: number) => a - b);
           const horiz = (gg2.horizontals ?? []).sort((a: number, b: number) => a - b);
-          // Densify grid lines based on node count for adequate routing granularity
-          const rounds = densifyRounds(allNodes.length, verts.length * horiz.length);
-          const denseVerts = multiDensify(verts.map(v => ({ position: v })), rounds);
-          const denseHoriz = multiDensify(horiz.map(h => ({ position: h })), rounds);
+          // No densification — sparse grid for pattern-forced routing
           this.roadNetworkData = buildRoadNetwork({
             system: "cartesian",
-            axis1Lines: denseVerts,
-            axis2Lines: denseHoriz,
+            axis1Lines: verts.map(v => ({ position: v })),
+            axis2Lines: horiz.map(h => ({ position: h })),
             axis1Shape: "line", axis2Shape: "line",
             cx: 0, cy: 0,
             bounds: gg2.bounds ?? this.computeNodeBounds(allNodes),
@@ -2423,12 +2516,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           for (let c = 0; c < numCols; c++) {
             vertLines.push({ position: bottomLeft.x + c * colSpacing });
           }
-          // Densify based on node count for adequate routing granularity
-          const triRounds = densifyRounds(allNodes.length, vertLines.length * horizLines.length);
+          // No densification — sparse grid for pattern-forced routing
           this.roadNetworkData = buildRoadNetwork({
             system: "cartesian",
-            axis1Lines: multiDensify(vertLines, triRounds),
-            axis2Lines: multiDensify(horizLines, triRounds),
+            axis1Lines: vertLines,
+            axis2Lines: horizLines,
             axis1Shape: "line", axis2Shape: "line",
             cx: gg.centerX, cy: gg.centerY,
             bounds: { xMin: bottomLeft.x, yMin: top.y, xMax: bottomRight.x, yMax: bottomLeft.y },
@@ -2471,24 +2563,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2)
           ).sort((a, b) => a - b);
           const maxR = dists[dists.length - 1] || 1;
-          const ringCount = Math.max(6, Math.ceil(Math.sqrt(allNodes.length / 3)));
+          // Sparse rings: 6-12 (no densification)
+          const ringCount = Math.min(12, Math.max(6, Math.ceil(Math.sqrt(allNodes.length / 10))));
           const ringRadii: { position: number }[] = [];
           for (let i = 1; i <= ringCount; i++) {
             const q = dists[Math.floor(dists.length * i / (ringCount + 1))] ?? (maxR * i / ringCount);
             ringRadii.push({ position: q });
           }
 
-          // Spokes: uniform for adequate coverage
-          const spokeCount = Math.max(16, Math.ceil(Math.sqrt(allNodes.length) * 1.5));
+          // Sparse spokes: 8-16 (no densification)
+          const spokeCount = Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5))));
           const spokeAngles: { position: number }[] = Array.from({ length: spokeCount }, (_, i) => ({
             position: (i / spokeCount) * Math.PI * 2,
           }));
 
-          // Densify rings (spokes are already uniform, don't densify)
-          const rounds = densifyRounds(allNodes.length, ringCount * spokeCount);
+          // No densification — sparse roads for pattern-forced routing
           this.roadNetworkData = buildRoadNetwork({
             system: "polar",
-            axis1Lines: multiDensify(ringRadii, rounds),
+            axis1Lines: ringRadii,
             axis2Lines: spokeAngles,
             axis1Shape: "circle", axis2Shape: "radial",
             cx: gcx, cy: gcy,
@@ -2498,7 +2590,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this._finishRoadNetwork(allNodes);
           return;
         } else {
-          // Cartesian: merge axis lines with world-space offsets (existing logic)
+          // Cartesian: merge axis lines with world-space offsets (no densification)
           const allA1 = new Set<number>();
           const allA2 = new Set<number>();
           for (const cg of coordGuides) {
@@ -2508,13 +2600,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           }
           const sortedA1 = [...allA1].sort((a, b) => a - b);
           const sortedA2 = [...allA2].sort((a, b) => a - b);
-          const cartRounds = densifyRounds(allNodes.length, sortedA1.length * sortedA2.length);
-          const denseA1 = multiDensify(sortedA1.map(p => ({ position: p })), cartRounds);
-          const denseA2 = multiDensify(sortedA2.map(p => ({ position: p })), cartRounds);
           this.roadNetworkData = buildRoadNetwork({
             system: "cartesian",
-            axis1Lines: denseA1,
-            axis2Lines: denseA2,
+            axis1Lines: sortedA1.map(p => ({ position: p })),
+            axis2Lines: sortedA2.map(p => ({ position: p })),
             axis1Shape: coordGuides[0].guide.gridInfo.axis1Shape?.kind ?? "line",
             axis2Shape: coordGuides[0].guide.gridInfo.axis2Shape?.kind ?? "line",
             cx: (bounds.xMin + bounds.xMax) / 2, cy: (bounds.yMin + bounds.yMax) / 2,
@@ -2535,10 +2624,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const isCartesian = arrangement === "grid" || arrangement === "triangle" || arrangement === "square";
 
     if (isCartesian) {
-      // Cartesian fallback: generate grid from node bounding box
+      // Cartesian fallback: generate sparse grid from node bounding box
       const width = bounds.xMax - bounds.xMin || 1;
       const height = bounds.yMax - bounds.yMin || 1;
-      const gridSize = Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 2)));
+      // Sparse grid: 8-16 lines each direction (no densification)
+      const gridSize = Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 8))));
       const xStep = width / gridSize;
       const yStep = height / gridSize;
 
@@ -2549,22 +2639,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         yLines.push({ position: bounds.yMin + i * yStep });
       }
 
-      const rounds = densifyRounds(allNodes.length, gridSize * gridSize);
+      // No densification — sparse roads for pattern-forced routing
       this.roadNetworkData = buildRoadNetwork({
         system: "cartesian",
-        axis1Lines: multiDensify(xLines, rounds),
-        axis2Lines: multiDensify(yLines, rounds),
+        axis1Lines: xLines,
+        axis2Lines: yLines,
         axis1Shape: "line", axis2Shape: "line",
         cx: gcx, cy: gcy,
         bounds,
         nodes: allNodes,
       });
     } else {
-      // Polar fallback: generate rings + spokes from node distance distribution
+      // Polar fallback: sparse rings + spokes from node distance distribution
       const dists = allNodes.map(n => Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2)).sort((a, b) => a - b);
       const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-      const ringCount = rt.roadRingCount || Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5)));
-      const spokeCount = rt.roadSpokeCount || Math.max(16, Math.ceil(Math.sqrt(allNodes.length) * 1.5));
+      // Sparse: 6-12 rings, 8-16 spokes (no densification)
+      const ringCount = rt.roadRingCount || Math.min(12, Math.max(6, Math.ceil(Math.sqrt(allNodes.length / 10))));
+      const spokeCount = rt.roadSpokeCount || Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5))));
 
       this.roadNetworkData = buildRoadNetwork({
         system: "polar",
@@ -2605,6 +2696,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     const g = this.roadGraphics;
     if (!g) return;
+
+    // Skip redraw if road commands are already up-to-date (perf: ~120K cmds)
+    if (this._roadDrawn && g.commands.length > 0) return;
+
     g.clear();
 
     const network = this.getRoadNetwork();
@@ -2647,6 +2742,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       for (const wp of seg.waypoints) g.lineTo(wp.x, wp.y);
       g.lineTo(to.x, to.y);
     }
+
+    this._roadDrawn = true;
   }
 
   /** Get road network for edge routing */
@@ -4133,7 +4230,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _buildNodeRadiusFn(): (n: GraphNode) => number {
     const baseSize = this.panel.nodeSize;
     const degs = this.degrees;
-    return (n: GraphNode) => nodeRadius(baseSize, degs.get(n.id) || 0);
+    return (n: GraphNode) => n.isPhantom ? 0 : nodeRadius(baseSize, degs.get(n.id) || 0);
   }
 
   /** Build the node color function considering groups, heatmap, and category coloring. */
@@ -4205,6 +4302,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     this.graphEdges = gd.edges;
     invalidateBundleCache();
+
+    // Generate phantom junction nodes for road network routing.
+    // Phantom nodes participate in the same simulation as real nodes
+    // but are excluded from rendering (isPhantom = true).
+    const phantomNodes = this._generatePhantomNodes(gd.nodes, cx, cy);
+    if (phantomNodes.length > 0) {
+      gd.nodes.push(...phantomNodes);
+    }
+
     this.createPixiNodes(gd.nodes, nodeR, nodeColor);
     this.computeSortRanks();
 
