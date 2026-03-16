@@ -37,7 +37,7 @@ import type { ClusterMetadata, TimelineBarInfo, ArrangementGuide, TimelineRoute,
 import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from "../layouts/cluster-force";
 import type { ResolvedGridInfo, ResolvedGridLine } from "../layouts/coordinate-engine";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
-import { RenderPipeline, darkenColor, type RenderHost } from "./RenderPipeline";
+import { RenderPipeline, darkenColor, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPipeline";
 import { LayoutController, type LayoutHost } from "./LayoutController";
 import { Minimap, type MinimapHost } from "./Minimap";
 import { LayoutTransition } from "./LayoutTransition";
@@ -1300,26 +1300,87 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     let closest: PixiNode | null = null;
     let closestDist = Infinity;
 
-    // Check 3x3 neighborhood of grid cells
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const cell = this.spatialGrid.get(`${cx + dx},${cy + dy}`);
-        if (!cell) continue;
-        for (const pn of cell) {
-          const ddx = pn.data.x - wx;
-          const ddy = pn.data.y - wy;
-          const dist = ddx * ddx + ddy * ddy;
-          // Ensure hit area is large enough in screen pixels for hover/click
-          const rt = this.panel.renderThresholds ?? {};
-          const minScreenPx = rt.minHoverScreenPx ?? DEFAULT_RENDER_THRESHOLDS.minHoverScreenPx;
-          const zoom = this.world?.scale?.x ?? 1;
-          const r = Math.max(pn.radius, minScreenPx / zoom) + (rt.collisionPadding ?? DEFAULT_RENDER_THRESHOLDS.collisionPadding);
-          if (dist < r * r && dist < closestDist) {
-            closestDist = dist;
-            closest = pn;
-          }
+    const rt = this.panel.renderThresholds ?? {};
+    const minScreenPx = rt.minHoverScreenPx ?? DEFAULT_RENDER_THRESHOLDS.minHoverScreenPx;
+    const zoom = this.worldContainer?.scale?.x ?? 1;
+    // Match the minimum world radius used by RenderPipeline for drawing
+    const minWorldRadius = Math.max(0, MIN_WORLD_RADIUS_PX / zoom);
+    const pad = rt.collisionPadding ?? DEFAULT_RENDER_THRESHOLDS.collisionPadding;
+
+    const displayMode = this.panel.nodeDisplayMode ?? "node";
+
+    // Glow radius multiplier — defines the visible node extent users perceive
+    const glowRadius = rt.glowBaseRadius ?? DEFAULT_RENDER_THRESHOLDS.glowBaseRadius ?? 2.2;
+
+    // Hit radius in world units: visual node radius × glow multiplier.
+    // At low zoom, MIN_WORLD_RADIUS_PX / zoom becomes huge in world units but
+    // the on-screen glow extent is always MIN_WORLD_RADIUS_PX × glowRadius px.
+    // We express the hit radius in screen pixels and convert to world units.
+    const hitScreenPx = Math.max(MIN_WORLD_RADIUS_PX * glowRadius, minScreenPx);
+    const hitWorldR = hitScreenPx / zoom + pad;
+
+    // Pre-compute card dimensions for rectangular hit testing
+    let hitCardMaxHalfW = 0;
+    let hitCardAR = 0;
+    let hitCardWidthFactor = 0;
+    let hitCardAspectRatio = 0;
+    let hitCardHalfH = 0;
+    if (displayMode === "card") {
+      const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
+      const cardConfig = this.panel.cardDisplayConfig ?? { fields: [], maxWidth: 120, showIcon: false };
+      const headerH = crc.tableHeaderHeight / zoom;
+      const fieldLineH = crc.fieldLineHeight / zoom;
+      const cardPad = crc.cardPadding / zoom;
+      const fieldCount = cardConfig.fields?.length ?? 0;
+      hitCardHalfH = (headerH + fieldCount * fieldLineH + cardPad * 2) / 2;
+      hitCardMaxHalfW = ((cardConfig.maxWidth ?? 120) / zoom) / 2;
+      hitCardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
+      hitCardWidthFactor = crc.cardWidthFactor;
+      hitCardAspectRatio = crc.cardAspectRatio;
+    }
+
+    // Determine if grid search can cover the hit radius, otherwise brute-force
+    const maxHitWorld = displayMode === "card"
+      ? Math.max(hitCardMaxHalfW, hitCardHalfH) + pad
+      : hitWorldR;
+    const gridSearchLimit = 20;
+    const neededCells = Math.ceil(maxHitWorld / cs);
+    const useGrid = neededCells <= gridSearchLimit;
+
+    const hitTest = (pn: PixiNode) => {
+      const ddx = pn.data.x - wx;
+      const ddy = pn.data.y - wy;
+      const dist = ddx * ddx + ddy * ddy;
+      if (displayMode === "card") {
+        const effR = Math.max(pn.radius, minWorldRadius);
+        const halfW = Math.min(hitCardMaxHalfW, hitCardAspectRatio > 0 ? (hitCardHalfH * hitCardAR) : effR * hitCardWidthFactor);
+        if (Math.abs(ddx) <= halfW + pad && Math.abs(ddy) <= hitCardHalfH + pad && dist < closestDist) {
+          closestDist = dist;
+          closest = pn;
+        }
+      } else {
+        const effR = Math.max(pn.radius, minWorldRadius);
+        const r = Math.max(effR * glowRadius, hitScreenPx / zoom) + pad;
+        if (dist < r * r && dist < closestDist) {
+          closestDist = dist;
+          closest = pn;
         }
       }
+    };
+
+    if (useGrid) {
+      // Spatial grid search (fast for normal/high zoom)
+      const searchCells = Math.max(1, neededCells);
+      for (let dx = -searchCells; dx <= searchCells; dx++) {
+        for (let dy = -searchCells; dy <= searchCells; dy++) {
+          const cell = this.spatialGrid.get(`${cx + dx},${cy + dy}`);
+          if (!cell) continue;
+          for (const pn of cell) hitTest(pn);
+        }
+      }
+    } else {
+      // Brute-force scan (used at extreme zoom-out where grid cells are too fine)
+      for (const pn of this.pixiNodes.values()) hitTest(pn);
     }
 
     // If no circle hit, check timeline duration bars (rectangles)
@@ -2753,7 +2814,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!network || network.intersections.length === 0) return;
 
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-    if (!(rt.showRoadNetwork ?? true)) return;
+    if (!(rt.showRoadNetwork ?? false)) return;
 
     const isDark = this.isDarkTheme();
     const roadColor = rt.roadColor ?? (isDark ? 0x555577 : 0xaaaacc);
