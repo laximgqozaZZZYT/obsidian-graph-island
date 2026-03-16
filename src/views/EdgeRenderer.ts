@@ -602,10 +602,10 @@ function buildTrunks(
 // Intra-group cable wiring
 // ---------------------------------------------------------------------------
 
-/** Minimum node port offset distance (pixels) */
-const NODE_PORT_MIN_OFFSET = 20;
-/** Node port offset ratio relative to average edge length */
-const NODE_PORT_OFFSET_RATIO = 0.15;
+/** Node port offset: fraction of node spacing to place port below/beside node */
+const NODE_PORT_OFFSET_RATIO = 0.5;
+/** Minimum node port offset distance (world units) */
+const NODE_PORT_MIN_OFFSET = 50;
 
 /**
  * Build intra-group cables: edges within the same cluster group are bundled
@@ -674,14 +674,11 @@ function buildIntraGroupCables(
       // Junction = source node position
       const junction = { x: srcPos.x, y: srcPos.y };
 
-      // Compute source node port (offset toward centroid)
-      const sdx = centroid.x - srcPos.x;
-      const sdy = centroid.y - srcPos.y;
-      const slen = Math.sqrt(sdx * sdx + sdy * sdy);
+      // Node port = offset downward (+Y) so cables run between node rows
       const srcPort: NodePort = {
         nodeId: sourceNodeId,
-        x: slen > 1 ? srcPos.x + (sdx / slen) * portOffset : srcPos.x,
-        y: slen > 1 ? srcPos.y + (sdy / slen) * portOffset : srcPos.y,
+        x: srcPos.x,
+        y: srcPos.y + portOffset,
       };
 
       // Build branches to each target
@@ -702,14 +699,11 @@ function buildIntraGroupCables(
         // Find or create branch for this target
         if (!targetIds.has(tid)) {
           targetIds.add(tid);
-          // Compute target node port (offset toward centroid)
-          const tdx = centroid.x - tgtPos.x;
-          const tdy = centroid.y - tgtPos.y;
-          const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
+          // Target node port = offset downward (+Y) to avoid overlapping nodes
           const tgtPort: NodePort = {
             nodeId: tid,
-            x: tlen > 1 ? tgtPos.x + (tdx / tlen) * portOffset : tgtPos.x,
-            y: tlen > 1 ? tgtPos.y + (tdy / tlen) * portOffset : tgtPos.y,
+            x: tgtPos.x,
+            y: tgtPos.y + portOffset,
           };
 
           // Manhattan path from source port to target port
@@ -725,10 +719,20 @@ function buildIntraGroupCables(
 
       if (branches.length === 0) continue;
 
-      // Group port branch (if any edges connect externally)
+      // Group port branch: route from source port THROUGH group interior to group port.
+      // Path goes srcPort → (centroid-level Y) → groupPort to stay inside the group.
       let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
       if (connectsExternal && groupPort) {
-        groupPortBranch = { path: buildManhattanPath(srcPort, groupPort, cfg.clusterArrangement) };
+        // Route via an intermediate point near centroid to keep cable inside group
+        const midY = centroid.y + portOffset; // below centroid, in cable corridor
+        const intermediate = { x: groupPort.x, y: midY };
+        const path = [
+          { x: srcPort.x, y: srcPort.y },
+          { x: srcPort.x, y: midY },        // vertical down to cable corridor
+          intermediate,                       // horizontal to groupPort column
+          { x: groupPort.x, y: groupPort.y }, // vertical to groupPort
+        ];
+        groupPortBranch = { path };
       }
 
       cables.push({ groupKey, junction, branches, groupPortBranch });
