@@ -141,7 +141,7 @@ const STRUCTURAL_EDGE_ALPHA = 0.7;
 /** Edge alpha for non-structural edge types */
 const NON_STRUCTURAL_EDGE_ALPHA = 0.65;
 /** Default line thickness for edges */
-const DEFAULT_LINE_THICKNESS = 1.2;
+const DEFAULT_LINE_THICKNESS = 2;
 /** Edge weight additional thickness per log2 step */
 const WEIGHT_THICKNESS_FACTOR = 0.6;
 /** Fade-by-degree minimum alpha fraction */
@@ -181,7 +181,7 @@ const TRUNK_SCREEN_WIDTH = 12;
 /** Cable conduit screen width (px) — medium layer */
 const CABLE_SCREEN_WIDTH = 6;
 /** Wire screen width (px) — thinnest layer */
-const WIRE_SCREEN_WIDTH = 1.5;
+const WIRE_SCREEN_WIDTH = 2.5;
 /** Default fallback cluster radius */
 const DEFAULT_CLUSTER_RADIUS = 50;
 /** Arc layout control point height factor */

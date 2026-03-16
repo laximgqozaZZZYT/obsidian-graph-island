@@ -169,7 +169,7 @@ export const DEFAULT_PANEL: PanelState = {
   showOrphans: true,
   showArrows: false,
   textFadeThreshold: 0.5,
-  nodeSize: 10,
+  nodeSize: 15,
   centerForce: 0.03,
   repelForce: 200,
   linkForce: 0.01,
