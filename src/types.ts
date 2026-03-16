@@ -1258,8 +1258,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   tagLabelMaxTags: 2,
 
   // Node label font scaling
-  nodeLabelFontSizeMin: 13,
-  nodeLabelFontSizeMax: 14,
+  nodeLabelFontSizeMin: 16,
+  nodeLabelFontSizeMax: 20,
 
   // Label spacing in layout
   labelSpacingFactor: 0.7,
