@@ -665,25 +665,14 @@ function buildIntraGroupCables(
     const portOffset = Math.max(avgEdgeLen * NODE_PORT_OFFSET_RATIO, NODE_PORT_MIN_OFFSET);
 
     for (const [sourceNodeId, edgeList] of sourceMap) {
-      // Only bundle when 2+ edges share the source (otherwise no benefit)
       if (edgeList.length < 2) continue;
 
       const srcPos = resolvePos(sourceNodeId);
       if (!srcPos) continue;
 
-      // Junction = source node position
-      const junction = { x: srcPos.x, y: srcPos.y };
-
-      // Node port = offset downward (+Y) so cables run between node rows
-      const srcPort: NodePort = {
-        nodeId: sourceNodeId,
-        x: srcPos.x,
-        y: srcPos.y + portOffset,
-      };
-
-      // Build branches to each target
-      const branches: IntraGroupCable["branches"] = [];
-      const targetIds = new Set<string>();
+      // Collect all node positions for this cable (source + all targets)
+      const nodePositions: { x: number; y: number }[] = [{ x: srcPos.x, y: srcPos.y }];
+      const targetPositions = new Map<string, { x: number; y: number }>();
       let connectsExternal = false;
 
       for (const e of edgeList) {
@@ -693,44 +682,71 @@ function buildIntraGroupCables(
           connectsExternal = true;
           continue;
         }
+        if (targetPositions.has(tid)) continue;
         const tgtPos = resolvePos(e.target);
         if (!tgtPos) continue;
+        targetPositions.set(tid, { x: tgtPos.x, y: tgtPos.y });
+        nodePositions.push({ x: tgtPos.x, y: tgtPos.y });
+      }
 
-        // Find or create branch for this target
-        if (!targetIds.has(tid)) {
-          targetIds.add(tid);
-          // Target node port = offset downward (+Y) to avoid overlapping nodes
+      if (targetPositions.size === 0 && !connectsExternal) continue;
+
+      // Junction = average position of all involved nodes, offset to cable corridor
+      let jx = 0, jy = 0;
+      for (const p of nodePositions) { jx += p.x; jy += p.y; }
+      jx /= nodePositions.length;
+      jy /= nodePositions.length;
+      // Offset junction below the node average to avoid node overlap
+      const junction = { x: jx, y: jy + portOffset };
+
+      // Node ports: each node gets a port offset downward
+      const srcPort: NodePort = {
+        nodeId: sourceNodeId,
+        x: srcPos.x,
+        y: srcPos.y + portOffset,
+      };
+
+      // Build branches: srcPort → junction → each tgtPort (Manhattan)
+      const branches: IntraGroupCable["branches"] = [];
+
+      for (const e of edgeList) {
+        const tid = edgeTargetId(e);
+        const tgtPos = targetPositions.get(tid);
+        if (!tgtPos) continue;
+
+        let branch = branches.find(b => b.nodePort.nodeId === tid);
+        if (!branch) {
           const tgtPort: NodePort = {
             nodeId: tid,
             x: tgtPos.x,
             y: tgtPos.y + portOffset,
           };
-
-          // Manhattan path from source port to target port
-          const path = buildManhattanPath(srcPort, tgtPort, cfg.clusterArrangement);
-          branches.push({ nodePort: tgtPort, path, edges: [] });
+          // Path: srcPort → junction → tgtPort (all Manhattan segments)
+          const path = [
+            { x: srcPort.x, y: srcPort.y },
+            { x: srcPort.x, y: junction.y },   // vertical to junction row
+            { x: junction.x, y: junction.y },   // horizontal to junction
+            { x: tgtPort.x, y: junction.y },    // horizontal to target column
+            { x: tgtPort.x, y: tgtPort.y },     // vertical to target port
+          ];
+          branch = { nodePort: tgtPort, path, edges: [] };
+          branches.push(branch);
         }
-
-        // Add edge to the corresponding branch
-        const branch = branches.find(b => b.nodePort.nodeId === tid);
-        if (branch) branch.edges.push(e);
+        branch.edges.push(e);
         handledEdgeIds.add(e.id);
       }
 
-      if (branches.length === 0) continue;
+      if (branches.length === 0 && !connectsExternal) continue;
 
-      // Group port branch: route from source port THROUGH group interior to group port.
-      // Path goes srcPort → (centroid-level Y) → groupPort to stay inside the group.
+      // Group port branch: srcPort → junction → groupPort (all inside group)
       let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
       if (connectsExternal && groupPort) {
-        // Route via an intermediate point near centroid to keep cable inside group
-        const midY = centroid.y + portOffset; // below centroid, in cable corridor
-        const intermediate = { x: groupPort.x, y: midY };
         const path = [
           { x: srcPort.x, y: srcPort.y },
-          { x: srcPort.x, y: midY },        // vertical down to cable corridor
-          intermediate,                       // horizontal to groupPort column
-          { x: groupPort.x, y: groupPort.y }, // vertical to groupPort
+          { x: srcPort.x, y: junction.y },      // vertical to junction row
+          { x: junction.x, y: junction.y },      // horizontal to junction
+          { x: groupPort.x, y: junction.y },     // horizontal toward group port
+          { x: groupPort.x, y: groupPort.y },    // vertical to group port
         ];
         groupPortBranch = { path };
       }
