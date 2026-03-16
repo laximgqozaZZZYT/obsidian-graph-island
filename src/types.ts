@@ -1195,7 +1195,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   highlightEdgeAlpha: 1.0,
   highlightEdgeNonMatchAlpha: 0.15,
   maxNodeRadius: 60,
-  minNodeRadius: 4,
+  minNodeRadius: 6,
   minHoverScreenPx: 12,
   zoomNodeSizeAdapt: true,
   labelLeaderLines: true,
@@ -1258,7 +1258,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   tagLabelMaxTags: 2,
 
   // Node label font scaling
-  nodeLabelFontSizeMin: 11,
+  nodeLabelFontSizeMin: 13,
   nodeLabelFontSizeMax: 14,
 
   // Label spacing in layout

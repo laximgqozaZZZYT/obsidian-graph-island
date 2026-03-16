@@ -38,7 +38,7 @@ const IDLE_FRAME_DETACH_THRESHOLD = 60;
 const NODE_SCREEN_PX_BASE = 30;
 
 /** Minimum world radius applied at non-extreme zoom to keep nodes visible */
-const MIN_WORLD_RADIUS_PX = 3;
+const MIN_WORLD_RADIUS_PX = 5;
 
 /** Viewport culling margin in world units (divided by worldScale) */
 const VIEWPORT_CULL_MARGIN_PX = 60;
