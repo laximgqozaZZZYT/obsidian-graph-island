@@ -889,14 +889,19 @@ function drawTrunks(
   // Lane spacing for parallel cables within a trunk (screen px)
   const laneSpacing = CABLE_LANE_SPACING;
 
-  // PASS 1: Trunk conduits — width adapts to cable count so all lanes fit inside
+  // PASS 1: Trunk conduits — width adapts to cable count so all lanes fit inside.
+  // Alpha scales inversely with trunk count to prevent overdrawn white bands
+  // where many trunks overlap (e.g., through dense node rows).
+  const trunkCountAlpha = trunks.length <= 5 ? 1.0
+    : trunks.length <= 20 ? 0.5
+    : trunks.length <= 100 ? 0.25
+    : 0.12;
   for (const trunk of trunks) {
     const nCables = trunk.cables.length;
-    // Trunk width = enough to enclose all cable lanes with padding
     const trunkWidth = Math.max(nCables * laneSpacing + CABLE_SCREEN_WIDTH, TRUNK_SCREEN_WIDTH);
     const highlight = getTrunkHighlight(trunk);
-    const trunkAlpha = highlight === "dim" ? 0.04 : highlight === "bright" ? 0.25 : TRUNK_CONDUIT_ALPHA;
-    _drawSmoothPath(g, trunk.path, trunkWidth, 0x888888, trunkAlpha * densityScale);
+    const trunkAlpha = highlight === "dim" ? 0.02 : highlight === "bright" ? 0.2 : TRUNK_CONDUIT_ALPHA;
+    _drawSmoothPath(g, trunk.path, trunkWidth, 0x888888, trunkAlpha * densityScale * trunkCountAlpha);
   }
 
   // PASS 2: Cable conduits — medium width, semi-transparent gray, one per color lane
