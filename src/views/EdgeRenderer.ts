@@ -1111,8 +1111,7 @@ export function drawEdges(
     g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
     const hasDash = applyDashPattern(g, e, lineThick);
 
-    const roadNet = (cfg.enableRoadRouting !== false) ? cfg.roadNetwork : null;
-    drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength, roadNet);
+    drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength);
     drawEdgeDecorations(g, e, src, tgt, lineColor, alpha, cfg, arrowGfx);
 
     if (hasDash) g.setLineDash([]);
