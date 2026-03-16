@@ -697,12 +697,10 @@ function buildIntraGroupCables(
 
       if (targetPositions.size === 0 && !connectsExternal) continue;
 
-      // ── Junction = average position of all connected nodes ──
-      let jx = 0, jy = 0;
-      for (const p of nodePositions) { jx += p.x; jy += p.y; }
-      jx /= nodePositions.length;
-      jy /= nodePositions.length;
-      const junction = { x: jx, y: jy };
+      // ── Junction = group centroid (average of ALL nodes in the group) ──
+      // Using the group centroid ensures the junction is never on a node row
+      // when nodes span multiple rows, and cables converge at the group center.
+      const junction = { x: centroid.x, y: centroid.y };
 
       // ── Row gap for cable routing ──
       // Cables must NOT cross nodes. They route through the gap between
@@ -719,7 +717,7 @@ function buildIntraGroupCables(
         // Below last row
         return sortedYs[sortedYs.length - 1] + halfGap;
       };
-      const routeY = findGapBelow(jy);
+      const routeY = findGapBelow(centroid.y);
 
       // ── Build branches ──
       // Each branch path: src → (down to routeY) → junction X → (across to tgt X) → tgt
@@ -810,6 +808,15 @@ function drawIntraGroupCables(
     }
     return "dim";
   };
+
+  // PASS 0: Junction points — 1px dots to visualize cable convergence points
+  for (const cable of cables) {
+    const j = cable.junction;
+    g.lineStyle({ width: 0, color: 0, alpha: 0, native: true });
+    g.beginFill(0xffffff, 0.6 * densityScale);
+    g.drawCircle(j.x, j.y, 1);
+    g.endFill();
+  }
 
   // PASS 1: Cable conduits — CABLE_SCREEN_WIDTH, semi-transparent
   for (const cable of cables) {
