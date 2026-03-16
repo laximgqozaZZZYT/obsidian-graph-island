@@ -752,25 +752,14 @@ function buildIntraGroupCables(
         if (!branch) {
           const tgtPort: NodePort = { nodeId: tid, x: tgtPos.x, y: tgtPos.y };
 
-          // Check if src and tgt are adjacent (within 1.5× column spacing)
-          const colDist = Math.abs(srcPos.x - tgtPos.x);
-          const rowDist = Math.abs(srcPos.y - tgtPos.y);
-          const isAdjacent = colDist < halfGap * 3 && rowDist < halfGap * 3;
-
-          let path: { x: number; y: number }[];
-          if (isAdjacent) {
-            // Adjacent: direct line allowed
-            path = [{ x: srcPos.x, y: srcPos.y }, { x: tgtPos.x, y: tgtPos.y }];
-          } else {
-            // Non-adjacent: must go through junction via gap row
-            path = [
-              { x: srcPos.x, y: srcPos.y },     // start at source
-              { x: srcPos.x, y: routeY },        // drop down to routing gap
-              { x: junction.x, y: routeY },              // across to junction X (passes through junction)
-              { x: tgtPos.x, y: routeY },        // across to target X
-              { x: tgtPos.x, y: tgtPos.y },      // up to target
-            ];
-          }
+          // ALL cables route through junction via gap row — no direct lines
+          const path = [
+            { x: srcPos.x, y: srcPos.y },     // start at source
+            { x: srcPos.x, y: routeY },        // drop to routing gap
+            { x: junction.x, y: routeY },      // across to junction X
+            { x: tgtPos.x, y: routeY },        // across to target X
+            { x: tgtPos.x, y: tgtPos.y },      // up to target
+          ];
           branch = { nodePort: tgtPort, path, edges: [] };
           branches.push(branch);
         }
@@ -1426,6 +1415,12 @@ export function drawEdges(
     const src = resolvePos(e.source);
     const tgt = resolvePos(e.target);
     if (!src || !tgt) continue;
+
+    // When clusters are active, skip remaining individual edges entirely —
+    // all edges should be handled by trunks (inter-group) or cables (intra-group).
+    // Any edge reaching here is a leak; drawing it as a straight line would
+    // violate the "no single straight line between nodes" rule.
+    if (hasClusters) continue;
 
     const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
     const { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
