@@ -1102,7 +1102,7 @@ function drawIntraGroupCables(
   if (cfg.highlightedNodeId) {
     // Draw dim wires first, then bright wires on top
     _drawBranchWires("dim");
-    _drawBranchWires("normal");
+    _drawBranchWires("bright");
   } else {
     _drawBranchWires(null);
   }
@@ -1157,67 +1157,34 @@ function drawIntraGroupCables(
     _drawGpbWires("dim");
     _drawGpbWires("bright");
   } else {
-    // Merged drawing: one wire per color per group port direction for clean visuals.
-    // Key: "groupKey|dir"
-    const groupPortData = new Map<string, {
-      cables: typeof cables;
-      colorEdges: Map<number, GraphEdge[]>;
-      dir: PortDirection;
-      groupKey: string;
-    }>();
-
+    // Per-cable drawing (same as highlight mode but all wires at normal alpha).
+    // Each cable uses its own path so all source nodes are visually connected.
     for (const cable of cables) {
       if (!cable.groupPortBranches || cable.groupPortBranches.size === 0) continue;
       for (const [dir, gpb] of cable.groupPortBranches) {
         if (gpb.edges.length === 0) continue;
-        const key = portLaneKey(cable.groupKey, dir);
-        let gpd = groupPortData.get(key);
-        if (!gpd) {
-          gpd = { cables: [], colorEdges: new Map(), dir, groupKey: cable.groupKey };
-          groupPortData.set(key, gpd);
-        }
-        gpd.cables.push(cable);
+
+        const gpColorMap = new Map<number, GraphEdge[]>();
         for (const e of gpb.edges) {
           const c = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
-          const ex = gpd.colorEdges.get(c);
-          if (ex) ex.push(e); else gpd.colorEdges.set(c, [e]);
+          const ex = gpColorMap.get(c);
+          if (ex) ex.push(e); else gpColorMap.set(c, [e]);
         }
-      }
-    }
 
-    for (const [laneKey, gpd] of groupPortData) {
-      const portInfo = portColorLanes?.get(laneKey);
-      const gpColors = portInfo?.colors ?? [...gpd.colorEdges.keys()];
-      const nUnique = gpColors.length;
+        const portInfo = portColorLanes?.get(portLaneKey(cable.groupKey, dir));
 
-      for (let ci = 0; ci < nUnique; ci++) {
-        const color = gpColors[ci];
-        if (!gpd.colorEdges.has(color)) continue;
-
-        // Find representative path from a cable that has this direction
-        let reprPath: { x: number; y: number }[] | null = null;
-        for (const cable of gpd.cables) {
-          const gpb = cable.groupPortBranches?.get(gpd.dir);
-          if (!gpb) continue;
-          for (const e of gpb.edges) {
-            const ec = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
-            if (ec === color) { reprPath = gpb.path; break; }
+        for (const [color] of gpColorMap) {
+          const wirePath = gpb.path.map(p => ({ x: p.x, y: p.y }));
+          const laneEndpoint = portInfo
+            ? getPortLaneEndpoint(portInfo, color, CABLE_LANE_SPACING)
+            : null;
+          if (laneEndpoint) {
+            wirePath[wirePath.length - 1] = laneEndpoint;
           }
-          if (reprPath) break;
-        }
-        if (!reprPath || reprPath.length < 2) continue;
 
-        const wirePath = reprPath.map(p => ({ x: p.x, y: p.y }));
-        const laneEndpoint = portInfo
-          ? getPortLaneEndpoint(portInfo, color, CABLE_LANE_SPACING)
-          : null;
-        if (laneEndpoint) {
-          wirePath[wirePath.length - 1] = laneEndpoint;
+          const gpFinalAlpha = Math.max(WIRE_BASE_ALPHA * densityScale, 0.35);
+          _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, gpFinalAlpha);
         }
-
-        const wireAlpha = WIRE_BASE_ALPHA;
-        const gpFinalAlpha = Math.max(wireAlpha * densityScale, 0.35);
-        _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, gpFinalAlpha);
       }
     }
   }
@@ -1451,7 +1418,7 @@ function drawTrunks(
     _drawTrunkWires("bright");
   } else if (cfg.highlightedNodeId) {
     _drawTrunkWires("dim");
-    _drawTrunkWires("normal");
+    _drawTrunkWires("bright");
   } else {
     _drawTrunkWires(null);
   }
