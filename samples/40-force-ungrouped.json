@@ -31,7 +31,7 @@
   "hoverHops": 1,
   "commonQueries": [],
   "clusterGroupRules": [],
-  "clusterArrangement": "force",
+  "clusterArrangement": "grid",
   "clusterNodeSpacing": 2.0,
   "clusterGroupScale": 1.5,
   "clusterGroupSpacing": 1.5,
