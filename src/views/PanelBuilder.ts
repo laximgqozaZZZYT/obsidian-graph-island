@@ -1441,7 +1441,7 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
   const saved = loadSectionStates();
   const isCollapsed = title in saved ? saved[title] : collapsed;
   if (isCollapsed) section.addClass("is-collapsed");
-  const header = section.createDiv({ cls: "tree-item-self graph-control-section-header is-clickable" });
+  const header = section.createDiv({ cls: "tree-item-self graph-control-section-header is-clickable", attr: { role: "button", "aria-expanded": String(!isCollapsed), tabindex: "0" } });
   const collapseIcon = header.createDiv({ cls: "tree-item-icon collapse-icon" });
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("width", "24");
@@ -1482,7 +1482,11 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
     if ((e.target as HTMLElement).closest(".gi-section-help")) return;
     const collapsed = section.hasClass("is-collapsed");
     section.toggleClass("is-collapsed", !collapsed);
+    header.setAttribute("aria-expanded", String(collapsed));
     saveSectionState(title, !collapsed);
+  });
+  header.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); header.click(); }
   });
 }
 
