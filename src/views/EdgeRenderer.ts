@@ -589,6 +589,28 @@ const NODE_PORT_OFFSET_RATIO = 0.5;
 /** Minimum node port offset distance (world units) */
 const NODE_PORT_MIN_OFFSET = 50;
 
+/** Compute a cable path between two points with perpendicular offset to avoid nodes */
+function computeCablePath(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  offset: number,
+): { x: number; y: number }[] {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 1) return [{ x: from.x, y: from.y }, { x: to.x, y: to.y }];
+  const perpX = -dy / len;
+  const perpY = dx / len;
+  const sign = perpY >= 0 ? 1 : -1;
+  const midX = (from.x + to.x) / 2;
+  const midY = (from.y + to.y) / 2;
+  return [
+    { x: from.x, y: from.y },
+    { x: midX + perpX * offset * sign, y: midY + perpY * offset * sign },
+    { x: to.x, y: to.y },
+  ];
+}
+
 /**
  * Build intra-group cables: edges within the same cluster group are bundled
  * by shared source node. Each cable branches from a junction (source node pos)
@@ -699,31 +721,7 @@ function buildIntraGroupCables(
         if (!branch) {
           const tgtPort: NodePort = { nodeId: tid, x: tgtPos.x, y: tgtPos.y };
 
-          // Simple rule: offset the cable perpendicular to avoid nodes.
-          // For roughly horizontal paths (same row), dip below by half a row gap.
-          // For other paths, add a midpoint offset perpendicular to the path.
-          const dx = tgtPos.x - srcPos.x;
-          const dy = tgtPos.y - srcPos.y;
-          const midX = (srcPos.x + tgtPos.x) / 2;
-          const midY = (srcPos.y + tgtPos.y) / 2;
-          const len = Math.sqrt(dx * dx + dy * dy);
-
-          let path: { x: number; y: number }[];
-          if (len < 1) {
-            path = [{ x: srcPos.x, y: srcPos.y }, { x: tgtPos.x, y: tgtPos.y }];
-          } else {
-            // Perpendicular offset direction (rotate path direction 90°)
-            const perpX = -dy / len;
-            const perpY = dx / len;
-            // Offset midpoint by cableOffset in the perpendicular direction
-            // Always offset "downward" (positive Y in screen space)
-            const sign = perpY >= 0 ? 1 : -1;
-            path = [
-              { x: srcPos.x, y: srcPos.y },
-              { x: midX + perpX * cableOffset * sign, y: midY + perpY * cableOffset * sign },
-              { x: tgtPos.x, y: tgtPos.y },
-            ];
-          }
+          const path = computeCablePath(srcPos, tgtPos, cableOffset);
 
           branch = { nodePort: tgtPort, path, edges: [] };
           branches.push(branch);
@@ -734,28 +732,10 @@ function buildIntraGroupCables(
 
       if (branches.length === 0 && !connectsExternal) continue;
 
-      // Group port branch: route from source node to group port (引込口)
-      // with perpendicular offset to avoid crossing nodes
+      // Group port branch: same routing rule as intra-group cables
       let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
       if (connectsExternal && groupPort) {
-        const gdx = groupPort.x - srcPos.x;
-        const gdy = groupPort.y - srcPos.y;
-        const glen = Math.sqrt(gdx * gdx + gdy * gdy);
-        let path: { x: number; y: number }[];
-        if (glen < 1) {
-          path = [{ x: srcPos.x, y: srcPos.y }, { x: groupPort.x, y: groupPort.y }];
-        } else {
-          const gperpX = -gdy / glen;
-          const gperpY = gdx / glen;
-          const gsign = gperpY >= 0 ? 1 : -1;
-          const gmidX = (srcPos.x + groupPort.x) / 2;
-          const gmidY = (srcPos.y + groupPort.y) / 2;
-          path = [
-            { x: srcPos.x, y: srcPos.y },
-            { x: gmidX + gperpX * cableOffset * gsign, y: gmidY + gperpY * cableOffset * gsign },
-            { x: groupPort.x, y: groupPort.y },
-          ];
-        }
+        const path = computeCablePath(srcPos, groupPort, cableOffset);
         groupPortBranch = { path, edges: externalEdges };
       }
 
