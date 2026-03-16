@@ -696,10 +696,29 @@ function buildIntraGroupCables(
 
       if (targetPositions.size === 0 && !connectsExternal) continue;
 
-      // ── Junction = group centroid (average of ALL nodes in the group) ──
-      // Using the group centroid ensures the junction is never on a node row
-      // when nodes span multiple rows, and cables converge at the group center.
-      const junction = { x: centroid.x, y: centroid.y };
+      // ── Junction = average position of ALL nodes in this group ──
+      // Computed from actual node positions (not clusterMeta centroids).
+      let allGroupX = 0, allGroupY = 0, allGroupN = 0;
+      for (const [nid] of sourceMap) {
+        const p = resolvePos(nid);
+        if (p) { allGroupX += p.x; allGroupY += p.y; allGroupN++; }
+      }
+      // Also include target nodes that may not be sources
+      const countedIds = new Set(sourceMap.keys());
+      for (const [, edgeList] of sourceMap) {
+        for (const e of edgeList) {
+          const tid = edgeTargetId(e);
+          if (countedIds.has(tid)) continue;
+          countedIds.add(tid);
+          const tg = nodeClusterMap.get(tid);
+          if (tg !== groupKey) continue;
+          const p = resolvePos(e.target);
+          if (p) { allGroupX += p.x; allGroupY += p.y; allGroupN++; }
+        }
+      }
+      const junction = allGroupN > 0
+        ? { x: allGroupX / allGroupN, y: allGroupY / allGroupN }
+        : { x: centroid.x, y: centroid.y };
 
       // ── Row gap for cable routing ──
       // Cables must NOT cross nodes. They route through the gap between
@@ -808,13 +827,12 @@ function drawIntraGroupCables(
     return "dim";
   };
 
-  // PASS 0: Junction points — 1px dots to visualize cable convergence points
+  // PASS 0: Junction points — visible dots (cross shape, 4px native)
   for (const cable of cables) {
     const j = cable.junction;
-    g.lineStyle({ width: 0, color: 0, alpha: 0, native: true });
-    g.beginFill(0xffffff, 0.6 * densityScale);
-    g.drawCircle(j.x, j.y, 1);
-    g.endFill();
+    g.lineStyle({ width: 4, color: 0xff4444, alpha: 0.8, native: true });
+    g.moveTo(j.x - 0.5, j.y);
+    g.lineTo(j.x + 0.5, j.y);
   }
 
   // PASS 1: Cable conduits — CABLE_SCREEN_WIDTH, semi-transparent
