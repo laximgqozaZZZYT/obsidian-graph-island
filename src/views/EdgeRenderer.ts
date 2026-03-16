@@ -605,8 +605,10 @@ function buildIntraGroupCables(
   const { nodeClusterMap, clusterCentroids } = cfg;
   if (!nodeClusterMap || !clusterCentroids) return { cables, handledEdgeIds };
 
-  // Step 1: Collect intra-group edges, grouped by (group, source node)
+  // Step 1: Collect intra-group and external edges, grouped by (group, source node)
   const groupSourceMap = new Map<string, Map<string, GraphEdge[]>>();
+  // External edges per (group, source node) — for group port wires
+  const groupExternalMap = new Map<string, Map<string, GraphEdge[]>>();
 
   for (const e of edges) {
     if (shouldSkipEdge(e, cfg)) continue;
@@ -614,13 +616,22 @@ function buildIntraGroupCables(
     const tid = edgeTargetId(e);
     const srcGroup = nodeClusterMap.get(sid);
     const tgtGroup = nodeClusterMap.get(tid);
-    if (!srcGroup || !tgtGroup || srcGroup !== tgtGroup) continue;
-    // Same group — intra-group edge
-    let sourceMap = groupSourceMap.get(srcGroup);
-    if (!sourceMap) { sourceMap = new Map(); groupSourceMap.set(srcGroup, sourceMap); }
-    let edgeList = sourceMap.get(sid);
-    if (!edgeList) { edgeList = []; sourceMap.set(sid, edgeList); }
-    edgeList.push(e);
+    if (!srcGroup || !tgtGroup) continue;
+    if (srcGroup === tgtGroup) {
+      // Same group — intra-group edge
+      let sourceMap = groupSourceMap.get(srcGroup);
+      if (!sourceMap) { sourceMap = new Map(); groupSourceMap.set(srcGroup, sourceMap); }
+      let edgeList = sourceMap.get(sid);
+      if (!edgeList) { edgeList = []; sourceMap.set(sid, edgeList); }
+      edgeList.push(e);
+    } else {
+      // Cross-group — external edge (for group port wiring)
+      let extMap = groupExternalMap.get(srcGroup);
+      if (!extMap) { extMap = new Map(); groupExternalMap.set(srcGroup, extMap); }
+      let extList = extMap.get(sid);
+      if (!extList) { extList = []; extMap.set(sid, extList); }
+      extList.push(e);
+    }
   }
 
   // Step 2: Build cables using road network routing (cable tray).
@@ -638,15 +649,13 @@ function buildIntraGroupCables(
       if (!srcPos) continue;
 
       const targetPositions = new Map<string, { x: number; y: number }>();
-      let connectsExternal = false;
+      const externalEdges = groupExternalMap.get(groupKey)?.get(sourceNodeId) ?? [];
+      const connectsExternal = externalEdges.length > 0;
 
       for (const e of edgeList) {
         const tid = edgeTargetId(e);
         const tgtGroup = nodeClusterMap.get(tid);
-        if (tgtGroup && tgtGroup !== groupKey) {
-          connectsExternal = true;
-          continue;
-        }
+        if (tgtGroup && tgtGroup !== groupKey) continue;
         if (targetPositions.has(tid)) continue;
         const tgtPos = resolvePos(e.target) ?? resolvePos(tid);
         if (!tgtPos) continue;
@@ -747,11 +756,7 @@ function buildIntraGroupCables(
             { x: groupPort.x, y: groupPort.y },
           ];
         }
-        groupPortBranch = { path, edges: edgeList.filter(e => {
-          const tid = edgeTargetId(e);
-          const tg = nodeClusterMap.get(tid);
-          return tg && tg !== groupKey;
-        }) };
+        groupPortBranch = { path, edges: externalEdges };
       }
 
       cables.push({ groupKey, junction, branches, groupPortBranch });
