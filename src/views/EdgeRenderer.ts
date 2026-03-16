@@ -590,25 +590,77 @@ interface JunctionGrid {
   colGaps: number[];
 }
 
-/** Compute junction grid from node positions within a group */
+/**
+ * Merge nearby values into clusters. Values within `minSpacing` of each other
+ * are merged into one representative (average of cluster).
+ */
+function mergeNearbyValues(sorted: number[], minSpacing: number): number[] {
+  if (sorted.length === 0) return [];
+  const result: number[] = [];
+  let clusterStart = 0;
+  for (let i = 1; i <= sorted.length; i++) {
+    if (i === sorted.length || sorted[i] - sorted[i - 1] > minSpacing) {
+      // End of cluster: compute average of cluster
+      let sum = 0;
+      for (let j = clusterStart; j < i; j++) sum += sorted[j];
+      result.push(sum / (i - clusterStart));
+      clusterStart = i;
+    }
+  }
+  return result;
+}
+
+/** Compute junction grid from node positions within a group.
+ *  Nearby rows/columns are merged to form a clean grid even when
+ *  tag/category nodes are at irregular positions. */
 function computeJunctionGrid(
   groupKey: string,
   resolvePos: (ref: string | object) => Pos | undefined,
   nodeClusterMap: Map<string, string>,
 ): JunctionGrid {
-  const xs = new Set<number>();
-  const ys = new Set<number>();
+  const xs: number[] = [];
+  const ys: number[] = [];
   for (const [nid, gk] of nodeClusterMap) {
     if (gk !== groupKey) continue;
     const p = resolvePos(nid);
-    if (p) { xs.add(Math.round(p.x)); ys.add(Math.round(p.y)); }
+    if (p) { xs.push(Math.round(p.x)); ys.push(Math.round(p.y)); }
   }
-  const rows = [...ys].sort((a, b) => a - b);
-  const cols = [...xs].sort((a, b) => a - b);
+  xs.sort((a, b) => a - b);
+  ys.sort((a, b) => a - b);
+
+  // Estimate minimum node spacing from the most common gap
+  let minSpacing = 20; // fallback
+  if (ys.length >= 2) {
+    const gaps: number[] = [];
+    for (let i = 1; i < ys.length; i++) {
+      const g = ys[i] - ys[i - 1];
+      if (g > 1) gaps.push(g);
+    }
+    if (gaps.length > 0) {
+      gaps.sort((a, b) => a - b);
+      // Use the median gap as the "normal" spacing
+      minSpacing = gaps[Math.floor(gaps.length / 2)] * 0.4;
+    }
+  }
+
+  // Merge nearby rows/columns to form a clean grid
+  const rows = mergeNearbyValues(ys, minSpacing);
+  const cols = mergeNearbyValues(xs, minSpacing);
+
+  // Only create gaps between rows/columns that have sufficient spacing
+  // (gaps narrower than minSpacing are likely between nodes that shouldn't have a gap)
   const rowGaps: number[] = [];
-  for (let i = 0; i < rows.length - 1; i++) rowGaps.push((rows[i] + rows[i + 1]) / 2);
+  for (let i = 0; i < rows.length - 1; i++) {
+    if (rows[i + 1] - rows[i] > minSpacing) {
+      rowGaps.push((rows[i] + rows[i + 1]) / 2);
+    }
+  }
   const colGaps: number[] = [];
-  for (let i = 0; i < cols.length - 1; i++) colGaps.push((cols[i] + cols[i + 1]) / 2);
+  for (let i = 0; i < cols.length - 1; i++) {
+    if (cols[i + 1] - cols[i] > minSpacing) {
+      colGaps.push((cols[i] + cols[i + 1]) / 2);
+    }
+  }
   return { rows, cols, rowGaps, colGaps };
 }
 
