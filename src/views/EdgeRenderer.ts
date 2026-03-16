@@ -169,9 +169,9 @@ const CABLE_LAYOUT_MARGIN = 5;
 /** Cable layout overlap start/end fraction */
 const CABLE_OVERLAP_FRAC = 0.4;
 /** Trunk conduit alpha — semi-transparent so wires show through */
-const TRUNK_CONDUIT_ALPHA = 0.18;
+const TRUNK_CONDUIT_ALPHA = 0;
 /** Cable conduit alpha — semi-transparent so wires show through */
-const CABLE_CONDUIT_ALPHA = 0.12;
+const CABLE_CONDUIT_ALPHA = 0;
 /** Wire alpha — most opaque layer, clearly visible */
 const WIRE_BASE_ALPHA = 0.9;
 /** Wire spacing within a cable (screen pixels between parallel wires) */
