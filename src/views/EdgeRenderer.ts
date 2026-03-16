@@ -697,19 +697,43 @@ function buildIntraGroupCables(
 
       if (targetPositions.size === 0 && !connectsExternal) continue;
 
-      // Junction = average position of all involved nodes, offset to cable corridor
+      // Junction = average position of all involved nodes, snapped to
+      // the gap between the two nearest node rows (avoids crossing nodes)
       let jx = 0, jy = 0;
       for (const p of nodePositions) { jx += p.x; jy += p.y; }
       jx /= nodePositions.length;
       jy /= nodePositions.length;
-      // Offset junction below the node average to avoid node overlap
-      const junction = { x: jx, y: jy + portOffset };
+      // Snap jy to the nearest inter-row gap
+      let snappedJy = jy + portOffset; // default: just offset
+      if (sortedYs.length >= 2) {
+        // Find the two consecutive row Y values that jy falls between
+        let bestGapY = jy + portOffset;
+        let bestDist = Infinity;
+        for (let ri = 0; ri < sortedYs.length - 1; ri++) {
+          const gapY = (sortedYs[ri] + sortedYs[ri + 1]) / 2; // midpoint between rows
+          const d = Math.abs(gapY - jy);
+          if (d < bestDist) { bestDist = d; bestGapY = gapY; }
+        }
+        snappedJy = bestGapY;
+      }
+      const junction = { x: jx, y: snappedJy };
 
-      // Node ports: each node gets a port offset downward
+      // Node ports: snap to nearest inter-row gap below the node
+      const snapToGap = (ny: number): number => {
+        if (sortedYs.length < 2) return ny + portOffset;
+        for (let ri = 0; ri < sortedYs.length - 1; ri++) {
+          if (sortedYs[ri] <= ny && ny <= sortedYs[ri + 1]) {
+            return (sortedYs[ri] + sortedYs[ri + 1]) / 2;
+          }
+        }
+        // Node is at or beyond the last row — use gap below last row
+        return ny + portOffset;
+      };
+
       const srcPort: NodePort = {
         nodeId: sourceNodeId,
         x: srcPos.x,
-        y: srcPos.y + portOffset,
+        y: snapToGap(srcPos.y),
       };
 
       // Build branches: srcPort → junction → each tgtPort (Manhattan)
@@ -725,7 +749,7 @@ function buildIntraGroupCables(
           const tgtPort: NodePort = {
             nodeId: tid,
             x: tgtPos.x,
-            y: tgtPos.y + portOffset,
+            y: snapToGap(tgtPos.y),
           };
           // Path: srcPort → junction → tgtPort (all Manhattan segments)
           const path = [
