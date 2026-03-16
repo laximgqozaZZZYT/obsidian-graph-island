@@ -12,19 +12,19 @@ import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
-import { buildRoadNetwork, buildRoadNetworkFromPhantoms, addTrunkRoads, type RoadNetwork } from "../layouts/road-network";
+import { buildCableTray, buildCableTrayFromPhantoms, addTrunkCables, type CableTray } from "../layouts/cable-tray";
 
 /**
  * Global cache for the densest road network ever built — survives module reloads.
  * Stored on window to persist across plugin disable/enable cycles.
  */
-function _getBestRoadNetwork(): RoadNetwork | null {
-  return (window as any).__gi_bestRoadNetwork ?? null;
+function _getBestCableTray(): CableTray | null {
+  return (window as any).__gi_bestCableTray ?? null;
 }
-function _setBestRoadNetwork(rn: RoadNetwork) {
-  const cur = _getBestRoadNetwork();
+function _setBestCableTray(rn: CableTray) {
+  const cur = _getBestCableTray();
   if (!cur || rn.intersections.length > cur.intersections.length) {
-    (window as any).__gi_bestRoadNetwork = rn;
+    (window as any).__gi_bestCableTray = rn;
   }
 }
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
@@ -144,8 +144,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private arrowGraphics: CanvasGraphics | null = null;
   private routeGraphics: CanvasGraphics | null = null;
   private routeData: TimelineRoute[] | null = null;
-  private roadNetworkData: RoadNetwork | null = null;
-  private roadGraphics: CanvasGraphics | null = null;
+  private cableTrayData: CableTray | null = null;
+  private trayGraphics: CanvasGraphics | null = null;
   private barGraphics: CanvasGraphics | null = null;
   private barLabelContainer: CanvasContainer | null = null;
   private pixiNodes: Map<string, PixiNode> = new Map();
@@ -937,9 +937,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.arrowGraphics = null;
     this.routeGraphics = null;
     this.routeData = null;
-    this.roadGraphics = null;
-    // Keep roadNetworkData across destroyPixi — only rebuild via simulation end handler
-    this._roadNetworkFinalized = false;
+    this.trayGraphics = null;
+    // Keep cableTrayData across destroyPixi — only rebuild via simulation end handler
+    this._cableTrayFinalized = false;
     this._roadDrawn = false;
     this.barGraphics = null;
     this.barLabelContainer = null;
@@ -1052,7 +1052,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Road network layer (auto-generated roads from coordinate grid)
     const roadGfx = new CanvasGraphics();
     world.addChild(roadGfx);
-    this.roadGraphics = roadGfx;
+    this.trayGraphics = roadGfx;
 
     // Enclosure layer (tag enclosures, drawn behind edges)
     const enclosureGfx = new CanvasGraphics();
@@ -1851,9 +1851,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cardinalityRules = this.panel.cardinalityRules;
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
     cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
-    cfg.roadNetwork = this.getRoadNetwork();
+    cfg.roadNetwork = this.getCableTray();
     const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-    cfg.enableRoadRouting = !!rt2.roadRouteEdges && !!this.roadNetworkData;
+    cfg.routeWiresOnTray = !!rt2.routeWiresOnTray && !!this.cableTrayData;
     return cfg;
   }
 
@@ -2347,29 +2347,29 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Road Network — auto-generated roads from coordinate grid lines
   // =========================================================================
 
-  private _roadNetworkFinalized = false;
+  private _cableTrayFinalized = false;
   /** When true, the road graphics commands are up-to-date and skip redraw */
   private _roadDrawn = false;
 
-  private buildRoadNetwork(final = false) {
+  private buildCableTray(final = false) {
     // Once finalized (by simulation end), don't rebuild unless explicitly requested
-    if (this._roadNetworkFinalized && !final) return;
-    this._buildRoadNetworkInner();
+    if (this._cableTrayFinalized && !final) return;
+    this._buildCableTrayInner();
     this._roadDrawn = false; // invalidate draw cache
     if (final) {
-      this._roadNetworkFinalized = true;
+      this._cableTrayFinalized = true;
     }
   }
 
   /** Update global cache if new network is denser */
-  private _updateRoadCache() {
-    const n = this.roadNetworkData;
-    if (n) _setBestRoadNetwork(n);
+  private _updateTrayCache() {
+    const n = this.cableTrayData;
+    if (n) _setBestCableTray(n);
   }
 
   /** Add trunk roads between group centroids and update road cache */
-  private _finishRoadNetwork(allNodes: GraphNode[]) {
-    if (!this.roadNetworkData) return;
+  private _finishCableTray(allNodes: GraphNode[]) {
+    if (!this.cableTrayData) return;
     // Add trunk roads between group centroids
     const meta = this.clusterMeta;
     if (meta?.clusterCentroids) {
@@ -2379,25 +2379,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       if (centroids.length > 1) {
         const groupArrangement = this.panel.clusterGroupArrangement || "auto";
-        addTrunkRoads(this.roadNetworkData, centroids, groupArrangement);
+        addTrunkCables(this.cableTrayData, centroids, groupArrangement);
         // Re-map nodes to nearest intersection (trunk roads may provide closer access)
         for (const node of allNodes) {
           let bestId = 0;
           let bestDist = Infinity;
-          for (const isect of this.roadNetworkData.intersections) {
+          for (const isect of this.cableTrayData.intersections) {
             const dx = node.x - isect.x;
             const dy = node.y - isect.y;
             const d = dx * dx + dy * dy;
             if (d < bestDist) { bestDist = d; bestId = isect.id; }
           }
-          this.roadNetworkData.nodeAccess.set(node.id, bestId);
+          this.cableTrayData.nodeAccess.set(node.id, bestId);
         }
       }
     }
-    this._updateRoadCache();
+    this._updateTrayCache();
   }
 
-  private _buildRoadNetworkInner() {
+  private _buildCableTrayInner() {
     const meta = this.clusterMeta;
     if (!meta) return;
 
@@ -2419,12 +2419,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const bounds = this.computeNodeBounds(allNodes);
       const gcx = (bounds.xMin + bounds.xMax) / 2;
       const gcy = (bounds.yMin + bounds.yMax) / 2;
-      this.roadNetworkData = buildRoadNetworkFromPhantoms(
+      this.cableTrayData = buildCableTrayFromPhantoms(
         phantomNodes, allNodes,
         POLAR.has(arrangement) ? "polar" : "cartesian",
         gcx, gcy,
       );
-      this._finishRoadNetwork(allNodes);
+      this._finishCableTray(allNodes);
       return;
     }
 
@@ -2458,7 +2458,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             const maxRing = Math.max(...cg.rings);
             const sortedRings = [...cg.rings].sort((a, b) => a - b);
             // No densification — keep roads sparse and visible
-            this.roadNetworkData = buildRoadNetwork({
+            this.cableTrayData = buildCableTray({
               system: "polar",
               axis1Lines: sortedRings.map(r => ({ position: r })),
               axis2Lines: Array.from({ length: spokeCount }, (_, i) => ({
@@ -2469,7 +2469,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
               bounds: { xMin: -maxRing, yMin: -maxRing, xMax: maxRing, yMax: maxRing, maxR: maxRing },
               nodes: allNodes,
             });
-            this._finishRoadNetwork(allNodes);
+            this._finishCableTray(allNodes);
             return;
           }
         }
@@ -2480,7 +2480,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           const verts = (gg2.verticals ?? []).sort((a: number, b: number) => a - b);
           const horiz = (gg2.horizontals ?? []).sort((a: number, b: number) => a - b);
           // No densification — sparse grid for pattern-forced routing
-          this.roadNetworkData = buildRoadNetwork({
+          this.cableTrayData = buildCableTray({
             system: "cartesian",
             axis1Lines: verts.map(v => ({ position: v })),
             axis2Lines: horiz.map(h => ({ position: h })),
@@ -2489,7 +2489,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             bounds: gg2.bounds ?? this.computeNodeBounds(allNodes),
             nodes: allNodes,
           });
-          this._finishRoadNetwork(allNodes);
+          this._finishCableTray(allNodes);
           return;
         }
 
@@ -2517,7 +2517,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             vertLines.push({ position: bottomLeft.x + c * colSpacing });
           }
           // No densification — sparse grid for pattern-forced routing
-          this.roadNetworkData = buildRoadNetwork({
+          this.cableTrayData = buildCableTray({
             system: "cartesian",
             axis1Lines: vertLines,
             axis2Lines: horizLines,
@@ -2526,14 +2526,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             bounds: { xMin: bottomLeft.x, yMin: top.y, xMax: bottomRight.x, yMax: bottomLeft.y },
             nodes: allNodes,
           });
-          this._finishRoadNetwork(allNodes);
+          this._finishCableTray(allNodes);
           return;
         }
 
         // TimelineGuide: ticks become vertical roads, axisY becomes horizontal road
         if (g.type === "timeline") {
           const tl = g as { type: "timeline"; axisY: number; ticks: { x: number; label: string }[] };
-          this.roadNetworkData = buildRoadNetwork({
+          this.cableTrayData = buildCableTray({
             system: "cartesian",
             axis1Lines: (tl.ticks ?? []).map((t: { x: number }) => ({ position: t.x })),
             axis2Lines: [{ position: tl.axisY ?? 0 }],
@@ -2542,7 +2542,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             bounds: this.computeNodeBounds(allNodes),
             nodes: allNodes,
           });
-          this._finishRoadNetwork(allNodes);
+          this._finishCableTray(allNodes);
           return;
         }
       }
@@ -2578,7 +2578,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           }));
 
           // No densification — sparse roads for pattern-forced routing
-          this.roadNetworkData = buildRoadNetwork({
+          this.cableTrayData = buildCableTray({
             system: "polar",
             axis1Lines: ringRadii,
             axis2Lines: spokeAngles,
@@ -2587,7 +2587,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             bounds: { ...bounds, maxR },
             nodes: allNodes,
           });
-          this._finishRoadNetwork(allNodes);
+          this._finishCableTray(allNodes);
           return;
         } else {
           // Cartesian: merge axis lines with world-space offsets (no densification)
@@ -2600,7 +2600,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           }
           const sortedA1 = [...allA1].sort((a, b) => a - b);
           const sortedA2 = [...allA2].sort((a, b) => a - b);
-          this.roadNetworkData = buildRoadNetwork({
+          this.cableTrayData = buildCableTray({
             system: "cartesian",
             axis1Lines: sortedA1.map(p => ({ position: p })),
             axis2Lines: sortedA2.map(p => ({ position: p })),
@@ -2611,7 +2611,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             nodes: allNodes,
           });
         }
-        this._finishRoadNetwork(allNodes);
+        this._finishCableTray(allNodes);
         return;
       }
     }
@@ -2640,7 +2640,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
 
       // No densification — sparse roads for pattern-forced routing
-      this.roadNetworkData = buildRoadNetwork({
+      this.cableTrayData = buildCableTray({
         system: "cartesian",
         axis1Lines: xLines,
         axis2Lines: yLines,
@@ -2657,7 +2657,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const ringCount = rt.roadRingCount || Math.min(12, Math.max(6, Math.ceil(Math.sqrt(allNodes.length / 10))));
       const spokeCount = rt.roadSpokeCount || Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5))));
 
-      this.roadNetworkData = buildRoadNetwork({
+      this.cableTrayData = buildCableTray({
         system: "polar",
         axis1Lines: Array.from({ length: ringCount }, (_, i) => ({
           position: dists[Math.floor(dists.length * (i + 1) / (ringCount + 1))] ?? 1,
@@ -2671,7 +2671,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         nodes: allNodes,
       });
     }
-    this._finishRoadNetwork(allNodes);
+    this._finishCableTray(allNodes);
   }
 
   /** Compute axis-aligned bounding box from node positions */
@@ -2684,17 +2684,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return { xMin: minX, yMin: minY, xMax: maxX, yMax: maxY };
   }
 
-  drawRoadNetwork() {
+  drawCableTray() {
     // Build road network if not finalized and not yet built
-    if (!this._roadNetworkFinalized && !this.roadNetworkData && this.pixiNodes.size > 0) {
+    if (!this._cableTrayFinalized && !this.cableTrayData && this.pixiNodes.size > 0) {
       let hasPosition = false;
       for (const pn of this.pixiNodes.values()) {
         if (Math.abs(pn.data.x) > 1 || Math.abs(pn.data.y) > 1) { hasPosition = true; break; }
       }
-      if (hasPosition) this.buildRoadNetwork();
+      if (hasPosition) this.buildCableTray();
     }
 
-    const g = this.roadGraphics;
+    const g = this.trayGraphics;
     if (!g) return;
 
     // Skip redraw if road commands are already up-to-date (perf: ~120K cmds)
@@ -2702,11 +2702,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     g.clear();
 
-    const network = this.getRoadNetwork();
+    // Use instance-level network for drawing (sparse, ~200 segments).
+    // getCableTray() may return a densified global cache (~60K segments)
+    // which is useful for edge routing but far too heavy for visual rendering.
+    const network = this.cableTrayData;
     if (!network || network.intersections.length === 0) return;
 
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-    if (!(rt.showRoadNetwork ?? true)) return;
+    if (!(rt.showCableTray ?? true)) return;
 
     const isDark = this.isDarkTheme();
     const roadColor = rt.roadColor ?? (isDark ? 0x555577 : 0xaaaacc);
@@ -2747,9 +2750,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   /** Get road network for edge routing */
-  getRoadNetwork(): RoadNetwork | null {
-    const best = _getBestRoadNetwork();
-    const inst = this.roadNetworkData;
+  getCableTray(): CableTray | null {
+    const best = _getBestCableTray();
+    const inst = this.cableTrayData;
     if (best && inst) {
       return (best.intersections.length >= inst.intersections.length) ? best : inst;
     }
@@ -4357,7 +4360,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
       }
       // Rebuild road network now that final node positions are available
-      this.buildRoadNetwork(true);
+      this.buildCableTray(true);
       // Force full redraw now that all positions are final
       this.updatePositions(true);
       if (this.panel.autoFit && wrap) {
