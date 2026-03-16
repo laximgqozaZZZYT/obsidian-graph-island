@@ -932,13 +932,6 @@ function drawIntraGroupCables(
 ): void {
   if (cables.length === 0) return;
 
-  // Cable count attenuation (similar to trunk crowd alpha)
-  const cableCount = cables.length;
-  const crowdAlpha = cableCount <= 20 ? 1.0
-    : cableCount <= 60 ? 0.6
-    : cableCount <= 150 ? 0.35
-    : 0.2;
-
   // Highlight helper
   const getBranchHighlight = (branchEdges: GraphEdge[]): "normal" | "bright" | "dim" => {
     if (!cfg.highlightedNodeId) return "normal";
@@ -954,34 +947,42 @@ function drawIntraGroupCables(
   // No conduit layer — wires are drawn directly inside trunks.
 
   // PASS 1: Intra-group branch wires (node-to-node within group)
+  // Within each branch (same source→target), deduplicate by color so that
+  // multiple edges of the same color (e.g., link + semantic) draw as one wire.
   for (const cable of cables) {
     for (const branch of cable.branches) {
-      const nEdges = branch.edges.length;
-      const highlight = getBranchHighlight(branch.edges);
+      // Group edges by color within this branch
+      const colorMap = new Map<number, GraphEdge[]>();
+      for (const e of branch.edges) {
+        const c = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+        const ex = colorMap.get(c);
+        if (ex) ex.push(e); else colorMap.set(c, [e]);
+      }
 
+      const nColors = colorMap.size;
       const p0 = branch.path[0], pN = branch.path[branch.path.length - 1];
       const tdx = pN.x - p0.x, tdy = pN.y - p0.y;
       const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
       const perpX = tlen > 0 ? -tdy / tlen : 0;
       const perpY = tlen > 0 ? tdx / tlen : 1;
 
-      for (let ei = 0; ei < nEdges; ei++) {
-        const e = branch.edges[ei];
-        const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+      let ci = 0;
+      for (const [color, edges] of colorMap) {
+        const highlight = getBranchHighlight(edges);
 
         let wireAlpha = WIRE_BASE_ALPHA;
         if (highlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
         else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
-        const off = nEdges > 1 ? (ei - (nEdges - 1) / 2) * STUB_WIRE_SPACING : 0;
+        const off = nColors > 1 ? (ci - (nColors - 1) / 2) * STUB_WIRE_SPACING : 0;
         const wirePath = off === 0 ? branch.path
           : branch.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
 
-        // Ensure wires stay visible; highlighted wires get full alpha
         const finalAlpha = highlight === "bright"
           ? wireAlpha
-          : Math.max(wireAlpha * densityScale * crowdAlpha, highlight === "dim" ? 0.05 : 0.25);
+          : Math.max(wireAlpha * densityScale, highlight === "dim" ? 0.05 : 0.35);
         _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, finalAlpha);
+        ci++;
       }
     }
   }
@@ -1052,9 +1053,11 @@ function drawIntraGroupCables(
         wirePath[wirePath.length - 1] = laneEndpoint;
       }
 
+      // Use same alpha formula as trunk wires (no crowdAlpha, floor 0.35)
+      // so internal→port wires match trunk wire brightness at the port boundary.
       const gpFinalAlpha = gpHighlight === "bright"
         ? wireAlpha
-        : Math.max(wireAlpha * densityScale * crowdAlpha, gpHighlight === "dim" ? 0.05 : 0.25);
+        : Math.max(wireAlpha * densityScale, gpHighlight === "dim" ? 0.05 : 0.35);
       _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, gpFinalAlpha);
     }
   }
@@ -1199,9 +1202,12 @@ function drawTrunks(
     const trunkColorSet = new Set<number>();
     for (const c of trunk.cables) trunkColorSet.add(c.color);
     const trunkWidth = Math.max(trunkColorSet.size * laneSpacing + CABLE_SCREEN_WIDTH, TRUNK_SCREEN_WIDTH);
-    const highlight = getTrunkHighlight(trunk);
-    const trunkAlpha = highlight === "dim" ? 0.02 : highlight === "bright" ? 0.2 : TRUNK_CONDUIT_ALPHA;
-    _drawSmoothPath(g, trunk.path, trunkWidth, 0x888888, trunkAlpha * densityScale * trunkCountAlpha);
+    // Conduit is always invisible (TRUNK_CONDUIT_ALPHA = 0)
+    if (TRUNK_CONDUIT_ALPHA > 0) {
+      const highlight = getTrunkHighlight(trunk);
+      const trunkAlpha = highlight === "dim" ? 0.02 : highlight === "bright" ? 0.2 : TRUNK_CONDUIT_ALPHA;
+      _drawSmoothPath(g, trunk.path, trunkWidth, 0x888888, trunkAlpha * densityScale * trunkCountAlpha);
+    }
   }
 
   // PASS 2: Wires — colored, directly inside trunk conduit (no cable sub-conduits).
@@ -1212,8 +1218,6 @@ function drawTrunks(
     const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
     const perpX = tlen > 0 ? -tdy / tlen : 0;
     const perpY = tlen > 0 ? tdx / tlen : 1;
-
-    const highlight = getTrunkHighlight(trunk);
 
     // Deduplicate cables by color — merge same-colored cables into one
     const colorMap = new Map<number, GraphEdge[]>();
@@ -1236,9 +1240,22 @@ function drawTrunks(
       const color = uniqueColors[ci];
       if (!colorMap.has(color)) continue; // color only exists on internal side
 
+      // Per-wire highlight: only highlight wires whose edges connect to the hovered node
+      const wireEdges = colorMap.get(color)!;
+      let wireHighlight: "normal" | "bright" | "dim" = "normal";
+      if (cfg.highlightedNodeId) {
+        wireHighlight = "dim";
+        for (const e of wireEdges) {
+          if (cfg.highlightSet.has(edgeSourceId(e)) || cfg.highlightSet.has(edgeTargetId(e))) {
+            wireHighlight = "bright";
+            break;
+          }
+        }
+      }
+
       let wireAlpha = WIRE_BASE_ALPHA;
-      if (highlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
-      else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
+      if (wireHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
+      else if (wireHighlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
       // Build wire path: use path-perpendicular for intermediate points,
       // but use FIXED port lane endpoints at both ends for precise alignment.
@@ -1252,9 +1269,9 @@ function drawTrunks(
       if (srcEndpoint) { wirePath[0] = srcEndpoint; }
       if (tgtEndpoint) { wirePath[wirePath.length - 1] = tgtEndpoint; }
 
-      const finalAlpha = highlight === "bright"
+      const finalAlpha = wireHighlight === "bright"
         ? wireAlpha
-        : Math.max(wireAlpha * densityScale, highlight === "dim" ? 0.05 : 0.35);
+        : Math.max(wireAlpha * densityScale, wireHighlight === "dim" ? 0.05 : 0.35);
       _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, finalAlpha);
     }
   }
