@@ -2621,7 +2621,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         nodes: allNodes,
       });
     } else {
-      // Cartesian: merge axis lines with world-space offsets (no densification)
+      // Cartesian: merge axis lines with world-space offsets, then shift to
+      // midpoints so cable tray intersections sit BETWEEN nodes (like a Go board
+      // where lines run between stones, not through them).
       const allA1 = new Set<number>();
       const allA2 = new Set<number>();
       for (const cg of coordGuides) {
@@ -2631,10 +2633,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       const sortedA1 = [...allA1].sort((a, b) => a - b);
       const sortedA2 = [...allA2].sort((a, b) => a - b);
+      // Convert node-grid lines to midpoint-grid lines (half-cell offset)
+      const midA1: number[] = [];
+      for (let i = 0; i < sortedA1.length - 1; i++) midA1.push((sortedA1[i] + sortedA1[i + 1]) / 2);
+      const midA2: number[] = [];
+      for (let i = 0; i < sortedA2.length - 1; i++) midA2.push((sortedA2[i] + sortedA2[i + 1]) / 2);
       this.cableTrayData = buildRoadNetwork({
         system: "cartesian",
-        axis1Lines: sortedA1.map(p => ({ position: p })),
-        axis2Lines: sortedA2.map(p => ({ position: p })),
+        axis1Lines: midA1.map(p => ({ position: p })),
+        axis2Lines: midA2.map(p => ({ position: p })),
         axis1Shape: coordGuides[0].guide.gridInfo.axis1Shape?.kind ?? "line",
         axis2Shape: coordGuides[0].guide.gridInfo.axis2Shape?.kind ?? "line",
         cx: (bounds.xMin + bounds.xMax) / 2, cy: (bounds.yMin + bounds.yMax) / 2,
@@ -2663,11 +2670,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const xStep = width / gridSize;
       const yStep = height / gridSize;
 
+      // Place grid lines at half-cell offsets so they run between nodes
       const xLines: { position: number }[] = [];
       const yLines: { position: number }[] = [];
-      for (let i = 0; i <= gridSize; i++) {
-        xLines.push({ position: bounds.xMin + i * xStep });
-        yLines.push({ position: bounds.yMin + i * yStep });
+      for (let i = 0; i < gridSize; i++) {
+        xLines.push({ position: bounds.xMin + (i + 0.5) * xStep });
+        yLines.push({ position: bounds.yMin + (i + 0.5) * yStep });
       }
 
       // No densification — sparse roads for pattern-forced routing
