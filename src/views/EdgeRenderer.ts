@@ -1036,28 +1036,7 @@ function drawTrunks(
     _drawSmoothPath(g, trunk.path, trunkWidth, 0x888888, trunkAlpha * densityScale * trunkCountAlpha);
   }
 
-  // PASS 2: Cable conduits — medium width, semi-transparent gray, one per unique color
-  for (const trunk of trunks) {
-    // Count unique colors in this trunk
-    const colorSet = new Set<number>();
-    for (const cable of trunk.cables) colorSet.add(cable.color);
-    const nUnique = colorSet.size;
-    if (nUnique <= 1) continue;
-
-    const p0 = trunk.path[0], pN = trunk.path[trunk.path.length - 1];
-    const tdx = pN.x - p0.x, tdy = pN.y - p0.y;
-    const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
-    const perpX = tlen > 0 ? -tdy / tlen : 0;
-    const perpY = tlen > 0 ? tdx / tlen : 1;
-
-    for (let ci = 0; ci < nUnique; ci++) {
-      const off = (ci - (nUnique - 1) / 2) * laneSpacing;
-      const cablePath = trunk.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
-      _drawSmoothPath(g, cablePath, CABLE_SCREEN_WIDTH, 0x888888, CABLE_CONDUIT_ALPHA * densityScale);
-    }
-  }
-
-  // PASS 3: Wires — thinnest, colored, clearly visible through conduits.
+  // PASS 2: Wires — colored, directly inside trunk conduit (no cable sub-conduits).
   // Merge same-colored cables into a single wire lane to avoid duplicates.
   for (const trunk of trunks) {
     const p0 = trunk.path[0], pN = trunk.path[trunk.path.length - 1];
