@@ -376,13 +376,11 @@ type GroupPorts = Map<PortDirection, GroupPort>;
 /** 全グループの引込口マップ: groupKey → GroupPorts */
 type AllGroupPorts = Map<string, GroupPorts>;
 
-/** 幹線: グループペア間を結ぶ。内部にケーブルを収容 */
+/** 幹線: グループペア間を結ぶ。内部にケーブルを収容。1ペア1本。 */
 interface Trunk {
   pairKey: string;
   srcGroup: string;
   tgtGroup: string;
-  srcDir: PortDirection;
-  tgtDir: PortDirection;
   path: { x: number; y: number }[];
   cables: TrunkCable[];
   allEdges: GraphEdge[];
@@ -538,10 +536,9 @@ function buildTrunks(
   const { nodeClusterMap } = cfg;
   if (!nodeClusterMap) return { trunks, cabledEdgeIds };
 
-  // pairData key: "srcGroup|srcDir|tgtGroup|tgtDir"
+  // pairData key: "groupA|groupB" (alphabetically sorted, 1 trunk per pair)
   const pairData = new Map<string, {
     srcGroup: string; tgtGroup: string;
-    srcDir: PortDirection; tgtDir: PortDirection;
     byColor: Map<number, GraphEdge[]>;
   }>();
 
@@ -552,11 +549,10 @@ function buildTrunks(
     const srcGroup = nodeClusterMap.get(sid);
     const tgtGroup = nodeClusterMap.get(tid);
     if (!srcGroup || !tgtGroup || srcGroup === tgtGroup) continue;
-    const srcDir = classifyEdgePort(e, sid);
-    const tgtDir = classifyEdgePort(e, tid);
-    const pairKey = `${srcGroup}|${srcDir}|${tgtGroup}|${tgtDir}`;
+    const [a, b] = srcGroup < tgtGroup ? [srcGroup, tgtGroup] : [tgtGroup, srcGroup];
+    const pairKey = `${a}|${b}`;
     let pair = pairData.get(pairKey);
-    if (!pair) { pair = { srcGroup, tgtGroup, srcDir, tgtDir, byColor: new Map() }; pairData.set(pairKey, pair); }
+    if (!pair) { pair = { srcGroup: a, tgtGroup: b, byColor: new Map() }; pairData.set(pairKey, pair); }
     const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
     let group = pair.byColor.get(color);
     if (!group) { group = []; pair.byColor.set(color, group); }
@@ -590,26 +586,8 @@ function buildTrunks(
     ports = computeGroupPorts(groupKeys, centroids, radii, connections, cfg.coordinateSystem, polarCenter);
   }
 
-  // Compute junction point per group+direction: offset from the port
-  // in the direction away from the group centroid.
-  const junctions = new Map<string, { x: number; y: number }>();
-  for (const [gk, groupPorts] of ports) {
-    const c = centroids.get(gk);
-    if (!c) continue;
-    const r = radii.get(gk) ?? DEFAULT_CLUSTER_RADIUS;
-    for (const [dir, port] of groupPorts) {
-      const jKey = `${gk}|${dir}`;
-      const dx = port.x - c.x, dy = port.y - c.y;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      if (len < 1) { junctions.set(jKey, { x: port.x, y: port.y }); continue; }
-      const junctionDist = r * 0.3;
-      junctions.set(jKey, {
-        x: port.x + (dx / len) * junctionDist,
-        y: port.y + (dy / len) * junctionDist,
-      });
-    }
-  }
-
+  // Compute a single trunk endpoint per group pointing toward the other group.
+  // This gives 1 trunk per group pair (not per direction pair).
   for (const [pairKey, pair] of pairData) {
     const cables: TrunkCable[] = [];
     const allEdges: GraphEdge[] = [];
@@ -617,43 +595,55 @@ function buildTrunks(
       cables.push({ color, edges: edgeList });
       for (const e of edgeList) allEdges.push(e);
     }
-    // Get direction-specific ports
-    const portA = ports.get(pair.srcGroup)?.get(pair.srcDir);
-    const portB = ports.get(pair.tgtGroup)?.get(pair.tgtDir);
-    if (!portA || !portB) continue;
 
-    const jKeyA = `${pair.srcGroup}|${pair.srcDir}`;
-    const jKeyB = `${pair.tgtGroup}|${pair.tgtDir}`;
-    const jctA = junctions.get(jKeyA) ?? portA;
-    const jctB = junctions.get(jKeyB) ?? portB;
+    const cA = centroids.get(pair.srcGroup);
+    const cB = centroids.get(pair.tgtGroup);
+    if (!cA || !cB) continue;
+    const rA = radii.get(pair.srcGroup) ?? DEFAULT_CLUSTER_RADIUS;
+    const rB = radii.get(pair.tgtGroup) ?? DEFAULT_CLUSTER_RADIUS;
+
+    // Port on A boundary pointing toward B
+    const dxAB = cB.x - cA.x, dyAB = cB.y - cA.y;
+    const lenAB = Math.sqrt(dxAB * dxAB + dyAB * dyAB);
+    const portA = lenAB > 1
+      ? { x: cA.x + (dxAB / lenAB) * rA, y: cA.y + (dyAB / lenAB) * rA }
+      : { x: cA.x + rA, y: cA.y };
+    const portB = lenAB > 1
+      ? { x: cB.x - (dxAB / lenAB) * rB, y: cB.y - (dyAB / lenAB) * rB }
+      : { x: cB.x - rB, y: cB.y };
+
+    // Junction = port + 30% radius outward
+    const jDistA = rA * 0.3;
+    const jDistB = rB * 0.3;
+    const jctA = lenAB > 1
+      ? { x: portA.x + (dxAB / lenAB) * jDistA, y: portA.y + (dyAB / lenAB) * jDistA }
+      : portA;
+    const jctB = lenAB > 1
+      ? { x: portB.x - (dxAB / lenAB) * jDistB, y: portB.y - (dyAB / lenAB) * jDistB }
+      : portB;
 
     // Path: PortA → JunctionA → (Manhattan middle) → JunctionB → PortB
     const middle = buildManhattanPath(jctA, jctB, cfg.clusterArrangement);
-    // Full path: Port → Junction → middle route → Junction → Port
     const path: { x: number; y: number }[] = [];
-    path.push({ x: portA.x, y: portA.y });
-    // Add junction only if it differs from port
+    path.push(portA);
     if (Math.abs(jctA.x - portA.x) > 1 || Math.abs(jctA.y - portA.y) > 1) {
-      path.push({ x: jctA.x, y: jctA.y });
+      path.push(jctA);
     }
-    // Add middle points (skip first/last if they duplicate junction)
-    for (let i = 0; i < middle.length; i++) {
-      const p = middle[i];
+    for (const p of middle) {
       const prev = path[path.length - 1];
       if (Math.abs(p.x - prev.x) > 1 || Math.abs(p.y - prev.y) > 1) {
         path.push(p);
       }
     }
-    // Add junction B and port B
     const lastPt = path[path.length - 1];
     if (Math.abs(jctB.x - lastPt.x) > 1 || Math.abs(jctB.y - lastPt.y) > 1) {
-      path.push({ x: jctB.x, y: jctB.y });
+      path.push(jctB);
     }
     if (Math.abs(portB.x - path[path.length - 1].x) > 1 || Math.abs(portB.y - path[path.length - 1].y) > 1) {
-      path.push({ x: portB.x, y: portB.y });
+      path.push(portB);
     }
 
-    trunks.push({ pairKey, srcGroup: pair.srcGroup, tgtGroup: pair.tgtGroup, srcDir: pair.srcDir, tgtDir: pair.tgtDir, path, cables, allEdges });
+    trunks.push({ pairKey, srcGroup: pair.srcGroup, tgtGroup: pair.tgtGroup, path, cables, allEdges });
     for (const e of allEdges) cabledEdgeIds.add(e.id);
   }
 
@@ -1235,17 +1225,8 @@ function buildPortColorLanes(
     return s;
   };
 
-  // Collect colors from trunk cables (each trunk connects two groups via direction-specific ports)
-  for (const trunk of trunks) {
-    const srcKey = portLaneKey(trunk.srcGroup, trunk.srcDir);
-    const tgtKey = portLaneKey(trunk.tgtGroup, trunk.tgtDir);
-    const srcSet = ensure(srcKey);
-    const tgtSet = ensure(tgtKey);
-    for (const cable of trunk.cables) {
-      srcSet.add(cable.color);
-      tgtSet.add(cable.color);
-    }
-  }
+  // Trunk colors are not added to directional port lanes — trunks use their own
+  // path-perpendicular offsets. Port lane alignment is only for groupPortBranch.
 
   // Collect colors from groupPortBranches edges (per direction)
   for (const cable of cables) {
@@ -1369,14 +1350,12 @@ function drawTrunks(
         }
       }
 
-      const srcInfo = portColorLanes?.get(portLaneKey(trunk.srcGroup, trunk.srcDir));
-      const tgtInfo = portColorLanes?.get(portLaneKey(trunk.tgtGroup, trunk.tgtDir));
-      const uniqueColors = srcInfo?.colors ?? tgtInfo?.colors ?? [...colorMap.keys()];
+      // Trunk wires use simple path-perpendicular offsets (no port lane alignment)
+      const uniqueColors = [...colorMap.keys()];
       const nUnique = uniqueColors.length;
 
       for (let ci = 0; ci < nUnique; ci++) {
         const color = uniqueColors[ci];
-        if (!colorMap.has(color)) continue;
 
         const wireEdges = colorMap.get(color)!;
         let wireHighlight: "normal" | "bright" | "dim" = "normal";
@@ -1399,11 +1378,6 @@ function drawTrunks(
         const off = (ci - (nUnique - 1) / 2) * laneSpacing;
         const ox = perpX * off, oy = perpY * off;
         const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
-
-        const srcEndpoint = srcInfo ? getPortLaneEndpoint(srcInfo, color, laneSpacing) : null;
-        const tgtEndpoint = tgtInfo ? getPortLaneEndpoint(tgtInfo, color, laneSpacing) : null;
-        if (srcEndpoint) { wirePath[0] = srcEndpoint; }
-        if (tgtEndpoint) { wirePath[wirePath.length - 1] = tgtEndpoint; }
 
         const finalAlpha = wireHighlight === "bright"
           ? wireAlpha
