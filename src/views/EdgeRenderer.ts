@@ -949,116 +949,159 @@ function drawIntraGroupCables(
   // PASS 1: Intra-group branch wires (node-to-node within group)
   // Within each branch (same source→target), deduplicate by color so that
   // multiple edges of the same color (e.g., link + semantic) draw as one wire.
-  for (const cable of cables) {
-    for (const branch of cable.branches) {
-      // Group edges by color within this branch
-      const colorMap = new Map<number, GraphEdge[]>();
-      for (const e of branch.edges) {
-        const c = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
-        const ex = colorMap.get(c);
-        if (ex) ex.push(e); else colorMap.set(c, [e]);
-      }
-
-      const nColors = colorMap.size;
-      const p0 = branch.path[0], pN = branch.path[branch.path.length - 1];
-      const tdx = pN.x - p0.x, tdy = pN.y - p0.y;
-      const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
-      const perpX = tlen > 0 ? -tdy / tlen : 0;
-      const perpY = tlen > 0 ? tdx / tlen : 1;
-
-      let ci = 0;
-      for (const [color, edges] of colorMap) {
-        const highlight = getBranchHighlight(edges);
-
-        let wireAlpha = WIRE_BASE_ALPHA;
-        if (highlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
-        else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
-
-        const off = nColors > 1 ? (ci - (nColors - 1) / 2) * STUB_WIRE_SPACING : 0;
-        const wirePath = off === 0 ? branch.path
-          : branch.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
-
-        const finalAlpha = highlight === "bright"
-          ? wireAlpha
-          : Math.max(wireAlpha * densityScale, highlight === "dim" ? 0.05 : 0.35);
-        _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, finalAlpha);
-        ci++;
-      }
-    }
-  }
-
-  // PASS 2: Group port branch wires — merge same-colored wires across all
-  // source nodes within the same group, so only one wire per color reaches
-  // the group port. This matches the trunk side which also deduplicates by color.
-  const groupPortData = new Map<string, {
-    cables: typeof cables;
-    colorEdges: Map<number, GraphEdge[]>;
-  }>();
-
-  // Collect all groupPortBranch edges per group, merged by color
-  for (const cable of cables) {
-    if (!cable.groupPortBranch || !cable.groupPortBranch.edges) continue;
-    if (cable.groupPortBranch.edges.length === 0) continue;
-
-    let gpd = groupPortData.get(cable.groupKey);
-    if (!gpd) {
-      gpd = { cables: [], colorEdges: new Map() };
-      groupPortData.set(cable.groupKey, gpd);
-    }
-    gpd.cables.push(cable);
-
-    for (const e of cable.groupPortBranch.edges) {
-      const c = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
-      const ex = gpd.colorEdges.get(c);
-      if (ex) ex.push(e); else gpd.colorEdges.set(c, [e]);
-    }
-  }
-
-  // Draw one merged wire per color per group port.
-  // Each cable has its own path from source node to group port.
-  // For each color, pick the first cable that has that color and draw
-  // from its source to the fixed port lane endpoint.
-  for (const [groupKey, gpd] of groupPortData) {
-    const portInfo = portColorLanes?.get(groupKey);
-    const gpColors = portInfo?.colors ?? [...gpd.colorEdges.keys()];
-    const nUnique = gpColors.length;
-
-    for (let ci = 0; ci < nUnique; ci++) {
-      const color = gpColors[ci];
-      if (!gpd.colorEdges.has(color)) continue; // color only on trunk side
-      const edges = gpd.colorEdges.get(color)!;
-      const gpHighlight = getBranchHighlight(edges);
-      let wireAlpha = WIRE_BASE_ALPHA;
-      if (gpHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
-      else if (gpHighlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
-
-      // Find a cable that has this color to use its path as the representative
-      let reprPath: { x: number; y: number }[] | null = null;
-      for (const cable of gpd.cables) {
-        if (!cable.groupPortBranch) continue;
-        for (const e of cable.groupPortBranch.edges) {
-          const ec = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
-          if (ec === color) { reprPath = cable.groupPortBranch.path; break; }
+  // When highlighting, draw in 2 sub-passes: dim first, then bright on top.
+  const _drawBranchWires = (filterHighlight: "normal" | "bright" | "dim" | null) => {
+    for (const cable of cables) {
+      for (const branch of cable.branches) {
+        const colorMap = new Map<number, GraphEdge[]>();
+        for (const e of branch.edges) {
+          const c = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+          const ex = colorMap.get(c);
+          if (ex) ex.push(e); else colorMap.set(c, [e]);
         }
-        if (reprPath) break;
-      }
-      if (!reprPath || reprPath.length < 2) continue;
 
-      // Copy path and override the PORT endpoint with the fixed lane coordinate
-      const wirePath = reprPath.map(p => ({ x: p.x, y: p.y }));
-      const laneEndpoint = portInfo
-        ? getPortLaneEndpoint(portInfo, color, CABLE_LANE_SPACING)
-        : null;
-      if (laneEndpoint) {
-        wirePath[wirePath.length - 1] = laneEndpoint;
-      }
+        const nColors = colorMap.size;
+        const p0 = branch.path[0], pN = branch.path[branch.path.length - 1];
+        const tdx = pN.x - p0.x, tdy = pN.y - p0.y;
+        const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
+        const perpX = tlen > 0 ? -tdy / tlen : 0;
+        const perpY = tlen > 0 ? tdx / tlen : 1;
 
-      // Use same alpha formula as trunk wires (no crowdAlpha, floor 0.35)
-      // so internal→port wires match trunk wire brightness at the port boundary.
-      const gpFinalAlpha = gpHighlight === "bright"
-        ? wireAlpha
-        : Math.max(wireAlpha * densityScale, gpHighlight === "dim" ? 0.05 : 0.35);
-      _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, gpFinalAlpha);
+        let ci = 0;
+        for (const [color, edges] of colorMap) {
+          const highlight = getBranchHighlight(edges);
+          // If filtering, only draw wires matching the filter
+          if (filterHighlight !== null && highlight !== filterHighlight) { ci++; continue; }
+
+          let wireAlpha = WIRE_BASE_ALPHA;
+          if (highlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
+          else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
+
+          const off = nColors > 1 ? (ci - (nColors - 1) / 2) * STUB_WIRE_SPACING : 0;
+          const wirePath = off === 0 ? branch.path
+            : branch.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
+
+          const finalAlpha = highlight === "bright"
+            ? wireAlpha
+            : Math.max(wireAlpha * densityScale, highlight === "dim" ? 0.05 : 0.35);
+          _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, finalAlpha);
+          ci++;
+        }
+      }
+    }
+  };
+
+  if (cfg.highlightedNodeId) {
+    // Draw dim wires first, then bright wires on top
+    _drawBranchWires("dim");
+    _drawBranchWires("normal");
+  } else {
+    _drawBranchWires(null);
+  }
+
+  // PASS 2: Group port branch wires.
+  // When highlighting: draw per-cable for accurate path-specific highlighting.
+  // When idle: merge same-colored wires across cables for cleaner visuals.
+  const isHighlighting = !!cfg.highlightedNodeId;
+
+  if (isHighlighting) {
+    // Per-cable drawing with 2 sub-passes: dim first, bright on top.
+    const _drawGpbWires = (filterHL: "dim" | "bright") => {
+      for (const cable of cables) {
+        if (!cable.groupPortBranch || !cable.groupPortBranch.edges) continue;
+        const gpb = cable.groupPortBranch;
+        if (gpb.edges.length === 0) continue;
+
+        const gpColorMap = new Map<number, GraphEdge[]>();
+        for (const e of gpb.edges) {
+          const c = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+          const ex = gpColorMap.get(c);
+          if (ex) ex.push(e); else gpColorMap.set(c, [e]);
+        }
+
+        const portInfo = portColorLanes?.get(cable.groupKey);
+
+        for (const [color, edges] of gpColorMap) {
+          const gpHighlight = getBranchHighlight(edges);
+          if (gpHighlight !== filterHL) continue;
+
+          let wireAlpha = WIRE_BASE_ALPHA;
+          if (gpHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
+          else wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
+
+          const wirePath = gpb.path.map(p => ({ x: p.x, y: p.y }));
+          const laneEndpoint = portInfo
+            ? getPortLaneEndpoint(portInfo, color, CABLE_LANE_SPACING)
+            : null;
+          if (laneEndpoint) {
+            wirePath[wirePath.length - 1] = laneEndpoint;
+          }
+
+          const gpFinalAlpha = gpHighlight === "bright"
+            ? wireAlpha
+            : Math.max(wireAlpha * densityScale, 0.05);
+          _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, gpFinalAlpha);
+        }
+      }
+    };
+    _drawGpbWires("dim");
+    _drawGpbWires("bright");
+  } else {
+    // Merged drawing: one wire per color per group port for clean visuals.
+    const groupPortData = new Map<string, {
+      cables: typeof cables;
+      colorEdges: Map<number, GraphEdge[]>;
+    }>();
+
+    for (const cable of cables) {
+      if (!cable.groupPortBranch || !cable.groupPortBranch.edges) continue;
+      if (cable.groupPortBranch.edges.length === 0) continue;
+      let gpd = groupPortData.get(cable.groupKey);
+      if (!gpd) {
+        gpd = { cables: [], colorEdges: new Map() };
+        groupPortData.set(cable.groupKey, gpd);
+      }
+      gpd.cables.push(cable);
+      for (const e of cable.groupPortBranch.edges) {
+        const c = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+        const ex = gpd.colorEdges.get(c);
+        if (ex) ex.push(e); else gpd.colorEdges.set(c, [e]);
+      }
+    }
+
+    for (const [groupKey, gpd] of groupPortData) {
+      const portInfo = portColorLanes?.get(groupKey);
+      const gpColors = portInfo?.colors ?? [...gpd.colorEdges.keys()];
+      const nUnique = gpColors.length;
+
+      for (let ci = 0; ci < nUnique; ci++) {
+        const color = gpColors[ci];
+        if (!gpd.colorEdges.has(color)) continue;
+
+        // Find representative path
+        let reprPath: { x: number; y: number }[] | null = null;
+        for (const cable of gpd.cables) {
+          if (!cable.groupPortBranch) continue;
+          for (const e of cable.groupPortBranch.edges) {
+            const ec = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+            if (ec === color) { reprPath = cable.groupPortBranch.path; break; }
+          }
+          if (reprPath) break;
+        }
+        if (!reprPath || reprPath.length < 2) continue;
+
+        const wirePath = reprPath.map(p => ({ x: p.x, y: p.y }));
+        const laneEndpoint = portInfo
+          ? getPortLaneEndpoint(portInfo, color, CABLE_LANE_SPACING)
+          : null;
+        if (laneEndpoint) {
+          wirePath[wirePath.length - 1] = laneEndpoint;
+        }
+
+        const wireAlpha = WIRE_BASE_ALPHA;
+        const gpFinalAlpha = Math.max(wireAlpha * densityScale, 0.35);
+        _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, gpFinalAlpha);
+      }
     }
   }
 }
@@ -1170,6 +1213,7 @@ function drawTrunks(
   cfg: EdgeDrawConfig,
   densityScale: number,
   portColorLanes?: PortColorLanes,
+  onlyHighlight?: "bright",
 ): void {
   if (trunks.length === 0) return;
 
@@ -1212,68 +1256,77 @@ function drawTrunks(
 
   // PASS 2: Wires — colored, directly inside trunk conduit (no cable sub-conduits).
   // Merge same-colored cables into a single wire lane to avoid duplicates.
-  for (const trunk of trunks) {
-    const p0 = trunk.path[0], pN = trunk.path[trunk.path.length - 1];
-    const tdx = pN.x - p0.x, tdy = pN.y - p0.y;
-    const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
-    const perpX = tlen > 0 ? -tdy / tlen : 0;
-    const perpY = tlen > 0 ? tdx / tlen : 1;
+  // When highlighting, draw dim first then bright on top for z-order.
+  const _drawTrunkWires = (filterHighlight: "bright" | "dim" | "normal" | null) => {
+    for (const trunk of trunks) {
+      const p0 = trunk.path[0], pN = trunk.path[trunk.path.length - 1];
+      const tdx = pN.x - p0.x, tdy = pN.y - p0.y;
+      const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
+      const perpX = tlen > 0 ? -tdy / tlen : 0;
+      const perpY = tlen > 0 ? tdx / tlen : 1;
 
-    // Deduplicate cables by color — merge same-colored cables into one
-    const colorMap = new Map<number, GraphEdge[]>();
-    for (const cable of trunk.cables) {
-      const existing = colorMap.get(cable.color);
-      if (existing) {
-        existing.push(...cable.edges);
-      } else {
-        colorMap.set(cable.color, [...cable.edges]);
-      }
-    }
-
-    // Use shared port lane endpoints for consistent positioning with groupPortBranch wires.
-    const srcInfo = portColorLanes?.get(trunk.srcGroup);
-    const tgtInfo = portColorLanes?.get(trunk.tgtGroup);
-    const uniqueColors = srcInfo?.colors ?? tgtInfo?.colors ?? [...colorMap.keys()];
-    const nUnique = uniqueColors.length;
-
-    for (let ci = 0; ci < nUnique; ci++) {
-      const color = uniqueColors[ci];
-      if (!colorMap.has(color)) continue; // color only exists on internal side
-
-      // Per-wire highlight: only highlight wires whose edges connect to the hovered node
-      const wireEdges = colorMap.get(color)!;
-      let wireHighlight: "normal" | "bright" | "dim" = "normal";
-      if (cfg.highlightedNodeId) {
-        wireHighlight = "dim";
-        for (const e of wireEdges) {
-          if (cfg.highlightSet.has(edgeSourceId(e)) || cfg.highlightSet.has(edgeTargetId(e))) {
-            wireHighlight = "bright";
-            break;
-          }
+      const colorMap = new Map<number, GraphEdge[]>();
+      for (const cable of trunk.cables) {
+        const existing = colorMap.get(cable.color);
+        if (existing) {
+          existing.push(...cable.edges);
+        } else {
+          colorMap.set(cable.color, [...cable.edges]);
         }
       }
 
-      let wireAlpha = WIRE_BASE_ALPHA;
-      if (wireHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
-      else if (wireHighlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
+      const srcInfo = portColorLanes?.get(trunk.srcGroup);
+      const tgtInfo = portColorLanes?.get(trunk.tgtGroup);
+      const uniqueColors = srcInfo?.colors ?? tgtInfo?.colors ?? [...colorMap.keys()];
+      const nUnique = uniqueColors.length;
 
-      // Build wire path: use path-perpendicular for intermediate points,
-      // but use FIXED port lane endpoints at both ends for precise alignment.
-      const off = (ci - (nUnique - 1) / 2) * laneSpacing;
-      const ox = perpX * off, oy = perpY * off;
-      const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
+      for (let ci = 0; ci < nUnique; ci++) {
+        const color = uniqueColors[ci];
+        if (!colorMap.has(color)) continue;
 
-      // Override endpoints with fixed port lane coordinates
-      const srcEndpoint = srcInfo ? getPortLaneEndpoint(srcInfo, color, laneSpacing) : null;
-      const tgtEndpoint = tgtInfo ? getPortLaneEndpoint(tgtInfo, color, laneSpacing) : null;
-      if (srcEndpoint) { wirePath[0] = srcEndpoint; }
-      if (tgtEndpoint) { wirePath[wirePath.length - 1] = tgtEndpoint; }
+        const wireEdges = colorMap.get(color)!;
+        let wireHighlight: "normal" | "bright" | "dim" = "normal";
+        if (cfg.highlightedNodeId) {
+          wireHighlight = "dim";
+          for (const e of wireEdges) {
+            if (cfg.highlightSet.has(edgeSourceId(e)) || cfg.highlightSet.has(edgeTargetId(e))) {
+              wireHighlight = "bright";
+              break;
+            }
+          }
+        }
 
-      const finalAlpha = wireHighlight === "bright"
-        ? wireAlpha
-        : Math.max(wireAlpha * densityScale, wireHighlight === "dim" ? 0.05 : 0.35);
-      _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, finalAlpha);
+        if (filterHighlight !== null && wireHighlight !== filterHighlight) continue;
+
+        let wireAlpha = WIRE_BASE_ALPHA;
+        if (wireHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
+        else if (wireHighlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
+
+        const off = (ci - (nUnique - 1) / 2) * laneSpacing;
+        const ox = perpX * off, oy = perpY * off;
+        const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
+
+        const srcEndpoint = srcInfo ? getPortLaneEndpoint(srcInfo, color, laneSpacing) : null;
+        const tgtEndpoint = tgtInfo ? getPortLaneEndpoint(tgtInfo, color, laneSpacing) : null;
+        if (srcEndpoint) { wirePath[0] = srcEndpoint; }
+        if (tgtEndpoint) { wirePath[wirePath.length - 1] = tgtEndpoint; }
+
+        const finalAlpha = wireHighlight === "bright"
+          ? wireAlpha
+          : Math.max(wireAlpha * densityScale, wireHighlight === "dim" ? 0.05 : 0.35);
+        _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, finalAlpha);
+      }
     }
+  };
+
+  if (onlyHighlight === "bright") {
+    // Called as final pass — only draw bright wires
+    _drawTrunkWires("bright");
+  } else if (cfg.highlightedNodeId) {
+    _drawTrunkWires("dim");
+    _drawTrunkWires("normal");
+  } else {
+    _drawTrunkWires(null);
   }
 }
 
@@ -1754,11 +1807,17 @@ export function drawEdges(
     }
 
     intraHandledIds = _intraCableCache.handledEdgeIds;
+    // Draw all cable wires. When highlighting, drawTrunks and drawIntraGroupCables
+    // internally do 2-pass (dim first, bright on top) for z-order.
     if (_cableCache.trunks.length > 0) {
       drawTrunks(g, _cableCache.trunks, cfg, densityScale, _portColorLanes);
     }
     if (_intraCableCache.cables.length > 0) {
       drawIntraGroupCables(g, _intraCableCache.cables, cfg, densityScale, _portColorLanes);
+    }
+    // Final bright pass: redraw bright trunk wires on top of everything
+    if (cfg.highlightedNodeId && _cableCache.trunks.length > 0) {
+      drawTrunks(g, _cableCache.trunks, cfg, densityScale, _portColorLanes, "bright");
     }
   } else if (_cableCache && _cableCache.trunks.length > 0) {
     drawTrunks(g, _cableCache.trunks, cfg, densityScale);
@@ -1774,6 +1833,13 @@ export function drawEdges(
     const src = resolvePos(e.source);
     const tgt = resolvePos(e.target);
     if (!src || !tgt) continue;
+
+    // In cable mode, skip fallthrough edges within or between clusters
+    // (they should have been captured by trunk/intra-cable systems)
+    if (hasClusters) {
+      _dbgLeaked++;
+      continue;
+    }
 
     // Edges not handled by trunk or intra-group cables fall through to normal drawing
 
