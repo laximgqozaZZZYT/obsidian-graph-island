@@ -527,6 +527,30 @@ function arcLength(r: number, theta1: number, theta2: number): number {
 }
 
 // ---------------------------------------------------------------------------
+// Dijkstra path cache
+// ---------------------------------------------------------------------------
+
+let _pathCache = new Map<string, number[]>();
+let _pathCacheRef: RoadNetwork | null = null;
+
+export function invalidatePathCache(): void {
+  _pathCache.clear();
+  _pathCacheRef = null;
+}
+
+export function cachedFindShortestPath(rn: RoadNetwork, from: number, to: number): number[] {
+  if (rn !== _pathCacheRef) { _pathCache.clear(); _pathCacheRef = rn; }
+  const key = from < to ? `${from}|${to}` : `${to}|${from}`;
+  let path = _pathCache.get(key);
+  if (!path) {
+    path = findShortestPath(rn, from, to);
+    _pathCache.set(key, path);
+  }
+  // Reverse if needed so path[0] === from
+  return (path.length > 0 && path[0] === from) ? path : [...path].reverse();
+}
+
+// ---------------------------------------------------------------------------
 // Dynamic densification
 // ---------------------------------------------------------------------------
 
@@ -564,4 +588,88 @@ export function densifyRounds(nodeCount: number, baseLineCount: number): number 
   if (currentIntersections >= targetIntersections) return 0;
   const ratio = targetIntersections / currentIntersections;
   return Math.min(Math.ceil(Math.log2(Math.sqrt(ratio))), 3); // max 3 rounds
+}
+
+// ---------------------------------------------------------------------------
+// Phantom-node-based road network
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a road network directly from phantom (scaffold) nodes.
+ * Phantom nodes become intersections; edges are created between nearby phantoms
+ * using Delaunay-like neighbor connectivity. Real nodes are mapped to the
+ * nearest intersection.
+ */
+export function buildRoadNetworkFromPhantoms(
+  phantomNodes: GraphNode[],
+  realNodes: GraphNode[],
+  system: "polar" | "cartesian",
+  cx: number,
+  cy: number,
+): RoadNetwork {
+  if (phantomNodes.length === 0) {
+    return {
+      intersections: [], segments: [], nodeAccess: new Map(),
+      adjacency: new Map(), system, cx, cy,
+    };
+  }
+
+  const intersections: RoadIntersection[] = [];
+  const segments: RoadSegment[] = [];
+
+  // Create intersections from phantom nodes
+  for (let i = 0; i < phantomNodes.length; i++) {
+    intersections.push({ id: i, x: phantomNodes[i].x, y: phantomNodes[i].y });
+  }
+
+  // Connect nearby phantom nodes: for each phantom, connect to k nearest neighbors
+  const k = Math.min(6, phantomNodes.length - 1);
+  const connectedPairs = new Set<string>();
+
+  for (let i = 0; i < phantomNodes.length; i++) {
+    // Compute distances to all other phantoms
+    const dists: { idx: number; dist: number }[] = [];
+    for (let j = 0; j < phantomNodes.length; j++) {
+      if (i === j) continue;
+      const dx = phantomNodes[i].x - phantomNodes[j].x;
+      const dy = phantomNodes[i].y - phantomNodes[j].y;
+      dists.push({ idx: j, dist: Math.sqrt(dx * dx + dy * dy) });
+    }
+    dists.sort((a, b) => a.dist - b.dist);
+
+    for (let n = 0; n < Math.min(k, dists.length); n++) {
+      const j = dists[n].idx;
+      const pairKey = i < j ? `${i}-${j}` : `${j}-${i}`;
+      if (connectedPairs.has(pairKey)) continue;
+      connectedPairs.add(pairKey);
+
+      segments.push({ from: i, to: j, waypoints: [], length: dists[n].dist });
+    }
+  }
+
+  // Build adjacency
+  const adjacency = new Map<number, { to: number; weight: number; segIdx: number }[]>();
+  for (let si = 0; si < segments.length; si++) {
+    const seg = segments[si];
+    if (!adjacency.has(seg.from)) adjacency.set(seg.from, []);
+    if (!adjacency.has(seg.to)) adjacency.set(seg.to, []);
+    adjacency.get(seg.from)!.push({ to: seg.to, weight: seg.length, segIdx: si });
+    adjacency.get(seg.to)!.push({ to: seg.from, weight: seg.length, segIdx: si });
+  }
+
+  // Map real nodes to nearest intersection
+  const nodeAccess = new Map<string, number>();
+  for (const node of realNodes) {
+    let bestId = 0;
+    let bestDist = Infinity;
+    for (const isect of intersections) {
+      const dx = node.x - isect.x;
+      const dy = node.y - isect.y;
+      const d = dx * dx + dy * dy;
+      if (d < bestDist) { bestDist = d; bestId = isect.id; }
+    }
+    nodeAccess.set(node.id, bestId);
+  }
+
+  return { intersections, segments, nodeAccess, adjacency, system, cx, cy };
 }

@@ -5,7 +5,7 @@
  * the maximum distance from each edge waypoint to its nearest road segment.
  */
 
-import type { RoadNetwork } from "./road-network";
+import type { RoadNetwork } from "./cable-tray";
 
 export interface EdgeAdherenceResult {
   /** Fraction of edges that follow roads (all waypoints within threshold) */

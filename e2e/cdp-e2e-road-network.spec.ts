@@ -255,7 +255,7 @@ test("Road network generation in concentric layout (polar system)", async () => 
     if (view) {
       view._roadNetworkFinalized = false;
       view.roadNetworkData = null;
-      view.buildRoadNetwork?.(true);
+      view._rebuildRoadNetwork?.(true);
     }
   });
   await page.waitForTimeout(1000);
@@ -345,7 +345,7 @@ test("Road network generation in grid layout", async () => {
     if (view) {
       view._roadNetworkFinalized = false;
       view.roadNetworkData = null;
-      view.buildRoadNetwork?.(true);
+      view._rebuildRoadNetwork?.(true);
     }
   });
   await page.waitForTimeout(1000);
@@ -429,7 +429,7 @@ test("Road network generation in timeline layout (cartesian system)", async () =
     if (view) {
       view._roadNetworkFinalized = false;
       view.roadNetworkData = null;
-      view.buildRoadNetwork?.(true);
+      view._rebuildRoadNetwork?.(true);
     }
   });
   await page.waitForTimeout(1000);
@@ -512,7 +512,7 @@ test("Edge routing across road network", async () => {
     if (view) {
       view._roadNetworkFinalized = false;
       view.roadNetworkData = null;
-      view.buildRoadNetwork?.(true);
+      view._rebuildRoadNetwork?.(true);
     }
   });
   await page.waitForTimeout(1000);
@@ -603,7 +603,7 @@ test("Road network parameters and structure", async () => {
     if (view) {
       view._roadNetworkFinalized = false;
       view.roadNetworkData = null;
-      view.buildRoadNetwork?.(true);
+      view._rebuildRoadNetwork?.(true);
     }
   });
   await page.waitForTimeout(1000);
@@ -698,7 +698,7 @@ test("Road routing quality in triangle arrangement", async () => {
     if (view) {
       view._roadNetworkFinalized = false;
       view.roadNetworkData = null;
-      view.buildRoadNetwork?.(true);
+      view._rebuildRoadNetwork?.(true);
     }
   });
   await page.waitForTimeout(1000);
@@ -758,7 +758,7 @@ test("Road routing quality in radial arrangement", async () => {
     if (view) {
       view._roadNetworkFinalized = false;
       view.roadNetworkData = null;
-      view.buildRoadNetwork?.(true);
+      view._rebuildRoadNetwork?.(true);
     }
   });
   await page.waitForTimeout(1000);

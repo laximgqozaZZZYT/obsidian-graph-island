@@ -1,0 +1,89 @@
+[CDP] Connected to Obsidian
+
+
+=== STEP 1: Diagnostic Info ===
+
+[TEST] Check current leaves
+  - Active leaf: undefined
+✓ PASS
+
+[TEST] List all leaves
+  - All leaves: undefined
+✓ PASS
+
+
+=== STEP 2: Plugin Reload & Open Graph View ===
+
+[TEST] Disable plugin
+✓ PASS
+
+[TEST] Enable plugin
+✓ PASS
+
+[TEST] Open graph view command
+✓ PASS
+
+[TEST] Verify graph view exists
+  - View check: undefined
+✗ FAIL: Cannot read properties of undefined (reading 'exists')
+
+
+=== STEP 3: Get View & Check Initial State ===
+
+[TEST] Get view object
+  - View state: undefined
+✗ FAIL: Cannot read properties of undefined (reading 'exists')
+
+
+=== STEP 4: Configure Grouping to Folder ===
+
+[TEST] Set groupBy folder
+✓ PASS
+
+[TEST] Set clusterArrangement concentric
+✓ PASS
+
+[TEST] Build panel
+✓ PASS
+
+[TEST] Update forces
+✓ PASS
+  - Waiting 15s for layout convergence...
+
+
+=== STEP 5: Road Network Data Validation ===
+
+[TEST] Check road network exists
+✗ FAIL: Cannot read properties of undefined (reading 'exists')
+
+[TEST] Sample intersection coordinates
+✗ FAIL: Cannot read properties of undefined (reading 'samples')
+
+
+=== STEP 6: Road Graphics Visibility ===
+
+[TEST] Check road graphics object
+✗ FAIL: Cannot read properties of undefined (reading 'exists')
+
+[TEST] Check draw commands
+✗ FAIL: Cannot read properties of undefined (reading 'drawCount')
+
+
+=== STEP 7: Edge Routing at Different Zoom Levels ===
+
+[TEST] Edge routing at zoom 0.1
+✗ FAIL: Cannot read properties of undefined (reading 'error')
+
+[TEST] Edge routing at zoom 0.5
+✗ FAIL: Cannot read properties of undefined (reading 'error')
+
+[TEST] Edge routing at zoom 1
+✗ FAIL: Cannot read properties of undefined (reading 'error')
+
+
+=== TEST SUMMARY ===
+Passed: 9
+Failed: 9
+Total:  18
+
+Some tests failed. See details above.

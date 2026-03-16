@@ -1,0 +1,79 @@
+[CDP] Connected to Obsidian
+
+
+=== STEP 1: Plugin Reload & Open Graph View ===
+
+[TEST] Disable plugin
+✓ PASS
+
+[TEST] Enable plugin
+✓ PASS
+
+[TEST] Open graph view
+✓ PASS
+
+
+=== STEP 2: Get View Reference ===
+
+[TEST] Access view with descriptors
+  - View access: { viewExists: true, panelExists: false, pixiExists: false }
+✓ PASS
+
+
+=== STEP 3: Configure Grouping ===
+
+[TEST] Set groupBy to folder
+✓ PASS
+
+[TEST] Set clusterArrangement to concentric
+✓ PASS
+
+[TEST] Build panel and update forces
+✓ PASS
+  - Waiting 15s for layout convergence...
+
+
+=== STEP 4: Road Network Data Validation ===
+
+[TEST] Road network exists
+  - Road network data: undefined
+✗ FAIL: Cannot read properties of undefined (reading 'rnExists')
+
+[TEST] Intersection coordinates valid
+✗ FAIL: Cannot read properties of undefined (reading 'samples')
+
+
+=== STEP 5: Road Graphics ===
+
+[TEST] Road graphics exists
+  - Road graphics: undefined
+✗ FAIL: Cannot read properties of undefined (reading 'rgExists')
+
+
+=== STEP 6: Edge Routing at Zoom Levels ===
+
+[TEST] Edge routing at zoom 0.1
+  - Zoom 0.1: undefined
+✗ FAIL: Cannot read properties of undefined (reading 'edgeCount')
+
+[TEST] Edge routing at zoom 0.5
+  - Zoom 0.5: undefined
+✗ FAIL: Cannot read properties of undefined (reading 'edgeCount')
+
+[TEST] Edge routing at zoom 1
+  - Zoom 1: undefined
+✗ FAIL: Cannot read properties of undefined (reading 'edgeCount')
+
+
+=== TEST SUMMARY ===
+Passed: 7
+Failed: 6
+Total:  13
+
+Failed tests:
+  - Road network exists: Cannot read properties of undefined (reading 'rnExists')
+  - Intersection coordinates valid: Cannot read properties of undefined (reading 'samples')
+  - Road graphics exists: Cannot read properties of undefined (reading 'rgExists')
+  - Edge routing at zoom 0.1: Cannot read properties of undefined (reading 'edgeCount')
+  - Edge routing at zoom 0.5: Cannot read properties of undefined (reading 'edgeCount')
+  - Edge routing at zoom 1: Cannot read properties of undefined (reading 'edgeCount')

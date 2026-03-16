@@ -376,24 +376,6 @@ interface TrunkCable {
   edges: GraphEdge[];
 }
 
-/** ノード引き込み口: ノードごとに1つ */
-interface NodePort {
-  nodeId: string;
-  x: number;
-  y: number;
-}
-
-/** グループ内ケーブル: 複数電線を束ねる */
-interface IntraGroupCable {
-  groupKey: string;
-  /** Junction point (source node position) */
-  junction: { x: number; y: number };
-  /** Branches: junction → each target node port (Manhattan paths) */
-  branches: { nodePort: NodePort; path: { x: number; y: number }[]; edges: GraphEdge[] }[];
-  /** If this cable connects to group port */
-  groupPortBranch: { path: { x: number; y: number }[] } | null;
-}
-
 /**
  * Compute one Port per group on the group boundary.
  * Port direction = average direction to all connected groups.
@@ -798,11 +780,7 @@ function drawIntraGroupCables(
   cfg: EdgeDrawConfig,
   densityScale: number,
 ): void {
-  if (cables.length === 0) { console.log('[DrawIntra] 0 cables, skipping'); return; }
-
-  let totalBranches = 0;
-  for (const c of cables) totalBranches += c.branches.length;
-  console.log(`[DrawIntra] cables=${cables.length}, branches=${totalBranches}`);
+  if (cables.length === 0) return;
 
   // Cable count attenuation (similar to trunk crowd alpha)
   const cableCount = cables.length;
@@ -1403,7 +1381,6 @@ export function drawEdges(
       const groupPorts = computeGroupPorts(groupKeys, centroids, radii, connections);
       _intraCableCache = buildIntraGroupCables(edges, resolvePos, cfg, groupPorts);
       _intraCableDirty = false;
-      console.log(`[IntraCable] cables=${_intraCableCache.cables.length}, handled=${_intraCableCache.handledEdgeIds.size}, totalEdges=${edges.length}, cabledByTrunks=${cabledEdgeIds.size}`);
     }
     intraHandledIds = _intraCableCache.handledEdgeIds;
     if (_intraCableCache.cables.length > 0) {
@@ -1422,7 +1399,7 @@ export function drawEdges(
     const tgt = resolvePos(e.target);
     if (!src || !tgt) continue;
 
-    if (hasClusters) { _dbgLeaked++; continue; }
+    // Edges not handled by trunk or intra-group cables fall through to normal drawing
 
     const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
     const { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
@@ -1435,7 +1412,6 @@ export function drawEdges(
 
     if (hasDash) g.setLineDash([]);
   }
-  if (_dbgLeaked > 0) console.log(`[EdgeDraw] leaked=${_dbgLeaked} edges skipped (hasClusters)`);
 }
 
 // ---------------------------------------------------------------------------

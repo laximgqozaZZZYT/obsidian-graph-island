@@ -1,0 +1,78 @@
+[CDP] Connected to Obsidian
+
+
+=== STEP 1: Plugin Reload & Graph View Open ===
+
+[TEST] Disable plugin
+✓ PASS
+
+[TEST] Enable plugin
+✓ PASS
+
+[TEST] Open graph view
+✓ PASS
+
+
+=== STEP 2: Grouping Setup ===
+
+[TEST] Get view reference
+✗ FAIL: Graph view not found
+
+[TEST] Configure grouping to folder
+✓ PASS
+
+[TEST] Build panel
+✓ PASS
+
+
+=== STEP 3: Road Network Data Validation ===
+
+[TEST] Road network exists
+✗ FAIL: Cannot read properties of undefined (reading 'exists')
+
+[TEST] Intersection coordinates valid
+✗ FAIL: Cannot read properties of undefined (reading 'samples')
+
+
+=== STEP 4: Road Graphics Visibility ===
+
+[TEST] Road graphics object exists
+✗ FAIL: Cannot read properties of undefined (reading 'exists')
+
+[TEST] Road graphics has draws
+✗ FAIL: Cannot read properties of undefined (reading 'drawCount')
+
+
+=== STEP 5: Edge Routing Verification (Multiple Zoom Levels) ===
+
+[TEST] Edge routing at zoom 0.1
+✗ FAIL: Cannot read properties of undefined (reading 'edgesFound')
+
+[TEST] Edge routing at zoom 0.5
+✗ FAIL: Cannot read properties of undefined (reading 'edgesFound')
+
+[TEST] Edge routing at zoom 1
+✗ FAIL: Cannot read properties of undefined (reading 'edgesFound')
+
+
+=== STEP 6: Console Error Monitoring ===
+
+[TEST] Monitor console for errors
+  - No graph-island related console errors
+✓ PASS
+
+
+=== TEST SUMMARY ===
+Passed: 6
+Failed: 8
+Total:  14
+
+Failed tests:
+  - Get view reference: Graph view not found
+  - Road network exists: Cannot read properties of undefined (reading 'exists')
+  - Intersection coordinates valid: Cannot read properties of undefined (reading 'samples')
+  - Road graphics object exists: Cannot read properties of undefined (reading 'exists')
+  - Road graphics has draws: Cannot read properties of undefined (reading 'drawCount')
+  - Edge routing at zoom 0.1: Cannot read properties of undefined (reading 'edgesFound')
+  - Edge routing at zoom 0.5: Cannot read properties of undefined (reading 'edgesFound')
+  - Edge routing at zoom 1: Cannot read properties of undefined (reading 'edgesFound')

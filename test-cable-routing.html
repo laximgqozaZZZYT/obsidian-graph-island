@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3-Layer Cable Routing Algorithm Test</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1e1e2e; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+canvas { display: block; }
+#legend {
+  position: fixed; top: 12px; right: 12px;
+  background: rgba(30,30,46,0.92); border: 1px solid #444;
+  border-radius: 6px; padding: 12px 16px; color: #cdd6f4;
+  font-size: 12px; line-height: 1.7; z-index: 10;
+}
+#legend h3 { font-size: 13px; margin-bottom: 6px; color: #89b4fa; }
+.swatch { display: inline-block; width: 28px; height: 4px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="legend">
+  <h3>Legend</h3>
+  <div><span class="swatch" style="background:rgba(136,136,136,0.35); height:8px;"></span> Trunk conduit</div>
+  <div><span class="swatch" style="background:rgba(136,136,136,0.25); height:5px;"></span> Cable conduit</div>
+  <div><span class="swatch" style="background:#f38ba8;"></span> Lane 1 (red)</div>
+  <div><span class="swatch" style="background:#89b4fa;"></span> Lane 2 (blue)</div>
+  <div><span class="swatch" style="background:#a6e3a1;"></span> Lane 3 (green)</div>
+  <div><span class="swatch" style="background:rgba(136,136,136,0.3); height:1px;"></span> Road network</div>
+  <div><span class="swatch" style="background:rgba(136,136,136,0.5); height:3px; border-radius:50%;width:6px;"></span> Intersection</div>
+  <div style="margin-top:4px; color:#a6adc8; font-size:11px;">Stub wires fan out at node end<br>but converge at access junction</div>
+</div>
+<script>
+// =====================================================================
+// Constants (from EdgeRenderer.ts)
+// =====================================================================
+const TRUNK_CONDUIT_ALPHA = 0.12;
+const CABLE_CONDUIT_ALPHA = 0.09;
+const WIRE_BASE_ALPHA = 0.65;
+const STUB_WIRE_SPACING = 2;
+const CABLE_LANE_SPACING = 3;
+const CONDUIT_COLOR = '#888888';
+
+// Lane colors (Catppuccin Mocha)
+const LANE_COLORS = ['#f38ba8', '#89b4fa', '#a6e3a1'];
+
+// Cluster colors
+const CLUSTER_COLORS = ['#f9e2af', '#cba6f7', '#94e2d5'];
+
+// =====================================================================
+// Road Network Data Structures & Algorithms (from cable-tray.ts)
+// =====================================================================
+
+function buildCartesianRoadNetwork(cx, cy, xValues, yValues, nodes) {
+  const intersections = [];
+  const segments = [];
+  let nextId = 0;
+  const grid = [];
+
+  for (let xi = 0; xi < xValues.length; xi++) {
+    grid[xi] = [];
+    for (let yi = 0; yi < yValues.length; yi++) {
+      const id = nextId++;
+      intersections.push({ id, x: cx + xValues[xi], y: cy + yValues[yi] });
+      grid[xi][yi] = id;
+    }
+  }
+
+  // Horizontal segments
+  for (let yi = 0; yi < yValues.length; yi++) {
+    for (let xi = 0; xi < xValues.length - 1; xi++) {
+      const fromId = grid[xi][yi];
+      const toId = grid[xi + 1][yi];
+      const dist = xValues[xi + 1] - xValues[xi];
+      segments.push({ from: fromId, to: toId, waypoints: [], length: dist });
+    }
+  }
+
+  // Vertical segments
+  for (let xi = 0; xi < xValues.length; xi++) {
+    for (let yi = 0; yi < yValues.length - 1; yi++) {
+      const fromId = grid[xi][yi];
+      const toId = grid[xi][yi + 1];
+      const dist = yValues[yi + 1] - yValues[yi];
+      segments.push({ from: fromId, to: toId, waypoints: [], length: dist });
+    }
+  }
+
+  const adjacency = buildAdjacency(intersections, segments);
+  const nodeAccess = mapNodesToIntersections(intersections, nodes);
+
+  return { intersections, segments, nodeAccess, adjacency, system: 'cartesian', cx, cy };
+}
+
+function buildPolarRoadNetwork(cx, cy, rValues, thetaValues, nodes) {
+  const intersections = [];
+  const segments = [];
+  let nextId = 0;
+  const grid = [];
+
+  // Center intersection
+  const centerId = nextId++;
+  intersections.push({ id: centerId, x: cx, y: cy });
+
+  for (let ri = 0; ri < rValues.length; ri++) {
+    grid[ri] = [];
+    const r = rValues[ri];
+    for (let ti = 0; ti < thetaValues.length; ti++) {
+      const theta = thetaValues[ti];
+      const id = nextId++;
+      intersections.push({ id, x: cx + r * Math.cos(theta), y: cy + r * Math.sin(theta) });
+      grid[ri][ti] = id;
+    }
+  }
+
+  // Ring road segments
+  for (let ri = 0; ri < rValues.length; ri++) {
+    const r = rValues[ri];
+    const n = thetaValues.length;
+    for (let ti = 0; ti < n; ti++) {
+      const nextTi = (ti + 1) % n;
+      const fromId = grid[ri][ti];
+      const toId = grid[ri][nextTi];
+      const theta1 = thetaValues[ti];
+      const theta2 = ti + 1 < n ? thetaValues[nextTi] : thetaValues[0] + Math.PI * 2;
+      const arcWaypoints = generateArcWaypoints(cx, cy, r, theta1, theta2, 8);
+      const arcLen = Math.abs(r * (theta2 - theta1));
+      segments.push({ from: fromId, to: toId, waypoints: arcWaypoints, length: arcLen });
+    }
+  }
+
+  // Radial segments
+  for (let ti = 0; ti < thetaValues.length; ti++) {
+    const firstRingId = grid[0][ti];
+    segments.push({ from: centerId, to: firstRingId, waypoints: [], length: rValues[0] });
+    for (let ri = 0; ri < rValues.length - 1; ri++) {
+      const fromId = grid[ri][ti];
+      const toId = grid[ri + 1][ti];
+      segments.push({ from: fromId, to: toId, waypoints: [], length: rValues[ri + 1] - rValues[ri] });
+    }
+  }
+
+  const adjacency = buildAdjacency(intersections, segments);
+  const nodeAccess = mapNodesToIntersections(intersections, nodes);
+
+  return { intersections, segments, nodeAccess, adjacency, system: 'polar', cx, cy };
+}
+
+function generateArcWaypoints(cx, cy, r, theta1, theta2, steps) {
+  const pts = [];
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const theta = theta1 + (theta2 - theta1) * t;
+    pts.push({ x: cx + r * Math.cos(theta), y: cy + r * Math.sin(theta) });
+  }
+  return pts;
+}
+
+function buildAdjacency(intersections, segments) {
+  const adjacency = new Map();
+  for (let si = 0; si < segments.length; si++) {
+    const seg = segments[si];
+    if (!adjacency.has(seg.from)) adjacency.set(seg.from, []);
+    if (!adjacency.has(seg.to)) adjacency.set(seg.to, []);
+    adjacency.get(seg.from).push({ to: seg.to, weight: seg.length, segIdx: si });
+    adjacency.get(seg.to).push({ to: seg.from, weight: seg.length, segIdx: si });
+  }
+  return adjacency;
+}
+
+function mapNodesToIntersections(intersections, nodes) {
+  const nodeAccess = new Map();
+  for (const node of nodes) {
+    let bestId = 0;
+    let bestDist = Infinity;
+    for (const isect of intersections) {
+      const dx = node.x - isect.x;
+      const dy = node.y - isect.y;
+      const d = dx * dx + dy * dy;
+      if (d < bestDist) { bestDist = d; bestId = isect.id; }
+    }
+    nodeAccess.set(node.id, bestId);
+  }
+  return nodeAccess;
+}
+
+function findNearestIntersection(network, x, y) {
+  let bestId = -1;
+  let bestDist = Infinity;
+  for (const isect of network.intersections) {
+    const dx = x - isect.x;
+    const dy = y - isect.y;
+    const d = dx * dx + dy * dy;
+    if (d < bestDist) { bestDist = d; bestId = isect.id; }
+  }
+  return bestId;
+}
+
+function findShortestPath(network, startId, endId) {
+  if (startId === endId) return [startId];
+  const dist = new Map();
+  const prev = new Map();
+  const visited = new Set();
+  const queue = [];
+  dist.set(startId, 0);
+  queue.push({ id: startId, d: 0 });
+
+  while (queue.length > 0) {
+    let minIdx = 0;
+    for (let i = 1; i < queue.length; i++) {
+      if (queue[i].d < queue[minIdx].d) minIdx = i;
+    }
+    const { id: u } = queue.splice(minIdx, 1)[0];
+    if (visited.has(u)) continue;
+    visited.add(u);
+    if (u === endId) break;
+    const neighbors = network.adjacency.get(u);
+    if (!neighbors) continue;
+    const du = dist.get(u) ?? Infinity;
+    for (const { to: v, weight } of neighbors) {
+      if (visited.has(v)) continue;
+      const newDist = du + weight;
+      if (newDist < (dist.get(v) ?? Infinity)) {
+        dist.set(v, newDist);
+        prev.set(v, u);
+        queue.push({ id: v, d: newDist });
+      }
+    }
+  }
+
+  if (!prev.has(endId) && startId !== endId) return [];
+  const path = [];
+  let cur = endId;
+  while (cur !== startId) {
+    path.unshift(cur);
+    const p = prev.get(cur);
+    if (p == null) return [];
+    cur = p;
+  }
+  path.unshift(startId);
+  return path;
+}
+
+function pathToWaypoints(network, path) {
+  if (path.length === 0) return [];
+  const pts = [];
+  const first = network.intersections[path[0]];
+  if (first) pts.push({ x: first.x, y: first.y });
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const fromId = path[i];
+    const toId = path[i + 1];
+    const seg = network.segments.find(s =>
+      (s.from === fromId && s.to === toId) || (s.from === toId && s.to === fromId)
+    );
+    if (seg) {
+      const wps = seg.from === fromId ? seg.waypoints : [...seg.waypoints].reverse();
+      for (const wp of wps) pts.push({ x: wp.x, y: wp.y });
+    }
+    const dest = network.intersections[toId];
+    if (dest) pts.push({ x: dest.x, y: dest.y });
+  }
+  return pts;
+}
+
+function addTrunkRoads(network, groupCentroids) {
+  if (groupCentroids.length < 2) return;
+  const centroidIsects = [];
+  for (const c of groupCentroids) {
+    let bestId = -1;
+    let bestDist = Infinity;
+    for (const isect of network.intersections) {
+      const dx = c.x - isect.x;
+      const dy = c.y - isect.y;
+      const d = dx * dx + dy * dy;
+      if (d < bestDist) { bestDist = d; bestId = isect.id; }
+    }
+    if (bestId >= 0) {
+      centroidIsects.push(bestId);
+    } else {
+      const id = network.intersections.length;
+      network.intersections.push({ id, x: c.x, y: c.y });
+      if (!network.adjacency.has(id)) network.adjacency.set(id, []);
+      centroidIsects.push(id);
+    }
+  }
+
+  for (let i = 0; i < centroidIsects.length - 1; i++) {
+    const fromId = centroidIsects[i];
+    const toId = centroidIsects[i + 1];
+    if (fromId === toId) continue;
+    const fromIsect = network.intersections[fromId];
+    const toIsect = network.intersections[toId];
+    if (!fromIsect || !toIsect) continue;
+    const dx = toIsect.x - fromIsect.x;
+    const dy = toIsect.y - fromIsect.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const segIdx = network.segments.length;
+    network.segments.push({ from: fromId, to: toId, waypoints: [], length: dist });
+    if (!network.adjacency.has(fromId)) network.adjacency.set(fromId, []);
+    if (!network.adjacency.has(toId)) network.adjacency.set(toId, []);
+    network.adjacency.get(fromId).push({ to: toId, weight: dist, segIdx });
+    network.adjacency.get(toId).push({ to: fromId, weight: dist, segIdx });
+  }
+
+  if (centroidIsects.length > 2) {
+    const firstId = centroidIsects[0];
+    const lastId = centroidIsects[centroidIsects.length - 1];
+    if (firstId !== lastId) {
+      const f = network.intersections[firstId];
+      const l = network.intersections[lastId];
+      if (f && l) {
+        const dx = l.x - f.x, dy = l.y - f.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const segIdx = network.segments.length;
+        network.segments.push({ from: firstId, to: lastId, waypoints: [], length: dist });
+        network.adjacency.get(firstId).push({ to: lastId, weight: dist, segIdx });
+        network.adjacency.get(lastId).push({ to: firstId, weight: dist, segIdx });
+      }
+    }
+  }
+}
+
+// =====================================================================
+// Canvas Drawing Helpers
+// =====================================================================
+
+function drawSmoothPath(ctx, path, width, color, alpha) {
+  if (path.length < 2) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(path[0].x, path[0].y);
+
+  for (let i = 1; i < path.length; i++) {
+    const prev = path[i - 1];
+    const cur = path[i];
+    const next = i < path.length - 1 ? path[i + 1] : null;
+    if (next) {
+      const dx1 = cur.x - prev.x, dy1 = cur.y - prev.y;
+      const dx2 = next.x - cur.x, dy2 = next.y - cur.y;
+      const cross = Math.abs(dx1 * dy2 - dy1 * dx2);
+      const dot = Math.abs(dx1 * dx2 + dy1 * dy2);
+      if (cross > 0.1 * (dot + 1)) {
+        const mx = (cur.x + next.x) / 2, my = (cur.y + next.y) / 2;
+        ctx.quadraticCurveTo(cur.x, cur.y, mx, my);
+      } else {
+        ctx.lineTo(cur.x, cur.y);
+      }
+    } else {
+      ctx.lineTo(cur.x, cur.y);
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawStub(ctx, accessPt, nodePos, wireCount, stubIdx, stubPx, stubPy, width, color, alpha) {
+  const off = (stubIdx - (wireCount - 1) / 2) * STUB_WIRE_SPACING;
+  const nx = nodePos.x + stubPx * off;
+  const ny = nodePos.y + stubPy * off;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(accessPt.x, accessPt.y);
+  ctx.lineTo(nx, ny);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// =====================================================================
+// Test Data Generation
+// =====================================================================
+
+function generateClusterNodes(cx, cy, count, clusterId, radius) {
+  const nodes = [];
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2 + Math.random() * 0.3;
+    const r = radius * (0.3 + Math.random() * 0.6);
+    nodes.push({
+      id: `${clusterId}-node-${i}`,
+      x: cx + r * Math.cos(angle),
+      y: cy + r * Math.sin(angle),
+      cluster: clusterId
+    });
+  }
+  return nodes;
+}
+
+function generateEdges(clusters, lanesPerCable) {
+  // Generate inter-cluster cables with multiple lanes
+  const cables = [];
+  const clusterKeys = Object.keys(clusters);
+
+  for (let ci = 0; ci < clusterKeys.length; ci++) {
+    for (let cj = ci + 1; cj < clusterKeys.length; cj++) {
+      const srcCluster = clusterKeys[ci];
+      const tgtCluster = clusterKeys[cj];
+      const srcNodes = clusters[srcCluster];
+      const tgtNodes = clusters[tgtCluster];
+      const lanes = [];
+
+      for (let li = 0; li < lanesPerCable; li++) {
+        const edgeCount = 3 + Math.floor(Math.random() * 3); // 3-5 edges per lane
+        const edges = [];
+        for (let ei = 0; ei < edgeCount; ei++) {
+          const src = srcNodes[Math.floor(Math.random() * srcNodes.length)];
+          const tgt = tgtNodes[Math.floor(Math.random() * tgtNodes.length)];
+          edges.push({ id: `${srcCluster}-${tgtCluster}-L${li}-E${ei}`, source: src.id, target: tgt.id });
+        }
+        lanes.push({ color: LANE_COLORS[li % LANE_COLORS.length], edges });
+      }
+
+      cables.push({ srcCluster, tgtCluster, lanes });
+    }
+  }
+
+  return cables;
+}
+
+// =====================================================================
+// Main Drawing Function for One Scenario
+// =====================================================================
+
+function drawScenario(ctx, network, clusters, cables, centroids, label, originX, originY, scenarioWidth, scenarioHeight) {
+  const allNodes = Object.values(clusters).flat();
+  const nodeMap = new Map();
+  for (const n of allNodes) nodeMap.set(n.id, n);
+
+  ctx.save();
+
+  // Title
+  ctx.fillStyle = '#cdd6f4';
+  ctx.font = 'bold 16px "Segoe UI", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, originX + scenarioWidth / 2, originY + 24);
+
+  // Draw road network segments (thin gray lines)
+  for (const seg of network.segments) {
+    const from = network.intersections[seg.from];
+    const to = network.intersections[seg.to];
+    if (!from || !to) continue;
+
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = '#888888';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+
+    if (seg.waypoints.length > 0) {
+      ctx.moveTo(from.x, from.y);
+      for (const wp of seg.waypoints) ctx.lineTo(wp.x, wp.y);
+      ctx.lineTo(to.x, to.y);
+    } else {
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+    }
+    ctx.stroke();
+  }
+
+  // Draw intersections as small dots
+  for (const isect of network.intersections) {
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#888888';
+    ctx.beginPath();
+    ctx.arc(isect.x, isect.y, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ================================================================
+  // 3-LAYER CABLE DRAWING (exact 4-pass structure from drawCables)
+  // ================================================================
+
+  for (const cable of cables) {
+    const cA = centroids[cable.srcCluster];
+    const cB = centroids[cable.tgtCluster];
+    if (!cA || !cB) continue;
+
+    // Compute trunk path via road network
+    const srcId = findNearestIntersection(network, cA.x, cA.y);
+    const tgtId = findNearestIntersection(network, cB.x, cB.y);
+    let trunkPath, trunkIsectIds;
+
+    if (srcId >= 0 && tgtId >= 0 && srcId !== tgtId) {
+      const path = findShortestPath(network, srcId, tgtId);
+      if (path.length >= 2) {
+        trunkIsectIds = path;
+        trunkPath = pathToWaypoints(network, path);
+      } else {
+        trunkPath = [cA, cB];
+        trunkIsectIds = [];
+      }
+    } else {
+      trunkPath = [cA, cB];
+      trunkIsectIds = [];
+    }
+
+    if (trunkPath.length < 2) continue;
+
+    // Perpendicular unit vector from trunk overall direction
+    const tp0 = trunkPath[0], tpN = trunkPath[trunkPath.length - 1];
+    const tdx = tpN.x - tp0.x, tdy = tpN.y - tp0.y;
+    const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
+    const perpX = tlen > 0 ? -tdy / tlen : 0;
+    const perpY = tlen > 0 ? tdx / tlen : 1;
+
+    const trunkIsectSet = new Set(trunkIsectIds);
+    const nLanes = cable.lanes.length;
+
+    // Cable offset (for parallel cables between same pair -- here each is unique so offset = 0)
+    const offsetX = 0, offsetY = 0;
+
+    // ── Pre-compute per-node info ──
+    const nodeEntries = new Map();
+
+    for (const lane of cable.lanes) {
+      for (const e of lane.edges) {
+        const src = nodeMap.get(e.source);
+        const tgt = nodeMap.get(e.target);
+        if (!src || !tgt) continue;
+        if (!nodeEntries.has(e.source)) {
+          nodeEntries.set(e.source, { pos: src, wireCount: 0, cablePath: null, accessPt: null, stubDx: 0, stubDy: 0, stubPx: 0, stubPy: 1 });
+        }
+        nodeEntries.get(e.source).wireCount++;
+        if (!nodeEntries.has(e.target)) {
+          nodeEntries.set(e.target, { pos: tgt, wireCount: 0, cablePath: null, accessPt: null, stubDx: 0, stubDy: 0, stubPx: 0, stubPy: 1 });
+        }
+        nodeEntries.get(e.target).wireCount++;
+      }
+    }
+
+    // Compute cable paths and stub geometry for each node
+    for (const [nodeId, entry] of nodeEntries) {
+      const accessId = network.nodeAccess.get(nodeId);
+      if (accessId == null) continue;
+      const accessIsect = network.intersections[accessId];
+      if (!accessIsect) continue;
+      entry.accessPt = { x: accessIsect.x, y: accessIsect.y };
+
+      // Stub direction: access -> node
+      const sdx = entry.pos.x - accessIsect.x;
+      const sdy = entry.pos.y - accessIsect.y;
+      const slen = Math.sqrt(sdx * sdx + sdy * sdy);
+      if (slen > 0.1) {
+        entry.stubDx = sdx / slen;
+        entry.stubDy = sdy / slen;
+        entry.stubPx = -entry.stubDy;
+        entry.stubPy = entry.stubDx;
+      }
+
+      // If access junction is on trunk, no cable conduit needed
+      if (trunkIsectSet.has(accessId)) {
+        entry.cablePath = [];
+        continue;
+      }
+
+      // Find nearest trunk junction
+      let bestTJ = -1;
+      let bestD = Infinity;
+      for (const tj of trunkIsectIds) {
+        const pt = network.intersections[tj];
+        if (!pt) continue;
+        const d = (pt.x - accessIsect.x) ** 2 + (pt.y - accessIsect.y) ** 2;
+        if (d < bestD) { bestD = d; bestTJ = tj; }
+      }
+
+      if (bestTJ >= 0) {
+        const path = findShortestPath(network, bestTJ, accessId);
+        if (path.length >= 2) {
+          entry.cablePath = pathToWaypoints(network, path);
+        } else {
+          const tjPt = network.intersections[bestTJ];
+          entry.cablePath = tjPt
+            ? [{ x: tjPt.x, y: tjPt.y }, { x: accessIsect.x, y: accessIsect.y }]
+            : [];
+        }
+      } else {
+        entry.cablePath = [];
+      }
+    }
+
+    // ================================================================
+    // PASS 1: CONDUITS (background -- semi-transparent pipes)
+    // ================================================================
+
+    const trunkConduitWidth = Math.max(nLanes * CABLE_LANE_SPACING + 4, 6);
+
+    // 1a. Trunk conduit
+    const offsetTrunk = trunkPath.map(p => ({ x: p.x + offsetX, y: p.y + offsetY }));
+    drawSmoothPath(ctx, offsetTrunk, trunkConduitWidth, CONDUIT_COLOR, TRUNK_CONDUIT_ALPHA);
+
+    // 1b. Cable conduits (per node, deduplicated)
+    const cableConduitWidth = Math.max(trunkConduitWidth * 0.5, 3);
+    for (const [, entry] of nodeEntries) {
+      if (entry.cablePath && entry.cablePath.length >= 2) {
+        drawSmoothPath(ctx, entry.cablePath, cableConduitWidth, CONDUIT_COLOR, CABLE_CONDUIT_ALPHA);
+      }
+    }
+
+    // ================================================================
+    // PASS 2: WIRES along trunk (colored, thin -- visible through conduit)
+    // ================================================================
+
+    const wireWidth = 1;
+    for (let li = 0; li < nLanes; li++) {
+      const lane = cable.lanes[li];
+      const laneSubOffset = (li - (nLanes - 1) / 2) * CABLE_LANE_SPACING;
+      const lox = offsetX + perpX * laneSubOffset;
+      const loy = offsetY + perpY * laneSubOffset;
+
+      const wireTrunk = trunkPath.map(p => ({ x: p.x + lox, y: p.y + loy }));
+      drawSmoothPath(ctx, wireTrunk, wireWidth, lane.color, WIRE_BASE_ALPHA);
+    }
+
+    // ================================================================
+    // PASS 3: WIRES along cable paths (per node, deduplicated within lane)
+    // ================================================================
+
+    for (let li = 0; li < nLanes; li++) {
+      const lane = cable.lanes[li];
+      const drawnCableNodes = new Set();
+
+      for (const e of lane.edges) {
+        for (const nid of [e.source, e.target]) {
+          if (drawnCableNodes.has(nid)) continue;
+          drawnCableNodes.add(nid);
+          const entry = nodeEntries.get(nid);
+          if (!entry || !entry.cablePath || entry.cablePath.length < 2) continue;
+          drawSmoothPath(ctx, entry.cablePath, wireWidth, lane.color, WIRE_BASE_ALPHA);
+        }
+      }
+    }
+
+    // ================================================================
+    // PASS 4: WIRE STUBS (per edge -- access junction -> node, with offset)
+    // ================================================================
+
+    const nodeStubIdx = new Map();
+
+    for (const lane of cable.lanes) {
+      for (const e of lane.edges) {
+        const src = nodeMap.get(e.source);
+        const tgt = nodeMap.get(e.target);
+        if (!src || !tgt) continue;
+
+        for (const nid of [e.source, e.target]) {
+          const entry = nodeEntries.get(nid);
+          if (!entry || !entry.accessPt) continue;
+
+          const idx = nodeStubIdx.get(nid) ?? 0;
+          nodeStubIdx.set(nid, idx + 1);
+
+          drawStub(ctx, entry.accessPt, entry.pos, entry.wireCount, idx,
+            entry.stubPx, entry.stubPy, wireWidth, lane.color, WIRE_BASE_ALPHA);
+        }
+      }
+    }
+  }
+
+  // Draw nodes
+  const clusterKeys = Object.keys(clusters);
+  for (let ci = 0; ci < clusterKeys.length; ci++) {
+    const clusterColor = CLUSTER_COLORS[ci % CLUSTER_COLORS.length];
+    for (const node of clusters[clusterKeys[ci]]) {
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = clusterColor;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Dark outline
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = '#1e1e2e';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  // Draw cluster centroids (larger hollow circles)
+  for (let ci = 0; ci < clusterKeys.length; ci++) {
+    const c = centroids[clusterKeys[ci]];
+    if (!c) continue;
+    ctx.globalAlpha = 0.6;
+    ctx.strokeStyle = CLUSTER_COLORS[ci % CLUSTER_COLORS.length];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 12, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Label
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = CLUSTER_COLORS[ci % CLUSTER_COLORS.length];
+    ctx.font = '10px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Cluster ${ci + 1}`, c.x, c.y - 18);
+  }
+
+  ctx.restore();
+}
+
+// =====================================================================
+// Main
+// =====================================================================
+
+function main() {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  canvas.width = W;
+  canvas.height = H;
+
+  // Clear
+  ctx.fillStyle = '#1e1e2e';
+  ctx.fillRect(0, 0, W, H);
+
+  const halfW = W / 2;
+  const midY = H / 2;
+
+  // Divider line
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(halfW, 40);
+  ctx.lineTo(halfW, H - 10);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // ================================================================
+  // LEFT: Grid (Cartesian) arrangement
+  // ================================================================
+  {
+    const cx = halfW / 2;
+    const cy = midY;
+
+    // 3 clusters in a grid pattern
+    const clusterPositions = [
+      { x: cx - 120, y: cy - 90 },
+      { x: cx + 120, y: cy - 60 },
+      { x: cx + 10,  y: cy + 100 },
+    ];
+
+    const clusters = {};
+    const centroids = {};
+    const allNodes = [];
+
+    for (let i = 0; i < 3; i++) {
+      const key = `grid-c${i}`;
+      const count = 5 + Math.floor(Math.random() * 4); // 5-8 nodes
+      clusters[key] = generateClusterNodes(clusterPositions[i].x, clusterPositions[i].y, count, key, 55);
+      centroids[key] = clusterPositions[i];
+      allNodes.push(...clusters[key]);
+    }
+
+    // Build road network: cartesian grid covering the area
+    const gridSpacing = 40;
+    const xMin = cx - 220, xMax = cx + 220;
+    const yMin = cy - 180, yMax = cy + 180;
+    const xValues = [];
+    const yValues = [];
+    for (let x = xMin; x <= xMax; x += gridSpacing) xValues.push(x - cx);
+    for (let y = yMin; y <= yMax; y += gridSpacing) yValues.push(y - cy);
+
+    const network = buildCartesianRoadNetwork(cx, cy, xValues, yValues, allNodes);
+    addTrunkRoads(network, Object.values(centroids));
+
+    const cables = generateEdges(clusters, 3); // 3 lanes per cable
+
+    drawScenario(ctx, network, clusters, cables, centroids,
+      'Grid / Cartesian', 0, 0, halfW, H);
+  }
+
+  // ================================================================
+  // RIGHT: Concentric (Polar) arrangement
+  // ================================================================
+  {
+    const cx = halfW + halfW / 2;
+    const cy = midY;
+
+    // 3 clusters arranged radially
+    const clusterAngles = [0, (2 * Math.PI) / 3, (4 * Math.PI) / 3];
+    const clusterR = 110;
+    const clusterPositions = clusterAngles.map(a => ({
+      x: cx + clusterR * Math.cos(a),
+      y: cy + clusterR * Math.sin(a),
+    }));
+
+    const clusters = {};
+    const centroids = {};
+    const allNodes = [];
+
+    for (let i = 0; i < 3; i++) {
+      const key = `polar-c${i}`;
+      const count = 5 + Math.floor(Math.random() * 4);
+      clusters[key] = generateClusterNodes(clusterPositions[i].x, clusterPositions[i].y, count, key, 50);
+      centroids[key] = clusterPositions[i];
+      allNodes.push(...clusters[key]);
+    }
+
+    // Build road network: polar grid (rings + radials)
+    const rValues = [50, 100, 150, 200];
+    const thetaCount = 12;
+    const thetaValues = [];
+    for (let i = 0; i < thetaCount; i++) thetaValues.push((i / thetaCount) * Math.PI * 2);
+
+    const network = buildPolarRoadNetwork(cx, cy, rValues, thetaValues, allNodes);
+    addTrunkRoads(network, Object.values(centroids));
+
+    const cables = generateEdges(clusters, 2); // 2 lanes per cable
+
+    drawScenario(ctx, network, clusters, cables, centroids,
+      'Concentric / Polar', halfW, 0, halfW, H);
+  }
+
+  // Checklist overlay (bottom)
+  ctx.fillStyle = '#a6adc8';
+  ctx.font = '11px "Segoe UI", sans-serif';
+  ctx.globalAlpha = 0.6;
+  ctx.textAlign = 'left';
+  const checks = [
+    'Trunk conduit follows road network (not straight line)',
+    'Colored wires visible through semi-transparent conduit',
+    'Cable conduits branch from trunk via road network',
+    'Wire stubs fan out at node, converge at access junction',
+    'Smooth curves at direction changes (quadraticCurveTo)',
+    'Multiple lanes have visible spacing within trunk',
+  ];
+  for (let i = 0; i < checks.length; i++) {
+    ctx.fillText(`[ ] ${checks[i]}`, 14, H - 10 - (checks.length - 1 - i) * 16);
+  }
+}
+
+main();
+
+// Resize handling
+window.addEventListener('resize', () => {
+  requestAnimationFrame(main);
+});
+</script>
+</body>
+</html>

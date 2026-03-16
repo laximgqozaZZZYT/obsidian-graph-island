@@ -1,0 +1,91 @@
+[CDP] Connected to Obsidian
+
+
+=== STEP 1: Plugin Reload & Open Graph View ===
+
+[TEST] Disable plugin
+✓ PASS
+
+[TEST] Enable plugin
+✓ PASS
+
+[TEST] Open graph view command
+✓ PASS
+
+
+=== STEP 2: Verify Graph View Exists ===
+
+[TEST] Get view object
+  - View check: {
+  leavesCount: 4,
+  viewExists: true,
+  viewType: 't',
+  hasPanelObject: false
+}
+✓ PASS
+
+
+=== STEP 3: Configure Grouping to Folder ===
+
+[TEST] Set groupBy and arrangement
+✓ PASS
+
+[TEST] Build panel and update forces
+✓ PASS
+  - Waiting 15s for layout convergence...
+
+
+=== STEP 4: Road Network Data Validation ===
+
+[TEST] Check road network exists and has data
+  - Road network: {
+  rnExists: false,
+  system: 'N/A',
+  intersectionCount: 0,
+  segmentCount: 0
+}
+✗ FAIL: Road network is null/undefined
+
+[TEST] Sample intersection coordinates
+  - Sample intersections: []
+✗ FAIL: Invalid intersection coordinates detected
+
+
+=== STEP 5: Road Graphics Visibility ===
+
+[TEST] Check road graphics object
+  - Road graphics: {
+  rgExists: false,
+  visible: false,
+  type: 'unknown',
+  hasDrawArray: false,
+  drawCount: 0
+}
+✗ FAIL: Road graphics object missing
+
+
+=== STEP 6: Edge Routing at Different Zoom Levels ===
+
+[TEST] Edge routing at zoom 0.1
+✗ FAIL: No stage available
+
+[TEST] Edge routing at zoom 0.5
+✗ FAIL: No stage available
+
+[TEST] Edge routing at zoom 1
+✗ FAIL: No stage available
+
+
+=== STEP 7: Console Error Check ===
+
+[TEST] Check for console errors
+  - Console inspection: Check browser DevTools console for graph-island errors
+✓ PASS
+
+
+=== TEST SUMMARY ===
+Passed: 7
+Failed: 6
+Total:  13
+
+Failed tests:

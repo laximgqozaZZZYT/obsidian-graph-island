@@ -1,0 +1,169 @@
+COORDINATE ENGINE RESEARCH SUMMARY
+2026-03-15
+
+RESEARCH OBJECTIVE:
+  Understand the coordinate engine system to enable road network design
+  that derives from the same coordinate functions.
+
+KEY FINDINGS:
+
+1. EXPRESSION EVALUATOR (src/utils/expr-eval.ts)
+   =============================================
+   - Safe recursive descent parser (no eval())
+   - Functions: sin, cos, tan, sqrt, abs, floor, ceil, min, max, pow, log, exp, atan2
+   - Constants: pi, e, tau
+   - Variables: t (normalized 0-1), i (index), n (count), v (raw value), N (total)
+   - User-defined constants via CoordinateLayout.constants
+   - Greek letter aliases (π→pi, θ→t, etc.)
+   - Implicit multiplication: 2x = 2*x, (a)(b) = a*b
+   - Lines 47-61: Functions
+   - Lines 41-45: Constants
+   - Lines 113-354: Parser (recursive descent)
+   - Lines 364-370: parseExpr / evalExpr API
+
+2. COORDINATE PIPELINE (src/layouts/coordinate-engine.ts)
+   =====================================================
+   Three phases:
+   
+   PHASE 1: resolveAxisValues() — lines 400-456
+     Extracts raw numeric values based on AxisSource.kind:
+     - index: sequential 0,1,2,...
+     - field/property: frontmatter value or lexicographic index
+     - metric: degree, in-degree, out-degree, bfs-depth, sibling-rank
+     - hop: BFS distance from node
+     - random: seeded hash
+     - const: fixed value
+     Output: Map<nodeId, number>
+   
+   PHASE 2: applyTransform() — lines 652-723
+     Maps raw values through coordinate space:
+     - linear: raw * scale
+     - bin: quantize to equal-width bins
+     - date-to-index: chronological sort
+     - even-divide: distribute across range (degrees)
+     - stack-avoid: vertical spreading within columns
+     - golden-angle: golden spiral multiplier
+     - expression: custom math expression
+     - curve: parametric curve (archimedean, fermat, spiral, etc.)
+     - shape-fill: pack into geometric shape
+     Output: Map<nodeId, number>
+   
+   PHASE 3: toCartesian() — lines 733-772
+     Converts axes to (dx, dy):
+     - Cartesian: x=axis1, y=axis2
+     - Polar: (x,y) = (r*cos(θ), r*sin(θ))
+     - Centroid normalization: shift all by centroid
+     Output: Map<nodeId, {dx, dy}>
+
+3. AXIS SOURCES (src/types.ts, lines 84-91)
+   =======================================
+   - index: node position in group
+   - field: frontmatter field (e.g., "folder")
+   - property: node.meta[key] (e.g., "date")
+   - metric: graph metrics (degree, in-degree, bfs-depth, etc.)
+   - hop: BFS distance from node matching pattern
+   - random: seeded pseudorandom [0,1)
+   - const: constant value for all nodes
+
+4. AXIS TRANSFORMS (src/types.ts, lines 111-120)
+   ==============================================
+   - linear: raw * scale * spacing
+   - bin: quantize into bins
+   - date-to-index: chronological indexing
+   - stack-avoid: vertical collision avoidance
+   - golden-angle: golden spiral spacing
+   - even-divide: angular distribution (polar)
+   - expression: custom math formula
+   - curve: parametric curve preset
+   - shape-fill: geometric packing
+
+5. COORDINATE LAYOUT (src/types.ts, lines 132-141)
+   ================================================
+   {
+     system: "cartesian" | "polar"
+     axis1: AxisConfig { source, transform }
+     axis2: AxisConfig { source, transform }
+     perGroup: boolean
+     constants?: { _ringSize: 12, _spokeCount: 8, ...user }
+     grid?: GridConfig
+   }
+
+6. PRESETS (src/layouts/coordinate-presets.ts, lines 106-157)
+   ===========================================================
+   - concentric: polar, rings = floor(i/_ringSize)+1
+   - radial: polar, spokes = (i%_spokeCount)*(360/_spokeCount)
+   - phyllotaxis: polar, r=sqrt(i), θ=i*pi*(3-sqrt(5))
+   - grid: cartesian, column=i%ceil(sqrt(n)), row=floor(i/ceil(sqrt(n)))
+   - triangle: cartesian, triangular packing
+   - random: cartesian, seeded random positions
+   - timeline: cartesian, date on x, stack-avoid on y
+   - custom: cartesian, user-defined field/metric axes
+
+7. CURVE PRESETS (src/layouts/coordinate-presets.ts, lines 14-99)
+   ==============================================================
+   Parametric curves for spiral layouts:
+   - archimedean: a + b*t (linear spiral)
+   - logarithmic: a*exp(b*t*tau) (exponential spiral)
+   - fermat: a*sqrt(t) (square root spiral)
+   - hyperbolic: a/t (hyperbolic spiral)
+   - cardioid: a*(1+cos(t*tau)) (heart shape)
+   - rose: a*cos(k*t*tau) (flower petals)
+   - lissajous: sin(a*t*tau+δ) (harmonic oscillation)
+   - golden: a*1.618^(t*4) (golden ratio spiral)
+
+8. CONTEXT (src/layouts/coordinate-engine.ts, lines 50-67)
+   =======================================================
+   CoordinateContext:
+   - degrees: Map<nodeId, degree>
+   - edges: GraphEdge[]
+   - nodeSize: base node radius
+   - nodeSpacing: spacing multiplier
+   - groupScale: group scale multiplier
+   - getNodeProperty: property accessor
+   - coordinateGridDivisions: grid divisions
+   - totalNodeCount: total nodes (exposed as N)
+   
+   Spacing formula (line 889):
+   gap = nodeSize * 2 * max(nodeSpacing, groupScale)
+
+9. GUIDE LINE GENERATION
+   =====================
+   CoordinateGuide (lines 86-96):
+   - type: "coordinate"
+   - system: cartesian | polar
+   - axis1Label, axis2Label: axis descriptions
+   - bounds: { xMin, yMin, xMax, yMax, maxR? }
+   - gridInfo: grid lines with shapes and labels
+   
+   ResolvedGridInfo (lines 76-83):
+   - axis1Lines, axis2Lines: [{ position, label? }, ...]
+   - axis1Shape, axis2Shape: line | circle | radial | curve
+   - style: "lines" | "table"
+   - cellShading: boolean
+
+10. RENDERING (src/views/GraphViewContainer.ts)
+    ============================================
+    - drawCoordinateGuide (2581-2651): generic coord layouts
+    - drawCustomGrid (2653-2692): resolved grid with labels
+    - drawConcentricGuide (3080-3100): concentric rings + cross
+    - drawGridLines (2544-2566): grid vertical/horizontal lines
+
+CONSTANTS (coordinate-engine.ts):
+- MISSING_VALUE_GAP_FRACTION = 0.15 (15% of range)
+- GRID_EXPR_SAMPLES = 20 (expression sampling points)
+- GRID_DEDUP_PRECISION = 1000 (3 decimal places)
+- FORMAT_INTEGER_THRESHOLD = 0.01 (integer formatting)
+- GOLDEN_ANGLE = 2.39996... (phyllotaxis angle)
+
+ROAD NETWORK INTEGRATION POINTS:
+1. Reuse expression language for road positioning
+2. Extend GridShape kinds for road rendering
+3. Define road edges separately from semantic edges
+4. Leverage grid label system for road names
+5. Use CoordinateLayout.grid for road styling
+
+EXAMPLE EXPRESSIONS FOR ROADS:
+- Grid roads: x = i % ceil(sqrt(n)), y = floor(i / ceil(sqrt(n)))
+- Ring roads: r = floor(i/_ringSize)+1, θ = (i%_spokes)*(360/_spokes)
+- Spiral roads: r = a + b*t, θ = i * pi * (3 - sqrt(5))
+
