@@ -163,7 +163,7 @@ const CABLE_FAN_CONNECTED_FACTOR = 0.8;
 /** Cable fan alpha dampen factor for non-matching edges during hover */
 const CABLE_FAN_NON_MATCH_DAMPEN = 0.15;
 /** Cable lane spacing in screen pixels — wide enough to distinguish parallel cables */
-const CABLE_LANE_SPACING = 8;
+const CABLE_LANE_SPACING = 14;
 /** Cable layout margin from cluster boundary */
 const CABLE_LAYOUT_MARGIN = 5;
 /** Cable layout overlap start/end fraction */
@@ -175,7 +175,7 @@ const CABLE_CONDUIT_ALPHA = 0.12;
 /** Wire alpha — most opaque layer, clearly visible */
 const WIRE_BASE_ALPHA = 0.9;
 /** Wire spacing within a cable (screen pixels between parallel wires) */
-const STUB_WIRE_SPACING = 4;
+const STUB_WIRE_SPACING = 7;
 /** Maximum conduit width in screen pixels */
 const MAX_CONDUIT_WIDTH = 16;
 /** Trunk conduit screen width (px) — thickest layer */
