@@ -1389,7 +1389,7 @@ function drawIntraGroupCables(
 
   if (cfg.highlightedNodeId) {
     // Draw dim wires first, then bright wires on top
-    _drawBranchWires("dim");
+    // Skip dim wires entirely for cleaner hover visualization
     _drawBranchWires("bright");
   } else {
     _drawBranchWires(null);
@@ -1431,7 +1431,7 @@ function drawIntraGroupCables(
         }
       }
     };
-    _drawGpbWires("dim");
+    // Skip dim gpb wires for cleaner hover visualization
     _drawGpbWires("bright");
   } else {
     for (const cable of cables) {
@@ -1668,7 +1668,7 @@ function drawTrunks(
     // Called as final pass — only draw bright wires
     _drawTrunkWires("bright");
   } else if (cfg.highlightedNodeId) {
-    _drawTrunkWires("dim");
+    // Skip dim trunk wires for cleaner hover visualization
     _drawTrunkWires("bright");
   } else {
     _drawTrunkWires(null);
