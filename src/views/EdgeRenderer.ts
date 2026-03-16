@@ -87,6 +87,8 @@ export interface EdgeDrawConfig {
   roadNetwork?: RoadNetwork | null;
   /** Enable road-based edge routing (default true when roadNetwork is available) */
   enableRoadRouting?: boolean;
+  /** Group arrangement pattern — used for trunk routing direction */
+  clusterArrangement?: string;
 }
 
 // Minimal position data needed for source/target
@@ -413,6 +415,44 @@ function computeGroupPorts(
 }
 
 /**
+ * Build a Manhattan (L-shaped) path from port A to port B.
+ * The path follows grid-aligned segments: first horizontal, then vertical.
+ * For concentric/radial arrangements, we use the radial+arc convention.
+ */
+function buildManhattanPath(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  arrangement?: string,
+): { x: number; y: number }[] {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+
+  // If nearly aligned (within 5% of distance), go straight
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 1) return [a, b];
+  if (Math.abs(dx) < dist * 0.05 || Math.abs(dy) < dist * 0.05) {
+    return [a, b];
+  }
+
+  // Manhattan L-shape: go horizontal first, then vertical.
+  // Choose the L-direction that keeps the bend farther from both ports.
+  // Option 1: horizontal then vertical → bend at (b.x, a.y)
+  // Option 2: vertical then horizontal → bend at (a.x, b.y)
+  // Pick the one where the bend point is farther from the midpoint (more "square")
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const bend1 = { x: b.x, y: a.y };
+  const bend2 = { x: a.x, y: b.y };
+  const d1 = (bend1.x - mid.x) ** 2 + (bend1.y - mid.y) ** 2;
+  const d2 = (bend2.x - mid.x) ** 2 + (bend2.y - mid.y) ** 2;
+
+  // Use the option with longer first segment for cleaner visual
+  const useBend1 = Math.abs(dx) >= Math.abs(dy);
+  const bend = useBend1 ? bend1 : bend2;
+
+  return [a, bend, b];
+}
+
+/**
  * Group inter-group edges into Trunks (one per group pair).
  * Each trunk contains cables grouped by edge color.
  * Only pairs with 2+ edges become trunks (singletons stay as normal edges).
@@ -480,7 +520,8 @@ function buildTrunks(
     const portB = ports.get(pair.tgtGroup);
     if (!portA || !portB) continue;
 
-    const path = [{ x: portA.x, y: portA.y }, { x: portB.x, y: portB.y }];
+    // L-shape routing: horizontal then vertical (Manhattan path aligned to grid)
+    const path = buildManhattanPath(portA, portB, cfg.clusterArrangement);
     trunks.push({ pairKey, srcGroup: pair.srcGroup, tgtGroup: pair.tgtGroup, path, cables, allEdges });
     for (const e of allEdges) cabledEdgeIds.add(e.id);
   }
@@ -500,30 +541,46 @@ function drawTrunks(
 ): void {
   if (trunks.length === 0) return;
 
-  // PASS 1: Trunk conduits (background, semi-transparent)
+  // Trunk count attenuation — prevent overload when many trunks exist
+  const trunkCount = trunks.length;
+  const crowdAlpha = trunkCount <= 10 ? 1.0
+    : trunkCount <= 30 ? 0.5
+    : trunkCount <= 80 ? 0.25
+    : 0.15;
+
+  // World-scale lane spacing: proportional to average trunk length
+  let totalLen = 0;
+  for (const t of trunks) {
+    const p0 = t.path[0], pN = t.path[t.path.length - 1];
+    totalLen += Math.sqrt((pN.x - p0.x) ** 2 + (pN.y - p0.y) ** 2);
+  }
+  const avgLen = totalLen / trunks.length;
+  // Lane spacing = 1.5% of average trunk length, clamped
+  const worldLaneSpacing = Math.max(Math.min(avgLen * 0.015, 200), 10);
+  // Trunk conduit width = proportional to cable count
+  const worldConduitMaxWidth = worldLaneSpacing * 6;
+
+  // Highlight helper
+  const getTrunkHighlight = (trunk: Trunk): "normal" | "bright" | "dim" => {
+    if (!cfg.highlightedNodeId) return "normal";
+    for (const cable of trunk.cables) {
+      for (const e of cable.edges) {
+        if (cfg.highlightSet.has(edgeSourceId(e)) || cfg.highlightSet.has(edgeTargetId(e))) return "bright";
+      }
+    }
+    return "dim";
+  };
+
+  // PASS 1: Trunk conduits (world-coordinate width, semi-transparent)
   for (const trunk of trunks) {
     const nCables = trunk.cables.length;
-    const trunkWidth = Math.min(Math.max(nCables * CABLE_LANE_SPACING + 4, 6), MAX_CONDUIT_WIDTH);
-
-    let highlight: "normal" | "bright" | "dim" = "normal";
-    if (cfg.highlightedNodeId) {
-      let anyHit = false;
-      for (const cable of trunk.cables) {
-        for (const e of cable.edges) {
-          if (cfg.highlightSet.has(edgeSourceId(e)) || cfg.highlightSet.has(edgeTargetId(e))) {
-            anyHit = true; break;
-          }
-        }
-        if (anyHit) break;
-      }
-      highlight = anyHit ? "bright" : "dim";
-    }
-
-    const trunkAlpha = (highlight === "dim" ? 0.03 : highlight === "bright" ? 0.15 : TRUNK_CONDUIT_ALPHA) * densityScale;
-    _drawSmoothPath(g, trunk.path, trunkWidth, 0x888888, trunkAlpha);
+    const trunkWidth = Math.min(nCables * worldLaneSpacing + worldLaneSpacing, worldConduitMaxWidth);
+    const highlight = getTrunkHighlight(trunk);
+    const trunkAlpha = (highlight === "dim" ? 0.02 : highlight === "bright" ? 0.12 : TRUNK_CONDUIT_ALPHA) * densityScale * crowdAlpha;
+    _drawSmoothPath(g, trunk.path, trunkWidth, 0x888888, trunkAlpha, false);
   }
 
-  // PASS 2: Cable conduits (per-lane, slightly thinner semi-transparent)
+  // PASS 2: Cable conduits (per-lane, world-coordinate)
   for (const trunk of trunks) {
     const nCables = trunk.cables.length;
     if (nCables <= 1) continue;
@@ -534,15 +591,15 @@ function drawTrunks(
     const perpX = tlen > 0 ? -tdy / tlen : 0;
     const perpY = tlen > 0 ? tdx / tlen : 1;
 
-    const cableWidth = Math.max(CABLE_LANE_SPACING, 2);
+    const cableWidth = worldLaneSpacing * 0.6;
     for (let ci = 0; ci < nCables; ci++) {
-      const off = (ci - (nCables - 1) / 2) * CABLE_LANE_SPACING;
+      const off = (ci - (nCables - 1) / 2) * worldLaneSpacing;
       const cablePath = trunk.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
-      _drawSmoothPath(g, cablePath, cableWidth, 0x888888, CABLE_CONDUIT_ALPHA * densityScale);
+      _drawSmoothPath(g, cablePath, cableWidth, 0x888888, CABLE_CONDUIT_ALPHA * densityScale * crowdAlpha, false);
     }
   }
 
-  // PASS 3: Wires (colored, thin — visible through conduits)
+  // PASS 3: Wires (colored, native=true so visible at any zoom)
   for (const trunk of trunks) {
     const nCables = trunk.cables.length;
     const p0 = trunk.path[0], pN = trunk.path[trunk.path.length - 1];
@@ -551,24 +608,12 @@ function drawTrunks(
     const perpX = tlen > 0 ? -tdy / tlen : 0;
     const perpY = tlen > 0 ? tdx / tlen : 1;
 
-    let highlight: "normal" | "bright" | "dim" = "normal";
-    if (cfg.highlightedNodeId) {
-      let anyHit = false;
-      for (const cable of trunk.cables) {
-        for (const e of cable.edges) {
-          if (cfg.highlightSet.has(edgeSourceId(e)) || cfg.highlightSet.has(edgeTargetId(e))) {
-            anyHit = true; break;
-          }
-        }
-        if (anyHit) break;
-      }
-      highlight = anyHit ? "bright" : "dim";
-    }
-
+    const highlight = getTrunkHighlight(trunk);
     const wireWidth = cfg.cableFanWidth ?? 1;
+
     for (let ci = 0; ci < nCables; ci++) {
       const cable = trunk.cables[ci];
-      const off = (ci - (nCables - 1) / 2) * CABLE_LANE_SPACING;
+      const off = (ci - (nCables - 1) / 2) * worldLaneSpacing;
       const ox = perpX * off, oy = perpY * off;
 
       let wireAlpha = WIRE_BASE_ALPHA;
@@ -576,7 +621,7 @@ function drawTrunks(
       else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
       const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
-      _drawSmoothPath(g, wirePath, wireWidth, cable.color, wireAlpha * densityScale);
+      _drawSmoothPath(g, wirePath, wireWidth, cable.color, wireAlpha * densityScale * crowdAlpha, true);
     }
   }
 }
@@ -595,9 +640,10 @@ function _drawSmoothPath(
   width: number,
   color: number,
   alpha: number,
+  native = true,
 ): void {
   if (path.length < 2) return;
-  g.lineStyle({ width, color, alpha, native: true });
+  g.lineStyle({ width, color, alpha, native });
   g.moveTo(path[0].x, path[0].y);
   for (let i = 1; i < path.length; i++) {
     const prev = path[i - 1];

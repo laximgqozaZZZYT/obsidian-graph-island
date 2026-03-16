@@ -1852,6 +1852,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
     cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
     cfg.roadNetwork = this.getRoadNetwork();
+    cfg.clusterArrangement = this.panel.clusterArrangement;
     const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
     cfg.routeWiresOnTray = !!rt2.routeWiresOnTray && !!this.cableTrayData;
     return cfg;
