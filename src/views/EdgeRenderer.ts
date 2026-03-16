@@ -903,17 +903,9 @@ function drawIntraGroupCables(
   // Internal groupPortBranch wires and external trunk wires both terminate
   // at the group port coordinates, so they visually connect without markers.
 
-  // PASS 1: Cable conduits — CABLE_SCREEN_WIDTH, semi-transparent
-  for (const cable of cables) {
-    for (const branch of cable.branches) {
-      const highlight = getBranchHighlight(branch.edges);
-      const conduitAlpha = highlight === "dim" ? 0.03 : highlight === "bright" ? 0.18 : CABLE_CONDUIT_ALPHA;
-      _drawSmoothPath(g, branch.path, CABLE_SCREEN_WIDTH, 0x888888, conduitAlpha * densityScale * crowdAlpha);
-    }
-    // groupPortBranch: no conduit — wires drawn directly in PASS 2b
-  }
+  // No conduit layer — wires are drawn directly inside trunks.
 
-  // PASS 2: Wires — WIRE_SCREEN_WIDTH, colored, visible through conduit
+  // Wires — WIRE_SCREEN_WIDTH, colored
   for (const cable of cables) {
     for (const branch of cable.branches) {
       const nEdges = branch.edges.length;
