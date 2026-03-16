@@ -910,11 +910,7 @@ function drawIntraGroupCables(
       const conduitAlpha = highlight === "dim" ? 0.03 : highlight === "bright" ? 0.18 : CABLE_CONDUIT_ALPHA;
       _drawSmoothPath(g, branch.path, CABLE_SCREEN_WIDTH, 0x888888, conduitAlpha * densityScale * crowdAlpha);
     }
-    if (cable.groupPortBranch) {
-      // 引込口ケーブル: 半透明 conduit（内部の電線が見える）
-      _drawSmoothPath(g, cable.groupPortBranch.path, CABLE_SCREEN_WIDTH * 1.5, 0x888888,
-        CABLE_CONDUIT_ALPHA * densityScale * crowdAlpha * 0.3);
-    }
+    // groupPortBranch: no conduit — wires drawn directly in PASS 2b
   }
 
   // PASS 2: Wires — WIRE_SCREEN_WIDTH, colored, visible through conduit
