@@ -671,7 +671,6 @@ function buildIntraGroupCables(
     const portOffset = minRowGap < Infinity ? minRowGap * 0.45 : NODE_PORT_MIN_OFFSET;
 
     for (const [sourceNodeId, edgeList] of sourceMap) {
-      if (edgeList.length < 2) continue;
 
       const srcPos = resolvePos(sourceNodeId);
       if (!srcPos) continue;
@@ -722,7 +721,7 @@ function buildIntraGroupCables(
       // ── Build branches ──
       // Each branch path: src → (down to routeY) → junction X → (across to tgt X) → tgt
       // This ensures cables pass through junction and never cross node rows.
-      // Route: src(x,y) → src(x, routeY) → jct(jx, routeY) → tgt(x, routeY) → tgt(x, y)
+      // Route: src → (drop to routeY) → junction.x → tgt.x → (rise to tgt)
       const branches: IntraGroupCable["branches"] = [];
 
       for (const e of edgeList) {
@@ -748,7 +747,7 @@ function buildIntraGroupCables(
             path = [
               { x: srcPos.x, y: srcPos.y },     // start at source
               { x: srcPos.x, y: routeY },        // drop down to routing gap
-              { x: jx, y: routeY },              // across to junction X (passes through junction)
+              { x: junction.x, y: routeY },              // across to junction X (passes through junction)
               { x: tgtPos.x, y: routeY },        // across to target X
               { x: tgtPos.x, y: tgtPos.y },      // up to target
             ];
@@ -768,7 +767,7 @@ function buildIntraGroupCables(
         const path = [
           { x: srcPos.x, y: srcPos.y },
           { x: srcPos.x, y: routeY },             // drop to routing gap
-          { x: jx, y: routeY },                   // across to junction X
+          { x: junction.x, y: routeY },                   // across to junction X
           { x: groupPort.x, y: routeY },          // across to group port X
           { x: groupPort.x, y: groupPort.y },     // up/down to group port
         ];
