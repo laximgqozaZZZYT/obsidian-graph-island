@@ -1252,41 +1252,12 @@ function buildIntraGroupCables(
 
       if (branches.length === 0 && !connectsExternal) continue;
 
-      // Group port branch: route from source node to port via junction grid + 2nd face
+      // Group port branch: route from source node to port via junction grid
       let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
       if (connectsExternal && portForKey && perimInfo) {
-        // Route: source → junction grid to 2nd face corner → along perimeter to port
-        const peri = perimInfo.perimeterPath;
-        // 2nd face runs from peri[1] (corner between face1 and face2) to peri[2] (end of face2)
-        // Find point on 2nd face closest to source node
-        const face2Start = peri.length > 1 ? peri[1] : portForKey;
-        const face2End = peri.length > 2 ? peri[2] : face2Start;
-
-        // Project source onto 2nd face
-        const face2Vertical = Math.abs(face2End.x - face2Start.x) < Math.abs(face2End.y - face2Start.y);
-        const face2Coord = face2Vertical ? face2Start.x : face2Start.y;
-        const srcCoord = face2Vertical ? srcPos.y : srcPos.x;
-
-        // Branch point on 2nd face at the row/col nearest to source
-        const branchOnFace2 = face2Vertical
-          ? { x: face2Coord, y: findNearestGap(perimInfo.grid.rowGaps, srcPos.y) ?? srcPos.y }
-          : { x: findNearestGap(perimInfo.grid.colGaps, srcPos.x) ?? srcPos.x, y: face2Coord };
-
-        // Route from source to the branch point via junction grid
-        const toFace2 = routeViaJunctionGrid(srcPos, branchOnFace2, perimInfo.grid);
-
-        // Then along perimeter: branchOnFace2 → face2End → port(=peri[0])
-        // (reversed: from face2 back through face1 corner to port)
-        let path = [...toFace2];
-        // Add face2 end corner if significantly different
-        if (Math.abs(face2End.x - branchOnFace2.x) > 1 || Math.abs(face2End.y - branchOnFace2.y) > 1) {
-          // Only add if we haven't passed it yet — check direction
-        }
-        // Add the corner between face2 and face1 back to port
-        path.push({ x: peri[1].x, y: peri[1].y }); // face1↔face2 corner
-        path.push({ x: portForKey.x, y: portForKey.y }); // port
+        // Route through junction grid: node → colGap → rowGap → colGap → port
+        let path = routeViaJunctionGrid(srcPos, portForKey, perimInfo.grid);
         path = deduplicatePath(path);
-
         groupPortBranch = { path, edges: [...externalEdges] };
       } else if (connectsExternal && portForKey) {
         const path = [{ x: srcPos.x, y: srcPos.y }, { x: portForKey.x, y: portForKey.y }];
@@ -1318,21 +1289,8 @@ function buildIntraGroupCables(
 
       let path: { x: number; y: number }[];
       if (perimInfo) {
-        const peri = perimInfo.perimeterPath;
-        const face2Start = peri.length > 1 ? peri[1] : portForKey;
-        const face2Vertical = peri.length > 2
-          ? Math.abs(peri[2].x - face2Start.x) < Math.abs(peri[2].y - face2Start.y)
-          : false;
-        const face2Coord = face2Vertical ? face2Start.x : face2Start.y;
-        const branchOnFace2 = face2Vertical
-          ? { x: face2Coord, y: findNearestGap(perimInfo.grid.rowGaps, nodePos.y) ?? nodePos.y }
-          : { x: findNearestGap(perimInfo.grid.colGaps, nodePos.x) ?? nodePos.x, y: face2Coord };
-
-        const toFace2 = routeViaJunctionGrid(nodePos, branchOnFace2, perimInfo.grid);
-        path = [...toFace2];
-        path.push({ x: peri[1].x, y: peri[1].y });
-        path.push({ x: portForKey.x, y: portForKey.y });
-        path = deduplicatePath(path);
+        // Route through junction grid: node → colGap → rowGap → colGap → port
+        path = deduplicatePath(routeViaJunctionGrid(nodePos, portForKey, perimInfo.grid));
       } else {
         path = [{ x: nodePos.x, y: nodePos.y }, { x: portForKey.x, y: portForKey.y }];
       }
