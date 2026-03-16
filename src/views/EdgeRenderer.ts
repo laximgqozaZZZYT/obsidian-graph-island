@@ -151,7 +151,7 @@ const FADE_BY_DEGREE_MIN_ALPHA = 0.15;
 /** Alpha for relation-colored edges */
 const RELATION_COLOR_ALPHA = 0.8;
 /** Highlighted edge line thickness */
-const HIGHLIGHT_LINE_THICKNESS = 2.0;
+const HIGHLIGHT_LINE_THICKNESS = 3.5;
 /** Highlighted cable trunk width */
 const HIGHLIGHT_CABLE_TRUNK_WIDTH = 3;
 /** Cable fan crowd attenuation threshold (edges) */
@@ -946,8 +946,10 @@ function drawIntraGroupCables(
         const wirePath = off === 0 ? branch.path
           : branch.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
 
-        // Ensure wires stay visible: minimum alpha floor
-        const finalAlpha = Math.max(wireAlpha * densityScale * crowdAlpha, 0.25);
+        // Ensure wires stay visible; highlighted wires get full alpha
+        const finalAlpha = highlight === "bright"
+          ? wireAlpha
+          : Math.max(wireAlpha * densityScale * crowdAlpha, highlight === "dim" ? 0.05 : 0.25);
         _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, finalAlpha);
       }
     }
@@ -967,11 +969,16 @@ function drawIntraGroupCables(
         for (let ei = 0; ei < nGP; ei++) {
           const e = gpEdges[ei];
           const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
-          const wireAlpha = WIRE_BASE_ALPHA;
+          let wireAlpha = WIRE_BASE_ALPHA;
+          const gpHighlight = getBranchHighlight([e]);
+          if (gpHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
+          else if (gpHighlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
           const off = nGP > 1 ? (ei - (nGP - 1) / 2) * STUB_WIRE_SPACING : 0;
           const wirePath = off === 0 ? gpb.path
             : gpb.path.map(p => ({ x: p.x + gppX * off, y: p.y + gppY * off }));
-          const gpFinalAlpha = Math.max(wireAlpha * densityScale * crowdAlpha, 0.25);
+          const gpFinalAlpha = gpHighlight === "bright"
+            ? wireAlpha
+            : Math.max(wireAlpha * densityScale * crowdAlpha, gpHighlight === "dim" ? 0.05 : 0.25);
           _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, gpFinalAlpha);
         }
       }
