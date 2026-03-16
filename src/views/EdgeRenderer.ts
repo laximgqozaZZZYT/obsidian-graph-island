@@ -589,24 +589,68 @@ const NODE_PORT_OFFSET_RATIO = 0.5;
 /** Minimum node port offset distance (world units) */
 const NODE_PORT_MIN_OFFSET = 50;
 
-/** Compute a cable path between two points with perpendicular offset to avoid nodes */
+/**
+ * Compute a cable path that runs through row gaps (between node rows),
+ * then branches vertically to the target node.
+ *
+ * Path: from → (from.x, gapY) → (to.x, gapY) → to
+ * where gapY is the midpoint between the target's row and the adjacent row.
+ * This ensures cables travel through gaps between nodes, never through them.
+ */
 function computeCablePath(
   from: { x: number; y: number },
   to: { x: number; y: number },
-  offset: number,
+  _offset: number,
+  rowGaps?: number[],
 ): { x: number; y: number }[] {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  if (len < 1) return [{ x: from.x, y: from.y }, { x: to.x, y: to.y }];
-  const perpX = -dy / len;
-  const perpY = dx / len;
-  const sign = perpY >= 0 ? 1 : -1;
-  const midX = (from.x + to.x) / 2;
-  const midY = (from.y + to.y) / 2;
+  if (Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1) {
+    return [{ x: from.x, y: from.y }, { x: to.x, y: to.y }];
+  }
+
+  // Find the best gap Y to route through (between source and target rows)
+  let gapY: number;
+  if (rowGaps && rowGaps.length > 0) {
+    // Pick the gap nearest to the midpoint of from/to
+    const midY = (from.y + to.y) / 2;
+    gapY = rowGaps[0];
+    let bestDist = Math.abs(gapY - midY);
+    for (const g of rowGaps) {
+      const d = Math.abs(g - midY);
+      if (d < bestDist) { bestDist = d; gapY = g; }
+    }
+    // Ensure gapY is BETWEEN from.y and to.y (not beyond both)
+    const minY = Math.min(from.y, to.y);
+    const maxY = Math.max(from.y, to.y);
+    if (gapY < minY || gapY > maxY) {
+      // Find a gap that's actually between the two points
+      for (const g of rowGaps) {
+        if (g >= minY && g <= maxY) {
+          const d = Math.abs(g - midY);
+          if (d < bestDist) { bestDist = d; gapY = g; }
+        }
+      }
+    }
+  } else {
+    // Fallback: perpendicular offset at midpoint
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const perpX = -dy / len;
+    const perpY = dx / len;
+    const sign = perpY >= 0 ? 1 : -1;
+    return [
+      { x: from.x, y: from.y },
+      { x: (from.x + to.x) / 2 + perpX * _offset * sign,
+        y: (from.y + to.y) / 2 + perpY * _offset * sign },
+      { x: to.x, y: to.y },
+    ];
+  }
+
+  // L-shape through the gap: from → drop to gap → across to target X → up to target
   return [
     { x: from.x, y: from.y },
-    { x: midX + perpX * offset * sign, y: midY + perpY * offset * sign },
+    { x: from.x, y: gapY },
+    { x: to.x, y: gapY },
     { x: to.x, y: to.y },
   ];
 }
@@ -707,7 +751,13 @@ function buildIntraGroupCables(
         if (g > 1 && (rowGap === 0 || g < rowGap)) rowGap = g;
       }
       if (rowGap === 0) rowGap = 100; // fallback
-      const cableOffset = rowGap * 0.5; // cables run halfway between rows
+      const cableOffset = rowGap * 0.5;
+
+      // Compute row gap midpoints (between each pair of adjacent rows)
+      const rowGaps: number[] = [];
+      for (let i = 0; i < sortedYs.length - 1; i++) {
+        rowGaps.push((sortedYs[i] + sortedYs[i + 1]) / 2);
+      }
 
       // ── Build branches ──
       const branches: IntraGroupCable["branches"] = [];
@@ -721,7 +771,7 @@ function buildIntraGroupCables(
         if (!branch) {
           const tgtPort: NodePort = { nodeId: tid, x: tgtPos.x, y: tgtPos.y };
 
-          const path = computeCablePath(srcPos, tgtPos, cableOffset);
+          const path = computeCablePath(srcPos, tgtPos, cableOffset, rowGaps);
 
           branch = { nodePort: tgtPort, path, edges: [] };
           branches.push(branch);
@@ -735,7 +785,7 @@ function buildIntraGroupCables(
       // Group port branch: same routing rule as intra-group cables
       let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
       if (connectsExternal && groupPort) {
-        const path = computeCablePath(srcPos, groupPort, cableOffset);
+        const path = computeCablePath(srcPos, groupPort, cableOffset, rowGaps);
         groupPortBranch = { path, edges: externalEdges };
       }
 
