@@ -1143,8 +1143,21 @@ function drawEdgeSegment(
     g.moveTo(src.x, src.y);
     g.quadraticCurveTo(mx, cpY, tgt.x, tgt.y);
   } else {
-    g.moveTo(src.x, src.y);
-    g.lineTo(tgt.x, tgt.y);
+    // Slight curve instead of straight line — perpendicular offset at midpoint
+    const edx = tgt.x - src.x, edy = tgt.y - src.y;
+    const elen = Math.sqrt(edx * edx + edy * edy);
+    if (elen < 1) {
+      g.moveTo(src.x, src.y);
+      g.lineTo(tgt.x, tgt.y);
+    } else {
+      const sag = elen * 0.08; // 8% of length
+      const perpX = -edy / elen;
+      const perpY = edx / elen;
+      const cpx = (src.x + tgt.x) / 2 + perpX * sag;
+      const cpy = (src.y + tgt.y) / 2 + perpY * sag;
+      g.moveTo(src.x, src.y);
+      g.quadraticCurveTo(cpx, cpy, tgt.x, tgt.y);
+    }
   }
 }
 
