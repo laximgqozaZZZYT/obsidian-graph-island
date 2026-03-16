@@ -370,6 +370,24 @@ interface TrunkCable {
   edges: GraphEdge[];
 }
 
+/** ノード引き込み口: ノードごとに1つ */
+interface NodePort {
+  nodeId: string;
+  x: number;
+  y: number;
+}
+
+/** グループ内ケーブル: 複数電線を束ねる */
+interface IntraGroupCable {
+  groupKey: string;
+  /** Junction point (source node position) */
+  junction: { x: number; y: number };
+  /** Branches: junction → each target node port (Manhattan paths) */
+  branches: { nodePort: NodePort; path: { x: number; y: number }[]; edges: GraphEdge[] }[];
+  /** If this cable connects to group port */
+  groupPortBranch: { path: { x: number; y: number }[] } | null;
+}
+
 /**
  * Compute one Port per group on the group boundary.
  * Port direction = average direction to all connected groups.
@@ -574,6 +592,227 @@ function buildTrunks(
   return { trunks, cabledEdgeIds };
 }
 
+// ---------------------------------------------------------------------------
+// Intra-group cable wiring
+// ---------------------------------------------------------------------------
+
+/** Minimum node port offset distance (pixels) */
+const NODE_PORT_MIN_OFFSET = 20;
+/** Node port offset ratio relative to average edge length */
+const NODE_PORT_OFFSET_RATIO = 0.15;
+
+/**
+ * Build intra-group cables: edges within the same cluster group are bundled
+ * by shared source node. Each cable branches from a junction (source node pos)
+ * to multiple target node ports via Manhattan paths.
+ */
+function buildIntraGroupCables(
+  edges: GraphEdge[],
+  resolvePos: (ref: string | object) => Pos | undefined,
+  cfg: EdgeDrawConfig,
+  groupPorts: Map<string, GroupPort>,
+): { cables: IntraGroupCable[]; handledEdgeIds: Set<string> } {
+  const cables: IntraGroupCable[] = [];
+  const handledEdgeIds = new Set<string>();
+  const { nodeClusterMap, clusterCentroids } = cfg;
+  if (!nodeClusterMap || !clusterCentroids) return { cables, handledEdgeIds };
+
+  // Step 1: Collect intra-group edges, grouped by (group, source node)
+  const groupSourceMap = new Map<string, Map<string, GraphEdge[]>>();
+
+  for (const e of edges) {
+    if (shouldSkipEdge(e, cfg)) continue;
+    const sid = edgeSourceId(e);
+    const tid = edgeTargetId(e);
+    const srcGroup = nodeClusterMap.get(sid);
+    const tgtGroup = nodeClusterMap.get(tid);
+    if (!srcGroup || !tgtGroup || srcGroup !== tgtGroup) continue;
+    // Same group — intra-group edge
+    let sourceMap = groupSourceMap.get(srcGroup);
+    if (!sourceMap) { sourceMap = new Map(); groupSourceMap.set(srcGroup, sourceMap); }
+    let edgeList = sourceMap.get(sid);
+    if (!edgeList) { edgeList = []; sourceMap.set(sid, edgeList); }
+    edgeList.push(e);
+  }
+
+  // Step 2: Build cables for each group's source nodes
+  for (const [groupKey, sourceMap] of groupSourceMap) {
+    const centroid = clusterCentroids.get(groupKey);
+    if (!centroid) continue;
+    const groupPort = groupPorts.get(groupKey);
+
+    // Compute average edge length within this group for port offset
+    let totalLen = 0;
+    let edgeCount = 0;
+    for (const [, edgeList] of sourceMap) {
+      for (const e of edgeList) {
+        const sp = resolvePos(e.source);
+        const tp = resolvePos(e.target);
+        if (sp && tp) {
+          const dx = tp.x - sp.x, dy = tp.y - sp.y;
+          totalLen += Math.sqrt(dx * dx + dy * dy);
+          edgeCount++;
+        }
+      }
+    }
+    const avgEdgeLen = edgeCount > 0 ? totalLen / edgeCount : 100;
+    const portOffset = Math.max(avgEdgeLen * NODE_PORT_OFFSET_RATIO, NODE_PORT_MIN_OFFSET);
+
+    for (const [sourceNodeId, edgeList] of sourceMap) {
+      // Only bundle when 2+ edges share the source (otherwise no benefit)
+      if (edgeList.length < 2) continue;
+
+      const srcPos = resolvePos(sourceNodeId);
+      if (!srcPos) continue;
+
+      // Junction = source node position
+      const junction = { x: srcPos.x, y: srcPos.y };
+
+      // Compute source node port (offset toward centroid)
+      const sdx = centroid.x - srcPos.x;
+      const sdy = centroid.y - srcPos.y;
+      const slen = Math.sqrt(sdx * sdx + sdy * sdy);
+      const srcPort: NodePort = {
+        nodeId: sourceNodeId,
+        x: slen > 1 ? srcPos.x + (sdx / slen) * portOffset : srcPos.x,
+        y: slen > 1 ? srcPos.y + (sdy / slen) * portOffset : srcPos.y,
+      };
+
+      // Build branches to each target
+      const branches: IntraGroupCable["branches"] = [];
+      const targetIds = new Set<string>();
+      let connectsExternal = false;
+
+      for (const e of edgeList) {
+        const tid = edgeTargetId(e);
+        const tgtGroup = nodeClusterMap.get(tid);
+        if (tgtGroup && tgtGroup !== groupKey) {
+          connectsExternal = true;
+          continue;
+        }
+        const tgtPos = resolvePos(e.target);
+        if (!tgtPos) continue;
+
+        // Find or create branch for this target
+        if (!targetIds.has(tid)) {
+          targetIds.add(tid);
+          // Compute target node port (offset toward centroid)
+          const tdx = centroid.x - tgtPos.x;
+          const tdy = centroid.y - tgtPos.y;
+          const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
+          const tgtPort: NodePort = {
+            nodeId: tid,
+            x: tlen > 1 ? tgtPos.x + (tdx / tlen) * portOffset : tgtPos.x,
+            y: tlen > 1 ? tgtPos.y + (tdy / tlen) * portOffset : tgtPos.y,
+          };
+
+          // Manhattan path from source port to target port
+          const path = buildManhattanPath(srcPort, tgtPort, cfg.clusterArrangement);
+          branches.push({ nodePort: tgtPort, path, edges: [] });
+        }
+
+        // Add edge to the corresponding branch
+        const branch = branches.find(b => b.nodePort.nodeId === tid);
+        if (branch) branch.edges.push(e);
+        handledEdgeIds.add(e.id);
+      }
+
+      if (branches.length === 0) continue;
+
+      // Group port branch (if any edges connect externally)
+      let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
+      if (connectsExternal && groupPort) {
+        groupPortBranch = { path: buildManhattanPath(srcPort, groupPort, cfg.clusterArrangement) };
+      }
+
+      cables.push({ groupKey, junction, branches, groupPortBranch });
+    }
+  }
+
+  return { cables, handledEdgeIds };
+}
+
+/**
+ * Draw intra-group cables in 2 passes: conduits then wires.
+ */
+function drawIntraGroupCables(
+  g: CanvasGraphics,
+  cables: IntraGroupCable[],
+  cfg: EdgeDrawConfig,
+  densityScale: number,
+): void {
+  if (cables.length === 0) return;
+
+  // Cable count attenuation (similar to trunk crowd alpha)
+  const cableCount = cables.length;
+  const crowdAlpha = cableCount <= 20 ? 1.0
+    : cableCount <= 60 ? 0.6
+    : cableCount <= 150 ? 0.35
+    : 0.2;
+
+  // Highlight helper
+  const getBranchHighlight = (branchEdges: GraphEdge[]): "normal" | "bright" | "dim" => {
+    if (!cfg.highlightedNodeId) return "normal";
+    for (const e of branchEdges) {
+      if (cfg.highlightSet.has(edgeSourceId(e)) || cfg.highlightSet.has(edgeTargetId(e))) return "bright";
+    }
+    return "dim";
+  };
+
+  // PASS 1: Cable conduits (semi-transparent pipes along each branch)
+  for (const cable of cables) {
+    for (const branch of cable.branches) {
+      const nEdges = branch.edges.length;
+      const conduitWidth = Math.min(nEdges * CABLE_LANE_SPACING + CABLE_LANE_SPACING * 2, MAX_CONDUIT_WIDTH);
+      const highlight = getBranchHighlight(branch.edges);
+      const conduitAlpha = (highlight === "dim" ? 0.015 : highlight === "bright" ? 0.08 : CABLE_CONDUIT_ALPHA)
+        * densityScale * crowdAlpha;
+      _drawSmoothPath(g, branch.path, conduitWidth, 0x888888, conduitAlpha, false);
+    }
+    // Group port branch conduit
+    if (cable.groupPortBranch) {
+      _drawSmoothPath(g, cable.groupPortBranch.path, CABLE_LANE_SPACING * 2, 0x888888,
+        CABLE_CONDUIT_ALPHA * densityScale * crowdAlpha * 0.5, false);
+    }
+  }
+
+  // PASS 2: Wires (colored, one per edge)
+  const wireWidth = cfg.cableFanWidth ?? 1;
+  for (const cable of cables) {
+    for (const branch of cable.branches) {
+      const nEdges = branch.edges.length;
+      const highlight = getBranchHighlight(branch.edges);
+
+      // Compute perpendicular offset direction for lane spreading
+      const p0 = branch.path[0], pN = branch.path[branch.path.length - 1];
+      const tdx = pN.x - p0.x, tdy = pN.y - p0.y;
+      const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
+      const perpX = tlen > 0 ? -tdy / tlen : 0;
+      const perpY = tlen > 0 ? tdx / tlen : 1;
+
+      for (let ei = 0; ei < nEdges; ei++) {
+        const e = branch.edges[ei];
+        const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+
+        let wireAlpha = WIRE_BASE_ALPHA;
+        if (highlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
+        else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
+
+        // Lane offset for multiple wires in the same branch
+        const off = nEdges > 1 ? (ei - (nEdges - 1) / 2) * STUB_WIRE_SPACING : 0;
+        const wirePath = off === 0 ? branch.path
+          : branch.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
+
+        _drawSmoothPath(g, wirePath, wireWidth, color, wireAlpha * densityScale * crowdAlpha, true);
+      }
+    }
+  }
+}
+
+// Intra-group cable cache (same invalidation as trunks)
+let _intraCableCache: { cables: IntraGroupCable[]; handledEdgeIds: Set<string> } | null = null;
+let _intraCableDirty = true;
+
 /**
  * Draw trunks in 3 passes: conduit background, cable conduits, then wires.
  * Uses existing _drawSmoothPath for all rendering.
@@ -734,6 +973,7 @@ let _cableCentroidCount = 0; // track centroid count to auto-invalidate
 export function invalidateBundleCache(): void {
   _bundleDirty = true;
   _cableDirty = true;
+  _intraCableDirty = true;
   _roadRouteCache.clear();
   _roadRouteCacheNetwork = null;
   invalidatePathCache();
@@ -1096,9 +1336,36 @@ export function drawEdges(
     cabledEdgeIds = new Set<string>();
   }
 
+  // Intra-group cable wiring
+  let intraHandledIds = new Set<string>();
+  if (hasClusters && _cableCache) {
+    if (_intraCableDirty || !_intraCableCache) {
+      // Compute group ports for intra-group cables (re-uses computeGroupPorts)
+      const centroids = cfg.clusterCentroids!;
+      const radii = cfg.clusterRadii!;
+      // Build connection map from trunks for port computation
+      const connections = new Map<string, Set<string>>();
+      for (const trunk of _cableCache.trunks) {
+        if (!connections.has(trunk.srcGroup)) connections.set(trunk.srcGroup, new Set());
+        if (!connections.has(trunk.tgtGroup)) connections.set(trunk.tgtGroup, new Set());
+        connections.get(trunk.srcGroup)!.add(trunk.tgtGroup);
+        connections.get(trunk.tgtGroup)!.add(trunk.srcGroup);
+      }
+      const groupKeys = new Set(cfg.nodeClusterMap!.values());
+      const groupPorts = computeGroupPorts(groupKeys, centroids, radii, connections);
+      _intraCableCache = buildIntraGroupCables(edges, resolvePos, cfg, groupPorts);
+      _intraCableDirty = false;
+    }
+    intraHandledIds = _intraCableCache.handledEdgeIds;
+    if (_intraCableCache.cables.length > 0) {
+      drawIntraGroupCables(g, _intraCableCache.cables, cfg, densityScale);
+    }
+  }
+
   for (const e of edges) {
-    // Skip edges handled by trunk bundling
+    // Skip edges handled by trunk bundling or intra-group cables
     if (cabledEdgeIds.has(e.id)) continue;
+    if (intraHandledIds.has(e.id)) continue;
     if (shouldSkipEdge(e, cfg)) continue;
 
     const src = resolvePos(e.source);
