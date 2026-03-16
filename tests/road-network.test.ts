@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildRoadNetwork,
-  routeEdge,
-  type RoadNetworkConfig,
-  type GraphNode,
-} from "../src/layouts/road-network";
+  buildCableTray as buildRoadNetwork,
+  routeWire as routeEdge,
+  type CableTrayConfig as RoadNetworkConfig,
+} from "../src/layouts/cable-tray";
+import type { GraphNode } from "../src/types";
 
 // Mock GraphNode type for testing
 const mockNode = (id: string, x: number, y: number): GraphNode => ({

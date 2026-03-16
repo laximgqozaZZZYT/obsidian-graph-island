@@ -1,5 +1,5 @@
 type DrawCmd =
-  | { t: "lineStyle"; width: number; color: number; alpha: number }
+  | { t: "lineStyle"; width: number; color: number; alpha: number; native?: boolean }
   | { t: "beginFill"; color: number; alpha: number }
   | { t: "beginRadialFill"; cx: number; cy: number; r: number; innerColor: number; outerColor: number; innerAlpha: number; outerAlpha: number }
   | { t: "endFill" }
@@ -58,6 +58,7 @@ export class CanvasGraphics {
         width: widthOrObj.width,
         color: widthOrObj.color ?? 0x000000,
         alpha: widthOrObj.alpha ?? 1,
+        native: widthOrObj.native ?? false,
       });
     } else {
       this.commands.push({
@@ -145,6 +146,7 @@ export class CanvasGraphics {
     let strokeWidth = 0;
     let strokeColor = 0x000000;
     let strokeAlpha = 1;
+    let strokeNative = false;
     let inPath = false;
     let hasFill = false;
     let radialGradient: CanvasGradient | null = null;
@@ -165,7 +167,14 @@ export class CanvasGraphics {
       }
       if (strokeWidth > 0 && strokeAlpha > 0) {
         ctx.strokeStyle = hexToRgba(strokeColor, strokeAlpha * effAlpha);
-        ctx.lineWidth = strokeWidth;
+        if (strokeNative) {
+          // native: line width in screen pixels, independent of zoom
+          const t = ctx.getTransform();
+          const ctmScale = Math.sqrt(t.a * t.a + t.b * t.b);
+          ctx.lineWidth = ctmScale > 0 ? strokeWidth / ctmScale : strokeWidth;
+        } else {
+          ctx.lineWidth = strokeWidth;
+        }
         ctx.stroke();
       }
       inPath = false;
@@ -181,6 +190,7 @@ export class CanvasGraphics {
           strokeWidth = cmd.width;
           strokeColor = cmd.color;
           strokeAlpha = cmd.alpha;
+          strokeNative = cmd.native ?? false;
           break;
         case "beginFill":
           flushShape();
@@ -192,7 +202,9 @@ export class CanvasGraphics {
           break;
         case "beginRadialFill": {
           flushShape();
-          const grad = ctx.createRadialGradient(cmd.cx, cmd.cy, 0, cmd.cx, cmd.cy, cmd.r);
+          // Guard: createRadialGradient throws if r <= 0, NaN, or Infinity
+          const safeR = (cmd.r > 0 && isFinite(cmd.r)) ? cmd.r : 1;
+          const grad = ctx.createRadialGradient(cmd.cx, cmd.cy, 0, cmd.cx, cmd.cy, safeR);
           grad.addColorStop(0, hexToRgba(cmd.innerColor, cmd.innerAlpha * effAlpha));
           grad.addColorStop(1, hexToRgba(cmd.outerColor, cmd.outerAlpha * effAlpha));
           radialGradient = grad;
