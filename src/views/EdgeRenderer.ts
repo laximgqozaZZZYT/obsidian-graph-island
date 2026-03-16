@@ -704,20 +704,27 @@ function buildIntraGroupCables(
 
       // ── Row gap for cable routing ──
       // Cables must NOT cross nodes. They route through the gap between
-      // node rows, passing through the junction on the way.
-      // routeY = the inter-row gap nearest to but BELOW the junction Y.
+      // node rows, never on the same Y as any node.
       const halfGap = sortedYs.length >= 2
         ? (sortedYs[sortedYs.length - 1] - sortedYs[0]) / (sortedYs.length - 1) / 2
         : portOffset;
+      const minClearance = Math.max(portOffset * 0.3, 8); // minimum distance from any node row
+
       const findGapBelow = (y: number): number => {
         for (let ri = 0; ri < sortedYs.length - 1; ri++) {
           const gap = (sortedYs[ri] + sortedYs[ri + 1]) / 2;
-          if (gap > y + 1) return gap; // first gap below y
+          if (gap > y + 1) return gap;
         }
-        // Below last row
         return sortedYs[sortedYs.length - 1] + halfGap;
       };
-      const routeY = findGapBelow(junction.y);
+
+      let routeY = findGapBelow(junction.y);
+      // Ensure routeY doesn't overlap any node row
+      for (const ny of sortedYs) {
+        if (Math.abs(routeY - ny) < minClearance) {
+          routeY = ny + minClearance;
+        }
+      }
 
       // ── Build branches ──
       // Each branch path: src → (down to routeY) → junction X → (across to tgt X) → tgt
