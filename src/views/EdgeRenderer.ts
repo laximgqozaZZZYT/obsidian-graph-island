@@ -1091,7 +1091,10 @@ function drawTrunks(
       else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
       const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
-      _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, wireAlpha * densityScale);
+      const finalAlpha = highlight === "bright"
+        ? wireAlpha
+        : Math.max(wireAlpha * densityScale, highlight === "dim" ? 0.05 : 0.35);
+      _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, finalAlpha);
     }
   }
 }
