@@ -657,7 +657,28 @@ function buildIntraGroupCables(
 
       const junction = { x: centroid.x, y: centroid.y };
 
-      // ── Build branches via road network ──
+      // ── Compute row spacing for this group ──
+      const groupYs = new Set<number>();
+      for (const [nid] of sourceMap) {
+        const p = resolvePos(nid);
+        if (p) groupYs.add(Math.round(p.y));
+      }
+      for (const [, el] of sourceMap) {
+        for (const e of el) {
+          const p = resolvePos(e.target);
+          if (p) groupYs.add(Math.round(p.y));
+        }
+      }
+      const sortedYs = [...groupYs].sort((a, b) => a - b);
+      let rowGap = 0;
+      for (let i = 1; i < sortedYs.length; i++) {
+        const g = sortedYs[i] - sortedYs[i - 1];
+        if (g > 1 && (rowGap === 0 || g < rowGap)) rowGap = g;
+      }
+      if (rowGap === 0) rowGap = 100; // fallback
+      const cableOffset = rowGap * 0.5; // cables run halfway between rows
+
+      // ── Build branches ──
       const branches: IntraGroupCable["branches"] = [];
 
       for (const e of edgeList) {
@@ -669,18 +690,30 @@ function buildIntraGroupCables(
         if (!branch) {
           const tgtPort: NodePort = { nodeId: tid, x: tgtPos.x, y: tgtPos.y };
 
-          // Route through road network intersections (cell centers between nodes)
+          // Simple rule: offset the cable perpendicular to avoid nodes.
+          // For roughly horizontal paths (same row), dip below by half a row gap.
+          // For other paths, add a midpoint offset perpendicular to the path.
+          const dx = tgtPos.x - srcPos.x;
+          const dy = tgtPos.y - srcPos.y;
+          const midX = (srcPos.x + tgtPos.x) / 2;
+          const midY = (srcPos.y + tgtPos.y) / 2;
+          const len = Math.sqrt(dx * dx + dy * dy);
+
           let path: { x: number; y: number }[];
-          if (roadNet && roadNet.intersections.length > 0) {
-            const waypoints = routeEdge(roadNet, sourceNodeId, tid);
-            if (waypoints.length >= 2) {
-              path = [{ x: srcPos.x, y: srcPos.y }, ...waypoints, { x: tgtPos.x, y: tgtPos.y }];
-            } else {
-              // Fallback: straight line
-              path = [{ x: srcPos.x, y: srcPos.y }, { x: tgtPos.x, y: tgtPos.y }];
-            }
-          } else {
+          if (len < 1) {
             path = [{ x: srcPos.x, y: srcPos.y }, { x: tgtPos.x, y: tgtPos.y }];
+          } else {
+            // Perpendicular offset direction (rotate path direction 90°)
+            const perpX = -dy / len;
+            const perpY = dx / len;
+            // Offset midpoint by cableOffset in the perpendicular direction
+            // Always offset "downward" (positive Y in screen space)
+            const sign = perpY >= 0 ? 1 : -1;
+            path = [
+              { x: srcPos.x, y: srcPos.y },
+              { x: midX + perpX * cableOffset * sign, y: midY + perpY * cableOffset * sign },
+              { x: tgtPos.x, y: tgtPos.y },
+            ];
           }
 
           branch = { nodePort: tgtPort, path, edges: [] };
