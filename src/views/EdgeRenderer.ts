@@ -2,8 +2,8 @@ import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { GraphEdge, EdgeCardinalityMode, Cardinality, CardinalityRule, CardinalityRenderConfig } from "../types";
 import { DEFAULT_CARDINALITY_RENDER_CONFIG } from "../types";
 import { cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
-import type { RoadNetwork } from "../layouts/road-network";
-import { routeEdge } from "../layouts/road-network";
+import type { RoadNetwork } from "../layouts/cable-tray";
+import { routeEdge, findNearestIntersection, cachedFindShortestPath, pathToWaypoints, invalidatePathCache } from "../layouts/cable-tray";
 import {
   EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_SEQUENCE,
   EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_HAS_TAG,
@@ -159,11 +159,21 @@ const CABLE_FAN_CONNECTED_FACTOR = 0.8;
 /** Cable fan alpha dampen factor for non-matching edges during hover */
 const CABLE_FAN_NON_MATCH_DAMPEN = 0.15;
 /** Cable lane spacing in pixels */
-const CABLE_LANE_SPACING = 3;
+const CABLE_LANE_SPACING = 2;
 /** Cable layout margin from cluster boundary */
 const CABLE_LAYOUT_MARGIN = 5;
 /** Cable layout overlap start/end fraction */
 const CABLE_OVERLAP_FRAC = 0.4;
+/** Trunk conduit alpha (semi-transparent pipe) */
+const TRUNK_CONDUIT_ALPHA = 0.06;
+/** Cable conduit alpha */
+const CABLE_CONDUIT_ALPHA = 0.04;
+/** Wire alpha (colored lines inside conduits) */
+const WIRE_BASE_ALPHA = 0.45;
+/** Stub wire spacing at node end (pixels between wires) */
+const STUB_WIRE_SPACING = 1.5;
+/** Maximum conduit width in pixels (prevents "fat pillar" overflow) */
+const MAX_CONDUIT_WIDTH = 10;
 /** Default fallback cluster radius */
 const DEFAULT_CLUSTER_RADIUS = 50;
 /** Arc layout control point height factor */
@@ -332,6 +342,246 @@ function buildDirectionBundles(
 }
 
 // ---------------------------------------------------------------------------
+// 3-Layer Wiring Model: 幹線 (Trunk) → Port (引き込み口) → ケーブル (Cable) → 電線 (Wire)
+// ---------------------------------------------------------------------------
+
+/** 引き込み口: 各グループに1つ、グループ境界上に配置 */
+interface GroupPort {
+  groupKey: string;
+  x: number;
+  y: number;
+}
+
+/** 幹線: グループペア間を結ぶ。内部にケーブルを収容 */
+interface Trunk {
+  pairKey: string;
+  srcGroup: string;
+  tgtGroup: string;
+  path: { x: number; y: number }[];
+  cables: TrunkCable[];
+  allEdges: GraphEdge[];
+}
+
+/** 幹線内のケーブル: 同一色のエッジをまとめる */
+interface TrunkCable {
+  color: number;
+  edges: GraphEdge[];
+}
+
+/**
+ * Compute one Port per group on the group boundary.
+ * Port direction = average direction to all connected groups.
+ */
+function computeGroupPorts(
+  groupKeys: Set<string>,
+  centroids: Map<string, { x: number; y: number }>,
+  radii: Map<string, number>,
+  connections: Map<string, Set<string>>,
+): Map<string, GroupPort> {
+  const ports = new Map<string, GroupPort>();
+  for (const gk of groupKeys) {
+    const c = centroids.get(gk);
+    if (!c) continue;
+    const r = radii.get(gk) ?? DEFAULT_CLUSTER_RADIUS;
+    const conns = connections.get(gk);
+    if (!conns || conns.size === 0) {
+      ports.set(gk, { groupKey: gk, x: c.x, y: c.y });
+      continue;
+    }
+    let sinSum = 0, cosSum = 0;
+    for (const other of conns) {
+      const oc = centroids.get(other);
+      if (!oc) continue;
+      const dx = oc.x - c.x, dy = oc.y - c.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 1) continue;
+      cosSum += dx / len;
+      sinSum += dy / len;
+    }
+    const avgLen = Math.sqrt(cosSum * cosSum + sinSum * sinSum);
+    let portX: number, portY: number;
+    if (avgLen < 0.01) {
+      portX = c.x + r;
+      portY = c.y;
+    } else {
+      portX = c.x + (cosSum / avgLen) * r;
+      portY = c.y + (sinSum / avgLen) * r;
+    }
+    ports.set(gk, { groupKey: gk, x: portX, y: portY });
+  }
+  return ports;
+}
+
+/**
+ * Group inter-group edges into Trunks (one per group pair).
+ * Each trunk contains cables grouped by edge color.
+ * Only pairs with 2+ edges become trunks (singletons stay as normal edges).
+ */
+function buildTrunks(
+  edges: GraphEdge[],
+  resolvePos: (ref: string | object) => Pos | undefined,
+  cfg: EdgeDrawConfig,
+): { trunks: Trunk[]; cabledEdgeIds: Set<string> } {
+  const trunks: Trunk[] = [];
+  const cabledEdgeIds = new Set<string>();
+  const { nodeClusterMap } = cfg;
+  if (!nodeClusterMap) return { trunks, cabledEdgeIds };
+
+  const pairData = new Map<string, {
+    srcGroup: string; tgtGroup: string;
+    byColor: Map<number, GraphEdge[]>;
+  }>();
+
+  for (const e of edges) {
+    if (shouldSkipEdge(e, cfg)) continue;
+    const sid = edgeSourceId(e);
+    const tid = edgeTargetId(e);
+    const srcGroup = nodeClusterMap.get(sid);
+    const tgtGroup = nodeClusterMap.get(tid);
+    if (!srcGroup || !tgtGroup || srcGroup === tgtGroup) continue;
+    const [a, b] = srcGroup < tgtGroup ? [srcGroup, tgtGroup] : [tgtGroup, srcGroup];
+    const pairKey = `${a}|${b}`;
+    let pair = pairData.get(pairKey);
+    if (!pair) { pair = { srcGroup: a, tgtGroup: b, byColor: new Map() }; pairData.set(pairKey, pair); }
+    const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+    let group = pair.byColor.get(color);
+    if (!group) { group = []; pair.byColor.set(color, group); }
+    group.push(e);
+  }
+
+  // Build connection map for Port computation
+  const connections = new Map<string, Set<string>>();
+  for (const [, pair] of pairData) {
+    if (!connections.has(pair.srcGroup)) connections.set(pair.srcGroup, new Set());
+    if (!connections.has(pair.tgtGroup)) connections.set(pair.tgtGroup, new Set());
+    connections.get(pair.srcGroup)!.add(pair.tgtGroup);
+    connections.get(pair.tgtGroup)!.add(pair.srcGroup);
+  }
+
+  const centroids = cfg.clusterCentroids;
+  const radii = cfg.clusterRadii;
+  if (!centroids || !radii) return { trunks, cabledEdgeIds };
+
+  const groupKeys = new Set(connections.keys());
+  const ports = computeGroupPorts(groupKeys, centroids, radii, connections);
+
+  for (const [pairKey, pair] of pairData) {
+    const cables: TrunkCable[] = [];
+    const allEdges: GraphEdge[] = [];
+    let totalEdges = 0;
+    for (const [color, edgeList] of pair.byColor) {
+      cables.push({ color, edges: edgeList });
+      for (const e of edgeList) allEdges.push(e);
+      totalEdges += edgeList.length;
+    }
+    if (totalEdges < 2) continue;
+
+    const portA = ports.get(pair.srcGroup);
+    const portB = ports.get(pair.tgtGroup);
+    if (!portA || !portB) continue;
+
+    const path = [{ x: portA.x, y: portA.y }, { x: portB.x, y: portB.y }];
+    trunks.push({ pairKey, srcGroup: pair.srcGroup, tgtGroup: pair.tgtGroup, path, cables, allEdges });
+    for (const e of allEdges) cabledEdgeIds.add(e.id);
+  }
+
+  return { trunks, cabledEdgeIds };
+}
+
+/**
+ * Draw trunks in 3 passes: conduit background, cable conduits, then wires.
+ * Uses existing _drawSmoothPath for all rendering.
+ */
+function drawTrunks(
+  g: CanvasGraphics,
+  trunks: Trunk[],
+  cfg: EdgeDrawConfig,
+  densityScale: number,
+): void {
+  if (trunks.length === 0) return;
+
+  // PASS 1: Trunk conduits (background, semi-transparent)
+  for (const trunk of trunks) {
+    const nCables = trunk.cables.length;
+    const trunkWidth = Math.min(Math.max(nCables * CABLE_LANE_SPACING + 4, 6), MAX_CONDUIT_WIDTH);
+
+    let highlight: "normal" | "bright" | "dim" = "normal";
+    if (cfg.highlightedNodeId) {
+      let anyHit = false;
+      for (const cable of trunk.cables) {
+        for (const e of cable.edges) {
+          if (cfg.highlightSet.has(edgeSourceId(e)) || cfg.highlightSet.has(edgeTargetId(e))) {
+            anyHit = true; break;
+          }
+        }
+        if (anyHit) break;
+      }
+      highlight = anyHit ? "bright" : "dim";
+    }
+
+    const trunkAlpha = (highlight === "dim" ? 0.03 : highlight === "bright" ? 0.15 : TRUNK_CONDUIT_ALPHA) * densityScale;
+    _drawSmoothPath(g, trunk.path, trunkWidth, 0x888888, trunkAlpha);
+  }
+
+  // PASS 2: Cable conduits (per-lane, slightly thinner semi-transparent)
+  for (const trunk of trunks) {
+    const nCables = trunk.cables.length;
+    if (nCables <= 1) continue;
+
+    const p0 = trunk.path[0], pN = trunk.path[trunk.path.length - 1];
+    const tdx = pN.x - p0.x, tdy = pN.y - p0.y;
+    const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
+    const perpX = tlen > 0 ? -tdy / tlen : 0;
+    const perpY = tlen > 0 ? tdx / tlen : 1;
+
+    const cableWidth = Math.max(CABLE_LANE_SPACING, 2);
+    for (let ci = 0; ci < nCables; ci++) {
+      const off = (ci - (nCables - 1) / 2) * CABLE_LANE_SPACING;
+      const cablePath = trunk.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
+      _drawSmoothPath(g, cablePath, cableWidth, 0x888888, CABLE_CONDUIT_ALPHA * densityScale);
+    }
+  }
+
+  // PASS 3: Wires (colored, thin — visible through conduits)
+  for (const trunk of trunks) {
+    const nCables = trunk.cables.length;
+    const p0 = trunk.path[0], pN = trunk.path[trunk.path.length - 1];
+    const tdx = pN.x - p0.x, tdy = pN.y - p0.y;
+    const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
+    const perpX = tlen > 0 ? -tdy / tlen : 0;
+    const perpY = tlen > 0 ? tdx / tlen : 1;
+
+    let highlight: "normal" | "bright" | "dim" = "normal";
+    if (cfg.highlightedNodeId) {
+      let anyHit = false;
+      for (const cable of trunk.cables) {
+        for (const e of cable.edges) {
+          if (cfg.highlightSet.has(edgeSourceId(e)) || cfg.highlightSet.has(edgeTargetId(e))) {
+            anyHit = true; break;
+          }
+        }
+        if (anyHit) break;
+      }
+      highlight = anyHit ? "bright" : "dim";
+    }
+
+    const wireWidth = cfg.cableFanWidth ?? 1;
+    for (let ci = 0; ci < nCables; ci++) {
+      const cable = trunk.cables[ci];
+      const off = (ci - (nCables - 1) / 2) * CABLE_LANE_SPACING;
+      const ox = perpX * off, oy = perpY * off;
+
+      let wireAlpha = WIRE_BASE_ALPHA;
+      if (highlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
+      else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
+
+      const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
+      _drawSmoothPath(g, wirePath, wireWidth, cable.color, wireAlpha * densityScale);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Cable bundling — inter-cluster edge grouping
 // ---------------------------------------------------------------------------
 
@@ -362,10 +612,10 @@ interface Cable {
 
 /** Pre-computed cable layout for a cluster pair */
 interface CableLayout {
-  /** Trunk start point (on source cluster boundary) */
-  trunkStart: { x: number; y: number };
-  /** Trunk end point (on target cluster boundary) */
-  trunkEnd: { x: number; y: number };
+  /** Waypoints along road network (centroid → centroid) */
+  trunkPath: { x: number; y: number }[];
+  /** Intersection IDs along the trunk (for branch tap selection) */
+  trunkIsectIds: number[];
   /** Perpendicular offset for parallel cables */
   offsetX: number;
   offsetY: number;
@@ -472,55 +722,84 @@ function computeCableLayout(
   const cB = centroids.get(cable.tgtCluster);
   if (!cA || !cB) return null;
 
-  const rA = radii.get(cable.srcCluster) ?? DEFAULT_CLUSTER_RADIUS;
-  const rB = radii.get(cable.tgtCluster) ?? DEFAULT_CLUSTER_RADIUS;
-
-  const dx = cB.x - cA.x;
-  const dy = cB.y - cA.y;
+  const dx = cB.x - cA.x, dy = cB.y - cA.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (dist < 1) return null;
 
-  const ux = dx / dist;
-  const uy = dy / dist;
+  const rn = cfg?.roadNetwork;
+  let trunkPath: { x: number; y: number }[];
+  let trunkIsectIds: number[] = [];
 
-  // Trunk start/end: clipped at cluster boundary (with small margin)
-  // If clusters overlap (rA + rB > dist), place trunk endpoints at midpoint
-  const margin = CABLE_LAYOUT_MARGIN;
-  const gapDist = dist - rA - rB;
-  let startFrac: number, endFrac: number;
-  if (gapDist > margin * 2) {
-    // Normal case: trunk spans the gap between cluster boundaries
-    startFrac = (rA + margin) / dist;
-    endFrac = (rB + margin) / dist;
+  if (rn && rn.intersections.length > 0) {
+    const srcId = findNearestIntersection(rn, cA.x, cA.y);
+    const tgtId = findNearestIntersection(rn, cB.x, cB.y);
+    if (srcId >= 0 && tgtId >= 0 && srcId !== tgtId) {
+      const path = cachedFindShortestPath(rn, srcId, tgtId);
+      if (path.length >= 2) {
+        trunkIsectIds = path;
+        trunkPath = pathToWaypoints(rn, path);
+      } else {
+        trunkPath = [cA, cB]; // fallback: straight line
+      }
+    } else {
+      trunkPath = [cA, cB];
+    }
   } else {
-    // Clusters close/overlapping: place trunk at 40%–60% of centroid-centroid line
-    startFrac = CABLE_OVERLAP_FRAC;
-    endFrac = CABLE_OVERLAP_FRAC;
+    // No road network: L-shape fallback
+    trunkPath = [cA, { x: cB.x, y: cA.y }, cB];
   }
-  const trunkStart = { x: cA.x + ux * dist * startFrac, y: cA.y + uy * dist * startFrac };
-  const trunkEnd = { x: cB.x - ux * dist * endFrac, y: cB.y - uy * dist * endFrac };
 
-  // Perpendicular offset for parallel cables
-  const px = -uy;
-  const py = ux;
+  // Perpendicular offset
+  const ux = dx / dist, uy = dy / dist;
+  const px = -uy, py = ux;
   const cableSpacing = cfg?.cableSpacing ?? 4;
   const centerOffset = (cable.cableIndex - (cable.totalCables - 1) / 2) * cableSpacing;
 
-  return {
-    trunkStart,
-    trunkEnd,
-    offsetX: px * centerOffset,
-    offsetY: py * centerOffset,
-  };
+  return { trunkPath, trunkIsectIds, offsetX: px * centerOffset, offsetY: py * centerOffset };
 }
 
 /**
- * Draw all cables: per-color trunk lines + subtle fan-in/fan-out to individual nodes.
+ * Draw a smooth path with quadratic curves at direction changes.
+ * Returns without drawing if path has fewer than 2 points.
+ */
+function _drawSmoothPath(
+  g: CanvasGraphics,
+  path: { x: number; y: number }[],
+  width: number,
+  color: number,
+  alpha: number,
+): void {
+  if (path.length < 2) return;
+  g.lineStyle({ width, color, alpha, native: true });
+  g.moveTo(path[0].x, path[0].y);
+  for (let i = 1; i < path.length; i++) {
+    const prev = path[i - 1];
+    const cur = path[i];
+    const next = i < path.length - 1 ? path[i + 1] : null;
+    if (next) {
+      const dx1 = cur.x - prev.x, dy1 = cur.y - prev.y;
+      const dx2 = next.x - cur.x, dy2 = next.y - cur.y;
+      const cross = Math.abs(dx1 * dy2 - dy1 * dx2);
+      const dot = Math.abs(dx1 * dx2 + dy1 * dy2);
+      if (cross > 0.1 * (dot + 1)) {
+        const mx = (cur.x + next.x) / 2, my = (cur.y + next.y) / 2;
+        g.quadraticCurveTo(cur.x, cur.y, mx, my);
+      } else {
+        g.lineTo(cur.x, cur.y);
+      }
+    } else {
+      g.lineTo(cur.x, cur.y);
+    }
+  }
+}
+
+/**
+ * 3-Layer Cable Drawing: 幹線 (trunk conduit) → ケーブル (cable conduit) → 電線 (wire)
  *
- * Each cable contains up to MAX_CABLE_COLORS lanes (one per distinct color).
- * Each lane draws ONE trunk line in its color — same-color edges are fully merged
- * into a single visual strand. At group boundaries, thin fan lines connect
- * individual nodes to the cable endpoint.
+ * Layer 1 — 幹線: Semi-transparent wide conduit between cluster centroids (road network).
+ * Layer 2 — ケーブル: Semi-transparent medium conduit from trunk junction to node access junction.
+ * Layer 3 — 電線: Thin colored wires visible through conduits. Each wire runs the full path
+ *           (trunk → cable → stub). Stubs fan out at the node end with unified direction.
  */
 function drawCables(
   g: CanvasGraphics,
@@ -531,107 +810,264 @@ function drawCables(
 ): void {
   const { clusterCentroids: centroids, clusterRadii: radii } = cfg;
   if (!centroids || !radii) return;
+  const rn = cfg.roadNetwork;
+
+  // Dynamic attenuation: when cable count is high, reduce width & alpha
+  // to prevent the "fat pillar" overload
+  const cableCount = cables.length;
+  const crowdFactor = cableCount <= 10 ? 1.0
+    : cableCount <= 30 ? 0.6
+    : cableCount <= 80 ? 0.35
+    : 0.2;
+  // Skip conduit rendering entirely when too many cables (wires alone are sufficient)
+  const drawConduits = cableCount <= 40;
 
   for (const cable of cables) {
     const layout = computeCableLayout(cable, centroids, radii, cfg);
     if (!layout) continue;
 
-    const { trunkStart, trunkEnd, offsetX, offsetY } = layout;
+    const { trunkPath, trunkIsectIds, offsetX, offsetY } = layout;
+    if (trunkPath.length < 2) continue;
 
-    // Perpendicular unit vector (always computed from trunk direction)
-    const tdx = trunkEnd.x - trunkStart.x;
-    const tdy = trunkEnd.y - trunkStart.y;
+    // Perpendicular unit from trunk overall direction
+    const tp0 = trunkPath[0], tpN = trunkPath[trunkPath.length - 1];
+    const tdx = tpN.x - tp0.x, tdy = tpN.y - tp0.y;
     const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
     const perpX = tlen > 0 ? -tdy / tlen : 0;
     const perpY = tlen > 0 ? tdx / tlen : 1;
 
+    const trunkIsectSet = new Set(trunkIsectIds);
+
+    // ── Pre-compute per-node info ──
+    type NodeEntry = {
+      pos: Pos;
+      wireCount: number;               // total wires (edges) to this node
+      cablePath: { x: number; y: number }[] | null;   // trunk jct → access jct (road network)
+      accessPt: { x: number; y: number } | null;
+      stubDx: number; stubDy: number;   // normalized stub direction (access → node)
+      stubPx: number; stubPy: number;   // perpendicular to stub direction
+    };
+    const nodeEntries = new Map<string, NodeEntry>();
+
+    for (const lane of cable.lanes) {
+      for (const e of lane.edges) {
+        const src = resolvePos(e.source);
+        const tgt = resolvePos(e.target);
+        if (!src || !tgt) continue;
+        const sid = src.id ?? edgeSourceId(e);
+        const tid = tgt.id ?? edgeTargetId(e);
+        if (!nodeEntries.has(sid)) {
+          nodeEntries.set(sid, { pos: src, wireCount: 0, cablePath: null, accessPt: null, stubDx: 0, stubDy: 0, stubPx: 0, stubPy: 1 });
+        }
+        nodeEntries.get(sid)!.wireCount++;
+        if (!nodeEntries.has(tid)) {
+          nodeEntries.set(tid, { pos: tgt, wireCount: 0, cablePath: null, accessPt: null, stubDx: 0, stubDy: 0, stubPx: 0, stubPy: 1 });
+        }
+        nodeEntries.get(tid)!.wireCount++;
+      }
+    }
+
+    // Compute cable paths and stub geometry for each node
+    for (const [nodeId, entry] of nodeEntries) {
+      if (!rn) continue;
+      const accessId = rn.nodeAccess.get(nodeId);
+      if (accessId == null) continue;
+      const accessIsect = rn.intersections[accessId];
+      if (!accessIsect) continue;
+      entry.accessPt = { x: accessIsect.x, y: accessIsect.y };
+
+      // Stub direction: access → node
+      const sdx = entry.pos.x - accessIsect.x;
+      const sdy = entry.pos.y - accessIsect.y;
+      const slen = Math.sqrt(sdx * sdx + sdy * sdy);
+      if (slen > 0.1) {
+        entry.stubDx = sdx / slen;
+        entry.stubDy = sdy / slen;
+        entry.stubPx = -entry.stubDy;
+        entry.stubPy = entry.stubDx;
+      }
+
+      // If access junction is on trunk, no cable conduit needed
+      if (trunkIsectSet.has(accessId)) {
+        entry.cablePath = [];
+        continue;
+      }
+
+      // Find nearest trunk junction
+      let bestTJ = -1;
+      let bestD = Infinity;
+      for (const tj of trunkIsectIds) {
+        const pt = rn.intersections[tj];
+        if (!pt) continue;
+        const d = (pt.x - accessIsect.x) ** 2 + (pt.y - accessIsect.y) ** 2;
+        if (d < bestD) { bestD = d; bestTJ = tj; }
+      }
+
+      if (bestTJ >= 0) {
+        const path = cachedFindShortestPath(rn, bestTJ, accessId);
+        if (path.length >= 2) {
+          entry.cablePath = pathToWaypoints(rn, path);
+        } else {
+          // Straight fallback
+          const tjPt = rn.intersections[bestTJ];
+          entry.cablePath = tjPt
+            ? [{ x: tjPt.x, y: tjPt.y }, { x: accessIsect.x, y: accessIsect.y }]
+            : [];
+        }
+      } else {
+        entry.cablePath = [];
+      }
+    }
+
+    // ── Highlight state (cable-level) ──
+    let cableHighlight: "normal" | "bright" | "dim" = "normal";
+    if (cfg.highlightedNodeId) {
+      let anyHit = false;
+      for (const lane of cable.lanes) {
+        for (const e of lane.edges) {
+          if (cfg.highlightSet.has(edgeSourceId(e)) || cfg.highlightSet.has(edgeTargetId(e))) {
+            anyHit = true; break;
+          }
+        }
+        if (anyHit) break;
+      }
+      cableHighlight = anyHit ? "bright" : "dim";
+    }
+
+    // ── Conduit color: neutral gray-ish tint ──
+    const conduitColor = 0x888888;
+
+    // ====================================================================
+    // PASS 1: CONDUITS (background — semi-transparent pipes)
+    // ====================================================================
+
     const nLanes = cable.lanes.length;
+    const trunkConduitWidth = Math.min(Math.max(nLanes * CABLE_LANE_SPACING + 2, 4), MAX_CONDUIT_WIDTH) * crowdFactor;
+    const trunkCAlpha = (cableHighlight === "dim" ? 0.02 : cableHighlight === "bright" ? 0.12 : TRUNK_CONDUIT_ALPHA) * densityScale * crowdFactor;
+
+    // 1a. Trunk conduit (skip when too many cables)
+    if (drawConduits) {
+      const offsetTrunk = trunkPath.map(p => ({ x: p.x + offsetX, y: p.y + offsetY }));
+      _drawSmoothPath(g, offsetTrunk, trunkConduitWidth, conduitColor, trunkCAlpha);
+    }
+
+    // 1b. Cable conduits (per node, deduplicated — skip when too many cables)
+    const cableConduitWidth = Math.min(Math.max(trunkConduitWidth * 0.5, 2), MAX_CONDUIT_WIDTH * 0.6);
+    const cableCAlpha = (cableHighlight === "dim" ? 0.015 : CABLE_CONDUIT_ALPHA) * densityScale * crowdFactor;
+    if (drawConduits) {
+      for (const [, entry] of nodeEntries) {
+        if (entry.cablePath && entry.cablePath.length >= 2) {
+          _drawSmoothPath(g, entry.cablePath, cableConduitWidth, conduitColor, cableCAlpha);
+        }
+      }
+    }
+
+    // ====================================================================
+    // PASS 2: WIRES along trunk (colored, thin — visible through conduit)
+    // ====================================================================
+
     const laneSpacing = CABLE_LANE_SPACING;
+    const wireWidth = cfg.cableFanWidth ?? 1;
 
     for (let li = 0; li < nLanes; li++) {
       const lane = cable.lanes[li];
-      // Lane offset = cable-level offset + per-lane sub-offset
       const laneSubOffset = (li - (nLanes - 1) / 2) * laneSpacing;
       const lox = offsetX + perpX * laneSubOffset;
       const loy = offsetY + perpY * laneSubOffset;
 
-      const ts = { x: trunkStart.x + lox, y: trunkStart.y + loy };
-      const te = { x: trunkEnd.x + lox, y: trunkEnd.y + loy };
+      let wireAlpha = WIRE_BASE_ALPHA;
+      if (cableHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
+      else if (cableHighlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
-      // --- Trunk: one line per color, ~2× normal edge thickness, high contrast ---
-      let trunkWidth = cfg.cableTrunkWidth ?? 2;
-      // Apply edge weight to trunk width: scale by sqrt of lane edge count
-      if (cfg.edgeWeightThickness && lane.edges.length > 1) {
-        trunkWidth *= Math.sqrt(lane.edges.length);
-      }
-      let trunkAlpha = cfg.cableTrunkAlpha ?? 0.85;
+      // Wire along trunk path
+      const wireTrunk = trunkPath.map(p => ({ x: p.x + lox, y: p.y + loy }));
+      _drawSmoothPath(g, wireTrunk, wireWidth * crowdFactor, lane.color, wireAlpha * densityScale * crowdFactor);
+    }
 
-      // Highlight: if any edge in this lane connects to a highlighted node, brighten trunk
-      if (cfg.highlightedNodeId) {
-        let laneHit = false;
-        for (const e of lane.edges) {
-          const sid = edgeSourceId(e);
-          const tid = edgeTargetId(e);
-          if (cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid)) {
-            laneHit = true;
-            break;
-          }
-        }
-        if (laneHit) {
-          trunkAlpha = cfg.highlightEdgeAlpha ?? 1.0;
-          trunkWidth = HIGHLIGHT_CABLE_TRUNK_WIDTH;
-        } else {
-          trunkAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
-        }
-      }
+    // ====================================================================
+    // PASS 3: WIRES along cable paths (per node, deduplicated within lane)
+    // ====================================================================
 
-      g.lineStyle({ width: trunkWidth, color: lane.color, alpha: trunkAlpha * densityScale, native: true });
-      g.moveTo(ts.x, ts.y);
-      g.lineTo(te.x, te.y);
+    for (let li = 0; li < nLanes; li++) {
+      const lane = cable.lanes[li];
+      const drawnCableNodes = new Set<string>();
 
-      // --- Fan lines: configurable lines from nodes to trunk endpoints ---
-      const fanWidth = cfg.cableFanWidth ?? 1;
-      const baseFanAlpha = cfg.cableFanAlpha ?? 0.45;
-      const fanCount = lane.edges.length;
-      const crowdFactor = Math.min(1, CABLE_FAN_CROWD_THRESHOLD / fanCount);
-      const fanAlpha = baseFanAlpha * (CABLE_FAN_CROWD_MIN_FRACTION + (1 - CABLE_FAN_CROWD_MIN_FRACTION) * crowdFactor) * densityScale;
+      let wireAlpha = WIRE_BASE_ALPHA;
+      if (cableHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
+      else if (cableHighlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
       for (const e of lane.edges) {
         const src = resolvePos(e.source);
         const tgt = resolvePos(e.target);
         if (!src || !tgt) continue;
-
         const sid = src.id ?? edgeSourceId(e);
         const tid = tgt.id ?? edgeTargetId(e);
-        const srcCluster = cfg.nodeClusterMap!.get(sid);
 
-        let alpha = fanAlpha;
+        for (const nid of [sid, tid]) {
+          if (drawnCableNodes.has(nid)) continue;
+          drawnCableNodes.add(nid);
+          const entry = nodeEntries.get(nid);
+          if (!entry?.cablePath || entry.cablePath.length < 2) continue;
+          _drawSmoothPath(g, entry.cablePath, wireWidth * crowdFactor, lane.color, wireAlpha * densityScale * crowdFactor);
+        }
+      }
+    }
 
-        // Highlight: show individual fans clearly on hover
+    // ====================================================================
+    // PASS 4: WIRE STUBS (per edge — access junction → node, with offset)
+    // ====================================================================
+
+    const nodeStubIdx = new Map<string, number>(); // global stub counter per node
+
+    for (const lane of cable.lanes) {
+      for (const e of lane.edges) {
+        const src = resolvePos(e.source);
+        const tgt = resolvePos(e.target);
+        if (!src || !tgt) continue;
+        const sid = src.id ?? edgeSourceId(e);
+        const tid = tgt.id ?? edgeTargetId(e);
+
+        // Per-edge highlight
+        let wireAlpha = WIRE_BASE_ALPHA;
         if (cfg.highlightedNodeId) {
           if (cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid)) {
-            alpha = (cfg.highlightEdgeAlpha ?? 1.0) * CABLE_FAN_CONNECTED_FACTOR;
+            wireAlpha = (cfg.highlightEdgeAlpha ?? 1.0) * CABLE_FAN_CONNECTED_FACTOR;
           } else {
-            alpha = (cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA) * CABLE_FAN_NON_MATCH_DAMPEN;
+            wireAlpha = (cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA) * CABLE_FAN_NON_MATCH_DAMPEN;
           }
         }
 
-        const isSrcSide = srcCluster === cable.srcCluster;
-        const nearEnd = isSrcSide ? ts : te;
-        const farEnd = isSrcSide ? te : ts;
+        g.lineStyle({ width: wireWidth, color: lane.color, alpha: wireAlpha * densityScale, native: true });
 
-        g.lineStyle({ width: fanWidth, color: lane.color, alpha, native: true });
-
-        // Fan-in: source node → near trunk endpoint (straight line for performance)
-        g.moveTo(src.x, src.y);
-        g.lineTo(nearEnd.x, nearEnd.y);
-
-        // Fan-out: far trunk endpoint → target node
-        g.moveTo(farEnd.x, farEnd.y);
-        g.lineTo(tgt.x, tgt.y);
+        // Draw stub for source side
+        _drawStub(g, sid, nodeEntries, nodeStubIdx);
+        // Draw stub for target side
+        _drawStub(g, tid, nodeEntries, nodeStubIdx);
       }
     }
   }
+}
+
+/** Draw a single wire stub: access junction → node (with perpendicular offset at node end). */
+function _drawStub(
+  g: CanvasGraphics,
+  nodeId: string,
+  nodeEntries: Map<string, { pos: Pos; wireCount: number; accessPt: { x: number; y: number } | null; stubPx: number; stubPy: number }>,
+  nodeStubIdx: Map<string, number>,
+): void {
+  const entry = nodeEntries.get(nodeId);
+  if (!entry?.accessPt) return;
+
+  const idx = nodeStubIdx.get(nodeId) ?? 0;
+  nodeStubIdx.set(nodeId, idx + 1);
+
+  // Perpendicular offset at node end (fan out from single access junction)
+  const off = (idx - (entry.wireCount - 1) / 2) * STUB_WIRE_SPACING;
+  const nx = entry.pos.x + entry.stubPx * off;
+  const ny = entry.pos.y + entry.stubPy * off;
+
+  g.moveTo(entry.accessPt.x, entry.accessPt.y);
+  g.lineTo(nx, ny);
 }
 
 // ---------------------------------------------------------------------------
@@ -658,6 +1094,7 @@ export function invalidateBundleCache(): void {
   _cableDirty = true;
   _roadRouteCache.clear();
   _roadRouteCacheNetwork = null;
+  invalidatePathCache();
 }
 
 // ---------------------------------------------------------------------------
@@ -774,8 +1211,8 @@ function drawEdgeSegment(
   // Waypoints are connected with smooth quadratic curves (not straight segments)
   // to avoid ugly L-shaped paths from Dijkstra routing on grids.
   if (roadNetwork && roadNetwork.intersections.length > 0 && !isArcLayout) {
-    const srcId = typeof e.source === "string" ? e.source : (e.source as any)?.id ?? "";
-    const tgtId = typeof e.target === "string" ? e.target : (e.target as any)?.id ?? "";
+    const srcId = edgeSourceId(e);
+    const tgtId = edgeTargetId(e);
     // Cache route lookups (invalidate when network reference changes)
     if (roadNetwork !== _roadRouteCacheNetwork) {
       _roadRouteCache.clear();
@@ -1004,6 +1441,8 @@ export function drawEdges(
     if (_cableDirty || !_cableCache) {
       _cableCache = buildCables(edges, resolvePos, cfg);
       _cableDirty = false;
+      // Debug: log cable stats once after rebuild
+      console.log(`[Cable] cables=${_cableCache.cables.length}, cabledEdges=${_cableCache.cabledEdgeIds.size}, totalEdges=${edges.length}, ncm=${cfg.nodeClusterMap?.size}, centroids=${cfg.clusterCentroids?.size}, rn=${cfg.roadNetwork?.intersections?.length ?? 'null'}`);
     }
     cables = _cableCache.cables;
     cabledEdgeIds = _cableCache.cabledEdgeIds;
