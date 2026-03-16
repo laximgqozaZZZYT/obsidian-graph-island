@@ -1027,17 +1027,22 @@ function drawTrunks(
     : trunks.length <= 100 ? 0.25
     : 0.12;
   for (const trunk of trunks) {
-    const nCables = trunk.cables.length;
-    const trunkWidth = Math.max(nCables * laneSpacing + CABLE_SCREEN_WIDTH, TRUNK_SCREEN_WIDTH);
+    // Use unique color count for width (merged same-color cables share a lane)
+    const trunkColorSet = new Set<number>();
+    for (const c of trunk.cables) trunkColorSet.add(c.color);
+    const trunkWidth = Math.max(trunkColorSet.size * laneSpacing + CABLE_SCREEN_WIDTH, TRUNK_SCREEN_WIDTH);
     const highlight = getTrunkHighlight(trunk);
     const trunkAlpha = highlight === "dim" ? 0.02 : highlight === "bright" ? 0.2 : TRUNK_CONDUIT_ALPHA;
     _drawSmoothPath(g, trunk.path, trunkWidth, 0x888888, trunkAlpha * densityScale * trunkCountAlpha);
   }
 
-  // PASS 2: Cable conduits — medium width, semi-transparent gray, one per color lane
+  // PASS 2: Cable conduits — medium width, semi-transparent gray, one per unique color
   for (const trunk of trunks) {
-    const nCables = trunk.cables.length;
-    if (nCables <= 1) continue;
+    // Count unique colors in this trunk
+    const colorSet = new Set<number>();
+    for (const cable of trunk.cables) colorSet.add(cable.color);
+    const nUnique = colorSet.size;
+    if (nUnique <= 1) continue;
 
     const p0 = trunk.path[0], pN = trunk.path[trunk.path.length - 1];
     const tdx = pN.x - p0.x, tdy = pN.y - p0.y;
@@ -1045,16 +1050,16 @@ function drawTrunks(
     const perpX = tlen > 0 ? -tdy / tlen : 0;
     const perpY = tlen > 0 ? tdx / tlen : 1;
 
-    for (let ci = 0; ci < nCables; ci++) {
-      const off = (ci - (nCables - 1) / 2) * laneSpacing;
+    for (let ci = 0; ci < nUnique; ci++) {
+      const off = (ci - (nUnique - 1) / 2) * laneSpacing;
       const cablePath = trunk.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
       _drawSmoothPath(g, cablePath, CABLE_SCREEN_WIDTH, 0x888888, CABLE_CONDUIT_ALPHA * densityScale);
     }
   }
 
-  // PASS 3: Wires — thinnest, colored, clearly visible through conduits
+  // PASS 3: Wires — thinnest, colored, clearly visible through conduits.
+  // Merge same-colored cables into a single wire lane to avoid duplicates.
   for (const trunk of trunks) {
-    const nCables = trunk.cables.length;
     const p0 = trunk.path[0], pN = trunk.path[trunk.path.length - 1];
     const tdx = pN.x - p0.x, tdy = pN.y - p0.y;
     const tlen = Math.sqrt(tdx * tdx + tdy * tdy);
@@ -1063,9 +1068,22 @@ function drawTrunks(
 
     const highlight = getTrunkHighlight(trunk);
 
-    for (let ci = 0; ci < nCables; ci++) {
-      const cable = trunk.cables[ci];
-      const off = (ci - (nCables - 1) / 2) * laneSpacing;
+    // Deduplicate cables by color — merge same-colored cables into one
+    const colorMap = new Map<number, GraphEdge[]>();
+    for (const cable of trunk.cables) {
+      const existing = colorMap.get(cable.color);
+      if (existing) {
+        existing.push(...cable.edges);
+      } else {
+        colorMap.set(cable.color, [...cable.edges]);
+      }
+    }
+    const uniqueColors = [...colorMap.keys()];
+    const nUnique = uniqueColors.length;
+
+    for (let ci = 0; ci < nUnique; ci++) {
+      const color = uniqueColors[ci];
+      const off = (ci - (nUnique - 1) / 2) * laneSpacing;
       const ox = perpX * off, oy = perpY * off;
 
       let wireAlpha = WIRE_BASE_ALPHA;
@@ -1073,7 +1091,7 @@ function drawTrunks(
       else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
       const wirePath = trunk.path.map(p => ({ x: p.x + ox, y: p.y + oy }));
-      _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, cable.color, wireAlpha * densityScale);
+      _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, wireAlpha * densityScale);
     }
   }
 }
