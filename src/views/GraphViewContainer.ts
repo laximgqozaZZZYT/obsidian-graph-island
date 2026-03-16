@@ -1860,6 +1860,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
     cfg.roadNetwork = this.getRoadNetwork();
     cfg.clusterArrangement = this.panel.clusterArrangement;
+    // Resolve coordinate system: check panel.coordinateLayout first, then infer from arrangement name
+    const POLAR_ARRANGEMENTS = new Set(["concentric", "radial", "phyllotaxis"]);
+    cfg.coordinateSystem = this.panel.coordinateLayout?.system === "polar"
+      ? "polar"
+      : POLAR_ARRANGEMENTS.has(this.panel.clusterArrangement) ? "polar" : "cartesian";
     const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
     cfg.routeWiresOnTray = !!rt2.routeWiresOnTray && !!this.cableTrayData;
     return cfg;

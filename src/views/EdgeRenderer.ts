@@ -89,6 +89,8 @@ export interface EdgeDrawConfig {
   enableRoadRouting?: boolean;
   /** Group arrangement pattern — used for trunk routing direction */
   clusterArrangement?: string;
+  /** Coordinate system: "cartesian" or "polar" — determines cable routing mode */
+  coordinateSystem?: "cartesian" | "polar";
 }
 
 // Minimal position data needed for source/target
@@ -806,30 +808,32 @@ function buildIntraGroupCables(
         rowGaps.push((sortedYs[i] + sortedYs[i + 1]) / 2);
       }
 
-      // Detect polar layout: if nodes are arranged in rings around centroid
+      // Determine routing mode from cfg.coordinateSystem (set from panel settings)
       let routeOpts: CableRouteOpts = { rowGaps };
       const cx = centroid.x, cy = centroid.y;
-      const dists = new Set<number>();
-      for (const [nid] of sourceMap) {
-        const p = resolvePos(nid);
-        if (p) dists.add(Math.round(Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2)));
-      }
-      for (const [, el] of sourceMap) {
-        for (const e of el) {
-          const p = resolvePos(e.target);
-          if (p) dists.add(Math.round(Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2)));
+
+      if (cfg.coordinateSystem === "polar") {
+        // Polar: compute ring gaps from node distances to centroid
+        const distSet = new Set<number>();
+        for (const [nid] of sourceMap) {
+          const p = resolvePos(nid);
+          if (p) distSet.add(Math.round(Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2)));
         }
-      }
-      const sortedDists = [...dists].sort((a, b) => a - b);
-      // If there are distinct rings (many nodes at similar radii) → polar mode
-      const uniqueRings = sortedDists.filter((d, i) => i === 0 || d - sortedDists[i - 1] > 10);
-      if (uniqueRings.length >= 2 && uniqueRings.length < sortedYs.length * 0.7) {
-        // Polar layout detected — compute ring gaps
-        const ringGaps: number[] = [];
-        for (let i = 0; i < uniqueRings.length - 1; i++) {
-          ringGaps.push((uniqueRings[i] + uniqueRings[i + 1]) / 2);
+        for (const [, el] of sourceMap) {
+          for (const e of el) {
+            const p = resolvePos(e.target);
+            if (p) distSet.add(Math.round(Math.sqrt((p.x - cx) ** 2 + (p.y - cy) ** 2)));
+          }
         }
-        routeOpts = { center: { x: cx, y: cy }, ringGaps };
+        const sortedDists = [...distSet].sort((a, b) => a - b);
+        const uniqueRings = sortedDists.filter((d, i) => i === 0 || d - sortedDists[i - 1] > 10);
+        if (uniqueRings.length >= 2) {
+          const ringGaps: number[] = [];
+          for (let i = 0; i < uniqueRings.length - 1; i++) {
+            ringGaps.push((uniqueRings[i] + uniqueRings[i + 1]) / 2);
+          }
+          routeOpts = { center: { x: cx, y: cy }, ringGaps };
+        }
       }
 
       // ── Build branches ──
