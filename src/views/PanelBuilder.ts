@@ -1471,7 +1471,7 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
       e.stopPropagation();
       const existing = section.querySelector(".gi-help-popup");
       if (existing) { existing.remove(); return; }
-      const popup = section.createDiv({ cls: "gi-help-popup" });
+      const popup = section.createDiv({ cls: "gi-help-popup", attr: { role: "tooltip", "aria-label": t("help.ariaLabel") } });
       popup.textContent = helpText;
     });
   }
