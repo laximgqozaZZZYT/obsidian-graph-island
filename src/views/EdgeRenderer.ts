@@ -612,68 +612,6 @@ function computeJunctionGrid(
   return { rows, cols, rowGaps, colGaps };
 }
 
-/**
- * Build a branch path from perimeter branch point to target node,
- * routing through junction points (row/column gap midpoints).
- * Path: branchPoint → nearest junction on the target's row/col → target
- */
-function buildBranchToNode(
-  branchPoint: { x: number; y: number },
-  target: { x: number; y: number },
-  grid?: JunctionGrid,
-): { x: number; y: number }[] {
-  const dx = target.x - branchPoint.x;
-  const dy = target.y - branchPoint.y;
-  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return [branchPoint, target];
-
-  if (!grid || (grid.rowGaps.length === 0 && grid.colGaps.length === 0)) {
-    // No junction grid — fallback to simple L-shape
-    if (Math.abs(dx) < 1 || Math.abs(dy) < 1) return [branchPoint, target];
-    if (Math.abs(dx) >= Math.abs(dy)) {
-      return [branchPoint, { x: target.x, y: branchPoint.y }, target];
-    } else {
-      return [branchPoint, { x: branchPoint.x, y: target.y }, target];
-    }
-  }
-
-  // Find the best row gap and col gap closest to the target
-  // The wire goes: branchPoint → (colGap, rowGap) junction → target
-  const bestRowGap = findNearestGap(grid.rowGaps, target.y);
-  const bestColGap = findNearestGap(grid.colGaps, target.x);
-
-  if (bestRowGap !== null && bestColGap !== null) {
-    // Route: branchPoint → (branchPoint.x, rowGap) → (colGap, rowGap) → (colGap, target.y) → target
-    // Or simpler: branchPoint → (colGap, branchPoint.y) → (colGap, rowGap) → (target.x, rowGap) → target
-    // Pick the L that goes through junction grid points
-    const path: { x: number; y: number }[] = [branchPoint];
-
-    // Go to the column gap at branch Y level
-    if (Math.abs(bestColGap - branchPoint.x) > 1) {
-      path.push({ x: bestColGap, y: branchPoint.y });
-    }
-    // Go down/up the column gap to the row gap
-    if (Math.abs(bestRowGap - path[path.length - 1].y) > 1) {
-      path.push({ x: bestColGap, y: bestRowGap });
-    }
-    // Go along the row gap to target's X
-    if (Math.abs(target.x - path[path.length - 1].x) > 1) {
-      path.push({ x: target.x, y: bestRowGap });
-    }
-    // Final connection to target
-    path.push(target);
-    return path;
-  } else if (bestRowGap !== null) {
-    // Only row gaps available — route through row gap
-    return [branchPoint, { x: branchPoint.x, y: bestRowGap }, { x: target.x, y: bestRowGap }, target];
-  } else if (bestColGap !== null) {
-    // Only col gaps available — route through col gap
-    return [branchPoint, { x: bestColGap, y: branchPoint.y }, { x: bestColGap, y: target.y }, target];
-  }
-
-  // Fallback
-  return [branchPoint, { x: target.x, y: branchPoint.y }, target];
-}
-
 /** Find the gap value nearest to the target coordinate */
 function findNearestGap(gaps: number[], target: number): number | null {
   if (gaps.length === 0) return null;
@@ -684,6 +622,64 @@ function findNearestGap(gaps: number[], target: number): number | null {
     if (d < bestDist) { bestDist = d; best = gaps[i]; }
   }
   return best;
+}
+
+/**
+ * Route between two points within a group using the junction grid (碁盤).
+ * Wires run exclusively through row gaps (horizontal) and column gaps (vertical).
+ *
+ * from → (nearest colGap to from, from.y)
+ *      → (that colGap, nearest rowGap to target.y)
+ *      → (nearest colGap to target.x, that rowGap)
+ *      → (that colGap, target.y)
+ *      → target
+ */
+function routeViaJunctionGrid(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  grid: JunctionGrid,
+): { x: number; y: number }[] {
+  if (Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1) {
+    return [from, to];
+  }
+
+  // Find colGap nearest to source (to exit the source node's column)
+  const srcColGap = findNearestGap(grid.colGaps, from.x);
+  // Find colGap nearest to target (to enter the target node's column)
+  const tgtColGap = findNearestGap(grid.colGaps, to.x);
+  // Find rowGap between source and target rows
+  const midY = (from.y + to.y) / 2;
+  const rowGap = findNearestGap(grid.rowGaps, midY);
+
+  const path: { x: number; y: number }[] = [{ x: from.x, y: from.y }];
+
+  const addPt = (x: number, y: number) => {
+    const last = path[path.length - 1];
+    if (Math.abs(x - last.x) > 1 || Math.abs(y - last.y) > 1) {
+      path.push({ x, y });
+    }
+  };
+
+  if (srcColGap !== null && tgtColGap !== null && rowGap !== null) {
+    // Full junction routing:
+    // from → srcColGap (horizontal) → rowGap (vertical) → tgtColGap (horizontal) → target (vertical)
+    addPt(srcColGap, from.y);     // move to source col gap
+    addPt(srcColGap, rowGap);     // move down/up to row gap
+    addPt(tgtColGap, rowGap);     // move along row gap to target col gap
+    addPt(tgtColGap, to.y);       // move to target row
+  } else if (rowGap !== null) {
+    // No col gaps — use row gap with direct X movement
+    addPt(from.x, rowGap);
+    addPt(to.x, rowGap);
+  } else if (srcColGap !== null) {
+    // No row gaps — use col gap with direct Y movement
+    addPt(srcColGap, from.y);
+    addPt(srcColGap, to.y);
+  }
+  // else: no grid at all, just straight line
+
+  addPt(to.x, to.y);
+  return path;
 }
 
 // Cache for group bboxes (invalidated with other caches)
@@ -1200,7 +1196,7 @@ function buildIntraGroupCables(
 
       const junction = { x: centroid.x, y: centroid.y };
 
-      // ── Build branches using perimeter routing ──
+      // ── Build branches: route via junction grid (碁盤) ──
       const branches: IntraGroupCable["branches"] = [];
 
       for (const e of edgeList) {
@@ -1212,49 +1208,10 @@ function buildIntraGroupCables(
         if (!branch) {
           const tgtPort: NodePort = { nodeId: tid, x: tgtPos.x, y: tgtPos.y };
 
-          let path: { x: number; y: number }[];
-          if (perimInfo) {
-            // Route: source → perimeter branch point near source →
-            //         perimeter segments → perimeter branch point near target → target
-            const srcBranch = findPerimeterBranchPoint(perimInfo.perimeterPath, srcPos.x, srcPos.y);
-            const tgtBranch = findPerimeterBranchPoint(perimInfo.perimeterPath, tgtPos.x, tgtPos.y);
-
-            // Build path: source → srcBranchPoint → perimeter → tgtBranchPoint → target
-            const srcInward = buildBranchToNode(srcBranch.point, srcPos, perimInfo.grid);
-            const tgtInward = buildBranchToNode(tgtBranch.point, tgtPos, perimInfo.grid);
-
-            // Extract perimeter segment between src and tgt branch points
-            const periSeg: { x: number; y: number }[] = [];
-            if (srcBranch.index <= tgtBranch.index) {
-              for (let i = srcBranch.index + 1; i <= tgtBranch.index; i++) {
-                periSeg.push(perimInfo.perimeterPath[i]);
-              }
-            } else {
-              // Wrap around
-              for (let i = srcBranch.index + 1; i < perimInfo.perimeterPath.length; i++) {
-                periSeg.push(perimInfo.perimeterPath[i]);
-              }
-              for (let i = 1; i <= tgtBranch.index; i++) {
-                periSeg.push(perimInfo.perimeterPath[i]);
-              }
-            }
-
-            // Assemble full path: srcInward reversed → srcBranchPt → periSeg → tgtBranchPt → tgtInward
-            path = [];
-            // Source node to perimeter (reverse inward path)
-            for (let i = srcInward.length - 1; i >= 0; i--) path.push(srcInward[i]);
-            // Perimeter segments
-            for (const p of periSeg) path.push(p);
-            // Branch point to target
-            path.push(tgtBranch.point);
-            for (let i = 1; i < tgtInward.length; i++) path.push(tgtInward[i]);
-
-            // Deduplicate consecutive near-identical points
-            path = deduplicatePath(path);
-          } else {
-            // Fallback: straight line
-            path = [{ x: srcPos.x, y: srcPos.y }, { x: tgtPos.x, y: tgtPos.y }];
-          }
+          // Route through junction grid: src → colGap → rowGap → colGap → target
+          const path = perimInfo
+            ? deduplicatePath(routeViaJunctionGrid(srcPos, tgtPos, perimInfo.grid))
+            : [{ x: srcPos.x, y: srcPos.y }, { x: tgtPos.x, y: tgtPos.y }];
 
           branch = { nodePort: tgtPort, path, edges: [] };
           branches.push(branch);
@@ -1265,27 +1222,43 @@ function buildIntraGroupCables(
 
       if (branches.length === 0 && !connectsExternal) continue;
 
-      // Group port branch: route from source node to port via perimeter
+      // Group port branch: route from source node to port via junction grid + 2nd face
       let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
       if (connectsExternal && portForKey && perimInfo) {
-        const srcBranch = findPerimeterBranchPoint(perimInfo.perimeterPath, srcPos.x, srcPos.y);
-        // Path: source → srcBranchPoint → perimeter back to port (index 0)
-        const srcInward = buildBranchToNode(srcBranch.point, srcPos, perimInfo.grid);
+        // Route: source → junction grid to 2nd face corner → along perimeter to port
+        const peri = perimInfo.perimeterPath;
+        // 2nd face runs from peri[1] (corner between face1 and face2) to peri[2] (end of face2)
+        // Find point on 2nd face closest to source node
+        const face2Start = peri.length > 1 ? peri[1] : portForKey;
+        const face2End = peri.length > 2 ? peri[2] : face2Start;
 
-        const periSeg: { x: number; y: number }[] = [];
-        // From srcBranch to end of perimeter (which loops back to port)
-        for (let i = srcBranch.index + 1; i < perimInfo.perimeterPath.length; i++) {
-          periSeg.push(perimInfo.perimeterPath[i]);
+        // Project source onto 2nd face
+        const face2Vertical = Math.abs(face2End.x - face2Start.x) < Math.abs(face2End.y - face2Start.y);
+        const face2Coord = face2Vertical ? face2Start.x : face2Start.y;
+        const srcCoord = face2Vertical ? srcPos.y : srcPos.x;
+
+        // Branch point on 2nd face at the row/col nearest to source
+        const branchOnFace2 = face2Vertical
+          ? { x: face2Coord, y: findNearestGap(perimInfo.grid.rowGaps, srcPos.y) ?? srcPos.y }
+          : { x: findNearestGap(perimInfo.grid.colGaps, srcPos.x) ?? srcPos.x, y: face2Coord };
+
+        // Route from source to the branch point via junction grid
+        const toFace2 = routeViaJunctionGrid(srcPos, branchOnFace2, perimInfo.grid);
+
+        // Then along perimeter: branchOnFace2 → face2End → port(=peri[0])
+        // (reversed: from face2 back through face1 corner to port)
+        let path = [...toFace2];
+        // Add face2 end corner if significantly different
+        if (Math.abs(face2End.x - branchOnFace2.x) > 1 || Math.abs(face2End.y - branchOnFace2.y) > 1) {
+          // Only add if we haven't passed it yet — check direction
         }
-
-        let path: { x: number; y: number }[] = [];
-        for (let i = srcInward.length - 1; i >= 0; i--) path.push(srcInward[i]);
-        for (const p of periSeg) path.push(p);
+        // Add the corner between face2 and face1 back to port
+        path.push({ x: peri[1].x, y: peri[1].y }); // face1↔face2 corner
+        path.push({ x: portForKey.x, y: portForKey.y }); // port
         path = deduplicatePath(path);
 
         groupPortBranch = { path, edges: [...externalEdges] };
       } else if (connectsExternal && portForKey) {
-        // Fallback without perimeter
         const path = [{ x: srcPos.x, y: srcPos.y }, { x: portForKey.x, y: portForKey.y }];
         groupPortBranch = { path, edges: [...externalEdges] };
       }
@@ -1315,17 +1288,20 @@ function buildIntraGroupCables(
 
       let path: { x: number; y: number }[];
       if (perimInfo) {
-        const nodeBranch = findPerimeterBranchPoint(perimInfo.perimeterPath, nodePos.x, nodePos.y);
-        const nodeInward = buildBranchToNode(nodeBranch.point, nodePos, perimInfo.grid);
+        const peri = perimInfo.perimeterPath;
+        const face2Start = peri.length > 1 ? peri[1] : portForKey;
+        const face2Vertical = peri.length > 2
+          ? Math.abs(peri[2].x - face2Start.x) < Math.abs(peri[2].y - face2Start.y)
+          : false;
+        const face2Coord = face2Vertical ? face2Start.x : face2Start.y;
+        const branchOnFace2 = face2Vertical
+          ? { x: face2Coord, y: findNearestGap(perimInfo.grid.rowGaps, nodePos.y) ?? nodePos.y }
+          : { x: findNearestGap(perimInfo.grid.colGaps, nodePos.x) ?? nodePos.x, y: face2Coord };
 
-        const periSeg: { x: number; y: number }[] = [];
-        for (let i = nodeBranch.index + 1; i < perimInfo.perimeterPath.length; i++) {
-          periSeg.push(perimInfo.perimeterPath[i]);
-        }
-
-        path = [];
-        for (let i = nodeInward.length - 1; i >= 0; i--) path.push(nodeInward[i]);
-        for (const p of periSeg) path.push(p);
+        const toFace2 = routeViaJunctionGrid(nodePos, branchOnFace2, perimInfo.grid);
+        path = [...toFace2];
+        path.push({ x: peri[1].x, y: peri[1].y });
+        path.push({ x: portForKey.x, y: portForKey.y });
         path = deduplicatePath(path);
       } else {
         path = [{ x: nodePos.x, y: nodePos.y }, { x: portForKey.x, y: portForKey.y }];
