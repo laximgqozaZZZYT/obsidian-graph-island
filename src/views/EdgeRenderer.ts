@@ -688,7 +688,7 @@ function buildIntraGroupCables(
           continue;
         }
         if (targetPositions.has(tid)) continue;
-        const tgtPos = resolvePos(e.target);
+        const tgtPos = resolvePos(e.target) ?? resolvePos(tid);
         if (!tgtPos) continue;
         targetPositions.set(tid, { x: tgtPos.x, y: tgtPos.y });
         nodePositions.push({ x: tgtPos.x, y: tgtPos.y });
@@ -712,7 +712,7 @@ function buildIntraGroupCables(
           countedIds.add(tid);
           const tg = nodeClusterMap.get(tid);
           if (tg !== groupKey) continue;
-          const p = resolvePos(e.target);
+          const p = resolvePos(e.target) ?? resolvePos(tid);
           if (p) { allGroupX += p.x; allGroupY += p.y; allGroupN++; }
         }
       }
@@ -735,7 +735,7 @@ function buildIntraGroupCables(
         // Below last row
         return sortedYs[sortedYs.length - 1] + halfGap;
       };
-      const routeY = findGapBelow(centroid.y);
+      const routeY = findGapBelow(junction.y);
 
       // ── Build branches ──
       // Each branch path: src → (down to routeY) → junction X → (across to tgt X) → tgt
@@ -798,7 +798,11 @@ function drawIntraGroupCables(
   cfg: EdgeDrawConfig,
   densityScale: number,
 ): void {
-  if (cables.length === 0) return;
+  if (cables.length === 0) { console.log('[DrawIntra] 0 cables, skipping'); return; }
+
+  let totalBranches = 0;
+  for (const c of cables) totalBranches += c.branches.length;
+  console.log(`[DrawIntra] cables=${cables.length}, branches=${totalBranches}`);
 
   // Cable count attenuation (similar to trunk crowd alpha)
   const cableCount = cables.length;
@@ -1399,6 +1403,7 @@ export function drawEdges(
       const groupPorts = computeGroupPorts(groupKeys, centroids, radii, connections);
       _intraCableCache = buildIntraGroupCables(edges, resolvePos, cfg, groupPorts);
       _intraCableDirty = false;
+      console.log(`[IntraCable] cables=${_intraCableCache.cables.length}, handled=${_intraCableCache.handledEdgeIds.size}, totalEdges=${edges.length}, cabledByTrunks=${cabledEdgeIds.size}`);
     }
     intraHandledIds = _intraCableCache.handledEdgeIds;
     if (_intraCableCache.cables.length > 0) {
@@ -1406,6 +1411,7 @@ export function drawEdges(
     }
   }
 
+  let _dbgLeaked = 0;
   for (const e of edges) {
     // Skip edges handled by trunk bundling or intra-group cables
     if (cabledEdgeIds.has(e.id)) continue;
@@ -1416,11 +1422,7 @@ export function drawEdges(
     const tgt = resolvePos(e.target);
     if (!src || !tgt) continue;
 
-    // When clusters are active, skip remaining individual edges entirely —
-    // all edges should be handled by trunks (inter-group) or cables (intra-group).
-    // Any edge reaching here is a leak; drawing it as a straight line would
-    // violate the "no single straight line between nodes" rule.
-    if (hasClusters) continue;
+    if (hasClusters) { _dbgLeaked++; continue; }
 
     const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
     const { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
@@ -1433,6 +1435,7 @@ export function drawEdges(
 
     if (hasDash) g.setLineDash([]);
   }
+  if (_dbgLeaked > 0) console.log(`[EdgeDraw] leaked=${_dbgLeaked} edges skipped (hasClusters)`);
 }
 
 // ---------------------------------------------------------------------------
