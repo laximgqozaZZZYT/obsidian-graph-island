@@ -171,9 +171,9 @@ const TRUNK_CONDUIT_ALPHA = 0.18;
 /** Cable conduit alpha — semi-transparent so wires show through */
 const CABLE_CONDUIT_ALPHA = 0.12;
 /** Wire alpha — most opaque layer, clearly visible */
-const WIRE_BASE_ALPHA = 0.7;
+const WIRE_BASE_ALPHA = 0.9;
 /** Wire spacing within a cable (screen pixels between parallel wires) */
-const STUB_WIRE_SPACING = 3;
+const STUB_WIRE_SPACING = 4;
 /** Maximum conduit width in screen pixels */
 const MAX_CONDUIT_WIDTH = 16;
 /** Trunk conduit screen width (px) — thickest layer */
@@ -942,7 +942,9 @@ function drawIntraGroupCables(
         const wirePath = off === 0 ? branch.path
           : branch.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
 
-        _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, wireAlpha * densityScale * crowdAlpha);
+        // Ensure wires stay visible: minimum alpha floor
+        const finalAlpha = Math.max(wireAlpha * densityScale * crowdAlpha, 0.25);
+        _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, finalAlpha);
       }
     }
 
@@ -965,7 +967,8 @@ function drawIntraGroupCables(
           const off = nGP > 1 ? (ei - (nGP - 1) / 2) * STUB_WIRE_SPACING : 0;
           const wirePath = off === 0 ? gpb.path
             : gpb.path.map(p => ({ x: p.x + gppX * off, y: p.y + gppY * off }));
-          _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, wireAlpha * densityScale * crowdAlpha);
+          const gpFinalAlpha = Math.max(wireAlpha * densityScale * crowdAlpha, 0.25);
+          _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, gpFinalAlpha);
         }
       }
     }
