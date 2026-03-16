@@ -725,14 +725,33 @@ function buildIntraGroupCables(
 
       if (branches.length === 0 && !connectsExternal) continue;
 
-      // Group port branch
+      // Group port branch: route from source node to group port (引込口)
+      // with perpendicular offset to avoid crossing nodes
       let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
       if (connectsExternal && groupPort) {
-        const path = [
-          { x: srcPos.x, y: srcPos.y },
-          { x: groupPort.x, y: groupPort.y },
-        ];
-        groupPortBranch = { path };
+        const gdx = groupPort.x - srcPos.x;
+        const gdy = groupPort.y - srcPos.y;
+        const glen = Math.sqrt(gdx * gdx + gdy * gdy);
+        let path: { x: number; y: number }[];
+        if (glen < 1) {
+          path = [{ x: srcPos.x, y: srcPos.y }, { x: groupPort.x, y: groupPort.y }];
+        } else {
+          const gperpX = -gdy / glen;
+          const gperpY = gdx / glen;
+          const gsign = gperpY >= 0 ? 1 : -1;
+          const gmidX = (srcPos.x + groupPort.x) / 2;
+          const gmidY = (srcPos.y + groupPort.y) / 2;
+          path = [
+            { x: srcPos.x, y: srcPos.y },
+            { x: gmidX + gperpX * cableOffset * gsign, y: gmidY + gperpY * cableOffset * gsign },
+            { x: groupPort.x, y: groupPort.y },
+          ];
+        }
+        groupPortBranch = { path, edges: edgeList.filter(e => {
+          const tid = edgeTargetId(e);
+          const tg = nodeClusterMap.get(tid);
+          return tg && tg !== groupKey;
+        }) };
       }
 
       cables.push({ groupKey, junction, branches, groupPortBranch });
@@ -785,8 +804,9 @@ function drawIntraGroupCables(
       _drawSmoothPath(g, branch.path, CABLE_SCREEN_WIDTH, 0x888888, conduitAlpha * densityScale * crowdAlpha);
     }
     if (cable.groupPortBranch) {
-      _drawSmoothPath(g, cable.groupPortBranch.path, CABLE_SCREEN_WIDTH, 0x888888,
-        CABLE_CONDUIT_ALPHA * densityScale * crowdAlpha * 0.7);
+      // 引込口ケーブル: 半透明 conduit（内部の電線が見える）
+      _drawSmoothPath(g, cable.groupPortBranch.path, CABLE_SCREEN_WIDTH * 1.5, 0x888888,
+        CABLE_CONDUIT_ALPHA * densityScale * crowdAlpha * 0.3);
     }
   }
 
@@ -815,6 +835,30 @@ function drawIntraGroupCables(
           : branch.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
 
         _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, wireAlpha * densityScale * crowdAlpha);
+      }
+    }
+
+    // PASS 2b: Group port branch wires (引込口 → グループ内)
+    if (cable.groupPortBranch && cable.groupPortBranch.edges) {
+      const gpb = cable.groupPortBranch;
+      const gpEdges = gpb.edges;
+      const nGP = gpEdges.length;
+      if (nGP > 0) {
+        const gp0 = gpb.path[0], gpN = gpb.path[gpb.path.length - 1];
+        const gpdx = gpN.x - gp0.x, gpdy = gpN.y - gp0.y;
+        const gplen = Math.sqrt(gpdx * gpdx + gpdy * gpdy);
+        const gppX = gplen > 0 ? -gpdy / gplen : 0;
+        const gppY = gplen > 0 ? gpdx / gplen : 1;
+
+        for (let ei = 0; ei < nGP; ei++) {
+          const e = gpEdges[ei];
+          const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+          const wireAlpha = WIRE_BASE_ALPHA;
+          const off = nGP > 1 ? (ei - (nGP - 1) / 2) * STUB_WIRE_SPACING : 0;
+          const wirePath = off === 0 ? gpb.path
+            : gpb.path.map(p => ({ x: p.x + gppX * off, y: p.y + gppY * off }));
+          _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, wireAlpha * densityScale * crowdAlpha);
+        }
       }
     }
   }
