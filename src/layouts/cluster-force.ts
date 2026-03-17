@@ -253,9 +253,9 @@ function resolveGroupOverlaps(
     for (const m of members) {
       const t = targets.get(m.id);
       if (!t) continue;
-      // Use base nodeSize for group extent (not effectiveRadius) so that
-      // a single high-degree node doesn't inflate the entire group radius.
-      const d = magnitude(t.x - centroid.x, t.y - centroid.y) + nodeSize;
+      // Use effectiveRadius for super nodes (collapsed groups) to prevent overlap
+      const r = effectiveRadius(m, nodeSize, degrees.get(m.id) ?? 0);
+      const d = magnitude(t.x - centroid.x, t.y - centroid.y) + r;
       if (d > maxDist) maxDist = d;
     }
     const estimated = clusterRadii.get(key) ?? 0;
