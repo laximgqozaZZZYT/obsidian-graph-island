@@ -45,7 +45,7 @@ test.describe("1. Plugin Load & State", () => {
       const app = (window as any).app;
       return app?.plugins?.manifests?.["graph-island"]?.version;
     });
-    expect(version).toBe("0.1.0");
+    expect(version).toMatch(/^0\.\d+\.\d+$/);
   });
 
   test("1.3 vault has expected files", async () => {
@@ -67,7 +67,7 @@ test.describe("2. Graph View Opening", () => {
     // First close any existing graph island leaves
     await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       leaves.forEach((l: any) => l.detach());
     });
     await page.waitForTimeout(500);
@@ -81,7 +81,7 @@ test.describe("2. Graph View Opening", () => {
 
     const hasView = await page.evaluate(() => {
       const app = (window as any).app;
-      return app.workspace.getLeavesOfType("graph-island-view").length > 0;
+      return app.workspace.getLeavesOfType("graph-view").length > 0;
     });
     expect(hasView).toBe(true);
   });
@@ -95,7 +95,7 @@ test.describe("2. Graph View Opening", () => {
 
   test("2.3 graph-view-container is present", async () => {
     const hasContainer = await page.evaluate(() => {
-      return document.querySelector(".graph-view-container") !== null;
+      return document.querySelector(".graph-container") !== null;
     });
     expect(hasContainer).toBe(true);
   });
@@ -109,13 +109,10 @@ test.describe("3. Graph Data", () => {
     await page.waitForTimeout(2000);
     const nodeCount = await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       if (leaves.length === 0) return -1;
       const view = leaves[0].view;
-      // Try multiple access paths for graphData
-      const gd = view.graphData || view.container?.graphData;
-      if (!gd) return -2;
-      return gd.nodes?.length ?? -3;
+      return view.pixiNodes?.size ?? -2;
     });
     console.log("Node count:", nodeCount);
     expect(nodeCount).toBeGreaterThanOrEqual(5);
@@ -124,12 +121,10 @@ test.describe("3. Graph Data", () => {
   test("3.2 graph has edges", async () => {
     const edgeCount = await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       if (leaves.length === 0) return -1;
       const view = leaves[0].view;
-      const gd = view.graphData || view.container?.graphData;
-      if (!gd) return -2;
-      return gd.edges?.length ?? -3;
+      return view.graphEdges?.length ?? -2;
     });
     console.log("Edge count:", edgeCount);
     expect(edgeCount).toBeGreaterThanOrEqual(3);
@@ -138,13 +133,14 @@ test.describe("3. Graph Data", () => {
   test("3.3 node data structure is valid", async () => {
     const sample = await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       if (leaves.length === 0) return null;
       const view = leaves[0].view;
-      const gd = view.graphData || view.container?.graphData;
-      if (!gd || !gd.nodes || gd.nodes.length === 0) return null;
-      const n = gd.nodes[0];
-      return { hasId: !!n.id, hasName: !!(n.name || n.label || n.id), keys: Object.keys(n) };
+      if (!view.pixiNodes || view.pixiNodes.size === 0) return null;
+      const pn = view.pixiNodes.values().next().value;
+      const n = pn?.data;
+      if (!n) return null;
+      return { hasId: !!n.id, hasName: !!(n.label || n.id), keys: Object.keys(n) };
     });
     console.log("Node sample:", JSON.stringify(sample));
     expect(sample).not.toBeNull();
@@ -154,12 +150,11 @@ test.describe("3. Graph Data", () => {
   test("3.4 edge data structure is valid", async () => {
     const sample = await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       if (leaves.length === 0) return null;
       const view = leaves[0].view;
-      const gd = view.graphData || view.container?.graphData;
-      if (!gd || !gd.edges || gd.edges.length === 0) return null;
-      const e = gd.edges[0];
+      if (!view.graphEdges || view.graphEdges.length === 0) return null;
+      const e = view.graphEdges[0];
       return { hasSource: !!(e.source || e.from), hasTarget: !!(e.target || e.to), keys: Object.keys(e) };
     });
     console.log("Edge sample:", JSON.stringify(sample));
@@ -227,7 +222,7 @@ test.describe("5. Layout Switching", () => {
     test(`5.x switch to ${layout} layout`, async () => {
       const result = await page.evaluate(async (layoutName) => {
         const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-island-view");
+        const leaves = app.workspace.getLeavesOfType("graph-view");
         if (leaves.length === 0) return { error: "no view" };
         const view = leaves[0].view;
 
@@ -291,7 +286,7 @@ test.describe("6. Settings Toggles", () => {
   test("6.1 toggle showOrphans", async () => {
     const result = await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       if (leaves.length === 0) return { error: "no view" };
       const view = leaves[0].view;
       if (!view.settings) return { error: "no settings" };
@@ -315,7 +310,7 @@ test.describe("6. Settings Toggles", () => {
   test("6.2 toggle showTags", async () => {
     const result = await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       if (leaves.length === 0) return { error: "no view" };
       const view = leaves[0].view;
       if (!view.settings) return { error: "no settings" };
@@ -334,7 +329,7 @@ test.describe("6. Settings Toggles", () => {
   test("6.3 toggle showArrows", async () => {
     const result = await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       if (leaves.length === 0) return { error: "no view" };
       const view = leaves[0].view;
       if (!view.settings) return { error: "no settings" };
@@ -353,7 +348,7 @@ test.describe("6. Settings Toggles", () => {
   test("6.4 change nodeSize", async () => {
     const result = await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       if (leaves.length === 0) return { error: "no view" };
       const view = leaves[0].view;
       if (!view.settings) return { error: "no settings" };
@@ -444,7 +439,7 @@ test.describe("8. Search & Filter", () => {
   test("8.2 filter by query expression", async () => {
     const result = await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       if (leaves.length === 0) return { error: "no view" };
       const view = leaves[0].view;
       if (!view.settings) return { error: "no settings" };
@@ -464,7 +459,7 @@ test.describe("8. Search & Filter", () => {
     // Check filtered count
     const afterCount = await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       if (leaves.length === 0) return -1;
       const view = leaves[0].view;
       const gd = view.graphData || view.container?.graphData;
@@ -475,7 +470,7 @@ test.describe("8. Search & Filter", () => {
     // Reset filter
     await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       if (leaves.length === 0) return;
       const view = leaves[0].view;
       if (view.settings) {
@@ -544,7 +539,7 @@ test.describe("11. Console Errors", () => {
     // Trigger various operations and collect errors
     await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       if (leaves.length === 0) return;
       const view = leaves[0].view;
       if (!view.settings) return;
@@ -584,7 +579,7 @@ test.describe("12. DOM Structure", () => {
     // Close graph island
     await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       leaves.forEach((l: any) => l.detach());
     });
     await page.waitForTimeout(1000);
@@ -608,7 +603,7 @@ test.describe("12. DOM Structure", () => {
     const afterReopen = await page.evaluate(() => {
       return {
         containers: document.querySelectorAll(".graph-view-container").length,
-        hasView: (window as any).app.workspace.getLeavesOfType("graph-island-view").length > 0,
+        hasView: (window as any).app.workspace.getLeavesOfType("graph-view").length > 0,
       };
     });
     console.log("After reopen:", JSON.stringify(afterReopen));
@@ -666,7 +661,7 @@ test.describe("14. Diagnostics", () => {
   test("14.1 dump view structure", async () => {
     const viewInfo = await page.evaluate(() => {
       const app = (window as any).app;
-      const leaves = app.workspace.getLeavesOfType("graph-island-view");
+      const leaves = app.workspace.getLeavesOfType("graph-view");
       if (leaves.length === 0) return { error: "no view" };
       const view = leaves[0].view;
       const keys = Object.keys(view);
