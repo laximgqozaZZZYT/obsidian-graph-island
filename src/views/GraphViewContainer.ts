@@ -495,6 +495,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
       }
       this.doRender();
+      this.requestSave();
     });
 
     // Clipboard copy button (next to camera/export)
@@ -807,6 +808,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (this.panel.localGraphCenter !== null) {
           this.panel.localGraphCenter = file.path;
           this.doRender();
+          this.requestSave();
         }
       })
     );
@@ -1155,6 +1157,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.panel.collapsedGroups.delete(groupKey);
       this.rawData = null;
       this.doRender();
+      this.requestSave();
       return true;
     }
     // Collapse node back into its group
@@ -1166,6 +1169,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.panel.collapsedGroups.add(parentGroup.key);
         this.rawData = null;
         this.doRender();
+        this.requestSave();
         return true;
       }
     }
