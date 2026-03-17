@@ -1928,7 +1928,7 @@ function _drawSingleIntraCableBranches(
       // If filtering, only draw wires matching the filter
       if (filterHighlight !== null && highlight !== filterHighlight) { ci++; continue; }
 
-      let wireAlpha = WIRE_BASE_ALPHA;
+      let wireAlpha = cfg.cableFanAlpha ?? WIRE_BASE_ALPHA;
       if (highlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
       else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
@@ -1942,7 +1942,7 @@ function _drawSingleIntraCableBranches(
       const finalAlpha = highlight === "bright"
         ? wireAlpha
         : Math.max(wireAlpha * densityScale, highlight === "dim" ? 0.05 : 0.1);
-      const wireWidth = WIRE_SCREEN_WIDTH + cableWeightThickness(edges, cfg);
+      const wireWidth = (cfg.cableFanWidth ?? WIRE_SCREEN_WIDTH) + cableWeightThickness(edges, cfg);
       _drawSmoothPath(g, wirePath, wireWidth, color, finalAlpha);
       ci++;
     }
@@ -1984,14 +1984,15 @@ function _drawSingleIntraCableGpb(
     }
 
     const fadeMul = cableFadeByDegree(edges, cfg);
-    const wireWidth = WIRE_SCREEN_WIDTH + cableWeightThickness(edges, cfg);
+    const wireWidth = (cfg.cableFanWidth ?? WIRE_SCREEN_WIDTH) + cableWeightThickness(edges, cfg);
+    const baseA = cfg.cableFanAlpha ?? WIRE_BASE_ALPHA;
 
     if (filterHighlight !== null) {
       // Highlighting mode — filter by highlight state
       const gpHighlight = getBranchHighlight(edges);
       if (gpHighlight !== filterHighlight) continue;
 
-      let wireAlpha = WIRE_BASE_ALPHA;
+      let wireAlpha = baseA;
       if (gpHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
       else wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
       wireAlpha *= fadeMul;
@@ -2002,7 +2003,7 @@ function _drawSingleIntraCableGpb(
       _drawSmoothPath(g, wirePath, wireWidth, color, gpFinalAlpha);
     } else {
       // Normal mode — draw all at base alpha
-      const gpFinalAlpha = Math.max(WIRE_BASE_ALPHA * fadeMul * densityScale, 0.1);
+      const gpFinalAlpha = Math.max(baseA * fadeMul * densityScale, 0.1);
       _drawSmoothPath(g, wirePath, wireWidth, color, gpFinalAlpha);
     }
   }
@@ -2217,7 +2218,9 @@ function _drawSingleTrunk(
     };
 
     const fadeMul = cableFadeByDegree(wireEdges, cfg);
-    const wireWidth = WIRE_SCREEN_WIDTH + cableWeightThickness(wireEdges, cfg);
+    const baseWireW = cfg.cableFanWidth ?? WIRE_SCREEN_WIDTH;
+    const baseWireA = cfg.cableFanAlpha ?? WIRE_BASE_ALPHA;
+    const wireWidth = baseWireW + cableWeightThickness(wireEdges, cfg);
 
     if (cfg.highlightedNodeId) {
       // An edge is "bright" only when the HOVERED node itself is one of its endpoints.
@@ -2247,7 +2250,7 @@ function _drawSingleTrunk(
       }
     } else {
       if (filterHighlight !== null && filterHighlight !== "normal") continue;
-      const wireAlpha = Math.max(WIRE_BASE_ALPHA * fadeMul * densityScale, 0.1);
+      const wireAlpha = Math.max(baseWireA * fadeMul * densityScale, 0.1);
       _drawSmoothPath(g, _buildTrunkWirePath(), wireWidth, color, wireAlpha);
     }
   }
@@ -2281,8 +2284,13 @@ function drawTrunks(
     return "dim";
   };
 
-  // Lane spacing for parallel cables within a trunk (screen px)
-  const laneSpacing = CABLE_LANE_SPACING;
+  // Configurable cable rendering parameters (from panel sliders, fallback to constants)
+  const cfgTrunkWidth = cfg.cableTrunkWidth ?? TRUNK_SCREEN_WIDTH;
+  const cfgTrunkAlpha = cfg.cableTrunkAlpha ?? TRUNK_CONDUIT_ALPHA;
+  const cfgLaneSpacing = cfg.cableSpacing ?? CABLE_LANE_SPACING;
+  const cfgWireWidth = cfg.cableFanWidth ?? WIRE_SCREEN_WIDTH;
+  const cfgWireAlpha = cfg.cableFanAlpha ?? WIRE_BASE_ALPHA;
+  const laneSpacing = cfgLaneSpacing;
 
   // PASS 1: Trunk conduits — width adapts to cable count so all lanes fit inside.
   // Alpha scales inversely with trunk count to prevent overdrawn white bands
@@ -2295,11 +2303,10 @@ function drawTrunks(
     // Use unique color count for width (merged same-color cables share a lane)
     const trunkColorSet = new Set<number>();
     for (const c of trunk.cables) trunkColorSet.add(c.color);
-    const trunkWidth = Math.max(trunkColorSet.size * laneSpacing + CABLE_SCREEN_WIDTH, TRUNK_SCREEN_WIDTH);
-    // Conduit is always invisible (TRUNK_CONDUIT_ALPHA = 0)
-    if (TRUNK_CONDUIT_ALPHA > 0) {
+    const trunkWidth = Math.max(trunkColorSet.size * laneSpacing + CABLE_SCREEN_WIDTH, cfgTrunkWidth);
+    if (cfgTrunkAlpha > 0) {
       const highlight = getTrunkHighlight(trunk);
-      const trunkAlpha = highlight === "dim" ? 0.02 : highlight === "bright" ? 0.2 : TRUNK_CONDUIT_ALPHA;
+      const trunkAlpha = highlight === "dim" ? 0.02 : highlight === "bright" ? 0.2 : cfgTrunkAlpha;
       _drawSmoothPath(g, trunk.path, trunkWidth, 0x888888, trunkAlpha * densityScale * trunkCountAlpha);
     }
   }
