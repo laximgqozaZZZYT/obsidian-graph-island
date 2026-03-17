@@ -2914,7 +2914,7 @@ export function drawEdges(
     g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
     const hasDash = applyDashPattern(g, e, lineThick);
 
-    drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength);
+    drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength, cfg.roadNetwork);
     drawEdgeDecorations(g, e, src, tgt, lineColor, alpha, cfg, arrowGfx);
 
     if (hasDash) g.setLineDash([]);

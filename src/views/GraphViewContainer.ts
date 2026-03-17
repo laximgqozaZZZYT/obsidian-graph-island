@@ -1916,14 +1916,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cardinalityRules = this.panel.cardinalityRules;
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
     cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
-    cfg.roadNetwork = this.getRoadNetwork();
+    const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    // roadRouteEdges toggle: when off, suppress road network so edges draw straight
+    cfg.roadNetwork = (rt2.roadRouteEdges !== false) ? this.getRoadNetwork() : null;
     cfg.clusterArrangement = this.panel.clusterArrangement;
     // Resolve coordinate system: check panel.coordinateLayout first, then infer from arrangement name
     cfg.coordinateSystem = this.panel.coordinateLayout?.system === "polar"
       ? "polar"
       : POLAR_ARRANGEMENTS.has(this.panel.clusterArrangement) ? "polar" : "cartesian";
-    const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-    cfg.routeWiresOnTray = !!rt2.routeWiresOnTray && !!this.roadBuilder?.trayData;
     return cfg;
   }
 
