@@ -2531,7 +2531,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       ? metaCentroids
       : liveCentroids ?? metaCentroids;
     cfg.clusterRadii = this.clusterMeta?.clusterRadii ?? null;
-    cfg.bundleStrength = this.panel.edgeBundleStrength;
+    // Feature BB: auto-scale bundle strength based on node count
+    const nodeCount = this.pixiNodes.size;
+    const autoBundle = nodeCount > 500 ? 0.85
+      : nodeCount > 200 ? 0.7
+      : nodeCount > 50 ? 0.5
+      : 0.3;
+    cfg.bundleStrength = this.panel.edgeBundleStrength > 0
+      ? Math.max(this.panel.edgeBundleStrength, autoBundle * 0.5)
+      : 0;
     cfg.cableBundleMode = this.panel.cableBundleMode;
     cfg.cableTrunkWidth = this.panel.cableTrunkWidth;
     cfg.cableTrunkAlpha = this.panel.cableTrunkAlpha;

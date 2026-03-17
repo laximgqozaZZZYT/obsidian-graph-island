@@ -350,7 +350,7 @@ export function drawEnclosures(
     let txt = enclosureLabels.get(tag);
     if (!txt) {
       const hexStr = "#" + hex.toString(16).padStart(6, "0");
-      txt = new CanvasText(`#${tag}`, {
+      txt = new CanvasText(`#${tag} (${memberCount})`, {
         fontSize: glFontSize,
         fill: hexStr,
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
