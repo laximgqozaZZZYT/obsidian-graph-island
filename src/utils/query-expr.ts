@@ -249,6 +249,7 @@ function evaluateLeaf(
   switch (leaf.field) {
     case "tag": {
       const tags = node.tags ?? [];
+      if (leaf.fuzzy) return tags.some(t => fuzzyMatch(t.toLowerCase(), val));
       return tags.some(t => matchValue(t.toLowerCase(), val));
     }
     case "category": {
@@ -262,6 +263,7 @@ function evaluateLeaf(
     case "file":
     case "folder": {
       const fp = (node.filePath ?? "").toLowerCase();
+      if (leaf.fuzzy) return fuzzyMatch(fp, val);
       return leaf.exact ? matchValue(fp, val) : (val.includes("*") ? matchValue(fp, val) : fp.includes(val));
     }
     case "id": {

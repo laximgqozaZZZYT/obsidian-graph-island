@@ -60,7 +60,7 @@ function deriveOneRule(queryText: string, recursive: boolean): ClusterGroupRule 
     // Use field:? format (e.g. "tag:?", "category:?")
     return { groupBy: `${expr.field}:?`, recursive };
   }
-  return { groupBy: "tag:?", recursive };
+  return { groupBy: `${expr.type === "leaf" ? expr.field : "tag"}:?`, recursive };
 }
 
 /** Derive ClusterGroupRule[] from multiple common queries (pipeline). */
@@ -2543,7 +2543,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       : nodeCount > 50 ? 0.5
       : 0.3;
     cfg.bundleStrength = this.panel.edgeBundleStrength > 0
-      ? Math.max(this.panel.edgeBundleStrength, autoBundle * 0.5)
+      ? this.panel.edgeBundleStrength
       : 0;
     cfg.cableBundleMode = this.panel.cableBundleMode;
     cfg.cableTrunkWidth = this.panel.cableTrunkWidth;

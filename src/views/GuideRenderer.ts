@@ -198,6 +198,8 @@ export class GuideRenderer {
     guide: Extract<ArrangementGuide, { type: "timeline" }>,
     lineW: number, color: number, worldScale: number,
   ) {
+    // Clear previous frame's labels to prevent accumulation leak
+    this.clearTimelineAxisLabels();
     const y = cy + guide.axisY;
     if (guide.ticks.length === 0) return;
     const xs = guide.ticks.map(t => cx + t.x);
