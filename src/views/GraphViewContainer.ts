@@ -20,23 +20,23 @@ import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, inval
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
-import type { ClusterMetadata, TimelineBarInfo, ArrangementGuide, TimelineRoute, GroupGuideEntry } from "../layouts/cluster-force";
+import type { ClusterMetadata, ArrangementGuide, TimelineRoute } from "../layouts/cluster-force";
 import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from "../layouts/cluster-force";
 import { matchesFilter } from "../layouts/force";
-import type { ResolvedGridInfo, ResolvedGridLine } from "../layouts/coordinate-engine";
+import type { ResolvedGridInfo } from "../layouts/coordinate-engine";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
 import { RenderPipeline, darkenColor, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPipeline";
 import { LayoutController, type LayoutHost } from "./LayoutController";
-import { LabelManager, type LabelManagerHost } from "./LabelManager";
+import { LabelManager } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
 import { DiffOverlay } from "./DiffOverlay";
 import { captureSnapshot, computeSnapshotDiff } from "../utils/snapshot";
-import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
+import { GuideRenderer } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
-import { getNodeShape, drawShape, drawShapeAt } from "../utils/node-shapes";
+import { getNodeShape, drawShape } from "../utils/node-shapes";
 import {
   EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_HAS_TAG,
   EDGE_TYPE_SIMILAR, LAYOUT_FORCE, LAYOUT_CONCENTRIC, LAYOUT_TREE,
