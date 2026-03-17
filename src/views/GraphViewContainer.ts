@@ -15,6 +15,7 @@ import { computeNodeDegrees } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet } from "../utils/graph-helpers";
+import { hexToRgb } from "../utils/color";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL, createDefaultPanel } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
@@ -2566,6 +2567,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
     cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
     cfg.showEdgeWeightLabels = this.panel.showEdgeWeightLabels;
+    cfg.edgeDirectionFilter = this.panel.edgeDirectionFilter ?? "all";
+    cfg.showBidirectionalIndicator = this.panel.showBidirectionalIndicator ?? false;
     const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
     // roadRouteEdges toggle: when off, suppress road network so edges draw straight
     cfg.roadNetwork = (rt2.roadRouteEdges !== false) ? this.getRoadNetwork() : null;
@@ -2724,10 +2727,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Lighten a hex color by a factor (0-1). factor=0.2 means 20% lighter. */
   private lightenHexColor(hex: number, factor: number): number {
-    const r = Math.min(255, ((hex >> 16) & 0xff) + Math.round(255 * factor));
-    const g = Math.min(255, ((hex >> 8) & 0xff) + Math.round(255 * factor));
-    const b = Math.min(255, (hex & 0xff) + Math.round(255 * factor));
-    return (r << 16) | (g << 8) | b;
+    const { r, g, b } = hexToRgb(hex);
+    const lr = Math.min(255, r + Math.round(255 * factor));
+    const lg = Math.min(255, g + Math.round(255 * factor));
+    const lb = Math.min(255, b + Math.round(255 * factor));
+    return (lr << 16) | (lg << 8) | lb;
   }
 
   /** Draw labels on cluster sunburst arcs (depth ≤ 1 only, wide arcs) */
@@ -4000,7 +4004,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
 
     if (!this.panel.showAttachments) {
-      nodes = nodes.filter((n) => !n.id.match(/\.(png|jpg|jpeg|gif|svg|pdf|mp3|mp4|webm|webp|zip)$/i));
+      const attachExts = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.pdf', '.mp3', '.mp4', '.webm', '.wav', '.ogg', '.csv', '.xlsx', '.docx']);
+      nodes = nodes.filter(n => {
+        const p = n.filePath ?? n.id;
+        if (!p) return true;
+        const dot = p.lastIndexOf('.');
+        if (dot < 0) return true;
+        return !attachExts.has(p.substring(dot).toLowerCase());
+      });
     }
 
     if (!this.panel.showTags) {

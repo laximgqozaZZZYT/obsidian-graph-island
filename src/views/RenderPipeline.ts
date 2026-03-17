@@ -6,6 +6,7 @@ import { getNodeShape, drawShape, drawShapeAt, getNodeDisplayConfig } from "../u
 import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { clamp } from "../utils/geometry";
+import { hexToRgb, getLuminance } from "../utils/color";
 
 // ---------------------------------------------------------------------------
 // CardText — CanvasText with a marker flag for card-mode text children
@@ -165,27 +166,27 @@ const GLOW_P90_FRACTION = 0.9;
 // ---------------------------------------------------------------------------
 /** Darken a hex color by mixing toward black. factor 0 = unchanged, 1 = black. */
 export function darkenColor(hex: number, factor: number): number {
-  const r = ((hex >> 16) & 0xff) * (1 - factor);
-  const g = ((hex >> 8) & 0xff) * (1 - factor);
-  const b = (hex & 0xff) * (1 - factor);
-  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
+  const { r, g, b } = hexToRgb(hex);
+  const dr = r * (1 - factor);
+  const dg = g * (1 - factor);
+  const db = b * (1 - factor);
+  return (Math.round(dr) << 16) | (Math.round(dg) << 8) | Math.round(db);
 }
 
 /** Lighten a hex color by mixing toward white. factor 0 = unchanged, 1 = white. */
 function lightenColor(hex: number, factor: number): number {
-  const r = ((hex >> 16) & 0xff) + (255 - ((hex >> 16) & 0xff)) * factor;
-  const g = ((hex >> 8) & 0xff) + (255 - ((hex >> 8) & 0xff)) * factor;
-  const b = (hex & 0xff) + (255 - (hex & 0xff)) * factor;
-  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
+  const { r, g, b } = hexToRgb(hex);
+  const lr = r + (255 - r) * factor;
+  const lg = g + (255 - g) * factor;
+  const lb = b + (255 - b) * factor;
+  return (Math.round(lr) << 16) | (Math.round(lg) << 8) | Math.round(lb);
 }
 
 /** Desaturate a 0xRRGGBB color toward gray. factor=1 is original, factor=0 is fully gray. */
 function desaturateColor(color: number, factor: number): number {
   if (factor >= 1) return color;
-  const r = (color >> 16) & 0xff;
-  const g = (color >> 8) & 0xff;
-  const b = color & 0xff;
-  const gray = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
+  const { r, g, b } = hexToRgb(color);
+  const gray = Math.round(getLuminance(r, g, b));
   const nr = Math.round(gray + (r - gray) * factor);
   const ng = Math.round(gray + (g - gray) * factor);
   const nb = Math.round(gray + (b - gray) * factor);
@@ -296,7 +297,7 @@ function quickSelect(arr: number[], k: number): number {
     if (j < k) lo = i;
     if (i > k) hi = j;
   }
-  return arr[k];
+  return k >= 0 && k < arr.length ? arr[k] : 0;
 }
 
 export class RenderPipeline {

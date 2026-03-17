@@ -95,6 +95,12 @@ export interface EdgeDrawConfig {
   edgeLayerMode?: boolean;
   /** エッジ重みラベル表示: 同一ペア間のエッジ本数を数値で表示 */
   showEdgeWeightLabels?: boolean;
+  /** Filter edges by directionality: "all" | "bidirectional" | "unidirectional" */
+  edgeDirectionFilter?: "all" | "bidirectional" | "unidirectional";
+  /** Visual indicator for bidirectional edges (thicker + higher alpha) */
+  showBidirectionalIndicator?: boolean;
+  /** Pre-computed set of bidirectional edge keys ("source→target") */
+  _bidirectionalSet?: Set<string>;
 }
 
 // Minimal position data needed for source/target
@@ -119,6 +125,42 @@ function shouldSkipEdge(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
     case EDGE_TYPE_SEQUENCE: return !cfg.showSequence;
     default: return !cfg.showLinks; // untyped edges treated as links
   }
+}
+
+// ---------------------------------------------------------------------------
+// Bidirectional edge detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a set of edge keys ("source→target") that participate in bidirectional
+ * pairs. An edge A→B is bidirectional if B→A also exists in the edge list.
+ */
+function buildBidirectionalSet(edges: GraphEdge[]): Set<string> {
+  const forward = new Set<string>();
+  const bidir = new Set<string>();
+  for (const e of edges) {
+    const fwd = `${e.source}→${e.target}`;
+    const rev = `${e.target}→${e.source}`;
+    if (forward.has(rev)) {
+      bidir.add(rev);
+      bidir.add(fwd);
+    }
+    forward.add(fwd);
+  }
+  return bidir;
+}
+
+/** Check if an edge should be skipped based on the direction filter. */
+function shouldSkipByDirection(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
+  const filter = cfg.edgeDirectionFilter;
+  if (!filter || filter === "all") return false;
+  const bidirSet = cfg._bidirectionalSet;
+  if (!bidirSet) return false;
+  const key = `${e.source}→${e.target}`;
+  const isBidir = bidirSet.has(key);
+  if (filter === "bidirectional") return !isBidir;
+  if (filter === "unidirectional") return isBidir;
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -314,6 +356,7 @@ function buildDirectionBundles(
 
   for (const e of edges) {
     if (shouldSkipEdge(e, cfg)) continue;
+    if (shouldSkipByDirection(e, cfg)) continue;
 
     const src = resolvePos(e.source);
     const tgt = resolvePos(e.target);
@@ -1331,6 +1374,7 @@ function buildTrunks(
 
   for (const e of edges) {
     if (shouldSkipEdge(e, cfg)) continue;
+    if (shouldSkipByDirection(e, cfg)) continue;
     const sid = edgeSourceId(e);
     const tid = edgeTargetId(e);
     const srcGroup = nodeClusterMap.get(sid);
@@ -1762,6 +1806,7 @@ function buildIntraGroupCables(
 
   for (const e of edges) {
     if (shouldSkipEdge(e, cfg)) continue;
+    if (shouldSkipByDirection(e, cfg)) continue;
     const sid = edgeSourceId(e);
     const tid = edgeTargetId(e);
     const srcGroup = nodeClusterMap.get(sid);
@@ -2808,6 +2853,7 @@ function prepareCables(
     const connections = new Map<string, Set<string>>();
     for (const e of edges) {
       if (shouldSkipEdge(e, cfg)) continue;
+      if (shouldSkipByDirection(e, cfg)) continue;
       const sg = cfg.nodeClusterMap!.get(edgeSourceId(e));
       const tg = cfg.nodeClusterMap!.get(edgeTargetId(e));
       if (!sg || !tg || sg === tg) continue;
@@ -2912,6 +2958,10 @@ export function drawEdges(
   g.clear();
   if (arrowGfx) arrowGfx.clear();
 
+  // Pre-compute bidirectional set if direction filter or indicator is active
+  const needsBidir = (cfg.edgeDirectionFilter && cfg.edgeDirectionFilter !== "all") || cfg.showBidirectionalIndicator;
+  cfg._bidirectionalSet = needsBidir ? buildBidirectionalSet(edges) : undefined;
+
   const { colorEdgesByRelation: useRelColor } = cfg;
   // Disable arc curves when edge count is high to avoid vertex buffer explosion.
   // quadraticCurveTo generates ~20 vertices per edge vs 4 for lineTo.
@@ -2961,6 +3011,7 @@ function _drawEdgesSinglePass(
     if (cablePrep.cabledEdgeIds.has(e.id)) continue;
     if (cablePrep.intraHandledIds.has(e.id)) continue;
     if (shouldSkipEdge(e, cfg)) continue;
+    if (shouldSkipByDirection(e, cfg)) continue;
 
     const src = resolvePos(e.source);
     const tgt = resolvePos(e.target);
@@ -2972,7 +3023,18 @@ function _drawEdgesSinglePass(
     }
 
     const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
-    const { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+    let { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+
+    // Bidirectional indicator: subtly adjust thickness and alpha
+    if (cfg.showBidirectionalIndicator && cfg._bidirectionalSet) {
+      const isBidir = cfg._bidirectionalSet.has(`${e.source}→${e.target}`);
+      if (isBidir) {
+        lineThick *= 1.5;
+        alpha = Math.min(1.0, alpha + 0.2);
+      } else {
+        alpha = Math.max(0.05, alpha - 0.15);
+      }
+    }
 
     g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
     const hasDash = applyDashPattern(g, e, lineThick);
@@ -3061,6 +3123,7 @@ function _drawEdgesLayered(
       if (cablePrep.cabledEdgeIds.has(e.id)) continue;
       if (cablePrep.intraHandledIds.has(e.id)) continue;
       if (shouldSkipEdge(e, cfg)) continue;
+      if (shouldSkipByDirection(e, cfg)) continue;
 
       const src = resolvePos(e.source);
       const tgt = resolvePos(e.target);
@@ -3069,7 +3132,18 @@ function _drawEdgesLayered(
       if (cablePrep.hasClusters) continue;
 
       const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
-      const { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+      let { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+
+      // Bidirectional indicator: subtly adjust thickness and alpha
+      if (cfg.showBidirectionalIndicator && cfg._bidirectionalSet) {
+        const isBidir = cfg._bidirectionalSet.has(`${e.source}→${e.target}`);
+        if (isBidir) {
+          lineThick *= 1.5;
+          alpha = Math.min(1.0, alpha + 0.2);
+        } else {
+          alpha = Math.max(0.05, alpha - 0.15);
+        }
+      }
 
       // レイヤーごとに alpha と width を微調整
       const layerAlpha = alpha * alphaMul;
@@ -3394,6 +3468,7 @@ export function drawEdgeLabels(
     const fillColor = cfg.isDark ? 0xcccccc : 0x444444;
     for (const e of edges) {
       if (shouldSkipEdge(e, cfg)) continue;
+      if (shouldSkipByDirection(e, cfg)) continue;
       const key = [e.source, e.target].sort().join(":");
       const count = pairCounts.get(key) ?? 1;
       if (count <= 1 || drawnPairs.has(key)) continue;
@@ -3427,6 +3502,7 @@ export function drawEdgeLabels(
   const labelable: { edge: GraphEdge; label: string }[] = [];
   for (const e of edges) {
     if (shouldSkipEdge(e, cfg)) continue;
+    if (shouldSkipByDirection(e, cfg)) continue;
     const label = getEdgeLabel(e);
     if (!label) continue;
     labelable.push({ edge: e, label });

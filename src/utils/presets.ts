@@ -33,6 +33,7 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showEdgeWeightLabels",
   "showLegend",
   "visualLinkEditor",
+  "showBidirectionalIndicator",
 ];
 
 /** Fields that should be number */
@@ -69,6 +70,7 @@ const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   nodeDisplayMode: ["node", "card", "donut", "sunburst-segment"] as const,
   edgeCardinalityMode: ["none", "crowsfoot"] as const,
   cableBundleMode: ["auto", "always", "never"] as const,
+  edgeDirectionFilter: ["all", "bidirectional", "unidirectional"] as const,
   activeTab: ["filter", "display", "layout", "settings"] as const,
 };
 

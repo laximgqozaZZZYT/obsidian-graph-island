@@ -2,6 +2,7 @@ import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { Pt } from "../utils/geometry";
 import { convexHull, clamp, rectsOverlap } from "../utils/geometry";
 import { cssColorToHex, shiftHue, hslToHex, stringHash } from "../utils/graph-helpers";
+import { hexToRgb } from "../utils/color";
 import { DEFAULT_COLORS } from "../types";
 import { TAG_DISPLAY_ENCLOSURE } from "../constants";
 
@@ -532,10 +533,11 @@ export function drawCapsule(g: CanvasGraphics, p0: Pt, p1: Pt, radius: number) {
  * factor=0 → unchanged, factor=1 → black.
  */
 function darkenHex(hex: number, factor: number): number {
-  const r = Math.round(((hex >> 16) & 0xff) * (1 - factor));
-  const g = Math.round(((hex >> 8) & 0xff) * (1 - factor));
-  const b = Math.round((hex & 0xff) * (1 - factor));
-  return (r << 16) | (g << 8) | b;
+  const { r, g, b } = hexToRgb(hex);
+  const dr = Math.round(r * (1 - factor));
+  const dg = Math.round(g * (1 - factor));
+  const db = Math.round(b * (1 - factor));
+  return (dr << 16) | (dg << 8) | db;
 }
 
 // Reusable buffers for filterOutliers — eliminates per-call array allocations

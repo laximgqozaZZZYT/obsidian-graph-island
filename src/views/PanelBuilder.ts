@@ -170,6 +170,10 @@ export interface PanelState {
   bookmarkedNodes: string[];
   /** エッジ重みラベル表示（同一ペア間のエッジ本数） */
   showEdgeWeightLabels: boolean;
+  /** Filter edges by directionality: "all" | "bidirectional" | "unidirectional" */
+  edgeDirectionFilter: "all" | "bidirectional" | "unidirectional";
+  /** Visual indicator for bidirectional edges (thicker + higher alpha) */
+  showBidirectionalIndicator: boolean;
   /** 凡例オーバーレイ表示 */
   showLegend: boolean;
   /** 検索クエリ履歴（最大10件） */
@@ -288,6 +292,8 @@ export function createDefaultPanel(): PanelState {
     annotations: [],
     bookmarkedNodes: [],
     showEdgeWeightLabels: false,
+    edgeDirectionFilter: "all" as const,
+    showBidirectionalIndicator: false,
     showLegend: true,
     searchHistory: [],
   };
@@ -837,6 +843,15 @@ function _buildEdgeDisplaySection(
     addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); }, t("desc.edgeLabels"));
     addToggle(body, t("display.edgeWeightLabels"), panel.showEdgeWeightLabels, (v) => { panel.showEdgeWeightLabels = v; cb.markDirty(); }, t("desc.edgeWeightLabels"));
     addToggle(body, t("display.edgeLayerMode"), panel.edgeLayerMode, (v) => { panel.edgeLayerMode = v; cb.markDirty(); }, t("desc.edgeLayerMode"));
+    addSelect(body, t("display.edgeDirectionFilter"), [
+      { value: "all", label: t("display.edgeDirAll") },
+      { value: "bidirectional", label: t("display.edgeDirBidirectional") },
+      { value: "unidirectional", label: t("display.edgeDirUnidirectional") },
+    ], panel.edgeDirectionFilter, (v) => {
+      panel.edgeDirectionFilter = v as "all" | "bidirectional" | "unidirectional";
+      cb.markDirty();
+    }, t("desc.edgeDirectionFilter"));
+    addToggle(body, t("display.bidirectionalIndicator"), panel.showBidirectionalIndicator, (v) => { panel.showBidirectionalIndicator = v; cb.markDirty(); }, t("desc.bidirectionalIndicator"));
     addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); }, t("desc.links"));
     addToggle(body, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); }, t("desc.sharedTags"));
     addToggle(body, t("display.sharedCategory"), panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); }, t("desc.sharedCategory"));

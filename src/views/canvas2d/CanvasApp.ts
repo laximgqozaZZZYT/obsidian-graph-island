@@ -1,4 +1,5 @@
 import { CanvasContainer } from "./CanvasContainer";
+import { hexToRgb, getLuminance } from "../../utils/color";
 
 type TickerCallback = () => void;
 
@@ -133,10 +134,8 @@ export class CanvasApp {
     const startY = wy % spacing;
 
     // Use theme-aware dot color (slightly brighter/darker than background)
-    const r = (this.bgColor >> 16) & 0xff;
-    const g = (this.bgColor >> 8) & 0xff;
-    const b = this.bgColor & 0xff;
-    const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+    const { r, g, b } = hexToRgb(this.bgColor);
+    const brightness = getLuminance(r, g, b);
     const dotAlpha = brightness > 128 ? 0.08 : 0.12;
     const dotColor = brightness > 128
       ? `rgba(0,0,0,${dotAlpha})`
@@ -161,10 +160,8 @@ export class CanvasApp {
     const w = this.view.width;
     const h = this.view.height;
 
-    const r = (this.bgColor >> 16) & 0xff;
-    const g = (this.bgColor >> 8) & 0xff;
-    const b = this.bgColor & 0xff;
-    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    const { r: bgR, g: bgG, b: bgB } = hexToRgb(this.bgColor);
+    ctx.fillStyle = `rgb(${bgR},${bgG},${bgB})`;
     ctx.fillRect(0, 0, w, h);
 
     this._drawDotGrid(ctx, w, h);

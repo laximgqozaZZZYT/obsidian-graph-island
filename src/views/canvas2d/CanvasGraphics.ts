@@ -1,3 +1,5 @@
+import { hexToRgb } from "../../utils/color";
+
 type DrawCmd =
   | { t: "lineStyle"; width: number; color: number; alpha: number; native?: boolean }
   | { t: "beginFill"; color: number; alpha: number }
@@ -25,9 +27,7 @@ export function hexToRgba(hex: number, alpha: number): string {
   const key = (hex << 8) | aQ;
   let result = _rgbaCache.get(key);
   if (result !== undefined) return result;
-  const r = (hex >> 16) & 0xff;
-  const g = (hex >> 8) & 0xff;
-  const b = hex & 0xff;
+  const { r, g, b } = hexToRgb(hex);
   result = `rgba(${r},${g},${b},${aQ / 255})`;
   if (_rgbaCache.size >= _RGBA_CACHE_MAX) _rgbaCache.clear();
   _rgbaCache.set(key, result);

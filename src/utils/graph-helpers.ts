@@ -1,4 +1,5 @@
 import type { GraphData } from "../types";
+import { hexToRgb } from "./color";
 
 /**
  * Extract node ID from a d3-force edge endpoint.
@@ -92,9 +93,10 @@ export function cssColorToHex(css: string): number {
  * Used to generate enclosure colors that are visually distinct from node colors.
  */
 export function shiftHue(hex: number, degrees: number): number {
-  const r = ((hex >> 16) & 0xff) / 255;
-  const g = ((hex >> 8) & 0xff) / 255;
-  const b = (hex & 0xff) / 255;
+  const { r: ri, g: gi, b: bi } = hexToRgb(hex);
+  const r = ri / 255;
+  const g = gi / 255;
+  const b = bi / 255;
 
   const max = Math.max(r, g, b), min = Math.min(r, g, b);
   const d = max - min;
