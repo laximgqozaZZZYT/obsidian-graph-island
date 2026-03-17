@@ -535,9 +535,9 @@ function buildFilterTab(
   cb: PanelCallbacks,
 ): void {
   buildSection(filterTab, t("section.filter"), (body) => {
-    addToggle(body, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateData(); }, t("desc.attachments"));
-    addToggle(body, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateData(); }, t("desc.existingOnly"));
-    addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateData(); }, t("desc.orphans"));
+    addToggle(body, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateDataKeepPanel(); }, t("desc.attachments"));
+    addToggle(body, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateDataKeepPanel(); }, t("desc.existingOnly"));
+    addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateDataKeepPanel(); }, t("desc.orphans"));
     addSelect(body, t("filter.tagDisplay"), [
       { value: "off", label: t("filter.tagDisplay.off") },
       { value: "node", label: t("filter.tagDisplay.node") },
@@ -684,7 +684,7 @@ function _buildEdgeDisplaySection(
     addToggle(body, t("display.semantic"), panel.showSemanticEdges, (v) => { panel.showSemanticEdges = v; cb.markDirty(); }, t("desc.semantic"));
     addToggle(body, t("display.inheritance"), panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); }, t("desc.inheritance"));
     addToggle(body, t("display.aggregation"), panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); }, t("desc.aggregation"));
-    addToggle(body, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateData(); }, t("desc.similar"));
+    addToggle(body, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateDataKeepPanel(); }, t("desc.similar"));
     addToggle(body, t("display.sibling"), panel.showSibling, (v) => { panel.showSibling = v; cb.markDirty(); }, t("desc.sibling"));
     addToggle(body, t("display.sequence"), panel.showSequence, (v) => { panel.showSequence = v; cb.markDirty(); }, t("desc.sequence"));
     // Cardinality markers (crow's foot)
