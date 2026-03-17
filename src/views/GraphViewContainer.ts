@@ -1280,6 +1280,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (this.roadBuilder) this.roadBuilder.reset();
     this.barGraphics = null;
     this.barLabelContainer = null;
+    this.linkPreviewGfx = null;
     this.spatialGrid.clear();
     if (this.pixiApp) {
       try {
@@ -1525,6 +1526,69 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getSimulation(): Simulation<GraphNode, GraphEdge> | null { return this.simulation; }
   getPixiApp(): CanvasApp | null { return this.pixiApp; }
   openFile(filePath: string) { this.app.workspace.openLinkText(filePath, "", false); }
+
+  /** ビジュアルリンクエディタが有効かどうか */
+  isVisualLinkEditorEnabled(): boolean { return this.panel.visualLinkEditor; }
+
+  /** Alt+ドラッグでソースファイルに [[target]] wikilink を挿入 */
+  async createLink(sourceId: string, targetId: string): Promise<void> {
+    try {
+      const srcNode = this.pixiNodes.get(sourceId);
+      const tgtNode = this.pixiNodes.get(targetId);
+      if (!srcNode?.data.filePath || !tgtNode?.data.filePath) {
+        showToast(t("toast.linkFailed"));
+        return;
+      }
+      const srcFile = this.app.vault.getAbstractFileByPath(srcNode.data.filePath);
+      if (!(srcFile instanceof TFile)) {
+        showToast(t("toast.linkFailed"));
+        return;
+      }
+      // ターゲットのベースネーム（拡張子なし）
+      const tgtBasename = tgtNode.data.filePath.replace(/^.*\//, "").replace(/\.md$/, "");
+      const content = await this.app.vault.read(srcFile);
+      // 末尾の空白を保持しつつ、最後の非空白行の後に wikilink を追加
+      const trimmed = content.replace(/\s+$/, "");
+      const newContent = trimmed + "\n[[" + tgtBasename + "]]\n";
+      await this.app.vault.modify(srcFile, newContent);
+      // グラフを更新
+      this.rawData = null;
+      this.doRender();
+      // トースト通知
+      const srcLabel = srcNode.data.label || sourceId;
+      const tgtLabel = tgtNode.data.label || targetId;
+      showToast(t("toast.linkCreated").replace("{source}", srcLabel).replace("{target}", tgtLabel));
+    } catch {
+      showToast(t("toast.linkFailed"));
+    }
+  }
+
+  /** リンクプレビュー線を描画（破線シアン） */
+  drawLinkPreview(srcX: number, srcY: number, dstX: number, dstY: number): void {
+    if (!this.worldContainer) return;
+    if (!this.linkPreviewGfx) {
+      this.linkPreviewGfx = new CanvasGraphics();
+      this.worldContainer.addChild(this.linkPreviewGfx);
+    }
+    const gfx = this.linkPreviewGfx;
+    gfx.clear();
+    gfx.setLineDash([8, 6]);
+    gfx.lineStyle(2, 0x00cccc, 0.9);
+    gfx.moveTo(srcX, srcY);
+    gfx.lineTo(dstX, dstY);
+    // ターゲット付近に小円を描画（スナップ表示）
+    gfx.setLineDash([]);
+    gfx.lineStyle(1.5, 0x00cccc, 0.7);
+    gfx.drawCircle(dstX, dstY, 8);
+  }
+
+  /** リンクプレビュー線をクリア */
+  clearLinkPreview(): void {
+    if (this.linkPreviewGfx) {
+      this.linkPreviewGfx.clear();
+    }
+  }
+
   handleSuperNodeDblClick(pn: import("./InteractionManager").PixiNode): boolean {
     // Expand collapsed super node
     if (pn.data.collapsedMembers && pn.data.id.startsWith("__super__")) {
