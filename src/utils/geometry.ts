@@ -53,6 +53,16 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+/** Euclidean distance between two deltas */
+export function magnitude(dx: number, dy: number): number {
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+/** Convert polar offset (radius, angle in radians) to Cartesian {dx, dy} */
+export function polarToOffset(radius: number, angle: number): { dx: number; dy: number } {
+  return { dx: radius * Math.cos(angle), dy: radius * Math.sin(angle) };
+}
+
 /**
  * Compute the convex hull of a set of 2D points using Andrew's monotone chain.
  * Returns vertices in counter-clockwise order.
