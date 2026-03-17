@@ -63,6 +63,8 @@ const en: TranslationMap = {
   // --- PanelBuilder: filter ---
   "filter.searchPlaceholder": "Search… hop:name:2",
   "filter.tags": "Tags",
+  "filter.showTags": "Show Tags",
+  "desc.showTags": "Include tag nodes and has-tag edges in the graph",
   "filter.attachments": "Attachments",
   "filter.existingOnly": "Existing Files Only",
   "filter.orphans": "Orphans",
@@ -699,6 +701,8 @@ const ja: TranslationMap = {
   // --- PanelBuilder: filter ---
   "filter.searchPlaceholder": "検索… hop:名前:2",
   "filter.tags": "タグ",
+  "filter.showTags": "タグ表示",
+  "desc.showTags": "タグノードとhas-tagエッジをグラフに含める",
   "filter.attachments": "添付書類",
   "filter.existingOnly": "存在するファイルのみ表示",
   "filter.orphans": "オーファン",

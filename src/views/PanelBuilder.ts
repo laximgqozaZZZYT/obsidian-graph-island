@@ -646,6 +646,7 @@ function buildFilterTab(
   cb: PanelCallbacks,
 ): void {
   buildSection(filterTab, t("section.filter"), (body) => {
+    addToggle(body, t("filter.showTags"), panel.showTags, (v) => { panel.showTags = v; cb.invalidateDataKeepPanel(); }, t("desc.showTags"));
     addToggle(body, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateDataKeepPanel(); }, t("desc.attachments"));
     addToggle(body, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateDataKeepPanel(); }, t("desc.existingOnly"));
     addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateDataKeepPanel(); }, t("desc.orphans"));
