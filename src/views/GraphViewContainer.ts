@@ -2299,7 +2299,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (hubId && hubId !== pn.data.id) {
         const path = bfsShortestPath(this.adj, hubId, pn.data.id);
         if (path.length > 1) {
-          const breadcrumb = path.map((id) => {
+          // Truncate long paths: show first 2 + last 2 with "…" in middle
+          let displayPath = path;
+          if (path.length > 5) {
+            displayPath = [...path.slice(0, 2), "…", ...path.slice(-2)];
+          }
+          const breadcrumb = displayPath.map((id) => {
+            if (id === "…") return "…";
             const node = this.pixiNodes.get(id);
             return node ? node.data.label : id.replace(/\.md$/, "").split("/").pop() ?? id;
           }).join(" \u203A ");
