@@ -2163,6 +2163,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (isCardMode) pn.gfx.scale.set(1);
         this.drawNodeCircle(pn, false);
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; }
+        // Restore labels that were force-shown by hover
+        if (pn.hoverForcedLabel && pn.label) {
+          pn.label.visible = false;
+          pn.hoverForcedLabel = false;
+        }
       } else if (curSet.has(pn.data.id)) {
         pn.gfx.alpha = 1;
         if (isCardMode && pn.data.id === effectiveHId) {
@@ -2174,6 +2179,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (!pn.hoverLabel) {
           this._createHoverTooltip(pn);
         }
+        // Force-show main label for neighbor nodes (overlap culling + leader lines will handle density)
+        if (pn.label && !pn.label.visible) {
+          pn.label.visible = true;
+          pn.hoverForcedLabel = true;
+        }
         // When hovering, also force-show tag label if present but hidden by LOD
         if (pn.tagLabel && !pn.tagLabel.visible) {
           pn.tagLabel.visible = true;
@@ -2182,10 +2192,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         pn.gfx.alpha = 0.12;
         if (isCardMode) pn.gfx.scale.set(1);
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; }
+        // Restore labels that were force-shown by hover
+        if (pn.hoverForcedLabel && pn.label) {
+          pn.label.visible = false;
+          pn.hoverForcedLabel = false;
+        }
       }
     }
 
     this.prevHighlightSet = curSet;
+    // Re-run overlap culling so hover-forced labels get displacement + leader lines
+    this.renderPipeline?.cullOverlappingLabels();
     this.redrawNodeBatch();
     this.drawEdges();   // Redraw edges with hover dimming
     this.drawTimelineBars();  // Redraw bars with hover highlight

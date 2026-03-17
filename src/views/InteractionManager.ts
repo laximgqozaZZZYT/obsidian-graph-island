@@ -29,6 +29,8 @@ export interface PixiNode {
   minShowZoom: number;
   /** Whether label was visible in the previous zoom update (hysteresis). */
   labelWasVisible: boolean;
+  /** True when label was force-shown by hover (needs restore on hover-clear). */
+  hoverForcedLabel: boolean;
 }
 
 // ---------------------------------------------------------------------------

@@ -1456,7 +1456,7 @@ export class RenderPipeline {
     pixiNodes.set(n.id, {
       data: n, gfx: container, circle, label, tagLabel,
       hoverLabel: null, leaderLine: null, radius: r, color, held: false, sortRank: -1,
-      priorityScore: -1, minShowZoom: 1.0, labelWasVisible: false,
+      priorityScore: -1, minShowZoom: 1.0, labelWasVisible: false, hoverForcedLabel: false,
     });
   }
 
@@ -1617,8 +1617,13 @@ export class RenderPipeline {
     const grid = this._createOverlapGrid(margin);
 
     // 3. Sort by priority score — highest priority first (Google Maps-style)
+    // Hover-forced labels get priority boost so they survive culling (displaced with leader lines if needed)
     const minNonSuper = rt.labelMinNonSuper ?? 3;
-    rects.sort((a, b) => b.pn.priorityScore - a.pn.priorityScore);
+    rects.sort((a, b) => {
+      const aBoost = a.pn.hoverForcedLabel ? 200 : 0;
+      const bBoost = b.pn.hoverForcedLabel ? 200 : 0;
+      return (b.pn.priorityScore + bBoost) - (a.pn.priorityScore + aBoost);
+    });
 
     const placed: CullLabelRect[] = [];
     const drawLeader = rt.labelLeaderLines;
