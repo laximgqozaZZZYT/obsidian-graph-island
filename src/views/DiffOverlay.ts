@@ -256,7 +256,7 @@ export class DiffOverlay {
     const maxRows = Math.max(1, Math.floor((viewport.height * 0.7) / GHOST_SPACING));
     return removedNodes.map((_, i) => {
       const col = i % cols;
-      const row = Math.floor(i / cols) % maxRows; // 行が画面外に出ないよう折り返す
+      const row = Math.floor(i / cols); // rows grow downward (no wrapping to avoid overlap)
       return {
         x: startX - col * GHOST_SPACING,
         y: startY - row * GHOST_SPACING,

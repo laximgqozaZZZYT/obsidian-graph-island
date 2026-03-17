@@ -71,6 +71,7 @@ const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   edgeCardinalityMode: ["none", "crowsfoot"] as const,
   cableBundleMode: ["auto", "always", "never"] as const,
   edgeDirectionFilter: ["all", "bidirectional", "unidirectional"] as const,
+  nodeColorMode: ["default", "category", "heatmap"] as const,
   activeTab: ["filter", "display", "layout", "settings"] as const,
 };
 

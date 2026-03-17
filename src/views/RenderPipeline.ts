@@ -1682,7 +1682,7 @@ export class RenderPipeline {
     const rects: CullLabelRect[] = [];
     for (const pn of pixiNodes.values()) {
       // Collect main label OR hoverLabel (prefer hoverLabel when present for overlap culling)
-      const label = (pn.hoverLabel && pn.hoverLabel.visible !== false) ? pn.hoverLabel : pn.label;
+      const label = (pn.hoverLabel && pn.hoverLabel.visible) ? pn.hoverLabel : pn.label;
       if (!label || !label.text || !label.visible) continue;
       const fontSize = (label.style.fontSize as number) ?? 11;
       const charW = fontSize * LABEL_CHAR_WIDTH_FACTOR;

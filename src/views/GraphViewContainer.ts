@@ -1034,7 +1034,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private static readonly SYNC_FIELDS: (keyof PanelState)[] = [
     "showTags", "showAttachments", "existingOnly", "showOrphans", "showArrows",
     "showOrbitRings", "colorEdgesByRelation", "colorNodesByCategory",
-    "heatmapMode", "showInheritance", "showAggregation", "showTagNodes",
+    "heatmapMode", "nodeColorMode", "showInheritance", "showAggregation", "showTagNodes",
     "tagDisplay", "showSimilar", "showSibling", "showSequence",
     "showLinks", "showTagEdges", "showCategoryEdges", "showSemanticEdges",
     "showEdgeLabels", "showMinimap", "showDotGrid", "showDurationBars",
@@ -2251,9 +2251,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     hl.cornerRadius = rt.labelHaloCornerRadius ?? null;
     hl.scale.set(counterScale);
 
-    // Position: right of node
-    hl.x = pn.radius + 4;
-    hl.y = -(pn.radius * 0.4 + 2);
+    // Position: right of node (account for card-mode scale-up)
+    const gfxScale = pn.gfx.scale?.x ?? 1;
+    hl.x = (pn.radius + 4) * gfxScale;
+    hl.y = -(pn.radius * 0.4 + 2) * gfxScale;
     hl.resolution = 2;
     // Mark as hover-forced for overlap culling priority
     pn.hoverForcedLabel = true;
@@ -3634,9 +3635,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       resetPanel: () => this._buildResetPanelCallback(),
       applyPreset: (preset: "simple" | "analysis" | "creative") => {
         const presets: Record<string, Partial<typeof this.panel>> = {
-          simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, heatmapMode: false, showEdgeLabels: false, showArrows: false },
-          analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, heatmapMode: false, showEdgeLabels: false, showArrows: true },
-          creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, heatmapMode: false, tagDisplay: "enclosure", showTagNodes: true },
+          simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, heatmapMode: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: false },
+          analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, heatmapMode: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
+          creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, heatmapMode: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
         };
         const p = presets[preset];
         if (p) { Object.assign(this.panel, p); this.doRender(); this.requestSave(); }
@@ -3812,7 +3813,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       for (const grp of this.panel.groups) {
         if (grp.expression && evaluateExpr(grp.expression, n)) { color = cssColorToHex(grp.color); matched = true; break; }
       }
-      if (!matched && this.panel.colorNodesByCategory) {
+      const colorModeForUpdate = this.panel.nodeColorMode ?? (this.panel.heatmapMode ? "heatmap" : this.panel.colorNodesByCategory ? "category" : "default");
+      if (!matched && colorModeForUpdate === "category") {
         if (n.category) {
           color = cssColorToHex(colorMap.get(n.category) || DEFAULT_COLORS[0]);
         } else if (n.tags && n.tags.length > 0) {
@@ -3866,7 +3868,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     });
 
     // --- ノードカラーセクション ---
-    if (colorMap.size > 0 && this.panel.colorNodesByCategory) {
+    const legendColorMode = this.panel.nodeColorMode ?? (this.panel.heatmapMode ? "heatmap" : this.panel.colorNodesByCategory ? "category" : "default");
+    if (colorMap.size > 0 && legendColorMode === "category") {
       const nodeSection = body.createDiv({ cls: "gi-legend-section" });
       nodeSection.createEl("div", { cls: "gi-legend-section-title", text: t("legend.nodeColors") });
       for (const [label, cssColor] of colorMap) {
@@ -4248,9 +4251,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const colorMap = this.nodeColorMap;
     const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
 
+    // Resolve unified nodeColorMode (with backward compat fallback)
+    const colorMode = this.panel.nodeColorMode ??
+      (this.panel.heatmapMode ? "heatmap" : this.panel.colorNodesByCategory ? "category" : "default");
+
     // Heatmap: precompute max degree for normalization
     let maxDegree = 1;
-    if (this.panel.heatmapMode) {
+    if (colorMode === "heatmap") {
       for (const n of gd.nodes) {
         const d = this.degrees.get(n.id) || 0;
         if (d > maxDegree) maxDegree = d;
@@ -4278,10 +4285,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (grp.expression && evaluateExpr(grp.expression, n)) return cssColorToHex(grp.color);
       }
       // Heatmap mode: color by degree
-      if (this.panel.heatmapMode) {
+      if (colorMode === "heatmap") {
         return heatmapColor(this.degrees.get(n.id) || 0);
       }
-      if (!this.panel.colorNodesByCategory) return defaultNodeColor;
+      if (colorMode !== "category") return defaultNodeColor;
       // Category-based coloring
       if (n.category) {
         const css = colorMap.get(n.category) || DEFAULT_COLORS[0];
