@@ -267,6 +267,8 @@ export interface RenderHost {
   getPathfinderState?(): { startId: string | null; endId: string | null };
   /** 比較選択中のノードIDリストを取得 */
   getCompareNodeIds?(): string[];
+  /** ブックマーク済みノードIDセットを取得 */
+  getBookmarkedNodeIds?(): Set<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -507,6 +509,9 @@ export class RenderPipeline {
 
     // Pass 5: 比較選択ノードのリング表示
     this._renderCompareRings(g, ctx);
+
+    // Pass 6: ブックマーク星アイコンオーバーレイ
+    this._renderBookmarkStars(g, ctx);
   }
 
   // =========================================================================
@@ -1233,6 +1238,45 @@ export class RenderPipeline {
           pn.data.y + Math.sin(endAngle) * ringRadius,
         );
       }
+      g.endFill();
+    }
+  }
+
+  // =========================================================================
+  // Pass 6: ブックマーク星オーバーレイ
+  // =========================================================================
+  /** ブックマーク済みノードに星形アイコンを描画 */
+  private _renderBookmarkStars(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[] },
+  ) {
+    const bookmarked = this.host.getBookmarkedNodeIds?.() ?? null;
+    if (!bookmarked || bookmarked.size === 0) return;
+
+    const { visible } = ctx;
+    const starColor = 0xf5c542; // 金色
+    const starAlpha = 0.9;
+    for (const pn of visible) {
+      if (!bookmarked.has(pn.data.id)) continue;
+      // ノード右上に小さな星を描画
+      const sr = Math.max(4, pn.radius * 0.35);
+      const cx = pn.data.x + pn.radius * 0.7;
+      const cy = pn.data.y - pn.radius * 0.7;
+      // 5頂点の星形
+      g.beginFill(starColor, starAlpha);
+      g.lineStyle(0);
+      const spikes = 5;
+      const outerR = sr;
+      const innerR = sr * 0.4;
+      for (let i = 0; i < spikes * 2; i++) {
+        const angle = (i * Math.PI) / spikes - Math.PI / 2;
+        const r = i % 2 === 0 ? outerR : innerR;
+        const px = cx + Math.cos(angle) * r;
+        const py = cy + Math.sin(angle) * r;
+        if (i === 0) g.moveTo(px, py);
+        else g.lineTo(px, py);
+      }
+      g.closePath();
       g.endFill();
     }
   }

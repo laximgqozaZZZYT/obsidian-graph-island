@@ -43,6 +43,7 @@ import {
   TAG_DISPLAY_ENCLOSURE, TAG_DISPLAY_NODE,
   ARRANGEMENT_TIMELINE, ARRANGEMENT_CONCENTRIC, ARRANGEMENT_GRID,
   EVENT_HOVER_NODE, EVENT_HIGHLIGHT_NODES, EVENT_COMPARE_NODES,
+  EVENT_SYNC_PANEL,
   POLAR_ARRANGEMENTS,
 } from "../constants";
 
@@ -235,6 +236,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private sunburstLayoutArcs: LayoutSunburstArc[] = [];
   private sunburstCenter = { x: 0, y: 0 };
 
+  // ビュー同期: 再帰イベントを防止するフラグ
+  private _syncReceiving = false;
+
+  // 注釈オーバーレイ管理
+  private annotationLayer: HTMLElement | null = null;
+
   constructor(leaf: WorkspaceLeaf, plugin: GraphViewsPlugin) {
     super(leaf);
     this.plugin = plugin;
@@ -299,6 +306,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Debounced workspace save — call after any panel state mutation */
   private requestSave() {
+    // ビュー同期ブロードキャスト
+    this._broadcastPanelSync();
     if (this._saveTimer) clearTimeout(this._saveTimer);
     this._saveTimer = setTimeout(() => {
       this.app.workspace.requestSaveLayout();
@@ -696,6 +705,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const canvasArea = main.createDiv({ cls: "gi-canvas-area", attr: { role: "main", "aria-label": "Graph canvas" } });
     this.canvasWrap = canvasArea.createDiv({ cls: "graph-svg-wrap" });
 
+    // 注釈オーバーレイレイヤー（キャンバスの上に配置、ポインターイベント透過）
+    this.annotationLayer = canvasArea.createDiv({ cls: "gi-annotation-layer" });
+
     // --- Node Info Overlay (floating, survives canvas rebuilds) ---
     this.nodeInfoEl = canvasArea.createDiv({ cls: "gi-node-info" });
     this.nodeInfoEl.style.display = "none";
@@ -989,6 +1001,184 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.applyEphemeralHighlight(nodeIds);
       })
     );
+
+    // ビュー同期: 他の Graph Island ビューからのパネル状態変更を受信
+    this.registerEvent(
+      this.app.workspace.on(EVENT_SYNC_PANEL as any, (data: { senderId: string; panel: Record<string, unknown> }) => {
+        if (!data || !this.panel.syncViewId) return;
+        // 自分自身が送信元の場合は無視
+        if (data.senderId === this.leaf.id) return;
+        this._syncReceiving = true;
+        try {
+          this._applySyncedPanel(data.panel);
+        } finally {
+          this._syncReceiving = false;
+        }
+      })
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // ビュー同期: パネル状態のブロードキャストと受信
+  // ---------------------------------------------------------------------------
+
+  /** 同期対象フィールド — 検索クエリやローカルグラフは除外 */
+  private static readonly SYNC_FIELDS: (keyof PanelState)[] = [
+    "showTags", "showAttachments", "existingOnly", "showOrphans", "showArrows",
+    "showOrbitRings", "colorEdgesByRelation", "colorNodesByCategory",
+    "heatmapMode", "showInheritance", "showAggregation", "showTagNodes",
+    "tagDisplay", "showSimilar", "showSibling", "showSequence",
+    "showLinks", "showTagEdges", "showCategoryEdges", "showSemanticEdges",
+    "showEdgeLabels", "showMinimap", "showDotGrid", "showDurationBars",
+    "clusterArrangement", "clusterGroupArrangement",
+    "nodeSize", "textFadeThreshold", "hoverHops",
+    "fadeEdgesByDegree", "edgeBundleStrength",
+    "nodeDisplayMode", "focusMode",
+  ];
+
+  /** 同期を他のビューにブロードキャスト */
+  private _broadcastPanelSync(): void {
+    if (!this.panel.syncViewId || this._syncReceiving) return;
+    const payload: Record<string, unknown> = {};
+    for (const key of GraphViewContainer.SYNC_FIELDS) {
+      payload[key] = (this.panel as Record<string, unknown>)[key];
+    }
+    // workspace.trigger でカスタムイベントを発火
+    (this.app.workspace as any).trigger(EVENT_SYNC_PANEL, {
+      senderId: this.leaf.id,
+      panel: payload,
+    });
+  }
+
+  /** 受信した同期データをパネルに適用 */
+  private _applySyncedPanel(incoming: Record<string, unknown>): void {
+    let needsRender = false;
+    for (const key of GraphViewContainer.SYNC_FIELDS) {
+      if (!(key in incoming)) continue;
+      const cur = (this.panel as Record<string, unknown>)[key];
+      const next = incoming[key];
+      if (cur !== next) {
+        (this.panel as Record<string, unknown>)[key] = next;
+        needsRender = true;
+      }
+    }
+    if (needsRender) {
+      this.buildPanel();
+      this.doRender();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Feature P: ノード注釈 — キャンバス上のフローティングテキストボックス
+  // ---------------------------------------------------------------------------
+
+  /** 空白ダブルクリック時に呼ばれる: 注釈を追加 */
+  addAnnotationAt(wx: number, wy: number): void {
+    const id = crypto.randomUUID();
+    const annotation = { nodeId: id, text: "", x: wx, y: wy };
+    this.panel.annotations.push(annotation);
+    this._renderAnnotation(annotation);
+    this.requestSave();
+  }
+
+  /** 全注釈を再描画（レンダー後に呼ぶ） */
+  private _renderAllAnnotations(): void {
+    if (!this.annotationLayer) return;
+    this.annotationLayer.empty();
+    for (const ann of this.panel.annotations) {
+      this._renderAnnotation(ann);
+    }
+  }
+
+  /** 個別の注釈 DOM 要素を生成 */
+  private _renderAnnotation(
+    ann: { nodeId: string; text: string; x: number; y: number },
+  ): void {
+    if (!this.annotationLayer || !this.worldContainer || !this.pixiApp) return;
+
+    const el = this.annotationLayer.createDiv({ cls: "gi-annotation" });
+
+    // テキスト入力エリア
+    const textEl = el.createEl("textarea", {
+      cls: "gi-annotation-text",
+      attr: { placeholder: t("annotation.placeholder"), rows: "2" },
+    });
+    textEl.value = ann.text;
+    textEl.addEventListener("input", () => {
+      ann.text = textEl.value;
+      this.requestSave();
+    });
+    // テキストエリアのフォーカス時はドラッグ無効
+    textEl.addEventListener("pointerdown", (e) => e.stopPropagation());
+
+    // 削除ボタン
+    const deleteBtn = el.createEl("button", {
+      cls: "gi-annotation-delete",
+      attr: { "aria-label": t("annotation.delete"), title: t("annotation.delete") },
+    });
+    deleteBtn.textContent = "\u00d7";
+    deleteBtn.addEventListener("click", () => {
+      const idx = this.panel.annotations.indexOf(ann);
+      if (idx >= 0) this.panel.annotations.splice(idx, 1);
+      el.remove();
+      this.requestSave();
+    });
+
+    // ドラッグ処理: スクリーン座標のデルタをワールド座標に変換
+    let dragging = false;
+    let lastScreenX = 0;
+    let lastScreenY = 0;
+
+    el.addEventListener("pointerdown", (e) => {
+      if (e.target === textEl) return; // テキスト編集中はドラッグしない
+      dragging = true;
+      lastScreenX = e.clientX;
+      lastScreenY = e.clientY;
+      el.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!dragging || !this.worldContainer) return;
+      const scale = this.worldContainer.scale.x || 1;
+      const dx = (e.clientX - lastScreenX) / scale;
+      const dy = (e.clientY - lastScreenY) / scale;
+      ann.x += dx;
+      ann.y += dy;
+      lastScreenX = e.clientX;
+      lastScreenY = e.clientY;
+      this._positionAnnotationEl(el, ann);
+    });
+    el.addEventListener("pointerup", (e) => {
+      if (dragging) {
+        dragging = false;
+        el.releasePointerCapture(e.pointerId);
+        this.requestSave();
+      }
+    });
+
+    this._positionAnnotationEl(el, ann);
+  }
+
+  /** 注釈 DOM 要素をワールド座標→スクリーン座標に変換して配置 */
+  private _positionAnnotationEl(
+    el: HTMLElement,
+    ann: { x: number; y: number },
+  ): void {
+    if (!this.worldContainer || !this.pixiApp) return;
+    const screen = this.worldContainer.toGlobal({ x: ann.x, y: ann.y });
+    const parentRect = this.annotationLayer?.parentElement?.getBoundingClientRect();
+    if (!parentRect) return;
+    el.style.left = `${screen.x - parentRect.left}px`;
+    el.style.top = `${screen.y - parentRect.top}px`;
+  }
+
+  /** 全注釈位置を更新（ズーム/パン時に呼ぶ） */
+  private _updateAnnotationPositions(): void {
+    if (!this.annotationLayer) return;
+    const children = this.annotationLayer.children;
+    for (let i = 0; i < children.length && i < this.panel.annotations.length; i++) {
+      this._positionAnnotationEl(children[i] as HTMLElement, this.panel.annotations[i]);
+    }
   }
 
   async onClose() {
@@ -1004,6 +1194,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.panelEl = null;
     this.nodeInfoEl = null;
     this.canvasWrap = null;
+    this.annotationLayer = null;
   }
 
   // =========================================================================
@@ -1667,6 +1858,32 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return this.compareNodeIds;
   }
 
+  // =========================================================================
+  // ブックマーク (Feature L)
+  // =========================================================================
+  /** ノードのブックマークをトグル */
+  toggleBookmark(nodeId: string) {
+    const idx = this.panel.bookmarkedNodes.indexOf(nodeId);
+    if (idx >= 0) {
+      this.panel.bookmarkedNodes.splice(idx, 1);
+    } else {
+      this.panel.bookmarkedNodes.push(nodeId);
+    }
+    this.requestSave();
+    this.markDirty(true);
+    this.buildPanel();
+  }
+
+  /** ノードがブックマーク済みかどうか */
+  isBookmarked(nodeId: string): boolean {
+    return this.panel.bookmarkedNodes.includes(nodeId);
+  }
+
+  /** ブックマーク済みノードIDセットを取得（RenderHost用） */
+  getBookmarkedNodeIds(): Set<string> {
+    return new Set(this.panel.bookmarkedNodes);
+  }
+
   /** 比較イベントをワークスペースに発火。2ノード揃ったらパスファインダーも連動。 */
   private notifyCompare() {
     if (this.compareNodeIds.length === 2) {
@@ -2190,6 +2407,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cardinalityRules = this.panel.cardinalityRules;
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
     cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
+    cfg.showEdgeWeightLabels = this.panel.showEdgeWeightLabels;
     const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
     // roadRouteEdges toggle: when off, suppress road network so edges draw straight
     cfg.roadNetwork = (rt2.roadRouteEdges !== false) ? this.getRoadNetwork() : null;
@@ -2833,6 +3051,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   markDirty(forceFullRedraw = false) {
     this.renderPipeline?.markDirty(forceFullRedraw);
+    // 注釈位置をワールド座標に同期
+    this._updateAnnotationPositions();
   }
 
   private startRenderLoop() {
@@ -3196,6 +3416,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       frontmatterKeys: this.collectFrontmatterKeys(),
       availableGroups: this.collectAvailableGroups(),
       availableTags: this.collectAvailableTags(),
+      degrees: this.degrees,
     };
   }
 
@@ -3855,6 +4076,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.updateLegend();
     this.startRenderLoop();
     if (this.skipPanelRebuildCount === 0) this.buildPanel();
+    // 注釈を再描画
+    this._renderAllAnnotations();
   }
 
   /** Compute a static layout (concentric, tree, arc, sunburst, timeline) and return the result. */
@@ -4009,6 +4232,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (this.currentLayout === LAYOUT_CONCENTRIC && this.shells.length > 0) {
       if (this.panel.orbitAutoRotate) this.startOrbitAnimation();
     }
+    // 注釈を再描画
+    this._renderAllAnnotations();
   }
 
   // =========================================================================

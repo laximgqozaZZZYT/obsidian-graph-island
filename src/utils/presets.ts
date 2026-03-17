@@ -23,6 +23,14 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "gridTableMode", "gridShowHeaders", "gridCellShading",
   "clusterFollowsGroupBy",
   "focusMode",
+  "showTimelineRoutes",
+  "showAxisTitles",
+  "showTimelineTickLabels",
+  "ringChartMode",
+  "edgeWeightThickness",
+  "edgeLayerMode",
+  "syncWithEditor",
+  "showEdgeWeightLabels",
 ];
 
 /** Fields that should be number */
@@ -47,7 +55,7 @@ const STRING_FIELDS: (keyof PanelState)[] = [
 const ARRAY_FIELDS: (keyof PanelState)[] = [
   "groups", "directionalGravityRules", "commonQueries", "clusterGroupRules",
   "sortRules", "nodeRules", "nodeShapeRules", "groupByRules",
-  "cardinalityRules",
+  "cardinalityRules", "annotations", "bookmarkedNodes",
 ];
 
 /** Valid values for enum-like fields */

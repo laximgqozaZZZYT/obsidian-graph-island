@@ -4,6 +4,7 @@ import type { GraphNode, LayoutType, ShellInfo } from "../types";
 import { repositionShell } from "../layouts/concentric";
 import type { Simulation } from "d3-force";
 import { LAYOUT_CONCENTRIC } from "../constants";
+import { t } from "../i18n";
 
 // ---------------------------------------------------------------------------
 // PixiNode shape (mirrors the one in GraphViewContainer)
@@ -86,6 +87,12 @@ export interface InteractionHost {
   addCompareNode(nodeId: string): void;
   /** 比較選択をクリア */
   clearCompareSelection(): void;
+  /** キャンバス空白ダブルクリック: 注釈を追加 */
+  addAnnotationAt?(wx: number, wy: number): void;
+  /** ブックマークの追加/削除 */
+  toggleBookmark?(nodeId: string): void;
+  /** ブックマーク済みかどうか判定 */
+  isBookmarked?(nodeId: string): boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -467,7 +474,13 @@ export class InteractionManager {
     const my = e.clientY - rect.top;
     const worldPt = this.world.toLocal({ x: mx, y: my }, app.stage);
     const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
-    if (!hit) return;
+    if (!hit) {
+      // 空白ダブルクリック: 注釈を追加
+      if (this.host.addAnnotationAt) {
+        this.host.addAnnotationAt(worldPt.x, worldPt.y);
+      }
+      return;
+    }
     // Handle super node expand/collapse first
     if (this.host.handleSuperNodeDblClick(hit)) return;
     // Default: open file
@@ -517,6 +530,16 @@ export class InteractionManager {
         .setIcon("copy")
         .onClick(() => navigator.clipboard.writeText(copyText));
     });
+
+    // ブックマーク
+    if (this.host.toggleBookmark) {
+      const isBookmarked = this.host.isBookmarked?.(node.data.id) ?? false;
+      menu.addItem((item) => {
+        item.setTitle(isBookmarked ? t("bookmark.remove") : t("bookmark.add"))
+          .setIcon(isBookmarked ? "star-off" : "star")
+          .onClick(() => this.host.toggleBookmark!(node.data.id));
+      });
+    }
 
     // Pathfinder
     menu.addSeparator();

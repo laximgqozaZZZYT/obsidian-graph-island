@@ -585,6 +585,32 @@ const en: TranslationMap = {
   "settingsTab.exportFail": "Export failed",
   "settingsTab.exportNoPath": "Please specify a JSON file path.",
   "settingsTab.preview": "Current Settings (Preview)",
+
+  // --- Feature O: Multi-View Sync ---
+  "display.syncView": "View Sync",
+  "desc.syncView": "Synchronize panel state across multiple Graph Island views",
+
+  // --- Feature P: Node Annotations ---
+  "annotation.placeholder": "Enter text…",
+  "annotation.delete": "Delete annotation",
+
+  // --- Feature L: Node Bookmarks ---
+  "bookmark.add": "Bookmark",
+  "bookmark.remove": "Remove Bookmark",
+  "section.bookmarks": "Bookmarks",
+  "bookmark.empty": "No bookmarked nodes",
+
+  // --- Feature M: Graph Statistics Dashboard ---
+  "stats.nodes": "Nodes",
+  "stats.edges": "Edges",
+  "stats.groups": "Groups",
+  "stats.avgDegree": "Avg Degree",
+  "stats.maxHub": "Max Hub",
+  "stats.title": "Statistics",
+
+  // --- Feature N: Edge Weight Labels ---
+  "display.edgeWeightLabels": "Edge Weight Labels",
+  "desc.edgeWeightLabels": "Show edge count between same source-target pairs",
 };
 
 // ---------------------------------------------------------------------------
@@ -1165,6 +1191,32 @@ const ja: TranslationMap = {
   "settingsTab.exportFail": "エクスポート失敗",
   "settingsTab.exportNoPath": "JSON ファイルパスを指定してください。",
   "settingsTab.preview": "現在の設定（プレビュー）",
+
+  // --- Feature O: ビュー同期 ---
+  "display.syncView": "ビュー同期",
+  "desc.syncView": "複数の Graph Island ビュー間でパネル状態を同期",
+
+  // --- Feature P: ノード注釈 ---
+  "annotation.placeholder": "テキストを入力…",
+  "annotation.delete": "注釈を削除",
+
+  // --- Feature L: ノードブックマーク ---
+  "bookmark.add": "ブックマーク",
+  "bookmark.remove": "ブックマーク解除",
+  "section.bookmarks": "ブックマーク",
+  "bookmark.empty": "ブックマークされたノードはありません",
+
+  // --- Feature M: グラフ統計ダッシュボード ---
+  "stats.nodes": "ノード",
+  "stats.edges": "エッジ",
+  "stats.groups": "グループ",
+  "stats.avgDegree": "平均次数",
+  "stats.maxHub": "最大ハブ",
+  "stats.title": "統計",
+
+  // --- Feature N: エッジ重みラベル ---
+  "display.edgeWeightLabels": "エッジ重みラベル",
+  "desc.edgeWeightLabels": "同一ペア間のエッジ本数を表示",
 };
 
 // ---------------------------------------------------------------------------

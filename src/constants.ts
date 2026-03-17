@@ -101,6 +101,7 @@ export const SHAPE_FILL_CIRCLE   = "circle" as const;
 export const EVENT_HOVER_NODE      = "graph-island:hover-node" as const;
 export const EVENT_HIGHLIGHT_NODES = "graph-island:highlight-nodes" as const;
 export const EVENT_COMPARE_NODES   = "graph-island:compare-nodes" as const;
+export const EVENT_SYNC_PANEL      = "graph-island:sync-panel" as const;
 
 // ---------------------------------------------------------------------------
 // Polar arrangement set (shared by RoadNetworkBuilder, GVC, etc.)

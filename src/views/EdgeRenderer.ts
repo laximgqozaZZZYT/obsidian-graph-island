@@ -93,6 +93,8 @@ export interface EdgeDrawConfig {
   coordinateSystem?: "cartesian" | "polar";
   /** エッジ種別ごとにレイヤー分離描画 — 種別別に描画パスを分けて z-order を制御 */
   edgeLayerMode?: boolean;
+  /** エッジ重みラベル表示: 同一ペア間のエッジ本数を数値で表示 */
+  showEdgeWeightLabels?: boolean;
 }
 
 // Minimal position data needed for source/target
@@ -3349,6 +3351,43 @@ export function drawEdgeLabels(
     child.destroy();
   }
 
+  if (!cfg.showEdgeLabels && !cfg.showEdgeWeightLabels) return;
+
+  // --- エッジ重みラベル: 同一ペア間のエッジ本数を表示 ---
+  if (cfg.showEdgeWeightLabels) {
+    const pairCounts = buildPairCounts(edges);
+    // ペアごとに1回だけラベルを描く（重複除外セット）
+    const drawnPairs = new Set<string>();
+    const fillColor = cfg.isDark ? 0xcccccc : 0x444444;
+    for (const e of edges) {
+      if (shouldSkipEdge(e, cfg)) continue;
+      const key = [e.source, e.target].sort().join(":");
+      const count = pairCounts.get(key) ?? 1;
+      if (count <= 1 || drawnPairs.has(key)) continue;
+      drawnPairs.add(key);
+      const sp = resolvePos(e.source);
+      const tp = resolvePos(e.target);
+      if (!sp || !tp) continue;
+      const mx = (sp.x + tp.x) / 2;
+      const my = (sp.y + tp.y) / 2;
+      // 重みラベルは関係ラベルと重ならないようオフセット
+      const offsetY = cfg.showEdgeLabels ? -10 : 0;
+      const text = new CanvasText(String(count), {
+        fontSize: EDGE_LABEL_FONT_SIZE,
+        fill: fillColor,
+        fontFamily: "sans-serif",
+        fontWeight: "bold",
+      });
+      text.anchor.set(0.5, 0.5);
+      text.x = mx;
+      text.y = my + offsetY;
+      text.alpha = EDGE_LABEL_ALPHA;
+      text.resolution = EDGE_LABEL_RESOLUTION;
+      container.addChild(text);
+    }
+  }
+
+  // --- 通常のエッジラベル（関係名/種別名） ---
   if (!cfg.showEdgeLabels) return;
 
   // Collect labelable edges (skip hidden types and those without a label)

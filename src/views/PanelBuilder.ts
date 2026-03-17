@@ -160,6 +160,14 @@ export interface PanelState {
   focusMode: boolean;
   /** フォーカス中のノードID (null = フォーカスなし) */
   focusNodeId: string | null;
+  /** ビュー同期: 他の Graph Island ビューとパネル状態を同期 */
+  syncViewId: string | null;
+  /** キャンバス上の注釈リスト */
+  annotations: { nodeId: string; text: string; x: number; y: number }[];
+  /** ブックマークされたノードIDリスト */
+  bookmarkedNodes: string[];
+  /** エッジ重みラベル表示（同一ペア間のエッジ本数） */
+  showEdgeWeightLabels: boolean;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -269,6 +277,10 @@ export function createDefaultPanel(): PanelState {
     edgeLayerMode: false,
     focusMode: false,
     focusNodeId: null,
+    syncViewId: null,
+    annotations: [],
+    bookmarkedNodes: [],
+    showEdgeWeightLabels: false,
   };
 }
 
@@ -334,6 +346,8 @@ export interface PanelContext {
   availableGroups: string[];
   /** All tag names found across nodes in the graph */
   availableTags: string[];
+  /** ノードIDごとの次数マップ（統計ダッシュボード用） */
+  degrees: Map<string, number>;
 }
 
 // ---------------------------------------------------------------------------
@@ -533,6 +547,9 @@ export function buildPanel(
   // Preset bar (quick-apply simple/analysis/creative presets)
   buildPresetBar(panelEl, cb);
 
+  // 統計ダッシュボード（プリセットバーの下に配置）
+  _buildStatsBar(panelEl, panel, ctx);
+
   // Build each tab
   buildFilterTab(filterTab, panel, ctx, cb);
   buildDisplayTab(displayTab, panel, ctx, cb);
@@ -594,6 +611,39 @@ function buildFilterTab(
       renderGroupList(list, panel, ctx, cb);
     });
   }, tHelp("help.groups"), false, "layers");
+
+  // --- ブックマークセクション ---
+  _buildBookmarkSection(filterTab, panel, ctx, cb);
+}
+
+// ---------------------------------------------------------------------------
+// Bookmark section builder (Feature L)
+// ---------------------------------------------------------------------------
+function _buildBookmarkSection(
+  tabEl: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("section.bookmarks"), (body) => {
+    if (panel.bookmarkedNodes.length === 0) {
+      body.createEl("p", { cls: "gi-hint", text: t("bookmark.empty") });
+      return;
+    }
+    const list = body.createDiv({ cls: "gi-bookmark-list" });
+    for (const nodeId of panel.bookmarkedNodes) {
+      const row = list.createDiv({ cls: "gi-bookmark-item" });
+      // ノード名ラベル — クリックでジャンプ
+      const label = row.createEl("span", { cls: "gi-bookmark-label", text: nodeId });
+      label.addEventListener("click", () => { cb.jumpToNode(nodeId); });
+      // 削除ボタン
+      const removeBtn = row.createEl("span", { cls: "gi-bookmark-remove" });
+      setIcon(removeBtn, "x");
+      removeBtn.setAttribute("aria-label", t("bookmark.remove"));
+      removeBtn.addEventListener("click", () => {
+        panel.bookmarkedNodes = panel.bookmarkedNodes.filter(id => id !== nodeId);
+        cb.markDirty();
+        cb.rebuildPanel();
+      });
+    }
+  }, undefined, false, "star");
 }
 
 // ---------------------------------------------------------------------------
@@ -701,6 +751,7 @@ function _buildEdgeDisplaySection(
     addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); cb.rebuildPanel(); }, t("desc.edgeColor"));
     addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
     addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); }, t("desc.edgeLabels"));
+    addToggle(body, t("display.edgeWeightLabels"), panel.showEdgeWeightLabels, (v) => { panel.showEdgeWeightLabels = v; cb.markDirty(); }, t("desc.edgeWeightLabels"));
     addToggle(body, t("display.edgeLayerMode"), panel.edgeLayerMode, (v) => { panel.edgeLayerMode = v; cb.markDirty(); }, t("desc.edgeLayerMode"));
     addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); }, t("desc.links"));
     addToggle(body, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); }, t("desc.sharedTags"));
@@ -963,6 +1014,11 @@ function _buildGraphSyncSection(
       panel.syncWithEditor = v;
       cb.markDirty(); // Persist setting
     }, t("desc.syncWithEditor"));
+    // ビュー同期トグル: 他の Graph Island ビューとパネル状態を同期
+    addToggle(body, t("display.syncView"), panel.syncViewId !== null, (v) => {
+      panel.syncViewId = v ? crypto.randomUUID() : null;
+      cb.markDirty();
+    }, t("desc.syncView"));
     addSlider(body, t("display.localGraphHops"), 1, 5, 1, panel.localGraphHops, (v) => {
       panel.localGraphHops = v;
       if (panel.localGraphCenter) cb.doRenderKeepPanel();
@@ -1670,6 +1726,56 @@ function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
       showToast(t("toast.presetApplied").replace("{name}", t(p.labelKey)));
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Statistics dashboard bar (Feature M)
+// ---------------------------------------------------------------------------
+function _buildStatsBar(
+  container: HTMLElement, panel: PanelState, ctx: PanelContext,
+): void {
+  const bar = container.createDiv({ cls: "gi-stats-bar" });
+
+  // コンパクト表示行
+  const summary = bar.createDiv({ cls: "gi-stats-summary" });
+  const nodeCount = ctx.pixiNodes.size;
+  const edgeCount = ctx.edgeCount;
+  // グループ数: collapsedGroups にあるグループ
+  const groupCount = panel.collapsedGroups.size;
+
+  // 平均次数の計算
+  let totalDegree = 0;
+  let maxDeg = 0;
+  let maxHubName = "-";
+  for (const [id, pn] of ctx.pixiNodes) {
+    const deg = ctx.degrees.get(id) ?? 0;
+    totalDegree += deg;
+    if (deg > maxDeg) {
+      maxDeg = deg;
+      maxHubName = pn.data.label || id;
+    }
+  }
+  const avgDegree = nodeCount > 0 ? (totalDegree / nodeCount).toFixed(1) : "0";
+
+  summary.createEl("span", { cls: "gi-stats-item", text: `${t("stats.nodes")}: ${nodeCount}` });
+  summary.createEl("span", { cls: "gi-stats-item", text: `${t("stats.edges")}: ${edgeCount}` });
+
+  // 展開トグル
+  const toggle = summary.createEl("span", { cls: "gi-stats-toggle" });
+  setIcon(toggle, "chevron-down");
+
+  // 詳細行（初期非表示）
+  const detail = bar.createDiv({ cls: "gi-stats-detail" });
+  detail.style.display = "none";
+  detail.createEl("span", { cls: "gi-stats-item", text: `${t("stats.groups")}: ${groupCount}` });
+  detail.createEl("span", { cls: "gi-stats-item", text: `${t("stats.avgDegree")}: ${avgDegree}` });
+  detail.createEl("span", { cls: "gi-stats-item", text: `${t("stats.maxHub")}: ${maxHubName}` });
+
+  toggle.addEventListener("click", () => {
+    const isHidden = detail.style.display === "none";
+    detail.style.display = isHidden ? "" : "none";
+    setIcon(toggle, isHidden ? "chevron-up" : "chevron-down");
+  });
 }
 
 // ---------------------------------------------------------------------------
