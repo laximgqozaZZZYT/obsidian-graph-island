@@ -15,7 +15,7 @@ import { computeNodeDegrees } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
-import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
+import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL, createDefaultPanel } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
@@ -99,7 +99,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private ac: AbortController | null = null;
   private statusEl: HTMLElement | null = null;
   private zoomIndicatorEl: HTMLElement | null = null;
-  private panel: PanelState = { ...JSON.parse(JSON.stringify(DEFAULT_PANEL)), collapsedGroups: new Set<string>() };
+  private panel: PanelState = createDefaultPanel();
   private panelEl: HTMLElement | null = null;
   private simulation: Simulation<GraphNode, GraphEdge> | null = null;
   private highlightedNodeId: string | null = null;
@@ -3006,19 +3006,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Execute the reset-panel action: restore defaults and re-render. */
   private _buildResetPanelCallback(): void {
     const s = this.plugin.settings;
+    // createDefaultPanel() returns fresh mutable instances — no shared-reference risk
     Object.assign(this.panel, {
-      ...DEFAULT_PANEL,
-      // Must deep-copy mutable defaults — spread shares references with DEFAULT_PANEL
-      collapsedGroups: new Set<string>(),
-      groups: [],
-      directionalGravityRules: [],
-      commonQueries: [],
-      cardinalityRules: [],
-      nodeShapeRules: DEFAULT_PANEL.nodeShapeRules.map(r => ({ ...r })),
-      cardDisplayConfig: { ...DEFAULT_PANEL.cardDisplayConfig, fields: [] },
-      donutDisplayConfig: { ...DEFAULT_PANEL.donutDisplayConfig },
-      clusterGravity: { ...DEFAULT_PANEL.clusterGravity },
-      groupByRules: null,
+      ...createDefaultPanel(),
       sortRules: [...(s.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r })),
       clusterGroupRules: [...(s.defaultClusterGroupRules ?? [])].map(r => ({ ...r })),
       nodeRules: [...(s.defaultNodeRules ?? [])].map(r => ({ ...r })),
