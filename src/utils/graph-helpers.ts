@@ -26,6 +26,56 @@ export function buildAdj(gd: GraphData): Map<string, Set<string>> {
   return adj;
 }
 
+// ---------------------------------------------------------------------------
+// BFS utilities — consolidated from 5 duplicate implementations
+// ---------------------------------------------------------------------------
+
+/** BFS N-hop neighbor set from a starting node. Returns Set of reachable node IDs (including start). */
+export function bfsNeighborSet(adj: Map<string, Set<string>>, startId: string, maxHops: number): Set<string> {
+  const visited = new Set<string>();
+  visited.add(startId);
+  let frontier = [startId];
+  for (let hop = 0; hop < maxHops && frontier.length > 0; hop++) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      const nb = adj.get(id);
+      if (!nb) continue;
+      for (const n of nb) {
+        if (!visited.has(n)) { visited.add(n); next.push(n); }
+      }
+    }
+    frontier = next;
+  }
+  return visited;
+}
+
+/** BFS shortest path between two nodes. Returns node ID array (start→end), or empty if unreachable. */
+export function bfsShortestPath(adj: Map<string, Set<string>>, startId: string, endId: string): string[] {
+  if (startId === endId) return [startId];
+  const prev = new Map<string, string>();
+  const visited = new Set<string>([startId]);
+  const queue = [startId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const nb = adj.get(current);
+    if (!nb) continue;
+    for (const n of nb) {
+      if (visited.has(n)) continue;
+      visited.add(n);
+      prev.set(n, current);
+      if (n === endId) {
+        // Reconstruct path
+        const path: string[] = [endId];
+        let cursor = endId;
+        while (prev.has(cursor)) { cursor = prev.get(cursor)!; path.unshift(cursor); }
+        return path;
+      }
+      queue.push(n);
+    }
+  }
+  return []; // Unreachable
+}
+
 export function cssColorToHex(css: string): number {
   if (css.startsWith("#")) {
     return parseInt(css.slice(1), 16);
