@@ -247,11 +247,11 @@ export const DEFAULT_PANEL: PanelState = {
   edgeCardinalityMode: "none" as EdgeCardinalityMode,
   cardinalityRules: [],
   cableBundleMode: "auto" as const,
-  cableTrunkWidth: 2,
-  cableTrunkAlpha: 0.85,
-  cableSpacing: 4,
-  cableFanWidth: 1,
-  cableFanAlpha: 0.45,
+  cableTrunkWidth: 12,
+  cableTrunkAlpha: 0,
+  cableSpacing: 14,
+  cableFanWidth: 2.5,
+  cableFanAlpha: 0.9,
   syncWithEditor: true,
   localGraphCenter: null,
   localGraphHops: 2,
@@ -711,19 +711,19 @@ function _buildCableDisplaySection(
 
     // Progressive disclosure: show sub-settings only when cables can be active
     if (panel.cableBundleMode !== "never") {
-      addSlider(body, t("display.cableTrunkWidth"), 1, 6, 0.5, panel.cableTrunkWidth, (v) => {
+      addSlider(body, t("display.cableTrunkWidth"), 2, 24, 1, panel.cableTrunkWidth, (v) => {
         panel.cableTrunkWidth = v;
         cb.markDirty();
       }, t("desc.cableTrunkWidth"));
-      addSlider(body, t("display.cableTrunkAlpha"), 0.1, 1, 0.05, panel.cableTrunkAlpha, (v) => {
+      addSlider(body, t("display.cableTrunkAlpha"), 0, 1, 0.05, panel.cableTrunkAlpha, (v) => {
         panel.cableTrunkAlpha = v;
         cb.markDirty();
       }, t("desc.cableTrunkAlpha"));
-      addSlider(body, t("display.cableSpacing"), 1, 12, 1, panel.cableSpacing, (v) => {
+      addSlider(body, t("display.cableSpacing"), 2, 30, 1, panel.cableSpacing, (v) => {
         panel.cableSpacing = v;
         cb.markDirty();
       }, t("desc.cableSpacing"));
-      addSlider(body, t("display.cableFanWidth"), 0.3, 3, 0.1, panel.cableFanWidth, (v) => {
+      addSlider(body, t("display.cableFanWidth"), 0.5, 6, 0.5, panel.cableFanWidth, (v) => {
         panel.cableFanWidth = v;
         cb.markDirty();
       }, t("desc.cableFanWidth"));
