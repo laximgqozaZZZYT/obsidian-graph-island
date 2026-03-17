@@ -77,6 +77,7 @@ export interface PanelState {
   dataviewQuery: string;
   timelineKey: string;
   showEdgeLabels: boolean;
+  edgeLabelPlacement: "center" | "offset" | "smart";
   showMinimap: boolean;
   groupBy: string;
   /** Editable rules array for the groupBy multi-rule editor.
@@ -178,6 +179,8 @@ export interface PanelState {
   edgeDirectionFilter: "all" | "bidirectional" | "unidirectional";
   /** Visual indicator for bidirectional edges (thicker + higher alpha) */
   showBidirectionalIndicator: boolean;
+  /** Show pathfinder overlay when start+end nodes are selected */
+  showPathfinderOverlay: boolean;
   /** 凡例オーバーレイ表示 */
   showLegend: boolean;
   /** Show off-screen node count indicator badge */
@@ -192,6 +195,8 @@ export interface PanelState {
   showGraphStats: boolean;
   /** Show ancestry breadcrumb trail from hub to hovered node */
   showAncestryBreadcrumb: boolean;
+  /** Additional metadata fields to show below node label (comma-separated frontmatter keys) */
+  nodeSubLabelFields: string;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -257,6 +262,7 @@ export function createDefaultPanel(): PanelState {
     dataviewQuery: "",
     timelineKey: "date",
     showEdgeLabels: false,
+    edgeLabelPlacement: "center",
     showMinimap: true,
     groupBy: "none" as const,
     groupByRules: null,
@@ -309,6 +315,7 @@ export function createDefaultPanel(): PanelState {
     showEdgeCardinalityLabels: false,
     edgeDirectionFilter: "all" as const,
     showBidirectionalIndicator: false,
+    showPathfinderOverlay: true,
     showLegend: true,
     showOutOfBoundsIndicator: false,
     searchHistory: [],
@@ -316,6 +323,7 @@ export function createDefaultPanel(): PanelState {
     highlightMissingNeighbors: false,
     showGraphStats: false,
     showAncestryBreadcrumb: false,
+    nodeSubLabelFields: "",
   };
 }
 
@@ -779,6 +787,10 @@ function _buildNodeDisplaySection(
     }, t("desc.nodeColorMode"));
     addSlider(body, t("display.nodeSize"), 2, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRenderKeepPanel(); }, t("desc.nodeSize"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
+    addTextInput(body, t("display.nodeSubLabelFields"), panel.nodeSubLabelFields ?? "", "e.g. category, date, node_type", (v) => {
+      panel.nodeSubLabelFields = v;
+      cb.doRenderKeepPanel();
+    });
     addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.applyHover(); cb.markDirty(); }, t("desc.hoverHops"));
     // フォーカスモード: クリックでハイライトを固定
     addToggle(body, t("display.focusMode"), panel.focusMode, (v) => {
@@ -882,6 +894,14 @@ function _buildEdgeDisplaySection(
     addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); cb.rebuildPanel(); }, t("desc.edgeColor"));
     addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
     addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); }, t("desc.edgeLabels"));
+    addSelect(body, t("display.edgeLabelPlacement"), [
+      { value: "center", label: t("display.edgeLabelCenter") },
+      { value: "offset", label: t("display.edgeLabelOffset") },
+      { value: "smart", label: t("display.edgeLabelSmart") },
+    ], panel.edgeLabelPlacement ?? "center", (v) => {
+      panel.edgeLabelPlacement = v as "center" | "offset" | "smart";
+      cb.markDirty();
+    });
     addToggle(body, t("display.edgeWeightLabels"), panel.showEdgeWeightLabels, (v) => { panel.showEdgeWeightLabels = v; cb.markDirty(); }, t("desc.edgeWeightLabels"));
     addToggle(body, t("display.edgeCardinalityLabels"), panel.showEdgeCardinalityLabels ?? false, (v) => { panel.showEdgeCardinalityLabels = v; cb.markDirty(); }, t("desc.edgeCardinalityLabels"));
     addToggle(body, t("display.edgeLayerMode"), panel.edgeLayerMode, (v) => { panel.edgeLayerMode = v; cb.markDirty(); }, t("desc.edgeLayerMode"));
@@ -894,6 +914,7 @@ function _buildEdgeDisplaySection(
       cb.markDirty();
     }, t("desc.edgeDirectionFilter"));
     addToggle(body, t("display.bidirectionalIndicator"), panel.showBidirectionalIndicator, (v) => { panel.showBidirectionalIndicator = v; cb.markDirty(); }, t("desc.bidirectionalIndicator"));
+    addToggle(body, t("display.showPathfinderOverlay"), panel.showPathfinderOverlay, (v) => { panel.showPathfinderOverlay = v; cb.markDirty(); }, t("desc.showPathfinderOverlay"));
     addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); }, t("desc.links"));
     addToggle(body, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); }, t("desc.sharedTags"));
     addToggle(body, t("display.sharedCategory"), panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); }, t("desc.sharedCategory"));

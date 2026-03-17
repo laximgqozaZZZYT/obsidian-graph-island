@@ -214,6 +214,13 @@ export class LabelManager {
         pn.tagLabel.visible = zoom >= tagLabelZoomMin;
         if (pn.tagLabel.visible) pn.tagLabel.scale.set(counterScale);
       }
+      // --- Sub-label LOD (same threshold as tagLabel) ---
+      if (pn.subLabels) {
+        for (const sl of pn.subLabels) {
+          sl.visible = zoom >= tagLabelZoomMin;
+          if (sl.visible) sl.scale.set(counterScale);
+        }
+      }
 
       if (!pn.label) continue;
 
@@ -260,6 +267,7 @@ export class LabelManager {
         pn.label.alpha = 0;
         pn.labelWasVisible = false;
         if (pn.tagLabel) pn.tagLabel.visible = false;
+        if (pn.subLabels) for (const sl of pn.subLabels) sl.visible = false;
         continue;
       }
 
@@ -353,6 +361,7 @@ export class LabelManager {
         pn.label!.alpha = 0;
         pn.labelWasVisible = false;
         if (pn.tagLabel) pn.tagLabel.visible = false;
+        if (pn.subLabels) for (const sl of pn.subLabels) sl.visible = false;
         continue;
       }
       pn.label!.visible = true;

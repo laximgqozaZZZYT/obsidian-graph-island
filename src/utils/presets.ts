@@ -39,6 +39,7 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "highlightMissingNeighbors",
   "showGraphStats",
   "showAncestryBreadcrumb",
+  "showPathfinderOverlay",
 ];
 
 /** Fields that should be number */
@@ -59,6 +60,7 @@ const STRING_FIELDS: (keyof PanelState)[] = [
   "gridStyle", "gridLabelPlacement", "edgeCardinalityMode",
   "cableBundleMode",
   "orphanClusterField",
+  "nodeSubLabelFields",
 ];
 
 /** Fields that should be arrays */
@@ -77,6 +79,7 @@ const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   edgeCardinalityMode: ["none", "crowsfoot"] as const,
   cableBundleMode: ["auto", "always", "never"] as const,
   edgeDirectionFilter: ["all", "bidirectional", "unidirectional"] as const,
+  edgeLabelPlacement: ["center", "offset", "smart"] as const,
   nodeColorMode: ["default", "category", "heatmap", "community"] as const,
   activeTab: ["filter", "display", "layout", "settings"] as const,
 };

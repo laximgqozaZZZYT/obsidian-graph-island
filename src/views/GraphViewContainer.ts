@@ -138,6 +138,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private barLabelContainer: CanvasContainer | null = null;
   /** ビジュアルリンクエディタ: プレビュー線描画用 */
   private linkPreviewGfx: CanvasGraphics | null = null;
+  /** Pathfinder overlay graphics (drawn on top of arrows) */
+  private pathfinderGraphics: CanvasGraphics | null = null;
+  /** Pathfinder path-length label */
+  private pathfinderLabel: CanvasText | null = null;
+  /** Frame counter for pathfinder pulse animation */
+  private _pathfinderFrame = 0;
   private pixiNodes: Map<string, PixiNode> = new Map();
   private canvasWrap: HTMLElement | null = null;
   private graphEdges: GraphEdge[] = [];
@@ -1454,6 +1460,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.addChild(arrowGfx);
     this.arrowGraphics = arrowGfx;
 
+    // Pathfinder overlay layer — ON TOP of arrows for maximum visibility
+    const pfGfx = new CanvasGraphics();
+    world.addChild(pfGfx);
+    this.pathfinderGraphics = pfGfx;
+
     // Bar label container — ON TOP of nodes/arrows so bar text is always readable
     const barLabelCont = new CanvasContainer();
     world.addChild(barLabelCont);
@@ -1799,6 +1810,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return false;
   }
 
+  getNodeSubLabelFields(): string { return this.panel.nodeSubLabelFields ?? ""; }
   getNodeDisplayMode() { return this.panel.nodeDisplayMode ?? "node"; }
   getCardDisplayConfig() { return this.panel.cardDisplayConfig ?? { fields: [], maxWidth: 120, showIcon: false }; }
   getDonutDisplayConfig() { return this.panel.donutDisplayConfig ?? { innerRadius: 0.6 }; }
@@ -1988,6 +2000,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.pathfinderPath = null;
     this.pathfinderNodeSet = null;
     this.pathfinderEdgeSet = null;
+    if (this.pathfinderGraphics) this.pathfinderGraphics.clear();
+    if (this.pathfinderLabel) { this.pathfinderLabel.destroy(); this.pathfinderLabel = null; }
+    this._pathfinderFrame = 0;
     this.markDirty(true);
   }
 
@@ -2657,6 +2672,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.highlightEdgeNonMatchAlpha = edgeRt.highlightEdgeNonMatchAlpha;
     cfg.isDark = this.isDarkTheme();
     cfg.showEdgeLabels = this.panel.showEdgeLabels;
+    cfg.edgeLabelPlacement = this.panel.edgeLabelPlacement;
     cfg.edgeLayerMode = this.panel.edgeLayerMode;
     cfg.showArrows = this.panel.showArrows;
     cfg.nodeRadii = (this.panel.showArrows || this.panel.edgeCardinalityMode !== "none") ? this.getCachedNodeRadii() : null;
@@ -2683,21 +2699,89 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return cfg;
   }
 
-  /** Draw the pathfinder path overlay on top of edges. */
+  /** Draw the pathfinder path overlay on a dedicated graphics layer.
+   *  Renders a double-stroke glow (wide translucent + narrow solid) in cyan,
+   *  with a gentle alpha pulse animation and a hop-count label at midpoint. */
   private _drawPathfinderOverlay() {
-    if (this.pathfinderPath && this.pathfinderPath.length > 1) {
-      const g = this.edgeGraphics!;
-      const pathColor = 0x22d3ee; // cyan
-      g.lineStyle(3, pathColor, 0.9);
-      for (let i = 0; i < this.pathfinderPath.length - 1; i++) {
-        const a = this.pixiNodes.get(this.pathfinderPath[i]);
-        const b = this.pixiNodes.get(this.pathfinderPath[i + 1]);
-        if (a && b) {
-          g.moveTo(a.data.x, a.data.y);
-          g.lineTo(b.data.x, b.data.y);
-        }
+    const g = this.pathfinderGraphics;
+    if (g) g.clear();
+    // Remove old label
+    if (this.pathfinderLabel) {
+      this.pathfinderLabel.destroy();
+      this.pathfinderLabel = null;
+    }
+
+    if (!(this.panel.showPathfinderOverlay ?? true)) return;
+    if (!this.pathfinderPath || this.pathfinderPath.length < 2) return;
+    if (!g) return;
+
+    const PATH_COLOR = 0x00CED1; // dark turquoise / cyan
+    this._pathfinderFrame++;
+    // Gentle alpha oscillation: 0.35..0.55 for glow, 0.75..0.95 for solid
+    const pulse = Math.sin(this._pathfinderFrame * 0.06) * 0.1;
+    const glowAlpha = 0.45 + pulse;
+    const solidAlpha = 0.85 + pulse;
+
+    // Collect segment positions
+    const segments: { ax: number; ay: number; bx: number; by: number }[] = [];
+    for (let i = 0; i < this.pathfinderPath.length - 1; i++) {
+      const a = this.pixiNodes.get(this.pathfinderPath[i]);
+      const b = this.pixiNodes.get(this.pathfinderPath[i + 1]);
+      if (a && b) {
+        segments.push({ ax: a.data.x, ay: a.data.y, bx: b.data.x, by: b.data.y });
       }
     }
+    if (segments.length === 0) return;
+
+    // Pass 1: wide glow stroke
+    g.lineStyle(8, PATH_COLOR, glowAlpha);
+    for (const s of segments) {
+      g.moveTo(s.ax, s.ay);
+      g.lineTo(s.bx, s.by);
+    }
+
+    // Pass 2: narrow solid stroke on top
+    g.lineStyle(3, PATH_COLOR, solidAlpha);
+    for (const s of segments) {
+      g.moveTo(s.ax, s.ay);
+      g.lineTo(s.bx, s.by);
+    }
+
+    // Draw node dots along the path
+    g.lineStyle(0);
+    for (const nodeId of this.pathfinderPath) {
+      const pn = this.pixiNodes.get(nodeId);
+      if (pn) {
+        g.beginFill(PATH_COLOR, solidAlpha);
+        g.drawCircle(pn.data.x, pn.data.y, 5);
+        g.endFill();
+      }
+    }
+
+    // Path length label at the midpoint segment
+    const midIdx = Math.floor(segments.length / 2);
+    const mid = segments[midIdx];
+    const mx = (mid.ax + mid.bx) / 2;
+    const my = (mid.ay + mid.by) / 2;
+    const hops = this.pathfinderPath.length - 1;
+    const label = new CanvasText(`${hops} hop${hops !== 1 ? "s" : ""}`, {
+      fontFamily: "Inter, sans-serif",
+      fontSize: 11,
+      fontWeight: "600",
+      fill: "#00CED1",
+    });
+    label.x = mx + 6;
+    label.y = my - 14;
+    // Counter-scale so label stays readable at any zoom
+    const ws = this.worldContainer?.scale.x ?? 1;
+    if (ws > 0) {
+      label.scale.x = 1 / ws;
+      label.scale.y = 1 / ws;
+    }
+    if (this.pathfinderGraphics?.parent) {
+      this.pathfinderGraphics.parent.addChild(label);
+    }
+    this.pathfinderLabel = label;
   }
 
   // =========================================================================

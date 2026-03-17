@@ -51,6 +51,8 @@ export interface EdgeDrawConfig {
   isDark: boolean;
   /** Show relation/type labels on edges */
   showEdgeLabels: boolean;
+  /** Edge label placement mode: center (midpoint), offset (perpendicular above), smart (collision-avoiding) */
+  edgeLabelPlacement?: "center" | "offset" | "smart";
   /** Show directional arrows on all edges */
   showArrows: boolean;
   /** Node ID → radius (for positioning arrows at node edge) */
@@ -3582,15 +3584,65 @@ export function drawEdgeLabels(
   }
 
   const fillColor = cfg.isDark ? 0xcccccc : 0x444444;
+  const placement = cfg.edgeLabelPlacement ?? "center";
+  const PERPENDICULAR_OFFSET = 8;
+  // For "smart" mode: track placed label bounding boxes to avoid collisions
+  const placedRects: { x: number; y: number; hw: number; hh: number }[] = [];
+  const SMART_LABEL_HW = 25; // estimated half-width of a label
+  const SMART_LABEL_HH = 7;  // estimated half-height of a label
+  const SMART_SHIFT_STEP = 12; // shift distance per collision attempt
+  const SMART_MAX_SHIFTS = 4;  // maximum shift attempts
 
   for (const { edge: e, label } of labelable) {
     const sp = resolvePos(e.source);
     const tp = resolvePos(e.target);
     if (!sp || !tp) continue;
 
-    // Place label at edge midpoint
+    // Base position: edge midpoint
     const mx = (sp.x + tp.x) / 2;
     const my = (sp.y + tp.y) / 2;
+
+    let labelX = mx;
+    let labelY = my;
+
+    if (placement === "offset" || placement === "smart") {
+      // Compute perpendicular offset (above edge)
+      const dx = tp.x - sp.x;
+      const dy = tp.y - sp.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len; // perpendicular normal
+      const ny = dx / len;
+      labelX = mx + nx * PERPENDICULAR_OFFSET;
+      labelY = my + ny * PERPENDICULAR_OFFSET;
+    }
+
+    if (placement === "smart") {
+      // Simple collision avoidance: check against previously placed labels
+      // and shift along perpendicular if overlapping
+      const dx = tp.x - sp.x;
+      const dy = tp.y - sp.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+
+      for (let attempt = 0; attempt < SMART_MAX_SHIFTS; attempt++) {
+        let collides = false;
+        for (const rect of placedRects) {
+          if (
+            Math.abs(labelX - rect.x) < SMART_LABEL_HW + rect.hw &&
+            Math.abs(labelY - rect.y) < SMART_LABEL_HH + rect.hh
+          ) {
+            collides = true;
+            break;
+          }
+        }
+        if (!collides) break;
+        // Shift further along perpendicular
+        labelX += nx * SMART_SHIFT_STEP;
+        labelY += ny * SMART_SHIFT_STEP;
+      }
+      placedRects.push({ x: labelX, y: labelY, hw: SMART_LABEL_HW, hh: SMART_LABEL_HH });
+    }
 
     const text = new CanvasText(label, {
       fontSize: EDGE_LABEL_FONT_SIZE,
@@ -3598,8 +3650,8 @@ export function drawEdgeLabels(
       fontFamily: "sans-serif",
     });
     text.anchor.set(0.5, 0.5);
-    text.x = mx;
-    text.y = my;
+    text.x = labelX;
+    text.y = labelY;
     text.alpha = EDGE_LABEL_ALPHA;
     text.resolution = EDGE_LABEL_RESOLUTION;
 

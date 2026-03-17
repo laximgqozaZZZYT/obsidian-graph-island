@@ -31,6 +31,8 @@ export interface PixiNode {
   labelWasVisible: boolean;
   /** True when label was force-shown by hover (needs restore on hover-clear). */
   hoverForcedLabel: boolean;
+  /** Sub-labels showing additional metadata fields below the node */
+  subLabels: CanvasText[];
 }
 
 // ---------------------------------------------------------------------------

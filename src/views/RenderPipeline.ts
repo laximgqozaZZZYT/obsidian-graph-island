@@ -135,6 +135,12 @@ const TAG_LABEL_PAD_X = 4;
 const TAG_LABEL_PAD_Y = 1;
 /** Tag label background alpha dampen relative to main label bg alpha */
 const TAG_BG_ALPHA_DAMPEN = 0.7;
+/** Sub-label font size (px) */
+const SUB_LABEL_FONT_SIZE = 9;
+/** Sub-label alpha opacity */
+const SUB_LABEL_ALPHA = 0.6;
+/** Sub-label vertical gap between each sub-label (px) */
+const SUB_LABEL_GAP = 2;
 
 /** Card icon size ratio relative to header height */
 const CARD_ICON_SIZE_RATIO = 0.55;
@@ -274,6 +280,10 @@ export interface RenderHost {
   getBookmarkedNodeIds?(): Set<string>;
   /** 未接続同タグノードIDセットを取得 */
   getMissingNeighborNodeIds?(): Set<string> | null;
+  /** Resolve a frontmatter property value for a node */
+  getNodeProperty?(nodeId: string, key: string): string | undefined;
+  /** Get the configured sub-label field names (comma-separated string) */
+  getNodeSubLabelFields?(): string;
 }
 
 // ---------------------------------------------------------------------------
@@ -1348,10 +1358,14 @@ export class RenderPipeline {
     nodeColor: (n: GraphNode) => number
   ) {
     const pixiNodes = this.host.getPixiNodes();
-    // Clean up leader lines and tag labels before clearing
+    // Clean up leader lines, tag labels, and sub-labels before clearing
     for (const pn of pixiNodes.values()) {
       if (pn.leaderLine) { pn.leaderLine.destroy(); pn.leaderLine = null; }
       if (pn.tagLabel) { pn.tagLabel.destroy(); pn.tagLabel = null; }
+      if (pn.subLabels) {
+        for (const sl of pn.subLabels) sl.destroy();
+        pn.subLabels = [];
+      }
     }
     pixiNodes.clear();
     this.cancelDeferredBatch();
@@ -1499,11 +1513,49 @@ export class RenderPipeline {
       }
     }
 
+    // --- Sub-labels: additional metadata fields below node ---
+    const subLabels: CanvasText[] = [];
+    const subFieldsRaw = this.host.getNodeSubLabelFields?.() ?? "";
+    if (subFieldsRaw && label && !isSuperNode) {
+      const srt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+      const fields = subFieldsRaw.split(",").map(s => s.trim()).filter(Boolean);
+      // Stack sub-labels below tagLabel (or below node if no tagLabel)
+      let yOffset = tagLabel
+        ? r + (srt.tagLabelOffset ?? 4) + (srt.tagLabelFontSize ?? 9) + SUB_LABEL_GAP
+        : r + (srt.tagLabelOffset ?? 4);
+      for (const field of fields) {
+        // Resolve via host.getNodeProperty if available, else fall back to meta
+        const val = this.host.getNodeProperty
+          ? this.host.getNodeProperty(n.id, field)
+          : (n.meta?.[field] !== undefined && n.meta?.[field] !== null ? String(n.meta[field]) : undefined);
+        if (!val) continue;
+        const subLabel = new CanvasText(val, {
+          fontSize: SUB_LABEL_FONT_SIZE,
+          fill: this.host.isDarkTheme() ? 0xbbbbbb : 0x555555,
+          fontWeight: "400",
+          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+        });
+        subLabel.alpha = SUB_LABEL_ALPHA;
+        subLabel.bgColor = srt.labelBgColor;
+        subLabel.bgAlpha = (srt.labelBgAlpha ?? 0.85) * TAG_BG_ALPHA_DAMPEN;
+        subLabel.bgPadX = TAG_LABEL_PAD_X;
+        subLabel.bgPadY = TAG_LABEL_PAD_Y;
+        subLabel.cornerRadius = srt.labelHaloCornerRadius ?? null;
+        subLabel.anchor.set(0.5, 0);
+        subLabel.x = 0;
+        subLabel.y = yOffset;
+        subLabel.visible = false; // LOD-gated same as tagLabel
+        container.addChild(subLabel);
+        subLabels.push(subLabel);
+        yOffset += SUB_LABEL_FONT_SIZE + SUB_LABEL_GAP;
+      }
+    }
+
     world.addChild(container);
 
     const pixiNodes = this.host.getPixiNodes();
     pixiNodes.set(n.id, {
-      data: n, gfx: container, circle, label, tagLabel,
+      data: n, gfx: container, circle, label, tagLabel, subLabels,
       hoverLabel: null, leaderLine: null, radius: r, color, held: false, sortRank: -1,
       priorityScore: -1, minShowZoom: 1.0, labelWasVisible: false, hoverForcedLabel: false,
     });
