@@ -62,9 +62,9 @@ interface EncData {
 /** Minimum extra padding beyond node radius for the outline.
  *  These are rendering constants — not user-facing tuning parameters.
  *  They affect hull geometry, not layout behavior. */
-const OUTLINE_PAD_MIN = 4;
+const OUTLINE_PAD_MIN = 10;
 /** Padding scales with node radius: pad = max(MIN, radius × factor) */
-const OUTLINE_PAD_FACTOR = 0.5;
+const OUTLINE_PAD_FACTOR = 0.8;
 /** Number of sample points around each node circle for hull generation */
 const HULL_SAMPLES = 12;
 
@@ -88,18 +88,22 @@ const LABEL_OFFSET_DEFAULT = 8;
 /** Capsule end-cap curve factor (scales beyond 1.0 for rounder ends) */
 const CAPSULE_CURVE_FACTOR = 1.1;
 
-/** Stroke alpha for non-overlapping enclosures */
-const STROKE_ALPHA_NO_OVERLAP = 0.6;
+/** Stroke alpha for non-overlapping enclosures — bold border like map boundaries */
+const STROKE_ALPHA_NO_OVERLAP = 0.85;
 /** Minimum stroke alpha for overlapping enclosures */
-const STROKE_ALPHA_OVERLAP_MIN = 0.35;
+const STROKE_ALPHA_OVERLAP_MIN = 0.5;
 /** Stroke alpha numerator for overlapping enclosures */
-const STROKE_ALPHA_OVERLAP_BASE = 0.55;
-/** Stroke line width for non-overlapping enclosures */
-const STROKE_WIDTH_NO_OVERLAP = 1.5;
+const STROKE_ALPHA_OVERLAP_BASE = 0.75;
+/** Stroke line width for non-overlapping enclosures — thick border for map-like appearance */
+const STROKE_WIDTH_NO_OVERLAP = 3.0;
 /** Stroke line width base for overlapping enclosures */
-const STROKE_WIDTH_OVERLAP_BASE = 2.5;
+const STROKE_WIDTH_OVERLAP_BASE = 3.5;
 /** Minimum stroke width for overlapping enclosures */
-const STROKE_WIDTH_OVERLAP_MIN = 2;
+const STROKE_WIDTH_OVERLAP_MIN = 2.5;
+/** Outer border width for double-line "map border" effect */
+const BORDER_OUTER_WIDTH = 5.0;
+/** Outer border alpha (darker, behind main stroke) */
+const BORDER_OUTER_ALPHA_FACTOR = 0.3;
 /** Size fade minimum fraction (large groups don't fully disappear) */
 const SIZE_FADE_MIN = 0.3;
 /** Fill alpha visibility threshold */
@@ -297,7 +301,24 @@ export function drawEnclosures(
       g.endFill();
     }
 
-    // Draw stroke
+    // Draw double-border: outer darker line + inner colored line (map-style boundary)
+    // Pass 1: outer border (dark, wider)
+    const outerAlpha = baseLineAlpha * BORDER_OUTER_ALPHA_FACTOR;
+    const isDark = (hex & 0xffffff) < 0x808080;
+    const outerColor = isDark ? 0x222222 : 0x000000;
+    g.lineStyle(BORDER_OUTER_WIDTH, outerColor, outerAlpha);
+    if (pts.length === 1) {
+      const p = pts[0];
+      const r = p.radius + outlinePad(p.radius, memberCount);
+      g.drawCircle(p.x, p.y, r);
+    } else if (pts.length === 2) {
+      const maxR = Math.max(pts[0].radius, pts[1].radius);
+      const r = maxR + outlinePad(maxR, memberCount);
+      drawCapsule(g, pts[0], pts[1], r);
+    } else {
+      drawSmoothHull(g, expanded);
+    }
+    // Pass 2: inner colored border
     g.lineStyle(lineWidth, hex, baseLineAlpha);
     if (pts.length === 1) {
       const p = pts[0];
