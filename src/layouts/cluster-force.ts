@@ -111,6 +111,8 @@ export interface GroupGuideEntry {
   guide: ArrangementGuide;
   centerX: number;
   centerY: number;
+  /** Group key — used to re-align guide centers after overlap resolution */
+  groupKey?: string;
 }
 
 export interface ClusterMetadata {
@@ -430,6 +432,21 @@ export function buildClusterForce(
 
   // Phase 5: Gap + overlap resolution
   resolveGapsAndOverlaps(targets, groups, allBars, clusterRadii, clusterCentroids, cfg, degrees);
+
+  // Phase 5b: Re-align guide centers after overlap resolution.
+  // resolveGapsAndOverlaps shifts group positions but doesn't update
+  // groupGuides[].centerX/centerY, causing guides to render at stale positions.
+  if (groupGuides) {
+    for (const entry of groupGuides) {
+      if (entry.groupKey) {
+        const updatedCenter = clusterCentroids.get(entry.groupKey);
+        if (updatedCenter) {
+          entry.centerX = updatedCenter.x;
+          entry.centerY = updatedCenter.y;
+        }
+      }
+    }
+  }
 
   // Assemble final metadata
   const timelineBars = allBars && allBars.length > 0 ? allBars : undefined;
@@ -988,6 +1005,7 @@ function _applyGroupOffsets(
   center: { x: number; y: number },
   result: ArrangementResult,
   acc: _OffsetAccumulator,
+  groupKey?: string,
 ): void {
   for (const n of members) {
     const off = result.offsets.get(n.id);
@@ -1016,7 +1034,7 @@ function _applyGroupOffsets(
     acc.allSeqEdges.push(...result.sequenceEdges);
   }
   if (result.guide) {
-    acc.groupGuides.push({ guide: result.guide, centerX: center.x, centerY: center.y });
+    acc.groupGuides.push({ guide: result.guide, centerX: center.x, centerY: center.y, groupKey });
   }
 }
 
@@ -1117,7 +1135,7 @@ function computeFlatTargets(
   };
   for (const key of groupKeys) {
     const members = groups.get(key)!;
-    _applyGroupOffsets(members, groupCenters.get(key)!, groupResults.get(key)!, acc);
+    _applyGroupOffsets(members, groupCenters.get(key)!, groupResults.get(key)!, acc, key);
   }
 
   // Route data for timeline arrangement (single-group case)
@@ -1550,7 +1568,7 @@ function _applyHierarchicalOffsets(
     if (childKeys.length === 1) {
       const members = groups.get(childKeys[0])!;
       const result = allGroupResults.get(childKeys[0])!;
-      _applyGroupOffsets(members, pCenter, result, acc);
+      _applyGroupOffsets(members, pCenter, result, acc, childKeys[0]);
       continue;
     }
 
@@ -1561,7 +1579,7 @@ function _applyHierarchicalOffsets(
     for (const ck of sorted) {
       const members = groups.get(ck);
       if (!members) continue;
-      _applyGroupOffsets(members, subCenters.get(ck)!, allGroupResults.get(ck)!, acc);
+      _applyGroupOffsets(members, subCenters.get(ck)!, allGroupResults.get(ck)!, acc, ck);
     }
   }
 }

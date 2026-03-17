@@ -100,7 +100,7 @@ export function timelineOffsetsV2(p: TimelineArrangementParams): ArrangementResu
   );
 
   // --- Step 4: timed ノードを配置 (X = 時間カラム, Y = スタック) ---
-  timelinePlaceTimedNodes(sortedTimed, timeIndexMap, effectiveSpacing, yStackSpacing, nodeSpacingMap, offsets);
+  timelinePlaceTimedNodes(sortedTimed, timeIndexMap, effectiveSpacing, yStackSpacing, nodeSpacingMap, offsets, detectedChains);
 
   // --- Step 5: untimed ノードをコンパクトグリッドに配置 ---
   timelinePlaceUntimedNodes(untimed, nTimedCols, effectiveSpacing, yStackSpacing, offsets);
@@ -282,7 +282,8 @@ function timelineComputeSpacing(
   return { effectiveSpacing, yStackSpacing, nTimedCols };
 }
 
-/** timed ノードを配置: X = 時間カラムインデックス, Y = カラム内の垂直スタック */
+/** timed ノードを配置: X = 時間カラムインデックス, Y = カラム内の垂直スタック。
+ *  チェーンノードは同一チェーン内で同じ Y 行に横並びで配置される。 */
 function timelinePlaceTimedNodes(
   sortedTimed: { node: GraphNode; value: string }[],
   timeIndexMap: Map<string, number>,
@@ -290,9 +291,26 @@ function timelinePlaceTimedNodes(
   yStackSpacing: number,
   nodeSpacingMap: Map<string, number> | undefined,
   offsets: Map<string, { dx: number; dy: number }>,
+  detectedChains?: string[][],
 ): void {
+  // Build chain membership lookup: nodeId → chainIndex
+  const nodeChainIndex = new Map<string, number>();
+  if (detectedChains) {
+    for (let ci = 0; ci < detectedChains.length; ci++) {
+      for (const nodeId of detectedChains[ci]) {
+        nodeChainIndex.set(nodeId, ci);
+      }
+    }
+  }
+
+  // Count how many non-chain timed nodes exist (to determine Y row offset for chains)
+  // Strategy: non-chain nodes use column-stack as before.
+  // Chain nodes: each chain gets a dedicated Y row below the non-chain nodes.
   const columnStack = new Map<number, number>();
+
+  // First pass: place non-chain timed nodes
   for (const { node, value } of sortedTimed) {
+    if (nodeChainIndex.has(node.id)) continue; // skip chain nodes
     const ti = timeIndexMap.get(value)!;
     const stackIdx = columnStack.get(ti) ?? 0;
     columnStack.set(ti, stackIdx + 1);
@@ -301,6 +319,31 @@ function timelinePlaceTimedNodes(
       dx: ti * effectiveSpacing,
       dy: stackIdx * yStackSpacing * ns,
     });
+  }
+
+  // Determine the max stack depth used by non-chain nodes to place chains below
+  let maxNonChainStack = 0;
+  for (const count of columnStack.values()) {
+    if (count > maxNonChainStack) maxNonChainStack = count;
+  }
+
+  // Second pass: place chain nodes — each chain gets its own Y row
+  if (detectedChains && detectedChains.length > 0) {
+    for (let ci = 0; ci < detectedChains.length; ci++) {
+      const chain = detectedChains[ci];
+      const chainRowY = (maxNonChainStack + ci) * yStackSpacing;
+      for (const nodeId of chain) {
+        // Find the entry in sortedTimed to get the timeIndex
+        const entry = sortedTimed.find(e => e.node.id === nodeId);
+        if (!entry) continue;
+        const ti = timeIndexMap.get(entry.value)!;
+        const ns = getSpacing(nodeId, nodeSpacingMap);
+        offsets.set(nodeId, {
+          dx: ti * effectiveSpacing,
+          dy: chainRowY * ns,
+        });
+      }
+    }
   }
 }
 

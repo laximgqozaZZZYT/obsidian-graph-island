@@ -2363,8 +2363,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // clusterMeta may not exist if no cluster force is active
     const guides = this.clusterMeta?.groupGuides;
     if (!guides || guides.length === 0) {
-      // Fallback: try to draw guides from the last render's guide data
-      // (e.g., when no groupBy is set but coordinateLayout produces guides)
+      // No guides available — canvas cleared above, nothing more to draw.
+      // All valid arrangements (grid, timeline, concentric, etc.) produce
+      // groupGuides in clusterMeta when buildClusterForce succeeds.
       return;
     }
     const isDark = this.isDarkTheme();
