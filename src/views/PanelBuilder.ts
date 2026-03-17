@@ -460,14 +460,6 @@ export function buildPanel(
   function applySettingsFilter(query: string) {
     const q = query.toLowerCase().trim();
     for (const [, tabEl] of tabContainers) {
-      if (q) {
-        // Show all tabs when filtering
-        tabEl.style.display = "";
-      } else {
-        // Restore tab visibility based on active tab
-        tabEl.style.display = "";
-        tabEl.toggleClass("is-active", tabEl.hasClass("is-active"));
-      }
       // Filter setting items
       const items = tabEl.querySelectorAll(".setting-item");
       for (const item of Array.from(items)) {
@@ -491,10 +483,14 @@ export function buildPanel(
     }
     // When filtering, show all tabs; when not, restore original tab state
     if (q) {
-      for (const [, el] of tabContainers) el.style.display = "";
+      for (const [, el] of tabContainers) {
+        el.addClass("is-active"); // Override CSS display:none on non-active tabs
+        el.style.display = "";
+      }
     } else {
       for (const [id, el] of tabContainers) {
         el.toggleClass("is-active", id === panel.activeTab);
+        el.style.display = ""; // Clear any inline override
       }
     }
   }
