@@ -1228,6 +1228,34 @@ function buildManhattanPath(
   return [a, bend, b];
 }
 
+/** Horizontal-priority trunk path: go horizontal first, then vertical.
+ *  Used for horizontal/timeline arrangements where groups are side-by-side. */
+function buildHorizontalTrunkPath(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): { x: number; y: number }[] {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 1) return [a, b];
+  if (Math.abs(dy) < dist * 0.05) return [a, b]; // nearly horizontal
+  // Horizontal first, then vertical
+  return [a, { x: b.x, y: a.y }, b];
+}
+
+/** Vertical-priority trunk path: go vertical first, then horizontal.
+ *  Used for vertical arrangements where groups are stacked. */
+function buildVerticalTrunkPath(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): { x: number; y: number }[] {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 1) return [a, b];
+  if (Math.abs(dx) < dist * 0.05) return [a, b]; // nearly vertical
+  // Vertical first, then horizontal
+  return [a, { x: a.x, y: b.y }, b];
+}
+
 /**
  * Build a polar trunk path from point A to point B via arc + radial segments.
  * Route: A → radial to arcR → arc at arcR → radial to B
@@ -1381,12 +1409,17 @@ function buildTrunks(
       : { x: portB.x, y: portB.y };
 
     // Path: PortA → JunctionA → (middle segment) → JunctionB → PortB
-    // Polar uses arc+radial path; Cartesian uses Manhattan L-shape.
+    // Route style depends on coordinate system AND group arrangement pattern.
     const isPolar = cfg.coordinateSystem === "polar";
     const polarCenter = isPolar ? computePolarCenter(cfg) : undefined;
+    const arrangement = cfg.clusterArrangement ?? "grid";
     const middle = isPolar && polarCenter
       ? buildPolarTrunkPath(jctA, jctB, polarCenter)
-      : buildManhattanPath(jctA, jctB);
+      : arrangement === "horizontal" || arrangement === "timeline"
+        ? buildHorizontalTrunkPath(jctA, jctB)
+        : arrangement === "vertical"
+          ? buildVerticalTrunkPath(jctA, jctB)
+          : buildManhattanPath(jctA, jctB);
     const path: { x: number; y: number }[] = [];
     path.push(portA);
     if (Math.abs(jctA.x - portA.x) > 1 || Math.abs(jctA.y - portA.y) > 1) {
