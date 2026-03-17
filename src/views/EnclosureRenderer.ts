@@ -274,28 +274,19 @@ export function drawEnclosures(
     let labelX = 0, labelY = 0;
     let labelCenterX = 0, labelCenterY = 0;
 
-    // Draw filled shape first (behind stroke) when zoomed out
-    // Use radial gradient for a soft glow effect
+    // Draw solid fill (behind stroke) — flat color for clear map-style territories
     if (fillAlpha > FILL_ALPHA_VISIBILITY_THRESHOLD) {
       g.lineStyle(0);
+      g.beginFill(hex, fillAlpha);
       if (pts.length === 1) {
         const p0 = pts[0];
         const r = p0.radius + outlinePad(p0.radius, memberCount);
-        g.beginRadialFill(p0.x, p0.y, r, hex, hex, fillAlpha, fillAlpha * RADIAL_FILL_EDGE_ALPHA);
         g.drawCircle(p0.x, p0.y, r);
       } else if (pts.length === 2) {
-        const cx = (pts[0].x + pts[1].x) / 2;
-        const cy = (pts[0].y + pts[1].y) / 2;
         const maxR = Math.max(pts[0].radius, pts[1].radius);
         const r = maxR + outlinePad(maxR, memberCount);
-        const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) / 2 + r;
-        g.beginRadialFill(cx, cy, dist, hex, hex, fillAlpha, fillAlpha * RADIAL_FILL_EDGE_ALPHA);
         drawCapsule(g, pts[0], pts[1], r);
       } else {
-        const cx = (enc.minX + enc.maxX) / 2;
-        const cy = (enc.minY + enc.maxY) / 2;
-        const radius = Math.hypot(enc.maxX - enc.minX, enc.maxY - enc.minY) / 2;
-        g.beginRadialFill(cx, cy, radius, hex, hex, fillAlpha, fillAlpha * 0.1);
         drawSmoothHull(g, expanded);
       }
       g.endFill();
@@ -553,15 +544,12 @@ export function drawCapsule(g: CanvasGraphics, p0: Pt, p1: Pt, radius: number) {
   const p1out = { x: p1.x + ux * r * k, y: p1.y + uy * r * k };
   const p0out = { x: p0.x - ux * r * k, y: p0.y - uy * r * k };
 
+  // 直線的な国境スタイル — 角丸なしの矩形カプセル
   g.moveTo(a.x, a.y);
   g.lineTo(b.x, b.y);
-  const mid1r = { x: (b.x + c.x) / 2 + ux * r, y: (b.y + c.y) / 2 + uy * r };
-  g.quadraticCurveTo(p1out.x, p1out.y, mid1r.x, mid1r.y);
-  g.quadraticCurveTo(p1out.x, p1out.y, c.x, c.y);
+  g.lineTo(c.x, c.y);
   g.lineTo(d.x, d.y);
-  const mid0l = { x: (d.x + a.x) / 2 - ux * r, y: (d.y + a.y) / 2 - uy * r };
-  g.quadraticCurveTo(p0out.x, p0out.y, mid0l.x, mid0l.y);
-  g.quadraticCurveTo(p0out.x, p0out.y, a.x, a.y);
+  g.closePath();
 }
 
 /**
