@@ -31,6 +31,7 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "edgeLayerMode",
   "syncWithEditor",
   "showEdgeWeightLabels",
+  "showLegend",
 ];
 
 /** Fields that should be number */

@@ -158,6 +158,8 @@ export interface PanelState {
   edgeLayerMode: boolean;
   /** フォーカスモード: クリックでハイライトを固定 */
   focusMode: boolean;
+  /** ビジュアルリンクエディタ: Alt+ドラッグでノード間にリンク作成 */
+  visualLinkEditor: boolean;
   /** フォーカス中のノードID (null = フォーカスなし) */
   focusNodeId: string | null;
   /** ビュー同期: 他の Graph Island ビューとパネル状態を同期 */
@@ -168,6 +170,10 @@ export interface PanelState {
   bookmarkedNodes: string[];
   /** エッジ重みラベル表示（同一ペア間のエッジ本数） */
   showEdgeWeightLabels: boolean;
+  /** 凡例オーバーレイ表示 */
+  showLegend: boolean;
+  /** 検索クエリ履歴（最大10件） */
+  searchHistory: string[];
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -276,11 +282,14 @@ export function createDefaultPanel(): PanelState {
     edgeWeightThickness: true,
     edgeLayerMode: false,
     focusMode: false,
+    visualLinkEditor: false,
     focusNodeId: null,
     syncViewId: null,
     annotations: [],
     bookmarkedNodes: [],
     showEdgeWeightLabels: false,
+    showLegend: true,
+    searchHistory: [],
   };
 }
 
@@ -411,6 +420,56 @@ export function buildPanel(
   searchClearBtn.textContent = "\u00d7";
   searchClearBtn.style.display = panel.searchQuery ? "flex" : "none";
   searchBar.value = panel.searchQuery;
+  // --- 検索履歴ドロップダウン ---
+  const historyDropdown = searchWrapper.createDiv({ cls: "gi-search-history" });
+  historyDropdown.style.display = "none";
+  /** 履歴ドロップダウンを現在の入力値でフィルターして表示 */
+  const showHistory = () => {
+    if (!panel.searchHistory || panel.searchHistory.length === 0) {
+      historyDropdown.style.display = "none";
+      return;
+    }
+    const filter = searchBar.value.trim().toLowerCase();
+    const filtered = filter
+      ? panel.searchHistory.filter(q => q.toLowerCase().includes(filter))
+      : panel.searchHistory;
+    if (filtered.length === 0) {
+      historyDropdown.style.display = "none";
+      return;
+    }
+    historyDropdown.empty();
+    for (const query of filtered) {
+      const item = historyDropdown.createDiv({ cls: "gi-search-history-item" });
+      item.textContent = query;
+      item.addEventListener("mousedown", (e) => {
+        // mousedown で処理（blur より前に発火させる）
+        e.preventDefault();
+        searchBar.value = query;
+        searchBar.dispatchEvent(new Event("input"));
+        historyDropdown.style.display = "none";
+      });
+    }
+    // 履歴クリアボタン
+    const clearBtn = historyDropdown.createDiv({ cls: "gi-search-history-item gi-search-history-clear" });
+    clearBtn.textContent = t("search.clearHistory");
+    clearBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      panel.searchHistory = [];
+      historyDropdown.style.display = "none";
+    });
+    historyDropdown.style.display = "";
+  };
+  /** 検索履歴にクエリを追加（重複排除、最大10件） */
+  const pushHistory = (query: string) => {
+    if (!query.trim()) return;
+    if (!panel.searchHistory) panel.searchHistory = [];
+    // 既存エントリを削除して先頭に追加
+    panel.searchHistory = panel.searchHistory.filter(q => q !== query);
+    panel.searchHistory.unshift(query);
+    // 最大10件に制限
+    if (panel.searchHistory.length > 10) panel.searchHistory.length = 10;
+  };
+  let lastCommittedQuery = panel.searchQuery;
   {
     let searchDebounce: ReturnType<typeof setTimeout> | null = null;
     searchBar.addEventListener("input", () => {
@@ -418,14 +477,27 @@ export function buildPanel(
       searchClearBtn.style.display = searchBar.value ? "flex" : "none";
       if (searchDebounce) clearTimeout(searchDebounce);
       searchDebounce = setTimeout(() => {
+        // 非空クエリが変化した場合に履歴に追加
+        const q = searchBar.value.trim();
+        if (q && q !== lastCommittedQuery) {
+          pushHistory(q);
+          lastCommittedQuery = q;
+        }
         cb.invalidateDataKeepPanel();
       }, 400);
     });
   }
+  // フォーカス時に履歴を表示
+  searchBar.addEventListener("focus", () => { showHistory(); });
+  searchBar.addEventListener("blur", () => {
+    // 少し遅延させてクリックイベントが先に処理されるようにする
+    setTimeout(() => { historyDropdown.style.display = "none"; }, 150);
+  });
   searchClearBtn.addEventListener("click", () => {
     searchBar.value = "";
     searchBar.dispatchEvent(new Event("input"));
     searchClearBtn.style.display = "none";
+    lastCommittedQuery = "";
   });
   attachQueryHint(searchBar, (field) => cb.collectValueSuggestions(field));
   attachSearchJump(searchBar, cb);
@@ -665,6 +737,11 @@ function _buildNodeDisplaySection(
       if (!v) { panel.focusNodeId = null; cb.applyHover(); }
       cb.markDirty();
     }, t("desc.focusMode"));
+    // ビジュアルリンクエディタ: Alt+ドラッグでリンク作成
+    addToggle(body, t("display.visualLinkEditor"), panel.visualLinkEditor, (v) => {
+      panel.visualLinkEditor = v;
+      cb.markDirty();
+    }, t("desc.visualLinkEditor"));
     // --- ノード形状 ---
     const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
     const defaultRule = panel.nodeShapeRules.find(r => r.match === "default");
@@ -851,6 +928,7 @@ function _buildMinimapSection(
   buildSection(tabEl, t("section.displayOther"), (body) => {
     addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.markDirty(); cb.wakeRenderLoop(); }, t("desc.minimap"));
     addToggle(body, t("display.dotGrid"), panel.showDotGrid, (v) => { panel.showDotGrid = v; cb.markDirty(); }, t("desc.dotGrid"));
+    addToggle(body, t("display.showLegend"), panel.showLegend, (v) => { panel.showLegend = v; cb.markDirty(); }, t("desc.showLegend"));
   }, undefined, false, "eye");
 }
 
@@ -2766,7 +2844,10 @@ function getUnifiedFieldSuggestions(ctx: PanelContext): string[] {
 function getGroupByOptions(ctx: PanelContext): { value: string; label: string }[] {
   const builtIn = ["tag", "category", "folder", "path", "file", "id", "isTag"];
   const allFields = [...new Set([...builtIn, ...ctx.frontmatterKeys])];
-  return allFields.map(f => ({ value: `${f}:?`, label: `${f}:?` }));
+  const opts = allFields.map(f => ({ value: `${f}:?`, label: `${f}:?` }));
+  // Louvain コミュニティ自動検出オプション
+  opts.unshift({ value: "louvain:?", label: t("groupBy.louvain") });
+  return opts;
 }
 
 // ---------------------------------------------------------------------------

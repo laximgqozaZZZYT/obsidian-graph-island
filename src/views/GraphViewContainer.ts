@@ -14,7 +14,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL, createDefaultPanel } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
@@ -34,6 +34,7 @@ import { captureSnapshot, computeSnapshotDiff } from "../utils/snapshot";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
+import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
 import { getNodeShape, drawShape, drawShapeAt } from "../utils/node-shapes";
 import {
@@ -100,6 +101,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private rawData: GraphData | null = null;
   /** Original (pre-grouping) graph data, used for expand operations */
   private originalGraphData: GraphData | null = null;
+  /** Louvain コミュニティ検出キャッシュ（rawData 変更時に無効化） */
+  private louvainCache: { dataRef: GraphData; groups: GroupSpec[] } | null = null;
   private ac: AbortController | null = null;
   private statusEl: HTMLElement | null = null;
   private zoomIndicatorEl: HTMLElement | null = null;
@@ -129,6 +132,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private trayGraphics: CanvasGraphics | null = null;
   private barGraphics: CanvasGraphics | null = null;
   private barLabelContainer: CanvasContainer | null = null;
+  /** ビジュアルリンクエディタ: プレビュー線描画用 */
+  private linkPreviewGfx: CanvasGraphics | null = null;
   private pixiNodes: Map<string, PixiNode> = new Map();
   private canvasWrap: HTMLElement | null = null;
   private graphEdges: GraphEdge[] = [];
@@ -822,11 +827,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (wrap) this.autoFitView(wrap.clientWidth, wrap.clientHeight);
       return;
     }
-    // L: toggle legend
+    // L: 凡例表示トグル
     if (key === "l" && !e.ctrlKey && !e.metaKey) {
-      if (this.legendEl) {
-        this.legendEl.style.display = this.legendEl.style.display === "none" ? "" : "none";
-      }
+      this.panel.showLegend = !this.panel.showLegend;
+      this.updateLegend();
+      this.requestSave();
       return;
     }
     // M: toggle minimap
@@ -1559,9 +1564,61 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // Strip ":?" suffix from new format (e.g. "tag:?" → "tag")
       if (raw.endsWith(":?")) raw = raw.slice(0, -2);
       if (!raw) continue;
+      // Louvain コミュニティ自動検出
+      if (raw === "louvain") {
+        allGroups.push(...this.resolveLouvainGroups(nodes, opts));
+        continue;
+      }
       allGroups.push(...groupNodesByField(nodes, raw, opts));
     }
     return allGroups;
+  }
+
+  /** Louvain アルゴリズムでコミュニティを検出し GroupSpec[] を返す。
+   *  結果は rawData が変わるまでキャッシュする。 */
+  private resolveLouvainGroups(nodes: GraphNode[], opts: GroupOptions): GroupSpec[] {
+    // キャッシュが有効ならそのまま返す（rawData の参照一致で判定）
+    if (this.louvainCache && this.louvainCache.dataRef === this.rawData) {
+      return this.louvainCache.groups;
+    }
+
+    // 現在のグラフデータからエッジ情報を取得
+    const graphData = this.rawData ?? this.originalGraphData;
+    if (!graphData) return [];
+
+    const nodeIds = nodes.filter(n => !n.isTag).map(n => n.id);
+    const edges = graphData.edges.map(e => ({
+      source: e.source,
+      target: e.target,
+      weight: 1,
+    }));
+
+    const communityMap = louvainCommunities(nodeIds, edges);
+
+    // コミュニティIDごとにノードを集約
+    const minSize = opts?.minSize ?? 2;
+    const commGroups = new Map<number, string[]>();
+    for (const [nodeId, commId] of communityMap) {
+      if (!commGroups.has(commId)) commGroups.set(commId, []);
+      commGroups.get(commId)!.push(nodeId);
+    }
+
+    const groups: GroupSpec[] = [];
+    for (const [commId, memberIds] of commGroups) {
+      if (memberIds.length < minSize) continue;
+      groups.push({
+        key: `louvain:${commId}`,
+        label: `Community ${commId + 1}`,
+        memberIds,
+      });
+    }
+
+    // キャッシュに保存
+    if (this.rawData) {
+      this.louvainCache = { dataRef: this.rawData, groups };
+    }
+
+    return groups;
   }
 
   getWorldContainer(): CanvasContainer | null { return this.worldContainer; }
@@ -2062,22 +2119,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Build the set of node IDs within hoverHops of the given node via BFS. */
   private _buildHoverHighlightSet(hId: string | null): Set<string> {
-    const curSet = new Set<string>();
-    if (hId) {
-      curSet.add(hId);
-      let frontier = [hId];
-      for (let hop = 0; hop < this.panel.hoverHops && frontier.length > 0; hop++) {
-        const next: string[] = [];
-        for (const id of frontier) {
-          const nb = this.adj.get(id);
-          if (nb) for (const n of nb) {
-            if (!curSet.has(n)) { curSet.add(n); next.push(n); }
-          }
-        }
-        frontier = next;
-      }
-    }
-    return curSet;
+    if (!hId) return new Set<string>();
+    return bfsNeighborSet(this.adj, hId, this.panel.hoverHops);
   }
 
   /** フォーカスモードのハイライトを適用 (クリック時に呼ばれる) */
@@ -3590,40 +3633,107 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   private setStatus(t: string) { if (this.statusEl) this.statusEl.textContent = t; }
 
-  /** Update the group color legend overlay */
+  /** インタラクティブ凡例オーバーレイを更新（ノードカラー＋エッジ属性カラー、クリックで表示切替） */
   private updateLegend() {
     if (!this.legendEl) return;
+    // showLegend が false の場合は非表示
+    if (!this.panel.showLegend) {
+      this.legendEl.style.display = "none";
+      return;
+    }
     const colorMap = this.nodeColorMap;
-    if (colorMap.size === 0) {
+    const relColors = this.relationColors;
+    if (colorMap.size === 0 && relColors.size === 0) {
       this.legendEl.style.display = "none";
       return;
     }
     this.legendEl.empty();
     this.legendEl.style.display = "";
 
-    // Header with toggle + close button
+    // ヘッダー（閉じるボタン付き）
     const header = this.legendEl.createDiv({ cls: "gi-legend-header" });
-    header.createEl("span", { text: `${colorMap.size} colors` });
+    header.createEl("span", { text: `${colorMap.size + relColors.size} items` });
     const closeBtn = header.createEl("span", { cls: "gi-legend-close", text: "\u00d7" });
     closeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
+      this.panel.showLegend = false;
       if (this.legendEl) this.legendEl.style.display = "none";
+      this.requestSave();
     });
+
     const body = this.legendEl.createDiv({ cls: "gi-legend-body" });
-
-    // Start collapsed if many entries
-    if (colorMap.size > 10) body.style.display = "none";
-
+    // エントリ数が多い場合は折りたたみ
+    if (colorMap.size + relColors.size > 10) body.style.display = "none";
     header.addEventListener("click", () => {
       const hidden = body.style.display === "none";
       body.style.display = hidden ? "" : "none";
     });
 
-    for (const [label, cssColor] of colorMap) {
-      const row = body.createDiv({ cls: "gi-legend-item" });
-      const dot = row.createDiv({ cls: "gi-legend-dot" });
-      dot.style.background = cssColor;
-      row.createEl("span", { cls: "gi-legend-label", text: label.replace(/^tag:/, "#") });
+    // --- ノードカラーセクション ---
+    if (colorMap.size > 0 && this.panel.colorNodesByCategory) {
+      const nodeSection = body.createDiv({ cls: "gi-legend-section" });
+      nodeSection.createEl("div", { cls: "gi-legend-section-title", text: t("legend.nodeColors") });
+      for (const [label, cssColor] of colorMap) {
+        const row = nodeSection.createDiv({ cls: "gi-legend-item gi-legend-item-clickable" });
+        const dot = row.createDiv({ cls: "gi-legend-color-dot" });
+        dot.style.background = cssColor;
+        row.createEl("span", { cls: "gi-legend-label", text: label.replace(/^tag:/, "#") });
+        // クリックで検索フィルターにトグル
+        row.addEventListener("click", () => {
+          const field = label.startsWith("tag:") ? label : `category:${label}`;
+          if (this.panel.searchQuery === field) {
+            this.panel.searchQuery = "";
+          } else {
+            this.panel.searchQuery = field;
+          }
+          this.rawData = null;
+          this.doRender();
+          this.requestSave();
+        });
+      }
+    }
+
+    // --- エッジ属性カラーセクション ---
+    if (relColors.size > 0 && this.panel.colorEdgesByRelation) {
+      const edgeSection = body.createDiv({ cls: "gi-legend-section" });
+      edgeSection.createEl("div", { cls: "gi-legend-section-title", text: t("legend.edgeRelations") });
+      // エッジタイプ→パネルプロパティのマッピング
+      const edgeTypeToggles: Record<string, { key: keyof PanelState; label: string }> = {
+        "link": { key: "showLinks", label: "Links" },
+        "tag": { key: "showTagEdges", label: "Tags" },
+        "category": { key: "showCategoryEdges", label: "Category" },
+        "semantic": { key: "showSemanticEdges", label: "Semantic" },
+        "inheritance": { key: "showInheritance", label: "Inheritance" },
+        "aggregation": { key: "showAggregation", label: "Aggregation" },
+        "similar": { key: "showSimilar", label: "Similar" },
+        "sibling": { key: "showSibling", label: "Sibling" },
+        "sequence": { key: "showSequence", label: "Sequence" },
+      };
+
+      for (const [rel, cssColor] of relColors) {
+        const row = edgeSection.createDiv({ cls: "gi-legend-item gi-legend-item-clickable" });
+        const dot = row.createDiv({ cls: "gi-legend-color-dot" });
+        dot.style.background = cssColor;
+        const labelEl = row.createEl("span", { cls: "gi-legend-label", text: rel });
+        // エッジタイプに対応するトグルがあれば、クリックで表示切替
+        const toggle = edgeTypeToggles[rel.toLowerCase()];
+        if (toggle) {
+          const isVisible = this.panel[toggle.key] as boolean;
+          if (!isVisible) {
+            row.addClass("gi-legend-item-disabled");
+            labelEl.textContent = `${rel} ${t("legend.hidden")}`;
+          }
+          row.addEventListener("click", () => {
+            const current = this.panel[toggle.key] as boolean;
+            (this.panel as Record<string, unknown>)[toggle.key] = !current;
+            invalidateBundleCache();
+            this.markDirty(true);
+            this.updateLegend();
+            this.buildPanel();
+            this.requestSave();
+          });
+        }
+      }
     }
   }
 

@@ -88,6 +88,7 @@ const en: TranslationMap = {
   "display.nodeSize": "Node Size",
   "display.hoverHops": "Hover Highlight Hops",
   "display.focusMode": "Focus Mode",
+  "display.visualLinkEditor": "Visual Link Editor",
   "display.edgeTypeHeading": "Edge Types",
   "display.links": "Links",
   "display.sharedTags": "Shared Tags",
@@ -396,6 +397,8 @@ const en: TranslationMap = {
   "toast.embedFailed": "Graph embed failed",
   "toast.embedNoEditor": "No active editor to embed into",
   "toast.embedNoGraph": "No active graph view",
+  "toast.linkCreated": "Link created: {source} → {target}",
+  "toast.linkFailed": "Link creation failed",
 
   // --- PanelBuilder: action buttons ---
   "action.save": "Save Settings",
@@ -517,6 +520,7 @@ const en: TranslationMap = {
   "desc.textFade": "Zoom level for label fadeout",
   "desc.hoverHops": "Highlight depth on hover",
   "desc.focusMode": "Click a node to lock highlight. Escape to clear.",
+  "desc.visualLinkEditor": "Alt+drag from a node to create a [[wikilink]] in the source file.",
   "desc.edgeBundleStrength": "0=straight, 1=fully curved",
   "desc.autoFit": "Auto-spacing from node count",
   "desc.fadeEdges": "Fade less-connected edges",
@@ -611,6 +615,20 @@ const en: TranslationMap = {
   // --- Feature N: Edge Weight Labels ---
   "display.edgeWeightLabels": "Edge Weight Labels",
   "desc.edgeWeightLabels": "Show edge count between same source-target pairs",
+
+  // --- Feature R: Louvain Community Detection ---
+  "groupBy.louvain": "Auto-detect (Louvain)",
+
+  // --- Feature S: Interactive Legend ---
+  "display.showLegend": "Show Legend",
+  "desc.showLegend": "Display floating legend overlay on graph canvas",
+  "legend.nodeColors": "Node Colors",
+  "legend.edgeRelations": "Edge Relations",
+  "legend.hidden": "(hidden)",
+
+  // --- Feature T: Graph Search History ---
+  "search.clearHistory": "Clear history",
+  "search.historyEmpty": "No search history",
 };
 
 // ---------------------------------------------------------------------------
@@ -694,6 +712,7 @@ const ja: TranslationMap = {
   "display.nodeSize": "ノードの大きさ",
   "display.hoverHops": "ホバー強調ホップ数",
   "display.focusMode": "フォーカスモード",
+  "display.visualLinkEditor": "ビジュアルリンクエディタ",
   "display.edgeTypeHeading": "結線タイプ",
   "display.links": "リンク",
   "display.sharedTags": "共有タグ",
@@ -1002,6 +1021,8 @@ const ja: TranslationMap = {
   "toast.embedFailed": "グラフの埋め込みに失敗しました",
   "toast.embedNoEditor": "埋め込み先のエディタがありません",
   "toast.embedNoGraph": "アクティブなグラフビューがありません",
+  "toast.linkCreated": "リンク作成: {source} → {target}",
+  "toast.linkFailed": "リンク作成に失敗しました",
 
   // --- PanelBuilder: action buttons ---
   "action.save": "設定を保存",
@@ -1123,6 +1144,7 @@ const ja: TranslationMap = {
   "desc.textFade": "ラベルが消えるズームレベル",
   "desc.hoverHops": "ホバー時の強調範囲",
   "desc.focusMode": "ノードをクリックでハイライト固定。Escapeで解除。",
+  "desc.visualLinkEditor": "Alt+ドラッグでノード間に [[wikilink]] を作成します。",
   "desc.edgeBundleStrength": "0=直線, 1=完全に束ねる",
   "desc.autoFit": "ノード数から間隔を自動計算",
   "desc.fadeEdges": "接続の少ないエッジを薄く",
@@ -1217,6 +1239,20 @@ const ja: TranslationMap = {
   // --- Feature N: エッジ重みラベル ---
   "display.edgeWeightLabels": "エッジ重みラベル",
   "desc.edgeWeightLabels": "同一ペア間のエッジ本数を表示",
+
+  // --- Feature R: Louvain コミュニティ検出 ---
+  "groupBy.louvain": "自動検出 (Louvain)",
+
+  // --- Feature S: インタラクティブ凡例 ---
+  "display.showLegend": "凡例を表示",
+  "desc.showLegend": "グラフキャンバス上に凡例オーバーレイを表示",
+  "legend.nodeColors": "ノードカラー",
+  "legend.edgeRelations": "エッジ属性",
+  "legend.hidden": "(非表示)",
+
+  // --- Feature T: 検索履歴 ---
+  "search.clearHistory": "履歴をクリア",
+  "search.historyEmpty": "検索履歴なし",
 };
 
 // ---------------------------------------------------------------------------

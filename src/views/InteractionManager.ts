@@ -93,6 +93,14 @@ export interface InteractionHost {
   toggleBookmark?(nodeId: string): void;
   /** ブックマーク済みかどうか判定 */
   isBookmarked?(nodeId: string): boolean;
+  /** ビジュアルリンクエディタが有効かどうか */
+  isVisualLinkEditorEnabled?(): boolean;
+  /** ドラッグでリンク作成 (ソースファイルに [[target]] wikilink を挿入) */
+  createLink?(sourceId: string, targetId: string): void;
+  /** リンクプレビュー線を描画 (ソースノード中心からワールド座標まで) */
+  drawLinkPreview?(srcX: number, srcY: number, dstX: number, dstY: number): void;
+  /** リンクプレビュー線をクリア */
+  clearLinkPreview?(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -148,6 +156,9 @@ export class InteractionManager {
   private isMarqueeActive = false;
   private marqueeStart = { x: 0, y: 0 };
   private marqueeGraphics: CanvasGraphics | null = null;
+
+  // ビジュアルリンクエディタ: Alt+ドラッグでリンク作成
+  private dragLinkSource: PixiNode | null = null;
 
   // Debounced zoom layout recalculation
   private _zoomLayoutTimer = 0;
@@ -259,6 +270,12 @@ export class InteractionManager {
 
     const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
     if (hit) {
+      // ビジュアルリンクエディタ: Alt+ドラッグでリンク作成開始
+      if (e.altKey && this.host.isVisualLinkEditorEnabled?.()) {
+        this.dragLinkSource = hit;
+        this.hasDragged = false;
+        return;
+      }
       // Concentric: rotate shell instead of dragging individual node
       if (this.host.getCurrentLayout() === LAYOUT_CONCENTRIC && this.host.getShells().length > 0) {
         const shellIdx = this.host.getNodeShellIndex().get(hit.data.id);
@@ -315,6 +332,24 @@ export class InteractionManager {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
+    // ビジュアルリンクエディタ: プレビュー線を描画 + ターゲットハイライト
+    if (this.dragLinkSource) {
+      this.hasDragged = true;
+      const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
+      // ターゲットノードのハイライト（スナップ）
+      const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
+      const targetId = (hit && hit !== this.dragLinkSource) ? hit.data.id : null;
+      if (targetId !== this.host.getHighlightedNodeId()) {
+        this.host.setHighlightedNodeId(targetId);
+        this.host.applyHover();
+      }
+      // ターゲットにスナップする場合はターゲット中心座標を使用
+      const dstX = (hit && hit !== this.dragLinkSource) ? hit.data.x : worldPt.x;
+      const dstY = (hit && hit !== this.dragLinkSource) ? hit.data.y : worldPt.y;
+      this.host.drawLinkPreview?.(this.dragLinkSource.data.x, this.dragLinkSource.data.y, dstX, dstY);
+      this.host.markDirty();
+      return;
+    }
     if (this.rotatingShellIdx !== null) {
       this.hasDragged = true;
       const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
@@ -388,6 +423,31 @@ export class InteractionManager {
   // Pointer up
   // -----------------------------------------------------------------------
   private handlePointerUp(e: PointerEvent) {
+    // ビジュアルリンクエディタ: ドロップでリンク作成
+    if (this.dragLinkSource) {
+      const src = this.dragLinkSource;
+      this.dragLinkSource = null;
+      this.host.clearLinkPreview?.();
+      this.host.setHighlightedNodeId(null);
+      this.host.applyHover();
+      if (this.hasDragged) {
+        const app = this.host.getPixiApp();
+        if (app) {
+          const rect = this.canvas.getBoundingClientRect();
+          const mx = e.clientX - rect.left;
+          const my = e.clientY - rect.top;
+          const worldPt = this.world.toLocal({ x: mx, y: my }, app.stage);
+          const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
+          // ターゲットがソースと異なるノードの場合のみリンク作成
+          if (hit && hit !== src && hit.data.id !== src.data.id) {
+            this.host.createLink?.(src.data.id, hit.data.id);
+          }
+        }
+      }
+      this.hasDragged = false;
+      this.host.markDirty(true);
+      return;
+    }
     if (this.isMarqueeActive) {
       this.isMarqueeActive = false;
       if (this.marqueeGraphics) {
@@ -455,6 +515,11 @@ export class InteractionManager {
   // Pointer leave
   // -----------------------------------------------------------------------
   private handlePointerLeave() {
+    // リンクドラッグ中にキャンバスを離れた場合はキャンセル
+    if (this.dragLinkSource) {
+      this.dragLinkSource = null;
+      this.host.clearLinkPreview?.();
+    }
     if (!Platform.isMobile && this.host.getHighlightedNodeId()) {
       this.host.setHighlightedNodeId(null);
       this.host.applyHover();
