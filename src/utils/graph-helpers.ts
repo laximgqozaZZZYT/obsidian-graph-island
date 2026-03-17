@@ -1,4 +1,4 @@
-import type { GraphData } from "../types";
+import type { GraphData, GraphNode, GraphEdge } from "../types";
 import { hexToRgb } from "./color";
 
 /**
@@ -162,4 +162,53 @@ export function stringHash(str: string, range: number): number {
     hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
   }
   return ((hash % range) + range) % range;
+}
+
+// ---------------------------------------------------------------------------
+// Feature CY: Subgraph Export
+// ---------------------------------------------------------------------------
+
+/**
+ * Collect an N-hop subgraph around a starting node.
+ * Returns the subset of nodes and edges within the hop radius.
+ */
+export function collectSubgraph(
+  adj: Map<string, Set<string>>,
+  startId: string,
+  hops: number,
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const nodeSet = bfsNeighborSet(adj, startId, hops);
+  const subNodes = nodes.filter((n) => nodeSet.has(n.id));
+  const subEdges = edges.filter(
+    (e) => nodeSet.has(e.source) && nodeSet.has(e.target),
+  );
+  return { nodes: subNodes, edges: subEdges };
+}
+
+/**
+ * Serialize a subgraph to a clean JSON string for export.
+ */
+export function exportSubgraphJSON(subgraph: {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}): string {
+  return JSON.stringify(
+    {
+      nodes: subgraph.nodes.map((n) => ({
+        id: n.id,
+        label: n.label,
+        tags: n.tags,
+        category: n.category,
+      })),
+      edges: subgraph.edges.map((e) => ({
+        source: e.source,
+        target: e.target,
+        type: e.type,
+      })),
+    },
+    null,
+    2,
+  );
 }

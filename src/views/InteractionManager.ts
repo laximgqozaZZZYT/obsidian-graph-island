@@ -104,6 +104,8 @@ export interface InteractionHost {
   drawLinkPreview?(srcX: number, srcY: number, dstX: number, dstY: number): void;
   /** リンクプレビュー線をクリア */
   clearLinkPreview?(): void;
+  /** Feature CY: export N-hop subgraph as JSON download */
+  exportSubgraph?(nodeId: string): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -608,6 +610,15 @@ export class InteractionManager {
         item.setTitle(isBookmarked ? t("bookmark.remove") : t("bookmark.add"))
           .setIcon(isBookmarked ? "star-off" : "star")
           .onClick(() => this.host.toggleBookmark!(node.data.id));
+      });
+    }
+
+    // Export subgraph (Feature CY)
+    if (this.host.exportSubgraph) {
+      menu.addItem((item) => {
+        item.setTitle(t("context.exportSubgraph"))
+          .setIcon("download")
+          .onClick(() => this.host.exportSubgraph!(node.data.id));
       });
     }
 

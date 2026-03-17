@@ -2930,3 +2930,46 @@
   opacity: 0.85;
   user-select: none;
 }
+
+/* === Graph Statistics Panel (Feature CX) === */
+.gi-graph-stats {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  background: var(--background-primary-alt, var(--background-primary));
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s, 4px);
+  padding: 8px 10px;
+  font-size: var(--font-ui-smaller, 11px);
+  color: var(--text-normal);
+  opacity: 0.9;
+  pointer-events: auto;
+  max-width: 220px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.gi-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.gi-stats-table td {
+  padding: 1px 4px;
+}
+.gi-stats-label {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.gi-stats-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.gi-stats-hub-list {
+  margin: 0;
+  padding-left: 14px;
+  list-style: disc;
+}
+.gi-stats-hub-item {
+  padding: 1px 0;
+  color: var(--text-muted);
+}

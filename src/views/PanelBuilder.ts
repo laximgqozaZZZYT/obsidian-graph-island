@@ -172,6 +172,8 @@ export interface PanelState {
   showEdgeWeightLabels: boolean;
   /** エッジ多重度ラベル: 同一ノードペア間のエッジ数を表示 (count > 1 only) */
   showEdgeCardinalityLabels: boolean;
+  /** Unified node color mode (replaces colorNodesByCategory + heatmapMode) */
+  nodeColorMode?: "default" | "category" | "heatmap" | "community";
   /** Filter edges by directionality: "all" | "bidirectional" | "unidirectional" */
   edgeDirectionFilter: "all" | "bidirectional" | "unidirectional";
   /** Visual indicator for bidirectional edges (thicker + higher alpha) */
@@ -180,10 +182,14 @@ export interface PanelState {
   showLegend: boolean;
   /** Show off-screen node count indicator badge */
   showOutOfBoundsIndicator: boolean;
+  /** Highlight nodes that share tags but have no edge between them */
+  highlightMissingNeighbors: boolean;
   /** 検索クエリ履歴（最大10件） */
   searchHistory: string[];
   /** Metadata field to cluster orphan nodes by (e.g. "category", "folder", "tag") */
   orphanClusterField: string;
+  /** Show graph statistics panel (node count, density, hubs, components) */
+  showGraphStats: boolean;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -305,6 +311,8 @@ export function createDefaultPanel(): PanelState {
     showOutOfBoundsIndicator: false,
     searchHistory: [],
     orphanClusterField: "",
+    highlightMissingNeighbors: false,
+    showGraphStats: false,
   };
 }
 
@@ -751,8 +759,21 @@ function _buildNodeDisplaySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.displayNodes"), (body) => {
-    addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRenderKeepPanel(); }, t("desc.nodeColor"));
-    addToggle(body, t("display.heatmap"), panel.heatmapMode, (v) => { panel.heatmapMode = v; cb.doRenderKeepPanel(); }, t("desc.heatmap"));
+    // Unified nodeColorMode dropdown (replaces legacy colorNodesByCategory + heatmapMode toggles)
+    const colorModeOptions = [
+      { value: "default", label: t("display.nodeColor.default") },
+      { value: "category", label: t("display.nodeColor.category") },
+      { value: "heatmap", label: t("display.nodeColor.heatmap") },
+      { value: "community", label: t("display.nodeColor.community") },
+    ];
+    const currentColorMode = panel.nodeColorMode ?? (panel.heatmapMode ? "heatmap" : panel.colorNodesByCategory ? "category" : "default");
+    addSelect(body, t("display.nodeColorMode"), colorModeOptions, currentColorMode, (v) => {
+      panel.nodeColorMode = v as "default" | "category" | "heatmap" | "community";
+      // Keep legacy fields in sync for backward compat
+      panel.colorNodesByCategory = v === "category";
+      panel.heatmapMode = v === "heatmap";
+      cb.doRenderKeepPanel();
+    }, t("desc.nodeColorMode"));
     addSlider(body, t("display.nodeSize"), 2, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRenderKeepPanel(); }, t("desc.nodeSize"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
     addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.applyHover(); cb.markDirty(); }, t("desc.hoverHops"));
@@ -767,6 +788,11 @@ function _buildNodeDisplaySection(
       panel.visualLinkEditor = v;
       cb.markDirty();
     }, t("desc.visualLinkEditor"));
+    // 未接続同タグノードのハイライト
+    addToggle(body, t("display.missingNeighbors"), panel.highlightMissingNeighbors ?? false, (v) => {
+      panel.highlightMissingNeighbors = v;
+      cb.markDirty();
+    }, t("desc.missingNeighbors"));
     // --- ノード形状 ---
     const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
     const defaultRule = panel.nodeShapeRules.find(r => r.match === "default");
@@ -965,6 +991,7 @@ function _buildMinimapSection(
     addToggle(body, t("display.dotGrid"), panel.showDotGrid, (v) => { panel.showDotGrid = v; cb.markDirty(); }, t("desc.dotGrid"));
     addToggle(body, t("display.showLegend"), panel.showLegend, (v) => { panel.showLegend = v; cb.markDirty(); }, t("desc.showLegend"));
     addToggle(body, t("display.oobIndicator"), panel.showOutOfBoundsIndicator ?? false, (v) => { panel.showOutOfBoundsIndicator = v; cb.markDirty(); cb.wakeRenderLoop(); }, t("desc.oobIndicator"));
+    addToggle(body, t("display.graphStats"), panel.showGraphStats ?? false, (v) => { panel.showGraphStats = v; cb.markDirty(); }, t("desc.graphStats"));
   }, undefined, false, "eye");
 }
 

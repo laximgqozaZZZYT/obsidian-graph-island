@@ -89,7 +89,8 @@ const en: TranslationMap = {
   "display.nodeColor.default": "Default",
   "display.nodeColor.category": "By Category",
   "display.nodeColor.heatmap": "Heatmap",
-  "desc.nodeColorMode": "How to color nodes: default (single color), category (frontmatter), or heatmap (degree)",
+  "display.nodeColor.community": "Community",
+  "desc.nodeColorMode": "How to color nodes: default, category, heatmap, or community (Louvain)",
   "display.edgeColor": "Edge Color (by Relation)",
   "display.fadeEdges": "Edge Fade (by Degree)",
   "display.textFade": "Text Fade Threshold",
@@ -97,6 +98,7 @@ const en: TranslationMap = {
   "display.hoverHops": "Hover Highlight Hops",
   "display.focusMode": "Focus Mode",
   "display.visualLinkEditor": "Visual Link Editor",
+  "display.missingNeighbors": "Highlight Unlinked Same-Tag",
   "display.edgeTypeHeading": "Edge Types",
   "display.links": "Links",
   "display.sharedTags": "Shared Tags",
@@ -534,6 +536,7 @@ const en: TranslationMap = {
   "desc.hoverHops": "Highlight depth on hover",
   "desc.focusMode": "Click a node to lock highlight. Escape to clear.",
   "desc.visualLinkEditor": "Alt+drag from a node to create a [[wikilink]] in the source file.",
+  "desc.missingNeighbors": "Mark nodes that share a tag but have no direct edge (potential knowledge gaps).",
   "desc.edgeBundleStrength": "0=straight, 1=fully curved",
   "desc.autoFit": "Auto-spacing from node count",
   "desc.fadeEdges": "Fade less-connected edges",
@@ -626,6 +629,17 @@ const en: TranslationMap = {
   "stats.avgDegree": "Avg Degree",
   "stats.maxHub": "Max Hub",
   "stats.title": "Statistics",
+
+  // --- Feature CX: Graph Statistics Panel ---
+  "display.graphStats": "Graph Statistics",
+  "desc.graphStats": "Show statistics panel (density, hubs, components)",
+  "stats.density": "Density",
+  "stats.components": "Components",
+  "stats.topHubs": "Top Hubs",
+
+  // --- Feature CY: Subgraph Export ---
+  "context.exportSubgraph": "Export subgraph (2-hop JSON)",
+  "toast.subgraphExported": "Subgraph exported ({nodes} nodes, {edges} edges)",
 
   // --- Feature N: Edge Weight Labels ---
   "display.edgeWeightLabels": "Edge Weight Labels",
@@ -748,7 +762,8 @@ const ja: TranslationMap = {
   "display.nodeColor.default": "デフォルト",
   "display.nodeColor.category": "カテゴリ別",
   "display.nodeColor.heatmap": "ヒートマップ",
-  "desc.nodeColorMode": "ノードの色分け方式: デフォルト（単色）、カテゴリ（フロントマター）、ヒートマップ（接続数）",
+  "display.nodeColor.community": "コミュニティ",
+  "desc.nodeColorMode": "ノードの色分け方式: デフォルト（単色）、カテゴリ（フロントマター）、ヒートマップ（接続数）、コミュニティ（Louvain）",
   "display.edgeColor": "エッジ色（属性別）",
   "display.fadeEdges": "結線の濃淡（被リンク数）",
   "display.textFade": "テキストフェードの閾値",
@@ -756,6 +771,7 @@ const ja: TranslationMap = {
   "display.hoverHops": "ホバー強調ホップ数",
   "display.focusMode": "フォーカスモード",
   "display.visualLinkEditor": "ビジュアルリンクエディタ",
+  "display.missingNeighbors": "未接続同タグをハイライト",
   "display.edgeTypeHeading": "結線タイプ",
   "display.links": "リンク",
   "display.sharedTags": "共有タグ",
@@ -1193,6 +1209,7 @@ const ja: TranslationMap = {
   "desc.hoverHops": "ホバー時の強調範囲",
   "desc.focusMode": "ノードをクリックでハイライト固定。Escapeで解除。",
   "desc.visualLinkEditor": "Alt+ドラッグでノード間に [[wikilink]] を作成します。",
+  "desc.missingNeighbors": "同じタグを共有するが直接エッジがないノードをマーク（知識のギャップ検出）。",
   "desc.edgeBundleStrength": "0=直線, 1=完全に束ねる",
   "desc.autoFit": "ノード数から間隔を自動計算",
   "desc.fadeEdges": "接続の少ないエッジを薄く",
@@ -1285,6 +1302,17 @@ const ja: TranslationMap = {
   "stats.avgDegree": "平均次数",
   "stats.maxHub": "最大ハブ",
   "stats.title": "統計",
+
+  // --- Feature CX: グラフ統計パネル ---
+  "display.graphStats": "グラフ統計",
+  "desc.graphStats": "統計パネルを表示（密度、ハブ、連結成分）",
+  "stats.density": "密度",
+  "stats.components": "連結成分",
+  "stats.topHubs": "上位ハブ",
+
+  // --- Feature CY: サブグラフエクスポート ---
+  "context.exportSubgraph": "サブグラフをエクスポート（2ホップ JSON）",
+  "toast.subgraphExported": "サブグラフをエクスポートしました（{nodes}ノード、{edges}エッジ）",
 
   // --- Feature N: エッジ重みラベル ---
   "display.edgeWeightLabels": "エッジ重みラベル",

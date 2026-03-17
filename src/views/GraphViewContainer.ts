@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Menu, MarkdownView, type ViewStateResult } from "obsidian";
+import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Menu, MarkdownView, Notice, type ViewStateResult } from "obsidian";
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
@@ -11,10 +11,10 @@ import { applyTreeLayout } from "../layouts/tree";
 import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
-import { computeNodeDegrees } from "../analysis/graph-analysis";
+import { computeNodeDegrees, computeGraphStats } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, collectSubgraph, exportSubgraphJSON } from "../utils/graph-helpers";
 import { hexToRgb } from "../utils/color";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL, createDefaultPanel } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
@@ -210,6 +210,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // 比較選択ノードID (最大2件)
   private compareNodeIds: string[] = [];
 
+  /** Cached set of node IDs that share a tag but have no direct edge */
+  private missingNeighborNodeIds: Set<string> | null = null;
+
   // Reusable EdgeDrawConfig — mutated in-place each frame to avoid per-frame allocation
   private _edgeDrawCfg: EdgeDrawConfig | null = null;
 
@@ -234,6 +237,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Node info panel (hover details)
   private nodeInfoEl: HTMLElement | null = null;
   private oobBadgeEl: HTMLElement | null = null;
+  private graphStatsEl: HTMLElement | null = null;
   private legendEl: HTMLElement | null = null;
   private shortcutHelpEl: HTMLElement | null = null;
 
@@ -725,6 +729,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.oobBadgeEl = canvasArea.createDiv({ cls: "gi-oob-badge" });
     this.oobBadgeEl.style.display = "none";
 
+    // --- Graph Statistics Overlay (Feature CX) ---
+    this.graphStatsEl = canvasArea.createDiv({ cls: "gi-graph-stats" });
+    this.graphStatsEl.style.display = "none";
+
     return canvasArea;
   }
 
@@ -1208,6 +1216,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.panelEl = null;
     this.nodeInfoEl = null;
     this.oobBadgeEl = null;
+    this.graphStatsEl = null;
     this.canvasWrap = null;
     this.annotationLayer = null;
   }
@@ -2021,6 +2030,43 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** ブックマーク済みノードIDセットを取得（RenderHost用） */
   getBookmarkedNodeIds(): Set<string> {
     return new Set(this.panel.bookmarkedNodes);
+  }
+
+  // =========================================================================
+  // Subgraph Export (Feature CY)
+  // =========================================================================
+  /** Export an N-hop subgraph around a node as a JSON download. */
+  exportSubgraph(nodeId: string): void {
+    if (!this.adj || !this.graphEdges) return;
+    const nodes = [...this.pixiNodes.values()].map((pn) => pn.data);
+    const edges = this.graphEdges;
+    const hops = this.panel.hoverHops || 2;
+    const sub = collectSubgraph(this.adj, nodeId, hops, nodes, edges);
+    const json = exportSubgraphJSON(sub);
+
+    // Download as file
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const pn = this.pixiNodes.get(nodeId);
+    const label = pn?.data?.label ?? nodeId;
+    a.download = `subgraph-${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    // Toast notification
+    const msg = t("toast.subgraphExported")
+      .replace("{nodes}", String(sub.nodes.length))
+      .replace("{edges}", String(sub.edges.length));
+    new Notice(msg, 3000);
+  }
+
+  /** 未接続同タグノードIDセットを取得（RenderHost用） */
+  getMissingNeighborNodeIds(): Set<string> | null {
+    return this.missingNeighborNodeIds;
   }
 
   /** 比較イベントをワークスペースに発火。2ノード揃ったらパスファインダーも連動。 */
@@ -3852,6 +3898,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private recolorNodes() {
     const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
     const colorMap = this.nodeColorMap;
+    let recolorCommunityMap: Map<string, number> | null = null;
     for (const pn of this.pixiNodes.values()) {
       const n = pn.data;
       let color = defaultNodeColor;
@@ -3868,6 +3915,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           color = cssColorToHex(colorMap.get(`tag:${n.tags[0]}`) || DEFAULT_COLORS[0]);
         }
       }
+      if (!matched && colorModeForUpdate === "community") {
+        if (!recolorCommunityMap) {
+          const nodeIds = [...this.pixiNodes.keys()];
+          const louvainEdges = (this.graphEdges ?? []).map(e => ({
+            source: edgeSourceId(e),
+            target: edgeTargetId(e),
+          }));
+          recolorCommunityMap = louvainCommunities(nodeIds, louvainEdges);
+        }
+        const cid = recolorCommunityMap.get(n.id) ?? 0;
+        const COMMUNITY_PALETTE: number[] = [
+          0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd,
+          0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf,
+          0xaec7e8, 0xffbb78, 0x98df8a, 0xff9896, 0xc5b0d5,
+          0xc49c94, 0xf7b6d2, 0xc7c7c7, 0xdbdb8d, 0x9edae5,
+        ];
+        color = COMMUNITY_PALETTE[cid % COMMUNITY_PALETTE.length];
+      }
       pn.color = color;
     }
     this.markDirty(true);
@@ -3877,6 +3942,52 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Status
   // =========================================================================
   private setStatus(t: string) { if (this.statusEl) this.statusEl.textContent = t; }
+
+  /** Update the floating graph statistics panel (Feature CX). */
+  private updateGraphStats(gd: GraphData): void {
+    if (!this.graphStatsEl) return;
+    if (!this.panel.showGraphStats) {
+      this.graphStatsEl.style.display = "none";
+      return;
+    }
+    this.graphStatsEl.style.display = "";
+    this.graphStatsEl.empty();
+
+    const stats = computeGraphStats(gd.nodes, gd.edges, this.degrees);
+
+    const title = this.graphStatsEl.createEl("div", { cls: "gi-stats-title", text: t("stats.title") });
+    title.style.fontWeight = "600";
+    title.style.marginBottom = "4px";
+
+    const table = this.graphStatsEl.createEl("table", { cls: "gi-stats-table" });
+    const addRow = (label: string, value: string) => {
+      const tr = table.createEl("tr");
+      tr.createEl("td", { cls: "gi-stats-label", text: label });
+      tr.createEl("td", { cls: "gi-stats-value", text: value });
+    };
+    addRow(t("stats.nodes"), String(stats.nodeCount));
+    addRow(t("stats.edges"), String(stats.edgeCount));
+    addRow(t("stats.avgDegree"), stats.avgDegree.toFixed(2));
+    addRow(t("stats.density"), stats.density.toFixed(4));
+    addRow(t("stats.components"), String(stats.componentCount));
+
+    if (stats.hubs.length > 0) {
+      const hubTitle = this.graphStatsEl.createEl("div", {
+        cls: "gi-stats-hub-title",
+        text: t("stats.topHubs"),
+      });
+      hubTitle.style.fontWeight = "600";
+      hubTitle.style.marginTop = "6px";
+      hubTitle.style.marginBottom = "2px";
+
+      const hubList = this.graphStatsEl.createEl("ul", { cls: "gi-stats-hub-list" });
+      for (const [id, deg] of stats.hubs) {
+        const pn = this.pixiNodes.get(id);
+        const label = pn?.data?.label ?? id;
+        hubList.createEl("li", { cls: "gi-stats-hub-item", text: `${label} (${deg})` });
+      }
+    }
+  }
 
   /** インタラクティブ凡例オーバーレイを更新（ノードカラー＋エッジ属性カラー、クリックで表示切替） */
   private updateLegend() {
@@ -3961,6 +4072,40 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         return `rgb(${r},${g},${b})`;
       }).join(", ")})`;
       gradBar.createEl("span", { cls: "gi-legend-label", text: String(maxDeg) });
+    }
+
+    // --- コミュニティレジェンドセクション ---
+    if (legendColorMode === "community") {
+      const COMMUNITY_PALETTE_CSS = [
+        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+        "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+        "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
+        "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5",
+      ];
+      // Compute communities for legend
+      const legendNodeIds = [...this.pixiNodes.keys()];
+      const legendLouvainEdges = (this.graphEdges ?? []).map(e => ({
+        source: edgeSourceId(e),
+        target: edgeTargetId(e),
+      }));
+      const legendCommunities = louvainCommunities(legendNodeIds, legendLouvainEdges);
+      // Count nodes per community
+      const commCounts = new Map<number, number>();
+      for (const cid of legendCommunities.values()) {
+        commCounts.set(cid, (commCounts.get(cid) ?? 0) + 1);
+      }
+      // Sort by size descending
+      const sortedComms = [...commCounts.entries()].sort((a, b) => b[1] - a[1]);
+      if (sortedComms.length > 0) {
+        const commSection = body.createDiv({ cls: "gi-legend-section" });
+        commSection.createEl("div", { cls: "gi-legend-section-title", text: `${t("display.nodeColor.community")} (${sortedComms.length})` });
+        for (const [cid, count] of sortedComms) {
+          const row = commSection.createDiv({ cls: "gi-legend-item" });
+          const dot = row.createDiv({ cls: "gi-legend-color-dot" });
+          dot.style.background = COMMUNITY_PALETTE_CSS[cid % COMMUNITY_PALETTE_CSS.length];
+          row.createEl("span", { cls: "gi-legend-label", text: `Community ${cid + 1} (${count})` });
+        }
+      }
     }
 
     // --- エッジ属性カラーセクション ---
@@ -4202,6 +4347,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     this._buildGraphMetadata(gd);
     this._buildTagMembership(gd);
+    this._buildMissingNeighborSet(gd);
 
     const nodeR = this._buildNodeRadiusFn();
     const nodeColor = this._buildNodeColorFn(gd);
@@ -4310,6 +4456,57 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.enclosureLabels.clear();
   }
 
+  /**
+   * Build the set of node IDs that share at least one tag with another node
+   * but have no direct edge between them (missing neighbor detection).
+   * Only computed when highlightMissingNeighbors is enabled.
+   */
+  private _buildMissingNeighborSet(gd: GraphData): void {
+    this.missingNeighborNodeIds = null;
+    if (!this.panel.highlightMissingNeighbors) return;
+
+    // Build tag → nodeIds map (all tags, not just enclosure-assigned)
+    const tagToNodes = new Map<string, string[]>();
+    for (const n of gd.nodes) {
+      if (n.isTag || !n.tags) continue;
+      for (const tag of n.tags) {
+        let arr = tagToNodes.get(tag);
+        if (!arr) { arr = []; tagToNodes.set(tag, arr); }
+        arr.push(n.id);
+      }
+    }
+
+    // Build edge adjacency set for O(1) lookup
+    const edgeSet = new Set<string>();
+    for (const e of gd.edges) {
+      const s = typeof e.source === "object" ? (e.source as GraphNode).id : e.source;
+      const t = typeof e.target === "object" ? (e.target as GraphNode).id : e.target;
+      edgeSet.add(s < t ? `${s}\0${t}` : `${t}\0${s}`);
+    }
+
+    // For each tag group, find pairs with no edge → mark both nodes
+    const result = new Set<string>();
+    for (const [, nodeIds] of tagToNodes) {
+      if (nodeIds.length < 2) continue;
+      // For large groups, check each pair. Cap at reasonable size to avoid O(n^2) blowup.
+      const len = Math.min(nodeIds.length, 200);
+      for (let i = 0; i < len; i++) {
+        let hasMissingPair = false;
+        for (let j = i + 1; j < len; j++) {
+          const a = nodeIds[i], b = nodeIds[j];
+          const key = a < b ? `${a}\0${b}` : `${b}\0${a}`;
+          if (!edgeSet.has(key)) {
+            hasMissingPair = true;
+            result.add(b);
+          }
+        }
+        if (hasMissingPair) result.add(nodeIds[i]);
+      }
+    }
+
+    this.missingNeighborNodeIds = result.size > 0 ? result : null;
+  }
+
   /** Build the node radius function based on current panel settings. */
   private _buildNodeRadiusFn(): (n: GraphNode) => number {
     const baseSize = this.panel.nodeSize;
@@ -4343,6 +4540,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return (r << 16) | (g << 8) | b;
     };
 
+    // Community detection: Louvain algorithm
+    let communityMap: Map<string, number> | null = null;
+    if (colorMode === "community") {
+      const nodeIds = gd.nodes.map(n => n.id);
+      const louvainEdges = gd.edges.map(e => ({
+        source: edgeSourceId(e),
+        target: edgeTargetId(e),
+      }));
+      communityMap = louvainCommunities(nodeIds, louvainEdges);
+    }
+    // 20-color deterministic palette for community coloring (Tableau 20-inspired)
+    const COMMUNITY_PALETTE: number[] = [
+      0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd,
+      0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf,
+      0xaec7e8, 0xffbb78, 0x98df8a, 0xff9896, 0xc5b0d5,
+      0xc49c94, 0xf7b6d2, 0xc7c7c7, 0xdbdb8d, 0x9edae5,
+    ];
+
     // ノードルールのカラーオーバーライドをプリコンパイル
     const nodeRulesWithColor = (this.panel.nodeRules ?? []).filter(r => r.color);
 
@@ -4358,6 +4573,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // Heatmap mode: color by degree
       if (colorMode === "heatmap") {
         return heatmapColor(this.degrees.get(n.id) || 0);
+      }
+      // Community mode: color by Louvain community
+      if (colorMode === "community" && communityMap) {
+        const cid = communityMap.get(n.id) ?? 0;
+        return COMMUNITY_PALETTE[cid % COMMUNITY_PALETTE.length];
       }
       if (colorMode !== "category") return defaultNodeColor;
       // Category-based coloring
@@ -4436,6 +4656,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // 6-step pipeline complete — reveal world and render final positions
       if (this.worldContainer) this.worldContainer.visible = true;
       this.setStatus(`${gd.nodes.length} nodes`);
+      this.updateGraphStats(gd);
       const wrap = this.canvasWrap;
       // Ensure minimum viewport utilization regardless of autoFit
       {
@@ -4610,6 +4831,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (groupCount > 0) statusParts.push(`${groupCount} groups`);
     this.setStatus(statusParts.join(', '));
     this.updateLegend();
+    this.updateGraphStats(ld);
     this.startRenderLoop();
     this.applySearch();
     // updateLabelsForZoom is also called inside autoFitView above,

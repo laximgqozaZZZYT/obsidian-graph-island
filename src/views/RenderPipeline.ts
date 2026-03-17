@@ -272,6 +272,8 @@ export interface RenderHost {
   getCompareNodeIds?(): string[];
   /** ブックマーク済みノードIDセットを取得 */
   getBookmarkedNodeIds?(): Set<string>;
+  /** 未接続同タグノードIDセットを取得 */
+  getMissingNeighborNodeIds?(): Set<string> | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -516,6 +518,9 @@ export class RenderPipeline {
 
     // Pass 6: ブックマーク星アイコンオーバーレイ
     this._renderBookmarkStars(g, ctx);
+
+    // Pass 7: 未接続同タグノードのオレンジリング
+    this._renderMissingNeighborRings(g, ctx);
   }
 
   // =========================================================================
@@ -1281,6 +1286,50 @@ export class RenderPipeline {
         else g.lineTo(px, py);
       }
       g.closePath();
+      g.endFill();
+    }
+  }
+
+  // =========================================================================
+  // Pass 7: 未接続同タグノードのオレンジダッシュリング
+  // =========================================================================
+  /** Draw a dashed orange ring around nodes that share a tag but have no direct edge. */
+  private _renderMissingNeighborRings(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[] },
+  ) {
+    const missingSet = this.host.getMissingNeighborNodeIds?.() ?? null;
+    if (!missingSet || missingSet.size === 0) return;
+
+    const { visible } = ctx;
+    const ringColor = 0xff8c00; // dark orange
+    const ringAlpha = 0.85;
+    const lineWidth = 2;
+    const dashSegments = 10;
+    const gapFraction = 0.35;
+    const radiusPad = 4;
+
+    for (const pn of visible) {
+      if (!missingSet.has(pn.data.id)) continue;
+      const r = pn.radius + radiusPad;
+      const cx = pn.data.x;
+      const cy = pn.data.y;
+      // Draw dashed circle as individual arc segments
+      g.lineStyle(lineWidth, ringColor, ringAlpha);
+      g.beginFill(0, 0); // no fill
+      const segAngle = (2 * Math.PI) / dashSegments;
+      const drawAngle = segAngle * (1 - gapFraction);
+      for (let i = 0; i < dashSegments; i++) {
+        const startA = i * segAngle;
+        const endA = startA + drawAngle;
+        g.moveTo(cx + Math.cos(startA) * r, cy + Math.sin(startA) * r);
+        // Approximate arc with short line segments
+        const steps = 4;
+        for (let s = 1; s <= steps; s++) {
+          const a = startA + (endA - startA) * (s / steps);
+          g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+        }
+      }
       g.endFill();
     }
   }
