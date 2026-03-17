@@ -532,7 +532,7 @@ function buildFilterTab(
   cb: PanelCallbacks,
 ): void {
   buildSection(filterTab, t("section.filter"), (body) => {
-    addToggle(body, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateData(); });
+    addToggle(body, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateData(); }, t("desc.attachments"));
     addToggle(body, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateData(); }, t("desc.existingOnly"));
     addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateData(); }, t("desc.orphans"));
     addSelect(body, t("filter.tagDisplay"), [
@@ -584,9 +584,9 @@ function _buildNodeDisplaySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.displayNodes"), (body) => {
-    addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); });
-    addToggle(body, "Heatmap (degree)", panel.heatmapMode, (v) => { panel.heatmapMode = v; cb.doRender(); }, "Color nodes by connection count (cold→warm)");
-    addSlider(body, t("display.nodeSize"), 2, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
+    addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); }, t("desc.nodeColor"));
+    addToggle(body, t("display.heatmap"), panel.heatmapMode, (v) => { panel.heatmapMode = v; cb.doRender(); }, t("desc.heatmap"));
+    addSlider(body, t("display.nodeSize"), 2, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); }, t("desc.nodeSize"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
     addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.markDirty(); }, t("desc.hoverHops"));
     // --- ノード形状 ---
@@ -671,19 +671,19 @@ function _buildEdgeDisplaySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.displayEdges"), (body) => {
-    addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); });
-    addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); });
+    addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); }, t("desc.arrows"));
+    addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); }, t("desc.edgeColor"));
     addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
-    addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); });
-    addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); });
-    addToggle(body, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); });
-    addToggle(body, t("display.sharedCategory"), panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); });
-    addToggle(body, t("display.semantic"), panel.showSemanticEdges, (v) => { panel.showSemanticEdges = v; cb.markDirty(); });
-    addToggle(body, t("display.inheritance"), panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); });
-    addToggle(body, t("display.aggregation"), panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); });
-    addToggle(body, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateData(); });
-    addToggle(body, t("display.sibling"), panel.showSibling, (v) => { panel.showSibling = v; cb.markDirty(); });
-    addToggle(body, t("display.sequence"), panel.showSequence, (v) => { panel.showSequence = v; cb.markDirty(); });
+    addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); }, t("desc.edgeLabels"));
+    addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); }, t("desc.links"));
+    addToggle(body, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); }, t("desc.sharedTags"));
+    addToggle(body, t("display.sharedCategory"), panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); }, t("desc.sharedCategory"));
+    addToggle(body, t("display.semantic"), panel.showSemanticEdges, (v) => { panel.showSemanticEdges = v; cb.markDirty(); }, t("desc.semantic"));
+    addToggle(body, t("display.inheritance"), panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); }, t("desc.inheritance"));
+    addToggle(body, t("display.aggregation"), panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); }, t("desc.aggregation"));
+    addToggle(body, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateData(); }, t("desc.similar"));
+    addToggle(body, t("display.sibling"), panel.showSibling, (v) => { panel.showSibling = v; cb.markDirty(); }, t("desc.sibling"));
+    addToggle(body, t("display.sequence"), panel.showSequence, (v) => { panel.showSequence = v; cb.markDirty(); }, t("desc.sequence"));
     // Cardinality markers (crow's foot)
     addSelect(body, t("display.edgeCardinality"), [
       { value: "none", label: t("display.cardinalityNone") },
@@ -713,23 +713,23 @@ function _buildCableDisplaySection(
       addSlider(body, t("display.cableTrunkWidth"), 1, 6, 0.5, panel.cableTrunkWidth, (v) => {
         panel.cableTrunkWidth = v;
         cb.markDirty();
-      });
+      }, t("desc.cableTrunkWidth"));
       addSlider(body, t("display.cableTrunkAlpha"), 0.1, 1, 0.05, panel.cableTrunkAlpha, (v) => {
         panel.cableTrunkAlpha = v;
         cb.markDirty();
-      });
+      }, t("desc.cableTrunkAlpha"));
       addSlider(body, t("display.cableSpacing"), 1, 12, 1, panel.cableSpacing, (v) => {
         panel.cableSpacing = v;
         cb.markDirty();
-      });
+      }, t("desc.cableSpacing"));
       addSlider(body, t("display.cableFanWidth"), 0.3, 3, 0.1, panel.cableFanWidth, (v) => {
         panel.cableFanWidth = v;
         cb.markDirty();
-      });
+      }, t("desc.cableFanWidth"));
       addSlider(body, t("display.cableFanAlpha"), 0.05, 1, 0.05, panel.cableFanAlpha, (v) => {
         panel.cableFanAlpha = v;
         cb.markDirty();
-      });
+      }, t("desc.cableFanAlpha"));
     }
   }, undefined, false, "git-merge");
 }
@@ -755,12 +755,12 @@ function _buildRoadNetworkSection(
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.roadAlpha = v;
         cb.doRenderKeepPanel();
-      });
+      }, t("desc.roadAlpha"));
       addSlider(body, t("display.roadWidth"), 2, 20, 1, rt.roadWidth ?? DEFAULT_RENDER_THRESHOLDS.roadWidth, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.roadWidth = v;
         cb.doRenderKeepPanel();
-      });
+      }, t("desc.roadWidth"));
     }
   }, undefined, false, "map");
 }
@@ -769,8 +769,8 @@ function _buildMinimapSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.displayOther"), (body) => {
-    addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.wakeRenderLoop(); });
-    addToggle(body, t("display.dotGrid"), panel.showDotGrid, (v) => { panel.showDotGrid = v; cb.markDirty(); });
+    addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.wakeRenderLoop(); }, t("desc.minimap"));
+    addToggle(body, t("display.dotGrid"), panel.showDotGrid, (v) => { panel.showDotGrid = v; cb.markDirty(); }, t("desc.dotGrid"));
   }, undefined, false, "eye");
 }
 
@@ -932,15 +932,15 @@ function _buildGraphSyncSection(
   buildSection(tabEl, "Graph Sync", (body) => {
     addToggle(body, t("display.syncWithEditor"), panel.syncWithEditor, (v) => {
       panel.syncWithEditor = v;
-    });
+    }, t("desc.syncWithEditor"));
     addSlider(body, t("display.localGraphHops"), 1, 5, 1, panel.localGraphHops, (v) => {
       panel.localGraphHops = v;
       if (panel.localGraphCenter) cb.doRender();
-    });
+    }, t("desc.localGraphHops"));
     addToggle(body, t("display.edgeWeightThickness"), panel.edgeWeightThickness, (v) => {
       panel.edgeWeightThickness = v;
       cb.markDirty();
-    });
+    }, t("desc.edgeWeightThickness"));
   }, undefined, false, "settings");
 }
 
@@ -1006,7 +1006,7 @@ function _buildOntologySection(
     addToggle(body, t("settings.tagHierarchy"), s.ontology.useTagHierarchy, (v) => {
       s.ontology.useTagHierarchy = v;
       ctx.saveSettings(); cb.invalidateData();
-    });
+    }, t("desc.tagHierarchy"));
   }, tHelp("help.ontology"), false, "network");
 }
 
@@ -1178,7 +1178,7 @@ function _buildCoordinateControls(s: ClusterSectionCtx): void {
     cb.applyClusterForce();
     cb.rebuildPanel();
     cb.restartSimulation(0.5);
-  });
+  }, t("desc.perGroup"));
 
   if (coordLayout.system === "polar" && coordLayout.axis2.transform.kind === TRANSFORM_EVEN_DIVIDE) {
     addSlider(body, `${axis2Label} ${t("coord.range")} (°)`, 30, 360, 10,
@@ -1375,7 +1375,7 @@ function _buildSpacingAndGroupArrangement(s: ClusterSectionCtx): void {
   s.spacingSliders.push(addSlider(body, t("cluster.nodeSpacing"), 1, 10, 0.5, panel.clusterNodeSpacing, (v) => {
     panel.clusterNodeSpacing = v;
     debouncedClusterForce();
-  }));
+  }, t("desc.nodeSpacing")));
 
   // Inter-group arrangement dropdown
   addSelect(body, t("cluster.groupArrangement"), [
@@ -1394,11 +1394,11 @@ function _buildSpacingAndGroupArrangement(s: ClusterSectionCtx): void {
   s.spacingSliders.push(addSlider(body, t("cluster.groupSize"), 0.5, 5, 0.25, panel.clusterGroupScale, (v) => {
     panel.clusterGroupScale = v;
     debouncedClusterForce();
-  }));
+  }, t("desc.groupSize")));
   s.spacingSliders.push(addSlider(body, t("cluster.groupSpacing"), 0.5, 5, 0.25, panel.clusterGroupSpacing, (v) => {
     panel.clusterGroupSpacing = v;
     debouncedClusterForce();
-  }));
+  }, t("desc.groupSpacing")));
 
   // Apply initial disabled state for autoFit
   for (const el of s.spacingSliders) {
@@ -1443,19 +1443,19 @@ function _buildForceParameters(s: ClusterSectionCtx): void {
   addSlider(body, t("force.centerForce"), 0, 0.15, 0.005, panel.centerForce, (v) => {
     panel.centerForce = v;
     debouncedForceUpdate();
-  });
+  }, t("desc.centerForce"));
   addSlider(body, t("force.repelForce"), 0, 500, 10, panel.repelForce, (v) => {
     panel.repelForce = v;
     debouncedForceUpdate();
-  });
+  }, t("desc.repelForce"));
   addSlider(body, t("force.linkForce"), 0, 0.1, 0.005, panel.linkForce, (v) => {
     panel.linkForce = v;
     debouncedForceUpdate();
-  });
+  }, t("desc.linkForce"));
   addSlider(body, t("force.linkDistance"), 10, 300, 10, panel.linkDistance, (v) => {
     panel.linkDistance = v;
     debouncedForceUpdate();
-  });
+  }, t("desc.linkDistance"));
 }
 
 /** Cluster group rules sub-section (follow-mode info or independent rule editor) */
@@ -2546,7 +2546,7 @@ function addToggle(container: HTMLElement, label: string, initial: boolean, onCh
   const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
   nameEl.title = description || label;
   const control = row.createDiv({ cls: "setting-item-control" });
-  const toggle = control.createDiv({ cls: "checkbox-container" + (initial ? " is-enabled" : ""), attr: { role: "switch", "aria-label": label, "aria-checked": String(initial) } });
+  const toggle = control.createDiv({ cls: "checkbox-container" + (initial ? " is-enabled" : ""), attr: { role: "switch", "aria-label": label, "aria-checked": String(initial), tabindex: "0" } });
   toggle.addEventListener("click", () => {
     const on = toggle.hasClass("is-enabled");
     toggle.toggleClass("is-enabled", !on);
