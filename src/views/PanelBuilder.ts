@@ -545,7 +545,8 @@ function buildFilterTab(
     ], !panel.showTagNodes ? "off" : panel.tagDisplay, (v) => {
       panel.showTagNodes = v !== "off";
       panel.tagDisplay = v === TAG_DISPLAY_ENCLOSURE ? TAG_DISPLAY_ENCLOSURE : TAG_DISPLAY_NODE;
-      cb.invalidateData();
+      cb.invalidateDataKeepPanel();
+      cb.rebuildPanel(); // Progressive disclosure: tag shape / enclosure settings
     }, t("desc.tagDisplay"));
     // Dataview query filter
     const dvRow = body.createDiv({ cls: "gi-setting-row" });
@@ -625,8 +626,8 @@ function _buildNodeDisplayModeSection(
     ];
     addSelect(body, t("display.nodeDisplayMode"), modeOptions, panel.nodeDisplayMode, (v) => {
       panel.nodeDisplayMode = v as NodeDisplayMode;
-      cb.doRender();
-      cb.rebuildPanel();
+      cb.doRenderKeepPanel();
+      cb.rebuildPanel(); // Progressive disclosure: card/donut sub-settings
     }, t("desc.nodeDisplayMode"));
 
     // Progressive disclosure: show sub-settings based on mode
@@ -774,7 +775,7 @@ function _buildMinimapSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.displayOther"), (body) => {
-    addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.wakeRenderLoop(); }, t("desc.minimap"));
+    addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.markDirty(); cb.wakeRenderLoop(); }, t("desc.minimap"));
     addToggle(body, t("display.dotGrid"), panel.showDotGrid, (v) => { panel.showDotGrid = v; cb.markDirty(); }, t("desc.dotGrid"));
   }, undefined, false, "eye");
 }
@@ -871,7 +872,7 @@ function buildLayoutTab(
       addSlider(body, t("display.groupMinSize"), 1, 20, 1, panel.groupMinSize, (v) => {
         panel.groupMinSize = v;
         panel.collapsedGroups.clear();
-        cb.doRender();
+        cb.doRenderKeepPanel();
       }, t("desc.groupMinSize"));
       if (ctx.availableGroups.length > 0) {
         const currentFilter = panel.groupFilter
@@ -880,7 +881,7 @@ function buildLayoutTab(
         addCheckboxGroup(body, t("display.groupFilter"), ctx.availableGroups, currentFilter, (sel) => {
           panel.groupFilter = sel.size === ctx.availableGroups.length ? "" : [...sel].join(", ");
           panel.collapsedGroups.clear();
-          cb.doRender();
+          cb.doRenderKeepPanel();
         });
       }
     }
@@ -937,10 +938,12 @@ function _buildGraphSyncSection(
   buildSection(tabEl, t("section.graphSync"), (body) => {
     addToggle(body, t("display.syncWithEditor"), panel.syncWithEditor, (v) => {
       panel.syncWithEditor = v;
+      cb.markDirty(); // Persist setting
     }, t("desc.syncWithEditor"));
     addSlider(body, t("display.localGraphHops"), 1, 5, 1, panel.localGraphHops, (v) => {
       panel.localGraphHops = v;
-      if (panel.localGraphCenter) cb.doRender();
+      if (panel.localGraphCenter) cb.doRenderKeepPanel();
+      else cb.markDirty(); // Persist even when not in local graph mode
     }, t("desc.localGraphHops"));
     addToggle(body, t("display.edgeWeightThickness"), panel.edgeWeightThickness, (v) => {
       panel.edgeWeightThickness = v;
@@ -2869,6 +2872,7 @@ function renderGroupByRules(
     }
 
     cb.doRenderKeepPanel();
+    cb.rebuildPanel(); // Progressive disclosure: groupMinSize/groupFilter/clusterGravity
   }
 
   /** Re-render the rows UI from the rules array. */
