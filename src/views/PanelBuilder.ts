@@ -269,6 +269,8 @@ export interface PanelCallbacks {
   updateForces(): void;
   applySearch(): void;
   applyTextFade(): void;
+  /** Recalculate hover highlight set (BFS with current hoverHops) */
+  applyHover(): void;
   applyDirectionalGravityForce(): void;
   applyNodeRules(): void;
   startOrbitAnimation(): void;
@@ -588,7 +590,7 @@ function _buildNodeDisplaySection(
     addToggle(body, t("display.heatmap"), panel.heatmapMode, (v) => { panel.heatmapMode = v; cb.doRenderKeepPanel(); }, t("desc.heatmap"));
     addSlider(body, t("display.nodeSize"), 2, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRenderKeepPanel(); }, t("desc.nodeSize"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
-    addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.markDirty(); }, t("desc.hoverHops"));
+    addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.applyHover(); cb.markDirty(); }, t("desc.hoverHops"));
     // --- ノード形状 ---
     const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
     const defaultRule = panel.nodeShapeRules.find(r => r.match === "default");

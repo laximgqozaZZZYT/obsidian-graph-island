@@ -2934,6 +2934,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       updateForces: () => { this.updateForces(); this.requestSave(); },
       applySearch: () => this.applySearch(),
       applyTextFade: () => { this.applyTextFade(); this.requestSave(); },
+      applyHover: () => { this.applyHover(); },
       applyDirectionalGravityForce: () => { this.applyNodeRulesForce(); this.requestSave(); },
       applyNodeRules: () => { this.applyNodeRulesForce(); this.applyClusterForce(); this.requestSave(); },
       applyClusterForce: (reset?: boolean) => { this.applyClusterForce(reset); this.requestSave(); },
