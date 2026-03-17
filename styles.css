@@ -2451,3 +2451,137 @@
   text-overflow: ellipsis;
   max-width: 200px;
 }
+
+/* === Missing CSS classes for visual quality === */
+
+/* GroupBy rule expression field */
+.gi-expr-field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Boolean operator row between groupBy rules */
+.gi-expr-op-row {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0;
+}
+.gi-expr-op {
+  font-size: var(--font-ui-smaller);
+  min-width: 60px;
+  text-align: center;
+}
+
+/* Indent/dedent buttons for rule nesting */
+.gi-expr-btn {
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 6px;
+  opacity: 0.6;
+  font-size: 12px;
+}
+.gi-expr-btn:hover { opacity: 1; }
+
+/* Coordinate constants section */
+.gi-constants-section {
+  margin-top: 8px;
+}
+.gi-constants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gi-constant-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.gi-constant-key {
+  width: 40px;
+  text-align: center;
+  font-family: var(--font-monospace);
+}
+.gi-constant-eq {
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.gi-constant-val {
+  width: 70px;
+}
+.gi-constant-hint {
+  font-size: 10px;
+  opacity: 0.6;
+  margin-left: 4px;
+}
+
+/* System constants (dimmed when at default) */
+.gi-system-constants {
+  opacity: 0.8;
+}
+.gi-system-constants-label {
+  font-size: var(--font-ui-smaller);
+  opacity: 0.7;
+}
+.gi-system-constant-row { }
+.gi-system-constant-key {
+  width: 80px;
+  display: inline-block;
+  font-size: 11px;
+  font-family: var(--font-monospace);
+}
+.gi-constant-default .gi-constant-val {
+  opacity: 0.5;
+}
+
+/* Expression validation indicator */
+.gi-expr-indicator {
+  flex-shrink: 0;
+  font-size: 14px;
+  margin-left: 4px;
+}
+
+/* Follow mode info text */
+.gi-follow-info {
+  padding: 4px 8px;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* Multi-rule list containers */
+.gi-multirule-list,
+.gi-sort-list,
+.gi-gravity-rule-list,
+.gi-noderule-list,
+.gi-mappings-list,
+.gi-tag-relations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Panel action buttons */
+.gi-panel-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+/* Section help button */
+.gi-section-help {
+  margin-left: auto;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.gi-section-help:hover { opacity: 1; }
+
+/* Group search input in filter tab */
+.gi-group-search {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Empty checkbox group placeholder */
+.gi-checkbox-empty {
+  opacity: 0.4;
+  font-style: italic;
+}
