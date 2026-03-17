@@ -32,6 +32,7 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "syncWithEditor",
   "showEdgeWeightLabels",
   "showLegend",
+  "visualLinkEditor",
 ];
 
 /** Fields that should be number */
@@ -42,6 +43,7 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "clusterGroupSpacing", "edgeBundleStrength", "groupMinSize",
   "timelineRangeMin", "timelineRangeMax",
   "cableTrunkWidth", "cableTrunkAlpha", "cableSpacing", "cableFanWidth", "cableFanAlpha",
+  "localGraphHops",
 ];
 
 /** Fields that should be string */
@@ -56,7 +58,7 @@ const STRING_FIELDS: (keyof PanelState)[] = [
 const ARRAY_FIELDS: (keyof PanelState)[] = [
   "groups", "directionalGravityRules", "commonQueries", "clusterGroupRules",
   "sortRules", "nodeRules", "nodeShapeRules", "groupByRules",
-  "cardinalityRules", "annotations", "bookmarkedNodes",
+  "cardinalityRules", "annotations", "bookmarkedNodes", "searchHistory",
 ];
 
 /** Valid values for enum-like fields */
