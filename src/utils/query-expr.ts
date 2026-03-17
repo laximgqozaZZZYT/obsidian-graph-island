@@ -6,6 +6,8 @@ export interface QueryLeaf {
   value: string;
   /** When true, require exact match instead of substring match (for label and path fields) */
   exact?: boolean;
+  /** When true, use fuzzy (Levenshtein) matching instead of exact/substring */
+  fuzzy?: boolean;
 }
 
 export interface QueryBranch {
@@ -100,7 +102,13 @@ export function parseQueryExpr(input: string): QueryExpression | null {
   }
 
   function parseLeaf(): QueryLeaf {
-    const tok = advance() ?? "";
+    let tok = advance() ?? "";
+    // Fuzzy prefix: ~value or ~field:value
+    let fuzzy = false;
+    if (tok.startsWith("~")) {
+      fuzzy = true;
+      tok = tok.slice(1);
+    }
     // Special keyword: bare "isTag" → isTag:true
     if (tok.toLowerCase() === "istag") {
       return { type: "leaf", field: "isTag", value: "true" };
@@ -110,10 +118,10 @@ export function parseQueryExpr(input: string): QueryExpression | null {
     if (colonIdx > 0) {
       const field = tok.slice(0, colonIdx);
       const rawVal = tok.slice(colonIdx + 1);
-      return { type: "leaf", field, value: unquote(rawVal) };
+      return { type: "leaf", field, value: unquote(rawVal), fuzzy };
     }
     // Bare value → label field
-    return { type: "leaf", field: "label", value: unquote(tok) };
+    return { type: "leaf", field: "label", value: unquote(tok), fuzzy };
   }
 
   return parseExpr();
@@ -198,6 +206,40 @@ function matchValue(target: string, pattern: string): boolean {
   return new RegExp(`^${escaped}$`).test(target);
 }
 
+/** Levenshtein距離（編集距離）— ファジーマッチ用 */
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  // 1行分のDPバッファで省メモリ
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    const curr = [i];
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    prev = curr;
+  }
+  return prev[n];
+}
+
+/** ファジーマッチ: 編集距離が閾値以内、または部分文字列マッチ */
+function fuzzyMatch(target: string, query: string): boolean {
+  if (target.includes(query)) return true;
+  // 閾値: クエリ長の30%（最低1）
+  const threshold = Math.max(1, Math.floor(query.length * 0.3));
+  // 短いクエリはtarget全体との距離、長いクエリはスライディングウィンドウ
+  if (query.length <= 5) {
+    return levenshtein(target, query) <= threshold;
+  }
+  // スライディングウィンドウ: targetの各位置でquery長の部分文字列と比較
+  for (let i = 0; i <= target.length - query.length; i++) {
+    if (levenshtein(target.substring(i, i + query.length), query) <= threshold) return true;
+  }
+  return false;
+}
+
 function evaluateLeaf(
   leaf: QueryLeaf,
   node: { id: string; label: string; tags?: string[]; category?: string; filePath?: string; isTag?: boolean; meta?: Record<string, unknown> },
@@ -230,12 +272,14 @@ function evaluateLeaf(
       return String(!!node.isTag) === val;
     case "label": {
       const lbl = node.label.toLowerCase();
+      if (leaf.fuzzy) return fuzzyMatch(lbl, val);
       return leaf.exact ? matchValue(lbl, val) : (val.includes("*") ? matchValue(lbl, val) : lbl.includes(val));
     }
     default: {
       // Frontmatter field lookup via node.meta
       const metaVal = resolveMetaValue(node.meta, leaf.field);
       if (metaVal.length === 0) return false;
+      if (leaf.fuzzy) return metaVal.some(v => fuzzyMatch(v.toLowerCase(), val));
       return metaVal.some(v => matchValue(v.toLowerCase(), val));
     }
   }
