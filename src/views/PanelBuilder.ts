@@ -904,8 +904,8 @@ function buildLayoutTab(
     _buildConcentricOptions(sctx);
     _buildCoordinateControls(sctx);
     _buildTimelineControls(sctx);
+    _buildSpacingAndGroupArrangement(sctx);  // Must come before autoFit (populates spacingSliders)
     _buildAutoFitAndGuides(sctx);
-    _buildSpacingAndGroupArrangement(sctx);
     _buildForceParameters(sctx);
     _buildClusterGroupRules(sctx);
     _buildDirectionalGravityRules(sctx);
