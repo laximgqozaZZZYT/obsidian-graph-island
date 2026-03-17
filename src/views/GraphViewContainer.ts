@@ -2960,7 +2960,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
       g.lineStyle(baseWidth, color, alpha);
 
-      const pts = route.waypoints;
+      // Resolve live node positions instead of frozen target positions
+      const pts = route.waypoints.map(wp => {
+        const pn = wp.nodeId ? this.pixiNodes.get(wp.nodeId) : null;
+        return pn ? { x: pn.data.x, y: pn.data.y } : wp;
+      });
+      if (pts.length < 2) continue;
       g.moveTo(pts[0].x, pts[0].y);
 
       // Straight line segments connecting timeline nodes

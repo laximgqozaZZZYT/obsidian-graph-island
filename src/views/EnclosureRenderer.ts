@@ -109,7 +109,6 @@ const SIZE_FADE_MIN = 0.3;
 /** Fill alpha visibility threshold */
 const FILL_ALPHA_VISIBILITY_THRESHOLD = 0.005;
 /** Radial fill edge alpha factor */
-const RADIAL_FILL_EDGE_ALPHA = 0.15;
 /** Label darken factor for background pill */
 const LABEL_DARKEN_FACTOR = 0.25;
 /** Label pill padding (horizontal) */
