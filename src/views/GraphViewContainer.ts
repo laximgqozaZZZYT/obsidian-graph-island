@@ -3893,6 +3893,30 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
+    // --- ヒートマップレジェンドセクション ---
+    if (legendColorMode === "heatmap") {
+      const hmSection = body.createDiv({ cls: "gi-legend-section" });
+      hmSection.createEl("div", { cls: "gi-legend-section-title", text: t("legend.nodeColors") });
+      const maxDeg = Math.max(1, ...[...this.degrees.values()]);
+      const stops = [0, 0.25, 0.5, 0.75, 1.0];
+      const gradBar = hmSection.createDiv({ cls: "gi-legend-item" });
+      gradBar.style.display = "flex";
+      gradBar.style.alignItems = "center";
+      gradBar.style.gap = "4px";
+      gradBar.createEl("span", { cls: "gi-legend-label", text: "0" });
+      const bar = gradBar.createDiv();
+      bar.style.flex = "1";
+      bar.style.height = "10px";
+      bar.style.borderRadius = "3px";
+      bar.style.background = `linear-gradient(to right, ${stops.map(s => {
+        const r = Math.round(59 + s * (239 - 59));
+        const g = Math.round(130 - s * (130 - 68));
+        const b = Math.round(246 - s * (246 - 68));
+        return `rgb(${r},${g},${b})`;
+      }).join(", ")})`;
+      gradBar.createEl("span", { cls: "gi-legend-label", text: String(maxDeg) });
+    }
+
     // --- エッジ属性カラーセクション ---
     if (relColors.size > 0 && this.panel.colorEdgesByRelation) {
       const edgeSection = body.createDiv({ cls: "gi-legend-section" });
