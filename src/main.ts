@@ -1,4 +1,4 @@
-import { Plugin } from "obsidian";
+import { Plugin, MarkdownView } from "obsidian";
 import { GraphViewsSettingTab } from "./settings";
 import { GraphViewContainer, VIEW_TYPE_GRAPH } from "./views/GraphViewContainer";
 import { NodeDetailView, VIEW_TYPE_NODE_DETAIL } from "./views/NodeDetailView";
@@ -6,6 +6,8 @@ import { NodeComparisonView, VIEW_TYPE_NODE_COMPARE } from "./views/NodeComparis
 import { EVENT_COMPARE_NODES } from "./constants";
 import { DEFAULT_SETTINGS, type GraphViewsSettings } from "./types";
 import { detectTagRelations } from "./utils/tag-relation-presets";
+import { t } from "./i18n";
+import { showToast } from "./utils/toast";
 
 export default class GraphViewsPlugin extends Plugin {
   settings: GraphViewsSettings = DEFAULT_SETTINGS;
@@ -49,6 +51,21 @@ export default class GraphViewsPlugin extends Plugin {
       name: "Open graph view",
       callback: () => {
         this.activateView();
+      },
+    });
+
+    // グラフをアクティブノートにPNG画像として埋め込むコマンド
+    this.addCommand({
+      id: "embed-graph-in-note",
+      name: "Embed graph in note",
+      editorCallback: async () => {
+        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH);
+        if (leaves.length === 0) {
+          showToast(t("toast.embedNoGraph"), 5000);
+          return;
+        }
+        const view = leaves[0].view as GraphViewContainer;
+        await view.embedGraphInNote();
       },
     });
 

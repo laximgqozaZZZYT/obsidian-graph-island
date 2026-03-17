@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Menu, type ViewStateResult } from "obsidian";
+import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Menu, MarkdownView, type ViewStateResult } from "obsidian";
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
@@ -22,6 +22,7 @@ import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
 import type { ClusterMetadata, TimelineBarInfo, ArrangementGuide, TimelineRoute, GroupGuideEntry } from "../layouts/cluster-force";
 import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from "../layouts/cluster-force";
+import { matchesFilter } from "../layouts/force";
 import type { ResolvedGridInfo, ResolvedGridLine } from "../layouts/coordinate-engine";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
 import { RenderPipeline, darkenColor, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPipeline";
@@ -481,6 +482,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     });
 
+    // ノートにグラフを埋め込むボタン
+    const embedBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    setIcon(embedBtn, "image-down");
+    embedBtn.setAttribute("aria-label", t("toolbar.embedInNote"));
+    embedBtn.title = t("toolbar.embedInNote");
+    embedBtn.addEventListener("click", async () => {
+      embedBtn.disabled = true;
+      try {
+        await this.embedGraphInNote();
+      } finally {
+        embedBtn.disabled = false;
+      }
+    });
+
     // Local graph toggle button
     const localGraphBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(localGraphBtn, "locate-fixed");
@@ -718,6 +733,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     if (this.shortcutHelpEl && this.shortcutHelpEl.style.display !== "none") {
       this.shortcutHelpEl.style.display = "none";
+      return;
+    }
+    // フォーカスモードのクリア (Escape)
+    if (this.panel.focusNodeId) {
+      this.clearFocus();
       return;
     }
     if (this._isKeyboardFocused) {
@@ -1571,6 +1591,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       pn.data.fx = null;
       pn.data.fy = null;
     }
+    // フォーカスモード: クリック時にハイライトを固定
+    if (this.panel.focusMode) {
+      if (this.panel.focusNodeId === pn.data.id) {
+        // 同じノードを再クリック → フォーカス解除
+        this.panel.focusNodeId = null;
+      } else {
+        this.panel.focusNodeId = pn.data.id;
+      }
+      this._applyFocusHighlight();
+    }
   }
 
   /** Clear all held nodes */
@@ -1743,7 +1773,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const hId = this.highlightedNodeId;
 
     // Build current highlight set via BFS up to hoverHops
-    const curSet = this._buildHoverHighlightSet(hId);
+    let curSet = this._buildHoverHighlightSet(hId);
+
+    // フォーカスモード: ホバーなしでフォーカスが有効なら、フォーカスセットを使用
+    const focusActive = this.panel.focusMode && this.panel.focusNodeId && !hId;
+    if (focusActive) {
+      curSet = this._buildHoverHighlightSet(this.panel.focusNodeId);
+    }
 
     // Determine which nodes actually changed state
     const prev = this.prevHighlightSet;
@@ -1769,15 +1805,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
     const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
 
+    // フォーカスモード時はフォーカスノードIDを実効ハイライトIDとして使用
+    const effectiveHId = hId || (focusActive ? this.panel.focusNodeId : null);
+
     for (const pn of nodesToUpdate) {
-      if (!hId) {
+      if (!effectiveHId) {
         pn.gfx.alpha = 1;
         if (isCardMode) pn.gfx.scale.set(1);
         this.drawNodeCircle(pn, false);
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; }
       } else if (curSet.has(pn.data.id)) {
         pn.gfx.alpha = 1;
-        if (isCardMode && pn.data.id === hId) {
+        if (isCardMode && pn.data.id === effectiveHId) {
           pn.gfx.scale.set(crc.cardHoverScale);
         } else if (isCardMode) {
           pn.gfx.scale.set(1);
@@ -1822,6 +1861,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
     return curSet;
+  }
+
+  /** フォーカスモードのハイライトを適用 (クリック時に呼ばれる) */
+  private _applyFocusHighlight(): void {
+    // ホバーが無い状態でフォーカスを再適用
+    if (!this.highlightedNodeId) {
+      this.applyHover();
+    }
+    this.markDirty(true);
+  }
+
+  /** フォーカスをクリア */
+  clearFocus(): void {
+    this.panel.focusNodeId = null;
+    this.applyHover();
+    this.markDirty(true);
   }
 
   /** Create and attach a hover tooltip label to the given PixiNode. */
@@ -2061,7 +2116,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     // Ephemeral highlight (from side panel hover) overrides normal hover for edge drawing
     const ephActive = this.ephemeralHighlight && this.ephemeralHighlight.size > 0;
-    const effectiveHighlightId = ephActive ? "__ephemeral__" : this.highlightedNodeId;
+    // フォーカスモード: ホバーがない場合、フォーカスノードIDを実効ハイライトIDとして使用
+    const focusFallbackId = (this.panel.focusMode && this.panel.focusNodeId && !this.highlightedNodeId)
+      ? this.panel.focusNodeId : null;
+    const effectiveHighlightId = ephActive ? "__ephemeral__" : (this.highlightedNodeId || focusFallbackId);
     const effectiveHighlightSet = ephActive ? this.ephemeralHighlight! : this.prevHighlightSet;
 
     // Reuse EdgeDrawConfig object — mutate in place to avoid per-frame allocation
@@ -2124,6 +2182,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.highlightEdgeNonMatchAlpha = edgeRt.highlightEdgeNonMatchAlpha;
     cfg.isDark = this.isDarkTheme();
     cfg.showEdgeLabels = this.panel.showEdgeLabels;
+    cfg.edgeLayerMode = this.panel.edgeLayerMode;
     cfg.showArrows = this.panel.showArrows;
     cfg.nodeRadii = (this.panel.showArrows || this.panel.edgeCardinalityMode !== "none") ? this.getCachedNodeRadii() : null;
     cfg.worldScale = this.worldContainer?.scale?.x ?? 1;
@@ -3672,7 +3731,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return (r << 16) | (g << 8) | b;
     };
 
+    // ノードルールのカラーオーバーライドをプリコンパイル
+    const nodeRulesWithColor = (this.panel.nodeRules ?? []).filter(r => r.color);
+
     return (n: GraphNode): number => {
+      // NodeRule カラーオーバーライドが最優先
+      for (const rule of nodeRulesWithColor) {
+        if (matchesFilter(n, rule.query)) return cssColorToHex(rule.color!);
+      }
       // Manual group overrides take priority
       for (const grp of this.panel.groups) {
         if (grp.expression && evaluateExpr(grp.expression, n)) return cssColorToHex(grp.color);
@@ -4081,6 +4147,73 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       console.error("Graph Island: clipboard copy failed", e);
       showToast(t("toast.clipboardFailed"), 5000);
     }
+  }
+
+  /**
+   * 現在のグラフをPNGとしてキャプチャし、アクティブなノートに埋め込む。
+   * ツールバーボタンおよびコマンドパレットから呼び出される。
+   */
+  public async embedGraphInNote(): Promise<void> {
+    // アクティブなエディタを取得
+    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!mdView || !mdView.editor) {
+      showToast(t("toast.embedNoEditor"), 5000);
+      return;
+    }
+    if (!this.pixiApp) {
+      showToast(t("toast.embedNoGraph"), 5000);
+      return;
+    }
+
+    try {
+      const { exportGraphAsPng } = await import("../utils/export-png");
+      const blob = await exportGraphAsPng(this.pixiApp);
+
+      // タイムスタンプ付きファイル名を生成
+      const now = new Date();
+      const ts = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, "0"),
+        String(now.getDate()).padStart(2, "0"),
+        String(now.getHours()).padStart(2, "0"),
+        String(now.getMinutes()).padStart(2, "0"),
+        String(now.getSeconds()).padStart(2, "0"),
+      ].join("");
+      const filename = `graph-island-${ts}.png`;
+
+      // Obsidianの添付ファイルフォルダ設定を尊重してパスを決定
+      const activeFile = mdView.file;
+      const attachPath = (this.app.vault as any).getAvailablePath
+        ? (this.app.vault as any).getAvailablePath(
+            ((this.app.vault as any).config?.attachmentFolderPath || "") + "/" + filename.replace(".png", ""),
+            "png"
+          )
+        : filename;
+
+      // バイナリデータとしてvaultに保存
+      const buffer = await blob.arrayBuffer();
+      await this.app.vault.createBinary(attachPath, buffer);
+
+      // エディタのカーソル位置にwikilink画像を挿入
+      const editor = mdView.editor;
+      const basename = attachPath.replace(/^.*\//, "");
+      editor.replaceSelection(`![[${basename}]]\n`);
+
+      showToast(t("toast.embedSuccess"));
+    } catch (e) {
+      console.error("Graph Island: embed failed", e);
+      showToast(t("toast.embedFailed"), 5000);
+    }
+  }
+
+  /**
+   * キャンバスをPNG Blobとしてエクスポートする公開メソッド。
+   * コマンドパレットからの呼び出し用。
+   */
+  public async exportCanvasAsBlob(): Promise<Blob | null> {
+    if (!this.pixiApp) return null;
+    const { exportGraphAsPng } = await import("../utils/export-png");
+    return exportGraphAsPng(this.pixiApp);
   }
 
   /** Collect all unique tag names from graph nodes */

@@ -306,6 +306,8 @@ export interface NodeRule {
   centerGravity?: number;
   /** Repel force multiplier (0–3, default 1.0). Force layout only. */
   repelMultiplier?: number;
+  /** ノードカラーオーバーライド (CSS hex string, e.g. "#ff0000"). 空文字 = オーバーライドなし */
+  color?: string;
 }
 
 /** Cluster-level gravity coefficients for group spacing */

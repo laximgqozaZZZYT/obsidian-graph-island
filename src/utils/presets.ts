@@ -22,6 +22,7 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showDotGrid",
   "gridTableMode", "gridShowHeaders", "gridCellShading",
   "clusterFollowsGroupBy",
+  "focusMode",
 ];
 
 /** Fields that should be number */

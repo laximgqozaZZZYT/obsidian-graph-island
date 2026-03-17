@@ -91,6 +91,8 @@ export interface EdgeDrawConfig {
   clusterArrangement?: string;
   /** Coordinate system: "cartesian" or "polar" — determines cable routing mode */
   coordinateSystem?: "cartesian" | "polar";
+  /** エッジ種別ごとにレイヤー分離描画 — 種別別に描画パスを分けて z-order を制御 */
+  edgeLayerMode?: boolean;
 }
 
 // Minimal position data needed for source/target
@@ -2894,10 +2896,33 @@ export function drawEdges(
   const cablePrep = prepareCables(edges, resolvePos, cfg);
   drawCables(g, cfg, densityScale, cablePrep);
 
-  // Main per-edge draw loop (non-cabled edges)
+  // レイヤー分離モード: 種別ごとに描画パスを分けて z-order を制御
+  if (cfg.edgeLayerMode) {
+    _drawEdgesLayered(g, edges, resolvePos, cfg, useRelColor, isArcLayout,
+      densityScale, pairCount, bundles, bundleStrength, cablePrep, arrowGfx);
+  } else {
+    _drawEdgesSinglePass(g, edges, resolvePos, cfg, useRelColor, isArcLayout,
+      densityScale, pairCount, bundles, bundleStrength, cablePrep, arrowGfx);
+  }
+}
+
+/** 単一パス描画 (従来動作) */
+function _drawEdgesSinglePass(
+  g: CanvasGraphics,
+  edges: GraphEdge[],
+  resolvePos: (ref: string | object) => Pos | undefined,
+  cfg: EdgeDrawConfig,
+  useRelColor: boolean,
+  isArcLayout: boolean,
+  densityScale: number,
+  pairCount: Map<string, number> | null,
+  bundles: Map<string, BundleGroup> | null,
+  bundleStrength: number,
+  cablePrep: CablePrepResult,
+  arrowGfx?: CanvasGraphics | null,
+): void {
   let _dbgLeaked = 0;
   for (const e of edges) {
-    // Skip edges handled by trunk bundling or intra-group cables
     if (cablePrep.cabledEdgeIds.has(e.id)) continue;
     if (cablePrep.intraHandledIds.has(e.id)) continue;
     if (shouldSkipEdge(e, cfg)) continue;
@@ -2906,14 +2931,10 @@ export function drawEdges(
     const tgt = resolvePos(e.target);
     if (!src || !tgt) continue;
 
-    // In cable mode, skip fallthrough edges within or between clusters
-    // (they should have been captured by trunk/intra-cable systems)
     if (cablePrep.hasClusters) {
       _dbgLeaked++;
       continue;
     }
-
-    // Edges not handled by trunk or intra-group cables fall through to normal drawing
 
     const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
     const { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
@@ -2925,6 +2946,108 @@ export function drawEdges(
     drawEdgeDecorations(g, e, src, tgt, lineColor, alpha, cfg, arrowGfx);
 
     if (hasDash) g.setLineDash([]);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// レイヤー分離描画 — 種別ごとに描画パスを分け、alpha/width を微調整
+// ---------------------------------------------------------------------------
+
+/** レイヤー描画順序 (下層 → 上層): 薄いものを先に、重要なものを後に描画 */
+const EDGE_LAYER_ORDER: readonly (string | undefined)[] = [
+  EDGE_TYPE_SIMILAR,     // 最下層: 類似エッジ (最も薄い)
+  EDGE_TYPE_TAG,         // 共有タグ
+  EDGE_TYPE_HAS_TAG,     // has-tag
+  "category",            // 共有カテゴリ
+  "semantic",            // 意味関係
+  EDGE_TYPE_SIBLING,     // 兄弟
+  EDGE_TYPE_SEQUENCE,    // 順序
+  EDGE_TYPE_AGGREGATION, // 集約
+  EDGE_TYPE_INHERITANCE, // 継承
+  EDGE_TYPE_LINK,        // 最上層: wikilink (最も重要)
+  undefined,             // type未設定のフォールバック
+];
+
+/** レイヤーごとの alpha 乗数 (下層ほど薄い) */
+const LAYER_ALPHA_MULTIPLIERS: readonly number[] = [
+  0.50, // similar
+  0.60, // tag
+  0.60, // has-tag
+  0.65, // category
+  0.70, // semantic
+  0.75, // sibling
+  0.80, // sequence
+  0.85, // aggregation
+  0.90, // inheritance
+  1.00, // link
+  0.70, // undefined/other
+];
+
+/** レイヤーごとの width 加算 (上層ほど太い — 重なりで区別可能に) */
+const LAYER_WIDTH_OFFSETS: readonly number[] = [
+  -0.3, // similar
+  -0.2, // tag
+  -0.2, // has-tag
+  -0.1, // category
+   0.0, // semantic
+   0.0, // sibling
+   0.1, // sequence
+   0.1, // aggregation
+   0.2, // inheritance
+   0.3, // link
+   0.0, // undefined/other
+];
+
+/** レイヤー分離モードでエッジを種別ごとに複数パスで描画 */
+function _drawEdgesLayered(
+  g: CanvasGraphics,
+  edges: GraphEdge[],
+  resolvePos: (ref: string | object) => Pos | undefined,
+  cfg: EdgeDrawConfig,
+  useRelColor: boolean,
+  isArcLayout: boolean,
+  densityScale: number,
+  pairCount: Map<string, number> | null,
+  bundles: Map<string, BundleGroup> | null,
+  bundleStrength: number,
+  cablePrep: CablePrepResult,
+  arrowGfx?: CanvasGraphics | null,
+): void {
+  // レイヤー順にエッジを描画
+  for (let li = 0; li < EDGE_LAYER_ORDER.length; li++) {
+    const layerType = EDGE_LAYER_ORDER[li];
+    const alphaMul = LAYER_ALPHA_MULTIPLIERS[li];
+    const widthOff = LAYER_WIDTH_OFFSETS[li];
+
+    for (const e of edges) {
+      // このレイヤーに属さないエッジはスキップ
+      if ((e.type ?? undefined) !== layerType) continue;
+
+      if (cablePrep.cabledEdgeIds.has(e.id)) continue;
+      if (cablePrep.intraHandledIds.has(e.id)) continue;
+      if (shouldSkipEdge(e, cfg)) continue;
+
+      const src = resolvePos(e.source);
+      const tgt = resolvePos(e.target);
+      if (!src || !tgt) continue;
+
+      if (cablePrep.hasClusters) continue;
+
+      const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
+      const { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+
+      // レイヤーごとに alpha と width を微調整
+      const layerAlpha = alpha * alphaMul;
+      const layerWidth = Math.max(0.5, lineThick + widthOff);
+
+      g.lineStyle({ width: layerWidth, color: lineColor, alpha: layerAlpha, native: true });
+      const hasDash = applyDashPattern(g, e, layerWidth);
+
+      drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength, cfg.roadNetwork);
+      drawEdgeDecorations(g, e, src, tgt, lineColor, layerAlpha, cfg, arrowGfx);
+
+      if (hasDash) g.setLineDash([]);
+    }
   }
 }
 

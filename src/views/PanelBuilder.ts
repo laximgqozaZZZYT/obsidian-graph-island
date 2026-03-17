@@ -154,6 +154,12 @@ export interface PanelState {
   localGraphHops: number;
   /** Show edge weight via line thickness (same source-target pair count) */
   edgeWeightThickness: boolean;
+  /** エッジ種別ごとにレイヤー分離描画 (z-order + alpha/width差分) */
+  edgeLayerMode: boolean;
+  /** フォーカスモード: クリックでハイライトを固定 */
+  focusMode: boolean;
+  /** フォーカス中のノードID (null = フォーカスなし) */
+  focusNodeId: string | null;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -260,6 +266,9 @@ export function createDefaultPanel(): PanelState {
     localGraphCenter: null,
     localGraphHops: 2,
     edgeWeightThickness: true,
+    edgeLayerMode: false,
+    focusMode: false,
+    focusNodeId: null,
   };
 }
 
@@ -600,6 +609,12 @@ function _buildNodeDisplaySection(
     addSlider(body, t("display.nodeSize"), 2, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRenderKeepPanel(); }, t("desc.nodeSize"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
     addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.applyHover(); cb.markDirty(); }, t("desc.hoverHops"));
+    // フォーカスモード: クリックでハイライトを固定
+    addToggle(body, t("display.focusMode"), panel.focusMode, (v) => {
+      panel.focusMode = v;
+      if (!v) { panel.focusNodeId = null; cb.applyHover(); }
+      cb.markDirty();
+    }, t("desc.focusMode"));
     // --- ノード形状 ---
     const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
     const defaultRule = panel.nodeShapeRules.find(r => r.match === "default");
@@ -686,6 +701,7 @@ function _buildEdgeDisplaySection(
     addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); cb.rebuildPanel(); }, t("desc.edgeColor"));
     addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
     addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); }, t("desc.edgeLabels"));
+    addToggle(body, t("display.edgeLayerMode"), panel.edgeLayerMode, (v) => { panel.edgeLayerMode = v; cb.markDirty(); }, t("desc.edgeLayerMode"));
     addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); }, t("desc.links"));
     addToggle(body, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); }, t("desc.sharedTags"));
     addToggle(body, t("display.sharedCategory"), panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); }, t("desc.sharedCategory"));
@@ -3948,6 +3964,49 @@ function renderNodeRuleList(
       updateSliderProgress(spacingSlider);
       cb.applyNodeRules();
       cb.restartSimulation(0.3);
+    });
+
+    // カラーオーバーライド (color picker)
+    const colorRow = row2.createDiv({ cls: "setting-item" });
+    colorRow.addClass("gi-spacing-row");
+    const colorInfo = colorRow.createDiv({ cls: "setting-item-info" });
+    colorInfo.createDiv({ cls: "setting-item-name", text: t("nodeRules.color") });
+    const colorControl = colorRow.createDiv({ cls: "setting-item-control" });
+    const colorPicker = colorControl.createEl("input", { type: "color", attr: { "aria-label": t("nodeRules.color") } });
+    colorPicker.value = rule.color || "#ffffff";
+    colorPicker.addClass("gi-color-picker");
+    const colorClear = colorControl.createEl("button", { cls: "gi-color-clear", text: "\u00D7", attr: { "aria-label": "Clear color" } });
+    colorClear.style.display = rule.color ? "" : "none";
+    // カラー有効/無効を示すチェックボックス
+    const colorEnabled = colorControl.createEl("input", { type: "checkbox", attr: { "aria-label": "Enable color override" } });
+    colorEnabled.checked = !!rule.color;
+    colorEnabled.addClass("gi-color-enable");
+    colorPicker.style.opacity = rule.color ? "1" : "0.4";
+    colorPicker.addEventListener("input", () => {
+      rule.color = colorPicker.value;
+      colorPicker.style.opacity = "1";
+      colorEnabled.checked = true;
+      colorClear.style.display = "";
+      cb.doRenderKeepPanel();
+    });
+    colorClear.addEventListener("click", () => {
+      rule.color = undefined;
+      colorPicker.style.opacity = "0.4";
+      colorEnabled.checked = false;
+      colorClear.style.display = "none";
+      cb.doRenderKeepPanel();
+    });
+    colorEnabled.addEventListener("change", () => {
+      if (colorEnabled.checked) {
+        rule.color = colorPicker.value;
+        colorPicker.style.opacity = "1";
+        colorClear.style.display = "";
+      } else {
+        rule.color = undefined;
+        colorPicker.style.opacity = "0.4";
+        colorClear.style.display = "none";
+      }
+      cb.doRenderKeepPanel();
     });
 
     // Gravity direction dropdown

@@ -87,6 +87,7 @@ const en: TranslationMap = {
   "display.textFade": "Text Fade Threshold",
   "display.nodeSize": "Node Size",
   "display.hoverHops": "Hover Highlight Hops",
+  "display.focusMode": "Focus Mode",
   "display.edgeTypeHeading": "Edge Types",
   "display.links": "Links",
   "display.sharedTags": "Shared Tags",
@@ -98,6 +99,7 @@ const en: TranslationMap = {
   "display.sibling": "Sibling (peer)",
   "display.sequence": "Sequence (next/prev)",
   "display.edgeLabels": "Show Edge Labels",
+  "display.edgeLayerMode": "Layer Separation",
   "display.edgeCardinality": "Cardinality Markers",
   "display.edgeCardinalityDesc": "Show ER-style cardinality on edges",
   "display.cardinalityNone": "None",
@@ -161,6 +163,7 @@ const en: TranslationMap = {
   "nodeRules.addRule": "Add Rule",
   "nodeRules.spacing": "Spacing",
   "nodeRules.gravity": "Gravity",
+  "nodeRules.color": "Color",
 
   // --- PanelBuilder: gravity coefficients ---
   "gravity.centerGravity": "Center Gravity",
@@ -389,6 +392,10 @@ const en: TranslationMap = {
   "toast.localGraphOff": "Global graph",
   "toast.filterResult": "{count} nodes displayed",
   "toast.layoutChanged": "Layout: {name}",
+  "toast.embedSuccess": "Graph embedded in note",
+  "toast.embedFailed": "Graph embed failed",
+  "toast.embedNoEditor": "No active editor to embed into",
+  "toast.embedNoGraph": "No active graph view",
 
   // --- PanelBuilder: action buttons ---
   "action.save": "Save Settings",
@@ -484,6 +491,7 @@ const en: TranslationMap = {
   "toolbar.localGraph": "Local Graph",
   "toolbar.graphSettings": "Graph Settings",
   "toolbar.snapshot": "Snapshots",
+  "toolbar.embedInNote": "Embed graph in note",
 
   // --- Snapshot ---
   "snapshot.save": "Save snapshot...",
@@ -508,6 +516,7 @@ const en: TranslationMap = {
   "desc.orphans": "Show/hide unconnected nodes",
   "desc.textFade": "Zoom level for label fadeout",
   "desc.hoverHops": "Highlight depth on hover",
+  "desc.focusMode": "Click a node to lock highlight. Escape to clear.",
   "desc.edgeBundleStrength": "0=straight, 1=fully curved",
   "desc.autoFit": "Auto-spacing from node count",
   "desc.fadeEdges": "Fade less-connected edges",
@@ -527,6 +536,7 @@ const en: TranslationMap = {
   "desc.arrows": "Show directional arrows on all edges",
   "desc.edgeColor": "Color edges by relation type",
   "desc.edgeLabels": "Show relation type labels on edges",
+  "desc.edgeLayerMode": "Draw edge types in separate z-order layers",
   "desc.links": "Show/hide wikilink edges",
   "desc.sharedTags": "Show edges between notes sharing tags",
   "desc.sharedCategory": "Show edges between notes in same category",
@@ -657,6 +667,7 @@ const ja: TranslationMap = {
   "display.textFade": "テキストフェードの閾値",
   "display.nodeSize": "ノードの大きさ",
   "display.hoverHops": "ホバー強調ホップ数",
+  "display.focusMode": "フォーカスモード",
   "display.edgeTypeHeading": "結線タイプ",
   "display.links": "リンク",
   "display.sharedTags": "共有タグ",
@@ -668,6 +679,7 @@ const ja: TranslationMap = {
   "display.sibling": "兄弟 (sibling)",
   "display.sequence": "順序 (next/prev)",
   "display.edgeLabels": "エッジラベル表示",
+  "display.edgeLayerMode": "レイヤー分離",
   "display.edgeCardinality": "カーディナリティ記号",
   "display.edgeCardinalityDesc": "エッジにER図のカーディナリティを表示",
   "display.cardinalityNone": "なし",
@@ -731,6 +743,7 @@ const ja: TranslationMap = {
   "nodeRules.addRule": "ルール追加",
   "nodeRules.spacing": "間隔",
   "nodeRules.gravity": "重力",
+  "nodeRules.color": "カラー",
 
   // --- PanelBuilder: gravity coefficients ---
   "gravity.centerGravity": "中心引力",
@@ -959,6 +972,10 @@ const ja: TranslationMap = {
   "toast.localGraphOff": "グローバルグラフ",
   "toast.filterResult": "{count} ノードを表示中",
   "toast.layoutChanged": "レイアウト: {name}",
+  "toast.embedSuccess": "グラフをノートに埋め込みました",
+  "toast.embedFailed": "グラフの埋め込みに失敗しました",
+  "toast.embedNoEditor": "埋め込み先のエディタがありません",
+  "toast.embedNoGraph": "アクティブなグラフビューがありません",
 
   // --- PanelBuilder: action buttons ---
   "action.save": "設定を保存",
@@ -1054,6 +1071,7 @@ const ja: TranslationMap = {
   "toolbar.localGraph": "ローカルグラフ",
   "toolbar.graphSettings": "グラフ設定",
   "toolbar.snapshot": "スナップショット",
+  "toolbar.embedInNote": "ノートにグラフを埋め込む",
 
   // --- スナップショット ---
   "snapshot.save": "スナップショットを保存...",
@@ -1078,6 +1096,7 @@ const ja: TranslationMap = {
   "desc.orphans": "接続のないノードの表示/非表示",
   "desc.textFade": "ラベルが消えるズームレベル",
   "desc.hoverHops": "ホバー時の強調範囲",
+  "desc.focusMode": "ノードをクリックでハイライト固定。Escapeで解除。",
   "desc.edgeBundleStrength": "0=直線, 1=完全に束ねる",
   "desc.autoFit": "ノード数から間隔を自動計算",
   "desc.fadeEdges": "接続の少ないエッジを薄く",
@@ -1097,6 +1116,7 @@ const ja: TranslationMap = {
   "desc.arrows": "すべてのエッジに方向矢印を表示",
   "desc.edgeColor": "関係種別でエッジを色分け",
   "desc.edgeLabels": "エッジに関係種別ラベルを表示",
+  "desc.edgeLayerMode": "エッジ種別ごとにZ順でレイヤー分離描画",
   "desc.links": "ウィキリンクエッジの表示/非表示",
   "desc.sharedTags": "同じタグを持つノート間のエッジを表示",
   "desc.sharedCategory": "同じカテゴリのノート間のエッジを表示",
