@@ -315,6 +315,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // State persistence — Obsidian calls these to save/restore workspace.json
   // -------------------------------------------------------------------------
   private _saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private _resizeOnMove: ((ev: PointerEvent) => void) | null = null;
+  private _resizeOnUp: (() => void) | null = null;
 
   /** Debounced workspace save — call after any panel state mutation */
   private requestSave() {
@@ -954,14 +956,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // --- Panel resize handle (sibling of panelEl so panelEl.empty() won't destroy it) ---
     const resizeHandle = main.createDiv({ cls: "gi-panel-resize-handle" });
     let startX = 0, startW = 0;
-    const onMove = (ev: PointerEvent) => {
+    this._resizeOnMove = (ev: PointerEvent) => {
       const delta = startX - ev.clientX;
       const newW = Math.max(180, Math.min(500, startW + delta));
       this.panelEl!.style.width = `${newW}px`;
     };
-    const onUp = () => {
-      document.removeEventListener("pointermove", onMove);
-      document.removeEventListener("pointerup", onUp);
+    this._resizeOnUp = () => {
+      document.removeEventListener("pointermove", this._resizeOnMove!);
+      document.removeEventListener("pointerup", this._resizeOnUp!);
       resizeHandle.removeClass("is-dragging");
     };
     resizeHandle.addEventListener("pointerdown", (ev: PointerEvent) => {
@@ -969,8 +971,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       startX = ev.clientX;
       startW = this.panelEl!.offsetWidth;
       resizeHandle.addClass("is-dragging");
-      document.addEventListener("pointermove", onMove);
-      document.addEventListener("pointerup", onUp);
+      document.addEventListener("pointermove", this._resizeOnMove!);
+      document.addEventListener("pointerup", this._resizeOnUp!);
     });
 
     // --- Control Panel ---
@@ -1204,6 +1206,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   async onClose() {
     clearTimeout(this._autoFitTimer);
+    // Clean up panel resize listeners (may persist if destroyed mid-drag)
+    if (this._resizeOnMove) document.removeEventListener("pointermove", this._resizeOnMove);
+    if (this._resizeOnUp) document.removeEventListener("pointerup", this._resizeOnUp);
     this.stopOrbitAnimation();
     this.stopSim();
     this.ac?.abort();
