@@ -95,6 +95,8 @@ export interface EdgeDrawConfig {
   edgeLayerMode?: boolean;
   /** エッジ重みラベル表示: 同一ペア間のエッジ本数を数値で表示 */
   showEdgeWeightLabels?: boolean;
+  /** エッジ多重度ラベル: 同一ノードペア間に複数エッジがある場合、本数を表示 */
+  showEdgeCardinalityLabels?: boolean;
   /** Filter edges by directionality: "all" | "bidirectional" | "unidirectional" */
   edgeDirectionFilter?: "all" | "bidirectional" | "unidirectional";
   /** Visual indicator for bidirectional edges (thicker + higher alpha) */
@@ -3467,7 +3469,7 @@ export function drawEdgeLabels(
     child.destroy();
   }
 
-  if (!cfg.showEdgeLabels && !cfg.showEdgeWeightLabels) return;
+  if (!cfg.showEdgeLabels && !cfg.showEdgeWeightLabels && !cfg.showEdgeCardinalityLabels) return;
 
   // --- エッジ重みラベル: 同一ペア間のエッジ本数を表示 ---
   if (cfg.showEdgeWeightLabels) {
@@ -3491,6 +3493,39 @@ export function drawEdgeLabels(
       const offsetY = cfg.showEdgeLabels ? -10 : 0;
       const text = new CanvasText(String(count), {
         fontSize: EDGE_LABEL_FONT_SIZE,
+        fill: fillColor,
+        fontFamily: "sans-serif",
+        fontWeight: "bold",
+      });
+      text.anchor.set(0.5, 0.5);
+      text.x = mx;
+      text.y = my + offsetY;
+      text.alpha = EDGE_LABEL_ALPHA;
+      text.resolution = EDGE_LABEL_RESOLUTION;
+      container.addChild(text);
+    }
+  }
+
+  // --- エッジ多重度ラベル: 同一ペア間のエッジ本数を表示 (showEdgeWeightLabelsと排他) ---
+  if (cfg.showEdgeCardinalityLabels && !cfg.showEdgeWeightLabels) {
+    const pairCounts = buildPairCounts(edges);
+    const drawnPairs = new Set<string>();
+    const fillColor = cfg.isDark ? 0xcccccc : 0x444444;
+    for (const e of edges) {
+      if (shouldSkipEdge(e, cfg)) continue;
+      if (shouldSkipByDirection(e, cfg)) continue;
+      const key = [e.source, e.target].sort().join(":");
+      const count = pairCounts.get(key) ?? 1;
+      if (count <= 1 || drawnPairs.has(key)) continue;
+      drawnPairs.add(key);
+      const sp = resolvePos(e.source);
+      const tp = resolvePos(e.target);
+      if (!sp || !tp) continue;
+      const mx = (sp.x + tp.x) / 2;
+      const my = (sp.y + tp.y) / 2;
+      const offsetY = cfg.showEdgeLabels ? -10 : 0;
+      const text = new CanvasText(String(count), {
+        fontSize: 10,
         fill: fillColor,
         fontFamily: "sans-serif",
         fontWeight: "bold",

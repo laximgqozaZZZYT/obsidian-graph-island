@@ -215,6 +215,9 @@ export interface ClusterForceConfig {
   /** Normalize spread across arrangement patterns so nodes appear the same
    *  screen size after autoFitView (default true). */
   normalizeArrangementSpread?: boolean;
+  /** Metadata field to sub-group orphan nodes by (e.g. "category", "folder", "tag").
+   *  Empty string = disabled. */
+  orphanClusterField?: string;
 }
 
 /**
@@ -413,11 +416,16 @@ export function buildClusterForce(
   // which have perGroup=true and therefore do not satisfy isGlobalLayout, but still
   // need the force to run so nodes spread out from their initial center position.
   const NEEDS_LAYOUT = new Set([ARRANGEMENT_CONCENTRIC, ARRANGEMENT_RADIAL, ARRANGEMENT_RANDOM, ARRANGEMENT_TIMELINE, ARRANGEMENT_GRID, ARRANGEMENT_TRIANGLE, ARRANGEMENT_PHYLLOTAXIS, ARRANGEMENT_CUSTOM]);
-  if (cfg.groupRules.length === 0 && !isGlobalLayout && !NEEDS_LAYOUT.has(cfg.arrangement)) return null;
+  if (cfg.groupRules.length === 0 && !isGlobalLayout && !NEEDS_LAYOUT.has(cfg.arrangement) && !cfg.orphanClusterField) return null;
 
   // Phase 1: Group subdivision
   let groups = applyAllGroupRules(nodes, edges, degrees, cfg.groupRules);
   if (groups.size === 0) return null;
+
+  // Phase 1b: Orphan sub-grouping — partition orphan nodes by metadata field
+  if (cfg.orphanClusterField) {
+    groups = subGroupOrphans(groups, degrees, cfg.orphanClusterField);
+  }
 
   // Phase 2: Merge small groups
   groups = mergeSmallGroups(groups, nodes.length);
@@ -515,6 +523,44 @@ function mergeSmallGroups(
   }
   if (otherNodes.length > 0) merged.set("__other__", otherNodes);
   return merged;
+}
+
+/** Sub-group orphan nodes (degree=0) by a metadata field.
+ *  Non-orphan nodes stay in their original group; orphans are extracted and
+ *  re-partitioned into new groups keyed as "orphan:<fieldValue>". */
+function subGroupOrphans(
+  groups: Map<string, GraphNode[]>,
+  degrees: Map<string, number>,
+  field: string,
+): Map<string, GraphNode[]> {
+  const result = new Map<string, GraphNode[]>();
+  const orphanBuckets = new Map<string, GraphNode[]>();
+
+  for (const [key, members] of groups) {
+    const nonOrphans: GraphNode[] = [];
+    for (const n of members) {
+      if ((degrees.get(n.id) || 0) === 0) {
+        // Orphan — bucket by field value
+        const vals = getNodeFieldValues(n, field);
+        const bucketKey = vals.length > 0 ? vals[0] : `__no_${field}__`;
+        let arr = orphanBuckets.get(bucketKey);
+        if (!arr) { arr = []; orphanBuckets.set(bucketKey, arr); }
+        arr.push(n);
+      } else {
+        nonOrphans.push(n);
+      }
+    }
+    if (nonOrphans.length > 0) {
+      result.set(key, nonOrphans);
+    }
+  }
+
+  // Add orphan sub-groups
+  for (const [bucketKey, members] of orphanBuckets) {
+    result.set(`orphan:${bucketKey}`, members);
+  }
+
+  return result;
 }
 
 /** Label-aware spacing: inflate cfg.nodeSize based on p70 label extent */

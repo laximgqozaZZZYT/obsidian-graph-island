@@ -233,6 +233,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   // Node info panel (hover details)
   private nodeInfoEl: HTMLElement | null = null;
+  private oobBadgeEl: HTMLElement | null = null;
   private legendEl: HTMLElement | null = null;
   private shortcutHelpEl: HTMLElement | null = null;
 
@@ -720,6 +721,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.nodeInfoEl = canvasArea.createDiv({ cls: "gi-node-info" });
     this.nodeInfoEl.style.display = "none";
 
+    // --- Off-screen node count badge ---
+    this.oobBadgeEl = canvasArea.createDiv({ cls: "gi-oob-badge" });
+    this.oobBadgeEl.style.display = "none";
+
     return canvasArea;
   }
 
@@ -1202,6 +1207,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.statusEl = null;
     this.panelEl = null;
     this.nodeInfoEl = null;
+    this.oobBadgeEl = null;
     this.canvasWrap = null;
     this.annotationLayer = null;
   }
@@ -1497,6 +1503,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.minimap.setVisible(this.panel.showMinimap);
         this.minimap.draw();
       }
+      this._updateOobBadge();
     };
 
     // 差分オーバーレイのポストフラッシュフック設定
@@ -2568,6 +2575,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
     cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
     cfg.showEdgeWeightLabels = this.panel.showEdgeWeightLabels;
+    cfg.showEdgeCardinalityLabels = this.panel.showEdgeCardinalityLabels ?? false;
     cfg.edgeDirectionFilter = this.panel.edgeDirectionFilter ?? "all";
     cfg.showBidirectionalIndicator = this.panel.showBidirectionalIndicator ?? false;
     const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
@@ -3217,6 +3225,44 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   wakeRenderLoop() {
     this.renderPipeline?.wakeRenderLoop();
+  }
+
+  /** Update the off-screen node count badge overlay. */
+  private _updateOobBadge() {
+    const el = this.oobBadgeEl;
+    if (!el) return;
+    if (!this.panel.showOutOfBoundsIndicator) {
+      el.style.display = "none";
+      return;
+    }
+    const world = this.worldContainer;
+    if (!world || this.pixiNodes.size === 0) {
+      el.style.display = "none";
+      return;
+    }
+    const zoom = world.scale.x || 1;
+    const cw = this.canvasWrap?.clientWidth ?? 600;
+    const ch = this.canvasWrap?.clientHeight ?? 400;
+    const vpMinX = -(world.x) / zoom;
+    const vpMinY = -(world.y) / zoom;
+    const vpMaxX = vpMinX + cw / zoom;
+    const vpMaxY = vpMinY + ch / zoom;
+
+    let offCount = 0;
+    const hiddenBySearch = this.getSearchHiddenNodes();
+    for (const pn of this.pixiNodes.values()) {
+      if (hiddenBySearch.has(pn.data.id)) continue;
+      const nx = pn.data.x, ny = pn.data.y;
+      if (nx < vpMinX || nx > vpMaxX || ny < vpMinY || ny > vpMaxY) {
+        offCount++;
+      }
+    }
+    if (offCount === 0) {
+      el.style.display = "none";
+      return;
+    }
+    el.style.display = "";
+    el.textContent = `${offCount} off-screen`;
   }
 
   private createPixiNodes(

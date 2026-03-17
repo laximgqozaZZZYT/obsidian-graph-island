@@ -170,14 +170,20 @@ export interface PanelState {
   bookmarkedNodes: string[];
   /** エッジ重みラベル表示（同一ペア間のエッジ本数） */
   showEdgeWeightLabels: boolean;
+  /** エッジ多重度ラベル: 同一ノードペア間のエッジ数を表示 (count > 1 only) */
+  showEdgeCardinalityLabels: boolean;
   /** Filter edges by directionality: "all" | "bidirectional" | "unidirectional" */
   edgeDirectionFilter: "all" | "bidirectional" | "unidirectional";
   /** Visual indicator for bidirectional edges (thicker + higher alpha) */
   showBidirectionalIndicator: boolean;
   /** 凡例オーバーレイ表示 */
   showLegend: boolean;
+  /** Show off-screen node count indicator badge */
+  showOutOfBoundsIndicator: boolean;
   /** 検索クエリ履歴（最大10件） */
   searchHistory: string[];
+  /** Metadata field to cluster orphan nodes by (e.g. "category", "folder", "tag") */
+  orphanClusterField: string;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -292,10 +298,13 @@ export function createDefaultPanel(): PanelState {
     annotations: [],
     bookmarkedNodes: [],
     showEdgeWeightLabels: false,
+    showEdgeCardinalityLabels: false,
     edgeDirectionFilter: "all" as const,
     showBidirectionalIndicator: false,
     showLegend: true,
+    showOutOfBoundsIndicator: false,
     searchHistory: [],
+    orphanClusterField: "",
   };
 }
 
@@ -656,6 +665,9 @@ function buildFilterTab(
     addToggle(body, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateDataKeepPanel(); }, t("desc.attachments"));
     addToggle(body, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateDataKeepPanel(); }, t("desc.existingOnly"));
     addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateDataKeepPanel(); }, t("desc.orphans"));
+    if (panel.showOrphans) {
+      addTextInput(body, t("filter.orphanClusterField"), panel.orphanClusterField ?? "", "category, folder, tag", (v) => { panel.orphanClusterField = v; cb.invalidateDataKeepPanel(); });
+    }
     addSelect(body, t("filter.tagDisplay"), [
       { value: "off", label: t("filter.tagDisplay.off") },
       { value: "node", label: t("filter.tagDisplay.node") },
@@ -842,6 +854,7 @@ function _buildEdgeDisplaySection(
     addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
     addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); }, t("desc.edgeLabels"));
     addToggle(body, t("display.edgeWeightLabels"), panel.showEdgeWeightLabels, (v) => { panel.showEdgeWeightLabels = v; cb.markDirty(); }, t("desc.edgeWeightLabels"));
+    addToggle(body, t("display.edgeCardinalityLabels"), panel.showEdgeCardinalityLabels ?? false, (v) => { panel.showEdgeCardinalityLabels = v; cb.markDirty(); }, t("desc.edgeCardinalityLabels"));
     addToggle(body, t("display.edgeLayerMode"), panel.edgeLayerMode, (v) => { panel.edgeLayerMode = v; cb.markDirty(); }, t("desc.edgeLayerMode"));
     addSelect(body, t("display.edgeDirectionFilter"), [
       { value: "all", label: t("display.edgeDirAll") },
@@ -951,6 +964,7 @@ function _buildMinimapSection(
     addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.markDirty(); cb.wakeRenderLoop(); }, t("desc.minimap"));
     addToggle(body, t("display.dotGrid"), panel.showDotGrid, (v) => { panel.showDotGrid = v; cb.markDirty(); }, t("desc.dotGrid"));
     addToggle(body, t("display.showLegend"), panel.showLegend, (v) => { panel.showLegend = v; cb.markDirty(); }, t("desc.showLegend"));
+    addToggle(body, t("display.oobIndicator"), panel.showOutOfBoundsIndicator ?? false, (v) => { panel.showOutOfBoundsIndicator = v; cb.markDirty(); cb.wakeRenderLoop(); }, t("desc.oobIndicator"));
   }, undefined, false, "eye");
 }
 

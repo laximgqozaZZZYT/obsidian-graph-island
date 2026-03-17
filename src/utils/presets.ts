@@ -34,6 +34,8 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showLegend",
   "visualLinkEditor",
   "showBidirectionalIndicator",
+  "showEdgeCardinalityLabels",
+  "showOutOfBoundsIndicator",
 ];
 
 /** Fields that should be number */
@@ -53,6 +55,7 @@ const STRING_FIELDS: (keyof PanelState)[] = [
   "dataviewQuery", "timelineEndKey", "timelineOrderFields",
   "gridStyle", "gridLabelPlacement", "edgeCardinalityMode",
   "cableBundleMode",
+  "orphanClusterField",
 ];
 
 /** Fields that should be arrays */

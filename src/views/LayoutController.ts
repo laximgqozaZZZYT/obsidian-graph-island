@@ -455,6 +455,7 @@ export class LayoutController {
       labelSpacingFactor: panel.renderThresholds?.labelSpacingFactor ?? DEFAULT_RENDER_THRESHOLDS.labelSpacingFactor,
       nodeLabelFontSizeMin: panel.renderThresholds?.nodeLabelFontSizeMin ?? DEFAULT_RENDER_THRESHOLDS.nodeLabelFontSizeMin,
       nodeLabelFontSizeMax: panel.renderThresholds?.nodeLabelFontSizeMax ?? DEFAULT_RENDER_THRESHOLDS.nodeLabelFontSizeMax,
+      orphanClusterField: panel.orphanClusterField || undefined,
     };
 
     // If coordinateLayout specifies a property source, use it as timelineKey

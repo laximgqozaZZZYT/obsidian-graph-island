@@ -68,6 +68,7 @@ const en: TranslationMap = {
   "filter.attachments": "Attachments",
   "filter.existingOnly": "Existing Files Only",
   "filter.orphans": "Orphans",
+  "filter.orphanClusterField": "Orphan Grouping Field",
   "filter.dataviewQuery": "Dataview filter",
   "filter.dataviewHint": "DQL source (e.g. #tag, \"folder\")",
   "filter.dataviewUnavailable": "Dataview plugin not installed",
@@ -630,12 +631,20 @@ const en: TranslationMap = {
   "display.edgeWeightLabels": "Edge Weight Labels",
   "desc.edgeWeightLabels": "Show edge count between same source-target pairs",
 
+  // --- Feature CR: Edge Cardinality Count Labels ---
+  "display.edgeCardinalityLabels": "Edge Cardinality Labels",
+  "desc.edgeCardinalityLabels": "Show numeric count on edges when multiple edges exist between the same node pair",
+
   // --- Feature R: Louvain Community Detection ---
   "groupBy.louvain": "Auto-detect (Louvain)",
 
   // --- Feature S: Interactive Legend ---
   "display.showLegend": "Show Legend",
   "desc.showLegend": "Display floating legend overlay on graph canvas",
+
+  // --- Feature CS: Off-Screen Node Indicator ---
+  "display.oobIndicator": "Off-Screen Indicators",
+  "desc.oobIndicator": "Show badge with count of nodes outside the visible viewport",
   "legend.nodeColors": "Node Colors",
   "legend.edgeRelations": "Edge Relations",
   "legend.hidden": "(hidden)",
@@ -718,6 +727,7 @@ const ja: TranslationMap = {
   "filter.attachments": "添付書類",
   "filter.existingOnly": "存在するファイルのみ表示",
   "filter.orphans": "オーファン",
+  "filter.orphanClusterField": "孤立ノードグループフィールド",
   "filter.dataviewQuery": "Dataview フィルター",
   "filter.dataviewHint": "DQLソース (例: #tag, \"folder\")",
   "filter.dataviewUnavailable": "Dataviewプラグイン未インストール",
@@ -1280,12 +1290,21 @@ const ja: TranslationMap = {
   "display.edgeWeightLabels": "エッジ重みラベル",
   "desc.edgeWeightLabels": "同一ペア間のエッジ本数を表示",
 
+  // --- Feature CR: エッジ多重度ラベル ---
+  "display.edgeCardinalityLabels": "エッジ多重度ラベル",
+  "desc.edgeCardinalityLabels": "同一ノードペア間に複数エッジがある場合、本数を数値で表示",
+
   // --- Feature R: Louvain コミュニティ検出 ---
   "groupBy.louvain": "自動検出 (Louvain)",
 
   // --- Feature S: インタラクティブ凡例 ---
   "display.showLegend": "凡例を表示",
   "desc.showLegend": "グラフキャンバス上に凡例オーバーレイを表示",
+
+  // --- Feature CS: 画面外ノード指示器 ---
+  "display.oobIndicator": "画面外ノード指示器",
+  "desc.oobIndicator": "表示領域外にあるノード数をバッジで表示",
+
   "legend.nodeColors": "ノードカラー",
   "legend.edgeRelations": "エッジ属性",
   "legend.hidden": "(非表示)",

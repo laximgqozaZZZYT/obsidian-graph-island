@@ -102,11 +102,6 @@ export function timelineOffsetsV2(p: TimelineArrangementParams): ArrangementResu
   // --- Step 4: timed ノードを配置 (X = 時間カラム, Y = スタック) ---
   timelinePlaceTimedNodes(sortedTimed, timeIndexMap, effectiveSpacing, yStackSpacing, nodeSpacingMap, offsets, detectedChains);
 
-  // --- Step 4b: 階層ノードを親の直下に再配置 ---
-  if (hierParentMap && hierChildrenMap && hierParentMap.size > 0) {
-    timelineAlignHierarchy(hierParentMap, hierChildrenMap, offsets, yStackSpacing);
-  }
-
   // --- Step 5: untimed ノードをコンパクトグリッドに配置 ---
   timelinePlaceUntimedNodes(untimed, nTimedCols, effectiveSpacing, yStackSpacing, offsets);
 
@@ -125,6 +120,11 @@ export function timelineOffsetsV2(p: TimelineArrangementParams): ArrangementResu
 
   // --- Step 9: 同一カラム内の非バーノードを離間 ---
   timelineEnforceColumnGaps(sortedTimed, bars, timeIndexMap, offsets, nodeSize, userConstants, yStackSpacing);
+
+  // --- Step 9b: 階層ノードを親の直下に再配置 (バーレーン割当後に実行) ---
+  if (hierParentMap && hierChildrenMap && hierParentMap.size > 0) {
+    timelineAlignHierarchy(hierParentMap, hierChildrenMap, offsets, yStackSpacing);
+  }
 
   // --- Step 10: レーン割り当て後に Y 軸を再中央揃え ---
   timelineRecenterY(offsets, bars);
