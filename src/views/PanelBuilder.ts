@@ -2505,11 +2505,15 @@ function buildDualRangeSlider(container: HTMLElement, label: string, initialMin:
   const maxInput = control.createEl("input", { type: "range", cls: "gi-range-max", attr: { "aria-label": label + " (max)" } });
   maxInput.min = "0"; maxInput.max = "100"; maxInput.step = "1"; maxInput.value = String(Math.round(initialMax * 100));
 
+  updateSliderProgress(minInput);
+  updateSliderProgress(maxInput);
   const update = () => {
     let lo = parseInt(minInput.value);
     let hi = parseInt(maxInput.value);
     if (lo > hi) { const tmp = lo; lo = hi; hi = tmp; }
     rangeLabel.textContent = `${lo}% – ${hi}%`;
+    updateSliderProgress(minInput);
+    updateSliderProgress(maxInput);
     onChange(lo / 100, hi / 100);
   };
   minInput.addEventListener("input", update);
@@ -2555,11 +2559,15 @@ function addToggle(container: HTMLElement, label: string, initial: boolean, onCh
   nameEl.title = description || label;
   const control = row.createDiv({ cls: "setting-item-control" });
   const toggle = control.createDiv({ cls: "checkbox-container" + (initial ? " is-enabled" : ""), attr: { role: "switch", "aria-label": label, "aria-checked": String(initial), tabindex: "0" } });
-  toggle.addEventListener("click", () => {
+  const activate = () => {
     const on = toggle.hasClass("is-enabled");
     toggle.toggleClass("is-enabled", !on);
     toggle.setAttribute("aria-checked", String(!on));
     onChange(!on);
+  };
+  toggle.addEventListener("click", activate);
+  toggle.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(); }
   });
   return row;
 }
