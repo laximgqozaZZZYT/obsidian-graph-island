@@ -1120,7 +1120,12 @@ function _buildArrangementPatternSelect(s: ClusterSectionCtx): void {
     { value: "custom", label: t("cluster.custom") },
   ], s.panel.clusterArrangement, (v) => {
     s.panel.clusterArrangement = v as ClusterArrangement;
-    s.panel.coordinateLayout = { ...getPreset(v as ClusterArrangement) };
+    const preset = getPreset(v as ClusterArrangement);
+    // Preserve grid config if gridTableMode is active
+    s.panel.coordinateLayout = {
+      ...preset,
+      ...(s.panel.gridTableMode ? { grid: { style: s.panel.gridStyle, cellShading: s.panel.gridCellShading } } : {}),
+    };
     s.cb.applyClusterForce();
     s.cb.rebuildPanel();
     s.cb.restartSimulation(1.0);
