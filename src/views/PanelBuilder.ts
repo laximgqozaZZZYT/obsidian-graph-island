@@ -514,6 +514,9 @@ export function buildPanel(
   const layoutTab = tabContainers.get("layout")!;
   const settingsTab = tabContainers.get("settings")!;
 
+  // Preset bar (quick-apply simple/analysis/creative presets)
+  buildPresetBar(panelEl, cb);
+
   // Build each tab
   buildFilterTab(filterTab, panel, ctx, cb);
   buildDisplayTab(displayTab, panel, ctx, cb);
@@ -929,7 +932,7 @@ function buildLayoutTab(
 function _buildGraphSyncSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
-  buildSection(tabEl, "Graph Sync", (body) => {
+  buildSection(tabEl, t("section.graphSync"), (body) => {
     addToggle(body, t("display.syncWithEditor"), panel.syncWithEditor, (v) => {
       panel.syncWithEditor = v;
     }, t("desc.syncWithEditor"));
@@ -1195,7 +1198,7 @@ function _buildCoordinateControls(s: ClusterSectionCtx): void {
       syncArrangementFromLayout(panel);
       cb.applyClusterForce();
       cb.restartSimulation(0.5);
-    });
+    }, "Angle range for polar arrangement");
   }
 }
 
