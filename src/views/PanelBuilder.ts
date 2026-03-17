@@ -675,7 +675,7 @@ function _buildEdgeDisplaySection(
 ): void {
   buildSection(tabEl, t("section.displayEdges"), (body) => {
     addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); }, t("desc.arrows"));
-    addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); }, t("desc.edgeColor"));
+    addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); cb.rebuildPanel(); }, t("desc.edgeColor"));
     addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
     addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); }, t("desc.edgeLabels"));
     addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); }, t("desc.links"));
@@ -709,6 +709,7 @@ function _buildCableDisplaySection(
     ], panel.cableBundleMode, (v) => {
       panel.cableBundleMode = v as "auto" | "always" | "never";
       cb.markDirty();
+      cb.rebuildPanel(); // Progressive disclosure: show/hide cable sub-sliders
     }, t("desc.cableBundleMode"));
 
     // Progressive disclosure: show sub-settings only when cables can be active
@@ -746,6 +747,7 @@ function _buildRoadNetworkSection(
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.showRoadNetwork = v;
       cb.doRenderKeepPanel();
+      cb.rebuildPanel(); // Progressive disclosure: show/hide road sub-settings
     }, t("desc.showRoadNetwork"));
     // Progressive disclosure: show sub-settings only when road network is active
     if (rt.showRoadNetwork ?? DEFAULT_RENDER_THRESHOLDS.showRoadNetwork) {
