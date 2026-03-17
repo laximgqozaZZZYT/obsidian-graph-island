@@ -2986,7 +2986,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const presets: Record<string, Partial<typeof this.panel>> = {
           simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, heatmapMode: false, showEdgeLabels: false, showArrows: false },
           analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, heatmapMode: false, showEdgeLabels: false, showArrows: true },
-          creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, heatmapMode: false, tagDisplay: TAG_DISPLAY_ENCLOSURE as any, showTagNodes: true },
+          creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, heatmapMode: false, tagDisplay: "enclosure", showTagNodes: true },
         };
         const p = presets[preset];
         if (p) { Object.assign(this.panel, p); this.doRender(); this.requestSave(); }
