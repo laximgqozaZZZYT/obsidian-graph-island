@@ -3985,9 +3985,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.x = screenCenterX - worldX * world.scale.x;
     world.y = screenCenterY - worldY * world.scale.y;
 
-    // Highlight the target node via search
-    this.panel.searchQuery = nodeId;
-    this.applySearch();
+    // Highlight the target node via ephemeral hover (NOT search query,
+    // which would silently re-filter data on next render)
+    this.setHighlightedNodeId(nodeId);
+    this.applyHover();
     this.wakeRenderLoop();
   }
 
