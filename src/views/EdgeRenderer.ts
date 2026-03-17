@@ -112,19 +112,9 @@ interface Pos {
 
 /** Returns true if the edge should be skipped based on type visibility toggles. */
 function shouldSkipEdge(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
-  switch (e.type) {
-    case EDGE_TYPE_LINK: return !cfg.showLinks;
-    case EDGE_TYPE_TAG: return !cfg.showTagEdges;
-    case "category": return !cfg.showCategoryEdges;
-    case "semantic": return !cfg.showSemanticEdges;
-    case EDGE_TYPE_INHERITANCE: return !cfg.showInheritance;
-    case EDGE_TYPE_AGGREGATION: return !cfg.showAggregation;
-    case EDGE_TYPE_HAS_TAG: return !cfg.showTagNodes;
-    case EDGE_TYPE_SIMILAR: return !cfg.showSimilar;
-    case EDGE_TYPE_SIBLING: return !cfg.showSibling;
-    case EDGE_TYPE_SEQUENCE: return !cfg.showSequence;
-    default: return !cfg.showLinks; // untyped edges treated as links
-  }
+  const spec = EDGE_TYPE_SPECS.get(e.type ?? "");
+  if (spec) return !cfg[spec.visibilityField];
+  return !cfg.showLinks; // untyped edges treated as links
 }
 
 // ---------------------------------------------------------------------------
@@ -175,6 +165,29 @@ const SIMILAR_COLOR = 0xfbbf24;
 const HAS_TAG_COLOR = 0xb4a0ff;
 const SIBLING_COLOR = 0x34d399;   // green — peer relationship
 const SEQUENCE_COLOR = 0xfb923c;  // orange — sequential order
+
+// ---------------------------------------------------------------------------
+// Edge type specification map — single source of truth for per-type behavior
+// ---------------------------------------------------------------------------
+interface EdgeTypeSpec {
+  /** Which EdgeDrawConfig field controls visibility */
+  visibilityField: keyof EdgeDrawConfig;
+  /** Fixed color for this edge type, or null to use relation/default color */
+  color: number | null;
+}
+
+const EDGE_TYPE_SPECS: ReadonlyMap<string, EdgeTypeSpec> = new Map<string, EdgeTypeSpec>([
+  [EDGE_TYPE_LINK,        { visibilityField: "showLinks",        color: null }],
+  [EDGE_TYPE_TAG,         { visibilityField: "showTagEdges",     color: null }],
+  ["category",            { visibilityField: "showCategoryEdges", color: null }],
+  ["semantic",            { visibilityField: "showSemanticEdges", color: null }],
+  [EDGE_TYPE_INHERITANCE, { visibilityField: "showInheritance",  color: INHERITANCE_COLOR }],
+  [EDGE_TYPE_AGGREGATION, { visibilityField: "showAggregation",  color: AGGREGATION_COLOR }],
+  [EDGE_TYPE_HAS_TAG,     { visibilityField: "showTagNodes",     color: HAS_TAG_COLOR }],
+  [EDGE_TYPE_SIMILAR,     { visibilityField: "showSimilar",      color: SIMILAR_COLOR }],
+  [EDGE_TYPE_SIBLING,     { visibilityField: "showSibling",      color: SIBLING_COLOR }],
+  [EDGE_TYPE_SEQUENCE,    { visibilityField: "showSequence",     color: SEQUENCE_COLOR }],
+]);
 
 /** Number of angular bins over [0, π). 6 bins = 30° each. */
 const ANGLE_BINS = 6;
@@ -296,12 +309,8 @@ function resolveEdgeColor(
   relationColors: Map<string, string>,
   isDark: boolean,
 ): number {
-  if (e.type === EDGE_TYPE_INHERITANCE) return INHERITANCE_COLOR;
-  if (e.type === EDGE_TYPE_AGGREGATION) return AGGREGATION_COLOR;
-  if (e.type === EDGE_TYPE_SIMILAR) return SIMILAR_COLOR;
-  if (e.type === EDGE_TYPE_HAS_TAG) return HAS_TAG_COLOR;
-  if (e.type === EDGE_TYPE_SIBLING) return SIBLING_COLOR;
-  if (e.type === EDGE_TYPE_SEQUENCE) return SEQUENCE_COLOR;
+  const spec = EDGE_TYPE_SPECS.get(e.type ?? "");
+  if (spec?.color != null) return spec.color;
   if (useRelColor && e.relation) {
     const css = relationColors.get(e.relation);
     if (css) return cssColorToHex(css);

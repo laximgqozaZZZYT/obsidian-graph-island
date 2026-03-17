@@ -186,7 +186,7 @@ export function buildRoadNetwork(cfg: RoadNetworkConfig): RoadNetwork {
   // Improved: Map each node to nearest point ON a road segment
   const nodeAccess = new Map<string, number>();
   for (const node of cfg.nodes) {
-    let bestId = 0;
+    let bestId = intersections.length > 0 ? intersections[0].id : -1;
     let bestDist = Infinity;  // squared distance
     let bestSegIdx = -1;
     let bestT = 0;
@@ -660,7 +660,7 @@ export function buildRoadNetworkFromPhantoms(
   // Map real nodes to nearest intersection
   const nodeAccess = new Map<string, number>();
   for (const node of realNodes) {
-    let bestId = 0;
+    let bestId = intersections.length > 0 ? intersections[0].id : -1;
     let bestDist = Infinity;
     for (const isect of intersections) {
       const dx = node.x - isect.x;

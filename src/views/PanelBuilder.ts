@@ -1576,11 +1576,6 @@ function _buildAutoFitAndGuides(s: ClusterSectionCtx): void {
         cb.doRenderKeepPanel();
       }, t("guide.gridShowHeadersDesc"));
 
-      addToggle(body, t("guide.showAxisTitles"), panel.showAxisTitles, (v) => {
-        panel.showAxisTitles = v;
-        cb.doRenderKeepPanel();
-      }, t("guide.showAxisTitlesDesc"));
-
       addSelect(body, t("guide.labelPlacement"), [
         { value: "on-line", label: t("guide.labelOnLine") },
         { value: "between", label: t("guide.labelBetween") },
@@ -1600,6 +1595,12 @@ function _buildAutoFitAndGuides(s: ClusterSectionCtx): void {
       }, t("guide.gridCellShadingDesc"));
     }
   }
+
+  // Axis titles — independent of gridTableMode (also affects timeline axis)
+  addToggle(body, t("guide.showAxisTitles"), panel.showAxisTitles, (v) => {
+    panel.showAxisTitles = v;
+    cb.doRenderKeepPanel();
+  }, t("guide.showAxisTitlesDesc"));
 }
 
 /** Node spacing, group arrangement, group size/spacing, cluster gravity, edge bundle */
