@@ -3003,6 +3003,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const s = this.plugin.settings;
     Object.assign(this.panel, {
       ...DEFAULT_PANEL,
+      // Must deep-copy mutable defaults — spread shares references with DEFAULT_PANEL
+      collapsedGroups: new Set<string>(),
+      groups: [],
+      directionalGravityRules: [],
+      commonQueries: [],
+      cardinalityRules: [],
+      nodeShapeRules: DEFAULT_PANEL.nodeShapeRules.map(r => ({ ...r })),
+      cardDisplayConfig: { ...DEFAULT_PANEL.cardDisplayConfig, fields: [] },
+      donutDisplayConfig: { ...DEFAULT_PANEL.donutDisplayConfig },
+      clusterGravity: { ...DEFAULT_PANEL.clusterGravity },
+      groupByRules: null,
       sortRules: [...(s.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r })),
       clusterGroupRules: [...(s.defaultClusterGroupRules ?? [])].map(r => ({ ...r })),
       nodeRules: [...(s.defaultNodeRules ?? [])].map(r => ({ ...r })),
