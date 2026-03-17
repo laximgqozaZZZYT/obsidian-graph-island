@@ -1143,6 +1143,14 @@ export interface RenderThresholds {
   /** Route edges along road network when available (default true) */
   roadRouteEdges?: boolean;
 
+  // ---- Edge strength glow ----
+  /** Scale edge width by target node in-degree (default false) */
+  edgeStrengthGlow?: boolean;
+  /** Minimum width multiplier when edgeStrengthGlow is enabled (default 0.5) */
+  edgeStrengthGlowMin?: number;
+  /** Maximum width multiplier when edgeStrengthGlow is enabled (default 3.0) */
+  edgeStrengthGlowMax?: number;
+
   // ---- Road network fallback (used only when no guide data is available) ----
   /** Fallback ring count when no grid info available (default: auto-computed from node count) */
   roadRingCount?: number;
@@ -1381,6 +1389,11 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   roadRouteEdges: true,
   roadRingCount: 0,
   roadSpokeCount: 0,
+
+  // Edge strength glow
+  edgeStrengthGlow: false,
+  edgeStrengthGlowMin: 0.5,
+  edgeStrengthGlowMax: 3.0,
 };
 
 export const DEFAULT_COLORS = [

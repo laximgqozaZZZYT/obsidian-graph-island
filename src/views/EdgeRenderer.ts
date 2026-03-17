@@ -103,6 +103,12 @@ export interface EdgeDrawConfig {
   showBidirectionalIndicator?: boolean;
   /** Pre-computed set of bidirectional edge keys ("source→target") */
   _bidirectionalSet?: Set<string>;
+  /** Scale edge width by target node in-degree */
+  edgeStrengthGlow?: boolean;
+  /** Minimum width multiplier for edge strength glow (default 0.5) */
+  edgeStrengthGlowMin?: number;
+  /** Maximum width multiplier for edge strength glow (default 3.0) */
+  edgeStrengthGlowMax?: number;
 }
 
 // Minimal position data needed for source/target
@@ -2529,6 +2535,16 @@ function resolveEdgeStyle(
     // sqrt normalization: 0->MIN_ALPHA, maxDegree->base alpha
     const t = Math.sqrt(minDeg / cfg.maxDegree);
     alpha *= FADE_BY_DEGREE_MIN_ALPHA + (1 - FADE_BY_DEGREE_MIN_ALPHA) * t;
+  }
+
+  // Edge strength glow: scale width by target node in-degree
+  if (cfg.edgeStrengthGlow && cfg.maxDegree > 0) {
+    const tid = tgt.id ?? (e.target as string);
+    const targetDeg = cfg.degrees.get(tid) ?? 0;
+    const t = Math.min(1, targetDeg / cfg.maxDegree);
+    const glowMin = cfg.edgeStrengthGlowMin ?? 0.5;
+    const glowMax = cfg.edgeStrengthGlowMax ?? 3.0;
+    lineThick *= glowMin + t * (glowMax - glowMin);
   }
 
   if (cfg.highlightedNodeId) {

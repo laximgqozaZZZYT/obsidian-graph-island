@@ -14,6 +14,12 @@ export interface GraphStats {
   hubs: [string, number][];
   /** Number of connected components via BFS */
   componentCount: number;
+  /** Fraction of nodes with degree 0 (0–1) */
+  orphanRate: number;
+  /** Fraction of nodes that have at least one tag (0–1) */
+  tagCoverage: number;
+  /** Edge count per edge type */
+  edgeTypeCounts: Map<string, number>;
 }
 
 /**
@@ -39,7 +45,23 @@ export function computeGraphStats(
     .sort((a, b) => b[1] - a[1])
     .slice(0, hubCount);
   const componentCount = countConnectedComponents(nodes, edges);
-  return { nodeCount, edgeCount, avgDegree, density, hubs, componentCount };
+
+  // Orphan rate: fraction of nodes with degree 0
+  const orphanCount = nodes.filter(n => (degrees.get(n.id) ?? 0) === 0).length;
+  const orphanRate = nodeCount > 0 ? orphanCount / nodeCount : 0;
+
+  // Tag coverage: fraction of nodes with at least one tag
+  const taggedCount = nodes.filter(n => n.tags && n.tags.length > 0).length;
+  const tagCoverage = nodeCount > 0 ? taggedCount / nodeCount : 0;
+
+  // Edge type distribution
+  const edgeTypeCounts = new Map<string, number>();
+  for (const e of edges) {
+    const etype = e.type ?? "unknown";
+    edgeTypeCounts.set(etype, (edgeTypeCounts.get(etype) ?? 0) + 1);
+  }
+
+  return { nodeCount, edgeCount, avgDegree, density, hubs, componentCount, orphanRate, tagCoverage, edgeTypeCounts };
 }
 
 /**

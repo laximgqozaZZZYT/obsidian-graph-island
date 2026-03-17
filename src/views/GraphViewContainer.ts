@@ -14,7 +14,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees, computeGraphStats } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, collectSubgraph, exportSubgraphJSON } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON } from "../utils/graph-helpers";
 import { hexToRgb } from "../utils/color";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL, createDefaultPanel } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
@@ -2288,6 +2288,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
+    // Feature DA: Ancestry breadcrumb trail from hub to hovered node
+    if (this.panel.showAncestryBreadcrumb && this.adj && this.adj.size > 0 && this.degrees.size > 0) {
+      // Find highest-degree node (hub)
+      let hubId = "";
+      let maxDeg = -1;
+      for (const [id, deg] of this.degrees) {
+        if (deg > maxDeg) { maxDeg = deg; hubId = id; }
+      }
+      if (hubId && hubId !== pn.data.id) {
+        const path = bfsShortestPath(this.adj, hubId, pn.data.id);
+        if (path.length > 1) {
+          const breadcrumb = path.map((id) => {
+            const node = this.pixiNodes.get(id);
+            return node ? node.data.label : id.replace(/\.md$/, "").split("/").pop() ?? id;
+          }).join(" \u203A ");
+          tooltipText += "\n" + breadcrumb;
+        }
+      }
+    }
+
     // Counter-scale: keep label readable regardless of zoom level
     const counterScale = Math.max(0.5, 1 / zoom);
     const tooltipFontSize = rt.hoverTooltipFontSize ?? 16;
@@ -2620,6 +2640,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cardinalityRules = this.panel.cardinalityRules;
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
     cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
+    cfg.edgeStrengthGlow = edgeRt.edgeStrengthGlow;
+    cfg.edgeStrengthGlowMin = edgeRt.edgeStrengthGlowMin;
+    cfg.edgeStrengthGlowMax = edgeRt.edgeStrengthGlowMax;
     cfg.showEdgeWeightLabels = this.panel.showEdgeWeightLabels;
     cfg.showEdgeCardinalityLabels = this.panel.showEdgeCardinalityLabels ?? false;
     cfg.edgeDirectionFilter = this.panel.edgeDirectionFilter ?? "all";
@@ -3970,6 +3993,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     addRow(t("stats.avgDegree"), stats.avgDegree.toFixed(2));
     addRow(t("stats.density"), stats.density.toFixed(4));
     addRow(t("stats.components"), String(stats.componentCount));
+    addRow(t("stats.orphanRate"), (stats.orphanRate * 100).toFixed(1) + "%");
+    addRow(t("stats.tagCoverage"), (stats.tagCoverage * 100).toFixed(1) + "%");
+
+    // Edge type distribution
+    if (stats.edgeTypeCounts.size > 0) {
+      const etTitle = this.graphStatsEl.createEl("div", {
+        cls: "gi-stats-hub-title",
+        text: t("stats.edgeTypes"),
+      });
+      etTitle.style.fontWeight = "600";
+      etTitle.style.marginTop = "6px";
+      etTitle.style.marginBottom = "2px";
+
+      const etTable = this.graphStatsEl.createEl("table", { cls: "gi-stats-table" });
+      for (const [etype, count] of [...stats.edgeTypeCounts.entries()].sort((a, b) => b[1] - a[1])) {
+        const tr = etTable.createEl("tr");
+        tr.createEl("td", { cls: "gi-stats-label", text: etype });
+        tr.createEl("td", { cls: "gi-stats-value", text: String(count) });
+      }
+    }
 
     if (stats.hubs.length > 0) {
       const hubTitle = this.graphStatsEl.createEl("div", {

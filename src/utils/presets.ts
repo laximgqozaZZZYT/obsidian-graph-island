@@ -38,6 +38,7 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showOutOfBoundsIndicator",
   "highlightMissingNeighbors",
   "showGraphStats",
+  "showAncestryBreadcrumb",
 ];
 
 /** Fields that should be number */

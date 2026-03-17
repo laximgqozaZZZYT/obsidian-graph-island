@@ -141,6 +141,7 @@ const en: TranslationMap = {
   "display.dotGrid": "Background dot grid",
   "display.syncWithEditor": "Sync with Editor",
   "display.edgeWeightThickness": "Edge Weight (thickness)",
+  "display.edgeStrengthGlow": "Edge Strength Glow",
   "display.localGraphHops": "Local Graph Hops",
 
   // --- PanelBuilder: rendering thresholds ---
@@ -572,6 +573,7 @@ const en: TranslationMap = {
   "desc.dotGrid": "Show background dot grid pattern",
   "desc.syncWithEditor": "Sync graph focus with active editor file",
   "desc.edgeWeightThickness": "Thicker lines for repeated source-target pairs",
+  "desc.edgeStrengthGlow": "Scale edge width by target node in-degree (high-degree = thicker)",
   "desc.perGroup": "Apply coordinate system per-group instead of globally",
   "desc.tagHierarchy": "Infer inheritance edges from tag parent/child hierarchy",
   "desc.nodeSize": "Base radius for nodes in pixels",
@@ -636,6 +638,15 @@ const en: TranslationMap = {
   "stats.density": "Density",
   "stats.components": "Components",
   "stats.topHubs": "Top Hubs",
+
+  // --- Feature DA: Ancestry Breadcrumb Trail ---
+  "display.ancestryBreadcrumb": "Ancestry Breadcrumb",
+  "desc.ancestryBreadcrumb": "Show BFS path from hub to hovered node",
+
+  // --- Feature DB: Vault Health Scorecard ---
+  "stats.orphanRate": "Orphan Rate",
+  "stats.tagCoverage": "Tag Coverage",
+  "stats.edgeTypes": "Edge Types",
 
   // --- Feature CY: Subgraph Export ---
   "context.exportSubgraph": "Export subgraph (2-hop JSON)",
@@ -814,6 +825,7 @@ const ja: TranslationMap = {
   "display.dotGrid": "背景ドットグリッド",
   "display.syncWithEditor": "エディタと同期",
   "display.edgeWeightThickness": "エッジ太さ（重み）",
+  "display.edgeStrengthGlow": "エッジ強度グロー",
   "display.localGraphHops": "ローカルグラフ ホップ数",
 
   // --- Rendering thresholds ---
@@ -1245,6 +1257,7 @@ const ja: TranslationMap = {
   "desc.dotGrid": "背景ドットグリッドパターンを表示",
   "desc.syncWithEditor": "エディタのアクティブファイルとグラフを同期",
   "desc.edgeWeightThickness": "同一ペアの繰り返しを太線で表示",
+  "desc.edgeStrengthGlow": "ターゲットノードの入次数に応じてエッジの太さを変化（高次数＝太い）",
   "desc.perGroup": "座標系をグローバルではなくグループごとに適用",
   "desc.tagHierarchy": "タグの親子階層から継承エッジを推定",
   "desc.nodeSize": "ノードの基本半径（px）",
@@ -1309,6 +1322,15 @@ const ja: TranslationMap = {
   "stats.density": "密度",
   "stats.components": "連結成分",
   "stats.topHubs": "上位ハブ",
+
+  // --- Feature DA: 祖先パンくずトレイル ---
+  "display.ancestryBreadcrumb": "祖先パンくず",
+  "desc.ancestryBreadcrumb": "ハブからホバーノードまでのBFSパスを表示",
+
+  // --- Feature DB: Vault Health Scorecard ---
+  "stats.orphanRate": "孤立率",
+  "stats.tagCoverage": "タグカバレッジ",
+  "stats.edgeTypes": "エッジ種別",
 
   // --- Feature CY: サブグラフエクスポート ---
   "context.exportSubgraph": "サブグラフをエクスポート（2ホップ JSON）",

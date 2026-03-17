@@ -190,6 +190,8 @@ export interface PanelState {
   orphanClusterField: string;
   /** Show graph statistics panel (node count, density, hubs, components) */
   showGraphStats: boolean;
+  /** Show ancestry breadcrumb trail from hub to hovered node */
+  showAncestryBreadcrumb: boolean;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -313,6 +315,7 @@ export function createDefaultPanel(): PanelState {
     orphanClusterField: "",
     highlightMissingNeighbors: false,
     showGraphStats: false,
+    showAncestryBreadcrumb: false,
   };
 }
 
@@ -992,6 +995,7 @@ function _buildMinimapSection(
     addToggle(body, t("display.showLegend"), panel.showLegend, (v) => { panel.showLegend = v; cb.markDirty(); }, t("desc.showLegend"));
     addToggle(body, t("display.oobIndicator"), panel.showOutOfBoundsIndicator ?? false, (v) => { panel.showOutOfBoundsIndicator = v; cb.markDirty(); cb.wakeRenderLoop(); }, t("desc.oobIndicator"));
     addToggle(body, t("display.graphStats"), panel.showGraphStats ?? false, (v) => { panel.showGraphStats = v; cb.markDirty(); }, t("desc.graphStats"));
+    addToggle(body, t("display.ancestryBreadcrumb"), panel.showAncestryBreadcrumb ?? false, (v) => { panel.showAncestryBreadcrumb = v; cb.markDirty(); }, t("desc.ancestryBreadcrumb"));
   }, undefined, false, "eye");
 }
 
@@ -1030,6 +1034,11 @@ function _buildRenderThresholdsSection(
         panel.renderThresholds.gridLabelOffset = v;
         cb.markDirty();
       }, t("render.gridLabelOffsetDesc"));
+    addToggle(body, t("display.edgeStrengthGlow"), rt.edgeStrengthGlow ?? DEFAULT_RENDER_THRESHOLDS.edgeStrengthGlow, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.edgeStrengthGlow = v;
+      cb.markDirty();
+    }, t("desc.edgeStrengthGlow"));
   }, undefined, true, "sliders");
 }
 
