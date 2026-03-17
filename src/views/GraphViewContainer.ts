@@ -2162,12 +2162,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         pn.gfx.alpha = 1;
         if (isCardMode) pn.gfx.scale.set(1);
         this.drawNodeCircle(pn, false);
-        if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; }
-        // Restore labels that were force-shown by hover
-        if (pn.hoverForcedLabel && pn.label) {
-          pn.label.visible = false;
-          pn.hoverForcedLabel = false;
-        }
+        if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; pn.hoverForcedLabel = false; }
       } else if (curSet.has(pn.data.id)) {
         pn.gfx.alpha = 1;
         if (isCardMode && pn.data.id === effectiveHId) {
@@ -2179,11 +2174,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (!pn.hoverLabel) {
           this._createHoverTooltip(pn);
         }
-        // Force-show main label for neighbor nodes (overlap culling + leader lines will handle density)
-        if (pn.label && !pn.label.visible) {
-          pn.label.visible = true;
-          pn.hoverForcedLabel = true;
-        }
         // When hovering, also force-show tag label if present but hidden by LOD
         if (pn.tagLabel && !pn.tagLabel.visible) {
           pn.tagLabel.visible = true;
@@ -2191,12 +2181,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       } else {
         pn.gfx.alpha = 0.12;
         if (isCardMode) pn.gfx.scale.set(1);
-        if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; }
-        // Restore labels that were force-shown by hover
-        if (pn.hoverForcedLabel && pn.label) {
-          pn.label.visible = false;
-          pn.hoverForcedLabel = false;
-        }
+        if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; pn.hoverForcedLabel = false; }
       }
     }
 
@@ -2233,50 +2218,47 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Create and attach a hover tooltip label to the given PixiNode. */
   private _createHoverTooltip(pn: PixiNode) {
-    // Build combined tooltip: name + tags + group
-    // For nodes that already have a visible label, only show extra info (tags/group)
-    // to avoid duplicating the node name. For unlabeled nodes, show everything.
+    // Always show node name prominently + optional tags/category
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
     const showTooltip = rt.hoverTooltipShow ?? true;
-    const hasVisibleLabel = !!(pn.label && pn.label.visible);
-    let tooltipText = hasVisibleLabel ? "" : pn.data.label;
+    const zoom = this.worldContainer?.scale.x ?? 1;
+
+    // Always start with node name for clear identification
+    let tooltipText = pn.data.label;
     if (showTooltip) {
-      // Append tag info if tags exist (and not already shown via tagLabel)
       const hasVisibleTagLabel = !!(pn.tagLabel && pn.tagLabel.visible);
       if (pn.data.tags && pn.data.tags.length > 0 && !hasVisibleTagLabel) {
-        const tagLine = pn.data.tags.map((t: string) => `#${t}`).join(" ");
-        tooltipText = tooltipText ? tooltipText + "\n" + tagLine : tagLine;
+        tooltipText += "\n" + pn.data.tags.map((t: string) => `#${t}`).join(" ");
       }
       if (pn.data.category) {
-        const catLine = "[" + pn.data.category + "]";
-        tooltipText = tooltipText ? tooltipText + "\n" + catLine : catLine;
+        tooltipText += "\n[" + pn.data.category + "]";
       }
     }
-    // Only create tooltip if there is content to show
-    if (tooltipText) {
-      const tooltipFontSize = rt.hoverTooltipFontSize ?? 10;
-      const hl = new CanvasText(tooltipText, {
-        fontSize: tooltipFontSize, fill: this.getLabelColor(),
-        fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-      });
-      hl.bgColor = rt.labelBgColor ?? 0x1a1a2e;
-      hl.bgAlpha = rt.labelBgAlpha ?? 0.85;
-      hl.bgPadX = 6;
-      hl.bgPadY = 3;
-      hl.cornerRadius = rt.labelHaloCornerRadius ?? null;
-      // Position tooltip below the node when label is above, otherwise beside the node
-      if (hasVisibleLabel) {
-        hl.anchor.set(0.5, 0);
-        hl.x = 0;
-        hl.y = pn.radius + (pn.tagLabel ? (rt.tagLabelFontSize ?? 9) + 8 : 4);
-      } else {
-        hl.x = pn.radius + 2;
-        hl.y = -(pn.radius * 0.4 + 2);
-      }
-      hl.resolution = 2;
-      pn.gfx.addChild(hl);
-      pn.hoverLabel = hl;
-    }
+
+    // Counter-scale: keep label readable regardless of zoom level
+    const counterScale = Math.max(0.5, 1 / zoom);
+    const tooltipFontSize = rt.hoverTooltipFontSize ?? 12;
+    const hl = new CanvasText(tooltipText, {
+      fontSize: tooltipFontSize,
+      fill: this.getLabelColor(),
+      fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+      fontWeight: "600",
+    });
+    hl.bgColor = rt.labelBgColor ?? 0x1a1a2e;
+    hl.bgAlpha = 0.92;
+    hl.bgPadX = 8;
+    hl.bgPadY = 4;
+    hl.cornerRadius = rt.labelHaloCornerRadius ?? null;
+    hl.scale.set(counterScale);
+
+    // Position: right of node
+    hl.x = pn.radius + 4;
+    hl.y = -(pn.radius * 0.4 + 2);
+    hl.resolution = 2;
+    // Mark as hover-forced for overlap culling priority
+    pn.hoverForcedLabel = true;
+    pn.gfx.addChild(hl);
+    pn.hoverLabel = hl;
   }
 
   /**
