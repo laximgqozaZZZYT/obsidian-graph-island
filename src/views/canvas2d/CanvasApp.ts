@@ -71,6 +71,9 @@ export class CanvasApp {
   /** Whether to show the background dot grid */
   showDotGrid = true;
 
+  /** シーン描画完了後に呼ばれるコールバック（差分オーバーレイ等で使用） */
+  onPostFlush: ((ctx: CanvasRenderingContext2D, dpr: number) => void) | null = null;
+
   /** Dirty flag — only re-render when true. Call markNeedsRender() after
    *  modifying any CanvasGraphics, CanvasText, or transform. */
   private _needsRender = true;
@@ -170,6 +173,9 @@ export class CanvasApp {
     ctx.scale(this.dpr, this.dpr);
 
     this.stage._flush(ctx, 1);
+
+    // 差分オーバーレイなどのポストレンダーパス
+    this.onPostFlush?.(ctx, this.dpr);
 
     ctx.restore();
   }

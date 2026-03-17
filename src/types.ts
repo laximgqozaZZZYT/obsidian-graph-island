@@ -35,6 +35,58 @@ export interface GraphData {
   edges: GraphEdge[];
 }
 
+// ---------------------------------------------------------------------------
+// スナップショット差分用の型定義
+// ---------------------------------------------------------------------------
+
+/** スナップショット時点のノードの軽量フィンガープリント */
+export interface SnapshotNode {
+  id: string;
+  /** メタデータのハッシュ値（FNV-1a）。メタデータがない場合は空文字列 */
+  metaHash: string;
+}
+
+/** スナップショット時点のエッジの軽量フィンガープリント */
+export interface SnapshotEdge {
+  source: string;
+  target: string;
+  type: string;
+}
+
+/** 保存されたグラフスナップショット */
+export interface GraphSnapshot {
+  /** ユーザーが付けた名前 */
+  name: string;
+  /** ISO-8601 形式のタイムスタンプ */
+  createdAt: string;
+  /** ノードフィンガープリント配列 */
+  nodes: SnapshotNode[];
+  /** エッジフィンガープリント配列 */
+  edges: SnapshotEdge[];
+  /** パネル状態の要約（情報表示用） */
+  context: {
+    layout: string;
+    searchQuery: string;
+    groupBy: string;
+    nodeCount: number;
+    edgeCount: number;
+  };
+}
+
+/** スナップショットと現在のグラフの差分結果 */
+export interface SnapshotDiff {
+  /** 現在のグラフにあってスナップショットにないノードID */
+  addedNodeIds: Set<string>;
+  /** スナップショットにあって現在のグラフにないノード */
+  removedNodes: SnapshotNode[];
+  /** 両方に存在するがメタデータハッシュが異なるノードID */
+  changedNodeIds: Set<string>;
+  /** 現在のグラフにあってスナップショットにないエッジキー */
+  addedEdgeKeys: Set<string>;
+  /** スナップショットにあって現在のグラフにないエッジ */
+  removedEdges: SnapshotEdge[];
+}
+
 export type EdgeType =
   | "link"
   | "tag"
@@ -455,6 +507,8 @@ export interface GraphViewsSettings {
   defaultEdgeBundleStrength?: number;
   /** Vault-relative path for JSON import/export */
   settingsJsonPath: string;
+  /** 保存されたグラフスナップショット（最大10件） */
+  snapshots?: GraphSnapshot[];
 }
 
 export const DEFAULT_SETTINGS: GraphViewsSettings = {
@@ -480,6 +534,7 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
   defaultClusterGroupRules: [{ groupBy: "tag:?", recursive: false }],
   defaultNodeRules: [],
   settingsJsonPath: "",
+  snapshots: [],
 };
 
 // ---------------------------------------------------------------------------
