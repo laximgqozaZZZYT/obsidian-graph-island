@@ -1111,23 +1111,26 @@ class EdgeRenderCache {
 const _cache = new EdgeRenderCache();
 
 /**
- * Compute 1 Port per group on the group bbox face closest to the graph center.
- * The port is placed at the center of that face.
+ * Compute 1 Port per group.
+ * - Cartesian: placed at the center of the bbox face closest to graph center.
+ * - Polar: placed at the point on the group boundary closest to graph center,
+ *   with perpendicular tangent to the radial direction (arc-tangent).
  */
 function computeGroupPorts(
   groupKeys: Set<string>,
   centroids: Map<string, { x: number; y: number }>,
   radii: Map<string, number>,
   connections: Map<string, Set<string>>,
-  _coordinateSystem?: "cartesian" | "polar",
-  _polarCenter?: { x: number; y: number },
+  coordinateSystem?: "cartesian" | "polar",
+  polarCenter?: { x: number; y: number },
   resolvePos?: (ref: string | object) => Pos | undefined,
   nodeClusterMap?: Map<string, string>,
 ): Map<string, GroupPort> {
   const ports: Map<string, GroupPort> = new Map();
+  const isPolar = coordinateSystem === "polar";
 
   // Compute graph center from all centroids
-  const graphCenter = computeGraphCenter(centroids);
+  const graphCenter = polarCenter ?? computeGraphCenter(centroids);
   _cache.graphCenter = graphCenter;
 
   // Estimate margin from node spacing (will be refined per-group if resolvePos available)
@@ -1137,10 +1140,24 @@ function computeGroupPorts(
     const c = centroids.get(gk);
     if (!c) continue;
 
-    // Try to compute real bbox from node positions
+    if (isPolar) {
+      // Polar port: place on group boundary in the direction toward graph center.
+      // The perpendicular is the arc-tangent direction (perpendicular to radius).
+      const r = radii.get(gk) ?? DEFAULT_CLUSTER_RADIUS;
+      let dirX = graphCenter.x - c.x;
+      let dirY = graphCenter.y - c.y;
+      const dirLen = Math.sqrt(dirX * dirX + dirY * dirY);
+      if (dirLen < 0.01) { dirX = 0; dirY = -1; }
+      else { dirX /= dirLen; dirY /= dirLen; }
+      // Perpendicular = tangent to the arc (90° CCW from radial direction)
+      const perpX = -dirY, perpY = dirX;
+      ports.set(gk, { groupKey: gk, x: c.x + dirX * r, y: c.y + dirY * r, perpX, perpY });
+      continue;
+    }
+
+    // Cartesian port: bbox face closest to graph center
     let bbox: GroupBBox | null = null;
     if (resolvePos && nodeClusterMap) {
-      // Estimate node spacing from all nodes in this group
       const positions: { x: number; y: number }[] = [];
       for (const [nid, g] of nodeClusterMap) {
         if (g !== gk) continue;
@@ -1149,7 +1166,6 @@ function computeGroupPorts(
       }
       let margin = defaultMargin;
       if (positions.length >= 2) {
-        // Estimate spacing as min distance between any two nodes
         let minDist = Infinity;
         for (let i = 0; i < Math.min(positions.length, 50); i++) {
           for (let j = i + 1; j < Math.min(positions.length, 50); j++) {
@@ -1169,7 +1185,7 @@ function computeGroupPorts(
       const { perpX, perpY } = facePerpendicular(face);
       ports.set(gk, { groupKey: gk, x: pos.x, y: pos.y, perpX, perpY });
     } else {
-      // Fallback: use centroid + radius toward graph center
+      // Fallback: same as polar (centroid + radius toward center)
       const r = radii.get(gk) ?? DEFAULT_CLUSTER_RADIUS;
       let dirX = graphCenter.x - c.x;
       let dirY = graphCenter.y - c.y;
@@ -1184,14 +1200,12 @@ function computeGroupPorts(
 }
 
 /**
- * Build a Manhattan (L-shaped) path from port A to port B.
+ * Build a Manhattan (L-shaped) path from point A to point B.
  * The path follows grid-aligned segments: first horizontal, then vertical.
- * For concentric/radial arrangements, we use the radial+arc convention.
  */
 function buildManhattanPath(
   a: { x: number; y: number },
   b: { x: number; y: number },
-  arrangement?: string,
 ): { x: number; y: number }[] {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
@@ -1203,22 +1217,62 @@ function buildManhattanPath(
     return [a, b];
   }
 
-  // Manhattan L-shape: go horizontal first, then vertical.
-  // Choose the L-direction that keeps the bend farther from both ports.
-  // Option 1: horizontal then vertical → bend at (b.x, a.y)
-  // Option 2: vertical then horizontal → bend at (a.x, b.y)
-  // Pick the one where the bend point is farther from the midpoint (more "square")
-  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-  const bend1 = { x: b.x, y: a.y };
-  const bend2 = { x: a.x, y: b.y };
-  const d1 = (bend1.x - mid.x) ** 2 + (bend1.y - mid.y) ** 2;
-  const d2 = (bend2.x - mid.x) ** 2 + (bend2.y - mid.y) ** 2;
-
   // Use the option with longer first segment for cleaner visual
   const useBend1 = Math.abs(dx) >= Math.abs(dy);
-  const bend = useBend1 ? bend1 : bend2;
+  const bend = useBend1 ? { x: b.x, y: a.y } : { x: a.x, y: b.y };
 
   return [a, bend, b];
+}
+
+/**
+ * Build a polar trunk path from point A to point B via arc + radial segments.
+ * Route: A → radial to arcR → arc at arcR → radial to B
+ * where arcR is a shared radius for the arc segment (midpoint of the two radii).
+ */
+function buildPolarTrunkPath(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  center: { x: number; y: number },
+): { x: number; y: number }[] {
+  const dxA = a.x - center.x, dyA = a.y - center.y;
+  const dxB = b.x - center.x, dyB = b.y - center.y;
+  const rA = Math.sqrt(dxA * dxA + dyA * dyA);
+  const rB = Math.sqrt(dxB * dxB + dyB * dyB);
+  const thetaA = Math.atan2(dyA, dxA);
+  const thetaB = Math.atan2(dyB, dxB);
+
+  // If nearly same angle, go straight (radial line)
+  let angleDiff = thetaB - thetaA;
+  if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+  if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+  if (Math.abs(angleDiff) < 0.05 || rA < 1 || rB < 1) return [a, b];
+
+  // Arc radius: use the larger of the two (outer arc for clearance)
+  const arcR = Math.max(rA, rB) * 1.1;
+
+  // Generate arc waypoints from thetaA to thetaB at arcR
+  const ARC_STEPS = Math.max(4, Math.ceil(Math.abs(angleDiff) / (Math.PI / 12)));
+  const path: { x: number; y: number }[] = [a];
+
+  // Radial step from A to arc radius (if needed)
+  if (Math.abs(rA - arcR) > 5) {
+    path.push({ x: center.x + arcR * Math.cos(thetaA), y: center.y + arcR * Math.sin(thetaA) });
+  }
+
+  // Arc waypoints
+  for (let i = 1; i < ARC_STEPS; i++) {
+    const t = i / ARC_STEPS;
+    const theta = thetaA + angleDiff * t;
+    path.push({ x: center.x + arcR * Math.cos(theta), y: center.y + arcR * Math.sin(theta) });
+  }
+
+  // Radial step from arc to B (if needed)
+  if (Math.abs(rB - arcR) > 5) {
+    path.push({ x: center.x + arcR * Math.cos(thetaB), y: center.y + arcR * Math.sin(thetaB) });
+  }
+
+  path.push(b);
+  return path;
 }
 
 /**
@@ -1322,8 +1376,13 @@ function buildTrunks(
       ? { x: portB.x + (dxB / lenB) * jDistB, y: portB.y + (dyB / lenB) * jDistB }
       : { x: portB.x, y: portB.y };
 
-    // Path: PortA → JunctionA → (Manhattan middle) → JunctionB → PortB
-    const middle = buildManhattanPath(jctA, jctB, cfg.clusterArrangement);
+    // Path: PortA → JunctionA → (middle segment) → JunctionB → PortB
+    // Polar uses arc+radial path; Cartesian uses Manhattan L-shape.
+    const isPolar = cfg.coordinateSystem === "polar";
+    const polarCenter = isPolar ? computePolarCenter(cfg) : undefined;
+    const middle = isPolar && polarCenter
+      ? buildPolarTrunkPath(jctA, jctB, polarCenter)
+      : buildManhattanPath(jctA, jctB);
     const path: { x: number; y: number }[] = [];
     path.push(portA);
     if (Math.abs(jctA.x - portA.x) > 1 || Math.abs(jctA.y - portA.y) > 1) {
@@ -1802,6 +1861,41 @@ function deduplicatePath(path: { x: number; y: number }[]): { x: number; y: numb
 }
 
 /**
+ * Compute a degree-based alpha multiplier for cable wires.
+ * Mirrors the fadeByDegree logic in resolveEdgeStyle for consistency.
+ */
+function cableFadeByDegree(edges: GraphEdge[], cfg: EdgeDrawConfig): number {
+  if (!cfg.fadeByDegree || cfg.maxDegree <= 0) return 1;
+  let minDeg = Infinity;
+  for (const e of edges) {
+    const sd = cfg.degrees.get(edgeSourceId(e)) ?? 0;
+    const td = cfg.degrees.get(edgeTargetId(e)) ?? 0;
+    const d = Math.min(sd, td);
+    if (d < minDeg) minDeg = d;
+  }
+  if (minDeg === Infinity) return 1;
+  const t = Math.sqrt(minDeg / cfg.maxDegree);
+  return FADE_BY_DEGREE_MIN_ALPHA + (1 - FADE_BY_DEGREE_MIN_ALPHA) * t;
+}
+
+/**
+ * Compute weight-based thickness bonus for cable wires.
+ * Uses the max pair count among the edges in the group.
+ */
+function cableWeightThickness(edges: GraphEdge[], cfg: EdgeDrawConfig): number {
+  if (!cfg.edgeWeightThickness || edges.length <= 1) return 0;
+  // Count same source-target pairs
+  const pairs = new Map<string, number>();
+  for (const e of edges) {
+    const k = [edgeSourceId(e), edgeTargetId(e)].sort().join(":");
+    pairs.set(k, (pairs.get(k) ?? 0) + 1);
+  }
+  let maxW = 1;
+  for (const w of pairs.values()) { if (w > maxW) maxW = w; }
+  return maxW > 1 ? Math.log2(maxW) * WEIGHT_THICKNESS_FACTOR : 0;
+}
+
+/**
  * Draw a single cable's branch wires (node-to-node within group).
  * Deduplicates by color so multiple edges of the same color draw as one wire.
  */
@@ -1838,14 +1932,18 @@ function _drawSingleIntraCableBranches(
       if (highlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
       else if (highlight === "dim") wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
 
+      // Apply degree-based fade to cable wires (mirrors resolveEdgeStyle)
+      wireAlpha *= cableFadeByDegree(edges, cfg);
+
       const off = nColors > 1 ? (ci - (nColors - 1) / 2) * STUB_WIRE_SPACING : 0;
       const wirePath = off === 0 ? branch.path
         : branch.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
 
       const finalAlpha = highlight === "bright"
         ? wireAlpha
-        : Math.max(wireAlpha * densityScale, highlight === "dim" ? 0.05 : 0.35);
-      _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, finalAlpha);
+        : Math.max(wireAlpha * densityScale, highlight === "dim" ? 0.05 : 0.1);
+      const wireWidth = WIRE_SCREEN_WIDTH + cableWeightThickness(edges, cfg);
+      _drawSmoothPath(g, wirePath, wireWidth, color, finalAlpha);
       ci++;
     }
   }
@@ -1885,6 +1983,9 @@ function _drawSingleIntraCableGpb(
       }
     }
 
+    const fadeMul = cableFadeByDegree(edges, cfg);
+    const wireWidth = WIRE_SCREEN_WIDTH + cableWeightThickness(edges, cfg);
+
     if (filterHighlight !== null) {
       // Highlighting mode — filter by highlight state
       const gpHighlight = getBranchHighlight(edges);
@@ -1893,15 +1994,16 @@ function _drawSingleIntraCableGpb(
       let wireAlpha = WIRE_BASE_ALPHA;
       if (gpHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
       else wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
+      wireAlpha *= fadeMul;
 
       const gpFinalAlpha = gpHighlight === "bright"
         ? wireAlpha
         : Math.max(wireAlpha * densityScale, 0.05);
-      _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, gpFinalAlpha);
+      _drawSmoothPath(g, wirePath, wireWidth, color, gpFinalAlpha);
     } else {
       // Normal mode — draw all at base alpha
-      const gpFinalAlpha = Math.max(WIRE_BASE_ALPHA * densityScale, 0.35);
-      _drawSmoothPath(g, wirePath, WIRE_SCREEN_WIDTH, color, gpFinalAlpha);
+      const gpFinalAlpha = Math.max(WIRE_BASE_ALPHA * fadeMul * densityScale, 0.1);
+      _drawSmoothPath(g, wirePath, wireWidth, color, gpFinalAlpha);
     }
   }
 }
@@ -2114,10 +2216,11 @@ function _drawSingleTrunk(
       return wp;
     };
 
+    const fadeMul = cableFadeByDegree(wireEdges, cfg);
+    const wireWidth = WIRE_SCREEN_WIDTH + cableWeightThickness(wireEdges, cfg);
+
     if (cfg.highlightedNodeId) {
       // An edge is "bright" only when the HOVERED node itself is one of its endpoints.
-      // Edges between other highlight-set members (N-hop neighbors) are treated as dim
-      // to avoid lighting up hundreds of unrelated trunk wires.
       const hovId = cfg.highlightedNodeId;
       const brightEdges: GraphEdge[] = [];
       const dimEdges: GraphEdge[] = [];
@@ -2131,24 +2234,21 @@ function _drawSingleTrunk(
         }
       }
 
-      // Draw dim wire if there are dim edges (and filter allows)
       if (dimEdges.length > 0 && (filterHighlight === null || filterHighlight === "dim")) {
         const dimAlpha = Math.max(
-          (cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA) * densityScale,
+          (cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA) * fadeMul * densityScale,
           0.05,
         );
-        _drawSmoothPath(g, _buildTrunkWirePath(), WIRE_SCREEN_WIDTH, color, dimAlpha);
+        _drawSmoothPath(g, _buildTrunkWirePath(), wireWidth, color, dimAlpha);
       }
-      // Draw bright wire if there are bright edges (and filter allows)
       if (brightEdges.length > 0 && (filterHighlight === null || filterHighlight === "bright")) {
-        const brightAlpha = cfg.highlightEdgeAlpha ?? 1.0;
-        _drawSmoothPath(g, _buildTrunkWirePath(), WIRE_SCREEN_WIDTH, color, brightAlpha);
+        const brightAlpha = (cfg.highlightEdgeAlpha ?? 1.0) * fadeMul;
+        _drawSmoothPath(g, _buildTrunkWirePath(), wireWidth, color, brightAlpha);
       }
     } else {
-      // No highlight — draw all as normal
       if (filterHighlight !== null && filterHighlight !== "normal") continue;
-      const wireAlpha = Math.max(WIRE_BASE_ALPHA * densityScale, 0.35);
-      _drawSmoothPath(g, _buildTrunkWirePath(), WIRE_SCREEN_WIDTH, color, wireAlpha);
+      const wireAlpha = Math.max(WIRE_BASE_ALPHA * fadeMul * densityScale, 0.1);
+      _drawSmoothPath(g, _buildTrunkWirePath(), wireWidth, color, wireAlpha);
     }
   }
 }
