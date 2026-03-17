@@ -48,6 +48,7 @@ interface MinimapBounds {
 
 export class Minimap {
   private wrapper: HTMLElement;
+  private handle: HTMLElement;
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private host: MinimapHost;
@@ -79,10 +80,10 @@ export class Minimap {
     parentEl.appendChild(this.wrapper);
 
     // Drag handle bar
-    const handle = document.createElement("div");
-    handle.className = "gi-minimap-handle";
-    this.wrapper.appendChild(handle);
-    handle.addEventListener("mousedown", this.onHandleDown);
+    this.handle = document.createElement("div");
+    this.handle.className = "gi-minimap-handle";
+    this.wrapper.appendChild(this.handle);
+    this.handle.addEventListener("mousedown", this.onHandleDown);
 
     // Canvas
     this.canvas = document.createElement("canvas");
@@ -215,7 +216,9 @@ export class Minimap {
     this.moveStartX = e.clientX;
     this.moveStartY = e.clientY;
     const rect = this.wrapper.getBoundingClientRect();
-    const parentRect = this.wrapper.parentElement!.getBoundingClientRect();
+    const parent = this.wrapper.parentElement;
+    if (!parent) return;
+    const parentRect = parent.getBoundingClientRect();
     this.moveStartLeft = rect.left - parentRect.left;
     this.moveStartTop = rect.top - parentRect.top;
     // Switch from bottom/right to top/left positioning on first drag
@@ -230,7 +233,9 @@ export class Minimap {
     e.preventDefault();
     const dx = e.clientX - this.moveStartX;
     const dy = e.clientY - this.moveStartY;
-    const parentRect = this.wrapper.parentElement!.getBoundingClientRect();
+    const parent2 = this.wrapper.parentElement;
+    if (!parent2) return;
+    const parentRect = parent2.getBoundingClientRect();
     const wrapRect = this.wrapper.getBoundingClientRect();
     let newLeft = this.moveStartLeft + dx;
     let newTop = this.moveStartTop + dy;
@@ -263,6 +268,9 @@ export class Minimap {
 
   destroy() {
     // Remove all listeners to prevent memory leaks
+    if (this.handle) {
+      this.handle.removeEventListener("mousedown", this.onHandleDown);
+    }
     const canvas = this.canvas;
     if (canvas) {
       canvas.removeEventListener("mousedown", this.onMouseDown);
