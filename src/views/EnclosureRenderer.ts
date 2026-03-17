@@ -492,37 +492,12 @@ export function drawEnclosures(
 // Drawing helpers
 // ---------------------------------------------------------------------------
 
-/** 直線で囲む国境スタイル — 角は短いベベルで面取り */
+/** 直線のみの多角形 — 地図の国境スタイル */
 export function drawSmoothHull(g: CanvasGraphics, points: Pt[]) {
   if (points.length < 3) return;
-  const n = points.length;
-  // 角の面取り量（ピクセル）— 短いほど鋭い角、長いほど丸い角
-  const BEVEL = 6;
   g.moveTo(points[0].x, points[0].y);
-  for (let i = 0; i < n; i++) {
-    const cur = points[i];
-    const next = points[(i + 1) % n];
-    const dx = next.x - cur.x, dy = next.y - cur.y;
-    const len = Math.hypot(dx, dy);
-    if (len < BEVEL * 3) {
-      // 短い辺 — 直線のみ
-      g.lineTo(next.x, next.y);
-    } else {
-      // 長い辺 — 直線 + 角で短いベベル
-      const ux = dx / len, uy = dy / len;
-      const bx = next.x - ux * BEVEL, by = next.y - uy * BEVEL;
-      g.lineTo(bx, by);
-      // 次の辺の方向で面取り
-      const next2 = points[(i + 2) % n];
-      const dx2 = next2.x - next.x, dy2 = next2.y - next.y;
-      const len2 = Math.hypot(dx2, dy2);
-      if (len2 > BEVEL * 2) {
-        const ux2 = dx2 / len2, uy2 = dy2 / len2;
-        g.lineTo(next.x + ux2 * BEVEL, next.y + uy2 * BEVEL);
-      } else {
-        g.lineTo(next.x, next.y);
-      }
-    }
+  for (let i = 1; i < points.length; i++) {
+    g.lineTo(points[i].x, points[i].y);
   }
   g.closePath();
 }
