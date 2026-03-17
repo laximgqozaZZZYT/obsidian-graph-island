@@ -891,6 +891,185 @@ interface FlatTargetResult {
   groupGuides?: GroupGuideEntry[];
 }
 
+// ─── Shared helpers for computeFlatTargets / computeHierarchicalTargets ───
+
+/** Sort group keys in-place by each group's representative node (first per sortComparator). */
+function _sortKeysByRepresentative(
+  keys: string[],
+  nodeSource: Map<string, GraphNode[]>,
+  cmp: ((a: GraphNode, b: GraphNode) => number) | undefined,
+): void {
+  if (!cmp || keys.length <= 1) return;
+  const reps = new Map<string, GraphNode>();
+  for (const key of keys) {
+    const members = nodeSource.get(key);
+    if (members && members.length > 0) {
+      reps.set(key, [...members].sort(cmp)[0]);
+    }
+  }
+  keys.sort((a, b) => {
+    const ra = reps.get(a);
+    const rb = reps.get(b);
+    if (!ra || !rb) return 0;
+    return cmp(ra, rb);
+  });
+}
+
+/** Compute per-group intra-group offsets and measure actual bounding radii. */
+function _computeGroupOffsetsAndRadii(
+  keys: string[],
+  groups: Map<string, GraphNode[]>,
+  degrees: Map<string, number>,
+  edges: GraphEdge[],
+  cfg: ClusterForceConfig,
+): { groupResults: Map<string, ArrangementResult>; actualRadii: Map<string, number> } {
+  const groupResults = new Map<string, ArrangementResult>();
+  const actualRadii = new Map<string, number>();
+  for (const key of keys) {
+    const members = groups.get(key)!;
+    const result = computeOffsets(members, degrees, edges, cfg);
+    groupResults.set(key, result);
+    let maxDist = 0;
+    for (const { dx, dy } of result.offsets.values()) {
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > maxDist) maxDist = d;
+    }
+    actualRadii.set(key, maxDist + cfg.nodeSize);
+  }
+  return { groupResults, actualRadii };
+}
+
+/** Place group centers using the configured groupLayoutMode. */
+function _layoutGroupCenters(
+  keys: string[],
+  groups: Map<string, GraphNode[]>,
+  cfg: ClusterForceConfig,
+  actualRadii: Map<string, number>,
+): Map<string, { x: number; y: number }> {
+  const out = new Map<string, { x: number; y: number }>();
+  if (keys.length === 1) {
+    out.set(keys[0], { x: cfg.centerX, y: cfg.centerY });
+  } else {
+    const mode = cfg.groupLayoutMode ?? "circle";
+    switch (mode) {
+      case GROUP_ARRANGEMENT_HORIZONTAL:
+        layoutGroupsHorizontal(keys, groups, cfg, out, actualRadii);
+        break;
+      case GROUP_ARRANGEMENT_VERTICAL:
+        layoutGroupsVertical(keys, groups, cfg, out, actualRadii);
+        break;
+      case GROUP_ARRANGEMENT_CONCENTRIC:
+        layoutGroupsConcentric(keys, groups, cfg, out, actualRadii);
+        break;
+      case GROUP_ARRANGEMENT_GRID:
+        layoutGroupsGrid(keys, groups, cfg, out, actualRadii);
+        break;
+      default:
+        layoutGroupsCircle(keys, groups, cfg, out, actualRadii);
+        break;
+    }
+  }
+  return out;
+}
+
+/** Accumulator for collecting results while applying offsets to targets. */
+interface _OffsetAccumulator {
+  targets: Map<string, { x: number; y: number }>;
+  allBars: TimelineBarInfo[];
+  allSeqEdges: GraphEdge[];
+  groupGuides: GroupGuideEntry[];
+  ringConstraints?: Map<string, RingConstraint>;
+}
+
+/** Apply pre-computed offsets for a single group to absolute target positions. */
+function _applyGroupOffsets(
+  members: GraphNode[],
+  center: { x: number; y: number },
+  result: ArrangementResult,
+  acc: _OffsetAccumulator,
+): void {
+  for (const n of members) {
+    const off = result.offsets.get(n.id);
+    acc.targets.set(n.id, {
+      x: center.x + (off?.dx ?? 0),
+      y: center.y + (off?.dy ?? 0),
+    });
+  }
+  if (result.ringAssignments) {
+    if (!acc.ringConstraints) acc.ringConstraints = new Map<string, RingConstraint>();
+    for (const [nodeId, r] of result.ringAssignments) {
+      acc.ringConstraints.set(nodeId, { cx: center.x, cy: center.y, r });
+    }
+  }
+  if (result.bars) {
+    for (const bar of result.bars) {
+      acc.allBars.push({
+        ...bar,
+        xStart: bar.xStart + center.x,
+        xEnd: bar.xEnd + center.x,
+        yCenter: bar.yCenter + center.y,
+      });
+    }
+  }
+  if (result.sequenceEdges) {
+    acc.allSeqEdges.push(...result.sequenceEdges);
+  }
+  if (result.guide) {
+    acc.groupGuides.push({ guide: result.guide, centerX: center.x, centerY: center.y });
+  }
+}
+
+/** Collect timeline route data from computed targets (single-group timeline case). */
+function _collectTimelineRoutes(
+  groupKeys: string[],
+  groups: Map<string, GraphNode[]>,
+  groupResults: Map<string, ArrangementResult>,
+  targets: Map<string, { x: number; y: number }>,
+): TimelineRoute[] | undefined {
+  const routes: TimelineRoute[] = [];
+  for (const key of groupKeys) {
+    const members = groups.get(key);
+    if (!members || members.length < 2) continue;
+    const result = groupResults.get(key);
+    const chains = result?.nodeChains;
+
+    if (chains && chains.length > 0) {
+      for (const chain of chains) {
+        const waypoints: Array<{ nodeId: string; x: number; y: number }> = [];
+        for (const nodeId of chain) {
+          const pos = targets.get(nodeId);
+          if (pos) waypoints.push({ nodeId, x: pos.x, y: pos.y });
+        }
+        if (waypoints.length >= 2) {
+          routes.push({ groupKey: key, waypoints });
+        }
+      }
+      const chainedSet = new Set(chains.flat());
+      const unchained: Array<{ nodeId: string; x: number; y: number }> = [];
+      for (const n of members) {
+        if (chainedSet.has(n.id)) continue;
+        const pos = targets.get(n.id);
+        if (pos) unchained.push({ nodeId: n.id, x: pos.x, y: pos.y });
+      }
+      if (unchained.length >= 2) {
+        unchained.sort((a, b) => a.x - b.x);
+        routes.push({ groupKey: key, waypoints: unchained });
+      }
+    } else {
+      const waypoints: Array<{ nodeId: string; x: number; y: number }> = [];
+      for (const n of members) {
+        const pos = targets.get(n.id);
+        if (pos) waypoints.push({ nodeId: n.id, x: pos.x, y: pos.y });
+      }
+      waypoints.sort((a, b) => a.x - b.x);
+      if (waypoints.length >= 2) {
+        routes.push({ groupKey: key, waypoints });
+      }
+    }
+  }
+  return routes.length > 0 ? routes : undefined;
+}
+
 /** Flat layout — all groups at the same level (no recursive split). */
 /**
  * 6-step pipeline for computing flat (non-hierarchical) group targets.
@@ -915,187 +1094,45 @@ function computeFlatTargets(
   degrees: Map<string, number>,
   cfg: ClusterForceConfig,
 ): FlatTargetResult {
-  const targets = new Map<string, { x: number; y: number }>();
-  const allBars: TimelineBarInfo[] = [];
   let groupKeys = [...groups.keys()];
-
-  // Sort cluster keys by their representative node (first node per sortComparator)
-  if (cfg.sortComparator && groupKeys.length > 1) {
-    const cmp = cfg.sortComparator;
-    const reps = new Map<string, GraphNode>();
-    for (const key of groupKeys) {
-      const members = groups.get(key);
-      if (members && members.length > 0) {
-        reps.set(key, [...members].sort(cmp)[0]);
-      }
-    }
-    groupKeys.sort((a, b) => {
-      const ra = reps.get(a);
-      const rb = reps.get(b);
-      if (!ra || !rb) return 0;
-      return cmp(ra, rb);
-    });
-  }
-
-  const nGroups = groupKeys.length;
+  _sortKeysByRepresentative(groupKeys, groups, cfg.sortComparator);
 
   // Timeline with multiple groups: merge all nodes into a single unified timeline
-  if (cfg.arrangement === ARRANGEMENT_TIMELINE && nGroups > 1) {
+  if (cfg.arrangement === ARRANGEMENT_TIMELINE && groupKeys.length > 1) {
     return computeUnifiedTimelineTargets(groups, edges, degrees, cfg);
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // 6-Step Pipeline (fixed order — arrangement-independent)
-  // ═══════════════════════════════════════════════════════════════════════
-  //
-  // Step 1: Node size → effectiveRadius() per node (in computeOffsets)
-  // Step 2: Inter-node distance → pairwiseGap(max(r_i, r_j)) (in computeOffsets)
-  // Step 3: Group radius → measured from actual offsets below
-  // Step 4: Inter-group distance → pairwiseGap(max(groupR_i, groupR_j))
-  // Step 5: Group positions → layoutGroups*()
-  // Step 6: Node positions → groupCenter + offset
-  // ═══════════════════════════════════════════════════════════════════════
+  // Steps 1-3: Per-group offsets + actual radii
+  const { groupResults, actualRadii } = _computeGroupOffsetsAndRadii(
+    groupKeys, groups, degrees, edges, cfg,
+  );
 
-  // Steps 1-2: Per-group offset computation (node sizes + inter-node distances)
-  const groupResults = new Map<string, ArrangementResult>();
-  const actualRadii = new Map<string, number>();
+  // Steps 4-5: Place group centers
+  const groupCenters = _layoutGroupCenters(groupKeys, groups, cfg, actualRadii);
 
+  // Step 6: Absolute positions = group center + offset
+  const acc: _OffsetAccumulator = {
+    targets: new Map(), allBars: [], allSeqEdges: [], groupGuides: [],
+  };
   for (const key of groupKeys) {
     const members = groups.get(key)!;
-    const result = computeOffsets(members, degrees, edges, cfg);
-    groupResults.set(key, result);
-
-    // Step 3: Group radius = max offset distance + max node radius margin
-    let maxDist = 0;
-    for (const { dx, dy } of result.offsets.values()) {
-      const d = Math.sqrt(dx * dx + dy * dy);
-      if (d > maxDist) maxDist = d;
-    }
-    actualRadii.set(key, maxDist + cfg.nodeSize);
-  }
-
-  // Steps 4-5: Inter-group distance (pairwise max) → Group positions
-  // Layout functions now receive actual radii measured from computed offsets.
-  const groupCenters = new Map<string, { x: number; y: number }>();
-
-  if (nGroups === 1) {
-    groupCenters.set(groupKeys[0], { x: cfg.centerX, y: cfg.centerY });
-  } else {
-    const mode = cfg.groupLayoutMode ?? "circle";
-    switch (mode) {
-      case GROUP_ARRANGEMENT_HORIZONTAL:
-        layoutGroupsHorizontal(groupKeys, groups, cfg, groupCenters, actualRadii);
-        break;
-      case GROUP_ARRANGEMENT_VERTICAL:
-        layoutGroupsVertical(groupKeys, groups, cfg, groupCenters, actualRadii);
-        break;
-      case GROUP_ARRANGEMENT_CONCENTRIC:
-        layoutGroupsConcentric(groupKeys, groups, cfg, groupCenters, actualRadii);
-        break;
-      case GROUP_ARRANGEMENT_GRID:
-        layoutGroupsGrid(groupKeys, groups, cfg, groupCenters, actualRadii);
-        break;
-      default:
-        layoutGroupsCircle(groupKeys, groups, cfg, groupCenters, actualRadii);
-        break;
-    }
-  }
-
-  // ─── Step 6: Node position (absolute = group center + offset) ───
-  const allSeqEdges: GraphEdge[] = [];
-  let ringConstraints: Map<string, RingConstraint> | undefined;
-  const groupGuides: GroupGuideEntry[] = [];
-
-  for (const key of groupKeys) {
-    const members = groups.get(key)!;
-    const center = groupCenters.get(key)!;
-    const result = groupResults.get(key)!;
-
-    for (const n of members) {
-      const off = result.offsets.get(n.id);
-      targets.set(n.id, {
-        x: center.x + (off?.dx ?? 0),
-        y: center.y + (off?.dy ?? 0),
-      });
-    }
-    // Build absolute ring constraints from ringAssignments
-    if (result.ringAssignments) {
-      if (!ringConstraints) ringConstraints = new Map<string, RingConstraint>();
-      for (const [nodeId, r] of result.ringAssignments) {
-        ringConstraints.set(nodeId, { cx: center.x, cy: center.y, r });
-      }
-    }
-    // Collect bar data with absolute positions
-    if (result.bars) {
-      for (const bar of result.bars) {
-        allBars.push({
-          ...bar,
-          xStart: bar.xStart + center.x,
-          xEnd: bar.xEnd + center.x,
-          yCenter: bar.yCenter + center.y,
-        });
-      }
-    }
-    if (result.sequenceEdges) {
-      allSeqEdges.push(...result.sequenceEdges);
-    }
-    // Collect guide data for road network generation
-    if (result.guide) {
-      groupGuides.push({ guide: result.guide, centerX: center.x, centerY: center.y });
-    }
+    _applyGroupOffsets(members, groupCenters.get(key)!, groupResults.get(key)!, acc);
   }
 
   // Route data for timeline arrangement (single-group case)
   let timelineRoutes: TimelineRoute[] | undefined;
   if (cfg.arrangement === ARRANGEMENT_TIMELINE) {
-    const routes: TimelineRoute[] = [];
-    for (const key of groupKeys) {
-      const members = groups.get(key);
-      if (!members || members.length < 2) continue;
-      const result = groupResults.get(key);
-      const chains = result?.nodeChains;
-
-      if (chains && chains.length > 0) {
-        // Use chain ordering: one route per chain
-        for (const chain of chains) {
-          const waypoints: Array<{ nodeId: string; x: number; y: number }> = [];
-          for (const nodeId of chain) {
-            const pos = targets.get(nodeId);
-            if (pos) waypoints.push({ nodeId, x: pos.x, y: pos.y });
-          }
-          if (waypoints.length >= 2) {
-            routes.push({ groupKey: key, waypoints });
-          }
-        }
-        // Also add unchained nodes as a fallback X-sorted route
-        const chainedSet = new Set(chains.flat());
-        const unchained: Array<{ nodeId: string; x: number; y: number }> = [];
-        for (const n of members) {
-          if (chainedSet.has(n.id)) continue;
-          const pos = targets.get(n.id);
-          if (pos) unchained.push({ nodeId: n.id, x: pos.x, y: pos.y });
-        }
-        if (unchained.length >= 2) {
-          unchained.sort((a, b) => a.x - b.x);
-          routes.push({ groupKey: key, waypoints: unchained });
-        }
-      } else {
-        // Fallback: sort all nodes by X (time axis)
-        const waypoints: Array<{ nodeId: string; x: number; y: number }> = [];
-        for (const n of members) {
-          const pos = targets.get(n.id);
-          if (pos) waypoints.push({ nodeId: n.id, x: pos.x, y: pos.y });
-        }
-        waypoints.sort((a, b) => a.x - b.x);
-        if (waypoints.length >= 2) {
-          routes.push({ groupKey: key, waypoints });
-        }
-      }
-    }
-    if (routes.length > 0) timelineRoutes = routes;
+    timelineRoutes = _collectTimelineRoutes(groupKeys, groups, groupResults, acc.targets);
   }
 
-  return { targets, allBars, ringConstraints, allSequenceEdges: allSeqEdges.length > 0 ? allSeqEdges : undefined, timelineRoutes, groupGuides: groupGuides.length > 0 ? groupGuides : undefined };
+  return {
+    targets: acc.targets,
+    allBars: acc.allBars,
+    ringConstraints: acc.ringConstraints,
+    allSequenceEdges: acc.allSeqEdges.length > 0 ? acc.allSeqEdges : undefined,
+    timelineRoutes,
+    groupGuides: acc.groupGuides.length > 0 ? acc.groupGuides : undefined,
+  };
 }
 
 /**
@@ -1434,9 +1471,6 @@ function computeHierarchicalTargets(
     return computeUnifiedTimelineTargets(groups, edges, degrees, cfg);
   }
 
-  const targets = new Map<string, { x: number; y: number }>();
-  const allBars: TimelineBarInfo[] = [];
-  const allSeqEdges: GraphEdge[] = [];
   let parentKeys = [...parentMap.keys()];
 
   // Build virtual "super groups" to compute parent-level sizes
@@ -1450,41 +1484,38 @@ function computeHierarchicalTargets(
     superGroups.set(parent, all);
   }
 
-  // Sort parent keys by representative node (same logic as computeFlatTargets)
-  if (cfg.sortComparator && parentKeys.length > 1) {
-    const cmp = cfg.sortComparator;
-    const reps = new Map<string, GraphNode>();
-    for (const key of parentKeys) {
-      const members = superGroups.get(key);
-      if (members && members.length > 0) {
-        reps.set(key, [...members].sort(cmp)[0]);
-      }
-    }
-    parentKeys.sort((a, b) => {
-      const ra = reps.get(a);
-      const rb = reps.get(b);
-      if (!ra || !rb) return 0;
-      return cmp(ra, rb);
-    });
-  }
+  _sortKeysByRepresentative(parentKeys, superGroups, cfg.sortComparator);
 
-  // ─── Step 1-3: Compute offsets for ALL groups first, measure actual radii ───
-  const allGroupResults = new Map<string, ArrangementResult>();
-  const allGroupRadii = new Map<string, number>();
+  // Steps 1-3: Compute offsets for ALL groups, measure actual radii
+  const { groupResults: allGroupResults, actualRadii: allGroupRadii } =
+    _computeGroupOffsetsAndRadii([...groups.keys()], groups, degrees, edges, cfg);
 
-  for (const [key, members] of groups) {
-    const result = computeOffsets(members, degrees, edges, cfg);
-    allGroupResults.set(key, result);
+  // Compute parent-level radii from children's extents
+  const parentActualRadii = _computeParentRadii(parentMap, allGroupRadii, cfg);
 
-    let maxDist = 0;
-    for (const { dx, dy } of result.offsets.values()) {
-      const d = Math.sqrt(dx * dx + dy * dy);
-      if (d > maxDist) maxDist = d;
-    }
-    allGroupRadii.set(key, maxDist + cfg.nodeSize);
-  }
+  // Steps 4-5: Place parent centers
+  const parentCenters = _layoutGroupCenters(parentKeys, superGroups, cfg, parentActualRadii);
 
-  // Compute actual parent-level radii (sum of children's extents)
+  // Step 6: Combine group centers + offsets
+  const acc: _OffsetAccumulator = {
+    targets: new Map(), allBars: [], allSeqEdges: [], groupGuides: [],
+  };
+  _applyHierarchicalOffsets(parentMap, parentCenters, groups, allGroupResults, allGroupRadii, cfg, acc);
+
+  return {
+    targets: acc.targets,
+    allBars: acc.allBars,
+    allSequenceEdges: acc.allSeqEdges.length > 0 ? acc.allSeqEdges : undefined,
+    groupGuides: acc.groupGuides.length > 0 ? acc.groupGuides : undefined,
+  };
+}
+
+/** Compute parent-level radii from child group radii for hierarchical layout. */
+function _computeParentRadii(
+  parentMap: Map<string, string[]>,
+  allGroupRadii: Map<string, number>,
+  cfg: ClusterForceConfig,
+): Map<string, number> {
   const parentActualRadii = new Map<string, number>();
   for (const [parent, childKeys] of parentMap) {
     let maxR = 0;
@@ -1492,144 +1523,100 @@ function computeHierarchicalTargets(
       const r = allGroupRadii.get(ck) ?? 0;
       if (r > maxR) maxR = r;
     }
-    // For multiple sub-groups, total footprint includes sub-group separation
     if (childKeys.length > 1) {
       parentActualRadii.set(parent, maxR * 2 + cfg.nodeSize * cfg.groupSpacing * 2);
     } else {
       parentActualRadii.set(parent, maxR);
     }
   }
+  return parentActualRadii;
+}
 
-  // ─── Step 4-5: Place parent centers using actual radii ───
-  const parentCenters = new Map<string, { x: number; y: number }>();
-  const nParents = parentKeys.length;
-
-  if (nParents === 1) {
-    parentCenters.set(parentKeys[0], { x: cfg.centerX, y: cfg.centerY });
-  } else {
-    const mode = cfg.groupLayoutMode ?? "circle";
-    switch (mode) {
-      case GROUP_ARRANGEMENT_VERTICAL:
-        layoutGroupsVertical(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
-        break;
-      case GROUP_ARRANGEMENT_HORIZONTAL:
-        layoutGroupsHorizontal(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
-        break;
-      case GROUP_ARRANGEMENT_CONCENTRIC:
-        layoutGroupsConcentric(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
-        break;
-      case GROUP_ARRANGEMENT_GRID:
-        layoutGroupsGrid(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
-        break;
-      default:
-        layoutGroupsCircle(parentKeys, superGroups, cfg, parentCenters, parentActualRadii);
-        break;
-    }
-  }
-
-  // ─── Step 6: Combine group centers + offsets ───
-  const groupGuides: GroupGuideEntry[] = [];
+/** Apply offsets for hierarchical layout: single-child parents use direct offsets,
+ *  multi-child parents place sub-groups in a circle around the parent center. */
+function _applyHierarchicalOffsets(
+  parentMap: Map<string, string[]>,
+  parentCenters: Map<string, { x: number; y: number }>,
+  groups: Map<string, GraphNode[]>,
+  allGroupResults: Map<string, ArrangementResult>,
+  allGroupRadii: Map<string, number>,
+  cfg: ClusterForceConfig,
+  acc: _OffsetAccumulator,
+): void {
   for (const [parent, childKeys] of parentMap) {
     const pCenter = parentCenters.get(parent)!;
 
     if (childKeys.length === 1) {
       const members = groups.get(childKeys[0])!;
       const result = allGroupResults.get(childKeys[0])!;
-      for (const n of members) {
-        const off = result.offsets.get(n.id);
-        targets.set(n.id, {
-          x: pCenter.x + (off?.dx ?? 0),
-          y: pCenter.y + (off?.dy ?? 0),
-        });
-      }
-      if (result.bars) {
-        for (const bar of result.bars) {
-          allBars.push({ ...bar, xStart: bar.xStart + pCenter.x, xEnd: bar.xEnd + pCenter.x, yCenter: bar.yCenter + pCenter.y });
-        }
-      }
-      const result2 = allGroupResults.get(childKeys[0])!;
-      if (result2.sequenceEdges) {
-        allSeqEdges.push(...result2.sequenceEdges);
-      }
-      if (result.guide) {
-        groupGuides.push({ guide: result.guide, centerX: pCenter.x, centerY: pCenter.y });
-      }
+      _applyGroupOffsets(members, pCenter, result, acc);
       continue;
     }
 
-    // Multiple sub-groups: sort by representative node if sortComparator exists,
-    // otherwise fall back to size (largest first)
-    let sorted: string[];
-    if (cfg.sortComparator) {
-      const cmp = cfg.sortComparator;
-      const reps = new Map<string, GraphNode>();
-      for (const ck of childKeys) {
-        const members = groups.get(ck);
-        if (members && members.length > 0) {
-          reps.set(ck, [...members].sort(cmp)[0]);
-        }
-      }
-      sorted = [...childKeys].sort((a, b) => {
-        const ra = reps.get(a);
-        const rb = reps.get(b);
-        if (!ra || !rb) return 0;
-        return cmp(ra, rb);
-      });
-    } else {
-      sorted = [...childKeys].sort((a, b) =>
-        (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0));
-    }
+    // Multiple sub-groups: sort + place in a circle
+    const sorted = _sortChildKeys(childKeys, groups, cfg);
+    const subCenters = _placeSubGroupCenters(sorted, pCenter, allGroupRadii, cfg);
 
-    // Place sub-groups using actual radii
-    const subCenters = new Map<string, { x: number; y: number }>();
-
-    if (sorted.length <= 1) {
-      subCenters.set(sorted[0], pCenter);
-    } else {
-      // Sum actual sub-group radii to determine circle size
-      let maxSubR = 0;
-      for (const ck of sorted) {
-        const r = allGroupRadii.get(ck) ?? 0;
-        if (r > maxSubR) maxSubR = r;
-      }
-      const subCircleR = (maxSubR * 2 + cfg.nodeSize * 4) * sorted.length / (2 * Math.PI);
-      for (let i = 0; i < sorted.length; i++) {
-        const angle = (i / sorted.length) * Math.PI * 2 - Math.PI / 2;
-        subCenters.set(sorted[i], {
-          x: pCenter.x + subCircleR * Math.cos(angle),
-          y: pCenter.y + subCircleR * Math.sin(angle),
-        });
-      }
-    }
-
-    // Apply pre-computed offsets to sub-group positions
     for (const ck of sorted) {
       const members = groups.get(ck);
       if (!members) continue;
-      const center = subCenters.get(ck)!;
-      const result = allGroupResults.get(ck)!;
-      for (const n of members) {
-        const off = result.offsets.get(n.id);
-        targets.set(n.id, {
-          x: center.x + (off?.dx ?? 0),
-          y: center.y + (off?.dy ?? 0),
-        });
-      }
-      if (result.bars) {
-        for (const bar of result.bars) {
-          allBars.push({ ...bar, xStart: bar.xStart + center.x, xEnd: bar.xEnd + center.x, yCenter: bar.yCenter + center.y });
-        }
-      }
-      if (result.sequenceEdges) {
-        allSeqEdges.push(...result.sequenceEdges);
-      }
-      if (result.guide) {
-        groupGuides.push({ guide: result.guide, centerX: center.x, centerY: center.y });
-      }
+      _applyGroupOffsets(members, subCenters.get(ck)!, allGroupResults.get(ck)!, acc);
     }
   }
+}
 
-  return { targets, allBars, allSequenceEdges: allSeqEdges.length > 0 ? allSeqEdges : undefined, groupGuides: groupGuides.length > 0 ? groupGuides : undefined };
+/** Sort child keys by representative node (sortComparator) or by size (largest first). */
+function _sortChildKeys(
+  childKeys: string[],
+  groups: Map<string, GraphNode[]>,
+  cfg: ClusterForceConfig,
+): string[] {
+  if (cfg.sortComparator) {
+    const cmp = cfg.sortComparator;
+    const reps = new Map<string, GraphNode>();
+    for (const ck of childKeys) {
+      const members = groups.get(ck);
+      if (members && members.length > 0) {
+        reps.set(ck, [...members].sort(cmp)[0]);
+      }
+    }
+    return [...childKeys].sort((a, b) => {
+      const ra = reps.get(a);
+      const rb = reps.get(b);
+      if (!ra || !rb) return 0;
+      return cmp(ra, rb);
+    });
+  }
+  return [...childKeys].sort((a, b) =>
+    (groups.get(b)?.length ?? 0) - (groups.get(a)?.length ?? 0));
+}
+
+/** Place sub-group centers in a circle around the parent center. */
+function _placeSubGroupCenters(
+  sorted: string[],
+  pCenter: { x: number; y: number },
+  allGroupRadii: Map<string, number>,
+  cfg: ClusterForceConfig,
+): Map<string, { x: number; y: number }> {
+  const subCenters = new Map<string, { x: number; y: number }>();
+  if (sorted.length <= 1) {
+    subCenters.set(sorted[0], pCenter);
+  } else {
+    let maxSubR = 0;
+    for (const ck of sorted) {
+      const r = allGroupRadii.get(ck) ?? 0;
+      if (r > maxSubR) maxSubR = r;
+    }
+    const subCircleR = (maxSubR * 2 + cfg.nodeSize * 4) * sorted.length / (2 * Math.PI);
+    for (let i = 0; i < sorted.length; i++) {
+      const angle = (i / sorted.length) * Math.PI * 2 - Math.PI / 2;
+      subCenters.set(sorted[i], {
+        x: pCenter.x + subCircleR * Math.cos(angle),
+        y: pCenter.y + subCircleR * Math.sin(angle),
+      });
+    }
+  }
+  return subCenters;
 }
 
 /**

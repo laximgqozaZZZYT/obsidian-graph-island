@@ -1774,14 +1774,6 @@ export class RenderPipeline {
 
     const placedNonSuperNow = placed.filter(r => !r.isSuper).length;
 
-    // AABB overlap check helper — uses spatial hash grid for O(k) lookup
-    const overlapsPlaced = (candidate: CullLabelRect): boolean => {
-      const cx = (candidate.pn.data.x + candidate.label.x) * zoom;
-      const cy = (candidate.pn.data.y + candidate.label.y) * zoom;
-      const testRect: CullLabelRect = { ...candidate, x: cx, y: cy };
-      return grid.checkOverlap(testRect);
-    };
-
     if (!(absoluteFloor > 0 || minNonSuper > 0)) return;
 
     const placedSet = new Set(placed.map(r => r.pn.data.id));
@@ -1790,50 +1782,7 @@ export class RenderPipeline {
     const hiddenRegulars = rects.filter(r => !r.isSuper && !placedSet.has(r.pn.data.id))
       .sort((a, b) => b.degree - a.degree);
 
-    // tryDisplaceForceShow: attempt displacement offsets for force-show candidates.
-    // Displacement is capped to labelForceShowMaxRadii × nodeRadius in world space.
-    // If no position found within range, label is hidden (not forced far away).
-    const forceShowMaxRadii = rt.labelForceShowMaxRadii ?? 5;
-    const tryDisplaceForceShow = (r: CullLabelRect): boolean => {
-      if (!overlapsPlaced(r)) return true; // fits without displacement
-      const nodeR = r.pn.radius ?? 6;
-      const screenNodeR = nodeR * zoom;
-      const maxWorldDisp = nodeR * forceShowMaxRadii;
-      const clearX = r.w + margin;
-      const clearY = r.h + margin;
-      // Systematic 8-direction × 5-multiplier offsets (40 positions, capped)
-      const dirs = [
-        { dx: 1, dy: 0 },   { dx: -1, dy: 0 },
-        { dx: 0, dy: 1 },   { dx: 0, dy: -1 },
-        { dx: 1, dy: 1 },   { dx: -1, dy: -1 },
-        { dx: 1, dy: -1 },  { dx: -1, dy: 1 },
-      ];
-
-      const origLx = r.label.x;
-      const origLy = r.label.y;
-
-      for (let m = 1; m <= 5; m++) {
-        for (const d of dirs) {
-          const wdx = zoom > 0 ? (d.dx * (clearX + screenNodeR) * m) / zoom : 0;
-          const wdy = zoom > 0 ? (d.dy * (clearY + screenNodeR) * m) / zoom : 0;
-          // Enforce displacement cap
-          const totalDist = Math.sqrt((origLx + wdx) ** 2 + (origLy + wdy) ** 2);
-          if (totalDist > maxWorldDisp) continue;
-
-          r.label.x = origLx + wdx;
-          r.label.y = origLy + wdy;
-
-          if (!overlapsPlaced(r)) {
-            r.x = (r.pn.data.x + r.label.x) * zoom;
-            r.y = (r.pn.data.y + r.label.y) * zoom;
-            return true;
-          }
-        }
-      }
-      r.label.x = origLx;
-      r.label.y = origLy;
-      return false;
-    };
+    const maxRadii = rt.labelForceShowMaxRadii ?? 5;
 
     // Draw leader line for force-show displaced labels (AP-6 fix)
     const drawForceShowLeader = (r: CullLabelRect, origLx: number, origLy: number) => {
@@ -1842,13 +1791,13 @@ export class RenderPipeline {
       this._drawLeaderLine(r.pn, r, zoom, llWidth, llAlpha);
     };
 
-    // First guarantee minNonSuper non-super labels (AP-5)
+    // Phase 1: guarantee minNonSuper non-super labels (AP-5)
     let nonSuperCount = placedNonSuperNow;
     for (const r of hiddenRegulars) {
       if (nonSuperCount >= minNonSuper) break;
       const origLx = r.label.x;
       const origLy = r.label.y;
-      if (tryDisplaceForceShow(r)) {
+      if (this._tryDisplaceForceShow(r, grid, margin, zoom, maxRadii)) {
         r.label.visible = true;
         placed.push(r);
         grid.insert(r);
@@ -1857,81 +1806,198 @@ export class RenderPipeline {
       }
     }
 
-    // AP-5 super-node concession: hide lowest-degree supers and place regulars
-    const placedSupers = placed.filter(r => r.isSuper);
-    const currentSuperRatio = placed.length > 0 ? placedSupers.length / placed.length : 0;
-    const targetNonSuperMin = Math.max(minNonSuper, Math.ceil(placed.length * 0.30));
-    if (currentSuperRatio > 0.75 && nonSuperCount < targetNonSuperMin && hiddenRegulars.length > 0) {
-      const sacrificeable = placedSupers.sort((a, b) => a.degree - b.degree);
-      const maxSacrifice = Math.min(
-        sacrificeable.length,
-        Math.ceil(placed.length * 0.25),
-      );
-      let sacrificed = 0;
-      let regIdx = 0;
-      for (const sup of sacrificeable) {
-        if (sacrificed >= maxSacrifice || nonSuperCount >= targetNonSuperMin) break;
-        while (regIdx < hiddenRegulars.length &&
-               placed.some(p => p.pn.data.id === hiddenRegulars[regIdx].pn.data.id)) {
-          regIdx++;
-        }
-        if (regIdx >= hiddenRegulars.length) break;
+    // Phase 2: super-node sacrifice for regular labels (AP-5 concession)
+    nonSuperCount = this._sacrificeSuperLabels(
+      placed, hiddenRegulars, grid, margin, zoom, maxRadii,
+      minNonSuper, nonSuperCount, drawLeader, llWidth, llAlpha,
+    );
 
-        const reg = hiddenRegulars[regIdx++];
-        const supScreenX = sup.x;
-        const supScreenY = sup.y;
+    // Phase 3: absolute floor guarantee (AP-4)
+    this._fillLabelsToFloor(
+      absoluteFloor, [...hiddenSupers, ...hiddenRegulars],
+      placed, grid, margin, zoom, maxRadii, drawLeader, llWidth, llAlpha,
+    );
 
-        sup.label.visible = false;
-        if (sup.pn.leaderLine) { sup.pn.leaderLine.visible = false; }
-        const idx = placed.indexOf(sup);
-        if (idx >= 0) placed.splice(idx, 1);
-        sacrificed++;
-
-        const origLx = reg.label.x;
-        const origLy = reg.label.y;
-        if (tryDisplaceForceShow(reg)) {
-          reg.label.visible = true;
-          placed.push(reg);
-          grid.insert(reg);
-          nonSuperCount++;
-          drawForceShowLeader(reg, origLx, origLy);
-        } else {
-          // Fallback: place at super's world position with leader line
-          const wdx = zoom > 0 ? (supScreenX - reg.pn.data.x * zoom) / zoom : 0;
-          const wdy = zoom > 0 ? (supScreenY - reg.pn.data.y * zoom) / zoom : 0;
-          reg.label.x = wdx;
-          reg.label.y = wdy;
-          reg.x = supScreenX;
-          reg.y = supScreenY;
-          reg.label.visible = true;
-          placed.push(reg);
-          grid.insert(reg);
-          nonSuperCount++;
-          drawForceShowLeader(reg, origLx, origLy);
-        }
-      }
-    }
-
-    // Then guarantee absoluteFloor total labels (AP-4)
-    let totalCount = placed.length;
-    for (const r of [...hiddenSupers, ...hiddenRegulars]) {
-      if (totalCount >= absoluteFloor) break;
-      if (placed.some(p => p.pn.data.id === r.pn.data.id)) continue;
-      const origLx = r.label.x;
-      const origLy = r.label.y;
-      if (tryDisplaceForceShow(r)) {
-        r.label.visible = true;
-        placed.push(r);
-        grid.insert(r);
-        totalCount++;
-        drawForceShowLeader(r, origLx, origLy);
-      }
-    }
-
+    // Final visibility sync
     const finalPlacedSet = new Set(placed.map(r => r.pn.data.id));
     for (const r of rects) {
       if (finalPlacedSet.has(r.pn.data.id)) {
         r.label.visible = true;
+      }
+    }
+  }
+
+  /**
+   * Attempt displacement offsets for a force-show candidate label.
+   * Displacement is capped to maxRadii × nodeRadius in world space.
+   * Returns true if the label was placed (with or without displacement).
+   */
+  private _tryDisplaceForceShow(
+    r: CullLabelRect,
+    grid: CullOverlapGrid,
+    margin: number,
+    zoom: number,
+    maxRadii: number,
+  ): boolean {
+    // AABB overlap check using spatial hash grid
+    const overlaps = (): boolean => {
+      const cx = (r.pn.data.x + r.label.x) * zoom;
+      const cy = (r.pn.data.y + r.label.y) * zoom;
+      const testRect: CullLabelRect = { ...r, x: cx, y: cy };
+      return grid.checkOverlap(testRect);
+    };
+
+    if (!overlaps()) return true; // fits without displacement
+
+    const nodeR = r.pn.radius ?? 6;
+    const screenNodeR = nodeR * zoom;
+    const maxWorldDisp = nodeR * maxRadii;
+    const clearX = r.w + margin;
+    const clearY = r.h + margin;
+    // Systematic 8-direction × 5-multiplier offsets (40 positions, capped)
+    const dirs = [
+      { dx: 1, dy: 0 },   { dx: -1, dy: 0 },
+      { dx: 0, dy: 1 },   { dx: 0, dy: -1 },
+      { dx: 1, dy: 1 },   { dx: -1, dy: -1 },
+      { dx: 1, dy: -1 },  { dx: -1, dy: 1 },
+    ];
+
+    const origLx = r.label.x;
+    const origLy = r.label.y;
+
+    for (let m = 1; m <= 5; m++) {
+      for (const d of dirs) {
+        const wdx = zoom > 0 ? (d.dx * (clearX + screenNodeR) * m) / zoom : 0;
+        const wdy = zoom > 0 ? (d.dy * (clearY + screenNodeR) * m) / zoom : 0;
+        // Enforce displacement cap
+        const totalDist = Math.sqrt((origLx + wdx) ** 2 + (origLy + wdy) ** 2);
+        if (totalDist > maxWorldDisp) continue;
+
+        r.label.x = origLx + wdx;
+        r.label.y = origLy + wdy;
+
+        if (!overlaps()) {
+          r.x = (r.pn.data.x + r.label.x) * zoom;
+          r.y = (r.pn.data.y + r.label.y) * zoom;
+          return true;
+        }
+      }
+    }
+    r.label.x = origLx;
+    r.label.y = origLy;
+    return false;
+  }
+
+  /**
+   * AP-5 super-node concession: hide lowest-degree super labels
+   * and replace them with regular labels to improve label diversity.
+   * Returns updated nonSuperCount.
+   */
+  private _sacrificeSuperLabels(
+    placed: CullLabelRect[],
+    hiddenRegulars: CullLabelRect[],
+    grid: CullOverlapGrid,
+    margin: number,
+    zoom: number,
+    maxRadii: number,
+    minNonSuper: number,
+    nonSuperCount: number,
+    drawLeader: boolean,
+    llWidth: number,
+    llAlpha: number,
+  ): number {
+    const placedSupers = placed.filter(r => r.isSuper);
+    const currentSuperRatio = placed.length > 0 ? placedSupers.length / placed.length : 0;
+    const targetNonSuperMin = Math.max(minNonSuper, Math.ceil(placed.length * 0.30));
+    if (!(currentSuperRatio > 0.75 && nonSuperCount < targetNonSuperMin && hiddenRegulars.length > 0)) {
+      return nonSuperCount;
+    }
+
+    const sacrificeable = placedSupers.sort((a, b) => a.degree - b.degree);
+    const maxSacrifice = Math.min(
+      sacrificeable.length,
+      Math.ceil(placed.length * 0.25),
+    );
+    let sacrificed = 0;
+    let regIdx = 0;
+    for (const sup of sacrificeable) {
+      if (sacrificed >= maxSacrifice || nonSuperCount >= targetNonSuperMin) break;
+      while (regIdx < hiddenRegulars.length &&
+             placed.some(p => p.pn.data.id === hiddenRegulars[regIdx].pn.data.id)) {
+        regIdx++;
+      }
+      if (regIdx >= hiddenRegulars.length) break;
+
+      const reg = hiddenRegulars[regIdx++];
+      const supScreenX = sup.x;
+      const supScreenY = sup.y;
+
+      sup.label.visible = false;
+      if (sup.pn.leaderLine) { sup.pn.leaderLine.visible = false; }
+      const idx = placed.indexOf(sup);
+      if (idx >= 0) placed.splice(idx, 1);
+      sacrificed++;
+
+      const origLx = reg.label.x;
+      const origLy = reg.label.y;
+      if (this._tryDisplaceForceShow(reg, grid, margin, zoom, maxRadii)) {
+        reg.label.visible = true;
+        placed.push(reg);
+        grid.insert(reg);
+        nonSuperCount++;
+        if (drawLeader && (Math.abs(reg.label.x - origLx) >= 0.1 || Math.abs(reg.label.y - origLy) >= 0.1)) {
+          this._drawLeaderLine(reg.pn, reg, zoom, llWidth, llAlpha);
+        }
+      } else {
+        // Fallback: place at super's world position with leader line
+        const wdx = zoom > 0 ? (supScreenX - reg.pn.data.x * zoom) / zoom : 0;
+        const wdy = zoom > 0 ? (supScreenY - reg.pn.data.y * zoom) / zoom : 0;
+        reg.label.x = wdx;
+        reg.label.y = wdy;
+        reg.x = supScreenX;
+        reg.y = supScreenY;
+        reg.label.visible = true;
+        placed.push(reg);
+        grid.insert(reg);
+        nonSuperCount++;
+        if (drawLeader && (Math.abs(reg.label.x - origLx) >= 0.1 || Math.abs(reg.label.y - origLy) >= 0.1)) {
+          this._drawLeaderLine(reg.pn, reg, zoom, llWidth, llAlpha);
+        }
+      }
+    }
+    return nonSuperCount;
+  }
+
+  /**
+   * AP-4 absolute floor: guarantee a minimum number of visible labels
+   * by force-showing highest-degree candidates from the combined hidden list.
+   */
+  private _fillLabelsToFloor(
+    absoluteFloor: number,
+    candidates: CullLabelRect[],
+    placed: CullLabelRect[],
+    grid: CullOverlapGrid,
+    margin: number,
+    zoom: number,
+    maxRadii: number,
+    drawLeader: boolean,
+    llWidth: number,
+    llAlpha: number,
+  ): void {
+    let totalCount = placed.length;
+    for (const r of candidates) {
+      if (totalCount >= absoluteFloor) break;
+      if (placed.some(p => p.pn.data.id === r.pn.data.id)) continue;
+      const origLx = r.label.x;
+      const origLy = r.label.y;
+      if (this._tryDisplaceForceShow(r, grid, margin, zoom, maxRadii)) {
+        r.label.visible = true;
+        placed.push(r);
+        grid.insert(r);
+        totalCount++;
+        if (drawLeader && (Math.abs(r.label.x - origLx) >= 0.1 || Math.abs(r.label.y - origLy) >= 0.1)) {
+          this._drawLeaderLine(r.pn, r, zoom, llWidth, llAlpha);
+        }
       }
     }
   }

@@ -100,3 +100,8 @@ export const SHAPE_FILL_CIRCLE   = "circle" as const;
 // ---------------------------------------------------------------------------
 export const EVENT_HOVER_NODE      = "graph-island:hover-node" as const;
 export const EVENT_HIGHLIGHT_NODES = "graph-island:highlight-nodes" as const;
+
+// ---------------------------------------------------------------------------
+// Polar arrangement set (shared by RoadNetworkBuilder, GVC, etc.)
+// ---------------------------------------------------------------------------
+export const POLAR_ARRANGEMENTS: ReadonlySet<string> = new Set(["concentric", "radial", "phyllotaxis"]);

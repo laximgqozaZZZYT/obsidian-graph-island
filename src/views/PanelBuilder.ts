@@ -576,14 +576,14 @@ function buildFilterTab(
   }, tHelp("help.groups"), false, "layers");
 }
 
-function buildDisplayTab(
-  displayTab: HTMLElement,
-  panel: PanelState,
-  ctx: PanelContext,
-  cb: PanelCallbacks,
+// ---------------------------------------------------------------------------
+// Display tab section builders (file-private)
+// ---------------------------------------------------------------------------
+
+function _buildNodeDisplaySection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
-  // --- Nodes sub-section ---
-  buildSection(displayTab, t("section.displayNodes"), (body) => {
+  buildSection(tabEl, t("section.displayNodes"), (body) => {
     addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); });
     addToggle(body, "Heatmap (degree)", panel.heatmapMode, (v) => { panel.heatmapMode = v; cb.doRender(); }, "Color nodes by connection count (cold→warm)");
     addSlider(body, t("display.nodeSize"), 2, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); });
@@ -608,9 +608,12 @@ function buildDisplayTab(
       cb.doRender();
     });
   }, undefined, false, "circle-dot");
+}
 
-  // --- Node Display Mode sub-section ---
-  buildSection(displayTab, t("display.nodeDisplayMode"), (body) => {
+function _buildNodeDisplayModeSection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("display.nodeDisplayMode"), (body) => {
     const modeOptions = [
       { value: "node", label: t("display.modeNode") },
       { value: "card", label: t("display.modeCard") },
@@ -662,9 +665,12 @@ function buildDisplayTab(
     }
     // sunburst-segment mode: uses default arcAngle (30 degrees)
   }, t("display.nodeDisplayModeDesc"), false, "layout-grid");
+}
 
-  // --- Edges sub-section ---
-  buildSection(displayTab, t("section.displayEdges"), (body) => {
+function _buildEdgeDisplaySection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("section.displayEdges"), (body) => {
     addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); });
     addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); });
     addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
@@ -686,8 +692,13 @@ function buildDisplayTab(
       panel.edgeCardinalityMode = v as EdgeCardinalityMode;
       cb.markDirty();
     }, t("display.edgeCardinalityDesc"));
+  }, undefined, false, "git-branch");
+}
 
-    // Cable bundling controls
+function _buildCableDisplaySection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("display.cableBundleMode"), (body) => {
     addSelect(body, t("display.cableBundleMode"), [
       { value: "auto", label: t("display.cableModeAuto") },
       { value: "always", label: t("display.cableModeAlways") },
@@ -720,10 +731,13 @@ function buildDisplayTab(
         cb.markDirty();
       });
     }
-  }, undefined, false, "git-branch");
+  }, undefined, false, "git-merge");
+}
 
-  // --- Road Network ---
-  buildSection(displayTab, t("section.roadNetwork"), (body) => {
+function _buildRoadNetworkSection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("section.roadNetwork"), (body) => {
     const rt = panel.renderThresholds ?? {};
     addToggle(body, t("display.showRoadNetwork"), rt.showRoadNetwork ?? DEFAULT_RENDER_THRESHOLDS.showRoadNetwork, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
@@ -749,15 +763,21 @@ function buildDisplayTab(
       });
     }
   }, undefined, false, "map");
+}
 
-  // --- Minimap (stays in Display) ---
-  buildSection(displayTab, t("section.displayOther"), (body) => {
+function _buildMinimapSection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("section.displayOther"), (body) => {
     addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.wakeRenderLoop(); });
     addToggle(body, t("display.dotGrid"), panel.showDotGrid, (v) => { panel.showDotGrid = v; cb.markDirty(); });
   }, undefined, false, "eye");
+}
 
-  // --- Rendering Thresholds ---
-  buildSection(displayTab, t("section.renderThresholds"), (body) => {
+function _buildRenderThresholdsSection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("section.renderThresholds"), (body) => {
     const rt = panel.renderThresholds ?? {};
     addSlider(body, t("render.cardTextNodeCount"), 50, 1000, 50,
       rt.cardTextNodeCount ?? DEFAULT_RENDER_THRESHOLDS.cardTextNodeCount, (v) => {
@@ -790,9 +810,13 @@ function buildDisplayTab(
         cb.markDirty();
       }, t("render.gridLabelOffsetDesc"));
   }, undefined, true, "sliders");
+}
 
+function _buildRelationColorSection(
+  tabEl: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks,
+): void {
   if (panel.colorEdgesByRelation && ctx.relationColors.size > 0) {
-    buildSection(displayTab, t("section.relationColors"), (body) => {
+    buildSection(tabEl, t("section.relationColors"), (body) => {
       const container = body.createDiv({ cls: "graph-color-groups-container" });
       for (const [rel, color] of ctx.relationColors) {
         const group = container.createDiv({ cls: "graph-color-group" });
@@ -807,6 +831,22 @@ function buildDisplayTab(
       }
     }, undefined, false, "palette");
   }
+}
+
+function buildDisplayTab(
+  displayTab: HTMLElement,
+  panel: PanelState,
+  ctx: PanelContext,
+  cb: PanelCallbacks,
+): void {
+  _buildNodeDisplaySection(displayTab, panel, ctx, cb);
+  _buildNodeDisplayModeSection(displayTab, panel, ctx, cb);
+  _buildEdgeDisplaySection(displayTab, panel, ctx, cb);
+  _buildCableDisplaySection(displayTab, panel, ctx, cb);
+  _buildRoadNetworkSection(displayTab, panel, ctx, cb);
+  _buildMinimapSection(displayTab, panel, ctx, cb);
+  _buildRenderThresholdsSection(displayTab, panel, ctx, cb);
+  _buildRelationColorSection(displayTab, panel, ctx, cb);
 }
 
 function buildLayoutTab(
@@ -882,14 +922,14 @@ function buildLayoutTab(
   }, tHelp("help.nodeRules"), true, "sliders-horizontal");
 }
 
-function buildSettingsTab(
-  settingsTab: HTMLElement,
-  panel: PanelState,
-  ctx: PanelContext,
-  cb: PanelCallbacks,
+// ---------------------------------------------------------------------------
+// Settings tab section builders (file-private)
+// ---------------------------------------------------------------------------
+
+function _buildGraphSyncSection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
-  // --- Graph Sync & Local Graph ---
-  buildSection(settingsTab, "Graph Sync", (body) => {
+  buildSection(tabEl, "Graph Sync", (body) => {
     addToggle(body, t("display.syncWithEditor"), panel.syncWithEditor, (v) => {
       panel.syncWithEditor = v;
     });
@@ -902,9 +942,12 @@ function buildSettingsTab(
       cb.markDirty();
     });
   }, undefined, false, "settings");
+}
 
-  // --- Basic plugin settings ---
-  buildSection(settingsTab, t("section.pluginSettings"), (body) => {
+function _buildPluginSettingsSection(
+  tabEl: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("section.pluginSettings"), (body) => {
     const s = ctx.settings;
 
     addMultiValueInput(body, t("settings.metadataFields"), [...s.metadataFields], "tags, category...", getUnifiedFieldSuggestions(ctx), (v) => {
@@ -921,9 +964,12 @@ function buildSettingsTab(
       }, t("desc.enclosureSpacing"));
     }
   }, tHelp("help.pluginSettings"), false, "settings");
+}
 
-  // --- Ontology section (rule-based UI) ---
-  buildSection(settingsTab, t("section.ontology"), (body) => {
+function _buildOntologySection(
+  tabEl: HTMLElement, _panel: PanelState, ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("section.ontology"), (body) => {
     const s = ctx.settings;
     // Initialize rules from legacy fields if not present
     if (!s.ontology.rules || s.ontology.rules.length === 0) {
@@ -962,21 +1008,31 @@ function buildSettingsTab(
       ctx.saveSettings(); cb.invalidateData();
     });
   }, tHelp("help.ontology"), false, "network");
+}
 
-  // --- Custom Mappings ---
-  buildSection(settingsTab, t("section.customMappings"), (body) => {
+function _buildCustomMappingsSection(
+  tabEl: HTMLElement, _panel: PanelState, ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("section.customMappings"), (body) => {
     const mappingsListEl = body.createDiv({ cls: "gi-mappings-list" });
     renderCustomMappings(mappingsListEl, ctx.settings, ctx, cb);
   }, tHelp("help.customMappings"), true, "map");
+}
 
-  // --- Tag Relations ---
-  buildSection(settingsTab, t("section.tagRelations"), (body) => {
+function _buildTagRelationsSection(
+  tabEl: HTMLElement, _panel: PanelState, ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("section.tagRelations"), (body) => {
     const tagRelListEl = body.createDiv({ cls: "gi-tag-relations-list" });
     renderTagRelations(tagRelListEl, ctx.settings, ctx, cb);
   }, tHelp("help.tagRelations"), true, "tag");
+}
 
+function _buildSettingsActionButtons(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+): void {
   // --- Action buttons ---
-  const actionRow = settingsTab.createDiv({ cls: "gi-panel-actions gi-action-row" });
+  const actionRow = tabEl.createDiv({ cls: "gi-panel-actions gi-action-row" });
 
   const saveBtn = actionRow.createEl("button", { cls: "mod-cta", text: t("action.save") });
   saveBtn.addEventListener("click", () => cb.saveGroupPreset());
@@ -985,7 +1041,7 @@ function buildSettingsTab(
   resetBtn.addEventListener("click", () => cb.resetPanel());
 
   // --- Export / Import preset buttons ---
-  const presetRow = settingsTab.createDiv({ cls: "ngp-panel-actions ngp-action-row" });
+  const presetRow = tabEl.createDiv({ cls: "ngp-panel-actions ngp-action-row" });
 
   const exportBtn = presetRow.createEl("button", { text: t("preset.export") });
   exportBtn.addEventListener("click", async () => {
@@ -999,7 +1055,7 @@ function buildSettingsTab(
 
   const importBtn = presetRow.createEl("button", { text: t("preset.import") });
   importBtn.addEventListener("click", () => {
-    const modal = settingsTab.createDiv({ cls: "ngp-import-modal" });
+    const modal = tabEl.createDiv({ cls: "ngp-import-modal" });
     modal.createEl("div", { text: t("preset.importPrompt"), cls: "ngp-import-label" });
     const textarea = modal.createEl("textarea", { cls: "ngp-import-textarea" });
     textarea.rows = 8;
@@ -1025,6 +1081,20 @@ function buildSettingsTab(
       }
     });
   });
+}
+
+function buildSettingsTab(
+  settingsTab: HTMLElement,
+  panel: PanelState,
+  ctx: PanelContext,
+  cb: PanelCallbacks,
+): void {
+  _buildGraphSyncSection(settingsTab, panel, ctx, cb);
+  _buildPluginSettingsSection(settingsTab, panel, ctx, cb);
+  _buildOntologySection(settingsTab, panel, ctx, cb);
+  _buildCustomMappingsSection(settingsTab, panel, ctx, cb);
+  _buildTagRelationsSection(settingsTab, panel, ctx, cb);
+  _buildSettingsActionButtons(settingsTab, panel, ctx, cb);
 }
 
 // ---------------------------------------------------------------------------

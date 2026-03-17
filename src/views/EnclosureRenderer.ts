@@ -1,6 +1,6 @@
 import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { Pt } from "../utils/geometry";
-import { convexHull, clamp } from "../utils/geometry";
+import { convexHull, clamp, rectsOverlap } from "../utils/geometry";
 import { cssColorToHex, shiftHue, hslToHex, stringHash } from "../utils/graph-helpers";
 import { DEFAULT_COLORS } from "../types";
 import { TAG_DISPLAY_ENCLOSURE } from "../constants";
@@ -434,10 +434,7 @@ export function drawEnclosures(
     };
   };
 
-  const rectsOverlap = (
-    a: { x: number; y: number; w: number; h: number },
-    b: { x: number; y: number; w: number; h: number },
-  ) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  // rectsOverlap imported from geometry.ts
 
   // Greedy nudge: for each label (priority-sorted), push away from collisions.
   const placedRects: { x: number; y: number; w: number; h: number }[] = [];

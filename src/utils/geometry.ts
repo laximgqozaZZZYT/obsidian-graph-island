@@ -1,5 +1,13 @@
 export type Pt = { x: number; y: number };
 
+/** Axis-aligned rectangle for overlap testing */
+export interface Rect { x: number; y: number; w: number; h: number }
+
+/** Check if two axis-aligned rectangles overlap */
+export function rectsOverlap(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
 export interface BBox {
   minX: number; minY: number; maxX: number; maxY: number;
 }

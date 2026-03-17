@@ -12,21 +12,8 @@ import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees } from "../analysis/graph-analysis";
-import { buildRoadNetwork, buildRoadNetworkFromPhantoms, addTrunkRoads, type RoadNetwork } from "../layouts/cable-tray";
-
-/**
- * Global cache for the densest road network ever built — survives module reloads.
- * Stored on window to persist across plugin disable/enable cycles.
- */
-function _getBestRoadNetwork(): RoadNetwork | null {
-  return (window as any).__gi_bestRoadNetwork ?? null;
-}
-function _setBestRoadNetwork(rn: RoadNetwork) {
-  const cur = _getBestRoadNetwork();
-  if (!cur || rn.intersections.length > cur.intersections.length) {
-    (window as any).__gi_bestRoadNetwork = rn;
-  }
-}
+import type { RoadNetwork } from "../layouts/cable-tray";
+import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
@@ -39,7 +26,9 @@ import type { ResolvedGridInfo, ResolvedGridLine } from "../layouts/coordinate-e
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
 import { RenderPipeline, darkenColor, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPipeline";
 import { LayoutController, type LayoutHost } from "./LayoutController";
+import { LabelManager, type LabelManagerHost } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
+import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
@@ -49,22 +38,10 @@ import {
   EDGE_TYPE_SIMILAR, LAYOUT_FORCE, LAYOUT_CONCENTRIC, LAYOUT_TREE,
   LAYOUT_ARC, LAYOUT_SUNBURST, LAYOUT_TIMELINE,
   TAG_DISPLAY_ENCLOSURE, TAG_DISPLAY_NODE,
-  ARRANGEMENT_TIMELINE, ARRANGEMENT_CONCENTRIC, ARRANGEMENT_GRID, ARRANGEMENT_TRIANGLE,
-  GUIDE_TYPE_COORDINATE,
+  ARRANGEMENT_TIMELINE, ARRANGEMENT_CONCENTRIC, ARRANGEMENT_GRID,
   EVENT_HOVER_NODE, EVENT_HIGHLIGHT_NODES,
+  POLAR_ARRANGEMENTS,
 } from "../constants";
-
-/** Find the cell index for a value given sorted boundary positions */
-function findCellIndex(value: number, positions: number[]): number {
-  for (let i = 0; i < positions.length - 1; i++) {
-    if (value >= positions[i] && value < positions[i + 1]) return i;
-  }
-  // Check last cell (inclusive upper bound)
-  if (positions.length >= 2 && value >= positions[positions.length - 2]) {
-    return positions.length - 2;
-  }
-  return -1;
-}
 
 /**
  * Derive a single ClusterGroupRule from a query string + recursive flag.
@@ -144,7 +121,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private arrowGraphics: CanvasGraphics | null = null;
   private routeGraphics: CanvasGraphics | null = null;
   private routeData: TimelineRoute[] | null = null;
-  private cableTrayData: RoadNetwork | null = null;
+  private roadBuilder: RoadNetworkBuilder | null = null;
   private trayGraphics: CanvasGraphics | null = null;
   private barGraphics: CanvasGraphics | null = null;
   private barLabelContainer: CanvasContainer | null = null;
@@ -176,6 +153,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   // Render pipeline (owns render loop, Canvas 2D node creation, batch drawing)
   private renderPipeline: RenderPipeline | null = null;
+
+  // Label LOD, truncation, scaling pipeline
+  private labelManager: LabelManager | null = null;
+
+  // Guide / grid / axis renderer (coordinate guides, grids, triangles, etc.)
+  private guideRenderer: GuideRenderer | null = null;
 
   // Minimap overlay
   private minimap: Minimap | null = null;
@@ -571,163 +554,162 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Register all keyboard shortcuts for the graph view. */
   private _registerKeyboardShortcuts(): void {
     this.registerDomEvent(document, "keydown", (e: KeyboardEvent) => {
-      // Only handle if our view is active
       const activeLeaf = this.app.workspace.activeLeaf;
       if (activeLeaf?.view !== this) return;
-
-      // Escape: close overlays or clear keyboard focus
-      if (e.key === "Escape") {
-        if (this.nodeInfoEl && this.nodeInfoEl.style.display !== "none") {
-          this.nodeInfoEl.style.display = "none";
-          this.nodeInfoEl.classList.remove("is-visible");
-          return;
-        }
-        if (this.legendEl && this.legendEl.style.display !== "none") {
-          this.legendEl.style.display = "none";
-          return;
-        }
-        if (this.shortcutHelpEl && this.shortcutHelpEl.style.display !== "none") {
-          this.shortcutHelpEl.style.display = "none";
-          return;
-        }
-        // Clear keyboard focus on graph nodes
-        if (this._isKeyboardFocused) {
-          this._isKeyboardFocused = false;
-          this.setHighlightedNodeId(null);
-          this.applyHover();
-          this.markDirty(true);
-        }
-        return;
-      }
-
-      // Don't handle shortcuts when typing in an input
+      if (e.key === "Escape") { this._handleEscapeKey(); return; }
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-
-      // Ctrl/Cmd+F: focus search input
-      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-        e.preventDefault();
-        const search = this.panelEl?.querySelector<HTMLInputElement>(".gi-settings-filter");
-        if (search) {
-          // Ensure panel is visible
-          this.panelEl?.classList.remove("is-hidden");
-          search.focus();
-        }
-        return;
-      }
-
-      // Space: auto-fit view
-      if (e.key === " " && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        const wrap = this.containerEl.querySelector<HTMLElement>(".graph-svg-wrap");
-        if (wrap) this.autoFitView(wrap.clientWidth, wrap.clientHeight);
-        return;
-      }
-
-      // 1-4: switch panel tabs
-      if (e.key >= "1" && e.key <= "4" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const idx = parseInt(e.key) - 1;
-        const tabs = this.panelEl?.querySelectorAll<HTMLButtonElement>(".gi-tab-btn");
-        if (tabs && tabs[idx]) {
-          tabs[idx].click();
-        }
-        return;
-      }
-
-      // P: toggle panel visibility
-      if (e.key === "p" && !e.ctrlKey && !e.metaKey) {
-        this.panelEl?.classList.toggle("is-hidden");
-        return;
-      }
-
-      // +/=: zoom in
-      if ((e.key === "+" || e.key === "=") && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        this.zoomBy(1.2);
-        return;
-      }
-      // -: zoom out
-      if (e.key === "-" && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        this.zoomBy(1 / 1.2);
-        return;
-      }
-      // 0: zoom reset (100%)
-      if (e.key === "0" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        this.setZoom(1.0);
-        return;
-      }
-      // F: fit view (same as Space)
-      if (e.key === "f" && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        const wrap = this.containerEl.querySelector<HTMLElement>(".graph-svg-wrap");
-        if (wrap) this.autoFitView(wrap.clientWidth, wrap.clientHeight);
-        return;
-      }
-      // L: toggle legend
-      if (e.key === "l" && !e.ctrlKey && !e.metaKey) {
-        if (this.legendEl) {
-          this.legendEl.style.display = this.legendEl.style.display === "none" ? "" : "none";
-        }
-        return;
-      }
-      // M: toggle minimap
-      if (e.key === "m" && !e.ctrlKey && !e.metaKey) {
-        this.panel.showMinimap = !this.panel.showMinimap;
-        this.markDirty(true);
-        return;
-      }
-      // G: toggle grid
-      if (e.key === "g" && !e.ctrlKey && !e.metaKey) {
-        this.panel.showDotGrid = !this.panel.showDotGrid;
-        this.markDirty(true);
-        return;
-      }
-      // [: decrease hoverHops
-      if (e.key === "[" && !e.ctrlKey && !e.metaKey) {
-        this.panel.hoverHops = Math.max(0, this.panel.hoverHops - 1);
-        this.applyHover();
-        this.markDirty(true);
-        return;
-      }
-      // ]: increase hoverHops
-      if (e.key === "]" && !e.ctrlKey && !e.metaKey) {
-        this.panel.hoverHops = Math.min(10, this.panel.hoverHops + 1);
-        this.applyHover();
-        this.markDirty(true);
-        return;
-      }
-      // Ctrl/Cmd+Shift+C: copy graph to clipboard as PNG
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "C") {
-        e.preventDefault();
-        this.copyGraphToClipboard();
-        return;
-      }
-      // Enter: activate (open file of) keyboard-focused node
-      if (e.key === "Enter" && this._isKeyboardFocused && this.highlightedNodeId) {
-        e.preventDefault();
-        const pn = this.pixiNodes.get(this.highlightedNodeId);
-        if (pn?.data.filePath) {
-          const file = this.app.vault.getAbstractFileByPath(pn.data.filePath);
-          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
-        }
-        return;
-      }
-      // ?: toggle shortcut help
-      if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
-        if (this.shortcutHelpEl) {
-          this.shortcutHelpEl.style.display = this.shortcutHelpEl.style.display === "none" ? "" : "none";
-        }
-        return;
-      }
-      // Tab / Shift+Tab: cycle focus through nodes
-      if (e.key === "Tab") {
-        e.preventDefault();
-        this.cycleFocusNode(e.shiftKey ? -1 : 1);
-        return;
-      }
+      this._handleShortcutKey(e.key, e);
     });
+  }
+
+  /** Handle Escape key: close overlays or clear keyboard focus. */
+  private _handleEscapeKey(): void {
+    if (this.nodeInfoEl && this.nodeInfoEl.style.display !== "none") {
+      this.nodeInfoEl.style.display = "none";
+      this.nodeInfoEl.classList.remove("is-visible");
+      return;
+    }
+    if (this.legendEl && this.legendEl.style.display !== "none") {
+      this.legendEl.style.display = "none";
+      return;
+    }
+    if (this.shortcutHelpEl && this.shortcutHelpEl.style.display !== "none") {
+      this.shortcutHelpEl.style.display = "none";
+      return;
+    }
+    if (this._isKeyboardFocused) {
+      this._isKeyboardFocused = false;
+      this.setHighlightedNodeId(null);
+      this.applyHover();
+      this.markDirty(true);
+    }
+  }
+
+  /** Dispatch a non-Escape keyboard shortcut. */
+  private _handleShortcutKey(key: string, e: KeyboardEvent): void {
+    // Ctrl/Cmd+F: focus search input
+    if ((e.ctrlKey || e.metaKey) && key === "f") {
+      e.preventDefault();
+      const search = this.panelEl?.querySelector<HTMLInputElement>(".gi-settings-filter");
+      if (search) {
+        this.panelEl?.classList.remove("is-hidden");
+        search.focus();
+      }
+      return;
+    }
+
+    // Space: auto-fit view
+    if (key === " " && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      const wrap = this.containerEl.querySelector<HTMLElement>(".graph-svg-wrap");
+      if (wrap) this.autoFitView(wrap.clientWidth, wrap.clientHeight);
+      return;
+    }
+
+    // 1-4: switch panel tabs
+    if (key >= "1" && key <= "4" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const idx = parseInt(key) - 1;
+      const tabs = this.panelEl?.querySelectorAll<HTMLButtonElement>(".gi-tab-btn");
+      if (tabs && tabs[idx]) {
+        tabs[idx].click();
+      }
+      return;
+    }
+
+    // P: toggle panel visibility
+    if (key === "p" && !e.ctrlKey && !e.metaKey) {
+      this.panelEl?.classList.toggle("is-hidden");
+      return;
+    }
+
+    // +/=: zoom in
+    if ((key === "+" || key === "=") && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      this.zoomBy(1.2);
+      return;
+    }
+    // -: zoom out
+    if (key === "-" && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      this.zoomBy(1 / 1.2);
+      return;
+    }
+    // 0: zoom reset (100%)
+    if (key === "0" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      this.setZoom(1.0);
+      return;
+    }
+    // F: fit view (same as Space)
+    if (key === "f" && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      const wrap = this.containerEl.querySelector<HTMLElement>(".graph-svg-wrap");
+      if (wrap) this.autoFitView(wrap.clientWidth, wrap.clientHeight);
+      return;
+    }
+    // L: toggle legend
+    if (key === "l" && !e.ctrlKey && !e.metaKey) {
+      if (this.legendEl) {
+        this.legendEl.style.display = this.legendEl.style.display === "none" ? "" : "none";
+      }
+      return;
+    }
+    // M: toggle minimap
+    if (key === "m" && !e.ctrlKey && !e.metaKey) {
+      this.panel.showMinimap = !this.panel.showMinimap;
+      this.markDirty(true);
+      return;
+    }
+    // G: toggle grid
+    if (key === "g" && !e.ctrlKey && !e.metaKey) {
+      this.panel.showDotGrid = !this.panel.showDotGrid;
+      this.markDirty(true);
+      return;
+    }
+    // [: decrease hoverHops
+    if (key === "[" && !e.ctrlKey && !e.metaKey) {
+      this.panel.hoverHops = Math.max(0, this.panel.hoverHops - 1);
+      this.applyHover();
+      this.markDirty(true);
+      return;
+    }
+    // ]: increase hoverHops
+    if (key === "]" && !e.ctrlKey && !e.metaKey) {
+      this.panel.hoverHops = Math.min(10, this.panel.hoverHops + 1);
+      this.applyHover();
+      this.markDirty(true);
+      return;
+    }
+    // Ctrl/Cmd+Shift+C: copy graph to clipboard as PNG
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && key === "C") {
+      e.preventDefault();
+      this.copyGraphToClipboard();
+      return;
+    }
+    // Enter: activate (open file of) keyboard-focused node
+    if (key === "Enter" && this._isKeyboardFocused && this.highlightedNodeId) {
+      e.preventDefault();
+      const pn = this.pixiNodes.get(this.highlightedNodeId);
+      if (pn?.data.filePath) {
+        const file = this.app.vault.getAbstractFileByPath(pn.data.filePath);
+        if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+      }
+      return;
+    }
+    // ?: toggle shortcut help
+    if (key === "?" && !e.ctrlKey && !e.metaKey) {
+      if (this.shortcutHelpEl) {
+        this.shortcutHelpEl.style.display = this.shortcutHelpEl.style.display === "none" ? "" : "none";
+      }
+      return;
+    }
+    // Tab / Shift+Tab: cycle focus through nodes
+    if (key === "Tab") {
+      e.preventDefault();
+      this.cycleFocusNode(e.shiftKey ? -1 : 1);
+      return;
+    }
   }
 
   /** Create legend and keyboard shortcut help overlays. */
@@ -920,10 +902,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.clusterSunburstLabels.clear();
     this.clusterSunburstLabelContainer = null;
     this.sunburstLayoutArcs = [];
-    this.clearCustomGridLabels();
-    this.clearTimelineAxisLabels();
-    this.clearAxisTitles();
-    this.customGridLabelContainer = null;
+    this.guideRenderer?.clearAll();
     this.pixiNodes.clear();
     this.worldContainer = null;
     this.edgeGraphics = null;
@@ -938,9 +917,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.routeGraphics = null;
     this.routeData = null;
     this.trayGraphics = null;
-    // Keep cableTrayData across destroyPixi — only rebuild via simulation end handler
-    this._cableTrayFinalized = false;
-    this._roadDrawn = false;
+    // Keep roadBuilder.trayData across destroyPixi — only rebuild via simulation end handler
+    if (this.roadBuilder) this.roadBuilder.reset();
     this.barGraphics = null;
     this.barLabelContainer = null;
     this.spatialGrid.clear();
@@ -1106,6 +1084,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Set up render pipeline (render loop, Canvas 2D node creation, batch drawing)
     this.renderPipeline = new RenderPipeline(this);
 
+    // Set up label manager (LOD, truncation, scaling pipeline)
+    this.labelManager = new LabelManager(this);
+
+    // Set up guide / grid renderer
+    this.guideRenderer = new GuideRenderer(this);
+
     // Set up minimap overlay
     this.minimap?.destroy();
     const minimapHost: MinimapHost = {
@@ -1263,6 +1247,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     };
   }
 
+  /** Return current graph nodes (for cell-shading density heatmap). */
+  getCurrentNodes(): GraphNode[] | undefined {
+    if (this.pixiNodes.size === 0) return undefined;
+    const nodes: GraphNode[] = [];
+    for (const pn of this.pixiNodes.values()) nodes.push(pn.data);
+    return nodes;
+  }
+
   isRingChartMode(): boolean {
     return false;
   }
@@ -1271,6 +1263,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getCardDisplayConfig() { return this.panel.cardDisplayConfig ?? { fields: [], maxWidth: 120, showIcon: false }; }
   getDonutDisplayConfig() { return this.panel.donutDisplayConfig ?? { innerRadius: 0.6 }; }
   getRenderThresholds() { return this.panel.renderThresholds ?? {}; }
+  getTextFadeThreshold(): number { return this.panel.textFadeThreshold; }
+  getWorldScale(): number { return this.worldContainer?.scale.x ?? 1; }
+  getRenderPipeline(): RenderPipeline | null { return this.renderPipeline; }
+  getSunburstLabels(): Map<string, CanvasText> { return this.sunburstLabels; }
+  getClusterSunburstLabels(): Map<string, CanvasText> { return this.clusterSunburstLabels; }
   getNodeSize() { return this.panel.nodeSize; }
   getAdjacency() { return this.adj; }
 
@@ -1300,26 +1297,69 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     let closest: PixiNode | null = null;
     let closestDist = Infinity;
 
+    const cfg = this._prepareHitTestConfig();
+
+    // Determine if grid search can cover the hit radius, otherwise brute-force
+    const maxHitWorld = cfg.displayMode === "card"
+      ? Math.max(cfg.hitCardMaxHalfW, cfg.hitCardHalfH) + cfg.pad
+      : cfg.hitWorldR;
+    const gridSearchLimit = 20;
+    const neededCells = Math.ceil(maxHitWorld / cs);
+    const useGrid = neededCells <= gridSearchLimit;
+
+    const hitTest = (pn: PixiNode) => {
+      const ddx = pn.data.x - wx;
+      const ddy = pn.data.y - wy;
+      const dist = ddx * ddx + ddy * ddy;
+      if (cfg.displayMode === "card") {
+        const effR = Math.max(pn.radius, cfg.minWorldRadius);
+        const halfW = Math.min(cfg.hitCardMaxHalfW, cfg.hitCardAspectRatio > 0 ? (cfg.hitCardHalfH * cfg.hitCardAR) : effR * cfg.hitCardWidthFactor);
+        if (Math.abs(ddx) <= halfW + cfg.pad && Math.abs(ddy) <= cfg.hitCardHalfH + cfg.pad && dist < closestDist) {
+          closestDist = dist;
+          closest = pn;
+        }
+      } else {
+        const effR = Math.max(pn.radius, cfg.minWorldRadius);
+        const r = Math.max(effR * cfg.glowRadius, cfg.hitScreenPx / cfg.zoom) + cfg.pad;
+        if (dist < r * r && dist < closestDist) {
+          closestDist = dist;
+          closest = pn;
+        }
+      }
+    };
+
+    if (useGrid) {
+      const searchCells = Math.max(1, neededCells);
+      for (let dx = -searchCells; dx <= searchCells; dx++) {
+        for (let dy = -searchCells; dy <= searchCells; dy++) {
+          const cell = this.spatialGrid.get(`${cx + dx},${cy + dy}`);
+          if (!cell) continue;
+          for (const pn of cell) hitTest(pn);
+        }
+      }
+    } else {
+      for (const pn of this.pixiNodes.values()) hitTest(pn);
+    }
+
+    if (!closest) {
+      closest = this._hitTestTimelineBars(wx, wy);
+    }
+
+    return closest;
+  }
+
+  /** Pre-compute all configuration values needed for hit testing. */
+  private _prepareHitTestConfig() {
     const rt = this.panel.renderThresholds ?? {};
     const minScreenPx = rt.minHoverScreenPx ?? DEFAULT_RENDER_THRESHOLDS.minHoverScreenPx;
     const zoom = this.worldContainer?.scale?.x ?? 1;
-    // Match the minimum world radius used by RenderPipeline for drawing
     const minWorldRadius = Math.max(0, MIN_WORLD_RADIUS_PX / zoom);
     const pad = rt.collisionPadding ?? DEFAULT_RENDER_THRESHOLDS.collisionPadding;
-
     const displayMode = this.panel.nodeDisplayMode ?? "node";
-
-    // Glow radius multiplier — defines the visible node extent users perceive
     const glowRadius = rt.glowBaseRadius ?? DEFAULT_RENDER_THRESHOLDS.glowBaseRadius ?? 2.2;
-
-    // Hit radius in world units: visual node radius × glow multiplier.
-    // At low zoom, MIN_WORLD_RADIUS_PX / zoom becomes huge in world units but
-    // the on-screen glow extent is always MIN_WORLD_RADIUS_PX × glowRadius px.
-    // We express the hit radius in screen pixels and convert to world units.
     const hitScreenPx = Math.max(MIN_WORLD_RADIUS_PX * glowRadius, minScreenPx);
     const hitWorldR = hitScreenPx / zoom + pad;
 
-    // Pre-compute card dimensions for rectangular hit testing
     let hitCardMaxHalfW = 0;
     let hitCardAR = 0;
     let hitCardWidthFactor = 0;
@@ -1339,66 +1379,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       hitCardAspectRatio = crc.cardAspectRatio;
     }
 
-    // Determine if grid search can cover the hit radius, otherwise brute-force
-    const maxHitWorld = displayMode === "card"
-      ? Math.max(hitCardMaxHalfW, hitCardHalfH) + pad
-      : hitWorldR;
-    const gridSearchLimit = 20;
-    const neededCells = Math.ceil(maxHitWorld / cs);
-    const useGrid = neededCells <= gridSearchLimit;
+    return { zoom, minWorldRadius, pad, displayMode, glowRadius, hitScreenPx, hitWorldR, hitCardMaxHalfW, hitCardAR, hitCardWidthFactor, hitCardAspectRatio, hitCardHalfH };
+  }
 
-    const hitTest = (pn: PixiNode) => {
-      const ddx = pn.data.x - wx;
-      const ddy = pn.data.y - wy;
-      const dist = ddx * ddx + ddy * ddy;
-      if (displayMode === "card") {
-        const effR = Math.max(pn.radius, minWorldRadius);
-        const halfW = Math.min(hitCardMaxHalfW, hitCardAspectRatio > 0 ? (hitCardHalfH * hitCardAR) : effR * hitCardWidthFactor);
-        if (Math.abs(ddx) <= halfW + pad && Math.abs(ddy) <= hitCardHalfH + pad && dist < closestDist) {
-          closestDist = dist;
-          closest = pn;
-        }
-      } else {
-        const effR = Math.max(pn.radius, minWorldRadius);
-        const r = Math.max(effR * glowRadius, hitScreenPx / zoom) + pad;
-        if (dist < r * r && dist < closestDist) {
-          closestDist = dist;
-          closest = pn;
-        }
-      }
-    };
-
-    if (useGrid) {
-      // Spatial grid search (fast for normal/high zoom)
-      const searchCells = Math.max(1, neededCells);
-      for (let dx = -searchCells; dx <= searchCells; dx++) {
-        for (let dy = -searchCells; dy <= searchCells; dy++) {
-          const cell = this.spatialGrid.get(`${cx + dx},${cy + dy}`);
-          if (!cell) continue;
-          for (const pn of cell) hitTest(pn);
-        }
-      }
-    } else {
-      // Brute-force scan (used at extreme zoom-out where grid cells are too fine)
-      for (const pn of this.pixiNodes.values()) hitTest(pn);
-    }
-
-    // If no circle hit, check timeline duration bars (rectangles)
-    if (!closest) {
-      const bars = this.clusterMeta?.timelineBars;
-      if (bars && bars.length > 0) {
-        for (const bar of bars) {
-          const halfH = bar.barHeight / 2;
-          if (wx >= bar.xStart && wx <= bar.xEnd &&
-              wy >= bar.yCenter - halfH && wy <= bar.yCenter + halfH) {
-            const pn = this.pixiNodes.get(bar.nodeId);
-            if (pn) { closest = pn; break; }
-          }
+  /** Hit-test timeline duration bars (rectangles). */
+  private _hitTestTimelineBars(wx: number, wy: number): PixiNode | null {
+    const bars = this.clusterMeta?.timelineBars;
+    if (bars && bars.length > 0) {
+      for (const bar of bars) {
+        const halfH = bar.barHeight / 2;
+        if (wx >= bar.xStart && wx <= bar.xEnd &&
+            wy >= bar.yCenter - halfH && wy <= bar.yCenter + halfH) {
+          const pn = this.pixiNodes.get(bar.nodeId);
+          if (pn) return pn;
         }
       }
     }
-
-    return closest;
+    return null;
   }
 
   /** Toggle hold (pin) state for a node */
@@ -1922,12 +1919,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.roadNetwork = this.getRoadNetwork();
     cfg.clusterArrangement = this.panel.clusterArrangement;
     // Resolve coordinate system: check panel.coordinateLayout first, then infer from arrangement name
-    const POLAR_ARRANGEMENTS = new Set(["concentric", "radial", "phyllotaxis"]);
     cfg.coordinateSystem = this.panel.coordinateLayout?.system === "polar"
       ? "polar"
       : POLAR_ARRANGEMENTS.has(this.panel.clusterArrangement) ? "polar" : "cartesian";
     const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-    cfg.routeWiresOnTray = !!rt2.routeWiresOnTray && !!this.cableTrayData;
+    cfg.routeWiresOnTray = !!rt2.routeWiresOnTray && !!this.roadBuilder?.trayData;
     return cfg;
   }
 
@@ -2358,8 +2354,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cx: number, cy: number,
   ): GraphNode[] {
     const arrangement = this.panel.clusterArrangement;
-    const POLAR = new Set(["concentric", "radial", "phyllotaxis"]);
-    const isPolar = POLAR.has(arrangement);
+    const isPolar = POLAR_ARRANGEMENTS.has(arrangement);
     const phantoms: GraphNode[] = [];
 
     if (isPolar) {
@@ -2421,366 +2416,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Road Network — auto-generated roads from coordinate grid lines
   // =========================================================================
 
-  private _cableTrayFinalized = false;
-  /** When true, the road graphics commands are up-to-date and skip redraw */
-  private _roadDrawn = false;
+  /** Ensure the road builder is initialized and return it. */
+  private _ensureRoadBuilder(): RoadNetworkBuilder {
+    if (!this.roadBuilder) {
+      this.roadBuilder = new RoadNetworkBuilder(this as unknown as RoadNetworkHost);
+    }
+    return this.roadBuilder;
+  }
 
   private _rebuildRoadNetwork(final = false) {
-    // Once finalized (by simulation end), don't rebuild unless explicitly requested
-    if (this._cableTrayFinalized && !final) return;
-    this._buildRoadNetworkInner();
-    this._roadDrawn = false; // invalidate draw cache
-    if (final) {
-      this._cableTrayFinalized = true;
-    }
+    this._ensureRoadBuilder().rebuild(final);
   }
 
-  /** Update global cache if new network is denser */
-  private _updateTrayCache() {
-    const n = this.cableTrayData;
-    if (n) _setBestRoadNetwork(n);
-  }
 
-  /** Add trunk roads between group centroids and update road cache */
-  private _finishRoadNetwork(allNodes: GraphNode[]) {
-    if (!this.cableTrayData) return;
-    // Add trunk roads between group centroids
-    const meta = this.clusterMeta;
-    if (meta?.clusterCentroids) {
-      const centroids: { x: number; y: number }[] = [];
-      for (const [, c] of meta.clusterCentroids) {
-        centroids.push({ x: c.x, y: c.y });
-      }
-      if (centroids.length > 1) {
-        const groupArrangement = this.panel.clusterGroupArrangement || "auto";
-        addTrunkRoads(this.cableTrayData, centroids);
-        // Re-map nodes to nearest intersection (trunk roads may provide closer access)
-        for (const node of allNodes) {
-          let bestId = 0;
-          let bestDist = Infinity;
-          for (const isect of this.cableTrayData.intersections) {
-            const dx = node.x - isect.x;
-            const dy = node.y - isect.y;
-            const d = dx * dx + dy * dy;
-            if (d < bestDist) { bestDist = d; bestId = isect.id; }
-          }
-          this.cableTrayData.nodeAccess.set(node.id, bestId);
-        }
-      }
-    }
-    this._updateTrayCache();
-  }
 
-  private _buildRoadNetworkInner() {
-    const meta = this.clusterMeta;
-    if (!meta) return;
-
-    // Collect all positioned nodes (skip nodes still at origin from early ticks)
-    const allNodes: GraphNode[] = [];
-    for (const pn of this.pixiNodes.values()) {
-      if (Math.abs(pn.data.x) > 1 || Math.abs(pn.data.y) > 1) {
-        allNodes.push(pn.data);
-      }
-    }
-    if (allNodes.length === 0) return; // Keep existing road network if no positioned nodes yet
-
-    // Phantom-based road network: if simulation has phantom nodes, use them
-    if (this._buildRoadFromPhantoms(allNodes)) return;
-
-    // Determine road topology from arrangement name, NOT from guide system.
-    // The guide system can be overridden by panel.coordinateLayout (always cartesian),
-    // so we use the arrangement name which reflects the user's actual intent.
-    const arrangement = this.panel.clusterArrangement;
-    const POLAR_ARRANGEMENTS = new Set(["concentric", "radial", "phyllotaxis"]);
-    const isPolarArrangement = POLAR_ARRANGEMENTS.has(arrangement);
-
-    // Try to derive road network from guide data attached to cluster metadata.
-    // Each guide type maps to a different road topology.
-    const guides = meta.groupGuides;
-    if (guides && guides.length > 0) {
-      const coordGuides: { guide: { system: string; gridInfo: ResolvedGridInfo; bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number } }; centerX: number; centerY: number }[] = [];
-      for (const gg of guides) {
-        const g = gg.guide;
-        if (!g) continue;
-
-        if (g.type === GUIDE_TYPE_COORDINATE && (g as any).gridInfo) {
-          coordGuides.push({ guide: g as any, centerX: gg.centerX, centerY: gg.centerY });
-        }
-        if (this._buildRoadFromConcentric(g, gg, allNodes)) return;
-        if (this._buildRoadFromGrid(g, gg, allNodes)) return;
-        if (this._buildRoadFromTriangle(g, gg, allNodes)) return;
-        if (this._buildRoadFromTimeline(g, allNodes)) return;
-      }
-
-      if (this._buildRoadFromCoordinates(coordGuides, isPolarArrangement, allNodes)) return;
-    }
-
-    // Fallback: no guide data available — generate roads from node distribution
-    this._buildRoadFallback(arrangement, allNodes);
-  }
-
-  /** Phantom node-based road network from simulation phantom nodes */
-  private _buildRoadFromPhantoms(allNodes: GraphNode[]): boolean {
-    const simNodes = this.simulation?.nodes?.() as GraphNode[] | undefined;
-    const phantomNodes = simNodes?.filter(n => n.isPhantom && (Math.abs(n.x) > 1 || Math.abs(n.y) > 1));
-    if (!phantomNodes || phantomNodes.length === 0) return false;
-
-    const arrangement = this.panel.clusterArrangement;
-    const POLAR = new Set(["concentric", "radial", "phyllotaxis"]);
-    const bounds = this.computeNodeBounds(allNodes);
-    const gcx = (bounds.xMin + bounds.xMax) / 2;
-    const gcy = (bounds.yMin + bounds.yMax) / 2;
-    this.cableTrayData = buildRoadNetworkFromPhantoms(
-      phantomNodes, allNodes,
-      POLAR.has(arrangement) ? "polar" : "cartesian",
-      gcx, gcy,
-    );
-    this._finishRoadNetwork(allNodes);
-    return true;
-  }
-
-  /** ConcentricGuide: rings become circle roads, uniform spokes become radial roads */
-  private _buildRoadFromConcentric(g: any, gg: { centerX: number; centerY: number }, allNodes: GraphNode[]): boolean {
-    if (g.type !== "concentric") return false;
-    const cg = g as { type: "concentric"; rings: number[] };
-    if (cg.rings.length === 0) return false;
-
-    // Sparse spokes: 8-16 for visual clarity (no densification needed)
-    const spokeCount = Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5))));
-    const maxRing = Math.max(...cg.rings);
-    const sortedRings = [...cg.rings].sort((a, b) => a - b);
-    // No densification — keep roads sparse and visible
-    this.cableTrayData = buildRoadNetwork({
-      system: "polar",
-      axis1Lines: sortedRings.map(r => ({ position: r })),
-      axis2Lines: Array.from({ length: spokeCount }, (_, i) => ({
-        position: (i / spokeCount) * Math.PI * 2,
-      })),
-      axis1Shape: "circle", axis2Shape: "radial",
-      cx: gg.centerX, cy: gg.centerY,
-      bounds: { xMin: -maxRing, yMin: -maxRing, xMax: maxRing, yMax: maxRing, maxR: maxRing },
-      nodes: allNodes,
-    });
-    this._finishRoadNetwork(allNodes);
-    return true;
-  }
-
-  /** GridGuide: verticals/horizontals become line roads */
-  private _buildRoadFromGrid(g: any, gg: { centerX: number; centerY: number }, allNodes: GraphNode[]): boolean {
-    if (g.type !== "grid") return false;
-    const gg2 = g as { type: "grid"; verticals: number[]; horizontals: number[]; bounds: { xMin: number; yMin: number; xMax: number; yMax: number } };
-    const verts = (gg2.verticals ?? []).sort((a: number, b: number) => a - b);
-    const horiz = (gg2.horizontals ?? []).sort((a: number, b: number) => a - b);
-    // No densification — sparse grid for pattern-forced routing
-    this.cableTrayData = buildRoadNetwork({
-      system: "cartesian",
-      axis1Lines: verts.map(v => ({ position: v })),
-      axis2Lines: horiz.map(h => ({ position: h })),
-      axis1Shape: "line", axis2Shape: "line",
-      cx: 0, cy: 0,
-      bounds: gg2.bounds ?? this.computeNodeBounds(allNodes),
-      nodes: allNodes,
-    });
-    this._finishRoadNetwork(allNodes);
-    return true;
-  }
-
-  /** TriangleGuide: horizontal roads at each row, vertical roads spanning columns */
-  private _buildRoadFromTriangle(g: any, gg: { centerX: number; centerY: number }, allNodes: GraphNode[]): boolean {
-    if (g.type !== ARRANGEMENT_TRIANGLE) return false;
-    const tg = g as { type: "triangle"; vertices: [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }] };
-    const [top, bottomLeft, bottomRight] = tg.vertices;
-    const triHeight = bottomLeft.y - top.y;
-    const triWidth = bottomRight.x - bottomLeft.x;
-    // Estimate rows from node count: smallest numRows such that numRows*(numRows+1)/2 >= n
-    let numRows = 1;
-    while (numRows * (numRows + 1) / 2 < allNodes.length) numRows++;
-    numRows = Math.max(numRows, 2);
-    const rowSpacing = triHeight / (numRows - 1 || 1);
-    // Horizontal roads: one per row
-    const horizLines: { position: number }[] = [];
-    for (let r = 0; r < numRows; r++) {
-      horizLines.push({ position: top.y + r * rowSpacing });
-    }
-    // Vertical roads: divide bottom row width into columns
-    const numCols = Math.max(numRows, Math.ceil(Math.sqrt(allNodes.length)));
-    const colSpacing = triWidth / (numCols - 1 || 1);
-    const vertLines: { position: number }[] = [];
-    for (let c = 0; c < numCols; c++) {
-      vertLines.push({ position: bottomLeft.x + c * colSpacing });
-    }
-    // No densification — sparse grid for pattern-forced routing
-    this.cableTrayData = buildRoadNetwork({
-      system: "cartesian",
-      axis1Lines: vertLines,
-      axis2Lines: horizLines,
-      axis1Shape: "line", axis2Shape: "line",
-      cx: gg.centerX, cy: gg.centerY,
-      bounds: { xMin: bottomLeft.x, yMin: top.y, xMax: bottomRight.x, yMax: bottomLeft.y },
-      nodes: allNodes,
-    });
-    this._finishRoadNetwork(allNodes);
-    return true;
-  }
-
-  /** TimelineGuide: ticks become vertical roads, axisY becomes horizontal road */
-  private _buildRoadFromTimeline(g: any, allNodes: GraphNode[]): boolean {
-    if (g.type !== "timeline") return false;
-    const tl = g as { type: "timeline"; axisY: number; ticks: { x: number; label: string }[] };
-    this.cableTrayData = buildRoadNetwork({
-      system: "cartesian",
-      axis1Lines: (tl.ticks ?? []).map((t: { x: number }) => ({ position: t.x })),
-      axis2Lines: [{ position: tl.axisY ?? 0 }],
-      axis1Shape: "line", axis2Shape: "line",
-      cx: 0, cy: 0,
-      bounds: this.computeNodeBounds(allNodes),
-      nodes: allNodes,
-    });
-    this._finishRoadNetwork(allNodes);
-    return true;
-  }
-
-  /** CoordinateGuide: merge axis lines into road network (polar or cartesian) */
-  private _buildRoadFromCoordinates(
-    coordGuides: { guide: { system: string; gridInfo: ResolvedGridInfo; bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number } }; centerX: number; centerY: number }[],
-    isPolarArrangement: boolean,
-    allNodes: GraphNode[],
-  ): boolean {
-    if (coordGuides.length === 0) return false;
-
-    const bounds = this.computeNodeBounds(allNodes);
-
-    if (isPolarArrangement) {
-      // Polar: generate rings + spokes from node positions, independent of guide axis lines.
-      // Guide system may report "cartesian" due to panel.coordinateLayout override,
-      // but the actual node layout is polar — so we derive roads from node coordinates.
-      const gcx = (bounds.xMin + bounds.xMax) / 2;
-      const gcy = (bounds.yMin + bounds.yMax) / 2;
-
-      // Ring radii: quantile-based from node distance distribution
-      const dists = allNodes.map(n =>
-        Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2)
-      ).sort((a, b) => a - b);
-      const maxR = dists[dists.length - 1] || 1;
-      // Sparse rings: 6-12 (no densification)
-      const ringCount = Math.min(12, Math.max(6, Math.ceil(Math.sqrt(allNodes.length / 10))));
-      const ringRadii: { position: number }[] = [];
-      for (let i = 1; i <= ringCount; i++) {
-        const q = dists[Math.floor(dists.length * i / (ringCount + 1))] ?? (maxR * i / ringCount);
-        ringRadii.push({ position: q });
-      }
-
-      // Sparse spokes: 8-16 (no densification)
-      const spokeCount = Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5))));
-      const spokeAngles: { position: number }[] = Array.from({ length: spokeCount }, (_, i) => ({
-        position: (i / spokeCount) * Math.PI * 2,
-      }));
-
-      // No densification — sparse roads for pattern-forced routing
-      this.cableTrayData = buildRoadNetwork({
-        system: "polar",
-        axis1Lines: ringRadii,
-        axis2Lines: spokeAngles,
-        axis1Shape: "circle", axis2Shape: "radial",
-        cx: gcx, cy: gcy,
-        bounds: { ...bounds, maxR },
-        nodes: allNodes,
-      });
-    } else {
-      // Cartesian: merge axis lines with world-space offsets, then shift to
-      // midpoints so cable tray intersections sit BETWEEN nodes (like a Go board
-      // where lines run between stones, not through them).
-      const allA1 = new Set<number>();
-      const allA2 = new Set<number>();
-      for (const cg of coordGuides) {
-        const gi = cg.guide.gridInfo;
-        for (const l of gi.axis1Lines) allA1.add(l.position + cg.centerX);
-        for (const l of gi.axis2Lines) allA2.add(l.position + cg.centerY);
-      }
-      const sortedA1 = [...allA1].sort((a, b) => a - b);
-      const sortedA2 = [...allA2].sort((a, b) => a - b);
-      // Convert node-grid lines to midpoint-grid lines (half-cell offset)
-      const midA1: number[] = [];
-      for (let i = 0; i < sortedA1.length - 1; i++) midA1.push((sortedA1[i] + sortedA1[i + 1]) / 2);
-      const midA2: number[] = [];
-      for (let i = 0; i < sortedA2.length - 1; i++) midA2.push((sortedA2[i] + sortedA2[i + 1]) / 2);
-      this.cableTrayData = buildRoadNetwork({
-        system: "cartesian",
-        axis1Lines: midA1.map(p => ({ position: p })),
-        axis2Lines: midA2.map(p => ({ position: p })),
-        axis1Shape: coordGuides[0].guide.gridInfo.axis1Shape?.kind ?? "line",
-        axis2Shape: coordGuides[0].guide.gridInfo.axis2Shape?.kind ?? "line",
-        cx: (bounds.xMin + bounds.xMax) / 2, cy: (bounds.yMin + bounds.yMax) / 2,
-        bounds,
-        nodes: allNodes,
-      });
-    }
-    this._finishRoadNetwork(allNodes);
-    return true;
-  }
-
-  /** Fallback: no guide data — derive road network from node distribution */
-  private _buildRoadFallback(arrangement: string, allNodes: GraphNode[]) {
-    const bounds = this.computeNodeBounds(allNodes);
-    const gcx = (bounds.xMin + bounds.xMax) / 2;
-    const gcy = (bounds.yMin + bounds.yMax) / 2;
-
-    const isCartesian = arrangement === "grid" || arrangement === "triangle" || arrangement === "square";
-
-    if (isCartesian) {
-      // Cartesian fallback: generate sparse grid from node bounding box
-      const width = bounds.xMax - bounds.xMin || 1;
-      const height = bounds.yMax - bounds.yMin || 1;
-      // Sparse grid: 8-16 lines each direction (no densification)
-      const gridSize = Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 8))));
-      const xStep = width / gridSize;
-      const yStep = height / gridSize;
-
-      // Place grid lines at half-cell offsets so they run between nodes
-      const xLines: { position: number }[] = [];
-      const yLines: { position: number }[] = [];
-      for (let i = 0; i < gridSize; i++) {
-        xLines.push({ position: bounds.xMin + (i + 0.5) * xStep });
-        yLines.push({ position: bounds.yMin + (i + 0.5) * yStep });
-      }
-
-      // No densification — sparse roads for pattern-forced routing
-      this.cableTrayData = buildRoadNetwork({
-        system: "cartesian",
-        axis1Lines: xLines,
-        axis2Lines: yLines,
-        axis1Shape: "line", axis2Shape: "line",
-        cx: gcx, cy: gcy,
-        bounds,
-        nodes: allNodes,
-      });
-    } else {
-      // Polar fallback: sparse rings + spokes from node distance distribution
-      const dists = allNodes.map(n => Math.sqrt((n.x - gcx) ** 2 + (n.y - gcy) ** 2)).sort((a, b) => a - b);
-      const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-      // Sparse: 6-12 rings, 8-16 spokes (no densification)
-      const ringCount = rt.roadRingCount || Math.min(12, Math.max(6, Math.ceil(Math.sqrt(allNodes.length / 10))));
-      const spokeCount = rt.roadSpokeCount || Math.min(16, Math.max(8, Math.ceil(Math.sqrt(allNodes.length / 5))));
-
-      this.cableTrayData = buildRoadNetwork({
-        system: "polar",
-        axis1Lines: Array.from({ length: ringCount }, (_, i) => ({
-          position: dists[Math.floor(dists.length * (i + 1) / (ringCount + 1))] ?? 1,
-        })),
-        axis2Lines: Array.from({ length: spokeCount }, (_, i) => ({
-          position: (i / spokeCount) * Math.PI * 2,
-        })),
-        axis1Shape: "circle", axis2Shape: "radial",
-        cx: gcx, cy: gcy,
-        bounds: { ...bounds, maxR: dists[dists.length - 1] ?? 1 },
-        nodes: allNodes,
-      });
-    }
-    this._finishRoadNetwork(allNodes);
-  }
 
   /** Compute axis-aligned bounding box from node positions */
-  private computeNodeBounds(nodes: GraphNode[]): { xMin: number; yMin: number; xMax: number; yMax: number } {
+  computeNodeBounds(nodes: GraphNode[]): { xMin: number; yMin: number; xMax: number; yMax: number } {
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const n of nodes) {
       if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x;
@@ -2790,27 +2442,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   drawRoadNetwork() {
+    const rb = this._ensureRoadBuilder();
     // Build road network if not finalized and not yet built
-    if (!this._cableTrayFinalized && !this.cableTrayData && this.pixiNodes.size > 0) {
+    if (!rb.finalized && !rb.trayData && this.pixiNodes.size > 0) {
       let hasPosition = false;
       for (const pn of this.pixiNodes.values()) {
         if (Math.abs(pn.data.x) > 1 || Math.abs(pn.data.y) > 1) { hasPosition = true; break; }
       }
-      if (hasPosition) this._rebuildRoadNetwork();
+      if (hasPosition) rb.rebuild();
     }
 
     const g = this.trayGraphics;
     if (!g) return;
 
     // Skip redraw if road commands are already up-to-date (perf: ~120K cmds)
-    if (this._roadDrawn && g.commands.length > 0) return;
+    if (rb.roadDrawn && g.commands.length > 0) return;
 
     g.clear();
 
     // Use instance-level network for drawing (sparse, ~200 segments).
     // getRoadNetwork() may return a densified global cache (~60K segments)
     // which is useful for edge routing but far too heavy for visual rendering.
-    const network = this.cableTrayData;
+    const network = rb.trayData;
     if (!network || network.intersections.length === 0) return;
 
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
@@ -2851,638 +2504,46 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       g.lineTo(to.x, to.y);
     }
 
-    this._roadDrawn = true;
+    rb.roadDrawn = true;
   }
 
   /** Get road network for edge routing */
   getRoadNetwork(): RoadNetwork | null {
-    const best = _getBestRoadNetwork();
-    const inst = this.cableTrayData;
-    if (best && inst) {
-      return (best.intersections.length >= inst.intersections.length) ? best : inst;
-    }
-    return best ?? inst;
+    return getBestRoadNetwork(this.roadBuilder);
   }
 
+
+  // --- Guide drawing (delegated to GuideRenderer) ---
 
   private drawTimelineAxis(
     g: CanvasGraphics, cx: number, cy: number,
     guide: Extract<ArrangementGuide, { type: "timeline" }>,
     lineW: number, color: number, worldScale: number,
-  ) {
-    const y = cy + guide.axisY;
-    // Find extent from ticks
-    if (guide.ticks.length === 0) return;
-    const xs = guide.ticks.map(t => cx + t.x);
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-    const margin = rt.gridLineMargin;
-    const xMin = Math.min(...xs) - margin;
-    const xMax = Math.max(...xs) + margin;
-    const wFactor = rt.gridLineWidthFactor;
-    const alpha = rt.gridLineAlpha;
-
-    // Main axis line
-    g.lineStyle(lineW * 1.5 * wFactor, color, alpha);
-    g.moveTo(xMin, y);
-    g.lineTo(xMax, y);
-
-    // Tick marks
-    const tickH = 6 / worldScale;
-    g.lineStyle(lineW * wFactor, color, alpha);
-    for (const tick of guide.ticks) {
-      const tx = cx + tick.x;
-      g.moveTo(tx, y - tickH);
-      g.lineTo(tx, y + tickH);
-    }
-
-    // Axis tick labels
-    const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-    if (rt2.timelineAxisShowLabels && this.panel.showTimelineTickLabels !== false && guide.ticks.length > 0) {
-      const maxLabels = rt2.timelineAxisLabelMaxCount!;
-      let labelTicks = guide.ticks;
-      if (labelTicks.length > maxLabels) {
-        const step = Math.ceil(labelTicks.length / maxLabels);
-        labelTicks = labelTicks.filter((_: unknown, i: number) => i % step === 0);
-      }
-      const fontSize = rt2.timelineAxisLabelFontSize! / worldScale;
-      const labelOffset = rt2.timelineAxisLabelOffset! / worldScale;
-      const labelAlpha = rt2.timelineAxisLabelAlpha!;
-      const labelColor = color;
-      for (const tick of labelTicks) {
-        const tx = cx + tick.x;
-        const text = new CanvasText(tick.label, {
-          fontSize,
-          fill: labelColor,
-          fontWeight: "400",
-        });
-        text.anchor.set(0.5, 0);
-        text.x = tx;
-        text.y = y + tickH + labelOffset;
-        text.alpha = labelAlpha;
-        text.rotation = Math.PI / 4;
-        g.parent?.addChild(text);
-        this.timelineAxisLabels.push(text);
-      }
-    }
-  }
+  ) { this.guideRenderer?.drawTimelineAxis(g, cx, cy, guide, lineW, color, worldScale); }
 
   private drawGridLines(
     g: CanvasGraphics, cx: number, cy: number,
     guide: Extract<ArrangementGuide, { type: "grid" }>,
     lineW: number, color: number,
-  ) {
-    const { verticals, horizontals, bounds } = guide;
-    const yMin = cy + bounds.yMin - 10;
-    const yMax = cy + bounds.yMax + 10;
-    const xMin = cx + bounds.xMin - 10;
-    const xMax = cx + bounds.xMax + 10;
-
-    g.lineStyle(lineW, color, 0.2);
-    for (const vx of verticals) {
-      const x = cx + vx;
-      g.moveTo(x, yMin);
-      g.lineTo(x, yMax);
-    }
-    for (const hy of horizontals) {
-      const y = cy + hy;
-      g.moveTo(xMin, y);
-      g.lineTo(xMax, y);
-    }
-  }
+  ) { this.guideRenderer?.drawGridLines(g, cx, cy, guide, lineW, color); }
 
   private drawTriangleOutline(
     g: CanvasGraphics, cx: number, cy: number,
     guide: Extract<ArrangementGuide, { type: "triangle" }>,
     lineW: number, color: number,
-  ) {
-    const verts = guide.vertices;
-    g.lineStyle(lineW, color, 0.3);
-    g.moveTo(cx + verts[0].x, cy + verts[0].y);
-    g.lineTo(cx + verts[1].x, cy + verts[1].y);
-    g.lineTo(cx + verts[2].x, cy + verts[2].y);
-    g.lineTo(cx + verts[0].x, cy + verts[0].y);
-  }
+  ) { this.guideRenderer?.drawTriangleOutline(g, cx, cy, guide, lineW, color); }
 
   private drawCoordinateGuide(
     g: CanvasGraphics, cx: number, cy: number,
     guide: { type: "coordinate"; system: string; axis1Label?: string; axis2Label?: string; bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number }; gridInfo?: ResolvedGridInfo },
     lineW: number, color: number,
-  ) {
-    const bounds = guide.bounds;
-    if (!bounds) return;
-
-    const worldScale = this.worldContainer?.scale.x ?? 1;
-    const isDark = this.isDarkTheme();
-
-    // Draw grid lines and tick labels when gridInfo is available.
-    // gridTableMode controls table-specific styling (cell shading, table line alpha);
-    // without it, we still render grid lines and tick labels using "lines" style.
-    if (guide.gridInfo) {
-      this.drawCustomGrid(g, cx, cy, guide.gridInfo, bounds, lineW, color, guide.axis1Label, guide.axis2Label);
-      this.drawAxisTitles(cx, cy, guide.gridInfo.axis1Shape, guide.gridInfo.axis2Shape, bounds, worldScale, isDark, guide.axis1Label, guide.axis2Label);
-      return;
-    }
-
-    // Determine shapes for axis title placement
-    const defaultAxis1Shape = guide.system === "polar" ? { kind: "radial" } : { kind: "linear" };
-    const defaultAxis2Shape = guide.system === "polar" ? { kind: "circle" } : { kind: "linear" };
-
-    if (guide.system === "polar" && bounds.maxR) {
-      // Polar: concentric reference circles + radial lines
-      const maxR = bounds.maxR;
-      const ringCount = 3;
-      g.lineStyle(lineW * 0.8, color, 0.15);
-      for (let i = 1; i <= ringCount; i++) {
-        const r = (maxR / ringCount) * i;
-        g.drawCircle(cx, cy, r);
-      }
-      // 6 radial lines (every 60 degrees)
-      g.lineStyle(lineW * 0.5, color, 0.1);
-      for (let a = 0; a < 6; a++) {
-        const angle = (a / 6) * Math.PI * 2;
-        g.moveTo(cx, cy);
-        g.lineTo(cx + maxR * Math.cos(angle), cy + maxR * Math.sin(angle));
-      }
-    } else {
-      // Cartesian: grid lines
-      const { xMin, yMin, xMax, yMax } = bounds;
-      const xRange = xMax - xMin;
-      const yRange = yMax - yMin;
-      if (xRange < 1 || yRange < 1) return;
-
-      const divisions = 4;
-      // Grid lines
-      g.lineStyle(lineW * 0.8, color, 0.15);
-      for (let i = 0; i <= divisions; i++) {
-        const x = cx + xMin + (xRange / divisions) * i;
-        g.moveTo(x, cy + yMin);
-        g.lineTo(x, cy + yMax);
-      }
-      for (let i = 0; i <= divisions; i++) {
-        const y = cy + yMin + (yRange / divisions) * i;
-        g.moveTo(cx + xMin, y);
-        g.lineTo(cx + xMax, y);
-      }
-      // Origin cross (stronger)
-      g.lineStyle(lineW, color, 0.25);
-      g.moveTo(cx + xMin, cy);
-      g.lineTo(cx + xMax, cy);
-      g.moveTo(cx, cy + yMin);
-      g.lineTo(cx, cy + yMax);
-    }
-
-    // Draw axis titles for fallback grid too
-    this.drawAxisTitles(cx, cy, defaultAxis1Shape, defaultAxis2Shape, bounds, worldScale, isDark, guide.axis1Label, guide.axis2Label);
-  }
-
-  private drawCustomGrid(
-    g: CanvasGraphics, cx: number, cy: number,
-    gridInfo: ResolvedGridInfo,
-    bounds: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number },
-    lineW: number, color: number,
-    axis1Title?: string, axis2Title?: string,
-  ) {
-    const { axis1Lines, axis2Lines, axis1Shape, axis2Shape, style, cellShading } = gridInfo;
-    const isDark = this.isDarkTheme();
-    const worldScale = this.worldContainer?.scale.x ?? 1;
-
-    // Cell shading (table mode)
-    if (cellShading && style === "table" && axis1Lines.length > 1 && axis2Lines.length > 1) {
-      this.drawCellShading(g, cx, cy, axis1Lines, axis2Lines, bounds, color);
-    }
-
-    // Draw axis1 grid lines (vertical in cartesian, circles/radials in polar)
-    const thresholds = this.getPanel().renderThresholds ?? {};
-    const lineAlpha = style === "table"
-      ? (thresholds.gridTableLineAlpha ?? DEFAULT_RENDER_THRESHOLDS.gridTableLineAlpha)
-      : (thresholds.gridLineAlpha ?? DEFAULT_RENDER_THRESHOLDS.gridLineAlpha);
-    for (const line of axis1Lines) {
-      this.drawGridLine(g, cx, cy, line, axis1Shape, bounds, 1, lineW, color, lineAlpha);
-    }
-
-    // Draw axis2 grid lines (horizontal in cartesian, circles/radials in polar)
-    for (const line of axis2Lines) {
-      this.drawGridLine(g, cx, cy, line, axis2Shape, bounds, 2, lineW, color, lineAlpha);
-    }
-
-    // Draw tick marks at each grid line position
-    this.drawGridTicks(g, cx, cy, axis1Lines, axis2Lines, axis1Shape, axis2Shape, bounds, lineW, color, worldScale);
-
-    // Draw labels
-    if (this.panel.gridShowHeaders) {
-      this.drawGridLabels(cx, cy, axis1Lines, axis2Lines, axis1Shape, axis2Shape, bounds, worldScale, isDark);
-    } else {
-      this.clearCustomGridLabels();
-    }
-
-  }
-
-  private drawGridLine(
-    g: CanvasGraphics, cx: number, cy: number,
-    line: ResolvedGridLine,
-    shape: { kind: string; expr?: string },
-    bounds: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number },
-    axis: 1 | 2,
-    lineW: number, color: number, alpha: number,
-  ) {
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-    g.lineStyle(lineW * rt.gridLineWidthFactor, color, alpha);
-    const pos = line.position;
-    const margin = rt.gridLineMargin;
-
-    switch (shape.kind) {
-      case "line":
-        if (axis === 1) {
-          // Vertical line at x = pos
-          g.moveTo(cx + pos, cy + bounds.yMin - margin);
-          g.lineTo(cx + pos, cy + bounds.yMax + margin);
-        } else {
-          // Horizontal line at y = pos
-          g.moveTo(cx + bounds.xMin - margin, cy + pos);
-          g.lineTo(cx + bounds.xMax + margin, cy + pos);
-        }
-        break;
-
-      case "circle":
-        // Concentric circle with radius = pos
-        if (pos > 0) {
-          g.drawCircle(cx, cy, Math.abs(pos));
-        }
-        break;
-
-      case "radial":
-        // Radial line from center at angle = pos (radians)
-        {
-          const maxR = bounds.maxR ?? Math.max(
-            Math.abs(bounds.xMax), Math.abs(bounds.xMin),
-            Math.abs(bounds.yMax), Math.abs(bounds.yMin),
-          );
-          g.moveTo(cx, cy);
-          g.lineTo(cx + maxR * Math.cos(pos), cy + maxR * Math.sin(pos));
-        }
-        break;
-
-      case "curve":
-        // Parametric curve defined by expression
-        if ("expr" in shape && shape.expr) {
-          this.drawCurveGridLine(g, cx, cy, shape.expr, pos, bounds);
-        }
-        break;
-    }
-  }
-
-  private drawCurveGridLine(
-    g: CanvasGraphics, cx: number, cy: number,
-    expr: string, offset: number,
-    bounds: { xMin: number; yMin: number; xMax: number; yMax: number },
-  ) {
-    try {
-      const { parseExpr, evalExpr } = require("../utils/expr-eval");
-      const ast = parseExpr(expr);
-      const segments = 60;
-      const range = bounds.xMax - bounds.xMin || 1;
-      let started = false;
-      for (let i = 0; i <= segments; i++) {
-        const t = i / segments;
-        const x = bounds.xMin + t * range;
-        const y = evalExpr(ast, { t, x, v: offset, i, n: segments + 1 });
-        const px = cx + x;
-        const py = cy + y;
-        if (!started) { g.moveTo(px, py); started = true; }
-        else { g.lineTo(px, py); }
-      }
-    } catch {
-      // Invalid expression — skip
-    }
-  }
-
-  private drawCellShading(
-    g: CanvasGraphics, cx: number, cy: number,
-    axis1Lines: ResolvedGridLine[], axis2Lines: ResolvedGridLine[],
-    bounds: { xMin: number; yMin: number; xMax: number; yMax: number },
-    color: number,
-  ) {
-    // Count nodes per cell
-    const cellCounts = new Map<string, number>();
-    let maxCount = 0;
-
-    // Build cell boundaries from line positions
-    const xPositions = axis1Lines.map(l => l.position).sort((a, b) => a - b);
-    const yPositions = axis2Lines.map(l => l.position).sort((a, b) => a - b);
-    if (xPositions.length < 2 || yPositions.length < 2) return;
-
-    // Count nodes in each cell
-    const nodes = this.currentData?.nodes;
-    if (!nodes) return;
-
-    const xExtentMin = xPositions[0];
-    const xExtentMax = xPositions[xPositions.length - 1];
-    const yExtentMin = yPositions[0];
-    const yExtentMax = yPositions[yPositions.length - 1];
-    for (const node of nodes) {
-      // Get node position relative to group center
-      const nodeX = node.x - cx;
-      const nodeY = node.y - cy;
-
-      // Skip nodes outside grid extent (e.g. from other groups)
-      if (nodeX < xExtentMin - 1 || nodeX > xExtentMax + 1) continue;
-      if (nodeY < yExtentMin - 1 || nodeY > yExtentMax + 1) continue;
-
-      // Find cell indices
-      const xi = findCellIndex(nodeX, xPositions);
-      const yi = findCellIndex(nodeY, yPositions);
-      if (xi >= 0 && yi >= 0) {
-        const key = `${xi}-${yi}`;
-        const count = (cellCounts.get(key) ?? 0) + 1;
-        cellCounts.set(key, count);
-        if (count > maxCount) maxCount = count;
-      }
-    }
-
-    if (maxCount === 0) return;
-
-    // Draw shaded rectangles
-    const rt = this.getPanel().renderThresholds ?? {};
-    const shadingMin = rt.gridCellShadingMin ?? DEFAULT_RENDER_THRESHOLDS.gridCellShadingMin;
-    const shadingRange = rt.gridCellShadingRange ?? DEFAULT_RENDER_THRESHOLDS.gridCellShadingRange;
-    for (let xi = 0; xi < xPositions.length - 1; xi++) {
-      for (let yi = 0; yi < yPositions.length - 1; yi++) {
-        const count = cellCounts.get(`${xi}-${yi}`) ?? 0;
-        if (count === 0) continue;
-        const alpha = shadingMin + (count / maxCount) * shadingRange;
-        g.beginFill(color, alpha);
-        const x = cx + xPositions[xi];
-        const y = cy + yPositions[yi];
-        const w = xPositions[xi + 1] - xPositions[xi];
-        const h = yPositions[yi + 1] - yPositions[yi];
-        g.drawRect(x, y, w, h);
-        g.endFill();
-      }
-    }
-  }
-
-  private drawGridTicks(
-    g: CanvasGraphics, cx: number, cy: number,
-    axis1Lines: ResolvedGridLine[], axis2Lines: ResolvedGridLine[],
-    axis1Shape: { kind: string }, axis2Shape: { kind: string },
-    bounds: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number },
-    lineW: number, color: number, worldScale: number,
-  ) {
-    const tickLen = 6 / worldScale;
-    g.lineStyle(lineW, color, 0.4);
-
-    // Axis1 ticks — small marks at grid edge
-    for (const line of axis1Lines) {
-      if (!line.label) continue;
-      if (axis1Shape.kind === "line") {
-        const x = cx + line.position;
-        const y = cy + bounds.yMin;
-        g.moveTo(x, y - tickLen);
-        g.lineTo(x, y);
-      }
-    }
-
-    // Axis2 ticks
-    for (const line of axis2Lines) {
-      if (!line.label) continue;
-      if (axis2Shape.kind === "line") {
-        const x = cx + bounds.xMin;
-        const y = cy + line.position;
-        g.moveTo(x - tickLen, y);
-        g.lineTo(x, y);
-      }
-    }
-  }
-
-  private drawGridLabels(
-    cx: number, cy: number,
-    axis1Lines: ResolvedGridLine[], axis2Lines: ResolvedGridLine[],
-    axis1Shape: { kind: string }, axis2Shape: { kind: string },
-    bounds: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number },
-    worldScale: number, isDark: boolean,
-  ) {
-    this.clearCustomGridLabels();
-
-    if (!this.customGridLabelContainer && this.worldContainer) {
-      this.customGridLabelContainer = new CanvasContainer();
-      this.worldContainer.addChild(this.customGridLabelContainer);
-    }
-    const container = this.customGridLabelContainer;
-    if (!container) return;
-
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-    const fontSize = Math.max(rt.gridLabelFontSizeMin, Math.min(rt.gridLabelFontSizeMax, rt.gridLabelFontSizeBase / worldScale));
-    const textColor = isDark ? 0xbbbbbb : 0x555555;
-    const bgColor = isDark ? 0x1e1e1e : 0xf5f5f5;
-    const labelOffset = rt.gridLabelOffset / worldScale;
-
-    const placement = this.panel.gridLabelPlacement ?? "on-line";
-    const useBetween = placement === "between";
-
-    // Helper: create a text label and add to container
-    const addLabel = (label: string, x: number, y: number, anchorX: number, anchorY: number) => {
-      const text = new CanvasText(label, {
-        fontSize,
-        fill: textColor,
-        fontWeight: "600",
-      });
-      text.bgColor = bgColor;
-      text.bgAlpha = 0.75;
-      text.bgPadX = 8;
-      text.bgPadY = 3;
-      text.strokeColor = 0x000000;
-      text.strokeWidth = 2;
-      text.anchor.set(anchorX, anchorY);
-      text.x = x;
-      text.y = y;
-      container.addChild(text);
-      this.customGridLabels.push(text);
-    };
-
-    // Axis1 labels — placed above the grid
-    if (useBetween && axis1Lines.length >= 2) {
-      // Between mode: place label i between axis1Lines[i] and axis1Lines[i+1]
-      // Labels come from axis1Lines[i].label (N labels for N+1 boundary lines)
-      for (let i = 0; i + 1 < axis1Lines.length; i++) {
-        const label = axis1Lines[i].label;
-        if (!label) continue;
-        const midPos = (axis1Lines[i].position + axis1Lines[i + 1].position) / 2;
-
-        if (axis1Shape.kind === "radial") {
-          const maxR = bounds.maxR ?? Math.max(Math.abs(bounds.xMax), Math.abs(bounds.yMax));
-          const angle = midPos;
-          addLabel(label, cx + (maxR + labelOffset * 2) * Math.cos(angle),
-            cy + (maxR + labelOffset * 2) * Math.sin(angle), 0.5, 0.5);
-        } else {
-          addLabel(label, cx + midPos, cy + bounds.yMin - labelOffset, 0.5, 1);
-        }
-      }
-    } else {
-      // On-line mode (default): label at each grid line position
-      for (const line of axis1Lines) {
-        if (!line.label) continue;
-        if (axis1Shape.kind === "radial") {
-          const maxR = bounds.maxR ?? Math.max(Math.abs(bounds.xMax), Math.abs(bounds.yMax));
-          const angle = line.position;
-          addLabel(line.label, cx + (maxR + labelOffset * 2) * Math.cos(angle),
-            cy + (maxR + labelOffset * 2) * Math.sin(angle), 0.5, 0.5);
-        } else {
-          addLabel(line.label, cx + line.position, cy + bounds.yMin - labelOffset, 0.5, 1);
-        }
-      }
-    }
-
-    // Axis2 labels — placed to the left of the grid
-    if (useBetween && axis2Lines.length >= 2) {
-      // Between mode: place label i between axis2Lines[i] and axis2Lines[i+1]
-      for (let i = 0; i + 1 < axis2Lines.length; i++) {
-        const label = axis2Lines[i].label;
-        if (!label) continue;
-        const midPos = (axis2Lines[i].position + axis2Lines[i + 1].position) / 2;
-
-        if (axis2Shape.kind === "circle") {
-          addLabel(label, cx + Math.abs(midPos) + labelOffset * 0.5,
-            cy - labelOffset * 0.5, 0, 0.5);
-        } else {
-          addLabel(label, cx + bounds.xMin - labelOffset, cy + midPos, 1, 0.5);
-        }
-      }
-    } else {
-      // On-line mode (default): label at each grid line position
-      for (const line of axis2Lines) {
-        if (!line.label) continue;
-        if (axis2Shape.kind === "circle") {
-          addLabel(line.label, cx + Math.abs(line.position) + labelOffset * 0.5,
-            cy - labelOffset * 0.5, 0, 0.5);
-        } else {
-          addLabel(line.label, cx + bounds.xMin - labelOffset, cy + line.position, 1, 0.5);
-        }
-      }
-    }
-  }
-
-  private clearCustomGridLabels() {
-    for (const lbl of this.customGridLabels) {
-      lbl.parent?.removeChild(lbl);
-      lbl.destroy();
-    }
-    this.customGridLabels = [];
-  }
-
-  private clearTimelineAxisLabels() {
-    for (const label of this.timelineAxisLabels) {
-      label.parent?.removeChild(label);
-      label.destroy();
-    }
-    this.timelineAxisLabels = [];
-  }
-
-  private axisTitleLabels: CanvasText[] = [];
-
-  private clearAxisTitles() {
-    for (const lbl of this.axisTitleLabels) {
-      lbl.parent?.removeChild(lbl);
-      lbl.destroy();
-    }
-    this.axisTitleLabels = [];
-  }
-
-  private drawAxisTitles(
-    cx: number, cy: number,
-    axis1Shape: { kind: string }, axis2Shape: { kind: string },
-    bounds: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number },
-    worldScale: number, isDark: boolean,
-    axis1Title?: string, axis2Title?: string,
-  ) {
-    this.clearAxisTitles();
-
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-    if (!rt.axisTitleShow || this.panel.showAxisTitles === false) return;
-    if (!axis1Title && !axis2Title) return;
-
-    const container = this.customGridLabelContainer ?? this.worldContainer;
-    if (!container) return;
-
-    const fontSize = Math.max(8, Math.min(16, rt.axisTitleFontSize / worldScale));
-    const offset = rt.axisTitleOffset / worldScale;
-    // Grid category label height estimate for placing axis title beyond them
-    const gridLabelH = Math.max(8, Math.min(13, (rt.gridLabelFontSizeBase ?? 11) / worldScale)) * 1.5;
-    const textColor = isDark ? 0xcccccc : 0x444444;
-    const alpha = rt.axisTitleAlpha;
-
-    // Axis1 title — centered above the grid (for cartesian) or at top (for polar)
-    if (axis1Title) {
-      const text = new CanvasText(axis1Title, {
-        fontSize,
-        fill: textColor,
-        fontWeight: "700",
-      });
-      text.alpha = alpha;
-
-      if (axis1Shape.kind === "radial") {
-        const maxR = bounds.maxR ?? Math.max(Math.abs(bounds.xMax), Math.abs(bounds.yMax));
-        text.anchor.set(0.5, 1);
-        text.x = cx;
-        text.y = cy - maxR - offset - gridLabelH;
-      } else {
-        // Cartesian: center top, beyond grid category labels
-        const midX = (bounds.xMin + bounds.xMax) / 2;
-        text.anchor.set(0.5, 1);
-        text.x = cx + midX;
-        text.y = cy + bounds.yMin - offset - gridLabelH;
-      }
-      container.addChild(text);
-      this.axisTitleLabels.push(text);
-    }
-
-    // Axis2 title — to the left of the grid (for cartesian), rotated -90°
-    if (axis2Title) {
-      const text = new CanvasText(axis2Title, {
-        fontSize,
-        fill: textColor,
-        fontWeight: "700",
-      });
-      text.alpha = alpha;
-
-      if (axis2Shape.kind === "circle") {
-        // Polar axis2: label at right side
-        text.anchor.set(0, 0.5);
-        text.x = cx + (bounds.maxR ?? Math.abs(bounds.xMax)) + offset + gridLabelH;
-        text.y = cy;
-      } else {
-        // Cartesian: left side, rotated, beyond grid category labels
-        const midY = (bounds.yMin + bounds.yMax) / 2;
-        text.anchor.set(0.5, 1);
-        text.x = cx + bounds.xMin - offset - gridLabelH;
-        text.y = cy + midY;
-        text.rotation = -Math.PI / 2;
-      }
-      container.addChild(text);
-      this.axisTitleLabels.push(text);
-    }
-  }
+  ) { this.guideRenderer?.drawCoordinateGuide(g, cx, cy, guide, lineW, color); }
 
   private drawConcentricGuide(
     g: CanvasGraphics, cx: number, cy: number,
     guide: { type: "concentric"; rings: number[] },
     lineW: number, color: number,
-  ) {
-    if (guide.rings.length === 0) return;
-
-    // Draw concentric ring circles
-    g.lineStyle(lineW * 0.8, color, 0.3);
-    for (const r of guide.rings) {
-      g.drawCircle(cx, cy, r);
-    }
-
-    // Light cross at center spanning to max ring
-    const maxR = guide.rings[guide.rings.length - 1];
-    g.lineStyle(lineW * 0.5, color, 0.15);
-    g.moveTo(cx - maxR, cy);
-    g.lineTo(cx + maxR, cy);
-    g.moveTo(cx, cy - maxR);
-    g.lineTo(cx, cy + maxR);
-  }
+  ) { this.guideRenderer?.drawConcentricGuide(g, cx, cy, guide, lineW, color); }
 
   // =========================================================================
   // Layout transition animation (called by RenderPipeline each frame)
@@ -3567,17 +2628,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const minUtil = rt.minViewportUtilization ?? 0.10;
     if (minUtil <= 0 || this.pixiNodes.size < 2) return;
 
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const pn of this.pixiNodes.values()) {
-      const r = pn.radius ?? 6;
-      minX = Math.min(minX, pn.data.x - r);
-      minY = Math.min(minY, pn.data.y - r);
-      maxX = Math.max(maxX, pn.data.x + r);
-      maxY = Math.max(maxY, pn.data.y + r);
-    }
-
-    const bboxW = maxX - minX;
-    const bboxH = maxY - minY;
+    const bbox = this._computeNodeBBox();
+    const bboxW = bbox.maxX - bbox.minX;
+    const bboxH = bbox.maxY - bbox.minY;
     const bboxArea = bboxW * bboxH;
     const vpArea = vpW * vpH;
     if (vpArea <= 0) return;
@@ -3585,12 +2638,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const util = bboxArea / vpArea;
     if (util >= minUtil) return;
 
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
+    const cx = (bbox.minX + bbox.maxX) / 2;
+    const cy = (bbox.minY + bbox.maxY) / 2;
 
     if (bboxArea < 1) {
-      // All nodes at same position — spread in a circle
-      // R = sqrt(vpW * vpH * minUtil) / 2 ensures bbox (2R × 2R) meets threshold
+      // All nodes at same position -- spread in a circle
       const defaultR = Math.sqrt(vpW * vpH * minUtil) / 2;
       const nodes = Array.from(this.pixiNodes.values());
       const n = nodes.length;
@@ -3602,21 +2654,59 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return;
     }
 
-    // Detect degenerate (line-like) distributions where one dimension
-    // is near-zero relative to the other.  Uniform scaling cannot fix
-    // these because (coord - center) ≈ 0 along the flat axis.
-    // Spread nodes along the flat axis so the bbox becomes roughly square
-    // before applying uniform scaling.
-    const avgNodeR = (() => {
-      let sum = 0;
-      for (const pn of this.pixiNodes.values()) sum += pn.radius ?? 6;
-      return sum / this.pixiNodes.size;
-    })();
-    const degenerateThreshold = avgNodeR * 4; // axis range < 4× avg radius = degenerate
+    // Detect and fix degenerate (line-like) distributions
+    const avgNodeR = this._computeAvgNodeRadius();
+    const degenerateThreshold = avgNodeR * 4;
+    this._spreadDegenerateAxis(cx, cy, vpW, vpH, bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
+
+    // Recompute bbox after degenerate fix
+    const bbox2 = this._computeNodeBBox();
+    const bboxArea2 = (bbox2.maxX - bbox2.minX) * (bbox2.maxY - bbox2.minY);
+    const util2 = bboxArea2 / vpArea;
+    if (util2 >= minUtil) return;
+
+    const cx2 = (bbox2.minX + bbox2.maxX) / 2;
+    const cy2 = (bbox2.minY + bbox2.maxY) / 2;
+    const scaleFactor = this._computeViewportScaleFactor(
+      bbox2.maxX - bbox2.minX, bbox2.maxY - bbox2.minY,
+      minUtil, vpArea, util2,
+    );
+    for (const pn of this.pixiNodes.values()) {
+      pn.data.x = cx2 + (pn.data.x - cx2) * scaleFactor;
+      pn.data.y = cy2 + (pn.data.y - cy2) * scaleFactor;
+    }
+  }
+
+  /** Compute axis-aligned bounding box of all nodes (including radius). */
+  private _computeNodeBBox(): { minX: number; minY: number; maxX: number; maxY: number } {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const pn of this.pixiNodes.values()) {
+      const r = pn.radius ?? 6;
+      minX = Math.min(minX, pn.data.x - r);
+      minY = Math.min(minY, pn.data.y - r);
+      maxX = Math.max(maxX, pn.data.x + r);
+      maxY = Math.max(maxY, pn.data.y + r);
+    }
+    return { minX, minY, maxX, maxY };
+  }
+
+  /** Compute average node radius across all pixiNodes. */
+  private _computeAvgNodeRadius(): number {
+    let sum = 0;
+    for (const pn of this.pixiNodes.values()) sum += pn.radius ?? 6;
+    return sum / this.pixiNodes.size;
+  }
+
+  /**
+   * Spread nodes along a degenerate (near-zero) axis so the bbox becomes
+   * roughly square before uniform scaling.
+   */
+  private _spreadDegenerateAxis(
+    cx: number, cy: number, vpW: number, vpH: number,
+    bboxW: number, bboxH: number, degenerateThreshold: number,
+    minUtil: number, vpArea: number,
+  ): void {
     if (bboxW > degenerateThreshold && bboxH < degenerateThreshold) {
-      // Flat horizontally — spread nodes vertically to match the non-degenerate axis.
-      // Target: bboxH ≈ minUtil * vpArea / bboxW so that after this fix,
-      // the area already meets the threshold without needing further scaling.
       const targetH = Math.max(bboxW * 0.3, minUtil * vpArea / bboxW);
       const nodes = Array.from(this.pixiNodes.values());
       const n = nodes.length;
@@ -3625,7 +2715,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         pn.data.y = cy + t * targetH;
       });
     } else if (bboxH > degenerateThreshold && bboxW < degenerateThreshold) {
-      // Flat vertically — spread nodes horizontally
       const targetW = Math.max(bboxH * 0.3, minUtil * vpArea / bboxH);
       const nodes = Array.from(this.pixiNodes.values());
       const n = nodes.length;
@@ -3634,47 +2723,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         pn.data.x = cx + t * targetW;
       });
     }
+  }
 
-    // Recompute bbox after degenerate fix
-    let minX2 = Infinity, minY2 = Infinity, maxX2 = -Infinity, maxY2 = -Infinity;
-    for (const pn of this.pixiNodes.values()) {
-      const r = pn.radius ?? 6;
-      minX2 = Math.min(minX2, pn.data.x - r);
-      minY2 = Math.min(minY2, pn.data.y - r);
-      maxX2 = Math.max(maxX2, pn.data.x + r);
-      maxY2 = Math.max(maxY2, pn.data.y + r);
-    }
-    const bboxArea2 = (maxX2 - minX2) * (maxY2 - minY2);
-    const util2 = bboxArea2 / vpArea;
-    if (util2 >= minUtil) return;
-
-    const cx2 = (minX2 + maxX2) / 2;
-    const cy2 = (minY2 + maxY2) / 2;
-    // scaleFactor must be computed on the POSITION SPAN, not the full bbox.
-    // The bbox includes one node-radius on each edge; scaling only moves centers —
-    // radii stay constant.  So applying sqrt(minUtil/util2) to positions yields a
-    // final bboxArea that is still below minUtil because:
-    //   newBboxW = posSpanW * sf + 2r   (not bboxW * sf)
-    //   newBboxH = posSpanH * sf + 2r   (not bboxH * sf)
-    // Fix: solve the quadratic exactly.
-    //   A*sf^2 + B*sf + (4r^2 - minUtil*vpArea) = 0
-    //   where A = posSpanW * posSpanH,  B = 2r*(posSpanW + posSpanH)
-    const bboxW2 = maxX2 - minX2;
-    const bboxH2 = maxY2 - minY2;
-    const avgR2 = (() => { let s = 0; for (const pn of this.pixiNodes.values()) s += pn.radius ?? 6; return s / this.pixiNodes.size; })();
-    const posSpanW2 = Math.max(bboxW2 - 2 * avgR2, 1);
-    const posSpanH2 = Math.max(bboxH2 - 2 * avgR2, 1);
-    const A2 = posSpanW2 * posSpanH2;
-    const B2 = 2 * avgR2 * (posSpanW2 + posSpanH2);
-    const C2 = 4 * avgR2 * avgR2 - minUtil * vpArea;
-    const disc2 = B2 * B2 - 4 * A2 * C2;
-    const scaleFactor = disc2 >= 0
-      ? (-B2 + Math.sqrt(disc2)) / (2 * A2)
-      : Math.sqrt(minUtil / util2); // fallback (degenerate: all nodes coincident)
-    for (const pn of this.pixiNodes.values()) {
-      pn.data.x = cx2 + (pn.data.x - cx2) * scaleFactor;
-      pn.data.y = cy2 + (pn.data.y - cy2) * scaleFactor;
-    }
+  /**
+   * Compute the uniform scale factor via quadratic equation so that
+   * scaled positions + constant radii meet the minUtil threshold exactly.
+   */
+  private _computeViewportScaleFactor(
+    bboxW: number, bboxH: number,
+    minUtil: number, vpArea: number, util: number,
+  ): number {
+    const avgR = this._computeAvgNodeRadius();
+    const posSpanW = Math.max(bboxW - 2 * avgR, 1);
+    const posSpanH = Math.max(bboxH - 2 * avgR, 1);
+    const A = posSpanW * posSpanH;
+    const B = 2 * avgR * (posSpanW + posSpanH);
+    const C = 4 * avgR * avgR - minUtil * vpArea;
+    const disc = B * B - 4 * A * C;
+    return disc >= 0
+      ? (-B + Math.sqrt(disc)) / (2 * A)
+      : Math.sqrt(minUtil / util); // fallback
   }
 
   private autoFitView(W: number, H: number) {
@@ -3913,70 +2981,76 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.plugin.settings.groupPresets.push(preset);
         this.plugin.saveSettings();
       },
-      resetPanel: () => {
-        const s = this.plugin.settings;
-        Object.assign(this.panel, {
-          ...DEFAULT_PANEL,
-          sortRules: [...(s.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r })),
-          clusterGroupRules: [...(s.defaultClusterGroupRules ?? [])].map(r => ({ ...r })),
-          nodeRules: [...(s.defaultNodeRules ?? [])].map(r => ({ ...r })),
-          ...(s.defaultClusterArrangement ? { clusterArrangement: s.defaultClusterArrangement } : {}),
-          ...(s.defaultClusterNodeSpacing != null ? { clusterNodeSpacing: s.defaultClusterNodeSpacing } : {}),
-          ...(s.defaultClusterGroupScale != null ? { clusterGroupScale: s.defaultClusterGroupScale } : {}),
-          ...(s.defaultClusterGroupSpacing != null ? { clusterGroupSpacing: s.defaultClusterGroupSpacing } : {}),
-          ...(s.defaultEdgeBundleStrength != null ? { edgeBundleStrength: s.defaultEdgeBundleStrength } : {}),
-        });
-        this.applyGroupPresets();
-        this.buildPanel();
-        this.applyClusterForce();
-        if (this.simulation) { this.simulation.alpha(0.8).restart(); this.wakeRenderLoop(); }
-        this.requestSave();
-      },
+      resetPanel: () => this._buildResetPanelCallback(),
       jumpToNode: (nodeId: string) => this.jumpToNode(nodeId),
       getNodeIds: () => [...this.pixiNodes.keys()],
       recolorNodes: () => { this.recolorNodes(); this.requestSave(); },
-      autoOptimize: () => {
-        const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-        const maxPasses = rt.autoOptMaxPasses ?? 3;
-        const nodes: { id: string; x: number; y: number }[] = [];
-        const radii = new Map<string, number>();
-        for (const [id, pn] of this.pixiNodes) {
-          nodes.push({ id, x: pn.data.x, y: pn.data.y });
-          radii.set(id, pn.radius);
-        }
-        const runPass = (pass: number) => {
-          if (pass >= maxPasses) { this.buildPanel(); this.requestSave(); return; }
-          const result = analyzeOverlap(nodes, radii, rt.autoOptCloseThreshold ?? 3.0);
-          const constants = this.panel.coordinateLayout?.constants ?? {};
-          const opt = computeAutoOptimize(
-            result.overlapRatio, result.avgRadius, constants,
-            this.panel.repelForce, this.panel.linkDistance,
-            { overlapThreshold: rt.autoOptOverlapThreshold ?? 0.15,
-              padIncrement: rt.autoOptPadIncrement ?? 0.2,
-              padMax: rt.autoOptPadMax ?? 3.0,
-              repelScale: rt.autoOptRepelScale ?? 1.3,
-              linkScale: rt.autoOptLinkScale ?? 1.2 });
-          if (!opt.needsMore) { this.buildPanel(); this.requestSave(); return; }
-          if (this.panel.coordinateLayout) {
-            this.panel.coordinateLayout.constants = { ...constants, ...opt.constants };
-          }
-          this.panel.repelForce = opt.repelForce;
-          this.panel.linkDistance = opt.linkDistance;
-          this.applyClusterForce();
-          this.updateForces();
-          if (this.simulation) { this.simulation.alpha(0.8).restart(); this.wakeRenderLoop(); }
-          // Re-read positions after simulation settles
-          setTimeout(() => {
-            for (const [id, pn] of this.pixiNodes) {
-              const n = nodes.find(nd => nd.id === id);
-              if (n) { n.x = pn.data.x; n.y = pn.data.y; }
-            }
-            runPass(pass + 1);
-          }, 1500);
-        };
-        runPass(0);
-      },
+      autoOptimize: () => this._buildAutoOptimizeCallback(),
     };
+  }
+
+  /** Execute the reset-panel action: restore defaults and re-render. */
+  private _buildResetPanelCallback(): void {
+    const s = this.plugin.settings;
+    Object.assign(this.panel, {
+      ...DEFAULT_PANEL,
+      sortRules: [...(s.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r })),
+      clusterGroupRules: [...(s.defaultClusterGroupRules ?? [])].map(r => ({ ...r })),
+      nodeRules: [...(s.defaultNodeRules ?? [])].map(r => ({ ...r })),
+      ...(s.defaultClusterArrangement ? { clusterArrangement: s.defaultClusterArrangement } : {}),
+      ...(s.defaultClusterNodeSpacing != null ? { clusterNodeSpacing: s.defaultClusterNodeSpacing } : {}),
+      ...(s.defaultClusterGroupScale != null ? { clusterGroupScale: s.defaultClusterGroupScale } : {}),
+      ...(s.defaultClusterGroupSpacing != null ? { clusterGroupSpacing: s.defaultClusterGroupSpacing } : {}),
+      ...(s.defaultEdgeBundleStrength != null ? { edgeBundleStrength: s.defaultEdgeBundleStrength } : {}),
+    });
+    this.applyGroupPresets();
+    this.buildPanel();
+    this.applyClusterForce();
+    if (this.simulation) { this.simulation.alpha(0.8).restart(); this.wakeRenderLoop(); }
+    this.requestSave();
+  }
+
+  /** Execute the auto-optimize action: iterative overlap reduction loop. */
+  private _buildAutoOptimizeCallback(): void {
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+    const maxPasses = rt.autoOptMaxPasses ?? 3;
+    const nodes: { id: string; x: number; y: number }[] = [];
+    const radii = new Map<string, number>();
+    for (const [id, pn] of this.pixiNodes) {
+      nodes.push({ id, x: pn.data.x, y: pn.data.y });
+      radii.set(id, pn.radius);
+    }
+    const runPass = (pass: number) => {
+      if (pass >= maxPasses) { this.buildPanel(); this.requestSave(); return; }
+      const result = analyzeOverlap(nodes, radii, rt.autoOptCloseThreshold ?? 3.0);
+      const constants = this.panel.coordinateLayout?.constants ?? {};
+      const opt = computeAutoOptimize(
+        result.overlapRatio, result.avgRadius, constants,
+        this.panel.repelForce, this.panel.linkDistance,
+        { overlapThreshold: rt.autoOptOverlapThreshold ?? 0.15,
+          padIncrement: rt.autoOptPadIncrement ?? 0.2,
+          padMax: rt.autoOptPadMax ?? 3.0,
+          repelScale: rt.autoOptRepelScale ?? 1.3,
+          linkScale: rt.autoOptLinkScale ?? 1.2 });
+      if (!opt.needsMore) { this.buildPanel(); this.requestSave(); return; }
+      if (this.panel.coordinateLayout) {
+        this.panel.coordinateLayout.constants = { ...constants, ...opt.constants };
+      }
+      this.panel.repelForce = opt.repelForce;
+      this.panel.linkDistance = opt.linkDistance;
+      this.applyClusterForce();
+      this.updateForces();
+      if (this.simulation) { this.simulation.alpha(0.8).restart(); this.wakeRenderLoop(); }
+      // Re-read positions after simulation settles
+      setTimeout(() => {
+        for (const [id, pn] of this.pixiNodes) {
+          const n = nodes.find(nd => nd.id === id);
+          if (n) { n.x = pn.data.x; n.y = pn.data.y; }
+        }
+        runPass(pass + 1);
+      }, 1500);
+    };
+    runPass(0);
   }
 
   // =========================================================================
@@ -4062,36 +3136,49 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       target: edgeTargetId(e),
     }));
 
-    // Local graph: BFS N-hop filter from center node
-    if (this.panel.localGraphCenter) {
-      const centerId = nodes.find(n => n.filePath === this.panel.localGraphCenter || n.id === this.panel.localGraphCenter)?.id;
-      if (centerId) {
-        // Build adjacency for BFS
-        const adj = new Map<string, Set<string>>();
-        for (const e of edges) {
-          if (!adj.has(e.source)) adj.set(e.source, new Set());
-          if (!adj.has(e.target)) adj.set(e.target, new Set());
-          adj.get(e.source)!.add(e.target);
-          adj.get(e.target)!.add(e.source);
-        }
-        // BFS
-        const reachable = new Set<string>([centerId]);
-        let frontier = [centerId];
-        for (let h = 0; h < this.panel.localGraphHops && frontier.length > 0; h++) {
-          const next: string[] = [];
-          for (const id of frontier) {
-            const nb = adj.get(id);
-            if (nb) for (const n of nb) {
-              if (!reachable.has(n)) { reachable.add(n); next.push(n); }
-            }
-          }
-          frontier = next;
-        }
-        nodes = nodes.filter(n => reachable.has(n.id));
-        edges = edges.filter(e => reachable.has(e.source) && reachable.has(e.target));
-      }
-    }
+    ({ nodes, edges } = this._filterLocalGraph(nodes, edges));
+    ({ nodes, edges } = this._filterNodeVisibility(nodes, edges));
+    ({ nodes, edges } = this._filterByQuery(nodes, edges));
 
+    const nodeSet = new Set(nodes.map((n) => n.id));
+    edges = edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));
+
+    return this._applyGroupCollapse({ nodes, edges });
+  }
+
+  /** BFS N-hop filter for local graph mode. */
+  private _filterLocalGraph(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
+    if (!this.panel.localGraphCenter) return { nodes, edges };
+    const centerId = nodes.find(n => n.filePath === this.panel.localGraphCenter || n.id === this.panel.localGraphCenter)?.id;
+    if (!centerId) return { nodes, edges };
+
+    const adj = new Map<string, Set<string>>();
+    for (const e of edges) {
+      if (!adj.has(e.source)) adj.set(e.source, new Set());
+      if (!adj.has(e.target)) adj.set(e.target, new Set());
+      adj.get(e.source)!.add(e.target);
+      adj.get(e.target)!.add(e.source);
+    }
+    const reachable = new Set<string>([centerId]);
+    let frontier = [centerId];
+    for (let h = 0; h < this.panel.localGraphHops && frontier.length > 0; h++) {
+      const next: string[] = [];
+      for (const id of frontier) {
+        const nb = adj.get(id);
+        if (nb) for (const n of nb) {
+          if (!reachable.has(n)) { reachable.add(n); next.push(n); }
+        }
+      }
+      frontier = next;
+    }
+    return {
+      nodes: nodes.filter(n => reachable.has(n.id)),
+      edges: edges.filter(e => reachable.has(e.source) && reachable.has(e.target)),
+    };
+  }
+
+  /** Filter nodes by orphan/existing/attachment/tag visibility settings. */
+  private _filterNodeVisibility(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
     if (!this.panel.showOrphans) {
       const connected = new Set<string>();
       for (const e of edges) { connected.add(e.source); connected.add(e.target); }
@@ -4107,7 +3194,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       nodes = nodes.filter((n) => !n.id.match(/\.(png|jpg|jpeg|gif|svg|pdf|mp3|mp4|webm|webp|zip)$/i));
     }
 
-    // Master switch: hide all tag nodes and tag edges when showTags is off
     if (!this.panel.showTags) {
       nodes = nodes.filter((n) => !n.isTag);
       edges = edges.filter((e) => e.type !== EDGE_TYPE_HAS_TAG);
@@ -4118,10 +3204,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       edges = edges.filter((e) => e.type !== EDGE_TYPE_HAS_TAG);
     }
 
-    // Filter out "similar" edges unless the user has enabled them
     if (!this.panel.showSimilar) edges = edges.filter((e) => e.type !== EDGE_TYPE_SIMILAR);
 
-    // Dataview query filter
+    return { nodes, edges };
+  }
+
+  /** Apply dataview and search query filters. */
+  private _filterByQuery(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
     if (this.panel.dataviewQuery.trim()) {
       const matchingPaths = queryDataviewPages(this.app, this.panel.dataviewQuery.trim());
       if (matchingPaths.size > 0) {
@@ -4129,24 +3218,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
-    // Search query filter — parse the search expression and remove non-matching nodes
-    {
-      const raw = this.panel.searchQuery;
-      // Extract hop: tokens (not used for data filtering, only for visual highlight later)
-      const remaining = raw.replace(/hop:[^:,]+:\d+/gi, "").replace(/,/g, " ").trim();
-      if (remaining) {
-        const searchExpr = parseQueryExpr(remaining);
-        if (searchExpr) {
-          nodes = nodes.filter((n) => evaluateExpr(searchExpr, n));
-        }
+    const raw = this.panel.searchQuery;
+    const remaining = raw.replace(/hop:[^:,]+:\d+/gi, "").replace(/,/g, " ").trim();
+    if (remaining) {
+      const searchExpr = parseQueryExpr(remaining);
+      if (searchExpr) {
+        nodes = nodes.filter((n) => evaluateExpr(searchExpr, n));
       }
     }
 
-    const nodeSet = new Set(nodes.map((n) => n.id));
-    edges = edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));
+    return { nodes, edges };
+  }
 
-    // Apply node grouping (collapse groups into super nodes)
-    let result: GraphData = { nodes, edges };
+  /** Apply group collapse (fold groups into super nodes). */
+  private _applyGroupCollapse(data: GraphData): GraphData {
+    let result = data;
     if (this.panel.groupBy && this.panel.groupBy !== "none") {
       this.originalGraphData = { nodes: [...result.nodes], edges: [...result.edges] };
       const groupOpts: GroupOptions = {
@@ -4154,11 +3240,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         filter: this.panel.groupFilter,
       };
       const groups = this.resolveGroupByField(result.nodes, groupOpts);
-      // Auto-collapse all groups when groupBy is first enabled
       if (this.panel.collapsedGroups.size === 0 && groups.length > 0) {
         for (const g of groups) this.panel.collapsedGroups.add(g.key);
       }
-      // Apply collapse for each collapsed group
       for (const g of groups) {
         if (this.panel.collapsedGroups.has(g.key)) {
           result = collapseGroup(result, g);
@@ -4167,7 +3251,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     } else {
       this.originalGraphData = null;
     }
-
     return result;
   }
 
@@ -4953,294 +4036,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.markDirty();
   }
 
-  private applyTextFade() {
-    const baseOpacity = 1 - this.panel.textFadeThreshold;
-    const zoom = this.worldContainer?.scale.x ?? 1;
-    const degrees = this.degrees;
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-
-    // Step 1: Compute priority scores and minShowZoom (once per rebuild)
-    this._computeLabelPriorityScores(rt);
-
-    // Step 2: Counter-scaling with minimum screen-size guarantee
-    const LABEL_FONT = rt.nodeLabelFontSizeMin;
-    const rawScale = 1 / Math.pow(zoom, rt.labelScalePower);
-    const floorScale = rt.labelMinScreenPx / (LABEL_FONT * zoom);
-    const counterScale = Math.min(rt.labelScaleMax, Math.max(rt.labelScaleMin, rawScale, floorScale));
-
-    // Step 3-4: Per-node LOD evaluation (truncation, placement, hysteresis)
-    const candidates = this._evaluateNodeLabelLOD(zoom, counterScale, rt, degrees, baseOpacity);
-
-    // Step 5: Diversity guarantee and maxVisible cap
-    this._applyLabelDiversityAndCap(candidates, rt, degrees, baseOpacity);
-
-    // Step 6: Group/sunburst/grid label scaling
-    this._scaleGroupLabels(zoom, rt);
-
-    this.markDirty();
-  }
-
-  /** Compute priority scores and minShowZoom for all PixiNodes (cached, recomputed only when needed). */
-  private _computeLabelPriorityScores(rt: Record<string, any>): void {
-    const degrees = this.degrees;
-    const pixiArr = [...this.pixiNodes.values()];
-    // Recompute when scores are uninitialized. Use -1 sentinel instead of 0
-    // to avoid false positives for nodes with genuinely zero degree.
-    const needsScoreRecompute = pixiArr.length > 0 && pixiArr[0].priorityScore <= 0;
-    if (!needsScoreRecompute) return;
-
-    let maxDeg = 0;
-    for (const d of degrees.values()) { if (d > maxDeg) maxDeg = d; }
-    // Assign priority scores
-    for (const pn of pixiArr) {
-      const deg = degrees.get(pn.data.id) ?? 0;
-      const degPct = maxDeg > 0 ? deg / maxDeg : 0;
-      const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
-      // Priority: super=150+degPct*50, regular=degPct*100
-      pn.priorityScore = isSuper ? 150 + degPct * 50 : degPct * 100;
-    }
-    // Sort by priority and assign minShowZoom based on rank
-    const sorted = [...pixiArr].filter(p => p.label).sort((a, b) => b.priorityScore - a.priorityScore);
-    const n = sorted.length;
-    // LOD tiers — all boundaries from RenderThresholds (no hardcoded values)
-    const lodZoom1 = rt.labelZoomTier1;   // default 0.15
-    const lodZoom2 = rt.labelZoomTier2;   // default 0.35
-    const lodZoom3 = rt.labelZoomTier3;   // default 0.70
-    const lodPct1 = rt.labelDegreePctTier1; // default 0.10 (top 10%)
-    const lodPct2 = rt.labelDegreePctTier2; // default 0.30 (top 30%)
-    const lodPct3 = rt.labelDegreePctTier3; // default 0.50 (top 50%)
-    // Interpolation: rank percentile -> minShowZoom
-    const lodZoomFloor = rt.nodeLabelZoomMin ?? 0.9;
-    for (let i = 0; i < n; i++) {
-      const pct = i / n; // 0 = highest priority, 1 = lowest
-      let minZ: number;
-      if (pct < lodPct1 * 0.1) minZ = lodZoom1 * 0.2; // top ~1%: near-always visible
-      else if (pct < lodPct1)  minZ = lodZoom1;         // top tier1%
-      else if (pct < lodPct2)  minZ = lodZoom2;         // top tier2%
-      else if (pct < lodPct3)  minZ = lodZoom3;         // top tier3%
-      else                     minZ = lodZoomFloor;     // rest
-      sorted[i].minShowZoom = minZ;
-    }
-  }
-
-  /** Evaluate per-node label visibility: apply counter-scaling, truncation, placement, and LOD hysteresis.
-   *  Returns the list of eligible label candidates. */
-  private _evaluateNodeLabelLOD(
-    zoom: number, counterScale: number,
-    rt: Record<string, any>, degrees: Map<string, number>,
-    baseOpacity: number,
-  ): { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[] {
-    const hoverSet = this.prevHighlightSet;
-
-    // Zoom-aware label truncation
-    const truncateZoom = rt.labelTruncateZoom ?? 0.1;
-    const truncateMaxChars = rt.labelTruncateMaxChars ?? 8;
-    const truncateMinChars = rt.labelTruncateMinChars ?? 3;
-    const shouldTruncate = zoom < truncateZoom;
-    const effectiveMaxChars = shouldTruncate
-      ? Math.max(truncateMinChars, Math.round(truncateMaxChars * (zoom / truncateZoom)))
-      : Infinity;
-
-    // Tag label LOD threshold
-    const tagLabelZoomMin = rt.tagLabelZoomMin ?? 1.2;
-
-    // Hysteresis: once visible, keep visible until zoom drops 30% below threshold
-    const hysteresisHideFactor = rt.labelHysteresisHideFactor ?? 0.7;
-
-    const candidates: { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[] = [];
-
-    for (const pn of this.pixiNodes.values()) {
-      // --- Tag label LOD ---
-      if (pn.tagLabel) {
-        pn.tagLabel.visible = zoom >= tagLabelZoomMin;
-        if (pn.tagLabel.visible) pn.tagLabel.scale.set(counterScale);
-      }
-
-      if (!pn.label) continue;
-
-      // Apply counter-scaling
-      pn.label.scale.set(counterScale);
-
-      // Smart truncation: preserve the distinguishing part of the label
-      this._applyLabelTruncation(pn, shouldTruncate, effectiveMaxChars);
-
-      // Reset label position (zone-based or fixed)
-      const r = pn.radius ?? 6;
-      if (rt.labelZonePlacement && this.renderPipeline) {
-        const placement = this.renderPipeline.computeZonePlacement(
-          pn.data, r, rt.labelZoneOffset ?? 6
-        );
-        pn.label.x = placement.x;
-        pn.label.y = placement.y;
-        pn.label.anchor.set(placement.anchorX, 0);
-      } else {
-        pn.label.x = r + 2;
-        pn.label.y = -(r * 0.4 + 2);
-      }
-
-      const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
-      const isHovered = hoverSet.size > 0 && hoverSet.has(pn.data.id);
-      const deg = degrees.get(pn.data.id) ?? 0;
-
-      // --- Priority-based LOD with hysteresis ---
-      const showThreshold = pn.minShowZoom;
-      const hideThreshold = showThreshold * hysteresisHideFactor;
-      let eligible: boolean;
-      if (isSuper || isHovered) {
-        eligible = true;
-      } else if (pn.labelWasVisible) {
-        // Was visible: keep until zoom drops below hide threshold
-        eligible = zoom >= hideThreshold;
-      } else {
-        // Was hidden: only show when zoom reaches show threshold
-        eligible = zoom >= showThreshold;
-      }
-
-      if (!eligible) {
-        pn.label.visible = false;
-        pn.label.alpha = 0;
-        pn.labelWasVisible = false;
-        if (pn.tagLabel) pn.tagLabel.visible = false;
-        continue;
-      }
-
-      candidates.push({ pn, deg, isSuper, isHovered });
-    }
-
-    return candidates;
-  }
-
-  /** Apply smart truncation to a node label based on zoom level. */
-  private _applyLabelTruncation(pn: PixiNode, shouldTruncate: boolean, effectiveMaxChars: number): void {
-    if (!pn.label) return;
-    if (shouldTruncate && pn.label.text) {
-      const fullText = pn.data.label || pn.data.id;
-      if (fullText.length > effectiveMaxChars) {
-        const slashIdx = fullText.lastIndexOf('/');
-        const dashIdx = fullText.indexOf('-');
-        if (slashIdx > 0 && slashIdx < fullText.length - 1) {
-          // Path label ("classic-othello/characters (15)")
-          // -> show distinguishing parent + child hint ("othello/cha")
-          const parent = fullText.slice(0, slashIdx);
-          const distinctStart = dashIdx > 0 && dashIdx < slashIdx ? dashIdx + 1 : 0;
-          const parentDistinct = parent.slice(distinctStart, distinctStart + Math.max(3, effectiveMaxChars - 2));
-          const child = fullText.slice(slashIdx + 1);
-          const childHint = child.length > 3 ? child.slice(0, 3) : child;
-          pn.label.text = parentDistinct + '/' + childHint;
-        } else if (dashIdx > 0 && dashIdx < effectiveMaxChars) {
-          // Hyphenated: preserve after first dash
-          const afterDash = fullText.slice(dashIdx + 1);
-          pn.label.text = afterDash.length > effectiveMaxChars
-            ? afterDash.slice(0, effectiveMaxChars - 1) + '\u2026'
-            : afterDash;
-        } else {
-          pn.label.text = fullText.slice(0, effectiveMaxChars - 1) + '\u2026';
-        }
-      } else {
-        pn.label.text = fullText;
-      }
-    } else if (pn.label.text) {
-      pn.label.text = pn.data.label || pn.data.id;
-    }
-  }
-
-  /** AP-5 diversity guarantee (promote non-super nodes) and apply maxVisible cap. */
-  private _applyLabelDiversityAndCap(
-    candidates: { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[],
-    rt: Record<string, any>,
-    degrees: Map<string, number>,
-    baseOpacity: number,
-  ): void {
-    const maxVisible = rt.labelMaxVisible ?? 0;
-
-    // AP-5 diversity guarantee: promote top non-super nodes if too few
-    const eligibleNonSuper = candidates.filter(c => !c.isSuper).length;
-    const eligibleSuper = candidates.filter(c => c.isSuper).length;
-    const targetRegulars = Math.max(rt.labelMinNonSuper ?? 5, Math.ceil(eligibleSuper * 0.50));
-    if (eligibleNonSuper < targetRegulars) {
-      const needed = targetRegulars - eligibleNonSuper;
-      const hiddenNonSupers: { pn: PixiNode; deg: number }[] = [];
-      for (const pn of this.pixiNodes.values()) {
-        if (!pn.label || !pn.label.text) continue;
-        const isS = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
-        if (isS) continue;
-        if (candidates.some(c => c.pn === pn)) continue;
-        const d = degrees.get(pn.data.id) ?? 0;
-        hiddenNonSupers.push({ pn, deg: d });
-      }
-      hiddenNonSupers.sort((a, b) => b.deg - a.deg);
-      for (let i = 0; i < Math.min(needed, hiddenNonSupers.length); i++) {
-        const { pn: npn, deg: ndeg } = hiddenNonSupers[i];
-        npn.label.visible = true;
-        npn.label.alpha = Math.max(rt.labelAlphaMin, baseOpacity);
-        candidates.push({ pn: npn, deg: ndeg, isSuper: false, isHovered: false });
-      }
-    }
-
-    // Sort by priority score, apply maxVisible cap
-    candidates.sort((a, b) => b.pn.priorityScore - a.pn.priorityScore);
-
-    let visCount = 0;
-    for (const c of candidates) {
-      const { pn, isHovered } = c;
-      if (isHovered) {
-        pn.label.visible = true;
-        pn.label.alpha = Math.max(rt.labelAlphaMin, baseOpacity);
-        pn.labelWasVisible = true;
-        continue;
-      }
-      if (maxVisible > 0 && visCount >= maxVisible) {
-        pn.label.visible = false;
-        pn.label.alpha = 0;
-        pn.labelWasVisible = false;
-        if (pn.tagLabel) pn.tagLabel.visible = false;
-        continue;
-      }
-      pn.label.visible = true;
-      pn.label.alpha = Math.max(rt.labelAlphaMin, baseOpacity);
-      pn.labelWasVisible = true;
-      visCount++;
-    }
-  }
-
-  /** Scale sunburst, cluster sunburst, and group grid labels based on zoom level. */
-  private _scaleGroupLabels(zoom: number, rt: Record<string, any>): void {
-    // Enclosure labels are managed by EnclosureRenderer (drawEnclosuresImpl)
-    // which runs every frame with its own zoom-dependent scaling (1/ws).
-    // We only handle sunburst/grid labels here.
-
-    const groupLabelScale = Math.min(rt.groupLabelScaleMax,
-      Math.max(rt.groupLabelScaleMin, 1 / Math.pow(zoom, rt.groupLabelScalePower)));
-
-    // --- Cluster sunburst labels: hide at low zoom ---
-    for (const [, lbl] of this.clusterSunburstLabels) {
-      if (zoom < rt.labelZoomTier1) {
-        lbl.visible = false;
-      } else {
-        lbl.scale.set(groupLabelScale);
-      }
-    }
-
-    // --- Sunburst layout labels ---
-    for (const [, lbl] of this.sunburstLabels) {
-      if (zoom < rt.labelZoomTier1) {
-        lbl.visible = false;
-      } else {
-        lbl.scale.set(groupLabelScale);
-      }
-    }
-
-  }
+  private applyTextFade() { this.labelManager?.applyTextFade(); }
 
   /** Called by InteractionManager after zoom changes to update label visibility */
-  updateLabelsForZoom() {
-    this.applyTextFade();
-    // Re-cull node labels with leader lines after counter-scale changes
-    this.renderPipeline?.cullOverlappingLabels();
-    // Re-cull rotated labels after zoom change (screen-space overlap changes)
-    this.cullOverlappingRotatedLabels(this.clusterSunburstLabels);
-    this.cullOverlappingRotatedLabels(this.sunburstLabels);
-  }
+  updateLabelsForZoom() { this.labelManager?.updateLabelsForZoom(); }
+
+  /** Delegate to LabelManager for rotated label culling (also called from drawSunburstLabels, drawClusterSunburstArcs) */
+  cullOverlappingRotatedLabels(labels: Map<string, CanvasText>) { this.labelManager?.cullOverlappingRotatedLabels(labels); }
 
   /** Called by InteractionManager (debounced) when zoom changes.
    *  Adjusts effective node size based on zoom level and recalculates layout. */
@@ -5365,15 +4167,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.drawSunburstLabels(arcs, cx, cy);
   }
 
-  private customGridLabelContainer: CanvasContainer | null = null;
-  private customGridLabels: CanvasText[] = [];
-
   /** Sunburst label container for category names */
   private sunburstLabelContainer: CanvasContainer | null = null;
   private sunburstLabels: Map<string, CanvasText> = new Map();
   private clusterSunburstLabelContainer: CanvasContainer | null = null;
   private clusterSunburstLabels: Map<string, CanvasText> = new Map();
-  private timelineAxisLabels: CanvasText[] = [];
 
   private drawSunburstLabels(arcs: LayoutSunburstArc[], cx: number, cy: number) {
     if (!this.sunburstLabelContainer && this.worldContainer) {
@@ -5429,58 +4227,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.cullOverlappingRotatedLabels(this.sunburstLabels);
   }
 
-  /**
-   * Hide rotated labels that overlap with higher-priority labels.
-   * Uses rotated bounding-box AABB approximation with pre-render width estimation.
-   */
-  private cullOverlappingRotatedLabels(labels: Map<string, CanvasText>) {
-    if (labels.size === 0) return;
-
-    // Estimate text width before first render (measureText hasn't run yet)
-    const estimateWidth = (txt: CanvasText): number => {
-      if (txt.width > 0) return txt.width;
-      const fontSize = txt.style.fontSize ?? 11;
-      const isBold = txt.style.fontWeight === "bold" || txt.style.fontWeight === "600";
-      // Average character width ≈ 0.6 × fontSize (proportional font heuristic)
-      return txt.text.length * fontSize * (isBold ? 0.65 : 0.58);
-    };
-
-    // Compute AABB for each rotated label in world coordinates
-    const rotatedAABB = (txt: CanvasText) => {
-      const w = estimateWidth(txt);
-      const h = txt.height || (txt.style.fontSize ?? 11);
-      const cos = Math.abs(Math.cos(txt.rotation));
-      const sin = Math.abs(Math.sin(txt.rotation));
-      // Rotated bounding box width/height
-      const bw = w * cos + h * sin;
-      const bh = w * sin + h * cos;
-      return {
-        x: txt.x - bw * txt.anchor.x,
-        y: txt.y - bh * txt.anchor.y,
-        w: bw,
-        h: bh,
-      };
-    };
-
-    const rectsOverlap = (
-      a: { x: number; y: number; w: number; h: number },
-      b: { x: number; y: number; w: number; h: number },
-    ) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-
-    const placedRects: { x: number; y: number; w: number; h: number }[] = [];
-    for (const [, txt] of labels) {
-      if (!txt.visible) continue;
-      const rect = rotatedAABB(txt);
-
-      // Check against all placed rects
-      const overlaps = placedRects.some(pr => rectsOverlap(rect, pr));
-      if (overlaps) {
-        txt.visible = false;
-      } else {
-        placedRects.push(rect);
-      }
-    }
-  }
 
 }
 
