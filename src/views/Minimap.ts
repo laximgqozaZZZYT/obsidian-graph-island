@@ -248,6 +248,7 @@ export class Minimap {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
     // Convert minimap coords to world coords
+    if (!bounds.scale || bounds.scale < 0.001) return;
     const worldX = mx / bounds.scale + bounds.minX;
     const worldY = my / bounds.scale + bounds.minY;
     // Center viewport on this world position
@@ -261,8 +262,14 @@ export class Minimap {
   }
 
   destroy() {
-    this.wrapper.remove();
+    // Remove all listeners to prevent memory leaks
+    const canvas = this.canvas;
+    if (canvas) {
+      canvas.removeEventListener("mousedown", this.onMouseDown);
+      canvas.removeEventListener("mousemove", this.onMouseMove);
+    }
     document.removeEventListener("mouseup", this.onMouseUp);
     document.removeEventListener("mousemove", this.onHandleMove);
+    this.wrapper.remove();
   }
 }

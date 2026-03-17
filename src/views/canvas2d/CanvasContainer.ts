@@ -65,8 +65,10 @@ export class CanvasContainer {
     const myChain = this._getAncestorChain(this);
     for (let i = myChain.length - 1; i >= 0; i--) {
       const node = myChain[i];
-      gx = (gx - node.x) / node.scale.x;
-      gy = (gy - node.y) / node.scale.y;
+      const sx = node.scale.x || 1;
+      const sy = node.scale.y || 1;
+      gx = (gx - node.x) / sx;
+      gy = (gy - node.y) / sy;
     }
     return { x: gx, y: gy };
   }

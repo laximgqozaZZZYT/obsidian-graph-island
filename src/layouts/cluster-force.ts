@@ -21,7 +21,7 @@
  */
 import type { GraphNode, GraphEdge, ClusterArrangement, ClusterGroupRule, CoordinateLayout } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
-import { computeBBoxWithCentroid } from "../utils/geometry";
+import { computeBBoxWithCentroid, magnitude } from "../utils/geometry";
 import { resolveArrangementFromLayout, isExactPreset, ARRANGEMENT_PRESETS } from "./coordinate-presets";
 import { coordinateOffsets, type CoordinateGuide, type CoordinateContext } from "./coordinate-engine";
 import {
@@ -255,7 +255,7 @@ function resolveGroupOverlaps(
       if (!t) continue;
       // Use base nodeSize for group extent (not effectiveRadius) so that
       // a single high-degree node doesn't inflate the entire group radius.
-      const d = Math.sqrt((t.x - centroid.x) ** 2 + (t.y - centroid.y) ** 2) + nodeSize;
+      const d = magnitude(t.x - centroid.x, t.y - centroid.y) + nodeSize;
       if (d > maxDist) maxDist = d;
     }
     const estimated = clusterRadii.get(key) ?? 0;
@@ -283,7 +283,7 @@ function resolveGroupOverlaps(
 
         const dx = cB.x - cA.x;
         const dy = cB.y - cA.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        const dist = magnitude(dx, dy);
         const minDist = (rA + rB) * overlapPad;
 
         if (dist >= minDist) continue;
@@ -379,7 +379,7 @@ function resolveIntraGroupGaps(
 
           const dx = tj.x - ti.x;
           const dy = tj.y - ti.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+          const dist = magnitude(dx, dy);
           const required = ri + rj + minGap;
 
           if (dist >= required) continue;
@@ -651,7 +651,7 @@ function buildClusterMetadataFromTargets(
     for (const n of members) {
       const t = targets.get(n.id);
       if (t) {
-        const d = Math.sqrt((t.x - cx) ** 2 + (t.y - cy) ** 2);
+        const d = magnitude(t.x - cx, t.y - cy);
         if (d > actualR) actualR = d;
       }
     }
@@ -762,7 +762,7 @@ function buildClusterForceFunction(
         } else {
           const dx = n.x - rc.cx;
           const dy = n.y - rc.cy;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+          const dist = magnitude(dx, dy);
           if (dist > 0.01) {
             n.x = rc.cx + (dx / dist) * rc.r;
             n.y = rc.cy + (dy / dist) * rc.r;
@@ -995,7 +995,7 @@ function _computeGroupOffsetsAndRadii(
     groupResults.set(key, result);
     let maxDist = 0;
     for (const { dx, dy } of result.offsets.values()) {
-      const d = Math.sqrt(dx * dx + dy * dy);
+      const d = magnitude(dx, dy);
       if (d > maxDist) maxDist = d;
     }
     actualRadii.set(key, maxDist + cfg.nodeSize);
@@ -2244,7 +2244,7 @@ function normalizeSpread(
 
   let maxDist = 0;
   for (const { dx, dy } of offsets.values()) {
-    const d = Math.sqrt((dx - cx) ** 2 + (dy - cy) ** 2);
+    const d = magnitude(dx - cx, dy - cy);
     if (d > maxDist) maxDist = d;
   }
   if (maxDist < 1) return;
@@ -2618,7 +2618,7 @@ function randomOffsets(p: ArrangementParams): Map<string, { dx: number; dy: numb
       for (const p of placed) {
         const ddx = dx - p.x;
         const ddy = dy - p.y;
-        const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+        const dist = magnitude(ddx, ddy);
         const required = minDist + p.r;
         if (dist < required && dist > 0.01) {
           const push = (required - dist) * 0.6;
@@ -2675,7 +2675,7 @@ function nudgeEnclosureGroups(
       const a = centroids[i], b = centroids[j];
       const dx = b.cx - a.cx;
       const dy = b.cy - a.cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      const dist = magnitude(dx, dy);
       const desiredDist = (a.r + b.r) * nodeSpacing;
       if (dist >= desiredDist) continue;
 
@@ -2909,7 +2909,7 @@ export function computeAutoFitSpacing(
           if (!cA || !cB || rA < 1 || rB < 1) continue;
           const cdx = cB.x - cA.x;
           const cdy = cB.y - cA.y;
-          const dist = Math.sqrt(cdx * cdx + cdy * cdy);
+          const dist = magnitude(cdx, cdy);
           if (dist < (rA + rB) * 1.1) {
             hasCrossGroupOverlap = true;
             hasNodeOverlap = true;
@@ -2984,7 +2984,7 @@ export function analyzeOverlap(
       const b = sample[j];
       const dx = a.x - b.x;
       const dy = a.y - b.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      const dist = magnitude(dx, dy);
       if (dist < closeThreshold) {
         closePairs++;
         const rb = radii.get(b.id) ?? avgRadius;

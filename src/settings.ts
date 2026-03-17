@@ -230,7 +230,8 @@ export class GraphViewsSettingTab extends PluginSettingTab {
             return;
           }
           try {
-            const dir = path.substring(0, path.lastIndexOf("/"));
+            const slashIdx = path.lastIndexOf("/");
+            const dir = slashIdx > 0 ? path.substring(0, slashIdx) : "";
             if (dir && !this.app.vault.getFolderByPath(dir)) {
               await this.app.vault.createFolder(dir);
             }
