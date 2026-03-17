@@ -1344,7 +1344,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 
   // Hover tooltip
   hoverTooltipShow: true,
-  hoverTooltipFontSize: 10,
+  hoverTooltipFontSize: 16,
 
   // Halo background
   labelHaloCornerRadius: 3,

@@ -2237,7 +2237,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Counter-scale: keep label readable regardless of zoom level
     const counterScale = Math.max(0.5, 1 / zoom);
-    const tooltipFontSize = rt.hoverTooltipFontSize ?? 12;
+    const tooltipFontSize = rt.hoverTooltipFontSize ?? 16;
     const hl = new CanvasText(tooltipText, {
       fontSize: tooltipFontSize,
       fill: this.getLabelColor(),
