@@ -2384,30 +2384,11 @@ function buildAxisTextInput(
   }
 }
 
-/** Create a default AxisTransform for the given kind */
-function createDefaultTransform(kind: string): AxisTransform {
-  switch (kind) {
-    case "linear": return { kind: "linear", scale: 1 };
-    case "bin": return { kind: "bin", count: 5 };
-    case "date-to-index": return { kind: "date-to-index" };
-    case "stack-avoid": return { kind: "stack-avoid" };
-    case "golden-angle": return { kind: "golden-angle" };
-    case "even-divide": return { kind: "even-divide", totalRange: 360 };
-    case "curve": return { kind: "curve", curve: "archimedean", params: { ...CURVE_REGISTRY.archimedean.defaultParams }, scale: 1 };
-    case "expression": return { kind: "expression", expr: "t", scale: 1 };
-    default: return { kind: "linear", scale: 1 };
-  }
-}
-
 /** Generate autocomplete suggestions for axis source input */
 function getAxisSourceSuggestions(ctx: PanelContext): string[] {
   const keywords = ["index", "degree", "in-degree", "out-degree", "bfs-depth", "sibling-rank", "random", "const"];
   const fields = getUnifiedFieldSuggestions(ctx);
   return [...keywords, ...fields, "hop:"];
-}
-
-function getSourceValue(src: AxisSource): string {
-  return axisSourceToString(src);
 }
 
 // ---------------------------------------------------------------------------
@@ -2592,25 +2573,6 @@ function addTextInput(container: HTMLElement, label: string, initial: string, pl
   const control = row.createDiv({ cls: "setting-item-control" });
   const input = control.createEl("input", { type: "text", placeholder, attr: { "aria-label": label } });
   input.value = initial;
-  input.addEventListener("change", () => onChange(input.value));
-}
-
-/** Text input with datalist suggestions (autocomplete from known values) */
-function addSuggestInput(container: HTMLElement, label: string, initial: string, placeholder: string, suggestions: string[], onChange: (v: string) => void) {
-  const row = container.createDiv({ cls: "setting-item gi-full-width-row" });
-  const info = row.createDiv({ cls: "setting-item-info" });
-  const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
-  nameEl.title = label;
-  const control = row.createDiv({ cls: "setting-item-control" });
-  const listId = `gi-suggest-${label.replace(/\s+/g, "-")}-${Date.now()}`;
-  const input = control.createEl("input", { type: "text", placeholder, attr: { "aria-label": label } });
-  input.value = initial;
-  input.setAttribute("list", listId);
-  const datalist = control.createEl("datalist");
-  datalist.id = listId;
-  for (const s of suggestions) {
-    datalist.createEl("option", { value: s });
-  }
   input.addEventListener("change", () => onChange(input.value));
 }
 
@@ -3645,22 +3607,6 @@ function addSelect(container: HTMLElement, label: string, options: { value: stri
   sel.addEventListener("change", () => onChange(sel.value));
 }
 
-function addDirectionToggle(container: HTMLElement, label: string, initial: 1 | -1, onChange: (v: 1 | -1) => void) {
-  const row = container.createDiv({ cls: "setting-item" });
-  const info = row.createDiv({ cls: "setting-item-info" });
-  const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
-  nameEl.title = label;
-  const control = row.createDiv({ cls: "setting-item-control" });
-  const btn = control.createEl("button", { cls: "gi-direction-btn", text: initial === 1 ? t("direction.clockwise") : t("direction.counterClockwise") });
-  btn.dataset.dir = initial === 1 ? "cw" : "ccw";
-  btn.addEventListener("click", () => {
-    const next: 1 | -1 = btn.dataset.dir === "cw" ? -1 : 1;
-    btn.textContent = next === 1 ? t("direction.clockwise") : t("direction.counterClockwise");
-    btn.dataset.dir = next === 1 ? "cw" : "ccw";
-    onChange(next);
-  });
-}
-
 function renderGroupList(container: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks) {
   container.empty();
   panel.groups.forEach((g, i) => {
@@ -3761,14 +3707,6 @@ function renderSortRuleList(
 // ---------------------------------------------------------------------------
 // Cluster group rule list
 // ---------------------------------------------------------------------------
-
-function getClusterGroupOptions(): { value: ClusterGroupBy; label: string }[] {
-  return [
-    { value: "tag", label: t("clusterGroup.tag") },
-    { value: "backlinks", label: t("clusterGroup.backlinks") },
-    { value: "node_type", label: t("clusterGroup.nodeType") },
-  ];
-}
 
 function renderClusterRuleList(
   container: HTMLElement,
