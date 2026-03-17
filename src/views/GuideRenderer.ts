@@ -232,7 +232,7 @@ export class GuideRenderer {
       }
       const fontSize = rt.timelineAxisLabelFontSize! / worldScale;
       const labelOffset = rt.timelineAxisLabelOffset! / worldScale;
-      const labelAlpha = rt2.timelineAxisLabelAlpha!;
+      const labelAlpha = rt.timelineAxisLabelAlpha!;
       const labelColor = color;
       for (const tick of labelTicks) {
         const tx = cx + tick.x;
