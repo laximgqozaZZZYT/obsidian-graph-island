@@ -587,9 +587,9 @@ function _buildNodeDisplaySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.displayNodes"), (body) => {
-    addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRender(); }, t("desc.nodeColor"));
-    addToggle(body, t("display.heatmap"), panel.heatmapMode, (v) => { panel.heatmapMode = v; cb.doRender(); }, t("desc.heatmap"));
-    addSlider(body, t("display.nodeSize"), 2, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRender(); }, t("desc.nodeSize"));
+    addToggle(body, t("display.nodeColor"), panel.colorNodesByCategory, (v) => { panel.colorNodesByCategory = v; cb.doRenderKeepPanel(); }, t("desc.nodeColor"));
+    addToggle(body, t("display.heatmap"), panel.heatmapMode, (v) => { panel.heatmapMode = v; cb.doRenderKeepPanel(); }, t("desc.heatmap"));
+    addSlider(body, t("display.nodeSize"), 2, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRenderKeepPanel(); }, t("desc.nodeSize"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
     addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.markDirty(); }, t("desc.hoverHops"));
     // --- ノード形状 ---
@@ -601,14 +601,14 @@ function _buildNodeDisplaySection(
         const rule = panel.nodeShapeRules.find(r => r.match === "isTag");
         if (rule) rule.shape = v as NodeShape;
         else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
-        cb.doRender();
+        cb.doRenderKeepPanel();
       }, t("desc.tagNodeShape"));
     }
     addSelect(body, t("display.defaultNodeShape"), shapeOptions, defaultRule?.shape ?? "circle", (v) => {
       const rule = panel.nodeShapeRules.find(r => r.match === "default");
       if (rule) rule.shape = v as NodeShape;
       else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
-      cb.doRender();
+      cb.doRenderKeepPanel();
     }, t("desc.defaultNodeShape"));
   }, undefined, false, "circle-dot");
 }
@@ -636,15 +636,15 @@ function _buildNodeDisplayModeSection(
         "e.g. category, tags, node_type",
         (v) => {
           panel.cardDisplayConfig.fields = v.split(",").map(s => s.trim()).filter(Boolean);
-          cb.doRender();
+          cb.doRenderKeepPanel();
         });
       addSlider(body, t("display.cardMaxWidth"), 60, 300, 10, panel.cardDisplayConfig.maxWidth ?? 120, (v) => {
         panel.cardDisplayConfig.maxWidth = v;
-        cb.doRender();
+        cb.doRenderKeepPanel();
       });
       addToggle(body, t("display.cardShowIcon"), panel.cardDisplayConfig.showIcon ?? false, (v) => {
         panel.cardDisplayConfig.showIcon = v;
-        cb.doRender();
+        cb.doRenderKeepPanel();
       });
       addSelect(body, t("display.cardHeaderStyle"), [
         { value: "plain", label: t("display.cardStylePlain") },
@@ -659,11 +659,11 @@ function _buildNodeDisplayModeSection(
         "e.g. category, node_type",
         (v) => {
           panel.donutDisplayConfig.breakdownField = v.trim() || undefined;
-          cb.doRender();
+          cb.doRenderKeepPanel();
         });
       addSlider(body, t("display.donutInnerRadius"), 0, 0.9, 0.05, panel.donutDisplayConfig.innerRadius ?? 0.6, (v) => {
         panel.donutDisplayConfig.innerRadius = v;
-        cb.doRender();
+        cb.doRenderKeepPanel();
       });
     }
     // sunburst-segment mode: uses default arcAngle (30 degrees)
@@ -674,7 +674,7 @@ function _buildEdgeDisplaySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.displayEdges"), (body) => {
-    addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRender(); }, t("desc.arrows"));
+    addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRenderKeepPanel(); }, t("desc.arrows"));
     addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); cb.rebuildPanel(); }, t("desc.edgeColor"));
     addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
     addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); }, t("desc.edgeLabels"));
@@ -806,7 +806,7 @@ function _buildRenderThresholdsSection(
       rt.clusterChargeForce ?? DEFAULT_RENDER_THRESHOLDS.clusterChargeForce, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.clusterChargeForce = v;
-        cb.doRender();
+        cb.doRenderKeepPanel();
       }, t("render.clusterChargeForceDesc"));
     addSlider(body, t("render.gridLabelOffset"), 0, 40, 1,
       rt.gridLabelOffset ?? DEFAULT_RENDER_THRESHOLDS.gridLabelOffset, (v) => {
@@ -965,7 +965,7 @@ function _buildPluginSettingsSection(
       addSlider(body, t("settings.enclosureMinRatio"), 0, 0.3, 0.02, s.enclosureMinRatio, (v) => {
         s.enclosureMinRatio = v;
         ctx.saveSettings();
-        cb.doRender();
+        cb.doRenderKeepPanel();
       }, t("desc.enclosureSpacing"));
     }
   }, tHelp("help.pluginSettings"), false, "settings");
@@ -1279,7 +1279,7 @@ function _buildTimelineControls(s: ClusterSectionCtx): void {
     (min, max) => {
       panel.timelineRangeMin = min;
       panel.timelineRangeMax = max;
-      cb.doRender();
+      cb.doRenderKeepPanel();
     }, t("desc.timelineRange") || "Visible time range (% of total)");
 }
 
@@ -1519,7 +1519,7 @@ function _buildSortRules(s: ClusterSectionCtx): void {
     panel.sortRules.push({ key: "label", order: "asc" });
     renderSortRuleList(sortListEl, panel, cb);
     cb.applyClusterForce();
-    cb.doRender();
+    cb.doRenderKeepPanel();
   });
 }
 
@@ -3706,7 +3706,7 @@ function renderSortRuleList(
     keySel.addEventListener("change", () => {
       rule.key = keySel.value as SortKey;
       cb.applyClusterForce();
-      cb.doRender();
+      cb.doRenderKeepPanel();
     });
 
     // Order toggle button
@@ -3719,7 +3719,7 @@ function renderSortRuleList(
       rule.order = rule.order === "asc" ? "desc" : "asc";
       orderBtn.textContent = rule.order === "asc" ? t("sort.asc") : t("sort.desc");
       cb.applyClusterForce();
-      cb.doRender();
+      cb.doRenderKeepPanel();
     });
 
     // Remove button
@@ -3728,7 +3728,7 @@ function renderSortRuleList(
       rules.splice(i, 1);
       renderSortRuleList(container, panel, cb);
       cb.applyClusterForce();
-      cb.doRender();
+      cb.doRenderKeepPanel();
     });
   });
 }
