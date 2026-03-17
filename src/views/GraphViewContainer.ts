@@ -2356,11 +2356,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Draw guides (grid lines, axis titles, tick labels)
   // =========================================================================
   drawGuides() {
-    if (!this.guideRenderer || !this.guideGraphics || !this.clusterMeta) return;
+    if (!this.guideRenderer || !this.guideGraphics) return;
     const g = this.guideGraphics;
     g.clear();
-    const guides = this.clusterMeta.groupGuides;
-    if (!guides || guides.length === 0) return;
+    // clusterMeta may not exist if no cluster force is active
+    const guides = this.clusterMeta?.groupGuides;
+    if (!guides || guides.length === 0) {
+      // Fallback: try to draw guides from the last render's guide data
+      // (e.g., when no groupBy is set but coordinateLayout produces guides)
+      return;
+    }
     const isDark = this.isDarkTheme();
     const lineW = 1;
     const color = isDark ? 0x555555 : 0xcccccc;
