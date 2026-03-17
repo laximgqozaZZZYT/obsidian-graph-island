@@ -39,7 +39,7 @@ export function computePropagatedImportance(
   const outgoing = new Map<string, string[]>();
   for (const n of nodes) outgoing.set(n.id, []);
   for (const e of edges) {
-    outgoing.get(e.source)!.push(e.target);
+    outgoing.get(e.source)?.push(e.target);
   }
 
   const importance = new Map<string, number>();

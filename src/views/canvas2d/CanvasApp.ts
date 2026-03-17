@@ -130,8 +130,8 @@ export class CanvasApp {
     const dotR = Math.max(0.5, ws * 0.8); // Dot radius scales with zoom
 
     // Determine visible grid range
-    const startX = wx % spacing;
-    const startY = wy % spacing;
+    const startX = ((wx % spacing) + spacing) % spacing;
+    const startY = ((wy % spacing) + spacing) % spacing;
 
     // Use theme-aware dot color (slightly brighter/darker than background)
     const { r, g, b } = hexToRgb(this.bgColor);

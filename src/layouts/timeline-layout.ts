@@ -89,7 +89,7 @@ export function timelineOffsetsV2(p: TimelineArrangementParams): ArrangementResu
   const spacing = pairwiseGap(nodeSize, nodeSize, Math.max(nodeSpacing, groupScale));
 
   // --- Step 1: ノードを timed/untimed に分割し、リンクベース順序を適用 ---
-  const { timed, untimed, detectedChains } = timelinePartitionNodes(members, cfg);
+  const { timed, untimed, detectedChains, hierParentMap, hierChildrenMap } = timelinePartitionNodes(members, cfg);
 
   // --- Step 2: timed ノードをソートし、タイムステップを構築 ---
   const { sortedTimed, uniqueTimes, timeIndexMap, allNumeric } = timelineSortAndBuildSteps(timed);
@@ -101,6 +101,11 @@ export function timelineOffsetsV2(p: TimelineArrangementParams): ArrangementResu
 
   // --- Step 4: timed ノードを配置 (X = 時間カラム, Y = スタック) ---
   timelinePlaceTimedNodes(sortedTimed, timeIndexMap, effectiveSpacing, yStackSpacing, nodeSpacingMap, offsets, detectedChains);
+
+  // --- Step 4b: 階層ノードを親の直下に再配置 ---
+  if (hierParentMap && hierChildrenMap && hierParentMap.size > 0) {
+    timelineAlignHierarchy(hierParentMap, hierChildrenMap, offsets, yStackSpacing);
+  }
 
   // --- Step 5: untimed ノードをコンパクトグリッドに配置 ---
   timelinePlaceUntimedNodes(untimed, nTimedCols, effectiveSpacing, yStackSpacing, offsets);
@@ -157,7 +162,7 @@ export function timelineOffsetsV2(p: TimelineArrangementParams): ArrangementResu
 function timelinePartitionNodes(
   members: GraphNode[],
   cfg: ClusterForceConfig,
-): { timed: { node: GraphNode; value: string }[]; untimed: GraphNode[]; detectedChains?: string[][] } {
+): { timed: { node: GraphNode; value: string }[]; untimed: GraphNode[]; detectedChains?: string[][]; hierParentMap?: Map<string, string>; hierChildrenMap?: Map<string, string[]> } {
   const getNodeProperty = cfg.getNodeProperty;
   const timelineOrderFields = cfg.timelineOrderFields;
 
@@ -183,6 +188,8 @@ function timelinePartitionNodes(
   const hasParentId = orderFields.includes("parent_id");
 
   let detectedChains: string[][] | undefined;
+  let hierParentMap: Map<string, string> | undefined;
+  let hierChildrenMap: Map<string, string[]> | undefined;
 
   if (untimed.length > 0 && getNodeProperty) {
     if (hasSequenceFields) {
@@ -207,6 +214,8 @@ function timelinePartitionNodes(
     if (untimed.length > 0 && hasParentId) {
       const hierOrder = buildHierarchyOrder(untimed, getNodeProperty);
       if (hierOrder.size > 0) {
+        hierParentMap = hierOrder.parentMap;
+        hierChildrenMap = hierOrder.childrenMap;
         const hierOrdered: GraphNode[] = [];
         const remaining: GraphNode[] = [];
         for (const nd of untimed) {
@@ -223,7 +232,7 @@ function timelinePartitionNodes(
     }
   }
 
-  return { timed, untimed, detectedChains };
+  return { timed, untimed, detectedChains, hierParentMap, hierChildrenMap };
 }
 
 /** timed エントリをソート (数値 vs 辞書順) し、ユニークタイムステップインデックスを構築 */
@@ -343,6 +352,42 @@ function timelinePlaceTimedNodes(
           dy: chainRowY * ns,
         });
       }
+    }
+  }
+}
+
+/** 階層ノードを親の直下に再配置 (同X, 親Y + offset) */
+function timelineAlignHierarchy(
+  parentMap: Map<string, string>,
+  childrenMap: Map<string, string[]>,
+  offsets: Map<string, { dx: number; dy: number }>,
+  yStackSpacing: number,
+): void {
+  // BFS from roots: place children directly below their parent
+  const roots: string[] = [];
+  for (const [childId, parentId] of parentMap) {
+    if (!parentMap.has(parentId)) roots.push(parentId);
+  }
+  // Deduplicate roots
+  const rootSet = new Set(roots);
+
+  const visited = new Set<string>();
+  const queue = [...rootSet];
+  while (queue.length > 0) {
+    const parentId = queue.shift()!;
+    if (visited.has(parentId)) continue;
+    visited.add(parentId);
+    const children = childrenMap.get(parentId);
+    if (!children || children.length === 0) continue;
+    const parentOff = offsets.get(parentId);
+    if (!parentOff) continue;
+    for (let i = 0; i < children.length; i++) {
+      const childId = children[i];
+      offsets.set(childId, {
+        dx: parentOff.dx,
+        dy: parentOff.dy + (i + 1) * yStackSpacing,
+      });
+      queue.push(childId);
     }
   }
 }
@@ -683,8 +728,8 @@ export function buildLinkChainOrder(
 export function buildHierarchyOrder(
   members: GraphNode[],
   getNodeProperty: (id: string, key: string) => string | undefined,
-): Map<string, number> {
-  const order = new Map<string, number>();
+): Map<string, number> & { parentMap?: Map<string, string>; childrenMap?: Map<string, string[]> } {
+  const order = new Map<string, number>() as Map<string, number> & { parentMap?: Map<string, string>; childrenMap?: Map<string, string[]> };
   const idSet = new Set(members.map(n => n.id));
 
   // 親→子マップを構築
@@ -705,6 +750,18 @@ export function buildHierarchyOrder(
   }
 
   if (children.size === 0) return order;
+
+  // parentMap (child→parent) と childrenMap (parent→children) を構築して返す
+  const parentMap = new Map<string, string>();
+  for (const nd of members) {
+    const parentVal = getNodeProperty(nd.id, "parent_id");
+    if (parentVal) {
+      const parentId = extractWikilink(parentVal) || parentVal;
+      if (idSet.has(parentId)) {
+        parentMap.set(nd.id, parentId);
+      }
+    }
+  }
 
   // story_order で子をソート
   for (const ch of children.values()) {
@@ -746,6 +803,14 @@ export function buildHierarchyOrder(
       order.set(nd.id, idx++);
     }
   }
+
+  // childrenMap を id リストとして構築
+  const childrenMapOut = new Map<string, string[]>();
+  for (const [pid, ch] of children) {
+    childrenMapOut.set(pid, ch.map(c => c.id));
+  }
+  order.parentMap = parentMap;
+  order.childrenMap = childrenMapOut;
 
   return order;
 }
