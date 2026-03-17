@@ -143,7 +143,7 @@ export class DiffOverlay {
     ctx.globalAlpha = 0.5;
     ctx.setLineDash([]);
     for (const edgeKey of this.diff.addedEdgeKeys) {
-      const [src, tgt] = edgeKey.split("->");
+      const [src, tgt] = edgeKey.split("\0");
       const pnSrc = pixiNodes.get(src);
       const pnTgt = pixiNodes.get(tgt);
       if (!pnSrc || !pnTgt) continue;

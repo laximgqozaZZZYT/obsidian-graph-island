@@ -331,7 +331,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         // Transient editing state — don't persist empty-field rules
         panelClone[k] = null;
       } else {
-        panelClone[k] = JSON.parse(JSON.stringify(v));
+        try { panelClone[k] = JSON.parse(JSON.stringify(v)); }
+        catch { panelClone[k] = v; }
       }
     }
     return {
@@ -1187,6 +1188,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   async onClose() {
+    clearTimeout(this._autoFitTimer);
     this.stopOrbitAnimation();
     this.stopSim();
     this.ac?.abort();
@@ -1903,16 +1905,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       pn.data.fx = null;
       pn.data.fy = null;
     }
-    // フォーカスモード: クリック時にハイライトを固定
-    if (this.panel.focusMode) {
-      if (this.panel.focusNodeId === pn.data.id) {
-        // 同じノードを再クリック → フォーカス解除
-        this.panel.focusNodeId = null;
-      } else {
-        this.panel.focusNodeId = pn.data.id;
-      }
-      this._applyFocusHighlight();
+  }
+
+  /** フォーカスモード: 通常クリック時のみハイライトを固定 (Ctrl+clickでは呼ばない) */
+  applyFocusOnClick(nodeId: string): void {
+    if (!this.panel.focusMode) return;
+    if (this.panel.focusNodeId === nodeId) {
+      this.panel.focusNodeId = null;
+    } else {
+      this.panel.focusNodeId = nodeId;
     }
+    this._applyFocusHighlight();
   }
 
   /** Clear all held nodes */
@@ -3608,8 +3611,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _buildResetPanelCallback(): void {
     const s = this.plugin.settings;
     // createDefaultPanel() returns fresh mutable instances — no shared-reference risk
+    // Preserve personal/session state through reset
+    const preserved = {
+      bookmarkedNodes: this.panel.bookmarkedNodes,
+      annotations: this.panel.annotations,
+      searchHistory: this.panel.searchHistory,
+    };
     Object.assign(this.panel, {
       ...createDefaultPanel(),
+      ...preserved,
       sortRules: [...(s.defaultSortRules ?? [{ key: "degree", order: "desc" }])].map(r => ({ ...r })),
       clusterGroupRules: [...(s.defaultClusterGroupRules ?? [])].map(r => ({ ...r })),
       nodeRules: [...(s.defaultNodeRules ?? [])].map(r => ({ ...r })),

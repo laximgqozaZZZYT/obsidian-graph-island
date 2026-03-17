@@ -57,6 +57,7 @@ export interface InteractionHost {
   openFile(filePath: string): void;
   /** Toggle hold (pin) state for a node */
   toggleHold(pn: PixiNode): void;
+  applyFocusOnClick?(nodeId: string): void;
   /** Clear all held (pinned) nodes */
   clearAllHolds(): void;
   /** Get the accent color (for marquee drawing) */
@@ -202,6 +203,7 @@ export class InteractionManager {
 
   /** Remove all event listeners and clean up PIXI resources */
   detach() {
+    clearTimeout(this._zoomLayoutTimer);
     this.canvas.removeEventListener("wheel", this._onWheel);
     this.canvas.removeEventListener("pointerdown", this._onPointerDown);
     this.canvas.removeEventListener("pointermove", this._onPointerMove);
@@ -487,12 +489,13 @@ export class InteractionManager {
         }
         // Click (no drag) → toggle hold (pin position)
         if (e.ctrlKey || e.metaKey) {
-          // Ctrl+click: 比較選択に追加し、holdもトグル
+          // Ctrl+click: 比較選択に追加し、holdもトグル (focusは変更しない)
           this.host.addCompareNode(node.data.id);
         } else {
-          // 通常クリック: 他のholdと比較選択をクリア
+          // 通常クリック: 他のholdと比較選択をクリア + フォーカス適用
           this.host.clearAllHolds();
           this.host.clearCompareSelection();
+          this.host.applyFocusOnClick?.(node.data.id);
         }
         this.host.toggleHold(node);
       } else {

@@ -94,9 +94,9 @@ export function captureSnapshot(
 // エッジキーの生成ヘルパー
 // ---------------------------------------------------------------------------
 
-/** エッジを一意に識別するキー文字列を生成する */
+/** エッジを一意に識別するキー文字列を生成する (NUL区切り — IDに含まれない文字) */
 function edgeKey(source: string, target: string, type: string): string {
-  return `${source}->${target}->${type}`;
+  return `${source}\0${target}\0${type}`;
 }
 
 // ---------------------------------------------------------------------------
