@@ -4566,31 +4566,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private computeLiveCentroids() { return this.layoutController.computeLiveCentroids(this.clusterMeta); }
 
   /** Get positions of nodes belonging to a specific group (for convex hull placement). */
-  private getGroupNodePositions(groupKey: string): { x: number; y: number }[] {
-    const ncm = this.clusterMeta?.nodeClusterMap;
-    if (!ncm) return [];
-    const result: { x: number; y: number }[] = [];
-    for (const [nodeId, cluster] of ncm) {
-      if (cluster !== groupKey) continue;
-      const pn = this.pixiNodes.get(nodeId);
-      if (pn) result.push({ x: pn.data.x, y: pn.data.y });
-    }
-    return result;
-  }
-
-  /** Get a hex color for a cluster group, cycling through DEFAULT_COLORS palette */
-  private getClusterGroupColor(groupKey: string): number {
-    const centroids = this.clusterMeta?.clusterCentroids;
-    if (!centroids) return 0x666666;
-
-    // Get sorted group keys for stable color assignment
-    const keys = [...centroids.keys()].sort();
-    const idx = keys.indexOf(groupKey);
-    if (idx < 0) return 0x666666;
-
-    return cssColorToHex(DEFAULT_COLORS[idx % DEFAULT_COLORS.length]);
-  }
-
   /** Collect all frontmatter keys from the vault for field selects */
   private _fmKeysCache: string[] | null = null;
   private _fmKeysCacheTime = 0;
