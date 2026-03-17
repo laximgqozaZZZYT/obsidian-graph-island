@@ -218,6 +218,8 @@ export interface RenderHost {
   getEphemeralHighlight(): Set<string> | null;
   /** Rebuild the spatial hash grid */
   rebuildSpatialGrid(): void;
+  /** Draw coordinate guides (grid lines, axis titles, tick labels) */
+  drawGuides(): void;
   /** Draw orbit rings */
   drawOrbitRings(): void;
   /** Draw enclosures */
@@ -412,6 +414,7 @@ export class RenderPipeline {
     this.edgeRedrawCounter++;
     if (forceFullRedraw || this.edgeRedrawCounter >= EDGE_REDRAW_SKIP) {
       this.edgeRedrawCounter = 0;
+      this.host.drawGuides(); // Grid lines, axis titles, tick labels (background layer)
       this.host.drawEnclosures();
       this.host.drawSunburstArcs();
       this.host.drawRouteLines();

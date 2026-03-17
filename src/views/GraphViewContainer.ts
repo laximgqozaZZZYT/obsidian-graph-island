@@ -120,6 +120,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private worldContainer: CanvasContainer | null = null;
   private edgeGraphics: CanvasGraphics | null = null;
   private orbitGraphics: CanvasGraphics | null = null;
+  private guideGraphics: CanvasGraphics | null = null;
   private enclosureGraphics: CanvasGraphics | null = null;
   private enclosureLabelContainer: CanvasContainer | null = null;
   private sunburstGraphics: CanvasGraphics | null = null;
@@ -1268,6 +1269,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.worldContainer = null;
     this.edgeGraphics = null;
     this.orbitGraphics = null;
+    this.guideGraphics = null;
     this.enclosureGraphics = null;
     this.enclosureLabelContainer = null;
     this.sunburstGraphics = null;
@@ -1373,6 +1375,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const world = new CanvasContainer();
     app.stage.addChild(world);
     this.worldContainer = world;
+
+    // Guide layer (grid lines, axis titles, tick labels — drawn first, behind everything)
+    const guideGfx = new CanvasGraphics();
+    world.addChild(guideGfx);
+    this.guideGraphics = guideGfx;
 
     // Orbit ring layer (drawn behind edges)
     const orbitGfx = new CanvasGraphics();
@@ -2346,6 +2353,34 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   // =========================================================================
+  // Draw guides (grid lines, axis titles, tick labels)
+  // =========================================================================
+  drawGuides() {
+    if (!this.guideRenderer || !this.guideGraphics || !this.clusterMeta) return;
+    const g = this.guideGraphics;
+    g.clear();
+    const guides = this.clusterMeta.groupGuides;
+    if (!guides || guides.length === 0) return;
+    const isDark = this.isDarkTheme();
+    const lineW = 1;
+    const color = isDark ? 0x555555 : 0xcccccc;
+    const worldScale = this.worldContainer?.scale?.x ?? 1;
+    for (const entry of guides) {
+      const { guide, centerX, centerY } = entry;
+      if (guide.type === "coordinate") {
+        this.guideRenderer.drawCoordinateGuide(g, centerX, centerY, guide, lineW, color);
+      } else if (guide.type === "grid") {
+        this.guideRenderer.drawGridLines(g, centerX, centerY, guide, lineW, color);
+      } else if (guide.type === "triangle") {
+        this.guideRenderer.drawTriangleOutline(g, centerX, centerY, guide, lineW, color);
+      } else if (guide.type === "concentric") {
+        this.guideRenderer.drawConcentricGuide(g, centerX, centerY, guide, lineW, color);
+      } else if (guide.type === "timeline") {
+        this.guideRenderer.drawTimelineAxis(g, centerX, centerY, guide, lineW, color, worldScale);
+      }
+    }
+  }
+
   // Draw orbit rings (concentric circles)
   // =========================================================================
   drawOrbitRings() {
@@ -2920,21 +2955,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const pts = route.waypoints;
       g.moveTo(pts[0].x, pts[0].y);
 
-      // Catmull-Rom to cubic Bezier conversion for smooth curves
-      for (let i = 0; i < pts.length - 1; i++) {
-        const p0 = pts[Math.max(0, i - 1)];
-        const p1 = pts[i];
-        const p2 = pts[i + 1];
-        const p3 = pts[Math.min(pts.length - 1, i + 2)];
-
-        // Catmull-Rom -> Bezier control points (tension = 0.5)
-        const t = 0.5;
-        const cp1x = p1.x + (p2.x - p0.x) / (6 * t);
-        const cp1y = p1.y + (p2.y - p0.y) / (6 * t);
-        const cp2x = p2.x - (p3.x - p1.x) / (6 * t);
-        const cp2y = p2.y - (p3.y - p1.y) / (6 * t);
-
-        g.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+      // Straight line segments connecting timeline nodes
+      for (let i = 1; i < pts.length; i++) {
+        g.lineTo(pts[i].x, pts[i].y);
       }
     }
   }
