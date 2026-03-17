@@ -484,6 +484,14 @@ const en: TranslationMap = {
   "desc.fadeEdges": "Fade less-connected edges",
   "desc.enclosureSpacing": "Hull padding",
   "desc.groupMinSize": "Merge groups smaller than this",
+  "desc.tagDisplay": "Show tags as individual nodes or enclosure hulls",
+  "desc.nodeDisplayMode": "Node visual: dot, card, donut, or ring chart",
+  "desc.tagNodeShape": "Shape used for tag-type nodes",
+  "desc.defaultNodeShape": "Default shape for regular nodes",
+  "desc.edgeCardinality": "Show 1:N / N:M markers on edges",
+  "desc.clusterPattern": "Intra-group node arrangement pattern",
+  "desc.coordSystem": "Coordinate system for group placement",
+  "desc.groupArrangement": "How groups are positioned relative to each other",
 
   // --- Settings Tab ---
   "settingsTab.description": "Each setting can be edited directly from the graph view panel. Here you can export/import settings as JSON.",
@@ -980,6 +988,14 @@ const ja: TranslationMap = {
   "desc.fadeEdges": "接続の少ないエッジを薄く",
   "desc.enclosureSpacing": "包絡線のパディング",
   "desc.groupMinSize": "これ未満のグループを統合",
+  "desc.tagDisplay": "タグを個別ノードまたは包絡線で表示",
+  "desc.nodeDisplayMode": "ノードの表示形式: ドット / カード / ドーナツ / リングチャート",
+  "desc.tagNodeShape": "タグノードに使用する形状",
+  "desc.defaultNodeShape": "通常ノードのデフォルト形状",
+  "desc.edgeCardinality": "エッジに 1:N / N:M マーカーを表示",
+  "desc.clusterPattern": "グループ内ノードの配置パターン",
+  "desc.coordSystem": "グループ配置の座標系",
+  "desc.groupArrangement": "グループ間の相対的な配置方式",
 
   // --- Settings Tab ---
   "settingsTab.description": "各設定項目はグラフビューのパネルから直接編集できます。ここでは設定の JSON エクスポート / インポートを行えます。",

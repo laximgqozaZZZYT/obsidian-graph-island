@@ -543,7 +543,7 @@ function buildFilterTab(
       panel.showTagNodes = v !== "off";
       panel.tagDisplay = v === TAG_DISPLAY_ENCLOSURE ? TAG_DISPLAY_ENCLOSURE : TAG_DISPLAY_NODE;
       cb.invalidateData();
-    });
+    }, t("desc.tagDisplay"));
     // Dataview query filter
     const dvRow = body.createDiv({ cls: "gi-setting-row" });
     dvRow.createEl("span", { cls: "gi-setting-label", text: t("filter.dataviewQuery") });
@@ -599,14 +599,14 @@ function _buildNodeDisplaySection(
         if (rule) rule.shape = v as NodeShape;
         else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
         cb.doRender();
-      });
+      }, t("desc.tagNodeShape"));
     }
     addSelect(body, t("display.defaultNodeShape"), shapeOptions, defaultRule?.shape ?? "circle", (v) => {
       const rule = panel.nodeShapeRules.find(r => r.match === "default");
       if (rule) rule.shape = v as NodeShape;
       else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
       cb.doRender();
-    });
+    }, t("desc.defaultNodeShape"));
   }, undefined, false, "circle-dot");
 }
 
@@ -624,7 +624,7 @@ function _buildNodeDisplayModeSection(
       panel.nodeDisplayMode = v as NodeDisplayMode;
       cb.doRender();
       cb.rebuildPanel();
-    }, t("display.nodeDisplayModeDesc"));
+    }, t("desc.nodeDisplayMode"));
 
     // Progressive disclosure: show sub-settings based on mode
     if (panel.nodeDisplayMode === "card") {
@@ -664,7 +664,7 @@ function _buildNodeDisplayModeSection(
       });
     }
     // sunburst-segment mode: uses default arcAngle (30 degrees)
-  }, t("display.nodeDisplayModeDesc"), false, "layout-grid");
+  }, t("desc.nodeDisplayMode"), false, "layout-grid");
 }
 
 function _buildEdgeDisplaySection(
@@ -691,7 +691,7 @@ function _buildEdgeDisplaySection(
     ], panel.edgeCardinalityMode, (v) => {
       panel.edgeCardinalityMode = v as EdgeCardinalityMode;
       cb.markDirty();
-    }, t("display.edgeCardinalityDesc"));
+    }, t("desc.edgeCardinality"));
   }, undefined, false, "git-branch");
 }
 
@@ -1118,7 +1118,7 @@ function _buildArrangementPatternSelect(s: ClusterSectionCtx): void {
     s.cb.applyClusterForce();
     s.cb.rebuildPanel();
     s.cb.restartSimulation(1.0);
-  });
+  }, t("desc.clusterPattern"));
 }
 
 /** Concentric orbit toggles (only shown for concentric arrangement) */
@@ -1151,7 +1151,7 @@ function _buildCoordinateControls(s: ClusterSectionCtx): void {
     cb.applyClusterForce();
     cb.rebuildPanel();
     cb.restartSimulation(0.5);
-  });
+  }, t("desc.coordSystem"));
 
   const axis1Label = coordLayout.system === "polar" ? "r" : "X";
   const axis2Label = coordLayout.system === "polar" ? "θ" : "Y";
@@ -1389,7 +1389,7 @@ function _buildSpacingAndGroupArrangement(s: ClusterSectionCtx): void {
     panel.clusterGroupArrangement = v as ClusterGroupArrangement;
     cb.applyClusterForce();
     cb.restartSimulation(1.0);
-  });
+  }, t("desc.groupArrangement"));
 
   s.spacingSliders.push(addSlider(body, t("cluster.groupSize"), 0.5, 5, 0.25, panel.clusterGroupScale, (v) => {
     panel.clusterGroupScale = v;
