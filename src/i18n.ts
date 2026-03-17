@@ -492,6 +492,7 @@ const en: TranslationMap = {
   "desc.clusterPattern": "Intra-group node arrangement pattern",
   "desc.coordSystem": "Coordinate system for group placement",
   "desc.groupArrangement": "How groups are positioned relative to each other",
+  "desc.timelineRange": "Visible time range (% of total)",
 
   // --- Settings Tab ---
   "settingsTab.description": "Each setting can be edited directly from the graph view panel. Here you can export/import settings as JSON.",
@@ -996,6 +997,7 @@ const ja: TranslationMap = {
   "desc.clusterPattern": "グループ内ノードの配置パターン",
   "desc.coordSystem": "グループ配置の座標系",
   "desc.groupArrangement": "グループ間の相対的な配置方式",
+  "desc.timelineRange": "表示する時間範囲（全体の%）",
 
   // --- Settings Tab ---
   "settingsTab.description": "各設定項目はグラフビューのパネルから直接編集できます。ここでは設定の JSON エクスポート / インポートを行えます。",

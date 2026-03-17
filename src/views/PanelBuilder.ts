@@ -1275,7 +1275,7 @@ function _buildTimelineControls(s: ClusterSectionCtx): void {
       panel.timelineRangeMin = min;
       panel.timelineRangeMax = max;
       cb.doRender();
-    });
+    }, t("desc.timelineRange") || "Visible time range (% of total)");
 }
 
 /** Auto-fit toggle, guide lines, group grid, and custom grid settings */
@@ -2484,16 +2484,17 @@ function updateSliderProgress(el: HTMLInputElement) {
 }
 
 /** Dual-range slider for selecting a min/max range (0–1) */
-function buildDualRangeSlider(container: HTMLElement, label: string, initialMin: number, initialMax: number, onChange: (min: number, max: number) => void) {
+function buildDualRangeSlider(container: HTMLElement, label: string, initialMin: number, initialMax: number, onChange: (min: number, max: number) => void, description?: string) {
   const row = container.createDiv({ cls: "setting-item gi-dual-range" });
   const info = row.createDiv({ cls: "setting-item-info" });
-  info.createDiv({ cls: "setting-item-name", text: label });
+  const nameEl = info.createDiv({ cls: "setting-item-name", text: label });
+  nameEl.title = description || label;
   const rangeLabel = info.createEl("span", { cls: "gi-slider-value", text: `${Math.round(initialMin * 100)}% – ${Math.round(initialMax * 100)}%` });
   const control = row.createDiv({ cls: "setting-item-control gi-dual-range-control" });
 
-  const minInput = control.createEl("input", { type: "range", cls: "gi-range-min" });
+  const minInput = control.createEl("input", { type: "range", cls: "gi-range-min", attr: { "aria-label": label + " (min)" } });
   minInput.min = "0"; minInput.max = "100"; minInput.step = "1"; minInput.value = String(Math.round(initialMin * 100));
-  const maxInput = control.createEl("input", { type: "range", cls: "gi-range-max" });
+  const maxInput = control.createEl("input", { type: "range", cls: "gi-range-max", attr: { "aria-label": label + " (max)" } });
   maxInput.min = "0"; maxInput.max = "100"; maxInput.step = "1"; maxInput.value = String(Math.round(initialMax * 100));
 
   const update = () => {
