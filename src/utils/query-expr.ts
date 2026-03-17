@@ -118,10 +118,10 @@ export function parseQueryExpr(input: string): QueryExpression | null {
     if (colonIdx > 0) {
       const field = tok.slice(0, colonIdx);
       const rawVal = tok.slice(colonIdx + 1);
-      return { type: "leaf", field, value: unquote(rawVal), fuzzy };
+      return { type: "leaf", field, value: unquote(rawVal), ...(fuzzy ? { fuzzy } : {}) };
     }
     // Bare value → label field
-    return { type: "leaf", field: "label", value: unquote(tok), fuzzy };
+    return { type: "leaf", field: "label", value: unquote(tok), ...(fuzzy ? { fuzzy } : {}) };
   }
 
   return parseExpr();

@@ -84,7 +84,8 @@ describe("drawEnclosures", () => {
     expect(drawCircle).toBeDefined();
     expect(drawCircle!.args[0]).toBe(50); // x
     expect(drawCircle!.args[1]).toBe(50); // y
-    expect(drawCircle!.args[2]).toBeCloseTo(8.4); // default radius (6) + outlinePad(6, 1) = 6 + max(4, 6×0.5)*0.6 = 6 + 2.4
+    // outlinePad(6, 1) = max(10, 6×0.8) × 0.6 = 10 × 0.6 = 6; radius = 6 + 6 = 12
+    expect(drawCircle!.args[2]).toBeCloseTo(12);
   });
 
   it("draws a capsule for two-point tag", () => {
@@ -101,11 +102,11 @@ describe("drawEnclosures", () => {
 
     drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Capsule uses moveTo + lineTo + quadraticCurveTo
+    // Capsule uses moveTo + lineTo + closePath (no curves)
     const moveCalls = calls.filter((c) => c.method === "moveTo");
-    const curveCalls = calls.filter((c) => c.method === "quadraticCurveTo");
+    const lineCalls = calls.filter((c) => c.method === "lineTo");
     expect(moveCalls.length).toBeGreaterThan(0);
-    expect(curveCalls.length).toBeGreaterThan(0);
+    expect(lineCalls.length).toBeGreaterThan(0);
   });
 
   it("draws a smooth hull for 3+ point tag", () => {
@@ -123,9 +124,9 @@ describe("drawEnclosures", () => {
 
     drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Smooth hull uses quadraticCurveTo
-    const curveCalls = calls.filter((c) => c.method === "quadraticCurveTo");
-    expect(curveCalls.length).toBeGreaterThan(0);
+    // Smooth hull uses lineTo + closePath (no curves — map-style borders)
+    const lineCalls = calls.filter((c) => c.method === "lineTo");
+    expect(lineCalls.length).toBeGreaterThan(0);
   });
 
   it("sorts enclosures large-first (z-order)", () => {
@@ -145,9 +146,9 @@ describe("drawEnclosures", () => {
 
     drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Both should be drawn (two lineStyle calls, one per enclosure)
+    // Both should be drawn (4 lineStyle calls: outer+inner border × 2 enclosures)
     const lineCalls = calls.filter((c) => c.method === "lineStyle");
-    expect(lineCalls.length).toBe(2);
+    expect(lineCalls.length).toBe(4);
   });
 
   it("skips tags with no resolvable positions", () => {
@@ -241,8 +242,8 @@ describe("drawEnclosures", () => {
 
     drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
 
-    // Should have beginRadialFill for the zoomed-out fill (uses radial gradient)
-    const fillCalls = calls.filter((c) => c.method === "beginRadialFill");
+    // Should have beginFill for solid territory fill (no radial gradient)
+    const fillCalls = calls.filter((c) => c.method === "beginFill");
     expect(fillCalls.length).toBe(1);
     // Should also have lineStyle for the stroke
     const lineCalls = calls.filter((c) => c.method === "lineStyle");
