@@ -332,6 +332,12 @@ export interface PanelCallbacks {
   recolorNodes(): void;
   /** Auto-optimize: analyze overlaps and adjust force parameters iteratively */
   autoOptimize(): void;
+  /** テンプレート保存: 現在のパネル設定を名前付きテンプレートとして保存 */
+  saveTemplate(name: string): boolean;
+  /** テンプレート読込: 保存済みテンプレートを適用 */
+  loadTemplate(name: string): void;
+  /** テンプレート削除: 保存済みテンプレートを削除 */
+  deleteTemplate(name: string): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -1246,6 +1252,57 @@ function _buildSettingsActionButtons(
       }
     });
   });
+
+  // --- テンプレート保存・読込・削除ボタン ---
+  const templateRow = tabEl.createDiv({ cls: "gi-panel-actions gi-action-row" });
+
+  // テンプレート保存ボタン
+  const saveTemplateBtn = templateRow.createEl("button", { text: t("template.save") });
+  saveTemplateBtn.addEventListener("click", () => {
+    const templates = _ctx.settings.templates ?? [];
+    if (templates.length >= 20) {
+      showToast(t("template.maxReached"));
+      return;
+    }
+    const name = window.prompt(t("template.namePrompt"));
+    if (!name || !name.trim()) return;
+    const ok = cb.saveTemplate(name.trim());
+    if (ok) {
+      showToast(t("template.saved"));
+      cb.rebuildPanel();
+    }
+  });
+
+  // テンプレート読込ドロップダウン
+  const templates = _ctx.settings.templates ?? [];
+  if (templates.length > 0) {
+    const loadSelect = templateRow.createEl("select", { cls: "gi-template-select" });
+    const defaultOpt = loadSelect.createEl("option", { text: t("template.load"), value: "" });
+    defaultOpt.disabled = true;
+    defaultOpt.selected = true;
+    for (const tmpl of templates) {
+      loadSelect.createEl("option", { text: tmpl.name, value: tmpl.name });
+    }
+    loadSelect.addEventListener("change", () => {
+      const name = loadSelect.value;
+      if (!name) return;
+      cb.loadTemplate(name);
+      showToast(t("template.loaded"));
+    });
+
+    // テンプレート削除ボタン
+    const deleteTemplateBtn = templateRow.createEl("button", { text: t("template.delete") });
+    deleteTemplateBtn.addEventListener("click", () => {
+      if (templates.length === 0) return;
+      const name = loadSelect.value;
+      if (!name) return;
+      const msg = t("template.confirmDelete").replace("{name}", name);
+      if (!window.confirm(msg)) return;
+      cb.deleteTemplate(name);
+      showToast(t("template.deleted"));
+      cb.rebuildPanel();
+    });
+  }
 }
 
 function buildSettingsTab(

@@ -629,6 +629,18 @@ const en: TranslationMap = {
   // --- Feature T: Graph Search History ---
   "search.clearHistory": "Clear history",
   "search.historyEmpty": "No search history",
+
+  // --- Feature V: Graph Templates ---
+  "template.save": "Save Template",
+  "template.load": "Load Template",
+  "template.delete": "Delete Template",
+  "template.saved": "Template saved",
+  "template.loaded": "Template applied",
+  "template.deleted": "Template deleted",
+  "template.namePrompt": "Enter template name:",
+  "template.maxReached": "Maximum 20 templates. Delete one first.",
+  "template.noTemplates": "No templates saved",
+  "template.confirmDelete": "Delete template \"{name}\"?",
 };
 
 // ---------------------------------------------------------------------------
@@ -1253,6 +1265,18 @@ const ja: TranslationMap = {
   // --- Feature T: 検索履歴 ---
   "search.clearHistory": "履歴をクリア",
   "search.historyEmpty": "検索履歴なし",
+
+  // --- Feature V: グラフテンプレート ---
+  "template.save": "テンプレート保存",
+  "template.load": "テンプレート読込",
+  "template.delete": "テンプレート削除",
+  "template.saved": "テンプレートを保存しました",
+  "template.loaded": "テンプレートを適用しました",
+  "template.deleted": "テンプレートを削除しました",
+  "template.namePrompt": "テンプレート名を入力:",
+  "template.maxReached": "テンプレートは最大20件です。先に削除してください。",
+  "template.noTemplates": "保存済みテンプレートなし",
+  "template.confirmDelete": "テンプレート「{name}」を削除しますか？",
 };
 
 // ---------------------------------------------------------------------------

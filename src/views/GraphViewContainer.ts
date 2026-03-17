@@ -2,7 +2,7 @@ import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Menu, Mark
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
-import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, GraphSnapshot } from "../types";
+import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, GraphSnapshot, GraphTemplate } from "../types";
 import { DEFAULT_COLORS, DEFAULT_RENDER_THRESHOLDS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY } from "../types";
 import { evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
@@ -3598,6 +3598,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       getNodeIds: () => [...this.pixiNodes.keys()],
       recolorNodes: () => { this.recolorNodes(); this.requestSave(); },
       autoOptimize: () => this._buildAutoOptimizeCallback(),
+      saveTemplate: (name: string) => this._saveTemplate(name),
+      loadTemplate: (name: string) => this._loadTemplate(name),
+      deleteTemplate: (name: string) => this._deleteTemplate(name),
     };
   }
 
@@ -3621,6 +3624,81 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.applyClusterForce();
     if (this.simulation) { this.simulation.alpha(0.8).restart(); this.wakeRenderLoop(); }
     this.requestSave();
+  }
+
+  // =========================================================================
+  // テンプレート保存・読込・削除
+  // =========================================================================
+
+  /** テンプレートから除外する一時的なフィールド */
+  private static readonly TEMPLATE_TRANSIENT_KEYS: Set<string> = new Set([
+    "searchQuery", "localGraphCenter", "focusNodeId", "annotations",
+    "searchHistory", "syncViewId", "bookmarkedNodes",
+  ]);
+
+  /** 現在のパネル設定を名前付きテンプレートとして保存 */
+  private _saveTemplate(name: string): boolean {
+    const templates = this.plugin.settings.templates ?? [];
+    if (templates.length >= 20) return false;
+
+    // パネル状態からテンプレート用データを構築（一時的フィールドを除外）
+    const panelData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(this.panel)) {
+      if (GraphViewContainer.TEMPLATE_TRANSIENT_KEYS.has(key)) continue;
+      // Set → Array に変換（JSON シリアライズ対応）
+      if (value instanceof Set) {
+        panelData[key] = Array.from(value);
+      } else {
+        panelData[key] = value;
+      }
+    }
+
+    const template: GraphTemplate = {
+      name,
+      createdAt: new Date().toISOString(),
+      panel: panelData,
+    };
+
+    // 同名テンプレートがあれば上書き
+    const idx = templates.findIndex(t => t.name === name);
+    if (idx >= 0) {
+      templates[idx] = template;
+    } else {
+      templates.push(template);
+    }
+    this.plugin.settings.templates = templates;
+    this.plugin.saveSettings();
+    return true;
+  }
+
+  /** 保存済みテンプレートを現在のパネルに適用 */
+  private _loadTemplate(name: string): void {
+    const templates = this.plugin.settings.templates ?? [];
+    const template = templates.find(t => t.name === name);
+    if (!template) return;
+
+    // テンプレートのパネルデータを適用（Set フィールドの復元を含む）
+    const src = this.panel as unknown as Record<string, unknown>;
+    for (const [key, value] of Object.entries(template.panel)) {
+      // 一時的フィールドはスキップ（念のため）
+      if (GraphViewContainer.TEMPLATE_TRANSIENT_KEYS.has(key)) continue;
+      // 現在値が Set で、テンプレート値が Array の場合は Set に変換
+      if (src[key] instanceof Set && Array.isArray(value)) {
+        src[key] = new Set(value as unknown[]);
+      } else {
+        src[key] = value;
+      }
+    }
+
+    this.doRender();
+    this.requestSave();
+  }
+
+  /** 保存済みテンプレートを削除 */
+  private _deleteTemplate(name: string): void {
+    const templates = this.plugin.settings.templates ?? [];
+    this.plugin.settings.templates = templates.filter(t => t.name !== name);
+    this.plugin.saveSettings();
   }
 
   /** Execute the auto-optimize action: iterative overlap reduction loop. */

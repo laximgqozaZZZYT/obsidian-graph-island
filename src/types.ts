@@ -73,6 +73,16 @@ export interface GraphSnapshot {
   };
 }
 
+/** 保存されたグラフテンプレート（パネル設定の名前付きスナップショット） */
+export interface GraphTemplate {
+  /** ユーザーが付けた名前 */
+  name: string;
+  /** ISO-8601 形式の保存日時 */
+  createdAt: string;
+  /** パネル設定の部分コピー（一時的な状態を除く） */
+  panel: Record<string, unknown>;
+}
+
 /** スナップショットと現在のグラフの差分結果 */
 export interface SnapshotDiff {
   /** 現在のグラフにあってスナップショットにないノードID */
@@ -511,6 +521,8 @@ export interface GraphViewsSettings {
   settingsJsonPath: string;
   /** 保存されたグラフスナップショット（最大10件） */
   snapshots?: GraphSnapshot[];
+  /** 保存されたグラフテンプレート（最大20件） */
+  templates?: GraphTemplate[];
 }
 
 export const DEFAULT_SETTINGS: GraphViewsSettings = {
@@ -537,6 +549,7 @@ export const DEFAULT_SETTINGS: GraphViewsSettings = {
   defaultNodeRules: [],
   settingsJsonPath: "",
   snapshots: [],
+  templates: [],
 };
 
 // ---------------------------------------------------------------------------
