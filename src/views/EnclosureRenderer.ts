@@ -65,8 +65,9 @@ interface EncData {
 const OUTLINE_PAD_MIN = 10;
 /** Padding scales with node radius: pad = max(MIN, radius × factor) */
 const OUTLINE_PAD_FACTOR = 0.8;
-/** Number of sample points around each node circle for hull generation */
-const HULL_SAMPLES = 12;
+/** Number of sample points around each node circle for hull generation.
+ *  Higher = more accurate circle approximation, but more hull vertices. */
+const HULL_SAMPLES = 24;
 
 /** Overlap re-computation interval in frames */
 const OVERLAP_RECOMPUTE_FRAMES = 30;
@@ -95,15 +96,15 @@ const STROKE_ALPHA_OVERLAP_MIN = 0.5;
 /** Stroke alpha numerator for overlapping enclosures */
 const STROKE_ALPHA_OVERLAP_BASE = 0.75;
 /** Stroke line width for non-overlapping enclosures — thick border for map-like appearance */
-const STROKE_WIDTH_NO_OVERLAP = 3.0;
+const STROKE_WIDTH_NO_OVERLAP = 4.0;
 /** Stroke line width base for overlapping enclosures */
 const STROKE_WIDTH_OVERLAP_BASE = 3.5;
 /** Minimum stroke width for overlapping enclosures */
 const STROKE_WIDTH_OVERLAP_MIN = 2.5;
 /** Outer border width for double-line "map border" effect */
-const BORDER_OUTER_WIDTH = 5.0;
+const BORDER_OUTER_WIDTH = 7.0;
 /** Outer border alpha (darker, behind main stroke — higher = more visible border) */
-const BORDER_OUTER_ALPHA_FACTOR = 0.5;
+const BORDER_OUTER_ALPHA_FACTOR = 0.6;
 /** Size fade minimum fraction (large groups don't fully disappear) */
 const SIZE_FADE_MIN = 0.3;
 /** Fill alpha visibility threshold */
