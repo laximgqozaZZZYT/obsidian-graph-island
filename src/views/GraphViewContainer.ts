@@ -104,6 +104,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private originalGraphData: GraphData | null = null;
   /** Louvain コミュニティ検出キャッシュ（rawData 変更時に無効化） */
   private louvainCache: { dataRef: GraphData; groups: GroupSpec[] } | null = null;
+  /** Louvain community map キャッシュ (originalGraphData 参照で無効化) */
+  private _communityMapCache: { ref: GraphData | null; map: Map<string, number> } | null = null;
   private ac: AbortController | null = null;
   private statusEl: HTMLElement | null = null;
   private zoomIndicatorEl: HTMLElement | null = null;
@@ -1714,6 +1716,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
 
     return groups;
+  }
+
+  /** Cached Louvain community map — recomputed only when graph data changes */
+  private _getCommunityMap(gd: GraphData): Map<string, number> {
+    if (this._communityMapCache && this._communityMapCache.ref === this.originalGraphData) {
+      return this._communityMapCache.map;
+    }
+    const nodeIds = gd.nodes.map(n => n.id);
+    const edges = gd.edges.map(e => ({ source: e.source, target: e.target }));
+    const map = louvainCommunities(nodeIds, edges);
+    this._communityMapCache = { ref: this.originalGraphData, map };
+    return map;
   }
 
   getWorldContainer(): CanvasContainer | null { return this.worldContainer; }
@@ -3950,13 +3964,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
       }
       if (!matched && colorModeForUpdate === "community") {
-        if (!recolorCommunityMap) {
-          const nodeIds = [...this.pixiNodes.keys()];
-          const louvainEdges = (this.graphEdges ?? []).map(e => ({
-            source: edgeSourceId(e),
-            target: edgeTargetId(e),
-          }));
-          recolorCommunityMap = louvainCommunities(nodeIds, louvainEdges);
+        if (!recolorCommunityMap && this.originalGraphData) {
+          recolorCommunityMap = this._getCommunityMap(this.originalGraphData);
         }
         const cid = recolorCommunityMap.get(n.id) ?? 0;
         const COMMUNITY_PALETTE: number[] = [
@@ -4136,13 +4145,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
         "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5",
       ];
-      // Compute communities for legend
-      const legendNodeIds = [...this.pixiNodes.keys()];
-      const legendLouvainEdges = (this.graphEdges ?? []).map(e => ({
-        source: edgeSourceId(e),
-        target: edgeTargetId(e),
-      }));
-      const legendCommunities = louvainCommunities(legendNodeIds, legendLouvainEdges);
+      // Compute communities for legend (cached)
+      const legendCommunities = this.originalGraphData
+        ? this._getCommunityMap(this.originalGraphData)
+        : new Map<string, number>();
       // Count nodes per community
       const commCounts = new Map<number, number>();
       for (const cid of legendCommunities.values()) {
@@ -4594,15 +4600,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return (r << 16) | (g << 8) | b;
     };
 
-    // Community detection: Louvain algorithm
+    // Community detection: Louvain algorithm (cached)
     let communityMap: Map<string, number> | null = null;
     if (colorMode === "community") {
-      const nodeIds = gd.nodes.map(n => n.id);
-      const louvainEdges = gd.edges.map(e => ({
-        source: edgeSourceId(e),
-        target: edgeTargetId(e),
-      }));
-      communityMap = louvainCommunities(nodeIds, louvainEdges);
+      communityMap = this._getCommunityMap(gd);
     }
     // 20-color deterministic palette for community coloring (Tableau 20-inspired)
     const COMMUNITY_PALETTE: number[] = [
