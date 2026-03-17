@@ -82,6 +82,10 @@ export interface InteractionHost {
   updateLabelsForZoom?(): void;
   /** Update the on-screen zoom percentage indicator */
   updateZoomIndicator?(scale: number): void;
+  /** 比較選択にノードを追加 (最大2件、FIFO) */
+  addCompareNode(nodeId: string): void;
+  /** 比較選択をクリア */
+  clearCompareSelection(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -415,9 +419,13 @@ export class InteractionManager {
           return;
         }
         // Click (no drag) → toggle hold (pin position)
-        if (!e.ctrlKey && !e.metaKey) {
-          // Without Ctrl: clear all other holds first
+        if (e.ctrlKey || e.metaKey) {
+          // Ctrl+click: 比較選択に追加し、holdもトグル
+          this.host.addCompareNode(node.data.id);
+        } else {
+          // 通常クリック: 他のholdと比較選択をクリア
           this.host.clearAllHolds();
+          this.host.clearCompareSelection();
         }
         this.host.toggleHold(node);
       } else {

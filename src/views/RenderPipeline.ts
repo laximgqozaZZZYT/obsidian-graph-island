@@ -96,6 +96,19 @@ const PF_ENDPOINT_RADIUS_PAD = 6;
 /** Pathfinder radius padding for intermediate path nodes */
 const PF_INTERMEDIATE_RADIUS_PAD = 3;
 
+/** 比較選択リングの線幅 */
+const COMPARE_RING_LINE_WIDTH = 2.5;
+/** 比較選択リングの半径パディング */
+const COMPARE_RING_RADIUS_PAD = 8;
+/** 比較選択リングの色 (マゼンタ系) */
+const COMPARE_RING_COLOR = 0xe879f9;
+/** 比較選択リングのアルファ */
+const COMPARE_RING_ALPHA = 0.85;
+/** 比較選択リングの破線セグメント数 */
+const COMPARE_RING_SEGMENTS = 8;
+/** 比較選択リングの破線ギャップ比率 */
+const COMPARE_RING_GAP = 0.3;
+
 /** Keyboard focus ring line width */
 const KB_FOCUS_LINE_WIDTH = 2.5;
 /** Keyboard focus ring line alpha */
@@ -252,6 +265,8 @@ export interface RenderHost {
   getPathfinderNodeSet?(): Set<string> | null;
   /** Get the pathfinder start/end state */
   getPathfinderState?(): { startId: string | null; endId: string | null };
+  /** 比較選択中のノードIDリストを取得 */
+  getCompareNodeIds?(): string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -489,6 +504,9 @@ export class RenderPipeline {
 
     // Pass 4: Pathfinder start/end node markers
     this._renderPathfinderMarkers(g, ctx);
+
+    // Pass 5: 比較選択ノードのリング表示
+    this._renderCompareRings(g, ctx);
   }
 
   // =========================================================================
@@ -1183,6 +1201,38 @@ export class RenderPipeline {
       g.lineStyle(isStart || isEnd ? PF_ENDPOINT_LINE_WIDTH : PF_INTERMEDIATE_LINE_WIDTH, ringColor, INDICATOR_RING_ALPHA);
       g.beginFill(0, 0);
       drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius + (isStart || isEnd ? PF_ENDPOINT_RADIUS_PAD : PF_INTERMEDIATE_RADIUS_PAD));
+      g.endFill();
+    }
+  }
+
+  // =========================================================================
+  // Pass 5: 比較選択ノードのリング (破線スタイル)
+  // =========================================================================
+  /** 比較選択中のノードに破線リングを描画 */
+  private _renderCompareRings(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[]; shapeRules: ShapeRule[] },
+  ) {
+    const compareIds = this.host.getCompareNodeIds?.() ?? [];
+    if (compareIds.length === 0) return;
+    const compareSet = new Set(compareIds);
+
+    const { visible } = ctx;
+    for (const pn of visible) {
+      if (!compareSet.has(pn.data.id)) continue;
+      const ringRadius = pn.radius + COMPARE_RING_RADIUS_PAD;
+      // 破線リングを描画 (セグメント化された弧)
+      g.lineStyle(COMPARE_RING_LINE_WIDTH, COMPARE_RING_COLOR, COMPARE_RING_ALPHA);
+      g.beginFill(0, 0);
+      for (let i = 0; i < COMPARE_RING_SEGMENTS; i++) {
+        const startAngle = (i / COMPARE_RING_SEGMENTS) * Math.PI * 2;
+        const endAngle = startAngle + ((1 - COMPARE_RING_GAP) / COMPARE_RING_SEGMENTS) * Math.PI * 2;
+        g.arc(pn.data.x, pn.data.y, ringRadius, startAngle, endAngle);
+        g.moveTo(
+          pn.data.x + Math.cos(endAngle) * ringRadius,
+          pn.data.y + Math.sin(endAngle) * ringRadius,
+        );
+      }
       g.endFill();
     }
   }

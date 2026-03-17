@@ -458,6 +458,18 @@ const en: TranslationMap = {
   "detail.linkedNodes": "Linked Nodes",
   "detail.backlinks": "Backlinks",
 
+  // --- Node Comparison View ---
+  "compare.title": "Node Comparison",
+  "compare.clear": "Clear",
+  "compare.selectHint": "Ctrl+click two nodes on the graph to compare them",
+  "compare.sharedNeighbors": "Shared Neighbors",
+  "compare.uniqueTo": "Unique to {name}",
+  "compare.sharedTags": "Shared Tags",
+  "compare.sharedCategories": "Shared Categories",
+  "compare.shortestPath": "Shortest Path",
+  "compare.noPath": "No path found",
+  "compare.hops": "{n} hops",
+
   // --- Accessibility ---
   "a11y.canvasLabel": "Interactive graph visualization. Use Tab to cycle nodes, +/- to zoom.",
 
@@ -471,6 +483,20 @@ const en: TranslationMap = {
   "toolbar.copyClipboard": "Copy to Clipboard",
   "toolbar.localGraph": "Local Graph",
   "toolbar.graphSettings": "Graph Settings",
+  "toolbar.snapshot": "Snapshots",
+
+  // --- Snapshot ---
+  "snapshot.save": "Save snapshot...",
+  "snapshot.compare": "Compare with current",
+  "snapshot.rename": "Rename...",
+  "snapshot.delete": "Delete",
+  "snapshot.clearDiff": "Clear diff overlay",
+  "snapshot.diffStatus": "Diff: vs '{name}' — {added} added, {removed} removed, {changed} changed",
+  "snapshot.limitReached": "Maximum 10 snapshots. Delete one first.",
+  "snapshot.saved": "Snapshot '{name}' saved",
+  "snapshot.deleted": "Snapshot '{name}' deleted",
+  "snapshot.renamed": "Snapshot renamed to '{name}'",
+  "snapshot.enterName": "Enter snapshot name",
 
   // --- Error messages ---
   "error.pixiInitFailed": "Graph rendering failed. Your browser may not support WebGL.",
@@ -1002,6 +1028,18 @@ const ja: TranslationMap = {
   "detail.linkedNodes": "リンク中のノード",
   "detail.backlinks": "バックリンク",
 
+  // --- Node Comparison View ---
+  "compare.title": "ノード比較",
+  "compare.clear": "クリア",
+  "compare.selectHint": "グラフ上で2つのノードをCtrl+クリックして比較します",
+  "compare.sharedNeighbors": "共通の隣接ノード",
+  "compare.uniqueTo": "{name} 固有のノード",
+  "compare.sharedTags": "共通タグ",
+  "compare.sharedCategories": "共通カテゴリ",
+  "compare.shortestPath": "最短経路",
+  "compare.noPath": "経路なし",
+  "compare.hops": "{n} ホップ",
+
   // --- Accessibility ---
   "a11y.canvasLabel": "グラフ可視化キャンバス。Tabでノード切り替え、+/-でズーム。",
 
@@ -1015,6 +1053,20 @@ const ja: TranslationMap = {
   "toolbar.copyClipboard": "クリップボードにコピー",
   "toolbar.localGraph": "ローカルグラフ",
   "toolbar.graphSettings": "グラフ設定",
+  "toolbar.snapshot": "スナップショット",
+
+  // --- スナップショット ---
+  "snapshot.save": "スナップショットを保存...",
+  "snapshot.compare": "現在のグラフと比較",
+  "snapshot.rename": "名前を変更...",
+  "snapshot.delete": "削除",
+  "snapshot.clearDiff": "差分オーバーレイを解除",
+  "snapshot.diffStatus": "差分: '{name}' と比較 — 追加 {added}, 削除 {removed}, 変更 {changed}",
+  "snapshot.limitReached": "スナップショットは最大10件です。先に削除してください。",
+  "snapshot.saved": "スナップショット '{name}' を保存しました",
+  "snapshot.deleted": "スナップショット '{name}' を削除しました",
+  "snapshot.renamed": "スナップショットの名前を '{name}' に変更しました",
+  "snapshot.enterName": "スナップショット名を入力",
 
   // --- Error messages ---
   "error.pixiInitFailed": "グラフの描画に失敗しました。お使いのブラウザがWebGLに対応していない可能性があります。",

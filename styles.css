@@ -2585,3 +2585,108 @@
   opacity: 0.4;
   font-style: italic;
 }
+
+/* === Node Comparison View === */
+.gi-compare-root {
+  overflow-y: auto;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+.gi-compare-body {
+  padding: 8px;
+}
+
+.gi-compare-empty {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 24px 12px;
+  font-style: italic;
+}
+
+.gi-compare-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gi-compare-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 4px;
+}
+
+.gi-compare-clear-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s, 4px);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 8px;
+  font-size: var(--font-ui-smaller);
+}
+
+.gi-compare-clear-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.gi-compare-clear-icon {
+  display: inline-flex;
+}
+
+.gi-compare-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-s, 4px);
+}
+
+.gi-compare-vs {
+  color: var(--text-muted);
+  font-weight: bold;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.gi-compare-node-card {
+  flex: 1;
+  min-width: 0;
+}
+
+.gi-compare-node-name {
+  font-weight: 600;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.gi-compare-section {
+  padding: 4px 0;
+}
+
+.gi-compare-path {
+  padding: 4px 0;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.gi-compare-arrow {
+  color: var(--text-muted);
+}
+
+.gi-compare-no-path {
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 4px 0;
+}
+
+.gi-tag-pill-small {
+  font-size: 10px;
+  padding: 1px 4px;
+}

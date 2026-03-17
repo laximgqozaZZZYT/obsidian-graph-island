@@ -1,8 +1,8 @@
-import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, type ViewStateResult } from "obsidian";
+import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Menu, type ViewStateResult } from "obsidian";
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
-import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig } from "../types";
+import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, GraphSnapshot } from "../types";
 import { DEFAULT_COLORS, DEFAULT_RENDER_THRESHOLDS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY } from "../types";
 import { evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
@@ -28,6 +28,8 @@ import { RenderPipeline, darkenColor, MIN_WORLD_RADIUS_PX, type RenderHost } fro
 import { LayoutController, type LayoutHost } from "./LayoutController";
 import { LabelManager, type LabelManagerHost } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
+import { DiffOverlay } from "./DiffOverlay";
+import { captureSnapshot, computeSnapshotDiff } from "../utils/snapshot";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
@@ -39,7 +41,7 @@ import {
   LAYOUT_ARC, LAYOUT_SUNBURST, LAYOUT_TIMELINE,
   TAG_DISPLAY_ENCLOSURE, TAG_DISPLAY_NODE,
   ARRANGEMENT_TIMELINE, ARRANGEMENT_CONCENTRIC, ARRANGEMENT_GRID,
-  EVENT_HOVER_NODE, EVENT_HIGHLIGHT_NODES,
+  EVENT_HOVER_NODE, EVENT_HIGHLIGHT_NODES, EVENT_COMPARE_NODES,
   POLAR_ARRANGEMENTS,
 } from "../constants";
 
@@ -160,6 +162,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Guide / grid / axis renderer (coordinate guides, grids, triangles, etc.)
   private guideRenderer: GuideRenderer | null = null;
 
+  // スナップショット差分オーバーレイ
+  private diffOverlay: DiffOverlay = new DiffOverlay();
+
   // Minimap overlay
   private minimap: Minimap | null = null;
 
@@ -192,6 +197,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private pathfinderNodeSet: Set<string> | null = null;
   /** Set of edge keys on the shortest path for highlight */
   private pathfinderEdgeSet: Set<string> | null = null;
+
+  // 比較選択ノードID (最大2件)
+  private compareNodeIds: string[] = [];
 
   // Reusable EdgeDrawConfig — mutated in-place each frame to avoid per-frame allocation
   private _edgeDrawCfg: EdgeDrawConfig | null = null;
@@ -508,6 +516,134 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       await this.copyGraphToClipboard();
       clipboardBtn.disabled = false;
     });
+
+    // スナップショットボタン
+    const snapshotBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    setIcon(snapshotBtn, "bookmark");
+    snapshotBtn.setAttribute("aria-label", t("toolbar.snapshot"));
+    snapshotBtn.title = t("toolbar.snapshot");
+    snapshotBtn.addEventListener("click", (evt) => {
+      this._showSnapshotMenu(evt);
+    });
+  }
+
+  // =========================================================================
+  // スナップショット操作
+  // =========================================================================
+
+  /** スナップショットメニューを表示する */
+  private _showSnapshotMenu(evt: MouseEvent): void {
+    const menu = new Menu();
+
+    // 保存メニュー項目
+    menu.addItem((item) => {
+      item.setTitle(t("snapshot.save"))
+        .setIcon("plus")
+        .onClick(() => this._saveSnapshot());
+    });
+
+    const snapshots = this.plugin.settings.snapshots ?? [];
+    if (snapshots.length > 0) {
+      menu.addSeparator();
+
+      // 各スナップショットのサブメニュー
+      for (let i = 0; i < snapshots.length; i++) {
+        const snap = snapshots[i];
+        menu.addItem((item) => {
+          item.setTitle(snap.name)
+            .setIcon("bookmark")
+            .onClick(() => this._compareWithSnapshot(snap));
+        });
+      }
+
+      // 削除用サブメニュー
+      menu.addSeparator();
+      for (let i = 0; i < snapshots.length; i++) {
+        const snap = snapshots[i];
+        menu.addItem((item) => {
+          item.setTitle(`${t("snapshot.delete")}: ${snap.name}`)
+            .setIcon("trash")
+            .onClick(() => this._deleteSnapshot(i));
+        });
+      }
+    }
+
+    // 差分が有効な場合、解除ボタンを表示
+    if (this.diffOverlay.isActive()) {
+      menu.addSeparator();
+      menu.addItem((item) => {
+        item.setTitle(t("snapshot.clearDiff"))
+          .setIcon("x")
+          .onClick(() => this._clearDiffOverlay());
+      });
+    }
+
+    menu.showAtMouseEvent(evt);
+  }
+
+  /** 現在のグラフ状態をスナップショットとして保存する */
+  private _saveSnapshot(): void {
+    const snapshots = this.plugin.settings.snapshots ?? [];
+
+    // 10件制限チェック
+    if (snapshots.length >= 10) {
+      showToast(t("snapshot.limitReached"), 5000);
+      return;
+    }
+
+    // 名前入力（簡易プロンプト）
+    const name = window.prompt(
+      t("snapshot.enterName"),
+      `Snapshot ${snapshots.length + 1}`,
+    );
+    if (!name) return;
+
+    // 現在のグラフデータを取得してキャプチャ
+    const data = this.getGraphData();
+    const snapshot = captureSnapshot(data, name, {
+      layout: this.currentLayout ?? "force",
+      searchQuery: this.panel.searchQuery ?? "",
+      groupBy: (this.panel.clusterGroupRules?.[0]?.groupBy) ?? "",
+    });
+
+    // 設定に保存
+    if (!this.plugin.settings.snapshots) {
+      this.plugin.settings.snapshots = [];
+    }
+    this.plugin.settings.snapshots.push(snapshot);
+    this.plugin.saveSettings();
+
+    showToast(t("snapshot.saved").replace("{name}", name));
+  }
+
+  /** スナップショットと現在のグラフを比較する */
+  private _compareWithSnapshot(snapshot: GraphSnapshot): void {
+    const data = this.getGraphData();
+    const diff = computeSnapshotDiff(data, snapshot);
+    this.diffOverlay.activate(diff, snapshot.name);
+
+    // 再描画を要求してオーバーレイを表示
+    this.pixiApp?.markNeedsRender();
+    this.wakeRenderLoop();
+  }
+
+  /** スナップショットを削除する */
+  private _deleteSnapshot(index: number): void {
+    const snapshots = this.plugin.settings.snapshots ?? [];
+    if (index < 0 || index >= snapshots.length) return;
+
+    const name = snapshots[index].name;
+    snapshots.splice(index, 1);
+    this.plugin.saveSettings();
+
+    showToast(t("snapshot.deleted").replace("{name}", name));
+  }
+
+  /** 差分オーバーレイを解除する */
+  private _clearDiffOverlay(): void {
+    this.diffOverlay.deactivate();
+    this.pixiApp?.markNeedsRender();
+    this.wakeRenderLoop();
   }
 
   /** Create fullscreen toggle and settings panel toggle buttons. */
@@ -566,6 +702,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Handle Escape key: close overlays or clear keyboard focus. */
   private _handleEscapeKey(): void {
+    // 差分オーバーレイが有効なら解除
+    if (this.diffOverlay.isActive()) {
+      this._clearDiffOverlay();
+      return;
+    }
     if (this.nodeInfoEl && this.nodeInfoEl.style.display !== "none") {
       this.nodeInfoEl.style.display = "none";
       this.nodeInfoEl.classList.remove("is-visible");
@@ -1130,6 +1271,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.minimap.draw();
       }
     };
+
+    // 差分オーバーレイのポストフラッシュフック設定
+    const pixiApp = this.pixiApp;
+    if (pixiApp) {
+      pixiApp.onPostFlush = (ctx: CanvasRenderingContext2D, _dpr: number) => {
+        if (!this.diffOverlay.isActive()) return;
+        const w = world;
+        this.diffOverlay.render(
+          ctx,
+          this.pixiNodes,
+          { x: w.x, y: w.y, scale: w.scale.x },
+          {
+            width: this.canvasWrap?.clientWidth ?? 600,
+            height: this.canvasWrap?.clientHeight ?? 400,
+          },
+        );
+      };
+    }
   }
 
   // =========================================================================
@@ -1446,6 +1605,58 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   getPathfinderState() {
     return { startId: this.pathfinderStartId, endId: this.pathfinderEndId };
+  }
+
+  // =========================================================================
+  // 比較選択 (Ctrl+click で最大2ノード選択 → 比較パネルに通知)
+  // =========================================================================
+  addCompareNode(nodeId: string) {
+    // 既に選択済みならトグル解除
+    const idx = this.compareNodeIds.indexOf(nodeId);
+    if (idx >= 0) {
+      this.compareNodeIds.splice(idx, 1);
+    } else {
+      // FIFO: 2件を超えたら最も古いものを除去
+      if (this.compareNodeIds.length >= 2) {
+        this.compareNodeIds.shift();
+      }
+      this.compareNodeIds.push(nodeId);
+    }
+    this.notifyCompare();
+    this.markDirty(true);
+  }
+
+  clearCompareSelection() {
+    if (this.compareNodeIds.length === 0) return;
+    this.compareNodeIds = [];
+    this.notifyCompare();
+    this.markDirty(true);
+  }
+
+  getCompareNodeIds(): string[] {
+    return this.compareNodeIds;
+  }
+
+  /** 比較イベントをワークスペースに発火。2ノード揃ったらパスファインダーも連動。 */
+  private notifyCompare() {
+    if (this.compareNodeIds.length === 2) {
+      const a = this.pixiNodes.get(this.compareNodeIds[0]);
+      const b = this.pixiNodes.get(this.compareNodeIds[1]);
+      if (a && b) {
+        this.app.workspace.trigger(EVENT_COMPARE_NODES as any, {
+          nodeA: a.data,
+          nodeB: b.data,
+          adj: this.adj,
+          pixiNodes: this.pixiNodes,
+        });
+        // パスファインダーも連動して最短経路を表示
+        this.setPathfinderNode(this.compareNodeIds[0], "start");
+        this.setPathfinderNode(this.compareNodeIds[1], "end");
+      }
+    } else {
+      this.app.workspace.trigger(EVENT_COMPARE_NODES as any, null);
+      this.clearPathfinder();
+    }
   }
 
   // -- InteractionHost: Obsidian App access (for hover-link preview) --

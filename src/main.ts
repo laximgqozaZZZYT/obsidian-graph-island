@@ -2,6 +2,8 @@ import { Plugin } from "obsidian";
 import { GraphViewsSettingTab } from "./settings";
 import { GraphViewContainer, VIEW_TYPE_GRAPH } from "./views/GraphViewContainer";
 import { NodeDetailView, VIEW_TYPE_NODE_DETAIL } from "./views/NodeDetailView";
+import { NodeComparisonView, VIEW_TYPE_NODE_COMPARE } from "./views/NodeComparisonView";
+import { EVENT_COMPARE_NODES } from "./constants";
 import { DEFAULT_SETTINGS, type GraphViewsSettings } from "./types";
 import { detectTagRelations } from "./utils/tag-relation-presets";
 
@@ -24,6 +26,18 @@ export default class GraphViewsPlugin extends Plugin {
     this.registerView(
       VIEW_TYPE_NODE_DETAIL,
       (leaf) => new NodeDetailView(leaf)
+    );
+
+    this.registerView(
+      VIEW_TYPE_NODE_COMPARE,
+      (leaf) => new NodeComparisonView(leaf)
+    );
+
+    // 比較イベント発火時に比較パネルを自動オープン
+    this.registerEvent(
+      this.app.workspace.on(EVENT_COMPARE_NODES as any, (data: any) => {
+        if (data) this.ensureComparePane();
+      })
     );
 
     this.addRibbonIcon("git-fork", "Graph Island", () => {
@@ -104,6 +118,17 @@ export default class GraphViewsPlugin extends Plugin {
     const rightLeaf = this.app.workspace.getRightLeaf(false);
     if (rightLeaf) {
       rightLeaf.setViewState({ type: VIEW_TYPE_NODE_DETAIL, active: true });
+    }
+  }
+
+  /** 比較パネルが未オープンなら右サイドバーに開く */
+  private ensureComparePane() {
+    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_NODE_COMPARE);
+    if (existing.length > 0) return;
+
+    const rightLeaf = this.app.workspace.getRightLeaf(false);
+    if (rightLeaf) {
+      rightLeaf.setViewState({ type: VIEW_TYPE_NODE_COMPARE, active: true });
     }
   }
 }
