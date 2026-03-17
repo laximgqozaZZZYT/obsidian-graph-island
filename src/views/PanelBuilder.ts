@@ -562,7 +562,7 @@ function buildFilterTab(
     }
     dvInput.addEventListener("change", () => {
       panel.dataviewQuery = dvInput.value.trim();
-      cb.invalidateData();
+      cb.invalidateDataKeepPanel();
     });
     body.createEl("p", { cls: "gi-hint", text: t("filter.dataviewHint") });
   }, tHelp("help.filter"), false, "filter");
@@ -958,7 +958,7 @@ function _buildPluginSettingsSection(
     addMultiValueInput(body, t("settings.metadataFields"), [...s.metadataFields], "tags, category...", getUnifiedFieldSuggestions(ctx), (v) => {
       s.metadataFields = v;
       ctx.saveSettings();
-      cb.invalidateData();
+      cb.invalidateDataKeepPanel();
     });
 
     if (panel.showTagNodes && panel.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
@@ -988,7 +988,7 @@ function _buildOntologySection(
       s.ontology.rules = rules;
       ctx.saveSettings();
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => cb.invalidateData(), 2000);
+      debounceTimer = setTimeout(() => cb.invalidateDataKeepPanel(), 2000);
     };
 
     const listEl = body.createDiv({ cls: "gi-ont-rules" });
@@ -1010,7 +1010,7 @@ function _buildOntologySection(
 
     addToggle(body, t("settings.tagHierarchy"), s.ontology.useTagHierarchy, (v) => {
       s.ontology.useTagHierarchy = v;
-      ctx.saveSettings(); cb.invalidateData();
+      ctx.saveSettings(); cb.invalidateDataKeepPanel();
     }, t("desc.tagHierarchy"));
   }, tHelp("help.ontology"), false, "network");
 }
@@ -3004,14 +3004,14 @@ function renderCustomMappings(
       if (oldField !== newField) delete s.ontology.customMappings[oldField];
       if (newField) s.ontology.customMappings[newField] = newType;
       ctx.saveSettings();
-      cb.invalidateData();
+      cb.invalidateDataKeepPanel();
     };
     fieldInput.addEventListener("change", update);
     typeSelect.addEventListener("change", update);
     removeBtn.addEventListener("click", () => {
       delete s.ontology.customMappings[field];
       ctx.saveSettings();
-      cb.invalidateData();
+      cb.invalidateDataKeepPanel();
       renderCustomMappings(container, s, ctx, cb);
     });
   }
@@ -3060,7 +3060,7 @@ function renderTagRelations(
       rel.target = tgtInput.value.trim().replace(/^#/, "");
       rel.type = typeSelect.value as "inheritance" | "aggregation";
       ctx.saveSettings();
-      cb.invalidateData();
+      cb.invalidateDataKeepPanel();
     };
     srcInput.addEventListener("change", update);
     tgtInput.addEventListener("change", update);
@@ -3068,7 +3068,7 @@ function renderTagRelations(
     removeBtn.addEventListener("click", () => {
       s.ontology.tagRelations.splice(i, 1);
       ctx.saveSettings();
-      cb.invalidateData();
+      cb.invalidateDataKeepPanel();
       renderTagRelations(container, s, ctx, cb);
     });
   }
