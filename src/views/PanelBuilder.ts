@@ -2725,6 +2725,7 @@ function renderOntologyRule(
         relBtn.textContent = opt.label;
         menu.remove();
         save();
+        rerender(); // Update reverse input disabled state for bidirectional relations
       });
     }
   });
@@ -3012,7 +3013,7 @@ function renderCustomMappings(
     const update = () => {
       const oldField = field;
       const newField = fieldInput.value.trim();
-      const newType = typeSelect.value as "inheritance" | "aggregation" | "similar";
+      const newType = typeSelect.value as "inheritance" | "aggregation" | "similar" | "sibling" | "sequence";
       if (oldField !== newField) delete s.ontology.customMappings[oldField];
       if (newField) s.ontology.customMappings[newField] = newType;
       ctx.saveSettings();
