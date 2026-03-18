@@ -7,8 +7,8 @@ function makeNode(overrides?: Partial<GraphNode>): GraphNode {
 }
 
 describe("evaluateExpr", () => {
-  it("leaf: label substring match", () => {
-    const expr: QueryLeaf = { type: "leaf", field: "label", value: "ali" };
+  it("leaf: label wildcard match", () => {
+    const expr: QueryLeaf = { type: "leaf", field: "label", value: "*ali*" };
     expect(evaluateExpr(expr, makeNode())).toBe(true);
     expect(evaluateExpr(expr, makeNode({ label: "Bob" }))).toBe(false);
   });
@@ -30,8 +30,8 @@ describe("evaluateExpr", () => {
     expect(evaluateExpr(expr, makeNode())).toBe(true);
   });
 
-  it("leaf: path match", () => {
-    const expr: QueryLeaf = { type: "leaf", field: "path", value: "characters/" };
+  it("leaf: path wildcard match", () => {
+    const expr: QueryLeaf = { type: "leaf", field: "path", value: "characters/*" };
     expect(evaluateExpr(expr, makeNode())).toBe(true);
     expect(evaluateExpr(expr, makeNode({ filePath: "locations/town.md" }))).toBe(false);
   });
