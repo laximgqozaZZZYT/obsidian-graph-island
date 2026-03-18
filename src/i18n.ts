@@ -593,6 +593,12 @@ const en: TranslationMap = {
   "display.showEntropyOverlay": "Knowledge Entropy",
   "desc.showEntropyOverlay": "Heatmap overlay showing low-density knowledge gaps",
 
+  // --- Advanced features (Phase 7) ---
+  "display.showNodeThumbnails": "Node Thumbnails",
+  "desc.showNodeThumbnails": "Show frontmatter image as node thumbnail",
+  "display.kShortestPaths": "Alternative Paths",
+  "desc.kShortestPaths": "Number of shortest paths to display (1=shortest only)",
+
   // --- Error messages ---
   "error.pixiInitFailed": "Graph rendering failed. Your browser may not support WebGL.",
   "error.graphBuildFailed": "Failed to build graph data. Check console for details.",
@@ -1351,6 +1357,10 @@ const ja: TranslationMap = {
   "desc.showStructureQuestions": "グラフ構造から質問を生成して統計パネルに表示",
   "display.showEntropyOverlay": "知識エントロピー",
   "desc.showEntropyOverlay": "低密度の知識ギャップをヒートマップで表示",
+  "display.showNodeThumbnails": "ノードサムネイル",
+  "desc.showNodeThumbnails": "フロントマターの画像をノードサムネイルとして表示",
+  "display.kShortestPaths": "代替パス数",
+  "desc.kShortestPaths": "表示する最短パス数（1=最短のみ）",
 
   // --- Error messages ---
   "error.pixiInitFailed": "グラフの描画に失敗しました。お使いのブラウザがWebGLに対応していない可能性があります。",

@@ -245,6 +245,11 @@ export interface PanelState {
   showStructureQuestions: boolean;
   /** Show knowledge entropy heatmap overlay */
   showEntropyOverlay: boolean;
+  // --- Phase 7: Advanced features ---
+  /** Show frontmatter image as node thumbnail */
+  showNodeThumbnails: boolean;
+  /** Number of alternative shortest paths to display (1 = shortest only) */
+  kShortestPaths: number;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -393,6 +398,8 @@ export function createDefaultPanel(): PanelState {
     showSimilarSuggestions: false,
     showStructureQuestions: false,
     showEntropyOverlay: false,
+    showNodeThumbnails: false,
+    kShortestPaths: 1,
   };
 }
 

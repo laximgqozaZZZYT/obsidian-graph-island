@@ -53,6 +53,7 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showSimilarSuggestions",
   "showStructureQuestions",
   "showEntropyOverlay",
+  "showNodeThumbnails",
 ];
 
 /** Fields that should be number */
@@ -66,6 +67,7 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "localGraphHops",
   "navHistoryCursor",
   "recencyDays",
+  "kShortestPaths",
 ];
 
 /** Fields that should be string */
