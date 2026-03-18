@@ -387,8 +387,16 @@ export class LayoutController {
 
     const chargeForce = panel.renderThresholds?.clusterChargeForce
       ?? DEFAULT_RENDER_THRESHOLDS.clusterChargeForce;
-    sim.force("charge", forceManyBody<GraphNode>().strength(chargeForce));
-    sim.force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(2));
+    // Scale charge by node radius for super nodes (collapsed groups need stronger repulsion)
+    const pixiNodesForCharge = this.host.getPixiNodes();
+    sim.force("charge", forceManyBody<GraphNode>().strength((n: GraphNode) => {
+      const pn = pixiNodesForCharge.get(n.id);
+      if (pn && n.collapsedMembers && n.collapsedMembers.length > 0) {
+        return chargeForce * (pn.radius / 10); // Scale with radius (60px → 6x stronger)
+      }
+      return chargeForce;
+    }));
+    sim.force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(4));
     sim.force("center", null);
     sim.force("link", null);
     sim.force("directionalGravity", null);

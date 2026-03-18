@@ -265,7 +265,7 @@ function resolveGroupOverlaps(
     clusterRadii.set(key, effective);
   }
 
-  const maxIter = Math.max(5, Math.min(keys.length, 10));
+  const maxIter = Math.max(5, Math.min(keys.length, 15));
   for (let iter = 0; iter < maxIter; iter++) {
     let anyOverlap = false;
 
@@ -689,7 +689,15 @@ function resolveGroupOverlapsIfNeeded(
   const isGlobalCoordLayout = cfg.coordinateLayout && !cfg.coordinateLayout.perGroup;
   if (cfg.skipGroupOverlap || isGlobalCoordLayout) return;
 
-  const overlapPad = cfg.userConstants?._overlapPad ?? 1.3;
+  // Increase overlap padding when groups contain super nodes (collapsed)
+  let overlapPad = cfg.userConstants?._overlapPad ?? 1.3;
+  let hasSuperNodes = false;
+  for (const members of groups.values()) {
+    if (members.length === 1 && members[0].collapsedMembers && members[0].collapsedMembers.length > 0) {
+      hasSuperNodes = true; break;
+    }
+  }
+  if (hasSuperNodes) overlapPad = Math.max(overlapPad, 1.8);
   const lsf = cfg.labelSpacingFactor ?? 0;
   const glScaleMax = 4.0;
   const glHullOff = 24;

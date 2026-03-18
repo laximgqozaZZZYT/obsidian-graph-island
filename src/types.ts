@@ -1223,7 +1223,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   gridCellShadingRange: 0.35,
   cardCollisionPadding: 40,
   collisionPadding: 2,
-  superNodeCollisionPadding: 2,
+  superNodeCollisionPadding: 12,
   superNodeInnerRatio: 0.65,
   superNodeOuterStroke: 1.5,
   superNodeInnerStroke: 1.0,
