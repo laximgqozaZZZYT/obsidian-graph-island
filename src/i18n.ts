@@ -531,6 +531,11 @@ const en: TranslationMap = {
   "snapshot.deleted": "Snapshot '{name}' deleted",
   "snapshot.renamed": "Snapshot renamed to '{name}'",
   "snapshot.enterName": "Enter snapshot name",
+  "snapshot.enterNotes": "Add notes (optional)",
+  "nav.back": "Navigate back",
+  "nav.forward": "Navigate forward",
+  "display.soloEdgeType": "Solo",
+  "desc.soloEdgeType": "Show one edge type at a time (click to cycle)",
 
   // --- Error messages ---
   "error.pixiInitFailed": "Graph rendering failed. Your browser may not support WebGL.",
@@ -689,6 +694,9 @@ const en: TranslationMap = {
   "legend.nodeColors": "Node Colors",
   "legend.edgeRelations": "Edge Relations",
   "legend.hidden": "(hidden)",
+  "legend.nodeShapes": "Node Shapes",
+  "legend.shapeDefault": "Default node",
+  "legend.shapeTag": "Tag node",
 
   // --- Feature T: Graph Search History ---
   "search.clearHistory": "Clear history",
@@ -1231,6 +1239,11 @@ const ja: TranslationMap = {
   "snapshot.deleted": "スナップショット '{name}' を削除しました",
   "snapshot.renamed": "スナップショットの名前を '{name}' に変更しました",
   "snapshot.enterName": "スナップショット名を入力",
+  "snapshot.enterNotes": "メモを追加（任意）",
+  "nav.back": "戻る",
+  "nav.forward": "進む",
+  "display.soloEdgeType": "ソロ",
+  "desc.soloEdgeType": "1つのエッジ種別のみ表示（クリックで切替）",
 
   // --- Error messages ---
   "error.pixiInitFailed": "グラフの描画に失敗しました。お使いのブラウザがWebGLに対応していない可能性があります。",
@@ -1389,6 +1402,9 @@ const ja: TranslationMap = {
 
   "legend.nodeColors": "ノードカラー",
   "legend.edgeRelations": "エッジ属性",
+  "legend.nodeShapes": "ノードシェイプ",
+  "legend.shapeDefault": "デフォルトノード",
+  "legend.shapeTag": "タグノード",
   "legend.hidden": "(非表示)",
 
   // --- Feature T: 検索履歴 ---

@@ -596,8 +596,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // 各スナップショットのサブメニュー
       for (let i = 0; i < snapshots.length; i++) {
         const snap = snapshots[i];
+        const title = snap.notes ? `${snap.name} — ${snap.notes}` : snap.name;
         menu.addItem((item) => {
-          item.setTitle(snap.name)
+          item.setTitle(title)
             .setIcon("bookmark")
             .onClick(() => this._compareWithSnapshot(snap));
         });
@@ -645,6 +646,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     );
     if (!name) return;
 
+    // オプション: メモ入力
+    const notes = window.prompt(t("snapshot.enterNotes"), "") ?? undefined;
+
     // 現在のグラフデータを取得してキャプチャ
     const data = this.getGraphData();
     const snapshot = captureSnapshot(data, name, {
@@ -652,6 +656,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       searchQuery: this.panel.searchQuery ?? "",
       groupBy: (this.panel.clusterGroupRules?.[0]?.groupBy) ?? "",
     });
+    if (notes) snapshot.notes = notes;
 
     // 設定に保存
     if (!this.plugin.settings.snapshots) {
@@ -1950,15 +1955,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return null;
   }
 
-  /** Toggle hold (pin) state for a node */
+  /** Toggle hold (pin) state for a node and persist to pinnedPositions */
   toggleHold(pn: PixiNode) {
     pn.held = !pn.held;
     if (pn.held) {
       pn.data.fx = pn.data.x;
       pn.data.fy = pn.data.y;
+      // Persist pinned position
+      this.panel.pinnedPositions[pn.data.id] = { x: pn.data.x, y: pn.data.y };
     } else {
       pn.data.fx = null;
       pn.data.fy = null;
+      // Remove from persisted positions
+      delete this.panel.pinnedPositions[pn.data.id];
     }
   }
 
@@ -3887,6 +3896,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       deleteTemplate: (name: string) => this._deleteTemplate(name),
       resetZoomBaseNodeSize: () => { this._zoomBaseNodeSize = null; },
       recalcNodeRadii: () => { this.recalcNodeRadii(); },
+      navBack: () => this.navBack(),
+      navForward: () => this.navForward(),
     };
   }
 
@@ -3899,6 +3910,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       bookmarkedNodes: this.panel.bookmarkedNodes,
       annotations: this.panel.annotations,
       searchHistory: this.panel.searchHistory,
+      navHistory: this.panel.navHistory,
+      navHistoryCursor: this.panel.navHistoryCursor,
+      pinnedPositions: this.panel.pinnedPositions,
     };
     Object.assign(this.panel, {
       ...createDefaultPanel(),
@@ -4305,6 +4319,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             this.requestSave();
           });
         }
+      }
+    }
+
+    // --- ノードシェイプセクション ---
+    if (this.panel.nodeShapeRules && this.panel.nodeShapeRules.length > 0) {
+      const shapeSection = body.createDiv({ cls: "gi-legend-section" });
+      shapeSection.createEl("div", { cls: "gi-legend-section-title", text: t("legend.nodeShapes") });
+      const shapeLabels: Record<string, string> = {
+        circle: "●", triangle: "▲", square: "■", diamond: "◆",
+        pentagon: "⬠", hexagon: "⬡", star: "★", cross: "✚",
+      };
+      for (const rule of this.panel.nodeShapeRules) {
+        const row = shapeSection.createDiv({ cls: "gi-legend-item" });
+        const icon = shapeLabels[rule.shape] ?? "●";
+        row.createEl("span", { cls: "gi-legend-shape-icon", text: icon });
+        const label = rule.match === "default" ? t("legend.shapeDefault")
+          : rule.match === "isTag" ? t("legend.shapeTag")
+          : rule.match;
+        row.createEl("span", { cls: "gi-legend-label", text: `${icon} ${label}` });
       }
     }
   }
@@ -4765,6 +4798,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         n.x = cx + (Math.random() - 0.5) * W * 0.8;
         n.y = cy + (Math.random() - 0.5) * H * 0.8;
       }
+      // Restore pinned positions from persistent state
+      const pinned = this.panel.pinnedPositions[n.id];
+      if (pinned) {
+        n.x = pinned.x;
+        n.y = pinned.y;
+        n.fx = pinned.x;
+        n.fy = pinned.y;
+      }
     }
     this.savedPositions.clear();
 
@@ -4780,6 +4821,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
 
     this.createPixiNodes(gd.nodes, nodeR, nodeColor);
+    // Restore held state for pinned nodes
+    for (const nodeId of Object.keys(this.panel.pinnedPositions)) {
+      const pn = this.pixiNodes.get(nodeId);
+      if (pn) pn.held = true;
+    }
     this.computeSortRanks();
 
     let tickCount = 0;
@@ -5270,10 +5316,63 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     requestAnimationFrame(animate);
   }
 
+  /** Push a node visit to navigation history (max 20). */
+  private pushNavHistory(nodeId: string): void {
+    const hist = this.panel.navHistory;
+    const cursor = this.panel.navHistoryCursor;
+    // If we're not at the latest, truncate forward history
+    if (cursor >= 0 && cursor < hist.length - 1) {
+      hist.splice(cursor + 1);
+    }
+    // Avoid consecutive duplicates
+    if (hist.length === 0 || hist[hist.length - 1] !== nodeId) {
+      hist.push(nodeId);
+      if (hist.length > 20) hist.shift();
+    }
+    this.panel.navHistoryCursor = hist.length - 1;
+  }
+
+  /** Navigate back in history */
+  navBack(): void {
+    const hist = this.panel.navHistory;
+    if (hist.length === 0) return;
+    const cursor = this.panel.navHistoryCursor < 0 ? hist.length - 1 : this.panel.navHistoryCursor;
+    if (cursor > 0) {
+      this.panel.navHistoryCursor = cursor - 1;
+      this._jumpToNodeNoHistory(hist[cursor - 1]);
+    }
+  }
+
+  /** Navigate forward in history */
+  navForward(): void {
+    const hist = this.panel.navHistory;
+    if (hist.length === 0) return;
+    const cursor = this.panel.navHistoryCursor;
+    if (cursor >= 0 && cursor < hist.length - 1) {
+      this.panel.navHistoryCursor = cursor + 1;
+      this._jumpToNodeNoHistory(hist[cursor + 1]);
+    }
+  }
+
+  /** Internal jump without recording history */
+  private _jumpToNodeNoHistory(nodeId: string): void {
+    const pn = this.pixiNodes.get(nodeId);
+    if (!pn) return;
+    const world = this.worldContainer;
+    const wrap = this.canvasWrap;
+    if (!world || !wrap) return;
+    world.x = wrap.clientWidth / 2 - pn.data.x * world.scale.x;
+    world.y = wrap.clientHeight / 2 - pn.data.y * world.scale.y;
+    this.setHighlightedNodeId(nodeId);
+    this.applyHover();
+    this.wakeRenderLoop();
+  }
+
   /**
    * Pan the camera so that the given node is centered on screen, then highlight it.
    */
   private jumpToNode(nodeId: string) {
+    this.pushNavHistory(nodeId);
     const pn = this.pixiNodes.get(nodeId);
     if (!pn) return;
 

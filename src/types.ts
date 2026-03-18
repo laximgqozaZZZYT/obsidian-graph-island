@@ -18,6 +18,12 @@ export interface GraphNode {
   collapsedInto?: string;
   /** Frontmatter key-value pairs from the source file */
   meta?: Record<string, unknown>;
+  /** File modification time (epoch ms) */
+  mtime?: number;
+  /** File creation time (epoch ms) */
+  ctime?: number;
+  /** First 100 chars of body text (YAML stripped) for content preview */
+  bodyPreview?: string;
 }
 
 export interface GraphEdge {
@@ -63,6 +69,8 @@ export interface GraphSnapshot {
   nodes: SnapshotNode[];
   /** エッジフィンガープリント配列 */
   edges: SnapshotEdge[];
+  /** ユーザーメモ（スナップショットの説明や目的） */
+  notes?: string;
   /** パネル状態の要約（情報表示用） */
   context: {
     layout: string;

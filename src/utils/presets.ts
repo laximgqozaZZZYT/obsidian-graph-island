@@ -20,7 +20,7 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showCategoryEdges", "showSemanticEdges", "fadeEdgesByDegree",
   "showEdgeLabels", "showMinimap", "autoFit", "showDurationBars",
   "showDotGrid",
-  "gridTableMode", "gridShowHeaders", "gridCellShading",
+  "gridShowHeaders", "gridCellShading",
   "clusterFollowsGroupBy",
   "focusMode",
   "showTimelineRoutes",
@@ -51,6 +51,7 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "timelineRangeMin", "timelineRangeMax",
   "cableTrunkWidth", "cableTrunkAlpha", "cableSpacing", "cableFanWidth", "cableFanAlpha",
   "localGraphHops",
+  "navHistoryCursor",
 ];
 
 /** Fields that should be string */
@@ -69,6 +70,7 @@ const ARRAY_FIELDS: (keyof PanelState)[] = [
   "groups", "directionalGravityRules", "commonQueries", "clusterGroupRules",
   "sortRules", "nodeRules", "nodeShapeRules", "groupByRules",
   "cardinalityRules", "annotations", "bookmarkedNodes", "searchHistory",
+  "navHistory",
 ];
 
 /** Valid values for enum-like fields */
@@ -99,6 +101,7 @@ const NULLABLE_OBJECT_FIELDS: (keyof PanelState)[] = [
   "cardRenderConfig",
   "cardinalityRenderConfig",
   "renderThresholds",
+  "pinnedPositions",
 ];
 
 /** All valid PanelState keys — derived from the field lists above plus enums */

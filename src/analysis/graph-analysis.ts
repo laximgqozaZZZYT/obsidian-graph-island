@@ -125,6 +125,201 @@ export function computeInDegree(
   return inDegree;
 }
 
+// ---------------------------------------------------------------------------
+// Betweenness Centrality — Brandes algorithm O(V*E)
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute betweenness centrality for all nodes using Brandes' algorithm.
+ * For unweighted, undirected graphs this runs in O(V*E).
+ *
+ * @param nodes  Graph nodes
+ * @param edges  Graph edges (treated as undirected)
+ * @param maxNodes  Skip computation if node count exceeds this (returns empty map)
+ * @returns Map<nodeId, centrality> — normalized by 2/((V-1)(V-2)) for V≥3
+ */
+export function computeBetweennessCentrality(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  maxNodes = 5000,
+): Map<string, number> {
+  const bc = new Map<string, number>();
+  const V = nodes.length;
+  if (V === 0) return bc;
+  for (const n of nodes) bc.set(n.id, 0);
+
+  // Skip for very large graphs
+  if (V > maxNodes) return bc;
+
+  // Build adjacency list
+  const adj = new Map<string, string[]>();
+  for (const n of nodes) adj.set(n.id, []);
+  for (const e of edges) {
+    adj.get(e.source)?.push(e.target);
+    adj.get(e.target)?.push(e.source);
+  }
+
+  // Brandes: BFS from each source
+  for (const s of nodes) {
+    const stack: string[] = [];
+    const pred = new Map<string, string[]>();
+    for (const n of nodes) pred.set(n.id, []);
+    const sigma = new Map<string, number>();
+    for (const n of nodes) sigma.set(n.id, 0);
+    sigma.set(s.id, 1);
+    const dist = new Map<string, number>();
+    for (const n of nodes) dist.set(n.id, -1);
+    dist.set(s.id, 0);
+    const queue: string[] = [s.id];
+
+    // BFS
+    while (queue.length > 0) {
+      const v = queue.shift()!;
+      stack.push(v);
+      const dv = dist.get(v)!;
+      for (const w of adj.get(v) ?? []) {
+        const dw = dist.get(w)!;
+        if (dw < 0) {
+          // First visit
+          dist.set(w, dv + 1);
+          queue.push(w);
+        }
+        if (dist.get(w) === dv + 1) {
+          sigma.set(w, sigma.get(w)! + sigma.get(v)!);
+          pred.get(w)!.push(v);
+        }
+      }
+    }
+
+    // Accumulation
+    const delta = new Map<string, number>();
+    for (const n of nodes) delta.set(n.id, 0);
+    while (stack.length > 0) {
+      const w = stack.pop()!;
+      for (const v of pred.get(w)!) {
+        const d = (sigma.get(v)! / sigma.get(w)!) * (1 + delta.get(w)!);
+        delta.set(v, delta.get(v)! + d);
+      }
+      if (w !== s.id) {
+        bc.set(w, bc.get(w)! + delta.get(w)!);
+      }
+    }
+  }
+
+  // Normalize for undirected graph: divide by 2
+  // (each pair counted twice in undirected BFS)
+  if (V >= 3) {
+    const norm = 2.0; // undirected
+    for (const [id, val] of bc) {
+      bc.set(id, val / norm);
+    }
+  }
+
+  return bc;
+}
+
+// ---------------------------------------------------------------------------
+// Connected component labeling
+// ---------------------------------------------------------------------------
+
+/**
+ * Label each node with its connected component ID (0-indexed).
+ * Component IDs are assigned in BFS discovery order.
+ */
+export function labelConnectedComponents(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+): Map<string, number> {
+  const labels = new Map<string, number>();
+  if (nodes.length === 0) return labels;
+
+  const adj = new Map<string, string[]>();
+  for (const n of nodes) adj.set(n.id, []);
+  for (const e of edges) {
+    adj.get(e.source)?.push(e.target);
+    adj.get(e.target)?.push(e.source);
+  }
+
+  let componentId = 0;
+  for (const n of nodes) {
+    if (labels.has(n.id)) continue;
+    const queue = [n.id];
+    labels.set(n.id, componentId);
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      for (const nb of adj.get(cur) ?? []) {
+        if (!labels.has(nb)) {
+          labels.set(nb, componentId);
+          queue.push(nb);
+        }
+      }
+    }
+    componentId++;
+  }
+
+  return labels;
+}
+
+// ---------------------------------------------------------------------------
+// Structural pattern detection (Phase 3d)
+// ---------------------------------------------------------------------------
+
+/**
+ * Find articulation points (cut vertices) using Tarjan's DFS algorithm.
+ * Removing an articulation point disconnects the graph.
+ */
+export function detectArticulationPoints(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+): Set<string> {
+  const result = new Set<string>();
+  if (nodes.length === 0) return result;
+
+  const adj = new Map<string, string[]>();
+  for (const n of nodes) adj.set(n.id, []);
+  for (const e of edges) {
+    adj.get(e.source)?.push(e.target);
+    adj.get(e.target)?.push(e.source);
+  }
+
+  const disc = new Map<string, number>();
+  const low = new Map<string, number>();
+  const parent = new Map<string, string | null>();
+  let timer = 0;
+
+  function dfs(u: string): void {
+    disc.set(u, timer);
+    low.set(u, timer);
+    timer++;
+    let children = 0;
+
+    for (const v of adj.get(u) ?? []) {
+      if (!disc.has(v)) {
+        children++;
+        parent.set(v, u);
+        dfs(v);
+        low.set(u, Math.min(low.get(u)!, low.get(v)!));
+        // u is articulation point if:
+        // 1) u is root and has 2+ children
+        // 2) u is not root and low(v) >= disc(u)
+        if (parent.get(u) === null && children > 1) result.add(u);
+        if (parent.get(u) !== null && low.get(v)! >= disc.get(u)!) result.add(u);
+      } else if (v !== parent.get(u)) {
+        low.set(u, Math.min(low.get(u)!, disc.get(v)!));
+      }
+    }
+  }
+
+  for (const n of nodes) {
+    if (!disc.has(n.id)) {
+      parent.set(n.id, null);
+      dfs(n.id);
+    }
+  }
+
+  return result;
+}
+
 export function computePropagatedImportance(
   nodes: GraphNode[],
   edges: GraphEdge[],

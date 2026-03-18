@@ -106,7 +106,8 @@ export interface PanelState {
   /** Display sunburst as filled ring chart instead of nodes */
   ringChartMode: boolean;
   /** Enable custom grid overlay on coordinate layout */
-  gridTableMode: boolean;
+  /** @deprecated Use coordinateLayout.grid !== undefined instead */
+  gridTableMode?: boolean;
   /** Show row/column header labels on grid */
   gridShowHeaders: boolean;
   /** Show axis name titles on coordinate grid */
@@ -197,6 +198,12 @@ export interface PanelState {
   nodeSubLabelFields: string;
   /** Metadata fields to show in hover tooltip (comma-separated frontmatter keys) */
   hoverTooltipFields: string;
+  /** Pinned node positions: persisted across layout changes */
+  pinnedPositions: Record<string, { x: number; y: number }>;
+  /** Navigation history: visited node IDs (max 20) */
+  navHistory: string[];
+  /** Navigation history cursor (index into navHistory, -1 = latest) */
+  navHistoryCursor: number;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -279,7 +286,6 @@ export function createDefaultPanel(): PanelState {
     timelineRangeMin: 0,
     timelineRangeMax: 1,
     ringChartMode: false,
-    gridTableMode: false,
     gridShowHeaders: true,
     showAxisTitles: true,
     showTimelineTickLabels: true,
@@ -324,6 +330,9 @@ export function createDefaultPanel(): PanelState {
     showAncestryBreadcrumb: false,
     nodeSubLabelFields: "",
     hoverTooltipFields: "",
+    pinnedPositions: {},
+    navHistory: [],
+    navHistoryCursor: -1,
   };
 }
 
@@ -376,6 +385,10 @@ export interface PanelCallbacks {
   resetZoomBaseNodeSize(): void;
   /** Recalculate visual radii without full re-render (lightweight nodeSize preview) */
   recalcNodeRadii(): void;
+  /** Navigate back in node visit history */
+  navBack(): void;
+  /** Navigate forward in node visit history */
+  navForward(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -545,6 +558,20 @@ export function buildPanel(
   });
   attachQueryHint(searchBar, (field) => cb.collectValueSuggestions(field));
   attachSearchJump(searchBar, cb);
+
+  // --- Navigation history back/forward buttons ---
+  const navBackBtn = searchRow.createEl("span", {
+    cls: "clickable-icon gi-nav-btn",
+    attr: { "aria-label": t("nav.back") },
+  });
+  setIcon(navBackBtn, "arrow-left");
+  navBackBtn.addEventListener("click", () => cb.navBack());
+  const navFwdBtn = searchRow.createEl("span", {
+    cls: "clickable-icon gi-nav-btn",
+    attr: { "aria-label": t("nav.forward") },
+  });
+  setIcon(navFwdBtn, "arrow-right");
+  navFwdBtn.addEventListener("click", () => cb.navForward());
 
   const searchHelpBtn = searchRow.createEl("span", {
     cls: "clickable-icon gi-search-help",
@@ -948,6 +975,38 @@ function _buildEdgeDisplaySection(
     addToggle(body, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateDataKeepPanel(); }, t("desc.similar"));
     addToggle(body, t("display.sibling"), panel.showSibling, (v) => { panel.showSibling = v; cb.markDirty(); }, t("desc.sibling"));
     addToggle(body, t("display.sequence"), panel.showSequence, (v) => { panel.showSequence = v; cb.markDirty(); }, t("desc.sequence"));
+
+    // Solo button: cycle through edge types one at a time
+    const EDGE_TYPE_KEYS: (keyof PanelState)[] = [
+      "showLinks", "showTagEdges", "showCategoryEdges", "showSemanticEdges",
+      "showInheritance", "showAggregation", "showSimilar", "showSibling", "showSequence",
+    ];
+    const soloRow = body.createDiv({ cls: "gi-setting-row" });
+    const soloBtn = soloRow.createEl("button", { cls: "gi-solo-btn", text: t("display.soloEdgeType") });
+    soloBtn.title = t("desc.soloEdgeType");
+    soloBtn.addEventListener("click", () => {
+      // Find currently soloed type (exactly one ON, rest OFF)
+      const onKeys = EDGE_TYPE_KEYS.filter(k => panel[k] as boolean);
+      if (onKeys.length === 1) {
+        // Advance to next type
+        const idx = EDGE_TYPE_KEYS.indexOf(onKeys[0]);
+        const nextIdx = (idx + 1) % EDGE_TYPE_KEYS.length;
+        if (nextIdx === 0) {
+          // Wrapped around: restore all ON
+          for (const k of EDGE_TYPE_KEYS) (panel as Record<string, unknown>)[k] = true;
+        } else {
+          for (const k of EDGE_TYPE_KEYS) (panel as Record<string, unknown>)[k] = false;
+          (panel as Record<string, unknown>)[EDGE_TYPE_KEYS[nextIdx]] = true;
+        }
+      } else {
+        // Start solo: turn on only the first type
+        for (const k of EDGE_TYPE_KEYS) (panel as Record<string, unknown>)[k] = false;
+        (panel as Record<string, unknown>)[EDGE_TYPE_KEYS[0]] = true;
+      }
+      cb.markDirty();
+      cb.rebuildPanel();
+    });
+
     // Cardinality markers (crow's foot)
     addSelect(body, t("display.edgeCardinality"), [
       { value: "none", label: t("display.cardinalityNone") },
@@ -1441,10 +1500,11 @@ function _buildArrangementPatternSelect(s: ClusterSectionCtx): void {
   ], s.panel.clusterArrangement, (v) => {
     s.panel.clusterArrangement = v as ClusterArrangement;
     const preset = getPreset(v as ClusterArrangement);
-    // Preserve grid config if gridTableMode is active
+    // Preserve grid config if currently active
+    const prevGrid = s.panel.coordinateLayout?.grid;
     s.panel.coordinateLayout = {
       ...preset,
-      ...(s.panel.gridTableMode ? { grid: { style: s.panel.gridStyle, cellShading: s.panel.gridCellShading } } : {}),
+      ...(prevGrid ? { grid: prevGrid } : {}),
     };
     s.cb.applyClusterForce();
     s.cb.rebuildPanel();
@@ -1630,8 +1690,8 @@ function _buildAutoFitAndGuides(s: ClusterSectionCtx): void {
 
   // Custom grid settings (visible when coordinate layout is active)
   if (panel.coordinateLayout) {
-    addToggle(body, t("guide.gridTableMode"), panel.gridTableMode, (v) => {
-      panel.gridTableMode = v;
+    const hasGrid = !!panel.coordinateLayout.grid;
+    addToggle(body, t("guide.gridTableMode"), hasGrid, (v) => {
       if (v && panel.coordinateLayout) {
         panel.coordinateLayout.grid = {
           style: panel.gridStyle,
@@ -1645,7 +1705,7 @@ function _buildAutoFitAndGuides(s: ClusterSectionCtx): void {
       cb.rebuildPanel();
     }, t("guide.gridTableModeDesc"));
 
-    if (panel.gridTableMode) {
+    if (hasGrid) {
       addSelect(body, t("guide.gridStyle"), [
         { value: "lines", label: t("guide.gridStyle.lines") },
         { value: "table", label: t("guide.gridStyle.table") },

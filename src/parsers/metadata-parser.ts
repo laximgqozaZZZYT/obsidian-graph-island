@@ -72,6 +72,8 @@ export function buildGraphFromVault(
       category: frontmatter?.[settings.colorField] as string | undefined,
       tags: extractTags(frontmatter, cache),
       filePath: file.path,
+      mtime: file.stat.mtime,
+      ctime: file.stat.ctime,
     };
     // meta is a live getter — reads from metadataCache on every access
     defineLiveMeta(node, app);

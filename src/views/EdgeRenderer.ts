@@ -3570,9 +3570,14 @@ export function drawEdgeLabels(
     labelable.push({ edge: e, label });
   }
 
+  // LOD: Zoom-based label thinning — at low zoom, show fewer labels.
+  // At zoom ≥ 1.0 show MAX_EDGE_LABELS, at zoom 0.1 show ~20% of max.
+  const zoomScale = Math.min(1, Math.max(0.2, cfg.worldScale ?? 1));
+  const effectiveMax = Math.max(10, Math.floor(MAX_EDGE_LABELS * zoomScale));
+
   // Performance guard: show only the most important labels when count exceeds limit.
   // Prioritize edges whose endpoints have higher combined degree (more connected = more visible).
-  if (labelable.length > MAX_EDGE_LABELS) {
+  if (labelable.length > effectiveMax) {
     if (cfg.degrees && cfg.degrees.size > 0) {
       labelable.sort((a, b) => {
         const da = (cfg.degrees.get(a.edge.source as string) ?? 0) + (cfg.degrees.get(a.edge.target as string) ?? 0);
@@ -3580,7 +3585,7 @@ export function drawEdgeLabels(
         return db - da;
       });
     }
-    labelable.length = MAX_EDGE_LABELS;
+    labelable.length = effectiveMax;
   }
 
   const fillColor = cfg.isDark ? 0xcccccc : 0x444444;
