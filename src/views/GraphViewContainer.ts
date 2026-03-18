@@ -2320,6 +2320,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (pn.data.category) {
         tooltipText += "\n[" + pn.data.category + "]";
       }
+      // Show custom metadata fields in tooltip
+      const tooltipFields = this.panel.hoverTooltipFields;
+      if (tooltipFields && pn.data.meta) {
+        const fields = tooltipFields.split(",").map(s => s.trim()).filter(Boolean);
+        for (const field of fields) {
+          const val = pn.data.meta[field];
+          if (val !== undefined && val !== null && val !== "") {
+            tooltipText += `\n${field}: ${val}`;
+          }
+        }
+      }
     }
 
     // Feature DA: Ancestry breadcrumb trail from hub to hovered node

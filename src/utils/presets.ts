@@ -61,6 +61,7 @@ const STRING_FIELDS: (keyof PanelState)[] = [
   "cableBundleMode",
   "orphanClusterField",
   "nodeSubLabelFields",
+  "hoverTooltipFields",
 ];
 
 /** Fields that should be arrays */

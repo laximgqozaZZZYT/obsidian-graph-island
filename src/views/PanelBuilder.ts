@@ -197,6 +197,8 @@ export interface PanelState {
   showAncestryBreadcrumb: boolean;
   /** Additional metadata fields to show below node label (comma-separated frontmatter keys) */
   nodeSubLabelFields: string;
+  /** Metadata fields to show in hover tooltip (comma-separated frontmatter keys) */
+  hoverTooltipFields: string;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -325,6 +327,7 @@ export function createDefaultPanel(): PanelState {
     showGraphStats: false,
     showAncestryBreadcrumb: false,
     nodeSubLabelFields: "",
+    hoverTooltipFields: "",
   };
 }
 
@@ -586,7 +589,7 @@ export function buildPanel(
       settingsFilterInput.value = "";
       applySettingsFilter("");
     }
-  });
+  }, panel);
 
   // --- Settings filter (searches across all tabs) ---
   const settingsFilterWrapper = panelEl.createDiv({ cls: "gi-search-wrapper gi-settings-filter-wrapper" });
@@ -792,6 +795,10 @@ function _buildNodeDisplaySection(
     addTextInput(body, t("display.nodeSubLabelFields"), panel.nodeSubLabelFields ?? "", "e.g. category, date, node_type", (v) => {
       panel.nodeSubLabelFields = v;
       cb.doRenderKeepPanel();
+    });
+    addTextInput(body, t("display.hoverTooltipFields"), panel.hoverTooltipFields ?? "", "e.g. date, story_order", (v) => {
+      panel.hoverTooltipFields = v;
+      cb.markDirty();
     });
     addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.applyHover(); cb.markDirty(); }, t("desc.hoverHops"));
     // フォーカスモード: クリックでハイライトを固定
@@ -1931,13 +1938,30 @@ const TAB_DEFS: { id: TabId; labelKey: string; icon: string }[] = [
   { id: "settings", labelKey: "tab.settings", icon: "settings" },
 ];
 
+/** Count how many panel fields differ from defaults */
+function countChangedFields(panel: PanelState): number {
+  const defaults = createDefaultPanel();
+  let count = 0;
+  for (const key of Object.keys(defaults) as (keyof PanelState)[]) {
+    const cur = panel[key];
+    const def = defaults[key];
+    if (cur instanceof Set || def instanceof Set) continue;
+    if (Array.isArray(cur) || Array.isArray(def)) continue;
+    if (typeof cur === "object" || typeof def === "object") continue;
+    if (cur !== def) count++;
+  }
+  return count;
+}
+
 function buildTabBar(
   container: HTMLElement,
   activeTab: TabId,
   tabContainers: Map<TabId, HTMLElement>,
   onSwitch: (tab: TabId) => void,
+  panel?: PanelState,
 ) {
   const bar = container.createDiv({ cls: "gi-tab-bar" });
+  const changedCount = panel ? countChangedFields(panel) : 0;
   for (const def of TAB_DEFS) {
     const label = t(def.labelKey);
     const btn = bar.createEl("button", { cls: "gi-tab-btn", attr: { "aria-label": label, title: label } });
@@ -1951,6 +1975,11 @@ function buildTabBar(
       }
       onSwitch(def.id);
     });
+  }
+  // Show badge with total changed field count
+  if (changedCount > 0) {
+    const badge = bar.createEl("span", { cls: "gi-diff-badge", text: String(changedCount), attr: { title: `${changedCount} settings changed from defaults` } });
+    badge.style.cssText = "font-size:10px;background:var(--interactive-accent);color:var(--text-on-accent);border-radius:8px;padding:1px 5px;margin-left:4px;vertical-align:top;";
   }
 }
 

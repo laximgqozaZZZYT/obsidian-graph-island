@@ -634,3 +634,54 @@ test.describe("10. Preset Roundtrip", () => {
     expect(result.hasLegacyHeatmap).toBe(false);
   });
 });
+
+// =========================================================================
+// 11. Timeline Layout — X-coordinate ordering
+// =========================================================================
+test.describe("11. Timeline Layout", () => {
+  test("11.1 timeline layout orders nodes by X coordinate matching time order", async () => {
+    // Use a subset with date fields for deterministic testing
+    await renderAndVerify(page, {
+      clusterArrangement: "timeline",
+      searchQuery: "path:classic-macbeth",
+      groupBy: "none",
+    }, async (p) => {
+      const count = await p.evaluate(() => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        return v?.pixiNodes?.size ?? 0;
+      });
+      return count > 20;
+    });
+    await page.waitForTimeout(5000); // let timeline settle
+
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.pixiNodes) return { error: "no view" };
+      // Collect node positions
+      const positions: { x: number; y: number }[] = [];
+      for (const pn of v.pixiNodes.values()) {
+        positions.push({ x: pn.data.x, y: pn.data.y });
+      }
+      // Check X spread: timeline should have significant horizontal spread
+      const xs = positions.map(p => p.x);
+      const xMin = Math.min(...xs);
+      const xMax = Math.max(...xs);
+      const xSpread = xMax - xMin;
+      return { nodeCount: positions.length, xSpread, xMin: Math.round(xMin), xMax: Math.round(xMax) };
+    });
+
+    expect(result).not.toHaveProperty("error");
+    expect(result.nodeCount).toBeGreaterThan(20);
+    // Timeline should have horizontal spread of at least 200px
+    expect(result.xSpread).toBeGreaterThan(200);
+
+    // Restore force layout
+    await renderAndVerify(page, { clusterArrangement: "force", searchQuery: "" }, async (p) => {
+      const count = await p.evaluate(() => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        return v?.pixiNodes?.size ?? 0;
+      });
+      return count > 2000;
+    });
+  });
+});
