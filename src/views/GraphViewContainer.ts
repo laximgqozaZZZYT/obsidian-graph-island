@@ -2110,6 +2110,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     new Notice(msg, 3000);
   }
 
+  // =========================================================================
+  // Graph Note Creation (Phase 4a)
+  // =========================================================================
+  /** Create a new note at the given world coordinates via prompt */
+  async createNoteAtPosition(wx: number, wy: number): Promise<void> {
+    const name = window.prompt(t("context.enterNoteName"), "");
+    if (!name) return;
+    const path = name.endsWith(".md") ? name : `${name}.md`;
+    try {
+      const file = await this.app.vault.create(path, "");
+      // Invalidate data to include the new file, then pin at the clicked position
+      this.panel.pinnedPositions[file.path] = { x: wx, y: wy };
+      this.rawData = null;
+      this.doRender();
+      showToast(t("context.noteCreated").replace("{name}", file.basename));
+    } catch (err) {
+      showToast(`Failed to create note: ${err}`, 5000);
+    }
+  }
+
   /** 未接続同タグノードIDセットを取得（RenderHost用） */
   getMissingNeighborNodeIds(): Set<string> | null {
     return this.missingNeighborNodeIds;

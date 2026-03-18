@@ -701,6 +701,9 @@ const en: TranslationMap = {
   // --- Feature CY: Subgraph Export ---
   "context.exportSubgraph": "Export subgraph (2-hop JSON)",
   "toast.subgraphExported": "Subgraph exported ({nodes} nodes, {edges} edges)",
+  "context.createNote": "Create note here",
+  "context.enterNoteName": "Enter note filename",
+  "context.noteCreated": "Note '{name}' created",
 
   // --- Feature N: Edge Weight Labels ---
   "display.edgeWeightLabels": "Edge Weight Labels",
@@ -1442,6 +1445,9 @@ const ja: TranslationMap = {
   // --- Feature CY: サブグラフエクスポート ---
   "context.exportSubgraph": "サブグラフをエクスポート（2ホップ JSON）",
   "toast.subgraphExported": "サブグラフをエクスポートしました（{nodes}ノード、{edges}エッジ）",
+  "context.createNote": "ここにノートを作成",
+  "context.enterNoteName": "ノートのファイル名を入力",
+  "context.noteCreated": "ノート '{name}' を作成しました",
 
   // --- Feature N: エッジ重みラベル ---
   "display.edgeWeightLabels": "エッジ重みラベル",

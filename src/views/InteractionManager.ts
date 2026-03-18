@@ -108,6 +108,8 @@ export interface InteractionHost {
   clearLinkPreview?(): void;
   /** Feature CY: export N-hop subgraph as JSON download */
   exportSubgraph?(nodeId: string): void;
+  /** Create a new note at the given world coordinates (Phase 4a) */
+  createNoteAtPosition?(wx: number, wy: number): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -575,9 +577,15 @@ export class InteractionManager {
     const my = e.clientY - rect.top;
     const worldPt = this.world.toLocal({ x: mx, y: my }, app.stage);
     const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
-    if (!hit) return;
 
     e.preventDefault();
+
+    // Empty canvas right-click: show canvas context menu
+    if (!hit) {
+      this._showCanvasContextMenu(e, worldPt);
+      return;
+    }
+
     const menu = new Menu();
     const node = hit;
 
@@ -642,6 +650,24 @@ export class InteractionManager {
         item.setTitle("Path: clear")
           .setIcon("x")
           .onClick(() => this.host.clearPathfinder());
+      });
+    }
+
+    menu.showAtPosition({ x: e.clientX, y: e.clientY });
+  }
+
+  // -----------------------------------------------------------------------
+  // Canvas context menu (right-click on empty space)
+  // -----------------------------------------------------------------------
+  private _showCanvasContextMenu(e: MouseEvent, worldPt: { x: number; y: number }) {
+    const menu = new Menu();
+
+    // Create note here (4a)
+    if (this.host.createNoteAtPosition) {
+      menu.addItem((item) => {
+        item.setTitle(t("context.createNote"))
+          .setIcon("file-plus")
+          .onClick(() => this.host.createNoteAtPosition!(worldPt.x, worldPt.y));
       });
     }
 
