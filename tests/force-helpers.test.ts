@@ -18,6 +18,10 @@ describe("resolveDirection", () => {
     expect(resolveDirection("right")).toBeCloseTo(0);
   });
 
+  it("defaults to 0 for unknown string values", () => {
+    expect(resolveDirection("unknown" as never)).toBeCloseTo(0);
+  });
+
   it("passes through numeric radian values", () => {
     expect(resolveDirection(1.5)).toBeCloseTo(1.5);
     expect(resolveDirection(0)).toBeCloseTo(0);

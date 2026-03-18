@@ -10,7 +10,7 @@ export function resolveDirection(dir: DirectionalGravityRule["direction"]): numb
     case "top": return -Math.PI / 2;
     case "bottom": return Math.PI / 2;
     case "left": return Math.PI;
-    case "right": return 0;
+    case "right": default: return 0;
   }
 }
 
