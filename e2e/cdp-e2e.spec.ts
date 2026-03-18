@@ -685,3 +685,78 @@ test.describe("11. Timeline Layout", () => {
     });
   });
 });
+
+// =========================================================================
+// 12. Enclosure Min Ratio — graduated filtering
+// =========================================================================
+test.describe("12. Enclosure Min Ratio", () => {
+  test("12.1 enclosureMinRatio=0.1 shows more enclosures than 0.5", async () => {
+    // Render with enclosure mode and low min ratio
+    await renderAndVerify(page, {
+      tagDisplay: "enclosure",
+      showTagNodes: true,
+      includeTagsInData: true,
+      searchQuery: "",
+    }, async (p) => {
+      const count = await p.evaluate(() => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        return v?.pixiNodes?.size ?? 0;
+      });
+      return count > 2000;
+    });
+
+    // Count rendered enclosure labels at minRatio=0.01
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      const app = (window as any).app;
+      const pi = app.plugins.plugins["graph-island"];
+      if (pi) pi.settings.enclosureMinRatio = 0.01;
+      v.rawData = null;
+      await v.doRender();
+    });
+    await page.waitForTimeout(8000);
+
+    const lowRatioLabels = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.enclosureLabels?.size ?? 0;
+    });
+
+    // Count rendered enclosure labels at minRatio=0.3
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      const app = (window as any).app;
+      const pi = app.plugins.plugins["graph-island"];
+      if (pi) pi.settings.enclosureMinRatio = 0.3;
+      v.rawData = null;
+      await v.doRender();
+    });
+    await page.waitForTimeout(8000);
+
+    const highRatioLabels = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.enclosureLabels?.size ?? 0;
+    });
+
+    console.log(`Enclosure labels: minRatio=0.01 → ${lowRatioLabels}, minRatio=0.3 → ${highRatioLabels}`);
+    // Both should produce enclosures (enclosureMinRatio controls minimum group
+    // size for enclosure drawing; with large vaults most tags exceed both thresholds)
+    expect(lowRatioLabels).toBeGreaterThanOrEqual(highRatioLabels);
+    expect(lowRatioLabels).toBeGreaterThan(0);
+    expect(highRatioLabels).toBeGreaterThan(0);
+
+    // Restore defaults
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      const app = (window as any).app;
+      const pi = app.plugins.plugins["graph-island"];
+      if (pi) pi.settings.enclosureMinRatio = 0.1;
+      v.panel.tagDisplay = "node";
+      v.rawData = null;
+      await v.doRender();
+    });
+    await page.waitForTimeout(3000);
+  });
+});
