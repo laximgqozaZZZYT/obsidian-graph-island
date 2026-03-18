@@ -148,7 +148,15 @@ const REMOVED_ARRANGEMENTS = new Set(["spiral", "mountain", "sunburst", "tree"])
 /** Deprecated settings -- silently stripped on import */
 const REMOVED_SETTINGS = new Set(["scaleByDegree"]);
 
-export function importPreset(json: string): Partial<PanelState> {
+/** Migrated field information returned by importPreset */
+export interface PresetMigrationInfo {
+  /** Fields that were renamed or converted */
+  migratedFields: string[];
+  /** Fields that were stripped as deprecated */
+  removedFields: string[];
+}
+
+export function importPreset(json: string, migrationInfo?: PresetMigrationInfo): Partial<PanelState> {
   const raw = JSON.parse(json);
 
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -158,10 +166,14 @@ export function importPreset(json: string): Partial<PanelState> {
   // Migrate removed arrangement patterns to "grid"
   if (typeof raw.clusterArrangement === "string" && REMOVED_ARRANGEMENTS.has(raw.clusterArrangement)) {
     raw.clusterArrangement = ARRANGEMENT_GRID;
+    migrationInfo?.migratedFields.push(`clusterArrangement: ${raw.clusterArrangement} → grid`);
   }
 
   // Strip deprecated settings
   for (const key of REMOVED_SETTINGS) {
+    if (raw[key] !== undefined) {
+      migrationInfo?.removedFields.push(key);
+    }
     delete raw[key];
   }
 
@@ -169,9 +181,11 @@ export function importPreset(json: string): Partial<PanelState> {
   if (raw.showTags !== undefined && raw.includeTagsInData === undefined) {
     raw.includeTagsInData = raw.showTags;
     delete raw.showTags;
+    migrationInfo?.migratedFields.push("showTags → includeTagsInData");
   }
   if (!raw.nodeColorMode && (raw.colorNodesByCategory !== undefined || raw.heatmapMode !== undefined)) {
     raw.nodeColorMode = raw.heatmapMode ? "heatmap" : raw.colorNodesByCategory ? "category" : "default";
+    migrationInfo?.migratedFields.push(`colorNodesByCategory/heatmapMode → nodeColorMode: ${raw.nodeColorMode}`);
     delete raw.colorNodesByCategory;
     delete raw.heatmapMode;
   }

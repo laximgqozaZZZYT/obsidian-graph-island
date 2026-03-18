@@ -9,7 +9,7 @@ import { setIcon } from "obsidian";
 import { t, tHelp, getLocale } from "../i18n";
 import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
-import { exportPreset, importPreset, applyPreset } from "../utils/presets";
+import { exportPreset, importPreset, applyPreset, type PresetMigrationInfo } from "../utils/presets";
 import { showToast } from "../utils/toast";
 import { ARRANGEMENT_PRESETS, findMatchingPreset, CURVE_REGISTRY } from "../layouts/coordinate-presets";
 import { validateExpr, parseExpr, evalExpr, setUserVars, type ExprNode } from "../utils/expr-eval";
@@ -373,6 +373,8 @@ export interface PanelCallbacks {
   loadTemplate(name: string): void;
   /** テンプレート削除: 保存済みテンプレートを削除 */
   deleteTemplate(name: string): void;
+  /** Reset zoom base node size (call when user explicitly changes nodeSize) */
+  resetZoomBaseNodeSize(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -783,7 +785,7 @@ function _buildNodeDisplaySection(
       panel.nodeColorMode = v as "default" | "category" | "heatmap" | "community";
       cb.doRenderKeepPanel();
     }, t("desc.nodeColorMode"));
-    addSlider(body, t("display.nodeSize"), 5, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRenderKeepPanel(); }, t("desc.nodeSize"));
+    addSlider(body, t("display.nodeSize"), 5, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.resetZoomBaseNodeSize(); cb.doRenderKeepPanel(); }, t("desc.nodeSize"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
     addTextInput(body, t("display.nodeSubLabelFields"), panel.nodeSubLabelFields ?? "", "e.g. category, date, node_type", (v) => {
       panel.nodeSubLabelFields = v;
@@ -1329,9 +1331,17 @@ function _buildSettingsActionButtons(
 
     applyBtn.addEventListener("click", () => {
       try {
-        const preset = importPreset(textarea.value);
+        const info: PresetMigrationInfo = { migratedFields: [], removedFields: [] };
+        const preset = importPreset(textarea.value, info);
         const merged = applyPreset(panel, preset);
         Object.assign(panel, merged);
+        // Show migration feedback if any fields were migrated
+        if (info.migratedFields.length > 0 || info.removedFields.length > 0) {
+          const lines: string[] = [];
+          if (info.migratedFields.length > 0) lines.push(`Migrated: ${info.migratedFields.join(", ")}`);
+          if (info.removedFields.length > 0) lines.push(`Removed: ${info.removedFields.join(", ")}`);
+          new (window as any).Notice(lines.join("\n"), 5000);
+        }
         modal.remove();
         cb.invalidateData();
         cb.rebuildPanel();

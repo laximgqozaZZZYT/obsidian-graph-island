@@ -3874,6 +3874,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       saveTemplate: (name: string) => this._saveTemplate(name),
       loadTemplate: (name: string) => this._loadTemplate(name),
       deleteTemplate: (name: string) => this._deleteTemplate(name),
+      resetZoomBaseNodeSize: () => { this._zoomBaseNodeSize = null; },
     };
   }
 
@@ -4461,8 +4462,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.cachedBgColor = null; // invalidate bg color cache on re-render
     this.cachedLabelColor = null;
 
-    // Capture baseline nodeSize for zoom-correlated sizing (once per render cycle)
-    this._zoomBaseNodeSize = this.panel.nodeSize;
+    // Capture baseline nodeSize for zoom-correlated sizing (only on first render
+    // or when user explicitly changes nodeSize via slider — never from zoom-adapted values)
+    if (this._zoomBaseNodeSize === null) {
+      this._zoomBaseNodeSize = this.panel.nodeSize;
+    }
 
     const rect = this.canvasWrap.getBoundingClientRect();
     const W = rect.width || 600;

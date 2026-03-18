@@ -490,3 +490,59 @@ test.describe("8. Edge Label Mode", () => {
     expect(result.cardinality).toBe(false);
   });
 });
+
+// =========================================================================
+// 9. Layout Switching — Node Position Distribution
+// =========================================================================
+test.describe("9. Layout Switching", () => {
+  test("9.1 grid layout distributes nodes in distinct columns and rows", async () => {
+    await renderAndVerify(page, {
+      clusterArrangement: "grid",
+      groupBy: "none",
+      searchQuery: "path:classic-macbeth",
+    }, async (p) => {
+      const count = await p.evaluate(() => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        return v?.pixiNodes?.size ?? 0;
+      });
+      return count > 50;
+    });
+    await page.waitForTimeout(3000);
+
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.pixiNodes) return { error: "no view" };
+      const xs = new Set<number>();
+      const ys = new Set<number>();
+      for (const pn of v.pixiNodes.values()) {
+        xs.add(Math.round(pn.data.x / 10) * 10);
+        ys.add(Math.round(pn.data.y / 10) * 10);
+      }
+      return { distinctX: xs.size, distinctY: ys.size, nodeCount: v.pixiNodes.size };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.nodeCount).toBeGreaterThan(50);
+    // Grid should create at least 3 distinct X and Y positions
+    expect(result.distinctX).toBeGreaterThan(2);
+    expect(result.distinctY).toBeGreaterThan(2);
+  });
+
+  test("9.2 force layout restores after grid", async () => {
+    await renderAndVerify(page, {
+      clusterArrangement: "force",
+      searchQuery: "",
+    }, async (p) => {
+      const count = await p.evaluate(() => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        return v?.pixiNodes?.size ?? 0;
+      });
+      return count > 2000;
+    });
+
+    const nodeCount = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.pixiNodes?.size ?? 0;
+    });
+    expect(nodeCount).toBeGreaterThan(2000);
+  });
+});
