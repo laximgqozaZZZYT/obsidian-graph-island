@@ -4029,7 +4029,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   private recolorNodes() {
     const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
-    const colorMap = this.nodeColorMap;
+    const colorMap = this.nodeColorMap ?? new Map<string, string>();
     let recolorCommunityMap: Map<string, number> | null = null;
     for (const pn of this.pixiNodes.values()) {
       const n = pn.data;
@@ -4051,7 +4051,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (!recolorCommunityMap && this.originalGraphData) {
           recolorCommunityMap = this._getCommunityMap(this.originalGraphData);
         }
-        const cid = recolorCommunityMap.get(n.id) ?? 0;
+        const cid = recolorCommunityMap?.get(n.id) ?? 0;
         const COMMUNITY_PALETTE: number[] = [
           0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd,
           0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf,
