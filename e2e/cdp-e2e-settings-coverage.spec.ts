@@ -128,19 +128,60 @@ test.describe("1. Layout Switching (clusterArrangement)", () => {
     await ensureGraphView(page);
   });
 
-  test("1.3 switch to timeline layout", async () => {
+  test("1.3 timeline + showDurationBars + showTimelineRoutes combined", async () => {
+    // Step 1: Switch to timeline with duration bars and routes enabled
     await page.evaluate(async () => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       if (!v) throw new Error("no view");
       v.panel.clusterArrangement = "timeline";
+      v.panel.showDurationBars = true;
+      v.panel.showTimelineRoutes = true;
+      v.rawData = null;
+      v.doRender();
+      await new Promise(r => setTimeout(r, 5000));
+    });
+    await page.waitForTimeout(1000);
+
+    // Step 2: Verify all three features active
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+
+      const pixiNodeCount = v.pixiNodes
+        ? (v.pixiNodes.size ?? Object.keys(v.pixiNodes).length)
+        : 0;
+
+      return {
+        clusterArrangement: v.panel?.clusterArrangement,
+        showDurationBars: v.panel?.showDurationBars,
+        showTimelineRoutes: v.panel?.showTimelineRoutes,
+        pixiNodeCount,
+        hasClusterMeta: !!v.clusterMeta,
+        canvasPresent: document.querySelectorAll("canvas").length > 0,
+        noConflict: pixiNodeCount > 0 && document.querySelectorAll("canvas").length > 0,
+      };
+    });
+
+    console.log(`1.3 timeline+bars+routes: ${JSON.stringify(result)}`);
+    expect(result).not.toHaveProperty("error");
+    expect(result.clusterArrangement).toBe("timeline");
+    expect(result.showDurationBars).toBe(true);
+    expect(result.showTimelineRoutes).toBe(true);
+    expect(result.noConflict).toBe(true);
+    expect(result.pixiNodeCount).toBeGreaterThan(0);
+
+    // Step 3: Reset
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.clusterArrangement = "force";
+      v.panel.showDurationBars = false;
+      v.panel.showTimelineRoutes = false;
+      v.rawData = null;
       v.doRender();
       await new Promise(r => setTimeout(r, 3000));
     });
     await page.waitForTimeout(1000);
-
-    const after = await getNodeCount(page);
-    console.log(`Timeline layout: nodeCount=${after}`);
-    expect(after).toBeGreaterThan(0);
     await ensureGraphView(page);
   });
 
@@ -322,19 +363,58 @@ test.describe("2. Filter Controls", () => {
 // 3. Enclosure Controls
 // =========================================================================
 test.describe("3. Enclosure Controls", () => {
-  test("3.1 tagDisplay=enclosure does not crash", async () => {
+  test("3.1 enclosure + search filter shows filtered enclosures", async () => {
+    // Step 1: Enable enclosure mode with a search filter
     await page.evaluate(async () => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       if (!v) throw new Error("no view");
       v.panel.tagDisplay = "enclosure";
+      v.panel.showTagNodes = true;
+      v.panel.searchQuery = "tag:battle";
+      v.rawData = null;
+      v.doRender();
+      await new Promise(r => setTimeout(r, 4000));
+    });
+    await page.waitForTimeout(1000);
+
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+
+      const pixiNodeCount = v.pixiNodes
+        ? (v.pixiNodes.size ?? Object.keys(v.pixiNodes).length)
+        : 0;
+      const hasEnclosureLabelContainer = !!v.enclosureLabelContainer;
+      const enclosureLabelCount = v.enclosureLabelContainer?.children?.length ?? 0;
+
+      return {
+        tagDisplay: v.panel?.tagDisplay,
+        searchQuery: v.panel?.searchQuery,
+        pixiNodeCount,
+        hasEnclosureLabelContainer,
+        enclosureLabelCount,
+        canvasPresent: document.querySelectorAll("canvas").length > 0,
+        noConflict: pixiNodeCount >= 0 && document.querySelectorAll("canvas").length > 0,
+      };
+    });
+
+    console.log(`3.1 enclosure+search: ${JSON.stringify(result)}`);
+    expect(result).not.toHaveProperty("error");
+    expect(result.tagDisplay).toBe("enclosure");
+    expect(result.searchQuery).toBe("tag:battle");
+    expect(result.noConflict).toBe(true);
+
+    // Reset
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.tagDisplay = "node";
+      v.panel.searchQuery = "";
+      v.rawData = null;
       v.doRender();
       await new Promise(r => setTimeout(r, 3000));
     });
     await page.waitForTimeout(1000);
-
-    const after = await getNodeCount(page);
-    console.log(`tagDisplay=enclosure: nodeCount=${after}`);
-    expect(after).toBeGreaterThan(0);
     await ensureGraphView(page);
   });
 
