@@ -165,6 +165,8 @@ const en: TranslationMap = {
   "render.clusterChargeForceDesc": "Repulsion strength in cluster simulation (negative = repel)",
   "render.gridLabelOffset": "Grid label offset",
   "render.gridLabelOffsetDesc": "Distance (px) between grid lines and their labels",
+  "render.showFpsMonitor": "Show FPS",
+  "render.showFpsMonitorDesc": "Show render frames-per-second counter in toolbar",
 
   "display.groupBy": "Group by",
   "display.groupNone": "None",
@@ -601,6 +603,41 @@ const en: TranslationMap = {
   "display.kShortestPaths": "Alternative Paths",
   "desc.kShortestPaths": "Number of shortest paths to display (1=shortest only)",
 
+  // --- M2: Ego Layout ---
+  "cluster.ego": "Ego (Focus Center)",
+  "action.applyEgoLayout": "Apply Ego Layout",
+  "toast.selectNodeFirst": "Select a node first",
+
+  // --- Phase 4: Interaction Enhancements ---
+  "display.relationTypePicker": "Relation Type Picker",
+  "desc.relationTypePicker": "Right-click edges to assign relation types",
+  "display.multiSelect": "Multi-Select",
+  "desc.multiSelect": "Shift+click to select multiple nodes for bulk operations",
+  "display.inlineEdit": "Inline Edit",
+  "desc.inlineEdit": "Double-click to edit frontmatter properties in-place",
+  "display.relationDrawer": "Relation Drawer",
+  "desc.relationDrawer": "Expanded side panel showing detailed relation information",
+  "display.manualClustering": "Manual Clustering",
+  "desc.manualClustering": "Drag nodes between groups to reassign clusters",
+
+  // --- Phase 5: Discovery (D5) ---
+  "display.clusterCompare": "Cluster Compare",
+  "desc.clusterCompare": "Compare two clusters: shared connections, unique members, bridge nodes",
+
+  // --- Phase 6: ExcaliBrain (F2, F5) ---
+  "display.inlineOntologyEditor": "Inline Ontology Editor",
+  "desc.inlineOntologyEditor": "Assign ontology types via context menu on nodes",
+  "display.relationMatrix": "Relation Matrix",
+  "desc.relationMatrix": "Show adjacency matrix view of node relationships",
+
+  // --- Phase 7: Advanced (E5) ---
+  "display.presentationMode": "Presentation Mode",
+  "desc.presentationMode": "Step-through guided tour of graph nodes",
+  "action.addWaypoint": "Add Waypoint",
+  "action.clearWaypoints": "Clear Waypoints",
+  "action.nextStep": "Next →",
+  "action.prevStep": "← Prev",
+
   // --- Error messages ---
   "error.pixiInitFailed": "Graph rendering failed. Your browser may not support WebGL.",
   "error.graphBuildFailed": "Failed to build graph data. Check console for details.",
@@ -941,6 +978,8 @@ const ja: TranslationMap = {
   "render.clusterChargeForceDesc": "クラスタシミュレーションの反発力（負の値＝反発）",
   "render.gridLabelOffset": "グリッドラベル距離",
   "render.gridLabelOffsetDesc": "グリッド線とラベルの間の距離（px）",
+  "render.showFpsMonitor": "FPS表示",
+  "render.showFpsMonitorDesc": "ツールバーにレンダリングFPSカウンターを表示",
 
   "display.groupBy": "グルーピング",
   "display.groupNone": "なし",
@@ -1366,6 +1405,41 @@ const ja: TranslationMap = {
   "desc.showNodeThumbnails": "フロントマターの画像をノードサムネイルとして表示",
   "display.kShortestPaths": "代替パス数",
   "desc.kShortestPaths": "表示する最短パス数（1=最短のみ）",
+
+  // --- M2: Ego Layout ---
+  "cluster.ego": "エゴ（フォーカス中心）",
+  "action.applyEgoLayout": "エゴレイアウトを適用",
+  "toast.selectNodeFirst": "先にノードを選択してください",
+
+  // --- Phase 4: Interaction Enhancements ---
+  "display.relationTypePicker": "関係タイプピッカー",
+  "desc.relationTypePicker": "エッジを右クリックして関係タイプを割り当て",
+  "display.multiSelect": "マルチ選択",
+  "desc.multiSelect": "Shift+クリックで複数ノードを選択し一括操作",
+  "display.inlineEdit": "インライン編集",
+  "desc.inlineEdit": "ダブルクリックでフロントマターを直接編集",
+  "display.relationDrawer": "関係ドロワー",
+  "desc.relationDrawer": "関係の詳細を表示する拡張サイドパネル",
+  "display.manualClustering": "手動クラスタリング",
+  "desc.manualClustering": "ノードをドラッグしてグループ間で移動",
+
+  // --- Phase 5: Discovery (D5) ---
+  "display.clusterCompare": "クラスタ比較",
+  "desc.clusterCompare": "2つのクラスタを比較：共有接続、固有メンバー、ブリッジノード",
+
+  // --- Phase 6: ExcaliBrain (F2, F5) ---
+  "display.inlineOntologyEditor": "インラインオントロジーエディタ",
+  "desc.inlineOntologyEditor": "コンテキストメニューでオントロジータイプを割り当て",
+  "display.relationMatrix": "関係マトリクス",
+  "desc.relationMatrix": "ノード関係の隣接行列ビューを表示",
+
+  // --- Phase 7: Advanced (E5) ---
+  "display.presentationMode": "プレゼンテーションモード",
+  "desc.presentationMode": "グラフノードのステップスルーガイドツアー",
+  "action.addWaypoint": "ウェイポイント追加",
+  "action.clearWaypoints": "ウェイポイントクリア",
+  "action.nextStep": "次へ →",
+  "action.prevStep": "← 前へ",
 
   // --- Error messages ---
   "error.pixiInitFailed": "グラフの描画に失敗しました。お使いのブラウザがWebGLに対応していない可能性があります。",

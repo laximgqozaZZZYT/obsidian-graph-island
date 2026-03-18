@@ -112,6 +112,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private ac: AbortController | null = null;
   private statusEl: HTMLElement | null = null;
   private zoomIndicatorEl: HTMLElement | null = null;
+  private fpsEl: HTMLElement | null = null;
   private panel: PanelState = createDefaultPanel();
   private panelEl: HTMLElement | null = null;
   private simulation: Simulation<GraphNode, GraphEdge> | null = null;
@@ -480,6 +481,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Zoom percentage indicator
     this.zoomIndicatorEl = zoomGroup.createEl("span", { cls: "gi-zoom-indicator", text: "100%" });
     this.zoomIndicatorEl.title = "Zoom level";
+
+    // FPS monitor (debug)
+    this.fpsEl = zoomGroup.createEl("span", { cls: "gi-fps-indicator", text: "" });
+    this.fpsEl.style.cssText = "font-size:10px;color:var(--text-muted);margin-left:4px;display:none;";
+    this.fpsEl.title = "Render FPS";
 
     const marqueeBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(marqueeBtn, "box-select");
@@ -1253,6 +1259,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.nodeInfoEl = null;
     this.oobBadgeEl = null;
     this.graphStatsEl = null;
+    this.hierarchyBreadcrumbEl = null;
     this.canvasWrap = null;
     this.annotationLayer = null;
   }
@@ -1554,6 +1561,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.minimap.draw();
       }
       this._updateOobBadge();
+      // FPS monitor update
+      if (this.fpsEl && this.renderPipeline) {
+        const rt = this.panel.renderThresholds ?? {};
+        if (rt.showFpsMonitor) {
+          this.fpsEl.style.display = "";
+          this.fpsEl.textContent = `${this.renderPipeline.currentFps} fps`;
+        } else {
+          this.fpsEl.style.display = "none";
+        }
+      }
     };
 
     // 差分オーバーレイのポストフラッシュフック設定
@@ -1998,6 +2015,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.panel.focusNodeId = null;
     } else {
       this.panel.focusNodeId = nodeId;
+    }
+    // M2: focusLayout → switch to ego arrangement and re-render
+    if (this.panel.focusLayout && this.panel.focusNodeId) {
+      this.panel.localGraphCenter = this.panel.focusNodeId;
+      this.panel.clusterArrangement = "ego";
+      this.doRender();
+      return;
     }
     this._applyFocusHighlight();
   }

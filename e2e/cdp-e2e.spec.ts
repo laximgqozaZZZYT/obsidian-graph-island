@@ -871,3 +871,55 @@ test.describe("15. Context Menu Filter", () => {
     expect(result.restored).toBeGreaterThan(2000);
   });
 });
+
+// =========================================================================
+// 16. Group Expand/Collapse
+// =========================================================================
+test.describe("16. Group Expand/Collapse", () => {
+  test("16.1 groupBy=folder collapses then expand-all restores node count", async () => {
+    // Group by folder (auto-collapses all when collapsedGroups is empty)
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.groupBy = "folder";
+      v.panel.collapsedGroups = new Set();
+      v.rawData = null;
+      await v.doRender();
+    });
+    await page.waitForTimeout(10000);
+
+    const collapsed = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.pixiNodes?.size ?? 0;
+    });
+
+    // Expand all (set dummy marker)
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.collapsedGroups.clear();
+      v.panel.collapsedGroups.add("__gi_expand_all__");
+      v.rawData = null;
+      await v.doRender();
+    });
+    await page.waitForTimeout(5000);
+
+    const expanded = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.pixiNodes?.size ?? 0;
+    });
+
+    console.log(`Group expand/collapse: collapsed=${collapsed}, expanded=${expanded}`);
+    expect(collapsed).toBeLessThan(expanded);
+    expect(expanded).toBeGreaterThan(2000);
+
+    // Restore
+    await renderAndVerify(page, { groupBy: "none", searchQuery: "" }, async (p) => {
+      const count = await p.evaluate(() => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        return v?.pixiNodes?.size ?? 0;
+      });
+      return count > 2000;
+    });
+  });
+});

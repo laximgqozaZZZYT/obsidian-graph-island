@@ -53,6 +53,14 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showSimilarSuggestions",
   "showStructureQuestions",
   "showEntropyOverlay",
+  "showClusterCompare",
+  "showRelationTypePicker",
+  "enableInlineEdit",
+  "showRelationDrawer",
+  "enableManualClustering",
+  "enableInlineOntologyEditor",
+  "showRelationMatrix",
+  "presentationMode",
   "showNodeThumbnails",
 ];
 
@@ -68,6 +76,7 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "navHistoryCursor",
   "recencyDays",
   "kShortestPaths",
+  "presentationStep",
 ];
 
 /** Fields that should be string */
@@ -87,7 +96,7 @@ const ARRAY_FIELDS: (keyof PanelState)[] = [
   "groups", "directionalGravityRules", "commonQueries", "clusterGroupRules",
   "sortRules", "nodeRules", "nodeShapeRules", "groupByRules",
   "cardinalityRules", "annotations", "bookmarkedNodes", "searchHistory",
-  "navHistory",
+  "navHistory", "multiSelectNodeIds", "presentationWaypoints",
 ];
 
 /** Valid values for enum-like fields */

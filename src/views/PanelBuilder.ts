@@ -245,7 +245,31 @@ export interface PanelState {
   showStructureQuestions: boolean;
   /** Show knowledge entropy heatmap overlay */
   showEntropyOverlay: boolean;
+  /** D5: Cluster comparison mode — highlight differences between two clusters */
+  showClusterCompare: boolean;
+  // --- Phase 4: Interaction enhancements ---
+  /** C3: Relation type picker — right-click to assign edge type */
+  showRelationTypePicker: boolean;
+  /** C6: Multi-select node set (Shift+click to add, operations on selection) */
+  multiSelectNodeIds: string[];
+  /** C7: Inline edit — double-click to edit frontmatter in tooltip */
+  enableInlineEdit: boolean;
+  /** C8: Enhanced relation drawer — expanded side panel with relation details */
+  showRelationDrawer: boolean;
+  /** C4: Manual clustering — drag nodes to assign groups */
+  enableManualClustering: boolean;
+  // --- Phase 6: ExcaliBrain-like features ---
+  /** F2: Inline ontology editor — assign types via context menu */
+  enableInlineOntologyEditor: boolean;
+  /** F5: Relation matrix view */
+  showRelationMatrix: boolean;
   // --- Phase 7: Advanced features ---
+  /** E5: Presentation mode — step-through guided tour */
+  presentationMode: boolean;
+  /** E5: Presentation waypoints (ordered node IDs) */
+  presentationWaypoints: string[];
+  /** E5: Current presentation step index */
+  presentationStep: number;
   /** Show frontmatter image as node thumbnail */
   showNodeThumbnails: boolean;
   /** Number of alternative shortest paths to display (1 = shortest only) */
@@ -398,6 +422,17 @@ export function createDefaultPanel(): PanelState {
     showSimilarSuggestions: false,
     showStructureQuestions: false,
     showEntropyOverlay: false,
+    showClusterCompare: false,
+    showRelationTypePicker: false,
+    multiSelectNodeIds: [],
+    enableInlineEdit: false,
+    showRelationDrawer: false,
+    enableManualClustering: false,
+    enableInlineOntologyEditor: false,
+    showRelationMatrix: false,
+    presentationMode: false,
+    presentationWaypoints: [],
+    presentationStep: 0,
     showNodeThumbnails: false,
     kShortestPaths: 1,
   };
@@ -546,6 +581,36 @@ export function buildPanel(
   searchClearBtn.textContent = "\u00d7";
   searchClearBtn.style.display = panel.searchQuery ? "flex" : "none";
   searchBar.value = panel.searchQuery;
+
+  // --- 検索構文ハイライトプレビュー ---
+  const syntaxPreview = searchWrapper.createDiv({ cls: "gi-search-syntax" });
+  syntaxPreview.style.cssText = "font-size:10px;padding:2px 4px;color:var(--text-muted);display:none;white-space:nowrap;overflow:hidden;";
+  const updateSyntaxPreview = () => {
+    const q = searchBar.value.trim();
+    if (!q) { syntaxPreview.style.display = "none"; return; }
+    syntaxPreview.style.display = "";
+    syntaxPreview.empty();
+    const tokens = q.split(/\s+/);
+    for (let i = 0; i < tokens.length; i++) {
+      if (i > 0) syntaxPreview.appendText(" ");
+      const colonIdx = tokens[i].indexOf(":");
+      if (colonIdx > 0) {
+        const field = syntaxPreview.createEl("span", { text: tokens[i].slice(0, colonIdx + 1) });
+        field.style.color = "var(--interactive-accent)";
+        field.style.fontWeight = "600";
+        syntaxPreview.createEl("span", { text: tokens[i].slice(colonIdx + 1) });
+      } else if (["OR", "AND", "XOR", "NOR", "NAND"].includes(tokens[i].toUpperCase())) {
+        const op = syntaxPreview.createEl("span", { text: tokens[i] });
+        op.style.color = "var(--text-accent)";
+        op.style.fontWeight = "bold";
+      } else {
+        syntaxPreview.appendText(tokens[i]);
+      }
+    }
+  };
+  searchBar.addEventListener("input", updateSyntaxPreview);
+  updateSyntaxPreview();
+
   // --- 検索履歴ドロップダウン ---
   const historyDropdown = searchWrapper.createDiv({ cls: "gi-search-history" });
   historyDropdown.style.display = "none";
@@ -1089,6 +1154,16 @@ function _buildStructureAnalysisSection(
     egoBtn.addEventListener("click", () => {
       cb.applyEgoToVisible?.();
     });
+    // F2: Inline ontology editor
+    addToggle(body, t("display.inlineOntologyEditor"), panel.enableInlineOntologyEditor, (v) => {
+      panel.enableInlineOntologyEditor = v;
+      cb.markDirty();
+    }, t("desc.inlineOntologyEditor"));
+    // F5: Relation matrix
+    addToggle(body, t("display.relationMatrix"), panel.showRelationMatrix, (v) => {
+      panel.showRelationMatrix = v;
+      cb.markDirty();
+    }, t("desc.relationMatrix"));
   }, undefined, false, "git-branch");
 }
 
@@ -1112,7 +1187,86 @@ function _buildDiscoverySection(
       panel.showEntropyOverlay = v;
       cb.markDirty();
     }, t("desc.showEntropyOverlay"));
+    // D5: Cluster Compare
+    addToggle(body, t("display.clusterCompare"), panel.showClusterCompare, (v) => {
+      panel.showClusterCompare = v;
+      cb.markDirty();
+    }, t("desc.clusterCompare"));
   }, undefined, false, "lightbulb");
+}
+
+function _buildInteractionSection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, "Interaction", (body) => {
+    addToggle(body, t("display.relationTypePicker"), panel.showRelationTypePicker, (v) => {
+      panel.showRelationTypePicker = v;
+      cb.markDirty();
+    }, t("desc.relationTypePicker"));
+    addToggle(body, t("display.multiSelect"), panel.multiSelectNodeIds.length > 0, (v) => {
+      if (!v) panel.multiSelectNodeIds = [];
+      cb.markDirty();
+    }, t("desc.multiSelect"));
+    addToggle(body, t("display.inlineEdit"), panel.enableInlineEdit, (v) => {
+      panel.enableInlineEdit = v;
+      cb.markDirty();
+    }, t("desc.inlineEdit"));
+    addToggle(body, t("display.relationDrawer"), panel.showRelationDrawer, (v) => {
+      panel.showRelationDrawer = v;
+      cb.markDirty();
+    }, t("desc.relationDrawer"));
+    addToggle(body, t("display.manualClustering"), panel.enableManualClustering, (v) => {
+      panel.enableManualClustering = v;
+      cb.markDirty();
+    }, t("desc.manualClustering"));
+  }, undefined, false, "mouse-pointer-2");
+}
+
+function _buildAdvancedSection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, "Advanced", (body) => {
+    addToggle(body, t("display.presentationMode"), panel.presentationMode, (v) => {
+      panel.presentationMode = v;
+      if (!v) { panel.presentationStep = 0; }
+      cb.markDirty();
+    }, t("desc.presentationMode"));
+    if (panel.presentationMode) {
+      const navRow = body.createDiv({ cls: "setting-item" });
+      const prevBtn = navRow.createEl("button", { text: t("action.prevStep") });
+      prevBtn.addEventListener("click", () => {
+        if (panel.presentationStep > 0) {
+          panel.presentationStep--;
+          const wId = panel.presentationWaypoints[panel.presentationStep];
+          if (wId) cb.jumpToNode(wId);
+        }
+      });
+      const nextBtn = navRow.createEl("button", { text: t("action.nextStep") });
+      nextBtn.style.marginLeft = "4px";
+      nextBtn.addEventListener("click", () => {
+        if (panel.presentationStep < panel.presentationWaypoints.length - 1) {
+          panel.presentationStep++;
+          const wId = panel.presentationWaypoints[panel.presentationStep];
+          if (wId) cb.jumpToNode(wId);
+        }
+      });
+      const addBtn = navRow.createEl("button", { text: t("action.addWaypoint") });
+      addBtn.style.marginLeft = "4px";
+      addBtn.addEventListener("click", () => {
+        // Add the currently focused node as a waypoint
+        if (panel.focusNodeId && !panel.presentationWaypoints.includes(panel.focusNodeId)) {
+          panel.presentationWaypoints.push(panel.focusNodeId);
+          cb.rebuildPanel();
+        }
+      });
+      const info = navRow.createEl("span", {
+        text: ` ${panel.presentationStep + 1}/${panel.presentationWaypoints.length}`,
+      });
+      info.style.marginLeft = "8px";
+      info.style.fontSize = "11px";
+      info.style.color = "var(--text-muted)";
+    }
+  }, undefined, false, "presentation");
 }
 
 function _buildEdgeDisplaySection(
@@ -1328,6 +1482,12 @@ function _buildRenderThresholdsSection(
         panel.renderThresholds.gridLabelOffset = v;
         cb.markDirty();
       }, t("render.gridLabelOffsetDesc"));
+    addToggle(body, t("render.showFpsMonitor"), rt.showFpsMonitor ?? false, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.showFpsMonitor = v;
+      cb.markDirty();
+      cb.wakeRenderLoop();
+    }, t("render.showFpsMonitorDesc"));
   }, undefined, true, "sliders");
 }
 
@@ -1363,6 +1523,8 @@ function buildDisplayTab(
   _buildNodeDecorationSection(displayTab, panel, ctx, cb);
   _buildStructureAnalysisSection(displayTab, panel, ctx, cb);
   _buildDiscoverySection(displayTab, panel, ctx, cb);
+  _buildInteractionSection(displayTab, panel, ctx, cb);
+  _buildAdvancedSection(displayTab, panel, ctx, cb);
   _buildEdgeDisplaySection(displayTab, panel, ctx, cb);
   _buildCableDisplaySection(displayTab, panel, ctx, cb);
   _buildRoadNetworkSection(displayTab, panel, ctx, cb);
@@ -1714,6 +1876,7 @@ function _buildArrangementPatternSelect(s: ClusterSectionCtx): void {
     { value: "random", label: t("cluster.random") },
     { value: "timeline", label: t("cluster.timeline") },
     { value: "custom", label: t("cluster.custom") },
+    { value: "ego", label: t("cluster.ego") },
   ], s.panel.clusterArrangement, (v) => {
     s.panel.clusterArrangement = v as ClusterArrangement;
     const preset = getPreset(v as ClusterArrangement);

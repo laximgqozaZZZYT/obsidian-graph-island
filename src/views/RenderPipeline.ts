@@ -379,6 +379,10 @@ export class RenderPipeline {
   private pendingLabelThreshold = 3;
   private _cachedMaxDeg = 1;
   private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
+  /** FPS tracking */
+  private _fpsFrames = 0;
+  private _fpsLastTime = 0;
+  currentFps = 0;
 
   constructor(host: RenderHost) {
     this.host = host;
@@ -417,6 +421,14 @@ export class RenderPipeline {
         app.ticker.remove(this.renderTick, this);
         this._tickerBound = false;
       }
+    }
+    // FPS measurement
+    this._fpsFrames++;
+    const now = performance.now();
+    if (now - this._fpsLastTime >= 1000) {
+      this.currentFps = this._fpsFrames;
+      this._fpsFrames = 0;
+      this._fpsLastTime = now;
     }
     // Update minimap viewport rect every tick (pan/zoom changes world transform without needsRedraw)
     this.onPostRender?.();
