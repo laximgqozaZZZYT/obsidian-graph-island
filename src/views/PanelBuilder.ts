@@ -231,6 +231,11 @@ export interface PanelState {
   showBridgeNodes: boolean;
   /** Highlight a specific connected component (null = off) */
   highlightComponent: number | null;
+  // --- Phase 6: ExcaliBrain-like features ---
+  /** Enable focus-center layout (ego graph: selected node at center) */
+  focusLayout: boolean;
+  /** Show hierarchy breadcrumb bar above graph */
+  showHierarchyBreadcrumb: boolean;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -373,6 +378,8 @@ export function createDefaultPanel(): PanelState {
     highlightPatterns: false,
     showBridgeNodes: false,
     highlightComponent: null,
+    focusLayout: false,
+    showHierarchyBreadcrumb: false,
   };
 }
 
@@ -1042,6 +1049,17 @@ function _buildStructureAnalysisSection(
       panel.showBridgeNodes = v;
       cb.markDirty();
     }, t("desc.showBridgeNodes"));
+    addToggle(body, t("display.focusLayout"), panel.focusLayout, (v) => {
+      panel.focusLayout = v;
+      if (v && panel.localGraphCenter) {
+        panel.clusterArrangement = "ego";
+      }
+      cb.doRender();
+    }, t("desc.focusLayout"));
+    addToggle(body, t("display.showHierarchyBreadcrumb"), panel.showHierarchyBreadcrumb, (v) => {
+      panel.showHierarchyBreadcrumb = v;
+      cb.markDirty();
+    }, t("desc.showHierarchyBreadcrumb"));
   }, undefined, false, "git-branch");
 }
 

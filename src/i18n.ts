@@ -574,6 +574,12 @@ const en: TranslationMap = {
   "display.showBridgeNodes": "Bridge Nodes",
   "desc.showBridgeNodes": "Highlight high-betweenness bridge nodes with gold ring",
 
+  // --- ExcaliBrain features (Phase 6) ---
+  "display.focusLayout": "Focus Layout",
+  "desc.focusLayout": "Ego-centric layout: selected node at center, neighbors arranged by relation type",
+  "display.showHierarchyBreadcrumb": "Hierarchy Breadcrumb",
+  "desc.showHierarchyBreadcrumb": "Show inheritance path as breadcrumb bar above graph",
+
   // --- Error messages ---
   "error.pixiInitFailed": "Graph rendering failed. Your browser may not support WebGL.",
   "error.graphBuildFailed": "Failed to build graph data. Check console for details.",
@@ -1317,6 +1323,10 @@ const ja: TranslationMap = {
   "desc.highlightPatterns": "関節点・スポーク・クリークを強調表示",
   "display.showBridgeNodes": "ブリッジノード",
   "desc.showBridgeNodes": "媒介中心性上位のブリッジノードを金リングで強調",
+  "display.focusLayout": "フォーカスレイアウト",
+  "desc.focusLayout": "自我中心レイアウト：選択ノードを中心に関係タイプ別配置",
+  "display.showHierarchyBreadcrumb": "階層パンくず",
+  "desc.showHierarchyBreadcrumb": "継承パスをグラフ上にパンくず表示",
 
   // --- Error messages ---
   "error.pixiInitFailed": "グラフの描画に失敗しました。お使いのブラウザがWebGLに対応していない可能性があります。",

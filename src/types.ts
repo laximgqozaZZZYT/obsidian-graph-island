@@ -133,7 +133,7 @@ export type LayoutType =
 export type ClusterGroupBy = string;
 
 /** How to arrange nodes within each cluster */
-export type ClusterArrangement = "concentric" | "radial" | "phyllotaxis" | "grid" | "triangle" | "random" | "timeline" | "custom";
+export type ClusterArrangement = "concentric" | "radial" | "phyllotaxis" | "grid" | "triangle" | "random" | "timeline" | "custom" | "ego";
 
 /** How to arrange groups relative to each other (inter-group layout).
  *  "auto" preserves legacy behavior — derived from clusterArrangement. */

@@ -47,6 +47,8 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showHierarchyOverlay",
   "highlightPatterns",
   "showBridgeNodes",
+  "focusLayout",
+  "showHierarchyBreadcrumb",
 ];
 
 /** Fields that should be number */
@@ -85,7 +87,7 @@ const ARRAY_FIELDS: (keyof PanelState)[] = [
 /** Valid values for enum-like fields */
 const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   tagDisplay: ["node", "enclosure"] as const,
-  clusterArrangement: ["concentric", "radial", "phyllotaxis", "grid", "triangle", "random", "timeline", "custom"] as const,
+  clusterArrangement: ["concentric", "radial", "phyllotaxis", "grid", "triangle", "random", "timeline", "custom", "ego"] as const,
   clusterGroupArrangement: ["auto", "circle", "horizontal", "vertical", "concentric", "grid"] as const,
   nodeDisplayMode: ["node", "card", "donut", "sunburst-segment"] as const,
   edgeCardinalityMode: ["none", "crowsfoot"] as const,
