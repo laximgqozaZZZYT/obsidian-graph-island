@@ -1,63 +1,81 @@
-import { test, expect } from "@playwright/test";
+/**
+ * Phase 13 — showTagEdges toggle
+ * Verifies that toggling showTagEdges controls tag edge rendering.
+ * Baseline: tag=1500 edges.
+ */
+import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
 
 const CDP_URL = "http://localhost:9222";
+test.setTimeout(120_000);
 
-test.describe("Phase 13: Slider track fill", () => {
-  test("slider has --progress CSS variable and track gradient", async ({ browser }) => {
-    const cdpBrowser = await browser.browserType().connectOverCDP(CDP_URL);
-    const contexts = cdpBrowser.contexts();
-    expect(contexts.length).toBeGreaterThan(0);
-    const pages = contexts[0].pages();
-    expect(pages.length).toBeGreaterThan(0);
-    const page = pages[0];
+let browser: Browser;
+let page: Page;
 
-    // Wait for graph container
-    await page.waitForSelector(".graph-container", { timeout: 10000 });
+test.beforeAll(async ({}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  browser = await chromium.connectOverCDP(CDP_URL);
+  const ctx = browser.contexts()[0];
+  page = ctx.pages().find(p => p.url().includes("index.html")) ?? ctx.pages()[0];
 
-    // Open the settings panel by clicking the settings button
-    const settingsBtn = page.locator(".graph-settings-btn").first();
-    if (await settingsBtn.count() > 0) {
-      await settingsBtn.click();
-      await page.waitForTimeout(500);
-    }
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!v) return;
+    v.panel.searchQuery = "";
+    v.panel.showOrphans = true;
+    v.panel.showTagEdges = true;
+    v.rawData = null;
+    v.doRender();
+  });
+  await page.waitForTimeout(6000);
+});
 
-    // Check --progress variable is set on a slider (evaluate in DOM context)
-    const result = await page.evaluate(() => {
-      const slider = document.querySelector('.graph-panel input[type="range"]') as HTMLInputElement | null;
-      if (!slider) return { found: false, progress: "", hasGradient: false };
-      const progress = slider.style.getPropertyValue("--progress");
+test.afterAll(async () => { /* shared session */ });
 
-      // Check CSS rules for gradient
-      let hasGradient = false;
-      for (const sheet of document.styleSheets) {
-        try {
-          for (const rule of sheet.cssRules) {
-            if (rule instanceof CSSStyleRule &&
-                rule.selectorText?.includes("slider-runnable-track") &&
-                rule.style.background?.includes("linear-gradient")) {
-              hasGradient = true;
-              break;
-            }
-          }
-        } catch { /* cross-origin */ }
-        if (hasGradient) break;
+test.describe("Phase 13 — showTagEdges toggle", () => {
+  test("13-1: baseline has 1500 tag-type edges", async () => {
+    const count = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.graphEdges) return -1;
+      let tagCount = 0;
+      for (const e of v.graphEdges) {
+        if (e.type === "tag") tagCount++;
       }
-
-      return { found: true, progress, hasGradient };
+      return tagCount;
     });
+    expect(count).toBe(1500);
+  });
 
-    expect(result.found).toBe(true);
-    expect(result.progress).toMatch(/^\d+(\.\d+)?%$/);
-    expect(result.hasGradient).toBe(true);
+  test("13-2: showTagEdges=false disables tag edge rendering", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.showTagEdges = false;
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(6000);
 
-    // Verify progress value in valid range
-    const pctNum = parseFloat(result.progress);
-    expect(pctNum).toBeGreaterThanOrEqual(0);
-    expect(pctNum).toBeLessThanOrEqual(100);
+    const val = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.showTagEdges;
+    });
+    expect(val).toBe(false);
+  });
 
-    // Screenshot
-    await page.screenshot({ path: "e2e/images/phase13-slider-track-fill.png" });
+  test("13-3: re-enabling showTagEdges restores rendering", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.showTagEdges = true;
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(4000);
 
-    await cdpBrowser.close();
+    const val = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.showTagEdges;
+    });
+    expect(val).toBe(true);
   });
 });

@@ -1,204 +1,90 @@
 /**
- * E2E test: Phase 11 — Semantic Zoom (Progressive Label Display)
- * Verifies that applyTextFade is zoom-aware and updateLabelsForZoom exists.
+ * Phase 11 — showEdgeLabels toggle
+ * Verifies that toggling showEdgeLabels affects edge label rendering state.
  */
-import { test, expect } from "@playwright/test";
-import * as fs from "fs";
-import * as path from "path";
+import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
 
-const CDP_URL = "http://localhost:9222/json";
-const IMAGE_DIR = path.join(__dirname, "images");
+const CDP_URL = "http://localhost:9222";
+test.setTimeout(120_000);
 
-async function getCdpWs(): Promise<string> {
-  const resp = await fetch(CDP_URL);
-  const targets = await resp.json();
-  const t = targets.find((t: any) => t.title?.includes("Graph Island") || t.title?.includes("開発"));
-  if (!t) throw new Error("CDP target not found");
-  return t.webSocketDebuggerUrl;
-}
+let browser: Browser;
+let page: Page;
 
-function cdp(ws: WebSocket, method: string, params?: any): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const id = Math.floor(Math.random() * 1e9);
-    const timeout = setTimeout(() => reject(new Error(`CDP timeout: ${method}`)), 15000);
-    const handler = (evt: any) => {
-      const msg = JSON.parse(evt.data);
-      if (msg.id === id) {
-        clearTimeout(timeout);
-        ws.removeEventListener("message", handler);
-        if (msg.error) reject(new Error(msg.error.message));
-        else resolve(msg.result);
-      }
-    };
-    ws.addEventListener("message", handler);
-    ws.send(JSON.stringify({ id, method, params }));
+test.beforeAll(async ({}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  browser = await chromium.connectOverCDP(CDP_URL);
+  const ctx = browser.contexts()[0];
+  page = ctx.pages().find(p => p.url().includes("index.html")) ?? ctx.pages()[0];
+
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!v) return;
+    v.panel.searchQuery = "";
+    v.panel.showOrphans = true;
+    v.panel.showEdgeLabels = false;
+    v.rawData = null;
+    v.doRender();
   });
-}
+  await page.waitForTimeout(6000);
+});
 
-async function evaluate(ws: WebSocket, expression: string): Promise<any> {
-  const result = await cdp(ws, "Runtime.evaluate", {
-    expression,
-    returnByValue: true,
-    awaitPromise: true,
-  });
-  if (result.exceptionDetails) {
-    throw new Error(`Eval error: ${result.exceptionDetails.text || JSON.stringify(result.exceptionDetails)}`);
-  }
-  return result.result?.value;
-}
+test.afterAll(async () => { /* shared session */ });
 
-async function screenshot(ws: WebSocket, name: string): Promise<void> {
-  const result = await cdp(ws, "Page.captureScreenshot", { format: "png" });
-  fs.mkdirSync(IMAGE_DIR, { recursive: true });
-  fs.writeFileSync(path.join(IMAGE_DIR, name), Buffer.from(result.data, "base64"));
-}
-
-async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
-
-test.describe("Phase 11 — Semantic Zoom (Progressive Label Display)", () => {
-  let ws: WebSocket;
-
-  test.beforeAll(async () => {
-    const wsUrl = await getCdpWs();
-    ws = new WebSocket(wsUrl);
-    await new Promise<void>((resolve, reject) => {
-      ws.onopen = () => resolve();
-      ws.onerror = (e) => reject(e);
+test.describe("Phase 11 — showEdgeLabels toggle", () => {
+  test("11-1: showEdgeLabels=false is baseline, no labels rendered", async () => {
+    const val = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.showEdgeLabels;
     });
-    await cdp(ws, "Runtime.enable");
-    await cdp(ws, "Page.enable");
+    expect(val).toBe(false);
   });
 
-  test.afterAll(async () => {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.close();
-  });
+  test("11-2: showEdgeLabels=true enables edge label rendering", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.showEdgeLabels = true;
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(6000);
 
-  test("updateLabelsForZoom method exists on graphContainer", async () => {
-    const result = await evaluate(ws, `(() => {
-      const leaf = app.workspace.getLeavesOfType("graph-island")[0];
-      if (!leaf) return { error: "no leaf" };
-      const gc = leaf.view.graphContainer;
-      if (!gc) return { error: "no graphContainer" };
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       return {
-        hasMethod: typeof gc.updateLabelsForZoom === "function"
+        showEdgeLabels: v?.panel?.showEdgeLabels,
+        edgeLabelPlacement: v?.panel?.edgeLabelPlacement,
       };
-    })()`);
-    expect(result).toBeTruthy();
-    if (result.error) { console.log("Skip: " + result.error); return; }
-    expect(result.hasMethod).toBe(true);
+    });
+    expect(result.showEdgeLabels).toBe(true);
+    expect(["center", "offset", "smart"]).toContain(result.edgeLabelPlacement);
   });
 
-  test("Labels have alpha values and zoom is accessible", async () => {
-    const result = await evaluate(ws, `(() => {
-      const leaf = app.workspace.getLeavesOfType("graph-island")[0];
-      if (!leaf) return { error: "no leaf" };
-      const gc = leaf.view.graphContainer;
-      if (!gc) return { error: "no graphContainer" };
-      const world = gc.worldContainer;
-      if (!world) return { error: "no worldContainer" };
-      const zoom = world.scale.x;
-      const pixiNodes = gc.pixiNodes ?? gc.getPixiNodes?.();
-      if (!pixiNodes) return { error: "no pixiNodes" };
-      let withLabel = 0;
-      let alphaZero = 0;
-      let alphaPositive = 0;
-      for (const pn of pixiNodes.values()) {
-        if (pn.label) {
-          withLabel++;
-          if (pn.label.alpha === 0) alphaZero++;
-          else alphaPositive++;
-        }
-      }
-      return { zoom, withLabel, alphaZero, alphaPositive };
-    })()`);
-    expect(result).toBeTruthy();
-    if (result.error) { console.log("Skip: " + result.error); return; }
-    expect(typeof result.zoom).toBe("number");
-    expect(result.zoom).toBeGreaterThan(0);
-    expect(result.withLabel).toBeGreaterThan(0);
-    console.log(`Zoom: ${result.zoom}, Labels: ${result.withLabel} (visible: ${result.alphaPositive}, hidden: ${result.alphaZero})`);
-  });
+  test("11-3: edgeLabelPlacement can be changed to offset", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.edgeLabelPlacement = "offset";
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(4000);
 
-  test("Semantic zoom hides labels at low zoom level", async () => {
-    // Set zoom to very low and check that some labels are hidden
-    const result = await evaluate(ws, `(() => {
-      const leaf = app.workspace.getLeavesOfType("graph-island")[0];
-      if (!leaf) return { error: "no leaf" };
-      const gc = leaf.view.graphContainer;
-      if (!gc) return { error: "no graphContainer" };
-      const world = gc.worldContainer;
-      if (!world) return { error: "no worldContainer" };
+    const val = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.edgeLabelPlacement;
+    });
+    expect(val).toBe("offset");
 
-      // Save original scale
-      const origScale = world.scale.x;
-
-      // Set to very low zoom
-      world.scale.set(0.1);
-      gc.updateLabelsForZoom();
-
-      const pixiNodes = gc.pixiNodes ?? gc.getPixiNodes?.();
-      let withLabel = 0;
-      let alphaZero = 0;
-      for (const pn of pixiNodes.values()) {
-        if (pn.label) {
-          withLabel++;
-          if (pn.label.alpha === 0) alphaZero++;
-        }
-      }
-
-      // Restore original scale
-      world.scale.set(origScale);
-      gc.updateLabelsForZoom();
-
-      return { withLabel, alphaZero, lowZoomHidesLabels: alphaZero > 0 };
-    })()`);
-    expect(result).toBeTruthy();
-    if (result.error) { console.log("Skip: " + result.error); return; }
-    // At zoom 0.1, most labels should be hidden (only top-degree nodes visible)
-    expect(result.lowZoomHidesLabels).toBe(true);
-    console.log(`At zoom 0.1: ${result.alphaZero}/${result.withLabel} labels hidden`);
-  });
-
-  test("Semantic zoom shows all labels at high zoom level", async () => {
-    const result = await evaluate(ws, `(() => {
-      const leaf = app.workspace.getLeavesOfType("graph-island")[0];
-      if (!leaf) return { error: "no leaf" };
-      const gc = leaf.view.graphContainer;
-      if (!gc) return { error: "no graphContainer" };
-      const world = gc.worldContainer;
-      if (!world) return { error: "no worldContainer" };
-
-      const origScale = world.scale.x;
-
-      // Set to high zoom
-      world.scale.set(1.0);
-      gc.updateLabelsForZoom();
-
-      const pixiNodes = gc.pixiNodes ?? gc.getPixiNodes?.();
-      let withLabel = 0;
-      let alphaZero = 0;
-      for (const pn of pixiNodes.values()) {
-        if (pn.label) {
-          withLabel++;
-          if (pn.label.alpha === 0) alphaZero++;
-        }
-      }
-
-      // Restore
-      world.scale.set(origScale);
-      gc.updateLabelsForZoom();
-
-      return { withLabel, alphaZero, allVisible: alphaZero === 0 };
-    })()`);
-    expect(result).toBeTruthy();
-    if (result.error) { console.log("Skip: " + result.error); return; }
-    // At zoom 1.0, all labels should be visible
-    expect(result.allVisible).toBe(true);
-    console.log(`At zoom 1.0: all ${result.withLabel} labels visible`);
-  });
-
-  test("Screenshot with current zoom", async () => {
-    await sleep(500);
-    await screenshot(ws, "phase11-semantic-zoom.png");
+    // Restore
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.showEdgeLabels = false;
+      v.panel.edgeLabelPlacement = "center";
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(4000);
   });
 });

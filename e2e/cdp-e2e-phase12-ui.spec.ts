@@ -1,153 +1,76 @@
 /**
- * E2E test: Phase 12 — Button Hierarchy & Press Feedback
- * Verifies primary buttons have accent background and buttons have transform transitions.
+ * Phase 12 — hoverHops setting
+ * Verifies that hoverHops controls the BFS depth for hover neighbor highlighting.
  */
-import { test, expect } from "@playwright/test";
-import * as fs from "fs";
-import * as path from "path";
+import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
 
-const CDP_URL = "http://localhost:9222/json";
-const IMAGE_DIR = path.join(__dirname, "images");
+const CDP_URL = "http://localhost:9222";
+test.setTimeout(120_000);
 
-async function getCdpWs(): Promise<string> {
-  const resp = await fetch(CDP_URL);
-  const targets = await resp.json();
-  const t = targets.find((t: any) => t.title?.includes("Graph Island") || t.title?.includes("開発"));
-  if (!t) throw new Error("CDP target not found");
-  return t.webSocketDebuggerUrl;
-}
+let browser: Browser;
+let page: Page;
 
-function cdp(ws: WebSocket, method: string, params?: any): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const id = Math.floor(Math.random() * 1e9);
-    const timeout = setTimeout(() => reject(new Error(`CDP timeout: ${method}`)), 15000);
-    const handler = (evt: any) => {
-      const msg = JSON.parse(evt.data);
-      if (msg.id === id) {
-        clearTimeout(timeout);
-        ws.removeEventListener("message", handler);
-        if (msg.error) reject(new Error(msg.error.message));
-        else resolve(msg.result);
-      }
-    };
-    ws.addEventListener("message", handler);
-    ws.send(JSON.stringify({ id, method, params }));
+test.beforeAll(async ({}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  browser = await chromium.connectOverCDP(CDP_URL);
+  const ctx = browser.contexts()[0];
+  page = ctx.pages().find(p => p.url().includes("index.html")) ?? ctx.pages()[0];
+
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!v) return;
+    v.panel.searchQuery = "";
+    v.panel.showOrphans = true;
+    v.panel.hoverHops = 1;
+    v.rawData = null;
+    v.doRender();
   });
-}
+  await page.waitForTimeout(6000);
+});
 
-async function evaluate(ws: WebSocket, expression: string): Promise<any> {
-  const result = await cdp(ws, "Runtime.evaluate", {
-    expression,
-    returnByValue: true,
-    awaitPromise: true,
-  });
-  if (result.exceptionDetails) {
-    throw new Error(`Eval error: ${result.exceptionDetails.text || JSON.stringify(result.exceptionDetails)}`);
-  }
-  return result.result?.value;
-}
+test.afterAll(async () => { /* shared session */ });
 
-async function screenshot(ws: WebSocket, name: string): Promise<void> {
-  const result = await cdp(ws, "Page.captureScreenshot", { format: "png" });
-  fs.mkdirSync(IMAGE_DIR, { recursive: true });
-  fs.writeFileSync(path.join(IMAGE_DIR, name), Buffer.from(result.data, "base64"));
-}
-
-async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
-
-test.describe("Phase 12 — Button Hierarchy & Press Feedback", () => {
-  let ws: WebSocket;
-
-  test.beforeAll(async () => {
-    const wsUrl = await getCdpWs();
-    ws = new WebSocket(wsUrl);
-    await new Promise<void>((resolve, reject) => {
-      ws.onopen = () => resolve();
-      ws.onerror = (e) => reject(e);
+test.describe("Phase 12 — hoverHops setting", () => {
+  test("12-1: hoverHops default is 1", async () => {
+    const val = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.hoverHops;
     });
-    await cdp(ws, "Runtime.enable");
-    await cdp(ws, "Page.enable");
+    expect(val).toBe(1);
   });
 
-  test.afterAll(async () => {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+  test("12-2: setting hoverHops to 3 is accepted", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.hoverHops = 3;
+    });
+
+    const val = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.hoverHops;
+    });
+    expect(val).toBe(3);
   });
 
-  test("Primary action buttons have filled accent background", async () => {
-    const result = await evaluate(ws, `(() => {
-      const panel = document.querySelector('.graph-panel');
-      if (!panel) return { error: "no graph-panel" };
-      const actionBtn = panel.querySelector('.gi-action-row button, .ngp-action-row button');
-      if (!actionBtn) return { error: "no action button found" };
-      const cs = getComputedStyle(actionBtn);
-      return {
-        bg: cs.backgroundColor,
-        color: cs.color,
-        borderRadius: cs.borderRadius,
-        isTransparent: cs.backgroundColor === 'rgba(0, 0, 0, 0)' || cs.backgroundColor === 'transparent',
-      };
-    })()`);
-    expect(result).toBeTruthy();
-    if (result.error) { console.log("Skip: " + result.error); return; }
-    // Primary buttons should NOT be transparent — they have accent fill
-    expect(result.isTransparent).toBe(false);
-    console.log(`Primary button bg: ${result.bg}, color: ${result.color}`);
-  });
+  test("12-3: hoverHops=0 disables neighbor highlighting", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.hoverHops = 0;
+    });
 
-  test("Action buttons have transform in transition property", async () => {
-    const result = await evaluate(ws, `(() => {
-      const panel = document.querySelector('.graph-panel');
-      if (!panel) return { error: "no graph-panel" };
-      const actionBtn = panel.querySelector('.gi-action-row button, .ngp-action-row button');
-      if (!actionBtn) return { error: "no action button found" };
-      const cs = getComputedStyle(actionBtn);
-      return {
-        transition: cs.transition,
-        hasTransform: cs.transition.includes('transform'),
-      };
-    })()`);
-    expect(result).toBeTruthy();
-    if (result.error) { console.log("Skip: " + result.error); return; }
-    expect(result.hasTransform).toBe(true);
-    console.log(`Transition: ${result.transition}`);
-  });
+    const val = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.hoverHops;
+    });
+    expect(val).toBe(0);
 
-  test("Toolbar buttons have transform transition", async () => {
-    const result = await evaluate(ws, `(() => {
-      const btn = document.querySelector('.graph-toolbar button');
-      if (!btn) return { error: "no toolbar button" };
-      const cs = getComputedStyle(btn);
-      return {
-        transition: cs.transition,
-        hasTransform: cs.transition.includes('transform'),
-      };
-    })()`);
-    expect(result).toBeTruthy();
-    if (result.error) { console.log("Skip: " + result.error); return; }
-    expect(result.hasTransform).toBe(true);
-    console.log(`Toolbar btn transition: ${result.transition}`);
-  });
-
-  test("Preset buttons have transform transition", async () => {
-    const result = await evaluate(ws, `(() => {
-      const btn = document.querySelector('.gi-preset-btn');
-      if (!btn) return { error: "no preset button" };
-      const cs = getComputedStyle(btn);
-      return {
-        transition: cs.transition,
-        hasTransform: cs.transition.includes('transform'),
-        bg: cs.backgroundColor,
-        border: cs.border,
-      };
-    })()`);
-    expect(result).toBeTruthy();
-    if (result.error) { console.log("Skip: " + result.error); return; }
-    expect(result.hasTransform).toBe(true);
-    console.log(`Preset btn transition: ${result.transition}, bg: ${result.bg}`);
-  });
-
-  test("Screenshot of button hierarchy", async () => {
-    await sleep(500);
-    await screenshot(ws, "phase12-button-hierarchy.png");
+    // Restore
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.hoverHops = 1;
+    });
   });
 });

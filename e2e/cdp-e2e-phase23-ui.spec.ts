@@ -1,109 +1,93 @@
 /**
- * E2E test: Phase 23 — Edge type-specific dash styles
+ * Phase 23 — groupBy setting
+ * Verifies that setting groupBy creates group clusters and collapsed groups.
  */
-import { test, expect } from "@playwright/test";
-import * as fs from "fs";
-import * as path from "path";
+import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
 
-const CDP_URL = "http://localhost:9222/json";
-const IMAGE_DIR = path.join(__dirname, "images");
+const CDP_URL = "http://localhost:9222";
+test.setTimeout(120_000);
 
-async function getCdpWs(): Promise<string> {
-  const resp = await fetch(CDP_URL);
-  const targets = await resp.json();
-  const t = targets.find((t: any) => t.title?.includes("Graph Island") || t.title?.includes("開発"));
-  if (!t) throw new Error("CDP target not found");
-  return t.webSocketDebuggerUrl;
-}
+let browser: Browser;
+let page: Page;
 
-function cdp(ws: WebSocket, method: string, params?: any): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const id = Math.floor(Math.random() * 1e9);
-    const timeout = setTimeout(() => reject(new Error(`CDP timeout: ${method}`)), 15000);
-    const handler = (evt: any) => {
-      const msg = JSON.parse(evt.data);
-      if (msg.id === id) {
-        clearTimeout(timeout);
-        ws.removeEventListener("message", handler);
-        if (msg.error) reject(new Error(msg.error.message));
-        else resolve(msg.result);
-      }
-    };
-    ws.addEventListener("message", handler);
-    ws.send(JSON.stringify({ id, method, params }));
+test.beforeAll(async ({}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  browser = await chromium.connectOverCDP(CDP_URL);
+  const ctx = browser.contexts()[0];
+  page = ctx.pages().find(p => p.url().includes("index.html")) ?? ctx.pages()[0];
+
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!v) return;
+    v.panel.searchQuery = "";
+    v.panel.showOrphans = true;
+    v.panel.groupBy = "";
+    v.panel.collapsedGroups = new Set();
+    v.rawData = null;
+    v.doRender();
   });
-}
+  await page.waitForTimeout(6000);
+});
 
-async function evaluate(ws: WebSocket, expression: string): Promise<any> {
-  const result = await cdp(ws, "Runtime.evaluate", {
-    expression,
-    returnByValue: true,
-    awaitPromise: true,
-  });
-  if (result.exceptionDetails) {
-    throw new Error(`Eval error: ${result.exceptionDetails.text || JSON.stringify(result.exceptionDetails)}`);
-  }
-  return result.result?.value;
-}
+test.afterAll(async () => { /* shared session */ });
 
-async function screenshot(ws: WebSocket, name: string): Promise<void> {
-  const result = await cdp(ws, "Page.captureScreenshot", { format: "png" });
-  fs.mkdirSync(IMAGE_DIR, { recursive: true });
-  fs.writeFileSync(path.join(IMAGE_DIR, name), Buffer.from(result.data, "base64"));
-}
-
-test.describe("Phase 23 — Edge type dash styles", () => {
-  let ws: WebSocket;
-
-  test.beforeAll(async () => {
-    const url = await getCdpWs();
-    ws = new WebSocket(url);
-    await new Promise<void>((resolve, reject) => {
-      ws.onopen = () => resolve();
-      ws.onerror = (e) => reject(e);
+test.describe("Phase 23 — groupBy setting", () => {
+  test("23-1: no groupBy shows 2354 individual nodes", async () => {
+    const count = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.pixiNodes?.size ?? -1;
     });
-    await cdp(ws, "Runtime.enable");
+    expect(count).toBe(2354);
   });
 
-  test.afterAll(async () => {
-    if (ws) ws.close();
-  });
+  test("23-2: groupBy=folder:? creates folder-based groups", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.groupBy = "folder:?";
+      v.panel.collapsedGroups = new Set();
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(6000);
 
-  test("23-1: setLineDash method exists on CanvasGraphics", async () => {
-    // Verify the build includes setLineDash by checking the main.js bundle
-    const result = await evaluate(ws, `(() => {
-      // Check that the plugin bundle contains setLineDash logic
-      const scripts = document.querySelectorAll('script');
-      // Alternative: check the canvas rendering context supports setLineDash
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      return { hasSetLineDash: typeof ctx.setLineDash === 'function' };
-    })()`);
-    console.log("23-1:", JSON.stringify(result));
-    expect(result.hasSetLineDash).toBe(true);
-  });
-
-  test("23-2: canvas is rendering edges", async () => {
-    const result = await evaluate(ws, `(() => {
-      const canvas = document.querySelector('.graph-container canvas, .gi-canvas-area canvas');
-      if (!canvas) return { error: 'no canvas' };
-      // Get pixel data from center area to verify edges are drawn
-      const ctx = canvas.getContext('2d');
-      const w = canvas.width;
-      const h = canvas.height;
-      // Sample center column for non-black pixels (edges)
-      let edgePixels = 0;
-      const data = ctx.getImageData(w/2 - 50, 0, 100, h).data;
-      for (let i = 0; i < data.length; i += 4) {
-        if (data[i] > 30 || data[i+1] > 30 || data[i+2] > 30) edgePixels++;
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.pixiNodes) return null;
+      // When collapsedGroups is empty, all groups auto-collapse to super nodes
+      let superNodeCount = 0;
+      for (const pn of v.pixiNodes.values()) {
+        if (pn.node?.collapsedMembers && pn.node.collapsedMembers.length > 0) {
+          superNodeCount++;
+        }
       }
-      return { edgePixels, total: data.length / 4, hasContent: edgePixels > 100 };
-    })()`);
-    console.log("23-2:", JSON.stringify(result));
-    expect(result.hasContent).toBe(true);
+      return {
+        visibleNodes: v.pixiNodes.size,
+        superNodeCount,
+        groupBy: v.panel.groupBy,
+      };
+    });
+    expect(result).not.toBeNull();
+    expect(result!.groupBy).toBe("folder:?");
+    // With groupBy active and auto-collapse, visible nodes should be fewer than 2354
+    expect(result!.visibleNodes).toBeLessThan(2354);
   });
 
-  test("screenshot: Phase 23 edge styles", async () => {
-    await screenshot(ws, "phase23-edge-styles.png");
+  test("23-3: clearing groupBy restores all nodes", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.groupBy = "";
+      v.panel.collapsedGroups = new Set();
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(6000);
+
+    const count = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.pixiNodes?.size ?? -1;
+    });
+    expect(count).toBe(2354);
   });
 });

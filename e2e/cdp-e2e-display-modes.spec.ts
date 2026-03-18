@@ -1,0 +1,114 @@
+/**
+ * CDP E2E Test -- Display Modes
+ *
+ * Verifies node display mode switching (node/card/donut/sunburst-segment)
+ * and label placement settings.
+ */
+import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
+
+const CDP_URL = "http://localhost:9222";
+let browser: Browser;
+let page: Page;
+
+test.beforeAll(async () => {
+  browser = await chromium.connectOverCDP(CDP_URL);
+  const pages = browser.contexts()[0].pages();
+  page = pages.find(p => p.url().includes("index.html")) ?? pages[0];
+  await page.bringToFront();
+
+  await page.evaluate(async () => {
+    const app = (window as any).app;
+    await app.plugins.disablePlugin("graph-island");
+    await new Promise(r => setTimeout(r, 500));
+    await app.plugins.enablePlugin("graph-island");
+    await new Promise(r => setTimeout(r, 1000));
+  });
+
+  await page.evaluate(() => {
+    const app = (window as any).app;
+    app.workspace.getLeavesOfType("graph-view").forEach((l: any) => l.detach());
+  });
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    (window as any).app.commands.executeCommandById("graph-island:open-graph-view");
+  });
+  await page.waitForTimeout(5000);
+});
+
+test("default node display mode is node", async () => {
+  const result = await page.evaluate(() => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+    const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
+    return { mode: panel.nodeDisplayMode ?? "node", nodeCount: view.pixiNodes?.size ?? 0 };
+  });
+  expect(result).not.toHaveProperty("error");
+  expect(result.mode).toBe("node");
+  expect(result.nodeCount).toBeGreaterThan(0);
+});
+
+test("card display mode sets mode to card", async () => {
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+    const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
+    panel.nodeDisplayMode = "card";
+    panel.cardDisplayConfig = { fields: ["node_type"], maxWidth: 120, showIcon: false };
+    view.markDirty?.();
+    await new Promise(r => setTimeout(r, 1000));
+    const mode = panel.nodeDisplayMode;
+    panel.nodeDisplayMode = "node";
+    return { mode };
+  });
+  expect(result).not.toHaveProperty("error");
+  expect(result.mode).toBe("card");
+});
+
+test("donut display mode sets innerRadius", async () => {
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+    const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
+    panel.nodeDisplayMode = "donut";
+    panel.donutDisplayConfig = { breakdownField: "node_type", innerRadius: 0.6 };
+    const mode = panel.nodeDisplayMode;
+    const radius = panel.donutDisplayConfig.innerRadius;
+    panel.nodeDisplayMode = "node";
+    return { mode, radius };
+  });
+  expect(result.mode).toBe("donut");
+  expect(result.radius).toBe(0.6);
+});
+
+test("clusterFollowsGroupBy toggle works", async () => {
+  const result = await page.evaluate(() => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+    const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
+    panel.clusterFollowsGroupBy = true;
+    const on = panel.clusterFollowsGroupBy;
+    panel.clusterFollowsGroupBy = false;
+    const off = panel.clusterFollowsGroupBy;
+    panel.clusterFollowsGroupBy = true;
+    return { on, off };
+  });
+  expect(result.on).toBe(true);
+  expect(result.off).toBe(false);
+});
+
+test("switching display modes back to node preserves graph", async () => {
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+    const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
+    panel.nodeDisplayMode = "donut";
+    view.markDirty?.();
+    await new Promise(r => setTimeout(r, 500));
+    panel.nodeDisplayMode = "node";
+    view.markDirty?.();
+    await new Promise(r => setTimeout(r, 500));
+    return { mode: panel.nodeDisplayMode, nodeCount: view.pixiNodes?.size ?? 0 };
+  });
+  expect(result.mode).toBe("node");
+  expect(result.nodeCount).toBeGreaterThan(0);
+});

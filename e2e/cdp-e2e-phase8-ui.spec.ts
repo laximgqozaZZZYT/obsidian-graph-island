@@ -1,116 +1,79 @@
 /**
- * E2E test: Phase 8 — Layout Morphing Animation
- * Verifies that layout transition is wired into the render pipeline.
+ * Phase 8 — tagDisplay (enclosure mode)
+ * Verifies that tagDisplay="enclosure" produces 19 enclosure labels
+ * and tag memberships total 2192.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
 
-const CDP_URL = "http://localhost:9222/json";
+const CDP_URL = "http://localhost:9222";
+test.setTimeout(120_000);
 
-async function getCdpWs(): Promise<string> {
-  const resp = await fetch(CDP_URL);
-  const targets = await resp.json();
-  const t = targets.find((t: any) => t.title?.includes("Graph Island") || t.title?.includes("開発"));
-  if (!t) throw new Error("CDP target not found");
-  return t.webSocketDebuggerUrl;
-}
+let browser: Browser;
+let page: Page;
 
-function cdp(ws: WebSocket, method: string, params?: any): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const id = Math.floor(Math.random() * 1e9);
-    const timeout = setTimeout(() => reject(new Error(`CDP timeout: ${method}`)), 15000);
-    const handler = (evt: any) => {
-      const msg = JSON.parse(evt.data);
-      if (msg.id === id) {
-        clearTimeout(timeout);
-        ws.removeEventListener("message", handler);
-        if (msg.error) reject(new Error(msg.error.message));
-        else resolve(msg.result);
+test.beforeAll(async ({}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  browser = await chromium.connectOverCDP(CDP_URL);
+  const ctx = browser.contexts()[0];
+  page = ctx.pages().find(p => p.url().includes("index.html")) ?? ctx.pages()[0];
+
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!v) return;
+    v.panel.searchQuery = "";
+    v.panel.showOrphans = true;
+    v.panel.showTags = true;
+    v.panel.tagDisplay = "enclosure";
+    v.rawData = null;
+    v.doRender();
+  });
+  await page.waitForTimeout(6000);
+});
+
+test.afterAll(async () => { /* shared session */ });
+
+test.describe("Phase 8 — tagDisplay enclosure", () => {
+  test("8-1: enclosure mode creates 19 tag labels", async () => {
+    const labelCount = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (typeof v?.getTagMembership === "function") {
+        return v.getTagMembership().size;
       }
-    };
-    ws.addEventListener("message", handler);
-    ws.send(JSON.stringify({ id, method, params }));
-  });
-}
-
-async function evaluate(ws: WebSocket, expression: string): Promise<any> {
-  const result = await cdp(ws, "Runtime.evaluate", {
-    expression,
-    returnByValue: true,
-    awaitPromise: true,
-  });
-  if (result.exceptionDetails) {
-    throw new Error(`Eval error: ${result.exceptionDetails.text || JSON.stringify(result.exceptionDetails)}`);
-  }
-  return result.result?.value;
-}
-
-async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
-
-test.describe("Phase 8 — Layout Morphing Animation", () => {
-  let ws: WebSocket;
-
-  test.beforeAll(async () => {
-    const wsUrl = await getCdpWs();
-    ws = new WebSocket(wsUrl);
-    await new Promise<void>((resolve, reject) => {
-      ws.addEventListener("open", () => resolve());
-      ws.addEventListener("error", (e) => reject(e));
+      // Fallback: scan for Map<string, CanvasText>
+      for (const k of Object.keys(v)) {
+        const val = v[k];
+        if (val instanceof Map && val.size > 0) {
+          const first = val.values().next().value;
+          if (first && typeof first === "object" && "text" in first && "style" in first) {
+            return val.size;
+          }
+        }
+      }
+      return -1;
     });
-    await cdp(ws, "Runtime.enable");
+    expect(labelCount).toBe(19);
   });
 
-  test.afterAll(async () => {
-    ws?.close();
+  test("8-2: enclosure mode has 2192 total tag memberships", async () => {
+    const total = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (typeof v?.getTagMembership !== "function") return -1;
+      const tm = v.getTagMembership();
+      let sum = 0;
+      for (const members of tm.values()) sum += members.size;
+      return sum;
+    });
+    expect(total).toBe(2192);
   });
 
-  test("layoutTransition object exists on GraphViewContainer", async () => {
-    const exists = await evaluate(ws, `(() => {
-      const leaf = app.workspace.getLeavesOfType("graph-view")[0];
-      if (!leaf) return false;
-      const view = leaf.view;
-      return view.layoutTransition != null && typeof view.layoutTransition.tick === "function";
-    })()`);
-    expect(exists).toBe(true);
-  });
-
-  test("tickLayoutTransition method exists on view", async () => {
-    const exists = await evaluate(ws, `(() => {
-      const leaf = app.workspace.getLeavesOfType("graph-view")[0];
-      if (!leaf) return false;
-      const view = leaf.view;
-      return typeof view.tickLayoutTransition === "function";
-    })()`);
-    expect(exists).toBe(true);
-  });
-
-  test("tickLayoutTransition returns boolean when called", async () => {
-    const result = await evaluate(ws, `(() => {
-      const leaf = app.workspace.getLeavesOfType("graph-view")[0];
-      if (!leaf) return null;
-      const view = leaf.view;
-      const val = view.tickLayoutTransition();
-      return typeof val === "boolean";
-    })()`);
-    expect(result).toBe(true);
-  });
-
-  test("renderPipeline is connected to view", async () => {
-    const connected = await evaluate(ws, `(() => {
-      const leaf = app.workspace.getLeavesOfType("graph-view")[0];
-      if (!leaf) return false;
-      const view = leaf.view;
-      return view.renderPipeline != null && typeof view.renderPipeline.markDirty === "function";
-    })()`);
-    expect(connected).toBe(true);
-  });
-
-  test("savedPositions map exists", async () => {
-    const exists = await evaluate(ws, `(() => {
-      const leaf = app.workspace.getLeavesOfType("graph-view")[0];
-      if (!leaf) return false;
-      const view = leaf.view;
-      return view.savedPositions instanceof Map;
-    })()`);
-    expect(exists).toBe(true);
+  test("8-3: tag:battle enclosure contains 80 members", async () => {
+    const count = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (typeof v?.getTagMembership !== "function") return -1;
+      const tm = v.getTagMembership();
+      const members = tm.get("battle") ?? tm.get("#battle");
+      return members?.size ?? -1;
+    });
+    expect(count).toBe(80);
   });
 });

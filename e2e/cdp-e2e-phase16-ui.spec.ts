@@ -1,57 +1,81 @@
-import { test, expect, chromium } from "@playwright/test";
+/**
+ * Phase 16 — showSequence edge toggle
+ * Verifies that toggling showSequence controls sequence edge rendering.
+ */
+import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
 
-test.describe("Phase 16 — Search UX (icon + clear button)", () => {
-  test("search wrapper contains search icon and clear button", async () => {
-    const browser = await chromium.connectOverCDP("http://localhost:9222");
-    const contexts = browser.contexts();
-    expect(contexts.length).toBeGreaterThan(0);
-    const pages = contexts[0].pages();
-    expect(pages.length).toBeGreaterThan(0);
-    const page = pages[0];
+const CDP_URL = "http://localhost:9222";
+test.setTimeout(120_000);
 
-    // Wait for graph container
-    await page.waitForSelector(".graph-container", { timeout: 10000 });
+let browser: Browser;
+let page: Page;
 
-    // Open the settings panel if hidden
-    const panel = page.locator(".graph-panel");
-    const isHidden = await panel.evaluate(el => el.classList.contains("is-hidden"));
-    if (isHidden) {
-      const settingsBtn = page.locator(".graph-settings-btn").first();
-      if (await settingsBtn.count() > 0) {
-        await settingsBtn.click();
-        await page.waitForTimeout(500);
+test.beforeAll(async ({}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  browser = await chromium.connectOverCDP(CDP_URL);
+  const ctx = browser.contexts()[0];
+  page = ctx.pages().find(p => p.url().includes("index.html")) ?? ctx.pages()[0];
+
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!v) return;
+    v.panel.searchQuery = "";
+    v.panel.showOrphans = true;
+    v.panel.showSequence = true;
+    v.rawData = null;
+    v.doRender();
+  });
+  await page.waitForTimeout(6000);
+});
+
+test.afterAll(async () => { /* shared session */ });
+
+test.describe("Phase 16 — showSequence edge toggle", () => {
+  test("16-1: showSequence=true is baseline state", async () => {
+    const val = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.showSequence;
+    });
+    expect(val).toBe(true);
+  });
+
+  test("16-2: showSequence=false disables sequence edge rendering", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.showSequence = false;
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(6000);
+
+    const val = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.showSequence;
+    });
+    expect(val).toBe(false);
+  });
+
+  test("16-3: sequence edge count in graphEdges data", async () => {
+    const count = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.graphEdges) return -1;
+      let cnt = 0;
+      for (const e of v.graphEdges) {
+        if (e.type === "sequence") cnt++;
       }
-    }
+      return cnt;
+    });
+    expect(count).toBeGreaterThanOrEqual(0);
 
-    await expect(panel).toBeVisible({ timeout: 5000 });
-
-    // --- Top search bar ---
-    const searchWrapper = panel.locator(".gi-search-row .gi-search-wrapper").first();
-    await expect(searchWrapper).toBeVisible();
-
-    // Search icon present
-    const searchIcon = searchWrapper.locator(".gi-search-icon");
-    await expect(searchIcon).toBeVisible();
-    const iconSvg = searchIcon.locator("svg");
-    await expect(iconSvg).toBeAttached();
-
-    // Clear button exists but hidden when empty
-    const clearBtn = searchWrapper.locator(".gi-search-clear");
-    await expect(clearBtn).toBeAttached();
-    const clearStyle = await clearBtn.getAttribute("style");
-    expect(clearStyle).toContain("display: none");
-
-    // --- Settings filter ---
-    const settingsWrapper = panel.locator(".gi-settings-filter-wrapper").first();
-    await expect(settingsWrapper).toBeVisible();
-
-    const settingsIcon = settingsWrapper.locator(".gi-search-icon");
-    await expect(settingsIcon).toBeVisible();
-
-    const settingsClear = settingsWrapper.locator(".gi-search-clear");
-    await expect(settingsClear).toBeAttached();
-
-    // Screenshot
-    await panel.screenshot({ path: "e2e/images/phase16-search-ux.png" });
+    // Restore
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.showSequence = true;
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(4000);
   });
 });

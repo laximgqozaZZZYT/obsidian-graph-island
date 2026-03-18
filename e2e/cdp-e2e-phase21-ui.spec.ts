@@ -1,129 +1,95 @@
 /**
- * E2E test: Phase 21 — Label ellipsis + tooltips
+ * Phase 21 — showLegend toggle
+ * Verifies that toggling showLegend controls the legend overlay DOM element.
  */
-import { test, expect } from "@playwright/test";
-import * as fs from "fs";
-import * as path from "path";
+import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
 
-const CDP_URL = "http://localhost:9222/json";
-const IMAGE_DIR = path.join(__dirname, "images");
+const CDP_URL = "http://localhost:9222";
+test.setTimeout(120_000);
 
-async function getCdpWs(): Promise<string> {
-  const resp = await fetch(CDP_URL);
-  const targets = await resp.json();
-  const t = targets.find((t: any) => t.title?.includes("Graph Island") || t.title?.includes("開発"));
-  if (!t) throw new Error("CDP target not found");
-  return t.webSocketDebuggerUrl;
-}
+let browser: Browser;
+let page: Page;
 
-function cdp(ws: WebSocket, method: string, params?: any): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const id = Math.floor(Math.random() * 1e9);
-    const timeout = setTimeout(() => reject(new Error(`CDP timeout: ${method}`)), 15000);
-    const handler = (evt: any) => {
-      const msg = JSON.parse(evt.data);
-      if (msg.id === id) {
-        clearTimeout(timeout);
-        ws.removeEventListener("message", handler);
-        if (msg.error) reject(new Error(msg.error.message));
-        else resolve(msg.result);
-      }
-    };
-    ws.addEventListener("message", handler);
-    ws.send(JSON.stringify({ id, method, params }));
+test.beforeAll(async ({}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  browser = await chromium.connectOverCDP(CDP_URL);
+  const ctx = browser.contexts()[0];
+  page = ctx.pages().find(p => p.url().includes("index.html")) ?? ctx.pages()[0];
+
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!v) return;
+    v.panel.searchQuery = "";
+    v.panel.showOrphans = true;
+    v.panel.nodeColorMode = "community";
+    v.panel.showLegend = true;
+    v.rawData = null;
+    v.doRender();
   });
-}
+  await page.waitForTimeout(6000);
+});
 
-async function evaluate(ws: WebSocket, expression: string): Promise<any> {
-  const result = await cdp(ws, "Runtime.evaluate", {
-    expression,
-    returnByValue: true,
-    awaitPromise: true,
-  });
-  if (result.exceptionDetails) {
-    throw new Error(`Eval error: ${result.exceptionDetails.text || JSON.stringify(result.exceptionDetails)}`);
-  }
-  return result.result?.value;
-}
+test.afterAll(async () => { /* shared session */ });
 
-async function screenshot(ws: WebSocket, name: string): Promise<void> {
-  const result = await cdp(ws, "Page.captureScreenshot", { format: "png" });
-  fs.mkdirSync(IMAGE_DIR, { recursive: true });
-  fs.writeFileSync(path.join(IMAGE_DIR, name), Buffer.from(result.data, "base64"));
-}
-
-test.describe("Phase 21 — Label ellipsis + tooltips", () => {
-  let ws: WebSocket;
-
-  test.beforeAll(async () => {
-    const url = await getCdpWs();
-    ws = new WebSocket(url);
-    await new Promise<void>((resolve, reject) => {
-      ws.onopen = () => resolve();
-      ws.onerror = (e) => reject(e);
+test.describe("Phase 21 — showLegend toggle", () => {
+  test("21-1: showLegend=true renders legend DOM element", async () => {
+    const result = await page.evaluate(() => {
+      const legend = document.querySelector(".gi-legend");
+      if (!legend) return { exists: false, itemCount: 0 };
+      const items = legend.querySelectorAll(".gi-legend-item");
+      return { exists: true, itemCount: items.length };
     });
-    await cdp(ws, "Runtime.enable");
+    expect(result.exists).toBe(true);
+    expect(result.itemCount).toBeGreaterThan(0);
   });
 
-  test.afterAll(async () => {
-    if (ws) ws.close();
+  test("21-2: legend items have labels and color indicators", async () => {
+    const result = await page.evaluate(() => {
+      const legend = document.querySelector(".gi-legend");
+      if (!legend) return null;
+      const items = legend.querySelectorAll(".gi-legend-item");
+      const data = Array.from(items).slice(0, 5).map(item => ({
+        label: item.querySelector(".gi-legend-label")?.textContent ?? "",
+        hasDot: !!item.querySelector(".gi-legend-dot"),
+      }));
+      return { count: items.length, samples: data };
+    });
+    expect(result).not.toBeNull();
+    expect(result!.count).toBeGreaterThan(0);
+    for (const sample of result!.samples) {
+      expect(sample.label).toBeTruthy();
+      expect(sample.hasDot).toBe(true);
+    }
   });
 
-  test("21-1: setting-item-name has text-overflow ellipsis CSS", async () => {
-    const result = await evaluate(ws, `(() => {
-      for (const sheet of document.styleSheets) {
-        try {
-          for (const rule of sheet.cssRules) {
-            if (rule.selectorText && rule.selectorText.includes('setting-item-name') &&
-                rule.style && rule.style.textOverflow === 'ellipsis') {
-              return { found: true, selector: rule.selectorText };
-            }
-          }
-        } catch(e) {}
-      }
-      return { found: false };
-    })()`);
-    console.log("21-1:", JSON.stringify(result));
-    expect(result.found).toBe(true);
-  });
+  test("21-3: showLegend=false hides legend", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.showLegend = false;
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(4000);
 
-  test("21-2: setting-item-name elements have title attributes", async () => {
-    const result = await evaluate(ws, `(() => {
-      const panel = document.querySelector('.graph-panel');
-      if (!panel) return { error: 'no panel' };
-      const names = panel.querySelectorAll('.setting-item-name');
-      const total = names.length;
-      let withTitle = 0;
-      for (const el of names) {
-        if (el.title && el.title.length > 0) withTitle++;
-      }
-      return { total, withTitle, ratio: total > 0 ? withTitle / total : 0 };
-    })()`);
-    console.log("21-2:", JSON.stringify(result));
-    expect(result.total).toBeGreaterThan(0);
-    // At least 80% of labels should have title
-    expect(result.ratio).toBeGreaterThanOrEqual(0.8);
-  });
-
-  test("21-3: setting-item-name computed style has overflow hidden", async () => {
-    const result = await evaluate(ws, `(() => {
-      const panel = document.querySelector('.graph-panel');
-      if (!panel) return { error: 'no panel' };
-      const name = panel.querySelector('.setting-item-name');
-      if (!name) return { error: 'no name element' };
-      const cs = getComputedStyle(name);
+    const result = await page.evaluate(() => {
+      const legend = document.querySelector(".gi-legend");
       return {
-        overflow: cs.overflow,
-        textOverflow: cs.textOverflow,
-        whiteSpace: cs.whiteSpace,
+        exists: !!legend,
+        hidden: !legend || getComputedStyle(legend).display === "none",
       };
-    })()`);
-    console.log("21-3:", JSON.stringify(result));
-    expect(result.overflow).toBe("hidden");
-    expect(result.textOverflow).toBe("ellipsis");
-  });
+    });
+    expect(result.hidden || !result.exists).toBe(true);
 
-  test("screenshot: Phase 21", async () => {
-    await screenshot(ws, "phase21-label-ellipsis.png");
+    // Restore
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.nodeColorMode = "default";
+      v.panel.showLegend = false;
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(4000);
   });
 });

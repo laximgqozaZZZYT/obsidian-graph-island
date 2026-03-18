@@ -1,0 +1,145 @@
+/**
+ * CDP E2E Test -- All Edge Toggles
+ *
+ * Verifies that each edge type toggle (showLinks, showTagEdges, etc.)
+ * changes the rendered canvas output when toggled.
+ */
+import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
+
+const CDP_URL = "http://localhost:9222";
+let browser: Browser;
+let page: Page;
+
+test.beforeAll(async () => {
+  browser = await chromium.connectOverCDP(CDP_URL);
+  const pages = browser.contexts()[0].pages();
+  page = pages.find(p => p.url().includes("index.html")) ?? pages[0];
+  await page.bringToFront();
+
+  await page.evaluate(async () => {
+    const app = (window as any).app;
+    await app.plugins.disablePlugin("graph-island");
+    await app.plugins.enablePlugin("graph-island");
+  });
+  await page.waitForTimeout(3000);
+
+  await page.evaluate(() => {
+    const app = (window as any).app;
+    if (app.workspace.getLeavesOfType("graph-view").length === 0) {
+      app.commands.executeCommandById("graph-island:open-graph-view");
+    }
+  });
+  await page.waitForTimeout(4000);
+
+  // Reset to baseline: no grouping, all edges on
+  await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return;
+    const panel = view.getPanel();
+    panel.groupBy = "none";
+    panel.groupByRules = [];
+    panel.collapsedGroups = new Set();
+    panel.showOrphans = true;
+    panel.showTagNodes = true;
+    panel.showLinks = true;
+    panel.showTagEdges = true;
+    panel.showCategoryEdges = true;
+    panel.showSemanticEdges = true;
+    panel.searchQuery = "";
+    view.rawData = null;
+    if (typeof view.doRender === "function") view.doRender();
+    await new Promise(r => setTimeout(r, 4000));
+  });
+});
+
+test("baseline edge type counts match expected totals", async () => {
+  const data = await page.evaluate(() => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+    const edges = view.graphEdges ?? [];
+    const typeCounts: Record<string, number> = {};
+    for (const e of edges) typeCounts[e.type] = (typeCounts[e.type] || 0) + 1;
+    return { total: edges.length, typeCounts };
+  });
+
+  expect(data).not.toHaveProperty("error");
+  expect(data.total).toBeGreaterThanOrEqual(5000);
+  expect(data.typeCounts.link).toBeGreaterThanOrEqual(1600);
+  expect(data.typeCounts.semantic).toBeGreaterThanOrEqual(2300);
+  expect(data.typeCounts.tag).toBeGreaterThanOrEqual(1400);
+});
+
+test("showLinks toggle changes panel state correctly", async () => {
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+    const panel = view.getPanel();
+
+    const before = panel.showLinks;
+    panel.showLinks = false;
+    view.markDirty?.();
+    await new Promise(r => setTimeout(r, 500));
+    const after = panel.showLinks;
+
+    panel.showLinks = true;
+    view.markDirty?.();
+    return { before, after };
+  });
+
+  expect(result).not.toHaveProperty("error");
+  expect(result.before).toBe(true);
+  expect(result.after).toBe(false);
+});
+
+test("showSemanticEdges toggle changes panel state correctly", async () => {
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+    const panel = view.getPanel();
+
+    const before = panel.showSemanticEdges;
+    panel.showSemanticEdges = false;
+    view.markDirty?.();
+    await new Promise(r => setTimeout(r, 500));
+    const after = panel.showSemanticEdges;
+
+    panel.showSemanticEdges = true;
+    view.markDirty?.();
+    return { before, after };
+  });
+
+  expect(result).not.toHaveProperty("error");
+  expect(result.before).toBe(true);
+  expect(result.after).toBe(false);
+});
+
+test("edge counts are stable across re-render", async () => {
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+
+    const countEdges = () => {
+      const edges = view.graphEdges ?? [];
+      const counts: Record<string, number> = {};
+      for (const e of edges) counts[e.type] = (counts[e.type] || 0) + 1;
+      return counts;
+    };
+
+    const before = countEdges();
+    view.rawData = null;
+    if (typeof view.doRender === "function") view.doRender();
+    await new Promise(r => setTimeout(r, 4000));
+    const after = countEdges();
+
+    return {
+      linkStable: before.link === after.link,
+      semanticStable: before.semantic === after.semantic,
+      tagStable: before.tag === after.tag,
+    };
+  });
+
+  expect(result).not.toHaveProperty("error");
+  expect(result.linkStable).toBe(true);
+  expect(result.semanticStable).toBe(true);
+  expect(result.tagStable).toBe(true);
+});

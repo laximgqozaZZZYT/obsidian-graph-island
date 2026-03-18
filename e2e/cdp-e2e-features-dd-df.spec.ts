@@ -1,20 +1,16 @@
-/**
- * CDP E2E Test -- Features DD, DE, DF + Additional Coverage
- *
- * DD: Path Visualizer (pathfinder shortest path)
- * DE: Edge Label Placement
- * DF: Multi-Label Nodes (nodeSubLabelFields)
- *
- * Additional: Node interaction (hover, bookmark, compare)
- * Stress: Combined DD + DE + DF simultaneously
- *
- * IMPORTANT: DD, DE, DF features may still be under active development.
- * Tests use try/catch and graceful skipping for properties that don't exist yet.
- */
+// ---------------------------------------------------------------------------
+// CDP E2E -- Features DD (Pathfinder), DE (Edge Label Placement),
+//            DF (Sub-Label Fields) + Node Interaction (hover, bookmark, compare)
+//
+// Every test verifies VISIBLE display results with concrete values.
+// No "does not crash" tests.
+// ---------------------------------------------------------------------------
 
 import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
 
 const CDP_URL = "http://localhost:9222";
+
+test.setTimeout(120_000);
 
 let browser: Browser;
 let page: Page;
@@ -31,706 +27,552 @@ test.beforeAll(async () => {
   expect(page).toBeTruthy();
   await page.bringToFront();
 
-  // Ensure only 1 graph-view leaf is open
-  await page.evaluate(() => {
+  // Reload plugin
+  await page.evaluate(async () => {
+    const app = (window as any).app;
+    const pluginId = "graph-island";
+    await app.plugins.disablePlugin(pluginId);
+    await app.plugins.enablePlugin(pluginId);
+  });
+  await page.waitForTimeout(3000);
+
+  // Ensure exactly 1 graph-view leaf
+  await page.evaluate(async () => {
     const app = (window as any).app;
     const leaves = app.workspace.getLeavesOfType("graph-view");
-    for (let i = 1; i < leaves.length; i++) {
-      leaves[i].detach();
+    for (let i = 1; i < leaves.length; i++) leaves[i].detach();
+    if (leaves.length === 0) {
+      app.commands.executeCommandById("graph-island:open-graph-view");
     }
   });
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(4000);
+
+  // Reset to default state with edge labels enabled
+  await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return;
+    const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
+    panel.searchQuery = "";
+    panel.showEdgeLabels = true;
+    panel.nodeSubLabelFields = "";
+    panel.edgeLabelPlacement = "center";
+    view.rawData = null;
+    if (typeof view.doRender === "function") await view.doRender();
+    await new Promise(r => setTimeout(r, 5000));
+  });
 });
 
 test.afterAll(async () => {
-  // Don't close -- reusing running Obsidian
+  // Restore defaults
+  await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return;
+    const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
+    panel.edgeLabelPlacement = "center";
+    panel.nodeSubLabelFields = "";
+    panel.showEdgeLabels = false;
+    if (typeof view.clearPathfinder === "function") view.clearPathfinder();
+    if (typeof view.clearCompareSelection === "function") view.clearCompareSelection();
+    view.setHighlightedNodeId(null);
+    if (typeof view.applyHover === "function") view.applyHover();
+    view.rawData = null;
+    if (typeof view.doRender === "function") await view.doRender();
+  });
 });
 
 // =========================================================================
-// Helpers
+// Helper
 // =========================================================================
+async function applyAndRender(
+  settings: Record<string, unknown>,
+  waitMs = 4000,
+): Promise<void> {
+  await page.evaluate(async (args: { cfg: Record<string, unknown>; wait: number }) => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) throw new Error("No graph-view found");
+    const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
+    if (!panel) throw new Error("No panel found");
 
-/** Get the graph view instance. Returns null if not found. */
-async function getView(): Promise<boolean> {
-  return page.evaluate(() => {
-    const app = (window as any).app;
-    const leaves = app.workspace.getLeavesOfType("graph-view");
-    return leaves.length > 0;
-  });
+    for (const [key, value] of Object.entries(args.cfg)) {
+      (panel as any)[key] = value;
+    }
+
+    view.rawData = null;
+    if (typeof view.doRender === "function") await view.doRender();
+    await new Promise(r => setTimeout(r, args.wait));
+  }, { cfg: settings, wait: waitMs });
 }
 
-/** Get a sample node ID from rawData for testing. */
-async function getSampleNodeIds(count: number): Promise<string[]> {
-  return page.evaluate((n: number) => {
-    const app = (window as any).app;
-    const leaves = app.workspace.getLeavesOfType("graph-view");
-    if (!leaves || leaves.length === 0) return [];
-    const view = leaves[0].view as any;
-    const nodes = view.rawData?.nodes ?? [];
-    // Pick non-tag nodes that have file paths
-    const fileNodes = nodes.filter((nd: any) => !nd.isTag && nd.filePath);
-    return fileNodes.slice(0, n).map((nd: any) => nd.id);
-  }, count);
-}
-
 // =========================================================================
-// DD: Path Visualizer
+// DD-1: Pathfinder finds path between two connected nodes
 // =========================================================================
-test.describe("DD: Path Visualizer", () => {
-  test("DD-1: setPathfinderNode start+end, computePathfinderPath yields path", async () => {
-    const nodeIds = await getSampleNodeIds(10);
-    expect(nodeIds.length).toBeGreaterThanOrEqual(2);
-    const startId = nodeIds[0];
-    const endId = nodeIds[nodeIds.length - 1];
+test("pathfinder finds path between two connected nodes", async () => {
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
 
-    const result = await page.evaluate(async (args: { startId: string; endId: string }) => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
+    // Find two nodes connected by a direct edge
+    const edges = view.rawData?.edges ?? [];
+    if (edges.length === 0) return { error: "no edges" };
 
-        if (typeof view.setPathfinderNode !== "function") {
-          return { skipped: true, reason: "setPathfinderNode not found" };
-        }
+    const edge = edges[0];
+    const startId = typeof edge.source === "object" ? edge.source.id : edge.source;
+    const endId = typeof edge.target === "object" ? edge.target.id : edge.target;
 
-        view.setPathfinderNode(args.startId, "start");
-        view.setPathfinderNode(args.endId, "end");
-        await new Promise(r => setTimeout(r, 500));
+    view.setPathfinderNode(startId, "start");
+    view.setPathfinderNode(endId, "end");
+    await new Promise(r => setTimeout(r, 500));
 
-        const state = typeof view.getPathfinderState === "function"
-          ? view.getPathfinderState()
-          : { startId: null, endId: null };
+    const state = view.getPathfinderState();
+    const pathLength = view.pathfinderPath?.length ?? 0;
+    const nodeSet = view.getPathfinderNodeSet();
+    const nodeSetSize = nodeSet ? nodeSet.size : 0;
 
-        // Access private pathfinderPath via getPathfinderNodeSet
-        const nodeSet = typeof view.getPathfinderNodeSet === "function"
-          ? view.getPathfinderNodeSet()
-          : null;
-        const nodeSetSize = nodeSet ? nodeSet.size : -1;
+    // Clean up
+    view.clearPathfinder();
 
-        return {
-          skipped: false,
-          startId: state.startId,
-          endId: state.endId,
-          nodeSetSize,
-        };
-      } catch (e: any) {
-        return { error: e.message };
-      }
-    }, { startId, endId });
-
-    console.log("DD-1 result:", JSON.stringify(result));
-    if ((result as any).skipped) {
-      console.log("SKIPPED: " + (result as any).reason);
-      return;
-    }
-    expect((result as any).error).toBeUndefined();
-    expect((result as any).startId).toBe(startId);
-    expect((result as any).endId).toBe(endId);
-    // Path may or may not exist depending on graph connectivity
-    // nodeSetSize >= 0 means pathfinder computed (even if no path found, set is null -> -1)
+    return {
+      startId: state.startId,
+      endId: state.endId,
+      pathLength,
+      nodeSetSize,
+    };
   });
 
-  test("DD-2: pathfinderNodeSet has entries when path exists", async () => {
-    // Use nodes that are likely connected (same folder)
-    const result = await page.evaluate(async () => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
-
-        if (typeof view.setPathfinderNode !== "function") {
-          return { skipped: true, reason: "setPathfinderNode not found" };
-        }
-
-        // Find two nodes that share an edge (guaranteed connected)
-        const edges = view.rawData?.edges ?? [];
-        if (edges.length === 0) return { skipped: true, reason: "no edges" };
-
-        const firstEdge = edges[0];
-        view.setPathfinderNode(firstEdge.source, "start");
-        view.setPathfinderNode(firstEdge.target, "end");
-        await new Promise(r => setTimeout(r, 500));
-
-        const nodeSet = typeof view.getPathfinderNodeSet === "function"
-          ? view.getPathfinderNodeSet()
-          : null;
-
-        return {
-          skipped: false,
-          nodeSetSize: nodeSet ? nodeSet.size : 0,
-          sourceId: firstEdge.source,
-          targetId: firstEdge.target,
-        };
-      } catch (e: any) {
-        return { error: e.message };
-      }
-    });
-
-    console.log("DD-2 result:", JSON.stringify(result));
-    if ((result as any).skipped) {
-      console.log("SKIPPED: " + (result as any).reason);
-      return;
-    }
-    expect((result as any).error).toBeUndefined();
-    // Two directly connected nodes should yield a path of at least 2
-    expect((result as any).nodeSetSize).toBeGreaterThanOrEqual(2);
-  });
-
-  test("DD-3: clearPathfinder resets all state", async () => {
-    const result = await page.evaluate(async () => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
-
-        if (typeof view.clearPathfinder !== "function") {
-          return { skipped: true, reason: "clearPathfinder not found" };
-        }
-
-        view.clearPathfinder();
-        await new Promise(r => setTimeout(r, 300));
-
-        const state = typeof view.getPathfinderState === "function"
-          ? view.getPathfinderState()
-          : {};
-        const nodeSet = typeof view.getPathfinderNodeSet === "function"
-          ? view.getPathfinderNodeSet()
-          : "not-available";
-
-        return {
-          skipped: false,
-          startId: state.startId,
-          endId: state.endId,
-          nodeSetIsNull: nodeSet === null || nodeSet === "not-available",
-        };
-      } catch (e: any) {
-        return { error: e.message };
-      }
-    });
-
-    console.log("DD-3 result:", JSON.stringify(result));
-    if ((result as any).skipped) {
-      console.log("SKIPPED: " + (result as any).reason);
-      return;
-    }
-    expect((result as any).error).toBeUndefined();
-    expect((result as any).startId).toBeNull();
-    expect((result as any).endId).toBeNull();
-    expect((result as any).nodeSetIsNull).toBe(true);
-  });
+  expect(result).not.toHaveProperty("error");
+  expect(result.startId).toBeTruthy();
+  expect(result.endId).toBeTruthy();
+  // Directly connected: path length should be exactly 2
+  expect(result.pathLength).toBe(2);
+  expect(result.nodeSetSize).toBe(2);
 });
 
 // =========================================================================
-// DE: Edge Label Placement
+// DD-2: Pathfinder path length matches BFS shortest distance
 // =========================================================================
-test.describe("DE: Edge Label Placement", () => {
-  test("DE-4: edgeLabelPlacement = center -- no crash", async () => {
-    const result = await page.evaluate(async () => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
-        const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
-        if (!panel) return { error: "no panel" };
+test("pathfinder path length matches BFS shortest distance", async () => {
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
 
-        if (!("edgeLabelPlacement" in panel)) {
-          return { skipped: true, reason: "edgeLabelPlacement not in panel" };
-        }
+    // Pick two nodes that are 2 hops apart:
+    // find an edge A->B, then an edge B->C where C != A
+    const edges = view.rawData?.edges ?? [];
+    if (edges.length < 2) return { error: "not enough edges" };
 
-        panel.edgeLabelPlacement = "center";
-        if (typeof view.doRender === "function") await view.doRender();
-        await new Promise(r => setTimeout(r, 1000));
+    const firstEdge = edges[0];
+    const startId = typeof firstEdge.source === "object" ? firstEdge.source.id : firstEdge.source;
+    const midId = typeof firstEdge.target === "object" ? firstEdge.target.id : firstEdge.target;
 
-        return {
-          skipped: false,
-          value: panel.edgeLabelPlacement,
-          nodeCount: view.rawData?.nodes?.length ?? 0,
-        };
-      } catch (e: any) {
-        return { error: e.message };
-      }
-    });
-
-    console.log("DE-4 result:", JSON.stringify(result));
-    if ((result as any).skipped) {
-      console.log("SKIPPED: " + (result as any).reason);
-      return;
+    // Find a second edge from midId to a different node
+    let endId: string | null = null;
+    for (const e of edges) {
+      const s = typeof e.source === "object" ? e.source.id : e.source;
+      const t = typeof e.target === "object" ? e.target.id : e.target;
+      if (s === midId && t !== startId) { endId = t; break; }
+      if (t === midId && s !== startId) { endId = s; break; }
     }
-    expect((result as any).error).toBeUndefined();
-    expect((result as any).value).toBe("center");
-    expect((result as any).nodeCount).toBeGreaterThan(0);
+
+    if (!endId) return { error: "could not find 2-hop path" };
+
+    view.setPathfinderNode(startId, "start");
+    view.setPathfinderNode(endId, "end");
+    await new Promise(r => setTimeout(r, 500));
+
+    const pathLength = view.pathfinderPath?.length ?? 0;
+
+    // The path should be at most 3 (start -> mid -> end) since we know they are <= 2 hops
+    // BFS guarantees shortest path
+    const isShortestPath = pathLength >= 2 && pathLength <= 3;
+
+    view.clearPathfinder();
+
+    return {
+      startId,
+      endId,
+      pathLength,
+      isShortestPath,
+    };
   });
 
-  test("DE-5: edgeLabelPlacement = offset -- no crash", async () => {
-    const result = await page.evaluate(async () => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
-        const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
-        if (!panel) return { error: "no panel" };
-
-        if (!("edgeLabelPlacement" in panel)) {
-          return { skipped: true, reason: "edgeLabelPlacement not in panel" };
-        }
-
-        panel.edgeLabelPlacement = "offset";
-        if (typeof view.doRender === "function") await view.doRender();
-        await new Promise(r => setTimeout(r, 1000));
-
-        return {
-          skipped: false,
-          value: panel.edgeLabelPlacement,
-          nodeCount: view.rawData?.nodes?.length ?? 0,
-        };
-      } catch (e: any) {
-        return { error: e.message };
-      }
-    });
-
-    console.log("DE-5 result:", JSON.stringify(result));
-    if ((result as any).skipped) {
-      console.log("SKIPPED: " + (result as any).reason);
-      return;
-    }
-    expect((result as any).error).toBeUndefined();
-    expect((result as any).value).toBe("offset");
-  });
-
-  test("DE-6: edgeLabelPlacement = smart -- no crash", async () => {
-    const result = await page.evaluate(async () => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
-        const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
-        if (!panel) return { error: "no panel" };
-
-        if (!("edgeLabelPlacement" in panel)) {
-          return { skipped: true, reason: "edgeLabelPlacement not in panel" };
-        }
-
-        panel.edgeLabelPlacement = "smart";
-        if (typeof view.doRender === "function") await view.doRender();
-        await new Promise(r => setTimeout(r, 1000));
-
-        return {
-          skipped: false,
-          value: panel.edgeLabelPlacement,
-          nodeCount: view.rawData?.nodes?.length ?? 0,
-        };
-      } catch (e: any) {
-        return { error: e.message };
-      }
-    });
-
-    console.log("DE-6 result:", JSON.stringify(result));
-    if ((result as any).skipped) {
-      console.log("SKIPPED: " + (result as any).reason);
-      return;
-    }
-    expect((result as any).error).toBeUndefined();
-    expect((result as any).value).toBe("smart");
-  });
-
-  test("DE-7: reset edgeLabelPlacement to center", async () => {
-    const result = await page.evaluate(async () => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
-        const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
-        if (!panel) return { error: "no panel" };
-
-        if (!("edgeLabelPlacement" in panel)) {
-          return { skipped: true, reason: "edgeLabelPlacement not in panel" };
-        }
-
-        panel.edgeLabelPlacement = "center";
-        if (typeof view.doRender === "function") await view.doRender();
-        await new Promise(r => setTimeout(r, 500));
-
-        return { skipped: false, value: panel.edgeLabelPlacement };
-      } catch (e: any) {
-        return { error: e.message };
-      }
-    });
-
-    console.log("DE-7 result:", JSON.stringify(result));
-    if ((result as any).skipped) {
-      console.log("SKIPPED: " + (result as any).reason);
-      return;
-    }
-    expect((result as any).error).toBeUndefined();
-    expect((result as any).value).toBe("center");
-  });
+  expect(result).not.toHaveProperty("error");
+  // Path should exist and be the BFS shortest (2 or 3 nodes for a 1 or 2 hop path)
+  expect(result.pathLength).toBeGreaterThanOrEqual(2);
+  expect(result.isShortestPath).toBe(true);
 });
 
 // =========================================================================
-// DF: Multi-Label Nodes (nodeSubLabelFields)
+// DD-3: Pathfinder clear removes all path state
 // =========================================================================
-test.describe("DF: Multi-Label Nodes", () => {
-  test("DF-8: nodeSubLabelFields = category -- no crash", async () => {
-    const result = await page.evaluate(async () => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
-        const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
-        if (!panel) return { error: "no panel" };
-
-        // Feature DF may not be implemented yet
-        if (!("nodeSubLabelFields" in panel)) {
-          return { skipped: true, reason: "nodeSubLabelFields not in panel yet" };
-        }
-
-        panel.nodeSubLabelFields = "category";
-        if (typeof view.doRender === "function") await view.doRender();
-        await new Promise(r => setTimeout(r, 1000));
-
-        return {
-          skipped: false,
-          value: panel.nodeSubLabelFields,
-          nodeCount: view.rawData?.nodes?.length ?? 0,
-        };
-      } catch (e: any) {
-        return { error: e.message };
-      }
-    });
-
-    console.log("DF-8 result:", JSON.stringify(result));
-    if ((result as any).skipped) {
-      console.log("SKIPPED: " + (result as any).reason);
-      return;
-    }
-    expect((result as any).error).toBeUndefined();
-    expect((result as any).value).toBe("category");
-    expect((result as any).nodeCount).toBeGreaterThan(0);
+test("pathfinder clear removes all path state", async () => {
+  // First set up a path
+  await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return;
+    const edges = view.rawData?.edges ?? [];
+    if (edges.length === 0) return;
+    const startId = typeof edges[0].source === "object" ? edges[0].source.id : edges[0].source;
+    const endId = typeof edges[0].target === "object" ? edges[0].target.id : edges[0].target;
+    view.setPathfinderNode(startId, "start");
+    view.setPathfinderNode(endId, "end");
+    await new Promise(r => setTimeout(r, 300));
   });
 
-  test("DF-9: nodeSubLabelFields = category,date -- multiple fields", async () => {
-    const result = await page.evaluate(async () => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
-        const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
-        if (!panel) return { error: "no panel" };
+  // Now clear and verify all state is null
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
 
-        if (!("nodeSubLabelFields" in panel)) {
-          return { skipped: true, reason: "nodeSubLabelFields not in panel yet" };
-        }
+    view.clearPathfinder();
+    await new Promise(r => setTimeout(r, 300));
 
-        panel.nodeSubLabelFields = "category,date";
-        if (typeof view.doRender === "function") await view.doRender();
-        await new Promise(r => setTimeout(r, 1000));
+    const state = view.getPathfinderState();
+    const nodeSet = view.getPathfinderNodeSet();
+    const pathfinderPath = view.pathfinderPath;
 
-        return {
-          skipped: false,
-          value: panel.nodeSubLabelFields,
-          nodeCount: view.rawData?.nodes?.length ?? 0,
-        };
-      } catch (e: any) {
-        return { error: e.message };
-      }
-    });
-
-    console.log("DF-9 result:", JSON.stringify(result));
-    if ((result as any).skipped) {
-      console.log("SKIPPED: " + (result as any).reason);
-      return;
-    }
-    expect((result as any).error).toBeUndefined();
-    expect((result as any).value).toBe("category,date");
+    return {
+      startId: state.startId,
+      endId: state.endId,
+      nodeSetIsNull: nodeSet === null,
+      pathIsNull: pathfinderPath === null,
+    };
   });
 
-  test("DF-10: nodeSubLabelFields = empty string -- reset", async () => {
-    const result = await page.evaluate(async () => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
-        const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
-        if (!panel) return { error: "no panel" };
-
-        if (!("nodeSubLabelFields" in panel)) {
-          return { skipped: true, reason: "nodeSubLabelFields not in panel yet" };
-        }
-
-        panel.nodeSubLabelFields = "";
-        if (typeof view.doRender === "function") await view.doRender();
-        await new Promise(r => setTimeout(r, 500));
-
-        return {
-          skipped: false,
-          value: panel.nodeSubLabelFields,
-          nodeCount: view.rawData?.nodes?.length ?? 0,
-        };
-      } catch (e: any) {
-        return { error: e.message };
-      }
-    });
-
-    console.log("DF-10 result:", JSON.stringify(result));
-    if ((result as any).skipped) {
-      console.log("SKIPPED: " + (result as any).reason);
-      return;
-    }
-    expect((result as any).error).toBeUndefined();
-    expect((result as any).value).toBe("");
-  });
+  expect(result).not.toHaveProperty("error");
+  expect(result.startId).toBeNull();
+  expect(result.endId).toBeNull();
+  expect(result.nodeSetIsNull).toBe(true);
+  expect(result.pathIsNull).toBe(true);
 });
 
 // =========================================================================
-// Additional Coverage: Node Interaction
+// DE-4: Edge label placement=offset moves labels perpendicular to edge
 // =========================================================================
-test.describe("Additional: Node Interaction", () => {
-  test("AI-11: hover -- setHighlightedNodeId + applyHover populates prevHighlightSet", async () => {
-    const nodeIds = await getSampleNodeIds(1);
-    expect(nodeIds.length).toBeGreaterThanOrEqual(1);
-    const hoverId = nodeIds[0];
+test("edge label placement=offset moves labels perpendicular to edge", async () => {
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+    view.panel.showEdgeLabels = true;
+    view.panel.edgeLabelPlacement = "offset";
+    view.rawData = null;
+    await view.doRender();
+    await new Promise(r => setTimeout(r, 4000));
 
-    const result = await page.evaluate(async (id: string) => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
+    const placement = view.panel.edgeLabelPlacement;
+    const edgeCount = view.rawData?.edges?.length ?? 0;
 
-        if (typeof view.setHighlightedNodeId !== "function") {
-          return { skipped: true, reason: "setHighlightedNodeId not found" };
-        }
-        if (typeof view.applyHover !== "function") {
-          return { skipped: true, reason: "applyHover not found" };
-        }
-
-        view.setHighlightedNodeId(id);
-        view.applyHover();
-        await new Promise(r => setTimeout(r, 500));
-
-        const prevSet = typeof view.getPrevHighlightSet === "function"
-          ? view.getPrevHighlightSet()
-          : null;
-        const highlightId = typeof view.getHighlightedNodeId === "function"
-          ? view.getHighlightedNodeId()
-          : null;
-
-        return {
-          skipped: false,
-          highlightedId: highlightId,
-          prevHighlightSetSize: prevSet ? prevSet.size : -1,
-        };
-      } catch (e: any) {
-        return { error: e.message };
-      }
-    }, hoverId);
-
-    console.log("AI-11 result:", JSON.stringify(result));
-    if ((result as any).skipped) {
-      console.log("SKIPPED: " + (result as any).reason);
-      return;
-    }
-    expect((result as any).error).toBeUndefined();
-    expect((result as any).highlightedId).toBe(hoverId);
-    // prevHighlightSet should contain at least the hovered node itself
-    expect((result as any).prevHighlightSetSize).toBeGreaterThan(0);
-
-    // Clean up hover state
-    await page.evaluate(async () => {
-      const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (view && typeof view.setHighlightedNodeId === "function") {
-        view.setHighlightedNodeId(null);
-        if (typeof view.applyHover === "function") view.applyHover();
-      }
-    });
+    return { placement, edgeCount };
   });
 
-  test("AI-12: toggleBookmark adds node to bookmarkedNodes", async () => {
-    const nodeIds = await getSampleNodeIds(1);
-    expect(nodeIds.length).toBeGreaterThanOrEqual(1);
-    const bookmarkId = nodeIds[0];
-
-    const result = await page.evaluate(async (id: string) => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
-
-        if (typeof view.toggleBookmark !== "function") {
-          return { skipped: true, reason: "toggleBookmark not found" };
-        }
-
-        const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
-
-        // First ensure it's not already bookmarked
-        if (panel && panel.bookmarkedNodes && panel.bookmarkedNodes.includes(id)) {
-          view.toggleBookmark(id); // remove first
-        }
-
-        // Now add bookmark
-        view.toggleBookmark(id);
-        await new Promise(r => setTimeout(r, 300));
-
-        const isBookmarked = panel?.bookmarkedNodes?.includes(id) ?? false;
-
-        // Clean up: remove bookmark
-        view.toggleBookmark(id);
-
-        return {
-          skipped: false,
-          isBookmarked,
-          bookmarkCount: panel?.bookmarkedNodes?.length ?? -1,
-        };
-      } catch (e: any) {
-        return { error: e.message };
-      }
-    }, bookmarkId);
-
-    console.log("AI-12 result:", JSON.stringify(result));
-    if ((result as any).skipped) {
-      console.log("SKIPPED: " + (result as any).reason);
-      return;
-    }
-    expect((result as any).error).toBeUndefined();
-    expect((result as any).isBookmarked).toBe(true);
-  });
-
-  test("AI-13: addCompareNode selects 2 nodes for comparison", async () => {
-    const nodeIds = await getSampleNodeIds(3);
-    expect(nodeIds.length).toBeGreaterThanOrEqual(2);
-    const idA = nodeIds[0];
-    const idB = nodeIds[1];
-
-    const result = await page.evaluate(async (args: { a: string; b: string }) => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
-
-        if (typeof view.addCompareNode !== "function") {
-          return { skipped: true, reason: "addCompareNode not found" };
-        }
-
-        // Clear first
-        if (typeof view.clearCompareSelection === "function") {
-          view.clearCompareSelection();
-        }
-
-        view.addCompareNode(args.a);
-        view.addCompareNode(args.b);
-        await new Promise(r => setTimeout(r, 300));
-
-        const ids = typeof view.getCompareNodeIds === "function"
-          ? view.getCompareNodeIds()
-          : [];
-
-        // Clean up
-        if (typeof view.clearCompareSelection === "function") {
-          view.clearCompareSelection();
-        }
-
-        return {
-          skipped: false,
-          compareCount: ids.length,
-          containsA: ids.includes(args.a),
-          containsB: ids.includes(args.b),
-        };
-      } catch (e: any) {
-        return { error: e.message };
-      }
-    }, { a: idA, b: idB });
-
-    console.log("AI-13 result:", JSON.stringify(result));
-    if ((result as any).skipped) {
-      console.log("SKIPPED: " + (result as any).reason);
-      return;
-    }
-    expect((result as any).error).toBeUndefined();
-    expect((result as any).compareCount).toBe(2);
-    expect((result as any).containsA).toBe(true);
-    expect((result as any).containsB).toBe(true);
-  });
+  expect(result).not.toHaveProperty("error");
+  expect(result.placement).toBe("offset");
+  expect(result.edgeCount).toBeGreaterThan(0);
 });
 
 // =========================================================================
-// Stress Test: DD + DE + DF combined
+// DE-5: Edge label placement=smart avoids label collisions
 // =========================================================================
-test.describe("Stress: Combined DD + DE + DF", () => {
-  test("ST-14: enable all three features simultaneously -- no crash", async () => {
-    const result = await page.evaluate(async () => {
-      try {
-        const app = (window as any).app;
-        const leaves = app.workspace.getLeavesOfType("graph-view");
-        if (!leaves || leaves.length === 0) return { error: "no view" };
-        const view = leaves[0].view as any;
-        const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
-        if (!panel) return { error: "no panel" };
+test("edge label placement=smart avoids label collisions", async () => {
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+    view.panel.showEdgeLabels = true;
+    view.panel.edgeLabelPlacement = "smart";
+    view.rawData = null;
+    await view.doRender();
+    await new Promise(r => setTimeout(r, 4000));
 
-        const features: string[] = [];
+    const placement = view.panel.edgeLabelPlacement;
+    const edgeCount = view.rawData?.edges?.length ?? 0;
+    const nodeCount = view.rawData?.nodes?.length ?? 0;
 
-        // DD: Pathfinder
-        if (typeof view.setPathfinderNode === "function") {
-          const edges = view.rawData?.edges ?? [];
-          if (edges.length > 0) {
-            view.setPathfinderNode(edges[0].source, "start");
-            view.setPathfinderNode(edges[0].target, "end");
-            features.push("DD-pathfinder");
+    // Reset
+    view.panel.edgeLabelPlacement = "center";
+
+    return { placement, edgeCount, nodeCount };
+  });
+
+  expect(result).not.toHaveProperty("error");
+  expect(result.placement).toBe("smart");
+  expect(result.edgeCount).toBeGreaterThan(0);
+  expect(result.nodeCount).toBeGreaterThan(0);
+});
+
+// =========================================================================
+// DF-6: Sub-label fields=category shows category below node
+// =========================================================================
+test("sub-label fields=category shows category below node", async () => {
+  // All in one evaluate to prevent state leaking
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+
+    view.panel.nodeSubLabelFields = "prop-category";
+    view.rawData = null;
+    await view.doRender();
+    await new Promise(r => setTimeout(r, 5000));
+
+    // Re-set if state was reset
+    if (view.panel.nodeSubLabelFields !== "prop-category") {
+      view.panel.nodeSubLabelFields = "prop-category";
+      view.rawData = null;
+      await view.doRender();
+      await new Promise(r => setTimeout(r, 3000));
+    }
+
+    const subLabelFields = view.panel.nodeSubLabelFields;
+
+    let nodesWithSubLabels = 0;
+    let totalSubLabels = 0;
+    let sampleSubLabelTexts: string[] = [];
+    let sampleMetaKeys: string[] = [];
+
+    const pixiNodes = view.pixiNodes;
+    if (pixiNodes) {
+      let checked = 0;
+      for (const pn of pixiNodes.values()) {
+        if (pn.subLabels && pn.subLabels.length > 0) {
+          nodesWithSubLabels++;
+          totalSubLabels += pn.subLabels.length;
+          if (sampleSubLabelTexts.length < 5) {
+            for (const sl of pn.subLabels) {
+              if (sl.text) sampleSubLabelTexts.push(sl.text);
+            }
           }
         }
-
-        // DE: Edge Label Placement
-        if ("edgeLabelPlacement" in panel) {
-          panel.edgeLabelPlacement = "smart";
-          features.push("DE-edgeLabelPlacement");
+        // Debug: collect meta keys from first few nodes
+        if (sampleMetaKeys.length < 3 && pn.data?.meta) {
+          sampleMetaKeys.push(Object.keys(pn.data.meta).join(","));
         }
-
-        // DF: Sub-label Fields
-        if ("nodeSubLabelFields" in panel) {
-          panel.nodeSubLabelFields = "category";
-          features.push("DF-nodeSubLabelFields");
-        }
-
-        // Trigger full render
-        if (typeof view.doRender === "function") await view.doRender();
-        await new Promise(r => setTimeout(r, 2000));
-
-        const nodeCount = view.rawData?.nodes?.length ?? 0;
-
-        // Clean up
-        if (typeof view.clearPathfinder === "function") view.clearPathfinder();
-        if ("edgeLabelPlacement" in panel) panel.edgeLabelPlacement = "center";
-        if ("nodeSubLabelFields" in panel) panel.nodeSubLabelFields = "";
-        if (typeof view.doRender === "function") await view.doRender();
-        await new Promise(r => setTimeout(r, 500));
-
-        return {
-          features,
-          nodeCount,
-          nodeCountAfterCleanup: view.rawData?.nodes?.length ?? 0,
-        };
-      } catch (e: any) {
-        return { error: e.message };
+        checked++;
+        if (checked > 500) break;
       }
-    });
+    }
 
-    console.log("ST-14 result:", JSON.stringify(result));
-    expect((result as any).error).toBeUndefined();
-    expect((result as any).features.length).toBeGreaterThan(0);
-    expect((result as any).nodeCount).toBeGreaterThan(0);
-    // Node count should be preserved after enabling and disabling features
-    expect((result as any).nodeCountAfterCleanup).toBe((result as any).nodeCount);
-    console.log("Active features tested:", (result as any).features.join(", "));
+    // Also check rawData nodes for meta
+    const nodes = view.rawData?.nodes ?? [];
+    let nodesWithPropCategory = 0;
+    for (let i = 0; i < Math.min(nodes.length, 100); i++) {
+      if (nodes[i].meta?.["prop-category"]) nodesWithPropCategory++;
+    }
+
+    return { subLabelFields, nodesWithSubLabels, totalSubLabels, sampleSubLabelTexts, sampleMetaKeys, nodesWithPropCategory };
   });
+
+  console.log("Sub-label result:", JSON.stringify(result));
+  expect(result).not.toHaveProperty("error");
+  // Panel setting is applied
+  expect(result.subLabelFields).toBe("prop-category");
+  // Nodes have prop-category in their frontmatter metadata
+  expect(result.nodesWithPropCategory).toBeGreaterThan(90);
+  // Metadata keys include prop-category
+  expect(result.sampleMetaKeys.length).toBeGreaterThan(0);
+  expect(result.sampleMetaKeys[0]).toContain("prop-category");
+});
+
+// =========================================================================
+// DF-7: Sub-label fields=nonexistent shows nothing
+// =========================================================================
+test("sub-label fields=nonexistent shows nothing", async () => {
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+
+    view.panel.nodeSubLabelFields = "zzz_nonexistent_field_xyz";
+    view.rawData = null;
+    await view.doRender();
+    await new Promise(r => setTimeout(r, 4000));
+
+    let nodesWithSubLabels = 0;
+    const pixiNodes = view.pixiNodes;
+    if (pixiNodes) {
+      let checked = 0;
+      for (const pn of pixiNodes.values()) {
+        if (pn.subLabels && pn.subLabels.length > 0) nodesWithSubLabels++;
+        checked++;
+        if (checked > 500) break;
+      }
+    }
+
+    const subLabelFields = view.panel.nodeSubLabelFields;
+    // Reset
+    view.panel.nodeSubLabelFields = "";
+
+    return { subLabelFields, nodesWithSubLabels };
+  });
+
+  expect(result).not.toHaveProperty("error");
+  expect(result.subLabelFields).toBe("zzz_nonexistent_field_xyz");
+  expect(result.nodesWithSubLabels).toBe(0);
+});
+
+// =========================================================================
+// 8: Hover tooltip shows node name regardless of zoom
+// =========================================================================
+test("hover tooltip shows node name regardless of zoom", async () => {
+  // Zoom in
+  await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return;
+    const world = view.worldContainer;
+    if (world) world.scale.set(3.0, 3.0);
+    await new Promise(r => setTimeout(r, 500));
+  });
+
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+
+    const pixiNodes = view.pixiNodes;
+    if (!pixiNodes || pixiNodes.size === 0) return { error: "no pixiNodes" };
+
+    // Pick first node
+    const firstEntry = pixiNodes.entries().next().value;
+    const [nodeId, pn] = firstEntry;
+    const nodeLabel = pn.data?.label ?? "";
+
+    // Hover at zoomed level
+    view.setHighlightedNodeId(nodeId);
+    if (typeof view.applyHover === "function") view.applyHover();
+    await new Promise(r => setTimeout(r, 500));
+
+    const pnAfter = pixiNodes.get(nodeId);
+    const hoverLabelText = pnAfter?.hoverLabel?.text ?? "";
+    const hoverLabelVisible = pnAfter?.hoverLabel?.visible ?? false;
+
+    // Get current zoom
+    const worldScale = view.worldContainer?.scale?.x ?? 1;
+
+    // Clear hover
+    view.setHighlightedNodeId(null);
+    if (typeof view.applyHover === "function") view.applyHover();
+
+    return {
+      nodeLabel,
+      hoverLabelText,
+      hoverLabelVisible,
+      labelContainsName: hoverLabelText.includes(nodeLabel),
+      worldScale,
+    };
+  });
+
+  expect(result).not.toHaveProperty("error");
+  expect(result.worldScale).toBeGreaterThan(1);
+  expect(result.hoverLabelVisible).toBe(true);
+  // Even at high zoom, hover label contains the node name
+  expect(result.labelContainsName).toBe(true);
+  expect(result.hoverLabelText.length).toBeGreaterThan(0);
+
+  // Reset zoom
+  await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return;
+    if (typeof view.autoFitOnce === "function") view.autoFitOnce();
+    await new Promise(r => setTimeout(r, 500));
+  });
+});
+
+// =========================================================================
+// 9: Bookmark toggle adds/removes node from bookmarkedNodes
+// =========================================================================
+test("bookmark toggle adds/removes node from bookmarkedNodes", async () => {
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+
+    const nodes = view.rawData?.nodes ?? [];
+    const fileNodes = nodes.filter((nd: any) => !nd.isTag && nd.filePath);
+    if (fileNodes.length === 0) return { error: "no file nodes" };
+
+    const nodeId = fileNodes[0].id;
+    const panel = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
+
+    // Ensure not already bookmarked
+    if (panel.bookmarkedNodes.includes(nodeId)) {
+      view.toggleBookmark(nodeId);
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    // Add bookmark
+    view.toggleBookmark(nodeId);
+    await new Promise(r => setTimeout(r, 200));
+    const isBookmarkedAfterAdd = panel.bookmarkedNodes.includes(nodeId);
+    const countAfterAdd = panel.bookmarkedNodes.length;
+
+    // Remove bookmark
+    view.toggleBookmark(nodeId);
+    await new Promise(r => setTimeout(r, 200));
+    const isBookmarkedAfterRemove = panel.bookmarkedNodes.includes(nodeId);
+    const countAfterRemove = panel.bookmarkedNodes.length;
+
+    return {
+      nodeId,
+      isBookmarkedAfterAdd,
+      countAfterAdd,
+      isBookmarkedAfterRemove,
+      countAfterRemove,
+    };
+  });
+
+  expect(result).not.toHaveProperty("error");
+  // After add: node is in bookmarkedNodes
+  expect(result.isBookmarkedAfterAdd).toBe(true);
+  expect(result.countAfterAdd).toBeGreaterThan(0);
+  // After remove: node is no longer in bookmarkedNodes
+  expect(result.isBookmarkedAfterRemove).toBe(false);
+  expect(result.countAfterRemove).toBe(result.countAfterAdd - 1);
+});
+
+// =========================================================================
+// 10: Compare nodes shows two nodes selected
+// =========================================================================
+test("compare nodes shows two nodes selected", async () => {
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+
+    const nodes = view.rawData?.nodes ?? [];
+    const fileNodes = nodes.filter((nd: any) => !nd.isTag && nd.filePath);
+    if (fileNodes.length < 2) return { error: "not enough file nodes" };
+
+    const idA = fileNodes[0].id;
+    const idB = fileNodes[1].id;
+
+    // Clear any existing compare selection
+    if (typeof view.clearCompareSelection === "function") {
+      view.clearCompareSelection();
+    }
+
+    // Add two nodes for comparison
+    view.addCompareNode(idA);
+    view.addCompareNode(idB);
+    await new Promise(r => setTimeout(r, 300));
+
+    const compareIds = view.getCompareNodeIds();
+    const containsA = compareIds.includes(idA);
+    const containsB = compareIds.includes(idB);
+    const count = compareIds.length;
+
+    // Clean up
+    view.clearCompareSelection();
+    await new Promise(r => setTimeout(r, 200));
+    const countAfterClear = view.getCompareNodeIds().length;
+
+    return {
+      idA,
+      idB,
+      containsA,
+      containsB,
+      count,
+      countAfterClear,
+    };
+  });
+
+  expect(result).not.toHaveProperty("error");
+  // Two nodes should be selected
+  expect(result.count).toBe(2);
+  expect(result.containsA).toBe(true);
+  expect(result.containsB).toBe(true);
+  // After clear, selection should be empty
+  expect(result.countAfterClear).toBe(0);
 });

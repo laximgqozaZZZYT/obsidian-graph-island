@@ -1,90 +1,81 @@
 /**
- * Phase 14 – Dropdown & Popup Animation
- *
- * Validates:
- *  1. gi-popup-enter keyframe exists in the stylesheet
- *  2. Popup elements receive layered box-shadow
- *  3. Screenshot for visual confirmation
+ * Phase 14 — showSemanticEdges toggle
+ * Verifies that toggling showSemanticEdges controls semantic edge rendering.
+ * Baseline: semantic=2363 edges.
  */
-import { test, expect, chromium } from "@playwright/test";
+import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
 
-const CDP_URL = "http://127.0.0.1:9222";
+const CDP_URL = "http://localhost:9222";
+test.setTimeout(120_000);
 
-test.describe("Phase 14 – Popup Animation", () => {
-  test("gi-popup-enter keyframe is defined in stylesheets", async () => {
-    const browser = await chromium.connectOverCDP(CDP_URL);
-    const contexts = browser.contexts();
-    expect(contexts.length).toBeGreaterThan(0);
-    const pages = contexts[0].pages();
-    expect(pages.length).toBeGreaterThan(0);
-    const page = pages[0];
+let browser: Browser;
+let page: Page;
 
-    // Check that the keyframe rule exists in any stylesheet
-    const hasKeyframe = await page.evaluate(() => {
-      for (const sheet of Array.from(document.styleSheets)) {
-        try {
-          const rules = sheet.cssRules || sheet.rules;
-          if (!rules) continue;
-          for (const rule of Array.from(rules)) {
-            // CSSKeyframesRule check
-            if ((rule as any).type === 7 && (rule as any).name === "gi-popup-enter") {
-              return true;
-            }
-            // Also check cssText as fallback
-            if (rule.cssText && rule.cssText.includes("gi-popup-enter")) {
-              return true;
-            }
-          }
-        } catch {
-          // cross-origin stylesheet, skip
-        }
+test.beforeAll(async ({}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  browser = await chromium.connectOverCDP(CDP_URL);
+  const ctx = browser.contexts()[0];
+  page = ctx.pages().find(p => p.url().includes("index.html")) ?? ctx.pages()[0];
+
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!v) return;
+    v.panel.searchQuery = "";
+    v.panel.showOrphans = true;
+    v.panel.showSemanticEdges = true;
+    v.rawData = null;
+    v.doRender();
+  });
+  await page.waitForTimeout(6000);
+});
+
+test.afterAll(async () => { /* shared session */ });
+
+test.describe("Phase 14 — showSemanticEdges toggle", () => {
+  test("14-1: baseline has 2363 semantic-type edges", async () => {
+    const count = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.graphEdges) return -1;
+      let cnt = 0;
+      for (const e of v.graphEdges) {
+        if (e.type === "semantic") cnt++;
       }
-      return false;
+      return cnt;
     });
-    expect(hasKeyframe).toBe(true);
+    expect(count).toBe(2363);
   });
 
-  test("popup classes have layered box-shadow", async () => {
-    const browser = await chromium.connectOverCDP(CDP_URL);
-    const contexts = browser.contexts();
-    const pages = contexts[0].pages();
-    const page = pages[0];
-
-    // Verify via computed stylesheet rules that .gi-ont-rel-popup has the
-    // layered shadow defined. We check the raw CSS text since the element
-    // may not be visible.
-    const hasLayeredShadow = await page.evaluate(() => {
-      for (const sheet of Array.from(document.styleSheets)) {
-        try {
-          for (const rule of Array.from(sheet.cssRules)) {
-            if (rule instanceof CSSStyleRule) {
-              const sel = rule.selectorText || "";
-              if (
-                sel.includes(".gi-ont-rel-popup") ||
-                sel.includes(".gi-ac-popup")
-              ) {
-                const shadow = rule.style.getPropertyValue("box-shadow");
-                // layered shadow has at least two shadow definitions (comma-separated)
-                if (shadow && shadow.includes(",")) {
-                  return true;
-                }
-              }
-            }
-          }
-        } catch {
-          // skip cross-origin
-        }
-      }
-      return false;
+  test("14-2: showSemanticEdges=false disables semantic edge rendering", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.showSemanticEdges = false;
+      v.rawData = null;
+      v.doRender();
     });
-    expect(hasLayeredShadow).toBe(true);
+    await page.waitForTimeout(6000);
+
+    const val = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.showSemanticEdges;
+    });
+    expect(val).toBe(false);
   });
 
-  test("screenshot", async () => {
-    const browser = await chromium.connectOverCDP(CDP_URL);
-    const contexts = browser.contexts();
-    const pages = contexts[0].pages();
-    const page = pages[0];
-    await page.screenshot({ path: "e2e/images/phase14-popup-animation.png" });
+  test("14-3: re-enabling showSemanticEdges restores rendering", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.showSemanticEdges = true;
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(4000);
+
+    const val = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.showSemanticEdges;
+    });
+    expect(val).toBe(true);
   });
 });

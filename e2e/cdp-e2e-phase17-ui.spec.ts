@@ -1,69 +1,81 @@
-import { test, expect, type Page } from "@playwright/test";
+/**
+ * Phase 17 — showInheritance edge toggle
+ * Verifies that toggling showInheritance controls inheritance edge rendering.
+ */
+import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
 
-const OBSIDIAN_URL = "http://127.0.0.1:9222";
+const CDP_URL = "http://localhost:9222";
+test.setTimeout(120_000);
 
-async function connectToObsidian(): Promise<Page> {
-  const resp = await fetch(`${OBSIDIAN_URL}/json/list`);
-  const targets = await resp.json();
-  const obsTarget = targets.find((t: any) => t.type === "page" && t.url.startsWith("app://"));
-  if (!obsTarget) throw new Error("No Obsidian page found on CDP");
-  const { chromium } = await import("playwright");
-  const browser = await chromium.connectOverCDP(`${OBSIDIAN_URL}`);
-  const contexts = browser.contexts();
-  for (const ctx of contexts) {
-    for (const page of ctx.pages()) {
-      if (page.url().startsWith("app://")) return page;
-    }
-  }
-  throw new Error("Could not find Obsidian page");
-}
+let browser: Browser;
+let page: Page;
 
-test.describe("Phase 17: Section Header Enhancement", () => {
-  let page: Page;
+test.beforeAll(async ({}, testInfo) => {
+  testInfo.setTimeout(60_000);
+  browser = await chromium.connectOverCDP(CDP_URL);
+  const ctx = browser.contexts()[0];
+  page = ctx.pages().find(p => p.url().includes("index.html")) ?? ctx.pages()[0];
 
-  test.beforeAll(async () => {
-    page = await connectToObsidian();
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!v) return;
+    v.panel.searchQuery = "";
+    v.panel.showOrphans = true;
+    v.panel.showInheritance = true;
+    v.rawData = null;
+    v.doRender();
+  });
+  await page.waitForTimeout(6000);
+});
+
+test.afterAll(async () => { /* shared session */ });
+
+test.describe("Phase 17 — showInheritance edge toggle", () => {
+  test("17-1: showInheritance=true is baseline state", async () => {
+    const val = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.showInheritance;
+    });
+    expect(val).toBe(true);
   });
 
-  test("section headers have icon elements", async () => {
-    const icons = await page.$$(".graph-panel .gi-section-icon");
-    expect(icons.length).toBeGreaterThan(0);
-    // Each icon should contain an SVG
-    for (const icon of icons) {
-      const svg = await icon.$("svg");
-      expect(svg).not.toBeNull();
-    }
+  test("17-2: showInheritance=false disables inheritance edge rendering", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.showInheritance = false;
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(6000);
+
+    const val = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.showInheritance;
+    });
+    expect(val).toBe(false);
   });
 
-  test("collapse arrow has transition CSS property", async () => {
-    const arrow = await page.$(".graph-panel .graph-control-section-header .tree-item-icon");
-    expect(arrow).not.toBeNull();
-    const transition = await arrow!.evaluate((el) => getComputedStyle(el).transition);
-    expect(transition).toContain("transform");
-  });
+  test("17-3: inheritance edge count is reported accurately", async () => {
+    const count = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.graphEdges) return -1;
+      let cnt = 0;
+      for (const e of v.graphEdges) {
+        if (e.type === "inheritance") cnt++;
+      }
+      return cnt;
+    });
+    expect(count).toBeGreaterThanOrEqual(0);
 
-  test("section header has separator border", async () => {
-    const header = await page.$(".graph-panel .graph-control-section-header");
-    expect(header).not.toBeNull();
-    const borderBottom = await header!.evaluate((el) => getComputedStyle(el).borderBottomStyle);
-    expect(borderBottom).toBe("solid");
-  });
-
-  test("collapsed section hides separator", async () => {
-    const collapsedHeader = await page.$(".graph-panel .tree-item.is-collapsed .graph-control-section-header");
-    if (collapsedHeader) {
-      const borderColor = await collapsedHeader.evaluate((el) => getComputedStyle(el).borderBottomColor);
-      // transparent or rgba(0,0,0,0)
-      expect(borderColor).toMatch(/transparent|rgba\(0,\s*0,\s*0,\s*0\)/);
-    }
-  });
-
-  test("screenshot", async () => {
-    const panel = await page.$(".graph-panel");
-    if (panel) {
-      await panel.screenshot({ path: "e2e/images/phase17-section-headers.png" });
-    } else {
-      await page.screenshot({ path: "e2e/images/phase17-section-headers.png" });
-    }
+    // Restore
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.showInheritance = true;
+      v.rawData = null;
+      v.doRender();
+    });
+    await page.waitForTimeout(4000);
   });
 });

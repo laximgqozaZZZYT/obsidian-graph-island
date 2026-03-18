@@ -1,0 +1,155 @@
+/**
+ * Comprehensive Audit — verify node/edge counts after multi-setting changes
+ *
+ * Tests combined filter interactions and validates that pipeline stages
+ * compose correctly.
+ */
+import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
+
+const CDP_URL = "http://localhost:9222";
+let browser: Browser;
+let page: Page;
+
+test.setTimeout(300_000);
+
+interface Snapshot {
+  nodeCount: number;
+  edgeCount: number;
+  tagNodeCount: number;
+  orphanCount: number;
+}
+
+async function snapDetailed(): Promise<Snapshot> {
+  return page.evaluate(() => {
+    const leaf = (window as any).app.workspace.getLeavesOfType("graph-view")[0];
+    if (!leaf) return { nodeCount: 0, edgeCount: 0, tagNodeCount: 0, orphanCount: 0 };
+    const view = leaf.view;
+    const pixiNodes = typeof view.getPixiNodes === "function" ? view.getPixiNodes() : view.pixiNodes;
+    const edges = typeof view.getGraphEdges === "function" ? view.getGraphEdges() : (view.graphEdges ?? []);
+    let tagNodeCount = 0;
+    const edgeNodes = new Set<string>();
+    for (const e of edges) {
+      edgeNodes.add(e.source);
+      edgeNodes.add(e.target);
+    }
+    let orphanCount = 0;
+    if (pixiNodes) {
+      for (const pn of pixiNodes.values()) {
+        if (pn.data?.isTag) tagNodeCount++;
+        if (!edgeNodes.has(pn.data?.id)) orphanCount++;
+      }
+    }
+    return {
+      nodeCount: pixiNodes?.size ?? 0,
+      edgeCount: edges.length,
+      tagNodeCount,
+      orphanCount,
+    };
+  });
+}
+
+async function applyPanel(settings: Record<string, unknown>): Promise<void> {
+  await page.evaluate(async (s: Record<string, unknown>) => {
+    const leaf = (window as any).app.workspace.getLeavesOfType("graph-view")[0];
+    if (!leaf) return;
+    const view = leaf.view;
+    const p = typeof view.getPanel === "function" ? view.getPanel() : view.panel;
+    for (const [k, v] of Object.entries(s)) {
+      if (k === "collapsedGroups") {
+        (p as any)[k] = new Set(v as string[]);
+      } else {
+        (p as any)[k] = v;
+      }
+    }
+    if (view.panelCallbacks) view.panelCallbacks.invalidateData();
+    else if (typeof view.doRender === "function") await view.doRender();
+    await new Promise(r => setTimeout(r, 2000));
+  }, settings);
+}
+
+test.beforeAll(async () => {
+  browser = await chromium.connectOverCDP(CDP_URL);
+  const pages = browser.contexts()[0].pages();
+  page = pages.find(p => p.url().includes("index.html")) ?? pages[0];
+  await page.bringToFront();
+
+  await page.evaluate(async () => {
+    const app = (window as any).app;
+    if (app.workspace.getLeavesOfType("graph-view").length === 0) {
+      await app.commands.executeCommandById("graph-island:open-graph-view");
+      await new Promise(r => setTimeout(r, 3000));
+    }
+  });
+});
+
+test.afterAll(async () => {});
+
+test.describe("Comprehensive Multi-Setting Audit", () => {
+
+  test("baseline state has expected counts", async () => {
+    await applyPanel({
+      showOrphans: true, showTags: true, showTagNodes: true, showSimilar: false,
+      searchQuery: "", groupBy: "none", groupByRules: [], collapsedGroups: [],
+    });
+    const s = await snapDetailed();
+    expect(s.nodeCount).toBeGreaterThanOrEqual(2000);
+    expect(s.edgeCount).toBeGreaterThanOrEqual(4000);
+    console.log(`baseline: ${s.nodeCount} nodes, ${s.edgeCount} edges, ${s.tagNodeCount} tags, ${s.orphanCount} orphans`);
+  });
+
+  test("showTags=false + showOrphans=false compounds reduction", async () => {
+    await applyPanel({
+      showOrphans: true, showTags: true, showTagNodes: true, showSimilar: false,
+      searchQuery: "", groupBy: "none", groupByRules: [], collapsedGroups: [],
+    });
+    const baseline = await snapDetailed();
+
+    await applyPanel({ showTags: false });
+    const noTags = await snapDetailed();
+    expect(noTags.nodeCount).toBeLessThan(baseline.nodeCount);
+
+    await applyPanel({ showOrphans: false });
+    const noTagsNoOrphans = await snapDetailed();
+    expect(noTagsNoOrphans.nodeCount).toBeLessThanOrEqual(noTags.nodeCount);
+    console.log(`compound: ${baseline.nodeCount} -> ${noTags.nodeCount} (no tags) -> ${noTagsNoOrphans.nodeCount} (no orphans)`);
+  });
+
+  test("searchQuery + showOrphans interaction", async () => {
+    await applyPanel({
+      showOrphans: true, showTags: true, showTagNodes: true, showSimilar: false,
+      searchQuery: "tag:battle", groupBy: "none", groupByRules: [], collapsedGroups: [],
+    });
+    const withOrphans = await snapDetailed();
+    expect(withOrphans.nodeCount).toBeGreaterThan(50);
+
+    await applyPanel({ showOrphans: false });
+    const withoutOrphans = await snapDetailed();
+    expect(withoutOrphans.nodeCount).toBeLessThanOrEqual(withOrphans.nodeCount);
+    console.log(`tag:battle orphan interaction: ${withOrphans.nodeCount} -> ${withoutOrphans.nodeCount}`);
+  });
+
+  test("groupBy collapses nodes into super-nodes", async () => {
+    await applyPanel({
+      showOrphans: true, showTags: false, showTagNodes: false, showSimilar: false,
+      searchQuery: "", groupBy: "folder", groupByRules: null, collapsedGroups: [],
+    });
+    const grouped = await snapDetailed();
+    expect(grouped.nodeCount).toBeGreaterThan(0);
+    // With auto-collapse, super-nodes reduce visible count
+    console.log(`groupBy=folder: ${grouped.nodeCount} nodes, ${grouped.edgeCount} edges`);
+  });
+
+  test("showSimilar adds edges without changing node count", async () => {
+    await applyPanel({
+      showOrphans: true, showTags: false, showTagNodes: false, showSimilar: false,
+      searchQuery: "", groupBy: "none", groupByRules: [], collapsedGroups: [],
+    });
+    const before = await snapDetailed();
+
+    await applyPanel({ showSimilar: true });
+    const after = await snapDetailed();
+    expect(after.nodeCount).toBe(before.nodeCount);
+    expect(after.edgeCount).toBeGreaterThanOrEqual(before.edgeCount);
+    console.log(`showSimilar: edges ${before.edgeCount} -> ${after.edgeCount}`);
+  });
+});
