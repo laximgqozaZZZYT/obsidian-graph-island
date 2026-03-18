@@ -84,8 +84,8 @@ describe("drawEnclosures", () => {
     expect(drawCircle).toBeDefined();
     expect(drawCircle!.args[0]).toBe(50); // x
     expect(drawCircle!.args[1]).toBe(50); // y
-    // outlinePad(6, 1) = max(10, 6×0.8) × 0.6 = 10 × 0.6 = 6; radius = 6 + 6 = 12
-    expect(drawCircle!.args[2]).toBeCloseTo(12);
+    // outlinePad(12, 1) = max(10, 12×0.8) × 0.6 = 9.6 × 0.6 = 5.76; radius = 12 + 5.76 ≈ 18
+    expect(drawCircle!.args[2]).toBeCloseTo(18);
   });
 
   it("draws a capsule for two-point tag", () => {

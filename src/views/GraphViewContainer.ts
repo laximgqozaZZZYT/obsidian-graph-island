@@ -3555,7 +3555,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _computeNodeBBox(): { minX: number; minY: number; maxX: number; maxY: number } {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const pn of this.pixiNodes.values()) {
-      const r = pn.radius ?? 6;
+      const r = pn.radius ?? 12;
       minX = Math.min(minX, pn.data.x - r);
       minY = Math.min(minY, pn.data.y - r);
       maxX = Math.max(maxX, pn.data.x + r);
@@ -3567,7 +3567,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Compute average node radius across all pixiNodes. */
   private _computeAvgNodeRadius(): number {
     let sum = 0;
-    for (const pn of this.pixiNodes.values()) sum += pn.radius ?? 6;
+    for (const pn of this.pixiNodes.values()) sum += pn.radius ?? 12;
     return sum / this.pixiNodes.size;
   }
 

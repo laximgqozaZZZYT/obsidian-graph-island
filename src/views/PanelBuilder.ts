@@ -924,7 +924,14 @@ function _buildEdgeDisplaySection(
       cb.markDirty();
     }, t("desc.edgeDirectionFilter"));
     addToggle(body, t("display.bidirectionalIndicator"), panel.showBidirectionalIndicator, (v) => { panel.showBidirectionalIndicator = v; cb.markDirty(); }, t("desc.bidirectionalIndicator"));
+    const rt = panel.renderThresholds ?? {};
+    addToggle(body, t("display.edgeStrengthGlow"), rt.edgeStrengthGlow ?? DEFAULT_RENDER_THRESHOLDS.edgeStrengthGlow, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.edgeStrengthGlow = v;
+      cb.markDirty();
+    }, t("desc.edgeStrengthGlow"));
     addToggle(body, t("display.showPathfinderOverlay"), panel.showPathfinderOverlay, (v) => { panel.showPathfinderOverlay = v; cb.markDirty(); }, t("desc.showPathfinderOverlay"));
+    addToggle(body, t("display.edgeWeightThickness"), panel.edgeWeightThickness, (v) => { panel.edgeWeightThickness = v; cb.markDirty(); }, t("desc.edgeWeightThickness"));
     addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); }, t("desc.links"));
     addToggle(body, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); }, t("desc.sharedTags"));
     addToggle(body, t("display.sharedCategory"), panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); }, t("desc.sharedCategory"));
@@ -1053,23 +1060,12 @@ function _buildRenderThresholdsSection(
         panel.renderThresholds.glowNodeCount = v;
         cb.markDirty();
       }, t("render.glowNodeCountDesc"));
-    addSlider(body, t("render.clusterChargeForce"), -50, 0, 1,
-      rt.clusterChargeForce ?? DEFAULT_RENDER_THRESHOLDS.clusterChargeForce, (v) => {
-        if (!panel.renderThresholds) panel.renderThresholds = {};
-        panel.renderThresholds.clusterChargeForce = v;
-        cb.doRenderKeepPanel();
-      }, t("render.clusterChargeForceDesc"));
     addSlider(body, t("render.gridLabelOffset"), 0, 40, 1,
       rt.gridLabelOffset ?? DEFAULT_RENDER_THRESHOLDS.gridLabelOffset, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.gridLabelOffset = v;
         cb.markDirty();
       }, t("render.gridLabelOffsetDesc"));
-    addToggle(body, t("display.edgeStrengthGlow"), rt.edgeStrengthGlow ?? DEFAULT_RENDER_THRESHOLDS.edgeStrengthGlow, (v) => {
-      if (!panel.renderThresholds) panel.renderThresholds = {};
-      panel.renderThresholds.edgeStrengthGlow = v;
-      cb.markDirty();
-    }, t("desc.edgeStrengthGlow"));
   }, undefined, true, "sliders");
 }
 
@@ -1205,10 +1201,6 @@ function _buildGraphSyncSection(
       if (panel.localGraphCenter) cb.doRenderKeepPanel();
       else cb.markDirty(); // Persist even when not in local graph mode
     }, t("desc.localGraphHops"));
-    addToggle(body, t("display.edgeWeightThickness"), panel.edgeWeightThickness, (v) => {
-      panel.edgeWeightThickness = v;
-      cb.markDirty();
-    }, t("desc.edgeWeightThickness"));
   }, undefined, false, "settings");
 }
 
@@ -1781,6 +1773,13 @@ function _buildForceParameters(s: ClusterSectionCtx): void {
     panel.linkDistance = v;
     debouncedForceUpdate();
   }, t("desc.linkDistance"));
+  const rt = panel.renderThresholds ?? {};
+  addSlider(body, t("render.clusterChargeForce"), -50, 0, 1,
+    rt.clusterChargeForce ?? DEFAULT_RENDER_THRESHOLDS.clusterChargeForce, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.clusterChargeForce = v;
+      cb.doRenderKeepPanel();
+    }, t("render.clusterChargeForceDesc"));
 }
 
 /** Cluster group rules sub-section (follow-mode info or independent rule editor) */

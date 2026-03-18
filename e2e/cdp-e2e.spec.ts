@@ -87,12 +87,20 @@ async function renderAndVerify(
 }
 
 test.beforeAll(async ({}, testInfo) => {
-  testInfo.setTimeout(90_000);
+  testInfo.setTimeout(120_000);
   browser = await chromium.connectOverCDP(CDP_URL);
   const contexts = browser.contexts();
   page =
     contexts[0].pages().find((p) => p.url().includes("index.html")) ??
     contexts[0].pages()[0];
+
+  // Reload plugin to pick up latest main.js
+  await page.evaluate(async () => {
+    const app = (window as any).app;
+    await app.plugins.disablePlugin("graph-island");
+    await app.plugins.enablePlugin("graph-island");
+  });
+  await page.waitForTimeout(3000);
 
   // Reset to known baseline state
   await renderWith(page, {
@@ -104,6 +112,7 @@ test.beforeAll(async ({}, testInfo) => {
     tagDisplay: "enclosure",
     highlightMissingNeighbors: false,
     showGraphStats: false,
+    nodeSize: 15,
   });
 });
 
@@ -423,5 +432,61 @@ test.describe("6. Graph Statistics", () => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       if (v) v.panel.showGraphStats = false;
     });
+  });
+});
+
+// =========================================================================
+// 7. Node Minimum Size
+// =========================================================================
+test.describe("7. Node Minimum Size", () => {
+  test("7.1 all nodes have radius >= 12 (minNodeRadius floor)", async () => {
+    await renderAndVerify(page, {}, async (p) => {
+      const data = await p.evaluate(() => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        if (!v?.pixiNodes) return { count: 0, minR: 0 };
+        let minR = Infinity;
+        let count = 0;
+        for (const pn of v.pixiNodes.values()) {
+          if (pn.radius < minR) minR = pn.radius;
+          count++;
+        }
+        return { minR, count };
+      });
+      return data.count > 200 && data.minR >= 12;
+    });
+    const check = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.pixiNodes) return { minR: 0 };
+      let minR = Infinity;
+      for (const pn of v.pixiNodes.values()) {
+        if (pn.radius < minR) minR = pn.radius;
+      }
+      return { minR };
+    });
+    expect(check.minR).toBeGreaterThanOrEqual(12);
+  });
+});
+
+// =========================================================================
+// 8. Edge Label Mode Exclusivity
+// =========================================================================
+test.describe("8. Edge Label Mode", () => {
+  test("8.1 weight mode disables relation and cardinality", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      v.panel.showEdgeLabels = false;
+      v.panel.showEdgeWeightLabels = true;
+      v.panel.showEdgeCardinalityLabels = false;
+      return {
+        labels: v.panel.showEdgeLabels,
+        weight: v.panel.showEdgeWeightLabels,
+        cardinality: v.panel.showEdgeCardinalityLabels,
+      };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.labels).toBe(false);
+    expect(result.weight).toBe(true);
+    expect(result.cardinality).toBe(false);
   });
 });

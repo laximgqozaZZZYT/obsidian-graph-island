@@ -182,7 +182,7 @@ export function drawEnclosures(
     const allPts: (Pt & { radius: number })[] = [];
     for (const id of memberIds) {
       const p = cfg.resolvePos(id);
-      if (p) allPts.push({ x: p.x, y: p.y, radius: p.radius ?? 6 });
+      if (p) allPts.push({ x: p.x, y: p.y, radius: p.radius ?? 12 });
     }
     if (allPts.length < 1) continue;
 

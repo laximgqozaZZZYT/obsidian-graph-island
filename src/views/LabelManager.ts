@@ -231,7 +231,7 @@ export class LabelManager {
       this._applyTruncation(pn, shouldTruncate, effectiveMaxChars);
 
       // Reset label position (zone-based or fixed)
-      const r = pn.radius ?? 6;
+      const r = pn.radius ?? 12;
       if (rt.labelZonePlacement && renderPipeline) {
         const placement = renderPipeline.computeZonePlacement(
           pn.data, r, rt.labelZoneOffset ?? 6

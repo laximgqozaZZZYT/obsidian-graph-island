@@ -1867,7 +1867,7 @@ export class RenderPipeline {
     llAlpha: number,
   ): CullLabelRect | null {
     const { pn } = r;
-    const nodeR = pn.radius ?? 6;
+    const nodeR = pn.radius ?? 12;
     const screenNodeR = nodeR * zoom;
 
     // Displacement offsets in screen space
@@ -1933,7 +1933,7 @@ export class RenderPipeline {
     llAlpha: number,
     alphaMultiplier = 1.0,
   ): void {
-    const nodeR = pn.radius ?? 6;
+    const nodeR = pn.radius ?? 12;
     if (!pn.leaderLine) {
       pn.leaderLine = new CanvasGraphics();
       pn.gfx.addChild(pn.leaderLine);
@@ -2054,7 +2054,7 @@ export class RenderPipeline {
 
     if (!overlaps()) return true; // fits without displacement
 
-    const nodeR = r.pn.radius ?? 6;
+    const nodeR = r.pn.radius ?? 12;
     const screenNodeR = nodeR * zoom;
     const maxWorldDisp = nodeR * maxRadii;
     const clearX = r.w + margin;
