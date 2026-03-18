@@ -1055,9 +1055,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** 同期対象フィールド — 検索クエリやローカルグラフは除外 */
   private static readonly SYNC_FIELDS: (keyof PanelState)[] = [
-    "showTags", "showAttachments", "existingOnly", "showOrphans", "showArrows",
-    "showOrbitRings", "colorEdgesByRelation", "colorNodesByCategory",
-    "heatmapMode", "nodeColorMode", "showInheritance", "showAggregation", "showTagNodes",
+    "includeTagsInData", "showAttachments", "existingOnly", "showOrphans", "showArrows",
+    "showOrbitRings", "colorEdgesByRelation",
+    "nodeColorMode", "showInheritance", "showAggregation", "showTagNodes",
     "tagDisplay", "showSimilar", "showSibling", "showSequence",
     "showLinks", "showTagEdges", "showCategoryEdges", "showSemanticEdges",
     "showEdgeLabels", "showMinimap", "showDotGrid", "showDurationBars",
@@ -3860,9 +3860,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       resetPanel: () => this._buildResetPanelCallback(),
       applyPreset: (preset: "simple" | "analysis" | "creative") => {
         const presets: Record<string, Partial<typeof this.panel>> = {
-          simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, heatmapMode: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: false },
-          analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, heatmapMode: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
-          creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, heatmapMode: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
+          simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: false },
+          analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
+          creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
         };
         const p = presets[preset];
         if (p) { Object.assign(this.panel, p); this.doRender(); this.requestSave(); }
@@ -4376,7 +4376,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       });
     }
 
-    if (!this.panel.showTags) {
+    if (!this.panel.includeTagsInData) {
       nodes = nodes.filter((n) => !n.isTag);
       edges = edges.filter((e) => e.type !== EDGE_TYPE_HAS_TAG);
     }
@@ -4663,9 +4663,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const colorMap = this.nodeColorMap;
     const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
 
-    // Resolve unified nodeColorMode (with backward compat fallback)
-    const colorMode = this.panel.nodeColorMode ??
-      (this.panel.heatmapMode ? "heatmap" : this.panel.colorNodesByCategory ? "category" : "default");
+    const colorMode = this.panel.nodeColorMode ?? "category";
 
     // Heatmap: precompute max degree for normalization
     let maxDegree = 1;

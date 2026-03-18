@@ -24,7 +24,7 @@ async function resetAndReload(p: Page): Promise<number> {
     v.panel.searchQuery = "";
     v.panel.clusterArrangement = "force";
     v.panel.showOrphans = true;
-    v.panel.showTags = true;
+    v.panel.includeTagsInData = true;
     v.panel.showTagNodes = true;
     v.panel.showLinks = true;
     v.panel.showSemanticEdges = true;
@@ -189,7 +189,7 @@ async function applyAndRender(
 // 1. Enclosure mode shows 19 labeled tag regions on 242 tag memberships
 // =========================================================================
 test("enclosure mode shows labeled tag regions with unique tags and rendered labels", async () => {
-  await renderWith(page, { tagDisplay: "enclosure", showTagNodes: true, showTags: true, searchQuery: "", existingOnly: false });
+  await renderWith(page, { tagDisplay: "enclosure", showTagNodes: true, includeTagsInData: true, searchQuery: "", existingOnly: false });
 
   const result = await page.evaluate(() => {
     const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -214,7 +214,7 @@ test("enclosure mode shows labeled tag regions with unique tags and rendered lab
 // =========================================================================
 test("enclosure labels contain correct tag names (scene, battle, etc)", async () => {
   // Enclosure should still be active from previous test; re-render to be safe
-  await renderWith(page, { tagDisplay: "enclosure", showTagNodes: true, showTags: true, existingOnly: false });
+  await renderWith(page, { tagDisplay: "enclosure", showTagNodes: true, includeTagsInData: true, existingOnly: false });
 
   const result = await page.evaluate(() => {
     const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -399,7 +399,7 @@ test("hover shows neighbor labels (prevHighlightSet.size > 1)", async () => {
 // 6. Graph stats shows: 2354 nodes, 5558 edges, density 0.0020
 // =========================================================================
 test("graph stats shows node count, edge count, and density values", async () => {
-  await renderWith(page, { showGraphStats: true, searchQuery: "", existingOnly: false, showTags: true, showTagNodes: true, showOrphans: true });
+  await renderWith(page, { showGraphStats: true, searchQuery: "", existingOnly: false, includeTagsInData: true, showTagNodes: true, showOrphans: true });
 
   const result = await page.evaluate(() => {
     const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -512,7 +512,7 @@ test("OOB badge displays numeric count of off-screen nodes", async () => {
 // 9. Missing neighbor ring marks 1291 nodes with orange indicator
 // =========================================================================
 test("missing neighbor ring marks nodes with orange indicator", async () => {
-  await renderWith(page, { highlightMissingNeighbors: true, searchQuery: "", existingOnly: false, showTags: true, showTagNodes: true });
+  await renderWith(page, { highlightMissingNeighbors: true, searchQuery: "", existingOnly: false, includeTagsInData: true, showTagNodes: true });
 
   const result = await page.evaluate(() => {
     const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;

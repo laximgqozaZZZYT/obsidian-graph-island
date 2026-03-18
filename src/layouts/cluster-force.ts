@@ -845,14 +845,14 @@ function estimateLabelExtent(
 
 /** Visual radius of a node — canonical formula used across the codebase.
  *  Enforces minNodeRadius floor so nodes remain hoverable/clickable. */
-export function nodeRadius(nodeSize: number, _degree: number, minNodeRadius = 8): number {
+export function nodeRadius(nodeSize: number, _degree: number, minNodeRadius = 12): number {
   return Math.max(nodeSize, minNodeRadius);
 }
 
 /** Effective visual radius accounting for super nodes (collapsed groups).
  *  Canonical formula: baseR = nodeRadius(); superR = baseR * (1 + sqrt(memberCount) * 0.5); capped by maxNodeRadius.
  *  Enforces minNodeRadius floor. */
-export function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, maxNodeRadius = 60, minNodeRadius = 8): number {
+export function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, maxNodeRadius = 60, minNodeRadius = 12): number {
   const baseR = nodeRadius(nodeSize, degree, minNodeRadius);
   const cap = maxNodeRadius > 0 ? maxNodeRadius : Infinity;
   if (n.collapsedMembers && n.collapsedMembers.length > 0) {

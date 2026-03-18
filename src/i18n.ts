@@ -64,7 +64,7 @@ const en: TranslationMap = {
   "filter.searchPlaceholder": "Search… hop:name:2",
   "filter.tags": "Tags",
   "filter.showTags": "Show Tags",
-  "desc.showTags": "Include tag nodes and has-tag edges in the graph",
+  "desc.showTags": "Include tag nodes and has-tag edges in graph data (affects connectivity and orphan detection)",
   "filter.attachments": "Attachments",
   "filter.existingOnly": "Existing Files Only",
   "filter.orphans": "Orphans",
@@ -667,6 +667,14 @@ const en: TranslationMap = {
   "display.edgeCardinalityLabels": "Edge Cardinality Labels",
   "desc.edgeCardinalityLabels": "Show numeric count on edges when multiple edges exist between the same node pair",
 
+  // --- Unified edge label mode ---
+  "display.edgeLabelMode": "Edge Label Mode",
+  "desc.edgeLabelMode": "Choose what labels to display on edges",
+  "display.edgeLabelMode.none": "None",
+  "display.edgeLabelMode.relation": "Relation Type",
+  "display.edgeLabelMode.weight": "Weight (count)",
+  "display.edgeLabelMode.cardinality": "Cardinality",
+
   // --- Feature R: Louvain Community Detection ---
   "groupBy.louvain": "Auto-detect (Louvain)",
 
@@ -755,7 +763,7 @@ const ja: TranslationMap = {
   "filter.searchPlaceholder": "検索… hop:名前:2",
   "filter.tags": "タグ",
   "filter.showTags": "タグ表示",
-  "desc.showTags": "タグノードとhas-tagエッジをグラフに含める",
+  "desc.showTags": "タグノードとhas-tagエッジをグラフデータに含める（接続性と孤立判定に影響）",
   "filter.attachments": "添付書類",
   "filter.existingOnly": "存在するファイルのみ表示",
   "filter.orphans": "オーファン",
@@ -1357,6 +1365,14 @@ const ja: TranslationMap = {
   // --- Feature CR: エッジ多重度ラベル ---
   "display.edgeCardinalityLabels": "エッジ多重度ラベル",
   "desc.edgeCardinalityLabels": "同一ノードペア間に複数エッジがある場合、本数を数値で表示",
+
+  // --- 統一エッジラベルモード ---
+  "display.edgeLabelMode": "エッジラベルモード",
+  "desc.edgeLabelMode": "エッジに表示するラベルの種類を選択",
+  "display.edgeLabelMode.none": "なし",
+  "display.edgeLabelMode.relation": "関係種別",
+  "display.edgeLabelMode.weight": "重み（本数）",
+  "display.edgeLabelMode.cardinality": "多重度",
 
   // --- Feature R: Louvain コミュニティ検出 ---
   "groupBy.louvain": "自動検出 (Louvain)",

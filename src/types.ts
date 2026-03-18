@@ -1273,7 +1273,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   highlightEdgeAlpha: 1.0,
   highlightEdgeNonMatchAlpha: 0.15,
   maxNodeRadius: 60,
-  minNodeRadius: 8,
+  minNodeRadius: 12,
   minHoverScreenPx: 16,
   zoomNodeSizeAdapt: true,
   labelLeaderLines: true,

@@ -26,7 +26,7 @@ import {
 interface GroupByRule { field: string; op?: string; indent?: number; recursive?: boolean; }
 
 export interface PanelState {
-  showTags: boolean;
+  includeTagsInData: boolean;
   showAttachments: boolean;
   existingOnly: boolean;
   showOrphans: boolean;
@@ -210,7 +210,7 @@ export interface PanelState {
  *  shared-reference bugs where mutations leak back into "defaults". */
 export function createDefaultPanel(): PanelState {
   return {
-    showTags: true,
+    includeTagsInData: true,
     showAttachments: false,
     existingOnly: false,
     showOrphans: true,
@@ -681,7 +681,7 @@ function buildFilterTab(
   cb: PanelCallbacks,
 ): void {
   buildSection(filterTab, t("section.filter"), (body) => {
-    addToggle(body, t("filter.showTags"), panel.showTags, (v) => { panel.showTags = v; cb.invalidateDataKeepPanel(); }, t("desc.showTags"));
+    addToggle(body, t("filter.includeTagsInData"), panel.includeTagsInData, (v) => { panel.includeTagsInData = v; cb.invalidateDataKeepPanel(); }, t("desc.includeTagsInData"));
     addToggle(body, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateDataKeepPanel(); }, t("desc.attachments"));
     addToggle(body, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateDataKeepPanel(); }, t("desc.existingOnly"));
     addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateDataKeepPanel(); }, t("desc.orphans"));
@@ -781,12 +781,9 @@ function _buildNodeDisplaySection(
     const currentColorMode = panel.nodeColorMode ?? "category";
     addSelect(body, t("display.nodeColorMode"), colorModeOptions, currentColorMode, (v) => {
       panel.nodeColorMode = v as "default" | "category" | "heatmap" | "community";
-      // Keep legacy fields in sync for backward compat
-      panel.colorNodesByCategory = v === "category";
-      panel.heatmapMode = v === "heatmap";
       cb.doRenderKeepPanel();
     }, t("desc.nodeColorMode"));
-    addSlider(body, t("display.nodeSize"), 2, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRenderKeepPanel(); }, t("desc.nodeSize"));
+    addSlider(body, t("display.nodeSize"), 5, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.doRenderKeepPanel(); }, t("desc.nodeSize"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
     addTextInput(body, t("display.nodeSubLabelFields"), panel.nodeSubLabelFields ?? "", "e.g. category, date, node_type", (v) => {
       panel.nodeSubLabelFields = v;
@@ -894,7 +891,21 @@ function _buildEdgeDisplaySection(
     addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRenderKeepPanel(); }, t("desc.arrows"));
     addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); cb.rebuildPanel(); }, t("desc.edgeColor"));
     addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
-    addToggle(body, t("display.edgeLabels"), panel.showEdgeLabels, (v) => { panel.showEdgeLabels = v; cb.markDirty(); }, t("desc.edgeLabels"));
+    // Unified edge label mode dropdown (replaces 3 separate toggles)
+    const edgeLabelMode = panel.showEdgeWeightLabels ? "weight"
+      : panel.showEdgeCardinalityLabels ? "cardinality"
+      : panel.showEdgeLabels ? "relation" : "none";
+    addSelect(body, t("display.edgeLabelMode"), [
+      { value: "none", label: t("display.edgeLabelMode.none") },
+      { value: "relation", label: t("display.edgeLabelMode.relation") },
+      { value: "weight", label: t("display.edgeLabelMode.weight") },
+      { value: "cardinality", label: t("display.edgeLabelMode.cardinality") },
+    ], edgeLabelMode, (v) => {
+      panel.showEdgeLabels = v === "relation";
+      panel.showEdgeWeightLabels = v === "weight";
+      panel.showEdgeCardinalityLabels = v === "cardinality";
+      cb.markDirty();
+    }, t("desc.edgeLabelMode"));
     addSelect(body, t("display.edgeLabelPlacement"), [
       { value: "center", label: t("display.edgeLabelCenter") },
       { value: "offset", label: t("display.edgeLabelOffset") },
@@ -903,8 +914,6 @@ function _buildEdgeDisplaySection(
       panel.edgeLabelPlacement = v as "center" | "offset" | "smart";
       cb.markDirty();
     });
-    addToggle(body, t("display.edgeWeightLabels"), panel.showEdgeWeightLabels, (v) => { panel.showEdgeWeightLabels = v; cb.markDirty(); }, t("desc.edgeWeightLabels"));
-    addToggle(body, t("display.edgeCardinalityLabels"), panel.showEdgeCardinalityLabels ?? false, (v) => { panel.showEdgeCardinalityLabels = v; cb.markDirty(); }, t("desc.edgeCardinalityLabels"));
     addToggle(body, t("display.edgeLayerMode"), panel.edgeLayerMode, (v) => { panel.edgeLayerMode = v; cb.markDirty(); }, t("desc.edgeLayerMode"));
     addSelect(body, t("display.edgeDirectionFilter"), [
       { value: "all", label: t("display.edgeDirAll") },

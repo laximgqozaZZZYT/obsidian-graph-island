@@ -13,9 +13,9 @@ import { ARRANGEMENT_GRID } from "../constants";
 
 /** Fields that should be boolean */
 const BOOLEAN_FIELDS: (keyof PanelState)[] = [
-  "showTags", "showAttachments", "existingOnly", "showOrphans", "showArrows",
+  "includeTagsInData", "showAttachments", "existingOnly", "showOrphans", "showArrows",
   "showOrbitRings", "orbitAutoRotate", "colorEdgesByRelation",
-  "colorNodesByCategory", "heatmapMode", "showInheritance", "showAggregation", "showTagNodes",
+  "showInheritance", "showAggregation", "showTagNodes",
   "showSimilar", "showSibling", "showSequence", "showLinks", "showTagEdges",
   "showCategoryEdges", "showSemanticEdges", "fadeEdgesByDegree",
   "showEdgeLabels", "showMinimap", "autoFit", "showDurationBars",
@@ -165,6 +165,17 @@ export function importPreset(json: string): Partial<PanelState> {
     delete raw[key];
   }
 
+  // Migrate legacy field names
+  if (raw.showTags !== undefined && raw.includeTagsInData === undefined) {
+    raw.includeTagsInData = raw.showTags;
+    delete raw.showTags;
+  }
+  if (!raw.nodeColorMode && (raw.colorNodesByCategory !== undefined || raw.heatmapMode !== undefined)) {
+    raw.nodeColorMode = raw.heatmapMode ? "heatmap" : raw.colorNodesByCategory ? "category" : "default";
+    delete raw.colorNodesByCategory;
+    delete raw.heatmapMode;
+  }
+
   const result: Partial<PanelState> = {};
   // Use a string-keyed record view for dynamic property assignment.
   // This is safe because every key written is validated against VALID_KEYS
@@ -248,6 +259,15 @@ export function applyPreset(
   current: PanelState,
   preset: Partial<PanelState>,
 ): PanelState {
+  // Migrate legacy fields
+  const raw = preset as Record<string, unknown>;
+  if (!raw.nodeColorMode && (raw.colorNodesByCategory !== undefined || raw.heatmapMode !== undefined)) {
+    raw.nodeColorMode = raw.heatmapMode ? "heatmap" : raw.colorNodesByCategory ? "category" : "default";
+  }
+  if (raw.showTags !== undefined && raw.includeTagsInData === undefined) {
+    raw.includeTagsInData = raw.showTags;
+    delete raw.showTags;
+  }
   const merged = { ...current };
   // String-keyed record views for dynamic property access.
   // Safe because keys come from Object.entries(preset) which was

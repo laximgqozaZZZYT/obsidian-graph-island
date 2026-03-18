@@ -23,7 +23,7 @@ async function resetAndReload(p: Page): Promise<number> {
     v.panel.searchQuery = "";
     v.panel.clusterArrangement = "force";
     v.panel.showOrphans = true;
-    v.panel.showTags = true;
+    v.panel.includeTagsInData = true;
     v.panel.showTagNodes = true;
     v.panel.showLinks = true;
     v.panel.showSemanticEdges = true;

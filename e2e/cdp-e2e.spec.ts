@@ -98,7 +98,7 @@ test.beforeAll(async ({}, testInfo) => {
   await renderWith(page, {
     searchQuery: "",
     showOrphans: true,
-    showTags: true,
+    includeTagsInData: true,
     nodeColorMode: "default",
     clusterArrangement: "force",
     tagDisplay: "enclosure",
@@ -174,7 +174,7 @@ test.describe("2. Filter Operations", () => {
     await renderAndVerify(page, {
       searchQuery: "tag:battle",
       showOrphans: true,
-      showTags: true,
+      includeTagsInData: true,
       tagDisplay: "enclosure",
     }, async (p) => {
       count = await p.evaluate(() => {
@@ -191,7 +191,7 @@ test.describe("2. Filter Operations", () => {
     await renderAndVerify(page, {
       searchQuery: "path:classic-macbeth",
       showOrphans: true,
-      showTags: true,
+      includeTagsInData: true,
       tagDisplay: "enclosure",
     }, async (p) => {
       count = await p.evaluate(() => {
@@ -207,7 +207,7 @@ test.describe("2. Filter Operations", () => {
     const count = await renderWith(page, {
       searchQuery: "",
       showOrphans: true,
-      showTags: true,
+      includeTagsInData: true,
       tagDisplay: "enclosure",
     });
     expect(count).toBe(2354);
@@ -218,7 +218,7 @@ test.describe("2. Filter Operations", () => {
     await renderAndVerify(page, {
       searchQuery: "",
       showOrphans: false,
-      showTags: true,
+      includeTagsInData: true,
       tagDisplay: "enclosure",
     }, async (p) => {
       count = await p.evaluate(() => {
@@ -233,7 +233,7 @@ test.describe("2. Filter Operations", () => {
     await renderWith(page, {
       searchQuery: "",
       showOrphans: true,
-      showTags: true,
+      includeTagsInData: true,
       tagDisplay: "enclosure",
     });
   });
@@ -386,7 +386,7 @@ test.describe("6. Graph Statistics", () => {
     await renderWith(page, {
       searchQuery: "",
       showOrphans: true,
-      showTags: true,
+      includeTagsInData: true,
       tagDisplay: "enclosure",
       showGraphStats: true,
     });

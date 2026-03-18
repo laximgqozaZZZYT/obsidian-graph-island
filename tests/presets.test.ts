@@ -5,7 +5,7 @@ import { exportPreset, importPreset, applyPreset } from "../src/utils/presets";
 // which pulls in the "obsidian" module (not available in test env).
 // This matches the shape in src/views/PanelBuilder.ts.
 const DEFAULT_PANEL = {
-  showTags: true,
+  includeTagsInData: true,
   showAttachments: false,
   existingOnly: false,
   showOrphans: true,
@@ -151,17 +151,17 @@ describe("importPreset", () => {
   });
 
   it("drops unknown keys", () => {
-    const preset = importPreset(JSON.stringify({ showTags: true, unknownField: 42 }));
-    expect(preset).toHaveProperty("showTags", true);
+    const preset = importPreset(JSON.stringify({ includeTagsInData: true, unknownField: 42 }));
+    expect(preset).toHaveProperty("includeTagsInData", true);
     expect(preset).not.toHaveProperty("unknownField");
   });
 
   it("validates boolean fields — drops wrong type", () => {
     const preset = importPreset(JSON.stringify({
-      showTags: true,
+      includeTagsInData: true,
       showArrows: "yes",  // wrong type — should be dropped
     }));
-    expect(preset.showTags).toBe(true);
+    expect(preset.includeTagsInData).toBe(true);
     expect(preset).not.toHaveProperty("showArrows");
   });
 
@@ -246,10 +246,10 @@ describe("importPreset", () => {
 
 describe("applyPreset", () => {
   it("merges preset fields into current panel", () => {
-    const current = makePanel({ showTags: true, nodeSize: 8 });
-    const preset = { showTags: false, nodeSize: 16 } as any;
+    const current = makePanel({ includeTagsInData: true, nodeSize: 8 });
+    const preset = { includeTagsInData: false, nodeSize: 16 } as any;
     const result = applyPreset(current as any, preset);
-    expect(result.showTags).toBe(false);
+    expect(result.includeTagsInData).toBe(false);
     expect(result.nodeSize).toBe(16);
   });
 
@@ -282,7 +282,7 @@ describe("applyPreset", () => {
 describe("roundtrip: export -> import -> apply", () => {
   it("roundtrips a customized panel state", () => {
     const original = makePanel({
-      showTags: false,
+      includeTagsInData: false,
       nodeSize: 20,
       tagDisplay: "node",
       clusterArrangement: "grid",
@@ -293,7 +293,7 @@ describe("roundtrip: export -> import -> apply", () => {
     const preset = importPreset(json);
     const result = applyPreset(makePanel() as any, preset);
 
-    expect(result.showTags).toBe(false);
+    expect(result.includeTagsInData).toBe(false);
     expect(result.nodeSize).toBe(20);
     expect(result.tagDisplay).toBe("node");
     expect(result.clusterArrangement).toBe("grid");
