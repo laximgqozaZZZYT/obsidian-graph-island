@@ -580,6 +580,19 @@ const en: TranslationMap = {
   "display.showHierarchyBreadcrumb": "Hierarchy Breadcrumb",
   "desc.showHierarchyBreadcrumb": "Show inheritance path as breadcrumb bar above graph",
 
+  // --- Discovery & insight (Phase 5) ---
+  "section.discovery": "Discovery & Insight",
+  "toolbar.surprise": "Surprise — show two unrelated nodes",
+  "surprise.noMatch": "No suitable pair found — try again",
+  "display.showGapPrompts": "Gap Prompts",
+  "desc.showGapPrompts": "Show '?' labels between distant clusters with few connections",
+  "display.showSimilarSuggestions": "Similar Suggestions",
+  "desc.showSimilarSuggestions": "Show similar unlinked notes on hover (Jaccard similarity)",
+  "display.showStructureQuestions": "Structure Questions",
+  "desc.showStructureQuestions": "Generate questions from graph structure in statistics panel",
+  "display.showEntropyOverlay": "Knowledge Entropy",
+  "desc.showEntropyOverlay": "Heatmap overlay showing low-density knowledge gaps",
+
   // --- Error messages ---
   "error.pixiInitFailed": "Graph rendering failed. Your browser may not support WebGL.",
   "error.graphBuildFailed": "Failed to build graph data. Check console for details.",
@@ -1327,6 +1340,17 @@ const ja: TranslationMap = {
   "desc.focusLayout": "自我中心レイアウト：選択ノードを中心に関係タイプ別配置",
   "display.showHierarchyBreadcrumb": "階層パンくず",
   "desc.showHierarchyBreadcrumb": "継承パスをグラフ上にパンくず表示",
+  "section.discovery": "発見・インサイト",
+  "toolbar.surprise": "サプライズ — 無関連な2ノードを表示",
+  "surprise.noMatch": "適切なペアが見つかりません — もう一度お試しください",
+  "display.showGapPrompts": "ギャッププロンプト",
+  "desc.showGapPrompts": "接続の少ないクラスタ間に「?」ラベルを表示",
+  "display.showSimilarSuggestions": "類似サジェスト",
+  "desc.showSimilarSuggestions": "ホバー時にJaccard類似度で未リンクの類似ノートを表示",
+  "display.showStructureQuestions": "構造質問",
+  "desc.showStructureQuestions": "グラフ構造から質問を生成して統計パネルに表示",
+  "display.showEntropyOverlay": "知識エントロピー",
+  "desc.showEntropyOverlay": "低密度の知識ギャップをヒートマップで表示",
 
   // --- Error messages ---
   "error.pixiInitFailed": "グラフの描画に失敗しました。お使いのブラウザがWebGLに対応していない可能性があります。",

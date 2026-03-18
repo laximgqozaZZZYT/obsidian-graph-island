@@ -236,6 +236,15 @@ export interface PanelState {
   focusLayout: boolean;
   /** Show hierarchy breadcrumb bar above graph */
   showHierarchyBreadcrumb: boolean;
+  // --- Phase 5: Discovery & insight ---
+  /** Show gap prompts between distant clusters */
+  showGapPrompts: boolean;
+  /** Show similar note suggestions on hover */
+  showSimilarSuggestions: boolean;
+  /** Show structure-based questions in statistics panel */
+  showStructureQuestions: boolean;
+  /** Show knowledge entropy heatmap overlay */
+  showEntropyOverlay: boolean;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -380,6 +389,10 @@ export function createDefaultPanel(): PanelState {
     highlightComponent: null,
     focusLayout: false,
     showHierarchyBreadcrumb: false,
+    showGapPrompts: false,
+    showSimilarSuggestions: false,
+    showStructureQuestions: false,
+    showEntropyOverlay: false,
   };
 }
 
@@ -1063,6 +1076,29 @@ function _buildStructureAnalysisSection(
   }, undefined, false, "git-branch");
 }
 
+function _buildDiscoverySection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("section.discovery"), (body) => {
+    addToggle(body, t("display.showGapPrompts"), panel.showGapPrompts, (v) => {
+      panel.showGapPrompts = v;
+      cb.markDirty();
+    }, t("desc.showGapPrompts"));
+    addToggle(body, t("display.showSimilarSuggestions"), panel.showSimilarSuggestions, (v) => {
+      panel.showSimilarSuggestions = v;
+      cb.markDirty();
+    }, t("desc.showSimilarSuggestions"));
+    addToggle(body, t("display.showStructureQuestions"), panel.showStructureQuestions, (v) => {
+      panel.showStructureQuestions = v;
+      cb.markDirty();
+    }, t("desc.showStructureQuestions"));
+    addToggle(body, t("display.showEntropyOverlay"), panel.showEntropyOverlay, (v) => {
+      panel.showEntropyOverlay = v;
+      cb.markDirty();
+    }, t("desc.showEntropyOverlay"));
+  }, undefined, false, "lightbulb");
+}
+
 function _buildEdgeDisplaySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
@@ -1311,6 +1347,7 @@ function buildDisplayTab(
   _buildNodeDisplayModeSection(displayTab, panel, ctx, cb);
   _buildNodeDecorationSection(displayTab, panel, ctx, cb);
   _buildStructureAnalysisSection(displayTab, panel, ctx, cb);
+  _buildDiscoverySection(displayTab, panel, ctx, cb);
   _buildEdgeDisplaySection(displayTab, panel, ctx, cb);
   _buildCableDisplaySection(displayTab, panel, ctx, cb);
   _buildRoadNetworkSection(displayTab, panel, ctx, cb);

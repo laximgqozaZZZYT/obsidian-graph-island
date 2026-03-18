@@ -575,6 +575,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     snapshotBtn.addEventListener("click", (evt) => {
       this._showSnapshotMenu(evt);
     });
+
+    // Surprise (random juxtaposition) button
+    const surpriseBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    setIcon(surpriseBtn, "shuffle");
+    surpriseBtn.setAttribute("aria-label", t("toolbar.surprise"));
+    surpriseBtn.title = t("toolbar.surprise");
+    surpriseBtn.addEventListener("click", () => {
+      this._triggerSurprise();
+    });
   }
 
   // =========================================================================
@@ -2108,6 +2117,58 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       .replace("{nodes}", String(sub.nodes.length))
       .replace("{edges}", String(sub.edges.length));
     new Notice(msg, 3000);
+  }
+
+  // =========================================================================
+  // Surprise — Random Juxtaposition (Phase 5a)
+  // =========================================================================
+  /** Pick two unrelated nodes and zoom to show both + shortest path */
+  private _triggerSurprise(): void {
+    if (!this.adj) return;
+    const nodeIds = [...this.pixiNodes.keys()].filter(id => !id.startsWith("tag:"));
+    if (nodeIds.length < 2) return;
+
+    // Try up to 20 times to find a pair with no shared tags and path >= 3
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const i = Math.floor(Math.random() * nodeIds.length);
+      let j = Math.floor(Math.random() * (nodeIds.length - 1));
+      if (j >= i) j++;
+      const a = nodeIds[i];
+      const b = nodeIds[j];
+
+      // Check: no shared tags
+      const pnA = this.pixiNodes.get(a);
+      const pnB = this.pixiNodes.get(b);
+      if (!pnA || !pnB) continue;
+      const tagsA = new Set(pnA.data.tags ?? []);
+      const tagsB = pnB.data.tags ?? [];
+      if (tagsB.some(t => tagsA.has(t))) continue;
+
+      // Check: shortest path >= 3
+      const path = bfsShortestPath(this.adj, a, b);
+      if (path.length > 0 && path.length < 3) continue;
+
+      // Highlight the pair and their shortest path
+      this.setHighlightedNodeId(a);
+      // Zoom to fit both nodes
+      const world = this.worldContainer;
+      const wrap = this.canvasWrap;
+      if (world && wrap) {
+        const cx = (pnA.data.x + pnB.data.x) / 2;
+        const cy = (pnA.data.y + pnB.data.y) / 2;
+        const dx = Math.abs(pnA.data.x - pnB.data.x) + 200;
+        const dy = Math.abs(pnA.data.y - pnB.data.y) + 200;
+        const scale = Math.min(wrap.clientWidth / dx, wrap.clientHeight / dy, 2);
+        world.scale.set(scale);
+        world.x = wrap.clientWidth / 2 - cx * scale;
+        world.y = wrap.clientHeight / 2 - cy * scale;
+      }
+      this.applyHover();
+      this.wakeRenderLoop();
+      showToast(`${pnA.data.label} ↔ ${pnB.data.label}` + (path.length > 0 ? ` (${path.length - 1} hops)` : " (unreachable)"));
+      return;
+    }
+    showToast(t("surprise.noMatch"));
   }
 
   // =========================================================================

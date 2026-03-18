@@ -49,6 +49,10 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showBridgeNodes",
   "focusLayout",
   "showHierarchyBreadcrumb",
+  "showGapPrompts",
+  "showSimilarSuggestions",
+  "showStructureQuestions",
+  "showEntropyOverlay",
 ];
 
 /** Fields that should be number */
