@@ -2119,6 +2119,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     new Notice(msg, 3000);
   }
 
+  setSearchQuery(query: string): void {
+    this.panel.searchQuery = query;
+    this.rawData = null;
+    this.doRender();
+    this.requestSave();
+  }
+
   // =========================================================================
   // Surprise — Random Juxtaposition (Phase 5a)
   // =========================================================================

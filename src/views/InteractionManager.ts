@@ -110,6 +110,8 @@ export interface InteractionHost {
   exportSubgraph?(nodeId: string): void;
   /** Create a new note at the given world coordinates (Phase 4a) */
   createNoteAtPosition?(wx: number, wy: number): void;
+  /** Set search query and trigger filter (context menu shortcut) */
+  setSearchQuery(query: string): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -629,6 +631,27 @@ export class InteractionManager {
         item.setTitle(t("context.exportSubgraph"))
           .setIcon("download")
           .onClick(() => this.host.exportSubgraph!(node.data.id));
+      });
+    }
+
+    // Filter shortcuts
+    menu.addSeparator();
+    if (node.data.filePath) {
+      const folder = node.data.filePath.split("/").slice(0, -1).join("/");
+      if (folder) {
+        menu.addItem((item) => {
+          item.setTitle(`Filter: ${folder}`)
+            .setIcon("folder")
+            .onClick(() => this.host.setSearchQuery(`path:${folder}`));
+        });
+      }
+    }
+    if (node.data.tags && node.data.tags.length > 0) {
+      const firstTag = node.data.tags[0];
+      menu.addItem((item) => {
+        item.setTitle(`Filter: #${firstTag}`)
+          .setIcon("tag")
+          .onClick(() => this.host.setSearchQuery(`tag:${firstTag}`));
       });
     }
 

@@ -787,3 +787,47 @@ test.describe("13. Node Metadata", () => {
     expect(result.label).toBeTruthy();
   });
 });
+
+// =========================================================================
+// 14. Legend Content
+// =========================================================================
+test.describe("14. Legend Content", () => {
+  test("14.1 category legend shows color entries when showLegend=true", async () => {
+    await renderAndVerify(page, {
+      showLegend: true,
+      nodeColorMode: "category",
+    }, async (p) => {
+      const visible = await p.evaluate(() => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        return v?.legendEl?.style.display !== "none";
+      });
+      return visible === true;
+    });
+
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.legendEl) return { error: "no legend" };
+      const sections = v.legendEl.querySelectorAll(".gi-legend-section-title");
+      const items = v.legendEl.querySelectorAll(".gi-legend-item");
+      const dots = v.legendEl.querySelectorAll(".gi-legend-color-dot");
+      return {
+        sectionCount: sections.length,
+        itemCount: items.length,
+        dotCount: dots.length,
+        visible: v.legendEl.style.display !== "none",
+      };
+    });
+
+    expect(result).not.toHaveProperty("error");
+    expect(result.visible).toBe(true);
+    expect(result.sectionCount).toBeGreaterThan(0);
+    expect(result.itemCount).toBeGreaterThan(0);
+    expect(result.dotCount).toBeGreaterThan(0);
+
+    // Restore
+    await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (v) { v.panel.showLegend = false; v.panel.nodeColorMode = "default"; }
+    });
+  });
+});
