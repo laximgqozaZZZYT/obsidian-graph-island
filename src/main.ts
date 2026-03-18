@@ -47,12 +47,17 @@ export default class GraphViewsPlugin extends Plugin {
   }
 
   async activateView() {
-    const leaf = this.app.workspace.getLeaf('tab');
-    await leaf.setViewState({
-      type: VIEW_TYPE_GRAPH,
-      active: true,
-    });
-    this.app.workspace.revealLeaf(leaf);
+    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH);
+    if (existing.length > 0) {
+      this.app.workspace.revealLeaf(existing[0]);
+    } else {
+      const leaf = this.app.workspace.getLeaf('tab');
+      await leaf.setViewState({
+        type: VIEW_TYPE_GRAPH,
+        active: true,
+      });
+      this.app.workspace.revealLeaf(leaf);
+    }
 
     // Open the detail pane in the right sidebar if not already open
     this.ensureDetailPane();
