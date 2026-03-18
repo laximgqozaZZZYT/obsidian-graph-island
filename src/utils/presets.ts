@@ -40,6 +40,10 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showGraphStats",
   "showAncestryBreadcrumb",
   "showPathfinderOverlay",
+  "semanticZoom",
+  "showTagBadges",
+  "showImportanceRing",
+  "showRecencyMarker",
 ];
 
 /** Fields that should be number */
@@ -52,6 +56,7 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "cableTrunkWidth", "cableTrunkAlpha", "cableSpacing", "cableFanWidth", "cableFanAlpha",
   "localGraphHops",
   "navHistoryCursor",
+  "recencyDays",
 ];
 
 /** Fields that should be string */
@@ -61,6 +66,7 @@ const STRING_FIELDS: (keyof PanelState)[] = [
   "gridStyle", "gridLabelPlacement", "edgeCardinalityMode",
   "cableBundleMode",
   "orphanClusterField",
+  "definitionField",
   "nodeSubLabelFields",
   "hoverTooltipFields",
 ];
@@ -84,6 +90,7 @@ const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   edgeDirectionFilter: ["all", "bidirectional", "unidirectional"] as const,
   edgeLabelPlacement: ["center", "offset", "smart"] as const,
   nodeColorMode: ["default", "category", "heatmap", "community"] as const,
+  importanceMetric: ["degree", "betweenness", "pagerank"] as const,
   activeTab: ["filter", "display", "layout", "settings"] as const,
 };
 

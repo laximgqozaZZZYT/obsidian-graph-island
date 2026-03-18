@@ -939,6 +939,58 @@ function _buildNodeDisplayModeSection(
   }, t("desc.nodeDisplayMode"), false, "layout-grid");
 }
 
+function _buildNodeDecorationSection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("section.nodeDecorations"), (body) => {
+    // Semantic zoom
+    addToggle(body, t("display.semanticZoom"), panel.semanticZoom, (v) => {
+      panel.semanticZoom = v;
+      cb.markDirty();
+    }, t("desc.semanticZoom"));
+    // Tag badges
+    addToggle(body, t("display.showTagBadges"), panel.showTagBadges, (v) => {
+      panel.showTagBadges = v;
+      cb.markDirty();
+    }, t("desc.showTagBadges"));
+    // Importance ring
+    addToggle(body, t("display.showImportanceRing"), panel.showImportanceRing, (v) => {
+      panel.showImportanceRing = v;
+      cb.markDirty();
+      cb.rebuildPanel();
+    }, t("desc.showImportanceRing"));
+    if (panel.showImportanceRing) {
+      addSelect(body, t("display.importanceMetric"), [
+        { value: "degree", label: t("display.metricDegree") },
+        { value: "betweenness", label: t("display.metricBetweenness") },
+        { value: "pagerank", label: t("display.metricPagerank") },
+      ], panel.importanceMetric, (v) => {
+        panel.importanceMetric = v as "degree" | "betweenness" | "pagerank";
+        cb.markDirty();
+      }, t("desc.importanceMetric"));
+    }
+    // Recency marker
+    addToggle(body, t("display.showRecencyMarker"), panel.showRecencyMarker, (v) => {
+      panel.showRecencyMarker = v;
+      cb.markDirty();
+      cb.rebuildPanel();
+    }, t("desc.showRecencyMarker"));
+    if (panel.showRecencyMarker) {
+      addSlider(body, t("display.recencyDays"), 1, 90, 1, panel.recencyDays, (v) => {
+        panel.recencyDays = v;
+        cb.markDirty();
+      });
+    }
+    // Definition field
+    addTextInput(body, t("display.definitionField"), panel.definitionField,
+      "e.g. definition, summary",
+      (v) => {
+        panel.definitionField = v.trim();
+        cb.doRenderKeepPanel();
+      });
+  }, undefined, false, "sparkles");
+}
+
 function _buildEdgeDisplaySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
@@ -1185,6 +1237,7 @@ function buildDisplayTab(
 ): void {
   _buildNodeDisplaySection(displayTab, panel, ctx, cb);
   _buildNodeDisplayModeSection(displayTab, panel, ctx, cb);
+  _buildNodeDecorationSection(displayTab, panel, ctx, cb);
   _buildEdgeDisplaySection(displayTab, panel, ctx, cb);
   _buildCableDisplaySection(displayTab, panel, ctx, cb);
   _buildRoadNetworkSection(displayTab, panel, ctx, cb);

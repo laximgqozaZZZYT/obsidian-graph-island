@@ -11,7 +11,7 @@ import { applyTreeLayout } from "../layouts/tree";
 import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
-import { computeNodeDegrees, computeGraphStats } from "../analysis/graph-analysis";
+import { computeNodeDegrees, computeGraphStats, computeBetweennessCentrality } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON } from "../utils/graph-helpers";
@@ -106,6 +106,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private louvainCache: { dataRef: GraphData; groups: GroupSpec[] } | null = null;
   /** Louvain community map キャッシュ (originalGraphData 参照で無効化) */
   private _communityMapCache: { ref: GraphData | null; map: Map<string, number> } | null = null;
+  /** Betweenness centrality cache — recomputed when rawData changes */
+  private _betweennessCache: Map<string, number> | null = null;
+  private _betweennessCacheRef: GraphData | null = null;
   private ac: AbortController | null = null;
   private statusEl: HTMLElement | null = null;
   private zoomIndicatorEl: HTMLElement | null = null;
@@ -2110,6 +2113,35 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** 未接続同タグノードIDセットを取得（RenderHost用） */
   getMissingNeighborNodeIds(): Set<string> | null {
     return this.missingNeighborNodeIds;
+  }
+
+  /** RenderHost: tag badges enabled */
+  getShowTagBadges(): boolean {
+    return this.panel.showTagBadges;
+  }
+
+  /** RenderHost: importance ring config */
+  getShowImportanceRing(): { metric: "degree" | "betweenness" | "pagerank" } | null {
+    if (!this.panel.showImportanceRing) return null;
+    return { metric: this.panel.importanceMetric };
+  }
+
+  /** RenderHost: recency config */
+  getRecencyConfig(): { days: number } | null {
+    if (!this.panel.showRecencyMarker) return null;
+    return { days: this.panel.recencyDays };
+  }
+
+  /** RenderHost: betweenness centrality cache (lazy computation) */
+  getBetweennessCache(): Map<string, number> | null {
+    if (this._betweennessCacheRef === this.rawData && this._betweennessCache) {
+      return this._betweennessCache;
+    }
+    const gd = this.getGraphData();
+    if (!gd || gd.nodes.length === 0) return null;
+    this._betweennessCache = computeBetweennessCentrality(gd.nodes, gd.edges);
+    this._betweennessCacheRef = this.rawData;
+    return this._betweennessCache;
   }
 
   /** 比較イベントをワークスペースに発火。2ノード揃ったらパスファインダーも連動。 */
