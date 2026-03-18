@@ -585,6 +585,11 @@ export function buildPanel(
   // --- 検索構文ハイライトプレビュー ---
   const syntaxPreview = searchWrapper.createDiv({ cls: "gi-search-syntax" });
   syntaxPreview.style.cssText = "font-size:10px;padding:2px 4px;color:var(--text-muted);display:none;white-space:nowrap;overflow:hidden;";
+  const KNOWN_QUERY_FIELDS = new Set([
+    "path", "tag", "category", "file", "id", "label", "folder",
+    "node_type", "prop-category", "story_order", "start-date", "date",
+    "hop", "degree", "connected", ...cb.collectFieldSuggestions(),
+  ]);
   const updateSyntaxPreview = () => {
     const q = searchBar.value.trim();
     if (!q) { syntaxPreview.style.display = "none"; return; }
@@ -595,9 +600,12 @@ export function buildPanel(
       if (i > 0) syntaxPreview.appendText(" ");
       const colonIdx = tokens[i].indexOf(":");
       if (colonIdx > 0) {
+        const fieldName = tokens[i].slice(0, colonIdx);
+        const isValid = KNOWN_QUERY_FIELDS.has(fieldName);
         const field = syntaxPreview.createEl("span", { text: tokens[i].slice(0, colonIdx + 1) });
-        field.style.color = "var(--interactive-accent)";
+        field.style.color = isValid ? "var(--interactive-accent)" : "var(--text-error, #e53e3e)";
         field.style.fontWeight = "600";
+        if (!isValid) field.title = `Unknown field: ${fieldName}`;
         syntaxPreview.createEl("span", { text: tokens[i].slice(colonIdx + 1) });
       } else if (["OR", "AND", "XOR", "NOR", "NAND"].includes(tokens[i].toUpperCase())) {
         const op = syntaxPreview.createEl("span", { text: tokens[i] });

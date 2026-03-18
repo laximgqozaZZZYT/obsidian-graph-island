@@ -923,3 +923,36 @@ test.describe("16. Group Expand/Collapse", () => {
     });
   });
 });
+
+// =========================================================================
+// 17. FPS Monitor
+// =========================================================================
+test.describe("17. FPS Monitor", () => {
+  test("17.1 showFpsMonitor setting persists in panel", async () => {
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
+      v.panel.renderThresholds.showFpsMonitor = true;
+    });
+
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      return {
+        showFps: v.panel.renderThresholds?.showFpsMonitor ?? false,
+        hasRenderThresholds: !!v.panel.renderThresholds,
+      };
+    });
+
+    expect(result).not.toHaveProperty("error");
+    expect(result.showFps).toBe(true);
+    expect(result.hasRenderThresholds).toBe(true);
+
+    // Disable
+    await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (v?.panel?.renderThresholds) v.panel.renderThresholds.showFpsMonitor = false;
+    });
+  });
+});
