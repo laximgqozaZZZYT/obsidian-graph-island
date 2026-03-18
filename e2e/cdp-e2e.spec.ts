@@ -752,3 +752,38 @@ test.describe("12. Enclosure Min Ratio", () => {
     await page.waitForTimeout(3000);
   });
 });
+
+// =========================================================================
+// 13. Node Detail / Hover Metadata
+// =========================================================================
+test.describe("13. Node Metadata", () => {
+  test("13.1 node metadata is accessible via pixiNodes and contains expected fields", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.pixiNodes) return { error: "no view" };
+      // Pick first non-tag node with metadata
+      for (const pn of v.pixiNodes.values()) {
+        if (pn.data.isTag) continue;
+        const meta = pn.data.meta;
+        if (meta && Object.keys(meta).length > 0) {
+          return {
+            label: pn.data.label,
+            hasId: !!pn.data.id,
+            hasMeta: true,
+            metaKeys: Object.keys(meta).sort(),
+            metaKeyCount: Object.keys(meta).length,
+            hasCategory: !!pn.data.category,
+            hasTags: !!(pn.data.tags && pn.data.tags.length > 0),
+          };
+        }
+      }
+      return { error: "no node with metadata found" };
+    });
+
+    expect(result).not.toHaveProperty("error");
+    expect(result.hasId).toBe(true);
+    expect(result.hasMeta).toBe(true);
+    expect(result.metaKeyCount).toBeGreaterThan(0);
+    expect(result.label).toBeTruthy();
+  });
+});

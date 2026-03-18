@@ -199,6 +199,33 @@ function desaturateColor(color: number, factor: number): number {
   return (nr << 16) | (ng << 8) | nb;
 }
 
+/** Simple deterministic hash of a string to a hue value (0–360). */
+function hashStringToHue(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return ((hash % 360) + 360) % 360;
+}
+
+/** Convert HSL (h: 0–360, s: 0–1, l: 0–1) to a numeric hex color (0xRRGGBB). */
+function hslToHex(h: number, s: number, l: number): number {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60)      { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else              { r = c; b = x; }
+  const ri = Math.round((r + m) * 255);
+  const gi = Math.round((g + m) * 255);
+  const bi = Math.round((b + m) * 255);
+  return (ri << 16) | (gi << 8) | bi;
+}
+
 // ---------------------------------------------------------------------------
 // RenderHost — the interface the RenderPipeline needs from its parent
 // ---------------------------------------------------------------------------
@@ -284,6 +311,14 @@ export interface RenderHost {
   getNodeProperty?(nodeId: string, key: string): string | undefined;
   /** Get the configured sub-label field names (comma-separated string) */
   getNodeSubLabelFields?(): string;
+  /** Whether tag badges should be shown */
+  getShowTagBadges?(): boolean;
+  /** Whether importance ring should be shown, and with which metric */
+  getShowImportanceRing?(): { metric: "degree" | "betweenness" | "pagerank" } | null;
+  /** Recency configuration (null = disabled) */
+  getRecencyConfig?(): { days: number } | null;
+  /** Get betweenness centrality cache */
+  getBetweennessCache?(): Map<string, number> | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -531,6 +566,21 @@ export class RenderPipeline {
 
     // Pass 7: 未接続同タグノードのオレンジリング
     this._renderMissingNeighborRings(g, ctx);
+
+    // Pass 8: Tag badges on node circumference
+    if (this.host.getShowTagBadges?.() && !ctx.isExtremeZoom) {
+      this._renderTagBadges(g, ctx);
+    }
+
+    // Pass 9: Importance ring
+    if (this.host.getShowImportanceRing?.() && !ctx.isExtremeZoom) {
+      this._renderImportanceRings(g, ctx);
+    }
+
+    // Pass 10: Recency marker
+    if (this.host.getRecencyConfig?.() && !ctx.isExtremeZoom) {
+      this._renderRecencyMarkers(g, ctx);
+    }
   }
 
   // =========================================================================
@@ -1341,6 +1391,132 @@ export class RenderPipeline {
         }
       }
       g.endFill();
+    }
+  }
+
+  // =========================================================================
+  // Pass 8: Tag badges — colored pills on node circumference
+  // =========================================================================
+  private _renderTagBadges(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[] },
+  ) {
+    const MAX_BADGES = 4;
+    const BADGE_R = 3;
+    const PAD = 2;
+
+    for (const pn of ctx.visible) {
+      const tags = pn.data.tags;
+      if (!tags || tags.length === 0) continue;
+      const nodeR = pn.radius;
+      const cx = pn.data.x;
+      const cy = pn.data.y;
+      const count = Math.min(tags.length, MAX_BADGES);
+      const startAngle = -Math.PI / 2; // top
+
+      for (let i = 0; i < count; i++) {
+        const angle = startAngle + (i / count) * Math.PI * 2;
+        const bx = cx + Math.cos(angle) * (nodeR + PAD + BADGE_R);
+        const by = cy + Math.sin(angle) * (nodeR + PAD + BADGE_R);
+        // Deterministic color from tag string hash
+        const hue = hashStringToHue(tags[i]);
+        const color = hslToHex(hue, 0.7, 0.5);
+        g.lineStyle(0);
+        g.beginFill(color, 0.9);
+        g.drawCircle(bx, by, BADGE_R);
+        g.endFill();
+      }
+      // Overflow indicator
+      if (tags.length > MAX_BADGES) {
+        const angle = startAngle + (MAX_BADGES / (MAX_BADGES + 1)) * Math.PI * 2;
+        const bx = cx + Math.cos(angle) * (nodeR + PAD + BADGE_R);
+        const by = cy + Math.sin(angle) * (nodeR + PAD + BADGE_R);
+        g.lineStyle(1, 0x888888, 0.7);
+        g.beginFill(0x888888, 0.4);
+        g.drawCircle(bx, by, BADGE_R);
+        g.endFill();
+      }
+    }
+  }
+
+  // =========================================================================
+  // Pass 9: Importance ring — metric-proportional ring around nodes
+  // =========================================================================
+  private _renderImportanceRings(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[] },
+  ) {
+    const config = this.host.getShowImportanceRing?.();
+    if (!config) return;
+
+    const degrees = this.host.getDegrees();
+    let metricMap: Map<string, number>;
+    if (config.metric === "betweenness") {
+      metricMap = this.host.getBetweennessCache?.() ?? degrees;
+    } else {
+      metricMap = degrees;
+    }
+    if (metricMap.size === 0) return;
+
+    // Find max for normalization
+    let maxVal = 0;
+    for (const v of metricMap.values()) {
+      if (v > maxVal) maxVal = v;
+    }
+    if (maxVal === 0) return;
+
+    const RING_PAD = 3;
+    const MAX_RING_WIDTH = 4;
+
+    for (const pn of ctx.visible) {
+      const val = metricMap.get(pn.data.id) ?? 0;
+      if (val === 0) continue;
+      const t = val / maxVal; // 0..1
+      const ringWidth = 1 + t * MAX_RING_WIDTH;
+      // Cool (blue) to warm (red) gradient
+      const hue = (1 - t) * 240; // 240=blue, 0=red
+      const color = hslToHex(hue, 0.8, 0.5);
+      g.lineStyle(ringWidth, color, 0.6);
+      g.drawCircle(pn.data.x, pn.data.y, pn.radius + RING_PAD);
+      g.lineStyle(0);
+    }
+  }
+
+  // =========================================================================
+  // Pass 10: Recency marker — green dot for recent, fade for old
+  // =========================================================================
+  private _renderRecencyMarkers(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[] },
+  ) {
+    const config = this.host.getRecencyConfig?.();
+    if (!config) return;
+
+    const now = Date.now();
+    const recentThresholdMs = config.days * 24 * 60 * 60 * 1000;
+    const oldThresholdMs = 90 * 24 * 60 * 60 * 1000; // 90 days
+    const DOT_R = 3;
+
+    for (const pn of ctx.visible) {
+      const mtime = pn.data.mtime;
+      if (!mtime) continue;
+      const age = now - mtime;
+
+      if (age < recentThresholdMs) {
+        // Recent: green dot at top-right
+        const dx = pn.radius * 0.7;
+        const dy = -pn.radius * 0.7;
+        g.lineStyle(0);
+        g.beginFill(0x22c55e, 0.9); // green-500
+        g.drawCircle(pn.data.x + dx, pn.data.y + dy, DOT_R);
+        g.endFill();
+      } else if (age > oldThresholdMs) {
+        // Old: semi-transparent overlay to fade
+        g.lineStyle(0);
+        g.beginFill(0x000000, 0.3);
+        g.drawCircle(pn.data.x, pn.data.y, pn.radius);
+        g.endFill();
+      }
     }
   }
 

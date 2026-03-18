@@ -77,6 +77,11 @@ export function buildGraphFromVault(
     };
     // meta is a live getter — reads from metadataCache on every access
     defineLiveMeta(node, app);
+    // Extract body preview (first 100 chars, YAML stripped)
+    const rawContent = app.vault.cachedRead(file);
+    if (typeof rawContent === "string") {
+      node.bodyPreview = extractBodyPreview(rawContent, 100);
+    }
     nodes.push(node);
     nodeMap.set(file.path, node);
   }
@@ -642,4 +647,24 @@ function extractTags(
   }
 
   return tags;
+}
+
+/**
+ * Extract a body preview from file content by stripping YAML frontmatter
+ * and returning the first `maxLen` characters of body text.
+ */
+function extractBodyPreview(content: string, maxLen: number): string {
+  let body = content;
+  // Strip YAML frontmatter (--- ... ---)
+  if (body.startsWith("---")) {
+    const endIdx = body.indexOf("---", 3);
+    if (endIdx > 0) {
+      body = body.substring(endIdx + 3);
+    }
+  }
+  // Strip leading whitespace, headings, and blank lines
+  body = body.replace(/^\s+/, "").replace(/^#+\s*/gm, "");
+  // Collapse whitespace
+  body = body.replace(/\s+/g, " ").trim();
+  return body.length > maxLen ? body.substring(0, maxLen) + "…" : body;
 }

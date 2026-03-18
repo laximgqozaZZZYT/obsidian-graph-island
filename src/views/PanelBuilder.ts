@@ -204,6 +204,20 @@ export interface PanelState {
   navHistory: string[];
   /** Navigation history cursor (index into navHistory, -1 = latest) */
   navHistoryCursor: number;
+  /** Enable semantic zoom: per-node LOD based on screen size */
+  semanticZoom: boolean;
+  /** Show colored tag badges on node circumference */
+  showTagBadges: boolean;
+  /** Show importance ring around nodes (based on selected metric) */
+  showImportanceRing: boolean;
+  /** Metric for importance ring: degree, betweenness, or pagerank */
+  importanceMetric: "degree" | "betweenness" | "pagerank";
+  /** Show recency marker (green dot for recent, fade for old) */
+  showRecencyMarker: boolean;
+  /** Recency threshold in days (nodes modified within this period get green dot) */
+  recencyDays: number;
+  /** Frontmatter field to show as definition (bold, large) at top of card */
+  definitionField: string;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -333,6 +347,13 @@ export function createDefaultPanel(): PanelState {
     pinnedPositions: {},
     navHistory: [],
     navHistoryCursor: -1,
+    semanticZoom: false,
+    showTagBadges: false,
+    showImportanceRing: false,
+    importanceMetric: "degree" as const,
+    showRecencyMarker: false,
+    recencyDays: 7,
+    definitionField: "",
   };
 }
 
