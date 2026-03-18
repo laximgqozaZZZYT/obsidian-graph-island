@@ -319,6 +319,10 @@ export interface RenderHost {
   getRecencyConfig?(): { days: number } | null;
   /** Get betweenness centrality cache */
   getBetweennessCache?(): Map<string, number> | null;
+  /** Get bridge node IDs (top betweenness) — null if disabled */
+  getBridgeNodeIds?(): Set<string> | null;
+  /** Get articulation point IDs — null if disabled */
+  getArticulationPointIds?(): Set<string> | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -580,6 +584,16 @@ export class RenderPipeline {
     // Pass 10: Recency marker
     if (this.host.getRecencyConfig?.() && !ctx.isExtremeZoom) {
       this._renderRecencyMarkers(g, ctx);
+    }
+
+    // Pass 11: Bridge nodes — gold ring for high betweenness
+    if (this.host.getBridgeNodeIds?.() && !ctx.isExtremeZoom) {
+      this._renderBridgeNodes(g, ctx);
+    }
+
+    // Pass 12: Articulation point warning ring
+    if (this.host.getArticulationPointIds?.() && !ctx.isExtremeZoom) {
+      this._renderArticulationPoints(g, ctx);
     }
   }
 
@@ -1517,6 +1531,52 @@ export class RenderPipeline {
         g.drawCircle(pn.data.x, pn.data.y, pn.radius);
         g.endFill();
       }
+    }
+  }
+
+  // =========================================================================
+  // Pass 11: Bridge nodes — gold ring for high betweenness centrality
+  // =========================================================================
+  private _renderBridgeNodes(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[] },
+  ) {
+    const bridgeIds = this.host.getBridgeNodeIds?.();
+    if (!bridgeIds || bridgeIds.size === 0) return;
+
+    const GOLD = 0xffd700;
+    const RING_WIDTH = 3;
+    const PAD = 5;
+
+    for (const pn of ctx.visible) {
+      if (!bridgeIds.has(pn.data.id)) continue;
+      g.lineStyle(RING_WIDTH, GOLD, 0.8);
+      g.drawCircle(pn.data.x, pn.data.y, pn.radius + PAD);
+      g.lineStyle(0);
+    }
+  }
+
+  // =========================================================================
+  // Pass 12: Articulation points — red warning ring
+  // =========================================================================
+  private _renderArticulationPoints(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[] },
+  ) {
+    const apIds = this.host.getArticulationPointIds?.();
+    if (!apIds || apIds.size === 0) return;
+
+    const WARNING_COLOR = 0xff4444;
+    const RING_WIDTH = 2;
+    const PAD = 6;
+
+    for (const pn of ctx.visible) {
+      if (!apIds.has(pn.data.id)) continue;
+      // Double ring to distinguish from bridge nodes
+      g.lineStyle(RING_WIDTH, WARNING_COLOR, 0.7);
+      g.drawCircle(pn.data.x, pn.data.y, pn.radius + PAD);
+      g.drawCircle(pn.data.x, pn.data.y, pn.radius + PAD + 3);
+      g.lineStyle(0);
     }
   }
 

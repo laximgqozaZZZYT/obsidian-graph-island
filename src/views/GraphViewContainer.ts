@@ -11,7 +11,7 @@ import { applyTreeLayout } from "../layouts/tree";
 import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
-import { computeNodeDegrees, computeGraphStats, computeBetweennessCentrality } from "../analysis/graph-analysis";
+import { computeNodeDegrees, computeGraphStats, computeBetweennessCentrality, detectArticulationPoints } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON } from "../utils/graph-helpers";
@@ -2130,6 +2130,29 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getRecencyConfig(): { days: number } | null {
     if (!this.panel.showRecencyMarker) return null;
     return { days: this.panel.recencyDays };
+  }
+
+  /** RenderHost: bridge node IDs (top 10% betweenness) */
+  getBridgeNodeIds(): Set<string> | null {
+    if (!this.panel.showBridgeNodes) return null;
+    const bc = this.getBetweennessCache();
+    if (!bc || bc.size === 0) return null;
+    // Top 10% by betweenness
+    const sorted = [...bc.entries()].sort((a, b) => b[1] - a[1]);
+    const cutoff = Math.max(1, Math.floor(sorted.length * 0.1));
+    const result = new Set<string>();
+    for (let i = 0; i < cutoff; i++) {
+      if (sorted[i][1] > 0) result.add(sorted[i][0]);
+    }
+    return result;
+  }
+
+  /** RenderHost: articulation point IDs */
+  getArticulationPointIds(): Set<string> | null {
+    if (!this.panel.highlightPatterns) return null;
+    const gd = this.getGraphData();
+    if (!gd || gd.nodes.length === 0) return null;
+    return detectArticulationPoints(gd.nodes, gd.edges);
   }
 
   /** RenderHost: betweenness centrality cache (lazy computation) */

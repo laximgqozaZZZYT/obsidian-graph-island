@@ -44,6 +44,9 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showTagBadges",
   "showImportanceRing",
   "showRecencyMarker",
+  "showHierarchyOverlay",
+  "highlightPatterns",
+  "showBridgeNodes",
 ];
 
 /** Fields that should be number */
@@ -91,6 +94,8 @@ const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   edgeLabelPlacement: ["center", "offset", "smart"] as const,
   nodeColorMode: ["default", "category", "heatmap", "community"] as const,
   importanceMetric: ["degree", "betweenness", "pagerank"] as const,
+  clusterLabelDetail: ["minimal", "standard", "detailed"] as const,
+  gapDetectionMode: ["within-tag", "cross-cluster", "both"] as const,
   activeTab: ["filter", "display", "layout", "settings"] as const,
 };
 

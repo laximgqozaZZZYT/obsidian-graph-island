@@ -218,6 +218,19 @@ export interface PanelState {
   recencyDays: number;
   /** Frontmatter field to show as definition (bold, large) at top of card */
   definitionField: string;
+  // --- Phase 3: Structure visualization ---
+  /** Show inheritance edges as thick overlay on any layout */
+  showHierarchyOverlay: boolean;
+  /** Cluster label detail level */
+  clusterLabelDetail: "minimal" | "standard" | "detailed";
+  /** Gap detection mode for missing connections */
+  gapDetectionMode: "within-tag" | "cross-cluster" | "both";
+  /** Highlight structural patterns (articulation points, spokes, cliques) */
+  highlightPatterns: boolean;
+  /** Highlight bridge nodes (top betweenness centrality) */
+  showBridgeNodes: boolean;
+  /** Highlight a specific connected component (null = off) */
+  highlightComponent: number | null;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -354,6 +367,12 @@ export function createDefaultPanel(): PanelState {
     showRecencyMarker: false,
     recencyDays: 7,
     definitionField: "",
+    showHierarchyOverlay: false,
+    clusterLabelDetail: "standard" as const,
+    gapDetectionMode: "within-tag" as const,
+    highlightPatterns: false,
+    showBridgeNodes: false,
+    highlightComponent: null,
   };
 }
 
@@ -991,6 +1010,41 @@ function _buildNodeDecorationSection(
   }, undefined, false, "sparkles");
 }
 
+function _buildStructureAnalysisSection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("section.structureAnalysis"), (body) => {
+    addToggle(body, t("display.showHierarchyOverlay"), panel.showHierarchyOverlay, (v) => {
+      panel.showHierarchyOverlay = v;
+      cb.markDirty();
+    }, t("desc.showHierarchyOverlay"));
+    addSelect(body, t("display.clusterLabelDetail"), [
+      { value: "minimal", label: t("display.clusterLabelMinimal") },
+      { value: "standard", label: t("display.clusterLabelStandard") },
+      { value: "detailed", label: t("display.clusterLabelDetailed") },
+    ], panel.clusterLabelDetail, (v) => {
+      panel.clusterLabelDetail = v as "minimal" | "standard" | "detailed";
+      cb.markDirty();
+    }, t("desc.clusterLabelDetail"));
+    addSelect(body, t("display.gapDetectionMode"), [
+      { value: "within-tag", label: t("display.gapWithinTag") },
+      { value: "cross-cluster", label: t("display.gapCrossCluster") },
+      { value: "both", label: t("display.gapBoth") },
+    ], panel.gapDetectionMode, (v) => {
+      panel.gapDetectionMode = v as "within-tag" | "cross-cluster" | "both";
+      cb.markDirty();
+    }, t("desc.gapDetectionMode"));
+    addToggle(body, t("display.highlightPatterns"), panel.highlightPatterns, (v) => {
+      panel.highlightPatterns = v;
+      cb.markDirty();
+    }, t("desc.highlightPatterns"));
+    addToggle(body, t("display.showBridgeNodes"), panel.showBridgeNodes, (v) => {
+      panel.showBridgeNodes = v;
+      cb.markDirty();
+    }, t("desc.showBridgeNodes"));
+  }, undefined, false, "git-branch");
+}
+
 function _buildEdgeDisplaySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
@@ -1238,6 +1292,7 @@ function buildDisplayTab(
   _buildNodeDisplaySection(displayTab, panel, ctx, cb);
   _buildNodeDisplayModeSection(displayTab, panel, ctx, cb);
   _buildNodeDecorationSection(displayTab, panel, ctx, cb);
+  _buildStructureAnalysisSection(displayTab, panel, ctx, cb);
   _buildEdgeDisplaySection(displayTab, panel, ctx, cb);
   _buildCableDisplaySection(displayTab, panel, ctx, cb);
   _buildRoadNetworkSection(displayTab, panel, ctx, cb);
