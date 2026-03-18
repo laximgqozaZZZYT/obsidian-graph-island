@@ -23,6 +23,30 @@ describe("cssColorToHex", () => {
     expect(cssColorToHex("rgb(0,128,255)")).toBe(0x0080ff);
   });
 
+  it("parses short hex #abc to #aabbcc", () => {
+    expect(cssColorToHex("#abc")).toBe(0xaabbcc);
+  });
+
+  it("parses short hex #f00 to #ff0000", () => {
+    expect(cssColorToHex("#f00")).toBe(0xff0000);
+  });
+
+  it("parses 4-digit hex #abcd ignoring alpha", () => {
+    expect(cssColorToHex("#abcd")).toBe(0xaabbcc);
+  });
+
+  it("parses 8-digit hex #rrggbbaa ignoring alpha", () => {
+    expect(cssColorToHex("#ff000080")).toBe(0xff0000);
+  });
+
+  it("parses rgba() format", () => {
+    expect(cssColorToHex("rgba(255, 0, 0, 0.5)")).toBe(0xff0000);
+  });
+
+  it("parses rgba() with no spaces", () => {
+    expect(cssColorToHex("rgba(0,128,255,1)")).toBe(0x0080ff);
+  });
+
   it("returns default for unrecognized format", () => {
     expect(cssColorToHex("hsl(0, 100%, 50%)")).toBe(0x6366f1);
   });
