@@ -240,7 +240,9 @@ export function applyTimelineLayout(
   // Map node → time index
   const nodeTimeIndex = new Map<string, number>();
   for (const [nodeId, tv] of nodeTimeValues) {
-    nodeTimeIndex.set(nodeId, timeIndexMap.get(tv)!);
+    const idx = timeIndexMap.get(tv);
+    if (idx === undefined) continue;
+    nodeTimeIndex.set(nodeId, idx);
   }
 
   // 3. Build DAG from sequence edges

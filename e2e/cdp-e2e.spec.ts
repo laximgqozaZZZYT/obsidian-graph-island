@@ -266,56 +266,43 @@ test.describe("3. Node Coloring", () => {
   });
 
   test("3.2 community mode produces exactly 20 distinct colors", async () => {
-    // Community: needs doRender with skipPanelRebuild so _buildNodeColorFn
-    // computes Louvain communities. DO NOT call recolorNodes afterward
-    // (it fails without originalGraphData when groupBy is inactive).
-    await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (!v) return;
-      v.panel.nodeColorMode = "community";
-      v.panel.colorNodesByCategory = false;
-      v.panel.heatmapMode = false;
-      v.skipPanelRebuildCount = (v.skipPanelRebuildCount || 0) + 1;
-      v.rawData = null;
-      await v.doRender();
-      v.panel.nodeColorMode = "community";
-      v.skipPanelRebuildCount = Math.max(0, (v.skipPanelRebuildCount || 0) - 1);
-    });
-    await waitStable(page);
-
-    const colorCount = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (!v?.pixiNodes) return -1;
-      const c = new Set<number>();
-      for (const pn of v.pixiNodes.values()) if (pn.color != null) c.add(pn.color);
-      return c.size;
+    // Community: use renderWith (with retry) to ensure settings stick,
+    // then recolor after deferred batch completes. renderWith calls doRender
+    // which builds the community map via _buildNodeColorFn.
+    let colorCount = -1;
+    await renderAndVerify(page, {
+      nodeColorMode: "community",
+      colorNodesByCategory: false,
+      heatmapMode: false,
+    }, async (p) => {
+      colorCount = await p.evaluate(() => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        if (!v?.pixiNodes) return -1;
+        const c = new Set<number>();
+        for (const pn of v.pixiNodes.values()) if (pn.color != null) c.add(pn.color);
+        return c.size;
+      });
+      return colorCount === 20;
     });
     expect(colorCount).toBe(20);
   });
 
   test("3.3 heatmap mode produces many distinct colors", async () => {
-    // Heatmap: needs doRender with skipPanelRebuild
-    await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (!v) return;
-      v.panel.nodeColorMode = "heatmap";
-      v.panel.colorNodesByCategory = false;
-      v.panel.heatmapMode = true;
-      v.skipPanelRebuildCount = (v.skipPanelRebuildCount || 0) + 1;
-      v.rawData = null;
-      await v.doRender();
-      v.panel.nodeColorMode = "heatmap";
-      v.panel.heatmapMode = true;
-      v.skipPanelRebuildCount = Math.max(0, (v.skipPanelRebuildCount || 0) - 1);
-    });
-    await waitStable(page);
-
-    const colorCount = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (!v?.pixiNodes) return -1;
-      const c = new Set<number>();
-      for (const pn of v.pixiNodes.values()) if (pn.color != null) c.add(pn.color);
-      return c.size;
+    // Heatmap: use renderWith (with retry) to ensure settings stick
+    let colorCount = -1;
+    await renderAndVerify(page, {
+      nodeColorMode: "heatmap",
+      colorNodesByCategory: false,
+      heatmapMode: true,
+    }, async (p) => {
+      colorCount = await p.evaluate(() => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        if (!v?.pixiNodes) return -1;
+        const c = new Set<number>();
+        for (const pn of v.pixiNodes.values()) if (pn.color != null) c.add(pn.color);
+        return c.size;
+      });
+      return colorCount >= 20;
     });
     expect(colorCount).toBeGreaterThanOrEqual(20);
 

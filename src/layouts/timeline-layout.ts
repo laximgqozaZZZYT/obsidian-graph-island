@@ -624,9 +624,9 @@ function timelineBuildSequenceEdges(
     const curSynth = cur.value.startsWith("__");
     if (prevSynth !== curSynth) continue;
     if (prevSynth && curSynth) {
-      const prevScheme = prev.value.split("_")[2];
-      const curScheme = cur.value.split("_")[2];
-      if (prevScheme !== curScheme) continue;
+      const prevParts = prev.value.split("_");
+      const curParts = cur.value.split("_");
+      if (prevParts.length > 2 && curParts.length > 2 && prevParts[2] !== curParts[2]) continue;
     }
     seqEdges.push({
       id: `__seq__${prev.node.id}__${cur.node.id}`,

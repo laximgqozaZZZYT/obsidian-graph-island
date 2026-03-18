@@ -4039,7 +4039,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       for (const grp of this.panel.groups) {
         if (grp.expression && evaluateExpr(grp.expression, n)) { color = cssColorToHex(grp.color); matched = true; break; }
       }
-      const colorModeForUpdate = this.panel.nodeColorMode ?? (this.panel.heatmapMode ? "heatmap" : this.panel.colorNodesByCategory ? "category" : "default");
+      const colorModeForUpdate = this.panel.nodeColorMode ?? "category";
       if (!matched && colorModeForUpdate === "category") {
         if (n.category) {
           color = cssColorToHex(colorMap.get(n.category) || DEFAULT_COLORS[0]);
@@ -4173,7 +4173,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     });
 
     // --- ノードカラーセクション ---
-    const legendColorMode = this.panel.nodeColorMode ?? (this.panel.heatmapMode ? "heatmap" : this.panel.colorNodesByCategory ? "category" : "default");
+    const legendColorMode = this.panel.nodeColorMode ?? "category";
     if (colorMap.size > 0 && legendColorMode === "category") {
       const nodeSection = body.createDiv({ cls: "gi-legend-section" });
       nodeSection.createEl("div", { cls: "gi-legend-section-title", text: t("legend.nodeColors") });

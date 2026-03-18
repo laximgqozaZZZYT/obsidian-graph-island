@@ -173,8 +173,8 @@ export interface PanelState {
   showEdgeWeightLabels: boolean;
   /** エッジ多重度ラベル: 同一ノードペア間のエッジ数を表示 (count > 1 only) */
   showEdgeCardinalityLabels: boolean;
-  /** Unified node color mode (replaces colorNodesByCategory + heatmapMode) */
-  nodeColorMode?: "default" | "category" | "heatmap" | "community";
+  /** Unified node color mode */
+  nodeColorMode: "default" | "category" | "heatmap" | "community";
   /** Filter edges by directionality: "all" | "bidirectional" | "unidirectional" */
   edgeDirectionFilter: "all" | "bidirectional" | "unidirectional";
   /** Visual indicator for bidirectional edges (thicker + higher alpha) */
@@ -230,6 +230,7 @@ export function createDefaultPanel(): PanelState {
     colorEdgesByRelation: true,
     colorNodesByCategory: true,
     heatmapMode: false,
+    nodeColorMode: "category" as const,
     showInheritance: true,
     showAggregation: true,
     showTagNodes: true,
@@ -777,7 +778,7 @@ function _buildNodeDisplaySection(
       { value: "heatmap", label: t("display.nodeColor.heatmap") },
       { value: "community", label: t("display.nodeColor.community") },
     ];
-    const currentColorMode = panel.nodeColorMode ?? (panel.heatmapMode ? "heatmap" : panel.colorNodesByCategory ? "category" : "default");
+    const currentColorMode = panel.nodeColorMode ?? "category";
     addSelect(body, t("display.nodeColorMode"), colorModeOptions, currentColorMode, (v) => {
       panel.nodeColorMode = v as "default" | "category" | "heatmap" | "community";
       // Keep legacy fields in sync for backward compat

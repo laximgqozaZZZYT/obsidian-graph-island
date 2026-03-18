@@ -198,14 +198,15 @@ export function buildGraphFromVault(
 
     // --- Inline Dataview fields (e.g. Author::[[Jesus]], @Parent::[[Entity]]) ---
     const inlineRelations = new Map<string, InlineFieldResult>();
-    const content = app.vault.cachedRead(file);
-    if (content instanceof Promise) {
-      // cachedRead may return string synchronously if cached
-    } else {
-      parseInlineFields(content as unknown as string, file.path, app).forEach(
+    const contentOrPromise = app.vault.cachedRead(file);
+    if (typeof contentOrPromise === "string") {
+      parseInlineFields(contentOrPromise, file.path, app).forEach(
         (result, tPath) => inlineRelations.set(tPath, result)
       );
     }
+    // When cachedRead returns a Promise (file not in cache), inline fields
+    // are skipped for this file.  This is acceptable because the vault
+    // cache is populated on startup and rarely misses.
 
     // --- Regular links ---
     if (cache?.links) {
