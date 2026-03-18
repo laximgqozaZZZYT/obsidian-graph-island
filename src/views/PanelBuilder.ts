@@ -44,8 +44,6 @@ export interface PanelState {
   groups: GroupRule[];
   searchQuery: string;
   colorEdgesByRelation: boolean;
-  colorNodesByCategory: boolean;
-  heatmapMode: boolean;
   showInheritance: boolean;
   showAggregation: boolean;
   showTagNodes: boolean;
@@ -230,8 +228,6 @@ export function createDefaultPanel(): PanelState {
     groups: [],
     searchQuery: "",
     colorEdgesByRelation: true,
-    colorNodesByCategory: true,
-    heatmapMode: false,
     nodeColorMode: "category" as const,
     showInheritance: true,
     showAggregation: true,
@@ -778,7 +774,7 @@ function _buildNodeDisplaySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.displayNodes"), (body) => {
-    // Unified nodeColorMode dropdown (replaces legacy colorNodesByCategory + heatmapMode toggles)
+    // Node color mode dropdown
     const colorModeOptions = [
       { value: "default", label: t("display.nodeColor.default") },
       { value: "category", label: t("display.nodeColor.category") },

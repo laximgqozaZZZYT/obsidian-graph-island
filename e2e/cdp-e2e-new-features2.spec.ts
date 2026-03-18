@@ -454,18 +454,31 @@ test("edge glow changes edge rendering without changing node count", async () =>
   const baseline = await resetAndReload(page);
   expect(baseline).toBe(BASELINE);
 
+  // Enable edge glow and wait for deferred rendering to complete
   await page.evaluate(async () => {
     const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
     if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
     v.panel.renderThresholds.edgeStrengthGlow = true;
+    v.rawData = null;
     await v.doRender();
   });
-  await page.waitForTimeout(5000);
-
-  const countOn = await page.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-    return v?.pixiNodes?.size ?? 0;
-  });
+  // Poll until node count stabilizes
+  let countOn = 0;
+  let stableRounds = 0;
+  for (let i = 0; i < 15; i++) {
+    await page.waitForTimeout(1500);
+    const count = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.pixiNodes?.size ?? 0;
+    });
+    if (count === countOn && count > 200) {
+      stableRounds++;
+      if (stableRounds >= 3) break;
+    } else {
+      stableRounds = 0;
+    }
+    countOn = count;
+  }
 
   console.log("Edge glow:", JSON.stringify({ countOff: baseline, countOn }));
   expect(countOn).toBe(BASELINE);

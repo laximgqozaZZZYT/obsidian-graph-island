@@ -258,8 +258,6 @@ test.describe("3. Node Coloring", () => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       if (!v) return;
       v.panel.nodeColorMode = "default";
-      v.panel.colorNodesByCategory = false;
-      v.panel.heatmapMode = false;
       v.recolorNodes();
     });
     await page.waitForTimeout(500);
@@ -281,8 +279,6 @@ test.describe("3. Node Coloring", () => {
     let colorCount = -1;
     await renderAndVerify(page, {
       nodeColorMode: "community",
-      colorNodesByCategory: false,
-      heatmapMode: false,
     }, async (p) => {
       colorCount = await p.evaluate(() => {
         const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -301,8 +297,6 @@ test.describe("3. Node Coloring", () => {
     let colorCount = -1;
     await renderAndVerify(page, {
       nodeColorMode: "heatmap",
-      colorNodesByCategory: false,
-      heatmapMode: true,
     }, async (p) => {
       colorCount = await p.evaluate(() => {
         const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -320,8 +314,6 @@ test.describe("3. Node Coloring", () => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       if (!v) return;
       v.panel.nodeColorMode = "default";
-      v.panel.colorNodesByCategory = false;
-      v.panel.heatmapMode = false;
       v.recolorNodes();
     });
   });
