@@ -324,8 +324,8 @@ test.describe("VF-5: Graph Stats Panel", () => {
       v.panel.showGraphStats = true;
       v.rawData = null;
       v.doRender();
-      // Wait for async render
-      await new Promise(r => setTimeout(r, 3000));
+      // Wait for async render (needs longer after suite transitions)
+      await new Promise(r => setTimeout(r, 6000));
       const statsEl = v.graphStatsEl;
       if (!statsEl) return { error: "no stats element" };
       const display = statsEl.style.display;

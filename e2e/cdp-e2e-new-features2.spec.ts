@@ -56,6 +56,13 @@ test.beforeAll(async ({}, testInfo) => {
     });
     await page.waitForTimeout(2000);
   }
+
+  // Force data load to ensure graph is populated
+  await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (v) { v.rawData = null; v.doRender(); }
+  });
+  await page.waitForTimeout(5000);
 });
 
 test.afterAll(async () => {
@@ -371,13 +378,14 @@ test.describe("4. Graph Statistics Panel (CX)", () => {
       if (leaves.length === 0) return { error: "no view" };
       const view = leaves[0].view;
 
-      // Ensure stats are shown
+      // Ensure stats are shown (force full data reload)
       view.panel.showGraphStats = true;
+      view.rawData = null;
       view.doRender();
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise(r => setTimeout(r, 5000));
 
-      const statsEl = view.containerEl?.querySelector(".gi-graph-stats") ??
-                      document.querySelector(".gi-graph-stats");
+      // Use view's graphStatsEl directly (may differ from DOM querySelector after reload)
+      const statsEl = view.graphStatsEl ?? document.querySelector(".gi-graph-stats");
       const text = statsEl?.textContent ?? "";
 
       // Extract numbers from the stats text
@@ -609,9 +617,10 @@ test.describe("7. Edge Strength Glow (DC)", () => {
       if (leaves.length === 0) return { error: "no view" };
       const view = leaves[0].view;
 
-      // Turn off first
+      // Turn off first (force data reload for stable count)
       if (!view.panel.renderThresholds) view.panel.renderThresholds = {};
       view.panel.renderThresholds.edgeStrengthGlow = false;
+      view.rawData = null;
       view.doRender();
       await new Promise(r => setTimeout(r, 2000));
       const countOff = view.pixiNodes?.size ?? 0;
