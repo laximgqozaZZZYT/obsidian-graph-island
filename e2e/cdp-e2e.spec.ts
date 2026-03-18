@@ -831,3 +831,43 @@ test.describe("14. Legend Content", () => {
     });
   });
 });
+
+// =========================================================================
+// 15. Context Menu Filter (setSearchQuery)
+// =========================================================================
+test.describe("15. Context Menu Filter", () => {
+  test("15.1 searchQuery filter via panel updates node count", async () => {
+    // Filter
+    await renderAndVerify(page, { searchQuery: "path:classic-macbeth" }, async (p) => {
+      const count = await p.evaluate(() => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        return v?.pixiNodes?.size ?? 0;
+      });
+      return count > 50 && count < 500;
+    });
+    const filtered = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.pixiNodes?.size ?? 0;
+    });
+
+    // Restore
+    await renderAndVerify(page, { searchQuery: "" }, async (p) => {
+      const count = await p.evaluate(() => {
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        return v?.pixiNodes?.size ?? 0;
+      });
+      return count > 2000;
+    });
+    const restored = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.pixiNodes?.size ?? 0;
+    });
+
+    const result = { filtered, restored };
+
+    expect(result).not.toHaveProperty("error");
+    expect(result.filtered).toBeGreaterThan(50);
+    expect(result.filtered).toBeLessThan(500);
+    expect(result.restored).toBeGreaterThan(2000);
+  });
+});

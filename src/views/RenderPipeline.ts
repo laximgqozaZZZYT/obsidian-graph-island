@@ -323,6 +323,10 @@ export interface RenderHost {
   getBridgeNodeIds?(): Set<string> | null;
   /** Get articulation point IDs — null if disabled */
   getArticulationPointIds?(): Set<string> | null;
+  /** M4: Get the definition field name for card rendering */
+  getDefinitionField?(): string;
+  /** M1: Whether semantic zoom is enabled */
+  getSemanticZoom?(): boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -824,7 +828,11 @@ export class RenderPipeline {
 
     switch (displayMode) {
       case "node":
-        this._renderNodeMode(g, ctx, crc, rt);
+        if (this.host.getSemanticZoom?.()) {
+          this._renderSemanticZoomMode(g, ctx, crc, rt);
+        } else {
+          this._renderNodeMode(g, ctx, crc, rt);
+        }
         break;
       case "card":
         this._renderCardMode(g, ctx, crc, rt);
@@ -888,6 +896,145 @@ export class RenderPipeline {
     }
   }
 
+  /** M1: Semantic zoom — per-node LOD based on screen-space size. */
+  private _renderSemanticZoomMode(
+    g: CanvasGraphics,
+    ctx: {
+      visible: PixiNode[]; pixiNodes: Map<string, PixiNode>;
+      tlFilteredOut: Set<string> | null; alpha: number; nodeCount: number;
+      shapeRules: ShapeRule[]; worldScale: number; minWorldRadius: number;
+    },
+    crc: ReturnType<typeof Object.assign>,
+    rt: ReturnType<typeof Object.assign>,
+  ) {
+    const { visible, tlFilteredOut, alpha, shapeRules, worldScale, minWorldRadius } = ctx;
+    const compactPx = rt.semanticZoomCompactPx ?? 6;
+    const fullPx = rt.semanticZoomFullPx ?? 15;
+    const defField = this.host.getDefinitionField?.() ?? "";
+    const labelColor = this.host.getLabelColor();
+
+    for (const pn of visible) {
+      const effR = Math.max(pn.radius, minWorldRadius);
+      const screenPx = effR * 2 * worldScale;
+      const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+
+      if (screenPx < 1.5) {
+        // Tier 1: colored dot
+        const dotSize = 1 / worldScale;
+        g.lineStyle(0);
+        g.beginFill(pn.color, nodeAlpha);
+        g.drawRect(pn.data.x - dotSize / 2, pn.data.y - dotSize / 2, dotSize, dotSize);
+        g.endFill();
+      } else if (screenPx < compactPx) {
+        // Tier 2: circle + label
+        const shape = getNodeShape(pn.data, shapeRules);
+        const strokeColor = darkenColor(pn.color, crc.strokeDarken);
+        g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
+        g.beginFill(pn.color, nodeAlpha);
+        drawShapeAt(g, shape, pn.data.x, pn.data.y, effR);
+        g.endFill();
+      } else if (screenPx < fullPx) {
+        // Tier 3: compact card (name + definition field)
+        const cardW = effR * 4;
+        const cardH = effR * 2;
+        const halfW = cardW / 2;
+        const halfH = cardH / 2;
+        const strokeColor = darkenColor(pn.color, crc.strokeDarken);
+        g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
+        g.beginFill(pn.color, nodeAlpha * 0.3);
+        g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, cardW, cardH, 2 / worldScale);
+        g.endFill();
+        // Compact card text via gfx children
+        const gfx = pn.gfx;
+        // Clean existing card text
+        for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
+          if (isCardText(gfx.children[ci])) { gfx.removeChild(gfx.children[ci]).destroy(); }
+        }
+        const fontSize = Math.max(6, 9 / worldScale);
+        const nameText = new CanvasText(pn.data.label, {
+          fontSize, fontWeight: "bold", fill: labelColor,
+          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+        });
+        markAsCardText(nameText);
+        nameText.x = -halfW + 2 / worldScale;
+        nameText.y = -halfH + 2 / worldScale;
+        nameText.maxWidth = cardW - 4 / worldScale;
+        gfx.addChild(nameText);
+        if (defField && pn.data.meta?.[defField]) {
+          const defText = new CanvasText(String(pn.data.meta[defField]), {
+            fontSize: fontSize * 0.85, fill: labelColor,
+            fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+          });
+          markAsCardText(defText);
+          defText.x = -halfW + 2 / worldScale;
+          defText.y = -halfH + fontSize * 1.3 + 2 / worldScale;
+          defText.maxWidth = cardW - 4 / worldScale;
+          defText.alpha = 0.7;
+          gfx.addChild(defText);
+        }
+      } else {
+        // Tier 4: full card (name + definition + bodyPreview)
+        const cardW = effR * 5;
+        const cardH = effR * 3;
+        const halfW = cardW / 2;
+        const halfH = cardH / 2;
+        const strokeColor = darkenColor(pn.color, crc.strokeDarken);
+        g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
+        g.beginFill(pn.color, nodeAlpha * 0.25);
+        g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, cardW, cardH, 3 / worldScale);
+        g.endFill();
+        // Header bar
+        const headerH = effR * 0.8;
+        g.beginFill(pn.color, nodeAlpha * 0.6);
+        g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, cardW, headerH, 3 / worldScale);
+        g.endFill();
+
+        const gfx = pn.gfx;
+        for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
+          if (isCardText(gfx.children[ci])) { gfx.removeChild(gfx.children[ci]).destroy(); }
+        }
+        const fontSize = Math.max(7, 10 / worldScale);
+        const smallFont = fontSize * 0.85;
+        let curY = -halfH + 3 / worldScale;
+        const nameText = new CanvasText(pn.data.label, {
+          fontSize, fontWeight: "bold", fill: 0xffffff,
+          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+        });
+        markAsCardText(nameText);
+        nameText.x = -halfW + 3 / worldScale;
+        nameText.y = curY;
+        nameText.maxWidth = cardW - 6 / worldScale;
+        gfx.addChild(nameText);
+        curY += fontSize * 1.3;
+
+        if (defField && pn.data.meta?.[defField]) {
+          const defText = new CanvasText(String(pn.data.meta[defField]), {
+            fontSize: smallFont, fontWeight: "bold", fill: labelColor,
+            fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+          });
+          markAsCardText(defText);
+          defText.x = -halfW + 3 / worldScale;
+          defText.y = curY;
+          defText.maxWidth = cardW - 6 / worldScale;
+          gfx.addChild(defText);
+          curY += smallFont * 1.3;
+        }
+        if (pn.data.bodyPreview) {
+          const previewText = new CanvasText(pn.data.bodyPreview, {
+            fontSize: smallFont, fontStyle: "italic", fill: labelColor,
+            fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+          });
+          markAsCardText(previewText);
+          previewText.x = -halfW + 3 / worldScale;
+          previewText.y = curY;
+          previewText.maxWidth = cardW - 6 / worldScale;
+          previewText.alpha = 0.6;
+          gfx.addChild(previewText);
+        }
+      }
+    }
+  }
+
   /** Card display mode: dispatch to table or plain card style. */
   private _renderCardMode(
     g: CanvasGraphics,
@@ -935,7 +1082,11 @@ export class RenderPipeline {
     const cornerR = crc.cardCornerRadius / worldScale;
     const showMeta = nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
     const fieldCount = showMeta ? cardConfig.fields.length : 0;
-    const totalH = headerH + fieldCount * fieldLineH + pad * 2;
+    // M4: extra rows for definitionField and bodyPreview
+    const defField = this.host.getDefinitionField?.() ?? "";
+    const hasDefField = defField.length > 0 ? 1 : 0;
+    const hasPreview = 1; // reserve row for bodyPreview (per-node check in text pass)
+    const totalH = headerH + (fieldCount + hasDefField + hasPreview) * fieldLineH + pad * 2;
 
     const tableCardNodes: PixiNode[] = [];
 
@@ -1086,8 +1237,26 @@ export class RenderPipeline {
       if (rt.cardTextTruncation !== false) headerText.maxWidth = availableTextW;
       gfx.addChild(headerText);
 
-      // Field rows
+      // M4: Definition field (bold line above regular fields)
+      const defField = this.host.getDefinitionField?.() ?? "";
       const meta = pn.data.meta ?? {};
+      let extraRowOffset = 0;
+      if (defField && meta[defField] != null && String(meta[defField]) !== "") {
+        const defText = new CanvasText(String(meta[defField]), {
+          fontSize: smallFontSize,
+          fontWeight: "bold",
+          fill: labelColor,
+          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+        });
+        markAsCardText(defText);
+        defText.x = -halfW + textPadX;
+        defText.y = cardY + headerH + extraRowOffset * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
+        if (rt.cardTextTruncation !== false) defText.maxWidth = availableTextW;
+        gfx.addChild(defText);
+        extraRowOffset++;
+      }
+
+      // Field rows
       const fieldValueOnly = cardConfig.fieldFormat === "value-only";
       for (let fi = 0; fi < fieldCount2; fi++) {
         const fieldName = cardConfig.fields[fi];
@@ -1101,9 +1270,25 @@ export class RenderPipeline {
         });
         markAsCardText(fieldText);
         fieldText.x = -halfW + textPadX;
-        fieldText.y = cardY + headerH + fi * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
+        fieldText.y = cardY + headerH + (fi + extraRowOffset) * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
         if (rt.cardTextTruncation !== false) fieldText.maxWidth = availableTextW;
         gfx.addChild(fieldText);
+      }
+
+      // M4: Body preview (italic, last line)
+      if (pn.data.bodyPreview) {
+        const previewText = new CanvasText(pn.data.bodyPreview, {
+          fontSize: smallFontSize,
+          fontStyle: "italic",
+          fill: labelColor,
+          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+        });
+        markAsCardText(previewText);
+        previewText.x = -halfW + textPadX;
+        previewText.y = cardY + headerH + (fieldCount2 + extraRowOffset) * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
+        previewText.alpha = 0.7;
+        if (rt.cardTextTruncation !== false) previewText.maxWidth = availableTextW;
+        gfx.addChild(previewText);
       }
     }
   }

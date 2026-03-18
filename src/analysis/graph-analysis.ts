@@ -320,6 +320,143 @@ export function detectArticulationPoints(
   return result;
 }
 
+// ---------------------------------------------------------------------------
+// Structure Questions (Feature S4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate insight questions from graph structure.
+ * @param nodes   Visible nodes
+ * @param edges   Visible edges
+ * @param degrees Pre-computed degree map
+ * @param betweenness Optional betweenness centrality map
+ */
+export function generateStructureQuestions(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  degrees: Map<string, number>,
+  betweenness?: Map<string, number>,
+): string[] {
+  const questions: string[] = [];
+  if (nodes.length === 0) return questions;
+
+  // Top hub
+  let maxDeg = 0;
+  let maxDegId = "";
+  for (const [id, deg] of degrees) {
+    if (deg > maxDeg) { maxDeg = deg; maxDegId = id; }
+  }
+  if (maxDegId) {
+    const label = nodes.find(n => n.id === maxDegId)?.label ?? maxDegId;
+    questions.push(`Why is "${label}" so highly connected (${maxDeg} edges)?`);
+  }
+
+  // Top betweenness (bridge node)
+  if (betweenness && betweenness.size > 0) {
+    let maxBet = 0;
+    let maxBetId = "";
+    for (const [id, bc] of betweenness) {
+      if (bc > maxBet) { maxBet = bc; maxBetId = id; }
+    }
+    if (maxBetId && maxBetId !== maxDegId) {
+      const label = nodes.find(n => n.id === maxBetId)?.label ?? maxBetId;
+      questions.push(`What disconnects if "${label}" is removed? (highest betweenness)`);
+    }
+  }
+
+  // Orphans
+  const orphanCount = nodes.filter(n => (degrees.get(n.id) ?? 0) === 0).length;
+  if (orphanCount > 3) {
+    questions.push(`${orphanCount} orphan nodes — should they be linked?`);
+  }
+
+  // Tag coverage
+  const taggedCount = nodes.filter(n => n.tags && n.tags.length > 0).length;
+  const untaggedPct = nodes.length > 0 ? ((nodes.length - taggedCount) / nodes.length) * 100 : 0;
+  if (untaggedPct > 30) {
+    questions.push(`${untaggedPct.toFixed(0)}% of nodes are untagged — consider adding tags?`);
+  }
+
+  // Density
+  const density = nodes.length > 1
+    ? (2 * edges.length) / (nodes.length * (nodes.length - 1))
+    : 0;
+  if (density < 0.01 && nodes.length > 10) {
+    questions.push(`Graph density is very low (${density.toFixed(4)}) — are relations missing?`);
+  }
+
+  return questions;
+}
+
+// ---------------------------------------------------------------------------
+// Similar Node Suggestions (Feature M3 — Jaccard similarity)
+// ---------------------------------------------------------------------------
+
+export interface SimilarNode {
+  id: string;
+  label: string;
+  score: number;
+}
+
+/**
+ * Find similar nodes to the given node based on Jaccard similarity
+ * of (tags ∪ neighbors).
+ */
+export function computeSimilarNodes(
+  nodeId: string,
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  topN = 3,
+  threshold = 0.15,
+): SimilarNode[] {
+  // Build adjacency
+  const adj = new Map<string, Set<string>>();
+  for (const n of nodes) adj.set(n.id, new Set());
+  for (const e of edges) {
+    adj.get(e.source)?.add(e.target);
+    adj.get(e.target)?.add(e.source);
+  }
+
+  // Feature set for target node
+  const targetNode = nodes.find(n => n.id === nodeId);
+  if (!targetNode) return [];
+  const targetFeatures = new Set<string>();
+  for (const tag of targetNode.tags ?? []) targetFeatures.add(`tag:${tag}`);
+  for (const nb of adj.get(nodeId) ?? []) targetFeatures.add(`nb:${nb}`);
+
+  if (targetFeatures.size === 0) return [];
+
+  // Already linked nodes (exclude from suggestions)
+  const linked = adj.get(nodeId) ?? new Set();
+
+  const results: SimilarNode[] = [];
+  for (const n of nodes) {
+    if (n.id === nodeId) continue;
+    if (linked.has(n.id)) continue; // skip already-connected
+
+    const nFeatures = new Set<string>();
+    for (const tag of n.tags ?? []) nFeatures.add(`tag:${tag}`);
+    for (const nb of adj.get(n.id) ?? []) nFeatures.add(`nb:${nb}`);
+
+    if (nFeatures.size === 0) continue;
+
+    // Jaccard = |A ∩ B| / |A ∪ B|
+    let intersection = 0;
+    for (const f of targetFeatures) {
+      if (nFeatures.has(f)) intersection++;
+    }
+    const union = targetFeatures.size + nFeatures.size - intersection;
+    const score = union > 0 ? intersection / union : 0;
+
+    if (score >= threshold) {
+      results.push({ id: n.id, label: n.label, score });
+    }
+  }
+
+  results.sort((a, b) => b.score - a.score);
+  return results.slice(0, topN);
+}
+
 export function computePropagatedImportance(
   nodes: GraphNode[],
   edges: GraphEdge[],

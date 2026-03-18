@@ -456,6 +456,8 @@ export interface PanelCallbacks {
   navBack(): void;
   /** Navigate forward in node visit history */
   navForward(): void;
+  /** M2: Apply ego layout to visible nodes */
+  applyEgoToVisible?(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -1080,6 +1082,13 @@ function _buildStructureAnalysisSection(
       panel.showHierarchyBreadcrumb = v;
       cb.markDirty();
     }, t("desc.showHierarchyBreadcrumb"));
+    // M2: Apply Ego Layout button
+    const egoBtn = body.createEl("button", { cls: "mod-cta", text: t("action.applyEgoLayout") });
+    egoBtn.style.marginTop = "6px";
+    egoBtn.style.width = "100%";
+    egoBtn.addEventListener("click", () => {
+      cb.applyEgoToVisible?.();
+    });
   }, undefined, false, "git-branch");
 }
 
@@ -1376,6 +1385,24 @@ function buildLayoutTab(
       renderGroupByRules(groupByListEl, panel, ctx, cb);
     }
     if (panel.groupBy && panel.groupBy !== "none") {
+      // Expand/Collapse all groups buttons
+      const groupBtnRow = body.createDiv({ cls: "gi-setting-row gi-group-btn-row" });
+      const expandBtn = groupBtnRow.createEl("button", { cls: "gi-btn-sm", text: t("groups.expandAll") });
+      expandBtn.addEventListener("click", () => {
+        // Set a dummy marker so size>0 prevents auto-collapse, but no real group matches
+        panel.collapsedGroups.clear();
+        panel.collapsedGroups.add("__gi_expand_all__");
+        cb.doRenderKeepPanel();
+        cb.rebuildPanel();
+      });
+      const collapseBtn = groupBtnRow.createEl("button", { cls: "gi-btn-sm", text: t("groups.collapseAll") });
+      collapseBtn.addEventListener("click", () => {
+        panel.collapsedGroups.clear();
+        // Empty set triggers auto-collapse of all groups
+        cb.doRenderKeepPanel();
+        cb.rebuildPanel();
+      });
+
       addSlider(body, t("display.groupMinSize"), 1, 20, 1, panel.groupMinSize, (v) => {
         panel.groupMinSize = v;
         panel.collapsedGroups.clear();
@@ -2008,6 +2035,8 @@ function _buildSpacingAndGroupArrangement(s: ClusterSectionCtx): void {
 
   addSlider(body, t("cluster.edgeBundleStrength"), 0, 1, 0.05, panel.edgeBundleStrength, (v) => {
     panel.edgeBundleStrength = v;
+    cb.applyClusterForce();
+    cb.restartSimulation(0.3);
     cb.markDirty();
   }, t("desc.edgeBundleStrength"));
 }
@@ -2279,7 +2308,10 @@ function _buildStatsBar(
   }
   const avgDegree = nodeCount > 0 ? (totalDegree / nodeCount).toFixed(1) : "0";
 
-  summary.createEl("span", { cls: "gi-stats-item", text: `${t("stats.nodes")}: ${nodeCount}` });
+  const nodeLabel = panel.searchQuery
+    ? `${t("stats.nodes")}: ${nodeCount} (${t("stats.filtered")})`
+    : `${t("stats.nodes")}: ${nodeCount}`;
+  summary.createEl("span", { cls: "gi-stats-item", text: nodeLabel });
   summary.createEl("span", { cls: "gi-stats-item", text: `${t("stats.edges")}: ${edgeCount}` });
 
   // 展開トグル

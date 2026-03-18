@@ -27,7 +27,8 @@ import { coordinateOffsets, type CoordinateGuide, type CoordinateContext } from 
 import {
   ARRANGEMENT_CONCENTRIC, ARRANGEMENT_TIMELINE, ARRANGEMENT_TRIANGLE,
   ARRANGEMENT_GRID, ARRANGEMENT_RADIAL, ARRANGEMENT_RANDOM,
-  ARRANGEMENT_PHYLLOTAXIS, ARRANGEMENT_CUSTOM,
+  ARRANGEMENT_PHYLLOTAXIS, ARRANGEMENT_CUSTOM, ARRANGEMENT_EGO,
+  EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING,
   GUIDE_TYPE_COORDINATE,
   GROUP_ARRANGEMENT_CONCENTRIC, GROUP_ARRANGEMENT_HORIZONTAL,
   GROUP_ARRANGEMENT_VERTICAL, GROUP_ARRANGEMENT_GRID,
@@ -2348,6 +2349,7 @@ function dispatchHardcoded(
     case ARRANGEMENT_TRIANGLE: return triangleOffsets(p);
     case ARRANGEMENT_RANDOM: return { offsets: randomOffsets(p) };
     case ARRANGEMENT_TIMELINE: return timelineOffsetsV2(p);
+    case ARRANGEMENT_EGO: return egoOffsets(p);
     default: return { offsets: new Map() };
   }
 }
@@ -2565,6 +2567,90 @@ function triangleOffsets(p: ArrangementParams): ArrangementResult {
   };
 
   return { offsets, guide };
+}
+
+// ---------------------------------------------------------------------------
+// Ego — center the highest-degree node, arrange neighbors by edge type
+// ---------------------------------------------------------------------------
+
+function egoOffsets(p: ArrangementParams): ArrangementResult {
+  const { members, degrees, edges, nodeSpacing, groupScale, nodeSize } = p;
+  const offsets = new Map<string, { dx: number; dy: number }>();
+  if (members.length === 0) return { offsets };
+
+  // Find center node (highest degree within group)
+  let centerId = members[0].id;
+  let centerDeg = 0;
+  for (const m of members) {
+    const d = degrees.get(m.id) ?? 0;
+    if (d > centerDeg) { centerDeg = d; centerId = m.id; }
+  }
+  offsets.set(centerId, { dx: 0, dy: 0 });
+
+  // Classify neighbors by edge type
+  const memberSet = new Set(members.map(m => m.id));
+  const buckets: Record<string, string[]> = {
+    inheritParent: [], inheritChild: [],
+    aggregation: [], similar: [], other: [],
+  };
+
+  for (const e of edges) {
+    const isInGroup = memberSet.has(e.source) && memberSet.has(e.target);
+    if (!isInGroup) continue;
+    const neighborId = e.source === centerId ? e.target : e.target === centerId ? e.source : null;
+    if (!neighborId) continue;
+
+    if (e.type === EDGE_TYPE_INHERITANCE) {
+      if (e.target === centerId) buckets.inheritParent.push(neighborId);
+      else buckets.inheritChild.push(neighborId);
+    } else if (e.type === EDGE_TYPE_AGGREGATION) {
+      buckets.aggregation.push(neighborId);
+    } else if (e.type === EDGE_TYPE_SIMILAR || e.type === EDGE_TYPE_SIBLING) {
+      buckets.similar.push(neighborId);
+    } else {
+      buckets.other.push(neighborId);
+    }
+  }
+
+  // Remove duplicates (a node may appear in multiple edges)
+  const placed = new Set<string>([centerId]);
+  const sectorDefs: { key: string; centerAngle: number; spread: number }[] = [
+    { key: "inheritParent", centerAngle: (3 * Math.PI) / 2, spread: Math.PI / 3 }, // up
+    { key: "inheritChild", centerAngle: Math.PI / 2, spread: Math.PI / 3 },         // down
+    { key: "aggregation", centerAngle: Math.PI, spread: Math.PI / 3 },               // left
+    { key: "similar", centerAngle: 0, spread: Math.PI / 3 },                         // right
+    { key: "other", centerAngle: Math.PI / 4, spread: Math.PI / 2 },                 // diagonal
+  ];
+
+  const ringR = nodeSize * 3 * groupScale * nodeSpacing;
+
+  for (const sector of sectorDefs) {
+    const ids = (buckets[sector.key] ?? []).filter(id => !placed.has(id));
+    if (ids.length === 0) continue;
+    const startAngle = sector.centerAngle - sector.spread / 2;
+    const step = ids.length > 1 ? sector.spread / (ids.length - 1) : 0;
+    for (let i = 0; i < ids.length; i++) {
+      const angle = startAngle + step * i;
+      offsets.set(ids[i], {
+        dx: ringR * Math.cos(angle),
+        dy: ringR * Math.sin(angle),
+      });
+      placed.add(ids[i]);
+    }
+  }
+
+  // Non-adjacent members → outer ring
+  const outerR = ringR * 1.8;
+  const remaining = members.filter(m => !placed.has(m.id));
+  for (let i = 0; i < remaining.length; i++) {
+    const angle = (i / Math.max(1, remaining.length)) * Math.PI * 2;
+    offsets.set(remaining[i].id, {
+      dx: outerR * Math.cos(angle),
+      dy: outerR * Math.sin(angle),
+    });
+  }
+
+  return { offsets };
 }
 
 // ---------------------------------------------------------------------------

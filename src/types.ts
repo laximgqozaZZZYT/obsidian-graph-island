@@ -1164,6 +1164,12 @@ export interface RenderThresholds {
   roadRingCount?: number;
   /** Fallback spoke count when no grid info available (default: auto-computed from ring count) */
   roadSpokeCount?: number;
+
+  // ---- Semantic zoom (M1) ----
+  /** Screen-px threshold for compact card tier (default 6) */
+  semanticZoomCompactPx?: number;
+  /** Screen-px threshold for full card tier (default 15) */
+  semanticZoomFullPx?: number;
 }
 
 /** Default card rendering config */
@@ -1402,6 +1408,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   edgeStrengthGlow: false,
   edgeStrengthGlowMin: 0.5,
   edgeStrengthGlowMax: 3.0,
+  semanticZoomCompactPx: 6,
+  semanticZoomFullPx: 15,
 };
 
 export const DEFAULT_COLORS = [

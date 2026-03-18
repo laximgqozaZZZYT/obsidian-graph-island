@@ -79,6 +79,8 @@ const en: TranslationMap = {
 
   // --- PanelBuilder: groups ---
   "groups.addGroup": "New Group",
+  "groups.expandAll": "Expand All",
+  "groups.collapseAll": "Collapse All",
 
   // --- PanelBuilder: display ---
   "display.arrows": "Arrows",
@@ -702,6 +704,7 @@ const en: TranslationMap = {
   // --- Feature M: Graph Statistics Dashboard ---
   "stats.nodes": "Nodes",
   "stats.edges": "Edges",
+  "stats.filtered": "filtered",
   "stats.groups": "Groups",
   "stats.avgDegree": "Avg Degree",
   "stats.maxHub": "Max Hub",
@@ -852,6 +855,8 @@ const ja: TranslationMap = {
 
   // --- PanelBuilder: groups ---
   "groups.addGroup": "新規グループ",
+  "groups.expandAll": "すべて展開",
+  "groups.collapseAll": "すべて折りたたみ",
 
   // --- PanelBuilder: display ---
   "display.arrows": "矢印",
@@ -1465,6 +1470,7 @@ const ja: TranslationMap = {
   // --- Feature M: グラフ統計ダッシュボード ---
   "stats.nodes": "ノード",
   "stats.edges": "エッジ",
+  "stats.filtered": "フィルタ中",
   "stats.groups": "グループ",
   "stats.avgDegree": "平均次数",
   "stats.maxHub": "最大ハブ",

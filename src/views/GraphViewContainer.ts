@@ -11,7 +11,7 @@ import { applyTreeLayout } from "../layouts/tree";
 import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
-import { computeNodeDegrees, computeGraphStats, computeBetweennessCentrality, detectArticulationPoints } from "../analysis/graph-analysis";
+import { computeNodeDegrees, computeGraphStats, computeBetweennessCentrality, detectArticulationPoints, generateStructureQuestions, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON } from "../utils/graph-helpers";
@@ -251,6 +251,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private graphStatsEl: HTMLElement | null = null;
   private legendEl: HTMLElement | null = null;
   private shortcutHelpEl: HTMLElement | null = null;
+  private hierarchyBreadcrumbEl: HTMLElement | null = null;
+  private _similarCache: Map<string, SimilarNode[]> = new Map();
 
   // Marquee button reference (for toolbar toggle styling)
   private marqueeBtnEl: HTMLElement | null = null;
@@ -759,6 +761,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // --- Graph Statistics Overlay (Feature CX) ---
     this.graphStatsEl = canvasArea.createDiv({ cls: "gi-graph-stats" });
     this.graphStatsEl.style.display = "none";
+
+    // --- S1: Hierarchy Breadcrumb ---
+    this.hierarchyBreadcrumbEl = canvasArea.createDiv({ cls: "gi-hierarchy-breadcrumb" });
+    this.hierarchyBreadcrumbEl.style.display = "none";
 
     return canvasArea;
   }
@@ -1808,6 +1814,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
   getNodeShapeRules() { return this.panel.nodeShapeRules; }
   getSearchHiddenNodes() { return new Set<string>(); }
+  getDefinitionField() { return this.panel.definitionField ?? ""; }
+  getSemanticZoom() { return this.panel.semanticZoom ?? false; }
   getCanvasDimensions() {
     return {
       width: this.canvasWrap?.clientWidth ?? 600,
@@ -2511,6 +2519,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
+    // M3: Similar node suggestions
+    if (this.panel.showSimilarSuggestions) {
+      let similar = this._similarCache.get(pn.data.id);
+      if (!similar) {
+        const allNodes = [...this.pixiNodes.values()].map(p => p.data);
+        similar = computeSimilarNodes(pn.data.id, allNodes, this.graphEdges, 3, 0.15);
+        this._similarCache.set(pn.data.id, similar);
+      }
+      if (similar.length > 0) {
+        tooltipText += "\n— Similar —";
+        for (const s of similar) {
+          tooltipText += `\n  ${s.label} (${(s.score * 100).toFixed(0)}%)`;
+        }
+      }
+    }
+
     // Counter-scale: keep label readable regardless of zoom level
     const counterScale = Math.max(0.5, 1 / zoom);
     const tooltipFontSize = rt.hoverTooltipFontSize ?? 16;
@@ -2851,6 +2875,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.showEdgeCardinalityLabels = this.panel.showEdgeCardinalityLabels ?? false;
     cfg.edgeDirectionFilter = this.panel.edgeDirectionFilter ?? "all";
     cfg.showBidirectionalIndicator = this.panel.showBidirectionalIndicator ?? false;
+    cfg.showHierarchyOverlay = this.panel.showHierarchyOverlay ?? false;
     const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
     // roadRouteEdges toggle: when off, suppress road network so edges draw straight
     cfg.roadNetwork = (rt2.roadRouteEdges !== false) ? this.getRoadNetwork() : null;
@@ -3980,8 +4005,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       stopOrbitAnimation: () => { this.stopOrbitAnimation(); this.requestSave(); },
       wakeRenderLoop: () => this.wakeRenderLoop(),
       rebuildPanel: () => { this.buildPanel(); this.requestSave(); },
-      invalidateData: () => { this.rawData = null; this.doRender(); this.requestSave(); },
-      invalidateDataKeepPanel: () => { this.rawData = null; this.skipPanelRebuildCount++; this.doRender().finally(() => { this.skipPanelRebuildCount = Math.max(0, this.skipPanelRebuildCount - 1); }); this.requestSave(); },
+      invalidateData: () => { this.rawData = null; this._similarCache.clear(); this.doRender(); this.requestSave(); },
+      invalidateDataKeepPanel: () => { this.rawData = null; this._similarCache.clear(); this.skipPanelRebuildCount++; this.doRender().finally(() => { this.skipPanelRebuildCount = Math.max(0, this.skipPanelRebuildCount - 1); }); this.requestSave(); },
       restartSimulation: (alpha: number) => {
         if (this.simulation) { this.simulation.alpha(alpha).restart(); this.wakeRenderLoop(); }
       },
@@ -4041,6 +4066,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       recalcNodeRadii: () => { this.recalcNodeRadii(); },
       navBack: () => this.navBack(),
       navForward: () => this.navForward(),
+      applyEgoToVisible: () => this.applyEgoToVisible(),
     };
   }
 
@@ -4304,6 +4330,154 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         hubList.createEl("li", { cls: "gi-stats-hub-item", text: `${label} (${deg})` });
       }
     }
+
+    // S4: Structure questions
+    if (this.panel.showStructureQuestions) {
+      const betweenness = this._betweennessCache ?? undefined;
+      const questions = generateStructureQuestions(gd.nodes, gd.edges, this.degrees, betweenness);
+      if (questions.length > 0) {
+        const qTitle = this.graphStatsEl.createEl("div", {
+          cls: "gi-stats-hub-title",
+          text: "💡 " + t("display.showStructureQuestions"),
+        });
+        qTitle.style.fontWeight = "600";
+        qTitle.style.marginTop = "8px";
+        qTitle.style.marginBottom = "2px";
+        const qList = this.graphStatsEl.createEl("ul", { cls: "gi-stats-hub-list" });
+        for (const q of questions) {
+          qList.createEl("li", { cls: "gi-stats-hub-item", text: q });
+        }
+      }
+    }
+  }
+
+  /** S1: Update hierarchy breadcrumb bar above graph */
+  private updateHierarchyBreadcrumb(): void {
+    if (!this.hierarchyBreadcrumbEl) return;
+    if (!this.panel.showHierarchyBreadcrumb || !this.panel.localGraphCenter) {
+      this.hierarchyBreadcrumbEl.style.display = "none";
+      return;
+    }
+    this.hierarchyBreadcrumbEl.style.display = "";
+    this.hierarchyBreadcrumbEl.empty();
+
+    // Walk inheritance edges upward from localGraphCenter to root
+    const centerId = this.panel.localGraphCenter;
+    const chain: string[] = [centerId];
+    const visited = new Set<string>([centerId]);
+    let cur = centerId;
+    for (let depth = 0; depth < 20; depth++) {
+      let parentId: string | null = null;
+      for (const e of this.graphEdges) {
+        if (e.type === "inheritance" && e.source === cur && !visited.has(e.target)) {
+          parentId = e.target;
+          break;
+        }
+        if (e.type === "inheritance" && e.target === cur && !visited.has(e.source)) {
+          parentId = e.source;
+          break;
+        }
+      }
+      if (!parentId) break;
+      chain.unshift(parentId);
+      visited.add(parentId);
+      cur = parentId;
+    }
+
+    for (let i = 0; i < chain.length; i++) {
+      if (i > 0) {
+        this.hierarchyBreadcrumbEl.createSpan({ cls: "gi-breadcrumb-sep", text: " › " });
+      }
+      const nodeId = chain[i];
+      const pn = this.pixiNodes.get(nodeId);
+      const label = pn?.data?.label ?? nodeId.replace(/\.md$/, "").split("/").pop() ?? nodeId;
+      const span = this.hierarchyBreadcrumbEl.createSpan({
+        cls: i === chain.length - 1 ? "gi-breadcrumb-current" : "gi-breadcrumb-item",
+        text: label,
+      });
+      if (i < chain.length - 1) {
+        span.style.cursor = "pointer";
+        span.addEventListener("click", () => {
+          this.panel.localGraphCenter = nodeId;
+          this.doRender();
+        });
+      }
+    }
+  }
+
+  /** M2: Apply ego layout to visible nodes centered on highlighted/focused node */
+  private applyEgoToVisible(): void {
+    const centerId = this.highlightedNodeId || this.panel.focusNodeId || this.panel.localGraphCenter;
+    if (!centerId) {
+      // No node selected — show toast
+      return;
+    }
+
+    const centerPn = this.pixiNodes.get(centerId);
+    if (!centerPn) return;
+
+    // Collect visible nodes in viewport
+    const wc = this.worldContainer;
+    if (!wc) return;
+    const cx = centerPn.data.x;
+    const cy = centerPn.data.y;
+
+    // Classify neighbors by edge type
+    const neighbors = new Map<string, string[]>(); // bucket → nodeIds
+    neighbors.set("inheritParent", []);
+    neighbors.set("inheritChild", []);
+    neighbors.set("aggregation", []);
+    neighbors.set("similar", []);
+    neighbors.set("other", []);
+
+    for (const e of this.graphEdges) {
+      const isNeighbor = e.source === centerId || e.target === centerId;
+      if (!isNeighbor) continue;
+      const nbId = e.source === centerId ? e.target : e.source;
+      if (!this.pixiNodes.has(nbId)) continue;
+      if (e.type === "inheritance") {
+        if (e.target === centerId) neighbors.get("inheritParent")!.push(nbId);
+        else neighbors.get("inheritChild")!.push(nbId);
+      } else if (e.type === "aggregation") {
+        neighbors.get("aggregation")!.push(nbId);
+      } else if (e.type === "similar" || e.type === "sibling") {
+        neighbors.get("similar")!.push(nbId);
+      } else {
+        neighbors.get("other")!.push(nbId);
+      }
+    }
+
+    const placed = new Set<string>([centerId]);
+    const sectorDefs: { key: string; centerAngle: number; spread: number }[] = [
+      { key: "inheritParent", centerAngle: (3 * Math.PI) / 2, spread: Math.PI / 3 },
+      { key: "inheritChild", centerAngle: Math.PI / 2, spread: Math.PI / 3 },
+      { key: "aggregation", centerAngle: Math.PI, spread: Math.PI / 3 },
+      { key: "similar", centerAngle: 0, spread: Math.PI / 3 },
+      { key: "other", centerAngle: Math.PI / 4, spread: Math.PI / 2 },
+    ];
+
+    const ringR = 150;
+
+    for (const sector of sectorDefs) {
+      const ids = (neighbors.get(sector.key) ?? []).filter(id => !placed.has(id));
+      if (ids.length === 0) continue;
+      const startAngle = sector.centerAngle - sector.spread / 2;
+      const step = ids.length > 1 ? sector.spread / (ids.length - 1) : 0;
+      for (let i = 0; i < ids.length; i++) {
+        const angle = startAngle + step * i;
+        const pn = this.pixiNodes.get(ids[i]);
+        if (pn) {
+          pn.data.fx = cx + ringR * Math.cos(angle);
+          pn.data.fy = cy + ringR * Math.sin(angle);
+          pn.data.x = pn.data.fx;
+          pn.data.y = pn.data.fy;
+          placed.add(ids[i]);
+        }
+      }
+    }
+
+    this.renderPipeline?.markDirty();
+    this.renderPipeline?.wakeRenderLoop();
   }
 
   /** インタラクティブ凡例オーバーレイを更新（ノードカラー＋エッジ属性カラー、クリックで表示切替） */
@@ -4999,6 +5173,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (this.worldContainer) this.worldContainer.visible = true;
       this.setStatus(`${gd.nodes.length} nodes`);
       this.updateGraphStats(gd);
+      this.updateHierarchyBreadcrumb();
       const wrap = this.canvasWrap;
       // Ensure minimum viewport utilization regardless of autoFit
       {
@@ -5174,6 +5349,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.setStatus(statusParts.join(', '));
     this.updateLegend();
     this.updateGraphStats(ld);
+    this.updateHierarchyBreadcrumb();
     this.startRenderLoop();
     this.applySearch();
     // updateLabelsForZoom is also called inside autoFitView above,

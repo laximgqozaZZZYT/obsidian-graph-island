@@ -105,6 +105,8 @@ export interface EdgeDrawConfig {
   showBidirectionalIndicator?: boolean;
   /** Pre-computed set of bidirectional edge keys ("source→target") */
   _bidirectionalSet?: Set<string>;
+  /** Hierarchy overlay: thicken inheritance edges */
+  showHierarchyOverlay?: boolean;
   /** Scale edge width by target node in-degree */
   edgeStrengthGlow?: boolean;
   /** Minimum width multiplier for edge strength glow (default 0.5) */
@@ -3065,6 +3067,12 @@ function _drawEdgesSinglePass(
       }
     }
 
+    // S3: Hierarchy overlay — thicken inheritance edges
+    if (cfg.showHierarchyOverlay && e.type === EDGE_TYPE_INHERITANCE) {
+      lineThick *= 2.5;
+      alpha = Math.min(1.0, alpha + 0.3);
+    }
+
     g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
     const hasDash = applyDashPattern(g, e, lineThick);
 
@@ -3172,6 +3180,12 @@ function _drawEdgesLayered(
         } else {
           alpha = Math.max(0.05, alpha - 0.15);
         }
+      }
+
+      // S3: Hierarchy overlay — thicken inheritance edges
+      if (cfg.showHierarchyOverlay && e.type === EDGE_TYPE_INHERITANCE) {
+        lineThick *= 2.5;
+        alpha = Math.min(1.0, alpha + 0.3);
       }
 
       // レイヤーごとに alpha と width を微調整

@@ -30,6 +30,7 @@ export const ARRANGEMENT_RADIAL      = "radial" as const;
 export const ARRANGEMENT_PHYLLOTAXIS = "phyllotaxis" as const;
 export const ARRANGEMENT_RANDOM      = "random" as const;
 export const ARRANGEMENT_CUSTOM      = "custom" as const;
+export const ARRANGEMENT_EGO         = "ego" as const;
 
 // ---------------------------------------------------------------------------
 // Layout types  (LayoutType union values)
