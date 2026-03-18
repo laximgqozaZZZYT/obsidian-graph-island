@@ -375,6 +375,8 @@ export interface PanelCallbacks {
   deleteTemplate(name: string): void;
   /** Reset zoom base node size (call when user explicitly changes nodeSize) */
   resetZoomBaseNodeSize(): void;
+  /** Recalculate visual radii without full re-render (lightweight nodeSize preview) */
+  recalcNodeRadii(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -785,7 +787,7 @@ function _buildNodeDisplaySection(
       panel.nodeColorMode = v as "default" | "category" | "heatmap" | "community";
       cb.doRenderKeepPanel();
     }, t("desc.nodeColorMode"));
-    addSlider(body, t("display.nodeSize"), 5, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.resetZoomBaseNodeSize(); cb.doRenderKeepPanel(); }, t("desc.nodeSize"));
+    addSlider(body, t("display.nodeSize"), 5, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.resetZoomBaseNodeSize(); cb.recalcNodeRadii(); cb.markDirty(); }, t("desc.nodeSize"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
     addTextInput(body, t("display.nodeSubLabelFields"), panel.nodeSubLabelFields ?? "", "e.g. category, date, node_type", (v) => {
       panel.nodeSubLabelFields = v;

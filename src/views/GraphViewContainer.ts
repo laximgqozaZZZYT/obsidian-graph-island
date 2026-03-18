@@ -3875,6 +3875,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       loadTemplate: (name: string) => this._loadTemplate(name),
       deleteTemplate: (name: string) => this._deleteTemplate(name),
       resetZoomBaseNodeSize: () => { this._zoomBaseNodeSize = null; },
+      recalcNodeRadii: () => { this.recalcNodeRadii(); },
     };
   }
 

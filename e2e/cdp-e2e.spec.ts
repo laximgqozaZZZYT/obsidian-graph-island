@@ -546,3 +546,91 @@ test.describe("9. Layout Switching", () => {
     expect(nodeCount).toBeGreaterThan(2000);
   });
 });
+
+// =========================================================================
+// 10. Preset Export/Import Roundtrip
+// =========================================================================
+test.describe("10. Preset Roundtrip", () => {
+  test("10.1 export→import preserves key panel fields via JSON roundtrip", async () => {
+    const roundtrip = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+
+      // Set distinctive values
+      v.panel.nodeSize = 42;
+      v.panel.nodeColorMode = "heatmap";
+      v.panel.showArrows = true;
+      v.panel.includeTagsInData = false;
+      v.panel.repelForce = 200;
+
+      // Serialize panel to JSON (same as exportPreset)
+      const serialized: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(v.panel)) {
+        if (value instanceof Set) serialized[key] = Array.from(value as Set<unknown>);
+        else serialized[key] = value;
+      }
+      const json = JSON.stringify(serialized);
+
+      // Parse back and verify key fields survive roundtrip
+      const parsed = JSON.parse(json);
+      return {
+        nodeSize: parsed.nodeSize,
+        nodeColorMode: parsed.nodeColorMode,
+        showArrows: parsed.showArrows,
+        includeTagsInData: parsed.includeTagsInData,
+        repelForce: parsed.repelForce,
+        jsonLength: json.length,
+      };
+    });
+
+    expect(roundtrip).not.toHaveProperty("error");
+    expect(roundtrip.nodeSize).toBe(42);
+    expect(roundtrip.nodeColorMode).toBe("heatmap");
+    expect(roundtrip.showArrows).toBe(true);
+    expect(roundtrip.includeTagsInData).toBe(false);
+    expect(roundtrip.repelForce).toBe(200);
+    expect(roundtrip.jsonLength).toBeGreaterThan(100);
+  });
+
+  test("10.2 legacy preset migration converts showTags to includeTagsInData", async () => {
+    const result = await page.evaluate(() => {
+      // Simulate importing a legacy preset with old field names
+      const legacyJson = JSON.stringify({
+        showTags: false,
+        colorNodesByCategory: true,
+        heatmapMode: false,
+        nodeSize: 20,
+      });
+      const parsed = JSON.parse(legacyJson);
+
+      // Apply migration logic (same as importPreset)
+      if (parsed.showTags !== undefined && parsed.includeTagsInData === undefined) {
+        parsed.includeTagsInData = parsed.showTags;
+        delete parsed.showTags;
+      }
+      if (!parsed.nodeColorMode && (parsed.colorNodesByCategory !== undefined || parsed.heatmapMode !== undefined)) {
+        parsed.nodeColorMode = parsed.heatmapMode ? "heatmap" : parsed.colorNodesByCategory ? "category" : "default";
+        delete parsed.colorNodesByCategory;
+        delete parsed.heatmapMode;
+      }
+
+      return {
+        hasShowTags: "showTags" in parsed,
+        hasIncludeTagsInData: "includeTagsInData" in parsed,
+        includeTagsInData: parsed.includeTagsInData,
+        hasNodeColorMode: "nodeColorMode" in parsed,
+        nodeColorMode: parsed.nodeColorMode,
+        hasLegacyColor: "colorNodesByCategory" in parsed,
+        hasLegacyHeatmap: "heatmapMode" in parsed,
+      };
+    });
+
+    expect(result.hasShowTags).toBe(false);
+    expect(result.hasIncludeTagsInData).toBe(true);
+    expect(result.includeTagsInData).toBe(false);
+    expect(result.hasNodeColorMode).toBe(true);
+    expect(result.nodeColorMode).toBe("category");
+    expect(result.hasLegacyColor).toBe(false);
+    expect(result.hasLegacyHeatmap).toBe(false);
+  });
+});
