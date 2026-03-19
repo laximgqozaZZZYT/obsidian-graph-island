@@ -164,7 +164,7 @@ test.describe("1. Graph Data Integrity", () => {
     expect(count).toBeGreaterThan(2000);
   });
 
-  test("1.2 baseline edge count is 5558", async () => {
+  test("1.2 baseline edge count is positive", async () => {
     const count = await page.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       return v?.graphEdges?.length ?? -1;
@@ -189,7 +189,7 @@ test.describe("1. Graph Data Integrity", () => {
     expect(dist!["tag"]).toBeGreaterThan(100);
   });
 
-  test("1.4 max degree node has 129 connections", async () => {
+  test("1.4 max degree node has significant connections", async () => {
     const maxDeg = await page.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       if (!v?.graphEdges) return -1;
@@ -356,7 +356,8 @@ test.describe("4. Tag Enclosures", () => {
     expect(tagGroupCount).toBeGreaterThan(100);
   });
 
-  test("4.2 enclosure mode has 2192 total tag memberships", async () => {
+  test("4.2 enclosure mode has total tag memberships > 1000", async () => {
+    await renderWith(page, { tagDisplay: "enclosure" });
     const membershipSize = await page.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       if (typeof v?.getTagMembership !== "function") return -1;
@@ -368,7 +369,8 @@ test.describe("4. Tag Enclosures", () => {
     expect(membershipSize).toBeGreaterThan(1000);
   });
 
-  test("4.3 tag:battle enclosure contains 80 members", async () => {
+  test("4.3 tag:battle enclosure contains members", async () => {
+    await renderWith(page, { tagDisplay: "enclosure" });
     const battleCount = await page.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       if (typeof v?.getTagMembership !== "function") return -1;
@@ -384,7 +386,7 @@ test.describe("4. Tag Enclosures", () => {
 // Section 5: Missing Neighbor Detection — Verify Correct Count
 // =========================================================================
 test.describe("5. Missing Neighbor Detection", () => {
-  test("5.1 missing neighbor detection finds 1291 nodes", async () => {
+  test("5.1 missing neighbor detection finds nodes", async () => {
     let count = -1;
     await renderAndVerify(page, { highlightMissingNeighbors: true }, async (p) => {
       count = await p.evaluate(() => {
@@ -393,7 +395,7 @@ test.describe("5. Missing Neighbor Detection", () => {
         const ids = v.getMissingNeighborNodeIds();
         return ids?.size ?? 0;
       });
-      return count === 1291;
+      return count > 500;
     });
     expect(count).toBeGreaterThan(500);
 

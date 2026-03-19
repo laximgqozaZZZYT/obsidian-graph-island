@@ -122,13 +122,19 @@ export class LayoutController {
     const repelMap = this.computeNodeRepelMap(sim.nodes());
     const hasCustomRepel = repelMap.size > 0;
 
+    // L1: Auto-adjust repelForce based on node count for consistent density
+    const nodeCount = sim.nodes().length;
+    const autoRepel = nodeCount > 0
+      ? Math.max(50, Math.min(panel.repelForce, 400 / Math.sqrt(nodeCount) * (panel.repelForce / 200)))
+      : panel.repelForce;
+
     sim
       .force("charge", forceManyBody<GraphNode>().strength(hasCustomRepel
         ? ((n: GraphNode) => {
             const mult = repelMap.get(n.id) ?? 1.0;
-            return -panel.repelForce * mult;
+            return -autoRepel * mult;
           })
-        : -panel.repelForce))
+        : -autoRepel))
       .force("link", forceLink<GraphNode, GraphEdge>(graphEdges)
         .id((d) => d.id)
         .distance((e) => edgeLinkDistance(e, panel.linkDistance))

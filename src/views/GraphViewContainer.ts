@@ -4670,7 +4670,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           // M1: Thinking Modes
           explore: { syncWithEditor: true, localGraphCenter: true, localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" as const },
           analyze: { syncWithEditor: false, localGraphCenter: false, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true },
-          write: { syncWithEditor: true, localGraphCenter: true, localGraphHops: 2, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const },
+          write: { syncWithEditor: true, localGraphCenter: true, localGraphHops: 1, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const, nodeSize: 25, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showSimilar: false, focusConeEnabled: true },
         };
         const p = presets[preset];
         if (p) { Object.assign(this.panel, p); this.doRender(); this.requestSave(); }
@@ -6744,6 +6744,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
     this.markDirty();
+
+    // N1: Auto-fit view to search results after filtering
+    if (raw.trim() && this.canvasWrap) {
+      const wrap = this.canvasWrap;
+      setTimeout(() => this.autoFitView(wrap.clientWidth, wrap.clientHeight), 100);
+    }
   }
 
   private applyTextFade() { this.labelManager?.applyTextFade(); }
