@@ -4979,6 +4979,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   private setStatus(t: string) { if (this.statusEl) this.statusEl.textContent = t; }
 
+  /** U2: Build rich status text with mode, counts, and filter info */
+  private buildRichStatus(nodeCount: number, edgeCount: number): string {
+    const parts: string[] = [];
+    if (this.panel.localGraphCenter) parts.push("Local");
+    else if (this.panel.focusLayout) parts.push("Focus");
+    parts.push(`${nodeCount} nodes`);
+    if (edgeCount > 0) parts.push(`${edgeCount} edges`);
+    if (this.panel.searchQuery) {
+      const mode = this.panel.searchMode === "highlight" ? "HL" : "F";
+      parts.push(`[${mode}: ${this.panel.searchQuery.slice(0, 20)}]`);
+    }
+    return parts.join(" \u00B7 ");
+  }
+
   /** D6: Compute per-node entropy scores (knowledge diversity).
    *  entropy = uniqueTagCount(neighbors) / neighborCount */
   private updateEntropyScores(): void {
@@ -5568,6 +5582,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   // =========================================================================
+  // R2: Map analysisOverlay dropdown to individual flags
+  // =========================================================================
+  private _applyAnalysisOverlay(): void {
+    const mode = this.panel.analysisOverlay ?? "off";
+    this.panel.showBridgeNodes = mode === "bridges" || mode === "all";
+    this.panel.showEntropyOverlay = mode === "entropy" || mode === "all";
+    this.panel.highlightMissingNeighbors = mode === "missing" || mode === "all";
+    this.panel.showGapEdges = mode === "gaps" || mode === "all";
+  }
+
+  // =========================================================================
   // Graph data
   // =========================================================================
   private getGraphData(): GraphData {
@@ -5746,6 +5771,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const signal = this.ac.signal;
     // Cancel any in-progress layout transition
     this.layoutTransition.cancel();
+
+    // R2: Map consolidated analysisOverlay to individual flags
+    this._applyAnalysisOverlay();
 
     this._savePositionsForTransition();
 
@@ -6102,7 +6130,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.simulation.on("end", () => {
       // 6-step pipeline complete — reveal world and render final positions
       if (this.worldContainer) this.worldContainer.visible = true;
-      this.setStatus(`${gd.nodes.length} nodes`);
+      this.setStatus(this.buildRichStatus(gd.nodes.length, gd.edges.length));
       this.updateEntropyScores();
       this.updateGraphStats(gd);
       this.updateRelationMatrix(gd);

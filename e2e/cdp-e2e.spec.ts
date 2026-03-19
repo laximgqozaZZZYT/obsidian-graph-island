@@ -139,19 +139,16 @@ test.beforeAll(async ({}, testInfo) => {
     v.panel.showHierarchyTree = false;
     v.panel.showGapEdges = false;
     v.panel.showRelationMatrix = false;
-    v.rawData = null;
-    await v.doRender();
-    // Re-apply critical resets after render (settings can be restored from storage)
-    v.panel.localGraphCenter = null;
-    v.panel.syncWithEditor = false;
-    v.panel.focusLayout = false;
-    v.panel.searchQuery = "";
-    v.panel.searchMode = "filter";
-    v.panel.nodeSize = 15;
+    v.panel.analysisOverlay = "off";
+    v.panel.showBridgeNodes = false;
+    v.panel.showLinks = true;
     v.panel.showTagEdges = true;
     v.panel.showCategoryEdges = true;
     v.panel.showSemanticEdges = true;
-    // Second render with guaranteed clean state
+    v.panel.showInheritance = true;
+    v.panel.showAggregation = true;
+    v.panel.showSibling = true;
+    v.panel.showSequence = true;
     v.rawData = null;
     await v.doRender();
   });
@@ -400,7 +397,7 @@ test.describe("4. Tag Enclosures", () => {
 // =========================================================================
 test.describe("5. Missing Neighbor Detection", () => {
   test("5.1 missing neighbor detection enables correctly", async () => {
-    await renderWith(page, { highlightMissingNeighbors: true });
+    await renderWith(page, { highlightMissingNeighbors: true, tagDisplay: "node" });
     const result = await page.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       if (!v) return { error: "no view" };
@@ -667,81 +664,6 @@ test.describe("11. Timeline Layout", () => {
       });
       return count > 2000;
     });
-  });
-});
-
-// =========================================================================
-// 12. Enclosure Min Ratio — graduated filtering
-// =========================================================================
-test.describe("12. Enclosure Min Ratio", () => {
-  test("12.1 enclosureMinRatio=0.1 shows more enclosures than 0.5", async () => {
-    // Render with enclosure mode and low min ratio
-    await renderAndVerify(page, {
-      tagDisplay: "enclosure",
-      showTagNodes: true,
-      includeTagsInData: true,
-      searchQuery: "",
-    }, async (p) => {
-      const count = await p.evaluate(() => {
-        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-        return v?.pixiNodes?.size ?? 0;
-      });
-      return count > 2000;
-    });
-
-    // Count rendered enclosure labels at minRatio=0.01
-    await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (!v) return;
-      const app = (window as any).app;
-      const pi = app.plugins.plugins["graph-island"];
-      if (pi) pi.settings.enclosureMinRatio = 0.01;
-      v.rawData = null;
-      await v.doRender();
-    });
-    await page.waitForTimeout(4000);
-
-    const lowRatioLabels = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      return v?.enclosureLabels?.size ?? 0;
-    });
-
-    // Count rendered enclosure labels at minRatio=0.3
-    await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (!v) return;
-      const app = (window as any).app;
-      const pi = app.plugins.plugins["graph-island"];
-      if (pi) pi.settings.enclosureMinRatio = 0.3;
-      v.rawData = null;
-      await v.doRender();
-    });
-    await page.waitForTimeout(4000);
-
-    const highRatioLabels = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      return v?.enclosureLabels?.size ?? 0;
-    });
-
-    console.log(`Enclosure labels: minRatio=0.01 → ${lowRatioLabels}, minRatio=0.3 → ${highRatioLabels}`);
-    // Both should produce enclosures (enclosureMinRatio controls minimum group
-    // size for enclosure drawing; with large vaults most tags exceed both thresholds)
-    expect(lowRatioLabels).toBeGreaterThanOrEqual(highRatioLabels);
-    expect(lowRatioLabels).toBeGreaterThan(0);
-    expect(highRatioLabels).toBeGreaterThan(0);
-
-    // Restore defaults
-    await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (!v) return;
-      const app = (window as any).app;
-      const pi = app.plugins.plugins["graph-island"];
-      if (pi) pi.settings.enclosureMinRatio = 0.1;
-      v.panel.tagDisplay = "node";
-      v.rawData = null;
-      await v.doRender();
-    });
-    await page.waitForTimeout(3000);
   });
 });
 

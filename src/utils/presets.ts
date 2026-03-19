@@ -117,6 +117,7 @@ const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   gapDetectionMode: ["within-tag", "cross-cluster", "both"] as const,
   searchMode: ["filter", "highlight"] as const,
   activeTab: ["filter", "display", "layout", "settings"] as const,
+  analysisOverlay: ["off", "bridges", "entropy", "gaps", "missing", "all"] as const,
 };
 
 /** Fields that are Set<string> — exported as arrays, imported as arrays, converted back to Set in apply */

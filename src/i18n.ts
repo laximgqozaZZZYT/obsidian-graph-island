@@ -538,6 +538,13 @@ const en: TranslationMap = {
   "desc.showStructureQuestions": "Generate questions from graph structure in statistics panel",
   "display.showEntropyOverlay": "Knowledge Entropy",
   "desc.showEntropyOverlay": "Heatmap overlay showing low-density knowledge gaps",
+  "display.analysisOverlay": "Analysis Overlay",
+  "analysis.off": "Off",
+  "analysis.bridges": "Bridge Nodes",
+  "analysis.entropy": "Knowledge Entropy",
+  "analysis.gaps": "Gap Edges",
+  "analysis.missing": "Missing Neighbors",
+  "analysis.all": "All",
 
   // --- Advanced features (Phase 7) ---
 
@@ -1317,6 +1324,13 @@ const ja: TranslationMap = {
   "desc.showStructureQuestions": "グラフ構造から質問を生成して統計パネルに表示",
   "display.showEntropyOverlay": "知識エントロピー",
   "desc.showEntropyOverlay": "低密度の知識ギャップをヒートマップで表示",
+  "display.analysisOverlay": "分析オーバーレイ",
+  "analysis.off": "オフ",
+  "analysis.bridges": "ブリッジノード",
+  "analysis.entropy": "知識エントロピー",
+  "analysis.gaps": "ギャップエッジ",
+  "analysis.missing": "欠落隣接",
+  "analysis.all": "すべて",
 
   // --- M2: Ego Layout ---
   "cluster.ego": "エゴ（フォーカス中心）",

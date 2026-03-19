@@ -582,79 +582,93 @@ export class RenderPipeline {
     // Store lodLevel for LabelManager access
     this._lastLodLevel = ctx.lodLevel;
 
+    // P1: Build active pass list — only active passes enter the loop
+    type PassFn = (g: CanvasGraphics, ctx: typeof ctxRef) => void;
+    const ctxRef = ctx;
+    const passes: PassFn[] = [];
+
     // Pass 1: Glow halos (enhanced for hub nodes) — skip at extreme/mid zoom
     if (ctx.nodeCount < rt.glowNodeCount && !ctx.isExtremeZoom && !ctx.isMidZoom) {
-      this._renderGlowPass(g, ctx, rt);
+      const rtRef = rt;
+      passes.push((g, c) => this._renderGlowPass(g, c, rtRef));
     }
 
-    // Pass 2: Nodes — LOD-tiered rendering
-    this._renderNodesPass(g, ctx, crc, rt);
+    // Pass 2: Nodes — always active (LOD-tiered rendering)
+    {
+      const crcRef = crc;
+      const rtRef = rt;
+      passes.push((g, c) => this._renderNodesPass(g, c, crcRef, rtRef));
+    }
 
     // Pass 3: Hold indicator ring for pinned nodes
-    this._renderHoldRings(g, ctx);
+    passes.push((g, c) => this._renderHoldRings(g, c));
 
     // Pass 4: Pathfinder start/end node markers
-    this._renderPathfinderMarkers(g, ctx);
+    passes.push((g, c) => this._renderPathfinderMarkers(g, c));
 
-    // Pass 5: 比較選択ノードのリング表示
-    this._renderCompareRings(g, ctx);
+    // Pass 5: Compare selection rings
+    passes.push((g, c) => this._renderCompareRings(g, c));
 
-    // Pass 6: ブックマーク星アイコンオーバーレイ
-    this._renderBookmarkStars(g, ctx);
+    // Pass 6: Bookmark star overlay
+    passes.push((g, c) => this._renderBookmarkStars(g, c));
 
-    // Pass 7: 未接続同タグノードのオレンジリング
-    this._renderMissingNeighborRings(g, ctx);
+    // Pass 7: Missing neighbor orange rings
+    passes.push((g, c) => this._renderMissingNeighborRings(g, c));
 
     // Pass 8: Tag badges on node circumference
     if (this.host.getShowTagBadges?.() && !ctx.isExtremeZoom) {
-      this._renderTagBadges(g, ctx);
+      passes.push((g, c) => this._renderTagBadges(g, c));
     }
 
     // Pass 9: Importance ring
     if (this.host.getShowImportanceRing?.() && !ctx.isExtremeZoom) {
-      this._renderImportanceRings(g, ctx);
+      passes.push((g, c) => this._renderImportanceRings(g, c));
     }
 
     // Pass 10: Recency marker
     if (this.host.getRecencyConfig?.() && !ctx.isExtremeZoom) {
-      this._renderRecencyMarkers(g, ctx);
+      passes.push((g, c) => this._renderRecencyMarkers(g, c));
     }
 
     // Pass 11: Bridge nodes — gold ring for high betweenness
     if (this.host.getBridgeNodeIds?.() && !ctx.isExtremeZoom) {
-      this._renderBridgeNodes(g, ctx);
+      passes.push((g, c) => this._renderBridgeNodes(g, c));
     }
 
     // Pass 12: Articulation point warning ring
     if (this.host.getArticulationPointIds?.() && !ctx.isExtremeZoom) {
-      this._renderArticulationPoints(g, ctx);
+      passes.push((g, c) => this._renderArticulationPoints(g, c));
     }
 
     // Pass 13: Entropy overlay — knowledge diversity heatmap
     if (this.host.getShowEntropyOverlay?.() && !ctx.isExtremeZoom) {
-      this._renderEntropyOverlay(g, ctx);
+      passes.push((g, c) => this._renderEntropyOverlay(g, c));
     }
 
     // Pass 14: Multi-select rings
     const msIds = this.host.getMultiSelectNodeIds?.();
     if (msIds && msIds.length > 0) {
-      this._renderMultiSelectRings(g, ctx, msIds);
+      const ids = msIds;
+      passes.push((g, c) => this._renderMultiSelectRings(g, c, ids));
     }
 
     // Pass 15: S1 Hierarchy tree overlay
     if (!ctx.isExtremeZoom) {
-      this._renderHierarchyOverlay(g, ctx);
+      passes.push((g, c) => this._renderHierarchyOverlay(g, c));
     }
 
     // Pass 16: S6 Ontology backbone
     if (!ctx.isExtremeZoom) {
-      this._renderOntologyBackbone(g);
+      passes.push((g) => this._renderOntologyBackbone(g));
     }
 
     // Pass 17: S4 Gap detection dotted edges
     if (!ctx.isExtremeZoom) {
-      this._renderGapEdges(g);
+      passes.push((g) => this._renderGapEdges(g));
     }
+
+    // Execute all active passes
+    for (const pass of passes) pass(g, ctx);
   }
 
   // =========================================================================

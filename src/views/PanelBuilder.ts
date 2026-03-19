@@ -257,6 +257,8 @@ export interface PanelState {
   showOntologyBackbone?: boolean;
   /** S4: Show gap detection dotted edges */
   showGapEdges?: boolean;
+  /** R2: Consolidated analysis overlay mode */
+  analysisOverlay?: "off" | "bridges" | "entropy" | "gaps" | "missing" | "all";
   // --- Phase 4: Interaction enhancements ---
   /** C3: Relation type picker — right-click to assign edge type */
   showRelationTypePicker: boolean;
@@ -457,6 +459,7 @@ export function createDefaultPanel(): PanelState {
     focusConeEnabled: true,
     surpriseInterval: 0,
     expandedNodes: [],
+    analysisOverlay: "off" as const,
   };
 }
 
@@ -1083,11 +1086,7 @@ function _buildNodeDisplaySection(
         panel.visualLinkEditor = v;
         cb.markDirty();
       }, t("desc.visualLinkEditor"));
-      // 未接続同タグノードのハイライト
-      addToggle(adv, t("display.missingNeighbors"), panel.highlightMissingNeighbors ?? false, (v) => {
-        panel.highlightMissingNeighbors = v;
-        cb.markDirty();
-      }, t("desc.missingNeighbors"));
+      // R2: highlightMissingNeighbors toggle removed — now controlled via analysisOverlay dropdown
       // --- ノード形状 ---
       const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
       const defaultRule = panel.nodeShapeRules.find(r => r.match === "default");
@@ -1254,10 +1253,7 @@ function _buildStructureAnalysisSection(
       panel.highlightPatterns = v;
       cb.markDirty();
     }, t("desc.highlightPatterns"));
-    addToggle(body, t("display.showBridgeNodes"), panel.showBridgeNodes, (v) => {
-      panel.showBridgeNodes = v;
-      cb.markDirty();
-    }, t("desc.showBridgeNodes"));
+    // R2: showBridgeNodes toggle removed — now controlled via analysisOverlay dropdown
     addToggle(body, t("display.focusLayout"), panel.focusLayout, (v) => {
       panel.focusLayout = v;
       if (v && panel.localGraphCenter) {
@@ -1301,10 +1297,18 @@ function _buildDiscoverySection(
       panel.showStructureQuestions = v;
       cb.markDirty();
     }, t("desc.showStructureQuestions"));
-    addToggle(body, t("display.showEntropyOverlay"), panel.showEntropyOverlay, (v) => {
-      panel.showEntropyOverlay = v;
+    // R2: Consolidated analysis overlay dropdown
+    addSelect(body, t("display.analysisOverlay"), [
+      { value: "off", label: t("analysis.off") },
+      { value: "bridges", label: t("analysis.bridges") },
+      { value: "entropy", label: t("analysis.entropy") },
+      { value: "gaps", label: t("analysis.gaps") },
+      { value: "missing", label: t("analysis.missing") },
+      { value: "all", label: t("analysis.all") },
+    ], panel.analysisOverlay ?? "off", (v) => {
+      panel.analysisOverlay = v as PanelState["analysisOverlay"];
       cb.markDirty();
-    }, t("desc.showEntropyOverlay"));
+    });
     // D5: Cluster Compare
     addToggle(body, t("display.clusterCompare"), panel.showClusterCompare, (v) => {
       panel.showClusterCompare = v;
@@ -1320,11 +1324,6 @@ function _buildDiscoverySection(
       panel.showOntologyBackbone = v;
       cb.markDirty();
     }, t("desc.ontologyBackbone"));
-    // S4: Gap Detection Edges
-    addToggle(body, t("display.gapEdges"), panel.showGapEdges ?? false, (v) => {
-      panel.showGapEdges = v;
-      cb.markDirty();
-    }, t("desc.gapEdges"));
   }, undefined, false, "lightbulb");
 }
 
