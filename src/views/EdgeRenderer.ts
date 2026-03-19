@@ -3516,9 +3516,10 @@ export function drawEdgeLabels(
 
   if (!cfg.showEdgeLabels && !cfg.showEdgeWeightLabels && !cfg.showEdgeCardinalityLabels) return;
 
-  // Auto-hide edge labels at low zoom (labels become unreadable)
+  // Auto-hide edge labels at low zoom with gradual fade
   const zoom = cfg.worldScale ?? 1;
-  if (zoom < 0.15) return; // Too zoomed out — skip all labels
+  if (zoom < 0.15) return;
+  const edgeLabelAlpha = zoom < 0.3 ? (zoom - 0.15) / 0.15 : 1; // fade 0→1 between 0.15-0.3
 
   // --- エッジ重みラベル: 同一ペア間のエッジ本数を表示 ---
   if (cfg.showEdgeWeightLabels) {
@@ -3549,7 +3550,7 @@ export function drawEdgeLabels(
       text.anchor.set(0.5, 0.5);
       text.x = mx;
       text.y = my + offsetY;
-      text.alpha = EDGE_LABEL_ALPHA;
+      text.alpha = EDGE_LABEL_ALPHA * edgeLabelAlpha;
       text.resolution = EDGE_LABEL_RESOLUTION;
       container.addChild(text);
     }
@@ -3582,7 +3583,7 @@ export function drawEdgeLabels(
       text.anchor.set(0.5, 0.5);
       text.x = mx;
       text.y = my + offsetY;
-      text.alpha = EDGE_LABEL_ALPHA;
+      text.alpha = EDGE_LABEL_ALPHA * edgeLabelAlpha;
       text.resolution = EDGE_LABEL_RESOLUTION;
       container.addChild(text);
     }
@@ -3688,7 +3689,7 @@ export function drawEdgeLabels(
     text.anchor.set(0.5, 0.5);
     text.x = labelX;
     text.y = labelY;
-    text.alpha = EDGE_LABEL_ALPHA;
+    text.alpha = EDGE_LABEL_ALPHA * edgeLabelAlpha;
     text.resolution = EDGE_LABEL_RESOLUTION;
 
     container.addChild(text);

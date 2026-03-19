@@ -1865,6 +1865,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     invalidateBundleCache();
   }
   getNodeProperty(nodeId: string, key: string): string | undefined {
+    // Virtual properties (computed, not from frontmatter)
+    if (key === "degree") return String(this.degrees.get(nodeId) ?? 0);
+    if (key === "radius") {
+      const pn = this.pixiNodes.get(nodeId);
+      return pn ? String(Math.round(pn.radius)) : undefined;
+    }
     const pn = this.pixiNodes.get(nodeId);
     const fp = pn?.data.filePath;
     if (!fp) return undefined;
@@ -2472,6 +2478,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
 
   isInlineEditEnabled(): boolean { return this.panel.enableInlineEdit; }
+
+  /** I1: Auto-persist drag position to pinnedPositions */
+  saveDragPosition(nodeId: string, x: number, y: number): void {
+    this.panel.pinnedPositions[nodeId] = { x, y };
+    this.requestSave();
+  }
 
   showInlineEditor(pn: PixiNode): void {
     if (!pn.data.filePath) return;
@@ -6072,6 +6084,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // Re-cull labels after simulation settles to fix overlap
       // caused by node positions changing during simulation
       this.updateLabelsForZoom();
+      // F1: Zero-config start — auto-focus on active file after first render
+      this._autoFocusActiveFile();
     });
 
     this.updateLegend();
@@ -6460,6 +6474,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return this._nodeRadiiCache;
   }
 
+  /** F1: Auto-focus on the currently active file after first render.
+   *  Only runs once per view open to avoid overriding user navigation. */
+  private _hasAutoFocused = false;
+  private _autoFocusActiveFile(): void {
+    if (this._hasAutoFocused) return;
+    if (!this.panel.syncWithEditor) return;
+    this._hasAutoFocused = true;
+
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) return;
+    const nodeId = this.findNodeIdByPath(activeFile.path);
+    if (!nodeId) return;
+
+    this.setHighlightedNodeId(nodeId);
+    this.applyHover();
+    this.panToNode(nodeId);
+  }
+
   /**
    * Find the node ID corresponding to a vault file path.
    */
@@ -6560,6 +6592,27 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.setHighlightedNodeId(nodeId);
     this.applyHover();
     this.wakeRenderLoop();
+  }
+
+  // =========================================================================
+  // I5: Public preset application for keyboard shortcut commands
+  // =========================================================================
+  /** Apply a named preset by key (used by keyboard shortcut commands). */
+  applyPresetByKey(preset: string): void {
+    const presets: Record<string, Partial<typeof this.panel>> = {
+      simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: false },
+      analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
+      creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
+      explore: { syncWithEditor: true, localGraphCenter: true, localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" as const },
+      analyze: { syncWithEditor: false, localGraphCenter: false, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true },
+      write: { syncWithEditor: true, localGraphCenter: true, localGraphHops: 2, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const },
+    };
+    const p = presets[preset];
+    if (p) {
+      Object.assign(this.panel, p);
+      this.doRender();
+      this.requestSave();
+    }
   }
 
   /**

@@ -2088,7 +2088,8 @@ export class RenderPipeline {
     const maxR = rtNode.maxNodeRadius > 0 ? rtNode.maxNodeRadius : Infinity;
     const ns = this.host.getNodeSize?.() ?? nodeR(n);
     const nodeDeg = this.host.getDegrees().get(n.id) || 0;
-    const r = effectiveRadius(n, ns, nodeDeg, maxR, rtNode.minNodeRadius);
+    const sizeByDeg = rtNode.nodeSizeByDegree ?? false;
+    const r = effectiveRadius(n, ns, nodeDeg, maxR, rtNode.minNodeRadius, this._cachedMaxDeg, sizeByDeg);
     const color = nodeColor(n);
     const circle = new CanvasGraphics();
     if (isSuperNode) {

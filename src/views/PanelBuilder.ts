@@ -870,13 +870,9 @@ function buildFilterTab(
   cb: PanelCallbacks,
 ): void {
   buildSection(filterTab, t("section.filter"), (body) => {
+    // --- Basic (always visible) ---
     addToggle(body, t("filter.includeTagsInData"), panel.includeTagsInData, (v) => { panel.includeTagsInData = v; cb.invalidateDataKeepPanel(); }, t("desc.includeTagsInData"));
-    addToggle(body, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateDataKeepPanel(); }, t("desc.attachments"));
-    addToggle(body, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateDataKeepPanel(); }, t("desc.existingOnly"));
     addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateDataKeepPanel(); }, t("desc.orphans"));
-    if (panel.showOrphans) {
-      addTextInput(body, t("filter.orphanClusterField"), panel.orphanClusterField ?? "", "category, folder, tag", (v) => { panel.orphanClusterField = v; cb.invalidateDataKeepPanel(); });
-    }
     addSelect(body, t("filter.tagDisplay"), [
       { value: "off", label: t("filter.tagDisplay.off") },
       { value: "node", label: t("filter.tagDisplay.node") },
@@ -887,24 +883,32 @@ function buildFilterTab(
       cb.invalidateDataKeepPanel();
       cb.rebuildPanel(); // Progressive disclosure: tag shape / enclosure settings
     }, t("desc.tagDisplay"));
-    // Dataview query filter
-    const dvRow = body.createDiv({ cls: "gi-setting-row" });
-    dvRow.createEl("span", { cls: "gi-setting-label", text: t("filter.dataviewQuery") });
-    const dvInput = dvRow.createEl("input", { cls: "gi-setting-input", type: "text" });
-    dvInput.value = panel.dataviewQuery;
-    dvInput.placeholder = '#tag, "folder"';
-    dvInput.setAttribute("aria-label", t("filter.dataviewHint"));
-    // Check if Dataview plugin is available
-    const dvApi = (ctx.app as any)?.plugins?.plugins?.dataview?.api;
-    if (!dvApi) {
-      dvInput.disabled = true;
-      dvInput.placeholder = t("filter.dataviewUnavailable");
-    }
-    dvInput.addEventListener("change", () => {
-      panel.dataviewQuery = dvInput.value.trim();
-      cb.invalidateDataKeepPanel();
+    // --- Advanced (hidden by default) ---
+    addAdvancedGroup(body, (adv) => {
+      addToggle(adv, t("filter.attachments"), panel.showAttachments, (v) => { panel.showAttachments = v; cb.invalidateDataKeepPanel(); }, t("desc.attachments"));
+      addToggle(adv, t("filter.existingOnly"), panel.existingOnly, (v) => { panel.existingOnly = v; cb.invalidateDataKeepPanel(); }, t("desc.existingOnly"));
+      if (panel.showOrphans) {
+        addTextInput(adv, t("filter.orphanClusterField"), panel.orphanClusterField ?? "", "category, folder, tag", (v) => { panel.orphanClusterField = v; cb.invalidateDataKeepPanel(); });
+      }
+      // Dataview query filter
+      const dvRow = adv.createDiv({ cls: "gi-setting-row" });
+      dvRow.createEl("span", { cls: "gi-setting-label", text: t("filter.dataviewQuery") });
+      const dvInput = dvRow.createEl("input", { cls: "gi-setting-input", type: "text" });
+      dvInput.value = panel.dataviewQuery;
+      dvInput.placeholder = '#tag, "folder"';
+      dvInput.setAttribute("aria-label", t("filter.dataviewHint"));
+      // Check if Dataview plugin is available
+      const dvApi = (ctx.app as any)?.plugins?.plugins?.dataview?.api;
+      if (!dvApi) {
+        dvInput.disabled = true;
+        dvInput.placeholder = t("filter.dataviewUnavailable");
+      }
+      dvInput.addEventListener("change", () => {
+        panel.dataviewQuery = dvInput.value.trim();
+        cb.invalidateDataKeepPanel();
+      });
+      adv.createEl("p", { cls: "gi-hint", text: t("filter.dataviewHint") });
     });
-    body.createEl("p", { cls: "gi-hint", text: t("filter.dataviewHint") });
   }, tHelp("help.filter"), false, "filter");
 
   buildSection(filterTab, t("section.groups"), (body) => {
@@ -960,6 +964,7 @@ function _buildNodeDisplaySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.displayNodes"), (body) => {
+    // --- Basic (always visible) ---
     // Node color mode dropdown
     const colorModeOptions = [
       { value: "default", label: t("display.nodeColor.default") },
@@ -973,62 +978,65 @@ function _buildNodeDisplaySection(
       cb.doRenderKeepPanel();
     }, t("desc.nodeColorMode"));
     addSlider(body, t("display.nodeSize"), 5, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.resetZoomBaseNodeSize(); cb.recalcNodeRadii(); cb.markDirty(); }, t("desc.nodeSize"));
-    const rtNode = panel.renderThresholds ?? {};
-    addToggle(body, t("display.nodeSizeByDegree"), rtNode.nodeSizeByDegree ?? false, (v) => {
-      if (!panel.renderThresholds) panel.renderThresholds = {};
-      panel.renderThresholds.nodeSizeByDegree = v;
-      cb.recalcNodeRadii();
-      cb.markDirty();
-    }, t("desc.nodeSizeByDegree"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
-    addTextInput(body, t("display.nodeSubLabelFields"), panel.nodeSubLabelFields ?? "", "e.g. category, date, node_type", (v) => {
-      panel.nodeSubLabelFields = v;
-      cb.doRenderKeepPanel();
-    });
-    addTextInput(body, t("display.hoverTooltipFields"), panel.hoverTooltipFields ?? "", "e.g. date, story_order", (v) => {
-      panel.hoverTooltipFields = v;
-      cb.markDirty();
-    });
-    addSlider(body, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.applyHover(); cb.markDirty(); }, t("desc.hoverHops"));
-    // フォーカスモード: クリックでハイライトを固定
-    addToggle(body, t("display.focusMode"), panel.focusMode, (v) => {
-      panel.focusMode = v;
-      if (!v) { panel.focusNodeId = null; cb.applyHover(); }
-      cb.markDirty();
-    }, t("desc.focusMode"));
-    // R2: フォーカスコーン — 距離ベースのアルファグラデーション
-    addToggle(body, t("display.focusCone"), panel.focusConeEnabled ?? true, (v) => {
-      panel.focusConeEnabled = v;
-      cb.applyHover();
-    }, t("desc.focusCone"));
-    // ビジュアルリンクエディタ: Alt+ドラッグでリンク作成
-    addToggle(body, t("display.visualLinkEditor"), panel.visualLinkEditor, (v) => {
-      panel.visualLinkEditor = v;
-      cb.markDirty();
-    }, t("desc.visualLinkEditor"));
-    // 未接続同タグノードのハイライト
-    addToggle(body, t("display.missingNeighbors"), panel.highlightMissingNeighbors ?? false, (v) => {
-      panel.highlightMissingNeighbors = v;
-      cb.markDirty();
-    }, t("desc.missingNeighbors"));
-    // --- ノード形状 ---
-    const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
-    const defaultRule = panel.nodeShapeRules.find(r => r.match === "default");
-    if (panel.showTagNodes) {
-      const tagRule = panel.nodeShapeRules.find(r => r.match === "isTag");
-      addSelect(body, t("display.tagNodeShape"), shapeOptions, tagRule?.shape ?? "triangle", (v) => {
-        const rule = panel.nodeShapeRules.find(r => r.match === "isTag");
-        if (rule) rule.shape = v as NodeShape;
-        else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
+    // --- Advanced (hidden by default) ---
+    addAdvancedGroup(body, (adv) => {
+      const rtNode = panel.renderThresholds ?? {};
+      addToggle(adv, t("display.nodeSizeByDegree"), rtNode.nodeSizeByDegree ?? false, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.nodeSizeByDegree = v;
+        cb.recalcNodeRadii();
+        cb.markDirty();
+      }, t("desc.nodeSizeByDegree"));
+      addTextInput(adv, t("display.nodeSubLabelFields"), panel.nodeSubLabelFields ?? "", "e.g. category, date, degree", (v) => {
+        panel.nodeSubLabelFields = v;
         cb.doRenderKeepPanel();
-      }, t("desc.tagNodeShape"));
-    }
-    addSelect(body, t("display.defaultNodeShape"), shapeOptions, defaultRule?.shape ?? "circle", (v) => {
-      const rule = panel.nodeShapeRules.find(r => r.match === "default");
-      if (rule) rule.shape = v as NodeShape;
-      else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
-      cb.doRenderKeepPanel();
-    }, t("desc.defaultNodeShape"));
+      });
+      addTextInput(adv, t("display.hoverTooltipFields"), panel.hoverTooltipFields ?? "", "e.g. date, story_order", (v) => {
+        panel.hoverTooltipFields = v;
+        cb.markDirty();
+      });
+      addSlider(adv, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.applyHover(); cb.markDirty(); }, t("desc.hoverHops"));
+      // フォーカスモード: クリックでハイライトを固定
+      addToggle(adv, t("display.focusMode"), panel.focusMode, (v) => {
+        panel.focusMode = v;
+        if (!v) { panel.focusNodeId = null; cb.applyHover(); }
+        cb.markDirty();
+      }, t("desc.focusMode"));
+      // R2: フォーカスコーン — 距離ベースのアルファグラデーション
+      addToggle(adv, t("display.focusCone"), panel.focusConeEnabled ?? true, (v) => {
+        panel.focusConeEnabled = v;
+        cb.applyHover();
+      }, t("desc.focusCone"));
+      // ビジュアルリンクエディタ: Alt+ドラッグでリンク作成
+      addToggle(adv, t("display.visualLinkEditor"), panel.visualLinkEditor, (v) => {
+        panel.visualLinkEditor = v;
+        cb.markDirty();
+      }, t("desc.visualLinkEditor"));
+      // 未接続同タグノードのハイライト
+      addToggle(adv, t("display.missingNeighbors"), panel.highlightMissingNeighbors ?? false, (v) => {
+        panel.highlightMissingNeighbors = v;
+        cb.markDirty();
+      }, t("desc.missingNeighbors"));
+      // --- ノード形状 ---
+      const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
+      const defaultRule = panel.nodeShapeRules.find(r => r.match === "default");
+      if (panel.showTagNodes) {
+        const tagRule = panel.nodeShapeRules.find(r => r.match === "isTag");
+        addSelect(adv, t("display.tagNodeShape"), shapeOptions, tagRule?.shape ?? "triangle", (v) => {
+          const rule = panel.nodeShapeRules.find(r => r.match === "isTag");
+          if (rule) rule.shape = v as NodeShape;
+          else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
+          cb.doRenderKeepPanel();
+        }, t("desc.tagNodeShape"));
+      }
+      addSelect(adv, t("display.defaultNodeShape"), shapeOptions, defaultRule?.shape ?? "circle", (v) => {
+        const rule = panel.nodeShapeRules.find(r => r.match === "default");
+        if (rule) rule.shape = v as NodeShape;
+        else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
+        cb.doRenderKeepPanel();
+      }, t("desc.defaultNodeShape"));
+    });
   }, undefined, false, "circle-dot");
 }
 
@@ -1370,104 +1378,108 @@ function _buildEdgeDisplaySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.displayEdges"), (body) => {
+    // --- Basic (always visible) ---
     addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRenderKeepPanel(); }, t("desc.arrows"));
-    addToggle(body, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); cb.rebuildPanel(); }, t("desc.edgeColor"));
     addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
-    // Unified edge label mode dropdown (replaces 3 separate toggles)
-    const edgeLabelMode = panel.showEdgeWeightLabels ? "weight"
-      : panel.showEdgeCardinalityLabels ? "cardinality"
-      : panel.showEdgeLabels ? "relation" : "none";
-    addSelect(body, t("display.edgeLabelMode"), [
-      { value: "none", label: t("display.edgeLabelMode.none") },
-      { value: "relation", label: t("display.edgeLabelMode.relation") },
-      { value: "weight", label: t("display.edgeLabelMode.weight") },
-      { value: "cardinality", label: t("display.edgeLabelMode.cardinality") },
-    ], edgeLabelMode, (v) => {
-      panel.showEdgeLabels = v === "relation";
-      panel.showEdgeWeightLabels = v === "weight";
-      panel.showEdgeCardinalityLabels = v === "cardinality";
-      cb.markDirty();
-    }, t("desc.edgeLabelMode"));
-    addSelect(body, t("display.edgeLabelPlacement"), [
-      { value: "center", label: t("display.edgeLabelCenter") },
-      { value: "offset", label: t("display.edgeLabelOffset") },
-      { value: "smart", label: t("display.edgeLabelSmart") },
-    ], panel.edgeLabelPlacement ?? "center", (v) => {
-      panel.edgeLabelPlacement = v as "center" | "offset" | "smart";
-      cb.markDirty();
-    });
-    addToggle(body, t("display.edgeLayerMode"), panel.edgeLayerMode, (v) => { panel.edgeLayerMode = v; cb.markDirty(); }, t("desc.edgeLayerMode"));
-    addSelect(body, t("display.edgeDirectionFilter"), [
-      { value: "all", label: t("display.edgeDirAll") },
-      { value: "bidirectional", label: t("display.edgeDirBidirectional") },
-      { value: "unidirectional", label: t("display.edgeDirUnidirectional") },
-    ], panel.edgeDirectionFilter, (v) => {
-      panel.edgeDirectionFilter = v as "all" | "bidirectional" | "unidirectional";
-      cb.markDirty();
-    }, t("desc.edgeDirectionFilter"));
-    addToggle(body, t("display.bidirectionalIndicator"), panel.showBidirectionalIndicator, (v) => { panel.showBidirectionalIndicator = v; cb.markDirty(); }, t("desc.bidirectionalIndicator"));
-    const rt = panel.renderThresholds ?? {};
-    addToggle(body, t("display.edgeStrengthGlow"), rt.edgeStrengthGlow ?? DEFAULT_RENDER_THRESHOLDS.edgeStrengthGlow, (v) => {
-      if (!panel.renderThresholds) panel.renderThresholds = {};
-      panel.renderThresholds.edgeStrengthGlow = v;
-      cb.markDirty();
-    }, t("desc.edgeStrengthGlow"));
-    addSlider(body, t("display.degreeEdgeWidth"), 0, 2, 0.1,
-      panel.degreeEdgeWidth ?? 0, (v) => {
-        panel.degreeEdgeWidth = v;
+    // --- Advanced (hidden by default) ---
+    addAdvancedGroup(body, (adv) => {
+      addToggle(adv, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); cb.rebuildPanel(); }, t("desc.edgeColor"));
+      // Unified edge label mode dropdown (replaces 3 separate toggles)
+      const edgeLabelMode = panel.showEdgeWeightLabels ? "weight"
+        : panel.showEdgeCardinalityLabels ? "cardinality"
+        : panel.showEdgeLabels ? "relation" : "none";
+      addSelect(adv, t("display.edgeLabelMode"), [
+        { value: "none", label: t("display.edgeLabelMode.none") },
+        { value: "relation", label: t("display.edgeLabelMode.relation") },
+        { value: "weight", label: t("display.edgeLabelMode.weight") },
+        { value: "cardinality", label: t("display.edgeLabelMode.cardinality") },
+      ], edgeLabelMode, (v) => {
+        panel.showEdgeLabels = v === "relation";
+        panel.showEdgeWeightLabels = v === "weight";
+        panel.showEdgeCardinalityLabels = v === "cardinality";
         cb.markDirty();
-      }, t("desc.degreeEdgeWidth"));
-    addToggle(body, t("display.showPathfinderOverlay"), panel.showPathfinderOverlay, (v) => { panel.showPathfinderOverlay = v; cb.markDirty(); }, t("desc.showPathfinderOverlay"));
-    addToggle(body, t("display.edgeWeightThickness"), panel.edgeWeightThickness, (v) => { panel.edgeWeightThickness = v; cb.markDirty(); }, t("desc.edgeWeightThickness"));
-    addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); }, t("desc.links"));
-    addToggle(body, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); }, t("desc.sharedTags"));
-    addToggle(body, t("display.sharedCategory"), panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); }, t("desc.sharedCategory"));
-    addToggle(body, t("display.semantic"), panel.showSemanticEdges, (v) => { panel.showSemanticEdges = v; cb.markDirty(); }, t("desc.semantic"));
-    addToggle(body, t("display.inheritance"), panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); }, t("desc.inheritance"));
-    addToggle(body, t("display.aggregation"), panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); }, t("desc.aggregation"));
-    addToggle(body, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateDataKeepPanel(); }, t("desc.similar"));
-    addToggle(body, t("display.sibling"), panel.showSibling, (v) => { panel.showSibling = v; cb.markDirty(); }, t("desc.sibling"));
-    addToggle(body, t("display.sequence"), panel.showSequence, (v) => { panel.showSequence = v; cb.markDirty(); }, t("desc.sequence"));
+      }, t("desc.edgeLabelMode"));
+      addSelect(adv, t("display.edgeLabelPlacement"), [
+        { value: "center", label: t("display.edgeLabelCenter") },
+        { value: "offset", label: t("display.edgeLabelOffset") },
+        { value: "smart", label: t("display.edgeLabelSmart") },
+      ], panel.edgeLabelPlacement ?? "center", (v) => {
+        panel.edgeLabelPlacement = v as "center" | "offset" | "smart";
+        cb.markDirty();
+      });
+      addToggle(adv, t("display.edgeLayerMode"), panel.edgeLayerMode, (v) => { panel.edgeLayerMode = v; cb.markDirty(); }, t("desc.edgeLayerMode"));
+      addSelect(adv, t("display.edgeDirectionFilter"), [
+        { value: "all", label: t("display.edgeDirAll") },
+        { value: "bidirectional", label: t("display.edgeDirBidirectional") },
+        { value: "unidirectional", label: t("display.edgeDirUnidirectional") },
+      ], panel.edgeDirectionFilter, (v) => {
+        panel.edgeDirectionFilter = v as "all" | "bidirectional" | "unidirectional";
+        cb.markDirty();
+      }, t("desc.edgeDirectionFilter"));
+      addToggle(adv, t("display.bidirectionalIndicator"), panel.showBidirectionalIndicator, (v) => { panel.showBidirectionalIndicator = v; cb.markDirty(); }, t("desc.bidirectionalIndicator"));
+      const rt = panel.renderThresholds ?? {};
+      addToggle(adv, t("display.edgeStrengthGlow"), rt.edgeStrengthGlow ?? DEFAULT_RENDER_THRESHOLDS.edgeStrengthGlow, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.edgeStrengthGlow = v;
+        cb.markDirty();
+      }, t("desc.edgeStrengthGlow"));
+      addSlider(adv, t("display.degreeEdgeWidth"), 0, 2, 0.1,
+        panel.degreeEdgeWidth ?? 0, (v) => {
+          panel.degreeEdgeWidth = v;
+          cb.markDirty();
+        }, t("desc.degreeEdgeWidth"));
+      addToggle(adv, t("display.showPathfinderOverlay"), panel.showPathfinderOverlay, (v) => { panel.showPathfinderOverlay = v; cb.markDirty(); }, t("desc.showPathfinderOverlay"));
+      addToggle(adv, t("display.edgeWeightThickness"), panel.edgeWeightThickness, (v) => { panel.edgeWeightThickness = v; cb.markDirty(); }, t("desc.edgeWeightThickness"));
+      addToggle(adv, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); }, t("desc.links"));
+      addToggle(adv, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); }, t("desc.sharedTags"));
+      addToggle(adv, t("display.sharedCategory"), panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); }, t("desc.sharedCategory"));
+      addToggle(adv, t("display.semantic"), panel.showSemanticEdges, (v) => { panel.showSemanticEdges = v; cb.markDirty(); }, t("desc.semantic"));
+      addToggle(adv, t("display.inheritance"), panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); }, t("desc.inheritance"));
+      addToggle(adv, t("display.aggregation"), panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); }, t("desc.aggregation"));
+      addToggle(adv, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateDataKeepPanel(); }, t("desc.similar"));
+      addToggle(adv, t("display.sibling"), panel.showSibling, (v) => { panel.showSibling = v; cb.markDirty(); }, t("desc.sibling"));
+      addToggle(adv, t("display.sequence"), panel.showSequence, (v) => { panel.showSequence = v; cb.markDirty(); }, t("desc.sequence"));
 
-    // Solo button: cycle through edge types one at a time
-    const EDGE_TYPE_KEYS: (keyof PanelState)[] = [
-      "showLinks", "showTagEdges", "showCategoryEdges", "showSemanticEdges",
-      "showInheritance", "showAggregation", "showSimilar", "showSibling", "showSequence",
-    ];
-    const soloRow = body.createDiv({ cls: "gi-setting-row" });
-    const soloBtn = soloRow.createEl("button", { cls: "gi-solo-btn", text: t("display.soloEdgeType") });
-    soloBtn.title = t("desc.soloEdgeType");
-    soloBtn.addEventListener("click", () => {
-      // Find currently soloed type (exactly one ON, rest OFF)
-      const onKeys = EDGE_TYPE_KEYS.filter(k => panel[k] as boolean);
-      if (onKeys.length === 1) {
-        // Advance to next type
-        const idx = EDGE_TYPE_KEYS.indexOf(onKeys[0]);
-        const nextIdx = (idx + 1) % EDGE_TYPE_KEYS.length;
-        if (nextIdx === 0) {
-          // Wrapped around: restore all ON
-          for (const k of EDGE_TYPE_KEYS) (panel as Record<string, unknown>)[k] = true;
+      // Solo button: cycle through edge types one at a time
+      const EDGE_TYPE_KEYS: (keyof PanelState)[] = [
+        "showLinks", "showTagEdges", "showCategoryEdges", "showSemanticEdges",
+        "showInheritance", "showAggregation", "showSimilar", "showSibling", "showSequence",
+      ];
+      const soloRow = adv.createDiv({ cls: "gi-setting-row" });
+      const soloBtn = soloRow.createEl("button", { cls: "gi-solo-btn", text: t("display.soloEdgeType") });
+      soloBtn.title = t("desc.soloEdgeType");
+      soloBtn.addEventListener("click", () => {
+        // Find currently soloed type (exactly one ON, rest OFF)
+        const onKeys = EDGE_TYPE_KEYS.filter(k => panel[k] as boolean);
+        if (onKeys.length === 1) {
+          // Advance to next type
+          const idx = EDGE_TYPE_KEYS.indexOf(onKeys[0]);
+          const nextIdx = (idx + 1) % EDGE_TYPE_KEYS.length;
+          if (nextIdx === 0) {
+            // Wrapped around: restore all ON
+            for (const k of EDGE_TYPE_KEYS) (panel as Record<string, unknown>)[k] = true;
+          } else {
+            for (const k of EDGE_TYPE_KEYS) (panel as Record<string, unknown>)[k] = false;
+            (panel as Record<string, unknown>)[EDGE_TYPE_KEYS[nextIdx]] = true;
+          }
         } else {
+          // Start solo: turn on only the first type
           for (const k of EDGE_TYPE_KEYS) (panel as Record<string, unknown>)[k] = false;
-          (panel as Record<string, unknown>)[EDGE_TYPE_KEYS[nextIdx]] = true;
+          (panel as Record<string, unknown>)[EDGE_TYPE_KEYS[0]] = true;
         }
-      } else {
-        // Start solo: turn on only the first type
-        for (const k of EDGE_TYPE_KEYS) (panel as Record<string, unknown>)[k] = false;
-        (panel as Record<string, unknown>)[EDGE_TYPE_KEYS[0]] = true;
-      }
-      cb.markDirty();
-      cb.rebuildPanel();
-    });
+        cb.markDirty();
+        cb.rebuildPanel();
+      });
 
-    // Cardinality markers (crow's foot)
-    addSelect(body, t("display.edgeCardinality"), [
-      { value: "none", label: t("display.cardinalityNone") },
-      { value: "crowsfoot", label: t("display.cardinalityCrowsfoot") },
-    ], panel.edgeCardinalityMode, (v) => {
-      panel.edgeCardinalityMode = v as EdgeCardinalityMode;
-      cb.markDirty();
-    }, t("desc.edgeCardinality"));
+      // Cardinality markers (crow's foot)
+      addSelect(adv, t("display.edgeCardinality"), [
+        { value: "none", label: t("display.cardinalityNone") },
+        { value: "crowsfoot", label: t("display.cardinalityCrowsfoot") },
+      ], panel.edgeCardinalityMode, (v) => {
+        panel.edgeCardinalityMode = v as EdgeCardinalityMode;
+        cb.markDirty();
+      }, t("desc.edgeCardinality"));
+    });
   }, undefined, false, "git-branch");
 }
 
@@ -2416,6 +2428,16 @@ function saveSectionState(title: string, collapsed: boolean) {
   const states = loadSectionStates();
   states[title] = collapsed;
   localStorage.setItem(SECTION_STATE_KEY, JSON.stringify(states));
+}
+
+// ---------------------------------------------------------------------------
+// P2: Progressive disclosure — Advanced settings group
+// ---------------------------------------------------------------------------
+function addAdvancedGroup(parent: HTMLElement, callback: (container: HTMLElement) => void): void {
+  const details = parent.createEl("details", { cls: "gi-advanced-group" });
+  details.createEl("summary", { cls: "gi-advanced-summary", text: t("panel.advanced") });
+  const inner = details.createDiv({ cls: "gi-advanced-inner" });
+  callback(inner);
 }
 
 function buildSection(container: HTMLElement, title: string, build: (body: HTMLElement) => void, helpText?: string, collapsed = false, icon?: string) {

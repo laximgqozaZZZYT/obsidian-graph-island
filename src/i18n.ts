@@ -779,6 +779,8 @@ const en: TranslationMap = {
   "context.pathClear": "Path: clear",
   "context.setType": "Set type: {type}",
   "context.moveTo": "Move to: {group}",
+  // P2: Progressive Disclosure
+  "panel.advanced": "Advanced settings",
 };
 
 // ---------------------------------------------------------------------------
@@ -1544,6 +1546,8 @@ const ja: TranslationMap = {
   "context.pathClear": "パス: クリア",
   "context.setType": "タイプ設定: {type}",
   "context.moveTo": "移動先: {group}",
+  // P2: Progressive Disclosure
+  "panel.advanced": "詳細設定",
 };
 
 // ---------------------------------------------------------------------------

@@ -69,6 +69,55 @@ export default class GraphViewsPlugin extends Plugin {
       },
     });
 
+    // I5: Keyboard shortcuts for graph operations
+    this.addCommand({
+      id: "graph-mode-explore",
+      name: "Graph: Explore mode",
+      callback: () => {
+        const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
+        if (view) { (view as GraphViewContainer).applyPresetByKey("explore"); }
+      },
+    });
+    this.addCommand({
+      id: "graph-mode-analyze",
+      name: "Graph: Analyze mode",
+      callback: () => {
+        const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
+        if (view) { (view as GraphViewContainer).applyPresetByKey("analyze"); }
+      },
+    });
+    this.addCommand({
+      id: "graph-mode-write",
+      name: "Graph: Write mode",
+      callback: () => {
+        const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
+        if (view) { (view as GraphViewContainer).applyPresetByKey("write"); }
+      },
+    });
+    this.addCommand({
+      id: "graph-focus-toggle",
+      name: "Graph: Toggle focus mode",
+      callback: () => {
+        const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
+        if (view) {
+          const v = view as any;
+          v.panel.focusMode = !v.panel.focusMode;
+          v.markDirty(true);
+        }
+      },
+    });
+    this.addCommand({
+      id: "graph-search-focus",
+      name: "Graph: Focus search bar",
+      callback: () => {
+        const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
+        if (view) {
+          const searchInput = (view as any).panelEl?.querySelector("input[type='text']");
+          if (searchInput) searchInput.focus();
+        }
+      },
+    });
+
     this.addSettingTab(new GraphViewsSettingTab(this.app, this));
 
     // Code block processor for embedded mini-graphs in notes

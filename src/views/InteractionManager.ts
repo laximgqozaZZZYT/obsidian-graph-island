@@ -140,6 +140,8 @@ export interface InteractionHost {
   showInlineEditor?(pn: PixiNode): void;
   /** C7: Whether inline edit is enabled */
   isInlineEditEnabled?(): boolean;
+  /** I1: Persist node position after drag */
+  saveDragPosition?(nodeId: string, x: number, y: number): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -550,6 +552,8 @@ export class InteractionManager {
           node.data.fx = null;
           node.data.fy = null;
         }
+        // I1: Auto-persist drag position
+        this.host.saveDragPosition?.(node.data.id, node.data.x, node.data.y);
       }
       const sim = this.host.getSimulation();
       if (sim) sim.alphaTarget(0);

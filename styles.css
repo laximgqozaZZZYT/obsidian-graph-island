@@ -3274,6 +3274,20 @@
   margin-top: 4px;
 }
 
+/* === P2: Progressive Disclosure — Advanced settings group === */
+.gi-advanced-group {
+  margin-top: 4px;
+}
+.gi-advanced-summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 0;
+}
+.gi-advanced-inner {
+  padding-left: 4px;
+}
+
 /* Template select dropdown */
 .gi-template-select {
   font-size: 12px;

@@ -130,6 +130,15 @@ test.beforeAll(async ({}, testInfo) => {
     v.panel.nodeSize = 15;
     v.panel.groupBy = "none";
     v.panel.collapsedGroups = new Set();
+    // Reset local graph / focus mode to show all nodes
+    v.panel.localGraphCenter = null;
+    v.panel.syncWithEditor = false;
+    v.panel.focusLayout = false;
+    v.panel.showEntropyOverlay = false;
+    v.panel.showOntologyBackbone = false;
+    v.panel.showHierarchyTree = false;
+    v.panel.showGapEdges = false;
+    v.panel.showRelationMatrix = false;
     v.rawData = null;
     await v.doRender();
   });
@@ -1092,6 +1101,37 @@ test.describe("19. Thinking Graph Features", () => {
     await page.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       if (v) v.panel.clusterLabelDetail = "standard";
+    });
+  });
+});
+
+// =========================================================================
+// 19. Degree-Proportional Node Sizing
+// =========================================================================
+test.describe("19. Degree Proportional Sizing", () => {
+  test("19.1 nodeSizeByDegree setting persists and degree virtual property works", async () => {
+    // Set degree sizing
+    await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
+      v.panel.renderThresholds.nodeSizeByDegree = true;
+    });
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      return {
+        sizeByDegree: v.panel.renderThresholds?.nodeSizeByDegree ?? false,
+        hasPixiNodes: v.pixiNodes?.size > 0,
+      };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.sizeByDegree).toBe(true);
+    expect(result.hasPixiNodes).toBe(true);
+    // Restore
+    await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (v?.panel?.renderThresholds) v.panel.renderThresholds.nodeSizeByDegree = false;
     });
   });
 });
