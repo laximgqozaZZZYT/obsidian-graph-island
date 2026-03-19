@@ -648,6 +648,34 @@ export class InteractionManager {
       });
     }
 
+    // --- Section: Linked nodes ---
+    const neighborIds = this.host.getNeighborIds?.(node.data.id) ?? [];
+    if (neighborIds.length > 0) {
+      menu.addSeparator();
+      const topNeighbors = neighborIds.slice(0, 8);
+      for (const nbId of topNeighbors) {
+        const nbPn = this.host.getPixiNodes().get(nbId);
+        if (!nbPn) continue;
+        const nbLabel = nbPn.data.label || nbId.split("/").pop() || nbId;
+        menu.addItem((item) => {
+          item.setTitle(`→ ${nbLabel}`)
+            .setIcon("arrow-right")
+            .onClick(() => {
+              this.host.setHighlightedNodeId(nbId);
+              this.host.applyHover();
+              if (nbPn.data.filePath) this.host.openFile(nbPn.data.filePath);
+            });
+        });
+      }
+      if (neighborIds.length > 8) {
+        menu.addItem((item) => {
+          item.setTitle(`… +${neighborIds.length - 8} more`)
+            .setIcon("more-horizontal")
+            .setDisabled(true);
+        });
+      }
+    }
+
     // --- Section: Edit ---
     menu.addSeparator();
     menu.addItem((item) => {

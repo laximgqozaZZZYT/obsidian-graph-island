@@ -1436,7 +1436,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   cardLODMidLabelPx: 3.0,
   cardLODCompactPx: 8.0,
   cardLODFullCardPx: 15.0,
-  autoLOD: false,
+  autoLOD: true,
 };
 
 export const DEFAULT_COLORS = [
