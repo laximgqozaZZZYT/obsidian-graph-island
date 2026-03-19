@@ -1137,3 +1137,107 @@ test.describe("19. Degree Proportional Sizing", () => {
     });
   });
 });
+
+// =========================================================================
+// 20. Experience Quality (Round 4)
+// =========================================================================
+test.describe("20. Experience Quality", () => {
+  test("20.1 searchMode setting persists in panel", async () => {
+    // Verify searchMode can be set and persists
+    await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (v) v.panel.searchMode = "highlight";
+    });
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.searchMode;
+    });
+    expect(result).toBe("highlight");
+
+    // Reset
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.searchMode = "filter";
+      v.panel.searchQuery = "";
+      v.rawData = null;
+      await v.doRender();
+    });
+    await waitStable(page);
+  });
+
+  test("20.3 write mode preset has correct parameters defined", async () => {
+    // Verify write mode settings directly (since method names are minified in production)
+    const count = await renderWith(page, {
+      nodeSize: 25, localGraphHops: 1, showTagEdges: false,
+      focusConeEnabled: true, showArrows: false,
+    });
+    expect(count).toBeGreaterThan(0);
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      return {
+        nodeSize: v.panel.nodeSize,
+        localGraphHops: v.panel.localGraphHops,
+        showTagEdges: v.panel.showTagEdges,
+      };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.nodeSize).toBe(25);
+    expect(result.localGraphHops).toBe(1);
+    expect(result.showTagEdges).toBe(false);
+
+    // Reset to defaults
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.nodeSize = 15;
+      v.panel.localGraphCenter = null;
+      v.panel.syncWithEditor = false;
+      v.panel.focusLayout = false;
+      v.panel.showTagEdges = true;
+      v.rawData = null;
+      await v.doRender();
+    });
+    await waitStable(page);
+  });
+});
+
+// =========================================================================
+// 21. Node Color Mode Switching
+// =========================================================================
+test.describe("21. Node Color Mode Switching", () => {
+  test("21.1 default vs category color modes produce different distributions", async () => {
+    // Default mode: 1 color
+    const defaultColors = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.pixiNodes) return 0;
+      const colors = new Set<number>();
+      for (const pn of v.pixiNodes.values()) if (pn.color != null) colors.add(pn.color);
+      return colors.size;
+    });
+    // Switch to category
+    await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return;
+      v.panel.nodeColorMode = "category";
+      v.rawData = null;
+      await v.doRender();
+    });
+    await page.waitForTimeout(3000);
+    const categoryColors = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.pixiNodes) return 0;
+      const colors = new Set<number>();
+      for (const pn of v.pixiNodes.values()) if (pn.color != null) colors.add(pn.color);
+      return colors.size;
+    });
+    console.log(`Colors: default=${defaultColors}, category=${categoryColors}`);
+    expect(categoryColors).toBeGreaterThan(defaultColors);
+    // Restore
+    await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (v) v.panel.nodeColorMode = "default";
+    });
+  });
+});

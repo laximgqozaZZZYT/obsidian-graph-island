@@ -115,6 +115,7 @@ const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   importanceMetric: ["degree", "betweenness", "pagerank"] as const,
   clusterLabelDetail: ["minimal", "standard", "detailed"] as const,
   gapDetectionMode: ["within-tag", "cross-cluster", "both"] as const,
+  searchMode: ["filter", "highlight"] as const,
   activeTab: ["filter", "display", "layout", "settings"] as const,
 };
 
@@ -167,6 +168,25 @@ export function exportPreset(panel: PanelState): string {
   }
 
   return JSON.stringify(serializable, null, 2);
+}
+
+/**
+ * Export only settings that differ from defaults.
+ * Produces a compact JSON with only user-customized values.
+ */
+export function exportPresetDiff(panel: PanelState, defaults: PanelState): string {
+  const diff: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(panel)) {
+    const defVal = (defaults as Record<string, unknown>)[key];
+    if (value instanceof Set || defVal instanceof Set) continue;
+    if (Array.isArray(value) || Array.isArray(defVal)) continue;
+    if (typeof value === "object" || typeof defVal === "object") {
+      if (JSON.stringify(value) !== JSON.stringify(defVal)) diff[key] = value;
+      continue;
+    }
+    if (value !== defVal) diff[key] = value;
+  }
+  return JSON.stringify(diff, null, 2);
 }
 
 // ---------------------------------------------------------------------------

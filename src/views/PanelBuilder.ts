@@ -9,7 +9,7 @@ import { setIcon } from "obsidian";
 import { t, tHelp, getLocale } from "../i18n";
 import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
-import { exportPreset, importPreset, applyPreset, type PresetMigrationInfo } from "../utils/presets";
+import { exportPreset, exportPresetDiff, importPreset, applyPreset, type PresetMigrationInfo } from "../utils/presets";
 import { showToast } from "../utils/toast";
 import { ARRANGEMENT_PRESETS, findMatchingPreset, CURVE_REGISTRY } from "../layouts/coordinate-presets";
 import { validateExpr, parseExpr, evalExpr, setUserVars, type ExprNode } from "../utils/expr-eval";
@@ -43,6 +43,8 @@ export interface PanelState {
   orbitAutoRotate: boolean;
   groups: GroupRule[];
   searchQuery: string;
+  /** N2: Search behavior — "filter" removes non-matches, "highlight" dims them */
+  searchMode: "filter" | "highlight";
   colorEdgesByRelation: boolean;
   showInheritance: boolean;
   showAggregation: boolean;
@@ -318,6 +320,7 @@ export function createDefaultPanel(): PanelState {
     orbitAutoRotate: true,
     groups: [],
     searchQuery: "",
+    searchMode: "filter" as const,
     colorEdgesByRelation: true,
     nodeColorMode: "category" as const,
     showInheritance: true,
@@ -717,6 +720,24 @@ export function buildPanel(
   });
   attachQueryHint(searchBar, (field) => cb.collectValueSuggestions(field));
   attachSearchJump(searchBar, cb);
+
+  // --- N2: Search mode toggle (filter / highlight) ---
+  const searchModeSelect = searchRow.createEl("select", {
+    cls: "dropdown gi-search-mode",
+    attr: { "aria-label": t("display.searchMode") },
+  });
+  searchModeSelect.style.cssText = "font-size:11px;padding:2px 4px;max-width:90px;";
+  for (const opt of [
+    { value: "filter", label: t("search.modeFilter") },
+    { value: "highlight", label: t("search.modeHighlight") },
+  ]) {
+    const el = searchModeSelect.createEl("option", { text: opt.label, value: opt.value });
+    if (opt.value === (panel.searchMode ?? "filter")) el.selected = true;
+  }
+  searchModeSelect.addEventListener("change", () => {
+    panel.searchMode = searchModeSelect.value as "filter" | "highlight";
+    cb.invalidateData();
+  });
 
   // --- Navigation history back/forward buttons ---
   const navBackBtn = searchRow.createEl("span", {
@@ -1869,6 +1890,18 @@ function _buildSettingsActionButtons(
       await navigator.clipboard.writeText(json);
       exportBtn.textContent = t("preset.exported");
       setTimeout(() => { exportBtn.textContent = t("preset.export"); }, 2000);
+    } catch { /* clipboard not available */ }
+  });
+
+  const diffExportBtn = presetRow.createEl("button", { text: t("preset.exportDiff") });
+  diffExportBtn.title = t("preset.exportDiffDesc");
+  diffExportBtn.addEventListener("click", async () => {
+    const defaults = createDefaultPanel();
+    const json = exportPresetDiff(panel, defaults);
+    try {
+      await navigator.clipboard.writeText(json);
+      diffExportBtn.textContent = t("preset.exported");
+      setTimeout(() => { diffExportBtn.textContent = t("preset.exportDiff"); }, 2000);
     } catch { /* clipboard not available */ }
   });
 

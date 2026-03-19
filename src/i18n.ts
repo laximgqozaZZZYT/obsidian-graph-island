@@ -344,6 +344,8 @@ const en: TranslationMap = {
 
   // --- PanelBuilder: shared presets ---
   "preset.export": "Export Preset",
+  "preset.exportDiff": "Export Changes",
+  "preset.exportDiffDesc": "Export only settings that differ from defaults",
   "preset.import": "Import Preset",
   "preset.exported": "Preset copied to clipboard",
   "preset.importError": "Invalid preset JSON",
@@ -733,6 +735,11 @@ const en: TranslationMap = {
   "legend.shapeDefault": "Default node",
   "legend.shapeTag": "Tag node",
 
+  // --- Feature N2: Search Mode ---
+  "display.searchMode": "Search Mode",
+  "search.modeFilter": "Filter",
+  "search.modeHighlight": "Highlight",
+
   // --- Feature T: Graph Search History ---
   "search.clearHistory": "Clear history",
 
@@ -1120,6 +1127,8 @@ const ja: TranslationMap = {
 
   // --- PanelBuilder: shared presets ---
   "preset.export": "プリセットをエクスポート",
+  "preset.exportDiff": "変更のみエクスポート",
+  "preset.exportDiffDesc": "デフォルトから変更された設定のみをエクスポート",
   "preset.import": "プリセットをインポート",
   "preset.exported": "プリセットをクリップボードにコピーしました",
   "preset.importError": "無効なプリセット JSON です",
@@ -1499,6 +1508,11 @@ const ja: TranslationMap = {
   "legend.shapeDefault": "デフォルトノード",
   "legend.shapeTag": "タグノード",
   "legend.hidden": "(非表示)",
+
+  // --- Feature N2: 検索モード ---
+  "display.searchMode": "検索モード",
+  "search.modeFilter": "フィルタ",
+  "search.modeHighlight": "ハイライト",
 
   // --- Feature T: 検索履歴 ---
   "search.clearHistory": "履歴をクリア",

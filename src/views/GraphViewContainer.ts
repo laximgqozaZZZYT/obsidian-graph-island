@@ -153,6 +153,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private graphEdges: GraphEdge[] = [];
   private degrees: Map<string, number> = new Map();
   private adj: Map<string, Set<string>> = new Map();
+  /** N2: In highlight mode, stores the set of node IDs that match the search query (null = no highlight active) */
+  private _searchHighlightSet: Set<string> | null = null;
   private relationColors: Map<string, string> = new Map();
   private nodeColorMap: Map<string, string> = new Map();
   /** Counter: when > 0, doRender() skips the final buildPanel() call.
@@ -5636,6 +5638,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Apply dataview and search query filters. */
   private _filterByQuery(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
+    // Reset highlight set at start of each data build
+    this._searchHighlightSet = null;
+
     if (this.panel.dataviewQuery.trim()) {
       const matchingPaths = queryDataviewPages(this.app, this.panel.dataviewQuery.trim());
       if (matchingPaths.size > 0) {
@@ -5648,7 +5653,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (remaining) {
       const searchExpr = parseQueryExpr(remaining);
       if (searchExpr) {
-        nodes = nodes.filter((n) => evaluateExpr(searchExpr, n));
+        const matchedIds = new Set(nodes.filter((n) => evaluateExpr(searchExpr, n)).map((n) => n.id));
+        if (this.panel.searchMode === "highlight") {
+          // N2: Highlight mode — keep all nodes, store matched IDs for visual dimming
+          this._searchHighlightSet = matchedIds;
+        } else {
+          // Default filter mode — remove non-matching nodes
+          nodes = nodes.filter((n) => matchedIds.has(n.id));
+        }
       }
     }
 
@@ -6721,15 +6733,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
 
     const hasHop = hopSet !== null;
+    // N2: Combine hop set and text-based highlight set
+    const hlSet = this._searchHighlightSet;
+    const hasHighlight = hasHop || hlSet !== null;
 
     for (const pn of this.pixiNodes.values()) {
-      if (!hasHop) {
+      if (!hasHighlight) {
         pn.gfx.alpha = 1;
         this.drawNodeCircle(pn, false);
         continue;
       }
 
-      if (hopSet.has(pn.data.id)) {
+      // A node is "matched" if it passes hop filter (when active) AND text highlight (when active)
+      const hopMatch = !hasHop || hopSet.has(pn.data.id);
+      const textMatch = !hlSet || hlSet.has(pn.data.id);
+      const isMatch = hopMatch && textMatch;
+
+      if (isMatch) {
         pn.gfx.alpha = 1;
         pn.circle.visible = true;
         pn.circle.clear();
