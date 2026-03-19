@@ -200,6 +200,8 @@ export interface PanelState {
   nodeSubLabelFields: string;
   /** Metadata fields to show in hover tooltip (comma-separated frontmatter keys) */
   hoverTooltipFields: string;
+  /** Named saved search queries */
+  savedSearchQueries: { name: string; query: string }[];
   /** Pinned node positions: persisted across layout changes */
   pinnedPositions: Record<string, { x: number; y: number }>;
   /** Navigation history: visited node IDs (max 20) */
@@ -419,6 +421,7 @@ export function createDefaultPanel(): PanelState {
     showAncestryBreadcrumb: false,
     nodeSubLabelFields: "",
     hoverTooltipFields: "",
+    savedSearchQueries: [],
     pinnedPositions: {},
     navHistory: [],
     navHistoryCursor: -1,
@@ -662,18 +665,59 @@ export function buildPanel(
       return;
     }
     historyDropdown.empty();
+
+    // Saved queries section (named slots)
+    if (panel.savedSearchQueries && panel.savedSearchQueries.length > 0) {
+      const savedHeader = historyDropdown.createDiv({ cls: "gi-search-history-item", text: "── Saved ──" });
+      savedHeader.style.cssText = "font-size:10px;color:var(--text-muted);pointer-events:none;text-align:center;";
+      for (const sq of panel.savedSearchQueries) {
+        const item = historyDropdown.createDiv({ cls: "gi-search-history-item" });
+        item.createEl("span", { text: `★ ${sq.name}`, cls: "gi-saved-query-name" });
+        item.createEl("span", { text: sq.query, cls: "gi-saved-query-text" });
+        item.style.cssText = "display:flex;justify-content:space-between;gap:8px;";
+        item.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          searchBar.value = sq.query;
+          searchBar.dispatchEvent(new Event("input"));
+          historyDropdown.style.display = "none";
+        });
+        // Delete button
+        const delBtn = item.createEl("span", { text: "×", cls: "gi-saved-query-del" });
+        delBtn.style.cssText = "cursor:pointer;color:var(--text-muted);margin-left:4px;";
+        delBtn.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          panel.savedSearchQueries = panel.savedSearchQueries.filter(s => s !== sq);
+          showHistory();
+        });
+      }
+    }
+
+    // History section
     for (const query of filtered) {
       const item = historyDropdown.createDiv({ cls: "gi-search-history-item" });
       item.textContent = query;
       item.addEventListener("mousedown", (e) => {
-        // mousedown で処理（blur より前に発火させる）
         e.preventDefault();
         searchBar.value = query;
         searchBar.dispatchEvent(new Event("input"));
         historyDropdown.style.display = "none";
       });
     }
-    // 履歴クリアボタン
+    // Save current query button
+    const currentQuery = searchBar.value.trim();
+    if (currentQuery) {
+      const saveBtn = historyDropdown.createDiv({ cls: "gi-search-history-item gi-search-history-clear" });
+      saveBtn.textContent = `★ ${t("search.saveQuery")}`;
+      saveBtn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const name = currentQuery.length > 20 ? currentQuery.slice(0, 20) + "…" : currentQuery;
+        if (!panel.savedSearchQueries) panel.savedSearchQueries = [];
+        panel.savedSearchQueries.push({ name, query: currentQuery });
+        historyDropdown.style.display = "none";
+      });
+    }
+    // Clear history button
     const clearBtn = historyDropdown.createDiv({ cls: "gi-search-history-item gi-search-history-clear" });
     clearBtn.textContent = t("search.clearHistory");
     clearBtn.addEventListener("mousedown", (e) => {

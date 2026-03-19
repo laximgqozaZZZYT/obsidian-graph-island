@@ -742,6 +742,7 @@ const en: TranslationMap = {
 
   // --- Feature T: Graph Search History ---
   "search.clearHistory": "Clear history",
+  "search.saveQuery": "Save this query",
 
   // --- Feature V: Graph Templates ---
   "template.save": "Save Template",
@@ -1519,6 +1520,7 @@ const ja: TranslationMap = {
 
   // --- Feature T: 検索履歴 ---
   "search.clearHistory": "履歴をクリア",
+  "search.saveQuery": "このクエリを保存",
 
   // --- Feature V: グラフテンプレート ---
   "template.save": "テンプレート保存",

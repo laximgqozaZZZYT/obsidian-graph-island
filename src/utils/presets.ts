@@ -97,7 +97,7 @@ const STRING_FIELDS: (keyof PanelState)[] = [
 const ARRAY_FIELDS: (keyof PanelState)[] = [
   "groups", "directionalGravityRules", "commonQueries", "clusterGroupRules",
   "sortRules", "nodeRules", "nodeShapeRules", "groupByRules",
-  "cardinalityRules", "annotations", "bookmarkedNodes", "searchHistory",
+  "cardinalityRules", "annotations", "bookmarkedNodes", "searchHistory", "savedSearchQueries",
   "navHistory", "multiSelectNodeIds", "presentationWaypoints",
 ];
 
