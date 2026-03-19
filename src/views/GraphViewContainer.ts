@@ -16,7 +16,7 @@ import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON } from "../utils/graph-helpers";
 import { hexToRgb } from "../utils/color";
-import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL, createDefaultPanel } from "./PanelBuilder";
+import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL, createDefaultPanel, validatePanelState } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
@@ -345,6 +345,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _resizeOnUp: (() => void) | null = null;
   /** I1b: Surprise auto-trigger interval timer */
   private _surpriseTimer: ReturnType<typeof setInterval> | null = null;
+
+  /** B3: doRender debounce — prevents rapid re-renders from slider drags */
+  private _doRenderDebounceTimer = 0;
+  private _lastDoRenderTime = 0;
+
+  /** C1: Hover preview toast state */
+  private _hoverPreviewTimer = 0;
+  private _hoverPreviewEl: HTMLElement | null = null;
 
   /** Debounced workspace save — call after any panel state mutation */
   private requestSave() {
@@ -1295,6 +1303,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   async onClose() {
     clearTimeout(this._autoFitTimer);
     if (this._surpriseTimer) clearInterval(this._surpriseTimer);
+    // B3: Clear doRender debounce timer
+    clearTimeout(this._doRenderDebounceTimer);
+    // C1: Clear hover preview
+    this._cancelHoverPreview();
     // Clean up panel resize listeners (may persist if destroyed mid-drag)
     if (this._resizeOnMove) document.removeEventListener("pointermove", this._resizeOnMove);
     if (this._resizeOnUp) document.removeEventListener("pointerup", this._resizeOnUp);
@@ -1655,7 +1667,66 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.highlightedNodeId = id;
     // Mouse hover clears keyboard focus flag (cycleFocusNode sets it back to true)
     this._isKeyboardFocused = false;
+    // C1: Schedule/cancel hover preview
+    if (id) {
+      this._scheduleHoverPreview(id);
+    } else {
+      this._cancelHoverPreview();
+    }
   }
+  // ---- C1: Hover preview toast helpers ----
+  private _scheduleHoverPreview(nodeId: string): void {
+    this._cancelHoverPreview();
+    this._hoverPreviewTimer = window.setTimeout(() => {
+      this._showHoverPreview(nodeId);
+    }, 800) as unknown as number;
+  }
+
+  private _cancelHoverPreview(): void {
+    if (this._hoverPreviewTimer) {
+      clearTimeout(this._hoverPreviewTimer);
+      this._hoverPreviewTimer = 0;
+    }
+    if (this._hoverPreviewEl) {
+      this._hoverPreviewEl.remove();
+      this._hoverPreviewEl = null;
+    }
+  }
+
+  private async _showHoverPreview(nodeId: string): Promise<void> {
+    const pn = this.pixiNodes.get(nodeId);
+    if (!pn?.data.filePath) return;
+    const canvasArea = this.canvasWrap;
+    const world = this.worldContainer;
+    if (!canvasArea || !world) return;
+
+    const tf = this.app.vault.getAbstractFileByPath(pn.data.filePath);
+    if (!(tf instanceof TFile)) return;
+
+    let content: string;
+    try {
+      content = await this.app.vault.cachedRead(tf);
+    } catch { return; }
+
+    // Strip frontmatter and take first 2 lines
+    const stripped = content.replace(/^---[\s\S]*?---\n?/, "").trim();
+    const lines = stripped.split("\n").slice(0, 2).join("\n");
+    if (!lines) return;
+
+    // If hover target changed while we were reading, abort
+    if (this.highlightedNodeId !== nodeId) return;
+
+    // Position at node's screen location
+    const sx = pn.data.x * world.scale.x + world.x;
+    const sy = pn.data.y * world.scale.y + world.y;
+
+    const el = canvasArea.createDiv({ cls: "gi-hover-preview" });
+    el.style.left = `${sx + 15}px`;
+    el.style.top = `${sy - 10}px`;
+    el.textContent = lines.slice(0, 120) + (lines.length > 120 ? "..." : "");
+    this._hoverPreviewEl = el;
+  }
+
   /** Whether the current highlight was set via keyboard (Tab cycling). */
   getIsKeyboardFocused(): boolean { return this._isKeyboardFocused; }
   getCurrentLayout(): LayoutType { return this.currentLayout; }
@@ -5766,6 +5837,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   private async doRender() {
     if (!this.canvasWrap) return;
+    // Sanitize critical numeric fields to prevent NaN propagation
+    if (!isFinite(this.panel.nodeSize) || this.panel.nodeSize <= 0) this.panel.nodeSize = 15;
+
+    // B3: Debounce — first call passes through; subsequent calls within 50ms are deferred
+    const now = performance.now();
+    if (this._lastDoRenderTime && now - this._lastDoRenderTime < 50) {
+      clearTimeout(this._doRenderDebounceTimer);
+      this._doRenderDebounceTimer = window.setTimeout(() => this.doRender(), 50) as unknown as number;
+      return;
+    }
+    if (this._doRenderDebounceTimer) {
+      clearTimeout(this._doRenderDebounceTimer);
+      this._doRenderDebounceTimer = 0;
+    }
+    this._lastDoRenderTime = now;
+
+    // B2: Sanitize panel state before rendering
+    validatePanelState(this.panel);
+
     this.ac?.abort();
     this.ac = new AbortController();
     const signal = this.ac.signal;
@@ -6907,6 +6997,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Recalculate and apply visual radii for all PixiNodes based on current panel.nodeSize. */
   private recalcNodeRadii() {
+    // Sanitize nodeSize to prevent NaN propagation
+    if (!isFinite(this.panel.nodeSize) || this.panel.nodeSize <= 0) {
+      this.panel.nodeSize = 15;
+    }
     const ns = this.panel.nodeSize;
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
     const maxR = rt.maxNodeRadius > 0 ? rt.maxNodeRadius : Infinity;

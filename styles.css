@@ -3297,3 +3297,24 @@
   border: 1px solid var(--background-modifier-border);
   color: var(--text-normal);
 }
+
+/* C1: Hover preview toast */
+.gi-hover-preview {
+  position: absolute;
+  z-index: 95;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  max-width: 250px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  pointer-events: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.theme-dark .gi-hover-preview {
+  background: var(--background-secondary);
+}

@@ -107,9 +107,6 @@ export interface PanelState {
   timelineRangeMax: number;
   /** Display sunburst as filled ring chart instead of nodes */
   ringChartMode: boolean;
-  /** Enable custom grid overlay on coordinate layout */
-  /** @deprecated Use coordinateLayout.grid !== undefined instead */
-  gridTableMode?: boolean;
   /** Show row/column header labels on grid */
   gridShowHeaders: boolean;
   /** Show axis name titles on coordinate grid */
@@ -223,8 +220,6 @@ export interface PanelState {
   /** Frontmatter field to show as definition (bold, large) at top of card */
   definitionField: string;
   // --- Phase 3: Structure visualization ---
-  /** @deprecated Use showOntologyBackbone instead */
-  showHierarchyOverlay?: boolean;
   /** Cluster label detail level */
   clusterLabelDetail: "minimal" | "standard" | "detailed" | "rich";
   /** Gap detection mode for missing connections */
@@ -239,8 +234,6 @@ export interface PanelState {
   /** Show hierarchy breadcrumb bar above graph */
   showHierarchyBreadcrumb: boolean;
   // --- Phase 5: Discovery & insight ---
-  /** @deprecated Removed — use showGapEdges instead */
-  showGapPrompts?: boolean;
   /** Show similar note suggestions on hover */
   showSimilarSuggestions: boolean;
   /** Show structure-based questions in statistics panel */
@@ -461,6 +454,37 @@ export function createDefaultPanel(): PanelState {
     expandedNodes: [],
     analysisOverlay: "off" as const,
   };
+}
+
+/** B2: Validate and sanitize panel state — fix NaN, undefined, out-of-range values */
+export function validatePanelState(panel: PanelState): void {
+  const defaults = createDefaultPanel();
+  // Numeric fields: replace NaN/Infinity with defaults
+  const numericKeys: (keyof PanelState)[] = [
+    "nodeSize", "centerForce", "repelForce", "linkForce", "linkDistance",
+    "textFadeThreshold", "concentricMinRadius", "concentricRadiusStep",
+    "hoverHops", "enclosureSpacing", "edgeBundleStrength",
+    "clusterNodeSpacing", "clusterGroupScale", "clusterGroupSpacing",
+  ];
+  for (const key of numericKeys) {
+    const val = panel[key] as number;
+    if (typeof val !== "number" || !isFinite(val)) {
+      (panel as any)[key] = (defaults as any)[key];
+    }
+  }
+  // Clamp hoverHops to 0-10
+  if (panel.hoverHops < 0) panel.hoverHops = 0;
+  if (panel.hoverHops > 10) panel.hoverHops = 10;
+  // Clamp nodeSize to 1-100
+  if (panel.nodeSize < 1) panel.nodeSize = 1;
+  if (panel.nodeSize > 100) panel.nodeSize = 100;
+  // Ensure arrays are arrays
+  if (!Array.isArray(panel.multiSelectNodeIds)) panel.multiSelectNodeIds = [];
+  if (!Array.isArray(panel.presentationWaypoints)) panel.presentationWaypoints = [];
+  // Ensure collapsedGroups is a Set
+  if (!(panel.collapsedGroups instanceof Set)) {
+    panel.collapsedGroups = new Set(Array.isArray(panel.collapsedGroups) ? panel.collapsedGroups : []);
+  }
 }
 
 /** Shared immutable reference for property key enumeration and type checking.

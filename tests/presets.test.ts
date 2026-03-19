@@ -71,7 +71,6 @@ const DEFAULT_PANEL = {
   timelineRangeMin: 0,
   timelineRangeMax: 1,
   ringChartMode: false,
-  gridTableMode: false,
   gridShowHeaders: true,
   showAxisTitles: true,
   showTimelineTickLabels: true,
