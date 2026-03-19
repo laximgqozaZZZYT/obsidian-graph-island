@@ -208,6 +208,12 @@ export class LabelManager {
 
     const candidates: { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[] = [];
 
+    // R6: Adaptive label font size — precompute max degree
+    const _adaptiveMin = rt.adaptiveLabelMin ?? 0.7;
+    const _adaptiveMax = rt.adaptiveLabelMax ?? 1.5;
+    let _maxDegForAdaptive = 1;
+    for (const d of degrees.values()) { if (d > _maxDegForAdaptive) _maxDegForAdaptive = d; }
+
     for (const pn of this.host.getPixiNodes().values()) {
       // --- Tag label LOD ---
       if (pn.tagLabel) {
@@ -224,8 +230,11 @@ export class LabelManager {
 
       if (!pn.label) continue;
 
-      // Apply counter-scaling
-      pn.label.scale.set(counterScale);
+      // Apply counter-scaling with R6 adaptive label sizing
+      const nodeDeg = degrees.get(pn.data.id) ?? 0;
+      const degRatio = _maxDegForAdaptive > 0 ? nodeDeg / _maxDegForAdaptive : 0;
+      const adaptiveScale = _adaptiveMin + degRatio * (_adaptiveMax - _adaptiveMin);
+      pn.label.scale.set(counterScale * adaptiveScale);
 
       // Smart truncation: preserve the distinguishing part of the label
       this._applyTruncation(pn, shouldTruncate, effectiveMaxChars);
@@ -260,6 +269,14 @@ export class LabelManager {
       } else {
         // Was hidden: only show when zoom reaches show threshold
         eligible = zoom >= showThreshold;
+      }
+
+      // AutoLOD level 2: only show labels for top-30% priority nodes
+      if (eligible && !isSuper && !isHovered) {
+        const rp = this.host.getRenderPipeline();
+        if (rp?.isAutoLODActive() && rp.getLastLodLevel() === 2) {
+          if (pn.priorityScore <= 70) eligible = false;
+        }
       }
 
       if (!eligible) {

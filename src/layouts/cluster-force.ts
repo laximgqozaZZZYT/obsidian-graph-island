@@ -219,6 +219,8 @@ export interface ClusterForceConfig {
   /** Metadata field to sub-group orphan nodes by (e.g. "category", "folder", "tag").
    *  Empty string = disabled. */
   orphanClusterField?: string;
+  /** C4: Manual cluster overrides (nodeId → groupKey) */
+  manualClusterOverrides?: Record<string, string>;
 }
 
 /**
@@ -428,6 +430,28 @@ export function buildClusterForce(
     groups = subGroupOrphans(groups, degrees, cfg.orphanClusterField);
   }
 
+  // Phase 1c: C4 Manual cluster overrides — move nodes between groups
+  if (cfg.manualClusterOverrides) {
+    const overrides = cfg.manualClusterOverrides;
+    for (const [nodeId, targetGroup] of Object.entries(overrides)) {
+      // Remove from current group
+      for (const [gk, members] of groups) {
+        const idx = members.findIndex(n => n.id === nodeId);
+        if (idx >= 0) {
+          const [node] = members.splice(idx, 1);
+          // Add to target group (create if needed)
+          if (!groups.has(targetGroup)) groups.set(targetGroup, []);
+          groups.get(targetGroup)!.push(node);
+          break;
+        }
+      }
+    }
+    // Remove empty groups
+    for (const [gk, members] of groups) {
+      if (members.length === 0) groups.delete(gk);
+    }
+  }
+
   // Phase 2: Merge small groups
   groups = mergeSmallGroups(groups, nodes.length);
   if (groups.size === 0) return null;
@@ -607,7 +631,7 @@ function resolveGapsAndOverlaps(
   if (minGap > 0 || lsfIntra > 0) {
     resolveIntraGroupGaps(
       targets, groups, minGap, cfg.nodeSize, degrees,
-      cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 8,
+      cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 15,
       lsfIntra, cfg.nodeLabelFontSizeMin ?? 11, cfg.nodeLabelFontSizeMax ?? 14,
     );
   }
@@ -846,14 +870,14 @@ function estimateLabelExtent(
 
 /** Visual radius of a node — canonical formula used across the codebase.
  *  Enforces minNodeRadius floor so nodes remain hoverable/clickable. */
-export function nodeRadius(nodeSize: number, _degree: number, minNodeRadius = 12): number {
+export function nodeRadius(nodeSize: number, _degree: number, minNodeRadius = 15): number {
   return Math.max(nodeSize, minNodeRadius);
 }
 
 /** Effective visual radius accounting for super nodes (collapsed groups).
  *  Canonical formula: baseR = nodeRadius(); superR = baseR * (1 + sqrt(memberCount) * 0.5); capped by maxNodeRadius.
  *  Enforces minNodeRadius floor. */
-export function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, maxNodeRadius = 60, minNodeRadius = 12): number {
+export function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, maxNodeRadius = 60, minNodeRadius = 15): number {
   const baseR = nodeRadius(nodeSize, degree, minNodeRadius);
   const cap = maxNodeRadius > 0 ? maxNodeRadius : Infinity;
   if (n.collapsedMembers && n.collapsedMembers.length > 0) {
@@ -1244,7 +1268,7 @@ function computeUnifiedTimelineTargets(
   let maxGroupNodeR = nodeSize;
   if (allMembers.length > 0) {
     const maxR = cfg.maxNodeRadius ?? 60;
-    const minR = cfg.minNodeRadius ?? 8;
+    const minR = cfg.minNodeRadius ?? 15;
     for (const m of allMembers) {
       const r = effectiveRadius(m, cfg.nodeSize, degrees.get(m.id) ?? 0, maxR, minR);
       if (r > maxGroupNodeR) maxGroupNodeR = r;
@@ -1980,7 +2004,7 @@ function estimateGroupRadius(
   if (members) {
     for (const m of members) {
       if (m.collapsedMembers && m.collapsedMembers.length > 0) {
-        const sr = effectiveRadius(m, nodeSize, 0, maxNodeRadius, 3);
+        const sr = effectiveRadius(m, nodeSize, 0, maxNodeRadius, cfg.minNodeRadius ?? 12);
         superBonus = Math.max(superBonus, sr - nodeSize);
       }
     }
@@ -2134,7 +2158,7 @@ function computeOffsets(
 ): ArrangementResult {
   const { nodeSpacing, groupScale, sortComparator, nodeSpacingMap } = cfg;
   const maxR = cfg.maxNodeRadius ?? 60;
-  const minR = cfg.minNodeRadius ?? 8;
+  const minR = cfg.minNodeRadius ?? 15;
 
   // ═══════════════════════════════════════════════════════════════════
   // 6-Step Pipeline — order is FIXED regardless of arrangement pattern
@@ -2365,7 +2389,7 @@ function dispatchHardcoded(
 function concentricOffsets(p: ArrangementParams): ArrangementResult {
   const { members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg } = p;
   const maxR = cfg.maxNodeRadius ?? 60;
-  const minR = cfg.minNodeRadius ?? 8;
+  const minR = cfg.minNodeRadius ?? 15;
   const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, maxR, minR);
 
   const sorted = [...members].sort(cmp);
@@ -2435,7 +2459,7 @@ function concentricOffsets(p: ArrangementParams): ArrangementResult {
 function radialOffsets(p: ArrangementParams): ArrangementResult {
   const { members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg } = p;
   const maxR = cfg.maxNodeRadius ?? 60;
-  const minR = cfg.minNodeRadius ?? 8;
+  const minR = cfg.minNodeRadius ?? 15;
   const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, maxR, minR);
   const spokeCount = cfg.userConstants?._spokeCount;
 
@@ -2671,7 +2695,7 @@ function egoOffsets(p: ArrangementParams): ArrangementResult {
 function randomOffsets(p: ArrangementParams): Map<string, { dx: number; dy: number }> {
   const { members, degrees, nodeSpacing, groupScale, nodeSize, nodeSpacingMap, cfg } = p;
   const maxR = cfg.maxNodeRadius ?? 60;
-  const minR = cfg.minNodeRadius ?? 8;
+  const minR = cfg.minNodeRadius ?? 15;
   const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, maxR, minR);
 
   const offsets = new Map<string, { dx: number; dy: number }>();

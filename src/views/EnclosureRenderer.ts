@@ -37,6 +37,10 @@ export interface EnclosureConfig {
   groupLabelBgAlpha?: number;
   /** IQR multiplier for outlier filtering (default 2.0). Higher = more inclusive. */
   enclosureOutlierFactor?: number;
+  /** S3: Cluster label detail level */
+  clusterLabelDetail?: "minimal" | "standard" | "detailed" | "rich";
+  /** S3: Cluster summary generator for rich labels */
+  getClusterSummary?: (tag: string, memberCount: number) => string;
 }
 
 /**
@@ -351,7 +355,12 @@ export function drawEnclosures(
     let txt = enclosureLabels.get(tag);
     if (!txt) {
       const hexStr = "#" + hex.toString(16).padStart(6, "0");
-      txt = new CanvasText(`#${tag} (${memberCount})`, {
+      // S3: Rich label text
+      let labelText = `#${tag} (${memberCount})`;
+      if (cfg.clusterLabelDetail === "rich" && cfg.getClusterSummary) {
+        labelText = cfg.getClusterSummary(tag, memberCount);
+      }
+      txt = new CanvasText(labelText, {
         fontSize: glFontSize,
         fill: hexStr,
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",

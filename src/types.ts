@@ -1172,6 +1172,20 @@ export interface RenderThresholds {
   semanticZoomCompactPx?: number;
   /** Screen-px threshold for full card tier (default 15) */
   semanticZoomFullPx?: number;
+
+  // ---- Auto LOD (5-level) ----
+  /** LOD 2 threshold (px): above this, show top-30% labels (default 3.0) */
+  cardLODMidLabelPx?: number;
+  /** LOD 4 threshold (px): above this, auto-switch to compact card (default 8.0) */
+  cardLODCompactPx?: number;
+  /** LOD 5 threshold (px): above this, auto-switch to full card (default 15.0) */
+  cardLODFullCardPx?: number;
+  /** Auto-LOD: switch display mode based on zoom level (default false) */
+  autoLOD?: boolean;
+  /** R6: Adaptive label font min multiplier (default 0.7) */
+  adaptiveLabelMin?: number;
+  /** R6: Adaptive label font max multiplier (default 1.5) */
+  adaptiveLabelMax?: number;
 }
 
 /** Default card rendering config */
@@ -1289,7 +1303,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   highlightEdgeAlpha: 1.0,
   highlightEdgeNonMatchAlpha: 0.15,
   maxNodeRadius: 60,
-  minNodeRadius: 12,
+  minNodeRadius: 15,
   minHoverScreenPx: 16,
   zoomNodeSizeAdapt: true,
   showFpsMonitor: false,
@@ -1413,6 +1427,10 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   edgeStrengthGlowMax: 3.0,
   semanticZoomCompactPx: 6,
   semanticZoomFullPx: 15,
+  cardLODMidLabelPx: 3.0,
+  cardLODCompactPx: 8.0,
+  cardLODFullCardPx: 15.0,
+  autoLOD: false,
 };
 
 export const DEFAULT_COLORS = [

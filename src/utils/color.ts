@@ -17,3 +17,18 @@ export function hexBrightness(hex: number): number {
   const { r, g, b } = hexToRgb(hex);
   return getLuminance(r, g, b);
 }
+
+/** V3: Adjust brightness of a hex color by a multiplicative factor. */
+export function adjustBrightness(hex: number, factor: number): number {
+  const { r, g, b } = hexToRgb(hex);
+  return (Math.min(255, Math.round(r * factor)) << 16) |
+         (Math.min(255, Math.round(g * factor)) << 8) |
+         Math.min(255, Math.round(b * factor));
+}
+
+/** V6: Pick black or white for maximum contrast against the given background. */
+export function contrastColor(bgHex: number): number {
+  const { r, g, b } = hexToRgb(bgHex);
+  const lum = getLuminance(r, g, b);
+  return lum > 128 ? 0x000000 : 0xffffff;
+}

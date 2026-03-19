@@ -385,6 +385,67 @@ export function generateStructureQuestions(
     questions.push(`Graph density is very low (${density.toFixed(4)}) — are relations missing?`);
   }
 
+  // I6: Gap questions — why are clusters disconnected?
+  // Build adjacency and count connected components
+  const adj = new Map<string, Set<string>>();
+  for (const n of nodes) adj.set(n.id, new Set());
+  for (const e of edges) {
+    adj.get(e.source)?.add(e.target);
+    adj.get(e.target)?.add(e.source);
+  }
+  const visited = new Set<string>();
+  let componentCount = 0;
+  for (const n of nodes) {
+    if (visited.has(n.id)) continue;
+    componentCount++;
+    const queue = [n.id];
+    while (queue.length > 0) {
+      const cur = queue.pop()!;
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+      for (const nb of adj.get(cur) ?? []) {
+        if (!visited.has(nb)) queue.push(nb);
+      }
+    }
+  }
+  if (componentCount > 1) {
+    questions.push(`Graph has ${componentCount} disconnected components — what bridges are missing?`);
+  }
+
+  // I6: Resilience questions — what if the top hub is removed?
+  if (maxDegId && maxDeg > 5) {
+    const hubNeighbors = adj.get(maxDegId);
+    if (hubNeighbors && hubNeighbors.size > 0) {
+      const hubLabel = nodes.find(n => n.id === maxDegId)?.label ?? maxDegId;
+      questions.push(`If "${hubLabel}" were removed, would ${hubNeighbors.size} neighbors stay connected?`);
+    }
+  }
+
+  // I6: Opportunity questions — high orphan rate suggests linking potential
+  const orphanRate = nodes.length > 0 ? orphanCount / nodes.length : 0;
+  if (orphanRate > 0.3 && orphanCount > 5) {
+    questions.push(`${(orphanRate * 100).toFixed(0)}% orphan rate — could metadata fields reveal hidden connections?`);
+  }
+
+  // I6: Tag diversity question — are tags too concentrated?
+  const tagFreq = new Map<string, number>();
+  for (const n of nodes) {
+    for (const t of n.tags ?? []) {
+      tagFreq.set(t, (tagFreq.get(t) ?? 0) + 1);
+    }
+  }
+  if (tagFreq.size > 0) {
+    let topTag = "";
+    let topTagCount = 0;
+    for (const [tag, count] of tagFreq) {
+      if (count > topTagCount) { topTagCount = count; topTag = tag; }
+    }
+    const tagDominance = topTagCount / nodes.length;
+    if (tagDominance > 0.5 && tagFreq.size < 5) {
+      questions.push(`Tag "${topTag}" covers ${(tagDominance * 100).toFixed(0)}% of nodes — should it be split into sub-tags?`);
+    }
+  }
+
   return questions;
 }
 

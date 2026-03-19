@@ -113,6 +113,8 @@ export interface EdgeDrawConfig {
   edgeStrengthGlowMin?: number;
   /** Maximum width multiplier for edge strength glow (default 3.0) */
   edgeStrengthGlowMax?: number;
+  /** V2: Scale edge width by average endpoint degree (0 = off) */
+  degreeEdgeWidth?: number;
 }
 
 // Minimal position data needed for source/target
@@ -2549,6 +2551,17 @@ function resolveEdgeStyle(
     const glowMin = cfg.edgeStrengthGlowMin ?? 0.5;
     const glowMax = cfg.edgeStrengthGlowMax ?? 3.0;
     lineThick *= glowMin + t * (glowMax - glowMin);
+  }
+
+  // V2: Degree-based edge thickness — scale width by average endpoint degree
+  if (cfg.degreeEdgeWidth && cfg.degreeEdgeWidth > 0 && cfg.maxDegree > 0) {
+    const sid = src.id ?? (e.source as string);
+    const tid = tgt.id ?? (e.target as string);
+    const srcDeg = cfg.degrees.get(sid) ?? 1;
+    const tgtDeg = cfg.degrees.get(tid) ?? 1;
+    const avgDeg = (srcDeg + tgtDeg) / 2;
+    const ratio = Math.min(1, avgDeg / cfg.maxDegree);
+    lineThick *= (0.5 + ratio * cfg.degreeEdgeWidth * 1.5);
   }
 
   if (cfg.highlightedNodeId) {

@@ -164,8 +164,8 @@ export interface PanelState {
   focusNodeId: string | null;
   /** ビュー同期: 他の Graph Island ビューとパネル状態を同期 */
   syncViewId: string | null;
-  /** キャンバス上の注釈リスト */
-  annotations: { nodeId: string; text: string; x: number; y: number }[];
+  /** キャンバス上の注釈リスト (W4: color added for sticky note support) */
+  annotations: { nodeId: string; text: string; x: number; y: number; color?: string }[];
   /** ブックマークされたノードIDリスト */
   bookmarkedNodes: string[];
   /** エッジ重みラベル表示（同一ペア間のエッジ本数） */
@@ -222,7 +222,7 @@ export interface PanelState {
   /** Show inheritance edges as thick overlay on any layout */
   showHierarchyOverlay: boolean;
   /** Cluster label detail level */
-  clusterLabelDetail: "minimal" | "standard" | "detailed";
+  clusterLabelDetail: "minimal" | "standard" | "detailed" | "rich";
   /** Gap detection mode for missing connections */
   gapDetectionMode: "within-tag" | "cross-cluster" | "both";
   /** Highlight structural patterns (articulation points, spokes, cliques) */
@@ -247,6 +247,14 @@ export interface PanelState {
   showEntropyOverlay: boolean;
   /** D5: Cluster comparison mode — highlight differences between two clusters */
   showClusterCompare: boolean;
+  /** S1: Show hierarchy tree overlay from focused node */
+  showHierarchyTree?: boolean;
+  /** S1: Hierarchy relation types to follow */
+  hierarchyRelations?: string[];
+  /** S6: Show ontology backbone (is-a hierarchy as skeleton) */
+  showOntologyBackbone?: boolean;
+  /** S4: Show gap detection dotted edges */
+  showGapEdges?: boolean;
   // --- Phase 4: Interaction enhancements ---
   /** C3: Relation type picker — right-click to assign edge type */
   showRelationTypePicker: boolean;
@@ -258,6 +266,8 @@ export interface PanelState {
   showRelationDrawer: boolean;
   /** C4: Manual clustering — drag nodes to assign groups */
   enableManualClustering: boolean;
+  /** C4: Manual cluster overrides (nodeId → groupKey) */
+  manualClusterOverrides?: Record<string, string>;
   // --- Phase 6: ExcaliBrain-like features ---
   /** F2: Inline ontology editor — assign types via context menu */
   enableInlineOntologyEditor: boolean;
@@ -280,6 +290,12 @@ export interface PanelState {
   cardinalityRenderConfig?: CardinalityRenderConfig;
   /** Rendering performance thresholds and misc numeric settings */
   renderThresholds?: RenderThresholds;
+  /** R2: Distance-based alpha gradient on hover (focus cone) */
+  focusConeEnabled?: boolean;
+  /** V2: Scale edge width by average endpoint degree (0 = off, default 0) */
+  degreeEdgeWidth?: number;
+  /** I1b: Surprise auto-trigger interval in seconds (0 = disabled) */
+  surpriseInterval?: number;
 }
 
 /** Create a fresh PanelState with all mutable values as new instances.
@@ -435,6 +451,8 @@ export function createDefaultPanel(): PanelState {
     presentationStep: 0,
     showNodeThumbnails: false,
     kShortestPaths: 1,
+    focusConeEnabled: true,
+    surpriseInterval: 0,
   };
 }
 
@@ -470,7 +488,7 @@ export interface PanelCallbacks {
   collectValueSuggestions(field: string): string[];
   saveGroupPreset(): void;
   resetPanel(): void;
-  applyPreset(preset: "simple" | "analysis" | "creative"): void;
+  applyPreset(preset: string): void;
   jumpToNode(nodeId: string): void;
   getNodeIds(): string[];
   /** Recolor existing nodes without full graph rebuild (keeps panel DOM intact) */
@@ -493,6 +511,10 @@ export interface PanelCallbacks {
   navForward(): void;
   /** M2: Apply ego layout to visible nodes */
   applyEgoToVisible?(): void;
+  /** C6: Bulk add tag to selected nodes */
+  bulkAddTag?(nodeIds: string[], tag: string): void;
+  /** C6: Bulk set frontmatter field on selected nodes */
+  bulkSetField?(nodeIds: string[], field: string, value: string): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -972,6 +994,11 @@ function _buildNodeDisplaySection(
       if (!v) { panel.focusNodeId = null; cb.applyHover(); }
       cb.markDirty();
     }, t("desc.focusMode"));
+    // R2: フォーカスコーン — 距離ベースのアルファグラデーション
+    addToggle(body, t("display.focusCone"), panel.focusConeEnabled ?? true, (v) => {
+      panel.focusConeEnabled = v;
+      cb.applyHover();
+    }, t("desc.focusCone"));
     // ビジュアルリンクエディタ: Alt+ドラッグでリンク作成
     addToggle(body, t("display.visualLinkEditor"), panel.visualLinkEditor, (v) => {
       panel.visualLinkEditor = v;
@@ -1069,6 +1096,12 @@ function _buildNodeDecorationSection(
       panel.semanticZoom = v;
       cb.markDirty();
     }, t("desc.semanticZoom"));
+    // Auto LOD (5-level)
+    addToggle(body, t("display.autoLOD"), panel.renderThresholds?.autoLOD ?? false, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.autoLOD = v;
+      cb.markDirty();
+    }, t("desc.autoLOD"));
     // Tag badges
     addToggle(body, t("display.showTagBadges"), panel.showTagBadges, (v) => {
       panel.showTagBadges = v;
@@ -1124,8 +1157,9 @@ function _buildStructureAnalysisSection(
       { value: "minimal", label: t("display.clusterLabelMinimal") },
       { value: "standard", label: t("display.clusterLabelStandard") },
       { value: "detailed", label: t("display.clusterLabelDetailed") },
+      { value: "rich", label: t("display.clusterLabelRich") },
     ], panel.clusterLabelDetail, (v) => {
-      panel.clusterLabelDetail = v as "minimal" | "standard" | "detailed";
+      panel.clusterLabelDetail = v as "minimal" | "standard" | "detailed" | "rich";
       cb.markDirty();
     }, t("desc.clusterLabelDetail"));
     addSelect(body, t("display.gapDetectionMode"), [
@@ -1200,6 +1234,21 @@ function _buildDiscoverySection(
       panel.showClusterCompare = v;
       cb.markDirty();
     }, t("desc.clusterCompare"));
+    // S1: Hierarchy Tree Overlay
+    addToggle(body, t("display.hierarchyTree"), panel.showHierarchyTree ?? false, (v) => {
+      panel.showHierarchyTree = v;
+      cb.markDirty();
+    }, t("desc.hierarchyTree"));
+    // S6: Ontology Backbone
+    addToggle(body, t("display.ontologyBackbone"), panel.showOntologyBackbone ?? false, (v) => {
+      panel.showOntologyBackbone = v;
+      cb.markDirty();
+    }, t("desc.ontologyBackbone"));
+    // S4: Gap Detection Edges
+    addToggle(body, t("display.gapEdges"), panel.showGapEdges ?? false, (v) => {
+      panel.showGapEdges = v;
+      cb.markDirty();
+    }, t("desc.gapEdges"));
   }, undefined, false, "lightbulb");
 }
 
@@ -1227,6 +1276,39 @@ function _buildInteractionSection(
       panel.enableManualClustering = v;
       cb.markDirty();
     }, t("desc.manualClustering"));
+
+    // C6: Multi-select status and bulk actions
+    if (panel.multiSelectNodeIds.length > 0) {
+      const msInfo = body.createDiv({ cls: "setting-item" });
+      msInfo.createEl("span", {
+        text: t("label.selectedNodes").replace("{count}", String(panel.multiSelectNodeIds.length)),
+        cls: "gi-ms-label",
+      });
+
+      const msRow = body.createDiv({ cls: "setting-item" });
+      const addTagBtn = msRow.createEl("button", { text: t("action.addTag") });
+      addTagBtn.addEventListener("click", () => {
+        const tag = prompt("Tag:");
+        if (tag) cb.bulkAddTag?.(panel.multiSelectNodeIds, tag);
+      });
+
+      const setFieldBtn = msRow.createEl("button", { text: t("action.setField") });
+      setFieldBtn.style.marginLeft = "4px";
+      setFieldBtn.addEventListener("click", () => {
+        const field = prompt("Field name:");
+        if (!field) return;
+        const value = prompt("Value:");
+        if (value !== null) cb.bulkSetField?.(panel.multiSelectNodeIds, field, value);
+      });
+
+      const clearBtn = msRow.createEl("button", { text: t("action.clearSelection") });
+      clearBtn.style.marginLeft = "4px";
+      clearBtn.addEventListener("click", () => {
+        panel.multiSelectNodeIds = [];
+        cb.rebuildPanel();
+        cb.markDirty();
+      });
+    }
   }, undefined, false, "mouse-pointer-2");
 }
 
@@ -1275,6 +1357,15 @@ function _buildAdvancedSection(
       info.style.color = "var(--text-muted)";
     }
   }, undefined, false, "presentation");
+
+  // I1b: Surprise guided mode — auto-trigger interval
+  buildSection(tabEl, t("section.surprise"), (body) => {
+    addSlider(body, t("display.surpriseInterval"), 0, 120, 5,
+      panel.surpriseInterval ?? 0, (v) => {
+        panel.surpriseInterval = v;
+        cb.markDirty();
+      }, t("desc.surpriseInterval"));
+  }, undefined, false, "surprise");
 }
 
 function _buildEdgeDisplaySection(
@@ -1323,6 +1414,11 @@ function _buildEdgeDisplaySection(
       panel.renderThresholds.edgeStrengthGlow = v;
       cb.markDirty();
     }, t("desc.edgeStrengthGlow"));
+    addSlider(body, t("display.degreeEdgeWidth"), 0, 2, 0.1,
+      panel.degreeEdgeWidth ?? 0, (v) => {
+        panel.degreeEdgeWidth = v;
+        cb.markDirty();
+      }, t("desc.degreeEdgeWidth"));
     addToggle(body, t("display.showPathfinderOverlay"), panel.showPathfinderOverlay, (v) => { panel.showPathfinderOverlay = v; cb.markDirty(); }, t("desc.showPathfinderOverlay"));
     addToggle(body, t("display.edgeWeightThickness"), panel.edgeWeightThickness, (v) => { panel.edgeWeightThickness = v; cb.markDirty(); }, t("desc.edgeWeightThickness"));
     addToggle(body, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); }, t("desc.links"));
@@ -2433,14 +2529,38 @@ function buildTabBar(
 }
 
 function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
-  const presets: { key: "simple" | "analysis" | "creative"; labelKey: string; descKey: string }[] = [
+  // Thinking Mode switcher (M1) — 3 primary modes
+  const modes: { key: string; icon: string; labelKey: string; descKey: string }[] = [
+    { key: "explore", icon: "compass", labelKey: "mode.explore", descKey: "mode.exploreDesc" },
+    { key: "analyze", icon: "bar-chart-2", labelKey: "mode.analyze", descKey: "mode.analyzeDesc" },
+    { key: "write", icon: "pen-tool", labelKey: "mode.write", descKey: "mode.writeDesc" },
+  ];
+  const modeBar = container.createDiv({ cls: "gi-mode-bar" });
+  for (const m of modes) {
+    const btn = modeBar.createEl("button", { cls: "gi-mode-btn", text: t(m.labelKey) });
+    setIcon(btn.createSpan({ cls: "gi-mode-icon" }), m.icon);
+    btn.setAttribute("aria-label", t(m.descKey));
+    btn.title = t(m.descKey);
+    btn.addEventListener("click", () => {
+      cb.applyPreset(m.key);
+      // Highlight active mode
+      modeBar.querySelectorAll(".gi-mode-btn").forEach(b => b.removeClass("is-active"));
+      btn.addClass("is-active");
+      showToast(t("toast.modeApplied").replace("{name}", t(m.labelKey)));
+    });
+  }
+
+  // Additional presets dropdown
+  const presets: { key: string; labelKey: string; descKey: string }[] = [
     { key: "simple", labelKey: "preset.simple", descKey: "preset.simpleDesc" },
     { key: "analysis", labelKey: "preset.analysis", descKey: "preset.analysisDesc" },
     { key: "creative", labelKey: "preset.creative", descKey: "preset.creativeDesc" },
+    { key: "active-focus", labelKey: "preset.activeFocus", descKey: "preset.activeFocusDesc" },
+    { key: "full-analysis", labelKey: "preset.fullAnalysis", descKey: "preset.fullAnalysisDesc" },
   ];
-  const bar = container.createDiv({ cls: "gi-preset-bar" });
+  const moreBar = container.createDiv({ cls: "gi-preset-bar" });
   for (const p of presets) {
-    const btn = bar.createEl("button", { cls: "gi-preset-btn", text: t(p.labelKey) });
+    const btn = moreBar.createEl("button", { cls: "gi-preset-btn", text: t(p.labelKey) });
     btn.setAttribute("aria-label", t(p.descKey));
     btn.title = t(p.descKey);
     btn.addEventListener("click", () => {

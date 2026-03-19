@@ -110,8 +110,36 @@ export interface InteractionHost {
   exportSubgraph?(nodeId: string): void;
   /** Create a new note at the given world coordinates (Phase 4a) */
   createNoteAtPosition?(wx: number, wy: number): void;
+  /** I2: Insert a blank placeholder node at the given world coordinates */
+  insertBlankNode?(wx: number, wy: number): void;
   /** Set search query and trigger filter (context menu shortcut) */
   setSearchQuery(query: string): void;
+  /** F2: Whether inline ontology editor is enabled */
+  isInlineOntologyEnabled?(): boolean;
+  /** C3: Whether relation type picker is enabled */
+  isRelationTypePickerEnabled?(): boolean;
+  /** F2: Set ontology type on a node via frontmatter */
+  setNodeOntologyType?(nodeId: string, type: string): void;
+  /** C3: Add a typed relation between two nodes via frontmatter */
+  addRelationToNode?(nodeId: string, targetId: string, relType: string): void;
+  /** Get neighbor IDs for a node */
+  getNeighborIds?(nodeId: string): string[];
+  /** C6: Toggle multi-select for a node */
+  toggleMultiSelect?(nodeId: string): void;
+  /** D5: Toggle cluster compare for a node's cluster */
+  toggleClusterCompare?(nodeId: string): void;
+  /** D5: Whether cluster compare is enabled */
+  isClusterCompareEnabled?(): boolean;
+  /** C4: Whether manual clustering is enabled */
+  isManualClusteringEnabled?(): boolean;
+  /** C4: Get available cluster group keys */
+  getClusterGroupKeys?(): string[];
+  /** C4: Set a node's manual cluster override */
+  setManualCluster?(nodeId: string, groupKey: string): void;
+  /** C7: Show inline editor for a node */
+  showInlineEditor?(pn: PixiNode): void;
+  /** C7: Whether inline edit is enabled */
+  isInlineEditEnabled?(): boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -498,7 +526,14 @@ export class InteractionManager {
           return;
         }
         // Click (no drag) → toggle hold (pin position)
-        if (e.ctrlKey || e.metaKey) {
+        if (e.shiftKey && this.host.toggleMultiSelect) {
+          // Shift+click: multi-select toggle (C6)
+          this.host.toggleMultiSelect(node.data.id);
+          this.host.markDirty(true);
+          this.draggedNode = null;
+          this.isPanning = false;
+          return;
+        } else if (e.ctrlKey || e.metaKey) {
           // Ctrl+click: 比較選択に追加し、holdもトグル (focusは変更しない)
           this.host.addCompareNode(node.data.id);
         } else {
@@ -561,6 +596,11 @@ export class InteractionManager {
     }
     // Handle super node expand/collapse first
     if (this.host.handleSuperNodeDblClick(hit)) return;
+    // C7: Inline edit — show editor overlay instead of opening file
+    if (this.host.isInlineEditEnabled?.() && this.host.showInlineEditor) {
+      this.host.showInlineEditor(hit);
+      return;
+    }
     // Default: open file
     if (hit.data.filePath) {
       this.host.openFile(hit.data.filePath);
@@ -591,26 +631,26 @@ export class InteractionManager {
     const menu = new Menu();
     const node = hit;
 
-    // Open file
+    // --- Section: Open ---
     if (node.data.filePath) {
       menu.addItem((item) => {
-        item.setTitle("Open file")
+        item.setTitle(t("context.openFile"))
           .setIcon("file-text")
           .onClick(() => this.host.openFile(node.data.filePath!));
       });
     }
 
-    // Pin / Unpin
+    // --- Section: Edit ---
+    menu.addSeparator();
     menu.addItem((item) => {
-      item.setTitle(node.held ? "Unpin" : "Pin")
+      item.setTitle(node.held ? t("context.unpin") : t("context.pin"))
         .setIcon(node.held ? "pin-off" : "pin")
         .onClick(() => this.host.toggleHold(node));
     });
 
-    // Copy node ID / path
     const copyText = node.data.filePath || node.data.id;
     menu.addItem((item) => {
-      item.setTitle("Copy path")
+      item.setTitle(t("context.copyPath"))
         .setIcon("copy")
         .onClick(() => navigator.clipboard.writeText(copyText));
     });
@@ -655,24 +695,95 @@ export class InteractionManager {
       });
     }
 
-    // Pathfinder
+    // --- Section: Navigate ---
     menu.addSeparator();
     const pfState = this.host.getPathfinderState();
     menu.addItem((item) => {
-      item.setTitle("Path: set start")
+      item.setTitle(t("context.pathStart"))
         .setIcon("navigation")
         .onClick(() => this.host.setPathfinderNode(node.data.id, "start"));
     });
     menu.addItem((item) => {
-      item.setTitle("Path: set end")
+      item.setTitle(t("context.pathEnd"))
         .setIcon("flag")
         .onClick(() => this.host.setPathfinderNode(node.data.id, "end"));
     });
     if (pfState.startId || pfState.endId) {
       menu.addItem((item) => {
-        item.setTitle("Path: clear")
+        item.setTitle(t("context.pathClear"))
           .setIcon("x")
           .onClick(() => this.host.clearPathfinder());
+      });
+    }
+
+    // F2: Inline ontology editor — set node type
+    if (this.host.isInlineOntologyEnabled?.()) {
+      menu.addSeparator();
+      const ontologyTypes = ["is-a", "has-a", "similar"];
+      for (const otype of ontologyTypes) {
+        menu.addItem((item) => {
+          item.setTitle(t("context.setType").replace("{type}", otype))
+            .setIcon("tag")
+            .onClick(() => this.host.setNodeOntologyType?.(node.data.id, otype));
+        });
+      }
+    }
+
+    // C3: Relation type picker — relate to neighbors
+    if (this.host.isRelationTypePickerEnabled?.()) {
+      const neighborIds = this.host.getNeighborIds?.(node.data.id) ?? [];
+      const topNeighbors = neighborIds.slice(0, 5);
+      if (topNeighbors.length > 0) {
+        menu.addSeparator();
+        const relTypes = ["is-a", "has-a", "similar", "sequence"];
+        for (const nbId of topNeighbors) {
+          const nbPn = this.host.getPixiNodes().get(nbId);
+          if (!nbPn) continue;
+          const nbLabel = nbPn.data.label || nbId;
+          // Sub-menu via nested items
+          for (const rel of relTypes) {
+            menu.addItem((item) => {
+              item.setTitle(`${nbLabel} \u2192 ${rel}`)
+                .setIcon("git-branch")
+                .onClick(() => this.host.addRelationToNode?.(node.data.id, nbId, rel));
+            });
+          }
+        }
+      }
+    }
+
+    // D5: Cluster compare
+    if (this.host.isClusterCompareEnabled?.()) {
+      menu.addSeparator();
+      menu.addItem((item) => {
+        item.setTitle(t("context.clusterCompare"))
+          .setIcon("git-compare")
+          .onClick(() => this.host.toggleClusterCompare?.(node.data.id));
+      });
+    }
+
+    // C4: Manual clustering — move to group
+    if (this.host.isManualClusteringEnabled?.()) {
+      const groupKeys = this.host.getClusterGroupKeys?.() ?? [];
+      if (groupKeys.length > 0) {
+        menu.addSeparator();
+        for (const gk of groupKeys.slice(0, 10)) {
+          menu.addItem((item) => {
+            item.setTitle(t("context.moveTo").replace("{group}", gk))
+              .setIcon("folder")
+              .onClick(() => this.host.setManualCluster?.(node.data.id, gk));
+          });
+        }
+      }
+    }
+
+    // C6: Multi-select
+    if (this.host.toggleMultiSelect) {
+      menu.addSeparator();
+      menu.addItem((item) => {
+        item.setTitle(t("context.multiSelect"))
+          .setIcon("check-square")
+          .onClick(() => this.host.toggleMultiSelect!(node.data.id));
       });
     }
 
@@ -691,6 +802,15 @@ export class InteractionManager {
         item.setTitle(t("context.createNote"))
           .setIcon("file-plus")
           .onClick(() => this.host.createNoteAtPosition!(worldPt.x, worldPt.y));
+      });
+    }
+
+    // I2: Insert blank placeholder node
+    if (this.host.insertBlankNode) {
+      menu.addItem((item) => {
+        item.setTitle(t("context.insertBlank"))
+          .setIcon("plus-circle")
+          .onClick(() => this.host.insertBlankNode!(worldPt.x, worldPt.y));
       });
     }
 

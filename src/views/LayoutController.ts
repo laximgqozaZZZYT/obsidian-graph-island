@@ -92,7 +92,8 @@ export class LayoutController {
       }
       // Fallback: compute effective radius using canonical formula
       const deg = degrees.get(n.id) || 0;
-      const r = effectiveRadius(n, baseSize, deg, maxR);
+      const minR = thresholds.minNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.minNodeRadius;
+      const r = effectiveRadius(n, baseSize, deg, maxR, minR);
       if (n.collapsedMembers && n.collapsedMembers.length > 0) {
         return r + superCollidePad;
       }
@@ -464,6 +465,8 @@ export class LayoutController {
       nodeLabelFontSizeMin: panel.renderThresholds?.nodeLabelFontSizeMin ?? DEFAULT_RENDER_THRESHOLDS.nodeLabelFontSizeMin,
       nodeLabelFontSizeMax: panel.renderThresholds?.nodeLabelFontSizeMax ?? DEFAULT_RENDER_THRESHOLDS.nodeLabelFontSizeMax,
       orphanClusterField: panel.orphanClusterField || undefined,
+      manualClusterOverrides: panel.manualClusterOverrides && Object.keys(panel.manualClusterOverrides).length > 0
+        ? panel.manualClusterOverrides : undefined,
     };
 
     // If coordinateLayout specifies a property source, use it as timelineKey

@@ -100,6 +100,7 @@ const en: TranslationMap = {
   "display.hoverTooltipFields": "Hover Tooltip Fields",
   "display.nodeSize": "Node Size",
   "display.hoverHops": "Hover Highlight Hops",
+  "display.focusCone": "Focus Cone",
   "display.focusMode": "Focus Mode",
   "display.visualLinkEditor": "Visual Link Editor",
   "display.missingNeighbors": "Highlight Unlinked Same-Tag",
@@ -151,6 +152,8 @@ const en: TranslationMap = {
   "display.syncWithEditor": "Sync with Editor",
   "display.edgeWeightThickness": "Edge Weight (thickness)",
   "display.edgeStrengthGlow": "Edge Strength Glow",
+  "display.degreeEdgeWidth": "Edge Width by Degree",
+  "desc.degreeEdgeWidth": "Scale edge thickness based on connected node degrees",
   "display.localGraphHops": "Local Graph Hops",
 
   // --- PanelBuilder: rendering thresholds ---
@@ -302,6 +305,10 @@ const en: TranslationMap = {
   "preset.analysisDesc": "All edge types, color by relation, scale by degree",
   "preset.creative": "Creative Writing",
   "preset.creativeDesc": "Tags as enclosures, group by tag, semantic edges",
+  "preset.activeFocus": "Active Focus",
+  "preset.activeFocusDesc": "Center graph on currently edited file (2-hop neighborhood)",
+  "preset.fullAnalysis": "Full Analysis",
+  "preset.fullAnalysisDesc": "All features: stats, bridges, entropy, community colors, missing neighbors",
 
   // --- PanelBuilder: timeline ---
   "section.timeline": "Timeline",
@@ -410,6 +417,15 @@ const en: TranslationMap = {
   "preset.imported": "Preset applied successfully",
   "preset.importPrompt": "Paste preset JSON below:",
 
+  // --- M1: Thinking Modes ---
+  "mode.explore": "Explore",
+  "mode.exploreDesc": "Discover connections — active file centered, gap detection, suggestions",
+  "mode.analyze": "Analyze",
+  "mode.analyzeDesc": "Full structure analysis — stats, bridges, entropy, communities",
+  "mode.write": "Write",
+  "mode.writeDesc": "Focus on current note — presentation mode, relation drawer, local graph",
+  "toast.modeApplied": "Switched to {name} mode",
+
   // --- Toast notifications ---
   "toast.presetApplied": "Applied preset: {name}",
   "toast.pngExported": "PNG exported",
@@ -493,6 +509,7 @@ const en: TranslationMap = {
   "detail.noContent": "(no content)",
   "detail.properties": "Properties",
   "detail.linkedNodes": "Linked Nodes",
+  "detail.suggestedLinks": "Suggested Links",
   "detail.backlinks": "Backlinks",
 
   // --- Node Comparison View ---
@@ -545,6 +562,8 @@ const en: TranslationMap = {
   "section.nodeDecorations": "Node Decorations",
   "display.semanticZoom": "Semantic Zoom",
   "desc.semanticZoom": "Per-node LOD based on screen size (dot → circle → compact card → full card)",
+  "display.autoLOD": "Auto LOD",
+  "desc.autoLOD": "Automatically adjust detail level based on zoom — compact cards when close, dots when far",
   "display.showTagBadges": "Tag Badges",
   "desc.showTagBadges": "Show colored tag badges on node circumference",
   "display.showImportanceRing": "Importance Ring",
@@ -568,6 +587,7 @@ const en: TranslationMap = {
   "display.clusterLabelMinimal": "Minimal",
   "display.clusterLabelStandard": "Standard",
   "display.clusterLabelDetailed": "Detailed",
+  "display.clusterLabelRich": "Rich (count + tags)",
   "display.gapDetectionMode": "Gap Detection",
   "desc.gapDetectionMode": "Detect gaps in knowledge structure",
   "display.gapWithinTag": "Within Tag",
@@ -588,6 +608,9 @@ const en: TranslationMap = {
   "section.discovery": "Discovery & Insight",
   "toolbar.surprise": "Surprise — show two unrelated nodes",
   "surprise.noMatch": "No suitable pair found — try again",
+  "section.surprise": "Surprise Mode",
+  "display.surpriseInterval": "Auto Surprise (sec)",
+  "desc.surpriseInterval": "Auto-trigger random juxtaposition every N seconds (0 = off)",
   "display.showGapPrompts": "Gap Prompts",
   "desc.showGapPrompts": "Show '?' labels between distant clusters with few connections",
   "display.showSimilarSuggestions": "Similar Suggestions",
@@ -648,6 +671,7 @@ const en: TranslationMap = {
   "desc.orphans": "Show/hide unconnected nodes",
   "desc.textFade": "Zoom level for label fadeout",
   "desc.hoverHops": "Highlight depth on hover",
+  "desc.focusCone": "Distance-based fade — closer neighbors stay brighter on hover",
   "desc.focusMode": "Click a node to lock highlight. Escape to clear.",
   "desc.visualLinkEditor": "Alt+drag from a node to create a [[wikilink]] in the source file.",
   "desc.missingNeighbors": "Mark nodes that share a tag but have no direct edge (potential knowledge gaps).",
@@ -818,6 +842,39 @@ const en: TranslationMap = {
   "template.maxReached": "Maximum 20 templates. Delete one first.",
   "template.noTemplates": "No templates saved",
   "template.confirmDelete": "Delete template \"{name}\"?",
+
+  // --- Feature C3/F2/C4/C6/C7/D5: Context menu & interaction ---
+  "toast.ontologySet": "Node type set: {type}",
+  "toast.ontologyFailed": "Failed to set node type",
+  "toast.relationAdded": "Relation added: {type}",
+  "toast.relationFailed": "Failed to add relation",
+  "context.clusterCompare": "Compare this cluster",
+  "context.multiSelect": "Add to selection",
+  "action.cancel": "Cancel",
+  "action.addTag": "Add tag",
+  "action.setField": "Set field",
+  "action.clearSelection": "Clear selection",
+  "label.selectedNodes": "Selected: {count}",
+
+  // --- S1/S6/S4: Structural visualization ---
+  "display.hierarchyTree": "Hierarchy Tree Overlay",
+  "desc.hierarchyTree": "Show parent-child tree from focused node as purple overlay",
+  "display.ontologyBackbone": "Ontology Backbone",
+  "desc.ontologyBackbone": "Show is-a hierarchy as translucent skeleton lines",
+  "display.gapEdges": "Gap Detection Edges",
+  "desc.gapEdges": "Show dashed lines between nodes that share tags but have no direct link",
+  "context.insertBlank": "Insert blank node",
+  "toast.blankInserted": "Blank node inserted — double-click to convert to note",
+  // W6: Context menu i18n
+  "context.openFile": "Open file",
+  "context.pin": "Pin",
+  "context.unpin": "Unpin",
+  "context.copyPath": "Copy path",
+  "context.pathStart": "Path: set start",
+  "context.pathEnd": "Path: set end",
+  "context.pathClear": "Path: clear",
+  "context.setType": "Set type: {type}",
+  "context.moveTo": "Move to: {group}",
 };
 
 // ---------------------------------------------------------------------------
@@ -913,6 +970,7 @@ const ja: TranslationMap = {
   "display.hoverTooltipFields": "ホバーツールチップフィールド",
   "display.nodeSize": "ノードの大きさ",
   "display.hoverHops": "ホバー強調ホップ数",
+  "display.focusCone": "フォーカスコーン",
   "display.focusMode": "フォーカスモード",
   "display.visualLinkEditor": "ビジュアルリンクエディタ",
   "display.missingNeighbors": "未接続同タグをハイライト",
@@ -964,6 +1022,8 @@ const ja: TranslationMap = {
   "display.syncWithEditor": "エディタと同期",
   "display.edgeWeightThickness": "エッジ太さ（重み）",
   "display.edgeStrengthGlow": "エッジ強度グロー",
+  "display.degreeEdgeWidth": "次数ベースのエッジ太さ",
+  "desc.degreeEdgeWidth": "接続ノードの次数に基づいてエッジの太さを変化",
   "display.localGraphHops": "ローカルグラフ ホップ数",
 
   // --- Rendering thresholds ---
@@ -1115,6 +1175,10 @@ const ja: TranslationMap = {
   "preset.analysisDesc": "全エッジ種別、属性色分け、被リンク数でサイズ変更",
   "preset.creative": "創作",
   "preset.creativeDesc": "タグ囲い、タグでグループ化、意味関係エッジ",
+  "preset.activeFocus": "アクティブフォーカス",
+  "preset.activeFocusDesc": "編集中ファイルを中心に2ホップ近隣を表示",
+  "preset.fullAnalysis": "フル分析",
+  "preset.fullAnalysisDesc": "全機能ON: 統計、ブリッジ、エントロピー、コミュニティ色、欠落隣接",
 
   // --- PanelBuilder: timeline ---
   "section.timeline": "タイムライン",
@@ -1223,6 +1287,15 @@ const ja: TranslationMap = {
   "preset.imported": "プリセットを適用しました",
   "preset.importPrompt": "プリセット JSON を貼り付けてください:",
 
+  // --- M1: 思考モード ---
+  "mode.explore": "探索",
+  "mode.exploreDesc": "つながりを発見 — 編集中ファイル中心、ギャップ検出、提案",
+  "mode.analyze": "分析",
+  "mode.analyzeDesc": "構造全体を分析 — 統計、ブリッジ、エントロピー、コミュニティ",
+  "mode.write": "執筆",
+  "mode.writeDesc": "現在のノートに集中 — プレゼン、リレーション、ローカルグラフ",
+  "toast.modeApplied": "{name}モードに切り替えました",
+
   // --- Toast notifications ---
   "toast.presetApplied": "プリセット適用: {name}",
   "toast.pngExported": "PNG をエクスポートしました",
@@ -1306,6 +1379,7 @@ const ja: TranslationMap = {
   "detail.noContent": "（本文なし）",
   "detail.properties": "プロパティ",
   "detail.linkedNodes": "リンク中のノード",
+  "detail.suggestedLinks": "リンク提案",
   "detail.backlinks": "バックリンク",
 
   // --- Node Comparison View ---
@@ -1356,6 +1430,8 @@ const ja: TranslationMap = {
   "section.nodeDecorations": "ノード装飾",
   "display.semanticZoom": "セマンティックズーム",
   "desc.semanticZoom": "ノードの画面サイズに応じた表示切替（ドット→円→コンパクトカード→フルカード）",
+  "display.autoLOD": "自動LOD",
+  "desc.autoLOD": "ズームレベルに応じて詳細度を自動調整 — 近接時にコンパクトカード、遠方時にドット",
   "display.showTagBadges": "タグバッジ",
   "desc.showTagBadges": "ノード周囲にカラーのタグバッジを表示",
   "display.showImportanceRing": "重要度リング",
@@ -1377,6 +1453,7 @@ const ja: TranslationMap = {
   "display.clusterLabelMinimal": "最小",
   "display.clusterLabelStandard": "標準",
   "display.clusterLabelDetailed": "詳細",
+  "display.clusterLabelRich": "リッチ（件数+タグ）",
   "display.gapDetectionMode": "ギャップ検出",
   "desc.gapDetectionMode": "知識構造のギャップを検出",
   "display.gapWithinTag": "タグ内",
@@ -1393,6 +1470,9 @@ const ja: TranslationMap = {
   "section.discovery": "発見・インサイト",
   "toolbar.surprise": "サプライズ — 無関連な2ノードを表示",
   "surprise.noMatch": "適切なペアが見つかりません — もう一度お試しください",
+  "section.surprise": "サプライズモード",
+  "display.surpriseInterval": "自動サプライズ (秒)",
+  "desc.surpriseInterval": "N秒ごとにランダムな並置を自動トリガー (0 = 無効)",
   "display.showGapPrompts": "ギャッププロンプト",
   "desc.showGapPrompts": "接続の少ないクラスタ間に「?」ラベルを表示",
   "display.showSimilarSuggestions": "類似サジェスト",
@@ -1451,6 +1531,7 @@ const ja: TranslationMap = {
   "desc.orphans": "接続のないノードの表示/非表示",
   "desc.textFade": "ラベルが消えるズームレベル",
   "desc.hoverHops": "ホバー時の強調範囲",
+  "desc.focusCone": "距離ベースのフェードアウト — ホバー時に近いノードほど明るく表示",
   "desc.focusMode": "ノードをクリックでハイライト固定。Escapeで解除。",
   "desc.visualLinkEditor": "Alt+ドラッグでノード間に [[wikilink]] を作成します。",
   "desc.missingNeighbors": "同じタグを共有するが直接エッジがないノードをマーク（知識のギャップ検出）。",
@@ -1622,6 +1703,39 @@ const ja: TranslationMap = {
   "template.maxReached": "テンプレートは最大20件です。先に削除してください。",
   "template.noTemplates": "保存済みテンプレートなし",
   "template.confirmDelete": "テンプレート「{name}」を削除しますか？",
+
+  // --- Feature C3/F2/C4/C6/C7/D5 ---
+  "toast.ontologySet": "ノードタイプを設定: {type}",
+  "toast.ontologyFailed": "ノードタイプの設定に失敗",
+  "toast.relationAdded": "リレーション追加: {type}",
+  "toast.relationFailed": "リレーションの追加に失敗",
+  "context.clusterCompare": "このクラスタを比較",
+  "context.multiSelect": "選択に追加",
+  "action.cancel": "キャンセル",
+  "action.addTag": "タグ追加",
+  "action.setField": "フィールド設定",
+  "action.clearSelection": "選択クリア",
+  "label.selectedNodes": "選択中: {count}",
+
+  // --- S1/S6/S4: 構造可視化 ---
+  "display.hierarchyTree": "階層ツリーオーバーレイ",
+  "desc.hierarchyTree": "フォーカスノードからの親子ツリーを紫色で描画",
+  "display.ontologyBackbone": "オントロジー骨格",
+  "desc.ontologyBackbone": "is-a 階層を半透明の骨格線で表示",
+  "display.gapEdges": "ギャップ検出エッジ",
+  "desc.gapEdges": "タグを共有するが直接リンクがないノード間を点線で表示",
+  "context.insertBlank": "空白ノードを挿入",
+  "toast.blankInserted": "空白ノードを挿入しました — ダブルクリックでノートに変換",
+  // W6: コンテキストメニュー i18n
+  "context.openFile": "ファイルを開く",
+  "context.pin": "ピン留め",
+  "context.unpin": "ピン解除",
+  "context.copyPath": "パスをコピー",
+  "context.pathStart": "パス: 始点に設定",
+  "context.pathEnd": "パス: 終点に設定",
+  "context.pathClear": "パス: クリア",
+  "context.setType": "タイプ設定: {type}",
+  "context.moveTo": "移動先: {group}",
 };
 
 // ---------------------------------------------------------------------------

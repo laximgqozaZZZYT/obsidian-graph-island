@@ -327,6 +327,18 @@ export interface RenderHost {
   getDefinitionField?(): string;
   /** M1: Whether semantic zoom is enabled */
   getSemanticZoom?(): boolean;
+  /** D6: Whether entropy overlay is enabled */
+  getShowEntropyOverlay?(): boolean;
+  /** D6: Precomputed entropy scores (nodeId → 0..1) */
+  getEntropyScores?(): Map<string, number> | null;
+  /** C6: Multi-select node IDs */
+  getMultiSelectNodeIds?(): string[];
+  /** S1: Hierarchy tree from focused node (childId → parentId) */
+  getHierarchyTree?(): Map<string, string> | null;
+  /** S6: Ontology backbone edges (is-a hierarchy) */
+  getOntologyBackbone?(): { from: string; to: string }[] | null;
+  /** S4: Structural gap edges (should-be-connected pairs) */
+  getStructuralGaps?(): { from: string; to: string }[] | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -368,6 +380,9 @@ export class RenderPipeline {
   // Array pools for redrawNodeBatch() — reuse across frames to reduce GC
   private _visiblePool: PixiNode[] = [];
   private _degreesPool: number[] = [];
+
+  /** Last computed LOD level (0-5) from autoLOD. Exposed for LabelManager. */
+  private _lastLodLevel = 3;
 
   /** Called after every render tick (used by minimap) */
   onPostRender: (() => void) | null = null;
@@ -564,6 +579,9 @@ export class RenderPipeline {
     // Build shared render context for sub-methods
     const ctx = this._buildBatchContext(crc, rt);
 
+    // Store lodLevel for LabelManager access
+    this._lastLodLevel = ctx.lodLevel;
+
     // Pass 1: Glow halos (enhanced for hub nodes) — skip at extreme/mid zoom
     if (ctx.nodeCount < rt.glowNodeCount && !ctx.isExtremeZoom && !ctx.isMidZoom) {
       this._renderGlowPass(g, ctx, rt);
@@ -610,6 +628,32 @@ export class RenderPipeline {
     // Pass 12: Articulation point warning ring
     if (this.host.getArticulationPointIds?.() && !ctx.isExtremeZoom) {
       this._renderArticulationPoints(g, ctx);
+    }
+
+    // Pass 13: Entropy overlay — knowledge diversity heatmap
+    if (this.host.getShowEntropyOverlay?.() && !ctx.isExtremeZoom) {
+      this._renderEntropyOverlay(g, ctx);
+    }
+
+    // Pass 14: Multi-select rings
+    const msIds = this.host.getMultiSelectNodeIds?.();
+    if (msIds && msIds.length > 0) {
+      this._renderMultiSelectRings(g, ctx, msIds);
+    }
+
+    // Pass 15: S1 Hierarchy tree overlay
+    if (!ctx.isExtremeZoom) {
+      this._renderHierarchyOverlay(g, ctx);
+    }
+
+    // Pass 16: S6 Ontology backbone
+    if (!ctx.isExtremeZoom) {
+      this._renderOntologyBackbone(g);
+    }
+
+    // Pass 17: S4 Gap detection dotted edges
+    if (!ctx.isExtremeZoom) {
+      this._renderGapEdges(g);
     }
   }
 
@@ -665,9 +709,17 @@ export class RenderPipeline {
     const isMidZoom = !isExtremeZoom && nodeScreenPx < rt.cardLODNormalPx;
     const minWorldRadius = isExtremeZoom ? 0 : Math.max(0, MIN_WORLD_RADIUS_PX / worldScale);
 
+    // 5-level LOD (used when autoLOD is enabled)
+    const lodLevel: number =
+      isExtremeZoom ? 0 :
+      nodeScreenPx < (rt.cardLODMidLabelPx ?? 3.0) ? 1 :
+      nodeScreenPx < (rt.cardLODNormalPx ?? 4.0) ? 2 :
+      nodeScreenPx < (rt.cardLODCompactPx ?? 8.0) ? 3 :
+      nodeScreenPx < (rt.cardLODFullCardPx ?? 15.0) ? 4 : 5;
+
     return {
       visible, pixiNodes, tlFilteredOut, alpha, nodeCount,
-      shapeRules, worldScale, isExtremeZoom, isMidZoom, minWorldRadius,
+      shapeRules, worldScale, isExtremeZoom, isMidZoom, minWorldRadius, lodLevel,
     };
   }
 
@@ -746,6 +798,7 @@ export class RenderPipeline {
       tlFilteredOut: Set<string> | null; alpha: number; nodeCount: number;
       shapeRules: ShapeRule[]; worldScale: number;
       isExtremeZoom: boolean; isMidZoom: boolean; minWorldRadius: number;
+      lodLevel: number;
     },
     crc: ReturnType<typeof Object.assign>,
     rt: ReturnType<typeof Object.assign>,
@@ -826,16 +879,34 @@ export class RenderPipeline {
       visible: PixiNode[]; pixiNodes: Map<string, PixiNode>;
       tlFilteredOut: Set<string> | null; alpha: number; nodeCount: number;
       shapeRules: ShapeRule[]; worldScale: number; minWorldRadius: number;
+      lodLevel: number;
     },
     crc: ReturnType<typeof Object.assign>,
     rt: ReturnType<typeof Object.assign>,
   ) {
     const { pixiNodes } = ctx;
     const displayMode = this.host.getNodeDisplayMode();
+    const autoLOD = rt.autoLOD ?? false;
 
     // Clean up stale card text when NOT in table card mode
     if (displayMode !== "card" || (this.host.getCardDisplayConfig().headerStyle ?? "plain") !== "table") {
       this._cleanupCardTextAll(pixiNodes);
+    }
+
+    // Auto-LOD: override display mode based on lodLevel
+    if (autoLOD && displayMode === "node") {
+      if (ctx.lodLevel >= 5) {
+        // LOD 5: full card mode
+        this._renderCardMode(g, ctx, crc, rt);
+      } else if (ctx.lodLevel >= 4) {
+        // LOD 4: compact card background + node rendering
+        this._renderNodeModeAutoLOD(g, ctx, crc, rt);
+      } else if (this.host.getSemanticZoom?.()) {
+        this._renderSemanticZoomMode(g, ctx, crc, rt);
+      } else {
+        this._renderNodeMode(g, ctx, crc, rt);
+      }
+      return;
     }
 
     switch (displayMode) {
@@ -855,6 +926,43 @@ export class RenderPipeline {
       case "sunburst-segment":
         this._renderSunburstSegmentMode(g, ctx, crc);
         break;
+    }
+  }
+
+  /** Render compact card background (rounded rect) behind a node for LOD 4. */
+  private _renderCompactCardBg(g: CanvasGraphics, pn: PixiNode): void {
+    const w = pn.radius * 3.5;
+    const h = pn.radius * 1.8;
+    const x = pn.data.x - w / 2;
+    const y = pn.data.y - h / 2;
+    g.lineStyle(1, pn.color, 0.3);
+    g.beginFill(pn.color, 0.08);
+    g.drawRoundedRect(x, y, w, h, 4);
+    g.endFill();
+    g.lineStyle(0);
+  }
+
+  /** Node mode with autoLOD level 4 compact card backgrounds. */
+  private _renderNodeModeAutoLOD(
+    g: CanvasGraphics,
+    ctx: {
+      visible: PixiNode[]; pixiNodes: Map<string, PixiNode>;
+      tlFilteredOut: Set<string> | null; alpha: number; nodeCount: number;
+      shapeRules: ShapeRule[]; worldScale: number; minWorldRadius: number;
+      lodLevel: number;
+    },
+    crc: ReturnType<typeof Object.assign>,
+    rt: ReturnType<typeof Object.assign>,
+  ) {
+    // Render compact card backgrounds first, then normal node shapes on top
+    for (const pn of ctx.visible) {
+      this._renderCompactCardBg(g, pn);
+    }
+    // Render nodes on top using standard node mode
+    if (this.host.getSemanticZoom?.()) {
+      this._renderSemanticZoomMode(g, ctx, crc, rt);
+    } else {
+      this._renderNodeMode(g, ctx, crc, rt);
     }
   }
 
@@ -1778,6 +1886,133 @@ export class RenderPipeline {
   }
 
   // =========================================================================
+  // Pass 13: Entropy overlay — semi-transparent halo sized by knowledge diversity
+  // =========================================================================
+  private _renderEntropyOverlay(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[] },
+  ) {
+    const scores = this.host.getEntropyScores?.();
+    if (!scores || scores.size === 0) return;
+
+    for (const pn of ctx.visible) {
+      const entropy = scores.get(pn.data.id);
+      if (entropy === undefined || entropy === 0) continue;
+      const t = Math.min(1, entropy); // 0..1
+      const haloRadius = pn.radius * (1 + t * 2);
+      // Blue (low entropy) → Red (high entropy)
+      const hue = (1 - t) * 240;
+      const color = hslToHex(hue, 0.7, 0.5);
+      g.lineStyle(0);
+      g.beginFill(color, 0.15 + t * 0.2);
+      g.drawCircle(pn.data.x, pn.data.y, haloRadius);
+      g.endFill();
+    }
+  }
+
+  // =========================================================================
+  // Pass 14: Multi-select rings — solid cyan ring
+  // =========================================================================
+  private _renderMultiSelectRings(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[] },
+    selectedIds: string[],
+  ) {
+    const selectedSet = new Set(selectedIds);
+    const RING_COLOR = 0x06b6d4; // cyan-500
+    const RING_WIDTH = 2.5;
+    const PAD = 5;
+
+    for (const pn of ctx.visible) {
+      if (!selectedSet.has(pn.data.id)) continue;
+      g.lineStyle(RING_WIDTH, RING_COLOR, 0.85);
+      g.drawCircle(pn.data.x, pn.data.y, pn.radius + PAD);
+      g.lineStyle(0);
+    }
+  }
+
+  // =========================================================================
+  // Pass 15: S1 Hierarchy tree overlay — purple lines from focused node
+  // =========================================================================
+  private _renderHierarchyOverlay(
+    g: CanvasGraphics,
+    ctx: { visible: PixiNode[] },
+  ) {
+    const tree = this.host.getHierarchyTree?.();
+    if (!tree || tree.size === 0) return;
+
+    const pixiNodes = this.host.getPixiNodes();
+    const EDGE_COLOR = 0x8b5cf6; // purple-500
+    const EDGE_WIDTH = 2.5;
+
+    g.lineStyle(EDGE_WIDTH, EDGE_COLOR, 0.6);
+    for (const [childId, parentId] of tree) {
+      const child = pixiNodes.get(childId);
+      const parent = pixiNodes.get(parentId);
+      if (!child || !parent) continue;
+      g.moveTo(parent.data.x, parent.data.y);
+      g.lineTo(child.data.x, child.data.y);
+    }
+    g.lineStyle(0);
+  }
+
+  // =========================================================================
+  // Pass 16: S6 Ontology backbone — translucent indigo skeleton
+  // =========================================================================
+  private _renderOntologyBackbone(g: CanvasGraphics) {
+    const backbone = this.host.getOntologyBackbone?.();
+    if (!backbone || backbone.length === 0) return;
+
+    const pixiNodes = this.host.getPixiNodes();
+    g.lineStyle(4, 0x6366f1, 0.25); // indigo-500, very translucent
+    for (const { from, to } of backbone) {
+      const pnFrom = pixiNodes.get(from);
+      const pnTo = pixiNodes.get(to);
+      if (!pnFrom || !pnTo) continue;
+      g.moveTo(pnFrom.data.x, pnFrom.data.y);
+      g.lineTo(pnTo.data.x, pnTo.data.y);
+    }
+    g.lineStyle(0);
+  }
+
+  // =========================================================================
+  // Pass 17: S4 Gap detection — dashed amber lines for missing connections
+  // =========================================================================
+  private _renderGapEdges(g: CanvasGraphics) {
+    const gaps = this.host.getStructuralGaps?.();
+    if (!gaps || gaps.length === 0) return;
+
+    const pixiNodes = this.host.getPixiNodes();
+    const GAP_COLOR = 0xfbbf24; // amber-400
+    const DASH_LEN = 6;
+    const GAP_LEN = 4;
+
+    for (const { from, to } of gaps) {
+      const pnA = pixiNodes.get(from);
+      const pnB = pixiNodes.get(to);
+      if (!pnA || !pnB) continue;
+
+      // Draw dashed line
+      const dx = pnB.data.x - pnA.data.x;
+      const dy = pnB.data.y - pnA.data.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 1) continue;
+      const ux = dx / dist;
+      const uy = dy / dist;
+      const step = DASH_LEN + GAP_LEN;
+      let d = 0;
+      g.lineStyle(1.5, GAP_COLOR, 0.45);
+      while (d < dist) {
+        const end = Math.min(d + DASH_LEN, dist);
+        g.moveTo(pnA.data.x + ux * d, pnA.data.y + uy * d);
+        g.lineTo(pnA.data.x + ux * end, pnA.data.y + uy * end);
+        d += step;
+      }
+    }
+    g.lineStyle(0);
+  }
+
+  // =========================================================================
   // PIXI node creation (batched/deferred)
   // =========================================================================
   /**
@@ -2038,6 +2273,15 @@ export class RenderPipeline {
   // Zone-based label placement — place label in the largest angular gap
   // among adjacent nodes to maximize readability.
   // =========================================================================
+  /** Return the last computed autoLOD level (0-5). Used by LabelManager for LOD 2 filtering. */
+  getLastLodLevel(): number { return this._lastLodLevel; }
+
+  /** Whether autoLOD is currently active. */
+  isAutoLODActive(): boolean {
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+    return rt.autoLOD ?? false;
+  }
+
   computeZonePlacement(
     node: GraphNode,
     nodeRadius: number,

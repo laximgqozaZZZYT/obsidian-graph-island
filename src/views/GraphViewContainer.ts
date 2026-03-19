@@ -224,6 +224,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Cached set of node IDs that share a tag but have no direct edge */
   private missingNeighborNodeIds: Set<string> | null = null;
+  /** D6: Cached entropy scores (nodeId → 0..1) */
+  private _entropyScores: Map<string, number> | null = null;
+  /** D6: rawData ref for entropy cache invalidation */
+  private _entropyCacheRef: GraphData | null = null;
 
   // Reusable EdgeDrawConfig — mutated in-place each frame to avoid per-frame allocation
   private _edgeDrawCfg: EdgeDrawConfig | null = null;
@@ -250,6 +254,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private nodeInfoEl: HTMLElement | null = null;
   private oobBadgeEl: HTMLElement | null = null;
   private graphStatsEl: HTMLElement | null = null;
+  /** F5: Relation matrix floating panel */
+  private relationMatrixEl: HTMLElement | null = null;
+  /** A3: Thumbnail layer container */
+  private thumbnailLayer: HTMLElement | null = null;
+  /** A3: Cached thumbnail images (nodeId → img element or null) */
+  private thumbnailCache: Map<string, HTMLImageElement | null> = new Map();
   private legendEl: HTMLElement | null = null;
   private shortcutHelpEl: HTMLElement | null = null;
   private hierarchyBreadcrumbEl: HTMLElement | null = null;
@@ -331,6 +341,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _saveTimer: ReturnType<typeof setTimeout> | null = null;
   private _resizeOnMove: ((ev: PointerEvent) => void) | null = null;
   private _resizeOnUp: (() => void) | null = null;
+  /** I1b: Surprise auto-trigger interval timer */
+  private _surpriseTimer: ReturnType<typeof setInterval> | null = null;
 
   /** Debounced workspace save — call after any panel state mutation */
   private requestSave() {
@@ -768,6 +780,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.graphStatsEl = canvasArea.createDiv({ cls: "gi-graph-stats" });
     this.graphStatsEl.style.display = "none";
 
+    // --- F5: Relation Matrix Overlay ---
+    this.relationMatrixEl = canvasArea.createDiv({ cls: "gi-relation-matrix" });
+    this.relationMatrixEl.style.display = "none";
+
+    // --- A3: Node Thumbnail Layer ---
+    this.thumbnailLayer = canvasArea.createDiv({ cls: "gi-thumbnail-layer" });
+
     // --- S1: Hierarchy Breadcrumb ---
     this.hierarchyBreadcrumbEl = canvasArea.createDiv({ cls: "gi-hierarchy-breadcrumb" });
     this.hierarchyBreadcrumbEl.style.display = "none";
@@ -1062,6 +1081,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       })
     );
 
+    // O2: Link creation from NodeDetailView suggestion
+    this.registerEvent(
+      this.app.workspace.on("graph-island:create-link" as any, (srcId: string, tgtId: string) => {
+        this.createLink(srcId, tgtId);
+      })
+    );
+
     // ビュー同期: 他の Graph Island ビューからのパネル状態変更を受信
     this.registerEvent(
       this.app.workspace.on(EVENT_SYNC_PANEL as any, (data: { senderId: string; panel: Record<string, unknown> }) => {
@@ -1132,10 +1158,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Feature P: ノード注釈 — キャンバス上のフローティングテキストボックス
   // ---------------------------------------------------------------------------
 
-  /** 空白ダブルクリック時に呼ばれる: 注釈を追加 */
+  /** 空白ダブルクリック時に呼ばれる: 注釈を追加 (W4: with default color) */
   addAnnotationAt(wx: number, wy: number): void {
     const id = crypto.randomUUID();
-    const annotation = { nodeId: id, text: "", x: wx, y: wy };
+    const annotation = { nodeId: id, text: "", x: wx, y: wy, color: "yellow" };
     this.panel.annotations.push(annotation);
     this._renderAnnotation(annotation);
     this.requestSave();
@@ -1150,13 +1176,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
-  /** 個別の注釈 DOM 要素を生成 */
+  /** 個別の注釈 DOM 要素を生成 (W4: sticky note with color support) */
   private _renderAnnotation(
-    ann: { nodeId: string; text: string; x: number; y: number },
+    ann: { nodeId: string; text: string; x: number; y: number; color?: string },
   ): void {
     if (!this.annotationLayer || !this.worldContainer || !this.pixiApp) return;
 
-    const el = this.annotationLayer.createDiv({ cls: "gi-annotation" });
+    const colorClass = ann.color ? `gi-sticky-${ann.color}` : "gi-sticky-yellow";
+    const el = this.annotationLayer.createDiv({ cls: `gi-annotation ${colorClass}` });
 
     // テキスト入力エリア
     const textEl = el.createEl("textarea", {
@@ -1170,6 +1197,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     });
     // テキストエリアのフォーカス時はドラッグ無効
     textEl.addEventListener("pointerdown", (e) => e.stopPropagation());
+
+    // W4: Color picker bar
+    const colorBar = el.createDiv({ cls: "gi-annotation-color-bar" });
+    const stickyColors = [
+      { name: "yellow", bg: "#eab308" },
+      { name: "blue", bg: "#3b82f6" },
+      { name: "green", bg: "#22c55e" },
+      { name: "pink", bg: "#ec4899" },
+    ];
+    for (const sc of stickyColors) {
+      const dot = colorBar.createDiv({ cls: "gi-annotation-color-dot" });
+      dot.style.background = sc.bg;
+      dot.addEventListener("click", (e) => {
+        e.stopPropagation();
+        ann.color = sc.name;
+        // Update class
+        el.className = `gi-annotation gi-sticky-${sc.name}`;
+        this.requestSave();
+      });
+    }
+    // Prevent color bar clicks from starting drag
+    colorBar.addEventListener("pointerdown", (e) => e.stopPropagation());
 
     // 削除ボタン
     const deleteBtn = el.createEl("button", {
@@ -1243,6 +1292,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   async onClose() {
     clearTimeout(this._autoFitTimer);
+    if (this._surpriseTimer) clearInterval(this._surpriseTimer);
     // Clean up panel resize listeners (may persist if destroyed mid-drag)
     if (this._resizeOnMove) document.removeEventListener("pointermove", this._resizeOnMove);
     if (this._resizeOnUp) document.removeEventListener("pointerup", this._resizeOnUp);
@@ -1259,6 +1309,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.nodeInfoEl = null;
     this.oobBadgeEl = null;
     this.graphStatsEl = null;
+    this.relationMatrixEl = null;
+    this.thumbnailLayer = null;
+    this.thumbnailCache.clear();
     this.hierarchyBreadcrumbEl = null;
     this.canvasWrap = null;
     this.annotationLayer = null;
@@ -1833,6 +1886,91 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getSearchHiddenNodes() { return new Set<string>(); }
   getDefinitionField() { return this.panel.definitionField ?? ""; }
   getSemanticZoom() { return this.panel.semanticZoom ?? false; }
+  getShowEntropyOverlay() { return this.panel.showEntropyOverlay; }
+  getEntropyScores(): Map<string, number> | null { return this._entropyScores; }
+  getMultiSelectNodeIds(): string[] { return this.panel.multiSelectNodeIds; }
+
+  /** S1: Build hierarchy tree from focused node via is-a/parent edges */
+  getHierarchyTree(): Map<string, string> | null {
+    if (!this.panel.showHierarchyTree) return null;
+    const rootId = this.panel.focusNodeId || this.highlightedNodeId;
+    if (!rootId) return null;
+    const relTypes = new Set(this.panel.hierarchyRelations ?? ["inheritance", "is-a", "has-a"]);
+    const tree = new Map<string, string>();
+    const visited = new Set<string>([rootId]);
+    let frontier = [rootId];
+    for (let depth = 0; depth < 5 && frontier.length > 0; depth++) {
+      const next: string[] = [];
+      for (const parentId of frontier) {
+        for (const e of this.graphEdges) {
+          const src = typeof e.source === "object" ? (e.source as any).id : e.source;
+          const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+          if (!relTypes.has(e.type ?? "") && !relTypes.has(e.relation ?? "")) continue;
+          const childId = src === parentId ? tgt : tgt === parentId ? src : null;
+          if (childId && !visited.has(childId)) {
+            visited.add(childId);
+            tree.set(childId, parentId);
+            next.push(childId);
+          }
+        }
+      }
+      frontier = next;
+    }
+    return tree.size > 0 ? tree : null;
+  }
+
+  /** S6: Get ontology backbone (is-a hierarchy edges) */
+  getOntologyBackbone(): { from: string; to: string }[] | null {
+    if (!this.panel.showOntologyBackbone) return null;
+    const result: { from: string; to: string }[] = [];
+    for (const e of this.graphEdges) {
+      const t = e.type ?? "";
+      const r = e.relation ?? "";
+      if (t === "inheritance" || r === "is-a" || r === "parent") {
+        const src = typeof e.source === "object" ? (e.source as any).id : e.source;
+        const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+        result.push({ from: src, to: tgt });
+      }
+    }
+    return result.length > 0 ? result : null;
+  }
+
+  /** S4: Detect structural gaps — nodes that should be connected but aren't */
+  getStructuralGaps(): { from: string; to: string }[] | null {
+    if (!this.panel.showGapEdges) return null;
+    if (!this._gapCache) {
+      this._gapCache = this._computeGaps();
+    }
+    return this._gapCache;
+  }
+
+  private _gapCache: { from: string; to: string }[] | null = null;
+  private _computeGaps(): { from: string; to: string }[] {
+    const gaps: { from: string; to: string }[] = [];
+    const tagMap = new Map<string, Set<string>>();
+    for (const pn of this.pixiNodes.values()) {
+      for (const tag of pn.data.tags ?? []) {
+        if (!tagMap.has(tag)) tagMap.set(tag, new Set());
+        tagMap.get(tag)!.add(pn.data.id);
+      }
+    }
+    for (const [, members] of tagMap) {
+      const arr = [...members];
+      for (let i = 0; i < arr.length && gaps.length < 20; i++) {
+        for (let j = i + 1; j < arr.length && gaps.length < 20; j++) {
+          const a = arr[i], b = arr[j];
+          if (this.adj.get(a)?.has(b)) continue;
+          const nbA = this.adj.get(a) ?? new Set();
+          const nbB = this.adj.get(b) ?? new Set();
+          for (const n of nbA) {
+            if (nbB.has(n)) { gaps.push({ from: a, to: b }); break; }
+          }
+        }
+      }
+    }
+    return gaps;
+  }
+
   getCanvasDimensions() {
     return {
       width: this.canvasWrap?.clientWidth ?? 600,
@@ -2010,6 +2148,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** フォーカスモード: 通常クリック時のみハイライトを固定 (Ctrl+clickでは呼ばない) */
   applyFocusOnClick(nodeId: string): void {
+    // D2: Show in-canvas node expansion panel on click
+    this._showNodeExpansion(nodeId);
     if (!this.panel.focusMode) return;
     if (this.panel.focusNodeId === nodeId) {
       this.panel.focusNodeId = null;
@@ -2024,6 +2164,59 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return;
     }
     this._applyFocusHighlight();
+  }
+
+  // D2: Show in-canvas node expansion panel
+  private _showNodeExpansion(nodeId: string): void {
+    const pn = this.pixiNodes.get(nodeId);
+    if (!pn?.data.filePath) return;
+    const canvasArea = this.canvasWrap;
+    const world = this.worldContainer;
+    if (!canvasArea || !world) return;
+
+    // Remove existing expansion
+    const existing = canvasArea.querySelector(".gi-node-expand");
+    if (existing) existing.remove();
+
+    // Screen coordinates
+    const sx = pn.data.x * world.scale.x + world.x;
+    const sy = pn.data.y * world.scale.y + world.y;
+
+    const panel = canvasArea.createDiv({ cls: "gi-node-expand" });
+    panel.style.left = `${sx + 20}px`;
+    panel.style.top = `${sy - 20}px`;
+
+    // Title
+    panel.createEl("div", { cls: "gi-node-expand-title", text: pn.data.label });
+
+    // Meta
+    const metaLine: string[] = [];
+    if (pn.data.category) metaLine.push(pn.data.category);
+    if (pn.data.tags?.length) metaLine.push(pn.data.tags.map((tg: string) => `#${tg}`).join(" "));
+    if (metaLine.length) panel.createEl("div", { cls: "gi-node-expand-meta", text: metaLine.join(" \u00b7 ") });
+
+    // Body preview — read file content async
+    const bodyEl = panel.createEl("div", { cls: "gi-node-expand-body", text: "Loading..." });
+    const tf = this.app.vault.getAbstractFileByPath(pn.data.filePath);
+    if (tf instanceof TFile) {
+      this.app.vault.cachedRead(tf).then(content => {
+        const stripped = content.replace(/^---[\s\S]*?---\n?/, "").trim();
+        bodyEl.textContent = stripped.slice(0, 200) + (stripped.length > 200 ? "..." : "");
+      }).catch(() => { bodyEl.textContent = "(could not read)"; });
+    }
+
+    // Actions
+    const actions = panel.createDiv({ cls: "gi-node-expand-actions" });
+    const openBtn = actions.createEl("button", { text: t("detail.openFile"), cls: "mod-cta" });
+    openBtn.addEventListener("click", () => { this.openFile(pn.data.filePath!); panel.remove(); });
+    const closeBtn = actions.createEl("button", { text: t("action.cancel") });
+    closeBtn.addEventListener("click", () => panel.remove());
+
+    // ESC to close
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") { panel.remove(); document.removeEventListener("keydown", onKey); }
+    };
+    document.addEventListener("keydown", onKey);
   }
 
   /** Clear all held nodes */
@@ -2072,8 +2265,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (idx >= 0) {
       this.compareNodeIds.splice(idx, 1);
     } else {
-      // FIFO: 2件を超えたら最も古いものを除去
-      if (this.compareNodeIds.length >= 2) {
+      // W3: FIFO: 4件を超えたら最も古いものを除去 (expanded from 2)
+      if (this.compareNodeIds.length >= 4) {
         this.compareNodeIds.shift();
       }
       this.compareNodeIds.push(nodeId);
@@ -2091,6 +2284,38 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   getCompareNodeIds(): string[] {
     return this.compareNodeIds;
+  }
+
+  /** W3: Compute Venn-like exclusive/shared neighbor sets for compare nodes */
+  computeCompareVenn(): { exclusive: Map<string, Set<string>>; shared: Set<string> } | null {
+    if (this.compareNodeIds.length < 2 || !this.adj) return null;
+    const neighborSets = new Map<string, Set<string>>();
+    for (const nid of this.compareNodeIds) {
+      const neighbors = new Set<string>();
+      for (const nb of this.adj.get(nid) ?? []) {
+        if (!this.compareNodeIds.includes(nb)) neighbors.add(nb);
+      }
+      neighborSets.set(nid, neighbors);
+    }
+    // Shared: neighbors in ALL selected nodes
+    const allSets = [...neighborSets.values()];
+    const shared = new Set<string>();
+    if (allSets.length > 0) {
+      for (const nb of allSets[0]) {
+        if (allSets.every(s => s.has(nb))) shared.add(nb);
+      }
+    }
+    // Exclusive: neighbors unique to each node
+    const exclusive = new Map<string, Set<string>>();
+    for (const [nid, nbs] of neighborSets) {
+      const exc = new Set<string>();
+      for (const nb of nbs) {
+        const othersHave = [...neighborSets.entries()].some(([k, s]) => k !== nid && s.has(nb));
+        if (!othersHave) exc.add(nb);
+      }
+      exclusive.set(nid, exc);
+    }
+    return { exclusive, shared };
   }
 
   // =========================================================================
@@ -2159,6 +2384,260 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   // =========================================================================
+  // C3+F2: Ontology type picker & relation type picker
+  // =========================================================================
+
+  isInlineOntologyEnabled(): boolean { return this.panel.enableInlineOntologyEditor; }
+  isRelationTypePickerEnabled(): boolean { return this.panel.showRelationTypePicker; }
+
+  getNeighborIds(nodeId: string): string[] {
+    const nb = this.adj.get(nodeId);
+    return nb ? [...nb] : [];
+  }
+
+  /** F2: Set node_type in frontmatter */
+  async setNodeOntologyType(nodeId: string, type: string): Promise<void> {
+    const pn = this.pixiNodes.get(nodeId);
+    if (!pn?.data.filePath) return;
+    try {
+      const tf = this.app.vault.getAbstractFileByPath(pn.data.filePath);
+      if (!(tf instanceof TFile)) return;
+      const content = await this.app.vault.read(tf);
+      const newContent = this._setFrontmatterField(content, "node_type", type);
+      await this.app.vault.modify(tf, newContent);
+      this.rawData = null;
+      this.doRender();
+      showToast(t("toast.ontologySet").replace("{type}", type));
+    } catch {
+      showToast(t("toast.ontologyFailed"));
+    }
+  }
+
+  /** C3: Add a relation entry to frontmatter */
+  async addRelationToNode(nodeId: string, targetId: string, relType: string): Promise<void> {
+    const srcPn = this.pixiNodes.get(nodeId);
+    const tgtPn = this.pixiNodes.get(targetId);
+    if (!srcPn?.data.filePath || !tgtPn?.data.filePath) return;
+    try {
+      const tf = this.app.vault.getAbstractFileByPath(srcPn.data.filePath);
+      if (!(tf instanceof TFile)) return;
+      const tgtBasename = tgtPn.data.filePath.replace(/^.*\//, "").replace(/\.md$/, "");
+      const content = await this.app.vault.read(tf);
+      const entry = `${relType}::[[${tgtBasename}]]`;
+      const trimmed = content.replace(/\s+$/, "");
+      const newContent = trimmed + "\n" + entry + "\n";
+      await this.app.vault.modify(tf, newContent);
+      this.rawData = null;
+      this.doRender();
+      showToast(t("toast.relationAdded").replace("{type}", relType));
+    } catch {
+      showToast(t("toast.relationFailed"));
+    }
+  }
+
+  /** Helper: set a frontmatter field (creates YAML block if needed) */
+  private _setFrontmatterField(content: string, key: string, value: string): string {
+    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    if (fmMatch) {
+      const fmBody = fmMatch[1];
+      const regex = new RegExp(`^${key}:.*$`, "m");
+      if (regex.test(fmBody)) {
+        const newFm = fmBody.replace(regex, `${key}: ${value}`);
+        return content.replace(fmMatch[0], `---\n${newFm}\n---`);
+      } else {
+        const newFm = fmBody + `\n${key}: ${value}`;
+        return content.replace(fmMatch[0], `---\n${newFm}\n---`);
+      }
+    } else {
+      return `---\n${key}: ${value}\n---\n${content}`;
+    }
+  }
+
+  // =========================================================================
+  // C6: Multi-select
+  // =========================================================================
+
+  toggleMultiSelect(nodeId: string): void {
+    const idx = this.panel.multiSelectNodeIds.indexOf(nodeId);
+    if (idx >= 0) {
+      this.panel.multiSelectNodeIds.splice(idx, 1);
+    } else {
+      this.panel.multiSelectNodeIds.push(nodeId);
+    }
+    this.markDirty(true);
+  }
+
+  // =========================================================================
+  // C7: Inline edit
+  // =========================================================================
+
+  isInlineEditEnabled(): boolean { return this.panel.enableInlineEdit; }
+
+  showInlineEditor(pn: PixiNode): void {
+    if (!pn.data.filePath) return;
+    const canvasArea = this.canvasWrap;
+    if (!canvasArea || !this.worldContainer) return;
+
+    // Remove existing editor
+    const existing = canvasArea.querySelector(".gi-inline-editor");
+    if (existing) existing.remove();
+
+    const tf = this.app.vault.getAbstractFileByPath(pn.data.filePath);
+    if (!(tf instanceof TFile)) return;
+
+    const cache = this.app.metadataCache.getFileCache(tf);
+    const fm = cache?.frontmatter;
+
+    // Screen coordinates
+    const world = this.worldContainer;
+    const sx = pn.data.x * world.scale.x + world.x;
+    const sy = pn.data.y * world.scale.y + world.y;
+
+    const editorDiv = canvasArea.createDiv({ cls: "gi-inline-editor" });
+    editorDiv.style.left = `${sx}px`;
+    editorDiv.style.top = `${sy + 20}px`;
+
+    const title = editorDiv.createEl("div", { cls: "gi-inline-editor-title", text: pn.data.label });
+
+    // Show top 5 frontmatter fields as inputs
+    const fields = fm ? Object.entries(fm).filter(([k]) => !k.startsWith("_") && k !== "position").slice(0, 5) : [];
+    const inputs: { key: string; input: HTMLInputElement }[] = [];
+
+    for (const [key, value] of fields) {
+      const row = editorDiv.createDiv({ cls: "gi-inline-editor-row" });
+      row.createEl("label", { text: key });
+      const input = row.createEl("input", { type: "text", value: String(value ?? "") });
+      inputs.push({ key, input });
+    }
+
+    // Save button
+    const btnRow = editorDiv.createDiv({ cls: "gi-inline-editor-buttons" });
+    const saveBtn = btnRow.createEl("button", { text: t("action.save"), cls: "mod-cta" });
+    saveBtn.addEventListener("click", async () => {
+      try {
+        let content = await this.app.vault.read(tf);
+        for (const { key, input } of inputs) {
+          content = this._setFrontmatterField(content, key, input.value);
+        }
+        await this.app.vault.modify(tf, content);
+        this.rawData = null;
+        this.doRender();
+      } catch { /* ignore */ }
+      editorDiv.remove();
+    });
+    const cancelBtn = btnRow.createEl("button", { text: t("action.cancel") });
+    cancelBtn.addEventListener("click", () => editorDiv.remove());
+
+    // Escape to close
+    editorDiv.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") editorDiv.remove();
+    });
+
+    // Focus first input
+    if (inputs.length > 0) inputs[0].input.focus();
+  }
+
+  // =========================================================================
+  // D5: Cluster compare
+  // =========================================================================
+
+  /** Cluster compare keys: [clusterA, clusterB] */
+  private compareClusterKeys: [string | null, string | null] = [null, null];
+
+  isClusterCompareEnabled(): boolean { return this.panel.showClusterCompare; }
+
+  toggleClusterCompare(nodeId: string): void {
+    // Determine which cluster this node belongs to
+    const pn = this.pixiNodes.get(nodeId);
+    if (!pn) return;
+    const groupKey = pn.data.category || pn.data.tags?.[0] || "unknown";
+
+    if (this.compareClusterKeys[0] === null) {
+      this.compareClusterKeys[0] = groupKey;
+    } else if (this.compareClusterKeys[1] === null && this.compareClusterKeys[0] !== groupKey) {
+      this.compareClusterKeys[1] = groupKey;
+      this.updateClusterCompare();
+    } else {
+      // Reset
+      this.compareClusterKeys = [groupKey, null];
+    }
+    this.markDirty(true);
+  }
+
+  private updateClusterCompare(): void {
+    const [keyA, keyB] = this.compareClusterKeys;
+    if (!keyA || !keyB || !this.graphStatsEl) return;
+
+    // Find members of each cluster
+    const membersA: string[] = [];
+    const membersB: string[] = [];
+    for (const [id, pn] of this.pixiNodes) {
+      const gk = pn.data.category || pn.data.tags?.[0] || "unknown";
+      if (gk === keyA) membersA.push(id);
+      else if (gk === keyB) membersB.push(id);
+    }
+
+    // Count inter-cluster edges
+    const setA = new Set(membersA);
+    const setB = new Set(membersB);
+    let interEdges = 0;
+    const bridgeNodes = new Set<string>();
+    for (const e of this.graphEdges) {
+      const src = typeof e.source === "object" ? (e.source as any).id : e.source;
+      const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+      if ((setA.has(src) && setB.has(tgt)) || (setB.has(src) && setA.has(tgt))) {
+        interEdges++;
+        if (setA.has(src)) bridgeNodes.add(src);
+        if (setA.has(tgt)) bridgeNodes.add(tgt);
+        if (setB.has(src)) bridgeNodes.add(src);
+        if (setB.has(tgt)) bridgeNodes.add(tgt);
+      }
+    }
+
+    // Shared tags
+    const tagsA = new Set<string>();
+    const tagsB = new Set<string>();
+    for (const id of membersA) {
+      const pn = this.pixiNodes.get(id);
+      if (pn?.data.tags) pn.data.tags.forEach(t => tagsA.add(t));
+    }
+    for (const id of membersB) {
+      const pn = this.pixiNodes.get(id);
+      if (pn?.data.tags) pn.data.tags.forEach(t => tagsB.add(t));
+    }
+    const sharedTags = [...tagsA].filter(t => tagsB.has(t));
+
+    // Highlight bridge nodes
+    this.applyEphemeralHighlight(bridgeNodes.size > 0 ? bridgeNodes : null);
+
+    showToast(`Cluster compare: ${keyA} (${membersA.length}) vs ${keyB} (${membersB.length}) — ${interEdges} edges, ${bridgeNodes.size} bridges, ${sharedTags.length} shared tags`);
+  }
+
+  // =========================================================================
+  // C4: Manual clustering
+  // =========================================================================
+
+  isManualClusteringEnabled(): boolean { return this.panel.enableManualClustering; }
+
+  getClusterGroupKeys(): string[] {
+    const keys = new Set<string>();
+    for (const pn of this.pixiNodes.values()) {
+      const gk = pn.data.category || pn.data.tags?.[0];
+      if (gk) keys.add(gk);
+    }
+    return [...keys].sort();
+  }
+
+  setManualCluster(nodeId: string, groupKey: string): void {
+    if (!this.panel.manualClusterOverrides) {
+      this.panel.manualClusterOverrides = {};
+    }
+    this.panel.manualClusterOverrides[nodeId] = groupKey;
+    this.rawData = null;
+    this.doRender();
+  }
+
+  // =========================================================================
   // Surprise — Random Juxtaposition (Phase 5a)
   // =========================================================================
   /** Pick two unrelated nodes and zoom to show both + shortest path */
@@ -2204,10 +2683,46 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       this.applyHover();
       this.wakeRenderLoop();
-      showToast(`${pnA.data.label} ↔ ${pnB.data.label}` + (path.length > 0 ? ` (${path.length - 1} hops)` : " (unreachable)"));
+      // I1b: Richer toast with tags info
+      const tagsInfo = (pnA.data.tags?.length || pnB.data.tags?.length)
+        ? ` [${(pnA.data.tags ?? []).slice(0, 2).join(",")} | ${(pnB.data.tags ?? []).slice(0, 2).join(",")}]`
+        : "";
+      showToast(`${pnA.data.label} ↔ ${pnB.data.label}` + (path.length > 0 ? ` (${path.length - 1} hops)` : " (unreachable)") + tagsInfo);
       return;
     }
     showToast(t("surprise.noMatch"));
+  }
+
+  /** I1b: Start/stop the surprise auto-trigger timer based on panel setting */
+  private _updateSurpriseTimer(): void {
+    if (this._surpriseTimer) {
+      clearInterval(this._surpriseTimer);
+      this._surpriseTimer = null;
+    }
+    const seconds = this.panel.surpriseInterval ?? 0;
+    if (seconds > 0) {
+      this._surpriseTimer = setInterval(() => this._triggerSurprise(), seconds * 1000);
+    }
+  }
+
+  // =========================================================================
+  // I2: Blank Node Insertion
+  // =========================================================================
+  /** Insert a blank placeholder node at the given world coordinates */
+  insertBlankNode(wx: number, wy: number): void {
+    const id = `__blank_${Date.now()}`;
+    const blankNode: GraphNode = {
+      id, label: "?", x: wx, y: wy, vx: 0, vy: 0,
+      tags: [], meta: { _isBlank: true },
+    };
+    // Pin position so it stays where the user clicked after re-render
+    this.panel.pinnedPositions[id] = { x: wx, y: wy };
+    // Inject into rawData so getGraphData() includes it
+    if (this.rawData) {
+      this.rawData.nodes.push(blankNode);
+    }
+    this.doRender();
+    showToast(t("toast.blankInserted"));
   }
 
   // =========================================================================
@@ -2287,19 +2802,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return this._betweennessCache;
   }
 
-  /** 比較イベントをワークスペースに発火。2ノード揃ったらパスファインダーも連動。 */
+  /** 比較イベントをワークスペースに発火。2+ノード揃ったらパスファインダーも連動。 */
   private notifyCompare() {
-    if (this.compareNodeIds.length === 2) {
+    if (this.compareNodeIds.length >= 2) {
       const a = this.pixiNodes.get(this.compareNodeIds[0]);
       const b = this.pixiNodes.get(this.compareNodeIds[1]);
       if (a && b) {
+        const venn = this.computeCompareVenn();
         this.app.workspace.trigger(EVENT_COMPARE_NODES as any, {
           nodeA: a.data,
           nodeB: b.data,
           adj: this.adj,
           pixiNodes: this.pixiNodes,
+          venn,
         });
-        // パスファインダーも連動して最短経路を表示
+        // パスファインダーも連動して最短経路を表示 (先頭2ノード)
         this.setPathfinderNode(this.compareNodeIds[0], "start");
         this.setPathfinderNode(this.compareNodeIds[1], "end");
       }
@@ -2428,6 +2945,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // フォーカスモード時はフォーカスノードIDを実効ハイライトIDとして使用
     const effectiveHId = hId || (focusActive ? this.panel.focusNodeId : null);
 
+    // R2: Build distance map for focus cone
+    const distMap = new Map<string, number>();
+    if (this.panel.focusConeEnabled && effectiveHId) {
+      distMap.set(effectiveHId, 0);
+      let frontier = [effectiveHId];
+      const hoverHops = this.panel.hoverHops;
+      for (let depth = 1; depth <= hoverHops; depth++) {
+        const next: string[] = [];
+        for (const fid of frontier) {
+          for (const nb of (this.adj.get(fid) ?? [])) {
+            if (!distMap.has(nb)) {
+              distMap.set(nb, depth);
+              next.push(nb);
+            }
+          }
+        }
+        frontier = next;
+      }
+    }
+
     for (const pn of nodesToUpdate) {
       if (!effectiveHId) {
         pn.gfx.alpha = 1;
@@ -2450,7 +2987,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           pn.tagLabel.visible = true;
         }
       } else {
-        pn.gfx.alpha = 0.12;
+        // R2: Focus cone — distance-based alpha gradient
+        if (this.panel.focusConeEnabled && distMap.size > 0) {
+          const dist = distMap.get(pn.data.id);
+          if (dist === undefined) {
+            pn.gfx.alpha = 0.08;
+          } else {
+            // Exponential falloff: depth 0 → 1.0, depth 1 → 0.65, depth 2 → 0.42, ...
+            pn.gfx.alpha = Math.max(0.08, Math.pow(0.65, dist));
+          }
+        } else {
+          pn.gfx.alpha = 0.12;
+        }
         if (isCardMode) pn.gfx.scale.set(1);
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; pn.hoverForcedLabel = false; }
       }
@@ -2624,7 +3172,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
    */
   private notifyDetailPane(node: GraphNode | null) {
     // Emit a custom event that NodeDetailView listens for
-    this.app.workspace.trigger(EVENT_HOVER_NODE, node, this.adj, this.pixiNodes, this.degrees);
+    this.app.workspace.trigger(EVENT_HOVER_NODE, node, this.adj, this.pixiNodes, this.degrees, this.graphEdges);
   }
 
   /**
@@ -2895,6 +3443,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.edgeStrengthGlow = edgeRt.edgeStrengthGlow;
     cfg.edgeStrengthGlowMin = edgeRt.edgeStrengthGlowMin;
     cfg.edgeStrengthGlowMax = edgeRt.edgeStrengthGlowMax;
+    cfg.degreeEdgeWidth = this.panel.degreeEdgeWidth ?? 0;
     cfg.showEdgeWeightLabels = this.panel.showEdgeWeightLabels;
     cfg.showEdgeCardinalityLabels = this.panel.showEdgeCardinalityLabels ?? false;
     cfg.edgeDirectionFilter = this.panel.edgeDirectionFilter ?? "all";
@@ -3031,6 +3580,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       groupLabelHullOffset: rt.groupLabelHullOffset,
       groupLabelBgAlpha: rt.groupLabelBgAlpha,
       enclosureOutlierFactor: rt.enclosureOutlierFactor,
+      clusterLabelDetail: this.panel.clusterLabelDetail,
+      getClusterSummary: (tag, count) => {
+        // S3: Rich cluster summary — count + top 3 tags of members
+        const members = this.tagMembership.get(tag);
+        if (!members) return `#${tag} (${count})`;
+        const tagCounts = new Map<string, number>();
+        for (const id of members) {
+          const pn = this.pixiNodes.get(id);
+          if (pn?.data.tags) {
+            for (const t of pn.data.tags) {
+              if (t !== tag) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
+            }
+          }
+        }
+        const topTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t);
+        return topTags.length > 0 ? `#${tag} (${count}) · ${topTags.join(", ")}` : `#${tag} (${count})`;
+      },
     };
     drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);
   }
@@ -3989,6 +4555,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const ctx = this._buildPanelContext();
     const cb = this._buildPanelCallbacks();
     buildPanelUI(this.panelEl, this.panel, ctx, cb);
+    // I1b: Update surprise auto-trigger timer whenever panel rebuilds
+    this._updateSurpriseTimer();
   }
 
   /** Build the context object describing current graph state for the panel UI. */
@@ -4070,11 +4638,27 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.plugin.saveSettings();
       },
       resetPanel: () => this._buildResetPanelCallback(),
-      applyPreset: (preset: "simple" | "analysis" | "creative") => {
+      applyPreset: (preset: string) => {
         const presets: Record<string, Partial<typeof this.panel>> = {
           simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: false },
           analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
           creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
+          // Thinking Graph presets
+          "active-focus": { syncWithEditor: true, localGraphCenter: true, localGraphHops: 2, focusLayout: true, hoverHops: 1, showArrows: true, fadeEdgesByDegree: true },
+          "semantic-shapes": {
+            nodeShapeRules: [
+              { match: "category" as const, category: "character", shape: "circle" as const },
+              { match: "category" as const, category: "place", shape: "hexagon" as const },
+              { match: "category" as const, category: "event", shape: "diamond" as const },
+              { match: "category" as const, category: "concept", shape: "triangle" as const },
+              { match: "default" as const, shape: "square" as const },
+            ],
+          },
+          "full-analysis": { showLinks: true, showTagEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showGraphStats: true, showBridgeNodes: true, showImportanceRing: true, nodeColorMode: "community", showEntropyOverlay: true, highlightMissingNeighbors: true },
+          // M1: Thinking Modes
+          explore: { syncWithEditor: true, localGraphCenter: true, localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" as const },
+          analyze: { syncWithEditor: false, localGraphCenter: false, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true },
+          write: { syncWithEditor: true, localGraphCenter: true, localGraphHops: 2, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const },
         };
         const p = presets[preset];
         if (p) { Object.assign(this.panel, p); this.doRender(); this.requestSave(); }
@@ -4091,7 +4675,72 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       navBack: () => this.navBack(),
       navForward: () => this.navForward(),
       applyEgoToVisible: () => this.applyEgoToVisible(),
+      bulkAddTag: (nodeIds: string[], tag: string) => this.bulkAddTag(nodeIds, tag),
+      bulkSetField: (nodeIds: string[], field: string, value: string) => this.bulkSetField(nodeIds, field, value),
     };
+  }
+
+  // =========================================================================
+  // C6: Bulk operations on multi-selected nodes
+  // =========================================================================
+
+  private async bulkAddTag(nodeIds: string[], tag: string): Promise<void> {
+    for (const id of nodeIds) {
+      const pn = this.pixiNodes.get(id);
+      if (!pn?.data.filePath) continue;
+      const tf = this.app.vault.getAbstractFileByPath(pn.data.filePath);
+      if (!(tf instanceof TFile)) continue;
+      try {
+        const content = await this.app.vault.read(tf);
+        const newContent = this._addFrontmatterTag(content, tag);
+        await this.app.vault.modify(tf, newContent);
+      } catch { /* ignore individual failures */ }
+    }
+    this.rawData = null;
+    this.doRender();
+    showToast(`Tag "${tag}" added to ${nodeIds.length} nodes`);
+  }
+
+  private async bulkSetField(nodeIds: string[], field: string, value: string): Promise<void> {
+    for (const id of nodeIds) {
+      const pn = this.pixiNodes.get(id);
+      if (!pn?.data.filePath) continue;
+      const tf = this.app.vault.getAbstractFileByPath(pn.data.filePath);
+      if (!(tf instanceof TFile)) continue;
+      try {
+        const content = await this.app.vault.read(tf);
+        const newContent = this._setFrontmatterField(content, field, value);
+        await this.app.vault.modify(tf, newContent);
+      } catch { /* ignore individual failures */ }
+    }
+    this.rawData = null;
+    this.doRender();
+    showToast(`Field "${field}" set on ${nodeIds.length} nodes`);
+  }
+
+  /** Helper: add a tag to frontmatter tags array */
+  private _addFrontmatterTag(content: string, tag: string): string {
+    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    if (fmMatch) {
+      const fmBody = fmMatch[1];
+      const tagsRegex = /^tags:\s*\[([^\]]*)\]/m;
+      const tagsListRegex = /^tags:\s*$/m;
+      if (tagsRegex.test(fmBody)) {
+        const newFm = fmBody.replace(tagsRegex, (match, inner) => {
+          const existing = inner ? inner + ", " : "";
+          return `tags: [${existing}${tag}]`;
+        });
+        return content.replace(fmMatch[0], `---\n${newFm}\n---`);
+      } else if (tagsListRegex.test(fmBody)) {
+        const newFm = fmBody.replace(tagsListRegex, `tags:\n  - ${tag}`);
+        return content.replace(fmMatch[0], `---\n${newFm}\n---`);
+      } else {
+        const newFm = fmBody + `\ntags: [${tag}]`;
+        return content.replace(fmMatch[0], `---\n${newFm}\n---`);
+      }
+    } else {
+      return `---\ntags: [${tag}]\n---\n${content}`;
+    }
   }
 
   /** Execute the reset-panel action: restore defaults and re-render. */
@@ -4289,6 +4938,201 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Status
   // =========================================================================
   private setStatus(t: string) { if (this.statusEl) this.statusEl.textContent = t; }
+
+  /** D6: Compute per-node entropy scores (knowledge diversity).
+   *  entropy = uniqueTagCount(neighbors) / neighborCount */
+  private updateEntropyScores(): void {
+    const raw = this.rawData;
+    if (!this.panel.showEntropyOverlay) {
+      this._entropyScores = null;
+      return;
+    }
+    if (raw && this._entropyCacheRef === raw && this._entropyScores) return;
+    this._entropyCacheRef = raw;
+
+    const scores = new Map<string, number>();
+    const adj = this.adj;
+    const pixiNodes = this.pixiNodes;
+
+    for (const [nodeId, neighbors] of adj) {
+      if (neighbors.size === 0) continue;
+      const allTags = new Set<string>();
+      for (const nbId of neighbors) {
+        const nb = pixiNodes.get(nbId);
+        if (nb?.data.tags) {
+          for (const tag of nb.data.tags) allTags.add(tag);
+        }
+      }
+      const entropy = allTags.size / neighbors.size;
+      scores.set(nodeId, Math.min(1, entropy));
+    }
+    this._entropyScores = scores;
+  }
+
+  /** A3: Update thumbnail positions and visibility. */
+  private updateThumbnails(): void {
+    const layer = this.thumbnailLayer;
+    if (!layer) return;
+    if (!this.panel.showNodeThumbnails) {
+      layer.style.display = "none";
+      return;
+    }
+    layer.style.display = "";
+    const world = this.worldContainer;
+    if (!world) return;
+
+    const scaleX = world.scale.x;
+    const scaleY = world.scale.y;
+    const offsetX = world.x;
+    const offsetY = world.y;
+    const wrap = this.canvasWrap;
+    const vw = wrap?.clientWidth ?? 800;
+    const vh = wrap?.clientHeight ?? 600;
+    const MAX_THUMBNAILS = 50;
+
+    // Remove all existing children first (simple approach)
+    layer.empty();
+
+    let count = 0;
+    for (const [id, pn] of this.pixiNodes) {
+      if (count >= MAX_THUMBNAILS) break;
+
+      // Check if node has image/thumbnail in frontmatter
+      const meta = pn.data.meta;
+      const imgPath = meta?.image || meta?.thumbnail || meta?.cover;
+      if (!imgPath || typeof imgPath !== "string") continue;
+
+      // Screen coordinates
+      const sx = pn.data.x * scaleX + offsetX;
+      const sy = pn.data.y * scaleY + offsetY;
+
+      // Culling: skip off-screen nodes
+      const margin = 50;
+      if (sx < -margin || sx > vw + margin || sy < -margin || sy > vh + margin) continue;
+
+      // Get or load image
+      let img = this.thumbnailCache.get(id);
+      if (img === undefined) {
+        // Try to resolve the path
+        const resolved = this._resolveThumbnailUrl(imgPath as string);
+        if (resolved) {
+          img = document.createElement("img");
+          img.src = resolved;
+          img.className = "gi-node-thumbnail";
+          img.addEventListener("error", () => {
+            this.thumbnailCache.set(id, null);
+          });
+          this.thumbnailCache.set(id, img);
+        } else {
+          this.thumbnailCache.set(id, null);
+          continue;
+        }
+      }
+      if (!img) continue;
+
+      // Clone for this frame
+      const clone = img.cloneNode() as HTMLImageElement;
+      clone.className = "gi-node-thumbnail";
+      const size = pn.radius * scaleX * 2;
+      clone.style.width = `${size}px`;
+      clone.style.height = `${size}px`;
+      clone.style.left = `${sx - size / 2}px`;
+      clone.style.top = `${sy - size / 2}px`;
+      layer.appendChild(clone);
+      count++;
+    }
+  }
+
+  /** Resolve a frontmatter image path to a usable URL. */
+  private _resolveThumbnailUrl(path: string): string | null {
+    // If it's already a URL, use directly
+    if (path.startsWith("http://") || path.startsWith("https://")) return path;
+    // Try vault resource path
+    const tf = this.app.vault.getAbstractFileByPath(path);
+    if (tf instanceof TFile) {
+      return this.app.vault.getResourcePath(tf);
+    }
+    // Try without leading /
+    const cleanPath = path.replace(/^\/+/, "");
+    const tf2 = this.app.vault.getAbstractFileByPath(cleanPath);
+    if (tf2 instanceof TFile) {
+      return this.app.vault.getResourcePath(tf2);
+    }
+    return null;
+  }
+
+  /** F5: Update the relation matrix floating panel. */
+  private updateRelationMatrix(gd: GraphData): void {
+    const el = this.relationMatrixEl;
+    if (!el) return;
+    if (!this.panel.showRelationMatrix) {
+      el.style.display = "none";
+      return;
+    }
+    el.style.display = "";
+    el.empty();
+
+    el.createEl("div", { cls: "gi-matrix-title", text: "Relation Matrix" });
+
+    // Top 20 nodes by degree
+    const sorted = [...this.degrees.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
+    if (sorted.length === 0) return;
+
+    const nodeIds = sorted.map(([id]) => id);
+    const idSet = new Set(nodeIds);
+
+    // Build adjacency count matrix
+    const matrix = new Map<string, Map<string, number>>();
+    for (const id of nodeIds) matrix.set(id, new Map());
+
+    for (const e of gd.edges) {
+      const src = typeof e.source === "object" ? (e.source as any).id : e.source;
+      const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+      if (idSet.has(src) && idSet.has(tgt)) {
+        const row = matrix.get(src)!;
+        row.set(tgt, (row.get(tgt) ?? 0) + 1);
+      }
+    }
+
+    // Find max for color scaling
+    let maxCount = 1;
+    for (const row of matrix.values()) {
+      for (const v of row.values()) {
+        if (v > maxCount) maxCount = v;
+      }
+    }
+
+    // Render table
+    const table = el.createEl("table", { cls: "gi-matrix-table" });
+    const headerRow = table.createEl("tr");
+    headerRow.createEl("th"); // corner
+    for (const id of nodeIds) {
+      const pn = this.pixiNodes.get(id);
+      const label = pn?.data.label || id;
+      const th = headerRow.createEl("th", { text: label.slice(0, 3), attr: { title: label } });
+      th.style.fontSize = "9px";
+    }
+
+    for (const rowId of nodeIds) {
+      const tr = table.createEl("tr");
+      const pn = this.pixiNodes.get(rowId);
+      const label = pn?.data.label || rowId;
+      tr.createEl("td", { text: label.slice(0, 6), cls: "gi-matrix-label", attr: { title: label } });
+
+      for (const colId of nodeIds) {
+        const count = matrix.get(rowId)?.get(colId) ?? 0;
+        const td = tr.createEl("td", { cls: "gi-matrix-cell" });
+        if (count > 0) {
+          td.textContent = String(count);
+          const intensity = Math.min(1, count / maxCount);
+          td.style.backgroundColor = `rgba(var(--interactive-accent-rgb, 99,102,241), ${intensity * 0.6})`;
+        }
+        td.addEventListener("click", () => {
+          this.applyEphemeralHighlight(new Set([rowId, colId]));
+        });
+      }
+    }
+  }
 
   /** Update the floating graph statistics panel (Feature CX). */
   private updateGraphStats(gd: GraphData): void {
@@ -5045,7 +5889,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _buildNodeRadiusFn(): (n: GraphNode) => number {
     const baseSize = this.panel.nodeSize;
     const degs = this.degrees;
-    return (n: GraphNode) => n.isPhantom ? 0 : nodeRadius(baseSize, degs.get(n.id) || 0);
+    const minR = this.panel.renderThresholds?.minNodeRadius ?? 12;
+    return (n: GraphNode) => n.isPhantom ? 0 : nodeRadius(baseSize, degs.get(n.id) || 0, minR);
   }
 
   /** Build the node color function considering groups, heatmap, and category coloring. */
@@ -5196,7 +6041,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // 6-step pipeline complete — reveal world and render final positions
       if (this.worldContainer) this.worldContainer.visible = true;
       this.setStatus(`${gd.nodes.length} nodes`);
+      this.updateEntropyScores();
       this.updateGraphStats(gd);
+      this.updateRelationMatrix(gd);
+      this.updateThumbnails();
       this.updateHierarchyBreadcrumb();
       const wrap = this.canvasWrap;
       // Ensure minimum viewport utilization regardless of autoFit
@@ -5372,7 +6220,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (groupCount > 0) statusParts.push(`${groupCount} groups`);
     this.setStatus(statusParts.join(', '));
     this.updateLegend();
+    this.updateEntropyScores();
     this.updateGraphStats(ld);
+    this.updateRelationMatrix(ld);
+    this.updateThumbnails();
     this.updateHierarchyBreadcrumb();
     this.startRenderLoop();
     this.applySearch();
@@ -5723,6 +6574,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const wrap = this.canvasWrap;
     if (!world || !wrap) return;
 
+    // E5: Presentation mode — animate to node
+    if (this.panel.presentationMode) {
+      this._animateToNode(nodeId);
+      return;
+    }
+
     const worldX = pn.data.x;
     const worldY = pn.data.y;
     const screenCenterX = wrap.clientWidth / 2;
@@ -5736,6 +6593,38 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.setHighlightedNodeId(nodeId);
     this.applyHover();
     this.wakeRenderLoop();
+  }
+
+  /** E5: Animated pan to a node with ease-out (presentation mode). */
+  private _animateToNode(nodeId: string, durationMs = 500): void {
+    const pn = this.pixiNodes.get(nodeId);
+    if (!pn) return;
+    const world = this.worldContainer;
+    const wrap = this.canvasWrap;
+    if (!world || !wrap) return;
+
+    const startX = world.x;
+    const startY = world.y;
+    const targetX = wrap.clientWidth / 2 - pn.data.x * world.scale.x;
+    const targetY = wrap.clientHeight / 2 - pn.data.y * world.scale.y;
+    const startTime = performance.now();
+
+    const self = this;
+    function animate(now: number) {
+      const elapsed = now - startTime;
+      const t = Math.min(1, elapsed / durationMs);
+      const ease = t * (2 - t); // ease-out quadratic
+      world!.x = startX + (targetX - startX) * ease;
+      world!.y = startY + (targetY - startY) * ease;
+      self.markDirty();
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        self.setHighlightedNodeId(nodeId);
+        self.applyHover();
+      }
+    }
+    requestAnimationFrame(animate);
   }
 
   private applySearch() {

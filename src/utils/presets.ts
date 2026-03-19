@@ -23,6 +23,7 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "gridShowHeaders", "gridCellShading",
   "clusterFollowsGroupBy",
   "focusMode",
+  "focusConeEnabled",
   "showTimelineRoutes",
   "showAxisTitles",
   "showTimelineTickLabels",
@@ -77,6 +78,7 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "recencyDays",
   "kShortestPaths",
   "presentationStep",
+  "degreeEdgeWidth",
 ];
 
 /** Fields that should be string */

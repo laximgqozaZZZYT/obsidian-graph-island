@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf, TFile, MarkdownRenderer, Component, setIcon } from "obsidian";
-import type { GraphNode } from "../types";
+import type { GraphNode, GraphEdge } from "../types";
 import { t } from "../i18n";
 import { EVENT_HOVER_NODE, EVENT_HIGHLIGHT_NODES } from "../constants";
 
@@ -44,10 +44,10 @@ export class NodeDetailView extends ItemView {
     this.registerEvent(
       this.app.workspace.on(
         EVENT_HOVER_NODE as any,
-        (node: GraphNode | null, adj: Map<string, Set<string>>, pixiNodes: Map<string, any>, degrees: Map<string, number>) => {
+        (node: GraphNode | null, adj: Map<string, Set<string>>, pixiNodes: Map<string, any>, degrees: Map<string, number>, edges?: GraphEdge[]) => {
           if (this.held && this.holdCaptured) return; // locked
           this.pixiNodes = pixiNodes;
-          this.renderNode(node, adj, pixiNodes, degrees);
+          this.renderNode(node, adj, pixiNodes, degrees, edges);
           if (this.held && node) this.holdCaptured = true;
         }
       )
@@ -141,6 +141,7 @@ export class NodeDetailView extends ItemView {
     adj: Map<string, Set<string>>,
     pixiNodes: Map<string, any>,
     degrees: Map<string, number>,
+    edges?: GraphEdge[],
   ) {
     this.cleanupRenderComponent();
     if (!this.bodyEl) return;
@@ -213,6 +214,64 @@ export class NodeDetailView extends ItemView {
             isTag: nbPn.data.isTag,
             filePath: nbPn.data.filePath,
             nodeId: nbId,
+          };
+        },
+      );
+    }
+
+    // === C8: Relation drawer — edges grouped by type ===
+    if (edges && edges.length > 0) {
+      this.renderRelationDrawer(wrap, node.id, edges, pixiNodes);
+    }
+
+    // O2: Link suggestions
+    this.renderLinkSuggestions(wrap, node, adj, pixiNodes);
+  }
+
+  // ---------------------------------------------------------------------------
+  // C8: Relation drawer — edges grouped by type with direction arrows
+  // ---------------------------------------------------------------------------
+
+  private renderRelationDrawer(
+    parent: HTMLElement,
+    nodeId: string,
+    edges: GraphEdge[],
+    pixiNodes: Map<string, any>,
+  ) {
+    // Filter edges that touch this node
+    const relevant = edges.filter(e => {
+      const src = typeof e.source === "object" ? (e.source as any).id : e.source;
+      const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+      return src === nodeId || tgt === nodeId;
+    });
+    if (relevant.length === 0) return;
+
+    // Group by edge type
+    const grouped = new Map<string, { neighborId: string; direction: string }[]>();
+    for (const e of relevant) {
+      const src = typeof e.source === "object" ? (e.source as any).id : e.source;
+      const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+      const type = e.type || "link";
+      const isOutgoing = src === nodeId;
+      const neighborId = isOutgoing ? tgt : src;
+      const direction = isOutgoing ? "\u2192" : "\u2190"; // → or ←
+      if (!grouped.has(type)) grouped.set(type, []);
+      grouped.get(type)!.push({ neighborId, direction });
+    }
+
+    for (const [type, items] of grouped) {
+      this.renderCollapsibleList(
+        parent,
+        `${type} (${items.length})`,
+        items,
+        (item) => {
+          const pn = pixiNodes.get(item.neighborId);
+          if (!pn) return null;
+          return {
+            label: `${item.direction} ${pn.data.label}`,
+            isTag: pn.data.isTag,
+            filePath: pn.data.filePath,
+            nodeId: item.neighborId,
           };
         },
       );
@@ -467,6 +526,67 @@ export class NodeDetailView extends ItemView {
           this.triggerHighlight(null);
         });
       }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // O2: Suggested links — find nodes sharing tags or common neighbors
+  // ---------------------------------------------------------------------------
+
+  private renderLinkSuggestions(
+    parent: HTMLElement,
+    node: GraphNode,
+    adj: Map<string, Set<string>>,
+    pixiNodes: Map<string, any>,
+  ) {
+    // Find suggestion candidates: nodes sharing tags but not directly connected
+    const neighbors = adj.get(node.id) ?? new Set<string>();
+    const suggestions: { id: string; reason: string }[] = [];
+
+    for (const [otherId, otherPn] of pixiNodes) {
+      if (otherId === node.id || neighbors.has(otherId)) continue;
+      if (suggestions.length >= 5) break;
+
+      // Strategy 1: Shared tags
+      const nodeTags = new Set(node.tags ?? []);
+      const otherTags: string[] = otherPn.data?.tags ?? [];
+      const shared = otherTags.filter((tg: string) => nodeTags.has(tg));
+      if (shared.length > 0) {
+        suggestions.push({ id: otherId, reason: `shared: #${shared[0]}` });
+        continue;
+      }
+
+      // Strategy 2: Common neighbor (triangle completion)
+      const otherNb = adj.get(otherId) ?? new Set<string>();
+      for (const n of neighbors) {
+        if (otherNb.has(n)) {
+          const nbLabel = pixiNodes.get(n)?.data?.label ?? n;
+          suggestions.push({ id: otherId, reason: `via ${nbLabel}` });
+          break;
+        }
+      }
+    }
+
+    if (suggestions.length === 0) return;
+
+    const details = parent.createEl("details", { cls: "gi-detail-collapsible" });
+    details.open = false;
+    details.createEl("summary", { cls: "gi-detail-section-label", text: `${t("detail.suggestedLinks")} (${suggestions.length})` });
+
+    const list = details.createEl("ul", { cls: "gi-ni-list" });
+    for (const s of suggestions) {
+      const pn = pixiNodes.get(s.id);
+      if (!pn) continue;
+      const li = list.createEl("li", { cls: "gi-suggest-link" });
+      li.createEl("span", { text: pn.data.label });
+      li.createEl("span", { cls: "gi-suggest-link-reason", text: s.reason });
+      // Link button
+      const linkBtn = li.createEl("button", { cls: "gi-suggest-link-btn", text: "Link" });
+      linkBtn.addEventListener("click", () => {
+        // Trigger link creation via workspace event
+        this.app.workspace.trigger("graph-island:create-link" as any, node.id, s.id);
+        li.remove();
+      });
     }
   }
 
