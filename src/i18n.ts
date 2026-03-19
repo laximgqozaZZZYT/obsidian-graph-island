@@ -786,6 +786,9 @@ const en: TranslationMap = {
   "context.pathClear": "Path: clear",
   "context.setType": "Set type: {type}",
   "context.moveTo": "Move to: {group}",
+  // D1: Expand/collapse neighbors
+  "context.expand": "Expand neighbors",
+  "context.collapse": "Collapse neighbors",
   // P2: Progressive Disclosure
   "panel.advanced": "Advanced settings",
 };
@@ -1560,6 +1563,9 @@ const ja: TranslationMap = {
   "context.pathClear": "パス: クリア",
   "context.setType": "タイプ設定: {type}",
   "context.moveTo": "移動先: {group}",
+  // D1: Expand/collapse neighbors
+  "context.expand": "隣接を展開",
+  "context.collapse": "隣接を折りたたみ",
   // P2: Progressive Disclosure
   "panel.advanced": "詳細設定",
 };

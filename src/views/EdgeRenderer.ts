@@ -173,12 +173,13 @@ function shouldSkipByDirection(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
 // Theme-aware edge colors
 function defaultColor(isDark: boolean) { return isDark ? 0x666666 : 0x999999; }
 function highlightColor(isDark: boolean) { return isDark ? 0x999999 : 0x555555; }
-const INHERITANCE_COLOR = 0x9ca3af;
-const AGGREGATION_COLOR = 0x60a5fa;
-const SIMILAR_COLOR = 0xfbbf24;
-const HAS_TAG_COLOR = 0xb4a0ff;
-const SIBLING_COLOR = 0x34d399;   // green — peer relationship
-const SEQUENCE_COLOR = 0xfb923c;  // orange — sequential order
+// C4: Intuitive edge color palette — distinct, accessible, memorable
+const INHERITANCE_COLOR = 0x8b5cf6;  // purple-500 — hierarchy/inheritance
+const AGGREGATION_COLOR = 0x3b82f6;  // blue-500 — composition/aggregation
+const SIMILAR_COLOR = 0xf59e0b;      // amber-500 — similarity/semantic
+const HAS_TAG_COLOR = 0x6b7280;      // gray-500 — tag membership (subtle)
+const SIBLING_COLOR = 0x10b981;      // emerald-500 — peer relationship
+const SEQUENCE_COLOR = 0xef4444;     // red-500 — sequential order (directional)
 
 // ---------------------------------------------------------------------------
 // Edge type specification map — single source of truth for per-type behavior

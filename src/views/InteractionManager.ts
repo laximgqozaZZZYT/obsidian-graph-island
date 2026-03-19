@@ -142,6 +142,10 @@ export interface InteractionHost {
   isInlineEditEnabled?(): boolean;
   /** I1: Persist node position after drag */
   saveDragPosition?(nodeId: string, x: number, y: number): void;
+  /** D1: Toggle expand/collapse of a node's neighbors in local graph mode */
+  toggleExpandNode?(nodeId: string): void;
+  /** D1: Check if a node is expanded */
+  isNodeExpanded?(nodeId: string): boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -669,6 +673,16 @@ export class InteractionManager {
       });
     }
 
+    // D1: Expand/collapse node neighbors (local graph mode only)
+    if (this.host.toggleExpandNode) {
+      const isExpanded = this.host.isNodeExpanded?.(node.data.id) ?? false;
+      menu.addItem((item) => {
+        item.setTitle(isExpanded ? t("context.collapse") : t("context.expand"))
+          .setIcon(isExpanded ? "minimize-2" : "maximize-2")
+          .onClick(() => this.host.toggleExpandNode!(node.data.id));
+      });
+    }
+
     // Export subgraph (Feature CY)
     if (this.host.exportSubgraph) {
       menu.addItem((item) => {
@@ -733,25 +747,21 @@ export class InteractionManager {
       }
     }
 
-    // C3: Relation type picker — relate to neighbors
+    // C3: Relation type picker — relate to top 2 neighbors (simplified)
     if (this.host.isRelationTypePickerEnabled?.()) {
       const neighborIds = this.host.getNeighborIds?.(node.data.id) ?? [];
-      const topNeighbors = neighborIds.slice(0, 5);
+      const topNeighbors = neighborIds.slice(0, 2);
       if (topNeighbors.length > 0) {
         menu.addSeparator();
-        const relTypes = ["is-a", "has-a", "similar", "sequence"];
         for (const nbId of topNeighbors) {
           const nbPn = this.host.getPixiNodes().get(nbId);
           if (!nbPn) continue;
           const nbLabel = nbPn.data.label || nbId;
-          // Sub-menu via nested items
-          for (const rel of relTypes) {
-            menu.addItem((item) => {
-              item.setTitle(`${nbLabel} \u2192 ${rel}`)
-                .setIcon("git-branch")
-                .onClick(() => this.host.addRelationToNode?.(node.data.id, nbId, rel));
-            });
-          }
+          menu.addItem((item) => {
+            item.setTitle(`Link → ${nbLabel}`)
+              .setIcon("git-branch")
+              .onClick(() => this.host.addRelationToNode?.(node.data.id, nbId, "is-a"));
+          });
         }
       }
     }
@@ -771,7 +781,7 @@ export class InteractionManager {
       const groupKeys = this.host.getClusterGroupKeys?.() ?? [];
       if (groupKeys.length > 0) {
         menu.addSeparator();
-        for (const gk of groupKeys.slice(0, 10)) {
+        for (const gk of groupKeys.slice(0, 5)) {
           menu.addItem((item) => {
             item.setTitle(t("context.moveTo").replace("{group}", gk))
               .setIcon("folder")

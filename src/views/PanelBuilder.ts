@@ -296,6 +296,8 @@ export interface PanelState {
   degreeEdgeWidth?: number;
   /** I1b: Surprise auto-trigger interval in seconds (0 = disabled) */
   surpriseInterval?: number;
+  /** D1: Manually expanded nodes in local graph mode (IDs whose neighbors are shown beyond hop limit) */
+  expandedNodes?: string[];
 }
 
 /** Create a fresh PanelState with all mutable values as new instances.
@@ -451,6 +453,7 @@ export function createDefaultPanel(): PanelState {
     kShortestPaths: 1,
     focusConeEnabled: true,
     surpriseInterval: 0,
+    expandedNodes: [],
   };
 }
 
@@ -580,6 +583,8 @@ export function buildPanel(
   cb: PanelCallbacks,
 ): void {
   panelEl.empty();
+  // Cache field suggestions for query autocomplete
+  _cachedFieldSuggestions = cb.collectFieldSuggestions();
 
   // =========================================================================
   // Top bar: Search (always visible, outside sections)
@@ -4094,7 +4099,7 @@ function renderTagRelations(
 // Search options hint — shown below query inputs on focus, like core graph view
 // ---------------------------------------------------------------------------
 function getQueryOptions(): { prefix: string; desc: string }[] {
-  return [
+  const base = [
     { prefix: "path:", desc: t("query.pathMatch") },
     { prefix: "file:", desc: t("query.fileMatch") },
     { prefix: "tag:", desc: t("query.tagSearch") },
@@ -4102,11 +4107,22 @@ function getQueryOptions(): { prefix: string; desc: string }[] {
     { prefix: "id:", desc: t("query.idMatch") },
     { prefix: "isTag", desc: t("query.isTag") },
     { prefix: "hop:name:N", desc: t("query.hop") },
-    { prefix: "[property]:", desc: t("query.property") },
     { prefix: "AND / OR", desc: t("query.boolOps") },
     { prefix: "*", desc: t("query.all") },
   ];
+  // Add dynamic frontmatter fields from the cached field suggestion context
+  if (_cachedFieldSuggestions.length > 0) {
+    for (const field of _cachedFieldSuggestions.slice(0, 15)) {
+      if (!base.some(b => b.prefix === `${field}:`)) {
+        base.push({ prefix: `${field}:`, desc: `Frontmatter: ${field}` });
+      }
+    }
+  }
+  return base;
 }
+
+/** Cached field suggestions (populated by buildPanel) */
+let _cachedFieldSuggestions: string[] = [];
 
 /** Maps a search prefix to the field name used by collectValueSuggestions.
  *  Known prefixes are listed here; any unknown `xxx:` prefix is also accepted

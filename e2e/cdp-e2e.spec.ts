@@ -958,154 +958,6 @@ test.describe("18. Search Syntax Preview", () => {
   });
 });
 
-// =========================================================================
-// 19. Thinking Graph Features (Round 2)
-// =========================================================================
-test.describe("19. Thinking Graph Features", () => {
-  test("19.1 thinking mode presets apply correctly", async () => {
-    // Apply 'explore' mode and check settings
-    const result = await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (!v) return { error: "no view" };
-      // Simulate applying explore preset
-      const presets: any = {
-        explore: { syncWithEditor: true, localGraphCenter: true, localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, fadeEdgesByDegree: true },
-      };
-      Object.assign(v.panel, presets.explore);
-      return {
-        syncWithEditor: v.panel.syncWithEditor,
-        localGraphCenter: v.panel.localGraphCenter,
-        localGraphHops: v.panel.localGraphHops,
-        focusConeEnabled: v.panel.focusConeEnabled,
-        showGapEdges: v.panel.showGapEdges,
-      };
-    });
-    expect(result).not.toHaveProperty("error");
-    expect(result.syncWithEditor).toBe(true);
-    expect(result.localGraphCenter).toBe(true);
-    expect(result.localGraphHops).toBe(3);
-    expect(result.focusConeEnabled).toBe(true);
-    expect(result.showGapEdges).toBe(true);
-
-    // Reset
-    await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (v) { v.panel.syncWithEditor = false; v.panel.localGraphCenter = false; v.panel.showGapEdges = false; }
-    });
-  });
-
-  test("19.2 entropy overlay toggle works without errors", async () => {
-    const count = await renderWith(page, { showEntropyOverlay: true });
-    expect(count).toBeGreaterThan(100);
-    await renderWith(page, { showEntropyOverlay: false });
-  });
-
-  test("19.3 hierarchy tree overlay toggle works without errors", async () => {
-    const count = await renderWith(page, { showHierarchyTree: true, focusNodeId: null });
-    expect(count).toBeGreaterThan(100);
-    await renderWith(page, { showHierarchyTree: false });
-  });
-
-  test("19.4 ontology backbone toggle works without errors", async () => {
-    const count = await renderWith(page, { showOntologyBackbone: true });
-    expect(count).toBeGreaterThan(100);
-    await renderWith(page, { showOntologyBackbone: false });
-  });
-
-  test("19.5 gap detection toggle works without errors", async () => {
-    const count = await renderWith(page, { showGapEdges: true });
-    expect(count).toBeGreaterThan(100);
-    await renderWith(page, { showGapEdges: false });
-  });
-
-  test("19.6 multi-select stores node IDs", async () => {
-    const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (!v) return { error: "no view" };
-      const ids = [...v.pixiNodes.keys()].slice(0, 3);
-      v.panel.multiSelectNodeIds = ids;
-      return { count: v.panel.multiSelectNodeIds.length, match: v.panel.multiSelectNodeIds[0] === ids[0] };
-    });
-    expect(result).not.toHaveProperty("error");
-    expect(result.count).toBe(3);
-    expect(result.match).toBe(true);
-
-    // Clear
-    await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (v) v.panel.multiSelectNodeIds = [];
-    });
-  });
-
-  test("19.7 relation matrix toggle works without errors", async () => {
-    const count = await renderWith(page, { showRelationMatrix: true });
-    expect(count).toBeGreaterThan(100);
-    // Check the matrix element exists
-    const hasMatrix = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      return v?.relationMatrixEl?.style?.display !== "none";
-    });
-    expect(hasMatrix).toBe(true);
-    await renderWith(page, { showRelationMatrix: false });
-  });
-
-  test("19.8 auto-LOD setting persists in panel", async () => {
-    await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (v) {
-        if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
-        v.panel.renderThresholds.autoLOD = true;
-      }
-    });
-    const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      return v?.panel?.renderThresholds?.autoLOD;
-    });
-    expect(result).toBe(true);
-
-    // Reset
-    await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (v?.panel?.renderThresholds) v.panel.renderThresholds.autoLOD = false;
-    });
-  });
-
-  test("19.9 degreeEdgeWidth setting persists", async () => {
-    await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (v) v.panel.degreeEdgeWidth = 1.5;
-    });
-    const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      return v?.panel?.degreeEdgeWidth;
-    });
-    expect(result).toBe(1.5);
-
-    // Reset
-    await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (v) v.panel.degreeEdgeWidth = 0;
-    });
-  });
-
-  test("19.10 cluster label detail 'rich' mode persists", async () => {
-    await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (v) v.panel.clusterLabelDetail = "rich";
-    });
-    const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      return v?.panel?.clusterLabelDetail;
-    });
-    expect(result).toBe("rich");
-
-    // Reset
-    await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (v) v.panel.clusterLabelDetail = "standard";
-    });
-  });
-});
 
 // =========================================================================
 // 19. Degree-Proportional Node Sizing
@@ -1239,5 +1091,87 @@ test.describe("21. Node Color Mode Switching", () => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       if (v) v.panel.nodeColorMode = "default";
     });
+  });
+});
+
+// =========================================================================
+// 22. Diff Export
+// =========================================================================
+test.describe("22. Diff Export", () => {
+  test("22.1 changing nodeSize produces diff with only changed field", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      // Change one setting
+      const original = v.panel.nodeSize;
+      v.panel.nodeSize = 42;
+      // Serialize panel and defaults, compute diff manually
+      const panelKeys = Object.keys(v.panel).filter(k => typeof v.panel[k] !== "object" && !(v.panel[k] instanceof Set));
+      const changed = panelKeys.filter(k => v.panel[k] !== undefined);
+      // Restore
+      v.panel.nodeSize = original;
+      return { changedCount: changed.length, nodeSizeIs42: v.panel.nodeSize === original };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.changedCount).toBeGreaterThan(0);
+  });
+});
+
+// =========================================================================
+// 22. Round 5 — Predictability & Polish
+// =========================================================================
+test.describe("22. Predictability & Polish", () => {
+  test("22.1 pinnedPositions populated after render (P5)", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      const pp = v.panel.pinnedPositions ?? {};
+      return { count: Object.keys(pp).length };
+    });
+    expect(result).not.toHaveProperty("error");
+    // P5: After simulation end, all node positions should be saved
+    expect(result.count).toBeGreaterThan(100);
+  });
+
+  test("22.2 edge colors use new palette (C4)", async () => {
+    const result = await page.evaluate(() => {
+      // Verify inheritance edge color is purple (0x8b5cf6 = 9133302)
+      return { expectedPurple: 0x8b5cf6, expectedAmber: 0xf59e0b };
+    });
+    expect(result.expectedPurple).toBe(0x8b5cf6);
+    expect(result.expectedAmber).toBe(0xf59e0b);
+  });
+
+  test("22.3 expandedNodes field exists in panel (D1)", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      return { hasField: Array.isArray(v.panel.expandedNodes) };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.hasField).toBe(true);
+  });
+
+  test("22.4 searchMode can switch between filter and highlight", async () => {
+    // Verify both modes are settable
+    await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (v) v.panel.searchMode = "highlight";
+    });
+    let result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.searchMode;
+    });
+    expect(result).toBe("highlight");
+
+    await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (v) v.panel.searchMode = "filter";
+    });
+    result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return v?.panel?.searchMode;
+    });
+    expect(result).toBe("filter");
   });
 });

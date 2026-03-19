@@ -2347,6 +2347,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return this.panel.bookmarkedNodes.includes(nodeId);
   }
 
+  // =========================================================================
+  // D1: Expandable nodes (ExcaliBrain-style)
+  // =========================================================================
+  /** Toggle expand/collapse of a node's neighbors in local graph mode */
+  toggleExpandNode(nodeId: string): void {
+    const expanded = this.panel.expandedNodes ?? [];
+    const idx = expanded.indexOf(nodeId);
+    if (idx >= 0) {
+      expanded.splice(idx, 1);
+    } else {
+      expanded.push(nodeId);
+    }
+    this.panel.expandedNodes = expanded;
+    this.rawData = null;
+    this.doRender();
+  }
+
+  /** Check if a node is expanded */
+  isNodeExpanded(nodeId: string): boolean {
+    return this.panel.expandedNodes?.includes(nodeId) ?? false;
+  }
+
   /** ブックマーク済みノードIDセットを取得（RenderHost用） */
   getBookmarkedNodeIds(): Set<string> {
     return new Set(this.panel.bookmarkedNodes);
@@ -3068,15 +3090,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       // Show custom metadata fields in tooltip
       const tooltipFields = this.panel.hoverTooltipFields;
-      if (tooltipFields && pn.data.meta) {
+      if (tooltipFields) {
         const fields = tooltipFields.split(",").map(s => s.trim()).filter(Boolean);
         for (const field of fields) {
-          const val = pn.data.meta[field];
-          if (val !== undefined && val !== null && val !== "") {
+          // Support virtual properties (degree, radius) and frontmatter
+          const val = this.getNodeProperty(pn.data.id, field);
+          if (val !== undefined && val !== "") {
             tooltipText += `\n${field}: ${val}`;
           }
         }
       }
+      // Always show degree count
+      const deg = this.degrees.get(pn.data.id) ?? 0;
+      tooltipText += `\n° ${deg}`;
     }
 
     // Feature DA: Ancestry breadcrumb trail from hub to hovered node
@@ -5591,6 +5617,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       frontier = next;
     }
+
+    // D1: Also include neighbors of manually expanded nodes
+    if (this.panel.expandedNodes?.length) {
+      for (const expandedId of this.panel.expandedNodes) {
+        if (!reachable.has(expandedId)) continue;
+        const neighbors = adj.get(expandedId);
+        if (neighbors) {
+          for (const nbId of neighbors) reachable.add(nbId);
+        }
+      }
+    }
+
     return {
       nodes: nodes.filter(n => reachable.has(n.id)),
       edges: edges.filter(e => reachable.has(e.source) && reachable.has(e.target)),
@@ -6098,6 +6136,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.updateLabelsForZoom();
       // F1: Zero-config start — auto-focus on active file after first render
       this._autoFocusActiveFile();
+      // P5: Persist all node positions after simulation settles
+      this._persistAllPositions();
     });
 
     this.updateLegend();
@@ -6504,6 +6544,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.panToNode(nodeId);
   }
 
+  /** P5: Save all node positions to pinnedPositions after simulation completes.
+   *  This ensures the graph layout is reproducible on next open. */
+  private _persistAllPositions(): void {
+    const pp = this.panel.pinnedPositions;
+    for (const [id, pn] of this.pixiNodes) {
+      if (id.startsWith("tag:") || id.startsWith("__")) continue; // skip virtual nodes
+      pp[id] = { x: pn.data.x, y: pn.data.y };
+    }
+    this.requestSave();
+  }
+
   /**
    * Find the node ID corresponding to a vault file path.
    */
@@ -6692,6 +6743,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     requestAnimationFrame(animate);
   }
 
+  // V1: Smooth fade animation for search filter transitions
+  private _fadeNodeAlpha(pn: PixiNode, targetAlpha: number, durationMs = 300): void {
+    const startAlpha = pn.gfx.alpha;
+    if (Math.abs(startAlpha - targetAlpha) < 0.01) return;
+    const startTime = performance.now();
+    const self = this;
+    function tick(now: number) {
+      const t = Math.min(1, (now - startTime) / durationMs);
+      pn.gfx.alpha = startAlpha + (targetAlpha - startAlpha) * t;
+      if (t < 1) {
+        requestAnimationFrame(tick);
+      }
+      self.markDirty();
+    }
+    requestAnimationFrame(tick);
+  }
+
   private applySearch() {
     const raw = this.panel.searchQuery;
     // Parse hop filters: "hop:name:n" (comma-separated, mixable with text)
@@ -6739,7 +6807,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     for (const pn of this.pixiNodes.values()) {
       if (!hasHighlight) {
-        pn.gfx.alpha = 1;
+        this._fadeNodeAlpha(pn, 1);
         this.drawNodeCircle(pn, false);
         continue;
       }
@@ -6750,7 +6818,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const isMatch = hopMatch && textMatch;
 
       if (isMatch) {
-        pn.gfx.alpha = 1;
+        this._fadeNodeAlpha(pn, 1);
         pn.circle.visible = true;
         pn.circle.clear();
         const searchHitColor = this.getAccentColor();
@@ -6759,7 +6827,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         pn.circle.lineStyle(2, searchHitColor, 0.85);
         drawShape(pn.circle, shape, pn.radius, pn.color, 1);
       } else {
-        pn.gfx.alpha = 0.12;
+        this._fadeNodeAlpha(pn, 0.12);
         this.drawNodeCircle(pn, false);
       }
     }
