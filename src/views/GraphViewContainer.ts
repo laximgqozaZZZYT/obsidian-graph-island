@@ -263,7 +263,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** A3: Cached thumbnail images (nodeId → img element or null) */
   private thumbnailCache: Map<string, HTMLImageElement | null> = new Map();
   private legendEl: HTMLElement | null = null;
-  private shortcutHelpEl: HTMLElement | null = null;
+  /** O3: Full-screen help overlay element */
+  private _helpOverlayEl: HTMLElement | null = null;
   private hierarchyBreadcrumbEl: HTMLElement | null = null;
   private _similarCache: Map<string, SimilarNode[]> = new Map();
 
@@ -832,8 +833,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.legendEl.style.display = "none";
       return;
     }
-    if (this.shortcutHelpEl && this.shortcutHelpEl.style.display !== "none") {
-      this.shortcutHelpEl.style.display = "none";
+    if (this._helpOverlayEl) {
+      this._helpOverlayEl.remove();
+      this._helpOverlayEl = null;
       return;
     }
     // フォーカスモードのクリア (Escape)
@@ -960,11 +962,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       return;
     }
-    // ?: toggle shortcut help
+    // ?: toggle help overlay (O3)
     if (key === "?" && !e.ctrlKey && !e.metaKey) {
-      if (this.shortcutHelpEl) {
-        this.shortcutHelpEl.style.display = this.shortcutHelpEl.style.display === "none" ? "" : "none";
-      }
+      this._toggleHelpOverlay();
       return;
     }
     // Tab / Shift+Tab: cycle focus through nodes
@@ -981,40 +981,76 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.legendEl = canvasArea.createDiv({ cls: "gi-legend" });
     this.legendEl.style.display = "none";
 
-    // --- Keyboard Shortcut Help Overlay ---
-    this.shortcutHelpEl = canvasArea.createDiv({ cls: "gi-shortcut-help" });
-    this.shortcutHelpEl.style.display = "none";
-    this.shortcutHelpEl.setAttribute("role", "dialog");
-    this.shortcutHelpEl.setAttribute("aria-label", "Keyboard shortcuts");
-    {
-      const titleEl = this.shortcutHelpEl.createDiv({ cls: "gi-shortcut-help-title" });
-      titleEl.textContent = "Keyboard Shortcuts";
-      const table = this.shortcutHelpEl.createEl("table", { cls: "gi-shortcut-help-table" });
-      const shortcuts: [string, string][] = [
-        ["Tab / Shift+Tab", "Cycle focus through nodes"],
-        ["Enter", "Open focused node's file"],
-        ["Escape", "Close overlay / clear focus"],
-        ["+/= / \u2212", "Zoom in / out"],
-        ["0", "Reset zoom (100%)"],
-        ["Space / F", "Fit graph to view"],
-        ["P", "Toggle settings panel"],
-        ["L", "Toggle legend"],
-        ["M", "Toggle minimap"],
-        ["G", "Toggle dot grid"],
-        ["[ / ]", "Decrease / increase hover hops"],
-        ["1\u20134", "Switch panel tab"],
-        ["Ctrl+F", "Focus search"],
-        ["Ctrl+Shift+C", "Copy graph as PNG"],
-        ["?", "Toggle this help"],
-      ];
-      for (const [key, desc] of shortcuts) {
-        const tr = table.createEl("tr");
-        const tdKey = tr.createEl("td", { cls: "gi-shortcut-key" });
-        tdKey.textContent = key;
-        const tdDesc = tr.createEl("td");
-        tdDesc.textContent = desc;
-      }
+    // --- Keyboard Shortcut Help Overlay (O3: full-screen help overlay) ---
+    // Created lazily via _toggleHelpOverlay()
+  }
+
+  /** O3: Toggle the full-screen help overlay with keyboard shortcuts and mode descriptions. */
+  _toggleHelpOverlay(): void {
+    if (this._helpOverlayEl) {
+      this._helpOverlayEl.remove();
+      this._helpOverlayEl = null;
+      return;
     }
+    const canvasArea = this.canvasWrap;
+    if (!canvasArea) return;
+
+    const overlay = canvasArea.createDiv({ cls: "gi-help-overlay" });
+    this._helpOverlayEl = overlay;
+
+    overlay.createEl("h3", { text: "Graph Island \u2014 Keyboard Shortcuts" });
+
+    const shortcuts: [string, string][] = [
+      ["Hover", "Show node details + preview"],
+      ["Click", "Focus node + show expansion"],
+      ["Shift+Click", "Add to multi-selection"],
+      ["Ctrl+Click", "Compare nodes"],
+      ["Double-click", "Open file / Inline edit"],
+      ["Right-click", "Context menu"],
+      ["Scroll", "Zoom in/out"],
+      ["Drag node", "Move + pin position"],
+      ["Drag canvas", "Pan view"],
+      ["Tab / Shift+Tab", "Cycle focus through nodes"],
+      ["Enter", "Open focused node's file"],
+      ["Escape", "Close overlay / clear focus"],
+      ["+/= / \u2212", "Zoom in / out"],
+      ["0", "Reset zoom (100%)"],
+      ["Space / F", "Fit graph to view"],
+      ["P", "Toggle settings panel"],
+      ["L", "Toggle legend"],
+      ["M", "Toggle minimap"],
+      ["G", "Toggle dot grid"],
+      ["[ / ]", "Decrease / increase hover hops"],
+      ["1\u20134", "Switch panel tab"],
+      ["Ctrl+F", "Focus search"],
+      ["Ctrl+Shift+C", "Copy graph as PNG"],
+      ["?", "Toggle this help"],
+    ];
+
+    const table = overlay.createEl("table", { cls: "gi-help-table" });
+    for (const [key, desc] of shortcuts) {
+      const tr = table.createEl("tr");
+      tr.createEl("td", { cls: "gi-help-key", text: key });
+      tr.createEl("td", { text: desc });
+    }
+
+    overlay.createEl("h3", { text: "Thinking Modes", cls: "gi-help-section" });
+    const modes: [string, string][] = [
+      ["Explore", "Active file centered, gap detection, suggestions"],
+      ["Analyze", "Full structure: stats, bridges, entropy, communities"],
+      ["Write", "Local graph, large nodes, minimal edges"],
+    ];
+    for (const [name, desc] of modes) {
+      const row = overlay.createDiv({ cls: "gi-help-mode" });
+      row.createEl("strong", { text: name });
+      row.createEl("span", { text: ` \u2014 ${desc}` });
+    }
+
+    // Click overlay to close
+    overlay.addEventListener("click", () => {
+      overlay.remove();
+      this._helpOverlayEl = null;
+    });
   }
 
   /** Create panel resize handle and control panel element. */
@@ -1327,6 +1363,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.thumbnailLayer = null;
     this.thumbnailCache.clear();
     this.hierarchyBreadcrumbEl = null;
+    this._helpOverlayEl?.remove();
+    this._helpOverlayEl = null;
     this.canvasWrap = null;
     this.annotationLayer = null;
   }
@@ -6245,7 +6283,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this._rebuildRoadNetwork(true);
       // Force full redraw now that all positions are final
       this.updatePositions(true);
-      if (this.panel.autoFit && wrap) {
+      // G1: Always autoFit on first render; respect panel.autoFit on subsequent renders
+      if (wrap && (this.panel.autoFit || !this._hasAutoFocused)) {
         this.autoFitView(wrap.clientWidth, wrap.clientHeight);
       }
       this.markDirty(true);

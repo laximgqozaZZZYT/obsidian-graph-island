@@ -95,30 +95,37 @@ test.beforeAll(async ({}, testInfo) => {
     contexts[0].pages().find((p) => p.url().includes("index.html")) ??
     contexts[0].pages()[0];
 
-  // Reload plugin to pick up latest main.js
+  // Reload plugin and reopen graph view
   await page.evaluate(async () => {
     const app = (window as any).app;
+    // Close existing graph views
+    for (const leaf of app.workspace.getLeavesOfType("graph-view")) leaf.detach();
     await app.plugins.disablePlugin("graph-island");
     await app.plugins.enablePlugin("graph-island");
   });
   await page.waitForTimeout(3000);
 
-  // Ensure graph view is open
-  const leafCount = await page.evaluate(() => {
-    return (window as any).app.workspace.getLeavesOfType("graph-view").length;
+  // Open fresh graph view
+  await page.evaluate(() => {
+    (window as any).app.commands.executeCommandById("graph-island:open-graph-view");
   });
-  if (leafCount === 0) {
-    await page.evaluate(() => {
-      (window as any).app.commands.executeCommandById("graph-island:open-graph-view");
+  await page.waitForTimeout(5000);
+
+  // Wait until view.panel is available
+  for (let i = 0; i < 20; i++) {
+    const hasPanel = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return !!(v && v.panel);
     });
-    await page.waitForTimeout(5000);
+    if (hasPanel) break;
+    await page.waitForTimeout(500);
   }
 
   // T1: Complete reset — override ALL panel fields to E2E baseline defaults
   // This ensures no persistent settings from previous sessions affect tests
   await page.evaluate(async () => {
     const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-    if (!v) return;
+    if (!v || !v.panel) return;
     // Core E2E baseline: all edges visible, no filters, no focus mode
     const baseline: Record<string, unknown> = {
       searchQuery: "", searchMode: "filter", showOrphans: true,

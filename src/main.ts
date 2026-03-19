@@ -118,6 +118,48 @@ export default class GraphViewsPlugin extends Plugin {
       },
     });
 
+    // D2: Additional command palette integrations
+    this.addCommand({
+      id: "graph-toggle-stats",
+      name: "Graph: Toggle statistics panel",
+      callback: () => {
+        const v = this._getGraphView() as any;
+        if (v) { v.panel.showGraphStats = !v.panel.showGraphStats; v.markDirty(true); }
+      },
+    });
+    this.addCommand({
+      id: "graph-toggle-arrows",
+      name: "Graph: Toggle edge arrows",
+      callback: () => {
+        const v = this._getGraphView() as any;
+        if (v) { v.panel.showArrows = !v.panel.showArrows; v.markDirty(true); }
+      },
+    });
+    this.addCommand({
+      id: "graph-analysis-all",
+      name: "Graph: Show all analysis overlays",
+      callback: () => {
+        const v = this._getGraphView() as any;
+        if (v) { v.panel.analysisOverlay = "all"; v.doRender(); }
+      },
+    });
+    this.addCommand({
+      id: "graph-analysis-off",
+      name: "Graph: Hide analysis overlays",
+      callback: () => {
+        const v = this._getGraphView() as any;
+        if (v) { v.panel.analysisOverlay = "off"; v.doRender(); }
+      },
+    });
+    this.addCommand({
+      id: "graph-help",
+      name: "Graph: Show keyboard shortcuts",
+      callback: () => {
+        const v = this._getGraphView() as any;
+        if (v) { v._toggleHelpOverlay?.(); }
+      },
+    });
+
     this.addSettingTab(new GraphViewsSettingTab(this.app, this));
 
     // Code block processor for embedded mini-graphs in notes
@@ -175,6 +217,12 @@ export default class GraphViewsPlugin extends Plugin {
     await this.saveSettings();
 
     console.info(`Graph Island: auto-detected ${detected.length} tag relationships from vault`);
+  }
+
+  /** D2: Get the active graph view instance (if any). */
+  private _getGraphView(): GraphViewContainer | null {
+    const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0];
+    return leaf ? (leaf.view as GraphViewContainer) : null;
   }
 
   private ensureDetailPane() {

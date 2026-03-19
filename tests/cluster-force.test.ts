@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { forceSimulation, forceManyBody, type Simulation } from "d3-force";
-import { buildClusterForce, type ClusterForceConfig, type ClusterForceResult } from "../src/layouts/cluster-force";
+import { buildClusterForce, nodeRadius, type ClusterForceConfig, type ClusterForceResult } from "../src/layouts/cluster-force";
 
 /** Extract the force function from a ClusterForceResult (mirrors the old API). */
 function extractForce(result: ClusterForceResult | null): ((alpha: number) => void) | null {
@@ -785,5 +785,22 @@ describe("multi-level grouping", () => {
       expect(Number.isFinite(n.x)).toBe(true);
       expect(Number.isFinite(n.y)).toBe(true);
     }
+  });
+});
+
+describe("nodeRadius NaN handling", () => {
+  it("returns minNodeRadius when nodeSize is NaN", () => {
+    const r = nodeRadius(NaN, 10, 15);
+    expect(r).toBe(15);
+  });
+
+  it("returns minNodeRadius when nodeSize is 0", () => {
+    const r = nodeRadius(0, 10, 15);
+    expect(r).toBe(15);
+  });
+
+  it("returns minNodeRadius when nodeSize is negative", () => {
+    const r = nodeRadius(-5, 10, 15);
+    expect(r).toBe(15);
   });
 });

@@ -763,7 +763,47 @@
   border-top: 1px solid var(--background-modifier-border);
 }
 
-/* === Keyboard Shortcut Help Overlay === */
+/* === Keyboard Shortcut Help Overlay (O3) === */
+.gi-help-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.75);
+  color: #e5e5e5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  cursor: pointer;
+  animation: gi-float-enter 0.2s ease-out;
+}
+.gi-help-overlay h3 {
+  font-size: 16px;
+  margin: 16px 0 8px;
+  color: #fff;
+}
+.gi-help-section { margin-top: 20px; }
+.gi-help-table {
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+.gi-help-table td {
+  padding: 4px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.gi-help-key {
+  font-family: var(--font-monospace, monospace);
+  font-weight: 600;
+  color: #93c5fd;
+  white-space: nowrap;
+}
+.gi-help-mode {
+  font-size: 13px;
+  margin: 4px 0;
+}
+/* Legacy shortcut help (kept for backward compat) */
 .gi-shortcut-help {
   position: absolute;
   top: 50%;

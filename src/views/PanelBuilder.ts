@@ -1306,7 +1306,7 @@ function _buildStructureAnalysisSection(
       panel.showRelationMatrix = v;
       cb.markDirty();
     }, t("desc.relationMatrix"));
-  }, undefined, false, "git-branch");
+  }, undefined, true, "git-branch");
 }
 
 function _buildDiscoverySection(
@@ -1348,7 +1348,7 @@ function _buildDiscoverySection(
       panel.showOntologyBackbone = v;
       cb.markDirty();
     }, t("desc.ontologyBackbone"));
-  }, undefined, false, "lightbulb");
+  }, undefined, true, "lightbulb");
 }
 
 function _buildInteractionSection(
@@ -1408,7 +1408,7 @@ function _buildInteractionSection(
         cb.markDirty();
       });
     }
-  }, undefined, false, "mouse-pointer-2");
+  }, undefined, true, "mouse-pointer-2");
 }
 
 function _buildAdvancedSection(
@@ -1455,7 +1455,7 @@ function _buildAdvancedSection(
       info.style.fontSize = "11px";
       info.style.color = "var(--text-muted)";
     }
-  }, undefined, false, "presentation");
+  }, undefined, true, "presentation");
 
   // I1b: Surprise guided mode — auto-trigger interval
   buildSection(tabEl, t("section.surprise"), (body) => {
