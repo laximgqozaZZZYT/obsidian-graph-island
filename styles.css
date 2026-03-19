@@ -329,22 +329,6 @@
 }
 
 /* Select dropdown */
-.gi-select {
-  width: 100%;
-  padding: var(--size-4-2);
-  border-radius: var(--input-radius);
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-modifier-form-field);
-  color: var(--text-normal);
-  font-size: var(--font-ui-small);
-  font-family: inherit;
-}
-
-.gi-select:focus {
-  border-color: var(--interactive-accent);
-  box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb, 99, 102, 241), 0.2);
-  outline: none;
-}
 
 /* Search input */
 .gi-search {
@@ -415,14 +399,7 @@
   box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb, 99,102,241), 0.3);
   outline: none;
 }
-.gi-rel-color-dot {
-  transition: transform 0.15s, box-shadow 0.15s;
-}
 @media (hover: hover) {
-  .gi-rel-color-dot:hover {
-    transform: scale(1.2);
-    box-shadow: 0 0 0 2px var(--background-modifier-border);
-  }
 }
 
 /* Group color chips */
@@ -447,23 +424,6 @@
   .gi-group-color:hover {
     border-color: var(--text-muted);
   }
-}
-
-.gi-group-query {
-  flex: 1;
-  font-size: var(--font-ui-small);
-  padding: var(--size-4-2);
-  border-radius: var(--input-radius);
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-modifier-form-field);
-  color: var(--text-normal);
-  font-family: inherit;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.gi-group-query:focus {
-  border-color: var(--interactive-accent);
-  box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb, 99,102,241), 0.2);
-  outline: none;
 }
 
 .gi-group-remove {
@@ -516,20 +476,6 @@
 }
 
 /* Orbit label */
-.gi-orbit-label {
-  color: var(--text-accent);
-  font-size: var(--font-ui-small);
-  font-weight: var(--font-medium);
-  padding: var(--size-4-2) 0 var(--size-2-1);
-  border-top: 1px solid var(--background-modifier-border);
-  margin-top: var(--size-4-1);
-}
-
-.gi-orbit-label:first-child {
-  border-top: none;
-  margin-top: 0;
-  padding-top: 0;
-}
 
 /* Direction toggle button */
 .gi-direction-btn {
@@ -633,20 +579,6 @@
   padding: 0 4px;
   font-weight: var(--font-medium);
   flex-shrink: 0;
-}
-
-.gi-ni-meta {
-  font-size: var(--font-ui-small);
-  color: var(--text-muted);
-  margin-bottom: 2px;
-}
-
-.gi-ni-section-title {
-  font-size: var(--font-ui-small);
-  font-weight: var(--font-medium);
-  color: var(--text-normal);
-  margin-top: 8px;
-  margin-bottom: 4px;
 }
 
 .gi-ni-list {
@@ -1203,25 +1135,6 @@
   margin-bottom: 2px;
 }
 
-.gi-layout-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.gi-layout-label {
-  font-size: var(--font-ui-small);
-  color: var(--text-muted);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.gi-layout-select {
-  flex: 1;
-  padding: var(--size-4-1) var(--size-4-2);
-  font-size: var(--font-ui-small);
-}
-
 .gi-top-search {
   margin-bottom: 0;
 }
@@ -1256,7 +1169,6 @@
   color: var(--text-normal);
 }
 
-
 /* === gi-setting-* (axis text input rows) === */
 .gi-setting-row { display: flex; align-items: center; gap: 6px; padding: var(--size-2-3) 0; }
 .gi-setting-label { font-size: var(--font-ui-small); color: var(--text-muted); white-space: nowrap; flex-shrink: 0; min-width: 24px; }
@@ -1265,10 +1177,6 @@
 .gi-expr-textarea { resize: vertical; min-height: 28px; max-height: 120px; font-family: "JetBrains Mono", "Fira Code", monospace; font-size: 12px; line-height: 1.4; white-space: pre-wrap; overflow-y: hidden; }
 
 /* === Setting description text === */
-.gi-setting-desc {
-  font-size: var(--font-ui-smaller); color: var(--text-faint);
-  margin-top: 1px; line-height: 1.3;
-}
 
 /* === Slider real-time value display === */
 .gi-slider-value {
@@ -1431,7 +1339,6 @@
   font-size: 0.8em;
 }
 
-
 .gi-flex-fill {
   flex: 1;
 }
@@ -1483,12 +1390,6 @@
   width: 100%;
   min-height: 300px;
   font-family: var(--font-monospace);
-  font-size: 0.85em;
-}
-
-.gi-ontology-heading {
-  margin-top: 8px;
-  opacity: 0.7;
   font-size: 0.85em;
 }
 
@@ -1753,14 +1654,6 @@
   align-items: center;
   gap: 4px;
   margin: 2px 0;
-}
-
-.gi-field-input {
-  width: 70px;
-}
-
-.gi-val-input {
-  flex: 1;
 }
 
 .gi-indent-btn {
@@ -2231,16 +2124,6 @@
   border-color: var(--interactive-accent);
 }
 
-/* 18-C: Skeleton loading pulse animation */
-@keyframes gi-skeleton-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
-}
-.gi-skeleton {
-  background: var(--background-modifier-border);
-  border-radius: var(--radius-s, 4px);
-  animation: gi-skeleton-pulse 1.5s ease-in-out infinite;
-}
 
 /* ========== Phase 20: Accessibility enhancements ========== */
 
@@ -2431,28 +2314,10 @@
   .gi-tab-btn,
   .gi-tab-btn::after,
   .graph-panel .checkbox-container,
-  .gi-select,
-  .gi-search,
-  .gi-group-query,
-  .graph-color-group input[type=color],
-  .gi-rel-color-dot,
-  .gi-group-remove,
-  .gi-group-color,
-  .graph-toolbar button,
-  .gi-settings-filter {
-    transition-duration: 0.01ms !important;
-  }
   .gi-legend,
   .gi-shortcut-help,
   .gi-node-info,
   .gi-minimap-wrap,
-  .gi-popup-menu {
-    animation: none !important;
-  }
-  .gi-skeleton-line {
-    animation: none !important;
-    opacity: 0.4;
-  }
 }
 
 /* Touch target minimum size for mobile */
@@ -2503,20 +2368,6 @@
 }
 
 /* === Local Graph Badge === */
-.gi-local-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  font-size: var(--font-ui-smaller);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px;
-}
 
 /* === Missing CSS classes for visual quality === */
 
@@ -3308,4 +3159,127 @@
   color: var(--text-on-accent);
   border: none;
   cursor: pointer;
+}
+
+/* =========================================================================
+   Missing class definitions (used in TypeScript, previously undefined)
+   ========================================================================= */
+
+/* Small utility button (expand/collapse all groups) */
+.gi-btn-sm {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.gi-btn-sm:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* Color picker controls (relation color editor) */
+.gi-color-picker {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.gi-color-clear {
+  font-size: 14px;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.gi-color-clear:hover { color: var(--text-error); }
+.gi-color-enable {
+  width: 16px;
+  height: 16px;
+}
+
+/* Diff badge (settings changed count) */
+.gi-diff-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  line-height: 1.6;
+}
+
+/* FPS indicator overlay */
+.gi-fps-indicator {
+  font-size: 10px;
+  color: var(--text-faint);
+  opacity: 0.7;
+}
+
+/* Shape icon in legend rows */
+.gi-legend-shape-icon {
+  display: inline-block;
+  width: 16px;
+  text-align: center;
+  font-size: 12px;
+}
+
+/* Ontology mapping list container */
+.gi-ontology-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+/* Search syntax preview */
+.gi-search-syntax {
+  font-size: 11px;
+  color: var(--text-faint);
+  padding: 4px 0;
+  white-space: pre-wrap;
+}
+
+/* Solo edge-type button */
+.gi-solo-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.gi-solo-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* Graph statistics panel titles */
+.gi-stats-title {
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: var(--text-normal);
+}
+.gi-stats-hub-title {
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Template select dropdown */
+.gi-template-select {
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
 }

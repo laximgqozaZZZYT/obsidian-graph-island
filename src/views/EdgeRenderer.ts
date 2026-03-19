@@ -105,8 +105,8 @@ export interface EdgeDrawConfig {
   showBidirectionalIndicator?: boolean;
   /** Pre-computed set of bidirectional edge keys ("source→target") */
   _bidirectionalSet?: Set<string>;
-  /** Hierarchy overlay: thicken inheritance edges */
-  showHierarchyOverlay?: boolean;
+  /** S6: Ontology backbone — thicken inheritance edges */
+  showOntologyBackbone?: boolean;
   /** Scale edge width by target node in-degree */
   edgeStrengthGlow?: boolean;
   /** Minimum width multiplier for edge strength glow (default 0.5) */
@@ -3080,8 +3080,8 @@ function _drawEdgesSinglePass(
       }
     }
 
-    // S3: Hierarchy overlay — thicken inheritance edges
-    if (cfg.showHierarchyOverlay && e.type === EDGE_TYPE_INHERITANCE) {
+    // S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
+    if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {
       lineThick *= 2.5;
       alpha = Math.min(1.0, alpha + 0.3);
     }
@@ -3195,8 +3195,8 @@ function _drawEdgesLayered(
         }
       }
 
-      // S3: Hierarchy overlay — thicken inheritance edges
-      if (cfg.showHierarchyOverlay && e.type === EDGE_TYPE_INHERITANCE) {
+      // S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
+      if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {
         lineThick *= 2.5;
         alpha = Math.min(1.0, alpha + 0.3);
       }
@@ -3515,6 +3515,10 @@ export function drawEdgeLabels(
   }
 
   if (!cfg.showEdgeLabels && !cfg.showEdgeWeightLabels && !cfg.showEdgeCardinalityLabels) return;
+
+  // Auto-hide edge labels at low zoom (labels become unreadable)
+  const zoom = cfg.worldScale ?? 1;
+  if (zoom < 0.15) return; // Too zoomed out — skip all labels
 
   // --- エッジ重みラベル: 同一ペア間のエッジ本数を表示 ---
   if (cfg.showEdgeWeightLabels) {

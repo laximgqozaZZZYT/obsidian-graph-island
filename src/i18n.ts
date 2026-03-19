@@ -14,19 +14,13 @@ const en: TranslationMap = {
   // --- PanelBuilder: top-level controls ---
   "layout.label": "Layout",
   "layout.force": "Force",
-  "layout.concentric": "Concentric",
-  "layout.tree": "Tree",
   "layout.arc": "Arc",
-  "layout.sunburst": "Sunburst",
-  "layout.timeline": "Timeline",
   "search.placeholder": "Search… hop:name:2",
   "settingsFilter.placeholder": "Filter settings…",
   "search.jumpHint": "Enter to jump to node",
   "search.filterHelp": "Filter syntax:\n• tag:act — exact tag match\n• tag:act* — prefix match (act, act1, action…)\n• tag:*act* — partial match\n• path:folder* — filter by file path\n• category:note — filter by category\n• key:value — match frontmatter field\n\nCombine with operators:\n• tag:a AND tag:b — both must match\n• tag:a OR tag:b — either matches\n• (tag:a OR tag:b) AND path:x*\n• tag:a NOR tag:b — neither matches\n• tag:a XOR tag:b — exactly one matches\n\nSpecial:\n• hop:name:2 — highlight within N hops",
 
   // --- PanelBuilder: section titles ---
-  "section.concentricLayout": "Concentric Layout",
-  "section.orbitAdjust": "Orbit Adjustment",
   "section.filter": "Filter",
   "section.groups": "Groups",
   "section.display": "Display",
@@ -37,7 +31,6 @@ const en: TranslationMap = {
   "section.nodeRules": "Node Rules",
   "section.relationColors": "Relation Colors",
   "section.clusterArrangement": "Cluster Arrangement",
-  "section.forceStrength": "Force Strength",
   "section.graphSync": "Graph Sync",
   "section.pluginSettings": "Plugin Settings",
   "section.ontology": "Ontology",
@@ -47,24 +40,13 @@ const en: TranslationMap = {
   "tab.display": "Display",
   "tab.layout": "Layout",
   "tab.settings": "Settings",
-  "section.layout": "Layout",
   "layout.type": "Layout Type",
 
   // --- PanelBuilder: concentric layout ---
-  "concentric.minRadius": "Min Radius",
-  "concentric.radiusStep": "Orbit Spacing",
   "concentric.showOrbitRings": "Show Orbit Rings",
   "concentric.autoRotate": "Auto Rotate",
-  "orbit.radius": "Radius",
-  "orbit.rotationSpeed": "Rotation Speed",
-  "orbit.rotationDirection": "Rotation Direction",
-  "orbit.dragHint": "Drag to rotate orbits",
 
   // --- PanelBuilder: filter ---
-  "filter.searchPlaceholder": "Search… hop:name:2",
-  "filter.tags": "Tags",
-  "filter.showTags": "Show Tags",
-  "desc.showTags": "Include tag nodes and has-tag edges in graph data (affects connectivity and orphan detection)",
   "filter.attachments": "Attachments",
   "filter.existingOnly": "Existing Files Only",
   "filter.orphans": "Orphans",
@@ -85,8 +67,6 @@ const en: TranslationMap = {
   // --- PanelBuilder: display ---
   "display.arrows": "Arrows",
   "display.nodeColor": "Node Color (Auto)",
-  "display.heatmap": "Heatmap (degree)",
-  "desc.heatmap": "Color nodes by connection count (cold→warm)",
   "display.nodeColorMode": "Node Color Mode",
   "display.nodeColor.default": "Default",
   "display.nodeColor.category": "By Category",
@@ -99,12 +79,13 @@ const en: TranslationMap = {
   "display.nodeSubLabelFields": "Sub-Label Fields",
   "display.hoverTooltipFields": "Hover Tooltip Fields",
   "display.nodeSize": "Node Size",
+  "display.nodeSizeByDegree": "Size by Degree",
+  "desc.nodeSizeByDegree": "Scale node radius proportional to connection count",
   "display.hoverHops": "Hover Highlight Hops",
   "display.focusCone": "Focus Cone",
   "display.focusMode": "Focus Mode",
   "display.visualLinkEditor": "Visual Link Editor",
   "display.missingNeighbors": "Highlight Unlinked Same-Tag",
-  "display.edgeTypeHeading": "Edge Types",
   "display.links": "Links",
   "display.sharedTags": "Shared Tags",
   "display.sharedCategory": "Shared Category",
@@ -114,7 +95,6 @@ const en: TranslationMap = {
   "display.similar": "Similar (similar)",
   "display.sibling": "Sibling (peer)",
   "display.sequence": "Sequence (next/prev)",
-  "display.edgeLabels": "Show Edge Labels",
   "display.edgeLabelPlacement": "Edge Label Placement",
   "display.edgeLabelCenter": "Center",
   "display.edgeLabelOffset": "Offset",
@@ -127,7 +107,6 @@ const en: TranslationMap = {
   "display.bidirectionalIndicator": "Bidirectional Indicator",
   "display.showPathfinderOverlay": "Pathfinder Overlay",
   "display.edgeCardinality": "Cardinality Markers",
-  "display.edgeCardinalityDesc": "Show ER-style cardinality on edges",
   "display.cardinalityNone": "None",
   "display.cardinalityCrowsfoot": "Crow's Foot",
   "display.cableBundleMode": "Cable Bundle Mode",
@@ -172,16 +151,10 @@ const en: TranslationMap = {
   "render.showFpsMonitorDesc": "Show render frames-per-second counter in toolbar",
 
   "display.groupBy": "Group by",
-  "display.groupNone": "None",
-  "display.groupTag": "Tag",
-  "display.groupCategory": "Category",
-  "display.groupFolder": "Folder",
   "display.groupMinSize": "Min group size",
   "display.groupFilter": "Group filter",
-  "display.groupFilterPlaceholder": "e.g. project, daily (empty = all)",
 
   // --- PanelBuilder: node shapes ---
-  "display.nodeShapes": "Node Shapes",
   "display.tagNodeShape": "Tag node shape",
   "display.defaultNodeShape": "Default node shape",
   "shape.circle": "Circle",
@@ -198,9 +171,7 @@ const en: TranslationMap = {
 
   // --- PanelBuilder: gravity coefficients ---
   "gravity.centerGravity": "Center Gravity",
-  "gravity.centerGravityDesc": "Per-node center pull multiplier (Force layout)",
   "gravity.repelMultiplier": "Repel Multiplier",
-  "gravity.repelMultiplierDesc": "Per-node repulsion multiplier (Force layout)",
   "gravity.interGroupAttraction": "Group Attraction",
   "gravity.interGroupAttractionDesc": "Higher values bring groups closer together",
   "gravity.intraGroupDensity": "Group Density",
@@ -219,7 +190,6 @@ const en: TranslationMap = {
   "cluster.random": "Random",
   "cluster.timeline": "Timeline",
   "cluster.custom": "Custom",
-  "coord.axisSourceHint": "e.g. folder, tag:?, degree, hop:name:5",
   "coord.transformExprHint": "e.g. COS(tag:?), BIN(degree, 5), ROSE(index)",
   "coord.transformExprHelp": "Source: index, degree, folder, tag:?, hop:name:3\nTransforms: LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\nCurves: ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS, ...\nMath: sin, cos, tan, sqrt, abs, log, exp, floor, ceil, min, max, pow, atan2\nOperators: + - * / % ^ (power)\nVariables: t (0–1), i (index), n (count), v (value)\nConstants: pi, e, tau  |  Greek: π=pi, θ=t, α→a, etc.\nImplicit ×: 2t → 2*t, πr → pi*r\nFormat: FUNC(source, params...) or raw expression",
   "coord.exprLibrary": "Expression Library",
@@ -254,7 +224,6 @@ const en: TranslationMap = {
   "force.repelForce": "Repel Force",
   "force.linkForce": "Link Force",
   "force.linkDistance": "Link Distance",
-  "force.enclosureSpacing": "Enclosure Spacing",
 
   // --- PanelBuilder: plugin settings ---
   "settings.metadataFields": "Metadata Fields",
@@ -262,9 +231,6 @@ const en: TranslationMap = {
   "settings.groupField": "Group Field",
   "settings.enclosureMinRatio": "Enclosure Min Ratio",
   "settings.ontologyHeading": "— Ontology —",
-  "settings.ontPairInheritance": "Inheritance (is-a)",
-  "settings.ontPairAggregation": "Aggregation (has-a)",
-  "settings.ontPairSequence": "Sequence",
   "settings.inheritanceFields": "Forward",
   "settings.aggregationFields": "Forward",
   "settings.reverseInheritanceFields": "Reverse",
@@ -298,7 +264,6 @@ const en: TranslationMap = {
   "empty.step3": "Configure metadata fields in Plugin Settings below",
 
   // --- PanelBuilder: presets ---
-  "preset.heading": "Quick Presets",
   "preset.simple": "Simple",
   "preset.simpleDesc": "Minimal settings — links only, clean view",
   "preset.analysis": "Analysis",
@@ -311,7 +276,6 @@ const en: TranslationMap = {
   "preset.fullAnalysisDesc": "All features: stats, bridges, entropy, community colors, missing neighbors",
 
   // --- PanelBuilder: timeline ---
-  "section.timeline": "Timeline",
   "timeline.timeKey": "Time Field",
   "timeline.timeKeyHint": "Frontmatter field for time axis (e.g. date, era, turn)",
   "timeline.endKey": "End Time Field",
@@ -326,35 +290,17 @@ const en: TranslationMap = {
   "coord.system": "Coordinate System",
   "coord.cartesian": "Cartesian (X, Y)",
   "coord.polar": "Polar (r, θ)",
-  "coord.property": "Property",
-  "coord.propertyKey": "field",
   "coord.perGroup": "Per-group coordinates",
   "coord.range": "range",
-  "coord.field": "Field",
-  "coord.fieldName": "Field Name",
-  "coord.hopFrom": "Hop from (node ID)",
   // --- PanelBuilder: axis transform ---
-  "transform.label": "Transform",
   "transform.linear": "Linear",
   "transform.bin": "Bin",
-  "transform.dateToIndex": "Date→Index",
-  "transform.stackAvoid": "Stack Avoid",
-  "transform.goldenAngle": "Golden Angle",
-  "transform.evenDivide": "Even Divide",
   "transform.expression": "Expression",
   "transform.curve": "Curve",
-  "transform.exprPlaceholder": "e.g. sin(t * pi) * 2",
   "transform.exprError": "Invalid expression",
   "transform.exprValid": "Valid",
-  "transform.curveType": "Curve Type",
   "curve.archimedean": "Archimedean Spiral",
-  "curve.logarithmic": "Logarithmic Spiral",
-  "curve.fermat": "Fermat Spiral",
-  "curve.hyperbolic": "Hyperbolic Spiral",
-  "curve.cardioid": "Cardioid",
   "curve.rose": "Rose Curve",
-  "curve.lissajous": "Lissajous",
-  "curve.golden": "Golden Spiral",
 
   "coord.constants": "Constants",
   "coord.constantsHint": "Define variables for use in expressions (e.g. k=6 sides, d=0.5 density)",
@@ -363,17 +309,9 @@ const en: TranslationMap = {
   "coord.sysBlend": "snap strength",
   "coord.sysOverlapPad": "group padding",
   "coord.sysMinGap": "min node gap",
-  "coord.sysRingW": "ring width",
-  "coord.sysRingGap": "ring gap",
-  "coord.sysHole": "center hole",
-  "coord.sysSectorGap": "sector gap",
   "coord.constantKey": "Name",
   "coord.constantValue": "Value",
 
-  "cluster.ringChartMode": "Ring Chart",
-  "cluster.ringChartModeDesc": "Display as filled ring chart instead of nodes",
-  "cluster.hierarchyEdges": "Use hierarchy edges",
-  "cluster.hierarchyEdgesDesc": "Build sunburst from inheritance/aggregation edges",
   "guide.gridTableMode": "Custom Grid",
   "guide.gridTableModeDesc": "Display custom grid overlay on coordinate layout",
   "guide.gridStyle": "Grid Style",
@@ -386,35 +324,29 @@ const en: TranslationMap = {
   "guide.gridCellShading": "Cell Shading",
   "guide.gridCellShadingDesc": "Shade cells by node density",
   "guide.labelPlacement": "Label Placement",
-  "guide.labelPlacementDesc": "Position labels on grid lines or between them",
   "guide.labelOnLine": "On Line (Tick)",
   "guide.labelBetween": "Between (Title)",
 
   // --- PanelBuilder: node display mode ---
   "display.nodeDisplayMode": "Display Mode",
-  "display.nodeDisplayModeDesc": "How nodes are rendered",
   "display.modeNode": "Node (Shape)",
   "display.modeCard": "Card",
   "display.modeDonut": "Donut",
   "display.modeSunburst": "Sunburst Segment",
   "display.cardFields": "Card Fields",
-  "display.cardFieldsDesc": "Metadata fields to show on card",
   "display.cardMaxWidth": "Card Width",
   "display.cardShowIcon": "Show Icon",
   "display.cardHeaderStyle": "Card Style",
   "display.cardStylePlain": "Plain",
   "display.cardStyleTable": "Table (ER)",
   "display.donutBreakdown": "Breakdown Field",
-  "display.donutBreakdownDesc": "Field for sector breakdown (super nodes)",
   "display.donutInnerRadius": "Inner Radius",
-  "display.sunburstArcAngle": "Arc Angle",
 
   // --- PanelBuilder: shared presets ---
   "preset.export": "Export Preset",
   "preset.import": "Import Preset",
   "preset.exported": "Preset copied to clipboard",
   "preset.importError": "Invalid preset JSON",
-  "preset.imported": "Preset applied successfully",
   "preset.importPrompt": "Paste preset JSON below:",
 
   // --- M1: Thinking Modes ---
@@ -434,8 +366,6 @@ const en: TranslationMap = {
   "toast.clipboardFailed": "Clipboard copy failed",
   "toast.localGraphOn": "Local: {name} ({hops} hops)",
   "toast.localGraphOff": "Global graph",
-  "toast.filterResult": "{count} nodes displayed",
-  "toast.layoutChanged": "Layout: {name}",
   "toast.embedSuccess": "Graph embedded in note",
   "toast.embedFailed": "Graph embed failed",
   "toast.embedNoEditor": "No active editor to embed into",
@@ -451,8 +381,6 @@ const en: TranslationMap = {
   "help.ariaLabel": "Help",
 
   // --- PanelBuilder: direction ---
-  "direction.clockwise": "Clockwise ↻",
-  "direction.counterClockwise": "Counter-CW ↺",
 
   // --- PanelBuilder: query hint ---
   "query.pathMatch": "Match file path",
@@ -483,9 +411,6 @@ const en: TranslationMap = {
   "sort.desc": "↓ Desc",
 
   // --- PanelBuilder: cluster group options ---
-  "clusterGroup.tag": "Tag",
-  "clusterGroup.backlinks": "Backlinks",
-  "clusterGroup.nodeType": "Node Type",
   "clusterGroup.recursive": "Recursive",
 
   // --- PanelBuilder: gravity direction ---
@@ -542,15 +467,11 @@ const en: TranslationMap = {
 
   // --- Snapshot ---
   "snapshot.save": "Save snapshot...",
-  "snapshot.compare": "Compare with current",
-  "snapshot.rename": "Rename...",
   "snapshot.delete": "Delete",
   "snapshot.clearDiff": "Clear diff overlay",
-  "snapshot.diffStatus": "Diff: vs '{name}' — {added} added, {removed} removed, {changed} changed",
   "snapshot.limitReached": "Maximum 10 snapshots. Delete one first.",
   "snapshot.saved": "Snapshot '{name}' saved",
   "snapshot.deleted": "Snapshot '{name}' deleted",
-  "snapshot.renamed": "Snapshot renamed to '{name}'",
   "snapshot.enterName": "Enter snapshot name",
   "snapshot.enterNotes": "Add notes (optional)",
   "nav.back": "Navigate back",
@@ -580,8 +501,6 @@ const en: TranslationMap = {
 
   // --- Structure analysis (Phase 3) ---
   "section.structureAnalysis": "Structure Analysis",
-  "display.showHierarchyOverlay": "Hierarchy Overlay",
-  "desc.showHierarchyOverlay": "Show inheritance edges as thick overlay on any layout",
   "display.clusterLabelDetail": "Cluster Label Detail",
   "desc.clusterLabelDetail": "Level of detail in cluster labels",
   "display.clusterLabelMinimal": "Minimal",
@@ -611,8 +530,6 @@ const en: TranslationMap = {
   "section.surprise": "Surprise Mode",
   "display.surpriseInterval": "Auto Surprise (sec)",
   "desc.surpriseInterval": "Auto-trigger random juxtaposition every N seconds (0 = off)",
-  "display.showGapPrompts": "Gap Prompts",
-  "desc.showGapPrompts": "Show '?' labels between distant clusters with few connections",
   "display.showSimilarSuggestions": "Similar Suggestions",
   "desc.showSimilarSuggestions": "Show similar unlinked notes on hover (Jaccard similarity)",
   "display.showStructureQuestions": "Structure Questions",
@@ -621,15 +538,10 @@ const en: TranslationMap = {
   "desc.showEntropyOverlay": "Heatmap overlay showing low-density knowledge gaps",
 
   // --- Advanced features (Phase 7) ---
-  "display.showNodeThumbnails": "Node Thumbnails",
-  "desc.showNodeThumbnails": "Show frontmatter image as node thumbnail",
-  "display.kShortestPaths": "Alternative Paths",
-  "desc.kShortestPaths": "Number of shortest paths to display (1=shortest only)",
 
   // --- M2: Ego Layout ---
   "cluster.ego": "Ego (Focus Center)",
   "action.applyEgoLayout": "Apply Ego Layout",
-  "toast.selectNodeFirst": "Select a node first",
 
   // --- Phase 4: Interaction Enhancements ---
   "display.relationTypePicker": "Relation Type Picker",
@@ -657,7 +569,6 @@ const en: TranslationMap = {
   "display.presentationMode": "Presentation Mode",
   "desc.presentationMode": "Step-through guided tour of graph nodes",
   "action.addWaypoint": "Add Waypoint",
-  "action.clearWaypoints": "Clear Waypoints",
   "action.nextStep": "Next →",
   "action.prevStep": "← Prev",
 
@@ -693,7 +604,6 @@ const en: TranslationMap = {
   "desc.nodeColor": "Color nodes by frontmatter category",
   "desc.arrows": "Show directional arrows on all edges",
   "desc.edgeColor": "Color edges by relation type",
-  "desc.edgeLabels": "Show relation type labels on edges",
   "desc.edgeLayerMode": "Draw edge types in separate z-order layers",
   "desc.edgeDirectionFilter": "Filter edges by directionality (A→B vs A↔B)",
   "desc.bidirectionalIndicator": "Visually distinguish bidirectional edges (thicker line)",
@@ -795,12 +705,8 @@ const en: TranslationMap = {
   "context.noteCreated": "Note '{name}' created",
 
   // --- Feature N: Edge Weight Labels ---
-  "display.edgeWeightLabels": "Edge Weight Labels",
-  "desc.edgeWeightLabels": "Show edge count between same source-target pairs",
 
   // --- Feature CR: Edge Cardinality Count Labels ---
-  "display.edgeCardinalityLabels": "Edge Cardinality Labels",
-  "desc.edgeCardinalityLabels": "Show numeric count on edges when multiple edges exist between the same node pair",
 
   // --- Unified edge label mode ---
   "display.edgeLabelMode": "Edge Label Mode",
@@ -829,7 +735,6 @@ const en: TranslationMap = {
 
   // --- Feature T: Graph Search History ---
   "search.clearHistory": "Clear history",
-  "search.historyEmpty": "No search history",
 
   // --- Feature V: Graph Templates ---
   "template.save": "Save Template",
@@ -840,7 +745,6 @@ const en: TranslationMap = {
   "template.deleted": "Template deleted",
   "template.namePrompt": "Enter template name:",
   "template.maxReached": "Maximum 20 templates. Delete one first.",
-  "template.noTemplates": "No templates saved",
   "template.confirmDelete": "Delete template \"{name}\"?",
 
   // --- Feature C3/F2/C4/C6/C7/D5: Context menu & interaction ---
@@ -884,19 +788,13 @@ const ja: TranslationMap = {
   // --- PanelBuilder: top-level controls ---
   "layout.label": "レイアウト",
   "layout.force": "Force",
-  "layout.concentric": "同心円",
-  "layout.tree": "ツリー",
   "layout.arc": "アーク",
-  "layout.sunburst": "サンバースト",
-  "layout.timeline": "タイムライン",
   "search.placeholder": "検索… hop:名前:2",
   "settingsFilter.placeholder": "設定を検索…",
   "search.jumpHint": "Enterでノードにジャンプ",
   "search.filterHelp": "フィルタ構文:\n• tag:act — タグ完全一致\n• tag:act* — 前方一致（act, act1, action…）\n• tag:*act* — 部分一致\n• path:folder* — ファイルパスで絞り込み\n• category:note — カテゴリで絞り込み\n• key:value — フロントマターのフィールドで絞り込み\n\n演算子で組み合わせ:\n• tag:a AND tag:b — 両方一致\n• tag:a OR tag:b — どちらか一致\n• (tag:a OR tag:b) AND path:x*\n• tag:a NOR tag:b — どちらも不一致\n• tag:a XOR tag:b — 片方のみ一致\n\n特殊:\n• hop:名前:2 — N ホップ以内を強調表示",
 
   // --- PanelBuilder: section titles ---
-  "section.concentricLayout": "同心円レイアウト",
-  "section.orbitAdjust": "各軌道の調整",
   "section.filter": "フィルタ",
   "section.groups": "グループ",
   "section.display": "表示",
@@ -907,7 +805,6 @@ const ja: TranslationMap = {
   "section.nodeRules": "ノードルール",
   "section.relationColors": "属性カラー",
   "section.clusterArrangement": "クラスター配置",
-  "section.forceStrength": "力の強さ",
   "section.graphSync": "グラフ連携",
   "section.pluginSettings": "プラグイン設定",
   "section.ontology": "オントロジー",
@@ -917,24 +814,13 @@ const ja: TranslationMap = {
   "tab.display": "表示",
   "tab.layout": "レイアウト",
   "tab.settings": "設定",
-  "section.layout": "レイアウト",
   "layout.type": "レイアウト種別",
 
   // --- PanelBuilder: concentric layout ---
-  "concentric.minRadius": "最小半径",
-  "concentric.radiusStep": "軌道間距離",
   "concentric.showOrbitRings": "軌道リングを表示",
   "concentric.autoRotate": "自動回転",
-  "orbit.radius": "半径",
-  "orbit.rotationSpeed": "回転速度",
-  "orbit.rotationDirection": "回転方向",
-  "orbit.dragHint": "ドラッグでも軌道を回転できます",
 
   // --- PanelBuilder: filter ---
-  "filter.searchPlaceholder": "検索… hop:名前:2",
-  "filter.tags": "タグ",
-  "filter.showTags": "タグ表示",
-  "desc.showTags": "タグノードとhas-tagエッジをグラフデータに含める（接続性と孤立判定に影響）",
   "filter.attachments": "添付書類",
   "filter.existingOnly": "存在するファイルのみ表示",
   "filter.orphans": "オーファン",
@@ -955,8 +841,6 @@ const ja: TranslationMap = {
   // --- PanelBuilder: display ---
   "display.arrows": "矢印",
   "display.nodeColor": "ノード色（自動）",
-  "display.heatmap": "ヒートマップ（接続数）",
-  "desc.heatmap": "ノードを接続数で色分け（寒色→暖色）",
   "display.nodeColorMode": "ノードカラーモード",
   "display.nodeColor.default": "デフォルト",
   "display.nodeColor.category": "カテゴリ別",
@@ -969,12 +853,13 @@ const ja: TranslationMap = {
   "display.nodeSubLabelFields": "サブラベルフィールド",
   "display.hoverTooltipFields": "ホバーツールチップフィールド",
   "display.nodeSize": "ノードの大きさ",
+  "display.nodeSizeByDegree": "次数比例サイズ",
+  "desc.nodeSizeByDegree": "接続数に比例してノード半径をスケーリング",
   "display.hoverHops": "ホバー強調ホップ数",
   "display.focusCone": "フォーカスコーン",
   "display.focusMode": "フォーカスモード",
   "display.visualLinkEditor": "ビジュアルリンクエディタ",
   "display.missingNeighbors": "未接続同タグをハイライト",
-  "display.edgeTypeHeading": "結線タイプ",
   "display.links": "リンク",
   "display.sharedTags": "共有タグ",
   "display.sharedCategory": "共有カテゴリ",
@@ -984,7 +869,6 @@ const ja: TranslationMap = {
   "display.similar": "類似 (similar)",
   "display.sibling": "兄弟 (sibling)",
   "display.sequence": "順序 (next/prev)",
-  "display.edgeLabels": "エッジラベル表示",
   "display.edgeLabelPlacement": "エッジラベル配置",
   "display.edgeLabelCenter": "中央",
   "display.edgeLabelOffset": "オフセット",
@@ -997,7 +881,6 @@ const ja: TranslationMap = {
   "display.bidirectionalIndicator": "双方向インジケータ",
   "display.showPathfinderOverlay": "パスファインダーオーバーレイ",
   "display.edgeCardinality": "カーディナリティ記号",
-  "display.edgeCardinalityDesc": "エッジにER図のカーディナリティを表示",
   "display.cardinalityNone": "なし",
   "display.cardinalityCrowsfoot": "鳥の足記法",
   "display.cableBundleMode": "ケーブルバンドルモード",
@@ -1042,16 +925,10 @@ const ja: TranslationMap = {
   "render.showFpsMonitorDesc": "ツールバーにレンダリングFPSカウンターを表示",
 
   "display.groupBy": "グルーピング",
-  "display.groupNone": "なし",
-  "display.groupTag": "タグ",
-  "display.groupCategory": "カテゴリ",
-  "display.groupFolder": "フォルダ",
   "display.groupMinSize": "最小グループサイズ",
   "display.groupFilter": "グループフィルタ",
-  "display.groupFilterPlaceholder": "例: project, daily（空＝全対象）",
 
   // --- PanelBuilder: node shapes ---
-  "display.nodeShapes": "ノード形状",
   "display.tagNodeShape": "タグノードの形状",
   "display.defaultNodeShape": "デフォルトの形状",
   "shape.circle": "丸",
@@ -1068,9 +945,7 @@ const ja: TranslationMap = {
 
   // --- PanelBuilder: gravity coefficients ---
   "gravity.centerGravity": "中心引力",
-  "gravity.centerGravityDesc": "ノード個別の中心引力係数（Forceレイアウト用）",
   "gravity.repelMultiplier": "反発係数",
-  "gravity.repelMultiplierDesc": "ノード個別の反発力係数（Forceレイアウト用）",
   "gravity.interGroupAttraction": "グループ間引力",
   "gravity.interGroupAttractionDesc": "値が大きいほどグループ同士が近づく",
   "gravity.intraGroupDensity": "グループ内密度",
@@ -1089,7 +964,6 @@ const ja: TranslationMap = {
   "cluster.random": "無秩序",
   "cluster.timeline": "タイムライン",
   "cluster.custom": "カスタム",
-  "coord.axisSourceHint": "例: folder, tag:?, degree, hop:名前:5",
   "coord.transformExprHint": "例: COS(tag:?), BIN(degree, 5), ROSE(index)",
   "coord.transformExprHelp": "ソース: index, degree, folder, tag:?, hop:名前:3\n変換: LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n曲線: ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS, ...\n数学: sin, cos, tan, sqrt, abs, log, exp, floor, ceil, min, max, pow, atan2\n演算子: + - * / % ^ (べき乗)\n変数: t (0–1), i (インデックス), n (個数), v (値)\n定数: pi, e, tau  |  ギリシャ文字: π=pi, θ=t, α→a 等\n暗黙の乗算: 2t → 2*t, πr → pi*r\n書式: 関数(ソース, パラメータ...) または数式",
   "coord.exprLibrary": "式ライブラリ",
@@ -1124,7 +998,6 @@ const ja: TranslationMap = {
   "force.repelForce": "反発力",
   "force.linkForce": "リンクの力",
   "force.linkDistance": "リンク距離",
-  "force.enclosureSpacing": "囲い間隔",
 
   // --- PanelBuilder: plugin settings ---
   "settings.metadataFields": "メタデータフィールド",
@@ -1132,9 +1005,6 @@ const ja: TranslationMap = {
   "settings.groupField": "グループフィールド",
   "settings.enclosureMinRatio": "囲い最小比率",
   "settings.ontologyHeading": "― オントロジー ―",
-  "settings.ontPairInheritance": "継承 (is-a)",
-  "settings.ontPairAggregation": "集約 (has-a)",
-  "settings.ontPairSequence": "順序",
   "settings.inheritanceFields": "正方向",
   "settings.aggregationFields": "正方向",
   "settings.reverseInheritanceFields": "逆方向",
@@ -1168,7 +1038,6 @@ const ja: TranslationMap = {
   "empty.step3": "下の「プラグイン設定」でメタデータフィールドを設定する",
 
   // --- PanelBuilder: presets ---
-  "preset.heading": "クイックプリセット",
   "preset.simple": "シンプル",
   "preset.simpleDesc": "最小限の設定 — リンクのみ、すっきり表示",
   "preset.analysis": "分析",
@@ -1181,7 +1050,6 @@ const ja: TranslationMap = {
   "preset.fullAnalysisDesc": "全機能ON: 統計、ブリッジ、エントロピー、コミュニティ色、欠落隣接",
 
   // --- PanelBuilder: timeline ---
-  "section.timeline": "タイムライン",
   "timeline.timeKey": "時間フィールド",
   "timeline.timeKeyHint": "時間軸に使うfrontmatterフィールド（例: date, era, turn）",
   "timeline.endKey": "終了時間フィールド",
@@ -1196,35 +1064,17 @@ const ja: TranslationMap = {
   "coord.system": "座標形式",
   "coord.cartesian": "直交座標 (X, Y)",
   "coord.polar": "極座標 (r, θ)",
-  "coord.property": "プロパティ",
-  "coord.propertyKey": "フィールド",
   "coord.perGroup": "グループごとに座標形成",
   "coord.range": "範囲",
-  "coord.field": "フィールド属性",
-  "coord.fieldName": "フィールド名",
-  "coord.hopFrom": "ホップ元（ノードID）",
   // --- PanelBuilder: axis transform ---
-  "transform.label": "変換",
   "transform.linear": "線形",
   "transform.bin": "ビン分割",
-  "transform.dateToIndex": "日付→インデックス",
-  "transform.stackAvoid": "重なり回避",
-  "transform.goldenAngle": "黄金角",
-  "transform.evenDivide": "均等分割",
   "transform.expression": "数式",
   "transform.curve": "曲線",
-  "transform.exprPlaceholder": "例: sin(t * pi) * 2",
   "transform.exprError": "無効な数式",
   "transform.exprValid": "有効",
-  "transform.curveType": "曲線タイプ",
   "curve.archimedean": "アルキメデスの螺旋",
-  "curve.logarithmic": "対数螺旋",
-  "curve.fermat": "フェルマーの螺旋",
-  "curve.hyperbolic": "双曲螺旋",
-  "curve.cardioid": "カージオイド",
   "curve.rose": "バラ曲線",
-  "curve.lissajous": "リサージュ",
-  "curve.golden": "黄金螺旋",
 
   "coord.constants": "定数",
   "coord.constantsHint": "数式で使う変数を定義 (例: k=6 辺数, d=0.5 密度)",
@@ -1233,17 +1083,9 @@ const ja: TranslationMap = {
   "coord.sysBlend": "スナップ強度",
   "coord.sysOverlapPad": "グループ余白",
   "coord.sysMinGap": "最小ノード間隔",
-  "coord.sysRingW": "リング幅",
-  "coord.sysRingGap": "リング間隔",
-  "coord.sysHole": "中心穴",
-  "coord.sysSectorGap": "セクター間隔",
   "coord.constantKey": "名前",
   "coord.constantValue": "値",
 
-  "cluster.ringChartMode": "リングチャート",
-  "cluster.ringChartModeDesc": "ノードの代わりにリングチャートで表示",
-  "cluster.hierarchyEdges": "階層エッジを使用",
-  "cluster.hierarchyEdgesDesc": "継承/集約エッジからサンバーストを構築",
   "guide.gridTableMode": "カスタムグリッド",
   "guide.gridTableModeDesc": "座標レイアウトにカスタムグリッドを表示",
   "guide.gridStyle": "グリッドスタイル",
@@ -1256,35 +1098,29 @@ const ja: TranslationMap = {
   "guide.gridCellShading": "セルシェーディング",
   "guide.gridCellShadingDesc": "ノード密度でセルを着色",
   "guide.labelPlacement": "ラベル配置",
-  "guide.labelPlacementDesc": "グリッド線上か間にラベルを配置",
   "guide.labelOnLine": "線上（目盛り）",
   "guide.labelBetween": "線間（タイトル）",
 
   // --- PanelBuilder: node display mode ---
   "display.nodeDisplayMode": "表示モード",
-  "display.nodeDisplayModeDesc": "ノードの表示方式",
   "display.modeNode": "ノード（図形）",
   "display.modeCard": "カード",
   "display.modeDonut": "ドーナツ",
   "display.modeSunburst": "サンバーストセグメント",
   "display.cardFields": "カード表示フィールド",
-  "display.cardFieldsDesc": "カードに表示するメタデータ",
   "display.cardMaxWidth": "カード幅",
   "display.cardShowIcon": "アイコン表示",
   "display.cardHeaderStyle": "カードスタイル",
   "display.cardStylePlain": "シンプル",
   "display.cardStyleTable": "テーブル（ER図）",
   "display.donutBreakdown": "内訳フィールド",
-  "display.donutBreakdownDesc": "セクター内訳に使用するフィールド",
   "display.donutInnerRadius": "内径",
-  "display.sunburstArcAngle": "弧の角度",
 
   // --- PanelBuilder: shared presets ---
   "preset.export": "プリセットをエクスポート",
   "preset.import": "プリセットをインポート",
   "preset.exported": "プリセットをクリップボードにコピーしました",
   "preset.importError": "無効なプリセット JSON です",
-  "preset.imported": "プリセットを適用しました",
   "preset.importPrompt": "プリセット JSON を貼り付けてください:",
 
   // --- M1: 思考モード ---
@@ -1304,8 +1140,6 @@ const ja: TranslationMap = {
   "toast.clipboardFailed": "クリップボードコピー失敗",
   "toast.localGraphOn": "ローカル: {name} ({hops} ホップ)",
   "toast.localGraphOff": "グローバルグラフ",
-  "toast.filterResult": "{count} ノードを表示中",
-  "toast.layoutChanged": "レイアウト: {name}",
   "toast.embedSuccess": "グラフをノートに埋め込みました",
   "toast.embedFailed": "グラフの埋め込みに失敗しました",
   "toast.embedNoEditor": "埋め込み先のエディタがありません",
@@ -1321,8 +1155,6 @@ const ja: TranslationMap = {
   "help.ariaLabel": "ヘルプ",
 
   // --- PanelBuilder: direction ---
-  "direction.clockwise": "時計回り ↻",
-  "direction.counterClockwise": "反時計回り ↺",
 
   // --- PanelBuilder: query hint ---
   "query.pathMatch": "ファイルへのパスに一致",
@@ -1353,9 +1185,6 @@ const ja: TranslationMap = {
   "sort.desc": "↓降順",
 
   // --- PanelBuilder: cluster group options ---
-  "clusterGroup.tag": "タグ",
-  "clusterGroup.backlinks": "被リンク数",
-  "clusterGroup.nodeType": "ノードタイプ",
   "clusterGroup.recursive": "再帰",
 
   // --- PanelBuilder: gravity direction ---
@@ -1412,15 +1241,11 @@ const ja: TranslationMap = {
 
   // --- スナップショット ---
   "snapshot.save": "スナップショットを保存...",
-  "snapshot.compare": "現在のグラフと比較",
-  "snapshot.rename": "名前を変更...",
   "snapshot.delete": "削除",
   "snapshot.clearDiff": "差分オーバーレイを解除",
-  "snapshot.diffStatus": "差分: '{name}' と比較 — 追加 {added}, 削除 {removed}, 変更 {changed}",
   "snapshot.limitReached": "スナップショットは最大10件です。先に削除してください。",
   "snapshot.saved": "スナップショット '{name}' を保存しました",
   "snapshot.deleted": "スナップショット '{name}' を削除しました",
-  "snapshot.renamed": "スナップショットの名前を '{name}' に変更しました",
   "snapshot.enterName": "スナップショット名を入力",
   "snapshot.enterNotes": "メモを追加（任意）",
   "nav.back": "戻る",
@@ -1446,8 +1271,6 @@ const ja: TranslationMap = {
   "display.recencyDays": "鮮度日数",
   "display.definitionField": "定義フィールド",
   "section.structureAnalysis": "構造分析",
-  "display.showHierarchyOverlay": "階層オーバーレイ",
-  "desc.showHierarchyOverlay": "継承エッジを太線でオーバーレイ表示",
   "display.clusterLabelDetail": "クラスタラベル詳細度",
   "desc.clusterLabelDetail": "クラスタラベルの情報量",
   "display.clusterLabelMinimal": "最小",
@@ -1473,23 +1296,16 @@ const ja: TranslationMap = {
   "section.surprise": "サプライズモード",
   "display.surpriseInterval": "自動サプライズ (秒)",
   "desc.surpriseInterval": "N秒ごとにランダムな並置を自動トリガー (0 = 無効)",
-  "display.showGapPrompts": "ギャッププロンプト",
-  "desc.showGapPrompts": "接続の少ないクラスタ間に「?」ラベルを表示",
   "display.showSimilarSuggestions": "類似サジェスト",
   "desc.showSimilarSuggestions": "ホバー時にJaccard類似度で未リンクの類似ノートを表示",
   "display.showStructureQuestions": "構造質問",
   "desc.showStructureQuestions": "グラフ構造から質問を生成して統計パネルに表示",
   "display.showEntropyOverlay": "知識エントロピー",
   "desc.showEntropyOverlay": "低密度の知識ギャップをヒートマップで表示",
-  "display.showNodeThumbnails": "ノードサムネイル",
-  "desc.showNodeThumbnails": "フロントマターの画像をノードサムネイルとして表示",
-  "display.kShortestPaths": "代替パス数",
-  "desc.kShortestPaths": "表示する最短パス数（1=最短のみ）",
 
   // --- M2: Ego Layout ---
   "cluster.ego": "エゴ（フォーカス中心）",
   "action.applyEgoLayout": "エゴレイアウトを適用",
-  "toast.selectNodeFirst": "先にノードを選択してください",
 
   // --- Phase 4: Interaction Enhancements ---
   "display.relationTypePicker": "関係タイプピッカー",
@@ -1517,7 +1333,6 @@ const ja: TranslationMap = {
   "display.presentationMode": "プレゼンテーションモード",
   "desc.presentationMode": "グラフノードのステップスルーガイドツアー",
   "action.addWaypoint": "ウェイポイント追加",
-  "action.clearWaypoints": "ウェイポイントクリア",
   "action.nextStep": "次へ →",
   "action.prevStep": "← 前へ",
 
@@ -1553,7 +1368,6 @@ const ja: TranslationMap = {
   "desc.nodeColor": "フロントマターのカテゴリでノードを色分け",
   "desc.arrows": "すべてのエッジに方向矢印を表示",
   "desc.edgeColor": "関係種別でエッジを色分け",
-  "desc.edgeLabels": "エッジに関係種別ラベルを表示",
   "desc.edgeLayerMode": "エッジ種別ごとにZ順でレイヤー分離描画",
   "desc.edgeDirectionFilter": "エッジの方向性でフィルタ（A→B vs A↔B）",
   "desc.bidirectionalIndicator": "双方向エッジを視覚的に区別（太い線）",
@@ -1655,12 +1469,8 @@ const ja: TranslationMap = {
   "context.noteCreated": "ノート '{name}' を作成しました",
 
   // --- Feature N: エッジ重みラベル ---
-  "display.edgeWeightLabels": "エッジ重みラベル",
-  "desc.edgeWeightLabels": "同一ペア間のエッジ本数を表示",
 
   // --- Feature CR: エッジ多重度ラベル ---
-  "display.edgeCardinalityLabels": "エッジ多重度ラベル",
-  "desc.edgeCardinalityLabels": "同一ノードペア間に複数エッジがある場合、本数を数値で表示",
 
   // --- 統一エッジラベルモード ---
   "display.edgeLabelMode": "エッジラベルモード",
@@ -1690,7 +1500,6 @@ const ja: TranslationMap = {
 
   // --- Feature T: 検索履歴 ---
   "search.clearHistory": "履歴をクリア",
-  "search.historyEmpty": "検索履歴なし",
 
   // --- Feature V: グラフテンプレート ---
   "template.save": "テンプレート保存",
@@ -1701,7 +1510,6 @@ const ja: TranslationMap = {
   "template.deleted": "テンプレートを削除しました",
   "template.namePrompt": "テンプレート名を入力:",
   "template.maxReached": "テンプレートは最大20件です。先に削除してください。",
-  "template.noTemplates": "保存済みテンプレートなし",
   "template.confirmDelete": "テンプレート「{name}」を削除しますか？",
 
   // --- Feature C3/F2/C4/C6/C7/D5 ---
@@ -1745,30 +1553,24 @@ const ja: TranslationMap = {
 const helpEn: TranslationMap = {
   "help.filter": "Controls which nodes and edges appear in the graph.\n\nSearch: filter nodes by field:value\n  e.g. tag:character, hop:name:2\n\nTag Display:\n  Node = show tags as nodes\n  Enclosure = show tags as convex hull enclosures",
   "help.groups": "Color-coding rules for nodes\n  Assign colors to nodes matching a query\n  e.g. tag:character → red\n\nCluster group rules are in the\n\"Cluster Arrangement\" section",
-  "help.display": "Adjust graph appearance.\n\nArrows: show direction arrows on edges\nNode color: auto-color by category field\nEdge color: color by relation type\nText fade: label fade threshold when zooming out\nHover highlight: how many hops to highlight on hover\n\nEdge Types: toggle visibility by type",
   "help.nodeRules": "Control spacing and gravity for nodes matching a query.\n\nquery: target node query (*, tag:character, etc.)\nSpacing: distance multiplier between nodes\nGravity: directional pull (angle and strength)",
   "help.clusterArrangement": "Controls cluster arrangement in Force layout.\n\nPattern: how groups are arranged\nNode spacing: distance between nodes within a group\nGroup size/spacing: group scale and distance\nEdge bundle: curvature of inter-cluster edges (0=straight, 1=strong)\nSort: node ordering within groups",
-  "help.forceStrength": "Adjust force simulation parameters.\n\nCenter force: pull nodes toward center\nRepel force: repulsion distance between nodes\nLink force: edge attraction strength\nLink distance: target edge length\nEnclosure spacing: tag enclosure padding",
   "help.pluginSettings": "Plugin-wide settings. Changes apply immediately.\n\nMetadata fields: frontmatter field names for graph relations (comma-separated)\nColor field: field for automatic node coloring\nGroup field: field for concentric/sunburst grouping\nEnclosure min ratio: minimum group size for enclosures",
   "help.ontology": "Define semantic relationships between notes.\n\nForward/Reverse pairs let you traverse relationships in both directions.\n  Inheritance (is-a): parent-child hierarchy\n  Aggregation (has-a): containment/composition\n  Sequence: ordered chains (next/prev)\n  Similar/Sibling: peer relationships\n\nTag Hierarchy: #a/b automatically creates inheritance edges from parent to child tags.",
   "help.customMappings": "Map custom frontmatter fields to ontology relation types.\n\nUseful for ExcaliBrain compatibility or custom field names.\ne.g. 'up' → is-a, 'contains' → has-a",
   "help.tagRelations": "Define explicit relationships between tags.\n\ne.g. #character is-a #entity\nThese create edges between all notes sharing these tags.",
-  "help.concentricLayout": "Adjust concentric layout parameters.\n\nMin radius: inner orbit radius\nOrbit spacing: distance between orbits\nOrbit rings: show/hide orbit circles\nAuto rotate: enable orbital animation",
   "help.exprReference": "── Expression Reference ──\n\nVariables:\n  t = normalized position (0–1)\n  i = node index (0, 1, 2, ...)\n  n = total node count in group\n  v = raw axis source value\n\nBuilt-in constants:\n  pi (π), e, tau (τ=2π)\n  Greek letters: α→a β→b θ→t π→pi τ→tau\n\nUser-defined constants:\n  Add via the Constants section below.\n  Use any single letter (a–z) in expressions.\n  Filled Polygon preset:\n    k = number of sides (3–∞)\n    d = density (0.5=uniform, >0.5=sparse center)\n\nFunctions:\n  sin  cos  tan  sqrt  abs\n  log  exp  floor  ceil\n  min(a,b)  max(a,b)  pow(a,b)  atan2(y,x)\n\nOperators:\n  +  -  *  /  % (mod)  ^ (power)\n  Implicit ×: 2t = 2*t, πr² = pi*r^2\n\nSources (FUNC syntax):\n  index, degree, folder, tag:?, hop:name:3\n\nTransforms (FUNC syntax):\n  LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n\nCurves:\n  ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS,\n  HYPOTROCHOID, EPITROCHOID, BUTTERFLY",
 };
 
 const helpJa: TranslationMap = {
   "help.filter": "グラフに表示するノードとエッジを制御します。\n\n検索: field:value でノードをフィルタ\n  例: tag:character, hop:名前:2\n\nタグ表示:\n  ノード = タグ自体をノードとして表示\n  囲い = タグをノード群の包絡線として表示",
   "help.groups": "ノードの色分けルール\n  クエリ記法でマッチするノードに色を割り当て\n  例: tag:character → 赤色\n\nグループ分けルール（クラスター配置）は\n「クラスター配置」セクションで設定します",
-  "help.display": "グラフの見た目を調整します。\n\n矢印: エッジに方向を示す矢印を表示\nノード色: category フィールドで自動色分け\nエッジ色: 関係種別ごとに色分け\nテキストフェード: ズームアウト時のラベル消失閾値\nホバー強調: マウスオーバー時に何ホップ先まで強調するか\n\n結線タイプ: 種別ごとにエッジの表示/非表示を切り替え",
   "help.nodeRules": "クエリにマッチするノードの間隔や重力を個別制御します。\n\nquery: 対象ノードのクエリ (*, tag:character 等)\n間隔: ノード同士の距離の倍率\n重力: 特定方向への引力 (角度と強度)",
   "help.clusterArrangement": "Force レイアウトでのクラスター配置を制御します。\n\n配置パターン: グループの並べ方\nノード間隔: グループ内のノード同士の距離\nグループサイズ/間隔: グループの大きさと距離\nエッジ束ね強度: クラスタ間エッジの曲がり具合（0=直線, 1=強い束ね）\nソート順: グループ内のノードの並び順",
-  "help.forceStrength": "力学シミュレーションのパラメータを調整します。\n\n中心力: ノードを中心に引き寄せる力\n反発力: ノード同士の反発距離\nリンクの力: エッジによる引力強度\nリンク距離: エッジの目標長さ\n囲い間隔: タグ包絡線のパディング",
   "help.pluginSettings": "プラグイン全体の設定です。変更は即座に反映されます。\n\nメタデータフィールド: グラフの関係構築に使う frontmatter フィールド名\n色分けフィールド: ノードの自動色分けに使うフィールド\nグループフィールド: 同心円/Sunburst のグループ分けフィールド\n囲い最小比率: 包絡線表示の最小グループサイズ",
   "help.ontology": "ノート間の意味的関係を定義します。\n\n正方向/逆方向のペアで双方向の関係を構築できます。\n  継承 (is-a): 親子階層\n  集約 (has-a): 包含/構成\n  順序: 順番付きチェーン (next/prev)\n  類似/兄弟: 対等な関係\n\nタグ階層: #a/b → 親タグから子タグへ自動で継承エッジ生成",
   "help.customMappings": "カスタムフィールドをオントロジーの関係種別にマッピングします。\n\nExcaliBrain互換や独自フィールド名に便利です。\n例: 'up' → is-a, 'contains' → has-a",
   "help.tagRelations": "タグ間の明示的な関係を定義します。\n\n例: #character is-a #entity\nこれらのタグを持つノート間にエッジが生成されます。",
-  "help.concentricLayout": "同心円レイアウトのパラメータを調整します。\n\n最小半径: 最も内側の軌道の半径\n軌道間距離: 軌道同士の間隔\n軌道リング: 軌道の円を表示/非表示\n自動回転: 軌道アニメーションの有効化",
   "help.exprReference": "── 式リファレンス ──\n\n変数:\n  t = 正規化位置 (0–1)\n  i = ノードインデックス (0, 1, 2, ...)\n  n = グループ内ノード総数\n  v = 軸ソースの生値\n\n組み込み定数:\n  pi (π), e, tau (τ=2π)\n  ギリシャ文字: α→a β→b θ→t π→pi τ→tau\n\nユーザー定義定数:\n  下の「定数」セクションで追加できます。\n  式中で任意の1文字 (a–z) を変数として使用。\n  充填多角形プリセット:\n    k = 辺の数 (3–∞)\n    d = 密度 (0.5=均一, >0.5=中心が疎)\n\n関数:\n  sin  cos  tan  sqrt  abs\n  log  exp  floor  ceil\n  min(a,b)  max(a,b)  pow(a,b)  atan2(y,x)\n\n演算子:\n  +  -  *  /  % (余り)  ^ (べき乗)\n  暗黙の乗算: 2t = 2*t, πr² = pi*r^2\n\nソース (関数書式):\n  index, degree, folder, tag:?, hop:名前:3\n\n変換 (関数書式):\n  LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n\n曲線:\n  ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS,\n  HYPOTROCHOID, EPITROCHOID, BUTTERFLY",
 };
 

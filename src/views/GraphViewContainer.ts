@@ -3448,7 +3448,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.showEdgeCardinalityLabels = this.panel.showEdgeCardinalityLabels ?? false;
     cfg.edgeDirectionFilter = this.panel.edgeDirectionFilter ?? "all";
     cfg.showBidirectionalIndicator = this.panel.showBidirectionalIndicator ?? false;
-    cfg.showHierarchyOverlay = this.panel.showHierarchyOverlay ?? false;
+    cfg.showOntologyBackbone = this.panel.showOntologyBackbone ?? false;
     const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
     // roadRouteEdges toggle: when off, suppress road network so edges draw straight
     cfg.roadNetwork = (rt2.roadRouteEdges !== false) ? this.getRoadNetwork() : null;
@@ -6736,8 +6736,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
     const maxR = rt.maxNodeRadius > 0 ? rt.maxNodeRadius : Infinity;
     const minR = rt.minNodeRadius;
+    const sizeByDeg = rt.nodeSizeByDegree ?? false;
+    let maxDeg = 0;
+    if (sizeByDeg) {
+      for (const d of this.degrees.values()) { if (d > maxDeg) maxDeg = d; }
+    }
     for (const pn of this.pixiNodes.values()) {
-      pn.radius = effectiveRadius(pn.data, ns, this.degrees.get(pn.data.id) || 0, maxR, minR);
+      pn.radius = effectiveRadius(pn.data, ns, this.degrees.get(pn.data.id) || 0, maxR, minR, maxDeg, sizeByDeg);
     }
   }
 

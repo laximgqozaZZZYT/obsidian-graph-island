@@ -870,15 +870,20 @@ function estimateLabelExtent(
 
 /** Visual radius of a node — canonical formula used across the codebase.
  *  Enforces minNodeRadius floor so nodes remain hoverable/clickable. */
-export function nodeRadius(nodeSize: number, _degree: number, minNodeRadius = 15): number {
+export function nodeRadius(nodeSize: number, degree: number, minNodeRadius = 15, maxDegree = 0, sizeByDegree = false): number {
+  if (sizeByDegree && maxDegree > 0 && degree > 0) {
+    // Scale: base + proportion of degree (sqrt dampened)
+    const t = Math.sqrt(degree / maxDegree);
+    return Math.max(minNodeRadius, nodeSize * (0.6 + t * 0.8));
+  }
   return Math.max(nodeSize, minNodeRadius);
 }
 
 /** Effective visual radius accounting for super nodes (collapsed groups).
  *  Canonical formula: baseR = nodeRadius(); superR = baseR * (1 + sqrt(memberCount) * 0.5); capped by maxNodeRadius.
  *  Enforces minNodeRadius floor. */
-export function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, maxNodeRadius = 60, minNodeRadius = 15): number {
-  const baseR = nodeRadius(nodeSize, degree, minNodeRadius);
+export function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, maxNodeRadius = 60, minNodeRadius = 15, maxDegree = 0, sizeByDegree = false): number {
+  const baseR = nodeRadius(nodeSize, degree, minNodeRadius, maxDegree, sizeByDegree);
   const cap = maxNodeRadius > 0 ? maxNodeRadius : Infinity;
   if (n.collapsedMembers && n.collapsedMembers.length > 0) {
     return Math.max(Math.min(Math.max(baseR, baseR * (1 + Math.sqrt(n.collapsedMembers.length) * 0.5)), cap), minNodeRadius);

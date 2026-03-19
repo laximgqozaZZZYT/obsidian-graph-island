@@ -863,10 +863,7 @@ test.describe("16. Group Expand/Collapse", () => {
       await v.doRender();
     });
 
-    const expanded = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      return v?.pixiNodes?.size ?? 0;
-    });
+    const expanded = await waitStable(page);
 
     console.log(`Group expand/collapse: collapsed=${collapsed}, expanded=${expanded}`);
     expect(collapsed).toBeLessThan(expanded);

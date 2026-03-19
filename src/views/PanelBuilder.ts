@@ -219,8 +219,8 @@ export interface PanelState {
   /** Frontmatter field to show as definition (bold, large) at top of card */
   definitionField: string;
   // --- Phase 3: Structure visualization ---
-  /** Show inheritance edges as thick overlay on any layout */
-  showHierarchyOverlay: boolean;
+  /** @deprecated Use showOntologyBackbone instead */
+  showHierarchyOverlay?: boolean;
   /** Cluster label detail level */
   clusterLabelDetail: "minimal" | "standard" | "detailed" | "rich";
   /** Gap detection mode for missing connections */
@@ -229,16 +229,14 @@ export interface PanelState {
   highlightPatterns: boolean;
   /** Highlight bridge nodes (top betweenness centrality) */
   showBridgeNodes: boolean;
-  /** Highlight a specific connected component (null = off) */
-  highlightComponent: number | null;
   // --- Phase 6: ExcaliBrain-like features ---
   /** Enable focus-center layout (ego graph: selected node at center) */
   focusLayout: boolean;
   /** Show hierarchy breadcrumb bar above graph */
   showHierarchyBreadcrumb: boolean;
   // --- Phase 5: Discovery & insight ---
-  /** Show gap prompts between distant clusters */
-  showGapPrompts: boolean;
+  /** @deprecated Removed — use showGapEdges instead */
+  showGapPrompts?: boolean;
   /** Show similar note suggestions on hover */
   showSimilarSuggestions: boolean;
   /** Show structure-based questions in statistics panel */
@@ -426,15 +424,12 @@ export function createDefaultPanel(): PanelState {
     showRecencyMarker: false,
     recencyDays: 7,
     definitionField: "",
-    showHierarchyOverlay: false,
     clusterLabelDetail: "standard" as const,
     gapDetectionMode: "within-tag" as const,
     highlightPatterns: false,
     showBridgeNodes: false,
-    highlightComponent: null,
     focusLayout: false,
     showHierarchyBreadcrumb: false,
-    showGapPrompts: false,
     showSimilarSuggestions: false,
     showStructureQuestions: false,
     showEntropyOverlay: false,
@@ -978,6 +973,13 @@ function _buildNodeDisplaySection(
       cb.doRenderKeepPanel();
     }, t("desc.nodeColorMode"));
     addSlider(body, t("display.nodeSize"), 5, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.resetZoomBaseNodeSize(); cb.recalcNodeRadii(); cb.markDirty(); }, t("desc.nodeSize"));
+    const rtNode = panel.renderThresholds ?? {};
+    addToggle(body, t("display.nodeSizeByDegree"), rtNode.nodeSizeByDegree ?? false, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.nodeSizeByDegree = v;
+      cb.recalcNodeRadii();
+      cb.markDirty();
+    }, t("desc.nodeSizeByDegree"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
     addTextInput(body, t("display.nodeSubLabelFields"), panel.nodeSubLabelFields ?? "", "e.g. category, date, node_type", (v) => {
       panel.nodeSubLabelFields = v;
@@ -1149,10 +1151,10 @@ function _buildStructureAnalysisSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.structureAnalysis"), (body) => {
-    addToggle(body, t("display.showHierarchyOverlay"), panel.showHierarchyOverlay, (v) => {
-      panel.showHierarchyOverlay = v;
+    addToggle(body, t("display.ontologyBackbone"), panel.showOntologyBackbone ?? false, (v) => {
+      panel.showOntologyBackbone = v;
       cb.markDirty();
-    }, t("desc.showHierarchyOverlay"));
+    }, t("desc.ontologyBackbone"));
     addSelect(body, t("display.clusterLabelDetail"), [
       { value: "minimal", label: t("display.clusterLabelMinimal") },
       { value: "standard", label: t("display.clusterLabelStandard") },
@@ -1213,10 +1215,6 @@ function _buildDiscoverySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.discovery"), (body) => {
-    addToggle(body, t("display.showGapPrompts"), panel.showGapPrompts, (v) => {
-      panel.showGapPrompts = v;
-      cb.markDirty();
-    }, t("desc.showGapPrompts"));
     addToggle(body, t("display.showSimilarSuggestions"), panel.showSimilarSuggestions, (v) => {
       panel.showSimilarSuggestions = v;
       cb.markDirty();
