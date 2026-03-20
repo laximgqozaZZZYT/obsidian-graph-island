@@ -485,6 +485,15 @@ export function validatePanelState(panel: PanelState): void {
   if (!(panel.collapsedGroups instanceof Set)) {
     panel.collapsedGroups = new Set(Array.isArray(panel.collapsedGroups) ? panel.collapsedGroups : []);
   }
+  // Settings migration: ensure new-default features are enabled
+  if (panel.renderThresholds) {
+    if (panel.renderThresholds.nodeSizeByDegree === false || panel.renderThresholds.nodeSizeByDegree === undefined) {
+      panel.renderThresholds.nodeSizeByDegree = true;
+    }
+    if (panel.renderThresholds.autoLOD === undefined) {
+      panel.renderThresholds.autoLOD = true;
+    }
+  }
 }
 
 /** Shared immutable reference for property key enumeration and type checking.
