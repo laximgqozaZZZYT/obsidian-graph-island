@@ -3417,8 +3417,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Always start with node name for clear identification
     let tooltipText = pn.data.label;
     if (showTooltip) {
+      // Show tags in tooltip only when not in enclosure mode (enclosure labels handle tags)
+      const isEnclosure = this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE;
       const hasVisibleTagLabel = !!(pn.tagLabel && pn.tagLabel.visible);
-      if (pn.data.tags && pn.data.tags.length > 0 && !hasVisibleTagLabel) {
+      if (pn.data.tags && pn.data.tags.length > 0 && !hasVisibleTagLabel && !isEnclosure) {
         tooltipText += "\n" + pn.data.tags.map((t: string) => `#${t}`).join(" ");
       }
       if (pn.data.category) {
