@@ -710,6 +710,24 @@ export class InteractionManager {
         .onClick(() => this.host.toggleHold(node));
     });
 
+    // Search in vault
+    menu.addItem((item) => {
+      item.setTitle("Search in vault")
+        .setIcon("search")
+        .onClick(() => {
+          const app = this.host.getApp();
+          (app as any).commands.executeCommandById("global-search:open");
+          // Delay to let search pane open, then set query
+          setTimeout(() => {
+            const searchLeaf = app.workspace.getLeavesOfType("search")[0];
+            if (searchLeaf) {
+              const search = (searchLeaf.view as any);
+              if (search?.setQuery) search.setQuery(node.data.label);
+            }
+          }, 300);
+        });
+    });
+
     const copyText = node.data.filePath || node.data.id;
     menu.addItem((item) => {
       item.setTitle(t("context.copyPath"))

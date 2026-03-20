@@ -107,9 +107,12 @@ test.beforeAll(async ({}, testInfo) => {
     contexts[0].pages().find((p) => p.url().includes("index.html")) ??
     contexts[0].pages()[0];
 
-  // Reload plugin
+  // Close all editor leaves so getActiveFile() returns null during graph init
+  // This prevents _autoFocusActiveFile from switching to local graph mode
   await page.evaluate(async () => {
     const app = (window as any).app;
+    for (const leaf of app.workspace.getLeavesOfType("markdown")) leaf.detach();
+    for (const leaf of app.workspace.getLeavesOfType("graph-view")) leaf.detach();
     await app.plugins.disablePlugin("graph-island");
     await app.plugins.enablePlugin("graph-island");
   });
@@ -152,11 +155,17 @@ test.beforeAll(async ({}, testInfo) => {
     v.panel.groupBy = "none";
     v.panel.clusterArrangement = "force";
     v.panel.collapsedGroups = new Set();
-    // Prevent autoFocusActiveFile from overriding baseline with local graph
-    v._hasAutoFocused = true;
     v.panel.localGraphCenter = null;
+    v.panel.syncWithEditor = false;
     v.rawData = null;
     await v.doRender();
+    // Force reset after autoFocus may have changed localGraphCenter
+    await new Promise(r => setTimeout(r, 500));
+    if (v.panel.localGraphCenter !== null) {
+      v.panel.localGraphCenter = null;
+      v.rawData = null;
+      await v.doRender();
+    }
   });
   // Poll until node count stabilizes
   BASELINE = await waitStable(page);

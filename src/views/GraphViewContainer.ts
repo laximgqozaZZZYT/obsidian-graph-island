@@ -512,9 +512,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.zoomBy(1 / 1.3);
     });
 
-    // Zoom percentage indicator
+    // Zoom percentage indicator (click to reset to 100%)
     this.zoomIndicatorEl = zoomGroup.createEl("span", { cls: "gi-zoom-indicator", text: "100%" });
-    this.zoomIndicatorEl.title = "Zoom level";
+    this.zoomIndicatorEl.title = "Click to reset zoom to 100%";
+    this.zoomIndicatorEl.style.cursor = "pointer";
+    this.zoomIndicatorEl.addEventListener("click", () => { this.setZoom(1.0); });
 
     // FPS monitor (debug)
     this.fpsEl = zoomGroup.createEl("span", { cls: "gi-fps-indicator", text: "" });
