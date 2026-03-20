@@ -41,6 +41,8 @@ export interface EnclosureConfig {
   enclosureOutlierFactor?: number;
   /** FU: Label position within enclosure ("top" | "center" | "bottom", default "top") */
   enclosureLabelPosition?: "top" | "center" | "bottom";
+  /** FY: Override fill opacity for enclosure (0 = auto, >0 = manual) */
+  enclosureFillOpacity?: number;
   /** S3: Cluster label detail level */
   clusterLabelDetail?: "minimal" | "standard" | "detailed" | "rich";
   /** S3: Cluster summary generator for rich labels */
@@ -278,7 +280,11 @@ export function drawEnclosures(
     const memberCount = pts.length;
     const sizeFade = Math.max(SIZE_FADE_MIN, 1 - memberCount / SIZE_FADE_DIVISOR);
     const baseFill = overlaps > 0 ? FILL_ALPHA_OVERLAP : FILL_ALPHA_BASE;
-    const fillAlpha = blend > 0 ? blend * baseFill * sizeFade : 0;
+    // FY: Allow user override of enclosure fill opacity
+    const opacityOverride = cfg.enclosureFillOpacity;
+    const fillAlpha = opacityOverride && opacityOverride > 0
+      ? opacityOverride * sizeFade
+      : (blend > 0 ? blend * baseFill * sizeFade : 0);
 
     let labelX = 0, labelY = 0;
     let labelCenterX = 0, labelCenterY = 0;

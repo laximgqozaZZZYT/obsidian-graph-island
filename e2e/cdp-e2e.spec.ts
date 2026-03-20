@@ -1495,3 +1495,26 @@ test.describe("42. Card Mode Content", () => {
     expect(result.hoverHasBody).toBe(true);
   });
 });
+
+// =========================================================================
+// 43. Degree Filter (FZ)
+// =========================================================================
+test.describe("43. Degree Filter", () => {
+  test("43.1 minDegreeFilter reduces visible nodes", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      const gd1 = v.getGraphData();
+      const before = gd1.nodes.length;
+      v.panel.minDegreeFilter = 5;
+      v.rawData = null;
+      const gd2 = v.getGraphData();
+      const after = gd2.nodes.length;
+      v.panel.minDegreeFilter = 0;
+      v.rawData = null;
+      return { before, after, reduced: after < before };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.reduced).toBe(true);
+  });
+});
