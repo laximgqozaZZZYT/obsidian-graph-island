@@ -1359,7 +1359,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   autoOptCloseThreshold: 3.0,
   labelMinScreenPx: 20,
   labelScalePower: 0.4,
-  labelScaleMax: 8,
+  labelScaleMax: 5,
   labelScaleMin: 0.8,
   labelAlphaMin: 0.7,
   labelZoomTier1: 0.01,

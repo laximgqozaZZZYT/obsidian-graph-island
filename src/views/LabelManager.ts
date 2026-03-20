@@ -267,7 +267,9 @@ export class LabelManager {
       const nodeDeg = degrees.get(pn.data.id) ?? 0;
       const degRatio = _maxDegForAdaptive > 0 ? nodeDeg / _maxDegForAdaptive : 0;
       const adaptiveScale = _adaptiveMin + degRatio * (_adaptiveMax - _adaptiveMin);
-      pn.label.scale.set(counterScale * adaptiveScale);
+      // Cap final label scale to prevent labels from becoming enormous at extreme zoom-out
+      const finalScale = Math.min(counterScale * adaptiveScale, rt.labelScaleMax * 1.5);
+      pn.label.scale.set(finalScale);
 
       // Smart truncation: preserve the distinguishing part of the label
       this._applyTruncation(pn, shouldTruncate, effectiveMaxChars);
