@@ -2,6 +2,7 @@ import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { GraphEdge, EdgeCardinalityMode, Cardinality, CardinalityRule, CardinalityRenderConfig } from "../types";
 import { DEFAULT_CARDINALITY_RENDER_CONFIG } from "../types";
 import { cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
+import { wcagContrastRatio, contrastColor } from "../utils/color";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { routeEdge, findNearestIntersection, cachedFindShortestPath, pathToWaypoints, invalidatePathCache } from "../layouts/cable-tray";
 import {
@@ -314,6 +315,13 @@ const DEFAULT_DENSITY_FLOOR = 0.25;
 const EDGE_LABEL_FONT_SIZE = 10;
 /** A11y: edge label background for contrast (WCAG 1.4.3) */
 const EDGE_LABEL_BG_ALPHA = 0.75;
+
+/** A11y: ensure edge label text meets WCAG 4.5:1 contrast against its bg pill */
+function a11yEdgeLabelFill(isDark: boolean): number {
+  const bg = isDark ? 0x1a1a2e : 0xf0f0f4;
+  const candidate = isDark ? 0xcccccc : 0x444444;
+  return wcagContrastRatio(candidate, bg) >= 4.5 ? candidate : contrastColor(bg);
+}
 /** Edge label alpha */
 const EDGE_LABEL_ALPHA = 0.7;
 /** Edge label resolution */
@@ -3555,7 +3563,7 @@ export function drawEdgeLabels(
     const pairCounts = buildPairCounts(edges);
     // ペアごとに1回だけラベルを描く（重複除外セット）
     const drawnPairs = new Set<string>();
-    const fillColor = cfg.isDark ? 0xcccccc : 0x444444;
+    const fillColor = a11yEdgeLabelFill(cfg.isDark);
     for (const e of edges) {
       if (shouldSkipEdge(e, cfg)) continue;
       if (shouldSkipByDirection(e, cfg)) continue;
@@ -3594,7 +3602,7 @@ export function drawEdgeLabels(
   if (cfg.showEdgeCardinalityLabels && !cfg.showEdgeWeightLabels) {
     const pairCounts = buildPairCounts(edges);
     const drawnPairs = new Set<string>();
-    const fillColor = cfg.isDark ? 0xcccccc : 0x444444;
+    const fillColor = a11yEdgeLabelFill(cfg.isDark);
     for (const e of edges) {
       if (shouldSkipEdge(e, cfg)) continue;
       if (shouldSkipByDirection(e, cfg)) continue;
@@ -3654,7 +3662,7 @@ export function drawEdgeLabels(
     labelable.length = effectiveMax;
   }
 
-  const fillColor = cfg.isDark ? 0xcccccc : 0x444444;
+  const fillColor = a11yEdgeLabelFill(cfg.isDark);
   const placement = cfg.edgeLabelPlacement ?? "center";
   const PERPENDICULAR_OFFSET = 8;
   // For "smart" mode: track placed label bounding boxes to avoid collisions

@@ -1077,43 +1077,51 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     overlay.createEl("h3", { text: "Graph Island \u2014 Keyboard Shortcuts" });
 
-    const shortcuts: [string, string][] = [
-      ["Hover", "Show node details + preview"],
-      ["Click", "Focus node + show expansion"],
-      ["Shift+Click", "Add to multi-selection"],
-      ["Ctrl+Click", "Compare nodes"],
-      ["Double-click", "Open file / Inline edit"],
-      ["Right-click", "Context menu"],
-      ["Scroll", "Zoom in/out"],
-      ["Drag node", "Move + pin position"],
-      ["Drag canvas", "Pan view"],
-      ["Tab / Shift+Tab", "Cycle focus through nodes"],
-      ["Enter", "Open focused node's file"],
-      ["Shift+Enter", "Add focused node to multi-select"],
-      ["Ctrl+Enter", "Add focused node to compare"],
-      ["S (focused)", "Set pathfinder start"],
-      ["E (focused)", "Set pathfinder end"],
-      ["Escape", "Close overlay / clear focus"],
-      ["+/= / \u2212", "Zoom in / out"],
-      ["0", "Reset zoom (100%)"],
-      ["Space / F", "Fit graph to view"],
-      ["P", "Toggle settings panel"],
-      ["L", "Toggle legend"],
-      ["M", "Toggle minimap"],
-      ["G", "Toggle dot grid"],
-      ["[ / ]", "Decrease / increase hover hops"],
-      ["1\u20134", "Switch panel tab"],
-      ["Ctrl+F", "Focus search"],
-      ["\u2190\u2191\u2192\u2193", "Pan graph (when no node focused)"],
-      ["Ctrl+Shift+C", "Copy graph as PNG"],
-      ["?", "Toggle this help"],
+    const sections: { title: string; items: [string, string][] }[] = [
+      { title: "Navigation", items: [
+        ["Tab / Shift+Tab", "Cycle focus through nodes"],
+        ["\u2190\u2191\u2192\u2193", "Pan graph (when no node focused)"],
+        ["+/= / \u2212", "Zoom in / out"],
+        ["0", "Reset zoom (100%)"],
+        ["Space / F", "Fit graph to view"],
+        ["Scroll", "Zoom in/out"],
+      ]},
+      { title: "Selection & Comparison", items: [
+        ["Click / Hover", "Focus node + details"],
+        ["Shift+Click / Shift+Enter", "Multi-select toggle"],
+        ["Ctrl+Click / Ctrl+Enter", "Add to compare"],
+        ["S (focused)", "Set pathfinder start"],
+        ["E (focused)", "Set pathfinder end"],
+        ["Enter", "Open focused node's file"],
+        ["Double-click", "Open file / Inline edit"],
+      ]},
+      { title: "Display", items: [
+        ["P", "Toggle settings panel"],
+        ["L", "Toggle legend"],
+        ["M", "Toggle minimap"],
+        ["G", "Toggle dot grid"],
+        ["[ / ]", "Decrease / increase hover hops"],
+        ["1\u20134", "Switch panel tab"],
+      ]},
+      { title: "Actions", items: [
+        ["Ctrl+F", "Focus search"],
+        ["Ctrl+Shift+C", "Copy graph as PNG"],
+        ["Right-click", "Context menu"],
+        ["Drag node", "Move + pin position"],
+        ["Drag canvas", "Pan view"],
+        ["Escape", "Close overlay / clear focus"],
+        ["?", "Toggle this help"],
+      ]},
     ];
 
-    const table = overlay.createEl("table", { cls: "gi-help-table" });
-    for (const [key, desc] of shortcuts) {
-      const tr = table.createEl("tr");
-      tr.createEl("td", { cls: "gi-help-key", text: key });
-      tr.createEl("td", { text: desc });
+    for (const sec of sections) {
+      overlay.createEl("h4", { text: sec.title, cls: "gi-help-section-title" });
+      const table = overlay.createEl("table", { cls: "gi-help-table" });
+      for (const [key, desc] of sec.items) {
+        const tr = table.createEl("tr");
+        tr.createEl("td", { cls: "gi-help-key", text: key });
+        tr.createEl("td", { text: desc });
+      }
     }
 
     overlay.createEl("h3", { text: "Thinking Modes", cls: "gi-help-section" });
@@ -1600,11 +1608,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     canvas.style.height = "100%";
 
     // Accessibility: make canvas focusable and identifiable to assistive technology
-    canvas.setAttribute("role", "img");
-    canvas.setAttribute("aria-label", t("a11y.canvasLabel") ?? "Interactive graph visualization. Use Tab to cycle nodes, +/- to zoom.");
     canvas.setAttribute("tabindex", "0");
     canvas.setAttribute("role", "application");
-    canvas.setAttribute("aria-label", "Graph Island — interactive knowledge graph");
+    canvas.setAttribute("aria-label", t("a11y.canvasLabel") ?? "Interactive graph visualization. Use Tab to cycle nodes, +/- to zoom.");
 
     // aria-live region for screen reader announcements (focus, zoom changes)
     if (!this._ariaLiveEl) {
@@ -3991,6 +3997,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       },
       enclosureLabelPosition: (rt as any).enclosureLabelPosition ?? "top",
       enclosureFillOpacity: (rt as any).enclosureFillOpacity ?? 0,
+      enclosureStrokeWidth: (rt as any).enclosureStrokeWidth ?? 0,
       hoveredTag: this.hoveredTag,
       labelContainer: this.enclosureLabelContainer ?? undefined,
       groupLabelFontSize: rt.groupLabelFontSize,
@@ -6742,6 +6749,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // 6-step pipeline complete — reveal world and render final positions
       if (this.worldContainer) this.worldContainer.visible = true;
       this.setStatus(this.buildRichStatus(gd.nodes.length, gd.edges.length));
+      // A11y: announce graph summary for screen readers on load
+      this._announceA11y(`${t("a11y.graphLoaded") ?? "Graph loaded"}: ${gd.nodes.length} ${t("a11y.nodes") ?? "nodes"}, ${gd.edges.length} ${t("a11y.edges") ?? "edges"}. ${t("a11y.tabToNavigate") ?? "Press Tab to navigate nodes."}`);
       this.updateEntropyScores();
       this.updateGraphStats(gd);
       this.updateRelationMatrix(gd);
