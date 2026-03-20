@@ -2557,6 +2557,23 @@ export class RenderPipeline {
         }
         return false;
       },
+      /** Iterate placed rects near (x, y) within radius for adaptive displacement scoring */
+      forEachNear(x: number, y: number, radius: number, cb: (r: CullLabelRect) => void) {
+        const cx0 = Math.floor((x - radius) / CELL_SIZE);
+        const cy0 = Math.floor((y - radius) / CELL_SIZE);
+        const cx1 = Math.floor((x + radius) / CELL_SIZE);
+        const cy1 = Math.floor((y + radius) / CELL_SIZE);
+        const seen = new Set<CullLabelRect>();
+        for (let cx = cx0; cx <= cx1; cx++) {
+          for (let cy = cy0; cy <= cy1; cy++) {
+            const arr = gridMap.get(cellKey(cx, cy));
+            if (!arr) continue;
+            for (const p of arr) {
+              if (!seen.has(p)) { seen.add(p); cb(p); }
+            }
+          }
+        }
+      },
     };
   }
 
@@ -2578,8 +2595,8 @@ export class RenderPipeline {
     const nodeR = pn.radius ?? 12;
     const screenNodeR = nodeR * zoom;
 
-    // Displacement offsets in screen space
-    const offsets = [
+    // Displacement offsets in screen space — sorted by distance from placed labels
+    const rawOffsets = [
       { dx: r.w * 0.5 + screenNodeR, dy: screenNodeR + r.h },       // bottom-right
       { dx: -(r.w + screenNodeR + 2), dy: 0 },                       // left
       { dx: 0, dy: screenNodeR + r.h * 1.2 },                        // below
@@ -2589,6 +2606,19 @@ export class RenderPipeline {
       { dx: r.w * 0.3 + screenNodeR, dy: -(screenNodeR + r.h * 1.2) }, // above-right
       { dx: -(r.w * 0.3 + screenNodeR), dy: -(screenNodeR + r.h * 1.2) }, // above-left
     ];
+    // Adaptive: sort offsets by distance from nearest placed label (farthest first)
+    const offsets = rawOffsets.map(o => {
+      const testX = r.x + o.dx;
+      const testY = r.y + o.dy;
+      let minDist = Infinity;
+      grid.forEachNear(testX, testY, r.w + r.h, (p) => {
+        const cx = p.x + p.w / 2;
+        const cy = p.y + p.h / 2;
+        const d = (testX - cx) ** 2 + (testY - cy) ** 2;
+        if (d < minDist) minDist = d;
+      });
+      return { ...o, score: minDist };
+    }).sort((a, b) => b.score - a.score);
 
     // Compute normBase for AP-1 displacement cap
     const fontSize = (r.label.style.fontSize as number) ?? 11;
@@ -2967,4 +2997,6 @@ interface CullLabelRect {
 interface CullOverlapGrid {
   insert(rect: CullLabelRect): void;
   checkOverlap(rect: CullLabelRect): boolean;
+  /** Iterate placed rects near (x, y) within radius */
+  forEachNear(x: number, y: number, radius: number, cb: (r: CullLabelRect) => void): void;
 }

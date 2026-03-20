@@ -604,10 +604,11 @@ function inflateLabelSpacing(
       cfg.nodeLabelFontSizeMin ?? 11, cfg.nodeLabelFontSizeMax ?? 14,
     ));
     extents.sort((a, b) => a - b);
-    const p70 = extents[Math.floor(extents.length * 0.7)] ?? 0;
+    // Use p90 to cover large labels that p70 misses (top 30% were not considered)
+    const p90 = extents[Math.floor(extents.length * 0.9)] ?? 0;
     // Add half the representative label extent (labels extend in one direction,
     // and two adjacent labels share the space between nodes).
-    return { ...cfg, nodeSize: cfg.nodeSize + p70 * 0.5 };
+    return { ...cfg, nodeSize: cfg.nodeSize + p90 * 0.5 };
   }
   return cfg;
 }
@@ -786,26 +787,30 @@ function buildClusterForceFunction(
     }
 
     if (ringConstraints) {
+      // Damped ring snap: blend toward ring position to reduce jitter
+      const snapDamping = 0.85; // 0 = no snap, 1 = hard snap
       for (const n of nodes) {
         const rc = ringConstraints.get(n.id);
         if (!rc) continue;
         if (rc.r === 0) {
-          n.x = rc.cx;
-          n.y = rc.cy;
+          n.x += (rc.cx - n.x) * snapDamping;
+          n.y += (rc.cy - n.y) * snapDamping;
         } else {
           const dx = n.x - rc.cx;
           const dy = n.y - rc.cy;
           const dist = magnitude(dx, dy);
           if (dist > 0.01) {
-            n.x = rc.cx + (dx / dist) * rc.r;
-            n.y = rc.cy + (dy / dist) * rc.r;
+            const targetX = rc.cx + (dx / dist) * rc.r;
+            const targetY = rc.cy + (dy / dist) * rc.r;
+            n.x += (targetX - n.x) * snapDamping;
+            n.y += (targetY - n.y) * snapDamping;
           } else {
             const t = targets.get(n.id);
             if (t) { n.x = t.x; n.y = t.y; }
           }
         }
-        n.vx = 0;
-        n.vy = 0;
+        n.vx *= (1 - snapDamping);
+        n.vy *= (1 - snapDamping);
       }
     }
   };

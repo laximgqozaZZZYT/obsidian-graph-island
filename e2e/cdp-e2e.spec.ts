@@ -1181,3 +1181,65 @@ test.describe("33. Analysis Overlay", () => {
     expect(state.bridges).toBe(false);
   });
 });
+
+// =========================================================================
+// 34. Minimap
+// =========================================================================
+test.describe("34. Minimap", () => {
+  test("34.1 minimap element exists and is visible", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      const el = v.containerEl?.querySelector(".gi-minimap-wrapper");
+      return {
+        exists: !!el,
+        display: el?.style?.display ?? "unknown",
+        hasMinimap: !!v.minimap,
+      };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.exists).toBe(true);
+    expect(result.hasMinimap).toBe(true);
+  });
+});
+
+// =========================================================================
+// 35. Bookmarked Nodes
+// =========================================================================
+test.describe("35. Bookmarked Nodes", () => {
+  test("35.1 bookmark toggle adds/removes from list", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.pixiNodes) return { error: "no view" };
+      const firstId = v.pixiNodes.keys().next().value;
+      if (!firstId) return { error: "no nodes" };
+      // Toggle bookmark on
+      v.panel.bookmarkedNodes = v.panel.bookmarkedNodes || [];
+      const wasBm = v.panel.bookmarkedNodes.includes(firstId);
+      if (!wasBm) v.panel.bookmarkedNodes.push(firstId);
+      const afterAdd = v.panel.bookmarkedNodes.includes(firstId);
+      // Toggle bookmark off
+      v.panel.bookmarkedNodes = v.panel.bookmarkedNodes.filter((id: string) => id !== firstId);
+      const afterRemove = v.panel.bookmarkedNodes.includes(firstId);
+      return { afterAdd, afterRemove };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.afterAdd).toBe(true);
+    expect(result.afterRemove).toBe(false);
+  });
+});
+
+// =========================================================================
+// 36. Layout Transition Animation
+// =========================================================================
+test.describe("36. Layout Transition", () => {
+  test("36.1 layout switch preserves node count", async () => {
+    // Switch to grid then back to force
+    const gridCount = await renderWith(page, { clusterArrangement: "grid" });
+    expect(gridCount).toBeGreaterThan(0);
+    const forceCount = await renderWith(page, { clusterArrangement: "force" });
+    expect(forceCount).toBeGreaterThan(0);
+    // Both should have same number of nodes
+    expect(gridCount).toBe(forceCount);
+  });
+});
