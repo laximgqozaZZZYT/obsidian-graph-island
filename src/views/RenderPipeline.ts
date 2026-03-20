@@ -1460,7 +1460,10 @@ export class RenderPipeline {
       const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
       const MIN_PLAIN_HALF_W = 20 / worldScale;
       const halfW = Math.max(MIN_PLAIN_HALF_W, Math.min(cardMaxW / 2, effR * crc.plainCardWidthFactor));
-      const totalH = showMeta ? cardH + cardConfig.fields.length * fieldLineH : cardH;
+      // FI: Dynamic card height based on body content
+      const bodyLines = pn.data.bodyPreview ? Math.min(3, Math.ceil(pn.data.bodyPreview.length / Math.max(5, Math.floor((halfW * 2 - 8 / worldScale) / (8 / worldScale * 0.55))))) : 0;
+      const bodyExtraH = bodyLines * (8 / worldScale * 1.3);
+      const totalH = (showMeta ? cardH + cardConfig.fields.length * fieldLineH : cardH) + bodyExtraH;
       const halfH = totalH / 2;
 
       // Card background
@@ -1470,32 +1473,52 @@ export class RenderPipeline {
       g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, halfW * 2, totalH, crc.cardCornerRadius / worldScale);
       g.endFill();
 
-      // Plain card: add title + body preview text (always show for visible nodes)
+      // FH/FI: Plain card with title + wrapped body preview
       {
         const fontSize = Math.max(3, 10 / worldScale);
         const smallFont = Math.max(2, 8 / worldScale);
-        const textW = halfW * 2 - 8 / worldScale;
+        const pad = 4 / worldScale;
+        const textW = halfW * 2 - pad * 2;
+        const lineH = smallFont * 1.3;
         // Title
         const title = new CanvasText(pn.data.label, {
           fontSize, fontWeight: "bold", fill: 0xffffff,
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
         });
         markAsCardText(title);
-        title.x = -halfW + 4 / worldScale;
-        title.y = -halfH + 4 / worldScale;
+        title.x = -halfW + pad;
+        title.y = -halfH + pad;
         if (rt.cardTextTruncation !== false) title.maxWidth = textW;
         pn.gfx.addChild(title);
-        // Body preview
+        // FH: Wrapped body preview — split into multiple lines
         if (pn.data.bodyPreview) {
-          const body = new CanvasText(pn.data.bodyPreview, {
-            fontSize: smallFont, fill: 0xcccccc,
-            fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-          });
-          markAsCardText(body);
-          body.x = -halfW + 4 / worldScale;
-          body.y = -halfH + 4 / worldScale + fontSize * 1.4;
-          body.alpha = 0.7;
-          if (rt.cardTextTruncation !== false) body.maxWidth = textW;
+          const maxLines = 3;
+          const charsPerLine = Math.max(5, Math.floor(textW / (smallFont * 0.55)));
+          const words = pn.data.bodyPreview.split(/\s+/);
+          const lines: string[] = [];
+          let cur = "";
+          for (const w of words) {
+            if (cur.length + w.length + 1 > charsPerLine) {
+              lines.push(cur);
+              cur = w;
+              if (lines.length >= maxLines) break;
+            } else {
+              cur = cur ? cur + " " + w : w;
+            }
+          }
+          if (cur && lines.length < maxLines) lines.push(cur);
+          for (let li = 0; li < lines.length; li++) {
+            const bodyLine = new CanvasText(lines[li], {
+              fontSize: smallFont, fill: 0xcccccc,
+              fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+            });
+            markAsCardText(bodyLine);
+            bodyLine.x = -halfW + pad;
+            bodyLine.y = -halfH + pad + fontSize * 1.4 + li * lineH;
+            bodyLine.alpha = 0.7;
+            if (rt.cardTextTruncation !== false) bodyLine.maxWidth = textW;
+            pn.gfx.addChild(bodyLine);
+          }
           pn.gfx.addChild(body);
         }
       }

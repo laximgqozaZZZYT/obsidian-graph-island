@@ -24,6 +24,8 @@ export interface EnclosureConfig {
   enclosureMinRatio: number;
   /** Called when a tag label is hovered (tag) or unhovered (null). */
   onTagHover?: (tag: string | null) => void;
+  /** FJ: Called when a tag enclosure label is clicked. */
+  onTagClick?: (tag: string) => void;
   /** Currently hovered tag (used to boost label alpha). */
   hoveredTag?: string | null;
   /** Dedicated container for labels (ensures z-order above nodes). */

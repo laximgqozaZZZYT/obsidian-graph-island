@@ -3977,6 +3977,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.applyEphemeralHighlight(null);
         }
       },
+      // FJ: Click enclosure label to filter by tag
+      onTagClick: (tag) => {
+        this.panel.searchQuery = `tag:${tag}`;
+        this.rawData = null;
+        this.doRender();
+        this.requestSave();
+      },
       hoveredTag: this.hoveredTag,
       labelContainer: this.enclosureLabelContainer ?? undefined,
       groupLabelFontSize: rt.groupLabelFontSize,
