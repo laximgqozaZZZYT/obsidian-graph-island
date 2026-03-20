@@ -1030,10 +1030,7 @@ test.describe("25. Robustness", () => {
     });
   });
 
-  test("25.3 baseline reset produces > 2000 nodes consistently", async () => {
-    // This tests the T1 fix — the baseline should be stable
-    expect(BASELINE).toBeGreaterThan(2000);
-  });
+  // 25.3 removed (redundant — BASELINE checked in beforeAll)
 });
 
 // =========================================================================
