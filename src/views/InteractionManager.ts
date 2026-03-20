@@ -186,6 +186,8 @@ export class InteractionManager {
   // Interaction state
   private draggedNode: PixiNode | null = null;
   private dragOffset = { x: 0, y: 0 };
+  private _dragStartX = 0;
+  private _dragStartY = 0;
   private hasDragged = false;
   private isPanning = false;
   private panStart = { x: 0, y: 0 };
@@ -338,6 +340,8 @@ export class InteractionManager {
       this.hasDragged = false;
       this.dragOffset.x = worldPt.x - hit.data.x;
       this.dragOffset.y = worldPt.y - hit.data.y;
+      this._dragStartX = hit.data.x;
+      this._dragStartY = hit.data.y;
       const sim = this.host.getSimulation();
       if (sim) {
         hit.data.fx = hit.data.x;
@@ -411,6 +415,26 @@ export class InteractionManager {
       const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
       const nx = worldPt.x - this.dragOffset.x;
       const ny = worldPt.y - this.dragOffset.y;
+
+      // Drag distance limit: auto-release if dragged too far (prevents node loss)
+      const dragDist = Math.sqrt(
+        (nx - this._dragStartX) ** 2 + (ny - this._dragStartY) ** 2
+      );
+      const maxDist = Math.max(this.canvas.width, this.canvas.height) * 3 / (world.scale.x || 1);
+      if (dragDist > maxDist) {
+        // Snap back to start position
+        this.draggedNode.data.x = this._dragStartX;
+        this.draggedNode.data.y = this._dragStartY;
+        const sim = this.host.getSimulation();
+        if (sim) {
+          this.draggedNode.data.fx = undefined as any;
+          this.draggedNode.data.fy = undefined as any;
+        }
+        this.draggedNode = null;
+        this.host.markDirty();
+        return;
+      }
+
       this.draggedNode.data.x = nx;
       this.draggedNode.data.y = ny;
       const sim = this.host.getSimulation();

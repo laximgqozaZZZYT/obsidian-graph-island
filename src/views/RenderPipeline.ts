@@ -46,7 +46,7 @@ export const MIN_WORLD_RADIUS_PX = 8;
 const VIEWPORT_CULL_MARGIN_PX = 60;
 
 /** Maximum number of labels created before dynamically raising degree threshold */
-const MAX_LABEL_COUNT = 300;
+const MAX_LABEL_COUNT = 500;
 
 /** Default minimum degree threshold for showing node labels */
 const DEFAULT_LABEL_DEGREE_THRESHOLD = 3;
