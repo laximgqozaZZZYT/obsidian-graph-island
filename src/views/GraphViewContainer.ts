@@ -5623,9 +5623,32 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     const stats = computeGraphStats(gd.nodes, gd.edges, this.degrees);
 
-    const title = this.graphStatsEl.createEl("div", { cls: "gi-stats-title", text: t("stats.title") });
+    const titleRow = this.graphStatsEl.createDiv({ cls: "gi-stats-title-row" });
+    titleRow.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;";
+    const title = titleRow.createEl("div", { cls: "gi-stats-title", text: t("stats.title") });
     title.style.fontWeight = "600";
-    title.style.marginBottom = "4px";
+    // FS: Copy stats as Markdown
+    const copyBtn = titleRow.createEl("button", { text: "MD", cls: "gi-stats-copy" });
+    copyBtn.style.cssText = "font-size:9px;padding:1px 5px;cursor:pointer;border-radius:3px;opacity:0.6;";
+    copyBtn.title = "Copy as Markdown";
+    copyBtn.addEventListener("click", () => {
+      const lines = [`# ${t("stats.title")}`, ""];
+      lines.push(`| Metric | Value |`, `|---|---|`);
+      lines.push(`| ${t("stats.nodes")} | ${stats.nodeCount} |`);
+      lines.push(`| ${t("stats.edges")} | ${stats.edgeCount} |`);
+      lines.push(`| ${t("stats.avgDegree")} | ${stats.avgDegree.toFixed(2)} |`);
+      lines.push(`| ${t("stats.density")} | ${stats.density.toFixed(4)} |`);
+      lines.push(`| ${t("stats.components")} | ${stats.componentCount} |`);
+      if (stats.hubs.length > 0) {
+        lines.push("", "## Top Hubs", "");
+        for (const [id, deg] of stats.hubs) {
+          const label = this.pixiNodes.get(id)?.data?.label ?? id;
+          lines.push(`- ${label} (${deg})`);
+        }
+      }
+      navigator.clipboard.writeText(lines.join("\n"));
+      new Notice("Stats copied as Markdown", 2000);
+    });
 
     const table = this.graphStatsEl.createEl("table", { cls: "gi-stats-table" });
     const addRow = (label: string, value: string) => {
