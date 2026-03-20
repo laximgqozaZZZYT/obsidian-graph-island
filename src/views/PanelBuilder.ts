@@ -1170,7 +1170,7 @@ function _buildNodeDisplaySection(
         cb.doRenderKeepPanel();
       }, t("desc.defaultNodeShape"));
     });
-  }, undefined, false, "circle-dot");
+  }, tHelp("help.displayNodes"), false, "circle-dot");
 }
 
 function _buildNodeDisplayModeSection(
@@ -1339,7 +1339,7 @@ function _buildStructureAnalysisSection(
       panel.showRelationMatrix = v;
       cb.markDirty();
     }, t("desc.relationMatrix"));
-  }, undefined, true, "git-branch");
+  }, tHelp("help.structureAnalysis"), true, "git-branch");
 }
 
 function _buildDiscoverySection(
@@ -1378,7 +1378,7 @@ function _buildDiscoverySection(
       cb.markDirty();
     }, t("desc.hierarchyTree"));
     // S6: Ontology Backbone — toggle is in _buildStructureAnalysisSection (no duplicate)
-  }, undefined, true, "lightbulb");
+  }, tHelp("help.discovery"), true, "lightbulb");
 }
 
 function _buildInteractionSection(
@@ -1603,7 +1603,7 @@ function _buildEdgeDisplaySection(
         cb.markDirty();
       }, t("desc.edgeCardinality"));
     });
-  }, undefined, false, "git-branch");
+  }, tHelp("help.displayEdges"), false, "git-branch");
 }
 
 function _buildCableDisplaySection(
@@ -1914,7 +1914,7 @@ function _buildGraphSyncSection(
       if (panel.localGraphCenter) cb.doRenderKeepPanel();
       else cb.markDirty(); // Persist even when not in local graph mode
     }, t("desc.localGraphHops"));
-  }, undefined, false, "settings");
+  }, tHelp("help.graphSync"), false, "settings");
 }
 
 function _buildPluginSettingsSection(

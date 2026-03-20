@@ -1617,6 +1617,11 @@ const helpEn: TranslationMap = {
   "help.ontology": "Define semantic relationships between notes.\n\nForward/Reverse pairs let you traverse relationships in both directions.\n  Inheritance (is-a): parent-child hierarchy\n  Aggregation (has-a): containment/composition\n  Sequence: ordered chains (next/prev)\n  Similar/Sibling: peer relationships\n\nTag Hierarchy: #a/b automatically creates inheritance edges from parent to child tags.",
   "help.customMappings": "Map custom frontmatter fields to ontology relation types.\n\nUseful for ExcaliBrain compatibility or custom field names.\ne.g. 'up' → is-a, 'contains' → has-a",
   "help.tagRelations": "Define explicit relationships between tags.\n\ne.g. #character is-a #entity\nThese create edges between all notes sharing these tags.",
+  "help.displayNodes": "Control node appearance: size, color mode, shape rules.\n\nColor modes: default, category, heatmap (by degree), community (Louvain detection).\nSize by degree: larger nodes = more connections.",
+  "help.displayEdges": "Control which edge types are visible and their appearance.\n\nEdge types: link, tag, semantic, inheritance, aggregation, sequence, sibling, similar.\nDash patterns and colors vary by type automatically.",
+  "help.structureAnalysis": "Structural analysis overlays.\n\nOntology backbone: thicken inheritance edges.\nAnalysis overlay: bridges, entropy, gaps, missing neighbors.\nCluster label detail: how much info in group labels.",
+  "help.discovery": "Discovery features for finding patterns and connections.\n\nSimilar suggestions: Jaccard similarity on hover.\nHierarchy tree: show parent-child structure.\nGap detection: dotted edges for missing connections.",
+  "help.graphSync": "Sync graph view with the active editor.\n\nSync with editor: auto-center on active file.\nLocal graph: show only N-hop neighborhood of active file.",
   "help.exprReference": "── Expression Reference ──\n\nVariables:\n  t = normalized position (0–1)\n  i = node index (0, 1, 2, ...)\n  n = total node count in group\n  v = raw axis source value\n\nBuilt-in constants:\n  pi (π), e, tau (τ=2π)\n  Greek letters: α→a β→b θ→t π→pi τ→tau\n\nUser-defined constants:\n  Add via the Constants section below.\n  Use any single letter (a–z) in expressions.\n  Filled Polygon preset:\n    k = number of sides (3–∞)\n    d = density (0.5=uniform, >0.5=sparse center)\n\nFunctions:\n  sin  cos  tan  sqrt  abs\n  log  exp  floor  ceil\n  min(a,b)  max(a,b)  pow(a,b)  atan2(y,x)\n\nOperators:\n  +  -  *  /  % (mod)  ^ (power)\n  Implicit ×: 2t = 2*t, πr² = pi*r^2\n\nSources (FUNC syntax):\n  index, degree, folder, tag:?, hop:name:3\n\nTransforms (FUNC syntax):\n  LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n\nCurves:\n  ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS,\n  HYPOTROCHOID, EPITROCHOID, BUTTERFLY",
 };
 
@@ -1629,6 +1634,11 @@ const helpJa: TranslationMap = {
   "help.ontology": "ノート間の意味的関係を定義します。\n\n正方向/逆方向のペアで双方向の関係を構築できます。\n  継承 (is-a): 親子階層\n  集約 (has-a): 包含/構成\n  順序: 順番付きチェーン (next/prev)\n  類似/兄弟: 対等な関係\n\nタグ階層: #a/b → 親タグから子タグへ自動で継承エッジ生成",
   "help.customMappings": "カスタムフィールドをオントロジーの関係種別にマッピングします。\n\nExcaliBrain互換や独自フィールド名に便利です。\n例: 'up' → is-a, 'contains' → has-a",
   "help.tagRelations": "タグ間の明示的な関係を定義します。\n\n例: #character is-a #entity\nこれらのタグを持つノート間にエッジが生成されます。",
+  "help.displayNodes": "ノードの外観を制御します: サイズ、カラーモード、シェイプルール。\n\nカラーモード: デフォルト, カテゴリ, ヒートマップ(接続数), コミュニティ(Louvain検出)。\n接続数サイズ: 接続が多いノードほど大きく表示。",
+  "help.displayEdges": "表示するエッジの種類と外観を制御します。\n\nエッジ種類: link, tag, semantic, inheritance, aggregation, sequence, sibling, similar。\n線種と色は種類ごとに自動で変化します。",
+  "help.structureAnalysis": "構造分析オーバーレイ。\n\nオントロジー骨格: 継承エッジを太く表示。\n分析オーバーレイ: ブリッジ, エントロピー, ギャップ, 欠落近隣。\nクラスタラベル詳細度: グループラベルの情報量。",
+  "help.discovery": "パターンや繋がりの発見機能。\n\n類似サジェスト: ホバー時にJaccard類似度で提案。\n階層ツリー: 親子構造を表示。\nギャップ検出: 欠落する接続を点線で表示。",
+  "help.graphSync": "グラフビューとアクティブエディタの同期。\n\nエディタ同期: アクティブファイルに自動センタリング。\nローカルグラフ: アクティブファイルのN-hop近傍のみ表示。",
   "help.exprReference": "── 式リファレンス ──\n\n変数:\n  t = 正規化位置 (0–1)\n  i = ノードインデックス (0, 1, 2, ...)\n  n = グループ内ノード総数\n  v = 軸ソースの生値\n\n組み込み定数:\n  pi (π), e, tau (τ=2π)\n  ギリシャ文字: α→a β→b θ→t π→pi τ→tau\n\nユーザー定義定数:\n  下の「定数」セクションで追加できます。\n  式中で任意の1文字 (a–z) を変数として使用。\n  充填多角形プリセット:\n    k = 辺の数 (3–∞)\n    d = 密度 (0.5=均一, >0.5=中心が疎)\n\n関数:\n  sin  cos  tan  sqrt  abs\n  log  exp  floor  ceil\n  min(a,b)  max(a,b)  pow(a,b)  atan2(y,x)\n\n演算子:\n  +  -  *  /  % (余り)  ^ (べき乗)\n  暗黙の乗算: 2t = 2*t, πr² = pi*r^2\n\nソース (関数書式):\n  index, degree, folder, tag:?, hop:名前:3\n\n変換 (関数書式):\n  LINEAR, BIN, STACK, GOLDEN, EVEN, DATE_INDEX\n\n曲線:\n  ARCHIMEDEAN, ROSE, FERMAT, LISSAJOUS,\n  HYPOTROCHOID, EPITROCHOID, BUTTERFLY",
 };
 
