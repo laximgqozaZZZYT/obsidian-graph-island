@@ -37,6 +37,10 @@ export interface NodeTreeEntry {
 export interface PanelState {
   /** Explicitly excluded node IDs (hidden via Nodes tab) */
   excludeNodes: string[];
+  /** FZ: Minimum degree to show a node (0 = no filter) */
+  minDegreeFilter: number;
+  /** FZ: Maximum degree to show a node (0 = no filter) */
+  maxDegreeFilter: number;
   includeTagsInData: boolean;
   showAttachments: boolean;
   existingOnly: boolean;
@@ -326,6 +330,8 @@ export interface PanelState {
 export function createDefaultPanel(): PanelState {
   return {
     excludeNodes: [],
+    minDegreeFilter: 0,
+    maxDegreeFilter: 0,
     includeTagsInData: true,
     showAttachments: false,
     existingOnly: false,
@@ -1033,6 +1039,9 @@ function buildFilterTab(
     // --- Basic (always visible) ---
     addToggle(body, t("filter.includeTagsInData"), panel.includeTagsInData, (v) => { panel.includeTagsInData = v; cb.invalidateDataKeepPanel(); }, t("desc.includeTagsInData"));
     addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateDataKeepPanel(); }, t("desc.orphans"));
+    // FZ: Degree filter
+    addSlider(body, t("filter.minDegree") ?? "Min Degree", 0, 50, 1, panel.minDegreeFilter, (v) => { panel.minDegreeFilter = v; cb.invalidateDataKeepPanel(); });
+    addSlider(body, t("filter.maxDegree") ?? "Max Degree", 0, 200, 1, panel.maxDegreeFilter, (v) => { panel.maxDegreeFilter = v; cb.invalidateDataKeepPanel(); });
     addSelect(body, t("filter.tagDisplay"), [
       { value: "off", label: t("filter.tagDisplay.off") },
       { value: "node", label: t("filter.tagDisplay.node") },

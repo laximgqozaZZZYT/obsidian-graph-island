@@ -2358,6 +2358,17 @@
   .gi-shortcut-help,
   .gi-node-info,
   .gi-minimap-wrap,
+  .gi-help-overlay,
+  .gi-graph-stats,
+  .gi-compare-wrap,
+  .gi-detail-root {
+    animation: none !important;
+    transition: none !important;
+  }
+  /* Disable canvas pulse/scale animations */
+  .graph-svg-wrap canvas {
+    animation: none !important;
+  }
 }
 
 /* Touch target minimum size for mobile */

@@ -6,7 +6,7 @@ import { getNodeShape, drawShape, drawShapeAt, getNodeDisplayConfig } from "../u
 import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { clamp } from "../utils/geometry";
-import { hexToRgb, getLuminance } from "../utils/color";
+import { hexToRgb, getLuminance, wcagContrastRatio, contrastColor } from "../utils/color";
 
 // ---------------------------------------------------------------------------
 // CardText — CanvasText with a marker flag for card-mode text children
@@ -1476,7 +1476,8 @@ export class RenderPipeline {
       // FH/FI: Plain card with title + wrapped body preview
       {
         const fontSize = Math.max(3, 10 / worldScale);
-        const smallFont = Math.max(2, 8 / worldScale);
+        const bodyFontBase = rt.cardBodyFontSize ?? 8;
+        const smallFont = Math.max(2, bodyFontBase / worldScale);
         const pad = 4 / worldScale;
         const textW = halfW * 2 - pad * 2;
         const lineH = smallFont * 1.3;
@@ -1519,7 +1520,6 @@ export class RenderPipeline {
             if (rt.cardTextTruncation !== false) bodyLine.maxWidth = textW;
             pn.gfx.addChild(bodyLine);
           }
-          pn.gfx.addChild(body);
         }
       }
     }
@@ -2221,8 +2221,12 @@ export class RenderPipeline {
       const themeLabelBg = this.host.isDarkTheme() ? (rt.labelBgColor ?? 0x1a1a2e) : (rt.labelBgColorLight ?? 0xf0f0f4);
       const labelBg = isSuperNode ? (color != null ? darkenColor(color, 0.6) : themeLabelBg) : themeLabelBg;
       // Use bright text when pill background is present for better contrast
-      const labelFill = isSuperNode ? 0xffffff
+      // A11y: auto-correct label color if WCAG contrast ratio < 4.5:1
+      let labelFill = isSuperNode ? 0xffffff
         : (this.host.isDarkTheme() ? 0xe0e0e0 : 0x222222);
+      if (wcagContrastRatio(labelFill, labelBg) < 4.5) {
+        labelFill = contrastColor(labelBg);
+      }
       // A3: Prepend icon prefix from nodeIconField mapping
       let displayLabel = n.label;
       const iconCfg = this.host.getNodeIconConfig?.();

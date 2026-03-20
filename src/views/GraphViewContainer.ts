@@ -3990,6 +3990,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.requestSave();
       },
       enclosureLabelPosition: (rt as any).enclosureLabelPosition ?? "top",
+      enclosureFillOpacity: (rt as any).enclosureFillOpacity ?? 0,
       hoveredTag: this.hoveredTag,
       labelContainer: this.enclosureLabelContainer ?? undefined,
       groupLabelFontSize: rt.groupLabelFontSize,
@@ -6178,6 +6179,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       nodes = nodes.filter(n => !excl.has(n.id));
     }
 
+    // FZ: Degree filter
+    const minDeg = this.panel.minDegreeFilter ?? 0;
+    const maxDeg = this.panel.maxDegreeFilter ?? 0;
+    if (minDeg > 0 || maxDeg > 0) {
+      // Compute degrees from current edge set
+      const degMap = new Map<string, number>();
+      for (const e of edges) {
+        degMap.set(e.source, (degMap.get(e.source) ?? 0) + 1);
+        degMap.set(e.target, (degMap.get(e.target) ?? 0) + 1);
+      }
+      nodes = nodes.filter(n => {
+        const d = degMap.get(n.id) ?? 0;
+        if (minDeg > 0 && d < minDeg) return false;
+        if (maxDeg > 0 && d > maxDeg) return false;
+        return true;
+      });
+    }
+
     const nodeSet = new Set(nodes.map((n) => n.id));
     edges = edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));
 
@@ -7475,11 +7494,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         pn.circle.lineStyle(2, searchHitColor, 0.85);
         drawShape(pn.circle, shape, pn.radius, pn.color, 1);
         // EJ: Pulse animation — brief scale bounce on first search highlight
-        if (hlSet && !(pn as any)._searchPulsed) {
+        // A11y: skip animation when prefers-reduced-motion is set
+        const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+        if (hlSet && !(pn as any)._searchPulsed && !reducedMotion) {
           (pn as any)._searchPulsed = true;
-          const sx = pn.gfx.scale.x, sy = pn.gfx.scale.y;
+          const sx = pn.gfx.scale.x;
           pn.gfx.scale.set(sx * 1.3);
           setTimeout(() => { if (pn.gfx) pn.gfx.scale.set(sx); }, 300);
+        } else if (hlSet && !(pn as any)._searchPulsed) {
+          (pn as any)._searchPulsed = true;
         }
       } else {
         (pn as any)._searchPulsed = false;
