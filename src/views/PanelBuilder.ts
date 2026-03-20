@@ -537,6 +537,8 @@ export interface PanelCallbacks {
   collectValueSuggestions(field: string): string[];
   saveGroupPreset(): void;
   resetPanel(): void;
+  /** ED: Restore saved viewport position */
+  restoreViewport?(name: string): void;
   applyPreset(preset: string): void;
   jumpToNode(nodeId: string): void;
   getNodeIds(): string[];
@@ -1685,6 +1687,26 @@ function _buildMinimapSection(
     addToggle(body, t("display.oobIndicator"), panel.showOutOfBoundsIndicator ?? false, (v) => { panel.showOutOfBoundsIndicator = v; cb.markDirty(); cb.wakeRenderLoop(); }, t("desc.oobIndicator"));
     addToggle(body, t("display.graphStats"), panel.showGraphStats ?? false, (v) => { panel.showGraphStats = v; cb.invalidateDataKeepPanel(); }, t("desc.graphStats"));
     addToggle(body, t("display.ancestryBreadcrumb"), panel.showAncestryBreadcrumb ?? false, (v) => { panel.showAncestryBreadcrumb = v; cb.invalidateDataKeepPanel(); }, t("desc.ancestryBreadcrumb"));
+    // EE: Saved viewport list
+    if (panel.savedViewports && panel.savedViewports.length > 0) {
+      const vpList = body.createDiv({ cls: "gi-viewport-list" });
+      vpList.style.cssText = "margin-top:6px;font-size:11px;";
+      for (const vp of panel.savedViewports) {
+        const row = vpList.createDiv({ cls: "gi-viewport-item" });
+        row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:2px 0;cursor:pointer;";
+        row.createEl("span", { text: vp.name });
+        row.addEventListener("click", () => {
+          cb.restoreViewport?.(vp.name);
+        });
+        const del = row.createEl("span", { text: "x", cls: "gi-viewport-del" });
+        del.style.cssText = "cursor:pointer;color:var(--text-muted);margin-left:4px;font-size:10px;";
+        del.addEventListener("click", (e) => {
+          e.stopPropagation();
+          panel.savedViewports = panel.savedViewports.filter(v => v !== vp);
+          cb.rebuildPanel();
+        });
+      }
+    }
   }, undefined, false, "eye");
 }
 

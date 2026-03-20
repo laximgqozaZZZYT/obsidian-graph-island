@@ -4892,6 +4892,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.plugin.saveSettings();
       },
       resetPanel: () => this._buildResetPanelCallback(),
+      restoreViewport: (name: string) => this.restoreViewport(name),
       applyPreset: (preset: string) => {
         const presets: Record<string, Partial<typeof this.panel>> = {
           simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: false },
@@ -5453,6 +5454,34 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const tr = etTable.createEl("tr");
         tr.createEl("td", { cls: "gi-stats-label", text: etype });
         tr.createEl("td", { cls: "gi-stats-value", text: String(count) });
+      }
+    }
+
+    // EF: Degree distribution mini-chart
+    if (this.degrees.size > 0) {
+      const degTitle = this.graphStatsEl.createEl("div", {
+        cls: "gi-stats-hub-title",
+        text: t("stats.degreeDistribution") ?? "Degree Distribution",
+      });
+      degTitle.style.fontWeight = "600";
+      degTitle.style.marginTop = "6px";
+      degTitle.style.marginBottom = "2px";
+      // Build histogram buckets
+      const buckets = new Map<number, number>();
+      for (const deg of this.degrees.values()) {
+        const b = Math.min(deg, 20); // cap at 20+
+        buckets.set(b, (buckets.get(b) ?? 0) + 1);
+      }
+      const maxBucket = Math.max(1, ...buckets.values());
+      const chartEl = this.graphStatsEl.createDiv({ cls: "gi-degree-chart" });
+      chartEl.style.cssText = "display:flex;align-items:flex-end;gap:1px;height:30px;margin-bottom:4px;";
+      for (let d = 0; d <= 20; d++) {
+        const count = buckets.get(d) ?? 0;
+        if (count === 0 && d > 10) continue;
+        const bar = chartEl.createDiv();
+        const h = Math.max(1, (count / maxBucket) * 28);
+        bar.style.cssText = `width:6px;height:${h}px;background:var(--interactive-accent);opacity:0.7;border-radius:1px 1px 0 0;`;
+        bar.title = `degree ${d}${d === 20 ? "+" : ""}: ${count} nodes`;
       }
     }
 
