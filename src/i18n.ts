@@ -151,6 +151,8 @@ const en: TranslationMap = {
   "render.showFpsMonitorDesc": "Show render frames-per-second counter in toolbar",
   "render.highlightDimAlpha": "Highlight Dim Alpha",
   "render.highlightDimAlphaDesc": "Opacity of non-matching edges/nodes during search highlight",
+  "render.showRecentVisitHalo": "Recent Visit Halo",
+  "render.showRecentVisitHaloDesc": "Show blue halo on recently navigated nodes",
 
   "display.groupBy": "Group by",
   "display.groupMinSize": "Min group size",
@@ -947,6 +949,8 @@ const ja: TranslationMap = {
   "render.showFpsMonitorDesc": "ツールバーにレンダリングFPSカウンターを表示",
   "render.highlightDimAlpha": "ハイライト暗化度",
   "render.highlightDimAlphaDesc": "検索ハイライト時の非一致エッジ/ノードの不透明度",
+  "render.showRecentVisitHalo": "最近訪問ハロ",
+  "render.showRecentVisitHaloDesc": "最近ナビゲートしたノードに青いハロを表示",
 
   "display.groupBy": "グルーピング",
   "display.groupMinSize": "最小グループサイズ",

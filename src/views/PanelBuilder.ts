@@ -1710,6 +1710,11 @@ function _buildRenderThresholdsSection(
         panel.renderThresholds.highlightEdgeNonMatchAlpha = v;
         cb.markDirty();
       }, t("render.highlightDimAlphaDesc"));
+    addToggle(body, t("render.showRecentVisitHalo"), rt.showRecentVisitHalo ?? false, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.showRecentVisitHalo = v;
+      cb.markDirty();
+    }, t("render.showRecentVisitHaloDesc"));
   }, undefined, true, "sliders");
 }
 

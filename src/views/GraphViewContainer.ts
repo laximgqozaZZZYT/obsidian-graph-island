@@ -1689,6 +1689,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       // Bookmark ★ markers
       this._updateBookmarkMarkers();
+      this._updateRecentVisitHalos();
     };
 
     // 差分オーバーレイのポストフラッシュフック設定
@@ -7117,6 +7118,47 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       marker.x = 0;
       marker.y = -(pn.radius + 2);
       marker.scale.set(counterScale);
+    }
+  }
+
+  /** Track recent-visit halo graphics */
+  private _recentVisitHalos = new Map<string, CanvasGraphics>();
+
+  /** Update halos for recently visited nodes (from navHistory) */
+  private _updateRecentVisitHalos() {
+    const rt = this.panel.renderThresholds ?? {};
+    if (!rt.showRecentVisitHalo) {
+      // Remove all halos
+      for (const [id, gfx] of this._recentVisitHalos) {
+        const pn = this.pixiNodes.get(id);
+        if (pn) { pn.gfx.removeChild(gfx); gfx.destroy(); }
+      }
+      this._recentVisitHalos.clear();
+      return;
+    }
+    const hist = this.panel.navHistory ?? [];
+    const recent = new Set(hist.slice(-10));
+    // Remove stale halos
+    for (const [id, gfx] of this._recentVisitHalos) {
+      if (!recent.has(id) || !this.pixiNodes.has(id)) {
+        const pn = this.pixiNodes.get(id);
+        if (pn) { pn.gfx.removeChild(gfx); gfx.destroy(); }
+        this._recentVisitHalos.delete(id);
+      }
+    }
+    // Add/update halos
+    for (const id of recent) {
+      const pn = this.pixiNodes.get(id);
+      if (!pn) continue;
+      let halo = this._recentVisitHalos.get(id);
+      if (!halo) {
+        halo = new CanvasGraphics();
+        pn.gfx.addChildAt(halo, 0);
+        this._recentVisitHalos.set(id, halo);
+      }
+      halo.clear();
+      halo.lineStyle(1.5, 0x60a5fa, 0.3);
+      halo.drawCircle(0, 0, pn.radius + 4);
     }
   }
 

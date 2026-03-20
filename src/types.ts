@@ -908,6 +908,8 @@ export interface RenderThresholds {
   nodeSizeByDegree?: boolean;
   /** Show degree count badge on each node */
   showDegreeBadge?: boolean;
+  /** Show blue halo on recently visited nodes (from navHistory) */
+  showRecentVisitHalo?: boolean;
   /** Minimum hit-test radius in screen pixels (default 4).
    *  Ensures nodes remain hoverable even when very small in world units.
    *  Applied in hitTestNode: effective hit radius = max(worldRadius, minHoverScreenPx / zoom). */
@@ -1313,6 +1315,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   showFpsMonitor: false,
   nodeSizeByDegree: true,
   showDegreeBadge: false,
+  showRecentVisitHalo: false,
   labelLeaderLines: true,
   labelLeaderLineAlpha: 0.45,
   labelLeaderLineWidth: 1.2,

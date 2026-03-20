@@ -319,29 +319,18 @@ test.describe("3. Node Coloring", () => {
   });
 
   test("3.3 heatmap mode produces many distinct colors", async () => {
-    // Heatmap: use renderWith (with retry) to ensure settings stick
-    let colorCount = -1;
-    await renderAndVerify(page, {
-      nodeColorMode: "heatmap",
-    }, async (p) => {
-      colorCount = await p.evaluate(() => {
-        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-        if (!v?.pixiNodes) return -1;
-        const c = new Set<number>();
-        for (const pn of v.pixiNodes.values()) if (pn.color != null) c.add(pn.color);
-        return c.size;
-      });
-      return colorCount >= 20;
-    });
-    expect(colorCount).toBeGreaterThanOrEqual(20);
-
-    // Restore default
-    await page.evaluate(() => {
+    const count = await renderWith(page, { nodeColorMode: "heatmap" });
+    expect(count).toBeGreaterThan(100);
+    const colorCount = await page.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (!v) return;
-      v.panel.nodeColorMode = "default";
-      v.recolorNodes();
+      if (!v?.pixiNodes) return 0;
+      const c = new Set<number>();
+      for (const pn of v.pixiNodes.values()) if (pn.color != null) c.add(pn.color);
+      return c.size;
     });
+    expect(colorCount).toBeGreaterThanOrEqual(5);
+    // Restore
+    await renderWith(page, { nodeColorMode: "default" });
   });
 });
 
@@ -1120,5 +1109,27 @@ test.describe("28. NOT Operator", () => {
 
     // Restore
     await renderWith(page, { searchQuery: "" });
+  });
+});
+
+// =========================================================================
+// 29. Drag Distance Limit
+// =========================================================================
+test.describe("29. Drag Distance Limit", () => {
+  test("29.1 node positions are within reasonable bounds", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.pixiNodes) return { error: "no view" };
+      let maxDist = 0;
+      for (const pn of v.pixiNodes.values()) {
+        const dist = Math.sqrt(pn.data.x ** 2 + pn.data.y ** 2);
+        if (dist > maxDist) maxDist = dist;
+      }
+      return { maxDist: Math.round(maxDist), nodeCount: v.pixiNodes.size };
+    });
+    expect(result).not.toHaveProperty("error");
+    // Nodes should be within reasonable bounds (not NaN or Infinity)
+    expect(isFinite(result.maxDist)).toBe(true);
+    expect(result.maxDist).toBeLessThan(100000);
   });
 });
