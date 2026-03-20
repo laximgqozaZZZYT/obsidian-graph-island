@@ -5228,6 +5228,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           color = cssColorToHex(colorMap.get(`tag:${n.tags[0]}`) || DEFAULT_COLORS[0]);
         }
       }
+      // EO: Color by arbitrary frontmatter field
+      if (!matched && colorModeForUpdate === "field" && this.panel.nodeColorField) {
+        const fieldVal = this.getNodeProperty(n.id, this.panel.nodeColorField);
+        if (fieldVal !== undefined && fieldVal !== "") {
+          const key = String(fieldVal);
+          if (!colorMap.has(key)) {
+            const idx = colorMap.size % DEFAULT_COLORS.length;
+            colorMap.set(key, DEFAULT_COLORS[idx]);
+          }
+          color = cssColorToHex(colorMap.get(key)!);
+        }
+      }
       if (!matched && colorModeForUpdate === "community") {
         if (!recolorCommunityMap && this.originalGraphData) {
           recolorCommunityMap = this._getCommunityMap(this.originalGraphData);

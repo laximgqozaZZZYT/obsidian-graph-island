@@ -183,7 +183,9 @@ export interface PanelState {
   /** エッジ多重度ラベル: 同一ノードペア間のエッジ数を表示 (count > 1 only) */
   showEdgeCardinalityLabels: boolean;
   /** Unified node color mode */
-  nodeColorMode: "default" | "category" | "heatmap" | "community";
+  nodeColorMode: "default" | "category" | "heatmap" | "community" | "field";
+  /** EO: Field name for nodeColorMode="field" */
+  nodeColorField: string;
   /** Filter edges by directionality: "all" | "bidirectional" | "unidirectional" */
   edgeDirectionFilter: "all" | "bidirectional" | "unidirectional";
   /** Visual indicator for bidirectional edges (thicker + higher alpha) */
@@ -340,6 +342,7 @@ export function createDefaultPanel(): PanelState {
     searchMode: "filter" as const,
     colorEdgesByRelation: true,
     nodeColorMode: "category" as const,
+    nodeColorField: "",
     showInheritance: false,
     showAggregation: false,
     showTagNodes: true,
@@ -1120,12 +1123,20 @@ function _buildNodeDisplaySection(
       { value: "category", label: t("display.nodeColor.category") },
       { value: "heatmap", label: t("display.nodeColor.heatmap") },
       { value: "community", label: t("display.nodeColor.community") },
+      { value: "field", label: t("display.nodeColor.field") ?? "By Field" },
     ];
     const currentColorMode = panel.nodeColorMode ?? "category";
     addSelect(body, t("display.nodeColorMode"), colorModeOptions, currentColorMode, (v) => {
-      panel.nodeColorMode = v as "default" | "category" | "heatmap" | "community";
+      panel.nodeColorMode = v as PanelState["nodeColorMode"];
       cb.doRenderKeepPanel();
     }, t("desc.nodeColorMode"));
+    // EO: Field name input when mode is "field"
+    if (currentColorMode === "field") {
+      addTextInput(body, t("display.nodeColorField") ?? "Color Field", panel.nodeColorField ?? "", "e.g. status", (v) => {
+        panel.nodeColorField = v;
+        cb.doRenderKeepPanel();
+      });
+    }
     addSlider(body, t("display.nodeSize"), 5, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.resetZoomBaseNodeSize(); cb.recalcNodeRadii(); cb.markDirty(); }, t("desc.nodeSize"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
     // --- Advanced (hidden by default) ---
@@ -2204,10 +2215,29 @@ function _buildNodesTab(
       const dirEl = parent.createDiv({ cls: "gi-node-dir" });
       const header = dirEl.createDiv({ cls: "gi-node-dir-header" });
       header.style.cssText = `padding:2px 0 2px ${depth * 12}px;cursor:pointer;display:flex;align-items:center;gap:4px;color:var(--text-muted);`;
+      // EN: Folder-level checkbox for batch exclude
+      const dirIds = collectDirIds(child);
+      const allExcluded = dirIds.length > 0 && dirIds.every(id => excludeSet.has(id));
+      const dirCb = header.createEl("input", { type: "checkbox" });
+      dirCb.checked = !allExcluded;
+      dirCb.style.cssText = "width:11px;height:11px;margin:0;cursor:pointer;";
+      dirCb.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const ids = collectDirIds(child);
+        if (dirCb.checked) {
+          // Show all: remove from excludeNodes
+          panel.excludeNodes = (panel.excludeNodes ?? []).filter(id => !ids.includes(id));
+        } else {
+          // Hide all: add to excludeNodes
+          const excl = new Set(panel.excludeNodes ?? []);
+          for (const id of ids) excl.add(id);
+          panel.excludeNodes = [...excl];
+        }
+        cb.invalidateDataKeepPanel();
+      });
       const arrow = header.createEl("span", { text: ">" });
       arrow.style.cssText = "font-size:9px;transition:transform 0.15s;";
       header.createEl("span", { text: name });
-      // Count files recursively
       const fileCount = countFiles(child);
       header.createEl("span", { text: `(${fileCount})`, cls: "gi-node-count" });
       header.querySelector(".gi-node-count")!.setAttribute("style", "font-size:9px;color:var(--text-faint);");
@@ -2215,7 +2245,8 @@ function _buildNodesTab(
       const body = dirEl.createDiv({ cls: "gi-node-dir-body" });
       body.style.display = "none";
 
-      header.addEventListener("click", () => {
+      header.addEventListener("click", (e) => {
+        if ((e.target as HTMLElement).tagName === "INPUT") return;
         const open = body.style.display !== "none";
         body.style.display = open ? "none" : "";
         arrow.style.transform = open ? "" : "rotate(90deg)";
@@ -2266,6 +2297,13 @@ function _buildNodesTab(
     let count = dir.files.length;
     for (const child of dir.children.values()) count += countFiles(child);
     return count;
+  }
+
+  // EN: Collect all file IDs under a directory recursively
+  function collectDirIds(dir: DirNode): string[] {
+    const ids: string[] = dir.files.map(f => f.id);
+    for (const child of dir.children.values()) ids.push(...collectDirIds(child));
+    return ids;
   }
 
   renderDir(treeContainer, root, "", 0);
