@@ -139,7 +139,7 @@ export class LayoutController {
         .id((d) => d.id)
         .distance((e) => edgeLinkDistance(e, panel.linkDistance))
         .strength((e) => edgeLinkStrength(e, panel.linkForce)))
-      .force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(2));
+      .force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(4));
 
     // Per-node center gravity from NodeRules
     const centerGravMap = this.computeCenterGravityMap(sim.nodes());
@@ -549,7 +549,7 @@ export class LayoutController {
         .id((d) => d.id)
         .distance((e) => edgeLinkDistance(e, panel.linkDistance))
         .strength((e) => edgeLinkStrength(e, panel.linkForce)))
-      .force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(2))
+      .force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(4))
       .alphaDecay(0.18)
       .velocityDecay(0.55);
 

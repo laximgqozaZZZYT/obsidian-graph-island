@@ -1176,3 +1176,32 @@ test.describe("31. Zoom Reset", () => {
     expect(result.text).toContain("%");
   });
 });
+
+// =========================================================================
+// 32. Full Graph Export
+// =========================================================================
+test.describe("32. Full Graph Export", () => {
+  test("32.1 graph data contains nodes and edges with positions", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.pixiNodes) return { error: "no view" };
+      // Check first node has position data
+      const first = v.pixiNodes.values().next().value;
+      if (!first) return { error: "no nodes" };
+      return {
+        nodeCount: v.pixiNodes.size,
+        hasX: typeof first.data.x === "number",
+        hasY: typeof first.data.y === "number",
+        hasLabel: typeof first.data.label === "string",
+        hasId: typeof first.data.id === "string",
+        edgeCount: v.graphEdges?.length ?? 0,
+      };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.nodeCount).toBeGreaterThan(100);
+    expect(result.hasX).toBe(true);
+    expect(result.hasY).toBe(true);
+    expect(result.hasLabel).toBe(true);
+    expect(result.edgeCount).toBeGreaterThan(100);
+  });
+});
