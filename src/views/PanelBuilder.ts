@@ -2214,6 +2214,22 @@ function _buildNodesTab(
     const hidSpan = statsBar.createEl("span", { text: `${hiddenCount} hidden` });
     hidSpan.style.color = "var(--text-error)";
   }
+  // EY: Multi-select group assign button
+  if (panel.multiSelectNodeIds.length > 0) {
+    const selSpan = statsBar.createEl("span", { text: `${panel.multiSelectNodeIds.length} selected` });
+    selSpan.style.cssText = "color:var(--interactive-accent);cursor:pointer;";
+    selSpan.addEventListener("click", () => {
+      const groupName = prompt("Assign selected nodes to group:");
+      if (!groupName) return;
+      if (!panel.manualClusterOverrides) panel.manualClusterOverrides = {};
+      for (const id of panel.multiSelectNodeIds) {
+        panel.manualClusterOverrides[id] = groupName;
+      }
+      panel.multiSelectNodeIds = [];
+      cb.applyClusterForce();
+      cb.invalidateDataKeepPanel();
+    });
+  }
 
   // Search filter
   const filterWrap = tabEl.createDiv({ cls: "gi-node-tree-filter" });
@@ -2400,6 +2416,26 @@ function _buildNodesTab(
   addLegendItem("var(--interactive-accent)", t("nodes.hovered") ?? "Hovered");
   addLegendItem("rgba(34,197,94,0.6)", t("nodes.forwardLink") ?? "Link");
   addLegendItem("rgba(59,130,246,0.6)", t("nodes.backlink") ?? "Backlink");
+
+  // EZ: CSV export button
+  const exportBtn = legend.createEl("button", { text: "CSV", cls: "gi-node-export-btn" });
+  exportBtn.style.cssText = "font-size:9px;padding:1px 6px;cursor:pointer;margin-left:auto;border-radius:3px;";
+  exportBtn.addEventListener("click", () => {
+    const rows = ["id,label,path,visible"];
+    for (const e of entries) {
+      rows.push(`"${e.id}","${e.label}","${e.path}",${e.isVisible}`);
+    }
+    const csv = rows.join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `graph-island-nodes-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
 
   // EM: Inject hover sync CSS
   if (!tabEl.querySelector("style.gi-node-hover-css")) {

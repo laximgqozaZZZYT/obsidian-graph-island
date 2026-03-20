@@ -3419,6 +3419,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
+    // EK: Edge type summary in tooltip
+    if (showTooltip && this.graphEdges) {
+      const edgeTypes = new Map<string, number>();
+      for (const e of this.graphEdges) {
+        if (e.source === pn.data.id || e.target === pn.data.id) {
+          const t = e.type ?? "link";
+          edgeTypes.set(t, (edgeTypes.get(t) ?? 0) + 1);
+        }
+      }
+      if (edgeTypes.size > 0) {
+        const parts = [...edgeTypes.entries()].map(([t, c]) => `${t}:${c}`);
+        tooltipText += `\n${parts.join(" ")}`;
+      }
+    }
+
     // Feature DA: Ancestry breadcrumb trail from hub to hovered node
     if (this.panel.showAncestryBreadcrumb && this.adj && this.adj.size > 0 && this.degrees.size > 0) {
       // Find highest-degree node (hub)
@@ -7400,6 +7415,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
     this.markDirty();
+
+    // A11y: announce filter results for screen readers
+    if (hasHighlight) {
+      let matchCount = 0;
+      for (const pn of this.pixiNodes.values()) {
+        const hopOk = hopSet === null || hopSet.has(pn.data.id);
+        const textOk = !hlSet || hlSet.has(pn.data.id);
+        if (hopOk && textOk) matchCount++;
+      }
+      this._announceA11y(`${t("a11y.filterResult") ?? "Filter"}: ${matchCount} / ${this.pixiNodes.size} ${t("a11y.nodesVisible") ?? "nodes"}`);
+    } else if (!raw.trim()) {
+      this._announceA11y(t("a11y.filterCleared") ?? "Filter cleared");
+    }
 
     // N1: Auto-fit view to search results after filtering
     if (raw.trim() && this.canvasWrap) {
