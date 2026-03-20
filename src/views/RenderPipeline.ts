@@ -1093,7 +1093,9 @@ export class RenderPipeline {
           if (isCardText(gfx.children[ci])) { gfx.removeChild(gfx.children[ci]).destroy(); }
         }
         const fontSize = Math.max(6, 9 / worldScale);
-        const nameText = new CanvasText(pn.data.label, {
+        const _mc1 = rt.labelMaxChars ?? 0;
+        const _lbl1 = _mc1 > 0 && pn.data.label.length > _mc1 ? pn.data.label.slice(0, _mc1) + "…" : pn.data.label;
+        const nameText = new CanvasText(_lbl1, {
           fontSize, fontWeight: "bold", fill: labelColor,
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
         });
@@ -1138,8 +1140,10 @@ export class RenderPipeline {
         const fontSize = Math.max(7, 10 / worldScale);
         const smallFont = fontSize * 0.85;
         let curY = -halfH + 3 / worldScale;
-        const nameText = new CanvasText(pn.data.label, {
-          fontSize, fontWeight: "bold", fill: 0xffffff,
+        const _mc2 = rt.labelMaxChars ?? 0;
+        const _lbl2 = _mc2 > 0 && pn.data.label.length > _mc2 ? pn.data.label.slice(0, _mc2) + "…" : pn.data.label;
+        const nameText = new CanvasText(_lbl2, {
+          fontSize, fontWeight: "bold", fill: contrastColor(pn.color),
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
         });
         markAsCardText(nameText);
@@ -1369,11 +1373,13 @@ export class RenderPipeline {
       const iconOffset = showIcon ? (headerH * CARD_ICON_SIZE_RATIO + pad) : 0;
       const availableTextW = halfW * 2 - textPadX * 2 - iconOffset;
 
-      // Header text (bold, white)
-      const headerText = new CanvasText(pn.data.label, {
+      // Header text (bold, white) — apply GD labelMaxChars
+      const _mc3 = rt.labelMaxChars ?? 0;
+      const _lbl3 = _mc3 > 0 && pn.data.label.length > _mc3 ? pn.data.label.slice(0, _mc3) + "…" : pn.data.label;
+      const headerText = new CanvasText(_lbl3, {
         fontSize,
         fontWeight: "bold",
-        fill: 0xffffff,
+        fill: contrastColor(pn.color),
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
       });
       markAsCardText(headerText);
