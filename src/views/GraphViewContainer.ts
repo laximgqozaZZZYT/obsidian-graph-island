@@ -4665,6 +4665,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.x = W / 2 - cx * sc;
     world.y = H / 2 - cy * sc;
     this.updateLabelsForZoom();
+    this.updateZoomIndicator(sc);
   }
 
   /**
@@ -4693,6 +4694,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.x = W / 2 - cx * sc;
     world.y = H / 2 - cy * sc;
     this.updateLabelsForZoom();
+    this.updateZoomIndicator(sc);
   }
 
   private zoomBy(factor: number) {

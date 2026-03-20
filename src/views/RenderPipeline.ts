@@ -2862,19 +2862,27 @@ export class RenderPipeline {
           this._drawLeaderLine(reg.pn, reg, zoom, llWidth, llAlpha);
         }
       } else {
-        // Fallback: place at super's world position with leader line
+        // Fallback: place at super's world position with leader line — but only if it doesn't overlap
         const wdx = zoom > 0 ? (supScreenX - reg.pn.data.x * zoom) / zoom : 0;
         const wdy = zoom > 0 ? (supScreenY - reg.pn.data.y * zoom) / zoom : 0;
         reg.label.x = wdx;
         reg.label.y = wdy;
         reg.x = supScreenX;
         reg.y = supScreenY;
-        reg.label.visible = true;
-        placed.push(reg);
-        grid.insert(reg);
-        nonSuperCount++;
-        if (drawLeader && (Math.abs(reg.label.x - origLx) >= 0.1 || Math.abs(reg.label.y - origLy) >= 0.1)) {
-          this._drawLeaderLine(reg.pn, reg, zoom, llWidth, llAlpha);
+        const testRect: CullLabelRect = { ...reg, x: supScreenX, y: supScreenY };
+        if (!grid.checkOverlap(testRect)) {
+          reg.label.visible = true;
+          placed.push(reg);
+          grid.insert(reg);
+          nonSuperCount++;
+          if (drawLeader && (Math.abs(reg.label.x - origLx) >= 0.1 || Math.abs(reg.label.y - origLy) >= 0.1)) {
+            this._drawLeaderLine(reg.pn, reg, zoom, llWidth, llAlpha);
+          }
+        } else {
+          // Cannot place without overlap — restore super label instead
+          sup.label.visible = true;
+          placed.push(sup);
+          sacrificed--;
         }
       }
     }
