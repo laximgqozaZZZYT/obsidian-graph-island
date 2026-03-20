@@ -923,6 +923,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return;
     }
 
+    // Arrow keys: pan graph (accessibility: keyboard pan, WCAG 2.1.1)
+    if (key.startsWith("Arrow") && !e.ctrlKey && !e.metaKey && !this._isKeyboardFocused) {
+      e.preventDefault();
+      const world = this.worldContainer;
+      if (world) {
+        const PAN_STEP = 50;
+        if (key === "ArrowUp") world.y += PAN_STEP;
+        else if (key === "ArrowDown") world.y -= PAN_STEP;
+        else if (key === "ArrowLeft") world.x += PAN_STEP;
+        else if (key === "ArrowRight") world.x -= PAN_STEP;
+        this.markDirty(true);
+      }
+      return;
+    }
+
     // +/=: zoom in
     if ((key === "+" || key === "=") && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
@@ -1082,6 +1097,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       ["[ / ]", "Decrease / increase hover hops"],
       ["1\u20134", "Switch panel tab"],
       ["Ctrl+F", "Focus search"],
+      ["\u2190\u2191\u2192\u2193", "Pan graph (when no node focused)"],
       ["Ctrl+Shift+C", "Copy graph as PNG"],
       ["?", "Toggle this help"],
     ];

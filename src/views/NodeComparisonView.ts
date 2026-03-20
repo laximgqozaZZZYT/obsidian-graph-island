@@ -215,8 +215,8 @@ export class NodeComparisonView extends ItemView {
     header.createEl("span", { cls: "gi-compare-vs", text: "vs" });
     this.renderNodeCard(header, nodeB, "B");
 
-    // === 最短経路 ===
-    const pathSection = wrap.createEl("div", { cls: "gi-compare-section" });
+    // === 最短経路 === (A11y: ARIA landmark for screen readers)
+    const pathSection = wrap.createEl("section", { cls: "gi-compare-section", attr: { "aria-label": t("compare.shortestPath") ?? "Shortest path" } });
     const pathLabel = pathSection.createEl("div", { cls: "gi-detail-section-label" });
     pathLabel.textContent = t("compare.shortestPath");
     if (result.shortestPath) {
@@ -319,7 +319,7 @@ export class NodeComparisonView extends ItemView {
     nodeIds: string[],
     pixiNodes: Map<string, PixiNode>,
   ) {
-    const details = parent.createEl("details", { cls: "gi-detail-collapsible" });
+    const details = parent.createEl("details", { cls: "gi-detail-collapsible", attr: { "aria-label": title } });
     details.open = true;
     details.createEl("summary", { cls: "gi-detail-section-label", text: title });
 

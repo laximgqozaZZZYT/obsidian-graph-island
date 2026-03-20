@@ -160,6 +160,24 @@ export default class GraphViewsPlugin extends Plugin {
       },
     });
 
+    // A11y: Export commands for keyboard-only users
+    this.addCommand({
+      id: "graph-copy-png",
+      name: "Graph: Copy graph as PNG",
+      callback: () => {
+        const v = this._getGraphView() as any;
+        if (v) v.copyGraphToClipboard?.();
+      },
+    });
+    this.addCommand({
+      id: "graph-export-full",
+      name: "Graph: Export full graph as JSON",
+      callback: () => {
+        const v = this._getGraphView() as any;
+        if (v) v.exportFullGraph?.();
+      },
+    });
+
     this.addSettingTab(new GraphViewsSettingTab(this.app, this));
 
     // Code block processor for embedded mini-graphs in notes
