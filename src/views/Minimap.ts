@@ -122,6 +122,8 @@ export class Minimap {
     if (!this.visible) return;
     const ctx = this.ctx;
     const nodes = this.host.getNodePositions();
+    // GI: Dynamic aria-label with node count
+    this.wrapper.setAttribute("aria-label", `Graph minimap — ${nodes.length} nodes — drag to navigate`);
     if (nodes.length === 0) {
       ctx.clearRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
       return;

@@ -712,6 +712,21 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
+/* A11y: Edge legend line sample showing dash pattern for colorblind users */
+.gi-legend-edge-line {
+  width: 24px;
+  height: 0;
+  border-top-width: 2px;
+  border-top-style: solid;
+  flex-shrink: 0;
+  align-self: center;
+}
+.gi-legend-edge-line[data-dash="dotted"] { border-top-style: dotted; }
+.gi-legend-edge-line[data-dash="dashed"] { border-top-style: dashed; }
+.gi-legend-edge-line[data-dash="dash-dot"] {
+  border-top-style: dashed;
+  border-top-width: 3px;
+}
 .gi-legend-item-clickable {
   cursor: pointer;
   border-radius: var(--radius-s, 4px);
