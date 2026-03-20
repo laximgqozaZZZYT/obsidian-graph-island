@@ -484,6 +484,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this._registerWorkspaceEvents();
 
     this.doRender();
+
+    // Onboarding: show help overlay on first launch
+    const ONBOARDING_KEY = "graph-island-onboarding-shown";
+    if (!localStorage.getItem(ONBOARDING_KEY)) {
+      localStorage.setItem(ONBOARDING_KEY, "1");
+      setTimeout(() => this._toggleHelpOverlay(), 500);
+    }
   }
 
   /** Create the toolbar with zoom, fit, export, local graph, fullscreen, and settings buttons. */
@@ -5529,6 +5536,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
+    // EI: Graph complexity score
+    {
+      // Complexity = log2(nodes) * density * avgDegree * sqrt(components)
+      const logN = Math.max(1, Math.log2(stats.nodeCount));
+      const complexity = logN * (stats.density * 1000) * stats.avgDegree * Math.sqrt(stats.componentCount);
+      const score = Math.min(100, Math.round(complexity * 10) / 10);
+      addRow(t("stats.complexity") ?? "Complexity", String(score));
+    }
+
     if (stats.hubs.length > 0) {
       const hubTitle = this.graphStatsEl.createEl("div", {
         cls: "gi-stats-hub-title",
@@ -7256,7 +7272,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         drawShape(pn.circle, shape, pn.radius * 2.2, searchHitColor, 0.10);
         pn.circle.lineStyle(2, searchHitColor, 0.85);
         drawShape(pn.circle, shape, pn.radius, pn.color, 1);
+        // EJ: Pulse animation — brief scale bounce on first search highlight
+        if (hlSet && !(pn as any)._searchPulsed) {
+          (pn as any)._searchPulsed = true;
+          const sx = pn.gfx.scale.x, sy = pn.gfx.scale.y;
+          pn.gfx.scale.set(sx * 1.3, sy * 1.3);
+          setTimeout(() => { if (pn.gfx) pn.gfx.scale.set(sx, sy); }, 300);
+        }
       } else {
+        (pn as any)._searchPulsed = false;
         this._fadeNodeAlpha(pn, 0.12);
         this.drawNodeCircle(pn, false);
       }
