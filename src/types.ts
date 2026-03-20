@@ -1255,7 +1255,7 @@ export const DEFAULT_CARDINALITY_RENDER_CONFIG: Required<CardinalityRenderConfig
 /** Default rendering thresholds */
 export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   gradientNodeCount: 500,
-  cardTextNodeCount: 200,
+  cardTextNodeCount: 3000,
   glowNodeCount: 800,
   gridLabelOffset: 12,
   clusterChargeForce: -10,
@@ -1264,7 +1264,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   gridTableLineAlpha: 0.6,
   gridCellShadingMin: 0.08,
   gridCellShadingRange: 0.35,
-  cardCollisionPadding: 40,
+  cardCollisionPadding: 60,
   collisionPadding: 12,
   superNodeCollisionPadding: 20,
   superNodeInnerRatio: 0.65,

@@ -75,6 +75,7 @@ export class LayoutController {
     const maxR = thresholds.maxNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.maxNodeRadius;
     const minR = thresholds.minNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.minNodeRadius;
     const collidePad = thresholds.collisionPadding ?? DEFAULT_RENDER_THRESHOLDS.collisionPadding;
+    const cardCollidePad = thresholds.cardCollisionPadding ?? DEFAULT_RENDER_THRESHOLDS.cardCollisionPadding;
     const superCollidePad = thresholds.superNodeCollisionPadding ?? DEFAULT_RENDER_THRESHOLDS.superNodeCollisionPadding;
     const sizeByDeg = thresholds.nodeSizeByDegree ?? true;
     // Pre-compute max degree for size-by-degree calculation
@@ -100,7 +101,7 @@ export class LayoutController {
         const cardH = headerH + fieldCount * fieldLineH + 8;
         const cardW = cardH * cardAR;
         const halfDiag = Math.sqrt(cardW * cardW + cardH * cardH) / 2;
-        return Math.max(halfDiag + collidePad, visualR + collidePad);
+        return Math.max(halfDiag + cardCollidePad, visualR + cardCollidePad);
       }
       if (n.collapsedMembers && n.collapsedMembers.length > 0) {
         return visualR + superCollidePad;

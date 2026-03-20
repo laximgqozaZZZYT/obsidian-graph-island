@@ -1191,7 +1191,7 @@ export class RenderPipeline {
     const { pixiNodes, worldScale } = ctx;
     const cardConfig = this.host.getCardDisplayConfig();
     const headerStyle = cardConfig.headerStyle ?? "plain";
-    const cardMaxW = (cardConfig.maxWidth ?? 120) / worldScale;
+    const cardMaxW = (cardConfig.maxWidth ?? 200) / worldScale;
     const showIcon = cardConfig.showIcon === true;
 
     // Clean up previous card text children from ALL nodes
@@ -1239,7 +1239,9 @@ export class RenderPipeline {
     for (const pn of visible) {
       const effR = Math.max(pn.radius, minWorldRadius);
       const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
-      const halfW = Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor);
+      // Card minimum width: at least 40 world-px so body text is readable
+      const MIN_CARD_HALF_W = 20 / worldScale;
+      const halfW = Math.max(MIN_CARD_HALF_W, Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor));
       const cardW = halfW * 2;
       const cardX = pn.data.x - halfW;
       const cardY = pn.data.y - totalH / 2;
@@ -1354,7 +1356,8 @@ export class RenderPipeline {
 
     for (const pn of tableCardNodes) {
       const effR = Math.max(pn.radius, minWorldRadius);
-      const halfW = Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor);
+      const MIN_CARD_HALF_W_TEXT = 20 / worldScale;
+      const halfW = Math.max(MIN_CARD_HALF_W_TEXT, Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor));
       const cardY = -totalH / 2;  // relative to pn.gfx
       const textPadX = pad;
       const fontSize = Math.max(crc.headerFontSizeMin, crc.headerFontSizeBase / worldScale);
@@ -1455,7 +1458,8 @@ export class RenderPipeline {
     for (const pn of visible) {
       const effR = Math.max(pn.radius, minWorldRadius);
       const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
-      const halfW = Math.min(cardMaxW / 2, effR * crc.plainCardWidthFactor);
+      const MIN_PLAIN_HALF_W = 20 / worldScale;
+      const halfW = Math.max(MIN_PLAIN_HALF_W, Math.min(cardMaxW / 2, effR * crc.plainCardWidthFactor));
       const totalH = showMeta ? cardH + cardConfig.fields.length * fieldLineH : cardH;
       const halfH = totalH / 2;
 
