@@ -3296,7 +3296,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const id = el.dataset.nodeId;
       el.classList.remove("gi-node-hovered", "gi-node-linked");
       if (!id || !hoveredId) continue;
-      if (id === hoveredId) el.classList.add("gi-node-hovered");
+      if (id === hoveredId) {
+        el.classList.add("gi-node-hovered");
+        // ER: Auto-scroll to hovered row
+        el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
       else if (highlightSet.has(id)) el.classList.add("gi-node-linked");
     }
   }
@@ -5246,14 +5250,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           color = cssColorToHex(colorMap.get(`tag:${n.tags[0]}`) || DEFAULT_COLORS[0]);
         }
       }
-      // EO: Color by arbitrary frontmatter field
+      // EO+ET: Color by arbitrary frontmatter field with optional custom palette
       if (!matched && colorModeForUpdate === "field" && this.panel.nodeColorField) {
         const fieldVal = this.getNodeProperty(n.id, this.panel.nodeColorField);
         if (fieldVal !== undefined && fieldVal !== "") {
           const key = String(fieldVal);
           if (!colorMap.has(key)) {
-            const idx = colorMap.size % DEFAULT_COLORS.length;
-            colorMap.set(key, DEFAULT_COLORS[idx]);
+            // ET: Use custom palette if provided
+            const customPalette = this.panel.customColorPalette
+              ? this.panel.customColorPalette.split(",").map(s => s.trim()).filter(Boolean)
+              : [];
+            const palette = customPalette.length > 0 ? customPalette : DEFAULT_COLORS as unknown as string[];
+            const idx = colorMap.size % palette.length;
+            colorMap.set(key, palette[idx]);
           }
           color = cssColorToHex(colorMap.get(key)!);
         }
