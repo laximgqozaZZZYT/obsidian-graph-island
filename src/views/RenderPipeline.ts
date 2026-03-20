@@ -1484,8 +1484,11 @@ export class RenderPipeline {
         // A11y: auto-select title/body text color for WCAG contrast against card background
         const titleFill = contrastColor(pn.color);
         const bodyFill = titleFill === 0xffffff ? 0xcccccc : 0x444444;
-        // Title
-        const title = new CanvasText(pn.data.label, {
+        // Title (apply GD labelMaxChars truncation)
+        const maxChars = rt.labelMaxChars ?? 0;
+        const cardTitle = maxChars > 0 && pn.data.label.length > maxChars
+          ? pn.data.label.slice(0, maxChars) + "…" : pn.data.label;
+        const title = new CanvasText(cardTitle, {
           fontSize, fontWeight: "bold", fill: titleFill,
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
         });

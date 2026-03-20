@@ -96,6 +96,8 @@ const STRING_FIELDS: (keyof PanelState)[] = [
   "hoverTooltipFields",
   "nodeIconField",
   "nodeIconMap",
+  "nodeColorField",
+  "customColorPalette",
 ];
 
 /** Fields that should be arrays */
@@ -118,7 +120,7 @@ const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   edgeLabelPlacement: ["center", "offset", "smart"] as const,
   nodeColorMode: ["default", "category", "heatmap", "community", "field"] as const,
   importanceMetric: ["degree", "betweenness", "pagerank"] as const,
-  clusterLabelDetail: ["minimal", "standard", "detailed"] as const,
+  clusterLabelDetail: ["minimal", "standard", "detailed", "rich"] as const,
   gapDetectionMode: ["within-tag", "cross-cluster", "both"] as const,
   searchMode: ["filter", "highlight"] as const,
   activeTab: ["filter", "display", "layout", "settings"] as const,
