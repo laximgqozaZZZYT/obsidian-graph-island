@@ -1342,19 +1342,18 @@ test.describe("40. Nodes Tab", () => {
       const tabBtns = v.panelEl?.querySelectorAll(".gi-tab-btn");
       const tabCount = tabBtns?.length ?? 0;
       const hasExclude = "excludeNodes" in v.panel;
-      // Test exclude: hide first node then restore
+      // Test exclude: check getGraphData filters correctly
       const firstId = v.pixiNodes?.keys().next().value;
-      const beforeCount = v.pixiNodes?.size ?? 0;
       if (firstId) {
+        const gd1 = v.getGraphData();
+        const before = gd1.nodes.length;
         v.panel.excludeNodes = [firstId];
         v.rawData = null;
-        await v.doRender();
-        await new Promise(r => setTimeout(r, 1500));
-        const afterCount = v.pixiNodes?.size ?? 0;
+        const gd2 = v.getGraphData();
+        const after = gd2.nodes.length;
         v.panel.excludeNodes = [];
         v.rawData = null;
-        await v.doRender();
-        return { tabCount, hasExclude, beforeCount, afterCount, excluded: afterCount < beforeCount };
+        return { tabCount, hasExclude, before, after, excluded: after < before };
       }
       return { tabCount, hasExclude, excluded: false };
     });

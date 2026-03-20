@@ -100,7 +100,7 @@ const ARRAY_FIELDS: (keyof PanelState)[] = [
   "groups", "directionalGravityRules", "commonQueries", "clusterGroupRules",
   "sortRules", "nodeRules", "nodeShapeRules", "groupByRules",
   "cardinalityRules", "annotations", "bookmarkedNodes", "searchHistory", "savedSearchQueries",
-  "navHistory", "multiSelectNodeIds", "presentationWaypoints",
+  "navHistory", "multiSelectNodeIds", "presentationWaypoints", "excludeNodes", "savedViewports",
 ];
 
 /** Valid values for enum-like fields */
