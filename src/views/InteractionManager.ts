@@ -116,6 +116,12 @@ export interface InteractionHost {
   setSearchQuery(query: string): void;
   /** Export full graph as JSON download */
   exportFullGraph?(): void;
+  /** ED: Save current viewport position/scale */
+  saveViewport?(name: string): void;
+  /** ED: Restore saved viewport */
+  restoreViewport?(name: string): void;
+  /** ED: Get saved viewport names */
+  getSavedViewportNames?(): string[];
   /** F2: Whether inline ontology editor is enabled */
   isInlineOntologyEnabled?(): boolean;
   /** C3: Whether relation type picker is enabled */
@@ -923,6 +929,27 @@ export class InteractionManager {
           .setIcon("download")
           .onClick(() => this.host.exportFullGraph!());
       });
+    }
+
+    // ED: Viewport bookmark — save/restore
+    if (this.host.saveViewport) {
+      menu.addSeparator();
+      menu.addItem((item) => {
+        item.setTitle(t("context.saveViewport") ?? "Save Viewport")
+          .setIcon("bookmark")
+          .onClick(() => {
+            const name = `View ${(this.host.getSavedViewportNames?.()?.length ?? 0) + 1}`;
+            this.host.saveViewport!(name);
+          });
+      });
+      const names = this.host.getSavedViewportNames?.() ?? [];
+      for (const name of names.slice(0, 5)) {
+        menu.addItem((item) => {
+          item.setTitle(`→ ${name}`)
+            .setIcon("map-pin")
+            .onClick(() => this.host.restoreViewport!(name));
+        });
+      }
     }
 
     menu.showAtPosition({ x: e.clientX, y: e.clientY });
