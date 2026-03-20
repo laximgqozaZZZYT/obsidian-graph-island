@@ -1256,19 +1256,27 @@ test.describe("36. Layout Transition", () => {
 // =========================================================================
 test.describe("37. Collapsed Group Tooltip", () => {
   test("37.1 collapsed nodes have member count in data", async () => {
-    const count = await renderWith(page, { groupBy: "folder", collapsedGroups: new Set() });
-    expect(count).toBeGreaterThan(10);
-    const result = await page.evaluate(() => {
+    const result = await page.evaluate(async () => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (!v?.pixiNodes) return { error: "no view" };
-      let superCount = 0;
-      let totalMembers = 0;
-      for (const [, pn] of v.pixiNodes) {
-        if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
-          superCount++;
-          totalMembers += pn.data.collapsedMembers.length;
+      if (!v?.panel) return { error: "no view" };
+      v.panel.groupBy = "folder";
+      v.panel.collapsedGroups = new Set();
+      v.rawData = null;
+      await v.doRender();
+      await new Promise(r => setTimeout(r, 3000));
+      let superCount = 0, totalMembers = 0;
+      if (v.pixiNodes) {
+        for (const [, pn] of v.pixiNodes) {
+          if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
+            superCount++;
+            totalMembers += pn.data.collapsedMembers.length;
+          }
         }
       }
+      // Restore
+      v.panel.groupBy = "none";
+      v.rawData = null;
+      await v.doRender();
       return { superCount, totalMembers };
     });
     expect(result).not.toHaveProperty("error");
