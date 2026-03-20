@@ -39,6 +39,7 @@ const en: TranslationMap = {
   "tab.filter": "Filter",
   "tab.display": "Display",
   "tab.layout": "Layout",
+  "tab.nodes": "Nodes",
   "tab.settings": "Settings",
   "layout.type": "Layout Type",
 
@@ -842,6 +843,7 @@ const ja: TranslationMap = {
   "tab.filter": "フィルタ",
   "tab.display": "表示",
   "tab.layout": "レイアウト",
+  "tab.nodes": "ノード",
   "tab.settings": "設定",
   "layout.type": "レイアウト種別",
 

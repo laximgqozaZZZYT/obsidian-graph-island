@@ -16,7 +16,7 @@ import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON } from "../utils/graph-helpers";
 import { hexToRgb } from "../utils/color";
-import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, DEFAULT_PANEL, createDefaultPanel, validatePanelState } from "./PanelBuilder";
+import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, type NodeTreeEntry, DEFAULT_PANEL, createDefaultPanel, validatePanelState } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
@@ -2585,6 +2585,45 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return (this.panel.savedViewports ?? []).map(v => v.name);
   }
 
+  // Nodes tab helpers
+  private _getNodeTreeData(): import("./PanelBuilder").NodeTreeEntry[] {
+    const visibleIds = new Set(this.pixiNodes.keys());
+    const allFiles = this.app.vault.getMarkdownFiles();
+    return allFiles.map(f => ({
+      id: f.path,
+      label: f.basename,
+      path: f.path,
+      isVisible: visibleIds.has(f.path),
+    }));
+  }
+
+  private _getForwardLinks(nodeId: string): string[] {
+    if (!this.graphEdges) return [];
+    return this.graphEdges
+      .filter(e => e.source === nodeId)
+      .map(e => e.target);
+  }
+
+  private _getBacklinks(nodeId: string): string[] {
+    if (!this.graphEdges) return [];
+    return this.graphEdges
+      .filter(e => e.target === nodeId)
+      .map(e => e.source);
+  }
+
+  private _toggleNodeVisibility(nodeId: string): void {
+    if (!this.panel.excludeNodes) this.panel.excludeNodes = [];
+    const idx = this.panel.excludeNodes.indexOf(nodeId);
+    if (idx >= 0) {
+      this.panel.excludeNodes.splice(idx, 1);
+    } else {
+      this.panel.excludeNodes.push(nodeId);
+    }
+    this.rawData = null;
+    this.doRender();
+    this.requestSave();
+  }
+
   exportFullGraph(): void {
     const gd = this.getGraphData();
     const json = exportFullGraphJSON(gd.nodes, gd.edges);
@@ -4938,6 +4977,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       applyEgoToVisible: () => this.applyEgoToVisible(),
       bulkAddTag: (nodeIds: string[], tag: string) => this.bulkAddTag(nodeIds, tag),
       bulkSetField: (nodeIds: string[], field: string, value: string) => this.bulkSetField(nodeIds, field, value),
+      getNodeTreeData: () => this._getNodeTreeData(),
+      getHoveredNodeId: () => this.highlightedNodeId,
+      getForwardLinks: (nodeId: string) => this._getForwardLinks(nodeId),
+      getBacklinks: (nodeId: string) => this._getBacklinks(nodeId),
+      toggleNodeVisibility: (nodeId: string) => this._toggleNodeVisibility(nodeId),
     };
   }
 
@@ -5921,6 +5965,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     ({ nodes, edges } = this._filterLocalGraph(nodes, edges));
     ({ nodes, edges } = this._filterNodeVisibility(nodes, edges));
     ({ nodes, edges } = this._filterByQuery(nodes, edges));
+
+    // Nodes tab: exclude manually hidden nodes
+    if (this.panel.excludeNodes && this.panel.excludeNodes.length > 0) {
+      const excl = new Set(this.panel.excludeNodes);
+      nodes = nodes.filter(n => !excl.has(n.id));
+    }
 
     const nodeSet = new Set(nodes.map((n) => n.id));
     edges = edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));

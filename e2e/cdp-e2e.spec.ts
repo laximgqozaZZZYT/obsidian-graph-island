@@ -1263,7 +1263,7 @@ test.describe("37. Collapsed Group Tooltip", () => {
       v.panel.collapsedGroups = new Set();
       v.rawData = null;
       await v.doRender();
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise(r => setTimeout(r, 1500));
       let superCount = 0, totalMembers = 0;
       if (v.pixiNodes) {
         for (const [, pn] of v.pixiNodes) {
@@ -1328,5 +1328,39 @@ test.describe("39. Pinned Nodes", () => {
     expect(result).not.toHaveProperty("error");
     expect(result.hasPinned).toBe(true);
     expect(result.isPinned).toBe(true);
+  });
+});
+
+// =========================================================================
+// 40. Nodes Tab
+// =========================================================================
+test.describe("40. Nodes Tab", () => {
+  test("40.1 nodes tab exists and excludeNodes works", async () => {
+    const result = await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      const tabBtns = v.panelEl?.querySelectorAll(".gi-tab-btn");
+      const tabCount = tabBtns?.length ?? 0;
+      const hasExclude = "excludeNodes" in v.panel;
+      // Test exclude: hide first node then restore
+      const firstId = v.pixiNodes?.keys().next().value;
+      const beforeCount = v.pixiNodes?.size ?? 0;
+      if (firstId) {
+        v.panel.excludeNodes = [firstId];
+        v.rawData = null;
+        await v.doRender();
+        await new Promise(r => setTimeout(r, 1500));
+        const afterCount = v.pixiNodes?.size ?? 0;
+        v.panel.excludeNodes = [];
+        v.rawData = null;
+        await v.doRender();
+        return { tabCount, hasExclude, beforeCount, afterCount, excluded: afterCount < beforeCount };
+      }
+      return { tabCount, hasExclude, excluded: false };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.tabCount).toBe(5);
+    expect(result.hasExclude).toBe(true);
+    expect(result.excluded).toBe(true);
   });
 });

@@ -25,7 +25,18 @@ import {
 // ---------------------------------------------------------------------------
 interface GroupByRule { field: string; op?: string; indent?: number; recursive?: boolean; }
 
+/** Node tree entry for the Nodes tab directory view */
+export interface NodeTreeEntry {
+  id: string;
+  label: string;
+  path: string;
+  isVisible: boolean;
+  isTag?: boolean;
+}
+
 export interface PanelState {
+  /** Explicitly excluded node IDs (hidden via Nodes tab) */
+  excludeNodes: string[];
   includeTagsInData: boolean;
   showAttachments: boolean;
   existingOnly: boolean;
@@ -87,7 +98,7 @@ export interface PanelState {
   groupMinSize: number;
   groupFilter: string;
   collapsedGroups: Set<string>;
-  activeTab: "filter" | "display" | "layout" | "settings";
+  activeTab: "filter" | "display" | "layout" | "settings" | "nodes";
   /** Auto-fit spacing: automatically compute nodeSpacing, groupScale, groupSpacing */
   autoFit: boolean;
   /** Show duration bars on timeline arrangement */
@@ -308,6 +319,7 @@ export interface PanelState {
  *  shared-reference bugs where mutations leak back into "defaults". */
 export function createDefaultPanel(): PanelState {
   return {
+    excludeNodes: [],
     includeTagsInData: true,
     showAttachments: false,
     existingOnly: false,
@@ -544,6 +556,16 @@ export interface PanelCallbacks {
   getNodeIds(): string[];
   /** Recolor existing nodes without full graph rebuild (keeps panel DOM intact) */
   recolorNodes(): void;
+  /** Get node tree data for Nodes tab: all vault files with visibility info */
+  getNodeTreeData(): NodeTreeEntry[];
+  /** Get currently hovered node ID */
+  getHoveredNodeId(): string | null;
+  /** Get forward link targets for a node */
+  getForwardLinks(nodeId: string): string[];
+  /** Get backlink sources for a node */
+  getBacklinks(nodeId: string): string[];
+  /** Toggle node visibility (add/remove from excludeNodes) */
+  toggleNodeVisibility(nodeId: string): void;
   /** Auto-optimize: analyze overlaps and adjust force parameters iteratively */
   autoOptimize(): void;
   /** テンプレート保存: 現在のパネル設定を名前付きテンプレートとして保存 */
@@ -969,6 +991,7 @@ export function buildPanel(
   const filterTab = tabContainers.get("filter")!;
   const displayTab = tabContainers.get("display")!;
   const layoutTab = tabContainers.get("layout")!;
+  const nodesTab = tabContainers.get("nodes")!;
   const settingsTab = tabContainers.get("settings")!;
 
   // Preset bar (quick-apply simple/analysis/creative presets)
@@ -981,6 +1004,7 @@ export function buildPanel(
   buildFilterTab(filterTab, panel, ctx, cb);
   buildDisplayTab(displayTab, panel, ctx, cb);
   buildLayoutTab(layoutTab, panel, ctx, cb);
+  _buildNodesTab(nodesTab, panel, ctx, cb);
   buildSettingsTab(settingsTab, panel, ctx, cb);
 }
 
@@ -2127,6 +2151,161 @@ function _buildSettingsActionButtons(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Nodes Tab — Directory tree with visibility toggle and hover/link highlighting
+// ---------------------------------------------------------------------------
+function _buildNodesTab(
+  tabEl: HTMLElement,
+  panel: PanelState,
+  _ctx: PanelContext,
+  cb: PanelCallbacks,
+): void {
+  const entries = cb.getNodeTreeData();
+  const hoveredId = cb.getHoveredNodeId();
+  const excludeSet = new Set(panel.excludeNodes ?? []);
+
+  // Derive forward/backlinks for hovered node
+  const fwdLinks = hoveredId ? new Set(cb.getForwardLinks(hoveredId)) : new Set<string>();
+  const bkLinks = hoveredId ? new Set(cb.getBacklinks(hoveredId)) : new Set<string>();
+
+  // Build directory tree structure
+  interface DirNode { children: Map<string, DirNode>; files: NodeTreeEntry[]; }
+  const root: DirNode = { children: new Map(), files: [] };
+  for (const entry of entries) {
+    const parts = entry.path.split("/");
+    const fileName = parts.pop()!;
+    let cur = root;
+    for (const dir of parts) {
+      if (!cur.children.has(dir)) cur.children.set(dir, { children: new Map(), files: [] });
+      cur = cur.children.get(dir)!;
+    }
+    cur.files.push(entry);
+  }
+
+  // Search filter
+  const filterWrap = tabEl.createDiv({ cls: "gi-node-tree-filter" });
+  filterWrap.style.cssText = "padding:4px 8px;";
+  const filterInput = filterWrap.createEl("input", {
+    type: "text",
+    placeholder: t("nodes.filterPlaceholder") ?? "Filter nodes...",
+    cls: "gi-node-filter-input",
+  });
+  filterInput.style.cssText = "width:100%;padding:4px 6px;font-size:11px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-primary);";
+
+  const treeContainer = tabEl.createDiv({ cls: "gi-node-tree" });
+  treeContainer.style.cssText = "overflow-y:auto;max-height:400px;font-size:11px;padding:0 4px;";
+
+  function renderDir(parent: HTMLElement, dir: DirNode, path: string, depth: number) {
+    // Sort directories first, then files
+    const sortedDirs = [...dir.children.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    const sortedFiles = [...dir.files].sort((a, b) => a.label.localeCompare(b.label));
+
+    for (const [name, child] of sortedDirs) {
+      const dirEl = parent.createDiv({ cls: "gi-node-dir" });
+      const header = dirEl.createDiv({ cls: "gi-node-dir-header" });
+      header.style.cssText = `padding:2px 0 2px ${depth * 12}px;cursor:pointer;display:flex;align-items:center;gap:4px;color:var(--text-muted);`;
+      const arrow = header.createEl("span", { text: ">" });
+      arrow.style.cssText = "font-size:9px;transition:transform 0.15s;";
+      header.createEl("span", { text: name });
+      // Count files recursively
+      const fileCount = countFiles(child);
+      header.createEl("span", { text: `(${fileCount})`, cls: "gi-node-count" });
+      header.querySelector(".gi-node-count")!.setAttribute("style", "font-size:9px;color:var(--text-faint);");
+
+      const body = dirEl.createDiv({ cls: "gi-node-dir-body" });
+      body.style.display = "none";
+
+      header.addEventListener("click", () => {
+        const open = body.style.display !== "none";
+        body.style.display = open ? "none" : "";
+        arrow.style.transform = open ? "" : "rotate(90deg)";
+      });
+
+      renderDir(body, child, path + name + "/", depth + 1);
+    }
+
+    for (const entry of sortedFiles) {
+      const row = parent.createDiv({ cls: "gi-node-row" });
+      row.style.cssText = `padding:1px 4px 1px ${depth * 12}px;display:flex;align-items:center;gap:4px;cursor:pointer;border-radius:3px;`;
+      row.dataset.nodeId = entry.id;
+
+      // Visibility checkbox
+      const cb2 = row.createEl("input", { type: "checkbox" });
+      cb2.checked = !excludeSet.has(entry.id);
+      cb2.style.cssText = "width:12px;height:12px;margin:0;cursor:pointer;";
+      cb2.addEventListener("change", (e) => {
+        e.stopPropagation();
+        cb.toggleNodeVisibility(entry.id);
+      });
+
+      // Label
+      const label = row.createEl("span", { text: entry.label, cls: "gi-node-label" });
+      label.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+
+      // Color coding for state
+      if (!entry.isVisible) {
+        row.style.opacity = "0.4";
+      }
+      if (entry.id === hoveredId) {
+        row.style.background = "var(--interactive-accent)";
+        row.style.color = "var(--text-on-accent)";
+      } else if (fwdLinks.has(entry.id)) {
+        row.style.background = "rgba(34, 197, 94, 0.15)"; // green tint for forward links
+        label.style.fontWeight = "600";
+      } else if (bkLinks.has(entry.id)) {
+        row.style.background = "rgba(59, 130, 246, 0.15)"; // blue tint for backlinks
+        label.style.fontWeight = "600";
+      }
+
+      // Click to jump
+      row.addEventListener("click", () => cb.jumpToNode(entry.id));
+    }
+  }
+
+  function countFiles(dir: DirNode): number {
+    let count = dir.files.length;
+    for (const child of dir.children.values()) count += countFiles(child);
+    return count;
+  }
+
+  renderDir(treeContainer, root, "", 0);
+
+  // Filter logic
+  filterInput.addEventListener("input", () => {
+    const q = filterInput.value.toLowerCase().trim();
+    const rows = treeContainer.querySelectorAll(".gi-node-row");
+    for (const row of Array.from(rows)) {
+      const id = (row as HTMLElement).dataset.nodeId ?? "";
+      const text = (row as HTMLElement).textContent?.toLowerCase() ?? "";
+      (row as HTMLElement).style.display = q && !text.includes(q) && !id.toLowerCase().includes(q) ? "none" : "";
+    }
+    // Show parent dirs if any child is visible
+    if (q) {
+      const dirs = treeContainer.querySelectorAll(".gi-node-dir");
+      for (const dir of Array.from(dirs)) {
+        const body = dir.querySelector(".gi-node-dir-body") as HTMLElement;
+        const arrow = dir.querySelector(".gi-node-dir-header span") as HTMLElement;
+        if (body) body.style.display = "";
+        if (arrow) arrow.style.transform = "rotate(90deg)";
+      }
+    }
+  });
+
+  // Legend
+  const legend = tabEl.createDiv({ cls: "gi-node-legend" });
+  legend.style.cssText = "padding:4px 8px;font-size:10px;color:var(--text-muted);display:flex;gap:8px;flex-wrap:wrap;";
+  const addLegendItem = (color: string, text: string) => {
+    const item = legend.createEl("span");
+    item.style.cssText = `display:inline-flex;align-items:center;gap:2px;`;
+    const dot = item.createEl("span");
+    dot.style.cssText = `width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;`;
+    item.createEl("span", { text });
+  };
+  addLegendItem("var(--interactive-accent)", t("nodes.hovered") ?? "Hovered");
+  addLegendItem("rgba(34,197,94,0.6)", t("nodes.forwardLink") ?? "Link");
+  addLegendItem("rgba(59,130,246,0.6)", t("nodes.backlink") ?? "Backlink");
+}
+
 function buildSettingsTab(
   settingsTab: HTMLElement,
   panel: PanelState,
@@ -2660,12 +2839,13 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
   });
 }
 
-type TabId = "filter" | "display" | "layout" | "settings";
+type TabId = "filter" | "display" | "layout" | "settings" | "nodes";
 
 const TAB_DEFS: { id: TabId; labelKey: string; icon: string }[] = [
   { id: "filter",   labelKey: "tab.filter",   icon: "filter" },
   { id: "display",  labelKey: "tab.display",  icon: "eye" },
   { id: "layout",   labelKey: "tab.layout",   icon: "layout-grid" },
+  { id: "nodes",    labelKey: "tab.nodes",    icon: "list-tree" },
   { id: "settings", labelKey: "tab.settings", icon: "settings" },
 ];
 
