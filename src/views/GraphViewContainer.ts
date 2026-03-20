@@ -6206,6 +6206,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (this.panel.excludeNodes && this.panel.excludeNodes.length > 0) {
       const excl = new Set(this.panel.excludeNodes);
       nodes = nodes.filter(n => !excl.has(n.id));
+      // Re-sync edges so degree computation below uses accurate counts
+      const postExclSet = new Set(nodes.map(n => n.id));
+      edges = edges.filter(e => postExclSet.has(e.source) && postExclSet.has(e.target));
     }
 
     // FZ: Degree filter

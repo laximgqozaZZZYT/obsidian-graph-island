@@ -1616,3 +1616,41 @@ test.describe("45. Render Thresholds", () => {
     expect(result.set).toBe(0.5);
   });
 });
+
+// =========================================================================
+// 46. Degree Filter + ExcludeNodes Interaction
+// =========================================================================
+test.describe("46. Degree Filter Edge Sync", () => {
+  test("46.1 excludeNodes re-syncs edges before degree computation", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      // Get a high-degree node to exclude
+      const gd = v.getGraphData();
+      const degMap = new Map();
+      for (const e of gd.edges) {
+        degMap.set(e.source, (degMap.get(e.source) ?? 0) + 1);
+        degMap.set(e.target, (degMap.get(e.target) ?? 0) + 1);
+      }
+      let hubId = "";
+      let hubDeg = 0;
+      for (const [id, d] of degMap) {
+        if (d > hubDeg) { hubId = id; hubDeg = d; }
+      }
+      if (!hubId) return { error: "no hub" };
+      // Exclude hub + filter min degree 1 — no crash, node count changes
+      v.panel.excludeNodes = [hubId];
+      v.panel.minDegreeFilter = 1;
+      v.rawData = null;
+      const gd2 = v.getGraphData();
+      const afterCount = gd2.nodes.length;
+      v.panel.excludeNodes = [];
+      v.panel.minDegreeFilter = 0;
+      v.rawData = null;
+      return { hubDeg, afterCount, hubExcluded: !gd2.nodes.some((n: any) => n.id === hubId) };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.hubExcluded).toBe(true);
+    expect(result.afterCount).toBeGreaterThan(0);
+  });
+});

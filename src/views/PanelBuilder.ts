@@ -2071,6 +2071,16 @@ function _buildPluginSettingsSection(
         panel.renderThresholds.enclosureStrokeWidth = v;
         cb.doRenderKeepPanel();
       });
+      // FU: Enclosure label position
+      addSelect(body, t("display.enclosureLabelPos") ?? "Label Position", [
+        { value: "top", label: t("display.enclosureLabelPos.top") ?? "Top" },
+        { value: "center", label: t("display.enclosureLabelPos.center") ?? "Center" },
+        { value: "bottom", label: t("display.enclosureLabelPos.bottom") ?? "Bottom" },
+      ], rtEnc.enclosureLabelPosition ?? "top", (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        (panel.renderThresholds as any).enclosureLabelPosition = v;
+        cb.doRenderKeepPanel();
+      });
     }
   }, tHelp("help.pluginSettings"), false, "settings");
 }
