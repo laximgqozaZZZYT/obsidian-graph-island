@@ -251,7 +251,7 @@ export interface PanelState {
   /** S4: Show gap detection dotted edges */
   showGapEdges?: boolean;
   /** R2: Consolidated analysis overlay mode */
-  analysisOverlay?: "off" | "bridges" | "entropy" | "gaps" | "missing" | "all";
+  analysisOverlay?: "off" | "bridges" | "entropy" | "gaps" | "missing" | "density" | "all";
   // --- Phase 4: Interaction enhancements ---
   /** C3: Relation type picker — right-click to assign edge type */
   showRelationTypePicker: boolean;
@@ -281,6 +281,10 @@ export interface PanelState {
   showNodeThumbnails: boolean;
   /** Number of alternative shortest paths to display (1 = shortest only) */
   kShortestPaths: number;
+  /** A3: Frontmatter field to use for node icon prefix (e.g. "node_type") */
+  nodeIconField?: string;
+  /** A3: Mapping from field value to icon text (e.g. {"character":"👤","episode":"📖"}) */
+  nodeIconMap?: Record<string, string>;
   /** Card rendering visual config (opacity, dimensions, typography) */
   cardRenderConfig?: CardRenderConfig;
   /** Cardinality marker rendering config */
@@ -448,6 +452,8 @@ export function createDefaultPanel(): PanelState {
     presentationWaypoints: [],
     presentationStep: 0,
     showNodeThumbnails: false,
+    nodeIconField: "",
+    nodeIconMap: {},
     kShortestPaths: 1,
     focusConeEnabled: true,
     surpriseInterval: 0,
@@ -1110,6 +1116,15 @@ function _buildNodeDisplaySection(
         panel.hoverTooltipFields = v;
         cb.markDirty();
       });
+      // A3: Node icon prefix
+      addTextInput(adv, t("display.nodeIconField"), panel.nodeIconField ?? "", "e.g. node_type", (v) => {
+        panel.nodeIconField = v;
+        cb.doRenderKeepPanel();
+      });
+      addTextInput(adv, t("display.nodeIconMap"), JSON.stringify(panel.nodeIconMap ?? {}), '{"character":"👤","episode":"📖"}', (v) => {
+        try { panel.nodeIconMap = JSON.parse(v); } catch { /* ignore invalid JSON */ }
+        cb.doRenderKeepPanel();
+      });
       addSlider(adv, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.applyHover(); cb.markDirty(); }, t("desc.hoverHops"));
       // フォーカスモード: クリックでハイライトを固定
       addToggle(adv, t("display.focusMode"), panel.focusMode, (v) => {
@@ -1345,6 +1360,7 @@ function _buildDiscoverySection(
       { value: "entropy", label: t("analysis.entropy") },
       { value: "gaps", label: t("analysis.gaps") },
       { value: "missing", label: t("analysis.missing") },
+      { value: "density", label: t("analysis.density") },
       { value: "all", label: t("analysis.all") },
     ], panel.analysisOverlay ?? "off", (v) => {
       panel.analysisOverlay = v as PanelState["analysisOverlay"];
@@ -1563,15 +1579,15 @@ function _buildEdgeDisplaySection(
           const nextIdx = (idx + 1) % EDGE_TYPE_KEYS.length;
           if (nextIdx === 0) {
             // Wrapped around: restore all ON
-            for (const k of EDGE_TYPE_KEYS) (panel as Record<string, unknown>)[k] = true;
+            for (const k of EDGE_TYPE_KEYS) (panel as unknown as Record<string, unknown>)[k] = true;
           } else {
-            for (const k of EDGE_TYPE_KEYS) (panel as Record<string, unknown>)[k] = false;
-            (panel as Record<string, unknown>)[EDGE_TYPE_KEYS[nextIdx]] = true;
+            for (const k of EDGE_TYPE_KEYS) (panel as unknown as Record<string, unknown>)[k] = false;
+            (panel as unknown as Record<string, unknown>)[EDGE_TYPE_KEYS[nextIdx]] = true;
           }
         } else {
           // Start solo: turn on only the first type
-          for (const k of EDGE_TYPE_KEYS) (panel as Record<string, unknown>)[k] = false;
-          (panel as Record<string, unknown>)[EDGE_TYPE_KEYS[0]] = true;
+          for (const k of EDGE_TYPE_KEYS) (panel as unknown as Record<string, unknown>)[k] = false;
+          (panel as unknown as Record<string, unknown>)[EDGE_TYPE_KEYS[0]] = true;
         }
         cb.markDirty();
         cb.rebuildPanel();

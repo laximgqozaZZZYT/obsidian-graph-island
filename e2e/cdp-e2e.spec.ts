@@ -1146,3 +1146,38 @@ test.describe("32. Full Graph Export", () => {
     expect(result.edgeCount).toBeGreaterThan(100);
   });
 });
+
+// =========================================================================
+// 33. Analysis Overlay — Density Heatmap
+// =========================================================================
+test.describe("33. Analysis Overlay", () => {
+  test("33.1 density mode activates heatmap flag", async () => {
+    const result = await renderWith(page, { analysisOverlay: "density" });
+    const state = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return {
+        overlay: v?.panel?.analysisOverlay,
+        densityFlag: v?._showDensityHeatmap,
+      };
+    });
+    expect(state.overlay).toBe("density");
+    expect(state.densityFlag).toBe(true);
+    expect(result).toBeGreaterThan(0);
+  });
+
+  test("33.2 off mode disables all overlay flags", async () => {
+    await renderWith(page, { analysisOverlay: "off" });
+    const state = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      return {
+        density: v?._showDensityHeatmap,
+        bridges: v?.panel?.showBridgeNodes,
+        entropy: v?.panel?.showEntropyOverlay,
+        missing: v?.panel?.highlightMissingNeighbors,
+        gaps: v?.panel?.showGapEdges,
+      };
+    });
+    expect(state.density).toBe(false);
+    expect(state.bridges).toBe(false);
+  });
+});

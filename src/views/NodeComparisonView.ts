@@ -48,8 +48,8 @@ export class NodeComparisonView extends ItemView {
 
     // 比較イベントをリスン
     this.registerEvent(
-      this.app.workspace.on(
-        EVENT_COMPARE_NODES as any,
+      (this.app.workspace as any).on(
+        EVENT_COMPARE_NODES,
         (data: CompareEvent | null) => {
           if (!data) {
             this.renderEmpty();

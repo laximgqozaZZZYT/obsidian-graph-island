@@ -42,8 +42,8 @@ export class NodeDetailView extends ItemView {
     this.renderEmpty();
 
     this.registerEvent(
-      this.app.workspace.on(
-        EVENT_HOVER_NODE as any,
+      (this.app.workspace as any).on(
+        EVENT_HOVER_NODE,
         (node: GraphNode | null, adj: Map<string, Set<string>>, pixiNodes: Map<string, any>, degrees: Map<string, number>, edges?: GraphEdge[]) => {
           if (this.held && this.holdCaptured) return; // locked
           this.pixiNodes = pixiNodes;

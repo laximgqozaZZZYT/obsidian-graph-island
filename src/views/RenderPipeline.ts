@@ -311,6 +311,8 @@ export interface RenderHost {
   getNodeProperty?(nodeId: string, key: string): string | undefined;
   /** Get the configured sub-label field names (comma-separated string) */
   getNodeSubLabelFields?(): string;
+  /** A3: Get the icon field name and icon map */
+  getNodeIconConfig?(): { field: string; map: Record<string, string> } | null;
   /** Whether tag badges should be shown */
   getShowTagBadges?(): boolean;
   /** Whether importance ring should be shown, and with which metric */
@@ -2148,7 +2150,15 @@ export class RenderPipeline {
       // Use bright text when pill background is present for better contrast
       const labelFill = isSuperNode ? 0xffffff
         : (this.host.isDarkTheme() ? 0xe0e0e0 : 0x222222);
-      label = new CanvasText(n.label, {
+      // A3: Prepend icon prefix from nodeIconField mapping
+      let displayLabel = n.label;
+      const iconCfg = this.host.getNodeIconConfig?.();
+      if (iconCfg && iconCfg.field && n.meta) {
+        const fieldVal = String(n.meta[iconCfg.field] ?? "");
+        const icon = iconCfg.map[fieldVal];
+        if (icon) displayLabel = `${icon} ${displayLabel}`;
+      }
+      label = new CanvasText(displayLabel, {
         fontSize: scaledFontSize,
         fill: labelFill,
         fontWeight: labelFontWeight,

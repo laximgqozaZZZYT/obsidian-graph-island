@@ -78,6 +78,8 @@ const en: TranslationMap = {
   "display.textFade": "Text Fade Threshold",
   "display.nodeSubLabelFields": "Sub-Label Fields",
   "display.hoverTooltipFields": "Hover Tooltip Fields",
+  "display.nodeIconField": "Node Icon Field",
+  "display.nodeIconMap": "Icon Mapping (JSON)",
   "display.nodeSize": "Node Size",
   "display.nodeSizeByDegree": "Size by Degree",
   "desc.nodeSizeByDegree": "Scale node radius proportional to connection count",
@@ -548,6 +550,7 @@ const en: TranslationMap = {
   "analysis.entropy": "Knowledge Entropy",
   "analysis.gaps": "Gap Edges",
   "analysis.missing": "Missing Neighbors",
+  "analysis.density": "Density Heatmap",
   "analysis.all": "All",
 
   // --- Advanced features (Phase 7) ---
@@ -878,6 +881,8 @@ const ja: TranslationMap = {
   "display.textFade": "テキストフェードの閾値",
   "display.nodeSubLabelFields": "サブラベルフィールド",
   "display.hoverTooltipFields": "ホバーツールチップフィールド",
+  "display.nodeIconField": "ノードアイコンフィールド",
+  "display.nodeIconMap": "アイコンマッピング (JSON)",
   "display.nodeSize": "ノードの大きさ",
   "display.nodeSizeByDegree": "次数比例サイズ",
   "desc.nodeSizeByDegree": "接続数に比例してノード半径をスケーリング",
@@ -1340,6 +1345,7 @@ const ja: TranslationMap = {
   "analysis.entropy": "知識エントロピー",
   "analysis.gaps": "ギャップエッジ",
   "analysis.missing": "欠落隣接",
+  "analysis.density": "密度ヒートマップ",
   "analysis.all": "すべて",
 
   // --- M2: Ego Layout ---

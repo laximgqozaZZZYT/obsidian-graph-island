@@ -418,8 +418,8 @@ export function buildClusterForce(
   // Also include all coordinate-preset arrangements (grid, triangle, phyllotaxis, custom)
   // which have perGroup=true and therefore do not satisfy isGlobalLayout, but still
   // need the force to run so nodes spread out from their initial center position.
-  const NEEDS_LAYOUT = new Set([ARRANGEMENT_CONCENTRIC, ARRANGEMENT_RADIAL, ARRANGEMENT_RANDOM, ARRANGEMENT_TIMELINE, ARRANGEMENT_GRID, ARRANGEMENT_TRIANGLE, ARRANGEMENT_PHYLLOTAXIS, ARRANGEMENT_CUSTOM]);
-  if (cfg.groupRules.length === 0 && !isGlobalLayout && !NEEDS_LAYOUT.has(cfg.arrangement as string) && !cfg.orphanClusterField) return null;
+  const NEEDS_LAYOUT: Set<string> = new Set([ARRANGEMENT_CONCENTRIC, ARRANGEMENT_RADIAL, ARRANGEMENT_RANDOM, ARRANGEMENT_TIMELINE, ARRANGEMENT_GRID, ARRANGEMENT_TRIANGLE, ARRANGEMENT_PHYLLOTAXIS, ARRANGEMENT_CUSTOM]);
+  if (cfg.groupRules.length === 0 && !isGlobalLayout && !NEEDS_LAYOUT.has(cfg.arrangement) && !cfg.orphanClusterField) return null;
 
   // Phase 1: Group subdivision
   let groups = applyAllGroupRules(nodes, edges, degrees, cfg.groupRules);
@@ -2268,8 +2268,8 @@ function normalizeSpread(
   // Skip patterns where positions have semantic meaning or no structure.
   // Polar-based patterns (radial, concentric) encode distance-from-center
   // semantically — normalizing would compress/expand the radial structure.
-  const SKIP_NORMALIZE = new Set([ARRANGEMENT_RANDOM, ARRANGEMENT_TIMELINE, ARRANGEMENT_PHYLLOTAXIS, ARRANGEMENT_RADIAL, ARRANGEMENT_CONCENTRIC]);
-  if (SKIP_NORMALIZE.has(cfg.arrangement as string)) return;
+  const SKIP_NORMALIZE: Set<string> = new Set([ARRANGEMENT_RANDOM, ARRANGEMENT_TIMELINE, ARRANGEMENT_PHYLLOTAXIS, ARRANGEMENT_RADIAL, ARRANGEMENT_CONCENTRIC]);
+  if (SKIP_NORMALIZE.has(cfg.arrangement)) return;
   // Also skip if coordinate layout uses polar system (custom polar expressions)
   if (cfg.coordinateLayout?.system === "polar") return;
   const offsets = result.offsets;

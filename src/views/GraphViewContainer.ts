@@ -32,7 +32,7 @@ import { LabelManager } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
 import { DiffOverlay } from "./DiffOverlay";
 import { captureSnapshot, computeSnapshotDiff } from "../utils/snapshot";
-import { GuideRenderer } from "./GuideRenderer";
+import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
@@ -149,6 +149,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Frame counter for pathfinder pulse animation */
   private _pathfinderFrame = 0;
   private pixiNodes: Map<string, PixiNode> = new Map();
+  private svgEl: HTMLElement | null = null;
   private canvasWrap: HTMLElement | null = null;
   private graphEdges: GraphEdge[] = [];
   private degrees: Map<string, number> = new Map();
@@ -1135,24 +1136,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Ephemeral highlight from side-panel (property value hover, backlink hover)
     this.registerEvent(
       // Custom plugin event not in Obsidian's Workspace type definitions
-      this.app.workspace.on(EVENT_HIGHLIGHT_NODES as any, (nodeIds: Set<string> | null) => {
+      (this.app.workspace as any).on(EVENT_HIGHLIGHT_NODES, (nodeIds: Set<string> | null) => {
         this.applyEphemeralHighlight(nodeIds);
       })
     );
 
     // O2: Link creation from NodeDetailView suggestion
     this.registerEvent(
-      this.app.workspace.on("graph-island:create-link" as any, (srcId: string, tgtId: string) => {
+      (this.app.workspace as any).on("graph-island:create-link", (srcId: string, tgtId: string) => {
         this.createLink(srcId, tgtId);
       })
     );
 
     // ビュー同期: 他の Graph Island ビューからのパネル状態変更を受信
     this.registerEvent(
-      this.app.workspace.on(EVENT_SYNC_PANEL as any, (data: { senderId: string; panel: Record<string, unknown> }) => {
+      (this.app.workspace as any).on(EVENT_SYNC_PANEL, (data: { senderId: string; panel: Record<string, unknown> }) => {
         if (!data || !this.panel.syncViewId) return;
         // 自分自身が送信元の場合は無視
-        if (data.senderId === this.leaf.id) return;
+        if (data.senderId === (this.leaf as any).id) return;
         this._syncReceiving = true;
         try {
           this._applySyncedPanel(data.panel);
@@ -1190,7 +1191,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     // workspace.trigger でカスタムイベントを発火
     (this.app.workspace as any).trigger(EVENT_SYNC_PANEL, {
-      senderId: this.leaf.id,
+      senderId: (this.leaf as any).id,
       panel: payload,
     });
   }
@@ -1630,7 +1631,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _wireCanvasManagers(canvas: HTMLCanvasElement, world: CanvasContainer): void {
     // Set up interaction handling (pointer events, drag, pan, hover, marquee)
     this.interactionManager?.detach();
-    this.interactionManager = new InteractionManager(this, canvas, world);
+    this.interactionManager = new InteractionManager(this as unknown as InteractionHost, canvas, world);
 
     // Set up render pipeline (render loop, Canvas 2D node creation, batch drawing)
     this.renderPipeline = new RenderPipeline(this);
@@ -1639,7 +1640,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.labelManager = new LabelManager(this);
 
     // Set up guide / grid renderer
-    this.guideRenderer = new GuideRenderer(this);
+    this.guideRenderer = new GuideRenderer(this as unknown as GuideRendererHost);
 
     // Set up minimap overlay
     this.minimap?.destroy();
@@ -1694,9 +1695,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this._updateRecentVisitHalos();
     };
 
-    // 差分オーバーレイのポストフラッシュフック設定
+    // 密度ヒートマップ + 差分オーバーレイのフック設定
     const pixiApp = this.pixiApp;
     if (pixiApp) {
+      pixiApp.onPreFlush = (ctx: CanvasRenderingContext2D, _dpr: number) => {
+        if (!this._showDensityHeatmap || !this.pixiNodes || this.pixiNodes.size === 0) return;
+        this._renderDensityHeatmap(ctx);
+      };
       pixiApp.onPostFlush = (ctx: CanvasRenderingContext2D, _dpr: number) => {
         if (!this.diffOverlay.isActive()) return;
         const w = world;
@@ -2124,6 +2129,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   getNodeSubLabelFields(): string { return this.panel.nodeSubLabelFields ?? ""; }
+  getNodeIconConfig(): { field: string; map: Record<string, string> } | null {
+    const field = this.panel.nodeIconField ?? "";
+    if (!field) return null;
+    return { field, map: this.panel.nodeIconMap ?? {} };
+  }
   getNodeDisplayMode() { return this.panel.nodeDisplayMode ?? "node"; }
   getCardDisplayConfig() { return this.panel.cardDisplayConfig ?? { fields: [], maxWidth: 120, showIcon: false }; }
   getDonutDisplayConfig() { return this.panel.donutDisplayConfig ?? { innerRadius: 0.6 }; }
@@ -3598,7 +3608,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       : 0.3;
     cfg.bundleStrength = this.panel.edgeBundleStrength > 0
       ? this.panel.edgeBundleStrength
-      : 0;
+      : autoBundle;
     cfg.cableBundleMode = this.panel.cableBundleMode;
     cfg.cableTrunkWidth = this.panel.cableTrunkWidth;
     cfg.cableTrunkAlpha = this.panel.cableTrunkAlpha;
@@ -3786,7 +3796,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!gfx) return;
     gfx.clear();
 
-    const sunburstArcs = this.clusterMeta?.sunburstArcs;
+    const sunburstArcs = (this.clusterMeta as any)?.sunburstArcs;
     if (!sunburstArcs || sunburstArcs.length === 0) return;
 
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
@@ -3881,7 +3891,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Draw labels on cluster sunburst arcs (depth ≤ 1 only, wide arcs) */
   private drawClusterSunburstLabels() {
-    const sunburstArcs = this.clusterMeta?.sunburstArcs;
+    const sunburstArcs = (this.clusterMeta as any)?.sunburstArcs;
     if (!sunburstArcs || sunburstArcs.length === 0) {
       // Clear existing labels
       for (const lbl of this.clusterSunburstLabels.values()) {
@@ -4837,7 +4847,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           "full-analysis": { showLinks: true, showTagEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showGraphStats: true, showBridgeNodes: true, showImportanceRing: true, nodeColorMode: "community", showEntropyOverlay: true, highlightMissingNeighbors: true },
           // M1: Thinking Modes
           explore: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" as const },
-          analyze: { syncWithEditor: false, localGraphCenter: false, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true },
+          analyze: { syncWithEditor: false, localGraphCenter: null, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true },
           write: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 1, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const, nodeSize: 25, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showSimilar: false, focusConeEnabled: true },
         };
         const p = presets[preset];
@@ -5732,12 +5742,74 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   // R2: Map analysisOverlay dropdown to individual flags
   // =========================================================================
+  private _showDensityHeatmap = false;
   private _applyAnalysisOverlay(): void {
     const mode = this.panel.analysisOverlay ?? "off";
     this.panel.showBridgeNodes = mode === "bridges" || mode === "all";
     this.panel.showEntropyOverlay = mode === "entropy" || mode === "all";
     this.panel.highlightMissingNeighbors = mode === "missing" || mode === "all";
     this.panel.showGapEdges = mode === "gaps" || mode === "all";
+    this._showDensityHeatmap = mode === "density" || mode === "all";
+  }
+
+  // =========================================================================
+  // DF: Density heatmap background overlay
+  // =========================================================================
+  private _renderDensityHeatmap(ctx: CanvasRenderingContext2D): void {
+    const world = this.pixiApp?.stage.children[0];
+    if (!world || !this.pixiNodes) return;
+    const wx = world.x;
+    const wy = world.y;
+    const ws = (world as any).scale?.x ?? 1;
+    const cw = this.canvasWrap?.clientWidth ?? 600;
+    const ch = this.canvasWrap?.clientHeight ?? 400;
+
+    // Grid resolution for heatmap (lower = faster, coarser)
+    const CELL = 40;
+    const cols = Math.ceil(cw / CELL);
+    const rows = Math.ceil(ch / CELL);
+    const grid = new Float32Array(cols * rows);
+
+    // Accumulate density: for each node, find its screen position and
+    // add a Gaussian contribution to nearby cells
+    const RADIUS = 3; // cells radius for Gaussian spread
+    for (const [, pn] of this.pixiNodes) {
+      const gfx = (pn as any).graphics ?? pn.gfx;
+      if (!gfx || !gfx.visible) continue;
+      const sx = gfx.x * ws + wx;
+      const sy = gfx.y * ws + wy;
+      const ci = Math.floor(sx / CELL);
+      const ri = Math.floor(sy / CELL);
+      for (let dr = -RADIUS; dr <= RADIUS; dr++) {
+        for (let dc = -RADIUS; dc <= RADIUS; dc++) {
+          const r = ri + dr;
+          const c = ci + dc;
+          if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
+          const dist2 = dr * dr + dc * dc;
+          grid[r * cols + c] += Math.exp(-dist2 / (RADIUS * 0.8));
+        }
+      }
+    }
+
+    // Find max density
+    let maxD = 0;
+    for (let i = 0; i < grid.length; i++) {
+      if (grid[i] > maxD) maxD = grid[i];
+    }
+    if (maxD === 0) return;
+
+    // Draw heatmap cells with alpha-blended colors
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const v = grid[r * cols + c] / maxD;
+        if (v < 0.05) continue; // skip near-zero cells
+        // Blue (cold) → Cyan → Yellow → Red (hot)
+        const h = (1 - v) * 240; // 240=blue, 0=red
+        const a = v * 0.25; // max 25% opacity
+        ctx.fillStyle = `hsla(${h}, 80%, 50%, ${a})`;
+        ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
+      }
+    }
   }
 
   // =========================================================================
@@ -6882,7 +6954,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
       creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
       explore: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" as const },
-      analyze: { syncWithEditor: false, localGraphCenter: false, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true },
+      analyze: { syncWithEditor: false, localGraphCenter: null, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true },
       write: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 2, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const },
     };
     const p = presets[preset];

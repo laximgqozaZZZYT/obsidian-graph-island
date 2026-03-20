@@ -72,6 +72,8 @@ export class CanvasApp {
   /** Whether to show the background dot grid */
   showDotGrid = true;
 
+  /** シーン描画前に呼ばれるコールバック（背景オーバーレイ等で使用） */
+  onPreFlush: ((ctx: CanvasRenderingContext2D, dpr: number) => void) | null = null;
   /** シーン描画完了後に呼ばれるコールバック（差分オーバーレイ等で使用） */
   onPostFlush: ((ctx: CanvasRenderingContext2D, dpr: number) => void) | null = null;
 
@@ -168,6 +170,8 @@ export class CanvasApp {
 
     ctx.save();
     ctx.scale(this.dpr, this.dpr);
+
+    this.onPreFlush?.(ctx, this.dpr);
 
     this.stage._flush(ctx, 1);
 

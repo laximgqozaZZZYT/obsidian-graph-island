@@ -91,6 +91,8 @@ const STRING_FIELDS: (keyof PanelState)[] = [
   "definitionField",
   "nodeSubLabelFields",
   "hoverTooltipFields",
+  "nodeIconField",
+  "nodeIconMap",
 ];
 
 /** Fields that should be arrays */
@@ -117,7 +119,7 @@ const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   gapDetectionMode: ["within-tag", "cross-cluster", "both"] as const,
   searchMode: ["filter", "highlight"] as const,
   activeTab: ["filter", "display", "layout", "settings"] as const,
-  analysisOverlay: ["off", "bridges", "entropy", "gaps", "missing", "all"] as const,
+  analysisOverlay: ["off", "bridges", "entropy", "gaps", "missing", "density", "all"] as const,
 };
 
 /** Fields that are Set<string> — exported as arrays, imported as arrays, converted back to Set in apply */
@@ -178,7 +180,7 @@ export function exportPreset(panel: PanelState): string {
 export function exportPresetDiff(panel: PanelState, defaults: PanelState): string {
   const diff: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(panel)) {
-    const defVal = (defaults as Record<string, unknown>)[key];
+    const defVal = (defaults as unknown as Record<string, unknown>)[key];
     if (value instanceof Set || defVal instanceof Set) continue;
     if (Array.isArray(value) || Array.isArray(defVal)) continue;
     if (typeof value === "object" || typeof defVal === "object") {
