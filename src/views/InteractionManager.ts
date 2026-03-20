@@ -116,6 +116,8 @@ export interface InteractionHost {
   setSearchQuery(query: string): void;
   /** Export full graph as JSON download */
   exportFullGraph?(): void;
+  /** FC: Export graph as PNG image */
+  exportPng?(): void;
   /** ED: Save current viewport position/scale */
   saveViewport?(name: string): void;
   /** ED: Restore saved viewport */
@@ -950,6 +952,16 @@ export class InteractionManager {
             .onClick(() => this.host.restoreViewport!(name));
         });
       }
+    }
+
+    // FC: PNG export
+    if (this.host.exportPng) {
+      menu.addSeparator();
+      menu.addItem((item) => {
+        item.setTitle("Export PNG")
+          .setIcon("image")
+          .onClick(() => this.host.exportPng!());
+      });
     }
 
     menu.showAtPosition({ x: e.clientX, y: e.clientY });

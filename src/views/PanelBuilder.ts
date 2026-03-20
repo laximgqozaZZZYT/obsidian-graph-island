@@ -546,6 +546,8 @@ export interface PanelCallbacks {
   stopOrbitAnimation(): void;
   wakeRenderLoop(): void;
   rebuildPanel(): void;
+  /** A11y: announce status message via aria-live region */
+  announceA11y?(msg: string): void;
   invalidateData(): void;       // sets rawData = null then doRender
   /** Like invalidateData but keeps the panel DOM intact (for search filtering) */
   invalidateDataKeepPanel(): void;
@@ -2231,15 +2233,36 @@ function _buildNodesTab(
     });
   }
 
-  // Search filter
+  // FA: Sort selector + Search filter
   const filterWrap = tabEl.createDiv({ cls: "gi-node-tree-filter" });
-  filterWrap.style.cssText = "padding:4px 8px;";
+  filterWrap.style.cssText = "padding:4px 8px;display:flex;gap:4px;align-items:center;";
   const filterInput = filterWrap.createEl("input", {
     type: "text",
     placeholder: t("nodes.filterPlaceholder") ?? "Filter nodes...",
     cls: "gi-node-filter-input",
   });
-  filterInput.style.cssText = "width:100%;padding:4px 6px;font-size:11px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-primary);";
+  filterInput.style.cssText = "flex:1;padding:4px 6px;font-size:11px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-primary);";
+  const sortSelect = filterWrap.createEl("select", { cls: "gi-node-sort" });
+  sortSelect.style.cssText = "font-size:10px;padding:2px;border-radius:3px;background:var(--background-primary);border:1px solid var(--background-modifier-border);";
+  for (const [val, label] of [["name", "A-Z"], ["path", "Path"], ["visible", "Visible"]]) {
+    sortSelect.createEl("option", { value: val, text: label });
+  }
+  sortSelect.addEventListener("change", () => {
+    const mode = sortSelect.value;
+    const rows = [...treeContainer.querySelectorAll(".gi-node-row")] as HTMLElement[];
+    rows.sort((a, b) => {
+      const aId = a.dataset.nodeId ?? "";
+      const bId = b.dataset.nodeId ?? "";
+      if (mode === "visible") {
+        const aVis = !excludeSet.has(aId) ? 0 : 1;
+        const bVis = !excludeSet.has(bId) ? 0 : 1;
+        return aVis - bVis || aId.localeCompare(bId);
+      }
+      if (mode === "path") return aId.localeCompare(bId);
+      return (a.textContent ?? "").localeCompare(b.textContent ?? "");
+    });
+    for (const row of rows) treeContainer.appendChild(row);
+  });
 
   const treeContainer = tabEl.createDiv({ cls: "gi-node-tree" });
   treeContainer.style.cssText = "overflow-y:auto;max-height:400px;font-size:11px;padding:0 4px;";
@@ -2488,6 +2511,8 @@ function _buildArrangementPatternSelect(s: ClusterSectionCtx): void {
     s.cb.applyClusterForce();
     s.cb.rebuildPanel();
     s.cb.restartSimulation(1.0);
+    // A11y: announce layout change
+    s.cb.announceA11y?.(`${t("a11y.layoutChanged") ?? "Layout"}: ${v}`);
   }, t("desc.clusterPattern"));
 }
 

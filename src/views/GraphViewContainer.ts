@@ -458,7 +458,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const root = this.containerEl.children[1] as HTMLElement;
     root.empty();
     root.addClass("graph-container");
-    if (Platform.isMobile) root.addClass("is-mobile");
+    if (Platform.isMobile) {
+      root.addClass("is-mobile");
+      // A11y WCAG 2.5.5: ensure minimum 44px touch target (22px radius)
+      if (!this.panel.renderThresholds) this.panel.renderThresholds = {};
+      if ((this.panel.renderThresholds.minNodeRadius ?? 0) < 22) {
+        this.panel.renderThresholds.minNodeRadius = 22;
+      }
+    }
 
     // --- Toolbar ---
     this._initToolbar(root);
@@ -2671,6 +2678,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.rawData = null;
     this.doRender();
     this.requestSave();
+  }
+
+  // FC: Export graph canvas as PNG
+  exportPng(): void {
+    const canvas = this.pixiApp?.view;
+    if (!canvas) return;
+    canvas.toBlob((blob: Blob | null) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `graph-island-${new Date().toISOString().slice(0, 10)}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      new Notice("Graph exported as PNG", 2000);
+    }, "image/png");
   }
 
   exportFullGraph(): void {
@@ -4982,6 +5007,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       stopOrbitAnimation: () => { this.stopOrbitAnimation(); this.requestSave(); },
       wakeRenderLoop: () => this.wakeRenderLoop(),
       rebuildPanel: () => { this.buildPanel(); this.requestSave(); },
+      announceA11y: (msg: string) => this._announceA11y(msg),
       invalidateData: () => { this.rawData = null; this._similarCache.clear(); this.doRender(); this.requestSave(); },
       invalidateDataKeepPanel: () => { this.rawData = null; this._similarCache.clear(); this.skipPanelRebuildCount++; this.doRender().finally(() => { this.skipPanelRebuildCount = Math.max(0, this.skipPanelRebuildCount - 1); }); this.requestSave(); },
       restartSimulation: (alpha: number) => {
