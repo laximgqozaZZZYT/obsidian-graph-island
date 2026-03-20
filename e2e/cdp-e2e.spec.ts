@@ -91,7 +91,17 @@ async function renderAndVerify(
 
 test.beforeAll(async ({}, testInfo) => {
   testInfo.setTimeout(120_000);
-  browser = await chromium.connectOverCDP(CDP_URL);
+
+  // CDP connection with retry (Obsidian may need time after restart)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      browser = await chromium.connectOverCDP(CDP_URL);
+      break;
+    } catch {
+      if (attempt === 2) throw new Error(`CDP connection failed after 3 attempts to ${CDP_URL}`);
+      await new Promise(r => setTimeout(r, 5000));
+    }
+  }
   const contexts = browser.contexts();
   page =
     contexts[0].pages().find((p) => p.url().includes("index.html")) ??

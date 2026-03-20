@@ -692,6 +692,8 @@ const en: TranslationMap = {
   "stats.groups": "Groups",
   "stats.avgDegree": "Avg Degree",
   "stats.maxHub": "Max Hub",
+  "stats.copyMarkdown": "Copy as Markdown",
+  "stats.copied": "Statistics copied to clipboard",
   "stats.title": "Statistics",
 
   // --- Feature CX: Graph Statistics Panel ---
@@ -1480,6 +1482,8 @@ const ja: TranslationMap = {
   "stats.groups": "グループ",
   "stats.avgDegree": "平均次数",
   "stats.maxHub": "最大ハブ",
+  "stats.copyMarkdown": "Markdownでコピー",
+  "stats.copied": "統計をクリップボードにコピーしました",
   "stats.title": "統計",
 
   // --- Feature CX: グラフ統計パネル ---

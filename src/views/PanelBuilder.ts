@@ -644,6 +644,14 @@ export function buildPanel(
   const searchClearBtn = searchWrapper.createEl("span", { cls: "gi-search-clear" });
   searchClearBtn.textContent = "\u00d7";
   searchClearBtn.style.display = panel.searchQuery ? "flex" : "none";
+
+  // Search hit count badge
+  const searchCountBadge = searchWrapper.createEl("span", { cls: "gi-search-count" });
+  searchCountBadge.style.cssText = "font-size:10px;color:var(--text-muted);margin-right:4px;display:none;";
+  if (panel.searchQuery && ctx.nodeCount > 0) {
+    searchCountBadge.textContent = String(ctx.pixiNodes.size);
+    searchCountBadge.style.display = "";
+  }
   searchBar.value = panel.searchQuery;
 
   // --- 検索構文ハイライトプレビュー ---
@@ -2765,6 +2773,25 @@ function _buildStatsBar(
     const isHidden = detail.style.display === "none";
     detail.style.display = isHidden ? "" : "none";
     setIcon(toggle, isHidden ? "chevron-up" : "chevron-down");
+  });
+
+  // Copy stats as Markdown
+  const copyBtn = summary.createEl("span", { cls: "gi-stats-copy clickable-icon", attr: { title: t("stats.copyMarkdown") } });
+  setIcon(copyBtn, "copy");
+  copyBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const md = [
+      `## Graph Statistics`,
+      `- **${t("stats.nodes")}**: ${nodeCount}`,
+      `- **${t("stats.edges")}**: ${edgeCount}`,
+      `- **${t("stats.groups")}**: ${groupCount}`,
+      `- **${t("stats.avgDegree")}**: ${avgDegree}`,
+      `- **${t("stats.maxHub")}**: ${maxHubName} (${maxDeg})`,
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(md);
+      showToast(t("stats.copied"));
+    } catch { /* clipboard not available */ }
   });
 }
 
