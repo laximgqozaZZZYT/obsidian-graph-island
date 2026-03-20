@@ -1642,7 +1642,7 @@ function _buildCableDisplaySection(
         cb.markDirty();
       }, t("desc.cableFanAlpha"));
     }
-  }, undefined, false, "git-merge");
+  }, undefined, true, "git-merge");
 }
 
 function _buildRoadNetworkSection(
@@ -1674,7 +1674,7 @@ function _buildRoadNetworkSection(
         cb.doRenderKeepPanel();
       }, t("desc.roadWidth"));
     }
-  }, undefined, false, "map");
+  }, undefined, true, "map");
 }
 
 function _buildMinimapSection(

@@ -54,8 +54,8 @@ const DEFAULT_LABEL_DEGREE_THRESHOLD = 3;
 /** Number of nodes created synchronously before deferring the rest */
 const IMMEDIATE_BATCH_SIZE = 200;
 
-/** Number of nodes processed per deferred batch frame */
-const DEFERRED_BATCH_SIZE = 100;
+/** Number of nodes processed per deferred batch frame (higher = faster initial render) */
+const DEFERRED_BATCH_SIZE = 200;
 
 /** Sunburst segment default arc angle in degrees */
 const SUNBURST_SEGMENT_ARC_DEG = 30;
