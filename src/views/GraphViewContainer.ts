@@ -988,13 +988,33 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return;
     }
     // Enter: activate (open file of) keyboard-focused node
+    // Shift+Enter: add to multi-select (accessibility: keyboard multi-select)
+    // Ctrl+Enter: add to comparison (accessibility: keyboard compare)
     if (key === "Enter" && this._isKeyboardFocused && this.highlightedNodeId) {
       e.preventDefault();
-      const pn = this.pixiNodes.get(this.highlightedNodeId);
-      if (pn?.data.filePath) {
-        const file = this.app.vault.getAbstractFileByPath(pn.data.filePath);
-        if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+      if (e.shiftKey) {
+        // A11y: keyboard multi-select
+        this.toggleMultiSelect?.(this.highlightedNodeId);
+        this._announceA11y(`${t("a11y.selected") ?? "Selected"}: ${this.pixiNodes.get(this.highlightedNodeId)?.data.label ?? this.highlightedNodeId}`);
+      } else if (e.ctrlKey || e.metaKey) {
+        // A11y: keyboard compare
+        this.addCompareNode(this.highlightedNodeId);
+        this._announceA11y(`${t("a11y.compared") ?? "Compared"}: ${this.pixiNodes.get(this.highlightedNodeId)?.data.label ?? this.highlightedNodeId}`);
+      } else {
+        const pn = this.pixiNodes.get(this.highlightedNodeId);
+        if (pn?.data.filePath) {
+          const file = this.app.vault.getAbstractFileByPath(pn.data.filePath);
+          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+        }
       }
+      return;
+    }
+    // S: set pathfinder start on focused node (accessibility: keyboard pathfinder)
+    // E: set pathfinder end on focused node
+    if ((key === "s" || key === "e") && this._isKeyboardFocused && this.highlightedNodeId && !e.ctrlKey && !e.metaKey) {
+      const role = key === "s" ? "start" : "end";
+      this.setPathfinderNode(this.highlightedNodeId, role);
+      this._announceA11y(`${t("a11y.pathfinder") ?? "Path"} ${role}: ${this.pixiNodes.get(this.highlightedNodeId)?.data.label ?? this.highlightedNodeId}`);
       return;
     }
     // ?: toggle help overlay (O3)

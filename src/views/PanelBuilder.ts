@@ -186,6 +186,8 @@ export interface PanelState {
   nodeColorMode: "default" | "category" | "heatmap" | "community" | "field";
   /** EO: Field name for nodeColorMode="field" */
   nodeColorField: string;
+  /** ET: Custom color palette (CSS color strings, comma-separated) */
+  customColorPalette: string;
   /** Filter edges by directionality: "all" | "bidirectional" | "unidirectional" */
   edgeDirectionFilter: "all" | "bidirectional" | "unidirectional";
   /** Visual indicator for bidirectional edges (thicker + higher alpha) */
@@ -343,6 +345,7 @@ export function createDefaultPanel(): PanelState {
     colorEdgesByRelation: true,
     nodeColorMode: "category" as const,
     nodeColorField: "",
+    customColorPalette: "",
     showInheritance: false,
     showAggregation: false,
     showTagNodes: true,
@@ -1136,6 +1139,11 @@ function _buildNodeDisplaySection(
       const options = [{ value: "", label: "-- select --" }, ...fields.map(f => ({ value: f, label: f }))];
       addSelect(body, t("display.nodeColorField") ?? "Color Field", options, panel.nodeColorField ?? "", (v) => {
         panel.nodeColorField = v;
+        cb.doRenderKeepPanel();
+      });
+      // ET: Custom color palette input
+      addTextInput(body, t("display.customPalette") ?? "Custom Palette", panel.customColorPalette ?? "", "#ff0000, #00ff00, #0000ff", (v) => {
+        panel.customColorPalette = v;
         cb.doRenderKeepPanel();
       });
     }
@@ -2303,7 +2311,17 @@ function _buildNodesTab(
       }
 
       // Click to jump
-      row.addEventListener("click", () => cb.jumpToNode(entry.id));
+      row.addEventListener("click", (e) => {
+        if (e.ctrlKey || e.metaKey) {
+          // ES: Ctrl+click toggles multi-select
+          const idx = panel.multiSelectNodeIds.indexOf(entry.id);
+          if (idx >= 0) panel.multiSelectNodeIds.splice(idx, 1);
+          else panel.multiSelectNodeIds.push(entry.id);
+          row.classList.toggle("gi-node-selected");
+        } else {
+          cb.jumpToNode(entry.id);
+        }
+      });
     }
   }
 
@@ -2361,7 +2379,7 @@ function _buildNodesTab(
   if (!tabEl.querySelector("style.gi-node-hover-css")) {
     const style = document.createElement("style");
     style.className = "gi-node-hover-css";
-    style.textContent = `.gi-node-hovered{background:var(--interactive-accent)!important;color:var(--text-on-accent)!important;}.gi-node-linked{background:rgba(34,197,94,0.15)!important;font-weight:600;}`;
+    style.textContent = `.gi-node-hovered{background:var(--interactive-accent)!important;color:var(--text-on-accent)!important;}.gi-node-linked{background:rgba(34,197,94,0.15)!important;font-weight:600;}.gi-node-selected{background:rgba(139,92,246,0.2)!important;border-left:2px solid var(--interactive-accent);}`;
     tabEl.prepend(style);
   }
 }
