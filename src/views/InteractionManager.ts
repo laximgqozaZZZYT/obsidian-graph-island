@@ -114,6 +114,8 @@ export interface InteractionHost {
   insertBlankNode?(wx: number, wy: number): void;
   /** Set search query and trigger filter (context menu shortcut) */
   setSearchQuery(query: string): void;
+  /** Export full graph as JSON download */
+  exportFullGraph?(): void;
   /** F2: Whether inline ontology editor is enabled */
   isInlineOntologyEnabled?(): boolean;
   /** C3: Whether relation type picker is enabled */
@@ -877,6 +879,16 @@ export class InteractionManager {
         item.setTitle(t("context.insertBlank"))
           .setIcon("plus-circle")
           .onClick(() => this.host.insertBlankNode!(worldPt.x, worldPt.y));
+      });
+    }
+
+    // Export full graph as JSON
+    if (this.host.exportFullGraph) {
+      menu.addSeparator();
+      menu.addItem((item) => {
+        item.setTitle("Export Graph JSON")
+          .setIcon("download")
+          .onClick(() => this.host.exportFullGraph!());
       });
     }
 

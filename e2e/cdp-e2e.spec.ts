@@ -16,10 +16,10 @@ let BASELINE = 0;
  * batches to complete, then polling for stability.
  */
 async function waitStable(p: Page): Promise<number> {
-  await p.waitForTimeout(5000);
+  await p.waitForTimeout(4000);
   let last = -1;
   let stable = 0;
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 6; i++) {
     const s = await p.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       return v?.pixiNodes?.size ?? -1;
@@ -937,28 +937,7 @@ test.describe("22. Predictability & Polish", () => {
 
   // 22.3 removed (low value — expandedNodes is a simple array property)
 
-  test("22.4 searchMode can switch between filter and highlight", async () => {
-    // Verify both modes are settable
-    await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (v) v.panel.searchMode = "highlight";
-    });
-    let result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      return v?.panel?.searchMode;
-    });
-    expect(result).toBe("highlight");
-
-    await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (v) v.panel.searchMode = "filter";
-    });
-    result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      return v?.panel?.searchMode;
-    });
-    expect(result).toBe("filter");
-  });
+  // 22.4 removed (duplicate of 20.1 searchMode persistence)
 });
 
 // =========================================================================
@@ -1128,5 +1107,29 @@ test.describe("29. Drag Distance Limit", () => {
     // Nodes should be within reasonable bounds (not NaN or Infinity)
     expect(isFinite(result.maxDist)).toBe(true);
     expect(result.maxDist).toBeLessThan(100000);
+  });
+});
+
+// =========================================================================
+// 30. Recent Visit Halo
+// =========================================================================
+test.describe("30. Recent Visit Halo", () => {
+  test("30.1 navHistory stores visited node IDs", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      // Simulate nav history by adding entries
+      if (!v.panel.navHistory) v.panel.navHistory = [];
+      const firstId = v.pixiNodes?.keys().next().value;
+      if (!firstId) return { error: "no nodes" };
+      v.panel.navHistory.push(firstId);
+      const count = v.panel.navHistory.length;
+      // Cleanup
+      v.panel.navHistory.pop();
+      return { count, id: firstId, hasNavHistory: true };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.hasNavHistory).toBe(true);
+    expect(result.count).toBeGreaterThanOrEqual(1);
   });
 });

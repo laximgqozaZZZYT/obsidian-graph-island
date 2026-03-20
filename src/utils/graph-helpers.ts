@@ -297,3 +297,36 @@ export function exportSubgraphJSON(subgraph: {
     2,
   );
 }
+
+/** Export full graph as JSON with coordinates and metadata */
+export function exportFullGraphJSON(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+): string {
+  return JSON.stringify(
+    {
+      nodes: nodes.map((n) => ({
+        id: n.id,
+        label: n.label,
+        x: Math.round(n.x * 10) / 10,
+        y: Math.round(n.y * 10) / 10,
+        tags: n.tags,
+        category: n.category,
+        filePath: n.filePath,
+        isTag: n.isTag,
+        meta: n.meta,
+      })),
+      edges: edges.map((e) => ({
+        source: typeof e.source === "object" ? (e.source as any).id : e.source,
+        target: typeof e.target === "object" ? (e.target as any).id : e.target,
+        type: e.type,
+        label: e.label,
+      })),
+      exportedAt: new Date().toISOString(),
+      nodeCount: nodes.length,
+      edgeCount: edges.length,
+    },
+    null,
+    2,
+  );
+}
