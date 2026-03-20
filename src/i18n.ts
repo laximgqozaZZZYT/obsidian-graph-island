@@ -396,6 +396,7 @@ const en: TranslationMap = {
   "a11y.filterResult": "Filter",
   "a11y.nodesVisible": "nodes visible",
   "a11y.filterCleared": "Filter cleared — all nodes visible",
+  "a11y.layoutChanged": "Layout changed",
 
   // --- PanelBuilder: help ---
   "help.ariaLabel": "Help",
@@ -1211,6 +1212,7 @@ const ja: TranslationMap = {
   "a11y.filterResult": "フィルタ結果",
   "a11y.nodesVisible": "ノード表示中",
   "a11y.filterCleared": "フィルタ解除 — 全ノード表示",
+  "a11y.layoutChanged": "レイアウト変更",
 
   // --- PanelBuilder: help ---
   "help.ariaLabel": "ヘルプ",
