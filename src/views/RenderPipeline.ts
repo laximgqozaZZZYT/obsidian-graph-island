@@ -726,7 +726,10 @@ export class RenderPipeline {
     const nodeScreenPx = NODE_SCREEN_PX_BASE * worldScale;
     const isExtremeZoom = nodeScreenPx < rt.cardLODExtremePx;
     const isMidZoom = !isExtremeZoom && nodeScreenPx < rt.cardLODNormalPx;
-    const minWorldRadius = isExtremeZoom ? 0 : Math.max(0, MIN_WORLD_RADIUS_PX / worldScale);
+    // A11y: even at extreme zoom-out, guarantee minimum 1px screen-space radius
+    const minWorldRadius = isExtremeZoom
+      ? Math.max(0.5 / worldScale, 1)  // at least 1px on screen
+      : Math.max(0, MIN_WORLD_RADIUS_PX / worldScale);
 
     // 5-level LOD (used when autoLOD is enabled)
     const lodLevel: number =
@@ -1222,10 +1225,12 @@ export class RenderPipeline {
     showIcon: boolean,
   ) {
     const { visible, tlFilteredOut, alpha, nodeCount, worldScale, minWorldRadius } = ctx;
-    const headerH = crc.tableHeaderHeight / worldScale;
-    const fieldLineH = crc.fieldLineHeight / worldScale;
-    const pad = crc.cardPadding / worldScale;
-    const cornerR = crc.cardCornerRadius / worldScale;
+    // Cap card counter-scale to prevent cards from becoming enormous at extreme zoom-out
+    const cardScale = Math.min(1 / worldScale, 8);
+    const headerH = crc.tableHeaderHeight * cardScale;
+    const fieldLineH = crc.fieldLineHeight * cardScale;
+    const pad = crc.cardPadding * cardScale;
+    const cornerR = crc.cardCornerRadius * cardScale;
     const showMeta = nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
     const fieldCount = showMeta ? cardConfig.fields.length : 0;
     // M4: extra rows for definitionField and bodyPreview
