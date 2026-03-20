@@ -5063,7 +5063,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       rebuildPanel: () => { this.buildPanel(); this.requestSave(); },
       announceA11y: (msg: string) => this._announceA11y(msg),
       invalidateData: () => { this.rawData = null; this._similarCache.clear(); this.doRender(); this.requestSave(); },
-      invalidateDataKeepPanel: () => { this.rawData = null; this._similarCache.clear(); this.skipPanelRebuildCount++; this.doRender().finally(() => { this.skipPanelRebuildCount = Math.max(0, this.skipPanelRebuildCount - 1); }); this.requestSave(); },
+      invalidateDataKeepPanel: () => {
+        this.rawData = null; this._similarCache.clear(); this.skipPanelRebuildCount++;
+        this.doRender().finally(() => {
+          this.skipPanelRebuildCount = Math.max(0, this.skipPanelRebuildCount - 1);
+          // GK: Auto-fit view after filter change
+          if (this.panel.autoFitOnFilter && this.canvasWrap) {
+            this.autoFitView(this.canvasWrap.clientWidth, this.canvasWrap.clientHeight);
+          }
+        });
+        this.requestSave();
+      },
       restartSimulation: (alpha: number) => {
         if (this.simulation) { this.simulation.alpha(alpha).restart(); this.wakeRenderLoop(); }
       },
@@ -6064,10 +6074,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         "sequence": { key: "showSequence", label: "Sequence" },
       };
 
+      // GK: Edge dash pattern map for legend (matches applyDashPattern in EdgeRenderer)
+      const edgeDashMap: Record<string, string> = {
+        "semantic": "dotted", "tag": "dashed", "has-tag": "dashed",
+        "similar": "dotted", "sequence": "dash-dot", "sibling": "dotted",
+      };
       for (const [rel, cssColor] of relColors) {
         const row = edgeSection.createDiv({ cls: "gi-legend-item gi-legend-item-clickable" });
-        const dot = row.createDiv({ cls: "gi-legend-color-dot" });
-        dot.style.background = cssColor;
+        // A11y: Use line sample with dash pattern instead of simple dot
+        const dashType = edgeDashMap[rel.toLowerCase()];
+        if (dashType) {
+          const line = row.createDiv({ cls: "gi-legend-edge-line" });
+          line.style.borderTopColor = cssColor;
+          line.dataset.dash = dashType;
+        } else {
+          const dot = row.createDiv({ cls: "gi-legend-edge-line" });
+          dot.style.borderTopColor = cssColor;
+        }
         const labelEl = row.createEl("span", { cls: "gi-legend-label", text: rel });
         // エッジタイプに対応するトグルがあれば、クリックで表示切替
         const toggle = edgeTypeToggles[rel.toLowerCase()];

@@ -37,6 +37,8 @@ export interface NodeTreeEntry {
 export interface PanelState {
   /** Explicitly excluded node IDs (hidden via Nodes tab) */
   excludeNodes: string[];
+  /** GK: Auto-fit view after filter changes */
+  autoFitOnFilter: boolean;
   /** FZ: Minimum degree to show a node (0 = no filter) */
   minDegreeFilter: number;
   /** FZ: Maximum degree to show a node (0 = no filter) */
@@ -330,6 +332,7 @@ export interface PanelState {
 export function createDefaultPanel(): PanelState {
   return {
     excludeNodes: [],
+    autoFitOnFilter: false,
     minDegreeFilter: 0,
     maxDegreeFilter: 0,
     includeTagsInData: true,
@@ -1039,6 +1042,8 @@ function buildFilterTab(
     // --- Basic (always visible) ---
     addToggle(body, t("filter.includeTagsInData"), panel.includeTagsInData, (v) => { panel.includeTagsInData = v; cb.invalidateDataKeepPanel(); }, t("desc.includeTagsInData"));
     addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateDataKeepPanel(); }, t("desc.orphans"));
+    // GK: Auto-fit on filter change
+    addToggle(body, t("filter.autoFit") ?? "Auto-fit on filter", panel.autoFitOnFilter, (v) => { panel.autoFitOnFilter = v; });
     // FZ: Degree filter
     addSlider(body, t("filter.minDegree") ?? "Min Degree", 0, 50, 1, panel.minDegreeFilter, (v) => {
       panel.minDegreeFilter = v;
@@ -2343,8 +2348,16 @@ function _buildNodesTab(
   filterInput.style.cssText = "flex:1;padding:4px 6px;font-size:11px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-primary);";
   const sortSelect = filterWrap.createEl("select", { cls: "gi-node-sort" });
   sortSelect.style.cssText = "font-size:10px;padding:2px;border-radius:3px;background:var(--background-primary);border:1px solid var(--background-modifier-border);";
-  for (const [val, label] of [["name", "A-Z"], ["path", "Path"], ["visible", "Visible"]]) {
+  // GL: Added "Degree" sort option for importance ranking
+  for (const [val, label] of [["name", "A-Z"], ["path", "Path"], ["visible", "Visible"], ["degree", "Degree"]]) {
     sortSelect.createEl("option", { value: val, text: label });
+  }
+  // Build degree lookup for GL sort
+  const degreeLookup = new Map<string, number>();
+  for (const e of entries) {
+    const fwd = cb.getForwardLinks(e.id).length;
+    const bk = cb.getBacklinks(e.id).length;
+    degreeLookup.set(e.id, fwd + bk);
   }
   sortSelect.addEventListener("change", () => {
     const mode = sortSelect.value;
@@ -2356,6 +2369,9 @@ function _buildNodesTab(
         const aVis = !excludeSet.has(aId) ? 0 : 1;
         const bVis = !excludeSet.has(bId) ? 0 : 1;
         return aVis - bVis || aId.localeCompare(bId);
+      }
+      if (mode === "degree") {
+        return (degreeLookup.get(bId) ?? 0) - (degreeLookup.get(aId) ?? 0);
       }
       if (mode === "path") return aId.localeCompare(bId);
       return (a.textContent ?? "").localeCompare(b.textContent ?? "");
