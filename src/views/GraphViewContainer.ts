@@ -2208,7 +2208,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getNodeDisplayMode() { return this.panel.nodeDisplayMode ?? "node"; }
   getCardDisplayConfig() { return this.panel.cardDisplayConfig ?? { fields: [], maxWidth: 120, showIcon: false }; }
   getDonutDisplayConfig() { return this.panel.donutDisplayConfig ?? { innerRadius: 0.6 }; }
-  getRenderThresholds() { return this.panel.renderThresholds ?? {}; }
+  getRenderThresholds() {
+    const rt = this.panel.renderThresholds ?? {};
+    // Suppress per-node tag labels when enclosure mode shows tags via hull labels
+    if (this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
+      return { ...rt, tagLabelShow: false };
+    }
+    return rt;
+  }
   getTextFadeThreshold(): number { return this.panel.textFadeThreshold; }
   getWorldScale(): number { return this.worldContainer?.scale.x ?? 1; }
   getRenderPipeline(): RenderPipeline | null { return this.renderPipeline; }
