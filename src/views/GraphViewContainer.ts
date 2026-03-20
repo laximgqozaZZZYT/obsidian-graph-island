@@ -94,6 +94,14 @@ const TICK_SKIP = 4;
 const DEFAULT_CANVAS_WIDTH = 600;
 const DEFAULT_CANVAS_HEIGHT = 400;
 
+/** Shared thinking-mode presets (used in both applyPreset and applyPresetByKey) */
+const THINKING_MODE_PRESETS: Record<string, Record<string, unknown>> = {
+  explore: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" },
+  analyze: { syncWithEditor: false, localGraphCenter: null, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community", colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true,
+    directionalGravityRules: [{ filter: "type:inheritance", direction: "bottom", strength: 0.08 }] },
+  write: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 1, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category", nodeSize: 25, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showSimilar: false, focusConeEnabled: true },
+};
+
 // Re-export PixiNode so other modules can import from either location
 export type { PixiNode } from "./InteractionManager";
 
@@ -2555,6 +2563,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.requestSave();
   }
 
+  // ED: Viewport bookmark
+  saveViewport(name: string): void {
+    const world = this.worldContainer;
+    if (!world) return;
+    if (!this.panel.savedViewports) this.panel.savedViewports = [];
+    this.panel.savedViewports = this.panel.savedViewports.filter(v => v.name !== name);
+    this.panel.savedViewports.push({ name, x: world.x, y: world.y, scale: world.scale.x });
+    this.requestSave();
+    new Notice(`Viewport saved: ${name}`, 2000);
+  }
+  restoreViewport(name: string): void {
+    const world = this.worldContainer;
+    if (!world) return;
+    const vp = (this.panel.savedViewports ?? []).find(v => v.name === name);
+    if (!vp) return;
+    world.x = vp.x; world.y = vp.y; world.scale.set(vp.scale);
+    this.updateLabelsForZoom(); this.updateZoomIndicator(vp.scale); this.markDirty();
+  }
+  getSavedViewportNames(): string[] {
+    return (this.panel.savedViewports ?? []).map(v => v.name);
+  }
+
   exportFullGraph(): void {
     const gd = this.getGraphData();
     const json = exportFullGraphJSON(gd.nodes, gd.edges);
@@ -4879,11 +4909,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             ],
           },
           "full-analysis": { showLinks: true, showTagEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showGraphStats: true, showBridgeNodes: true, showImportanceRing: true, nodeColorMode: "community", showEntropyOverlay: true, highlightMissingNeighbors: true },
-          // M1: Thinking Modes
-          explore: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" as const },
-          analyze: { syncWithEditor: false, localGraphCenter: null, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true,
-            directionalGravityRules: [{ filter: "type:inheritance", direction: "bottom" as const, strength: 0.08 }] },
-          write: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 1, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const, nodeSize: 25, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showSimilar: false, focusConeEnabled: true },
+          // M1: Thinking Modes (shared via THINKING_MODE_PRESETS)
+          ...THINKING_MODE_PRESETS,
         };
         const p = presets[preset];
         if (p) {
@@ -6988,10 +7015,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: false },
       analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
       creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
-      explore: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" as const },
-      analyze: { syncWithEditor: false, localGraphCenter: null, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true,
-        directionalGravityRules: [{ filter: "type:inheritance", direction: "bottom" as const, strength: 0.08 }] },
-      write: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 2, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const },
+      ...THINKING_MODE_PRESETS,
     };
     const p = presets[preset];
     if (p) {
@@ -7224,68 +7248,60 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
-  /** Track bookmark ★ markers */
+  // EA: Unified node marker system
   private _bookmarkMarkers = new Map<string, CanvasText>();
+  private _pinMarkers = new Map<string, CanvasText>();
 
-  /** Add/remove ★ markers on bookmarked nodes */
-  private _updateBookmarkMarkers() {
-    const bookmarked = new Set(this.panel.bookmarkedNodes ?? []);
+  /** EA: Generic marker sync — adds/removes CanvasText markers on nodes */
+  private _syncNodeMarkers(
+    activeIds: Set<string>,
+    markerMap: Map<string, CanvasText>,
+    text: string,
+    style: { fontSize: number; fill: number; fontWeight?: string },
+    anchorY: 0 | 1,  // 0 = below node, 1 = above node
+    offsetSign: 1 | -1,
+    offsetExtra: number,
+  ) {
     const zoom = this.worldContainer?.scale.x ?? 1;
     const counterScale = Math.max(0.5, 1 / zoom);
-    for (const [id, marker] of this._bookmarkMarkers) {
-      if (!bookmarked.has(id) || !this.pixiNodes.has(id)) {
+    for (const [id, marker] of markerMap) {
+      if (!activeIds.has(id) || !this.pixiNodes.has(id)) {
         const pn = this.pixiNodes.get(id);
         if (pn) { pn.gfx.removeChild(marker); marker.destroy(); }
-        this._bookmarkMarkers.delete(id);
+        markerMap.delete(id);
       }
     }
-    for (const id of bookmarked) {
+    for (const id of activeIds) {
       const pn = this.pixiNodes.get(id);
       if (!pn) continue;
-      let marker = this._bookmarkMarkers.get(id);
+      let marker = markerMap.get(id);
       if (!marker) {
-        marker = new CanvasText("★", { fontSize: 10, fill: 0xfbbf24, fontWeight: "bold" });
-        marker.anchor.set(0.5, 1);
+        marker = new CanvasText(text, { fontSize: style.fontSize, fill: style.fill, fontWeight: style.fontWeight ?? "bold" });
+        marker.anchor.set(0.5, anchorY);
         marker.resolution = 2;
         pn.gfx.addChild(marker);
-        this._bookmarkMarkers.set(id, marker);
+        markerMap.set(id, marker);
       }
       marker.x = 0;
-      marker.y = -(pn.radius + 2);
+      marker.y = offsetSign * (pn.radius + offsetExtra);
       marker.scale.set(counterScale);
     }
   }
 
-  /** DZ: Pin marker graphics for pinned nodes */
-  private _pinMarkers = new Map<string, CanvasText>();
+  private _updateBookmarkMarkers() {
+    this._syncNodeMarkers(
+      new Set(this.panel.bookmarkedNodes ?? []),
+      this._bookmarkMarkers, "★",
+      { fontSize: 10, fill: 0xfbbf24 }, 1, -1, 2,
+    );
+  }
 
-  /** Add/remove pin markers on pinned nodes */
   private _updatePinMarkers() {
-    const pinned = new Set(Object.keys(this.panel.pinnedPositions ?? {}));
-    const zoom = this.worldContainer?.scale.x ?? 1;
-    const counterScale = Math.max(0.5, 1 / zoom);
-    for (const [id, marker] of this._pinMarkers) {
-      if (!pinned.has(id) || !this.pixiNodes.has(id)) {
-        const pn = this.pixiNodes.get(id);
-        if (pn) { pn.gfx.removeChild(marker); marker.destroy(); }
-        this._pinMarkers.delete(id);
-      }
-    }
-    for (const id of pinned) {
-      const pn = this.pixiNodes.get(id);
-      if (!pn) continue;
-      let marker = this._pinMarkers.get(id);
-      if (!marker) {
-        marker = new CanvasText("|", { fontSize: 8, fill: 0x94a3b8, fontWeight: "bold" });
-        marker.anchor.set(0.5, 0);
-        marker.resolution = 2;
-        pn.gfx.addChild(marker);
-        this._pinMarkers.set(id, marker);
-      }
-      marker.x = 0;
-      marker.y = pn.radius + 1;
-      marker.scale.set(counterScale);
-    }
+    this._syncNodeMarkers(
+      new Set(Object.keys(this.panel.pinnedPositions ?? {})),
+      this._pinMarkers, "|",
+      { fontSize: 8, fill: 0x94a3b8 }, 0, 1, 1,
+    );
   }
 
   /** Track recent-visit halo graphics */
