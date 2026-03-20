@@ -2510,10 +2510,13 @@ export class RenderPipeline {
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
     if (!rt.labelOverlapCulling) return;
 
-    const margin = rt.labelOverlapMargin;
+    // Scale margin inversely with zoom — at low zoom, labels are counterscaled larger
+    // so overlap detection needs more generous spacing
+    const zoom = this.host.getWorldContainer()?.scale.x ?? 1;
+    const zoomMarginScale = zoom < 0.5 ? 1 + (0.5 - zoom) * 4 : 1; // up to 3x at zoom 0
+    const margin = rt.labelOverlapMargin * zoomMarginScale;
     const pixiNodes = this.host.getPixiNodes();
     const degrees = this.host.getDegrees();
-    const zoom = this.host.getWorldContainer()?.scale.x ?? 1;
     const maxScreenW = rt.labelOverlapMaxScreenW;
     const maxScreenH = rt.labelOverlapMaxScreenH;
 
