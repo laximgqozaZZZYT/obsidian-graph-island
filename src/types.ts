@@ -753,6 +753,8 @@ export interface RenderThresholds {
   labelMaxChars?: number;
   /** GC: Enclosure stroke width override (0 = auto) */
   enclosureStrokeWidth?: number;
+  /** GG: Global edge alpha multiplier (0-1, default 1.0) */
+  globalEdgeAlpha?: number;
   /** FY: Enclosure fill opacity 0-1 (default from sizeFade calculation) */
   enclosureFillOpacity?: number;
   /** Node count below which glow halos are shown (default 800) */
@@ -1273,6 +1275,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   cardBodyFontSize: 8,
   labelMaxChars: 0,
   enclosureStrokeWidth: 0,
+  globalEdgeAlpha: 1.0,
   enclosureFillOpacity: 0,
   glowNodeCount: 800,
   gridLabelOffset: 12,

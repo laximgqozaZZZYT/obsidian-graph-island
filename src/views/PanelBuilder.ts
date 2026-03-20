@@ -1171,6 +1171,13 @@ function _buildNodeDisplaySection(
     }
     addSlider(body, t("display.nodeSize"), 5, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.resetZoomBaseNodeSize(); cb.recalcNodeRadii(); cb.markDirty(); }, t("desc.nodeSize"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
+    // GD: Label max characters
+    const rtLabel = panel.renderThresholds ?? {};
+    addSlider(body, t("display.labelMaxChars") ?? "Label Max Chars", 0, 60, 1, rtLabel.labelMaxChars ?? 0, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.labelMaxChars = v;
+      cb.doRenderKeepPanel();
+    });
     // --- Advanced (hidden by default) ---
     addAdvancedGroup(body, (adv) => {
       const rtNode = panel.renderThresholds ?? {};
@@ -1219,7 +1226,12 @@ function _buildNodeDisplaySection(
       }, t("desc.visualLinkEditor"));
       // R2: highlightMissingNeighbors toggle removed — now controlled via analysisOverlay dropdown
       // --- ノード形状 ---
-      const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: t(`shape.${s}`) }));
+      // GH: Shape preview swatches
+      const shapeIcons: Record<string, string> = {
+        circle: "O", triangle: "^", square: "#", diamond: "<>",
+        pentagon: "5", hexagon: "6", star: "*", cross: "+",
+      };
+      const shapeOptions = ALL_SHAPES.map(s => ({ value: s, label: `${shapeIcons[s] ?? ""} ${t(`shape.${s}`)}` }));
       const defaultRule = panel.nodeShapeRules.find(r => r.match === "default");
       if (panel.showTagNodes) {
         const tagRule = panel.nodeShapeRules.find(r => r.match === "isTag");
@@ -1607,6 +1619,13 @@ function _buildEdgeDisplaySection(
     // --- Basic (always visible) ---
     addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRenderKeepPanel(); }, t("desc.arrows"));
     addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
+    // GG: Global edge opacity
+    const rtEdge = panel.renderThresholds ?? {};
+    addSlider(body, t("display.edgeOpacity") ?? "Edge Opacity", 0.05, 1.0, 0.05, rtEdge.globalEdgeAlpha ?? 1.0, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.globalEdgeAlpha = v;
+      cb.markDirty();
+    });
     // --- Advanced (hidden by default) ---
     addAdvancedGroup(body, (adv) => {
       addToggle(adv, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); cb.rebuildPanel(); }, t("desc.edgeColor"));
@@ -2044,6 +2063,12 @@ function _buildPluginSettingsSection(
       addSlider(body, t("display.enclosureFillOpacity") ?? "Enclosure Fill", 0, 1, 0.05, rtEnc.enclosureFillOpacity ?? 0, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.enclosureFillOpacity = v;
+        cb.doRenderKeepPanel();
+      });
+      // GC: Enclosure stroke width override
+      addSlider(body, t("display.enclosureStrokeWidth") ?? "Enclosure Stroke", 0, 10, 0.5, rtEnc.enclosureStrokeWidth ?? 0, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.enclosureStrokeWidth = v;
         cb.doRenderKeepPanel();
       });
     }

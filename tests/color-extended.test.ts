@@ -52,8 +52,8 @@ describe("contrastColor", () => {
   });
 
   it("handles pure red correctly", () => {
-    // Red luminance = 255 * 0.299 = 76.245 < 128 → white
-    expect(contrastColor(0xff0000)).toBe(0xffffff);
+    // WCAG relative luminance of red ≈ 0.2126 → black contrast 5.25:1 > white 4.0:1 → black wins
+    expect(contrastColor(0xff0000)).toBe(0x000000);
   });
 
   it("handles pure green correctly", () => {

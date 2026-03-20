@@ -80,6 +80,8 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "kShortestPaths",
   "presentationStep",
   "degreeEdgeWidth",
+  "minDegreeFilter",
+  "maxDegreeFilter",
 ];
 
 /** Fields that should be string */

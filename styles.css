@@ -2340,6 +2340,12 @@
   outline-offset: 2px;
 }
 
+/* A11y: Canvas focus ring for keyboard users */
+.graph-svg-wrap canvas:focus-visible {
+  outline: 3px solid var(--interactive-accent);
+  outline-offset: -3px;
+}
+
 /* Slider value display: better readability */
 .gi-slider-value {
   min-width: 2.5em;

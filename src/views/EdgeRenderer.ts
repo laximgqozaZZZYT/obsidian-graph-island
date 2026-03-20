@@ -42,6 +42,8 @@ export interface EdgeDrawConfig {
   maxDegree: number;
   /** Total visible edge count (used to auto-scale alpha for dense graphs) */
   totalEdgeCount?: number;
+  /** GG: Global edge alpha multiplier (0-1, default 1.0) */
+  globalEdgeAlpha?: number;
   /** Node ID → cluster group key (null = no clustering / bundling disabled) */
   nodeClusterMap: Map<string, string> | null;
   /** Cluster group key → live centroid position */
@@ -2608,6 +2610,10 @@ function resolveEdgeStyle(
     alpha = Math.min(1, alpha * 1.3);
   }
 
+  // GG: Apply global edge alpha multiplier
+  if (cfg.globalEdgeAlpha != null && cfg.globalEdgeAlpha < 1) {
+    alpha *= cfg.globalEdgeAlpha;
+  }
   return { alpha, lineThick };
 }
 
