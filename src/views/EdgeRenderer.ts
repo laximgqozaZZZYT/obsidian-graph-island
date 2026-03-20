@@ -51,6 +51,8 @@ export interface EdgeDrawConfig {
   bundleStrength: number;
   /** Whether the current Obsidian theme is dark (affects edge color defaults) */
   isDark: boolean;
+  /** A11y: High contrast mode — double edge line width */
+  highContrast?: boolean;
   /** Show relation/type labels on edges */
   showEdgeLabels: boolean;
   /** Edge label placement mode: center (midpoint), offset (perpendicular above), smart (collision-avoiding) */
@@ -2590,6 +2592,12 @@ function resolveEdgeStyle(
     } else {
       alpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
     }
+  }
+
+  // A11y: High contrast mode — double line thickness for visibility
+  if (cfg.highContrast) {
+    lineThick *= 2;
+    alpha = Math.min(1, alpha * 1.3);
   }
 
   return { alpha, lineThick };

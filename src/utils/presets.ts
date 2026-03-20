@@ -43,6 +43,7 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showPathfinderOverlay",
   "semanticZoom",
   "showTagBadges",
+  "highContrastMode",
   "showImportanceRing",
   "showRecencyMarker",
   "showOntologyBackbone",

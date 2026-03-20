@@ -3835,6 +3835,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.highlightEdgeAlpha = edgeRt.highlightEdgeAlpha;
     cfg.highlightEdgeNonMatchAlpha = edgeRt.highlightEdgeNonMatchAlpha;
     cfg.isDark = this.isDarkTheme();
+    cfg.highContrast = this.panel.highContrastMode;
     cfg.showEdgeLabels = this.panel.showEdgeLabels;
     cfg.edgeLabelPlacement = this.panel.edgeLabelPlacement;
     cfg.edgeLayerMode = this.panel.edgeLayerMode;

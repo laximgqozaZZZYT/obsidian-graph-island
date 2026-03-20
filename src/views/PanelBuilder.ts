@@ -226,6 +226,8 @@ export interface PanelState {
   semanticZoom: boolean;
   /** Show colored tag badges on node circumference */
   showTagBadges: boolean;
+  /** A11y: High contrast mode — thicker edges, stronger node outlines */
+  highContrastMode: boolean;
   /** Show importance ring around nodes (based on selected metric) */
   showImportanceRing: boolean;
   /** Metric for importance ring: degree, betweenness, or pagerank */
@@ -447,6 +449,7 @@ export function createDefaultPanel(): PanelState {
     navHistoryCursor: -1,
     semanticZoom: false,
     showTagBadges: false,
+    highContrastMode: false,
     showImportanceRing: false,
     importanceMetric: "degree" as const,
     showRecencyMarker: false,
@@ -1734,6 +1737,7 @@ function _buildMinimapSection(
     addToggle(body, t("display.oobIndicator"), panel.showOutOfBoundsIndicator ?? false, (v) => { panel.showOutOfBoundsIndicator = v; cb.markDirty(); cb.wakeRenderLoop(); }, t("desc.oobIndicator"));
     addToggle(body, t("display.graphStats"), panel.showGraphStats ?? false, (v) => { panel.showGraphStats = v; cb.invalidateDataKeepPanel(); }, t("desc.graphStats"));
     addToggle(body, t("display.ancestryBreadcrumb"), panel.showAncestryBreadcrumb ?? false, (v) => { panel.showAncestryBreadcrumb = v; cb.invalidateDataKeepPanel(); }, t("desc.ancestryBreadcrumb"));
+    addToggle(body, t("display.highContrast") ?? "High Contrast", panel.highContrastMode, (v) => { panel.highContrastMode = v; cb.doRenderKeepPanel(); }, t("desc.highContrast") ?? "Thicker edges and stronger outlines for better visibility");
     // EE: Saved viewport list
     if (panel.savedViewports && panel.savedViewports.length > 0) {
       const vpList = body.createDiv({ cls: "gi-viewport-list" });

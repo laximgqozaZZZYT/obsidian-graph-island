@@ -397,6 +397,8 @@ const en: TranslationMap = {
   "a11y.nodesVisible": "nodes visible",
   "a11y.filterCleared": "Filter cleared — all nodes visible",
   "a11y.layoutChanged": "Layout changed",
+  "display.highContrast": "High Contrast",
+  "desc.highContrast": "Thicker edges and stronger outlines for better visibility",
 
   // --- PanelBuilder: help ---
   "help.ariaLabel": "Help",
@@ -1213,6 +1215,8 @@ const ja: TranslationMap = {
   "a11y.nodesVisible": "ノード表示中",
   "a11y.filterCleared": "フィルタ解除 — 全ノード表示",
   "a11y.layoutChanged": "レイアウト変更",
+  "display.highContrast": "ハイコントラスト",
+  "desc.highContrast": "エッジを太く、ノードの輪郭を強調して視認性を向上",
 
   // --- PanelBuilder: help ---
   "help.ariaLabel": "ヘルプ",

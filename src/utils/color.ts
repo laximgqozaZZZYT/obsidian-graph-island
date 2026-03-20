@@ -26,9 +26,28 @@ export function adjustBrightness(hex: number, factor: number): number {
          Math.min(255, Math.round(b * factor));
 }
 
-/** V6: Pick black or white for maximum contrast against the given background. */
+/** WCAG 2.1 relative luminance (0–1 range, sRGB linearized). */
+export function wcagRelativeLuminance(hex: number): number {
+  const { r, g, b } = hexToRgb(hex);
+  const toLinear = (c: number) => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+/** WCAG 2.1 contrast ratio between two hex colors (1:1 to 21:1). */
+export function wcagContrastRatio(fg: number, bg: number): number {
+  const l1 = wcagRelativeLuminance(fg);
+  const l2 = wcagRelativeLuminance(bg);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/** V6: Pick black or white for maximum WCAG contrast against the given background. */
 export function contrastColor(bgHex: number): number {
-  const { r, g, b } = hexToRgb(bgHex);
-  const lum = getLuminance(r, g, b);
-  return lum > 128 ? 0x000000 : 0xffffff;
+  const blackRatio = wcagContrastRatio(0x000000, bgHex);
+  const whiteRatio = wcagContrastRatio(0xffffff, bgHex);
+  return blackRatio >= whiteRatio ? 0x000000 : 0xffffff;
 }
