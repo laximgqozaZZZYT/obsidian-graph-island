@@ -1696,8 +1696,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.fpsEl.style.display = "none";
         }
       }
-      // Bookmark ★ markers
+      // Bookmark ★ markers + DZ: Pin markers
       this._updateBookmarkMarkers();
+      this._updatePinMarkers();
       this._updateRecentVisitHalos();
     };
 
@@ -4880,7 +4881,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           "full-analysis": { showLinks: true, showTagEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showGraphStats: true, showBridgeNodes: true, showImportanceRing: true, nodeColorMode: "community", showEntropyOverlay: true, highlightMissingNeighbors: true },
           // M1: Thinking Modes
           explore: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" as const },
-          analyze: { syncWithEditor: false, localGraphCenter: null, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true },
+          analyze: { syncWithEditor: false, localGraphCenter: null, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true,
+            directionalGravityRules: [{ filter: "type:inheritance", direction: "bottom" as const, strength: 0.08 }] },
           write: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 1, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const, nodeSize: 25, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showSimilar: false, focusConeEnabled: true },
         };
         const p = presets[preset];
@@ -6987,7 +6989,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
       creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
       explore: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" as const },
-      analyze: { syncWithEditor: false, localGraphCenter: null, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true },
+      analyze: { syncWithEditor: false, localGraphCenter: null, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true,
+        directionalGravityRules: [{ filter: "type:inheritance", direction: "bottom" as const, strength: 0.08 }] },
       write: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 2, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const },
     };
     const p = presets[preset];
@@ -7249,6 +7252,38 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       marker.x = 0;
       marker.y = -(pn.radius + 2);
+      marker.scale.set(counterScale);
+    }
+  }
+
+  /** DZ: Pin marker graphics for pinned nodes */
+  private _pinMarkers = new Map<string, CanvasText>();
+
+  /** Add/remove pin markers on pinned nodes */
+  private _updatePinMarkers() {
+    const pinned = new Set(Object.keys(this.panel.pinnedPositions ?? {}));
+    const zoom = this.worldContainer?.scale.x ?? 1;
+    const counterScale = Math.max(0.5, 1 / zoom);
+    for (const [id, marker] of this._pinMarkers) {
+      if (!pinned.has(id) || !this.pixiNodes.has(id)) {
+        const pn = this.pixiNodes.get(id);
+        if (pn) { pn.gfx.removeChild(marker); marker.destroy(); }
+        this._pinMarkers.delete(id);
+      }
+    }
+    for (const id of pinned) {
+      const pn = this.pixiNodes.get(id);
+      if (!pn) continue;
+      let marker = this._pinMarkers.get(id);
+      if (!marker) {
+        marker = new CanvasText("|", { fontSize: 8, fill: 0x94a3b8, fontWeight: "bold" });
+        marker.anchor.set(0.5, 0);
+        marker.resolution = 2;
+        pn.gfx.addChild(marker);
+        this._pinMarkers.set(id, marker);
+      }
+      marker.x = 0;
+      marker.y = pn.radius + 1;
       marker.scale.set(counterScale);
     }
   }

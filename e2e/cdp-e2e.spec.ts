@@ -1297,3 +1297,28 @@ test.describe("38. Recency Marker", () => {
     expect(result.defaultDays).toBeGreaterThan(0);
   });
 });
+
+// =========================================================================
+// 39. Pinned Node Indicator (DZ)
+// =========================================================================
+test.describe("39. Pinned Nodes", () => {
+  test("39.1 pinnedPositions is persisted in panel", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      const hasPinned = "pinnedPositions" in (v.panel ?? {});
+      // Pin a test node
+      const firstId = v.pixiNodes?.keys().next().value;
+      if (firstId) {
+        v.panel.pinnedPositions[firstId] = { x: 100, y: 200 };
+        const isPinned = firstId in v.panel.pinnedPositions;
+        delete v.panel.pinnedPositions[firstId];
+        return { hasPinned, isPinned };
+      }
+      return { hasPinned, isPinned: false };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.hasPinned).toBe(true);
+    expect(result.isPinned).toBe(true);
+  });
+});
