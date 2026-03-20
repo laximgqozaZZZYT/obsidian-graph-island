@@ -1067,6 +1067,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       ["Drag canvas", "Pan view"],
       ["Tab / Shift+Tab", "Cycle focus through nodes"],
       ["Enter", "Open focused node's file"],
+      ["Shift+Enter", "Add focused node to multi-select"],
+      ["Ctrl+Enter", "Add focused node to compare"],
+      ["S (focused)", "Set pathfinder start"],
+      ["E (focused)", "Set pathfinder end"],
       ["Escape", "Close overlay / clear focus"],
       ["+/= / \u2212", "Zoom in / out"],
       ["0", "Reset zoom (100%)"],
@@ -6886,8 +6890,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.setHighlightedNodeId(nodeId);
     this.applyHover();
     this.panToNode(nodeId);
-    // Announce focused node to screen readers
-    this._announceA11y(this.pixiNodes.get(nodeId)?.data.label ?? nodeId);
+    // Announce focused node to screen readers with rich context
+    const focusPn = this.pixiNodes.get(nodeId);
+    if (focusPn) {
+      const deg = this.degrees.get(nodeId) ?? 0;
+      const tags = focusPn.data.tags?.slice(0, 3).join(", ") ?? "";
+      const cat = focusPn.data.category ?? "";
+      const parts = [focusPn.data.label];
+      if (deg > 0) parts.push(`${deg} connections`);
+      if (cat) parts.push(cat);
+      if (tags) parts.push(tags);
+      this._announceA11y(parts.join(" — "));
+    } else {
+      this._announceA11y(nodeId);
+    }
   }
 
   /** Push a short message into the aria-live region for screen reader users. */

@@ -387,6 +387,11 @@ const en: TranslationMap = {
   "action.save": "Save Settings",
   "action.reset": "Reset",
 
+  // --- Accessibility announcements ---
+  "a11y.selected": "Selected",
+  "a11y.compared": "Added to compare",
+  "a11y.pathfinder": "Pathfinder",
+
   // --- PanelBuilder: help ---
   "help.ariaLabel": "Help",
 
@@ -1191,6 +1196,11 @@ const ja: TranslationMap = {
   // --- PanelBuilder: action buttons ---
   "action.save": "設定を保存",
   "action.reset": "初期化",
+
+  // --- Accessibility announcements ---
+  "a11y.selected": "選択",
+  "a11y.compared": "比較に追加",
+  "a11y.pathfinder": "パスファインダー",
 
   // --- PanelBuilder: help ---
   "help.ariaLabel": "ヘルプ",

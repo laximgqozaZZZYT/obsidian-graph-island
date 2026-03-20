@@ -2157,8 +2157,9 @@ export class RenderPipeline {
       const scaledFontSize = isSuperNode ? superFontSize : Math.round(fontMin + importance * (fontMax - fontMin));
 
       const labelFontWeight = isSuperNode ? "bold" : "500";
-      // For super nodes, use group color as pill background; for regular nodes, use theme bg
-      const labelBg = isSuperNode ? (color != null ? darkenColor(color, 0.6) : rt.labelBgColor) : rt.labelBgColor;
+      // For super nodes, use group color as pill background; for regular nodes, use theme-aware bg
+      const themeLabelBg = this.host.isDarkTheme() ? (rt.labelBgColor ?? 0x1a1a2e) : (rt.labelBgColorLight ?? 0xf0f0f4);
+      const labelBg = isSuperNode ? (color != null ? darkenColor(color, 0.6) : themeLabelBg) : themeLabelBg;
       // Use bright text when pill background is present for better contrast
       const labelFill = isSuperNode ? 0xffffff
         : (this.host.isDarkTheme() ? 0xe0e0e0 : 0x222222);

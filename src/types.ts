@@ -998,8 +998,10 @@ export interface RenderThresholds {
    *  After semantic-zoom filtering, labels are sorted by degree and capped.
    *  Hovered nodes and their BFS neighbours bypass this limit. */
   labelMaxVisible?: number;
-  /** Label pill background color (hex, default 0x1a1a2e) */
+  /** Label pill background color for dark theme (hex, default 0x1a1a2e) */
   labelBgColor?: number;
+  /** Label pill background color for light theme (hex, default 0xf0f0f4) */
+  labelBgColorLight?: number;
   /** Label pill background alpha (default 0.85) */
   labelBgAlpha?: number;
   /** Label text stroke/outline color (hex, default 0x000000) */
@@ -1356,6 +1358,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   enclosureOutlierFactor: 2.0,
   labelMaxDisplacementRatio: 2.5,
   labelBgColor: 0x1a1a2e,
+  labelBgColorLight: 0xf0f0f4,
   labelBgAlpha: 0.85,
   labelStrokeColor: 0x000000,
   labelStrokeWidth: 3.5,
