@@ -201,6 +201,8 @@ export interface PanelState {
   savedSearchQueries: { name: string; query: string }[];
   /** Pinned node positions: persisted across layout changes */
   pinnedPositions: Record<string, { x: number; y: number }>;
+  /** ED: Saved viewport positions (name → {x, y, scale}) */
+  savedViewports: { name: string; x: number; y: number; scale: number }[];
   /** Navigation history: visited node IDs (max 20) */
   navHistory: string[];
   /** Navigation history cursor (index into navHistory, -1 = latest) */
@@ -421,6 +423,7 @@ export function createDefaultPanel(): PanelState {
     nodeSubLabelFields: "",
     hoverTooltipFields: "",
     savedSearchQueries: [],
+    savedViewports: [],
     pinnedPositions: {},
     navHistory: [],
     navHistoryCursor: -1,
@@ -1131,12 +1134,15 @@ function _buildNodeDisplaySection(
         panel.focusMode = v;
         if (!v) { panel.focusNodeId = null; cb.applyHover(); }
         cb.markDirty();
+        cb.rebuildPanel();
       }, t("desc.focusMode"));
-      // R2: フォーカスコーン — 距離ベースのアルファグラデーション
-      addToggle(adv, t("display.focusCone"), panel.focusConeEnabled ?? true, (v) => {
-        panel.focusConeEnabled = v;
-        cb.applyHover();
-      }, t("desc.focusCone"));
+      // R2: フォーカスコーン — only shown when focusMode is enabled (progressive disclosure)
+      if (panel.focusMode) {
+        addToggle(adv, t("display.focusCone"), panel.focusConeEnabled ?? true, (v) => {
+          panel.focusConeEnabled = v;
+          cb.applyHover();
+        }, t("desc.focusCone"));
+      }
       // ビジュアルリンクエディタ: Alt+ドラッグでリンク作成
       addToggle(adv, t("display.visualLinkEditor"), panel.visualLinkEditor, (v) => {
         panel.visualLinkEditor = v;
@@ -1297,14 +1303,7 @@ function _buildStructureAnalysisSection(
       panel.clusterLabelDetail = v as "minimal" | "standard" | "detailed" | "rich";
       cb.markDirty();
     }, t("desc.clusterLabelDetail"));
-    addSelect(body, t("display.gapDetectionMode"), [
-      { value: "within-tag", label: t("display.gapWithinTag") },
-      { value: "cross-cluster", label: t("display.gapCrossCluster") },
-      { value: "both", label: t("display.gapBoth") },
-    ], panel.gapDetectionMode, (v) => {
-      panel.gapDetectionMode = v as "within-tag" | "cross-cluster" | "both";
-      cb.markDirty();
-    }, t("desc.gapDetectionMode"));
+    // gapDetectionMode removed — ghost control (field never read in rendering)
     addToggle(body, t("display.highlightPatterns"), panel.highlightPatterns, (v) => {
       panel.highlightPatterns = v;
       cb.markDirty();
