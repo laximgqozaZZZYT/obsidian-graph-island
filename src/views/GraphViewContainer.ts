@@ -3989,6 +3989,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.doRender();
         this.requestSave();
       },
+      enclosureLabelPosition: (rt as any).enclosureLabelPosition ?? "top",
       hoveredTag: this.hoveredTag,
       labelContainer: this.enclosureLabelContainer ?? undefined,
       groupLabelFontSize: rt.groupLabelFontSize,

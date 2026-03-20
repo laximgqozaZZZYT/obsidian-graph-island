@@ -743,6 +743,10 @@ export interface RenderThresholds {
   gradientNodeCount?: number;
   /** Node count below which card text is rendered (default 200) */
   cardTextNodeCount?: number;
+  /** FT: Maximum body preview lines in plain card mode (default 3) */
+  cardBodyMaxLines?: number;
+  /** FU: Enclosure label position ("top" | "center" | "bottom", default "top") */
+  enclosureLabelPosition?: "top" | "center" | "bottom";
   /** Node count below which glow halos are shown (default 800) */
   glowNodeCount?: number;
   /** Grid label offset in pixels (default 12) */
@@ -1256,6 +1260,8 @@ export const DEFAULT_CARDINALITY_RENDER_CONFIG: Required<CardinalityRenderConfig
 export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   gradientNodeCount: 500,
   cardTextNodeCount: 3000,
+  cardBodyMaxLines: 3,
+  enclosureLabelPosition: "top" as const,
   glowNodeCount: 800,
   gridLabelOffset: 12,
   clusterChargeForce: -10,

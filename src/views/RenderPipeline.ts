@@ -1492,7 +1492,7 @@ export class RenderPipeline {
         pn.gfx.addChild(title);
         // FH: Wrapped body preview — split into multiple lines
         if (pn.data.bodyPreview) {
-          const maxLines = 3;
+          const maxLines = rt.cardBodyMaxLines ?? 3;
           const charsPerLine = Math.max(5, Math.floor(textW / (smallFont * 0.55)));
           const words = pn.data.bodyPreview.split(/\s+/);
           const lines: string[] = [];

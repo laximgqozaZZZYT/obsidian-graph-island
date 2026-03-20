@@ -1279,6 +1279,13 @@ function _buildNodeDisplayModeSection(
         panel.cardDisplayConfig.headerStyle = v as "plain" | "table";
         cb.doRenderKeepPanel();
       });
+      // FT: Card body max lines
+      const rtCard = panel.renderThresholds ?? {};
+      addSlider(body, t("display.cardBodyLines") ?? "Body Lines", 0, 10, 1, rtCard.cardBodyMaxLines ?? 3, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.cardBodyMaxLines = v;
+        cb.doRenderKeepPanel();
+      });
     } else if (panel.nodeDisplayMode === "donut") {
       addTextInput(body, t("display.donutBreakdown"),
         panel.donutDisplayConfig.breakdownField ?? "",

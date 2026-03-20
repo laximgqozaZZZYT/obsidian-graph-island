@@ -39,6 +39,8 @@ export interface EnclosureConfig {
   groupLabelBgAlpha?: number;
   /** IQR multiplier for outlier filtering (default 2.0). Higher = more inclusive. */
   enclosureOutlierFactor?: number;
+  /** FU: Label position within enclosure ("top" | "center" | "bottom", default "top") */
+  enclosureLabelPosition?: "top" | "center" | "bottom";
   /** S3: Cluster label detail level */
   clusterLabelDetail?: "minimal" | "standard" | "detailed" | "rich";
   /** S3: Cluster summary generator for rich labels */
@@ -417,10 +419,24 @@ export function drawEnclosures(
     const ux = dirX / dirLen;
     const uy = dirY / dirLen;
 
-    // Place label at farthest point + offset along the direction
+    // FU: Place label based on position setting
     txt.anchor.set(0.5, 0.5);
-    txt.x = farthestX + ux * glHullOffset;
-    txt.y = farthestY + uy * glHullOffset;
+    const lpos = cfg.enclosureLabelPosition ?? "top";
+    if (lpos === "center") {
+      txt.x = labelCenterX;
+      txt.y = labelCenterY;
+    } else if (lpos === "bottom") {
+      // Mirror: use lowest Y instead of highest
+      let bottomY = -Infinity;
+      let bottomX = labelCenterX;
+      for (const p of expanded) { if (p.y > bottomY) { bottomY = p.y; bottomX = p.x; } }
+      txt.x = bottomX;
+      txt.y = bottomY + glHullOffset;
+    } else {
+      // Default: top (farthest from centroid)
+      txt.x = farthestX + ux * glHullOffset;
+      txt.y = farthestY + uy * glHullOffset;
+    }
     txt.scale.set(labelScale);
     const isHovered = cfg.hoveredTag === tag;
     const baseAlpha = isHovered ? Math.min(1, glAlpha + 0.3) : glAlpha;
