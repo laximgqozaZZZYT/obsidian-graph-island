@@ -14,7 +14,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees, computeGraphStats, computeBetweennessCentrality, detectArticulationPoints, generateStructureQuestions, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid } from "../utils/graph-helpers";
 import { hexToRgb } from "../utils/color";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, type NodeTreeEntry, DEFAULT_PANEL, createDefaultPanel, validatePanelState } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
@@ -2714,16 +2714,37 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   exportFullGraph(): void {
     const gd = this.getGraphData();
     const json = exportFullGraphJSON(gd.nodes, gd.edges);
-    const blob = new Blob([json], { type: "application/json" });
+    this._downloadFile(json, "application/json", `graph-island-export-${new Date().toISOString().slice(0, 10)}.json`);
+    new Notice(`Graph exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, 3000);
+  }
+
+  exportGraphAsCSV(): void {
+    const gd = this.getGraphData();
+    const csv = exportGraphCSV(gd.nodes, gd.edges);
+    this._downloadFile(csv, "text/csv", `graph-island-${new Date().toISOString().slice(0, 10)}.csv`);
+    new Notice(`CSV exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, 3000);
+  }
+
+  exportGraphAsMermaid(): void {
+    const gd = this.getGraphData();
+    const mmd = exportGraphMermaid(gd.nodes, gd.edges);
+    navigator.clipboard.writeText(mmd).then(() => {
+      new Notice(`Mermaid diagram copied to clipboard (${Math.min(200, gd.nodes.length)} nodes)`, 3000);
+    }).catch(() => {
+      this._downloadFile(mmd, "text/plain", `graph-island-${new Date().toISOString().slice(0, 10)}.mmd`);
+    });
+  }
+
+  private _downloadFile(content: string, type: string, filename: string): void {
+    const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `graph-island-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    new Notice(`Graph exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, 3000);
   }
 
   // =========================================================================
@@ -3816,6 +3837,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.degrees = this.degrees;
     cfg.maxDegree = maxDeg;
     cfg.totalEdgeCount = this.graphEdges.length;
+    cfg.globalEdgeAlpha = this.panel.renderThresholds?.globalEdgeAlpha ?? 1.0;
     cfg.nodeClusterMap = this.clusterMeta?.nodeClusterMap ?? null;
     // Use live centroids when available, fall back to target centroids from clusterMeta
     const liveCentroids = this.getCachedCentroids();

@@ -330,3 +330,55 @@ export function exportFullGraphJSON(
     2,
   );
 }
+
+/** Export graph as CSV (nodes + edges). Accessible format for data tools. */
+export function exportGraphCSV(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+): string {
+  const lines: string[] = [];
+  lines.push("# Nodes");
+  lines.push("id,label,category,tags,x,y");
+  for (const n of nodes) {
+    const tags = (n.tags ?? []).join(";");
+    const label = n.label.replace(/,/g, " ");
+    lines.push(`${n.id},${label},${n.category ?? ""},${tags},${Math.round(n.x)},${Math.round(n.y)}`);
+  }
+  lines.push("");
+  lines.push("# Edges");
+  lines.push("source,target,type,label");
+  for (const e of edges) {
+    const src = typeof e.source === "object" ? (e.source as any).id : e.source;
+    const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+    lines.push(`${src},${tgt},${e.type ?? "link"},${(e.label ?? "").replace(/,/g, " ")}`);
+  }
+  return lines.join("\n");
+}
+
+/** Export graph as Mermaid flowchart syntax (max 200 nodes, 500 edges). */
+export function exportGraphMermaid(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+): string {
+  const lines: string[] = ["graph LR"];
+  const nodeSlice = nodes.slice(0, 200);
+  const nodeIds = new Set(nodeSlice.map(n => n.id));
+  for (const n of nodeSlice) {
+    const safe = n.label.replace(/["\[\]()]/g, "");
+    const mid = n.id.replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 50);
+    lines.push(`  ${mid}["${safe}"]`);
+  }
+  let ec = 0;
+  for (const e of edges) {
+    if (ec >= 500) break;
+    const src = typeof e.source === "object" ? (e.source as any).id : e.source;
+    const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+    if (!nodeIds.has(src) || !nodeIds.has(tgt)) continue;
+    const srcM = src.replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 50);
+    const tgtM = tgt.replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 50);
+    const arrow = e.type === "inheritance" ? "-->|is-a|" : e.type === "aggregation" ? "-->|has-a|" : "-->";
+    lines.push(`  ${srcM} ${arrow} ${tgtM}`);
+    ec++;
+  }
+  return lines.join("\n");
+}

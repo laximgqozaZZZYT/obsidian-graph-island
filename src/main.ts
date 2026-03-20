@@ -177,6 +177,22 @@ export default class GraphViewsPlugin extends Plugin {
         if (v) v.exportFullGraph?.();
       },
     });
+    this.addCommand({
+      id: "graph-export-csv",
+      name: "Graph: Export as CSV",
+      callback: () => {
+        const v = this._getGraphView() as any;
+        if (v) v.exportGraphAsCSV?.();
+      },
+    });
+    this.addCommand({
+      id: "graph-export-mermaid",
+      name: "Graph: Export as Mermaid diagram",
+      callback: () => {
+        const v = this._getGraphView() as any;
+        if (v) v.exportGraphAsMermaid?.();
+      },
+    });
 
     this.addSettingTab(new GraphViewsSettingTab(this.app, this));
 
