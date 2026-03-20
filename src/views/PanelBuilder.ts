@@ -1425,11 +1425,7 @@ function _buildStructureAnalysisSection(
       panel.clusterLabelDetail = v as "minimal" | "standard" | "detailed" | "rich";
       cb.markDirty();
     }, t("desc.clusterLabelDetail"));
-    // gapDetectionMode removed — ghost control (field never read in rendering)
-    addToggle(body, t("display.highlightPatterns"), panel.highlightPatterns, (v) => {
-      panel.highlightPatterns = v;
-      cb.markDirty();
-    }, t("desc.highlightPatterns"));
+    // highlightPatterns removed — ghost control (field never read in rendering)
     // R2: showBridgeNodes toggle removed — now controlled via analysisOverlay dropdown
     addToggle(body, t("display.focusLayout"), panel.focusLayout, (v) => {
       panel.focusLayout = v;
@@ -1450,15 +1446,8 @@ function _buildStructureAnalysisSection(
       cb.applyEgoToVisible?.();
     });
     // F2: Inline ontology editor
-    addToggle(body, t("display.inlineOntologyEditor"), panel.enableInlineOntologyEditor, (v) => {
-      panel.enableInlineOntologyEditor = v;
-      cb.markDirty();
-    }, t("desc.inlineOntologyEditor"));
-    // F5: Relation matrix
-    addToggle(body, t("display.relationMatrix"), panel.showRelationMatrix, (v) => {
-      panel.showRelationMatrix = v;
-      cb.markDirty();
-    }, t("desc.relationMatrix"));
+    // enableInlineOntologyEditor removed — ghost control (field never read in rendering)
+    // showRelationMatrix removed — ghost control (field never read in rendering)
   }, tHelp("help.structureAnalysis"), true, "git-branch");
 }
 
@@ -1505,10 +1494,7 @@ function _buildInteractionSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, "Interaction", (body) => {
-    addToggle(body, t("display.relationTypePicker"), panel.showRelationTypePicker, (v) => {
-      panel.showRelationTypePicker = v;
-      cb.markDirty();
-    }, t("desc.relationTypePicker"));
+    // showRelationTypePicker removed — ghost control (field never read in rendering)
     addToggle(body, t("display.multiSelect"), panel.multiSelectNodeIds.length > 0, (v) => {
       if (!v) panel.multiSelectNodeIds = [];
       cb.markDirty();
