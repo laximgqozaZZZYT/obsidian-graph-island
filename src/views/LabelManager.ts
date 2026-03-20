@@ -214,16 +214,21 @@ export class LabelManager {
     let _maxDegForAdaptive = 1;
     for (const d of degrees.values()) { if (d > _maxDegForAdaptive) _maxDegForAdaptive = d; }
 
+    // A1: autoLOD level 4+ bypasses sub-label zoom threshold
+    const rp = this.host.getRenderPipeline();
+    const autoLodLevel = rp?.isAutoLODActive() ? rp.getLastLodLevel() : 0;
+    const subLabelForceShow = autoLodLevel >= 4;
+
     for (const pn of this.host.getPixiNodes().values()) {
       // --- Tag label LOD ---
       if (pn.tagLabel) {
-        pn.tagLabel.visible = zoom >= tagLabelZoomMin;
+        pn.tagLabel.visible = zoom >= tagLabelZoomMin || subLabelForceShow;
         if (pn.tagLabel.visible) pn.tagLabel.scale.set(counterScale);
       }
-      // --- Sub-label LOD (same threshold as tagLabel) ---
+      // --- Sub-label LOD (same threshold as tagLabel, bypassed at LOD 4+) ---
       if (pn.subLabels) {
         for (const sl of pn.subLabels) {
-          sl.visible = zoom >= tagLabelZoomMin;
+          sl.visible = zoom >= tagLabelZoomMin || subLabelForceShow;
           if (sl.visible) sl.scale.set(counterScale);
         }
       }

@@ -943,10 +943,13 @@ export class RenderPipeline {
     }
   }
 
-  /** Render compact card background (rounded rect) behind a node for LOD 4. */
+  /** Render compact card background (rounded rect) behind a node for LOD 4.
+   *  A1: Height expands to accommodate sub-labels when present. */
   private _renderCompactCardBg(g: CanvasGraphics, pn: PixiNode): void {
     const w = pn.radius * 3.5;
-    const h = pn.radius * 1.8;
+    // Expand height if sub-labels exist (to house metadata text)
+    const subCount = pn.subLabels?.length ?? 0;
+    const h = pn.radius * 1.8 + subCount * (SUB_LABEL_FONT_SIZE + SUB_LABEL_GAP) * 0.06;
     const x = pn.data.x - w / 2;
     const y = pn.data.y - h / 2;
     g.lineStyle(1, pn.color, 0.3);

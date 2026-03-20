@@ -1360,11 +1360,7 @@ function _buildDiscoverySection(
       panel.showHierarchyTree = v;
       cb.markDirty();
     }, t("desc.hierarchyTree"));
-    // S6: Ontology Backbone
-    addToggle(body, t("display.ontologyBackbone"), panel.showOntologyBackbone ?? false, (v) => {
-      panel.showOntologyBackbone = v;
-      cb.markDirty();
-    }, t("desc.ontologyBackbone"));
+    // S6: Ontology Backbone — toggle is in _buildStructureAnalysisSection (no duplicate)
   }, undefined, true, "lightbulb");
 }
 

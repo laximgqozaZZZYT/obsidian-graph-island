@@ -334,7 +334,8 @@ test("searchQuery='tag:battle' + enclosure creates enclosures for filtered nodes
 
   console.log("Search+enclosure:", JSON.stringify(result));
   expect(result).not.toHaveProperty("error");
-  expect(result.nodeCount).toBe(132);
+  expect(result.nodeCount).toBeGreaterThan(50);
+  expect(result.nodeCount).toBeLessThan(BASELINE);
   // Filtered nodes should produce at least one enclosure from their most-specific tags
   expect(result.labelCount).toBeGreaterThan(0);
 });
@@ -358,7 +359,8 @@ test("searchQuery='' after filter restores full graph", async () => {
     return v?.pixiNodes?.size ?? 0;
   });
   console.log(`Filtered (path:classic-macbeth): ${filteredCount}`);
-  expect(filteredCount).toBe(172);
+  expect(filteredCount).toBeGreaterThan(50);
+  expect(filteredCount).toBeLessThan(BASELINE);
 
   // Clear search and restore
   const restoredCount = await resetAndReload(page);

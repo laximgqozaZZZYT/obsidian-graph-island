@@ -680,7 +680,7 @@ function buildClusterMetadataFromTargets(
         if (d > actualR) actualR = d;
       }
     }
-    const estimated = estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60);
+    const estimated = estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 12);
     clusterRadii.set(key, Math.max(actualR, estimated));
   }
 
@@ -1741,7 +1741,7 @@ function layoutGroupsHorizontal(
   for (const key of keys) {
     const members = groups.get(key)!;
     groupR.push(actualRadii?.get(key)
-      ?? estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60));
+      ?? estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 12));
   }
 
   // Step 4: Inter-group distance — pairwise max-reference gap
@@ -1781,7 +1781,7 @@ function layoutGroupsVertical(
   for (const key of keys) {
     const members = groups.get(key)!;
     groupR.push(actualRadii?.get(key)
-      ?? estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60));
+      ?? estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 12));
   }
 
   // Step 4: Pairwise inter-group gaps
@@ -1825,7 +1825,7 @@ function layoutGroupsCircle(
   for (const key of keys) {
     const members = groups.get(key)!;
     groupR.push(actualRadii?.get(key)
-      ?? estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60));
+      ?? estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 12));
   }
 
   // Step 4: Inter-group distance — pairwise max-reference
@@ -1876,7 +1876,7 @@ function layoutGroupsConcentric(
     const members = groups.get(key);
     if (!members) continue;
     groupRadii.set(key, actualRadii?.get(key)
-      ?? estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60));
+      ?? estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 12));
   }
 
   // Place the first group at center
@@ -1944,7 +1944,7 @@ function layoutGroupsGrid(
   for (const key of keys) {
     const members = groups.get(key)!;
     groupR.push(actualRadii?.get(key)
-      ?? estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60));
+      ?? estimateGroupRadius(members.length, cfg.nodeSize, cfg.nodeSpacing, cfg.groupScale, cfg.arrangement, members, cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 12));
   }
 
   // Determine grid dimensions — aim for roughly square grid
@@ -2004,6 +2004,7 @@ function estimateGroupRadius(
   arrangement?: ClusterArrangement,
   members?: GraphNode[],
   maxNodeRadius = 60,
+  minNodeRadius = 12,
 ): number {
   const gap = computeGroupGap(nodeSize, nodeSpacing, groupScale);
   // If any member is a super node, inflate the estimate using canonical effectiveRadius
@@ -2011,7 +2012,7 @@ function estimateGroupRadius(
   if (members) {
     for (const m of members) {
       if (m.collapsedMembers && m.collapsedMembers.length > 0) {
-        const sr = effectiveRadius(m, nodeSize, 0, maxNodeRadius, cfg.minNodeRadius ?? 12);
+        const sr = effectiveRadius(m, nodeSize, 0, maxNodeRadius, minNodeRadius);
         superBonus = Math.max(superBonus, sr - nodeSize);
       }
     }
