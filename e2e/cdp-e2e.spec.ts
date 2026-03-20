@@ -142,6 +142,9 @@ test.beforeAll(async ({}, testInfo) => {
     v.panel.groupBy = "none";
     v.panel.clusterArrangement = "force";
     v.panel.collapsedGroups = new Set();
+    // Prevent autoFocusActiveFile from overriding baseline with local graph
+    v._hasAutoFocused = true;
+    v.panel.localGraphCenter = null;
     v.rawData = null;
     await v.doRender();
   });

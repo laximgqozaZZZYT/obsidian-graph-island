@@ -2056,9 +2056,12 @@ export class RenderPipeline {
 
     // Dynamically raise label threshold for large graphs to limit GPU texture memory.
     const degValues = nodes.map(n => degrees.get(n.id) || 0).sort((a, b) => b - a);
-    this.pendingLabelThreshold = degValues.length > MAX_LABEL_COUNT
-      ? Math.max(DEFAULT_LABEL_DEGREE_THRESHOLD, degValues[MAX_LABEL_COUNT - 1])
-      : DEFAULT_LABEL_DEGREE_THRESHOLD;
+    // For small graphs (< 200 nodes), show all labels regardless of degree
+    this.pendingLabelThreshold = degValues.length < 200
+      ? 0
+      : degValues.length > MAX_LABEL_COUNT
+        ? Math.max(DEFAULT_LABEL_DEGREE_THRESHOLD, degValues[MAX_LABEL_COUNT - 1])
+        : DEFAULT_LABEL_DEGREE_THRESHOLD;
 
     // Cache maxDeg once — avoids O(n²) recomputation inside createSinglePixiNode
     this._cachedMaxDeg = degValues.length > 0 ? degValues[0] : 1;

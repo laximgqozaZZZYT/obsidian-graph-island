@@ -6739,9 +6739,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     const activeFile = this.app.workspace.getActiveFile();
     if (!activeFile) return;
+
+    // R16: Default to local graph centered on active file for better first impression
+    // Only apply if localGraphCenter is not already set by user/saved state
+    if (this.panel.localGraphCenter === null) {
+      this.panel.localGraphCenter = activeFile.path;
+      this.panel.localGraphHops = 1;
+      this.rawData = null;
+      this.doRender();
+      return; // doRender will handle highlighting
+    }
+
     const nodeId = this.findNodeIdByPath(activeFile.path);
     if (!nodeId) return;
-
     this.setHighlightedNodeId(nodeId);
     this.applyHover();
     this.panToNode(nodeId);
