@@ -15,11 +15,11 @@ let BASELINE = 0;
  * Wait for the graph to finish rendering by waiting for deferred node
  * batches to complete, then polling for stability.
  */
-async function waitStable(p: Page, minThreshold = 200): Promise<number> {
-  await p.waitForTimeout(6000);
+async function waitStable(p: Page, initialWaitMs = 4000, minThreshold = 200): Promise<number> {
+  await p.waitForTimeout(initialWaitMs);
   let last = -1;
   let stable = 0;
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 10; i++) {
     const s = await p.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       return v?.pixiNodes?.size ?? -1;
@@ -52,7 +52,7 @@ async function renderWith(
       // Re-apply settings in case they were reset during async render
       for (const [k, val] of Object.entries(s)) v.panel[k] = val;
     }, { settings });
-    const n = await waitStable(p);
+    const n = await waitStable(p, 2000);
     // Verify settings actually took effect by checking panel values
     const match = await p.evaluate(({ settings: s }) => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -169,14 +169,13 @@ test.beforeAll(async ({}, testInfo) => {
   });
   // Poll until node count stabilizes (retry up to 3 times)
   for (let retry = 0; retry < 3; retry++) {
-    BASELINE = await waitStable(page);
+    BASELINE = await waitStable(page, 8000);
     if (BASELINE > 2000) break;
-    // Retry: re-render and wait longer
+    // Retry: re-render
     await page.evaluate(async () => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       if (v) { v.rawData = null; await v.doRender(); }
     });
-    await page.waitForTimeout(2000);
   }
   console.log(`Detected baseline: ${BASELINE}`);
   expect(BASELINE).toBeGreaterThan(2000);
@@ -811,7 +810,7 @@ test.describe("20. Experience Quality", () => {
       v.rawData = null;
       await v.doRender();
     });
-    await waitStable(page);
+    await waitStable(page, 2000);
   });
 
   // 20.3 removed (renderWith + waitStable too slow)

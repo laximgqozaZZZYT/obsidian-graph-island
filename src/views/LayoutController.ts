@@ -73,31 +73,31 @@ export class LayoutController {
     const pixiNodes = this.host.getPixiNodes();
     const thresholds = panel.renderThresholds ?? {};
     const maxR = thresholds.maxNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.maxNodeRadius;
+    const minR = thresholds.minNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.minNodeRadius;
     const collidePad = thresholds.collisionPadding ?? DEFAULT_RENDER_THRESHOLDS.collisionPadding;
     const superCollidePad = thresholds.superNodeCollisionPadding ?? DEFAULT_RENDER_THRESHOLDS.superNodeCollisionPadding;
+    const sizeByDeg = thresholds.nodeSizeByDegree ?? true;
+    // Pre-compute max degree for size-by-degree calculation
+    let maxDeg = 0;
+    if (sizeByDeg) {
+      for (const d of degrees.values()) { if (d > maxDeg) maxDeg = d; }
+    }
     return (n: GraphNode) => {
-      // Use actual PIXI radius if available (accounts for super node scaling + MAX cap)
-      const pn = pixiNodes.get(n.id);
-      if (pn) {
-        // Card display mode uses larger collision radius to prevent overlap
-        if (panel.nodeDisplayMode === "card") {
-          const cardPad = thresholds.cardCollisionPadding ?? DEFAULT_RENDER_THRESHOLDS.cardCollisionPadding;
-          return Math.max(pn.radius + collidePad, cardPad);
-        }
-        // Super nodes (collapsed groups): use dedicated padding so they don't pile up
-        if (n.collapsedMembers && n.collapsedMembers.length > 0) {
-          return pn.radius + superCollidePad;
-        }
-        return pn.radius + collidePad;
-      }
-      // Fallback: compute effective radius using canonical formula
+      // Always compute the canonical radius (accounts for degree-proportional sizing)
       const deg = degrees.get(n.id) || 0;
-      const minR = thresholds.minNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.minNodeRadius;
-      const r = effectiveRadius(n, baseSize, deg, maxR, minR);
-      if (n.collapsedMembers && n.collapsedMembers.length > 0) {
-        return r + superCollidePad;
+      const canonicalR = effectiveRadius(n, baseSize, deg, maxR, minR, maxDeg, sizeByDeg);
+      // Use whichever is larger: actual pixi radius or canonical radius
+      const pn = pixiNodes.get(n.id);
+      const visualR = pn ? Math.max(pn.radius, canonicalR) : canonicalR;
+
+      if (panel.nodeDisplayMode === "card") {
+        const cardPad = thresholds.cardCollisionPadding ?? DEFAULT_RENDER_THRESHOLDS.cardCollisionPadding;
+        return Math.max(visualR + collidePad, cardPad);
       }
-      return r + collidePad;
+      if (n.collapsedMembers && n.collapsedMembers.length > 0) {
+        return visualR + superCollidePad;
+      }
+      return visualR + collidePad;
     };
   }
 
