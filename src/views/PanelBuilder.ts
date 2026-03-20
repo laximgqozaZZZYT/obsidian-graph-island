@@ -1695,6 +1695,12 @@ function _buildRenderThresholdsSection(
       cb.markDirty();
       cb.wakeRenderLoop();
     }, t("render.showFpsMonitorDesc"));
+    addSlider(body, t("render.highlightDimAlpha"), 0, 0.5, 0.01,
+      rt.highlightEdgeNonMatchAlpha ?? DEFAULT_RENDER_THRESHOLDS.highlightEdgeNonMatchAlpha, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.highlightEdgeNonMatchAlpha = v;
+        cb.markDirty();
+      }, t("render.highlightDimAlphaDesc"));
   }, undefined, true, "sliders");
 }
 

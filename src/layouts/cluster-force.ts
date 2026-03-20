@@ -872,11 +872,13 @@ function estimateLabelExtent(
  *  Enforces minNodeRadius floor so nodes remain hoverable/clickable. */
 export function nodeRadius(nodeSize: number, degree: number, minNodeRadius = 15, maxDegree = 0, sizeByDegree = false): number {
   const safeSize = isFinite(nodeSize) && nodeSize > 0 ? nodeSize : minNodeRadius;
+  const baseR = Math.max(safeSize, minNodeRadius);
   if (sizeByDegree && maxDegree > 0 && degree > 0) {
     const t = Math.sqrt(degree / maxDegree);
-    return Math.max(minNodeRadius, safeSize * (0.6 + t * 0.8));
+    // Scale from baseR (degree 0) to baseR * 2.0 (max degree)
+    return baseR * (0.7 + t * 1.3);
   }
-  return Math.max(safeSize, minNodeRadius);
+  return baseR;
 }
 
 /** Effective visual radius accounting for super nodes (collapsed groups).

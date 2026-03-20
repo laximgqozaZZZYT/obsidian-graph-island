@@ -149,6 +149,8 @@ const en: TranslationMap = {
   "render.gridLabelOffsetDesc": "Distance (px) between grid lines and their labels",
   "render.showFpsMonitor": "Show FPS",
   "render.showFpsMonitorDesc": "Show render frames-per-second counter in toolbar",
+  "render.highlightDimAlpha": "Highlight Dim Alpha",
+  "render.highlightDimAlphaDesc": "Opacity of non-matching edges/nodes during search highlight",
 
   "display.groupBy": "Group by",
   "display.groupMinSize": "Min group size",
@@ -943,6 +945,8 @@ const ja: TranslationMap = {
   "render.gridLabelOffsetDesc": "グリッド線とラベルの間の距離（px）",
   "render.showFpsMonitor": "FPS表示",
   "render.showFpsMonitorDesc": "ツールバーにレンダリングFPSカウンターを表示",
+  "render.highlightDimAlpha": "ハイライト暗化度",
+  "render.highlightDimAlphaDesc": "検索ハイライト時の非一致エッジ/ノードの不透明度",
 
   "display.groupBy": "グルーピング",
   "display.groupMinSize": "最小グループサイズ",

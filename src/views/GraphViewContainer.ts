@@ -1676,6 +1676,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.fpsEl.style.display = "none";
         }
       }
+      // Bookmark ★ markers
+      this._updateBookmarkMarkers();
     };
 
     // 差分オーバーレイのポストフラッシュフック設定
@@ -4810,7 +4812,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           write: { syncWithEditor: true, localGraphCenter: true, localGraphHops: 1, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const, nodeSize: 25, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showSimilar: false, focusConeEnabled: true },
         };
         const p = presets[preset];
-        if (p) { Object.assign(this.panel, p); this.doRender(); this.requestSave(); }
+        if (p) {
+          Object.assign(this.panel, p);
+          // Fix A: localGraphCenter=true means "use active file" — resolve dynamically
+          if (this.panel.localGraphCenter === true as any) {
+            const af = this.app.workspace.getActiveFile();
+            this.panel.localGraphCenter = af?.path ?? null;
+          }
+          this.doRender(); this.requestSave();
+        }
       },
       jumpToNode: (nodeId: string) => this.jumpToNode(nodeId),
       getNodeIds: () => [...this.pixiNodes.keys()],
@@ -6107,8 +6117,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _buildNodeRadiusFn(): (n: GraphNode) => number {
     const baseSize = this.panel.nodeSize;
     const degs = this.degrees;
-    const minR = this.panel.renderThresholds?.minNodeRadius ?? 12;
-    return (n: GraphNode) => n.isPhantom ? 0 : nodeRadius(baseSize, degs.get(n.id) || 0, minR);
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const minR = rt.minNodeRadius;
+    const sizeByDeg = rt.nodeSizeByDegree ?? true;
+    let maxDeg = 0;
+    if (sizeByDeg) {
+      for (const d of degs.values()) { if (d > maxDeg) maxDeg = d; }
+    }
+    return (n: GraphNode) => n.isPhantom ? 0 : nodeRadius(baseSize, degs.get(n.id) || 0, minR, maxDeg, sizeByDeg);
   }
 
   /** Build the node color function considering groups, heatmap, and category coloring. */
@@ -6291,6 +6307,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // Re-cull labels after simulation settles to fix overlap
       // caused by node positions changing during simulation
       this.updateLabelsForZoom();
+      // Recalc radii after simulation (ensures nodeSizeByDegree takes effect)
+      this.recalcNodeRadii();
       // F1: Zero-config start — auto-focus on active file after first render
       this._autoFocusActiveFile();
       // P5: Persist all node positions after simulation settles
@@ -6448,6 +6466,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.updateRelationMatrix(ld);
     this.updateThumbnails();
     this.updateHierarchyBreadcrumb();
+    this.recalcNodeRadii(); // Ensure degree-proportional sizing after static layout
     this.startRenderLoop();
     this.applySearch();
     // updateLabelsForZoom is also called inside autoFitView above,
@@ -6830,6 +6849,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const p = presets[preset];
     if (p) {
       Object.assign(this.panel, p);
+      if (this.panel.localGraphCenter === true as any) {
+        const af = this.app.workspace.getActiveFile();
+        this.panel.localGraphCenter = af?.path ?? null;
+      }
       this.doRender();
       this.requestSave();
     }
@@ -7044,13 +7067,45 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
     const maxR = rt.maxNodeRadius > 0 ? rt.maxNodeRadius : Infinity;
     const minR = rt.minNodeRadius;
-    const sizeByDeg = rt.nodeSizeByDegree ?? false;
+    const sizeByDeg = rt.nodeSizeByDegree ?? true;
     let maxDeg = 0;
     if (sizeByDeg) {
       for (const d of this.degrees.values()) { if (d > maxDeg) maxDeg = d; }
     }
     for (const pn of this.pixiNodes.values()) {
       pn.radius = effectiveRadius(pn.data, ns, this.degrees.get(pn.data.id) || 0, maxR, minR, maxDeg, sizeByDeg);
+    }
+  }
+
+  /** Track bookmark ★ markers */
+  private _bookmarkMarkers = new Map<string, CanvasText>();
+
+  /** Add/remove ★ markers on bookmarked nodes */
+  private _updateBookmarkMarkers() {
+    const bookmarked = new Set(this.panel.bookmarkedNodes ?? []);
+    const zoom = this.worldContainer?.scale.x ?? 1;
+    const counterScale = Math.max(0.5, 1 / zoom);
+    for (const [id, marker] of this._bookmarkMarkers) {
+      if (!bookmarked.has(id) || !this.pixiNodes.has(id)) {
+        const pn = this.pixiNodes.get(id);
+        if (pn) { pn.gfx.removeChild(marker); marker.destroy(); }
+        this._bookmarkMarkers.delete(id);
+      }
+    }
+    for (const id of bookmarked) {
+      const pn = this.pixiNodes.get(id);
+      if (!pn) continue;
+      let marker = this._bookmarkMarkers.get(id);
+      if (!marker) {
+        marker = new CanvasText("★", { fontSize: 10, fill: 0xfbbf24, fontWeight: "bold" });
+        marker.anchor.set(0.5, 1);
+        marker.resolution = 2;
+        pn.gfx.addChild(marker);
+        this._bookmarkMarkers.set(id, marker);
+      }
+      marker.x = 0;
+      marker.y = -(pn.radius + 2);
+      marker.scale.set(counterScale);
     }
   }
 
