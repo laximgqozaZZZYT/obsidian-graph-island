@@ -1396,14 +1396,16 @@ function unifiedTimelineRestackY(
       }
     }
     // Center Y per group
-    let minY = Infinity, maxY = -Infinity;
-    for (const { dy } of offsets.values()) {
-      if (dy < minY) minY = dy;
-      if (dy > maxY) maxY = dy;
-    }
-    const yAdj = (minY + maxY) / 2;
-    for (const [id, pos] of offsets) {
-      offsets.set(id, { dx: pos.dx, dy: pos.dy - yAdj });
+    if (offsets.size > 0) {
+      let minY = Infinity, maxY = -Infinity;
+      for (const { dy } of offsets.values()) {
+        if (dy < minY) minY = dy;
+        if (dy > maxY) maxY = dy;
+      }
+      const yAdj = (minY + maxY) / 2;
+      for (const [id, pos] of offsets) {
+        offsets.set(id, { dx: pos.dx, dy: pos.dy - yAdj });
+      }
     }
     perGroupOffsets.set(gk, offsets);
   }
@@ -1736,6 +1738,7 @@ function layoutGroupsHorizontal(
   out: Map<string, { x: number; y: number }>,
   actualRadii?: Map<string, number>,
 ) {
+  if (keys.length === 0) return;
   // Step 3: Group radii (measured from offsets or estimated)
   const groupR: number[] = [];
   for (const key of keys) {
@@ -1776,6 +1779,7 @@ function layoutGroupsVertical(
   out: Map<string, { x: number; y: number }>,
   actualRadii?: Map<string, number>,
 ) {
+  if (keys.length === 0) return;
   // Step 3: Group radii
   const groupR: number[] = [];
   for (const key of keys) {
