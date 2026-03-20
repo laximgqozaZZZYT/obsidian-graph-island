@@ -6725,6 +6725,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const cid = communityMap.get(n.id) ?? 0;
         return COMMUNITY_PALETTE[cid % COMMUNITY_PALETTE.length];
       }
+      // EO: Field-based coloring (initial render path)
+      if (colorMode === "field" && this.panel.nodeColorField) {
+        const fieldVal = this.getNodeProperty(n.id, this.panel.nodeColorField);
+        if (fieldVal !== undefined && fieldVal !== "") {
+          const key = String(fieldVal);
+          if (!colorMap.has(key)) {
+            const customPalette = this.panel.customColorPalette
+              ? this.panel.customColorPalette.split(",").map(s => s.trim()).filter(Boolean)
+              : [];
+            const palette = customPalette.length > 0 ? customPalette : DEFAULT_COLORS as unknown as string[];
+            colorMap.set(key, palette[colorMap.size % palette.length]);
+          }
+          return cssColorToHex(colorMap.get(key)!);
+        }
+        return defaultNodeColor;
+      }
       if (colorMode !== "category") return defaultNodeColor;
       // Category-based coloring
       if (n.category) {

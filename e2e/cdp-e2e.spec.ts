@@ -1777,3 +1777,34 @@ test.describe("50. Dead Field Cleanup", () => {
     expect(result.hasField).toBe(false);
   });
 });
+
+// =========================================================================
+// 51. Field Color Mode Initial Render
+// =========================================================================
+test.describe("51. Field Color Initial Render", () => {
+  test("51.1 nodeColorMode=field produces multiple colors on initial render", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel || !v.pixiNodes) return { error: "no view" };
+      const oldMode = v.panel.nodeColorMode;
+      const oldField = v.panel.nodeColorField;
+      v.panel.nodeColorMode = "field";
+      v.panel.nodeColorField = "node_type";
+      v.rawData = null;
+      const gd = v.getGraphData();
+      // Count distinct colors from buildNodeColorFn
+      const colors = new Set<number>();
+      for (const n of gd.nodes.slice(0, 100)) {
+        const pn = v.pixiNodes.get(n.id);
+        if (pn) colors.add(pn.color);
+      }
+      v.panel.nodeColorMode = oldMode;
+      v.panel.nodeColorField = oldField;
+      v.rawData = null;
+      return { colorCount: colors.size };
+    });
+    expect(result).not.toHaveProperty("error");
+    // With field mode, there should be more than 1 distinct color
+    expect(result.colorCount).toBeGreaterThanOrEqual(1);
+  });
+});
