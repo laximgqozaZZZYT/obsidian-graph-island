@@ -133,7 +133,8 @@ const HELP: Record<string, HelpEntry> = {
   },
 };
 
-export { HELP, HelpEntry, HelpModal };
+export { HELP, HelpModal };
+export type { HelpEntry };
 
 class HelpModal extends Modal {
   private entry: HelpEntry;

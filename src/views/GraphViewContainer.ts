@@ -416,7 +416,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.panel.groupByRules = null;
         } else {
           // Safe: key is validated against DEFAULT_PANEL keys above
-          (this.panel as Record<string, unknown>)[key] = saved[key];
+          (this.panel as unknown as Record<string, unknown>)[key] = saved[key];
         }
       }
     }
@@ -1186,7 +1186,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!this.panel.syncViewId || this._syncReceiving) return;
     const payload: Record<string, unknown> = {};
     for (const key of GraphViewContainer.SYNC_FIELDS) {
-      payload[key] = (this.panel as Record<string, unknown>)[key];
+      payload[key] = (this.panel as unknown as Record<string, unknown>)[key];
     }
     // workspace.trigger でカスタムイベントを発火
     (this.app.workspace as any).trigger(EVENT_SYNC_PANEL, {
@@ -1200,10 +1200,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     let needsRender = false;
     for (const key of GraphViewContainer.SYNC_FIELDS) {
       if (!(key in incoming)) continue;
-      const cur = (this.panel as Record<string, unknown>)[key];
+      const cur = (this.panel as unknown as Record<string, unknown>)[key];
       const next = incoming[key];
       if (cur !== next) {
-        (this.panel as Record<string, unknown>)[key] = next;
+        (this.panel as unknown as Record<string, unknown>)[key] = next;
         needsRender = true;
       }
     }
@@ -4248,7 +4248,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!g) return;
 
     // Skip redraw if road commands are already up-to-date (perf: ~120K cmds)
-    if (rb.roadDrawn && g.commands.length > 0) return;
+    if (rb.roadDrawn && g.commandCount > 0) return;
 
     g.clear();
 
@@ -4719,7 +4719,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.markDirty();
   }
 
-  private updateZoomIndicator(scale?: number) {
+  updateZoomIndicator(scale?: number) {
     if (!this.zoomIndicatorEl) return;
     const s = scale ?? this.worldContainer?.scale?.x ?? 1;
     const pct = `${Math.round(s * 100)}%`;
@@ -4824,7 +4824,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
           creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
           // Thinking Graph presets
-          "active-focus": { syncWithEditor: true, localGraphCenter: true, localGraphHops: 2, focusLayout: true, hoverHops: 1, showArrows: true, fadeEdgesByDegree: true },
+          "active-focus": { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 2, focusLayout: true, hoverHops: 1, showArrows: true, fadeEdgesByDegree: true },
           "semantic-shapes": {
             nodeShapeRules: [
               { match: "category" as const, category: "character", shape: "circle" as const },
@@ -4836,15 +4836,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           },
           "full-analysis": { showLinks: true, showTagEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showGraphStats: true, showBridgeNodes: true, showImportanceRing: true, nodeColorMode: "community", showEntropyOverlay: true, highlightMissingNeighbors: true },
           // M1: Thinking Modes
-          explore: { syncWithEditor: true, localGraphCenter: true, localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" as const },
+          explore: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" as const },
           analyze: { syncWithEditor: false, localGraphCenter: false, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true },
-          write: { syncWithEditor: true, localGraphCenter: true, localGraphHops: 1, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const, nodeSize: 25, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showSimilar: false, focusConeEnabled: true },
+          write: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 1, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const, nodeSize: 25, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showSimilar: false, focusConeEnabled: true },
         };
         const p = presets[preset];
         if (p) {
           Object.assign(this.panel, p);
-          // Fix A: localGraphCenter=true means "use active file" — resolve dynamically
-          if (this.panel.localGraphCenter === true as any) {
+          // Fix A: localGraphCenter="__active__" means "use active file" — resolve dynamically
+          if (this.panel.localGraphCenter === "__active__") {
             const af = this.app.workspace.getActiveFile();
             this.panel.localGraphCenter = af?.path ?? null;
           }
@@ -5698,7 +5698,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           }
           row.addEventListener("click", () => {
             const current = this.panel[toggle.key] as boolean;
-            (this.panel as Record<string, unknown>)[toggle.key] = !current;
+            (this.panel as unknown as Record<string, unknown>)[toggle.key] = !current;
             invalidateBundleCache();
             this.markDirty(true);
             this.updateLegend();
@@ -6881,14 +6881,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: false },
       analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
       creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
-      explore: { syncWithEditor: true, localGraphCenter: true, localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" as const },
+      explore: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" as const },
       analyze: { syncWithEditor: false, localGraphCenter: false, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community" as const, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true },
-      write: { syncWithEditor: true, localGraphCenter: true, localGraphHops: 2, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const },
+      write: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 2, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category" as const },
     };
     const p = presets[preset];
     if (p) {
       Object.assign(this.panel, p);
-      if (this.panel.localGraphCenter === true as any) {
+      if (this.panel.localGraphCenter === "__active__") {
         const af = this.app.workspace.getActiveFile();
         this.panel.localGraphCenter = af?.path ?? null;
       }
@@ -7032,7 +7032,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
 
       // A node is "matched" if it passes hop filter (when active) AND text highlight (when active)
-      const hopMatch = !hasHop || hopSet.has(pn.data.id);
+      const hopMatch = hopSet === null || hopSet.has(pn.data.id);
       const textMatch = !hlSet || hlSet.has(pn.data.id);
       const isMatch = hopMatch && textMatch;
 

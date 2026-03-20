@@ -154,6 +154,13 @@ export const ARRANGEMENT_PRESETS: Record<ClusterArrangement, CoordinateLayout> =
     axis2: { source: { kind: SOURCE_METRIC, metric: "degree" }, transform: { kind: TRANSFORM_LINEAR, scale: 1 } },
     perGroup: true,
   },
+  ego: {
+    system: "polar",
+    axis1: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_EXPRESSION, expr: "floor(i / _spokeCount) + 1", scale: 1 } },
+    axis2: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_EXPRESSION, expr: "(i % _spokeCount) * (360 / _spokeCount)", scale: 1 } },
+    perGroup: true,
+    constants: { _spokeCount: 8 },
+  },
 };
 
 /**

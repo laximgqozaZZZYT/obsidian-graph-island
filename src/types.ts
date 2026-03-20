@@ -24,6 +24,10 @@ export interface GraphNode {
   ctime?: number;
   /** First 100 chars of body text (YAML stripped) for content preview */
   bodyPreview?: string;
+  /** Runtime-injected: node degree (connection count) */
+  degree?: number;
+  /** Runtime-injected: road network phantom node flag */
+  isPhantom?: boolean;
 }
 
 export interface GraphEdge {
@@ -221,6 +225,7 @@ export type GridPositionSource =
   | { kind: "step"; step: number }
   | { kind: "values"; values: number[] }
   | { kind: "field"; field: string }
+  | { kind: "property"; key: string }
   | { kind: "expression"; expr: string };
 
 /** Shape of grid lines */
@@ -1440,6 +1445,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   cardLODCompactPx: 8.0,
   cardLODFullCardPx: 15.0,
   autoLOD: true,
+  adaptiveLabelMin: 0.7,
+  adaptiveLabelMax: 1.5,
 };
 
 export const DEFAULT_COLORS = [

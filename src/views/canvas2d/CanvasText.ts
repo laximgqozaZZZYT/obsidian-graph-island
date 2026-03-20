@@ -5,6 +5,7 @@ export interface TextStyle {
   fill?: number | string;
   fontFamily?: string;
   fontWeight?: string;
+  fontStyle?: string;
   align?: string;
 }
 

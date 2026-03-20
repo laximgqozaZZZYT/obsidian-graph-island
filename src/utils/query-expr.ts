@@ -199,6 +199,10 @@ function serializeInner(expr: QueryExpression, parentOp: BoolOp | null): string 
     return expr.field === "label" ? val : `${expr.field}:${val}`;
   }
 
+  if (expr.type === "not") {
+    return `NOT(${serializeInner(expr.child, null)})`;
+  }
+
   const leftStr = serializeInner(expr.left, expr.op);
   const rightStr = serializeInner(expr.right, expr.op);
   const inner = `${leftStr} ${expr.op} ${rightStr}`;

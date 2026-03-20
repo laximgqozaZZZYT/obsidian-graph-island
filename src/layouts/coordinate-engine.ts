@@ -25,6 +25,7 @@ import type {
   GridShape,
   GridPositionSource,
   GridStyle,
+  CurveKind,
 } from "../types";
 import { DEFAULT_RENDER_THRESHOLDS } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
@@ -565,7 +566,7 @@ function transformCurve(
   constants: Record<string, number> | undefined,
   result: Map<string, number>,
 ): void {
-  const def = CURVE_REGISTRY[curveName];
+  const def = CURVE_REGISTRY[curveName as CurveKind];
   if (!def) {
     // Unknown curve — fallback to linear
     for (const [id, v] of rawValues) {

@@ -43,6 +43,8 @@ export class CanvasGraphics {
 
   private commands: DrawCmd[] = [];
 
+  get commandCount(): number { return this.commands.length; }
+
   clear() {
     this.commands.length = 0;
   }

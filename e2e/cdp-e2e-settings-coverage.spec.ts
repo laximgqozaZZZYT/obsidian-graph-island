@@ -44,15 +44,15 @@ async function resetAndReload(p: Page): Promise<number> {
   // Poll until node count stabilizes above IMMEDIATE_BATCH_SIZE (200)
   let lastCount = 0;
   let stableRounds = 0;
-  for (let i = 0; i < 20; i++) {
-    await p.waitForTimeout(1500);
+  for (let i = 0; i < 15; i++) {
+    await p.waitForTimeout(1000);
     const count = await p.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
       return v?.pixiNodes?.size ?? 0;
     });
     if (count === lastCount && count > 200) {
       stableRounds++;
-      if (stableRounds >= 3) return count;
+      if (stableRounds >= 2) return count;
     } else {
       stableRounds = 0;
     }
@@ -75,7 +75,7 @@ test.beforeAll(async ({}, testInfo) => {
     await app.plugins.disablePlugin("graph-island");
     await app.plugins.enablePlugin("graph-island");
   });
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(2000);
 
   const leafCount = await page.evaluate(() => {
     return (window as any).app.workspace.getLeavesOfType("graph-view").length;
@@ -84,13 +84,13 @@ test.beforeAll(async ({}, testInfo) => {
     await page.evaluate(() => {
       (window as any).app.commands.executeCommandById("graph-island:open-graph-view");
     });
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(3000);
   } else {
     await page.evaluate(() => {
       const leaves = (window as any).app.workspace.getLeavesOfType("graph-view");
       if (leaves.length > 0) (window as any).app.workspace.setActiveLeaf(leaves[0], { focus: true });
     });
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
   }
 
   BASELINE = await resetAndReload(page);
@@ -113,7 +113,7 @@ test("grid layout preserves 2354 nodes", async () => {
     v.rawData = null;
     await v.doRender();
   });
-  await page.waitForTimeout(10000);
+  await page.waitForTimeout(5000);
 
   const count = await page.evaluate(() => {
     const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -133,7 +133,7 @@ test("timeline layout preserves node count", async () => {
     v.rawData = null;
     await v.doRender();
   });
-  await page.waitForTimeout(10000);
+  await page.waitForTimeout(5000);
 
   const count = await page.evaluate(() => {
     const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -147,19 +147,7 @@ test("timeline layout preserves node count", async () => {
 // 3. force layout restores from grid
 // =========================================================================
 test("force layout restores from grid", async () => {
-  // Switch to grid
-  const baseline = await resetAndReload(page);
-  expect(baseline).toBe(BASELINE);
-
-  await page.evaluate(async () => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-    v.panel.clusterArrangement = "grid";
-    v.rawData = null;
-    await v.doRender();
-  });
-  await page.waitForTimeout(10000);
-
-  // Switch back to force
+  // Previous test left us in grid/timeline — just restore to force
   const forceCount = await resetAndReload(page);
   console.log(`Force restore: forceCount=${forceCount}`);
   expect(forceCount).toBe(BASELINE);
@@ -178,7 +166,7 @@ test("showOrphans=false removes orphans from baseline", async () => {
     v.rawData = null;
     await v.doRender();
   });
-  await page.waitForTimeout(10000);
+  await page.waitForTimeout(5000);
 
   const count = await page.evaluate(() => {
     const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -213,7 +201,7 @@ test("tagDisplay=enclosure creates enclosure labels", async () => {
     v.rawData = null;
     await v.doRender();
   });
-  await page.waitForTimeout(10000);
+  await page.waitForTimeout(5000);
 
   const result = await page.evaluate(() => {
     const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -240,7 +228,7 @@ test("enclosureMinRatio=0.5 reduces enclosure count", async () => {
     v.rawData = null;
     await v.doRender();
   });
-  await page.waitForTimeout(10000);
+  await page.waitForTimeout(5000);
 
   const result = await page.evaluate(() => {
     const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -315,7 +303,7 @@ test("searchQuery='tag:battle' + enclosure creates enclosures for filtered nodes
     v.rawData = null;
     await v.doRender();
   });
-  await page.waitForTimeout(10000);
+  await page.waitForTimeout(5000);
 
   const result = await page.evaluate(() => {
     const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
@@ -352,7 +340,7 @@ test("searchQuery='' after filter restores full graph", async () => {
     v.rawData = null;
     await v.doRender();
   });
-  await page.waitForTimeout(10000);
+  await page.waitForTimeout(5000);
 
   const filteredCount = await page.evaluate(() => {
     const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;

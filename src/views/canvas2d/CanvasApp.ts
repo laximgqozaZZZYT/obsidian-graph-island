@@ -119,7 +119,7 @@ export class CanvasApp {
 
     // Get world transform from stage's first child (the world container)
     const world = this.stage.children[0];
-    if (!world) return;
+    if (!world || !(world instanceof CanvasContainer)) return;
     const wx = world.x * this.dpr;
     const wy = world.y * this.dpr;
     const ws = (world.scale?.x ?? 1) * this.dpr;

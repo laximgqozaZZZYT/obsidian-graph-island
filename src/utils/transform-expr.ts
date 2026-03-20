@@ -16,7 +16,7 @@ import type { AxisSource, AxisTransform, CurveKind } from "../types";
 import {
   TRANSFORM_EVEN_DIVIDE, TRANSFORM_EXPRESSION, TRANSFORM_LINEAR,
   TRANSFORM_BIN, TRANSFORM_DATE_INDEX, TRANSFORM_STACK_AVOID,
-  TRANSFORM_GOLDEN, TRANSFORM_CURVE,
+  TRANSFORM_GOLDEN, TRANSFORM_CURVE, TRANSFORM_SHAPE_FILL,
   SOURCE_PROPERTY, SOURCE_INDEX, SOURCE_FIELD, SOURCE_METRIC,
   SOURCE_HOP, SOURCE_RANDOM, SOURCE_CONST,
 } from "../constants";
@@ -182,6 +182,12 @@ export function transformExprToString(source: AxisSource, transform: AxisTransfo
 
     case TRANSFORM_EXPRESSION:
       return transform.expr;
+
+    case TRANSFORM_SHAPE_FILL:
+      return `SHAPE_FILL(${transform.shape})`;
+
+    default:
+      return "UNKNOWN";
   }
 }
 

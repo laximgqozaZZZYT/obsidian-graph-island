@@ -2967,14 +2967,14 @@ function drawCables(
     // Draw all cable wires. When highlighting, drawTrunks and drawIntraGroupCables
     // internally do 2-pass (dim first, bright on top) for z-order.
     if (_cache.cable.trunks.length > 0) {
-      drawTrunks(g, _cache.cable.trunks, cfg, densityScale, _cache.portColorLanes);
+      drawTrunks(g, _cache.cable.trunks, cfg, densityScale, _cache.portColorLanes ?? undefined);
     }
     if (_cache.intraCable && _cache.intraCable.cables.length > 0) {
-      drawIntraGroupCables(g, _cache.intraCable.cables, cfg, densityScale, _cache.portColorLanes);
+      drawIntraGroupCables(g, _cache.intraCable.cables, cfg, densityScale, _cache.portColorLanes ?? undefined);
     }
     // Final bright pass: redraw bright trunk wires on top of everything
     if (cfg.highlightedNodeId && _cache.cable.trunks.length > 0) {
-      drawTrunks(g, _cache.cable.trunks, cfg, densityScale, _cache.portColorLanes, "bright");
+      drawTrunks(g, _cache.cable.trunks, cfg, densityScale, _cache.portColorLanes ?? undefined, "bright");
     }
   } else if (_cache.cable && _cache.cable.trunks.length > 0) {
     drawTrunks(g, _cache.cable.trunks, cfg, densityScale);
