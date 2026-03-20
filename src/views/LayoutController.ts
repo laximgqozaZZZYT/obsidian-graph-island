@@ -91,8 +91,16 @@ export class LayoutController {
       const visualR = pn ? Math.max(pn.radius, canonicalR) : canonicalR;
 
       if (panel.nodeDisplayMode === "card") {
-        const cardPad = thresholds.cardCollisionPadding ?? DEFAULT_RENDER_THRESHOLDS.cardCollisionPadding;
-        return Math.max(visualR + collidePad, cardPad);
+        // Compute actual card half-diagonal for proper collision avoidance
+        const crc = panel.cardRenderConfig ?? {};
+        const cardAR = (crc as any).cardAspectRatio > 0 ? (crc as any).cardAspectRatio : 1.618;
+        const headerH = ((crc as any).tableHeaderHeight ?? 18);
+        const fieldLineH = ((crc as any).fieldLineHeight ?? 14);
+        const fieldCount = (panel.cardDisplayConfig?.fields?.length ?? 0) + 2; // +def +preview
+        const cardH = headerH + fieldCount * fieldLineH + 8;
+        const cardW = cardH * cardAR;
+        const halfDiag = Math.sqrt(cardW * cardW + cardH * cardH) / 2;
+        return Math.max(halfDiag + collidePad, visualR + collidePad);
       }
       if (n.collapsedMembers && n.collapsedMembers.length > 0) {
         return visualR + superCollidePad;

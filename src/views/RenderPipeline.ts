@@ -1465,6 +1465,36 @@ export class RenderPipeline {
       g.beginFill(pn.color, nodeAlpha * crc.plainCardFillAlpha);
       g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, halfW * 2, totalH, crc.cardCornerRadius / worldScale);
       g.endFill();
+
+      // Plain card: add title + body preview text
+      if (nodeCount < rt.cardTextNodeCount) {
+        const fontSize = Math.max(3, 10 / worldScale);
+        const smallFont = Math.max(2, 8 / worldScale);
+        const textW = halfW * 2 - 8 / worldScale;
+        // Title
+        const title = new CanvasText(pn.data.label, {
+          fontSize, fontWeight: "bold", fill: 0xffffff,
+          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+        });
+        markAsCardText(title);
+        title.x = -halfW + 4 / worldScale;
+        title.y = -halfH + 4 / worldScale;
+        if (rt.cardTextTruncation !== false) title.maxWidth = textW;
+        pn.gfx.addChild(title);
+        // Body preview
+        if (pn.data.bodyPreview) {
+          const body = new CanvasText(pn.data.bodyPreview, {
+            fontSize: smallFont, fill: 0xcccccc,
+            fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+          });
+          markAsCardText(body);
+          body.x = -halfW + 4 / worldScale;
+          body.y = -halfH + 4 / worldScale + fontSize * 1.4;
+          body.alpha = 0.7;
+          if (rt.cardTextTruncation !== false) body.maxWidth = textW;
+          pn.gfx.addChild(body);
+        }
+      }
     }
   }
 

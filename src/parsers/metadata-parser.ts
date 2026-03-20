@@ -85,6 +85,11 @@ export function buildGraphFromVault(
     const rawContent = app.vault.cachedRead(file);
     if (typeof rawContent === "string") {
       node.bodyPreview = extractBodyPreview(rawContent, 100);
+    } else if (rawContent && typeof (rawContent as any).then === "function") {
+      // cachedRead returns Promise — backfill asynchronously
+      (rawContent as Promise<string>).then(text => {
+        node.bodyPreview = extractBodyPreview(text, 100);
+      }).catch(() => {});
     }
     nodes.push(node);
     nodeMap.set(file.path, node);
