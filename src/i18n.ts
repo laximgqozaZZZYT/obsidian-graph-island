@@ -393,6 +393,9 @@ const en: TranslationMap = {
   "a11y.compared": "Added to compare",
   "a11y.pathfinder": "Pathfinder",
   "a11y.nodesSelected": "selected",
+  "a11y.filterResult": "Filter",
+  "a11y.nodesVisible": "nodes visible",
+  "a11y.filterCleared": "Filter cleared — all nodes visible",
 
   // --- PanelBuilder: help ---
   "help.ariaLabel": "Help",
@@ -1205,6 +1208,9 @@ const ja: TranslationMap = {
   "a11y.compared": "比較に追加",
   "a11y.pathfinder": "パスファインダー",
   "a11y.nodesSelected": "件選択中",
+  "a11y.filterResult": "フィルタ結果",
+  "a11y.nodesVisible": "ノード表示中",
+  "a11y.filterCleared": "フィルタ解除 — 全ノード表示",
 
   // --- PanelBuilder: help ---
   "help.ariaLabel": "ヘルプ",

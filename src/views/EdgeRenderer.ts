@@ -310,6 +310,8 @@ const ZOOM_FADE_MIN_ALPHA = 0.4;
 const DEFAULT_DENSITY_FLOOR = 0.25;
 /** Edge label font size */
 const EDGE_LABEL_FONT_SIZE = 10;
+/** A11y: edge label background for contrast (WCAG 1.4.3) */
+const EDGE_LABEL_BG_ALPHA = 0.75;
 /** Edge label alpha */
 const EDGE_LABEL_ALPHA = 0.7;
 /** Edge label resolution */
@@ -3571,6 +3573,11 @@ export function drawEdgeLabels(
       text.y = my + offsetY;
       text.alpha = EDGE_LABEL_ALPHA * edgeLabelAlpha;
       text.resolution = EDGE_LABEL_RESOLUTION;
+      // A11y: background pill for edge label contrast
+      text.bgColor = cfg.isDark ? 0x1a1a2e : 0xf0f0f4;
+      text.bgAlpha = EDGE_LABEL_BG_ALPHA;
+      text.bgPadX = 3;
+      text.bgPadY = 1;
       container.addChild(text);
     }
   }
@@ -3710,6 +3717,11 @@ export function drawEdgeLabels(
     text.y = labelY;
     text.alpha = EDGE_LABEL_ALPHA * edgeLabelAlpha;
     text.resolution = EDGE_LABEL_RESOLUTION;
+    // A11y: background pill for edge label contrast
+    text.bgColor = cfg.isDark ? 0x1a1a2e : 0xf0f0f4;
+    text.bgAlpha = EDGE_LABEL_BG_ALPHA;
+    text.bgPadX = 3;
+    text.bgPadY = 1;
 
     container.addChild(text);
   }
