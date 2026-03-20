@@ -112,18 +112,54 @@ Push groups of nodes toward specific directions:
 [{ "filter": "tag:character", "direction": "top", "strength": 0.1 }]
 ```
 
+### Thinking Modes
+
+Three preset modes for different workflows:
+
+| Mode | Use Case |
+|------|----------|
+| **Explore** | Active file centered, gap detection, similar suggestions |
+| **Analyze** | Full structure: stats, bridges, entropy, communities |
+| **Write** | Local graph, large nodes, minimal edges, focus cone |
+
+Switch via command palette (`Graph: Explore/Analyze/Write mode`) or keyboard shortcut.
+
+### Analysis Overlays
+
+- **Bridge nodes** — gold ring on high betweenness centrality nodes
+- **Gap detection** — dotted edges between tag-sharing but unlinked nodes
+- **Missing neighbors** — orange dashed ring on nodes missing expected connections
+- **Entropy overlay** — knowledge diversity heatmap
+- **Community detection** — Louvain-based coloring
+
 ### Interactive Controls
 
 - **Toolbar**: Fit-all, zoom in/out, marquee select, settings toggle
 - **Hover highlighting**: Configurable hop-depth for neighborhood highlighting
 - **Hold/pin**: Pin node detail panel to keep it visible
 - **Shell rotation**: Concentric shells rotate on click (clockwise/counter-clockwise)
+- **Alt+Click**: Set pathfinder start/end for shortest path visualization
+- **Shift+Click**: Multi-select for bulk operations
+- **Ctrl+Click**: Compare nodes side-by-side
+- **Onboarding**: First-launch help overlay with keyboard shortcuts and mode guide
+
+### Node Display Modes
+
+| Mode | Description |
+|------|-------------|
+| **Node** | Circles/shapes with LOD-based label visibility |
+| **Card** | Metadata table with frontmatter fields, body preview |
+| **Donut** | Category breakdown ring chart |
+| **Sunburst Segment** | Hierarchical sector visualization |
 
 ### Settings Management
 
 - **JSON import/export**: Share settings as `.json` files
 - **Vault-based storage**: Export settings to a vault path
 - **All-in-panel UI**: Every setting is adjustable from the side panel — no need to leave the graph
+- **Settings search**: Filter all settings across tabs by keyword
+- **Context help**: Every section has a `?` help popup (25/25 coverage)
+- **12 keyboard shortcuts** registered in command palette
 - **Sample configs** included in `examples/`
 
 ![Settings Panel](docs/images/readme-enclosure.png)
