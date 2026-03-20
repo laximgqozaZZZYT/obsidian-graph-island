@@ -1684,7 +1684,7 @@ function _buildMinimapSection(
     addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.markDirty(); cb.wakeRenderLoop(); }, t("desc.minimap"));
     addToggle(body, t("display.showLegend"), panel.showLegend, (v) => { panel.showLegend = v; cb.markDirty(); }, t("desc.showLegend"));
     addToggle(body, t("display.oobIndicator"), panel.showOutOfBoundsIndicator ?? false, (v) => { panel.showOutOfBoundsIndicator = v; cb.markDirty(); cb.wakeRenderLoop(); }, t("desc.oobIndicator"));
-    addToggle(body, t("display.graphStats"), panel.showGraphStats ?? false, (v) => { panel.showGraphStats = v; cb.markDirty(); }, t("desc.graphStats"));
+    addToggle(body, t("display.graphStats"), panel.showGraphStats ?? false, (v) => { panel.showGraphStats = v; cb.invalidateDataKeepPanel(); }, t("desc.graphStats"));
     addToggle(body, t("display.ancestryBreadcrumb"), panel.showAncestryBreadcrumb ?? false, (v) => { panel.showAncestryBreadcrumb = v; cb.markDirty(); }, t("desc.ancestryBreadcrumb"));
   }, undefined, false, "eye");
 }
