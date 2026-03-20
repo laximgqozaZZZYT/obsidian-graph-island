@@ -6743,13 +6743,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!activeFile) return;
 
     // R16: Default to local graph centered on active file for better first impression
-    // Only apply if localGraphCenter is not already set by user/saved state
-    if (this.panel.localGraphCenter === null) {
+    // Only apply if large graph (>500) and no localGraphCenter set
+    if (this.panel.localGraphCenter === null && this.pixiNodes.size > 500 && this.panel.syncWithEditor) {
       this.panel.localGraphCenter = activeFile.path;
       this.panel.localGraphHops = 1;
       this.rawData = null;
       this.doRender();
-      return; // doRender will handle highlighting
+      return;
     }
 
     const nodeId = this.findNodeIdByPath(activeFile.path);
