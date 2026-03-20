@@ -1102,7 +1102,7 @@ function _buildBookmarkSection(
         cb.rebuildPanel();
       });
     }
-  }, undefined, false, "star");
+  }, tHelp("help.bookmarks"), false, "star");
 }
 
 // ---------------------------------------------------------------------------
@@ -1309,7 +1309,7 @@ function _buildNodeDecorationSection(
         panel.definitionField = v.trim();
         cb.doRenderKeepPanel();
       });
-  }, undefined, false, "sparkles");
+  }, tHelp("help.nodeDecorations"), false, "sparkles");
 }
 
 function _buildStructureAnalysisSection(
@@ -1462,7 +1462,7 @@ function _buildInteractionSection(
         cb.markDirty();
       });
     }
-  }, undefined, true, "mouse-pointer-2");
+  }, tHelp("help.interaction"), true, "mouse-pointer-2");
 }
 
 function _buildAdvancedSection(
@@ -1509,7 +1509,7 @@ function _buildAdvancedSection(
       info.style.fontSize = "11px";
       info.style.color = "var(--text-muted)";
     }
-  }, undefined, true, "presentation");
+  }, tHelp("help.advanced"), true, "presentation");
 
   // I1b: Surprise guided mode — auto-trigger interval
   buildSection(tabEl, t("section.surprise"), (body) => {
@@ -1518,7 +1518,7 @@ function _buildAdvancedSection(
         panel.surpriseInterval = v;
         cb.markDirty();
       }, t("desc.surpriseInterval"));
-  }, undefined, false, "surprise");
+  }, tHelp("help.surprise"), false, "surprise");
 }
 
 function _buildEdgeDisplaySection(
@@ -1667,7 +1667,7 @@ function _buildCableDisplaySection(
         cb.markDirty();
       }, t("desc.cableFanAlpha"));
     }
-  }, undefined, true, "git-merge");
+  }, tHelp("help.cableBundle"), true, "git-merge");
 }
 
 function _buildRoadNetworkSection(
@@ -1699,7 +1699,7 @@ function _buildRoadNetworkSection(
         cb.doRenderKeepPanel();
       }, t("desc.roadWidth"));
     }
-  }, undefined, true, "map");
+  }, tHelp("help.roadNetwork"), true, "map");
 }
 
 function _buildMinimapSection(
@@ -1731,7 +1731,7 @@ function _buildMinimapSection(
         });
       }
     }
-  }, undefined, false, "eye");
+  }, tHelp("help.displayOther"), false, "eye");
 }
 
 function _buildRenderThresholdsSection(
@@ -1780,7 +1780,7 @@ function _buildRenderThresholdsSection(
       panel.renderThresholds.showRecentVisitHalo = v;
       cb.markDirty();
     }, t("render.showRecentVisitHaloDesc"));
-  }, undefined, true, "sliders");
+  }, tHelp("help.renderThresholds"), true, "sliders");
 }
 
 function _buildRelationColorSection(
@@ -1800,7 +1800,7 @@ function _buildRelationColorSection(
           cb.markDirty();
         });
       }
-    }, undefined, false, "palette");
+    }, tHelp("help.relationColors"), false, "palette");
   }
 }
 
@@ -1884,7 +1884,7 @@ function buildLayoutTab(
       cb.restartSimulation(0.5);
       cb.rebuildPanel();
     }, t("cluster.followsGroupByDesc"));
-  }, undefined, false, "layers");
+  }, tHelp("help.displayGrouping"), false, "layers");
 
   // Cluster arrangement
   buildSection(layoutTab, t("section.clusterArrangement"), (body) => {
