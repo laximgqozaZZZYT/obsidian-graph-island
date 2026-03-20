@@ -1841,7 +1841,7 @@ export class RenderPipeline {
       const age = now - mtime;
 
       if (age < recentThresholdMs) {
-        // Recent: green dot at top-right
+        // Recent: green dot at top-right (bright green, full opacity)
         const dx = pn.radius * 0.7;
         const dy = -pn.radius * 0.7;
         g.lineStyle(0);
@@ -1854,6 +1854,18 @@ export class RenderPipeline {
         g.beginFill(0x000000, 0.3);
         g.drawCircle(pn.data.x, pn.data.y, pn.radius);
         g.endFill();
+      } else {
+        // DP: Intermediate age — amber dot with fading alpha
+        const t = (age - recentThresholdMs) / (oldThresholdMs - recentThresholdMs);
+        const alpha = 0.8 * (1 - t); // fades as age increases
+        if (alpha > 0.1) {
+          const dx = pn.radius * 0.7;
+          const dy = -pn.radius * 0.7;
+          g.lineStyle(0);
+          g.beginFill(0xf59e0b, alpha); // amber-500
+          g.drawCircle(pn.data.x + dx, pn.data.y + dy, DOT_R);
+          g.endFill();
+        }
       }
     }
   }

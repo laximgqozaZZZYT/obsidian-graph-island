@@ -7,6 +7,10 @@ import {
   EDGE_TYPE_HAS_TAG,
 } from "../constants";
 
+/** Initial random scatter range for node positions */
+const INITIAL_SCATTER_X = 800;
+const INITIAL_SCATTER_Y = 600;
+
 interface ClassifyResult {
   type: "inheritance" | "aggregation" | "similar" | "sibling" | "sequence";
   /** True when the edge direction should be reversed (child/down/prev fields) */
@@ -386,8 +390,8 @@ function buildTagNodesAndEdges(
     const tagNode: GraphNode = {
       id: tagId,
       label: `#${tag}`,
-      x: Math.random() * 800 - 400,
-      y: Math.random() * 600 - 300,
+      x: Math.random() * INITIAL_SCATTER_X - INITIAL_SCATTER_X / 2,
+      y: Math.random() * INITIAL_SCATTER_Y - INITIAL_SCATTER_Y / 2,
       vx: 0,
       vy: 0,
       isTag: true,
@@ -432,8 +436,8 @@ function buildTagNodesAndEdges(
           const tagNode: GraphNode = {
             id: tagId,
             label: `#${tag}`,
-            x: Math.random() * 800 - 400,
-            y: Math.random() * 600 - 300,
+            x: Math.random() * INITIAL_SCATTER_X - INITIAL_SCATTER_X / 2,
+            y: Math.random() * INITIAL_SCATTER_Y - INITIAL_SCATTER_Y / 2,
             vx: 0,
             vy: 0,
             isTag: true,

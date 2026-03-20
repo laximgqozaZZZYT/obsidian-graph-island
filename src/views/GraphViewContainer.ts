@@ -90,6 +90,10 @@ export const VIEW_TYPE_GRAPH = "graph-view";
 
 const TICK_SKIP = 4;
 
+/** Fallback canvas dimensions when DOM element is not yet measured */
+const DEFAULT_CANVAS_WIDTH = 600;
+const DEFAULT_CANVAS_HEIGHT = 400;
+
 // Re-export PixiNode so other modules can import from either location
 export type { PixiNode } from "./InteractionManager";
 
@@ -1477,8 +1481,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private handleResize() {
     if (!this.pixiApp || !this.canvasWrap) return;
     const rect = this.canvasWrap.getBoundingClientRect();
-    const w = rect.width || 600;
-    const h = rect.height || 400;
+    const w = rect.width || DEFAULT_CANVAS_WIDTH;
+    const h = rect.height || DEFAULT_CANVAS_HEIGHT;
     this.pixiApp.resize(w, h);
     this.markDirty();
   }
@@ -1659,8 +1663,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         scaleY: world.scale.y,
       }),
       getViewportSize: () => ({
-        width: this.canvasWrap?.clientWidth ?? 600,
-        height: this.canvasWrap?.clientHeight ?? 400,
+        width: this.canvasWrap?.clientWidth ?? DEFAULT_CANVAS_WIDTH,
+        height: this.canvasWrap?.clientHeight ?? DEFAULT_CANVAS_HEIGHT,
       }),
       setWorldPosition: (x: number, y: number) => {
         world.x = x;
@@ -1710,8 +1714,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.pixiNodes,
           { x: w.x, y: w.y, scale: w.scale.x },
           {
-            width: this.canvasWrap?.clientWidth ?? 600,
-            height: this.canvasWrap?.clientHeight ?? 400,
+            width: this.canvasWrap?.clientWidth ?? DEFAULT_CANVAS_WIDTH,
+            height: this.canvasWrap?.clientHeight ?? DEFAULT_CANVAS_HEIGHT,
           },
         );
       };
@@ -1978,7 +1982,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getTagRelPairsCache(): Set<string> { return this.tagRelPairsCache; }
   getCanvasSize(): { width: number; height: number } {
     const rect = this.canvasWrap?.getBoundingClientRect();
-    return { width: rect?.width || 600, height: rect?.height || 400 };
+    return { width: rect?.width || DEFAULT_CANVAS_WIDTH, height: rect?.height || DEFAULT_CANVAS_HEIGHT };
   }
   getSettingsDirectionalGravityRules(): DirectionalGravityRule[] {
     return this.plugin.settings.directionalGravityRules ?? [];
@@ -2111,8 +2115,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   getCanvasDimensions() {
     return {
-      width: this.canvasWrap?.clientWidth ?? 600,
-      height: this.canvasWrap?.clientHeight ?? 400,
+      width: this.canvasWrap?.clientWidth ?? DEFAULT_CANVAS_WIDTH,
+      height: this.canvasWrap?.clientHeight ?? DEFAULT_CANVAS_HEIGHT,
     };
   }
 
@@ -3253,6 +3257,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // Always show degree count
       const deg = this.degrees.get(pn.data.id) ?? 0;
       tooltipText += `\n° ${deg}`;
+
+      // DQ: Collapsed group node summary
+      if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
+        const members = pn.data.collapsedMembers;
+        tooltipText += `\n📁 ${members.length} nodes`;
+        // Show top 3 member names
+        const top3 = members.slice(0, 3).map((m: string) => m.replace(/\.md$/, ""));
+        tooltipText += "\n" + top3.join(", ");
+        if (members.length > 3) tooltipText += ` +${members.length - 3}`;
+      }
     }
 
     // Feature DA: Ancestry breadcrumb trail from hub to hovered node
@@ -4387,8 +4401,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return;
     }
     const zoom = world.scale.x || 1;
-    const cw = this.canvasWrap?.clientWidth ?? 600;
-    const ch = this.canvasWrap?.clientHeight ?? 400;
+    const cw = this.canvasWrap?.clientWidth ?? DEFAULT_CANVAS_WIDTH;
+    const ch = this.canvasWrap?.clientHeight ?? DEFAULT_CANVAS_HEIGHT;
     const vpMinX = -(world.x) / zoom;
     const vpMinY = -(world.y) / zoom;
     const vpMaxX = vpMinX + cw / zoom;
@@ -5763,8 +5777,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const wx = world.x;
     const wy = world.y;
     const ws = (world as any).scale?.x ?? 1;
-    const cw = this.canvasWrap?.clientWidth ?? 600;
-    const ch = this.canvasWrap?.clientHeight ?? 400;
+    const cw = this.canvasWrap?.clientWidth ?? DEFAULT_CANVAS_WIDTH;
+    const ch = this.canvasWrap?.clientHeight ?? DEFAULT_CANVAS_HEIGHT;
 
     // Grid resolution for heatmap (lower = faster, coarser)
     const CELL = 40;
@@ -6030,8 +6044,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
 
     const rect = this.canvasWrap.getBoundingClientRect();
-    const W = rect.width || 600;
-    const H = rect.height || 400;
+    const W = rect.width || DEFAULT_CANVAS_WIDTH;
+    const H = rect.height || DEFAULT_CANVAS_HEIGHT;
     const cx = W / 2;
     const cy = H / 2;
 

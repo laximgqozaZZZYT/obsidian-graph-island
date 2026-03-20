@@ -96,7 +96,6 @@ export class LabelManager {
       if (txt.width > 0) return txt.width;
       const fontSize = txt.style.fontSize ?? 11;
       const isBold = txt.style.fontWeight === "bold" || txt.style.fontWeight === "600";
-      // Average character width ~ 0.6 x fontSize (proportional font heuristic)
       return txt.text.length * fontSize * (isBold ? 0.65 : 0.58);
     };
 
@@ -106,7 +105,6 @@ export class LabelManager {
       const h = txt.height || (txt.style.fontSize ?? 11);
       const cos = Math.abs(Math.cos(txt.rotation));
       const sin = Math.abs(Math.sin(txt.rotation));
-      // Rotated bounding box width/height
       const bw = w * cos + h * sin;
       const bh = w * sin + h * cos;
       return {
@@ -117,19 +115,49 @@ export class LabelManager {
       };
     };
 
-    // rectsOverlap imported from geometry.ts
-
-    const placedRects: { x: number; y: number; w: number; h: number }[] = [];
+    // Collect visible labels with their AABBs, then sort by text length (priority: longer = more important)
+    const candidates: { txt: CanvasText; rect: { x: number; y: number; w: number; h: number } }[] = [];
     for (const [, txt] of labels) {
       if (!txt.visible) continue;
-      const rect = rotatedAABB(txt);
+      candidates.push({ txt, rect: rotatedAABB(txt) });
+    }
+    candidates.sort((a, b) => b.txt.text.length - a.txt.text.length);
 
-      // Check against all placed rects
-      const overlaps = placedRects.some(pr => rectsOverlap(rect, pr));
-      if (overlaps) {
+    // Spatial hash grid for O(n×k) overlap detection
+    const CELL = 120;
+    const gridMap = new Map<number, { x: number; y: number; w: number; h: number }[]>();
+    const key = (cx: number, cy: number) => cx * 100003 + cy;
+
+    const insertGrid = (r: { x: number; y: number; w: number; h: number }) => {
+      const x0 = Math.floor(r.x / CELL), y0 = Math.floor(r.y / CELL);
+      const x1 = Math.floor((r.x + r.w) / CELL), y1 = Math.floor((r.y + r.h) / CELL);
+      for (let cx = x0; cx <= x1; cx++)
+        for (let cy = y0; cy <= y1; cy++) {
+          const k = key(cx, cy);
+          const arr = gridMap.get(k);
+          if (arr) arr.push(r); else gridMap.set(k, [r]);
+        }
+    };
+
+    const checkGrid = (r: { x: number; y: number; w: number; h: number }): boolean => {
+      const x0 = Math.floor(r.x / CELL), y0 = Math.floor(r.y / CELL);
+      const x1 = Math.floor((r.x + r.w) / CELL), y1 = Math.floor((r.y + r.h) / CELL);
+      for (let cx = x0; cx <= x1; cx++)
+        for (let cy = y0; cy <= y1; cy++) {
+          const arr = gridMap.get(key(cx, cy));
+          if (!arr) continue;
+          for (const p of arr) {
+            if (rectsOverlap(r, p)) return true;
+          }
+        }
+      return false;
+    };
+
+    for (const { txt, rect } of candidates) {
+      if (checkGrid(rect)) {
         txt.visible = false;
       } else {
-        placedRects.push(rect);
+        insertGrid(rect);
       }
     }
   }
