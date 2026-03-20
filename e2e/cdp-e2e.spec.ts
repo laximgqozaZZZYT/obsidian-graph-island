@@ -1363,3 +1363,106 @@ test.describe("40. Nodes Tab", () => {
     expect(result.excluded).toBe(true);
   });
 });
+
+// =========================================================================
+// 41. Enclosure Mode: No Per-Node Tag Labels
+// =========================================================================
+test.describe("41. Enclosure Tag Suppression", () => {
+  test("41.1 tagDisplay=enclosure suppresses per-node tag labels", async () => {
+    const result = await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      // Switch to enclosure mode
+      v.panel.tagDisplay = "enclosure";
+      v.rawData = null;
+      await v.doRender();
+      await new Promise(r => setTimeout(r, 1500));
+      // Count visible tag labels on nodes
+      let visibleTagLabels = 0;
+      if (v.pixiNodes) {
+        for (const [, pn] of v.pixiNodes) {
+          if (pn.tagLabel && pn.tagLabel.visible) visibleTagLabels++;
+        }
+      }
+      // Simulate hover on a node with tags to check hover tooltip
+      let hoverHasTag = false;
+      for (const [, pn] of v.pixiNodes) {
+        if (pn.data.tags && pn.data.tags.length > 0 && !pn.data.isTag) {
+          v.highlightedNodeId = pn.data.id;
+          v.applyHover();
+          if (pn.hoverLabel) {
+            hoverHasTag = pn.hoverLabel.text?.includes("#") ?? false;
+          }
+          v.highlightedNodeId = null;
+          v.applyHover();
+          break;
+        }
+      }
+      // Restore
+      v.panel.tagDisplay = "node";
+      v.rawData = null;
+      return { visibleTagLabels, hoverHasTag };
+    });
+    expect(result).not.toHaveProperty("error");
+    // No node should have a visible tag label in enclosure mode
+    expect(result.visibleTagLabels).toBe(0);
+    // Hover tooltip should NOT contain # tag names
+    expect(result.hoverHasTag).toBe(false);
+  });
+});
+
+// =========================================================================
+// 42. Card Mode: Title + Body Preview
+// =========================================================================
+test.describe("42. Card Mode Content", () => {
+  test("42.1 card mode shows title and body text on nodes", async () => {
+    const result = await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      // First render to populate rawData + bodyPreview backfill
+      v.panel.nodeDisplayMode = "node";
+      v.rawData = null;
+      await v.doRender();
+      // Wait for deferred rendering + async cachedRead promises
+      for (let retry = 0; retry < 5; retry++) {
+        await new Promise(r => setTimeout(r, 1000));
+        let bp = 0;
+        for (const [, p] of v.pixiNodes) { if (p.data.bodyPreview) { bp++; break; } }
+        if (bp > 0) break;
+      }
+      // Now switch to card mode (rawData already has bodyPreview)
+      v.panel.nodeDisplayMode = "card";
+      await v.doRender();
+      await new Promise(r => setTimeout(r, 1500));
+      // Check: visible nodes should have text children with node name
+      let withTitle = 0;
+      let checked = 0;
+      if (v.pixiNodes) {
+        for (const [, pn] of v.pixiNodes) {
+          if (checked >= 20) break;
+          checked++;
+          if (pn.gfx?.children) {
+            for (const c of pn.gfx.children) {
+              if (c.text && c.text === pn.data.label) withTitle++;
+            }
+          }
+        }
+      }
+      // Check bodyPreview across multiple nodes
+      let bodyPreviewCount = 0;
+      let scanned = 0;
+      for (const [, pn2] of v.pixiNodes) {
+        if (scanned++ >= 50) break;
+        if (pn2.data.bodyPreview && pn2.data.bodyPreview.length > 0) bodyPreviewCount++;
+      }
+      // Restore
+      v.panel.nodeDisplayMode = "node";
+      return { checked, withTitle, bodyPreviewCount };
+    });
+    expect(result).not.toHaveProperty("error");
+    // At least some nodes should have title text
+    expect(result.withTitle).toBeGreaterThan(0);
+    // bodyPreview should be populated on at least some nodes
+    expect(result.bodyPreviewCount).toBeGreaterThan(0);
+  });
+});
