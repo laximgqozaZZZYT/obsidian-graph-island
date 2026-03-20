@@ -1130,9 +1130,11 @@ function _buildNodeDisplaySection(
       panel.nodeColorMode = v as PanelState["nodeColorMode"];
       cb.doRenderKeepPanel();
     }, t("desc.nodeColorMode"));
-    // EO: Field name input when mode is "field"
+    // EO+EQ: Field selector when mode is "field" (with autocomplete from frontmatter)
     if (currentColorMode === "field") {
-      addTextInput(body, t("display.nodeColorField") ?? "Color Field", panel.nodeColorField ?? "", "e.g. status", (v) => {
+      const fields = cb.collectFieldSuggestions();
+      const options = [{ value: "", label: "-- select --" }, ...fields.map(f => ({ value: f, label: f }))];
+      addSelect(body, t("display.nodeColorField") ?? "Color Field", options, panel.nodeColorField ?? "", (v) => {
         panel.nodeColorField = v;
         cb.doRenderKeepPanel();
       });
@@ -2193,6 +2195,18 @@ function _buildNodesTab(
     cur.files.push(entry);
   }
 
+  // EP: Stats summary bar
+  const visibleCount = entries.filter(e => e.isVisible).length;
+  const hiddenCount = excludeSet.size;
+  const statsBar = tabEl.createDiv({ cls: "gi-node-stats" });
+  statsBar.style.cssText = "padding:4px 8px;font-size:10px;color:var(--text-muted);display:flex;gap:8px;";
+  statsBar.createEl("span", { text: `${entries.length} total` });
+  statsBar.createEl("span", { text: `${visibleCount} visible` });
+  if (hiddenCount > 0) {
+    const hidSpan = statsBar.createEl("span", { text: `${hiddenCount} hidden` });
+    hidSpan.style.color = "var(--text-error)";
+  }
+
   // Search filter
   const filterWrap = tabEl.createDiv({ cls: "gi-node-tree-filter" });
   filterWrap.style.cssText = "padding:4px 8px;";
@@ -2342,6 +2356,14 @@ function _buildNodesTab(
   addLegendItem("var(--interactive-accent)", t("nodes.hovered") ?? "Hovered");
   addLegendItem("rgba(34,197,94,0.6)", t("nodes.forwardLink") ?? "Link");
   addLegendItem("rgba(59,130,246,0.6)", t("nodes.backlink") ?? "Backlink");
+
+  // EM: Inject hover sync CSS
+  if (!tabEl.querySelector("style.gi-node-hover-css")) {
+    const style = document.createElement("style");
+    style.className = "gi-node-hover-css";
+    style.textContent = `.gi-node-hovered{background:var(--interactive-accent)!important;color:var(--text-on-accent)!important;}.gi-node-linked{background:rgba(34,197,94,0.15)!important;font-weight:600;}`;
+    tabEl.prepend(style);
+  }
 }
 
 function buildSettingsTab(

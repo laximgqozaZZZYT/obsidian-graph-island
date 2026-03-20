@@ -1556,6 +1556,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     canvas.setAttribute("role", "img");
     canvas.setAttribute("aria-label", t("a11y.canvasLabel") ?? "Interactive graph visualization. Use Tab to cycle nodes, +/- to zoom.");
     canvas.setAttribute("tabindex", "0");
+    canvas.setAttribute("role", "application");
+    canvas.setAttribute("aria-label", "Graph Island — interactive knowledge graph");
 
     // aria-live region for screen reader announcements (focus, zoom changes)
     if (!this._ariaLiveEl) {
@@ -3281,6 +3283,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.drawEdges();   // Redraw edges with hover dimming
     this.drawTimelineBars();  // Redraw bars with hover highlight
     this.updateNodeInfo();
+    // EM: Sync Nodes tab hover highlight
+    this._syncNodesTabHover(effectiveHId, curSet);
+  }
+
+  /** EM: Highlight rows in the Nodes tab that match hovered node + neighbors */
+  private _syncNodesTabHover(hoveredId: string | null, highlightSet: Set<string>) {
+    if (!this.panelEl) return;
+    const rows = this.panelEl.querySelectorAll(".gi-node-row");
+    for (const row of Array.from(rows)) {
+      const el = row as HTMLElement;
+      const id = el.dataset.nodeId;
+      el.classList.remove("gi-node-hovered", "gi-node-linked");
+      if (!id || !hoveredId) continue;
+      if (id === hoveredId) el.classList.add("gi-node-hovered");
+      else if (highlightSet.has(id)) el.classList.add("gi-node-linked");
+    }
   }
 
   /** Build the set of node IDs within hoverHops of the given node via BFS. */
