@@ -389,8 +389,10 @@ const en: TranslationMap = {
 
   // --- Accessibility announcements ---
   "a11y.selected": "Selected",
+  "a11y.deselected": "Deselected",
   "a11y.compared": "Added to compare",
   "a11y.pathfinder": "Pathfinder",
+  "a11y.nodesSelected": "selected",
 
   // --- PanelBuilder: help ---
   "help.ariaLabel": "Help",
@@ -1199,8 +1201,10 @@ const ja: TranslationMap = {
 
   // --- Accessibility announcements ---
   "a11y.selected": "選択",
+  "a11y.deselected": "選択解除",
   "a11y.compared": "比較に追加",
   "a11y.pathfinder": "パスファインダー",
+  "a11y.nodesSelected": "件選択中",
 
   // --- PanelBuilder: help ---
   "help.ariaLabel": "ヘルプ",

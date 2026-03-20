@@ -2769,6 +2769,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     } else {
       this.panel.multiSelectNodeIds.push(nodeId);
     }
+    // A11y: announce selection count for screen readers
+    const count = this.panel.multiSelectNodeIds.length;
+    const label = this.pixiNodes.get(nodeId)?.data.label ?? nodeId;
+    this._announceA11y(
+      idx >= 0
+        ? `${t("a11y.deselected") ?? "Deselected"}: ${label} (${count} ${t("a11y.nodesSelected") ?? "selected"})`
+        : `${t("a11y.selected") ?? "Selected"}: ${label} (${count} ${t("a11y.nodesSelected") ?? "selected"})`
+    );
     this.markDirty(true);
   }
 
@@ -5903,6 +5911,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           dot.style.background = COMMUNITY_PALETTE_CSS[cid % COMMUNITY_PALETTE_CSS.length];
           row.createEl("span", { cls: "gi-legend-label", text: `Community ${cid + 1} (${count})` });
         }
+      }
+    }
+
+    // EV: Field color mode legend
+    if (legendColorMode === "field" && colorMap.size > 0) {
+      const fieldSection = body.createDiv({ cls: "gi-legend-section" });
+      fieldSection.createEl("div", {
+        cls: "gi-legend-section-title",
+        text: `${this.panel.nodeColorField || "Field"} (${colorMap.size})`,
+      });
+      for (const [val, cssColor] of colorMap) {
+        const row = fieldSection.createDiv({ cls: "gi-legend-item" });
+        const dot = row.createDiv({ cls: "gi-legend-color-dot" });
+        dot.style.background = cssColor;
+        row.createEl("span", { cls: "gi-legend-label", text: val });
       }
     }
 

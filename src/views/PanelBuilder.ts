@@ -5,7 +5,7 @@ import { DEFAULT_COLORS } from "../types";
 import { repositionShell } from "../layouts/concentric";
 import type { QueryExpression, BoolOp } from "../utils/query-expr";
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
-import { setIcon } from "obsidian";
+import { setIcon, Menu } from "obsidian";
 import { t, tHelp, getLocale } from "../i18n";
 import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
@@ -2265,13 +2265,21 @@ function _buildNodesTab(
       header.querySelector(".gi-node-count")!.setAttribute("style", "font-size:9px;color:var(--text-faint);");
 
       const body = dirEl.createDiv({ cls: "gi-node-dir-body" });
-      body.style.display = "none";
+      // EW: Restore folder collapse state from localStorage
+      const dirPath = path + name;
+      const savedOpen = _getNodeDirStates()[dirPath];
+      body.style.display = savedOpen ? "" : "none";
+      if (savedOpen) arrow.style.transform = "rotate(90deg)";
 
       header.addEventListener("click", (e) => {
         if ((e.target as HTMLElement).tagName === "INPUT") return;
         const open = body.style.display !== "none";
         body.style.display = open ? "none" : "";
         arrow.style.transform = open ? "" : "rotate(90deg)";
+        // EW: Persist folder collapse state
+        const states = _getNodeDirStates();
+        if (open) delete states[dirPath]; else states[dirPath] = true;
+        _saveNodeDirStates(states);
       });
 
       renderDir(body, child, path + name + "/", depth + 1);
@@ -2313,7 +2321,6 @@ function _buildNodesTab(
       // Click to jump
       row.addEventListener("click", (e) => {
         if (e.ctrlKey || e.metaKey) {
-          // ES: Ctrl+click toggles multi-select
           const idx = panel.multiSelectNodeIds.indexOf(entry.id);
           if (idx >= 0) panel.multiSelectNodeIds.splice(idx, 1);
           else panel.multiSelectNodeIds.push(entry.id);
@@ -2321,6 +2328,25 @@ function _buildNodesTab(
         } else {
           cb.jumpToNode(entry.id);
         }
+      });
+      // EU: Right-click context menu
+      row.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const menu = new Menu();
+        menu.addItem(item => item.setTitle("Jump to Node").setIcon("locate").onClick(() => cb.jumpToNode(entry.id)));
+        menu.addItem(item => item.setTitle(excludeSet.has(entry.id) ? "Show" : "Hide").setIcon("eye-off").onClick(() => cb.toggleNodeVisibility(entry.id)));
+        const isBm = (panel.bookmarkedNodes ?? []).includes(entry.id);
+        menu.addItem(item => item.setTitle(isBm ? "Remove Bookmark" : "Bookmark").setIcon("bookmark").onClick(() => {
+          if (isBm) panel.bookmarkedNodes = panel.bookmarkedNodes.filter(id => id !== entry.id);
+          else { if (!panel.bookmarkedNodes) panel.bookmarkedNodes = []; panel.bookmarkedNodes.push(entry.id); }
+          cb.invalidateDataKeepPanel();
+        }));
+        menu.addItem(item => item.setTitle("Open File").setIcon("file-text").onClick(() => {
+          const file = (window as any).app?.vault?.getAbstractFileByPath(entry.id);
+          if (file) (window as any).app?.workspace?.getLeaf(false)?.openFile(file);
+        }));
+        menu.showAtPosition({ x: e.clientX, y: e.clientY });
       });
     }
   }
@@ -2851,6 +2877,15 @@ function saveSectionState(title: string, collapsed: boolean) {
   const states = loadSectionStates();
   states[title] = collapsed;
   localStorage.setItem(SECTION_STATE_KEY, JSON.stringify(states));
+}
+
+// EW: Node directory folder collapse state persistence
+const NODE_DIR_STATE_KEY = "graph-island-node-dir-state";
+function _getNodeDirStates(): Record<string, boolean> {
+  try { return JSON.parse(localStorage.getItem(NODE_DIR_STATE_KEY) || "{}"); } catch { return {}; }
+}
+function _saveNodeDirStates(states: Record<string, boolean>) {
+  localStorage.setItem(NODE_DIR_STATE_KEY, JSON.stringify(states));
 }
 
 // ---------------------------------------------------------------------------
