@@ -248,9 +248,9 @@ export class LabelManager {
     const subLabelForceShow = autoLodLevel >= 4;
 
     for (const pn of this.host.getPixiNodes().values()) {
-      // --- Tag label LOD ---
+      // --- Tag label LOD (suppressed when tagLabelShow=false, e.g. enclosure mode) ---
       if (pn.tagLabel) {
-        pn.tagLabel.visible = zoom >= tagLabelZoomMin || subLabelForceShow;
+        pn.tagLabel.visible = rt.tagLabelShow !== false && (zoom >= tagLabelZoomMin || subLabelForceShow);
         if (pn.tagLabel.visible) pn.tagLabel.scale.set(counterScale);
       }
       // --- Sub-label LOD (same threshold as tagLabel, bypassed at LOD 4+) ---

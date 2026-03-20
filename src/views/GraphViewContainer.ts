@@ -3335,7 +3335,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this._createHoverTooltip(pn);
         }
         // When hovering, also force-show tag label if present but hidden by LOD
-        if (pn.tagLabel && !pn.tagLabel.visible) {
+        // (skip in enclosure mode — enclosure hull labels handle tags)
+        if (pn.tagLabel && !pn.tagLabel.visible && this.panel.tagDisplay !== TAG_DISPLAY_ENCLOSURE) {
           pn.tagLabel.visible = true;
         }
       } else {

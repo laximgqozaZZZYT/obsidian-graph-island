@@ -1466,8 +1466,8 @@ export class RenderPipeline {
       g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, halfW * 2, totalH, crc.cardCornerRadius / worldScale);
       g.endFill();
 
-      // Plain card: add title + body preview text
-      if (nodeCount < rt.cardTextNodeCount) {
+      // Plain card: add title + body preview text (always show for visible nodes)
+      {
         const fontSize = Math.max(3, 10 / worldScale);
         const smallFont = Math.max(2, 8 / worldScale);
         const textW = halfW * 2 - 8 / worldScale;
