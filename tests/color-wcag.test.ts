@@ -1,0 +1,105 @@
+import { describe, it, expect } from "vitest";
+import {
+  hexToRgb, getLuminance, hexBrightness, adjustBrightness,
+  wcagRelativeLuminance, wcagContrastRatio, contrastColor,
+} from "../src/utils/color";
+
+describe("hexToRgb", () => {
+  it("extracts RGB from hex", () => {
+    expect(hexToRgb(0xff0000)).toEqual({ r: 255, g: 0, b: 0 });
+    expect(hexToRgb(0x00ff00)).toEqual({ r: 0, g: 255, b: 0 });
+    expect(hexToRgb(0x0000ff)).toEqual({ r: 0, g: 0, b: 255 });
+    expect(hexToRgb(0x000000)).toEqual({ r: 0, g: 0, b: 0 });
+    expect(hexToRgb(0xffffff)).toEqual({ r: 255, g: 255, b: 255 });
+  });
+});
+
+describe("getLuminance (BT.601)", () => {
+  it("white = 255", () => {
+    expect(getLuminance(255, 255, 255)).toBeCloseTo(255, 0);
+  });
+  it("black = 0", () => {
+    expect(getLuminance(0, 0, 0)).toBe(0);
+  });
+  it("pure green has highest weight", () => {
+    const green = getLuminance(0, 255, 0);
+    const red = getLuminance(255, 0, 0);
+    const blue = getLuminance(0, 0, 255);
+    expect(green).toBeGreaterThan(red);
+    expect(green).toBeGreaterThan(blue);
+  });
+});
+
+describe("wcagRelativeLuminance", () => {
+  it("black = 0", () => {
+    expect(wcagRelativeLuminance(0x000000)).toBeCloseTo(0, 3);
+  });
+  it("white = 1", () => {
+    expect(wcagRelativeLuminance(0xffffff)).toBeCloseTo(1, 3);
+  });
+  it("mid-gray ≈ 0.2", () => {
+    const lum = wcagRelativeLuminance(0x808080);
+    expect(lum).toBeGreaterThan(0.15);
+    expect(lum).toBeLessThan(0.25);
+  });
+});
+
+describe("wcagContrastRatio", () => {
+  it("black on white = 21:1", () => {
+    const ratio = wcagContrastRatio(0x000000, 0xffffff);
+    expect(ratio).toBeCloseTo(21, 0);
+  });
+  it("white on white = 1:1", () => {
+    expect(wcagContrastRatio(0xffffff, 0xffffff)).toBeCloseTo(1, 1);
+  });
+  it("is commutative", () => {
+    const r1 = wcagContrastRatio(0xff0000, 0x0000ff);
+    const r2 = wcagContrastRatio(0x0000ff, 0xff0000);
+    expect(r1).toBeCloseTo(r2, 5);
+  });
+  it("light text on dark bg meets 4.5:1", () => {
+    // #e0e0e0 on #1a1a2e (our dark theme label colors)
+    const ratio = wcagContrastRatio(0xe0e0e0, 0x1a1a2e);
+    expect(ratio).toBeGreaterThan(4.5);
+  });
+  it("dark text on light bg meets 4.5:1", () => {
+    // #222222 on #f0f0f4 (our light theme label colors)
+    const ratio = wcagContrastRatio(0x222222, 0xf0f0f4);
+    expect(ratio).toBeGreaterThan(4.5);
+  });
+});
+
+describe("contrastColor", () => {
+  it("returns black for white background", () => {
+    expect(contrastColor(0xffffff)).toBe(0x000000);
+  });
+  it("returns white for black background", () => {
+    expect(contrastColor(0x000000)).toBe(0xffffff);
+  });
+  it("returns white for dark blue background", () => {
+    expect(contrastColor(0x1a1a2e)).toBe(0xffffff);
+  });
+  it("returns black for light gray background", () => {
+    expect(contrastColor(0xf0f0f4)).toBe(0x000000);
+  });
+  it("always produces ratio >= 4.5:1", () => {
+    const testColors = [0x000000, 0xffffff, 0xff0000, 0x00ff00, 0x0000ff, 0x808080, 0x1a1a2e, 0xf0f0f4];
+    for (const bg of testColors) {
+      const fg = contrastColor(bg);
+      const ratio = wcagContrastRatio(fg, bg);
+      expect(ratio).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
+
+describe("adjustBrightness", () => {
+  it("factor 1 keeps color", () => {
+    expect(adjustBrightness(0x808080, 1)).toBe(0x808080);
+  });
+  it("factor 2 doubles (capped at 255)", () => {
+    expect(adjustBrightness(0x404040, 2)).toBe(0x808080);
+  });
+  it("factor 0 = black", () => {
+    expect(adjustBrightness(0xffffff, 0)).toBe(0x000000);
+  });
+});
