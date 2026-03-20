@@ -3264,7 +3264,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // DQ: Collapsed group node summary
       if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
         const members = pn.data.collapsedMembers;
-        tooltipText += `\n📁 ${members.length} nodes`;
+        tooltipText += `\n[${members.length} nodes]`;
         // Show top 3 member names
         const top3 = members.slice(0, 3).map((m: string) => m.replace(/\.md$/, ""));
         tooltipText += "\n" + top3.join(", ");
