@@ -2602,17 +2602,23 @@ function applyDashPattern(g: CanvasGraphics, e: GraphEdge, lineThick: number): b
   const s = lineThick;
   switch (e.type) {
     case "semantic":
-      g.setLineDash([4 * s, 4 * s]);
+      g.setLineDash([4 * s, 4 * s]);          // .... even dots
       return true;
     case EDGE_TYPE_TAG:
     case EDGE_TYPE_HAS_TAG:
-      g.setLineDash([8 * s, 3 * s]);
+      g.setLineDash([8 * s, 3 * s]);          // ─── ─── long dash
       return true;
     case EDGE_TYPE_SIMILAR:
-      g.setLineDash([3 * s, 5 * s]);
+      g.setLineDash([3 * s, 5 * s]);          // ·· ·· short dash
+      return true;
+    case EDGE_TYPE_SEQUENCE:
+      g.setLineDash([6 * s, 2 * s, 2 * s, 2 * s]); // ──·──· dash-dot (A11y: colorblind-friendly)
+      return true;
+    case EDGE_TYPE_SIBLING:
+      g.setLineDash([2 * s, 2 * s]);          // ·· ·· fine dots (A11y: colorblind-friendly)
       return true;
     default:
-      return false;
+      return false;  // link, inheritance, aggregation = solid line
   }
 }
 

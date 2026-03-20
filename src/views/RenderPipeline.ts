@@ -533,7 +533,10 @@ export class RenderPipeline {
         const focusRadius = effR * KB_FOCUS_RADIUS_FACTOR;
         const segments = KB_FOCUS_SEGMENTS;
         const gap = KB_FOCUS_GAP_FRACTION;
-        pn.circle.lineStyle(KB_FOCUS_LINE_WIDTH, 0xffffff, KB_FOCUS_LINE_ALPHA);
+        // A11y: ensure focus ring visible at any zoom (min 2px screen-space width)
+        const focusLineW = Math.max(KB_FOCUS_LINE_WIDTH, 2 / worldScale);
+        const focusColor = this.host.isDarkTheme() ? 0x00ccff : 0x0066cc; // high-contrast cyan/blue
+        pn.circle.lineStyle(focusLineW, focusColor, KB_FOCUS_LINE_ALPHA);
         for (let i = 0; i < segments; i++) {
           const startAngle = (i / segments) * Math.PI * 2;
           const endAngle = startAngle + ((1 - gap) / segments) * Math.PI * 2;
