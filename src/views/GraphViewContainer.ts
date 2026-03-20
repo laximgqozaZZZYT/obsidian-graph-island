@@ -7276,8 +7276,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (hlSet && !(pn as any)._searchPulsed) {
           (pn as any)._searchPulsed = true;
           const sx = pn.gfx.scale.x, sy = pn.gfx.scale.y;
-          pn.gfx.scale.set(sx * 1.3, sy * 1.3);
-          setTimeout(() => { if (pn.gfx) pn.gfx.scale.set(sx, sy); }, 300);
+          pn.gfx.scale.set(sx * 1.3);
+          setTimeout(() => { if (pn.gfx) pn.gfx.scale.set(sx); }, 300);
         }
       } else {
         (pn as any)._searchPulsed = false;
