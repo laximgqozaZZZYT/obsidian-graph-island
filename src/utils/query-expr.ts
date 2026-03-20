@@ -4,10 +4,13 @@ export interface QueryLeaf {
   type: "leaf";
   field: string;
   value: string;
-  /** When true, require exact match instead of substring match (for label and path fields) */
   exact?: boolean;
-  /** When true, use fuzzy (Levenshtein) matching instead of exact/substring */
   fuzzy?: boolean;
+}
+
+export interface QueryNot {
+  type: "not";
+  child: QueryExpression;
 }
 
 export interface QueryBranch {
@@ -17,7 +20,7 @@ export interface QueryBranch {
   right: QueryExpression;
 }
 
-export type QueryExpression = QueryLeaf | QueryBranch;
+export type QueryExpression = QueryLeaf | QueryBranch | QueryNot;
 
 /**
  * Evaluate a query expression against a graph node.
@@ -35,6 +38,7 @@ export function evaluateExpr(
   node: { id: string; label: string; tags?: string[]; category?: string; filePath?: string; isTag?: boolean; meta?: Record<string, unknown> },
 ): boolean {
   if (expr.type === "leaf") return evaluateLeaf(expr, node);
+  if (expr.type === "not") return !evaluateExpr(expr.child, node);
 
   const left = evaluateExpr(expr.left, node);
   const right = evaluateExpr(expr.right, node);
@@ -92,6 +96,11 @@ export function parseQueryExpr(input: string): QueryExpression | null {
   }
 
   function parseAtom(): QueryExpression {
+    if (peek() === "NOT") {
+      advance(); // consume "NOT"
+      const child = parseAtom();
+      return { type: "not", child };
+    }
     if (peek() === "(") {
       advance(); // consume "("
       const expr = parseExpr();
@@ -154,7 +163,15 @@ function tokenize(input: string): string[] {
         tok += input[i++];
       }
     }
-    if (tok) tokens.push(tok);
+    if (tok) {
+      // Normalize boolean operators to uppercase
+      const upper = tok.toUpperCase();
+      if (["AND", "OR", "XOR", "NOR", "NAND", "NOT"].includes(upper)) {
+        tokens.push(upper);
+      } else {
+        tokens.push(tok);
+      }
+    }
   }
   return tokens;
 }

@@ -420,6 +420,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
       }
     }
+    // Settings migration: ensure new defaults are applied to old saved state
+    if (this.panel.renderThresholds) {
+      // nodeSizeByDegree was added later — old saves have it as false/undefined
+      if (this.panel.renderThresholds.nodeSizeByDegree === undefined || this.panel.renderThresholds.nodeSizeByDegree === false) {
+        this.panel.renderThresholds.nodeSizeByDegree = true;
+      }
+      // autoLOD was added later
+      if (this.panel.renderThresholds.autoLOD === undefined) {
+        this.panel.renderThresholds.autoLOD = true;
+      }
+    }
     // If already rendered (onOpen completed), rebuild with restored state
     if (this.panelEl) {
       this.buildPanel();

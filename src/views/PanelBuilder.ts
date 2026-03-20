@@ -662,7 +662,7 @@ export function buildPanel(
         field.style.fontWeight = "600";
         if (!isValid) field.title = `Unknown field: ${fieldName}`;
         syntaxPreview.createEl("span", { text: tokens[i].slice(colonIdx + 1) });
-      } else if (["OR", "AND", "XOR", "NOR", "NAND"].includes(tokens[i].toUpperCase())) {
+      } else if (["OR", "AND", "XOR", "NOR", "NAND", "NOT"].includes(tokens[i].toUpperCase())) {
         const op = syntaxPreview.createEl("span", { text: tokens[i] });
         op.style.color = "var(--text-accent)";
         op.style.fontWeight = "bold";

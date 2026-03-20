@@ -260,3 +260,29 @@ describe("filter compatibility (search bar & directional gravity)", () => {
     expect(evaluateExpr(expr!, makeNode({ tags: ["character"], category: "place" }))).toBe(false);
   });
 });
+
+describe("NOT operator", () => {
+  it("NOT tag:battle excludes battle-tagged nodes", () => {
+    const expr = parseQueryExpr("NOT tag:battle");
+    expect(expr).not.toBeNull();
+    const battleNode = makeNode({ tags: ["battle", "scene"] });
+    const peaceNode = makeNode({ tags: ["peace"] });
+    expect(evaluateExpr(expr!, battleNode)).toBe(false);
+    expect(evaluateExpr(expr!, peaceNode)).toBe(true);
+  });
+
+  it("NOT is case-insensitive", () => {
+    const expr = parseQueryExpr("not tag:battle");
+    expect(expr).not.toBeNull();
+    expect(expr!.type).toBe("not");
+  });
+
+  it("NOT with parentheses: NOT (tag:a OR tag:b)", () => {
+    const expr = parseQueryExpr("NOT (tag:a OR tag:b)");
+    expect(expr).not.toBeNull();
+    const nodeA = makeNode({ tags: ["a"] });
+    const nodeC = makeNode({ tags: ["c"] });
+    expect(evaluateExpr(expr!, nodeA)).toBe(false);
+    expect(evaluateExpr(expr!, nodeC)).toBe(true);
+  });
+});

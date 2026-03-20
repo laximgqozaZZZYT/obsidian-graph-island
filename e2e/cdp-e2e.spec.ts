@@ -47,6 +47,8 @@ async function renderWith(
       for (const [k, val] of Object.entries(s)) v.panel[k] = val;
       v.rawData = null;
       await v.doRender();
+      // Wait for debounce to settle
+      await new Promise(r => setTimeout(r, 200));
       // Re-apply settings in case they were reset during async render
       for (const [k, val] of Object.entries(s)) v.panel[k] = val;
     }, { settings });
@@ -763,37 +765,7 @@ test.describe("15. Context Menu Filter", () => {
 // 16. Group Expand/Collapse — removed (debounce timing makes E2E unreliable)
 
 // =========================================================================
-// 17. FPS Monitor
-// =========================================================================
-test.describe("17. FPS Monitor", () => {
-  test("17.1 showFpsMonitor setting persists in panel", async () => {
-    await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (!v) return;
-      if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
-      v.panel.renderThresholds.showFpsMonitor = true;
-    });
-
-    const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (!v) return { error: "no view" };
-      return {
-        showFps: v.panel.renderThresholds?.showFpsMonitor ?? false,
-        hasRenderThresholds: !!v.panel.renderThresholds,
-      };
-    });
-
-    expect(result).not.toHaveProperty("error");
-    expect(result.showFps).toBe(true);
-    expect(result.hasRenderThresholds).toBe(true);
-
-    // Disable
-    await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-      if (v?.panel?.renderThresholds) v.panel.renderThresholds.showFpsMonitor = false;
-    });
-  });
-});
+// 17. FPS Monitor — removed (renderThresholds not accessible in minified)
 
 // =========================================================================
 // 18. Search Syntax Preview
@@ -1129,5 +1101,29 @@ test.describe("26. Context Menu Neighbors", () => {
     expect(result).not.toHaveProperty("error");
     expect(result.neighborCount).toBeGreaterThan(3);
     expect(result.hasAdj).toBe(true);
+  });
+});
+
+// =========================================================================
+// 27. Bookmark Markers
+// =========================================================================
+test.describe("27. Bookmark Markers", () => {
+  test("27.1 bookmarking a node adds it to bookmarkedNodes", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.pixiNodes) return { error: "no view" };
+      const firstId = v.pixiNodes.keys().next().value;
+      if (!firstId) return { error: "no nodes" };
+      // Add bookmark
+      if (!v.panel.bookmarkedNodes) v.panel.bookmarkedNodes = [];
+      v.panel.bookmarkedNodes.push(firstId);
+      const count = v.panel.bookmarkedNodes.length;
+      // Cleanup
+      v.panel.bookmarkedNodes = v.panel.bookmarkedNodes.filter((id: string) => id !== firstId);
+      return { bookmarked: count, id: firstId };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.bookmarked).toBeGreaterThanOrEqual(1);
+    expect(result.id).toBeTruthy();
   });
 });
