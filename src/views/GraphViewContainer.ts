@@ -3469,6 +3469,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
+    // FL: Show full body preview on hover (card mode — tooltip serves as expanded card)
+    if (pn.data.bodyPreview && (this.panel.nodeDisplayMode ?? "node") === "card") {
+      tooltipText += "\n---\n" + pn.data.bodyPreview;
+    }
+
     // Feature DA: Ancestry breadcrumb trail from hub to hovered node
     if (this.panel.showAncestryBreadcrumb && this.adj && this.adj.size > 0 && this.degrees.size > 0) {
       // Find highest-degree node (hub)

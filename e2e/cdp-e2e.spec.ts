@@ -1465,4 +1465,33 @@ test.describe("42. Card Mode Content", () => {
     // bodyPreview should be populated on at least some nodes
     expect(result.bodyPreviewCount).toBeGreaterThan(0);
   });
+
+  test("42.2 card hover tooltip includes body preview in card mode", async () => {
+    const result = await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      v.panel.nodeDisplayMode = "card";
+      v.rawData = null;
+      await v.doRender();
+      await new Promise(r => setTimeout(r, 2000));
+      // Find a node with bodyPreview and simulate hover
+      let hoverHasBody = false;
+      for (const [, pn] of v.pixiNodes) {
+        if (pn.data.bodyPreview && pn.data.bodyPreview.length > 10) {
+          v.highlightedNodeId = pn.data.id;
+          v.applyHover();
+          if (pn.hoverLabel) {
+            hoverHasBody = pn.hoverLabel.text?.includes("---") ?? false;
+          }
+          v.highlightedNodeId = null;
+          v.applyHover();
+          break;
+        }
+      }
+      v.panel.nodeDisplayMode = "node";
+      return { hoverHasBody };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.hoverHasBody).toBe(true);
+  });
 });

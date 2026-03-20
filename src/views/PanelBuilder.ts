@@ -1241,6 +1241,22 @@ function _buildNodeDisplayModeSection(
 
     // Progressive disclosure: show sub-settings based on mode
     if (panel.nodeDisplayMode === "card") {
+      // FO: Card display presets
+      addSelect(body, t("display.cardPreset") ?? "Card Preset", [
+        { value: "custom", label: t("display.cardPresetCustom") ?? "Custom" },
+        { value: "compact", label: t("display.cardPresetCompact") ?? "Compact" },
+        { value: "detailed", label: t("display.cardPresetDetailed") ?? "Detailed" },
+        { value: "full", label: t("display.cardPresetFull") ?? "Full" },
+      ], "custom", (v) => {
+        if (v === "compact") {
+          panel.cardDisplayConfig = { ...panel.cardDisplayConfig, fields: [], maxWidth: 80, showIcon: false, headerStyle: "plain" };
+        } else if (v === "detailed") {
+          panel.cardDisplayConfig = { ...panel.cardDisplayConfig, fields: ["category"], maxWidth: 150, showIcon: true, headerStyle: "table" };
+        } else if (v === "full") {
+          panel.cardDisplayConfig = { ...panel.cardDisplayConfig, fields: ["category", "node_type", "tags"], maxWidth: 200, showIcon: true, headerStyle: "table" };
+        }
+        cb.doRenderKeepPanel();
+      });
       addTextInput(body, t("display.cardFields"),
         panel.cardDisplayConfig.fields.join(", "),
         "e.g. category, tags, node_type",
