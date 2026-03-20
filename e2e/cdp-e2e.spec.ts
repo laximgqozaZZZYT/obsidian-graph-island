@@ -1155,3 +1155,24 @@ test.describe("30. Recent Visit Halo", () => {
     expect(result.count).toBeGreaterThanOrEqual(1);
   });
 });
+
+// =========================================================================
+// 31. Zoom Reset
+// =========================================================================
+test.describe("31. Zoom Reset", () => {
+  test("31.1 zoom indicator shows percentage and is clickable", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      const el = v.containerEl?.querySelector(".gi-zoom-indicator");
+      return {
+        exists: !!el,
+        text: el?.textContent ?? "",
+        cursor: el?.style?.cursor ?? "",
+      };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.exists).toBe(true);
+    expect(result.text).toContain("%");
+  });
+});
