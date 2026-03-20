@@ -1680,15 +1680,21 @@ function _buildEdgeDisplaySection(
         }, t("desc.degreeEdgeWidth"));
       addToggle(adv, t("display.showPathfinderOverlay"), panel.showPathfinderOverlay, (v) => { panel.showPathfinderOverlay = v; cb.markDirty(); }, t("desc.showPathfinderOverlay"));
       addToggle(adv, t("display.edgeWeightThickness"), panel.edgeWeightThickness, (v) => { panel.edgeWeightThickness = v; cb.markDirty(); }, t("desc.edgeWeightThickness"));
-      addToggle(adv, t("display.links"), panel.showLinks, (v) => { panel.showLinks = v; cb.markDirty(); }, t("desc.links"));
-      addToggle(adv, t("display.sharedTags"), panel.showTagEdges, (v) => { panel.showTagEdges = v; cb.markDirty(); }, t("desc.sharedTags"));
-      addToggle(adv, t("display.sharedCategory"), panel.showCategoryEdges, (v) => { panel.showCategoryEdges = v; cb.markDirty(); }, t("desc.sharedCategory"));
-      addToggle(adv, t("display.semantic"), panel.showSemanticEdges, (v) => { panel.showSemanticEdges = v; cb.markDirty(); }, t("desc.semantic"));
-      addToggle(adv, t("display.inheritance"), panel.showInheritance, (v) => { panel.showInheritance = v; cb.markDirty(); }, t("desc.inheritance"));
-      addToggle(adv, t("display.aggregation"), panel.showAggregation, (v) => { panel.showAggregation = v; cb.markDirty(); }, t("desc.aggregation"));
-      addToggle(adv, t("display.similar"), panel.showSimilar, (v) => { panel.showSimilar = v; cb.invalidateDataKeepPanel(); }, t("desc.similar"));
-      addToggle(adv, t("display.sibling"), panel.showSibling, (v) => { panel.showSibling = v; cb.markDirty(); }, t("desc.sibling"));
-      addToggle(adv, t("display.sequence"), panel.showSequence, (v) => { panel.showSequence = v; cb.markDirty(); }, t("desc.sequence"));
+      // GN: Edge toggle with a11y announcements
+      const _edgeToggle = (label: string, key: keyof PanelState, cb2: () => void) => (v: boolean) => {
+        (panel as any)[key] = v;
+        cb2();
+        cb.announceA11y?.(`${label}: ${v ? "on" : "off"}`);
+      };
+      addToggle(adv, t("display.links"), panel.showLinks, _edgeToggle(t("display.links"), "showLinks", () => cb.markDirty()), t("desc.links"));
+      addToggle(adv, t("display.sharedTags"), panel.showTagEdges, _edgeToggle(t("display.sharedTags"), "showTagEdges", () => cb.markDirty()), t("desc.sharedTags"));
+      addToggle(adv, t("display.sharedCategory"), panel.showCategoryEdges, _edgeToggle(t("display.sharedCategory"), "showCategoryEdges", () => cb.markDirty()), t("desc.sharedCategory"));
+      addToggle(adv, t("display.semantic"), panel.showSemanticEdges, _edgeToggle(t("display.semantic"), "showSemanticEdges", () => cb.markDirty()), t("desc.semantic"));
+      addToggle(adv, t("display.inheritance"), panel.showInheritance, _edgeToggle(t("display.inheritance"), "showInheritance", () => cb.markDirty()), t("desc.inheritance"));
+      addToggle(adv, t("display.aggregation"), panel.showAggregation, _edgeToggle(t("display.aggregation"), "showAggregation", () => cb.markDirty()), t("desc.aggregation"));
+      addToggle(adv, t("display.similar"), panel.showSimilar, _edgeToggle(t("display.similar"), "showSimilar", () => cb.invalidateDataKeepPanel()), t("desc.similar"));
+      addToggle(adv, t("display.sibling"), panel.showSibling, _edgeToggle(t("display.sibling"), "showSibling", () => cb.markDirty()), t("desc.sibling"));
+      addToggle(adv, t("display.sequence"), panel.showSequence, _edgeToggle(t("display.sequence"), "showSequence", () => cb.markDirty()), t("desc.sequence"));
 
       // Solo button: cycle through edge types one at a time
       const EDGE_TYPE_KEYS: (keyof PanelState)[] = [

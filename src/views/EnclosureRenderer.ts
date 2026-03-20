@@ -2,7 +2,7 @@ import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { Pt } from "../utils/geometry";
 import { convexHull, clamp, rectsOverlap } from "../utils/geometry";
 import { cssColorToHex, shiftHue, hslToHex, stringHash } from "../utils/graph-helpers";
-import { hexToRgb } from "../utils/color";
+import { hexToRgb, wcagContrastRatio, contrastColor } from "../utils/color";
 import { DEFAULT_COLORS } from "../types";
 import { TAG_DISPLAY_ENCLOSURE } from "../constants";
 
@@ -388,10 +388,15 @@ export function drawEnclosures(
       enclosureLabels.set(tag, txt);
     }
     // Pill background: darken the enclosure hue for the background
-    txt.bgColor = darkenHex(hex, LABEL_DARKEN_FACTOR);
+    const bgHex = darkenHex(hex, LABEL_DARKEN_FACTOR);
+    txt.bgColor = bgHex;
     txt.bgAlpha = glBgAlpha;
     txt.bgPadX = LABEL_PILL_PAD_X;
     txt.bgPadY = LABEL_PILL_PAD_Y;
+    // GL: WCAG contrast auto-correction for enclosure labels
+    if (wcagContrastRatio(hex, bgHex) < 3.0) {
+      txt.style.fill = "#" + contrastColor(bgHex).toString(16).padStart(6, "0");
+    }
 
     // Ensure label is in the correct parent (idempotent).
     // Interactive events (eventMode/on) are not supported by CanvasText;

@@ -925,8 +925,6 @@ export interface RenderThresholds {
   showFpsMonitor?: boolean;
   /** Scale node radius proportional to degree (sqrt dampened) */
   nodeSizeByDegree?: boolean;
-  /** Show degree count badge on each node */
-  showDegreeBadge?: boolean;
   /** Show blue halo on recently visited nodes (from navHistory) */
   showRecentVisitHalo?: boolean;
   /** Minimum hit-test radius in screen pixels (default 4).
@@ -1342,7 +1340,6 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   zoomNodeSizeAdapt: true,
   showFpsMonitor: false,
   nodeSizeByDegree: true,
-  showDegreeBadge: false,
   showRecentVisitHalo: false,
   labelLeaderLines: true,
   labelLeaderLineAlpha: 0.45,

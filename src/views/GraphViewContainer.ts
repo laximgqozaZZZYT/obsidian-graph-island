@@ -1050,6 +1050,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.cycleFocusNode(e.shiftKey ? -1 : 1);
       return;
     }
+    // GO: Ctrl+A — select all visible nodes
+    if (key === "a" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      this.panel.multiSelectNodeIds = [...this.pixiNodes.keys()];
+      this._announceA11y(`${t("a11y.selected") ?? "Selected"}: ${this.panel.multiSelectNodeIds.length} ${t("a11y.nodesSelected") ?? "nodes"}`);
+      this.markDirty(true);
+      return;
+    }
+    // GO: Ctrl+D — deselect all
+    if (key === "d" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      this.panel.multiSelectNodeIds = [];
+      this._announceA11y(t("a11y.deselected") ?? "Deselected all");
+      this.markDirty(true);
+      return;
+    }
   }
 
   /** Create legend and keyboard shortcut help overlays. */
@@ -1089,6 +1105,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       { title: "Selection & Comparison", items: [
         ["Click / Hover", "Focus node + details"],
         ["Shift+Click / Shift+Enter", "Multi-select toggle"],
+        ["Ctrl+A", "Select all visible nodes"],
+        ["Ctrl+D", "Deselect all"],
         ["Ctrl+Click / Ctrl+Enter", "Add to compare"],
         ["S (focused)", "Set pathfinder start"],
         ["E (focused)", "Set pathfinder end"],

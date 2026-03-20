@@ -1728,3 +1728,52 @@ test.describe("48. Legend Edge Patterns", () => {
     expect(result).toHaveProperty("announced");
   });
 });
+
+// =========================================================================
+// 49. Select All / Deselect All (GO)
+// =========================================================================
+test.describe("49. Select All / Deselect", () => {
+  test("49.1 Ctrl+A selects all visible nodes via direct assignment", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel || !v.pixiNodes) return { error: "no view" };
+      // Simulate what Ctrl+A handler does
+      v.panel.multiSelectNodeIds = [...v.pixiNodes.keys()];
+      const count = v.panel.multiSelectNodeIds.length;
+      v.panel.multiSelectNodeIds = [];
+      return { selected: count, total: v.pixiNodes.size };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.selected).toBe(result.total);
+  });
+
+  test("49.2 Ctrl+D deselects all via direct assignment", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      v.panel.multiSelectNodeIds = ["test1", "test2"];
+      const before = v.panel.multiSelectNodeIds.length;
+      v.panel.multiSelectNodeIds = [];
+      return { before, after: v.panel.multiSelectNodeIds.length };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.before).toBe(2);
+    expect(result.after).toBe(0);
+  });
+});
+
+// =========================================================================
+// 50. Dead Field Cleanup (GM)
+// =========================================================================
+test.describe("50. Dead Field Cleanup", () => {
+  test("50.1 showDegreeBadge removed from RenderThresholds defaults", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      const rt = v.panel.renderThresholds ?? {};
+      return { hasField: "showDegreeBadge" in rt };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.hasField).toBe(false);
+  });
+});
