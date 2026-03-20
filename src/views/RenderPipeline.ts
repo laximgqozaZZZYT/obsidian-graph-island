@@ -1481,9 +1481,12 @@ export class RenderPipeline {
         const pad = 4 / worldScale;
         const textW = halfW * 2 - pad * 2;
         const lineH = smallFont * 1.3;
+        // A11y: auto-select title/body text color for WCAG contrast against card background
+        const titleFill = contrastColor(pn.color);
+        const bodyFill = titleFill === 0xffffff ? 0xcccccc : 0x444444;
         // Title
         const title = new CanvasText(pn.data.label, {
-          fontSize, fontWeight: "bold", fill: 0xffffff,
+          fontSize, fontWeight: "bold", fill: titleFill,
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
         });
         markAsCardText(title);
@@ -1510,7 +1513,7 @@ export class RenderPipeline {
           if (cur && lines.length < maxLines) lines.push(cur);
           for (let li = 0; li < lines.length; li++) {
             const bodyLine = new CanvasText(lines[li], {
-              fontSize: smallFont, fill: 0xcccccc,
+              fontSize: smallFont, fill: bodyFill,
               fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
             });
             markAsCardText(bodyLine);
@@ -2227,8 +2230,12 @@ export class RenderPipeline {
       if (wcagContrastRatio(labelFill, labelBg) < 4.5) {
         labelFill = contrastColor(labelBg);
       }
+      // GD: Truncate label to max chars
+      const labelMaxChars = rt.labelMaxChars ?? 0;
       // A3: Prepend icon prefix from nodeIconField mapping
-      let displayLabel = n.label;
+      let displayLabel = labelMaxChars > 0 && n.label.length > labelMaxChars
+        ? n.label.slice(0, labelMaxChars) + "…"
+        : n.label;
       const iconCfg = this.host.getNodeIconConfig?.();
       if (iconCfg && iconCfg.field && n.meta) {
         const fieldVal = String(n.meta[iconCfg.field] ?? "");

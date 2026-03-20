@@ -1040,8 +1040,16 @@ function buildFilterTab(
     addToggle(body, t("filter.includeTagsInData"), panel.includeTagsInData, (v) => { panel.includeTagsInData = v; cb.invalidateDataKeepPanel(); }, t("desc.includeTagsInData"));
     addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateDataKeepPanel(); }, t("desc.orphans"));
     // FZ: Degree filter
-    addSlider(body, t("filter.minDegree") ?? "Min Degree", 0, 50, 1, panel.minDegreeFilter, (v) => { panel.minDegreeFilter = v; cb.invalidateDataKeepPanel(); });
-    addSlider(body, t("filter.maxDegree") ?? "Max Degree", 0, 200, 1, panel.maxDegreeFilter, (v) => { panel.maxDegreeFilter = v; cb.invalidateDataKeepPanel(); });
+    addSlider(body, t("filter.minDegree") ?? "Min Degree", 0, 50, 1, panel.minDegreeFilter, (v) => {
+      panel.minDegreeFilter = v;
+      cb.invalidateDataKeepPanel();
+      cb.announceA11y?.(`${t("filter.minDegree") ?? "Min Degree"}: ${v}`);
+    });
+    addSlider(body, t("filter.maxDegree") ?? "Max Degree", 0, 200, 1, panel.maxDegreeFilter, (v) => {
+      panel.maxDegreeFilter = v;
+      cb.invalidateDataKeepPanel();
+      cb.announceA11y?.(`${t("filter.maxDegree") ?? "Max Degree"}: ${v}`);
+    });
     addSelect(body, t("filter.tagDisplay"), [
       { value: "off", label: t("filter.tagDisplay.off") },
       { value: "node", label: t("filter.tagDisplay.node") },
@@ -1293,6 +1301,19 @@ function _buildNodeDisplayModeSection(
       addSlider(body, t("display.cardBodyLines") ?? "Body Lines", 0, 10, 1, rtCard.cardBodyMaxLines ?? 3, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.cardBodyMaxLines = v;
+        cb.doRenderKeepPanel();
+      });
+      // GE: Card background opacity
+      const crcGE = panel.cardRenderConfig ?? {};
+      addSlider(body, t("display.cardBgOpacity") ?? "Card Opacity", 0.1, 1.0, 0.05, (crcGE as any).plainCardFillAlpha ?? 0.8, (v) => {
+        if (!panel.cardRenderConfig) panel.cardRenderConfig = {} as any;
+        (panel.cardRenderConfig as any).plainCardFillAlpha = v;
+        cb.doRenderKeepPanel();
+      });
+      // FX: Card body font size
+      addSlider(body, t("display.cardBodyFontSize") ?? "Body Font Size", 4, 16, 1, rtCard.cardBodyFontSize ?? 8, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.cardBodyFontSize = v;
         cb.doRenderKeepPanel();
       });
     } else if (panel.nodeDisplayMode === "donut") {
@@ -2018,6 +2039,13 @@ function _buildPluginSettingsSection(
         ctx.saveSettings();
         cb.doRenderKeepPanel();
       }, t("desc.enclosureSpacing"));
+      // FY: Enclosure fill opacity override
+      const rtEnc = panel.renderThresholds ?? {};
+      addSlider(body, t("display.enclosureFillOpacity") ?? "Enclosure Fill", 0, 1, 0.05, rtEnc.enclosureFillOpacity ?? 0, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.enclosureFillOpacity = v;
+        cb.doRenderKeepPanel();
+      });
     }
   }, tHelp("help.pluginSettings"), false, "settings");
 }

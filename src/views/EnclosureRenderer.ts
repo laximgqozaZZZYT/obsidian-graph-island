@@ -43,6 +43,8 @@ export interface EnclosureConfig {
   enclosureLabelPosition?: "top" | "center" | "bottom";
   /** FY: Override fill opacity for enclosure (0 = auto, >0 = manual) */
   enclosureFillOpacity?: number;
+  /** GC: Override stroke width for enclosure (0 = auto) */
+  enclosureStrokeWidth?: number;
   /** S3: Cluster label detail level */
   clusterLabelDetail?: "minimal" | "standard" | "detailed" | "rich";
   /** S3: Cluster summary generator for rich labels */
@@ -274,7 +276,9 @@ export function drawEnclosures(
 
     // --- Stroke style ---
     const baseLineAlpha = overlaps === 0 ? STROKE_ALPHA_NO_OVERLAP : Math.max(STROKE_ALPHA_OVERLAP_MIN, STROKE_ALPHA_OVERLAP_BASE / (1 + overlaps * 0.1));
-    const lineWidth = overlaps === 0 ? STROKE_WIDTH_NO_OVERLAP : Math.max(STROKE_WIDTH_OVERLAP_MIN, STROKE_WIDTH_OVERLAP_BASE - overlaps * 0.3);
+    // GC: Allow override of enclosure stroke width
+    const strokeOverride = cfg.enclosureStrokeWidth ?? 0;
+    const lineWidth = strokeOverride > 0 ? strokeOverride : (overlaps === 0 ? STROKE_WIDTH_NO_OVERLAP : Math.max(STROKE_WIDTH_OVERLAP_MIN, STROKE_WIDTH_OVERLAP_BASE - overlaps * 0.3));
 
     // --- Fill style (zoomed-out: light tint; large groups get lighter to avoid obscuring nodes) ---
     const memberCount = pts.length;

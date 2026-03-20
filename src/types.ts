@@ -749,6 +749,10 @@ export interface RenderThresholds {
   enclosureLabelPosition?: "top" | "center" | "bottom";
   /** FX: Card body font size in screen pixels (default 8) */
   cardBodyFontSize?: number;
+  /** GD: Max characters for node label (0 = no limit) */
+  labelMaxChars?: number;
+  /** GC: Enclosure stroke width override (0 = auto) */
+  enclosureStrokeWidth?: number;
   /** FY: Enclosure fill opacity 0-1 (default from sizeFade calculation) */
   enclosureFillOpacity?: number;
   /** Node count below which glow halos are shown (default 800) */
@@ -1267,6 +1271,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   cardBodyMaxLines: 3,
   enclosureLabelPosition: "top" as const,
   cardBodyFontSize: 8,
+  labelMaxChars: 0,
+  enclosureStrokeWidth: 0,
   enclosureFillOpacity: 0,
   glowNodeCount: 800,
   gridLabelOffset: 12,
