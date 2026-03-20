@@ -252,6 +252,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   // Hover diff tracking
   private prevHighlightSet: Set<string> = new Set();
+  /** DS: Distance map from hovered node for edge alpha gradient */
+  private _hoverDistMap: Map<string, number> = new Map();
 
   // Spatial hash for hit testing
   private spatialGrid: Map<string, PixiNode[]> = new Map();
@@ -3135,8 +3137,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // フォーカスモード時はフォーカスノードIDを実効ハイライトIDとして使用
     const effectiveHId = hId || (focusActive ? this.panel.focusNodeId : null);
 
-    // R2: Build distance map for focus cone
+    // R2: Build distance map for focus cone + DS: edge alpha gradient
     const distMap = new Map<string, number>();
+    this._hoverDistMap = distMap;
     if (this.panel.focusConeEnabled && effectiveHId) {
       distMap.set(effectiveHId, 0);
       let frontier = [effectiveHId];
@@ -3598,6 +3601,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.isArcLayout = this.currentLayout === LAYOUT_ARC;
     cfg.highlightedNodeId = effectiveHighlightId;
     cfg.highlightSet = effectiveHighlightSet;
+    cfg.hoverDistMap = this._hoverDistMap;
     cfg.bgColor = this.cachedBgColor!;
     cfg.relationColors = this.relationColors;
     cfg.fadeByDegree = this.panel.fadeEdgesByDegree;
@@ -3799,7 +3803,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           }
         }
         const topTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t);
-        return topTags.length > 0 ? `#${tag} (${count}) · ${topTags.join(", ")}` : `#${tag} (${count})`;
+        // DV: Cluster health score — internal edge density
+        const memberSet = new Set(members);
+        let internalEdges = 0;
+        if (this.graphEdges && memberSet.size >= 2) {
+          for (const e of this.graphEdges) {
+            if (memberSet.has(e.source) && memberSet.has(e.target)) internalEdges++;
+          }
+        }
+        const maxEdges = memberSet.size * (memberSet.size - 1) / 2;
+        const density = maxEdges > 0 ? (internalEdges / maxEdges * 100).toFixed(0) : "0";
+        const healthSuffix = memberSet.size >= 3 ? ` [${density}%]` : "";
+        return topTags.length > 0
+          ? `#${tag} (${count})${healthSuffix} · ${topTags.join(", ")}`
+          : `#${tag} (${count})${healthSuffix}`;
       },
     };
     drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);

@@ -566,8 +566,8 @@ const en: TranslationMap = {
   "desc.multiSelect": "Shift+click to select multiple nodes for bulk operations",
   "display.inlineEdit": "Inline Edit",
   "desc.inlineEdit": "Double-click to edit frontmatter properties in-place",
-  "display.relationDrawer": "Relation Drawer",
-  "desc.relationDrawer": "Expanded side panel showing detailed relation information",
+  "display.relationDrawer": "Auto-Open Detail Panel",
+  "desc.relationDrawer": "Automatically open the node detail side panel when graph loads",
   "display.manualClustering": "Manual Clustering",
   "desc.manualClustering": "Drag nodes between groups to reassign clusters",
 
@@ -1359,8 +1359,8 @@ const ja: TranslationMap = {
   "desc.multiSelect": "Shift+クリックで複数ノードを選択し一括操作",
   "display.inlineEdit": "インライン編集",
   "desc.inlineEdit": "ダブルクリックでフロントマターを直接編集",
-  "display.relationDrawer": "関係ドロワー",
-  "desc.relationDrawer": "関係の詳細を表示する拡張サイドパネル",
+  "display.relationDrawer": "詳細パネル自動表示",
+  "desc.relationDrawer": "グラフ表示時にノード詳細サイドパネルを自動的に開く",
   "display.manualClustering": "手動クラスタリング",
   "desc.manualClustering": "ノードをドラッグしてグループ間で移動",
 

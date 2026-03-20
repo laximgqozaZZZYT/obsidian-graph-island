@@ -259,7 +259,7 @@ export interface PanelState {
   multiSelectNodeIds: string[];
   /** C7: Inline edit — double-click to edit frontmatter in tooltip */
   enableInlineEdit: boolean;
-  /** C8: Enhanced relation drawer — expanded side panel with relation details */
+  /** C8: Auto-open NodeDetailView side panel for relation details on graph open */
   showRelationDrawer: boolean;
   /** C4: Manual clustering — drag nodes to assign groups */
   enableManualClustering: boolean;

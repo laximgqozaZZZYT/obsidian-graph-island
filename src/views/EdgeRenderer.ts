@@ -29,6 +29,8 @@ export interface EdgeDrawConfig {
   highlightedNodeId: string | null;
   /** Set of node IDs in the hover highlight (BFS n-hop) */
   highlightSet: Set<string>;
+  /** DS: Distance map from hovered node (nodeId → hop count) for edge alpha gradient */
+  hoverDistMap?: Map<string, number>;
   bgColor: number;
   relationColors: Map<string, string>;
   /** Fade edges based on source node degree — low-degree nodes produce fainter edges */
@@ -2573,6 +2575,16 @@ function resolveEdgeStyle(
     if (highlighted) {
       lineThick = HIGHLIGHT_LINE_THICKNESS;
       alpha = cfg.highlightEdgeAlpha ?? 1.0;
+    } else if (cfg.hoverDistMap && cfg.hoverDistMap.size > 0) {
+      // DS: Distance-based edge alpha — use minimum distance of endpoints
+      const dS = cfg.hoverDistMap.get(sid);
+      const dT = cfg.hoverDistMap.get(tid);
+      if (dS !== undefined || dT !== undefined) {
+        const minDist = Math.min(dS ?? 99, dT ?? 99);
+        alpha = Math.max(0.08, Math.pow(0.6, minDist));
+      } else {
+        alpha = 0.04;
+      }
     } else {
       alpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
     }

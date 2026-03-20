@@ -565,6 +565,21 @@ export class InteractionManager {
           this.draggedNode = null;
           this.isPanning = false;
           return;
+        } else if (e.altKey) {
+          // B2: Alt+click: pathfinder — first alt+click sets start, second sets end
+          const pf = this.host.getPathfinderState();
+          if (!pf.startId) {
+            this.host.setPathfinderNode(node.data.id, "start");
+          } else if (!pf.endId) {
+            this.host.setPathfinderNode(node.data.id, "end");
+          } else {
+            // Both set — reset and set new start
+            this.host.clearPathfinder();
+            this.host.setPathfinderNode(node.data.id, "start");
+          }
+          this.draggedNode = null;
+          this.isPanning = false;
+          return;
         } else if (e.ctrlKey || e.metaKey) {
           // Ctrl+click: 比較選択に追加し、holdもトグル (focusは変更しない)
           this.host.addCompareNode(node.data.id);
