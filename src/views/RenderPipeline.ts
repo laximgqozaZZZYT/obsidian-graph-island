@@ -2518,7 +2518,7 @@ export class RenderPipeline {
     // Scale margin inversely with zoom — at low zoom, labels are counterscaled larger
     // so overlap detection needs more generous spacing
     const zoom = this.host.getWorldContainer()?.scale.x ?? 1;
-    const zoomMarginScale = zoom < 0.5 ? 1 + (0.5 - zoom) * 6 : 1; // up to 4x at zoom 0
+    const zoomMarginScale = zoom < 0.5 ? Math.min(4, 1 + (0.5 - zoom) * 6) : 1;
     const margin = rt.labelOverlapMargin * zoomMarginScale;
     const pixiNodes = this.host.getPixiNodes();
     const degrees = this.host.getDegrees();
@@ -2573,7 +2573,8 @@ export class RenderPipeline {
 
     // 4.5. Density-adaptive culling: at low zoom, remove labels that are
     // too close together even if they don't technically overlap (AABB margin)
-    if (zoom < 0.5 && placed.length > 10) {
+    const densityZoomThreshold = rt.labelDensityZoomThreshold ?? 0.5;
+    if (zoom < densityZoomThreshold && placed.length > 10) {
       const densityMinDist = (rt.labelDensityMinScreenDist ?? 80) * (1 + (0.5 - zoom) * 2);
       const densityMinDist2 = densityMinDist * densityMinDist;
       // Sort placed by priority (highest first) — keep high priority, remove low

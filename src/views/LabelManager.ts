@@ -236,8 +236,10 @@ export class LabelManager {
     // Tag label LOD threshold
     const tagLabelZoomMin = rt.tagLabelZoomMin ?? 1.2;
 
-    // Hysteresis: once visible, keep visible until zoom drops 30% below threshold
-    const hysteresisHideFactor = rt.labelHysteresisHideFactor ?? 0.7;
+    // Hysteresis: once visible, keep visible until zoom drops below threshold.
+    // Zoom-adaptive: wider band at extreme zoom to prevent flicker during slow zoom
+    const baseHysteresis = rt.labelHysteresisHideFactor ?? 0.7;
+    const hysteresisHideFactor = zoom < 0.2 ? 0.5 : zoom < 0.5 ? 0.6 : baseHysteresis;
 
     const candidates: { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[] = [];
 
