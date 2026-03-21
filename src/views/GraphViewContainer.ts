@@ -956,17 +956,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return;
     }
 
-    // Arrow keys: pan graph (accessibility: keyboard pan, WCAG 2.1.1)
-    if (key.startsWith("Arrow") && !e.ctrlKey && !e.metaKey && !this._isKeyboardFocused) {
+    // Arrow keys: when node focused, navigate to neighbors; otherwise pan graph
+    if (key.startsWith("Arrow") && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
-      const world = this.worldContainer;
-      if (world) {
-        const PAN_STEP = 50;
-        if (key === "ArrowUp") world.y += PAN_STEP;
-        else if (key === "ArrowDown") world.y -= PAN_STEP;
-        else if (key === "ArrowLeft") world.x += PAN_STEP;
-        else if (key === "ArrowRight") world.x -= PAN_STEP;
-        this.markDirty(true);
+      if (this._isKeyboardFocused && this.highlightedNodeId) {
+        // Navigate to neighboring nodes (Left/Right = cycle neighbors, Up/Down = cycle by degree)
+        this._navigateNeighbor(key as "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown");
+      } else {
+        const world = this.worldContainer;
+        if (world) {
+          const PAN_STEP = 50;
+          if (key === "ArrowUp") world.y += PAN_STEP;
+          else if (key === "ArrowDown") world.y -= PAN_STEP;
+          else if (key === "ArrowLeft") world.x += PAN_STEP;
+          else if (key === "ArrowRight") world.x -= PAN_STEP;
+          this.markDirty(true);
+        }
       }
       return;
     }
@@ -975,12 +980,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if ((key === "+" || key === "=") && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       this.zoomBy(1.2);
+      this._announceZoomLevel();
       return;
     }
     // -: zoom out
     if (key === "-" && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       this.zoomBy(1 / 1.2);
+      this._announceZoomLevel();
       return;
     }
     // 0: zoom reset (100%), 1-9: zoom to 10%-90%
@@ -1131,7 +1138,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const sections: { title: string; items: [string, string][] }[] = [
       { title: "Navigation", items: [
         ["Tab / Shift+Tab", "Cycle focus through nodes"],
-        ["\u2190\u2191\u2192\u2193", "Pan graph (when no node focused)"],
+        ["\u2190\u2191\u2192\u2193", "Pan graph / Navigate neighbors (when node focused)"],
         ["+/= / \u2212", "Zoom in / out"],
         ["0\u20139", "Zoom: 0=100%, 1=10%, ..., 9=90%"],
         ["Z", "Focus-zoom to highlighted node"],
@@ -7311,6 +7318,70 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     } else {
       this._announceA11y(nodeId);
     }
+  }
+
+  // -- Arrow key neighbor navigation for focused node --
+  private _neighborIndex = -1;
+  private _neighborList: string[] = [];
+
+  private _navigateNeighbor(dir: "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown") {
+    if (!this.highlightedNodeId) return;
+
+    // Build neighbor list for current node
+    const gd = this.getGraphData();
+    const edges = gd?.edges ?? [];
+    const nodeId = this.highlightedNodeId;
+    const neighborIds = new Set<string>();
+    for (const e of edges) {
+      if (e.source === nodeId) neighborIds.add(e.target);
+      else if (e.target === nodeId) neighborIds.add(e.source);
+    }
+    // Filter to only nodes that exist in pixiNodes
+    const neighbors = [...neighborIds].filter(id => this.pixiNodes.has(id));
+    if (neighbors.length === 0) {
+      this._announceA11y("No connected nodes");
+      return;
+    }
+
+    // Sort by label for Left/Right, by degree for Up/Down
+    if (dir === "ArrowLeft" || dir === "ArrowRight") {
+      neighbors.sort((a, b) => {
+        const la = this.pixiNodes.get(a)?.data.label ?? a;
+        const lb = this.pixiNodes.get(b)?.data.label ?? b;
+        return la.localeCompare(lb);
+      });
+    } else {
+      neighbors.sort((a, b) => (this.degrees.get(b) ?? 0) - (this.degrees.get(a) ?? 0));
+    }
+
+    // Reset index if neighbor list changed
+    if (this._neighborList.length !== neighbors.length ||
+        this._neighborList.some((id, i) => neighbors[i] !== id)) {
+      this._neighborList = neighbors;
+      this._neighborIndex = -1;
+    }
+
+    const step = (dir === "ArrowRight" || dir === "ArrowDown") ? 1 : -1;
+    this._neighborIndex = (this._neighborIndex + step + neighbors.length) % neighbors.length;
+    const targetId = neighbors[this._neighborIndex];
+
+    this._isKeyboardFocused = true;
+    this.setHighlightedNodeId(targetId);
+    this.applyHover();
+    this.panToNode(targetId);
+
+    const pn = this.pixiNodes.get(targetId);
+    const deg = this.degrees.get(targetId) ?? 0;
+    const pos = `${this._neighborIndex + 1}/${neighbors.length}`;
+    this._announceA11y(`${pn?.data.label ?? targetId} — ${deg} connections — neighbor ${pos}`);
+  }
+
+  /** Announce current zoom level for keyboard zoom changes. */
+  private _announceZoomLevel() {
+    const zoom = this.worldContainer?.scale.x ?? 1;
+    const pct = Math.round(zoom * 100);
+    const visibleCount = [...this.pixiNodes.values()].filter(pn => pn.gfx.visible).length;
+    this._announceA11y(`Zoom ${pct}% — ${visibleCount} nodes visible`);
   }
 
   /** Push a short message into the aria-live region for screen reader users. */

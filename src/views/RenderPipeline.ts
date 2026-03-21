@@ -124,6 +124,9 @@ const LABEL_Y_OFFSET_FACTOR = 0.4;
 /** Label default X/Y offset from node edge (px) */
 const LABEL_EDGE_OFFSET = 2;
 
+/** Maximum counter-scale factor for card mode (prevents enormous cards at extreme zoom-out) */
+const CARD_SCALE_CAP = 8;
+
 /** Super node label background pill padding (px) */
 const SUPER_LABEL_PAD_X = 10;
 const SUPER_LABEL_PAD_Y = 4;
@@ -1117,7 +1120,7 @@ export class RenderPipeline {
         for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
           if (isCardText(gfx.children[ci])) { gfx.removeChild(gfx.children[ci]).destroy(); }
         }
-        const fontSize = Math.max(6, 9 / worldScale);
+        const fontSize = Math.min(Math.max(6, 9 / worldScale), 9 * 8);
         const _mc1 = rt.labelMaxChars ?? 0;
         const _lbl1 = _mc1 > 0 && pn.data.label.length > _mc1 ? pn.data.label.slice(0, _mc1) + "…" : pn.data.label;
         const nameText = new CanvasText(_lbl1, {
@@ -1162,7 +1165,7 @@ export class RenderPipeline {
         for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
           if (isCardText(gfx.children[ci])) { gfx.removeChild(gfx.children[ci]).destroy(); }
         }
-        const fontSize = Math.max(7, 10 / worldScale);
+        const fontSize = Math.min(Math.max(7, 10 / worldScale), 10 * 8);
         const smallFont = fontSize * 0.85;
         let curY = -halfH + 3 / worldScale;
         const _mc2 = rt.labelMaxChars ?? 0;
@@ -1248,7 +1251,9 @@ export class RenderPipeline {
   ) {
     const { visible, tlFilteredOut, alpha, nodeCount, worldScale, minWorldRadius } = ctx;
     // Cap card counter-scale to prevent cards from becoming enormous at extreme zoom-out
-    const cardScale = Math.min(1 / worldScale, 8);
+    const cardScale = Math.min(1 / worldScale, CARD_SCALE_CAP);
+    // Sync font size cap with cardScale to prevent text overflow
+    const cardFontScaleCap = CARD_SCALE_CAP * worldScale; // effective 1/worldScale capped
     const headerH = crc.tableHeaderHeight * cardScale;
     const fieldLineH = crc.fieldLineHeight * cardScale;
     const pad = crc.cardPadding * cardScale;
@@ -1270,8 +1275,8 @@ export class RenderPipeline {
     for (const pn of visible) {
       const effR = Math.max(pn.radius, minWorldRadius);
       const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
-      // Card minimum width: at least 40 world-px so body text is readable
-      const MIN_CARD_HALF_W = 20 / worldScale;
+      // Card minimum width: at least 40 world-px so body text is readable, capped to prevent enormous cards
+      const MIN_CARD_HALF_W = Math.min(20 / worldScale, 20 * CARD_SCALE_CAP);
       const halfW = Math.max(MIN_CARD_HALF_W, Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor));
       const cardW = halfW * 2;
       const cardX = pn.data.x - halfW;
@@ -1387,12 +1392,12 @@ export class RenderPipeline {
 
     for (const pn of tableCardNodes) {
       const effR = Math.max(pn.radius, minWorldRadius);
-      const MIN_CARD_HALF_W_TEXT = 20 / worldScale;
+      const MIN_CARD_HALF_W_TEXT = Math.min(20 / worldScale, 20 * CARD_SCALE_CAP);
       const halfW = Math.max(MIN_CARD_HALF_W_TEXT, Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor));
       const cardY = -totalH / 2;  // relative to pn.gfx
       const textPadX = pad;
-      const fontSize = Math.max(crc.headerFontSizeMin, crc.headerFontSizeBase / worldScale);
-      const smallFontSize = Math.max(crc.fieldFontSizeMin, crc.fieldFontSizeBase / worldScale);
+      const fontSize = Math.min(Math.max(crc.headerFontSizeMin, crc.headerFontSizeBase / worldScale), crc.headerFontSizeBase * CARD_SCALE_CAP);
+      const smallFontSize = Math.min(Math.max(crc.fieldFontSizeMin, crc.fieldFontSizeBase / worldScale), crc.fieldFontSizeBase * CARD_SCALE_CAP);
       const fieldCount2 = cardConfig.fields.length;
       const gfx = pn.gfx;
 
@@ -1508,10 +1513,10 @@ export class RenderPipeline {
 
       // FH/FI: Plain card with title + wrapped body preview
       {
-        const fontSize = Math.max(3, 10 / worldScale);
+        const fontSize = Math.min(Math.max(3, 10 / worldScale), 10 * CARD_SCALE_CAP);
         const bodyFontBase = rt.cardBodyFontSize ?? 8;
-        const smallFont = Math.max(2, bodyFontBase / worldScale);
-        const pad = 4 / worldScale;
+        const smallFont = Math.min(Math.max(2, bodyFontBase / worldScale), bodyFontBase * CARD_SCALE_CAP);
+        const pad = Math.min(4 / worldScale, 4 * CARD_SCALE_CAP);
         const textW = halfW * 2 - pad * 2;
         const lineH = smallFont * 1.3;
         // A11y: auto-select title/body text color for WCAG contrast against card background
@@ -2682,10 +2687,12 @@ export class RenderPipeline {
     const dims = this.host.getCanvasDimensions();
     const world = this.host.getWorldContainer();
     const vpMargin = 100; // extra margin to avoid popping at edges
-    const vpLeft = world ? -world.x / zoom - vpMargin / zoom : -Infinity;
-    const vpTop = world ? -world.y / zoom - vpMargin / zoom : -Infinity;
-    const vpRight = world ? (dims.width - world.x) / zoom + vpMargin / zoom : Infinity;
-    const vpBottom = world ? (dims.height - world.y) / zoom + vpMargin / zoom : Infinity;
+    // Cap effective margin to prevent extreme zoom-out from including entire world
+    const effectiveVpMargin = Math.min(vpMargin / zoom, vpMargin * 5);
+    const vpLeft = world ? -world.x / zoom - effectiveVpMargin : -Infinity;
+    const vpTop = world ? -world.y / zoom - effectiveVpMargin : -Infinity;
+    const vpRight = world ? (dims.width - world.x) / zoom + effectiveVpMargin : Infinity;
+    const vpBottom = world ? (dims.height - world.y) / zoom + effectiveVpMargin : Infinity;
 
     const rects: CullLabelRect[] = [];
     for (const pn of pixiNodes.values()) {
@@ -2693,10 +2700,13 @@ export class RenderPipeline {
       if (pn.data.x < vpLeft || pn.data.x > vpRight ||
           pn.data.y < vpTop || pn.data.y > vpBottom) continue;
       // Collect main label OR hoverLabel (prefer hoverLabel when present for overlap culling)
-      const label = (pn.hoverLabel && pn.hoverLabel.visible) ? pn.hoverLabel : pn.label;
+      const isHoverLabel = !!(pn.hoverLabel && pn.hoverLabel.visible);
+      const label = isHoverLabel ? pn.hoverLabel : pn.label;
       if (!label || !label.text || !label.visible) continue;
       const fontSize = (label.style.fontSize as number) ?? 11;
-      const charW = fontSize * LABEL_CHAR_WIDTH_FACTOR;
+      // Bold text (hoverLabel) is ~10% wider — increase char width estimate
+      const boldFactor = isHoverLabel ? 1.1 : 1.0;
+      const charW = fontSize * LABEL_CHAR_WIDTH_FACTOR * boldFactor;
       const scaleX = label.scale?.x ?? 1;
       const scaleY = label.scale?.y ?? 1;
       const padX = label.bgPadX ?? 0;
