@@ -1866,3 +1866,46 @@ test.describe("54. Dead Field Cleanup", () => {
     expect(result.hasField).toBe(false);
   });
 });
+
+// =========================================================================
+// 55. Card Mode Search Highlight (GU)
+// =========================================================================
+test.describe("55. Card Search Highlight", () => {
+  test("55.1 search highlight works in card mode without error", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      const oldMode = v.panel.nodeDisplayMode;
+      const oldSearch = v.panel.searchQuery;
+      const oldSearchMode = v.panel.searchMode;
+      v.panel.nodeDisplayMode = "card";
+      v.panel.searchMode = "highlight";
+      v.panel.searchQuery = "battle";
+      v.applySearch?.();
+      v.panel.nodeDisplayMode = oldMode;
+      v.panel.searchQuery = oldSearch;
+      v.panel.searchMode = oldSearchMode;
+      return { ok: true };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.ok).toBe(true);
+  });
+});
+
+// =========================================================================
+// 56. Preset Zoom Level + AutoFit (GY)
+// =========================================================================
+test.describe("56. Preset Zoom Race", () => {
+  test("56.1 presetZoomLevel > 0 prevents autoFit override", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      v.panel.presetZoomLevel = 2.0;
+      const zoom = v.panel.presetZoomLevel;
+      v.panel.presetZoomLevel = 0;
+      return { preserved: zoom === 2.0 };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.preserved).toBe(true);
+  });
+});

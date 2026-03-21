@@ -1188,6 +1188,7 @@ function _buildNodeDisplaySection(
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.labelDensity = v;
       cb.applyTextFade();
+      cb.announceA11y?.(`${t("display.labelDensity") ?? "Label Density"}: ${v.toFixed(1)}`);
     }, t("desc.labelDensity") ?? "Controls how many labels are shown when zoomed out");
     // Label mode override (auto / initials / truncated / full)
     const rtMode = panel.renderThresholds ?? {};

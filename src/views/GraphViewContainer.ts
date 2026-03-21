@@ -4952,6 +4952,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private autoFitView(W: number, H: number) {
     const world = this.worldContainer;
     if (!world || this.pixiNodes.size === 0) return;
+    // GY: Skip auto-fit when a preset zoom level is set (avoids race condition)
+    if (this.panel.presetZoomLevel > 0) return;
 
     const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
@@ -7766,9 +7768,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         pn.circle.clear();
         const searchHitColor = this.getAccentColor();
         const shape = getNodeShape(pn.data, this.panel.nodeShapeRules);
-        drawShape(pn.circle, shape, pn.radius * 2.2, searchHitColor, 0.10);
-        pn.circle.lineStyle(2, searchHitColor, 0.85);
-        drawShape(pn.circle, shape, pn.radius, pn.color, 1);
+        // GU: In card mode, draw a rect halo matching the card size instead of a circle
+        const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
+        if (isCardMode) {
+          const crc = this.panel.cardRenderConfig ?? {};
+          const halfW = Math.max(20, pn.radius * ((crc as any).cardWidthFactor ?? 4));
+          const halfH = pn.radius * 2;
+          const outset = 4;
+          const cr = (crc as any).cardCornerRadius ?? 6;
+          pn.circle.beginFill(searchHitColor, 0.10);
+          pn.circle.drawRoundedRect(-halfW - outset, -halfH - outset, (halfW + outset) * 2, (halfH + outset) * 2, cr);
+          pn.circle.endFill();
+          pn.circle.lineStyle(2, searchHitColor, 0.85);
+          pn.circle.drawRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, cr);
+        } else {
+          drawShape(pn.circle, shape, pn.radius * 2.2, searchHitColor, 0.10);
+          pn.circle.lineStyle(2, searchHitColor, 0.85);
+          drawShape(pn.circle, shape, pn.radius, pn.color, 1);
+        }
         // EJ: Pulse animation — brief scale bounce on first search highlight
         // A11y: skip animation when prefers-reduced-motion is set
         const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
