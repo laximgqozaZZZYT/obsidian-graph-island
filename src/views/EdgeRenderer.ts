@@ -3058,6 +3058,10 @@ export function drawEdges(
   g.clear();
   if (arrowGfx) arrowGfx.clear();
 
+  // Skip edge drawing entirely at extreme zoom-out for performance
+  const ws = cfg.worldScale ?? 1;
+  if (ws < 0.04) return;
+
   // Pre-compute bidirectional set if direction filter or indicator is active
   const needsBidir = (cfg.edgeDirectionFilter && cfg.edgeDirectionFilter !== "all") || cfg.showBidirectionalIndicator;
   cfg._bidirectionalSet = needsBidir ? buildBidirectionalSet(edges) : undefined;

@@ -1057,6 +1057,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       return;
     }
+    // Z: focus-zoom to highlighted/keyboard-focused node (zoom + pan)
+    if (key === "z" && this.highlightedNodeId && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      this.focusZoomToNode(this.highlightedNodeId);
+      this._announceA11y(`Focus zoom: ${this.pixiNodes.get(this.highlightedNodeId)?.data.label ?? this.highlightedNodeId}`);
+      return;
+    }
     // S: set pathfinder start on focused node (accessibility: keyboard pathfinder)
     // E: set pathfinder end on focused node
     if ((key === "s" || key === "e") && this._isKeyboardFocused && this.highlightedNodeId && !e.ctrlKey && !e.metaKey) {
@@ -7411,6 +7418,56 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       world.y = startY + (targetY - startY) * ease;
       this.markDirty();
       if (t < 1) requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+  }
+
+  /** Pan to node and zoom to a comfortable level (animated).
+   *  Used for focus-zoom on keyboard Tab or node list click. */
+  focusZoomToNode(nodeId: string, targetZoom = 0.8) {
+    const pn = this.pixiNodes.get(nodeId);
+    if (!pn) return;
+    const world = this.worldContainer;
+    const wrap = this.canvasWrap;
+    if (!world || !wrap) return;
+
+    const currentZoom = world.scale.x;
+    // Only zoom in if currently zoomed out beyond target
+    const finalZoom = currentZoom < targetZoom ? targetZoom : currentZoom;
+    const targetX = wrap.clientWidth / 2 - pn.data.x * finalZoom;
+    const targetY = wrap.clientHeight / 2 - pn.data.y * finalZoom;
+
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReduced) {
+      world.scale.set(finalZoom);
+      world.x = targetX;
+      world.y = targetY;
+      this.updateZoomIndicator(finalZoom);
+      this.updateLabelsForZoom();
+      this.markDirty(true);
+      return;
+    }
+
+    const startX = world.x;
+    const startY = world.y;
+    const startZoom = currentZoom;
+    const duration = 300;
+    const startTime = performance.now();
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      const ease = 1 - (1 - t) * (1 - t);
+      const z = startZoom + (finalZoom - startZoom) * ease;
+      world.scale.set(z);
+      world.x = startX + (targetX - startX) * ease;
+      world.y = startY + (targetY - startY) * ease;
+      this.markDirty();
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        this.updateZoomIndicator(finalZoom);
+        this.updateLabelsForZoom();
+      }
     };
     requestAnimationFrame(animate);
   }

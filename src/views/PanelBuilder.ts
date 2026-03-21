@@ -1183,6 +1183,19 @@ function _buildNodeDisplaySection(
       panel.renderThresholds.labelDensity = v;
       cb.applyTextFade();
     }, t("desc.labelDensity") ?? "Controls how many labels are shown when zoomed out");
+    // Label mode override (auto / initials / truncated / full)
+    const rtMode = panel.renderThresholds ?? {};
+    addSelect(body, t("display.labelMode") ?? "Label Mode", [
+      { value: "auto", label: "Auto (zoom)" },
+      { value: "initials", label: "Initials (2 chars)" },
+      { value: "truncated", label: "Truncated (5-12)" },
+      { value: "full", label: "Full name" },
+    ], rtMode.labelModeOverride ?? "auto", (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      (panel.renderThresholds as any).labelModeOverride = v;
+      cb.applyTextFade();
+    });
+
     // GD: Label max characters
     const rtLabel = panel.renderThresholds ?? {};
     addSlider(body, t("display.labelMaxChars") ?? "Label Max Chars", 0, 60, 1, rtLabel.labelMaxChars ?? 0, (v) => {
