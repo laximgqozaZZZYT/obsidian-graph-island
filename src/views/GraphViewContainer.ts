@@ -1108,6 +1108,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.markDirty(true);
       return;
     }
+    // Ctrl+E — export graph as PNG (keyboard accessibility)
+    if (key === "e" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      this.copyGraphToClipboard();
+      return;
+    }
   }
 
   /** Create legend and keyboard shortcut help overlays. */
@@ -1150,6 +1156,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         ["Shift+Click / Shift+Enter", "Multi-select toggle"],
         ["Ctrl+A", "Select all visible nodes"],
         ["Ctrl+D", "Deselect all"],
+        ["Ctrl+E", "Copy graph to clipboard (PNG)"],
         ["Ctrl+Click / Ctrl+Enter", "Add to compare"],
         ["S (focused)", "Set pathfinder start"],
         ["E (focused)", "Set pathfinder end"],
@@ -2722,6 +2729,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.rawData = null;
     this.doRender();
     this.requestSave();
+    // A11y: announce filter change result
+    const visibleCount = this.pixiNodes.size;
+    this._announceA11y(query
+      ? `Filter: "${query}" — ${visibleCount} nodes`
+      : `Filter cleared — ${visibleCount} nodes`);
   }
 
   // ED: Viewport bookmark

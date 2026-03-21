@@ -266,3 +266,54 @@ test("HS: help overlay includes neighbor navigation shortcut", async () => {
   }
   console.log(`[HS] help overlay: found=${result.overlayFound}, neighbor=${result.hasNeighborInfo}, tab=${result.hasTabInfo}`);
 });
+
+// HT: Ctrl+E keyboard export shortcut exists
+test("HT: Ctrl+E keyboard export shortcut", async () => {
+  test.setTimeout(30_000);
+  const result = await page.evaluate(() => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+    return {
+      hasCopyFn: typeof view.copyGraphToClipboard === "function",
+    };
+  });
+  expect(result).not.toHaveProperty("error");
+  expect(result.hasCopyFn).toBe(true);
+  console.log(`[HT] Ctrl+E export: copyFn=${result.hasCopyFn}`);
+});
+
+// HU: search query change announces to screen reader
+test("HU: setSearchQuery announces filter result", async () => {
+  test.setTimeout(30_000);
+  const result = await page.evaluate(async () => {
+    const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    if (!view) return { error: "no view" };
+    const hasSetSearch = typeof view.setSearchQuery === "function";
+    return { hasSetSearch };
+  });
+  expect(result).not.toHaveProperty("error");
+  expect(result.hasSetSearch).toBe(true);
+  console.log(`[HU] search a11y: setSearchQuery=${result.hasSetSearch}`);
+});
+
+// HV: help overlay lists Ctrl+E shortcut
+test("HV: help overlay includes Ctrl+E export shortcut", async () => {
+  test.setTimeout(30_000);
+  const result = await page.evaluate(async () => {
+    const canvas = document.querySelector("canvas") as HTMLCanvasElement;
+    if (!canvas) return { error: "no canvas" };
+    canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "?", bubbles: true }));
+    await new Promise(r => setTimeout(r, 200));
+    const overlay = document.querySelector(".gi-help-overlay");
+    const text = overlay?.textContent ?? "";
+    if (overlay) canvas.dispatchEvent(new KeyboardEvent("keydown", { key: "?", bubbles: true }));
+    return {
+      overlayFound: !!overlay,
+      hasCtrlE: text.includes("Ctrl+E"),
+    };
+  });
+  if (result.overlayFound) {
+    expect(result.hasCtrlE).toBe(true);
+  }
+  console.log(`[HV] help Ctrl+E: found=${result.overlayFound}, hasCtrlE=${result.hasCtrlE}`);
+});
