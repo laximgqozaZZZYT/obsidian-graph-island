@@ -2760,10 +2760,13 @@ export class RenderPipeline {
       if (!grid.checkOverlap(alt)) {
         r.label.x = baseLx + worldDx;
         r.label.y = baseLy + worldDy;
+        // Sync original rect bounds to avoid stale data in subsequent phases
+        r.x = cappedScreenX;
+        r.y = cappedScreenY;
 
         // Draw leader line from node edge to label
         if (drawLeader) {
-          this._drawLeaderLine(pn, r, zoom, llWidth, llAlpha);
+          this._drawLeaderLine(pn, alt, zoom, llWidth, llAlpha);
         }
         return alt;
       }

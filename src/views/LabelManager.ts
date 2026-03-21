@@ -430,6 +430,23 @@ export class LabelManager {
       pn.labelWasVisible = true;
       visCount++;
     }
+
+    // Zoom-out label emphasis: boost background opacity for surviving labels
+    // so they stand out as "important nodes" at low zoom
+    if (zoom < 0.5) {
+      const emphasisBoost = Math.min(0.3, (0.5 - zoom) * 0.6); // up to 0.3 boost
+      for (const c of candidates) {
+        if (!c.pn.label?.visible) continue;
+        const lbl = c.pn.label;
+        if (lbl.bgAlpha != null) {
+          lbl.bgAlpha = Math.min(1.0, lbl.bgAlpha + emphasisBoost);
+        }
+        // Slightly increase padding for better readability
+        if (lbl.bgPadX != null) {
+          lbl.bgPadX = Math.max(lbl.bgPadX, 4 + emphasisBoost * 10);
+        }
+      }
+    }
   }
 
   /** Scale sunburst, cluster sunburst, and group grid labels based on zoom level. */
