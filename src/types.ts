@@ -1025,6 +1025,8 @@ export interface RenderThresholds {
   labelBgColor?: number;
   /** Label pill background color for light theme (hex, default 0xf0f0f4) */
   labelBgColorLight?: number;
+  /** Sync label background with node color (subtle 15% tint, default false) */
+  labelBgColorSync?: boolean;
   /** Label pill background alpha (default 0.85) */
   labelBgAlpha?: number;
   /** Label text stroke/outline color (hex, default 0x000000) */
@@ -1395,6 +1397,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelMaxDisplacementRatio: 2.5,
   labelBgColor: 0x1a1a2e,
   labelBgColorLight: 0xf0f0f4,
+  labelBgColorSync: false,
   labelBgAlpha: 0.85,
   labelStrokeColor: 0x000000,
   labelStrokeWidth: 3.5,

@@ -286,9 +286,11 @@ export function drawEnclosures(
     const baseFill = overlaps > 0 ? FILL_ALPHA_OVERLAP : FILL_ALPHA_BASE;
     // FY: Allow user override of enclosure fill opacity
     const opacityOverride = cfg.enclosureFillOpacity;
-    const fillAlpha = opacityOverride && opacityOverride > 0
-      ? opacityOverride * sizeFade
-      : (blend > 0 ? blend * baseFill * sizeFade : 0);
+    // At extreme zoom-out (blend > 0.8), switch to outline-only for clarity
+    const fillAlpha = blend > 0.8 ? 0
+      : opacityOverride && opacityOverride > 0
+        ? opacityOverride * sizeFade
+        : (blend > 0 ? blend * baseFill * sizeFade : 0);
 
     let labelX = 0, labelY = 0;
     let labelCenterX = 0, labelCenterY = 0;

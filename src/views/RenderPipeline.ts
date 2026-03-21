@@ -188,6 +188,14 @@ function lightenColor(hex: number, factor: number): number {
   return (Math.round(lr) << 16) | (Math.round(lg) << 8) | Math.round(lb);
 }
 
+/** Blend two hex colors. t=0 returns a, t=1 returns b. */
+function blendColors(a: number, b: number, t: number): number {
+  const ar = hexToRgb(a), br = hexToRgb(b);
+  return (Math.round(ar.r + (br.r - ar.r) * t) << 16) |
+         (Math.round(ar.g + (br.g - ar.g) * t) << 8) |
+          Math.round(ar.b + (br.b - ar.b) * t);
+}
+
 /** Desaturate a 0xRRGGBB color toward gray. factor=1 is original, factor=0 is fully gray. */
 function desaturateColor(color: number, factor: number): number {
   if (factor >= 1) return color;
@@ -1020,7 +1028,11 @@ export class RenderPipeline {
     for (const pn of visible) {
       const shape = getNodeShape(pn.data, shapeRules);
       const effR = Math.max(pn.radius * zoomNodeBoost, minWorldRadius);
-      const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+      let nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+      // Zoom-out: fade low-degree nodes for visual clarity (AM: importance fade)
+      if (worldScale < 0.3 && pn.sortRank >= 0 && pn.sortRank >= prominentN * 2) {
+        nodeAlpha *= Math.max(0.4, worldScale / 0.3);
+      }
 
       // Desaturate non-prominent nodes
       let drawColor = pn.color;
@@ -2246,7 +2258,10 @@ export class RenderPipeline {
       const labelFontWeight = isSuperNode ? "bold" : "500";
       // For super nodes, use group color as pill background; for regular nodes, use theme-aware bg
       const themeLabelBg = this.host.isDarkTheme() ? (rt.labelBgColor ?? 0x1a1a2e) : (rt.labelBgColorLight ?? 0xf0f0f4);
-      const labelBg = isSuperNode ? (color != null ? darkenColor(color, 0.6) : themeLabelBg) : themeLabelBg;
+      // AL: Optionally sync label bg with node color (subtle tint)
+      const syncBg = rt.labelBgColorSync && color != null;
+      const labelBg = isSuperNode ? (color != null ? darkenColor(color, 0.6) : themeLabelBg)
+        : syncBg ? blendColors(themeLabelBg, color, 0.15) : themeLabelBg;
       // Use bright text when pill background is present for better contrast
       // A11y: auto-correct label color if WCAG contrast ratio < 4.5:1
       let labelFill = isSuperNode ? 0xffffff
