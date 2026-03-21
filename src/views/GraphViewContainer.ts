@@ -365,6 +365,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** B3: doRender debounce — prevents rapid re-renders from slider drags */
   private _doRenderDebounceTimer = 0;
+  /** Animation frame ID for zoom animations (prevents competing animations) */
+  private _zoomAnimId = 0;
   private _lastDoRenderTime = 0;
 
   /** C1: Hover preview toast state */
@@ -5092,6 +5094,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return;
     }
 
+    // Cancel any running zoom animation
+    if (this._zoomAnimId) cancelAnimationFrame(this._zoomAnimId);
+
     // Animated zoom (150ms ease-out)
     const cx = wrap.clientWidth / 2;
     const cy = wrap.clientHeight / 2;
@@ -5110,12 +5115,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.updateZoomIndicator(s);
       this.markDirty();
       if (t < 1) {
-        requestAnimationFrame(animate);
+        this._zoomAnimId = requestAnimationFrame(animate);
       } else {
+        this._zoomAnimId = 0;
         this.updateLabelsForZoom();
       }
     };
-    requestAnimationFrame(animate);
+    this._zoomAnimId = requestAnimationFrame(animate);
   }
 
   private _applyZoomImmediate(level: number) {
@@ -7523,6 +7529,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return;
     }
 
+    // Cancel any running zoom animation
+    if (this._zoomAnimId) cancelAnimationFrame(this._zoomAnimId);
+
     const startX = world.x;
     const startY = world.y;
     const startZoom = currentZoom;
@@ -7538,13 +7547,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       world.y = startY + (targetY - startY) * ease;
       this.markDirty();
       if (t < 1) {
-        requestAnimationFrame(animate);
+        this._zoomAnimId = requestAnimationFrame(animate);
       } else {
+        this._zoomAnimId = 0;
         this.updateZoomIndicator(finalZoom);
         this.updateLabelsForZoom();
       }
     };
-    requestAnimationFrame(animate);
+    this._zoomAnimId = requestAnimationFrame(animate);
   }
 
   /** Push a node visit to navigation history (max 20). */
@@ -7785,6 +7795,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           drawShape(pn.circle, shape, pn.radius * 2.2, searchHitColor, 0.10);
           pn.circle.lineStyle(2, searchHitColor, 0.85);
           drawShape(pn.circle, shape, pn.radius, pn.color, 1);
+        }
+        // HE: In card mode, tint card title text with accent color for visual match indicator
+        if (isCardMode && pn.gfx.children.length > 0) {
+          for (const child of pn.gfx.children) {
+            if ((child as any)._isCardText && (child as any).style) {
+              (child as any).style.fill = "#" + searchHitColor.toString(16).padStart(6, "0");
+              break; // Only tint the first (title) text
+            }
+          }
         }
         // EJ: Pulse animation — brief scale bounce on first search highlight
         // A11y: skip animation when prefers-reduced-motion is set

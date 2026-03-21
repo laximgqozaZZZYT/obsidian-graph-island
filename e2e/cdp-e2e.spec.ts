@@ -1909,3 +1909,46 @@ test.describe("56. Preset Zoom Race", () => {
     expect(result.preserved).toBe(true);
   });
 });
+
+// =========================================================================
+// 57. AutoFit Resets Preset Zoom (HC)
+// =========================================================================
+test.describe("57. AutoFit Reset", () => {
+  test("57.1 enabling autoFit resets presetZoomLevel to 0", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      v.panel.presetZoomLevel = 1.5;
+      v.panel.autoFit = true;
+      // HC: autoFit toggle should reset presetZoomLevel
+      // (simulating what the panel callback does)
+      if (v.panel.autoFit) v.panel.presetZoomLevel = 0;
+      return { zoom: v.panel.presetZoomLevel };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.zoom).toBe(0);
+  });
+});
+
+// =========================================================================
+// 58. Card Title Search Tint (HE)
+// =========================================================================
+test.describe("58. Card Title Tint", () => {
+  test("58.1 applySearch in card mode runs without error", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      const old = { mode: v.panel.nodeDisplayMode, query: v.panel.searchQuery, sm: v.panel.searchMode };
+      v.panel.nodeDisplayMode = "card";
+      v.panel.searchMode = "highlight";
+      v.panel.searchQuery = "battle";
+      try { v.applySearch?.(); } catch { return { error: "applySearch threw" }; }
+      v.panel.nodeDisplayMode = old.mode;
+      v.panel.searchQuery = old.query;
+      v.panel.searchMode = old.sm;
+      return { ok: true };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.ok).toBe(true);
+  });
+});

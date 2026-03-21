@@ -1201,6 +1201,7 @@ function _buildNodeDisplaySection(
       if (!panel.renderThresholds) panel.renderThresholds = {};
       (panel.renderThresholds as any).labelModeOverride = v;
       cb.applyTextFade();
+      cb.announceA11y?.(`${t("display.labelMode") ?? "Label Mode"}: ${v}`);
     });
 
     // GD: Label max characters
@@ -2849,6 +2850,8 @@ function _buildAutoFitAndGuides(s: ClusterSectionCtx): void {
   };
   addToggle(body, t("cluster.autoFit"), panel.autoFit, (v) => {
     panel.autoFit = v;
+    // HC: Reset preset zoom when enabling auto-fit (prevents race condition)
+    if (v) panel.presetZoomLevel = 0;
     setSliderDisabled(v);
     cb.applyClusterForce();
     cb.restartSimulation(0.5);
