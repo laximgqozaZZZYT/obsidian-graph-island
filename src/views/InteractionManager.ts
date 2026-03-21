@@ -62,6 +62,8 @@ export interface InteractionHost {
   /** Toggle hold (pin) state for a node */
   toggleHold(pn: PixiNode): void;
   applyFocusOnClick?(nodeId: string): void;
+  /** Focus-zoom to a node (animated pan + zoom) */
+  focusZoomToNode?(nodeId: string): void;
   /** Clear all held (pinned) nodes */
   clearAllHolds(): void;
   /** Get the accent color (for marquee drawing) */
@@ -727,8 +729,15 @@ export class InteractionManager {
       }
     }
 
-    // --- Section: Edit ---
+    // --- Section: Navigation ---
     menu.addSeparator();
+    menu.addItem((item) => {
+      item.setTitle("Focus zoom")
+        .setIcon("maximize-2")
+        .onClick(() => this.host.focusZoomToNode?.(node.data.id));
+    });
+
+    // --- Section: Edit ---
     menu.addItem((item) => {
       item.setTitle(node.held ? t("context.unpin") : t("context.pin"))
         .setIcon(node.held ? "pin-off" : "pin")

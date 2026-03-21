@@ -3130,8 +3130,20 @@ function _drawEdgesSinglePass(
       continue;
     }
 
-    const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
+    let lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
     let { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+
+    // Zoom-out: desaturate edge colors toward gray for visual calm
+    const edgeWs = cfg.worldScale ?? 1;
+    if (edgeWs < 0.3) {
+      const gray = cfg.isDark ? 0x666666 : 0x999999;
+      const blend = Math.min(1, (0.3 - edgeWs) / 0.2); // 0→1 as zoom 0.3→0.1
+      const r1 = (lineColor >> 16) & 0xff, g1 = (lineColor >> 8) & 0xff, b1 = lineColor & 0xff;
+      const r2 = (gray >> 16) & 0xff, g2 = (gray >> 8) & 0xff, b2 = gray & 0xff;
+      lineColor = (Math.round(r1 + (r2 - r1) * blend * 0.5) << 16) |
+                  (Math.round(g1 + (g2 - g1) * blend * 0.5) << 8) |
+                   Math.round(b1 + (b2 - b1) * blend * 0.5);
+    }
 
     // Bidirectional indicator: subtly adjust thickness and alpha
     if (cfg.showBidirectionalIndicator && cfg._bidirectionalSet) {
