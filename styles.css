@@ -2875,7 +2875,7 @@
   padding: 3px 8px;
   font-size: var(--font-ui-smaller, 11px);
   color: var(--text-muted);
-  z-index: 5;
+  z-index: 6; /* Above background panels, below node-info(8) */
   pointer-events: none;
   opacity: 0.85;
   user-select: none;
@@ -2886,7 +2886,7 @@
   position: absolute;
   top: 8px;
   left: 8px;
-  z-index: 5;
+  z-index: 6; /* Above minimap(5), below node-info(8) */
   background: var(--background-primary-alt, var(--background-primary));
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s, 4px);
