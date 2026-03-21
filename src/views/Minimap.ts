@@ -18,6 +18,8 @@ export interface MinimapHost {
   setWorldPosition(x: number, y: number): void;
   /** Wake the render loop */
   wakeRenderLoop(): void;
+  /** HU: Announce viewport change to screen readers */
+  announceViewportChange?(): void;
 }
 
 const MINIMAP_WIDTH = 180;
@@ -206,6 +208,10 @@ export class Minimap {
   };
 
   private onMouseUp = () => {
+    // HU: Announce viewport change after minimap drag
+    if (this.isPanning) {
+      this.host.announceViewportChange?.();
+    }
     this.isPanning = false;
     this.isMoving = false;
   };

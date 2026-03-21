@@ -393,6 +393,9 @@ export class RenderPipeline {
   private idleFrames = 0;
   private _tickerBound = false;
   private edgeRedrawCounter = 0;
+  // HR: Track zoom for label re-evaluation on zoom change
+  private _prevWorldScale = 1;
+  private _labelCullCooldown = 0;
 
   // Array pools for redrawNodeBatch() — reuse across frames to reduce GC
   private _visiblePool: PixiNode[] = [];
@@ -509,6 +512,17 @@ export class RenderPipeline {
     this.host.rebuildSpatialGrid();
     this.redrawNodeBatch();
     this.host.drawOrbitRings();
+
+    // HR: Re-evaluate label visibility when zoom changes significantly
+    // This is throttled (every 8 frames or on significant zoom change) to avoid perf impact
+    const curScale = this.host.getWorldScale();
+    const zoomRatio = curScale > 0 ? Math.abs(curScale - this._prevWorldScale) / curScale : 0;
+    this._labelCullCooldown--;
+    if (forceFullRedraw || (zoomRatio > 0.05 && this._labelCullCooldown <= 0)) {
+      this._prevWorldScale = curScale;
+      this._labelCullCooldown = 8; // skip 8 ticks before next re-evaluation
+      this.cullOverlappingLabels();
+    }
 
     // Throttle expensive edge + enclosure redraws during simulation.
     this.edgeRedrawCounter++;

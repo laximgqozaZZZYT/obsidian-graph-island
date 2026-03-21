@@ -32,6 +32,8 @@ export interface EdgeDrawConfig {
   highlightSet: Set<string>;
   /** DS: Distance map from hovered node (nodeId → hop count) for edge alpha gradient */
   hoverDistMap?: Map<string, number>;
+  /** HT: Hover edge alpha falloff per hop (0-1, default 0.6). Higher = less fade per hop. */
+  hoverEdgeFalloff?: number;
   bgColor: number;
   relationColors: Map<string, string>;
   /** Fade edges based on source node degree — low-degree nodes produce fainter edges */
@@ -2597,7 +2599,9 @@ function resolveEdgeStyle(
       const dT = cfg.hoverDistMap.get(tid);
       if (dS !== undefined || dT !== undefined) {
         const minDist = Math.min(dS ?? 99, dT ?? 99);
-        alpha = Math.max(0.08, Math.pow(0.6, minDist));
+        // HT: configurable hover edge falloff (default 0.6)
+        const falloff = cfg.hoverEdgeFalloff ?? 0.6;
+        alpha = Math.max(0.08, Math.pow(falloff, minDist));
       } else {
         alpha = 0.04;
       }

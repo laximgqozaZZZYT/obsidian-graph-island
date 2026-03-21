@@ -924,6 +924,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.clearFocus();
       return;
     }
+    // HS: Clear search query (Escape)
+    if (this.panel.searchQuery) {
+      this.panel.searchQuery = "";
+      this._searchHighlightSet = null;
+      this.applySearch();
+      this._announceA11y(t("a11y.filterCleared") ?? "Search cleared");
+      this.buildPanel();
+      return;
+    }
     if (this._isKeyboardFocused) {
       this._isKeyboardFocused = false;
       this.setHighlightedNodeId(null);
@@ -1830,6 +1839,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         world.y = y;
       },
       wakeRenderLoop: () => this.wakeRenderLoop(),
+      announceViewportChange: () => {
+        const zoom = this.worldContainer?.scale.x ?? 1;
+        this._announceA11y(`Viewport moved — zoom ${Math.round(zoom * 100)}%`);
+      },
     };
     this.minimap = new Minimap(minimapHost, this.canvasWrap!);
     this.minimap.setVisible(this.panel.showMinimap);
@@ -4004,6 +4017,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.highlightedNodeId = effectiveHighlightId;
     cfg.highlightSet = effectiveHighlightSet;
     cfg.hoverDistMap = this._hoverDistMap;
+    cfg.hoverEdgeFalloff = this.panel.renderThresholds?.hoverEdgeFalloff;
     cfg.bgColor = this.cachedBgColor!;
     cfg.relationColors = this.relationColors;
     cfg.fadeByDegree = this.panel.fadeEdgesByDegree;

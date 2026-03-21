@@ -1238,6 +1238,14 @@ function _buildNodeDisplaySection(
         cb.doRenderKeepPanel();
       });
       addSlider(adv, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.applyHover(); cb.markDirty(); }, t("desc.hoverHops"));
+      // HR: Max hover neighbor labels
+      const rtHover = panel.renderThresholds ?? {};
+      addSlider(adv, t("display.maxHoverLabels") ?? "Max Hover Labels", 5, 100, 5, rtHover.maxHoverNeighborLabels ?? 30, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.maxHoverNeighborLabels = v;
+        cb.applyHover();
+        cb.announceA11y?.(`${t("display.maxHoverLabels") ?? "Max Hover Labels"}: ${v}`);
+      });
       // フォーカスモード: クリックでハイライトを固定
       addToggle(adv, t("display.focusMode"), panel.focusMode, (v) => {
         panel.focusMode = v;

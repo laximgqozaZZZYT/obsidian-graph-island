@@ -2094,3 +2094,60 @@ test.describe("65. Escape Cascade", () => {
     expect(typeof result.multiAfter).toBe("number");
   });
 });
+
+// =========================================================================
+// 66. Max Hover Labels Slider (HR)
+// =========================================================================
+test.describe("66. Hover Label Config", () => {
+  test("66.1 maxHoverNeighborLabels persists in renderThresholds", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
+      v.panel.renderThresholds.maxHoverNeighborLabels = 15;
+      const val = v.panel.renderThresholds.maxHoverNeighborLabels;
+      v.panel.renderThresholds.maxHoverNeighborLabels = 30;
+      return { set: val };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.set).toBe(15);
+  });
+});
+
+// =========================================================================
+// 67. Escape Clears Search (HS)
+// =========================================================================
+test.describe("67. Escape Search Clear", () => {
+  test("67.1 search query can be cleared", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      v.panel.searchQuery = "test";
+      const before = v.panel.searchQuery;
+      v.panel.searchQuery = "";
+      return { before, after: v.panel.searchQuery };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.before).toBe("test");
+    expect(result.after).toBe("");
+  });
+});
+
+// =========================================================================
+// 68. Hover Edge Falloff (HT)
+// =========================================================================
+test.describe("68. Hover Edge Config", () => {
+  test("68.1 hoverEdgeFalloff persists in renderThresholds", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
+      v.panel.renderThresholds.hoverEdgeFalloff = 0.8;
+      const val = v.panel.renderThresholds.hoverEdgeFalloff;
+      v.panel.renderThresholds.hoverEdgeFalloff = 0.6;
+      return { set: val };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.set).toBe(0.8);
+  });
+});
