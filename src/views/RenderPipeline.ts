@@ -2270,7 +2270,9 @@ export class RenderPipeline {
         fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
       });
       label.bgColor = labelBg;
-      label.bgAlpha = isSuperNode ? (rt.superNodeLabelBgAlpha ?? 0.9) : rt.labelBgAlpha;
+      // Theme-adaptive bgAlpha: light theme needs higher opacity for contrast
+      const baseBgAlpha = isSuperNode ? (rt.superNodeLabelBgAlpha ?? 0.9) : rt.labelBgAlpha;
+      label.bgAlpha = this.host.isDarkTheme() ? baseBgAlpha : Math.min(1.0, baseBgAlpha + 0.1);
       label.bgPadX = isSuperNode ? SUPER_LABEL_PAD_X : REGULAR_LABEL_PAD_X;
       label.bgPadY = isSuperNode ? SUPER_LABEL_PAD_Y : REGULAR_LABEL_PAD_Y;
       label.cornerRadius = rt.labelHaloCornerRadius ?? null;

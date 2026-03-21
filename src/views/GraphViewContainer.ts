@@ -969,10 +969,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.zoomBy(1 / 1.2);
       return;
     }
-    // 0: zoom reset (100%)
-    if (key === "0" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    // 0: zoom reset (100%), 1-9: zoom to 10%-90%
+    if (/^[0-9]$/.test(key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
-      this.setZoom(1.0);
+      const level = parseInt(key, 10);
+      this.setZoom(level === 0 ? 1.0 : level / 10);
+      this._announceA11y(`Zoom: ${level === 0 ? 100 : level * 10}%`);
       return;
     }
     // F: fit view (same as Space)
