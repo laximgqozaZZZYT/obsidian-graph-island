@@ -2556,6 +2556,25 @@ export class RenderPipeline {
     // 2. Build spatial hash grid for overlap detection
     const grid = this._createOverlapGrid(margin);
 
+    // 2.5: Reserve DOM overlay zones so labels don't displace into panels
+    const app = this.host.getPixiApp();
+    if (app?.view) {
+      const canvasRect = app.view.getBoundingClientRect();
+      const panels = [".gi-graph-stats", ".gi-legend", ".gi-minimap-wrap", ".gi-node-info"];
+      for (const sel of panels) {
+        const el = app.view.parentElement?.querySelector(sel) as HTMLElement | null;
+        if (!el || el.style.display === "none" || !el.offsetParent) continue;
+        const r = el.getBoundingClientRect();
+        // Convert DOM rect to screen-space relative to canvas
+        grid.insert({
+          x: r.left - canvasRect.left, y: r.top - canvasRect.top,
+          w: r.width, h: r.height,
+          label: null as any, pn: null as any,
+          degree: 999, isSuper: false,
+        });
+      }
+    }
+
     // 3. Sort by priority score — highest priority first (Google Maps-style)
     // Hover-forced labels get priority boost so they survive culling (displaced with leader lines if needed)
     const minNonSuper = rt.labelMinNonSuper ?? 3;
