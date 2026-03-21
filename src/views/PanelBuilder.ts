@@ -249,7 +249,7 @@ export interface PanelState {
   // --- Phase 3: Structure visualization ---
   /** Cluster label detail level */
   clusterLabelDetail: "minimal" | "standard" | "detailed" | "rich";
-  /** Gap detection mode for missing connections */
+  /** Gap detection mode for missing connections. @stub No UI control or rendering logic yet. */
   gapDetectionMode: "within-tag" | "cross-cluster" | "both";
   /** Highlight structural patterns (articulation points, spokes, cliques) */
   highlightPatterns: boolean;
@@ -306,7 +306,7 @@ export interface PanelState {
   presentationStep: number;
   /** Show frontmatter image as node thumbnail */
   showNodeThumbnails: boolean;
-  /** Number of alternative shortest paths to display (1 = shortest only) */
+  /** Number of alternative shortest paths to display (1 = shortest only). @stub No UI control yet. */
   kShortestPaths: number;
   /** A3: Frontmatter field to use for node icon prefix (e.g. "node_type") */
   nodeIconField?: string;
@@ -1675,6 +1675,13 @@ function _buildEdgeDisplaySection(
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.edgeLabelFontSize = v;
       cb.markDirty();
+    });
+    // HV: Hover edge alpha falloff
+    addSlider(body, t("display.hoverEdgeFalloff") ?? "Hover Edge Fade", 0.3, 0.95, 0.05, rtEdge.hoverEdgeFalloff ?? 0.6, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.hoverEdgeFalloff = v;
+      cb.markDirty();
+      cb.announceA11y?.(`${t("display.hoverEdgeFalloff") ?? "Hover Edge Fade"}: ${v.toFixed(2)}`);
     });
     // --- Advanced (hidden by default) ---
     addAdvancedGroup(body, (adv) => {

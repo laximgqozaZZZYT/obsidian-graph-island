@@ -42,6 +42,8 @@ export interface LabelManagerHost {
  * Extracted from GraphViewContainer to reduce God Object complexity.
  */
 export class LabelManager {
+  // HZ: Track previous label mode for hysteresis — prevents flicker at mode boundaries
+  private _prevLabelMode: "initials" | "truncated" | "full" = "full";
   constructor(private host: LabelManagerHost) {}
 
   // =========================================================================
@@ -234,10 +236,18 @@ export class LabelManager {
     const modeOverride = rt.labelModeOverride ?? "auto";
     // Safety: even with "full" override, apply truncation at extreme zoom to prevent AABB overflow
     const safeOverride = modeOverride === "full" && zoom < 0.1 ? "truncated" : modeOverride;
+    // HZ: Hysteresis band (±0.02) prevents flicker at mode boundaries
+    const hyst = 0.02;
+    const prevMode = this._prevLabelMode;
     const labelMode: "initials" | "truncated" | "full" =
       safeOverride !== "auto" ? safeOverride :
+      // Going from initials→truncated requires zoom > initialsZoom + hyst
+      // Going from truncated→initials requires zoom < initialsZoom - hyst
+      prevMode === "initials" && zoom < initialsZoom + hyst ? "initials" :
+      prevMode === "full" && zoom > truncateZoom - hyst ? "full" :
       zoom < initialsZoom ? "initials" :
       zoom < truncateZoom ? "truncated" : "full";
+    this._prevLabelMode = labelMode;
     const shouldTruncate = labelMode !== "full";
     const effectiveMaxChars = labelMode === "initials" ? 2 :
       labelMode === "truncated"

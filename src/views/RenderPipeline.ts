@@ -1064,8 +1064,9 @@ export class RenderPipeline {
       const effR = Math.max(pn.radius * zoomNodeBoost, minWorldRadius);
       let nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
       // Zoom-out: fade low-degree nodes for visual clarity (AM: importance fade)
+      // IA: Stronger fade (floor 0.2) so high-degree hubs stand out in dense clusters
       if (worldScale < 0.3 && pn.sortRank >= 0 && pn.sortRank >= prominentN * 2) {
-        nodeAlpha *= Math.max(0.4, worldScale / 0.3);
+        nodeAlpha *= Math.max(0.2, worldScale / 0.3);
       }
 
       // Desaturate non-prominent nodes
@@ -2632,8 +2633,10 @@ export class RenderPipeline {
     // Hover-forced labels get priority boost so they survive culling (displaced with leader lines if needed)
     const minNonSuper = rt.labelMinNonSuper ?? 3;
     rects.sort((a, b) => {
-      const aBoost = a.pn.hoverForcedLabel ? 200 : 0;
-      const bBoost = b.pn.hoverForcedLabel ? 200 : 0;
+      // HY: Reduced hover boost from 200→80 to prevent hover labels from
+      // displacing too many normal labels at mid-zoom
+      const aBoost = a.pn.hoverForcedLabel ? 80 : 0;
+      const bBoost = b.pn.hoverForcedLabel ? 80 : 0;
       return (b.pn.priorityScore + bBoost) - (a.pn.priorityScore + aBoost);
     });
 
@@ -2682,8 +2685,8 @@ export class RenderPipeline {
       const densityMinDist = Math.min((rt.labelDensityMinScreenDist ?? 80) * rawDensityScale, rt.labelDensityMaxDist ?? 200);
       const densityMinDist2 = densityMinDist * densityMinDist;
       // Sort placed by priority (highest first) — keep high priority, remove low
-      placed.sort((a, b) => (b.pn.priorityScore + (b.pn.hoverForcedLabel ? 200 : 0))
-                          - (a.pn.priorityScore + (a.pn.hoverForcedLabel ? 200 : 0)));
+      placed.sort((a, b) => (b.pn.priorityScore + (b.pn.hoverForcedLabel ? 80 : 0))
+                          - (a.pn.priorityScore + (a.pn.hoverForcedLabel ? 80 : 0)));
       const kept: CullLabelRect[] = [];
       for (const r of placed) {
         const cx = r.x + r.w / 2;

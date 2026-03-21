@@ -887,23 +887,27 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Handle Escape key: close overlays or clear keyboard focus. */
   private _handleEscapeKey(): void {
-    // 差分オーバーレイが有効なら解除
+    // HY: Each Escape step announces what was cleared via aria-live
     if (this.diffOverlay.isActive()) {
       this._clearDiffOverlay();
+      this._announceA11y("Diff overlay closed");
       return;
     }
     if (this.nodeInfoEl && this.nodeInfoEl.style.display !== "none") {
       this.nodeInfoEl.style.display = "none";
       this.nodeInfoEl.classList.remove("is-visible");
+      this._announceA11y("Node info closed");
       return;
     }
     if (this.legendEl && this.legendEl.style.display !== "none") {
       this.legendEl.style.display = "none";
+      this._announceA11y("Legend closed");
       return;
     }
     if (this._helpOverlayEl) {
       this._helpOverlayEl.remove();
       this._helpOverlayEl = null;
+      this._announceA11y("Help closed");
       return;
     }
     // Clear compare selection (Escape)
@@ -922,6 +926,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // フォーカスモードのクリア (Escape)
     if (this.panel.focusNodeId) {
       this.clearFocus();
+      this._announceA11y("Focus mode cleared");
       return;
     }
     // HS: Clear search query (Escape)
@@ -938,6 +943,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.setHighlightedNodeId(null);
       this.applyHover();
       this.markDirty(true);
+      this._announceA11y("Keyboard focus cleared");
     }
   }
 
