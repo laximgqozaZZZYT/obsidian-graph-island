@@ -1014,9 +1014,12 @@ export class RenderPipeline {
     const nonPromSat = rt.nonProminentSaturation ?? 0.4;
     const useGradient = nodeCount < rt.gradientNodeCount;
 
+    // Zoom-adaptive node size: boost radius at zoom-out for visibility
+    const zoomNodeBoost = worldScale < 0.5 ? 1 + (0.5 - worldScale) * 0.5 : 1; // up to 1.25x at zoom=0
+
     for (const pn of visible) {
       const shape = getNodeShape(pn.data, shapeRules);
-      const effR = Math.max(pn.radius, minWorldRadius);
+      const effR = Math.max(pn.radius * zoomNodeBoost, minWorldRadius);
       const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
 
       // Desaturate non-prominent nodes

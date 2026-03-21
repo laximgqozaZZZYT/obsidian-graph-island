@@ -2099,6 +2099,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getNodeCircleBatch(): CanvasGraphics | null { return this.nodeCircleBatch; }
   getDegrees(): Map<string, number> { return this.degrees; }
   getPrevHighlightSet(): Set<string> { return this.prevHighlightSet; }
+  getSearchQuery(): string { return this.panel.searchQuery ?? ""; }
   getEphemeralHighlight(): Set<string> | null { return this.ephemeralHighlight; }
   getPanel(): PanelState { return this.panel; }
   setSimulation(sim: Simulation<GraphNode, GraphEdge> | null) { this.simulation = sim; }

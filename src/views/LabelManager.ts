@@ -26,6 +26,8 @@ export interface LabelManagerHost {
   getClusterSunburstLabels(): Map<string, CanvasText>;
   /** Previous highlight set (hovered node neighbourhood) */
   getPrevHighlightSet(): Set<string>;
+  /** Active search query (empty = no search) */
+  getSearchQuery(): string;
   /** Mark the render loop as needing a redraw */
   markDirty(force?: boolean): void;
 }
@@ -67,6 +69,9 @@ export class LabelManager {
 
     // Step 5: Diversity guarantee and maxVisible cap
     this._applyDiversityAndCap(candidates, rt, degrees, baseOpacity);
+
+    // Step 5.5: Search query label highlight
+    this._applySearchHighlight(candidates);
 
     // Step 6: Group/sunburst/grid label scaling
     this._scaleGroupLabels(zoom, rt);
@@ -478,6 +483,28 @@ export class LabelManager {
         if (lbl.bgPadX != null) {
           lbl.bgPadX = Math.max(lbl.bgPadX, 4 + emphasisBoost * 10);
         }
+      }
+    }
+  }
+
+  /** Highlight labels of nodes matching the active search query.
+   *  Matching labels get bold font weight and priority boost. */
+  private _applySearchHighlight(
+    candidates: { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[],
+  ): void {
+    const query = this.host.getSearchQuery();
+    if (!query) return;
+    const lowerQuery = query.toLowerCase();
+    // Simple substring match on label text for highlighting
+    // (full query evaluation is done by data pipeline; this is visual-only)
+    for (const c of candidates) {
+      if (!c.pn.label?.visible) continue;
+      const label = c.pn.label;
+      const text = (c.pn.data.label ?? c.pn.data.id).toLowerCase();
+      if (text.includes(lowerQuery) || lowerQuery.includes("folder:") || lowerQuery.includes("tag:")) {
+        // Search-matched node: bold label + slightly larger
+        label.style.fontWeight = "bold";
+        if (label.bgAlpha != null) label.bgAlpha = Math.min(1.0, label.bgAlpha + 0.15);
       }
     }
   }
