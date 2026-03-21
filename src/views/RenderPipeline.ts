@@ -247,6 +247,10 @@ export interface RenderHost {
   getPixiNodes(): Map<string, PixiNode>;
   /** Get the world container */
   getWorldContainer(): CanvasContainer | null;
+  /** HR: Get current world scale (zoom level) */
+  getWorldScale(): number;
+  /** HR: Re-evaluate labels after zoom change (LOD + cull) */
+  updateLabelsForZoom?(): void;
   /** Get the batch graphics layer for non-highlighted node circles */
   getNodeCircleBatch(): CanvasGraphics | null;
   /** Get the degrees map */
@@ -513,15 +517,15 @@ export class RenderPipeline {
     this.redrawNodeBatch();
     this.host.drawOrbitRings();
 
-    // HR: Re-evaluate label visibility when zoom changes significantly
-    // This is throttled (every 8 frames or on significant zoom change) to avoid perf impact
+    // HR: Re-evaluate label LOD + overlap when zoom changes significantly
+    // Uses updateLabelsForZoom which runs full pipeline: applyTextFade → cullOverlappingLabels
     const curScale = this.host.getWorldScale();
     const zoomRatio = curScale > 0 ? Math.abs(curScale - this._prevWorldScale) / curScale : 0;
     this._labelCullCooldown--;
     if (forceFullRedraw || (zoomRatio > 0.05 && this._labelCullCooldown <= 0)) {
       this._prevWorldScale = curScale;
       this._labelCullCooldown = 8; // skip 8 ticks before next re-evaluation
-      this.cullOverlappingLabels();
+      this.host.updateLabelsForZoom?.();
     }
 
     // Throttle expensive edge + enclosure redraws during simulation.
