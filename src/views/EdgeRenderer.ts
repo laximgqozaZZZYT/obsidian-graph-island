@@ -2616,6 +2616,13 @@ function resolveEdgeStyle(
     lineThick *= Math.max(0.3, ws / 0.5);
   }
 
+  // Zoom-adaptive edge type fade: non-structural edges fade earlier at zoom-out
+  if (ws < 0.5 && (isSimilar || e.type === EDGE_TYPE_HAS_TAG)) {
+    alpha *= Math.max(0.1, ws / 0.5);
+  } else if (ws < 0.3 && isBreadcrumbs) {
+    alpha *= Math.max(0.2, ws / 0.3);
+  }
+
   // GG: Apply global edge alpha multiplier
   if (cfg.globalEdgeAlpha != null && cfg.globalEdgeAlpha < 1) {
     alpha *= cfg.globalEdgeAlpha;

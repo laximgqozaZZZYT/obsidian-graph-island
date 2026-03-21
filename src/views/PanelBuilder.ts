@@ -1515,10 +1515,14 @@ function _buildInteractionSection(
       panel.showRelationTypePicker = v;
       cb.markDirty();
     }, t("desc.relationTypePicker"));
-    addToggle(body, t("display.multiSelect"), panel.multiSelectNodeIds.length > 0, (v) => {
-      if (!v) panel.multiSelectNodeIds = [];
-      cb.markDirty();
-    }, t("desc.multiSelect"));
+    // Multi-select: show status label instead of misleading toggle
+    // Selection is managed via Ctrl+click in node list / Shift+click on canvas
+    if (panel.multiSelectNodeIds.length > 0) {
+      addToggle(body, t("display.multiSelect"), true, (v) => {
+        if (!v) { panel.multiSelectNodeIds = []; cb.rebuildPanel(); }
+        cb.markDirty();
+      }, t("desc.multiSelect"));
+    }
     addToggle(body, t("display.inlineEdit"), panel.enableInlineEdit, (v) => {
       panel.enableInlineEdit = v;
       cb.markDirty();
