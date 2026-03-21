@@ -195,7 +195,8 @@ export class NodeComparisonView extends ItemView {
     const { nodeA, nodeB, adj, pixiNodes } = data;
     const result = this.computeComparison(nodeA, nodeB, adj);
 
-    const wrap = this.bodyEl.createDiv({ cls: "gi-compare-wrap" });
+    // HP: A11y — comparison panel as ARIA region with descriptive label
+    const wrap = this.bodyEl.createDiv({ cls: "gi-compare-wrap", attr: { role: "region", "aria-label": `${nodeA.label} vs ${nodeB.label}` } });
 
     // === ツールバー: クリアボタン ===
     const toolbar = wrap.createEl("div", { cls: "gi-compare-toolbar" });
@@ -280,7 +281,7 @@ export class NodeComparisonView extends ItemView {
 
     // === 共通カテゴリ ===
     if (result.sharedCategories.length > 0) {
-      const catSection = wrap.createEl("div", { cls: "gi-compare-section" });
+      const catSection = wrap.createEl("div", { cls: "gi-compare-section", attr: { "aria-label": t("compare.sharedCategories") ?? "Shared categories" } });
       catSection.createEl("div", {
         cls: "gi-detail-section-label",
         text: `${t("compare.sharedCategories")}: ${result.sharedCategories.join(", ")}`,

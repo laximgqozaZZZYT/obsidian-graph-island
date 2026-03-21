@@ -5240,7 +5240,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
                      labelInfo.includes("·T") ? "Truncated mode (5-12 chars)" :
                      labelInfo.includes("·F") ? "Full name mode" : "";
     this.zoomIndicatorEl.title = `Click to reset to 100%\n${modeDesc ? `Label: ${modeDesc}\n` : ""}Keys: 0-9 for zoom, Z for focus-zoom`;
-    this._announceA11y(`Zoom: ${pct}${labelInfo ? `, ${labelInfo.trim()} labels visible` : ""}`);
+    // HO: Include density-culled count in zoom a11y announcement
+    const culledCount = this.densityCulledBadgeEl?.style.display !== "none"
+      ? parseInt(this.densityCulledBadgeEl?.textContent?.match(/\+(\d+)/)?.[1] ?? "0", 10)
+      : 0;
+    const culledInfo = culledCount > 0 ? `, ${culledCount} hidden` : "";
+    this._announceA11y(`Zoom: ${pct}${labelInfo ? `, ${labelInfo.trim()} labels visible` : ""}${culledInfo}`);
   }
 
   // =========================================================================
