@@ -545,6 +545,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Zoom percentage indicator (click to reset to 100%)
     this.zoomIndicatorEl = zoomGroup.createEl("span", { cls: "gi-zoom-indicator", text: "100%" });
     this.zoomIndicatorEl.title = "Click to reset zoom to 100%";
+    this.zoomIndicatorEl.setAttribute("role", "status");
+    this.zoomIndicatorEl.setAttribute("aria-live", "polite");
     this.zoomIndicatorEl.style.cursor = "pointer";
     this.zoomIndicatorEl.addEventListener("click", () => { this.setZoom(1.0); });
 
@@ -832,6 +834,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // --- Density-culled label count badge ---
     this.densityCulledBadgeEl = canvasArea.createDiv({ cls: "gi-density-badge" });
+    this.densityCulledBadgeEl.setAttribute("aria-live", "polite");
+    this.densityCulledBadgeEl.setAttribute("aria-atomic", "true");
     this.densityCulledBadgeEl.style.cssText =
       "display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);" +
       "padding:2px 10px;border-radius:12px;font-size:11px;pointer-events:none;" +

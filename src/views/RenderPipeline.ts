@@ -2510,7 +2510,10 @@ export class RenderPipeline {
   // =========================================================================
   cullOverlappingLabels() {
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
-    if (!rt.labelOverlapCulling) return;
+    if (!rt.labelOverlapCulling) {
+      this.host.updateDensityCulledBadge?.(0);
+      return;
+    }
 
     // Scale margin inversely with zoom — at low zoom, labels are counterscaled larger
     // so overlap detection needs more generous spacing
