@@ -62,7 +62,9 @@ export class LabelManager {
     const LABEL_FONT = rt.nodeLabelFontSizeMin;
     const rawScale = 1 / Math.pow(zoom, rt.labelScalePower);
     const floorScale = rt.labelMinScreenPx / (LABEL_FONT * zoom);
-    const counterScale = Math.min(rt.labelScaleMax, Math.max(rt.labelScaleMin, rawScale, floorScale));
+    // At extreme zoom-out (<0.1), allow higher counter-scale for readability
+    const effectiveScaleMax = zoom < 0.1 ? (rt.labelScaleMaxExtreme ?? 7) : rt.labelScaleMax;
+    const counterScale = Math.min(effectiveScaleMax, Math.max(rt.labelScaleMin, rawScale, floorScale));
 
     // Step 3-4: Per-node LOD evaluation (truncation, placement, hysteresis)
     const candidates = this._evaluateLOD(zoom, counterScale, rt, degrees, baseOpacity);

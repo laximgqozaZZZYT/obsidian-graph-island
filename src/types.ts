@@ -872,6 +872,8 @@ export interface RenderThresholds {
   labelOverlapMargin?: number;
   /** Minimum screen distance between label centers for density culling at zoom-out (default 80px) */
   labelDensityMinScreenDist?: number;
+  /** Maximum density culling distance cap (px, default 200) — prevents over-aggressive label removal at extreme zoom */
+  labelDensityMaxDist?: number;
   /** Zoom threshold below which density-adaptive culling activates (default 0.5) */
   labelDensityZoomThreshold?: number;
   /** Manual label mode override: "auto" (default) | "initials" | "truncated" | "full".
@@ -997,6 +999,8 @@ export interface RenderThresholds {
   labelScalePower?: number;
   /** Maximum counter-scale factor for labels (default 12) */
   labelScaleMax?: number;
+  /** Maximum counter-scale at extreme zoom-out (<0.1) — allows larger labels for readability (default 7) */
+  labelScaleMaxExtreme?: number;
   /** Minimum counter-scale factor for labels (default 0.8) */
   labelScaleMin?: number;
   /** Minimum alpha for visible labels regardless of textFadeThreshold (default 0.7) */
@@ -1338,6 +1342,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelOverlapCulling: true,
   labelOverlapMargin: 12,
   labelDensityMinScreenDist: 80,
+  labelDensityMaxDist: 200,
   labelDensityZoomThreshold: 0.5,
   labelModeOverride: "auto" as const,
   timelineBarShowLabel: true,
@@ -1380,6 +1385,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelMinScreenPx: 20,
   labelScalePower: 0.4,
   labelScaleMax: 5,
+  labelScaleMaxExtreme: 7,
   labelScaleMin: 0.8,
   labelAlphaMin: 0.7,
   labelZoomTier1: 0.05,
