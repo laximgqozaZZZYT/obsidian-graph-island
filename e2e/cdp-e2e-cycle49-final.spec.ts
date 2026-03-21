@@ -21,17 +21,22 @@ test.beforeAll(async () => {
       pageErrors.push(err.message);
     }
   });
-  // Use existing graph view if available (avoid reload timing issues)
-  const hasView = await page.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
-    return (v?.pixiNodes?.size ?? 0) > 0;
+  // Ensure a graph view with data is available
+  await page.evaluate(() => {
+    const app = (window as any).app;
+    // Reset any stale state from previous test suites
+    const leaves = app.workspace.getLeavesOfType("graph-view");
+    const good = leaves.find((l: any) => (l.view?.pixiNodes?.size ?? 0) > 0);
+    if (good) {
+      // Reset label mode override to auto
+      if (good.view?.panel?.renderThresholds) good.view.panel.renderThresholds.labelModeOverride = "auto";
+      if (good.view?.panel) good.view.panel.nodeDisplayMode = "node";
+      good.view?.markDirty?.(true);
+    } else {
+      app.commands.executeCommandById("graph-island:open-graph-view");
+    }
   });
-  if (!hasView) {
-    await page.evaluate(() => {
-      (window as any).app.commands.executeCommandById("graph-island:open-graph-view");
-    });
-    await page.waitForTimeout(10000);
-  }
+  await page.waitForTimeout(5000);
 });
 
 async function setZoom(p: Page, zoom: number) {
