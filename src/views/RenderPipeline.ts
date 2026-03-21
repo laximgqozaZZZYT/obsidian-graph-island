@@ -2795,14 +2795,22 @@ export class RenderPipeline {
     const ly = r.label.y;
     const worldW = zoom > 0 ? r.w / zoom : r.w;
     const worldH = zoom > 0 ? r.h / zoom : r.h;
-    const anchorX = clamp(0, lx, lx + worldW);
-    const anchorY = clamp(0, ly, ly + worldH);
-    const dist = Math.sqrt(anchorX ** 2 + anchorY ** 2);
-    const edgeX = dist > 0.1 ? (anchorX / dist) * nodeR : 0;
-    const edgeY = dist > 0.1 ? (anchorY / dist) * nodeR : 0;
+    // Compute label bounding box in node-local coords, accounting for anchor
+    const labelAnchorX = r.label.anchor?.x ?? 0;
+    const labelAnchorY = r.label.anchor?.y ?? 0;
+    const labelLeft = lx - worldW * labelAnchorX;
+    const labelRight = labelLeft + worldW;
+    const labelTop = ly - worldH * labelAnchorY;
+    const labelBottom = labelTop + worldH;
+    // Closest point on label rect to the node center (0,0 in local space)
+    const closestX = clamp(0, labelLeft, labelRight);
+    const closestY = clamp(0, labelTop, labelBottom);
+    const dist = Math.sqrt(closestX ** 2 + closestY ** 2);
+    const edgeX = dist > 0.1 ? (closestX / dist) * nodeR : 0;
+    const edgeY = dist > 0.1 ? (closestY / dist) * nodeR : 0;
     ll.lineStyle(llWidth, pn.color, llAlpha * alphaMultiplier);
     ll.moveTo(edgeX, edgeY);
-    ll.lineTo(anchorX, anchorY);
+    ll.lineTo(closestX, closestY);
   }
 
   /**
@@ -2873,11 +2881,13 @@ export class RenderPipeline {
       placed, grid, margin, zoom, maxRadii, drawLeader, llWidth, llAlpha,
     );
 
-    // Final visibility sync
+    // Final visibility sync — ensure unplaced labels stay hidden
     const finalPlacedSet = new Set(placed.map(r => r.pn.data.id));
     for (const r of rects) {
       if (finalPlacedSet.has(r.pn.data.id)) {
         r.label.visible = true;
+      } else {
+        r.label.visible = false;
       }
     }
   }
