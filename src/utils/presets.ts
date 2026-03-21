@@ -64,6 +64,8 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showRelationMatrix",
   "presentationMode",
   "showNodeThumbnails",
+  "autoFitOnFilter",
+  "showHierarchyTree",
 ];
 
 /** Fields that should be number */
@@ -82,6 +84,8 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "degreeEdgeWidth",
   "minDegreeFilter",
   "maxDegreeFilter",
+  "presetZoomLevel",
+  "surpriseInterval",
 ];
 
 /** Fields that should be string */
@@ -106,6 +110,7 @@ const ARRAY_FIELDS: (keyof PanelState)[] = [
   "sortRules", "nodeRules", "nodeShapeRules", "groupByRules",
   "cardinalityRules", "annotations", "bookmarkedNodes", "searchHistory", "savedSearchQueries",
   "navHistory", "multiSelectNodeIds", "presentationWaypoints", "excludeNodes", "savedViewports",
+  "expandedNodes", "hierarchyRelations",
 ];
 
 /** Valid values for enum-like fields */
@@ -142,6 +147,7 @@ const NULLABLE_OBJECT_FIELDS: (keyof PanelState)[] = [
   "cardinalityRenderConfig",
   "renderThresholds",
   "pinnedPositions",
+  "manualClusterOverrides",
 ];
 
 /** All valid PanelState keys — derived from the field lists above plus enums */
