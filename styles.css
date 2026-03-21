@@ -873,7 +873,7 @@
 }
 .gi-minimap-wrap {
   position: absolute;
-  bottom: 8px;
+  top: 36px; /* HN: below oob-badge (top-right), above legend (bottom-right) */
   right: 8px;
   z-index: 5;
   opacity: 0.85;
