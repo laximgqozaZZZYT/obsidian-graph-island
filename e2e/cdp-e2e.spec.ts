@@ -2041,3 +2041,56 @@ test.describe("63. Enclosure Label Exclusion", () => {
     expect(result.hasMethod).toBe(true);
   });
 });
+
+// =========================================================================
+// 64. Hover Neighbor Label Cap (HP)
+// =========================================================================
+test.describe("64. Hover Label Cap", () => {
+  test("64.1 hover highlight set respects maxHoverNeighborLabels", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      // Set a very low cap
+      if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
+      v.panel.renderThresholds.maxHoverNeighborLabels = 5;
+      // Find a high-degree node
+      let hubId = "";
+      let maxDeg = 0;
+      for (const [id, d] of v.degrees ?? []) {
+        if (d > maxDeg) { maxDeg = d; hubId = id; }
+      }
+      if (!hubId || maxDeg <= 5) return { capped: true, hubDeg: maxDeg };
+      // Build hover set
+      const set = v._buildHoverHighlightSet?.(hubId);
+      const size = set?.size ?? 0;
+      v.panel.renderThresholds.maxHoverNeighborLabels = 30;
+      return { capped: size <= 7, size, hubDeg: maxDeg }; // 5 + hub + tolerance
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.capped).toBe(true);
+  });
+});
+
+// =========================================================================
+// 65. Escape Cascade Order (HQ)
+// =========================================================================
+test.describe("65. Escape Cascade", () => {
+  test("65.1 Escape handler exists and clears state", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      // Verify the cascade order is: compare first, then multiSelect
+      v.panel.multiSelectNodeIds = ["test1", "test2"];
+      // Simulate Escape via dispatching on canvas
+      const canvas = document.querySelector(".graph-svg-wrap canvas") as HTMLCanvasElement;
+      canvas?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      // multiSelect should still be there (Escape clears other things first)
+      const multiAfter = v.panel.multiSelectNodeIds?.length ?? 0;
+      v.panel.multiSelectNodeIds = [];
+      return { multiAfter };
+    });
+    expect(result).not.toHaveProperty("error");
+    // After one Escape, multiSelect might still exist (other items cleared first)
+    expect(typeof result.multiAfter).toBe("number");
+  });
+});

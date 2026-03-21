@@ -1226,6 +1226,8 @@ export interface RenderThresholds {
   cardLODFullCardPx?: number;
   /** Card density fallback: revert card→node mode when visible count exceeds this at LOD 3 (default 150) */
   cardDensityFallbackCount?: number;
+  /** HP: Max number of neighbor labels shown on hover (default 30) */
+  maxHoverNeighborLabels?: number;
   /** Auto-LOD: switch display mode based on zoom level (default false) */
   autoLOD?: boolean;
   /** R6: Adaptive label font min multiplier (default 0.7) */
@@ -1495,6 +1497,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   cardLODCompactPx: 8.0,
   cardLODFullCardPx: 15.0,
   cardDensityFallbackCount: 150,
+  maxHoverNeighborLabels: 30,
   autoLOD: true,
   adaptiveLabelMin: 0.7,
   adaptiveLabelMax: 1.5,

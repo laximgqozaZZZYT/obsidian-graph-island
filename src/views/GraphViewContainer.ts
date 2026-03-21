@@ -3559,7 +3559,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Build the set of node IDs within hoverHops of the given node via BFS. */
   private _buildHoverHighlightSet(hId: string | null): Set<string> {
     if (!hId) return new Set<string>();
-    return bfsNeighborSet(this.adj, hId, this.panel.hoverHops);
+    const full = bfsNeighborSet(this.adj, hId, this.panel.hoverHops);
+    // HP: Cap hover neighbor labels to prevent label explosion on hub nodes
+    const maxNeighborLabels = this.panel.renderThresholds?.maxHoverNeighborLabels ?? 30;
+    if (full.size <= maxNeighborLabels + 1) return full; // +1 for hovered node itself
+    // Keep hovered node + top N by degree
+    const sorted = [...full].filter(id => id !== hId)
+      .sort((a, b) => (this.degrees.get(b) ?? 0) - (this.degrees.get(a) ?? 0))
+      .slice(0, maxNeighborLabels);
+    return new Set([hId, ...sorted]);
   }
 
   /** フォーカスモードのハイライトを適用 (クリック時に呼ばれる) */
