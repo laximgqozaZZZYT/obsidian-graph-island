@@ -2566,6 +2566,37 @@ export class RenderPipeline {
       }
     }
 
+    // 4.5. Density-adaptive culling: at low zoom, remove labels that are
+    // too close together even if they don't technically overlap (AABB margin)
+    if (zoom < 0.5 && placed.length > 10) {
+      const densityMinDist = (rt.labelDensityMinScreenDist ?? 80) * (1 + (0.5 - zoom) * 2);
+      const densityMinDist2 = densityMinDist * densityMinDist;
+      // Sort placed by priority (highest first) — keep high priority, remove low
+      placed.sort((a, b) => (b.pn.priorityScore + (b.pn.hoverForcedLabel ? 200 : 0))
+                          - (a.pn.priorityScore + (a.pn.hoverForcedLabel ? 200 : 0)));
+      const kept: CullLabelRect[] = [];
+      for (const r of placed) {
+        const cx = r.x + r.w / 2;
+        const cy = r.y + r.h / 2;
+        let tooClose = false;
+        for (const k of kept) {
+          const kx = k.x + k.w / 2;
+          const ky = k.y + k.h / 2;
+          if ((cx - kx) ** 2 + (cy - ky) ** 2 < densityMinDist2) {
+            tooClose = true;
+            break;
+          }
+        }
+        if (!tooClose) {
+          kept.push(r);
+        } else {
+          r.label.visible = false;
+        }
+      }
+      placed.length = 0;
+      placed.push(...kept);
+    }
+
     // 5. Guarantee placement floor (AP-4 + AP-5)
     this._guaranteePlacementFloor(rt, rects, placed, grid, zoom, margin,
       minNonSuper, drawLeader, llWidth, llAlpha);
@@ -2718,13 +2749,14 @@ export class RenderPipeline {
     ];
     // Adaptive: sort offsets by distance from nearest placed label (farthest first)
     const offsets = rawOffsets.map(o => {
-      const testX = r.x + o.dx;
-      const testY = r.y + o.dy;
+      // Use center point for distance scoring (not top-left corner)
+      const testCx = r.x + r.w / 2 + o.dx;
+      const testCy = r.y + r.h / 2 + o.dy;
       let minDist = Infinity;
-      grid.forEachNear(testX, testY, r.w + r.h, (p) => {
+      grid.forEachNear(testCx, testCy, r.w + r.h, (p) => {
         const cx = p.x + p.w / 2;
         const cy = p.y + p.h / 2;
-        const d = (testX - cx) ** 2 + (testY - cy) ** 2;
+        const d = (testCx - cx) ** 2 + (testCy - cy) ** 2;
         if (d < minDist) minDist = d;
       });
       return { ...o, score: minDist };

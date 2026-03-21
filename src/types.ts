@@ -870,6 +870,8 @@ export interface RenderThresholds {
   labelOverlapCulling?: boolean;
   /** Extra margin around label bounding box for overlap test (world px, default 4) */
   labelOverlapMargin?: number;
+  /** Minimum screen distance between label centers for density culling at zoom-out (default 80px) */
+  labelDensityMinScreenDist?: number;
 
   // ---- Timeline bar labels ----
   /** Show text labels inside timeline bars (default true) */
@@ -1324,6 +1326,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   minViewportUtilization: 0.12,
   labelOverlapCulling: true,
   labelOverlapMargin: 12,
+  labelDensityMinScreenDist: 80,
   timelineBarShowLabel: true,
   timelineBarLabelMinWidth: 30,
   timelineBarLabelFontSize: 9,
