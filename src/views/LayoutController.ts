@@ -99,7 +99,9 @@ export class LayoutController {
         const cardAR = (crc as any).cardAspectRatio > 0 ? (crc as any).cardAspectRatio : 1.618;
         const headerH = ((crc as any).tableHeaderHeight ?? 18);
         const fieldLineH = ((crc as any).fieldLineHeight ?? 14);
-        const fieldCount = (panel.cardDisplayConfig?.fields?.length ?? 0) + 2; // +def +preview
+        const hasDefField = (panel.definitionField ?? "").length > 0 ? 1 : 0;
+        const hasPreview = 1; // bodyPreview row
+        const fieldCount = (panel.cardDisplayConfig?.fields?.length ?? 0) + hasDefField + hasPreview;
         const cardH = headerH + fieldCount * fieldLineH + 8;
         const cardW = cardH * cardAR;
         const halfDiag = Math.sqrt(cardW * cardW + cardH * cardH) / 2;

@@ -1026,10 +1026,12 @@ export interface RenderThresholds {
   labelStrokeColor?: number;
   /** Label text stroke width (default 3). 0 = no stroke. */
   labelStrokeWidth?: number;
-  /** Zoom threshold below which label text is truncated to save AABB space (default 0.1).
-   *  At extreme zoom-out, counterScale makes labels enormous in world space.
-   *  Truncating text reduces AABB width so more labels fit without overlap (AP-5 fix).
-   *  AP-20 (truncation check) returns null for zoom < 0.3, so this is safe. */
+  /** Zoom threshold below which labels show initials only (2 chars, default 0.2).
+   *  Below this zoom, labels are reduced to initials (first letters of path segments). */
+  labelInitialsZoom?: number;
+  /** Zoom threshold below which label text is truncated (default 0.35).
+   *  Between labelInitialsZoom and this, labels are 5-12 char truncated.
+   *  At or above this zoom, full label text is shown. */
   labelTruncateZoom?: number;
   /** Max characters for truncated labels at extreme zoom (default 8).
    *  Only applies when zoom < labelTruncateZoom.
@@ -1377,7 +1379,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelDegreePctTier3: 0.30,
   labelMaxVisible: 0,
   labelDensity: 1.0,
-  labelTruncateZoom: 0.1,
+  labelInitialsZoom: 0.2,
+  labelTruncateZoom: 0.35,
   labelTruncateMaxChars: 8,
   labelTruncateMinChars: 5,
   nodeLabelZoomMin: 0.90,

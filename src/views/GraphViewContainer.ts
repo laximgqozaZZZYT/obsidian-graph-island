@@ -270,6 +270,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Node info panel (hover details)
   private nodeInfoEl: HTMLElement | null = null;
   private oobBadgeEl: HTMLElement | null = null;
+  private densityCulledBadgeEl: HTMLElement | null = null;
   private graphStatsEl: HTMLElement | null = null;
   /** F5: Relation matrix floating panel */
   private relationMatrixEl: HTMLElement | null = null;
@@ -828,6 +829,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // --- Off-screen node count badge ---
     this.oobBadgeEl = canvasArea.createDiv({ cls: "gi-oob-badge" });
     this.oobBadgeEl.style.display = "none";
+
+    // --- Density-culled label count badge ---
+    this.densityCulledBadgeEl = canvasArea.createDiv({ cls: "gi-density-badge" });
+    this.densityCulledBadgeEl.style.cssText =
+      "display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);" +
+      "padding:2px 10px;border-radius:12px;font-size:11px;pointer-events:none;" +
+      "background:var(--background-modifier-message);color:var(--text-muted);opacity:0.85;z-index:10;";
 
     // --- Graph Statistics Overlay (Feature CX) ---
     this.graphStatsEl = canvasArea.createDiv({ cls: "gi-graph-stats" });
@@ -1465,6 +1473,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.statusEl = null;
     this.panelEl = null;
     this.nodeInfoEl = null;
+    this.densityCulledBadgeEl = null;
     this.oobBadgeEl = null;
     this.graphStatsEl = null;
     this.relationMatrixEl = null;
@@ -2118,6 +2127,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getNodeShapeRules() { return this.panel.nodeShapeRules; }
   getSearchHiddenNodes() { return new Set<string>(); }
   getDefinitionField() { return this.panel.definitionField ?? ""; }
+  updateDensityCulledBadge(count: number) {
+    if (!this.densityCulledBadgeEl) return;
+    if (count > 0) {
+      this.densityCulledBadgeEl.textContent = `+${count} more hidden`;
+      this.densityCulledBadgeEl.style.display = "";
+    } else {
+      this.densityCulledBadgeEl.style.display = "none";
+    }
+  }
   getSemanticZoom() { return this.panel.semanticZoom ?? false; }
   getShowEntropyOverlay() { return this.panel.showEntropyOverlay; }
   getEntropyScores(): Map<string, number> | null { return this._entropyScores; }
@@ -2348,7 +2366,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const headerH = crc.tableHeaderHeight / zoom;
       const fieldLineH = crc.fieldLineHeight / zoom;
       const cardPad = crc.cardPadding / zoom;
-      const fieldCount = cardConfig.fields?.length ?? 0;
+      const hasDefField = (this.panel.definitionField ?? "").length > 0 ? 1 : 0;
+      const hasPreview = 1; // bodyPreview row
+      const fieldCount = (cardConfig.fields?.length ?? 0) + hasDefField + hasPreview;
       hitCardHalfH = (headerH + fieldCount * fieldLineH + cardPad * 2) / 2;
       hitCardMaxHalfW = ((cardConfig.maxWidth ?? 120) / zoom) / 2;
       hitCardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;

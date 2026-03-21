@@ -307,6 +307,8 @@ export interface RenderHost {
   getBookmarkedNodeIds?(): Set<string>;
   /** 未接続同タグノードIDセットを取得 */
   getMissingNeighborNodeIds?(): Set<string> | null;
+  /** Update the density-culled label count badge */
+  updateDensityCulledBadge?(count: number): void;
   /** Resolve a frontmatter property value for a node */
   getNodeProperty?(nodeId: string, key: string): string | undefined;
   /** Get the configured sub-label field names (comma-separated string) */
@@ -2603,6 +2605,11 @@ export class RenderPipeline {
 
     // 6. Draw leader lines for non-displaced labels at high counter-scale
     this._drawCounterScaleLeaderLines(rt, placed, zoom, drawLeader, llWidth, llAlpha);
+
+    // 7. Report density-culled count to host for badge display
+    const totalVisible = rects.filter(r => r.label.visible).length;
+    const densityCulled = rects.length - totalVisible;
+    this.host.updateDensityCulledBadge?.(densityCulled);
   }
 
   // =========================================================================

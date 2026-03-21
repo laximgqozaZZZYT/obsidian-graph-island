@@ -219,14 +219,19 @@ export class LabelManager {
     const hoverSet = this.host.getPrevHighlightSet();
     const renderPipeline = this.host.getRenderPipeline();
 
-    // Zoom-aware label truncation
-    const truncateZoom = rt.labelTruncateZoom ?? 0.1;
-    const truncateMaxChars = rt.labelTruncateMaxChars ?? 8;
-    const truncateMinChars = rt.labelTruncateMinChars ?? 3;
-    const shouldTruncate = zoom < truncateZoom;
-    const effectiveMaxChars = shouldTruncate
-      ? Math.max(truncateMinChars, Math.round(truncateMaxChars * (zoom / truncateZoom)))
-      : Infinity;
+    // Zoom-aware 3-tier label truncation: initials → truncated → full
+    const initialsZoom = rt.labelInitialsZoom ?? 0.2;
+    const truncateZoom = rt.labelTruncateZoom ?? 0.35;
+    const truncateMaxChars = rt.labelTruncateMaxChars ?? 12;
+    const truncateMinChars = rt.labelTruncateMinChars ?? 5;
+    const labelMode: "initials" | "truncated" | "full" =
+      zoom < initialsZoom ? "initials" :
+      zoom < truncateZoom ? "truncated" : "full";
+    const shouldTruncate = labelMode !== "full";
+    const effectiveMaxChars = labelMode === "initials" ? 2 :
+      labelMode === "truncated"
+        ? Math.max(truncateMinChars, Math.round(truncateMaxChars * ((zoom - initialsZoom) / (truncateZoom - initialsZoom))))
+        : Infinity;
 
     // Tag label LOD threshold
     const tagLabelZoomMin = rt.tagLabelZoomMin ?? 1.2;
@@ -272,7 +277,7 @@ export class LabelManager {
       pn.label.scale.set(finalScale);
 
       // Smart truncation: preserve the distinguishing part of the label
-      this._applyTruncation(pn, shouldTruncate, effectiveMaxChars);
+      this._applyTruncation(pn, shouldTruncate, effectiveMaxChars, labelMode);
 
       // Reset label position (zone-based or fixed)
       const r = pn.radius ?? 12;
@@ -329,17 +334,26 @@ export class LabelManager {
     return candidates;
   }
 
-  /** Apply smart truncation to a node label based on zoom level. */
-  private _applyTruncation(pn: PixiNode, shouldTruncate: boolean, effectiveMaxChars: number): void {
+  /** Apply smart truncation to a node label based on zoom level.
+   *  Supports 3 modes: "initials" (2-char), "truncated" (5-12 char), "full". */
+  private _applyTruncation(
+    pn: PixiNode, shouldTruncate: boolean, effectiveMaxChars: number,
+    labelMode: "initials" | "truncated" | "full" = "full",
+  ): void {
     if (!pn.label) return;
     if (shouldTruncate && pn.label.text) {
       const fullText = pn.data.label || pn.data.id;
+
+      // Initials mode: extract first letters from path/hyphen segments
+      if (labelMode === "initials") {
+        pn.label.text = this._extractInitials(fullText);
+        return;
+      }
+
       if (fullText.length > effectiveMaxChars) {
         const slashIdx = fullText.lastIndexOf('/');
         const dashIdx = fullText.indexOf('-');
         if (slashIdx > 0 && slashIdx < fullText.length - 1) {
-          // Path label ("classic-othello/characters (15)")
-          // -> show distinguishing parent + child hint ("othello/cha")
           const parent = fullText.slice(0, slashIdx);
           const distinctStart = dashIdx > 0 && dashIdx < slashIdx ? dashIdx + 1 : 0;
           const parentDistinct = parent.slice(distinctStart, distinctStart + Math.max(3, effectiveMaxChars - 2));
@@ -347,7 +361,6 @@ export class LabelManager {
           const childHint = child.length > 3 ? child.slice(0, 3) : child;
           pn.label.text = parentDistinct + '/' + childHint;
         } else if (dashIdx > 0 && dashIdx < effectiveMaxChars) {
-          // Hyphenated: preserve after first dash
           const afterDash = fullText.slice(dashIdx + 1);
           pn.label.text = afterDash.length > effectiveMaxChars
             ? afterDash.slice(0, effectiveMaxChars - 1) + '\u2026'
@@ -361,6 +374,22 @@ export class LabelManager {
     } else if (pn.label.text) {
       pn.label.text = pn.data.label || pn.data.id;
     }
+  }
+
+  /** Extract 2-character initials from a label string.
+   *  Uses path separators (/) and hyphens (-) to find segment boundaries.
+   *  E.g. "classic-othello/characters" → "OC", "mythology" → "MY" */
+  private _extractInitials(text: string): string {
+    // Remove group suffix like " (15)"
+    const clean = text.replace(/\s*\(\d+\)$/, "");
+    // Split by path separator and hyphens
+    const segments = clean.split(/[/\-_\s]+/).filter(s => s.length > 0);
+    if (segments.length >= 2) {
+      // Take first letter of last two meaningful segments
+      return (segments[segments.length - 2][0] + segments[segments.length - 1][0]).toUpperCase();
+    }
+    // Single word: take first two characters
+    return clean.slice(0, 2).toUpperCase();
   }
 
   /** AP-5 diversity guarantee (promote non-super nodes) and apply maxVisible cap. */
