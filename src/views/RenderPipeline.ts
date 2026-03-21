@@ -952,14 +952,17 @@ export class RenderPipeline {
           this._renderNodeMode(g, ctx, crc, rt);
         }
         break;
-      case "card":
+      case "card": {
         // Auto-fallback: at low zoom (LOD < 3), render as circles to prevent dense card overlap
-        if (ctx.lodLevel < 3) {
+        // Also fallback at LOD 3 when node density is high (>150 visible nodes) to prevent card pile-up
+        const cardDensityThreshold = rt.cardDensityFallbackCount ?? 150;
+        if (ctx.lodLevel < 3 || (ctx.lodLevel === 3 && ctx.visible.length > cardDensityThreshold)) {
           this._renderNodeMode(g, ctx, crc, rt);
         } else {
           this._renderCardMode(g, ctx, crc, rt);
         }
         break;
+      }
       case "donut":
         this._renderDonutMode(g, ctx, crc, rt);
         break;
@@ -1028,6 +1031,11 @@ export class RenderPipeline {
     // Zoom-adaptive node size: boost radius at zoom-out for visibility
     const zoomNodeBoost = worldScale < 0.5 ? 1 + (0.5 - worldScale) * 0.5 : 1; // up to 1.25x at zoom=0
 
+    // Density-aware stroke: thicken stroke at zoom-out so overlapping nodes remain distinguishable
+    const baseStrokeW = worldScale < 0.3
+      ? Math.min(2 / worldScale, 6)   // up to 6 world-px (≈1.8 screen-px at zoom 0.3)
+      : worldScale < 0.7 ? 1.5 : 1;
+
     for (const pn of visible) {
       const shape = getNodeShape(pn.data, shapeRules);
       const effR = Math.max(pn.radius * zoomNodeBoost, minWorldRadius);
@@ -1043,7 +1051,7 @@ export class RenderPipeline {
         drawColor = desaturateColor(pn.color, nonPromSat);
       }
       const strokeColor = darkenColor(drawColor, crc.strokeDarken);
-      g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
+      g.lineStyle(baseStrokeW, strokeColor, nodeAlpha * crc.strokeAlpha);
       if (useGradient && shape === "circle") {
         const innerCol = lightenColor(drawColor, crc.gradientHighlight);
         const outerCol = darkenColor(drawColor, crc.gradientShadow);
@@ -2617,7 +2625,8 @@ export class RenderPipeline {
         grid.insert(found);
       } else {
         // Smooth fade-out instead of instant hide (AD: collision animation)
-        r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - 0.3);
+        // Gentler fade rate (0.15) for less jarring transitions during zoom
+        r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - 0.15);
         if (r.label.alpha <= 0.05) r.label.visible = false;
       }
     }
@@ -2647,7 +2656,7 @@ export class RenderPipeline {
         if (!tooClose) {
           kept.push(r);
         } else {
-          r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - 0.3);
+          r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - 0.15);
           if (r.label.alpha <= 0.05) r.label.visible = false;
         }
       }

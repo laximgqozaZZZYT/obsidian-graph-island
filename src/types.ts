@@ -1220,6 +1220,8 @@ export interface RenderThresholds {
   cardLODCompactPx?: number;
   /** LOD 5 threshold (px): above this, auto-switch to full card (default 15.0) */
   cardLODFullCardPx?: number;
+  /** Card density fallback: revert card→node mode when visible count exceeds this at LOD 3 (default 150) */
+  cardDensityFallbackCount?: number;
   /** Auto-LOD: switch display mode based on zoom level (default false) */
   autoLOD?: boolean;
   /** R6: Adaptive label font min multiplier (default 0.7) */
@@ -1486,6 +1488,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   cardLODMidLabelPx: 3.0,
   cardLODCompactPx: 8.0,
   cardLODFullCardPx: 15.0,
+  cardDensityFallbackCount: 150,
   autoLOD: true,
   adaptiveLabelMin: 0.7,
   adaptiveLabelMax: 1.5,

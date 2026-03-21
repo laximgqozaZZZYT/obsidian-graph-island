@@ -906,6 +906,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this._helpOverlayEl = null;
       return;
     }
+    // Clear compare selection (Escape)
+    if (this.compareNodeIds.length > 0) {
+      this.clearCompareSelection();
+      this._announceA11y(t("a11y.compareCleared") ?? "Compare selection cleared");
+      return;
+    }
+    // Clear multi-select (Escape)
+    if (this.panel.multiSelectNodeIds?.length > 0) {
+      this.panel.multiSelectNodeIds = [];
+      this._announceA11y(t("a11y.deselected") ?? "Deselected all");
+      this.markDirty(true);
+      return;
+    }
     // フォーカスモードのクリア (Escape)
     if (this.panel.focusNodeId) {
       this.clearFocus();
@@ -1050,13 +1063,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (key === "Enter" && this._isKeyboardFocused && this.highlightedNodeId) {
       e.preventDefault();
       if (e.shiftKey) {
-        // A11y: keyboard multi-select
+        // A11y: keyboard multi-select — announce node name + total count
         this.toggleMultiSelect?.(this.highlightedNodeId);
-        this._announceA11y(`${t("a11y.selected") ?? "Selected"}: ${this.pixiNodes.get(this.highlightedNodeId)?.data.label ?? this.highlightedNodeId}`);
+        const selTotal = this.panel.multiSelectNodeIds?.length ?? 0;
+        const nodeName = this.pixiNodes.get(this.highlightedNodeId)?.data.label ?? this.highlightedNodeId;
+        const isAdded = this.panel.multiSelectNodeIds?.includes(this.highlightedNodeId);
+        this._announceA11y(`${isAdded ? (t("a11y.selected") ?? "Selected") : (t("a11y.deselected") ?? "Deselected")}: ${nodeName} (${selTotal} total)`);
       } else if (e.ctrlKey || e.metaKey) {
-        // A11y: keyboard compare
+        // A11y: keyboard compare — announce compare count
         this.addCompareNode(this.highlightedNodeId);
-        this._announceA11y(`${t("a11y.compared") ?? "Compared"}: ${this.pixiNodes.get(this.highlightedNodeId)?.data.label ?? this.highlightedNodeId}`);
+        const cmpCount = this.compareNodeIds.length;
+        const nodeName = this.pixiNodes.get(this.highlightedNodeId)?.data.label ?? this.highlightedNodeId;
+        this._announceA11y(`${t("a11y.compared") ?? "Compare"}: ${nodeName} (${cmpCount} nodes)`);
       } else {
         const pn = this.pixiNodes.get(this.highlightedNodeId);
         if (pn?.data.filePath) {
@@ -7393,7 +7411,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const zoom = this.worldContainer?.scale.x ?? 1;
     const pct = Math.round(zoom * 100);
     const visibleCount = [...this.pixiNodes.values()].filter(pn => pn.gfx.visible).length;
-    this._announceA11y(`Zoom ${pct}% — ${visibleCount} nodes visible`);
+    const labelCount = [...this.pixiNodes.values()].filter(pn => pn.label?.visible).length;
+    const selCount = this.panel.multiSelectNodeIds?.length ?? 0;
+    let msg = `Zoom ${pct}% — ${visibleCount} nodes, ${labelCount} labels visible`;
+    if (selCount > 0) msg += ` — ${selCount} selected`;
+    this._announceA11y(msg);
   }
 
   /** Push a short message into the aria-live region for screen reader users. */

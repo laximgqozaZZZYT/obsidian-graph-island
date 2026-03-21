@@ -300,8 +300,11 @@ export class LabelManager {
         pn.label.y = placement.y;
         pn.label.anchor.set(placement.anchorX, 0);
       } else {
-        pn.label.x = r + 2;
-        pn.label.y = -(r * 0.4 + 2);
+        // Zoom-adaptive label offset: at low zoom + high counter-scale, push label
+        // further from node center to prevent label overlapping the node circle
+        const csOffset = counterScale > 2 ? Math.min(counterScale * 1.5, 12) : 0;
+        pn.label.x = r + 2 + csOffset;
+        pn.label.y = -(r * 0.4 + 2 + csOffset * 0.5);
       }
 
       const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
