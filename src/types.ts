@@ -851,8 +851,6 @@ export interface RenderThresholds {
   cardLODExtremePx?: number;
   /** Minimum scale for autoFitView (0 = no minimum). Default 0 */
   autoFitMinScale?: number;
-  /** Extra padding (px) for guide lines / axis titles in auto-fit (default 50). */
-  autoFitGuidePad?: number;
   /** Base padding (px) for non-card auto-fit (default 40). */
   autoFitBasePadding?: number;
   /** Normalize spread across arrangement patterns so nodes appear the same
@@ -1327,7 +1325,6 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   cardLODNormalPx: 4.0,
   cardLODExtremePx: 1.5,
   autoFitMinScale: 0,
-  autoFitGuidePad: 50,
   autoFitBasePadding: 40,
   normalizeArrangementSpread: true,
   minViewportUtilization: 0.12,

@@ -837,7 +837,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.annotationLayer = canvasArea.createDiv({ cls: "gi-annotation-layer" });
 
     // --- Node Info Overlay (floating, survives canvas rebuilds) ---
-    this.nodeInfoEl = canvasArea.createDiv({ cls: "gi-node-info" });
+    this.nodeInfoEl = canvasArea.createDiv({ cls: "gi-node-info", attr: { "aria-live": "polite", "aria-atomic": "true" } });
     this.nodeInfoEl.style.display = "none";
 
     // --- Off-screen node count badge ---
@@ -3451,16 +3451,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
       } else {
         // R2: Focus cone — distance-based alpha gradient
+        // GR: Coordinate with searchHighlight to avoid alpha conflict
+        const searchActive = this._searchHighlightSet !== null;
+        const searchMatch = !this._searchHighlightSet || this._searchHighlightSet.has(pn.data.id);
         if (this.panel.focusConeEnabled && distMap.size > 0) {
           const dist = distMap.get(pn.data.id);
+          let coneAlpha: number;
           if (dist === undefined) {
-            pn.gfx.alpha = 0.08;
+            coneAlpha = 0.08;
           } else {
             // Exponential falloff: depth 0 → 1.0, depth 1 → 0.65, depth 2 → 0.42, ...
-            pn.gfx.alpha = Math.max(0.08, Math.pow(0.65, dist));
+            coneAlpha = Math.max(0.08, Math.pow(0.65, dist));
           }
+          // When search highlight is active, further dim non-matching nodes
+          pn.gfx.alpha = searchActive && !searchMatch ? Math.min(coneAlpha, 0.08) : coneAlpha;
         } else {
-          pn.gfx.alpha = 0.12;
+          pn.gfx.alpha = searchActive && !searchMatch ? 0.08 : 0.12;
         }
         if (isCardMode) pn.gfx.scale.set(1);
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; pn.hoverForcedLabel = false; }
@@ -5929,7 +5935,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         qTitle.style.fontWeight = "600";
         qTitle.style.marginTop = "8px";
         qTitle.style.marginBottom = "2px";
-        const qList = this.graphStatsEl.createEl("ul", { cls: "gi-stats-hub-list" });
+        const qList = this.graphStatsEl.createEl("ul", { cls: "gi-stats-hub-list", attr: { role: "log", "aria-label": t("display.showStructureQuestions") ?? "Structure Questions" } });
         for (const q of questions) {
           qList.createEl("li", { cls: "gi-stats-hub-item", text: q });
         }

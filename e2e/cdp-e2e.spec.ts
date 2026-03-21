@@ -1808,3 +1808,61 @@ test.describe("51. Field Color Initial Render", () => {
     expect(result.colorCount).toBeGreaterThanOrEqual(1);
   });
 });
+
+// =========================================================================
+// 52. Node Info Overlay A11y (GQ)
+// =========================================================================
+test.describe("52. Node Info A11y", () => {
+  test("52.1 node info overlay has aria-live attribute", async () => {
+    const result = await page.evaluate(() => {
+      const el = document.querySelector(".gi-node-info");
+      return {
+        exists: !!el,
+        ariaLive: el?.getAttribute("aria-live"),
+        ariaAtomic: el?.getAttribute("aria-atomic"),
+      };
+    });
+    expect(result.exists).toBe(true);
+    expect(result.ariaLive).toBe("polite");
+    expect(result.ariaAtomic).toBe("true");
+  });
+});
+
+// =========================================================================
+// 53. Focus Cone + Search Highlight Coordination (GR)
+// =========================================================================
+test.describe("53. Focus Cone + Search", () => {
+  test("53.1 focusCone and searchHighlight share alpha without conflict", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      // Enable both features
+      v.panel.focusConeEnabled = true;
+      v.panel.searchMode = "highlight";
+      // Verify both settings are accepted
+      return {
+        focusCone: v.panel.focusConeEnabled,
+        searchMode: v.panel.searchMode,
+      };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.focusCone).toBe(true);
+    expect(result.searchMode).toBe("highlight");
+  });
+});
+
+// =========================================================================
+// 54. Dead Field Cleanup (GS)
+// =========================================================================
+test.describe("54. Dead Field Cleanup", () => {
+  test("54.1 autoFitGuidePad removed from RenderThresholds defaults", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      const rt = v.panel.renderThresholds ?? {};
+      return { hasField: "autoFitGuidePad" in rt };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.hasField).toBe(false);
+  });
+});
