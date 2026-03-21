@@ -874,6 +874,9 @@ export interface RenderThresholds {
   labelDensityMinScreenDist?: number;
   /** Zoom threshold below which density-adaptive culling activates (default 0.5) */
   labelDensityZoomThreshold?: number;
+  /** Manual label mode override: "auto" (default) | "initials" | "truncated" | "full".
+   *  When set to non-auto, ignores zoom-based label mode switching. */
+  labelModeOverride?: "auto" | "initials" | "truncated" | "full";
 
   // ---- Timeline bar labels ----
   /** Show text labels inside timeline bars (default true) */
@@ -1332,6 +1335,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelOverlapMargin: 12,
   labelDensityMinScreenDist: 80,
   labelDensityZoomThreshold: 0.5,
+  labelModeOverride: "auto" as const,
   timelineBarShowLabel: true,
   timelineBarLabelMinWidth: 30,
   timelineBarLabelFontSize: 9,

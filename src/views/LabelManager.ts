@@ -224,7 +224,9 @@ export class LabelManager {
     const truncateZoom = rt.labelTruncateZoom ?? 0.35;
     const truncateMaxChars = rt.labelTruncateMaxChars ?? 12;
     const truncateMinChars = rt.labelTruncateMinChars ?? 5;
+    const modeOverride = rt.labelModeOverride ?? "auto";
     const labelMode: "initials" | "truncated" | "full" =
+      modeOverride !== "auto" ? modeOverride :
       zoom < initialsZoom ? "initials" :
       zoom < truncateZoom ? "truncated" : "full";
     const shouldTruncate = labelMode !== "full";

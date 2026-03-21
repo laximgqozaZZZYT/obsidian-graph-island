@@ -550,6 +550,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.zoomIndicatorEl.style.cursor = "pointer";
     this.zoomIndicatorEl.addEventListener("click", () => { this.setZoom(1.0); });
 
+    // Zoom preset buttons (10%, 30%, 50%, 100%)
+    const presetBar = zoomGroup.createEl("span", { cls: "gi-zoom-presets" });
+    presetBar.style.cssText = "margin-left:4px;display:inline-flex;gap:1px;";
+    for (const pct of [10, 30, 50, 100]) {
+      const btn = presetBar.createEl("button", { text: `${pct}`, cls: "gi-zoom-preset-btn" });
+      btn.style.cssText = "font-size:9px;padding:1px 3px;min-width:0;border:none;border-radius:3px;" +
+        "background:var(--background-modifier-hover);color:var(--text-muted);cursor:pointer;line-height:1;";
+      btn.title = `Zoom to ${pct}%`;
+      btn.setAttribute("aria-label", `Zoom to ${pct}%`);
+      btn.addEventListener("click", () => { this.setZoom(pct / 100); });
+    }
+
     // FPS monitor (debug)
     this.fpsEl = zoomGroup.createEl("span", { cls: "gi-fps-indicator", text: "" });
     this.fpsEl.style.cssText = "font-size:10px;color:var(--text-muted);margin-left:4px;display:none;";
@@ -5059,9 +5071,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (pn.label?.visible && pn.label.alpha >= 0.1) vis++;
       }
       const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+      const override = rt.labelModeOverride ?? "auto";
       const initialsZ = rt.labelInitialsZoom ?? 0.2;
       const truncateZ = rt.labelTruncateZoom ?? 0.35;
-      const modeChar = s < initialsZ ? "I" : s < truncateZ ? "T" : "F";
+      const modeChar = override !== "auto"
+        ? (override === "initials" ? "I" : override === "truncated" ? "T" : "F")
+        : (s < initialsZ ? "I" : s < truncateZ ? "T" : "F");
       labelInfo = ` · ${vis}L·${modeChar}`;
     }
     this.zoomIndicatorEl.textContent = pct + labelInfo;
