@@ -51,6 +51,8 @@ export interface LayoutHost {
   getSequenceFields(): string[];
   /** Get ontology reverse sequence field names (e.g. ["prev", "previous"]) */
   getReverseSequenceFields(): string[];
+  /** Get current world-container zoom scale */
+  getWorldScale(): number;
 }
 
 // ---------------------------------------------------------------------------

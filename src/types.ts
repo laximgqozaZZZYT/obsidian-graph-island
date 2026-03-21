@@ -1010,6 +1010,10 @@ export interface RenderThresholds {
    *  After semantic-zoom filtering, labels are sorted by degree and capped.
    *  Hovered nodes and their BFS neighbours bypass this limit. */
   labelMaxVisible?: number;
+  /** Label density multiplier for zoom-based cap (default 1.0).
+   *  Higher values show more labels at zoom-out, lower values show fewer.
+   *  Range: 0.2 – 3.0. Applied as multiplier to the zoom-based label cap. */
+  labelDensity?: number;
   /** Label pill background color for dark theme (hex, default 0x1a1a2e) */
   labelBgColor?: number;
   /** Label pill background color for light theme (hex, default 0xf0f0f4) */
@@ -1369,6 +1373,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelDegreePctTier2: 0.10,
   labelDegreePctTier3: 0.30,
   labelMaxVisible: 0,
+  labelDensity: 1.0,
   labelTruncateZoom: 0.1,
   labelTruncateMaxChars: 8,
   labelTruncateMinChars: 5,

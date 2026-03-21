@@ -5025,8 +5025,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!this.zoomIndicatorEl) return;
     const s = scale ?? this.worldContainer?.scale?.x ?? 1;
     const pct = `${Math.round(s * 100)}%`;
-    this.zoomIndicatorEl.textContent = pct;
-    this._announceA11y(`Zoom: ${pct}`);
+    // Show visible label count at zoom-out as LOD hint
+    let labelInfo = "";
+    if (s < 1.0 && this.pixiNodes) {
+      let vis = 0;
+      for (const pn of this.pixiNodes.values()) {
+        if (pn.label?.visible && pn.label.alpha >= 0.1) vis++;
+      }
+      labelInfo = ` · ${vis}L`;
+    }
+    this.zoomIndicatorEl.textContent = pct + labelInfo;
+    this._announceA11y(`Zoom: ${pct}${labelInfo ? `, ${labelInfo.trim()} labels visible` : ""}`);
   }
 
   // =========================================================================

@@ -1176,6 +1176,13 @@ function _buildNodeDisplaySection(
     }
     addSlider(body, t("display.nodeSize"), 5, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.resetZoomBaseNodeSize(); cb.recalcNodeRadii(); cb.markDirty(); }, t("desc.nodeSize"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
+    // Label density at zoom-out
+    const rtDens = panel.renderThresholds ?? {};
+    addSlider(body, t("display.labelDensity") ?? "Label Density", 0.2, 3.0, 0.1, rtDens.labelDensity ?? 1.0, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.labelDensity = v;
+      cb.applyTextFade();
+    }, t("desc.labelDensity") ?? "Controls how many labels are shown when zoomed out");
     // GD: Label max characters
     const rtLabel = panel.renderThresholds ?? {};
     addSlider(body, t("display.labelMaxChars") ?? "Label Max Chars", 0, 60, 1, rtLabel.labelMaxChars ?? 0, (v) => {
