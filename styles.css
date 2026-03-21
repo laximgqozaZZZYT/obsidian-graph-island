@@ -633,7 +633,7 @@
 .gi-legend {
   position: absolute;
   bottom: 8px;
-  left: 8px;
+  right: 8px; /* HJ: moved from left to right to avoid overlap with stats(top-left) and node-info(bottom-left) */
   z-index: 5;
   max-height: 200px;
   overflow-y: auto;

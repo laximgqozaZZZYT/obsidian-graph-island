@@ -3480,6 +3480,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           pn.gfx.scale.set(1);
         }
         this.drawNodeCircle(pn, true);
+        // HK: Re-apply search halo after hover redraw so it's not lost
+        if (this._searchHighlightSet?.has(pn.data.id)) {
+          const searchHitColor = this.getAccentColor();
+          pn.circle.lineStyle(2, searchHitColor, 0.85);
+          if (isCardMode) {
+            const crc2 = this.panel.cardRenderConfig ?? {};
+            const halfW = Math.max(20, pn.radius * ((crc2 as any).cardWidthFactor ?? 4));
+            const halfH = pn.radius * 2;
+            pn.circle.drawRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, (crc2 as any).cardCornerRadius ?? 6);
+          } else {
+            const shape = getNodeShape(pn.data, this.panel.nodeShapeRules);
+            drawShape(pn.circle, shape, pn.radius * 1.5, searchHitColor, 0.08);
+          }
+        }
         if (!pn.hoverLabel) {
           this._createHoverTooltip(pn);
         }

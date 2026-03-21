@@ -269,6 +269,8 @@ export interface RenderHost {
   drawOrbitRings(): void;
   /** Draw enclosures */
   drawEnclosures(): void;
+  /** HL: Get enclosure label positions for overlap avoidance */
+  getEnclosureLabels?(): Map<string, CanvasText>;
   /** Draw sunburst arcs */
   drawSunburstArcs(): void;
   /** Draw edges */
@@ -2588,6 +2590,23 @@ export class RenderPipeline {
       }
     }
 
+    // 2.7: HL — Reserve enclosure label positions as exclusion zones
+    const encLabels = this.host.getEnclosureLabels?.();
+    if (encLabels && encLabels.size > 0) {
+      const world = this.host.getWorldContainer();
+      if (world) {
+        for (const lbl of encLabels.values()) {
+          if (!lbl.visible) continue;
+          // Convert world coords to screen coords
+          const sx = (lbl.x * world.scale.x + world.x);
+          const sy = (lbl.y * world.scale.y + world.y);
+          const sw = (lbl.width ?? 60) * lbl.scale.x;
+          const sh = (lbl.height ?? 14) * lbl.scale.y;
+          grid.insert({ x: sx - sw / 2, y: sy - sh / 2, w: sw, h: sh, label: null as any, pn: null as any, degree: 500, isSuper: false });
+        }
+      }
+    }
+
     // 3. Sort by priority score — highest priority first (Google Maps-style)
     // Hover-forced labels get priority boost so they survive culling (displaced with leader lines if needed)
     const minNonSuper = rt.labelMinNonSuper ?? 3;
@@ -2635,7 +2654,9 @@ export class RenderPipeline {
     // too close together even if they don't technically overlap (AABB margin)
     const densityZoomThreshold = rt.labelDensityZoomThreshold ?? 0.5;
     if (zoom < densityZoomThreshold && placed.length > 10) {
-      const densityMinDist = (rt.labelDensityMinScreenDist ?? 80) * (1 + (0.5 - zoom) * 2);
+      // sqrt scaling + cap prevents over-aggressive label removal at extreme zoom-out
+      const rawDensityScale = 1 + Math.sqrt((0.5 - zoom) / 0.5) * 1.5;
+      const densityMinDist = Math.min((rt.labelDensityMinScreenDist ?? 80) * rawDensityScale, rt.labelDensityMaxDist ?? 200);
       const densityMinDist2 = densityMinDist * densityMinDist;
       // Sort placed by priority (highest first) — keep high priority, remove low
       placed.sort((a, b) => (b.pn.priorityScore + (b.pn.hoverForcedLabel ? 200 : 0))
