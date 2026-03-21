@@ -2513,7 +2513,7 @@ export class RenderPipeline {
     // Scale margin inversely with zoom — at low zoom, labels are counterscaled larger
     // so overlap detection needs more generous spacing
     const zoom = this.host.getWorldContainer()?.scale.x ?? 1;
-    const zoomMarginScale = zoom < 0.5 ? 1 + (0.5 - zoom) * 4 : 1; // up to 3x at zoom 0
+    const zoomMarginScale = zoom < 0.5 ? 1 + (0.5 - zoom) * 6 : 1; // up to 4x at zoom 0
     const margin = rt.labelOverlapMargin * zoomMarginScale;
     const pixiNodes = this.host.getPixiNodes();
     const degrees = this.host.getDegrees();
@@ -2600,12 +2600,21 @@ export class RenderPipeline {
       const scaleY = label.scale?.y ?? 1;
       const padX = label.bgPadX ?? 0;
       const padY = label.bgPadY ?? 0;
-      const rawW = label.text.length * charW * scaleX * zoom + padX * 2 * scaleX * zoom;
-      const rawH = fontSize * scaleY * LABEL_LINE_HEIGHT_FACTOR * zoom + padY * 2 * scaleY * zoom;
+      // Use measured dimensions when available (more accurate than estimates)
+      const measuredW = (label.width && label.width > 0) ? label.width : 0;
+      const measuredH = (label.height && label.height > 0) ? label.height : 0;
+      const estimatedW = label.text.length * charW + padX * 2;
+      const estimatedH = fontSize * LABEL_LINE_HEIGHT_FACTOR + padY * 2;
+      const baseW = measuredW > 0 ? measuredW : estimatedW;
+      const baseH = measuredH > 0 ? measuredH : estimatedH;
+      const rawW = baseW * scaleX * zoom;
+      const rawH = baseH * scaleY * zoom;
       const w = Math.min(rawW, maxScreenW > 0 ? maxScreenW : Infinity);
       const h = Math.min(rawH, maxScreenH > 0 ? maxScreenH : Infinity);
-      const wx = (pn.data.x + label.x) * zoom;
-      const wy = (pn.data.y + label.y) * zoom;
+      const anchorX = label.anchor?.x ?? 0;
+      const anchorY = label.anchor?.y ?? 0;
+      const wx = (pn.data.x + label.x) * zoom - w * anchorX;
+      const wy = (pn.data.y + label.y) * zoom - h * anchorY;
       const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
       rects.push({ pn, label, x: wx, y: wy, w, h,
         degree: degrees.get(pn.data.id) ?? 0, isSuper });
@@ -2743,8 +2752,10 @@ export class RenderPipeline {
         worldDx = totalX * s - baseLx;
         worldDy = totalY * s - baseLy;
       }
-      const cappedScreenX = (pn.data.x + baseLx + worldDx) * zoom;
-      const cappedScreenY = (pn.data.y + baseLy + worldDy) * zoom;
+      const anchorX = r.label.anchor?.x ?? 0;
+      const anchorY = r.label.anchor?.y ?? 0;
+      const cappedScreenX = (pn.data.x + baseLx + worldDx) * zoom - r.w * anchorX;
+      const cappedScreenY = (pn.data.y + baseLy + worldDy) * zoom - r.h * anchorY;
       const alt: CullLabelRect = { ...r, x: cappedScreenX, y: cappedScreenY };
       if (!grid.checkOverlap(alt)) {
         r.label.x = baseLx + worldDx;
@@ -2883,10 +2894,12 @@ export class RenderPipeline {
     zoom: number,
     maxRadii: number,
   ): boolean {
-    // AABB overlap check using spatial hash grid
+    // AABB overlap check using spatial hash grid (with anchor offset)
+    const anchorX = r.label.anchor?.x ?? 0;
+    const anchorY = r.label.anchor?.y ?? 0;
     const overlaps = (): boolean => {
-      const cx = (r.pn.data.x + r.label.x) * zoom;
-      const cy = (r.pn.data.y + r.label.y) * zoom;
+      const cx = (r.pn.data.x + r.label.x) * zoom - r.w * anchorX;
+      const cy = (r.pn.data.y + r.label.y) * zoom - r.h * anchorY;
       const testRect: CullLabelRect = { ...r, x: cx, y: cy };
       return grid.checkOverlap(testRect);
     };
@@ -2921,8 +2934,8 @@ export class RenderPipeline {
         r.label.y = origLy + wdy;
 
         if (!overlaps()) {
-          r.x = (r.pn.data.x + r.label.x) * zoom;
-          r.y = (r.pn.data.y + r.label.y) * zoom;
+          r.x = (r.pn.data.x + r.label.x) * zoom - r.w * anchorX;
+          r.y = (r.pn.data.y + r.label.y) * zoom - r.h * anchorY;
           return true;
         }
       }

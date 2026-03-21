@@ -370,7 +370,15 @@ export class LabelManager {
     degrees: Map<string, number>,
     baseOpacity: number,
   ): void {
-    const maxVisible = rt.labelMaxVisible ?? 0;
+    const staticMax = rt.labelMaxVisible ?? 0;
+    // Zoom-based dynamic cap: at zoom-out, show fewer labels to prevent overlap
+    const zoom = this.host.getWorldScale();
+    const zoomCap = zoom < 1.0
+      ? Math.max(15, Math.round(100 * zoom))  // 15-100 labels depending on zoom
+      : 0; // no cap at zoom >= 1
+    const maxVisible = staticMax > 0
+      ? (zoomCap > 0 ? Math.min(staticMax, zoomCap) : staticMax)
+      : zoomCap;
 
     // AP-5 diversity guarantee: promote top non-super nodes if too few
     const eligibleNonSuper = candidates.filter(c => !c.isSuper).length;
