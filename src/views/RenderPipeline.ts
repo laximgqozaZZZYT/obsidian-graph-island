@@ -942,7 +942,12 @@ export class RenderPipeline {
         }
         break;
       case "card":
-        this._renderCardMode(g, ctx, crc, rt);
+        // Auto-fallback: at low zoom (LOD < 3), render as circles to prevent dense card overlap
+        if (ctx.lodLevel < 3) {
+          this._renderNodeMode(g, ctx, crc, rt);
+        } else {
+          this._renderCardMode(g, ctx, crc, rt);
+        }
         break;
       case "donut":
         this._renderDonutMode(g, ctx, crc, rt);

@@ -2610,6 +2610,12 @@ function resolveEdgeStyle(
     alpha = Math.min(1, alpha * 1.3);
   }
 
+  // Zoom-adaptive edge thickness: thin edges at zoom-out to reduce visual clutter
+  const ws = cfg.worldScale ?? 1;
+  if (ws < 0.5) {
+    lineThick *= Math.max(0.3, ws / 0.5);
+  }
+
   // GG: Apply global edge alpha multiplier
   if (cfg.globalEdgeAlpha != null && cfg.globalEdgeAlpha < 1) {
     alpha *= cfg.globalEdgeAlpha;
