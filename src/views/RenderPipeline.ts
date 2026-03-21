@@ -2577,7 +2577,9 @@ export class RenderPipeline {
         placed.push(found);
         grid.insert(found);
       } else {
-        r.label.visible = false;
+        // Smooth fade-out instead of instant hide (AD: collision animation)
+        r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - 0.3);
+        if (r.label.alpha <= 0.05) r.label.visible = false;
       }
     }
 
@@ -2606,7 +2608,8 @@ export class RenderPipeline {
         if (!tooClose) {
           kept.push(r);
         } else {
-          r.label.visible = false;
+          r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - 0.3);
+          if (r.label.alpha <= 0.05) r.label.visible = false;
         }
       }
       placed.length = 0;
