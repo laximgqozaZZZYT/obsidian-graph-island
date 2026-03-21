@@ -2133,6 +2133,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getWorldContainer(): CanvasContainer | null { return this.worldContainer; }
   getNodeCircleBatch(): CanvasGraphics | null { return this.nodeCircleBatch; }
   getDegrees(): Map<string, number> { return this.degrees; }
+  getEnclosureLabels(): Map<string, CanvasText> { return this.enclosureLabels; }
   getPrevHighlightSet(): Set<string> { return this.prevHighlightSet; }
   getSearchQuery(): string { return this.panel.searchQuery ?? ""; }
   getEphemeralHighlight(): Set<string> | null { return this.ephemeralHighlight; }

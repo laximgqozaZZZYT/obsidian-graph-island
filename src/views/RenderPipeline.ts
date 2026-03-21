@@ -871,7 +871,7 @@ export class RenderPipeline {
     }
   }
 
-  /** Extreme zoom-out: draw fixed-size rectangles (1x1 screen pixel). */
+  /** Extreme zoom-out: draw fixed-size dots with stroke for visibility. */
   private _renderExtremeZoom(
     g: CanvasGraphics,
     visible: PixiNode[],
@@ -880,14 +880,17 @@ export class RenderPipeline {
     worldScale: number,
     crc: ReturnType<typeof Object.assign>,
   ) {
-    const dotSize = 1 / worldScale;
-    g.lineStyle(0);
+    // HM: 2px screen-space dots with 1px stroke for better visibility at extreme zoom
+    const dotRadius = Math.max(1.5, 2 / worldScale);
+    const strokeW = Math.max(0.5, 0.8 / worldScale);
     for (const pn of visible) {
       const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+      g.lineStyle(strokeW, 0x000000, nodeAlpha * 0.4);
       g.beginFill(pn.color, nodeAlpha);
-      g.drawRect(pn.data.x - dotSize / 2, pn.data.y - dotSize / 2, dotSize, dotSize);
+      g.drawCircle(pn.data.x, pn.data.y, dotRadius);
       g.endFill();
     }
+    g.lineStyle(0);
   }
 
   /** Mid zoom: all circles (skip shape lookup + gradient for speed). */

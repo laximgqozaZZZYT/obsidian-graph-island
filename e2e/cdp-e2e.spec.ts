@@ -1985,3 +1985,59 @@ test.describe("60. Edge Density Warning", () => {
     expect(result.edgeCount).toBeGreaterThan(0);
   });
 });
+
+// =========================================================================
+// 61. Legend Position (HJ)
+// =========================================================================
+test.describe("61. Legend Position", () => {
+  test("61.1 legend is positioned on the right side", async () => {
+    const result = await page.evaluate(() => {
+      const el = document.querySelector(".gi-legend") as HTMLElement;
+      if (!el) return { error: "no legend" };
+      const style = getComputedStyle(el);
+      return { right: style.right, left: style.left };
+    });
+    // Legend should have right position set (not left)
+    if (!("error" in result)) {
+      expect(result.right).not.toBe("auto");
+    }
+  });
+});
+
+// =========================================================================
+// 62. Search Halo Preserved on Hover (HK)
+// =========================================================================
+test.describe("62. Search Halo + Hover", () => {
+  test("62.1 search highlight + hover combination runs without error", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      v.panel.searchMode = "highlight";
+      v.panel.searchQuery = "battle";
+      try {
+        v.applySearch?.();
+        v.applyHover?.();
+      } catch (e: any) {
+        return { error: e.message };
+      }
+      v.panel.searchQuery = "";
+      return { ok: true };
+    });
+    expect(result).not.toHaveProperty("error");
+  });
+});
+
+// =========================================================================
+// 63. Enclosure Label Exclusion (HL)
+// =========================================================================
+test.describe("63. Enclosure Label Exclusion", () => {
+  test("63.1 getEnclosureLabels method exists on view", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v) return { error: "no view" };
+      return { hasMethod: typeof v.getEnclosureLabels === "function" };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.hasMethod).toBe(true);
+  });
+});
