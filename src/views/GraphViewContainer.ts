@@ -5152,6 +5152,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       labelInfo = ` · ${vis}L·${modeChar}`;
     }
     this.zoomIndicatorEl.textContent = pct + labelInfo;
+    // Enhanced tooltip with mode description and shortcut hints
+    const modeDesc = labelInfo.includes("·I") ? "Initials mode (2 chars)" :
+                     labelInfo.includes("·T") ? "Truncated mode (5-12 chars)" :
+                     labelInfo.includes("·F") ? "Full name mode" : "";
+    this.zoomIndicatorEl.title = `Click to reset to 100%\n${modeDesc ? `Label: ${modeDesc}\n` : ""}Keys: 0-9 for zoom, Z for focus-zoom`;
     this._announceA11y(`Zoom: ${pct}${labelInfo ? `, ${labelInfo.trim()} labels visible` : ""}`);
   }
 
