@@ -230,8 +230,10 @@ export class LabelManager {
     const truncateMaxChars = rt.labelTruncateMaxChars ?? 12;
     const truncateMinChars = rt.labelTruncateMinChars ?? 5;
     const modeOverride = rt.labelModeOverride ?? "auto";
+    // Safety: even with "full" override, apply truncation at extreme zoom to prevent AABB overflow
+    const safeOverride = modeOverride === "full" && zoom < 0.1 ? "truncated" : modeOverride;
     const labelMode: "initials" | "truncated" | "full" =
-      modeOverride !== "auto" ? modeOverride :
+      safeOverride !== "auto" ? safeOverride :
       zoom < initialsZoom ? "initials" :
       zoom < truncateZoom ? "truncated" : "full";
     const shouldTruncate = labelMode !== "full";

@@ -3749,7 +3749,29 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
+    // Refresh label background colors for new theme
+    if (this.pixiNodes.size > 0) {
+      const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+      const isDark = this.isDarkTheme();
+      const themeBg = isDark ? (rt.labelBgColor ?? 0x1a1a2e) : (rt.labelBgColorLight ?? 0xf0f0f4);
+      const syncBg = rt.labelBgColorSync ?? false;
+      for (const pn of this.pixiNodes.values()) {
+        if (pn.label && pn.label.bgColor != null) {
+          pn.label.bgColor = syncBg && pn.color != null
+            ? this._blendThemeLabel(themeBg, pn.color) : themeBg;
+        }
+      }
+    }
+
     this.markDirty();
+  }
+
+  private _blendThemeLabel(bg: number, nodeColor: number): number {
+    const r1 = (bg >> 16) & 0xff, g1 = (bg >> 8) & 0xff, b1 = bg & 0xff;
+    const r2 = (nodeColor >> 16) & 0xff, g2 = (nodeColor >> 8) & 0xff, b2 = nodeColor & 0xff;
+    return (Math.round(r1 + (r2 - r1) * 0.15) << 16) |
+           (Math.round(g1 + (g2 - g1) * 0.15) << 8) |
+            Math.round(b1 + (b2 - b1) * 0.15);
   }
 
   // =========================================================================
