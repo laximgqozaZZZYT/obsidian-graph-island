@@ -2462,17 +2462,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (displayMode === "card") {
       const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
       const cardConfig = this.panel.cardDisplayConfig ?? { fields: [], maxWidth: 120, showIcon: false };
-      const headerH = crc.tableHeaderHeight / zoom;
+      const headerStyle = cardConfig.headerStyle ?? "plain";
       const fieldLineH = crc.fieldLineHeight / zoom;
-      const cardPad = crc.cardPadding / zoom;
-      const hasDefField = (this.panel.definitionField ?? "").length > 0 ? 1 : 0;
-      const hasPreview = 1; // bodyPreview row
-      const fieldCount = (cardConfig.fields?.length ?? 0) + hasDefField + hasPreview;
-      hitCardHalfH = (headerH + fieldCount * fieldLineH + cardPad * 2) / 2;
       hitCardMaxHalfW = ((cardConfig.maxWidth ?? 120) / zoom) / 2;
       hitCardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
       hitCardWidthFactor = crc.cardWidthFactor;
       hitCardAspectRatio = crc.cardAspectRatio;
+      if (headerStyle === "table") {
+        const headerH = crc.tableHeaderHeight / zoom;
+        const cardPad = crc.cardPadding / zoom;
+        const hasDefField = (this.panel.definitionField ?? "").length > 0 ? 1 : 0;
+        const hasPreview = 1; // bodyPreview row
+        const fieldCount = (cardConfig.fields?.length ?? 0) + hasDefField + hasPreview;
+        hitCardHalfH = (headerH + fieldCount * fieldLineH + cardPad * 2) / 2;
+      } else {
+        // HM: Plain card uses base height (golden ratio width derived from this)
+        const plainH = crc.plainCardHeight / zoom;
+        const metaH = (cardConfig.fields?.length ?? 0) > 0 ? (cardConfig.fields?.length ?? 0) * fieldLineH : 0;
+        hitCardHalfH = (plainH + metaH) / 2;
+      }
     }
 
     return { zoom, minWorldRadius, pad, displayMode, glowRadius, hitScreenPx, hitWorldR, hitCardMaxHalfW, hitCardAR, hitCardWidthFactor, hitCardAspectRatio, hitCardHalfH };
@@ -3505,10 +3513,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           const searchHitColor = this.getAccentColor();
           pn.circle.lineStyle(2, searchHitColor, 0.85);
           if (isCardMode) {
-            const crc2 = this.panel.cardRenderConfig ?? {};
-            const halfW = Math.max(20, pn.radius * ((crc2 as any).cardWidthFactor ?? 4));
-            const halfH = pn.radius * 2;
-            pn.circle.drawRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, (crc2 as any).cardCornerRadius ?? 6);
+            const crc2 = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
+            // HM: Golden ratio halo rect
+            const cardAR2 = crc2.cardAspectRatio > 0 ? crc2.cardAspectRatio : 1.618;
+            const baseH2 = pn.radius * 2;
+            const halfW = Math.max(20, (baseH2 * cardAR2) / 2);
+            const halfH = baseH2;
+            pn.circle.drawRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, crc2.cardCornerRadius ?? 6);
           } else {
             const shape = getNodeShape(pn.data, this.panel.nodeShapeRules);
             drawShape(pn.circle, shape, pn.radius * 1.5, searchHitColor, 0.08);
@@ -7962,9 +7973,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         // GU: In card mode, draw a rect halo matching the card size instead of a circle
         const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
         if (isCardMode) {
-          const crc = this.panel.cardRenderConfig ?? {};
-          const halfW = Math.max(20, pn.radius * ((crc as any).cardWidthFactor ?? 4));
-          const halfH = pn.radius * 2;
+          const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
+          // HM: Use golden ratio for halo rect (matching plain card rendering)
+          const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
+          const baseH = pn.radius * 2;
+          const halfH = baseH;
+          const halfW = Math.max(20, (baseH * cardAR) / 2);
           const outset = 4;
           const cr = (crc as any).cardCornerRadius ?? 6;
           pn.circle.beginFill(searchHitColor, 0.10);
@@ -8077,8 +8091,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (sizeByDeg) {
       for (const d of this.degrees.values()) { if (d > maxDeg) maxDeg = d; }
     }
+    // HM: content-proportional sizing (card mode only)
+    const isCard = (this.panel.nodeDisplayMode ?? "node") === "card";
+    const cardContentScale = isCard ? (rt.cardContentScale ?? 0) : 0;
+    let maxBodyLength = 0;
+    if (cardContentScale > 0) {
+      for (const pn of this.pixiNodes.values()) {
+        const bl = pn.data.bodyLength ?? 0;
+        if (bl > maxBodyLength) maxBodyLength = bl;
+      }
+    }
     for (const pn of this.pixiNodes.values()) {
-      pn.radius = effectiveRadius(pn.data, ns, this.degrees.get(pn.data.id) || 0, maxR, minR, maxDeg, sizeByDeg);
+      pn.radius = effectiveRadius(pn.data, ns, this.degrees.get(pn.data.id) || 0, maxR, minR, maxDeg, sizeByDeg,
+        pn.data.bodyLength ?? 0, maxBodyLength, cardContentScale);
     }
   }
 

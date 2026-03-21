@@ -81,14 +81,18 @@ export function buildGraphFromVault(
     };
     // meta is a live getter — reads from metadataCache on every access
     defineLiveMeta(node, app);
-    // Extract body preview (first 100 chars, YAML stripped)
+    // Extract body preview (first 100 chars, YAML stripped) + full body length
     const rawContent = app.vault.cachedRead(file);
     if (typeof rawContent === "string") {
-      node.bodyPreview = extractBodyPreview(rawContent, 100);
+      const info = extractBodyInfo(rawContent, 100);
+      node.bodyPreview = info.preview;
+      node.bodyLength = info.length;
     } else if (rawContent && typeof (rawContent as any).then === "function") {
       // cachedRead returns Promise — backfill asynchronously
       (rawContent as Promise<string>).then(text => {
-        node.bodyPreview = extractBodyPreview(text, 100);
+        const info = extractBodyInfo(text, 100);
+        node.bodyPreview = info.preview;
+        node.bodyLength = info.length;
       }).catch(() => {});
     }
     nodes.push(node);
@@ -659,10 +663,10 @@ function extractTags(
 }
 
 /**
- * Extract a body preview from file content by stripping YAML frontmatter
- * and returning the first `maxLen` characters of body text.
+ * Extract a body preview from file content by stripping YAML frontmatter.
+ * Returns both a truncated preview and the full body length.
  */
-function extractBodyPreview(content: string, maxLen: number): string {
+function extractBodyInfo(content: string, maxLen: number): { preview: string; length: number } {
   let body = content;
   // Strip YAML frontmatter (--- ... ---)
   if (body.startsWith("---")) {
@@ -675,5 +679,6 @@ function extractBodyPreview(content: string, maxLen: number): string {
   body = body.replace(/^\s+/, "").replace(/^#+\s*/gm, "");
   // Collapse whitespace
   body = body.replace(/\s+/g, " ").trim();
-  return body.length > maxLen ? body.substring(0, maxLen) + "…" : body;
+  const preview = body.length > maxLen ? body.substring(0, maxLen) + "…" : body;
+  return { preview, length: body.length };
 }

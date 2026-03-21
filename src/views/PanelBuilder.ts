@@ -1359,6 +1359,14 @@ function _buildNodeDisplayModeSection(
         panel.renderThresholds.cardBodyMaxLines = v;
         cb.doRenderKeepPanel();
       });
+      // HM: Card content scale — log-based size boost from body length
+      addSlider(body, t("display.cardContentScale") ?? "Card Size by Content", 0, 2.0, 0.1, rtCard.cardContentScale ?? 0.5, (v) => {
+        if (!panel.renderThresholds) panel.renderThresholds = {};
+        panel.renderThresholds.cardContentScale = v;
+        cb.recalcNodeRadii();
+        cb.markDirty();
+        cb.announceA11y?.(`${t("display.cardContentScale") ?? "Card Size by Content"}: ${(v * 100).toFixed(0)}%`);
+      }, t("desc.cardContentScale"));
       // GE: Card background opacity
       const crcGE = panel.cardRenderConfig ?? {};
       addSlider(body, t("display.cardBgOpacity") ?? "Card Opacity", 0.1, 1.0, 0.05, (crcGE as any).plainCardFillAlpha ?? 0.8, (v) => {

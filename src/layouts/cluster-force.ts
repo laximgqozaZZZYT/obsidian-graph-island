@@ -886,16 +886,26 @@ export function nodeRadius(nodeSize: number, degree: number, minNodeRadius = 15,
   return baseR;
 }
 
-/** Effective visual radius accounting for super nodes (collapsed groups).
+/** Effective visual radius accounting for super nodes (collapsed groups) and content scale.
  *  Canonical formula: baseR = nodeRadius(); superR = baseR * (1 + sqrt(memberCount) * 0.5); capped by maxNodeRadius.
+ *  HM: When cardContentScale > 0, applies log-based boost from bodyLength.
  *  Enforces minNodeRadius floor. */
-export function effectiveRadius(n: GraphNode, nodeSize: number, degree: number, maxNodeRadius = 60, minNodeRadius = 15, maxDegree = 0, sizeByDegree = false): number {
-  const baseR = nodeRadius(nodeSize, degree, minNodeRadius, maxDegree, sizeByDegree);
+export function effectiveRadius(
+  n: GraphNode, nodeSize: number, degree: number,
+  maxNodeRadius = 60, minNodeRadius = 15, maxDegree = 0, sizeByDegree = false,
+  bodyLength = 0, maxBodyLength = 0, cardContentScale = 0,
+): number {
+  let baseR = nodeRadius(nodeSize, degree, minNodeRadius, maxDegree, sizeByDegree);
+  // HM: content-proportional scaling (log)
+  if (cardContentScale > 0 && maxBodyLength > 0 && bodyLength > 0) {
+    const t = Math.log(bodyLength + 1) / Math.log(maxBodyLength + 1);
+    baseR *= (1 + cardContentScale * t);
+  }
   const cap = maxNodeRadius > 0 ? maxNodeRadius : Infinity;
   if (n.collapsedMembers && n.collapsedMembers.length > 0) {
     return Math.max(Math.min(Math.max(baseR, baseR * (1 + Math.sqrt(n.collapsedMembers.length) * 0.5)), cap), minNodeRadius);
   }
-  return Math.max(baseR, minNodeRadius);
+  return Math.max(Math.min(baseR, cap), minNodeRadius);
 }
 
 // ---------------------------------------------------------------------------

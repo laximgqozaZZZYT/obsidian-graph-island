@@ -24,6 +24,8 @@ export interface GraphNode {
   ctime?: number;
   /** First 100 chars of body text (YAML stripped) for content preview */
   bodyPreview?: string;
+  /** Full body text length (YAML stripped) for content-proportional card sizing */
+  bodyLength?: number;
   /** Runtime-injected: node degree (connection count) */
   degree?: number;
   /** Runtime-injected: road network phantom node flag */
@@ -745,6 +747,8 @@ export interface RenderThresholds {
   cardTextNodeCount?: number;
   /** FT: Maximum body preview lines in plain card mode (default 3) */
   cardBodyMaxLines?: number;
+  /** HM: Card content scale — log-based size boost from body length (0=off, 0.5=default, 2.0=max) */
+  cardContentScale?: number;
   /** FU: Enclosure label position ("top" | "center" | "bottom", default "top") */
   enclosureLabelPosition?: "top" | "center" | "bottom";
   /** FX: Card body font size in screen pixels (default 8) */
@@ -1294,6 +1298,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   gradientNodeCount: 500,
   cardTextNodeCount: 3000,
   cardBodyMaxLines: 3,
+  cardContentScale: 0.5,
   enclosureLabelPosition: "top" as const,
   cardBodyFontSize: 8,
   labelMaxChars: 0,

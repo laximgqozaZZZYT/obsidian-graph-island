@@ -417,6 +417,7 @@ export class RenderPipeline {
   private pendingNodeColor: ((n: GraphNode) => number) | null = null;
   private pendingLabelThreshold = 3;
   private _cachedMaxDeg = 1;
+  private _cachedMaxBodyLength = 0;
   private deferredBatchId: ReturnType<typeof setTimeout> | null = null;
   /** FPS tracking */
   private _fpsFrames = 0;
@@ -1525,15 +1526,22 @@ export class RenderPipeline {
     const showMeta = nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
     const fieldLineH = crc.fieldLineHeight / worldScale;
 
+    // HM: Golden ratio for plain cards — compute width from height × AR
+    const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
+
     for (const pn of visible) {
       const effR = Math.max(pn.radius, minWorldRadius);
       const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
       const MIN_PLAIN_HALF_W = 20 / worldScale;
-      const halfW = Math.max(MIN_PLAIN_HALF_W, Math.min(cardMaxW / 2, effR * crc.plainCardWidthFactor));
-      // FI: Dynamic card height based on body content
+      // HM: Step 1 — estimate base height (title + optional meta)
+      const baseH = showMeta ? cardH + cardConfig.fields.length * fieldLineH : cardH;
+      // HM: Step 2 — golden ratio width from base height
+      const arHalfW = (baseH * cardAR) / 2;
+      const halfW = Math.max(MIN_PLAIN_HALF_W, Math.min(cardMaxW / 2, arHalfW));
+      // FI: Dynamic card height based on body content (uses final width for line wrapping)
       const bodyLines = pn.data.bodyPreview ? Math.min(3, Math.ceil(pn.data.bodyPreview.length / Math.max(5, Math.floor((halfW * 2 - 8 / worldScale) / (8 / worldScale * 0.55))))) : 0;
       const bodyExtraH = bodyLines * (8 / worldScale * 1.3);
-      const totalH = (showMeta ? cardH + cardConfig.fields.length * fieldLineH : cardH) + bodyExtraH;
+      const totalH = baseH + bodyExtraH;
       const halfH = totalH / 2;
 
       // Card background
@@ -2218,6 +2226,10 @@ export class RenderPipeline {
 
     // Cache maxDeg once — avoids O(n²) recomputation inside createSinglePixiNode
     this._cachedMaxDeg = degValues.length > 0 ? degValues[0] : 1;
+    // HM: Cache maxBodyLength for content-proportional card sizing
+    let mbl = 0;
+    for (const n of nodes) { const bl = n.bodyLength ?? 0; if (bl > mbl) mbl = bl; }
+    this._cachedMaxBodyLength = mbl;
 
     // Sort by degree descending — high-degree nodes render first (most important)
     const sorted = [...nodes].sort((a, b) =>
@@ -2259,7 +2271,8 @@ export class RenderPipeline {
     const ns = this.host.getNodeSize?.() ?? nodeR(n);
     const nodeDeg = this.host.getDegrees().get(n.id) || 0;
     const sizeByDeg = rtNode.nodeSizeByDegree ?? false;
-    const r = effectiveRadius(n, ns, nodeDeg, maxR, rtNode.minNodeRadius, this._cachedMaxDeg, sizeByDeg);
+    const r = effectiveRadius(n, ns, nodeDeg, maxR, rtNode.minNodeRadius, this._cachedMaxDeg, sizeByDeg,
+      n.bodyLength ?? 0, this._cachedMaxBodyLength ?? 0, rtNode.cardContentScale ?? 0);
     const color = nodeColor(n);
     const circle = new CanvasGraphics();
     if (isSuperNode) {
