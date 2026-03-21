@@ -1660,6 +1660,12 @@ function _buildEdgeDisplaySection(
       panel.renderThresholds.globalEdgeAlpha = v;
       cb.markDirty();
     });
+    // GW: Edge label font size
+    addSlider(body, t("display.edgeLabelFontSize") ?? "Edge Label Size", 6, 18, 1, rtEdge.edgeLabelFontSize ?? 10, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.edgeLabelFontSize = v;
+      cb.markDirty();
+    });
     // --- Advanced (hidden by default) ---
     addAdvancedGroup(body, (adv) => {
       addToggle(adv, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); cb.rebuildPanel(); }, t("desc.edgeColor"));
@@ -2188,7 +2194,7 @@ function _buildTagRelationsSection(
 }
 
 function _buildSettingsActionButtons(
-  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+  tabEl: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   // --- Action buttons ---
   const actionRow = tabEl.createDiv({ cls: "gi-panel-actions gi-action-row" });
@@ -2273,7 +2279,7 @@ function _buildSettingsActionButtons(
   // テンプレート保存ボタン
   const saveTemplateBtn = templateRow.createEl("button", { text: t("template.save") });
   saveTemplateBtn.addEventListener("click", () => {
-    const templates = _ctx.settings.templates ?? [];
+    const templates = ctx.settings.templates ?? [];
     if (templates.length >= 20) {
       showToast(t("template.maxReached"));
       return;
@@ -2288,7 +2294,7 @@ function _buildSettingsActionButtons(
   });
 
   // テンプレート読込ドロップダウン
-  const templates = _ctx.settings.templates ?? [];
+  const templates = ctx.settings.templates ?? [];
   if (templates.length > 0) {
     const loadSelect = templateRow.createEl("select", { cls: "gi-template-select" });
     const defaultOpt = loadSelect.createEl("option", { text: t("template.load"), value: "" });

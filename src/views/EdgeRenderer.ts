@@ -58,6 +58,8 @@ export interface EdgeDrawConfig {
   highContrast?: boolean;
   /** Show relation/type labels on edges */
   showEdgeLabels: boolean;
+  /** GW: Edge label font size override (default 10) */
+  edgeLabelFontSize?: number;
   /** Edge label placement mode: center (midpoint), offset (perpendicular above), smart (collision-avoiding) */
   edgeLabelPlacement?: "center" | "offset" | "smart";
   /** Show directional arrows on all edges */
@@ -314,7 +316,7 @@ const ZOOM_FADE_MIN_ALPHA = 0.4;
 /** Default density floor */
 const DEFAULT_DENSITY_FLOOR = 0.25;
 /** Edge label font size */
-const EDGE_LABEL_FONT_SIZE = 10;
+const EDGE_LABEL_FONT_SIZE_DEFAULT = 10;
 /** A11y: edge label background for contrast (WCAG 1.4.3) */
 const EDGE_LABEL_BG_ALPHA = 0.75;
 
@@ -3604,7 +3606,7 @@ export function drawEdgeLabels(
       // 重みラベルは関係ラベルと重ならないようオフセット
       const offsetY = cfg.showEdgeLabels ? -10 : 0;
       const text = new CanvasText(String(count), {
-        fontSize: EDGE_LABEL_FONT_SIZE,
+        fontSize: cfg.edgeLabelFontSize ?? EDGE_LABEL_FONT_SIZE_DEFAULT,
         fill: fillColor,
         fontFamily: "sans-serif",
         fontWeight: "bold",
@@ -3749,7 +3751,7 @@ export function drawEdgeLabels(
     }
 
     const text = new CanvasText(label, {
-      fontSize: EDGE_LABEL_FONT_SIZE,
+      fontSize: cfg.edgeLabelFontSize ?? EDGE_LABEL_FONT_SIZE_DEFAULT,
       fill: fillColor,
       fontFamily: "sans-serif",
     });
