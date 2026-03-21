@@ -2671,12 +2671,14 @@ export class RenderPipeline {
       }
     }
 
-    // 4.5. Density-adaptive culling: at low zoom, remove labels that are
-    // too close together even if they don't technically overlap (AABB margin)
+    // 4.5. Density-adaptive culling: remove labels that are too close together
+    // HV: Extended to all zoom levels (was zoom < 0.5 only), with gentler spacing at high zoom
     const densityZoomThreshold = rt.labelDensityZoomThreshold ?? 0.5;
-    if (zoom < densityZoomThreshold && placed.length > 10) {
-      // sqrt scaling + cap prevents over-aggressive label removal at extreme zoom-out
-      const rawDensityScale = 1 + Math.sqrt((0.5 - zoom) / 0.5) * 1.5;
+    if (placed.length > 10) {
+      // At low zoom: aggressive spacing (sqrt scaling). At high zoom: mild spacing.
+      const rawDensityScale = zoom < densityZoomThreshold
+        ? 1 + Math.sqrt((densityZoomThreshold - zoom) / densityZoomThreshold) * 1.5
+        : Math.max(0.3, 1 - (zoom - densityZoomThreshold) * 0.5); // gentler at high zoom
       const densityMinDist = Math.min((rt.labelDensityMinScreenDist ?? 80) * rawDensityScale, rt.labelDensityMaxDist ?? 200);
       const densityMinDist2 = densityMinDist * densityMinDist;
       // Sort placed by priority (highest first) — keep high priority, remove low

@@ -1559,10 +1559,7 @@ function _buildInteractionSection(
       panel.enableInlineEdit = v;
       cb.markDirty();
     }, t("desc.inlineEdit"));
-    addToggle(body, t("display.relationDrawer"), panel.showRelationDrawer, (v) => {
-      panel.showRelationDrawer = v;
-      cb.markDirty();
-    }, t("desc.relationDrawer"));
+    // HW: showRelationDrawer removed — ghost control with no rendering effect
     addToggle(body, t("display.manualClustering"), panel.enableManualClustering, (v) => {
       panel.enableManualClustering = v;
       cb.markDirty();

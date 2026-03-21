@@ -96,8 +96,12 @@ const FILL_ALPHA_OVERLAP = 0.04;
 /** Maximum label collision resolution attempts */
 const LABEL_COLLISION_MAX_ATTEMPTS = 6;
 
-/** Label offset beyond hull for placement direction */
-const LABEL_OFFSET_DEFAULT = 8;
+/** Label offset beyond hull for placement direction.
+ *  HX: Scales with zoom to prevent labels from being too close at extreme zoom-out. */
+const LABEL_OFFSET_BASE = 8;
+function labelOffset(ws: number): number {
+  return Math.max(LABEL_OFFSET_BASE, LABEL_OFFSET_BASE * Math.max(1, 0.4 / Math.max(ws, 0.02)));
+}
 
 /** Capsule end-cap curve factor (scales beyond 1.0 for rounder ends) */
 const CAPSULE_CURVE_FACTOR = 1.1;
@@ -336,14 +340,14 @@ export function drawEnclosures(
       const p = pts[0];
       const r = p.radius + outlinePad(p.radius, memberCount);
       g.drawCircle(p.x, p.y, r);
-      labelX = p.x; labelY = p.y - r - LABEL_OFFSET_DEFAULT;
+      labelX = p.x; labelY = p.y - r - labelOffset(ws);
       labelCenterX = p.x; labelCenterY = p.y;
     } else if (pts.length === 2) {
       const maxR = Math.max(pts[0].radius, pts[1].radius);
       const r = maxR + outlinePad(maxR, memberCount);
       drawCapsule(g, pts[0], pts[1], r);
       labelX = (pts[0].x + pts[1].x) / 2;
-      labelY = Math.min(pts[0].y, pts[1].y) - r - LABEL_OFFSET_DEFAULT;
+      labelY = Math.min(pts[0].y, pts[1].y) - r - labelOffset(ws);
       labelCenterX = labelX;
       labelCenterY = (pts[0].y + pts[1].y) / 2;
     } else {
@@ -354,7 +358,7 @@ export function drawEnclosures(
         sumX += p.x; sumY += p.y;
         if (p.y < topY) { topY = p.y; labelX = p.x; }
       }
-      labelY = topY - LABEL_OFFSET_DEFAULT;
+      labelY = topY - labelOffset(ws);
       labelCenterX = sumX / expanded.length;
       labelCenterY = sumY / expanded.length;
     }
