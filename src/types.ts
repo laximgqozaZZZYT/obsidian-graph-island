@@ -755,6 +755,8 @@ export interface RenderThresholds {
   enclosureStrokeWidth?: number;
   /** GG: Global edge alpha multiplier (0-1, default 1.0) */
   globalEdgeAlpha?: number;
+  /** GW: Edge label font size in pixels (default 10) */
+  edgeLabelFontSize?: number;
   /** FY: Enclosure fill opacity 0-1 (default from sizeFade calculation) */
   enclosureFillOpacity?: number;
   /** Node count below which glow halos are shown (default 800) */
@@ -1285,6 +1287,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelMaxChars: 0,
   enclosureStrokeWidth: 0,
   globalEdgeAlpha: 1.0,
+  edgeLabelFontSize: 10,
   enclosureFillOpacity: 0,
   glowNodeCount: 800,
   gridLabelOffset: 12,

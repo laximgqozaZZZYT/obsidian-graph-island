@@ -343,3 +343,25 @@ describe("roundtrip: export -> import -> apply", () => {
   });
 });
 
+// GX: Verify all DEFAULT_PANEL keys survive export→import roundtrip
+describe("GX: preset field completeness", () => {
+  it("all DEFAULT_PANEL scalar keys survive export→import", () => {
+    const panel = makePanel() as any;
+    const json = exportPreset(panel);
+    const imported = importPreset(json);
+    const missing: string[] = [];
+    for (const [key, value] of Object.entries(panel)) {
+      if (value === undefined || value === null) continue;
+      if (typeof value === "function") continue;
+      if (value instanceof Set) continue;
+      // Arrays and objects are handled separately
+      if (Array.isArray(value) || typeof value === "object") {
+        if (!(key in imported)) missing.push(key + " (object/array)");
+        continue;
+      }
+      if (!(key in imported)) missing.push(key + " (" + typeof value + ")");
+    }
+    expect(missing).toEqual([]);
+  });
+});
+

@@ -2896,6 +2896,8 @@
   opacity: 0.9;
   pointer-events: auto;
   max-width: 220px;
+  max-height: 50vh;
+  overflow-y: auto;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }

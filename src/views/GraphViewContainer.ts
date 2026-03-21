@@ -3927,6 +3927,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.maxDegree = maxDeg;
     cfg.totalEdgeCount = this.graphEdges.length;
     cfg.globalEdgeAlpha = this.panel.renderThresholds?.globalEdgeAlpha ?? 1.0;
+    cfg.edgeLabelFontSize = this.panel.renderThresholds?.edgeLabelFontSize;
     cfg.nodeClusterMap = this.clusterMeta?.nodeClusterMap ?? null;
     // Use live centroids when available, fall back to target centroids from clusterMeta
     const liveCentroids = this.getCachedCentroids();
