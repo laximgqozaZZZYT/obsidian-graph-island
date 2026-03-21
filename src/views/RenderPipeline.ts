@@ -2772,16 +2772,21 @@ export class RenderPipeline {
     const nodeR = pn.radius ?? 12;
     const screenNodeR = nodeR * zoom;
 
-    // Displacement offsets in screen space — sorted by distance from placed labels
+    // Displacement offsets in screen space (12 directions for finer placement)
+    const hw = r.w * 0.5, pad = screenNodeR + 2;
     const rawOffsets = [
-      { dx: r.w * 0.5 + screenNodeR, dy: screenNodeR + r.h },       // bottom-right
-      { dx: -(r.w + screenNodeR + 2), dy: 0 },                       // left
-      { dx: 0, dy: screenNodeR + r.h * 1.2 },                        // below
-      { dx: r.w * 0.3 + screenNodeR, dy: -(screenNodeR + r.h) },     // top-right
-      { dx: -(r.w + screenNodeR + 2), dy: -(screenNodeR + r.h) },    // top-left
-      { dx: -(r.w + screenNodeR + 2), dy: screenNodeR + r.h },       // bottom-left
-      { dx: r.w * 0.3 + screenNodeR, dy: -(screenNodeR + r.h * 1.2) }, // above-right
-      { dx: -(r.w * 0.3 + screenNodeR), dy: -(screenNodeR + r.h * 1.2) }, // above-left
+      { dx: hw + pad, dy: pad + r.h },         // bottom-right
+      { dx: -(r.w + pad), dy: 0 },             // left
+      { dx: 0, dy: pad + r.h * 1.2 },          // below
+      { dx: hw + pad, dy: -(pad + r.h) },      // top-right
+      { dx: -(r.w + pad), dy: -(pad + r.h) },  // top-left
+      { dx: -(r.w + pad), dy: pad + r.h },     // bottom-left
+      { dx: hw + pad, dy: -(pad + r.h * 1.2) }, // above-right
+      { dx: -(hw + pad), dy: -(pad + r.h * 1.2) }, // above-left
+      { dx: r.w + pad * 2, dy: 0 },            // far right
+      { dx: 0, dy: -(pad + r.h * 1.5) },       // far above
+      { dx: -(r.w + pad * 2), dy: pad + r.h * 0.5 }, // far bottom-left
+      { dx: hw + pad, dy: pad + r.h * 1.5 },   // far below-right
     ];
     // Adaptive: sort offsets by distance from nearest placed label (farthest first)
     const offsets = rawOffsets.map(o => {

@@ -2157,7 +2157,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   updateDensityCulledBadge(count: number) {
     if (!this.densityCulledBadgeEl) return;
     if (count > 0) {
-      this.densityCulledBadgeEl.textContent = `+${count} more hidden`;
+      // Show culled count + top folder summary at extreme zoom-out
+      let text = `+${count} more hidden`;
+      const zoom = this.worldContainer?.scale?.x ?? 1;
+      if (zoom < 0.15 && this.pixiNodes.size > 0) {
+        const folders = new Map<string, number>();
+        for (const pn of this.pixiNodes.values()) {
+          if (!pn.label?.visible) continue;
+          const parts = pn.data.id.split("/");
+          if (parts.length > 1) {
+            const folder = parts[0];
+            folders.set(folder, (folders.get(folder) ?? 0) + 1);
+          }
+        }
+        if (folders.size > 0) {
+          const top = [...folders.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+          text += ` · ${top.map(([f]) => f.replace(/^classic-/, "")).join(", ")}`;
+        }
+      }
+      this.densityCulledBadgeEl.textContent = text;
       this.densityCulledBadgeEl.style.display = "";
     } else {
       this.densityCulledBadgeEl.style.display = "none";
@@ -5055,15 +5073,54 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const world = this.worldContainer;
     const wrap = this.canvasWrap;
     if (!world || !wrap) return;
+    const target = Math.max(0.02, Math.min(10, level));
+    const current = world.scale.x;
+
+    // Skip animation for tiny changes or reduced-motion preference
+    if (Math.abs(target - current) < 0.01 ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      this._applyZoomImmediate(target);
+      return;
+    }
+
+    // Animated zoom (150ms ease-out)
+    const cx = wrap.clientWidth / 2;
+    const cy = wrap.clientHeight / 2;
+    const duration = 150;
+    const startTime = performance.now();
+    const startScale = current;
+    const animate = (now: number) => {
+      const t = Math.min((now - startTime) / duration, 1);
+      const ease = 1 - (1 - t) * (1 - t);
+      const s = startScale + (target - startScale) * ease;
+      const worldPos = world.toLocal({ x: cx, y: cy }, this.pixiApp!.stage);
+      world.scale.set(s);
+      const newScreen = world.toGlobal(worldPos);
+      world.x += cx - newScreen.x;
+      world.y += cy - newScreen.y;
+      this.updateZoomIndicator(s);
+      this.markDirty();
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        this.updateLabelsForZoom();
+      }
+    };
+    requestAnimationFrame(animate);
+  }
+
+  private _applyZoomImmediate(level: number) {
+    const world = this.worldContainer;
+    const wrap = this.canvasWrap;
+    if (!world || !wrap) return;
     const cx = wrap.clientWidth / 2;
     const cy = wrap.clientHeight / 2;
     const worldPos = world.toLocal({ x: cx, y: cy }, this.pixiApp!.stage);
-    const s = Math.max(0.02, Math.min(10, level));
-    world.scale.set(s);
+    world.scale.set(level);
     const newScreen = world.toGlobal(worldPos);
     world.x += cx - newScreen.x;
     world.y += cy - newScreen.y;
-    this.updateZoomIndicator(s);
+    this.updateZoomIndicator(level);
     this.updateLabelsForZoom();
     this.markDirty();
   }
