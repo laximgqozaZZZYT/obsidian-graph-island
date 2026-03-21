@@ -224,6 +224,8 @@ export interface PanelState {
   pinnedPositions: Record<string, { x: number; y: number }>;
   /** ED: Saved viewport positions (name → {x, y, scale}) */
   savedViewports: { name: string; x: number; y: number; scale: number }[];
+  /** Preset zoom level — applied when loading a preset (0 = use auto-fit) */
+  presetZoomLevel: number;
   /** Navigation history: visited node IDs (max 20) */
   navHistory: string[];
   /** Navigation history cursor (index into navHistory, -1 = latest) */
@@ -453,6 +455,7 @@ export function createDefaultPanel(): PanelState {
     hoverTooltipFields: "",
     savedSearchQueries: [],
     savedViewports: [],
+    presetZoomLevel: 0,
     pinnedPositions: {},
     navHistory: [],
     navHistoryCursor: -1,
@@ -561,6 +564,7 @@ export interface PanelCallbacks {
   /** A11y: announce status message via aria-live region */
   announceA11y?(msg: string): void;
   invalidateData(): void;       // sets rawData = null then doRender
+  setZoom?(level: number): void;
   /** Like invalidateData but keeps the panel DOM intact (for search filtering) */
   invalidateDataKeepPanel(): void;
   restartSimulation(alpha: number): void;
@@ -633,6 +637,8 @@ export interface PanelContext {
   availableTags: string[];
   /** ノードIDごとの次数マップ（統計ダッシュボード用） */
   degrees: Map<string, number>;
+  /** Current zoom level (worldContainer.scale.x) */
+  currentZoom?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -2198,6 +2204,8 @@ function _buildSettingsActionButtons(
 
   const exportBtn = presetRow.createEl("button", { text: t("preset.export") });
   exportBtn.addEventListener("click", async () => {
+    // Save current zoom level in preset for restoration on import
+    panel.presetZoomLevel = ctx.currentZoom ?? 0;
     const json = exportPreset(panel);
     try {
       await navigator.clipboard.writeText(json);
@@ -2247,6 +2255,10 @@ function _buildSettingsActionButtons(
         }
         modal.remove();
         cb.invalidateData();
+        // Restore preset zoom level if specified
+        if (panel.presetZoomLevel > 0) {
+          setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
+        }
         cb.rebuildPanel();
       } catch {
         textarea.addClass("ngp-import-error");

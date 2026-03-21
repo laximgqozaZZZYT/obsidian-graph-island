@@ -5120,6 +5120,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       availableGroups: this.collectAvailableGroups(),
       availableTags: this.collectAvailableTags(),
       degrees: this.degrees,
+      currentZoom: this.worldContainer?.scale?.x ?? 1,
     };
   }
 
@@ -5142,6 +5143,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       rebuildPanel: () => { this.buildPanel(); this.requestSave(); },
       announceA11y: (msg: string) => this._announceA11y(msg),
       invalidateData: () => { this.rawData = null; this._similarCache.clear(); this.doRender(); this.requestSave(); },
+      setZoom: (level: number) => this.setZoom(level),
       invalidateDataKeepPanel: () => {
         this.rawData = null; this._similarCache.clear(); this.skipPanelRebuildCount++;
         this.doRender().finally(() => {
@@ -7565,18 +7567,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return;
     }
 
-    const worldX = pn.data.x;
-    const worldY = pn.data.y;
-    const screenCenterX = wrap.clientWidth / 2;
-    const screenCenterY = wrap.clientHeight / 2;
-
-    world.x = screenCenterX - worldX * world.scale.x;
-    world.y = screenCenterY - worldY * world.scale.y;
-
-    // Highlight the target node via ephemeral hover (NOT search query,
-    // which would silently re-filter data on next render)
+    // Focus-zoom to node if zoomed out, otherwise just pan
     this.setHighlightedNodeId(nodeId);
     this.applyHover();
+    if (world.scale.x < 0.5) {
+      this.focusZoomToNode(nodeId, 0.6);
+    } else {
+      const worldX = pn.data.x;
+      const worldY = pn.data.y;
+      const screenCenterX = wrap.clientWidth / 2;
+      const screenCenterY = wrap.clientHeight / 2;
+      world.x = screenCenterX - worldX * world.scale.x;
+      world.y = screenCenterY - worldY * world.scale.y;
+    }
     this.wakeRenderLoop();
   }
 

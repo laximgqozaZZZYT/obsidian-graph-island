@@ -2638,8 +2638,20 @@ export class RenderPipeline {
     maxScreenW: number,
     maxScreenH: number,
   ): CullLabelRect[] {
+    // Viewport bounds for culling (skip off-screen labels to reduce O(n²) cost)
+    const dims = this.host.getCanvasDimensions();
+    const world = this.host.getWorldContainer();
+    const vpMargin = 100; // extra margin to avoid popping at edges
+    const vpLeft = world ? -world.x / zoom - vpMargin / zoom : -Infinity;
+    const vpTop = world ? -world.y / zoom - vpMargin / zoom : -Infinity;
+    const vpRight = world ? (dims.width - world.x) / zoom + vpMargin / zoom : Infinity;
+    const vpBottom = world ? (dims.height - world.y) / zoom + vpMargin / zoom : Infinity;
+
     const rects: CullLabelRect[] = [];
     for (const pn of pixiNodes.values()) {
+      // Skip nodes outside viewport (world coordinates)
+      if (pn.data.x < vpLeft || pn.data.x > vpRight ||
+          pn.data.y < vpTop || pn.data.y > vpBottom) continue;
       // Collect main label OR hoverLabel (prefer hoverLabel when present for overlap culling)
       const label = (pn.hoverLabel && pn.hoverLabel.visible) ? pn.hoverLabel : pn.label;
       if (!label || !label.text || !label.visible) continue;
