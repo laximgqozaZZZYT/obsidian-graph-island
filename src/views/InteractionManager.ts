@@ -478,6 +478,8 @@ export class InteractionManager {
         this.host.setHighlightedNodeId(newId);
         this.host.applyHover();
         this.host.markDirty(true);
+        // Cursor hint: pointer when hovering a node, default otherwise
+        this.canvas.style.cursor = newId ? "pointer" : "";
       }
       // Hover preview: fire Obsidian hover-link event (once per node)
       if (newId && newId !== this.lastHoveredId) {

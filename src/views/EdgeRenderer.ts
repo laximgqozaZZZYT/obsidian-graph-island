@@ -3079,7 +3079,9 @@ export function drawEdges(
 
   // Pre-compute direction x color bundles for highway-style edge merging
   const bundles = prepareBundles(edges, resolvePos, cfg);
-  const bundleStrength = cfg.bundleStrength;
+  // Zoom-adaptive bundling: increase strength at zoom-out for visual tidiness
+  const zoomBoost = ws < 0.5 ? Math.min(0.3, (0.5 - ws) * 0.6) : 0;
+  const bundleStrength = Math.min(1, cfg.bundleStrength + zoomBoost);
 
   // Cable trunks and intra-group cables
   const cablePrep = prepareCables(edges, resolvePos, cfg);
