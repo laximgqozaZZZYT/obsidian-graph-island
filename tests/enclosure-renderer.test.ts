@@ -237,7 +237,7 @@ describe("drawEnclosures", () => {
     const cfg = baseCfg({
       tagMembership: membership,
       resolvePos: (id) => positions[id],
-      worldScale: 0.2, // zoomed out (below 0.45 threshold)
+      worldScale: 0.35, // zoomed out but not extreme (blend ~0.33, fill visible)
     });
 
     drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);

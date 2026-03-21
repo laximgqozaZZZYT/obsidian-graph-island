@@ -92,9 +92,9 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
 const STRING_FIELDS: (keyof PanelState)[] = [
   "searchQuery", "timelineKey", "groupFilter", "groupBy",
   "dataviewQuery", "timelineEndKey", "timelineOrderFields",
-  "gridStyle", "gridLabelPlacement", "edgeCardinalityMode",
-  "cableBundleMode",
+  "gridStyle", "gridLabelPlacement",
   "orphanClusterField",
+  "localGraphCenter",
   "definitionField",
   "nodeSubLabelFields",
   "hoverTooltipFields",
