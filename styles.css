@@ -546,7 +546,7 @@
   border-radius: var(--radius-m, 8px);
   padding: 10px 12px;
   font-size: var(--font-ui-small);
-  z-index: 5;
+  z-index: 8; /* Above stats(5), legend(5), minimap(5) — hover tooltip priority */
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.10);
   pointer-events: auto;
   backdrop-filter: blur(12px);

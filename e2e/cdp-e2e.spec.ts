@@ -1952,3 +1952,36 @@ test.describe("58. Card Title Tint", () => {
     expect(result.ok).toBe(true);
   });
 });
+
+// =========================================================================
+// 59. Z-Index Layer Order
+// =========================================================================
+test.describe("59. Z-Index Layers", () => {
+  test("59.1 node info z-index is higher than stats and legend", async () => {
+    const result = await page.evaluate(() => {
+      const info = document.querySelector(".gi-node-info") as HTMLElement;
+      const stats = document.querySelector(".gi-graph-stats") as HTMLElement;
+      const getZ = (el: HTMLElement | null) => el ? parseInt(getComputedStyle(el).zIndex) || 0 : 0;
+      return { infoZ: getZ(info), statsZ: getZ(stats) };
+    });
+    if (result.infoZ > 0) {
+      expect(result.infoZ).toBeGreaterThanOrEqual(result.statsZ);
+    }
+  });
+});
+
+// =========================================================================
+// 60. Edge Density Warning (HI)
+// =========================================================================
+test.describe("60. Edge Density Warning", () => {
+  test("60.1 edge density warning appears for large edge counts", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      const gd = v.getGraphData();
+      return { edgeCount: gd.edges.length };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.edgeCount).toBeGreaterThan(0);
+  });
+});

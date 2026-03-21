@@ -5886,6 +5886,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     addRow(t("stats.components"), String(stats.componentCount));
     addRow(t("stats.orphanRate"), (stats.orphanRate * 100).toFixed(1) + "%");
     addRow(t("stats.tagCoverage"), (stats.tagCoverage * 100).toFixed(1) + "%");
+    // HI: Edge density warning for large graphs
+    if (stats.edgeCount > 5000) {
+      const warn = this.graphStatsEl.createEl("div", { cls: "gi-stats-warn", attr: { role: "alert" } });
+      warn.textContent = `⚠ ${stats.edgeCount} edges — consider enabling edge fade or reducing hops`;
+      warn.style.cssText = "color:var(--text-warning,#d4a017);font-size:10px;margin:4px 0;padding:2px 4px;border-radius:3px;background:var(--background-modifier-warning,rgba(212,160,23,0.1))";
+    }
 
     // Edge type distribution
     if (stats.edgeTypeCounts.size > 0) {

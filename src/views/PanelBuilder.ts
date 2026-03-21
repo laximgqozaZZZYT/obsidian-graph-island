@@ -1299,6 +1299,9 @@ function _buildNodeDisplayModeSection(
       panel.nodeDisplayMode = v as NodeDisplayMode;
       cb.doRenderKeepPanel();
       cb.rebuildPanel(); // Progressive disclosure: card/donut sub-settings
+      // HF: Announce display mode change for screen readers
+      const modeLabel = modeOptions.find(o => o.value === v)?.label ?? v;
+      cb.announceA11y?.(`${t("display.nodeDisplayMode")}: ${modeLabel}`);
     }, t("desc.nodeDisplayMode"));
 
     // Progressive disclosure: show sub-settings based on mode
