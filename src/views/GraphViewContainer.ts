@@ -3755,6 +3755,60 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     pn.hoverForcedLabel = true;
     pn.gfx.addChild(hl);
     pn.hoverLabel = hl;
+
+    // HM: Reposition tooltip if it overlaps with DOM panels
+    this._adjustTooltipForOverlap(pn, hl, counterScale, gfxScale);
+  }
+
+  /** HM: Reposition hover tooltip if it overlaps DOM panels (legend, stats, minimap, node-info). */
+  private _adjustTooltipForOverlap(pn: PixiNode, hl: any, counterScale: number, gfxScale: number) {
+    const world = this.worldContainer;
+    if (!world) return;
+    const canvas = this.containerEl as HTMLElement | null;
+    if (!canvas) return;
+    const canvasRect = canvas.getBoundingClientRect();
+    if (!canvasRect || canvasRect.width === 0) return;
+
+    // Compute tooltip screen position
+    const ws = world.scale.x;
+    const tipWorldX = pn.data.x + hl.x * (1 / gfxScale);
+    const tipWorldY = pn.data.y + hl.y * (1 / gfxScale);
+    const tipScrX = tipWorldX * ws + world.x;
+    const tipScrY = tipWorldY * ws + world.y;
+    const tipW = (hl.width ?? 100) * counterScale * ws;
+    const tipH = (hl.height ?? 30) * counterScale * ws;
+
+    // Check overlap with DOM panels
+    const panels = [".gi-graph-stats", ".gi-legend", ".gi-minimap-wrap", ".gi-node-info"];
+    let needsFlip = false;
+    for (const sel of panels) {
+      const el = canvas.querySelector(sel) as HTMLElement | null;
+      if (!el || el.style.display === "none" || !el.offsetParent) continue;
+      const r = el.getBoundingClientRect();
+      const px = r.left - canvasRect.left;
+      const py = r.top - canvasRect.top;
+      // AABB overlap check
+      if (tipScrX < px + r.width && tipScrX + tipW > px &&
+          tipScrY < py + r.height && tipScrY + tipH > py) {
+        needsFlip = true;
+        break;
+      }
+    }
+
+    // Also check viewport edge overflow
+    if (tipScrX + tipW > canvasRect.width || tipScrY + tipH > canvasRect.height) {
+      needsFlip = true;
+    }
+
+    if (needsFlip) {
+      // Flip to left side of node
+      const estW = (hl.width ?? 100) * counterScale;
+      hl.x = -(pn.radius + 4 + estW) * gfxScale;
+      // If still overflowing top, push down
+      if (tipScrY < 0) {
+        hl.y = (pn.radius * 0.4 + 2) * gfxScale;
+      }
+    }
   }
 
   /**
