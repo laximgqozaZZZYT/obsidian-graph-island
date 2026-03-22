@@ -522,14 +522,15 @@ export class RenderPipeline {
     this.redrawNodeBatch();
     this.host.drawOrbitRings();
 
-    // HR: Re-evaluate label LOD + overlap when zoom changes significantly
-    // Uses updateLabelsForZoom which runs full pipeline: applyTextFade → cullOverlappingLabels
+    // HR: Re-evaluate label LOD + overlap when zoom changes significantly.
+    // InteractionManager already debounces updateLabelsForZoom on wheel zoom;
+    // this path catches zoom changes from simulation ticks (node position drift).
     const curScale = this.host.getWorldScale();
     const zoomRatio = curScale > 0 ? Math.abs(curScale - this._prevWorldScale) / curScale : 0;
     this._labelCullCooldown--;
     if (forceFullRedraw || (zoomRatio > 0.05 && this._labelCullCooldown <= 0)) {
       this._prevWorldScale = curScale;
-      this._labelCullCooldown = 4; // §0.4: reduced from 8→4 for faster zoom response
+      this._labelCullCooldown = 6; // Raised from 4: InteractionManager handles zoom-triggered cull
       this.host.updateLabelsForZoom?.();
     }
 

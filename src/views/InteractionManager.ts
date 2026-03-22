@@ -90,6 +90,8 @@ export interface InteractionHost {
   onZoomLayoutUpdate?(zoom: number): void;
   /** Update label visibility for semantic zoom */
   updateLabelsForZoom?(): void;
+  /** Lightweight LOD fade — updates label alpha/visible without expensive cull */
+  applyTextFade?(): void;
   /** Update the on-screen zoom percentage indicator */
   updateZoomIndicator?(scale: number): void;
   /** 比較選択にノードを追加 (最大2件、FIFO) */
@@ -223,6 +225,8 @@ export class InteractionManager {
 
   // Debounced zoom layout recalculation
   private _zoomLayoutTimer = 0;
+  // Debounced label cull (expensive overlap detection) during rapid zoom
+  private _zoomCullTimer = 0;
 
   // Hover preview: track last hovered node to avoid redundant hover-link events
   private lastHoveredId: string | null = null;
@@ -264,6 +268,7 @@ export class InteractionManager {
   /** Remove all event listeners and clean up PIXI resources */
   detach() {
     clearTimeout(this._zoomLayoutTimer);
+    clearTimeout(this._zoomCullTimer);
     this.canvas.removeEventListener("wheel", this._onWheel);
     this.canvas.removeEventListener("pointerdown", this._onPointerDown);
     this.canvas.removeEventListener("pointermove", this._onPointerMove);
@@ -310,8 +315,13 @@ export class InteractionManager {
     world.y += my - newScreenPos.y;
 
     this.host.markDirty();
-    // Update label visibility for semantic zoom
-    this.host.updateLabelsForZoom?.();
+    // Lightweight LOD fade — immediate response (O(n), fast)
+    this.host.applyTextFade?.();
+    // Expensive overlap cull — debounced to fire once after rapid zoom ends
+    clearTimeout(this._zoomCullTimer);
+    this._zoomCullTimer = window.setTimeout(() => {
+      this.host.updateLabelsForZoom?.();
+    }, 50) as unknown as number;
     // Update zoom percentage indicator
     this.host.updateZoomIndicator?.(s);
     // Debounced layout recalculation for zoom-correlated node sizes
