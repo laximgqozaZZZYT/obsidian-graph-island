@@ -1,5 +1,5 @@
 import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings, OntologyRule, OntologyRelation, CoordinateLayout, CoordinateSystem, AxisSource, AxisConfig, AxisTransform, CurveKind, ClusterGravityConfig, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, EdgeCardinalityMode, CardinalityRule, CardRenderConfig, CardinalityRenderConfig, RenderThresholds } from "../types";
-import { DEFAULT_CARD_RENDER_CONFIG, DEFAULT_CARDINALITY_RENDER_CONFIG, DEFAULT_RENDER_THRESHOLDS, mergeRenderThresholds } from "../types";
+import { DEFAULT_CARD_RENDER_CONFIG, DEFAULT_CARDINALITY_RENDER_CONFIG, mergeRenderThresholds } from "../types";
 import { ontologyToRules, rulesToOntologyFields } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { repositionShell } from "../layouts/concentric";

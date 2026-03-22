@@ -139,6 +139,12 @@ export interface EdgeDrawConfig {
   /** Minimum alpha floor for edges at extreme zoom-out (default 0.1).
    *  Thickness floor = 3×this, breadcrumb floor = 2×this. */
   edgeFadeMinAlpha?: number;
+  /** Alpha boost for bidirectional edges (default 0.2). */
+  edgeBidirectionalBoost?: number;
+  /** Alpha reduction for unidirectional edges when indicator is active (default 0.15). */
+  edgeUnidirectionalDim?: number;
+  /** Alpha boost for inheritance/hierarchy edges (default 0.3). */
+  edgeHierarchyBoost?: number;
 }
 
 // Minimal position data needed for source/target
@@ -3172,16 +3178,16 @@ function _drawEdgesSinglePass(
       const isBidir = cfg._bidirectionalSet.has(`${e.source}→${e.target}`);
       if (isBidir) {
         lineThick *= 1.5;
-        alpha = Math.min(1.0, alpha + 0.2);
+        alpha = Math.min(1.0, alpha + (cfg.edgeBidirectionalBoost ?? 0.2));
       } else {
-        alpha = Math.max(0.05, alpha - 0.15);
+        alpha = Math.max(0.05, alpha - (cfg.edgeUnidirectionalDim ?? 0.15));
       }
     }
 
     // S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
     if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {
       lineThick *= 2.5;
-      alpha = Math.min(1.0, alpha + 0.3);
+      alpha = Math.min(1.0, alpha + (cfg.edgeHierarchyBoost ?? 0.3));
     }
 
     g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
@@ -3285,16 +3291,16 @@ function _drawEdgesLayered(
         const isBidir = cfg._bidirectionalSet.has(`${e.source}→${e.target}`);
         if (isBidir) {
           lineThick *= 1.5;
-          alpha = Math.min(1.0, alpha + 0.2);
+          alpha = Math.min(1.0, alpha + (cfg.edgeBidirectionalBoost ?? 0.2));
         } else {
-          alpha = Math.max(0.05, alpha - 0.15);
+          alpha = Math.max(0.05, alpha - (cfg.edgeUnidirectionalDim ?? 0.15));
         }
       }
 
       // S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
       if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {
         lineThick *= 2.5;
-        alpha = Math.min(1.0, alpha + 0.3);
+        alpha = Math.min(1.0, alpha + (cfg.edgeHierarchyBoost ?? 0.3));
       }
 
       // レイヤーごとに alpha と width を微調整

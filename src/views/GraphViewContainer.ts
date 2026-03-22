@@ -3,7 +3,7 @@ import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
 import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, GraphSnapshot, GraphTemplate } from "../types";
-import { DEFAULT_COLORS, DEFAULT_RENDER_THRESHOLDS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
+import { DEFAULT_COLORS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
 import { evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
 import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
@@ -4261,6 +4261,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.edgeDensityFloor = edgeRt.edgeDensityFloor;
     cfg.highlightEdgeAlpha = edgeRt.highlightEdgeAlpha;
     cfg.highlightEdgeNonMatchAlpha = edgeRt.highlightEdgeNonMatchAlpha;
+    cfg.edgeBidirectionalBoost = edgeRt.edgeBidirectionalBoost;
+    cfg.edgeUnidirectionalDim = edgeRt.edgeUnidirectionalDim;
+    cfg.edgeHierarchyBoost = edgeRt.edgeHierarchyBoost;
     cfg.isDark = this.isDarkTheme();
     cfg.highContrast = this.panel.highContrastMode;
     cfg.showEdgeLabels = this.panel.showEdgeLabels;
@@ -6256,6 +6259,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const complexity = logN * (stats.density * 1000) * stats.avgDegree * Math.sqrt(stats.componentCount);
       const score = Math.min(100, Math.round(complexity * 10) / 10);
       addRow(t("stats.complexity") ?? "Complexity", String(score));
+    }
+
+    // JM: Label visibility stats in stats panel
+    {
+      const cullStats = this.getLabelCullStats();
+      if (cullStats.totalLabels > 0) {
+        addRow("Labels", `${cullStats.visibleLabels}/${cullStats.totalLabels}`);
+        const pct = (cullStats.collisionRate * 100).toFixed(1);
+        addRow("Cull Rate", `${pct}%`);
+      }
+      const margin = this.panel.renderThresholds?.labelOverlapMargin ?? 12;
+      if (margin !== 12) addRow("Margin", `${margin}px`);
     }
 
     if (stats.hubs.length > 0) {

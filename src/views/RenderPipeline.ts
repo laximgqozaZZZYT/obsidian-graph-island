@@ -1,6 +1,6 @@
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { GraphNode, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, CardRenderConfig, RenderThresholds } from "../types";
-import { DEFAULT_CARD_RENDER_CONFIG, DEFAULT_RENDER_THRESHOLDS, mergeRenderThresholds } from "../types";
+import { DEFAULT_CARD_RENDER_CONFIG, mergeRenderThresholds } from "../types";
 import type { PixiNode } from "./InteractionManager";
 import { getNodeShape, drawShape, drawShapeAt, getNodeDisplayConfig } from "../utils/node-shapes";
 import type { ShapeRule } from "../utils/node-shapes";

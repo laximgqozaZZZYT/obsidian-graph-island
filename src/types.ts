@@ -1268,6 +1268,12 @@ export interface RenderThresholds {
   /** Minimum alpha floor for edges at extreme zoom-out (default 0.1).
    *  Thickness floor = 3×this, breadcrumb floor = 2×this. */
   edgeFadeMinAlpha?: number;
+  /** Alpha boost for bidirectional edges (default 0.2). */
+  edgeBidirectionalBoost?: number;
+  /** Alpha reduction for unidirectional edges when indicator is active (default 0.15). */
+  edgeUnidirectionalDim?: number;
+  /** Alpha boost for inheritance/hierarchy edges (default 0.3). */
+  edgeHierarchyBoost?: number;
   /** Minimum zoom level to show roads (default 0 = always visible). Set >0 to hide at extreme zoom-out. */
   roadMinZoom?: number;
   /** Minimum road width in screen pixels (default 1). Roads scale up at low zoom to stay visible. */
@@ -1589,6 +1595,9 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   edgeLabelZoomHide: 0.15,
   edgeLabelZoomFade: 0.3,
   edgeFadeMinAlpha: 0.1,
+  edgeBidirectionalBoost: 0.2,
+  edgeUnidirectionalDim: 0.15,
+  edgeHierarchyBoost: 0.3,
 
   // Road network
   showRoadNetwork: true,
