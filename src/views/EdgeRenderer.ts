@@ -145,6 +145,10 @@ export interface EdgeDrawConfig {
   edgeUnidirectionalDim?: number;
   /** Alpha boost for inheritance/hierarchy edges (default 0.3). */
   edgeHierarchyBoost?: number;
+  /** Thickness multiplier for bidirectional edges (default 1.5). */
+  edgeBidirectionalThickFactor?: number;
+  /** Thickness multiplier for inheritance/hierarchy edges (default 2.5). */
+  edgeHierarchyThickFactor?: number;
 }
 
 // Minimal position data needed for source/target
@@ -3177,7 +3181,7 @@ function _drawEdgesSinglePass(
     if (cfg.showBidirectionalIndicator && cfg._bidirectionalSet) {
       const isBidir = cfg._bidirectionalSet.has(`${e.source}→${e.target}`);
       if (isBidir) {
-        lineThick *= 1.5;
+        lineThick *= (cfg.edgeBidirectionalThickFactor ?? 1.5);
         alpha = Math.min(1.0, alpha + (cfg.edgeBidirectionalBoost ?? 0.2));
       } else {
         alpha = Math.max(0.05, alpha - (cfg.edgeUnidirectionalDim ?? 0.15));
@@ -3186,7 +3190,7 @@ function _drawEdgesSinglePass(
 
     // S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
     if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {
-      lineThick *= 2.5;
+      lineThick *= (cfg.edgeHierarchyThickFactor ?? 2.5);
       alpha = Math.min(1.0, alpha + (cfg.edgeHierarchyBoost ?? 0.3));
     }
 
@@ -3290,7 +3294,7 @@ function _drawEdgesLayered(
       if (cfg.showBidirectionalIndicator && cfg._bidirectionalSet) {
         const isBidir = cfg._bidirectionalSet.has(`${e.source}→${e.target}`);
         if (isBidir) {
-          lineThick *= 1.5;
+          lineThick *= (cfg.edgeBidirectionalThickFactor ?? 1.5);
           alpha = Math.min(1.0, alpha + (cfg.edgeBidirectionalBoost ?? 0.2));
         } else {
           alpha = Math.max(0.05, alpha - (cfg.edgeUnidirectionalDim ?? 0.15));
@@ -3299,7 +3303,7 @@ function _drawEdgesLayered(
 
       // S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
       if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {
-        lineThick *= 2.5;
+        lineThick *= (cfg.edgeHierarchyThickFactor ?? 2.5);
         alpha = Math.min(1.0, alpha + (cfg.edgeHierarchyBoost ?? 0.3));
       }
 

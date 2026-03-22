@@ -3420,6 +3420,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return { total: rects.length, collisions, rate: rects.length > 0 ? collisions / rects.length : 0 };
   }
 
+  /** JO: §0.1 Unified label quality score (0-100).
+   *  Combines collision rate, visibility, and degree-priority adherence. */
+  getLabelQualityScore(): { score: number; collision: number; visibility: number; priority: number } {
+    const coll = this.getVisibleLabelCollisions();
+    const cullStats = this.getLabelCullStats();
+    const collisionScore = Math.max(0, 40 * (1 - coll.rate / 0.10));
+    const visRate = cullStats.totalLabels > 0 ? cullStats.visibleLabels / cullStats.totalLabels : 1;
+    const visibilityScore = visRate * 30;
+    let priorityScore = 30;
+    if (this.degrees.size > 0 && this.pixiNodes.size > 20) {
+      const sorted = [...this.pixiNodes.values()].sort((a, b) =>
+        (this.degrees.get(b.data.id) ?? 0) - (this.degrees.get(a.data.id) ?? 0));
+      const top10pct = sorted.slice(0, Math.max(5, Math.ceil(sorted.length * 0.1)));
+      const topVisible = top10pct.filter(pn => pn.label?.visible).length;
+      priorityScore = (topVisible / top10pct.length) * 30;
+    }
+    const score = Math.round(Math.min(100, collisionScore + visibilityScore + priorityScore));
+    return { score, collision: Math.round(collisionScore), visibility: Math.round(visibilityScore), priority: Math.round(priorityScore) };
+  }
+
   /** JI: §0.1 Auto-optimize label overlap margin if collision rate > 5%.
    *  Increases labelOverlapMargin by 4px per retry, max 3 retries. */
   autoOptimizeLabelOverlap(): { optimized: boolean; finalMargin: number; finalRate: number } {
@@ -4264,6 +4284,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.edgeBidirectionalBoost = edgeRt.edgeBidirectionalBoost;
     cfg.edgeUnidirectionalDim = edgeRt.edgeUnidirectionalDim;
     cfg.edgeHierarchyBoost = edgeRt.edgeHierarchyBoost;
+    cfg.edgeBidirectionalThickFactor = edgeRt.edgeBidirectionalThickFactor;
+    cfg.edgeHierarchyThickFactor = edgeRt.edgeHierarchyThickFactor;
     cfg.isDark = this.isDarkTheme();
     cfg.highContrast = this.panel.highContrastMode;
     cfg.showEdgeLabels = this.panel.showEdgeLabels;
