@@ -251,6 +251,8 @@ export interface RenderHost {
   getWorldScale(): number;
   /** HR: Re-evaluate labels after zoom change (LOD + cull) */
   updateLabelsForZoom?(): void;
+  /** IK: High contrast mode active */
+  isHighContrastMode?(): boolean;
   /** Get the batch graphics layer for non-highlighted node circles */
   getNodeCircleBatch(): CanvasGraphics | null;
   /** Get the degrees map */
@@ -1064,9 +1066,12 @@ export class RenderPipeline {
     const zoomNodeBoost = worldScale < 0.5 ? 1 + (0.5 - worldScale) * 0.5 : 1; // up to 1.25x at zoom=0
 
     // Density-aware stroke: thicken stroke at zoom-out so overlapping nodes remain distinguishable
-    const baseStrokeW = worldScale < 0.3
+    // IK: High contrast mode doubles base stroke for better visibility
+    const hc = this.host.isHighContrastMode?.() ?? false;
+    const hcMul = hc ? 2 : 1;
+    const baseStrokeW = (worldScale < 0.3
       ? Math.min(2 / worldScale, 6)   // up to 6 world-px (≈1.8 screen-px at zoom 0.3)
-      : worldScale < 0.7 ? 1.5 : 1;
+      : worldScale < 0.7 ? 1.5 : 1) * hcMul;
 
     for (const pn of visible) {
       const shape = getNodeShape(pn.data, shapeRules);

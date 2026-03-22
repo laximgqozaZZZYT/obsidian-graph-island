@@ -2359,6 +2359,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
   getTextFadeThreshold(): number { return this.panel.textFadeThreshold; }
   getWorldScale(): number { return this.worldContainer?.scale.x ?? 1; }
+  isHighContrastMode(): boolean { return this.panel.highContrastMode; }
   getRenderPipeline(): RenderPipeline | null { return this.renderPipeline; }
   getSunburstLabels(): Map<string, CanvasText> { return this.sunburstLabels; }
   getClusterSunburstLabels(): Map<string, CanvasText> { return this.clusterSunburstLabels; }
@@ -4312,6 +4313,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       groupLabelHullOffset: rt.groupLabelHullOffset,
       groupLabelBgAlpha: rt.groupLabelBgAlpha,
       enclosureOutlierFactor: rt.enclosureOutlierFactor,
+      highContrast: this.panel.highContrastMode,
       clusterLabelDetail: this.panel.clusterLabelDetail,
       getClusterSummary: (tag, count) => {
         // S3: Rich cluster summary — count + top 3 tags of members

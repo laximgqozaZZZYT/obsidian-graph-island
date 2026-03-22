@@ -18,6 +18,8 @@ export interface EnclosureConfig {
   resolvePos: (id: string) => (Pt & { radius?: number }) | undefined;
   /** Current world scale (zoom level). Used to adapt rendering style. */
   worldScale: number;
+  /** IK: High contrast mode — thicker borders for enclosures */
+  highContrast?: boolean;
   /** Total number of nodes in the graph. Used with enclosureMinRatio. */
   totalNodeCount: number;
   /** Minimum fraction (0–1) of totalNodeCount a group must have to show an enclosure. */
@@ -282,7 +284,9 @@ export function drawEnclosures(
     const baseLineAlpha = overlaps === 0 ? STROKE_ALPHA_NO_OVERLAP : Math.max(STROKE_ALPHA_OVERLAP_MIN, STROKE_ALPHA_OVERLAP_BASE / (1 + overlaps * 0.1));
     // GC: Allow override of enclosure stroke width
     const strokeOverride = cfg.enclosureStrokeWidth ?? 0;
-    const lineWidth = strokeOverride > 0 ? strokeOverride : (overlaps === 0 ? STROKE_WIDTH_NO_OVERLAP : Math.max(STROKE_WIDTH_OVERLAP_MIN, STROKE_WIDTH_OVERLAP_BASE - overlaps * 0.3));
+    // IK: High contrast mode triples enclosure border width for visibility
+    const hcMul = cfg.highContrast ? 3 : 1;
+    const lineWidth = (strokeOverride > 0 ? strokeOverride : (overlaps === 0 ? STROKE_WIDTH_NO_OVERLAP : Math.max(STROKE_WIDTH_OVERLAP_MIN, STROKE_WIDTH_OVERLAP_BASE - overlaps * 0.3))) * hcMul;
 
     // --- Fill style (zoomed-out: light tint; large groups get lighter to avoid obscuring nodes) ---
     const memberCount = pts.length;
