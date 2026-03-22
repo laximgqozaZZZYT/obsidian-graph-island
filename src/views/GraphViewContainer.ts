@@ -4193,6 +4193,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.showArrows = this.panel.showArrows;
     cfg.nodeRadii = (this.panel.showArrows || this.panel.edgeCardinalityMode !== "none") ? this.getCachedNodeRadii() : null;
     cfg.worldScale = this.worldContainer?.scale?.x ?? 1;
+    cfg.edgeMinZoom = edgeRt.edgeMinZoom ?? 0;
     cfg.edgeCardinalityMode = this.panel.edgeCardinalityMode;
     cfg.cardinalityRules = this.panel.cardinalityRules;
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;

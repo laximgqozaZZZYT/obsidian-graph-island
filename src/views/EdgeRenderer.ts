@@ -126,6 +126,8 @@ export interface EdgeDrawConfig {
   edgeStrengthGlowMax?: number;
   /** V2: Scale edge width by average endpoint degree (0 = off) */
   degreeEdgeWidth?: number;
+  /** Minimum zoom level to draw edges (default 0). Below this, edges are hidden for performance. */
+  edgeMinZoom?: number;
 }
 
 // Minimal position data needed for source/target
@@ -3065,7 +3067,8 @@ export function drawEdges(
   // Use visibility toggle instead of clear() to preserve draw commands
   // for instant recovery when zooming back in.
   const ws = cfg.worldScale ?? 1;
-  if (ws < 0.04) {
+  const edgeMinZoom = cfg.edgeMinZoom ?? 0;
+  if (edgeMinZoom > 0 && ws < edgeMinZoom) {
     g.visible = false;
     if (arrowGfx) arrowGfx.visible = false;
     return;

@@ -1252,6 +1252,8 @@ export interface RenderThresholds {
   roadAlpha?: number;
   /** Road color override — if not set, uses theme-aware default */
   roadColor?: number;
+  /** Minimum zoom level to draw edges (default 0 = always draw). Set >0 to skip at extreme zoom-out. */
+  edgeMinZoom?: number;
   /** Minimum zoom level to show roads (default 0 = always visible). Set >0 to hide at extreme zoom-out. */
   roadMinZoom?: number;
   /** Minimum road width in screen pixels (default 1). Roads scale up at low zoom to stay visible. */
@@ -1565,6 +1567,9 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   superNodeFontSize: 13,
   superNodeLabelBgAlpha: 0.9,
   labelForceShowMaxRadii: 5,
+
+  // Edge visibility
+  edgeMinZoom: 0,
 
   // Road network
   showRoadNetwork: true,

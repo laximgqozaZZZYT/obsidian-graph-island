@@ -1704,6 +1704,12 @@ function _buildEdgeDisplaySection(
       panel.renderThresholds.globalEdgeAlpha = v;
       cb.markDirty();
     });
+    addSlider(body, t("display.edgeMinZoom") ?? "Edge Min Zoom", 0, 0.1, 0.005, rtEdge.edgeMinZoom ?? 0, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.edgeMinZoom = v;
+      cb.markDirty();
+      cb.announceA11y?.(`${t("display.edgeMinZoom") ?? "Edge Min Zoom"}: ${v.toFixed(3)}`);
+    }, t("desc.edgeMinZoom"));
     // GW: Edge label font size
     addSlider(body, t("display.edgeLabelFontSize") ?? "Edge Label Size", 6, 18, 1, rtEdge.edgeLabelFontSize ?? 10, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
