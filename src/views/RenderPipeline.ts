@@ -573,7 +573,9 @@ export class RenderPipeline {
         const segments = KB_FOCUS_SEGMENTS;
         const gap = KB_FOCUS_GAP_FRACTION;
         // A11y: ensure focus ring visible at any zoom (min 2px screen-space width)
-        const focusLineW = Math.max(KB_FOCUS_LINE_WIDTH, 2 / worldScale);
+        // JH: high contrast mode doubles focus ring width for §0.3 compliance
+        const hcFocus = this.host.isHighContrastMode?.() ? 2 : 1;
+        const focusLineW = Math.max(KB_FOCUS_LINE_WIDTH * hcFocus, 2 / worldScale);
         const focusColor = this.host.isDarkTheme() ? 0x00ccff : 0x0066cc; // high-contrast cyan/blue
         pn.circle.lineStyle(focusLineW, focusColor, KB_FOCUS_LINE_ALPHA);
         for (let i = 0; i < segments; i++) {

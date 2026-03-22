@@ -3,7 +3,7 @@ import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
 import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, GraphSnapshot, GraphTemplate } from "../types";
-import { DEFAULT_COLORS, DEFAULT_RENDER_THRESHOLDS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY } from "../types";
+import { DEFAULT_COLORS, DEFAULT_RENDER_THRESHOLDS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
 import { evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
 import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
@@ -2454,13 +2454,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Pre-compute all configuration values needed for hit testing. */
   private _prepareHitTestConfig() {
-    const rt = this.panel.renderThresholds ?? {};
-    const minScreenPx = rt.minHoverScreenPx ?? DEFAULT_RENDER_THRESHOLDS.minHoverScreenPx;
+    const rt = mergeRenderThresholds(this.panel.renderThresholds);
+    const minScreenPx = rt.minHoverScreenPx;
     const zoom = this.worldContainer?.scale?.x ?? 1;
     const minWorldRadius = Math.max(0, MIN_WORLD_RADIUS_PX / zoom);
-    const pad = rt.collisionPadding ?? DEFAULT_RENDER_THRESHOLDS.collisionPadding;
+    const pad = rt.collisionPadding;
     const displayMode = this.panel.nodeDisplayMode ?? "node";
-    const glowRadius = rt.glowBaseRadius ?? 2.2;
+    const glowRadius = rt.glowBaseRadius;
     const hitScreenPx = Math.max(MIN_WORLD_RADIUS_PX * glowRadius, minScreenPx);
     const hitWorldR = hitScreenPx / zoom + pad;
 
@@ -3384,6 +3384,37 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return rp.cullStats;
   }
 
+  /** JG: §0.1 Pairwise label collision detection for quality verification.
+   *  Returns { total, collisions, rate } based on actual visible label AABBs. */
+  getVisibleLabelCollisions(): { total: number; collisions: number; rate: number } {
+    const world = this.worldContainer;
+    if (!world) return { total: 0, collisions: 0, rate: 0 };
+    const ws = world.scale.x;
+    const rects: { x: number; y: number; w: number; h: number }[] = [];
+    for (const pn of this.pixiNodes.values()) {
+      const label = pn.label;
+      if (!label || !label.visible || !label.text) continue;
+      const sx = (pn.data.x + (label.x ?? 0)) * ws + world.x;
+      const sy = (pn.data.y + (label.y ?? 0)) * ws + world.y;
+      const fontSize = (label.style?.fontSize as number) ?? 11;
+      const charW = fontSize * 0.6 * label.scale.x * ws;
+      const w = (label.text.length ?? 5) * charW;
+      const h = fontSize * label.scale.x * ws * 1.3;
+      rects.push({ x: sx, y: sy, w, h });
+    }
+    let collisions = 0;
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i], b = rects[j];
+        if (a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y) {
+          collisions++;
+          break;
+        }
+      }
+    }
+    return { total: rects.length, collisions, rate: rects.length > 0 ? collisions / rects.length : 0 };
+  }
+
   /** BFS shortest path using adj map */
   private computePathfinderPath() {
     this.pathfinderPath = null;
@@ -3647,8 +3678,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Create and attach a hover tooltip label to the given PixiNode. */
   private _createHoverTooltip(pn: PixiNode) {
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-    const showTooltip = rt.hoverTooltipShow ?? true;
+    const rt = mergeRenderThresholds(this.panel.renderThresholds);
+    const showTooltip = rt.hoverTooltipShow;
     const zoom = this.worldContainer?.scale.x ?? 1;
 
     // IE: Checklist-based hover content control
@@ -3767,18 +3798,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Counter-scale: keep label readable regardless of zoom level
     const counterScale = Math.max(0.5, 1 / zoom);
-    const tooltipFontSize = rt.hoverTooltipFontSize ?? 16;
+    const tooltipFontSize = rt.hoverTooltipFontSize;
     const hl = new CanvasText(tooltipText, {
       fontSize: tooltipFontSize,
       fill: this.getLabelColor(),
       fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
       fontWeight: "600",
     });
-    hl.bgColor = rt.labelBgColor ?? 0x1a1a2e;
+    hl.bgColor = rt.labelBgColor;
     hl.bgAlpha = 0.92;
     hl.bgPadX = 8;
     hl.bgPadY = 4;
-    hl.cornerRadius = rt.labelHaloCornerRadius ?? null;
+    hl.cornerRadius = rt.labelHaloCornerRadius;
     hl.scale.set(counterScale);
 
     // Position: right of node (account for card-mode scale-up)
@@ -3954,10 +3985,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Refresh label background colors for new theme
     if (this.pixiNodes.size > 0) {
-      const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+      const rt = mergeRenderThresholds(this.panel.renderThresholds);
       const isDark = this.isDarkTheme();
-      const themeBg = isDark ? (rt.labelBgColor ?? 0x1a1a2e) : (rt.labelBgColorLight ?? 0xf0f0f4);
-      const syncBg = rt.labelBgColorSync ?? false;
+      const themeBg = isDark ? (rt.labelBgColor) : (rt.labelBgColorLight);
+      const syncBg = rt.labelBgColorSync;
       for (const pn of this.pixiNodes.values()) {
         if (pn.label && pn.label.bgColor != null) {
           pn.label.bgColor = syncBg && pn.color != null
@@ -4181,7 +4212,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cableSpacing = this.panel.cableSpacing;
     cfg.cableFanWidth = this.panel.cableFanWidth;
     cfg.cableFanAlpha = this.panel.cableFanAlpha;
-    const edgeRt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const edgeRt = mergeRenderThresholds(this.panel.renderThresholds);
     cfg.edgeDensityFloor = edgeRt.edgeDensityFloor;
     cfg.highlightEdgeAlpha = edgeRt.highlightEdgeAlpha;
     cfg.highlightEdgeNonMatchAlpha = edgeRt.highlightEdgeNonMatchAlpha;
@@ -4208,7 +4239,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.edgeDirectionFilter = this.panel.edgeDirectionFilter ?? "all";
     cfg.showBidirectionalIndicator = this.panel.showBidirectionalIndicator ?? false;
     cfg.showOntologyBackbone = this.panel.showOntologyBackbone ?? false;
-    const rt2 = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const rt2 = mergeRenderThresholds(this.panel.renderThresholds);
     // roadRouteEdges toggle: when off, suppress road network so edges draw straight
     cfg.roadNetwork = (rt2.roadRouteEdges !== false) ? this.getRoadNetwork() : null;
     cfg.clusterArrangement = this.panel.clusterArrangement;
@@ -4311,7 +4342,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!this.enclosureGraphics) return;
     // Ring chart mode: hide enclosures
     if (this.isRingChartMode()) { this.enclosureGraphics.clear(); return; }
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const rt = mergeRenderThresholds(this.panel.renderThresholds);
     const cfg: EnclosureConfig = {
       tagDisplay: this.panel.tagDisplay,
       tagMembership: this.tagMembership,
@@ -4392,10 +4423,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const sunburstArcs = (this.clusterMeta as any)?.sunburstArcs;
     if (!sunburstArcs || sunburstArcs.length === 0) return;
 
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-    const depthLighten = rt.sunburstDepthLighten ?? 0.18;
-    const borderWidth = rt.sunburstBorderWidth ?? 1.0;
-    const borderAlpha = rt.sunburstBorderAlpha ?? 0.3;
+    const rt = mergeRenderThresholds(this.panel.renderThresholds);
+    const depthLighten = rt.sunburstDepthLighten;
+    const borderWidth = rt.sunburstBorderWidth;
+    const borderAlpha = rt.sunburstBorderAlpha;
 
     // Build root-level group → color index map
     // depth=0 arcs are root level; deeper arcs inherit via parentKey
@@ -4509,7 +4540,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     this.clusterSunburstLabels.clear();
 
-    const rtSb = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+    const rtSb = mergeRenderThresholds(this.panel.renderThresholds);
     const worldScale = this.worldContainer?.scale.x ?? 1;
     const sbFontBase = rtSb.groupLabelFontSize ?? 12;
     const sbFontMin = rtSb.groupLabelScaleMin ?? 0.6;
@@ -4632,7 +4663,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const worldScale = this.worldContainer?.scale.x ?? 1;
     const lineW = Math.max(0.5, 1.0 / worldScale);
 
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const rt = mergeRenderThresholds(this.panel.renderThresholds);
     const fillAlpha = rt.timelineBarFillAlpha;
     const strokeAlpha = rt.timelineBarStrokeAlpha;
     const hoverAlpha = rt.timelineBarHoverAlpha;
@@ -4850,14 +4881,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const g = this.trayGraphics;
     if (!g) return;
 
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+    const rt = mergeRenderThresholds(this.panel.renderThresholds);
     const worldScale = this.worldContainer?.scale.x ?? 1;
-    const roadMinZoom = rt.roadMinZoom ?? 0;
+    const roadMinZoom = rt.roadMinZoom;
 
     // LOD: toggle visibility without clearing draw commands.
     // Roads are expensive to redraw (~120K cmds), so we keep them cached
     // and only toggle g.visible for zoom-based LOD.
-    if (!(rt.showRoadNetwork ?? true) || worldScale < roadMinZoom) {
+    if (!(rt.showRoadNetwork) || worldScale < roadMinZoom) {
       g.visible = false;
       return;
     }
@@ -4867,10 +4898,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // We must redraw when zoom changes significantly because lineStyle
     // width is baked into the draw commands.
     const isDark = this.isDarkTheme();
-    const roadColor = rt.roadColor ?? (isDark ? 0x555577 : 0xaaaacc);
-    const baseRoadWidth = rt.roadWidth ?? 4;
+    const roadColor = rt.roadColor;
+    const baseRoadWidth = rt.roadWidth;
     // Minimum 1px on screen → minWorldWidth = 1/worldScale
-    const minScreenPx = rt.roadMinScreenWidth ?? 1;
+    const minScreenPx = rt.roadMinScreenWidth;
     const effectiveWidth = Math.max(baseRoadWidth, minScreenPx / worldScale);
 
     // Skip redraw if road commands are up-to-date AND zoom hasn't changed
@@ -4886,7 +4917,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const network = rb.trayData;
     if (!network || network.intersections.length === 0) return;
 
-    const baseAlpha = rt.roadAlpha ?? 0.12;
+    const baseAlpha = rt.roadAlpha;
 
     g.setLineCap("round");
     g.setLineJoin("round");
@@ -5063,8 +5094,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
    * Called after layout computation, before autoFitView/rendering.
    */
   private ensureViewportUtilization(vpW: number, vpH: number): void {
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-    const minUtil = rt.minViewportUtilization ?? 0.12;
+    const rt = mergeRenderThresholds(this.panel.renderThresholds);
+    const minUtil = rt.minViewportUtilization;
     if (minUtil <= 0 || this.pixiNodes.size < 2) return;
 
     const bbox = this._computeNodeBBox();
@@ -5191,7 +5222,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (this.panel.presetZoomLevel > 0) return;
 
     const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const rt = mergeRenderThresholds(this.panel.renderThresholds);
     const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
 
     // Pass 1: compute bounding box from node positions only (no card size)
@@ -5204,7 +5235,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (pn.data.y + r > maxY) maxY = pn.data.y + r;
     }
 
-    const padding = isCardMode ? rt.autoFitCardPadding * 2 : (rt.autoFitBasePadding ?? 40);
+    const padding = isCardMode ? rt.autoFitCardPadding * 2 : (rt.autoFitBasePadding);
 
     if (isCardMode) {
       // Two-pass auto-fit for card mode:
@@ -5384,10 +5415,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       for (const pn of this.pixiNodes.values()) {
         if (pn.label?.visible && pn.label.alpha >= 0.1) vis++;
       }
-      const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-      const override = rt.labelModeOverride ?? "auto";
-      const initialsZ = rt.labelInitialsZoom ?? 0.2;
-      const truncateZ = rt.labelTruncateZoom ?? 0.35;
+      const rt = mergeRenderThresholds(this.panel.renderThresholds);
+      const override = rt.labelModeOverride;
+      const initialsZ = rt.labelInitialsZoom;
+      const truncateZ = rt.labelTruncateZoom;
       const modeChar = override !== "auto"
         ? (override === "initials" ? "I" : override === "truncated" ? "T" : "F")
         : (s < initialsZ ? "I" : s < truncateZ ? "T" : "F");
@@ -5737,8 +5768,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Execute the auto-optimize action: iterative overlap reduction loop. */
   private _buildAutoOptimizeCallback(): void {
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-    const maxPasses = rt.autoOptMaxPasses ?? 3;
+    const rt = mergeRenderThresholds(this.panel.renderThresholds);
+    const maxPasses = rt.autoOptMaxPasses;
     const nodes: { id: string; x: number; y: number }[] = [];
     const radii = new Map<string, number>();
     for (const [id, pn] of this.pixiNodes) {
@@ -5747,16 +5778,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     const runPass = (pass: number) => {
       if (pass >= maxPasses) { this.buildPanel(); this.requestSave(); return; }
-      const result = analyzeOverlap(nodes, radii, rt.autoOptCloseThreshold ?? 3.0);
+      const result = analyzeOverlap(nodes, radii, rt.autoOptCloseThreshold);
       const constants = this.panel.coordinateLayout?.constants ?? {};
       const opt = computeAutoOptimize(
         result.overlapRatio, result.avgRadius, constants,
         this.panel.repelForce, this.panel.linkDistance,
-        { overlapThreshold: rt.autoOptOverlapThreshold ?? 0.15,
-          padIncrement: rt.autoOptPadIncrement ?? 0.2,
-          padMax: rt.autoOptPadMax ?? 3.0,
-          repelScale: rt.autoOptRepelScale ?? 1.3,
-          linkScale: rt.autoOptLinkScale ?? 1.2 });
+        { overlapThreshold: rt.autoOptOverlapThreshold,
+          padIncrement: rt.autoOptPadIncrement,
+          padMax: rt.autoOptPadMax,
+          repelScale: rt.autoOptRepelScale,
+          linkScale: rt.autoOptLinkScale });
       if (!opt.needsMore) { this.buildPanel(); this.requestSave(); return; }
       if (this.panel.coordinateLayout) {
         this.panel.coordinateLayout.constants = { ...constants, ...opt.constants };
@@ -7081,9 +7112,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _buildNodeRadiusFn(): (n: GraphNode) => number {
     const baseSize = this.panel.nodeSize;
     const degs = this.degrees;
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
+    const rt = mergeRenderThresholds(this.panel.renderThresholds);
     const minR = rt.minNodeRadius;
-    const sizeByDeg = rt.nodeSizeByDegree ?? true;
+    const sizeByDeg = rt.nodeSizeByDegree;
     let maxDeg = 0;
     if (sizeByDeg) {
       for (const d of degs.values()) { if (d > maxDeg) maxDeg = d; }
@@ -8215,9 +8246,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
    *  Adjusts effective node size based on zoom level and recalculates layout. */
   onZoomLayoutUpdate(zoom: number) {
     if (!this.simulation) return;
-    const t = this.panel.renderThresholds ?? {};
-    const zoomAdapt = t.zoomNodeSizeAdapt ?? DEFAULT_RENDER_THRESHOLDS.zoomNodeSizeAdapt;
-    if (!zoomAdapt) return;
+    const t = mergeRenderThresholds(this.panel.renderThresholds);
+    if (!t.zoomNodeSizeAdapt) return;
 
     // Effective node size: counter-scale to maintain consistent screen-space size.
     // At zoom=1 use panel.nodeSize as-is; at zoom<1 enlarge, at zoom>1 shrink.
@@ -8225,7 +8255,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const baseSize = this._zoomBaseNodeSize ?? this.panel.nodeSize;
     const factor = 1 / Math.sqrt(Math.max(0.02, zoom));
     this.panel.nodeSize = Math.max(
-      t.minNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.minNodeRadius,
+      t.minNodeRadius,
       Math.round(baseSize * factor * 10) / 10,
     );
 
@@ -8247,17 +8277,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.panel.nodeSize = 15;
     }
     const ns = this.panel.nodeSize;
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+    const rt = mergeRenderThresholds(this.panel.renderThresholds);
     const maxR = rt.maxNodeRadius > 0 ? rt.maxNodeRadius : Infinity;
     const minR = rt.minNodeRadius;
-    const sizeByDeg = rt.nodeSizeByDegree ?? true;
+    const sizeByDeg = rt.nodeSizeByDegree;
     let maxDeg = 0;
     if (sizeByDeg) {
       for (const d of this.degrees.values()) { if (d > maxDeg) maxDeg = d; }
     }
     // HM: content-proportional sizing (card mode only)
     const isCard = (this.panel.nodeDisplayMode ?? "node") === "card";
-    const cardContentScale = isCard ? (rt.cardContentScale ?? 0) : 0;
+    const cardContentScale = isCard ? (rt.cardContentScale) : 0;
     let maxBodyLength = 0;
     if (cardContentScale > 0) {
       for (const pn of this.pixiNodes.values()) {
@@ -8471,7 +8501,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     this.sunburstLabels.clear();
 
-    const rtSb2 = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+    const rtSb2 = mergeRenderThresholds(this.panel.renderThresholds);
     const worldScale = this.worldContainer?.scale.x ?? 1;
     const sbFontBase2 = rtSb2.groupLabelFontSize ?? 12;
     const sbFontMin2 = rtSb2.groupLabelScaleMin ?? 0.6;
