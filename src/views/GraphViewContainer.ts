@@ -7729,13 +7729,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   applyPresetByKey(preset: string): void {
-    const presets: Record<string, Partial<typeof this.panel>> = {
-      simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: false },
-      analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
-      creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
-      ...THINKING_MODE_PRESETS,
-    };
-    const p = presets[preset];
+    const p = ALL_PRESETS[preset];
     if (p) {
       Object.assign(this.panel, p);
       if (this.panel.localGraphCenter === "__active__") {
