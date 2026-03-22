@@ -30,6 +30,7 @@ const context = await esbuild.context({
   treeShaking: true,
   outfile: "main.js",
   minify: prod,
+  drop: prod ? ["console", "debugger"] : [],
   define: {
     "process.env.PLUGIN_VERSION": JSON.stringify(manifest.version),
   },
