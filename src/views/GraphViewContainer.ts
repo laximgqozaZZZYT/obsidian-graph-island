@@ -3743,6 +3743,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
+    // Guard: skip tooltip if all content is disabled
+    if (!tooltipText.trim()) return;
+
     // Counter-scale: keep label readable regardless of zoom level
     const counterScale = Math.max(0.5, 1 / zoom);
     const tooltipFontSize = rt.hoverTooltipFontSize ?? 16;

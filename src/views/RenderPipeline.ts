@@ -307,7 +307,7 @@ export interface RenderHost {
   /** Get the render thresholds (LOD tuning) */
   getRenderThresholds?(): RenderThresholds;
   /** IE: Get panel state for content visibility flags */
-  getPanel?(): { hoverShowBody?: boolean; hoverShowMeta?: boolean } | null;
+  getPanel?(): { hoverShowBody?: boolean; hoverShowMeta?: boolean; hoverShowTitle?: boolean } | null;
   /** Get current node size */
   getNodeSize?(): number;
   /** Get the adjacency map for zone-based label placement */
@@ -1127,6 +1127,8 @@ export class RenderPipeline {
     const compactPx = rt.semanticZoomCompactPx ?? 6;
     const fullPx = rt.semanticZoomFullPx ?? 15;
     const defField = this.host.getDefinitionField?.() ?? "";
+    // IK: High contrast stroke multiplier for semantic zoom card paths
+    const hcSem = this.host.isHighContrastMode?.() ? 2 : 1;
     const labelColor = this.host.getLabelColor();
 
     for (const pn of visible) {
@@ -1145,7 +1147,7 @@ export class RenderPipeline {
         // Tier 2: circle + label
         const shape = getNodeShape(pn.data, shapeRules);
         const strokeColor = darkenColor(pn.color, crc.strokeDarken);
-        g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
+        g.lineStyle(hcSem, strokeColor, nodeAlpha * crc.strokeAlpha);
         g.beginFill(pn.color, nodeAlpha);
         drawShapeAt(g, shape, pn.data.x, pn.data.y, effR);
         g.endFill();
@@ -1156,7 +1158,7 @@ export class RenderPipeline {
         const halfW = cardW / 2;
         const halfH = cardH / 2;
         const strokeColor = darkenColor(pn.color, crc.strokeDarken);
-        g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
+        g.lineStyle(hcSem, strokeColor, nodeAlpha * crc.strokeAlpha);
         g.beginFill(pn.color, nodeAlpha * 0.3);
         g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, cardW, cardH, 2 / worldScale);
         g.endFill();
@@ -1197,7 +1199,7 @@ export class RenderPipeline {
         const halfW = cardW / 2;
         const halfH = cardH / 2;
         const strokeColor = darkenColor(pn.color, crc.strokeDarken);
-        g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
+        g.lineStyle(hcSem, strokeColor, nodeAlpha * crc.strokeAlpha);
         g.beginFill(pn.color, nodeAlpha * 0.25);
         g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, cardW, cardH, 3 / worldScale);
         g.endFill();
@@ -1377,9 +1379,10 @@ export class RenderPipeline {
         }
       }
 
-      // Outer border
+      // Outer border (IK: high contrast doubles stroke)
+      const hcTable = this.host.isHighContrastMode?.() ? 2 : 1;
       const strokeColor = darkenColor(pn.color, crc.strokeDarken);
-      g.lineStyle(1, strokeColor, nodeAlpha * crc.strokeAlpha);
+      g.lineStyle(hcTable, strokeColor, nodeAlpha * crc.strokeAlpha);
       g.beginFill(0, 0);
       g.drawRoundedRect(cardX, cardY, cardW, totalH, cornerR);
       g.endFill();
@@ -1562,9 +1565,10 @@ export class RenderPipeline {
       const totalH = baseH + bodyExtraH;
       const halfH = totalH / 2;
 
-      // Card background
+      // Card background (IK: high contrast mode doubles stroke width)
+      const hcCard = this.host.isHighContrastMode?.() ? 2 : 1;
       const strokeColor = darkenColor(pn.color, crc.strokeDarken);
-      g.lineStyle(1, strokeColor, nodeAlpha * crc.plainCardStrokeAlpha);
+      g.lineStyle(hcCard, strokeColor, nodeAlpha * crc.plainCardStrokeAlpha);
       g.beginFill(pn.color, nodeAlpha * crc.plainCardFillAlpha);
       g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, halfW * 2, totalH, crc.cardCornerRadius / worldScale);
       g.endFill();
