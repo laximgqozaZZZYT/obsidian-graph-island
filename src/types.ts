@@ -765,7 +765,16 @@ export interface CardinalityRenderConfig {
   circleOffsetFactor0N?: number;
 }
 
-/** Level-of-detail thresholds for performance tuning */
+/**
+ * Rendering configuration — 216 optional fields across 50+ categories.
+ *
+ * Categories: node display, card rendering, label culling, edge visibility,
+ * edge alpha/thickness, edge labels, enclosures, road network, timeline,
+ * grid, glow, minimap, performance, a11y, sunburst, zone placement.
+ *
+ * All fields are optional. Use `mergeRenderThresholds()` to get a
+ * `Required<RenderThresholds>` with defaults from `DEFAULT_RENDER_THRESHOLDS`.
+ */
 export interface RenderThresholds {
   /** Node count below which gradient rendering is used (default 500) */
   gradientNodeCount?: number;
@@ -1341,6 +1350,21 @@ export interface RenderThresholds {
   adaptiveLabelMin?: number;
   /** R6: Adaptive label font max multiplier (default 1.5) */
   adaptiveLabelMax?: number;
+
+  // ---- Focus cone & search highlight ----
+  /** Exponential falloff base for focus cone alpha (default 0.65).
+   *  depth 0 → 1.0, depth 1 → base, depth 2 → base², ... */
+  focusConeFalloff?: number;
+  /** Minimum alpha for unreachable/distant nodes in focus cone (default 0.08). */
+  focusConeMinAlpha?: number;
+  /** Alpha floor for dimmed nodes when focus cone + search overlap (default 0.12).
+   *  Prevents dark-theme WCAG contrast issues (IK). */
+  focusConeDimFloor?: number;
+  /** Alpha for search-only non-matching nodes (no focus cone active, default 0.15).
+   *  Raised from 0.06 for dark-theme visibility (IK). */
+  searchDimAlpha?: number;
+  /** Alpha for search-hit shape halo overlay (default 0.08). */
+  searchHaloAlpha?: number;
 }
 
 /** Default card rendering config */
