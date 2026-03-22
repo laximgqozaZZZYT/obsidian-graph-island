@@ -843,8 +843,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.nodeInfoEl = canvasArea.createDiv({ cls: "gi-node-info", attr: { "aria-live": "polite", "aria-atomic": "true" } });
     this.nodeInfoEl.style.display = "none";
 
-    // --- Off-screen node count badge ---
-    this.oobBadgeEl = canvasArea.createDiv({ cls: "gi-oob-badge" });
+    // --- Off-screen node count badge (a11y: aria-live for screen readers) ---
+    this.oobBadgeEl = canvasArea.createDiv({ cls: "gi-oob-badge", attr: { "aria-live": "polite", "aria-atomic": "true", "aria-label": "Off-screen nodes" } });
     this.oobBadgeEl.style.display = "none";
 
     // --- Density-culled label count badge ---
@@ -8188,7 +8188,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
-  private applyTextFade() { this.labelManager?.applyTextFade(); }
+  applyTextFade() { this.labelManager?.applyTextFade(); }
 
   /** Called by InteractionManager after zoom changes to update label visibility */
   updateLabelsForZoom() { this.labelManager?.updateLabelsForZoom(); }
