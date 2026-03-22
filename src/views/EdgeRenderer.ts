@@ -404,9 +404,6 @@ function buildDirectionBundles(
   accum.clear();
 
   for (const e of edges) {
-    if (shouldSkipEdge(e, cfg)) continue;
-    if (shouldSkipByDirection(e, cfg)) continue;
-
     const src = resolvePos(e.source);
     const tgt = resolvePos(e.target);
     if (!src || !tgt) continue;
@@ -1422,8 +1419,6 @@ function buildTrunks(
   }>();
 
   for (const e of edges) {
-    if (shouldSkipEdge(e, cfg)) continue;
-    if (shouldSkipByDirection(e, cfg)) continue;
     const sid = edgeSourceId(e);
     const tid = edgeTargetId(e);
     const srcGroup = nodeClusterMap.get(sid);
@@ -1854,8 +1849,6 @@ function buildIntraGroupCables(
   const groupExternalMap = new Map<string, Map<string, GraphEdge[]>>();
 
   for (const e of edges) {
-    if (shouldSkipEdge(e, cfg)) continue;
-    if (shouldSkipByDirection(e, cfg)) continue;
     const sid = edgeSourceId(e);
     const tid = edgeTargetId(e);
     const srcGroup = nodeClusterMap.get(sid);
@@ -2964,8 +2957,6 @@ function prepareCables(
     // Build connection map from edges (which groups connect to which)
     const connections = new Map<string, Set<string>>();
     for (const e of edges) {
-      if (shouldSkipEdge(e, cfg)) continue;
-      if (shouldSkipByDirection(e, cfg)) continue;
       const sg = cfg.nodeClusterMap!.get(edgeSourceId(e));
       const tg = cfg.nodeClusterMap!.get(edgeTargetId(e));
       if (!sg || !tg || sg === tg) continue;
@@ -3087,34 +3078,38 @@ export function drawEdges(
   const needsBidir = (cfg.edgeDirectionFilter && cfg.edgeDirectionFilter !== "all") || cfg.showBidirectionalIndicator;
   cfg._bidirectionalSet = needsBidir ? buildBidirectionalSet(edges) : undefined;
 
+  // Pre-filter edges once — all downstream functions use this filtered list,
+  // avoiding 9 redundant shouldSkipEdge/shouldSkipByDirection iterations.
+  const filtered = edges.filter(e => !shouldSkipEdge(e, cfg) && !shouldSkipByDirection(e, cfg));
+
   const { colorEdgesByRelation: useRelColor } = cfg;
   // Disable arc curves when edge count is high to avoid vertex buffer explosion.
   // quadraticCurveTo generates ~20 vertices per edge vs 4 for lineTo.
-  const isArcLayout = cfg.isArcLayout && edges.length < ARC_MAX_EDGE_COUNT;
+  const isArcLayout = cfg.isArcLayout && filtered.length < ARC_MAX_EDGE_COUNT;
 
   const edgeCount = cfg.totalEdgeCount ?? edges.length;
   const densityScale = computeDensityScale(cfg, edgeCount);
 
   // Pre-compute edge pair counts for weight-based thickness
-  const pairCount = cfg.edgeWeightThickness ? buildPairCounts(edges) : null;
+  const pairCount = cfg.edgeWeightThickness ? buildPairCounts(filtered) : null;
 
   // Pre-compute direction x color bundles for highway-style edge merging
-  const bundles = prepareBundles(edges, resolvePos, cfg);
+  const bundles = prepareBundles(filtered, resolvePos, cfg);
   // Zoom-adaptive bundling: increase strength at zoom-out for visual tidiness
   const edgeFadeZ = cfg.edgeZoomFadeThreshold ?? 0.5;
   const zoomBoost = ws < edgeFadeZ ? Math.min(0.3, (edgeFadeZ - ws) * 0.6) : 0;
   const bundleStrength = Math.min(1, cfg.bundleStrength + zoomBoost);
 
   // Cable trunks and intra-group cables
-  const cablePrep = prepareCables(edges, resolvePos, cfg);
+  const cablePrep = prepareCables(filtered, resolvePos, cfg);
   drawCables(g, cfg, densityScale, cablePrep);
 
   // レイヤー分離モード: 種別ごとに描画パスを分けて z-order を制御
   if (cfg.edgeLayerMode) {
-    _drawEdgesLayered(g, edges, resolvePos, cfg, useRelColor, isArcLayout,
+    _drawEdgesLayered(g, filtered, resolvePos, cfg, useRelColor, isArcLayout,
       densityScale, pairCount, bundles, bundleStrength, cablePrep, arrowGfx);
   } else {
-    _drawEdgesSinglePass(g, edges, resolvePos, cfg, useRelColor, isArcLayout,
+    _drawEdgesSinglePass(g, filtered, resolvePos, cfg, useRelColor, isArcLayout,
       densityScale, pairCount, bundles, bundleStrength, cablePrep, arrowGfx);
   }
 }
@@ -3138,8 +3133,6 @@ function _drawEdgesSinglePass(
   for (const e of edges) {
     if (cablePrep.cabledEdgeIds.has(e.id)) continue;
     if (cablePrep.intraHandledIds.has(e.id)) continue;
-    if (shouldSkipEdge(e, cfg)) continue;
-    if (shouldSkipByDirection(e, cfg)) continue;
 
     const src = resolvePos(e.source);
     const tgt = resolvePos(e.target);
@@ -3268,8 +3261,6 @@ function _drawEdgesLayered(
 
       if (cablePrep.cabledEdgeIds.has(e.id)) continue;
       if (cablePrep.intraHandledIds.has(e.id)) continue;
-      if (shouldSkipEdge(e, cfg)) continue;
-      if (shouldSkipByDirection(e, cfg)) continue;
 
       const src = resolvePos(e.source);
       const tgt = resolvePos(e.target);

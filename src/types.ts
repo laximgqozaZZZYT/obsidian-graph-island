@@ -1605,6 +1605,14 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   adaptiveLabelMax: 1.5,
 };
 
+/** Merge user overrides with defaults, returning a fully-populated object.
+ *  Centralises the `as Required` cast so callers don't need `??` fallbacks. */
+export function mergeRenderThresholds(
+  user?: Partial<RenderThresholds>,
+): Required<RenderThresholds> {
+  return { ...DEFAULT_RENDER_THRESHOLDS, ...(user ?? {}) } as Required<RenderThresholds>;
+}
+
 export const DEFAULT_COLORS = [
   "#818cf8", "#f472b6", "#fbbf24", "#34d399",
   "#60a5fa", "#f87171", "#b4a0ff", "#2dd4bf",
