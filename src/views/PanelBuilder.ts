@@ -512,6 +512,8 @@ export function validatePanelState(panel: PanelState): void {
   if (!(panel.collapsedGroups instanceof Set)) {
     panel.collapsedGroups = new Set(Array.isArray(panel.collapsedGroups) ? panel.collapsedGroups : []);
   }
+  // Settings migration: fix invisible cable trunks (old default was 0)
+  if (panel.cableTrunkAlpha === 0) panel.cableTrunkAlpha = 0.25;
   // Settings migration: ensure new-default features are enabled
   if (panel.renderThresholds) {
     if (panel.renderThresholds.nodeSizeByDegree === false || panel.renderThresholds.nodeSizeByDegree === undefined) {
