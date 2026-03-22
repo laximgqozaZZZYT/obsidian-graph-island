@@ -241,13 +241,29 @@ src/
 
 ### Tests
 
-65 unit tests across 6 test files covering:
+830+ unit tests across 51 test files covering:
 
-- Edge rendering logic
-- Enclosure hull computation
-- Geometry utilities (convex hull, capsule)
-- Graph helper functions
-- Query expression evaluation
+- Edge rendering, enclosure hull, geometry, graph helpers
+- Query expression, transform expression parser
+- Color contrast (WCAG), HSL conversion
+- Panel state validation, preset configuration
+- Keyboard shortcut handler, snapshot diff
+- Graph data filtering pipeline, constants integrity
+- Tag relation detection, i18n translation keys
+- Render thresholds (mergeRenderThresholds)
+
+349+ E2E tests (CDP-based, Obsidian live testing)
+
+## What's New in v0.2.0
+
+- **Configurable edge rendering**: 14 new threshold fields for edge visibility, fade, thickness, and alpha
+- **Label overlap culling**: Automatic label placement with collision avoidance and LOD
+- **Preset tooltip preview**: Hover over mode/preset buttons to see settings summary
+- **Road network overlay**: Auto-generated road network with configurable opacity and zoom threshold
+- **Quality dashboard**: Real-time stats panel with collision rate, FPS, and label quality score
+- **Keyboard shortcuts**: 20+ shortcuts (Space=fit, Tab=focus, L=legend, ±=zoom, etc.)
+- **Accessibility**: WCAG 4.5:1 contrast, 24px+ targets, ARIA landmarks, screen reader support
+- **Performance**: Edge pre-filter optimization, viewport culling, render cooldown tuning
 
 ## Requirements
 
