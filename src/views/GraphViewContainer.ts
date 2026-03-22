@@ -15,6 +15,7 @@ import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoi
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid } from "../utils/graph-helpers";
+import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet } from "../utils/graph-filter";
 import { hexToRgb } from "../utils/color";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, type NodeTreeEntry, DEFAULT_PANEL, createDefaultPanel, validatePanelState, ensureRT } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
@@ -5441,7 +5442,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return {
       doRender: () => { this.doRender(); this.requestSave(); },
       doRenderKeepPanel: () => { this.skipPanelRebuildCount++; this.doRender().finally(() => { this.skipPanelRebuildCount = Math.max(0, this.skipPanelRebuildCount - 1); }); this.requestSave(); },
-      markDirty: () => { invalidateBundleCache(); this.markDirty(true); this.requestSave(); },
+      markDirty: () => { invalidateBundleCache(); this.markDirty(true); this._updateSurpriseTimer(); this.requestSave(); },
       updateForces: () => { this.updateForces(); this.requestSave(); },
       applySearch: () => this.applySearch(),
       applyTextFade: () => { this.applyTextFade(); this.requestSave(); },
@@ -6176,34 +6177,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     ({ nodes, edges } = this._filterByQuery(nodes, edges));
 
     // Nodes tab: exclude manually hidden nodes
-    if (this.panel.excludeNodes && this.panel.excludeNodes.length > 0) {
-      const excl = new Set(this.panel.excludeNodes);
-      nodes = nodes.filter(n => !excl.has(n.id));
-      // Re-sync edges so degree computation below uses accurate counts
-      const postExclSet = new Set(nodes.map(n => n.id));
-      edges = edges.filter(e => postExclSet.has(e.source) && postExclSet.has(e.target));
-    }
+    ({ nodes, edges } = filterExcludedNodes(nodes, edges, this.panel.excludeNodes ?? []));
 
     // FZ: Degree filter
-    const minDeg = this.panel.minDegreeFilter ?? 0;
-    const maxDeg = this.panel.maxDegreeFilter ?? 0;
-    if (minDeg > 0 || maxDeg > 0) {
-      // Compute degrees from current edge set
-      const degMap = new Map<string, number>();
-      for (const e of edges) {
-        degMap.set(e.source, (degMap.get(e.source) ?? 0) + 1);
-        degMap.set(e.target, (degMap.get(e.target) ?? 0) + 1);
-      }
-      nodes = nodes.filter(n => {
-        const d = degMap.get(n.id) ?? 0;
-        if (minDeg > 0 && d < minDeg) return false;
-        if (maxDeg > 0 && d > maxDeg) return false;
-        return true;
-      });
-    }
+    nodes = filterByDegree(nodes, edges, this.panel.minDegreeFilter ?? 0, this.panel.maxDegreeFilter ?? 0);
 
     const nodeSet = new Set(nodes.map((n) => n.id));
-    edges = edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));
+    edges = filterEdgesByNodeSet(edges, nodeSet);
 
     return this._applyGroupCollapse({ nodes, edges });
   }
@@ -6253,39 +6233,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Filter nodes by orphan/existing/attachment/tag visibility settings. */
   private _filterNodeVisibility(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
-    if (!this.panel.showOrphans) {
-      const connected = new Set<string>();
-      for (const e of edges) { connected.add(e.source); connected.add(e.target); }
-      nodes = nodes.filter((n) => connected.has(n.id));
-    }
+    // Pure filters delegated to graph-filter.ts
+    ({ nodes, edges } = applyVisibilityFilters(nodes, edges, {
+      showOrphans: this.panel.showOrphans,
+      showAttachments: this.panel.showAttachments ?? true,
+      includeTagsInData: this.panel.includeTagsInData ?? true,
+      showTagNodes: this.panel.showTagNodes ?? true,
+      tagDisplay: this.panel.tagDisplay ?? "node",
+      showSimilar: this.panel.showSimilar ?? true,
+    }));
 
+    // existingOnly requires vault access — kept in GVC
     if (this.panel.existingOnly) {
       const existing = new Set(this.app.vault.getMarkdownFiles().map((f) => f.path));
       nodes = nodes.filter((n) => n.isTag || existing.has(n.id));
     }
-
-    if (!this.panel.showAttachments) {
-      const attachExts = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.pdf', '.mp3', '.mp4', '.webm', '.wav', '.ogg', '.csv', '.xlsx', '.docx']);
-      nodes = nodes.filter(n => {
-        const p = n.filePath ?? n.id;
-        if (!p) return true;
-        const dot = p.lastIndexOf('.');
-        if (dot < 0) return true;
-        return !attachExts.has(p.substring(dot).toLowerCase());
-      });
-    }
-
-    if (!this.panel.includeTagsInData) {
-      nodes = nodes.filter((n) => !n.isTag);
-      edges = edges.filter((e) => e.type !== EDGE_TYPE_HAS_TAG);
-    }
-
-    if (!this.panel.showTagNodes || this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
-      nodes = nodes.filter((n) => !n.isTag);
-      edges = edges.filter((e) => e.type !== EDGE_TYPE_HAS_TAG);
-    }
-
-    if (!this.panel.showSimilar) edges = edges.filter((e) => e.type !== EDGE_TYPE_SIMILAR);
 
     return { nodes, edges };
   }
