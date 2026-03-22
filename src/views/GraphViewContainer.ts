@@ -126,8 +126,24 @@ const TICK_SKIP = 4;
 const DEFAULT_CANVAS_WIDTH = 600;
 const DEFAULT_CANVAS_HEIGHT = 400;
 
-/** Shared thinking-mode presets (used in both applyPreset and applyPresetByKey) */
-const THINKING_MODE_PRESETS: Record<string, Record<string, unknown>> = {
+/** All preset definitions — single source of truth for applyPreset, applyPresetByKey, getPresetSummary */
+const ALL_PRESETS: Record<string, Record<string, unknown>> = {
+  // Quick presets
+  simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: false },
+  analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
+  creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
+  "active-focus": { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 2, focusLayout: true, hoverHops: 1, showArrows: true, fadeEdgesByDegree: true },
+  "semantic-shapes": {
+    nodeShapeRules: [
+      { match: "category" as const, category: "character", shape: "circle" as const },
+      { match: "category" as const, category: "place", shape: "hexagon" as const },
+      { match: "category" as const, category: "event", shape: "diamond" as const },
+      { match: "category" as const, category: "concept", shape: "triangle" as const },
+      { match: "default" as const, shape: "square" as const },
+    ],
+  },
+  "full-analysis": { showLinks: true, showTagEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showGraphStats: true, showBridgeNodes: true, showImportanceRing: true, nodeColorMode: "community", showEntropyOverlay: true, highlightMissingNeighbors: true },
+  // Thinking modes (M1)
   explore: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" },
   analyze: { syncWithEditor: false, localGraphCenter: null, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community", colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true,
     directionalGravityRules: [{ filter: "type:inheritance", direction: "bottom", strength: 0.08 }] },
@@ -5650,26 +5666,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       resetPanel: () => this._buildResetPanelCallback(),
       restoreViewport: (name: string) => this.restoreViewport(name),
       applyPreset: (preset: string) => {
-        const presets: Record<string, Partial<typeof this.panel>> = {
-          simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: false },
-          analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
-          creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
-          // Thinking Graph presets
-          "active-focus": { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 2, focusLayout: true, hoverHops: 1, showArrows: true, fadeEdgesByDegree: true },
-          "semantic-shapes": {
-            nodeShapeRules: [
-              { match: "category" as const, category: "character", shape: "circle" as const },
-              { match: "category" as const, category: "place", shape: "hexagon" as const },
-              { match: "category" as const, category: "event", shape: "diamond" as const },
-              { match: "category" as const, category: "concept", shape: "triangle" as const },
-              { match: "default" as const, shape: "square" as const },
-            ],
-          },
-          "full-analysis": { showLinks: true, showTagEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showGraphStats: true, showBridgeNodes: true, showImportanceRing: true, nodeColorMode: "community", showEntropyOverlay: true, highlightMissingNeighbors: true },
-          // M1: Thinking Modes (shared via THINKING_MODE_PRESETS)
-          ...THINKING_MODE_PRESETS,
-        };
-        const p = presets[preset];
+        const p = ALL_PRESETS[preset];
         if (p) {
           Object.assign(this.panel, p);
           // Fix A: localGraphCenter="__active__" means "use active file" — resolve dynamically

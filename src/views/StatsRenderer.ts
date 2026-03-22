@@ -1,6 +1,7 @@
 /**
- * StatsRenderer — extracted from GraphViewContainer (Phase 1).
- * Renders the floating graph statistics panel and quality dashboard.
+ * StatsRenderer — extracted from GraphViewContainer (Phase 1+3).
+ * Renders the floating graph statistics panel, quality dashboard,
+ * and hierarchy breadcrumb bar.
  * Communicates with GVC via StatsHost interface to avoid tight coupling.
  */
 import type { GraphData, GraphNode, GraphEdge } from "../types";
@@ -234,6 +235,78 @@ export function renderGraphStats(
       for (const q of questions) {
         qList.createEl("li", { cls: "gi-stats-hub-item", text: q });
       }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hierarchy Breadcrumb (Phase 3 — extracted from GVC updateHierarchyBreadcrumb)
+// ---------------------------------------------------------------------------
+
+/** Minimal host for breadcrumb rendering */
+export interface BreadcrumbHost {
+  getNodeLabel(id: string): string;
+  /** Trigger full re-render (for breadcrumb click navigation) */
+  invalidateAndRebuild(): void;
+}
+
+/**
+ * Render the hierarchy breadcrumb bar showing the inheritance path
+ * from root to the current localGraphCenter node.
+ */
+export function renderBreadcrumb(
+  el: HTMLElement,
+  showBreadcrumb: boolean,
+  localGraphCenter: string | null,
+  edges: readonly { source: string; target: string; type?: string }[],
+  panel: { localGraphCenter: string | null },
+  host: BreadcrumbHost,
+): void {
+  if (!showBreadcrumb || !localGraphCenter) {
+    el.style.display = "none";
+    return;
+  }
+  el.style.display = "";
+  el.empty();
+
+  // Walk inheritance edges upward from localGraphCenter to root
+  const chain: string[] = [localGraphCenter];
+  const visited = new Set<string>([localGraphCenter]);
+  let cur = localGraphCenter;
+  for (let depth = 0; depth < 20; depth++) {
+    let parentId: string | null = null;
+    for (const e of edges) {
+      if (e.type === "inheritance" && e.source === cur && !visited.has(e.target)) {
+        parentId = e.target;
+        break;
+      }
+      if (e.type === "inheritance" && e.target === cur && !visited.has(e.source)) {
+        parentId = e.source;
+        break;
+      }
+    }
+    if (!parentId) break;
+    chain.unshift(parentId);
+    visited.add(parentId);
+    cur = parentId;
+  }
+
+  for (let i = 0; i < chain.length; i++) {
+    if (i > 0) {
+      el.createSpan({ cls: "gi-breadcrumb-sep", text: " › " });
+    }
+    const nodeId = chain[i];
+    const label = host.getNodeLabel(nodeId);
+    const span = el.createSpan({
+      cls: i === chain.length - 1 ? "gi-breadcrumb-current" : "gi-breadcrumb-item",
+      text: label,
+    });
+    if (i < chain.length - 1) {
+      span.style.cursor = "pointer";
+      span.addEventListener("click", () => {
+        panel.localGraphCenter = nodeId;
+        host.invalidateAndRebuild();
+      });
     }
   }
 }
