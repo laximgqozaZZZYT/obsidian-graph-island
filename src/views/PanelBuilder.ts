@@ -255,8 +255,6 @@ export interface PanelState {
   // --- Phase 3: Structure visualization ---
   /** Cluster label detail level */
   clusterLabelDetail: "minimal" | "standard" | "detailed" | "rich";
-  /** Gap detection mode for missing connections. @stub No UI control or rendering logic yet. */
-  gapDetectionMode: "within-tag" | "cross-cluster" | "both";
   /** Highlight structural patterns (articulation points, spokes, cliques) */
   highlightPatterns: boolean;
   /** Highlight bridge nodes (top betweenness centrality) */
@@ -310,8 +308,6 @@ export interface PanelState {
   presentationStep: number;
   /** Show frontmatter image as node thumbnail */
   showNodeThumbnails: boolean;
-  /** Number of alternative shortest paths to display (1 = shortest only). @stub No UI control yet. */
-  kShortestPaths: number;
   /** A3: Frontmatter field to use for node icon prefix (e.g. "node_type") */
   nodeIconField?: string;
   /** A3: Mapping from field value to icon text (e.g. {"character":"👤","episode":"📖"}) */
@@ -476,7 +472,6 @@ export function createDefaultPanel(): PanelState {
     recencyDays: 7,
     definitionField: "",
     clusterLabelDetail: "standard" as const,
-    gapDetectionMode: "within-tag" as const,
     highlightPatterns: false,
     showBridgeNodes: false,
     focusLayout: false,
@@ -497,7 +492,6 @@ export function createDefaultPanel(): PanelState {
     showNodeThumbnails: false,
     nodeIconField: "",
     nodeIconMap: {},
-    kShortestPaths: 1,
     focusConeEnabled: true,
     surpriseInterval: 0,
     expandedNodes: [],
