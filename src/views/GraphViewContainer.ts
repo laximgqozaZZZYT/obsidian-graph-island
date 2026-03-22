@@ -3590,6 +3590,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
     const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
+    const hoverRt = mergeRenderThresholds(this.panel.renderThresholds);
 
     // フォーカスモード時はフォーカスノードIDを実効ハイライトIDとして使用
     const effectiveHId = hId || (focusActive ? this.panel.focusNodeId : null);
@@ -3643,7 +3644,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             pn.circle.drawRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, crc2.cardCornerRadius ?? 6);
           } else {
             const shape = getNodeShape(pn.data, this.panel.nodeShapeRules);
-            drawShape(pn.circle, shape, pn.radius * 1.5, searchHitColor, 0.08);
+            drawShape(pn.circle, shape, pn.radius * 1.5, searchHitColor, hoverRt.searchHaloAlpha);
           }
         }
         if (!pn.hoverLabel) {
@@ -3663,18 +3664,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           const dist = distMap.get(pn.data.id);
           let coneAlpha: number;
           if (dist === undefined) {
-            coneAlpha = 0.08;
+            coneAlpha = hoverRt.focusConeMinAlpha;
           } else {
-            // Exponential falloff: depth 0 → 1.0, depth 1 → 0.65, depth 2 → 0.42, ...
-            coneAlpha = Math.max(0.08, Math.pow(0.65, dist));
+            // Exponential falloff: depth 0 → 1.0, depth 1 → falloff, depth 2 → falloff², ...
+            coneAlpha = Math.max(hoverRt.focusConeMinAlpha, Math.pow(hoverRt.focusConeFalloff, dist));
           }
           // HZ: Use max() instead of min() — focusCone already handles distance dimming,
           // search highlight should not make it even darker (was causing double-dim)
-          // IK: raise dimmed floor from 0.04→0.12 for WCAG contrast in dark themes
-          pn.gfx.alpha = searchActive && !searchMatch ? Math.max(coneAlpha * 0.5, 0.12) : coneAlpha;
+          // IK: dimFloor prevents WCAG contrast issues in dark themes
+          pn.gfx.alpha = searchActive && !searchMatch ? Math.max(coneAlpha * 0.5, hoverRt.focusConeDimFloor) : coneAlpha;
         } else {
-          // IK: raise search-dim alpha from 0.06→0.15 for dark-theme visibility
-          pn.gfx.alpha = searchActive && !searchMatch ? 0.15 : 0.12;
+          // IK: searchDimAlpha for dark-theme visibility; focusConeDimFloor as idle base
+          pn.gfx.alpha = searchActive && !searchMatch ? hoverRt.searchDimAlpha : hoverRt.focusConeDimFloor;
         }
         if (isCardMode) pn.gfx.scale.set(1);
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; pn.hoverForcedLabel = false; }
@@ -4313,9 +4314,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.edgeDirectionFilter = this.panel.edgeDirectionFilter ?? "all";
     cfg.showBidirectionalIndicator = this.panel.showBidirectionalIndicator ?? false;
     cfg.showOntologyBackbone = this.panel.showOntologyBackbone ?? false;
-    const rt2 = mergeRenderThresholds(this.panel.renderThresholds);
     // roadRouteEdges toggle: when off, suppress road network so edges draw straight
-    cfg.roadNetwork = (rt2.roadRouteEdges !== false) ? this.getRoadNetwork() : null;
+    cfg.roadNetwork = (edgeRt.roadRouteEdges !== false) ? this.getRoadNetwork() : null;
     cfg.clusterArrangement = this.panel.clusterArrangement;
     // Resolve coordinate system: check panel.coordinateLayout first, then infer from arrangement name
     cfg.coordinateSystem = this.panel.coordinateLayout?.system === "polar"
@@ -4458,7 +4458,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       highContrast: this.panel.highContrastMode,
       clusterLabelDetail: this.panel.clusterLabelDetail,
       getClusterSummary: (tag, count) => {
-        // S3: Rich cluster summary — count + top 3 tags of members
+        // S3: Cluster summary — detail level determines content
         const members = this.tagMembership.get(tag);
         if (!members) return `#${tag} (${count})`;
         const tagCounts = new Map<string, number>();
@@ -4471,7 +4471,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           }
         }
         const topTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t);
-        // DV: Cluster health score — internal edge density
+        const tagSuffix = topTags.length > 0 ? ` · ${topTags.join(", ")}` : "";
+        // "detailed" level: count + top tags (no health score)
+        if (this.panel.clusterLabelDetail === "detailed") {
+          return `#${tag} (${count})${tagSuffix}`;
+        }
+        // "rich" level: count + health score + top tags
         const memberSet = new Set(members);
         let internalEdges = 0;
         if (this.graphEdges && memberSet.size >= 2) {
@@ -4482,9 +4487,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const maxEdges = memberSet.size * (memberSet.size - 1) / 2;
         const density = maxEdges > 0 ? (internalEdges / maxEdges * 100).toFixed(0) : "0";
         const healthSuffix = memberSet.size >= 3 ? ` [${density}%]` : "";
-        return topTags.length > 0
-          ? `#${tag} (${count})${healthSuffix} · ${topTags.join(", ")}`
-          : `#${tag} (${count})${healthSuffix}`;
+        return `#${tag} (${count})${healthSuffix}${tagSuffix}`;
       },
     };
     drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);

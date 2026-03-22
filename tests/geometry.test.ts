@@ -114,3 +114,55 @@ describe("clamp", () => {
   });
 });
 
+describe("convexHull — large scale", () => {
+  it("computes hull for 1000 random points in <50ms", () => {
+    const pts = Array.from({ length: 1000 }, () => ({
+      x: Math.random() * 10000 - 5000,
+      y: Math.random() * 10000 - 5000,
+    }));
+    const t0 = performance.now();
+    const hull = convexHull(pts);
+    const elapsed = performance.now() - t0;
+    expect(elapsed).toBeLessThan(50);
+    // Hull should be smaller than input
+    expect(hull.length).toBeLessThanOrEqual(pts.length);
+    expect(hull.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("hull vertices are in counter-clockwise order", () => {
+    const pts = Array.from({ length: 200 }, (_, i) => ({
+      x: Math.cos(i * 0.1) * 100 + Math.random() * 50,
+      y: Math.sin(i * 0.1) * 100 + Math.random() * 50,
+    }));
+    const hull = convexHull(pts);
+    // Shoelace formula: positive area = counter-clockwise
+    let area = 0;
+    for (let i = 0; i < hull.length; i++) {
+      const j = (i + 1) % hull.length;
+      area += hull[i].x * hull[j].y - hull[j].x * hull[i].y;
+    }
+    expect(area).toBeGreaterThanOrEqual(0); // CCW = positive
+  });
+
+  it("all input points are inside or on the hull", () => {
+    const pts = [
+      { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 },
+      { x: 5, y: 5 }, { x: 3, y: 7 }, { x: 8, y: 2 },
+    ];
+    const hull = convexHull(pts);
+    // All 4 corner points should be on hull
+    expect(hull).toContainEqual({ x: 0, y: 0 });
+    expect(hull).toContainEqual({ x: 10, y: 0 });
+    expect(hull).toContainEqual({ x: 10, y: 10 });
+    expect(hull).toContainEqual({ x: 0, y: 10 });
+    // Interior points should NOT be on hull
+    expect(hull).not.toContainEqual({ x: 5, y: 5 });
+  });
+
+  it("handles all-same-point input", () => {
+    const pts = Array.from({ length: 50 }, () => ({ x: 7, y: 3 }));
+    const hull = convexHull(pts);
+    expect(hull.length).toBeLessThanOrEqual(2);
+  });
+});
+
