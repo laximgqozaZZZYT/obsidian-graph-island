@@ -218,6 +218,10 @@ export interface PanelState {
   nodeSubLabelFields: string;
   /** Metadata fields to show in hover tooltip (comma-separated frontmatter keys) */
   hoverTooltipFields: string;
+  /** IE: Hover/card content checklist — which sections to display */
+  hoverShowTitle: boolean;
+  hoverShowMeta: boolean;
+  hoverShowBody: boolean;
   /** Named saved search queries */
   savedSearchQueries: { name: string; query: string }[];
   /** Pinned node positions: persisted across layout changes */
@@ -453,6 +457,9 @@ export function createDefaultPanel(): PanelState {
     showAncestryBreadcrumb: false,
     nodeSubLabelFields: "",
     hoverTooltipFields: "",
+    hoverShowTitle: true,
+    hoverShowMeta: true,
+    hoverShowBody: false,
     savedSearchQueries: [],
     savedViewports: [],
     presetZoomLevel: 0,
@@ -1228,6 +1235,10 @@ function _buildNodeDisplaySection(
         panel.hoverTooltipFields = v;
         cb.markDirty();
       });
+      // IE: Hover/card content checklist
+      addToggle(adv, t("display.hoverShowTitle") ?? "Hover: Title", panel.hoverShowTitle, (v) => { panel.hoverShowTitle = v; cb.markDirty(); });
+      addToggle(adv, t("display.hoverShowMeta") ?? "Hover: Metadata", panel.hoverShowMeta, (v) => { panel.hoverShowMeta = v; cb.markDirty(); });
+      addToggle(adv, t("display.hoverShowBody") ?? "Hover: Body", panel.hoverShowBody, (v) => { panel.hoverShowBody = v; cb.markDirty(); });
       // A3: Node icon prefix
       addTextInput(adv, t("display.nodeIconField"), panel.nodeIconField ?? "", "e.g. node_type", (v) => {
         panel.nodeIconField = v;

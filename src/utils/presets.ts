@@ -66,6 +66,9 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showNodeThumbnails",
   "autoFitOnFilter",
   "showHierarchyTree",
+  "hoverShowTitle",
+  "hoverShowMeta",
+  "hoverShowBody",
 ];
 
 /** Fields that should be number */

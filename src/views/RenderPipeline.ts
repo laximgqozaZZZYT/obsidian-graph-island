@@ -304,6 +304,8 @@ export interface RenderHost {
   getCardRenderConfig?(): CardRenderConfig;
   /** Get the render thresholds (LOD tuning) */
   getRenderThresholds?(): RenderThresholds;
+  /** IE: Get panel state for content visibility flags */
+  getPanel?(): { hoverShowBody?: boolean; hoverShowMeta?: boolean } | null;
   /** Get current node size */
   getNodeSize?(): number;
   /** Get the adjacency map for zone-based label placement */
@@ -1297,12 +1299,15 @@ export class RenderPipeline {
     const fieldLineH = crc.fieldLineHeight * cardScale;
     const pad = crc.cardPadding * cardScale;
     const cornerR = crc.cardCornerRadius * cardScale;
-    const showMeta = nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
+    // IE: Card content respects hover checklist for meta/body display
+    const panelMeta = this.host.getPanel?.()?.hoverShowMeta ?? true;
+    const panelBody = this.host.getPanel?.()?.hoverShowBody ?? false;
+    const showMeta = panelMeta && nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
     const fieldCount = showMeta ? cardConfig.fields.length : 0;
     // M4: extra rows for definitionField and bodyPreview
     const defField = this.host.getDefinitionField?.() ?? "";
-    const hasDefField = defField.length > 0 ? 1 : 0;
-    const hasPreview = 1; // reserve row for bodyPreview (per-node check in text pass)
+    const hasDefField = (panelMeta && defField.length > 0) ? 1 : 0;
+    const hasPreview = panelBody ? 1 : 0;
     const totalH = headerH + (fieldCount + hasDefField + hasPreview) * fieldLineH + pad * 2;
 
     const tableCardNodes: PixiNode[] = [];
@@ -1582,7 +1587,9 @@ export class RenderPipeline {
         if (rt.cardTextTruncation !== false) title.maxWidth = textW;
         pn.gfx.addChild(title);
         // FH: Wrapped body preview — split into multiple lines
-        if (pn.data.bodyPreview) {
+        // IE: Card content respects hoverShowBody checklist
+        const cardShowBody = this.host.getPanel?.()?.hoverShowBody ?? true;
+        if (pn.data.bodyPreview && cardShowBody) {
           const maxLines = rt.cardBodyMaxLines ?? 3;
           const charsPerLine = Math.max(5, Math.floor(textW / (smallFont * 0.55)));
           const words = pn.data.bodyPreview.split(/\s+/);

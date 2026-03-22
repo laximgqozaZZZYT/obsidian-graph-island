@@ -3624,15 +3624,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Create and attach a hover tooltip label to the given PixiNode. */
   private _createHoverTooltip(pn: PixiNode) {
-    // Always show node name prominently + optional tags/category
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
     const showTooltip = rt.hoverTooltipShow ?? true;
     const zoom = this.worldContainer?.scale.x ?? 1;
 
-    // Always start with node name for clear identification
-    let tooltipText = pn.data.label;
-    if (showTooltip) {
-      // Show tags in tooltip only when not in enclosure mode (enclosure labels handle tags)
+    // IE: Checklist-based hover content control
+    const showTitle = this.panel.hoverShowTitle ?? true;
+    const showMeta = this.panel.hoverShowMeta ?? true;
+    const showBody = this.panel.hoverShowBody ?? false;
+
+    let tooltipText = "";
+
+    // Title
+    if (showTitle) {
+      tooltipText = pn.data.label;
+    }
+
+    // Metadata (tags, category, custom fields, degree, edge types)
+    if (showTooltip && showMeta) {
       const isEnclosure = this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE;
       const hasVisibleTagLabel = !!(pn.tagLabel && pn.tagLabel.visible);
       if (pn.data.tags && pn.data.tags.length > 0 && !hasVisibleTagLabel && !isEnclosure) {
@@ -3641,19 +3650,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (pn.data.category) {
         tooltipText += "\n[" + pn.data.category + "]";
       }
-      // Show custom metadata fields in tooltip
       const tooltipFields = this.panel.hoverTooltipFields;
       if (tooltipFields) {
         const fields = tooltipFields.split(",").map(s => s.trim()).filter(Boolean);
         for (const field of fields) {
-          // Support virtual properties (degree, radius) and frontmatter
           const val = this.getNodeProperty(pn.data.id, field);
           if (val !== undefined && val !== "") {
             tooltipText += `\n${field}: ${val}`;
           }
         }
       }
-      // Always show degree count
       const deg = this.degrees.get(pn.data.id) ?? 0;
       tooltipText += `\n° ${deg}`;
 
@@ -3661,36 +3667,34 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
         const members = pn.data.collapsedMembers;
         tooltipText += `\n[${members.length} nodes]`;
-        // Show top 3 member names
         const top3 = members.slice(0, 3).map((m: string) => m.replace(/\.md$/, ""));
         tooltipText += "\n" + top3.join(", ");
         if (members.length > 3) tooltipText += ` +${members.length - 3}`;
       }
-    }
 
-    // IB: Shortcut hints in tooltip for keyboard users
-    if (showTooltip && this._isKeyboardFocused) {
-      tooltipText += "\n─ Enter: open · Shift+Enter: select · Ctrl+Enter: compare";
-    }
-
-    // EK: Edge type summary in tooltip
-    if (showTooltip && this.graphEdges) {
-      const edgeTypes = new Map<string, number>();
-      for (const e of this.graphEdges) {
-        if (e.source === pn.data.id || e.target === pn.data.id) {
-          const t = e.type ?? "link";
-          edgeTypes.set(t, (edgeTypes.get(t) ?? 0) + 1);
+      // EK: Edge type summary
+      if (this.graphEdges) {
+        const edgeTypes = new Map<string, number>();
+        for (const e of this.graphEdges) {
+          if (e.source === pn.data.id || e.target === pn.data.id) {
+            const t = e.type ?? "link";
+            edgeTypes.set(t, (edgeTypes.get(t) ?? 0) + 1);
+          }
+        }
+        if (edgeTypes.size > 0) {
+          tooltipText += `\n${[...edgeTypes.entries()].map(([t, c]) => `${t}:${c}`).join(" ")}`;
         }
       }
-      if (edgeTypes.size > 0) {
-        const parts = [...edgeTypes.entries()].map(([t, c]) => `${t}:${c}`);
-        tooltipText += `\n${parts.join(" ")}`;
-      }
     }
 
-    // FL: Show full body preview on hover (card mode — tooltip serves as expanded card)
-    if (pn.data.bodyPreview && (this.panel.nodeDisplayMode ?? "node") === "card") {
+    // Body preview
+    if (showTooltip && showBody && pn.data.bodyPreview) {
       tooltipText += "\n---\n" + pn.data.bodyPreview;
+    }
+
+    // IB: Shortcut hints for keyboard users
+    if (showTooltip && this._isKeyboardFocused) {
+      tooltipText += "\n─ Enter: open · Shift+Enter: select · Ctrl+Enter: compare";
     }
 
     // Feature DA: Ancestry breadcrumb trail from hub to hovered node
