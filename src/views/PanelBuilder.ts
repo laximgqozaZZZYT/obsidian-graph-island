@@ -411,7 +411,7 @@ export function createDefaultPanel(): PanelState {
     cardinalityRules: [],
     cableBundleMode: "auto" as const,
     cableTrunkWidth: 12,
-    cableTrunkAlpha: 0,
+    cableTrunkAlpha: 0.25,
     cableSpacing: 14,
     cableFanWidth: 2.5,
     cableFanAlpha: 0.9,
@@ -606,6 +606,8 @@ export interface PanelCallbacks {
   bulkAddTag?(nodeIds: string[], tag: string): void;
   /** C6: Bulk set frontmatter field on selected nodes */
   bulkSetField?(nodeIds: string[], field: string, value: string): void;
+  /** Refresh DOM overlays (stats, legend, matrix, thumbnails, breadcrumb) without full re-render */
+  refreshOverlays(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -1042,12 +1044,45 @@ export function buildPanel(
   // 統計ダッシュボード（プリセットバーの下に配置）
   _buildStatsBar(panelEl, panel, ctx);
 
-  // Build each tab
-  buildFilterTab(filterTab, panel, ctx, cb);
-  buildDisplayTab(displayTab, panel, ctx, cb);
-  buildLayoutTab(layoutTab, panel, ctx, cb);
-  _buildNodesTab(nodesTab, panel, ctx, cb);
-  buildSettingsTab(settingsTab, panel, ctx, cb);
+  // Lazy tab construction — only build the active tab initially.
+  // Other tabs are built on first activation or when settings filter is used.
+  const tabBuilders: Record<TabId, () => void> = {
+    filter:   () => buildFilterTab(filterTab, panel, ctx, cb),
+    display:  () => buildDisplayTab(displayTab, panel, ctx, cb),
+    layout:   () => buildLayoutTab(layoutTab, panel, ctx, cb),
+    nodes:    () => _buildNodesTab(nodesTab, panel, ctx, cb),
+    settings: () => buildSettingsTab(settingsTab, panel, ctx, cb),
+  };
+  const builtTabs = new Set<TabId>();
+
+  function ensureTabBuilt(tabId: TabId) {
+    if (builtTabs.has(tabId)) return;
+    builtTabs.add(tabId);
+    tabBuilders[tabId]();
+  }
+
+  function ensureAllTabsBuilt() {
+    for (const def of TAB_DEFS) ensureTabBuilt(def.id);
+  }
+
+  // Build active tab immediately
+  ensureTabBuilt(panel.activeTab);
+
+  // Patch tab switch to lazily build on first visit
+  const origOnSwitch = tabContainers.get(panel.activeTab)!.parentElement;
+  const tabBar = panelEl.querySelector(".gi-tab-bar");
+  if (tabBar) {
+    // Re-wire click handlers to include lazy build
+    const buttons = tabBar.querySelectorAll<HTMLButtonElement>(".gi-tab-btn");
+    buttons.forEach((btn, idx) => {
+      const tabId = TAB_DEFS[idx]?.id;
+      if (!tabId) return;
+      btn.addEventListener("click", () => ensureTabBuilt(tabId), { once: true });
+    });
+  }
+
+  // Patch settings filter to build all tabs on first use
+  settingsFilterInput.addEventListener("input", () => ensureAllTabsBuilt(), { once: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -1065,7 +1100,7 @@ function buildFilterTab(
     addToggle(body, t("filter.includeTagsInData"), panel.includeTagsInData, (v) => { panel.includeTagsInData = v; cb.invalidateDataKeepPanel(); }, t("desc.includeTagsInData"));
     addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateDataKeepPanel(); cb.rebuildPanel(); }, t("desc.orphans"));
     // GK: Auto-fit on filter change
-    addToggle(body, t("filter.autoFit") ?? "Auto-fit on filter", panel.autoFitOnFilter, (v) => { panel.autoFitOnFilter = v; });
+    addToggle(body, t("filter.autoFit") ?? "Auto-fit on filter", panel.autoFitOnFilter, (v) => { panel.autoFitOnFilter = v; cb.markDirty(); });
     // FZ: Degree filter
     addSlider(body, t("filter.minDegree") ?? "Min Degree", 0, 50, 1, panel.minDegreeFilter, (v) => {
       panel.minDegreeFilter = v;
@@ -1468,7 +1503,7 @@ function _buildNodeDecorationSection(
       });
     addToggle(body, t("display.showNodeThumbnails") ?? "Node Thumbnails", panel.showNodeThumbnails, (v) => {
       panel.showNodeThumbnails = v;
-      cb.doRenderKeepPanel();
+      cb.refreshOverlays();
     }, t("desc.showNodeThumbnails") ?? "Show frontmatter image as node thumbnail");
   }, tHelp("help.nodeDecorations"), false, "sparkles");
 }
@@ -1517,7 +1552,7 @@ function _buildStructureAnalysisSection(
     if (panel.localGraphCenter) {
       addToggle(body, t("display.showHierarchyBreadcrumb"), panel.showHierarchyBreadcrumb, (v) => {
         panel.showHierarchyBreadcrumb = v;
-        cb.doRenderKeepPanel();
+        cb.refreshOverlays();
       }, t("desc.showHierarchyBreadcrumb"));
     }
     // M2: Apply Ego Layout button
@@ -1530,7 +1565,7 @@ function _buildStructureAnalysisSection(
     // F5: Relation matrix
     addToggle(body, t("display.relationMatrix"), panel.showRelationMatrix, (v) => {
       panel.showRelationMatrix = v;
-      cb.doRenderKeepPanel();
+      cb.refreshOverlays();
     }, t("desc.relationMatrix"));
   }, tHelp("help.structureAnalysis"), true, "git-branch");
 }
@@ -1545,7 +1580,7 @@ function _buildDiscoverySection(
     }, t("desc.showSimilarSuggestions"));
     addToggle(body, t("display.showStructureQuestions"), panel.showStructureQuestions, (v) => {
       panel.showStructureQuestions = v;
-      cb.doRenderKeepPanel();
+      cb.refreshOverlays();
     }, t("desc.showStructureQuestions"));
     // R2: Consolidated analysis overlay dropdown
     addSelect(body, t("display.analysisOverlay"), [
@@ -1928,12 +1963,12 @@ function _buildMinimapSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.displayOther"), (body) => {
-    addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.doRenderKeepPanel(); }, t("desc.minimap"));
-    addToggle(body, t("display.showLegend"), panel.showLegend, (v) => { panel.showLegend = v; cb.invalidateDataKeepPanel(); }, t("desc.showLegend"));
-    addToggle(body, t("display.oobIndicator"), panel.showOutOfBoundsIndicator ?? false, (v) => { panel.showOutOfBoundsIndicator = v; cb.doRenderKeepPanel(); }, t("desc.oobIndicator"));
-    addToggle(body, t("display.graphStats"), panel.showGraphStats ?? false, (v) => { panel.showGraphStats = v; cb.invalidateDataKeepPanel(); }, t("desc.graphStats"));
-    addToggle(body, t("display.ancestryBreadcrumb"), panel.showAncestryBreadcrumb ?? false, (v) => { panel.showAncestryBreadcrumb = v; cb.invalidateDataKeepPanel(); }, t("desc.ancestryBreadcrumb"));
-    addToggle(body, t("display.highContrast") ?? "High Contrast", panel.highContrastMode, (v) => { panel.highContrastMode = v; cb.doRenderKeepPanel(); }, t("desc.highContrast") ?? "Thicker edges and stronger outlines for better visibility");
+    addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.refreshOverlays(); }, t("desc.minimap"));
+    addToggle(body, t("display.showLegend"), panel.showLegend, (v) => { panel.showLegend = v; cb.refreshOverlays(); }, t("desc.showLegend"));
+    addToggle(body, t("display.oobIndicator"), panel.showOutOfBoundsIndicator ?? false, (v) => { panel.showOutOfBoundsIndicator = v; cb.markDirty(); }, t("desc.oobIndicator"));
+    addToggle(body, t("display.graphStats"), panel.showGraphStats ?? false, (v) => { panel.showGraphStats = v; cb.refreshOverlays(); cb.rebuildPanel(); }, t("desc.graphStats"));
+    addToggle(body, t("display.ancestryBreadcrumb"), panel.showAncestryBreadcrumb ?? false, (v) => { panel.showAncestryBreadcrumb = v; cb.refreshOverlays(); }, t("desc.ancestryBreadcrumb"));
+    addToggle(body, t("display.highContrast") ?? "High Contrast", panel.highContrastMode, (v) => { panel.highContrastMode = v; cb.markDirty(); }, t("desc.highContrast") ?? "Thicker edges and stronger outlines for better visibility");
     // IL: Zoom wheel sensitivity slider (a11y: low-dexterity users)
     addSlider(body, t("display.zoomSensitivity") ?? "Zoom Sensitivity", panel.zoomSensitivity, 0.3, 2.0, 0.1, (v) => { panel.zoomSensitivity = v; }, t("desc.zoomSensitivity") ?? "Scroll wheel zoom speed (0.3=gentle, 1.0=normal, 2.0=fast)");
     // EE: Saved viewport list
