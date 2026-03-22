@@ -958,6 +958,20 @@ export interface RenderThresholds {
   /** Recency marker color (default 0x22c55e — green-500) */
   recencyMarkerColor?: number;
 
+  // ---- Density-aware stroke (zoom-out node stroke thickening) ----
+  /** Zoom threshold below which dense stroke kicks in (default 0.3) */
+  denseStrokeZoomLow?: number;
+  /** Zoom threshold for mid-range stroke (default 0.7) */
+  denseStrokeZoomMid?: number;
+  /** Max world-px stroke at extreme zoom-out (default 6) */
+  denseStrokeMaxWidth?: number;
+  /** Mid-zoom stroke width (default 1.5) */
+  denseStrokeMidWidth?: number;
+
+  // ---- Donut chart ----
+  /** Color palette for donut chart sectors (hex numbers). Default: 8-color qualitative palette. */
+  donutSectorColors?: number[];
+
   // ---- Edge density ----
   /** Minimum density scale for edge/cable alpha — prevents edges from becoming invisible at high count + low zoom (default 0.08) */
   edgeDensityFloor?: number;
@@ -1427,6 +1441,11 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   bookmarkStarColor: 0xf5c542,
   missingNeighborRingColor: 0xff8c00,
   recencyMarkerColor: 0x22c55e,
+  denseStrokeZoomLow: 0.3,
+  denseStrokeZoomMid: 0.7,
+  denseStrokeMaxWidth: 6,
+  denseStrokeMidWidth: 1.5,
+  donutSectorColors: [0x818cf8, 0xf472b6, 0x34d399, 0xfbbf24, 0x60a5fa, 0xf87171, 0xa78bfa, 0x2dd4bf],
   edgeDensityFloor: 0.12,
   highlightEdgeAlpha: 1.0,
   highlightEdgeNonMatchAlpha: 0.04,

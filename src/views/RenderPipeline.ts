@@ -1070,9 +1070,13 @@ export class RenderPipeline {
     // IK: High contrast mode doubles base stroke for better visibility
     const hc = this.host.isHighContrastMode?.() ?? false;
     const hcMul = hc ? 2 : 1;
-    const baseStrokeW = (worldScale < 0.3
-      ? Math.min(2 / worldScale, 6)   // up to 6 world-px (≈1.8 screen-px at zoom 0.3)
-      : worldScale < 0.7 ? 1.5 : 1) * hcMul;
+    const dsZoomLow = rt.denseStrokeZoomLow ?? 0.3;
+    const dsZoomMid = rt.denseStrokeZoomMid ?? 0.7;
+    const dsMaxW = rt.denseStrokeMaxWidth ?? 6;
+    const dsMidW = rt.denseStrokeMidWidth ?? 1.5;
+    const baseStrokeW = (worldScale < dsZoomLow
+      ? Math.min(2 / worldScale, dsMaxW)
+      : worldScale < dsZoomMid ? dsMidW : 1) * hcMul;
 
     for (const pn of visible) {
       const shape = getNodeShape(pn.data, shapeRules);
@@ -1693,7 +1697,7 @@ export class RenderPipeline {
     let startAngle = -Math.PI / 2;
     const total = members.length;
     let colorIdx = 0;
-    const sectorColors = [0x818cf8, 0xf472b6, 0xfbbf24, 0x34d399, 0x60a5fa, 0xf87171, 0xb4a0ff, 0x2dd4bf];
+    const sectorColors = this.host.getRenderThresholds?.()?.donutSectorColors ?? [0x818cf8, 0xf472b6, 0xfbbf24, 0x34d399, 0x60a5fa, 0xf87171, 0xb4a0ff, 0x2dd4bf];
     g.lineStyle(0);
     for (const [, count] of valueCounts) {
       const sliceAngle = (count / total) * Math.PI * 2;
