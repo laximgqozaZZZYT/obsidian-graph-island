@@ -49,6 +49,38 @@ import {
   POLAR_ARRANGEMENTS,
 } from "../constants";
 
+// ---------------------------------------------------------------------------
+// StatsHost — interface for future StatsRenderer extraction (Phase 0)
+// Defines the minimal GVC surface that updateGraphStats/updateLegend require.
+// Phase 1 will create StatsRenderer class consuming this interface.
+// ---------------------------------------------------------------------------
+export interface StatsHost {
+  /** Node degree map (id → degree count) */
+  getDegrees(): Map<string, number>;
+  /** Get display label for a node ID */
+  getNodeLabel(id: string): string;
+  /** Label overlap culling statistics */
+  getLabelCullStats(): { totalLabels: number; visibleLabels: number; culledLabels: number; collisionRate: number };
+  /** Label quality score (collision + visibility + priority) */
+  getLabelQualityScore(): { score: number; collision: number; visibility: number; priority: number };
+  /** Current FPS from render pipeline (0 = idle) */
+  getCurrentFps(): number;
+  /** Pan camera to center on a node */
+  panToNode(id: string): void;
+  /** Set hovered/highlighted node */
+  setHighlightedNodeId(id: string | null): void;
+  /** Apply hover highlight visuals */
+  applyHover(): void;
+  /** Trigger full re-render */
+  doRender(): void;
+  /** Rebuild settings panel */
+  buildPanel(): void;
+  /** A11y announcement via aria-live */
+  announceA11y(msg: string): void;
+  /** Betweenness centrality cache (may be undefined) */
+  getBetweennessCache(): Map<string, number> | undefined;
+}
+
 /**
  * Derive a single ClusterGroupRule from a query string + recursive flag.
  * Supports wildcard patterns like "tag:*" → groupBy: "tag".
@@ -108,7 +140,7 @@ export type { PixiNode } from "./InteractionManager";
 // ---------------------------------------------------------------------------
 // View
 // ---------------------------------------------------------------------------
-export class GraphViewContainer extends ItemView implements InteractionHost, RenderHost, LayoutHost {
+export class GraphViewContainer extends ItemView implements InteractionHost, RenderHost, LayoutHost /* StatsHost: Phase 1 */ {
   plugin: GraphViewsPlugin;
   private currentLayout: LayoutType;
   private rawData: GraphData | null = null;
@@ -3338,13 +3370,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return detectArticulationPoints(gd.nodes, gd.edges);
   }
 
-  /** RenderHost: betweenness centrality cache (lazy computation) */
-  getBetweennessCache(): Map<string, number> | null {
+  /** RenderHost + StatsHost: betweenness centrality cache (lazy computation) */
+  getBetweennessCache(): Map<string, number> | undefined {
     if (this._betweennessCacheRef === this.rawData && this._betweennessCache) {
       return this._betweennessCache;
     }
     const gd = this.getGraphData();
-    if (!gd || gd.nodes.length === 0) return null;
+    if (!gd || gd.nodes.length === 0) return undefined;
     this._betweennessCache = computeBetweennessCentrality(gd.nodes, gd.edges);
     this._betweennessCacheRef = this.rawData;
     return this._betweennessCache;
@@ -6378,6 +6410,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
+  // --- StatsHost bridge methods (Phase 0: interface only, Phase 1: extract to StatsRenderer) ---
+  getNodeLabel(id: string): string {
+    return this.pixiNodes.get(id)?.data?.label ?? id.replace(/\.md$/, "").split("/").pop() ?? id;
+  }
+  getCurrentFps(): number { return this.renderPipeline?.currentFps ?? 0; }
+  announceA11y(msg: string): void { this._announceA11y(msg); }
+
   /** S1: Update hierarchy breadcrumb bar above graph */
   private updateHierarchyBreadcrumb(): void {
     if (!this.hierarchyBreadcrumbEl) return;
@@ -7987,7 +8026,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
    * Smoothly pan the camera so that the given node is centered on screen.
    * Uses 200ms ease-out animation; skips animation when prefers-reduced-motion is set.
    */
-  private panToNode(nodeId: string) {
+  panToNode(nodeId: string) {
     const pn = this.pixiNodes.get(nodeId);
     if (!pn) return;
     const world = this.worldContainer;

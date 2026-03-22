@@ -343,7 +343,7 @@ export interface RenderHost {
   /** Recency configuration (null = disabled) */
   getRecencyConfig?(): { days: number } | null;
   /** Get betweenness centrality cache */
-  getBetweennessCache?(): Map<string, number> | null;
+  getBetweennessCache?(): Map<string, number> | undefined;
   /** Get bridge node IDs (top betweenness) — null if disabled */
   getBridgeNodeIds?(): Set<string> | null;
   /** Get articulation point IDs — null if disabled */
