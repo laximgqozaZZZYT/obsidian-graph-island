@@ -310,3 +310,78 @@ export function renderBreadcrumb(
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Relation Matrix (Phase 4 — extracted from GVC updateRelationMatrix)
+// ---------------------------------------------------------------------------
+
+/**
+ * Render the relation matrix showing adjacency between top-degree nodes.
+ */
+export function renderRelationMatrix(
+  el: HTMLElement,
+  showMatrix: boolean,
+  edges: readonly { source: string | { id: string }; target: string | { id: string }; type?: string }[],
+  host: Pick<StatsHost, "getDegrees" | "getNodeLabel">,
+  onCellClick: (nodeIds: Set<string>) => void,
+): void {
+  if (!showMatrix) {
+    el.style.display = "none";
+    return;
+  }
+  el.style.display = "";
+  el.empty();
+
+  el.createEl("div", { cls: "gi-matrix-title", text: "Relation Matrix" });
+
+  const degrees = host.getDegrees();
+  const sorted = [...degrees.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
+  if (sorted.length === 0) return;
+
+  const nodeIds = sorted.map(([id]) => id);
+  const idSet = new Set(nodeIds);
+
+  // Build adjacency count matrix
+  const matrix = new Map<string, Map<string, number>>();
+  for (const id of nodeIds) matrix.set(id, new Map());
+
+  for (const e of edges) {
+    const src = typeof e.source === "object" ? e.source.id : e.source;
+    const tgt = typeof e.target === "object" ? e.target.id : e.target;
+    if (idSet.has(src) && idSet.has(tgt)) {
+      const row = matrix.get(src)!;
+      row.set(tgt, (row.get(tgt) ?? 0) + 1);
+    }
+  }
+
+  let maxCount = 1;
+  for (const row of matrix.values()) {
+    for (const v of row.values()) { if (v > maxCount) maxCount = v; }
+  }
+
+  const table = el.createEl("table", { cls: "gi-matrix-table" });
+  const headerRow = table.createEl("tr");
+  headerRow.createEl("th");
+  for (const id of nodeIds) {
+    const label = host.getNodeLabel(id);
+    const th = headerRow.createEl("th", { text: label.slice(0, 3), attr: { title: label } });
+    th.style.fontSize = "9px";
+  }
+
+  for (const rowId of nodeIds) {
+    const tr = table.createEl("tr");
+    const label = host.getNodeLabel(rowId);
+    tr.createEl("td", { text: label.slice(0, 6), cls: "gi-matrix-label", attr: { title: label } });
+
+    for (const colId of nodeIds) {
+      const count = matrix.get(rowId)?.get(colId) ?? 0;
+      const td = tr.createEl("td", { cls: "gi-matrix-cell" });
+      if (count > 0) {
+        td.textContent = String(count);
+        const intensity = Math.min(1, count / maxCount);
+        td.style.backgroundColor = `rgba(var(--interactive-accent-rgb, 99,102,241), ${intensity * 0.6})`;
+      }
+      td.addEventListener("click", () => onCellClick(new Set([rowId, colId])));
+    }
+  }
+}
