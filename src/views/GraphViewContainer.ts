@@ -16,7 +16,7 @@ import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid } from "../utils/graph-helpers";
 import { hexToRgb } from "../utils/color";
-import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, type NodeTreeEntry, DEFAULT_PANEL, createDefaultPanel, validatePanelState } from "./PanelBuilder";
+import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, type NodeTreeEntry, DEFAULT_PANEL, createDefaultPanel, validatePanelState, ensureRT } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
@@ -464,9 +464,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (Platform.isMobile) {
       root.addClass("is-mobile");
       // A11y WCAG 2.5.5: ensure minimum 44px touch target (22px radius)
-      if (!this.panel.renderThresholds) this.panel.renderThresholds = {};
-      if ((this.panel.renderThresholds.minNodeRadius ?? 0) < 22) {
-        this.panel.renderThresholds.minNodeRadius = 22;
+      const rt = ensureRT(this.panel);
+      if ((rt.minNodeRadius ?? 0) < 22) {
+        rt.minNodeRadius = 22;
       }
     }
 
@@ -3457,8 +3457,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       // Increase margin
       margin += step;
-      if (!this.panel.renderThresholds) this.panel.renderThresholds = {};
-      this.panel.renderThresholds.labelOverlapMargin = margin;
+      ensureRT(this.panel).labelOverlapMargin = margin;
     }
     // Final check
     this.renderPipeline?.cullOverlappingLabels();
