@@ -1230,6 +1230,8 @@ export interface RenderThresholds {
   cardLODFullCardPx?: number;
   /** Card density fallback: revert card→node mode when visible count exceeds this at LOD 3 (default 150) */
   cardDensityFallbackCount?: number;
+  /** IC: Card density fallback at LOD 4: revert card→node when visible > this (default 500) */
+  cardDensityFallbackCountHigh?: number;
   /** HP: Max number of neighbor labels shown on hover (default 30) */
   maxHoverNeighborLabels?: number;
   /** HT: Hover edge alpha falloff per hop (0-1, default 0.6) */
@@ -1504,6 +1506,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   cardLODCompactPx: 8.0,
   cardLODFullCardPx: 15.0,
   cardDensityFallbackCount: 150,
+  cardDensityFallbackCountHigh: 500,
   maxHoverNeighborLabels: 30,
   hoverEdgeFalloff: 0.6,
   autoLOD: true,

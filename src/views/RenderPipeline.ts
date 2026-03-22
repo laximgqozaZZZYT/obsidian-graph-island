@@ -977,10 +977,16 @@ export class RenderPipeline {
         }
         break;
       case "card": {
-        // Auto-fallback: at low zoom (LOD < 3), render as circles to prevent dense card overlap
-        // Also fallback at LOD 3 when node density is high (>150 visible nodes) to prevent card pile-up
+        // IC: Tiered density fallback to prevent card overlap at various zoom/density
+        // LOD < 3: always circles (extreme zoom)
+        // LOD 3 + >150 visible: circles (dense mid-zoom)
+        // LOD 4 + >500 visible: node mode with labels (high density)
+        // LOD 4/5 + <=500 or LOD 5: full cards
         const cardDensityThreshold = rt.cardDensityFallbackCount ?? 150;
+        const cardDensityThresholdHigh = rt.cardDensityFallbackCountHigh ?? 500;
         if (ctx.lodLevel < 3 || (ctx.lodLevel === 3 && ctx.visible.length > cardDensityThreshold)) {
+          this._renderNodeMode(g, ctx, crc, rt);
+        } else if (ctx.lodLevel === 4 && ctx.visible.length > cardDensityThresholdHigh) {
           this._renderNodeMode(g, ctx, crc, rt);
         } else {
           this._renderCardMode(g, ctx, crc, rt);
