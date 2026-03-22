@@ -3554,9 +3554,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           }
           // HZ: Use max() instead of min() — focusCone already handles distance dimming,
           // search highlight should not make it even darker (was causing double-dim)
-          pn.gfx.alpha = searchActive && !searchMatch ? Math.max(coneAlpha * 0.5, 0.04) : coneAlpha;
+          // IK: raise dimmed floor from 0.04→0.12 for WCAG contrast in dark themes
+          pn.gfx.alpha = searchActive && !searchMatch ? Math.max(coneAlpha * 0.5, 0.12) : coneAlpha;
         } else {
-          pn.gfx.alpha = searchActive && !searchMatch ? 0.06 : 0.12;
+          // IK: raise search-dim alpha from 0.06→0.15 for dark-theme visibility
+          pn.gfx.alpha = searchActive && !searchMatch ? 0.15 : 0.12;
         }
         if (isCardMode) pn.gfx.scale.set(1);
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; pn.hoverForcedLabel = false; }
@@ -3813,6 +3815,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // Flip to left side of node
       const estW = (hl.width ?? 100) * counterScale;
       hl.x = -(pn.radius + 4 + estW) * gfxScale;
+      // IL: Check if flipped position overflows left edge
+      const flippedScrX = (pn.data.x + hl.x * (1 / gfxScale)) * ws + world.x;
+      if (flippedScrX < 0) {
+        // Place below node instead
+        hl.x = 0;
+        hl.y = (pn.radius + 4) * gfxScale;
+      }
       // If still overflowing top, push down
       if (tipScrY < 0) {
         hl.y = (pn.radius * 0.4 + 2) * gfxScale;
@@ -6315,6 +6324,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       body.style.display = hidden ? "" : "none";
     });
 
+    // IH: Count nodes per category for legend display
+    const categoryCounts = new Map<string, number>();
+    for (const pn of this.pixiNodes.values()) {
+      const cat = pn.data.category ?? (pn.data.tags?.[0] ? `tag:${pn.data.tags[0]}` : "");
+      if (cat) categoryCounts.set(cat, (categoryCounts.get(cat) ?? 0) + 1);
+    }
+
     // --- ノードカラーセクション ---
     const legendColorMode = this.panel.nodeColorMode ?? "category";
     if (colorMap.size > 0 && legendColorMode === "category") {
@@ -6324,7 +6340,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const row = nodeSection.createDiv({ cls: "gi-legend-item gi-legend-item-clickable", attr: { role: "button", tabindex: "0", "aria-label": `Filter: ${label.replace(/^tag:/, "#")}` } });
         const dot = row.createDiv({ cls: "gi-legend-color-dot" });
         dot.style.background = cssColor;
-        row.createEl("span", { cls: "gi-legend-label", text: label.replace(/^tag:/, "#") });
+        // IH: Show category node count
+        const count = categoryCounts.get(label) ?? 0;
+        const displayLabel = label.replace(/^tag:/, "#") + (count > 0 ? ` (${count})` : "");
+        row.createEl("span", { cls: "gi-legend-label", text: displayLabel });
         // クリックで検索フィルターにトグル
         const toggleFilter = () => {
           const field = label.startsWith("tag:") ? label : `category:${label}`;

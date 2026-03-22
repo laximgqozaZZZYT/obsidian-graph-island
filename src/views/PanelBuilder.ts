@@ -1730,6 +1730,7 @@ function _buildEdgeDisplaySection(
       ], panel.edgeLabelPlacement ?? "center", (v) => {
         panel.edgeLabelPlacement = v as "center" | "offset" | "smart";
         cb.markDirty();
+        cb.announceA11y?.(`Edge label placement: ${v}`);
       });
       addToggle(adv, t("display.edgeLayerMode"), panel.edgeLayerMode, (v) => { panel.edgeLayerMode = v; cb.markDirty(); }, t("desc.edgeLayerMode"));
       addSelect(adv, t("display.edgeDirectionFilter"), [
