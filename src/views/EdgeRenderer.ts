@@ -211,7 +211,6 @@ function shouldSkipByDirection(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
 // ---------------------------------------------------------------------------
 // Theme-aware edge colors
 function defaultColor(isDark: boolean) { return isDark ? 0x666666 : 0x999999; }
-function highlightColor(isDark: boolean) { return isDark ? 0x999999 : 0x555555; }
 // C4: Intuitive edge color palette — distinct, accessible, memorable
 const INHERITANCE_COLOR = 0x8b5cf6;  // purple-500 — hierarchy/inheritance
 const AGGREGATION_COLOR = 0x3b82f6;  // blue-500 — composition/aggregation

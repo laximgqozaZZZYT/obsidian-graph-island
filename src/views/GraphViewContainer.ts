@@ -26,7 +26,7 @@ import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from
 import { matchesFilter } from "../layouts/force";
 import type { ResolvedGridInfo } from "../layouts/coordinate-engine";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
-import { RenderPipeline, darkenColor, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPipeline";
+import { RenderPipeline, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPipeline";
 import { LayoutController, type LayoutHost } from "./LayoutController";
 import { LabelManager } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
