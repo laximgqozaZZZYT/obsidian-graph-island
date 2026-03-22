@@ -3082,12 +3082,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     if (this.compareClusterKeys[0] === null) {
       this.compareClusterKeys[0] = groupKey;
+      this._announceA11y(`Cluster compare: selected ${groupKey}`);
     } else if (this.compareClusterKeys[1] === null && this.compareClusterKeys[0] !== groupKey) {
       this.compareClusterKeys[1] = groupKey;
       this.updateClusterCompare();
     } else {
       // Reset
       this.compareClusterKeys = [groupKey, null];
+      this._announceA11y(`Cluster compare: reset to ${groupKey}`);
     }
     this.markDirty(true);
   }
@@ -3138,7 +3140,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Highlight bridge nodes
     this.applyEphemeralHighlight(bridgeNodes.size > 0 ? bridgeNodes : null);
 
-    showToast(`Cluster compare: ${keyA} (${membersA.length}) vs ${keyB} (${membersB.length}) — ${interEdges} edges, ${bridgeNodes.size} bridges, ${sharedTags.length} shared tags`);
+    // ID: A11y — use both toast (visual) and announce (screen reader)
+    const msg = `Cluster compare: ${keyA} (${membersA.length}) vs ${keyB} (${membersB.length}) — ${interEdges} edges, ${bridgeNodes.size} bridges, ${sharedTags.length} shared tags`;
+    showToast(msg);
+    this._announceA11y(msg);
   }
 
   // =========================================================================
