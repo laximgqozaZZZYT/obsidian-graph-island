@@ -3372,8 +3372,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // -- InteractionHost: Obsidian App access (for hover-link preview) --
   getApp() { return this.app; }
   getContainerEl(): HTMLElement { return this.containerEl; }
-  /** §0.1: Label collision stats for quality monitoring (E2E accessible) */
-  getLabelCullStats() { return this.renderPipeline?.cullStats ?? { totalLabels: 0, visibleLabels: 0, culledLabels: 0, collisionRate: 0 }; }
+  /** §0.1: Label collision stats for quality monitoring (E2E accessible).
+   *  JC: Auto-refreshes cull pass if stats are stale (totalLabels=0). */
+  getLabelCullStats() {
+    const rp = this.renderPipeline;
+    if (!rp) return { totalLabels: 0, visibleLabels: 0, culledLabels: 0, collisionRate: 0 };
+    // JC: If stats are empty but pixiNodes exist, force a cull pass
+    if (rp.cullStats.totalLabels === 0 && this.pixiNodes.size > 0) {
+      rp.cullOverlappingLabels();
+    }
+    return rp.cullStats;
+  }
 
   /** BFS shortest path using adj map */
   private computePathfinderPath() {
@@ -4851,15 +4860,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!network || network.intersections.length === 0) return;
 
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-    if (!(rt.showRoadNetwork ?? false)) return;
+    if (!(rt.showRoadNetwork ?? true)) return;
 
     const isDark = this.isDarkTheme();
     const roadColor = rt.roadColor ?? (isDark ? 0x555577 : 0xaaaacc);
     const worldScale = this.worldContainer?.scale.x ?? 1;
 
-    // LOD: roads are only meaningful at medium-to-high zoom.
-    // Below 10% zoom the entire graph is visible and roads just create noise.
-    const roadMinZoom = rt.roadMinZoom ?? 0.10;
+    // LOD: roads hidden below minimum zoom (default 1%).
+    const roadMinZoom = rt.roadMinZoom ?? 0.01;
     if (worldScale < roadMinZoom) return;
 
     // Road width: fixed in world space (no zoom scaling).
