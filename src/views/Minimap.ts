@@ -77,9 +77,12 @@ export class Minimap {
     // Wrapper div for positioning
     this.wrapper = document.createElement("div");
     this.wrapper.className = "gi-minimap-wrap";
+    // IF: Minimap a11y — focusable with keyboard pan support
     this.wrapper.setAttribute("role", "img");
-    this.wrapper.setAttribute("aria-label", "Graph minimap — drag to navigate");
+    this.wrapper.setAttribute("aria-label", "Graph minimap — drag to navigate, arrow keys to pan");
+    this.wrapper.setAttribute("tabindex", "0");
     parentEl.appendChild(this.wrapper);
+    this.wrapper.addEventListener("keydown", this.onKeyDown);
 
     // Drag handle bar
     this.handle = document.createElement("div");
@@ -195,6 +198,34 @@ export class Minimap {
     }
   }
 
+  // IF: Keyboard navigation for minimap — arrow keys pan the viewport
+  private onKeyDown = (e: KeyboardEvent) => {
+    if (!this.bounds) return;
+    const PAN_STEP = 50; // world units per key press
+    const wt = this.host.getWorldTransform();
+    let dx = 0, dy = 0;
+    switch (e.key) {
+      case "ArrowUp":    dy = PAN_STEP; break;
+      case "ArrowDown":  dy = -PAN_STEP; break;
+      case "ArrowLeft":  dx = PAN_STEP; break;
+      case "ArrowRight": dx = -PAN_STEP; break;
+      case "Home": {
+        // Center viewport on graph center
+        const vp = this.host.getViewportSize();
+        this.host.setWorldPosition(vp.width / 2, vp.height / 2);
+        this.host.wakeRenderLoop();
+        this.host.announceViewportChange?.();
+        e.preventDefault();
+        return;
+      }
+      default: return;
+    }
+    e.preventDefault();
+    this.host.setWorldPosition(wt.x + dx * wt.scaleX, wt.y + dy * wt.scaleY);
+    this.host.wakeRenderLoop();
+    this.host.announceViewportChange?.();
+  };
+
   // --- Canvas pan (click inside minimap to pan viewport) ---
   private onMouseDown = (e: MouseEvent) => {
     e.stopPropagation();
@@ -286,6 +317,7 @@ export class Minimap {
     }
     document.removeEventListener("mouseup", this.onMouseUp);
     document.removeEventListener("mousemove", this.onHandleMove);
+    this.wrapper.removeEventListener("keydown", this.onKeyDown);
     this.wrapper.remove();
   }
 }

@@ -701,11 +701,18 @@ export function buildPanel(
   const searchWrapper = searchRow.createDiv({ cls: "gi-search-wrapper" });
   const searchIcon = searchWrapper.createEl("span", { cls: "gi-search-icon" });
   setIcon(searchIcon, "search");
+  // IF: ARIA combobox pattern for search + history dropdown
   const searchBar = searchWrapper.createEl("input", {
     cls: "gi-search gi-top-search",
     type: "text",
     placeholder: t("search.placeholder"),
-    attr: { "aria-label": t("search.placeholder") },
+    attr: {
+      "aria-label": t("search.placeholder"),
+      role: "combobox",
+      "aria-expanded": "false",
+      "aria-controls": "gi-search-history-list",
+      "aria-autocomplete": "list",
+    },
   });
   const searchClearBtn = searchWrapper.createEl("span", { cls: "gi-search-clear" });
   searchClearBtn.textContent = "\u00d7";
@@ -758,7 +765,10 @@ export function buildPanel(
   updateSyntaxPreview();
 
   // --- 検索履歴ドロップダウン ---
-  const historyDropdown = searchWrapper.createDiv({ cls: "gi-search-history" });
+  const historyDropdown = searchWrapper.createDiv({
+    cls: "gi-search-history",
+    attr: { role: "listbox", id: "gi-search-history-list", "aria-label": t("search.history") ?? "Search history" },
+  });
   historyDropdown.style.display = "none";
   /** 履歴ドロップダウンを現在の入力値でフィルターして表示 */
   const showHistory = () => {
@@ -772,9 +782,11 @@ export function buildPanel(
       : panel.searchHistory;
     if (filtered.length === 0) {
       historyDropdown.style.display = "none";
+      searchBar.setAttribute("aria-expanded", "false");
       return;
     }
     historyDropdown.empty();
+    searchBar.setAttribute("aria-expanded", "true");
 
     // Saved queries section (named slots)
     if (panel.savedSearchQueries && panel.savedSearchQueries.length > 0) {
@@ -805,7 +817,7 @@ export function buildPanel(
 
     // History section
     for (const query of filtered) {
-      const item = historyDropdown.createDiv({ cls: "gi-search-history-item" });
+      const item = historyDropdown.createDiv({ cls: "gi-search-history-item", attr: { role: "option" } });
       item.textContent = query;
       item.addEventListener("mousedown", (e) => {
         e.preventDefault();
@@ -869,7 +881,7 @@ export function buildPanel(
   searchBar.addEventListener("focus", () => { showHistory(); });
   searchBar.addEventListener("blur", () => {
     // 少し遅延させてクリックイベントが先に処理されるようにする
-    setTimeout(() => { historyDropdown.style.display = "none"; }, 150);
+    setTimeout(() => { historyDropdown.style.display = "none"; searchBar.setAttribute("aria-expanded", "false"); }, 150);
   });
   searchClearBtn.addEventListener("click", () => {
     searchBar.value = "";

@@ -1534,7 +1534,9 @@ export class RenderPipeline {
   ) {
     const { visible, tlFilteredOut, alpha, nodeCount, worldScale, minWorldRadius } = ctx;
     const cardH = crc.plainCardHeight / worldScale;
-    const showMeta = nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
+    // IE: Card content respects hover checklist
+    const panelMeta2 = this.host.getPanel?.()?.hoverShowMeta ?? true;
+    const showMeta = panelMeta2 && nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
     const fieldLineH = crc.fieldLineHeight / worldScale;
 
     // HM: Golden ratio for plain cards — compute width from height × AR
