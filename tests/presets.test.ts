@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { exportPreset, importPreset, applyPreset } from "../src/utils/presets";
+import { exportPreset, exportPresetDiff, importPreset, applyPreset } from "../src/utils/presets";
 
 // We define a local DEFAULT_PANEL to avoid importing from PanelBuilder
 // which pulls in the "obsidian" module (not available in test env).
@@ -362,6 +362,80 @@ describe("GX: preset field completeness", () => {
       if (!(key in imported)) missing.push(key + " (" + typeof value + ")");
     }
     expect(missing).toEqual([]);
+  });
+});
+
+describe("exportPresetDiff", () => {
+  it("returns empty object when panel equals defaults", () => {
+    const panel = { ...DEFAULT_PANEL };
+    const diff = exportPresetDiff(panel as any, DEFAULT_PANEL as any);
+    const parsed = JSON.parse(diff);
+    expect(Object.keys(parsed).length).toBe(0);
+  });
+
+  it("includes only changed scalar fields", () => {
+    const panel = { ...DEFAULT_PANEL, nodeSize: 42 };
+    const diff = exportPresetDiff(panel as any, DEFAULT_PANEL as any);
+    const parsed = JSON.parse(diff);
+    expect(parsed.nodeSize).toBe(42);
+    expect(parsed.showLinks).toBeUndefined(); // unchanged
+  });
+
+  it("detects boolean changes", () => {
+    const panel = { ...DEFAULT_PANEL, showArrows: true };
+    const diff = exportPresetDiff(panel as any, DEFAULT_PANEL as any);
+    const parsed = JSON.parse(diff);
+    expect(parsed.showArrows).toBe(true);
+  });
+
+  it("detects string changes", () => {
+    const panel = { ...DEFAULT_PANEL, searchQuery: "tag:hero" };
+    const diff = exportPresetDiff(panel as any, DEFAULT_PANEL as any);
+    const parsed = JSON.parse(diff);
+    expect(parsed.searchQuery).toBe("tag:hero");
+  });
+
+  it("skips Set and Array fields", () => {
+    const panel = { ...DEFAULT_PANEL, collapsedGroups: new Set(["a"]) };
+    const diff = exportPresetDiff(panel as any, DEFAULT_PANEL as any);
+    const parsed = JSON.parse(diff);
+    expect(parsed.collapsedGroups).toBeUndefined();
+  });
+
+  it("produces valid JSON", () => {
+    const panel = { ...DEFAULT_PANEL, nodeSize: 99, showArrows: true };
+    const diff = exportPresetDiff(panel as any, DEFAULT_PANEL as any);
+    expect(() => JSON.parse(diff)).not.toThrow();
+  });
+});
+
+describe("importPreset — migration", () => {
+  it("migrates removed arrangement to grid", () => {
+    const json = JSON.stringify({ clusterArrangement: "spiral" });
+    const migrationInfo = { migratedFields: [] as string[], removedFields: [] as string[] };
+    const result = importPreset(json, migrationInfo);
+    expect(result.clusterArrangement).toBe("grid");
+    expect(migrationInfo.migratedFields.some(f => f.includes("clusterArrangement"))).toBe(true);
+  });
+
+  it("strips deprecated scaleByDegree field", () => {
+    const json = JSON.stringify({ scaleByDegree: true, nodeSize: 20 });
+    const migrationInfo = { migratedFields: [] as string[], removedFields: [] as string[] };
+    const result = importPreset(json, migrationInfo);
+    expect((result as any).scaleByDegree).toBeUndefined();
+    expect(result.nodeSize).toBe(20);
+    expect(migrationInfo.removedFields).toContain("scaleByDegree");
+  });
+
+  it("handles empty object gracefully", () => {
+    const result = importPreset("{}");
+    expect(result).toBeDefined();
+    expect(Object.keys(result).length).toBe(0);
+  });
+
+  it("handles preset with only unknown fields", () => {
+    const result = importPreset(JSON.stringify({ foo: "bar", baz: 123 }));
+    expect(Object.keys(result).length).toBe(0);
   });
 });
 
