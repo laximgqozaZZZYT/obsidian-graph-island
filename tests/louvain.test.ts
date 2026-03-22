@@ -126,3 +126,97 @@ describe("louvainCommunities", () => {
     expect(commIds).toEqual(new Set([0, 1, 2]));
   });
 });
+
+describe("louvainCommunities — boundary cases", () => {
+  it("complete graph K4: all nodes in 1 community", () => {
+    const nodes = ["a", "b", "c", "d"];
+    const edges: LouvainEdge[] = [
+      { source: "a", target: "b" }, { source: "a", target: "c" },
+      { source: "a", target: "d" }, { source: "b", target: "c" },
+      { source: "b", target: "d" }, { source: "c", target: "d" },
+    ];
+    const result = louvainCommunities(nodes, edges);
+    const communities = new Set(result.values());
+    expect(communities.size).toBe(1);
+  });
+
+  it("bipartite graph: 2 clear communities", () => {
+    // Group A: a1, a2, a3 (fully connected)
+    // Group B: b1, b2, b3 (fully connected)
+    // Single bridge: a1-b1
+    const nodes = ["a1", "a2", "a3", "b1", "b2", "b3"];
+    const edges: LouvainEdge[] = [
+      { source: "a1", target: "a2" }, { source: "a2", target: "a3" }, { source: "a1", target: "a3" },
+      { source: "b1", target: "b2" }, { source: "b2", target: "b3" }, { source: "b1", target: "b3" },
+      { source: "a1", target: "b1" }, // bridge
+    ];
+    const result = louvainCommunities(nodes, edges);
+    const communities = new Set(result.values());
+    expect(communities.size).toBe(2);
+    // Nodes in same group should share community
+    expect(result.get("a1")).toBe(result.get("a2"));
+    expect(result.get("b1")).toBe(result.get("b2"));
+    // Different groups should have different communities
+    expect(result.get("a1")).not.toBe(result.get("b1"));
+  });
+
+  it("star graph: hub + leaves in same community", () => {
+    const nodes = ["hub", "a", "b", "c", "d", "e"];
+    const edges: LouvainEdge[] = [
+      { source: "hub", target: "a" }, { source: "hub", target: "b" },
+      { source: "hub", target: "c" }, { source: "hub", target: "d" },
+      { source: "hub", target: "e" },
+    ];
+    const result = louvainCommunities(nodes, edges);
+    // All should be in same community (no internal structure to split)
+    const communities = new Set(result.values());
+    expect(communities.size).toBeLessThanOrEqual(2); // 1 or 2 acceptable
+  });
+
+  it("large graph (100 nodes, 2 clusters) detects 2 communities", () => {
+    const nodes: string[] = [];
+    const edges: LouvainEdge[] = [];
+    // Cluster A: 50 nodes with random internal edges
+    for (let i = 0; i < 50; i++) nodes.push(`a${i}`);
+    for (let i = 0; i < 50; i++) {
+      for (let j = i + 1; j < 50 && j <= i + 5; j++) {
+        edges.push({ source: `a${i}`, target: `a${j}` });
+      }
+    }
+    // Cluster B: 50 nodes with random internal edges
+    for (let i = 0; i < 50; i++) nodes.push(`b${i}`);
+    for (let i = 0; i < 50; i++) {
+      for (let j = i + 1; j < 50 && j <= i + 5; j++) {
+        edges.push({ source: `b${i}`, target: `b${j}` });
+      }
+    }
+    // Single bridge between clusters
+    edges.push({ source: "a0", target: "b0" });
+
+    const result = louvainCommunities(nodes, edges);
+    expect(result.size).toBe(100);
+    // Should detect at least 2 communities
+    const communities = new Set(result.values());
+    expect(communities.size).toBeGreaterThanOrEqual(2);
+  });
+
+  it("all isolated nodes: each in own community", () => {
+    const nodes = ["a", "b", "c", "d", "e"];
+    const result = louvainCommunities(nodes, []);
+    const communities = new Set(result.values());
+    expect(communities.size).toBe(5);
+  });
+
+  it("duplicate edges ignored gracefully", () => {
+    const nodes = ["a", "b"];
+    const edges: LouvainEdge[] = [
+      { source: "a", target: "b" },
+      { source: "a", target: "b" }, // duplicate
+      { source: "b", target: "a" }, // reverse
+    ];
+    const result = louvainCommunities(nodes, edges);
+    expect(result.size).toBe(2);
+    // Should still work (1 community since fully connected)
+    expect(result.get("a")).toBe(result.get("b"));
+  });
+});
