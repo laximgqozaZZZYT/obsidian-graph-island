@@ -2761,7 +2761,19 @@ export class RenderPipeline {
     const totalVisible = rects.filter(r => r.label.visible).length;
     const densityCulled = rects.length - totalVisible;
     this.host.updateDensityCulledBadge?.(densityCulled);
+
+    // §0.1: Expose label collision stats for quality monitoring
+    this._lastCullStats = {
+      totalLabels: rects.length,
+      visibleLabels: totalVisible,
+      culledLabels: densityCulled,
+      collisionRate: rects.length > 0 ? densityCulled / rects.length : 0,
+    };
   }
+
+  /** §0.1 Quality stats from last cullOverlappingLabels run */
+  get cullStats() { return this._lastCullStats; }
+  private _lastCullStats = { totalLabels: 0, visibleLabels: 0, culledLabels: 0, collisionRate: 0 };
 
   // =========================================================================
   // cullOverlappingLabels — extracted sub-methods

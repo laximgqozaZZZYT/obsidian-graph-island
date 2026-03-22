@@ -899,6 +899,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this._announceA11y("Node info closed");
       return;
     }
+    // IP: Close stats panel via Escape
+    if (this.graphStatsEl && this.graphStatsEl.style.display !== "none" && this.panel.showGraphStats) {
+      this.panel.showGraphStats = false;
+      this.graphStatsEl.style.display = "none";
+      this._announceA11y("Stats panel closed");
+      return;
+    }
     if (this.legendEl && this.legendEl.style.display !== "none") {
       this.legendEl.style.display = "none";
       this._announceA11y("Legend closed");
@@ -3364,6 +3371,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // -- InteractionHost: Obsidian App access (for hover-link preview) --
   getApp() { return this.app; }
   getContainerEl(): HTMLElement { return this.containerEl; }
+  /** §0.1: Label collision stats for quality monitoring (E2E accessible) */
+  getLabelCullStats() { return this.renderPipeline?.cullStats ?? { totalLabels: 0, visibleLabels: 0, culledLabels: 0, collisionRate: 0 }; }
 
   /** BFS shortest path using adj map */
   private computePathfinderPath() {
@@ -6125,8 +6134,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (count === 0 && d > 10) continue;
         const bar = chartEl.createDiv();
         const h = Math.max(1, (count / maxBucket) * 28);
-        bar.style.cssText = `width:6px;height:${h}px;background:var(--interactive-accent);opacity:0.7;border-radius:1px 1px 0 0;`;
-        bar.title = `degree ${d}${d === 20 ? "+" : ""}: ${count} nodes`;
+        bar.style.cssText = `width:6px;height:${h}px;background:var(--interactive-accent);opacity:0.7;border-radius:1px 1px 0 0;cursor:pointer;`;
+        bar.title = `degree ${d}${d === 20 ? "+" : ""}: ${count} nodes — click to filter`;
+        // IM: Click to set degree filter range
+        const deg = d;
+        bar.setAttribute("role", "button");
+        bar.setAttribute("tabindex", "0");
+        bar.addEventListener("click", () => {
+          this.panel.minDegreeFilter = deg;
+          this.panel.maxDegreeFilter = deg === 20 ? 0 : deg; // 20+ = no max
+          this.rawData = null;
+          this.doRender();
+          this.buildPanel();
+          this._announceA11y?.(`Degree filter: ${deg}${deg === 20 ? "+" : ""}`);
+        });
+        bar.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); bar.click(); }
+        });
       }
     }
 

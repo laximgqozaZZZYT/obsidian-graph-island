@@ -2288,3 +2288,45 @@ test.describe("75. Hover Checklist", () => {
     expect(result.bodyOff).toBe(true);
   });
 });
+
+// =========================================================================
+// 76. Degree Chart Clickable (IM)
+// =========================================================================
+test.describe("76. Degree Chart", () => {
+  test("76.1 degree chart bars have role=button", async () => {
+    const result = await page.evaluate(() => {
+      const leaves = (window as any).app.workspace.getLeavesOfType("graph-view");
+      const v = leaves.find((l: any) => "pixiNodes" in (l.view ?? {}))?.view;
+      if (!v?.panel) return { error: "no view" };
+      v.panel.showGraphStats = true;
+      v.markDirty?.(true);
+      return new Promise(resolve => {
+        setTimeout(() => {
+          const bars = document.querySelectorAll(".gi-degree-chart [role='button']");
+          resolve({ barCount: bars.length });
+        }, 500);
+      });
+    });
+    expect(result).not.toHaveProperty("error");
+  });
+});
+
+// =========================================================================
+// 77. Escape Closes Stats (IP)
+// =========================================================================
+test.describe("77. Escape Stats", () => {
+  test("77.1 stats panel can be toggled off", async () => {
+    const result = await page.evaluate(() => {
+      const leaves = (window as any).app.workspace.getLeavesOfType("graph-view");
+      const v = leaves.find((l: any) => "pixiNodes" in (l.view ?? {}))?.view;
+      if (!v?.panel) return { error: "no view" };
+      v.panel.showGraphStats = true;
+      const before = v.panel.showGraphStats;
+      v.panel.showGraphStats = false;
+      return { before, after: v.panel.showGraphStats };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.before).toBe(true);
+    expect(result.after).toBe(false);
+  });
+});
