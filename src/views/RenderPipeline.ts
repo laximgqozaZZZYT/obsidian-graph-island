@@ -1,6 +1,6 @@
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { GraphNode, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, CardRenderConfig, RenderThresholds } from "../types";
-import { DEFAULT_CARD_RENDER_CONFIG, DEFAULT_RENDER_THRESHOLDS } from "../types";
+import { DEFAULT_CARD_RENDER_CONFIG, DEFAULT_RENDER_THRESHOLDS, mergeRenderThresholds } from "../types";
 import type { PixiNode } from "./InteractionManager";
 import { getNodeShape, drawShape, drawShapeAt, getNodeDisplayConfig } from "../utils/node-shapes";
 import type { ShapeRule } from "../utils/node-shapes";
@@ -617,7 +617,7 @@ export class RenderPipeline {
 
     // Resolve config with defaults
     const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...this.host.getCardRenderConfig?.() };
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+    const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
 
     // Ring chart mode: hide all nodes
     if (this.host.isRingChartMode()) return;
@@ -775,10 +775,10 @@ export class RenderPipeline {
     // 5-level LOD (used when autoLOD is enabled)
     const lodLevel: number =
       isExtremeZoom ? 0 :
-      nodeScreenPx < (rt.cardLODMidLabelPx ?? 3.0) ? 1 :
-      nodeScreenPx < (rt.cardLODNormalPx ?? 4.0) ? 2 :
-      nodeScreenPx < (rt.cardLODCompactPx ?? 8.0) ? 3 :
-      nodeScreenPx < (rt.cardLODFullCardPx ?? 15.0) ? 4 : 5;
+      nodeScreenPx < (rt.cardLODMidLabelPx) ? 1 :
+      nodeScreenPx < (rt.cardLODNormalPx) ? 2 :
+      nodeScreenPx < (rt.cardLODCompactPx) ? 3 :
+      nodeScreenPx < (rt.cardLODFullCardPx) ? 4 : 5;
 
     return {
       visible, pixiNodes, tlFilteredOut, alpha, nodeCount,
@@ -989,8 +989,8 @@ export class RenderPipeline {
         // LOD 3 + >150 visible: circles (dense mid-zoom)
         // LOD 4 + >500 visible: node mode with labels (high density)
         // LOD 4/5 + <=500 or LOD 5: full cards
-        const cardDensityThreshold = rt.cardDensityFallbackCount ?? 150;
-        const cardDensityThresholdHigh = rt.cardDensityFallbackCountHigh ?? 500;
+        const cardDensityThreshold = rt.cardDensityFallbackCount;
+        const cardDensityThresholdHigh = rt.cardDensityFallbackCountHigh;
         if (ctx.lodLevel < 3 || (ctx.lodLevel === 3 && ctx.visible.length > cardDensityThreshold)) {
           this._renderNodeMode(g, ctx, crc, rt);
         } else if (ctx.lodLevel === 4 && ctx.visible.length > cardDensityThresholdHigh) {
@@ -1061,8 +1061,8 @@ export class RenderPipeline {
     rt: ReturnType<typeof Object.assign>,
   ) {
     const { visible, tlFilteredOut, alpha, nodeCount, shapeRules, worldScale, minWorldRadius } = ctx;
-    const prominentN = rt.prominentTopN ?? 5;
-    const nonPromSat = rt.nonProminentSaturation ?? 0.4;
+    const prominentN = rt.prominentTopN;
+    const nonPromSat = rt.nonProminentSaturation;
     const useGradient = nodeCount < rt.gradientNodeCount;
 
     // Zoom-adaptive node size: boost radius at zoom-out for visibility
@@ -1072,10 +1072,10 @@ export class RenderPipeline {
     // IK: High contrast mode doubles base stroke for better visibility
     const hc = this.host.isHighContrastMode?.() ?? false;
     const hcMul = hc ? 2 : 1;
-    const dsZoomLow = rt.denseStrokeZoomLow ?? 0.3;
-    const dsZoomMid = rt.denseStrokeZoomMid ?? 0.7;
-    const dsMaxW = rt.denseStrokeMaxWidth ?? 6;
-    const dsMidW = rt.denseStrokeMidWidth ?? 1.5;
+    const dsZoomLow = rt.denseStrokeZoomLow;
+    const dsZoomMid = rt.denseStrokeZoomMid;
+    const dsMaxW = rt.denseStrokeMaxWidth;
+    const dsMidW = rt.denseStrokeMidWidth;
     const baseStrokeW = (worldScale < dsZoomLow
       ? Math.min(2 / worldScale, dsMaxW)
       : worldScale < dsZoomMid ? dsMidW : 1) * hcMul;
@@ -1087,7 +1087,7 @@ export class RenderPipeline {
       // Zoom-out: fade low-degree nodes for visual clarity (AM: importance fade)
       // IA: Stronger fade so high-degree hubs stand out in dense clusters
       if (worldScale < 0.3 && pn.sortRank >= 0 && pn.sortRank >= prominentN * 2) {
-        nodeAlpha *= Math.max(rt.fadeLowDegreeFloor ?? 0.2, worldScale / 0.3);
+        nodeAlpha *= Math.max(rt.fadeLowDegreeFloor, worldScale / 0.3);
       }
 
       // Desaturate non-prominent nodes
@@ -1131,8 +1131,8 @@ export class RenderPipeline {
     rt: ReturnType<typeof Object.assign>,
   ) {
     const { visible, tlFilteredOut, alpha, shapeRules, worldScale, minWorldRadius } = ctx;
-    const compactPx = rt.semanticZoomCompactPx ?? 6;
-    const fullPx = rt.semanticZoomFullPx ?? 15;
+    const compactPx = rt.semanticZoomCompactPx;
+    const fullPx = rt.semanticZoomFullPx;
     const defField = this.host.getDefinitionField?.() ?? "";
     // IK: High contrast stroke multiplier for semantic zoom card paths
     const hcSem = this.host.isHighContrastMode?.() ? 2 : 1;
@@ -1176,7 +1176,7 @@ export class RenderPipeline {
           if (isCardText(gfx.children[ci])) { gfx.removeChild(gfx.children[ci]).destroy(); }
         }
         const fontSize = Math.min(Math.max(6, 9 / worldScale), 9 * 8);
-        const _mc1 = rt.labelMaxChars ?? 0;
+        const _mc1 = rt.labelMaxChars;
         const _lbl1 = _mc1 > 0 && pn.data.label.length > _mc1 ? pn.data.label.slice(0, _mc1) + "…" : pn.data.label;
         const nameText = new CanvasText(_lbl1, {
           fontSize, fontWeight: "bold", fill: labelColor,
@@ -1223,7 +1223,7 @@ export class RenderPipeline {
         const fontSize = Math.min(Math.max(7, 10 / worldScale), 10 * 8);
         const smallFont = fontSize * 0.85;
         let curY = -halfH + 3 / worldScale;
-        const _mc2 = rt.labelMaxChars ?? 0;
+        const _mc2 = rt.labelMaxChars;
         const _lbl2 = _mc2 > 0 && pn.data.label.length > _mc2 ? pn.data.label.slice(0, _mc2) + "…" : pn.data.label;
         const nameText = new CanvasText(_lbl2, {
           fontSize, fontWeight: "bold", fill: contrastColor(pn.color),
@@ -1465,7 +1465,7 @@ export class RenderPipeline {
       const availableTextW = halfW * 2 - textPadX * 2 - iconOffset;
 
       // Header text (bold, white) — apply GD labelMaxChars
-      const _mc3 = rt.labelMaxChars ?? 0;
+      const _mc3 = rt.labelMaxChars;
       const _lbl3 = _mc3 > 0 && pn.data.label.length > _mc3 ? pn.data.label.slice(0, _mc3) + "…" : pn.data.label;
       const headerText = new CanvasText(_lbl3, {
         fontSize,
@@ -1568,7 +1568,7 @@ export class RenderPipeline {
       const halfW = Math.max(MIN_PLAIN_HALF_W, Math.min(cardMaxW / 2, arHalfW));
       // FI: Dynamic card height based on body content (uses final width for line wrapping)
       // IP: Use cardBodyMaxLines (not hardcoded 3) for consistent card height
-      const maxBodyLines = rt.cardBodyMaxLines ?? 3;
+      const maxBodyLines = rt.cardBodyMaxLines;
       const bodyLines = pn.data.bodyPreview ? Math.min(maxBodyLines, Math.ceil(pn.data.bodyPreview.length / Math.max(5, Math.floor((halfW * 2 - 8 / worldScale) / (8 / worldScale * 0.55))))) : 0;
       const bodyExtraH = bodyLines * (8 / worldScale * 1.3);
       const totalH = baseH + bodyExtraH;
@@ -1585,7 +1585,7 @@ export class RenderPipeline {
       // FH/FI: Plain card with title + wrapped body preview
       {
         const fontSize = Math.min(Math.max(3, 10 / worldScale), 10 * CARD_SCALE_CAP);
-        const bodyFontBase = rt.cardBodyFontSize ?? 8;
+        const bodyFontBase = rt.cardBodyFontSize;
         const smallFont = Math.min(Math.max(2, bodyFontBase / worldScale), bodyFontBase * CARD_SCALE_CAP);
         const pad = Math.min(4 / worldScale, 4 * CARD_SCALE_CAP);
         const textW = halfW * 2 - pad * 2;
@@ -1594,7 +1594,7 @@ export class RenderPipeline {
         const titleFill = contrastColor(pn.color);
         const bodyFill = titleFill === 0xffffff ? 0xcccccc : 0x444444;
         // Title (apply GD labelMaxChars truncation)
-        const maxChars = rt.labelMaxChars ?? 0;
+        const maxChars = rt.labelMaxChars;
         const cardTitle = maxChars > 0 && pn.data.label.length > maxChars
           ? pn.data.label.slice(0, maxChars) + "…" : pn.data.label;
         const title = new CanvasText(cardTitle, {
@@ -1610,7 +1610,7 @@ export class RenderPipeline {
         // IE: Card content respects hoverShowBody checklist
         const cardShowBody = this.host.getPanel?.()?.hoverShowBody ?? true;
         if (pn.data.bodyPreview && cardShowBody) {
-          const maxLines = rt.cardBodyMaxLines ?? 3;
+          const maxLines = rt.cardBodyMaxLines;
           const charsPerLine = Math.max(5, Math.floor(textW / (smallFont * 0.55)));
           const words = pn.data.bodyPreview.split(/\s+/);
           const lines: string[] = [];
@@ -1781,8 +1781,8 @@ export class RenderPipeline {
     if (!pfNodes || pfNodes.size === 0) return;
 
     const rtt = this.host.getRenderThresholds?.() ?? {};
-    const pfStartColor = rtt.pathfinderStartColor ?? 0x22d3ee;
-    const pfEndColor = rtt.pathfinderEndColor ?? 0xf97316;
+    const pfStartColor = rtt.pathfinderStartColor;
+    const pfEndColor = rtt.pathfinderEndColor;
     const { visible, shapeRules } = ctx;
     for (const pn of visible) {
       if (!pfNodes.has(pn.data.id)) continue;
@@ -2302,17 +2302,17 @@ export class RenderPipeline {
     container.y = n.y;
 
     const isSuperNode = !!(n.collapsedMembers && n.collapsedMembers.length > 0);
-    const rtNode = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+    const rtNode = mergeRenderThresholds(this.host.getRenderThresholds?.());
     const maxR = rtNode.maxNodeRadius > 0 ? rtNode.maxNodeRadius : Infinity;
     const ns = this.host.getNodeSize?.() ?? nodeR(n);
     const nodeDeg = this.host.getDegrees().get(n.id) || 0;
     const sizeByDeg = rtNode.nodeSizeByDegree ?? false;
     const r = effectiveRadius(n, ns, nodeDeg, maxR, rtNode.minNodeRadius, this._cachedMaxDeg, sizeByDeg,
-      n.bodyLength ?? 0, this._cachedMaxBodyLength ?? 0, rtNode.cardContentScale ?? 0);
+      n.bodyLength ?? 0, this._cachedMaxBodyLength ?? 0, rtNode.cardContentScale);
     const color = nodeColor(n);
     const circle = new CanvasGraphics();
     if (isSuperNode) {
-      const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+      const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
       circle.lineStyle(rt.superNodeOuterStroke, color, 1);
       circle.drawCircle(0, 0, r);
       circle.lineStyle(rt.superNodeInnerStroke, color, rt.superNodeInnerAlpha);
@@ -2331,19 +2331,19 @@ export class RenderPipeline {
     const degrees = this.host.getDegrees();
     const deg = degrees.get(n.id) || 0;
     if (isSuperNode || deg > this.pendingLabelThreshold) {
-      const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+      const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
 
       // --- Importance-based font size: scale between min and max based on degree ---
       const maxDeg = this._cachedMaxDeg || 1;
       const importance = maxDeg > 0 ? Math.min(1, deg / maxDeg) : 0;
-      const fontMin = rt.nodeLabelFontSizeMin ?? 10;
-      const fontMax = rt.nodeLabelFontSizeMax ?? 14;
-      const superFontSize = rt.superNodeFontSize ?? 13;
+      const fontMin = rt.nodeLabelFontSizeMin;
+      const fontMax = rt.nodeLabelFontSizeMax;
+      const superFontSize = rt.superNodeFontSize;
       const scaledFontSize = isSuperNode ? superFontSize : Math.round(fontMin + importance * (fontMax - fontMin));
 
       const labelFontWeight = isSuperNode ? "bold" : "500";
       // For super nodes, use group color as pill background; for regular nodes, use theme-aware bg
-      const themeLabelBg = this.host.isDarkTheme() ? (rt.labelBgColor ?? 0x1a1a2e) : (rt.labelBgColorLight ?? 0xf0f0f4);
+      const themeLabelBg = this.host.isDarkTheme() ? (rt.labelBgColor) : (rt.labelBgColorLight);
       // AL: Optionally sync label bg with node color (subtle tint)
       const syncBg = rt.labelBgColorSync && color != null;
       const labelBg = isSuperNode ? (color != null ? darkenColor(color, 0.6) : themeLabelBg)
@@ -2356,7 +2356,7 @@ export class RenderPipeline {
         labelFill = contrastColor(labelBg);
       }
       // GD: Truncate label to max chars
-      const labelMaxChars = rt.labelMaxChars ?? 0;
+      const labelMaxChars = rt.labelMaxChars;
       // A3: Prepend icon prefix from nodeIconField mapping
       let displayLabel = labelMaxChars > 0 && n.label.length > labelMaxChars
         ? n.label.slice(0, labelMaxChars) + "…"
@@ -2427,7 +2427,7 @@ export class RenderPipeline {
     const subLabels: CanvasText[] = [];
     const subFieldsRaw = this.host.getNodeSubLabelFields?.() ?? "";
     if (subFieldsRaw && label && !isSuperNode) {
-      const srt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+      const srt = mergeRenderThresholds(this.host.getRenderThresholds?.());
       const fields = subFieldsRaw.split(",").map(s => s.trim()).filter(Boolean);
       // Stack sub-labels below tagLabel (or below node if no tagLabel)
       let yOffset = tagLabel
@@ -2520,7 +2520,7 @@ export class RenderPipeline {
 
   /** Whether autoLOD is currently active. */
   isAutoLODActive(): boolean {
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+    const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
     return rt.autoLOD ?? false;
   }
 
@@ -2542,7 +2542,7 @@ export class RenderPipeline {
     // In dense layouts (sunburst, cardioid), nearby unlinked nodes in the same arc
     // can cause AP-6 ambiguity if labels are placed toward them.
     const angles: number[] = [];
-    const rtZone = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+    const rtZone = mergeRenderThresholds(this.host.getRenderThresholds?.());
     const proximityFactor = rtZone.labelZoneProximityFactor ?? 8;
     const proximityR = (nodeRadius + offset) * proximityFactor;
     for (const nid of neighbors) {
@@ -2620,7 +2620,7 @@ export class RenderPipeline {
   // Label overlap culling — hide labels that overlap higher-priority ones
   // =========================================================================
   cullOverlappingLabels() {
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
+    const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
     if (!rt.labelOverlapCulling) {
       this.host.updateDensityCulledBadge?.(0);
       // Reset stale stats when culling is disabled

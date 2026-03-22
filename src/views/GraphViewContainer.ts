@@ -1177,7 +1177,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const canvasArea = this.canvasWrap;
     if (!canvasArea) return;
 
-    const overlay = canvasArea.createDiv({ cls: "gi-help-overlay" });
+    // JJ: role=dialog + aria-label for screen readers
+    const overlay = canvasArea.createDiv({ cls: "gi-help-overlay", attr: { role: "dialog", "aria-label": "Keyboard shortcuts", "aria-modal": "true" } });
     this._helpOverlayEl = overlay;
 
     overlay.createEl("h3", { text: "Graph Island \u2014 Keyboard Shortcuts" });
@@ -1225,10 +1226,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     for (const sec of sections) {
       overlay.createEl("h4", { text: sec.title, cls: "gi-help-section-title" });
-      const table = overlay.createEl("table", { cls: "gi-help-table" });
+      // JJ: accessible table with role + aria-label
+      const table = overlay.createEl("table", { cls: "gi-help-table", attr: { role: "table", "aria-label": `${sec.title} shortcuts` } });
       for (const [key, desc] of sec.items) {
         const tr = table.createEl("tr");
-        tr.createEl("td", { cls: "gi-help-key", text: key });
+        tr.createEl("td", { cls: "gi-help-key", text: key, attr: { "aria-label": `Key: ${key}` } });
         tr.createEl("td", { text: desc });
       }
     }
@@ -1249,7 +1251,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     overlay.addEventListener("click", () => {
       overlay.remove();
       this._helpOverlayEl = null;
+      this._announceA11y("Help closed");
     });
+    // JJ: a11y announce
+    this._announceA11y("Keyboard shortcuts help opened. Press Escape or click to close.");
   }
 
   /** Create panel resize handle and control panel element. */
@@ -3415,6 +3420,32 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return { total: rects.length, collisions, rate: rects.length > 0 ? collisions / rects.length : 0 };
   }
 
+  /** JI: §0.1 Auto-optimize label overlap margin if collision rate > 5%.
+   *  Increases labelOverlapMargin by 4px per retry, max 3 retries. */
+  autoOptimizeLabelOverlap(): { optimized: boolean; finalMargin: number; finalRate: number } {
+    const rt = this.panel.renderThresholds ?? {};
+    let margin = rt.labelOverlapMargin ?? 12;
+    const maxRetries = 3;
+    const step = 4;
+
+    for (let i = 0; i < maxRetries; i++) {
+      // Re-cull with current margin
+      this.renderPipeline?.cullOverlappingLabels();
+      const stats = this.getVisibleLabelCollisions();
+      if (stats.total === 0 || stats.rate <= 0.05) {
+        return { optimized: i > 0, finalMargin: margin, finalRate: stats.rate };
+      }
+      // Increase margin
+      margin += step;
+      if (!this.panel.renderThresholds) this.panel.renderThresholds = {};
+      this.panel.renderThresholds.labelOverlapMargin = margin;
+    }
+    // Final check
+    this.renderPipeline?.cullOverlappingLabels();
+    const final = this.getVisibleLabelCollisions();
+    return { optimized: true, finalMargin: margin, finalRate: final.rate };
+  }
+
   /** BFS shortest path using adj map */
   private computePathfinderPath() {
     this.pathfinderPath = null;
@@ -4226,6 +4257,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.worldScale = this.worldContainer?.scale?.x ?? 1;
     cfg.edgeMinZoom = edgeRt.edgeMinZoom ?? 0;
     cfg.edgeZoomFadeThreshold = edgeRt.edgeZoomFadeThreshold ?? 0.5;
+    cfg.edgeLabelZoomHide = edgeRt.edgeLabelZoomHide;
+    cfg.edgeLabelZoomFade = edgeRt.edgeLabelZoomFade;
     cfg.edgeCardinalityMode = this.panel.edgeCardinalityMode;
     cfg.cardinalityRules = this.panel.cardinalityRules;
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
