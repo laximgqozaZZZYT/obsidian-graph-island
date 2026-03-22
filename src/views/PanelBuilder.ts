@@ -1287,11 +1287,7 @@ function _buildNodeDisplaySection(
           cb.applyHover();
         }, t("desc.focusCone"));
       }
-      // ビジュアルリンクエディタ: Alt+ドラッグでリンク作成
-      addToggle(adv, t("display.visualLinkEditor"), panel.visualLinkEditor, (v) => {
-        panel.visualLinkEditor = v;
-        cb.markDirty();
-      }, t("desc.visualLinkEditor"));
+      // visualLinkEditor: removed from UI — behavior-only toggle with no visual feedback
       // R2: highlightMissingNeighbors toggle removed — now controlled via analysisOverlay dropdown
       // --- ノード形状 ---
       // GH: Shape preview swatches
@@ -1522,11 +1518,7 @@ function _buildStructureAnalysisSection(
     egoBtn.addEventListener("click", () => {
       cb.applyEgoToVisible?.();
     });
-    // F2: Inline ontology editor
-    addToggle(body, t("display.inlineOntologyEditor"), panel.enableInlineOntologyEditor, (v) => {
-      panel.enableInlineOntologyEditor = v;
-      cb.markDirty();
-    }, t("desc.inlineOntologyEditor"));
+    // enableInlineOntologyEditor: removed from UI — behavior-only toggle with no visual feedback
     // F5: Relation matrix
     addToggle(body, t("display.relationMatrix"), panel.showRelationMatrix, (v) => {
       panel.showRelationMatrix = v;
@@ -1541,7 +1533,7 @@ function _buildDiscoverySection(
   buildSection(tabEl, t("section.discovery"), (body) => {
     addToggle(body, t("display.showSimilarSuggestions"), panel.showSimilarSuggestions, (v) => {
       panel.showSimilarSuggestions = v;
-      cb.markDirty();
+      // Effect is visible on next hover tooltip — no immediate render needed
     }, t("desc.showSimilarSuggestions"));
     addToggle(body, t("display.showStructureQuestions"), panel.showStructureQuestions, (v) => {
       panel.showStructureQuestions = v;
@@ -1578,26 +1570,15 @@ function _buildInteractionSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, "Interaction", (body) => {
-    addToggle(body, t("display.relationTypePicker"), panel.showRelationTypePicker, (v) => {
-      panel.showRelationTypePicker = v;
-      cb.markDirty();
-    }, t("desc.relationTypePicker"));
-    // Multi-select: show status label instead of misleading toggle
-    // Selection is managed via Ctrl+click in node list / Shift+click on canvas
+    // showRelationTypePicker, enableInlineEdit, enableManualClustering:
+    // removed from UI — behavior-only toggles with no visual feedback.
+    // Multi-select: show status label only when active
     if (panel.multiSelectNodeIds.length > 0) {
       addToggle(body, t("display.multiSelect"), true, (v) => {
         if (!v) { panel.multiSelectNodeIds = []; cb.rebuildPanel(); }
         cb.markDirty();
       }, t("desc.multiSelect"));
     }
-    addToggle(body, t("display.inlineEdit"), panel.enableInlineEdit, (v) => {
-      panel.enableInlineEdit = v;
-      cb.markDirty();
-    }, t("desc.inlineEdit"));
-addToggle(body, t("display.manualClustering"), panel.enableManualClustering, (v) => {
-      panel.enableManualClustering = v;
-      cb.markDirty();
-    }, t("desc.manualClustering"));
 
     // C6: Multi-select status and bulk actions
     if (panel.multiSelectNodeIds.length > 0) {
@@ -1641,7 +1622,7 @@ function _buildAdvancedSection(
     addToggle(body, t("display.presentationMode"), panel.presentationMode, (v) => {
       panel.presentationMode = v;
       if (!v) { panel.presentationStep = 0; }
-      cb.markDirty();
+      cb.rebuildPanel();
     }, t("desc.presentationMode"));
     if (panel.presentationMode) {
       const navRow = body.createDiv({ cls: "setting-item" });
