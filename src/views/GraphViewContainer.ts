@@ -3942,7 +3942,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const estW = (hl.width ?? 100) * counterScale;
       const isCardFlip = (this.panel.nodeDisplayMode ?? "node") === "card";
       const crcFlip = isCardFlip ? (this.panel.cardRenderConfig ?? {}) : null;
-      const arFlip = crcFlip ? ((crcFlip as any).cardAspectRatio ?? 1.618) : 0;
+      const arFlip = crcFlip ? (crcFlip.cardAspectRatio ?? 1.618) : 0;
       const cardHW = isCardFlip ? Math.max(pn.radius * 2, (pn.radius * 2 * arFlip) / 2) : 0;
       const flipOffset = isCardFlip ? (cardHW + 8 + estW) : (pn.radius + 4 + estW);
       hl.x = -flipOffset * gfxScale;
@@ -4211,6 +4211,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const effectiveHighlightId = ephActive ? "__ephemeral__" : (this.highlightedNodeId || focusFallbackId);
     const effectiveHighlightSet = ephActive ? this.ephemeralHighlight! : this.prevHighlightSet;
 
+    const edgeRt = mergeRenderThresholds(this.panel.renderThresholds);
     // Reuse EdgeDrawConfig object — mutate in place to avoid per-frame allocation
     let cfg = this._edgeDrawCfg;
     if (!cfg) {
@@ -4243,15 +4244,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.highlightedNodeId = effectiveHighlightId;
     cfg.highlightSet = effectiveHighlightSet;
     cfg.hoverDistMap = this._hoverDistMap;
-    cfg.hoverEdgeFalloff = this.panel.renderThresholds?.hoverEdgeFalloff;
+    cfg.hoverEdgeFalloff = edgeRt.hoverEdgeFalloff;
     cfg.bgColor = this.cachedBgColor!;
     cfg.relationColors = this.relationColors;
     cfg.fadeByDegree = this.panel.fadeEdgesByDegree;
     cfg.degrees = this.degrees;
     cfg.maxDegree = maxDeg;
     cfg.totalEdgeCount = this.graphEdges.length;
-    cfg.globalEdgeAlpha = this.panel.renderThresholds?.globalEdgeAlpha ?? 1.0;
-    cfg.edgeLabelFontSize = this.panel.renderThresholds?.edgeLabelFontSize;
+    cfg.globalEdgeAlpha = edgeRt.globalEdgeAlpha;
+    cfg.edgeLabelFontSize = edgeRt.edgeLabelFontSize;
     cfg.nodeClusterMap = this.clusterMeta?.nodeClusterMap ?? null;
     // Use live centroids when available, fall back to target centroids from clusterMeta
     const liveCentroids = this.getCachedCentroids();
@@ -4277,7 +4278,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.cableSpacing = this.panel.cableSpacing;
     cfg.cableFanWidth = this.panel.cableFanWidth;
     cfg.cableFanAlpha = this.panel.cableFanAlpha;
-    const edgeRt = mergeRenderThresholds(this.panel.renderThresholds);
     cfg.edgeDensityFloor = edgeRt.edgeDensityFloor;
     cfg.highlightEdgeAlpha = edgeRt.highlightEdgeAlpha;
     cfg.highlightEdgeNonMatchAlpha = edgeRt.highlightEdgeNonMatchAlpha;
@@ -8308,7 +8308,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           const halfH = baseH;
           const halfW = Math.max(20, (baseH * cardAR) / 2);
           const outset = 4;
-          const cr = (crc as any).cardCornerRadius ?? 6;
+          const cr = crc.cardCornerRadius ?? 6;
           pn.circle.beginFill(searchHitColor, 0.10);
           pn.circle.drawRoundedRect(-halfW - outset, -halfH - outset, (halfW + outset) * 2, (halfH + outset) * 2, cr);
           pn.circle.endFill();
