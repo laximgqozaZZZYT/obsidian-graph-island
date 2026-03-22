@@ -1581,7 +1581,7 @@ function _buildDiscoverySection(
 function _buildInteractionSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
-  buildSection(tabEl, "Interaction", (body) => {
+  buildSection(tabEl, t("section.interaction"), (body) => {
     // showRelationTypePicker, enableInlineEdit, enableManualClustering:
     // removed from UI — behavior-only toggles with no visual feedback.
     // Multi-select: show status label only when active
@@ -1630,7 +1630,7 @@ function _buildInteractionSection(
 function _buildAdvancedSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
-  buildSection(tabEl, "Advanced", (body) => {
+  buildSection(tabEl, t("section.advanced"), (body) => {
     addToggle(body, t("display.presentationMode"), panel.presentationMode, (v) => {
       panel.presentationMode = v;
       if (!v) { panel.presentationStep = 0; }
