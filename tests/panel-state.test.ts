@@ -104,3 +104,97 @@ describe("validatePanelState", () => {
     expect(panel.hoverHops).toBe(origHops);
   });
 });
+
+describe("validatePanelState — boundary values", () => {
+  it("Infinity in all numeric fields replaced by defaults", () => {
+    const panel = createDefaultPanel();
+    const defaults = createDefaultPanel();
+    const numericKeys = [
+      "nodeSize", "centerForce", "repelForce", "linkForce", "linkDistance",
+      "textFadeThreshold", "concentricMinRadius", "concentricRadiusStep",
+      "hoverHops", "enclosureSpacing", "edgeBundleStrength",
+      "clusterNodeSpacing", "clusterGroupScale", "clusterGroupSpacing",
+    ] as const;
+    for (const key of numericKeys) {
+      (panel as any)[key] = Infinity;
+    }
+    validatePanelState(panel);
+    for (const key of numericKeys) {
+      expect(isFinite(panel[key] as number), `${key} should be finite`).toBe(true);
+    }
+  });
+
+  it("-Infinity in numeric fields replaced by defaults", () => {
+    const panel = createDefaultPanel();
+    (panel as any).nodeSize = -Infinity;
+    (panel as any).centerForce = -Infinity;
+    validatePanelState(panel);
+    expect(isFinite(panel.nodeSize)).toBe(true);
+    expect(isFinite(panel.centerForce)).toBe(true);
+  });
+
+  it("negative nodeSize clamped to 1", () => {
+    const panel = createDefaultPanel();
+    panel.nodeSize = -50;
+    validatePanelState(panel);
+    expect(panel.nodeSize).toBe(1);
+  });
+
+  it("huge nodeSize clamped to 100", () => {
+    const panel = createDefaultPanel();
+    panel.nodeSize = 99999;
+    validatePanelState(panel);
+    expect(panel.nodeSize).toBe(100);
+  });
+
+  it("string coerced numeric fields get reset to default", () => {
+    const panel = createDefaultPanel();
+    (panel as any).nodeSize = "not a number";
+    (panel as any).hoverHops = "abc";
+    validatePanelState(panel);
+    expect(typeof panel.nodeSize).toBe("number");
+    expect(isFinite(panel.nodeSize)).toBe(true);
+    expect(typeof panel.hoverHops).toBe("number");
+  });
+
+  it("null multiSelectNodeIds becomes empty array", () => {
+    const panel = createDefaultPanel();
+    (panel as any).multiSelectNodeIds = null;
+    validatePanelState(panel);
+    expect(Array.isArray(panel.multiSelectNodeIds)).toBe(true);
+    expect(panel.multiSelectNodeIds.length).toBe(0);
+  });
+
+  it("plain object collapsedGroups becomes Set", () => {
+    const panel = createDefaultPanel();
+    (panel as any).collapsedGroups = { not: "a set" };
+    validatePanelState(panel);
+    expect(panel.collapsedGroups instanceof Set).toBe(true);
+  });
+
+  it("renderThresholds migration: nodeSizeByDegree defaults to true", () => {
+    const panel = createDefaultPanel();
+    panel.renderThresholds = { nodeSizeByDegree: false };
+    validatePanelState(panel);
+    expect(panel.renderThresholds.nodeSizeByDegree).toBe(true);
+  });
+
+  it("renderThresholds migration: autoLOD defaults to true", () => {
+    const panel = createDefaultPanel();
+    panel.renderThresholds = {};
+    validatePanelState(panel);
+    expect(panel.renderThresholds!.autoLOD).toBe(true);
+  });
+
+  it("idempotent: double validation produces same result", () => {
+    const panel = createDefaultPanel();
+    (panel as any).nodeSize = NaN;
+    (panel as any).hoverHops = -100;
+    (panel as any).multiSelectNodeIds = null;
+    validatePanelState(panel);
+    const snapshot = JSON.stringify(panel, (_, v) => v instanceof Set ? [...v] : v);
+    validatePanelState(panel);
+    const snapshot2 = JSON.stringify(panel, (_, v) => v instanceof Set ? [...v] : v);
+    expect(snapshot2).toBe(snapshot);
+  });
+});
