@@ -500,9 +500,7 @@ export const DEFAULT_ONTOLOGY: OntologyConfig = {
 };
 
 export interface GraphViewsSettings {
-  defaultLayout: LayoutType;
   nodeSize: number;
-  showLabels: boolean;
   metadataFields: string[];
   edgeFields: string[];
   colorField: string;
@@ -541,9 +539,7 @@ export interface GraphViewsSettings {
 }
 
 export const DEFAULT_SETTINGS: GraphViewsSettings = {
-  defaultLayout: "force",
   nodeSize: 8,
-  showLabels: true,
   metadataFields: ["tags", "category", "characters", "locations"],
   edgeFields: ["tags", "category"],
   colorField: "category",
@@ -1304,8 +1300,6 @@ export interface RenderThresholds {
   roadMinZoom?: number;
   /** Minimum road width in screen pixels (default 1). Roads scale up at low zoom to stay visible. */
   roadMinScreenWidth?: number;
-  /** Intersection dot radius in world units (default 0, effectively disabled) */
-  roadIntersectionRadius?: number;
   /** Route edges along road network when available (default true) */
   roadRouteEdges?: boolean;
 
@@ -1653,7 +1647,6 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   roadColor: 0x9999bb,
   roadMinZoom: 0,
   roadMinScreenWidth: 1,
-  roadIntersectionRadius: 0,
   roadRouteEdges: true,
   roadRingCount: 0,
   roadSpokeCount: 0,
@@ -1674,6 +1667,12 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   autoLOD: true,
   adaptiveLabelMin: 0.7,
   adaptiveLabelMax: 1.5,
+  // Focus cone & search highlight
+  focusConeFalloff: 0.65,
+  focusConeMinAlpha: 0.08,
+  focusConeDimFloor: 0.12,
+  searchDimAlpha: 0.15,
+  searchHaloAlpha: 0.08,
 };
 
 /** Merge user overrides with defaults, returning a fully-populated object.
