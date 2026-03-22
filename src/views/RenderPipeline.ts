@@ -529,7 +529,7 @@ export class RenderPipeline {
     this._labelCullCooldown--;
     if (forceFullRedraw || (zoomRatio > 0.05 && this._labelCullCooldown <= 0)) {
       this._prevWorldScale = curScale;
-      this._labelCullCooldown = 8; // skip 8 ticks before next re-evaluation
+      this._labelCullCooldown = 4; // §0.4: reduced from 8→4 for faster zoom response
       this.host.updateLabelsForZoom?.();
     }
 
@@ -2613,6 +2613,8 @@ export class RenderPipeline {
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.host.getRenderThresholds?.() };
     if (!rt.labelOverlapCulling) {
       this.host.updateDensityCulledBadge?.(0);
+      // Reset stale stats when culling is disabled
+      this._lastCullStats = { totalLabels: 0, visibleLabels: 0, culledLabels: 0, collisionRate: 0 };
       return;
     }
 
