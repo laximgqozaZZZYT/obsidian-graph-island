@@ -1708,6 +1708,9 @@ function _buildEdgeDisplaySection(
         panel.showEdgeWeightLabels = v === "weight";
         panel.showEdgeCardinalityLabels = v === "cardinality";
         cb.markDirty();
+        // IA: Announce edge label mode change for screen readers
+        const modeLabel = v === "none" ? "off" : v;
+        cb.announceA11y?.(`Edge labels: ${modeLabel}`);
       }, t("desc.edgeLabelMode"));
       addSelect(adv, t("display.edgeLabelPlacement"), [
         { value: "center", label: t("display.edgeLabelCenter") },

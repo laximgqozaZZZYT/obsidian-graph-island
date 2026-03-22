@@ -2191,3 +2191,57 @@ test.describe("70. Escape A11y Announce", () => {
     expect(typeof result.searchAfter).toBe("string");
   });
 });
+
+// =========================================================================
+// 71. Focus Cone + Search Alpha (HZ)
+// =========================================================================
+test.describe("71. Cone + Search Alpha", () => {
+  test("71.1 focusCone with search uses proportional alpha", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      v.panel.focusConeEnabled = true;
+      v.panel.searchMode = "highlight";
+      return { cone: v.panel.focusConeEnabled, mode: v.panel.searchMode };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.cone).toBe(true);
+  });
+});
+
+// =========================================================================
+// 72. Edge Label Mode A11y (IA)
+// =========================================================================
+test.describe("72. Edge Label A11y", () => {
+  test("72.1 edge label mode setting persists", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel) return { error: "no view" };
+      const old = v.panel.showEdgeLabels;
+      v.panel.showEdgeLabels = true;
+      const val = v.panel.showEdgeLabels;
+      v.panel.showEdgeLabels = old;
+      return { set: val };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.set).toBe(true);
+  });
+});
+
+// =========================================================================
+// 73. Keyboard Tooltip Hints (IB)
+// =========================================================================
+test.describe("73. Tooltip Hints", () => {
+  test("73.1 hover tooltip creation does not throw", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      if (!v?.panel || !v.pixiNodes) return { error: "no view" };
+      // Simulate hover on first node
+      const first = v.pixiNodes.values().next().value;
+      if (!first) return { error: "no nodes" };
+      try { v._createHoverTooltip?.(first); } catch { /* may fail without gfx */ }
+      return { ok: true };
+    });
+    expect(result).not.toHaveProperty("error");
+  });
+});

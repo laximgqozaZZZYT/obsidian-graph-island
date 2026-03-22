@@ -3547,10 +3547,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             // Exponential falloff: depth 0 → 1.0, depth 1 → 0.65, depth 2 → 0.42, ...
             coneAlpha = Math.max(0.08, Math.pow(0.65, dist));
           }
-          // When search highlight is active, further dim non-matching nodes
-          pn.gfx.alpha = searchActive && !searchMatch ? Math.min(coneAlpha, 0.08) : coneAlpha;
+          // HZ: Use max() instead of min() — focusCone already handles distance dimming,
+          // search highlight should not make it even darker (was causing double-dim)
+          pn.gfx.alpha = searchActive && !searchMatch ? Math.max(coneAlpha * 0.5, 0.04) : coneAlpha;
         } else {
-          pn.gfx.alpha = searchActive && !searchMatch ? 0.08 : 0.12;
+          pn.gfx.alpha = searchActive && !searchMatch ? 0.06 : 0.12;
         }
         if (isCardMode) pn.gfx.scale.set(1);
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; pn.hoverForcedLabel = false; }
@@ -3660,6 +3661,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         tooltipText += "\n" + top3.join(", ");
         if (members.length > 3) tooltipText += ` +${members.length - 3}`;
       }
+    }
+
+    // IB: Shortcut hints in tooltip for keyboard users
+    if (showTooltip && this._isKeyboardFocused) {
+      tooltipText += "\n─ Enter: open · Shift+Enter: select · Ctrl+Enter: compare";
     }
 
     // EK: Edge type summary in tooltip
