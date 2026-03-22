@@ -1079,7 +1079,7 @@ function buildFilterTab(
   buildSection(filterTab, t("section.filter"), (body) => {
     // --- Basic (always visible) ---
     addToggle(body, t("filter.includeTagsInData"), panel.includeTagsInData, (v) => { panel.includeTagsInData = v; cb.invalidateDataKeepPanel(); }, t("desc.includeTagsInData"));
-    addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateDataKeepPanel(); }, t("desc.orphans"));
+    addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateDataKeepPanel(); cb.rebuildPanel(); }, t("desc.orphans"));
     // GK: Auto-fit on filter change
     addToggle(body, t("filter.autoFit") ?? "Auto-fit on filter", panel.autoFitOnFilter, (v) => { panel.autoFitOnFilter = v; });
     // FZ: Degree filter
@@ -1197,6 +1197,7 @@ function _buildNodeDisplaySection(
     addSelect(body, t("display.nodeColorMode"), colorModeOptions, currentColorMode, (v) => {
       panel.nodeColorMode = v as PanelState["nodeColorMode"];
       cb.doRenderKeepPanel();
+      cb.rebuildPanel();
     }, t("desc.nodeColorMode"));
     // EO+EQ: Field selector when mode is "field" (with autocomplete from frontmatter)
     if (currentColorMode === "field") {
@@ -1633,7 +1634,12 @@ function _buildAdvancedSection(
   buildSection(tabEl, t("section.advanced"), (body) => {
     addToggle(body, t("display.presentationMode"), panel.presentationMode, (v) => {
       panel.presentationMode = v;
-      if (!v) { panel.presentationStep = 0; }
+      if (v) {
+        // Presentation mode requires focusMode to track focused nodes for waypoints
+        panel.focusMode = true;
+      } else {
+        panel.presentationStep = 0;
+      }
       cb.rebuildPanel();
     }, t("desc.presentationMode"));
     if (panel.presentationMode) {
@@ -1758,6 +1764,7 @@ function _buildEdgeDisplaySection(
         panel.showEdgeWeightLabels = v === "weight";
         panel.showEdgeCardinalityLabels = v === "cardinality";
         cb.markDirty();
+        cb.rebuildPanel();
         // IA: Announce edge label mode change for screen readers
         const modeLabel = v === "none" ? "off" : v;
         cb.announceA11y?.(`Edge labels: ${modeLabel}`);

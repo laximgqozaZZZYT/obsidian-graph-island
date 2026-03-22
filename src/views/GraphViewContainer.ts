@@ -2350,7 +2350,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   isRingChartMode(): boolean {
-    return false;
+    return this.panel.ringChartMode;
   }
 
   getNodeSubLabelFields(): string { return this.panel.nodeSubLabelFields ?? ""; }
@@ -4269,8 +4269,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       : nodeCount > 200 ? 0.7
       : nodeCount > 50 ? 0.5
       : 0.3;
-    cfg.bundleStrength = this.panel.edgeBundleStrength > 0
-      ? this.panel.edgeBundleStrength
+    const userBundle = this.panel.edgeBundleStrength;
+    cfg.bundleStrength = userBundle != null && userBundle >= 0
+      ? userBundle
       : autoBundle;
     cfg.cableBundleMode = this.panel.cableBundleMode;
     cfg.cableTrunkWidth = this.panel.cableTrunkWidth;
