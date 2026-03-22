@@ -222,44 +222,6 @@ export function computeBetweennessCentrality(
 // Connected component labeling
 // ---------------------------------------------------------------------------
 
-/**
- * Label each node with its connected component ID (0-indexed).
- * Component IDs are assigned in BFS discovery order.
- */
-export function labelConnectedComponents(
-  nodes: GraphNode[],
-  edges: GraphEdge[],
-): Map<string, number> {
-  const labels = new Map<string, number>();
-  if (nodes.length === 0) return labels;
-
-  const adj = new Map<string, string[]>();
-  for (const n of nodes) adj.set(n.id, []);
-  for (const e of edges) {
-    adj.get(e.source)?.push(e.target);
-    adj.get(e.target)?.push(e.source);
-  }
-
-  let componentId = 0;
-  for (const n of nodes) {
-    if (labels.has(n.id)) continue;
-    const queue = [n.id];
-    labels.set(n.id, componentId);
-    while (queue.length > 0) {
-      const cur = queue.shift()!;
-      for (const nb of adj.get(cur) ?? []) {
-        if (!labels.has(nb)) {
-          labels.set(nb, componentId);
-          queue.push(nb);
-        }
-      }
-    }
-    componentId++;
-  }
-
-  return labels;
-}
-
 // ---------------------------------------------------------------------------
 // Structural pattern detection (Phase 3d)
 // ---------------------------------------------------------------------------

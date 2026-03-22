@@ -7,21 +7,6 @@
 
 import type { RoadNetwork } from "./cable-tray";
 
-export interface EdgeAdherenceResult {
-  /** Fraction of edges that follow roads (all waypoints within threshold) */
-  adherenceRate: number;
-  /** Average max-deviation per edge (in world units) */
-  avgMaxDeviation: number;
-  /** Edges that violate the threshold */
-  violations: {
-    sourceId: string;
-    targetId: string;
-    maxDeviation: number;
-  }[];
-  /** Total edges analyzed */
-  totalEdges: number;
-}
-
 /**
  * Compute the minimum distance from point (px, py) to line segment (ax, ay)-(bx, by).
  */
@@ -74,45 +59,3 @@ function pointToNearestRoad(
   return minDist;
 }
 
-/**
- * Measure how closely routed edges follow the road network.
- *
- * @param network The road network
- * @param routedEdges Array of { sourceId, targetId, waypoints } from edge routing
- * @param threshold Maximum allowed deviation from road (in world units)
- */
-export function measureEdgeAdherence(
-  network: RoadNetwork,
-  routedEdges: { sourceId: string; targetId: string; waypoints: { x: number; y: number }[] }[],
-  threshold: number,
-): EdgeAdherenceResult {
-  const violations: EdgeAdherenceResult["violations"] = [];
-  let totalMaxDev = 0;
-  let adherentCount = 0;
-
-  for (const edge of routedEdges) {
-    let maxDev = 0;
-    for (const wp of edge.waypoints) {
-      const dist = pointToNearestRoad(wp.x, wp.y, network);
-      if (dist > maxDev) maxDev = dist;
-    }
-
-    totalMaxDev += maxDev;
-    if (maxDev <= threshold) {
-      adherentCount++;
-    } else {
-      violations.push({
-        sourceId: edge.sourceId,
-        targetId: edge.targetId,
-        maxDeviation: maxDev,
-      });
-    }
-  }
-
-  return {
-    adherenceRate: routedEdges.length > 0 ? adherentCount / routedEdges.length : 1,
-    avgMaxDeviation: routedEdges.length > 0 ? totalMaxDev / routedEdges.length : 0,
-    violations,
-    totalEdges: routedEdges.length,
-  };
-}
