@@ -1488,6 +1488,7 @@ function _buildStructureAnalysisSection(
       addToggle(body, t("display.ontologyBackbone"), panel.showOntologyBackbone ?? false, (v) => {
         panel.showOntologyBackbone = v;
         cb.markDirty();
+        cb.rebuildPanel();
       }, t("desc.ontologyBackbone"));
     }
     // Gate: cluster label detail only when tag enclosures are active
@@ -1515,6 +1516,7 @@ function _buildStructureAnalysisSection(
           panel.clusterArrangement = "ego";
         }
         cb.doRender();
+        cb.rebuildPanel();
       }, t("desc.focusLayout"));
     }
     // Gate: hierarchy breadcrumb requires local graph mode
@@ -1574,6 +1576,7 @@ function _buildDiscoverySection(
     addToggle(body, t("display.hierarchyTree"), panel.showHierarchyTree ?? false, (v) => {
       panel.showHierarchyTree = v;
       cb.markDirty();
+      cb.rebuildPanel();
     }, t("desc.hierarchyTree"));
     // S6: Ontology Backbone — toggle is in _buildStructureAnalysisSection (no duplicate)
   }, tHelp("help.discovery"), true, "lightbulb");
