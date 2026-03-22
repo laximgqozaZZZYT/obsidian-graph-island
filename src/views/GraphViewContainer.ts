@@ -557,7 +557,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     presetBar.style.cssText = "margin-left:4px;display:inline-flex;gap:1px;";
     for (const pct of [10, 30, 50, 100]) {
       const btn = presetBar.createEl("button", { text: `${pct}`, cls: "gi-zoom-preset-btn" });
-      btn.style.cssText = "font-size:9px;padding:1px 3px;min-width:0;border:none;border-radius:3px;" +
+      // §0.3: min 24×24px target for a11y
+      btn.style.cssText = "font-size:9px;padding:4px 6px;min-width:24px;min-height:24px;border:none;border-radius:3px;" +
         "background:var(--background-modifier-hover);color:var(--text-muted);cursor:pointer;line-height:1;";
       btn.title = `Zoom to ${pct}%`;
       btn.setAttribute("aria-label", `Zoom to ${pct}%`);
