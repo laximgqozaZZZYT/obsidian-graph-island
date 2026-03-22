@@ -286,3 +286,80 @@ describe("NOT operator", () => {
     expect(evaluateExpr(expr!, nodeC)).toBe(true);
   });
 });
+
+describe("query-expr — boundary values", () => {
+  it("Japanese characters in tag search", () => {
+    const expr = parseQueryExpr("tag:キャラクター");
+    expect(expr).not.toBeNull();
+    const node = makeNode({ tags: ["キャラクター"] });
+    expect(evaluateExpr(expr!, node)).toBe(true);
+  });
+
+  it("quoted value with spaces", () => {
+    const expr = parseQueryExpr('label:"hello world"');
+    expect(expr).not.toBeNull();
+    const node = makeNode({ label: "hello world" });
+    expect(evaluateExpr(expr!, node)).toBe(true);
+  });
+
+  it("quoted value with colon", () => {
+    const expr = parseQueryExpr('label:"key:value"');
+    expect(expr).not.toBeNull();
+    const node = makeNode({ label: "key:value" });
+    expect(evaluateExpr(expr!, node)).toBe(true);
+  });
+
+  it("multiple spaces between tokens", () => {
+    const expr = parseQueryExpr("tag:a   AND   tag:b");
+    expect(expr).not.toBeNull();
+    expect(expr!.type).toBe("branch");
+  });
+
+  it("wildcard * in bare position", () => {
+    const expr = parseQueryExpr("*");
+    expect(expr).not.toBeNull();
+    // * matches any node
+    expect(evaluateExpr(expr!, makeNode({ label: "anything" }))).toBe(true);
+  });
+
+  it("single character tag", () => {
+    const expr = parseQueryExpr("tag:x");
+    expect(expr).not.toBeNull();
+    expect(evaluateExpr(expr!, makeNode({ tags: ["x"] }))).toBe(true);
+    expect(evaluateExpr(expr!, makeNode({ tags: ["y"] }))).toBe(false);
+  });
+
+  it("NOT NOT double negation", () => {
+    const expr = parseQueryExpr("NOT NOT tag:a");
+    expect(expr).not.toBeNull();
+    const node = makeNode({ tags: ["a"] });
+    // NOT NOT a = a
+    expect(evaluateExpr(expr!, node)).toBe(true);
+  });
+
+  it("meta field access via field:value", () => {
+    const expr = parseQueryExpr("node_type:character");
+    expect(expr).not.toBeNull();
+    // node_type is treated as meta field or label fallback
+    const node = makeNode({ label: "hero" });
+    // meta field → node.meta?.node_type
+    (node as any).meta = { node_type: "character" };
+    expect(evaluateExpr(expr!, node)).toBe(true);
+  });
+
+  it("serializeExpr handles NOT expressions", () => {
+    const expr = parseQueryExpr("NOT tag:battle");
+    expect(expr).not.toBeNull();
+    const serialized = serializeExpr(expr!);
+    expect(serialized).toContain("NOT");
+  });
+
+  it("complex: (A XOR B) NAND (C NOR D)", () => {
+    const expr = parseQueryExpr("(tag:a XOR tag:b) NAND (tag:c NOR tag:d)");
+    expect(expr).not.toBeNull();
+    // a=true, b=false → XOR=true; c=false, d=false → NOR=true; NAND(true, true)=false
+    expect(evaluateExpr(expr!, makeNode({ tags: ["a"] }))).toBe(false);
+    // a=false, b=false → XOR=false; c=false, d=false → NOR=true; NAND(false, true)=true
+    expect(evaluateExpr(expr!, makeNode({ tags: [] }))).toBe(true);
+  });
+});
