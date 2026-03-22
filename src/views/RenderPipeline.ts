@@ -753,7 +753,12 @@ export class RenderPipeline {
       if (hiddenBySearch.has(pn.data.id)) continue;
       if (hasHighlight && activeSet.has(pn.data.id)) continue;
       const nx = pn.data.x, ny = pn.data.y;
-      if (nx < vpMinX || nx > vpMaxX || ny < vpMinY || ny > vpMaxY) continue;
+      if (nx < vpMinX || nx > vpMaxX || ny < vpMinY || ny > vpMaxY) {
+        // JT: §0.4 Hide off-viewport nodes from PixiJS renderer for perf
+        pn.gfx.visible = false;
+        continue;
+      }
+      pn.gfx.visible = true;
       visible.push(pn);
     }
 
@@ -2721,7 +2726,7 @@ export class RenderPipeline {
       } else {
         // Smooth fade-out instead of instant hide (AD: collision animation)
         // Gentler fade rate (0.15) for less jarring transitions during zoom
-        r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - 0.15);
+        r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - (rt.labelFadeRate ?? 0.15));
         if (r.label.alpha <= 0.05) r.label.visible = false;
       }
     }
@@ -2755,7 +2760,7 @@ export class RenderPipeline {
         if (!tooClose) {
           kept.push(r);
         } else {
-          r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - 0.15);
+          r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - (rt.labelFadeRate ?? 0.15));
           if (r.label.alpha <= 0.05) r.label.visible = false;
         }
       }

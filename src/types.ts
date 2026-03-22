@@ -895,6 +895,15 @@ export interface RenderThresholds {
    *  from their center so the graph fills more of the viewport.  Set 0 to disable. */
   minViewportUtilization?: number;
 
+  // ---- Enclosure zoom ----
+  /** Zoom threshold below which enclosures switch to outline-only mode (default 0.45). */
+  enclosureZoomOutThreshold?: number;
+
+  // ---- Label animation ----
+  /** Alpha decrement per frame when fading out overlapping labels (default 0.15).
+   *  Lower = slower fade, higher = snappier transitions. */
+  labelFadeRate?: number;
+
   // ---- Label overlap culling ----
   /** Enable label overlap culling (default true) */
   labelOverlapCulling?: boolean;
@@ -1450,6 +1459,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   autoFitBasePadding: 40,
   normalizeArrangementSpread: true,
   minViewportUtilization: 0.12,
+  enclosureZoomOutThreshold: 0.45,
+  labelFadeRate: 0.15,
   labelOverlapCulling: true,
   labelOverlapMargin: 12,
   labelDensityMinScreenDist: 80,

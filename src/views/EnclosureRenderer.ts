@@ -51,6 +51,8 @@ export interface EnclosureConfig {
   clusterLabelDetail?: "minimal" | "standard" | "detailed" | "rich";
   /** S3: Cluster summary generator for rich labels */
   getClusterSummary?: (tag: string, memberCount: number) => string;
+  /** Zoom threshold below which enclosures switch to outline-only mode (default 0.45). */
+  enclosureZoomOutThreshold?: number;
 }
 
 /**
@@ -182,10 +184,11 @@ export function drawEnclosures(
   }
 
   const ws = cfg.worldScale || 1;
-  const zoomedOut = ws < ZOOM_OUT_THRESHOLD;
+  const zoomOutTh = cfg.enclosureZoomOutThreshold ?? ZOOM_OUT_THRESHOLD;
+  const zoomedOut = ws < zoomOutTh;
   // Smooth blend factor: 1 = fully zoomed-out style, 0 = fully zoomed-in style
   const blend = zoomedOut
-    ? Math.min(1, (ZOOM_OUT_THRESHOLD - ws) / (ZOOM_OUT_THRESHOLD * 0.5))
+    ? Math.min(1, (zoomOutTh - ws) / (zoomOutTh * 0.5))
     : 0;
 
   // Phase 1: Collect node positions + radii per tag, compute expanded hull

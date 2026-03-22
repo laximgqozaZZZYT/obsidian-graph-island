@@ -4443,9 +4443,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.doRender();
         this.requestSave();
       },
-      enclosureLabelPosition: (rt as any).enclosureLabelPosition ?? "top",
-      enclosureFillOpacity: (rt as any).enclosureFillOpacity ?? 0,
-      enclosureStrokeWidth: (rt as any).enclosureStrokeWidth ?? 0,
+      enclosureLabelPosition: rt.enclosureLabelPosition,
+      enclosureFillOpacity: rt.enclosureFillOpacity,
+      enclosureStrokeWidth: rt.enclosureStrokeWidth,
+      enclosureZoomOutThreshold: rt.enclosureZoomOutThreshold,
       hoveredTag: this.hoveredTag,
       labelContainer: this.enclosureLabelContainer ?? undefined,
       groupLabelFontSize: rt.groupLabelFontSize,
@@ -6298,14 +6299,35 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (margin !== 12) addRow("Margin", `${margin}px`);
     }
 
-    // JQ: §0.1 Quality score in stats panel
+    // JS: §0 Quality Dashboard (collapsible section)
     {
       const qs = this.getLabelQualityScore();
-      const scoreRow = addRow("Quality", `${qs.score}/100`);
-      if (scoreRow && qs.score < 70) {
-        const val = scoreRow.querySelector(".gi-stats-value") as HTMLElement | null;
-        if (val) val.style.color = "var(--text-error, #e53e3e)";
-      }
+      const fps = this.renderPipeline?.currentFps ?? 0;
+      const mem = (performance as any).memory?.usedJSHeapSize;
+      const memMB = mem ? Math.round(mem / (1024 * 1024)) : null;
+
+      const dashTitle = this.graphStatsEl.createEl("div", { cls: "gi-stats-hub-title", text: "Quality Dashboard" });
+      dashTitle.style.cssText = "font-weight:600;margin-top:6px;cursor:pointer;user-select:none;";
+      const dashBody = this.graphStatsEl.createDiv({ cls: "gi-quality-dashboard" });
+      dashBody.style.display = "none";
+      dashTitle.addEventListener("click", () => {
+        dashBody.style.display = dashBody.style.display === "none" ? "" : "none";
+      });
+
+      const badge = (label: string, value: string, pass: boolean) => {
+        const row = dashBody.createDiv({ cls: "gi-stats-row" });
+        row.style.cssText = "display:flex;justify-content:space-between;padding:1px 0;font-size:11px;";
+        row.createEl("span", { text: label });
+        const val = row.createEl("span", { text: `${value} ${pass ? "✓" : "✗"}` });
+        val.style.color = pass ? "var(--text-success, #38a169)" : "var(--text-error, #e53e3e)";
+      };
+
+      badge("Score", `${qs.score}/100`, qs.score >= 70);
+      badge("Collision", `${qs.collision}/40`, qs.collision >= 28);
+      badge("Visibility", `${qs.visibility}/30`, qs.visibility >= 15);
+      badge("Priority", `${qs.priority}/30`, qs.priority >= 15);
+      badge("FPS", fps > 0 ? `${fps}` : "idle", fps >= 30 || fps === 0);
+      if (memMB !== null) badge("Memory", `${memMB}MB`, memMB < 300);
     }
 
     if (stats.hubs.length > 0) {

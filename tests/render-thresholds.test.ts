@@ -90,5 +90,7 @@ describe("mergeRenderThresholds", () => {
     expect(rt.edgeHierarchyThickFactor).toBe(2.5);
     expect(rt.arcMaxEdgeCount).toBe(500);
     expect(rt.edgeHoverFalloffMinAlpha).toBe(0.08);
+    expect(rt.enclosureZoomOutThreshold).toBe(0.45);
+    expect(rt.labelFadeRate).toBe(0.15);
   });
 });
