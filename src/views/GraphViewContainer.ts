@@ -34,8 +34,9 @@ import { DiffOverlay } from "./DiffOverlay";
 import { captureSnapshot, computeSnapshotDiff } from "../utils/snapshot";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
-import { renderGraphStats, renderBreadcrumb } from "./StatsRenderer";
+import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./StatsRenderer";
 import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
+import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
 import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
@@ -1003,207 +1004,48 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
-  /** Dispatch a non-Escape keyboard shortcut. */
-  private _handleShortcutKey(key: string, e: KeyboardEvent): void {
-    // Ctrl/Cmd+F: focus search input
-    if ((e.ctrlKey || e.metaKey) && key === "f") {
-      e.preventDefault();
-      const search = this.panelEl?.querySelector<HTMLInputElement>(".gi-settings-filter");
-      if (search) {
-        this.panelEl?.classList.remove("is-hidden");
-        search.focus();
-      }
-      return;
-    }
-
-    // Space: auto-fit view
-    if (key === " " && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      const wrap = this.containerEl.querySelector<HTMLElement>(".graph-svg-wrap");
-      if (wrap) this.autoFitView(wrap.clientWidth, wrap.clientHeight);
-      return;
-    }
-
-    // 1-4: switch panel tabs
-    if (key >= "1" && key <= "4" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      const idx = parseInt(key) - 1;
-      const tabs = this.panelEl?.querySelectorAll<HTMLButtonElement>(".gi-tab-btn");
-      if (tabs && tabs[idx]) {
-        tabs[idx].click();
-      }
-      return;
-    }
-
-    // P: toggle panel visibility
-    if (key === "p" && !e.ctrlKey && !e.metaKey) {
-      this.panelEl?.classList.toggle("is-hidden");
-      return;
-    }
-
-    // Arrow keys: when node focused, navigate to neighbors; otherwise pan graph
-    if (key.startsWith("Arrow") && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      if (this._isKeyboardFocused && this.highlightedNodeId) {
-        // Navigate to neighboring nodes (Left/Right = cycle neighbors, Up/Down = cycle by degree)
-        this._navigateNeighbor(key as "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown");
-      } else {
-        const world = this.worldContainer;
-        if (world) {
-          const PAN_STEP = 50;
-          if (key === "ArrowUp") world.y += PAN_STEP;
-          else if (key === "ArrowDown") world.y -= PAN_STEP;
-          else if (key === "ArrowLeft") world.x += PAN_STEP;
-          else if (key === "ArrowRight") world.x -= PAN_STEP;
-          this.markDirty(true);
-        }
-      }
-      return;
-    }
-
-    // +/=: zoom in
-    if ((key === "+" || key === "=") && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      this.zoomBy(1.2);
-      this._announceZoomLevel();
-      return;
-    }
-    // -: zoom out
-    if (key === "-" && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      this.zoomBy(1 / 1.2);
-      this._announceZoomLevel();
-      return;
-    }
-    // 0: zoom reset (100%), 1-9: zoom to 10%-90%
-    if (/^[0-9]$/.test(key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      e.preventDefault();
-      const level = parseInt(key, 10);
-      this.setZoom(level === 0 ? 1.0 : level / 10);
-      this._announceA11y(`Zoom: ${level === 0 ? 100 : level * 10}%`);
-      return;
-    }
-    // F: fit view (same as Space)
-    if (key === "f" && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      const wrap = this.containerEl.querySelector<HTMLElement>(".graph-svg-wrap");
-      if (wrap) this.autoFitView(wrap.clientWidth, wrap.clientHeight);
-      return;
-    }
-    // L: 凡例表示トグル
-    if (key === "l" && !e.ctrlKey && !e.metaKey) {
-      this.panel.showLegend = !this.panel.showLegend;
-      this.updateLegend();
-      this.requestSave();
-      return;
-    }
-    // M: toggle minimap
-    if (key === "m" && !e.ctrlKey && !e.metaKey) {
-      this.panel.showMinimap = !this.panel.showMinimap;
-      this.markDirty(true);
-      return;
-    }
-    // G: toggle grid
-    if (key === "g" && !e.ctrlKey && !e.metaKey) {
-      this.panel.showDotGrid = !this.panel.showDotGrid;
-      this.markDirty(true);
-      return;
-    }
-    // [: decrease hoverHops
-    if (key === "[" && !e.ctrlKey && !e.metaKey) {
-      this.panel.hoverHops = Math.max(0, this.panel.hoverHops - 1);
-      this.applyHover();
-      this.markDirty(true);
-      return;
-    }
-    // ]: increase hoverHops
-    if (key === "]" && !e.ctrlKey && !e.metaKey) {
-      this.panel.hoverHops = Math.min(10, this.panel.hoverHops + 1);
-      this.applyHover();
-      this.markDirty(true);
-      return;
-    }
-    // Ctrl/Cmd+Shift+C: copy graph to clipboard as PNG
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && key === "C") {
-      e.preventDefault();
-      this.copyGraphToClipboard();
-      return;
-    }
-    // Enter: activate (open file of) keyboard-focused node
-    // Shift+Enter: add to multi-select (accessibility: keyboard multi-select)
-    // Ctrl+Enter: add to comparison (accessibility: keyboard compare)
-    if (key === "Enter" && this._isKeyboardFocused && this.highlightedNodeId) {
-      e.preventDefault();
-      if (e.shiftKey) {
-        // A11y: keyboard multi-select — announce node name + total count
-        this.toggleMultiSelect?.(this.highlightedNodeId);
-        const selTotal = this.panel.multiSelectNodeIds?.length ?? 0;
-        const nodeName = this.pixiNodes.get(this.highlightedNodeId)?.data.label ?? this.highlightedNodeId;
-        const isAdded = this.panel.multiSelectNodeIds?.includes(this.highlightedNodeId);
-        this._announceA11y(`${isAdded ? (t("a11y.selected") ?? "Selected") : (t("a11y.deselected") ?? "Deselected")}: ${nodeName} (${selTotal} total)`);
-      } else if (e.ctrlKey || e.metaKey) {
-        // A11y: keyboard compare — announce compare count
-        this.addCompareNode(this.highlightedNodeId);
-        const cmpCount = this.compareNodeIds.length;
-        const nodeName = this.pixiNodes.get(this.highlightedNodeId)?.data.label ?? this.highlightedNodeId;
-        this._announceA11y(`${t("a11y.compared") ?? "Compare"}: ${nodeName} (${cmpCount} nodes)`);
-      } else {
-        const pn = this.pixiNodes.get(this.highlightedNodeId);
-        if (pn?.data.filePath) {
-          const file = this.app.vault.getAbstractFileByPath(pn.data.filePath);
-          if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
-        }
-      }
-      return;
-    }
-    // Z: focus-zoom to highlighted/keyboard-focused node (zoom + pan)
-    if (key === "z" && this.highlightedNodeId && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      e.preventDefault();
-      this.focusZoomToNode(this.highlightedNodeId);
-      this._announceA11y(`Focus zoom: ${this.pixiNodes.get(this.highlightedNodeId)?.data.label ?? this.highlightedNodeId}`);
-      return;
-    }
-    // S: set pathfinder start on focused node (accessibility: keyboard pathfinder)
-    // E: set pathfinder end on focused node
-    if ((key === "s" || key === "e") && this._isKeyboardFocused && this.highlightedNodeId && !e.ctrlKey && !e.metaKey) {
-      const role = key === "s" ? "start" : "end";
-      this.setPathfinderNode(this.highlightedNodeId, role);
-      this._announceA11y(`${t("a11y.pathfinder") ?? "Path"} ${role}: ${this.pixiNodes.get(this.highlightedNodeId)?.data.label ?? this.highlightedNodeId}`);
-      return;
-    }
-    // ?: toggle help overlay (O3)
-    if (key === "?" && !e.ctrlKey && !e.metaKey) {
-      this._toggleHelpOverlay();
-      return;
-    }
-    // Tab / Shift+Tab: cycle focus through nodes
-    if (key === "Tab") {
-      e.preventDefault();
-      this.cycleFocusNode(e.shiftKey ? -1 : 1);
-      return;
-    }
-    // GO: Ctrl+A — select all visible nodes
-    if (key === "a" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      this.panel.multiSelectNodeIds = [...this.pixiNodes.keys()];
-      this._announceA11y(`${t("a11y.selected") ?? "Selected"}: ${this.panel.multiSelectNodeIds.length} ${t("a11y.nodesSelected") ?? "nodes"}`);
-      this.markDirty(true);
-      return;
-    }
-    // GO: Ctrl+D — deselect all
-    if (key === "d" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      this.panel.multiSelectNodeIds = [];
-      this._announceA11y(t("a11y.deselected") ?? "Deselected all");
-      this.markDirty(true);
-      return;
-    }
-    // Ctrl+E — export graph as PNG (keyboard accessibility)
-    if (key === "e" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      this.copyGraphToClipboard();
-      return;
-    }
+  /** Build KeyboardHost bridge for handleShortcutKey delegation */
+  private _getKeyboardHost(): KeyboardHost {
+    return {
+      panelEl: this.panelEl,
+      containerEl: this.containerEl,
+      worldContainer: this.worldContainer as any,
+      highlightedNodeId: this.highlightedNodeId,
+      isKeyboardFocused: this._isKeyboardFocused,
+      panel: this.panel as any,
+      compareNodeIds: this.compareNodeIds,
+      pixiNodes: this.pixiNodes as any,
+      app: this.app,
+      autoFitView: (w, h) => this.autoFitView(w, h),
+      zoomBy: (f) => this.zoomBy(f),
+      setZoom: (l) => this.setZoom(l),
+      markDirty: (f) => this.markDirty(f),
+      applyHover: () => this.applyHover(),
+      updateLegend: () => this.updateLegend(),
+      requestSave: () => this.requestSave(),
+      copyGraphToClipboard: () => this.copyGraphToClipboard(),
+      cycleFocusNode: (d) => this.cycleFocusNode(d),
+      focusZoomToNode: (id) => this.focusZoomToNode(id),
+      navigateNeighbor: (d) => this._navigateNeighbor(d),
+      announceA11y: (m) => this._announceA11y(m),
+      announceZoomLevel: () => this._announceZoomLevel(),
+      toggleHelpOverlay: () => this._toggleHelpOverlay(),
+      toggleMultiSelect: (id) => this.toggleMultiSelect?.(id),
+      addCompareNode: (id) => this.addCompareNode(id),
+      setPathfinderNode: (id, ep) => this.setPathfinderNode(id, ep),
+      openFile: (fp) => {
+        const file = this.app.vault.getAbstractFileByPath(fp);
+        if (file instanceof TFile) this.app.workspace.getLeaf(false).openFile(file);
+      },
+    };
   }
+
+  /** Dispatch a non-Escape keyboard shortcut (delegated to KeyboardHandler). */
+  private _handleShortcutKey(key: string, e: KeyboardEvent): void {
+    handleShortcutKey(this._getKeyboardHost(), key, e);
+  }
+
+  /** @deprecated Preserved for reference — original method moved to KeyboardHandler.ts */
 
   /** Create legend and keyboard shortcut help overlays. */
   private _initOverlays(canvasArea: HTMLElement): void {
@@ -6113,76 +5955,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   /** F5: Update the relation matrix floating panel. */
+  /** Update the relation matrix overlay — delegates to StatsRenderer. */
   private updateRelationMatrix(gd: GraphData): void {
-    const el = this.relationMatrixEl;
-    if (!el) return;
-    if (!this.panel.showRelationMatrix) {
-      el.style.display = "none";
-      return;
-    }
-    el.style.display = "";
-    el.empty();
-
-    el.createEl("div", { cls: "gi-matrix-title", text: "Relation Matrix" });
-
-    // Top 20 nodes by degree
-    const sorted = [...this.degrees.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
-    if (sorted.length === 0) return;
-
-    const nodeIds = sorted.map(([id]) => id);
-    const idSet = new Set(nodeIds);
-
-    // Build adjacency count matrix
-    const matrix = new Map<string, Map<string, number>>();
-    for (const id of nodeIds) matrix.set(id, new Map());
-
-    for (const e of gd.edges) {
-      const src = typeof e.source === "object" ? (e.source as any).id : e.source;
-      const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
-      if (idSet.has(src) && idSet.has(tgt)) {
-        const row = matrix.get(src)!;
-        row.set(tgt, (row.get(tgt) ?? 0) + 1);
-      }
-    }
-
-    // Find max for color scaling
-    let maxCount = 1;
-    for (const row of matrix.values()) {
-      for (const v of row.values()) {
-        if (v > maxCount) maxCount = v;
-      }
-    }
-
-    // Render table
-    const table = el.createEl("table", { cls: "gi-matrix-table" });
-    const headerRow = table.createEl("tr");
-    headerRow.createEl("th"); // corner
-    for (const id of nodeIds) {
-      const pn = this.pixiNodes.get(id);
-      const label = pn?.data.label || id;
-      const th = headerRow.createEl("th", { text: label.slice(0, 3), attr: { title: label } });
-      th.style.fontSize = "9px";
-    }
-
-    for (const rowId of nodeIds) {
-      const tr = table.createEl("tr");
-      const pn = this.pixiNodes.get(rowId);
-      const label = pn?.data.label || rowId;
-      tr.createEl("td", { text: label.slice(0, 6), cls: "gi-matrix-label", attr: { title: label } });
-
-      for (const colId of nodeIds) {
-        const count = matrix.get(rowId)?.get(colId) ?? 0;
-        const td = tr.createEl("td", { cls: "gi-matrix-cell" });
-        if (count > 0) {
-          td.textContent = String(count);
-          const intensity = Math.min(1, count / maxCount);
-          td.style.backgroundColor = `rgba(var(--interactive-accent-rgb, 99,102,241), ${intensity * 0.6})`;
-        }
-        td.addEventListener("click", () => {
-          this.applyEphemeralHighlight(new Set([rowId, colId]));
-        });
-      }
-    }
+    if (!this.relationMatrixEl) return;
+    renderRelationMatrix(this.relationMatrixEl, this.panel.showRelationMatrix, gd.edges, this, (ids) => this.applyEphemeralHighlight(ids));
   }
 
   /** Update the floating graph statistics panel — delegates to StatsRenderer. */
