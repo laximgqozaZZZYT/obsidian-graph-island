@@ -1257,6 +1257,11 @@ export interface RenderThresholds {
   /** Zoom threshold below which edge thickness/alpha are gradually reduced (default 0.5).
    *  Below this zoom, edges thin & fade proportionally to reduce visual clutter. */
   edgeZoomFadeThreshold?: number;
+  /** Zoom level below which edge labels are completely hidden (default 0.15). */
+  edgeLabelZoomHide?: number;
+  /** Zoom level below which edge labels fade in (default 0.3).
+   *  Between edgeLabelZoomHide and this value, labels fade 0→1. */
+  edgeLabelZoomFade?: number;
   /** Minimum zoom level to show roads (default 0 = always visible). Set >0 to hide at extreme zoom-out. */
   roadMinZoom?: number;
   /** Minimum road width in screen pixels (default 1). Roads scale up at low zoom to stay visible. */
@@ -1574,6 +1579,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   // Edge visibility
   edgeMinZoom: 0,
   edgeZoomFadeThreshold: 0.5,
+  edgeLabelZoomHide: 0.15,
+  edgeLabelZoomFade: 0.3,
 
   // Road network
   showRoadNetwork: true,

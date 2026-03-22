@@ -1,5 +1,5 @@
 import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings, OntologyRule, OntologyRelation, CoordinateLayout, CoordinateSystem, AxisSource, AxisConfig, AxisTransform, CurveKind, ClusterGravityConfig, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, EdgeCardinalityMode, CardinalityRule, CardRenderConfig, CardinalityRenderConfig, RenderThresholds } from "../types";
-import { DEFAULT_CARD_RENDER_CONFIG, DEFAULT_CARDINALITY_RENDER_CONFIG, DEFAULT_RENDER_THRESHOLDS } from "../types";
+import { DEFAULT_CARD_RENDER_CONFIG, DEFAULT_CARDINALITY_RENDER_CONFIG, DEFAULT_RENDER_THRESHOLDS, mergeRenderThresholds } from "../types";
 import { ontologyToRules, rulesToOntologyFields } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { repositionShell } from "../layouts/concentric";
@@ -1206,21 +1206,21 @@ function _buildNodeDisplaySection(
     addSlider(body, t("display.nodeSize"), 5, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.resetZoomBaseNodeSize(); cb.recalcNodeRadii(); cb.markDirty(); }, t("desc.nodeSize"));
     addSlider(body, t("display.textFade"), 0, 1, 0.05, panel.textFadeThreshold, (v) => { panel.textFadeThreshold = v; cb.applyTextFade(); }, t("desc.textFade"));
     // Label density at zoom-out
-    const rtDens = panel.renderThresholds ?? {};
-    addSlider(body, t("display.labelDensity") ?? "Label Density", 0.2, 3.0, 0.1, rtDens.labelDensity ?? 1.0, (v) => {
+    const rtDens = mergeRenderThresholds(panel.renderThresholds);
+    addSlider(body, t("display.labelDensity") ?? "Label Density", 0.2, 3.0, 0.1, rtDens.labelDensity, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.labelDensity = v;
       cb.applyTextFade();
       cb.announceA11y?.(`${t("display.labelDensity") ?? "Label Density"}: ${v.toFixed(1)}`);
     }, t("desc.labelDensity") ?? "Controls how many labels are shown when zoomed out");
     // Label mode override (auto / initials / truncated / full)
-    const rtMode = panel.renderThresholds ?? {};
+    const rtMode = mergeRenderThresholds(panel.renderThresholds);
     addSelect(body, t("display.labelMode") ?? "Label Mode", [
       { value: "auto", label: "Auto (zoom)" },
       { value: "initials", label: "Initials (2 chars)" },
       { value: "truncated", label: "Truncated (5-12)" },
       { value: "full", label: "Full name" },
-    ], rtMode.labelModeOverride ?? "auto", (v) => {
+    ], rtMode.labelModeOverride, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       (panel.renderThresholds as any).labelModeOverride = v;
       cb.applyTextFade();
@@ -1228,16 +1228,16 @@ function _buildNodeDisplaySection(
     });
 
     // GD: Label max characters
-    const rtLabel = panel.renderThresholds ?? {};
-    addSlider(body, t("display.labelMaxChars") ?? "Label Max Chars", 0, 60, 1, rtLabel.labelMaxChars ?? 0, (v) => {
+    const rtLabel = mergeRenderThresholds(panel.renderThresholds);
+    addSlider(body, t("display.labelMaxChars") ?? "Label Max Chars", 0, 60, 1, rtLabel.labelMaxChars, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.labelMaxChars = v;
       cb.doRenderKeepPanel();
     });
     // --- Advanced (hidden by default) ---
     addAdvancedGroup(body, (adv) => {
-      const rtNode = panel.renderThresholds ?? {};
-      addToggle(adv, t("display.nodeSizeByDegree"), rtNode.nodeSizeByDegree ?? false, (v) => {
+      const rtNode = mergeRenderThresholds(panel.renderThresholds);
+      addToggle(adv, t("display.nodeSizeByDegree"), rtNode.nodeSizeByDegree, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.nodeSizeByDegree = v;
         cb.recalcNodeRadii();
@@ -1266,8 +1266,8 @@ function _buildNodeDisplaySection(
       });
       addSlider(adv, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.applyHover(); cb.markDirty(); }, t("desc.hoverHops"));
       // HR: Max hover neighbor labels
-      const rtHover = panel.renderThresholds ?? {};
-      addSlider(adv, t("display.maxHoverLabels") ?? "Max Hover Labels", 5, 100, 5, rtHover.maxHoverNeighborLabels ?? 30, (v) => {
+      const rtHover = mergeRenderThresholds(panel.renderThresholds);
+      addSlider(adv, t("display.maxHoverLabels") ?? "Max Hover Labels", 5, 100, 5, rtHover.maxHoverNeighborLabels, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.maxHoverNeighborLabels = v;
         cb.applyHover();
@@ -1380,14 +1380,14 @@ function _buildNodeDisplayModeSection(
         cb.doRenderKeepPanel();
       });
       // FT: Card body max lines
-      const rtCard = panel.renderThresholds ?? {};
-      addSlider(body, t("display.cardBodyLines") ?? "Body Lines", 0, 10, 1, rtCard.cardBodyMaxLines ?? 3, (v) => {
+      const rtCard = mergeRenderThresholds(panel.renderThresholds);
+      addSlider(body, t("display.cardBodyLines") ?? "Body Lines", 0, 10, 1, rtCard.cardBodyMaxLines, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.cardBodyMaxLines = v;
         cb.doRenderKeepPanel();
       });
       // HM: Card content scale — log-based size boost from body length
-      addSlider(body, t("display.cardContentScale") ?? "Card Size by Content", 0, 2.0, 0.1, rtCard.cardContentScale ?? 0.5, (v) => {
+      addSlider(body, t("display.cardContentScale") ?? "Card Size by Content", 0, 2.0, 0.1, rtCard.cardContentScale, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.cardContentScale = v;
         cb.recalcNodeRadii();
@@ -1402,7 +1402,7 @@ function _buildNodeDisplayModeSection(
         cb.doRenderKeepPanel();
       });
       // FX: Card body font size
-      addSlider(body, t("display.cardBodyFontSize") ?? "Body Font Size", 4, 16, 1, rtCard.cardBodyFontSize ?? 8, (v) => {
+      addSlider(body, t("display.cardBodyFontSize") ?? "Body Font Size", 4, 16, 1, rtCard.cardBodyFontSize, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.cardBodyFontSize = v;
         cb.doRenderKeepPanel();
@@ -1698,40 +1698,53 @@ function _buildEdgeDisplaySection(
     addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRenderKeepPanel(); }, t("desc.arrows"));
     addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
     // GG: Global edge opacity
-    const rtEdge = panel.renderThresholds ?? {};
-    addSlider(body, t("display.edgeOpacity") ?? "Edge Opacity", 0.05, 1.0, 0.05, rtEdge.globalEdgeAlpha ?? 1.0, (v) => {
+    const rtEdge = mergeRenderThresholds(panel.renderThresholds);
+    addSlider(body, t("display.edgeOpacity") ?? "Edge Opacity", 0.05, 1.0, 0.05, rtEdge.globalEdgeAlpha, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.globalEdgeAlpha = v;
       cb.markDirty();
     });
-    addSlider(body, t("display.edgeMinZoom") ?? "Edge Min Zoom", 0, 0.1, 0.005, rtEdge.edgeMinZoom ?? 0, (v) => {
+    addSlider(body, t("display.edgeMinZoom") ?? "Edge Min Zoom", 0, 0.1, 0.005, rtEdge.edgeMinZoom, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.edgeMinZoom = v;
       cb.markDirty();
       cb.announceA11y?.(`${t("display.edgeMinZoom") ?? "Edge Min Zoom"}: ${v.toFixed(3)}`);
     }, t("desc.edgeMinZoom"));
     // Edge zoom fade threshold — controls gradual thinning/fading
-    addSlider(body, t("display.edgeZoomFadeThreshold") ?? "Edge Zoom Fade", 0.1, 1.0, 0.05, rtEdge.edgeZoomFadeThreshold ?? 0.5, (v) => {
+    addSlider(body, t("display.edgeZoomFadeThreshold") ?? "Edge Zoom Fade", 0.1, 1.0, 0.05, rtEdge.edgeZoomFadeThreshold, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.edgeZoomFadeThreshold = v;
       cb.markDirty();
       cb.announceA11y?.(`${t("display.edgeZoomFadeThreshold") ?? "Edge Zoom Fade"}: ${v.toFixed(2)}`);
     }, t("desc.edgeZoomFadeThreshold"));
+    // Edge label zoom thresholds
+    addSlider(body, t("display.edgeLabelZoomHide") ?? "Label Hide Zoom", 0, 0.5, 0.05, rtEdge.edgeLabelZoomHide, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.edgeLabelZoomHide = v;
+      cb.markDirty();
+      cb.announceA11y?.(`${t("display.edgeLabelZoomHide") ?? "Label Hide Zoom"}: ${v.toFixed(2)}`);
+    }, t("desc.edgeLabelZoomHide"));
+    addSlider(body, t("display.edgeLabelZoomFade") ?? "Label Fade Zoom", 0.05, 1.0, 0.05, rtEdge.edgeLabelZoomFade, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.edgeLabelZoomFade = v;
+      cb.markDirty();
+      cb.announceA11y?.(`${t("display.edgeLabelZoomFade") ?? "Label Fade Zoom"}: ${v.toFixed(2)}`);
+    }, t("desc.edgeLabelZoomFade"));
     // GW: Edge label font size
-    addSlider(body, t("display.edgeLabelFontSize") ?? "Edge Label Size", 6, 18, 1, rtEdge.edgeLabelFontSize ?? 10, (v) => {
+    addSlider(body, t("display.edgeLabelFontSize") ?? "Edge Label Size", 6, 18, 1, rtEdge.edgeLabelFontSize, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.edgeLabelFontSize = v;
       cb.markDirty();
     });
     // HV: Hover edge alpha falloff
     // IQ: Edge density floor — minimum alpha when many edges overlap
-    addSlider(body, t("display.edgeDensityFloor") ?? "Edge Density Floor", 0.02, 0.5, 0.02, rtEdge.edgeDensityFloor ?? 0.12, (v) => {
+    addSlider(body, t("display.edgeDensityFloor") ?? "Edge Density Floor", 0.02, 0.5, 0.02, rtEdge.edgeDensityFloor, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.edgeDensityFloor = v;
       cb.markDirty();
       cb.announceA11y?.(`${t("display.edgeDensityFloor") ?? "Edge Density Floor"}: ${v.toFixed(2)}`);
     });
-    addSlider(body, t("display.hoverEdgeFalloff") ?? "Hover Edge Fade", 0.3, 0.95, 0.05, rtEdge.hoverEdgeFalloff ?? 0.6, (v) => {
+    addSlider(body, t("display.hoverEdgeFalloff") ?? "Hover Edge Fade", 0.3, 0.95, 0.05, rtEdge.hoverEdgeFalloff, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.hoverEdgeFalloff = v;
       cb.markDirty();
@@ -1777,8 +1790,8 @@ function _buildEdgeDisplaySection(
         cb.markDirty();
       }, t("desc.edgeDirectionFilter"));
       addToggle(adv, t("display.bidirectionalIndicator"), panel.showBidirectionalIndicator, (v) => { panel.showBidirectionalIndicator = v; cb.markDirty(); }, t("desc.bidirectionalIndicator"));
-      const rt = panel.renderThresholds ?? {};
-      addToggle(adv, t("display.edgeStrengthGlow"), rt.edgeStrengthGlow ?? DEFAULT_RENDER_THRESHOLDS.edgeStrengthGlow, (v) => {
+      const rt = mergeRenderThresholds(panel.renderThresholds);
+      addToggle(adv, t("display.edgeStrengthGlow"), rt.edgeStrengthGlow, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.edgeStrengthGlow = v;
         cb.markDirty();
@@ -1893,26 +1906,26 @@ function _buildRoadNetworkSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.roadNetwork"), (body) => {
-    const rt = panel.renderThresholds ?? {};
-    addToggle(body, t("display.showRoadNetwork"), rt.showRoadNetwork ?? DEFAULT_RENDER_THRESHOLDS.showRoadNetwork, (v) => {
+    const rt = mergeRenderThresholds(panel.renderThresholds);
+    addToggle(body, t("display.showRoadNetwork"), rt.showRoadNetwork, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.showRoadNetwork = v;
       cb.doRenderKeepPanel();
       cb.rebuildPanel(); // Progressive disclosure: show/hide road sub-settings
     }, t("desc.showRoadNetwork"));
     // Progressive disclosure: show sub-settings only when road network is active
-    if (rt.showRoadNetwork ?? DEFAULT_RENDER_THRESHOLDS.showRoadNetwork) {
-      addToggle(body, t("display.roadRouteEdges"), rt.roadRouteEdges ?? DEFAULT_RENDER_THRESHOLDS.roadRouteEdges, (v) => {
+    if (rt.showRoadNetwork) {
+      addToggle(body, t("display.roadRouteEdges"), rt.roadRouteEdges, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.roadRouteEdges = v;
         cb.doRenderKeepPanel();
       }, t("desc.roadRouteEdges"));
-      addSlider(body, t("display.roadAlpha"), 0.05, 0.8, 0.05, rt.roadAlpha ?? DEFAULT_RENDER_THRESHOLDS.roadAlpha, (v) => {
+      addSlider(body, t("display.roadAlpha"), 0.05, 0.8, 0.05, rt.roadAlpha, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.roadAlpha = v;
         cb.doRenderKeepPanel();
       }, t("desc.roadAlpha"));
-      addSlider(body, t("display.roadWidth"), 2, 20, 1, rt.roadWidth ?? DEFAULT_RENDER_THRESHOLDS.roadWidth, (v) => {
+      addSlider(body, t("display.roadWidth"), 2, 20, 1, rt.roadWidth, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.roadWidth = v;
         cb.doRenderKeepPanel();
@@ -1960,44 +1973,44 @@ function _buildRenderThresholdsSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.renderThresholds"), (body) => {
-    const rt = panel.renderThresholds ?? {};
+    const rt = mergeRenderThresholds(panel.renderThresholds);
     addSlider(body, t("render.cardTextNodeCount"), 50, 1000, 50,
-      rt.cardTextNodeCount ?? DEFAULT_RENDER_THRESHOLDS.cardTextNodeCount, (v) => {
+      rt.cardTextNodeCount, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.cardTextNodeCount = v;
         cb.markDirty();
       }, t("render.cardTextNodeCountDesc"));
     addSlider(body, t("render.gradientNodeCount"), 100, 2000, 100,
-      rt.gradientNodeCount ?? DEFAULT_RENDER_THRESHOLDS.gradientNodeCount, (v) => {
+      rt.gradientNodeCount, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.gradientNodeCount = v;
         cb.markDirty();
       }, t("render.gradientNodeCountDesc"));
     addSlider(body, t("render.glowNodeCount"), 100, 2000, 100,
-      rt.glowNodeCount ?? DEFAULT_RENDER_THRESHOLDS.glowNodeCount, (v) => {
+      rt.glowNodeCount, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.glowNodeCount = v;
         cb.markDirty();
       }, t("render.glowNodeCountDesc"));
     addSlider(body, t("render.gridLabelOffset"), 0, 40, 1,
-      rt.gridLabelOffset ?? DEFAULT_RENDER_THRESHOLDS.gridLabelOffset, (v) => {
+      rt.gridLabelOffset, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.gridLabelOffset = v;
         cb.markDirty();
       }, t("render.gridLabelOffsetDesc"));
-    addToggle(body, t("render.showFpsMonitor"), rt.showFpsMonitor ?? false, (v) => {
+    addToggle(body, t("render.showFpsMonitor"), rt.showFpsMonitor, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.showFpsMonitor = v;
       cb.markDirty();
       cb.wakeRenderLoop();
     }, t("render.showFpsMonitorDesc"));
     addSlider(body, t("render.highlightDimAlpha"), 0, 0.5, 0.01,
-      rt.highlightEdgeNonMatchAlpha ?? DEFAULT_RENDER_THRESHOLDS.highlightEdgeNonMatchAlpha, (v) => {
+      rt.highlightEdgeNonMatchAlpha, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.highlightEdgeNonMatchAlpha = v;
         cb.markDirty();
       }, t("render.highlightDimAlphaDesc"));
-    addToggle(body, t("render.showRecentVisitHalo"), rt.showRecentVisitHalo ?? false, (v) => {
+    addToggle(body, t("render.showRecentVisitHalo"), rt.showRecentVisitHalo, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.showRecentVisitHalo = v;
       cb.markDirty();
@@ -2184,14 +2197,14 @@ function _buildPluginSettingsSection(
         cb.doRenderKeepPanel();
       }, t("desc.enclosureSpacing"));
       // FY: Enclosure fill opacity override
-      const rtEnc = panel.renderThresholds ?? {};
-      addSlider(body, t("display.enclosureFillOpacity") ?? "Enclosure Fill", 0, 1, 0.05, rtEnc.enclosureFillOpacity ?? 0, (v) => {
+      const rtEnc = mergeRenderThresholds(panel.renderThresholds);
+      addSlider(body, t("display.enclosureFillOpacity") ?? "Enclosure Fill", 0, 1, 0.05, rtEnc.enclosureFillOpacity, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.enclosureFillOpacity = v;
         cb.doRenderKeepPanel();
       });
       // GC: Enclosure stroke width override
-      addSlider(body, t("display.enclosureStrokeWidth") ?? "Enclosure Stroke", 0, 10, 0.5, rtEnc.enclosureStrokeWidth ?? 0, (v) => {
+      addSlider(body, t("display.enclosureStrokeWidth") ?? "Enclosure Stroke", 0, 10, 0.5, rtEnc.enclosureStrokeWidth, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         panel.renderThresholds.enclosureStrokeWidth = v;
         cb.doRenderKeepPanel();
@@ -2201,7 +2214,7 @@ function _buildPluginSettingsSection(
         { value: "top", label: t("display.enclosureLabelPos.top") ?? "Top" },
         { value: "center", label: t("display.enclosureLabelPos.center") ?? "Center" },
         { value: "bottom", label: t("display.enclosureLabelPos.bottom") ?? "Bottom" },
-      ], rtEnc.enclosureLabelPosition ?? "top", (v) => {
+      ], rtEnc.enclosureLabelPosition, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};
         (panel.renderThresholds as any).enclosureLabelPosition = v;
         cb.doRenderKeepPanel();
@@ -3100,9 +3113,9 @@ function _buildForceParameters(s: ClusterSectionCtx): void {
     panel.linkDistance = v;
     debouncedForceUpdate();
   }, t("desc.linkDistance"));
-  const rt = panel.renderThresholds ?? {};
+  const rt = mergeRenderThresholds(panel.renderThresholds);
   addSlider(body, t("render.clusterChargeForce"), -50, 0, 1,
-    rt.clusterChargeForce ?? DEFAULT_RENDER_THRESHOLDS.clusterChargeForce, (v) => {
+    rt.clusterChargeForce, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.clusterChargeForce = v;
       cb.doRenderKeepPanel();
@@ -3833,8 +3846,8 @@ function buildExprLibrary(
     optBtn.disabled = true;
     optBtn.textContent = t("coord.autoOptimizeRunning");
     cb.autoOptimize();
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...panel.renderThresholds };
-    const waitMs = (rt.autoOptMaxPasses ?? 3) * 1500 + 500;
+    const rt = mergeRenderThresholds(panel.renderThresholds);
+    const waitMs = (rt.autoOptMaxPasses) * 1500 + 500;
     setTimeout(() => {
       optBtn.disabled = false;
       optBtn.textContent = t("coord.autoOptimize");

@@ -952,7 +952,7 @@ export class RenderPipeline {
   ) {
     const { pixiNodes } = ctx;
     const displayMode = this.host.getNodeDisplayMode();
-    const autoLOD = rt.autoLOD ?? false;
+    const autoLOD = rt.autoLOD;
 
     // Clean up stale card text when NOT in table card mode
     if (displayMode !== "card" || (this.host.getCardDisplayConfig().headerStyle ?? "plain") !== "table") {
@@ -2306,7 +2306,7 @@ export class RenderPipeline {
     const maxR = rtNode.maxNodeRadius > 0 ? rtNode.maxNodeRadius : Infinity;
     const ns = this.host.getNodeSize?.() ?? nodeR(n);
     const nodeDeg = this.host.getDegrees().get(n.id) || 0;
-    const sizeByDeg = rtNode.nodeSizeByDegree ?? false;
+    const sizeByDeg = rtNode.nodeSizeByDegree;
     const r = effectiveRadius(n, ns, nodeDeg, maxR, rtNode.minNodeRadius, this._cachedMaxDeg, sizeByDeg,
       n.bodyLength ?? 0, this._cachedMaxBodyLength ?? 0, rtNode.cardContentScale);
     const color = nodeColor(n);
@@ -2375,17 +2375,17 @@ export class RenderPipeline {
       });
       label.bgColor = labelBg;
       // Theme-adaptive bgAlpha: light theme needs higher opacity for contrast
-      const baseBgAlpha = isSuperNode ? (rt.superNodeLabelBgAlpha ?? 0.9) : rt.labelBgAlpha;
+      const baseBgAlpha = isSuperNode ? (rt.superNodeLabelBgAlpha) : rt.labelBgAlpha;
       label.bgAlpha = this.host.isDarkTheme() ? baseBgAlpha : Math.min(1.0, baseBgAlpha + 0.1);
       label.bgPadX = isSuperNode ? SUPER_LABEL_PAD_X : REGULAR_LABEL_PAD_X;
       label.bgPadY = isSuperNode ? SUPER_LABEL_PAD_Y : REGULAR_LABEL_PAD_Y;
-      label.cornerRadius = rt.labelHaloCornerRadius ?? null;
-      label.strokeColor = rt.labelStrokeColor ?? null;
-      label.strokeWidth = rt.labelStrokeWidth ?? 0;
+      label.cornerRadius = rt.labelHaloCornerRadius;
+      label.strokeColor = rt.labelStrokeColor;
+      label.strokeWidth = rt.labelStrokeWidth;
 
       // --- Zone-based label placement ---
       // Analyze adjacent node angles and place label in the direction of the largest gap.
-      const zoneOffset = rt.labelZoneOffset ?? 6;
+      const zoneOffset = rt.labelZoneOffset;
       if (rt.labelZonePlacement) {
         const placement = this.computeZonePlacement(n, r, zoneOffset);
         label.x = placement.x;
@@ -2399,24 +2399,24 @@ export class RenderPipeline {
 
       // --- Tag label (below node, fixed offset) ---
       if (rt.tagLabelShow && n.tags && n.tags.length > 0 && !isSuperNode) {
-        const maxTags = rt.tagLabelMaxTags ?? 2;
+        const maxTags = rt.tagLabelMaxTags;
         const tagText = n.tags.slice(0, maxTags).map(t => `#${t}`).join(" ");
         const accentColor = this.host.getAccentColor?.() ?? 0x818cf8;
         tagLabel = new CanvasText(tagText, {
-          fontSize: rt.tagLabelFontSize ?? 9,
+          fontSize: rt.tagLabelFontSize,
           fill: accentColor,
           fontWeight: "400",
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
         });
-        tagLabel.alpha = rt.tagLabelAlpha ?? 0.65;
+        tagLabel.alpha = rt.tagLabelAlpha;
         tagLabel.bgColor = rt.labelBgColor;
-        tagLabel.bgAlpha = (rt.labelBgAlpha ?? 0.85) * TAG_BG_ALPHA_DAMPEN;
+        tagLabel.bgAlpha = (rt.labelBgAlpha) * TAG_BG_ALPHA_DAMPEN;
         tagLabel.bgPadX = TAG_LABEL_PAD_X;
         tagLabel.bgPadY = TAG_LABEL_PAD_Y;
-        tagLabel.cornerRadius = rt.labelHaloCornerRadius ?? null;
+        tagLabel.cornerRadius = rt.labelHaloCornerRadius;
         tagLabel.anchor.set(0.5, 0);
         tagLabel.x = 0;
-        tagLabel.y = r + (rt.tagLabelOffset ?? 4);
+        tagLabel.y = r + (rt.tagLabelOffset);
         // Tag labels start hidden; LOD in applyTextFade controls visibility
         tagLabel.visible = false;
         container.addChild(tagLabel);
@@ -2431,8 +2431,8 @@ export class RenderPipeline {
       const fields = subFieldsRaw.split(",").map(s => s.trim()).filter(Boolean);
       // Stack sub-labels below tagLabel (or below node if no tagLabel)
       let yOffset = tagLabel
-        ? r + (srt.tagLabelOffset ?? 4) + (srt.tagLabelFontSize ?? 9) + SUB_LABEL_GAP
-        : r + (srt.tagLabelOffset ?? 4);
+        ? r + (srt.tagLabelOffset) + (srt.tagLabelFontSize) + SUB_LABEL_GAP
+        : r + (srt.tagLabelOffset);
       for (const field of fields) {
         // Resolve via host.getNodeProperty if available, else fall back to meta
         const val = this.host.getNodeProperty
@@ -2447,10 +2447,10 @@ export class RenderPipeline {
         });
         subLabel.alpha = SUB_LABEL_ALPHA;
         subLabel.bgColor = srt.labelBgColor;
-        subLabel.bgAlpha = (srt.labelBgAlpha ?? 0.85) * TAG_BG_ALPHA_DAMPEN;
+        subLabel.bgAlpha = (srt.labelBgAlpha) * TAG_BG_ALPHA_DAMPEN;
         subLabel.bgPadX = TAG_LABEL_PAD_X;
         subLabel.bgPadY = TAG_LABEL_PAD_Y;
-        subLabel.cornerRadius = srt.labelHaloCornerRadius ?? null;
+        subLabel.cornerRadius = srt.labelHaloCornerRadius;
         subLabel.anchor.set(0.5, 0);
         subLabel.x = 0;
         subLabel.y = yOffset;
@@ -2521,7 +2521,7 @@ export class RenderPipeline {
   /** Whether autoLOD is currently active. */
   isAutoLODActive(): boolean {
     const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
-    return rt.autoLOD ?? false;
+    return rt.autoLOD;
   }
 
   computeZonePlacement(
@@ -2543,7 +2543,7 @@ export class RenderPipeline {
     // can cause AP-6 ambiguity if labels are placed toward them.
     const angles: number[] = [];
     const rtZone = mergeRenderThresholds(this.host.getRenderThresholds?.());
-    const proximityFactor = rtZone.labelZoneProximityFactor ?? 8;
+    const proximityFactor = rtZone.labelZoneProximityFactor;
     const proximityR = (nodeRadius + offset) * proximityFactor;
     for (const nid of neighbors) {
       const pn = pixiNodes.get(nid);
@@ -2593,10 +2593,10 @@ export class RenderPipeline {
     // Place label at the midpoint of the largest gap.
     // When gap is narrow (dense layout), pull label closer to its own node
     // to reduce AP-6 ambiguity (label closer to another node).
-    const gapNarrowTh = rtZone.labelGapScaleNarrowThreshold ?? Math.PI / 4;
-    const gapMedTh = rtZone.labelGapScaleMediumThreshold ?? Math.PI / 2;
-    const gapNarrowFactor = rtZone.labelGapScaleNarrow ?? 0.6;
-    const gapMedFactor = rtZone.labelGapScaleMedium ?? 0.8;
+    const gapNarrowTh = rtZone.labelGapScaleNarrowThreshold;
+    const gapMedTh = rtZone.labelGapScaleMediumThreshold;
+    const gapNarrowFactor = rtZone.labelGapScaleNarrow;
+    const gapMedFactor = rtZone.labelGapScaleMedium;
     const gapScale = maxGap < gapNarrowTh ? gapNarrowFactor : maxGap < gapMedTh ? gapMedFactor : 1.0;
     const dist = (nodeRadius + offset) * gapScale;
     const lx = Math.cos(gapMidAngle) * dist;
@@ -2682,7 +2682,7 @@ export class RenderPipeline {
 
     // 3. Sort by priority score — highest priority first (Google Maps-style)
     // Hover-forced labels get priority boost so they survive culling (displaced with leader lines if needed)
-    const minNonSuper = rt.labelMinNonSuper ?? 3;
+    const minNonSuper = rt.labelMinNonSuper;
     rects.sort((a, b) => {
       // HY: Reduced hover boost from 200→80 to prevent hover labels from
       // displacing too many normal labels at mid-zoom
@@ -2695,7 +2695,7 @@ export class RenderPipeline {
     const drawLeader = rt.labelLeaderLines;
     const llAlpha = rt.labelLeaderLineAlpha;
     const llWidth = rt.labelLeaderLineWidth;
-    const maxDispRatio = rt.labelMaxDisplacementRatio ?? 4.0;
+    const maxDispRatio = rt.labelMaxDisplacementRatio;
 
     // Clear all existing leader lines before re-evaluation
     for (const pn of pixiNodes.values()) {
@@ -2727,13 +2727,13 @@ export class RenderPipeline {
 
     // 4.5. Density-adaptive culling: remove labels that are too close together
     // HV: Extended to all zoom levels (was zoom < 0.5 only), with gentler spacing at high zoom
-    const densityZoomThreshold = rt.labelDensityZoomThreshold ?? 0.5;
+    const densityZoomThreshold = rt.labelDensityZoomThreshold;
     if (placed.length > 10) {
       // At low zoom: aggressive spacing (sqrt scaling). At high zoom: mild spacing.
       const rawDensityScale = zoom < densityZoomThreshold
         ? 1 + Math.sqrt((densityZoomThreshold - zoom) / densityZoomThreshold) * 1.5
         : Math.max(0.3, 1 - (zoom - densityZoomThreshold) * 0.5); // gentler at high zoom
-      const densityMinDist = Math.min((rt.labelDensityMinScreenDist ?? 80) * rawDensityScale, rt.labelDensityMaxDist ?? 200);
+      const densityMinDist = Math.min((rt.labelDensityMinScreenDist) * rawDensityScale, rt.labelDensityMaxDist);
       const densityMinDist2 = densityMinDist * densityMinDist;
       // Sort placed by priority (highest first) — keep high priority, remove low
       placed.sort((a, b) => (b.pn.priorityScore + (b.pn.hoverForcedLabel ? 80 : 0))

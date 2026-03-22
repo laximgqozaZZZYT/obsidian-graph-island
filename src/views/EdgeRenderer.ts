@@ -131,6 +131,11 @@ export interface EdgeDrawConfig {
   /** Zoom threshold below which edge thickness/alpha are gradually reduced (default 0.5).
    *  Below this zoom, edges thin & fade proportionally to reduce visual clutter. */
   edgeZoomFadeThreshold?: number;
+  /** Zoom level below which edge labels are completely hidden (default 0.15). */
+  edgeLabelZoomHide?: number;
+  /** Zoom level below which edge labels fade in (default 0.3).
+   *  Between edgeLabelZoomHide and this value, labels fade from 0→1. */
+  edgeLabelZoomFade?: number;
 }
 
 // Minimal position data needed for source/target
@@ -3605,8 +3610,10 @@ export function drawEdgeLabels(
 
   // Auto-hide edge labels at low zoom with gradual fade
   const zoom = cfg.worldScale ?? 1;
-  if (zoom < 0.15) return;
-  const edgeLabelAlpha = zoom < 0.3 ? (zoom - 0.15) / 0.15 : 1; // fade 0→1 between 0.15-0.3
+  const labelHideZ = cfg.edgeLabelZoomHide ?? 0.15;
+  const labelFadeZ = cfg.edgeLabelZoomFade ?? 0.3;
+  if (zoom < labelHideZ) return;
+  const edgeLabelAlpha = zoom < labelFadeZ ? (zoom - labelHideZ) / (labelFadeZ - labelHideZ) : 1;
 
   // --- エッジ重みラベル: 同一ペア間のエッジ本数を表示 ---
   if (cfg.showEdgeWeightLabels) {
