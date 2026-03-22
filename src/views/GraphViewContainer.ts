@@ -11,7 +11,7 @@ import { applyTreeLayout } from "../layouts/tree";
 import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
-import { computeNodeDegrees, computeGraphStats, computeBetweennessCentrality, detectArticulationPoints, generateStructureQuestions, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
+import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoints, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid } from "../utils/graph-helpers";
@@ -34,6 +34,7 @@ import { DiffOverlay } from "./DiffOverlay";
 import { captureSnapshot, computeSnapshotDiff } from "../utils/snapshot";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
+import { renderGraphStats } from "./StatsRenderer";
 import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
@@ -71,10 +72,8 @@ export interface StatsHost {
   setHighlightedNodeId(id: string | null): void;
   /** Apply hover highlight visuals */
   applyHover(): void;
-  /** Trigger full re-render */
-  doRender(): void;
-  /** Rebuild settings panel */
-  buildPanel(): void;
+  /** Invalidate graph data and rebuild panel (for degree filter clicks) */
+  invalidateAndRebuild(): void;
   /** A11y announcement via aria-live */
   announceA11y(msg: string): void;
   /** Betweenness centrality cache (may be undefined) */
@@ -2025,7 +2024,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   openFile(filePath: string) { this.app.workspace.openLinkText(filePath, "", false); }
 
   /** ビジュアルリンクエディタが有効かどうか */
-  isVisualLinkEditorEnabled(): boolean { return this.panel.visualLinkEditor; }
+  isVisualLinkEditorEnabled(): boolean { return false; }
 
   /** Alt+ドラッグでソースファイルに [[target]] wikilink を挿入 */
   async createLink(sourceId: string, targetId: string): Promise<void> {
@@ -2948,8 +2947,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // C3+F2: Ontology type picker & relation type picker
   // =========================================================================
 
-  isInlineOntologyEnabled(): boolean { return this.panel.enableInlineOntologyEditor; }
-  isRelationTypePickerEnabled(): boolean { return this.panel.showRelationTypePicker; }
+  isInlineOntologyEnabled(): boolean { return false; }
+  isRelationTypePickerEnabled(): boolean { return false; }
 
   getNeighborIds(nodeId: string): string[] {
     const nb = this.adj.get(nodeId);
@@ -3040,7 +3039,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // C7: Inline edit
   // =========================================================================
 
-  isInlineEditEnabled(): boolean { return this.panel.enableInlineEdit; }
+  isInlineEditEnabled(): boolean { return false; }
 
   /** I1: Auto-persist drag position to pinnedPositions */
   saveDragPosition(nodeId: string, x: number, y: number): void {
@@ -3197,7 +3196,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // C4: Manual clustering
   // =========================================================================
 
-  isManualClusteringEnabled(): boolean { return this.panel.enableManualClustering; }
+  isManualClusteringEnabled(): boolean { return false; }
 
   getClusterGroupKeys(): string[] {
     const keys = new Set<string>();
@@ -3208,13 +3207,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return [...keys].sort();
   }
 
-  setManualCluster(nodeId: string, groupKey: string): void {
-    if (!this.panel.manualClusterOverrides) {
-      this.panel.manualClusterOverrides = {};
-    }
-    this.panel.manualClusterOverrides[nodeId] = groupKey;
-    this.rawData = null;
-    this.doRender();
+  setManualCluster(_nodeId: string, _groupKey: string): void {
+    // Manual clustering feature removed — no-op
   }
 
   // =========================================================================
@@ -5552,7 +5546,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   // Control Panel UI (delegated to PanelBuilder)
   // =========================================================================
-  private buildPanel() {
+  buildPanel() {
     if (!this.panelEl) return;
     const ctx = this._buildPanelContext();
     const cb = this._buildPanelCallbacks();
@@ -6192,222 +6186,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
-  /** Update the floating graph statistics panel (Feature CX). */
+  /** Update the floating graph statistics panel — delegates to StatsRenderer. */
   private updateGraphStats(gd: GraphData): void {
     if (!this.graphStatsEl) return;
-    if (!this.panel.showGraphStats) {
-      this.graphStatsEl.style.display = "none";
-      return;
-    }
-    this.graphStatsEl.style.display = "";
-    this.graphStatsEl.empty();
-
-    const stats = computeGraphStats(gd.nodes, gd.edges, this.degrees);
-
-    const titleRow = this.graphStatsEl.createDiv({ cls: "gi-stats-title-row" });
-    titleRow.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;";
-    const title = titleRow.createEl("div", { cls: "gi-stats-title", text: t("stats.title") });
-    title.style.fontWeight = "600";
-    // FS: Copy stats as Markdown
-    const copyBtn = titleRow.createEl("button", { text: "MD", cls: "gi-stats-copy" });
-    copyBtn.style.cssText = "font-size:9px;padding:1px 5px;cursor:pointer;border-radius:3px;opacity:0.6;";
-    copyBtn.title = "Copy as Markdown";
-    copyBtn.addEventListener("click", () => {
-      const lines = [`# ${t("stats.title")}`, ""];
-      lines.push(`| Metric | Value |`, `|---|---|`);
-      lines.push(`| ${t("stats.nodes")} | ${stats.nodeCount} |`);
-      lines.push(`| ${t("stats.edges")} | ${stats.edgeCount} |`);
-      lines.push(`| ${t("stats.avgDegree")} | ${stats.avgDegree.toFixed(2)} |`);
-      lines.push(`| ${t("stats.density")} | ${stats.density.toFixed(4)} |`);
-      lines.push(`| ${t("stats.components")} | ${stats.componentCount} |`);
-      if (stats.hubs.length > 0) {
-        lines.push("", "## Top Hubs", "");
-        for (const [id, deg] of stats.hubs) {
-          const label = this.pixiNodes.get(id)?.data?.label ?? id;
-          lines.push(`- ${label} (${deg})`);
-        }
-      }
-      navigator.clipboard.writeText(lines.join("\n"));
-      new Notice("Stats copied as Markdown", 2000);
-    });
-
-    const table = this.graphStatsEl.createEl("table", { cls: "gi-stats-table" });
-    const addRow = (label: string, value: string): HTMLElement => {
-      const tr = table.createEl("tr");
-      tr.createEl("td", { cls: "gi-stats-label", text: label });
-      tr.createEl("td", { cls: "gi-stats-value", text: value });
-      return tr;
-    };
-    addRow(t("stats.nodes"), String(stats.nodeCount));
-    addRow(t("stats.edges"), String(stats.edgeCount));
-    addRow(t("stats.avgDegree"), stats.avgDegree.toFixed(2));
-    addRow(t("stats.density"), stats.density.toFixed(4));
-    addRow(t("stats.components"), String(stats.componentCount));
-    addRow(t("stats.orphanRate"), (stats.orphanRate * 100).toFixed(1) + "%");
-    addRow(t("stats.tagCoverage"), (stats.tagCoverage * 100).toFixed(1) + "%");
-    // HI: Edge density warning for large graphs
-    if (stats.edgeCount > 5000) {
-      const warn = this.graphStatsEl.createEl("div", { cls: "gi-stats-warn", attr: { role: "alert" } });
-      warn.textContent = `⚠ ${stats.edgeCount} edges — consider enabling edge fade or reducing hops`;
-      warn.style.cssText = "color:var(--text-warning,#d4a017);font-size:10px;margin:4px 0;padding:2px 4px;border-radius:3px;background:var(--background-modifier-warning,rgba(212,160,23,0.1))";
-    }
-
-    // Edge type distribution
-    if (stats.edgeTypeCounts.size > 0) {
-      const etTitle = this.graphStatsEl.createEl("div", {
-        cls: "gi-stats-hub-title",
-        text: t("stats.edgeTypes"),
-      });
-      etTitle.style.fontWeight = "600";
-      etTitle.style.marginTop = "6px";
-      etTitle.style.marginBottom = "2px";
-
-      const etTable = this.graphStatsEl.createEl("table", { cls: "gi-stats-table" });
-      for (const [etype, count] of [...stats.edgeTypeCounts.entries()].sort((a, b) => b[1] - a[1])) {
-        const tr = etTable.createEl("tr");
-        tr.createEl("td", { cls: "gi-stats-label", text: etype });
-        tr.createEl("td", { cls: "gi-stats-value", text: String(count) });
-      }
-    }
-
-    // EF: Degree distribution mini-chart
-    if (this.degrees.size > 0) {
-      const degTitle = this.graphStatsEl.createEl("div", {
-        cls: "gi-stats-hub-title",
-        text: t("stats.degreeDistribution") ?? "Degree Distribution",
-      });
-      degTitle.style.fontWeight = "600";
-      degTitle.style.marginTop = "6px";
-      degTitle.style.marginBottom = "2px";
-      // Build histogram buckets
-      const buckets = new Map<number, number>();
-      for (const deg of this.degrees.values()) {
-        const b = Math.min(deg, 20); // cap at 20+
-        buckets.set(b, (buckets.get(b) ?? 0) + 1);
-      }
-      const maxBucket = Math.max(1, ...buckets.values());
-      const chartEl = this.graphStatsEl.createDiv({ cls: "gi-degree-chart" });
-      chartEl.style.cssText = "display:flex;align-items:flex-end;gap:1px;height:30px;margin-bottom:4px;";
-      for (let d = 0; d <= 20; d++) {
-        const count = buckets.get(d) ?? 0;
-        if (count === 0 && d > 10) continue;
-        const bar = chartEl.createDiv();
-        const h = Math.max(1, (count / maxBucket) * 28);
-        bar.style.cssText = `width:6px;height:${h}px;background:var(--interactive-accent);opacity:0.7;border-radius:1px 1px 0 0;cursor:pointer;`;
-        bar.title = `degree ${d}${d === 20 ? "+" : ""}: ${count} nodes — click to filter`;
-        // IM: Click to set degree filter range
-        const deg = d;
-        bar.setAttribute("role", "button");
-        bar.setAttribute("tabindex", "0");
-        bar.addEventListener("click", () => {
-          this.panel.minDegreeFilter = deg;
-          this.panel.maxDegreeFilter = deg === 20 ? 0 : deg; // 20+ = no max
-          this.rawData = null;
-          this.doRender();
-          this.buildPanel();
-          this._announceA11y?.(`Degree filter: ${deg}${deg === 20 ? "+" : ""}`);
-        });
-        bar.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); bar.click(); }
-        });
-      }
-    }
-
-    // EI: Graph complexity score
-    {
-      // Complexity = log2(nodes) * density * avgDegree * sqrt(components)
-      const logN = Math.max(1, Math.log2(stats.nodeCount));
-      const complexity = logN * (stats.density * 1000) * stats.avgDegree * Math.sqrt(stats.componentCount);
-      const score = Math.min(100, Math.round(complexity * 10) / 10);
-      addRow(t("stats.complexity") ?? "Complexity", String(score));
-    }
-
-    // JM: Label visibility stats in stats panel
-    {
-      const cullStats = this.getLabelCullStats();
-      if (cullStats.totalLabels > 0) {
-        addRow("Labels", `${cullStats.visibleLabels}/${cullStats.totalLabels}`);
-        const pct = (cullStats.collisionRate * 100).toFixed(1);
-        addRow("Cull Rate", `${pct}%`);
-      }
-      const margin = this.panel.renderThresholds?.labelOverlapMargin ?? 12;
-      if (margin !== 12) addRow("Margin", `${margin}px`);
-    }
-
-    // JS: §0 Quality Dashboard (collapsible section)
-    {
-      const qs = this.getLabelQualityScore();
-      const fps = this.renderPipeline?.currentFps ?? 0;
-      const mem = (performance as any).memory?.usedJSHeapSize;
-      const memMB = mem ? Math.round(mem / (1024 * 1024)) : null;
-
-      const dashTitle = this.graphStatsEl.createEl("div", { cls: "gi-stats-hub-title", text: "Quality Dashboard" });
-      dashTitle.style.cssText = "font-weight:600;margin-top:6px;cursor:pointer;user-select:none;";
-      const dashBody = this.graphStatsEl.createDiv({ cls: "gi-quality-dashboard" });
-      dashBody.style.display = "none";
-      dashTitle.addEventListener("click", () => {
-        dashBody.style.display = dashBody.style.display === "none" ? "" : "none";
-      });
-
-      const badge = (label: string, value: string, pass: boolean) => {
-        const row = dashBody.createDiv({ cls: "gi-stats-row" });
-        row.style.cssText = "display:flex;justify-content:space-between;padding:1px 0;font-size:11px;";
-        row.createEl("span", { text: label });
-        const val = row.createEl("span", { text: `${value} ${pass ? "✓" : "✗"}` });
-        val.style.color = pass ? "var(--text-success, #38a169)" : "var(--text-error, #e53e3e)";
-      };
-
-      badge("Score", `${qs.score}/100`, qs.score >= 70);
-      badge("Collision", `${qs.collision}/40`, qs.collision >= 28);
-      badge("Visibility", `${qs.visibility}/30`, qs.visibility >= 15);
-      badge("Priority", `${qs.priority}/30`, qs.priority >= 15);
-      badge("FPS", fps > 0 ? `${fps}` : "idle", fps >= 30 || fps === 0);
-      if (memMB !== null) badge("Memory", `${memMB}MB`, memMB < 300);
-    }
-
-    if (stats.hubs.length > 0) {
-      const hubTitle = this.graphStatsEl.createEl("div", {
-        cls: "gi-stats-hub-title",
-        text: t("stats.topHubs"),
-      });
-      hubTitle.style.fontWeight = "600";
-      hubTitle.style.marginTop = "6px";
-      hubTitle.style.marginBottom = "2px";
-
-      const hubList = this.graphStatsEl.createEl("ul", { cls: "gi-stats-hub-list" });
-      for (const [id, deg] of stats.hubs) {
-        const pn = this.pixiNodes.get(id);
-        const label = pn?.data?.label ?? id;
-        // ID: Clickable hub names — click to pan to node
-        const li = hubList.createEl("li", {
-          cls: "gi-stats-hub-item gi-stats-hub-clickable",
-          text: `${label} (${deg})`,
-          attr: { role: "button", tabindex: "0", "aria-label": `${label}, ${deg} connections — click to focus` },
-        });
-        const nodeId = id;
-        li.addEventListener("click", () => { this.panToNode(nodeId); this.setHighlightedNodeId(nodeId); this.applyHover(); });
-        li.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.panToNode(nodeId); this.setHighlightedNodeId(nodeId); this.applyHover(); } });
-      }
-    }
-
-    // S4: Structure questions
-    if (this.panel.showStructureQuestions) {
-      const betweenness = this._betweennessCache ?? undefined;
-      const questions = generateStructureQuestions(gd.nodes, gd.edges, this.degrees, betweenness);
-      if (questions.length > 0) {
-        const qTitle = this.graphStatsEl.createEl("div", {
-          cls: "gi-stats-hub-title",
-          text: "💡 " + t("display.showStructureQuestions"),
-        });
-        qTitle.style.fontWeight = "600";
-        qTitle.style.marginTop = "8px";
-        qTitle.style.marginBottom = "2px";
-        const qList = this.graphStatsEl.createEl("ul", { cls: "gi-stats-hub-list", attr: { role: "log", "aria-label": t("display.showStructureQuestions") ?? "Structure Questions" } });
-        for (const q of questions) {
-          qList.createEl("li", { cls: "gi-stats-hub-item", text: q });
-        }
-      }
-    }
+    renderGraphStats(this.graphStatsEl, gd, this.panel, this);
   }
 
   // --- StatsHost bridge methods (Phase 0: interface only, Phase 1: extract to StatsRenderer) ---
@@ -6416,6 +6198,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
   getCurrentFps(): number { return this.renderPipeline?.currentFps ?? 0; }
   announceA11y(msg: string): void { this._announceA11y(msg); }
+  invalidateAndRebuild(): void { this.rawData = null; this.doRender(); this.buildPanel(); }
 
   /** S1: Update hierarchy breadcrumb bar above graph */
   private updateHierarchyBreadcrumb(): void {
@@ -7040,7 +6823,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   // Main render
   // =========================================================================
-  private async doRender() {
+  async doRender() {
     if (!this.canvasWrap) return;
     // JK: Reset auto-optimize flag on new render (layout may change)
     this._labelOptimized = false;
