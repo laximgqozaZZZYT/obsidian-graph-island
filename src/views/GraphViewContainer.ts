@@ -3446,6 +3446,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return { optimized: true, finalMargin: margin, finalRate: final.rate };
   }
 
+  /** JK: Run auto-optimize once after layout settles (debounced, no-op if already optimized). */
+  private _labelOptimized = false;
+  private _autoOptimizeLabelOverlapOnce(): void {
+    if (this._labelOptimized) return;
+    this._labelOptimized = true;
+    // Defer to next frame so labels are fully constructed
+    requestAnimationFrame(() => {
+      const result = this.autoOptimizeLabelOverlap();
+      if (result.optimized) {
+        this._announceA11y(`Label overlap optimized: margin ${result.finalMargin}px`);
+      }
+    });
+  }
+
   /** BFS shortest path using adj map */
   private computePathfinderPath() {
     this.pathfinderPath = null;
@@ -4259,6 +4273,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.edgeZoomFadeThreshold = edgeRt.edgeZoomFadeThreshold ?? 0.5;
     cfg.edgeLabelZoomHide = edgeRt.edgeLabelZoomHide;
     cfg.edgeLabelZoomFade = edgeRt.edgeLabelZoomFade;
+    cfg.edgeFadeMinAlpha = edgeRt.edgeFadeMinAlpha;
     cfg.edgeCardinalityMode = this.panel.edgeCardinalityMode;
     cfg.cardinalityRules = this.panel.cardinalityRules;
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
@@ -6913,6 +6928,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   private async doRender() {
     if (!this.canvasWrap) return;
+    // JK: Reset auto-optimize flag on new render (layout may change)
+    this._labelOptimized = false;
     // Sanitize critical numeric fields to prevent NaN propagation
     if (!isFinite(this.panel.nodeSize) || this.panel.nodeSize <= 0) this.panel.nodeSize = 15;
 
@@ -7355,6 +7372,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.updateLabelsForZoom();
       // Recalc radii after simulation (ensures nodeSizeByDegree takes effect)
       this.recalcNodeRadii();
+      // JK: §0.1 Auto-optimize label overlap margin after layout settles
+      this._autoOptimizeLabelOverlapOnce();
       // F1: Zero-config start — auto-focus on active file after first render
       this._autoFocusActiveFile();
       // P5: Persist all node positions after simulation settles
