@@ -1,10 +1,10 @@
 /**
  * Tests for the graph data filtering pipeline logic.
- * Since getGraphData() is a private GVC method, we test the underlying
- * pure-function components that implement each filtering stage.
+ * Uses pure functions from graph-filter.ts (extracted from GVC).
  */
 import { describe, it, expect } from "vitest";
 import { parseQueryExpr, evaluateExpr } from "../src/utils/query-expr";
+import { filterOrphans, filterTagNodes as filterTagNodesFn, filterByDegree, filterEdgesByNodeSet } from "../src/utils/graph-filter";
 import type { GraphNode, GraphEdge } from "../src/types";
 
 // --- Test data factory ---
@@ -15,17 +15,6 @@ function makeNode(id: string, meta?: Record<string, unknown>): GraphNode {
 
 function makeEdge(source: string, target: string, type = "link"): GraphEdge {
   return { source, target, type };
-}
-
-// --- Orphan filter logic (Stage 2: showOrphans) ---
-
-function filterOrphans(nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] {
-  const connected = new Set<string>();
-  for (const e of edges) {
-    connected.add(e.source);
-    connected.add(e.target);
-  }
-  return nodes.filter(n => connected.has(n.id));
 }
 
 describe("orphan filtering", () => {
@@ -49,35 +38,23 @@ describe("orphan filtering", () => {
 });
 
 // --- Tag node filter logic (Stage 4: includeTagsInData) ---
-
-function filterTagNodes(
-  nodes: GraphNode[],
-  edges: GraphEdge[],
-  includeTags: boolean,
-): { nodes: GraphNode[]; edges: GraphEdge[] } {
-  if (includeTags) return { nodes, edges };
-  const tagIds = new Set(nodes.filter(n => n.id.startsWith("#")).map(n => n.id));
-  return {
-    nodes: nodes.filter(n => !tagIds.has(n.id)),
-    edges: edges.filter(e => !tagIds.has(e.source) && !tagIds.has(e.target)),
-  };
-}
+// Now uses filterTagNodesFn from graph-filter.ts
 
 describe("tag node filtering", () => {
   it("removes tag nodes when includeTags=false", () => {
-    const nodes = [makeNode("a.md"), makeNode("#tag1"), makeNode("b.md")];
+    const nodes = [makeNode("a.md"), { ...makeNode("#tag1"), isTag: true }, makeNode("b.md")];
     const edges = [makeEdge("a.md", "#tag1", "has-tag"), makeEdge("a.md", "b.md")];
-    const result = filterTagNodes(nodes, edges, false);
+    const result = filterTagNodesFn(nodes, edges);
     expect(result.nodes.map(n => n.id)).toEqual(["a.md", "b.md"]);
     expect(result.edges).toHaveLength(1); // only a→b remains
   });
 
-  it("keeps tag nodes when includeTags=true", () => {
-    const nodes = [makeNode("a.md"), makeNode("#tag1")];
+  it("filterTagNodesFn removes all tag nodes and has-tag edges", () => {
+    const nodes = [makeNode("a.md"), { ...makeNode("#tag1"), isTag: true }];
     const edges = [makeEdge("a.md", "#tag1", "has-tag")];
-    const result = filterTagNodes(nodes, edges, true);
-    expect(result.nodes).toHaveLength(2);
-    expect(result.edges).toHaveLength(1);
+    const result = filterTagNodesFn(nodes, edges);
+    expect(result.nodes).toHaveLength(1);
+    expect(result.edges).toHaveLength(0);
   });
 });
 
@@ -138,26 +115,7 @@ describe("search query filtering", () => {
 });
 
 // --- Degree filter (Stage: FZ degree filter) ---
-
-function filterByDegree(
-  nodes: GraphNode[],
-  edges: GraphEdge[],
-  minDeg: number,
-  maxDeg: number,
-): GraphNode[] {
-  if (minDeg <= 0 && maxDeg <= 0) return nodes;
-  const degMap = new Map<string, number>();
-  for (const e of edges) {
-    degMap.set(e.source, (degMap.get(e.source) ?? 0) + 1);
-    degMap.set(e.target, (degMap.get(e.target) ?? 0) + 1);
-  }
-  return nodes.filter(n => {
-    const d = degMap.get(n.id) ?? 0;
-    if (minDeg > 0 && d < minDeg) return false;
-    if (maxDeg > 0 && d > maxDeg) return false;
-    return true;
-  });
-}
+// Now uses filterByDegree from graph-filter.ts
 
 describe("degree filtering", () => {
   const nodes = [makeNode("hub.md"), makeNode("a.md"), makeNode("b.md"), makeNode("leaf.md")];
@@ -199,7 +157,7 @@ describe("edge re-filter by node set", () => {
       makeEdge("b.md", "removed.md"),
     ];
     const nodeSet = new Set(["a.md", "b.md"]);
-    const result = edges.filter(e => nodeSet.has(e.source) && nodeSet.has(e.target));
+    const result = filterEdgesByNodeSet(edges, nodeSet);
     expect(result).toHaveLength(1);
     expect(result[0].source).toBe("a.md");
     expect(result[0].target).toBe("b.md");
