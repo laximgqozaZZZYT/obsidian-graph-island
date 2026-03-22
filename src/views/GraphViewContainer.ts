@@ -99,7 +99,7 @@ const THINKING_MODE_PRESETS: Record<string, Record<string, unknown>> = {
   explore: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" },
   analyze: { syncWithEditor: false, localGraphCenter: null, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community", colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true,
     directionalGravityRules: [{ filter: "type:inheritance", direction: "bottom", strength: 0.08 }] },
-  write: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 1, focusLayout: true, presentationMode: true, showRelationDrawer: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category", nodeSize: 25, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showSimilar: false, focusConeEnabled: true },
+  write: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 1, focusLayout: true, presentationMode: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category", nodeSize: 25, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showSimilar: false, focusConeEnabled: true },
 };
 
 // Re-export PixiNode so other modules can import from either location
@@ -857,7 +857,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       "background:var(--background-modifier-message);color:var(--text-muted);opacity:0.85;z-index:10;";
 
     // --- Graph Statistics Overlay (Feature CX) ---
-    this.graphStatsEl = canvasArea.createDiv({ cls: "gi-graph-stats", attr: { role: "status", "aria-label": "Graph statistics" } });
+    this.graphStatsEl = canvasArea.createDiv({ cls: "gi-graph-stats", attr: { role: "status", "aria-label": "Graph statistics", tabindex: "0" } });
     this.graphStatsEl.style.display = "none";
 
     // --- F5: Relation Matrix Overlay ---
@@ -6407,6 +6407,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.requestSave();
         };
         row.addEventListener("click", toggleFilter);
+        row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleFilter(); } });
         row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleFilter(); } });
       }
     }

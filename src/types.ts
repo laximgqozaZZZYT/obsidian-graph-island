@@ -659,6 +659,26 @@ export interface CardRenderConfig {
   /** Odd-row alpha (default 0.08) */
   cardRowAlphaOdd?: number;
 
+  // ---- Compact card (LOD 4 / semantic zoom tier 1) ----
+  /** Compact card stroke alpha (default 0.3) */
+  compactCardStrokeAlpha?: number;
+  /** Compact card fill alpha (default 0.08) */
+  compactCardFillAlpha?: number;
+  /** Compact card width as multiple of node radius (default 3.5) */
+  compactCardWidthRatio?: number;
+  /** Compact card height as multiple of node radius (default 1.8) */
+  compactCardHeightRatio?: number;
+
+  // ---- Semantic zoom cards (tiers 3–4) ----
+  /** Semantic zoom tier 3 (compact) card fill alpha (default 0.3) */
+  semanticCardFillAlpha?: number;
+  /** Semantic zoom tier 4 (full) card fill alpha (default 0.25) */
+  semanticCardFullFillAlpha?: number;
+  /** Semantic zoom tier 4 header height as ratio of effR (default 0.8) */
+  semanticCardHeaderHeightRatio?: number;
+  /** Semantic zoom tier 4 header fill alpha (default 0.6) */
+  semanticCardHeaderFillAlpha?: number;
+
   // ---- Plain card ----
   /** Plain card stroke alpha (default 0.4) */
   plainCardStrokeAlpha?: number;
@@ -913,6 +933,12 @@ export interface RenderThresholds {
   minimapThinStep?: number;
   /** Minimap node thinning threshold (default 800) */
   minimapThinThreshold?: number;
+
+  // ---- Zoom-out fade ----
+  /** Alpha floor for low-degree nodes at zoom-out (default 0.2).
+   *  At zoom < 0.3, nodes ranked beyond prominentTopN×2 fade by zoom/0.3,
+   *  but never below this floor. Higher = less aggressive fading. */
+  fadeLowDegreeFloor?: number;
 
   // ---- Edge density ----
   /** Minimum density scale for edge/cable alpha — prevents edges from becoming invisible at high count + low zoom (default 0.08) */
@@ -1257,6 +1283,14 @@ export const DEFAULT_CARD_RENDER_CONFIG: Required<CardRenderConfig> = {
   cardDividerAlpha: 0.7,
   cardRowAlphaEven: 0.05,
   cardRowAlphaOdd: 0.08,
+  compactCardStrokeAlpha: 0.3,
+  compactCardFillAlpha: 0.08,
+  compactCardWidthRatio: 3.5,
+  compactCardHeightRatio: 1.8,
+  semanticCardFillAlpha: 0.3,
+  semanticCardFullFillAlpha: 0.25,
+  semanticCardHeaderHeightRatio: 0.8,
+  semanticCardHeaderFillAlpha: 0.6,
   plainCardStrokeAlpha: 0.4,
   plainCardFillAlpha: 0.8,
   tableHeaderHeight: 16,
@@ -1367,6 +1401,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   minimapDotRadius: 2.5,
   minimapThinStep: 3,
   minimapThinThreshold: 800,
+  fadeLowDegreeFloor: 0.2,
   edgeDensityFloor: 0.12,
   highlightEdgeAlpha: 1.0,
   highlightEdgeNonMatchAlpha: 0.04,

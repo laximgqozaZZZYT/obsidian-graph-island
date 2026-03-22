@@ -58,7 +58,6 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showClusterCompare",
   "showRelationTypePicker",
   "enableInlineEdit",
-  "showRelationDrawer",
   "enableManualClustering",
   "enableInlineOntologyEditor",
   "showRelationMatrix",

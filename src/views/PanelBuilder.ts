@@ -292,8 +292,6 @@ export interface PanelState {
   multiSelectNodeIds: string[];
   /** C7: Inline edit — double-click to edit frontmatter in tooltip */
   enableInlineEdit: boolean;
-  /** C8: Auto-open NodeDetailView side panel for relation details on graph open */
-  showRelationDrawer: boolean;
   /** C4: Manual clustering — drag nodes to assign groups */
   enableManualClustering: boolean;
   /** C4: Manual cluster overrides (nodeId → groupKey) */
@@ -490,7 +488,6 @@ export function createDefaultPanel(): PanelState {
     showRelationTypePicker: false,
     multiSelectNodeIds: [],
     enableInlineEdit: false,
-    showRelationDrawer: false,
     enableManualClustering: false,
     enableInlineOntologyEditor: false,
     showRelationMatrix: false,
@@ -1603,8 +1600,7 @@ function _buildInteractionSection(
       panel.enableInlineEdit = v;
       cb.markDirty();
     }, t("desc.inlineEdit"));
-    // HW: showRelationDrawer removed — ghost control with no rendering effect
-    addToggle(body, t("display.manualClustering"), panel.enableManualClustering, (v) => {
+addToggle(body, t("display.manualClustering"), panel.enableManualClustering, (v) => {
       panel.enableManualClustering = v;
       cb.markDirty();
     }, t("desc.manualClustering"));
