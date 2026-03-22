@@ -174,8 +174,6 @@ export interface PanelState {
   edgeLayerMode: boolean;
   /** フォーカスモード: クリックでハイライトを固定 */
   focusMode: boolean;
-  /** ビジュアルリンクエディタ: Alt+ドラッグでノード間にリンク作成 */
-  visualLinkEditor: boolean;
   /** フォーカス中のノードID (null = フォーカスなし) */
   focusNodeId: string | null;
   /** ビュー同期: 他の Graph Island ビューとパネル状態を同期 */
@@ -284,19 +282,8 @@ export interface PanelState {
   /** R2: Consolidated analysis overlay mode */
   analysisOverlay?: "off" | "bridges" | "entropy" | "gaps" | "missing" | "density" | "all";
   // --- Phase 4: Interaction enhancements ---
-  /** C3: Relation type picker — right-click to assign edge type */
-  showRelationTypePicker: boolean;
   /** C6: Multi-select node set (Shift+click to add, operations on selection) */
   multiSelectNodeIds: string[];
-  /** C7: Inline edit — double-click to edit frontmatter in tooltip */
-  enableInlineEdit: boolean;
-  /** C4: Manual clustering — drag nodes to assign groups */
-  enableManualClustering: boolean;
-  /** C4: Manual cluster overrides (nodeId → groupKey) */
-  manualClusterOverrides?: Record<string, string>;
-  // --- Phase 6: ExcaliBrain-like features ---
-  /** F2: Inline ontology editor — assign types via context menu */
-  enableInlineOntologyEditor: boolean;
   /** F5: Relation matrix view */
   showRelationMatrix: boolean;
   // --- Phase 7: Advanced features ---
@@ -434,7 +421,6 @@ export function createDefaultPanel(): PanelState {
     edgeWeightThickness: true,
     edgeLayerMode: false,
     focusMode: false,
-    visualLinkEditor: false,
     focusNodeId: null,
     syncViewId: null,
     annotations: [],
@@ -480,11 +466,7 @@ export function createDefaultPanel(): PanelState {
     showStructureQuestions: false,
     showEntropyOverlay: false,
     showClusterCompare: false,
-    showRelationTypePicker: false,
     multiSelectNodeIds: [],
-    enableInlineEdit: false,
-    enableManualClustering: false,
-    enableInlineOntologyEditor: false,
     showRelationMatrix: false,
     presentationMode: false,
     presentationWaypoints: [],
@@ -586,6 +568,8 @@ export interface PanelCallbacks {
   /** ED: Restore saved viewport position */
   restoreViewport?(name: string): void;
   applyPreset(preset: string): void;
+  /** Get a human-readable summary of preset settings (for tooltip preview) */
+  getPresetSummary?(preset: string): string;
   jumpToNode(nodeId: string): void;
   getNodeIds(): string[];
   /** Recolor existing nodes without full graph rebuild (keeps panel DOM intact) */
@@ -1292,7 +1276,6 @@ function _buildNodeDisplaySection(
           cb.applyHover();
         }, t("desc.focusCone"));
       }
-      // visualLinkEditor: removed from UI — behavior-only toggle with no visual feedback
       // R2: highlightMissingNeighbors toggle removed — now controlled via analysisOverlay dropdown
       // --- ノード形状 ---
       // GH: Shape preview swatches
@@ -1378,6 +1361,13 @@ function _buildNodeDisplayModeSection(
         { value: "table", label: t("display.cardStyleTable") },
       ], panel.cardDisplayConfig.headerStyle ?? "plain", (v) => {
         panel.cardDisplayConfig.headerStyle = v as "plain" | "table";
+        cb.doRenderKeepPanel();
+      });
+      addSelect(body, t("display.cardFieldFormat") ?? "Field Format", [
+        { value: "key-value", label: "Key: Value" },
+        { value: "value-only", label: "Value Only" },
+      ], panel.cardDisplayConfig.fieldFormat ?? "key-value", (v) => {
+        panel.cardDisplayConfig.fieldFormat = v as "key-value" | "value-only";
         cb.doRenderKeepPanel();
       });
       // FT: Card body max lines
@@ -1476,6 +1466,10 @@ function _buildNodeDecorationSection(
         panel.definitionField = v.trim();
         cb.doRenderKeepPanel();
       });
+    addToggle(body, t("display.showNodeThumbnails") ?? "Node Thumbnails", panel.showNodeThumbnails, (v) => {
+      panel.showNodeThumbnails = v;
+      cb.doRenderKeepPanel();
+    }, t("desc.showNodeThumbnails") ?? "Show frontmatter image as node thumbnail");
   }, tHelp("help.nodeDecorations"), false, "sparkles");
 }
 
@@ -1533,7 +1527,6 @@ function _buildStructureAnalysisSection(
     egoBtn.addEventListener("click", () => {
       cb.applyEgoToVisible?.();
     });
-    // enableInlineOntologyEditor: removed from UI — behavior-only toggle with no visual feedback
     // F5: Relation matrix
     addToggle(body, t("display.relationMatrix"), panel.showRelationMatrix, (v) => {
       panel.showRelationMatrix = v;
@@ -1586,8 +1579,6 @@ function _buildInteractionSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.interaction"), (body) => {
-    // showRelationTypePicker, enableInlineEdit, enableManualClustering:
-    // removed from UI — behavior-only toggles with no visual feedback.
     // Multi-select: show status label only when active
     if (panel.multiSelectNodeIds.length > 0) {
       addToggle(body, t("display.multiSelect"), true, (v) => {
@@ -2452,22 +2443,6 @@ function _buildNodesTab(
   if (hiddenCount > 0) {
     const hidSpan = statsBar.createEl("span", { text: `${hiddenCount} hidden` });
     hidSpan.style.color = "var(--text-error)";
-  }
-  // EY: Multi-select group assign button
-  if (panel.multiSelectNodeIds.length > 0) {
-    const selSpan = statsBar.createEl("span", { text: `${panel.multiSelectNodeIds.length} selected` });
-    selSpan.style.cssText = "color:var(--interactive-accent);cursor:pointer;";
-    selSpan.addEventListener("click", () => {
-      const groupName = prompt("Assign selected nodes to group:");
-      if (!groupName) return;
-      if (!panel.manualClusterOverrides) panel.manualClusterOverrides = {};
-      for (const id of panel.multiSelectNodeIds) {
-        panel.manualClusterOverrides[id] = groupName;
-      }
-      panel.multiSelectNodeIds = [];
-      cb.applyClusterForce();
-      cb.invalidateDataKeepPanel();
-    });
   }
 
   // FA: Sort selector + Search filter
@@ -3341,8 +3316,10 @@ function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
   for (const m of modes) {
     const btn = modeBar.createEl("button", { cls: "gi-mode-btn", text: t(m.labelKey) });
     setIcon(btn.createSpan({ cls: "gi-mode-icon" }), m.icon);
-    btn.setAttribute("aria-label", t(m.descKey));
-    btn.title = t(m.descKey);
+    const modeDesc = t(m.descKey);
+    const modeSummary = cb.getPresetSummary?.(m.key) ?? "";
+    btn.setAttribute("aria-label", modeDesc);
+    btn.title = modeSummary ? `${modeDesc}\n\n${modeSummary}` : modeDesc;
     btn.addEventListener("click", () => {
       cb.applyPreset(m.key);
       // Highlight active mode
@@ -3363,8 +3340,10 @@ function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
   const moreBar = container.createDiv({ cls: "gi-preset-bar" });
   for (const p of presets) {
     const btn = moreBar.createEl("button", { cls: "gi-preset-btn", text: t(p.labelKey) });
-    btn.setAttribute("aria-label", t(p.descKey));
-    btn.title = t(p.descKey);
+    const presetDesc = t(p.descKey);
+    const presetSummary = cb.getPresetSummary?.(p.key) ?? "";
+    btn.setAttribute("aria-label", presetDesc);
+    btn.title = presetSummary ? `${presetDesc}\n\n${presetSummary}` : presetDesc;
     btn.addEventListener("click", () => {
       cb.applyPreset(p.key);
       showToast(t("toast.presetApplied").replace("{name}", t(p.labelKey)));

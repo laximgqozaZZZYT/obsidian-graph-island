@@ -34,7 +34,7 @@ import { DiffOverlay } from "./DiffOverlay";
 import { captureSnapshot, computeSnapshotDiff } from "../utils/snapshot";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
-import { renderGraphStats } from "./StatsRenderer";
+import { renderGraphStats, renderBreadcrumb } from "./StatsRenderer";
 import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
 import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
@@ -5680,6 +5680,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.doRender(); this.requestSave();
         }
       },
+      getPresetSummary: (key: string) => this._getPresetSummary(key),
       jumpToNode: (nodeId: string) => this.jumpToNode(nodeId),
       getNodeIds: () => [...this.pixiNodes.keys()],
       recolorNodes: () => { this.recolorNodes(); this.requestSave(); },
@@ -6221,57 +6222,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   };
 
   /** S1: Update hierarchy breadcrumb bar above graph */
+  /** S1: Update hierarchy breadcrumb — delegates to StatsRenderer. */
   private updateHierarchyBreadcrumb(): void {
     if (!this.hierarchyBreadcrumbEl) return;
-    if (!this.panel.showHierarchyBreadcrumb || !this.panel.localGraphCenter) {
-      this.hierarchyBreadcrumbEl.style.display = "none";
-      return;
-    }
-    this.hierarchyBreadcrumbEl.style.display = "";
-    this.hierarchyBreadcrumbEl.empty();
-
-    // Walk inheritance edges upward from localGraphCenter to root
-    const centerId = this.panel.localGraphCenter;
-    const chain: string[] = [centerId];
-    const visited = new Set<string>([centerId]);
-    let cur = centerId;
-    for (let depth = 0; depth < 20; depth++) {
-      let parentId: string | null = null;
-      for (const e of this.graphEdges) {
-        if (e.type === "inheritance" && e.source === cur && !visited.has(e.target)) {
-          parentId = e.target;
-          break;
-        }
-        if (e.type === "inheritance" && e.target === cur && !visited.has(e.source)) {
-          parentId = e.source;
-          break;
-        }
-      }
-      if (!parentId) break;
-      chain.unshift(parentId);
-      visited.add(parentId);
-      cur = parentId;
-    }
-
-    for (let i = 0; i < chain.length; i++) {
-      if (i > 0) {
-        this.hierarchyBreadcrumbEl.createSpan({ cls: "gi-breadcrumb-sep", text: " › " });
-      }
-      const nodeId = chain[i];
-      const pn = this.pixiNodes.get(nodeId);
-      const label = pn?.data?.label ?? nodeId.replace(/\.md$/, "").split("/").pop() ?? nodeId;
-      const span = this.hierarchyBreadcrumbEl.createSpan({
-        cls: i === chain.length - 1 ? "gi-breadcrumb-current" : "gi-breadcrumb-item",
-        text: label,
-      });
-      if (i < chain.length - 1) {
-        span.style.cursor = "pointer";
-        span.addEventListener("click", () => {
-          this.panel.localGraphCenter = nodeId;
-          this.doRender();
-        });
-      }
-    }
+    renderBreadcrumb(this.hierarchyBreadcrumbEl, this.panel.showHierarchyBreadcrumb, this.panel.localGraphCenter, this.graphEdges, this.panel, this);
   }
 
   /** M2: Apply ego layout to visible nodes centered on highlighted/focused node */
@@ -7760,6 +7714,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // I5: Public preset application for keyboard shortcut commands
   // =========================================================================
   /** Apply a named preset by key (used by keyboard shortcut commands). */
+  /** Get human-readable summary of a preset's settings for tooltip preview */
+  private _getPresetSummary(key: string): string {
+    const presetDefs: Record<string, Record<string, unknown>> = {
+      simple: { edges: "links only", arrows: false, color: "category" },
+      analysis: { edges: "all types", arrows: true, color: "category", fade: true },
+      creative: { edges: "links+tags+semantic", tags: "enclosure", color: "category" },
+      "active-focus": { mode: "local graph", hops: 2, focus: true, arrows: true },
+      "full-analysis": { edges: "all types", arrows: true, stats: true, color: "community", bridges: true },
+      explore: { mode: "local graph", hops: 3, focus: true, similar: true },
+      analyze: { stats: true, bridges: true, entropy: true, color: "community", arrows: true },
+      write: { mode: "local graph", hops: 1, focus: true, presentation: true },
+    };
+    const def = presetDefs[key];
+    if (!def) return "";
+    return Object.entries(def).map(([k, v]) => `${k}: ${v}`).join("\n");
+  }
+
   applyPresetByKey(preset: string): void {
     const presets: Record<string, Partial<typeof this.panel>> = {
       simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: false },
