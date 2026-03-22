@@ -4861,37 +4861,36 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     g.visible = true;
 
-    // Skip redraw if road commands are already up-to-date (perf)
-    if (rb.roadDrawn && g.commandCount > 0) return;
+    // Road width adapts to zoom: ensure minimum screen-space visibility.
+    // We must redraw when zoom changes significantly because lineStyle
+    // width is baked into the draw commands.
+    const isDark = this.isDarkTheme();
+    const roadColor = rt.roadColor ?? (isDark ? 0x555577 : 0xaaaacc);
+    const baseRoadWidth = rt.roadWidth ?? 4;
+    // Minimum 1px on screen → minWorldWidth = 1/worldScale
+    const minScreenPx = rt.roadMinScreenWidth ?? 1;
+    const effectiveWidth = Math.max(baseRoadWidth, minScreenPx / worldScale);
+
+    // Skip redraw if road commands are up-to-date AND zoom hasn't changed
+    // enough to require width recalculation
+    if (rb.roadDrawn && g.commandCount > 0) {
+      const widthRatio = rb._lastRoadWidth > 0 ? effectiveWidth / rb._lastRoadWidth : 999;
+      if (widthRatio > 0.8 && widthRatio < 1.25) return; // within 20% tolerance
+    }
 
     g.clear();
 
     // Use instance-level network for drawing (sparse, ~200 segments).
-    // getRoadNetwork() may return a densified global cache (~60K segments)
-    // which is useful for edge routing but far too heavy for visual rendering.
     const network = rb.trayData;
     if (!network || network.intersections.length === 0) return;
 
-    const isDark = this.isDarkTheme();
-    const roadColor = rt.roadColor ?? (isDark ? 0x555577 : 0xaaaacc);
-
-    // Road width: fixed in world space (no zoom scaling).
-    // Roads are drawn as thin bands in world coordinates.
-    const baseRoadWidth = rt.roadWidth ?? 4;
-
-    // Alpha fades in between roadMinZoom and 2× roadMinZoom
     const baseAlpha = rt.roadAlpha ?? 0.12;
-    const fadeRange = roadMinZoom * 2;
-    const fadeFactor = worldScale < fadeRange
-      ? (worldScale - roadMinZoom) / (fadeRange - roadMinZoom)
-      : 1;
-    const roadAlpha = baseAlpha * fadeFactor;
 
     g.setLineCap("round");
     g.setLineJoin("round");
 
     // --- Single pass: semi-transparent band (the "road surface") ---
-    g.lineStyle(baseRoadWidth, roadColor, roadAlpha);
+    g.lineStyle(effectiveWidth, roadColor, baseAlpha);
     for (const seg of network.segments) {
       const from = network.intersections[seg.from];
       const to = network.intersections[seg.to];
@@ -4902,6 +4901,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
 
     rb.roadDrawn = true;
+    rb._lastRoadWidth = effectiveWidth;
   }
 
   /** Get road network for edge routing */

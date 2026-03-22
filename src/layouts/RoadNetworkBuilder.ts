@@ -42,6 +42,8 @@ export class RoadNetworkBuilder {
   trayData: RoadNetwork | null = null;
   finalized = false;
   roadDrawn = false;
+  /** Last drawn road width (world units) for zoom-adaptive redraw check */
+  _lastRoadWidth = 0;
 
   constructor(private host: RoadNetworkHost) {}
 
