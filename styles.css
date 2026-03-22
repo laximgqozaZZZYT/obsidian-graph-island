@@ -2875,7 +2875,7 @@
   padding: 3px 8px;
   font-size: var(--font-ui-smaller, 11px);
   color: var(--text-muted);
-  z-index: 6; /* Above background panels, below node-info(8) */
+  z-index: 7; /* Above stats(6), below node-info(8) */
   pointer-events: none;
   opacity: 0.85;
   user-select: none;
