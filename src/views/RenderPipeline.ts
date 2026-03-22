@@ -1008,8 +1008,7 @@ export class RenderPipeline {
 
   /** Render compact card background (rounded rect) behind a node for LOD 4.
    *  A1: Height expands to accommodate sub-labels when present. */
-  private _renderCompactCardBg(g: CanvasGraphics, pn: PixiNode): void {
-    const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...this.host.getCardRenderConfig?.() };
+  private _renderCompactCardBg(g: CanvasGraphics, pn: PixiNode, crc: Required<import("../types").CardRenderConfig>): void {
     const w = pn.radius * crc.compactCardWidthRatio;
     // Expand height if sub-labels exist (to house metadata text)
     const subCount = pn.subLabels?.length ?? 0;
@@ -1037,7 +1036,7 @@ export class RenderPipeline {
   ) {
     // Render compact card backgrounds first, then normal node shapes on top
     for (const pn of ctx.visible) {
-      this._renderCompactCardBg(g, pn);
+      this._renderCompactCardBg(g, pn, crc);
     }
     // Render nodes on top using standard node mode
     if (this.host.getSemanticZoom?.()) {
