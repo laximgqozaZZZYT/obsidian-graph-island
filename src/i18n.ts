@@ -12,9 +12,6 @@ type TranslationMap = Record<string, string>;
 // ---------------------------------------------------------------------------
 const en: TranslationMap = {
   // --- PanelBuilder: top-level controls ---
-  "layout.label": "Layout",
-  "layout.force": "Force",
-  "layout.arc": "Arc",
   "search.placeholder": "Search… hop:name:2",
   "settingsFilter.placeholder": "Filter settings…",
   "search.jumpHint": "Enter to jump to node",
@@ -23,7 +20,6 @@ const en: TranslationMap = {
   // --- PanelBuilder: section titles ---
   "section.filter": "Filter",
   "section.groups": "Groups",
-  "section.display": "Display",
   "section.displayNodes": "Nodes",
   "section.displayEdges": "Edges",
   "section.displayGrouping": "Grouping",
@@ -41,7 +37,6 @@ const en: TranslationMap = {
   "tab.layout": "Layout",
   "tab.nodes": "Nodes",
   "tab.settings": "Settings",
-  "layout.type": "Layout Type",
 
   // --- PanelBuilder: concentric layout ---
   "concentric.showOrbitRings": "Show Orbit Rings",
@@ -69,7 +64,6 @@ const en: TranslationMap = {
 
   // --- PanelBuilder: display ---
   "display.arrows": "Arrows",
-  "display.nodeColor": "Node Color (Auto)",
   "display.nodeColorMode": "Node Color Mode",
   "display.nodeColor.default": "Default",
   "display.nodeColor.category": "By Category",
@@ -93,8 +87,6 @@ const en: TranslationMap = {
   "display.hoverHops": "Hover Highlight Hops",
   "display.focusCone": "Focus Cone",
   "display.focusMode": "Focus Mode",
-  "display.visualLinkEditor": "Visual Link Editor",
-  "display.missingNeighbors": "Highlight Unlinked Same-Tag",
   "display.links": "Links",
   "display.sharedTags": "Shared Tags",
   "display.sharedCategory": "Shared Category",
@@ -277,8 +269,6 @@ const en: TranslationMap = {
 
   // --- PanelBuilder: plugin settings ---
   "settings.metadataFields": "Metadata Fields",
-  "settings.colorField": "Color Field",
-  "settings.groupField": "Group Field",
   "settings.enclosureMinRatio": "Enclosure Min Ratio",
   "settings.ontologyHeading": "— Ontology —",
   "settings.inheritanceFields": "Forward",
@@ -343,14 +333,8 @@ const en: TranslationMap = {
   "coord.perGroup": "Per-group coordinates",
   "coord.range": "range",
   // --- PanelBuilder: axis transform ---
-  "transform.linear": "Linear",
-  "transform.bin": "Bin",
-  "transform.expression": "Expression",
-  "transform.curve": "Curve",
   "transform.exprError": "Invalid expression",
   "transform.exprValid": "Valid",
-  "curve.archimedean": "Archimedean Spiral",
-  "curve.rose": "Rose Curve",
 
   "coord.constants": "Constants",
   "coord.constantsHint": "Define variables for use in expressions (e.g. k=6 sides, d=0.5 density)",
@@ -454,7 +438,6 @@ const en: TranslationMap = {
   "a11y.graphLoaded": "Graph loaded",
   "a11y.nodes": "nodes",
   "a11y.edges": "edges",
-  "a11y.tabToNavigate": "Press Tab to navigate nodes.",
   "display.highContrast": "High Contrast",
   "desc.highContrast": "Thicker edges and stronger outlines for better visibility",
 
@@ -471,7 +454,6 @@ const en: TranslationMap = {
   "query.idMatch": "Match node ID",
   "query.isTag": "Tag nodes only",
   "query.hop": "Within N hops from node",
-  "query.property": "Match property",
   "query.boolOps": "Combine with boolean ops",
   "query.all": "Match all nodes",
   "query.viewDetails": "View details",
@@ -590,8 +572,6 @@ const en: TranslationMap = {
   "display.clusterLabelRich": "Rich (count + tags)",
   "display.highlightPatterns": "Highlight Patterns",
   "desc.highlightPatterns": "Highlight articulation points, spokes, and cliques",
-  "display.showBridgeNodes": "Bridge Nodes",
-  "desc.showBridgeNodes": "Highlight high-betweenness bridge nodes with gold ring",
 
   // --- ExcaliBrain features (Phase 6) ---
   "display.focusLayout": "Focus Layout",
@@ -610,8 +590,6 @@ const en: TranslationMap = {
   "desc.showSimilarSuggestions": "Show similar unlinked notes on hover (Jaccard similarity)",
   "display.showStructureQuestions": "Structure Questions",
   "desc.showStructureQuestions": "Generate questions from graph structure in statistics panel",
-  "display.showEntropyOverlay": "Knowledge Entropy",
-  "desc.showEntropyOverlay": "Heatmap overlay showing low-density knowledge gaps",
   "display.analysisOverlay": "Analysis Overlay",
   "analysis.off": "Off",
   "analysis.bridges": "Bridge Nodes",
@@ -628,24 +606,14 @@ const en: TranslationMap = {
   "action.applyEgoLayout": "Apply Ego Layout",
 
   // --- Phase 4: Interaction Enhancements ---
-  "display.relationTypePicker": "Relation Type Picker",
-  "desc.relationTypePicker": "Right-click edges to assign relation types",
   "display.multiSelect": "Multi-Select",
   "desc.multiSelect": "Shift+click to select multiple nodes for bulk operations",
-  "display.inlineEdit": "Inline Edit",
-  "desc.inlineEdit": "Double-click to edit frontmatter properties in-place",
-  "display.relationDrawer": "Auto-Open Detail Panel",
-  "desc.relationDrawer": "Automatically open the node detail side panel when graph loads",
-  "display.manualClustering": "Manual Clustering",
-  "desc.manualClustering": "Drag nodes between groups to reassign clusters",
 
   // --- Phase 5: Discovery (D5) ---
   "display.clusterCompare": "Cluster Compare",
   "desc.clusterCompare": "Compare two clusters: shared connections, unique members, bridge nodes",
 
   // --- Phase 6: ExcaliBrain (F2, F5) ---
-  "display.inlineOntologyEditor": "Inline Ontology Editor",
-  "desc.inlineOntologyEditor": "Assign ontology types via context menu on nodes",
   "display.relationMatrix": "Relation Matrix",
   "desc.relationMatrix": "Show adjacency matrix view of node relationships",
 
@@ -668,8 +636,6 @@ const en: TranslationMap = {
   "desc.hoverHops": "Highlight depth on hover",
   "desc.focusCone": "Distance-based fade — closer neighbors stay brighter on hover",
   "desc.focusMode": "Click a node to lock highlight. Escape to clear.",
-  "desc.visualLinkEditor": "Alt+drag from a node to create a [[wikilink]] in the source file.",
-  "desc.missingNeighbors": "Mark nodes that share a tag but have no direct edge (potential knowledge gaps).",
   "desc.edgeBundleStrength": "0=straight, 1=fully curved",
   "desc.autoFit": "Auto-spacing from node count",
   "desc.fadeEdges": "Fade less-connected edges",
@@ -685,7 +651,6 @@ const en: TranslationMap = {
   "desc.groupArrangement": "How groups are positioned relative to each other",
   "desc.timelineRange": "Visible time range (% of total)",
   "desc.attachments": "Show/hide image and file attachments",
-  "desc.nodeColor": "Color nodes by frontmatter category",
   "desc.arrows": "Show directional arrows on all edges",
   "desc.edgeColor": "Color edges by relation type",
   "desc.edgeLayerMode": "Draw edge types in separate z-order layers",
@@ -857,8 +822,6 @@ const en: TranslationMap = {
   "desc.hierarchyTree": "Show parent-child tree from focused node as purple overlay",
   "display.ontologyBackbone": "Ontology Backbone",
   "desc.ontologyBackbone": "Show is-a hierarchy as translucent skeleton lines",
-  "display.gapEdges": "Gap Detection Edges",
-  "desc.gapEdges": "Show dashed lines between nodes that share tags but have no direct link",
   "context.insertBlank": "Insert blank node",
   "toast.blankInserted": "Blank node inserted — double-click to convert to note",
   // W6: Context menu i18n
@@ -883,9 +846,6 @@ const en: TranslationMap = {
 // ---------------------------------------------------------------------------
 const ja: TranslationMap = {
   // --- PanelBuilder: top-level controls ---
-  "layout.label": "レイアウト",
-  "layout.force": "Force",
-  "layout.arc": "アーク",
   "search.placeholder": "検索… hop:名前:2",
   "settingsFilter.placeholder": "設定を検索…",
   "search.jumpHint": "Enterでノードにジャンプ",
@@ -894,7 +854,6 @@ const ja: TranslationMap = {
   // --- PanelBuilder: section titles ---
   "section.filter": "フィルタ",
   "section.groups": "グループ",
-  "section.display": "表示",
   "section.displayNodes": "ノード",
   "section.displayEdges": "エッジ",
   "section.displayGrouping": "グルーピング",
@@ -912,7 +871,6 @@ const ja: TranslationMap = {
   "tab.layout": "レイアウト",
   "tab.nodes": "ノード",
   "tab.settings": "設定",
-  "layout.type": "レイアウト種別",
 
   // --- PanelBuilder: concentric layout ---
   "concentric.showOrbitRings": "軌道リングを表示",
@@ -940,7 +898,6 @@ const ja: TranslationMap = {
 
   // --- PanelBuilder: display ---
   "display.arrows": "矢印",
-  "display.nodeColor": "ノード色（自動）",
   "display.nodeColorMode": "ノードカラーモード",
   "display.nodeColor.default": "デフォルト",
   "display.nodeColor.category": "カテゴリ別",
@@ -964,8 +921,6 @@ const ja: TranslationMap = {
   "display.hoverHops": "ホバー強調ホップ数",
   "display.focusCone": "フォーカスコーン",
   "display.focusMode": "フォーカスモード",
-  "display.visualLinkEditor": "ビジュアルリンクエディタ",
-  "display.missingNeighbors": "未接続同タグをハイライト",
   "display.links": "リンク",
   "display.sharedTags": "共有タグ",
   "display.sharedCategory": "共有カテゴリ",
@@ -1148,8 +1103,6 @@ const ja: TranslationMap = {
 
   // --- PanelBuilder: plugin settings ---
   "settings.metadataFields": "メタデータフィールド",
-  "settings.colorField": "色分けフィールド",
-  "settings.groupField": "グループフィールド",
   "settings.enclosureMinRatio": "囲い最小比率",
   "settings.ontologyHeading": "― オントロジー ―",
   "settings.inheritanceFields": "正方向",
@@ -1214,14 +1167,8 @@ const ja: TranslationMap = {
   "coord.perGroup": "グループごとに座標形成",
   "coord.range": "範囲",
   // --- PanelBuilder: axis transform ---
-  "transform.linear": "線形",
-  "transform.bin": "ビン分割",
-  "transform.expression": "数式",
-  "transform.curve": "曲線",
   "transform.exprError": "無効な数式",
   "transform.exprValid": "有効",
-  "curve.archimedean": "アルキメデスの螺旋",
-  "curve.rose": "バラ曲線",
 
   "coord.constants": "定数",
   "coord.constantsHint": "数式で使う変数を定義 (例: k=6 辺数, d=0.5 密度)",
@@ -1325,7 +1272,6 @@ const ja: TranslationMap = {
   "a11y.graphLoaded": "グラフ読み込み完了",
   "a11y.nodes": "ノード",
   "a11y.edges": "エッジ",
-  "a11y.tabToNavigate": "Tabキーでノードを移動できます。",
   "display.highContrast": "ハイコントラスト",
   "desc.highContrast": "エッジを太く、ノードの輪郭を強調して視認性を向上",
 
@@ -1342,7 +1288,6 @@ const ja: TranslationMap = {
   "query.idMatch": "ノードIDに一致",
   "query.isTag": "タグノードのみ",
   "query.hop": "ノードからNホップ以内",
-  "query.property": "プロパティに一致",
   "query.boolOps": "ブール演算子で結合",
   "query.all": "すべてのノードに一致",
   "query.viewDetails": "詳細を閲覧",
@@ -1457,8 +1402,6 @@ const ja: TranslationMap = {
   "display.clusterLabelRich": "リッチ（件数+タグ）",
   "display.highlightPatterns": "パターンハイライト",
   "desc.highlightPatterns": "関節点・スポーク・クリークを強調表示",
-  "display.showBridgeNodes": "ブリッジノード",
-  "desc.showBridgeNodes": "媒介中心性上位のブリッジノードを金リングで強調",
   "display.focusLayout": "フォーカスレイアウト",
   "desc.focusLayout": "自我中心レイアウト：選択ノードを中心に関係タイプ別配置",
   "display.showHierarchyBreadcrumb": "階層パンくず",
@@ -1473,8 +1416,6 @@ const ja: TranslationMap = {
   "desc.showSimilarSuggestions": "ホバー時にJaccard類似度で未リンクの類似ノートを表示",
   "display.showStructureQuestions": "構造質問",
   "desc.showStructureQuestions": "グラフ構造から質問を生成して統計パネルに表示",
-  "display.showEntropyOverlay": "知識エントロピー",
-  "desc.showEntropyOverlay": "低密度の知識ギャップをヒートマップで表示",
   "display.analysisOverlay": "分析オーバーレイ",
   "analysis.off": "オフ",
   "analysis.bridges": "ブリッジノード",
@@ -1489,24 +1430,14 @@ const ja: TranslationMap = {
   "action.applyEgoLayout": "エゴレイアウトを適用",
 
   // --- Phase 4: Interaction Enhancements ---
-  "display.relationTypePicker": "関係タイプピッカー",
-  "desc.relationTypePicker": "エッジを右クリックして関係タイプを割り当て",
   "display.multiSelect": "マルチ選択",
   "desc.multiSelect": "Shift+クリックで複数ノードを選択し一括操作",
-  "display.inlineEdit": "インライン編集",
-  "desc.inlineEdit": "ダブルクリックでフロントマターを直接編集",
-  "display.relationDrawer": "詳細パネル自動表示",
-  "desc.relationDrawer": "グラフ表示時にノード詳細サイドパネルを自動的に開く",
-  "display.manualClustering": "手動クラスタリング",
-  "desc.manualClustering": "ノードをドラッグしてグループ間で移動",
 
   // --- Phase 5: Discovery (D5) ---
   "display.clusterCompare": "クラスタ比較",
   "desc.clusterCompare": "2つのクラスタを比較：共有接続、固有メンバー、ブリッジノード",
 
   // --- Phase 6: ExcaliBrain (F2, F5) ---
-  "display.inlineOntologyEditor": "インラインオントロジーエディタ",
-  "desc.inlineOntologyEditor": "コンテキストメニューでオントロジータイプを割り当て",
   "display.relationMatrix": "関係マトリクス",
   "desc.relationMatrix": "ノード関係の隣接行列ビューを表示",
 
@@ -1529,8 +1460,6 @@ const ja: TranslationMap = {
   "desc.hoverHops": "ホバー時の強調範囲",
   "desc.focusCone": "距離ベースのフェードアウト — ホバー時に近いノードほど明るく表示",
   "desc.focusMode": "ノードをクリックでハイライト固定。Escapeで解除。",
-  "desc.visualLinkEditor": "Alt+ドラッグでノード間に [[wikilink]] を作成します。",
-  "desc.missingNeighbors": "同じタグを共有するが直接エッジがないノードをマーク（知識のギャップ検出）。",
   "desc.edgeBundleStrength": "0=直線, 1=完全に束ねる",
   "desc.autoFit": "ノード数から間隔を自動計算",
   "desc.fadeEdges": "接続の少ないエッジを薄く",
@@ -1546,7 +1475,6 @@ const ja: TranslationMap = {
   "desc.groupArrangement": "グループ間の相対的な配置方式",
   "desc.timelineRange": "表示する時間範囲（全体の%）",
   "desc.attachments": "画像・添付ファイルの表示/非表示",
-  "desc.nodeColor": "フロントマターのカテゴリでノードを色分け",
   "desc.arrows": "すべてのエッジに方向矢印を表示",
   "desc.edgeColor": "関係種別でエッジを色分け",
   "desc.edgeLayerMode": "エッジ種別ごとにZ順でレイヤー分離描画",
@@ -1719,8 +1647,6 @@ const ja: TranslationMap = {
   "desc.hierarchyTree": "フォーカスノードからの親子ツリーを紫色で描画",
   "display.ontologyBackbone": "オントロジー骨格",
   "desc.ontologyBackbone": "is-a 階層を半透明の骨格線で表示",
-  "display.gapEdges": "ギャップ検出エッジ",
-  "desc.gapEdges": "タグを共有するが直接リンクがないノード間を点線で表示",
   "context.insertBlank": "空白ノードを挿入",
   "toast.blankInserted": "空白ノードを挿入しました — ダブルクリックでノートに変換",
   // W6: コンテキストメニュー i18n
@@ -1759,7 +1685,6 @@ const helpEn: TranslationMap = {
   "help.discovery": "Discovery features for finding patterns and connections.\n\nSimilar suggestions: Jaccard similarity on hover.\nHierarchy tree: show parent-child structure.\nGap detection: dotted edges for missing connections.",
   "help.graphSync": "Sync graph view with the active editor.\n\nSync with editor: auto-center on active file.\nLocal graph: show only N-hop neighborhood of active file.",
   "help.bookmarks": "Save frequently visited nodes for quick access.\nToggle via Ctrl+B or context menu.",
-  "help.nodeDisplayMode": "Switch between display modes:\n  Node: circles/shapes\n  Card: metadata table\n  Donut: category breakdown\n  Sunburst: hierarchical sectors",
   "help.nodeDecorations": "Visual overlays on nodes:\n  Tag badges, importance rings, recency markers,\n  bridge highlights, articulation points.",
   "help.interaction": "Interactive features:\n  Relation type picker, multi-select (Shift+click),\n  inline edit (double-click), manual clustering.",
   "help.advanced": "Presentation mode, focus cone,\n  visual link editor (Alt+drag), relation drawer.",
@@ -1788,7 +1713,6 @@ const helpJa: TranslationMap = {
   "help.discovery": "パターンや繋がりの発見機能。\n\n類似サジェスト: ホバー時にJaccard類似度で提案。\n階層ツリー: 親子構造を表示。\nギャップ検出: 欠落する接続を点線で表示。",
   "help.graphSync": "グラフビューとアクティブエディタの同期。\n\nエディタ同期: アクティブファイルに自動センタリング。\nローカルグラフ: アクティブファイルのN-hop近傍のみ表示。",
   "help.bookmarks": "よく訪れるノードを保存して素早くアクセス。\nCtrl+B またはコンテキストメニューで切り替え。",
-  "help.nodeDisplayMode": "表示モードの切り替え:\n  ノード: 円/図形\n  カード: メタデータテーブル\n  ドーナツ: カテゴリ内訳\n  サンバースト: 階層セクター",
   "help.nodeDecorations": "ノード上の視覚オーバーレイ:\n  タグバッジ、重要度リング、更新マーカー、\n  ブリッジハイライト、関節点。",
   "help.interaction": "インタラクション機能:\n  関係タイプ選択、マルチ選択(Shift+クリック)、\n  インライン編集(ダブルクリック)、手動クラスタリング。",
   "help.advanced": "プレゼンテーションモード、フォーカスコーン、\n  ビジュアルリンクエディタ(Alt+ドラッグ)、関係ドロワー。",
