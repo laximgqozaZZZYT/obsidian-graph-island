@@ -84,6 +84,8 @@ export interface InteractionHost {
   getApp(): App;
   /** Get the view's container element (for hover-link parent) */
   getContainerEl(): HTMLElement;
+  /** IL: Zoom wheel sensitivity multiplier (0.5-2.0, default 1.0) */
+  getZoomSensitivity?(): number;
   /** Called when zoom changes — debounced layout recalculation */
   onZoomLayoutUpdate?(zoom: number): void;
   /** Update label visibility for semantic zoom */
@@ -288,7 +290,11 @@ export class InteractionManager {
     if (!app) return;
     const world = this.world;
 
-    const scaleFactor = e.deltaY < 0 ? ZOOM_IN_FACTOR : ZOOM_OUT_FACTOR;
+    // IL: Apply user-configurable zoom sensitivity (0.5x–2.0x, default 1.0)
+    const sens = this.host.getZoomSensitivity?.() ?? 1.0;
+    const inF = 1 + (ZOOM_IN_FACTOR - 1) * sens;   // sens=1→1.1, sens=0.5→1.05, sens=2→1.2
+    const outF = 1 - (1 - ZOOM_OUT_FACTOR) * sens;  // sens=1→0.9, sens=0.5→0.95, sens=2→0.8
+    const scaleFactor = e.deltaY < 0 ? inF : outF;
     const rect = this.canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;

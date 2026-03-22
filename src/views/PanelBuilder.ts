@@ -230,6 +230,8 @@ export interface PanelState {
   savedViewports: { name: string; x: number; y: number; scale: number }[];
   /** Preset zoom level — applied when loading a preset (0 = use auto-fit) */
   presetZoomLevel: number;
+  /** IL: Zoom wheel sensitivity (0.5 = gentle, 1.0 = normal, 2.0 = fast) */
+  zoomSensitivity: number;
   /** Navigation history: visited node IDs (max 20) */
   navHistory: string[];
   /** Navigation history cursor (index into navHistory, -1 = latest) */
@@ -463,6 +465,7 @@ export function createDefaultPanel(): PanelState {
     savedSearchQueries: [],
     savedViewports: [],
     presetZoomLevel: 0,
+    zoomSensitivity: 1.0,
     pinnedPositions: {},
     navHistory: [],
     navHistoryCursor: -1,
@@ -718,11 +721,11 @@ export function buildPanel(
   searchClearBtn.textContent = "\u00d7";
   searchClearBtn.style.display = panel.searchQuery ? "flex" : "none";
 
-  // Search hit count badge
-  const searchCountBadge = searchWrapper.createEl("span", { cls: "gi-search-count" });
+  // IO: Search hit count badge — shows "filtered/total nodes"
+  const searchCountBadge = searchWrapper.createEl("span", { cls: "gi-search-count", attr: { "aria-live": "polite" } });
   searchCountBadge.style.cssText = "font-size:10px;color:var(--text-muted);margin-right:4px;display:none;";
   if (panel.searchQuery && ctx.nodeCount > 0) {
-    searchCountBadge.textContent = String(ctx.pixiNodes.size);
+    searchCountBadge.textContent = `${ctx.pixiNodes.size}/${ctx.nodeCount}`;
     searchCountBadge.style.display = "";
   }
   searchBar.value = panel.searchQuery;
@@ -874,6 +877,16 @@ export function buildPanel(
           lastCommittedQuery = q;
         }
         cb.invalidateDataKeepPanel();
+        // IO: Update search count badge after re-render
+        requestAnimationFrame(() => {
+          const filtered = ctx.pixiNodes.size;
+          if (q) {
+            searchCountBadge.textContent = `${filtered}/${ctx.nodeCount}`;
+            searchCountBadge.style.display = "";
+          } else {
+            searchCountBadge.style.display = "none";
+          }
+        });
       }, 400);
     });
   }
@@ -1908,6 +1921,8 @@ function _buildMinimapSection(
     addToggle(body, t("display.graphStats"), panel.showGraphStats ?? false, (v) => { panel.showGraphStats = v; cb.invalidateDataKeepPanel(); }, t("desc.graphStats"));
     addToggle(body, t("display.ancestryBreadcrumb"), panel.showAncestryBreadcrumb ?? false, (v) => { panel.showAncestryBreadcrumb = v; cb.invalidateDataKeepPanel(); }, t("desc.ancestryBreadcrumb"));
     addToggle(body, t("display.highContrast") ?? "High Contrast", panel.highContrastMode, (v) => { panel.highContrastMode = v; cb.doRenderKeepPanel(); }, t("desc.highContrast") ?? "Thicker edges and stronger outlines for better visibility");
+    // IL: Zoom wheel sensitivity slider (a11y: low-dexterity users)
+    addSlider(body, t("display.zoomSensitivity") ?? "Zoom Sensitivity", panel.zoomSensitivity, 0.3, 2.0, 0.1, (v) => { panel.zoomSensitivity = v; }, t("desc.zoomSensitivity") ?? "Scroll wheel zoom speed (0.3=gentle, 1.0=normal, 2.0=fast)");
     // EE: Saved viewport list
     if (panel.savedViewports && panel.savedViewports.length > 0) {
       const vpList = body.createDiv({ cls: "gi-viewport-list" });
@@ -3149,6 +3164,7 @@ function _buildSortRules(s: ClusterSectionCtx): void {
 // ---------------------------------------------------------------------------
 
 const SECTION_STATE_KEY = "graph-island-section-state";
+let _sectionIdCounter = 0;
 function loadSectionStates(): Record<string, boolean> {
   try { return JSON.parse(localStorage.getItem(SECTION_STATE_KEY) || "{}"); } catch { return {}; }
 }
@@ -3217,7 +3233,10 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
     });
   }
 
-  const body = section.createDiv({ cls: "tree-item-children" });
+  // IM: aria-controls links header to body for screen readers
+  const bodyId = `gi-section-${_sectionIdCounter++}`;
+  const body = section.createDiv({ cls: "tree-item-children", attr: { id: bodyId } });
+  header.setAttribute("aria-controls", bodyId);
   build(body);
   header.addEventListener("click", (e) => {
     if ((e.target as HTMLElement).closest(".gi-section-help")) return;
@@ -3228,6 +3247,13 @@ function buildSection(container: HTMLElement, title: string, build: (body: HTMLE
   });
   header.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); header.click(); }
+    // IM: Escape collapses open section
+    if (e.key === "Escape" && !section.hasClass("is-collapsed")) {
+      e.preventDefault();
+      section.addClass("is-collapsed");
+      header.setAttribute("aria-expanded", "false");
+      saveSectionState(title, false);
+    }
   });
 }
 

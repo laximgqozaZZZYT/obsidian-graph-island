@@ -88,6 +88,7 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "minDegreeFilter",
   "maxDegreeFilter",
   "presetZoomLevel",
+  "zoomSensitivity",
   "surpriseInterval",
 ];
 

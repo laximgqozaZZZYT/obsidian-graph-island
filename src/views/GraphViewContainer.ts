@@ -2360,6 +2360,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getTextFadeThreshold(): number { return this.panel.textFadeThreshold; }
   getWorldScale(): number { return this.worldContainer?.scale.x ?? 1; }
   isHighContrastMode(): boolean { return this.panel.highContrastMode; }
+  getZoomSensitivity(): number { return this.panel.zoomSensitivity ?? 1.0; }
   getRenderPipeline(): RenderPipeline | null { return this.renderPipeline; }
   getSunburstLabels(): Map<string, CanvasText> { return this.sunburstLabels; }
   getClusterSunburstLabels(): Map<string, CanvasText> { return this.clusterSunburstLabels; }
@@ -3760,7 +3761,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Position: right of node (account for card-mode scale-up)
     const gfxScale = pn.gfx.scale?.x ?? 1;
-    hl.x = (pn.radius + 4) * gfxScale;
+    // IN: In card mode, offset by card half-width instead of radius to avoid overlap
+    const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
+    const crc = isCardMode ? { ...(this.panel.cardRenderConfig ?? {}) } : null;
+    const cardAR = crc ? (crc.cardAspectRatio ?? 1.618) : 0;
+    const cardHalfW = isCardMode ? Math.max(pn.radius * 2, (pn.radius * 2 * cardAR) / 2) : 0;
+    const offsetX = isCardMode ? (cardHalfW + 8) : (pn.radius + 4);
+    hl.x = offsetX * gfxScale;
     hl.y = -(pn.radius * 0.4 + 2) * gfxScale;
     hl.resolution = 2;
     // Mark as hover-forced for overlap culling priority
@@ -3813,9 +3820,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
 
     if (needsFlip) {
-      // Flip to left side of node
+      // Flip to left side of node (IN: card-aware offset)
       const estW = (hl.width ?? 100) * counterScale;
-      hl.x = -(pn.radius + 4 + estW) * gfxScale;
+      const isCardFlip = (this.panel.nodeDisplayMode ?? "node") === "card";
+      const crcFlip = isCardFlip ? (this.panel.cardRenderConfig ?? {}) : null;
+      const arFlip = crcFlip ? ((crcFlip as any).cardAspectRatio ?? 1.618) : 0;
+      const cardHW = isCardFlip ? Math.max(pn.radius * 2, (pn.radius * 2 * arFlip) / 2) : 0;
+      const flipOffset = isCardFlip ? (cardHW + 8 + estW) : (pn.radius + 4 + estW);
+      hl.x = -flipOffset * gfxScale;
       // IL: Check if flipped position overflows left edge
       const flippedScrX = (pn.data.x + hl.x * (1 / gfxScale)) * ws + world.x;
       if (flippedScrX < 0) {
@@ -6137,7 +6149,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       for (const [id, deg] of stats.hubs) {
         const pn = this.pixiNodes.get(id);
         const label = pn?.data?.label ?? id;
-        hubList.createEl("li", { cls: "gi-stats-hub-item", text: `${label} (${deg})` });
+        // ID: Clickable hub names — click to pan to node
+        const li = hubList.createEl("li", {
+          cls: "gi-stats-hub-item gi-stats-hub-clickable",
+          text: `${label} (${deg})`,
+          attr: { role: "button", tabindex: "0", "aria-label": `${label}, ${deg} connections — click to focus` },
+        });
+        const nodeId = id;
+        li.addEventListener("click", () => { this.panToNode(nodeId); this.setHighlightedNodeId(nodeId); this.applyHover(); });
+        li.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.panToNode(nodeId); this.setHighlightedNodeId(nodeId); this.applyHover(); } });
       }
     }
 

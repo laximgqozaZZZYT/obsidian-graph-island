@@ -2857,6 +2857,20 @@
   color: var(--text-normal);
 }
 
+/* ID: Clickable hub names in stats panel */
+.gi-stats-hub-clickable {
+  cursor: pointer;
+  border-radius: var(--radius-s, 3px);
+  padding: 1px 3px;
+  transition: background 0.1s;
+}
+.gi-stats-hub-clickable:hover,
+.gi-stats-hub-clickable:focus-visible {
+  background: var(--background-modifier-hover);
+  color: var(--interactive-accent);
+  outline: none;
+}
+
 .gi-stats-detail {
   display: flex;
   gap: 12px;

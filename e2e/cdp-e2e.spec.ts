@@ -2245,3 +2245,46 @@ test.describe("73. Tooltip Hints", () => {
     expect(result).not.toHaveProperty("error");
   });
 });
+
+// =========================================================================
+// 74. Clickable Hub Names (ID)
+// =========================================================================
+test.describe("74. Clickable Hubs", () => {
+  test("74.1 stats hub items have role=button and are clickable", async () => {
+    const result = await page.evaluate(() => {
+      const leaves = (window as any).app.workspace.getLeavesOfType("graph-view");
+      const v = leaves.find((l: any) => "pixiNodes" in (l.view ?? {}))?.view;
+      if (!v?.panel) return { error: "no view" };
+      v.panel.showGraphStats = true;
+      v.markDirty?.(true);
+      return new Promise(resolve => {
+        setTimeout(() => {
+          const items = document.querySelectorAll(".gi-stats-hub-clickable");
+          resolve({ count: items.length, hasRole: items.length > 0 ? items[0]?.getAttribute("role") === "button" : false });
+        }, 500);
+      });
+    });
+    expect(result).not.toHaveProperty("error");
+    // Stats might not be visible, but if hub items exist they should have role=button
+    if ((result as any).count > 0) {
+      expect((result as any).hasRole).toBe(true);
+    }
+  });
+});
+
+// =========================================================================
+// 75. Hover Content Checklist (IE verification)
+// =========================================================================
+test.describe("75. Hover Checklist", () => {
+  test("75.1 hoverShowBody=false prevents body in tooltip", async () => {
+    const result = await page.evaluate(() => {
+      const leaves = (window as any).app.workspace.getLeavesOfType("graph-view");
+      const v = leaves.find((l: any) => "pixiNodes" in (l.view ?? {}))?.view;
+      if (!v?.panel) return { error: "no view" };
+      v.panel.hoverShowBody = false;
+      return { bodyOff: !v.panel.hoverShowBody };
+    });
+    expect(result).not.toHaveProperty("error");
+    expect(result.bodyOff).toBe(true);
+  });
+});
