@@ -35,6 +35,7 @@ import { captureSnapshot, computeSnapshotDiff } from "../utils/snapshot";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import { renderGraphStats } from "./StatsRenderer";
+import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
 import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
@@ -6200,6 +6201,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   announceA11y(msg: string): void { this._announceA11y(msg); }
   invalidateAndRebuild(): void { this.rawData = null; this.doRender(); this.buildPanel(); }
 
+  // --- LegendHost bridge ---
+  private _legendHost: LegendHost = {
+    getNodeColorMap: () => this.nodeColorMap,
+    getRelationColors: () => this.relationColors,
+    getCategoryCounts: () => {
+      const counts = new Map<string, number>();
+      for (const pn of this.pixiNodes.values()) {
+        const cat = pn.data.category ?? (pn.data.tags?.[0] ? `tag:${pn.data.tags[0]}` : "");
+        if (cat) counts.set(cat, (counts.get(cat) ?? 0) + 1);
+      }
+      return counts;
+    },
+    getMaxDegree: () => Math.max(1, ...[...this.degrees.values()]),
+    getCommunityMap: () => this.originalGraphData ? this._getCommunityMap(this.originalGraphData) : new Map(),
+    invalidateAndRebuild: () => this.invalidateAndRebuild(),
+    markDirtyAndRebuildLegend: () => { this.markDirty(true); this.updateLegend(); this.buildPanel(); },
+    requestSave: () => this.requestSave(),
+  };
+
   /** S1: Update hierarchy breadcrumb bar above graph */
   private updateHierarchyBreadcrumb(): void {
     if (!this.hierarchyBreadcrumbEl) return;
@@ -6330,225 +6350,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   /** インタラクティブ凡例オーバーレイを更新（ノードカラー＋エッジ属性カラー、クリックで表示切替） */
+  /** Update the interactive legend overlay — delegates to LegendRenderer. */
   private updateLegend() {
     if (!this.legendEl) return;
-    // showLegend が false の場合は非表示
-    if (!this.panel.showLegend) {
-      this.legendEl.style.display = "none";
-      return;
-    }
-    const colorMap = this.nodeColorMap;
-    const relColors = this.relationColors;
-    if (colorMap.size === 0 && relColors.size === 0) {
-      this.legendEl.style.display = "none";
-      return;
-    }
-    this.legendEl.empty();
-    this.legendEl.style.display = "";
-
-    // ヘッダー（閉じるボタン付き）
-    const header = this.legendEl.createDiv({ cls: "gi-legend-header" });
-    header.createEl("span", { text: `${colorMap.size + relColors.size} items` });
-    const closeBtn = header.createEl("button", { cls: "gi-legend-close", text: "\u00d7", attr: { "aria-label": "Close legend", tabindex: "0" } });
-    closeBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      this.panel.showLegend = false;
-      if (this.legendEl) this.legendEl.style.display = "none";
-      this.requestSave();
-    });
-
-    const body = this.legendEl.createDiv({ cls: "gi-legend-body" });
-    // エントリ数が多い場合は折りたたみ
-    if (colorMap.size + relColors.size > 10) body.style.display = "none";
-    header.addEventListener("click", () => {
-      const hidden = body.style.display === "none";
-      body.style.display = hidden ? "" : "none";
-    });
-
-    // IH: Count nodes per category for legend display
-    const categoryCounts = new Map<string, number>();
-    for (const pn of this.pixiNodes.values()) {
-      const cat = pn.data.category ?? (pn.data.tags?.[0] ? `tag:${pn.data.tags[0]}` : "");
-      if (cat) categoryCounts.set(cat, (categoryCounts.get(cat) ?? 0) + 1);
-    }
-
-    // --- ノードカラーセクション ---
-    const legendColorMode = this.panel.nodeColorMode ?? "category";
-    if (colorMap.size > 0 && legendColorMode === "category") {
-      const nodeSection = body.createDiv({ cls: "gi-legend-section" });
-      nodeSection.createEl("div", { cls: "gi-legend-section-title", text: t("legend.nodeColors") });
-      for (const [label, cssColor] of colorMap) {
-        const row = nodeSection.createDiv({ cls: "gi-legend-item gi-legend-item-clickable", attr: { role: "button", tabindex: "0", "aria-label": `Filter: ${label.replace(/^tag:/, "#")}` } });
-        const dot = row.createDiv({ cls: "gi-legend-color-dot" });
-        dot.style.background = cssColor;
-        // IH: Show category node count
-        const count = categoryCounts.get(label) ?? 0;
-        const displayLabel = label.replace(/^tag:/, "#") + (count > 0 ? ` (${count})` : "");
-        row.createEl("span", { cls: "gi-legend-label", text: displayLabel });
-        // クリックで検索フィルターにトグル
-        const toggleFilter = () => {
-          const field = label.startsWith("tag:") ? label : `category:${label}`;
-          if (this.panel.searchQuery === field) {
-            this.panel.searchQuery = "";
-          } else {
-            this.panel.searchQuery = field;
-          }
-          this.rawData = null;
-          this.doRender();
-          this.requestSave();
-        };
-        row.addEventListener("click", toggleFilter);
-        row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleFilter(); } });
-        row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleFilter(); } });
-      }
-    }
-
-    // --- ヒートマップレジェンドセクション ---
-    if (legendColorMode === "heatmap") {
-      const hmSection = body.createDiv({ cls: "gi-legend-section" });
-      hmSection.createEl("div", { cls: "gi-legend-section-title", text: t("legend.nodeColors") });
-      const maxDeg = Math.max(1, ...[...this.degrees.values()]);
-      const stops = [0, 0.25, 0.5, 0.75, 1.0];
-      const gradBar = hmSection.createDiv({ cls: "gi-legend-item" });
-      gradBar.style.display = "flex";
-      gradBar.style.alignItems = "center";
-      gradBar.style.gap = "4px";
-      gradBar.createEl("span", { cls: "gi-legend-label", text: "0" });
-      const bar = gradBar.createDiv();
-      bar.style.flex = "1";
-      bar.style.height = "10px";
-      bar.style.borderRadius = "3px";
-      bar.style.background = `linear-gradient(to right, ${stops.map(s => {
-        const r = Math.round(59 + s * (239 - 59));
-        const g = Math.round(130 - s * (130 - 68));
-        const b = Math.round(246 - s * (246 - 68));
-        return `rgb(${r},${g},${b})`;
-      }).join(", ")})`;
-      gradBar.createEl("span", { cls: "gi-legend-label", text: String(maxDeg) });
-    }
-
-    // --- コミュニティレジェンドセクション ---
-    if (legendColorMode === "community") {
-      const COMMUNITY_PALETTE_CSS = [
-        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
-        "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
-        "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
-        "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5",
-      ];
-      // Compute communities for legend (cached)
-      const legendCommunities = this.originalGraphData
-        ? this._getCommunityMap(this.originalGraphData)
-        : new Map<string, number>();
-      // Count nodes per community
-      const commCounts = new Map<number, number>();
-      for (const cid of legendCommunities.values()) {
-        commCounts.set(cid, (commCounts.get(cid) ?? 0) + 1);
-      }
-      // Sort by size descending
-      const sortedComms = [...commCounts.entries()].sort((a, b) => b[1] - a[1]);
-      if (sortedComms.length > 0) {
-        const commSection = body.createDiv({ cls: "gi-legend-section" });
-        commSection.createEl("div", { cls: "gi-legend-section-title", text: `${t("display.nodeColor.community")} (${sortedComms.length})` });
-        for (const [cid, count] of sortedComms) {
-          const row = commSection.createDiv({ cls: "gi-legend-item" });
-          const dot = row.createDiv({ cls: "gi-legend-color-dot" });
-          dot.style.background = COMMUNITY_PALETTE_CSS[cid % COMMUNITY_PALETTE_CSS.length];
-          row.createEl("span", { cls: "gi-legend-label", text: `Community ${cid + 1} (${count})` });
-        }
-      }
-    }
-
-    // EV: Field color mode legend
-    if (legendColorMode === "field" && colorMap.size > 0) {
-      const fieldSection = body.createDiv({ cls: "gi-legend-section" });
-      fieldSection.createEl("div", {
-        cls: "gi-legend-section-title",
-        text: `${this.panel.nodeColorField || "Field"} (${colorMap.size})`,
-      });
-      for (const [val, cssColor] of colorMap) {
-        const row = fieldSection.createDiv({ cls: "gi-legend-item" });
-        const dot = row.createDiv({ cls: "gi-legend-color-dot" });
-        dot.style.background = cssColor;
-        row.createEl("span", { cls: "gi-legend-label", text: val });
-      }
-    }
-
-    // --- エッジ属性カラーセクション ---
-    if (relColors.size > 0 && this.panel.colorEdgesByRelation) {
-      const edgeSection = body.createDiv({ cls: "gi-legend-section" });
-      edgeSection.createEl("div", { cls: "gi-legend-section-title", text: t("legend.edgeRelations") });
-      // エッジタイプ→パネルプロパティのマッピング
-      const edgeTypeToggles: Record<string, { key: keyof PanelState; label: string }> = {
-        "link": { key: "showLinks", label: "Links" },
-        "tag": { key: "showTagEdges", label: "Tags" },
-        "category": { key: "showCategoryEdges", label: "Category" },
-        "semantic": { key: "showSemanticEdges", label: "Semantic" },
-        "inheritance": { key: "showInheritance", label: "Inheritance" },
-        "aggregation": { key: "showAggregation", label: "Aggregation" },
-        "similar": { key: "showSimilar", label: "Similar" },
-        "sibling": { key: "showSibling", label: "Sibling" },
-        "sequence": { key: "showSequence", label: "Sequence" },
-      };
-
-      // GK: Edge dash pattern map for legend (matches applyDashPattern in EdgeRenderer)
-      const edgeDashMap: Record<string, string> = {
-        "semantic": "dotted", "tag": "dashed", "has-tag": "dashed",
-        "similar": "dotted", "sequence": "dash-dot", "sibling": "dotted",
-      };
-      for (const [rel, cssColor] of relColors) {
-        const row = edgeSection.createDiv({ cls: "gi-legend-item gi-legend-item-clickable", attr: { role: "button", tabindex: "0", "aria-label": `Toggle: ${rel}` } });
-        // A11y: Use line sample with dash pattern instead of simple dot
-        const dashType = edgeDashMap[rel.toLowerCase()];
-        if (dashType) {
-          const line = row.createDiv({ cls: "gi-legend-edge-line" });
-          line.style.borderTopColor = cssColor;
-          line.dataset.dash = dashType;
-        } else {
-          const dot = row.createDiv({ cls: "gi-legend-edge-line" });
-          dot.style.borderTopColor = cssColor;
-        }
-        const labelEl = row.createEl("span", { cls: "gi-legend-label", text: rel });
-        // エッジタイプに対応するトグルがあれば、クリックで表示切替
-        const toggle = edgeTypeToggles[rel.toLowerCase()];
-        if (toggle) {
-          const isVisible = this.panel[toggle.key] as boolean;
-          if (!isVisible) {
-            row.addClass("gi-legend-item-disabled");
-            labelEl.textContent = `${rel} ${t("legend.hidden")}`;
-          }
-          const toggleEdge = () => {
-            const current = this.panel[toggle.key] as boolean;
-            (this.panel as unknown as Record<string, unknown>)[toggle.key] = !current;
-            invalidateBundleCache();
-            this.markDirty(true);
-            this.updateLegend();
-            this.buildPanel();
-            this.requestSave();
-          };
-          row.addEventListener("click", toggleEdge);
-          row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleEdge(); } });
-        }
-      }
-    }
-
-    // --- ノードシェイプセクション ---
-    if (this.panel.nodeShapeRules && this.panel.nodeShapeRules.length > 0) {
-      const shapeSection = body.createDiv({ cls: "gi-legend-section" });
-      shapeSection.createEl("div", { cls: "gi-legend-section-title", text: t("legend.nodeShapes") });
-      const shapeLabels: Record<string, string> = {
-        circle: "●", triangle: "▲", square: "■", diamond: "◆",
-        pentagon: "⬠", hexagon: "⬡", star: "★", cross: "✚",
-      };
-      for (const rule of this.panel.nodeShapeRules) {
-        const row = shapeSection.createDiv({ cls: "gi-legend-item" });
-        const icon = shapeLabels[rule.shape] ?? "●";
-        row.createEl("span", { cls: "gi-legend-shape-icon", text: icon });
-        const label = rule.match === "default" ? t("legend.shapeDefault")
-          : rule.match === "isTag" ? t("legend.shapeTag")
-          : rule.match;
-        row.createEl("span", { cls: "gi-legend-label", text: `${icon} ${label}` });
-      }
-    }
+    renderLegend(this.legendEl, this.panel as unknown as LegendPanel, this._legendHost);
   }
 
   // =========================================================================
