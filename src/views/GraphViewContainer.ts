@@ -6196,10 +6196,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     });
 
     const table = this.graphStatsEl.createEl("table", { cls: "gi-stats-table" });
-    const addRow = (label: string, value: string) => {
+    const addRow = (label: string, value: string): HTMLElement => {
       const tr = table.createEl("tr");
       tr.createEl("td", { cls: "gi-stats-label", text: label });
       tr.createEl("td", { cls: "gi-stats-value", text: value });
+      return tr;
     };
     addRow(t("stats.nodes"), String(stats.nodeCount));
     addRow(t("stats.edges"), String(stats.edgeCount));
@@ -7386,7 +7387,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (this.worldContainer) this.worldContainer.visible = true;
       this.setStatus(this.buildRichStatus(gd.nodes.length, gd.edges.length));
       // A11y: announce graph summary for screen readers on load
-      this._announceA11y(`${t("a11y.graphLoaded") ?? "Graph loaded"}: ${gd.nodes.length} ${t("a11y.nodes") ?? "nodes"}, ${gd.edges.length} ${t("a11y.edges") ?? "edges"}. ${t("a11y.tabToNavigate") ?? "Press Tab to navigate nodes."}`);
+      // JR: §0.3 First-launch guide for screen readers (one-time, stored in localStorage)
+      const SR_GUIDE_KEY = "gi-sr-guide-shown";
+      const isFirstLaunch = !localStorage.getItem(SR_GUIDE_KEY);
+      const guide = isFirstLaunch
+        ? ` ${t("a11y.srGuide") ?? "Tab to cycle nodes, Enter to open, Shift+Enter to select, ? for keyboard shortcuts."}`
+        : "";
+      if (isFirstLaunch) localStorage.setItem(SR_GUIDE_KEY, "1");
+      this._announceA11y(`${t("a11y.graphLoaded") ?? "Graph loaded"}: ${gd.nodes.length} ${t("a11y.nodes") ?? "nodes"}, ${gd.edges.length} ${t("a11y.edges") ?? "edges"}.${guide}`);
       this.updateEntropyScores();
       this.updateGraphStats(gd);
       this.updateRelationMatrix(gd);
