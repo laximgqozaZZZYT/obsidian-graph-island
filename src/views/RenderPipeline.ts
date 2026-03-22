@@ -1009,15 +1009,16 @@ export class RenderPipeline {
   /** Render compact card background (rounded rect) behind a node for LOD 4.
    *  A1: Height expands to accommodate sub-labels when present. */
   private _renderCompactCardBg(g: CanvasGraphics, pn: PixiNode): void {
-    const w = pn.radius * 3.5;
+    const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...this.host.getCardRenderConfig?.() };
+    const w = pn.radius * crc.compactCardWidthRatio;
     // Expand height if sub-labels exist (to house metadata text)
     const subCount = pn.subLabels?.length ?? 0;
-    const h = pn.radius * 1.8 + subCount * (SUB_LABEL_FONT_SIZE + SUB_LABEL_GAP) * 0.06;
+    const h = pn.radius * crc.compactCardHeightRatio + subCount * (SUB_LABEL_FONT_SIZE + SUB_LABEL_GAP) * 0.06;
     const x = pn.data.x - w / 2;
     const y = pn.data.y - h / 2;
-    g.lineStyle(1, pn.color, 0.3);
-    g.beginFill(pn.color, 0.08);
-    g.drawRoundedRect(x, y, w, h, 4);
+    g.lineStyle(1, pn.color, crc.compactCardStrokeAlpha);
+    g.beginFill(pn.color, crc.compactCardFillAlpha);
+    g.drawRoundedRect(x, y, w, h, crc.cardCornerRadius);
     g.endFill();
     g.lineStyle(0);
   }
@@ -1078,9 +1079,9 @@ export class RenderPipeline {
       const effR = Math.max(pn.radius * zoomNodeBoost, minWorldRadius);
       let nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
       // Zoom-out: fade low-degree nodes for visual clarity (AM: importance fade)
-      // IA: Stronger fade (floor 0.2) so high-degree hubs stand out in dense clusters
+      // IA: Stronger fade so high-degree hubs stand out in dense clusters
       if (worldScale < 0.3 && pn.sortRank >= 0 && pn.sortRank >= prominentN * 2) {
-        nodeAlpha *= Math.max(0.2, worldScale / 0.3);
+        nodeAlpha *= Math.max(rt.fadeLowDegreeFloor ?? 0.2, worldScale / 0.3);
       }
 
       // Desaturate non-prominent nodes
@@ -1159,7 +1160,7 @@ export class RenderPipeline {
         const halfH = cardH / 2;
         const strokeColor = darkenColor(pn.color, crc.strokeDarken);
         g.lineStyle(hcSem, strokeColor, nodeAlpha * crc.strokeAlpha);
-        g.beginFill(pn.color, nodeAlpha * 0.3);
+        g.beginFill(pn.color, nodeAlpha * crc.semanticCardFillAlpha);
         g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, cardW, cardH, 2 / worldScale);
         g.endFill();
         // Compact card text via gfx children
@@ -1200,12 +1201,12 @@ export class RenderPipeline {
         const halfH = cardH / 2;
         const strokeColor = darkenColor(pn.color, crc.strokeDarken);
         g.lineStyle(hcSem, strokeColor, nodeAlpha * crc.strokeAlpha);
-        g.beginFill(pn.color, nodeAlpha * 0.25);
+        g.beginFill(pn.color, nodeAlpha * crc.semanticCardFullFillAlpha);
         g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, cardW, cardH, 3 / worldScale);
         g.endFill();
         // Header bar
-        const headerH = effR * 0.8;
-        g.beginFill(pn.color, nodeAlpha * 0.6);
+        const headerH = effR * crc.semanticCardHeaderHeightRatio;
+        g.beginFill(pn.color, nodeAlpha * crc.semanticCardHeaderFillAlpha);
         g.drawRoundedRect(pn.data.x - halfW, pn.data.y - halfH, cardW, headerH, 3 / worldScale);
         g.endFill();
 
