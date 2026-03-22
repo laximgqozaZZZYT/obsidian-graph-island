@@ -149,6 +149,11 @@ export interface EdgeDrawConfig {
   edgeBidirectionalThickFactor?: number;
   /** Thickness multiplier for inheritance/hierarchy edges (default 2.5). */
   edgeHierarchyThickFactor?: number;
+  /** Maximum edge count for arc (quadratic curve) layout (default 500).
+   *  Above this, arcs fall back to straight lines to avoid vertex buffer explosion. */
+  arcMaxEdgeCount?: number;
+  /** Minimum alpha floor for distance-based hover falloff (default 0.08). */
+  edgeHoverFalloffMinAlpha?: number;
 }
 
 // Minimal position data needed for source/target
@@ -2617,9 +2622,9 @@ function resolveEdgeStyle(
         const minDist = Math.min(dS ?? 99, dT ?? 99);
         // HT: configurable hover edge falloff (default 0.6)
         const falloff = cfg.hoverEdgeFalloff ?? 0.6;
-        alpha = Math.max(0.08, Math.pow(falloff, minDist));
+        alpha = Math.max(cfg.edgeHoverFalloffMinAlpha ?? 0.08, Math.pow(falloff, minDist));
       } else {
-        alpha = 0.04;
+        alpha = cfg.highlightEdgeNonMatchAlpha ?? 0.04;
       }
     } else {
       alpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
@@ -3104,7 +3109,7 @@ export function drawEdges(
   const { colorEdgesByRelation: useRelColor } = cfg;
   // Disable arc curves when edge count is high to avoid vertex buffer explosion.
   // quadraticCurveTo generates ~20 vertices per edge vs 4 for lineTo.
-  const isArcLayout = cfg.isArcLayout && filtered.length < ARC_MAX_EDGE_COUNT;
+  const isArcLayout = cfg.isArcLayout && filtered.length < (cfg.arcMaxEdgeCount ?? ARC_MAX_EDGE_COUNT);
 
   const edgeCount = cfg.totalEdgeCount ?? edges.length;
   const densityScale = computeDensityScale(cfg, edgeCount);

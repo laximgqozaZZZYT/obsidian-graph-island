@@ -4286,6 +4286,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.edgeHierarchyBoost = edgeRt.edgeHierarchyBoost;
     cfg.edgeBidirectionalThickFactor = edgeRt.edgeBidirectionalThickFactor;
     cfg.edgeHierarchyThickFactor = edgeRt.edgeHierarchyThickFactor;
+    cfg.arcMaxEdgeCount = edgeRt.arcMaxEdgeCount;
+    cfg.edgeHoverFalloffMinAlpha = edgeRt.edgeHoverFalloffMinAlpha;
     cfg.isDark = this.isDarkTheme();
     cfg.highContrast = this.panel.highContrastMode;
     cfg.showEdgeLabels = this.panel.showEdgeLabels;
@@ -6293,6 +6295,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       const margin = this.panel.renderThresholds?.labelOverlapMargin ?? 12;
       if (margin !== 12) addRow("Margin", `${margin}px`);
+    }
+
+    // JQ: §0.1 Quality score in stats panel
+    {
+      const qs = this.getLabelQualityScore();
+      const scoreRow = addRow("Quality", `${qs.score}/100`);
+      if (scoreRow && qs.score < 70) {
+        const val = scoreRow.querySelector(".gi-stats-value") as HTMLElement | null;
+        if (val) val.style.color = "var(--text-error, #e53e3e)";
+      }
     }
 
     if (stats.hubs.length > 0) {

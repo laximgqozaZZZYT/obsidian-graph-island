@@ -1278,6 +1278,10 @@ export interface RenderThresholds {
   edgeBidirectionalThickFactor?: number;
   /** Thickness multiplier for inheritance/hierarchy edges (default 2.5). */
   edgeHierarchyThickFactor?: number;
+  /** Maximum edge count for arc (quadratic curve) layout (default 500). */
+  arcMaxEdgeCount?: number;
+  /** Minimum alpha floor for distance-based hover falloff (default 0.08). */
+  edgeHoverFalloffMinAlpha?: number;
   /** Minimum zoom level to show roads (default 0 = always visible). Set >0 to hide at extreme zoom-out. */
   roadMinZoom?: number;
   /** Minimum road width in screen pixels (default 1). Roads scale up at low zoom to stay visible. */
@@ -1604,6 +1608,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   edgeHierarchyBoost: 0.3,
   edgeBidirectionalThickFactor: 1.5,
   edgeHierarchyThickFactor: 2.5,
+  arcMaxEdgeCount: 500,
+  edgeHoverFalloffMinAlpha: 0.08,
 
   // Road network
   showRoadNetwork: true,

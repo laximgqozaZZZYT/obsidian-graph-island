@@ -88,5 +88,7 @@ describe("mergeRenderThresholds", () => {
     expect(rt.edgeHierarchyBoost).toBe(0.3);
     expect(rt.edgeBidirectionalThickFactor).toBe(1.5);
     expect(rt.edgeHierarchyThickFactor).toBe(2.5);
+    expect(rt.arcMaxEdgeCount).toBe(500);
+    expect(rt.edgeHoverFalloffMinAlpha).toBe(0.08);
   });
 });
