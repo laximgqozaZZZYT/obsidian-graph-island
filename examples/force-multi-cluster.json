@@ -1,15 +1,32 @@
 {
-  "defaultLayout": "force",
   "nodeSize": 8,
-  "showLabels": true,
-  "metadataFields": ["tags", "category", "characters", "locations"],
-  "edgeFields": ["tags", "category"],
+  "metadataFields": [
+    "tags",
+    "category",
+    "characters",
+    "locations"
+  ],
+  "edgeFields": [
+    "tags",
+    "category"
+  ],
   "colorField": "category",
   "groupField": "category",
   "ontology": {
-    "inheritanceFields": ["parent", "extends", "up"],
-    "aggregationFields": ["contains", "parts", "has"],
-    "similarFields": ["similar", "related"],
+    "inheritanceFields": [
+      "parent",
+      "extends",
+      "up"
+    ],
+    "aggregationFields": [
+      "contains",
+      "parts",
+      "has"
+    ],
+    "similarFields": [
+      "similar",
+      "related"
+    ],
     "useTagHierarchy": true,
     "customMappings": {}
   },
@@ -18,17 +35,33 @@
   "enclosureMinRatio": 0.03,
   "groupPresets": [
     {
-      "condition": { "tagDisplay": "enclosure" },
+      "condition": {
+        "tagDisplay": "enclosure"
+      },
       "groups": [],
-      "commonQueries": [{ "query": "tag:*", "recursive": true }]
+      "commonQueries": [
+        {
+          "query": "tag:*",
+          "recursive": true
+        }
+      ]
     }
   ],
   "defaultSortRules": [
-    { "key": "in-degree", "order": "desc" }
+    {
+      "key": "in-degree",
+      "order": "desc"
+    }
   ],
   "defaultClusterGroupRules": [
-    { "groupBy": "tag", "recursive": true },
-    { "groupBy": "node_type", "recursive": false }
+    {
+      "groupBy": "tag",
+      "recursive": true
+    },
+    {
+      "groupBy": "node_type",
+      "recursive": false
+    }
   ],
   "defaultNodeRules": [],
   "settingsJsonPath": ""

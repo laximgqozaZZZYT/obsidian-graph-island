@@ -382,10 +382,15 @@ export function drawEnclosures(
     let txt = enclosureLabels.get(tag);
     if (!txt) {
       const hexStr = "#" + hex.toString(16).padStart(6, "0");
-      // S3: Rich label text
-      let labelText = `#${tag} (${memberCount})`;
-      if (cfg.clusterLabelDetail === "rich" && cfg.getClusterSummary) {
+      // S3: Cluster label text by detail level
+      let labelText: string;
+      const detail = cfg.clusterLabelDetail ?? "standard";
+      if (detail === "minimal") {
+        labelText = `#${tag}`;
+      } else if ((detail === "detailed" || detail === "rich") && cfg.getClusterSummary) {
         labelText = cfg.getClusterSummary(tag, memberCount);
+      } else {
+        labelText = `#${tag} (${memberCount})`;
       }
       txt = new CanvasText(labelText, {
         fontSize: glFontSize,

@@ -487,8 +487,6 @@ export class LayoutController {
       nodeLabelFontSizeMin: panel.renderThresholds?.nodeLabelFontSizeMin ?? DEFAULT_RENDER_THRESHOLDS.nodeLabelFontSizeMin,
       nodeLabelFontSizeMax: panel.renderThresholds?.nodeLabelFontSizeMax ?? DEFAULT_RENDER_THRESHOLDS.nodeLabelFontSizeMax,
       orphanClusterField: panel.orphanClusterField || undefined,
-      manualClusterOverrides: panel.manualClusterOverrides && Object.keys(panel.manualClusterOverrides).length > 0
-        ? panel.manualClusterOverrides : undefined,
     };
 
     // If coordinateLayout specifies a property source, use it as timelineKey

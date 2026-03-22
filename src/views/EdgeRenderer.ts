@@ -2948,7 +2948,7 @@ function prepareCables(
   const clustersAvailable = !!(cfg.nodeClusterMap && cfg.clusterCentroids && cfg.clusterRadii);
   const cableMode = cfg.cableBundleMode ?? "auto";
   const hasClusters = cableMode === "never" ? false
-    : cableMode === "always" ? clustersAvailable
+    : cableMode === "always" ? true
     : clustersAvailable;
 
   if (!hasClusters) {

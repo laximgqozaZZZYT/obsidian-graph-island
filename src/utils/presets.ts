@@ -33,7 +33,6 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "syncWithEditor",
   "showEdgeWeightLabels",
   "showLegend",
-  "visualLinkEditor",
   "showBidirectionalIndicator",
   "showEdgeCardinalityLabels",
   "showOutOfBoundsIndicator",
@@ -56,10 +55,6 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "showStructureQuestions",
   "showEntropyOverlay",
   "showClusterCompare",
-  "showRelationTypePicker",
-  "enableInlineEdit",
-  "enableManualClustering",
-  "enableInlineOntologyEditor",
   "showRelationMatrix",
   "presentationMode",
   "showNodeThumbnails",
@@ -148,7 +143,6 @@ const NULLABLE_OBJECT_FIELDS: (keyof PanelState)[] = [
   "cardinalityRenderConfig",
   "renderThresholds",
   "pinnedPositions",
-  "manualClusterOverrides",
 ];
 
 /** All valid PanelState keys — derived from the field lists above plus enums */
