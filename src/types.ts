@@ -1238,7 +1238,7 @@ export interface RenderThresholds {
   roadAlpha?: number;
   /** Road color override — if not set, uses theme-aware default */
   roadColor?: number;
-  /** Minimum zoom level to show roads (default 0.10 = 10%). Below this roads are hidden. */
+  /** Minimum zoom level to show roads (default 0.01 = 1%). Below this roads are hidden. */
   roadMinZoom?: number;
   /** Intersection dot radius in world units (default 0, effectively disabled) */
   roadIntersectionRadius?: number;
@@ -1550,7 +1550,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   roadWidth: 4,
   roadAlpha: 0.12,
   roadColor: 0x9999bb,
-  roadMinZoom: 0.10,
+  roadMinZoom: 0.01,
   roadIntersectionRadius: 0,
   roadRouteEdges: true,
   roadRingCount: 0,
