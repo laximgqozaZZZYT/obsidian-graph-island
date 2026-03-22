@@ -7492,16 +7492,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // -- Tab focus navigation --
   private focusNodeIndex = -1;
   private focusNodeOrder: string[] = [];
+  private _focusSearchGen = -1;  // IR: track search set size for rebuild
 
   private cycleFocusNode(direction: 1 | -1) {
-    // Build sorted node list on first use or when nodes change
-    if (this.focusNodeOrder.length !== this.pixiNodes.size) {
-      this.focusNodeOrder = [...this.pixiNodes.keys()].sort((a, b) => {
+    // IR: When search is active, cycle only through matching nodes
+    const searchSet = this._searchHighlightSet;
+    const targetSize = searchSet ? searchSet.size : this.pixiNodes.size;
+    if (this.focusNodeOrder.length !== targetSize || this._focusSearchGen !== (searchSet?.size ?? -1)) {
+      const ids = searchSet ? [...searchSet] : [...this.pixiNodes.keys()];
+      this.focusNodeOrder = ids.filter(id => this.pixiNodes.has(id)).sort((a, b) => {
         const pa = this.pixiNodes.get(a)!;
         const pb = this.pixiNodes.get(b)!;
         return pa.data.label.localeCompare(pb.data.label);
       });
       this.focusNodeIndex = -1;
+      this._focusSearchGen = searchSet?.size ?? -1;
     }
     if (this.focusNodeOrder.length === 0) return;
     this.focusNodeIndex = (this.focusNodeIndex + direction + this.focusNodeOrder.length) % this.focusNodeOrder.length;

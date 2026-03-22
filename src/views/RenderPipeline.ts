@@ -1560,7 +1560,9 @@ export class RenderPipeline {
       const arHalfW = (baseH * cardAR) / 2;
       const halfW = Math.max(MIN_PLAIN_HALF_W, Math.min(cardMaxW / 2, arHalfW));
       // FI: Dynamic card height based on body content (uses final width for line wrapping)
-      const bodyLines = pn.data.bodyPreview ? Math.min(3, Math.ceil(pn.data.bodyPreview.length / Math.max(5, Math.floor((halfW * 2 - 8 / worldScale) / (8 / worldScale * 0.55))))) : 0;
+      // IP: Use cardBodyMaxLines (not hardcoded 3) for consistent card height
+      const maxBodyLines = rt.cardBodyMaxLines ?? 3;
+      const bodyLines = pn.data.bodyPreview ? Math.min(maxBodyLines, Math.ceil(pn.data.bodyPreview.length / Math.max(5, Math.floor((halfW * 2 - 8 / worldScale) / (8 / worldScale * 0.55))))) : 0;
       const bodyExtraH = bodyLines * (8 / worldScale * 1.3);
       const totalH = baseH + bodyExtraH;
       const halfH = totalH / 2;

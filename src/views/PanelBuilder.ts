@@ -1721,6 +1721,13 @@ function _buildEdgeDisplaySection(
       cb.markDirty();
     });
     // HV: Hover edge alpha falloff
+    // IQ: Edge density floor — minimum alpha when many edges overlap
+    addSlider(body, t("display.edgeDensityFloor") ?? "Edge Density Floor", 0.02, 0.5, 0.02, rtEdge.edgeDensityFloor ?? 0.12, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.edgeDensityFloor = v;
+      cb.markDirty();
+      cb.announceA11y?.(`${t("display.edgeDensityFloor") ?? "Edge Density Floor"}: ${v.toFixed(2)}`);
+    });
     addSlider(body, t("display.hoverEdgeFalloff") ?? "Hover Edge Fade", 0.3, 0.95, 0.05, rtEdge.hoverEdgeFalloff ?? 0.6, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
       panel.renderThresholds.hoverEdgeFalloff = v;
