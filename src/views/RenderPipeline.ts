@@ -1189,7 +1189,7 @@ export class RenderPipeline {
           defText.x = -halfW + 2 / worldScale;
           defText.y = -halfH + fontSize * 1.3 + 2 / worldScale;
           defText.maxWidth = cardW - 4 / worldScale;
-          defText.alpha = 0.7;
+          defText.alpha = crc.cardSubTextAlpha;
           gfx.addChild(defText);
         }
       } else {
@@ -1250,7 +1250,7 @@ export class RenderPipeline {
           previewText.x = -halfW + 3 / worldScale;
           previewText.y = curY;
           previewText.maxWidth = cardW - 6 / worldScale;
-          previewText.alpha = 0.6;
+          previewText.alpha = crc.cardBodyPreviewAlpha;
           gfx.addChild(previewText);
         }
       }
@@ -1521,7 +1521,7 @@ export class RenderPipeline {
         markAsCardText(previewText);
         previewText.x = -halfW + textPadX;
         previewText.y = cardY + headerH + (fieldCount2 + extraRowOffset) * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
-        previewText.alpha = 0.7;
+        previewText.alpha = crc.cardSubTextAlpha;
         if (rt.cardTextTruncation !== false) previewText.maxWidth = availableTextW;
         gfx.addChild(previewText);
       }
@@ -1626,7 +1626,7 @@ export class RenderPipeline {
             markAsCardText(bodyLine);
             bodyLine.x = -halfW + pad;
             bodyLine.y = -halfH + pad + fontSize * 1.4 + li * lineH;
-            bodyLine.alpha = 0.7;
+            bodyLine.alpha = crc.cardSubTextAlpha;
             if (rt.cardTextTruncation !== false) bodyLine.maxWidth = textW;
             pn.gfx.addChild(bodyLine);
           }
@@ -1773,13 +1773,16 @@ export class RenderPipeline {
     const pfState = this.host.getPathfinderState?.();
     if (!pfNodes || pfNodes.size === 0) return;
 
+    const rtt = this.host.getRenderThresholds?.() ?? {};
+    const pfStartColor = rtt.pathfinderStartColor ?? 0x22d3ee;
+    const pfEndColor = rtt.pathfinderEndColor ?? 0xf97316;
     const { visible, shapeRules } = ctx;
     for (const pn of visible) {
       if (!pfNodes.has(pn.data.id)) continue;
       const shape = getNodeShape(pn.data, shapeRules);
       const isStart = pfState?.startId === pn.data.id;
       const isEnd = pfState?.endId === pn.data.id;
-      const ringColor = isStart ? 0x22d3ee : isEnd ? 0xf97316 : 0x22d3ee;
+      const ringColor = isStart ? pfStartColor : isEnd ? pfEndColor : pfStartColor;
       g.lineStyle(isStart || isEnd ? PF_ENDPOINT_LINE_WIDTH : PF_INTERMEDIATE_LINE_WIDTH, ringColor, INDICATOR_RING_ALPHA);
       g.beginFill(0, 0);
       drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius + (isStart || isEnd ? PF_ENDPOINT_RADIUS_PAD : PF_INTERMEDIATE_RADIUS_PAD));
@@ -1831,7 +1834,7 @@ export class RenderPipeline {
     if (!bookmarked || bookmarked.size === 0) return;
 
     const { visible } = ctx;
-    const starColor = 0xf5c542; // 金色
+    const starColor = this.host.getRenderThresholds?.()?.bookmarkStarColor ?? 0xf5c542;
     const starAlpha = 0.9;
     for (const pn of visible) {
       if (!bookmarked.has(pn.data.id)) continue;
@@ -1870,7 +1873,7 @@ export class RenderPipeline {
     if (!missingSet || missingSet.size === 0) return;
 
     const { visible } = ctx;
-    const ringColor = 0xff8c00; // dark orange
+    const ringColor = this.host.getRenderThresholds?.()?.missingNeighborRingColor ?? 0xff8c00;
     const ringAlpha = 0.85;
     const lineWidth = 2;
     const dashSegments = 10;
@@ -2015,7 +2018,7 @@ export class RenderPipeline {
         const dx = pn.radius * 0.7;
         const dy = -pn.radius * 0.7;
         g.lineStyle(0);
-        g.beginFill(0x22c55e, 0.9); // green-500
+        g.beginFill(this.host.getRenderThresholds?.()?.recencyMarkerColor ?? 0x22c55e, 0.9);
         g.drawCircle(pn.data.x + dx, pn.data.y + dy, DOT_R);
         g.endFill();
       } else if (age > oldThresholdMs) {

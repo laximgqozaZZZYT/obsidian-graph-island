@@ -679,6 +679,12 @@ export interface CardRenderConfig {
   /** Semantic zoom tier 4 header fill alpha (default 0.6) */
   semanticCardHeaderFillAlpha?: number;
 
+  // ---- Card text alpha ----
+  /** Sub-text alpha for definition fields, meta text, and body lines (default 0.7) */
+  cardSubTextAlpha?: number;
+  /** Body preview text alpha in semantic zoom tier 4 (default 0.6) */
+  cardBodyPreviewAlpha?: number;
+
   // ---- Plain card ----
   /** Plain card stroke alpha (default 0.4) */
   plainCardStrokeAlpha?: number;
@@ -939,6 +945,18 @@ export interface RenderThresholds {
    *  At zoom < 0.3, nodes ranked beyond prominentTopN×2 fade by zoom/0.3,
    *  but never below this floor. Higher = less aggressive fading. */
   fadeLowDegreeFloor?: number;
+
+  // ---- Theme-dependent indicator colors (hex number, e.g. 0xff8c00) ----
+  /** Pathfinder start node ring color (default 0x22d3ee — cyan) */
+  pathfinderStartColor?: number;
+  /** Pathfinder end node ring color (default 0xf97316 — orange) */
+  pathfinderEndColor?: number;
+  /** Bookmark star indicator color (default 0xf5c542 — gold) */
+  bookmarkStarColor?: number;
+  /** Missing neighbor ring color (default 0xff8c00 — dark orange) */
+  missingNeighborRingColor?: number;
+  /** Recency marker color (default 0x22c55e — green-500) */
+  recencyMarkerColor?: number;
 
   // ---- Edge density ----
   /** Minimum density scale for edge/cable alpha — prevents edges from becoming invisible at high count + low zoom (default 0.08) */
@@ -1291,6 +1309,8 @@ export const DEFAULT_CARD_RENDER_CONFIG: Required<CardRenderConfig> = {
   semanticCardFullFillAlpha: 0.25,
   semanticCardHeaderHeightRatio: 0.8,
   semanticCardHeaderFillAlpha: 0.6,
+  cardSubTextAlpha: 0.7,
+  cardBodyPreviewAlpha: 0.6,
   plainCardStrokeAlpha: 0.4,
   plainCardFillAlpha: 0.8,
   tableHeaderHeight: 16,
@@ -1402,6 +1422,11 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   minimapThinStep: 3,
   minimapThinThreshold: 800,
   fadeLowDegreeFloor: 0.2,
+  pathfinderStartColor: 0x22d3ee,
+  pathfinderEndColor: 0xf97316,
+  bookmarkStarColor: 0xf5c542,
+  missingNeighborRingColor: 0xff8c00,
+  recencyMarkerColor: 0x22c55e,
   edgeDensityFloor: 0.12,
   highlightEdgeAlpha: 1.0,
   highlightEdgeNonMatchAlpha: 0.04,
