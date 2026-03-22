@@ -136,6 +136,9 @@ export interface EdgeDrawConfig {
   /** Zoom level below which edge labels fade in (default 0.3).
    *  Between edgeLabelZoomHide and this value, labels fade from 0→1. */
   edgeLabelZoomFade?: number;
+  /** Minimum alpha floor for edges at extreme zoom-out (default 0.1).
+   *  Thickness floor = 3×this, breadcrumb floor = 2×this. */
+  edgeFadeMinAlpha?: number;
 }
 
 // Minimal position data needed for source/target
@@ -2622,15 +2625,16 @@ function resolveEdgeStyle(
   // Zoom-adaptive edge thickness: thin edges at zoom-out to reduce visual clutter
   const ws = cfg.worldScale ?? 1;
   const fadeZ = cfg.edgeZoomFadeThreshold ?? 0.5;
+  const fadeFloor = cfg.edgeFadeMinAlpha ?? 0.1;
   if (ws < fadeZ) {
-    lineThick *= Math.max(0.3, ws / fadeZ);
+    lineThick *= Math.max(fadeFloor * 3, ws / fadeZ);
   }
 
   // Zoom-adaptive edge type fade: non-structural edges fade earlier at zoom-out
   if (ws < fadeZ && (isSimilar || e.type === EDGE_TYPE_HAS_TAG)) {
-    alpha *= Math.max(0.1, ws / fadeZ);
+    alpha *= Math.max(fadeFloor, ws / fadeZ);
   } else if (ws < fadeZ * 0.6 && isBreadcrumbs) {
-    alpha *= Math.max(0.2, ws / (fadeZ * 0.6));
+    alpha *= Math.max(fadeFloor * 2, ws / (fadeZ * 0.6));
   }
 
   // GG: Apply global edge alpha multiplier

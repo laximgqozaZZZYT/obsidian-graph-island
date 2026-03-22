@@ -530,7 +530,8 @@ export class RenderPipeline {
     this._labelCullCooldown--;
     if (forceFullRedraw || (zoomRatio > 0.05 && this._labelCullCooldown <= 0)) {
       this._prevWorldScale = curScale;
-      this._labelCullCooldown = 6; // Raised from 4: InteractionManager handles zoom-triggered cull
+      const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
+      this._labelCullCooldown = rt.labelCullCooldown;
       this.host.updateLabelsForZoom?.();
     }
 

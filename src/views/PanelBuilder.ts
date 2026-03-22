@@ -1730,6 +1730,13 @@ function _buildEdgeDisplaySection(
       cb.markDirty();
       cb.announceA11y?.(`${t("display.edgeLabelZoomFade") ?? "Label Fade Zoom"}: ${v.toFixed(2)}`);
     }, t("desc.edgeLabelZoomFade"));
+    // Edge fade minimum alpha
+    addSlider(body, t("display.edgeFadeMinAlpha") ?? "Edge Fade Floor", 0.01, 0.5, 0.01, rtEdge.edgeFadeMinAlpha, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.edgeFadeMinAlpha = v;
+      cb.markDirty();
+      cb.announceA11y?.(`${t("display.edgeFadeMinAlpha") ?? "Edge Fade Floor"}: ${v.toFixed(2)}`);
+    }, t("desc.edgeFadeMinAlpha"));
     // GW: Edge label font size
     addSlider(body, t("display.edgeLabelFontSize") ?? "Edge Label Size", 6, 18, 1, rtEdge.edgeLabelFontSize, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};
@@ -2004,6 +2011,12 @@ function _buildRenderThresholdsSection(
       cb.markDirty();
       cb.wakeRenderLoop();
     }, t("render.showFpsMonitorDesc"));
+    addSlider(body, t("render.labelCullCooldown") ?? "Label Cull Cooldown", 1, 12, 1, rt.labelCullCooldown, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.labelCullCooldown = v;
+      cb.markDirty();
+      cb.announceA11y?.(`${t("render.labelCullCooldown") ?? "Label Cull Cooldown"}: ${v}`);
+    }, t("render.labelCullCooldownDesc"));
     addSlider(body, t("render.highlightDimAlpha"), 0, 0.5, 0.01,
       rt.highlightEdgeNonMatchAlpha, (v) => {
         if (!panel.renderThresholds) panel.renderThresholds = {};

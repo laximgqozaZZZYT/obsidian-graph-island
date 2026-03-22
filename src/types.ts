@@ -909,6 +909,9 @@ export interface RenderThresholds {
   /** Manual label mode override: "auto" (default) | "initials" | "truncated" | "full".
    *  When set to non-auto, ignores zoom-based label mode switching. */
   labelModeOverride?: "auto" | "initials" | "truncated" | "full";
+  /** Number of render frames to skip between label cull recalculations (default 6).
+   *  Lower = more responsive zoom, higher = less CPU. Affects §0.4 zoom response. */
+  labelCullCooldown?: number;
 
   // ---- Timeline bar labels ----
   /** Show text labels inside timeline bars (default true) */
@@ -1262,6 +1265,9 @@ export interface RenderThresholds {
   /** Zoom level below which edge labels fade in (default 0.3).
    *  Between edgeLabelZoomHide and this value, labels fade 0→1. */
   edgeLabelZoomFade?: number;
+  /** Minimum alpha floor for edges at extreme zoom-out (default 0.1).
+   *  Thickness floor = 3×this, breadcrumb floor = 2×this. */
+  edgeFadeMinAlpha?: number;
   /** Minimum zoom level to show roads (default 0 = always visible). Set >0 to hide at extreme zoom-out. */
   roadMinZoom?: number;
   /** Minimum road width in screen pixels (default 1). Roads scale up at low zoom to stay visible. */
@@ -1436,6 +1442,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelDensityMaxDist: 200,
   labelDensityZoomThreshold: 0.5,
   labelModeOverride: "auto" as const,
+  labelCullCooldown: 6,
   timelineBarShowLabel: true,
   timelineBarLabelMinWidth: 30,
   timelineBarLabelFontSize: 9,
@@ -1581,6 +1588,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   edgeZoomFadeThreshold: 0.5,
   edgeLabelZoomHide: 0.15,
   edgeLabelZoomFade: 0.3,
+  edgeFadeMinAlpha: 0.1,
 
   // Road network
   showRoadNetwork: true,
