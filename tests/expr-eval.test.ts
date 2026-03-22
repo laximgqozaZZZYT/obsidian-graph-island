@@ -331,3 +331,78 @@ describe("validateExpr", () => {
     expect(err!.length).toBeGreaterThan(0);
   });
 });
+
+describe("expr-eval — boundary values", () => {
+  const vars: ExprVars = { t: 0.5, i: 10, n: 100, v: 42 };
+
+  it("very large numbers clamp to 0 (Infinity)", () => {
+    // 10^1000 → Infinity → clamped to 0
+    const node = parseExpr("10^1000");
+    expect(evalExpr(node, vars)).toBe(0);
+  });
+
+  it("very negative exponent evaluates correctly", () => {
+    const node = parseExpr("2^(-10)");
+    const result = evalExpr(node, vars);
+    expect(result).toBeCloseTo(1 / 1024, 6);
+  });
+
+  it("deeply nested parentheses", () => {
+    // ((((((1 + 2))))))
+    const node = parseExpr("((((((1 + 2))))))");
+    expect(evalExpr(node, vars)).toBe(3);
+  });
+
+  it("long expression chain", () => {
+    // 1+2+3+4+5+6+7+8+9+10
+    const node = parseExpr("1+2+3+4+5+6+7+8+9+10");
+    expect(evalExpr(node, vars)).toBe(55);
+  });
+
+  it("sqrt of negative returns NaN → clamped to 0", () => {
+    const node = parseExpr("sqrt(-1)");
+    expect(evalExpr(node, vars)).toBe(0);
+  });
+
+  it("log(0) returns -Infinity → clamped to 0", () => {
+    const node = parseExpr("log(0)");
+    expect(evalExpr(node, vars)).toBe(0);
+  });
+
+  it("chained division by zero", () => {
+    const node = parseExpr("1/0/0/0");
+    expect(evalExpr(node, vars)).toBe(0);
+  });
+
+  it("modulo of negative numbers", () => {
+    const node = parseExpr("0-7 % 3");
+    const result = evalExpr(node, vars);
+    expect(Number.isFinite(result)).toBe(true);
+  });
+
+  it("zero to the power of zero", () => {
+    const node = parseExpr("0^0");
+    expect(evalExpr(node, vars)).toBe(1); // Math.pow(0,0) = 1
+  });
+
+  it("all variables at extreme values", () => {
+    const extremeVars: ExprVars = { t: 0, i: 0, n: 0, v: 0 };
+    const node = parseExpr("t + i + n + v");
+    expect(evalExpr(node, extremeVars)).toBe(0);
+  });
+
+  it("unknown function returns 0", () => {
+    // parseExpr treats unknown identifiers as variables, not functions
+    // but a call node with unknown fn returns 0
+    expect(validateExpr("unknownfn(1)")).not.toBeNull();
+  });
+
+  it("consecutive operations: 2 * -3", () => {
+    const node = parseExpr("2 * -3");
+    expect(evalExpr(node, vars)).toBe(-6);
+  });
+
+  it("whitespace-only input throws", () => {
+    expect(() => parseExpr("   ")).toThrow();
+  });
+});
