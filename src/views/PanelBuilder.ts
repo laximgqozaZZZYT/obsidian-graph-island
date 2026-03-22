@@ -1545,7 +1545,7 @@ function _buildDiscoverySection(
     }, t("desc.showSimilarSuggestions"));
     addToggle(body, t("display.showStructureQuestions"), panel.showStructureQuestions, (v) => {
       panel.showStructureQuestions = v;
-      cb.markDirty();
+      cb.doRenderKeepPanel();
     }, t("desc.showStructureQuestions"));
     // R2: Consolidated analysis overlay dropdown
     addSelect(body, t("display.analysisOverlay"), [
