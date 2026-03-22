@@ -571,7 +571,7 @@ const en: TranslationMap = {
   "display.clusterLabelDetailed": "Detailed",
   "display.clusterLabelRich": "Rich (count + tags)",
   "display.highlightPatterns": "Highlight Patterns",
-  "desc.highlightPatterns": "Highlight articulation points, spokes, and cliques",
+  "desc.highlightPatterns": "Highlight articulation points (critical bridge nodes)",
 
   // --- ExcaliBrain features (Phase 6) ---
   "display.focusLayout": "Focus Layout",
@@ -1403,7 +1403,7 @@ const ja: TranslationMap = {
   "display.clusterLabelDetailed": "詳細",
   "display.clusterLabelRich": "リッチ（件数+タグ）",
   "display.highlightPatterns": "パターンハイライト",
-  "desc.highlightPatterns": "関節点・スポーク・クリークを強調表示",
+  "desc.highlightPatterns": "関節点（重要な橋渡しノード）を強調表示",
   "display.focusLayout": "フォーカスレイアウト",
   "desc.focusLayout": "自我中心レイアウト：選択ノードを中心に関係タイプ別配置",
   "display.showHierarchyBreadcrumb": "階層パンくず",

@@ -5540,6 +5540,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       getForwardLinks: (nodeId: string) => this._getForwardLinks(nodeId),
       getBacklinks: (nodeId: string) => this._getBacklinks(nodeId),
       toggleNodeVisibility: (nodeId: string) => this._toggleNodeVisibility(nodeId),
+      refreshOverlays: () => {
+        const gd = this.originalGraphData ?? { nodes: [...this.pixiNodes.values()].map(pn => pn.data), edges: this.graphEdges } as any;
+        this.updateGraphStats(gd);
+        this.updateRelationMatrix(gd);
+        this.updateThumbnails();
+        this.updateHierarchyBreadcrumb();
+        this.updateLegend();
+        if (this.minimap) this.minimap.setVisible(this.panel.showMinimap);
+        this.markDirty(true);
+        this._updateSurpriseTimer();
+        this.requestSave();
+      },
     };
   }
 
