@@ -73,7 +73,9 @@ export function buildGraphFromVault(
       y: 0,
       vx: 0,
       vy: 0,
-      category: frontmatter?.[settings.colorField] as string | undefined,
+      // Category from configured colorField; fallback to folder-based category if field missing
+      category: (frontmatter?.[settings.colorField] as string | undefined)
+        ?? (file.path.includes("/") ? file.path.split("/")[0] : undefined),
       tags: extractTags(frontmatter, cache),
       filePath: file.path,
       mtime: file.stat.mtime,
