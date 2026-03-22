@@ -1710,6 +1710,13 @@ function _buildEdgeDisplaySection(
       cb.markDirty();
       cb.announceA11y?.(`${t("display.edgeMinZoom") ?? "Edge Min Zoom"}: ${v.toFixed(3)}`);
     }, t("desc.edgeMinZoom"));
+    // Edge zoom fade threshold — controls gradual thinning/fading
+    addSlider(body, t("display.edgeZoomFadeThreshold") ?? "Edge Zoom Fade", 0.1, 1.0, 0.05, rtEdge.edgeZoomFadeThreshold ?? 0.5, (v) => {
+      if (!panel.renderThresholds) panel.renderThresholds = {};
+      panel.renderThresholds.edgeZoomFadeThreshold = v;
+      cb.markDirty();
+      cb.announceA11y?.(`${t("display.edgeZoomFadeThreshold") ?? "Edge Zoom Fade"}: ${v.toFixed(2)}`);
+    }, t("desc.edgeZoomFadeThreshold"));
     // GW: Edge label font size
     addSlider(body, t("display.edgeLabelFontSize") ?? "Edge Label Size", 6, 18, 1, rtEdge.edgeLabelFontSize ?? 10, (v) => {
       if (!panel.renderThresholds) panel.renderThresholds = {};

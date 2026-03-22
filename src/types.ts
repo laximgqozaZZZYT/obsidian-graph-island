@@ -1254,6 +1254,9 @@ export interface RenderThresholds {
   roadColor?: number;
   /** Minimum zoom level to draw edges (default 0 = always draw). Set >0 to skip at extreme zoom-out. */
   edgeMinZoom?: number;
+  /** Zoom threshold below which edge thickness/alpha are gradually reduced (default 0.5).
+   *  Below this zoom, edges thin & fade proportionally to reduce visual clutter. */
+  edgeZoomFadeThreshold?: number;
   /** Minimum zoom level to show roads (default 0 = always visible). Set >0 to hide at extreme zoom-out. */
   roadMinZoom?: number;
   /** Minimum road width in screen pixels (default 1). Roads scale up at low zoom to stay visible. */
@@ -1570,6 +1573,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
 
   // Edge visibility
   edgeMinZoom: 0,
+  edgeZoomFadeThreshold: 0.5,
 
   // Road network
   showRoadNetwork: true,

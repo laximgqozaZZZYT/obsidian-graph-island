@@ -2460,7 +2460,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const minWorldRadius = Math.max(0, MIN_WORLD_RADIUS_PX / zoom);
     const pad = rt.collisionPadding ?? DEFAULT_RENDER_THRESHOLDS.collisionPadding;
     const displayMode = this.panel.nodeDisplayMode ?? "node";
-    const glowRadius = rt.glowBaseRadius ?? DEFAULT_RENDER_THRESHOLDS.glowBaseRadius ?? 2.2;
+    const glowRadius = rt.glowBaseRadius ?? 2.2;
     const hitScreenPx = Math.max(MIN_WORLD_RADIUS_PX * glowRadius, minScreenPx);
     const hitWorldR = hitScreenPx / zoom + pad;
 
@@ -4194,6 +4194,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.nodeRadii = (this.panel.showArrows || this.panel.edgeCardinalityMode !== "none") ? this.getCachedNodeRadii() : null;
     cfg.worldScale = this.worldContainer?.scale?.x ?? 1;
     cfg.edgeMinZoom = edgeRt.edgeMinZoom ?? 0;
+    cfg.edgeZoomFadeThreshold = edgeRt.edgeZoomFadeThreshold ?? 0.5;
     cfg.edgeCardinalityMode = this.panel.edgeCardinalityMode;
     cfg.cardinalityRules = this.panel.cardinalityRules;
     cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
@@ -4851,7 +4852,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
     const worldScale = this.worldContainer?.scale.x ?? 1;
-    const roadMinZoom = rt.roadMinZoom ?? 0.01;
+    const roadMinZoom = rt.roadMinZoom ?? 0;
 
     // LOD: toggle visibility without clearing draw commands.
     // Roads are expensive to redraw (~120K cmds), so we keep them cached
@@ -5063,7 +5064,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
    */
   private ensureViewportUtilization(vpW: number, vpH: number): void {
     const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...(this.panel.renderThresholds ?? {}) };
-    const minUtil = rt.minViewportUtilization ?? 0.10;
+    const minUtil = rt.minViewportUtilization ?? 0.12;
     if (minUtil <= 0 || this.pixiNodes.size < 2) return;
 
     const bbox = this._computeNodeBBox();

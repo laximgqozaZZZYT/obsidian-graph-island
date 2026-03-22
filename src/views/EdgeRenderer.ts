@@ -128,6 +128,9 @@ export interface EdgeDrawConfig {
   degreeEdgeWidth?: number;
   /** Minimum zoom level to draw edges (default 0). Below this, edges are hidden for performance. */
   edgeMinZoom?: number;
+  /** Zoom threshold below which edge thickness/alpha are gradually reduced (default 0.5).
+   *  Below this zoom, edges thin & fade proportionally to reduce visual clutter. */
+  edgeZoomFadeThreshold?: number;
 }
 
 // Minimal position data needed for source/target
@@ -2620,15 +2623,16 @@ function resolveEdgeStyle(
 
   // Zoom-adaptive edge thickness: thin edges at zoom-out to reduce visual clutter
   const ws = cfg.worldScale ?? 1;
-  if (ws < 0.5) {
-    lineThick *= Math.max(0.3, ws / 0.5);
+  const fadeZ = cfg.edgeZoomFadeThreshold ?? 0.5;
+  if (ws < fadeZ) {
+    lineThick *= Math.max(0.3, ws / fadeZ);
   }
 
   // Zoom-adaptive edge type fade: non-structural edges fade earlier at zoom-out
-  if (ws < 0.5 && (isSimilar || e.type === EDGE_TYPE_HAS_TAG)) {
-    alpha *= Math.max(0.1, ws / 0.5);
-  } else if (ws < 0.3 && isBreadcrumbs) {
-    alpha *= Math.max(0.2, ws / 0.3);
+  if (ws < fadeZ && (isSimilar || e.type === EDGE_TYPE_HAS_TAG)) {
+    alpha *= Math.max(0.1, ws / fadeZ);
+  } else if (ws < fadeZ * 0.6 && isBreadcrumbs) {
+    alpha *= Math.max(0.2, ws / (fadeZ * 0.6));
   }
 
   // GG: Apply global edge alpha multiplier
@@ -3097,7 +3101,8 @@ export function drawEdges(
   // Pre-compute direction x color bundles for highway-style edge merging
   const bundles = prepareBundles(edges, resolvePos, cfg);
   // Zoom-adaptive bundling: increase strength at zoom-out for visual tidiness
-  const zoomBoost = ws < 0.5 ? Math.min(0.3, (0.5 - ws) * 0.6) : 0;
+  const edgeFadeZ = cfg.edgeZoomFadeThreshold ?? 0.5;
+  const zoomBoost = ws < edgeFadeZ ? Math.min(0.3, (edgeFadeZ - ws) * 0.6) : 0;
   const bundleStrength = Math.min(1, cfg.bundleStrength + zoomBoost);
 
   // Cable trunks and intra-group cables
