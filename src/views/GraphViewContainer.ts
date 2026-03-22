@@ -4296,8 +4296,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.showArrows = this.panel.showArrows;
     cfg.nodeRadii = (this.panel.showArrows || this.panel.edgeCardinalityMode !== "none") ? this.getCachedNodeRadii() : null;
     cfg.worldScale = this.worldContainer?.scale?.x ?? 1;
-    cfg.edgeMinZoom = edgeRt.edgeMinZoom ?? 0;
-    cfg.edgeZoomFadeThreshold = edgeRt.edgeZoomFadeThreshold ?? 0.5;
+    cfg.edgeMinZoom = edgeRt.edgeMinZoom;
+    cfg.edgeZoomFadeThreshold = edgeRt.edgeZoomFadeThreshold;
     cfg.edgeLabelZoomHide = edgeRt.edgeLabelZoomHide;
     cfg.edgeLabelZoomFade = edgeRt.edgeLabelZoomFade;
     cfg.edgeFadeMinAlpha = edgeRt.edgeFadeMinAlpha;

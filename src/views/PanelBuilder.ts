@@ -496,6 +496,8 @@ export function createDefaultPanel(): PanelState {
     surpriseInterval: 0,
     expandedNodes: [],
     analysisOverlay: "off" as const,
+    degreeEdgeWidth: 0,
+    showOntologyBackbone: false,
   };
 }
 
@@ -1480,35 +1482,47 @@ function _buildStructureAnalysisSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.structureAnalysis"), (body) => {
-    addToggle(body, t("display.ontologyBackbone"), panel.showOntologyBackbone ?? false, (v) => {
-      panel.showOntologyBackbone = v;
-      cb.markDirty();
-    }, t("desc.ontologyBackbone"));
-    addSelect(body, t("display.clusterLabelDetail"), [
-      { value: "minimal", label: t("display.clusterLabelMinimal") },
-      { value: "standard", label: t("display.clusterLabelStandard") },
-      { value: "detailed", label: t("display.clusterLabelDetailed") },
-      { value: "rich", label: t("display.clusterLabelRich") },
-    ], panel.clusterLabelDetail, (v) => {
-      panel.clusterLabelDetail = v as "minimal" | "standard" | "detailed" | "rich";
-      cb.markDirty();
-    }, t("desc.clusterLabelDetail"));
+    // Gate: ontology backbone requires ontology rules
+    if (_ctx.settings.ontology?.rules?.length) {
+      addToggle(body, t("display.ontologyBackbone"), panel.showOntologyBackbone ?? false, (v) => {
+        panel.showOntologyBackbone = v;
+        cb.markDirty();
+      }, t("desc.ontologyBackbone"));
+    }
+    // Gate: cluster label detail only when tag enclosures are active
+    if (panel.showTagNodes && panel.tagDisplay === "enclosure") {
+      addSelect(body, t("display.clusterLabelDetail"), [
+        { value: "minimal", label: t("display.clusterLabelMinimal") },
+        { value: "standard", label: t("display.clusterLabelStandard") },
+        { value: "detailed", label: t("display.clusterLabelDetailed") },
+        { value: "rich", label: t("display.clusterLabelRich") },
+      ], panel.clusterLabelDetail, (v) => {
+        panel.clusterLabelDetail = v as "minimal" | "standard" | "detailed" | "rich";
+        cb.markDirty();
+      }, t("desc.clusterLabelDetail"));
+    }
     addToggle(body, t("display.highlightPatterns"), panel.highlightPatterns, (v) => {
       panel.highlightPatterns = v;
       cb.markDirty();
     }, t("desc.highlightPatterns"));
     // R2: showBridgeNodes toggle removed — now controlled via analysisOverlay dropdown
-    addToggle(body, t("display.focusLayout"), panel.focusLayout, (v) => {
-      panel.focusLayout = v;
-      if (v && panel.localGraphCenter) {
-        panel.clusterArrangement = "ego";
-      }
-      cb.doRender();
-    }, t("desc.focusLayout"));
-    addToggle(body, t("display.showHierarchyBreadcrumb"), panel.showHierarchyBreadcrumb, (v) => {
-      panel.showHierarchyBreadcrumb = v;
-      cb.doRenderKeepPanel();
-    }, t("desc.showHierarchyBreadcrumb"));
+    // Gate: focusLayout requires focusMode
+    if (panel.focusMode) {
+      addToggle(body, t("display.focusLayout"), panel.focusLayout, (v) => {
+        panel.focusLayout = v;
+        if (v && panel.localGraphCenter) {
+          panel.clusterArrangement = "ego";
+        }
+        cb.doRender();
+      }, t("desc.focusLayout"));
+    }
+    // Gate: hierarchy breadcrumb requires local graph mode
+    if (panel.localGraphCenter) {
+      addToggle(body, t("display.showHierarchyBreadcrumb"), panel.showHierarchyBreadcrumb, (v) => {
+        panel.showHierarchyBreadcrumb = v;
+        cb.doRenderKeepPanel();
+      }, t("desc.showHierarchyBreadcrumb"));
+    }
     // M2: Apply Ego Layout button
     const egoBtn = body.createEl("button", { cls: "mod-cta", text: t("action.applyEgoLayout") });
     egoBtn.style.marginTop = "6px";
@@ -1748,15 +1762,18 @@ function _buildEdgeDisplaySection(
         const modeLabel = v === "none" ? "off" : v;
         cb.announceA11y?.(`Edge labels: ${modeLabel}`);
       }, t("desc.edgeLabelMode"));
-      addSelect(adv, t("display.edgeLabelPlacement"), [
-        { value: "center", label: t("display.edgeLabelCenter") },
-        { value: "offset", label: t("display.edgeLabelOffset") },
-        { value: "smart", label: t("display.edgeLabelSmart") },
-      ], panel.edgeLabelPlacement ?? "center", (v) => {
-        panel.edgeLabelPlacement = v as "center" | "offset" | "smart";
-        cb.markDirty();
-        cb.announceA11y?.(`Edge label placement: ${v}`);
-      });
+      // Gate: edge label placement only when any edge labels are active
+      if (panel.showEdgeLabels || panel.showEdgeWeightLabels || panel.showEdgeCardinalityLabels) {
+        addSelect(adv, t("display.edgeLabelPlacement"), [
+          { value: "center", label: t("display.edgeLabelCenter") },
+          { value: "offset", label: t("display.edgeLabelOffset") },
+          { value: "smart", label: t("display.edgeLabelSmart") },
+        ], panel.edgeLabelPlacement ?? "center", (v) => {
+          panel.edgeLabelPlacement = v as "center" | "offset" | "smart";
+          cb.markDirty();
+          cb.announceA11y?.(`Edge label placement: ${v}`);
+        });
+      }
       addToggle(adv, t("display.edgeLayerMode"), panel.edgeLayerMode, (v) => { panel.edgeLayerMode = v; cb.markDirty(); }, t("desc.edgeLayerMode"));
       addSelect(adv, t("display.edgeDirectionFilter"), [
         { value: "all", label: t("display.edgeDirAll") },
@@ -2974,11 +2991,13 @@ function _buildAutoFitAndGuides(s: ClusterSectionCtx): void {
     }
   }
 
-  // Axis titles — independent of gridTableMode (also affects timeline axis)
-  addToggle(body, t("guide.showAxisTitles"), panel.showAxisTitles, (v) => {
-    panel.showAxisTitles = v;
-    cb.doRenderKeepPanel();
-  }, t("guide.showAxisTitlesDesc"));
+  // Axis titles — only relevant when coordinate guides or timeline produce axis labels
+  if (panel.coordinateLayout || panel.clusterArrangement === ARRANGEMENT_TIMELINE) {
+    addToggle(body, t("guide.showAxisTitles"), panel.showAxisTitles, (v) => {
+      panel.showAxisTitles = v;
+      cb.doRenderKeepPanel();
+    }, t("guide.showAxisTitlesDesc"));
+  }
 }
 
 /** Node spacing, group arrangement, group size/spacing, cluster gravity, edge bundle */
