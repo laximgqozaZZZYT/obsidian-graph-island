@@ -3715,6 +3715,23 @@ export function drawEdgeLabels(
   const SMART_SHIFT_STEP = 12; // shift distance per collision attempt
   const SMART_MAX_SHIFTS = 4;  // maximum shift attempts
 
+  // IF: Seed placedRects with node positions to prevent edge labels from overlapping nodes
+  if (placement === "smart") {
+    const seenNodes = new Set<string>();
+    for (const { edge: e } of labelable) {
+      for (const ref of [e.source, e.target]) {
+        const id = typeof ref === "string" ? ref : (ref as any)?.id;
+        if (!id || seenNodes.has(id)) continue;
+        seenNodes.add(id);
+        const pos = resolvePos(ref);
+        if (pos) {
+          const nr = cfg.nodeRadii?.get(id) ?? 15;
+          placedRects.push({ x: pos.x, y: pos.y, hw: nr, hh: nr });
+        }
+      }
+    }
+  }
+
   for (const { edge: e, label } of labelable) {
     const sp = resolvePos(e.source);
     const tp = resolvePos(e.target);

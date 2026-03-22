@@ -856,7 +856,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       "background:var(--background-modifier-message);color:var(--text-muted);opacity:0.85;z-index:10;";
 
     // --- Graph Statistics Overlay (Feature CX) ---
-    this.graphStatsEl = canvasArea.createDiv({ cls: "gi-graph-stats" });
+    this.graphStatsEl = canvasArea.createDiv({ cls: "gi-graph-stats", attr: { role: "status", "aria-label": "Graph statistics" } });
     this.graphStatsEl.style.display = "none";
 
     // --- F5: Relation Matrix Overlay ---
@@ -1152,7 +1152,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Create legend and keyboard shortcut help overlays. */
   private _initOverlays(canvasArea: HTMLElement): void {
     // --- Legend Overlay ---
-    this.legendEl = canvasArea.createDiv({ cls: "gi-legend" });
+    this.legendEl = canvasArea.createDiv({ cls: "gi-legend", attr: { role: "complementary", "aria-label": "Graph legend" } });
     this.legendEl.style.display = "none";
 
     // --- Keyboard Shortcut Help Overlay (O3: full-screen help overlay) ---
@@ -6295,7 +6295,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // ヘッダー（閉じるボタン付き）
     const header = this.legendEl.createDiv({ cls: "gi-legend-header" });
     header.createEl("span", { text: `${colorMap.size + relColors.size} items` });
-    const closeBtn = header.createEl("span", { cls: "gi-legend-close", text: "\u00d7" });
+    const closeBtn = header.createEl("button", { cls: "gi-legend-close", text: "\u00d7", attr: { "aria-label": "Close legend", tabindex: "0" } });
     closeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       this.panel.showLegend = false;
@@ -6317,12 +6317,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const nodeSection = body.createDiv({ cls: "gi-legend-section" });
       nodeSection.createEl("div", { cls: "gi-legend-section-title", text: t("legend.nodeColors") });
       for (const [label, cssColor] of colorMap) {
-        const row = nodeSection.createDiv({ cls: "gi-legend-item gi-legend-item-clickable" });
+        const row = nodeSection.createDiv({ cls: "gi-legend-item gi-legend-item-clickable", attr: { role: "button", tabindex: "0", "aria-label": `Filter: ${label.replace(/^tag:/, "#")}` } });
         const dot = row.createDiv({ cls: "gi-legend-color-dot" });
         dot.style.background = cssColor;
         row.createEl("span", { cls: "gi-legend-label", text: label.replace(/^tag:/, "#") });
         // クリックで検索フィルターにトグル
-        row.addEventListener("click", () => {
+        const toggleFilter = () => {
           const field = label.startsWith("tag:") ? label : `category:${label}`;
           if (this.panel.searchQuery === field) {
             this.panel.searchQuery = "";
@@ -6332,7 +6332,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.rawData = null;
           this.doRender();
           this.requestSave();
-        });
+        };
+        row.addEventListener("click", toggleFilter);
+        row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleFilter(); } });
       }
     }
 
@@ -6429,7 +6431,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         "similar": "dotted", "sequence": "dash-dot", "sibling": "dotted",
       };
       for (const [rel, cssColor] of relColors) {
-        const row = edgeSection.createDiv({ cls: "gi-legend-item gi-legend-item-clickable" });
+        const row = edgeSection.createDiv({ cls: "gi-legend-item gi-legend-item-clickable", attr: { role: "button", tabindex: "0", "aria-label": `Toggle: ${rel}` } });
         // A11y: Use line sample with dash pattern instead of simple dot
         const dashType = edgeDashMap[rel.toLowerCase()];
         if (dashType) {
@@ -6449,7 +6451,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             row.addClass("gi-legend-item-disabled");
             labelEl.textContent = `${rel} ${t("legend.hidden")}`;
           }
-          row.addEventListener("click", () => {
+          const toggleEdge = () => {
             const current = this.panel[toggle.key] as boolean;
             (this.panel as unknown as Record<string, unknown>)[toggle.key] = !current;
             invalidateBundleCache();
@@ -6457,7 +6459,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             this.updateLegend();
             this.buildPanel();
             this.requestSave();
-          });
+          };
+          row.addEventListener("click", toggleEdge);
+          row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleEdge(); } });
         }
       }
     }
@@ -7886,6 +7890,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       this.doRender();
       this.requestSave();
+      this._announceA11y(`Preset: ${preset}`);
     }
   }
 

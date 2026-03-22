@@ -2021,6 +2021,7 @@ function buildLayoutTab(
         panel.collapsedGroups.add("__gi_expand_all__");
         cb.doRenderKeepPanel();
         cb.rebuildPanel();
+        cb.announceA11y?.(`${t("groups.expandAll") ?? "Expand All"}: groups expanded`);
       });
       const collapseBtn = groupBtnRow.createEl("button", { cls: "gi-btn-sm", text: t("groups.collapseAll") });
       collapseBtn.addEventListener("click", () => {
@@ -2028,6 +2029,7 @@ function buildLayoutTab(
         // Empty set triggers auto-collapse of all groups
         cb.doRenderKeepPanel();
         cb.rebuildPanel();
+        cb.announceA11y?.(`${t("groups.collapseAll") ?? "Collapse All"}: groups collapsed`);
       });
 
       addSlider(body, t("display.groupMinSize"), 1, 20, 1, panel.groupMinSize, (v) => {
