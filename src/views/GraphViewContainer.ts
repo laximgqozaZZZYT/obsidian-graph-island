@@ -4848,7 +4848,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const g = this.trayGraphics;
     if (!g) return;
 
-    // Skip redraw if road commands are already up-to-date (perf: ~120K cmds)
+    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
+    const worldScale = this.worldContainer?.scale.x ?? 1;
+    const roadMinZoom = rt.roadMinZoom ?? 0.01;
+
+    // LOD: toggle visibility without clearing draw commands.
+    // Roads are expensive to redraw (~120K cmds), so we keep them cached
+    // and only toggle g.visible for zoom-based LOD.
+    if (!(rt.showRoadNetwork ?? true) || worldScale < roadMinZoom) {
+      g.visible = false;
+      return;
+    }
+    g.visible = true;
+
+    // Skip redraw if road commands are already up-to-date (perf)
     if (rb.roadDrawn && g.commandCount > 0) return;
 
     g.clear();
@@ -4859,16 +4872,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const network = rb.trayData;
     if (!network || network.intersections.length === 0) return;
 
-    const rt = { ...DEFAULT_RENDER_THRESHOLDS, ...this.panel.renderThresholds };
-    if (!(rt.showRoadNetwork ?? true)) return;
-
     const isDark = this.isDarkTheme();
     const roadColor = rt.roadColor ?? (isDark ? 0x555577 : 0xaaaacc);
-    const worldScale = this.worldContainer?.scale.x ?? 1;
-
-    // LOD: roads hidden below minimum zoom (default 1%).
-    const roadMinZoom = rt.roadMinZoom ?? 0.01;
-    if (worldScale < roadMinZoom) return;
 
     // Road width: fixed in world space (no zoom scaling).
     // Roads are drawn as thin bands in world coordinates.
