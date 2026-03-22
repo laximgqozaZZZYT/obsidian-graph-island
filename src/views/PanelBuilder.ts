@@ -1513,7 +1513,7 @@ function _buildStructureAnalysisSection(
     }, t("desc.focusLayout"));
     addToggle(body, t("display.showHierarchyBreadcrumb"), panel.showHierarchyBreadcrumb, (v) => {
       panel.showHierarchyBreadcrumb = v;
-      cb.markDirty();
+      cb.doRenderKeepPanel();
     }, t("desc.showHierarchyBreadcrumb"));
     // M2: Apply Ego Layout button
     const egoBtn = body.createEl("button", { cls: "mod-cta", text: t("action.applyEgoLayout") });
@@ -1530,7 +1530,7 @@ function _buildStructureAnalysisSection(
     // F5: Relation matrix
     addToggle(body, t("display.relationMatrix"), panel.showRelationMatrix, (v) => {
       panel.showRelationMatrix = v;
-      cb.markDirty();
+      cb.doRenderKeepPanel();
     }, t("desc.relationMatrix"));
   }, tHelp("help.structureAnalysis"), true, "git-branch");
 }
@@ -1558,7 +1558,7 @@ function _buildDiscoverySection(
       { value: "all", label: t("analysis.all") },
     ], panel.analysisOverlay ?? "off", (v) => {
       panel.analysisOverlay = v as PanelState["analysisOverlay"];
-      cb.markDirty();
+      cb.doRenderKeepPanel();
     });
     // D5: Cluster Compare
     addToggle(body, t("display.clusterCompare"), panel.showClusterCompare, (v) => {
@@ -1945,9 +1945,9 @@ function _buildMinimapSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.displayOther"), (body) => {
-    addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.markDirty(); cb.wakeRenderLoop(); }, t("desc.minimap"));
+    addToggle(body, t("display.minimap"), panel.showMinimap, (v) => { panel.showMinimap = v; cb.doRenderKeepPanel(); }, t("desc.minimap"));
     addToggle(body, t("display.showLegend"), panel.showLegend, (v) => { panel.showLegend = v; cb.invalidateDataKeepPanel(); }, t("desc.showLegend"));
-    addToggle(body, t("display.oobIndicator"), panel.showOutOfBoundsIndicator ?? false, (v) => { panel.showOutOfBoundsIndicator = v; cb.markDirty(); cb.wakeRenderLoop(); }, t("desc.oobIndicator"));
+    addToggle(body, t("display.oobIndicator"), panel.showOutOfBoundsIndicator ?? false, (v) => { panel.showOutOfBoundsIndicator = v; cb.doRenderKeepPanel(); }, t("desc.oobIndicator"));
     addToggle(body, t("display.graphStats"), panel.showGraphStats ?? false, (v) => { panel.showGraphStats = v; cb.invalidateDataKeepPanel(); }, t("desc.graphStats"));
     addToggle(body, t("display.ancestryBreadcrumb"), panel.showAncestryBreadcrumb ?? false, (v) => { panel.showAncestryBreadcrumb = v; cb.invalidateDataKeepPanel(); }, t("desc.ancestryBreadcrumb"));
     addToggle(body, t("display.highContrast") ?? "High Contrast", panel.highContrastMode, (v) => { panel.highContrastMode = v; cb.doRenderKeepPanel(); }, t("desc.highContrast") ?? "Thicker edges and stronger outlines for better visibility");
