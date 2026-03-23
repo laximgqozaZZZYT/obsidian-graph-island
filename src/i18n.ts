@@ -845,6 +845,12 @@ const en: TranslationMap = {
   "context.collapse": "Collapse neighbors",
   // P2: Progressive Disclosure
   "panel.advanced": "Advanced settings",
+  // --- View Mode Selector ---
+  "viewMode.graph": "Graph",
+  "viewMode.sunburst": "Sunburst",
+  "viewMode.timeline": "Timeline",
+  "viewMode.tree": "Tree",
+  "viewMode.switched": "View mode",
 };
 
 // ---------------------------------------------------------------------------
@@ -1676,6 +1682,12 @@ const ja: TranslationMap = {
   "context.collapse": "隣接を折りたたみ",
   // P2: Progressive Disclosure
   "panel.advanced": "詳細設定",
+  // --- View Mode Selector ---
+  "viewMode.graph": "グラフ",
+  "viewMode.sunburst": "サンバースト",
+  "viewMode.timeline": "タイムライン",
+  "viewMode.tree": "ツリー",
+  "viewMode.switched": "表示形式",
 };
 
 // ---------------------------------------------------------------------------

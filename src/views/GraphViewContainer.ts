@@ -52,6 +52,7 @@ import {
   EVENT_SYNC_PANEL,
   POLAR_ARRANGEMENTS,
 } from "../constants";
+import { viewModeToLayout } from "../utils/view-mode-map";
 
 // ---------------------------------------------------------------------------
 // StatsHost — interface for future StatsRenderer extraction (Phase 0)
@@ -2284,7 +2285,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
   getSemanticZoom() { return this.panel.semanticZoom ?? false; }
   getShowEntropyOverlay() { return this.panel.showEntropyOverlay; }
-  getEntropyScores(): Map<string, number> | null { return this._entropyScores; }
+  getEntropyScores(): Map<string, number> | null {
+    // Lazy compute: if enabled but not yet computed, compute now
+    if (this.panel.showEntropyOverlay && !this._entropyScores) {
+      this.updateEntropyScores();
+    }
+    return this._entropyScores;
+  }
   getMultiSelectNodeIds(): string[] { return this.panel.multiSelectNodeIds; }
 
   /** S1: Build hierarchy tree from focused node via is-a/parent edges */
@@ -5736,6 +5743,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.requestSave();
       },
       rebuildNodesInPlace: () => { this.rebuildNodesInPlace(); },
+      setViewMode: (mode) => {
+        this.panel.viewMode = mode;
+        this.currentLayout = viewModeToLayout(mode);
+        this.doRender();
+      },
     };
   }
 
@@ -6546,6 +6558,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // B2: Sanitize panel state before rendering
     validatePanelState(this.panel);
+
+    // Sync currentLayout from viewMode (ensures saved state is respected)
+    this.currentLayout = viewModeToLayout(this.panel.viewMode);
 
     this.ac?.abort();
     this.ac = new AbortController();

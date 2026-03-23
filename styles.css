@@ -3406,3 +3406,45 @@
 .theme-dark .gi-hover-preview {
   background: var(--background-secondary);
 }
+
+/* View Mode Selector */
+.gi-view-mode-bar {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 2px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.gi-view-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s, color 0.15s;
+}
+.gi-view-mode-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.gi-view-mode-btn.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+.gi-view-mode-icon {
+  display: flex;
+  width: 14px;
+  height: 14px;
+}
+.gi-view-mode-icon svg {
+  width: 14px;
+  height: 14px;
+}
+.gi-view-mode-label {
+  white-space: nowrap;
+}

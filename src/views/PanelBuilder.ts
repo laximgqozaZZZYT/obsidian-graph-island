@@ -622,6 +622,8 @@ export interface PanelCallbacks {
   refreshOverlays(): void;
   /** Rebuild node display objects in place (labels/icons/shapes) without simulation restart */
   rebuildNodesInPlace(): void;
+  /** Switch to a different visualization mode (graph/sunburst/timeline/tree) */
+  setViewMode(mode: ViewMode): void;
 }
 
 // ---------------------------------------------------------------------------
