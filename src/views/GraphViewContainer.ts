@@ -6511,6 +6511,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const nodeSet = new Set(nodes.map((n) => n.id));
     edges = filterEdgesByNodeSet(edges, nodeSet);
 
+    // Skip group collapse for timeline/sunburst viewModes (they need individual nodes)
+    if (this.panel.viewMode === "timeline" || this.panel.viewMode === "sunburst") {
+      return { nodes, edges };
+    }
     return this._applyGroupCollapse({ nodes, edges });
   }
 
@@ -7291,6 +7295,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Ensure viewport utilization BEFORE building transition data,
     // so the expanded positions become the animation target (toX/toY).
     this.ensureViewportUtilization(W, H);
+
+    // Non-graph viewModes: clear ALL canvas layers that aren't used by the mode.
+    // This prevents residual graphics (enclosures, roads, guides) from showing.
+    if (this.panel.viewMode !== "graph") {
+      const clearLayers = [
+        this.edgeGraphics, this.orbitGraphics, this.enclosureGraphics,
+        this.arrowGraphics, this.trayGraphics, this.linkPreviewGfx,
+        this.pathfinderGraphics, this.nodeCircleBatch,
+      ];
+      // Keep guideGraphics for timeline axis; keep sunburstGraphics for sunburst arcs;
+      // keep barGraphics for timeline bars; keep routeGraphics for timeline routes.
+      if (this.panel.viewMode !== "sunburst") clearLayers.push(this.sunburstGraphics);
+      if (this.panel.viewMode !== "timeline") {
+        clearLayers.push(this.barGraphics, this.routeGraphics, this.guideGraphics);
+      }
+      for (const gfx of clearLayers) { if (gfx) gfx.clear(); }
+      // Hide all DOM overlays
+      if (this.graphStatsEl) this.graphStatsEl.style.display = "none";
+      if (this.legendEl) this.legendEl.style.display = "none";
+      if (this.minimap) this.minimap.setVisible(false);
+      if (this.relationMatrixEl) this.relationMatrixEl.style.display = "none";
+    }
 
     // updatePositions + autoFitView BEFORE layoutTransition.start(),
     // because start() immediately resets data.x/y = fromX/fromY.
