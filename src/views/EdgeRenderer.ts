@@ -210,7 +210,7 @@ function shouldSkipByDirection(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
 // Constants
 // ---------------------------------------------------------------------------
 // Theme-aware edge colors
-function defaultColor(isDark: boolean) { return isDark ? 0x666666 : 0x999999; }
+export function defaultColor(isDark: boolean) { return isDark ? 0x666666 : 0x999999; }
 // C4: Intuitive edge color palette — distinct, accessible, memorable
 const LINK_COLOR = 0x60a5fa;          // blue-400 — wikilink (primary relationship)
 const TAG_EDGE_COLOR = 0x22d3ee;     // cyan-400 — shared-tag co-occurrence
@@ -370,14 +370,14 @@ const MAX_EDGE_LABELS = 200;
 // Edge color helper (shared between pre-computation and draw loop)
 // ---------------------------------------------------------------------------
 /** Edge type fallback colors used when colorEdgesByRelation is on but e.relation is unset */
-const EDGE_TYPE_FALLBACK_COLORS: ReadonlyMap<string, number> = new Map([
+export const EDGE_TYPE_FALLBACK_COLORS: ReadonlyMap<string, number> = new Map([
   ["link", LINK_COLOR],
   ["tag", TAG_EDGE_COLOR],
   ["category", CATEGORY_EDGE_COLOR],
   ["semantic", SEMANTIC_EDGE_COLOR],
 ]);
 
-function resolveEdgeColor(
+export function resolveEdgeColor(
   e: GraphEdge,
   useRelColor: boolean,
   relationColors: Map<string, string>,
