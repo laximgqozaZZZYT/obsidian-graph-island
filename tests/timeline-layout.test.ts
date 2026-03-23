@@ -8,6 +8,9 @@ import {
   timelineComputeSpacing,
   timelineCenterOffsets,
   timelineBuildSequenceEdges,
+  timelinePlaceTimedNodes,
+  timelineAlignHierarchy,
+  timelinePlaceUntimedNodes,
 } from "../src/layouts/timeline-layout";
 import type { GraphNode } from "../src/types";
 import type { ClusterForceConfig } from "../src/layouts/cluster-force";
@@ -611,5 +614,171 @@ describe("timelineBuildSequenceEdges", () => {
       { node: mkNode("y"), value: "T2" },
     ];
     expect(timelineBuildSequenceEdges(sorted)[0].id).toBe("__seq__x__y");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// timelinePlaceTimedNodes — X=time column, Y=stack within column
+// ---------------------------------------------------------------------------
+describe("timelinePlaceTimedNodes", () => {
+  it("places nodes at correct X based on time index", () => {
+    const sorted = [
+      { node: mkNode("a"), value: "T1" },
+      { node: mkNode("b"), value: "T2" },
+    ];
+    const timeIndexMap = new Map([["T1", 0], ["T2", 1]]);
+    const offsets = new Map<string, { dx: number; dy: number }>();
+    timelinePlaceTimedNodes(sorted, timeIndexMap, 100, 60, undefined, offsets);
+    expect(offsets.get("a")!.dx).toBe(0);
+    expect(offsets.get("b")!.dx).toBe(100);
+  });
+
+  it("stacks nodes in same column vertically", () => {
+    const sorted = [
+      { node: mkNode("a"), value: "T1" },
+      { node: mkNode("b"), value: "T1" },
+    ];
+    const timeIndexMap = new Map([["T1", 0]]);
+    const offsets = new Map<string, { dx: number; dy: number }>();
+    timelinePlaceTimedNodes(sorted, timeIndexMap, 100, 60, undefined, offsets);
+    expect(offsets.get("a")!.dx).toBe(0);
+    expect(offsets.get("b")!.dx).toBe(0);
+    expect(offsets.get("a")!.dy).toBe(0);
+    expect(offsets.get("b")!.dy).toBe(60); // stacked
+  });
+
+  it("places chain nodes below non-chain nodes", () => {
+    const sorted = [
+      { node: mkNode("a"), value: "T1" },
+      { node: mkNode("c1"), value: "__chain_000000" },
+      { node: mkNode("c2"), value: "__chain_000001" },
+    ];
+    const timeIndexMap = new Map([["T1", 0], ["__chain_000000", 1], ["__chain_000001", 2]]);
+    const offsets = new Map<string, { dx: number; dy: number }>();
+    const chains = [["c1", "c2"]];
+    timelinePlaceTimedNodes(sorted, timeIndexMap, 100, 60, undefined, offsets, chains);
+    // Non-chain "a" at dy=0, chain nodes at dy ≥ yStackSpacing
+    expect(offsets.get("a")!.dy).toBe(0);
+    expect(offsets.get("c1")!.dy).toBeGreaterThanOrEqual(60);
+    expect(offsets.get("c2")!.dy).toBeGreaterThanOrEqual(60);
+    // Chain nodes share same Y row
+    expect(offsets.get("c1")!.dy).toBe(offsets.get("c2")!.dy);
+  });
+
+  it("empty input produces empty offsets", () => {
+    const offsets = new Map<string, { dx: number; dy: number }>();
+    timelinePlaceTimedNodes([], new Map(), 100, 60, undefined, offsets);
+    expect(offsets.size).toBe(0);
+  });
+
+  it("respects nodeSpacingMap for individual node spacing", () => {
+    const sorted = [
+      { node: mkNode("a"), value: "T1" },
+      { node: mkNode("b"), value: "T1" },
+    ];
+    const timeIndexMap = new Map([["T1", 0]]);
+    const offsets = new Map<string, { dx: number; dy: number }>();
+    const spacingMap = new Map([["b", 2.0]]);
+    timelinePlaceTimedNodes(sorted, timeIndexMap, 100, 60, spacingMap, offsets);
+    // Node "b" has spacing=2.0, so dy = 1 * 60 * 2.0 = 120
+    expect(offsets.get("b")!.dy).toBe(120);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// timelineAlignHierarchy — parent→child Y alignment
+// ---------------------------------------------------------------------------
+describe("timelineAlignHierarchy", () => {
+  it("places children directly below parent", () => {
+    const parentMap = new Map([["c1", "root"], ["c2", "root"]]);
+    const childrenMap = new Map([["root", ["c1", "c2"]]]);
+    const offsets = new Map([
+      ["root", { dx: 100, dy: 0 }],
+      ["c1", { dx: 200, dy: 200 }], // will be overwritten
+      ["c2", { dx: 300, dy: 300 }],
+    ]);
+    timelineAlignHierarchy(parentMap, childrenMap, offsets, 50);
+    // Children get same dx as parent, dy = parent.dy + (i+1)*yStackSpacing
+    expect(offsets.get("c1")).toEqual({ dx: 100, dy: 50 });
+    expect(offsets.get("c2")).toEqual({ dx: 100, dy: 100 });
+  });
+
+  it("handles deep nesting (3 levels)", () => {
+    const parentMap = new Map([["child", "mid"], ["mid", "root"]]);
+    const childrenMap = new Map([["root", ["mid"]], ["mid", ["child"]]]);
+    const offsets = new Map([
+      ["root", { dx: 0, dy: 0 }],
+      ["mid", { dx: 50, dy: 50 }],
+      ["child", { dx: 99, dy: 99 }],
+    ]);
+    timelineAlignHierarchy(parentMap, childrenMap, offsets, 40);
+    // root → mid at dy=40, mid → child at dy=80
+    expect(offsets.get("mid")).toEqual({ dx: 0, dy: 40 });
+    expect(offsets.get("child")).toEqual({ dx: 0, dy: 80 });
+  });
+
+  it("no-op when parentMap is empty", () => {
+    const offsets = new Map([["a", { dx: 10, dy: 20 }]]);
+    timelineAlignHierarchy(new Map(), new Map(), offsets, 50);
+    expect(offsets.get("a")).toEqual({ dx: 10, dy: 20 });
+  });
+
+  it("skips children whose parent has no offset", () => {
+    const parentMap = new Map([["c", "ghost"]]);
+    const childrenMap = new Map([["ghost", ["c"]]]);
+    const offsets = new Map([["c", { dx: 0, dy: 0 }]]);
+    // "ghost" not in offsets → children not repositioned
+    timelineAlignHierarchy(parentMap, childrenMap, offsets, 50);
+    expect(offsets.get("c")).toEqual({ dx: 0, dy: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// timelinePlaceUntimedNodes — compact grid after timed columns
+// ---------------------------------------------------------------------------
+describe("timelinePlaceUntimedNodes", () => {
+  it("places nodes in grid after timed columns", () => {
+    const nodes = [mkNode("a"), mkNode("b"), mkNode("c"), mkNode("d")];
+    const offsets = new Map<string, { dx: number; dy: number }>();
+    timelinePlaceUntimedNodes(nodes, 5, 100, 60, offsets);
+    // startX = 5*100 + 100*2 = 700
+    // 4 nodes → 2x2 grid
+    expect(offsets.size).toBe(4);
+    const dxValues = [...offsets.values()].map(o => o.dx);
+    expect(Math.min(...dxValues)).toBe(700);
+  });
+
+  it("no-op for empty untimed list", () => {
+    const offsets = new Map<string, { dx: number; dy: number }>();
+    timelinePlaceUntimedNodes([], 5, 100, 60, offsets);
+    expect(offsets.size).toBe(0);
+  });
+
+  it("single node placed at startX", () => {
+    const offsets = new Map<string, { dx: number; dy: number }>();
+    timelinePlaceUntimedNodes([mkNode("solo")], 3, 80, 50, offsets);
+    // startX = 3*80 + 80*2 = 400
+    expect(offsets.get("solo")).toEqual({ dx: 400, dy: 0 });
+  });
+
+  it("sorts by label for deterministic ordering", () => {
+    const nodes = [
+      { ...mkNode("z"), label: "zzz" } as GraphNode,
+      { ...mkNode("a"), label: "aaa" } as GraphNode,
+    ];
+    const offsets = new Map<string, { dx: number; dy: number }>();
+    timelinePlaceUntimedNodes(nodes, 0, 100, 60, offsets);
+    // After sort: aaa, zzz → a gets col=0, z gets col=1
+    expect(offsets.get("a")!.dx).toBeLessThan(offsets.get("z")!.dx);
+  });
+
+  it("9 nodes create 3x3 grid", () => {
+    const nodes = Array.from({ length: 9 }, (_, i) => mkNode(`n${i}`));
+    const offsets = new Map<string, { dx: number; dy: number }>();
+    timelinePlaceUntimedNodes(nodes, 0, 100, 60, offsets);
+    const dxSet = new Set([...offsets.values()].map(o => o.dx));
+    const dySet = new Set([...offsets.values()].map(o => o.dy));
+    expect(dxSet.size).toBe(3); // 3 columns
+    expect(dySet.size).toBe(3); // 3 rows
   });
 });

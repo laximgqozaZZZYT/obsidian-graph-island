@@ -293,7 +293,7 @@ export function timelineComputeSpacing(
 
 /** timed ノードを配置: X = 時間カラムインデックス, Y = カラム内の垂直スタック。
  *  チェーンノードは同一チェーン内で同じ Y 行に横並びで配置される。 */
-function timelinePlaceTimedNodes(
+export function timelinePlaceTimedNodes(
   sortedTimed: { node: GraphNode; value: string }[],
   timeIndexMap: Map<string, number>,
   effectiveSpacing: number,
@@ -357,7 +357,7 @@ function timelinePlaceTimedNodes(
 }
 
 /** 階層ノードを親の直下に再配置 (同X, 親Y + offset) */
-function timelineAlignHierarchy(
+export function timelineAlignHierarchy(
   parentMap: Map<string, string>,
   childrenMap: Map<string, string[]>,
   offsets: Map<string, { dx: number; dy: number }>,
@@ -393,7 +393,7 @@ function timelineAlignHierarchy(
 }
 
 /** untimed ノードを timed カラムの後にコンパクトグリッドで配置 */
-function timelinePlaceUntimedNodes(
+export function timelinePlaceUntimedNodes(
   untimed: GraphNode[],
   nTimedCols: number,
   effectiveSpacing: number,
