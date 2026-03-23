@@ -6229,7 +6229,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Update the relation matrix overlay — delegates to StatsRenderer. */
   private updateRelationMatrix(gd: GraphData): void {
     if (!this.relationMatrixEl) return;
-    renderRelationMatrix(this.relationMatrixEl, this.panel.showRelationMatrix, gd.edges, this, (ids) => this.applyEphemeralHighlight(ids));
+    // Hide overlay when matrix viewMode is active (full-screen matrix replaces it)
+    const show = this.panel.showRelationMatrix && this.panel.viewMode !== "matrix";
+    renderRelationMatrix(this.relationMatrixEl, show, gd.edges, this, (ids) => this.applyEphemeralHighlight(ids));
   }
 
   /** Update the floating graph statistics panel — delegates to StatsRenderer. */
