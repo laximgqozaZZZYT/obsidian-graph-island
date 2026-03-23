@@ -191,6 +191,8 @@ const en: TranslationMap = {
   "render.highlightDimAlphaDesc": "Opacity of non-matching edges/nodes during search highlight",
   "render.showRecentVisitHalo": "Recent Visit Halo",
   "render.showRecentVisitHaloDesc": "Show blue halo on recently navigated nodes",
+  "display.showNodeThumbnails": "Node Thumbnails",
+  "desc.showNodeThumbnails": "Show frontmatter image as node thumbnail",
 
   "display.groupBy": "Group by",
   "display.groupMinSize": "Min group size",
@@ -1027,6 +1029,8 @@ const ja: TranslationMap = {
   "render.highlightDimAlphaDesc": "検索ハイライト時の非一致エッジ/ノードの不透明度",
   "render.showRecentVisitHalo": "最近訪問ハロ",
   "render.showRecentVisitHaloDesc": "最近ナビゲートしたノードに青いハロを表示",
+  "display.showNodeThumbnails": "ノードサムネイル",
+  "desc.showNodeThumbnails": "フロントマターの画像をノードサムネイルとして表示",
 
   "display.groupBy": "グルーピング",
   "display.groupMinSize": "最小グループサイズ",

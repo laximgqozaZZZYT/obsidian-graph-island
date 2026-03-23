@@ -119,3 +119,97 @@ describe("buildRelationColorMap", () => {
     expect(colors.has("HasPart")).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// assignNodeColors — edge cases (cycle112)
+// ---------------------------------------------------------------------------
+describe("assignNodeColors edge cases", () => {
+  it("handles nodes with empty-string category", () => {
+    const nodes = [mkNode("a", { category: "" })];
+    const colors = assignNodeColors(nodes, "category");
+    // Empty string should not create a color entry
+    expect(colors.size).toBe(0);
+  });
+
+  it("handles nodes with undefined tags", () => {
+    const nodes = [mkNode("a", { category: "cat1" }), mkNode("b")];
+    const colors = assignNodeColors(nodes, "category");
+    expect(colors.has("cat1")).toBe(true);
+  });
+
+  it("palette wraps correctly beyond DEFAULT_COLORS length", () => {
+    // Create more unique categories than palette size
+    const paletteSize = DEFAULT_COLORS.length;
+    const nodes = Array.from({ length: paletteSize + 3 }, (_, i) =>
+      mkNode(`n${i}`, { category: `cat${i}` })
+    );
+    const colors = assignNodeColors(nodes, "category");
+    // Should have paletteSize + 3 entries, wrapping around
+    expect(colors.size).toBe(paletteSize + 3);
+    // Verify wrapping: color at index N === color at index N % paletteSize
+    const sorted = [...colors.entries()].sort(([a], [b]) => a.localeCompare(b));
+    expect(sorted[paletteSize][1]).toBe(sorted[0][1]); // same palette color
+  });
+
+  it("handles nodes with duplicate tags", () => {
+    const nodes = [
+      mkNode("a", { tags: ["tag1", "tag1", "tag1"] }),
+      mkNode("b", { tags: ["tag1"] }),
+    ];
+    const colors = assignNodeColors(nodes, "category");
+    // tag:tag1 should appear exactly once
+    expect(colors.has("tag:tag1")).toBe(true);
+  });
+
+  it("tags with same name as category get tag: prefix to avoid collision", () => {
+    const nodes = [
+      mkNode("a", { category: "fiction", tags: ["fiction"] }),
+    ];
+    const colors = assignNodeColors(nodes, "category");
+    expect(colors.has("fiction")).toBe(true);     // category
+    expect(colors.has("tag:fiction")).toBe(true);  // tag (prefixed)
+    // They should be different colors (different index in palette)
+    expect(colors.get("fiction")).not.toBe(colors.get("tag:fiction"));
+  });
+
+  it("deterministic: same input always produces same output", () => {
+    const nodes = [
+      mkNode("a", { category: "x", tags: ["t1", "t2"] }),
+      mkNode("b", { category: "y", tags: ["t3"] }),
+    ];
+    const colors1 = assignNodeColors(nodes, "category");
+    const colors2 = assignNodeColors(nodes, "category");
+    expect([...colors1.entries()]).toEqual([...colors2.entries()]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildRelationColorMap — edge cases (cycle112)
+// ---------------------------------------------------------------------------
+describe("buildRelationColorMap edge cases", () => {
+  it("handles many unique relations (palette wrap)", () => {
+    const paletteSize = DEFAULT_COLORS.length;
+    const edges = Array.from({ length: paletteSize + 2 }, (_, i) =>
+      mkEdge("a", "b", `Rel${String(i).padStart(3, "0")}`)
+    );
+    const colors = buildRelationColorMap(edges);
+    expect(colors.size).toBe(paletteSize + 2);
+  });
+
+  it("same relation from different edges gets one color", () => {
+    const edges = [
+      mkEdge("a", "b", "Author"),
+      mkEdge("c", "d", "Author"),
+      mkEdge("e", "f", "Author"),
+    ];
+    const colors = buildRelationColorMap(edges);
+    expect(colors.size).toBe(1);
+  });
+
+  it("handles Japanese relation names", () => {
+    const edges = [mkEdge("a", "b", "著者"), mkEdge("c", "d", "所在地")];
+    const colors = buildRelationColorMap(edges);
+    expect(colors.has("著者")).toBe(true);
+    expect(colors.has("所在地")).toBe(true);
+  });
+});
