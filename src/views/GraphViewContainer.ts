@@ -7205,6 +7205,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.updatePositions(true);
     this.autoFitView(W, H);
 
+    // Timeline/Sunburst viewMode: fit viewport to content bbox instead of node bbox
+    if (this.panel.viewMode === "timeline" && this.clusterMeta?.timelineBars?.length) {
+      const bars = this.clusterMeta.timelineBars;
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const b of bars) {
+        if (b.xStart < minX) minX = b.xStart;
+        if (b.xEnd > maxX) maxX = b.xEnd;
+        if (b.yCenter - b.barHeight / 2 < minY) minY = b.yCenter - b.barHeight / 2;
+        if (b.yCenter + b.barHeight / 2 > maxY) maxY = b.yCenter + b.barHeight / 2;
+      }
+      const pad = 40;
+      const bw = maxX - minX + pad * 2;
+      const bh = maxY - minY + pad * 2;
+      const scale = Math.min(W / bw, H / bh, 2);
+      const wc = this.worldContainer;
+      if (wc) {
+        wc.scale.set(scale);
+        wc.x = W / 2 - (minX + maxX) / 2 * scale;
+        wc.y = H / 2 - (minY + maxY) / 2 * scale;
+      }
+    }
+
     // Build transition data: from saved positions, to new layout positions
     const transitionData: { data: { x: number; y: number }; fromX: number; fromY: number; toX: number; toY: number }[] = [];
     for (const pn of this.pixiNodes.values()) {
