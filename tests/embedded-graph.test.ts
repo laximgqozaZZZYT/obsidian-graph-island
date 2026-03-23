@@ -112,4 +112,70 @@ describe("filterLocalGraph", () => {
     expect(result.nodes).toHaveLength(1);
     expect(result.nodes[0].id).toBe("a");
   });
+
+  // --- Boundary values (cycle123) ---
+
+  it("star graph: 1 hop from hub reaches all leaves", () => {
+    const data = makeGraphData({
+      nodes: ["hub", "leaf1", "leaf2", "leaf3", "leaf4", "leaf5"],
+      edges: [["hub", "leaf1"], ["hub", "leaf2"], ["hub", "leaf3"], ["hub", "leaf4"], ["hub", "leaf5"]],
+    });
+    const result = filterLocalGraph(data, "hub", 1);
+    expect(result.nodes).toHaveLength(6);
+    expect(result.edges).toHaveLength(5);
+  });
+
+  it("long chain: hop limit respected", () => {
+    const nodes = Array.from({ length: 10 }, (_, i) => `n${i}`);
+    const edges: [string, string][] = [];
+    for (let i = 0; i < 9; i++) edges.push([`n${i}`, `n${i + 1}`]);
+    const data = makeGraphData({ nodes, edges });
+    const result = filterLocalGraph(data, "n0", 3);
+    // Should reach n0, n1, n2, n3 (4 nodes)
+    expect(result.nodes).toHaveLength(4);
+    expect(result.nodes.map(n => n.id).sort()).toEqual(["n0", "n1", "n2", "n3"]);
+  });
+
+  it("cycle graph: doesn't revisit nodes", () => {
+    const data = makeGraphData({
+      nodes: ["a", "b", "c"],
+      edges: [["a", "b"], ["b", "c"], ["c", "a"]],
+    });
+    const result = filterLocalGraph(data, "a", 10);
+    expect(result.nodes).toHaveLength(3); // all reachable, no duplicates
+  });
+
+  it("negative hops treated as 0 (center only)", () => {
+    const data = makeGraphData({ nodes: ["a", "b"], edges: [["a", "b"]] });
+    const result = filterLocalGraph(data, "a", -1);
+    // Negative hops → BFS runs 0 iterations → only center
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0].id).toBe("a");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseConfig — additional boundary values (cycle123)
+// ---------------------------------------------------------------------------
+describe("parseConfig boundary values", () => {
+  it("handles JSON with nested objects", () => {
+    const cfg = parseConfig('{"center":"a.md","layout":{"type":"force"}}');
+    expect(cfg.center).toBe("a.md");
+    expect(cfg.layout).toEqual({ type: "force" });
+  });
+
+  it("handles JSON with arrays", () => {
+    const cfg = parseConfig('{"tags":["a","b","c"]}');
+    expect(cfg.tags).toEqual(["a", "b", "c"]);
+  });
+
+  it("handles whitespace-only input", () => {
+    expect(parseConfig("   ")).toEqual({});
+  });
+
+  it("handles null JSON value", () => {
+    const cfg = parseConfig("null");
+    // JSON.parse("null") returns null, not {}
+    expect(cfg === null || (typeof cfg === "object" && Object.keys(cfg).length === 0)).toBe(true);
+  });
 });

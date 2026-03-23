@@ -717,16 +717,15 @@ describe("coordinateOffsets", () => {
 // resolveAxisCategories (cycle123)
 // ---------------------------------------------------------------------------
 describe("resolveAxisCategories", () => {
-  it("returns sorted unique string categories for field source", () => {
+  it("returns sorted unique string categories for property source via meta", () => {
     const nodes = [
-      makeNode("a", { category: "beta" }),
-      makeNode("b", { category: "alpha" }),
-      makeNode("c", { category: "beta" }),
+      makeNode("a", { node_type: "beta" }),
+      makeNode("b", { node_type: "alpha" }),
+      makeNode("c", { node_type: "beta" }),
     ];
-    // field:category source
     const cats = resolveAxisCategories(
       nodes,
-      { kind: "field", field: "category" },
+      { kind: "property", key: "node_type" },
       baseCtx(),
     );
     expect(cats).toBeDefined();
@@ -770,15 +769,15 @@ describe("resolveAxisCategories", () => {
     }
   });
 
-  it("handles Japanese category names", () => {
+  it("handles Japanese category names via property source", () => {
     const nodes = [
-      makeNode("a", { category: "キャラクター" }),
-      makeNode("b", { category: "場所" }),
-      makeNode("c", { category: "キャラクター" }),
+      makeNode("a", { type: "キャラクター" }),
+      makeNode("b", { type: "場所" }),
+      makeNode("c", { type: "キャラクター" }),
     ];
     const cats = resolveAxisCategories(
       nodes,
-      { kind: "field", field: "category" },
+      { kind: "property", key: "type" },
       baseCtx(),
     );
     expect(cats).toBeDefined();
