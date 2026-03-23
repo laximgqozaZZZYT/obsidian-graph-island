@@ -10,7 +10,7 @@ import {
   LAYOUT_TREE,
 } from "../src/constants";
 import { createDefaultPanel, validatePanelState } from "../src/views/PanelBuilder";
-import { viewModeToLayout } from "../src/utils/view-mode-map";
+import { viewModeToLayout, viewModeSkipsNodeRendering, viewModeSkipsEdges } from "../src/utils/view-mode-map";
 import { isSectionVisible } from "../src/utils/view-mode-sections";
 import type { ViewMode } from "../src/types";
 
@@ -104,6 +104,48 @@ describe("isSectionVisible", () => {
   it("unknown section defaults to visible", () => {
     expect(isSectionVisible("graph", "unknownSection" as any)).toBe(true);
     expect(isSectionVisible("sunburst", "unknownSection" as any)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// viewModeSkipsNodeRendering — sunburst/timeline skip per-node gfx
+// ---------------------------------------------------------------------------
+describe("viewModeSkipsNodeRendering", () => {
+  it("graph does NOT skip node rendering", () => {
+    expect(viewModeSkipsNodeRendering("graph")).toBe(false);
+  });
+  it("sunburst skips node rendering", () => {
+    expect(viewModeSkipsNodeRendering("sunburst")).toBe(true);
+  });
+  it("timeline skips node rendering", () => {
+    expect(viewModeSkipsNodeRendering("timeline")).toBe(true);
+  });
+  it("tree does NOT skip node rendering", () => {
+    expect(viewModeSkipsNodeRendering("tree")).toBe(false);
+  });
+  it("unknown mode does NOT skip", () => {
+    expect(viewModeSkipsNodeRendering("unknown" as any)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// viewModeSkipsEdges — sunburst/timeline skip edge drawing
+// ---------------------------------------------------------------------------
+describe("viewModeSkipsEdges", () => {
+  it("graph does NOT skip edges", () => {
+    expect(viewModeSkipsEdges("graph")).toBe(false);
+  });
+  it("sunburst skips edges", () => {
+    expect(viewModeSkipsEdges("sunburst")).toBe(true);
+  });
+  it("timeline skips edges", () => {
+    expect(viewModeSkipsEdges("timeline")).toBe(true);
+  });
+  it("tree does NOT skip edges", () => {
+    expect(viewModeSkipsEdges("tree")).toBe(false);
+  });
+  it("unknown mode does NOT skip", () => {
+    expect(viewModeSkipsEdges("unknown" as any)).toBe(false);
   });
 });
 

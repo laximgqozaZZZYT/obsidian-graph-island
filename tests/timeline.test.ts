@@ -395,3 +395,207 @@ describe("applyTimelineLayout", () => {
     expect(result.timeSteps).toEqual(["3", "2", "1"]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// applyTimelineLayout — category swim-lane fallback (no sequence edges)
+// ---------------------------------------------------------------------------
+describe("applyTimelineLayout category swim-lanes", () => {
+  it("assigns lanes by category when no sequence edges exist", () => {
+    const nodes = [
+      makeNode("a", { category: "hero" }),
+      makeNode("b", { category: "villain" }),
+      makeNode("c", { category: "hero" }),
+    ];
+    const edges: GraphEdge[] = []; // no sequence edges
+    const fm = makeFrontmatter({
+      a: { date: "T1" },
+      b: { date: "T1" },
+      c: { date: "T2" },
+    });
+
+    const result = applyTimelineLayout(
+      { nodes, edges },
+      { timeKey: "date", getNodeProperty: fm, laneHeight: 80, startY: 0 },
+    );
+
+    const posA = result.data.nodes.find(n => n.id === "a")!;
+    const posB = result.data.nodes.find(n => n.id === "b")!;
+    const posC = result.data.nodes.find(n => n.id === "c")!;
+
+    // hero and villain should be on different Y lanes
+    expect(posA.y).not.toBe(posB.y);
+    // a and c are both "hero" → same lane (same Y baseline)
+    expect(posA.y).toBe(posC.y);
+  });
+
+  it("puts all nodes on lane 0 when all share the same category", () => {
+    const nodes = [
+      makeNode("a", { category: "cat" }),
+      makeNode("b", { category: "cat" }),
+    ];
+    const fm = makeFrontmatter({
+      a: { date: "T1" },
+      b: { date: "T2" },
+    });
+
+    const result = applyTimelineLayout(
+      { nodes, edges: [] },
+      { timeKey: "date", getNodeProperty: fm, startY: 0, laneHeight: 80 },
+    );
+
+    const posA = result.data.nodes.find(n => n.id === "a")!;
+    const posB = result.data.nodes.find(n => n.id === "b")!;
+    expect(posA.y).toBe(posB.y);
+    expect(result.lanes).toBe(1);
+  });
+
+  it("empty-category nodes share one lane", () => {
+    const nodes = [makeNode("a"), makeNode("b")]; // no category
+    const fm = makeFrontmatter({
+      a: { date: "T1" },
+      b: { date: "T2" },
+    });
+
+    const result = applyTimelineLayout(
+      { nodes, edges: [] },
+      { timeKey: "date", getNodeProperty: fm },
+    );
+
+    const posA = result.data.nodes.find(n => n.id === "a")!;
+    const posB = result.data.nodes.find(n => n.id === "b")!;
+    expect(posA.y).toBe(posB.y);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyTimelineLayout — auto-shrink stepWidth for wide timelines
+// ---------------------------------------------------------------------------
+describe("applyTimelineLayout auto-shrink stepWidth", () => {
+  it("shrinks stepWidth when uniqueTimes exceed MAX_DESIRED_COLS (40)", () => {
+    // Create 60 nodes with 60 unique time values → exceeds 40 cols
+    const nodes = Array.from({ length: 60 }, (_, i) => makeNode(`n${i}`));
+    const data: Record<string, Record<string, string>> = {};
+    for (let i = 0; i < 60; i++) {
+      data[`n${i}`] = { date: `T${String(i).padStart(3, "0")}` };
+    }
+    const fm = makeFrontmatter(data);
+
+    const result = applyTimelineLayout(
+      { nodes, edges: [] },
+      { timeKey: "date", getNodeProperty: fm, stepWidth: 120, startX: 0 },
+    );
+
+    // With 60 time steps at default stepWidth=120, total would be 7200px.
+    // Auto-shrink should reduce effective stepWidth:
+    // effectiveStepWidth = max(20, round(40 * 120 / 60)) = max(20, 80) = 80
+    const positions = result.data.nodes.map(n => n.x).sort((a, b) => a - b);
+    const maxX = positions[positions.length - 1];
+    // At 120px per step: maxX would be 59*120 = 7080
+    // At 80px per step: maxX would be 59*80 = 4720
+    expect(maxX).toBeLessThan(59 * 120); // must have shrunk
+    expect(maxX).toBeGreaterThan(0);
+  });
+
+  it("does not shrink when uniqueTimes <= MAX_DESIRED_COLS", () => {
+    const nodes = Array.from({ length: 10 }, (_, i) => makeNode(`n${i}`));
+    const data: Record<string, Record<string, string>> = {};
+    for (let i = 0; i < 10; i++) {
+      data[`n${i}`] = { date: `T${i}` };
+    }
+    const fm = makeFrontmatter(data);
+
+    const result = applyTimelineLayout(
+      { nodes, edges: [] },
+      { timeKey: "date", getNodeProperty: fm, stepWidth: 120, startX: 0 },
+    );
+
+    // 10 steps * 120 = final node at index 9 → x = 9 * 120 = 1080
+    const positions = result.data.nodes.map(n => n.x);
+    const maxX = Math.max(...positions);
+    expect(maxX).toBe(9 * 120);
+  });
+
+  it("never shrinks below MIN_STEP_WIDTH (20px)", () => {
+    // 200 unique times — effectiveStepWidth = max(20, round(40*120/200)) = max(20, 24) = 24
+    const nodes = Array.from({ length: 200 }, (_, i) => makeNode(`n${i}`));
+    const data: Record<string, Record<string, string>> = {};
+    for (let i = 0; i < 200; i++) {
+      data[`n${i}`] = { date: `T${String(i).padStart(4, "0")}` };
+    }
+    const fm = makeFrontmatter(data);
+
+    const result = applyTimelineLayout(
+      { nodes, edges: [] },
+      { timeKey: "date", getNodeProperty: fm, stepWidth: 120, startX: 0 },
+    );
+
+    const positions = result.data.nodes.map(n => n.x).sort((a, b) => a - b);
+    // Check spacing between consecutive time steps ≥ 20px
+    const first = positions[0];
+    const second = positions.find(x => x > first)!;
+    expect(second - first).toBeGreaterThanOrEqual(20);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyTimelineLayout — all-untimed grid layout
+// ---------------------------------------------------------------------------
+describe("applyTimelineLayout all-untimed grid", () => {
+  it("arranges all untimed nodes in a balanced grid", () => {
+    const nodes = Array.from({ length: 9 }, (_, i) => makeNode(`n${i}`));
+    // No node has date → all untimed
+    const fm = makeFrontmatter({});
+
+    const result = applyTimelineLayout(
+      { nodes, edges: [] },
+      { timeKey: "date", getNodeProperty: fm, stepWidth: 100, laneHeight: 80, startX: 0, startY: 0 },
+    );
+
+    expect(result.placements).toHaveLength(0); // no timed nodes
+    expect(result.timeSteps).toEqual([]);
+    // lanes ≥ 1 because category fallback always yields at least 1 lane
+    expect(result.lanes).toBeGreaterThanOrEqual(1);
+
+    // 9 nodes → 3x3 grid (ceil(sqrt(9)) = 3 cols)
+    const xs = new Set(result.data.nodes.map(n => n.x));
+    const ys = new Set(result.data.nodes.map(n => n.y));
+    expect(xs.size).toBe(3);
+    expect(ys.size).toBe(3);
+  });
+
+  it("single untimed node gets placed at startX, startY", () => {
+    const nodes = [makeNode("solo")];
+    const fm = makeFrontmatter({});
+
+    const result = applyTimelineLayout(
+      { nodes, edges: [] },
+      { timeKey: "date", getNodeProperty: fm, startX: 50, startY: 50 },
+    );
+
+    const pos = result.data.nodes[0];
+    expect(pos.x).toBe(50);
+    expect(pos.y).toBe(50);
+  });
+
+  it("grid sorts nodes by filePath for deterministic ordering", () => {
+    const nodes = [
+      makeNode("c", { filePath: "zzz.md" } as any),
+      makeNode("a", { filePath: "aaa.md" } as any),
+      makeNode("b", { filePath: "mmm.md" } as any),
+    ];
+    const fm = makeFrontmatter({});
+
+    const result = applyTimelineLayout(
+      { nodes, edges: [] },
+      { timeKey: "date", getNodeProperty: fm, stepWidth: 100, startX: 0, startY: 0 },
+    );
+
+    // Sorted by filePath: aaa.md < mmm.md < zzz.md
+    // In a 2-col grid (ceil(sqrt(3))=2): [aaa, mmm] row0, [zzz] row1
+    const posA = result.data.nodes.find(n => n.id === "a")!;
+    const posB = result.data.nodes.find(n => n.id === "b")!;
+    const posC = result.data.nodes.find(n => n.id === "c")!;
+    // aaa should be first (lowest x in first row)
+    expect(posA.x).toBeLessThanOrEqual(posB.x);
+  });
+});
