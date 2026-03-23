@@ -4878,6 +4878,45 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.barLabelContainer.addChild(label);
       }
     }
+
+    // Timeline viewMode: draw time axis labels at bottom
+    if (this.panel.viewMode === "timeline" && this.barLabelContainer) {
+      const steps = (this.clusterMeta as any)?.timelineSteps as string[] | undefined;
+      const stepW = (this.clusterMeta as any)?.timelineStepWidth as number | undefined;
+      if (steps && stepW && steps.length > 0) {
+        const axisFontSize = Math.max(6, 9 / worldScale);
+        // Find bar Y range for axis position
+        let maxBarY = 0;
+        for (const b of bars) { const by = b.yCenter + b.barHeight / 2; if (by > maxBarY) maxBarY = by; }
+        const axisY = maxBarY + 12 / worldScale;
+        // Decimate labels if too many
+        const maxLabels = Math.min(steps.length, Math.floor(800 * worldScale / 40));
+        const labelStep = Math.max(1, Math.ceil(steps.length / maxLabels));
+        const axisColor = this.isDarkTheme() ? 0xaaaaaa : 0x666666;
+
+        // Axis line
+        g.lineStyle(Math.max(0.5, 1 / worldScale), axisColor, 0.4);
+        g.moveTo(60, axisY - 4 / worldScale);
+        g.lineTo(60 + (steps.length - 1) * stepW, axisY - 4 / worldScale);
+
+        for (let i = 0; i < steps.length; i += labelStep) {
+          const x = 60 + i * stepW;
+          // Tick mark
+          g.moveTo(x, axisY - 6 / worldScale);
+          g.lineTo(x, axisY - 2 / worldScale);
+
+          const axisLabel = new CanvasText(steps[i], {
+            fontSize: axisFontSize,
+            fill: axisColor,
+          });
+          axisLabel.anchor.set(0, 0);
+          axisLabel.x = x;
+          axisLabel.y = axisY;
+          axisLabel.rotation = Math.PI / 4; // 45° rotation
+          this.barLabelContainer.addChild(axisLabel);
+        }
+      }
+    }
   }
 
   drawRouteLines() {
@@ -7182,6 +7221,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           }
           if (!this.clusterMeta) this.clusterMeta = {} as any;
           (this.clusterMeta as any).timelineBars = bars;
+          (this.clusterMeta as any).timelineSteps = tlResult.timeSteps;
+          (this.clusterMeta as any).timelineStepWidth = stepW;
+          (this.clusterMeta as any).timelineLanes = tlResult.lanes;
           break;
         }
         default: {
@@ -8349,21 +8391,43 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     container.visible = true;
     this._clearSunburstLabels();
 
-    const rtSb2 = mergeRenderThresholds(this.panel.renderThresholds);
     const worldScale = this.worldContainer?.scale.x ?? 1;
-    const sbFontBase2 = rtSb2.groupLabelFontSize ?? 12;
-    const sbFontMin2 = rtSb2.groupLabelScaleMin ?? 0.6;
-    const fontSize = Math.max(sbFontBase2 * sbFontMin2, sbFontBase2 / worldScale);
+    const isSunburstView = this.panel.viewMode === "sunburst";
     const isDark = this.cachedIsDark ?? true;
     const textColor = isDark ? 0xdddddd : 0x333333;
 
+    // Find max outer radius for leader line start
+    let maxOuterR = 0;
+    for (const arc of arcs) { if (arc.y1 > maxOuterR) maxOuterR = arc.y1; }
+    const leaderStart = maxOuterR + 4 / worldScale;
+    const leaderEnd = maxOuterR + 24 / worldScale;
+    const fontSize = Math.max(8, 11 / worldScale);
+    const minSweep = 0.06; // ~3.4° — skip tiny arcs
+
+    // Leader line graphics (reuse sunburstGraphics — arcs are drawn before labels)
+    const gfx = this.sunburstGraphics;
+
     for (const arc of arcs) {
       if (arc.depth !== 1) continue;
+      if (arc.x1 - arc.x0 < minSweep) continue; // skip tiny arcs
 
       const midAngle = (arc.x0 + arc.x1) / 2 - Math.PI / 2;
-      const midRadius = (arc.y0 + arc.y1) / 2;
-      const lx = cx + midRadius * Math.cos(midAngle);
-      const ly = cy + midRadius * Math.sin(midAngle);
+
+      if (isSunburstView && gfx) {
+        // Draw leader line from outer arc to label position
+        const x1 = cx + leaderStart * Math.cos(midAngle);
+        const y1 = cy + leaderStart * Math.sin(midAngle);
+        const x2 = cx + leaderEnd * Math.cos(midAngle);
+        const y2 = cy + leaderEnd * Math.sin(midAngle);
+        gfx.lineStyle(Math.max(0.5, 1 / worldScale), textColor, 0.5);
+        gfx.moveTo(x1, y1);
+        gfx.lineTo(x2, y2);
+      }
+
+      // Place label at leader line end (or at midRadius for non-sunburst viewMode)
+      const labelR = isSunburstView ? leaderEnd + 4 / worldScale : (arc.y0 + arc.y1) / 2;
+      const lx = cx + labelR * Math.cos(midAngle);
+      const ly = cy + labelR * Math.sin(midAngle);
 
       const text = new CanvasText(arc.name, {
         fontSize,
@@ -8371,21 +8435,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         fontWeight: "bold",
         align: "center",
       });
-      text.anchor.set(0.5, 0.5);
+
+      // Anchor: left-align for right side, right-align for left side
+      const isRight = midAngle > -Math.PI / 2 && midAngle < Math.PI / 2;
+      text.anchor.set(isRight ? 0 : 1, 0.5);
       text.x = lx;
       text.y = ly;
-
-      let rotation = midAngle + Math.PI / 2;
-      if (rotation > Math.PI / 2 && rotation < 3 * Math.PI / 2) {
-        rotation += Math.PI;
-      }
-      text.rotation = rotation;
+      text.rotation = 0; // horizontal labels for readability
 
       container.addChild(text);
       this.sunburstLabels.set(arc.name, text);
     }
 
-    // --- Label collision avoidance for rotated labels ---
     this.cullOverlappingRotatedLabels(this.sunburstLabels);
   }
 
