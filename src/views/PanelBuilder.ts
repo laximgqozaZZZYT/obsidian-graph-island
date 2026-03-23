@@ -653,6 +653,10 @@ export interface PanelContext {
   currentZoom?: number;
   /** Edge counts by type for progressive disclosure of edge toggles */
   edgeTypeCounts?: Record<string, number>;
+  /** Whether any nodes have image/thumbnail/cover frontmatter metadata */
+  hasImageMetaNodes?: boolean;
+  /** Whether any inheritance-type edges exist in the current graph */
+  hasInheritanceEdges?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -1519,10 +1523,13 @@ function _buildNodeDecorationSection(
         panel.definitionField = v.trim();
         cb.rebuildNodesInPlace();
       });
-    addToggle(body, t("display.showNodeThumbnails") ?? "Node Thumbnails", panel.showNodeThumbnails, (v) => {
-      panel.showNodeThumbnails = v;
-      cb.refreshOverlays();
-    }, t("desc.showNodeThumbnails") ?? "Show frontmatter image as node thumbnail");
+    // Gate: showNodeThumbnails only when nodes have image/thumbnail/cover metadata
+    if (_ctx.hasImageMetaNodes) {
+      addToggle(body, t("display.showNodeThumbnails") ?? "Node Thumbnails", panel.showNodeThumbnails, (v) => {
+        panel.showNodeThumbnails = v;
+        cb.refreshOverlays();
+      }, t("desc.showNodeThumbnails") ?? "Show frontmatter image as node thumbnail");
+    }
   }, tHelp("help.nodeDecorations"), false, "sparkles");
 }
 
@@ -1573,13 +1580,15 @@ function _buildStructureAnalysisSection(
         cb.refreshOverlays();
       }, t("desc.showHierarchyBreadcrumb"));
     }
-    // M2: Apply Ego Layout button
-    const egoBtn = body.createEl("button", { cls: "mod-cta", text: t("action.applyEgoLayout") });
-    egoBtn.style.marginTop = "6px";
-    egoBtn.style.width = "100%";
-    egoBtn.addEventListener("click", () => {
-      cb.applyEgoToVisible?.();
-    });
+    // M2: Apply Ego Layout button — gate: needs a focused/highlighted node
+    if (panel.focusNodeId || panel.localGraphCenter) {
+      const egoBtn = body.createEl("button", { cls: "mod-cta", text: t("action.applyEgoLayout") });
+      egoBtn.style.marginTop = "6px";
+      egoBtn.style.width = "100%";
+      egoBtn.addEventListener("click", () => {
+        cb.applyEgoToVisible?.();
+      });
+    }
     // F5: Relation matrix
     addToggle(body, t("display.relationMatrix"), panel.showRelationMatrix, (v) => {
       panel.showRelationMatrix = v;
@@ -1592,14 +1601,6 @@ function _buildDiscoverySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
   buildSection(tabEl, t("section.discovery"), (body) => {
-    addToggle(body, t("display.showSimilarSuggestions"), panel.showSimilarSuggestions, (v) => {
-      panel.showSimilarSuggestions = v;
-      // Effect is visible on next hover tooltip — no immediate render needed
-    }, t("desc.showSimilarSuggestions"));
-    addToggle(body, t("display.showStructureQuestions"), panel.showStructureQuestions, (v) => {
-      panel.showStructureQuestions = v;
-      cb.refreshOverlays();
-    }, t("desc.showStructureQuestions"));
     // R2: Consolidated analysis overlay dropdown
     addSelect(body, t("display.analysisOverlay"), [
       { value: "off", label: t("analysis.off") },
@@ -1611,7 +1612,6 @@ function _buildDiscoverySection(
       { value: "all", label: t("analysis.all") },
     ], panel.analysisOverlay ?? "off", (v) => {
       panel.analysisOverlay = v as PanelState["analysisOverlay"];
-      // Inline flag mapping to avoid full re-render
       const m = v as string;
       panel.showBridgeNodes = m === "bridges" || m === "all";
       panel.showEntropyOverlay = m === "entropy" || m === "all";
@@ -1619,18 +1619,14 @@ function _buildDiscoverySection(
       panel.showGapEdges = m === "gaps" || m === "all";
       cb.markDirty();
     });
-    // D5: Cluster Compare
-    addToggle(body, t("display.clusterCompare"), panel.showClusterCompare, (v) => {
-      panel.showClusterCompare = v;
-      cb.markDirty();
-    }, t("desc.clusterCompare"));
-    // S1: Hierarchy Tree Overlay
-    addToggle(body, t("display.hierarchyTree"), panel.showHierarchyTree ?? false, (v) => {
-      panel.showHierarchyTree = v;
-      cb.markDirty();
-      cb.rebuildPanel();
-    }, t("desc.hierarchyTree"));
-    // S6: Ontology Backbone — toggle is in _buildStructureAnalysisSection (no duplicate)
+    // S1: Hierarchy Tree Overlay — only when inheritance edges exist
+    if (_ctx.hasInheritanceEdges) {
+      addToggle(body, t("display.hierarchyTree"), panel.showHierarchyTree ?? false, (v) => {
+        panel.showHierarchyTree = v;
+        cb.markDirty();
+        cb.rebuildPanel();
+      }, t("desc.hierarchyTree"));
+    }
   }, tHelp("help.discovery"), true, "lightbulb");
 }
 
@@ -1682,64 +1678,10 @@ function _buildInteractionSection(
 }
 
 function _buildAdvancedSection(
-  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+  _tabEl: HTMLElement, _panel: PanelState, _ctx: PanelContext, _cb: PanelCallbacks,
 ): void {
-  buildSection(tabEl, t("section.advanced"), (body) => {
-    addToggle(body, t("display.presentationMode"), panel.presentationMode, (v) => {
-      panel.presentationMode = v;
-      if (v) {
-        // Presentation mode requires focusMode to track focused nodes for waypoints
-        panel.focusMode = true;
-      } else {
-        panel.presentationStep = 0;
-      }
-      cb.rebuildPanel();
-    }, t("desc.presentationMode"));
-    if (panel.presentationMode) {
-      const navRow = body.createDiv({ cls: "setting-item" });
-      const prevBtn = navRow.createEl("button", { text: t("action.prevStep") });
-      prevBtn.addEventListener("click", () => {
-        if (panel.presentationStep > 0) {
-          panel.presentationStep--;
-          const wId = panel.presentationWaypoints[panel.presentationStep];
-          if (wId) cb.jumpToNode(wId);
-        }
-      });
-      const nextBtn = navRow.createEl("button", { text: t("action.nextStep") });
-      nextBtn.style.marginLeft = "4px";
-      nextBtn.addEventListener("click", () => {
-        if (panel.presentationStep < panel.presentationWaypoints.length - 1) {
-          panel.presentationStep++;
-          const wId = panel.presentationWaypoints[panel.presentationStep];
-          if (wId) cb.jumpToNode(wId);
-        }
-      });
-      const addBtn = navRow.createEl("button", { text: t("action.addWaypoint") });
-      addBtn.style.marginLeft = "4px";
-      addBtn.addEventListener("click", () => {
-        // Add the currently focused node as a waypoint
-        if (panel.focusNodeId && !panel.presentationWaypoints.includes(panel.focusNodeId)) {
-          panel.presentationWaypoints.push(panel.focusNodeId);
-          cb.rebuildPanel();
-        }
-      });
-      const info = navRow.createEl("span", {
-        text: ` ${panel.presentationStep + 1}/${panel.presentationWaypoints.length}`,
-      });
-      info.style.marginLeft = "8px";
-      info.style.fontSize = "11px";
-      info.style.color = "var(--text-muted)";
-    }
-  }, tHelp("help.advanced"), true, "presentation");
-
-  // I1b: Surprise guided mode — auto-trigger interval
-  buildSection(tabEl, t("section.surprise"), (body) => {
-    addSlider(body, t("display.surpriseInterval"), 0, 120, 5,
-      panel.surpriseInterval ?? 0, (v) => {
-        panel.surpriseInterval = v;
-        cb.markDirty();
-      }, t("desc.surpriseInterval"));
-  }, tHelp("help.surprise"), false, "surprise");
+  // Removed: presentationMode (needs waypoints — complex workflow, no inline feedback)
+  // Removed: surpriseInterval (random timer — too niche)
 }
 
 function _buildEdgeDisplaySection(
@@ -1803,37 +1745,14 @@ function _buildEdgeDisplaySection(
     // --- Advanced (hidden by default) ---
     addAdvancedGroup(body, (adv) => {
       addToggle(adv, t("display.edgeColor"), panel.colorEdgesByRelation, (v) => { panel.colorEdgesByRelation = v; cb.markDirty(); cb.rebuildPanel(); }, t("desc.edgeColor"));
-      // Unified edge label mode dropdown (replaces 3 separate toggles)
-      const edgeLabelMode = panel.showEdgeWeightLabels ? "weight"
-        : panel.showEdgeCardinalityLabels ? "cardinality"
-        : panel.showEdgeLabels ? "relation" : "none";
-      addSelect(adv, t("display.edgeLabelMode"), [
-        { value: "none", label: t("display.edgeLabelMode.none") },
-        { value: "relation", label: t("display.edgeLabelMode.relation") },
-        { value: "weight", label: t("display.edgeLabelMode.weight") },
-        { value: "cardinality", label: t("display.edgeLabelMode.cardinality") },
-      ], edgeLabelMode, (v) => {
-        panel.showEdgeLabels = v === "relation";
-        panel.showEdgeWeightLabels = v === "weight";
-        panel.showEdgeCardinalityLabels = v === "cardinality";
+      // Edge labels: simplified to on/off toggle
+      addToggle(adv, t("display.edgeLabelMode.relation"), panel.showEdgeLabels, (v) => {
+        panel.showEdgeLabels = v;
+        panel.showEdgeWeightLabels = false;
+        panel.showEdgeCardinalityLabels = false;
         cb.markDirty();
-        cb.rebuildPanel();
-        // IA: Announce edge label mode change for screen readers
-        const modeLabel = v === "none" ? "off" : v;
-        cb.announceA11y?.(`Edge labels: ${modeLabel}`);
+        cb.announceA11y?.(`Edge labels: ${v ? "on" : "off"}`);
       }, t("desc.edgeLabelMode"));
-      // Gate: edge label placement only when any edge labels are active
-      if (panel.showEdgeLabels || panel.showEdgeWeightLabels || panel.showEdgeCardinalityLabels) {
-        addSelect(adv, t("display.edgeLabelPlacement"), [
-          { value: "center", label: t("display.edgeLabelCenter") },
-          { value: "offset", label: t("display.edgeLabelOffset") },
-          { value: "smart", label: t("display.edgeLabelSmart") },
-        ], panel.edgeLabelPlacement ?? "center", (v) => {
-          panel.edgeLabelPlacement = v as "center" | "offset" | "smart";
-          cb.markDirty();
-          cb.announceA11y?.(`Edge label placement: ${v}`);
-        });
-      }
       addToggle(adv, t("display.edgeLayerMode"), panel.edgeLayerMode, (v) => { panel.edgeLayerMode = v; cb.markDirty(); }, t("desc.edgeLayerMode"));
       addSelect(adv, t("display.edgeDirectionFilter"), [
         { value: "all", label: t("display.edgeDirAll") },
@@ -1843,19 +1762,11 @@ function _buildEdgeDisplaySection(
         panel.edgeDirectionFilter = v as "all" | "bidirectional" | "unidirectional";
         cb.markDirty();
       }, t("desc.edgeDirectionFilter"));
-      addToggle(adv, t("display.bidirectionalIndicator"), panel.showBidirectionalIndicator, (v) => { panel.showBidirectionalIndicator = v; cb.markDirty(); }, t("desc.bidirectionalIndicator"));
-      const rt = mergeRenderThresholds(panel.renderThresholds);
-      addToggle(adv, t("display.edgeStrengthGlow"), rt.edgeStrengthGlow, (v) => {
-        ensureRT(panel).edgeStrengthGlow = v;
-        cb.markDirty();
-      }, t("desc.edgeStrengthGlow"));
-      addSlider(adv, t("display.degreeEdgeWidth"), 0, 2, 0.1,
-        panel.degreeEdgeWidth ?? 0, (v) => {
-          panel.degreeEdgeWidth = v;
-          cb.markDirty();
-        }, t("desc.degreeEdgeWidth"));
-      addToggle(adv, t("display.showPathfinderOverlay"), panel.showPathfinderOverlay, (v) => { panel.showPathfinderOverlay = v; cb.markDirty(); }, t("desc.showPathfinderOverlay"));
-      addToggle(adv, t("display.edgeWeightThickness"), panel.edgeWeightThickness, (v) => { panel.edgeWeightThickness = v; cb.markDirty(); }, t("desc.edgeWeightThickness"));
+      // Removed: showBidirectionalIndicator (subtle, rarely useful)
+      // Removed: edgeStrengthGlow (subtle degree-based glow)
+      // Removed: degreeEdgeWidth (default 0, minimal effect)
+      // Removed: showPathfinderOverlay (keyboard-controlled S/E, not a settings item)
+      // Removed: edgeWeightThickness (no weight data in typical vaults)
       // GN: Edge toggle with a11y announcements
       const _edgeToggle = (label: string, key: keyof PanelState, cb2: () => void) => (v: boolean) => {
         (panel as any)[key] = v;
@@ -1913,14 +1824,7 @@ function _buildEdgeDisplaySection(
         cb.rebuildPanel();
       });
 
-      // Cardinality markers (crow's foot)
-      addSelect(adv, t("display.edgeCardinality"), [
-        { value: "none", label: t("display.cardinalityNone") },
-        { value: "crowsfoot", label: t("display.cardinalityCrowsfoot") },
-      ], panel.edgeCardinalityMode, (v) => {
-        panel.edgeCardinalityMode = v as EdgeCardinalityMode;
-        cb.markDirty();
-      }, t("desc.edgeCardinality"));
+      // Removed: edgeCardinalityMode (crow's foot notation — too niche for graph viz)
     });
   }, tHelp("help.displayEdges"), false, "git-branch");
 }
@@ -2001,7 +1905,7 @@ function _buildMinimapSection(
     addToggle(body, t("display.showLegend"), panel.showLegend, (v) => { panel.showLegend = v; cb.refreshOverlays(); }, t("desc.showLegend"));
     addToggle(body, t("display.oobIndicator"), panel.showOutOfBoundsIndicator ?? false, (v) => { panel.showOutOfBoundsIndicator = v; cb.markDirty(); }, t("desc.oobIndicator"));
     addToggle(body, t("display.graphStats"), panel.showGraphStats ?? false, (v) => { panel.showGraphStats = v; cb.refreshOverlays(); cb.rebuildPanel(); }, t("desc.graphStats"));
-    addToggle(body, t("display.ancestryBreadcrumb"), panel.showAncestryBreadcrumb ?? false, (v) => { panel.showAncestryBreadcrumb = v; cb.refreshOverlays(); }, t("desc.ancestryBreadcrumb"));
+    // Removed: showAncestryBreadcrumb (tooltip-only, no visual change on graph)
     addToggle(body, t("display.highContrast") ?? "High Contrast", panel.highContrastMode, (v) => { panel.highContrastMode = v; cb.markDirty(); }, t("desc.highContrast") ?? "Thicker edges and stronger outlines for better visibility");
     // IL: Zoom wheel sensitivity slider (a11y: low-dexterity users)
     addSlider(body, t("display.zoomSensitivity") ?? "Zoom Sensitivity", panel.zoomSensitivity, 0.3, 2.0, 0.1, (v) => { panel.zoomSensitivity = v; }, t("desc.zoomSensitivity") ?? "Scroll wheel zoom speed (0.3=gentle, 1.0=normal, 2.0=fast)");
@@ -2068,10 +1972,7 @@ function _buildRenderThresholdsSection(
         ensureRT(panel).highlightEdgeNonMatchAlpha = v;
         cb.markDirty();
       }, t("render.highlightDimAlphaDesc"));
-    addToggle(body, t("render.showRecentVisitHalo"), rt.showRecentVisitHalo, (v) => {
-      ensureRT(panel).showRecentVisitHalo = v;
-      cb.markDirty();
-    }, t("render.showRecentVisitHaloDesc"));
+    // Removed: showRecentVisitHalo (subtle effect, rarely noticed)
   }, tHelp("help.renderThresholds"), true, "sliders");
 }
 

@@ -430,7 +430,7 @@ export interface RenderHost {
 // ---------------------------------------------------------------------------
 // quickSelect — O(n) average k-th smallest element (Hoare's selection algorithm)
 // ---------------------------------------------------------------------------
-function quickSelect(arr: number[], k: number): number {
+export function quickSelect(arr: number[], k: number): number {
   if (arr.length <= 1) return arr[0] ?? 0;
   let lo = 0, hi = arr.length - 1;
   while (lo < hi) {

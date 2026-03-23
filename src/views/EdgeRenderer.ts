@@ -549,10 +549,10 @@ function portLaneKey(groupKey: string, dir: PortDirection): string {
 // ---------------------------------------------------------------------------
 
 /** Face of a bounding box */
-type BBoxFace = "N" | "S" | "E" | "W";
+export type BBoxFace = "N" | "S" | "E" | "W";
 
 /** Bounding box with margin */
-interface GroupBBox {
+export interface GroupBBox {
   minX: number; minY: number; maxX: number; maxY: number;
 }
 
@@ -593,7 +593,7 @@ function computeGroupBBox(
 }
 
 /** Determine which face of the bbox is closest to the graph center */
-function computePortFace(
+export function computePortFace(
   bbox: GroupBBox,
   graphCenter: { x: number; y: number },
 ): BBoxFace {
@@ -616,7 +616,7 @@ function computePortFace(
 }
 
 /** Get the port position (center of the chosen face) */
-function faceCenter(bbox: GroupBBox, face: BBoxFace): { x: number; y: number } {
+export function faceCenter(bbox: GroupBBox, face: BBoxFace): { x: number; y: number } {
   const cx = (bbox.minX + bbox.maxX) / 2;
   const cy = (bbox.minY + bbox.maxY) / 2;
   switch (face) {
@@ -628,7 +628,7 @@ function faceCenter(bbox: GroupBBox, face: BBoxFace): { x: number; y: number } {
 }
 
 /** Get the perpendicular (tangent) direction at a face */
-function facePerpendicular(face: BBoxFace): { perpX: number; perpY: number } {
+export function facePerpendicular(face: BBoxFace): { perpX: number; perpY: number } {
   // Tangent along the face edge
   switch (face) {
     case "N": case "S": return { perpX: 1, perpY: 0 }; // horizontal face
@@ -646,7 +646,7 @@ function facePerpendicular(face: BBoxFace): { perpX: number; perpY: number } {
  *   E face: port → up(NE) → left(NW) → down(SW) → right(SE) → back
  *   W face: port → down(SW) → right(SE) → up(NE) → left(NW) → back
  */
-function buildPerimeterPath(
+export function buildPerimeterPath(
   bbox: GroupBBox,
   portFace: BBoxFace,
   port: { x: number; y: number },
@@ -680,7 +680,7 @@ function buildPerimeterPath(
  * Find the point on the perimeter path closest to the target position.
  * Returns the segment index and the projected point on that segment.
  */
-function findPerimeterBranchPoint(
+export function findPerimeterBranchPoint(
   perimeterPath: { x: number; y: number }[],
   targetX: number,
   targetY: number,

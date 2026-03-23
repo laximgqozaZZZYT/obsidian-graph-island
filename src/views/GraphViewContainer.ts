@@ -584,8 +584,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         cls: `gi-view-mode-btn${this.panel.viewMode === m.mode ? " is-active" : ""}`,
         attr: { "aria-label": t(m.labelKey), "aria-pressed": String(this.panel.viewMode === m.mode), "data-mode": m.mode, role: "radio" },
       });
-      setIcon(btn, m.icon);
-      btn.title = t(m.labelKey);
+      const iconSpan = btn.createSpan({ cls: "gi-vm-icon" });
+      setIcon(iconSpan, m.icon);
+      btn.createSpan({ cls: "gi-vm-label", text: t(m.labelKey) });
       btn.addEventListener("click", () => {
         if (this.panel.viewMode === m.mode) return;
         this.panel.viewMode = m.mode;
@@ -7118,16 +7119,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             const val = this.app.metadataCache.getFileCache(tf)?.frontmatter?.[key];
             return val !== undefined && val !== null ? String(val) : undefined;
           };
-          const stepW = 120;
+          // Fit timeline to canvas width: compute stepWidth from unique dates
+          // First pass: count unique time values to determine stepWidth
+          const timeVals = new Set<string>();
+          for (const n of gd.nodes) {
+            const tv = getNodeProp(n.id, timeKey);
+            if (tv) timeVals.add(tv);
+          }
+          const numSteps = Math.max(timeVals.size, 1);
+          const stepW = Math.max(4, (W - 120) / numSteps);
+          const laneH = Math.max(40, Math.min(80, (H - 120) / 30));
           const tlResult = applyTimelineLayout(gd, {
             timeKey,
-            startX: 60, startY: 60, stepWidth: stepW, laneHeight: 80,
+            startX: 60, startY: 60, stepWidth: stepW, laneHeight: laneH,
             getNodeProperty: getNodeProp,
           });
           ld = tlResult.data;
           // Build timeline bars from placements for drawTimelineBars()
           const endKey = this.panel.timelineEndKey || "end-date";
-          const barH = Math.max(20, this.panel.nodeSize * 2);
+          const barH = Math.max(laneH * 0.7, 10);
           const timeIdxMap = new Map<string, number>();
           tlResult.timeSteps.forEach((ts, i) => timeIdxMap.set(ts, i));
           const bars: import("../layouts/cluster-force").TimelineBarInfo[] = [];
@@ -8196,7 +8206,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private drawSunburstLayoutArcs() {
     const gfx = this.sunburstGraphics;
     if (!gfx) return;
-    if (this.currentLayout !== LAYOUT_SUNBURST) return;
+    if (this.currentLayout !== LAYOUT_SUNBURST) {
+      gfx.clear();
+      this._clearSunburstLabels();
+      return;
+    }
     if (this.sunburstLayoutArcs.length === 0) return;
 
     const arcs = this.sunburstLayoutArcs;
@@ -8262,6 +8276,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.drawSunburstLabels(arcs, cx, cy);
   }
 
+  /** Remove all sunburst layout labels when leaving sunburst viewMode. */
+  private _clearSunburstLabels(): void {
+    for (const lbl of this.sunburstLabels.values()) {
+      lbl.parent?.removeChild(lbl);
+      lbl.destroy();
+    }
+    this.sunburstLabels.clear();
+    if (this.sunburstLabelContainer) this.sunburstLabelContainer.visible = false;
+  }
+
   /** Sunburst label container for category names */
   private sunburstLabelContainer: CanvasContainer | null = null;
   private sunburstLabels: Map<string, CanvasText> = new Map();
@@ -8275,12 +8299,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     const container = this.sunburstLabelContainer;
     if (!container) return;
-
-    for (const lbl of this.sunburstLabels.values()) {
-      lbl.parent?.removeChild(lbl);
-      lbl.destroy();
-    }
-    this.sunburstLabels.clear();
+    container.visible = true;
+    this._clearSunburstLabels();
 
     const rtSb2 = mergeRenderThresholds(this.panel.renderThresholds);
     const worldScale = this.worldContainer?.scale.x ?? 1;

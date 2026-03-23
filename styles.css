@@ -3407,7 +3407,7 @@
   background: var(--background-secondary);
 }
 
-/* View Mode Selector (toolbar icon group) */
+/* View Mode Selector (toolbar segmented control) */
 .gi-view-mode-group {
   display: inline-flex;
   flex-direction: row;
@@ -3415,21 +3415,21 @@
   background: var(--background-modifier-border);
   border-radius: 6px;
   padding: 1px;
-  margin: 0 4px;
+  margin: 0 6px;
   flex-shrink: 0;
 }
 .gi-view-mode-group .gi-view-mode-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 24px;
+  gap: 4px;
+  padding: 3px 8px;
   border: none;
   border-radius: 5px;
   background: var(--background-primary);
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0;
+  font-size: 11px;
+  white-space: nowrap;
   transition: background 0.15s, color 0.15s;
 }
 .gi-view-mode-group .gi-view-mode-btn:hover {
@@ -3440,7 +3440,6 @@
   background: var(--interactive-accent);
   color: var(--text-on-accent);
 }
-.gi-view-mode-group .gi-view-mode-btn svg {
-  width: 14px;
-  height: 14px;
-}
+.gi-vm-icon { display: flex; }
+.gi-vm-icon svg { width: 12px; height: 12px; }
+.gi-vm-label { line-height: 1; }
