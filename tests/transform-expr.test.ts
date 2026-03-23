@@ -204,3 +204,129 @@ describe("transformExprToString edge cases", () => {
     expect(result).toContain("3");
   });
 });
+
+// ---------------------------------------------------------------------------
+// parseTransformExpr — boundary values (cycle152)
+// ---------------------------------------------------------------------------
+describe("parseTransformExpr boundary values (cycle152)", () => {
+  it("LOGARITHMIC alias parses as logarithmic curve", () => {
+    const result = parseTransformExpr("LOGARITHMIC(index)");
+    expect(result).not.toBeNull();
+    expect(result!.transform.kind).toBe("curve");
+    expect((result!.transform as any).curve).toBe("logarithmic");
+  });
+
+  it("STACK function produces stack-avoid transform", () => {
+    const result = parseTransformExpr("STACK(index)");
+    expect(result).not.toBeNull();
+    expect(result!.transform.kind).toBe("stack-avoid");
+  });
+
+  it("GOLDEN function produces golden-angle transform", () => {
+    const result = parseTransformExpr("GOLDEN(index)");
+    expect(result).not.toBeNull();
+    expect(result!.transform.kind).toBe("golden-angle");
+  });
+
+  it("DATE_INDEX function produces date-to-index transform", () => {
+    const result = parseTransformExpr("DATE_INDEX(index)");
+    expect(result).not.toBeNull();
+    expect(result!.transform.kind).toBe("date-to-index");
+  });
+
+  it("random:123 parses with custom seed", () => {
+    const result = parseTransformExpr("random:123");
+    expect(result).not.toBeNull();
+    expect(result!.source.kind).toBe("random");
+    expect((result!.source as any).seed).toBe(123);
+  });
+
+  it("const without value defaults to 1", () => {
+    const result = parseTransformExpr("const");
+    expect(result).not.toBeNull();
+    expect(result!.source.kind).toBe("const");
+    expect((result!.source as any).value).toBe(1);
+  });
+
+  it("ROSE with key=value params", () => {
+    const result = parseTransformExpr("ROSE(index, k=7)");
+    expect(result).not.toBeNull();
+    expect(result!.transform.kind).toBe("curve");
+    expect((result!.transform as any).params.k).toBe(7);
+  });
+
+  it("SIN wrapping a field source parses as expression transform", () => {
+    // sin(cos(t * pi)) matches SIN( ... ) where "cos(t * pi)" is the source arg
+    // Since "cos(t * pi)" isn't a known axis source, it returns null
+    const result = parseTransformExpr("SIN(degree)");
+    expect(result).not.toBeNull();
+    expect(result!.transform.kind).toBe(TRANSFORM_EXPRESSION);
+    expect((result!.transform as any).expr).toContain("sin");
+  });
+
+  it("unknown string without fallback parses as field source", () => {
+    // Any unrecognized string is treated as a field name
+    const result = parseTransformExpr("!!!garbage!!!");
+    expect(result).not.toBeNull();
+    expect(result!.source.kind).toBe(SOURCE_FIELD);
+    expect((result!.source as any).field).toBe("!!!garbage!!!");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// transformExprToString — additional serialization (cycle152)
+// ---------------------------------------------------------------------------
+describe("transformExprToString additional (cycle152)", () => {
+  it("STACK serializes correctly", () => {
+    const source: AxisSource = { kind: SOURCE_INDEX };
+    const transform: AxisTransform = { kind: "stack-avoid" as any };
+    const result = transformExprToString(source, transform);
+    expect(result).toContain("STACK");
+  });
+
+  it("GOLDEN serializes correctly", () => {
+    const source: AxisSource = { kind: SOURCE_INDEX };
+    const transform: AxisTransform = { kind: "golden-angle" as any };
+    const result = transformExprToString(source, transform);
+    expect(result).toContain("GOLDEN");
+  });
+
+  it("DATE_INDEX serializes correctly", () => {
+    const source: AxisSource = { kind: SOURCE_INDEX };
+    const transform: AxisTransform = { kind: "date-to-index" as any };
+    const result = transformExprToString(source, transform);
+    expect(result).toContain("DATE_INDEX");
+  });
+
+  it("EVEN serializes with totalRange", () => {
+    const source: AxisSource = { kind: SOURCE_INDEX };
+    const transform: AxisTransform = { kind: "even-divide" as any, totalRange: 720 };
+    const result = transformExprToString(source, transform);
+    expect(result).toContain("EVEN");
+    expect(result).toContain("720");
+  });
+
+  it("SHAPE_FILL serializes shape name", () => {
+    const source: AxisSource = { kind: SOURCE_INDEX };
+    const transform: AxisTransform = { kind: "shape-fill" as any, shape: "hexagon" };
+    const result = transformExprToString(source, transform);
+    expect(result).toContain("SHAPE_FILL");
+    expect(result).toContain("hexagon");
+  });
+
+  it("random source with non-default seed serializes with seed", () => {
+    const source: AxisSource = { kind: "random" as any, seed: 99 };
+    const transform: AxisTransform = { kind: TRANSFORM_LINEAR, scale: 1 };
+    const result = transformExprToString(source, transform);
+    expect(result).toContain("99");
+  });
+
+  it("hop source serializes with from and maxDepth", () => {
+    const source: AxisSource = { kind: "hop" as any, from: "start", maxDepth: 5 };
+    const transform: AxisTransform = { kind: TRANSFORM_LINEAR, scale: 1 };
+    const result = transformExprToString(source, transform);
+    expect(result).toContain("hop");
+    expect(result).toContain("start");
+    expect(result).toContain("5");
+  });
+});

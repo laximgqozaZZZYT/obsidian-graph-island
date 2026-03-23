@@ -843,3 +843,130 @@ describe("formatGridValue", () => {
     expect(formatGridValue(10.3, 5)).toBe("10");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Edge cases: resolveAxisValues (cycle152)
+// ---------------------------------------------------------------------------
+describe("resolveAxisValues edge cases (cycle152)", () => {
+  const ctx = baseCtx();
+
+  it("empty node list returns empty map for index source", () => {
+    const vals = resolveAxisValues([], { kind: "index" }, ctx);
+    expect(vals.size).toBe(0);
+  });
+
+  it("single node gets index 0", () => {
+    const vals = resolveAxisValues([makeNode("only")], { kind: "index" }, ctx);
+    expect(vals.get("only")).toBe(0);
+  });
+
+  it("single node with const source gets constant value", () => {
+    const vals = resolveAxisValues([makeNode("z")], { kind: "const", value: 99 }, ctx);
+    expect(vals.get("z")).toBe(99);
+  });
+
+  it("metric:degree for nodes not in degree map defaults to 0", () => {
+    const ctx2 = baseCtx({ degrees: new Map() }); // empty degree map
+    const vals = resolveAxisValues(
+      [makeNode("a"), makeNode("b")],
+      { kind: "metric", metric: "degree" },
+      ctx2,
+    );
+    expect(vals.get("a")).toBe(0);
+    expect(vals.get("b")).toBe(0);
+  });
+
+  it("field source: all nodes missing field → all get same value", () => {
+    const nodes = [makeNode("a"), makeNode("b"), makeNode("c")];
+    const vals = resolveAxisValues(nodes, { kind: "field", field: "nonexistent_field" }, ctx);
+    const values = [...vals.values()];
+    // All nodes have the same missing-value mapping
+    expect(new Set(values).size).toBe(1);
+  });
+
+  it("random with different seeds produces different values", () => {
+    const nodes = [makeNode("a"), makeNode("b")];
+    const v1 = resolveAxisValues(nodes, { kind: "random", seed: 1 }, ctx);
+    const v2 = resolveAxisValues(nodes, { kind: "random", seed: 9999 }, ctx);
+    // At least one node should differ between seeds
+    const differ = v1.get("a") !== v2.get("a") || v1.get("b") !== v2.get("b");
+    expect(differ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: applyTransform (cycle152)
+// ---------------------------------------------------------------------------
+describe("applyTransform edge cases (cycle152)", () => {
+  it("empty map returns empty map", () => {
+    const result = applyTransform(new Map(), { kind: "linear", scale: 1 }, 48);
+    expect(result.size).toBe(0);
+  });
+
+  it("single entry with linear transform", () => {
+    const raw = new Map([["only", 5]]);
+    const t = applyTransform(raw, { kind: "linear", scale: 2 }, 10);
+    expect(t.get("only")).toBe(5 * 2 * 10);
+  });
+
+  it("bin with count=1 puts all nodes in single bin", () => {
+    const raw = new Map([["a", 0], ["b", 50], ["c", 100]]);
+    const t = applyTransform(raw, { kind: "bin", count: 1 }, 10);
+    const values = [...t.values()];
+    // All should be in bin 0 → (0+1)*spacing = 10
+    expect(new Set(values).size).toBe(1);
+  });
+
+  it("date-to-index with duplicate values preserves all entries", () => {
+    const raw = new Map([["a", 5], ["b", 5], ["c", 5]]);
+    const t = applyTransform(raw, { kind: "date-to-index" }, 10);
+    expect(t.size).toBe(3);
+  });
+
+  it("linear with scale=0 collapses all to zero", () => {
+    const raw = new Map([["a", 10], ["b", 20]]);
+    const t = applyTransform(raw, { kind: "linear", scale: 0 }, 48);
+    expect(t.get("a")).toBe(0);
+    expect(t.get("b")).toBe(0);
+  });
+
+  it("expression with N variable uses constants", () => {
+    const raw = new Map([["a", 0], ["b", 1]]);
+    const t = applyTransform(
+      raw,
+      { kind: "expression", expr: "t * N", scale: 1 },
+      10,
+      undefined,
+      { N: 100 },
+    );
+    // t is normalized 0..1; for b: t=1 → 1*100=100, times spacing=10 → 1000
+    expect(t.get("b")!).toBeCloseTo(100 * 10);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases: toCartesian (cycle152)
+// ---------------------------------------------------------------------------
+describe("toCartesian edge cases (cycle152)", () => {
+  it("empty maps return empty result", () => {
+    const result = toCartesian(new Map(), new Map(), "cartesian");
+    expect(result.size).toBe(0);
+  });
+
+  it("single node in cartesian centers at origin", () => {
+    const a1 = new Map([["x", 50]]);
+    const a2 = new Map([["x", 30]]);
+    const result = toCartesian(a1, a2, "cartesian");
+    expect(result.get("x")!.dx).toBeCloseTo(0);
+    expect(result.get("x")!.dy).toBeCloseTo(0);
+  });
+
+  it("polar with θ=π/2 produces y-axis offset", () => {
+    const a1 = new Map([["a", 100], ["b", 0]]);
+    const a2 = new Map([["a", Math.PI / 2], ["b", 0]]);
+    const result = toCartesian(a1, a2, "polar");
+    // a: (0, 100), b: (0, 0) → centroid (0, 50) → a offset (0, 50), b offset (0, -50)
+    expect(result.get("a")!.dy).toBeCloseTo(50);
+    expect(result.get("b")!.dy).toBeCloseTo(-50);
+  });
+});
