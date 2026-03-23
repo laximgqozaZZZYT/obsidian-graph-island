@@ -351,12 +351,17 @@ function assignLanesByCategory(
 
   const timedNodes = nodes.filter(n => timedNodeIds.has(n.id));
 
-  // Derive group key: category > folder root > "other"
+  // Derive group key from deepest meaningful folder segment
   function groupKey(n: GraphNode): string {
-    if (n.category) return `cat:${n.category}`;
     const fp = (n as any).filePath || n.id;
-    const firstSlash = fp.indexOf("/");
-    if (firstSlash > 0) return `dir:${fp.slice(0, firstSlash)}`;
+    const segments = fp.split("/").filter((s: string) => s.length > 0);
+    // Use the second-to-last folder (parent of the file), or first folder if shallow
+    // e.g. "開発/classic-hamlet/characters/hamlet.md" → "classic-hamlet"
+    // e.g. "classic-hamlet/characters/hamlet.md" → "classic-hamlet"
+    if (segments.length >= 3) return `dir:${segments[segments.length - 3]}`;
+    if (segments.length >= 2) return `dir:${segments[0]}`;
+    // Fallback: use category if available
+    if (n.category) return `cat:${n.category}`;
     return "other";
   }
 

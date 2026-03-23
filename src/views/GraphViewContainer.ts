@@ -7324,14 +7324,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           break;
         }
         case LAYOUT_TREE: {
-          // Adaptive node spacing based on node count
           const treeNodeCount = gd.nodes.length;
-          const adaptiveNodeWidth = treeNodeCount > 500 ? 20 :
-            treeNodeCount > 200 ? 30 :
-            treeNodeCount > 100 ? 40 : 60;
-          const adaptiveLevelHeight = treeNodeCount > 500 ? 40 :
-            treeNodeCount > 200 ? 50 :
-            treeNodeCount > 100 ? 60 : 80;
+          // Scale node spacing inversely with node count
+          const adaptiveNodeWidth = Math.max(4, Math.round(2000 / Math.sqrt(treeNodeCount)));
+          const adaptiveLevelHeight = Math.max(15, Math.round(1500 / Math.sqrt(treeNodeCount)));
 
           ld = applyTreeLayout(gd, {
             startX: 0, startY: 0,
@@ -7342,10 +7338,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           // Rotate: swap x↔y so depth goes left→right, siblings go top→bottom
           for (const n of ld.nodes) {
             const ox = n.x, oy = n.y;
-            n.x = oy + 60;   // depth → horizontal
-            n.y = ox;         // sibling spread → vertical
+            n.x = oy + 60;
+            n.y = ox;
           }
-          // Center the tree on canvas — don't scale down (let autoFitView handle zoom)
+          // Scale to fit canvas with generous padding (allow zoom to explore)
           {
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
             for (const n of ld.nodes) {
@@ -7354,11 +7350,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
               if (n.y < minY) minY = n.y;
               if (n.y > maxY) maxY = n.y;
             }
+            const spreadX = maxX - minX || 1;
+            const spreadY = maxY - minY || 1;
+            // Scale to fit 2x canvas (user can zoom in/out)
+            const fitScale = Math.min((W * 2) / spreadX, (H * 2) / spreadY, 1);
             const midX = (minX + maxX) / 2;
             const midY = (minY + maxY) / 2;
             for (const n of ld.nodes) {
-              n.x = cx + (n.x - midX);
-              n.y = cy + (n.y - midY);
+              n.x = cx + (n.x - midX) * fitScale;
+              n.y = cy + (n.y - midY) * fitScale;
             }
           }
           break;
