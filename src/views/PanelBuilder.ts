@@ -1498,7 +1498,7 @@ function _buildNodeDecorationSection(
       addSelect(body, t("display.importanceMetric"), [
         { value: "degree", label: t("display.metricDegree") },
         { value: "betweenness", label: t("display.metricBetweenness") },
-        { value: "pagerank", label: t("display.metricPagerank") },
+        // pagerank option removed — not implemented, falls back to degree silently
       ], panel.importanceMetric, (v) => {
         panel.importanceMetric = v as "degree" | "betweenness" | "pagerank";
         cb.markDirty();

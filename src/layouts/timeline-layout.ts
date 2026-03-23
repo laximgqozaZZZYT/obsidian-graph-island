@@ -491,7 +491,7 @@ function timelineComputeBars(
 }
 
 /** バーを非重複 Y レーンに割り当て、必要に応じてコンパクトスケーリングを適用 */
-function timelineAssignBarLanes(
+export function timelineAssignBarLanes(
   bars: TimelineBarInfo[],
   offsets: Map<string, { dx: number; dy: number }>,
   nodeSize: number,
@@ -553,7 +553,7 @@ function timelineAssignBarLanes(
 }
 
 /** 同一タイムカラムの非バーノードを最小ギャップを強制して離間 */
-function timelineEnforceColumnGaps(
+export function timelineEnforceColumnGaps(
   sortedTimed: { node: GraphNode; value: string }[],
   bars: TimelineBarInfo[],
   timeIndexMap: Map<string, number>,

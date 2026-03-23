@@ -11,9 +11,11 @@ import {
   timelinePlaceTimedNodes,
   timelineAlignHierarchy,
   timelinePlaceUntimedNodes,
+  timelineAssignBarLanes,
+  timelineEnforceColumnGaps,
 } from "../src/layouts/timeline-layout";
 import type { GraphNode } from "../src/types";
-import type { ClusterForceConfig } from "../src/layouts/cluster-force";
+import type { ClusterForceConfig, TimelineBarInfo } from "../src/layouts/cluster-force";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -780,5 +782,175 @@ describe("timelinePlaceUntimedNodes", () => {
     const dySet = new Set([...offsets.values()].map(o => o.dy));
     expect(dxSet.size).toBe(3); // 3 columns
     expect(dySet.size).toBe(3); // 3 rows
+  });
+});
+
+// ---------------------------------------------------------------------------
+// timelineAssignBarLanes — non-overlapping lane assignment for bars
+// ---------------------------------------------------------------------------
+
+function mkBar(nodeId: string, xStart: number, xEnd: number, yCenter = 0): TimelineBarInfo {
+  return { nodeId, xStart, xEnd, barHeight: 30, yCenter };
+}
+
+function minCfg(overrides?: Partial<ClusterForceConfig>): ClusterForceConfig {
+  return {
+    groupRules: [], arrangement: "timeline",
+    centerX: 0, centerY: 0, width: 800, height: 600,
+    nodeSize: 15, nodeSpacing: 2, groupScale: 1, groupSpacing: 1,
+    repelForce: 50, linkDistance: 100, linkForce: 0.5, centerForce: 0.3,
+    totalNodeCount: 10, timelineKey: "date", timelineOrderFields: "",
+    sequenceFields: [], reverseSequenceFields: [],
+    getNodeProperty: () => undefined,
+    ...overrides,
+  } as ClusterForceConfig;
+}
+
+describe("timelineAssignBarLanes", () => {
+  it("no-op for single bar", () => {
+    const bars = [mkBar("a", 0, 100)];
+    const offsets = new Map([["a", { dx: 0, dy: 0 }]]);
+    timelineAssignBarLanes(bars, offsets, 15, undefined, 10, minCfg());
+    // Single bar → function returns early, no lane reassignment
+    expect(bars[0].yCenter).toBe(0);
+  });
+
+  it("assigns non-overlapping Y lanes for overlapping bars", () => {
+    const bars = [
+      mkBar("a", 0, 100),
+      mkBar("b", 50, 150), // overlaps with a
+      mkBar("c", 200, 300), // no overlap with a or b
+    ];
+    const offsets = new Map([
+      ["a", { dx: 0, dy: 0 }],
+      ["b", { dx: 50, dy: 0 }],
+      ["c", { dx: 200, dy: 0 }],
+    ]);
+    timelineAssignBarLanes(bars, offsets, 15, undefined, 10, minCfg());
+    // a and b overlap on X → must have different yCenter
+    expect(bars[0].yCenter).not.toBe(bars[1].yCenter);
+    // c doesn't overlap with a → can share lane 0
+    expect(bars[2].yCenter).toBe(bars[0].yCenter);
+  });
+
+  it("non-overlapping bars share the same lane", () => {
+    const bars = [
+      mkBar("a", 0, 50),
+      mkBar("b", 60, 110), // starts after a ends
+    ];
+    const offsets = new Map([
+      ["a", { dx: 0, dy: 0 }],
+      ["b", { dx: 60, dy: 0 }],
+    ]);
+    timelineAssignBarLanes(bars, offsets, 15, undefined, 10, minCfg());
+    expect(bars[0].yCenter).toBe(bars[1].yCenter);
+  });
+
+  it("updates offsets to match bar yCenter", () => {
+    const bars = [mkBar("a", 0, 100), mkBar("b", 50, 150)];
+    const offsets = new Map([
+      ["a", { dx: 0, dy: 999 }],
+      ["b", { dx: 50, dy: 999 }],
+    ]);
+    timelineAssignBarLanes(bars, offsets, 15, undefined, 10, minCfg());
+    expect(offsets.get("a")!.dy).toBe(bars[0].yCenter);
+    expect(offsets.get("b")!.dy).toBe(bars[1].yCenter);
+  });
+
+  it("applies compact scaling when total lanes exceed target height", () => {
+    // Many overlapping bars → many lanes → exceeds targetH
+    const bars = Array.from({ length: 50 }, (_, i) =>
+      mkBar(`n${i}`, 0, 100) // all overlap → 50 lanes
+    );
+    const offsets = new Map(bars.map(b => [b.nodeId, { dx: 0, dy: 0 }]));
+    const cfg = minCfg({ userConstants: { _timelineMinH: 100, _timelineHPerNode: 0.1 } });
+    timelineAssignBarLanes(bars, offsets, 15, undefined, 50, cfg);
+    // All bars should have been scaled down
+    const maxY = Math.max(...bars.map(b => b.yCenter));
+    const targetH = Math.max(100, 50 * 0.1);
+    expect(maxY).toBeLessThanOrEqual(targetH + 50); // approximate
+  });
+});
+
+// ---------------------------------------------------------------------------
+// timelineEnforceColumnGaps — minimum gap between non-bar nodes in same column
+// ---------------------------------------------------------------------------
+describe("timelineEnforceColumnGaps", () => {
+  it("pushes apart nodes that are too close in same column", () => {
+    const sorted = [
+      { node: mkNode("a"), value: "T1" },
+      { node: mkNode("b"), value: "T1" },
+    ];
+    const offsets = new Map([
+      ["a", { dx: 0, dy: 0 }],
+      ["b", { dx: 0, dy: 5 }], // too close (gap=5 < minNodeGap)
+    ]);
+    const timeIndexMap = new Map([["T1", 0]]);
+    timelineEnforceColumnGaps(sorted, [], timeIndexMap, offsets, 15, undefined, 40);
+    // minNodeGap = max(15*1.5, 40) = 40
+    expect(offsets.get("b")!.dy).toBeGreaterThanOrEqual(40);
+  });
+
+  it("does not modify nodes already far enough apart", () => {
+    const sorted = [
+      { node: mkNode("a"), value: "T1" },
+      { node: mkNode("b"), value: "T1" },
+    ];
+    const offsets = new Map([
+      ["a", { dx: 0, dy: 0 }],
+      ["b", { dx: 0, dy: 100 }], // far apart
+    ]);
+    const timeIndexMap = new Map([["T1", 0]]);
+    timelineEnforceColumnGaps(sorted, [], timeIndexMap, offsets, 15, undefined, 40);
+    expect(offsets.get("b")!.dy).toBe(100); // unchanged
+  });
+
+  it("skips bar nodes", () => {
+    const sorted = [
+      { node: mkNode("a"), value: "T1" },
+      { node: mkNode("b"), value: "T1" },
+    ];
+    const bars = [mkBar("b", 0, 100)]; // b is a bar node
+    const offsets = new Map([
+      ["a", { dx: 0, dy: 0 }],
+      ["b", { dx: 0, dy: 5 }],
+    ]);
+    const timeIndexMap = new Map([["T1", 0]]);
+    timelineEnforceColumnGaps(sorted, bars, timeIndexMap, offsets, 15, undefined, 40);
+    // Only 1 non-bar node in column → no gap enforcement
+    expect(offsets.get("b")!.dy).toBe(5); // unchanged
+  });
+
+  it("no-op for different columns", () => {
+    const sorted = [
+      { node: mkNode("a"), value: "T1" },
+      { node: mkNode("b"), value: "T2" },
+    ];
+    const offsets = new Map([
+      ["a", { dx: 0, dy: 0 }],
+      ["b", { dx: 100, dy: 0 }],
+    ]);
+    const timeIndexMap = new Map([["T1", 0], ["T2", 1]]);
+    timelineEnforceColumnGaps(sorted, [], timeIndexMap, offsets, 15, undefined, 40);
+    expect(offsets.get("a")!.dy).toBe(0);
+    expect(offsets.get("b")!.dy).toBe(0);
+  });
+
+  it("cascades gap enforcement for 3+ nodes in same column", () => {
+    const sorted = [
+      { node: mkNode("a"), value: "T1" },
+      { node: mkNode("b"), value: "T1" },
+      { node: mkNode("c"), value: "T1" },
+    ];
+    const offsets = new Map([
+      ["a", { dx: 0, dy: 0 }],
+      ["b", { dx: 0, dy: 1 }],
+      ["c", { dx: 0, dy: 2 }],
+    ]);
+    const timeIndexMap = new Map([["T1", 0]]);
+    timelineEnforceColumnGaps(sorted, [], timeIndexMap, offsets, 15, undefined, 40);
+    // After enforcement: a=0, b≥40, c≥80
+    expect(offsets.get("b")!.dy).toBeGreaterThanOrEqual(40);
+    expect(offsets.get("c")!.dy).toBeGreaterThanOrEqual(80);
   });
 });

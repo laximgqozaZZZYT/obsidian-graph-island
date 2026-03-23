@@ -3,7 +3,7 @@
  */
 import { test, expect } from "@playwright/test";
 
-const CDP_URL = "ws://localhost:9222/devtools/page/BCA71922CD8CECD42810A1290471C7B8";
+const CDP_URL = "ws://localhost:9222/devtools/page/3D5833F5199B38BD7028C625606DBE60";
 
 function cdp(ws: import("ws").WebSocket, id: number, expr: string): Promise<any> {
   return new Promise((resolve, reject) => {

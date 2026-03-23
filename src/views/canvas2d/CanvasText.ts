@@ -181,7 +181,7 @@ export class CanvasText {
       const ph = fontSize + this.bgPadY * 2;
       const px = tx - this.bgPadX;
       const py = ty - fontSize - this.bgPadY;
-      const radius = this.cornerRadius !== null ? Math.min(this.cornerRadius, ph / 2) : ph / 2;
+      const radius = Math.max(0, this.cornerRadius !== null ? Math.min(this.cornerRadius, ph / 2) : ph / 2);
       ctx.save();
       ctx.fillStyle = hexToRgba(this.bgColor, effAlpha * this.bgAlpha);
       ctx.beginPath();
