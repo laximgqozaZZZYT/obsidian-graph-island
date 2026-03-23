@@ -52,7 +52,7 @@ import {
   EVENT_SYNC_PANEL,
   POLAR_ARRANGEMENTS,
 } from "../constants";
-import { viewModeToLayout } from "../utils/view-mode-map";
+import { viewModeToLayout, viewModeSkipsNodeRendering, viewModeSkipsEdges } from "../utils/view-mode-map";
 
 // ---------------------------------------------------------------------------
 // StatsHost — interface for future StatsRenderer extraction (Phase 0)
@@ -4225,8 +4225,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   drawEdges() {
     if (!this.edgeGraphics) return;
-    // Ring chart mode: hide all edges (retained for backward compat)
-    if (this.isRingChartMode()) {
+    // Ring chart mode or edge-skipping viewMode: hide all edges
+    if (this.isRingChartMode() || viewModeSkipsEdges(this.panel.viewMode)) {
       this.edgeGraphics.clear();
       return;
     }
@@ -6594,6 +6594,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Sync currentLayout from viewMode (ensures saved state is respected)
     this.currentLayout = viewModeToLayout(this.panel.viewMode);
 
+    // Non-graph viewModes: skip per-node rendering, use dedicated renderers
+    this.renderPipeline?.setSkipNodeRendering(viewModeSkipsNodeRendering(this.panel.viewMode));
+
     // Sync toolbar active button with restored viewMode
     const modeGroup = this.containerEl.querySelector(".gi-view-mode-group");
     if (modeGroup) {
@@ -8179,6 +8182,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     const worldScale = this.worldContainer?.scale.x ?? 1;
     const strokeW = Math.max(0.5, 1.0 / worldScale);
+    const isSunburstView = this.panel.viewMode === "sunburst";
+    let maxDepth = 1;
+    for (const arc of arcs) { if (arc.depth > maxDepth) maxDepth = arc.depth; }
 
     for (let i = 0; i < arcs.length; i++) {
       const arc = arcs[i];
@@ -8192,11 +8198,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       const ci = groupColorMap.get(groupName) ?? 0;
       const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
-      const color = cssColorToHex(css);
+      let color = cssColorToHex(css);
 
-      const fillAlpha = arc.depth === 1 ? 0.25 : 0.15;
-      gfx.beginFill(color, fillAlpha);
-      gfx.lineStyle(strokeW, color, 0.5);
+      if (isSunburstView) {
+        // Ring chart style: opaque fill, depth-based lightening, white borders
+        const lightenFactor = arc.depth > 1 ? (arc.depth - 1) / maxDepth * 0.4 : 0;
+        color = this.lightenHexColor(color, lightenFactor);
+        const fillAlpha = Math.max(0.5, 0.85 - arc.depth * 0.06);
+        gfx.lineStyle(Math.max(1, 1.5 / worldScale), 0xffffff, 0.6);
+        gfx.beginFill(color, fillAlpha);
+      } else {
+        const fillAlpha = arc.depth === 1 ? 0.25 : 0.15;
+        gfx.beginFill(color, fillAlpha);
+        gfx.lineStyle(strokeW, color, 0.5);
+      }
 
       // Draw annular sector: offset angles by -PI/2 so top is 0
       this.drawArcPath(gfx, cx, cy, arc.y0, arc.y1, arc.x0 - Math.PI / 2, arc.x1 - Math.PI / 2);

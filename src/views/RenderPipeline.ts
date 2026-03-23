@@ -470,6 +470,9 @@ export class RenderPipeline {
   /** Last computed LOD level (0-5) from autoLOD. Exposed for LabelManager. */
   private _lastLodLevel = 3;
 
+  /** When true, skip per-node rendering (viewMode uses dedicated renderer). */
+  private _skipNodeRendering = false;
+
   /** Called after every render tick (used by minimap) */
   onPostRender: (() => void) | null = null;
 
@@ -686,8 +689,11 @@ export class RenderPipeline {
     const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...this.host.getCardRenderConfig?.() };
     const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
 
-    // Ring chart mode: hide all nodes
-    if (this.host.isRingChartMode()) return;
+    // Ring chart mode or non-graph viewMode: hide all node graphics
+    if (this.host.isRingChartMode() || this._skipNodeRendering) {
+      for (const pn of this.host.getPixiNodes().values()) pn.gfx.visible = false;
+      return;
+    }
 
     // Build shared render context for sub-methods
     const ctx = this._buildBatchContext(crc, rt);
@@ -2285,6 +2291,10 @@ export class RenderPipeline {
     for (let i = 0; i < IMMEDIATE_BATCH; i++) {
       this.createSinglePixiNode(sorted[i], nodeR, nodeColor, world);
     }
+    // Non-graph viewModes: hide all node graphics immediately after creation
+    if (this._skipNodeRendering) {
+      for (const pn of this.host.getPixiNodes().values()) pn.gfx.visible = false;
+    }
 
     // Push remaining nodes onto the deferred stack
     if (sorted.length > IMMEDIATE_BATCH) {
@@ -2487,6 +2497,12 @@ export class RenderPipeline {
     for (const n of batch) {
       this.createSinglePixiNode(n, this.pendingNodeR, this.pendingNodeColor, world);
     }
+    // Non-graph viewModes: hide newly created nodes
+    if (this._skipNodeRendering) {
+      for (const pn of this.host.getPixiNodes().values()) {
+        if (pn.gfx.visible) pn.gfx.visible = false;
+      }
+    }
 
     this.markDirty(true);
 
@@ -2520,6 +2536,9 @@ export class RenderPipeline {
   // =========================================================================
   /** Return the last computed autoLOD level (0-5). Used by LabelManager for LOD 2 filtering. */
   getLastLodLevel(): number { return this._lastLodLevel; }
+
+  /** Set whether to skip per-node rendering (for non-graph viewModes). */
+  setSkipNodeRendering(skip: boolean): void { this._skipNodeRendering = skip; }
 
   /** Whether autoLOD is currently active. */
   isAutoLODActive(): boolean {

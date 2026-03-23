@@ -76,9 +76,11 @@ describe("isSectionVisible", () => {
     expect(isSectionVisible("sunburst", "cableDisplay")).toBe(false);
     expect(isSectionVisible("sunburst", "edgeDisplay")).toBe(false);
   });
-  it("sunburst shows common sections", () => {
+  it("sunburst shows filter, hides node-related", () => {
     expect(isSectionVisible("sunburst", "filter")).toBe(true);
-    expect(isSectionVisible("sunburst", "minimap")).toBe(true);
+    expect(isSectionVisible("sunburst", "nodeDisplay")).toBe(false);
+    expect(isSectionVisible("sunburst", "nodeDecorations")).toBe(false);
+    expect(isSectionVisible("sunburst", "minimap")).toBe(false);
   });
 
   it("timeline hides irrelevant sections", () => {

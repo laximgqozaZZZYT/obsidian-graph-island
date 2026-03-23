@@ -17,3 +17,13 @@ const VIEW_MODE_LAYOUT_MAP: Record<ViewMode, LayoutType> = {
 export function viewModeToLayout(mode: ViewMode): LayoutType {
   return VIEW_MODE_LAYOUT_MAP[mode] ?? LAYOUT_FORCE;
 }
+
+/** Whether the RenderPipeline should skip per-node rendering for this viewMode. */
+export function viewModeSkipsNodeRendering(mode: ViewMode): boolean {
+  return mode === "sunburst" || mode === "timeline";
+}
+
+/** Whether edges should be skipped for this viewMode. */
+export function viewModeSkipsEdges(mode: ViewMode): boolean {
+  return mode === "sunburst";
+}
