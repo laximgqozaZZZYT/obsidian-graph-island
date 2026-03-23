@@ -76,7 +76,7 @@ test("Graph mode: nodes visible, force layout active", async () => {
   expect(result.currentLayout).toBe("force");
   expect(result.nodeCount).toBeGreaterThan(100);
   expect(result.nodeGfxInWorld).toBeGreaterThan(100);
-  expect(result.toolbarButtons).toBe(4);
+  expect(result.toolbarButtons).toBe(5);
   expect(result.activeButton).toBe("graph");
 });
 

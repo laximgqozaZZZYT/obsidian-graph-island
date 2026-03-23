@@ -231,7 +231,7 @@ test("UI quality: toolbar buttons have text labels", async () => {
     };
   })()`);
 
-  expect(result.buttonCount).toBe(4);
+  expect(result.buttonCount).toBe(5);
   expect(result.groupWidth).toBeGreaterThan(100); // group should be wide enough for 4 labeled buttons
 
   for (const btn of result.buttons) {
