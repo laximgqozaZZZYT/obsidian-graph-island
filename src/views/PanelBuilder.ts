@@ -1,4 +1,4 @@
-import type { LayoutType, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings, OntologyRule, OntologyRelation, CoordinateLayout, CoordinateSystem, AxisSource, AxisConfig, AxisTransform, CurveKind, ClusterGravityConfig, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, EdgeCardinalityMode, CardinalityRule, CardRenderConfig, CardinalityRenderConfig, RenderThresholds } from "../types";
+import type { LayoutType, ViewMode, GraphNode, ShellInfo, DirectionalGravityRule, ClusterArrangement, ClusterGroupArrangement, ClusterGroupBy, ClusterGroupRule, GroupRule, SortRule, SortKey, SortOrder, NodeRule, GraphViewsSettings, OntologyRule, OntologyRelation, CoordinateLayout, CoordinateSystem, AxisSource, AxisConfig, AxisTransform, CurveKind, ClusterGravityConfig, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, EdgeCardinalityMode, CardinalityRule, CardRenderConfig, CardinalityRenderConfig, RenderThresholds } from "../types";
 import { DEFAULT_CARD_RENDER_CONFIG, DEFAULT_CARDINALITY_RENDER_CONFIG, mergeRenderThresholds } from "../types";
 import { ontologyToRules, rulesToOntologyFields } from "../types";
 import { DEFAULT_COLORS } from "../types";
@@ -36,6 +36,8 @@ export interface NodeTreeEntry {
 
 export interface PanelState {
   /** Explicitly excluded node IDs (hidden via Nodes tab) */
+  /** Top-level visualization mode */
+  viewMode: ViewMode;
   excludeNodes: string[];
   /** GK: Auto-fit view after filter changes */
   autoFitOnFilter: boolean;
@@ -320,6 +322,7 @@ export interface PanelState {
  *  shared-reference bugs where mutations leak back into "defaults". */
 export function createDefaultPanel(): PanelState {
   return {
+    viewMode: "graph" as ViewMode,
     excludeNodes: [],
     autoFitOnFilter: false,
     minDegreeFilter: 0,
@@ -498,6 +501,11 @@ export function validatePanelState(panel: PanelState): void {
     if (typeof val !== "number" || !isFinite(val)) {
       (panel as any)[key] = (defaults as any)[key];
     }
+  }
+  // ViewMode validation
+  const validViewModes = new Set(["graph", "sunburst", "timeline", "tree"]);
+  if (!validViewModes.has(panel.viewMode)) {
+    panel.viewMode = "graph";
   }
   // Clamp hoverHops to 0-10
   if (panel.hoverHops < 0) panel.hoverHops = 0;
