@@ -5,7 +5,7 @@
  * and that switching between filter states produces correct results.
  */
 import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
-import { measureNodeOverlap, measureSpread, measureContrast, measureScreenDensity, measureLabelReadability } from "./helpers/quality-checks";
+import { measureNodeOverlap, measureSpread, measureContrast, measureScreenDensity, measureLabelReadability, measureEdgeVisibility, measureEnclosureOverlap, measureCardReadability } from "./helpers/quality-checks";
 
 const CDP_URL = "http://localhost:9222";
 let browser: Browser;
@@ -131,6 +131,25 @@ test("SCREEN-QUALITY: no node pile-up and labels readable", async () => {
   if (labels.totalVisible > 5) {
     expect(labels.overlapRate).toBeLessThan(0.50);
     expect(labels.tooSmallCount).toBeLessThan(labels.totalVisible * 0.3);
+  }
+
+  // 3. Edge visibility — edges should be distinguishable
+  const edges = await measureEdgeVisibility(page);
+  if (edges.totalEdges > 5) {
+    expect(edges.lowAlphaCount).toBeLessThan(edges.visibleEdges * 0.5);
+  }
+
+  // 4. Enclosure overlap — groupBy boundaries shouldn't overlap heavily
+  const enclosures = await measureEnclosureOverlap(page);
+  if (enclosures.totalEnclosures > 2) {
+    expect(enclosures.overlapRate).toBeLessThan(0.50);
+  }
+
+  // 5. Card readability — cards should not overlap excessively
+  const cards = await measureCardReadability(page);
+  if (cards.totalCards > 5) {
+    expect(cards.overlappingCards).toBeLessThan(cards.totalCards * 0.3);
+    expect(cards.tooSmallCards).toBeLessThan(cards.totalCards * 0.5);
   }
 });
 

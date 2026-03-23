@@ -433,3 +433,260 @@ export async function measureCardText(page: Page, sampleSize = 30): Promise<Card
     };
   }, sampleSize);
 }
+
+// ---------------------------------------------------------------------------
+// 8. Edge visibility (are edges visible, distinguishable from background?)
+// ---------------------------------------------------------------------------
+
+export interface EdgeVisibilityReport {
+  totalEdges: number;
+  visibleEdges: number;
+  tooThinCount: number;
+  lowAlphaCount: number;
+  avgScreenThickness: number;
+  colorVariety: number;
+}
+
+export async function measureEdgeVisibility(page: Page, sampleSize = 200): Promise<EdgeVisibilityReport> {
+  return page.evaluate((maxSample) => {
+    const v = (window as any).app.workspace
+      .getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v || !v.graphEdges) {
+      return { totalEdges: 0, visibleEdges: 0, tooThinCount: 0, lowAlphaCount: 0, avgScreenThickness: 0, colorVariety: 0 };
+    }
+
+    const ws = v.worldContainer?.scale?.x ?? 1;
+    const edges = v.graphEdges;
+    const total = edges.length;
+    let visible = 0, tooThin = 0, lowAlpha = 0, thicknessSum = 0;
+    const colors = new Set<number>();
+    const limit = Math.min(total, maxSample);
+
+    for (let i = 0; i < limit; i++) {
+      const e = edges[i];
+      if (!e) continue;
+      const gfx = e.gfx ?? e._gfx;
+      if (!gfx || !gfx.visible) continue;
+      visible++;
+
+      const alpha = gfx.alpha ?? 1;
+      if (alpha < 0.1) lowAlpha++;
+
+      const thickness = (e.thickness ?? e.lineWidth ?? 1) * ws;
+      thicknessSum += thickness;
+      if (thickness < 0.3) tooThin++;
+
+      const color = e.color ?? e.tint ?? 0;
+      colors.add(color);
+    }
+
+    return {
+      totalEdges: total,
+      visibleEdges: visible,
+      tooThinCount: tooThin,
+      lowAlphaCount: lowAlpha,
+      avgScreenThickness: visible > 0 ? Math.round(thicknessSum / visible * 100) / 100 : 0,
+      colorVariety: colors.size,
+    };
+  }, sampleSize);
+}
+
+// ---------------------------------------------------------------------------
+// 9. Enclosure overlap (groupBy boundaries shouldn't overlap heavily)
+// ---------------------------------------------------------------------------
+
+export interface EnclosureReport {
+  totalEnclosures: number;
+  overlappingPairs: number;
+  overlapRate: number;
+  avgArea: number;
+  tooSmallCount: number;
+}
+
+export async function measureEnclosureOverlap(page: Page): Promise<EnclosureReport> {
+  return page.evaluate(() => {
+    const v = (window as any).app.workspace
+      .getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v) {
+      return { totalEnclosures: 0, overlappingPairs: 0, overlapRate: 0, avgArea: 0, tooSmallCount: 0 };
+    }
+
+    const encContainer = v.enclosureContainer ?? v._enclosureContainer;
+    if (!encContainer || !encContainer.children) {
+      return { totalEnclosures: 0, overlappingPairs: 0, overlapRate: 0, avgArea: 0, tooSmallCount: 0 };
+    }
+
+    const rects: { x: number; y: number; w: number; h: number }[] = [];
+    let areaSum = 0, tooSmall = 0;
+
+    for (const child of encContainer.children) {
+      if (!child.visible) continue;
+      const b = child.getBounds?.();
+      if (!b || b.width === 0 || b.height === 0) continue;
+      rects.push({ x: b.x, y: b.y, w: b.width, h: b.height });
+      areaSum += b.width * b.height;
+      if (b.width < 20 || b.height < 20) tooSmall++;
+    }
+
+    let overlappingPairs = 0;
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i], b = rects[j];
+        const ox = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+        const oy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+        const oArea = ox * oy;
+        const smaller = Math.min(a.w * a.h, b.w * b.h);
+        if (smaller > 0 && oArea / smaller > 0.3) overlappingPairs++;
+      }
+    }
+
+    const totalPairs = rects.length > 1 ? (rects.length * (rects.length - 1)) / 2 : 1;
+    return {
+      totalEnclosures: rects.length,
+      overlappingPairs,
+      overlapRate: Math.round((overlappingPairs / totalPairs) * 1000) / 1000,
+      avgArea: rects.length > 0 ? Math.round(areaSum / rects.length) : 0,
+      tooSmallCount: tooSmall,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 10. Timeline axis quality (tick spacing, label overlap)
+// ---------------------------------------------------------------------------
+
+export interface TimelineAxisReport {
+  tickCount: number;
+  overlappingTickLabels: number;
+  minTickSpacing: number;
+  axisVisible: boolean;
+  labelsFit: boolean;
+}
+
+export async function measureTimelineAxis(page: Page): Promise<TimelineAxisReport> {
+  return page.evaluate(() => {
+    const v = (window as any).app.workspace
+      .getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v) {
+      return { tickCount: 0, overlappingTickLabels: 0, minTickSpacing: 0, axisVisible: false, labelsFit: true };
+    }
+
+    const guideContainer = v.guideContainer ?? v._guideContainer ?? v.axisContainer;
+    if (!guideContainer) {
+      return { tickCount: 0, overlappingTickLabels: 0, minTickSpacing: 0, axisVisible: false, labelsFit: true };
+    }
+
+    const canvas = v.containerEl?.querySelector("canvas");
+    const cW = canvas?.clientWidth ?? 800;
+    const cH = canvas?.clientHeight ?? 600;
+    const labels: { x: number; y: number; w: number; h: number }[] = [];
+
+    function collect(c: any) {
+      if (!c?.children) return;
+      for (const ch of c.children) {
+        if (ch.text && ch.visible && (ch.alpha ?? 1) > 0.05) {
+          const b = ch.getBounds?.();
+          if (b) labels.push({ x: b.x, y: b.y, w: b.width, h: b.height });
+        }
+        if (ch.children) collect(ch);
+      }
+    }
+    collect(guideContainer);
+    labels.sort((a, b) => a.x - b.x);
+
+    let minSpacing = Infinity;
+    for (let i = 1; i < labels.length; i++) {
+      const gap = labels[i].x - (labels[i-1].x + labels[i-1].w);
+      if (gap < minSpacing) minSpacing = gap;
+    }
+
+    let overlapping = 0;
+    for (let i = 0; i < labels.length; i++) {
+      for (let j = i + 1; j < labels.length; j++) {
+        const a = labels[i], b = labels[j];
+        if (a.x < b.x + b.w && a.x + a.w > b.x &&
+            a.y < b.y + b.h && a.y + a.h > b.y) overlapping++;
+      }
+    }
+
+    const labelsFit = labels.every(l =>
+      l.x >= -50 && l.x + l.w <= cW + 50 && l.y >= -50 && l.y + l.h <= cH + 50);
+
+    return {
+      tickCount: labels.length,
+      overlappingTickLabels: overlapping,
+      minTickSpacing: labels.length > 1 ? Math.round(minSpacing) : 0,
+      axisVisible: labels.length > 0,
+      labelsFit,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 11. Card mode readability
+// ---------------------------------------------------------------------------
+
+export interface CardReadabilityReport {
+  totalCards: number;
+  withVisibleHeader: number;
+  withVisibleBody: number;
+  overlappingCards: number;
+  avgCardWidth: number;
+  avgCardHeight: number;
+  tooSmallCards: number;
+}
+
+export async function measureCardReadability(page: Page, sampleSize = 50): Promise<CardReadabilityReport> {
+  return page.evaluate((maxSample) => {
+    const v = (window as any).app.workspace
+      .getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v || !v.pixiNodes) {
+      return { totalCards: 0, withVisibleHeader: 0, withVisibleBody: 0, overlappingCards: 0, avgCardWidth: 0, avgCardHeight: 0, tooSmallCards: 0 };
+    }
+
+    const rects: { x: number; y: number; w: number; h: number }[] = [];
+    let total = 0, withHeader = 0, withBody = 0, tooSmall = 0, wSum = 0, hSum = 0;
+
+    for (const [, pn] of v.pixiNodes) {
+      if (total >= maxSample) break;
+      const gfx = pn.gfx;
+      if (!gfx || !gfx.visible) continue;
+      const b = gfx.getBounds?.();
+      if (!b || b.width < 1 || b.height < 1) continue;
+      total++;
+      wSum += b.width;
+      hSum += b.height;
+      rects.push({ x: b.x, y: b.y, w: b.width, h: b.height });
+      if (b.width < 30 || b.height < 30) tooSmall++;
+      const ch = gfx.children ?? [];
+      for (const c of ch) {
+        if (typeof c.text === "string" && c.text.length > 0 && c.visible) { withHeader++; break; }
+      }
+      if (pn.data?.bodyPreview?.length > 0) withBody++;
+    }
+
+    let overlapping = 0;
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i], b = rects[j];
+        const ox = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+        const oy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+        const oArea = ox * oy;
+        const smaller = Math.min(a.w * a.h, b.w * b.h);
+        if (smaller > 0 && oArea / smaller > 0.5) overlapping++;
+      }
+    }
+
+    return {
+      totalCards: total, withVisibleHeader: withHeader, withVisibleBody: withBody,
+      overlappingCards: overlapping,
+      avgCardWidth: total > 0 ? Math.round(wSum / total) : 0,
+      avgCardHeight: total > 0 ? Math.round(hSum / total) : 0,
+      tooSmallCards: tooSmall,
+    };
+  }, sampleSize);
+}
