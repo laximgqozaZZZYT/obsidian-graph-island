@@ -244,6 +244,10 @@ test.describe("1. Graph Data Integrity", () => {
       return Math.max(...Object.values(deg));
     });
     expect(maxDeg).toBeGreaterThan(50);
+    // === Display Quality: node color contrast against background ===
+    const contrast = await measureContrast(page, 200);
+    expect(contrast.failCount).toBeLessThan(contrast.checkedCount * 0.3);
+    expect(contrast.minRatio).toBeGreaterThan(1.5);
   });
 });
 
@@ -421,6 +425,9 @@ test.describe("7. Node Minimum Size", () => {
       return { minR };
     });
     expect(check.minR).toBeGreaterThanOrEqual(15);
+    // === Display Quality: minimum node spacing ===
+    const overlap = await measureNodeOverlap(page);
+    expect(overlap.overlapRatio).toBeLessThan(0.10);
   });
 });
 
@@ -482,6 +489,12 @@ test.describe("9. Layout Switching", () => {
     // Grid should create at least 3 distinct X and Y positions
     expect(result.distinctX).toBeGreaterThan(2);
     expect(result.distinctY).toBeGreaterThan(2);
+    // === Display Quality: grid layout should have low overlap ===
+    const overlap = await measureNodeOverlap(page);
+    expect(overlap.overlapRatio).toBeLessThan(0.03);
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    expect(spread.spreadRatio).toBeGreaterThan(0.05);
   });
 
   test("9.2 force layout restores after grid", async () => {
@@ -501,6 +514,11 @@ test.describe("9. Layout Switching", () => {
       return v?.pixiNodes?.size ?? 0;
     });
     expect(nodeCount).toBeGreaterThan(2000);
+    // === Display Quality: force layout spread after grid restore ===
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    expect(spread.bboxWidth).toBeGreaterThan(100);
+    expect(spread.bboxHeight).toBeGreaterThan(100);
   });
 });
 
@@ -590,6 +608,14 @@ test.describe("11. Timeline Layout", () => {
     expect(result.nodeCount).toBeGreaterThan(20);
     // Timeline should have horizontal spread of at least 200px
     expect(result.xSpread).toBeGreaterThan(200);
+    // === Display Quality: timeline overlap + aspect ratio ===
+    const overlap = await measureNodeOverlap(page);
+    expect(overlap.overlapRatio).toBeLessThan(0.15);
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    if (spread.bboxWidth > 0 && spread.bboxHeight > 0) {
+      expect(spread.bboxWidth).toBeGreaterThan(spread.bboxHeight * 0.5);
+    }
 
     // Restore force layout
     await renderAndVerify(page, { clusterArrangement: "force", searchQuery: "" }, async (p) => {
@@ -672,6 +698,12 @@ test.describe("14. Legend Content", () => {
     expect(result.sectionCount).toBeGreaterThan(0);
     expect(result.itemCount).toBeGreaterThan(0);
     expect(result.dotCount).toBeGreaterThan(0);
+    // === Display Quality: legend + labels coexistence ===
+    const labels = await measureLabels(page);
+    expect(labels.totalNodes).toBeGreaterThan(0);
+    if (labels.visibleLabels > 0) {
+      expect(labels.avgFontScale).toBeGreaterThan(0);
+    }
 
     // Restore
     await page.evaluate(() => {
@@ -855,6 +887,10 @@ test.describe("21. Node Color Mode Switching", () => {
     });
     console.log(`Colors: default=${defaultColors}, category=${categoryColors}`);
     expect(categoryColors).toBeGreaterThan(defaultColors);
+    // === Display Quality: colors should be distinguishable from background ===
+    const contrast = await measureContrast(page, 100);
+    expect(contrast.failCount).toBeLessThan(contrast.checkedCount * 0.5);
+    expect(contrast.avgRatio).toBeGreaterThan(2.0);
     // Restore
     await page.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
@@ -1078,6 +1114,13 @@ test.describe("29. Drag Distance Limit", () => {
     // Nodes should be within reasonable bounds (not NaN or Infinity)
     expect(isFinite(result.maxDist)).toBe(true);
     expect(result.maxDist).toBeLessThan(100000);
+    // === Display Quality: comprehensive coordinate health ===
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    expect(spread.infCount).toBe(0);
+    expect(spread.spreadRatio).toBeGreaterThan(0.05);
+    expect(spread.bboxWidth).toBeGreaterThan(50);
+    expect(spread.bboxHeight).toBeGreaterThan(50);
   });
 });
 
@@ -1152,6 +1195,12 @@ test.describe("32. Full Graph Export", () => {
     expect(result.hasY).toBe(true);
     expect(result.hasLabel).toBe(true);
     expect(result.edgeCount).toBeGreaterThan(100);
+    // === Display Quality: labels should be readable ===
+    const labels = await measureLabels(page);
+    if (labels.visibleLabels > 10) {
+      const overlapRatio = labels.labelOverlaps / labels.visibleLabels;
+      expect(overlapRatio).toBeLessThan(2.0);
+    }
   });
 });
 
@@ -1484,6 +1533,9 @@ test.describe("42. Card Mode Content", () => {
     expect(result.withText).toBeGreaterThan(0);
     // bodyPreview should be populated on at least some nodes
     expect(result.bodyPreviewCount).toBeGreaterThan(0);
+    // === Display Quality: card text coverage ===
+    const cardText = await measureCardText(page, 30);
+    expect(cardText.textRatio).toBeGreaterThan(0);
   });
 
   test("42.2 card hover tooltip includes body preview in card mode", async () => {
@@ -1604,6 +1656,9 @@ test.describe("44. Accessibility", () => {
     });
     expect(result).not.toHaveProperty("error");
     expect(result.cardMode).toBe("card");
+    // === Display Quality: actual WCAG contrast check ===
+    const contrast = await measureContrast(page, 50);
+    expect(contrast.failCount).toBeLessThan(contrast.checkedCount * 0.3);
   });
 });
 
@@ -1829,6 +1884,9 @@ test.describe("51. Field Color Initial Render", () => {
     expect(result).not.toHaveProperty("error");
     // With field mode, there should be more than 1 distinct color
     expect(result.colorCount).toBeGreaterThanOrEqual(1);
+    // === Display Quality: field colors should have adequate contrast ===
+    const contrast = await measureContrast(page, 50);
+    expect(contrast.avgRatio).toBeGreaterThan(1.5);
   });
 });
 

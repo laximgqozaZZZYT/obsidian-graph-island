@@ -142,6 +142,8 @@ export interface InteractionHost {
   getNeighborIds?(nodeId: string): string[];
   /** C6: Toggle multi-select for a node */
   toggleMultiSelect?(nodeId: string): void;
+  /** Lasso selection: add all nodes inside polygon to multiSelect */
+  lassoSelectNodes?(screenPolygon: { x: number; y: number }[], additive: boolean): void;
   /** D5: Toggle cluster compare for a node's cluster */
   toggleClusterCompare?(nodeId: string): void;
   /** D5: Whether cluster compare is enabled */
@@ -212,6 +214,14 @@ const MARQUEE_STROKE_WIDTH = 1.5;
 const MARQUEE_STROKE_ALPHA = 0.9;
 /** Marquee selection fill alpha */
 const MARQUEE_FILL_ALPHA = 0.08;
+/** Lasso selection stroke width */
+const LASSO_STROKE_WIDTH = 2;
+/** Lasso selection stroke alpha */
+const LASSO_STROKE_ALPHA = 0.9;
+/** Lasso selection fill alpha */
+const LASSO_FILL_ALPHA = 0.06;
+/** Minimum lasso points to form a polygon */
+const LASSO_MIN_POINTS = 5;
 
 // ---------------------------------------------------------------------------
 // InteractionManager — owns all pointer/wheel event handling
@@ -241,6 +251,12 @@ export class InteractionManager {
   private isMarqueeActive = false;
   private marqueeStart = { x: 0, y: 0 };
   private marqueeGraphics: CanvasGraphics | null = null;
+
+  // Lasso selection
+  lassoMode = false;
+  private isLassoActive = false;
+  private lassoPoints: { x: number; y: number }[] = [];
+  private lassoGraphics: CanvasGraphics | null = null;
 
   // ビジュアルリンクエディタ: Alt+ドラッグでリンク作成
   private dragLinkSource: PixiNode | null = null;
@@ -305,6 +321,10 @@ export class InteractionManager {
     if (this.marqueeGraphics) {
       this.marqueeGraphics.destroy();
       this.marqueeGraphics = null;
+    }
+    if (this.lassoGraphics) {
+      this.lassoGraphics.destroy();
+      this.lassoGraphics = null;
     }
   }
 
@@ -401,6 +421,15 @@ export class InteractionManager {
       this.isPanning = true;
       this.panStart = { x: mx, y: my };
       this.worldStart = { x: world.x, y: world.y };
+    } else if (this.lassoMode) {
+      this.isLassoActive = true;
+      this.lassoPoints = [{ x: mx, y: my }];
+      const lApp = this.host.getPixiApp();
+      if (lApp && !this.lassoGraphics) {
+        this.lassoGraphics = new CanvasGraphics();
+        lApp.stage.addChild(this.lassoGraphics);
+      }
+      if (this.lassoGraphics) this.lassoGraphics.clear();
     } else if (this.marqueeMode) {
       // Marquee mode active → left-click drag for range zoom
       this.isMarqueeActive = true;
@@ -491,6 +520,18 @@ export class InteractionManager {
         this.draggedNode.data.fy = ny;
       }
       this.host.markDirty();
+    } else if (this.isLassoActive && this.lassoGraphics) {
+      this.lassoPoints.push({ x: mx, y: my });
+      this.lassoGraphics.clear();
+      const lassoColor = this.host.getAccentColor();
+      this.lassoGraphics.lineStyle(LASSO_STROKE_WIDTH, lassoColor, LASSO_STROKE_ALPHA);
+      this.lassoGraphics.beginFill(lassoColor, LASSO_FILL_ALPHA);
+      this.lassoGraphics.moveTo(this.lassoPoints[0].x, this.lassoPoints[0].y);
+      for (let i = 1; i < this.lassoPoints.length; i++) {
+        this.lassoGraphics.lineTo(this.lassoPoints[i].x, this.lassoPoints[i].y);
+      }
+      this.lassoGraphics.closePath();
+      this.lassoGraphics.endFill();
     } else if (this.isMarqueeActive && this.marqueeGraphics) {
       this.hasDragged = true;
       const sx = this.marqueeStart.x;
@@ -566,6 +607,16 @@ export class InteractionManager {
       }
       this.hasDragged = false;
       this.host.markDirty(true);
+      return;
+    }
+    if (this.isLassoActive) {
+      this.isLassoActive = false;
+      if (this.lassoGraphics) this.lassoGraphics.clear();
+      if (this.lassoPoints.length >= LASSO_MIN_POINTS && this.host.lassoSelectNodes) {
+        const additive = e.shiftKey;
+        this.host.lassoSelectNodes(this.lassoPoints, additive);
+      }
+      this.lassoPoints = [];
       return;
     }
     if (this.isMarqueeActive) {
