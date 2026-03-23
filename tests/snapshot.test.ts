@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fnv1a, hashMeta, captureSnapshot, computeSnapshotDiff, computeSnapshotToSnapshotDiff } from "../src/utils/snapshot";
+import { fnv1a, hashMeta, edgeKey, captureSnapshot, computeSnapshotDiff, computeSnapshotToSnapshotDiff } from "../src/utils/snapshot";
 import type { GraphData, GraphSnapshot } from "../src/types";
 
 describe("fnv1a", () => {
@@ -450,5 +450,37 @@ describe("hashMeta collision resistance", () => {
     }
     const collisionRate = 1 - hashes.size / 1000;
     expect(collisionRate).toBeLessThan(0.01);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// edgeKey — unique edge identifier with NUL separator
+// ---------------------------------------------------------------------------
+describe("edgeKey", () => {
+  it("produces a string with NUL separators", () => {
+    const key = edgeKey("a", "b", "link");
+    expect(key).toBe("a\0b\0link");
+  });
+
+  it("different source/target/type → different keys", () => {
+    expect(edgeKey("a", "b", "link")).not.toBe(edgeKey("b", "a", "link"));
+    expect(edgeKey("a", "b", "link")).not.toBe(edgeKey("a", "b", "tag"));
+  });
+
+  it("is NOT symmetric (directional)", () => {
+    expect(edgeKey("x", "y", "t")).not.toBe(edgeKey("y", "x", "t"));
+  });
+
+  it("handles empty strings", () => {
+    const key = edgeKey("", "", "");
+    expect(key).toBe("\0\0");
+    expect(key.length).toBe(2); // two NUL chars
+  });
+
+  it("handles IDs with special characters", () => {
+    const key = edgeKey("folder/file.md", "tag#test", "has-tag");
+    expect(key).toContain("folder/file.md");
+    expect(key).toContain("tag#test");
+    expect(key).toContain("has-tag");
   });
 });

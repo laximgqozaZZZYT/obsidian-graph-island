@@ -355,6 +355,48 @@ describe("collapseGroup", () => {
 });
 
 // ---------------------------------------------------------------------------
+// collapseGroup — additional boundary values
+// ---------------------------------------------------------------------------
+describe("collapseGroup boundary values", () => {
+  it("single-member group creates super node with count 1", () => {
+    const data: GraphData = {
+      nodes: [makeNode("a", { tags: ["solo"] }), makeNode("b")],
+      edges: [makeEdge("a", "b")],
+    };
+    const group: GroupSpec = { key: "tag:solo", label: "solo", memberIds: ["a"] };
+    const result = collapseGroup(data, group);
+    const superNode = result.nodes.find(n => n.id === "__super__tag:solo");
+    expect(superNode).toBeDefined();
+    expect(superNode!.collapsedMembers).toEqual(["a"]);
+    expect(superNode!.label).toBe("solo (1)");
+  });
+
+  it("all nodes collapsed → only super node remains", () => {
+    const data: GraphData = {
+      nodes: [makeNode("a", { tags: ["all"] }), makeNode("b", { tags: ["all"] })],
+      edges: [makeEdge("a", "b")],
+    };
+    const group: GroupSpec = { key: "tag:all", label: "all", memberIds: ["a", "b"] };
+    const result = collapseGroup(data, group);
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0].id).toBe("__super__tag:all");
+    // Internal edges should be dropped
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it("empty edges → no crash", () => {
+    const data: GraphData = {
+      nodes: [makeNode("a", { tags: ["t"] }), makeNode("b", { tags: ["t"] })],
+      edges: [],
+    };
+    const group: GroupSpec = { key: "tag:t", label: "t", memberIds: ["a", "b"] };
+    const result = collapseGroup(data, group);
+    expect(result.nodes).toHaveLength(1);
+    expect(result.edges).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // expandGroup
 // ---------------------------------------------------------------------------
 describe("expandGroup", () => {
@@ -465,5 +507,49 @@ describe("edge re-connection round-trip", () => {
     expect(expanded.edges.some(e => e.source === "b" && e.target === "d")).toBe(true);
     expect(expanded.edges.some(e => e.source === "a" && e.target === "b")).toBe(true);
     expect(expanded.edges.some(e => e.source === "c" && e.target === "d")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// expandGroup — additional boundary values
+// ---------------------------------------------------------------------------
+describe("expandGroup boundary values", () => {
+  it("single-member expand restores the one node", () => {
+    const originalData: GraphData = {
+      nodes: [makeNode("a", { tags: ["solo"] }), makeNode("b")],
+      edges: [makeEdge("a", "b")],
+    };
+    const group: GroupSpec = { key: "tag:solo", label: "solo", memberIds: ["a"] };
+    const collapsed = collapseGroup(originalData, group);
+    const expanded = expandGroup(collapsed, "__super__tag:solo", originalData);
+    expect(expanded.nodes.find(n => n.id === "a")).toBeDefined();
+    expect(expanded.nodes.find(n => n.id === "__super__tag:solo")).toBeUndefined();
+    expect(expanded.edges.some(e => e.source === "a" && e.target === "b")).toBe(true);
+  });
+
+  it("expand all-collapsed group restores all nodes and internal edges", () => {
+    const originalData: GraphData = {
+      nodes: [makeNode("a", { tags: ["all"] }), makeNode("b", { tags: ["all"] })],
+      edges: [makeEdge("a", "b")],
+    };
+    const group: GroupSpec = { key: "tag:all", label: "all", memberIds: ["a", "b"] };
+    const collapsed = collapseGroup(originalData, group);
+    const expanded = expandGroup(collapsed, "__super__tag:all", originalData);
+    expect(expanded.nodes).toHaveLength(2);
+    expect(expanded.edges.some(e => e.source === "a" && e.target === "b")).toBe(true);
+  });
+
+  it("no duplicate edges after expand", () => {
+    const originalData: GraphData = {
+      nodes: [makeNode("a", { tags: ["t"] }), makeNode("b", { tags: ["t"] }), makeNode("c")],
+      edges: [makeEdge("a", "c"), makeEdge("b", "c")],
+    };
+    const group: GroupSpec = { key: "tag:t", label: "t", memberIds: ["a", "b"] };
+    const collapsed = collapseGroup(originalData, group);
+    const expanded = expandGroup(collapsed, "__super__tag:t", originalData);
+    const edgesAC = expanded.edges.filter(e => e.source === "a" && e.target === "c");
+    const edgesBC = expanded.edges.filter(e => e.source === "b" && e.target === "c");
+    expect(edgesAC).toHaveLength(1);
+    expect(edgesBC).toHaveLength(1);
   });
 });
