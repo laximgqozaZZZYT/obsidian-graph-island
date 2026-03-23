@@ -14,7 +14,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoints, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb } from "../utils/graph-helpers";
 import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet } from "../utils/graph-filter";
 import { hexToRgb } from "../utils/color";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, type NodeTreeEntry, DEFAULT_PANEL, createDefaultPanel, validatePanelState, ensureRT } from "./PanelBuilder";
@@ -3862,22 +3862,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
       // DQ: Collapsed group node summary
       if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
-        const members = pn.data.collapsedMembers;
-        tooltipText += `\n[${members.length} nodes]`;
-        const top3 = members.slice(0, 3).map((m: string) => m.replace(/\.md$/, ""));
-        tooltipText += "\n" + top3.join(", ");
-        if (members.length > 3) tooltipText += ` +${members.length - 3}`;
+        tooltipText += "\n" + collapsedGroupSummary(pn.data.collapsedMembers);
       }
 
       // EK: Edge type summary
       if (this.graphEdges) {
-        const edgeTypes = new Map<string, number>();
-        for (const e of this.graphEdges) {
-          if (e.source === pn.data.id || e.target === pn.data.id) {
-            const t = e.type ?? "link";
-            edgeTypes.set(t, (edgeTypes.get(t) ?? 0) + 1);
-          }
-        }
+        const edgeTypes = edgeTypeSummary(this.graphEdges, pn.data.id);
         if (edgeTypes.size > 0) {
           tooltipText += `\n${[...edgeTypes.entries()].map(([t, c]) => `${t}:${c}`).join(" ")}`;
         }
@@ -3905,11 +3895,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (hubId && hubId !== pn.data.id) {
         const path = bfsShortestPath(this.adj, hubId, pn.data.id);
         if (path.length > 1) {
-          // Truncate long paths: show first 2 + last 2 with "…" in middle
-          let displayPath = path;
-          if (path.length > 5) {
-            displayPath = [...path.slice(0, 2), "…", ...path.slice(-2)];
-          }
+          const displayPath = truncateBreadcrumb(path);
           const breadcrumb = displayPath.map((id) => {
             if (id === "…") return "…";
             const node = this.pixiNodes.get(id);
@@ -5697,7 +5683,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       settings: this.plugin.settings,
       saveSettings: () => { this.plugin.saveSettings(); },
       nodeCount: this.pixiNodes.size,
-      edgeCount: 0,
+      edgeCount: this.graphEdges.length,
       app: this.app,
       frontmatterKeys: this.collectFrontmatterKeys(),
       availableGroups: this.collectAvailableGroups(),
@@ -5807,6 +5793,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       applyPreset: (preset: string) => {
         const p = ALL_PRESETS[preset];
         if (p) {
+          // Reset groupByRules so new groupBy string is re-parsed
+          if ("groupBy" in p && !("groupByRules" in p)) {
+            this.panel.groupByRules = null;
+          }
           Object.assign(this.panel, p);
           // Fix A: localGraphCenter="__active__" means "use active file" — resolve dynamically
           if (this.panel.localGraphCenter === "__active__") {
@@ -7949,6 +7939,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   applyPresetByKey(preset: string): void {
     const p = ALL_PRESETS[preset];
     if (p) {
+      if ("groupBy" in p && !("groupByRules" in p)) {
+        this.panel.groupByRules = null;
+      }
       Object.assign(this.panel, p);
       if (this.panel.localGraphCenter === "__active__") {
         const af = this.app.workspace.getActiveFile();

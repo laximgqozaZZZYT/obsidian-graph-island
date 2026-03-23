@@ -487,7 +487,7 @@ function buildDirectionBundles(
 // ---------------------------------------------------------------------------
 
 /** 引込口の方向 (将来のグループ内ルーティング用に残す) */
-type PortDirection = "N" | "S" | "E" | "W";
+export type PortDirection = "N" | "S" | "E" | "W";
 
 /** 引き込み口: 各グループに1つ、接続先グループ方向の平均ベクトルで配置 */
 interface GroupPort {
@@ -517,7 +517,7 @@ interface TrunkCable {
 }
 
 /** オントロジー型エッジかどうか */
-function isOntologyEdge(e: GraphEdge): boolean {
+export function isOntologyEdge(e: GraphEdge): boolean {
   return e.type === EDGE_TYPE_INHERITANCE
     || e.type === EDGE_TYPE_AGGREGATION
     || e.type === EDGE_TYPE_SEQUENCE;
@@ -530,7 +530,7 @@ function isOntologyEdge(e: GraphEdge): boolean {
  * - E: 自分が source かつ オントロジー（矢印出る）
  * - W: 自分が target かつ オントロジー（矢印入る）
  */
-function classifyEdgePort(e: GraphEdge, nodeId: string): PortDirection {
+export function classifyEdgePort(e: GraphEdge, nodeId: string): PortDirection {
   const isSrc = edgeSourceId(e) === nodeId;
   const onto = isOntologyEdge(e);
   if (onto) return isSrc ? "E" : "W";
@@ -538,7 +538,7 @@ function classifyEdgePort(e: GraphEdge, nodeId: string): PortDirection {
 }
 
 /** PortColorLanes キー生成ヘルパー: "groupKey|dir" */
-function portLaneKey(groupKey: string, dir: PortDirection): string {
+export function portLaneKey(groupKey: string, dir: PortDirection): string {
   return `${groupKey}|${dir}`;
 }
 

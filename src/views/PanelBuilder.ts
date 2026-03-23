@@ -2167,12 +2167,7 @@ function _buildPluginSettingsSection(
   buildSection(tabEl, t("section.pluginSettings"), (body) => {
     const s = ctx.settings;
 
-    addMultiValueInput(body, t("settings.metadataFields"), [...s.metadataFields], "tags, category...", getUnifiedFieldSuggestions(ctx), (v) => {
-      s.metadataFields = v;
-      ctx.saveSettings();
-      cb.invalidateDataKeepPanel();
-    });
-
+    // metadataFields removed — not consumed by any parser; edge fields come from ontology rules
     if (panel.showTagNodes && panel.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
       addSlider(body, t("settings.enclosureMinRatio"), 0, 0.3, 0.02, s.enclosureMinRatio, (v) => {
         s.enclosureMinRatio = v;

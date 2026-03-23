@@ -346,6 +346,10 @@ export function applyPreset(
     delete raw.showTags;
   }
   const merged = { ...current };
+  // Reset groupByRules when groupBy changes so the new string is re-parsed
+  if ("groupBy" in preset && !("groupByRules" in preset)) {
+    (merged as Record<string, unknown>).groupByRules = null;
+  }
   // String-keyed record views for dynamic property access.
   // Safe because keys come from Object.entries(preset) which was
   // validated by importPreset().

@@ -710,9 +710,6 @@ export interface CardRenderConfig {
   cardAspectRatio?: number;
   /** Plain card base height (default 20) */
   plainCardHeight?: number;
-  /** Plain card width factor relative to node radius (default 3) */
-  plainCardWidthFactor?: number;
-
   // ---- Card typography ----
   /** Header font size min (default 8) */
   headerFontSizeMin?: number;
@@ -732,9 +729,6 @@ export interface CardRenderConfig {
   cardShadowOffset?: number;
   /** Card scale multiplier on hover (default 1.08) */
   cardHoverScale?: number;
-  /** Card glow alpha on hover (default 0.3) */
-  cardHoverGlowAlpha?: number;
-
   // ---- Highlight ----
   /** Alpha for background nodes when a node is highlighted (default 0.15) */
   highlightDimAlpha?: number;
@@ -1399,7 +1393,6 @@ export const DEFAULT_CARD_RENDER_CONFIG: Required<CardRenderConfig> = {
   cardWidthFactor: 4,
   cardAspectRatio: 1.618,
   plainCardHeight: 20,
-  plainCardWidthFactor: 3,
   headerFontSizeMin: 8,
   headerFontSizeBase: 11,
   fieldFontSizeMin: 7,
@@ -1408,7 +1401,6 @@ export const DEFAULT_CARD_RENDER_CONFIG: Required<CardRenderConfig> = {
   cardShadowAlpha: 0.12,
   cardShadowOffset: 2,
   cardHoverScale: 1.08,
-  cardHoverGlowAlpha: 0.3,
   highlightDimAlpha: 0.1,
   highlightHaloRadius: 2.2,
   highlightHaloAlpha: 0.15,
