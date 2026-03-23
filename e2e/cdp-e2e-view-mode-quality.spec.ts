@@ -4,7 +4,13 @@
  */
 import { test, expect } from "@playwright/test";
 
-const CDP_URL = "ws://localhost:9222/devtools/page/346E4D38F0BDFBA3B1B60BFCC7519CAB";
+async function discoverCdpUrl(): Promise<string> {
+  const res = await fetch("http://localhost:9222/json/list");
+  const pages = await res.json() as { title: string; webSocketDebuggerUrl: string }[];
+  const dev = pages.find(p => p.title.includes("開発"));
+  if (!dev) throw new Error("No '開発' vault page found in CDP targets");
+  return dev.webSocketDebuggerUrl;
+}
 
 function cdp(ws: import("ws").WebSocket, id: number, expr: string): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -31,7 +37,8 @@ let nextId = 100;
 
 test.beforeAll(async () => {
   const WebSocket = (await import("ws")).default;
-  ws = new WebSocket(CDP_URL);
+  const cdpUrl = await discoverCdpUrl();
+  ws = new WebSocket(cdpUrl);
   await new Promise<void>((resolve, reject) => {
     ws.on("open", resolve);
     ws.on("error", reject);
