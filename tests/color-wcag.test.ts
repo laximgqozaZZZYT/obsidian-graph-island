@@ -1,26 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  hexToRgb, getLuminance, hexBrightness, adjustBrightness,
-  wcagRelativeLuminance, wcagContrastRatio, contrastColor,
+  hexToRgb, hexBrightness, adjustBrightness,
+  wcagRelativeLuminance, wcagContrastRatio,
 } from "../src/utils/color";
 
-// hexToRgb tests consolidated in tests/color.test.ts
-
-describe("getLuminance (BT.601)", () => {
-  it("white = 255", () => {
-    expect(getLuminance(255, 255, 255)).toBeCloseTo(255, 0);
-  });
-  it("black = 0", () => {
-    expect(getLuminance(0, 0, 0)).toBe(0);
-  });
-  it("pure green has highest weight", () => {
-    const green = getLuminance(0, 255, 0);
-    const red = getLuminance(255, 0, 0);
-    const blue = getLuminance(0, 0, 255);
-    expect(green).toBeGreaterThan(red);
-    expect(green).toBeGreaterThan(blue);
-  });
-});
+// hexToRgb, getLuminance, contrastColor tests consolidated in tests/color.test.ts
 
 describe("wcagRelativeLuminance", () => {
   it("black = 0", () => {
@@ -58,41 +42,6 @@ describe("wcagContrastRatio", () => {
     // #222222 on #f0f0f4 (our light theme label colors)
     const ratio = wcagContrastRatio(0x222222, 0xf0f0f4);
     expect(ratio).toBeGreaterThan(4.5);
-  });
-});
-
-describe("contrastColor", () => {
-  it("returns black for white background", () => {
-    expect(contrastColor(0xffffff)).toBe(0x000000);
-  });
-  it("returns white for black background", () => {
-    expect(contrastColor(0x000000)).toBe(0xffffff);
-  });
-  it("returns white for dark blue background", () => {
-    expect(contrastColor(0x1a1a2e)).toBe(0xffffff);
-  });
-  it("returns black for light gray background", () => {
-    expect(contrastColor(0xf0f0f4)).toBe(0x000000);
-  });
-  it("always produces ratio >= 4.5:1", () => {
-    const testColors = [0x000000, 0xffffff, 0xff0000, 0x00ff00, 0x0000ff, 0x808080, 0x1a1a2e, 0xf0f0f4];
-    for (const bg of testColors) {
-      const fg = contrastColor(bg);
-      const ratio = wcagContrastRatio(fg, bg);
-      expect(ratio).toBeGreaterThanOrEqual(4.5);
-    }
-  });
-  it("returns white for medium-dark colors", () => {
-    expect(contrastColor(0x333333)).toBe(0xffffff);
-  });
-  it("returns black for medium-light colors", () => {
-    expect(contrastColor(0xcccccc)).toBe(0x000000);
-  });
-  it("handles pure red (high luminance → black)", () => {
-    expect(contrastColor(0xff0000)).toBe(0x000000);
-  });
-  it("handles pure green (high luminance → black)", () => {
-    expect(contrastColor(0x00ff00)).toBe(0x000000);
   });
 });
 

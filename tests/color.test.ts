@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hexToRgb, getLuminance, hexBrightness, contrastColor } from "../src/utils/color";
+import { hexToRgb, getLuminance, hexBrightness, contrastColor, wcagContrastRatio } from "../src/utils/color";
 import { hslToHex } from "../src/utils/graph-helpers";
 
 describe("hexToRgb", () => {
@@ -108,6 +108,31 @@ describe("contrastColor", () => {
     // 0x808080 luminance = ~128, closer to white → black text should win
     const result = contrastColor(0x808080);
     expect(result).toBe(0x000000);
+  });
+
+  it("always produces WCAG ratio >= 4.5:1", () => {
+    const testColors = [0x000000, 0xffffff, 0xff0000, 0x00ff00, 0x0000ff, 0x808080, 0x1a1a2e, 0xf0f0f4];
+    for (const bg of testColors) {
+      const fg = contrastColor(bg);
+      const ratio = wcagContrastRatio(fg, bg);
+      expect(ratio).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("returns white for medium-dark colors", () => {
+    expect(contrastColor(0x333333)).toBe(0xffffff);
+  });
+
+  it("returns black for medium-light colors", () => {
+    expect(contrastColor(0xcccccc)).toBe(0x000000);
+  });
+
+  it("handles pure red (high luminance → black)", () => {
+    expect(contrastColor(0xff0000)).toBe(0x000000);
+  });
+
+  it("handles pure green (high luminance → black)", () => {
+    expect(contrastColor(0x00ff00)).toBe(0x000000);
   });
 });
 
