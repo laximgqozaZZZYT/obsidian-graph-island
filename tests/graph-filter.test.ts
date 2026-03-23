@@ -50,6 +50,48 @@ describe("filterAttachments", () => {
     const nodes = [node("photo.JPG", { filePath: "photo.JPG" })];
     expect(filterAttachments(nodes)).toHaveLength(0);
   });
+
+  // --- Boundary values (cycle116) ---
+
+  it("handles mixed md/png/pdf/excalidraw/csv files", () => {
+    const nodes = [
+      node("note.md"),
+      node("pic.png", { filePath: "pic.png" }),
+      node("doc.pdf", { filePath: "doc.pdf" }),
+      node("draw.excalidraw"),  // no extension match → kept
+      node("data.csv", { filePath: "data.csv" }),
+      node("audio.mp3", { filePath: "audio.mp3" }),
+    ];
+    const kept = filterAttachments(nodes).map(n => n.id);
+    expect(kept).toContain("note.md");
+    expect(kept).toContain("draw.excalidraw"); // .excalidraw not in ATTACHMENT_EXTS
+    expect(kept).not.toContain("pic.png");
+    expect(kept).not.toContain("doc.pdf");
+    expect(kept).not.toContain("data.csv");
+    expect(kept).not.toContain("audio.mp3");
+  });
+
+  it("keeps nodes with no filePath and no extension in id", () => {
+    const nodes = [node("tag-node")]; // no extension
+    expect(filterAttachments(nodes)).toHaveLength(1);
+  });
+
+  it("handles empty node array", () => {
+    expect(filterAttachments([])).toEqual([]);
+  });
+
+  it("handles all video/audio extensions", () => {
+    const exts = [".mp4", ".webm", ".wav", ".ogg"];
+    for (const ext of exts) {
+      const nodes = [node(`file${ext}`, { filePath: `file${ext}` })];
+      expect(filterAttachments(nodes), `${ext} should be filtered`).toHaveLength(0);
+    }
+  });
+
+  it("keeps .md files with dots in name", () => {
+    const nodes = [node("my.project.notes.md")];
+    expect(filterAttachments(nodes)).toHaveLength(1);
+  });
 });
 
 describe("filterTagNodes", () => {

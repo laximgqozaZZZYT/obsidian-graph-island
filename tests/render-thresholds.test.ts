@@ -94,3 +94,77 @@ describe("mergeRenderThresholds", () => {
     expect(rt.labelFadeRate).toBe(0.15);
   });
 });
+
+// ---------------------------------------------------------------------------
+// DEFAULT_RENDER_THRESHOLDS completeness (cycle116)
+// ---------------------------------------------------------------------------
+describe("DEFAULT_RENDER_THRESHOLDS completeness", () => {
+  it("has 200+ fields (guard against accidental removal)", () => {
+    const count = Object.keys(DEFAULT_RENDER_THRESHOLDS).length;
+    expect(count).toBeGreaterThan(200);
+  });
+
+  it("all numeric fields are finite", () => {
+    for (const [key, val] of Object.entries(DEFAULT_RENDER_THRESHOLDS)) {
+      if (typeof val === "number") {
+        expect(isFinite(val), `${key} should be finite`).toBe(true);
+      }
+    }
+  });
+
+  it("all boolean fields are actually booleans", () => {
+    const boolKeys = Object.entries(DEFAULT_RENDER_THRESHOLDS)
+      .filter(([, v]) => v === true || v === false)
+      .map(([k]) => k);
+    expect(boolKeys.length).toBeGreaterThan(5);
+    for (const key of boolKeys) {
+      expect(typeof (DEFAULT_RENDER_THRESHOLDS as any)[key]).toBe("boolean");
+    }
+  });
+
+  it("LOD thresholds are in ascending order", () => {
+    const rt = DEFAULT_RENDER_THRESHOLDS;
+    // cardLODExtremePx < cardLODMidLabelPx < cardLODNormalPx < cardLODCompactPx < cardLODFullCardPx
+    expect(rt.cardLODExtremePx).toBeLessThan(rt.cardLODMidLabelPx);
+    expect(rt.cardLODMidLabelPx).toBeLessThan(rt.cardLODNormalPx);
+    expect(rt.cardLODNormalPx).toBeLessThan(rt.cardLODCompactPx);
+    expect(rt.cardLODCompactPx).toBeLessThan(rt.cardLODFullCardPx);
+  });
+
+  it("label zoom tiers are in ascending order", () => {
+    const rt = DEFAULT_RENDER_THRESHOLDS;
+    expect(rt.labelZoomTier1).toBeLessThan(rt.labelZoomTier2);
+    expect(rt.labelZoomTier2).toBeLessThan(rt.labelZoomTier3);
+  });
+
+  it("alpha values are in [0, 1] range", () => {
+    const alphaKeys = Object.entries(DEFAULT_RENDER_THRESHOLDS)
+      .filter(([k]) => k.toLowerCase().includes("alpha"))
+      .filter(([, v]) => typeof v === "number");
+    expect(alphaKeys.length).toBeGreaterThan(10);
+    for (const [key, val] of alphaKeys) {
+      expect((val as number) >= 0, `${key} >= 0`).toBe(true);
+      expect((val as number) <= 1, `${key} <= 1`).toBe(true);
+    }
+  });
+
+  it("color values are valid hex numbers", () => {
+    const colorKeys = Object.entries(DEFAULT_RENDER_THRESHOLDS)
+      .filter(([k]) => k.toLowerCase().includes("color") && !k.includes("sync"))
+      .filter(([, v]) => typeof v === "number");
+    for (const [key, val] of colorKeys) {
+      expect((val as number) >= 0x000000, `${key} >= 0x000000`).toBe(true);
+      expect((val as number) <= 0xffffff, `${key} <= 0xffffff`).toBe(true);
+    }
+  });
+
+  it("donutSectorColors is a non-empty array of hex colors", () => {
+    const colors = DEFAULT_RENDER_THRESHOLDS.donutSectorColors;
+    expect(Array.isArray(colors)).toBe(true);
+    expect(colors.length).toBeGreaterThan(0);
+    for (const c of colors) {
+      expect(c).toBeGreaterThanOrEqual(0);
+      expect(c).toBeLessThanOrEqual(0xffffff);
+    }
+  });
+});
