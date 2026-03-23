@@ -1227,6 +1227,42 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       })
     );
 
+    // Auto-snapshot: capture graph state when vault metadata changes (5-min debounce)
+    {
+      let autoSnapTimer = 0;
+      const AUTO_SNAP_DEBOUNCE = 5 * 60 * 1000; // 5 minutes
+      const AUTO_SNAP_MAX = 10;
+      const AUTO_SNAP_PREFIX = "[auto] ";
+      this.registerEvent(
+        this.app.metadataCache.on("changed", () => {
+          if (autoSnapTimer) window.clearTimeout(autoSnapTimer);
+          autoSnapTimer = window.setTimeout(() => {
+            autoSnapTimer = 0;
+            if (!this.pixiNodes.size) return; // no graph data yet
+            const snapshots = this.plugin.settings.snapshots ?? [];
+            // Remove oldest auto-snapshots if at limit
+            const autoSnaps = snapshots.filter(s => s.name.startsWith(AUTO_SNAP_PREFIX));
+            while (autoSnaps.length >= AUTO_SNAP_MAX) {
+              const oldest = autoSnaps.shift()!;
+              const idx = snapshots.indexOf(oldest);
+              if (idx >= 0) snapshots.splice(idx, 1);
+            }
+            // Capture
+            const data = this.getGraphData();
+            const name = AUTO_SNAP_PREFIX + new Date().toISOString().replace("T", " ").slice(0, 16);
+            const snap = captureSnapshot(data, name, {
+              layout: this.currentLayout ?? "force",
+              searchQuery: this.panel.searchQuery ?? "",
+              groupBy: (this.panel.clusterGroupRules?.[0]?.groupBy) ?? "",
+            });
+            snapshots.push(snap as any);
+            this.plugin.settings.snapshots = snapshots;
+            this.plugin.saveSettings();
+          }, AUTO_SNAP_DEBOUNCE) as unknown as number;
+        })
+      );
+    }
+
     // Ephemeral highlight from side-panel (property value hover, backlink hover)
     this.registerEvent(
       // Custom plugin event not in Obsidian's Workspace type definitions
