@@ -216,6 +216,14 @@ export default class GraphViewsPlugin extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
+    // Notify all graph views to rebuild with updated settings
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)) {
+      const view = leaf.view as any;
+      if (view?.rawData !== undefined) {
+        view.rawData = null;
+        view.doRender?.();
+      }
+    }
   }
 
   async activateView() {

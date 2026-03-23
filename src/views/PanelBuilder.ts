@@ -1908,7 +1908,7 @@ function _buildMinimapSection(
     // Removed: showAncestryBreadcrumb (tooltip-only, no visual change on graph)
     addToggle(body, t("display.highContrast") ?? "High Contrast", panel.highContrastMode, (v) => { panel.highContrastMode = v; cb.markDirty(); }, t("desc.highContrast") ?? "Thicker edges and stronger outlines for better visibility");
     // IL: Zoom wheel sensitivity slider (a11y: low-dexterity users)
-    addSlider(body, t("display.zoomSensitivity") ?? "Zoom Sensitivity", panel.zoomSensitivity, 0.3, 2.0, 0.1, (v) => { panel.zoomSensitivity = v; }, t("desc.zoomSensitivity") ?? "Scroll wheel zoom speed (0.3=gentle, 1.0=normal, 2.0=fast)");
+    addSlider(body, t("display.zoomSensitivity") ?? "Zoom Sensitivity", 0.3, 2.0, 0.1, panel.zoomSensitivity, (v) => { panel.zoomSensitivity = v; }, t("desc.zoomSensitivity") ?? "Scroll wheel zoom speed (0.3=gentle, 1.0=normal, 2.0=fast)");
     // EE: Saved viewport list
     if (panel.savedViewports && panel.savedViewports.length > 0) {
       const vpList = body.createDiv({ cls: "gi-viewport-list" });
