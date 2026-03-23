@@ -9,20 +9,24 @@ export interface MockEl {
   text?: string;
   textContent?: string;
   attrs: Record<string, string>;
-  style: Record<string, string>;
+  style: Record<string, string> & { cssText?: string };
   children: MockEl[];
   listeners: Record<string, Function[]>;
   classList: { add: (cls: string) => void; items: string[] };
   dataset: Record<string, string>;
+  _removed: boolean;
   // Obsidian-style helpers
   createDiv: (opts?: { cls?: string; text?: string; attr?: Record<string, string> }) => MockEl;
   createEl: (tag: string, opts?: { cls?: string; text?: string; attr?: Record<string, string> }) => MockEl;
   createSpan: (opts?: { cls?: string; text?: string }) => MockEl;
   empty: () => void;
   addEventListener: (ev: string, fn: Function) => void;
+  setAttribute: (name: string, value: string) => void;
   addClass: (cls: string) => void;
   querySelector: (sel: string) => MockEl | null;
   querySelectorAll: (sel: string) => MockEl[];
+  remove: () => void;
+  scrollIntoView: (opts?: any) => void;
 }
 
 function addChild(parent: MockEl, tag: string, opts?: { cls?: string; text?: string; attr?: Record<string, string> }): MockEl {
@@ -32,6 +36,7 @@ function addChild(parent: MockEl, tag: string, opts?: { cls?: string; text?: str
   if (opts?.attr) {
     Object.assign(child.attrs, opts.attr);
     if (opts.attr.style) {
+      child.style.cssText = opts.attr.style;
       for (const pair of opts.attr.style.split(";").filter(Boolean)) {
         const [k, v] = pair.split(":").map(s => s.trim());
         if (k && v) child.style[k] = v;
@@ -46,19 +51,23 @@ export function createMockEl(tag = "div"): MockEl {
   const el: MockEl = {
     tag,
     attrs: {},
-    style: {} as Record<string, string>,
+    style: { cssText: "" } as MockEl["style"],
     children: [],
     listeners: {},
     classList: { add: (c: string) => { el.classList.items.push(c); }, items: [] },
     dataset: {},
+    _removed: false,
     createDiv(opts) { return addChild(el, "div", opts); },
     createEl(etag, opts) { return addChild(el, etag, opts); },
     createSpan(opts) { return addChild(el, "span", opts); },
     empty() { el.children = []; },
     addEventListener(ev, fn) { (el.listeners[ev] ??= []).push(fn); },
+    setAttribute(name, value) { el.attrs[name] = value; },
     addClass(c) { el.classList.items.push(c); },
     querySelector(sel) { return findEl(el, sel); },
     querySelectorAll(sel) { return findAllEl(el, sel); },
+    remove() { el._removed = true; },
+    scrollIntoView() { /* no-op in mock */ },
   };
   return el;
 }
@@ -89,4 +98,16 @@ export function allText(el: MockEl): string {
   let txt = el.text ?? el.textContent ?? "";
   for (const c of el.children) txt += allText(c);
   return txt;
+}
+
+/** Collect all descendants (BFS) */
+export function collectAll(root: MockEl): MockEl[] {
+  const result: MockEl[] = [];
+  const stack = [root];
+  while (stack.length) {
+    const n = stack.pop()!;
+    result.push(n);
+    for (const c of n.children) stack.push(c);
+  }
+  return result;
 }

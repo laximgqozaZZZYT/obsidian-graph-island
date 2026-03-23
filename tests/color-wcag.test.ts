@@ -103,3 +103,56 @@ describe("adjustBrightness", () => {
     expect(adjustBrightness(0xffffff, 0)).toBe(0x000000);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Edge cases (cycle110)
+// ---------------------------------------------------------------------------
+describe("wcagContrastRatio edge cases", () => {
+  it("same color returns 1:1", () => {
+    expect(wcagContrastRatio(0x336699, 0x336699)).toBeCloseTo(1, 2);
+  });
+
+  it("near-identical colors return ratio close to 1", () => {
+    expect(wcagContrastRatio(0x808080, 0x818181)).toBeCloseTo(1, 1);
+  });
+
+  it("ratio is always >= 1", () => {
+    const colors = [0x000000, 0x112233, 0xaabbcc, 0xffffff];
+    for (const a of colors) {
+      for (const b of colors) {
+        expect(wcagContrastRatio(a, b)).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
+
+  it("ratio range is [1, 21]", () => {
+    expect(wcagContrastRatio(0x000000, 0xffffff)).toBeCloseTo(21, 0);
+    expect(wcagContrastRatio(0x000000, 0x000000)).toBeCloseTo(1, 2);
+  });
+});
+
+describe("wcagRelativeLuminance edge cases", () => {
+  it("pure red has lower luminance than pure green", () => {
+    expect(wcagRelativeLuminance(0xff0000)).toBeLessThan(wcagRelativeLuminance(0x00ff00));
+  });
+
+  it("returns value in [0, 1]", () => {
+    for (const c of [0x000000, 0x808080, 0xff0000, 0xffffff]) {
+      const l = wcagRelativeLuminance(c);
+      expect(l).toBeGreaterThanOrEqual(0);
+      expect(l).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("hexBrightness edge cases", () => {
+  it("returns 0 for black, ~255 for white", () => {
+    expect(hexBrightness(0x000000)).toBe(0);
+    expect(hexBrightness(0xffffff)).toBeCloseTo(255, 0);
+  });
+
+  it("green perceived brightest among primaries", () => {
+    expect(hexBrightness(0x00ff00)).toBeGreaterThan(hexBrightness(0xff0000));
+    expect(hexBrightness(0xff0000)).toBeGreaterThan(hexBrightness(0x0000ff));
+  });
+});

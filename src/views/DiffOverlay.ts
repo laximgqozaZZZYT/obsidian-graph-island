@@ -460,3 +460,64 @@ export function ghostLabel(nodeId: string, maxLen = 12): string {
   const name = nodeId.split("/").pop()?.replace(/\.md$/, "") ?? nodeId;
   return name.length > maxLen ? name.slice(0, maxLen - 1) + "…" : name;
 }
+
+// ---------------------------------------------------------------------------
+// Snapshot Timeline — pure data functions
+// ---------------------------------------------------------------------------
+
+/** A single point in the snapshot timeline */
+export interface TimelineEntry {
+  name: string;
+  createdAt: string;
+  nodeCount: number;
+  edgeCount: number;
+  /** Delta from previous snapshot (undefined for first entry) */
+  nodeDelta?: number;
+  edgeDelta?: number;
+}
+
+/**
+ * Build timeline entries from an array of snapshots.
+ * Pure function — no DOM or side effects.
+ *
+ * @param snapshots  Array of GraphSnapshot (sorted by createdAt)
+ * @returns Timeline entries with deltas computed between consecutive snapshots
+ */
+export function buildTimelineEntries(
+  snapshots: ReadonlyArray<{
+    name: string;
+    createdAt: string;
+    context: { nodeCount: number; edgeCount: number };
+  }>,
+): TimelineEntry[] {
+  if (snapshots.length === 0) return [];
+
+  // Sort by createdAt ascending
+  const sorted = [...snapshots].sort(
+    (a, b) => a.createdAt.localeCompare(b.createdAt),
+  );
+
+  return sorted.map((snap, i) => {
+    const entry: TimelineEntry = {
+      name: snap.name,
+      createdAt: snap.createdAt,
+      nodeCount: snap.context.nodeCount,
+      edgeCount: snap.context.edgeCount,
+    };
+    if (i > 0) {
+      entry.nodeDelta = snap.context.nodeCount - sorted[i - 1].context.nodeCount;
+      entry.edgeDelta = snap.context.edgeCount - sorted[i - 1].context.edgeCount;
+    }
+    return entry;
+  });
+}
+
+/**
+ * Format a delta value as a signed string with color hint.
+ * @returns { text: string; color: "green" | "red" | "muted" }
+ */
+export function formatDelta(delta: number | undefined): { text: string; color: "green" | "red" | "muted" } {
+  if (delta === undefined || delta === 0) return { text: "—", color: "muted" };
+  if (delta > 0) return { text: `+${delta}`, color: "green" };
+  return { text: String(delta), color: "red" };
+}

@@ -222,107 +222,8 @@ describe("ghostLabel", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Obsidian DOM mock — createDiv / createEl / querySelector
-// ---------------------------------------------------------------------------
-interface MockEl {
-  tagName: string;
-  textContent: string;
-  children: MockEl[];
-  attrs: Record<string, string>;
-  style: Record<string, string> & { cssText: string };
-  _listeners: Record<string, Function[]>;
-  cls?: string;
-  querySelector(sel: string): MockEl | null;
-  querySelectorAll(sel: string): MockEl[];
-  createDiv(opts?: { cls?: string; attr?: Record<string, string> }): MockEl;
-  createEl(tag: string, opts?: { text?: string; attr?: Record<string, string> }): MockEl;
-  addEventListener(evt: string, fn: Function): void;
-  setAttribute(name: string, value: string): void;
-  remove(): void;
-  _removed: boolean;
-}
-
-function createMockEl(tag = "div"): MockEl {
-  const el: MockEl = {
-    tagName: tag.toUpperCase(),
-    textContent: "",
-    children: [],
-    attrs: {},
-    style: { cssText: "" } as MockEl["style"],
-    _listeners: {},
-    _removed: false,
-    querySelector(sel: string) {
-      // Simple class selector support
-      const cls = sel.startsWith(".") ? sel.slice(1) : null;
-      if (!cls) return null;
-      const search = (node: MockEl): MockEl | null => {
-        if (node.cls === cls) return node;
-        for (const child of node.children) {
-          const found = search(child);
-          if (found) return found;
-        }
-        return null;
-      };
-      return search(el);
-    },
-    createDiv(opts) {
-      const child = createMockEl("div");
-      if (opts?.cls) child.cls = opts.cls;
-      if (opts?.attr) {
-        Object.assign(child.attrs, opts.attr);
-        if (opts.attr.role) child.attrs.role = opts.attr.role;
-        if (opts.attr.tabindex) child.attrs.tabindex = opts.attr.tabindex;
-        if (opts.attr["aria-label"]) child.attrs["aria-label"] = opts.attr["aria-label"];
-      }
-      el.children.push(child);
-      return child;
-    },
-    createEl(tag: string, opts) {
-      const child = createMockEl(tag);
-      if (opts?.text) child.textContent = opts.text;
-      if (opts?.attr) {
-        Object.assign(child.attrs, opts.attr);
-        if (opts.attr.style) child.style.cssText = opts.attr.style;
-      }
-      el.children.push(child);
-      return child;
-    },
-    addEventListener(evt, fn) {
-      (el._listeners[evt] ??= []).push(fn);
-    },
-    setAttribute(name: string, value: string) {
-      el.attrs[name] = value;
-    },
-    querySelectorAll(sel: string): MockEl[] {
-      const cls = sel.startsWith(".") ? sel.slice(1) : null;
-      if (!cls) return [];
-      const results: MockEl[] = [];
-      const search = (node: MockEl) => {
-        if (node.cls === cls) results.push(node);
-        for (const child of node.children) search(child);
-      };
-      search(el);
-      return results;
-    },
-    remove() {
-      el._removed = true;
-    },
-  };
-  return el;
-}
-
-/** Collect all descendants (DFS) */
-function collectAll(root: MockEl): MockEl[] {
-  const result: MockEl[] = [];
-  const stack = [root];
-  while (stack.length) {
-    const n = stack.pop()!;
-    result.push(n);
-    for (const c of n.children) stack.push(c);
-  }
-  return result;
-}
+// DOM mock — shared helper
+import { createMockEl, collectAll, type MockEl } from "./helpers/mock-dom";
 
 // ---------------------------------------------------------------------------
 // buildDiffList — DOM panel tests
@@ -370,7 +271,7 @@ describe("buildDiffList", () => {
     expect(closeBtn!.attrs["aria-label"]).toBe("Close diff list");
 
     // Simulate click
-    closeBtn!._listeners.click?.[0]?.();
+    closeBtn!.listeners.click?.[0]?.();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -412,11 +313,11 @@ describe("buildDiffList", () => {
     const all = collectAll(container);
     const rows = all.filter(e => e.cls === "gi-diff-list-item");
     // "a" and "b" items should have click listeners
-    const clickableRows = rows.filter(r => r._listeners.click?.length);
+    const clickableRows = rows.filter(r => r.listeners.click?.length);
     expect(clickableRows.length).toBe(2);
 
     // Trigger all clickable rows and verify both IDs are called
-    for (const r of clickableRows) r._listeners.click[0]();
+    for (const r of clickableRows) r.listeners.click[0]();
     expect(onClick).toHaveBeenCalledWith("a");
     expect(onClick).toHaveBeenCalledWith("b");
   });
@@ -430,17 +331,17 @@ describe("buildDiffList", () => {
 
     const all = collectAll(container);
     const rows = all.filter(e => e.cls === "gi-diff-list-item");
-    const clickableRow = rows.find(r => r._listeners.keydown?.length);
+    const clickableRow = rows.find(r => r.listeners.keydown?.length);
     expect(clickableRow).toBeDefined();
     expect(clickableRow!.attrs.role).toBe("button");
     expect(clickableRow!.attrs.tabindex).toBe("0");
 
     // Simulate keydown Enter
-    clickableRow!._listeners.keydown[0]({ key: "Enter", preventDefault: vi.fn() });
+    clickableRow!.listeners.keydown[0]({ key: "Enter", preventDefault: vi.fn() });
     expect(onClick).toHaveBeenCalledWith("node1");
 
     // Simulate keydown Space
-    clickableRow!._listeners.keydown[0]({ key: " ", preventDefault: vi.fn() });
+    clickableRow!.listeners.keydown[0]({ key: " ", preventDefault: vi.fn() });
     expect(onClick).toHaveBeenCalledTimes(2);
   });
 
@@ -457,7 +358,7 @@ describe("buildDiffList", () => {
     const rows = all.filter(e => e.cls === "gi-diff-list-item");
     expect(rows.length).toBe(1);
     // Removed rows should have no click listener
-    expect(rows[0]._listeners.click ?? []).toHaveLength(0);
+    expect(rows[0].listeners.click ?? []).toHaveLength(0);
   });
 
   it("truncates at 50 entries and shows overflow indicator", () => {
@@ -472,7 +373,7 @@ describe("buildDiffList", () => {
     expect(rows.length).toBe(50);
 
     // Overflow text
-    const overflowEl = all.find(e => e.textContent.includes("+10 more"));
+    const overflowEl = all.find(e => (e.textContent ?? "").includes("+10 more"));
     expect(overflowEl).toBeDefined();
   });
 
@@ -483,7 +384,7 @@ describe("buildDiffList", () => {
     overlay.buildDiffList(container, id => id, () => {}, () => {});
 
     const all = collectAll(container);
-    const texts = all.map(e => e.textContent);
+    const texts = all.map(e => e.textContent ?? "");
     // Only Added section, no Changed or Removed headers
     expect(texts).toContain("Added (1)");
     expect(texts.filter(t => t.includes("Changed"))).toHaveLength(0);

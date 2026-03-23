@@ -31,7 +31,7 @@ import { RenderPipeline, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPi
 import { LayoutController, type LayoutHost } from "./LayoutController";
 import { LabelManager } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
-import { DiffOverlay } from "./DiffOverlay";
+import { DiffOverlay, buildTimelineEntries, formatDelta } from "./DiffOverlay";
 import { captureSnapshot, computeSnapshotDiff } from "../utils/snapshot";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
@@ -769,6 +769,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
+    // Timeline view
+    if (snapshots.length >= 2) {
+      menu.addSeparator();
+      menu.addItem((item) => {
+        item.setTitle("Timeline")
+          .setIcon("clock")
+          .onClick(() => this._showSnapshotTimeline());
+      });
+    }
+
     // 差分が有効な場合、解除ボタンを表示
     if (this.diffOverlay.isActive()) {
       menu.addSeparator();
@@ -853,6 +863,60 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.plugin.saveSettings();
 
     showToast(t("snapshot.deleted").replace("{name}", name));
+  }
+
+  /** Show snapshot timeline panel */
+  private _showSnapshotTimeline(): void {
+    const snapshots = this.plugin.settings.snapshots ?? [];
+    if (snapshots.length < 2) return;
+
+    const entries = buildTimelineEntries(snapshots);
+    const canvasArea = this.containerEl.querySelector<HTMLElement>(".gi-canvas-area");
+    if (!canvasArea) return;
+
+    // Remove existing timeline
+    canvasArea.querySelector(".gi-snapshot-timeline")?.remove();
+
+    const panel = canvasArea.createDiv({ cls: "gi-snapshot-timeline" });
+    panel.style.cssText = "position:absolute;top:8px;left:8px;max-height:50vh;overflow-y:auto;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:6px;padding:8px;font-size:11px;z-index:20;min-width:220px;max-width:320px;box-shadow:0 2px 8px rgba(0,0,0,0.15);";
+
+    // Header
+    const header = panel.createDiv();
+    header.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--background-modifier-border);";
+    header.createEl("span", { text: `Snapshot Timeline (${entries.length})`, attr: { style: "font-weight:600;" } });
+    const closeBtn = header.createEl("button", { text: "\u00d7", attr: { "aria-label": "Close timeline", style: "border:none;background:none;cursor:pointer;font-size:14px;padding:0 4px;" } });
+    closeBtn.addEventListener("click", () => panel.remove());
+
+    // Mini bar chart
+    const maxNodes = Math.max(1, ...entries.map(e => e.nodeCount));
+    const chartEl = panel.createDiv();
+    chartEl.style.cssText = "display:flex;align-items:flex-end;gap:2px;height:40px;margin-bottom:6px;";
+    for (const entry of entries) {
+      const bar = chartEl.createDiv();
+      const h = Math.max(2, (entry.nodeCount / maxNodes) * 36);
+      bar.style.cssText = `flex:1;height:${h}px;background:var(--interactive-accent);opacity:0.7;border-radius:2px 2px 0 0;cursor:pointer;min-width:8px;`;
+      bar.title = `${entry.name}: ${entry.nodeCount} nodes, ${entry.edgeCount} edges`;
+      bar.addEventListener("click", () => {
+        const snap = snapshots.find(s => s.name === entry.name);
+        if (snap) {
+          panel.remove();
+          this._compareWithSnapshot(snap);
+        }
+      });
+    }
+
+    // Entry list
+    for (const entry of entries) {
+      const row = panel.createDiv();
+      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid var(--background-modifier-border-hover,transparent);";
+      const nameEl = row.createEl("span", { text: entry.name.replace("[auto] ", "📷 "), attr: { style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;" } });
+      const statsEl = row.createDiv({ attr: { style: "display:flex;gap:6px;font-size:10px;flex-shrink:0;" } });
+      statsEl.createEl("span", { text: `${entry.nodeCount}n` });
+      if (entry.nodeDelta !== undefined) {
+        const d = formatDelta(entry.nodeDelta);
+        statsEl.createEl("span", { text: d.text, attr: { style: `color:${d.color === "green" ? "var(--text-success,#38a169)" : d.color === "red" ? "var(--text-error,#e53e3e)" : "var(--text-muted)"};` } });
+      }
+    }
   }
 
   /** 差分オーバーレイを解除する */
