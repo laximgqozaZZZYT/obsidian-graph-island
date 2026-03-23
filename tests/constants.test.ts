@@ -102,3 +102,82 @@ describe("constants — cross-category independence", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// constants — EDGE_TYPE_SPECS cross-reference (cycle114)
+// ---------------------------------------------------------------------------
+describe("constants — EDGE_TYPE_SPECS coverage", () => {
+  // Import EDGE_TYPE_SPECS indirectly via shouldSkipEdge behavior
+  const ALL_EDGE_TYPES = [
+    C.EDGE_TYPE_LINK, C.EDGE_TYPE_TAG, C.EDGE_TYPE_HAS_TAG,
+    C.EDGE_TYPE_INHERITANCE, C.EDGE_TYPE_AGGREGATION,
+    C.EDGE_TYPE_SIMILAR, C.EDGE_TYPE_SIBLING, C.EDGE_TYPE_SEQUENCE,
+  ];
+
+  it("all EDGE_TYPE_* constants are lowercase strings", () => {
+    for (const t of ALL_EDGE_TYPES) {
+      expect(t).toBe(t.toLowerCase());
+    }
+  });
+
+  it("all EDGE_TYPE_* constants are non-empty and contain only [a-z-]", () => {
+    for (const t of ALL_EDGE_TYPES) {
+      expect(t).toMatch(/^[a-z-]+$/);
+    }
+  });
+
+  it("POLAR_ARRANGEMENTS is a Set with correct members", () => {
+    expect(C.POLAR_ARRANGEMENTS).toBeInstanceOf(Set);
+    expect(C.POLAR_ARRANGEMENTS.has("concentric")).toBe(true);
+    expect(C.POLAR_ARRANGEMENTS.has("radial")).toBe(true);
+    expect(C.POLAR_ARRANGEMENTS.has("phyllotaxis")).toBe(true);
+    expect(C.POLAR_ARRANGEMENTS.has("grid")).toBe(false);
+  });
+
+  it("EVENT_* constants follow naming convention", () => {
+    const events = [
+      C.EVENT_HOVER_NODE, C.EVENT_HIGHLIGHT_NODES,
+      C.EVENT_COMPARE_NODES, C.EVENT_SYNC_PANEL,
+    ];
+    for (const e of events) {
+      expect(e).toMatch(/^graph-island:/);
+    }
+  });
+
+  it("SHAPE_FILL_* constants match NodeShape values", () => {
+    const shapeFills = [
+      C.SHAPE_FILL_TRIANGLE, C.SHAPE_FILL_HEXAGON,
+      C.SHAPE_FILL_SQUARE, C.SHAPE_FILL_DIAMOND, C.SHAPE_FILL_CIRCLE,
+    ];
+    const nodeShapes = ["triangle", "hexagon", "square", "diamond", "circle"];
+    for (const sf of shapeFills) {
+      expect(nodeShapes).toContain(sf);
+    }
+  });
+
+  it("no duplicate values across categories", () => {
+    // Collect all string constant values
+    const allValues: string[] = [];
+    for (const [key, val] of Object.entries(C)) {
+      if (typeof val === "string" && key !== "POLAR_ARRANGEMENTS") {
+        allValues.push(val);
+      }
+    }
+    // Check for collisions (some are expected: concentric appears in LAYOUT and ARRANGEMENT)
+    const duplicates = allValues.filter((v, i) => allValues.indexOf(v) !== i);
+    // "concentric" is shared between LAYOUT_CONCENTRIC, ARRANGEMENT_CONCENTRIC, GROUP_ARRANGEMENT_CONCENTRIC
+    // "grid" is shared between ARRANGEMENT_GRID, GROUP_ARRANGEMENT_GRID
+    // "circle" is shared between GROUP_ARRANGEMENT_CIRCLE, SHAPE_FILL_CIRCLE
+    // These are expected cross-category duplicates
+    // Expected cross-category duplicates:
+    // concentric: LAYOUT + ARRANGEMENT + GROUP_ARRANGEMENT
+    // grid: ARRANGEMENT + GROUP_ARRANGEMENT
+    // circle: GROUP_ARRANGEMENT + SHAPE_FILL
+    // timeline: LAYOUT + ARRANGEMENT
+    // random: ARRANGEMENT + SOURCE
+    // triangle: ARRANGEMENT + SHAPE_FILL
+    const expectedDups = new Set(["concentric", "grid", "circle", "timeline", "random", "triangle"]);
+    const unexpectedDups = duplicates.filter(d => !expectedDups.has(d));
+    expect(unexpectedDups).toEqual([]);
+  });
+});

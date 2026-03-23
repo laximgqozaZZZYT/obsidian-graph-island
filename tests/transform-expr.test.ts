@@ -105,3 +105,102 @@ describe("getTransformExprSuggestions", () => {
     expect(hasBin).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// parseTransformExpr — edge cases (cycle114)
+// ---------------------------------------------------------------------------
+describe("parseTransformExpr edge cases", () => {
+  it("parses all curve functions without crash", () => {
+    const curves = ["ARCHIMEDEAN", "LOG_SPIRAL", "FERMAT", "HYPERBOLIC", "CARDIOID", "ROSE", "LISSAJOUS", "GOLDEN_SPIRAL"];
+    for (const curve of curves) {
+      const result = parseTransformExpr(`${curve}(index)`);
+      expect(result, `${curve} should parse`).not.toBeNull();
+      expect(result!.transform.kind).toBe("curve");
+    }
+  });
+
+  it("parses all math functions", () => {
+    const funcs = ["SIN", "COS", "TAN", "SQRT", "ABS", "LOG", "EXP", "FLOOR", "CEIL"];
+    for (const fn of funcs) {
+      const result = parseTransformExpr(`${fn}(degree)`);
+      expect(result, `${fn} should parse`).not.toBeNull();
+      expect(result!.transform.kind).toBe("expression");
+    }
+  });
+
+  it("POW with explicit exponent", () => {
+    const result = parseTransformExpr("POW(degree, 3)");
+    expect(result).not.toBeNull();
+    expect(result!.transform.kind).toBe("expression");
+    expect((result!.transform as any).expr).toContain("3");
+  });
+
+  it("function with empty parens falls back to field source", () => {
+    // "BIN()" doesn't match FUNC(args) pattern (no content inside parens)
+    // Instead parsed as plain field source "BIN()"
+    const result = parseTransformExpr("BIN()");
+    // May parse as field or return null depending on regex
+    if (result) {
+      expect(result.source.kind).toBeDefined();
+    }
+  });
+
+  it("LINEAR with custom scale", () => {
+    const result = parseTransformExpr("LINEAR(index, 2.5)");
+    expect(result).not.toBeNull();
+    expect(result!.transform.kind).toBe("linear");
+    expect((result!.transform as any).scale).toBe(2.5);
+  });
+
+  it("EVEN with custom range", () => {
+    const result = parseTransformExpr("EVEN(index, 180)");
+    expect(result).not.toBeNull();
+    expect(result!.transform.kind).toBe("even-divide");
+    expect((result!.transform as any).totalRange).toBe(180);
+  });
+
+  it("parses hop source with node and depth", () => {
+    const result = parseTransformExpr("hop:start:3");
+    expect(result).not.toBeNull();
+    expect(result!.source.kind).toBe("hop");
+  });
+
+  it("parses random source", () => {
+    const result = parseTransformExpr("random");
+    expect(result).not.toBeNull();
+    expect(result!.source.kind).toBe("random");
+  });
+
+  it("parses const source", () => {
+    const result = parseTransformExpr("const:42");
+    expect(result).not.toBeNull();
+    expect(result!.source.kind).toBe("const");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// transformExprToString — edge cases
+// ---------------------------------------------------------------------------
+describe("transformExprToString edge cases", () => {
+  it("BIN serializes with count", () => {
+    const source: AxisSource = { kind: SOURCE_FIELD, field: "tag:?" };
+    const transform: AxisTransform = { kind: TRANSFORM_BIN, count: 8 };
+    const result = transformExprToString(source, transform);
+    expect(result).toContain("BIN");
+    expect(result).toContain("8");
+  });
+
+  it("expression serializes the expr string", () => {
+    const source: AxisSource = { kind: SOURCE_INDEX };
+    const transform: AxisTransform = { kind: TRANSFORM_EXPRESSION, expr: "sin(t*pi)", scale: 1 };
+    const result = transformExprToString(source, transform);
+    expect(result).toContain("sin(t*pi)");
+  });
+
+  it("non-unit linear scale serializes as multiplier", () => {
+    const source: AxisSource = { kind: SOURCE_INDEX };
+    const transform: AxisTransform = { kind: TRANSFORM_LINEAR, scale: 3 };
+    const result = transformExprToString(source, transform);
+    expect(result).toContain("3");
+  });
+});

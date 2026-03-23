@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   computeLodLevel, darkenColor,
   lightenColor, blendColors, desaturateColor, hashStringToHue,
+  truncateLabel,
 } from "../src/views/RenderPipeline";
 
 // ---------------------------------------------------------------------------

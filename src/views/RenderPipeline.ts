@@ -248,6 +248,13 @@ export function hashStringToHue(str: string): number {
 
 // hslToHex imported from ../utils/graph-helpers (DRY: removed local duplicate)
 
+/** Truncate a label to maxChars, appending "…" if truncated. 0 or negative maxChars means no truncation. */
+export function truncateLabel(label: string, maxChars: number): string {
+  return maxChars > 0 && label.length > maxChars
+    ? label.slice(0, maxChars) + "…"
+    : label;
+}
+
 // ---------------------------------------------------------------------------
 // RenderHost — the interface the RenderPipeline needs from its parent
 // ---------------------------------------------------------------------------
@@ -1196,9 +1203,7 @@ export class RenderPipeline {
           if (isCardText(gfx.children[ci])) { gfx.removeChild(gfx.children[ci]).destroy(); }
         }
         const fontSize = Math.min(Math.max(6, 9 / worldScale), 9 * 8);
-        const _mc1 = rt.labelMaxChars;
-        const _lbl1 = _mc1 > 0 && pn.data.label.length > _mc1 ? pn.data.label.slice(0, _mc1) + "…" : pn.data.label;
-        const nameText = new CanvasText(_lbl1, {
+        const nameText = new CanvasText(truncateLabel(pn.data.label, rt.labelMaxChars), {
           fontSize, fontWeight: "bold", fill: labelColor,
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
         });
@@ -1243,9 +1248,7 @@ export class RenderPipeline {
         const fontSize = Math.min(Math.max(7, 10 / worldScale), 10 * 8);
         const smallFont = fontSize * 0.85;
         let curY = -halfH + 3 / worldScale;
-        const _mc2 = rt.labelMaxChars;
-        const _lbl2 = _mc2 > 0 && pn.data.label.length > _mc2 ? pn.data.label.slice(0, _mc2) + "…" : pn.data.label;
-        const nameText = new CanvasText(_lbl2, {
+        const nameText = new CanvasText(truncateLabel(pn.data.label, rt.labelMaxChars), {
           fontSize, fontWeight: "bold", fill: contrastColor(pn.color),
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
         });
@@ -1485,9 +1488,7 @@ export class RenderPipeline {
       const availableTextW = halfW * 2 - textPadX * 2 - iconOffset;
 
       // Header text (bold, white) — apply GD labelMaxChars
-      const _mc3 = rt.labelMaxChars;
-      const _lbl3 = _mc3 > 0 && pn.data.label.length > _mc3 ? pn.data.label.slice(0, _mc3) + "…" : pn.data.label;
-      const headerText = new CanvasText(_lbl3, {
+      const headerText = new CanvasText(truncateLabel(pn.data.label, rt.labelMaxChars), {
         fontSize,
         fontWeight: "bold",
         fill: contrastColor(pn.color),
@@ -1614,10 +1615,7 @@ export class RenderPipeline {
         const titleFill = contrastColor(pn.color);
         const bodyFill = titleFill === 0xffffff ? 0xcccccc : 0x444444;
         // Title (apply GD labelMaxChars truncation)
-        const maxChars = rt.labelMaxChars;
-        const cardTitle = maxChars > 0 && pn.data.label.length > maxChars
-          ? pn.data.label.slice(0, maxChars) + "…" : pn.data.label;
-        const title = new CanvasText(cardTitle, {
+        const title = new CanvasText(truncateLabel(pn.data.label, rt.labelMaxChars), {
           fontSize, fontWeight: "bold", fill: titleFill,
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
         });
@@ -2376,11 +2374,8 @@ export class RenderPipeline {
         labelFill = contrastColor(labelBg);
       }
       // GD: Truncate label to max chars
-      const labelMaxChars = rt.labelMaxChars;
       // A3: Prepend icon prefix from nodeIconField mapping
-      let displayLabel = labelMaxChars > 0 && n.label.length > labelMaxChars
-        ? n.label.slice(0, labelMaxChars) + "…"
-        : n.label;
+      let displayLabel = truncateLabel(n.label, rt.labelMaxChars);
       const iconCfg = this.host.getNodeIconConfig?.();
       if (iconCfg && iconCfg.field && n.meta) {
         const fieldVal = String(n.meta[iconCfg.field] ?? "");
