@@ -285,7 +285,7 @@ const CABLE_LAYOUT_MARGIN = 5;
 /** Cable layout overlap start/end fraction */
 const CABLE_OVERLAP_FRAC = 0.4;
 /** Trunk conduit alpha — semi-transparent so wires show through */
-const TRUNK_CONDUIT_ALPHA = 0;
+const TRUNK_CONDUIT_ALPHA = 0.12;
 /** Cable conduit alpha — semi-transparent so wires show through */
 const CABLE_CONDUIT_ALPHA = 0;
 /** Wire alpha — most opaque layer, clearly visible */
@@ -1468,7 +1468,9 @@ function buildTrunks(
     const pairKey = `${a}|${b}`;
     let pair = pairData.get(pairKey);
     if (!pair) { pair = { srcGroup: a, tgtGroup: b, byColor: new Map() }; pairData.set(pairKey, pair); }
-    const color = resolveEdgeColor(e, cfg.colorEdgesByRelation, cfg.relationColors, cfg.isDark);
+    // Cable-tray wires always use type-based coloring for visual differentiation,
+    // even when colorEdgesByRelation is off for regular edge rendering.
+    const color = resolveEdgeColor(e, true, cfg.relationColors, cfg.isDark);
     let group = pair.byColor.get(color);
     if (!group) { group = []; pair.byColor.set(color, group); }
     group.push(e);

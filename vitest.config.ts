@@ -12,12 +12,12 @@ export default defineConfig({
       reporter: ["text-summary", "json-summary"],
       reportsDirectory: "coverage",
       thresholds: {
-        // Current baseline: 25% overall (View layer is E2E-dependent)
+        // Baseline: v0.3.2 (1669 tests, cycle130)
         // These thresholds prevent regression — increase as coverage grows
-        statements: 24,
-        branches: 22,
-        functions: 20,
-        lines: 24,
+        statements: 25,
+        branches: 23,
+        functions: 22,
+        lines: 25,
       },
     },
   },
