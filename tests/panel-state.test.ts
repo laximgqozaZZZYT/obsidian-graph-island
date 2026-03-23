@@ -197,4 +197,59 @@ describe("validatePanelState — boundary values", () => {
     const snapshot2 = JSON.stringify(panel, (_, v) => v instanceof Set ? [...v] : v);
     expect(snapshot2).toBe(snapshot);
   });
+
+  it("cableTrunkAlpha 0 migrated to 0.25", () => {
+    const panel = createDefaultPanel();
+    panel.cableTrunkAlpha = 0;
+    validatePanelState(panel);
+    expect(panel.cableTrunkAlpha).toBe(0.25);
+  });
+
+  it("cableTrunkAlpha non-zero preserved", () => {
+    const panel = createDefaultPanel();
+    panel.cableTrunkAlpha = 0.5;
+    validatePanelState(panel);
+    expect(panel.cableTrunkAlpha).toBe(0.5);
+  });
+
+  it("collapsedGroups array→Set preserves values", () => {
+    const panel = createDefaultPanel();
+    (panel as any).collapsedGroups = ["group-A", "group-B", "group-C"];
+    validatePanelState(panel);
+    expect(panel.collapsedGroups.size).toBe(3);
+    expect(panel.collapsedGroups.has("group-A")).toBe(true);
+    expect(panel.collapsedGroups.has("group-C")).toBe(true);
+  });
+
+  it("presentationWaypoints null→empty array", () => {
+    const panel = createDefaultPanel();
+    (panel as any).presentationWaypoints = null;
+    validatePanelState(panel);
+    expect(Array.isArray(panel.presentationWaypoints)).toBe(true);
+    expect(panel.presentationWaypoints).toHaveLength(0);
+  });
+
+  it("nodeSize at exact boundary values", () => {
+    const panel1 = createDefaultPanel();
+    panel1.nodeSize = 1;
+    validatePanelState(panel1);
+    expect(panel1.nodeSize).toBe(1);
+
+    const panel2 = createDefaultPanel();
+    panel2.nodeSize = 100;
+    validatePanelState(panel2);
+    expect(panel2.nodeSize).toBe(100);
+  });
+
+  it("hoverHops at exact boundary values", () => {
+    const panel1 = createDefaultPanel();
+    panel1.hoverHops = 0;
+    validatePanelState(panel1);
+    expect(panel1.hoverHops).toBe(0);
+
+    const panel2 = createDefaultPanel();
+    panel2.hoverHops = 10;
+    validatePanelState(panel2);
+    expect(panel2.hoverHops).toBe(10);
+  });
 });

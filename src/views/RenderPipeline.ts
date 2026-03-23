@@ -521,6 +521,14 @@ export class RenderPipeline {
     }
   }
 
+  /** Force a synchronous render tick — used when rAF is throttled (background tabs). */
+  forceRender() {
+    if (this.needsRedraw) {
+      this.renderTick();
+      this.host.getPixiApp()?.markNeedsRender();
+    }
+  }
+
   /** Detach the ticker callback. Call during cleanup. */
   detach() {
     this.cancelDeferredBatch();

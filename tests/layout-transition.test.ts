@@ -279,4 +279,47 @@ describe("LayoutTransition", () => {
     expect(xs[0]).toBeCloseTo(0);
     expect(xs[xs.length - 1]).toBeCloseTo(100);
   });
+
+  // --- Edge cases (cycle111) ---
+
+  it("handles negative from/to coordinates", () => {
+    const data = { x: 0, y: 0 };
+    currentTime = 0;
+    transition.start([{ data, fromX: -100, fromY: -200, toX: -50, toY: -100 }]);
+
+    currentTime = 700;
+    transition.tick();
+    expect(data.x).toBe(-50);
+    expect(data.y).toBe(-100);
+  });
+
+  it("handles zero-distance animation (from === to)", () => {
+    const data = { x: 0, y: 0 };
+    currentTime = 0;
+    transition.start([{ data, fromX: 42, fromY: 99, toX: 42, toY: 99 }]);
+
+    currentTime = 300;
+    transition.tick();
+    expect(data.x).toBe(42);
+    expect(data.y).toBe(99);
+  });
+
+  it("handles very large coordinates", () => {
+    const data = { x: 0, y: 0 };
+    currentTime = 0;
+    transition.start([{ data, fromX: 0, fromY: 0, toX: 1e6, toY: -1e6 }]);
+
+    currentTime = 700;
+    transition.tick();
+    expect(data.x).toBe(1e6);
+    expect(data.y).toBe(-1e6);
+  });
+
+  it("empty node array: transition completes immediately", () => {
+    currentTime = 0;
+    transition.start([]);
+    currentTime = 700;
+    const running = transition.tick();
+    expect(running).toBe(false);
+  });
 });

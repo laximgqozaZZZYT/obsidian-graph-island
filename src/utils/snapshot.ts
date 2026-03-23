@@ -95,7 +95,7 @@ export function captureSnapshot(
 // ---------------------------------------------------------------------------
 
 /** エッジを一意に識別するキー文字列を生成する (NUL区切り — IDに含まれない文字) */
-function edgeKey(source: string, target: string, type: string): string {
+export function edgeKey(source: string, target: string, type: string): string {
   return `${source}\0${target}\0${type}`;
 }
 
@@ -175,4 +175,56 @@ export function computeSnapshotDiff(
     addedEdgeKeys,
     removedEdges,
   };
+}
+
+/**
+ * Compare two snapshots directly (without live graph data).
+ * "newer" is treated as "current state", "older" is treated as "baseline".
+ * Nodes in newer but not in older → added.
+ * Nodes in older but not in newer → removed.
+ * Nodes in both with different metaHash → changed.
+ */
+export function computeSnapshotToSnapshotDiff(
+  newer: GraphSnapshot,
+  older: GraphSnapshot,
+): SnapshotDiff {
+  const olderNodeMap = new Map<string, SnapshotNode>();
+  for (const sn of older.nodes) olderNodeMap.set(sn.id, sn);
+
+  const addedNodeIds = new Set<string>();
+  const changedNodeIds = new Set<string>();
+  const seenIds = new Set<string>();
+
+  for (const sn of newer.nodes) {
+    const old = olderNodeMap.get(sn.id);
+    if (!old) {
+      addedNodeIds.add(sn.id);
+    } else if (sn.metaHash !== old.metaHash) {
+      changedNodeIds.add(sn.id);
+    }
+    seenIds.add(sn.id);
+  }
+
+  const removedNodes: SnapshotNode[] = [];
+  for (const sn of older.nodes) {
+    if (!seenIds.has(sn.id)) removedNodes.push(sn);
+  }
+
+  // Edge diff
+  const olderEdgeKeys = new Set(older.edges.map(e => edgeKey(e.source, e.target, e.type)));
+  const newerEdgeKeys = new Set(newer.edges.map(e => edgeKey(e.source, e.target, e.type)));
+
+  const addedEdgeKeys = new Set<string>();
+  for (const k of newerEdgeKeys) {
+    if (!olderEdgeKeys.has(k)) addedEdgeKeys.add(k);
+  }
+
+  const removedEdges: SnapshotEdge[] = [];
+  for (const e of older.edges) {
+    if (!newerEdgeKeys.has(edgeKey(e.source, e.target, e.type))) {
+      removedEdges.push(e);
+    }
+  }
+
+  return { addedNodeIds, removedNodes, changedNodeIds, addedEdgeKeys, removedEdges };
 }

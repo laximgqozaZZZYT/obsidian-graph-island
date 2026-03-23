@@ -521,3 +521,27 @@ export function formatDelta(delta: number | undefined): { text: string; color: "
   if (delta > 0) return { text: `+${delta}`, color: "green" };
   return { text: String(delta), color: "red" };
 }
+
+/**
+ * Format an ISO-8601 timestamp as a locale-aware short date/time string.
+ * Pure function — no side effects.
+ *
+ * @param isoString  ISO-8601 date string (e.g. "2026-03-23T09:06:47")
+ * @param locale     BCP 47 locale (defaults to user's browser locale)
+ * @returns Formatted string like "3/23 09:06" or "23.03. 09:06" depending on locale
+ */
+export function formatSnapshotDate(isoString: string, locale?: string): string {
+  try {
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return isoString;
+    return new Intl.DateTimeFormat(locale, {
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
+  } catch {
+    return isoString; // fallback for invalid input
+  }
+}

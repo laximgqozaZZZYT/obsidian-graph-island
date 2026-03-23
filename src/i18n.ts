@@ -1737,6 +1737,11 @@ const helpJa: TranslationMap = {
 const translations: Record<string, TranslationMap> = { en, ja };
 const helpTranslations: Record<string, TranslationMap> = { en: helpEn, ja: helpJa };
 
+/** Exposed for testing — returns all translation keys for a locale */
+export function _getTranslationKeys(locale: string): string[] {
+  return Object.keys(translations[locale] ?? {});
+}
+
 function detectLocale(): string {
   try {
     // Obsidian sets moment locale to match the user's language preference

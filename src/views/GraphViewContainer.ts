@@ -31,8 +31,8 @@ import { RenderPipeline, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPi
 import { LayoutController, type LayoutHost } from "./LayoutController";
 import { LabelManager } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
-import { DiffOverlay, buildTimelineEntries, formatDelta } from "./DiffOverlay";
-import { captureSnapshot, computeSnapshotDiff } from "../utils/snapshot";
+import { DiffOverlay, buildTimelineEntries, formatDelta, formatSnapshotDate } from "./DiffOverlay";
+import { captureSnapshot, computeSnapshotDiff, computeSnapshotToSnapshotDiff } from "../utils/snapshot";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./StatsRenderer";
@@ -891,14 +891,34 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const maxNodes = Math.max(1, ...entries.map(e => e.nodeCount));
     const chartEl = panel.createDiv();
     chartEl.style.cssText = "display:flex;align-items:flex-end;gap:2px;height:40px;margin-bottom:6px;";
+    let _selectedSnap: typeof snapshots[0] | null = null;
+    const bars: HTMLElement[] = [];
     for (const entry of entries) {
       const bar = chartEl.createDiv();
+      bars.push(bar);
       const h = Math.max(2, (entry.nodeCount / maxNodes) * 36);
       bar.style.cssText = `flex:1;height:${h}px;background:var(--interactive-accent);opacity:0.7;border-radius:2px 2px 0 0;cursor:pointer;min-width:8px;`;
-      bar.title = `${entry.name}: ${entry.nodeCount} nodes, ${entry.edgeCount} edges`;
-      bar.addEventListener("click", () => {
+      bar.title = `${entry.name}: ${entry.nodeCount}n, ${entry.edgeCount}e — Shift+click to compare two`;
+      bar.addEventListener("click", (ev: MouseEvent) => {
         const snap = snapshots.find(s => s.name === entry.name);
-        if (snap) {
+        if (!snap) return;
+        if (ev.shiftKey && _selectedSnap && _selectedSnap !== snap) {
+          // Compare two snapshots
+          const [older, newer] = _selectedSnap.createdAt < snap.createdAt
+            ? [_selectedSnap, snap]
+            : [snap, _selectedSnap];
+          const diff = computeSnapshotToSnapshotDiff(newer, older);
+          this.diffOverlay.activate(diff, `${older.name} → ${newer.name}`);
+          panel.remove();
+          this.pixiApp?.markNeedsRender();
+          this.wakeRenderLoop();
+        } else if (ev.shiftKey) {
+          // First shift-click: select this snapshot
+          _selectedSnap = snap;
+          bars.forEach(b => b.style.outline = "");
+          bar.style.outline = "2px solid var(--text-accent)";
+        } else {
+          // Normal click: compare with current graph
           panel.remove();
           this._compareWithSnapshot(snap);
         }
@@ -909,7 +929,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     for (const entry of entries) {
       const row = panel.createDiv();
       row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid var(--background-modifier-border-hover,transparent);";
-      const nameEl = row.createEl("span", { text: entry.name.replace("[auto] ", "📷 "), attr: { style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;" } });
+      const displayName = entry.name.replace("[auto] ", "📷 ");
+      const dateStr = formatSnapshotDate(entry.createdAt);
+      row.createEl("span", { text: displayName, attr: { style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px;", title: `${entry.name} (${dateStr})` } });
+      row.createEl("span", { text: dateStr, attr: { style: "font-size:9px;color:var(--text-muted);flex-shrink:0;margin:0 4px;" } });
       const statsEl = row.createDiv({ attr: { style: "display:flex;gap:6px;font-size:10px;flex-shrink:0;" } });
       statsEl.createEl("span", { text: `${entry.nodeCount}n` });
       if (entry.nodeDelta !== undefined) {
@@ -5571,7 +5594,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return {
       doRender: () => { this.doRender(); this.requestSave(); },
       doRenderKeepPanel: () => { this.skipPanelRebuildCount++; this.doRender().finally(() => { this.skipPanelRebuildCount = Math.max(0, this.skipPanelRebuildCount - 1); }); this.requestSave(); },
-      markDirty: () => { invalidateBundleCache(); this.markDirty(true); this._updateSurpriseTimer(); this.requestSave(); },
+      markDirty: () => {
+        invalidateBundleCache(); this.markDirty(true); this._updateSurpriseTimer(); this.requestSave();
+        // Fallback: force render if rAF is throttled (background tabs)
+        setTimeout(() => { this.renderPipeline?.forceRender(); }, 100);
+      },
       updateForces: () => { this.updateForces(); this.requestSave(); },
       applySearch: () => this.applySearch(),
       applyTextFade: () => { this.applyTextFade(); this.requestSave(); },

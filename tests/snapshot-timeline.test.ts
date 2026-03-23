@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildTimelineEntries, formatDelta, type TimelineEntry } from "../src/views/DiffOverlay";
+import { buildTimelineEntries, formatDelta, formatSnapshotDate, type TimelineEntry } from "../src/views/DiffOverlay";
 
 // ---------------------------------------------------------------------------
 // buildTimelineEntries
@@ -115,5 +115,45 @@ describe("formatDelta", () => {
 
   it("-1 edge case", () => {
     expect(formatDelta(-1)).toEqual({ text: "-1", color: "red" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatSnapshotDate
+// ---------------------------------------------------------------------------
+describe("formatSnapshotDate", () => {
+  it("formats valid ISO date with en-US locale", () => {
+    const result = formatSnapshotDate("2026-03-23T09:06:47", "en-US");
+    expect(result).toContain("3");   // month
+    expect(result).toContain("23");  // day
+    expect(result).toContain("09");  // hour
+    expect(result).toContain("06");  // minute
+  });
+
+  it("returns original string for invalid date", () => {
+    expect(formatSnapshotDate("not-a-date")).toBe("not-a-date");
+  });
+
+  it("returns original string for empty string", () => {
+    expect(formatSnapshotDate("")).toBe("");
+  });
+
+  it("handles date-only string (no time component)", () => {
+    const result = formatSnapshotDate("2026-03-23", "en-US");
+    expect(result).toContain("3");
+    expect(result).toContain("23");
+  });
+
+  it("uses default locale when none specified", () => {
+    // Should not throw
+    const result = formatSnapshotDate("2026-01-15T14:30:00");
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it("respects ja-JP locale format", () => {
+    const result = formatSnapshotDate("2026-03-23T09:06:47", "ja-JP");
+    expect(result).toContain("3");
+    expect(result).toContain("23");
   });
 });

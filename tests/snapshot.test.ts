@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fnv1a, hashMeta, captureSnapshot, computeSnapshotDiff } from "../src/utils/snapshot";
+import { fnv1a, hashMeta, captureSnapshot, computeSnapshotDiff, computeSnapshotToSnapshotDiff } from "../src/utils/snapshot";
 import type { GraphData, GraphSnapshot } from "../src/types";
 
 describe("fnv1a", () => {
@@ -240,5 +240,81 @@ describe("hashMeta edge cases", () => {
     const hash = hashMeta({ name: "テスト" });
     expect(hash.length).toBeGreaterThan(0);
     expect(hashMeta({ name: "テスト" })).toBe(hash); // stable
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeSnapshotToSnapshotDiff
+// ---------------------------------------------------------------------------
+describe("computeSnapshotToSnapshotDiff", () => {
+  function makeSnap(
+    nodes: Array<{ id: string; metaHash: string }>,
+    edges: Array<{ source: string; target: string; type: string }> = [],
+  ): GraphSnapshot {
+    return {
+      name: "test",
+      createdAt: "2026-01-01T00:00:00",
+      nodes,
+      edges,
+      context: { layout: "force", searchQuery: "", groupBy: "", nodeCount: nodes.length, edgeCount: edges.length },
+    };
+  }
+
+  it("identical snapshots produce empty diff", () => {
+    const snap = makeSnap([{ id: "a", metaHash: "h1" }], [{ source: "a", target: "b", type: "link" }]);
+    const diff = computeSnapshotToSnapshotDiff(snap, snap);
+    expect(diff.addedNodeIds.size).toBe(0);
+    expect(diff.removedNodes).toHaveLength(0);
+    expect(diff.changedNodeIds.size).toBe(0);
+    expect(diff.addedEdgeKeys.size).toBe(0);
+    expect(diff.removedEdges).toHaveLength(0);
+  });
+
+  it("detects added nodes in newer", () => {
+    const older = makeSnap([{ id: "a", metaHash: "h1" }]);
+    const newer = makeSnap([{ id: "a", metaHash: "h1" }, { id: "b", metaHash: "h2" }]);
+    const diff = computeSnapshotToSnapshotDiff(newer, older);
+    expect(diff.addedNodeIds.has("b")).toBe(true);
+    expect(diff.removedNodes).toHaveLength(0);
+  });
+
+  it("detects removed nodes in newer", () => {
+    const older = makeSnap([{ id: "a", metaHash: "h1" }, { id: "b", metaHash: "h2" }]);
+    const newer = makeSnap([{ id: "a", metaHash: "h1" }]);
+    const diff = computeSnapshotToSnapshotDiff(newer, older);
+    expect(diff.removedNodes).toHaveLength(1);
+    expect(diff.removedNodes[0].id).toBe("b");
+  });
+
+  it("detects changed metadata by hash comparison", () => {
+    const older = makeSnap([{ id: "a", metaHash: "old-hash" }]);
+    const newer = makeSnap([{ id: "a", metaHash: "new-hash" }]);
+    const diff = computeSnapshotToSnapshotDiff(newer, older);
+    expect(diff.changedNodeIds.has("a")).toBe(true);
+  });
+
+  it("detects added and removed edges", () => {
+    const older = makeSnap([], [{ source: "a", target: "b", type: "link" }]);
+    const newer = makeSnap([], [{ source: "a", target: "c", type: "semantic" }]);
+    const diff = computeSnapshotToSnapshotDiff(newer, older);
+    expect(diff.addedEdgeKeys.size).toBe(1);
+    expect(diff.removedEdges).toHaveLength(1);
+    expect(diff.removedEdges[0].source).toBe("a");
+    expect(diff.removedEdges[0].target).toBe("b");
+  });
+
+  it("handles completely disjoint snapshots", () => {
+    const older = makeSnap([{ id: "a", metaHash: "h" }]);
+    const newer = makeSnap([{ id: "x", metaHash: "h" }]);
+    const diff = computeSnapshotToSnapshotDiff(newer, older);
+    expect(diff.addedNodeIds.has("x")).toBe(true);
+    expect(diff.removedNodes.some(n => n.id === "a")).toBe(true);
+  });
+
+  it("handles empty snapshots", () => {
+    const empty = makeSnap([]);
+    const diff = computeSnapshotToSnapshotDiff(empty, empty);
+    expect(diff.addedNodeIds.size).toBe(0);
+    expect(diff.removedNodes).toHaveLength(0);
   });
 });
