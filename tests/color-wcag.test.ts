@@ -90,6 +90,18 @@ describe("contrastColor", () => {
       expect(ratio).toBeGreaterThanOrEqual(4.5);
     }
   });
+  it("returns white for medium-dark colors", () => {
+    expect(contrastColor(0x333333)).toBe(0xffffff);
+  });
+  it("returns black for medium-light colors", () => {
+    expect(contrastColor(0xcccccc)).toBe(0x000000);
+  });
+  it("handles pure red (high luminance → black)", () => {
+    expect(contrastColor(0xff0000)).toBe(0x000000);
+  });
+  it("handles pure green (high luminance → black)", () => {
+    expect(contrastColor(0x00ff00)).toBe(0x000000);
+  });
 });
 
 describe("adjustBrightness", () => {
@@ -101,6 +113,17 @@ describe("adjustBrightness", () => {
   });
   it("factor 0 = black", () => {
     expect(adjustBrightness(0xffffff, 0)).toBe(0x000000);
+  });
+  it("brightens a dark color", () => {
+    const result = adjustBrightness(0x333333, 2.0);
+    const { r } = hexToRgb(result);
+    expect(r).toBeGreaterThan(0x33);
+  });
+  it("darkens with factor < 1.0", () => {
+    const result = adjustBrightness(0xaabbcc, 0.5);
+    const orig = hexToRgb(0xaabbcc);
+    const dark = hexToRgb(result);
+    expect(dark.r).toBeLessThan(orig.r);
   });
 });
 

@@ -668,7 +668,7 @@ function extractTags(
  * Extract a body preview from file content by stripping YAML frontmatter.
  * Returns both a truncated preview and the full body length.
  */
-function extractBodyInfo(content: string, maxLen: number): { preview: string; length: number } {
+export function extractBodyInfo(content: string, maxLen: number): { preview: string; length: number } {
   let body = content;
   // Strip YAML frontmatter (--- ... ---)
   if (body.startsWith("---")) {
