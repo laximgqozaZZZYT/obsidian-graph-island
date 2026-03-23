@@ -92,9 +92,9 @@ describe("isSectionVisible", () => {
     expect(isSectionVisible("timeline", "clusterArrangement")).toBe(false);
     expect(isSectionVisible("timeline", "forceParameters")).toBe(false);
   });
-  it("timeline shows timeline controls and edges", () => {
+  it("timeline shows timeline controls but hides edge display", () => {
     expect(isSectionVisible("timeline", "timelineControls")).toBe(true);
-    expect(isSectionVisible("timeline", "edgeDisplay")).toBe(true);
+    expect(isSectionVisible("timeline", "edgeDisplay")).toBe(false);
   });
 
   it("tree hides graph-specific sections", () => {

@@ -302,3 +302,38 @@ export function exportGraphMermaid(
   }
   return lines.join("\n");
 }
+
+// ---------------------------------------------------------------------------
+// Tooltip text helpers (extracted from _createHoverTooltip for testability)
+// ---------------------------------------------------------------------------
+
+/** Build edge type summary for a node (e.g. "link:3 tag:2"). */
+export function edgeTypeSummary(
+  edges: { source: string; target: string; type?: string }[],
+  nodeId: string,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const e of edges) {
+    if (e.source === nodeId || e.target === nodeId) {
+      const t = e.type ?? "link";
+      counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+/** Build collapsed group summary text (e.g. "[4 nodes]\nA, B, C +1"). */
+export function collapsedGroupSummary(members: string[]): string {
+  if (members.length === 0) return "";
+  let text = `[${members.length} nodes]`;
+  const top3 = members.slice(0, 3).map(m => m.replace(/\.md$/, ""));
+  text += "\n" + top3.join(", ");
+  if (members.length > 3) text += ` +${members.length - 3}`;
+  return text;
+}
+
+/** Truncate a breadcrumb path for display: keep first 2 + last 2 with "…". */
+export function truncateBreadcrumb(path: string[]): string[] {
+  if (path.length <= 5) return path;
+  return [...path.slice(0, 2), "…", ...path.slice(-2)];
+}

@@ -2081,21 +2081,42 @@ function buildLayoutTab(
     }, tHelp("help.displayGrouping"), false, "layers");
   }
 
-  // Cluster arrangement
+  // Cluster arrangement (core: pattern select, concentric, spacing, guides, cluster rules, sort)
   if (v("clusterArrangement")) {
     buildSection(layoutTab, t("section.clusterArrangement"), (body) => {
       const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
       _buildArrangementPatternSelect(sctx);
       _buildConcentricOptions(sctx);
-      _buildCoordinateControls(sctx);
-      _buildTimelineControls(sctx);
       _buildSpacingAndGroupArrangement(sctx);  // Must come before autoFit (populates spacingSliders)
       _buildAutoFitAndGuides(sctx);
-      _buildForceParameters(sctx);
       _buildClusterGroupRules(sctx);
       _buildDirectionalGravityRules(sctx);
       _buildSortRules(sctx);
     }, tHelp("help.clusterArrangement"), true, "layout-grid");
+  }
+
+  // Coordinate axis controls (independent so coordinate viewModes can show them)
+  if (v("coordinateControls")) {
+    buildSection(layoutTab, t("section.coordinateControls"), (body) => {
+      const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
+      _buildCoordinateControls(sctx);
+    }, undefined, true, "axis-3d");
+  }
+
+  // Timeline controls (independent so timeline viewMode can show them)
+  if (v("timelineControls")) {
+    buildSection(layoutTab, t("section.timelineControls"), (body) => {
+      const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
+      _buildTimelineControls(sctx);
+    }, undefined, true, "calendar");
+  }
+
+  // Force simulation parameters
+  if (v("forceParameters")) {
+    buildSection(layoutTab, t("section.forceParameters"), (body) => {
+      const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
+      _buildForceParameters(sctx);
+    }, undefined, true, "magnet");
   }
 
   // Node rules

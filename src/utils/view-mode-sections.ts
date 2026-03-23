@@ -53,6 +53,7 @@ const HIDDEN_SECTIONS: Record<Exclude<ViewMode, "graph">, Set<PanelSectionId>> =
     "structureAnalysis",
     "discovery",
     "interaction",
+    "edgeDisplay",
     "cableDisplay",
     "roadNetwork",
     "relationColors",

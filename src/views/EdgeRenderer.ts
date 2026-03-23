@@ -555,7 +555,7 @@ export interface GroupBBox {
 }
 
 /** Compute the graph-wide center from all cluster centroids */
-function computeGraphCenter(
+export function computeGraphCenter(
   centroids: Map<string, { x: number; y: number }>,
 ): { x: number; y: number } {
   let sx = 0, sy = 0, n = 0;
@@ -568,7 +568,7 @@ function computeGraphCenter(
  * Compute the bounding box of all nodes belonging to a group, with margin.
  * Returns null if no nodes found.
  */
-function computeGroupBBox(
+export function computeGroupBBox(
   groupKey: string,
   resolvePos: (ref: string | object) => Pos | undefined,
   nodeClusterMap: Map<string, string>,
@@ -829,7 +829,7 @@ function filterGridForPortFace(grid: JunctionGrid, face: BBoxFace): JunctionGrid
 }
 
 /** Find the gap value nearest to the target coordinate */
-function findNearestGap(gaps: number[], target: number): number | null {
+export function findNearestGap(gaps: number[], target: number): number | null {
   if (gaps.length === 0) return null;
   let best = gaps[0];
   let bestDist = Math.abs(gaps[0] - target);
@@ -844,7 +844,7 @@ function findNearestGap(gaps: number[], target: number): number | null {
  * Find a gap BETWEEN two coordinates (strictly between minV and maxV).
  * If none found strictly between, fall back to nearest gap overall.
  */
-function findGapBetween(gaps: number[], a: number, b: number): number | null {
+export function findGapBetween(gaps: number[], a: number, b: number): number | null {
   if (gaps.length === 0) return null;
   const lo = Math.min(a, b), hi = Math.max(a, b);
   // Prefer a gap strictly between a and b
