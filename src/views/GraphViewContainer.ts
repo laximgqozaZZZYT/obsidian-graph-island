@@ -8600,7 +8600,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const tr = table.createEl("tr");
       const label = getLabel(rowId);
       const td = tr.createEl("td", { text: label.slice(0, 8), cls: "gi-matrix-label", attr: { title: label } });
-      td.addEventListener("click", () => this.jumpToNode(rowId));
+      td.addEventListener("click", () => this._switchToGraphAndFocus(rowId));
 
       for (const colId of nodeIds) {
         const count = matrix.get(rowId)?.get(colId) ?? 0;
@@ -8613,7 +8613,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             : `rgba(79,70,229,${intensity * 0.4})`;
         }
         cell.addEventListener("click", () => {
-          if (rowId !== colId) this.applyEphemeralHighlight(new Set([rowId, colId]));
+          if (count > 0) this._switchToGraphAndFocus(rowId, colId);
         });
       }
     }
@@ -8626,6 +8626,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (this.minimap) this.minimap.setVisible(false);
     if (this.relationMatrixEl) this.relationMatrixEl.style.display = "none";
     if (this.skipPanelRebuildCount === 0) this.buildPanel();
+  }
+
+  /** Switch to graph viewMode and focus on a node (optionally highlight a pair). */
+  private _switchToGraphAndFocus(nodeId: string, secondId?: string): void {
+    this.panel.viewMode = "graph";
+    this.currentLayout = viewModeToLayout("graph");
+    const group = this.containerEl.querySelector(".gi-view-mode-group");
+    if (group) {
+      group.querySelectorAll(".gi-view-mode-btn").forEach(b => {
+        const isActive = (b as HTMLElement).dataset.mode === "graph";
+        b.toggleClass("is-active", isActive);
+        b.setAttribute("aria-pressed", String(isActive));
+      });
+    }
+    this.doRender();
+    // After render completes, jump to node
+    setTimeout(() => {
+      this.jumpToNode(nodeId);
+      if (secondId) this.applyEphemeralHighlight(new Set([nodeId, secondId]));
+    }, 1000);
   }
 
 }
