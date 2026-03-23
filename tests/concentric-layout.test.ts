@@ -182,4 +182,69 @@ describe("repositionShell", () => {
     repositionShell(shell, nodes);
     expect(dist(nodes.get("a")!.x, nodes.get("a")!.y, 0, 0)).toBeCloseTo(100, 5);
   });
+
+  // --- repositionShell boundary values (cycle118) ---
+
+  it("many nodes on shell are evenly spaced", () => {
+    const ids = Array.from({ length: 12 }, (_, i) => `n${i}`);
+    const nodes = new Map(ids.map(id => [id, mkNode(id)]));
+    const shell: ShellInfo = {
+      radius: 200, nodeIds: ids, centerX: 0, centerY: 0,
+      angleOffset: 0, rotationSpeed: 0, rotationDirection: 1,
+    };
+    repositionShell(shell, nodes);
+
+    // All nodes should be at radius 200
+    for (const id of ids) {
+      const n = nodes.get(id)!;
+      expect(dist(n.x, n.y, 0, 0)).toBeCloseTo(200, 0);
+    }
+
+    // Angular spacing should be uniform (2π/12 = π/6)
+    const angles = ids.map(id => {
+      const n = nodes.get(id)!;
+      return Math.atan2(n.y, n.x);
+    });
+    for (let i = 1; i < angles.length; i++) {
+      let diff = angles[i] - angles[i - 1];
+      if (diff < 0) diff += 2 * Math.PI;
+      expect(diff).toBeCloseTo(2 * Math.PI / 12, 1);
+    }
+  });
+
+  it("zero radius places all nodes at center", () => {
+    const nodes = new Map([["a", mkNode("a")], ["b", mkNode("b")]]);
+    const shell: ShellInfo = {
+      radius: 0, nodeIds: ["a", "b"], centerX: 50, centerY: 50,
+      angleOffset: 0, rotationSpeed: 0, rotationDirection: 1,
+    };
+    repositionShell(shell, nodes);
+    expect(nodes.get("a")!.x).toBeCloseTo(50, 5);
+    expect(nodes.get("a")!.y).toBeCloseTo(50, 5);
+    expect(nodes.get("b")!.x).toBeCloseTo(50, 5);
+    expect(nodes.get("b")!.y).toBeCloseTo(50, 5);
+  });
+
+  it("full rotation (2π offset) returns same positions as no offset", () => {
+    const nodes1 = new Map([["a", mkNode("a")], ["b", mkNode("b")]]);
+    const nodes2 = new Map([["a", mkNode("a")], ["b", mkNode("b")]]);
+    const base: ShellInfo = {
+      radius: 100, nodeIds: ["a", "b"], centerX: 0, centerY: 0,
+      angleOffset: 0, rotationSpeed: 0, rotationDirection: 1,
+    };
+    repositionShell(base, nodes1);
+    repositionShell({ ...base, angleOffset: 2 * Math.PI }, nodes2);
+    expect(nodes1.get("a")!.x).toBeCloseTo(nodes2.get("a")!.x, 3);
+    expect(nodes1.get("a")!.y).toBeCloseTo(nodes2.get("a")!.y, 3);
+  });
+
+  it("negative center offsets work correctly", () => {
+    const nodes = new Map([["a", mkNode("a")]]);
+    const shell: ShellInfo = {
+      radius: 50, nodeIds: ["a"], centerX: -100, centerY: -200,
+      angleOffset: 0, rotationSpeed: 0, rotationDirection: 1,
+    };
+    repositionShell(shell, nodes);
+    expect(dist(nodes.get("a")!.x, nodes.get("a")!.y, -100, -200)).toBeCloseTo(50, 5);
+  });
 });

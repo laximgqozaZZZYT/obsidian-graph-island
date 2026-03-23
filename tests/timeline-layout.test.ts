@@ -243,3 +243,78 @@ describe("resolveTimeKey", () => {
     expect(result).toBe("custom_date");
   });
 });
+
+// ---------------------------------------------------------------------------
+// buildLinkChainOrder — additional boundary values (cycle118)
+// ---------------------------------------------------------------------------
+describe("buildLinkChainOrder boundary values", () => {
+  it("single node with no links: empty order and chains", () => {
+    const result = buildLinkChainOrder([mkNode("a")], () => undefined, ["next"], []);
+    expect(result.chains).toHaveLength(0);
+    expect(result.order.size).toBe(0);
+  });
+
+  it("long chain via wikilinks: order is monotonically increasing", () => {
+    const nodes = Array.from({ length: 10 }, (_, i) => mkNode(`n${i}`));
+    const data: Record<string, Record<string, string>> = {};
+    for (let i = 0; i < 10; i++) data[`n${i}`] = {};
+    for (let i = 0; i < 9; i++) data[`n${i}`].next = `[[n${i + 1}]]`;
+    const result = buildLinkChainOrder(nodes, propMap(data), ["next"], []);
+    expect(result.chains.length).toBe(1);
+    expect(result.chains[0]).toHaveLength(10);
+    // Order is monotonically increasing
+    for (let i = 1; i < 10; i++) {
+      expect(result.order.get(`n${i}`)!).toBeGreaterThan(result.order.get(`n${i - 1}`)!);
+    }
+  });
+
+  it("two separate chains produce two chain arrays", () => {
+    const nodes = [mkNode("a"), mkNode("b"), mkNode("c"), mkNode("d")];
+    const data: Record<string, Record<string, string>> = {
+      a: { next: "[[b]]" }, b: {}, c: { next: "[[d]]" }, d: {},
+    };
+    const result = buildLinkChainOrder(nodes, propMap(data), ["next"], []);
+    expect(result.chains.length).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildHierarchyOrder — additional boundary values (cycle118)
+// ---------------------------------------------------------------------------
+describe("buildHierarchyOrder boundary values", () => {
+  it("no parent_id: order is empty", () => {
+    const result = buildHierarchyOrder([mkNode("a")], () => undefined);
+    expect(result.size).toBe(0);
+  });
+
+  it("mutual parent reference (cycle) doesn't infinite loop", () => {
+    const data: Record<string, Record<string, string>> = {
+      a: { parent_id: "b" }, b: { parent_id: "a" },
+    };
+    const result = buildHierarchyOrder([mkNode("a"), mkNode("b")], propMap(data));
+    // Should not hang; both nodes processed
+    expect(result.size).toBe(2);
+  });
+
+  it("deep chain: root gets lowest order value", () => {
+    const data: Record<string, Record<string, string>> = { n0: {} };
+    for (let i = 1; i < 10; i++) data[`n${i}`] = { parent_id: `n${i - 1}` };
+    const nodes = Array.from({ length: 10 }, (_, i) => mkNode(`n${i}`));
+    const result = buildHierarchyOrder(nodes, propMap(data));
+    expect(result.size).toBe(10);
+    const rootOrder = result.get("n0")!;
+    for (let i = 1; i < 10; i++) {
+      expect(result.get(`n${i}`)!).toBeGreaterThan(rootOrder);
+    }
+  });
+
+  it("wikilink parent_id: resolved correctly", () => {
+    const data: Record<string, Record<string, string>> = {
+      root: {},
+      child: { parent_id: "[[root]]" },
+    };
+    const result = buildHierarchyOrder([mkNode("root"), mkNode("child")], propMap(data));
+    expect(result.size).toBe(2);
+    expect(result.get("root")!).toBeLessThan(result.get("child")!);
+  });
+});
