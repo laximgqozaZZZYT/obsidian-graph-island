@@ -89,4 +89,36 @@ describe("applyArcLayout", () => {
     const spreadLarge = Math.abs(large.nodes[0].x - large.nodes[2].x);
     expect(spreadLarge).toBeGreaterThan(spreadSmall);
   });
+
+  // --- Boundary values (cycle119) ---
+
+  it("2 nodes: symmetric around center", () => {
+    const result = applyArcLayout(mkGraph(["a", "b"]));
+    // 2 nodes should be placed symmetrically
+    expect(result.nodes[0].x + result.nodes[1].x).toBeCloseTo(0, -1);
+  });
+
+  it("many nodes (50): all have unique x positions", () => {
+    const ids = Array.from({ length: 50 }, (_, i) => `n${i}`);
+    const result = applyArcLayout(mkGraph(ids));
+    const xs = new Set(result.nodes.map(n => Math.round(n.x * 100) / 100));
+    expect(xs.size).toBe(50);
+  });
+
+  it("bell curve: edge nodes have higher y than center", () => {
+    const ids = Array.from({ length: 11 }, (_, i) => `n${i}`);
+    const result = applyArcLayout(mkGraph(ids));
+    const sorted = [...result.nodes].sort((a, b) => a.x - b.x);
+    const centerY = sorted[5].y;
+    const edgeY = sorted[0].y;
+    expect(edgeY).toBeGreaterThan(centerY);
+  });
+
+  it("all nodes have finite coordinates", () => {
+    const result = applyArcLayout(mkGraph(["a", "b", "c", "d", "e"]));
+    for (const n of result.nodes) {
+      expect(isFinite(n.x)).toBe(true);
+      expect(isFinite(n.y)).toBe(true);
+    }
+  });
 });

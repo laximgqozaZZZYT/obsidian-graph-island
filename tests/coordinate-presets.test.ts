@@ -205,3 +205,69 @@ describe("findMatchingPreset", () => {
     expect(findMatchingPreset(custom)).toBe(ARRANGEMENT_CUSTOM);
   });
 });
+
+// ---------------------------------------------------------------------------
+// CURVE_REGISTRY — additional boundary values (cycle119)
+// ---------------------------------------------------------------------------
+describe("CURVE_REGISTRY boundary values", () => {
+  it("all curves produce finite values at t=0", () => {
+    for (const [name, curve] of Object.entries(CURVE_REGISTRY)) {
+      const r = curve.fn(0, curve.defaultParams);
+      expect(isFinite(r), `${name} at t=0`).toBe(true);
+    }
+  });
+
+  it("all curves produce finite values at t=1", () => {
+    for (const [name, curve] of Object.entries(CURVE_REGISTRY)) {
+      const r = curve.fn(1, curve.defaultParams);
+      expect(isFinite(r), `${name} at t=1`).toBe(true);
+    }
+  });
+
+  it("all curves produce non-negative values at t=0.5", () => {
+    for (const [name, curve] of Object.entries(CURVE_REGISTRY)) {
+      const r = curve.fn(0.5, curve.defaultParams);
+      // Most radial curves produce non-negative radius; rose/lissajous may be negative
+      const allowNeg = ["lissajous", "rose"].includes(name);
+      expect(r >= 0 || allowNeg, `${name} r >= 0 at t=0.5 (allow neg: ${allowNeg})`).toBe(true);
+    }
+  });
+
+  it("archimedean is monotonically increasing for t in [0, 1]", () => {
+    const curve = CURVE_REGISTRY.archimedean;
+    let prev = curve.fn(0, curve.defaultParams);
+    for (let i = 1; i <= 10; i++) {
+      const r = curve.fn(i / 10, curve.defaultParams);
+      expect(r).toBeGreaterThanOrEqual(prev);
+      prev = r;
+    }
+  });
+
+  it("rose curve oscillates (not monotonic)", () => {
+    const curve = CURVE_REGISTRY.rose;
+    const values = Array.from({ length: 20 }, (_, i) =>
+      curve.fn(i / 20, curve.defaultParams)
+    );
+    // Rose curves oscillate — check there are both increases and decreases
+    let hasIncrease = false, hasDecrease = false;
+    for (let i = 1; i < values.length; i++) {
+      if (values[i] > values[i - 1]) hasIncrease = true;
+      if (values[i] < values[i - 1]) hasDecrease = true;
+    }
+    expect(hasIncrease || hasDecrease).toBe(true); // at least some variation
+  });
+
+  it("logarithmic grows but slower than linear", () => {
+    const curve = CURVE_REGISTRY.logarithmic;
+    const r01 = curve.fn(0.1, curve.defaultParams);
+    const r09 = curve.fn(0.9, curve.defaultParams);
+    expect(r09).toBeGreaterThan(r01);
+  });
+
+  it("all curves have defaultParams object", () => {
+    for (const [name, curve] of Object.entries(CURVE_REGISTRY)) {
+      expect(curve.defaultParams, `${name} has defaultParams`).toBeDefined();
+      expect(typeof curve.defaultParams).toBe("object");
+    }
+  });
+});

@@ -134,4 +134,51 @@ describe("applyTreeLayout", () => {
     const ys = new Set(result.nodes.map(n => Math.round(n.y)));
     expect(ys.size).toBeGreaterThanOrEqual(2);
   });
+
+  // --- Boundary values (cycle119) ---
+
+  it("deep linear chain (20 nodes): depth increases monotonically", () => {
+    const ids = Array.from({ length: 20 }, (_, i) => `n${i}`);
+    const edges: [string, string][] = [];
+    for (let i = 0; i < 19; i++) edges.push([`n${i}`, `n${i + 1}`]);
+    const result = applyTreeLayout(mkGraph(ids, edges));
+    // y should increase (or at least not decrease) along the chain
+    const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
+    for (let i = 1; i < 20; i++) {
+      expect(nodeMap.get(`n${i}`)!.y).toBeGreaterThanOrEqual(nodeMap.get(`n${i - 1}`)!.y);
+    }
+  });
+
+  it("two disconnected trees: both get positions", () => {
+    const ids = ["r1", "c1a", "c1b", "r2", "c2a"];
+    const edges: [string, string][] = [["r1", "c1a"], ["r1", "c1b"], ["r2", "c2a"]];
+    const result = applyTreeLayout(mkGraph(ids, edges));
+    expect(result.nodes).toHaveLength(5);
+    for (const n of result.nodes) {
+      expect(isFinite(n.x)).toBe(true);
+      expect(isFinite(n.y)).toBe(true);
+    }
+  });
+
+  it("binary tree (7 nodes): correct depth levels", () => {
+    // r → [a, b], a → [c, d], b → [e, f]
+    const ids = ["r", "a", "b", "c", "d", "e", "f"];
+    const edges: [string, string][] = [
+      ["r", "a"], ["r", "b"], ["a", "c"], ["a", "d"], ["b", "e"], ["b", "f"],
+    ];
+    const result = applyTreeLayout(mkGraph(ids, edges));
+    const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
+    // Root should be at smallest y
+    expect(nodeMap.get("r")!.y).toBeLessThanOrEqual(nodeMap.get("a")!.y);
+    // Leaves should be at largest y
+    expect(nodeMap.get("c")!.y).toBeGreaterThanOrEqual(nodeMap.get("a")!.y);
+  });
+
+  it("all nodes have finite coordinates", () => {
+    const result = applyTreeLayout(mkGraph(["a", "b", "c"], [["a", "b"], ["b", "c"]]));
+    for (const n of result.nodes) {
+      expect(isFinite(n.x)).toBe(true);
+      expect(isFinite(n.y)).toBe(true);
+    }
+  });
 });
