@@ -4483,8 +4483,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   drawEnclosures() {
     if (!this.enclosureGraphics) return;
-    // Ring chart mode: hide enclosures
-    if (this.isRingChartMode()) { this.enclosureGraphics.clear(); return; }
+    // Ring chart mode or non-graph viewMode: hide enclosures
+    if (this.isRingChartMode() || viewModeSkipsNodeRendering(this.panel.viewMode)) { this.enclosureGraphics.clear(); return; }
     const rt = mergeRenderThresholds(this.panel.renderThresholds);
     const cfg: EnclosureConfig = {
       tagDisplay: this.panel.tagDisplay,
@@ -4566,6 +4566,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const gfx = this.sunburstGraphics;
     if (!gfx) return;
     gfx.clear();
+
+    // LAYOUT_SUNBURST viewMode: delegate to layout-based arc renderer
+    if (this.currentLayout === LAYOUT_SUNBURST) {
+      this.drawSunburstLayoutArcs();
+      return;
+    }
 
     const sunburstArcs = (this.clusterMeta as any)?.sunburstArcs;
     if (!sunburstArcs || sunburstArcs.length === 0) return;
