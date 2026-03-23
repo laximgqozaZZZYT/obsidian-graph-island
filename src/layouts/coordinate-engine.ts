@@ -1284,7 +1284,7 @@ function collectCategoryPositions(
 }
 
 /** Format a grid value for display */
-function formatGridValue(v: number, spacing: number): string {
+export function formatGridValue(v: number, spacing: number): string {
   if (spacing > 0) {
     const normalized = v / spacing;
     if (Math.abs(normalized - Math.round(normalized)) < FORMAT_INTEGER_THRESHOLD) {

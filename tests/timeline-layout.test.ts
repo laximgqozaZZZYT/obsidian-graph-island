@@ -3,8 +3,10 @@ import {
   buildLinkChainOrder,
   buildHierarchyOrder,
   resolveTimeKey,
+  timelinePartitionNodes,
 } from "../src/layouts/timeline-layout";
 import type { GraphNode } from "../src/types";
+import type { ClusterForceConfig } from "../src/layouts/cluster-force";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -316,5 +318,93 @@ describe("buildHierarchyOrder boundary values", () => {
     const result = buildHierarchyOrder([mkNode("root"), mkNode("child")], propMap(data));
     expect(result.size).toBe(2);
     expect(result.get("root")!).toBeLessThan(result.get("child")!);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// timelinePartitionNodes — split nodes into timed/untimed
+// ---------------------------------------------------------------------------
+describe("timelinePartitionNodes", () => {
+  function baseCfg(overrides?: Partial<ClusterForceConfig>): ClusterForceConfig {
+    return {
+      groupRules: [],
+      arrangement: "timeline",
+      centerX: 400, centerY: 300,
+      width: 800, height: 600,
+      nodeSize: 15, nodeSpacing: 2,
+      groupScale: 1, groupSpacing: 1,
+      repelForce: 50, linkDistance: 100,
+      linkForce: 0.5, centerForce: 0.3,
+      totalNodeCount: 10,
+      timelineKey: "date",
+      timelineOrderFields: "",
+      sequenceFields: [],
+      reverseSequenceFields: [],
+      getNodeProperty: (id: string, field: string) => {
+        const data: Record<string, Record<string, string>> = {};
+        return data[id]?.[field];
+      },
+      ...overrides,
+    } as ClusterForceConfig;
+  }
+
+  it("empty input returns empty timed and untimed", () => {
+    const result = timelinePartitionNodes([], baseCfg());
+    expect(result.timed).toHaveLength(0);
+    expect(result.untimed).toHaveLength(0);
+  });
+
+  it("all untimed when no date field", () => {
+    const nodes = [mkNode("a"), mkNode("b")];
+    const result = timelinePartitionNodes(nodes, baseCfg());
+    expect(result.timed).toHaveLength(0);
+    expect(result.untimed).toHaveLength(2);
+  });
+
+  it("partitions timed and untimed nodes", () => {
+    const nodes = [mkNode("a"), mkNode("b"), mkNode("c")];
+    const cfg = baseCfg({
+      getNodeProperty: (id, field) => {
+        if (field === "date") {
+          if (id === "a") return "2024-01-01";
+          if (id === "b") return "2024-06-15";
+        }
+        return undefined;
+      },
+    });
+    const result = timelinePartitionNodes(nodes, cfg);
+    expect(result.timed).toHaveLength(2);
+    expect(result.untimed).toHaveLength(1);
+    expect(result.untimed[0].id).toBe("c");
+  });
+
+  it("all timed when every node has date", () => {
+    const nodes = [mkNode("a"), mkNode("b")];
+    const cfg = baseCfg({
+      getNodeProperty: (id, field) => field === "date" ? "2024-01-01" : undefined,
+    });
+    const result = timelinePartitionNodes(nodes, cfg);
+    expect(result.timed).toHaveLength(2);
+    expect(result.untimed).toHaveLength(0);
+  });
+
+  it("timed entries preserve node reference and value", () => {
+    const nodes = [mkNode("x")];
+    const cfg = baseCfg({
+      getNodeProperty: (id, field) => field === "date" ? "Era-3" : undefined,
+    });
+    const result = timelinePartitionNodes(nodes, cfg);
+    expect(result.timed[0].node.id).toBe("x");
+    expect(result.timed[0].value).toBe("Era-3");
+  });
+
+  it("empty string date value is treated as untimed", () => {
+    const nodes = [mkNode("a")];
+    const cfg = baseCfg({
+      getNodeProperty: (id, field) => field === "date" ? "" : undefined,
+    });
+    const result = timelinePartitionNodes(nodes, cfg);
+    expect(result.timed).toHaveLength(0);
+    expect(result.untimed).toHaveLength(1);
   });
 });

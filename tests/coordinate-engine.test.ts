@@ -5,6 +5,7 @@ import {
   toCartesian,
   coordinateOffsets,
   resolveAxisCategories,
+  formatGridValue,
   type CoordinateContext,
 } from "../src/layouts/coordinate-engine";
 import { isExactPreset, ARRANGEMENT_PRESETS } from "../src/layouts/coordinate-presets";
@@ -798,5 +799,47 @@ describe("resolveAxisCategories", () => {
     );
     expect(cats).toBeDefined();
     expect(cats).toEqual(["character", "location"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatGridValue — smart grid label formatting
+// ---------------------------------------------------------------------------
+describe("formatGridValue", () => {
+  it("returns integer string when value aligns with spacing", () => {
+    expect(formatGridValue(10, 5)).toBe("2");
+    expect(formatGridValue(15, 5)).toBe("3");
+  });
+
+  it("returns 1 decimal for small non-aligned values", () => {
+    expect(formatGridValue(3.7, 0)).toBe("3.7");
+    expect(formatGridValue(0.5, 0)).toBe("0.5");
+  });
+
+  it("returns integer for large values regardless of spacing", () => {
+    expect(formatGridValue(1234, 0)).toBe("1234");
+    expect(formatGridValue(-50, 0)).toBe("-50");
+  });
+
+  it("returns 0 for zero value", () => {
+    expect(formatGridValue(0, 1)).toBe("0");
+    expect(formatGridValue(0, 0)).toBe("0.0");
+  });
+
+  it("handles negative values aligned with spacing", () => {
+    expect(formatGridValue(-10, 5)).toBe("-2");
+  });
+
+  it("handles spacing=0 gracefully (skips normalization)", () => {
+    expect(formatGridValue(7, 0)).toBe("7.0");
+  });
+
+  it("threshold tolerance: near-integer rounds to integer", () => {
+    // 9.999 / 5 = 1.9998, |1.9998-2| = 0.0002 < 0.01 → integer "2"
+    expect(formatGridValue(9.999, 5)).toBe("2");
+    // 10.04 / 5 = 2.008, |2.008-2| = 0.008 < 0.01 → integer "2"
+    expect(formatGridValue(10.04, 5)).toBe("2");
+    // 10.3 / 5 = 2.06, |2.06-2| = 0.06 > 0.01 → decimal "10"
+    expect(formatGridValue(10.3, 5)).toBe("10");
   });
 });

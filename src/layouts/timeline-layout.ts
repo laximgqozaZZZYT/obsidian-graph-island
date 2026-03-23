@@ -159,7 +159,7 @@ export function timelineOffsetsV2(p: TimelineArrangementParams): ArrangementResu
 // ---------------------------------------------------------------------------
 
 /** メンバーを timed/untimed に分割し、リンクベース順序を untimed ノードに適用する */
-function timelinePartitionNodes(
+export function timelinePartitionNodes(
   members: GraphNode[],
   cfg: ClusterForceConfig,
 ): { timed: { node: GraphNode; value: string }[]; untimed: GraphNode[]; detectedChains?: string[][]; hierParentMap?: Map<string, string>; hierChildrenMap?: Map<string, string[]> } {
