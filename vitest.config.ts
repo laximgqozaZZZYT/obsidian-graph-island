@@ -12,12 +12,12 @@ export default defineConfig({
       reporter: ["text-summary", "json-summary"],
       reportsDirectory: "coverage",
       thresholds: {
-        // Baseline: v0.4.2 (2234 tests, cycle161)
+        // Baseline: v0.4.3 (2258 tests, cycle165)
         // These thresholds prevent regression — increase as coverage grows
-        statements: 28,
-        branches: 26.5,
-        functions: 24.5,
-        lines: 27.5,
+        statements: 28.3,
+        branches: 26.8,
+        functions: 25,
+        lines: 28,
       },
     },
   },

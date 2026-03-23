@@ -8,6 +8,8 @@ import {
   deriveClusterRules,
   blendThemeLabel,
   lightenHex,
+  heatmapColor,
+  COMMUNITY_PALETTE,
 } from "../src/views/GraphViewContainer";
 import { hexToRgb } from "../src/utils/color";
 import type { GroupPreset } from "../src/types";
@@ -205,5 +207,70 @@ describe("lightenHex", () => {
     expect(r).toBe(255); // clamped
     expect(g).toBeLessThan(255);
     expect(b).toBeLessThan(255);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// heatmapColor — degree-based color ramp (blue → red)
+// ---------------------------------------------------------------------------
+describe("heatmapColor", () => {
+  it("degree=0 returns cold blue (0x3b82f6)", () => {
+    expect(heatmapColor(0, 100)).toBe(0x3b82f6);
+  });
+
+  it("degree=maxDegree returns warm red (0xef4444)", () => {
+    expect(heatmapColor(100, 100)).toBe(0xef4444);
+  });
+
+  it("mid-degree produces intermediate color", () => {
+    const mid = heatmapColor(50, 100);
+    const { r, g, b } = hexToRgb(mid);
+    // Between blue(59,130,246) and red(239,68,68)
+    expect(r).toBeGreaterThan(59);
+    expect(r).toBeLessThan(239);
+  });
+
+  it("clamps at maxDegree (overshooting degree)", () => {
+    expect(heatmapColor(200, 100)).toBe(heatmapColor(100, 100));
+  });
+
+  it("maxDegree=0 doesn't divide by zero", () => {
+    const result = heatmapColor(5, 0);
+    // Should clamp t to 1 (maxDegree=0 → Math.max(1,0)=1, 5/1=5 → min(1,5)=1)
+    expect(result).toBe(0xef4444);
+  });
+
+  it("color is monotonically shifting from blue to red as degree increases", () => {
+    const colors = [0, 25, 50, 75, 100].map(d => heatmapColor(d, 100));
+    // R should increase
+    const rs = colors.map(c => (c >> 16) & 0xff);
+    for (let i = 1; i < rs.length; i++) {
+      expect(rs[i]).toBeGreaterThanOrEqual(rs[i - 1]);
+    }
+    // B should decrease
+    const bs = colors.map(c => c & 0xff);
+    for (let i = 1; i < bs.length; i++) {
+      expect(bs[i]).toBeLessThanOrEqual(bs[i - 1]);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// COMMUNITY_PALETTE — Tableau 20-inspired palette
+// ---------------------------------------------------------------------------
+describe("COMMUNITY_PALETTE", () => {
+  it("has exactly 20 colors", () => {
+    expect(COMMUNITY_PALETTE).toHaveLength(20);
+  });
+
+  it("all values are valid 24-bit hex colors", () => {
+    for (const c of COMMUNITY_PALETTE) {
+      expect(c).toBeGreaterThanOrEqual(0);
+      expect(c).toBeLessThanOrEqual(0xffffff);
+    }
+  });
+
+  it("all colors are unique", () => {
+    expect(new Set(COMMUNITY_PALETTE).size).toBe(20);
   });
 });
