@@ -169,12 +169,34 @@ export interface InteractionHost {
 // ---------------------------------------------------------------------------
 
 /** Scale multiplier per wheel tick (zoom in / zoom out) */
-const ZOOM_IN_FACTOR = 1.1;
-const ZOOM_OUT_FACTOR = 0.9;
+export const ZOOM_IN_FACTOR = 1.1;
+export const ZOOM_OUT_FACTOR = 0.9;
 
 /** Minimum/maximum scale clamp for wheel zoom */
-const ZOOM_SCALE_MIN = 0.02;
-const ZOOM_SCALE_MAX = 10;
+export const ZOOM_SCALE_MIN = 0.02;
+export const ZOOM_SCALE_MAX = 10;
+
+/**
+ * Compute the zoom scale factor for a wheel event.
+ * Pure function — no DOM or Canvas dependency.
+ *
+ * @param deltaY   Wheel deltaY (negative = zoom in, positive = zoom out)
+ * @param sensitivity  User zoom sensitivity (0.5–2.0, default 1.0)
+ * @returns Scale multiplier to apply to current zoom
+ */
+export function computeZoomFactor(deltaY: number, sensitivity = 1.0): number {
+  const inF = 1 + (ZOOM_IN_FACTOR - 1) * sensitivity;
+  const outF = 1 - (1 - ZOOM_OUT_FACTOR) * sensitivity;
+  return deltaY < 0 ? inF : outF;
+}
+
+/**
+ * Clamp a scale value to the allowed zoom range.
+ * Pure function.
+ */
+export function clampScale(scale: number): number {
+  return Math.max(ZOOM_SCALE_MIN, Math.min(ZOOM_SCALE_MAX, scale));
+}
 
 /** d3 simulation alphaTarget when dragging a node */
 const DRAG_ALPHA_TARGET = 0.3;
@@ -297,9 +319,7 @@ export class InteractionManager {
 
     // IL: Apply user-configurable zoom sensitivity (0.5x–2.0x, default 1.0)
     const sens = this.host.getZoomSensitivity?.() ?? 1.0;
-    const inF = 1 + (ZOOM_IN_FACTOR - 1) * sens;   // sens=1→1.1, sens=0.5→1.05, sens=2→1.2
-    const outF = 1 - (1 - ZOOM_OUT_FACTOR) * sens;  // sens=1→0.9, sens=0.5→0.95, sens=2→0.8
-    const scaleFactor = e.deltaY < 0 ? inF : outF;
+    const scaleFactor = computeZoomFactor(e.deltaY, sens);
     const rect = this.canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -308,7 +328,7 @@ export class InteractionManager {
     world.scale.x *= scaleFactor;
     world.scale.y *= scaleFactor;
     // Clamp scale
-    const s = Math.max(ZOOM_SCALE_MIN, Math.min(ZOOM_SCALE_MAX, world.scale.x));
+    const s = clampScale(world.scale.x);
     world.scale.set(s);
     const newScreenPos = world.toGlobal(worldPos);
     world.x += mx - newScreenPos.x;

@@ -250,6 +250,21 @@ export class GraphViewsSettingTab extends PluginSettingTab {
         })
       );
 
+    // --- Auto-snapshot interval ---
+    new Setting(containerEl)
+      .setName("Auto-snapshot interval (minutes)")
+      .setDesc("Automatically save a graph snapshot when vault metadata changes. Set to 0 to disable.")
+      .addSlider((slider) =>
+        slider
+          .setLimits(0, 30, 1)
+          .setValue(this.plugin.settings.autoSnapshotIntervalMin ?? 5)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.plugin.settings.autoSnapshotIntervalMin = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // --- Ontology field editors ---
     containerEl.createEl("h3", { text: t("settings.ontologyHeading") });
 

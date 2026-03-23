@@ -34,7 +34,7 @@ export interface GuideRendererHost {
 // ---------------------------------------------------------------------------
 
 /** Find the cell index for a value given sorted boundary positions */
-function findCellIndex(value: number, positions: number[]): number {
+export function findCellIndex(value: number, positions: number[]): number {
   for (let i = 0; i < positions.length - 1; i++) {
     if (value >= positions[i] && value < positions[i + 1]) return i;
   }

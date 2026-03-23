@@ -534,6 +534,8 @@ export interface GraphViewsSettings {
   settingsJsonPath: string;
   /** 保存されたグラフスナップショット（最大10件） */
   snapshots?: GraphSnapshot[];
+  /** 自動スナップショットの間隔（分）。0で無効。デフォルト5分 */
+  autoSnapshotIntervalMin?: number;
   /** 保存されたグラフテンプレート（最大20件） */
   templates?: GraphTemplate[];
 }

@@ -1227,14 +1227,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       })
     );
 
-    // Auto-snapshot: capture graph state when vault metadata changes (5-min debounce)
+    // Auto-snapshot: capture graph state when vault metadata changes (configurable debounce)
     {
       let autoSnapTimer = 0;
-      const AUTO_SNAP_DEBOUNCE = 5 * 60 * 1000; // 5 minutes
+      const getDebounceMs = () => {
+        const mins = this.plugin.settings.autoSnapshotIntervalMin ?? 5;
+        return mins * 60 * 1000;
+      };
       const AUTO_SNAP_MAX = 10;
       const AUTO_SNAP_PREFIX = "[auto] ";
       this.registerEvent(
         this.app.metadataCache.on("changed", () => {
+          const debounceMs = getDebounceMs();
+          if (debounceMs <= 0) return; // auto-snapshot disabled
           if (autoSnapTimer) window.clearTimeout(autoSnapTimer);
           autoSnapTimer = window.setTimeout(() => {
             autoSnapTimer = 0;
@@ -1258,7 +1263,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             snapshots.push(snap as any);
             this.plugin.settings.snapshots = snapshots;
             this.plugin.saveSettings();
-          }, AUTO_SNAP_DEBOUNCE) as unknown as number;
+          }, debounceMs) as unknown as number;
         })
       );
     }
