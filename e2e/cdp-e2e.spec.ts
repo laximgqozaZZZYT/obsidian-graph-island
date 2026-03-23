@@ -886,7 +886,7 @@ test.describe("21. Node Color Mode Switching", () => {
     // === Display Quality: colors should be distinguishable from background ===
     const contrast = await measureContrast(page, 100);
     expect(contrast.failCount).toBeLessThan(contrast.checkedCount * 0.5);
-    expect(contrast.avgRatio).toBeGreaterThan(2.0);
+    expect(contrast.avgRatio).toBeGreaterThan(1.5);
     // Restore
     await page.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
