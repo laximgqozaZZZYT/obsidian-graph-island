@@ -295,3 +295,30 @@ export function expandGroup(
 
   return { nodes: newNodes, edges: newEdges };
 }
+
+/**
+ * Expand a list of node IDs that may contain super node IDs (__super__*)
+ * into the set of actual member node IDs. Regular IDs pass through unchanged.
+ */
+export function expandSuperNodeIds(
+  selectedIds: string[],
+  nodes: { id: string; collapsedMembers?: string[] }[],
+): Set<string> {
+  const result = new Set<string>();
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  for (const id of selectedIds) {
+    if (id.startsWith("__super__")) {
+      const superNode = nodeMap.get(id);
+      if (superNode?.collapsedMembers?.length) {
+        for (const memberId of superNode.collapsedMembers) {
+          result.add(memberId);
+        }
+      } else if (!superNode) {
+        result.add(id);
+      }
+    } else {
+      result.add(id);
+    }
+  }
+  return result;
+}
