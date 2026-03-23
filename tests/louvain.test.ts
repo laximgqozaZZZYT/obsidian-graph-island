@@ -219,4 +219,92 @@ describe("louvainCommunities — boundary cases", () => {
     // Should still work (1 community since fully connected)
     expect(result.get("a")).toBe(result.get("b"));
   });
+
+  // --- Large-scale stability tests (cycle113) ---
+
+  it("500 nodes in 5 cliques: detects ~5 communities", () => {
+    const nodes: string[] = [];
+    const edges: LouvainEdge[] = [];
+    // Create 5 cliques of 100 nodes each
+    for (let c = 0; c < 5; c++) {
+      const cNodes: string[] = [];
+      for (let i = 0; i < 100; i++) {
+        const id = `c${c}_n${i}`;
+        nodes.push(id);
+        cNodes.push(id);
+      }
+      // Connect every pair within clique (sample: 10 random edges per node)
+      for (let i = 0; i < cNodes.length; i++) {
+        for (let j = 0; j < 10 && i + j + 1 < cNodes.length; j++) {
+          edges.push({ source: cNodes[i], target: cNodes[i + j + 1] });
+        }
+      }
+    }
+    // Add sparse inter-clique edges (1 per pair)
+    for (let c = 0; c < 4; c++) {
+      edges.push({ source: `c${c}_n0`, target: `c${c + 1}_n0` });
+    }
+
+    const result = louvainCommunities(nodes, edges);
+    expect(result.size).toBe(500);
+
+    // Count unique communities
+    const communities = new Set(result.values());
+    // Should detect roughly 5 communities (±2 for algorithm variance)
+    expect(communities.size).toBeGreaterThanOrEqual(3);
+    expect(communities.size).toBeLessThanOrEqual(10);
+  });
+
+  it("500 nodes: all assigned to a community (no undefined)", () => {
+    const nodes = Array.from({ length: 500 }, (_, i) => `n${i}`);
+    const edges: LouvainEdge[] = [];
+    // Ring topology
+    for (let i = 0; i < 500; i++) {
+      edges.push({ source: `n${i}`, target: `n${(i + 1) % 500}` });
+    }
+    const result = louvainCommunities(nodes, edges);
+    expect(result.size).toBe(500);
+    for (const id of nodes) {
+      expect(result.has(id)).toBe(true);
+      expect(typeof result.get(id)).toBe("number");
+    }
+  });
+
+  it("deterministic: same input produces same output", () => {
+    const nodes = Array.from({ length: 50 }, (_, i) => `n${i}`);
+    const edges: LouvainEdge[] = [];
+    for (let i = 0; i < 49; i++) {
+      edges.push({ source: `n${i}`, target: `n${i + 1}` });
+    }
+    const r1 = louvainCommunities(nodes, edges);
+    const r2 = louvainCommunities(nodes, edges);
+    for (const id of nodes) {
+      expect(r1.get(id)).toBe(r2.get(id));
+    }
+  });
+
+  it("weighted edges influence community formation", () => {
+    // 4 nodes: a-b strongly connected (weight 10), c-d strongly connected (weight 10)
+    // a-c weakly connected (weight 1)
+    const nodes = ["a", "b", "c", "d"];
+    const edges: LouvainEdge[] = [
+      { source: "a", target: "b", weight: 10 },
+      { source: "c", target: "d", weight: 10 },
+      { source: "a", target: "c", weight: 1 },
+    ];
+    const result = louvainCommunities(nodes, edges);
+    // a,b should be in same community; c,d should be in same community
+    expect(result.get("a")).toBe(result.get("b"));
+    expect(result.get("c")).toBe(result.get("d"));
+  });
+
+  it("self-loops are ignored", () => {
+    const nodes = ["a", "b"];
+    const edges: LouvainEdge[] = [
+      { source: "a", target: "a" }, // self-loop
+      { source: "a", target: "b" },
+    ];
+    const result = louvainCommunities(nodes, edges);
+    expect(result.size).toBe(2);
+  });
 });

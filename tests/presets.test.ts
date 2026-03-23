@@ -437,5 +437,64 @@ describe("importPreset — migration", () => {
     const result = importPreset(JSON.stringify({ foo: "bar", baz: 123 }));
     expect(Object.keys(result).length).toBe(0);
   });
+
+  // --- Compound migration tests (cycle113) ---
+
+  it("compound: deprecated + removed arrangement + valid fields together", () => {
+    const json = JSON.stringify({
+      scaleByDegree: true,           // deprecated → removed
+      clusterArrangement: "spiral",  // removed arrangement → grid
+      nodeSize: 30,                  // valid number
+      showLinks: false,              // valid boolean
+      unknownField: "xyz",           // unknown → dropped
+    });
+    const info = { migratedFields: [] as string[], removedFields: [] as string[] };
+    const result = importPreset(json, info);
+
+    expect((result as any).scaleByDegree).toBeUndefined();
+    expect(result.clusterArrangement).toBe("grid");
+    expect(result.nodeSize).toBe(30);
+    expect(result.showLinks).toBe(false);
+    expect((result as any).unknownField).toBeUndefined();
+    expect(info.removedFields).toContain("scaleByDegree");
+    expect(info.migratedFields.length).toBeGreaterThan(0);
+  });
+
+  it("legacy showTags → includeTagsInData migration", () => {
+    const json = JSON.stringify({ showTags: true });
+    const info = { migratedFields: [] as string[], removedFields: [] as string[] };
+    const result = importPreset(json, info);
+    expect((result as any).showTags).toBeUndefined();
+    expect(result.includeTagsInData).toBe(true);
+    expect(info.migratedFields.some(f => f.includes("showTags"))).toBe(true);
+  });
+
+  it("legacy colorNodesByCategory → nodeColorMode migration", () => {
+    const json = JSON.stringify({ colorNodesByCategory: true });
+    const info = { migratedFields: [] as string[], removedFields: [] as string[] };
+    const result = importPreset(json, info);
+    expect((result as any).colorNodesByCategory).toBeUndefined();
+    expect(result.nodeColorMode).toBe("category");
+    expect(info.migratedFields.some(f => f.includes("nodeColorMode"))).toBe(true);
+  });
+
+  it("legacy heatmapMode → nodeColorMode: heatmap", () => {
+    const json = JSON.stringify({ heatmapMode: true });
+    const info = { migratedFields: [] as string[], removedFields: [] as string[] };
+    const result = importPreset(json, info);
+    expect(result.nodeColorMode).toBe("heatmap");
+  });
+
+  it("migration info is optional (no crash when omitted)", () => {
+    const json = JSON.stringify({
+      scaleByDegree: true,
+      clusterArrangement: "spiral",
+      showTags: true,
+    });
+    // No migrationInfo parameter
+    const result = importPreset(json);
+    expect(result.clusterArrangement).toBe("grid");
+    expect(result.includeTagsInData).toBe(true);
+  });
 });
 

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { computeLodLevel, darkenColor } from "../src/views/RenderPipeline";
+import {
+  computeLodLevel, darkenColor,
+  lightenColor, blendColors, desaturateColor, hashStringToHue,
+} from "../src/views/RenderPipeline";
 
 // ---------------------------------------------------------------------------
 // Default LOD thresholds (from DEFAULT_RENDER_THRESHOLDS in types.ts)
@@ -99,5 +102,102 @@ describe("darkenColor", () => {
 
   it("handles black (already darkened)", () => {
     expect(darkenColor(0x000000, 0.5)).toBe(0x000000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// lightenColor — mix toward white
+// ---------------------------------------------------------------------------
+describe("lightenColor", () => {
+  it("factor 0 returns original color", () => {
+    expect(lightenColor(0xff8040, 0)).toBe(0xff8040);
+  });
+
+  it("factor 1 returns white", () => {
+    expect(lightenColor(0x000000, 1)).toBe(0xffffff);
+    expect(lightenColor(0xff0000, 1)).toBe(0xffffff);
+  });
+
+  it("factor 0.5 moves halfway toward white", () => {
+    // 0x000000 → each channel: 0 + (255 - 0) * 0.5 = 128
+    expect(lightenColor(0x000000, 0.5)).toBe(0x808080);
+  });
+
+  it("already white stays white", () => {
+    expect(lightenColor(0xffffff, 0.5)).toBe(0xffffff);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// blendColors — linear interpolation between two colors
+// ---------------------------------------------------------------------------
+describe("blendColors", () => {
+  it("t=0 returns first color", () => {
+    expect(blendColors(0xff0000, 0x0000ff, 0)).toBe(0xff0000);
+  });
+
+  it("t=1 returns second color", () => {
+    expect(blendColors(0xff0000, 0x0000ff, 1)).toBe(0x0000ff);
+  });
+
+  it("t=0.5 blends to midpoint", () => {
+    // Red + Blue: (128, 0, 128)
+    expect(blendColors(0xff0000, 0x0000ff, 0.5)).toBe(0x800080);
+  });
+
+  it("blending same color returns that color", () => {
+    expect(blendColors(0x336699, 0x336699, 0.5)).toBe(0x336699);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// desaturateColor — reduce saturation toward gray
+// ---------------------------------------------------------------------------
+describe("desaturateColor", () => {
+  it("factor >= 1 returns original", () => {
+    expect(desaturateColor(0xff0000, 1)).toBe(0xff0000);
+    expect(desaturateColor(0xff0000, 2)).toBe(0xff0000);
+  });
+
+  it("factor 0 returns grayscale", () => {
+    const result = desaturateColor(0xff0000, 0);
+    // Pure red → luminance gray: all channels equal
+    const r = (result >> 16) & 0xff;
+    const g = (result >> 8) & 0xff;
+    const b = result & 0xff;
+    expect(r).toBe(g);
+    expect(g).toBe(b);
+  });
+
+  it("already gray stays gray", () => {
+    const gray = 0x808080;
+    expect(desaturateColor(gray, 0)).toBe(gray);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hashStringToHue — deterministic string → hue
+// ---------------------------------------------------------------------------
+describe("hashStringToHue", () => {
+  it("returns value in [0, 360) range", () => {
+    const hues = ["hello", "world", "test", "日本語", ""].map(hashStringToHue);
+    for (const h of hues) {
+      expect(h).toBeGreaterThanOrEqual(0);
+      expect(h).toBeLessThan(360);
+    }
+  });
+
+  it("same string returns same hue (deterministic)", () => {
+    expect(hashStringToHue("alpha")).toBe(hashStringToHue("alpha"));
+  });
+
+  it("different strings usually return different hues", () => {
+    const a = hashStringToHue("character");
+    const b = hashStringToHue("location");
+    expect(a).not.toBe(b);
+  });
+
+  it("empty string returns 0", () => {
+    expect(hashStringToHue("")).toBe(0);
   });
 });

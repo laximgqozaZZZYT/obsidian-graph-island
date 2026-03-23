@@ -7,6 +7,7 @@ import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { clamp } from "../utils/geometry";
 import { hexToRgb, getLuminance, wcagContrastRatio, contrastColor } from "../utils/color";
+import { hslToHex } from "../utils/graph-helpers";
 
 // ---------------------------------------------------------------------------
 // CardText — CanvasText with a marker flag for card-mode text children
@@ -209,7 +210,7 @@ export function darkenColor(hex: number, factor: number): number {
 }
 
 /** Lighten a hex color by mixing toward white. factor 0 = unchanged, 1 = white. */
-function lightenColor(hex: number, factor: number): number {
+export function lightenColor(hex: number, factor: number): number {
   const { r, g, b } = hexToRgb(hex);
   const lr = r + (255 - r) * factor;
   const lg = g + (255 - g) * factor;
@@ -218,7 +219,7 @@ function lightenColor(hex: number, factor: number): number {
 }
 
 /** Blend two hex colors. t=0 returns a, t=1 returns b. */
-function blendColors(a: number, b: number, t: number): number {
+export function blendColors(a: number, b: number, t: number): number {
   const ar = hexToRgb(a), br = hexToRgb(b);
   return (Math.round(ar.r + (br.r - ar.r) * t) << 16) |
          (Math.round(ar.g + (br.g - ar.g) * t) << 8) |
@@ -226,7 +227,7 @@ function blendColors(a: number, b: number, t: number): number {
 }
 
 /** Desaturate a 0xRRGGBB color toward gray. factor=1 is original, factor=0 is fully gray. */
-function desaturateColor(color: number, factor: number): number {
+export function desaturateColor(color: number, factor: number): number {
   if (factor >= 1) return color;
   const { r, g, b } = hexToRgb(color);
   const gray = Math.round(getLuminance(r, g, b));
@@ -237,7 +238,7 @@ function desaturateColor(color: number, factor: number): number {
 }
 
 /** Simple deterministic hash of a string to a hue value (0–360). */
-function hashStringToHue(str: string): number {
+export function hashStringToHue(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
@@ -245,23 +246,7 @@ function hashStringToHue(str: string): number {
   return ((hash % 360) + 360) % 360;
 }
 
-/** Convert HSL (h: 0–360, s: 0–1, l: 0–1) to a numeric hex color (0xRRGGBB). */
-function hslToHex(h: number, s: number, l: number): number {
-  const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-  const m = l - c / 2;
-  let r = 0, g = 0, b = 0;
-  if (h < 60)      { r = c; g = x; }
-  else if (h < 120) { r = x; g = c; }
-  else if (h < 180) { g = c; b = x; }
-  else if (h < 240) { g = x; b = c; }
-  else if (h < 300) { r = x; b = c; }
-  else              { r = c; b = x; }
-  const ri = Math.round((r + m) * 255);
-  const gi = Math.round((g + m) * 255);
-  const bi = Math.round((b + m) * 255);
-  return (ri << 16) | (gi << 8) | bi;
-}
+// hslToHex imported from ../utils/graph-helpers (DRY: removed local duplicate)
 
 // ---------------------------------------------------------------------------
 // RenderHost — the interface the RenderPipeline needs from its parent

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { drawShape, drawShapeAt, getNodeShape, type ShapeRule } from "../src/utils/node-shapes";
+import { drawShape, drawShapeAt, getNodeShape, getNodeDisplayConfig, type ShapeRule } from "../src/utils/node-shapes";
 import type { GraphNode } from "../src/types";
 
 // Mock PIXI.Graphics using the same Proxy pattern as edge-renderer.test.ts
@@ -152,5 +152,87 @@ describe("getNodeShape", () => {
     ];
     const node = makeNode({ isTag: true, category: "character" });
     expect(getNodeShape(node, rules)).toBe("diamond");
+  });
+
+  // --- Rule matching edge cases (cycle113) ---
+
+  it("category rule with undefined category never matches", () => {
+    const rules: ShapeRule[] = [
+      { match: "category", shape: "diamond" }, // no category field
+      { match: "default", shape: "square" },
+    ];
+    const node = makeNode({ category: "anything" });
+    // rule.category is undefined → condition `rule.category && ...` is false → skip
+    expect(getNodeShape(node, rules)).toBe("square");
+  });
+
+  it("default rule matches even for isTag nodes when listed first", () => {
+    const rules: ShapeRule[] = [
+      { match: "default", shape: "hexagon" },
+      { match: "isTag", shape: "triangle" },
+    ];
+    const node = makeNode({ isTag: true });
+    // default always matches, stops iteration
+    expect(getNodeShape(node, rules)).toBe("hexagon");
+  });
+
+  it("multiple category rules: first match wins", () => {
+    const rules: ShapeRule[] = [
+      { match: "category", category: "person", shape: "diamond" },
+      { match: "category", category: "person", shape: "hexagon" },
+      { match: "default", shape: "circle" },
+    ];
+    const node = makeNode({ category: "person" });
+    expect(getNodeShape(node, rules)).toBe("diamond");
+  });
+
+  it("non-isTag node does not match isTag rule", () => {
+    const rules: ShapeRule[] = [
+      { match: "isTag", shape: "triangle" },
+    ];
+    const node = makeNode({ isTag: false });
+    expect(getNodeShape(node, rules)).toBe("circle"); // fallback
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getNodeDisplayConfig — display override resolution (cycle113)
+// ---------------------------------------------------------------------------
+describe("getNodeDisplayConfig", () => {
+  it("returns default config when no rules have display", () => {
+    const rules: ShapeRule[] = [
+      { match: "default", shape: "circle" },
+    ];
+    const node = makeNode();
+    const config = getNodeDisplayConfig(node, rules, "node");
+    expect(config.mode).toBe("node");
+  });
+
+  it("returns matching rule display when present", () => {
+    const display = { mode: "card" as const };
+    const rules: ShapeRule[] = [
+      { match: "isTag", shape: "triangle", display },
+    ];
+    const node = makeNode({ isTag: true });
+    const config = getNodeDisplayConfig(node, rules, "node");
+    expect(config.mode).toBe("card");
+  });
+
+  it("skips rules without display even if match succeeds", () => {
+    const rules: ShapeRule[] = [
+      { match: "isTag", shape: "triangle" }, // no display
+      { match: "default", shape: "circle", display: { mode: "donut" as const } },
+    ];
+    const node = makeNode({ isTag: true });
+    const config = getNodeDisplayConfig(node, rules, "node");
+    expect(config.mode).toBe("donut");
+  });
+
+  it("returns default mode with card/donut configs when no rule matches", () => {
+    const rules: ShapeRule[] = [];
+    const node = makeNode();
+    const config = getNodeDisplayConfig(node, rules, "card", { fields: ["title"] } as any);
+    expect(config.mode).toBe("card");
+    expect(config.card).toEqual({ fields: ["title"] });
   });
 });
