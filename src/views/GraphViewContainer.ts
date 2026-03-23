@@ -5071,6 +5071,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   drawRoadNetwork() {
+    // Non-graph viewModes: skip road network
+    if (this.panel.viewMode !== "graph") {
+      if (this.trayGraphics) this.trayGraphics.clear();
+      return;
+    }
     const rb = this._ensureRoadBuilder();
     // Build road network if not finalized and not yet built
     if (!rb.finalized && !rb.trayData && this.pixiNodes.size > 0) {
