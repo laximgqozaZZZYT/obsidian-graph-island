@@ -1616,6 +1616,17 @@ function _buildDiscoverySection(
         cb.rebuildPanel();
       }, t("desc.hierarchyTree"));
     }
+    addToggle(body, t("display.similarSuggestions"), panel.showSimilarSuggestions, (v) => {
+      panel.showSimilarSuggestions = v;
+      cb.markDirty();
+    }, t("desc.similarSuggestions"));
+    addToggle(body, t("display.structureQuestions"), panel.showStructureQuestions, (v) => {
+      panel.showStructureQuestions = v;
+      cb.refreshOverlays();
+    }, t("desc.structureQuestions"));
+    addToggle(body, t("display.clusterCompare"), panel.showClusterCompare, (v) => {
+      panel.showClusterCompare = v;
+    }, t("desc.clusterCompare"));
   }, tHelp("help.discovery"), true, "lightbulb");
 }
 

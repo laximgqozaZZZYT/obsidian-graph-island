@@ -74,7 +74,6 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "timelineRangeMin", "timelineRangeMax",
   "cableTrunkWidth", "cableTrunkAlpha", "cableSpacing", "cableFanWidth", "cableFanAlpha",
   "localGraphHops",
-  "navHistoryCursor",
   "recencyDays",
   "degreeEdgeWidth",
   "minDegreeFilter",
@@ -95,7 +94,6 @@ const STRING_FIELDS: (keyof PanelState)[] = [
   "nodeSubLabelFields",
   "hoverTooltipFields",
   "nodeIconField",
-  "nodeIconMap",
   "nodeColorField",
   "customColorPalette",
 ];
@@ -111,6 +109,7 @@ const ARRAY_FIELDS: (keyof PanelState)[] = [
 
 /** Valid values for enum-like fields */
 const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
+  viewMode: ["graph", "sunburst", "timeline", "tree", "matrix"] as const,
   tagDisplay: ["node", "enclosure"] as const,
   clusterArrangement: ["concentric", "radial", "phyllotaxis", "grid", "triangle", "random", "timeline", "custom", "ego"] as const,
   clusterGroupArrangement: ["auto", "circle", "horizontal", "vertical", "concentric", "grid"] as const,
@@ -123,7 +122,7 @@ const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   importanceMetric: ["degree", "betweenness", "pagerank"] as const,
   clusterLabelDetail: ["minimal", "standard", "detailed", "rich"] as const,
   searchMode: ["filter", "highlight"] as const,
-  activeTab: ["filter", "display", "layout", "settings"] as const,
+  activeTab: ["filter", "display", "layout", "settings", "nodes"] as const,
   analysisOverlay: ["off", "bridges", "entropy", "gaps", "missing", "density", "all"] as const,
 };
 
@@ -142,6 +141,7 @@ const NULLABLE_OBJECT_FIELDS: (keyof PanelState)[] = [
   "cardinalityRenderConfig",
   "renderThresholds",
   "pinnedPositions",
+  "nodeIconMap",
 ];
 
 /** All valid PanelState keys — derived from the field lists above plus enums */

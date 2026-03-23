@@ -98,8 +98,6 @@ export interface EdgeDrawConfig {
   edgeWeightThickness?: boolean;
   /** Road network for edge routing (edges follow roads when available) */
   roadNetwork?: RoadNetwork | null;
-  /** Enable road-based edge routing (default true when roadNetwork is available) */
-  enableRoadRouting?: boolean;
   /** Group arrangement pattern — used for trunk routing direction */
   clusterArrangement?: string;
   /** Coordinate system: "cartesian" or "polar" — determines cable routing mode */

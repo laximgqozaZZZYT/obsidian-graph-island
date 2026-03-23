@@ -277,6 +277,43 @@ describe("applyPreset", () => {
   });
 });
 
+describe("importPreset — field classification fixes", () => {
+  it("accepts viewMode enum (was missing from ENUM_VALUES)", () => {
+    for (const v of ["graph", "sunburst", "timeline", "tree", "matrix"]) {
+      const preset = importPreset(JSON.stringify({ viewMode: v }));
+      expect(preset.viewMode).toBe(v);
+    }
+  });
+
+  it("rejects invalid viewMode", () => {
+    const preset = importPreset(JSON.stringify({ viewMode: "invalid" }));
+    expect(preset).not.toHaveProperty("viewMode");
+  });
+
+  it("accepts nodeIconMap as object (was misclassified as string)", () => {
+    const map = { character: "👤", episode: "📖" };
+    const preset = importPreset(JSON.stringify({ nodeIconMap: map }));
+    expect(preset).toHaveProperty("nodeIconMap");
+    expect((preset as any).nodeIconMap).toEqual(map);
+  });
+
+  it("accepts nodeIconMap as null", () => {
+    const preset = importPreset(JSON.stringify({ nodeIconMap: null }));
+    expect(preset).toHaveProperty("nodeIconMap");
+    expect((preset as any).nodeIconMap).toBeNull();
+  });
+
+  it("drops nodeIconMap if it is a string", () => {
+    const preset = importPreset(JSON.stringify({ nodeIconMap: "bad" }));
+    expect(preset).not.toHaveProperty("nodeIconMap");
+  });
+
+  it("accepts activeTab nodes (was missing from enum)", () => {
+    const preset = importPreset(JSON.stringify({ activeTab: "nodes" }));
+    expect(preset.activeTab).toBe("nodes");
+  });
+});
+
 describe("roundtrip: export -> import -> apply", () => {
   it("roundtrips a customized panel state", () => {
     const original = makePanel({

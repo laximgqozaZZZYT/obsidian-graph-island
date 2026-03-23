@@ -615,6 +615,10 @@ const en: TranslationMap = {
   "desc.multiSelect": "Shift+click to select multiple nodes for bulk operations",
 
   // --- Phase 5: Discovery (D5) ---
+  "display.similarSuggestions": "Similar Suggestions",
+  "desc.similarSuggestions": "Show Jaccard-based similar note suggestions on hover",
+  "display.structureQuestions": "Structure Questions",
+  "desc.structureQuestions": "Show graph analysis questions in statistics panel",
   "display.clusterCompare": "Cluster Compare",
   "desc.clusterCompare": "Compare two clusters: shared connections, unique members, bridge nodes",
 
@@ -1453,6 +1457,10 @@ const ja: TranslationMap = {
   "desc.multiSelect": "Shift+クリックで複数ノードを選択し一括操作",
 
   // --- Phase 5: Discovery (D5) ---
+  "display.similarSuggestions": "類似ノート候補",
+  "desc.similarSuggestions": "ホバー時にJaccard類似度ベースの類似ノート候補を表示",
+  "display.structureQuestions": "構造分析クエスチョン",
+  "desc.structureQuestions": "統計パネルにグラフ構造の分析質問を表示",
   "display.clusterCompare": "クラスタ比較",
   "desc.clusterCompare": "2つのクラスタを比較：共有接続、固有メンバー、ブリッジノード",
 
