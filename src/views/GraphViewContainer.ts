@@ -162,6 +162,45 @@ export const COMMUNITY_PALETTE: readonly number[] = [
   0xc49c94, 0xf7b6d2, 0xc7c7c7, 0xdbdb8d, 0x9edae5,
 ];
 
+/**
+ * Find the first GroupPreset whose condition matches the current layout + tagDisplay.
+ * Returns the matching preset or null.
+ */
+export function findMatchingGroupPreset(
+  presets: GroupPreset[],
+  currentLayout: string,
+  tagDisplay: string,
+): GroupPreset | null {
+  for (const preset of presets) {
+    const cond = preset.condition;
+    if (cond.layout && cond.layout !== currentLayout) continue;
+    if (cond.tagDisplay && cond.tagDisplay !== tagDisplay) continue;
+    return preset;
+  }
+  return null;
+}
+
+/**
+ * Resolve node color from a colorMap + node data.
+ * Pure lookup: category → tag fallback → default.
+ */
+export function resolveNodeColor(
+  node: { category?: string; tags?: string[] },
+  colorMap: Map<string, string>,
+  defaultColor: string,
+): string {
+  if (node.category) {
+    const css = colorMap.get(node.category);
+    if (css) return css;
+  }
+  if (node.tags && node.tags.length > 0) {
+    const tagKey = `tag:${node.tags[0]}`;
+    const css = colorMap.get(tagKey);
+    if (css) return css;
+  }
+  return defaultColor;
+}
+
 export const VIEW_TYPE_GRAPH = "graph-view";
 
 const TICK_SKIP = 4;
@@ -3353,15 +3392,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     showToast(t("surprise.noMatch"));
   }
 
-  /** I1b: Start/stop the surprise auto-trigger timer based on panel setting */
+  /** I1b: Start/stop the surprise auto-trigger timer (always off — surpriseInterval removed) */
   private _updateSurpriseTimer(): void {
     if (this._surpriseTimer) {
       clearInterval(this._surpriseTimer);
       this._surpriseTimer = null;
-    }
-    const seconds = this.panel.surpriseInterval ?? 0;
-    if (seconds > 0) {
-      this._surpriseTimer = setInterval(() => this._triggerSurprise(), seconds * 1000);
     }
   }
 
@@ -3923,28 +3958,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       tooltipText += "\n─ Enter: open · Shift+Enter: select · Ctrl+Enter: compare";
     }
 
-    // Feature DA: Ancestry breadcrumb trail from hub to hovered node
-    if (this.panel.showAncestryBreadcrumb && this.adj && this.adj.size > 0 && this.degrees.size > 0) {
-      // Find highest-degree node (hub)
-      let hubId = "";
-      let maxDeg = -1;
-      for (const [id, deg] of this.degrees) {
-        if (deg > maxDeg) { maxDeg = deg; hubId = id; }
-      }
-      if (hubId && hubId !== pn.data.id) {
-        const path = bfsShortestPath(this.adj, hubId, pn.data.id);
-        if (path.length > 1) {
-          const displayPath = truncateBreadcrumb(path);
-          const breadcrumb = displayPath.map((id) => {
-            if (id === "…") return "…";
-            const node = this.pixiNodes.get(id);
-            return node ? node.data.label : id.replace(/\.md$/, "").split("/").pop() ?? id;
-          }).join(" \u203A ");
-          tooltipText += "\n" + breadcrumb;
-        }
-      }
-    }
-
     // M3: Similar node suggestions
     if (this.panel.showSimilarSuggestions) {
       let similar = this._similarCache.get(pn.data.id);
@@ -4408,11 +4421,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.edgeStrengthGlow = edgeRt.edgeStrengthGlow;
     cfg.edgeStrengthGlowMin = edgeRt.edgeStrengthGlowMin;
     cfg.edgeStrengthGlowMax = edgeRt.edgeStrengthGlowMax;
-    cfg.degreeEdgeWidth = this.panel.degreeEdgeWidth ?? 0;
-    cfg.showEdgeWeightLabels = this.panel.showEdgeWeightLabels;
-    cfg.showEdgeCardinalityLabels = this.panel.showEdgeCardinalityLabels ?? false;
     cfg.edgeDirectionFilter = this.panel.edgeDirectionFilter ?? "all";
-    cfg.showBidirectionalIndicator = this.panel.showBidirectionalIndicator ?? false;
     cfg.showOntologyBackbone = this.panel.showOntologyBackbone ?? false;
     // roadRouteEdges toggle: when off, suppress road network so edges draw straight
     cfg.roadNetwork = (edgeRt.roadRouteEdges !== false) ? this.getRoadNetwork() : null;
@@ -8309,45 +8318,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     );
   }
 
-  /** Track recent-visit halo graphics */
+  /** Track recent-visit halo graphics (feature removed — showRecentVisitHalo deleted) */
   private _recentVisitHalos = new Map<string, CanvasGraphics>();
 
-  /** Update halos for recently visited nodes (from navHistory) */
+  /** Update halos for recently visited nodes — now a no-op cleanup */
   private _updateRecentVisitHalos() {
-    const rt = this.panel.renderThresholds ?? {};
-    if (!rt.showRecentVisitHalo) {
-      // Remove all halos
-      for (const [id, gfx] of this._recentVisitHalos) {
-        const pn = this.pixiNodes.get(id);
-        if (pn) { pn.gfx.removeChild(gfx); gfx.destroy(); }
-      }
-      this._recentVisitHalos.clear();
-      return;
-    }
-    const hist = this.panel.navHistory ?? [];
-    const recent = new Set(hist.slice(-10));
-    // Remove stale halos
+    // Feature removed — clean up any leftover halos
     for (const [id, gfx] of this._recentVisitHalos) {
-      if (!recent.has(id) || !this.pixiNodes.has(id)) {
-        const pn = this.pixiNodes.get(id);
-        if (pn) { pn.gfx.removeChild(gfx); gfx.destroy(); }
-        this._recentVisitHalos.delete(id);
-      }
-    }
-    // Add/update halos
-    for (const id of recent) {
       const pn = this.pixiNodes.get(id);
-      if (!pn) continue;
-      let halo = this._recentVisitHalos.get(id);
-      if (!halo) {
-        halo = new CanvasGraphics();
-        pn.gfx.addChildAt(halo, 0);
-        this._recentVisitHalos.set(id, halo);
-      }
-      halo.clear();
-      halo.lineStyle(1.5, 0x60a5fa, 0.3);
-      halo.drawCircle(0, 0, pn.radius + 4);
+      if (pn) { pn.gfx.removeChild(gfx); gfx.destroy(); }
     }
+    this._recentVisitHalos.clear();
   }
 
   /** Compute sort ranks for all PixiNodes. Rank 0 = most prominent. */

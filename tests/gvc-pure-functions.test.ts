@@ -10,6 +10,8 @@ import {
   lightenHex,
   heatmapColor,
   COMMUNITY_PALETTE,
+  findMatchingGroupPreset,
+  resolveNodeColor,
 } from "../src/views/GraphViewContainer";
 import { hexToRgb } from "../src/utils/color";
 import type { GroupPreset } from "../src/types";
@@ -272,5 +274,102 @@ describe("COMMUNITY_PALETTE", () => {
 
   it("all colors are unique", () => {
     expect(new Set(COMMUNITY_PALETTE).size).toBe(20);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findMatchingGroupPreset — condition-based preset lookup
+// ---------------------------------------------------------------------------
+describe("findMatchingGroupPreset", () => {
+  const presetA: GroupPreset = {
+    condition: { layout: "force" },
+    groups: [{ expression: null, color: "#ff0000" }],
+  };
+  const presetB: GroupPreset = {
+    condition: { layout: "tree", tagDisplay: "enclosure" },
+    groups: [],
+  };
+  const presetC: GroupPreset = {
+    condition: {},
+    groups: [{ expression: null, color: "#00ff00" }],
+  };
+
+  it("returns null for empty presets array", () => {
+    expect(findMatchingGroupPreset([], "force", "node")).toBeNull();
+  });
+
+  it("matches by layout", () => {
+    const result = findMatchingGroupPreset([presetA, presetB], "force", "node");
+    expect(result).toBe(presetA);
+  });
+
+  it("skips preset with non-matching layout", () => {
+    const result = findMatchingGroupPreset([presetA], "tree", "node");
+    expect(result).toBeNull();
+  });
+
+  it("matches by both layout and tagDisplay", () => {
+    const result = findMatchingGroupPreset([presetA, presetB], "tree", "enclosure");
+    expect(result).toBe(presetB);
+  });
+
+  it("skips preset with non-matching tagDisplay", () => {
+    const result = findMatchingGroupPreset([presetB], "tree", "node");
+    expect(result).toBeNull();
+  });
+
+  it("empty condition matches everything", () => {
+    const result = findMatchingGroupPreset([presetC], "force", "node");
+    expect(result).toBe(presetC);
+  });
+
+  it("returns first matching preset", () => {
+    const result = findMatchingGroupPreset([presetC, presetA], "force", "node");
+    expect(result).toBe(presetC); // presetC has empty condition, matches first
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveNodeColor — category/tag-based color lookup
+// ---------------------------------------------------------------------------
+describe("resolveNodeColor", () => {
+  const colorMap = new Map([
+    ["character", "#ff6b6b"],
+    ["location", "#4ecdc4"],
+    ["tag:important", "#fbbf24"],
+  ]);
+
+  it("returns category color when available", () => {
+    const node = { category: "character", tags: ["important"] };
+    expect(resolveNodeColor(node, colorMap, "#999")).toBe("#ff6b6b");
+  });
+
+  it("falls back to tag color when no category match", () => {
+    const node = { category: "unknown", tags: ["important"] };
+    expect(resolveNodeColor(node, colorMap, "#999")).toBe("#fbbf24");
+  });
+
+  it("falls back to default when no match", () => {
+    const node = { category: "unknown", tags: ["other"] };
+    expect(resolveNodeColor(node, colorMap, "#999")).toBe("#999");
+  });
+
+  it("handles node with no category or tags", () => {
+    expect(resolveNodeColor({}, colorMap, "#default")).toBe("#default");
+  });
+
+  it("handles empty tags array", () => {
+    const node = { tags: [] as string[] };
+    expect(resolveNodeColor(node, colorMap, "#def")).toBe("#def");
+  });
+
+  it("uses first tag for lookup", () => {
+    const node = { tags: ["important", "secondary"] };
+    expect(resolveNodeColor(node, colorMap, "#def")).toBe("#fbbf24");
+  });
+
+  it("handles empty colorMap", () => {
+    const node = { category: "character" };
+    expect(resolveNodeColor(node, new Map(), "#fallback")).toBe("#fallback");
   });
 });
