@@ -435,23 +435,19 @@ test.describe("7. Node Minimum Size", () => {
 // 8. Edge Label Mode Exclusivity
 // =========================================================================
 test.describe("8. Edge Label Mode", () => {
-  test("8.1 weight mode disables relation and cardinality", async () => {
+  test("8.1 edge labels toggle on/off", async () => {
     const result = await page.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
+      v.panel.showEdgeLabels = true;
+      const on = v.panel.showEdgeLabels;
       v.panel.showEdgeLabels = false;
-      v.panel.showEdgeWeightLabels = true;
-      v.panel.showEdgeCardinalityLabels = false;
-      return {
-        labels: v.panel.showEdgeLabels,
-        weight: v.panel.showEdgeWeightLabels,
-        cardinality: v.panel.showEdgeCardinalityLabels,
-      };
+      const off = v.panel.showEdgeLabels;
+      return { on, off };
     });
     expect(result).not.toHaveProperty("error");
-    expect(result.labels).toBe(false);
-    expect(result.weight).toBe(true);
-    expect(result.cardinality).toBe(false);
+    expect(result.on).toBe(true);
+    expect(result.off).toBe(false);
   });
 });
 

@@ -2,6 +2,7 @@
  * CDP E2E Test — Cycle 39: Zoom Presets + Label Mode Override + Console Monitor
  */
 import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
+import { measureNodeOverlap, measureSpread, measureContrast } from "./helpers/quality-checks";
 
 const CDP_URL = "http://localhost:9222";
 let browser: Browser;
@@ -189,3 +190,43 @@ test("Regression: all 29 previous test features still work", async () => {
   expect(fullResult.indicator).toBe("100%");
   expect(fullResult.badgeHidden).toBe(true);
 });
+
+// =========================================================================
+// Display Quality Gate (auto-generated)
+// =========================================================================
+test("QUALITY: node overlap, coordinate sanity, and color contrast", async () => {
+  // Wait for any pending render to settle
+  await page.waitForTimeout(2000);
+
+  const hasView = await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    return !!(v && v.pixiNodes && v.pixiNodes.size > 0);
+  });
+  if (!hasView) {
+    console.log("QUALITY: no graph view active, skipping quality gate");
+    return;
+  }
+
+  // 1. Node overlap
+  const overlap = await measureNodeOverlap(page);
+  if (overlap.totalNodes > 10) {
+    expect(overlap.overlapRatio).toBeLessThan(0.10);
+  }
+
+  // 2. Coordinate sanity
+  const spread = await measureSpread(page);
+  expect(spread.nanCount).toBe(0);
+  expect(spread.infCount).toBe(0);
+  if (overlap.totalNodes > 10) {
+    expect(spread.bboxWidth).toBeGreaterThan(0);
+    expect(spread.bboxHeight).toBeGreaterThan(0);
+  }
+
+  // 3. Color contrast
+  const contrast = await measureContrast(page, 50);
+  if (contrast.checkedCount > 0) {
+    expect(contrast.failCount).toBeLessThan(contrast.checkedCount * 0.5);
+  }
+});
+

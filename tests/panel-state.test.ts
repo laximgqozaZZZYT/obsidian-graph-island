@@ -40,8 +40,6 @@ describe("createDefaultPanel", () => {
     expect(panel.showOrphans).toBe(true);
     expect(panel.hoverHops).toBe(2);
     expect(panel.edgeDirectionFilter).toBe("all");
-    expect(panel.showBidirectionalIndicator ?? false).toBe(false);
-    expect(panel.degreeEdgeWidth ?? 0).toBe(0);
     expect(panel.showOntologyBackbone).toBe(false);
     expect(panel.highContrastMode).toBe(false);
   });

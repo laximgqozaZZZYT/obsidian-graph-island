@@ -267,7 +267,7 @@ export function renderBreadcrumb(
   el: HTMLElement,
   showBreadcrumb: boolean,
   localGraphCenter: string | null,
-  edges: readonly { source: string; target: string; type?: string }[],
+  edges: readonly { source: string; target: string; type?: string; relation?: string }[],
   panel: { localGraphCenter: string | null },
   host: BreadcrumbHost,
 ): void {
@@ -278,18 +278,24 @@ export function renderBreadcrumb(
   el.style.display = "";
   el.empty();
 
-  // Walk inheritance edges upward from localGraphCenter to root
+  // Walk hierarchy edges upward from localGraphCenter to root
+  // Match same edge types as getOntologyBackbone: inheritance type OR is-a/parent relation
+  const isHierarchyEdge = (e: { type?: string; relation?: string }) => {
+    const t = e.type ?? "";
+    const r = e.relation ?? "";
+    return t === "inheritance" || r === "is-a" || r === "parent";
+  };
   const chain: string[] = [localGraphCenter];
   const visited = new Set<string>([localGraphCenter]);
   let cur = localGraphCenter;
   for (let depth = 0; depth < 20; depth++) {
     let parentId: string | null = null;
     for (const e of edges) {
-      if (e.type === "inheritance" && e.source === cur && !visited.has(e.target)) {
+      if (isHierarchyEdge(e) && e.source === cur && !visited.has(e.target)) {
         parentId = e.target;
         break;
       }
-      if (e.type === "inheritance" && e.target === cur && !visited.has(e.source)) {
+      if (isHierarchyEdge(e) && e.target === cur && !visited.has(e.source)) {
         parentId = e.source;
         break;
       }
