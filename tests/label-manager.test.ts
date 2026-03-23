@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { extractInitials, computePriorityScores, type PriorityInput } from "../src/views/LabelManager";
+import {
+  extractInitials, computePriorityScores, type PriorityInput,
+  estimateTextWidth, computeRotatedAABB, smartTruncateLabel, selectLabelMode,
+  type LabelMode,
+} from "../src/views/LabelManager";
 
 // ---------------------------------------------------------------------------
 // extractInitials — 2-character initials from label text
@@ -158,5 +162,149 @@ describe("computePriorityScores", () => {
     const degrees = new Map([["solo", 5]]);
     const result = computePriorityScores(nodes, degrees, defaultRT);
     expect(result[0].minShowZoom).toBe(0.15 * 0.2); // pct=0 < lodPct1*0.1=0.01 → tier1*0.2
+  });
+});
+
+// ---------------------------------------------------------------------------
+// estimateTextWidth — character-count based width heuristic
+// ---------------------------------------------------------------------------
+describe("estimateTextWidth", () => {
+  it("returns 0 for empty string", () => {
+    expect(estimateTextWidth("", 11, false)).toBe(0);
+  });
+
+  it("normal text uses 0.58 multiplier", () => {
+    expect(estimateTextWidth("Hello", 10, false)).toBeCloseTo(5 * 10 * 0.58);
+  });
+
+  it("bold text uses 0.65 multiplier", () => {
+    expect(estimateTextWidth("Hello", 10, true)).toBeCloseTo(5 * 10 * 0.65);
+  });
+
+  it("scales linearly with font size", () => {
+    const w10 = estimateTextWidth("abc", 10, false);
+    const w20 = estimateTextWidth("abc", 20, false);
+    expect(w20).toBeCloseTo(w10 * 2);
+  });
+
+  it("scales linearly with text length", () => {
+    const w3 = estimateTextWidth("abc", 11, false);
+    const w6 = estimateTextWidth("abcdef", 11, false);
+    expect(w6).toBeCloseTo(w3 * 2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeRotatedAABB — axis-aligned bounding box for rotated rectangle
+// ---------------------------------------------------------------------------
+describe("computeRotatedAABB", () => {
+  it("no rotation returns original dimensions", () => {
+    const r = computeRotatedAABB(100, 20, 0, 0, 0, 50, 50);
+    expect(r.w).toBeCloseTo(100);
+    expect(r.h).toBeCloseTo(20);
+    expect(r.x).toBe(50);
+    expect(r.y).toBe(50);
+  });
+
+  it("90° rotation swaps width and height", () => {
+    const r = computeRotatedAABB(100, 20, Math.PI / 2, 0, 0, 0, 0);
+    expect(r.w).toBeCloseTo(20, 0);
+    expect(r.h).toBeCloseTo(100, 0);
+  });
+
+  it("45° rotation: AABB width < original width but height > original height", () => {
+    const r = computeRotatedAABB(100, 20, Math.PI / 4, 0, 0, 0, 0);
+    // cos(45°)*100 + sin(45°)*20 ≈ 84.85 (width shrinks because h is small)
+    // sin(45°)*100 + cos(45°)*20 ≈ 84.85 (height grows significantly)
+    expect(r.h).toBeGreaterThan(20);
+    // Both dimensions should be equal for 45° when w≠h
+    expect(r.w).toBeCloseTo(r.h, 5);
+  });
+
+  it("anchor shifts position", () => {
+    const r0 = computeRotatedAABB(100, 20, 0, 0, 0, 50, 50);
+    const r5 = computeRotatedAABB(100, 20, 0, 0.5, 0.5, 50, 50);
+    expect(r5.x).toBeLessThan(r0.x);
+    expect(r5.y).toBeLessThan(r0.y);
+  });
+
+  it("180° rotation preserves dimensions", () => {
+    const r = computeRotatedAABB(100, 20, Math.PI, 0, 0, 0, 0);
+    expect(r.w).toBeCloseTo(100, 0);
+    expect(r.h).toBeCloseTo(20, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// smartTruncateLabel — path-aware truncation
+// ---------------------------------------------------------------------------
+describe("smartTruncateLabel", () => {
+  it("returns full text when under maxChars", () => {
+    expect(smartTruncateLabel("short", 10)).toBe("short");
+  });
+
+  it("truncates slash paths to parent/child hint", () => {
+    const result = smartTruncateLabel("classic-othello/characters/desdemona", 10);
+    expect(result).toContain("/");
+    expect(result.length).toBeLessThan(36);
+  });
+
+  it("truncates dash-prefixed text to after-dash", () => {
+    const result = smartTruncateLabel("ep001-the-beginning-of-everything", 10);
+    expect(result).not.toContain("ep001-");
+  });
+
+  it("falls back to ellipsis for plain long text", () => {
+    const result = smartTruncateLabel("abcdefghijklmnopqrstuvwxyz", 10);
+    expect(result).toContain("\u2026");
+    expect(result.length).toBe(10);
+  });
+
+  it("handles text exactly at maxChars boundary", () => {
+    expect(smartTruncateLabel("1234567890", 10)).toBe("1234567890");
+  });
+
+  it("handles single character maxChars", () => {
+    const result = smartTruncateLabel("abcdef", 1);
+    expect(result.length).toBeLessThanOrEqual(2); // 0 chars + ellipsis or similar
+  });
+});
+
+// ---------------------------------------------------------------------------
+// selectLabelMode — zoom-based mode FSM with hysteresis
+// ---------------------------------------------------------------------------
+describe("selectLabelMode", () => {
+  const iz = 0.2;  // initialsZoom
+  const tz = 0.35; // truncateZoom
+  const h = 0.02;  // hysteresis
+
+  it("returns initials below initialsZoom", () => {
+    expect(selectLabelMode(0.1, "full", iz, tz, h)).toBe("initials");
+  });
+
+  it("returns truncated between initialsZoom and truncateZoom", () => {
+    expect(selectLabelMode(0.25, "full", iz, tz, h)).toBe("truncated");
+  });
+
+  it("returns full above truncateZoom", () => {
+    expect(selectLabelMode(0.5, "initials", iz, tz, h)).toBe("full");
+  });
+
+  it("hysteresis: stays in initials within band", () => {
+    // zoom=0.21 is above initialsZoom(0.2) but within hysteresis(+0.02)
+    expect(selectLabelMode(0.21, "initials", iz, tz, h)).toBe("initials");
+  });
+
+  it("hysteresis: stays in full within band", () => {
+    // zoom=0.34 is below truncateZoom(0.35) but within hysteresis(-0.02)
+    expect(selectLabelMode(0.34, "full", iz, tz, h)).toBe("full");
+  });
+
+  it("transitions from initials to truncated past hysteresis", () => {
+    expect(selectLabelMode(0.23, "initials", iz, tz, h)).toBe("truncated");
+  });
+
+  it("transitions from full to truncated below hysteresis", () => {
+    expect(selectLabelMode(0.25, "full", iz, tz, h)).toBe("truncated");
   });
 });

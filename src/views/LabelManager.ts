@@ -625,3 +625,75 @@ export function extractInitials(text: string): string {
   // Single word: take first two characters
   return clean.slice(0, 2).toUpperCase();
 }
+
+// ---------------------------------------------------------------------------
+// Pure helper functions extracted from LabelManager methods
+// ---------------------------------------------------------------------------
+
+/** Estimate text width before first render using character-count heuristic. */
+export function estimateTextWidth(text: string, fontSize: number, isBold: boolean): number {
+  return text.length * fontSize * (isBold ? 0.65 : 0.58);
+}
+
+/** Compute axis-aligned bounding box for a rotated rectangle.
+ *  @param w - width
+ *  @param h - height
+ *  @param rotation - rotation in radians
+ *  @param anchorX - anchor X (0-1)
+ *  @param anchorY - anchor Y (0-1)
+ *  @param posX - world X position
+ *  @param posY - world Y position
+ */
+export function computeRotatedAABB(
+  w: number, h: number, rotation: number,
+  anchorX: number, anchorY: number,
+  posX: number, posY: number,
+): { x: number; y: number; w: number; h: number } {
+  const cos = Math.abs(Math.cos(rotation));
+  const sin = Math.abs(Math.sin(rotation));
+  const bw = w * cos + h * sin;
+  const bh = w * sin + h * cos;
+  return { x: posX - bw * anchorX, y: posY - bh * anchorY, w: bw, h: bh };
+}
+
+/** Smart label truncation: slash-path → parent/child hint, dash → after-dash, else → ellipsis. */
+export function smartTruncateLabel(fullText: string, maxChars: number): string {
+  if (fullText.length <= maxChars) return fullText;
+  const slashIdx = fullText.lastIndexOf('/');
+  const dashIdx = fullText.indexOf('-');
+  if (slashIdx > 0 && slashIdx < fullText.length - 1) {
+    const parent = fullText.slice(0, slashIdx);
+    const distinctStart = dashIdx > 0 && dashIdx < slashIdx ? dashIdx + 1 : 0;
+    const parentDistinct = parent.slice(distinctStart, distinctStart + Math.max(3, maxChars - 2));
+    const child = fullText.slice(slashIdx + 1);
+    const childHint = child.length > 3 ? child.slice(0, 3) : child;
+    return parentDistinct + '/' + childHint;
+  }
+  if (dashIdx > 0 && dashIdx < maxChars) {
+    const afterDash = fullText.slice(dashIdx + 1);
+    return afterDash.length > maxChars
+      ? afterDash.slice(0, maxChars - 1) + '\u2026'
+      : afterDash;
+  }
+  return fullText.slice(0, maxChars - 1) + '\u2026';
+}
+
+export type LabelMode = "initials" | "truncated" | "full";
+
+/** Select label display mode based on zoom with hysteresis to prevent flicker.
+ *  @param zoom - current zoom level
+ *  @param prevMode - previous mode (for hysteresis)
+ *  @param initialsZoom - threshold below which initials mode activates
+ *  @param truncateZoom - threshold below which truncated mode activates
+ *  @param hyst - hysteresis band (±)
+ */
+export function selectLabelMode(
+  zoom: number, prevMode: LabelMode,
+  initialsZoom: number, truncateZoom: number, hyst: number,
+): LabelMode {
+  if (prevMode === "initials" && zoom < initialsZoom + hyst) return "initials";
+  if (prevMode === "full" && zoom > truncateZoom - hyst) return "full";
+  if (zoom < initialsZoom) return "initials";
+  if (zoom < truncateZoom) return "truncated";
+  return "full";
+}
