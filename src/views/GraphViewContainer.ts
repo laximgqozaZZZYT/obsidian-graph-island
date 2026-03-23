@@ -2068,7 +2068,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const rt = this.panel.renderThresholds ?? {};
         if (rt.showFpsMonitor) {
           this.fpsEl.style.display = "";
-          this.fpsEl.textContent = `${this.renderPipeline.currentFps} fps`;
+          this.fpsEl.textContent = `${this.renderPipeline.currentFps} fps · ${this.renderPipeline.lastFrameMs}ms`;
         } else {
           this.fpsEl.style.display = "none";
         }
@@ -7301,15 +7301,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           break;
         }
         case LAYOUT_TREE: {
-          // Compute tree vertically, then rotate 90° to horizontal (left→right)
-          ld = applyTreeLayout(gd, { startX: 0, startY: 0, sortComparator: sortCmp, nodeSpacingMap: nsMap });
+          // Adaptive node spacing based on node count
+          const treeNodeCount = gd.nodes.length;
+          const adaptiveNodeWidth = treeNodeCount > 500 ? 20 :
+            treeNodeCount > 200 ? 30 :
+            treeNodeCount > 100 ? 40 : 60;
+          const adaptiveLevelHeight = treeNodeCount > 500 ? 40 :
+            treeNodeCount > 200 ? 50 :
+            treeNodeCount > 100 ? 60 : 80;
+
+          ld = applyTreeLayout(gd, {
+            startX: 0, startY: 0,
+            sortComparator: sortCmp, nodeSpacingMap: nsMap,
+            nodeWidth: adaptiveNodeWidth,
+            levelHeight: adaptiveLevelHeight,
+          });
           // Rotate: swap x↔y so depth goes left→right, siblings go top→bottom
           for (const n of ld.nodes) {
             const ox = n.x, oy = n.y;
             n.x = oy + 60;   // depth → horizontal
             n.y = ox;         // sibling spread → vertical
           }
-          // Fit to canvas: compute spread and scale
+          // Fit to canvas with padding — allow overflow for pan/zoom
           let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
           for (const n of ld.nodes) {
             if (n.x < minX) minX = n.x;
@@ -7319,12 +7332,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           }
           const spreadX = maxX - minX || 1;
           const spreadY = maxY - minY || 1;
-          const scale = Math.min((W - 80) / spreadX, (H - 80) / spreadY, 1);
-          if (scale < 1) {
-            for (const n of ld.nodes) {
-              n.x = 40 + (n.x - minX) * scale;
-              n.y = 40 + (n.y - minY) * scale;
-            }
+          // Don't aggressively compress — allow pan/zoom to explore
+          // Only scale down if more than 4x the canvas size
+          const maxScale = Math.min((W * 3) / spreadX, (H * 3) / spreadY, 1);
+          const treeScale = Math.max(0.1, maxScale);
+          for (const n of ld.nodes) {
+            n.x = cx + (n.x - (minX + maxX) / 2) * treeScale;
+            n.y = cy + (n.y - (minY + maxY) / 2) * treeScale;
           }
           break;
         }
@@ -7373,8 +7387,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             if (tv) timeVals.add(tv);
           }
           const numSteps = Math.max(timeVals.size, 1);
-          const stepW = Math.max(4, (W - 120) / numSteps);
-          const laneH = Math.max(40, Math.min(80, (H - 120) / 30));
+          // Ensure minimum readable step width
+          const stepW = Math.max(8, (W - 120) / numSteps);
+          // Compute lane height based on estimated number of lanes (use node count heuristic)
+          const estimatedLanes = Math.max(1, Math.ceil(gd.nodes.length / Math.max(numSteps, 1)));
+          const laneH = Math.max(20, Math.min(80, (H - 120) / Math.min(estimatedLanes, 40)));
           const tlResult = applyTimelineLayout(gd, {
             timeKey,
             startX: 60, startY: 60, stepWidth: stepW, laneHeight: laneH,
@@ -7383,7 +7400,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           ld = tlResult.data;
           // Build timeline bars from placements for drawTimelineBars()
           const endKey = this.panel.timelineEndKey || "end-date";
-          const barH = Math.max(laneH * 0.7, 10);
+          // Bar height should be smaller than lane height to prevent overlap
+          const barH = Math.max(Math.min(laneH * 0.6, 20), 6);
           const timeIdxMap = new Map<string, number>();
           tlResult.timeSteps.forEach((ts, i) => timeIdxMap.set(ts, i));
           const bars: import("../layouts/cluster-force").TimelineBarInfo[] = [];

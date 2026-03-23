@@ -345,20 +345,27 @@ function assignLanesByCategory(
   timedNodeIds: Set<string>,
 ): Map<string, number> {
   const laneMap = new Map<string, number>();
-  const categoryLanes = new Map<string, number>();
+  const groupLanes = new Map<string, number>();
   let nextLane = 0;
 
-  // Collect categories from timed nodes, sorted for deterministic lanes
   const timedNodes = nodes.filter(n => timedNodeIds.has(n.id));
-  const categories = [...new Set(timedNodes.map(n => n.category || ""))].sort();
 
-  for (const cat of categories) {
-    categoryLanes.set(cat, nextLane++);
+  // Derive group key: category > folder root > "other"
+  function groupKey(n: GraphNode): string {
+    if (n.category) return `cat:${n.category}`;
+    const fp = (n as any).filePath || n.id;
+    const firstSlash = fp.indexOf("/");
+    if (firstSlash > 0) return `dir:${fp.slice(0, firstSlash)}`;
+    return "other";
+  }
+
+  const groups = [...new Set(timedNodes.map(n => groupKey(n)))].sort();
+  for (const g of groups) {
+    groupLanes.set(g, nextLane++);
   }
 
   for (const n of timedNodes) {
-    const cat = n.category || "";
-    laneMap.set(n.id, categoryLanes.get(cat) ?? 0);
+    laneMap.set(n.id, groupLanes.get(groupKey(n)) ?? 0);
   }
 
   return laneMap;
