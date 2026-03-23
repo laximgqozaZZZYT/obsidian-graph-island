@@ -43,6 +43,7 @@ describe("createDefaultPanel", () => {
     expect(panel.showBidirectionalIndicator).toBe(false);
     expect(panel.degreeEdgeWidth).toBe(0);
     expect(panel.showOntologyBackbone).toBe(false);
+    expect(panel.highContrastMode).toBe(false);
   });
 });
 
