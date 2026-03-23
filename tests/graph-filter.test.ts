@@ -199,7 +199,45 @@ describe("applyVisibilityFilters", () => {
     const result = applyVisibilityFilters(nodes, edges, {
       ...defaultOpts, showOrphans: false, includeTagsInData: false,
     });
-    // orphan removed (no edges after tag removal), #t removed, only a remains but it's also orphaned
     expect(result.nodes.length).toBeLessThanOrEqual(1);
+  });
+
+  // --- showAttachments filter (cycle122) ---
+
+  it("removes attachment files when showAttachments=false", () => {
+    const nodes = [
+      node("note.md"),
+      node("image.png", { filePath: "image.png" }),
+      node("doc.pdf", { filePath: "doc.pdf" }),
+    ];
+    const result = applyVisibilityFilters(nodes, [], { ...defaultOpts, showAttachments: false });
+    expect(result.nodes.map(n => n.id)).toEqual(["note.md"]);
+  });
+
+  it("keeps attachments when showAttachments=true", () => {
+    const nodes = [node("note.md"), node("image.png", { filePath: "image.png" })];
+    const result = applyVisibilityFilters(nodes, [], { ...defaultOpts, showAttachments: true });
+    expect(result.nodes).toHaveLength(2);
+  });
+
+  it("tagDisplay=enclosure removes tag nodes", () => {
+    const nodes = [node("a.md"), node("#tag", { isTag: true })];
+    const edges = [edge("a.md", "#tag", "has-tag")];
+    const result = applyVisibilityFilters(nodes, edges, { ...defaultOpts, tagDisplay: "enclosure" });
+    expect(result.nodes.every(n => !n.isTag)).toBe(true);
+    expect(result.edges.every(e => e.type !== "has-tag")).toBe(true);
+  });
+
+  it("showTagNodes=false removes tag nodes", () => {
+    const nodes = [node("a.md"), node("#tag", { isTag: true })];
+    const edges = [edge("a.md", "#tag", "has-tag")];
+    const result = applyVisibilityFilters(nodes, edges, { ...defaultOpts, showTagNodes: false });
+    expect(result.nodes.every(n => !n.isTag)).toBe(true);
+  });
+
+  it("empty graph: no crash", () => {
+    const result = applyVisibilityFilters([], [], defaultOpts);
+    expect(result.nodes).toEqual([]);
+    expect(result.edges).toEqual([]);
   });
 });

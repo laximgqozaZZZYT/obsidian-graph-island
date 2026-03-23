@@ -404,3 +404,51 @@ describe("snapshot roundtrip", () => {
     expect(diff.changedNodeIds.size).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// hashMeta collision resistance (cycle122)
+// ---------------------------------------------------------------------------
+describe("hashMeta collision resistance", () => {
+  it("100 distinct meta objects produce ≥95 unique hashes", () => {
+    const hashes = new Set<string>();
+    for (let i = 0; i < 100; i++) {
+      const meta = {
+        tags: [`tag-${i}`, `category-${i % 5}`],
+        order: i,
+        title: `Note ${i}`,
+        nested: { level: i % 3, flag: i % 2 === 0 },
+      };
+      hashes.add(hashMeta(meta));
+    }
+    // FNV-1a 32-bit: for 100 distinct inputs, expect ≥95 unique hashes
+    expect(hashes.size).toBeGreaterThanOrEqual(95);
+  });
+
+  it("similar meta with tiny differences produce different hashes", () => {
+    const h1 = hashMeta({ a: 1, b: 2 });
+    const h2 = hashMeta({ a: 1, b: 3 }); // single value change
+    expect(h1).not.toBe(h2);
+  });
+
+  it("key order does not affect hash (stability)", () => {
+    const h1 = hashMeta({ z: 1, a: 2, m: 3 });
+    const h2 = hashMeta({ a: 2, m: 3, z: 1 });
+    expect(h1).toBe(h2);
+  });
+
+  it("empty vs non-empty meta produces different hash", () => {
+    const hEmpty = hashMeta({});
+    const hFull = hashMeta({ key: "value" });
+    // Empty meta returns "" (special case), non-empty returns hex hash
+    expect(hEmpty).not.toBe(hFull);
+  });
+
+  it("1000 sequential meta objects: collision rate < 1%", () => {
+    const hashes = new Set<string>();
+    for (let i = 0; i < 1000; i++) {
+      hashes.add(hashMeta({ id: i, label: `item-${i}` }));
+    }
+    const collisionRate = 1 - hashes.size / 1000;
+    expect(collisionRate).toBeLessThan(0.01);
+  });
+});

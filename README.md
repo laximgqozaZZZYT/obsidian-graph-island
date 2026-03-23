@@ -241,7 +241,7 @@ src/
 
 ### Tests
 
-830+ unit tests across 51 test files covering:
+1500+ unit tests across 68 test files covering:
 
 - Edge rendering, enclosure hull, geometry, graph helpers
 - Query expression, transform expression parser
@@ -254,7 +254,16 @@ src/
 
 349+ E2E tests (CDP-based, Obsidian live testing)
 
-## What's New in v0.2.0
+## What's New in v0.3.1
+
+- **Snapshot diff system**: Capture graph state, compare across time, timeline view with clickable entries
+- **Edge toggle progressive disclosure**: Hide edge type toggles with 0 edges, show count in label
+- **Auto-snapshot**: Configurable interval (0-30 min), [auto] prefix, max 10 entries
+- **70+ pure functions exported**: Extracted from View layer for testability (LOD, zoom, edge rendering, etc.)
+- **1500+ unit tests**: Coverage thresholds set (S24/B22/F20/L24) to prevent regression
+- **i18n parity**: 690 en/ja keys verified to be in sync
+
+### v0.2.0
 
 - **Configurable edge rendering**: 14 new threshold fields for edge visibility, fade, thickness, and alpha
 - **Label overlap culling**: Automatic label placement with collision avoidance and LOD
