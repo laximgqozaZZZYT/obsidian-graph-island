@@ -73,6 +73,25 @@ const HIDDEN_SECTIONS: Record<Exclude<ViewMode, "graph">, Set<PanelSectionId>> =
     "cableDisplay",
     "roadNetwork",
   ]),
+  matrix: new Set([
+    "nodeDisplay",
+    "nodeDisplayMode",
+    "nodeDecorations",
+    "structureAnalysis",
+    "discovery",
+    "interaction",
+    "advanced",
+    "edgeDisplay",
+    "cableDisplay",
+    "roadNetwork",
+    "minimap",
+    "relationColors",
+    "clusterArrangement",
+    "coordinateControls",
+    "timelineControls",
+    "forceParameters",
+    "nodeRules",
+  ]),
 };
 
 /** Check if a panel section should be visible for the given viewMode. */

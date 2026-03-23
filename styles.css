@@ -3443,3 +3443,52 @@
 .gi-vm-icon { display: flex; }
 .gi-vm-icon svg { width: 12px; height: 12px; }
 .gi-vm-label { line-height: 1; }
+
+/* Full-screen Matrix viewMode */
+.gi-matrix-fullscreen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: auto;
+  background: var(--background-primary);
+  z-index: 10;
+  padding: 8px;
+}
+.gi-matrix-fullscreen .gi-matrix-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+  color: var(--text-normal);
+}
+.gi-matrix-fullscreen .gi-matrix-table {
+  border-collapse: collapse;
+}
+.gi-matrix-fullscreen .gi-matrix-table th,
+.gi-matrix-fullscreen .gi-matrix-table td {
+  border: 1px solid var(--background-modifier-border);
+  padding: 2px 4px;
+  text-align: center;
+  font-size: 10px;
+  min-width: 20px;
+}
+.gi-matrix-fullscreen .gi-matrix-label {
+  text-align: left !important;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gi-matrix-fullscreen .gi-matrix-label:hover {
+  color: var(--text-normal);
+  text-decoration: underline;
+}
+.gi-matrix-fullscreen .gi-matrix-cell {
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.gi-matrix-fullscreen .gi-matrix-cell:hover {
+  outline: 1px solid var(--interactive-accent);
+}

@@ -8420,8 +8420,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const matrix = new Map<string, Map<string, number>>();
     for (const id of nodeIds) matrix.set(id, new Map());
     for (const e of gd.edges) {
-      const s = typeof e.source === "string" ? e.source : (e.source as any).id;
-      const t = typeof e.target === "string" ? e.target : (e.target as any).id;
+      const s = edgeSourceId(e);
+      const t = edgeTargetId(e);
       if (nodeIdSet.has(s) && nodeIdSet.has(t)) {
         const row = matrix.get(s)!;
         row.set(t, (row.get(t) ?? 0) + 1);

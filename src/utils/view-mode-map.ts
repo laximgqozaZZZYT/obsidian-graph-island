@@ -11,6 +11,7 @@ const VIEW_MODE_LAYOUT_MAP: Record<ViewMode, LayoutType> = {
   sunburst: LAYOUT_SUNBURST,
   timeline: LAYOUT_TIMELINE,
   tree: LAYOUT_TREE,
+  matrix: LAYOUT_FORCE, // matrix uses DOM, not Canvas layout
 };
 
 /** Convert a user-facing ViewMode to the internal LayoutType. */
@@ -20,10 +21,15 @@ export function viewModeToLayout(mode: ViewMode): LayoutType {
 
 /** Whether the RenderPipeline should skip per-node rendering for this viewMode. */
 export function viewModeSkipsNodeRendering(mode: ViewMode): boolean {
-  return mode === "sunburst" || mode === "timeline";
+  return mode === "sunburst" || mode === "timeline" || mode === "matrix";
 }
 
 /** Whether edges should be skipped for this viewMode. */
 export function viewModeSkipsEdges(mode: ViewMode): boolean {
-  return mode === "sunburst" || mode === "timeline";
+  return mode === "sunburst" || mode === "timeline" || mode === "matrix";
+}
+
+/** Whether this viewMode uses DOM rendering instead of Canvas. */
+export function viewModeUsesDom(mode: ViewMode): boolean {
+  return mode === "matrix";
 }

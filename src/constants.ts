@@ -49,6 +49,7 @@ export const VIEW_MODE_GRAPH    = "graph" as const;
 export const VIEW_MODE_SUNBURST = "sunburst" as const;
 export const VIEW_MODE_TIMELINE = "timeline" as const;
 export const VIEW_MODE_TREE     = "tree" as const;
+export const VIEW_MODE_MATRIX   = "matrix" as const;
 
 // ---------------------------------------------------------------------------
 // Coordinate axis source kinds  (AxisSource.kind values)

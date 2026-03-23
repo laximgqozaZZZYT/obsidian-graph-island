@@ -850,6 +850,7 @@ const en: TranslationMap = {
   "viewMode.sunburst": "Sunburst",
   "viewMode.timeline": "Timeline",
   "viewMode.tree": "Tree",
+  "viewMode.matrix": "Matrix",
   "viewMode.switched": "View mode",
 };
 
@@ -1687,6 +1688,7 @@ const ja: TranslationMap = {
   "viewMode.sunburst": "サンバースト",
   "viewMode.timeline": "タイムライン",
   "viewMode.tree": "ツリー",
+  "viewMode.matrix": "マトリクス",
   "viewMode.switched": "表示形式",
 };
 

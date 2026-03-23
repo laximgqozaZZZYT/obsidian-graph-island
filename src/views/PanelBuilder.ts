@@ -505,7 +505,7 @@ export function validatePanelState(panel: PanelState): void {
     }
   }
   // ViewMode validation
-  const validViewModes = new Set(["graph", "sunburst", "timeline", "tree"]);
+  const validViewModes = new Set(["graph", "sunburst", "timeline", "tree", "matrix"]);
   if (!validViewModes.has(panel.viewMode)) {
     panel.viewMode = "graph";
   }
