@@ -464,3 +464,72 @@ describe("buildPairCounts", () => {
     expect(counts.get("a:b")).toBe(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// EDGE_TYPE_SPECS — single source of truth cross-reference
+// ---------------------------------------------------------------------------
+import { EDGE_TYPE_SPECS } from "../src/views/EdgeRenderer";
+import {
+  EDGE_TYPE_LINK, EDGE_TYPE_TAG, EDGE_TYPE_HAS_TAG,
+  EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION,
+  EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_SEQUENCE,
+} from "../src/constants";
+
+describe("EDGE_TYPE_SPECS", () => {
+  it("contains all known edge type constants", () => {
+    const expected = [
+      EDGE_TYPE_LINK, EDGE_TYPE_TAG, EDGE_TYPE_HAS_TAG,
+      EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION,
+      EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_SEQUENCE,
+      "category", "semantic", // string-literal edge types
+    ];
+    for (const t of expected) {
+      expect(EDGE_TYPE_SPECS.has(t), `missing: ${t}`).toBe(true);
+    }
+  });
+
+  it("has no extra entries beyond known types", () => {
+    expect(EDGE_TYPE_SPECS.size).toBe(10);
+  });
+
+  it("every entry has a non-empty visibilityField string", () => {
+    for (const [type, spec] of EDGE_TYPE_SPECS) {
+      expect(typeof spec.visibilityField).toBe("string");
+      expect(spec.visibilityField.length, `${type} visibilityField empty`).toBeGreaterThan(0);
+    }
+  });
+
+  it("visibilityFields are unique (no two edge types share a toggle)", () => {
+    const fields = [...EDGE_TYPE_SPECS.values()].map(s => s.visibilityField);
+    expect(new Set(fields).size).toBe(fields.length);
+  });
+
+  it("color is either null or a valid hex number (0-0xFFFFFF)", () => {
+    for (const [type, spec] of EDGE_TYPE_SPECS) {
+      if (spec.color !== null) {
+        expect(spec.color).toBeGreaterThanOrEqual(0);
+        expect(spec.color).toBeLessThanOrEqual(0xFFFFFF);
+        expect(Number.isInteger(spec.color), `${type} color not integer`).toBe(true);
+      }
+    }
+  });
+
+  it("structural types (inheritance, aggregation, etc.) have fixed colors", () => {
+    const structuralTypes = [
+      EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION,
+      EDGE_TYPE_HAS_TAG, EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_SEQUENCE,
+    ];
+    for (const t of structuralTypes) {
+      const spec = EDGE_TYPE_SPECS.get(t);
+      expect(spec?.color, `${t} should have a fixed color`).not.toBeNull();
+    }
+  });
+
+  it("generic types (link, tag, category, semantic) use null color (relation-colored)", () => {
+    const genericTypes = [EDGE_TYPE_LINK, EDGE_TYPE_TAG, "category", "semantic"];
+    for (const t of genericTypes) {
+      const spec = EDGE_TYPE_SPECS.get(t);
+      expect(spec?.color, `${t} should use relation color (null)`).toBeNull();
+    }
+  });
+});
