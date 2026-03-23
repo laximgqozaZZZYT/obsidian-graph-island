@@ -47,7 +47,7 @@ describe("en/ja translation key parity", () => {
   const jaKeys = _getTranslationKeys("ja");
 
   it("en has a substantial number of keys", () => {
-    expect(enKeys.length).toBeGreaterThan(600);
+    expect(enKeys.length).toBeGreaterThan(690);
   });
 
   it("ja has the same number of keys as en", () => {
