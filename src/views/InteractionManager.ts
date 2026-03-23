@@ -144,6 +144,12 @@ export interface InteractionHost {
   toggleMultiSelect?(nodeId: string): void;
   /** Lasso selection: add all nodes inside polygon to multiSelect */
   lassoSelectNodes?(screenPolygon: { x: number; y: number }[], additive: boolean): void;
+  /** Enter subgraph mode with selected nodes */
+  enterSubgraph?(nodeIds: string[], viewMode: string): void;
+  /** Open subgraph in a new tab */
+  openSubgraphNewTab?(nodeIds: string[], viewMode: string): void;
+  /** Get current panel state for context menu decisions */
+  getPanel?(): { multiSelectNodeIds: string[]; subgraphNodeIds: string[]; viewMode: string };
   /** D5: Toggle cluster compare for a node's cluster */
   toggleClusterCompare?(nodeId: string): void;
   /** D5: Whether cluster compare is enabled */
@@ -994,6 +1000,31 @@ export class InteractionManager {
       });
     }
 
+    // Subgraph view (requires multi-select with >= 2 nodes)
+    const panel = this.host.getPanel?.();
+    const multiIds = panel?.multiSelectNodeIds ?? [];
+    if (multiIds.length >= 2 && this.host.enterSubgraph) {
+      menu.addSeparator();
+      const viewModes = ["graph", "sunburst", "timeline", "tree", "matrix"] as const;
+      for (const vm of viewModes) {
+        menu.addItem((item) => {
+          item.setTitle(`${t("context.openSubgraph") ?? "Open as subgraph"} → ${vm}`)
+            .setIcon("git-branch")
+            .onClick(() => this.host.enterSubgraph!([...multiIds], vm));
+        });
+      }
+      if (this.host.openSubgraphNewTab) {
+        menu.addSeparator();
+        for (const vm of viewModes) {
+          menu.addItem((item) => {
+            item.setTitle(`${t("context.openSubgraphNewTab") ?? "Open in new tab"} → ${vm}`)
+              .setIcon("external-link")
+              .onClick(() => this.host.openSubgraphNewTab!([...multiIds], vm));
+          });
+        }
+      }
+    }
+
     menu.showAtPosition({ x: e.clientX, y: e.clientY });
   }
 
@@ -1060,6 +1091,31 @@ export class InteractionManager {
           .setIcon("image")
           .onClick(() => this.host.exportPng!());
       });
+    }
+
+    // Subgraph view (requires multi-select with >= 2 nodes)
+    const panel = this.host.getPanel?.();
+    const multiIds = panel?.multiSelectNodeIds ?? [];
+    if (multiIds.length >= 2 && this.host.enterSubgraph) {
+      menu.addSeparator();
+      const viewModes = ["graph", "sunburst", "timeline", "tree", "matrix"] as const;
+      for (const vm of viewModes) {
+        menu.addItem((item) => {
+          item.setTitle(`${t("context.openSubgraph") ?? "Open as subgraph"} → ${vm}`)
+            .setIcon("git-branch")
+            .onClick(() => this.host.enterSubgraph!([...multiIds], vm));
+        });
+      }
+      if (this.host.openSubgraphNewTab) {
+        menu.addSeparator();
+        for (const vm of viewModes) {
+          menu.addItem((item) => {
+            item.setTitle(`${t("context.openSubgraphNewTab") ?? "Open in new tab"} → ${vm}`)
+              .setIcon("external-link")
+              .onClick(() => this.host.openSubgraphNewTab!([...multiIds], vm));
+          });
+        }
+      }
     }
 
     menu.showAtPosition({ x: e.clientX, y: e.clientY });

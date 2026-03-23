@@ -15,8 +15,7 @@ import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoi
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb } from "../utils/graph-helpers";
-import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph } from "../utils/graph-filter";
-import { pointInPolygon } from "../utils/geometry";
+import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet } from "../utils/graph-filter";
 import { hexToRgb } from "../utils/color";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, type NodeTreeEntry, DEFAULT_PANEL, createDefaultPanel, validatePanelState, ensureRT } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
@@ -39,7 +38,7 @@ import { LayoutTransition } from "./LayoutTransition";
 import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./StatsRenderer";
 import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
-import { groupNodesByField, getNodeFieldValues, collapseGroup, expandSuperNodeIds, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
+import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
 import { getNodeShape, drawShape } from "../utils/node-shapes";
@@ -421,8 +420,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   // Marquee button reference (for toolbar toggle styling)
   private marqueeBtnEl: HTMLElement | null = null;
-  // Lasso button reference (for toolbar toggle styling)
-  private lassoBtnEl: HTMLElement | null = null;
 
   // Sunburst layout arc data for Canvas 2D rendering
   private sunburstLayoutArcs: LayoutSunburstArc[] = [];
@@ -749,31 +746,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (this.interactionManager) {
         this.interactionManager.marqueeMode = !this.interactionManager.marqueeMode;
         marqueeBtn.toggleClass("is-active", this.interactionManager.marqueeMode);
-        // Disable lasso when marquee is active (mutually exclusive)
-        if (this.interactionManager.marqueeMode) {
-          this.interactionManager.lassoMode = false;
-          this.lassoBtnEl?.removeClass("is-active");
-        }
       }
     });
     this.marqueeBtnEl = marqueeBtn;
-
-    const lassoBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
-    setIcon(lassoBtn, "pen-tool");
-    lassoBtn.setAttribute("aria-label", t("toolbar.lasso") ?? "Lasso select");
-    lassoBtn.title = t("toolbar.lasso") ?? "Lasso select";
-    lassoBtn.addEventListener("click", () => {
-      if (this.interactionManager) {
-        this.interactionManager.lassoMode = !this.interactionManager.lassoMode;
-        lassoBtn.toggleClass("is-active", this.interactionManager.lassoMode);
-        // Disable marquee when lasso is active (mutually exclusive)
-        if (this.interactionManager.lassoMode) {
-          this.interactionManager.marqueeMode = false;
-          this.marqueeBtnEl?.removeClass("is-active");
-        }
-      }
-    });
-    this.lassoBtnEl = lassoBtn;
   }
 
   /** Create export, clipboard, and local graph buttons. */
@@ -3181,34 +3156,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       idx >= 0
         ? `${t("a11y.deselected") ?? "Deselected"}: ${label} (${count} ${t("a11y.nodesSelected") ?? "selected"})`
         : `${t("a11y.selected") ?? "Selected"}: ${label} (${count} ${t("a11y.nodesSelected") ?? "selected"})`
-    );
-    this.markDirty(true);
-  }
-
-  /**
-   * Lasso selection: find all visible nodes inside the screen-space polygon
-   * and add them to multiSelectNodeIds.
-   */
-  lassoSelectNodes(screenPolygon: { x: number; y: number }[], additive: boolean): void {
-    if (!additive) {
-      this.panel.multiSelectNodeIds = [];
-    }
-    const app = this.pixiApp;
-    if (!app) return;
-    const selectedSet = new Set(this.panel.multiSelectNodeIds);
-    for (const [id, pn] of this.pixiNodes) {
-      if (!pn.gfx.visible) continue;
-      const worldX = pn.data.x ?? 0;
-      const worldY = pn.data.y ?? 0;
-      const screenPt = app.stage.toLocal({ x: worldX, y: worldY }, this.worldContainer!);
-      if (pointInPolygon(screenPt, screenPolygon)) {
-        selectedSet.add(id);
-      }
-    }
-    this.panel.multiSelectNodeIds = [...selectedSet];
-    const count = this.panel.multiSelectNodeIds.length;
-    this._announceA11y(
-      `${t("a11y.selected") ?? "Selected"}: ${count} nodes`
     );
     this.markDirty(true);
   }
@@ -6592,12 +6539,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Nodes tab: exclude manually hidden nodes
     ({ nodes, edges } = filterExcludedNodes(nodes, edges, this.panel.excludeNodes ?? []));
-
-    // Subgraph filter: show only selected subset of nodes
-    if (this.panel.subgraphNodeIds.length > 0) {
-      const expanded = expandSuperNodeIds(this.panel.subgraphNodeIds, nodes);
-      ({ nodes, edges } = filterBySubgraph(nodes, edges, [...expanded]));
-    }
 
     // FZ: Degree filter
     nodes = filterByDegree(nodes, edges, this.panel.minDegreeFilter ?? 0, this.panel.maxDegreeFilter ?? 0);

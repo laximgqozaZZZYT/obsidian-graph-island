@@ -3492,3 +3492,14 @@
 .gi-matrix-fullscreen .gi-matrix-cell:hover {
   outline: 1px solid var(--interactive-accent);
 }
+
+/* Subgraph back button */
+.gi-subgraph-back {
+  background-color: var(--interactive-accent) !important;
+  color: var(--text-on-accent) !important;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.gi-subgraph-back:hover {
+  opacity: 0.85;
+}

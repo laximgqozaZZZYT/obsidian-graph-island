@@ -261,6 +261,30 @@ export default class GraphViewsPlugin extends Plugin {
     console.info(`Graph Island: auto-detected ${detected.length} tag relationships from vault`);
   }
 
+  /**
+   * Open a new graph tab pre-filtered to a subgraph.
+   */
+  async openSubgraphInNewTab(nodeIds: string[], viewMode: string): Promise<void> {
+    const leaf = this.app.workspace.getLeaf('split');
+    await leaf.setViewState({
+      type: VIEW_TYPE_GRAPH,
+      active: true,
+    });
+    this.app.workspace.revealLeaf(leaf);
+    // Configure the new view after creation
+    setTimeout(() => {
+      const view = leaf.view as any;
+      if (view?.panel) {
+        view.panel.subgraphNodeIds = [...nodeIds];
+        view.panel.viewMode = viewMode;
+        view.panel.multiSelectNodeIds = [];
+        view.panel.subgraphStack = [];
+        view.rawData = null;
+        view.doRender?.();
+      }
+    }, 100);
+  }
+
   /** D2: Get the active graph view instance (if any). */
   private _getGraphView(): GraphViewContainer | null {
     const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0];
