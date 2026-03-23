@@ -185,6 +185,32 @@ const GLOW_RADIUS_ATTENUATE_FACTOR = 0.7;
 /** P90 percentile fraction for hub node glow detection */
 const GLOW_P90_FRACTION = 0.9;
 
+// Semantic-zoom compact card font sizes (tier 3 = compact labels)
+const COMPACT_CARD_FONT_MIN = 6;
+const COMPACT_CARD_FONT_BASE = 9;
+
+// Semantic-zoom full card font sizes (tier 4 = name + definition + preview)
+const FULL_CARD_FONT_MIN = 7;
+const FULL_CARD_FONT_BASE = 10;
+
+/** Ratio of sub-field font to header font in semantic-zoom cards */
+const CARD_SUB_FONT_RATIO = 0.85;
+
+/** Line height multiplier for card text (vertical spacing between lines) */
+const CARD_LINE_HEIGHT = 1.3;
+
+/** Plain card body line height multiplier (slightly more spacing than table) */
+const PLAIN_CARD_BODY_LINE_HEIGHT = 1.4;
+
+/** Plain card title font minimum size (px) */
+const PLAIN_CARD_TITLE_FONT_MIN = 3;
+
+/** Plain card body font minimum size (px) */
+const PLAIN_CARD_BODY_FONT_MIN = 2;
+
+/** Plain card internal padding (px, scaled by worldScale) */
+const PLAIN_CARD_PAD = 4;
+
 // ---------------------------------------------------------------------------
 // darkenColor utility (shared with GraphViewContainer)
 // ---------------------------------------------------------------------------
@@ -1217,16 +1243,16 @@ export class RenderPipeline {
         // Compact card text via gfx children
         const gfx = pn.gfx;
         this._cleanupCardText(gfx);
-        const fontSize = Math.min(Math.max(6, 9 / worldScale), 9 * 8);
+        const fontSize = Math.min(Math.max(COMPACT_CARD_FONT_MIN, COMPACT_CARD_FONT_BASE / worldScale), COMPACT_CARD_FONT_BASE * CARD_SCALE_CAP);
         const nameText = createCardText(truncateLabel(pn.data.label, rt.labelMaxChars), fontSize, labelColor, "bold");
         nameText.x = -halfW + 2 / worldScale;
         nameText.y = -halfH + 2 / worldScale;
         nameText.maxWidth = cardW - 4 / worldScale;
         gfx.addChild(nameText);
         if (defField && pn.data.meta?.[defField]) {
-          const defText = createCardText(String(pn.data.meta[defField]), fontSize * 0.85, labelColor);
+          const defText = createCardText(String(pn.data.meta[defField]), fontSize * CARD_SUB_FONT_RATIO, labelColor);
           defText.x = -halfW + 2 / worldScale;
-          defText.y = -halfH + fontSize * 1.3 + 2 / worldScale;
+          defText.y = -halfH + fontSize * CARD_LINE_HEIGHT + 2 / worldScale;
           defText.maxWidth = cardW - 4 / worldScale;
           defText.alpha = crc.cardSubTextAlpha;
           gfx.addChild(defText);
@@ -1250,15 +1276,15 @@ export class RenderPipeline {
 
         const gfx = pn.gfx;
         this._cleanupCardText(gfx);
-        const fontSize = Math.min(Math.max(7, 10 / worldScale), 10 * 8);
-        const smallFont = fontSize * 0.85;
+        const fontSize = Math.min(Math.max(FULL_CARD_FONT_MIN, FULL_CARD_FONT_BASE / worldScale), FULL_CARD_FONT_BASE * CARD_SCALE_CAP);
+        const smallFont = fontSize * CARD_SUB_FONT_RATIO;
         let curY = -halfH + 3 / worldScale;
         const nameText = createCardText(truncateLabel(pn.data.label, rt.labelMaxChars), fontSize, contrastColor(pn.color), "bold");
         nameText.x = -halfW + 3 / worldScale;
         nameText.y = curY;
         nameText.maxWidth = cardW - 6 / worldScale;
         gfx.addChild(nameText);
-        curY += fontSize * 1.3;
+        curY += fontSize * CARD_LINE_HEIGHT;
 
         if (defField && pn.data.meta?.[defField]) {
           const defText = createCardText(String(pn.data.meta[defField]), smallFont, labelColor, "bold");
@@ -1575,12 +1601,12 @@ export class RenderPipeline {
 
       // FH/FI: Plain card with title + wrapped body preview
       {
-        const fontSize = Math.min(Math.max(3, 10 / worldScale), 10 * CARD_SCALE_CAP);
+        const fontSize = Math.min(Math.max(PLAIN_CARD_TITLE_FONT_MIN, FULL_CARD_FONT_BASE / worldScale), FULL_CARD_FONT_BASE * CARD_SCALE_CAP);
         const bodyFontBase = rt.cardBodyFontSize;
-        const smallFont = Math.min(Math.max(2, bodyFontBase / worldScale), bodyFontBase * CARD_SCALE_CAP);
-        const pad = Math.min(4 / worldScale, 4 * CARD_SCALE_CAP);
+        const smallFont = Math.min(Math.max(PLAIN_CARD_BODY_FONT_MIN, bodyFontBase / worldScale), bodyFontBase * CARD_SCALE_CAP);
+        const pad = Math.min(PLAIN_CARD_PAD / worldScale, PLAIN_CARD_PAD * CARD_SCALE_CAP);
         const textW = halfW * 2 - pad * 2;
-        const lineH = smallFont * 1.3;
+        const lineH = smallFont * CARD_LINE_HEIGHT;
         // A11y: auto-select title/body text color for WCAG contrast against card background
         const titleFill = contrastColor(pn.color);
         const bodyFill = titleFill === 0xffffff ? 0xcccccc : 0x444444;
@@ -1612,7 +1638,7 @@ export class RenderPipeline {
           for (let li = 0; li < lines.length; li++) {
             const bodyLine = createCardText(lines[li], smallFont, bodyFill);
             bodyLine.x = -halfW + pad;
-            bodyLine.y = -halfH + pad + fontSize * 1.4 + li * lineH;
+            bodyLine.y = -halfH + pad + fontSize * PLAIN_CARD_BODY_LINE_HEIGHT + li * lineH;
             bodyLine.alpha = crc.cardSubTextAlpha;
             if (rt.cardTextTruncation !== false) bodyLine.maxWidth = textW;
             pn.gfx.addChild(bodyLine);
