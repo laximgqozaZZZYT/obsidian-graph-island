@@ -212,6 +212,10 @@ function shouldSkipByDirection(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
 // Theme-aware edge colors
 function defaultColor(isDark: boolean) { return isDark ? 0x666666 : 0x999999; }
 // C4: Intuitive edge color palette — distinct, accessible, memorable
+const LINK_COLOR = 0x94a3b8;          // slate-400 — wikilink (primary relationship)
+const TAG_EDGE_COLOR = 0x22d3ee;     // cyan-400 — shared-tag co-occurrence
+const CATEGORY_EDGE_COLOR = 0xa78bfa; // violet-400 — shared-category
+const SEMANTIC_EDGE_COLOR = 0xfb923c; // orange-400 — semantic/related
 const INHERITANCE_COLOR = 0x8b5cf6;  // purple-500 — hierarchy/inheritance
 const AGGREGATION_COLOR = 0x3b82f6;  // blue-500 — composition/aggregation
 const SIMILAR_COLOR = 0xf59e0b;      // amber-500 — similarity/semantic
@@ -365,6 +369,14 @@ const MAX_EDGE_LABELS = 200;
 // ---------------------------------------------------------------------------
 // Edge color helper (shared between pre-computation and draw loop)
 // ---------------------------------------------------------------------------
+/** Edge type fallback colors used when colorEdgesByRelation is on but e.relation is unset */
+const EDGE_TYPE_FALLBACK_COLORS: ReadonlyMap<string, number> = new Map([
+  ["link", LINK_COLOR],
+  ["tag", TAG_EDGE_COLOR],
+  ["category", CATEGORY_EDGE_COLOR],
+  ["semantic", SEMANTIC_EDGE_COLOR],
+]);
+
 function resolveEdgeColor(
   e: GraphEdge,
   useRelColor: boolean,
@@ -373,9 +385,15 @@ function resolveEdgeColor(
 ): number {
   const spec = EDGE_TYPE_SPECS.get(e.type ?? "");
   if (spec?.color != null) return spec.color;
-  if (useRelColor && e.relation) {
-    const css = relationColors.get(e.relation);
-    if (css) return cssColorToHex(css);
+  if (useRelColor) {
+    // 1. Try relation-specific color (e.g. "related.0" → user-configured color)
+    if (e.relation) {
+      const css = relationColors.get(e.relation);
+      if (css) return cssColorToHex(css);
+    }
+    // 2. Fall back to edge-type color (link=slate, tag=cyan, semantic=orange, etc.)
+    const typeFallback = EDGE_TYPE_FALLBACK_COLORS.get(e.type ?? "");
+    if (typeFallback != null) return typeFallback;
   }
   return defaultColor(isDark);
 }

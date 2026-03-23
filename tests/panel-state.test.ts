@@ -330,4 +330,28 @@ describe("createDefaultPanel field completeness", () => {
     p1.multiSelectNodeIds.push("x");
     expect(p2.multiSelectNodeIds.length).toBe(0);
   });
+
+  it("contains all edge visibility fields used by EdgeRenderer", () => {
+    const panel = createDefaultPanel();
+    // These fields correspond to EDGE_TYPE_SPECS visibilityField in EdgeRenderer.ts
+    const edgeVisibilityFields = [
+      "showLinks", "showTagEdges", "showCategoryEdges", "showSemanticEdges",
+      "showInheritance", "showAggregation", "showTagNodes",
+      "showSimilar", "showSibling", "showSequence",
+    ];
+    for (const field of edgeVisibilityFields) {
+      expect(field in panel, `missing field: ${field}`).toBe(true);
+      expect(typeof (panel as any)[field]).toBe("boolean");
+    }
+  });
+
+  it("edge visibility defaults are all boolean (no undefined)", () => {
+    const panel = createDefaultPanel();
+    const boolFields = Object.entries(panel).filter(([, v]) => typeof v === "boolean");
+    // Should have at least 15 boolean fields
+    expect(boolFields.length).toBeGreaterThanOrEqual(15);
+    for (const [key, val] of boolFields) {
+      expect(val === true || val === false, `${key} is not a strict boolean`).toBe(true);
+    }
+  });
 });
