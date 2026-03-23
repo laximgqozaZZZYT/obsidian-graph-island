@@ -341,7 +341,7 @@ const DENSITY_AGGRESSIVE_MID_ALPHA = 0.65;
 /** Density scale: aggressive fade reduction */
 const DENSITY_AGGRESSIVE_REDUCTION = 0.35;
 /** Density scale: floor alpha */
-const DENSITY_MIN_ALPHA = 0.3;
+const DENSITY_MIN_ALPHA = 0.4;
 /** Zoom fade threshold for extreme zoom-out */
 const ZOOM_FADE_THRESHOLD = 0.05;
 /** Zoom fade minimum alpha */
@@ -2419,7 +2419,9 @@ function _drawSingleTrunk(
       }
     } else {
       if (filterHighlight !== null && filterHighlight !== "normal") continue;
-      const wireAlpha = Math.max(baseWireA * fadeMul * densityScale, 0.1);
+      // Cable-tray wires need higher minimum alpha than regular edges
+      // to maintain color differentiation at high edge counts
+      const wireAlpha = Math.max(baseWireA * fadeMul * densityScale, 0.35);
       _drawSmoothPath(g, _buildTrunkWirePath(), wireWidth, color, wireAlpha);
     }
   }
@@ -2476,7 +2478,13 @@ function drawTrunks(
     if (cfgTrunkAlpha > 0) {
       const highlight = getTrunkHighlight(trunk);
       const trunkAlpha = highlight === "dim" ? 0.02 : highlight === "bright" ? 0.2 : cfgTrunkAlpha;
-      _drawSmoothPath(g, trunk.path, trunkWidth, 0x888888, trunkAlpha * densityScale * trunkCountAlpha);
+      // Use dominant cable color instead of hardcoded gray for trunk conduit
+      let dominantColor = 0x888888;
+      let maxEdgeCount = 0;
+      for (const c of trunk.cables) {
+        if (c.edges.length > maxEdgeCount) { maxEdgeCount = c.edges.length; dominantColor = c.color; }
+      }
+      _drawSmoothPath(g, trunk.path, trunkWidth, dominantColor, trunkAlpha * densityScale * trunkCountAlpha);
     }
   }
 
