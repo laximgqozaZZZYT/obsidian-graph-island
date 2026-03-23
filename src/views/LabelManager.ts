@@ -100,28 +100,18 @@ export class LabelManager {
   cullOverlappingRotatedLabels(labels: Map<string, CanvasText>): void {
     if (labels.size === 0) return;
 
-    // Estimate text width before first render (measureText hasn't run yet)
+    // Use extracted pure functions for width estimation and AABB computation
     const estimateWidth = (txt: CanvasText): number => {
       if (txt.width > 0) return txt.width;
       const fontSize = txt.style.fontSize ?? 11;
       const isBold = txt.style.fontWeight === "bold" || txt.style.fontWeight === "600";
-      return txt.text.length * fontSize * (isBold ? 0.65 : 0.58);
+      return estimateTextWidth(txt.text, fontSize, isBold);
     };
 
-    // Compute AABB for each rotated label in world coordinates
     const rotatedAABB = (txt: CanvasText) => {
       const w = estimateWidth(txt);
       const h = txt.height || (txt.style.fontSize ?? 11);
-      const cos = Math.abs(Math.cos(txt.rotation));
-      const sin = Math.abs(Math.sin(txt.rotation));
-      const bw = w * cos + h * sin;
-      const bh = w * sin + h * cos;
-      return {
-        x: txt.x - bw * txt.anchor.x,
-        y: txt.y - bh * txt.anchor.y,
-        w: bw,
-        h: bh,
-      };
+      return computeRotatedAABB(w, h, txt.rotation, txt.anchor.x, txt.anchor.y, txt.x, txt.y);
     };
 
     // Collect visible labels with their AABBs, then sort by text length (priority: longer = more important)
@@ -370,33 +360,10 @@ export class LabelManager {
     if (!pn.label) return;
     if (shouldTruncate && pn.label.text) {
       const fullText = pn.data.label || pn.data.id;
-
-      // Initials mode: extract first letters from path/hyphen segments
       if (labelMode === "initials") {
-        pn.label.text = this._extractInitials(fullText);
-        return;
-      }
-
-      if (fullText.length > effectiveMaxChars) {
-        const slashIdx = fullText.lastIndexOf('/');
-        const dashIdx = fullText.indexOf('-');
-        if (slashIdx > 0 && slashIdx < fullText.length - 1) {
-          const parent = fullText.slice(0, slashIdx);
-          const distinctStart = dashIdx > 0 && dashIdx < slashIdx ? dashIdx + 1 : 0;
-          const parentDistinct = parent.slice(distinctStart, distinctStart + Math.max(3, effectiveMaxChars - 2));
-          const child = fullText.slice(slashIdx + 1);
-          const childHint = child.length > 3 ? child.slice(0, 3) : child;
-          pn.label.text = parentDistinct + '/' + childHint;
-        } else if (dashIdx > 0 && dashIdx < effectiveMaxChars) {
-          const afterDash = fullText.slice(dashIdx + 1);
-          pn.label.text = afterDash.length > effectiveMaxChars
-            ? afterDash.slice(0, effectiveMaxChars - 1) + '\u2026'
-            : afterDash;
-        } else {
-          pn.label.text = fullText.slice(0, effectiveMaxChars - 1) + '\u2026';
-        }
+        pn.label.text = extractInitials(fullText);
       } else {
-        pn.label.text = fullText;
+        pn.label.text = smartTruncateLabel(fullText, effectiveMaxChars);
       }
     } else if (pn.label.text) {
       pn.label.text = pn.data.label || pn.data.id;
