@@ -363,3 +363,88 @@ describe("query-expr — boundary values", () => {
     expect(evaluateExpr(expr!, makeNode({ tags: [] }))).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Full truth tables for all binary operators (cycle117)
+// ---------------------------------------------------------------------------
+describe("binary operator truth tables", () => {
+  // Helper: create a node with specific tags to control A/B truth values
+  // A = tag:a present, B = tag:b present
+  const tt = (tags: string[]) => makeNode({ tags });
+
+  // Parse each operator expression once
+  const andExpr = parseQueryExpr("tag:a AND tag:b")!;
+  const orExpr = parseQueryExpr("tag:a OR tag:b")!;
+  const xorExpr = parseQueryExpr("tag:a XOR tag:b")!;
+  const norExpr = parseQueryExpr("tag:a NOR tag:b")!;
+  const nandExpr = parseQueryExpr("tag:a NAND tag:b")!;
+
+  // AND truth table: T&T=T, T&F=F, F&T=F, F&F=F
+  it("AND: TT=T, TF=F, FT=F, FF=F", () => {
+    expect(evaluateExpr(andExpr, tt(["a", "b"]))).toBe(true);
+    expect(evaluateExpr(andExpr, tt(["a"]))).toBe(false);
+    expect(evaluateExpr(andExpr, tt(["b"]))).toBe(false);
+    expect(evaluateExpr(andExpr, tt([]))).toBe(false);
+  });
+
+  // OR truth table: T|T=T, T|F=T, F|T=T, F|F=F
+  it("OR: TT=T, TF=T, FT=T, FF=F", () => {
+    expect(evaluateExpr(orExpr, tt(["a", "b"]))).toBe(true);
+    expect(evaluateExpr(orExpr, tt(["a"]))).toBe(true);
+    expect(evaluateExpr(orExpr, tt(["b"]))).toBe(true);
+    expect(evaluateExpr(orExpr, tt([]))).toBe(false);
+  });
+
+  // XOR truth table: T⊕T=F, T⊕F=T, F⊕T=T, F⊕F=F
+  it("XOR: TT=F, TF=T, FT=T, FF=F", () => {
+    expect(evaluateExpr(xorExpr, tt(["a", "b"]))).toBe(false);
+    expect(evaluateExpr(xorExpr, tt(["a"]))).toBe(true);
+    expect(evaluateExpr(xorExpr, tt(["b"]))).toBe(true);
+    expect(evaluateExpr(xorExpr, tt([]))).toBe(false);
+  });
+
+  // NOR truth table: ¬(T|T)=F, ¬(T|F)=F, ¬(F|T)=F, ¬(F|F)=T
+  it("NOR: TT=F, TF=F, FT=F, FF=T", () => {
+    expect(evaluateExpr(norExpr, tt(["a", "b"]))).toBe(false);
+    expect(evaluateExpr(norExpr, tt(["a"]))).toBe(false);
+    expect(evaluateExpr(norExpr, tt(["b"]))).toBe(false);
+    expect(evaluateExpr(norExpr, tt([]))).toBe(true);
+  });
+
+  // NAND truth table: ¬(T&T)=F, ¬(T&F)=T, ¬(F&T)=T, ¬(F&F)=T
+  it("NAND: TT=F, TF=T, FT=T, FF=T", () => {
+    expect(evaluateExpr(nandExpr, tt(["a", "b"]))).toBe(false);
+    expect(evaluateExpr(nandExpr, tt(["a"]))).toBe(true);
+    expect(evaluateExpr(nandExpr, tt(["b"]))).toBe(true);
+    expect(evaluateExpr(nandExpr, tt([]))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// NOT combinations with binary operators
+// ---------------------------------------------------------------------------
+describe("NOT with binary operators", () => {
+  it("NOT A AND B: only B-only nodes pass", () => {
+    const expr = parseQueryExpr("NOT tag:a AND tag:b")!;
+    expect(evaluateExpr(expr, makeNode({ tags: ["b"] }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ tags: ["a", "b"] }))).toBe(false);
+    expect(evaluateExpr(expr, makeNode({ tags: ["a"] }))).toBe(false);
+    expect(evaluateExpr(expr, makeNode({ tags: [] }))).toBe(false);
+  });
+
+  it("NOT (A OR B): neither A nor B", () => {
+    const expr = parseQueryExpr("NOT (tag:a OR tag:b)")!;
+    expect(evaluateExpr(expr, makeNode({ tags: [] }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ tags: ["a"] }))).toBe(false);
+    expect(evaluateExpr(expr, makeNode({ tags: ["b"] }))).toBe(false);
+    expect(evaluateExpr(expr, makeNode({ tags: ["a", "b"] }))).toBe(false);
+  });
+
+  it("A AND NOT B: only A-only nodes pass", () => {
+    const expr = parseQueryExpr("tag:a AND NOT tag:b")!;
+    expect(evaluateExpr(expr, makeNode({ tags: ["a"] }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ tags: ["a", "b"] }))).toBe(false);
+    expect(evaluateExpr(expr, makeNode({ tags: ["b"] }))).toBe(false);
+    expect(evaluateExpr(expr, makeNode({ tags: [] }))).toBe(false);
+  });
+});

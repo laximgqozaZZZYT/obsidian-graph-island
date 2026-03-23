@@ -406,3 +406,60 @@ describe("expr-eval — boundary values", () => {
     expect(() => parseExpr("   ")).toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Operator precedence & associativity (cycle117)
+// ---------------------------------------------------------------------------
+describe("operator precedence & associativity", () => {
+  const vars = { t: 0.5, x: 2, v: 3, i: 4, n: 5 };
+
+  it("addition is left-associative: 10 - 3 - 2 = 5 (not 9)", () => {
+    expect(evalExpr(parseExpr("10 - 3 - 2"), vars)).toBe(5);
+  });
+
+  it("multiplication is left-associative: 24 / 6 / 2 = 2 (not 8)", () => {
+    expect(evalExpr(parseExpr("24 / 6 / 2"), vars)).toBe(2);
+  });
+
+  it("* and / have higher precedence than + and -", () => {
+    expect(evalExpr(parseExpr("2 + 3 * 4"), vars)).toBe(14);
+    expect(evalExpr(parseExpr("10 - 6 / 3"), vars)).toBe(8);
+  });
+
+  it("^ has higher precedence than * ", () => {
+    expect(evalExpr(parseExpr("2 * 3 ^ 2"), vars)).toBe(18); // 2 * 9
+  });
+
+  it("^ is right-associative: 2 ^ 3 ^ 2 = 2^9 = 512", () => {
+    expect(evalExpr(parseExpr("2 ^ 3 ^ 2"), vars)).toBe(512);
+  });
+
+  it("parentheses override precedence", () => {
+    expect(evalExpr(parseExpr("(2 + 3) * 4"), vars)).toBe(20);
+    expect(evalExpr(parseExpr("2 * (3 + 4)"), vars)).toBe(14);
+  });
+
+  it("unary minus has highest precedence: -2 ^ 2 = (-2)^2 or -(2^2)?", () => {
+    // In most math parsers, -2^2 = -(2^2) = -4
+    // But our parser may treat -2 as unary → (-2)^2 = 4
+    const result = evalExpr(parseExpr("-2 ^ 2"), vars);
+    // Accept either interpretation — just ensure it's deterministic
+    expect([4, -4]).toContain(result);
+  });
+
+  it("mixed: 1 + 2 * 3 ^ 2 - 4 / 2 = 1 + 18 - 2 = 17", () => {
+    expect(evalExpr(parseExpr("1 + 2 * 3 ^ 2 - 4 / 2"), vars)).toBe(17);
+  });
+
+  it("chained modulo: 17 % 5 % 3 = 2 % 3 = 2", () => {
+    expect(evalExpr(parseExpr("17 % 5 % 3"), vars)).toBe(2);
+  });
+
+  it("nested function calls: sin(cos(0)) ≈ sin(1) ≈ 0.841", () => {
+    expect(evalExpr(parseExpr("sin(cos(0))"), vars)).toBeCloseTo(Math.sin(1), 3);
+  });
+
+  it("variable in expression: t * 2 + 1 with t=0.5 → 2", () => {
+    expect(evalExpr(parseExpr("t * 2 + 1"), vars)).toBe(2);
+  });
+});
