@@ -176,7 +176,9 @@ describe("constants — EDGE_TYPE_SPECS coverage", () => {
     // timeline: LAYOUT + ARRANGEMENT
     // random: ARRANGEMENT + SOURCE
     // triangle: ARRANGEMENT + SHAPE_FILL
-    const expectedDups = new Set(["concentric", "grid", "circle", "timeline", "random", "triangle"]);
+    // sunburst: LAYOUT + VIEW_MODE
+    // tree: LAYOUT + VIEW_MODE
+    const expectedDups = new Set(["concentric", "grid", "circle", "timeline", "random", "triangle", "sunburst", "tree"]);
     const unexpectedDups = duplicates.filter(d => !expectedDups.has(d));
     expect(unexpectedDups).toEqual([]);
   });

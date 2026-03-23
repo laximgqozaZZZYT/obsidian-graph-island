@@ -552,6 +552,67 @@ export class LabelManager {
 /** Extract 2-character initials from a label string.
  *  Uses path separators (/) and hyphens (-) to find segment boundaries.
  *  E.g. "classic-othello/characters" → "OC", "mythology" → "MY" */
+/** Input entry for priority score computation */
+export interface PriorityInput {
+  id: string;
+  isSuper: boolean;
+  hasLabel: boolean;
+}
+
+/** Computed priority score + LOD tier assignment */
+export interface PriorityResult {
+  id: string;
+  priorityScore: number;
+  minShowZoom: number;
+}
+
+/** Compute priority scores and LOD tier assignments for label visibility.
+ *  Pure function — no side effects, returns computed values. */
+export function computePriorityScores(
+  nodes: PriorityInput[],
+  degrees: Map<string, number>,
+  rt: { labelZoomTier1: number; labelZoomTier2: number; labelZoomTier3: number;
+        labelDegreePctTier1: number; labelDegreePctTier2: number; labelDegreePctTier3: number;
+        nodeLabelZoomMin?: number },
+): PriorityResult[] {
+  if (nodes.length === 0) return [];
+
+  let maxDeg = 0;
+  for (const d of degrees.values()) { if (d > maxDeg) maxDeg = d; }
+
+  // Assign priority scores
+  const scored = nodes.map(n => {
+    const deg = degrees.get(n.id) ?? 0;
+    const degPct = maxDeg > 0 ? deg / maxDeg : 0;
+    const priorityScore = n.isSuper ? 150 + degPct * 50 : degPct * 100;
+    return { id: n.id, priorityScore, hasLabel: n.hasLabel, minShowZoom: 0 };
+  });
+
+  // Sort by priority and assign minShowZoom based on rank
+  const sorted = scored.filter(s => s.hasLabel).sort((a, b) => b.priorityScore - a.priorityScore);
+  const len = sorted.length;
+  const lodZoom1 = rt.labelZoomTier1;
+  const lodZoom2 = rt.labelZoomTier2;
+  const lodZoom3 = rt.labelZoomTier3;
+  const lodPct1 = rt.labelDegreePctTier1;
+  const lodPct2 = rt.labelDegreePctTier2;
+  const lodPct3 = rt.labelDegreePctTier3;
+  const lodZoomFloor = rt.nodeLabelZoomMin ?? 0.9;
+
+  for (let i = 0; i < len; i++) {
+    const pct = i / len;
+    let minZ: number;
+    if (pct < lodPct1 * 0.1)      minZ = lodZoom1 * 0.2;
+    else if (pct < lodPct1)        minZ = lodZoom1;
+    else if (pct < lodPct2)        minZ = lodZoom2;
+    else if (pct < lodPct3)        minZ = lodZoom3;
+    else                           minZ = lodZoomFloor;
+    sorted[i].minShowZoom = minZ;
+  }
+
+  return scored.map(s => ({ id: s.id, priorityScore: s.priorityScore, minShowZoom: s.minShowZoom }));
+}
+
 export function extractInitials(text: string): string {
   // Remove group suffix like " (15)"
   const clean = text.replace(/\s*\(\d+\)$/, "");
