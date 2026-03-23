@@ -90,7 +90,7 @@ export interface StatsHost {
  * Derive a single ClusterGroupRule from a query string + recursive flag.
  * Supports wildcard patterns like "tag:*" → groupBy: "tag".
  */
-function deriveOneRule(queryText: string, recursive: boolean): ClusterGroupRule | null {
+export function deriveOneRule(queryText: string, recursive: boolean): ClusterGroupRule | null {
   if (!queryText.trim()) return null;
   const expr = parseQueryExpr(queryText.trim());
   if (!expr) return null;
@@ -102,7 +102,7 @@ function deriveOneRule(queryText: string, recursive: boolean): ClusterGroupRule 
 }
 
 /** Derive ClusterGroupRule[] from multiple common queries (pipeline). */
-function deriveClusterRulesFromQueries(queries: { query: string; recursive: boolean }[]): ClusterGroupRule[] {
+export function deriveClusterRulesFromQueries(queries: { query: string; recursive: boolean }[]): ClusterGroupRule[] {
   const rules: ClusterGroupRule[] = [];
   for (const q of queries) {
     const rule = deriveOneRule(q.query, q.recursive);
@@ -111,7 +111,7 @@ function deriveClusterRulesFromQueries(queries: { query: string; recursive: bool
   return rules;
 }
 
-function deriveClusterRules(preset: GroupPreset): ClusterGroupRule[] {
+export function deriveClusterRules(preset: GroupPreset): ClusterGroupRule[] {
   if (preset.commonQueries?.length) {
     return deriveClusterRulesFromQueries(preset.commonQueries);
   }
@@ -121,6 +121,24 @@ function deriveClusterRules(preset: GroupPreset): ClusterGroupRule[] {
   const queryText = serializeExpr(cq.expression);
   const rule = deriveOneRule(queryText, preset.recursive ?? false);
   return rule ? [rule] : [];
+}
+
+/** Blend bg toward nodeColor at 15% — used for label tinting. */
+export function blendThemeLabel(bg: number, nodeColor: number): number {
+  const r1 = (bg >> 16) & 0xff, g1 = (bg >> 8) & 0xff, b1 = bg & 0xff;
+  const r2 = (nodeColor >> 16) & 0xff, g2 = (nodeColor >> 8) & 0xff, b2 = nodeColor & 0xff;
+  return (Math.round(r1 + (r2 - r1) * 0.15) << 16) |
+         (Math.round(g1 + (g2 - g1) * 0.15) << 8) |
+          Math.round(b1 + (b2 - b1) * 0.15);
+}
+
+/** Lighten a hex color by a factor (0-1). factor=0.2 means 20% lighter. */
+export function lightenHex(hex: number, factor: number): number {
+  const { r, g, b } = hexToRgb(hex);
+  const lr = Math.min(255, r + Math.round(255 * factor));
+  const lg = Math.min(255, g + Math.round(255 * factor));
+  const lb = Math.min(255, b + Math.round(255 * factor));
+  return (lr << 16) | (lg << 8) | lb;
 }
 
 export const VIEW_TYPE_GRAPH = "graph-view";
@@ -4130,11 +4148,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   private _blendThemeLabel(bg: number, nodeColor: number): number {
-    const r1 = (bg >> 16) & 0xff, g1 = (bg >> 8) & 0xff, b1 = bg & 0xff;
-    const r2 = (nodeColor >> 16) & 0xff, g2 = (nodeColor >> 8) & 0xff, b2 = nodeColor & 0xff;
-    return (Math.round(r1 + (r2 - r1) * 0.15) << 16) |
-           (Math.round(g1 + (g2 - g1) * 0.15) << 8) |
-            Math.round(b1 + (b2 - b1) * 0.15);
+    return blendThemeLabel(bg, nodeColor);
   }
 
   // =========================================================================
@@ -4655,11 +4669,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Lighten a hex color by a factor (0-1). factor=0.2 means 20% lighter. */
   private lightenHexColor(hex: number, factor: number): number {
-    const { r, g, b } = hexToRgb(hex);
-    const lr = Math.min(255, r + Math.round(255 * factor));
-    const lg = Math.min(255, g + Math.round(255 * factor));
-    const lb = Math.min(255, b + Math.round(255 * factor));
-    return (lr << 16) | (lg << 8) | lb;
+    return lightenHex(hex, factor);
   }
 
   /** Draw labels on cluster sunburst arcs (depth ≤ 1 only, wide arcs) */

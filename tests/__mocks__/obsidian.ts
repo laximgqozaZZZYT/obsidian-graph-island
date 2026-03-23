@@ -7,6 +7,14 @@ export class TFile {
   extension = "md";
 }
 
+export class Component {}
+
+export class ItemView extends Component {
+  containerEl = { empty: () => {}, createEl: () => ({}) } as any;
+  getViewType() { return ""; }
+  getDisplayText() { return ""; }
+}
+
 export class App {
   vault = {
     getAbstractFileByPath: () => null,
