@@ -7156,7 +7156,34 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.shells.forEach((s, i) => s.nodeIds.forEach((id) => this.nodeShellIndex.set(id, i)));
           break;
         }
-        case LAYOUT_TREE: ld = applyTreeLayout(gd, { startX: cx, startY: 40, sortComparator: sortCmp, nodeSpacingMap: nsMap }); break;
+        case LAYOUT_TREE: {
+          // Compute tree vertically, then rotate 90° to horizontal (left→right)
+          ld = applyTreeLayout(gd, { startX: 0, startY: 0, sortComparator: sortCmp, nodeSpacingMap: nsMap });
+          // Rotate: swap x↔y so depth goes left→right, siblings go top→bottom
+          for (const n of ld.nodes) {
+            const ox = n.x, oy = n.y;
+            n.x = oy + 60;   // depth → horizontal
+            n.y = ox;         // sibling spread → vertical
+          }
+          // Fit to canvas: compute spread and scale
+          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          for (const n of ld.nodes) {
+            if (n.x < minX) minX = n.x;
+            if (n.x > maxX) maxX = n.x;
+            if (n.y < minY) minY = n.y;
+            if (n.y > maxY) maxY = n.y;
+          }
+          const spreadX = maxX - minX || 1;
+          const spreadY = maxY - minY || 1;
+          const scale = Math.min((W - 80) / spreadX, (H - 80) / spreadY, 1);
+          if (scale < 1) {
+            for (const n of ld.nodes) {
+              n.x = 40 + (n.x - minX) * scale;
+              n.y = 40 + (n.y - minY) * scale;
+            }
+          }
+          break;
+        }
         case LAYOUT_ARC: ld = applyArcLayout(gd, { centerX: cx, centerY: cy, radius: Math.min(W, H) * 0.4, sortComparator: sortCmp }); break;
         case LAYOUT_SUNBURST: {
           const root = buildSunburstData(this.app, this.plugin.settings.groupField);
