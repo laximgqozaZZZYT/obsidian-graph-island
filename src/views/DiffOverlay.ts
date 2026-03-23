@@ -56,11 +56,15 @@ const STATUS_PADDING = 8;
 export class DiffOverlay {
   private diff: SnapshotDiff | null = null;
   private snapshotName = "";
+  /** Animation phase (0–1, cycles over time) for pulse effects */
+  private _pulsePhase = 0;
+  private _pulseStart = 0;
 
   /** 差分モードを有効化する */
   activate(diff: SnapshotDiff, snapshotName: string): void {
     this.diff = diff;
     this.snapshotName = snapshotName;
+    this._pulseStart = performance.now();
   }
 
   /** 差分モードを無効化する */
@@ -109,29 +113,35 @@ export class DiffOverlay {
       return [wx * scale + tx, wy * scale + ty];
     };
 
-    // --- 追加ノードのリング（緑） ---
+    // Pulse animation: 2-second cycle (0→1→0)
+    const elapsed = (performance.now() - this._pulseStart) / 1000;
+    this._pulsePhase = (Math.sin(elapsed * Math.PI) + 1) / 2; // 0–1 sine wave
+    const pulseScale = 1 + this._pulsePhase * 0.3; // 1.0–1.3 radius multiplier
+    const pulseAlpha = 0.5 + this._pulsePhase * 0.3; // 0.5–0.8 alpha range
+
+    // --- 追加ノードのリング（緑、パルス付き） ---
     ctx.strokeStyle = ADDED_COLOR;
-    ctx.lineWidth = RING_LINE_WIDTH;
-    ctx.globalAlpha = ADDED_ALPHA;
+    ctx.lineWidth = RING_LINE_WIDTH * pulseScale;
+    ctx.globalAlpha = pulseAlpha;
     for (const nodeId of this.diff.addedNodeIds) {
       const pn = pixiNodes.get(nodeId);
       if (!pn) continue;
       const [sx, sy] = toScreen(pn.data.x, pn.data.y);
-      const sr = pn.radius * scale + 3;
+      const sr = (pn.radius * scale + 3) * pulseScale;
       ctx.beginPath();
       ctx.arc(sx, sy, sr, 0, Math.PI * 2);
       ctx.stroke();
     }
 
-    // --- メタデータ変更ノードのリング（黄色） ---
+    // --- メタデータ変更ノードのリング（黄色、パルス付き） ---
     ctx.strokeStyle = CHANGED_COLOR;
-    ctx.lineWidth = RING_LINE_WIDTH;
-    ctx.globalAlpha = CHANGED_ALPHA;
+    ctx.lineWidth = RING_LINE_WIDTH * pulseScale;
+    ctx.globalAlpha = pulseAlpha * 0.9;
     for (const nodeId of this.diff.changedNodeIds) {
       const pn = pixiNodes.get(nodeId);
       if (!pn) continue;
       const [sx, sy] = toScreen(pn.data.x, pn.data.y);
-      const sr = pn.radius * scale + 3;
+      const sr = (pn.radius * scale + 3) * pulseScale;
       ctx.beginPath();
       ctx.arc(sx, sy, sr, 0, Math.PI * 2);
       ctx.stroke();
