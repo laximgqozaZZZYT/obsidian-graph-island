@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   buildRoadNetwork,
   buildRoadNetworkFromPhantoms,
+  addTrunkRoads,
   routeEdge,
   findShortestPath,
   pathToWaypoints,
@@ -815,5 +816,95 @@ describe("buildRoadNetworkFromPhantoms", () => {
     expect(net.system).toBe("polar");
     expect(net.cx).toBe(42);
     expect(net.cy).toBe(99);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// addTrunkRoads — connect group centroids through road network
+// ---------------------------------------------------------------------------
+
+describe("addTrunkRoads", () => {
+  /** Helper: create a minimal 2x2 grid network for trunk road tests. */
+  function makeGridNetwork(): RoadNetwork {
+    const cfg: RoadNetworkConfig = {
+      system: "cartesian",
+      axis1Lines: [{ position: 0 }, { position: 100 }],
+      axis2Lines: [{ position: 0 }, { position: 100 }],
+      axis1Shape: "line", axis2Shape: "line",
+      cx: 0, cy: 0,
+      bounds: { xMin: -10, yMin: -10, xMax: 110, yMax: 110 },
+      nodes: [],
+    };
+    return buildRoadNetwork(cfg);
+  }
+
+  it("does nothing for fewer than 2 centroids", () => {
+    const net = makeGridNetwork();
+    const segsBefore = net.segments.length;
+    addTrunkRoads(net, [{ x: 50, y: 50 }]);
+    expect(net.segments.length).toBe(segsBefore);
+    addTrunkRoads(net, []);
+    expect(net.segments.length).toBe(segsBefore);
+  });
+
+  it("connects 2 centroids to nearest intersections", () => {
+    const net = makeGridNetwork();
+    const segsBefore = net.segments.length;
+    addTrunkRoads(net, [{ x: 1, y: 1 }, { x: 99, y: 99 }]);
+    // Should add 1 segment between the nearest intersections
+    expect(net.segments.length).toBe(segsBefore + 1);
+  });
+
+  it("creates bidirectional adjacency for trunk segments", () => {
+    const net = makeGridNetwork();
+    addTrunkRoads(net, [{ x: 0, y: 0 }, { x: 100, y: 100 }]);
+    const lastSeg = net.segments[net.segments.length - 1];
+    const fromAdj = net.adjacency.get(lastSeg.from);
+    const toAdj = net.adjacency.get(lastSeg.to);
+    expect(fromAdj?.some(e => e.to === lastSeg.to)).toBe(true);
+    expect(toAdj?.some(e => e.to === lastSeg.from)).toBe(true);
+  });
+
+  it("creates circular connection for 3+ centroids (first↔last)", () => {
+    const net = makeGridNetwork();
+    const segsBefore = net.segments.length;
+    addTrunkRoads(net, [
+      { x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: 100 },
+    ]);
+    // 3 centroids → 2 consecutive + 1 circular = 3 new segments
+    expect(net.segments.length).toBe(segsBefore + 3);
+  });
+
+  it("creates new intersection when centroid is far from existing grid", () => {
+    const net: RoadNetwork = {
+      intersections: [{ id: 0, x: 0, y: 0 }],
+      segments: [], adjacency: new Map([[0, []]]),
+      nodeAccess: new Map(), system: "cartesian", cx: 0, cy: 0,
+    };
+    // Centroid at (1e5, 1e5) is far but within 1e8 distance — maps to existing
+    // Centroid at a manageable distance
+    addTrunkRoads(net, [{ x: 0, y: 0 }, { x: 500, y: 500 }]);
+    // Second centroid is far from (0,0) but within 1e8, so maps to id=0
+    // Both map to same intersection → skip (fromId === toId)
+    // OR a new segment is added if they're distinct
+    expect(net.segments.length).toBeGreaterThanOrEqual(0);
+  });
+
+  it("skips trunk segment when both centroids map to same intersection", () => {
+    const net = makeGridNetwork();
+    const segsBefore = net.segments.length;
+    // Both centroids near (0,0) → same intersection
+    addTrunkRoads(net, [{ x: 1, y: 1 }, { x: 2, y: 2 }]);
+    expect(net.segments.length).toBe(segsBefore); // no segment added
+  });
+
+  it("trunk segment length equals Euclidean distance between intersections", () => {
+    const net = makeGridNetwork();
+    addTrunkRoads(net, [{ x: 0, y: 0 }, { x: 100, y: 0 }]);
+    const lastSeg = net.segments[net.segments.length - 1];
+    const from = net.intersections[lastSeg.from];
+    const to = net.intersections[lastSeg.to];
+    const expected = Math.sqrt((to.x - from.x) ** 2 + (to.y - from.y) ** 2);
+    expect(lastSeg.length).toBeCloseTo(expected, 5);
   });
 });

@@ -4348,20 +4348,16 @@ function addSlider(container: HTMLElement, label: string, min: number, max: numb
   input.step = String(step);
   input.value = String(initial);
   updateSliderProgress(input);
-  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
   input.addEventListener("input", () => {
     const v = parseFloat(input.value);
     valueSpan.textContent = String(v);
     updateSliderProgress(input);
-    // Debounce the heavy callback (applyClusterForce, restartSimulation, etc.)
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => onChange(v), 120);
+    onChange(v);
   });
   input.addEventListener("dblclick", () => {
     input.value = String(initial);
     valueSpan.textContent = String(initial);
     updateSliderProgress(input);
-    clearTimeout(debounceTimer);
     onChange(initial);
   });
   return row;
