@@ -192,7 +192,7 @@ export function buildBidirectionalSet(edges: GraphEdge[]): Set<string> {
 }
 
 /** Check if an edge should be skipped based on the direction filter. */
-function shouldSkipByDirection(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
+export function shouldSkipByDirection(e: GraphEdge, cfg: Pick<EdgeDrawConfig, "edgeDirectionFilter" | "_bidirectionalSet">): boolean {
   const filter = cfg.edgeDirectionFilter;
   if (!filter || filter === "all") return false;
   const bidirSet = cfg._bidirectionalSet;
