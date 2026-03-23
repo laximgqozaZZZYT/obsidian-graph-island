@@ -194,8 +194,6 @@ export interface PanelState {
   customColorPalette: string;
   /** Filter edges by directionality: "all" | "bidirectional" | "unidirectional" */
   edgeDirectionFilter: "all" | "bidirectional" | "unidirectional";
-  /** Visual indicator for bidirectional edges (thicker + higher alpha) */
-  showBidirectionalIndicator: boolean;
   /** Show pathfinder overlay when start+end nodes are selected */
   showPathfinderOverlay: boolean;
   /** 凡例オーバーレイ表示 */
@@ -427,7 +425,6 @@ export function createDefaultPanel(): PanelState {
     annotations: [],
     bookmarkedNodes: [],
     edgeDirectionFilter: "all" as const,
-    showBidirectionalIndicator: false,
     showPathfinderOverlay: true,
     showLegend: true,
     showOutOfBoundsIndicator: false,
