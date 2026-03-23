@@ -15,7 +15,9 @@ import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoi
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb } from "../utils/graph-helpers";
-import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet } from "../utils/graph-filter";
+import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph } from "../utils/graph-filter";
+import { pointInPolygon } from "../utils/geometry";
+import { expandSuperNodeIds } from "../utils/node-grouping";
 import { hexToRgb } from "../utils/color";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, type NodeTreeEntry, DEFAULT_PANEL, createDefaultPanel, validatePanelState, ensureRT } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
@@ -420,6 +422,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   // Marquee button reference (for toolbar toggle styling)
   private marqueeBtnEl: HTMLElement | null = null;
+  private lassoBtnEl: HTMLElement | null = null;
+  private subgraphBackBtnEl: HTMLElement | null = null;
 
   // Sunburst layout arc data for Canvas 2D rendering
   private sunburstLayoutArcs: LayoutSunburstArc[] = [];
@@ -686,8 +690,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _initZoomButtons(zoomGroup: HTMLElement): void {
     const fitBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(fitBtn, "maximize");
-    fitBtn.setAttribute("aria-label", t("toolbar.fitAll"));
-    fitBtn.title = t("toolbar.fitAll");
+    fitBtn.setAttribute("aria-label", `${t("toolbar.fitAll")} [F]`);
+    fitBtn.title = `${t("toolbar.fitAll")} [F]`;
     fitBtn.addEventListener("click", () => {
       if (!this.canvasWrap) return;
       const W = this.canvasWrap.clientWidth;
@@ -698,16 +702,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     const zoomInBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(zoomInBtn, "zoom-in");
-    zoomInBtn.setAttribute("aria-label", t("toolbar.zoomIn"));
-    zoomInBtn.title = t("toolbar.zoomIn");
+    zoomInBtn.setAttribute("aria-label", `${t("toolbar.zoomIn")} [+]`);
+    zoomInBtn.title = `${t("toolbar.zoomIn")} [+]`;
     zoomInBtn.addEventListener("click", () => {
       this.zoomBy(1.3);
     });
 
     const zoomOutBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(zoomOutBtn, "zoom-out");
-    zoomOutBtn.setAttribute("aria-label", t("toolbar.zoomOut"));
-    zoomOutBtn.title = t("toolbar.zoomOut");
+    zoomOutBtn.setAttribute("aria-label", `${t("toolbar.zoomOut")} [−]`);
+    zoomOutBtn.title = `${t("toolbar.zoomOut")} [−]`;
     zoomOutBtn.addEventListener("click", () => {
       this.zoomBy(1 / 1.3);
     });
@@ -741,14 +745,46 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const marqueeBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(marqueeBtn, "box-select");
     marqueeBtn.setAttribute("aria-label", t("toolbar.marquee"));
-    marqueeBtn.title = t("toolbar.marquee");
+    marqueeBtn.title = `${t("toolbar.marquee")}`;
     marqueeBtn.addEventListener("click", () => {
       if (this.interactionManager) {
         this.interactionManager.marqueeMode = !this.interactionManager.marqueeMode;
         marqueeBtn.toggleClass("is-active", this.interactionManager.marqueeMode);
+        if (this.interactionManager.marqueeMode) {
+          this.interactionManager.lassoMode = false;
+          this.lassoBtnEl?.removeClass("is-active");
+        }
       }
     });
     this.marqueeBtnEl = marqueeBtn;
+
+    // Lasso selection button
+    const lassoBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    setIcon(lassoBtn, "pen-tool");
+    lassoBtn.setAttribute("aria-label", t("toolbar.lasso") ?? "Lasso select");
+    lassoBtn.title = t("toolbar.lasso") ?? "Lasso select";
+    lassoBtn.addEventListener("click", () => {
+      if (this.interactionManager) {
+        this.interactionManager.lassoMode = !this.interactionManager.lassoMode;
+        lassoBtn.toggleClass("is-active", this.interactionManager.lassoMode);
+        if (this.interactionManager.lassoMode) {
+          this.interactionManager.marqueeMode = false;
+          this.marqueeBtnEl?.removeClass("is-active");
+        }
+      }
+    });
+    this.lassoBtnEl = lassoBtn;
+
+    // Subgraph back button (hidden by default)
+    const subgraphBackBtn = zoomGroup.createEl("button", {
+      cls: "graph-toolbar-btn gi-subgraph-back",
+    });
+    setIcon(subgraphBackBtn, "arrow-left");
+    subgraphBackBtn.setAttribute("aria-label", t("toolbar.backToFullGraph") ?? "Back to full graph");
+    subgraphBackBtn.title = t("toolbar.backToFullGraph") ?? "Back to full graph";
+    subgraphBackBtn.addEventListener("click", () => { this.exitSubgraph(); });
+    this.subgraphBackBtnEl = subgraphBackBtn;
+    subgraphBackBtn.style.display = "none";
   }
 
   /** Create export, clipboard, and local graph buttons. */
@@ -756,7 +792,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const exportBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(exportBtn, "camera");
     exportBtn.setAttribute("aria-label", t("toolbar.exportPng"));
-    exportBtn.title = t("toolbar.exportPng");
+    exportBtn.title = `${t("toolbar.exportPng")}`;
     exportBtn.addEventListener("click", async () => {
       if (!this.pixiApp || !this.worldContainer) return;
       exportBtn.disabled = true;
@@ -818,8 +854,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Clipboard copy button (next to camera/export)
     const clipboardBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(clipboardBtn, "clipboard-copy");
-    clipboardBtn.setAttribute("aria-label", t("toolbar.copyClipboard"));
-    clipboardBtn.title = t("toolbar.copyClipboard");
+    clipboardBtn.setAttribute("aria-label", `${t("toolbar.copyClipboard")} [Ctrl+Shift+C]`);
+    clipboardBtn.title = `${t("toolbar.copyClipboard")} [Ctrl+Shift+C]`;
     clipboardBtn.addEventListener("click", async () => {
       clipboardBtn.disabled = true;
       await this.copyGraphToClipboard();
@@ -1074,8 +1110,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Fullscreen toggle
     const fullscreenBtn = toolbar.createEl("button", { cls: "graph-toolbar-btn gi-fullscreen-btn" });
     setIcon(fullscreenBtn, "expand");
-    fullscreenBtn.setAttribute("aria-label", "Fullscreen");
-    fullscreenBtn.title = "Fullscreen";
+    fullscreenBtn.setAttribute("aria-label", t("toolbar.fullscreen"));
+    fullscreenBtn.title = t("toolbar.fullscreen");
     fullscreenBtn.addEventListener("click", () => {
       const container = this.containerEl.querySelector<HTMLElement>(".graph-container");
       if (!container) return;
@@ -1083,10 +1119,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       setIcon(fullscreenBtn, isFs ? "shrink" : "expand");
     });
 
+    // Help button (shows keyboard shortcut overlay)
+    const helpBtn = toolbar.createEl("button", { cls: "graph-toolbar-btn gi-help-btn" });
+    setIcon(helpBtn, "help-circle");
+    helpBtn.setAttribute("aria-label", `${t("toolbar.help")} [?]`);
+    helpBtn.title = `${t("toolbar.help")} [?]`;
+    helpBtn.addEventListener("click", () => { this._toggleHelpOverlay(); });
+
     const panelToggle = toolbar.createEl("button", { cls: "graph-settings-btn" });
     setIcon(panelToggle, "settings");
-    panelToggle.setAttribute("aria-label", t("toolbar.graphSettings"));
-    panelToggle.title = t("toolbar.graphSettings");
+    panelToggle.setAttribute("aria-label", `${t("toolbar.graphSettings")} [P]`);
+    panelToggle.title = `${t("toolbar.graphSettings")} [P]`;
     panelToggle.addEventListener("click", () => {
       const hidden = this.panelEl?.hasClass("is-hidden");
       this.panelEl?.toggleClass("is-hidden", !hidden);
@@ -1102,7 +1145,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // canvasWrap is emptied by initPixi, so nodeInfoEl
     // lives in a sibling wrapper that won't be cleared.
     const canvasArea = main.createDiv({ cls: "gi-canvas-area", attr: { role: "main", "aria-label": "Graph canvas" } });
-    this.canvasWrap = canvasArea.createDiv({ cls: "graph-svg-wrap" });
+    this.canvasWrap = canvasArea.createDiv({ cls: "graph-svg-wrap", attr: { role: "application", "aria-label": t("a11y.graphCanvas") ?? "Interactive graph canvas", "aria-roledescription": "graph" } });
 
     // 注釈オーバーレイレイヤー（キャンバスの上に配置、ポインターイベント透過）
     this.annotationLayer = canvasArea.createDiv({ cls: "gi-annotation-layer" });
@@ -1197,6 +1240,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.panel.multiSelectNodeIds = [];
       this._announceA11y(t("a11y.deselected") ?? "Deselected all");
       this.markDirty(true);
+      return;
+    }
+    // Exit subgraph mode (Escape)
+    if (this.panel.subgraphNodeIds?.length > 0) {
+      this.exitSubgraph();
       return;
     }
     // フォーカスモードのクリア (Escape)
@@ -3158,6 +3206,63 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         : `${t("a11y.selected") ?? "Selected"}: ${label} (${count} ${t("a11y.nodesSelected") ?? "selected"})`
     );
     this.markDirty(true);
+  }
+
+  /** Lasso selection: find all visible nodes inside the screen-space polygon */
+  lassoSelectNodes(screenPolygon: { x: number; y: number }[], additive: boolean): void {
+    if (!additive) this.panel.multiSelectNodeIds = [];
+    const app = this.pixiApp;
+    if (!app) return;
+    const selectedSet = new Set(this.panel.multiSelectNodeIds);
+    for (const [id, pn] of this.pixiNodes) {
+      if (!pn.gfx.visible) continue;
+      const screenPt = app.stage.toLocal(
+        { x: pn.data.x ?? 0, y: pn.data.y ?? 0 }, this.worldContainer!);
+      if (pointInPolygon(screenPt, screenPolygon)) selectedSet.add(id);
+    }
+    this.panel.multiSelectNodeIds = [...selectedSet];
+    this._announceA11y(`${t("a11y.selected") ?? "Selected"}: ${this.panel.multiSelectNodeIds.length} nodes`);
+    this.markDirty(true);
+  }
+
+  /** Enter subgraph mode: push current state to stack, filter to selected nodes */
+  enterSubgraph(nodeIds: string[], viewMode: string): void {
+    const app = this.pixiApp;
+    this.panel.subgraphStack.push({
+      nodeIds: [...this.panel.subgraphNodeIds],
+      viewMode: this.panel.viewMode,
+      panX: this.worldContainer?.x ?? 0,
+      panY: this.worldContainer?.y ?? 0,
+      zoom: app?.stage.scale.x ?? 1,
+    });
+    this.panel.subgraphNodeIds = [...nodeIds];
+    this.panel.viewMode = viewMode as any;
+    this.panel.multiSelectNodeIds = [];
+    this.rawData = null;
+    this.doRender();
+    this.requestSave();
+    this._announceA11y(`Subgraph: ${nodeIds.length} nodes`);
+  }
+
+  /** Exit subgraph mode: pop stack and restore previous state */
+  exitSubgraph(): void {
+    const prev = this.panel.subgraphStack.pop();
+    if (prev) {
+      this.panel.subgraphNodeIds = prev.nodeIds;
+      this.panel.viewMode = prev.viewMode as any;
+    } else {
+      this.panel.subgraphNodeIds = [];
+    }
+    this.panel.multiSelectNodeIds = [];
+    this.rawData = null;
+    this.doRender();
+    this.requestSave();
+    this._announceA11y(t("toolbar.backToFullGraph") ?? "Back to full graph");
+  }
+
+  /** Open subgraph in a new tab */
+  openSubgraphNewTab(nodeIds: string[], viewMode: string): void {
+    this.plugin.openSubgraphInNewTab(nodeIds, viewMode);
   }
 
   // =========================================================================
@@ -6540,6 +6645,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Nodes tab: exclude manually hidden nodes
     ({ nodes, edges } = filterExcludedNodes(nodes, edges, this.panel.excludeNodes ?? []));
 
+    // Subgraph filter: show only selected subset of nodes
+    if (this.panel.subgraphNodeIds.length > 0) {
+      const expanded = expandSuperNodeIds(this.panel.subgraphNodeIds, nodes);
+      ({ nodes, edges } = filterBySubgraph(nodes, edges, [...expanded]));
+    }
+
     // FZ: Degree filter
     nodes = filterByDegree(nodes, edges, this.panel.minDegreeFilter ?? 0, this.panel.maxDegreeFilter ?? 0);
 
@@ -6684,6 +6795,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   async doRender() {
     if (!this.canvasWrap) return;
+    // Toggle subgraph back button visibility
+    if (this.subgraphBackBtnEl) {
+      this.subgraphBackBtnEl.style.display =
+        this.panel.subgraphNodeIds?.length > 0 ? "" : "none";
+    }
     // JK: Reset auto-optimize flag on new render (layout may change)
     this._labelOptimized = false;
     // Sanitize critical numeric fields to prevent NaN propagation
@@ -7615,6 +7731,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const selCount = this.panel.multiSelectNodeIds?.length ?? 0;
     let msg = `Zoom ${pct}% — ${visibleCount} nodes, ${labelCount} labels visible`;
     if (selCount > 0) msg += ` — ${selCount} selected`;
+    if (this.panel.subgraphNodeIds?.length > 0) {
+      msg += ` — Subgraph (depth ${this.panel.subgraphStack.length + 1})`;
+    }
     this._announceA11y(msg);
   }
 
