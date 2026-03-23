@@ -735,32 +735,32 @@ export class RenderPipeline {
     passes.push((g, c) => this._renderMissingNeighborRings(g, c));
 
     // Pass 8: Tag badges on node circumference
-    if (this.host.getShowTagBadges?.() && !ctx.isExtremeZoom) {
+    if (this.host.getShowTagBadges?.()) {
       passes.push((g, c) => this._renderTagBadges(g, c));
     }
 
     // Pass 9: Importance ring
-    if (this.host.getShowImportanceRing?.() && !ctx.isExtremeZoom) {
+    if (this.host.getShowImportanceRing?.()) {
       passes.push((g, c) => this._renderImportanceRings(g, c));
     }
 
     // Pass 10: Recency marker
-    if (this.host.getRecencyConfig?.() && !ctx.isExtremeZoom) {
+    if (this.host.getRecencyConfig?.()) {
       passes.push((g, c) => this._renderRecencyMarkers(g, c));
     }
 
     // Pass 11: Bridge nodes — gold ring for high betweenness
-    if (this.host.getBridgeNodeIds?.() && !ctx.isExtremeZoom) {
+    if (this.host.getBridgeNodeIds?.()) {
       passes.push((g, c) => this._renderBridgeNodes(g, c));
     }
 
     // Pass 12: Articulation point warning ring
-    if (this.host.getArticulationPointIds?.() && !ctx.isExtremeZoom) {
+    if (this.host.getArticulationPointIds?.()) {
       passes.push((g, c) => this._renderArticulationPoints(g, c));
     }
 
     // Pass 13: Entropy overlay — knowledge diversity heatmap
-    if (this.host.getShowEntropyOverlay?.() && !ctx.isExtremeZoom) {
+    if (this.host.getShowEntropyOverlay?.()) {
       passes.push((g, c) => this._renderEntropyOverlay(g, c));
     }
 
@@ -772,19 +772,13 @@ export class RenderPipeline {
     }
 
     // Pass 15: S1 Hierarchy tree overlay
-    if (!ctx.isExtremeZoom) {
-      passes.push((g, c) => this._renderHierarchyOverlay(g, c));
-    }
+    passes.push((g, c) => this._renderHierarchyOverlay(g, c));
 
     // Pass 16: S6 Ontology backbone
-    if (!ctx.isExtremeZoom) {
-      passes.push((g) => this._renderOntologyBackbone(g));
-    }
+    passes.push((g) => this._renderOntologyBackbone(g));
 
     // Pass 17: S4 Gap detection dotted edges
-    if (!ctx.isExtremeZoom) {
-      passes.push((g) => this._renderGapEdges(g));
-    }
+    passes.push((g) => this._renderGapEdges(g));
 
     // Execute all active passes
     for (const pass of passes) pass(g, ctx);
@@ -1929,16 +1923,19 @@ export class RenderPipeline {
   // =========================================================================
   private _renderTagBadges(
     g: CanvasGraphics,
-    ctx: { visible: PixiNode[] },
+    ctx: { visible: PixiNode[]; worldScale: number; minWorldRadius: number },
   ) {
     const MAX_BADGES = 4;
-    const BADGE_R = 3;
-    const PAD = 2;
+    // Ensure badge is at least 3 screen pixels at any zoom
+    const minScreenPx = 3;
+    const ws = ctx.worldScale || 1;
+    const BADGE_R = Math.max(3, ws > 0 ? minScreenPx / ws : 3);
+    const PAD = BADGE_R * 0.7;
 
     for (const pn of ctx.visible) {
       const tags = pn.data.tags;
       if (!tags || tags.length === 0) continue;
-      const nodeR = pn.radius;
+      const nodeR = Math.max(pn.radius, ctx.minWorldRadius);
       const cx = pn.data.x;
       const cy = pn.data.y;
       const count = Math.min(tags.length, MAX_BADGES);
@@ -1948,7 +1945,6 @@ export class RenderPipeline {
         const angle = startAngle + (i / count) * Math.PI * 2;
         const bx = cx + Math.cos(angle) * (nodeR + PAD + BADGE_R);
         const by = cy + Math.sin(angle) * (nodeR + PAD + BADGE_R);
-        // Deterministic color from tag string hash
         const hue = hashStringToHue(tags[i]);
         const color = hslToHex(hue, 0.7, 0.5);
         g.lineStyle(0);
@@ -1956,12 +1952,11 @@ export class RenderPipeline {
         g.drawCircle(bx, by, BADGE_R);
         g.endFill();
       }
-      // Overflow indicator
       if (tags.length > MAX_BADGES) {
         const angle = startAngle + (MAX_BADGES / (MAX_BADGES + 1)) * Math.PI * 2;
         const bx = cx + Math.cos(angle) * (nodeR + PAD + BADGE_R);
         const by = cy + Math.sin(angle) * (nodeR + PAD + BADGE_R);
-        g.lineStyle(1, 0x888888, 0.7);
+        g.lineStyle(Math.max(1, 1 / ws), 0x888888, 0.7);
         g.beginFill(0x888888, 0.4);
         g.drawCircle(bx, by, BADGE_R);
         g.endFill();
@@ -1974,7 +1969,7 @@ export class RenderPipeline {
   // =========================================================================
   private _renderImportanceRings(
     g: CanvasGraphics,
-    ctx: { visible: PixiNode[] },
+    ctx: { visible: PixiNode[]; worldScale: number; minWorldRadius: number },
   ) {
     const config = this.host.getShowImportanceRing?.();
     if (!config) return;
@@ -1988,26 +1983,28 @@ export class RenderPipeline {
     }
     if (metricMap.size === 0) return;
 
-    // Find max for normalization
     let maxVal = 0;
     for (const v of metricMap.values()) {
       if (v > maxVal) maxVal = v;
     }
     if (maxVal === 0) return;
 
-    const RING_PAD = 3;
-    const MAX_RING_WIDTH = 4;
+    const ws = ctx.worldScale || 1;
+    // Ensure ring is at least 2 screen pixels wide
+    const minRingPx = 2;
+    const RING_PAD = Math.max(3, ws > 0 ? minRingPx / ws : 3);
+    const MAX_RING_WIDTH = Math.max(4, ws > 0 ? 4 / ws : 4);
 
     for (const pn of ctx.visible) {
       const val = metricMap.get(pn.data.id) ?? 0;
       if (val === 0) continue;
-      const t = val / maxVal; // 0..1
-      const ringWidth = 1 + t * MAX_RING_WIDTH;
-      // Cool (blue) to warm (red) gradient
-      const hue = (1 - t) * 240; // 240=blue, 0=red
-      const color = hslToHex(hue, 0.8, 0.5);
+      const t = val / maxVal;
+      const ringWidth = Math.max(ws > 0 ? 1 / ws : 1, 1 + t * MAX_RING_WIDTH);
+      const hue = (1 - t) * 240;
+      const color = hslToHex(hue, 0.8, 0.6);
       g.lineStyle(ringWidth, color, 0.6);
-      g.drawCircle(pn.data.x, pn.data.y, pn.radius + RING_PAD);
+      const nodeR = Math.max(pn.radius, ctx.minWorldRadius);
+      g.drawCircle(pn.data.x, pn.data.y, nodeR + RING_PAD);
       g.lineStyle(0);
     }
   }
@@ -2067,19 +2064,21 @@ export class RenderPipeline {
   // =========================================================================
   private _renderBridgeNodes(
     g: CanvasGraphics,
-    ctx: { visible: PixiNode[] },
+    ctx: { visible: PixiNode[]; worldScale: number; minWorldRadius: number },
   ) {
     const bridgeIds = this.host.getBridgeNodeIds?.();
     if (!bridgeIds || bridgeIds.size === 0) return;
 
     const GOLD = 0xffd700;
-    const RING_WIDTH = 3;
-    const PAD = 5;
+    const ws = ctx.worldScale || 1;
+    const RING_WIDTH = Math.max(3, ws > 0 ? 2 / ws : 3);
+    const PAD = Math.max(5, ws > 0 ? 3 / ws : 5);
 
     for (const pn of ctx.visible) {
       if (!bridgeIds.has(pn.data.id)) continue;
       g.lineStyle(RING_WIDTH, GOLD, 0.8);
-      g.drawCircle(pn.data.x, pn.data.y, pn.radius + PAD);
+      const nodeR = Math.max(pn.radius, ctx.minWorldRadius);
+      g.drawCircle(pn.data.x, pn.data.y, nodeR + PAD);
       g.lineStyle(0);
     }
   }
@@ -2089,21 +2088,22 @@ export class RenderPipeline {
   // =========================================================================
   private _renderArticulationPoints(
     g: CanvasGraphics,
-    ctx: { visible: PixiNode[] },
+    ctx: { visible: PixiNode[]; worldScale: number; minWorldRadius: number },
   ) {
     const apIds = this.host.getArticulationPointIds?.();
     if (!apIds || apIds.size === 0) return;
 
     const WARNING_COLOR = 0xff4444;
-    const RING_WIDTH = 2;
-    const PAD = 6;
+    const ws = ctx.worldScale || 1;
+    const RING_WIDTH = Math.max(2, ws > 0 ? 1.5 / ws : 2);
+    const PAD = Math.max(6, ws > 0 ? 3 / ws : 6);
 
     for (const pn of ctx.visible) {
       if (!apIds.has(pn.data.id)) continue;
-      // Double ring to distinguish from bridge nodes
+      const nodeR = Math.max(pn.radius, ctx.minWorldRadius);
       g.lineStyle(RING_WIDTH, WARNING_COLOR, 0.7);
-      g.drawCircle(pn.data.x, pn.data.y, pn.radius + PAD);
-      g.drawCircle(pn.data.x, pn.data.y, pn.radius + PAD + 3);
+      g.drawCircle(pn.data.x, pn.data.y, nodeR + PAD);
+      g.drawCircle(pn.data.x, pn.data.y, nodeR + PAD + Math.max(3, 2 / ws));
       g.lineStyle(0);
     }
   }
@@ -2113,17 +2113,20 @@ export class RenderPipeline {
   // =========================================================================
   private _renderEntropyOverlay(
     g: CanvasGraphics,
-    ctx: { visible: PixiNode[] },
+    ctx: { visible: PixiNode[]; worldScale: number; minWorldRadius: number },
   ) {
     const scores = this.host.getEntropyScores?.();
     if (!scores || scores.size === 0) return;
 
+    const ws = ctx.worldScale || 1;
     for (const pn of ctx.visible) {
       const entropy = scores.get(pn.data.id);
       if (entropy === undefined || entropy === 0) continue;
-      const t = Math.min(1, entropy); // 0..1
-      const haloRadius = pn.radius * (1 + t * 2);
-      // Blue (low entropy) → Red (high entropy)
+      const t = Math.min(1, entropy);
+      const nodeR = Math.max(pn.radius, ctx.minWorldRadius);
+      // Ensure halo is at least 4 screen pixels
+      const minHaloWorld = ws > 0 ? 4 / ws : nodeR * 2;
+      const haloRadius = Math.max(minHaloWorld, nodeR * (1 + t * 2));
       const hue = (1 - t) * 240;
       const color = hslToHex(hue, 0.7, 0.5);
       g.lineStyle(0);

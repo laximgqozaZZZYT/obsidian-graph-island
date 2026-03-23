@@ -2365,9 +2365,16 @@ function _drawSingleTrunk(
   const srcLane = portColorLanes?.get(trunk.srcGroup);
   const tgtLane = portColorLanes?.get(trunk.tgtGroup);
 
+  // When colorEdgesByRelation is off, flatten all wires to a single neutral color
+  const neutralColor = cfg.isDark ? 0x888888 : 0x666666;
+  const useRelColor = cfg.colorEdgesByRelation;
+  // High contrast: thicken wires
+  const hcMul = cfg.highContrast ? 2 : 1;
+
   for (let ci = 0; ci < nUnique; ci++) {
-    const color = uniqueColors[ci];
-    const wireEdges = colorMap.get(color)!;
+    const rawColor = uniqueColors[ci];
+    const color = useRelColor ? rawColor : neutralColor;
+    const wireEdges = colorMap.get(rawColor)!;
 
     const off = (ci - (nUnique - 1) / 2) * laneSpacing;
     const ox = perpX * off, oy = perpY * off;
@@ -2389,7 +2396,7 @@ function _drawSingleTrunk(
     // Zoom-adaptive wire thickness: thicken at zoom-out for color visibility
     const ws = cfg.worldScale ?? 1;
     const zoomThicken = ws < 0.5 ? Math.min(2.5, 1 / (ws * 2)) : 1;
-    const wireWidth = (baseWireW + cableWeightThickness(wireEdges, cfg)) * zoomThicken;
+    const wireWidth = (baseWireW + cableWeightThickness(wireEdges, cfg)) * zoomThicken * hcMul;
 
     if (cfg.highlightedNodeId) {
       // An edge is "bright" only when the HOVERED node itself is one of its endpoints.
@@ -2882,7 +2889,7 @@ function drawEdgeDecorations(
   // Generic directional arrow (skip edges that already have their own markers)
   if (cfg.showArrows && e.type !== EDGE_TYPE_SEQUENCE && !isOnto && arrowGfx) {
     const tgtR = cfg.nodeRadii?.get(e.target) ?? 4;
-    drawGenericArrow(arrowGfx, src, tgt, lineColor, Math.max(alpha, 0.5), tgtR);
+    drawGenericArrow(arrowGfx, src, tgt, lineColor, Math.max(alpha, 0.5), tgtR, cfg.worldScale ?? 1);
   }
 
   // Cardinality markers (crow's foot notation)
@@ -3462,6 +3469,7 @@ function drawGenericArrow(
   color: number,
   alpha: number,
   targetRadius: number,
+  worldScale = 1,
 ) {
   const dx = tgt.x - src.x;
   const dy = tgt.y - src.y;
@@ -3472,8 +3480,10 @@ function drawGenericArrow(
   const uy = dy / len;
   const px = -uy;
   const py = ux;
-  // Scale arrow size proportional to target node radius (visible at any zoom)
-  const sz = Math.max(GENERIC_ARROW_MIN_SIZE, targetRadius * GENERIC_ARROW_RADIUS_FACTOR);
+  // Scale arrow size: ensure minimum screen-pixel visibility at any zoom
+  const minScreenPx = 6;
+  const minWorldSize = worldScale > 0 ? minScreenPx / worldScale : GENERIC_ARROW_MIN_SIZE;
+  const sz = Math.max(minWorldSize, targetRadius * GENERIC_ARROW_RADIUS_FACTOR);
   const hw = sz * GENERIC_ARROW_HALF_WIDTH;
 
   // Place arrow tip at the edge of the target node circle
