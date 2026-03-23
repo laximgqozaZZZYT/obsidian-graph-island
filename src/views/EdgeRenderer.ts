@@ -2386,7 +2386,10 @@ function _drawSingleTrunk(
     const fadeMul = cableFadeByDegree(wireEdges, cfg);
     const baseWireW = cfg.cableFanWidth ?? WIRE_SCREEN_WIDTH;
     const baseWireA = cfg.cableFanAlpha ?? WIRE_BASE_ALPHA;
-    const wireWidth = baseWireW + cableWeightThickness(wireEdges, cfg);
+    // Zoom-adaptive wire thickness: thicken at zoom-out for color visibility
+    const ws = cfg.worldScale ?? 1;
+    const zoomThicken = ws < 0.5 ? Math.min(2.5, 1 / (ws * 2)) : 1;
+    const wireWidth = (baseWireW + cableWeightThickness(wireEdges, cfg)) * zoomThicken;
 
     if (cfg.highlightedNodeId) {
       // An edge is "bright" only when the HOVERED node itself is one of its endpoints.
@@ -2656,12 +2659,13 @@ function resolveEdgeStyle(
     alpha = Math.min(1, alpha * 1.3);
   }
 
-  // Zoom-adaptive edge thickness: thin edges at zoom-out to reduce visual clutter
+  // Zoom-adaptive edge thickness: maintain minimum visible thickness at zoom-out.
+  // Old behavior thinned edges → color indistinguishable. New: floor at 60% of base.
   const ws = cfg.worldScale ?? 1;
   const fadeZ = cfg.edgeZoomFadeThreshold ?? 0.5;
   const fadeFloor = cfg.edgeFadeMinAlpha ?? 0.1;
   if (ws < fadeZ) {
-    lineThick *= Math.max(fadeFloor * 3, ws / fadeZ);
+    lineThick *= Math.max(0.6, ws / fadeZ);
   }
 
   // Zoom-adaptive edge type fade: non-structural edges fade earlier at zoom-out
