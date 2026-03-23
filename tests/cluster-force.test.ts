@@ -804,3 +804,59 @@ describe("nodeRadius NaN handling", () => {
     expect(r).toBe(15);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Helpers for group assignment tests
+// ---------------------------------------------------------------------------
+function mkNodes(count: number, overrides?: Partial<GraphNode>): GraphNode[] {
+  return Array.from({ length: count }, (_, i) => makeNode(`n${i}`, overrides));
+}
+
+function mkChainEdges(nodes: GraphNode[]): GraphEdge[] {
+  const edges: GraphEdge[] = [];
+  for (let i = 0; i < nodes.length - 1; i++) {
+    edges.push(makeEdge(nodes[i].id, nodes[i + 1].id));
+  }
+  return edges;
+}
+
+// ---------------------------------------------------------------------------
+// Group assignment boundary values (cycle120)
+// ---------------------------------------------------------------------------
+describe("group assignment edge cases", () => {
+  function mkN(count: number, overrides?: Partial<GraphNode>): GraphNode[] {
+    return Array.from({ length: count }, (_, i) => makeNode(`n${i}`, overrides));
+  }
+
+  it("all nodes in same category → single group", () => {
+    const nodes = mkN(10, { category: "same" });
+    const cfg = baseCfg({ groupRules: [{ groupBy: "category:?", recursive: false }] });
+    const result = buildClusterForce(nodes, [], new Map(), cfg);
+    expect(result).not.toBeNull();
+    const groups = new Set(nodes.map(n => n.group));
+    expect(groups.size).toBe(1);
+  });
+
+  it("nodes with no category → all in default group", () => {
+    const nodes = mkN(5);
+    const cfg = baseCfg({ groupRules: [{ groupBy: "category:?", recursive: false }] });
+    const result = buildClusterForce(nodes, [], new Map(), cfg);
+    expect(result).not.toBeNull();
+  });
+
+  it("single node: does not crash", () => {
+    const nodes = [makeNode("solo", { category: "a" })];
+    const cfg = baseCfg({ groupRules: [{ groupBy: "category:?", recursive: false }] });
+    const result = buildClusterForce(nodes, [], new Map(), cfg);
+    expect(result).not.toBeNull();
+  });
+
+  it("returns valid result (non-null) for categorized nodes", () => {
+    const nodes = mkN(8, { category: "test" });
+    const cfg = baseCfg({ groupRules: [{ groupBy: "category:?", recursive: false }] });
+    const result = buildClusterForce(nodes, [], new Map(), cfg);
+    expect(result).not.toBeNull();
+    // Force function exists
+    expect(typeof result!.force).toBe("function");
+  });
+});

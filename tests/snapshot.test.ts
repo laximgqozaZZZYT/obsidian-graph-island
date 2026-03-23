@@ -318,3 +318,89 @@ describe("computeSnapshotToSnapshotDiff", () => {
     expect(diff.removedNodes).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// captureSnapshot → computeSnapshotDiff roundtrip (cycle120)
+// ---------------------------------------------------------------------------
+describe("snapshot roundtrip", () => {
+  const ctx = { layout: "force", searchQuery: "", groupBy: "" };
+
+  it("capture then diff with same data reports no changes", () => {
+    const data: GraphData = {
+      nodes: [
+        { id: "a.md", label: "A", meta: { tags: ["t1"] } },
+        { id: "b.md", label: "B", meta: { v: 42 } },
+      ],
+      edges: [{ source: "a.md", target: "b.md", type: "link" }],
+    };
+    const snap = captureSnapshot(data, "round1", ctx);
+    const diff = computeSnapshotDiff(data, snap);
+    expect(diff.addedNodeIds.size).toBe(0);
+    expect(diff.removedNodes).toHaveLength(0);
+    expect(diff.changedNodeIds.size).toBe(0);
+    expect(diff.addedEdgeKeys.size).toBe(0);
+    expect(diff.removedEdges).toHaveLength(0);
+  });
+
+  it("capture, add a node, diff detects addition", () => {
+    const data1: GraphData = {
+      nodes: [{ id: "a.md", label: "A" }],
+      edges: [],
+    };
+    const snap = captureSnapshot(data1, "snap", ctx);
+    const data2: GraphData = {
+      nodes: [{ id: "a.md", label: "A" }, { id: "b.md", label: "B" }],
+      edges: [],
+    };
+    const diff = computeSnapshotDiff(data2, snap);
+    expect(diff.addedNodeIds.has("b.md")).toBe(true);
+    expect(diff.removedNodes).toHaveLength(0);
+  });
+
+  it("capture, remove a node, diff detects removal", () => {
+    const data1: GraphData = {
+      nodes: [{ id: "a.md", label: "A" }, { id: "b.md", label: "B" }],
+      edges: [{ source: "a.md", target: "b.md", type: "link" }],
+    };
+    const snap = captureSnapshot(data1, "snap", ctx);
+    const data2: GraphData = {
+      nodes: [{ id: "a.md", label: "A" }],
+      edges: [],
+    };
+    const diff = computeSnapshotDiff(data2, snap);
+    expect(diff.removedNodes.some(n => n.id === "b.md")).toBe(true);
+    expect(diff.removedEdges).toHaveLength(1);
+  });
+
+  it("capture, modify meta, diff detects change", () => {
+    const data1: GraphData = {
+      nodes: [{ id: "a.md", label: "A", meta: { v: 1 } }],
+      edges: [],
+    };
+    const snap = captureSnapshot(data1, "snap", ctx);
+    const data2: GraphData = {
+      nodes: [{ id: "a.md", label: "A", meta: { v: 2 } }],
+      edges: [],
+    };
+    const diff = computeSnapshotDiff(data2, snap);
+    expect(diff.changedNodeIds.has("a.md")).toBe(true);
+  });
+
+  it("large graph roundtrip (100 nodes, 200 edges)", () => {
+    const nodes = Array.from({ length: 100 }, (_, i) => ({
+      id: `n${i}.md`, label: `N${i}`, meta: { idx: i },
+    }));
+    const edges = Array.from({ length: 200 }, (_, i) => ({
+      source: `n${i % 100}.md`,
+      target: `n${(i * 7 + 3) % 100}.md`,
+      type: "link" as const,
+    }));
+    const data: GraphData = { nodes, edges };
+    const snap = captureSnapshot(data, "large", ctx);
+    const diff = computeSnapshotDiff(data, snap);
+    // Perfect roundtrip — no changes
+    expect(diff.addedNodeIds.size).toBe(0);
+    expect(diff.removedNodes).toHaveLength(0);
+    expect(diff.changedNodeIds.size).toBe(0);
+  });
+});

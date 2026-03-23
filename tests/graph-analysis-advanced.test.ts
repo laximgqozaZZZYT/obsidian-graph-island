@@ -222,4 +222,57 @@ describe("computePropagatedImportance", () => {
     // Higher decay → more propagation → higher values
     expect(impHigh.get("a")!).toBeGreaterThanOrEqual(impLow.get("a")!);
   });
+
+  // --- Boundary values (cycle120) ---
+
+  it("isolated nodes all have 0 importance", () => {
+    const nodes = Array.from({ length: 5 }, (_, i) => mkNode(`n${i}`));
+    const imp = computePropagatedImportance(nodes, []);
+    for (const n of nodes) {
+      expect(imp.get(n.id)).toBe(0);
+    }
+  });
+
+  it("DAG chain: all values are finite", () => {
+    const nodes = ["a", "b", "c", "d"].map(id => mkNode(id));
+    const edges = [mkEdge("a", "b"), mkEdge("b", "c"), mkEdge("c", "d")];
+    const imp = computePropagatedImportance(nodes, edges, 0.5);
+    for (const id of ["a", "b", "c", "d"]) {
+      expect(isFinite(imp.get(id)!), `${id} should be finite`).toBe(true);
+    }
+    // Source "a" has outgoing→children accumulation, sink "d" has in-degree only
+    // a: inDeg(0) + decay * childSum; d: inDeg(1) + 0 = 1
+    expect(imp.get("a")!).toBeGreaterThanOrEqual(0);
+  });
+
+  it("cycle: converges without infinite loop", () => {
+    // a→b→c→a (cycle)
+    const nodes = ["a", "b", "c"].map(id => mkNode(id));
+    const edges = [mkEdge("a", "b"), mkEdge("b", "c"), mkEdge("c", "a")];
+    const imp = computePropagatedImportance(nodes, edges, 0.5);
+    // All should have finite values (3 iterations cap)
+    for (const n of nodes) {
+      expect(isFinite(imp.get(n.id)!)).toBe(true);
+    }
+  });
+
+  it("star graph: hub has highest importance", () => {
+    const nodes = Array.from({ length: 11 }, (_, i) => mkNode(i === 0 ? "hub" : `n${i}`));
+    const edges = nodes.slice(1).map(n => mkEdge(n.id, "hub"));
+    const imp = computePropagatedImportance(nodes, edges, 0.5);
+    const hubImp = imp.get("hub")!;
+    for (const n of nodes.slice(1)) {
+      expect(hubImp).toBeGreaterThanOrEqual(imp.get(n.id)!);
+    }
+  });
+
+  it("decay 0 means no propagation (only in-degree counts)", () => {
+    const nodes = ["a", "b", "c"].map(id => mkNode(id));
+    const edges = [mkEdge("a", "b"), mkEdge("c", "b")];
+    const imp = computePropagatedImportance(nodes, edges, 0);
+    // b has in-degree 2, a and c have 0
+    expect(imp.get("b")).toBe(2);
+    expect(imp.get("a")).toBe(0);
+    expect(imp.get("c")).toBe(0);
+  });
 });
