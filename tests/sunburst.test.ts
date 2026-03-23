@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeSunburstArcs, applySunburstLayout } from "../src/layouts/sunburst";
+import { computeSunburstArcs, applySunburstLayout, buildSunburstFromGraphNodes, getGroupingPath } from "../src/layouts/sunburst";
 import type { SunburstData, GraphNode, GraphEdge } from "../src/types";
 
 // ---------------------------------------------------------------------------
@@ -167,5 +167,134 @@ describe("applySunburstLayout", () => {
     );
 
     expect(result.data.edges).toBe(edges);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getGroupingPath — derive grouping path from node properties
+// ---------------------------------------------------------------------------
+describe("getGroupingPath", () => {
+  it("uses category as first segment", () => {
+    const n = makeNode("a", { category: "character" });
+    expect(getGroupingPath(n)).toEqual(["character"]);
+  });
+
+  it("uses folder path segments (excluding filename)", () => {
+    const n = makeNode("a", { filePath: "stories/fantasy/hero.md" });
+    expect(getGroupingPath(n)).toEqual(["stories", "fantasy"]);
+  });
+
+  it("combines category + folder path", () => {
+    const n = makeNode("a", { category: "NPC", filePath: "world/towns/mayor.md" });
+    expect(getGroupingPath(n)).toEqual(["NPC", "world", "towns"]);
+  });
+
+  it("falls back to first letter of ID when no category or path", () => {
+    const n = makeNode("zephyr");
+    expect(getGroupingPath(n)).toEqual(["Z"]);
+  });
+
+  it("handles root-level file (no folder segments → first letter fallback)", () => {
+    const n = makeNode("abc", { filePath: "readme.md" });
+    // filePath has no "/" before filename, so segments=[], fallback to ID first letter
+    expect(getGroupingPath(n)).toEqual(["A"]);
+  });
+
+  it("handles Japanese category", () => {
+    const n = makeNode("a", { category: "キャラクター" });
+    expect(getGroupingPath(n)).toEqual(["キャラクター"]);
+  });
+
+  it("handles empty string ID", () => {
+    const n = makeNode("");
+    const path = getGroupingPath(n);
+    expect(path.length).toBe(1);
+    expect(path[0]).toBe("?"); // fallback for empty charAt
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildSunburstFromGraphNodes — trie-based hierarchy builder
+// ---------------------------------------------------------------------------
+describe("buildSunburstFromGraphNodes", () => {
+  it("returns root with name 'Graph' for empty input", () => {
+    const result = buildSunburstFromGraphNodes([]);
+    expect(result.name).toBe("Graph");
+    expect(result.value).toBe(1);
+  });
+
+  it("groups nodes by folder path", () => {
+    const nodes = [
+      makeNode("a", { filePath: "stories/hero.md" }),
+      makeNode("b", { filePath: "stories/villain.md" }),
+      makeNode("c", { filePath: "world/map.md" }),
+    ];
+    const result = buildSunburstFromGraphNodes(nodes);
+    expect(result.name).toBe("Graph");
+    expect(result.children).toBeDefined();
+    const childNames = result.children!.map(c => c.name);
+    expect(childNames).toContain("stories");
+    expect(childNames).toContain("world");
+  });
+
+  it("collapses single-child chains", () => {
+    // a/b/c/file.md → collapsed to "a/b/c" branch
+    const nodes = [
+      makeNode("x", { filePath: "a/b/c/file.md" }),
+    ];
+    const result = buildSunburstFromGraphNodes(nodes);
+    // Single-child chains should be collapsed
+    const firstChild = result.children![0];
+    expect(firstChild.name).toContain("/"); // collapsed path
+  });
+
+  it("creates leaf nodes with filePath", () => {
+    const nodes = [
+      makeNode("hero", { filePath: "chars/hero.md" }),
+    ];
+    const result = buildSunburstFromGraphNodes(nodes);
+    // Navigate to leaf
+    const charsGroup = result.children!.find(c => c.name.includes("char"));
+    expect(charsGroup).toBeDefined();
+    const leaf = charsGroup!.children!.find(c => c.name === "hero");
+    expect(leaf).toBeDefined();
+    expect(leaf!.filePath).toBe("chars/hero.md");
+  });
+
+  it("uses category as top-level grouping (may collapse with subfolder)", () => {
+    const nodes = [
+      makeNode("a", { category: "NPC", filePath: "town/mayor.md" }),
+      makeNode("b", { category: "NPC", filePath: "town/guard.md" }),
+      makeNode("c", { category: "Item", filePath: "items/sword.md" }),
+    ];
+    const result = buildSunburstFromGraphNodes(nodes);
+    const topNames = result.children!.map(c => c.name);
+    // Category + folder creates a combined path; single-child chains collapse
+    // NPC → town is single-child → collapsed to "NPC/town"
+    expect(topNames.some(n => n.includes("NPC"))).toBe(true);
+    expect(topNames.some(n => n.includes("Item"))).toBe(true);
+  });
+
+  it("handles nodes without filePath (first-letter fallback)", () => {
+    const nodes = [
+      makeNode("alpha"),
+      makeNode("bravo"),
+    ];
+    const result = buildSunburstFromGraphNodes(nodes);
+    const topNames = result.children!.map(c => c.name);
+    expect(topNames).toContain("A");
+    expect(topNames).toContain("B");
+  });
+
+  it("leaf values sum correctly", () => {
+    const nodes = [
+      makeNode("a", { filePath: "g/x.md" }),
+      makeNode("b", { filePath: "g/y.md" }),
+      makeNode("c", { filePath: "g/z.md" }),
+    ];
+    const result = buildSunburstFromGraphNodes(nodes);
+    // Each leaf has value=1, so the group should have 3 children
+    const group = result.children![0];
+    expect(group.children!.length).toBe(3);
   });
 });

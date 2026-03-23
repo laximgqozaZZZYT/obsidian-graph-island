@@ -135,7 +135,7 @@ function countDirectChildren(node: SunburstData): number {
  * Uses a trie-based approach on file paths to create deep multi-level hierarchies.
  * Falls back to category + first-letter grouping when paths are flat.
  */
-function buildSunburstFromGraphNodes(nodes: GraphNode[]): SunburstData {
+export function buildSunburstFromGraphNodes(nodes: GraphNode[]): SunburstData {
   // Strategy: build a trie from file path segments for deep hierarchy
   interface TrieNode {
     name: string;
@@ -194,7 +194,7 @@ function buildSunburstFromGraphNodes(nodes: GraphNode[]): SunburstData {
  * Determine the grouping path for a node.
  * Uses: category (if present) → folder path segments → first letter fallback.
  */
-function getGroupingPath(n: GraphNode): string[] {
+export function getGroupingPath(n: GraphNode): string[] {
   const parts: string[] = [];
 
   // Add category as first level if present
