@@ -96,4 +96,27 @@ describe("buildMultiSortComparator", () => {
     // "" < "ztag"
     expect(sorted.map(n => n.id)).toEqual(["x", "y"]);
   });
+
+  it("unknown key produces stable (no-op) comparator", () => {
+    const rules: SortRule[] = [{ key: "nonexistent" as any, order: "asc" }];
+    const cmp = buildMultiSortComparator(rules, metrics);
+    // all compare as equal → stable sort preserves original order
+    expect(cmp(nodes[0], nodes[3])).toBe(0);
+  });
+
+  it("single-element array sorts to itself", () => {
+    const single = [mkNode("only", { label: "Only" })];
+    const rules: SortRule[] = [{ key: "degree", order: "asc" }];
+    const cmp = buildMultiSortComparator(rules, metrics);
+    const sorted = [...single].sort(cmp);
+    expect(sorted.map(n => n.id)).toEqual(["only"]);
+  });
+
+  it("sorts by importance ascending", () => {
+    const rules: SortRule[] = [{ key: "importance", order: "asc" }];
+    const cmp = buildMultiSortComparator(rules, metrics);
+    const sorted = [...nodes].sort(cmp);
+    // importance: d=1, b=2, a=7, c=9
+    expect(sorted.map(n => n.id)).toEqual(["d", "b", "a", "c"]);
+  });
 });

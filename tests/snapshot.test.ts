@@ -483,4 +483,41 @@ describe("edgeKey", () => {
     expect(key).toContain("tag#test");
     expect(key).toContain("has-tag");
   });
+
+  it("same endpoints, different type produces different key", () => {
+    expect(edgeKey("a", "b", "link")).not.toBe(edgeKey("a", "b", "has-tag"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fnv1a — additional edge cases
+// ---------------------------------------------------------------------------
+describe("fnv1a edge cases", () => {
+  it("long string produces valid hex", () => {
+    const long = "a".repeat(10000);
+    const hash = fnv1a(long);
+    expect(hash.length).toBeGreaterThan(0);
+    expect(/^[0-9a-f]+$/.test(hash)).toBe(true);
+  });
+
+  it("Unicode strings produce different hashes", () => {
+    expect(fnv1a("日本語")).not.toBe(fnv1a("中文"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hashMeta — additional edge cases
+// ---------------------------------------------------------------------------
+describe("hashMeta edge cases", () => {
+  it("nested objects produce stable hash", () => {
+    const meta1 = { a: { b: 1, c: 2 } };
+    const meta2 = { a: { c: 2, b: 1 } }; // different key order
+    expect(hashMeta(meta1)).toBe(hashMeta(meta2));
+  });
+
+  it("different nested values produce different hashes", () => {
+    const meta1 = { a: { b: 1 } };
+    const meta2 = { a: { b: 2 } };
+    expect(hashMeta(meta1)).not.toBe(hashMeta(meta2));
+  });
 });

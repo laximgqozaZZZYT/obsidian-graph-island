@@ -328,3 +328,47 @@ describe("filterEdgesByNodeSet boundary values", () => {
     expect(filterEdgesByNodeSet([edge("a", "a")], new Set(["a"]))).toHaveLength(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// filterByDegree — additional edge cases
+// ---------------------------------------------------------------------------
+describe("filterByDegree edge cases", () => {
+  it("both min and max active narrows to band", () => {
+    // hub: degree 3, a: degree 2, b: degree 2, leaf: degree 1
+    const nodes = [node("hub"), node("a"), node("b"), node("leaf")];
+    const edges = [edge("hub", "a"), edge("hub", "b"), edge("hub", "leaf"), edge("a", "b")];
+    // only nodes with degree 2 survive (min=2, max=2)
+    const result = filterByDegree(nodes, edges, 2, 2);
+    expect(result.map(n => n.id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("empty nodes and edges returns empty", () => {
+    expect(filterByDegree([], [], 1, 5)).toEqual([]);
+  });
+
+  it("nodes with no edges all have degree 0, filtered by min=1", () => {
+    const nodes = [node("a"), node("b"), node("c")];
+    expect(filterByDegree(nodes, [], 1, 0)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterEdgesByNodeSet — additional edge cases
+// ---------------------------------------------------------------------------
+describe("filterEdgesByNodeSet edge cases", () => {
+  it("empty node set returns no edges", () => {
+    expect(filterEdgesByNodeSet([edge("a", "b")], new Set())).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterOrphans — self-loop edge case
+// ---------------------------------------------------------------------------
+describe("filterOrphans self-loop", () => {
+  it("node with self-loop is not orphan", () => {
+    const nodes = [node("a"), node("lonely")];
+    const edges = [edge("a", "a")]; // self-loop
+    const result = filterOrphans(nodes, edges);
+    expect(result.map(n => n.id)).toEqual(["a"]);
+  });
+});

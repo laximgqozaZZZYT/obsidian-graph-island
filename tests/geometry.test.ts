@@ -246,3 +246,65 @@ describe("magnitude", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// computeBBoxWithCentroid — additional edge cases
+// ---------------------------------------------------------------------------
+describe("computeBBoxWithCentroid edge cases", () => {
+  it("single point: centroid equals point, count = 1", () => {
+    const bb = computeBBoxWithCentroid([{ x: 42, y: -7 }]);
+    expect(bb.cx).toBe(42);
+    expect(bb.cy).toBe(-7);
+    expect(bb.count).toBe(1);
+    expect(bb.minX).toBe(42);
+    expect(bb.maxX).toBe(42);
+  });
+
+  it("negative coordinates produce correct bounds", () => {
+    const pts = [{ x: -10, y: -20 }, { x: -5, y: -3 }];
+    const bb = computeBBoxWithCentroid(pts);
+    expect(bb.minX).toBe(-10);
+    expect(bb.minY).toBe(-20);
+    expect(bb.maxX).toBe(-5);
+    expect(bb.maxY).toBe(-3);
+    expect(bb.cx).toBe(-7.5);
+    expect(bb.cy).toBe(-11.5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// convexHull — concave shape
+// ---------------------------------------------------------------------------
+describe("convexHull concave shape", () => {
+  it("L-shaped points: interior concave vertex removed", () => {
+    // L-shape: (0,0), (2,0), (2,1), (1,1), (1,2), (0,2)
+    // The concave vertex (1,1) should NOT be on the hull
+    const pts = [
+      { x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 1 },
+      { x: 1, y: 1 }, { x: 1, y: 2 }, { x: 0, y: 2 },
+    ];
+    const hull = convexHull(pts);
+    // Hull should be the rectangle (0,0)-(2,0)-(2,1) extended to cover (1,2)-(0,2)
+    expect(hull.length).toBeLessThanOrEqual(5);
+    // Interior point (1,1) should be excluded from hull
+    const has11 = hull.some(p => p.x === 1 && p.y === 1);
+    expect(has11).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// clamp — NaN and Infinity edge cases
+// ---------------------------------------------------------------------------
+describe("clamp edge cases", () => {
+  it("NaN value returns NaN (not silently clamped)", () => {
+    expect(clamp(NaN, 0, 10)).toBeNaN();
+  });
+
+  it("Infinity is clamped to max", () => {
+    expect(clamp(Infinity, 0, 10)).toBe(10);
+  });
+
+  it("-Infinity is clamped to min", () => {
+    expect(clamp(-Infinity, 0, 10)).toBe(0);
+  });
+});
+
