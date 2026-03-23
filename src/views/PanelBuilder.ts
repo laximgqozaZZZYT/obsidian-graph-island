@@ -293,10 +293,6 @@ export interface PanelState {
   // --- Phase 7: Advanced features ---
   /** E5: Presentation mode — step-through guided tour */
   presentationMode: boolean;
-  /** E5: Presentation waypoints (ordered node IDs) */
-  presentationWaypoints: string[];
-  /** E5: Current presentation step index */
-  presentationStep: number;
   /** Show frontmatter image as node thumbnail */
   showNodeThumbnails: boolean;
   /** A3: Frontmatter field to use for node icon prefix (e.g. "node_type") */
@@ -474,8 +470,6 @@ export function createDefaultPanel(): PanelState {
     multiSelectNodeIds: [],
     showRelationMatrix: false,
     presentationMode: false,
-    presentationWaypoints: [],
-    presentationStep: 0,
     showNodeThumbnails: false,
     nodeIconField: "",
     nodeIconMap: {},
@@ -517,7 +511,6 @@ export function validatePanelState(panel: PanelState): void {
   if (panel.nodeSize > 100) panel.nodeSize = 100;
   // Ensure arrays are arrays
   if (!Array.isArray(panel.multiSelectNodeIds)) panel.multiSelectNodeIds = [];
-  if (!Array.isArray(panel.presentationWaypoints)) panel.presentationWaypoints = [];
   // Ensure collapsedGroups is a Set
   if (!(panel.collapsedGroups instanceof Set)) {
     panel.collapsedGroups = new Set(Array.isArray(panel.collapsedGroups) ? panel.collapsedGroups : []);
@@ -1612,12 +1605,8 @@ function _buildDiscoverySection(
       { value: "all", label: t("analysis.all") },
     ], panel.analysisOverlay ?? "off", (v) => {
       panel.analysisOverlay = v as PanelState["analysisOverlay"];
-      const m = v as string;
-      panel.showBridgeNodes = m === "bridges" || m === "all";
-      panel.showEntropyOverlay = m === "entropy" || m === "all";
-      panel.highlightMissingNeighbors = m === "missing" || m === "all";
-      panel.showGapEdges = m === "gaps" || m === "all";
-      cb.markDirty();
+      // doRender() so GVC._applyAnalysisOverlay() runs (sets _showDensityHeatmap)
+      cb.doRender();
     });
     // S1: Hierarchy Tree Overlay — only when inheritance edges exist
     if (_ctx.hasInheritanceEdges) {
@@ -1677,12 +1666,7 @@ function _buildInteractionSection(
   }, tHelp("help.interaction"), true, "mouse-pointer-2");
 }
 
-function _buildAdvancedSection(
-  _tabEl: HTMLElement, _panel: PanelState, _ctx: PanelContext, _cb: PanelCallbacks,
-): void {
-  // Removed: presentationMode (needs waypoints — complex workflow, no inline feedback)
-  // Removed: surpriseInterval (random timer — too niche)
-}
+// _buildAdvancedSection removed — presentationMode/surpriseInterval have no UI
 
 function _buildEdgeDisplaySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
@@ -2011,7 +1995,6 @@ function buildDisplayTab(
   if (v("structureAnalysis"))  _buildStructureAnalysisSection(displayTab, panel, ctx, cb);
   if (v("discovery"))          _buildDiscoverySection(displayTab, panel, ctx, cb);
   if (v("interaction"))        _buildInteractionSection(displayTab, panel, ctx, cb);
-  if (v("advanced"))           _buildAdvancedSection(displayTab, panel, ctx, cb);
   if (v("edgeDisplay"))        _buildEdgeDisplaySection(displayTab, panel, ctx, cb);
   if (v("cableDisplay"))       _buildCableDisplaySection(displayTab, panel, ctx, cb);
   if (v("roadNetwork"))        _buildRoadNetworkSection(displayTab, panel, ctx, cb);
@@ -2163,7 +2146,7 @@ function _buildPluginSettingsSection(
         s.enclosureMinRatio = v;
         ctx.saveSettings();
         cb.markDirty();
-      }, t("desc.enclosureSpacing"));
+      }, t("desc.enclosureMinRatio"));
       // FY: Enclosure fill opacity override
       const rtEnc = mergeRenderThresholds(panel.renderThresholds);
       addSlider(body, t("display.enclosureFillOpacity") ?? "Enclosure Fill", 0, 1, 0.05, rtEnc.enclosureFillOpacity, (v) => {

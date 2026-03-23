@@ -76,7 +76,6 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "localGraphHops",
   "navHistoryCursor",
   "recencyDays",
-  "presentationStep",
   "degreeEdgeWidth",
   "minDegreeFilter",
   "maxDegreeFilter",
@@ -106,7 +105,7 @@ const ARRAY_FIELDS: (keyof PanelState)[] = [
   "groups", "directionalGravityRules", "commonQueries", "clusterGroupRules",
   "sortRules", "nodeRules", "nodeShapeRules", "groupByRules",
   "cardinalityRules", "annotations", "bookmarkedNodes", "searchHistory", "savedSearchQueries",
-  "navHistory", "multiSelectNodeIds", "presentationWaypoints", "excludeNodes", "savedViewports",
+  "navHistory", "multiSelectNodeIds", "excludeNodes", "savedViewports",
   "expandedNodes", "hierarchyRelations",
 ];
 

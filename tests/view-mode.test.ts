@@ -236,7 +236,7 @@ describe("isSectionVisible matrix", () => {
   it("matrix hides all graph-specific sections", () => {
     const hidden = [
       "nodeDisplay", "nodeDisplayMode", "nodeDecorations",
-      "structureAnalysis", "discovery", "interaction", "advanced",
+      "structureAnalysis", "discovery", "interaction",
       "edgeDisplay", "cableDisplay", "roadNetwork", "minimap",
       "relationColors", "clusterArrangement", "coordinateControls",
       "timelineControls", "forceParameters", "nodeRules",

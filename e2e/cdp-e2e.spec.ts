@@ -1471,15 +1471,17 @@ test.describe("42. Card Mode Content", () => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       v.panel.nodeDisplayMode = "card";
+      v.panel.hoverShowBody = true;
       v.rawData = null;
       await v.doRender();
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 3000));
       // Find a node with bodyPreview and simulate hover
       let hoverHasBody = false;
       for (const [, pn] of v.pixiNodes) {
         if (pn.data.bodyPreview && pn.data.bodyPreview.length > 10) {
           v.highlightedNodeId = pn.data.id;
           v.applyHover();
+          await new Promise(r => setTimeout(r, 500));
           if (pn.hoverLabel) {
             hoverHasBody = pn.hoverLabel.text?.includes("---") ?? false;
           }
@@ -1489,6 +1491,7 @@ test.describe("42. Card Mode Content", () => {
         }
       }
       v.panel.nodeDisplayMode = "node";
+      v.panel.hoverShowBody = false;
       return { hoverHasBody };
     });
     expect(result).not.toHaveProperty("error");

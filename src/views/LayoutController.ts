@@ -509,8 +509,8 @@ export class LayoutController {
     }
 
     // Apply cluster gravity coefficients (after auto-fit so coefficients modify final values)
-    const interAttr = grav.interGroupAttraction || 0.5;
-    const intraDens = grav.intraGroupDensity || 1.0;
+    const interAttr = Math.max(0.01, grav.interGroupAttraction ?? 0.5);
+    const intraDens = Math.max(0.01, grav.intraGroupDensity ?? 1.0);
     if (interAttr !== 1.0) {
       baseCfg.groupSpacing = baseCfg.groupSpacing / interAttr;
     }

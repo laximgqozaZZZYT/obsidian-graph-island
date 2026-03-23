@@ -10,7 +10,6 @@ export type PanelSectionId =
   | "structureAnalysis"
   | "discovery"
   | "interaction"
-  | "advanced"
   | "edgeDisplay"
   | "cableDisplay"
   | "roadNetwork"
@@ -36,7 +35,6 @@ const HIDDEN_SECTIONS: Record<Exclude<ViewMode, "graph">, Set<PanelSectionId>> =
     "structureAnalysis",
     "discovery",
     "interaction",
-    "advanced",
     "edgeDisplay",
     "cableDisplay",
     "roadNetwork",
@@ -55,7 +53,6 @@ const HIDDEN_SECTIONS: Record<Exclude<ViewMode, "graph">, Set<PanelSectionId>> =
     "structureAnalysis",
     "discovery",
     "interaction",
-    "advanced",
     "cableDisplay",
     "roadNetwork",
     "relationColors",
@@ -80,7 +77,6 @@ const HIDDEN_SECTIONS: Record<Exclude<ViewMode, "graph">, Set<PanelSectionId>> =
     "structureAnalysis",
     "discovery",
     "interaction",
-    "advanced",
     "edgeDisplay",
     "cableDisplay",
     "roadNetwork",

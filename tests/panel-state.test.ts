@@ -82,10 +82,8 @@ describe("validatePanelState", () => {
   it("ensures arrays are arrays", () => {
     const panel = createDefaultPanel();
     (panel as any).multiSelectNodeIds = null;
-    (panel as any).presentationWaypoints = "not-an-array";
     validatePanelState(panel);
     expect(Array.isArray(panel.multiSelectNodeIds)).toBe(true);
-    expect(Array.isArray(panel.presentationWaypoints)).toBe(true);
   });
 
   it("converts collapsedGroups to Set if needed", () => {
@@ -222,14 +220,6 @@ describe("validatePanelState — boundary values", () => {
     expect(panel.collapsedGroups.has("group-C")).toBe(true);
   });
 
-  it("presentationWaypoints null→empty array", () => {
-    const panel = createDefaultPanel();
-    (panel as any).presentationWaypoints = null;
-    validatePanelState(panel);
-    expect(Array.isArray(panel.presentationWaypoints)).toBe(true);
-    expect(panel.presentationWaypoints).toHaveLength(0);
-  });
-
   it("nodeSize at exact boundary values", () => {
     const panel1 = createDefaultPanel();
     panel1.nodeSize = 1;
@@ -300,7 +290,7 @@ describe("createDefaultPanel field completeness", () => {
   });
 
   it("array fields are empty arrays", () => {
-    const arrayFields = ["multiSelectNodeIds", "presentationWaypoints", "expandedNodes"];
+    const arrayFields = ["multiSelectNodeIds", "expandedNodes"];
     for (const key of arrayFields) {
       const val = (panel as any)[key];
       expect(Array.isArray(val), `${key} should be array`).toBe(true);

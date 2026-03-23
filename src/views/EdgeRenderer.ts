@@ -329,25 +329,25 @@ const MARKER_FILL_ALPHA_RATIO = 0.9;
 /** Edge marker half-width ratio (for inheritance triangle and aggregation diamond) */
 const MARKER_HALF_WIDTH = 0.5;
 /** Density scale: edge count threshold for full alpha */
-const DENSITY_FULL_ALPHA_THRESHOLD = 100;
+export const DENSITY_FULL_ALPHA_THRESHOLD = 100;
 /** Density scale: gentle fade upper bound */
-const DENSITY_GENTLE_THRESHOLD = 500;
+export const DENSITY_GENTLE_THRESHOLD = 500;
 /** Density scale: aggressive fade upper bound */
-const DENSITY_AGGRESSIVE_THRESHOLD = 2000;
+export const DENSITY_AGGRESSIVE_THRESHOLD = 2000;
 /** Density scale: gentle fade reduction factor */
-const DENSITY_GENTLE_REDUCTION = 0.35;
+export const DENSITY_GENTLE_REDUCTION = 0.35;
 /** Density scale: aggressive fade mid-alpha */
-const DENSITY_AGGRESSIVE_MID_ALPHA = 0.65;
+export const DENSITY_AGGRESSIVE_MID_ALPHA = 0.65;
 /** Density scale: aggressive fade reduction */
-const DENSITY_AGGRESSIVE_REDUCTION = 0.35;
+export const DENSITY_AGGRESSIVE_REDUCTION = 0.35;
 /** Density scale: floor alpha */
-const DENSITY_MIN_ALPHA = 0.4;
+export const DENSITY_MIN_ALPHA = 0.4;
 /** Zoom fade threshold for extreme zoom-out */
-const ZOOM_FADE_THRESHOLD = 0.05;
+export const ZOOM_FADE_THRESHOLD = 0.05;
 /** Zoom fade minimum alpha */
-const ZOOM_FADE_MIN_ALPHA = 0.4;
+export const ZOOM_FADE_MIN_ALPHA = 0.4;
 /** Default density floor */
-const DEFAULT_DENSITY_FLOOR = 0.25;
+export const DEFAULT_DENSITY_FLOOR = 0.25;
 /** Edge label font size */
 const EDGE_LABEL_FONT_SIZE_DEFAULT = 10;
 /** A11y: edge label background for contrast (WCAG 1.4.3) */
@@ -2914,7 +2914,7 @@ function drawEdgeDecorations(
  * Reduces edge opacity as edge count grows to keep the graph readable.
  * Also applies zoom-out fade at extreme zoom levels.
  */
-function computeDensityScale(cfg: EdgeDrawConfig, edgeCount: number): number {
+export function computeDensityScale(cfg: Pick<EdgeDrawConfig, "worldScale" | "edgeDensityFloor">, edgeCount: number): number {
   const densityScaleBase = edgeCount <= DENSITY_FULL_ALPHA_THRESHOLD ? 1
     : edgeCount <= DENSITY_GENTLE_THRESHOLD ? 1 - DENSITY_GENTLE_REDUCTION * ((edgeCount - DENSITY_FULL_ALPHA_THRESHOLD) / (DENSITY_GENTLE_THRESHOLD - DENSITY_FULL_ALPHA_THRESHOLD))
     : edgeCount <= DENSITY_AGGRESSIVE_THRESHOLD ? DENSITY_AGGRESSIVE_MID_ALPHA - DENSITY_AGGRESSIVE_REDUCTION * ((edgeCount - DENSITY_GENTLE_THRESHOLD) / (DENSITY_AGGRESSIVE_THRESHOLD - DENSITY_GENTLE_THRESHOLD))
