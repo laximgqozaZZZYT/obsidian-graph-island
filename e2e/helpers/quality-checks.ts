@@ -272,7 +272,70 @@ export async function measureContrast(page: Page, sampleSize = 100): Promise<Con
 }
 
 // ---------------------------------------------------------------------------
-// 5. Card text
+// 5. Screen-space density (what the user actually sees)
+// ---------------------------------------------------------------------------
+
+export interface ScreenDensityReport {
+  totalNodes: number;
+  worstCellCount: number;
+  worstCellX: number;
+  worstCellY: number;
+  viewportUtilization: number; // 0-100%
+  rightHalfRatio: number; // 0-100%
+}
+
+export async function measureScreenDensity(page: Page, cellSize = 100): Promise<ScreenDensityReport> {
+  return page.evaluate((cs) => {
+    const v = (window as any).app.workspace
+      .getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v || !v.pixiNodes || !v.worldContainer) {
+      return { totalNodes: 0, worstCellCount: 0, worstCellX: 0, worstCellY: 0, viewportUtilization: 0, rightHalfRatio: 50 };
+    }
+
+    const ws = v.worldContainer.scale.x;
+    const wx = v.worldContainer.x;
+    const wy = v.worldContainer.y;
+    const canvas = v.containerEl?.querySelector("canvas");
+    const canvasW = canvas?.clientWidth ?? 800;
+    const canvasH = canvas?.clientHeight ?? 600;
+    const midX = canvasW / 2;
+
+    let minSX = Infinity, maxSX = -Infinity;
+    let leftCount = 0, rightCount = 0;
+    const grid = new Map<string, number>();
+
+    for (const [, pn] of v.pixiNodes) {
+      const sx = pn.data.x * ws + wx;
+      const sy = pn.data.y * ws + wy;
+      if (sx < midX) leftCount++; else rightCount++;
+      if (sx < minSX) minSX = sx;
+      if (sx > maxSX) maxSX = sx;
+      const key = `${Math.floor(sx / cs)},${Math.floor(sy / cs)}`;
+      grid.set(key, (grid.get(key) ?? 0) + 1);
+    }
+
+    let worstCount = 0, worstKey = "0,0";
+    for (const [key, count] of grid) {
+      if (count > worstCount) { worstCount = count; worstKey = key; }
+    }
+    const [gx, gy] = worstKey.split(",").map(Number);
+    const total = leftCount + rightCount;
+    const usedWidth = maxSX - minSX;
+
+    return {
+      totalNodes: total,
+      worstCellCount: worstCount,
+      worstCellX: gx * cs,
+      worstCellY: gy * cs,
+      viewportUtilization: canvasW > 0 ? Math.round((usedWidth / canvasW) * 100) : 0,
+      rightHalfRatio: total > 0 ? Math.round((rightCount / total) * 100) : 50,
+    };
+  }, cellSize);
+}
+
+// ---------------------------------------------------------------------------
+// 6. Card text
 // ---------------------------------------------------------------------------
 
 export async function measureCardText(page: Page, sampleSize = 30): Promise<CardTextReport> {
