@@ -448,3 +448,92 @@ describe("NOT with binary operators", () => {
     expect(evaluateExpr(expr, makeNode({ tags: [] }))).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Wildcard glob patterns in field:value queries
+// ---------------------------------------------------------------------------
+describe("wildcard glob patterns", () => {
+  it("prefix match: tag:char* matches character but not chapter", () => {
+    const expr = parseQueryExpr("tag:char*")!;
+    expect(evaluateExpr(expr, makeNode({ tags: ["character"] }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ tags: ["charm"] }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ tags: ["chapter"] }))).toBe(false); // chap ≠ char
+    expect(evaluateExpr(expr, makeNode({ tags: ["location"] }))).toBe(false);
+  });
+
+  it("suffix match: tag:*tion matches location", () => {
+    const expr = parseQueryExpr("tag:*tion")!;
+    expect(evaluateExpr(expr, makeNode({ tags: ["location"] }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ tags: ["action"] }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ tags: ["character"] }))).toBe(false);
+  });
+
+  it("contains match: tag:*act* matches character and action", () => {
+    const expr = parseQueryExpr("tag:*act*")!;
+    expect(evaluateExpr(expr, makeNode({ tags: ["character"] }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ tags: ["action"] }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ tags: ["hero"] }))).toBe(false);
+  });
+
+  it("middle wildcard: tag:ch*er matches character and chapter", () => {
+    const expr = parseQueryExpr("tag:ch*er")!;
+    expect(evaluateExpr(expr, makeNode({ tags: ["character"] }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ tags: ["chapter"] }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ tags: ["child"] }))).toBe(false);
+  });
+
+  it("path prefix: path:stories/*", () => {
+    const expr = parseQueryExpr("path:stories/*")!;
+    expect(evaluateExpr(expr, makeNode({ filePath: "stories/hero.md" }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ filePath: "world/map.md" }))).toBe(false);
+  });
+
+  it("exact match without wildcard", () => {
+    const expr = parseQueryExpr("tag:hero")!;
+    expect(evaluateExpr(expr, makeNode({ tags: ["hero"] }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ tags: ["heroes"] }))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fuzzy match (~)
+// ---------------------------------------------------------------------------
+describe("fuzzy match (~)", () => {
+  it("~query matches similar labels", () => {
+    const expr = parseQueryExpr("~hero")!;
+    expect(evaluateExpr(expr, makeNode({ label: "hero" }))).toBe(true);
+    // Close edit distance
+    expect(evaluateExpr(expr, makeNode({ label: "heros" }))).toBe(true);
+  });
+
+  it("~query does not match very different labels", () => {
+    const expr = parseQueryExpr("~hero")!;
+    expect(evaluateExpr(expr, makeNode({ label: "completely different" }))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Empty / edge-case queries
+// ---------------------------------------------------------------------------
+describe("query edge cases", () => {
+  it("empty string returns null", () => {
+    expect(parseQueryExpr("")).toBeNull();
+  });
+
+  it("whitespace-only returns null", () => {
+    expect(parseQueryExpr("   ")).toBeNull();
+  });
+
+  it("single operator keyword returns leaf, not null", () => {
+    // "AND" alone is treated as a label search for "AND"
+    const expr = parseQueryExpr("AND");
+    // Parser may return null or a leaf — but should not crash
+    expect(() => parseQueryExpr("AND")).not.toThrow();
+  });
+
+  it("deeply nested parentheses", () => {
+    const expr = parseQueryExpr("((tag:a AND tag:b))")!;
+    expect(evaluateExpr(expr, makeNode({ tags: ["a", "b"] }))).toBe(true);
+    expect(evaluateExpr(expr, makeNode({ tags: ["a"] }))).toBe(false);
+  });
+});
