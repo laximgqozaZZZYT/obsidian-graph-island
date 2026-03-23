@@ -186,10 +186,6 @@ export interface PanelState {
   annotations: { nodeId: string; text: string; x: number; y: number; color?: string }[];
   /** ブックマークされたノードIDリスト */
   bookmarkedNodes: string[];
-  /** エッジ重みラベル表示（同一ペア間のエッジ本数） */
-  showEdgeWeightLabels: boolean;
-  /** エッジ多重度ラベル: 同一ノードペア間のエッジ数を表示 (count > 1 only) */
-  showEdgeCardinalityLabels: boolean;
   /** Unified node color mode */
   nodeColorMode: "default" | "category" | "heatmap" | "community" | "field";
   /** EO: Field name for nodeColorMode="field" */
@@ -430,8 +426,6 @@ export function createDefaultPanel(): PanelState {
     syncViewId: null,
     annotations: [],
     bookmarkedNodes: [],
-    showEdgeWeightLabels: false,
-    showEdgeCardinalityLabels: false,
     edgeDirectionFilter: "all" as const,
     showBidirectionalIndicator: false,
     showPathfinderOverlay: true,
@@ -1634,6 +1628,7 @@ function _buildDiscoverySection(
     }, t("desc.structureQuestions"));
     addToggle(body, t("display.clusterCompare"), panel.showClusterCompare, (v) => {
       panel.showClusterCompare = v;
+      cb.markDirty();
     }, t("desc.clusterCompare"));
   }, tHelp("help.discovery"), true, "lightbulb");
 }
@@ -1751,8 +1746,6 @@ function _buildEdgeDisplaySection(
       // Edge labels: simplified to on/off toggle
       addToggle(adv, t("display.edgeLabelMode.relation"), panel.showEdgeLabels, (v) => {
         panel.showEdgeLabels = v;
-        panel.showEdgeWeightLabels = false;
-        panel.showEdgeCardinalityLabels = false;
         cb.markDirty();
         cb.announceA11y?.(`Edge labels: ${v ? "on" : "off"}`);
       }, t("desc.edgeLabelMode"));
