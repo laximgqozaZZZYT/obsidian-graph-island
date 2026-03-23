@@ -116,6 +116,56 @@ describe("ARRANGEMENT_PRESETS", () => {
     expect(t.axis1.source.kind).toBe("property");
     expect(t.axis1.transform.kind).toBe("date-to-index");
   });
+
+  it("radial uses polar, perGroup=true, with spokeCount constant", () => {
+    const r = ARRANGEMENT_PRESETS.radial;
+    expect(r.system).toBe("polar");
+    expect(r.perGroup).toBe(true);
+    expect(r.constants?._spokeCount).toBe(8);
+    expect(r.axis2.transform.kind).toBe("expression");
+  });
+
+  it("phyllotaxis uses polar with golden-angle expression", () => {
+    const p = ARRANGEMENT_PRESETS.phyllotaxis;
+    expect(p.system).toBe("polar");
+    expect(p.perGroup).toBe(true);
+    expect(p.axis1.transform.kind).toBe("expression");
+    expect((p.axis2.transform as any).expr).toContain("sqrt(5)");
+  });
+
+  it("triangle uses cartesian with triangular packing expressions", () => {
+    const t = ARRANGEMENT_PRESETS.triangle;
+    expect(t.system).toBe("cartesian");
+    expect(t.perGroup).toBe(true);
+    expect(t.axis1.transform.kind).toBe("expression");
+    expect(t.axis2.transform.kind).toBe("expression");
+  });
+
+  it("random uses cartesian with random sources (seed=42)", () => {
+    const r = ARRANGEMENT_PRESETS.random;
+    expect(r.system).toBe("cartesian");
+    expect(r.perGroup).toBe(true);
+    expect(r.axis1.source.kind).toBe("random");
+    expect((r.axis1.source as any).seed).toBe(42);
+    expect(r.axis2.source.kind).toBe("random");
+  });
+
+  it("custom uses field + metric sources", () => {
+    const c = ARRANGEMENT_PRESETS.custom;
+    expect(c.system).toBe("cartesian");
+    expect(c.perGroup).toBe(true);
+    expect(c.axis1.source.kind).toBe("field");
+    expect(c.axis2.source.kind).toBe("metric");
+  });
+
+  it("ego mirrors radial structure (polar, spokeCount)", () => {
+    const e = ARRANGEMENT_PRESETS.ego;
+    expect(e.system).toBe("polar");
+    expect(e.perGroup).toBe(true);
+    expect(e.constants?._spokeCount).toBe(8);
+    // ego and radial share the same axis expressions
+    expect(e.axis1.transform.kind).toBe(ARRANGEMENT_PRESETS.radial.axis1.transform.kind);
+  });
 });
 
 // ---------------------------------------------------------------------------

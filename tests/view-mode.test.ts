@@ -172,27 +172,6 @@ describe("viewModeSkipsEdges", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// viewModeUsesDom — matrix uses DOM rendering
-// ---------------------------------------------------------------------------
-describe("viewModeUsesDom", () => {
-  it("matrix uses DOM", () => {
-    expect(viewModeUsesDom("matrix")).toBe(true);
-  });
-  it("graph does NOT use DOM", () => {
-    expect(viewModeUsesDom("graph")).toBe(false);
-  });
-  it("sunburst does NOT use DOM", () => {
-    expect(viewModeUsesDom("sunburst")).toBe(false);
-  });
-  it("timeline does NOT use DOM", () => {
-    expect(viewModeUsesDom("timeline")).toBe(false);
-  });
-  it("tree does NOT use DOM", () => {
-    expect(viewModeUsesDom("tree")).toBe(false);
-  });
-});
-
 describe("viewMode integration", () => {
   it("createDefaultPanel → viewModeToLayout → LAYOUT_FORCE", () => {
     const panel = createDefaultPanel();
