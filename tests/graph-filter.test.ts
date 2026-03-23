@@ -241,3 +241,90 @@ describe("applyVisibilityFilters", () => {
     expect(result.edges).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// filterOrphans — additional boundary values
+// ---------------------------------------------------------------------------
+describe("filterOrphans boundary values", () => {
+  it("has-tag edges count as connections (nodes not orphaned)", () => {
+    const nodes = [node("a"), node("tag-x", { isTag: true })];
+    const edges = [edge("a", "tag-x", "has-tag")];
+    // filterOrphans uses ALL edges including has-tag
+    expect(filterOrphans(nodes, edges)).toHaveLength(2);
+  });
+
+  it("similar edges count as connections", () => {
+    const nodes = [node("a"), node("b"), node("c")];
+    const edges = [edge("a", "b", "similar")];
+    const result = filterOrphans(nodes, edges);
+    expect(result.map(n => n.id)).toEqual(["a", "b"]);
+  });
+
+  it("self-referencing edge keeps node connected", () => {
+    const nodes = [node("a"), node("b")];
+    const edges = [edge("a", "a")]; // self-loop
+    expect(filterOrphans(nodes, edges).map(n => n.id)).toEqual(["a"]);
+  });
+
+  it("empty nodes returns empty", () => {
+    expect(filterOrphans([], [edge("a", "b")])).toHaveLength(0);
+  });
+
+  it("duplicate edges don't cause double-counting issues", () => {
+    const nodes = [node("a"), node("b")];
+    const edges = [edge("a", "b"), edge("a", "b")]; // duplicate
+    expect(filterOrphans(nodes, edges)).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterByDegree — additional boundary values
+// ---------------------------------------------------------------------------
+describe("filterByDegree boundary values", () => {
+  it("minDeg=1 removes isolated nodes", () => {
+    const nodes = [node("hub"), node("leaf"), node("iso")];
+    const edges = [edge("hub", "leaf")];
+    expect(filterByDegree(nodes, edges, 1, 0).map(n => n.id)).toEqual(["hub", "leaf"]);
+  });
+
+  it("maxDeg=1 removes hubs", () => {
+    const nodes = [node("hub"), node("a"), node("b")];
+    const edges = [edge("hub", "a"), edge("hub", "b")];
+    expect(filterByDegree(nodes, edges, 0, 1).map(n => n.id)).toEqual(["a", "b"]);
+  });
+
+  it("minDeg=maxDeg selects exact degree", () => {
+    const nodes = [node("a"), node("b"), node("c")];
+    const edges = [edge("a", "b"), edge("b", "c")]; // a:1, b:2, c:1
+    expect(filterByDegree(nodes, edges, 2, 2).map(n => n.id)).toEqual(["b"]);
+  });
+
+  it("self-loop counts as 2 degrees", () => {
+    const nodes = [node("a")];
+    const edges = [edge("a", "a")]; // self-loop: source+target both "a"
+    expect(filterByDegree(nodes, edges, 2, 0)).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterEdgesByNodeSet — additional boundary values
+// ---------------------------------------------------------------------------
+describe("filterEdgesByNodeSet boundary values", () => {
+  it("empty nodeSet removes all edges", () => {
+    expect(filterEdgesByNodeSet([edge("a", "b")], new Set())).toHaveLength(0);
+  });
+
+  it("empty edges returns empty", () => {
+    expect(filterEdgesByNodeSet([], new Set(["a"]))).toHaveLength(0);
+  });
+
+  it("keeps only edges where both endpoints are in set", () => {
+    const edges = [edge("a", "b"), edge("b", "c"), edge("c", "d")];
+    const result = filterEdgesByNodeSet(edges, new Set(["a", "b", "c"]));
+    expect(result).toHaveLength(2); // a-b, b-c
+  });
+
+  it("self-loop kept when node is in set", () => {
+    expect(filterEdgesByNodeSet([edge("a", "a")], new Set(["a"]))).toHaveLength(1);
+  });
+});
