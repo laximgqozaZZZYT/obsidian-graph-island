@@ -216,3 +216,77 @@ describe("viewMode integration", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// viewModeUsesDom — only matrix uses DOM rendering
+// ---------------------------------------------------------------------------
+describe("viewModeUsesDom", () => {
+  it("matrix uses DOM", () => {
+    expect(viewModeUsesDom("matrix")).toBe(true);
+  });
+  it.each(["graph", "sunburst", "timeline", "tree"] as ViewMode[])("%s does NOT use DOM", (mode) => {
+    expect(viewModeUsesDom(mode)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isSectionVisible — matrix mode exhaustive
+// ---------------------------------------------------------------------------
+describe("isSectionVisible matrix", () => {
+  it("matrix hides all graph-specific sections", () => {
+    const hidden = [
+      "nodeDisplay", "nodeDisplayMode", "nodeDecorations",
+      "structureAnalysis", "discovery", "interaction", "advanced",
+      "edgeDisplay", "cableDisplay", "roadNetwork", "minimap",
+      "relationColors", "clusterArrangement", "coordinateControls",
+      "timelineControls", "forceParameters", "nodeRules",
+    ] as const;
+    for (const s of hidden) {
+      expect(isSectionVisible("matrix", s)).toBe(false);
+    }
+  });
+  it("matrix shows filter and grouping", () => {
+    expect(isSectionVisible("matrix", "filter")).toBe(true);
+    expect(isSectionVisible("matrix", "grouping")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Round-trip: viewMode → layout → back
+// ---------------------------------------------------------------------------
+describe("viewMode round-trip consistency", () => {
+  const ALL_MODES: ViewMode[] = ["graph", "sunburst", "timeline", "tree", "matrix"];
+
+  it("every viewMode has a valid layout mapping", () => {
+    for (const m of ALL_MODES) {
+      const layout = viewModeToLayout(m);
+      expect(typeof layout).toBe("string");
+      expect(layout.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("skipNodeRendering and skipEdges are consistent (skip edges implies skip nodes)", () => {
+    for (const m of ALL_MODES) {
+      if (viewModeSkipsEdges(m)) {
+        expect(viewModeSkipsNodeRendering(m)).toBe(true);
+      }
+    }
+  });
+
+  it("DOM modes always skip node rendering", () => {
+    for (const m of ALL_MODES) {
+      if (viewModeUsesDom(m)) {
+        expect(viewModeSkipsNodeRendering(m)).toBe(true);
+      }
+    }
+  });
+
+  it("validatePanelState accepts all valid viewModes", () => {
+    for (const m of ALL_MODES) {
+      const panel = createDefaultPanel();
+      panel.viewMode = m;
+      validatePanelState(panel);
+      expect(panel.viewMode).toBe(m);
+    }
+  });
+});
