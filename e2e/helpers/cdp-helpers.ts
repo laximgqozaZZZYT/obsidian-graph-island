@@ -56,6 +56,18 @@ export async function reloadPlugin(page: Page, waitMs = 4000): Promise<void> {
   await page.waitForTimeout(waitMs);
 }
 
+/** Open a Graph Island view if none exists. */
+export async function openGraphView(page: Page, waitMs = 4000): Promise<void> {
+  await page.evaluate(async () => {
+    const app = (window as any).app;
+    const existing = app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view);
+    if (existing) return; // already open
+    await app.commands.executeCommandById("graph-island:open-graph-view");
+  });
+  await page.waitForTimeout(waitMs);
+}
+
 /** Wait for graph rendering to stabilize. Returns node count. */
 export async function waitStable(page: Page, initialWaitMs = 4000, minThreshold = 200): Promise<number> {
   await page.waitForTimeout(initialWaitMs);

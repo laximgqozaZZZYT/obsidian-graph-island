@@ -1,147 +1,130 @@
 /**
  * E2E tests for lasso selection + subgraph view (v0.5.0)
  */
-import { test, expect } from "@playwright/test";
-import { connectCDP, waitStable, reloadPlugin } from "./helpers/cdp-helpers";
+import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
 
-const FIND_VIEW = `app.workspace.getLeavesOfType('graph-view').find(l => 'pixiNodes' in l.view)?.view`;
+const CDP_URL = "http://localhost:9222";
+let browser: Browser;
+let page: Page;
+
+test.setTimeout(120_000);
+
+test.beforeAll(async () => {
+  browser = await chromium.connectOverCDP(CDP_URL);
+  const pages = browser.contexts()[0].pages();
+  page = pages.find(p => p.url().includes("index.html")) ?? pages[0];
+
+  // Reload plugin fresh
+  await page.evaluate(async () => {
+    const app = (window as any).app;
+    for (const leaf of app.workspace.getLeavesOfType("markdown")) leaf.detach();
+    for (const leaf of app.workspace.getLeavesOfType("graph-view")) leaf.detach();
+    await app.plugins.disablePlugin("graph-island");
+    await app.plugins.enablePlugin("graph-island");
+  });
+  await page.waitForTimeout(3000);
+
+  // Open graph view if needed
+  const leafCount = await page.evaluate(() =>
+    (window as any).app.workspace.getLeavesOfType("graph-view").length
+  );
+  if (leafCount === 0) {
+    await page.evaluate(() =>
+      (window as any).app.commands.executeCommandById("graph-island:open-graph-view")
+    );
+  }
+
+  // Wait for stable
+  let panelReady = false;
+  for (let i = 0; i < 30; i++) {
+    panelReady = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+        .find((l: any) => "pixiNodes" in l.view)?.view;
+      return !!(v && v.panel && v.pixiNodes && v.pixiNodes.size > 200);
+    });
+    if (panelReady) break;
+    await page.waitForTimeout(500);
+  }
+  expect(panelReady).toBe(true);
+});
+
+test.afterAll(async () => {
+  // Restore full graph
+  await page.evaluate(async () => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (v) {
+      v.panel.subgraphNodeIds = [];
+      v.rawData = null;
+      await v.doRender();
+    }
+  });
+});
 
 test.describe("lasso + subgraph view", () => {
-  test.setTimeout(60_000);
-
-  test("subgraphNodeIds defaults to empty array", async () => {
-    const { browser, page } = await connectCDP();
-    try {
-      await reloadPlugin(page);
-      await waitStable(page);
-      const ids = await page.evaluate(() => {
-        const v = (window as any).app.workspace
-          .getLeavesOfType("graph-view")
-          .find((l: any) => "pixiNodes" in l.view)?.view;
-        return v?.panel?.subgraphNodeIds ?? "MISSING";
-      });
-      expect(Array.isArray(ids)).toBe(true);
-      expect((ids as any[]).length).toBe(0);
-    } finally {
-      browser.close();
-    }
+  test("LS-1: subgraphNodeIds defaults to empty array", async () => {
+    const ids = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+        .find((l: any) => "pixiNodes" in l.view)?.view;
+      return v?.panel?.subgraphNodeIds ?? "MISSING";
+    });
+    expect(Array.isArray(ids)).toBe(true);
+    expect((ids as any[]).length).toBe(0);
   });
 
-  test("setting subgraphNodeIds reduces visible nodes", async () => {
-    const { browser, page } = await connectCDP();
-    try {
-      await reloadPlugin(page);
-      const fullCount = await waitStable(page);
-      expect(fullCount).toBeGreaterThan(100);
+  test("LS-2: setting subgraphNodeIds reduces visible nodes", async () => {
+    const result = await page.evaluate(async () => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+        .find((l: any) => "pixiNodes" in l.view)?.view;
+      if (!v) return { fullCount: -1, afterCount: -1, restoredCount: -1 };
+      const fullCount = v.pixiNodes.size;
+      const ids = [...v.pixiNodes.keys()].slice(0, 5);
+      v.panel.subgraphNodeIds = ids;
+      v.rawData = null;
+      await v.doRender();
+      await new Promise(r => setTimeout(r, 3000));
+      const afterCount = v.pixiNodes.size;
+      // Restore
+      v.panel.subgraphNodeIds = [];
+      v.rawData = null;
+      await v.doRender();
+      await new Promise(r => setTimeout(r, 3000));
+      const restoredCount = v.pixiNodes.size;
+      return { fullCount, afterCount, restoredCount };
+    });
 
-      // Pick first 5 node IDs and set as subgraph
-      await page.evaluate(() => {
-        const v = (window as any).app.workspace
-          .getLeavesOfType("graph-view")
-          .find((l: any) => "pixiNodes" in l.view)?.view;
-        if (!v) return;
-        const ids = [...v.pixiNodes.keys()].slice(0, 5);
-        v.panel.subgraphNodeIds = ids;
-        v.rawData = null;
-        v.doRender();
-      });
-
-      await page.waitForTimeout(5000);
-      const afterCount = await page.evaluate(() => {
-        const v = (window as any).app.workspace
-          .getLeavesOfType("graph-view")
-          .find((l: any) => "pixiNodes" in l.view)?.view;
-        return v?.pixiNodes?.size ?? -1;
-      });
-
-      expect(afterCount).toBeLessThan(fullCount);
-      expect(afterCount).toBeGreaterThan(0);
-
-      // Restore full graph
-      await page.evaluate(() => {
-        const v = (window as any).app.workspace
-          .getLeavesOfType("graph-view")
-          .find((l: any) => "pixiNodes" in l.view)?.view;
-        if (v) {
-          v.panel.subgraphNodeIds = [];
-          v.rawData = null;
-          v.doRender();
-        }
-      });
-      await page.waitForTimeout(5000);
-      const restoredCount = await page.evaluate(() => {
-        const v = (window as any).app.workspace
-          .getLeavesOfType("graph-view")
-          .find((l: any) => "pixiNodes" in l.view)?.view;
-        return v?.pixiNodes?.size ?? -1;
-      });
-      // Restored count may differ due to groupBy collapse timing
-      expect(restoredCount).toBeGreaterThan(afterCount);
-    } finally {
-      browser.close();
-    }
+    expect(result.fullCount).toBeGreaterThan(100);
+    expect(result.afterCount).toBeLessThan(result.fullCount);
+    expect(result.afterCount).toBeGreaterThan(0);
+    expect(result.restoredCount).toBeGreaterThan(result.afterCount);
   });
 
-  test("exitSubgraph restores previous state", async () => {
-    const { browser, page } = await connectCDP();
-    try {
-      await reloadPlugin(page);
-      await waitStable(page);
+  test("LS-3: enterSubgraph/exitSubgraph roundtrip", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+        .find((l: any) => "pixiNodes" in l.view)?.view;
+      if (!v || typeof v.enterSubgraph !== "function") return { inSub: -1, afterExit: -1, hasMethod: false };
+      const ids = [...v.pixiNodes.keys()].slice(0, 3);
+      v.enterSubgraph(ids);
+      const inSub = v.panel.subgraphNodeIds.length;
+      v.exitSubgraph();
+      const afterExit = v.panel.subgraphNodeIds.length;
+      return { inSub, afterExit, hasMethod: true };
+    });
 
-      const result = await page.evaluate(() => {
-        const v = (window as any).app.workspace
-          .getLeavesOfType("graph-view")
-          .find((l: any) => "pixiNodes" in l.view)?.view;
-        if (!v) return JSON.stringify({ inSub: -1, afterExit: -1 });
-        const ids = [...v.pixiNodes.keys()].slice(0, 3);
-        v.enterSubgraph(ids);
-        const inSub = v.panel.subgraphNodeIds.length;
-        v.exitSubgraph();
-        const afterExit = v.panel.subgraphNodeIds.length;
-        return JSON.stringify({ inSub, afterExit });
-      });
-
-      const { inSub, afterExit } = JSON.parse(result as string);
-      expect(inSub).toBe(3);
-      expect(afterExit).toBe(0);
-    } finally {
-      browser.close();
-    }
+    expect(result.hasMethod).toBe(true);
+    expect(result.inSub).toBe(3);
+    expect(result.afterExit).toBe(0);
   });
 
-  test("toolbar has lasso or subgraph back button", async () => {
-    const { browser, page } = await connectCDP();
-    try {
-      await reloadPlugin(page);
-      await waitStable(page);
-
-      const hasButton = await page.evaluate(() => {
-        const v = (window as any).app.workspace
-          .getLeavesOfType("graph-view")
-          .find((l: any) => "pixiNodes" in l.view)?.view;
-        if (!v) return false;
-        const el = v.containerEl;
-        const toolbar = el.querySelector(".gi-toolbar");
-        if (!toolbar) return false;
-        // Check for lasso button or subgraph back button
-        const buttons = toolbar.querySelectorAll("button");
-        for (const btn of buttons) {
-          const label = (btn.getAttribute("aria-label") || "").toLowerCase();
-          if (label.includes("lasso") || label.includes("select") || label.includes("back")) return true;
-        }
-        return false;
-      });
-
-      // Lasso button may have different aria-label; check subgraph back button exists (hidden)
-      const hasBackBtn = await page.evaluate(() => {
-        const v = (window as any).app.workspace
-          .getLeavesOfType("graph-view")
-          .find((l: any) => "pixiNodes" in l.view)?.view;
-        return v?.subgraphBackBtnEl !== undefined;
-      });
-      expect(hasButton || hasBackBtn).toBe(true);
-    } finally {
-      browser.close();
-    }
+  test("LS-4: lasso button exists in toolbar", async () => {
+    const result = await page.evaluate(() => {
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+        .find((l: any) => "pixiNodes" in l.view)?.view;
+      if (!v) return { hasLasso: false };
+      // Check private property (accessible via CDP on minified builds)
+      return { hasLasso: v.lassoBtnEl != null || v.subgraphBackBtnEl != null };
+    });
+    expect(result.hasLasso).toBe(true);
   });
 });
