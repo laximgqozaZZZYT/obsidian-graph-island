@@ -3407,44 +3407,40 @@
   background: var(--background-secondary);
 }
 
-/* View Mode Selector */
-.gi-view-mode-bar {
-  display: flex;
-  gap: 2px;
-  padding: 6px 8px 2px;
-  border-bottom: 1px solid var(--background-modifier-border);
+/* View Mode Selector (toolbar icon group) */
+.gi-view-mode-group {
+  display: inline-flex;
+  flex-direction: row;
+  gap: 1px;
+  background: var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 1px;
+  margin: 0 4px;
+  flex-shrink: 0;
 }
-.gi-view-mode-btn {
+.gi-view-mode-group .gi-view-mode-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  border: none;
+  border-radius: 5px;
+  background: var(--background-primary);
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 12px;
+  padding: 0;
   transition: background 0.15s, color 0.15s;
 }
-.gi-view-mode-btn:hover {
+.gi-view-mode-group .gi-view-mode-btn:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
-.gi-view-mode-btn.is-active {
+.gi-view-mode-group .gi-view-mode-btn.is-active {
   background: var(--interactive-accent);
   color: var(--text-on-accent);
-  border-color: var(--interactive-accent);
 }
-.gi-view-mode-icon {
-  display: flex;
+.gi-view-mode-group .gi-view-mode-btn svg {
   width: 14px;
   height: 14px;
-}
-.gi-view-mode-icon svg {
-  width: 14px;
-  height: 14px;
-}
-.gi-view-mode-label {
-  white-space: nowrap;
 }

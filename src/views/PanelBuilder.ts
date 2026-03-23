@@ -1057,9 +1057,6 @@ export function buildPanel(
   const settingsTab = tabContainers.get("settings")!;
 
   // Preset bar (quick-apply simple/analysis/creative presets)
-  // View mode selector (graph / sunburst / timeline / tree)
-  buildViewModeBar(panelEl, panel, cb);
-
   buildPresetBar(panelEl, cb);
 
   // 統計ダッシュボード（プリセットバーの下に配置）

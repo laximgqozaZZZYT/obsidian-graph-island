@@ -2,7 +2,7 @@ import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Menu, Mark
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
-import type { GraphData, GraphNode, GraphEdge, LayoutType, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, GraphSnapshot, GraphTemplate } from "../types";
+import type { GraphData, GraphNode, GraphEdge, LayoutType, ViewMode, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, GraphSnapshot, GraphTemplate } from "../types";
 import { DEFAULT_COLORS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
 import { evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
@@ -561,10 +561,42 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const toolbar = root.createDiv({ cls: "graph-toolbar", attr: { role: "toolbar", "aria-label": "Graph controls" } });
     this.statusEl = toolbar.createEl("span", { cls: "graph-status", attr: { "aria-live": "polite" } });
 
+    // View mode selector (always visible in toolbar)
+    this._buildViewModeButtons(toolbar);
+
     const zoomGroup = toolbar.createDiv({ cls: "graph-toolbar-zoom" });
     this._initZoomButtons(zoomGroup);
     this._initActionButtons(zoomGroup);
     this._initSettingsButtons(toolbar);
+  }
+
+  /** Build the view mode radio group in the toolbar. */
+  private _buildViewModeButtons(toolbar: HTMLElement): void {
+    const group = toolbar.createDiv({ cls: "gi-view-mode-group", attr: { role: "radiogroup", "aria-label": t("viewMode.switched") } });
+    const modes: { mode: ViewMode; icon: string; labelKey: string }[] = [
+      { mode: "graph",    icon: "git-branch",  labelKey: "viewMode.graph" },
+      { mode: "sunburst", icon: "sun",         labelKey: "viewMode.sunburst" },
+      { mode: "timeline", icon: "calendar",    labelKey: "viewMode.timeline" },
+      { mode: "tree",     icon: "list-tree",   labelKey: "viewMode.tree" },
+    ];
+    for (const m of modes) {
+      const btn = group.createEl("button", {
+        cls: `gi-view-mode-btn${this.panel.viewMode === m.mode ? " is-active" : ""}`,
+        attr: { "aria-label": t(m.labelKey), "aria-pressed": String(this.panel.viewMode === m.mode), "data-mode": m.mode, role: "radio" },
+      });
+      setIcon(btn, m.icon);
+      btn.title = t(m.labelKey);
+      btn.addEventListener("click", () => {
+        if (this.panel.viewMode === m.mode) return;
+        this.panel.viewMode = m.mode;
+        this.currentLayout = viewModeToLayout(m.mode);
+        group.querySelectorAll(".gi-view-mode-btn").forEach(b => { b.removeClass("is-active"); b.setAttribute("aria-pressed", "false"); });
+        btn.addClass("is-active");
+        btn.setAttribute("aria-pressed", "true");
+        this.doRender();
+        this._announceA11y(`${t("viewMode.switched")}: ${t(m.labelKey)}`);
+      });
+    }
   }
 
   /** Create zoom in/out, fit, and marquee buttons. */
@@ -6561,6 +6593,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Sync currentLayout from viewMode (ensures saved state is respected)
     this.currentLayout = viewModeToLayout(this.panel.viewMode);
+
+    // Sync toolbar active button with restored viewMode
+    const modeGroup = this.containerEl.querySelector(".gi-view-mode-group");
+    if (modeGroup) {
+      modeGroup.querySelectorAll(".gi-view-mode-btn").forEach(b => {
+        const isActive = (b as HTMLElement).dataset.mode === this.panel.viewMode;
+        b.toggleClass("is-active", isActive);
+        b.setAttribute("aria-pressed", String(isActive));
+      });
+    }
 
     this.ac?.abort();
     this.ac = new AbortController();
