@@ -123,3 +123,19 @@ export function applyVisibilityFilters(
   if (!opts.showSimilar) edges = filterSimilarEdges(edges);
   return { nodes, edges };
 }
+
+/**
+ * Filter graph data to only include nodes in the subgraph set.
+ * Edges are kept only when both endpoints are in the set.
+ * Returns unmodified data when subgraphIds is empty.
+ */
+export function filterBySubgraph<
+  N extends { id: string },
+  E extends { source: string; target: string },
+>(nodes: N[], edges: E[], subgraphIds: string[]): { nodes: N[]; edges: E[] } {
+  if (subgraphIds.length === 0) return { nodes, edges };
+  const idSet = new Set(subgraphIds);
+  const filteredNodes = nodes.filter(n => idSet.has(n.id));
+  const filteredEdges = edges.filter(e => idSet.has(e.source) && idSet.has(e.target));
+  return { nodes: filteredNodes, edges: filteredEdges };
+}

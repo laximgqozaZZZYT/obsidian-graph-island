@@ -15,7 +15,7 @@ import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoi
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb } from "../utils/graph-helpers";
-import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet } from "../utils/graph-filter";
+import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph } from "../utils/graph-filter";
 import { hexToRgb } from "../utils/color";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, type NodeTreeEntry, DEFAULT_PANEL, createDefaultPanel, validatePanelState, ensureRT } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
@@ -38,7 +38,7 @@ import { LayoutTransition } from "./LayoutTransition";
 import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./StatsRenderer";
 import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
-import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
+import { groupNodesByField, getNodeFieldValues, collapseGroup, expandSuperNodeIds, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
 import { getNodeShape, drawShape } from "../utils/node-shapes";
@@ -6539,6 +6539,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Nodes tab: exclude manually hidden nodes
     ({ nodes, edges } = filterExcludedNodes(nodes, edges, this.panel.excludeNodes ?? []));
+
+    // Subgraph filter: show only selected subset of nodes
+    if (this.panel.subgraphNodeIds.length > 0) {
+      const expanded = expandSuperNodeIds(this.panel.subgraphNodeIds, nodes);
+      ({ nodes, edges } = filterBySubgraph(nodes, edges, [...expanded]));
+    }
 
     // FZ: Degree filter
     nodes = filterByDegree(nodes, edges, this.panel.minDegreeFilter ?? 0, this.panel.maxDegreeFilter ?? 0);
