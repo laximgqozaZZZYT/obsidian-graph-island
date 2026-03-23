@@ -89,3 +89,21 @@ export function convexHull(points: Pt[]): Pt[] {
   return lower.concat(upper);
 }
 
+/**
+ * Ray-casting algorithm for point-in-polygon test.
+ * Works with any simple polygon (convex or concave).
+ */
+export function pointInPolygon(pt: Pt, polygon: Pt[]): boolean {
+  if (polygon.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].x, yi = polygon[i].y;
+    const xj = polygon[j].x, yj = polygon[j].y;
+    if ((yi > pt.y) !== (yj > pt.y) &&
+        pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
