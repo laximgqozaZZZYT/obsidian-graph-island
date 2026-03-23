@@ -3,6 +3,7 @@ import type { Pt } from "../utils/geometry";
 import { convexHull, clamp, rectsOverlap } from "../utils/geometry";
 import { cssColorToHex, shiftHue, hslToHex, stringHash } from "../utils/graph-helpers";
 import { hexToRgb, wcagContrastRatio, contrastColor } from "../utils/color";
+import { darkenColor } from "./RenderPipeline";
 import { DEFAULT_COLORS } from "../types";
 import { TAG_DISPLAY_ENCLOSURE } from "../constants";
 
@@ -406,7 +407,7 @@ export function drawEnclosures(
       enclosureLabels.set(tag, txt);
     }
     // Pill background: darken the enclosure hue for the background
-    const bgHex = darkenHex(hex, LABEL_DARKEN_FACTOR);
+    const bgHex = darkenColor(hex, LABEL_DARKEN_FACTOR);
     txt.bgColor = bgHex;
     txt.bgAlpha = glBgAlpha;
     txt.bgPadX = LABEL_PILL_PAD_X;
@@ -589,17 +590,6 @@ export function drawCapsule(g: CanvasGraphics, p0: Pt, p1: Pt, radius: number) {
   g.closePath();
 }
 
-/**
- * Darken a hex colour value by a given factor (0–1).
- * factor=0 → unchanged, factor=1 → black.
- */
-function darkenHex(hex: number, factor: number): number {
-  const { r, g, b } = hexToRgb(hex);
-  const dr = Math.round(r * (1 - factor));
-  const dg = Math.round(g * (1 - factor));
-  const db = Math.round(b * (1 - factor));
-  return (dr << 16) | (dg << 8) | db;
-}
 
 // Reusable buffers for filterOutliers — eliminates per-call array allocations
 const _distBuf: number[] = [];
@@ -615,7 +605,7 @@ const _sortBuf: number[] = [];
  * Uses module-level buffers for distance/sort arrays to reduce GC pressure
  * (~40 tags × 2 arrays = 80 array allocations saved per 3 frames).
  */
-function filterOutliers<T extends Pt>(pts: T[], iqrFactor = 2.0): T[] {
+export function filterOutliers<T extends Pt>(pts: T[], iqrFactor = 2.0): T[] {
   if (pts.length <= 3) return pts;
 
   const n = pts.length;

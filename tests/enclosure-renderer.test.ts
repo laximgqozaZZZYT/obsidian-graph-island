@@ -286,3 +286,74 @@ describe("drawEnclosures", () => {
     expect(cache.counts.has("stale")).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// filterOutliers — IQR-based spatial outlier removal
+// ---------------------------------------------------------------------------
+import { filterOutliers } from "../src/views/EnclosureRenderer";
+
+describe("filterOutliers", () => {
+  const pt = (x: number, y: number) => ({ x, y });
+
+  it("returns all points when ≤ 3 points", () => {
+    const pts = [pt(0, 0), pt(1, 1), pt(2, 2)];
+    expect(filterOutliers(pts)).toEqual(pts);
+  });
+
+  it("returns all points when ≤ 3 (edge: exactly 3)", () => {
+    expect(filterOutliers([pt(0, 0), pt(100, 0), pt(0, 100)])).toHaveLength(3);
+  });
+
+  it("returns empty input unchanged", () => {
+    expect(filterOutliers([])).toEqual([]);
+  });
+
+  it("removes spatial outlier from tight cluster", () => {
+    // 9 points clustered near origin + 1 far outlier
+    const cluster = Array.from({ length: 9 }, (_, i) => pt(i * 0.1, i * 0.1));
+    const outlier = pt(1000, 1000);
+    const pts = [...cluster, outlier];
+    const result = filterOutliers(pts);
+    expect(result.length).toBeLessThan(pts.length);
+    expect(result).not.toContainEqual(outlier);
+  });
+
+  it("keeps all points when evenly distributed", () => {
+    // 4 corners of a square — no outliers
+    const pts = [pt(0, 0), pt(10, 0), pt(0, 10), pt(10, 10)];
+    const result = filterOutliers(pts);
+    expect(result).toHaveLength(4);
+  });
+
+  it("higher iqrFactor keeps more outliers", () => {
+    const cluster = Array.from({ length: 8 }, (_, i) => pt(i, i));
+    const mid = pt(50, 50);
+    const pts = [...cluster, mid];
+    const strict = filterOutliers(pts, 0.5);
+    const loose = filterOutliers(pts, 10.0);
+    expect(loose.length).toBeGreaterThanOrEqual(strict.length);
+  });
+
+  it("returns at least 1 point (never empty)", () => {
+    // All points are outliers relative to each other
+    const pts = [pt(0, 0), pt(100, 0), pt(0, 100), pt(100, 100), pt(50, 5000)];
+    const result = filterOutliers(pts, 0.01);
+    expect(result.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("all same points returns all", () => {
+    const pts = [pt(5, 5), pt(5, 5), pt(5, 5), pt(5, 5)];
+    expect(filterOutliers(pts)).toHaveLength(4);
+  });
+
+  it("preserves original point references", () => {
+    const a = pt(0, 0);
+    const b = pt(1, 0);
+    const c = pt(0, 1);
+    const d = pt(1, 1);
+    const result = filterOutliers([a, b, c, d]);
+    for (const r of result) {
+      expect([a, b, c, d]).toContain(r);
+    }
+  });
+});
