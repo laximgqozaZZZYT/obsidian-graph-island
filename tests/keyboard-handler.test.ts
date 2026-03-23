@@ -193,4 +193,126 @@ describe("handleShortcutKey", () => {
     const result = handleShortcutKey(host, "x", makeEvent("x"));
     expect(result).toBe(false);
   });
+
+  // --- Boundary value tests ---
+
+  it("= also zooms in (alternative to +)", () => {
+    const host = mockHost();
+    const handled = handleShortcutKey(host, "=", makeEvent("="));
+    expect(handled).toBe(true);
+    expect(host.zoomBy).toHaveBeenCalledWith(1.2);
+  });
+
+  it("Ctrl+key modifiers block single-key shortcuts", () => {
+    const host = mockHost();
+    // Ctrl+L should NOT toggle legend (only bare L should)
+    handleShortcutKey(host, "l", makeEvent("l", { ctrl: true }));
+    expect(host.updateLegend).not.toHaveBeenCalled();
+  });
+
+  it("Meta+key modifiers block single-key shortcuts", () => {
+    const host = mockHost();
+    handleShortcutKey(host, "m", makeEvent("m", { meta: true }));
+    expect(host.markDirty).not.toHaveBeenCalled();
+  });
+
+  it("Ctrl+F opens search input", () => {
+    const host = mockHost();
+    const searchEl = { focus: vi.fn() };
+    (host.panelEl as any).querySelector = (sel: string) =>
+      sel.includes("settings-filter") ? searchEl : null;
+    handleShortcutKey(host, "f", makeEvent("f", { ctrl: true }));
+    expect(searchEl.focus).toHaveBeenCalled();
+  });
+
+  it("0 resets zoom to 100%", () => {
+    const host = mockHost();
+    handleShortcutKey(host, "0", makeEvent("0"));
+    expect(host.setZoom).toHaveBeenCalledWith(1.0);
+    expect(host.announceA11y).toHaveBeenCalledWith("Zoom: 100%");
+  });
+
+  it("5 sets zoom to 50%", () => {
+    const host = mockHost();
+    handleShortcutKey(host, "5", makeEvent("5"));
+    expect(host.setZoom).toHaveBeenCalledWith(0.5);
+    expect(host.announceA11y).toHaveBeenCalledWith("Zoom: 50%");
+  });
+
+  it("Escape clears keyboard focus", () => {
+    const host = mockHost({ isKeyboardFocused: true });
+    const handled = handleShortcutKey(host, "Escape", makeEvent("Escape"));
+    expect(handled).toBe(true);
+    expect(host.cycleFocusNode).toHaveBeenCalled();
+  });
+
+  it("Escape does nothing when not focused (but still handled)", () => {
+    const host = mockHost({ isKeyboardFocused: false });
+    const handled = handleShortcutKey(host, "Escape", makeEvent("Escape"));
+    expect(handled).toBe(true);
+    expect(host.cycleFocusNode).not.toHaveBeenCalled();
+  });
+
+  it("Enter opens file when focused on node with filePath", () => {
+    const host = mockHost({
+      isKeyboardFocused: true,
+      highlightedNodeId: "test.md",
+    });
+    host.pixiNodes.set("test.md", { data: { label: "Test", filePath: "folder/test.md" } });
+    handleShortcutKey(host, "Enter", makeEvent("Enter"));
+    expect(host.openFile).toHaveBeenCalledWith("folder/test.md");
+  });
+
+  it("Shift+Enter toggles multi-select", () => {
+    const host = mockHost({
+      isKeyboardFocused: true,
+      highlightedNodeId: "node1",
+    });
+    host.panel.multiSelectNodeIds = ["node1"];
+    host.pixiNodes.set("node1", { data: { label: "Node 1" } });
+    handleShortcutKey(host, "Enter", makeEvent("Enter", { shift: true }));
+    expect(host.toggleMultiSelect).toHaveBeenCalledWith("node1");
+  });
+
+  it("Z without highlighted node returns false", () => {
+    const host = mockHost({ highlightedNodeId: null });
+    const result = handleShortcutKey(host, "z", makeEvent("z"));
+    expect(result).toBe(false);
+    expect(host.focusZoomToNode).not.toHaveBeenCalled();
+  });
+
+  it("S/E set pathfinder start/end when node is highlighted", () => {
+    const host = mockHost({ highlightedNodeId: "n1" });
+    handleShortcutKey(host, "s", makeEvent("s"));
+    expect(host.setPathfinderNode).toHaveBeenCalledWith("n1", "start");
+
+    handleShortcutKey(host, "e", makeEvent("e"));
+    expect(host.setPathfinderNode).toHaveBeenCalledWith("n1", "end");
+  });
+
+  it("ArrowLeft/Right pans horizontally when not focused", () => {
+    const host = mockHost();
+    handleShortcutKey(host, "ArrowLeft", makeEvent("ArrowLeft"));
+    expect(host.worldContainer!.x).toBe(50);
+    handleShortcutKey(host, "ArrowRight", makeEvent("ArrowRight"));
+    expect(host.worldContainer!.x).toBe(0);
+  });
+
+  it("Shift+/ triggers help (same as ?)", () => {
+    const host = mockHost();
+    handleShortcutKey(host, "/", makeEvent("/", { shift: true }));
+    expect(host.toggleHelpOverlay).toHaveBeenCalled();
+  });
+
+  it("Space with no graph-svg-wrap still returns true", () => {
+    const host = mockHost();
+    const handled = handleShortcutKey(host, " ", makeEvent(" "));
+    expect(handled).toBe(true);
+    expect(host.autoFitView).not.toHaveBeenCalled(); // no wrap found
+  });
+
+  it("null worldContainer does not crash arrow pan", () => {
+    const host = mockHost({ worldContainer: null });
+    expect(() => handleShortcutKey(host, "ArrowUp", makeEvent("ArrowUp"))).not.toThrow();
+  });
 });

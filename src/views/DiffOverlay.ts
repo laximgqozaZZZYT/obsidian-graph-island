@@ -59,6 +59,9 @@ export class DiffOverlay {
   /** Animation phase (0–1, cycles over time) for pulse effects */
   private _pulsePhase = 0;
   private _pulseStart = 0;
+  /** Navigable node IDs (non-ghost) for ↑/↓ keyboard navigation */
+  private _navIds: string[] = [];
+  private _navIndex = -1;
 
   /** 差分モードを有効化する */
   activate(diff: SnapshotDiff, snapshotName: string): void {
@@ -332,6 +335,38 @@ export class DiffOverlay {
     const closeBtn = header.createEl("button", { text: "\u00d7", attr: { "aria-label": "Close diff list", style: "border:none;background:none;cursor:pointer;font-size:14px;padding:0 4px;" } });
     closeBtn.addEventListener("click", onClose);
 
+    // Build navigable ID list (non-ghost only)
+    this._navIds = [
+      ...this.diff.addedNodeIds,
+      ...this.diff.changedNodeIds,
+    ];
+    this._navIndex = -1;
+
+    // Panel-level keyboard navigation
+    panel.setAttribute("tabindex", "0");
+    panel.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this._navIds.length === 0) return;
+        if (e.key === "ArrowDown") {
+          this._navIndex = Math.min(this._navIndex + 1, this._navIds.length - 1);
+        } else {
+          this._navIndex = Math.max(this._navIndex - 1, 0);
+        }
+        onNodeClick(this._navIds[this._navIndex]);
+        // Highlight active row
+        const items = panel.querySelectorAll(".gi-diff-list-item");
+        items.forEach((item: Element) => (item as HTMLElement).style.background = "");
+        if (items[this._navIndex]) {
+          (items[this._navIndex] as HTMLElement).style.background = "var(--background-modifier-hover)";
+          (items[this._navIndex] as HTMLElement).scrollIntoView({ block: "nearest" });
+        }
+      } else if (e.key === "Escape") {
+        onClose();
+      }
+    });
+
     const sections: Array<{ title: string; ids: string[]; color: string; ghost?: boolean }> = [
       { title: `Added (${this.diff.addedNodeIds.size})`, ids: [...this.diff.addedNodeIds], color: ADDED_COLOR },
       { title: `Changed (${this.diff.changedNodeIds.size})`, ids: [...this.diff.changedNodeIds], color: CHANGED_COLOR },
@@ -372,6 +407,13 @@ export class DiffOverlay {
   /** Remove the diff list DOM panel */
   removeDiffList(container: HTMLElement): void {
     container.querySelector(".gi-diff-list")?.remove();
+    this._navIds = [];
+    this._navIndex = -1;
+  }
+
+  /** Get current navigation index and total (for testing/a11y) */
+  getNavState(): { index: number; total: number } {
+    return { index: this._navIndex, total: this._navIds.length };
   }
 }
 

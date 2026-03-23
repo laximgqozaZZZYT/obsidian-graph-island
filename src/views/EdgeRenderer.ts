@@ -164,7 +164,7 @@ interface Pos {
 }
 
 /** Returns true if the edge should be skipped based on type visibility toggles. */
-function shouldSkipEdge(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
+export function shouldSkipEdge(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
   const spec = EDGE_TYPE_SPECS.get(e.type ?? "");
   if (spec) return !cfg[spec.visibilityField];
   return !cfg.showLinks; // untyped edges treated as links
@@ -178,7 +178,7 @@ function shouldSkipEdge(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
  * Build a set of edge keys ("source→target") that participate in bidirectional
  * pairs. An edge A→B is bidirectional if B→A also exists in the edge list.
  */
-function buildBidirectionalSet(edges: GraphEdge[]): Set<string> {
+export function buildBidirectionalSet(edges: GraphEdge[]): Set<string> {
   const forward = new Set<string>();
   const bidir = new Set<string>();
   for (const e of edges) {
@@ -402,7 +402,7 @@ interface BundleGroup {
  * Normalize an angle to [0, π) — treating opposite directions as the same
  * "highway" since an edge A→B and B→A share the same visual band.
  */
-function normalizeAngle(a: number): number {
+export function normalizeAngle(a: number): number {
   if (a < 0) a += Math.PI;
   if (a >= Math.PI) a -= Math.PI;
   return a;
@@ -709,7 +709,7 @@ interface JunctionGrid {
  * Merge nearby values into clusters. Values within `minSpacing` of each other
  * are merged into one representative (average of cluster).
  */
-function mergeNearbyValues(sorted: number[], minSpacing: number): number[] {
+export function mergeNearbyValues(sorted: number[], minSpacing: number): number[] {
   if (sorted.length === 0) return [];
   const result: number[] = [];
   let clusterStart = 0;
@@ -1158,14 +1158,14 @@ function routeViaPolarGrid(
 }
 
 /** Shortest unsigned angle distance */
-function angleDist(a: number, b: number): number {
+export function angleDist(a: number, b: number): number {
   let d = Math.abs(a - b);
   if (d > Math.PI) d = 2 * Math.PI - d;
   return d;
 }
 
 /** Shortest signed angle delta from a to b */
-function shortestAngleDelta(a: number, b: number): number {
+export function shortestAngleDelta(a: number, b: number): number {
   let d = b - a;
   if (d > Math.PI) d -= 2 * Math.PI;
   if (d < -Math.PI) d += 2 * Math.PI;
@@ -1994,7 +1994,7 @@ function buildIntraGroupCables(
 }
 
 /** Remove consecutive near-identical points from a path */
-function deduplicatePath(path: { x: number; y: number }[]): { x: number; y: number }[] {
+export function deduplicatePath(path: { x: number; y: number }[]): { x: number; y: number }[] {
   if (path.length <= 1) return path;
   const result = [path[0]];
   for (let i = 1; i < path.length; i++) {
@@ -2892,7 +2892,7 @@ function computeDensityScale(cfg: EdgeDrawConfig, edgeCount: number): number {
 // ---------------------------------------------------------------------------
 
 /** Build edge pair counts for weight-based thickness rendering. */
-function buildPairCounts(edges: GraphEdge[]): Map<string, number> {
+export function buildPairCounts(edges: GraphEdge[]): Map<string, number> {
   const pairCount = new Map<string, number>();
   for (const e of edges) {
     const key = [e.source, e.target].sort().join(":");
@@ -3591,7 +3591,7 @@ function drawCardinalityMarker(
  * Returns the custom relation name if set, otherwise a short type label.
  * Returns null for edge types that should not display a label (links, has-tag).
  */
-function getEdgeLabel(e: GraphEdge): string | null {
+export function getEdgeLabel(e: GraphEdge): string | null {
   if (e.relation) return e.relation;
   switch (e.type) {
     case EDGE_TYPE_INHERITANCE: return "is-a";

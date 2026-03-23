@@ -173,6 +173,32 @@ const GLOW_P90_FRACTION = 0.9;
 // ---------------------------------------------------------------------------
 // darkenColor utility (shared with GraphViewContainer)
 // ---------------------------------------------------------------------------
+/**
+ * Compute the LOD (Level of Detail) tier based on node screen-space pixel size.
+ * Pure function — no DOM/Canvas dependency.
+ *
+ * @param nodeScreenPx  Screen-space pixel size of a node (NODE_SCREEN_PX_BASE * worldScale)
+ * @param thresholds    LOD threshold values from render settings
+ * @returns LOD level 0–5 (0 = extreme zoom-out dots, 5 = full card mode)
+ */
+export function computeLodLevel(
+  nodeScreenPx: number,
+  thresholds: {
+    cardLODExtremePx: number;
+    cardLODMidLabelPx: number;
+    cardLODNormalPx: number;
+    cardLODCompactPx: number;
+    cardLODFullCardPx: number;
+  },
+): number {
+  if (nodeScreenPx < thresholds.cardLODExtremePx) return 0;
+  if (nodeScreenPx < thresholds.cardLODMidLabelPx) return 1;
+  if (nodeScreenPx < thresholds.cardLODNormalPx) return 2;
+  if (nodeScreenPx < thresholds.cardLODCompactPx) return 3;
+  if (nodeScreenPx < thresholds.cardLODFullCardPx) return 4;
+  return 5;
+}
+
 /** Darken a hex color by mixing toward black. factor 0 = unchanged, 1 = black. */
 export function darkenColor(hex: number, factor: number): number {
   const { r, g, b } = hexToRgb(hex);
@@ -779,12 +805,7 @@ export class RenderPipeline {
       : Math.max(0, MIN_WORLD_RADIUS_PX / worldScale);
 
     // 5-level LOD (used when autoLOD is enabled)
-    const lodLevel: number =
-      isExtremeZoom ? 0 :
-      nodeScreenPx < (rt.cardLODMidLabelPx) ? 1 :
-      nodeScreenPx < (rt.cardLODNormalPx) ? 2 :
-      nodeScreenPx < (rt.cardLODCompactPx) ? 3 :
-      nodeScreenPx < (rt.cardLODFullCardPx) ? 4 : 5;
+    const lodLevel = computeLodLevel(nodeScreenPx, rt as Parameters<typeof computeLodLevel>[1]);
 
     return {
       visible, pixiNodes, tlFilteredOut, alpha, nodeCount,

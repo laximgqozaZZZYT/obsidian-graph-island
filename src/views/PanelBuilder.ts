@@ -1219,7 +1219,7 @@ function _buildNodeDisplaySection(
     const currentColorMode = panel.nodeColorMode ?? "category";
     addSelect(body, t("display.nodeColorMode"), colorModeOptions, currentColorMode, (v) => {
       panel.nodeColorMode = v as PanelState["nodeColorMode"];
-      cb.doRenderKeepPanel();
+      cb.recolorNodes();
       cb.rebuildPanel();
     }, t("desc.nodeColorMode"));
     // EO+EQ: Field selector when mode is "field" (with autocomplete from frontmatter)
@@ -1228,12 +1228,12 @@ function _buildNodeDisplaySection(
       const options = [{ value: "", label: "-- select --" }, ...fields.map(f => ({ value: f, label: f }))];
       addSelect(body, t("display.nodeColorField") ?? "Color Field", options, panel.nodeColorField ?? "", (v) => {
         panel.nodeColorField = v;
-        cb.doRenderKeepPanel();
+        cb.recolorNodes();
       });
       // ET: Custom color palette input
       addTextInput(body, t("display.customPalette") ?? "Custom Palette", panel.customColorPalette ?? "", "#ff0000, #00ff00, #0000ff", (v) => {
         panel.customColorPalette = v;
-        cb.doRenderKeepPanel();
+        cb.recolorNodes();
       });
     }
     addSlider(body, t("display.nodeSize"), 5, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.resetZoomBaseNodeSize(); cb.recalcNodeRadii(); cb.markDirty(); }, t("desc.nodeSize"));
@@ -1262,7 +1262,7 @@ function _buildNodeDisplaySection(
     const rtLabel = mergeRenderThresholds(panel.renderThresholds);
     addSlider(body, t("display.labelMaxChars") ?? "Label Max Chars", 0, 60, 1, rtLabel.labelMaxChars, (v) => {
       ensureRT(panel).labelMaxChars = v;
-      cb.doRenderKeepPanel();
+      cb.markDirty();
     });
     // --- Advanced (hidden by default) ---
     addAdvancedGroup(body, (adv) => {
@@ -1597,7 +1597,13 @@ function _buildDiscoverySection(
       { value: "all", label: t("analysis.all") },
     ], panel.analysisOverlay ?? "off", (v) => {
       panel.analysisOverlay = v as PanelState["analysisOverlay"];
-      cb.doRenderKeepPanel();
+      // Inline flag mapping to avoid full re-render
+      const m = v as string;
+      panel.showBridgeNodes = m === "bridges" || m === "all";
+      panel.showEntropyOverlay = m === "entropy" || m === "all";
+      panel.highlightMissingNeighbors = m === "missing" || m === "all";
+      panel.showGapEdges = m === "gaps" || m === "all";
+      cb.markDirty();
     });
     // D5: Cluster Compare
     addToggle(body, t("display.clusterCompare"), panel.showClusterCompare, (v) => {
@@ -1727,7 +1733,7 @@ function _buildEdgeDisplaySection(
 ): void {
   buildSection(tabEl, t("section.displayEdges"), (body) => {
     // --- Basic (always visible) ---
-    addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.doRenderKeepPanel(); }, t("desc.arrows"));
+    addToggle(body, t("display.arrows"), panel.showArrows, (v) => { panel.showArrows = v; cb.markDirty(); }, t("desc.arrows"));
     addToggle(body, t("display.fadeEdges"), panel.fadeEdgesByDegree, (v) => { panel.fadeEdgesByDegree = v; cb.markDirty(); }, t("desc.fadeEdges"));
     // GG: Global edge opacity
     const rtEdge = mergeRenderThresholds(panel.renderThresholds);
@@ -1952,22 +1958,22 @@ function _buildRoadNetworkSection(
     const rt = mergeRenderThresholds(panel.renderThresholds);
     addToggle(body, t("display.showRoadNetwork"), rt.showRoadNetwork, (v) => {
       ensureRT(panel).showRoadNetwork = v;
-      cb.doRenderKeepPanel();
+      cb.markDirty();
       cb.rebuildPanel(); // Progressive disclosure: show/hide road sub-settings
     }, t("desc.showRoadNetwork"));
     // Progressive disclosure: show sub-settings only when road network is active
     if (rt.showRoadNetwork) {
       addToggle(body, t("display.roadRouteEdges"), rt.roadRouteEdges, (v) => {
         ensureRT(panel).roadRouteEdges = v;
-        cb.doRenderKeepPanel();
+        cb.markDirty();
       }, t("desc.roadRouteEdges"));
       addSlider(body, t("display.roadAlpha"), 0.05, 0.8, 0.05, rt.roadAlpha, (v) => {
         ensureRT(panel).roadAlpha = v;
-        cb.doRenderKeepPanel();
+        cb.markDirty();
       }, t("desc.roadAlpha"));
       addSlider(body, t("display.roadWidth"), 2, 20, 1, rt.roadWidth, (v) => {
         ensureRT(panel).roadWidth = v;
-        cb.doRenderKeepPanel();
+        cb.markDirty();
       }, t("desc.roadWidth"));
     }
   }, tHelp("help.roadNetwork"), true, "map");
@@ -2231,18 +2237,18 @@ function _buildPluginSettingsSection(
       addSlider(body, t("settings.enclosureMinRatio"), 0, 0.3, 0.02, s.enclosureMinRatio, (v) => {
         s.enclosureMinRatio = v;
         ctx.saveSettings();
-        cb.doRenderKeepPanel();
+        cb.markDirty();
       }, t("desc.enclosureSpacing"));
       // FY: Enclosure fill opacity override
       const rtEnc = mergeRenderThresholds(panel.renderThresholds);
       addSlider(body, t("display.enclosureFillOpacity") ?? "Enclosure Fill", 0, 1, 0.05, rtEnc.enclosureFillOpacity, (v) => {
         ensureRT(panel).enclosureFillOpacity = v;
-        cb.doRenderKeepPanel();
+        cb.markDirty();
       });
       // GC: Enclosure stroke width override
       addSlider(body, t("display.enclosureStrokeWidth") ?? "Enclosure Stroke", 0, 10, 0.5, rtEnc.enclosureStrokeWidth, (v) => {
         ensureRT(panel).enclosureStrokeWidth = v;
-        cb.doRenderKeepPanel();
+        cb.markDirty();
       });
       // FU: Enclosure label position
       addSelect(body, t("display.enclosureLabelPos") ?? "Label Position", [
@@ -2251,7 +2257,7 @@ function _buildPluginSettingsSection(
         { value: "bottom", label: t("display.enclosureLabelPos.bottom") ?? "Bottom" },
       ], rtEnc.enclosureLabelPosition, (v) => {
         ensureRT(panel).enclosureLabelPosition = v as "top" | "center" | "bottom";
-        cb.doRenderKeepPanel();
+        cb.markDirty();
       });
     }
   }, tHelp("help.pluginSettings"), false, "settings");
@@ -2918,7 +2924,7 @@ function _buildTimelineControls(s: ClusterSectionCtx): void {
   // Timeline tick labels toggle
   addToggle(body, t("timeline.showTickLabels"), panel.showTimelineTickLabels, (v) => {
     panel.showTimelineTickLabels = v;
-    cb.doRenderKeepPanel();
+    cb.markDirty();
   }, t("timeline.showTickLabelsDesc"));
 
   // Timeline order fields
@@ -3002,7 +3008,7 @@ function _buildAutoFitAndGuides(s: ClusterSectionCtx): void {
 
       addToggle(body, t("guide.gridShowHeaders"), panel.gridShowHeaders, (v) => {
         panel.gridShowHeaders = v;
-        cb.doRenderKeepPanel();
+        cb.markDirty();
       }, t("guide.gridShowHeadersDesc"));
 
       addSelect(body, t("guide.labelPlacement"), [
@@ -3010,7 +3016,7 @@ function _buildAutoFitAndGuides(s: ClusterSectionCtx): void {
         { value: "between", label: t("guide.labelBetween") },
       ], panel.gridLabelPlacement, (v) => {
         panel.gridLabelPlacement = v as "on-line" | "between";
-        cb.doRenderKeepPanel();
+        cb.markDirty();
       });
 
       addToggle(body, t("guide.gridCellShading"), panel.gridCellShading, (v) => {
@@ -3029,7 +3035,7 @@ function _buildAutoFitAndGuides(s: ClusterSectionCtx): void {
   if (panel.coordinateLayout || panel.clusterArrangement === ARRANGEMENT_TIMELINE) {
     addToggle(body, t("guide.showAxisTitles"), panel.showAxisTitles, (v) => {
       panel.showAxisTitles = v;
-      cb.doRenderKeepPanel();
+      cb.markDirty();
     }, t("guide.showAxisTitlesDesc"));
   }
 }

@@ -234,9 +234,11 @@ interface MockEl {
   _listeners: Record<string, Function[]>;
   cls?: string;
   querySelector(sel: string): MockEl | null;
+  querySelectorAll(sel: string): MockEl[];
   createDiv(opts?: { cls?: string; attr?: Record<string, string> }): MockEl;
   createEl(tag: string, opts?: { text?: string; attr?: Record<string, string> }): MockEl;
   addEventListener(evt: string, fn: Function): void;
+  setAttribute(name: string, value: string): void;
   remove(): void;
   _removed: boolean;
 }
@@ -288,6 +290,20 @@ function createMockEl(tag = "div"): MockEl {
     },
     addEventListener(evt, fn) {
       (el._listeners[evt] ??= []).push(fn);
+    },
+    setAttribute(name: string, value: string) {
+      el.attrs[name] = value;
+    },
+    querySelectorAll(sel: string): MockEl[] {
+      const cls = sel.startsWith(".") ? sel.slice(1) : null;
+      if (!cls) return [];
+      const results: MockEl[] = [];
+      const search = (node: MockEl) => {
+        if (node.cls === cls) results.push(node);
+        for (const child of node.children) search(child);
+      };
+      search(el);
+      return results;
     },
     remove() {
       el._removed = true;
