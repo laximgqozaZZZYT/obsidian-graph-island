@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   computeGraphStats,
   countConnectedComponents,
+  computeNodeDegrees,
 } from "../src/analysis/graph-analysis";
 import type { GraphNode, GraphEdge } from "../src/types";
 
@@ -99,5 +100,53 @@ describe("countConnectedComponents", () => {
   it("isolated nodes are each a component", () => {
     const nodes = [mkNode("a"), mkNode("b"), mkNode("c")];
     expect(countConnectedComponents(nodes, [])).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeNodeDegrees
+// ---------------------------------------------------------------------------
+
+describe("computeNodeDegrees", () => {
+  it("returns empty map for empty graph", () => {
+    expect(computeNodeDegrees([], []).size).toBe(0);
+  });
+
+  it("isolated nodes have degree 0", () => {
+    const nodes = [mkNode("a"), mkNode("b")];
+    const deg = computeNodeDegrees(nodes, []);
+    expect(deg.get("a")).toBe(0);
+    expect(deg.get("b")).toBe(0);
+  });
+
+  it("single edge gives degree 1 to both endpoints", () => {
+    const nodes = [mkNode("a"), mkNode("b")];
+    const edges = [mkEdge("a", "b")];
+    const deg = computeNodeDegrees(nodes, edges);
+    expect(deg.get("a")).toBe(1);
+    expect(deg.get("b")).toBe(1);
+  });
+
+  it("hub node accumulates degree from all edges", () => {
+    const nodes = [mkNode("hub"), mkNode("a"), mkNode("b"), mkNode("c")];
+    const edges = [mkEdge("hub", "a"), mkEdge("hub", "b"), mkEdge("hub", "c")];
+    const deg = computeNodeDegrees(nodes, edges);
+    expect(deg.get("hub")).toBe(3);
+    expect(deg.get("a")).toBe(1);
+  });
+
+  it("self-loop counts as 2 (source + target)", () => {
+    const nodes = [mkNode("a")];
+    const edges = [mkEdge("a", "a")];
+    const deg = computeNodeDegrees(nodes, edges);
+    expect(deg.get("a")).toBe(2);
+  });
+
+  it("parallel edges each contribute to degree", () => {
+    const nodes = [mkNode("a"), mkNode("b")];
+    const edges = [mkEdge("a", "b"), mkEdge("a", "b")];
+    const deg = computeNodeDegrees(nodes, edges);
+    expect(deg.get("a")).toBe(2);
+    expect(deg.get("b")).toBe(2);
   });
 });
