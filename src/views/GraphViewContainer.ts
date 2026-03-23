@@ -7210,7 +7210,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           break;
         }
         case LAYOUT_TIMELINE: {
-          const timeKey = this.panel.timelineKey || "date";
           const getNodeProp = (nodeId: string, key: string): string | undefined => {
             const fp = gd.nodes.find(n => n.id === nodeId)?.filePath;
             if (!fp) return undefined;
@@ -7219,6 +7218,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             const val = this.app.metadataCache.getFileCache(tf)?.frontmatter?.[key];
             return val !== undefined && val !== null ? String(val) : undefined;
           };
+          // Auto-detect best timeKey: use panel setting, fall back to field with most values
+          let timeKey = this.panel.timelineKey || "date";
+          const candidates = [timeKey, "start-date", "date", "created", "story_order", "order"];
+          let bestKey = timeKey;
+          let bestCount = 0;
+          for (const candidate of candidates) {
+            let count = 0;
+            for (const n of gd.nodes) { if (getNodeProp(n.id, candidate)) count++; }
+            if (count > bestCount) { bestCount = count; bestKey = candidate; }
+            if (bestCount > gd.nodes.length * 0.3) break; // good enough
+          }
+          timeKey = bestKey;
           // Fit timeline to canvas width: compute stepWidth from unique dates
           // First pass: count unique time values to determine stepWidth
           const timeVals = new Set<string>();
