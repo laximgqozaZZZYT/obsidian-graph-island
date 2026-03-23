@@ -19,6 +19,8 @@ import {
   ARRANGEMENT_CONCENTRIC, ARRANGEMENT_TIMELINE,
   SOURCE_PROPERTY, TRANSFORM_EVEN_DIVIDE, EDGE_TYPE_INHERITANCE,
 } from "../constants";
+import { isSectionVisible } from "../utils/view-mode-sections";
+import type { PanelSectionId } from "../utils/view-mode-sections";
 
 // ---------------------------------------------------------------------------
 // Panel state (shared with GraphViewContainer)
@@ -1053,6 +1055,9 @@ export function buildPanel(
   const settingsTab = tabContainers.get("settings")!;
 
   // Preset bar (quick-apply simple/analysis/creative presets)
+  // View mode selector (graph / sunburst / timeline / tree)
+  buildViewModeBar(panelEl, panel, cb);
+
   buildPresetBar(panelEl, cb);
 
   // 統計ダッシュボード（プリセットバーの下に配置）
@@ -2098,19 +2103,21 @@ function buildDisplayTab(
   ctx: PanelContext,
   cb: PanelCallbacks,
 ): void {
-  _buildNodeDisplaySection(displayTab, panel, ctx, cb);
-  _buildNodeDisplayModeSection(displayTab, panel, ctx, cb);
-  _buildNodeDecorationSection(displayTab, panel, ctx, cb);
-  _buildStructureAnalysisSection(displayTab, panel, ctx, cb);
-  _buildDiscoverySection(displayTab, panel, ctx, cb);
-  _buildInteractionSection(displayTab, panel, ctx, cb);
-  _buildAdvancedSection(displayTab, panel, ctx, cb);
-  _buildEdgeDisplaySection(displayTab, panel, ctx, cb);
-  _buildCableDisplaySection(displayTab, panel, ctx, cb);
-  _buildRoadNetworkSection(displayTab, panel, ctx, cb);
-  _buildMinimapSection(displayTab, panel, ctx, cb);
-  _buildRenderThresholdsSection(displayTab, panel, ctx, cb);
-  _buildRelationColorSection(displayTab, panel, ctx, cb);
+  const v = (id: PanelSectionId) => isSectionVisible(panel.viewMode, id);
+
+  if (v("nodeDisplay"))        _buildNodeDisplaySection(displayTab, panel, ctx, cb);
+  if (v("nodeDisplayMode"))    _buildNodeDisplayModeSection(displayTab, panel, ctx, cb);
+  if (v("nodeDecorations"))    _buildNodeDecorationSection(displayTab, panel, ctx, cb);
+  if (v("structureAnalysis"))  _buildStructureAnalysisSection(displayTab, panel, ctx, cb);
+  if (v("discovery"))          _buildDiscoverySection(displayTab, panel, ctx, cb);
+  if (v("interaction"))        _buildInteractionSection(displayTab, panel, ctx, cb);
+  if (v("advanced"))           _buildAdvancedSection(displayTab, panel, ctx, cb);
+  if (v("edgeDisplay"))        _buildEdgeDisplaySection(displayTab, panel, ctx, cb);
+  if (v("cableDisplay"))       _buildCableDisplaySection(displayTab, panel, ctx, cb);
+  if (v("roadNetwork"))        _buildRoadNetworkSection(displayTab, panel, ctx, cb);
+  if (v("minimap"))            _buildMinimapSection(displayTab, panel, ctx, cb);
+  if (v("renderThresholds"))   _buildRenderThresholdsSection(displayTab, panel, ctx, cb);
+  if (v("relationColors"))     _buildRelationColorSection(displayTab, panel, ctx, cb);
 }
 
 function buildLayoutTab(
@@ -2119,91 +2126,99 @@ function buildLayoutTab(
   ctx: PanelContext,
   cb: PanelCallbacks,
 ): void {
-  // --- Grouping (in Layout tab) ---
-  buildSection(layoutTab, t("section.displayGrouping"), (body) => {
-    {
-      const groupByLabel = body.createDiv({ cls: "setting-item-name", text: t("display.groupBy") });
-      const groupByListEl = body.createDiv({ cls: "gi-multirule-list" });
-      renderGroupByRules(groupByListEl, panel, ctx, cb);
-    }
-    if (panel.groupBy && panel.groupBy !== "none") {
-      // Expand/Collapse all groups buttons
-      const groupBtnRow = body.createDiv({ cls: "gi-setting-row gi-group-btn-row" });
-      const expandBtn = groupBtnRow.createEl("button", { cls: "gi-btn-sm", text: t("groups.expandAll") });
-      expandBtn.addEventListener("click", () => {
-        // Set a dummy marker so size>0 prevents auto-collapse, but no real group matches
-        panel.collapsedGroups.clear();
-        panel.collapsedGroups.add("__gi_expand_all__");
-        cb.doRenderKeepPanel();
-        cb.rebuildPanel();
-        cb.announceA11y?.(`${t("groups.expandAll") ?? "Expand All"}: groups expanded`);
-      });
-      const collapseBtn = groupBtnRow.createEl("button", { cls: "gi-btn-sm", text: t("groups.collapseAll") });
-      collapseBtn.addEventListener("click", () => {
-        panel.collapsedGroups.clear();
-        // Empty set triggers auto-collapse of all groups
-        cb.doRenderKeepPanel();
-        cb.rebuildPanel();
-        cb.announceA11y?.(`${t("groups.collapseAll") ?? "Collapse All"}: groups collapsed`);
-      });
+  const v = (id: PanelSectionId) => isSectionVisible(panel.viewMode, id);
 
-      addSlider(body, t("display.groupMinSize"), 1, 20, 1, panel.groupMinSize, (v) => {
-        panel.groupMinSize = v;
-        panel.collapsedGroups.clear();
-        cb.doRenderKeepPanel();
-      }, t("desc.groupMinSize"));
-      if (ctx.availableGroups.length > 0) {
-        const currentFilter = panel.groupFilter
-          ? new Set(panel.groupFilter.split(",").map(s => s.trim()).filter(Boolean))
-          : new Set(ctx.availableGroups);
-        addCheckboxGroup(body, t("display.groupFilter"), ctx.availableGroups, currentFilter, (sel) => {
-          panel.groupFilter = sel.size === ctx.availableGroups.length ? "" : [...sel].join(", ");
+  // --- Grouping (in Layout tab) ---
+  if (v("grouping")) {
+    buildSection(layoutTab, t("section.displayGrouping"), (body) => {
+      {
+        const groupByLabel = body.createDiv({ cls: "setting-item-name", text: t("display.groupBy") });
+        const groupByListEl = body.createDiv({ cls: "gi-multirule-list" });
+        renderGroupByRules(groupByListEl, panel, ctx, cb);
+      }
+      if (panel.groupBy && panel.groupBy !== "none") {
+        // Expand/Collapse all groups buttons
+        const groupBtnRow = body.createDiv({ cls: "gi-setting-row gi-group-btn-row" });
+        const expandBtn = groupBtnRow.createEl("button", { cls: "gi-btn-sm", text: t("groups.expandAll") });
+        expandBtn.addEventListener("click", () => {
+          // Set a dummy marker so size>0 prevents auto-collapse, but no real group matches
+          panel.collapsedGroups.clear();
+          panel.collapsedGroups.add("__gi_expand_all__");
+          cb.doRenderKeepPanel();
+          cb.rebuildPanel();
+          cb.announceA11y?.(`${t("groups.expandAll") ?? "Expand All"}: groups expanded`);
+        });
+        const collapseBtn = groupBtnRow.createEl("button", { cls: "gi-btn-sm", text: t("groups.collapseAll") });
+        collapseBtn.addEventListener("click", () => {
+          panel.collapsedGroups.clear();
+          // Empty set triggers auto-collapse of all groups
+          cb.doRenderKeepPanel();
+          cb.rebuildPanel();
+          cb.announceA11y?.(`${t("groups.collapseAll") ?? "Collapse All"}: groups collapsed`);
+        });
+
+        addSlider(body, t("display.groupMinSize"), 1, 20, 1, panel.groupMinSize, (v) => {
+          panel.groupMinSize = v;
           panel.collapsedGroups.clear();
           cb.doRenderKeepPanel();
-        });
+        }, t("desc.groupMinSize"));
+        if (ctx.availableGroups.length > 0) {
+          const currentFilter = panel.groupFilter
+            ? new Set(panel.groupFilter.split(",").map(s => s.trim()).filter(Boolean))
+            : new Set(ctx.availableGroups);
+          addCheckboxGroup(body, t("display.groupFilter"), ctx.availableGroups, currentFilter, (sel) => {
+            panel.groupFilter = sel.size === ctx.availableGroups.length ? "" : [...sel].join(", ");
+            panel.collapsedGroups.clear();
+            cb.doRenderKeepPanel();
+          });
+        }
       }
-    }
-    // Follow toggle: sync clusterGroupRules from groupByRules
-    addToggle(body, t("cluster.followsGroupBy"), panel.clusterFollowsGroupBy, (v) => {
-      panel.clusterFollowsGroupBy = v;
-      if (v && panel.groupByRules) {
-        const filled = panel.groupByRules.filter(r => r.field.trim() !== "");
-        panel.clusterGroupRules = deriveClusterRulesFromGroupBy(filled);
-      }
-      cb.applyClusterForce();
-      cb.restartSimulation(0.5);
-      cb.rebuildPanel();
-    }, t("cluster.followsGroupByDesc"));
-  }, tHelp("help.displayGrouping"), false, "layers");
+      // Follow toggle: sync clusterGroupRules from groupByRules
+      addToggle(body, t("cluster.followsGroupBy"), panel.clusterFollowsGroupBy, (v) => {
+        panel.clusterFollowsGroupBy = v;
+        if (v && panel.groupByRules) {
+          const filled = panel.groupByRules.filter(r => r.field.trim() !== "");
+          panel.clusterGroupRules = deriveClusterRulesFromGroupBy(filled);
+        }
+        cb.applyClusterForce();
+        cb.restartSimulation(0.5);
+        cb.rebuildPanel();
+      }, t("cluster.followsGroupByDesc"));
+    }, tHelp("help.displayGrouping"), false, "layers");
+  }
 
   // Cluster arrangement
-  buildSection(layoutTab, t("section.clusterArrangement"), (body) => {
-    const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
-    _buildArrangementPatternSelect(sctx);
-    _buildConcentricOptions(sctx);
-    _buildCoordinateControls(sctx);
-    _buildTimelineControls(sctx);
-    _buildSpacingAndGroupArrangement(sctx);  // Must come before autoFit (populates spacingSliders)
-    _buildAutoFitAndGuides(sctx);
-    _buildForceParameters(sctx);
-    _buildClusterGroupRules(sctx);
-    _buildDirectionalGravityRules(sctx);
-    _buildSortRules(sctx);
-  }, tHelp("help.clusterArrangement"), true, "layout-grid");
+  if (v("clusterArrangement")) {
+    buildSection(layoutTab, t("section.clusterArrangement"), (body) => {
+      const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
+      _buildArrangementPatternSelect(sctx);
+      _buildConcentricOptions(sctx);
+      _buildCoordinateControls(sctx);
+      _buildTimelineControls(sctx);
+      _buildSpacingAndGroupArrangement(sctx);  // Must come before autoFit (populates spacingSliders)
+      _buildAutoFitAndGuides(sctx);
+      _buildForceParameters(sctx);
+      _buildClusterGroupRules(sctx);
+      _buildDirectionalGravityRules(sctx);
+      _buildSortRules(sctx);
+    }, tHelp("help.clusterArrangement"), true, "layout-grid");
+  }
 
   // Node rules
-  buildSection(layoutTab, t("section.nodeRules"), (body) => {
-    const ruleListEl = body.createDiv({ cls: "gi-noderule-list" });
-    renderNodeRuleList(ruleListEl, panel, ctx, cb);
-
-    const addBtn = body.createEl("button", { cls: "gi-add-group", text: t("nodeRules.addRule") });
-    addBtn.addEventListener("click", () => {
-      panel.nodeRules.push({ query: "*", spacingMultiplier: 1.0, gravityAngle: -1, gravityStrength: 0.1, centerGravity: 1.0, repelMultiplier: 1.0 });
+  if (v("nodeRules")) {
+    buildSection(layoutTab, t("section.nodeRules"), (body) => {
+      const ruleListEl = body.createDiv({ cls: "gi-noderule-list" });
       renderNodeRuleList(ruleListEl, panel, ctx, cb);
-      cb.applyNodeRules();
-      cb.restartSimulation(0.3);
-    });
-  }, tHelp("help.nodeRules"), true, "sliders-horizontal");
+
+      const addBtn = body.createEl("button", { cls: "gi-add-group", text: t("nodeRules.addRule") });
+      addBtn.addEventListener("click", () => {
+        panel.nodeRules.push({ query: "*", spacingMultiplier: 1.0, gravityAngle: -1, gravityStrength: 0.1, centerGravity: 1.0, repelMultiplier: 1.0 });
+        renderNodeRuleList(ruleListEl, panel, ctx, cb);
+        cb.applyNodeRules();
+        cb.restartSimulation(0.3);
+      });
+    }, tHelp("help.nodeRules"), true, "sliders-horizontal");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -3367,6 +3382,40 @@ function buildTabBar(
   if (changedCount > 0) {
     const badge = bar.createEl("span", { cls: "gi-diff-badge", text: String(changedCount), attr: { title: `${changedCount} settings changed from defaults` } });
     badge.style.cssText = "font-size:10px;background:var(--interactive-accent);color:var(--text-on-accent);border-radius:8px;padding:1px 5px;margin-left:4px;vertical-align:top;";
+  }
+}
+
+function buildViewModeBar(
+  container: HTMLElement,
+  panel: PanelState,
+  cb: PanelCallbacks,
+): void {
+  const modeBar = container.createDiv({ cls: "gi-view-mode-bar" });
+
+  const modes: { mode: ViewMode; icon: string; labelKey: string }[] = [
+    { mode: "graph",    icon: "git-branch",  labelKey: "viewMode.graph" },
+    { mode: "sunburst", icon: "sun",         labelKey: "viewMode.sunburst" },
+    { mode: "timeline", icon: "calendar",    labelKey: "viewMode.timeline" },
+    { mode: "tree",     icon: "list-tree",   labelKey: "viewMode.tree" },
+  ];
+
+  for (const m of modes) {
+    const btn = modeBar.createEl("button", {
+      cls: `gi-view-mode-btn${panel.viewMode === m.mode ? " is-active" : ""}`,
+      attr: {
+        "aria-label": t(m.labelKey),
+        "aria-pressed": String(panel.viewMode === m.mode),
+        "data-mode": m.mode,
+        role: "radio",
+      },
+    });
+    setIcon(btn.createSpan({ cls: "gi-view-mode-icon" }), m.icon);
+    btn.createSpan({ cls: "gi-view-mode-label", text: t(m.labelKey) });
+    btn.addEventListener("click", () => {
+      if (panel.viewMode === m.mode) return;
+      cb.setViewMode(m.mode);
+      cb.announceA11y?.(`${t("viewMode.switched")}: ${t(m.labelKey)}`);
+    });
   }
 }
 
