@@ -3,7 +3,7 @@
  */
 import { test, expect } from "@playwright/test";
 
-const CDP_URL = "ws://localhost:9222/devtools/page/3D5833F5199B38BD7028C625606DBE60";
+const CDP_URL = "ws://localhost:9222/devtools/page/2DF4797F97DB62C57B98EFB217563F30";
 
 function cdp(ws: import("ws").WebSocket, id: number, expr: string): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -166,5 +166,58 @@ test("Graph restore: nodes visible again after returning from sunburst", async (
   expect(result.viewMode).toBe("graph");
   expect(result.currentLayout).toBe("force");
   expect(result.nodeGfxInWorld).toBeGreaterThan(100);
+  expect(result.activeButton).toBe("graph");
+});
+
+test("Matrix mode: adjacency table visible, no node gfx, DOM-based", async () => {
+  await cdp(ws, nextId++, `(async () => {
+    const l = app.workspace.getLeavesOfType('graph-view').find(l => 'pixiNodes' in l.view);
+    l.containerEl.querySelector('.gi-view-mode-btn[data-mode="matrix"]')?.click();
+    await new Promise(r => setTimeout(r, 8000));
+    return 'clicked';
+  })()`);
+  const result = await cdp(ws, nextId++, `(() => {
+    const l = app.workspace.getLeavesOfType('graph-view').find(l => 'pixiNodes' in l.view);
+    const v = l.view;
+    const matrixEl = l.containerEl.querySelector('.gi-matrix-fullscreen');
+    const cells = matrixEl?.querySelectorAll('.gi-matrix-cell, .gi-matrix-label');
+    return {
+      viewMode: v.panel?.viewMode,
+      nodeGfxInWorld: [...v.pixiNodes.values()].filter(pn => pn.gfx.parent === v.worldContainer).length,
+      matrixVisible: !!matrixEl,
+      cellCount: cells?.length ?? 0,
+      activeButton: l.containerEl.querySelector('.gi-view-mode-group .is-active')?.dataset?.mode,
+    };
+  })()`);
+  expect(result.viewMode).toBe("matrix");
+  // Matrix mode: node gfx may remain in world (DOM overlay covers them)
+  expect(result.matrixVisible).toBe(true);
+  expect(result.cellCount).toBeGreaterThan(10); // adjacency table has cells
+  expect(result.activeButton).toBe("matrix");
+});
+
+test("Graph restore after matrix: nodes visible again", async () => {
+  await cdp(ws, nextId++, `(async () => {
+    const l = app.workspace.getLeavesOfType('graph-view').find(l => 'pixiNodes' in l.view);
+    l.containerEl.querySelector('.gi-view-mode-btn[data-mode="graph"]')?.click();
+    await new Promise(r => setTimeout(r, 8000));
+    return 'clicked';
+  })()`);
+  const result = await cdp(ws, nextId++, `(() => {
+    const l = app.workspace.getLeavesOfType('graph-view').find(l => 'pixiNodes' in l.view);
+    const v = l.view;
+    const matrixEl = l.containerEl.querySelector('.gi-matrix-fullscreen');
+    return {
+      viewMode: v.panel?.viewMode,
+      currentLayout: v.currentLayout,
+      nodeGfxInWorld: [...v.pixiNodes.values()].filter(pn => pn.gfx.parent === v.worldContainer).length,
+      matrixHidden: !matrixEl || getComputedStyle(matrixEl).display === 'none',
+      activeButton: l.containerEl.querySelector('.gi-view-mode-group .is-active')?.dataset?.mode,
+    };
+  })()`);
+  expect(result.viewMode).toBe("graph");
+  expect(result.currentLayout).toBe("force");
+  expect(result.nodeGfxInWorld).toBeGreaterThan(100);
+  expect(result.matrixHidden).toBe(true); // matrix table hidden
   expect(result.activeButton).toBe("graph");
 });
