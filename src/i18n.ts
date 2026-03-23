@@ -414,6 +414,7 @@ const en: TranslationMap = {
   "toast.presetApplied": "Applied preset: {name}",
   "toast.pngExported": "PNG exported",
   "toast.pngFailed": "PNG export failed",
+  "toast.contextMenuHint": "Tip: Right-click nodes or canvas for more actions",
   "toast.copiedToClipboard": "Copied to clipboard",
   "toast.clipboardFailed": "Clipboard copy failed",
   "toast.localGraphOn": "Local: {name} ({hops} hops)",
@@ -442,6 +443,7 @@ const en: TranslationMap = {
   "a11y.graphLoaded": "Graph loaded",
   "a11y.nodes": "nodes",
   "a11y.edges": "edges",
+  "a11y.graphCanvas": "Interactive graph canvas",
   "display.highContrast": "High Contrast",
   "desc.highContrast": "Thicker edges and stronger outlines for better visibility",
 
@@ -535,6 +537,8 @@ const en: TranslationMap = {
   "toolbar.graphSettings": "Graph Settings",
   "toolbar.snapshot": "Snapshots",
   "toolbar.embedInNote": "Embed graph in note",
+  "toolbar.fullscreen": "Fullscreen",
+  "toolbar.help": "Keyboard Shortcuts",
 
   // --- Snapshot ---
   "snapshot.save": "Save snapshot...",
@@ -1269,6 +1273,7 @@ const ja: TranslationMap = {
   "toast.presetApplied": "プリセット適用: {name}",
   "toast.pngExported": "PNG をエクスポートしました",
   "toast.pngFailed": "PNG エクスポート失敗",
+  "toast.contextMenuHint": "ヒント: ノードやキャンバスを右クリックでメニューを表示",
   "toast.copiedToClipboard": "クリップボードにコピーしました",
   "toast.clipboardFailed": "クリップボードコピー失敗",
   "toast.localGraphOn": "ローカル: {name} ({hops} ホップ)",
@@ -1297,6 +1302,7 @@ const ja: TranslationMap = {
   "a11y.graphLoaded": "グラフ読み込み完了",
   "a11y.nodes": "ノード",
   "a11y.edges": "エッジ",
+  "a11y.graphCanvas": "インタラクティブグラフキャンバス",
   "display.highContrast": "ハイコントラスト",
   "desc.highContrast": "エッジを太く、ノードの輪郭を強調して視認性を向上",
 
@@ -1390,6 +1396,8 @@ const ja: TranslationMap = {
   "toolbar.graphSettings": "グラフ設定",
   "toolbar.snapshot": "スナップショット",
   "toolbar.embedInNote": "ノートにグラフを埋め込む",
+  "toolbar.fullscreen": "フルスクリーン",
+  "toolbar.help": "キーボードショートカット",
 
   // --- スナップショット ---
   "snapshot.save": "スナップショットを保存...",

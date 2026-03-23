@@ -20,7 +20,7 @@ import { pointInPolygon } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
 import { hexToRgb } from "../utils/color";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, type NodeTreeEntry, DEFAULT_PANEL, createDefaultPanel, validatePanelState, ensureRT } from "./PanelBuilder";
-import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, type EdgeDrawConfig } from "./EdgeRenderer";
+import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, EdgeRenderCache, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
@@ -274,6 +274,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private pixiApp: CanvasApp | null = null;
   private worldContainer: CanvasContainer | null = null;
   private edgeGraphics: CanvasGraphics | null = null;
+  private edgeCache = new EdgeRenderCache();
   private orbitGraphics: CanvasGraphics | null = null;
   private guideGraphics: CanvasGraphics | null = null;
   private enclosureGraphics: CanvasGraphics | null = null;
@@ -638,6 +639,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!localStorage.getItem(ONBOARDING_KEY)) {
       localStorage.setItem(ONBOARDING_KEY, "1");
       setTimeout(() => this._toggleHelpOverlay(), 500);
+      // Contextual hint after help overlay auto-dismisses
+      setTimeout(() => showToast(t("toast.contextMenuHint"), 5000), 3000);
     }
   }
 
@@ -721,17 +724,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.zoomIndicatorEl.title = "Click to reset zoom to 100%";
     this.zoomIndicatorEl.setAttribute("role", "status");
     this.zoomIndicatorEl.setAttribute("aria-live", "polite");
-    this.zoomIndicatorEl.style.cursor = "pointer";
     this.zoomIndicatorEl.addEventListener("click", () => { this.setZoom(1.0); });
 
     // Zoom preset buttons (10%, 30%, 50%, 100%)
     const presetBar = zoomGroup.createEl("span", { cls: "gi-zoom-presets" });
-    presetBar.style.cssText = "margin-left:4px;display:inline-flex;gap:1px;";
     for (const pct of [10, 30, 50, 100]) {
       const btn = presetBar.createEl("button", { text: `${pct}`, cls: "gi-zoom-preset-btn" });
-      // §0.3: min 24×24px target for a11y
-      btn.style.cssText = "font-size:9px;padding:4px 6px;min-width:24px;min-height:24px;border:none;border-radius:3px;" +
-        "background:var(--background-modifier-hover);color:var(--text-muted);cursor:pointer;line-height:1;";
       btn.title = `Zoom to ${pct}%`;
       btn.setAttribute("aria-label", `Zoom to ${pct}%`);
       btn.addEventListener("click", () => { this.setZoom(pct / 100); });
@@ -739,7 +737,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // FPS monitor (debug)
     this.fpsEl = zoomGroup.createEl("span", { cls: "gi-fps-indicator", text: "" });
-    this.fpsEl.style.cssText = "font-size:10px;color:var(--text-muted);margin-left:4px;display:none;";
     this.fpsEl.title = "Render FPS";
 
     const marqueeBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
@@ -1032,26 +1029,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     canvasArea.querySelector(".gi-snapshot-timeline")?.remove();
 
     const panel = canvasArea.createDiv({ cls: "gi-snapshot-timeline" });
-    panel.style.cssText = "position:absolute;top:8px;left:8px;max-height:50vh;overflow-y:auto;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:6px;padding:8px;font-size:11px;z-index:20;min-width:220px;max-width:320px;box-shadow:0 2px 8px rgba(0,0,0,0.15);";
 
     // Header
-    const header = panel.createDiv();
-    header.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--background-modifier-border);";
-    header.createEl("span", { text: `Snapshot Timeline (${entries.length})`, attr: { style: "font-weight:600;" } });
-    const closeBtn = header.createEl("button", { text: "\u00d7", attr: { "aria-label": "Close timeline", style: "border:none;background:none;cursor:pointer;font-size:14px;padding:0 4px;" } });
+    const header = panel.createDiv({ cls: "gi-snapshot-timeline-header" });
+    header.createEl("span", { text: `Snapshot Timeline (${entries.length})`, cls: "gi-snapshot-timeline-title" });
+    const closeBtn = header.createEl("button", { text: "\u00d7", cls: "gi-snapshot-timeline-close", attr: { "aria-label": "Close timeline" } });
     closeBtn.addEventListener("click", () => panel.remove());
 
     // Mini bar chart
     const maxNodes = Math.max(1, ...entries.map(e => e.nodeCount));
-    const chartEl = panel.createDiv();
-    chartEl.style.cssText = "display:flex;align-items:flex-end;gap:2px;height:40px;margin-bottom:6px;";
+    const chartEl = panel.createDiv({ cls: "gi-snapshot-chart" });
     let _selectedSnap: typeof snapshots[0] | null = null;
     const bars: HTMLElement[] = [];
     for (const entry of entries) {
-      const bar = chartEl.createDiv();
+      const bar = chartEl.createDiv({ cls: "gi-snapshot-bar" });
       bars.push(bar);
       const h = Math.max(2, (entry.nodeCount / maxNodes) * 36);
-      bar.style.cssText = `flex:1;height:${h}px;background:var(--interactive-accent);opacity:0.7;border-radius:2px 2px 0 0;cursor:pointer;min-width:8px;`;
+      bar.style.height = `${h}px`;
       bar.title = `${entry.name}: ${entry.nodeCount}n, ${entry.edgeCount}e — Shift+click to compare two`;
       bar.addEventListener("click", (ev: MouseEvent) => {
         const snap = snapshots.find(s => s.name === entry.name);
@@ -1081,13 +1075,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Entry list
     for (const entry of entries) {
-      const row = panel.createDiv();
-      row.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:2px 0;border-bottom:1px solid var(--background-modifier-border-hover,transparent);";
+      const row = panel.createDiv({ cls: "gi-snapshot-row" });
       const displayName = entry.name.replace("[auto] ", "📷 ");
       const dateStr = formatSnapshotDate(entry.createdAt);
-      row.createEl("span", { text: displayName, attr: { style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px;", title: `${entry.name} (${dateStr})` } });
-      row.createEl("span", { text: dateStr, attr: { style: "font-size:9px;color:var(--text-muted);flex-shrink:0;margin:0 4px;" } });
-      const statsEl = row.createDiv({ attr: { style: "display:flex;gap:6px;font-size:10px;flex-shrink:0;" } });
+      row.createEl("span", { text: displayName, cls: "gi-snapshot-row-name", attr: { title: `${entry.name} (${dateStr})` } });
+      row.createEl("span", { text: dateStr, cls: "gi-snapshot-row-date" });
+      const statsEl = row.createDiv({ cls: "gi-snapshot-row-stats" });
       statsEl.createEl("span", { text: `${entry.nodeCount}n` });
       if (entry.nodeDelta !== undefined) {
         const d = formatDelta(entry.nodeDelta);
@@ -1162,10 +1155,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.densityCulledBadgeEl = canvasArea.createDiv({ cls: "gi-density-badge" });
     this.densityCulledBadgeEl.setAttribute("aria-live", "polite");
     this.densityCulledBadgeEl.setAttribute("aria-atomic", "true");
-    this.densityCulledBadgeEl.style.cssText =
-      "display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);" +
-      "padding:2px 10px;border-radius:12px;font-size:11px;pointer-events:none;" +
-      "background:var(--background-modifier-message);color:var(--text-muted);opacity:0.85;z-index:10;";
+    this.densityCulledBadgeEl.style.display = "none";
 
     // --- Graph Statistics Overlay (Feature CX) ---
     this.graphStatsEl = canvasArea.createDiv({ cls: "gi-graph-stats", attr: { role: "status", "aria-label": "Graph statistics", tabindex: "0" } });
@@ -2390,7 +2380,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (meta?.sequenceEdges && meta.sequenceEdges.length > 0) {
       this.graphEdges = [...this.graphEdges, ...meta.sequenceEdges];
     }
-    invalidateBundleCache();
+    invalidateBundleCache(this.edgeCache);
   }
   getNodeProperty(nodeId: string, key: string): string | undefined {
     // Virtual properties (computed, not from frontmatter)
@@ -4395,6 +4385,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this._resolveEdgePos,
       cfg,
       this.arrowGraphics,
+      this.edgeCache,
     );
     // Draw edge labels into dedicated container (on top of edges, below nodes)
     if (this.edgeLabelContainer) {
@@ -5866,7 +5857,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       doRender: () => { this.doRender(); this.requestSave(); },
       doRenderKeepPanel: () => { this.skipPanelRebuildCount++; this.doRender().finally(() => { this.skipPanelRebuildCount = Math.max(0, this.skipPanelRebuildCount - 1); }); this.requestSave(); },
       markDirty: () => {
-        invalidateBundleCache(); this.markDirty(true); this._updateSurpriseTimer(); this.requestSave();
+        invalidateBundleCache(this.edgeCache); this.markDirty(true); this._updateSurpriseTimer(); this.requestSave();
         // Fallback: force render if rAF is throttled (background tabs)
         setTimeout(() => { this.renderPipeline?.forceRender(); }, 100);
       },
@@ -6268,16 +6259,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   private setStatus(t: string) { if (this.statusEl) this.statusEl.textContent = t; }
 
-  /** U2: Build rich status text with mode, counts, and filter info */
+  /** U2: Build rich status text with mode, counts, groups, and filter info */
   private buildRichStatus(nodeCount: number, edgeCount: number): string {
     const parts: string[] = [];
     if (this.panel.localGraphCenter) parts.push("Local");
     else if (this.panel.focusLayout) parts.push("Focus");
     parts.push(`${nodeCount} nodes`);
     if (edgeCount > 0) parts.push(`${edgeCount} edges`);
+    // Show group count if groupBy is active
+    const groupCount = this.panel.collapsedGroups?.size ?? 0;
+    if (groupCount > 0) parts.push(`${groupCount} groups`);
     if (this.panel.searchQuery) {
       const mode = this.panel.searchMode === "highlight" ? "HL" : "F";
       parts.push(`[${mode}: ${this.panel.searchQuery.slice(0, 20)}]`);
+    }
+    // Show view mode if not default graph
+    if (this.panel.viewMode && this.panel.viewMode !== "graph") {
+      parts.push(this.panel.viewMode);
     }
     return parts.join(" \u00B7 ");
   }
@@ -7180,7 +7178,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.savedPositions.clear();
 
     this.graphEdges = gd.edges;
-    invalidateBundleCache();
+    invalidateBundleCache(this.edgeCache);
 
     // Generate phantom junction nodes for road network routing.
     // Phantom nodes participate in the same simulation as real nodes
@@ -7435,7 +7433,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     signal: AbortSignal,
   ): Promise<void> {
     this.graphEdges = ld.edges;
-    invalidateBundleCache();
+    invalidateBundleCache(this.edgeCache);
     this.setStatus(`Creating ${ld.nodes.length} nodes...`);
     await yieldFrame(); if (signal.aborted) return;
 

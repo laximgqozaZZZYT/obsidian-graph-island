@@ -1185,7 +1185,7 @@ export function shortestAngleDelta(a: number, b: number): number {
 // ---------------------------------------------------------------------------
 // Consolidated edge render cache — replaces scattered module-level let vars
 // ---------------------------------------------------------------------------
-class EdgeRenderCache {
+export class EdgeRenderCache {
   groupBBox = new Map<string, GroupBBox | null>();
   graphCenter: { x: number; y: number } | null = null;
   intraCable: { cables: IntraGroupCable[]; handledEdgeIds: Set<string> } | null = null;
@@ -1250,13 +1250,14 @@ function computeGroupPorts(
   polarCenter?: { x: number; y: number },
   resolvePos?: (ref: string | object) => Pos | undefined,
   nodeClusterMap?: Map<string, string>,
+  cache: EdgeRenderCache = _cache,
 ): Map<string, GroupPort> {
   const ports: Map<string, GroupPort> = new Map();
   const isPolar = coordinateSystem === "polar";
 
   // Compute graph center from all centroids
   const graphCenter = polarCenter ?? computeGraphCenter(centroids);
-  _cache.graphCenter = graphCenter;
+  cache.graphCenter = graphCenter;
 
   // Estimate margin from node spacing (will be refined per-group if resolvePos available)
   const defaultMargin = 30;
@@ -1301,7 +1302,7 @@ function computeGroupPorts(
         if (minDist < Infinity) margin = minDist * 0.5;
       }
       bbox = computeGroupBBox(gk, resolvePos, nodeClusterMap, margin);
-      _cache.groupBBox.set(gk, bbox);
+      cache.groupBBox.set(gk, bbox);
     }
 
     if (bbox) {
@@ -1872,6 +1873,7 @@ function buildIntraGroupCables(
   resolvePos: (ref: string | object) => Pos | undefined,
   cfg: EdgeDrawConfig,
   groupPorts: Map<string, GroupPort>,
+  cache: EdgeRenderCache = _cache,
 ): { cables: IntraGroupCable[]; handledEdgeIds: Set<string> } {
   const cables: IntraGroupCable[] = [];
   const handledEdgeIds = new Set<string>();
@@ -1913,7 +1915,7 @@ function buildIntraGroupCables(
   const isPolar = cfg.coordinateSystem === "polar";
   const groupPerimeters = new Map<string, GroupPerimInfo>();
 
-  const graphCenter = _cache.graphCenter ?? computeGraphCenter(clusterCentroids);
+  const graphCenter = cache.graphCenter ?? computeGraphCenter(clusterCentroids);
 
   // Collect all group keys that need perimeter info
   const allGroupKeys = new Set<string>();
@@ -1922,7 +1924,7 @@ function buildIntraGroupCables(
 
   for (const groupKey of allGroupKeys) {
     // Try cached bbox first
-    let bbox = _cache.groupBBox.get(groupKey) ?? null;
+    let bbox = cache.groupBBox.get(groupKey) ?? null;
     if (!bbox) {
       // Estimate margin from node spacing
       const positions: { x: number; y: number }[] = [];
@@ -1943,7 +1945,7 @@ function buildIntraGroupCables(
         if (minDist < Infinity) margin = minDist * 0.5;
       }
       bbox = computeGroupBBox(groupKey, resolvePos, nodeClusterMap, margin);
-      _cache.groupBBox.set(groupKey, bbox);
+      cache.groupBBox.set(groupKey, bbox);
     }
     if (!bbox) continue;
 
@@ -2557,8 +2559,8 @@ const BUNDLE_SKIP = 3;
 
 /** Mark the direction bundle cache as stale (call when edges, visibility, or
  *  layout change significantly — e.g. toggling edge types, loading new data). */
-export function invalidateBundleCache(): void {
-  _cache.invalidateBundles();
+export function invalidateBundleCache(cache?: EdgeRenderCache): void {
+  (cache ?? _cache).invalidateBundles();
   invalidatePathCache();
 }
 
@@ -2727,6 +2729,7 @@ function drawEdgeSegment(
   bundles: Map<string, BundleGroup> | null,
   bundleStrength: number,
   roadNetwork?: RoadNetwork | null,
+  cache: EdgeRenderCache = _cache,
 ): void {
   // Road routing: all edge types follow roads when available.
   // Waypoints are connected with smooth quadratic curves (not straight segments)
@@ -2735,15 +2738,15 @@ function drawEdgeSegment(
     const srcId = edgeSourceId(e);
     const tgtId = edgeTargetId(e);
     // Cache route lookups (invalidate when network reference changes)
-    if (roadNetwork !== _cache.roadRouteNetwork) {
-      _cache.roadRoute.clear();
-      _cache.roadRouteNetwork = roadNetwork;
+    if (roadNetwork !== cache.roadRouteNetwork) {
+      cache.roadRoute.clear();
+      cache.roadRouteNetwork = roadNetwork;
     }
     const cacheKey = srcId < tgtId ? `${srcId}|${tgtId}` : `${tgtId}|${srcId}`;
-    let waypoints = _cache.roadRoute.get(cacheKey);
+    let waypoints = cache.roadRoute.get(cacheKey);
     if (!waypoints) {
       waypoints = routeEdge(roadNetwork, srcId, tgtId);
-      _cache.roadRoute.set(cacheKey, waypoints);
+      cache.roadRoute.set(cacheKey, waypoints);
     }
     if (waypoints.length >= 2) {
       // Build full point sequence: source → waypoints → target
@@ -2928,17 +2931,18 @@ function prepareBundles(
   edges: GraphEdge[],
   resolvePos: (ref: string | object) => Pos | undefined,
   cfg: EdgeDrawConfig,
+  cache: EdgeRenderCache = _cache,
 ): Map<string, BundleGroup> | null {
   const bundleStrength = cfg.bundleStrength;
   if (bundleStrength <= 0) return null;
 
-  _cache.bundleFrameCount++;
-  if (_cache.bundleDirty || !_cache.bundle || _cache.bundleFrameCount >= BUNDLE_SKIP) {
-    _cache.bundle = buildDirectionBundles(edges, resolvePos, cfg);
-    _cache.bundleDirty = false;
-    _cache.bundleFrameCount = 0;
+  cache.bundleFrameCount++;
+  if (cache.bundleDirty || !cache.bundle || cache.bundleFrameCount >= BUNDLE_SKIP) {
+    cache.bundle = buildDirectionBundles(edges, resolvePos, cfg);
+    cache.bundleDirty = false;
+    cache.bundleFrameCount = 0;
   }
-  return _cache.bundle;
+  return cache.bundle;
 }
 
 /** Compute polar center from all cluster centroids (for polar coordinate system). */
@@ -2960,12 +2964,13 @@ interface CablePrepResult {
 
 /**
  * Prepare cable trunks and intra-group cables (cached).
- * Updates _cache.cable, _cache.intraCable, _cache.portColorLanes as needed.
+ * Updates cache.cable, cache.intraCable, cache.portColorLanes as needed.
  */
 function prepareCables(
   edges: GraphEdge[],
   resolvePos: (ref: string | object) => Pos | undefined,
   cfg: EdgeDrawConfig,
+  cache: EdgeRenderCache = _cache,
 ): CablePrepResult {
   const clustersAvailable = !!(cfg.nodeClusterMap && cfg.clusterCentroids && cfg.clusterRadii);
   const cableMode = cfg.cableBundleMode ?? "auto";
@@ -2980,21 +2985,21 @@ function prepareCables(
   // Auto-invalidate when centroid count changes or on bundle skip cycle
   // (ensures cable paths update as nodes spread during simulation)
   const curCentroidCount = cfg.clusterCentroids?.size ?? 0;
-  if (curCentroidCount !== _cache.cableCentroidCount) {
-    _cache.cableDirty = true;
-    _cache.intraCableDirty = true;
-    _cache.portColorLanes = null;
-    _cache.cableCentroidCount = curCentroidCount;
+  if (curCentroidCount !== cache.cableCentroidCount) {
+    cache.cableDirty = true;
+    cache.intraCableDirty = true;
+    cache.portColorLanes = null;
+    cache.cableCentroidCount = curCentroidCount;
   }
-  if (_cache.bundleFrameCount === 0) {
-    _cache.cableDirty = true;
-    _cache.intraCableDirty = true;
-    _cache.portColorLanes = null;
+  if (cache.bundleFrameCount === 0) {
+    cache.cableDirty = true;
+    cache.intraCableDirty = true;
+    cache.portColorLanes = null;
   }
 
   const polarCenter = computePolarCenter(cfg);
 
-  if (_cache.cableDirty || !_cache.cable) {
+  if (cache.cableDirty || !cache.cable) {
     // Pre-compute group ports for buildTrunks
     const centroids = cfg.clusterCentroids!;
     const radii = cfg.clusterRadii!;
@@ -3010,25 +3015,25 @@ function prepareCables(
       connections.get(sg)!.add(tg);
       connections.get(tg)!.add(sg);
     }
-    _cache.groupBBox.clear(); // clear bbox cache when recomputing ports
-    const allGroupPorts = computeGroupPorts(groupKeys, centroids, radii, connections, cfg.coordinateSystem, polarCenter, resolvePos, cfg.nodeClusterMap ?? undefined);
-    _cache.cachedGroupPorts = allGroupPorts;
-    _cache.cable = buildTrunks(edges, resolvePos, cfg, allGroupPorts);
-    _cache.cableDirty = false;
+    cache.groupBBox.clear(); // clear bbox cache when recomputing ports
+    const allGroupPorts = computeGroupPorts(groupKeys, centroids, radii, connections, cfg.coordinateSystem, polarCenter, resolvePos, cfg.nodeClusterMap ?? undefined, cache);
+    cache.cachedGroupPorts = allGroupPorts;
+    cache.cable = buildTrunks(edges, resolvePos, cfg, allGroupPorts);
+    cache.cableDirty = false;
   }
 
-  const cabledEdgeIds = _cache.cable.cabledEdgeIds;
+  const cabledEdgeIds = cache.cable.cabledEdgeIds;
 
   // Intra-group cable wiring
   let intraHandledIds = new Set<string>();
-  if (_cache.cable) {
-    if (_cache.intraCableDirty || !_cache.intraCable) {
+  if (cache.cable) {
+    if (cache.intraCableDirty || !cache.intraCable) {
       // Compute group ports for intra-group cables
-      if (!_cache.cachedGroupPorts) {
+      if (!cache.cachedGroupPorts) {
         const centroids = cfg.clusterCentroids!;
         const radii = cfg.clusterRadii!;
         const connections = new Map<string, Set<string>>();
-        for (const trunk of _cache.cable.trunks) {
+        for (const trunk of cache.cable.trunks) {
           if (!connections.has(trunk.srcGroup)) connections.set(trunk.srcGroup, new Set());
           if (!connections.has(trunk.tgtGroup)) connections.set(trunk.tgtGroup, new Set());
           connections.get(trunk.srcGroup)!.add(trunk.tgtGroup);
@@ -3036,21 +3041,21 @@ function prepareCables(
         }
         const groupKeys = new Set(cfg.nodeClusterMap!.values());
         const pc = computePolarCenter(cfg);
-        _cache.cachedGroupPorts = computeGroupPorts(groupKeys, centroids, radii, connections, cfg.coordinateSystem, pc, resolvePos, cfg.nodeClusterMap ?? undefined);
+        cache.cachedGroupPorts = computeGroupPorts(groupKeys, centroids, radii, connections, cfg.coordinateSystem, pc, resolvePos, cfg.nodeClusterMap ?? undefined, cache);
       }
-      _cache.intraCable = buildIntraGroupCables(edges, resolvePos, cfg, _cache.cachedGroupPorts);
-      _cache.intraCableDirty = false;
-      _cache.portColorLanes = null; // invalidate shared mapping
+      cache.intraCable = buildIntraGroupCables(edges, resolvePos, cfg, cache.cachedGroupPorts, cache);
+      cache.intraCableDirty = false;
+      cache.portColorLanes = null; // invalidate shared mapping
     }
 
     // Build shared port color lane mapping (after both caches are ready)
-    if (!_cache.portColorLanes && _cache.cachedGroupPorts) {
-      _cache.portColorLanes = buildPortColorLanes(
-        _cache.cable.trunks, _cache.intraCable.cables, cfg, _cache.cachedGroupPorts,
+    if (!cache.portColorLanes && cache.cachedGroupPorts) {
+      cache.portColorLanes = buildPortColorLanes(
+        cache.cable.trunks, cache.intraCable.cables, cfg, cache.cachedGroupPorts,
       );
     }
 
-    intraHandledIds = _cache.intraCable.handledEdgeIds;
+    intraHandledIds = cache.intraCable.handledEdgeIds;
   }
 
   return { hasClusters, cabledEdgeIds, intraHandledIds };
@@ -3065,22 +3070,23 @@ function drawCables(
   cfg: EdgeDrawConfig,
   densityScale: number,
   cablePrep: CablePrepResult,
+  cache: EdgeRenderCache = _cache,
 ): void {
-  if (cablePrep.hasClusters && _cache.cable) {
+  if (cablePrep.hasClusters && cache.cable) {
     // Draw all cable wires. When highlighting, drawTrunks and drawIntraGroupCables
     // internally do 2-pass (dim first, bright on top) for z-order.
-    if (_cache.cable.trunks.length > 0) {
-      drawTrunks(g, _cache.cable.trunks, cfg, densityScale, _cache.portColorLanes ?? undefined);
+    if (cache.cable.trunks.length > 0) {
+      drawTrunks(g, cache.cable.trunks, cfg, densityScale, cache.portColorLanes ?? undefined);
     }
-    if (_cache.intraCable && _cache.intraCable.cables.length > 0) {
-      drawIntraGroupCables(g, _cache.intraCable.cables, cfg, densityScale, _cache.portColorLanes ?? undefined);
+    if (cache.intraCable && cache.intraCable.cables.length > 0) {
+      drawIntraGroupCables(g, cache.intraCable.cables, cfg, densityScale, cache.portColorLanes ?? undefined);
     }
     // Final bright pass: redraw bright trunk wires on top of everything
-    if (cfg.highlightedNodeId && _cache.cable.trunks.length > 0) {
-      drawTrunks(g, _cache.cable.trunks, cfg, densityScale, _cache.portColorLanes ?? undefined, "bright");
+    if (cfg.highlightedNodeId && cache.cable.trunks.length > 0) {
+      drawTrunks(g, cache.cable.trunks, cfg, densityScale, cache.portColorLanes ?? undefined, "bright");
     }
-  } else if (_cache.cable && _cache.cable.trunks.length > 0) {
-    drawTrunks(g, _cache.cable.trunks, cfg, densityScale);
+  } else if (cache.cable && cache.cable.trunks.length > 0) {
+    drawTrunks(g, cache.cable.trunks, cfg, densityScale);
   }
 }
 
@@ -3102,7 +3108,9 @@ export function drawEdges(
   resolvePos: (ref: string | object) => Pos | undefined,
   cfg: EdgeDrawConfig,
   arrowGfx?: CanvasGraphics | null,
+  cache?: EdgeRenderCache,
 ): void {
+  const c = cache ?? _cache;
   // Skip edge drawing at extreme zoom-out for performance.
   // Use visibility toggle instead of clear() to preserve draw commands
   // for instant recovery when zooming back in.
@@ -3139,23 +3147,23 @@ export function drawEdges(
   const pairCount = cfg.edgeWeightThickness ? buildPairCounts(filtered) : null;
 
   // Pre-compute direction x color bundles for highway-style edge merging
-  const bundles = prepareBundles(filtered, resolvePos, cfg);
+  const bundles = prepareBundles(filtered, resolvePos, cfg, c);
   // Zoom-adaptive bundling: increase strength at zoom-out for visual tidiness
   const edgeFadeZ = cfg.edgeZoomFadeThreshold ?? 0.5;
   const zoomBoost = ws < edgeFadeZ ? Math.min(0.3, (edgeFadeZ - ws) * 0.6) : 0;
   const bundleStrength = Math.min(1, cfg.bundleStrength + zoomBoost);
 
   // Cable trunks and intra-group cables
-  const cablePrep = prepareCables(filtered, resolvePos, cfg);
-  drawCables(g, cfg, densityScale, cablePrep);
+  const cablePrep = prepareCables(filtered, resolvePos, cfg, c);
+  drawCables(g, cfg, densityScale, cablePrep, c);
 
   // レイヤー分離モード: 種別ごとに描画パスを分けて z-order を制御
   if (cfg.edgeLayerMode) {
     _drawEdgesLayered(g, filtered, resolvePos, cfg, useRelColor, isArcLayout,
-      densityScale, pairCount, bundles, bundleStrength, cablePrep, arrowGfx);
+      densityScale, pairCount, bundles, bundleStrength, cablePrep, arrowGfx, c);
   } else {
     _drawEdgesSinglePass(g, filtered, resolvePos, cfg, useRelColor, isArcLayout,
-      densityScale, pairCount, bundles, bundleStrength, cablePrep, arrowGfx);
+      densityScale, pairCount, bundles, bundleStrength, cablePrep, arrowGfx, c);
   }
 }
 
@@ -3173,6 +3181,7 @@ function _drawEdgesSinglePass(
   bundleStrength: number,
   cablePrep: CablePrepResult,
   arrowGfx?: CanvasGraphics | null,
+  cache: EdgeRenderCache = _cache,
 ): void {
   for (const e of edges) {
     const isCabled = cablePrep.cabledEdgeIds.has(e.id) || cablePrep.intraHandledIds.has(e.id);
@@ -3213,7 +3222,7 @@ function _drawEdgesSinglePass(
     g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
     const hasDash = applyDashPattern(g, e, lineThick);
 
-    drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength, cfg.roadNetwork);
+    drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength, cfg.roadNetwork, cache);
     drawEdgeDecorations(g, e, src, tgt, lineColor, alpha, cfg, arrowGfx);
 
     if (hasDash) g.setLineDash([]);
@@ -3283,6 +3292,7 @@ function _drawEdgesLayered(
   bundleStrength: number,
   cablePrep: CablePrepResult,
   arrowGfx?: CanvasGraphics | null,
+  cache: EdgeRenderCache = _cache,
 ): void {
   // レイヤー順にエッジを描画
   for (let li = 0; li < EDGE_LAYER_ORDER.length; li++) {
@@ -3324,7 +3334,7 @@ function _drawEdgesLayered(
       g.lineStyle({ width: layerWidth, color: lineColor, alpha: layerAlpha, native: true });
       const hasDash = applyDashPattern(g, e, layerWidth);
 
-      drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength, cfg.roadNetwork);
+      drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength, cfg.roadNetwork, cache);
       drawEdgeDecorations(g, e, src, tgt, lineColor, layerAlpha, cfg, arrowGfx);
 
       if (hasDash) g.setLineDash([]);
