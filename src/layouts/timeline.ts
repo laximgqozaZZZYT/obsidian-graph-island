@@ -27,8 +27,9 @@ const DEFAULT_START_Y = 60;
 const DEFAULT_STACK_SPACING = 20;
 /** Maximum desired columns before auto-shrinking step width */
 const MAX_DESIRED_COLS = 40;
-/** Minimum step width when auto-shrinking (px) */
-const MIN_STEP_WIDTH = 20;
+/** Minimum step width when auto-shrinking (px).
+ *  Set to 1 to allow viewMode-computed stepWidth to pass through. */
+const MIN_STEP_WIDTH = 1;
 /** Horizontal spacing factor for untimed nodes (fraction of effectiveStepWidth) */
 const UNTIMED_NODE_SPACING_FACTOR = 0.6;
 

@@ -174,6 +174,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Betweenness centrality cache — recomputed when rawData changes */
   private _betweennessCache: Map<string, number> | null = null;
   private _betweennessCacheRef: GraphData | null = null;
+  /** Articulation point cache — recomputed when rawData changes */
+  private _articulationCache: Set<string> | null = null;
+  private _articulationCacheRef: GraphData | null = null;
   private ac: AbortController | null = null;
   private statusEl: HTMLElement | null = null;
   private zoomIndicatorEl: HTMLElement | null = null;
@@ -3399,12 +3402,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return result;
   }
 
-  /** RenderHost: articulation point IDs */
+  /** RenderHost: articulation point IDs (cached per rawData) */
   getArticulationPointIds(): Set<string> | null {
     if (!this.panel.highlightPatterns) return null;
+    if (this._articulationCacheRef === this.rawData && this._articulationCache) {
+      return this._articulationCache;
+    }
     const gd = this.getGraphData();
     if (!gd || gd.nodes.length === 0) return null;
-    return detectArticulationPoints(gd.nodes, gd.edges);
+    this._articulationCache = detectArticulationPoints(gd.nodes, gd.edges);
+    this._articulationCacheRef = this.rawData;
+    return this._articulationCache;
   }
 
   /** RenderHost + StatsHost: betweenness centrality cache (lazy computation) */
