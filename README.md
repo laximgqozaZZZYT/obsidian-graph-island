@@ -241,7 +241,7 @@ src/
 
 ### Tests
 
-1500+ unit tests across 68 test files covering:
+2327+ unit tests across 95 test files covering:
 
 - Edge rendering, enclosure hull, geometry, graph helpers
 - Query expression, transform expression parser
@@ -254,6 +254,13 @@ src/
 
 349+ E2E tests (CDP-based, Obsidian live testing)
 
+## What's New in v0.5
+
+- **Lasso selection**: Draw a freeform loop around nodes to select them as a group
+- **Subgraph view**: Drill into selected nodes as an isolated subgraph with back-navigation stack
+- **Pure function extraction**: 13 functions extracted from view layer for testability (GVC + LabelManager)
+- **2327+ unit tests**: Coverage thresholds S28.7/B27.4/F25.3/L28.4
+
 ## What's New in v0.4
 
 - **5 Visualization Modes**: Switch between Graph, Sunburst, Timeline, Tree, and Matrix views via the toolbar
@@ -262,7 +269,6 @@ src/
 - **Matrix adjacency table**: Full-screen node-to-node connection table with color-intensity cells; click to jump to Graph mode
 - **Tree horizontal layout**: Left-to-right hierarchical tree with canvas-fit scaling
 - **Mode-aware panel**: Settings sections automatically show/hide based on the active viewMode
-- **2300+ unit tests**: Coverage thresholds S28.5/B27/F25/L28.4
 
 ## What's New in v0.3.1
 
