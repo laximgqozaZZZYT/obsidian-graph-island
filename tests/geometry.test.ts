@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { convexHull, computeBoundingBox, computeBBoxWithCentroid, clamp } from "../src/utils/geometry";
+import { convexHull, computeBoundingBox, computeBBoxWithCentroid, clamp, rectsOverlap, magnitude } from "../src/utils/geometry";
 
 describe("convexHull", () => {
   it("returns empty for no points", () => {
@@ -163,6 +163,86 @@ describe("convexHull — large scale", () => {
     const pts = Array.from({ length: 50 }, () => ({ x: 7, y: 3 }));
     const hull = convexHull(pts);
     expect(hull.length).toBeLessThanOrEqual(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// rectsOverlap — AABB collision detection
+// ---------------------------------------------------------------------------
+describe("rectsOverlap", () => {
+  it("detects overlapping rectangles", () => {
+    const a = { x: 0, y: 0, w: 10, h: 10 };
+    const b = { x: 5, y: 5, w: 10, h: 10 };
+    expect(rectsOverlap(a, b)).toBe(true);
+  });
+
+  it("returns false for non-overlapping (side by side)", () => {
+    const a = { x: 0, y: 0, w: 10, h: 10 };
+    const b = { x: 20, y: 0, w: 10, h: 10 };
+    expect(rectsOverlap(a, b)).toBe(false);
+  });
+
+  it("returns false for non-overlapping (above/below)", () => {
+    const a = { x: 0, y: 0, w: 10, h: 10 };
+    const b = { x: 0, y: 20, w: 10, h: 10 };
+    expect(rectsOverlap(a, b)).toBe(false);
+  });
+
+  it("returns false for touching edges (not overlapping)", () => {
+    const a = { x: 0, y: 0, w: 10, h: 10 };
+    const b = { x: 10, y: 0, w: 10, h: 10 }; // touching at x=10
+    expect(rectsOverlap(a, b)).toBe(false);
+  });
+
+  it("detects containment (one inside the other)", () => {
+    const outer = { x: 0, y: 0, w: 100, h: 100 };
+    const inner = { x: 10, y: 10, w: 5, h: 5 };
+    expect(rectsOverlap(outer, inner)).toBe(true);
+    expect(rectsOverlap(inner, outer)).toBe(true);
+  });
+
+  it("zero-size rect inside another counts as overlap (degenerate point)", () => {
+    const a = { x: 5, y: 5, w: 0, h: 0 };
+    const b = { x: 0, y: 0, w: 10, h: 10 };
+    expect(rectsOverlap(a, b)).toBe(true); // point at (5,5) inside b
+  });
+
+  it("zero-size rect outside another does not overlap", () => {
+    const a = { x: 15, y: 15, w: 0, h: 0 };
+    const b = { x: 0, y: 0, w: 10, h: 10 };
+    expect(rectsOverlap(a, b)).toBe(false);
+  });
+
+  it("handles negative coordinates", () => {
+    const a = { x: -10, y: -10, w: 15, h: 15 };
+    const b = { x: -5, y: -5, w: 10, h: 10 };
+    expect(rectsOverlap(a, b)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// magnitude — Euclidean distance
+// ---------------------------------------------------------------------------
+describe("magnitude", () => {
+  it("returns 0 for zero vector", () => {
+    expect(magnitude(0, 0)).toBe(0);
+  });
+
+  it("returns correct value for 3-4-5 triangle", () => {
+    expect(magnitude(3, 4)).toBe(5);
+  });
+
+  it("handles negative deltas", () => {
+    expect(magnitude(-3, -4)).toBe(5);
+  });
+
+  it("handles axis-aligned vectors", () => {
+    expect(magnitude(7, 0)).toBe(7);
+    expect(magnitude(0, 13)).toBe(13);
+  });
+
+  it("returns correct value for unit diagonal", () => {
+    expect(magnitude(1, 1)).toBeCloseTo(Math.SQRT2, 10);
   });
 });
 
