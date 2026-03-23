@@ -403,20 +403,9 @@ export class LabelManager {
     }
   }
 
-  /** Extract 2-character initials from a label string.
-   *  Uses path separators (/) and hyphens (-) to find segment boundaries.
-   *  E.g. "classic-othello/characters" → "OC", "mythology" → "MY" */
+  /** Delegate to the exported pure function. */
   private _extractInitials(text: string): string {
-    // Remove group suffix like " (15)"
-    const clean = text.replace(/\s*\(\d+\)$/, "");
-    // Split by path separator and hyphens
-    const segments = clean.split(/[/\-_\s]+/).filter(s => s.length > 0);
-    if (segments.length >= 2) {
-      // Take first letter of last two meaningful segments
-      return (segments[segments.length - 2][0] + segments[segments.length - 1][0]).toUpperCase();
-    }
-    // Single word: take first two characters
-    return clean.slice(0, 2).toUpperCase();
+    return extractInitials(text);
   }
 
   /** AP-5 diversity guarantee (promote non-super nodes) and apply maxVisible cap. */
@@ -554,4 +543,24 @@ export class LabelManager {
       }
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Exported pure helpers (extracted from LabelManager for testability)
+// ---------------------------------------------------------------------------
+
+/** Extract 2-character initials from a label string.
+ *  Uses path separators (/) and hyphens (-) to find segment boundaries.
+ *  E.g. "classic-othello/characters" → "OC", "mythology" → "MY" */
+export function extractInitials(text: string): string {
+  // Remove group suffix like " (15)"
+  const clean = text.replace(/\s*\(\d+\)$/, "");
+  // Split by path separator and hyphens
+  const segments = clean.split(/[/\-_\s]+/).filter(s => s.length > 0);
+  if (segments.length >= 2) {
+    // Take first letter of last two meaningful segments
+    return (segments[segments.length - 2][0] + segments[segments.length - 1][0]).toUpperCase();
+  }
+  // Single word: take first two characters
+  return clean.slice(0, 2).toUpperCase();
 }

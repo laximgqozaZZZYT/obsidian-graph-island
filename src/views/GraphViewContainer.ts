@@ -81,6 +81,8 @@ export interface StatsHost {
   announceA11y(msg: string): void;
   /** Betweenness centrality cache (may be undefined) */
   getBetweennessCache(): Map<string, number> | undefined;
+  /** Node spatial overlap ratio (0-1, sampled from current positions) */
+  getNodeOverlapRatio(): number;
 }
 
 /**
@@ -6169,6 +6171,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getCurrentFps(): number { return this.renderPipeline?.currentFps ?? 0; }
   announceA11y(msg: string): void { this._announceA11y(msg); }
   invalidateAndRebuild(): void { this.rawData = null; this.doRender(); this.buildPanel(); }
+
+  getNodeOverlapRatio(): number {
+    if (this.pixiNodes.size < 2) return 0;
+    const nodes: { id: string; x: number; y: number }[] = [];
+    const radii = new Map<string, number>();
+    for (const [id, pn] of this.pixiNodes) {
+      nodes.push({ id, x: pn.data.x, y: pn.data.y });
+      radii.set(id, pn.radius);
+    }
+    return analyzeOverlap(nodes, radii, 3).overlapRatio;
+  }
 
   // --- LegendHost bridge ---
   private _legendHost: LegendHost = {

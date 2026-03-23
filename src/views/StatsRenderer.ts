@@ -86,6 +86,15 @@ export function renderGraphStats(
   addRow(t("stats.orphanRate"), (stats.orphanRate * 100).toFixed(1) + "%");
   addRow(t("stats.tagCoverage"), (stats.tagCoverage * 100).toFixed(1) + "%");
 
+  // Node overlap ratio
+  const overlapRatio = host.getNodeOverlapRatio();
+  const overlapPct = (overlapRatio * 100).toFixed(1) + "%";
+  const overlapRow = addRow(t("stats.overlap") ?? "Overlap", overlapPct);
+  if (overlapRatio > 0.1) {
+    overlapRow.style.color = "var(--text-warning, #d4a017)";
+    overlapRow.title = "High overlap — try increasing node spacing or enabling auto-optimize";
+  }
+
   // HI: Edge density warning
   if (stats.edgeCount > 5000) {
     const warn = el.createEl("div", { cls: "gi-stats-warn", attr: { role: "alert" } });

@@ -751,6 +751,7 @@ const en: TranslationMap = {
   // --- Feature DB: Vault Health Scorecard ---
   "stats.orphanRate": "Orphan Rate",
   "stats.tagCoverage": "Tag Coverage",
+  "stats.overlap": "Node Overlap",
   "stats.edgeTypes": "Edge Types",
 
   // --- Feature CY: Subgraph Export ---
@@ -1580,6 +1581,7 @@ const ja: TranslationMap = {
   // --- Feature DB: Vault Health Scorecard ---
   "stats.orphanRate": "孤立率",
   "stats.tagCoverage": "タグカバレッジ",
+  "stats.overlap": "ノード重なり",
   "stats.edgeTypes": "エッジ種別",
 
   // --- Feature CY: サブグラフエクスポート ---
