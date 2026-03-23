@@ -4,7 +4,10 @@
  */
 import { describe, it, expect } from "vitest";
 import { parseQueryExpr, evaluateExpr } from "../src/utils/query-expr";
-import { filterOrphans, filterTagNodes as filterTagNodesFn, filterByDegree, filterEdgesByNodeSet } from "../src/utils/graph-filter";
+import {
+  filterOrphans, filterTagNodes as filterTagNodesFn, filterByDegree,
+  filterEdgesByNodeSet, applyVisibilityFilters, filterExcludedNodes,
+} from "../src/utils/graph-filter";
 import type { GraphNode, GraphEdge } from "../src/types";
 
 // --- Test data factory ---
@@ -161,5 +164,105 @@ describe("edge re-filter by node set", () => {
     expect(result).toHaveLength(1);
     expect(result[0].source).toBe("a.md");
     expect(result[0].target).toBe("b.md");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyVisibilityFilters — composite pipeline (cycle115)
+// ---------------------------------------------------------------------------
+describe("applyVisibilityFilters pipeline", () => {
+  const allOpts = {
+    showOrphans: true,
+    showAttachments: true,
+    includeTagsInData: true,
+    showTagNodes: true,
+    tagDisplay: "node",
+    showSimilar: true,
+  };
+
+  it("passes everything through when all options are true", () => {
+    const nodes = [makeNode("a.md"), makeNode("b.md"), makeNode("#tag", { isTag: true } as any)];
+    (nodes[2] as any).isTag = true;
+    const edges = [makeEdge("a.md", "b.md"), makeEdge("a.md", "#tag", "has-tag")];
+    const result = applyVisibilityFilters(nodes, edges, allOpts);
+    expect(result.nodes).toHaveLength(3);
+    expect(result.edges).toHaveLength(2);
+  });
+
+  it("removes orphans when showOrphans=false", () => {
+    const nodes = [makeNode("a.md"), makeNode("b.md"), makeNode("orphan.md")];
+    const edges = [makeEdge("a.md", "b.md")];
+    const result = applyVisibilityFilters(nodes, edges, { ...allOpts, showOrphans: false });
+    expect(result.nodes.map(n => n.id)).toEqual(["a.md", "b.md"]);
+  });
+
+  it("removes tag nodes when includeTagsInData=false", () => {
+    const nodes = [makeNode("a.md"), makeNode("#tag")];
+    (nodes[1] as any).isTag = true;
+    const edges = [makeEdge("a.md", "#tag", "has-tag")];
+    const result = applyVisibilityFilters(nodes, edges, { ...allOpts, includeTagsInData: false });
+    expect(result.nodes.every(n => !(n as any).isTag)).toBe(true);
+    expect(result.edges.every(e => e.type !== "has-tag")).toBe(true);
+  });
+
+  it("removes similar edges when showSimilar=false", () => {
+    const nodes = [makeNode("a.md"), makeNode("b.md")];
+    const edges = [makeEdge("a.md", "b.md", "link"), makeEdge("a.md", "b.md", "similar")];
+    const result = applyVisibilityFilters(nodes, edges, { ...allOpts, showSimilar: false });
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0].type).toBe("link");
+  });
+
+  it("combined: orphan filter + tag filter", () => {
+    // Pipeline order: orphan first → tag second
+    // orphan filter sees connected.md as connected (has-tag edge exists) → keeps it
+    // tag filter then removes #tag node + has-tag edges
+    // Result: connected.md survives, orphan.md doesn't
+    const nodes = [makeNode("connected.md"), makeNode("orphan.md"), makeNode("#tag")];
+    (nodes[2] as any).isTag = true;
+    const edges = [makeEdge("connected.md", "#tag", "has-tag")];
+    const result = applyVisibilityFilters(nodes, edges, {
+      ...allOpts,
+      showOrphans: false,
+      includeTagsInData: false,
+    });
+    // connected.md survives orphan pass (had an edge), then tag nodes removed
+    expect(result.nodes.map(n => n.id)).toContain("connected.md");
+    expect(result.nodes.every(n => !(n as any).isTag)).toBe(true);
+  });
+
+  it("empty graph passes through without error", () => {
+    const result = applyVisibilityFilters([], [], allOpts);
+    expect(result.nodes).toEqual([]);
+    expect(result.edges).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterExcluded — node exclusion
+// ---------------------------------------------------------------------------
+describe("filterExcluded", () => {
+  it("removes nodes in excludeIds set", () => {
+    const nodes = [makeNode("a.md"), makeNode("b.md"), makeNode("c.md")];
+    const edges = [makeEdge("a.md", "b.md"), makeEdge("b.md", "c.md")];
+    const result = filterExcludedNodes(nodes, edges, ["b.md"]);
+    expect(result.nodes.map(n => n.id)).toEqual(["a.md", "c.md"]);
+    // Both edges involving b.md are removed
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it("no-op when excludeIds is empty", () => {
+    const nodes = [makeNode("a.md"), makeNode("b.md")];
+    const edges = [makeEdge("a.md", "b.md")];
+    const result = filterExcludedNodes(nodes, edges, []);
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges).toHaveLength(1);
+  });
+
+  it("handles excluding non-existent node ID", () => {
+    const nodes = [makeNode("a.md")];
+    const edges: GraphEdge[] = [];
+    const result = filterExcludedNodes(nodes, edges, ["nonexistent.md"]);
+    expect(result.nodes).toHaveLength(1);
   });
 });

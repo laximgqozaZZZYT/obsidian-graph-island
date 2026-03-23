@@ -28,6 +28,20 @@ function markAsCardText(t: CanvasText): CardText {
   return t as CardText;
 }
 
+const CARD_FONT_FAMILY = "-apple-system, BlinkMacSystemFont, sans-serif";
+
+/** Create a CanvasText marked as card text. */
+function createCardText(
+  str: string, fontSize: number, fill: number,
+  weight: "normal" | "bold" = "normal",
+  style: "normal" | "italic" = "normal",
+): CardText {
+  const t = new CanvasText(str, {
+    fontSize, fill, fontWeight: weight, fontStyle: style, fontFamily: CARD_FONT_FAMILY,
+  });
+  return markAsCardText(t);
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -1204,21 +1218,13 @@ export class RenderPipeline {
         const gfx = pn.gfx;
         this._cleanupCardText(gfx);
         const fontSize = Math.min(Math.max(6, 9 / worldScale), 9 * 8);
-        const nameText = new CanvasText(truncateLabel(pn.data.label, rt.labelMaxChars), {
-          fontSize, fontWeight: "bold", fill: labelColor,
-          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-        });
-        markAsCardText(nameText);
+        const nameText = createCardText(truncateLabel(pn.data.label, rt.labelMaxChars), fontSize, labelColor, "bold");
         nameText.x = -halfW + 2 / worldScale;
         nameText.y = -halfH + 2 / worldScale;
         nameText.maxWidth = cardW - 4 / worldScale;
         gfx.addChild(nameText);
         if (defField && pn.data.meta?.[defField]) {
-          const defText = new CanvasText(String(pn.data.meta[defField]), {
-            fontSize: fontSize * 0.85, fill: labelColor,
-            fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-          });
-          markAsCardText(defText);
+          const defText = createCardText(String(pn.data.meta[defField]), fontSize * 0.85, labelColor);
           defText.x = -halfW + 2 / worldScale;
           defText.y = -halfH + fontSize * 1.3 + 2 / worldScale;
           defText.maxWidth = cardW - 4 / worldScale;
@@ -1247,11 +1253,7 @@ export class RenderPipeline {
         const fontSize = Math.min(Math.max(7, 10 / worldScale), 10 * 8);
         const smallFont = fontSize * 0.85;
         let curY = -halfH + 3 / worldScale;
-        const nameText = new CanvasText(truncateLabel(pn.data.label, rt.labelMaxChars), {
-          fontSize, fontWeight: "bold", fill: contrastColor(pn.color),
-          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-        });
-        markAsCardText(nameText);
+        const nameText = createCardText(truncateLabel(pn.data.label, rt.labelMaxChars), fontSize, contrastColor(pn.color), "bold");
         nameText.x = -halfW + 3 / worldScale;
         nameText.y = curY;
         nameText.maxWidth = cardW - 6 / worldScale;
@@ -1259,11 +1261,7 @@ export class RenderPipeline {
         curY += fontSize * 1.3;
 
         if (defField && pn.data.meta?.[defField]) {
-          const defText = new CanvasText(String(pn.data.meta[defField]), {
-            fontSize: smallFont, fontWeight: "bold", fill: labelColor,
-            fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-          });
-          markAsCardText(defText);
+          const defText = createCardText(String(pn.data.meta[defField]), smallFont, labelColor, "bold");
           defText.x = -halfW + 3 / worldScale;
           defText.y = curY;
           defText.maxWidth = cardW - 6 / worldScale;
@@ -1271,11 +1269,7 @@ export class RenderPipeline {
           curY += smallFont * 1.3;
         }
         if (pn.data.bodyPreview) {
-          const previewText = new CanvasText(pn.data.bodyPreview, {
-            fontSize: smallFont, fontStyle: "italic", fill: labelColor,
-            fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-          });
-          markAsCardText(previewText);
+          const previewText = createCardText(pn.data.bodyPreview, smallFont, labelColor, "normal", "italic");
           previewText.x = -halfW + 3 / worldScale;
           previewText.y = curY;
           previewText.maxWidth = cardW - 6 / worldScale;
@@ -1487,13 +1481,7 @@ export class RenderPipeline {
       const availableTextW = halfW * 2 - textPadX * 2 - iconOffset;
 
       // Header text (bold, white) — apply GD labelMaxChars
-      const headerText = new CanvasText(truncateLabel(pn.data.label, rt.labelMaxChars), {
-        fontSize,
-        fontWeight: "bold",
-        fill: contrastColor(pn.color),
-        fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-      });
-      markAsCardText(headerText);
+      const headerText = createCardText(truncateLabel(pn.data.label, rt.labelMaxChars), fontSize, contrastColor(pn.color), "bold");
       headerText.x = -halfW + textPadX + iconOffset;
       headerText.y = cardY + headerH / 2 + fontSize * crc.fontBaselineOffset;
       if (rt.cardTextTruncation !== false) headerText.maxWidth = availableTextW;
@@ -1504,13 +1492,7 @@ export class RenderPipeline {
       const meta = pn.data.meta ?? {};
       let extraRowOffset = 0;
       if (defField && meta[defField] != null && String(meta[defField]) !== "") {
-        const defText = new CanvasText(String(meta[defField]), {
-          fontSize: smallFontSize,
-          fontWeight: "bold",
-          fill: labelColor,
-          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-        });
-        markAsCardText(defText);
+        const defText = createCardText(String(meta[defField]), smallFontSize, labelColor, "bold");
         defText.x = -halfW + textPadX;
         defText.y = cardY + headerH + extraRowOffset * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
         if (rt.cardTextTruncation !== false) defText.maxWidth = availableTextW;
@@ -1525,12 +1507,7 @@ export class RenderPipeline {
         const rawVal = meta[fieldName];
         const valStr = rawVal == null ? "" : String(rawVal);
         const displayText = fieldValueOnly ? valStr : `${fieldName}: ${valStr}`;
-        const fieldText = new CanvasText(displayText, {
-          fontSize: smallFontSize,
-          fill: labelColor,
-          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-        });
-        markAsCardText(fieldText);
+        const fieldText = createCardText(displayText, smallFontSize, labelColor);
         fieldText.x = -halfW + textPadX;
         fieldText.y = cardY + headerH + (fi + extraRowOffset) * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
         if (rt.cardTextTruncation !== false) fieldText.maxWidth = availableTextW;
@@ -1539,13 +1516,7 @@ export class RenderPipeline {
 
       // M4: Body preview (italic, last line)
       if (pn.data.bodyPreview) {
-        const previewText = new CanvasText(pn.data.bodyPreview, {
-          fontSize: smallFontSize,
-          fontStyle: "italic",
-          fill: labelColor,
-          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-        });
-        markAsCardText(previewText);
+        const previewText = createCardText(pn.data.bodyPreview, smallFontSize, labelColor, "normal", "italic");
         previewText.x = -halfW + textPadX;
         previewText.y = cardY + headerH + (fieldCount2 + extraRowOffset) * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
         previewText.alpha = crc.cardSubTextAlpha;
@@ -1614,11 +1585,7 @@ export class RenderPipeline {
         const titleFill = contrastColor(pn.color);
         const bodyFill = titleFill === 0xffffff ? 0xcccccc : 0x444444;
         // Title (apply GD labelMaxChars truncation)
-        const title = new CanvasText(truncateLabel(pn.data.label, rt.labelMaxChars), {
-          fontSize, fontWeight: "bold", fill: titleFill,
-          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-        });
-        markAsCardText(title);
+        const title = createCardText(truncateLabel(pn.data.label, rt.labelMaxChars), fontSize, titleFill, "bold");
         title.x = -halfW + pad;
         title.y = -halfH + pad;
         if (rt.cardTextTruncation !== false) title.maxWidth = textW;
@@ -1643,11 +1610,7 @@ export class RenderPipeline {
           }
           if (cur && lines.length < maxLines) lines.push(cur);
           for (let li = 0; li < lines.length; li++) {
-            const bodyLine = new CanvasText(lines[li], {
-              fontSize: smallFont, fill: bodyFill,
-              fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-            });
-            markAsCardText(bodyLine);
+            const bodyLine = createCardText(lines[li], smallFont, bodyFill);
             bodyLine.x = -halfW + pad;
             bodyLine.y = -halfH + pad + fontSize * 1.4 + li * lineH;
             bodyLine.alpha = crc.cardSubTextAlpha;
@@ -2385,7 +2348,7 @@ export class RenderPipeline {
         fontSize: scaledFontSize,
         fill: labelFill,
         fontWeight: labelFontWeight,
-        fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily: CARD_FONT_FAMILY,
       });
       label.bgColor = labelBg;
       // Theme-adaptive bgAlpha: light theme needs higher opacity for contrast
@@ -2420,7 +2383,7 @@ export class RenderPipeline {
           fontSize: rt.tagLabelFontSize,
           fill: accentColor,
           fontWeight: "400",
-          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+          fontFamily: CARD_FONT_FAMILY,
         });
         tagLabel.alpha = rt.tagLabelAlpha;
         tagLabel.bgColor = rt.labelBgColor;
@@ -2457,7 +2420,7 @@ export class RenderPipeline {
           fontSize: SUB_LABEL_FONT_SIZE,
           fill: this.host.isDarkTheme() ? 0xbbbbbb : 0x555555,
           fontWeight: "400",
-          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+          fontFamily: CARD_FONT_FAMILY,
         });
         subLabel.alpha = SUB_LABEL_ALPHA;
         subLabel.bgColor = srt.labelBgColor;

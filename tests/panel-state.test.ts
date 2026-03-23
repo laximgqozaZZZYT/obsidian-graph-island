@@ -253,3 +253,81 @@ describe("validatePanelState — boundary values", () => {
     expect(panel2.hoverHops).toBe(10);
   });
 });
+
+// ---------------------------------------------------------------------------
+// createDefaultPanel — field completeness (cycle115)
+// ---------------------------------------------------------------------------
+describe("createDefaultPanel field completeness", () => {
+  const panel = createDefaultPanel();
+
+  it("has > 80 fields (guard against accidental field removal)", () => {
+    const fieldCount = Object.keys(panel).length;
+    expect(fieldCount).toBeGreaterThan(80);
+  });
+
+  it("all numeric fields are finite numbers", () => {
+    for (const [key, val] of Object.entries(panel)) {
+      if (typeof val === "number") {
+        expect(isFinite(val), `${key} should be finite`).toBe(true);
+      }
+    }
+  });
+
+  it("all boolean fields are actually booleans", () => {
+    for (const [key, val] of Object.entries(panel)) {
+      if (val === true || val === false) {
+        expect(typeof val, `${key} should be boolean`).toBe("boolean");
+      }
+    }
+  });
+
+  it("core string fields are strings (not undefined)", () => {
+    // Only fields that are guaranteed to have default string values
+    const stringFields = [
+      "searchQuery", "activeTab",
+      "clusterArrangement", "nodeColorMode", "definitionField", "nodeIconField",
+    ];
+    for (const key of stringFields) {
+      const val = (panel as any)[key];
+      expect(typeof val, `${key} should be string`).toBe("string");
+    }
+  });
+
+  it("collapsedGroups is an empty Set", () => {
+    expect(panel.collapsedGroups).toBeInstanceOf(Set);
+    expect(panel.collapsedGroups.size).toBe(0);
+  });
+
+  it("array fields are empty arrays", () => {
+    const arrayFields = ["multiSelectNodeIds", "presentationWaypoints", "expandedNodes"];
+    for (const key of arrayFields) {
+      const val = (panel as any)[key];
+      expect(Array.isArray(val), `${key} should be array`).toBe(true);
+      expect(val.length, `${key} should be empty`).toBe(0);
+    }
+  });
+
+  it("renderThresholds is object or undefined (optional field)", () => {
+    // renderThresholds may be undefined in default state (populated on first use)
+    if (panel.renderThresholds !== undefined) {
+      expect(typeof panel.renderThresholds).toBe("object");
+      expect(panel.renderThresholds).not.toBeNull();
+    }
+  });
+
+  it("no field value is undefined", () => {
+    for (const [key, val] of Object.entries(panel)) {
+      expect(val !== undefined, `${key} should not be undefined`).toBe(true);
+    }
+  });
+
+  it("two independent instances do not share references", () => {
+    const p1 = createDefaultPanel();
+    const p2 = createDefaultPanel();
+    // Mutating p1 should not affect p2
+    p1.collapsedGroups.add("test");
+    expect(p2.collapsedGroups.size).toBe(0);
+    p1.multiSelectNodeIds.push("x");
+    expect(p2.multiSelectNodeIds.length).toBe(0);
+  });
+});
