@@ -18,7 +18,12 @@ function createMockGraphics() {
 // We need to mock pixi.js before importing EdgeRenderer
 vi.mock("pixi.js", () => ({}));
 
-import { drawEdges, drawEdgeLabels, type EdgeDrawConfig } from "../src/views/EdgeRenderer";
+import {
+  drawEdges, drawEdgeLabels, type EdgeDrawConfig,
+  shouldSkipEdge, buildBidirectionalSet, normalizeAngle,
+  mergeNearbyValues, deduplicatePath, angleDist, shortestAngleDelta,
+  getEdgeLabel, buildPairCounts,
+} from "../src/views/EdgeRenderer";
 import type { GraphEdge } from "../src/types";
 
 function baseCfg(overrides?: Partial<EdgeDrawConfig>): EdgeDrawConfig {
@@ -302,5 +307,160 @@ describe("drawEdges", () => {
   it("edgeHierarchyThickFactor propagates to EdgeDrawConfig", () => {
     const cfg = baseCfg({ edgeHierarchyThickFactor: 3.0 });
     expect(cfg.edgeHierarchyThickFactor).toBe(3.0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pure function unit tests (cycle109)
+// ---------------------------------------------------------------------------
+
+function makeEdge(overrides: Partial<GraphEdge> = {}): GraphEdge {
+  return { id: "e1", source: "a", target: "b", ...overrides };
+}
+
+// --- shouldSkipEdge (unit) ---
+describe("shouldSkipEdge (unit)", () => {
+  it("treats untyped edge as link", () => {
+    expect(shouldSkipEdge(makeEdge({}), baseCfg({ showLinks: false }))).toBe(true);
+    expect(shouldSkipEdge(makeEdge({}), baseCfg({ showLinks: true }))).toBe(false);
+  });
+
+  it("respects each type toggle independently", () => {
+    const cases: [string, keyof EdgeDrawConfig][] = [
+      ["tag", "showTagEdges"],
+      ["category", "showCategoryEdges"],
+      ["semantic", "showSemanticEdges"],
+      ["inheritance", "showInheritance"],
+      ["aggregation", "showAggregation"],
+      ["similar", "showSimilar"],
+      ["sibling", "showSibling"],
+      ["sequence", "showSequence"],
+    ];
+    for (const [type, field] of cases) {
+      expect(shouldSkipEdge(makeEdge({ type }), baseCfg({ [field]: false }))).toBe(true);
+      expect(shouldSkipEdge(makeEdge({ type }), baseCfg({ [field]: true }))).toBe(false);
+    }
+  });
+});
+
+// --- buildBidirectionalSet ---
+describe("buildBidirectionalSet", () => {
+  it("empty for no edges", () => {
+    expect(buildBidirectionalSet([]).size).toBe(0);
+  });
+
+  it("empty for unidirectional edges", () => {
+    expect(buildBidirectionalSet([makeEdge()]).size).toBe(0);
+  });
+
+  it("detects bidirectional pair", () => {
+    const bidir = buildBidirectionalSet([
+      makeEdge({ source: "a", target: "b" }),
+      makeEdge({ source: "b", target: "a" }),
+    ]);
+    expect(bidir.has("a→b")).toBe(true);
+    expect(bidir.has("b→a")).toBe(true);
+  });
+
+  it("excludes non-bidirectional edges", () => {
+    const bidir = buildBidirectionalSet([
+      makeEdge({ source: "a", target: "b" }),
+      makeEdge({ source: "b", target: "a" }),
+      makeEdge({ source: "c", target: "d" }),
+    ]);
+    expect(bidir.has("c→d")).toBe(false);
+  });
+});
+
+// --- normalizeAngle ---
+describe("normalizeAngle", () => {
+  it("keeps angle in [0, π)", () => { expect(normalizeAngle(1.0)).toBeCloseTo(1.0); });
+  it("wraps negative angle", () => { expect(normalizeAngle(-0.5)).toBeCloseTo(Math.PI - 0.5); });
+  it("wraps angle >= π", () => { expect(normalizeAngle(Math.PI + 0.1)).toBeCloseTo(0.1); });
+  it("normalizes 0 to 0", () => { expect(normalizeAngle(0)).toBeCloseTo(0); });
+  it("normalizes π to 0", () => { expect(normalizeAngle(Math.PI)).toBeCloseTo(0); });
+});
+
+// --- mergeNearbyValues ---
+describe("mergeNearbyValues", () => {
+  it("empty input → empty", () => { expect(mergeNearbyValues([], 10)).toEqual([]); });
+  it("single value → unchanged", () => { expect(mergeNearbyValues([42], 10)).toEqual([42]); });
+  it("distant values stay separate", () => {
+    expect(mergeNearbyValues([0, 100, 200], 10)).toEqual([0, 100, 200]);
+  });
+  it("close values merge to average", () => {
+    expect(mergeNearbyValues([10, 12], 5)).toEqual([11]);
+  });
+  it("cluster of 3", () => {
+    expect(mergeNearbyValues([10, 11, 12], 5)).toEqual([11]);
+  });
+  it("mixed clusters", () => {
+    expect(mergeNearbyValues([0, 1, 2, 100, 101], 5)).toEqual([1, 100.5]);
+  });
+});
+
+// --- deduplicatePath ---
+describe("deduplicatePath", () => {
+  it("empty path → empty", () => { expect(deduplicatePath([])).toEqual([]); });
+  it("single point → unchanged", () => {
+    expect(deduplicatePath([{ x: 10, y: 20 }])).toHaveLength(1);
+  });
+  it("keeps distinct points", () => {
+    expect(deduplicatePath([{ x: 0, y: 0 }, { x: 10, y: 10 }])).toHaveLength(2);
+  });
+  it("removes near-duplicates within 0.5px", () => {
+    const result = deduplicatePath([{ x: 0, y: 0 }, { x: 0.3, y: 0.2 }, { x: 10, y: 10 }]);
+    expect(result).toHaveLength(2);
+    expect(result[1]).toEqual({ x: 10, y: 10 });
+  });
+  it("keeps points at >0.5px apart", () => {
+    expect(deduplicatePath([{ x: 0, y: 0 }, { x: 0.6, y: 0 }])).toHaveLength(2);
+  });
+});
+
+// --- angleDist / shortestAngleDelta ---
+describe("angleDist", () => {
+  it("zero for identical", () => { expect(angleDist(1, 1)).toBeCloseTo(0); });
+  it("small distance", () => { expect(angleDist(0.5, 1.0)).toBeCloseTo(0.5); });
+  it("wraps around 2π", () => { expect(angleDist(0.1, 2 * Math.PI - 0.1)).toBeCloseTo(0.2, 3); });
+  it("symmetric", () => { expect(angleDist(1, 2)).toBeCloseTo(angleDist(2, 1)); });
+});
+
+describe("shortestAngleDelta", () => {
+  it("positive for clockwise", () => { expect(shortestAngleDelta(0, 1)).toBeCloseTo(1); });
+  it("negative for counter-clockwise", () => { expect(shortestAngleDelta(1, 0)).toBeCloseTo(-1); });
+  it("wraps across 2π", () => {
+    expect(Math.abs(shortestAngleDelta(0.1, 2 * Math.PI - 0.1))).toBeCloseTo(0.2, 3);
+  });
+});
+
+// --- getEdgeLabel ---
+describe("getEdgeLabel", () => {
+  it("custom relation takes priority", () => { expect(getEdgeLabel(makeEdge({ relation: "Author" }))).toBe("Author"); });
+  it("inheritance → is-a", () => { expect(getEdgeLabel(makeEdge({ type: "inheritance" }))).toBe("is-a"); });
+  it("aggregation → has-a", () => { expect(getEdgeLabel(makeEdge({ type: "aggregation" }))).toBe("has-a"); });
+  it("sequence → seq", () => { expect(getEdgeLabel(makeEdge({ type: "sequence" }))).toBe("seq"); });
+  it("similar → ≈", () => { expect(getEdgeLabel(makeEdge({ type: "similar" }))).toBe("≈"); });
+  it("sibling → sibling", () => { expect(getEdgeLabel(makeEdge({ type: "sibling" }))).toBe("sibling"); });
+  it("link → null", () => { expect(getEdgeLabel(makeEdge({ type: "link" }))).toBeNull(); });
+  it("has-tag → null", () => { expect(getEdgeLabel(makeEdge({ type: "has-tag" }))).toBeNull(); });
+  it("untyped → null", () => { expect(getEdgeLabel(makeEdge({}))).toBeNull(); });
+});
+
+// --- buildPairCounts ---
+describe("buildPairCounts", () => {
+  it("empty → empty map", () => { expect(buildPairCounts([]).size).toBe(0); });
+  it("single edge → count 1", () => {
+    expect(buildPairCounts([makeEdge()]).get("a:b")).toBe(1);
+  });
+  it("parallel edges → count 2", () => {
+    expect(buildPairCounts([makeEdge(), makeEdge()]).get("a:b")).toBe(2);
+  });
+  it("reversed pair → same sorted key", () => {
+    const counts = buildPairCounts([
+      makeEdge({ source: "a", target: "b" }),
+      makeEdge({ source: "b", target: "a" }),
+    ]);
+    expect(counts.get("a:b")).toBe(2);
   });
 });
