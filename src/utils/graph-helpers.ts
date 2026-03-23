@@ -13,6 +13,11 @@ export function edgeTargetId(e: { target: string | { id: string } }): string {
   return typeof e.target === "string" ? e.target : e.target.id;
 }
 
+/** Increment a Map<K, number> counter by `delta` (default 1). */
+export function incCounter<K>(map: Map<K, number>, key: K, delta = 1): void {
+  map.set(key, (map.get(key) ?? 0) + delta);
+}
+
 export function yieldFrame(): Promise<void> {
   return new Promise((r) => requestAnimationFrame(() => r()));
 }
@@ -300,6 +305,106 @@ export function exportGraphMermaid(
     lines.push(`  ${srcM} ${arrow} ${tgtM}`);
     ec++;
   }
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// SVG export — pure function for graph-to-SVG conversion
+// ---------------------------------------------------------------------------
+
+export interface SvgExportOptions {
+  width?: number;
+  height?: number;
+  /** Background color (CSS). Empty string = transparent. */
+  background?: string;
+  /** Node radius in SVG units. */
+  nodeRadius?: number;
+  /** Whether to include labels. */
+  showLabels?: boolean;
+  /** Edge opacity (0-1). */
+  edgeAlpha?: number;
+}
+
+/** Convert graph nodes + edges to an SVG string.
+ *  Nodes must have x, y coordinates (from layout). */
+export function exportGraphSVG(
+  nodes: { id: string; label?: string; x?: number; y?: number; color?: number }[],
+  edges: { source: string | { id: string }; target: string | { id: string }; type?: string }[],
+  opts: SvgExportOptions = {},
+): string {
+  const {
+    width = 800, height = 600,
+    background = "#1e1e2e",
+    nodeRadius = 5,
+    showLabels = true,
+    edgeAlpha = 0.4,
+  } = opts;
+
+  // Build position lookup
+  const posMap = new Map<string, { x: number; y: number }>();
+  for (const n of nodes) {
+    if (n.x != null && n.y != null) posMap.set(n.id, { x: n.x, y: n.y });
+  }
+
+  // Compute bounding box and scale to fit
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const { x, y } of posMap.values()) {
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  if (!isFinite(minX)) { minX = 0; minY = 0; maxX = width; maxY = height; }
+  const pad = 40;
+  const dataW = maxX - minX || 1;
+  const dataH = maxY - minY || 1;
+  const scale = Math.min((width - pad * 2) / dataW, (height - pad * 2) / dataH);
+  const tx = (x: number) => pad + (x - minX) * scale;
+  const ty = (y: number) => pad + (y - minY) * scale;
+
+  const lines: string[] = [];
+  lines.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">`);
+  if (background) {
+    lines.push(`  <rect width="100%" height="100%" fill="${background}"/>`);
+  }
+
+  // Edges
+  lines.push(`  <g class="edges" stroke="#888" stroke-width="0.5" opacity="${edgeAlpha}">`);
+  for (const e of edges) {
+    const sid = typeof e.source === "object" ? (e.source as any).id : e.source;
+    const tid = typeof e.target === "object" ? (e.target as any).id : e.target;
+    const sp = posMap.get(sid);
+    const tp = posMap.get(tid);
+    if (!sp || !tp) continue;
+    lines.push(`    <line x1="${tx(sp.x).toFixed(1)}" y1="${ty(sp.y).toFixed(1)}" x2="${tx(tp.x).toFixed(1)}" y2="${ty(tp.y).toFixed(1)}"/>`);
+  }
+  lines.push(`  </g>`);
+
+  // Nodes
+  lines.push(`  <g class="nodes">`);
+  for (const n of nodes) {
+    const p = posMap.get(n.id);
+    if (!p) continue;
+    const hex = n.color != null
+      ? `#${(n.color & 0xffffff).toString(16).padStart(6, "0")}`
+      : "#60a5fa";
+    lines.push(`    <circle cx="${tx(p.x).toFixed(1)}" cy="${ty(p.y).toFixed(1)}" r="${nodeRadius}" fill="${hex}"/>`);
+  }
+  lines.push(`  </g>`);
+
+  // Labels
+  if (showLabels) {
+    lines.push(`  <g class="labels" font-size="10" fill="#cdd6f4" font-family="sans-serif">`);
+    for (const n of nodes) {
+      const p = posMap.get(n.id);
+      if (!p) continue;
+      const label = (n.label ?? n.id).replace(/[<>&"]/g, "");
+      lines.push(`    <text x="${tx(p.x).toFixed(1)}" y="${(ty(p.y) - nodeRadius - 2).toFixed(1)}" text-anchor="middle">${label}</text>`);
+    }
+    lines.push(`  </g>`);
+  }
+
+  lines.push(`</svg>`);
   return lines.join("\n");
 }
 
