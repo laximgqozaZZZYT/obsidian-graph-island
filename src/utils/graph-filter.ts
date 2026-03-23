@@ -7,6 +7,7 @@
 
 import type { GraphNode, GraphEdge } from "../types";
 import { EDGE_TYPE_HAS_TAG, EDGE_TYPE_SIMILAR, TAG_DISPLAY_ENCLOSURE } from "../constants";
+import { incCounter } from "./graph-helpers";
 
 /** Remove orphan nodes (nodes with no edges). */
 export function filterOrphans(
@@ -64,8 +65,8 @@ export function filterByDegree(
   if (minDeg <= 0 && maxDeg <= 0) return nodes;
   const degMap = new Map<string, number>();
   for (const e of edges) {
-    degMap.set(e.source, (degMap.get(e.source) ?? 0) + 1);
-    degMap.set(e.target, (degMap.get(e.target) ?? 0) + 1);
+    incCounter(degMap, e.source);
+    incCounter(degMap, e.target);
   }
   return nodes.filter(n => {
     const d = degMap.get(n.id) ?? 0;

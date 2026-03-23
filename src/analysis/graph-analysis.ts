@@ -1,4 +1,5 @@
 import type { GraphNode, GraphEdge } from "../types";
+import { incCounter } from "../utils/graph-helpers";
 
 // ---------------------------------------------------------------------------
 // Graph Statistics (Feature CX)
@@ -58,7 +59,7 @@ export function computeGraphStats(
   const edgeTypeCounts = new Map<string, number>();
   for (const e of edges) {
     const etype = e.type ?? "unknown";
-    edgeTypeCounts.set(etype, (edgeTypeCounts.get(etype) ?? 0) + 1);
+    incCounter(edgeTypeCounts, etype);
   }
 
   return { nodeCount, edgeCount, avgDegree, density, hubs, componentCount, orphanRate, tagCoverage, edgeTypeCounts };
@@ -393,7 +394,7 @@ export function generateStructureQuestions(
   const tagFreq = new Map<string, number>();
   for (const n of nodes) {
     for (const t of n.tags ?? []) {
-      tagFreq.set(t, (tagFreq.get(t) ?? 0) + 1);
+      incCounter(tagFreq, t);
     }
   }
   if (tagFreq.size > 0) {
@@ -488,7 +489,7 @@ export function computePropagatedImportance(
   const inDeg = new Map<string, number>();
   for (const n of nodes) inDeg.set(n.id, 0);
   for (const e of edges) {
-    inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
+    incCounter(inDeg, e.target);
   }
 
   const outgoing = new Map<string, string[]>();

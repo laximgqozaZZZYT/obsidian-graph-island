@@ -493,6 +493,8 @@ export class RenderPipeline {
   private _fpsFrames = 0;
   private _fpsLastTime = 0;
   currentFps = 0;
+  /** Last frame render duration in milliseconds */
+  lastFrameMs = 0;
 
   constructor(host: RenderHost) {
     this.host = host;
@@ -520,7 +522,9 @@ export class RenderPipeline {
     }
 
     if (this.needsRedraw) {
+      const t0 = performance.now();
       this.updatePositions(this.needsFullRedraw);
+      this.lastFrameMs = Math.round((performance.now() - t0) * 10) / 10;
       this.needsRedraw = false;
       this.needsFullRedraw = false;
       this.idleFrames = 0;

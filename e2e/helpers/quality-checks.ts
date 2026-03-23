@@ -335,7 +335,75 @@ export async function measureScreenDensity(page: Page, cellSize = 100): Promise<
 }
 
 // ---------------------------------------------------------------------------
-// 6. Card text
+// 6. Screen-space label readability (are labels readable after render?)
+// ---------------------------------------------------------------------------
+
+export interface LabelReadabilityReport {
+  totalVisible: number;
+  overlappingPairs: number;
+  overlapRate: number;
+  tooSmallCount: number;
+  avgScreenFontSize: number;
+}
+
+export async function measureLabelReadability(page: Page): Promise<LabelReadabilityReport> {
+  return page.evaluate(() => {
+    const v = (window as any).app.workspace
+      .getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v || !v.pixiNodes || !v.worldContainer) {
+      return { totalVisible: 0, overlappingPairs: 0, overlapRate: 0, tooSmallCount: 0, avgScreenFontSize: 0 };
+    }
+
+    const ws = v.worldContainer.scale.x;
+    const wx = v.worldContainer.x;
+    const wy = v.worldContainer.y;
+    const rects: { sx: number; sy: number; sw: number; sh: number }[] = [];
+    let fontSizeSum = 0;
+    let tooSmallCount = 0;
+
+    for (const [, pn] of v.pixiNodes) {
+      const label = pn.label;
+      if (!label || !label.visible || (label.alpha ?? 0) <= 0.05) continue;
+      const text = label.text ?? pn.data.label ?? "";
+      if (!text) continue;
+
+      const sx = pn.data.x * ws + wx + (label.x ?? 0) * ws;
+      const sy = pn.data.y * ws + wy + (label.y ?? 0) * ws;
+      const fontSize = (label.style?.fontSize ?? 12) * (label.scale?.x ?? 1) * ws;
+      fontSizeSum += fontSize;
+      if (fontSize < 6) tooSmallCount++; // < 6px is unreadable
+
+      const charWidth = fontSize * 0.6;
+      const lw = Math.min(text.length * charWidth, 300);
+      const lh = fontSize * 1.3;
+      rects.push({ sx, sy, sw: lw, sh: lh });
+    }
+
+    let overlappingPairs = 0;
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i], b = rects[j];
+        if (a.sx < b.sx + b.sw && a.sx + a.sw > b.sx &&
+            a.sy < b.sy + b.sh && a.sy + a.sh > b.sy) {
+          overlappingPairs++;
+        }
+      }
+    }
+
+    const totalPairs = rects.length > 1 ? (rects.length * (rects.length - 1)) / 2 : 1;
+    return {
+      totalVisible: rects.length,
+      overlappingPairs,
+      overlapRate: Math.round((overlappingPairs / totalPairs) * 1000) / 1000,
+      tooSmallCount,
+      avgScreenFontSize: rects.length > 0 ? Math.round(fontSizeSum / rects.length * 10) / 10 : 0,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 7. Card text
 // ---------------------------------------------------------------------------
 
 export async function measureCardText(page: Page, sampleSize = 30): Promise<CardTextReport> {
