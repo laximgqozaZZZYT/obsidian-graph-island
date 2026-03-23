@@ -2,7 +2,7 @@
  * CDP E2E Test — Cycle 70 (Cycle 32): JO Quality Score + JP Keyboard Nav Completeness
  */
 import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
-import { measureNodeOverlap, measureSpread, measureContrast } from "./helpers/quality-checks";
+import { measureNodeOverlap, measureSpread, measureContrast, measureScreenDensity, measureLabelReadability } from "./helpers/quality-checks";
 
 const CDP_URL = "http://localhost:9222";
 let browser: Browser;
@@ -132,6 +132,11 @@ test("JO-3: quality score components are consistent", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.validRanges).toBe(true);
     expect(result.sumClose).toBe(true);
@@ -169,6 +174,11 @@ test("JP-4: §0.3 interactive elements have tabindex or are natively focusable",
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.allAccessible).toBe(true);
   }
@@ -235,6 +245,11 @@ test("JP-6: §0.3 ARIA role coverage is comprehensive", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.comprehensive).toBe(true);
   }
@@ -246,6 +261,36 @@ test("§0: no errors during quality score + keyboard tests", async () => {
     !e.includes("ResizeObserver") && !e.includes("Excalidraw") && !e.includes("net::ERR")
   );
   expect(relevantErrors).toHaveLength(0);
+});
+
+
+// =========================================================================
+// Screen-Space Visual Quality (auto-generated)
+// =========================================================================
+test("SCREEN-QUALITY: no node pile-up and labels readable", async () => {
+  await page.waitForTimeout(2000);
+
+  const hasView = await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    return !!(v && v.pixiNodes && v.pixiNodes.size > 0);
+  });
+  if (!hasView) return;
+
+  // 1. Screen-space density — detect node pile-up
+  const density = await measureScreenDensity(page);
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(50);
+    expect(density.viewportUtilization).toBeGreaterThan(20);
+    expect(density.rightHalfRatio).toBeLessThan(90);
+  }
+
+  // 2. Label readability — detect text overlap and unreadable font sizes
+  const labels = await measureLabelReadability(page);
+  if (labels.totalVisible > 5) {
+    expect(labels.overlapRate).toBeLessThan(0.50);
+    expect(labels.tooSmallCount).toBeLessThan(labels.totalVisible * 0.3);
+  }
 });
 
 // =========================================================================
@@ -285,5 +330,14 @@ test("QUALITY: node overlap, coordinate sanity, and color contrast", async () =>
   if (contrast.checkedCount > 0) {
     expect(contrast.failCount).toBeLessThan(contrast.checkedCount * 0.5);
   }
+
+  // 4. Screen-space density (detect actual visual pile-up)
+  const density = await measureScreenDensity(page);
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(50);
+    expect(density.viewportUtilization).toBeGreaterThan(20);
+    expect(density.rightHalfRatio).toBeLessThan(90);
+  }
+
 });
 

@@ -14,7 +14,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoints, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter } from "../utils/graph-helpers";
 import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph } from "../utils/graph-filter";
 import { pointInPolygon } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
@@ -2422,7 +2422,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           const parts = pn.data.id.split("/");
           if (parts.length > 1) {
             const folder = parts[0];
-            folders.set(folder, (folders.get(folder) ?? 0) + 1);
+            incCounter(folders, folder);
           }
         }
         if (folders.size > 0) {
@@ -4671,7 +4671,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           const pn = this.pixiNodes.get(id);
           if (pn?.data.tags) {
             for (const t of pn.data.tags) {
-              if (t !== tag) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
+              if (t !== tag) incCounter(tagCounts, t);
             }
           }
         }
@@ -4959,45 +4959,68 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const barLabelMinW = rt.timelineBarLabelMinWidth;
     const barLabelFontSize = rt.timelineBarLabelFontSize;
 
+    // Viewport culling: only draw bars visible in the current viewport
+    const world = this.worldContainer;
+    const wx = world?.x ?? 0, wy = world?.y ?? 0;
+    const canvasW = this.canvasWrap?.clientWidth ?? 1200;
+    const canvasH = this.canvasWrap?.clientHeight ?? 800;
+    const vpLeft = -wx / worldScale;
+    const vpTop = -wy / worldScale;
+    const vpRight = vpLeft + canvasW / worldScale;
+    const vpBottom = vpTop + canvasH / worldScale;
+
+    // Label collision prevention: track placed label Y positions
+    const placedLabelYs: number[] = [];
+    const labelMinGap = 12 / worldScale; // minimum gap between labels
+
+    let drawnBars = 0;
     for (const bar of bars) {
-      const pn = this.pixiNodes.get(bar.nodeId);
-      const color = pn ? pn.color : 0x888888;
       const w = bar.xEnd - bar.xStart;
       const h = bar.barHeight;
       const x = bar.xStart;
       const y = bar.yCenter - h / 2;
+
+      // Viewport cull
+      if (x + w < vpLeft || x > vpRight || y + h < vpTop || y > vpBottom) continue;
+
+      drawnBars++;
+      const pn = this.pixiNodes.get(bar.nodeId);
+      const color = pn ? pn.color : 0x888888;
       const cornerR = Math.min(h / 2, barCornerRBase);
       const isHovered = hoveredId === bar.nodeId;
       const barFillAlpha = isHovered ? hoverAlpha : fillAlpha;
 
-      // Fill
       g.beginFill(color, barFillAlpha);
       g.drawRoundedRect(x, y, w, h, cornerR);
       g.endFill();
 
-      // Stroke
       g.lineStyle(lineW, color, strokeAlpha);
       g.drawRoundedRect(x, y, w, h, cornerR);
       g.lineStyle(0);
 
-      // Bar label — displayed above the bar's left edge with pill background
-      // Skip label when bar is too narrow to be readable (DQ-01)
+      // Bar label with collision avoidance
       if (showBarLabel && this.barLabelContainer && pn && w * worldScale >= barLabelMinW) {
-        const fontSize = Math.max(7, barLabelFontSize / worldScale);
-        const label = new CanvasText(pn.data.label, {
-          fontSize,
-          fontWeight: "bold",
-          fill: this.isDarkTheme() ? 0xffffff : 0x111111,
-          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-        });
-        label.bgColor = color;
-        label.bgAlpha = 0.7;
-        label.bgPadX = 4 / worldScale;
-        label.bgPadY = 2 / worldScale;
-        label.x = x;
-        label.y = y - fontSize * 0.3;
-        label.maxWidth = Math.max(w, 40 / worldScale);
-        this.barLabelContainer.addChild(label);
+        const labelY = y - 2 / worldScale;
+        // Skip if too close to an existing label
+        const tooClose = placedLabelYs.some(py => Math.abs(py - labelY) < labelMinGap);
+        if (!tooClose) {
+          placedLabelYs.push(labelY);
+          const fontSize = Math.max(7, barLabelFontSize / worldScale);
+          const label = new CanvasText(pn.data.label, {
+            fontSize,
+            fontWeight: "bold",
+            fill: this.isDarkTheme() ? 0xffffff : 0x111111,
+            fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+          });
+          label.bgColor = color;
+          label.bgAlpha = 0.7;
+          label.bgPadX = 4 / worldScale;
+          label.bgPadY = 2 / worldScale;
+          label.x = x;
+          label.y = labelY;
+          label.maxWidth = Math.max(w, 40 / worldScale);
+          this.barLabelContainer.addChild(label);
+        }
       }
     }
 
@@ -6446,7 +6469,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const counts = new Map<string, number>();
       for (const pn of this.pixiNodes.values()) {
         const cat = pn.data.category ?? (pn.data.tags?.[0] ? `tag:${pn.data.tags[0]}` : "");
-        if (cat) counts.set(cat, (counts.get(cat) ?? 0) + 1);
+        if (cat) incCounter(counts, cat);
       }
       return counts;
     },
@@ -6971,7 +6994,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       for (const n of gd.nodes) {
         if (n.isTag || !n.tags) continue;
         for (const tag of n.tags) {
-          tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+          incCounter(tagCounts, tag);
         }
       }
       // Pass 2: assign each node to ONLY its most specific (smallest) tag.
@@ -7322,23 +7345,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             n.x = oy + 60;   // depth → horizontal
             n.y = ox;         // sibling spread → vertical
           }
-          // Fit to canvas with padding — allow overflow for pan/zoom
-          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-          for (const n of ld.nodes) {
-            if (n.x < minX) minX = n.x;
-            if (n.x > maxX) maxX = n.x;
-            if (n.y < minY) minY = n.y;
-            if (n.y > maxY) maxY = n.y;
-          }
-          const spreadX = maxX - minX || 1;
-          const spreadY = maxY - minY || 1;
-          // Don't aggressively compress — allow pan/zoom to explore
-          // Only scale down if more than 4x the canvas size
-          const maxScale = Math.min((W * 3) / spreadX, (H * 3) / spreadY, 1);
-          const treeScale = Math.max(0.1, maxScale);
-          for (const n of ld.nodes) {
-            n.x = cx + (n.x - (minX + maxX) / 2) * treeScale;
-            n.y = cy + (n.y - (minY + maxY) / 2) * treeScale;
+          // Center the tree on canvas — don't scale down (let autoFitView handle zoom)
+          {
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (const n of ld.nodes) {
+              if (n.x < minX) minX = n.x;
+              if (n.x > maxX) maxX = n.x;
+              if (n.y < minY) minY = n.y;
+              if (n.y > maxY) maxY = n.y;
+            }
+            const midX = (minX + maxX) / 2;
+            const midY = (minY + maxY) / 2;
+            for (const n of ld.nodes) {
+              n.x = cx + (n.x - midX);
+              n.y = cy + (n.y - midY);
+            }
           }
           break;
         }
@@ -7392,19 +7413,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           // Compute lane height based on estimated number of lanes (use node count heuristic)
           const estimatedLanes = Math.max(1, Math.ceil(gd.nodes.length / Math.max(numSteps, 1)));
           const laneH = Math.max(20, Math.min(80, (H - 120) / Math.min(estimatedLanes, 40)));
+          // Bar height must be smaller than lane height
+          const barH = Math.max(Math.min(laneH * 0.5, 16), 4);
+          // Stack spacing must exceed bar height to prevent overlap
+          const stackSp = barH + 2;
           const tlResult = applyTimelineLayout(gd, {
             timeKey,
             startX: 60, startY: 60, stepWidth: stepW, laneHeight: laneH,
+            stackSpacing: stackSp,
             getNodeProperty: getNodeProp,
           });
           ld = tlResult.data;
           // Build timeline bars from placements for drawTimelineBars()
           const endKey = this.panel.timelineEndKey || "end-date";
-          // Bar height should be smaller than lane height to prevent overlap
-          const barH = Math.max(Math.min(laneH * 0.6, 20), 6);
           const timeIdxMap = new Map<string, number>();
           tlResult.timeSteps.forEach((ts, i) => timeIdxMap.set(ts, i));
           const bars: import("../layouts/cluster-force").TimelineBarInfo[] = [];
+          // Maximum bar width: 20 steps or half the canvas width, whichever is smaller
+          const maxBarWidth = Math.min(stepW * 20, W * 0.5);
           for (const p of tlResult.placements) {
             const node = ld.nodes.find(n => n.id === p.nodeId);
             if (!node) continue;
@@ -7412,7 +7438,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             if (endVal && endVal !== p.timeValue) {
               const endIdx = timeIdxMap.get(endVal);
               if (endIdx !== undefined && endIdx > p.timeIndex) {
-                bars.push({ nodeId: p.nodeId, xStart: node.x, xEnd: 60 + endIdx * stepW, barHeight: barH, yCenter: node.y });
+                const rawEnd = 60 + endIdx * stepW;
+                const clampedEnd = Math.min(rawEnd, node.x + maxBarWidth);
+                bars.push({ nodeId: p.nodeId, xStart: node.x, xEnd: clampedEnd, barHeight: barH, yCenter: node.y });
                 continue;
               }
             }
@@ -8673,8 +8701,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     for (const e of gd.edges) {
       const s = edgeSourceId(e);
       const t = edgeTargetId(e);
-      degrees.set(s, (degrees.get(s) ?? 0) + 1);
-      degrees.set(t, (degrees.get(t) ?? 0) + 1);
+      incCounter(degrees, s);
+      incCounter(degrees, t);
     }
 
     // Top N nodes by degree (fit in viewport: ~50 max for readability)
@@ -8691,7 +8719,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const t = edgeTargetId(e);
       if (nodeIdSet.has(s) && nodeIdSet.has(t)) {
         const row = matrix.get(s)!;
-        row.set(t, (row.get(t) ?? 0) + 1);
+        incCounter(row, t);
       }
     }
 

@@ -15,6 +15,7 @@
 import type { App } from "obsidian";
 import type { TagRelation } from "../types";
 import { EDGE_TYPE_INHERITANCE } from "../constants";
+import { incCounter } from "./graph-helpers";
 
 /** Minimum co-occurrence ratio for a tag to be considered a child of a hub */
 const MIN_COOCCURRENCE_RATIO = 0.6;
@@ -49,7 +50,7 @@ export function detectTagRelations(app: App): TagRelation[] {
     tagSets.push(tagSet);
 
     for (const tag of tagSet) {
-      tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+      incCounter(tagCounts, tag);
     }
   }
 
@@ -69,7 +70,7 @@ export function detectTagRelations(app: App): TagRelation[] {
       const tagCooc = cooccurrence.get(tag)!;
       for (const other of tagSet) {
         if (other === tag) continue;
-        tagCooc.set(other, (tagCooc.get(other) ?? 0) + 1);
+        incCounter(tagCooc, other);
       }
     }
   }

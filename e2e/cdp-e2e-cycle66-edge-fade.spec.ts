@@ -3,7 +3,7 @@
  * Tests configurable edgeZoomFadeThreshold and verifies kShortestPaths removal.
  */
 import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
-import { measureNodeOverlap, measureSpread, measureContrast } from "./helpers/quality-checks";
+import { measureNodeOverlap, measureSpread, measureContrast, measureScreenDensity, measureLabelReadability } from "./helpers/quality-checks";
 
 const CDP_URL = "http://localhost:9222";
 let browser: Browser;
@@ -56,6 +56,11 @@ test("JG-1: edgeZoomFadeThreshold field is accessible", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   // Value should be undefined (default) or a number between 0.1 and 1.0
   if (result.value !== undefined) {
     expect(result.value).toBeGreaterThanOrEqual(0.1);
@@ -99,6 +104,11 @@ test("JG-2: edges fade at zoom below threshold", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   // Edge container should still exist (fade doesn't hide the container)
 });
 
@@ -139,6 +149,11 @@ test("JG-3: custom threshold changes fade behavior", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   expect(result.readBack).toBe(0.1);
 });
 
@@ -160,6 +175,11 @@ test("JH-4: kShortestPaths removed from graph-helpers", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
 });
 
 // JH-5: edgeMinZoom slider still functions (regression check)
@@ -185,6 +205,11 @@ test("JH-5: edgeMinZoom slider exists in panel", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
 });
 
 // JH-6: No console errors after edge threshold changes
@@ -222,12 +247,47 @@ test("JH-6: no console errors from edge fade config", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   expect(errors.filter(e => e.includes("edge") || e.includes("fade"))).toHaveLength(0);
 });
 
 test.afterAll(() => {
   if (errors.length > 0) {
     console.warn("Page errors during test:", errors);
+  }
+});
+
+
+// =========================================================================
+// Screen-Space Visual Quality (auto-generated)
+// =========================================================================
+test("SCREEN-QUALITY: no node pile-up and labels readable", async () => {
+  await page.waitForTimeout(2000);
+
+  const hasView = await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    return !!(v && v.pixiNodes && v.pixiNodes.size > 0);
+  });
+  if (!hasView) return;
+
+  // 1. Screen-space density — detect node pile-up
+  const density = await measureScreenDensity(page);
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(50);
+    expect(density.viewportUtilization).toBeGreaterThan(20);
+    expect(density.rightHalfRatio).toBeLessThan(90);
+  }
+
+  // 2. Label readability — detect text overlap and unreadable font sizes
+  const labels = await measureLabelReadability(page);
+  if (labels.totalVisible > 5) {
+    expect(labels.overlapRate).toBeLessThan(0.50);
+    expect(labels.tooSmallCount).toBeLessThan(labels.totalVisible * 0.3);
   }
 });
 
@@ -268,5 +328,14 @@ test("QUALITY: node overlap, coordinate sanity, and color contrast", async () =>
   if (contrast.checkedCount > 0) {
     expect(contrast.failCount).toBeLessThan(contrast.checkedCount * 0.5);
   }
+
+  // 4. Screen-space density (detect actual visual pile-up)
+  const density = await measureScreenDensity(page);
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(50);
+    expect(density.viewportUtilization).toBeGreaterThan(20);
+    expect(density.rightHalfRatio).toBeLessThan(90);
+  }
+
 });
 

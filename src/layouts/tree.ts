@@ -147,8 +147,8 @@ export function applyTreeLayout(
     }
 
     // Limit fan-out per node to force deeper trees on dense graphs.
-    // Use cube root for deeper trees: e.g. 123 nodes → maxFanOut=5, depth≈10
-    const maxFanOut = Math.max(MIN_FANOUT, Math.ceil(Math.pow(nodeIds.length, 1/3)));
+    // Use 4th root for deep, narrow trees: 2233 nodes → maxFanOut≈7, depth≈~20
+    const maxFanOut = Math.max(MIN_FANOUT, Math.ceil(Math.pow(nodeIds.length, 0.25)));
 
     const levels = new Map<string, number>();
     const visited = new Set<string>();

@@ -5,6 +5,7 @@
 import type { PanelState } from "./PanelBuilder";
 import { invalidateBundleCache } from "./EdgeRenderer";
 import { t } from "../i18n";
+import { incCounter } from "../utils/graph-helpers";
 
 /** Minimal host interface for legend rendering */
 export interface LegendHost {
@@ -136,7 +137,7 @@ export function renderLegend(
     const legendCommunities = host.getCommunityMap();
     const commCounts = new Map<number, number>();
     for (const cid of legendCommunities.values()) {
-      commCounts.set(cid, (commCounts.get(cid) ?? 0) + 1);
+      incCounter(commCounts, cid);
     }
     const sortedComms = [...commCounts.entries()].sort((a, b) => b[1] - a[1]);
     if (sortedComms.length > 0) {

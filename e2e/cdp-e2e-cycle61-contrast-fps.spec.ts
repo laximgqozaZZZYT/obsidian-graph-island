@@ -3,7 +3,7 @@
  * Tests: WCAG contrast ratio, FPS during zoom, group boundary consistency
  */
 import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
-import { measureNodeOverlap, measureSpread, measureContrast } from "./helpers/quality-checks";
+import { measureNodeOverlap, measureSpread, measureContrast, measureScreenDensity, measureLabelReadability } from "./helpers/quality-checks";
 
 const CDP_URL = "http://localhost:9222";
 let browser: Browser;
@@ -101,6 +101,11 @@ test("§0.3: contrastColor guarantees WCAG 4.5:1 ratio", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.allPass).toBe(true);
   }
@@ -123,6 +128,11 @@ test("§0.4: FPS counter is available for monitoring", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.hasFps).toBe(true);
   }
@@ -152,6 +162,11 @@ test("§0.4: rendering active during zoom sweep", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   await setZoom(page, 1.0);
 });
 
@@ -175,6 +190,11 @@ test("§4.3: drawSmoothHull function exists for group boundaries", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
 });
 
 // §0.3-2: Card text contrast is WCAG compliant
@@ -204,6 +224,11 @@ test("§0.3: card mode text color has sufficient contrast", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
 });
 
 // §0.1-3: Label culling preserves high-degree node labels
@@ -250,6 +275,11 @@ test("§4.1: high-degree nodes retain labels over low-degree", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.priorityCorrect).toBe(true);
   }
@@ -269,6 +299,36 @@ test("§0: no console errors during contrast + FPS checks", async () => {
     !e.includes("ResizeObserver") && !e.includes("Excalidraw") && !e.includes("net::ERR")
   );
   expect(relevantErrors).toHaveLength(0);
+});
+
+
+// =========================================================================
+// Screen-Space Visual Quality (auto-generated)
+// =========================================================================
+test("SCREEN-QUALITY: no node pile-up and labels readable", async () => {
+  await page.waitForTimeout(2000);
+
+  const hasView = await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    return !!(v && v.pixiNodes && v.pixiNodes.size > 0);
+  });
+  if (!hasView) return;
+
+  // 1. Screen-space density — detect node pile-up
+  const density = await measureScreenDensity(page);
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(50);
+    expect(density.viewportUtilization).toBeGreaterThan(20);
+    expect(density.rightHalfRatio).toBeLessThan(90);
+  }
+
+  // 2. Label readability — detect text overlap and unreadable font sizes
+  const labels = await measureLabelReadability(page);
+  if (labels.totalVisible > 5) {
+    expect(labels.overlapRate).toBeLessThan(0.50);
+    expect(labels.tooSmallCount).toBeLessThan(labels.totalVisible * 0.3);
+  }
 });
 
 // =========================================================================
@@ -308,5 +368,14 @@ test("QUALITY: node overlap, coordinate sanity, and color contrast", async () =>
   if (contrast.checkedCount > 0) {
     expect(contrast.failCount).toBeLessThan(contrast.checkedCount * 0.5);
   }
+
+  // 4. Screen-space density (detect actual visual pile-up)
+  const density = await measureScreenDensity(page);
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(50);
+    expect(density.viewportUtilization).toBeGreaterThan(20);
+    expect(density.rightHalfRatio).toBeLessThan(90);
+  }
+
 });
 

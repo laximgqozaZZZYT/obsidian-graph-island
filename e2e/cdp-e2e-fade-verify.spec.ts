@@ -3,6 +3,7 @@
  * Tests that fade toggle produces visible rendering change.
  */
 import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
+import { measureScreenDensity, measureLabelReadability } from "./helpers/quality-checks";
 
 const CDP_URL = "http://localhost:9222";
 let browser: Browser;
@@ -116,3 +117,31 @@ test("fade toggle via markDirty pipeline re-renders edges", async () => {
   expect(before.children).toBeGreaterThan(0);
   expect(after.children).toBeGreaterThan(0);
 });
+
+// =========================================================================
+// Screen-Space Visual Quality (auto-generated)
+// =========================================================================
+test("SCREEN-QUALITY: no node pile-up and labels readable", async () => {
+  await page.waitForTimeout(2000);
+
+  const hasView = await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    return !!(v && v.pixiNodes && v.pixiNodes.size > 0);
+  });
+  if (!hasView) return;
+
+  const density = await measureScreenDensity(page);
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(50);
+    expect(density.viewportUtilization).toBeGreaterThan(20);
+    expect(density.rightHalfRatio).toBeLessThan(90);
+  }
+
+  const labels = await measureLabelReadability(page);
+  if (labels.totalVisible > 5) {
+    expect(labels.overlapRate).toBeLessThan(0.50);
+    expect(labels.tooSmallCount).toBeLessThan(labels.totalVisible * 0.3);
+  }
+});
+

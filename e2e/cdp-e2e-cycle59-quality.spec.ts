@@ -4,7 +4,7 @@
  *        §0.4 performance (zoom response, hover card latency)
  */
 import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
-import { measureNodeOverlap, measureSpread, measureContrast } from "./helpers/quality-checks";
+import { measureNodeOverlap, measureSpread, measureContrast, measureScreenDensity, measureLabelReadability } from "./helpers/quality-checks";
 
 const CDP_URL = "http://localhost:9222";
 let browser: Browser;
@@ -91,6 +91,11 @@ test("§0.1: label collision rate at zoom 1.0 is within threshold", async () => 
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   // Note: at zoom 1.0 with 2000+ nodes, some culling is expected
   // The key metric is that it's controlled, not unbounded
 });
@@ -122,6 +127,11 @@ test("§0.2: LOD tier 0 at zoom 0.1 — dot rendering active", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (!result.skipped && result.totalNodes > 10) {
     expect(result.lodCorrect).toBe(true);
   }
@@ -152,6 +162,11 @@ test("§0.2: zoom 2.0 enables full label display", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   await setZoom(page, 1.0); // reset
 });
 
@@ -183,6 +198,11 @@ test("§0.3: toolbar buttons meet 24px minimum target", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   // Allow zoom preset buttons to be smaller (they're supplementary)
   if (result.totalChecked > 0) {
     expect(result.smallCount).toBeLessThanOrEqual(4); // preset buttons are exempt
@@ -225,6 +245,11 @@ test("§0.3: interactive elements have aria-labels", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   expect(result.missingLabel).toBeLessThanOrEqual(2); // tolerance for edge cases
 });
 
@@ -260,6 +285,11 @@ test("§0.4: zoom response time within threshold", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.withinThreshold).toBe(true);
   }
@@ -288,6 +318,11 @@ test("§0.1: getLabelCullStats API returns valid structure", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.hasTotal).toBe(true);
     expect(result.hasRate).toBe(true);
@@ -307,6 +342,36 @@ test("§0: no console errors during quality verification", async () => {
     !e.includes("ResizeObserver") && !e.includes("Excalidraw") && !e.includes("net::ERR")
   );
   expect(relevantErrors).toHaveLength(0);
+});
+
+
+// =========================================================================
+// Screen-Space Visual Quality (auto-generated)
+// =========================================================================
+test("SCREEN-QUALITY: no node pile-up and labels readable", async () => {
+  await page.waitForTimeout(2000);
+
+  const hasView = await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    return !!(v && v.pixiNodes && v.pixiNodes.size > 0);
+  });
+  if (!hasView) return;
+
+  // 1. Screen-space density — detect node pile-up
+  const density = await measureScreenDensity(page);
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(50);
+    expect(density.viewportUtilization).toBeGreaterThan(20);
+    expect(density.rightHalfRatio).toBeLessThan(90);
+  }
+
+  // 2. Label readability — detect text overlap and unreadable font sizes
+  const labels = await measureLabelReadability(page);
+  if (labels.totalVisible > 5) {
+    expect(labels.overlapRate).toBeLessThan(0.50);
+    expect(labels.tooSmallCount).toBeLessThan(labels.totalVisible * 0.3);
+  }
 });
 
 // =========================================================================
@@ -346,5 +411,14 @@ test("QUALITY: node overlap, coordinate sanity, and color contrast", async () =>
   if (contrast.checkedCount > 0) {
     expect(contrast.failCount).toBeLessThan(contrast.checkedCount * 0.5);
   }
+
+  // 4. Screen-space density (detect actual visual pile-up)
+  const density = await measureScreenDensity(page);
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(50);
+    expect(density.viewportUtilization).toBeGreaterThan(20);
+    expect(density.rightHalfRatio).toBeLessThan(90);
+  }
+
 });
 

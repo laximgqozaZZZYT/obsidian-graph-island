@@ -421,7 +421,7 @@ export function edgeTypeSummary(
   for (const e of edges) {
     if (e.source === nodeId || e.target === nodeId) {
       const t = e.type ?? "link";
-      counts.set(t, (counts.get(t) ?? 0) + 1);
+      incCounter(counts, t);
     }
   }
   return counts;

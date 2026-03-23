@@ -1,7 +1,7 @@
 import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { GraphEdge, EdgeCardinalityMode, Cardinality, CardinalityRule, CardinalityRenderConfig } from "../types";
 import { DEFAULT_CARDINALITY_RENDER_CONFIG } from "../types";
-import { cssColorToHex, edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
+import { cssColorToHex, edgeSourceId, edgeTargetId, incCounter } from "../utils/graph-helpers";
 import { wcagContrastRatio, contrastColor } from "../utils/color";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { routeEdge, findNearestIntersection, cachedFindShortestPath, pathToWaypoints, invalidatePathCache } from "../layouts/cable-tray";
@@ -2048,7 +2048,7 @@ function cableWeightThickness(edges: GraphEdge[], cfg: EdgeDrawConfig): number {
   const pairs = new Map<string, number>();
   for (const e of edges) {
     const k = [edgeSourceId(e), edgeTargetId(e)].sort().join(":");
-    pairs.set(k, (pairs.get(k) ?? 0) + 1);
+    incCounter(pairs, k);
   }
   let maxW = 1;
   for (const w of pairs.values()) { if (w > maxW) maxW = w; }
@@ -2921,7 +2921,7 @@ export function buildPairCounts(edges: GraphEdge[]): Map<string, number> {
   const pairCount = new Map<string, number>();
   for (const e of edges) {
     const key = [e.source, e.target].sort().join(":");
-    pairCount.set(key, (pairCount.get(key) ?? 0) + 1);
+    incCounter(pairCount, key);
   }
   return pairCount;
 }

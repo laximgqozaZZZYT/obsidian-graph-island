@@ -1096,6 +1096,8 @@ test.describe("28. NOT Operator", () => {
 // =========================================================================
 test.describe("29. Drag Distance Limit", () => {
   test("29.1 node positions are within reasonable bounds", async () => {
+    // Ensure full graph is loaded (previous test may have filtered)
+    await renderWith(page, { searchQuery: "", showOrphans: true });
     const result = await page.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.pixiNodes) return { error: "no view" };
@@ -1469,6 +1471,8 @@ test.describe("41. Enclosure Tag Suppression", () => {
 // =========================================================================
 test.describe("42. Card Mode Content", () => {
   test("42.1 card mode shows title and body text on nodes", async () => {
+    // Reset to default display mode before card mode test
+    await renderWith(page, { nodeDisplayMode: "node", tagDisplay: "node", searchQuery: "" });
     const result = await page.evaluate(async () => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };

@@ -6,6 +6,7 @@ import {
   EDGE_TYPE_SIMILAR, EDGE_TYPE_SIBLING, EDGE_TYPE_LINK, EDGE_TYPE_TAG,
   EDGE_TYPE_HAS_TAG,
 } from "../constants";
+import { incCounter } from "../utils/graph-helpers";
 
 /** Initial random scatter range for node positions */
 const INITIAL_SCATTER_X = 800;
@@ -112,7 +113,7 @@ export function buildGraphFromVault(
     for (const node of nodes) {
       if (!node.tags) continue;
       for (const tag of node.tags) {
-        tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+        incCounter(tagCounts, tag);
       }
     }
 

@@ -4,7 +4,7 @@
  *        preset announce, aria roles, keyboard legend access
  */
 import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
-import { measureNodeOverlap, measureSpread, measureContrast } from "./helpers/quality-checks";
+import { measureNodeOverlap, measureSpread, measureContrast, measureScreenDensity, measureLabelReadability } from "./helpers/quality-checks";
 
 const CDP_URL = "http://localhost:9222";
 let browser: Browser;
@@ -61,6 +61,11 @@ test("IE-1: legend panel has proper ARIA attributes", async () => {
     };
   });
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (!result.skipped && result.role) {
     expect(result.hasRole).toBe(true);
   }
@@ -82,6 +87,11 @@ test("IE-2: graph stats panel has role=status", async () => {
     };
   });
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (!result.skipped && result.role) {
     expect(result.hasStatus).toBe(true);
   }
@@ -116,6 +126,11 @@ test("IE-3: legend close button is keyboard accessible", async () => {
     };
   });
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (result.tagName) {
     expect(result.tagName).toBe("button");
     expect(result.hasAriaLabel).toBe(true);
@@ -143,6 +158,11 @@ test("IE-4: legend items are keyboard accessible", async () => {
     };
   });
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (result.itemCount && result.itemCount > 0) {
     expect(result.allHaveRole).toBe(true);
     expect(result.allHaveTabindex).toBe(true);
@@ -167,6 +187,11 @@ test("IF-5: edgeLabelPlacement setting supports smart mode", async () => {
     return { ok: newVal === "smart" };
   });
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
 });
 
 // IG-6: Group expand/collapse triggers a11y announcement
@@ -177,6 +202,11 @@ test("IG-6: group operations announce via aria-live", async () => {
     return { ok: true, ariaLiveExists: true };
   });
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
 });
 
 // IG-7: Preset apply triggers a11y announcement
@@ -191,6 +221,11 @@ test("IG-7: applyPresetByKey triggers aria announcement", async () => {
     return { ok: hasMethod };
   });
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
 });
 
 // IE-8: No console errors during a11y interactions
@@ -237,6 +272,36 @@ test("IE-8: no console errors during a11y-related interactions", async () => {
   expect(relevantErrors).toHaveLength(0);
 });
 
+
+// =========================================================================
+// Screen-Space Visual Quality (auto-generated)
+// =========================================================================
+test("SCREEN-QUALITY: no node pile-up and labels readable", async () => {
+  await page.waitForTimeout(2000);
+
+  const hasView = await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    return !!(v && v.pixiNodes && v.pixiNodes.size > 0);
+  });
+  if (!hasView) return;
+
+  // 1. Screen-space density — detect node pile-up
+  const density = await measureScreenDensity(page);
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(50);
+    expect(density.viewportUtilization).toBeGreaterThan(20);
+    expect(density.rightHalfRatio).toBeLessThan(90);
+  }
+
+  // 2. Label readability — detect text overlap and unreadable font sizes
+  const labels = await measureLabelReadability(page);
+  if (labels.totalVisible > 5) {
+    expect(labels.overlapRate).toBeLessThan(0.50);
+    expect(labels.tooSmallCount).toBeLessThan(labels.totalVisible * 0.3);
+  }
+});
+
 // =========================================================================
 // Display Quality Gate (auto-generated)
 // =========================================================================
@@ -274,5 +339,14 @@ test("QUALITY: node overlap, coordinate sanity, and color contrast", async () =>
   if (contrast.checkedCount > 0) {
     expect(contrast.failCount).toBeLessThan(contrast.checkedCount * 0.5);
   }
+
+  // 4. Screen-space density (detect actual visual pile-up)
+  const density = await measureScreenDensity(page);
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(50);
+    expect(density.viewportUtilization).toBeGreaterThan(20);
+    expect(density.rightHalfRatio).toBeLessThan(90);
+  }
+
 });
 

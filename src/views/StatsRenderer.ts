@@ -9,6 +9,7 @@ import { computeGraphStats, generateStructureQuestions } from "../analysis/graph
 import { t } from "../i18n";
 import { Notice } from "obsidian";
 import type { StatsHost } from "./GraphViewContainer";
+import { incCounter } from "../utils/graph-helpers";
 
 /** Minimal panel state needed for stats rendering */
 export interface StatsPanel {
@@ -129,7 +130,7 @@ export function renderGraphStats(
     const buckets = new Map<number, number>();
     for (const deg of degrees.values()) {
       const b = Math.min(deg, 20);
-      buckets.set(b, (buckets.get(b) ?? 0) + 1);
+      incCounter(buckets, b);
     }
     const maxBucket = Math.max(1, ...buckets.values());
     const chartEl = el.createDiv({ cls: "gi-degree-chart" });
@@ -365,7 +366,7 @@ export function renderRelationMatrix(
     const tgt = typeof e.target === "object" ? e.target.id : e.target;
     if (idSet.has(src) && idSet.has(tgt)) {
       const row = matrix.get(src)!;
-      row.set(tgt, (row.get(tgt) ?? 0) + 1);
+      incCounter(row, tgt);
     }
   }
 

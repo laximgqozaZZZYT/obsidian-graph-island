@@ -10,6 +10,7 @@
 
 import type { GraphData, GraphNode, GraphEdge } from "../types";
 import { EDGE_TYPE_SEQUENCE } from "../constants";
+import { incCounter } from "../utils/graph-helpers";
 
 // ---------------------------------------------------------------------------
 // Constants — default layout parameters
@@ -130,7 +131,7 @@ export function assignLanes(
   }
   for (const [, targets] of dag) {
     for (const t of targets) {
-      inDegree.set(t, (inDegree.get(t) ?? 0) + 1);
+      incCounter(inDegree, t);
     }
   }
 

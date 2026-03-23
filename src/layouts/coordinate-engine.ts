@@ -32,6 +32,7 @@ import { getNodeFieldValues } from "../utils/node-grouping";
 import type { ArrangementResult } from "./cluster-force";
 import { CURVE_REGISTRY } from "./coordinate-presets";
 import { parseExpr, evalExpr, setUserVars, type ExprNode } from "../utils/expr-eval";
+import { incCounter } from "../utils/graph-helpers";
 import {
   SOURCE_PROPERTY, SOURCE_INDEX, SOURCE_FIELD, SOURCE_METRIC,
   SOURCE_HOP, SOURCE_RANDOM, SOURCE_CONST,
@@ -341,7 +342,7 @@ function resolveSourceMetric(
       const memberSet = new Set(members.map(m => m.id));
       for (const e of ctx.edges) {
         if (memberSet.has(e.target)) {
-          inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
+          incCounter(inDeg, e.target);
         }
       }
       for (const m of members) {
@@ -354,7 +355,7 @@ function resolveSourceMetric(
       const memberSet = new Set(members.map(m => m.id));
       for (const e of ctx.edges) {
         if (memberSet.has(e.source)) {
-          outDeg.set(e.source, (outDeg.get(e.source) ?? 0) + 1);
+          incCounter(outDeg, e.source);
         }
       }
       for (const m of members) {

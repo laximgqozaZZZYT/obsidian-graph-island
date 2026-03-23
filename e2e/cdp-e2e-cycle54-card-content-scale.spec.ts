@@ -4,7 +4,7 @@
  *        HM-4 z-index, HM-5 a11y, HM-6 mode switch, HM-7 hover overlap, HM-8 console errors
  */
 import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
-import { measureNodeOverlap, measureSpread, measureContrast } from "./helpers/quality-checks";
+import { measureNodeOverlap, measureSpread, measureContrast, measureScreenDensity, measureLabelReadability } from "./helpers/quality-checks";
 
 const CDP_URL = "http://localhost:9222";
 let browser: Browser;
@@ -97,6 +97,11 @@ test("HM-1: plain card renders with golden ratio landscape aspect", async () => 
 
   // cardAspectRatio is 1.618 by default, or 0 (which means use 1.618)
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
 });
 
 // HM-2: cardContentScale slider exists and is adjustable
@@ -118,6 +123,11 @@ test("HM-2: cardContentScale setting exists in renderThresholds", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
 });
 
 // HM-3: Content scale causes size variation between nodes with different body lengths
@@ -159,6 +169,11 @@ test("HM-3: content scale creates size difference by body length", async () => {
 
   if (!(result as any).skipped) {
     expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   }
 });
 
@@ -191,6 +206,11 @@ test("HM-4: z-index hierarchy separates overlay panels", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   if (!(result as any).skipped) {
     expect(result.hierarchyCorrect).toBe(true);
   }
@@ -205,6 +225,11 @@ test("HM-5: aria-live region exists for card mode announcements", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
 });
 
 // HM-6: Display mode switch card→node→card maintains golden ratio config
@@ -266,6 +291,11 @@ test("HM-7: hover label culling exclusion zone includes DOM panels", async () =>
   });
 
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
   await setDisplayMode(page, "node");
 });
 
@@ -325,6 +355,11 @@ test("HM-9: hover tooltip overlap adjustment method exists", async () => {
     return { ok: true, hasAdjustMethod: hasAdjust, methodCount: methods.length };
   });
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
 });
 
 // HM-10: gridCellShading is NOT a ghost — confirmed connected to GuideRenderer
@@ -342,6 +377,41 @@ test("HM-10: gridCellShading property exists in panel state", async () => {
     return { ok: hasProperty, value: val, type: typeof val };
   });
   expect(result.ok).toBe(true);
+
+  // === Coordinate sanity: no NaN/Inf after setting change ===
+  const _csq = await measureSpread(page);
+  expect(_csq.nanCount).toBe(0);
+  expect(_csq.infCount).toBe(0);
+});
+
+
+// =========================================================================
+// Screen-Space Visual Quality (auto-generated)
+// =========================================================================
+test("SCREEN-QUALITY: no node pile-up and labels readable", async () => {
+  await page.waitForTimeout(2000);
+
+  const hasView = await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    return !!(v && v.pixiNodes && v.pixiNodes.size > 0);
+  });
+  if (!hasView) return;
+
+  // 1. Screen-space density — detect node pile-up
+  const density = await measureScreenDensity(page);
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(50);
+    expect(density.viewportUtilization).toBeGreaterThan(20);
+    expect(density.rightHalfRatio).toBeLessThan(90);
+  }
+
+  // 2. Label readability — detect text overlap and unreadable font sizes
+  const labels = await measureLabelReadability(page);
+  if (labels.totalVisible > 5) {
+    expect(labels.overlapRate).toBeLessThan(0.50);
+    expect(labels.tooSmallCount).toBeLessThan(labels.totalVisible * 0.3);
+  }
 });
 
 // =========================================================================
@@ -381,5 +451,14 @@ test("QUALITY: node overlap, coordinate sanity, and color contrast", async () =>
   if (contrast.checkedCount > 0) {
     expect(contrast.failCount).toBeLessThan(contrast.checkedCount * 0.5);
   }
+
+  // 4. Screen-space density (detect actual visual pile-up)
+  const density = await measureScreenDensity(page);
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(50);
+    expect(density.viewportUtilization).toBeGreaterThan(20);
+    expect(density.rightHalfRatio).toBeLessThan(90);
+  }
+
 });
 

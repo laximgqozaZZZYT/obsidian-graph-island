@@ -7,7 +7,7 @@ import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { clamp } from "../utils/geometry";
 import { hexToRgb, getLuminance, wcagContrastRatio, contrastColor } from "../utils/color";
-import { hslToHex } from "../utils/graph-helpers";
+import { hslToHex, incCounter } from "../utils/graph-helpers";
 
 // ---------------------------------------------------------------------------
 // CardText — CanvasText with a marker flag for card-mode text children
@@ -1708,7 +1708,7 @@ export class RenderPipeline {
     for (const memberId of members) {
       const memberPn = this.host.getPixiNodes().get(memberId);
       const val = memberPn?.data?.meta?.[breakdownField] as string ?? "other";
-      valueCounts.set(val, (valueCounts.get(val) ?? 0) + 1);
+      incCounter(valueCounts, val);
     }
 
     let startAngle = -Math.PI / 2;
