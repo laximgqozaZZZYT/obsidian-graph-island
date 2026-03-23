@@ -6268,8 +6268,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Update the relation matrix overlay — delegates to StatsRenderer. */
   private updateRelationMatrix(gd: GraphData): void {
     if (!this.relationMatrixEl) return;
-    // Hide overlay when matrix viewMode is active (full-screen matrix replaces it)
-    const show = this.panel.showRelationMatrix && this.panel.viewMode !== "matrix";
+    // Hide overlay in all non-graph viewModes
+    const show = this.panel.showRelationMatrix && this.panel.viewMode === "graph";
     renderRelationMatrix(this.relationMatrixEl, show, gd.edges, this, (ids) => this.applyEphemeralHighlight(ids));
   }
 
@@ -8574,6 +8574,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Status
     this.setStatus(`${nodeIds.length} × ${nodeIds.length} matrix, ${gd.edges.length} edges`);
+    // Hide all overlays (stats, legend, minimap, relation matrix overlay)
+    if (this.graphStatsEl) this.graphStatsEl.style.display = "none";
+    if (this.legendEl) this.legendEl.style.display = "none";
+    if (this.minimap) this.minimap.setVisible(false);
+    if (this.relationMatrixEl) this.relationMatrixEl.style.display = "none";
     if (this.skipPanelRebuildCount === 0) this.buildPanel();
   }
 
