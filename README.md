@@ -262,7 +262,7 @@ src/
 - **Matrix adjacency table**: Full-screen node-to-node connection table with color-intensity cells; click to jump to Graph mode
 - **Tree horizontal layout**: Left-to-right hierarchical tree with canvas-fit scaling
 - **Mode-aware panel**: Settings sections automatically show/hide based on the active viewMode
-- **2100+ unit tests**: Coverage thresholds S27/B25.5/F24/L27
+- **2235+ unit tests**: Coverage thresholds S28/B26.5/F24.5/L27.5
 
 ## What's New in v0.3.1
 
