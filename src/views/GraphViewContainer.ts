@@ -6678,6 +6678,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Sync currentLayout from viewMode (ensures saved state is respected)
     this.currentLayout = viewModeToLayout(this.panel.viewMode);
 
+    // Always hide matrix fullscreen at start of doRender (matrix viewMode re-shows it later)
+    const matrixFs = this.containerEl.querySelector<HTMLElement>(".gi-matrix-fullscreen");
+    if (matrixFs) matrixFs.style.display = "none";
+    // Show canvas (matrix viewMode hides it)
+    const canvasEl = this.canvasWrap?.querySelector("canvas");
+    if (canvasEl) canvasEl.style.display = "";
+
     // Non-graph viewModes: skip per-node rendering, use dedicated renderers
     this.renderPipeline?.setSkipNodeRendering(viewModeSkipsNodeRendering(this.panel.viewMode));
 
@@ -6740,9 +6747,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
 
     // Hide matrix fullscreen if returning from matrix viewMode
-    const matrixFs = this.containerEl.querySelector<HTMLElement>(".gi-matrix-fullscreen");
-    if (matrixFs) matrixFs.style.display = "none";
-
     // Init Canvas 2D
     const pixiResult = this.initPixi(W, H);
     if (!pixiResult) return;
