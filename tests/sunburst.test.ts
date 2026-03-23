@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeSunburstArcs, applySunburstLayout, buildSunburstFromGraphNodes, getGroupingPath } from "../src/layouts/sunburst";
+import { computeSunburstArcs, applySunburstLayout, buildSunburstFromGraphNodes, getGroupingPath, assignValues, maxDepth, collectFilePaths, countDirectChildren } from "../src/layouts/sunburst";
 import type { SunburstData, GraphNode, GraphEdge } from "../src/types";
 
 // ---------------------------------------------------------------------------
@@ -296,5 +296,159 @@ describe("buildSunburstFromGraphNodes", () => {
     // Each leaf has value=1, so the group should have 3 children
     const group = result.children![0];
     expect(group.children!.length).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// assignValues — postorder aggregation of leaf values
+// ---------------------------------------------------------------------------
+describe("assignValues", () => {
+  it("assigns value 1 to a leaf with no children", () => {
+    const leaf: SunburstData = { name: "leaf" };
+    expect(assignValues(leaf)).toBe(1);
+    expect(leaf.value).toBe(1);
+  });
+
+  it("preserves explicit leaf value", () => {
+    const leaf: SunburstData = { name: "leaf", value: 5 };
+    expect(assignValues(leaf)).toBe(5);
+  });
+
+  it("sums children values for parent", () => {
+    const root: SunburstData = {
+      name: "root",
+      children: [
+        { name: "a", value: 3 },
+        { name: "b", value: 7 },
+      ],
+    };
+    expect(assignValues(root)).toBe(10);
+    expect(root.value).toBe(10);
+  });
+
+  it("recursively assigns for deep hierarchy", () => {
+    const root: SunburstData = {
+      name: "root",
+      children: [
+        { name: "group", children: [
+          { name: "x" },
+          { name: "y" },
+          { name: "z" },
+        ] },
+      ],
+    };
+    expect(assignValues(root)).toBe(3);
+    expect(root.children![0].value).toBe(3);
+  });
+
+  it("handles mixed leaf and branch children", () => {
+    const root: SunburstData = {
+      name: "root",
+      children: [
+        { name: "leaf", value: 2 },
+        { name: "branch", children: [{ name: "c1" }, { name: "c2" }] },
+      ],
+    };
+    expect(assignValues(root)).toBe(4); // 2 + (1+1)
+  });
+});
+
+// ---------------------------------------------------------------------------
+// maxDepth — recursive tree depth calculation
+// ---------------------------------------------------------------------------
+describe("maxDepth", () => {
+  it("returns 1 for a leaf node", () => {
+    expect(maxDepth({ name: "leaf" })).toBe(1);
+  });
+
+  it("returns 2 for root with one level of children", () => {
+    expect(maxDepth({ name: "root", children: [{ name: "a" }, { name: "b" }] })).toBe(2);
+  });
+
+  it("returns correct depth for deep tree", () => {
+    const tree: SunburstData = {
+      name: "r",
+      children: [{ name: "a", children: [{ name: "b", children: [{ name: "c" }] }] }],
+    };
+    expect(maxDepth(tree)).toBe(4);
+  });
+
+  it("returns max of unbalanced branches", () => {
+    const tree: SunburstData = {
+      name: "r",
+      children: [
+        { name: "shallow" },
+        { name: "deep", children: [{ name: "d1", children: [{ name: "d2" }] }] },
+      ],
+    };
+    expect(maxDepth(tree)).toBe(4); // r → deep → d1 → d2
+  });
+
+  it("handles node with empty children array as leaf", () => {
+    expect(maxDepth({ name: "r", children: [] })).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// collectFilePaths — collect all filePaths from tree
+// ---------------------------------------------------------------------------
+describe("collectFilePaths", () => {
+  it("returns empty set for node without filePath", () => {
+    expect(collectFilePaths({ name: "r" }).size).toBe(0);
+  });
+
+  it("collects filePath from leaf node", () => {
+    const paths = collectFilePaths({ name: "leaf", filePath: "a.md" });
+    expect(paths.has("a.md")).toBe(true);
+    expect(paths.size).toBe(1);
+  });
+
+  it("collects filePaths recursively from tree", () => {
+    const tree: SunburstData = {
+      name: "root",
+      children: [
+        { name: "a", filePath: "a.md" },
+        { name: "group", children: [
+          { name: "b", filePath: "b.md" },
+          { name: "c", filePath: "c.md" },
+        ] },
+      ],
+    };
+    const paths = collectFilePaths(tree);
+    expect(paths.size).toBe(3);
+    expect(paths.has("a.md")).toBe(true);
+    expect(paths.has("b.md")).toBe(true);
+    expect(paths.has("c.md")).toBe(true);
+  });
+
+  it("deduplicates repeated filePaths", () => {
+    const tree: SunburstData = {
+      name: "root",
+      children: [
+        { name: "a", filePath: "same.md" },
+        { name: "b", filePath: "same.md" },
+      ],
+    };
+    expect(collectFilePaths(tree).size).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// countDirectChildren
+// ---------------------------------------------------------------------------
+describe("countDirectChildren", () => {
+  it("returns 0 for leaf (no children)", () => {
+    expect(countDirectChildren({ name: "leaf" })).toBe(0);
+  });
+
+  it("returns 0 for empty children array", () => {
+    expect(countDirectChildren({ name: "r", children: [] })).toBe(0);
+  });
+
+  it("returns correct count", () => {
+    expect(countDirectChildren({
+      name: "r",
+      children: [{ name: "a" }, { name: "b" }, { name: "c" }],
+    })).toBe(3);
   });
 });

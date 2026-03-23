@@ -114,7 +114,7 @@ export function applySunburstLayout(
 }
 
 /** Collect all filePaths from a SunburstData tree */
-function collectFilePaths(node: SunburstData): Set<string> {
+export function collectFilePaths(node: SunburstData): Set<string> {
   const paths = new Set<string>();
   if (node.filePath) paths.add(node.filePath);
   if (node.children) {
@@ -126,7 +126,7 @@ function collectFilePaths(node: SunburstData): Set<string> {
 }
 
 /** Count direct children of a SunburstData node */
-function countDirectChildren(node: SunburstData): number {
+export function countDirectChildren(node: SunburstData): number {
   return node.children?.length ?? 0;
 }
 
@@ -267,7 +267,7 @@ export function computeSunburstArcs(
   return arcs;
 }
 
-function assignValues(node: SunburstData): number {
+export function assignValues(node: SunburstData): number {
   if (!node.children || node.children.length === 0) {
     node.value = node.value ?? 1;
     return node.value;
@@ -280,7 +280,7 @@ function assignValues(node: SunburstData): number {
   return sum;
 }
 
-function maxDepth(node: SunburstData, current = 0): number {
+export function maxDepth(node: SunburstData, current = 0): number {
   if (!node.children || node.children.length === 0) return current + 1;
   let max = current + 1;
   for (const child of node.children) {

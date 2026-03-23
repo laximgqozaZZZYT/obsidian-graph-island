@@ -97,7 +97,7 @@ export class CanvasGraphics {
   }
 
   drawCircle(x: number, y: number, r: number) {
-    this.commands.push({ t: "drawCircle", x, y, r });
+    this.commands.push({ t: "drawCircle", x, y, r: Math.max(0, r) });
   }
 
   drawRect(x: number, y: number, w: number, h: number) {
@@ -129,7 +129,11 @@ export class CanvasGraphics {
   }
 
   drawRoundedRect(x: number, y: number, w: number, h: number, r: number) {
-    this.commands.push({ t: "roundedRect", x, y, w, h, r });
+    // Guard: Canvas2D arcTo throws if radius is negative
+    const aw = Math.abs(w);
+    const ah = Math.abs(h);
+    const ar = Math.max(0, r);
+    this.commands.push({ t: "roundedRect", x, y, w: aw, h: ah, r: ar });
   }
 
   destroy() {
@@ -265,7 +269,7 @@ export class CanvasGraphics {
           break;
         case "roundedRect": {
           beginNewPath();
-          const rr = Math.min(cmd.r, cmd.w / 2, cmd.h / 2);
+          const rr = Math.max(0, Math.min(cmd.r, cmd.w / 2, cmd.h / 2));
           ctx.moveTo(cmd.x + rr, cmd.y);
           ctx.lineTo(cmd.x + cmd.w - rr, cmd.y);
           ctx.arcTo(cmd.x + cmd.w, cmd.y, cmd.x + cmd.w, cmd.y + rr, rr);

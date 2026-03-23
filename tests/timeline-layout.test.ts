@@ -4,6 +4,10 @@ import {
   buildHierarchyOrder,
   resolveTimeKey,
   timelinePartitionNodes,
+  timelineSortAndBuildSteps,
+  timelineComputeSpacing,
+  timelineCenterOffsets,
+  timelineBuildSequenceEdges,
 } from "../src/layouts/timeline-layout";
 import type { GraphNode } from "../src/types";
 import type { ClusterForceConfig } from "../src/layouts/cluster-force";
@@ -406,5 +410,206 @@ describe("timelinePartitionNodes", () => {
     const result = timelinePartitionNodes(nodes, cfg);
     expect(result.timed).toHaveLength(0);
     expect(result.untimed).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// timelineSortAndBuildSteps
+// ---------------------------------------------------------------------------
+describe("timelineSortAndBuildSteps", () => {
+  it("sorts numeric values numerically", () => {
+    const timed = [
+      { node: mkNode("a"), value: "10" },
+      { node: mkNode("b"), value: "2" },
+      { node: mkNode("c"), value: "1" },
+    ];
+    const r = timelineSortAndBuildSteps(timed);
+    expect(r.allNumeric).toBe(true);
+    expect(r.sortedTimed.map(t => t.value)).toEqual(["1", "2", "10"]);
+  });
+
+  it("sorts non-numeric values lexicographically", () => {
+    const timed = [
+      { node: mkNode("a"), value: "beta" },
+      { node: mkNode("b"), value: "alpha" },
+    ];
+    const r = timelineSortAndBuildSteps(timed);
+    expect(r.allNumeric).toBe(false);
+    expect(r.sortedTimed.map(t => t.value)).toEqual(["alpha", "beta"]);
+  });
+
+  it("builds unique time steps with correct indices", () => {
+    const timed = [
+      { node: mkNode("a"), value: "T1" },
+      { node: mkNode("b"), value: "T2" },
+      { node: mkNode("c"), value: "T1" },
+    ];
+    const r = timelineSortAndBuildSteps(timed);
+    expect(r.uniqueTimes).toEqual(["T1", "T2"]);
+    expect(r.timeIndexMap.get("T1")).toBe(0);
+    expect(r.timeIndexMap.get("T2")).toBe(1);
+  });
+
+  it("separates synthetic __chain_ from real timed", () => {
+    const timed = [
+      { node: mkNode("a"), value: "2024-01" },
+      { node: mkNode("b"), value: "__chain_000001" },
+      { node: mkNode("c"), value: "2024-02" },
+    ];
+    const r = timelineSortAndBuildSteps(timed);
+    expect(r.allNumeric).toBe(false);
+    const ids = r.sortedTimed.map(t => t.node.id);
+    expect(ids.indexOf("b")).toBeGreaterThan(ids.indexOf("a"));
+    expect(ids.indexOf("b")).toBeGreaterThan(ids.indexOf("c"));
+  });
+
+  it("empty input → empty results", () => {
+    const r = timelineSortAndBuildSteps([]);
+    expect(r.sortedTimed).toEqual([]);
+    expect(r.uniqueTimes).toEqual([]);
+    expect(r.allNumeric).toBe(false);
+  });
+
+  it("mixed numeric/non-numeric → lexicographic", () => {
+    const timed = [
+      { node: mkNode("a"), value: "abc" },
+      { node: mkNode("b"), value: "123" },
+    ];
+    const r = timelineSortAndBuildSteps(timed);
+    expect(r.allNumeric).toBe(false);
+    expect(r.sortedTimed[0].value).toBe("123");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// timelineComputeSpacing
+// ---------------------------------------------------------------------------
+describe("timelineComputeSpacing", () => {
+  it("returns base spacing when cols ≤ 40", () => {
+    const r = timelineComputeSpacing(10, 0, 60, 15);
+    expect(r.effectiveSpacing).toBe(60);
+  });
+
+  it("shrinks spacing when total cols > 40", () => {
+    const r = timelineComputeSpacing(50, 0, 60, 15);
+    expect(r.effectiveSpacing).toBeLessThan(60);
+  });
+
+  it("minimum spacing scales with node count", () => {
+    const huge = timelineComputeSpacing(210, 0, 60, 15);
+    expect(huge.effectiveSpacing).toBeGreaterThanOrEqual(15 * 1.2);
+  });
+
+  it("yStackSpacing ≥ barH + barGap", () => {
+    const r = timelineComputeSpacing(10, 0, 30, 15);
+    expect(r.yStackSpacing).toBeGreaterThanOrEqual(15 * 2 + 15 * 1.5);
+  });
+
+  it("includes untimed grid cols in total", () => {
+    const at = timelineComputeSpacing(35, 25, 60, 15);
+    expect(at.effectiveSpacing).toBe(60);
+    const above = timelineComputeSpacing(36, 25, 60, 15);
+    expect(above.effectiveSpacing).toBeLessThan(60);
+  });
+
+  it("custom _barGapFactor affects yStackSpacing", () => {
+    const r = timelineComputeSpacing(10, 0, 60, 15, { _barGapFactor: 3.0 });
+    expect(r.yStackSpacing).toBeGreaterThanOrEqual(15 * 2 + 15 * 3.0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// timelineCenterOffsets
+// ---------------------------------------------------------------------------
+describe("timelineCenterOffsets", () => {
+  it("centers single offset to (0,0)", () => {
+    const offsets = new Map([["a", { dx: 100, dy: 200 }]]);
+    timelineCenterOffsets(offsets);
+    expect(offsets.get("a")).toEqual({ dx: 0, dy: 0 });
+  });
+
+  it("centers two offsets symmetrically", () => {
+    const offsets = new Map([
+      ["a", { dx: 0, dy: 0 }],
+      ["b", { dx: 100, dy: 200 }],
+    ]);
+    timelineCenterOffsets(offsets);
+    expect(offsets.get("a")).toEqual({ dx: -50, dy: -100 });
+    expect(offsets.get("b")).toEqual({ dx: 50, dy: 100 });
+  });
+
+  it("preserves relative distances", () => {
+    const offsets = new Map([
+      ["a", { dx: 10, dy: 20 }],
+      ["b", { dx: 30, dy: 60 }],
+    ]);
+    timelineCenterOffsets(offsets);
+    const a = offsets.get("a")!, b = offsets.get("b")!;
+    expect(b.dx - a.dx).toBe(20);
+    expect(b.dy - a.dy).toBe(40);
+  });
+
+  it("empty offsets doesn't throw", () => {
+    const offsets = new Map<string, { dx: number; dy: number }>();
+    expect(() => timelineCenterOffsets(offsets)).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// timelineBuildSequenceEdges
+// ---------------------------------------------------------------------------
+describe("timelineBuildSequenceEdges", () => {
+  it("generates edges between adjacent timed nodes", () => {
+    const sorted = [
+      { node: mkNode("a"), value: "T1" },
+      { node: mkNode("b"), value: "T2" },
+      { node: mkNode("c"), value: "T3" },
+    ];
+    const edges = timelineBuildSequenceEdges(sorted);
+    expect(edges).toHaveLength(2);
+    expect(edges[0].source).toBe("a");
+    expect(edges[0].target).toBe("b");
+    expect(edges[0].type).toBe("sequence");
+  });
+
+  it("returns empty for single node", () => {
+    expect(timelineBuildSequenceEdges([{ node: mkNode("a"), value: "T1" }])).toEqual([]);
+  });
+
+  it("returns empty for empty input", () => {
+    expect(timelineBuildSequenceEdges([])).toEqual([]);
+  });
+
+  it("skips edges between real and synthetic nodes", () => {
+    const sorted = [
+      { node: mkNode("a"), value: "T1" },
+      { node: mkNode("b"), value: "__chain_000001" },
+    ];
+    expect(timelineBuildSequenceEdges(sorted)).toHaveLength(0);
+  });
+
+  it("generates edges between same-prefix synthetic nodes", () => {
+    const sorted = [
+      { node: mkNode("a"), value: "__chain_000001" },
+      { node: mkNode("b"), value: "__chain_000002" },
+    ];
+    const edges = timelineBuildSequenceEdges(sorted);
+    expect(edges).toHaveLength(1);
+  });
+
+  it("skips edges between different synthetic prefixes", () => {
+    const sorted = [
+      { node: mkNode("a"), value: "__chain_000001" },
+      { node: mkNode("b"), value: "__hier_000001" },
+    ];
+    expect(timelineBuildSequenceEdges(sorted)).toHaveLength(0);
+  });
+
+  it("edge IDs are __seq__ prefixed", () => {
+    const sorted = [
+      { node: mkNode("x"), value: "T1" },
+      { node: mkNode("y"), value: "T2" },
+    ];
+    expect(timelineBuildSequenceEdges(sorted)[0].id).toBe("__seq__x__y");
   });
 });

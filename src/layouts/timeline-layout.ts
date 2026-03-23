@@ -236,7 +236,7 @@ export function timelinePartitionNodes(
 }
 
 /** timed エントリをソート (数値 vs 辞書順) し、ユニークタイムステップインデックスを構築 */
-function timelineSortAndBuildSteps(
+export function timelineSortAndBuildSteps(
   timed: { node: GraphNode; value: string }[],
 ): {
   sortedTimed: { node: GraphNode; value: string }[];
@@ -264,7 +264,7 @@ function timelineSortAndBuildSteps(
 }
 
 /** 実効 X スペーシング (自動圧縮付き) と Y スタックスペーシングを算出 */
-function timelineComputeSpacing(
+export function timelineComputeSpacing(
   nTimedCols: number,
   untimedCount: number,
   spacing: number,
@@ -415,7 +415,7 @@ function timelinePlaceUntimedNodes(
 }
 
 /** 全オフセットを両軸の中間点で中央揃え。中央値を返す */
-function timelineCenterOffsets(
+export function timelineCenterOffsets(
   offsets: Map<string, { dx: number; dy: number }>,
 ): { xCenter: number; yCenter: number } {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -611,7 +611,7 @@ function timelineRecenterY(
 }
 
 /** 時間的に隣接するノード間のシンセティックシーケンスエッジを生成 */
-function timelineBuildSequenceEdges(
+export function timelineBuildSequenceEdges(
   sortedTimed: { node: GraphNode; value: string }[],
 ): GraphEdge[] {
   const seqEdges: GraphEdge[] = [];
