@@ -254,6 +254,16 @@ src/
 
 349+ E2E tests (CDP-based, Obsidian live testing)
 
+## What's New in v0.4
+
+- **5 Visualization Modes**: Switch between Graph, Sunburst, Timeline, Tree, and Matrix views via the toolbar
+- **Sunburst ring chart**: Hierarchical folder/category breakdown as a colored ring chart with leader-line labels
+- **Timeline bar chart**: Duration bars for time-based data with auto-detected date fields and time axis labels
+- **Matrix adjacency table**: Full-screen node-to-node connection table with color-intensity cells; click to jump to Graph mode
+- **Tree horizontal layout**: Left-to-right hierarchical tree with canvas-fit scaling
+- **Mode-aware panel**: Settings sections automatically show/hide based on the active viewMode
+- **2100+ unit tests**: Coverage thresholds S27/B25.5/F24/L27
+
 ## What's New in v0.3.1
 
 - **Snapshot diff system**: Capture graph state, compare across time, timeline view with clickable entries
