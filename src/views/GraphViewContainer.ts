@@ -5799,7 +5799,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.updateThumbnails();
         this.updateHierarchyBreadcrumb();
         this.updateLegend();
-        if (this.minimap) this.minimap.setVisible(this.panel.showMinimap);
+        if (this.minimap) this.minimap.setVisible(this.panel.showMinimap && this.panel.viewMode === "graph");
         this.markDirty(true);
         this._updateSurpriseTimer();
         this.requestSave();
@@ -6237,6 +6237,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Update the floating graph statistics panel — delegates to StatsRenderer. */
   private updateGraphStats(gd: GraphData): void {
     if (!this.graphStatsEl) return;
+    // Hide stats in non-graph viewModes
+    if (this.panel.viewMode !== "graph") { this.graphStatsEl.style.display = "none"; return; }
     renderGraphStats(this.graphStatsEl, gd, this.panel, this);
   }
 
@@ -6364,6 +6366,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Update the interactive legend overlay — delegates to LegendRenderer. */
   private updateLegend() {
     if (!this.legendEl) return;
+    // Hide legend in non-graph viewModes
+    if (this.panel.viewMode !== "graph") { this.legendEl.style.display = "none"; return; }
     renderLegend(this.legendEl, this.panel as unknown as LegendPanel, this._legendHost);
   }
 
