@@ -13,6 +13,7 @@ import {
   timelinePlaceUntimedNodes,
   timelineAssignBarLanes,
   timelineEnforceColumnGaps,
+  timelineRecenterY,
 } from "../src/layouts/timeline-layout";
 import type { GraphNode } from "../src/types";
 import type { ClusterForceConfig, TimelineBarInfo } from "../src/layouts/cluster-force";
@@ -952,5 +953,62 @@ describe("timelineEnforceColumnGaps", () => {
     // After enforcement: a=0, b≥40, c≥80
     expect(offsets.get("b")!.dy).toBeGreaterThanOrEqual(40);
     expect(offsets.get("c")!.dy).toBeGreaterThanOrEqual(80);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// timelineRecenterY — Y axis re-centering after lane assignment
+// ---------------------------------------------------------------------------
+describe("timelineRecenterY", () => {
+  it("centers offsets around Y=0", () => {
+    const offsets = new Map([
+      ["a", { dx: 0, dy: 100 }],
+      ["b", { dx: 100, dy: 200 }],
+    ]);
+    timelineRecenterY(offsets, []);
+    // midpoint = (100+200)/2 = 150 → a.dy=-50, b.dy=50
+    expect(offsets.get("a")!.dy).toBeCloseTo(-50);
+    expect(offsets.get("b")!.dy).toBeCloseTo(50);
+  });
+
+  it("also adjusts bar yCenter values", () => {
+    const offsets = new Map([
+      ["a", { dx: 0, dy: 100 }],
+      ["b", { dx: 100, dy: 300 }],
+    ]);
+    const bars: TimelineBarInfo[] = [
+      { nodeId: "a", xStart: 0, xEnd: 50, barHeight: 30, yCenter: 100 },
+    ];
+    timelineRecenterY(offsets, bars);
+    // midpoint = (100+300)/2 = 200
+    expect(bars[0].yCenter).toBeCloseTo(100 - 200);
+  });
+
+  it("no-op when already centered (yAdj < 0.1)", () => {
+    const offsets = new Map([
+      ["a", { dx: 0, dy: -50 }],
+      ["b", { dx: 100, dy: 50 }],
+    ]);
+    // midpoint = (-50+50)/2 = 0 → abs(0) < 0.1 → no change
+    timelineRecenterY(offsets, []);
+    expect(offsets.get("a")!.dy).toBe(-50);
+    expect(offsets.get("b")!.dy).toBe(50);
+  });
+
+  it("handles single offset", () => {
+    const offsets = new Map([["a", { dx: 50, dy: 200 }]]);
+    timelineRecenterY(offsets, []);
+    // midpoint = (200+200)/2 = 200 → a.dy = 200-200 = 0
+    expect(offsets.get("a")!.dy).toBeCloseTo(0);
+  });
+
+  it("preserves dx values", () => {
+    const offsets = new Map([
+      ["a", { dx: 10, dy: 100 }],
+      ["b", { dx: 20, dy: 200 }],
+    ]);
+    timelineRecenterY(offsets, []);
+    expect(offsets.get("a")!.dx).toBe(10);
+    expect(offsets.get("b")!.dx).toBe(20);
   });
 });

@@ -52,7 +52,7 @@ import {
   EVENT_SYNC_PANEL,
   POLAR_ARRANGEMENTS,
 } from "../constants";
-import { viewModeToLayout, viewModeSkipsNodeRendering, viewModeSkipsEdges } from "../utils/view-mode-map";
+import { viewModeToLayout, viewModeSkipsNodeRendering, viewModeSkipsEdges, viewModeUsesDom } from "../utils/view-mode-map";
 
 // ---------------------------------------------------------------------------
 // StatsHost — interface for future StatsRenderer extraction (Phase 0)
@@ -581,6 +581,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       { mode: "sunburst", icon: "sun",         labelKey: "viewMode.sunburst" },
       { mode: "timeline", icon: "calendar",    labelKey: "viewMode.timeline" },
       { mode: "tree",     icon: "list-tree",   labelKey: "viewMode.tree" },
+      { mode: "matrix",   icon: "table-2",     labelKey: "viewMode.matrix" },
     ];
     for (const m of modes) {
       const btn = group.createEl("button", {
@@ -6678,6 +6679,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.setStatus(`${gd.nodes.length} nodes, ${gd.edges.length} edges`);
     await yieldFrame(); if (signal.aborted) return;
 
+    // Matrix viewMode: DOM-based rendering, skip Canvas entirely
+    if (viewModeUsesDom(this.panel.viewMode)) {
+      this._renderMatrixViewMode(gd, W, H);
+      return;
+    }
+
+    // Hide matrix fullscreen if returning from matrix viewMode
+    const matrixFs = this.containerEl.querySelector<HTMLElement>(".gi-matrix-fullscreen");
+    if (matrixFs) matrixFs.style.display = "none";
+
     // Init Canvas 2D
     const pixiResult = this.initPixi(W, H);
     if (!pixiResult) return;
@@ -8372,6 +8383,105 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.cullOverlappingRotatedLabels(this.sunburstLabels);
   }
 
+  /** Render matrix viewMode: full-screen adjacency table, no Canvas. */
+  private _renderMatrixViewMode(gd: GraphData, W: number, H: number): void {
+    // Hide Canvas, show DOM matrix
+    if (this.canvasWrap) {
+      const canvas = this.canvasWrap.querySelector("canvas");
+      if (canvas) canvas.style.display = "none";
+    }
+
+    // Reuse or create full-screen matrix container
+    let matrixEl = this.containerEl.querySelector<HTMLElement>(".gi-matrix-fullscreen");
+    if (!matrixEl) {
+      matrixEl = this.canvasWrap!.createDiv({ cls: "gi-matrix-fullscreen" });
+    }
+    matrixEl.empty();
+    matrixEl.style.display = "";
+    matrixEl.style.width = W + "px";
+    matrixEl.style.height = H + "px";
+
+    // Build adjacency data from ALL edges (not just top 20)
+    const degrees = new Map<string, number>();
+    for (const e of gd.edges) {
+      const s = edgeSourceId(e);
+      const t = edgeTargetId(e);
+      degrees.set(s, (degrees.get(s) ?? 0) + 1);
+      degrees.set(t, (degrees.get(t) ?? 0) + 1);
+    }
+
+    // Top N nodes by degree (fit in viewport: ~50 max for readability)
+    const maxNodes = Math.min(50, Math.floor(Math.min(W, H) / 16));
+    const sorted = [...degrees.entries()].sort((a, b) => b[1] - a[1]).slice(0, maxNodes);
+    const nodeIds = sorted.map(([id]) => id);
+    const nodeIdSet = new Set(nodeIds);
+
+    // Build matrix
+    const matrix = new Map<string, Map<string, number>>();
+    for (const id of nodeIds) matrix.set(id, new Map());
+    for (const e of gd.edges) {
+      const s = typeof e.source === "string" ? e.source : (e.source as any).id;
+      const t = typeof e.target === "string" ? e.target : (e.target as any).id;
+      if (nodeIdSet.has(s) && nodeIdSet.has(t)) {
+        const row = matrix.get(s)!;
+        row.set(t, (row.get(t) ?? 0) + 1);
+      }
+    }
+
+    // Find max count for color scaling
+    let maxCount = 1;
+    for (const row of matrix.values()) {
+      for (const count of row.values()) { if (count > maxCount) maxCount = count; }
+    }
+
+    // Get label function
+    const getLabel = (id: string) => {
+      const node = gd.nodes.find(n => n.id === id);
+      return node?.label ?? id.replace(/\.md$/, "").split("/").pop() ?? id;
+    };
+
+    // Title
+    matrixEl.createDiv({ cls: "gi-matrix-title", text: `${t("display.relationMatrix")} (${nodeIds.length} / ${gd.nodes.length})` });
+
+    // Build table
+    const table = matrixEl.createEl("table", { cls: "gi-matrix-table" });
+
+    // Header row
+    const headerRow = table.createEl("tr");
+    headerRow.createEl("th"); // corner
+    for (const id of nodeIds) {
+      const label = getLabel(id);
+      headerRow.createEl("th", { text: label.slice(0, 4), attr: { title: label } });
+    }
+
+    // Data rows
+    const isDark = this.isDarkTheme();
+    for (const rowId of nodeIds) {
+      const tr = table.createEl("tr");
+      const label = getLabel(rowId);
+      const td = tr.createEl("td", { text: label.slice(0, 8), cls: "gi-matrix-label", attr: { title: label } });
+      td.addEventListener("click", () => this.jumpToNode(rowId));
+
+      for (const colId of nodeIds) {
+        const count = matrix.get(rowId)?.get(colId) ?? 0;
+        const cell = tr.createEl("td", { cls: "gi-matrix-cell" });
+        if (count > 0) {
+          cell.textContent = String(count);
+          const intensity = Math.min(1, count / maxCount);
+          cell.style.backgroundColor = isDark
+            ? `rgba(99,102,241,${intensity * 0.6})`
+            : `rgba(79,70,229,${intensity * 0.4})`;
+        }
+        cell.addEventListener("click", () => {
+          if (rowId !== colId) this.applyEphemeralHighlight(new Set([rowId, colId]));
+        });
+      }
+    }
+
+    // Status
+    this.setStatus(`${nodeIds.length} × ${nodeIds.length} matrix, ${gd.edges.length} edges`);
+    if (this.skipPanelRebuildCount === 0) this.buildPanel();
+  }
 
 }
 

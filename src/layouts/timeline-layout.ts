@@ -590,7 +590,7 @@ export function timelineEnforceColumnGaps(
 }
 
 /** レーン割り当て後に Y 軸オフセットとバー位置を再中央揃え */
-function timelineRecenterY(
+export function timelineRecenterY(
   offsets: Map<string, { dx: number; dy: number }>,
   bars: TimelineBarInfo[],
 ): void {

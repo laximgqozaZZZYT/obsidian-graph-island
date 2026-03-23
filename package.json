@@ -1,6 +1,6 @@
 {
   "name": "obsidian-graph-island",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Graph Island — Multiple graph visualization layouts for Obsidian",
   "main": "main.js",
   "scripts": {
