@@ -5230,18 +5230,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private updatePositions(forceFullRedraw = false) {
     // Delegate position sync to the pipeline; this method is still called
     // from doRender for the initial layout draw.
+    const skipNodes = viewModeSkipsNodeRendering(this.panel.viewMode);
     for (const pn of this.pixiNodes.values()) {
       pn.gfx.x = pn.data.x;
       pn.gfx.y = pn.data.y;
+      if (skipNodes) { pn.gfx.visible = false; pn.gfx.alpha = 0; }
+      else if (pn.gfx.alpha === 0) { pn.gfx.alpha = 1; }
     }
     this.rebuildSpatialGrid();
-    this.redrawNodeBatch();
+    if (!skipNodes) {
+      this.redrawNodeBatch();
+    }
     this.drawOrbitRings();
-    this.drawEnclosures();
+    if (!skipNodes) this.drawEnclosures();
     this.drawSunburstArcs();
     this.drawClusterSunburstLabels();
     this.drawSunburstLayoutArcs();
     this.drawEdges();
+    this.drawTimelineBars();
+    this.drawRouteLines();
   }
 
   // =========================================================================
@@ -6959,6 +6966,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       gd.nodes.push(...phantomNodes);
     }
 
+    this.renderPipeline?.setSkipNodeRendering(viewModeSkipsNodeRendering(this.panel.viewMode));
     this.createPixiNodes(gd.nodes, nodeR, nodeColor);
     // Restore held state for pinned nodes
     for (const nodeId of Object.keys(this.panel.pinnedPositions)) {
@@ -7139,6 +7147,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.setStatus(`Creating ${ld.nodes.length} nodes...`);
     await yieldFrame(); if (signal.aborted) return;
 
+    // Set skip flag on the NEW renderPipeline instance (created by initPixi above)
+    this.renderPipeline?.setSkipNodeRendering(viewModeSkipsNodeRendering(this.panel.viewMode));
     this.createPixiNodes(ld.nodes, nodeR, nodeColor);
     this.computeSortRanks();
     await yieldFrame(); if (signal.aborted) return;

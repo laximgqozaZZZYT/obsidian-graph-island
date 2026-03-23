@@ -583,6 +583,17 @@ export class RenderPipeline {
   // =========================================================================
   private updatePositions(forceFullRedraw = false) {
     const pixiNodes = this.host.getPixiNodes();
+    if (this._skipNodeRendering) {
+      // Non-graph viewModes: update positions but hide all node graphics
+      for (const pn of pixiNodes.values()) {
+        pn.gfx.x = pn.data.x;
+        pn.gfx.y = pn.data.y;
+        pn.gfx.visible = false;
+      }
+      this.host.rebuildSpatialGrid();
+      this.onPostRender?.();
+      return;
+    }
     for (const pn of pixiNodes.values()) {
       pn.gfx.x = pn.data.x;
       pn.gfx.y = pn.data.y;
