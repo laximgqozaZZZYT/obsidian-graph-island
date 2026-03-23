@@ -21,7 +21,7 @@ async function waitStable(p: Page, initialWaitMs = 4000, minThreshold = 200): Pr
   let stable = 0;
   for (let i = 0; i < 10; i++) {
     const s = await p.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return v?.pixiNodes?.size ?? -1;
     });
     if (s === last && s > minThreshold) { stable++; if (stable >= 2) return s; }
@@ -42,7 +42,7 @@ async function renderWith(
 ): Promise<number> {
   for (let attempt = 0; attempt < 3; attempt++) {
     await p.evaluate(async ({ settings: s }) => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return;
       for (const [k, val] of Object.entries(s)) v.panel[k] = val;
       v.rawData = null;
@@ -55,7 +55,7 @@ async function renderWith(
     const n = await waitStable(p, 2000);
     // Verify settings actually took effect by checking panel values
     const match = await p.evaluate(({ settings: s }) => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return false;
       for (const [k, val] of Object.entries(s)) {
         if (v.panel[k] !== val) return false;
@@ -67,7 +67,7 @@ async function renderWith(
     await p.waitForTimeout(1000);
   }
   return await p.evaluate(() => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     return v?.pixiNodes?.size ?? -1;
   });
 }
@@ -132,7 +132,7 @@ test.beforeAll(async ({}, testInfo) => {
   let panelReady = false;
   for (let i = 0; i < 30; i++) {
     panelReady = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return !!(v && v.panel && v.pixiNodes);
     });
     if (panelReady) break;
@@ -142,7 +142,7 @@ test.beforeAll(async ({}, testInfo) => {
 
   // Minimal reset — only fields that affect data pipeline and node count
   await page.evaluate(async () => {
-    const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
     if (!v || !v.panel) return;
     v.panel.searchQuery = "";
     v.panel.showOrphans = true;
@@ -173,7 +173,7 @@ test.beforeAll(async ({}, testInfo) => {
     if (BASELINE > 2000) break;
     // Retry: re-render
     await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (v) { v.rawData = null; await v.doRender(); }
     });
   }
@@ -191,7 +191,7 @@ test.afterAll(async () => {
 test.describe("1. Graph Data Integrity", () => {
   test("1.1 baseline node count is greater than 2000", async () => {
     const count = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return v?.pixiNodes?.size ?? -1;
     });
     expect(count).toBeGreaterThan(2000);
@@ -199,7 +199,7 @@ test.describe("1. Graph Data Integrity", () => {
 
   test("1.2 baseline edge count is positive", async () => {
     const count = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return v?.graphEdges?.length ?? -1;
     });
     expect(count).toBeGreaterThan(3000);
@@ -207,7 +207,7 @@ test.describe("1. Graph Data Integrity", () => {
 
   test("1.3 edge type distribution has link, semantic, and tag edges", async () => {
     const dist = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.graphEdges) return null;
       const counts: Record<string, number> = {};
       for (const e of v.graphEdges) {
@@ -224,7 +224,7 @@ test.describe("1. Graph Data Integrity", () => {
 
   test("1.4 max degree node has significant connections", async () => {
     const maxDeg = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.graphEdges) return -1;
       const deg: Record<string, number> = {};
       for (const e of v.graphEdges) {
@@ -252,7 +252,7 @@ test.describe("2. Filter Operations", () => {
       tagDisplay: "enclosure",
     }, async (p) => {
       count = await p.evaluate(() => {
-        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
         return v?.pixiNodes?.size ?? -1;
       });
       return count === 132;
@@ -269,7 +269,7 @@ test.describe("2. Filter Operations", () => {
       tagDisplay: "enclosure",
     }, async (p) => {
       count = await p.evaluate(() => {
-        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
         return v?.pixiNodes?.size ?? -1;
       });
       return count === 172;
@@ -286,7 +286,7 @@ test.describe("2. Filter Operations", () => {
       tagDisplay: "enclosure",
     }, async (p) => {
       count = await p.evaluate(() => {
-        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
         return v?.pixiNodes?.size ?? -1;
       });
       return count > 0 && count < BASELINE;
@@ -315,7 +315,7 @@ test.describe("4. Tag Enclosures", () => {
     await renderWith(page, { tagDisplay: "enclosure" });
 
     const tagGroupCount = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return typeof v?.getTagMembership === "function" ? v.getTagMembership().size : -1;
     });
     expect(tagGroupCount).toBeGreaterThan(100);
@@ -324,7 +324,7 @@ test.describe("4. Tag Enclosures", () => {
   test("4.2 enclosure mode has total tag memberships > 1000", async () => {
     await renderWith(page, { tagDisplay: "enclosure" });
     const membershipSize = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (typeof v?.getTagMembership !== "function") return -1;
       const tm = v.getTagMembership();
       let total = 0;
@@ -344,7 +344,7 @@ test.describe("5. Missing Neighbor Detection", () => {
   test("5.1 missing neighbor detection enables correctly", async () => {
     await renderWith(page, { highlightMissingNeighbors: true, tagDisplay: "node" });
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       return {
         enabled: v.panel.highlightMissingNeighbors === true,
@@ -368,17 +368,17 @@ test.describe("5. Missing Neighbor Detection", () => {
 test.describe("6. Graph Statistics", () => {
   test("6.1 showGraphStats setting persists", async () => {
     await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (v) v.panel.showGraphStats = true;
     });
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return v?.panel?.showGraphStats === true;
     });
     expect(result).toBe(true);
     // Restore
     await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (v) v.panel.showGraphStats = false;
     });
   });
@@ -391,7 +391,7 @@ test.describe("7. Node Minimum Size", () => {
   test("7.1 all nodes have radius >= 15 (minNodeRadius floor)", async () => {
     await renderAndVerify(page, {}, async (p) => {
       const data = await p.evaluate(() => {
-        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
         if (!v?.pixiNodes) return { count: 0, minR: 0 };
         let minR = Infinity;
         let count = 0;
@@ -404,7 +404,7 @@ test.describe("7. Node Minimum Size", () => {
       return data.count > 200 && data.minR >= 15;
     });
     const check = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.pixiNodes) return { minR: 0 };
       let minR = Infinity;
       for (const pn of v.pixiNodes.values()) {
@@ -422,7 +422,7 @@ test.describe("7. Node Minimum Size", () => {
 test.describe("8. Edge Label Mode", () => {
   test("8.1 weight mode disables relation and cardinality", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       v.panel.showEdgeLabels = false;
       v.panel.showEdgeWeightLabels = true;
@@ -451,7 +451,7 @@ test.describe("9. Layout Switching", () => {
       searchQuery: "path:classic-macbeth",
     }, async (p) => {
       const count = await p.evaluate(() => {
-        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
         return v?.pixiNodes?.size ?? 0;
       });
       return count > 50;
@@ -459,7 +459,7 @@ test.describe("9. Layout Switching", () => {
     await page.waitForTimeout(3000);
 
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.pixiNodes) return { error: "no view" };
       const xs = new Set<number>();
       const ys = new Set<number>();
@@ -482,14 +482,14 @@ test.describe("9. Layout Switching", () => {
       searchQuery: "",
     }, async (p) => {
       const count = await p.evaluate(() => {
-        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
         return v?.pixiNodes?.size ?? 0;
       });
       return count > 2000;
     });
 
     const nodeCount = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return v?.pixiNodes?.size ?? 0;
     });
     expect(nodeCount).toBeGreaterThan(2000);
@@ -502,7 +502,7 @@ test.describe("9. Layout Switching", () => {
 test.describe("10. Preset Roundtrip", () => {
   test("10.1 export→import preserves key panel fields via JSON roundtrip", async () => {
     const roundtrip = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
 
       // Set distinctive values
@@ -555,7 +555,7 @@ test.describe("11. Timeline Layout", () => {
       groupBy: "none",
     }, async (p) => {
       const count = await p.evaluate(() => {
-        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
         return v?.pixiNodes?.size ?? 0;
       });
       return count > 20;
@@ -563,7 +563,7 @@ test.describe("11. Timeline Layout", () => {
     await page.waitForTimeout(5000); // let timeline settle
 
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.pixiNodes) return { error: "no view" };
       // Collect node positions
       const positions: { x: number; y: number }[] = [];
@@ -586,7 +586,7 @@ test.describe("11. Timeline Layout", () => {
     // Restore force layout
     await renderAndVerify(page, { clusterArrangement: "force", searchQuery: "" }, async (p) => {
       const count = await p.evaluate(() => {
-        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
         return v?.pixiNodes?.size ?? 0;
       });
       return count > 2000;
@@ -600,7 +600,7 @@ test.describe("11. Timeline Layout", () => {
 test.describe("13. Node Metadata", () => {
   test("13.1 node metadata is accessible via pixiNodes and contains expected fields", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.pixiNodes) return { error: "no view" };
       // Pick first non-tag node with metadata
       for (const pn of v.pixiNodes.values()) {
@@ -639,14 +639,14 @@ test.describe("14. Legend Content", () => {
       nodeColorMode: "category",
     }, async (p) => {
       const visible = await p.evaluate(() => {
-        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
         return v?.legendEl?.style.display !== "none";
       });
       return visible === true;
     });
 
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.legendEl) return { error: "no legend" };
       const sections = v.legendEl.querySelectorAll(".gi-legend-section-title");
       const items = v.legendEl.querySelectorAll(".gi-legend-item");
@@ -667,7 +667,7 @@ test.describe("14. Legend Content", () => {
 
     // Restore
     await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (v) { v.panel.showLegend = false; v.panel.nodeColorMode = "default"; }
     });
   });
@@ -681,26 +681,26 @@ test.describe("15. Context Menu Filter", () => {
     // Filter
     await renderAndVerify(page, { searchQuery: "path:classic-macbeth" }, async (p) => {
       const count = await p.evaluate(() => {
-        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
         return v?.pixiNodes?.size ?? 0;
       });
       return count > 50 && count < 500;
     });
     const filtered = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return v?.pixiNodes?.size ?? 0;
     });
 
     // Restore
     await renderAndVerify(page, { searchQuery: "" }, async (p) => {
       const count = await p.evaluate(() => {
-        const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+        const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
         return v?.pixiNodes?.size ?? 0;
       });
       return count > 2000;
     });
     const restored = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return v?.pixiNodes?.size ?? 0;
     });
 
@@ -726,12 +726,12 @@ test.describe("18. Search Syntax Preview", () => {
   test("18.2 searchQuery with field:value changes panel state", async () => {
     // Set a structured query and verify it's stored
     await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (v) v.panel.searchQuery = "path:classic-macbeth OR tag:battle";
     });
 
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       return {
         query: v.panel.searchQuery,
@@ -747,7 +747,7 @@ test.describe("18. Search Syntax Preview", () => {
 
     // Clear
     await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (v) v.panel.searchQuery = "";
     });
   });
@@ -761,13 +761,13 @@ test.describe("19. Degree Proportional Sizing", () => {
   test("19.1 nodeSizeByDegree setting persists and degree virtual property works", async () => {
     // Set degree sizing
     await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return;
       if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
       v.panel.renderThresholds.nodeSizeByDegree = true;
     });
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       return {
         sizeByDegree: v.panel.renderThresholds?.nodeSizeByDegree ?? false,
@@ -779,7 +779,7 @@ test.describe("19. Degree Proportional Sizing", () => {
     expect(result.hasPixiNodes).toBe(true);
     // Restore
     await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (v?.panel?.renderThresholds) v.panel.renderThresholds.nodeSizeByDegree = false;
     });
   });
@@ -792,18 +792,18 @@ test.describe("20. Experience Quality", () => {
   test("20.1 searchMode setting persists in panel", async () => {
     // Verify searchMode can be set and persists
     await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (v) v.panel.searchMode = "highlight";
     });
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return v?.panel?.searchMode;
     });
     expect(result).toBe("highlight");
 
     // Reset
     await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return;
       v.panel.searchMode = "filter";
       v.panel.searchQuery = "";
@@ -823,7 +823,7 @@ test.describe("21. Node Color Mode Switching", () => {
   test("21.1 default vs category color modes produce different distributions", async () => {
     // Default mode: 1 color
     const defaultColors = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.pixiNodes) return 0;
       const colors = new Set<number>();
       for (const pn of v.pixiNodes.values()) if (pn.color != null) colors.add(pn.color);
@@ -831,7 +831,7 @@ test.describe("21. Node Color Mode Switching", () => {
     });
     // Switch to category
     await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return;
       v.panel.nodeColorMode = "category";
       v.rawData = null;
@@ -839,7 +839,7 @@ test.describe("21. Node Color Mode Switching", () => {
     });
     await page.waitForTimeout(3000);
     const categoryColors = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.pixiNodes) return 0;
       const colors = new Set<number>();
       for (const pn of v.pixiNodes.values()) if (pn.color != null) colors.add(pn.color);
@@ -849,7 +849,7 @@ test.describe("21. Node Color Mode Switching", () => {
     expect(categoryColors).toBeGreaterThan(defaultColors);
     // Restore
     await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (v) v.panel.nodeColorMode = "default";
     });
   });
@@ -861,7 +861,7 @@ test.describe("21. Node Color Mode Switching", () => {
 test.describe("22. Diff Export", () => {
   test("22.1 changing nodeSize produces diff with only changed field", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       // Change one setting
       const original = v.panel.nodeSize;
@@ -884,7 +884,7 @@ test.describe("22. Diff Export", () => {
 test.describe("22. Predictability & Polish", () => {
   test("22.1 pinnedPositions can store and retrieve positions (P5)", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       // Store a test position
       if (!v.panel.pinnedPositions) v.panel.pinnedPositions = {};
@@ -909,7 +909,7 @@ test.describe("22. Predictability & Polish", () => {
 test.describe("23. Hover Tooltip", () => {
   test("23.1 panel degree data is accessible for tooltip", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.pixiNodes) return { error: "no view" };
       // Pick first node with degree > 0
       for (const [id, pn] of v.pixiNodes) {
@@ -932,7 +932,7 @@ test.describe("23. Hover Tooltip", () => {
 test.describe("24. Saved Search Queries", () => {
   test("24.1 savedSearchQueries can store and retrieve named queries", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       if (!v.panel.savedSearchQueries) v.panel.savedSearchQueries = [];
       v.panel.savedSearchQueries.push({ name: "test", query: "tag:battle" });
@@ -957,17 +957,17 @@ test.describe("25. Robustness", () => {
 
   test("25.2 analysis overlay dropdown value persists", async () => {
     await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (v) v.panel.analysisOverlay = "bridges";
     });
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return v?.panel?.analysisOverlay;
     });
     expect(result).toBe("bridges");
     // Reset
     await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (v) v.panel.analysisOverlay = "off";
     });
   });
@@ -981,7 +981,7 @@ test.describe("25. Robustness", () => {
 test.describe("26. Context Menu Neighbors", () => {
   test("25.1 neighbor IDs are accessible for context menu", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.pixiNodes || !v?.adj) return { error: "no view or adj" };
       // Find a node with neighbors
       for (const [id] of v.pixiNodes) {
@@ -1004,7 +1004,7 @@ test.describe("26. Context Menu Neighbors", () => {
 test.describe("27. Bookmark Markers", () => {
   test("27.1 bookmarking a node adds it to bookmarkedNodes", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.pixiNodes) return { error: "no view" };
       const firstId = v.pixiNodes.keys().next().value;
       if (!firstId) return { error: "no nodes" };
@@ -1030,14 +1030,14 @@ test.describe("28. NOT Operator", () => {
     // First count with tag:battle (positive filter)
     await renderWith(page, { searchQuery: "tag:battle" });
     const withBattle = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return v?.pixiNodes?.size ?? 0;
     });
 
     // Now use NOT to exclude battle
     await renderWith(page, { searchQuery: "NOT tag:battle" });
     const withoutBattle = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return v?.pixiNodes?.size ?? 0;
     });
 
@@ -1057,7 +1057,7 @@ test.describe("28. NOT Operator", () => {
 test.describe("29. Drag Distance Limit", () => {
   test("29.1 node positions are within reasonable bounds", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.pixiNodes) return { error: "no view" };
       let maxDist = 0;
       for (const pn of v.pixiNodes.values()) {
@@ -1079,7 +1079,7 @@ test.describe("29. Drag Distance Limit", () => {
 test.describe("30. Recent Visit Halo", () => {
   test("30.1 navHistory stores visited node IDs", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       // Simulate nav history by adding entries
       if (!v.panel.navHistory) v.panel.navHistory = [];
@@ -1103,7 +1103,7 @@ test.describe("30. Recent Visit Halo", () => {
 test.describe("31. Zoom Reset", () => {
   test("31.1 zoom indicator shows percentage and is clickable", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       const el = v.containerEl?.querySelector(".gi-zoom-indicator");
       return {
@@ -1124,7 +1124,7 @@ test.describe("31. Zoom Reset", () => {
 test.describe("32. Full Graph Export", () => {
   test("32.1 graph data contains nodes and edges with positions", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.pixiNodes) return { error: "no view" };
       // Check first node has position data
       const first = v.pixiNodes.values().next().value;
@@ -1154,7 +1154,7 @@ test.describe("33. Analysis Overlay", () => {
   test("33.1 density mode activates heatmap flag", async () => {
     const result = await renderWith(page, { analysisOverlay: "density" });
     const state = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return {
         overlay: v?.panel?.analysisOverlay,
         densityFlag: v?._showDensityHeatmap,
@@ -1168,7 +1168,7 @@ test.describe("33. Analysis Overlay", () => {
   test("33.2 off mode disables all overlay flags", async () => {
     await renderWith(page, { analysisOverlay: "off" });
     const state = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       return {
         density: v?._showDensityHeatmap,
         bridges: v?.panel?.showBridgeNodes,
@@ -1188,7 +1188,7 @@ test.describe("33. Analysis Overlay", () => {
 test.describe("34. Minimap", () => {
   test("34.1 minimap element exists and is visible", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       const el = v.containerEl?.querySelector(".gi-minimap-wrap");
       return {
@@ -1209,7 +1209,7 @@ test.describe("34. Minimap", () => {
 test.describe("35. Bookmarked Nodes", () => {
   test("35.1 bookmark toggle adds/removes from list", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.pixiNodes) return { error: "no view" };
       const firstId = v.pixiNodes.keys().next().value;
       if (!firstId) return { error: "no nodes" };
@@ -1236,7 +1236,7 @@ test.describe("36. Layout Transition", () => {
   test("36.1 layout switch works without error", async () => {
     // Quick check: switch arrangement and verify no crash
     const result = await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       const before = v.panel.clusterArrangement;
       v.panel.clusterArrangement = "grid";
@@ -1257,7 +1257,7 @@ test.describe("36. Layout Transition", () => {
 test.describe("37. Collapsed Group Tooltip", () => {
   test("37.1 collapsed nodes have member count in data", async () => {
     const result = await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       v.panel.groupBy = "folder";
       v.panel.collapsedGroups = new Set();
@@ -1291,7 +1291,7 @@ test.describe("37. Collapsed Group Tooltip", () => {
 test.describe("38. Recency Marker", () => {
   test("38.1 recency config is accessible", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       return {
         hasRecency: "showRecencyMarker" in (v.panel ?? {}),
@@ -1312,7 +1312,7 @@ test.describe("38. Recency Marker", () => {
 test.describe("39. Pinned Nodes", () => {
   test("39.1 pinnedPositions is persisted in panel", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       const hasPinned = "pinnedPositions" in (v.panel ?? {});
       // Pin a test node
@@ -1337,7 +1337,7 @@ test.describe("39. Pinned Nodes", () => {
 test.describe("40. Nodes Tab", () => {
   test("40.1 nodes tab exists and excludeNodes works", async () => {
     const result = await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       const tabBtns = v.panelEl?.querySelectorAll(".gi-tab-btn");
       const tabCount = tabBtns?.length ?? 0;
@@ -1370,7 +1370,7 @@ test.describe("40. Nodes Tab", () => {
 test.describe("41. Enclosure Tag Suppression", () => {
   test("41.1 tagDisplay=enclosure suppresses per-node tag labels", async () => {
     const result = await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       // Switch to enclosure mode
       v.panel.tagDisplay = "enclosure";
@@ -1417,7 +1417,7 @@ test.describe("41. Enclosure Tag Suppression", () => {
 test.describe("42. Card Mode Content", () => {
   test("42.1 card mode shows title and body text on nodes", async () => {
     const result = await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       // First render to populate rawData + bodyPreview backfill
       v.panel.nodeDisplayMode = "node";
@@ -1468,7 +1468,7 @@ test.describe("42. Card Mode Content", () => {
 
   test("42.2 card hover tooltip includes body preview in card mode", async () => {
     const result = await page.evaluate(async () => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       v.panel.nodeDisplayMode = "card";
       v.rawData = null;
@@ -1502,7 +1502,7 @@ test.describe("42. Card Mode Content", () => {
 test.describe("43. Degree Filter", () => {
   test("43.1 minDegreeFilter reduces visible nodes", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       const gd1 = v.getGraphData();
       const before = gd1.nodes.length;
@@ -1520,7 +1520,7 @@ test.describe("43. Degree Filter", () => {
 
   test("43.2 maxDegreeFilter removes high-degree nodes", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       const gd1 = v.getGraphData();
       const before = gd1.nodes.length;
@@ -1559,7 +1559,7 @@ test.describe("44. Accessibility", () => {
 
   test("44.2 aria-live region exists for screen reader announcements", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { exists: false, ariaLive: null };
       // _ariaLiveEl is created inside canvasWrap
       const el = v._ariaLiveEl ?? v.canvasWrap?.querySelector("[aria-live]");
@@ -1571,7 +1571,7 @@ test.describe("44. Accessibility", () => {
 
   test("44.3 card text contrast auto-adjusts based on node color", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       // contrastColor is used in RenderPipeline — verify function exists
       const color = v._dynamicImports?.contrastColor ?? null;
@@ -1590,7 +1590,7 @@ test.describe("44. Accessibility", () => {
 test.describe("45. Render Thresholds", () => {
   test("45.1 cardBodyFontSize persists in renderThresholds", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
       v.panel.renderThresholds.cardBodyFontSize = 12;
@@ -1604,7 +1604,7 @@ test.describe("45. Render Thresholds", () => {
 
   test("45.2 enclosureFillOpacity persists in renderThresholds", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
       v.panel.renderThresholds.enclosureFillOpacity = 0.5;
@@ -1623,7 +1623,7 @@ test.describe("45. Render Thresholds", () => {
 test.describe("46. Degree Filter Edge Sync", () => {
   test("46.1 excludeNodes re-syncs edges before degree computation", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       // Get a high-degree node to exclude
       const gd = v.getGraphData();
@@ -1661,7 +1661,7 @@ test.describe("46. Degree Filter Edge Sync", () => {
 test.describe("47. Minimap A11y", () => {
   test("47.1 minimap wrapper has role=img aria-label", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       v.panel.showMinimap = true;
       v.markDirty?.(true);
@@ -1691,7 +1691,7 @@ test.describe("47. Minimap A11y", () => {
 test.describe("48. Legend Edge Patterns", () => {
   test("48.1 edge legend shows line samples with dash attributes", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       v.panel.showLegend = true;
       v.panel.colorEdgesByRelation = true;
@@ -1735,7 +1735,7 @@ test.describe("48. Legend Edge Patterns", () => {
 test.describe("49. Select All / Deselect", () => {
   test("49.1 Ctrl+A selects all visible nodes via direct assignment", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel || !v.pixiNodes) return { error: "no view" };
       // Simulate what Ctrl+A handler does
       v.panel.multiSelectNodeIds = [...v.pixiNodes.keys()];
@@ -1749,7 +1749,7 @@ test.describe("49. Select All / Deselect", () => {
 
   test("49.2 Ctrl+D deselects all via direct assignment", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       v.panel.multiSelectNodeIds = ["test1", "test2"];
       const before = v.panel.multiSelectNodeIds.length;
@@ -1768,7 +1768,7 @@ test.describe("49. Select All / Deselect", () => {
 test.describe("50. Dead Field Cleanup", () => {
   test("50.1 showDegreeBadge removed from RenderThresholds defaults", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       const rt = v.panel.renderThresholds ?? {};
       return { hasField: "showDegreeBadge" in rt };
@@ -1784,7 +1784,7 @@ test.describe("50. Dead Field Cleanup", () => {
 test.describe("51. Field Color Initial Render", () => {
   test("51.1 nodeColorMode=field produces multiple colors on initial render", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel || !v.pixiNodes) return { error: "no view" };
       const oldMode = v.panel.nodeColorMode;
       const oldField = v.panel.nodeColorField;
@@ -1834,7 +1834,7 @@ test.describe("52. Node Info A11y", () => {
 test.describe("53. Focus Cone + Search", () => {
   test("53.1 focusCone and searchHighlight share alpha without conflict", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       // Enable both features
       v.panel.focusConeEnabled = true;
@@ -1857,7 +1857,7 @@ test.describe("53. Focus Cone + Search", () => {
 test.describe("54. Dead Field Cleanup", () => {
   test("54.1 autoFitGuidePad removed from RenderThresholds defaults", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       const rt = v.panel.renderThresholds ?? {};
       return { hasField: "autoFitGuidePad" in rt };
@@ -1873,7 +1873,7 @@ test.describe("54. Dead Field Cleanup", () => {
 test.describe("55. Card Search Highlight", () => {
   test("55.1 search highlight works in card mode without error", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       const oldMode = v.panel.nodeDisplayMode;
       const oldSearch = v.panel.searchQuery;
@@ -1898,7 +1898,7 @@ test.describe("55. Card Search Highlight", () => {
 test.describe("56. Preset Zoom Race", () => {
   test("56.1 presetZoomLevel > 0 prevents autoFit override", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       v.panel.presetZoomLevel = 2.0;
       const zoom = v.panel.presetZoomLevel;
@@ -1916,7 +1916,7 @@ test.describe("56. Preset Zoom Race", () => {
 test.describe("57. AutoFit Reset", () => {
   test("57.1 enabling autoFit resets presetZoomLevel to 0", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       v.panel.presetZoomLevel = 1.5;
       v.panel.autoFit = true;
@@ -1936,7 +1936,7 @@ test.describe("57. AutoFit Reset", () => {
 test.describe("58. Card Title Tint", () => {
   test("58.1 applySearch in card mode runs without error", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       const old = { mode: v.panel.nodeDisplayMode, query: v.panel.searchQuery, sm: v.panel.searchMode };
       v.panel.nodeDisplayMode = "card";
@@ -1976,7 +1976,7 @@ test.describe("59. Z-Index Layers", () => {
 test.describe("60. Edge Density Warning", () => {
   test("60.1 edge density warning appears for large edge counts", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       const gd = v.getGraphData();
       return { edgeCount: gd.edges.length };
@@ -2010,7 +2010,7 @@ test.describe("61. Legend Position", () => {
 test.describe("62. Search Halo + Hover", () => {
   test("62.1 search highlight + hover combination runs without error", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       v.panel.searchMode = "highlight";
       v.panel.searchQuery = "battle";
@@ -2033,7 +2033,7 @@ test.describe("62. Search Halo + Hover", () => {
 test.describe("63. Enclosure Label Exclusion", () => {
   test("63.1 getEnclosureLabels method exists on view", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v) return { error: "no view" };
       return { hasMethod: typeof v.getEnclosureLabels === "function" };
     });
@@ -2048,7 +2048,7 @@ test.describe("63. Enclosure Label Exclusion", () => {
 test.describe("64. Hover Label Cap", () => {
   test("64.1 hover highlight set respects maxHoverNeighborLabels", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       // Set a very low cap
       if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
@@ -2077,7 +2077,7 @@ test.describe("64. Hover Label Cap", () => {
 test.describe("65. Escape Cascade", () => {
   test("65.1 Escape handler exists and clears state", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       // Verify the cascade order is: compare first, then multiSelect
       v.panel.multiSelectNodeIds = ["test1", "test2"];
@@ -2101,7 +2101,7 @@ test.describe("65. Escape Cascade", () => {
 test.describe("66. Hover Label Config", () => {
   test("66.1 maxHoverNeighborLabels persists in renderThresholds", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
       v.panel.renderThresholds.maxHoverNeighborLabels = 15;
@@ -2120,7 +2120,7 @@ test.describe("66. Hover Label Config", () => {
 test.describe("67. Escape Search Clear", () => {
   test("67.1 search query can be cleared", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       v.panel.searchQuery = "test";
       const before = v.panel.searchQuery;
@@ -2139,7 +2139,7 @@ test.describe("67. Escape Search Clear", () => {
 test.describe("68. Hover Edge Config", () => {
   test("68.1 hoverEdgeFalloff persists in renderThresholds", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
       v.panel.renderThresholds.hoverEdgeFalloff = 0.8;
@@ -2158,7 +2158,7 @@ test.describe("68. Hover Edge Config", () => {
 test.describe("69. Hover Edge Falloff UI", () => {
   test("69.1 hoverEdgeFalloff slider changes value", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
       v.panel.renderThresholds.hoverEdgeFalloff = 0.9;
@@ -2177,7 +2177,7 @@ test.describe("69. Hover Edge Falloff UI", () => {
 test.describe("70. Escape A11y Announce", () => {
   test("70.1 Escape handler announces step name", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       // Set search query then clear via Escape
       v.panel.searchQuery = "test";
@@ -2198,7 +2198,7 @@ test.describe("70. Escape A11y Announce", () => {
 test.describe("71. Cone + Search Alpha", () => {
   test("71.1 focusCone with search uses proportional alpha", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       v.panel.focusConeEnabled = true;
       v.panel.searchMode = "highlight";
@@ -2215,7 +2215,7 @@ test.describe("71. Cone + Search Alpha", () => {
 test.describe("72. Edge Label A11y", () => {
   test("72.1 edge label mode setting persists", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel) return { error: "no view" };
       const old = v.panel.showEdgeLabels;
       v.panel.showEdgeLabels = true;
@@ -2234,7 +2234,7 @@ test.describe("72. Edge Label A11y", () => {
 test.describe("73. Tooltip Hints", () => {
   test("73.1 hover tooltip creation does not throw", async () => {
     const result = await page.evaluate(() => {
-      const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
+      const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
       if (!v?.panel || !v.pixiNodes) return { error: "no view" };
       // Simulate hover on first node
       const first = v.pixiNodes.values().next().value;

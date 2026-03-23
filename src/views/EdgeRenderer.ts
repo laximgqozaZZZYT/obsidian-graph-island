@@ -255,19 +255,19 @@ const GRID_CELL = 200;
 const MIN_BUNDLE_SIZE = 4;
 
 /** Edge alpha for structural edge types */
-const STRUCTURAL_EDGE_ALPHA = 0.7;
+export const STRUCTURAL_EDGE_ALPHA = 0.7;
 /** Edge alpha for non-structural edge types */
-const NON_STRUCTURAL_EDGE_ALPHA = 0.65;
+export const NON_STRUCTURAL_EDGE_ALPHA = 0.65;
 /** Default line thickness for edges */
-const DEFAULT_LINE_THICKNESS = 2;
+export const DEFAULT_LINE_THICKNESS = 2;
 /** Edge weight additional thickness per log2 step */
-const WEIGHT_THICKNESS_FACTOR = 0.6;
+export const WEIGHT_THICKNESS_FACTOR = 0.6;
 /** Fade-by-degree minimum alpha fraction */
-const FADE_BY_DEGREE_MIN_ALPHA = 0.15;
+export const FADE_BY_DEGREE_MIN_ALPHA = 0.15;
 /** Alpha for relation-colored edges */
-const RELATION_COLOR_ALPHA = 0.8;
+export const RELATION_COLOR_ALPHA = 0.8;
 /** Highlighted edge line thickness */
-const HIGHLIGHT_LINE_THICKNESS = 3.5;
+export const HIGHLIGHT_LINE_THICKNESS = 3.5;
 /** Highlighted cable trunk width */
 const HIGHLIGHT_CABLE_TRUNK_WIDTH = 3;
 /** Cable fan crowd attenuation threshold (edges) */
@@ -2575,7 +2575,7 @@ export function invalidateBundleCache(): void {
 // ---------------------------------------------------------------------------
 
 /** Resolved visual style for a single edge */
-interface EdgeStyle {
+export interface EdgeStyle {
   alpha: number;
   lineThick: number;
 }
@@ -2584,7 +2584,7 @@ interface EdgeStyle {
  * Compute alpha and line thickness for a single edge based on type,
  * relation coloring, degree fading, edge weight, and hover highlight.
  */
-function resolveEdgeStyle(
+export function resolveEdgeStyle(
   e: GraphEdge,
   src: Pos,
   tgt: Pos,
