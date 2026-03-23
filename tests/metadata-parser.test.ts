@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { assignNodeColors, buildRelationColorMap } from "../src/parsers/metadata-parser";
+import { classifyRelation, assignNodeColors, buildRelationColorMap } from "../src/parsers/metadata-parser";
 import { DEFAULT_COLORS } from "../src/types";
-import type { GraphNode, GraphEdge } from "../src/types";
+import type { GraphNode, GraphEdge, OntologyConfig } from "../src/types";
 
 // --- Helpers ---
 function mkNode(id: string, opts?: { category?: string; tags?: string[] }): GraphNode {
@@ -211,5 +211,103 @@ describe("buildRelationColorMap edge cases", () => {
     const colors = buildRelationColorMap(edges);
     expect(colors.has("著者")).toBe(true);
     expect(colors.has("所在地")).toBe(true);
+  });
+});
+
+// =============================================
+// classifyRelation — ontology field matching
+// =============================================
+
+function mkOnto(overrides?: Partial<OntologyConfig>): OntologyConfig {
+  return {
+    inheritanceFields: [], aggregationFields: [],
+    reverseInheritanceFields: [], reverseAggregationFields: [],
+    similarFields: [], siblingFields: [], sequenceFields: [],
+    reverseSequenceFields: [], useTagHierarchy: false,
+    customMappings: {}, tagRelations: [],
+    ...overrides,
+  };
+}
+
+describe("classifyRelation", () => {
+  it("returns undefined for unrecognized field", () => {
+    const onto = mkOnto({ inheritanceFields: ["parent"] });
+    expect(classifyRelation("unknown", onto)).toBeUndefined();
+  });
+
+  it("matches inheritance field (case-insensitive)", () => {
+    const onto = mkOnto({ inheritanceFields: ["parent"] });
+    const r = classifyRelation("Parent", onto);
+    expect(r?.type).toBe("inheritance");
+    expect(r?.reverse).toBe(false);
+  });
+
+  it("matches aggregation field", () => {
+    const onto = mkOnto({ aggregationFields: ["contains"] });
+    const r = classifyRelation("contains", onto);
+    expect(r?.type).toBe("aggregation");
+    expect(r?.reverse).toBe(false);
+  });
+
+  it("matches reverse inheritance field", () => {
+    const onto = mkOnto({ reverseInheritanceFields: ["child"] });
+    const r = classifyRelation("child", onto);
+    expect(r?.type).toBe("inheritance");
+    expect(r?.reverse).toBe(true);
+  });
+
+  it("matches reverse aggregation field", () => {
+    const onto = mkOnto({ reverseAggregationFields: ["part-of"] });
+    const r = classifyRelation("part-of", onto);
+    expect(r?.type).toBe("aggregation");
+    expect(r?.reverse).toBe(true);
+  });
+
+  it("matches similar field", () => {
+    const onto = mkOnto({ similarFields: ["related"] });
+    expect(classifyRelation("related", onto)?.type).toBe("similar");
+  });
+
+  it("matches sibling field", () => {
+    const onto = mkOnto({ siblingFields: ["peer"] });
+    expect(classifyRelation("peer", onto)?.type).toBe("sibling");
+  });
+
+  it("matches sequence field (forward)", () => {
+    const onto = mkOnto({ sequenceFields: ["next"] });
+    const r = classifyRelation("next", onto);
+    expect(r?.type).toBe("sequence");
+    expect(r?.reverse).toBe(false);
+  });
+
+  it("matches reverse sequence field", () => {
+    const onto = mkOnto({ reverseSequenceFields: ["prev"] });
+    const r = classifyRelation("prev", onto);
+    expect(r?.type).toBe("sequence");
+    expect(r?.reverse).toBe(true);
+  });
+
+  it("strips @ prefix before matching", () => {
+    const onto = mkOnto({ inheritanceFields: ["parent"] });
+    expect(classifyRelation("@parent", onto)?.type).toBe("inheritance");
+  });
+
+  it("matches custom mapping", () => {
+    const onto = mkOnto({ customMappings: { "derives-from": "inheritance" } });
+    const r = classifyRelation("derives-from", onto);
+    expect(r?.type).toBe("inheritance");
+    expect(r?.reverse).toBe(false);
+  });
+
+  it("inheritance takes priority over aggregation for same field", () => {
+    const onto = mkOnto({
+      inheritanceFields: ["link"],
+      aggregationFields: ["link"],
+    });
+    expect(classifyRelation("link", onto)?.type).toBe("inheritance");
+  });
+
+  it("returns undefined for empty ontology", () => {
+    expect(classifyRelation("anything", mkOnto())).toBeUndefined();
   });
 });

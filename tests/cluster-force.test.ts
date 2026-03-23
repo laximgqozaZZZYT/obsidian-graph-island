@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { forceSimulation, forceManyBody, type Simulation } from "d3-force";
-import { buildClusterForce, nodeRadius, type ClusterForceConfig, type ClusterForceResult } from "../src/layouts/cluster-force";
+import { buildClusterForce, nodeRadius, computeGroupGap, pairwiseGap, estimateLabelExtent, type ClusterForceConfig, type ClusterForceResult } from "../src/layouts/cluster-force";
 
 /** Extract the force function from a ClusterForceResult (mirrors the old API). */
 function extractForce(result: ClusterForceResult | null): ((alpha: number) => void) | null {
@@ -858,5 +858,79 @@ describe("group assignment edge cases", () => {
     expect(result).not.toBeNull();
     // Force function exists
     expect(typeof result!.force).toBe("function");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// pairwiseGap — center-to-center distance between two elements
+// ---------------------------------------------------------------------------
+describe("pairwiseGap", () => {
+  it("uses larger radius as reference", () => {
+    expect(pairwiseGap(10, 5, 1)).toBe(20); // max(10,5) * 2 * 1
+    expect(pairwiseGap(5, 10, 1)).toBe(20); // symmetric
+  });
+
+  it("scales with spacing multiplier", () => {
+    expect(pairwiseGap(10, 10, 2)).toBe(40); // 10 * 2 * 2
+    expect(pairwiseGap(10, 10, 0.5)).toBe(10); // 10 * 2 * 0.5
+  });
+
+  it("returns 0 for zero radius", () => {
+    expect(pairwiseGap(0, 0, 1)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeGroupGap — uniform gap for equal-sized nodes
+// ---------------------------------------------------------------------------
+describe("computeGroupGap", () => {
+  it("uses max of nodeSpacing and groupScale", () => {
+    // nodeSpacing=3, groupScale=1 → max=3 → pairwiseGap(10, 10, 3) = 60
+    expect(computeGroupGap(10, 3, 1)).toBe(60);
+    // nodeSpacing=1, groupScale=5 → max=5 → pairwiseGap(10, 10, 5) = 100
+    expect(computeGroupGap(10, 1, 5)).toBe(100);
+  });
+
+  it("returns 0 for zero nodeSize", () => {
+    expect(computeGroupGap(0, 3, 2)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// estimateLabelExtent — pre-layout label width estimation
+// ---------------------------------------------------------------------------
+describe("estimateLabelExtent", () => {
+  const mkN = (label: string, opts?: Partial<GraphNode>): GraphNode =>
+    ({ id: label, label, ...opts } as GraphNode);
+
+  it("returns 0 when labelSpacingFactor <= 0", () => {
+    expect(estimateLabelExtent(mkN("hello"), 10, 5, 10, 0)).toBe(0);
+    expect(estimateLabelExtent(mkN("hello"), 10, 5, 10, -1)).toBe(0);
+  });
+
+  it("returns 0 for empty label", () => {
+    expect(estimateLabelExtent(mkN(""), 10, 5, 10, 1)).toBe(0);
+  });
+
+  it("longer labels produce larger extent", () => {
+    const short = estimateLabelExtent(mkN("ab"), 10, 0, 10, 1);
+    const long = estimateLabelExtent(mkN("abcdefghij"), 10, 0, 10, 1);
+    expect(long).toBeGreaterThan(short);
+  });
+
+  it("higher labelSpacingFactor scales proportionally", () => {
+    const base = estimateLabelExtent(mkN("test"), 10, 5, 10, 1);
+    const doubled = estimateLabelExtent(mkN("test"), 10, 5, 10, 2);
+    expect(doubled).toBeCloseTo(base * 2, 5);
+  });
+
+  it("super node uses different padding", () => {
+    const normal = estimateLabelExtent(mkN("test"), 10, 5, 10, 1);
+    const superNode = estimateLabelExtent(
+      mkN("test", { collapsedMembers: ["a", "b"] as any }),
+      10, 5, 10, 1,
+    );
+    // Super node has larger padding, so result differs
+    expect(superNode).not.toBe(normal);
   });
 });

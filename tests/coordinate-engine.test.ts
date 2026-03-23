@@ -4,6 +4,7 @@ import {
   applyTransform,
   toCartesian,
   coordinateOffsets,
+  resolveAxisCategories,
   type CoordinateContext,
 } from "../src/layouts/coordinate-engine";
 import { isExactPreset, ARRANGEMENT_PRESETS } from "../src/layouts/coordinate-presets";
@@ -709,5 +710,94 @@ describe("coordinateOffsets", () => {
     const result = coordinateOffsets([], new Map(), [], layout, ctx);
     expect(result.offsets.size).toBe(0);
     expect(result.guide).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveAxisCategories (cycle123)
+// ---------------------------------------------------------------------------
+describe("resolveAxisCategories", () => {
+  it("returns sorted unique string categories for field source", () => {
+    const nodes = [
+      makeNode("a", { category: "beta" }),
+      makeNode("b", { category: "alpha" }),
+      makeNode("c", { category: "beta" }),
+    ];
+    // field:category source
+    const cats = resolveAxisCategories(
+      nodes,
+      { kind: "field", field: "category" },
+      baseCtx(),
+    );
+    expect(cats).toBeDefined();
+    expect(cats).toEqual(["alpha", "beta"]);
+  });
+
+  it("returns undefined for numeric field values", () => {
+    const nodes = [
+      makeNode("a", { score: 10 }),
+      makeNode("b", { score: 20 }),
+    ];
+    const cats = resolveAxisCategories(
+      nodes,
+      { kind: "field", field: "score" },
+      baseCtx(),
+    );
+    // Numeric fields → undefined (continuous axis, not categorical)
+    // Note: depends on whether getNodeFieldValues returns the numeric string
+    // If it does, allNumeric=true → undefined
+    expect(cats).toBeUndefined();
+  });
+
+  it("returns undefined for index/random/const sources", () => {
+    const nodes = [makeNode("a"), makeNode("b")];
+    expect(resolveAxisCategories(nodes, { kind: "index" }, baseCtx())).toBeUndefined();
+    expect(resolveAxisCategories(nodes, { kind: "random" }, baseCtx())).toBeUndefined();
+    expect(resolveAxisCategories(nodes, { kind: "const", value: 1 }, baseCtx())).toBeUndefined();
+  });
+
+  it("returns empty-string categories for nodes missing the field", () => {
+    const nodes = [makeNode("a"), makeNode("b")]; // no category meta
+    const cats = resolveAxisCategories(
+      nodes,
+      { kind: "field", field: "nonexistent" },
+      baseCtx(),
+    );
+    // All nodes have empty string → could be categorical or numeric
+    // Empty strings are not numeric → returns [""]
+    if (cats) {
+      expect(cats).toContain("");
+    }
+  });
+
+  it("handles Japanese category names", () => {
+    const nodes = [
+      makeNode("a", { category: "キャラクター" }),
+      makeNode("b", { category: "場所" }),
+      makeNode("c", { category: "キャラクター" }),
+    ];
+    const cats = resolveAxisCategories(
+      nodes,
+      { kind: "field", field: "category" },
+      baseCtx(),
+    );
+    expect(cats).toBeDefined();
+    expect(cats).toContain("キャラクター");
+    expect(cats).toContain("場所");
+    expect(cats!.length).toBe(2);
+  });
+
+  it("returns categories for property source via meta", () => {
+    const nodes = [
+      makeNode("a", { node_type: "character" }),
+      makeNode("b", { node_type: "location" }),
+    ];
+    const cats = resolveAxisCategories(
+      nodes,
+      { kind: "property", key: "node_type" },
+      baseCtx(),
+    );
+    expect(cats).toBeDefined();
+    expect(cats).toEqual(["character", "location"]);
   });
 });

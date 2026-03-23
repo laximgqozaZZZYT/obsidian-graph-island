@@ -5153,6 +5153,31 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.renderPipeline?.createPixiNodes(nodes, nodeR, nodeColor);
   }
 
+  /** Rebuild PixiJS node display objects in place (no simulation restart).
+   *  Used for settings that change labels/icons/shapes but not layout. */
+  rebuildNodesInPlace() {
+    // Save current positions
+    const savedPos = new Map<string, { x: number; y: number }>();
+    for (const [id, pn] of this.pixiNodes) {
+      savedPos.set(id, { x: pn.data.x, y: pn.data.y });
+    }
+    // Get current graph data
+    const nodes = [...this.pixiNodes.values()].map(pn => pn.data);
+    const nodeR = this._buildNodeRadiusFn();
+    const gd = { nodes, edges: this.graphEdges } as any;
+    const nodeColor = this._buildNodeColorFn(gd);
+    // Recreate display objects
+    this.createPixiNodes(nodes, nodeR, nodeColor);
+    // Restore positions
+    for (const [id, pn] of this.pixiNodes) {
+      const pos = savedPos.get(id);
+      if (pos) { pn.data.x = pos.x; pn.data.y = pos.y; pn.gfx.x = pos.x; pn.gfx.y = pos.y; }
+    }
+    this.applyTextFade();
+    this.markDirty(true);
+    this.requestSave();
+  }
+
   private drawNodeCircle(pn: PixiNode, highlight: boolean) {
     this.renderPipeline?.drawNodeCircle(pn, highlight);
   }
@@ -5708,6 +5733,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this._updateSurpriseTimer();
         this.requestSave();
       },
+      rebuildNodesInPlace: () => { this.rebuildNodesInPlace(); },
     };
   }
 

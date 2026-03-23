@@ -610,6 +610,8 @@ export interface PanelCallbacks {
   bulkSetField?(nodeIds: string[], field: string, value: string): void;
   /** Refresh DOM overlays (stats, legend, matrix, thumbnails, breadcrumb) without full re-render */
   refreshOverlays(): void;
+  /** Rebuild node display objects in place (labels/icons/shapes) without simulation restart */
+  rebuildNodesInPlace(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -1274,7 +1276,7 @@ function _buildNodeDisplaySection(
       }, t("desc.nodeSizeByDegree"));
       addTextInput(adv, t("display.nodeSubLabelFields"), panel.nodeSubLabelFields ?? "", "e.g. category, date, degree", (v) => {
         panel.nodeSubLabelFields = v;
-        cb.doRenderKeepPanel();
+        cb.rebuildNodesInPlace();
       });
       addTextInput(adv, t("display.hoverTooltipFields"), panel.hoverTooltipFields ?? "", "e.g. date, story_order", (v) => {
         panel.hoverTooltipFields = v;
@@ -1287,11 +1289,11 @@ function _buildNodeDisplaySection(
       // A3: Node icon prefix
       addTextInput(adv, t("display.nodeIconField"), panel.nodeIconField ?? "", "e.g. node_type", (v) => {
         panel.nodeIconField = v;
-        cb.doRenderKeepPanel();
+        cb.rebuildNodesInPlace();
       });
       addTextInput(adv, t("display.nodeIconMap"), JSON.stringify(panel.nodeIconMap ?? {}), '{"character":"👤","episode":"📖"}', (v) => {
         try { panel.nodeIconMap = JSON.parse(v); } catch { /* ignore invalid JSON */ }
-        cb.doRenderKeepPanel();
+        cb.rebuildNodesInPlace();
       });
       addSlider(adv, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.applyHover(); cb.markDirty(); }, t("desc.hoverHops"));
       // HR: Max hover neighbor labels
@@ -1330,14 +1332,14 @@ function _buildNodeDisplaySection(
           const rule = panel.nodeShapeRules.find(r => r.match === "isTag");
           if (rule) rule.shape = v as NodeShape;
           else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
-          cb.doRenderKeepPanel();
+          cb.rebuildNodesInPlace();
         }, t("desc.tagNodeShape"));
       }
       addSelect(adv, t("display.defaultNodeShape"), shapeOptions, defaultRule?.shape ?? "circle", (v) => {
         const rule = panel.nodeShapeRules.find(r => r.match === "default");
         if (rule) rule.shape = v as NodeShape;
         else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
-        cb.doRenderKeepPanel();
+        cb.rebuildNodesInPlace();
       }, t("desc.defaultNodeShape"));
     });
   }, tHelp("help.displayNodes"), false, "circle-dot");
@@ -1503,7 +1505,7 @@ function _buildNodeDecorationSection(
       "e.g. definition, summary",
       (v) => {
         panel.definitionField = v.trim();
-        cb.doRenderKeepPanel();
+        cb.rebuildNodesInPlace();
       });
     addToggle(body, t("display.showNodeThumbnails") ?? "Node Thumbnails", panel.showNodeThumbnails, (v) => {
       panel.showNodeThumbnails = v;

@@ -212,7 +212,7 @@ function shouldSkipByDirection(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
 // Theme-aware edge colors
 function defaultColor(isDark: boolean) { return isDark ? 0x666666 : 0x999999; }
 // C4: Intuitive edge color palette — distinct, accessible, memorable
-const LINK_COLOR = 0x94a3b8;          // slate-400 — wikilink (primary relationship)
+const LINK_COLOR = 0x60a5fa;          // blue-400 — wikilink (primary relationship)
 const TAG_EDGE_COLOR = 0x22d3ee;     // cyan-400 — shared-tag co-occurrence
 const CATEGORY_EDGE_COLOR = 0xa78bfa; // violet-400 — shared-category
 const SEMANTIC_EDGE_COLOR = 0xfb923c; // orange-400 — semantic/related

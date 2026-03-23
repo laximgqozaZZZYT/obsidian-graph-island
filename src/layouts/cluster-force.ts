@@ -828,7 +828,7 @@ function getSpacing(id: string, map?: Map<string, number>): number {
 /** Unified gap formula: nodeSize × 2 × max(nodeSpacing, groupScale).
  *  Convenience alias for pairwiseGap(nodeSize, nodeSize, max(nodeSpacing, groupScale)).
  *  Used only in estimateGroupRadius and normalizeSpread where uniform nodeSize is intentional. */
-function computeGroupGap(nodeSize: number, nodeSpacing: number, groupScale: number): number {
+export function computeGroupGap(nodeSize: number, nodeSpacing: number, groupScale: number): number {
   return pairwiseGap(nodeSize, nodeSize, Math.max(nodeSpacing, groupScale));
 }
 
@@ -836,7 +836,7 @@ function computeGroupGap(nodeSize: number, nodeSpacing: number, groupScale: numb
  *  size as reference.  Ensures that a small element next to a large one
  *  still gets an appropriately sized gap.
  *  Returns the center-to-center minimum distance (not the clear gap). */
-function pairwiseGap(r1: number, r2: number, spacing: number): number {
+export function pairwiseGap(r1: number, r2: number, spacing: number): number {
   return Math.max(r1, r2) * 2 * spacing;
 }
 
@@ -851,7 +851,7 @@ const LABEL_PAD_X_SUPER = 10;
 /** Pill padding for regular nodes. */
 const LABEL_PAD_X_REGULAR = 8;
 
-function estimateLabelExtent(
+export function estimateLabelExtent(
   node: GraphNode,
   nodeSize: number,
   degree: number,
