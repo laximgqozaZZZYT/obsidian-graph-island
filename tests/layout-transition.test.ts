@@ -1,6 +1,54 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { LayoutTransition } from "../src/views/LayoutTransition";
+import {
+  LayoutTransition,
+  easeInOutCubic,
+  LAYOUT_TRANSITION_DURATION_MS,
+  LAYOUT_LARGE_GRAPH_THRESHOLD,
+} from "../src/views/LayoutTransition";
 
+// ---------------------------------------------------------------------------
+// easeInOutCubic — pure easing function
+// ---------------------------------------------------------------------------
+describe("easeInOutCubic", () => {
+  it("returns 0 at t=0", () => {
+    expect(easeInOutCubic(0)).toBe(0);
+  });
+
+  it("returns 1 at t=1", () => {
+    expect(easeInOutCubic(1)).toBe(1);
+  });
+
+  it("returns 0.5 at t=0.5 (symmetry point)", () => {
+    expect(easeInOutCubic(0.5)).toBeCloseTo(0.5);
+  });
+
+  it("is monotonically increasing", () => {
+    let prev = 0;
+    for (let i = 1; i <= 100; i++) {
+      const val = easeInOutCubic(i / 100);
+      expect(val).toBeGreaterThanOrEqual(prev);
+      prev = val;
+    }
+  });
+
+  it("is symmetric: f(t) + f(1-t) = 1", () => {
+    for (const t of [0.1, 0.2, 0.3, 0.4]) {
+      expect(easeInOutCubic(t) + easeInOutCubic(1 - t)).toBeCloseTo(1);
+    }
+  });
+
+  it("ease-in: f(0.1) < 0.1", () => {
+    expect(easeInOutCubic(0.1)).toBeLessThan(0.1);
+  });
+
+  it("ease-out: f(0.9) > 0.9", () => {
+    expect(easeInOutCubic(0.9)).toBeGreaterThan(0.9);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LayoutTransition — animation lifecycle
+// ---------------------------------------------------------------------------
 describe("LayoutTransition", () => {
   let transition: LayoutTransition;
   let perfNowMock: ReturnType<typeof vi.spyOn>;
@@ -167,5 +215,68 @@ describe("LayoutTransition", () => {
     currentTime = 450; // 75% of 600ms
     transition.tick();
     expect(data.x).toBeGreaterThan(75);
+  });
+
+  it("should skip animation with prefers-reduced-motion", () => {
+    vi.stubGlobal("window", {
+      matchMedia: () => ({ matches: true }),
+    });
+    const lt = new LayoutTransition();
+    const data = { x: 0, y: 0 };
+    const onComplete = vi.fn();
+    lt.start([{ data, fromX: 0, fromY: 0, toX: 100, toY: 200 }], onComplete);
+
+    // Should immediately be at final positions
+    expect(data.x).toBe(100);
+    expect(data.y).toBe(200);
+    expect(lt.isRunning()).toBe(false);
+    expect(onComplete).toHaveBeenCalledOnce();
+  });
+
+  it("re-start replaces previous transition", () => {
+    const data1 = { x: 0, y: 0 };
+    currentTime = 0;
+    transition.start([{ data: data1, fromX: 0, fromY: 0, toX: 100, toY: 100 }]);
+
+    const data2 = { x: 50, y: 50 };
+    transition.start([{ data: data2, fromX: 50, fromY: 50, toX: 200, toY: 200 }]);
+
+    currentTime = 700;
+    transition.tick();
+    expect(data2.x).toBe(200);
+    expect(data2.y).toBe(200);
+  });
+
+  it("cancel does not trigger onComplete", () => {
+    const onComplete = vi.fn();
+    currentTime = 0;
+    transition.start(
+      [{ data: { x: 0, y: 0 }, fromX: 0, fromY: 0, toX: 100, toY: 100 }],
+      onComplete,
+    );
+    transition.cancel();
+
+    currentTime = 700;
+    transition.tick();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it("multiple ticks produce smooth monotonic progression", () => {
+    const data = { x: 0, y: 0 };
+    currentTime = 0;
+    transition.start([{ data, fromX: 0, fromY: 0, toX: 100, toY: 0 }]);
+
+    const xs: number[] = [];
+    for (let i = 0; i <= 10; i++) {
+      currentTime = (LAYOUT_TRANSITION_DURATION_MS * i) / 10;
+      transition.tick();
+      xs.push(data.x);
+    }
+
+    for (let i = 1; i < xs.length; i++) {
+      expect(xs[i]).toBeGreaterThanOrEqual(xs[i - 1] - 0.001);
+    }
+    expect(xs[0]).toBeCloseTo(0);
+    expect(xs[xs.length - 1]).toBeCloseTo(100);
   });
 });

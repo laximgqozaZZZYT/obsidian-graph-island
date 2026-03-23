@@ -10,7 +10,7 @@ import type { RoadNetwork } from "./cable-tray";
 /**
  * Compute the minimum distance from point (px, py) to line segment (ax, ay)-(bx, by).
  */
-function pointToSegmentDist(
+export function pointToSegmentDist(
   px: number, py: number,
   ax: number, ay: number,
   bx: number, by: number,
@@ -29,7 +29,7 @@ function pointToSegmentDist(
 /**
  * Compute minimum distance from a point to any road segment in the network.
  */
-function pointToNearestRoad(
+export function pointToNearestRoad(
   px: number, py: number,
   network: RoadNetwork,
 ): number {

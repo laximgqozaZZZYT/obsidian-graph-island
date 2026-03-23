@@ -81,8 +81,7 @@ export class LayoutTransition {
 
     const elapsed = performance.now() - this.startTime;
     let t = Math.min(elapsed / this.duration, 1);
-    // Ease-in-out cubic
-    t = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    t = easeInOutCubic(t);
 
     for (const n of this.nodes) {
       n.data.x = n.fromX + (n.toX - n.fromX) * t;
@@ -109,3 +108,13 @@ export class LayoutTransition {
     this.onComplete = null;
   }
 }
+
+/** Ease-in-out cubic: smooth acceleration and deceleration */
+export function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+/** Exported constants for testing */
+export const LAYOUT_TRANSITION_DURATION_MS = TRANSITION_DURATION_MS;
+export const LAYOUT_TRANSITION_DURATION_LARGE_MS = TRANSITION_DURATION_LARGE_MS;
+export const LAYOUT_LARGE_GRAPH_THRESHOLD = LARGE_GRAPH_THRESHOLD;
