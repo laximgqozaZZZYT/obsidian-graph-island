@@ -43,6 +43,14 @@ export const LAYOUT_SUNBURST   = "sunburst" as const;
 export const LAYOUT_TIMELINE   = "timeline" as const;
 
 // ---------------------------------------------------------------------------
+// View modes  (ViewMode union values)
+// ---------------------------------------------------------------------------
+export const VIEW_MODE_GRAPH    = "graph" as const;
+export const VIEW_MODE_SUNBURST = "sunburst" as const;
+export const VIEW_MODE_TIMELINE = "timeline" as const;
+export const VIEW_MODE_TREE     = "tree" as const;
+
+// ---------------------------------------------------------------------------
 // Coordinate axis source kinds  (AxisSource.kind values)
 // ---------------------------------------------------------------------------
 export const SOURCE_PROPERTY   = "property" as const;

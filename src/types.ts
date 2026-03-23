@@ -133,6 +133,10 @@ export type LayoutType =
   | "sunburst"
   | "timeline";
 
+/** Top-level visualization mode — determines which layout algorithm and
+ *  which panel sections are active. */
+export type ViewMode = "graph" | "sunburst" | "timeline" | "tree";
+
 /** How to partition nodes into clusters within the force layout.
  *  Legacy values: "none" | "tag" | "backlinks" | "node_type"
  *  New: any "field:?" string (e.g. "tag:?", "folder:?", "category:?") */
