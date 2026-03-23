@@ -4,22 +4,24 @@ import {
   VIEW_MODE_SUNBURST,
   VIEW_MODE_TIMELINE,
   VIEW_MODE_TREE,
+  VIEW_MODE_MATRIX,
   LAYOUT_FORCE,
   LAYOUT_SUNBURST,
   LAYOUT_TIMELINE,
   LAYOUT_TREE,
 } from "../src/constants";
 import { createDefaultPanel, validatePanelState } from "../src/views/PanelBuilder";
-import { viewModeToLayout, viewModeSkipsNodeRendering, viewModeSkipsEdges } from "../src/utils/view-mode-map";
+import { viewModeToLayout, viewModeSkipsNodeRendering, viewModeSkipsEdges, viewModeUsesDom } from "../src/utils/view-mode-map";
 import { isSectionVisible } from "../src/utils/view-mode-sections";
 import type { ViewMode } from "../src/types";
 
 describe("ViewMode constants", () => {
-  it("exports all 4 view mode constants", () => {
+  it("exports all 5 view mode constants", () => {
     expect(VIEW_MODE_GRAPH).toBe("graph");
     expect(VIEW_MODE_SUNBURST).toBe("sunburst");
     expect(VIEW_MODE_TIMELINE).toBe("timeline");
     expect(VIEW_MODE_TREE).toBe("tree");
+    expect(VIEW_MODE_MATRIX).toBe("matrix");
   });
 });
 
@@ -56,6 +58,9 @@ describe("viewModeToLayout", () => {
   });
   it("maps tree → LAYOUT_TREE", () => {
     expect(viewModeToLayout("tree")).toBe(LAYOUT_TREE);
+  });
+  it("maps matrix → LAYOUT_FORCE (DOM-based)", () => {
+    expect(viewModeToLayout("matrix")).toBe(LAYOUT_FORCE);
   });
   it("returns LAYOUT_FORCE for unknown input", () => {
     expect(viewModeToLayout("unknown" as any)).toBe(LAYOUT_FORCE);
@@ -101,6 +106,18 @@ describe("isSectionVisible", () => {
     expect(isSectionVisible("tree", "edgeDisplay")).toBe(true);
   });
 
+  it("matrix hides most sections (DOM-based)", () => {
+    expect(isSectionVisible("matrix", "clusterArrangement")).toBe(false);
+    expect(isSectionVisible("matrix", "forceParameters")).toBe(false);
+    expect(isSectionVisible("matrix", "edgeDisplay")).toBe(false);
+    expect(isSectionVisible("matrix", "nodeDisplay")).toBe(false);
+    expect(isSectionVisible("matrix", "minimap")).toBe(false);
+  });
+  it("matrix shows filter and grouping", () => {
+    expect(isSectionVisible("matrix", "filter")).toBe(true);
+    expect(isSectionVisible("matrix", "grouping")).toBe(true);
+  });
+
   it("unknown section defaults to visible", () => {
     expect(isSectionVisible("graph", "unknownSection" as any)).toBe(true);
     expect(isSectionVisible("sunburst", "unknownSection" as any)).toBe(true);
@@ -123,6 +140,9 @@ describe("viewModeSkipsNodeRendering", () => {
   it("tree does NOT skip node rendering", () => {
     expect(viewModeSkipsNodeRendering("tree")).toBe(false);
   });
+  it("matrix skips node rendering (DOM-based)", () => {
+    expect(viewModeSkipsNodeRendering("matrix")).toBe(true);
+  });
   it("unknown mode does NOT skip", () => {
     expect(viewModeSkipsNodeRendering("unknown" as any)).toBe(false);
   });
@@ -144,8 +164,32 @@ describe("viewModeSkipsEdges", () => {
   it("tree does NOT skip edges", () => {
     expect(viewModeSkipsEdges("tree")).toBe(false);
   });
+  it("matrix skips edges (DOM-based)", () => {
+    expect(viewModeSkipsEdges("matrix")).toBe(true);
+  });
   it("unknown mode does NOT skip", () => {
     expect(viewModeSkipsEdges("unknown" as any)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// viewModeUsesDom — matrix uses DOM rendering
+// ---------------------------------------------------------------------------
+describe("viewModeUsesDom", () => {
+  it("matrix uses DOM", () => {
+    expect(viewModeUsesDom("matrix")).toBe(true);
+  });
+  it("graph does NOT use DOM", () => {
+    expect(viewModeUsesDom("graph")).toBe(false);
+  });
+  it("sunburst does NOT use DOM", () => {
+    expect(viewModeUsesDom("sunburst")).toBe(false);
+  });
+  it("timeline does NOT use DOM", () => {
+    expect(viewModeUsesDom("timeline")).toBe(false);
+  });
+  it("tree does NOT use DOM", () => {
+    expect(viewModeUsesDom("tree")).toBe(false);
   });
 });
 
@@ -157,7 +201,7 @@ describe("viewMode integration", () => {
 
   it("all view modes map to valid LayoutType values", () => {
     const validLayouts = new Set(["force", "concentric", "tree", "arc", "sunburst", "timeline"]);
-    for (const mode of ["graph", "sunburst", "timeline", "tree"] as ViewMode[]) {
+    for (const mode of ["graph", "sunburst", "timeline", "tree", "matrix"] as ViewMode[]) {
       expect(validLayouts.has(viewModeToLayout(mode))).toBe(true);
     }
   });
@@ -167,7 +211,7 @@ describe("viewMode integration", () => {
     for (const s of sections) {
       expect(isSectionVisible("graph", s)).toBe(true);
     }
-    for (const mode of ["sunburst", "timeline", "tree"] as ViewMode[]) {
+    for (const mode of ["sunburst", "timeline", "tree", "matrix"] as ViewMode[]) {
       expect(isSectionVisible(mode, "clusterArrangement")).toBe(false);
     }
   });

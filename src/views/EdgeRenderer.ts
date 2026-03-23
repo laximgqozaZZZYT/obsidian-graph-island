@@ -3184,17 +3184,18 @@ function _drawEdgesSinglePass(
   cablePrep: CablePrepResult,
   arrowGfx?: CanvasGraphics | null,
 ): void {
-  let _dbgLeaked = 0;
   for (const e of edges) {
-    if (cablePrep.cabledEdgeIds.has(e.id)) continue;
-    if (cablePrep.intraHandledIds.has(e.id)) continue;
+    const isCabled = cablePrep.cabledEdgeIds.has(e.id) || cablePrep.intraHandledIds.has(e.id);
 
     const src = resolvePos(e.source);
     const tgt = resolvePos(e.target);
     if (!src || !tgt) continue;
 
-    if (cablePrep.hasClusters) {
-      _dbgLeaked++;
+    // When cable-tray handles this edge, skip the line segment but still draw decorations (arrows etc.)
+    if (isCabled || cablePrep.hasClusters) {
+      const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
+      const { alpha } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+      drawEdgeDecorations(g, e, src, tgt, lineColor, alpha, cfg, arrowGfx);
       continue;
     }
 
@@ -3314,14 +3315,19 @@ function _drawEdgesLayered(
       // このレイヤーに属さないエッジはスキップ
       if ((e.type ?? undefined) !== layerType) continue;
 
-      if (cablePrep.cabledEdgeIds.has(e.id)) continue;
-      if (cablePrep.intraHandledIds.has(e.id)) continue;
+      const isCabledL = cablePrep.cabledEdgeIds.has(e.id) || cablePrep.intraHandledIds.has(e.id);
 
       const src = resolvePos(e.source);
       const tgt = resolvePos(e.target);
       if (!src || !tgt) continue;
 
-      if (cablePrep.hasClusters) continue;
+      // When cable-tray handles this edge, skip the line segment but still draw decorations (arrows etc.)
+      if (isCabledL || cablePrep.hasClusters) {
+        const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
+        const { alpha } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+        drawEdgeDecorations(g, e, src, tgt, lineColor, alpha * alphaMul, cfg, arrowGfx);
+        continue;
+      }
 
       const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
       let { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
