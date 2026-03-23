@@ -2702,28 +2702,30 @@ export function resolveEdgeStyle(
 // ---------------------------------------------------------------------------
 
 /** Apply a dash pattern based on edge type. Returns true if a dash was set. */
-function applyDashPattern(g: CanvasGraphics, e: GraphEdge, lineThick: number): boolean {
-  const s = lineThick;
-  switch (e.type) {
+/** Get the dash pattern multipliers for an edge type. Returns null for solid lines. */
+export function getDashPattern(edgeType: string): number[] | null {
+  switch (edgeType) {
     case "semantic":
-      g.setLineDash([4 * s, 4 * s]);          // .... even dots
-      return true;
+      return [4, 4];                           // .... even dots
     case EDGE_TYPE_TAG:
     case EDGE_TYPE_HAS_TAG:
-      g.setLineDash([8 * s, 3 * s]);          // ─── ─── long dash
-      return true;
+      return [8, 3];                           // ─── ─── long dash
     case EDGE_TYPE_SIMILAR:
-      g.setLineDash([3 * s, 5 * s]);          // ·· ·· short dash
-      return true;
+      return [3, 5];                           // ·· ·· short dash
     case EDGE_TYPE_SEQUENCE:
-      g.setLineDash([6 * s, 2 * s, 2 * s, 2 * s]); // ──·──· dash-dot (A11y: colorblind-friendly)
-      return true;
+      return [6, 2, 2, 2];                     // ──·──· dash-dot (A11y: colorblind-friendly)
     case EDGE_TYPE_SIBLING:
-      g.setLineDash([2 * s, 2 * s]);          // ·· ·· fine dots (A11y: colorblind-friendly)
-      return true;
+      return [2, 2];                           // ·· ·· fine dots (A11y: colorblind-friendly)
     default:
-      return false;  // link, inheritance, aggregation = solid line
+      return null;                             // link, inheritance, aggregation = solid line
   }
+}
+
+function applyDashPattern(g: CanvasGraphics, e: GraphEdge, lineThick: number): boolean {
+  const pattern = getDashPattern(e.type ?? "");
+  if (!pattern) return false;
+  g.setLineDash(pattern.map(m => m * lineThick));
+  return true;
 }
 
 // ---------------------------------------------------------------------------
