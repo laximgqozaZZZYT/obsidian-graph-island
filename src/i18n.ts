@@ -170,8 +170,6 @@ const en: TranslationMap = {
   "search.history": "History",
   "display.edgeDensityFloor": "Edge Density Floor",
   "display.hoverEdgeFalloff": "Hover Edge Fade",
-  "display.degreeEdgeWidth": "Edge Width by Degree",
-  "desc.degreeEdgeWidth": "Scale edge thickness based on connected node degrees",
   "display.localGraphHops": "Local Graph Hops",
 
   // --- PanelBuilder: rendering thresholds ---

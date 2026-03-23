@@ -243,6 +243,31 @@ describe("validatePanelState — boundary values", () => {
     validatePanelState(panel2);
     expect(panel2.hoverHops).toBe(10);
   });
+
+  it("subgraphNodeIds defaults to empty array", () => {
+    const panel = createDefaultPanel();
+    expect(panel.subgraphNodeIds).toEqual([]);
+  });
+
+  it("subgraphStack defaults to empty array", () => {
+    const panel = createDefaultPanel();
+    expect(panel.subgraphStack).toEqual([]);
+  });
+
+  it("null subgraphNodeIds becomes empty array", () => {
+    const panel = createDefaultPanel();
+    (panel as any).subgraphNodeIds = null;
+    validatePanelState(panel);
+    expect(Array.isArray(panel.subgraphNodeIds)).toBe(true);
+    expect(panel.subgraphNodeIds.length).toBe(0);
+  });
+
+  it("null subgraphStack becomes empty array", () => {
+    const panel = createDefaultPanel();
+    (panel as any).subgraphStack = null;
+    validatePanelState(panel);
+    expect(Array.isArray(panel.subgraphStack)).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -290,7 +315,7 @@ describe("createDefaultPanel field completeness", () => {
   });
 
   it("array fields are empty arrays", () => {
-    const arrayFields = ["multiSelectNodeIds", "expandedNodes"];
+    const arrayFields = ["multiSelectNodeIds", "expandedNodes", "subgraphNodeIds", "subgraphStack"];
     for (const key of arrayFields) {
       const val = (panel as any)[key];
       expect(Array.isArray(val), `${key} should be array`).toBe(true);
@@ -320,6 +345,8 @@ describe("createDefaultPanel field completeness", () => {
     expect(p2.collapsedGroups.size).toBe(0);
     p1.multiSelectNodeIds.push("x");
     expect(p2.multiSelectNodeIds.length).toBe(0);
+    p1.subgraphNodeIds.push("x");
+    expect(p2.subgraphNodeIds.length).toBe(0);
   });
 
   it("contains all edge visibility fields used by EdgeRenderer", () => {

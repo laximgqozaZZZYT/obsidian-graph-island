@@ -31,14 +31,10 @@ const BOOLEAN_FIELDS: (keyof PanelState)[] = [
   "edgeWeightThickness",
   "edgeLayerMode",
   "syncWithEditor",
-  "showEdgeWeightLabels",
   "showLegend",
-  "showBidirectionalIndicator",
-  "showEdgeCardinalityLabels",
   "showOutOfBoundsIndicator",
   "highlightMissingNeighbors",
   "showGraphStats",
-  "showAncestryBreadcrumb",
   "showPathfinderOverlay",
   "semanticZoom",
   "showTagBadges",
@@ -75,12 +71,10 @@ const NUMBER_FIELDS: (keyof PanelState)[] = [
   "cableTrunkWidth", "cableTrunkAlpha", "cableSpacing", "cableFanWidth", "cableFanAlpha",
   "localGraphHops",
   "recencyDays",
-  "degreeEdgeWidth",
   "minDegreeFilter",
   "maxDegreeFilter",
   "presetZoomLevel",
   "zoomSensitivity",
-  "surpriseInterval",
 ];
 
 /** Fields that should be string */
@@ -104,7 +98,7 @@ const ARRAY_FIELDS: (keyof PanelState)[] = [
   "sortRules", "nodeRules", "nodeShapeRules", "groupByRules",
   "cardinalityRules", "annotations", "bookmarkedNodes", "searchHistory", "savedSearchQueries",
   "navHistory", "multiSelectNodeIds", "excludeNodes", "savedViewports",
-  "expandedNodes", "hierarchyRelations",
+  "expandedNodes", "hierarchyRelations", "subgraphNodeIds", "subgraphStack",
 ];
 
 /** Valid values for enum-like fields */

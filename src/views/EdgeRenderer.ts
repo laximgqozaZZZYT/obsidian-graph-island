@@ -104,14 +104,8 @@ export interface EdgeDrawConfig {
   coordinateSystem?: "cartesian" | "polar";
   /** エッジ種別ごとにレイヤー分離描画 — 種別別に描画パスを分けて z-order を制御 */
   edgeLayerMode?: boolean;
-  /** エッジ重みラベル表示: 同一ペア間のエッジ本数を数値で表示 */
-  showEdgeWeightLabels?: boolean;
-  /** エッジ多重度ラベル: 同一ノードペア間に複数エッジがある場合、本数を表示 */
-  showEdgeCardinalityLabels?: boolean;
   /** Filter edges by directionality: "all" | "bidirectional" | "unidirectional" */
   edgeDirectionFilter?: "all" | "bidirectional" | "unidirectional";
-  /** Visual indicator for bidirectional edges (thicker + higher alpha) */
-  showBidirectionalIndicator?: boolean;
   /** Pre-computed set of bidirectional edge keys ("source→target") */
   _bidirectionalSet?: Set<string>;
   /** S6: Ontology backbone — thicken inheritance edges */
@@ -2630,17 +2624,6 @@ export function resolveEdgeStyle(
     lineThick *= glowMin + t * (glowMax - glowMin);
   }
 
-  // V2: Degree-based edge thickness — scale width by average endpoint degree
-  if (cfg.degreeEdgeWidth && cfg.degreeEdgeWidth > 0 && cfg.maxDegree > 0) {
-    const sid = src.id ?? (e.source as string);
-    const tid = tgt.id ?? (e.target as string);
-    const srcDeg = cfg.degrees.get(sid) ?? 1;
-    const tgtDeg = cfg.degrees.get(tid) ?? 1;
-    const avgDeg = (srcDeg + tgtDeg) / 2;
-    const ratio = Math.min(1, avgDeg / cfg.maxDegree);
-    lineThick *= (0.5 + ratio * cfg.degreeEdgeWidth * 1.5);
-  }
-
   if (cfg.highlightedNodeId) {
     const sid = src.id ?? (e.source as string);
     const tid = tgt.id ?? (e.target as string);
@@ -3137,7 +3120,7 @@ export function drawEdges(
   if (arrowGfx) arrowGfx.clear();
 
   // Pre-compute bidirectional set if direction filter or indicator is active
-  const needsBidir = (cfg.edgeDirectionFilter && cfg.edgeDirectionFilter !== "all") || cfg.showBidirectionalIndicator;
+  const needsBidir = cfg.edgeDirectionFilter && cfg.edgeDirectionFilter !== "all";
   cfg._bidirectionalSet = needsBidir ? buildBidirectionalSet(edges) : undefined;
 
   // Pre-filter edges once — all downstream functions use this filtered list,
@@ -3219,17 +3202,6 @@ function _drawEdgesSinglePass(
       lineColor = (Math.round(r1 + (r2 - r1) * blend * 0.5) << 16) |
                   (Math.round(g1 + (g2 - g1) * blend * 0.5) << 8) |
                    Math.round(b1 + (b2 - b1) * blend * 0.5);
-    }
-
-    // Bidirectional indicator: subtly adjust thickness and alpha
-    if (cfg.showBidirectionalIndicator && cfg._bidirectionalSet) {
-      const isBidir = cfg._bidirectionalSet.has(`${e.source}→${e.target}`);
-      if (isBidir) {
-        lineThick *= (cfg.edgeBidirectionalThickFactor ?? 1.5);
-        alpha = Math.min(1.0, alpha + (cfg.edgeBidirectionalBoost ?? 0.2));
-      } else {
-        alpha = Math.max(0.05, alpha - (cfg.edgeUnidirectionalDim ?? 0.15));
-      }
     }
 
     // S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
@@ -3338,17 +3310,6 @@ function _drawEdgesLayered(
 
       const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
       let { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
-
-      // Bidirectional indicator: subtly adjust thickness and alpha
-      if (cfg.showBidirectionalIndicator && cfg._bidirectionalSet) {
-        const isBidir = cfg._bidirectionalSet.has(`${e.source}→${e.target}`);
-        if (isBidir) {
-          lineThick *= (cfg.edgeBidirectionalThickFactor ?? 1.5);
-          alpha = Math.min(1.0, alpha + (cfg.edgeBidirectionalBoost ?? 0.2));
-        } else {
-          alpha = Math.max(0.05, alpha - (cfg.edgeUnidirectionalDim ?? 0.15));
-        }
-      }
 
       // S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
       if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {
@@ -3672,7 +3633,7 @@ export function drawEdgeLabels(
     child.destroy();
   }
 
-  if (!cfg.showEdgeLabels && !cfg.showEdgeWeightLabels && !cfg.showEdgeCardinalityLabels) return;
+  if (!cfg.showEdgeLabels) return;
 
   // Auto-hide edge labels at low zoom with gradual fade
   const zoom = cfg.worldScale ?? 1;
@@ -3681,81 +3642,7 @@ export function drawEdgeLabels(
   if (zoom < labelHideZ) return;
   const edgeLabelAlpha = zoom < labelFadeZ ? (zoom - labelHideZ) / (labelFadeZ - labelHideZ) : 1;
 
-  // --- エッジ重みラベル: 同一ペア間のエッジ本数を表示 ---
-  if (cfg.showEdgeWeightLabels) {
-    const pairCounts = buildPairCounts(edges);
-    // ペアごとに1回だけラベルを描く（重複除外セット）
-    const drawnPairs = new Set<string>();
-    const fillColor = a11yEdgeLabelFill(cfg.isDark);
-    for (const e of edges) {
-      if (shouldSkipEdge(e, cfg)) continue;
-      if (shouldSkipByDirection(e, cfg)) continue;
-      const key = [e.source, e.target].sort().join(":");
-      const count = pairCounts.get(key) ?? 1;
-      if (count <= 1 || drawnPairs.has(key)) continue;
-      drawnPairs.add(key);
-      const sp = resolvePos(e.source);
-      const tp = resolvePos(e.target);
-      if (!sp || !tp) continue;
-      const mx = (sp.x + tp.x) / 2;
-      const my = (sp.y + tp.y) / 2;
-      // 重みラベルは関係ラベルと重ならないようオフセット
-      const offsetY = cfg.showEdgeLabels ? -10 : 0;
-      const text = new CanvasText(String(count), {
-        fontSize: cfg.edgeLabelFontSize ?? EDGE_LABEL_FONT_SIZE_DEFAULT,
-        fill: fillColor,
-        fontFamily: "sans-serif",
-        fontWeight: "bold",
-      });
-      text.anchor.set(0.5, 0.5);
-      text.x = mx;
-      text.y = my + offsetY;
-      text.alpha = EDGE_LABEL_ALPHA * edgeLabelAlpha;
-      text.resolution = EDGE_LABEL_RESOLUTION;
-      // A11y: background pill for edge label contrast
-      text.bgColor = cfg.isDark ? 0x1a1a2e : 0xf0f0f4;
-      text.bgAlpha = EDGE_LABEL_BG_ALPHA;
-      text.bgPadX = 3;
-      text.bgPadY = 1;
-      container.addChild(text);
-    }
-  }
-
-  // --- エッジ多重度ラベル: 同一ペア間のエッジ本数を表示 (showEdgeWeightLabelsと排他) ---
-  if (cfg.showEdgeCardinalityLabels && !cfg.showEdgeWeightLabels) {
-    const pairCounts = buildPairCounts(edges);
-    const drawnPairs = new Set<string>();
-    const fillColor = a11yEdgeLabelFill(cfg.isDark);
-    for (const e of edges) {
-      if (shouldSkipEdge(e, cfg)) continue;
-      if (shouldSkipByDirection(e, cfg)) continue;
-      const key = [e.source, e.target].sort().join(":");
-      const count = pairCounts.get(key) ?? 1;
-      if (count <= 1 || drawnPairs.has(key)) continue;
-      drawnPairs.add(key);
-      const sp = resolvePos(e.source);
-      const tp = resolvePos(e.target);
-      if (!sp || !tp) continue;
-      const mx = (sp.x + tp.x) / 2;
-      const my = (sp.y + tp.y) / 2;
-      const offsetY = cfg.showEdgeLabels ? -10 : 0;
-      const text = new CanvasText(String(count), {
-        fontSize: 10,
-        fill: fillColor,
-        fontFamily: "sans-serif",
-        fontWeight: "bold",
-      });
-      text.anchor.set(0.5, 0.5);
-      text.x = mx;
-      text.y = my + offsetY;
-      text.alpha = EDGE_LABEL_ALPHA * edgeLabelAlpha;
-      text.resolution = EDGE_LABEL_RESOLUTION;
-      container.addChild(text);
-    }
-  }
-
   // --- 通常のエッジラベル（関係名/種別名） ---
-  if (!cfg.showEdgeLabels) return;
 
   // Collect labelable edges (skip hidden types and those without a label)
   const labelable: { edge: GraphEdge; label: string }[] = [];

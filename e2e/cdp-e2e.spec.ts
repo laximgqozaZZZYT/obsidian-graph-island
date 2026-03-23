@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
+import { measureNodeOverlap, measureSpread, measureLabels, measureContrast, measureCardText } from "./helpers/quality-checks";
 
 const CDP_URL = "http://localhost:9222";
 test.setTimeout(300_000);
@@ -195,6 +196,13 @@ test.describe("1. Graph Data Integrity", () => {
       return v?.pixiNodes?.size ?? -1;
     });
     expect(count).toBeGreaterThan(2000);
+    // === Display Quality: baseline overlap + coordinate sanity ===
+    const overlap = await measureNodeOverlap(page);
+    expect(overlap.overlapRatio).toBeLessThan(0.05);
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    expect(spread.infCount).toBe(0);
+    expect(spread.spreadRatio).toBeGreaterThan(0.1);
   });
 
   test("1.2 baseline edge count is positive", async () => {

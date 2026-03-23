@@ -288,6 +288,10 @@ export interface PanelState {
   // --- Phase 4: Interaction enhancements ---
   /** C6: Multi-select node set (Shift+click to add, operations on selection) */
   multiSelectNodeIds: string[];
+  /** Subgraph view: node IDs to display (empty = show all) */
+  subgraphNodeIds: string[];
+  /** Subgraph navigation stack for back/forward */
+  subgraphStack: { nodeIds: string[]; viewMode: ViewMode; panX: number; panY: number; zoom: number }[];
   /** F5: Relation matrix view */
   showRelationMatrix: boolean;
   // --- Phase 7: Advanced features ---
@@ -468,6 +472,8 @@ export function createDefaultPanel(): PanelState {
     showEntropyOverlay: false,
     showClusterCompare: false,
     multiSelectNodeIds: [],
+    subgraphNodeIds: [],
+    subgraphStack: [],
     showRelationMatrix: false,
     presentationMode: false,
     showNodeThumbnails: false,
@@ -511,6 +517,8 @@ export function validatePanelState(panel: PanelState): void {
   if (panel.nodeSize > 100) panel.nodeSize = 100;
   // Ensure arrays are arrays
   if (!Array.isArray(panel.multiSelectNodeIds)) panel.multiSelectNodeIds = [];
+  if (!Array.isArray(panel.subgraphNodeIds)) panel.subgraphNodeIds = [];
+  if (!Array.isArray(panel.subgraphStack)) panel.subgraphStack = [];
   // Ensure collapsedGroups is a Set
   if (!(panel.collapsedGroups instanceof Set)) {
     panel.collapsedGroups = new Set(Array.isArray(panel.collapsedGroups) ? panel.collapsedGroups : []);
