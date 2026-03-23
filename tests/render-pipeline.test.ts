@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   computeLodLevel, darkenColor,
   lightenColor, blendColors, desaturateColor, hashStringToHue,
-  truncateLabel,
+  truncateLabel, screenToWorld,
 } from "../src/views/RenderPipeline";
 
 // ---------------------------------------------------------------------------
@@ -239,5 +239,48 @@ describe("truncateLabel", () => {
 
   it("handles label length one over limit", () => {
     expect(truncateLabel("123456", 5)).toBe("12345…");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// screenToWorld — screen-pixel to world-unit conversion with floor
+// ---------------------------------------------------------------------------
+describe("screenToWorld", () => {
+  it("returns screenPx / ws when result exceeds floor", () => {
+    // 6px / 0.5 scale = 12 world units, floor=3 → 12
+    expect(screenToWorld(6, 0.5, 3)).toBe(12);
+  });
+
+  it("returns floor when screenPx / ws is below floor", () => {
+    // 2px / 2.0 scale = 1 world unit, floor=3 → 3
+    expect(screenToWorld(2, 2.0, 3)).toBe(3);
+  });
+
+  it("returns floor when ws is 0 (division guard)", () => {
+    expect(screenToWorld(10, 0, 5)).toBe(5);
+  });
+
+  it("returns floor when ws is negative", () => {
+    expect(screenToWorld(10, -1, 5)).toBe(5);
+  });
+
+  it("returns exact floor when screenPx/ws equals floor", () => {
+    // 6px / 2.0 = 3, floor=3 → 3
+    expect(screenToWorld(6, 2.0, 3)).toBe(3);
+  });
+
+  it("scales inversely with worldScale at zoom-out", () => {
+    const a = screenToWorld(4, 0.1, 1); // 40
+    const b = screenToWorld(4, 1.0, 1); // 4
+    expect(a).toBeGreaterThan(b);
+  });
+
+  it("at ws=1 returns max of screenPx and floor", () => {
+    expect(screenToWorld(10, 1, 3)).toBe(10);
+    expect(screenToWorld(2, 1, 3)).toBe(3);
+  });
+
+  it("handles fractional screenPx", () => {
+    expect(screenToWorld(1.5, 0.5, 1)).toBe(3);
   });
 });

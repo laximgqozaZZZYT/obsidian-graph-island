@@ -7126,8 +7126,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this._rebuildRoadNetwork(true);
       // Force full redraw now that all positions are final
       this.updatePositions(true);
-      // G1: Always autoFit on first render; respect panel.autoFit on subsequent renders
-      if (wrap && (this.panel.autoFit || !this._hasAutoFocused)) {
+      // G1: Always autoFit when simulation ends — ensures nodes are visible after layout
+      if (wrap) {
         this.autoFitView(wrap.clientWidth, wrap.clientHeight);
       }
       this.markDirty(true);

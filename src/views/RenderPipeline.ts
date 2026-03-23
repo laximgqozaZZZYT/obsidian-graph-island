@@ -57,6 +57,11 @@ const NODE_SCREEN_PX_BASE = 30;
  *  Nodes are always at least 2×this value in screen-pixel diameter. */
 export const MIN_WORLD_RADIUS_PX = 8;
 
+/** Convert a screen-pixel size to world units, floored at `floor`. */
+export function screenToWorld(screenPx: number, ws: number, floor: number): number {
+  return Math.max(floor, ws > 0 ? screenPx / ws : floor);
+}
+
 /** Viewport culling margin in world units (divided by worldScale) */
 const VIEWPORT_CULL_MARGIN_PX = 60;
 
@@ -1929,7 +1934,7 @@ export class RenderPipeline {
     // Ensure badge is at least 3 screen pixels at any zoom
     const minScreenPx = 3;
     const ws = ctx.worldScale || 1;
-    const BADGE_R = Math.max(3, ws > 0 ? minScreenPx / ws : 3);
+    const BADGE_R = screenToWorld(minScreenPx, ws, 3);
     const PAD = BADGE_R * 0.7;
 
     for (const pn of ctx.visible) {
@@ -1956,7 +1961,7 @@ export class RenderPipeline {
         const angle = startAngle + (MAX_BADGES / (MAX_BADGES + 1)) * Math.PI * 2;
         const bx = cx + Math.cos(angle) * (nodeR + PAD + BADGE_R);
         const by = cy + Math.sin(angle) * (nodeR + PAD + BADGE_R);
-        g.lineStyle(Math.max(1, 1 / ws), 0x888888, 0.7);
+        g.lineStyle(screenToWorld(1, ws, 1), 0x888888, 0.7);
         g.beginFill(0x888888, 0.4);
         g.drawCircle(bx, by, BADGE_R);
         g.endFill();
@@ -1992,8 +1997,8 @@ export class RenderPipeline {
     const ws = ctx.worldScale || 1;
     // Ensure ring is at least 2 screen pixels wide
     const minRingPx = 2;
-    const RING_PAD = Math.max(3, ws > 0 ? minRingPx / ws : 3);
-    const MAX_RING_WIDTH = Math.max(4, ws > 0 ? 4 / ws : 4);
+    const RING_PAD = screenToWorld(minRingPx, ws, 3);
+    const MAX_RING_WIDTH = screenToWorld(4, ws, 4);
 
     for (const pn of ctx.visible) {
       const val = metricMap.get(pn.data.id) ?? 0;
@@ -2071,8 +2076,8 @@ export class RenderPipeline {
 
     const GOLD = 0xffd700;
     const ws = ctx.worldScale || 1;
-    const RING_WIDTH = Math.max(3, ws > 0 ? 2 / ws : 3);
-    const PAD = Math.max(5, ws > 0 ? 3 / ws : 5);
+    const RING_WIDTH = screenToWorld(2, ws, 3);
+    const PAD = screenToWorld(3, ws, 5);
 
     for (const pn of ctx.visible) {
       if (!bridgeIds.has(pn.data.id)) continue;
@@ -2095,15 +2100,15 @@ export class RenderPipeline {
 
     const WARNING_COLOR = 0xff4444;
     const ws = ctx.worldScale || 1;
-    const RING_WIDTH = Math.max(2, ws > 0 ? 1.5 / ws : 2);
-    const PAD = Math.max(6, ws > 0 ? 3 / ws : 6);
+    const RING_WIDTH = screenToWorld(1.5, ws, 2);
+    const PAD = screenToWorld(3, ws, 6);
 
     for (const pn of ctx.visible) {
       if (!apIds.has(pn.data.id)) continue;
       const nodeR = Math.max(pn.radius, ctx.minWorldRadius);
       g.lineStyle(RING_WIDTH, WARNING_COLOR, 0.7);
       g.drawCircle(pn.data.x, pn.data.y, nodeR + PAD);
-      g.drawCircle(pn.data.x, pn.data.y, nodeR + PAD + Math.max(3, 2 / ws));
+      g.drawCircle(pn.data.x, pn.data.y, nodeR + PAD + screenToWorld(2, ws, 3));
       g.lineStyle(0);
     }
   }
