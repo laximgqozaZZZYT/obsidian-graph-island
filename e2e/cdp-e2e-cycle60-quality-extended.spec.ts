@@ -155,7 +155,19 @@ test("§0.1: group enclosures exist when groupBy is active", async () => {
   // === Coordinate sanity: no NaN/Inf after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
+
+  // === Enclosure quality: verify group boundaries don't overlap ===
+  const _encQ = await measureEnclosureOverlap(page);
+  if (_encQ.totalEnclosures > 2) {
+    expect(_encQ.overlapRate).toBeLessThan(0.50);
+  }
   expect(_csq.infCount).toBe(0);
+
+  // === Enclosure quality: verify group boundaries don't overlap ===
+  const _encQ2 = await measureEnclosureOverlap(page);
+  if (_encQ2.totalEnclosures > 2) {
+    expect(_encQ2.overlapRate).toBeLessThan(0.50);
+  }
 });
 
 // §0.4: Hover card creation latency < 300ms
@@ -195,7 +207,19 @@ test("§0.4: hover tooltip creation is fast", async () => {
   // === Coordinate sanity: no NaN/Inf after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
+
+  // === Enclosure quality: verify group boundaries don't overlap ===
+  const _encQ3 = await measureEnclosureOverlap(page);
+  if (_encQ3.totalEnclosures > 2) {
+    expect(_encQ3.overlapRate).toBeLessThan(0.50);
+  }
   expect(_csq.infCount).toBe(0);
+
+  // === Enclosure quality: verify group boundaries don't overlap ===
+  const _encQ4 = await measureEnclosureOverlap(page);
+  if (_encQ4.totalEnclosures > 2) {
+    expect(_encQ4.overlapRate).toBeLessThan(0.50);
+  }
   if (!result.skipped) {
     expect(result.fast).toBe(true);
   }

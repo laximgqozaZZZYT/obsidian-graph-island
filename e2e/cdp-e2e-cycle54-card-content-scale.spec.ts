@@ -127,7 +127,19 @@ test("HM-2: cardContentScale setting exists in renderThresholds", async () => {
   // === Coordinate sanity: no NaN/Inf after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
+
+  // === Card quality: verify card readability ===
+  const _cardQ = await measureCardReadability(page);
+  if (_cardQ.totalCards > 5) {
+    expect(_cardQ.overlappingCards).toBeLessThan(_cardQ.totalCards * 0.3);
+  }
   expect(_csq.infCount).toBe(0);
+
+  // === Card quality: verify card readability ===
+  const _cardQ2 = await measureCardReadability(page);
+  if (_cardQ2.totalCards > 5) {
+    expect(_cardQ2.overlappingCards).toBeLessThan(_cardQ2.totalCards * 0.3);
+  }
 });
 
 // HM-3: Content scale causes size variation between nodes with different body lengths
@@ -173,7 +185,19 @@ test("HM-3: content scale creates size difference by body length", async () => {
   // === Coordinate sanity: no NaN/Inf after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
+
+  // === Card quality: verify card readability ===
+  const _cardQ3 = await measureCardReadability(page);
+  if (_cardQ3.totalCards > 5) {
+    expect(_cardQ3.overlappingCards).toBeLessThan(_cardQ3.totalCards * 0.3);
+  }
   expect(_csq.infCount).toBe(0);
+
+  // === Card quality: verify card readability ===
+  const _cardQ4 = await measureCardReadability(page);
+  if (_cardQ4.totalCards > 5) {
+    expect(_cardQ4.overlappingCards).toBeLessThan(_cardQ4.totalCards * 0.3);
+  }
   }
 });
 
@@ -359,7 +383,19 @@ test("HM-9: hover tooltip overlap adjustment method exists", async () => {
   // === Coordinate sanity: no NaN/Inf after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
+
+  // === Card quality: verify card readability ===
+  const _cardQ5 = await measureCardReadability(page);
+  if (_cardQ5.totalCards > 5) {
+    expect(_cardQ5.overlappingCards).toBeLessThan(_cardQ5.totalCards * 0.3);
+  }
   expect(_csq.infCount).toBe(0);
+
+  // === Card quality: verify card readability ===
+  const _cardQ6 = await measureCardReadability(page);
+  if (_cardQ6.totalCards > 5) {
+    expect(_cardQ6.overlappingCards).toBeLessThan(_cardQ6.totalCards * 0.3);
+  }
 });
 
 // HM-10: gridCellShading is NOT a ghost — confirmed connected to GuideRenderer

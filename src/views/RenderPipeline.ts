@@ -245,6 +245,39 @@ export function computeLodLevel(
   return 5;
 }
 
+/**
+ * Compute density-adaptive culling scale factor for label spacing.
+ * At low zoom: aggressive spacing (sqrt scaling). At high zoom: mild spacing.
+ *
+ * @param zoom  Current zoom level (worldContainer.scale.x)
+ * @param threshold  Zoom level that separates "low" from "high" (labelDensityZoomThreshold)
+ * @returns Scale factor (>1 = more aggressive, <1 = more lenient)
+ */
+export function computeDensityScale(zoom: number, threshold: number): number {
+  if (zoom < threshold) {
+    return 1 + Math.sqrt((threshold - zoom) / threshold) * 1.5;
+  }
+  return Math.max(0.3, 1 - (zoom - threshold) * 0.5);
+}
+
+/**
+ * Compute minimum distance for density culling.
+ *
+ * @param baseDist  Base screen-space distance (labelDensityMinScreenDist)
+ * @param maxDist   Maximum allowed distance (labelDensityMaxDist)
+ * @param zoom      Current zoom level
+ * @param threshold Zoom threshold for density scaling
+ * @returns Minimum distance in screen pixels
+ */
+export function computeDensityMinDist(
+  baseDist: number,
+  maxDist: number,
+  zoom: number,
+  threshold: number,
+): number {
+  return Math.min(baseDist * computeDensityScale(zoom, threshold), maxDist);
+}
+
 /** Darken a hex color by mixing toward black. factor 0 = unchanged, 1 = black. */
 export function darkenColor(hex: number, factor: number): number {
   const { r, g, b } = hexToRgb(hex);
@@ -2753,11 +2786,9 @@ export class RenderPipeline {
     // HV: Extended to all zoom levels (was zoom < 0.5 only), with gentler spacing at high zoom
     const densityZoomThreshold = rt.labelDensityZoomThreshold;
     if (placed.length > 10) {
-      // At low zoom: aggressive spacing (sqrt scaling). At high zoom: mild spacing.
-      const rawDensityScale = zoom < densityZoomThreshold
-        ? 1 + Math.sqrt((densityZoomThreshold - zoom) / densityZoomThreshold) * 1.5
-        : Math.max(0.3, 1 - (zoom - densityZoomThreshold) * 0.5); // gentler at high zoom
-      const densityMinDist = Math.min((rt.labelDensityMinScreenDist) * rawDensityScale, rt.labelDensityMaxDist);
+      const densityMinDist = computeDensityMinDist(
+        rt.labelDensityMinScreenDist, rt.labelDensityMaxDist, zoom, densityZoomThreshold,
+      );
       const densityMinDist2 = densityMinDist * densityMinDist;
       // Sort placed by priority (highest first) — keep high priority, remove low
       placed.sort((a, b) => (b.pn.priorityScore + (b.pn.hoverForcedLabel ? 80 : 0))
