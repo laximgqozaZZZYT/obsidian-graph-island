@@ -599,3 +599,206 @@ describe("applyTimelineLayout all-untimed grid", () => {
     expect(posA.x).toBeLessThanOrEqual(posB.x);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Edge cases — buildTimelineDAG
+// ---------------------------------------------------------------------------
+describe("buildTimelineDAG edge cases", () => {
+  it("returns empty map for empty inputs", () => {
+    const dag = buildTimelineDAG([], new Set());
+    expect(dag.size).toBe(0);
+  });
+
+  it("handles timed nodes with no edges at all", () => {
+    const dag = buildTimelineDAG([], new Set(["a", "b", "c"]));
+    expect(dag.size).toBe(3);
+    for (const [, targets] of dag) {
+      expect(targets).toEqual([]);
+    }
+  });
+
+  it("self-loop edge is included when both source and target are timed", () => {
+    const edges = [makeEdge("a", "a", "sequence")];
+    const dag = buildTimelineDAG(edges, new Set(["a"]));
+    expect(dag.get("a")).toEqual(["a"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases — assignLanes
+// ---------------------------------------------------------------------------
+describe("assignLanes edge cases", () => {
+  it("handles empty DAG", () => {
+    const lanes = assignLanes(new Map(), new Map());
+    expect(lanes.size).toBe(0);
+  });
+
+  it("cycle: all nodes form a cycle -> all placed in lane 0", () => {
+    // a -> b -> c -> a (no roots, all in-degree > 0)
+    const dag = new Map([
+      ["a", ["b"]],
+      ["b", ["c"]],
+      ["c", ["a"]],
+    ]);
+    const timeIndex = new Map([["a", 0], ["b", 1], ["c", 2]]);
+    const lanes = assignLanes(dag, timeIndex);
+    // No roots -> all lane 0
+    for (const [, lane] of lanes) {
+      expect(lane).toBe(0);
+    }
+  });
+
+  it("single node with no edges gets lane 0", () => {
+    const dag = new Map([["solo", [] as string[]]]);
+    const timeIndex = new Map([["solo", 0]]);
+    const lanes = assignLanes(dag, timeIndex);
+    expect(lanes.get("solo")).toBe(0);
+  });
+
+  it("deep linear chain stays on same lane", () => {
+    const ids = Array.from({ length: 20 }, (_, i) => `n${i}`);
+    const dag = new Map<string, string[]>();
+    const timeIndex = new Map<string, number>();
+    for (let i = 0; i < ids.length; i++) {
+      dag.set(ids[i], i < ids.length - 1 ? [ids[i + 1]] : []);
+      timeIndex.set(ids[i], i);
+    }
+    const lanes = assignLanes(dag, timeIndex);
+    // All nodes in a single chain -> all lane 0
+    for (const id of ids) {
+      expect(lanes.get(id)).toBe(0);
+    }
+  });
+
+  it("wide fork: parent with 5 children assigns 5 distinct lanes", () => {
+    const dag = new Map<string, string[]>([
+      ["root", ["c1", "c2", "c3", "c4", "c5"]],
+      ["c1", []], ["c2", []], ["c3", []], ["c4", []], ["c5", []],
+    ]);
+    const timeIndex = new Map([
+      ["root", 0], ["c1", 1], ["c2", 1], ["c3", 1], ["c4", 1], ["c5", 1],
+    ]);
+    const lanes = assignLanes(dag, timeIndex);
+    // root and c1 share lane 0; c2..c5 get lanes 1..4
+    expect(lanes.get("root")).toBe(0);
+    expect(lanes.get("c1")).toBe(0);
+    const childLanes = new Set([
+      lanes.get("c2"), lanes.get("c3"), lanes.get("c4"), lanes.get("c5"),
+    ]);
+    // 4 unique lanes for the fork children
+    expect(childLanes.size).toBe(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases — applyTimelineLayout
+// ---------------------------------------------------------------------------
+describe("applyTimelineLayout edge cases", () => {
+  it("all nodes share the same date -> single time step, same X", () => {
+    const nodes = Array.from({ length: 5 }, (_, i) => makeNode(`n${i}`));
+    const data: Record<string, Record<string, string>> = {};
+    for (let i = 0; i < 5; i++) {
+      data[`n${i}`] = { date: "2024-06-15" };
+    }
+    const fm = makeFrontmatter(data);
+
+    const result = applyTimelineLayout(
+      { nodes, edges: [] },
+      { timeKey: "date", getNodeProperty: fm, startX: 0 },
+    );
+
+    expect(result.timeSteps).toEqual(["2024-06-15"]);
+    // All nodes should have the same X (single time step at index 0)
+    const xs = new Set(result.data.nodes.map(n => n.x));
+    expect(xs.size).toBe(1);
+  });
+
+  it("very large number of time steps (100) produces finite positions", () => {
+    const nodes = Array.from({ length: 100 }, (_, i) => makeNode(`n${i}`));
+    const data: Record<string, Record<string, string>> = {};
+    for (let i = 0; i < 100; i++) {
+      data[`n${i}`] = { date: `D${String(i).padStart(4, "0")}` };
+    }
+    const fm = makeFrontmatter(data);
+
+    const result = applyTimelineLayout(
+      { nodes, edges: [] },
+      { timeKey: "date", getNodeProperty: fm, stepWidth: 120 },
+    );
+
+    expect(result.timeSteps.length).toBe(100);
+    // All positions should be finite
+    for (const n of result.data.nodes) {
+      expect(Number.isFinite(n.x)).toBe(true);
+      expect(Number.isFinite(n.y)).toBe(true);
+    }
+    // X values should be strictly increasing (all unique dates, sorted)
+    const sorted = [...result.data.nodes].sort((a, b) => {
+      const ia = result.placements.find(p => p.nodeId === a.id)!.timeIndex;
+      const ib = result.placements.find(p => p.nodeId === b.id)!.timeIndex;
+      return ia - ib;
+    });
+    for (let i = 1; i < sorted.length; i++) {
+      expect(sorted[i].x).toBeGreaterThan(sorted[i - 1].x);
+    }
+  });
+
+  it("nodes with empty string time value are treated as untimed", () => {
+    const nodes = [makeNode("a"), makeNode("b")];
+    const fm = makeFrontmatter({
+      a: { date: "" },     // empty -> untimed
+      b: { date: "2024" }, // valid
+    });
+
+    const result = applyTimelineLayout(
+      { nodes, edges: [] },
+      { timeKey: "date", getNodeProperty: fm },
+    );
+
+    expect(result.placements.length).toBe(1); // only b is timed
+    expect(result.placements[0].nodeId).toBe("b");
+  });
+
+  it("stacking: multiple nodes at same time+lane get different Y positions", () => {
+    // a -> b and a -> c, where b and c share the same time
+    // but b continues on parent lane, c is fork -> different lane
+    // Instead, test category swim-lane: same category, same time = stacking
+    const nodes = [
+      makeNode("x", { category: "hero" }),
+      makeNode("y", { category: "hero" }),
+      makeNode("z", { category: "hero" }),
+    ];
+    const fm = makeFrontmatter({
+      x: { date: "T1" },
+      y: { date: "T1" },
+      z: { date: "T1" },
+    });
+
+    const result = applyTimelineLayout(
+      { nodes, edges: [] },
+      { timeKey: "date", getNodeProperty: fm, stackSpacing: 25, startY: 0 },
+    );
+
+    // All same time, same category -> same X, stacked Y
+    const ys = result.data.nodes.map(n => n.y).sort((a, b) => a - b);
+    // Should have 3 distinct Y values from stacking
+    expect(new Set(ys).size).toBe(3);
+    // Stack spacing should be 25px apart
+    expect(ys[1] - ys[0]).toBe(25);
+    expect(ys[2] - ys[1]).toBe(25);
+  });
+
+  it("single node produces 1 placement and 1 lane", () => {
+    const nodes = [makeNode("solo")];
+    const fm = makeFrontmatter({ solo: { date: "2024-01-01" } });
+
+    const result = applyTimelineLayout(
+      { nodes, edges: [] },
+      { timeKey: "date", getNodeProperty: fm },
+    );
+
+    expect(result.placements.length).toBe(1);
+    expect(result.lanes).toBe(1);
+    expect(result.timeSteps).toEqual(["2024-01-01"]);
+  });
+});

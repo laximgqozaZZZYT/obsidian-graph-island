@@ -452,3 +452,269 @@ describe("countDirectChildren", () => {
     })).toBe(3);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Edge cases — computeSunburstArcs
+// ---------------------------------------------------------------------------
+describe("computeSunburstArcs edge cases", () => {
+  it("handles deeply nested hierarchy (5 levels)", () => {
+    const root: SunburstData = {
+      name: "r",
+      children: [{
+        name: "L1",
+        children: [{
+          name: "L2",
+          children: [{
+            name: "L3",
+            children: [{ name: "L4", value: 1 }],
+          }],
+        }],
+      }],
+    };
+    const arcs = computeSunburstArcs(root, 400, 400);
+    // 5 nodes total: r, L1, L2, L3, L4
+    expect(arcs.length).toBe(5);
+    // deepest arc should have depth 4
+    const depths = arcs.map(a => a.depth);
+    expect(Math.max(...depths)).toBe(4);
+    // all arcs should have finite coordinates
+    for (const arc of arcs) {
+      expect(Number.isFinite(arc.x0)).toBe(true);
+      expect(Number.isFinite(arc.y0)).toBe(true);
+      expect(Number.isFinite(arc.y1)).toBe(true);
+    }
+  });
+
+  it("handles wide hierarchy (many siblings at depth 1)", () => {
+    const children = Array.from({ length: 20 }, (_, i) => ({
+      name: `child${i}`,
+      value: 1,
+    }));
+    const root: SunburstData = { name: "root", children };
+    const arcs = computeSunburstArcs(root, 600, 600);
+    // 1 root + 20 children = 21 arcs
+    expect(arcs.length).toBe(21);
+    // depth-1 arcs should partition the circle evenly
+    const d1 = arcs.filter(a => a.depth === 1);
+    expect(d1.length).toBe(20);
+    const spans = d1.map(a => a.x1 - a.x0);
+    // all equal value -> equal spans
+    for (const s of spans) {
+      expect(s).toBeCloseTo(spans[0], 10);
+    }
+  });
+
+  it("zero-size dimensions produce zero-radius arcs", () => {
+    const root: SunburstData = { name: "r", children: [{ name: "a", value: 1 }] };
+    const arcs = computeSunburstArcs(root, 0, 0);
+    // radius = min(0,0)/2 = 0 => all y0/y1 should be 0
+    for (const arc of arcs) {
+      expect(arc.y0).toBe(0);
+      expect(arc.y1).toBe(0);
+    }
+  });
+
+  it("unequal child values produce proportional arc spans", () => {
+    const root: SunburstData = {
+      name: "root",
+      children: [
+        { name: "big", value: 3 },
+        { name: "small", value: 1 },
+      ],
+    };
+    const arcs = computeSunburstArcs(root, 400, 400);
+    const big = arcs.find(a => a.name === "big")!;
+    const small = arcs.find(a => a.name === "small")!;
+    const bigSpan = big.x1 - big.x0;
+    const smallSpan = small.x1 - small.x0;
+    // big should be 3x the span of small
+    expect(bigSpan / smallSpan).toBeCloseTo(3, 5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases — applySunburstLayout
+// ---------------------------------------------------------------------------
+describe("applySunburstLayout edge cases", () => {
+  it("handles empty graph (zero nodes)", () => {
+    const root = sampleRoot();
+    const result = applySunburstLayout(
+      { nodes: [], edges: [] },
+      root,
+      { width: 800, height: 600, groupField: "category" },
+    );
+    expect(result.data.nodes).toEqual([]);
+    expect(result.arcs.length).toBeGreaterThan(0); // arcs still computed from root
+    expect(result.data.edges).toEqual([]);
+  });
+
+  it("handles single node with matching filePath", () => {
+    const nodes = [makeNode("alice", { filePath: "alice.md" })];
+    const root = sampleRoot();
+    const result = applySunburstLayout(
+      { nodes, edges: [] },
+      root,
+      { width: 400, height: 400, groupField: "category" },
+    );
+    expect(result.data.nodes.length).toBe(1);
+    const n = result.data.nodes[0];
+    // should be positioned at arc centroid, not at (0,0)
+    const dist = Math.sqrt((n.x - result.cx) ** 2 + (n.y - result.cy) ** 2);
+    expect(dist).toBeGreaterThan(0);
+  });
+
+  it("falls back to buildSunburstFromGraphNodes when coverage is low", () => {
+    // Nodes have filePaths that don't match the root at all
+    const nodes = [
+      makeNode("x", { filePath: "unknown1.md" }),
+      makeNode("y", { filePath: "unknown2.md" }),
+      makeNode("z", { filePath: "unknown3.md" }),
+    ];
+    const root = sampleRoot(); // only has alice.md, bob.md, castle.md
+    const result = applySunburstLayout(
+      { nodes, edges: [] },
+      root,
+      { width: 800, height: 600, groupField: "category" },
+    );
+    // Should still produce valid positioned nodes (via fallback hierarchy)
+    expect(result.data.nodes.length).toBe(3);
+    for (const n of result.data.nodes) {
+      expect(Number.isFinite(n.x)).toBe(true);
+      expect(Number.isFinite(n.y)).toBe(true);
+    }
+  });
+
+  it("falls back when root has only 1 direct child (Uncategorized)", () => {
+    const nodes = [
+      makeNode("a", { filePath: "a.md" }),
+      makeNode("b", { filePath: "b.md" }),
+    ];
+    const singleChildRoot: SunburstData = {
+      name: "Root",
+      children: [{
+        name: "Uncategorized",
+        children: [
+          { name: "a", value: 1, filePath: "a.md" },
+          { name: "b", value: 1, filePath: "b.md" },
+        ],
+      }],
+    };
+    const result = applySunburstLayout(
+      { nodes, edges: [] },
+      singleChildRoot,
+      { width: 400, height: 400, groupField: "category" },
+    );
+    // countDirectChildren(root) === 1 => triggers fallback
+    expect(result.data.nodes.length).toBe(2);
+    for (const n of result.data.nodes) {
+      expect(Number.isFinite(n.x)).toBe(true);
+      expect(Number.isFinite(n.y)).toBe(true);
+    }
+  });
+
+  it("multiple unmatched nodes are spread evenly around outer ring", () => {
+    const nodes = [
+      makeNode("orphan1"),
+      makeNode("orphan2"),
+      makeNode("orphan3"),
+      makeNode("orphan4"),
+    ];
+    const root = sampleRoot();
+    const result = applySunburstLayout(
+      { nodes, edges: [] },
+      root,
+      { width: 800, height: 800, groupField: "category" },
+    );
+    // All 4 unmatched nodes should be at same distance from center
+    const dists = result.data.nodes.map(n =>
+      Math.sqrt((n.x - result.cx) ** 2 + (n.y - result.cy) ** 2),
+    );
+    for (let i = 1; i < dists.length; i++) {
+      expect(dists[i]).toBeCloseTo(dists[0], 5);
+    }
+    // They should NOT all be at the same position
+    const uniquePositions = new Set(result.data.nodes.map(n => `${n.x.toFixed(2)},${n.y.toFixed(2)}`));
+    expect(uniquePositions.size).toBe(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases — buildSunburstFromGraphNodes
+// ---------------------------------------------------------------------------
+describe("buildSunburstFromGraphNodes edge cases", () => {
+  it("single node produces a hierarchy with one leaf", () => {
+    const nodes = [makeNode("solo", { filePath: "folder/solo.md" })];
+    const result = buildSunburstFromGraphNodes(nodes);
+    expect(result.name).toBe("Graph");
+    expect(result.children).toBeDefined();
+    // Should eventually reach a leaf named "solo"
+    const leaves: string[] = [];
+    function findLeaves(n: SunburstData) {
+      if (!n.children || n.children.length === 0) { leaves.push(n.name); return; }
+      n.children.forEach(findLeaves);
+    }
+    findLeaves(result);
+    expect(leaves).toContain("solo");
+  });
+
+  it("all nodes same category produces single top-level group", () => {
+    const nodes = [
+      makeNode("a", { category: "hero", filePath: "heroes/a.md" }),
+      makeNode("b", { category: "hero", filePath: "heroes/b.md" }),
+      makeNode("c", { category: "hero", filePath: "heroes/c.md" }),
+    ];
+    const result = buildSunburstFromGraphNodes(nodes);
+    // All nodes share category "hero" + folder "heroes" -> collapsed single-child chain
+    expect(result.children).toBeDefined();
+    // The top-level should have a single group containing "hero"
+    const topNames = result.children!.map(c => c.name);
+    expect(topNames.length).toBe(1);
+    expect(topNames[0]).toContain("hero");
+  });
+
+  it("deeply nested file paths produce collapsed chain names with slashes", () => {
+    const nodes = [
+      makeNode("x", { filePath: "a/b/c/d/e/file.md" }),
+    ];
+    const result = buildSunburstFromGraphNodes(nodes);
+    // Single-child chains get collapsed: a → b → c → d → e → leaf
+    // The collapsed name should contain slashes
+    const firstChild = result.children![0];
+    expect(firstChild.name).toContain("/");
+  });
+
+  it("mixed: some nodes with filePath, some without", () => {
+    const nodes = [
+      makeNode("withPath", { filePath: "docs/readme.md" }),
+      makeNode("noPath"),
+      makeNode("anotherNoPath"),
+    ];
+    const result = buildSunburstFromGraphNodes(nodes);
+    expect(result.children).toBeDefined();
+    // "noPath" falls back to first-letter "N", "anotherNoPath" to "A", "withPath" to "docs"
+    const topNames = result.children!.map(c => c.name);
+    expect(topNames.some(n => n.includes("docs") || n.includes("D"))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Edge cases — assignValues
+// ---------------------------------------------------------------------------
+describe("assignValues edge cases", () => {
+  it("handles empty children array (treated as leaf with value 1)", () => {
+    const node: SunburstData = { name: "empty", children: [] };
+    // Empty children array triggers the leaf branch: node.value ?? 1
+    const val = assignValues(node);
+    expect(val).toBe(1);
+    expect(node.value).toBe(1);
+  });
+
+  it("handles large tree (100 leaves)", () => {
+    const leaves = Array.from({ length: 100 }, (_, i) => ({
+      name: `leaf${i}`,
+      value: 1,
+    }));
+    const root: SunburstData = { name: "root", children: leaves };
+    expect(assignValues(root)).toBe(100);
+  });
+});
