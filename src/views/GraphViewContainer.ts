@@ -5230,19 +5230,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private updatePositions(forceFullRedraw = false) {
     // Delegate position sync to the pipeline; this method is still called
     // from doRender for the initial layout draw.
-    const skipNodes = viewModeSkipsNodeRendering(this.panel.viewMode);
     for (const pn of this.pixiNodes.values()) {
       pn.gfx.x = pn.data.x;
       pn.gfx.y = pn.data.y;
-      if (skipNodes) { pn.gfx.visible = false; pn.gfx.alpha = 0; }
-      else if (pn.gfx.alpha === 0) { pn.gfx.alpha = 1; }
     }
     this.rebuildSpatialGrid();
-    if (!skipNodes) {
-      this.redrawNodeBatch();
-    }
+    this.redrawNodeBatch();
     this.drawOrbitRings();
-    if (!skipNodes) this.drawEnclosures();
+    this.drawEnclosures();
     this.drawSunburstArcs();
     this.drawClusterSunburstLabels();
     this.drawSunburstLayoutArcs();

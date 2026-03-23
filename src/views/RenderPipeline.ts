@@ -583,17 +583,6 @@ export class RenderPipeline {
   // =========================================================================
   private updatePositions(forceFullRedraw = false) {
     const pixiNodes = this.host.getPixiNodes();
-    if (this._skipNodeRendering) {
-      // Non-graph viewModes: update positions but hide all node graphics
-      for (const pn of pixiNodes.values()) {
-        pn.gfx.x = pn.data.x;
-        pn.gfx.y = pn.data.y;
-        pn.gfx.visible = false;
-      }
-      this.host.rebuildSpatialGrid();
-      this.onPostRender?.();
-      return;
-    }
     for (const pn of pixiNodes.values()) {
       pn.gfx.x = pn.data.x;
       pn.gfx.y = pn.data.y;
@@ -2302,11 +2291,6 @@ export class RenderPipeline {
     for (let i = 0; i < IMMEDIATE_BATCH; i++) {
       this.createSinglePixiNode(sorted[i], nodeR, nodeColor, world);
     }
-    // Non-graph viewModes: hide all node graphics immediately after creation
-    if (this._skipNodeRendering) {
-      for (const pn of this.host.getPixiNodes().values()) pn.gfx.visible = false;
-    }
-
     // Push remaining nodes onto the deferred stack
     if (sorted.length > IMMEDIATE_BATCH) {
       this.pendingNodes = sorted.slice(IMMEDIATE_BATCH);
@@ -2485,7 +2469,9 @@ export class RenderPipeline {
       }
     }
 
-    world.addChild(container);
+    if (!this._skipNodeRendering) {
+      world.addChild(container);
+    }
 
     const pixiNodes = this.host.getPixiNodes();
     pixiNodes.set(n.id, {
@@ -2508,13 +2494,6 @@ export class RenderPipeline {
     for (const n of batch) {
       this.createSinglePixiNode(n, this.pendingNodeR, this.pendingNodeColor, world);
     }
-    // Non-graph viewModes: hide newly created nodes
-    if (this._skipNodeRendering) {
-      for (const pn of this.host.getPixiNodes().values()) {
-        if (pn.gfx.visible) pn.gfx.visible = false;
-      }
-    }
-
     this.markDirty(true);
 
     if (this.pendingNodes.length > 0) {
