@@ -5483,7 +5483,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       availableTags: this.collectAvailableTags(),
       degrees: this.degrees,
       currentZoom: this.worldContainer?.scale?.x ?? 1,
+      edgeTypeCounts: this._countEdgeTypes(),
     };
+  }
+
+  /** Count edges by type for progressive disclosure of edge toggles. */
+  private _countEdgeTypes(): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const e of this.graphEdges) {
+      const t = e.type || "link";
+      counts[t] = (counts[t] || 0) + 1;
+    }
+    return counts;
   }
 
   /** Build the callbacks object wiring panel UI actions to graph view methods. */

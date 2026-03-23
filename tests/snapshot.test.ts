@@ -164,4 +164,81 @@ describe("computeSnapshotDiff", () => {
     const diff = computeSnapshotDiff(withEdge, snap);
     expect(diff.addedEdgeKeys.size).toBeGreaterThan(0);
   });
+
+  it("detects removed edges", () => {
+    const snap = makeSnapshot(baseData);
+    const noEdges: GraphData = { nodes: baseData.nodes, edges: [] };
+    const diff = computeSnapshotDiff(noEdges, snap);
+    expect(diff.removedEdges).toHaveLength(1);
+    expect(diff.removedEdges[0].source).toBe("a.md");
+    expect(diff.removedEdges[0].target).toBe("b.md");
+  });
+
+  it("handles simultaneous add + remove + change", () => {
+    const snap = makeSnapshot(baseData);
+    const mixed: GraphData = {
+      nodes: [
+        { id: "a.md", label: "A", meta: { v: 99 } }, // changed
+        // b.md removed
+        { id: "new.md", label: "New", meta: {} },     // added
+      ],
+      edges: [],
+    };
+    const diff = computeSnapshotDiff(mixed, snap);
+    expect(diff.addedNodeIds.has("new.md")).toBe(true);
+    expect(diff.removedNodes.some(n => n.id === "b.md")).toBe(true);
+    expect(diff.changedNodeIds.has("a.md")).toBe(true);
+  });
+
+  it("handles empty snapshot vs populated current", () => {
+    const emptySnap = makeSnapshot({ nodes: [], edges: [] });
+    const diff = computeSnapshotDiff(baseData, emptySnap);
+    expect(diff.addedNodeIds.size).toBe(2); // all current nodes are "added"
+    expect(diff.removedNodes).toHaveLength(0);
+  });
+
+  it("handles populated snapshot vs empty current", () => {
+    const snap = makeSnapshot(baseData);
+    const diff = computeSnapshotDiff({ nodes: [], edges: [] }, snap);
+    expect(diff.addedNodeIds.size).toBe(0);
+    expect(diff.removedNodes).toHaveLength(2); // all snapshot nodes "removed"
+  });
+
+  it("node with no meta → empty hash matches snapshot empty hash", () => {
+    const data: GraphData = {
+      nodes: [{ id: "x.md", label: "X" }], // no meta field
+      edges: [],
+    };
+    const snap = makeSnapshot(data);
+    const diff = computeSnapshotDiff(data, snap);
+    expect(diff.changedNodeIds.size).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hashMeta edge cases
+// ---------------------------------------------------------------------------
+describe("hashMeta edge cases", () => {
+  it("handles nested objects with consistent key order", () => {
+    const a = { outer: { z: 3, a: 1 } };
+    const b = { outer: { a: 1, z: 3 } };
+    expect(hashMeta(a)).toBe(hashMeta(b));
+  });
+
+  it("handles null values in metadata", () => {
+    const meta = { key: null as unknown };
+    // Should not throw
+    const hash = hashMeta(meta as Record<string, unknown>);
+    expect(hash.length).toBeGreaterThan(0);
+  });
+
+  it("distinguishes arrays from objects", () => {
+    expect(hashMeta({ a: [1, 2] })).not.toBe(hashMeta({ a: { "0": 1, "1": 2 } }));
+  });
+
+  it("handles Japanese characters in values", () => {
+    const hash = hashMeta({ name: "テスト" });
+    expect(hash.length).toBeGreaterThan(0);
+    expect(hashMeta({ name: "テスト" })).toBe(hash); // stable
+  });
 });

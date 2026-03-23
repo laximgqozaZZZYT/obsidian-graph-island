@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { DiffOverlay, layoutGhostNodes, ghostLabel } from "../src/views/DiffOverlay";
 import type { SnapshotDiff } from "../src/types";
 
@@ -219,5 +219,485 @@ describe("ghostLabel", () => {
 
   it("handles empty string", () => {
     expect(ghostLabel("")).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Obsidian DOM mock — createDiv / createEl / querySelector
+// ---------------------------------------------------------------------------
+interface MockEl {
+  tagName: string;
+  textContent: string;
+  children: MockEl[];
+  attrs: Record<string, string>;
+  style: Record<string, string> & { cssText: string };
+  _listeners: Record<string, Function[]>;
+  cls?: string;
+  querySelector(sel: string): MockEl | null;
+  createDiv(opts?: { cls?: string; attr?: Record<string, string> }): MockEl;
+  createEl(tag: string, opts?: { text?: string; attr?: Record<string, string> }): MockEl;
+  addEventListener(evt: string, fn: Function): void;
+  remove(): void;
+  _removed: boolean;
+}
+
+function createMockEl(tag = "div"): MockEl {
+  const el: MockEl = {
+    tagName: tag.toUpperCase(),
+    textContent: "",
+    children: [],
+    attrs: {},
+    style: { cssText: "" } as MockEl["style"],
+    _listeners: {},
+    _removed: false,
+    querySelector(sel: string) {
+      // Simple class selector support
+      const cls = sel.startsWith(".") ? sel.slice(1) : null;
+      if (!cls) return null;
+      const search = (node: MockEl): MockEl | null => {
+        if (node.cls === cls) return node;
+        for (const child of node.children) {
+          const found = search(child);
+          if (found) return found;
+        }
+        return null;
+      };
+      return search(el);
+    },
+    createDiv(opts) {
+      const child = createMockEl("div");
+      if (opts?.cls) child.cls = opts.cls;
+      if (opts?.attr) {
+        Object.assign(child.attrs, opts.attr);
+        if (opts.attr.role) child.attrs.role = opts.attr.role;
+        if (opts.attr.tabindex) child.attrs.tabindex = opts.attr.tabindex;
+        if (opts.attr["aria-label"]) child.attrs["aria-label"] = opts.attr["aria-label"];
+      }
+      el.children.push(child);
+      return child;
+    },
+    createEl(tag: string, opts) {
+      const child = createMockEl(tag);
+      if (opts?.text) child.textContent = opts.text;
+      if (opts?.attr) {
+        Object.assign(child.attrs, opts.attr);
+        if (opts.attr.style) child.style.cssText = opts.attr.style;
+      }
+      el.children.push(child);
+      return child;
+    },
+    addEventListener(evt, fn) {
+      (el._listeners[evt] ??= []).push(fn);
+    },
+    remove() {
+      el._removed = true;
+    },
+  };
+  return el;
+}
+
+/** Collect all descendants (DFS) */
+function collectAll(root: MockEl): MockEl[] {
+  const result: MockEl[] = [];
+  const stack = [root];
+  while (stack.length) {
+    const n = stack.pop()!;
+    result.push(n);
+    for (const c of n.children) stack.push(c);
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// buildDiffList — DOM panel tests
+// ---------------------------------------------------------------------------
+describe("buildDiffList", () => {
+  it("does nothing when inactive (no diff)", () => {
+    const overlay = new DiffOverlay();
+    const container = createMockEl();
+    overlay.buildDiffList(container, () => "label", () => {}, () => {});
+    expect(container.children).toHaveLength(0);
+  });
+
+  it("creates panel with gi-diff-list class", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ addedNodeIds: ["a"] }), "snap1");
+    const container = createMockEl();
+    overlay.buildDiffList(container, () => "label", () => {}, () => {});
+
+    const panel = container.querySelector(".gi-diff-list");
+    expect(panel).not.toBeNull();
+    expect(panel!.cls).toBe("gi-diff-list");
+  });
+
+  it("shows snapshot name in header", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ addedNodeIds: ["a"] }), "my-snap");
+    const container = createMockEl();
+    overlay.buildDiffList(container, () => "label", () => {}, () => {});
+
+    const all = collectAll(container);
+    const nameEl = all.find(e => e.textContent === "Diff: my-snap");
+    expect(nameEl).toBeDefined();
+  });
+
+  it("renders close button that calls onClose", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ addedNodeIds: ["a"] }), "snap");
+    const container = createMockEl();
+    const onClose = vi.fn();
+    overlay.buildDiffList(container, () => "label", () => {}, onClose);
+
+    const all = collectAll(container);
+    const closeBtn = all.find(e => e.textContent === "\u00d7");
+    expect(closeBtn).toBeDefined();
+    expect(closeBtn!.attrs["aria-label"]).toBe("Close diff list");
+
+    // Simulate click
+    closeBtn!._listeners.click?.[0]?.();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders added/changed/removed sections with counts", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({
+      addedNodeIds: ["a", "b"],
+      changedNodeIds: ["c"],
+      removedNodes: [{ id: "d", metaHash: "x" }],
+    }), "snap");
+    const container = createMockEl();
+    overlay.buildDiffList(container, id => id.toUpperCase(), () => {}, () => {});
+
+    const all = collectAll(container);
+    const texts = all.map(e => e.textContent);
+    expect(texts).toContain("Added (2)");
+    expect(texts).toContain("Changed (1)");
+    expect(texts).toContain("Removed (1)");
+  });
+
+  it("calls getLabel for each node ID", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ addedNodeIds: ["a", "b"] }), "snap");
+    const container = createMockEl();
+    const getLabel = vi.fn((id: string) => `label-${id}`);
+    overlay.buildDiffList(container, getLabel, () => {}, () => {});
+
+    expect(getLabel).toHaveBeenCalledWith("a");
+    expect(getLabel).toHaveBeenCalledWith("b");
+  });
+
+  it("added/changed rows call onNodeClick on click", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ addedNodeIds: ["a"], changedNodeIds: ["b"] }), "snap");
+    const container = createMockEl();
+    const onClick = vi.fn();
+    overlay.buildDiffList(container, id => id, onClick, () => {});
+
+    const all = collectAll(container);
+    const rows = all.filter(e => e.cls === "gi-diff-list-item");
+    // "a" and "b" items should have click listeners
+    const clickableRows = rows.filter(r => r._listeners.click?.length);
+    expect(clickableRows.length).toBe(2);
+
+    // Trigger all clickable rows and verify both IDs are called
+    for (const r of clickableRows) r._listeners.click[0]();
+    expect(onClick).toHaveBeenCalledWith("a");
+    expect(onClick).toHaveBeenCalledWith("b");
+  });
+
+  it("added/changed rows support keyboard Enter and Space", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ addedNodeIds: ["node1"] }), "snap");
+    const container = createMockEl();
+    const onClick = vi.fn();
+    overlay.buildDiffList(container, id => id, onClick, () => {});
+
+    const all = collectAll(container);
+    const rows = all.filter(e => e.cls === "gi-diff-list-item");
+    const clickableRow = rows.find(r => r._listeners.keydown?.length);
+    expect(clickableRow).toBeDefined();
+    expect(clickableRow!.attrs.role).toBe("button");
+    expect(clickableRow!.attrs.tabindex).toBe("0");
+
+    // Simulate keydown Enter
+    clickableRow!._listeners.keydown[0]({ key: "Enter", preventDefault: vi.fn() });
+    expect(onClick).toHaveBeenCalledWith("node1");
+
+    // Simulate keydown Space
+    clickableRow!._listeners.keydown[0]({ key: " ", preventDefault: vi.fn() });
+    expect(onClick).toHaveBeenCalledTimes(2);
+  });
+
+  it("removed rows do NOT call onNodeClick", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({
+      removedNodes: [{ id: "gone", metaHash: "h" }],
+    }), "snap");
+    const container = createMockEl();
+    const onClick = vi.fn();
+    overlay.buildDiffList(container, id => id, onClick, () => {});
+
+    const all = collectAll(container);
+    const rows = all.filter(e => e.cls === "gi-diff-list-item");
+    expect(rows.length).toBe(1);
+    // Removed rows should have no click listener
+    expect(rows[0]._listeners.click ?? []).toHaveLength(0);
+  });
+
+  it("truncates at 50 entries and shows overflow indicator", () => {
+    const ids = Array.from({ length: 60 }, (_, i) => `node-${i}`);
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ addedNodeIds: ids }), "snap");
+    const container = createMockEl();
+    overlay.buildDiffList(container, id => id, () => {}, () => {});
+
+    const all = collectAll(container);
+    const rows = all.filter(e => e.cls === "gi-diff-list-item");
+    expect(rows.length).toBe(50);
+
+    // Overflow text
+    const overflowEl = all.find(e => e.textContent.includes("+10 more"));
+    expect(overflowEl).toBeDefined();
+  });
+
+  it("skips empty sections", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ addedNodeIds: ["a"] }), "snap");
+    const container = createMockEl();
+    overlay.buildDiffList(container, id => id, () => {}, () => {});
+
+    const all = collectAll(container);
+    const texts = all.map(e => e.textContent);
+    // Only Added section, no Changed or Removed headers
+    expect(texts).toContain("Added (1)");
+    expect(texts.filter(t => t.includes("Changed"))).toHaveLength(0);
+    expect(texts.filter(t => t.includes("Removed"))).toHaveLength(0);
+  });
+
+  it("replaces existing panel on rebuild", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ addedNodeIds: ["a"] }), "snap");
+    const container = createMockEl();
+
+    overlay.buildDiffList(container, id => id, () => {}, () => {});
+    const firstPanel = container.querySelector(".gi-diff-list");
+    expect(firstPanel).not.toBeNull();
+
+    // Build again — should remove old and create new
+    overlay.buildDiffList(container, id => id, () => {}, () => {});
+    expect(firstPanel!._removed).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// removeDiffList — DOM cleanup
+// ---------------------------------------------------------------------------
+describe("removeDiffList", () => {
+  it("removes existing diff list panel", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ addedNodeIds: ["a"] }), "snap");
+    const container = createMockEl();
+    overlay.buildDiffList(container, id => id, () => {}, () => {});
+
+    const panel = container.querySelector(".gi-diff-list");
+    expect(panel).not.toBeNull();
+
+    overlay.removeDiffList(container as unknown as HTMLElement);
+    expect(panel!._removed).toBe(true);
+  });
+
+  it("does nothing when no panel exists", () => {
+    const overlay = new DiffOverlay();
+    const container = createMockEl();
+    // Should not throw
+    overlay.removeDiffList(container as unknown as HTMLElement);
+    expect(container.children).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Canvas2D mock for render() tests
+// ---------------------------------------------------------------------------
+function createMockCtx() {
+  const calls: Array<{ method: string; args: unknown[] }> = [];
+  const proxy = new Proxy({} as Record<string, unknown>, {
+    get(target, prop: string) {
+      if (prop === "_calls") return calls;
+      if (prop === "measureText") return (text: string) => ({ width: text.length * 7 });
+      if (typeof target[prop] === "function") return target[prop];
+      // Return a spy function for any method call
+      if (!target[prop]) {
+        target[prop] = (...args: unknown[]) => {
+          calls.push({ method: prop, args });
+        };
+      }
+      return target[prop];
+    },
+    set(target, prop: string, value) {
+      calls.push({ method: `set:${prop}`, args: [value] });
+      target[prop] = value;
+      return true;
+    },
+  });
+  return proxy as unknown as CanvasRenderingContext2D & { _calls: typeof calls };
+}
+
+function makePixiNodes(entries: Array<{ id: string; x: number; y: number; radius: number }>) {
+  const map = new Map<string, { data: { x: number; y: number }; radius: number }>();
+  for (const e of entries) {
+    map.set(e.id, { data: { x: e.x, y: e.y }, radius: e.radius });
+  }
+  return map as unknown as Map<string, import("../src/views/InteractionManager").PixiNode>;
+}
+
+// ---------------------------------------------------------------------------
+// render() — Canvas2D drawing tests
+// ---------------------------------------------------------------------------
+describe("DiffOverlay render()", () => {
+  const transform = { x: 100, y: 50, scale: 2 };
+  const viewport = { width: 800, height: 600 };
+
+  it("does nothing when inactive", () => {
+    const overlay = new DiffOverlay();
+    const ctx = createMockCtx();
+    overlay.render(ctx, new Map() as any, transform, viewport);
+    expect(ctx._calls).toHaveLength(0);
+  });
+
+  it("draws rings for added nodes at correct screen positions", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ addedNodeIds: ["a"] }), "snap");
+    const nodes = makePixiNodes([{ id: "a", x: 50, y: 30, radius: 5 }]);
+    const ctx = createMockCtx();
+
+    overlay.render(ctx, nodes, transform, viewport);
+
+    // toScreen: wx*scale+tx = 50*2+100=200, wy*scale+ty = 30*2+50=110
+    const arcCalls = ctx._calls.filter(c => c.method === "arc");
+    expect(arcCalls.length).toBeGreaterThanOrEqual(1);
+    const firstArc = arcCalls[0];
+    expect(firstArc.args[0]).toBeCloseTo(200, 0); // sx
+    expect(firstArc.args[1]).toBeCloseTo(110, 0); // sy
+  });
+
+  it("draws rings for changed nodes", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ changedNodeIds: ["b"] }), "snap");
+    const nodes = makePixiNodes([{ id: "b", x: 10, y: 20, radius: 4 }]);
+    const ctx = createMockCtx();
+
+    overlay.render(ctx, nodes, transform, viewport);
+
+    const arcCalls = ctx._calls.filter(c => c.method === "arc");
+    expect(arcCalls.length).toBeGreaterThanOrEqual(1);
+    // toScreen: 10*2+100=120, 20*2+50=90
+    expect(arcCalls[0].args[0]).toBeCloseTo(120, 0);
+    expect(arcCalls[0].args[1]).toBeCloseTo(90, 0);
+  });
+
+  it("draws added edges between two existing nodes", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({
+      addedEdgeKeys: ["a\0b"],
+    }), "snap");
+    const nodes = makePixiNodes([
+      { id: "a", x: 0, y: 0, radius: 5 },
+      { id: "b", x: 100, y: 50, radius: 5 },
+    ]);
+    const ctx = createMockCtx();
+    overlay.render(ctx, nodes, transform, viewport);
+
+    const moveToCalls = ctx._calls.filter(c => c.method === "moveTo");
+    const lineToCalls = ctx._calls.filter(c => c.method === "lineTo");
+    // At least one edge drawn
+    expect(moveToCalls.length).toBeGreaterThanOrEqual(1);
+    expect(lineToCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("skips added edges when one node is missing", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ addedEdgeKeys: ["a\0missing"] }), "snap");
+    const nodes = makePixiNodes([{ id: "a", x: 0, y: 0, radius: 5 }]);
+    const ctx = createMockCtx();
+    overlay.render(ctx, nodes, transform, viewport);
+
+    // Edge moveTo should NOT include a\0missing edge line
+    // Only ghost/ring arcs, no lineTo for edges
+    const strokeCalls = ctx._calls.filter(c => c.method === "stroke");
+    // No edge stroke (may have ring strokes though)
+    const lineToBeforeStroke = ctx._calls.filter(c => c.method === "lineTo");
+    // Added edge requires both nodes — should skip
+    expect(lineToBeforeStroke.length).toBe(0);
+  });
+
+  it("renders ghost nodes for removed nodes", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({
+      removedNodes: [
+        { id: "folder/gone.md", metaHash: "h1" },
+        { id: "folder/lost.md", metaHash: "h2" },
+      ],
+    }), "snap");
+    const ctx = createMockCtx();
+    overlay.render(ctx, new Map() as any, transform, viewport);
+
+    // Ghost nodes should produce fill arcs
+    const fillCalls = ctx._calls.filter(c => c.method === "fill");
+    expect(fillCalls.length).toBeGreaterThanOrEqual(2);
+
+    // Ghost labels should be drawn via fillText
+    const fillTextCalls = ctx._calls.filter(c => c.method === "fillText");
+    expect(fillTextCalls.length).toBeGreaterThanOrEqual(2);
+    // Labels should be "gone" and "lost" (extracted from path)
+    const labels = fillTextCalls.map(c => c.args[0]);
+    expect(labels).toContain("gone");
+    expect(labels).toContain("lost");
+  });
+
+  it("renders status bar with summary text", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({
+      addedNodeIds: ["a"],
+      removedNodes: [{ id: "b", metaHash: "h" }],
+      changedNodeIds: ["c"],
+    }), "test-snap");
+    const ctx = createMockCtx();
+    overlay.render(ctx, new Map() as any, transform, viewport);
+
+    const fillTextCalls = ctx._calls.filter(c => c.method === "fillText");
+    const statusText = fillTextCalls.find(c =>
+      typeof c.args[0] === "string" && (c.args[0] as string).includes("test-snap"),
+    );
+    expect(statusText).toBeDefined();
+    expect(statusText!.args[0]).toContain("1 added");
+    expect(statusText!.args[0]).toContain("1 removed");
+    expect(statusText!.args[0]).toContain("1 changed");
+  });
+
+  it("resets globalAlpha to 1 after rendering", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({ addedNodeIds: ["a"] }), "snap");
+    const ctx = createMockCtx();
+    overlay.render(ctx, makePixiNodes([{ id: "a", x: 0, y: 0, radius: 5 }]), transform, viewport);
+
+    // Last globalAlpha set should be 1
+    const alphaOps = ctx._calls.filter(c => c.method === "set:globalAlpha");
+    expect(alphaOps[alphaOps.length - 1].args[0]).toBe(1);
+  });
+
+  it("resets lineDash after removed edges", () => {
+    const overlay = new DiffOverlay();
+    overlay.activate(makeDiff({
+      removedEdges: [{ source: "a", target: "b", type: "link" }],
+      removedNodes: [{ id: "b", metaHash: "h" }],
+    }), "snap");
+    const nodes = makePixiNodes([{ id: "a", x: 0, y: 0, radius: 5 }]);
+    const ctx = createMockCtx();
+    overlay.render(ctx, nodes, transform, viewport);
+
+    // setLineDash should be called with [] (reset) after dashed edges
+    const dashCalls = ctx._calls.filter(c => c.method === "setLineDash");
+    const lastDash = dashCalls[dashCalls.length - 1];
+    expect(lastDash.args[0]).toEqual([]);
   });
 });

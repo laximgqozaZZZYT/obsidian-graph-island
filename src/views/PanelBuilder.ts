@@ -637,6 +637,8 @@ export interface PanelContext {
   degrees: Map<string, number>;
   /** Current zoom level (worldContainer.scale.x) */
   currentZoom?: number;
+  /** Edge counts by type for progressive disclosure of edge toggles */
+  edgeTypeCounts?: Record<string, number>;
 }
 
 // ---------------------------------------------------------------------------
@@ -1840,15 +1842,25 @@ function _buildEdgeDisplaySection(
         cb2();
         cb.announceA11y?.(`${label}: ${v ? "on" : "off"}`);
       };
-      addToggle(adv, t("display.links"), panel.showLinks, _edgeToggle(t("display.links"), "showLinks", () => cb.markDirty()), t("desc.links"));
-      addToggle(adv, t("display.sharedTags"), panel.showTagEdges, _edgeToggle(t("display.sharedTags"), "showTagEdges", () => cb.markDirty()), t("desc.sharedTags"));
-      addToggle(adv, t("display.sharedCategory"), panel.showCategoryEdges, _edgeToggle(t("display.sharedCategory"), "showCategoryEdges", () => cb.markDirty()), t("desc.sharedCategory"));
-      addToggle(adv, t("display.semantic"), panel.showSemanticEdges, _edgeToggle(t("display.semantic"), "showSemanticEdges", () => cb.markDirty()), t("desc.semantic"));
-      addToggle(adv, t("display.inheritance"), panel.showInheritance, _edgeToggle(t("display.inheritance"), "showInheritance", () => cb.markDirty()), t("desc.inheritance"));
-      addToggle(adv, t("display.aggregation"), panel.showAggregation, _edgeToggle(t("display.aggregation"), "showAggregation", () => cb.markDirty()), t("desc.aggregation"));
-      addToggle(adv, t("display.similar"), panel.showSimilar, _edgeToggle(t("display.similar"), "showSimilar", () => cb.invalidateDataKeepPanel()), t("desc.similar"));
-      addToggle(adv, t("display.sibling"), panel.showSibling, _edgeToggle(t("display.sibling"), "showSibling", () => cb.markDirty()), t("desc.sibling"));
-      addToggle(adv, t("display.sequence"), panel.showSequence, _edgeToggle(t("display.sequence"), "showSequence", () => cb.markDirty()), t("desc.sequence"));
+      // Edge type toggles — hide types with 0 edges, show count for others
+      const etc = _ctx.edgeTypeCounts ?? {};
+      const edgeTypeToggles: [string, string, keyof PanelState, string, () => void][] = [
+        [t("display.links"), "link", "showLinks", t("desc.links"), () => cb.markDirty()],
+        [t("display.sharedTags"), "tag", "showTagEdges", t("desc.sharedTags"), () => cb.markDirty()],
+        [t("display.sharedCategory"), "category", "showCategoryEdges", t("desc.sharedCategory"), () => cb.markDirty()],
+        [t("display.semantic"), "semantic", "showSemanticEdges", t("desc.semantic"), () => cb.markDirty()],
+        [t("display.inheritance"), "inheritance", "showInheritance", t("desc.inheritance"), () => cb.markDirty()],
+        [t("display.aggregation"), "aggregation", "showAggregation", t("desc.aggregation"), () => cb.markDirty()],
+        [t("display.similar"), "similar", "showSimilar", t("desc.similar"), () => cb.invalidateDataKeepPanel()],
+        [t("display.sibling"), "sibling", "showSibling", t("desc.sibling"), () => cb.markDirty()],
+        [t("display.sequence"), "sequence", "showSequence", t("desc.sequence"), () => cb.markDirty()],
+      ];
+      for (const [label, edgeType, key, desc, cb2] of edgeTypeToggles) {
+        const count = etc[edgeType] ?? 0;
+        if (count === 0) continue; // Hide toggles for edge types with no data
+        const labelWithCount = `${label} (${count})`;
+        addToggle(adv, labelWithCount, panel[key] as boolean, _edgeToggle(label, key, cb2), desc);
+      }
 
       // Solo button: cycle through edge types one at a time
       const EDGE_TYPE_KEYS: (keyof PanelState)[] = [
