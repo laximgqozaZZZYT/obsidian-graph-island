@@ -910,17 +910,21 @@ export class RenderPipeline {
     }
   }
 
+  /** Remove CardText children from a single node's gfx container. */
+  private _cleanupCardText(gfx: CanvasContainer) {
+    for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
+      if (isCardText(gfx.children[ci])) {
+        const child = gfx.children[ci];
+        gfx.removeChild(child);
+        child.destroy();
+      }
+    }
+  }
+
   /** Remove all CardText children from every node's gfx container. */
   private _cleanupCardTextAll(pixiNodes: Map<string, PixiNode>) {
     for (const pn of pixiNodes.values()) {
-      const gfx = pn.gfx;
-      for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
-        if (isCardText(gfx.children[ci])) {
-          const child = gfx.children[ci];
-          gfx.removeChild(child);
-          child.destroy();
-        }
-      }
+      this._cleanupCardText(pn.gfx);
     }
   }
 
@@ -1198,10 +1202,7 @@ export class RenderPipeline {
         g.endFill();
         // Compact card text via gfx children
         const gfx = pn.gfx;
-        // Clean existing card text
-        for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
-          if (isCardText(gfx.children[ci])) { gfx.removeChild(gfx.children[ci]).destroy(); }
-        }
+        this._cleanupCardText(gfx);
         const fontSize = Math.min(Math.max(6, 9 / worldScale), 9 * 8);
         const nameText = new CanvasText(truncateLabel(pn.data.label, rt.labelMaxChars), {
           fontSize, fontWeight: "bold", fill: labelColor,
@@ -1242,9 +1243,7 @@ export class RenderPipeline {
         g.endFill();
 
         const gfx = pn.gfx;
-        for (let ci = gfx.children.length - 1; ci >= 0; ci--) {
-          if (isCardText(gfx.children[ci])) { gfx.removeChild(gfx.children[ci]).destroy(); }
-        }
+        this._cleanupCardText(gfx);
         const fontSize = Math.min(Math.max(7, 10 / worldScale), 10 * 8);
         const smallFont = fontSize * 0.85;
         let curY = -halfH + 3 / worldScale;

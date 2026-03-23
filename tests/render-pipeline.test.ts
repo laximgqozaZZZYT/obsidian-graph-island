@@ -202,3 +202,42 @@ describe("hashStringToHue", () => {
     expect(hashStringToHue("")).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// truncateLabel — label text truncation with ellipsis
+// ---------------------------------------------------------------------------
+describe("truncateLabel", () => {
+  it("returns full label when maxChars is 0 (disabled)", () => {
+    expect(truncateLabel("Hello World", 0)).toBe("Hello World");
+  });
+
+  it("returns full label when maxChars is negative", () => {
+    expect(truncateLabel("Hello World", -5)).toBe("Hello World");
+  });
+
+  it("returns full label when under limit", () => {
+    expect(truncateLabel("short", 10)).toBe("short");
+  });
+
+  it("truncates and adds ellipsis when over limit", () => {
+    expect(truncateLabel("Hello World", 5)).toBe("Hello…");
+  });
+
+  it("returns exactly maxChars + ellipsis", () => {
+    const result = truncateLabel("abcdefghij", 3);
+    expect(result).toBe("abc…");
+    expect(result.length).toBe(4); // 3 chars + ellipsis
+  });
+
+  it("handles empty label", () => {
+    expect(truncateLabel("", 5)).toBe("");
+  });
+
+  it("handles label length exactly at limit", () => {
+    expect(truncateLabel("12345", 5)).toBe("12345"); // not truncated
+  });
+
+  it("handles label length one over limit", () => {
+    expect(truncateLabel("123456", 5)).toBe("12345…");
+  });
+});

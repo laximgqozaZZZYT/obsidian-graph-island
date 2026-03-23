@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   buildRoadNetwork,
+  buildRoadNetworkFromPhantoms,
   routeEdge,
   findShortestPath,
   pathToWaypoints,
@@ -718,5 +719,101 @@ describe("routeEdge", () => {
     const route = routeEdge(network, "a", "a");
     // Same source and target should produce minimal or empty route
     expect(route.length).toBeLessThanOrEqual(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildRoadNetworkFromPhantoms — k-NN phantom node network
+// ---------------------------------------------------------------------------
+
+describe("buildRoadNetworkFromPhantoms", () => {
+  it("returns empty network for no phantom nodes", () => {
+    const net = buildRoadNetworkFromPhantoms([], [], "cartesian", 0, 0);
+    expect(net.intersections).toHaveLength(0);
+    expect(net.segments).toHaveLength(0);
+    expect(net.nodeAccess.size).toBe(0);
+  });
+
+  it("creates intersections from phantom nodes", () => {
+    const phantoms = [
+      mockNode("p0", 0, 0),
+      mockNode("p1", 10, 0),
+      mockNode("p2", 0, 10),
+    ];
+    const net = buildRoadNetworkFromPhantoms(phantoms, [], "cartesian", 5, 5);
+    expect(net.intersections).toHaveLength(3);
+    expect(net.intersections[0]).toEqual({ id: 0, x: 0, y: 0 });
+    expect(net.intersections[1]).toEqual({ id: 1, x: 10, y: 0 });
+    expect(net.intersections[2]).toEqual({ id: 2, x: 0, y: 10 });
+  });
+
+  it("connects k-nearest neighbors (k ≤ 6)", () => {
+    // 3 phantoms: each connects to 2 neighbors (k = min(6, 2) = 2)
+    const phantoms = [
+      mockNode("p0", 0, 0),
+      mockNode("p1", 10, 0),
+      mockNode("p2", 5, 5),
+    ];
+    const net = buildRoadNetworkFromPhantoms(phantoms, [], "cartesian", 5, 2.5);
+    // All 3 pairs should be connected (triangle)
+    expect(net.segments.length).toBe(3);
+    // Adjacency is bidirectional
+    for (const seg of net.segments) {
+      expect(net.adjacency.get(seg.from)?.some(e => e.to === seg.to)).toBe(true);
+      expect(net.adjacency.get(seg.to)?.some(e => e.to === seg.from)).toBe(true);
+    }
+  });
+
+  it("maps real nodes to nearest phantom intersection", () => {
+    const phantoms = [
+      mockNode("p0", 0, 0),
+      mockNode("p1", 100, 0),
+    ];
+    const realNodes = [
+      mockNode("r1", 3, 2),    // closest to p0 (0,0)
+      mockNode("r2", 95, 5),   // closest to p1 (100,0)
+      mockNode("r3", 50, 0),   // equidistant — either is valid
+    ];
+    const net = buildRoadNetworkFromPhantoms(phantoms, realNodes, "cartesian", 50, 0);
+    expect(net.nodeAccess.get("r1")).toBe(0);
+    expect(net.nodeAccess.get("r2")).toBe(1);
+    expect(net.nodeAccess.has("r3")).toBe(true); // mapped to one of them
+  });
+
+  it("handles single phantom node (no segments)", () => {
+    const phantoms = [mockNode("p0", 5, 5)];
+    const real = [mockNode("r1", 3, 3)];
+    const net = buildRoadNetworkFromPhantoms(phantoms, real, "polar", 5, 5);
+    expect(net.intersections).toHaveLength(1);
+    expect(net.segments).toHaveLength(0);
+    expect(net.nodeAccess.get("r1")).toBe(0);
+  });
+
+  it("avoids duplicate segments (symmetric pair key)", () => {
+    // 2 phantoms: should create exactly 1 segment, not 2
+    const phantoms = [
+      mockNode("p0", 0, 0),
+      mockNode("p1", 10, 0),
+    ];
+    const net = buildRoadNetworkFromPhantoms(phantoms, [], "cartesian", 5, 0);
+    expect(net.segments).toHaveLength(1);
+    expect(net.segments[0].length).toBeCloseTo(10, 5);
+  });
+
+  it("segment lengths are Euclidean distances", () => {
+    const phantoms = [
+      mockNode("p0", 0, 0),
+      mockNode("p1", 3, 4), // distance = 5
+    ];
+    const net = buildRoadNetworkFromPhantoms(phantoms, [], "cartesian", 0, 0);
+    expect(net.segments[0].length).toBeCloseTo(5, 10);
+  });
+
+  it("preserves system and center in returned network", () => {
+    const phantoms = [mockNode("p0", 0, 0), mockNode("p1", 10, 10)];
+    const net = buildRoadNetworkFromPhantoms(phantoms, [], "polar", 42, 99);
+    expect(net.system).toBe("polar");
+    expect(net.cx).toBe(42);
+    expect(net.cy).toBe(99);
   });
 });
