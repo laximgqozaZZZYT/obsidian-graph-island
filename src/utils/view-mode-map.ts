@@ -25,5 +25,5 @@ export function viewModeSkipsNodeRendering(mode: ViewMode): boolean {
 
 /** Whether edges should be skipped for this viewMode. */
 export function viewModeSkipsEdges(mode: ViewMode): boolean {
-  return mode === "sunburst";
+  return mode === "sunburst" || mode === "timeline";
 }

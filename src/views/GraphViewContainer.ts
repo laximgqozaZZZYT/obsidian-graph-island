@@ -4809,7 +4809,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
-    if (!this.panel.showDurationBars) return;
+    // Timeline viewMode: always show bars; graph mode: respect panel setting
+    if (!this.panel.showDurationBars && this.panel.viewMode !== "timeline") return;
     const bars = this.clusterMeta?.timelineBars;
     if (!bars || bars.length === 0) return;
 
@@ -5650,6 +5651,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       degrees: this.degrees,
       currentZoom: this.worldContainer?.scale?.x ?? 1,
       edgeTypeCounts: this._countEdgeTypes(),
+      hasImageMetaNodes: this._hasImageMetaNodes(),
+      hasInheritanceEdges: this.graphEdges.some(e => e.type === "inheritance"),
     };
   }
 
@@ -5661,6 +5664,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       counts[t] = (counts[t] || 0) + 1;
     }
     return counts;
+  }
+
+  /** Check if any nodes have image/thumbnail/cover frontmatter metadata. */
+  private _hasImageMetaNodes(): boolean {
+    for (const pn of this.pixiNodes.values()) {
+      const m = pn.data?.meta;
+      if (m && (m.image || m.thumbnail || m.cover)) return true;
+    }
+    return false;
   }
 
   /** Build the callbacks object wiring panel UI actions to graph view methods. */
@@ -7098,25 +7110,43 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
         case LAYOUT_TIMELINE: {
           const timeKey = this.panel.timelineKey || "date";
+          const getNodeProp = (nodeId: string, key: string): string | undefined => {
+            const fp = gd.nodes.find(n => n.id === nodeId)?.filePath;
+            if (!fp) return undefined;
+            const tf = this.app.vault.getAbstractFileByPath(fp);
+            if (!(tf instanceof TFile)) return undefined;
+            const val = this.app.metadataCache.getFileCache(tf)?.frontmatter?.[key];
+            return val !== undefined && val !== null ? String(val) : undefined;
+          };
+          const stepW = 120;
           const tlResult = applyTimelineLayout(gd, {
             timeKey,
-            startX: 60,
-            startY: 60,
-            stepWidth: 120,
-            laneHeight: 80,
-            getNodeProperty: (nodeId: string, key: string) => {
-              // Find the file for this node and read its frontmatter
-              const pn = this.pixiNodes.get(nodeId);
-              const fp = pn?.data.filePath ?? gd.nodes.find(n => n.id === nodeId)?.filePath;
-              if (!fp) return undefined;
-              const tf = this.app.vault.getAbstractFileByPath(fp);
-              if (!(tf instanceof TFile)) return undefined;
-              const cache = this.app.metadataCache.getFileCache(tf);
-              const val = cache?.frontmatter?.[key];
-              return val !== undefined && val !== null ? String(val) : undefined;
-            },
+            startX: 60, startY: 60, stepWidth: stepW, laneHeight: 80,
+            getNodeProperty: getNodeProp,
           });
           ld = tlResult.data;
+          // Build timeline bars from placements for drawTimelineBars()
+          const endKey = this.panel.timelineEndKey || "end-date";
+          const barH = Math.max(20, this.panel.nodeSize * 2);
+          const timeIdxMap = new Map<string, number>();
+          tlResult.timeSteps.forEach((ts, i) => timeIdxMap.set(ts, i));
+          const bars: import("../layouts/cluster-force").TimelineBarInfo[] = [];
+          for (const p of tlResult.placements) {
+            const node = ld.nodes.find(n => n.id === p.nodeId);
+            if (!node) continue;
+            const endVal = getNodeProp(p.nodeId, endKey);
+            if (endVal && endVal !== p.timeValue) {
+              const endIdx = timeIdxMap.get(endVal);
+              if (endIdx !== undefined && endIdx > p.timeIndex) {
+                bars.push({ nodeId: p.nodeId, xStart: node.x, xEnd: 60 + endIdx * stepW, barHeight: barH, yCenter: node.y });
+                continue;
+              }
+            }
+            // Default: bar at minimum width for nodes without end-date
+            bars.push({ nodeId: p.nodeId, xStart: node.x, xEnd: node.x + stepW * 0.8, barHeight: barH, yCenter: node.y });
+          }
+          if (!this.clusterMeta) this.clusterMeta = {} as any;
+          (this.clusterMeta as any).timelineBars = bars;
           break;
         }
         default: {
