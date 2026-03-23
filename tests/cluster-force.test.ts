@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { forceSimulation, forceManyBody, type Simulation } from "d3-force";
-import { buildClusterForce, nodeRadius, computeGroupGap, pairwiseGap, estimateLabelExtent, type ClusterForceConfig, type ClusterForceResult } from "../src/layouts/cluster-force";
+import { buildClusterForce, nodeRadius, effectiveRadius, computeGroupGap, pairwiseGap, estimateLabelExtent, analyzeOverlap, computeAutoOptimize, type ClusterForceConfig, type ClusterForceResult } from "../src/layouts/cluster-force";
 
 /** Extract the force function from a ClusterForceResult (mirrors the old API). */
 function extractForce(result: ClusterForceResult | null): ((alpha: number) => void) | null {
@@ -803,6 +803,31 @@ describe("nodeRadius NaN handling", () => {
     const r = nodeRadius(-5, 10, 15);
     expect(r).toBe(15);
   });
+
+  it("returns baseR without sizeByDegree", () => {
+    expect(nodeRadius(20, 50, 15, 100, false)).toBe(20);
+  });
+
+  it("sizeByDegree scales with degree/maxDegree ratio", () => {
+    const rLow = nodeRadius(20, 1, 15, 100, true);
+    const rMid = nodeRadius(20, 50, 15, 100, true);
+    const rMax = nodeRadius(20, 100, 15, 100, true);
+    expect(rLow).toBeLessThan(rMid);
+    expect(rMid).toBeLessThan(rMax);
+  });
+
+  it("sizeByDegree at max degree gives 2x base", () => {
+    // t = sqrt(100/100) = 1, result = 20 * (0.7 + 1*1.3) = 20*2 = 40
+    expect(nodeRadius(20, 100, 15, 100, true)).toBe(40);
+  });
+
+  it("sizeByDegree with degree=0 returns baseR", () => {
+    expect(nodeRadius(20, 0, 15, 100, true)).toBe(20);
+  });
+
+  it("sizeByDegree with maxDegree=0 returns baseR", () => {
+    expect(nodeRadius(20, 50, 15, 0, true)).toBe(20);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -932,5 +957,181 @@ describe("estimateLabelExtent", () => {
     );
     // Super node has larger padding, so result differs
     expect(superNode).not.toBe(normal);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// effectiveRadius — visual radius with super-node and content scaling
+// ---------------------------------------------------------------------------
+describe("effectiveRadius", () => {
+  it("returns nodeRadius for normal node without content scaling", () => {
+    const n = makeNode("a");
+    const r = effectiveRadius(n, 20, 5);
+    expect(r).toBe(20); // max(20, 15) = 20
+  });
+
+  it("respects minNodeRadius floor", () => {
+    const n = makeNode("a");
+    const r = effectiveRadius(n, 5, 0, 60, 30);
+    expect(r).toBeGreaterThanOrEqual(30);
+  });
+
+  it("respects maxNodeRadius cap", () => {
+    const n = makeNode("a");
+    const r = effectiveRadius(n, 100, 50, 40, 15, 100, true);
+    expect(r).toBeLessThanOrEqual(40);
+  });
+
+  it("super node with collapsedMembers is larger than normal", () => {
+    const normal = makeNode("a");
+    const superN = makeNode("b", { collapsedMembers: ["c", "d", "e", "f"] as any });
+    const rNormal = effectiveRadius(normal, 20, 5);
+    const rSuper = effectiveRadius(superN, 20, 5);
+    expect(rSuper).toBeGreaterThan(rNormal);
+  });
+
+  it("content scaling increases radius when cardContentScale > 0", () => {
+    const n = makeNode("a");
+    const rBase = effectiveRadius(n, 20, 5, 60, 15, 0, false, 0, 0, 0);
+    const rScaled = effectiveRadius(n, 20, 5, 60, 15, 0, false, 500, 1000, 0.5);
+    expect(rScaled).toBeGreaterThan(rBase);
+  });
+
+  it("content scaling with bodyLength=0 has no effect", () => {
+    const n = makeNode("a");
+    const rBase = effectiveRadius(n, 20, 5);
+    const rNoBody = effectiveRadius(n, 20, 5, 60, 15, 0, false, 0, 1000, 0.5);
+    expect(rNoBody).toBe(rBase);
+  });
+
+  it("maxNodeRadius=0 means no cap (Infinity)", () => {
+    const n = makeNode("a");
+    const r = effectiveRadius(n, 200, 5, 0, 15);
+    expect(r).toBe(200);
+  });
+
+  it("sizeByDegree increases radius for high-degree nodes", () => {
+    const n = makeNode("a");
+    const rLow = effectiveRadius(n, 20, 1, 60, 15, 50, true);
+    const rHigh = effectiveRadius(n, 20, 50, 60, 15, 50, true);
+    expect(rHigh).toBeGreaterThan(rLow);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// analyzeOverlap — spatial overlap detection
+// ---------------------------------------------------------------------------
+describe("analyzeOverlap", () => {
+  it("returns zeros for single node", () => {
+    const result = analyzeOverlap(
+      [{ id: "a", x: 0, y: 0 }],
+      new Map([["a", 10]]),
+      3,
+    );
+    expect(result.overlapRatio).toBe(0);
+    expect(result.closePairs).toBe(0);
+    expect(result.overlapPairs).toBe(0);
+  });
+
+  it("returns zeros for empty array", () => {
+    const result = analyzeOverlap([], new Map(), 3);
+    expect(result.overlapRatio).toBe(0);
+  });
+
+  it("detects overlapping nodes", () => {
+    const nodes = [
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 5, y: 0 }, // distance=5, both r=10 → overlap
+    ];
+    const radii = new Map([["a", 10], ["b", 10]]);
+    const result = analyzeOverlap(nodes, radii, 3);
+    expect(result.overlapPairs).toBeGreaterThan(0);
+    expect(result.overlapRatio).toBeGreaterThan(0);
+  });
+
+  it("reports no overlap for well-separated nodes", () => {
+    const nodes = [
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 1000, y: 0 },
+    ];
+    const radii = new Map([["a", 10], ["b", 10]]);
+    const result = analyzeOverlap(nodes, radii, 3);
+    expect(result.overlapPairs).toBe(0);
+  });
+
+  it("avgRadius reflects radii map values", () => {
+    const nodes = [
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 200, y: 0 },
+    ];
+    const radii = new Map([["a", 20], ["b", 40]]);
+    const result = analyzeOverlap(nodes, radii, 3);
+    expect(result.avgRadius).toBe(30);
+  });
+
+  it("uses default radius when node not in radii map", () => {
+    const nodes = [
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 1, y: 0 }, // very close
+    ];
+    const radii = new Map<string, number>(); // empty map
+    const result = analyzeOverlap(nodes, radii, 3);
+    // avgRadius defaults to 6, closeThreshold = 6*3 = 18, dist=1 < 18
+    expect(result.closePairs).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeAutoOptimize — parameter adjustment from overlap analysis
+// ---------------------------------------------------------------------------
+describe("computeAutoOptimize", () => {
+  const defaultCfg = {
+    overlapThreshold: 0.1,
+    padIncrement: 2,
+    padMax: 20,
+    repelScale: 1.2,
+    linkScale: 1.1,
+  };
+
+  it("returns unchanged when overlapRatio below threshold", () => {
+    const result = computeAutoOptimize(0.05, 10, {}, 50, 100, defaultCfg);
+    expect(result.needsMore).toBe(false);
+    expect(result.repelForce).toBe(50);
+    expect(result.linkDistance).toBe(100);
+  });
+
+  it("increases repelForce and linkDistance when overlap exceeds threshold", () => {
+    const result = computeAutoOptimize(0.5, 10, {}, 50, 100, defaultCfg);
+    expect(result.needsMore).toBe(true);
+    expect(result.repelForce).toBe(60);  // 50 * 1.2
+    expect(result.linkDistance).toBeCloseTo(110, 10); // 100 * 1.1
+  });
+
+  it("sets _overlapPad increment capped at padMax", () => {
+    const constants = { _overlapPad: 18 };
+    const result = computeAutoOptimize(0.5, 10, constants, 50, 100, defaultCfg);
+    expect(result.constants["_overlapPad"]).toBe(20); // min(18+2, 20)
+  });
+
+  it("sets _minGap based on avgRadius", () => {
+    const result = computeAutoOptimize(0.5, 30, {}, 50, 100, defaultCfg);
+    expect(result.constants["_minGap"]).toBe(15); // max(0, 30*0.5)
+  });
+
+  it("preserves existing _minGap if larger", () => {
+    const constants = { _minGap: 50 };
+    const result = computeAutoOptimize(0.5, 10, constants, 50, 100, defaultCfg);
+    expect(result.constants["_minGap"]).toBe(50); // max(50, 10*0.5=5)
+  });
+
+  it("does not mutate input constants object", () => {
+    const original = { _overlapPad: 5 };
+    computeAutoOptimize(0.5, 10, original, 50, 100, defaultCfg);
+    expect(original._overlapPad).toBe(5);
+  });
+
+  it("returns needsMore=false at exact threshold boundary", () => {
+    const result = computeAutoOptimize(0.1, 10, {}, 50, 100, defaultCfg);
+    expect(result.needsMore).toBe(false);
   });
 });
