@@ -226,14 +226,14 @@ const SEQUENCE_COLOR = 0xef4444;     // red-500 — sequential order (directiona
 // ---------------------------------------------------------------------------
 // Edge type specification map — single source of truth for per-type behavior
 // ---------------------------------------------------------------------------
-interface EdgeTypeSpec {
+export interface EdgeTypeSpec {
   /** Which EdgeDrawConfig field controls visibility */
   visibilityField: keyof EdgeDrawConfig;
   /** Fixed color for this edge type, or null to use relation/default color */
   color: number | null;
 }
 
-const EDGE_TYPE_SPECS: ReadonlyMap<string, EdgeTypeSpec> = new Map<string, EdgeTypeSpec>([
+export const EDGE_TYPE_SPECS: ReadonlyMap<string, EdgeTypeSpec> = new Map<string, EdgeTypeSpec>([
   [EDGE_TYPE_LINK,        { visibilityField: "showLinks",        color: null }],
   [EDGE_TYPE_TAG,         { visibilityField: "showTagEdges",     color: null }],
   ["category",            { visibilityField: "showCategoryEdges", color: null }],

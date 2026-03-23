@@ -1,7 +1,7 @@
 {
 	"id": "graph-island",
 	"name": "Graph Island",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"minAppVersion": "1.0.0",
 	"description": "Visualize your vault as interactive graphs with multiple layouts including force, concentric, tree, arc, and sunburst.",
 	"author": "noob-dev",
