@@ -6,16 +6,7 @@ import {
   type RoadNetworkConfig,
   type RoadNetwork,
 } from "../src/layouts/cable-tray";
-import type { GraphNode } from "../src/types";
-
-// Mock GraphNode type for testing
-const mockNode = (id: string, x: number, y: number): GraphNode => ({
-  id,
-  label: `Node ${id}`,
-  x,
-  y,
-  type: "file",
-});
+import { makePositionedNode as mockNode } from "./helpers/factories";
 
 describe("buildRoadNetwork", () => {
   describe("polar system with rings and spokes", () => {

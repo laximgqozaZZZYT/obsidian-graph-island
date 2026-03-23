@@ -12,6 +12,11 @@ export function makeNode(id: string, overrides?: Partial<GraphNode>): GraphNode 
   return { id, label: id.replace(/\.md$/, ""), meta: {}, ...overrides } as GraphNode;
 }
 
+/** Create a positioned GraphNode for spatial tests (road network, layout) */
+export function makePositionedNode(id: string, x: number, y: number): GraphNode {
+  return { id, label: `Node ${id}`, x, y, type: "file" } as GraphNode;
+}
+
 /** Create a minimal GraphEdge */
 export function makeEdge(source: string, target: string, type = "link"): GraphEdge {
   return { source, target, type } as GraphEdge;

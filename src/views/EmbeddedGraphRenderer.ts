@@ -17,7 +17,7 @@ interface EmbedConfig {
   layout?: string;   // "concentric" | "grid" (default "concentric")
 }
 
-function parseConfig(source: string): EmbedConfig {
+export function parseConfig(source: string): EmbedConfig {
   try {
     return JSON.parse(source);
   } catch {
@@ -26,7 +26,7 @@ function parseConfig(source: string): EmbedConfig {
 }
 
 /** BFS N-hop filter from a center node */
-function filterLocalGraph(data: GraphData, centerPath: string, hops: number): GraphData {
+export function filterLocalGraph(data: GraphData, centerPath: string, hops: number): GraphData {
   const centerId = data.nodes.find(n => n.filePath === centerPath || n.id === centerPath)?.id;
   if (!centerId) return { nodes: [], edges: [] };
 

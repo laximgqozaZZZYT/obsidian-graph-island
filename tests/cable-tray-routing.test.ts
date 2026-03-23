@@ -10,16 +10,7 @@ import {
   type RoadNetworkConfig,
   type RoadNetwork,
 } from "../src/layouts/cable-tray";
-import type { GraphNode } from "../src/types";
-
-// Mock GraphNode type for testing
-const mockNode = (id: string, x: number, y: number): GraphNode => ({
-  id,
-  label: `Node ${id}`,
-  x,
-  y,
-  type: "file",
-});
+import { makePositionedNode as mockNode } from "./helpers/factories";
 
 // ---------------------------------------------------------------------------
 // Helper: hand-craft a small road network for isolated function testing
