@@ -64,6 +64,11 @@ test("JO-1: getLabelQualityScore API returns valid structure", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.hasAll).toBe(true);
     expect(result.score).toBeGreaterThanOrEqual(0);
@@ -98,6 +103,11 @@ test("JO-2: §0.1 quality score ≥ 70 at zoom 1.0", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.pass).toBe(true);
   }

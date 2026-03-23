@@ -81,6 +81,11 @@ test("IK-1: search highlight dimmed alpha raised for dark theme contrast", async
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
 });
 
 // IL-2: _adjustTooltipForOverlap handles left-edge overflow

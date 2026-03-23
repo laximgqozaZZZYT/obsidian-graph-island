@@ -74,6 +74,11 @@ test("JS-1: quality dashboard section in stats panel", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   if (!result.skipped && result.snippet?.includes("Complexity")) {
     expect(result.hasDashboard).toBe(true);
   }
@@ -168,6 +173,11 @@ test("JT-4: visible nodes are within viewport bounds", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.cullingActive).toBe(true);
   }

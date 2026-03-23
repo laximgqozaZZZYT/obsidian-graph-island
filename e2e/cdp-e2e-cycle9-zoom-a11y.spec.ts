@@ -317,3 +317,34 @@ test("HV: help overlay includes Ctrl+E export shortcut", async () => {
   }
   console.log(`[HV] help Ctrl+E: found=${result.overlayFound}, hasCtrlE=${result.hasCtrlE}`);
 });
+
+// =========================================================================
+// Display Quality Gate — node overlap + coordinate sanity
+// =========================================================================
+test("QUALITY: display quality after tests", async () => {
+  const quality = await page.evaluate(() => {
+    const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v || !v.pixiNodes || v.pixiNodes.size < 2) return { ok: true, skipped: true };
+    // 1. Node overlap
+    const overlapRatio = typeof v.getNodeOverlapRatio === "function" ? v.getNodeOverlapRatio() : -1;
+    // 2. Coordinate sanity
+    let nanCount = 0;
+    for (const [, pn] of v.pixiNodes) {
+      if (!Number.isFinite(pn.data.x) || !Number.isFinite(pn.data.y)) nanCount++;
+    }
+    // 3. Label quality
+    const qs = typeof v.getLabelQualityScore === "function" ? v.getLabelQualityScore() : null;
+    return {
+      ok: true,
+      overlapRatio: overlapRatio >= 0 ? Math.round(overlapRatio * 100) : -1,
+      nanCount,
+      qualityScore: qs?.score ?? -1,
+      nodeCount: v.pixiNodes.size,
+    };
+  });
+  expect(quality.ok).toBe(true);
+  if (!quality.skipped) {
+    expect(quality.nanCount).toBe(0);
+    if (quality.overlapRatio >= 0) expect(quality.overlapRatio).toBeLessThan(50);
+  }
+});

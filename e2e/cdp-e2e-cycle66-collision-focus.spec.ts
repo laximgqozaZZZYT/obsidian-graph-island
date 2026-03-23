@@ -81,6 +81,11 @@ test("JG-1: §0.1 pairwise label collision ≤ 5% at zoom 1.0", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.pass).toBe(true);
   }
@@ -116,6 +121,11 @@ test("JG-2: §0.1 pairwise collision ≤ 10% at zoom 0.5", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.pass).toBe(true);
   }

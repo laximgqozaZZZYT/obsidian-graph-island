@@ -72,6 +72,11 @@ test("JK-2: auto-optimize runs after simulation settles", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   // _labelOptimized should be true after simulation settles
   // (it's set to true inside _autoOptimizeLabelOverlapOnce)
 });
@@ -100,6 +105,11 @@ test("JK-3: collision rate is controlled after auto-optimize", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.pass).toBe(true);
   }
@@ -122,6 +132,11 @@ test("JK-4: doRender resets optimization flag for next layout", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.resetToFalse).toBe(true);
   }

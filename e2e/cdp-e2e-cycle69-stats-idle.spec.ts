@@ -62,6 +62,11 @@ test("JM-1: stats panel includes label visibility row", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   // Labels row may or may not appear depending on whether labels are visible
 });
 

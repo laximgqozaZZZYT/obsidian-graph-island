@@ -333,6 +333,11 @@ test("BC-8: clearing search restores full node set", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.restored).toBe(true);
   }

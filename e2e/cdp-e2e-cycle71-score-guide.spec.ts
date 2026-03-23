@@ -59,6 +59,11 @@ test("JQ-1: stats panel includes Quality score", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   // Quality row depends on new code being loaded — skip if stats panel is empty or stale
   if (!result.skipped && result.snippet && result.snippet.includes("Complexity")) {
     expect(result.hasQuality).toBe(true);

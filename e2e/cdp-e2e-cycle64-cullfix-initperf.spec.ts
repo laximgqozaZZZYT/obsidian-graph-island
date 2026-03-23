@@ -84,6 +84,11 @@ test("JC-1: getLabelCullStats auto-refreshes stale stats", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.statsPopulated).toBe(true);
   }
@@ -177,6 +182,11 @@ test("JD-4: §0.4 render pipeline initializes quickly after view open", async ()
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.withinFail).toBe(true);
   }
@@ -208,6 +218,11 @@ test("JC-3: §0.1 collision rate with auto-refreshed stats", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   if (!result.skipped) {
     expect(result.pass).toBe(true);
   }

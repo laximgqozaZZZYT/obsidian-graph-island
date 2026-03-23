@@ -119,6 +119,11 @@ test("IO-2: search count badge displays filtered/total nodes", async () => {
   });
 
   expect(result.ok).toBe(true);
+
+  // === Display Quality: post-render sanity ===
+  const _spread = await measureSpread(page);
+  expect(_spread.nanCount).toBe(0);
+  expect(_spread.infCount).toBe(0);
   if (result.badgeText) {
     expect(result.hasSlash).toBe(true);
   }
