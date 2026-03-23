@@ -71,6 +71,13 @@ describe("exportGraphMermaid", () => {
     expect(nodeLines.length).toBeLessThanOrEqual(200);
   });
 
+  it("skips edges to nodes outside the 200 limit", () => {
+    const nodes = Array.from({ length: 250 }, (_, i) => makeNode(`n${i}.md`, `N${i}`));
+    const edges = [makeEdge("n0.md", "n249.md")];
+    const mmd = exportGraphMermaid(nodes, edges);
+    expect(mmd).not.toContain("n249");
+  });
+
   it("sanitizes special characters in IDs", () => {
     const nodes = [makeNode("path/to/file.md", "File")];
     const mmd = exportGraphMermaid(nodes, []);
@@ -90,6 +97,14 @@ describe("exportFullGraphJSON", () => {
     expect(json.nodeCount).toBe(2);
     expect(json.edgeCount).toBe(1);
     expect(json.exportedAt).toBeTruthy();
+  });
+
+  it("handles d3 object-form source/target", () => {
+    const nodes = [makeNode("a.md", "A")];
+    const edges = [{ source: { id: "a.md" } as any, target: { id: "b.md" } as any }] as any;
+    const json = JSON.parse(exportFullGraphJSON(nodes, edges));
+    expect(json.edges[0].source).toBe("a.md");
+    expect(json.edges[0].target).toBe("b.md");
   });
 });
 

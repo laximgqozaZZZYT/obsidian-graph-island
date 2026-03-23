@@ -177,3 +177,29 @@ describe("findPerimeterBranchPoint", () => {
     expect(point.y).toBeCloseTo(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Integration: computePortFace → faceCenter → buildPerimeterPath → findPerimeterBranchPoint
+// ---------------------------------------------------------------------------
+describe("port-to-branch integration", () => {
+  it("full pipeline from bbox + graphCenter to branch point", () => {
+    const b: GroupBBox = { minX: 0, minY: 0, maxX: 200, maxY: 100 };
+    const graphCenter = { x: 100, y: -500 }; // far above → N face
+
+    const face = computePortFace(b, graphCenter);
+    expect(face).toBe("N");
+
+    const port = faceCenter(b, face);
+    expect(port).toEqual({ x: 100, y: 0 });
+
+    const perp = facePerpendicular(face);
+    expect(perp).toEqual({ perpX: 1, perpY: 0 });
+
+    const path = buildPerimeterPath(b, face, port);
+    expect(path.length).toBe(3);
+
+    const branch = findPerimeterBranchPoint(path, 250, 50);
+    expect(isFinite(branch.point.x)).toBe(true);
+    expect(isFinite(branch.point.y)).toBe(true);
+  });
+});
