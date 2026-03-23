@@ -4,15 +4,7 @@ import {
   wcagRelativeLuminance, wcagContrastRatio, contrastColor,
 } from "../src/utils/color";
 
-describe("hexToRgb", () => {
-  it("extracts RGB from hex", () => {
-    expect(hexToRgb(0xff0000)).toEqual({ r: 255, g: 0, b: 0 });
-    expect(hexToRgb(0x00ff00)).toEqual({ r: 0, g: 255, b: 0 });
-    expect(hexToRgb(0x0000ff)).toEqual({ r: 0, g: 0, b: 255 });
-    expect(hexToRgb(0x000000)).toEqual({ r: 0, g: 0, b: 0 });
-    expect(hexToRgb(0xffffff)).toEqual({ r: 255, g: 255, b: 255 });
-  });
-});
+// hexToRgb tests consolidated in tests/color.test.ts
 
 describe("getLuminance (BT.601)", () => {
   it("white = 255", () => {
