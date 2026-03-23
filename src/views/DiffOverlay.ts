@@ -114,37 +114,37 @@ export class DiffOverlay {
     };
 
     // Pulse animation: 2-second cycle (0→1→0)
-    const elapsed = (performance.now() - this._pulseStart) / 1000;
-    this._pulsePhase = (Math.sin(elapsed * Math.PI) + 1) / 2; // 0–1 sine wave
+    // prefers-reduced-motion: disable pulse, use static highlight
+    const reducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (reducedMotion) {
+      this._pulsePhase = 0;
+    } else {
+      const elapsed = (performance.now() - this._pulseStart) / 1000;
+      this._pulsePhase = (Math.sin(elapsed * Math.PI) + 1) / 2; // 0–1 sine wave
+    }
     const pulseScale = 1 + this._pulsePhase * 0.3; // 1.0–1.3 radius multiplier
     const pulseAlpha = 0.5 + this._pulsePhase * 0.3; // 0.5–0.8 alpha range
 
-    // --- 追加ノードのリング（緑、パルス付き） ---
-    ctx.strokeStyle = ADDED_COLOR;
-    ctx.lineWidth = RING_LINE_WIDTH * pulseScale;
-    ctx.globalAlpha = pulseAlpha;
-    for (const nodeId of this.diff.addedNodeIds) {
-      const pn = pixiNodes.get(nodeId);
-      if (!pn) continue;
-      const [sx, sy] = toScreen(pn.data.x, pn.data.y);
-      const sr = (pn.radius * scale + 3) * pulseScale;
-      ctx.beginPath();
-      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    // --- メタデータ変更ノードのリング（黄色、パルス付き） ---
-    ctx.strokeStyle = CHANGED_COLOR;
-    ctx.lineWidth = RING_LINE_WIDTH * pulseScale;
-    ctx.globalAlpha = pulseAlpha * 0.9;
-    for (const nodeId of this.diff.changedNodeIds) {
-      const pn = pixiNodes.get(nodeId);
-      if (!pn) continue;
-      const [sx, sy] = toScreen(pn.data.x, pn.data.y);
-      const sr = (pn.radius * scale + 3) * pulseScale;
-      ctx.beginPath();
-      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
-      ctx.stroke();
+    // --- ノードリング描画（追加=緑、変更=黄） ---
+    const ringLayers: Array<{ ids: Set<string>; color: string; alphaScale: number }> = [
+      { ids: this.diff.addedNodeIds, color: ADDED_COLOR, alphaScale: 1 },
+      { ids: this.diff.changedNodeIds, color: CHANGED_COLOR, alphaScale: 0.9 },
+    ];
+    for (const { ids, color, alphaScale } of ringLayers) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = RING_LINE_WIDTH * pulseScale;
+      ctx.globalAlpha = pulseAlpha * alphaScale;
+      for (const nodeId of ids) {
+        const pn = pixiNodes.get(nodeId);
+        if (!pn) continue;
+        const [sx, sy] = toScreen(pn.data.x, pn.data.y);
+        const sr = (pn.radius * scale + 3) * pulseScale;
+        ctx.beginPath();
+        ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
 
     // --- 追加エッジ（緑の実線） ---
@@ -188,11 +188,19 @@ export class DiffOverlay {
     for (let i = 0; i < ghostPositions.length; i++) {
       const { x, y } = ghostPositions[i];
       const node = this.diff.removedNodes[i];
-      // IDからラベルを生成（パスの最後の部分を使用）
-      const label = node.id.split("/").pop()?.replace(/\.md$/, "") ?? node.id;
-      // 長すぎるラベルは省略
-      const displayLabel = label.length > 12 ? label.slice(0, 11) + "…" : label;
-      ctx.fillText(displayLabel, x, y + GHOST_RADIUS + 2);
+      ctx.fillText(ghostLabel(node.id), x, y + GHOST_RADIUS + 2);
+    }
+
+    // ゴーストオーバーフロー表示
+    const overflow = this.diff.removedNodes.length - ghostPositions.length;
+    if (overflow > 0 && ghostPositions.length > 0) {
+      const last = ghostPositions[ghostPositions.length - 1];
+      ctx.fillStyle = REMOVED_COLOR;
+      ctx.globalAlpha = 0.6;
+      ctx.font = `bold ${GHOST_FONT_SIZE + 1}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(`+${overflow} more`, last.x, last.y + GHOST_RADIUS + GHOST_FONT_SIZE + 4);
     }
 
     // --- 削除エッジ（赤い破線） ---
@@ -202,9 +210,9 @@ export class DiffOverlay {
     ctx.globalAlpha = 0.4;
     ctx.setLineDash([4, 4]);
 
-    // ゴーストノード位置マップを構築
+    // ゴーストノード位置マップを構築（表示中のノードのみ）
     const ghostPosMap = new Map<string, { x: number; y: number }>();
-    for (let i = 0; i < this.diff.removedNodes.length; i++) {
+    for (let i = 0; i < ghostPositions.length; i++) {
       ghostPosMap.set(this.diff.removedNodes[i].id, ghostPositions[i]);
     }
 
@@ -254,24 +262,7 @@ export class DiffOverlay {
     removedNodes: SnapshotNode[],
     viewport: { width: number; height: number },
   ): Array<{ x: number; y: number }> {
-    if (removedNodes.length === 0) return [];
-
-    const cols = Math.max(1, Math.floor(
-      (viewport.width * 0.3) / GHOST_SPACING,
-    ));
-    const startX = viewport.width - GHOST_MARGIN;
-    const startY = viewport.height - GHOST_MARGIN;
-
-    // 行数の上限: 画面高さの70%を超えないようにする
-    const maxRows = Math.max(1, Math.floor((viewport.height * 0.7) / GHOST_SPACING));
-    return removedNodes.map((_, i) => {
-      const col = i % cols;
-      const row = Math.floor(i / cols); // rows grow downward (no wrapping to avoid overlap)
-      return {
-        x: startX - col * GHOST_SPACING,
-        y: startY - row * GHOST_SPACING,
-      };
-    });
+    return layoutGhostNodes(removedNodes.length, viewport);
   }
 
   /** ステータスバーを左下に描画する */
@@ -306,4 +297,124 @@ export class DiffOverlay {
     ctx.textBaseline = "middle";
     ctx.fillText(text, barX + STATUS_PADDING, barY + barH / 2);
   }
+
+  // -----------------------------------------------------------------------
+  // Phase 2: clickable diff list panel (DOM overlay)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Build a clickable diff list DOM element showing added/removed/changed nodes.
+   * Each entry has a color badge and clicking pans to the node.
+   *
+   * @param container  Parent element to mount the list into
+   * @param getLabel   Resolve node ID → display label
+   * @param onNodeClick  Callback when a node entry is clicked (pan + highlight)
+   * @param onClose    Callback when close button is clicked
+   */
+  buildDiffList(
+    container: HTMLElement,
+    getLabel: (id: string) => string,
+    onNodeClick: (id: string) => void,
+    onClose: () => void,
+  ): void {
+    if (!this.diff) return;
+
+    // Remove any previous diff list
+    container.querySelector(".gi-diff-list")?.remove();
+
+    const panel = container.createDiv({ cls: "gi-diff-list" });
+    panel.style.cssText = "position:absolute;top:8px;right:8px;max-height:60vh;overflow-y:auto;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:6px;padding:6px;font-size:11px;z-index:20;min-width:180px;max-width:260px;box-shadow:0 2px 8px rgba(0,0,0,0.15);";
+
+    // Header
+    const header = panel.createDiv();
+    header.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid var(--background-modifier-border);";
+    header.createEl("span", { text: `Diff: ${this.snapshotName}`, attr: { style: "font-weight:600;" } });
+    const closeBtn = header.createEl("button", { text: "\u00d7", attr: { "aria-label": "Close diff list", style: "border:none;background:none;cursor:pointer;font-size:14px;padding:0 4px;" } });
+    closeBtn.addEventListener("click", onClose);
+
+    const sections: Array<{ title: string; ids: string[]; color: string; ghost?: boolean }> = [
+      { title: `Added (${this.diff.addedNodeIds.size})`, ids: [...this.diff.addedNodeIds], color: ADDED_COLOR },
+      { title: `Changed (${this.diff.changedNodeIds.size})`, ids: [...this.diff.changedNodeIds], color: CHANGED_COLOR },
+      { title: `Removed (${this.diff.removedNodes.length})`, ids: this.diff.removedNodes.map(n => n.id), color: REMOVED_COLOR, ghost: true },
+    ];
+
+    for (const sec of sections) {
+      if (sec.ids.length === 0) continue;
+      const secEl = panel.createDiv();
+      secEl.createEl("div", { text: sec.title, attr: { style: `font-weight:600;color:${sec.color};margin:4px 0 2px;` } });
+      for (const id of sec.ids.slice(0, 50)) { // cap at 50 entries
+        const label = getLabel(id);
+        const row = secEl.createDiv({ cls: "gi-diff-list-item", attr: { role: "button", tabindex: "0", "aria-label": `${sec.ghost ? "Removed" : "Jump to"}: ${label}` } });
+        row.style.cssText = "display:flex;align-items:center;gap:4px;padding:2px 4px;cursor:pointer;border-radius:3px;";
+        row.addEventListener("mouseenter", () => { row.style.background = "var(--background-modifier-hover)"; });
+        row.addEventListener("mouseleave", () => { row.style.background = ""; });
+
+        // Color badge
+        const badge = row.createDiv();
+        badge.style.cssText = `width:8px;height:8px;border-radius:50%;background:${sec.color};flex-shrink:0;`;
+
+        row.createEl("span", { text: label, attr: { style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" } });
+
+        if (!sec.ghost) {
+          row.addEventListener("click", () => onNodeClick(id));
+          row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onNodeClick(id); } });
+        } else {
+          row.style.opacity = "0.6";
+          row.style.cursor = "default";
+        }
+      }
+      if (sec.ids.length > 50) {
+        secEl.createEl("div", { text: `+${sec.ids.length - 50} more...`, attr: { style: "color:var(--text-muted);font-style:italic;padding:2px 4px;" } });
+      }
+    }
+  }
+
+  /** Remove the diff list DOM panel */
+  removeDiffList(container: HTMLElement): void {
+    container.querySelector(".gi-diff-list")?.remove();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// テスト可能な純粋関数
+// ---------------------------------------------------------------------------
+
+/**
+ * ゴーストノードのグリッド配置を計算する純粋関数。
+ * ビューポート右下からグリッド状に配置し、画面高さの70%を超えないよう制限する。
+ *
+ * @param count     削除ノード数
+ * @param viewport  ビューポートサイズ
+ * @returns 表示可能なゴーストノードの位置配列（count より短い場合あり）
+ */
+export function layoutGhostNodes(
+  count: number,
+  viewport: { width: number; height: number },
+): Array<{ x: number; y: number }> {
+  if (count <= 0) return [];
+
+  const cols = Math.max(1, Math.floor((viewport.width * 0.3) / GHOST_SPACING));
+  const startX = viewport.width - GHOST_MARGIN;
+  const startY = viewport.height - GHOST_MARGIN;
+
+  const maxRows = Math.max(1, Math.floor((viewport.height * 0.7) / GHOST_SPACING));
+  const maxVisible = maxRows * cols;
+  const visible = Math.min(count, maxVisible);
+
+  const positions: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i < visible; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    positions.push({
+      x: startX - col * GHOST_SPACING,
+      y: startY - row * GHOST_SPACING,
+    });
+  }
+  return positions;
+}
+
+/** ゴーストノードのラベルを生成する（IDからファイル名を抽出し省略） */
+export function ghostLabel(nodeId: string, maxLen = 12): string {
+  const name = nodeId.split("/").pop()?.replace(/\.md$/, "") ?? nodeId;
+  return name.length > maxLen ? name.slice(0, maxLen - 1) + "…" : name;
 }

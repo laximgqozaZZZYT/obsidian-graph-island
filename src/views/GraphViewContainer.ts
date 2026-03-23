@@ -827,6 +827,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const diff = computeSnapshotDiff(data, snapshot);
     this.diffOverlay.activate(diff, snapshot.name);
 
+    // Build clickable diff list panel
+    const canvasArea = this.containerEl.querySelector<HTMLElement>(".gi-canvas-area");
+    if (canvasArea) {
+      this.diffOverlay.buildDiffList(
+        canvasArea,
+        (id) => this.getNodeLabel(id),
+        (id) => { this.panToNode(id); this.setHighlightedNodeId(id); this.applyHover(); },
+        () => this._clearDiffOverlay(),
+      );
+    }
+
     // 再描画を要求してオーバーレイを表示
     this.pixiApp?.markNeedsRender();
     this.wakeRenderLoop();
@@ -847,6 +858,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** 差分オーバーレイを解除する */
   private _clearDiffOverlay(): void {
     this.diffOverlay.deactivate();
+    const canvasArea = this.containerEl.querySelector<HTMLElement>(".gi-canvas-area");
+    if (canvasArea) this.diffOverlay.removeDiffList(canvasArea);
     this.pixiApp?.markNeedsRender();
     this.wakeRenderLoop();
   }
