@@ -14,7 +14,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoints, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, exportGraphSVG, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, exportGraphSVG, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter } from "../utils/graph-helpers";
 import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph, filterByLocalGraph } from "../utils/graph-filter";
 import { pointInPolygon } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
@@ -331,6 +331,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private graphEdges: GraphEdge[] = [];
   private degrees: Map<string, number> = new Map();
   private adj: Map<string, Set<string>> = new Map();
+  /** Adjacency list filtered by hoverEdgeTypes — used exclusively for hover BFS. */
+  private hoverAdj: Map<string, Set<string>> = new Map();
   /** N2: In highlight mode, stores the set of node IDs that match the search query (null = no highlight active) */
   private _searchHighlightSet: Set<string> | null = null;
   private relationColors: Map<string, string> = new Map();
@@ -603,6 +605,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
       }
     }
+    // Sync clusterGroupRules from groupBy when follow-mode is active.
+    // This ensures cable-tray and cluster force use the correct field
+    // after session restore (the sync otherwise only runs on UI interaction).
+    if (this.panel.clusterFollowsGroupBy && this.panel.groupBy && this.panel.groupBy !== "none") {
+      const groupBy = this.panel.groupBy;
+      const withoutOps = groupBy.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",");
+      const fields = withoutOps.split(",").map(s => s.trim()).filter(Boolean);
+      this.panel.clusterGroupRules = fields.map(f => ({
+        groupBy: (f.endsWith(":?") ? f : f + ":?") as any,
+        recursive: false,
+      }));
+    }
+
     // Settings migration: ensure new defaults are applied to old saved state
     if (this.panel.renderThresholds) {
       // nodeSizeByDegree was added later — old saves have it as false/undefined
@@ -4049,10 +4064,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
-  /** Build the set of node IDs within hoverHops of the given node via BFS. */
+  /** Build the set of node IDs within hoverHops of the given node via BFS.
+   *  Uses hoverAdj (edge-type-filtered) so only user-selected edge types are traversed. */
   private _buildHoverHighlightSet(hId: string | null): Set<string> {
     if (!hId) return new Set<string>();
-    const full = bfsNeighborSet(this.adj, hId, this.panel.hoverHops);
+    const full = bfsNeighborSet(this.hoverAdj, hId, this.panel.hoverHops);
     // HP: Cap hover neighbor labels to prevent label explosion on hub nodes
     const maxNeighborLabels = this.panel.renderThresholds?.maxHoverNeighborLabels ?? 30;
     if (full.size <= maxNeighborLabels + 1) return full; // +1 for hovered node itself
@@ -4552,18 +4568,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.totalEdgeCount = this.graphEdges.length;
     cfg.globalEdgeAlpha = edgeRt.globalEdgeAlpha;
     cfg.edgeLabelFontSize = edgeRt.edgeLabelFontSize;
-    // groupBy="none" → no cable-tray even if stale clusterMeta exists from a previous groupBy
+    // Cable-tray requires: (1) groupBy active, (2) multiple clusters exist.
+    // Stale clusterMeta from a previous groupBy or single-group fallback
+    // (field not in nodes → all in __no_field__) must not enable cable-tray.
     const hasActiveGroupBy = this.panel.groupBy && this.panel.groupBy !== "none";
-    cfg.nodeClusterMap = hasActiveGroupBy ? (this.clusterMeta?.nodeClusterMap ?? null) : null;
+    const centroidsAvailable = this.clusterMeta?.clusterCentroids?.size ?? 0;
+    const hasCableClusters = hasActiveGroupBy && centroidsAvailable >= 2;
+    cfg.nodeClusterMap = hasCableClusters ? (this.clusterMeta?.nodeClusterMap ?? null) : null;
     // Use live centroids when available, fall back to target centroids from clusterMeta
-    const liveCentroids = hasActiveGroupBy ? this.getCachedCentroids() : null;
-    const metaCentroids = hasActiveGroupBy ? (this.clusterMeta?.clusterCentroids ?? null) : null;
+    const liveCentroids = hasCableClusters ? this.getCachedCentroids() : null;
+    const metaCentroids = hasCableClusters ? (this.clusterMeta?.clusterCentroids ?? null) : null;
     // Live centroids may have fewer entries during simulation startup (nodes overlap)
     // Use whichever has more entries
     cfg.clusterCentroids = (liveCentroids && metaCentroids && liveCentroids.size < metaCentroids.size)
       ? metaCentroids
       : liveCentroids ?? metaCentroids;
-    cfg.clusterRadii = hasActiveGroupBy ? (this.clusterMeta?.clusterRadii ?? null) : null;
+    cfg.clusterRadii = hasCableClusters ? (this.clusterMeta?.clusterRadii ?? null) : null;
     // Feature BB: auto-scale bundle strength based on node count
     const nodeCount = this.pixiNodes.size;
     const autoBundle = nodeCount > 500 ? 0.85
@@ -6166,6 +6186,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.requestSave();
       },
       rebuildNodesInPlace: () => { this.rebuildNodesInPlace(); },
+      rebuildHoverAdj: () => { this._rebuildHoverAdj(); },
       setViewMode: (mode) => {
         this.panel.viewMode = mode;
         this.currentLayout = viewModeToLayout(mode);
@@ -6735,8 +6756,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Update the interactive legend overlay — delegates to LegendRenderer. */
   private updateLegend() {
     if (!this.legendEl) return;
-    // Hide legend in non-graph viewModes
-    if (this.panel.viewMode !== "graph") { this.legendEl.style.display = "none"; return; }
+    // Hide legend in non-graph/timeline viewModes
+    if (this.panel.viewMode !== "graph" && this.panel.viewMode !== "timeline") { this.legendEl.style.display = "none"; return; }
     renderLegend(this.legendEl, this.panel as unknown as LegendPanel, this._legendHost);
   }
 
@@ -7139,6 +7160,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.nodeColorMap = colorMap;
     this.relationColors = buildRelationColorMap(gd.edges);
     this.adj = buildAdj(gd);
+    this._rebuildHoverAdj(gd);
+  }
+
+  /** Rebuild the edge-type-filtered adjacency list for hover BFS.
+   *  Called when hoverEdgeTypes or graph data changes. */
+  private _rebuildHoverAdj(gd?: GraphData): void {
+    const data = gd ?? this.getGraphData?.();
+    if (!data) return;
+    this.hoverAdj = buildAdjFiltered(data, this.panel.hoverEdgeTypes ?? {
+      link: true, semantic: false, tag: false, hasTag: false,
+      similar: false, sibling: false, sequence: false,
+      inheritance: true, aggregation: true,
+    });
   }
 
   /** Build tag membership map for enclosure mode and clear stale enclosure labels. */
@@ -7397,14 +7431,27 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Apply cluster arrangement force if configured
     this.applyClusterForce();
 
-    // Hide world until 6-step pipeline completes (simulation end).
-    // This prevents partial/in-progress layout from being displayed.
-    if (this.worldContainer) this.worldContainer.visible = false;
+    // Show world immediately so users see progressive layout forming.
+    if (this.worldContainer) this.worldContainer.visible = true;
+
+    // Progressive rendering: sync node positions every N ticks for live preview.
+    // Only move sprites — heavy operations (edges, enclosures, autoFit) are
+    // deferred to the "end" event to avoid cache corruption and layout interference.
+    const PROGRESSIVE_INTERVAL = 10;
 
     this.simulation.on("tick", () => {
-        // Do NOT call markDirty() during simulation — rendering is deferred
-        // until all 6 steps are complete (simulation "end" event).
         tickCount++;
+        if (tickCount === 1 || tickCount % PROGRESSIVE_INTERVAL === 0) {
+          for (const pn of this.pixiNodes.values()) {
+            pn.gfx.x = pn.data.x;
+            pn.gfx.y = pn.data.y;
+          }
+          this.redrawNodeBatch();
+          // First frame: fit viewport so nodes are visible immediately
+          if (tickCount === 1 && this.canvasWrap) {
+            this.autoFitView(this.canvasWrap.clientWidth, this.canvasWrap.clientHeight);
+          }
+        }
       });
 
     this.setStatus(`${gd.nodes.length} nodes — simulating...`);

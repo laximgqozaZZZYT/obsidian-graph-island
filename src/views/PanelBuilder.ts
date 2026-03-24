@@ -83,6 +83,19 @@ export interface PanelState {
   enclosureSpacing: number;
   directionalGravityRules: DirectionalGravityRule[];
   hoverHops: number;
+  /** Edge types to follow during hover BFS traversal.
+   *  Only edge types set to true are traversed for hover highlighting. */
+  hoverEdgeTypes: {
+    link: boolean;
+    semantic: boolean;
+    tag: boolean;
+    hasTag: boolean;
+    similar: boolean;
+    sibling: boolean;
+    sequence: boolean;
+    inheritance: boolean;
+    aggregation: boolean;
+  };
   commonQueries: { query: string; recursive: boolean }[];
   clusterGroupRules: ClusterGroupRule[];
   clusterArrangement: ClusterArrangement;
@@ -360,6 +373,17 @@ export function createDefaultPanel(): PanelState {
     enclosureSpacing: 1.5,
     directionalGravityRules: [],
     hoverHops: 2,
+    hoverEdgeTypes: {
+      link: true,
+      semantic: false,
+      tag: false,
+      hasTag: false,
+      similar: false,
+      sibling: false,
+      sequence: false,
+      inheritance: true,
+      aggregation: true,
+    },
     commonQueries: [],
     clusterGroupRules: [],
     clusterArrangement: "grid" as ClusterArrangement,
@@ -614,6 +638,8 @@ export interface PanelCallbacks {
   refreshOverlays(): void;
   /** Rebuild node display objects in place (labels/icons/shapes) without simulation restart */
   rebuildNodesInPlace(): void;
+  /** Rebuild hover adjacency list after hoverEdgeTypes change */
+  rebuildHoverAdj(): void;
   /** Switch to a different visualization mode (graph/sunburst/timeline/tree) */
   setViewMode(mode: ViewMode): void;
 }
@@ -1303,7 +1329,29 @@ function _buildNodeDisplaySection(
         try { panel.nodeIconMap = JSON.parse(v); } catch { /* ignore invalid JSON */ }
         cb.rebuildNodesInPlace();
       });
-      addSlider(adv, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.applyHover(); cb.markDirty(); }, t("desc.hoverHops"));
+      addSlider(adv, t("display.hoverHops"), 1, 5, 1, panel.hoverHops, (v) => { panel.hoverHops = v; cb.rebuildHoverAdj(); cb.applyHover(); cb.markDirty(); }, t("desc.hoverHops"));
+      // Hover edge type filter — which edge types to follow during hover BFS
+      const het = panel.hoverEdgeTypes ?? { link: true, semantic: false, tag: false, hasTag: false, similar: false, sibling: false, sequence: false, inheritance: true, aggregation: true };
+      const hoverTypeEntries: [string, string][] = [
+        ["link", t("hover.link") ?? "Link"],
+        ["semantic", t("hover.semantic") ?? "Semantic"],
+        ["tag", t("hover.tag") ?? "Tag"],
+        ["hasTag", t("hover.hasTag") ?? "Has-Tag"],
+        ["similar", t("hover.similar") ?? "Similar"],
+        ["inheritance", t("hover.inheritance") ?? "Inheritance"],
+        ["aggregation", t("hover.aggregation") ?? "Aggregation"],
+        ["sibling", t("hover.sibling") ?? "Sibling"],
+        ["sequence", t("hover.sequence") ?? "Sequence"],
+      ];
+      for (const [key, label] of hoverTypeEntries) {
+        addToggle(adv, label, (het as any)[key] ?? false, (v) => {
+          if (!panel.hoverEdgeTypes) panel.hoverEdgeTypes = { ...het };
+          (panel.hoverEdgeTypes as any)[key] = v;
+          cb.rebuildHoverAdj();
+          cb.applyHover();
+          cb.markDirty();
+        });
+      }
       // HR: Max hover neighbor labels
       const rtHover = mergeRenderThresholds(panel.renderThresholds);
       addSlider(adv, t("display.maxHoverLabels") ?? "Max Hover Labels", 5, 100, 5, rtHover.maxHoverNeighborLabels, (v) => {

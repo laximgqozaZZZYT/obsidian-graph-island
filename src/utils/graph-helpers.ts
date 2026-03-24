@@ -32,6 +32,45 @@ export function buildAdj(gd: GraphData): Map<string, Set<string>> {
   return adj;
 }
 
+/** Edge type key → GraphEdge.type value mapping for hover filter. */
+const HOVER_EDGE_TYPE_MAP: Record<string, string> = {
+  link: "link",
+  semantic: "semantic",
+  tag: "tag",
+  hasTag: "has-tag",
+  similar: "similar",
+  sibling: "sibling",
+  sequence: "sequence",
+  inheritance: "inheritance",
+  aggregation: "aggregation",
+};
+
+/**
+ * Build adjacency list filtered by allowed edge types.
+ * Used for hover highlight BFS — only traverses edges the user has enabled.
+ */
+export function buildAdjFiltered(
+  gd: GraphData,
+  allowedTypes: Record<string, boolean>,
+): Map<string, Set<string>> {
+  const allowed = new Set<string>();
+  for (const [key, enabled] of Object.entries(allowedTypes)) {
+    if (enabled) {
+      const mapped = HOVER_EDGE_TYPE_MAP[key];
+      if (mapped) allowed.add(mapped);
+    }
+  }
+  const adj = new Map<string, Set<string>>();
+  for (const n of gd.nodes) adj.set(n.id, new Set());
+  for (const e of gd.edges) {
+    const edgeType = (e as any).type ?? "link";
+    if (!allowed.has(edgeType)) continue;
+    adj.get(e.source)?.add(e.target);
+    adj.get(e.target)?.add(e.source);
+  }
+  return adj;
+}
+
 /**
  * Build adjacency list from separate node and edge arrays.
  * Returns Map<string, string[]> (array-based for iteration efficiency).

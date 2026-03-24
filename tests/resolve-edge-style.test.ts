@@ -4,7 +4,7 @@ import {
   STRUCTURAL_EDGE_ALPHA,
   NON_STRUCTURAL_EDGE_ALPHA,
   DEFAULT_LINE_THICKNESS,
-  HIGHLIGHT_LINE_THICKNESS,
+  HIGHLIGHT_THICKNESS_MULTIPLIER,
   FADE_BY_DEGREE_MIN_ALPHA,
   RELATION_COLOR_ALPHA,
   type EdgeDrawConfig,
@@ -150,7 +150,7 @@ describe("resolveEdgeStyle", () => {
       highlightSet: new Set(["a", "b"]),
     });
     const s = resolveEdgeStyle(makeEdge(), src, tgt, cfg, 1, null);
-    expect(s.lineThick).toBeCloseTo(HIGHLIGHT_LINE_THICKNESS);
+    expect(s.lineThick).toBeCloseTo(DEFAULT_LINE_THICKNESS * HIGHLIGHT_THICKNESS_MULTIPLIER);
     expect(s.alpha).toBe(1.0);
   });
 

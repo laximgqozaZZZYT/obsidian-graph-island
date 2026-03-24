@@ -259,7 +259,8 @@ export const FADE_BY_DEGREE_MIN_ALPHA = 0.15;
 /** Alpha for relation-colored edges */
 export const RELATION_COLOR_ALPHA = 0.8;
 /** Highlighted edge line thickness */
-export const HIGHLIGHT_LINE_THICKNESS = 5;
+/** Multiplier applied to edge thickness when highlighted (hover/focus). */
+export const HIGHLIGHT_THICKNESS_MULTIPLIER = 2.5;
 /** Highlighted cable trunk width */
 const HIGHLIGHT_CABLE_TRUNK_WIDTH = 3;
 /** Cable fan crowd attenuation threshold (edges) */
@@ -2635,7 +2636,7 @@ export function resolveEdgeStyle(
     // An edge is highlighted when at least one endpoint is in the highlight set
     const highlighted = cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid);
     if (highlighted) {
-      lineThick = HIGHLIGHT_LINE_THICKNESS;
+      lineThick *= HIGHLIGHT_THICKNESS_MULTIPLIER;
       alpha = cfg.highlightEdgeAlpha ?? 1.0;
       isHighlighted = true;
     } else if (cfg.hoverDistMap && cfg.hoverDistMap.size > 0) {
