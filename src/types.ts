@@ -585,6 +585,8 @@ export interface CardDisplayConfig {
   /** Field display format: "key-value" (default) shows "field: value",
    *  "value-only" shows just the value */
   fieldFormat?: "key-value" | "value-only";
+  /** Last applied card preset (tracks dropdown state) */
+  preset?: "custom" | "compact" | "detailed" | "full";
 }
 
 /** Donut display configuration */

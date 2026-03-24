@@ -1412,15 +1412,17 @@ function _buildNodeDisplayModeSection(
         { value: "compact", label: t("display.cardPresetCompact") ?? "Compact" },
         { value: "detailed", label: t("display.cardPresetDetailed") ?? "Detailed" },
         { value: "full", label: t("display.cardPresetFull") ?? "Full" },
-      ], "custom", (v) => {
+      ], panel.cardDisplayConfig.preset ?? "custom", (v) => {
+        panel.cardDisplayConfig.preset = v as "custom" | "compact" | "detailed" | "full";
         if (v === "compact") {
-          panel.cardDisplayConfig = { ...panel.cardDisplayConfig, fields: [], maxWidth: 80, showIcon: false, headerStyle: "plain" };
+          panel.cardDisplayConfig = { ...panel.cardDisplayConfig, preset: "compact", fields: [], maxWidth: 80, showIcon: false, headerStyle: "plain" };
         } else if (v === "detailed") {
-          panel.cardDisplayConfig = { ...panel.cardDisplayConfig, fields: ["category"], maxWidth: 150, showIcon: true, headerStyle: "table" };
+          panel.cardDisplayConfig = { ...panel.cardDisplayConfig, preset: "detailed", fields: ["category"], maxWidth: 150, showIcon: true, headerStyle: "table" };
         } else if (v === "full") {
-          panel.cardDisplayConfig = { ...panel.cardDisplayConfig, fields: ["category", "node_type", "tags"], maxWidth: 200, showIcon: true, headerStyle: "table" };
+          panel.cardDisplayConfig = { ...panel.cardDisplayConfig, preset: "full", fields: ["category", "node_type", "tags"], maxWidth: 200, showIcon: true, headerStyle: "table" };
         }
         cb.doRenderKeepPanel();
+        cb.rebuildPanel();
       });
       addTextInput(body, t("display.cardFields"),
         panel.cardDisplayConfig.fields.join(", "),
@@ -1455,6 +1457,7 @@ function _buildNodeDisplayModeSection(
       const rtCard = mergeRenderThresholds(panel.renderThresholds);
       addSlider(body, t("display.cardBodyLines") ?? "Body Lines", 0, 10, 1, rtCard.cardBodyMaxLines, (v) => {
         ensureRT(panel).cardBodyMaxLines = v;
+        cb.recalcNodeRadii();
         cb.doRenderKeepPanel();
       });
       // HM: Card content scale — log-based size boost from body length
@@ -1474,6 +1477,7 @@ function _buildNodeDisplayModeSection(
       // FX: Card body font size
       addSlider(body, t("display.cardBodyFontSize") ?? "Body Font Size", 4, 16, 1, rtCard.cardBodyFontSize, (v) => {
         ensureRT(panel).cardBodyFontSize = v;
+        cb.recalcNodeRadii();
         cb.doRenderKeepPanel();
       });
     } else if (panel.nodeDisplayMode === "donut") {
@@ -1807,7 +1811,8 @@ function _buildEdgeDisplaySection(
       ];
       for (const [label, edgeType, key, desc, cb2] of edgeTypeToggles) {
         const count = etc[edgeType] ?? 0;
-        if (count === 0) continue; // Hide toggles for edge types with no data
+        // Always show "similar" toggle (count=0 when OFF due to data filtering)
+        if (count === 0 && edgeType !== "similar") continue;
         const labelWithCount = `${label} (${count})`;
         addToggle(adv, labelWithCount, panel[key] as boolean, _edgeToggle(label, key, cb2), desc);
       }
