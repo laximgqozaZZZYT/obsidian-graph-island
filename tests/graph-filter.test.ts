@@ -152,6 +152,32 @@ describe("filterExcludedNodes", () => {
     const result = filterExcludedNodes(nodes, [], []);
     expect(result.nodes).toHaveLength(1);
   });
+
+  it("excludes all nodes leaves empty result", () => {
+    const nodes = [node("a"), node("b")];
+    const edges = [edge("a", "b")];
+    const result = filterExcludedNodes(nodes, edges, ["a", "b"]);
+    expect(result.nodes).toHaveLength(0);
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it("preserves edges not touching excluded node", () => {
+    const nodes = [node("a"), node("b"), node("c")];
+    const edges = [edge("a", "b"), edge("a", "c")];
+    const result = filterExcludedNodes(nodes, edges, ["b"]);
+    expect(result.nodes.map(n => n.id)).toEqual(["a", "c"]);
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0].source).toBe("a");
+    expect(result.edges[0].target).toBe("c");
+  });
+
+  it("handles nonexistent exclude IDs gracefully", () => {
+    const nodes = [node("a"), node("b")];
+    const edges = [edge("a", "b")];
+    const result = filterExcludedNodes(nodes, edges, ["z"]);
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges).toHaveLength(1);
+  });
 });
 
 describe("applyVisibilityFilters", () => {
