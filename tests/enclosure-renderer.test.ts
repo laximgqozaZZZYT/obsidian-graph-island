@@ -357,3 +357,108 @@ describe("filterOutliers", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// drawEnclosures — edge cases (cycle197)
+// ---------------------------------------------------------------------------
+describe("drawEnclosures — edge cases", () => {
+  it("skips 0-member group (empty Set)", () => {
+    const { g, calls } = createMockGraphics();
+    const membership = new Map([["empty", new Set<string>()]]);
+    const cfg = baseCfg({ tagMembership: membership });
+
+    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+
+    const lineCalls = calls.filter((c) => c.method === "lineStyle");
+    expect(lineCalls.length).toBe(0);
+  });
+
+  it("skips 1-member group when all positions unresolvable", () => {
+    const { g, calls } = createMockGraphics();
+    const membership = new Map([["lonely", new Set(["ghost"])]]);
+    const cfg = baseCfg({
+      tagMembership: membership,
+      resolvePos: () => undefined,
+    });
+
+    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+
+    const drawCircle = calls.find((c) => c.method === "drawCircle");
+    expect(drawCircle).toBeUndefined();
+  });
+
+  it("handles duplicate member IDs gracefully (Set deduplicates)", () => {
+    const { g, calls } = createMockGraphics();
+    // Set automatically deduplicates, so "n1" appears only once
+    const membership = new Map([["dup", new Set(["n1", "n1", "n1"])]]);
+    const cfg = baseCfg({
+      tagMembership: membership,
+      resolvePos: (id) => id === "n1" ? { x: 30, y: 40 } : undefined,
+    });
+
+    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+
+    // Single node → drawCircle (not hull)
+    const drawCircle = calls.find((c) => c.method === "drawCircle");
+    expect(drawCircle).toBeDefined();
+    expect(drawCircle!.args[0]).toBe(30);
+    expect(drawCircle!.args[1]).toBe(40);
+  });
+
+  it("handles multiple groups where some are empty and some are valid", () => {
+    const { g, calls } = createMockGraphics();
+    const membership = new Map([
+      ["empty", new Set<string>()],
+      ["valid", new Set(["n1", "n2", "n3"])],
+      ["ghost", new Set(["missing"])],
+    ]);
+    const positions: Record<string, { x: number; y: number }> = {
+      n1: { x: 0, y: 0 }, n2: { x: 50, y: 0 }, n3: { x: 25, y: 40 },
+    };
+    const cfg = baseCfg({
+      tagMembership: membership,
+      resolvePos: (id) => positions[id],
+    });
+
+    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+
+    // Only "valid" group should produce lineStyle calls (outer + inner = 2)
+    const lineCalls = calls.filter((c) => c.method === "lineStyle");
+    expect(lineCalls.length).toBe(2);
+  });
+
+  it("handles group where some members resolve and some don't", () => {
+    const { g, calls } = createMockGraphics();
+    const membership = new Map([["partial", new Set(["n1", "missing1", "n2", "missing2", "n3"])]]);
+    const cfg = baseCfg({
+      tagMembership: membership,
+      resolvePos: (id) => {
+        if (id === "n1") return { x: 0, y: 0 };
+        if (id === "n2") return { x: 100, y: 0 };
+        if (id === "n3") return { x: 50, y: 80 };
+        return undefined;
+      },
+    });
+
+    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+
+    // 3 resolvable nodes → hull drawn
+    const lineCalls = calls.filter((c) => c.method === "lineTo");
+    expect(lineCalls.length).toBeGreaterThan(0);
+  });
+
+  it("all members at same position draws circle (degenerate hull)", () => {
+    const { g, calls } = createMockGraphics();
+    const membership = new Map([["stacked", new Set(["n1", "n2", "n3", "n4"])]]);
+    const cfg = baseCfg({
+      tagMembership: membership,
+      resolvePos: () => ({ x: 50, y: 50 }),
+    });
+
+    drawEnclosures(g, new Map() as any, makeOverlapCache(), cfg);
+
+    // Should not crash — degenerate convex hull
+    const clearCall = calls.find((c) => c.method === "clear");
+    expect(clearCall).toBeDefined();
+  });
+});

@@ -146,4 +146,57 @@ describe("drawCapsule", () => {
       expect(isFinite(v)).toBe(true);
     }
   });
+
+  it("diagonal segment produces 4 distinct vertices", () => {
+    const { g, calls } = createMockGraphics();
+    drawCapsule(g, { x: 0, y: 0 }, { x: 100, y: 100 }, 10);
+
+    const verts = calls
+      .filter(c => c.method === "moveTo" || c.method === "lineTo")
+      .map(c => `${c.args[0].toFixed(2)},${c.args[1].toFixed(2)}`);
+
+    // All 4 vertices should be distinct
+    expect(new Set(verts).size).toBe(4);
+  });
+
+  it("very small radius still produces valid shape", () => {
+    const { g, calls } = createMockGraphics();
+    drawCapsule(g, { x: 0, y: 0 }, { x: 50, y: 0 }, 0.001);
+
+    const closeCalls = calls.filter(c => c.method === "closePath");
+    expect(closeCalls).toHaveLength(1);
+    const coords = calls
+      .filter(c => c.method === "moveTo" || c.method === "lineTo")
+      .flatMap(c => c.args);
+    for (const v of coords) {
+      expect(isFinite(v)).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// drawSmoothHull — additional edge cases (cycle197)
+// ---------------------------------------------------------------------------
+describe("drawSmoothHull — edge cases", () => {
+  it("handles exactly 3 points (minimum valid polygon)", () => {
+    const { g, calls } = createMockGraphics();
+    drawSmoothHull(g, [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }]);
+    expect(calls).toHaveLength(4); // moveTo + 2 lineTo + closePath
+  });
+
+  it("handles collinear points without error", () => {
+    const { g, calls } = createMockGraphics();
+    const pts = [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 100, y: 0 }];
+    drawSmoothHull(g, pts);
+    // Still draws — degenerate polygon but no crash
+    expect(calls).toHaveLength(4);
+    expect(calls[3].method).toBe("closePath");
+  });
+
+  it("handles points with negative coordinates", () => {
+    const { g, calls } = createMockGraphics();
+    const pts = [{ x: -100, y: -200 }, { x: -50, y: 300 }, { x: 400, y: -100 }];
+    drawSmoothHull(g, pts);
+    expect(calls[0].args).toEqual([-100, -200]);
+  });
 });
