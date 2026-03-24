@@ -2091,7 +2091,6 @@ function buildLayoutTab(
         _buildConcentricOptions(sctx);
         _buildSpacingAndGroupArrangement(sctx);
         _buildAutoFitAndGuides(sctx);
-        _buildClusterGroupRules(sctx);
         _buildDirectionalGravityRules(sctx);
         _buildSortRules(sctx);
       }
