@@ -4606,17 +4606,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Compute alpha: fade in as zoom decreases below threshold
     const alpha = Math.min(1, (fadeThreshold - ws) / (fadeThreshold * 0.5));
 
-    // Build group membership from current pixiNodes
+    // Build group membership from current pixiNodes using rendered positions
     const groupMembers = new Map<string, { sumX: number; sumY: number; count: number }>();
     for (const pn of this.pixiNodes.values()) {
+      const px = pn.gfx.x;
+      const py = pn.gfx.y;
       // Super-nodes (collapsed groups) carry their key directly
       if (pn.data.id.startsWith("__super__")) {
         const key = pn.data.id.replace("__super__", "");
-        groupMembers.set(key, { sumX: pn.data.x, sumY: pn.data.y, count: pn.data.collapsedMembers?.length ?? 1 });
+        groupMembers.set(key, { sumX: px, sumY: py, count: pn.data.collapsedMembers?.length ?? 1 });
         continue;
       }
       // For expanded nodes, use the group field value
-      const fields = groupBy.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",")
+      const fields = groupBy!.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",")
         .split(",").map(s => s.trim().replace(/:?\?$/, "")).filter(Boolean);
       for (const field of fields) {
         let val: string | undefined;
@@ -4626,8 +4628,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (!val) val = "ungrouped";
         const key = `${field}:${val}`;
         const entry = groupMembers.get(key) ?? { sumX: 0, sumY: 0, count: 0 };
-        entry.sumX += pn.data.x;
-        entry.sumY += pn.data.y;
+        entry.sumX += px;
+        entry.sumY += py;
         entry.count++;
         groupMembers.set(key, entry);
       }
@@ -4649,18 +4651,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (!txt) {
         txt = new CanvasText(`${displayName} (${stats.count})`, {
           fontSize: 14,
-          fill: "#dddddd",
+          fill: 0xeeeeee,
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
           fontWeight: "600",
         });
         txt.anchor.set(0.5, 0.5);
         txt.resolution = 2;
         txt.strokeColor = 0x000000;
-        txt.strokeWidth = 3;
-        txt.bgColor = 0x1a1a2e;
-        txt.bgAlpha = 0.75;
-        txt.bgPadX = 8;
-        txt.bgPadY = 4;
+        txt.strokeWidth = 4;
+        txt.bgColor = 0x2a2a3e;
+        txt.bgAlpha = 0.85;
+        txt.bgPadX = 10;
+        txt.bgPadY = 5;
         this.groupByLabels.set(key, txt);
         labelContainer.addChild(txt);
       } else {
