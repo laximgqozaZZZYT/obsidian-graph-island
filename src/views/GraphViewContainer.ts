@@ -7370,13 +7370,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           const numSteps = Math.max(timeVals.size, 1);
           // Ensure minimum readable step width
           const stepW = Math.max(8, (W - 120) / numSteps);
-          // Compute lane height based on estimated number of lanes (use node count heuristic)
-          const estimatedLanes = Math.max(1, Math.ceil(gd.nodes.length / Math.max(numSteps, 1)));
-          const laneH = Math.max(20, Math.min(80, (H - 120) / Math.min(estimatedLanes, 40)));
-          // Bar height must be smaller than lane height
-          const barH = Math.max(Math.min(laneH * 0.5, 16), 4);
-          // Stack spacing must exceed bar height to prevent overlap
-          const stackSp = barH + 2;
+          // Lane height = gap between work groups
+          const laneH = Math.max(20, Math.round(H / 20));
+          // Bar height — compact to minimize Y spread
+          const barH = Math.max(Math.round(laneH * 0.3), 4);
+          const stackSp = barH + 1;
           const tlResult = applyTimelineLayout(gd, {
             timeKey,
             startX: 60, startY: 60, stepWidth: stepW, laneHeight: laneH,
@@ -7389,8 +7387,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           const timeIdxMap = new Map<string, number>();
           tlResult.timeSteps.forEach((ts, i) => timeIdxMap.set(ts, i));
           const bars: import("../layouts/cluster-force").TimelineBarInfo[] = [];
-          // Maximum bar width: 20 steps or half the canvas width, whichever is smaller
-          const maxBarWidth = Math.min(stepW * 20, W * 0.5);
+          // Maximum bar width: proportional to step width, never dominate the timeline
+          const maxBarWidth = Math.max(stepW * 3, 30);
           for (const p of tlResult.placements) {
             const node = ld.nodes.find(n => n.id === p.nodeId);
             if (!node) continue;
@@ -7404,8 +7402,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
                 continue;
               }
             }
-            // Default: bar for nodes without end-date — use readable minimum width
-            const defaultBarW = Math.max(stepW * 2, 20);
+            // Default: bar for nodes without end-date — minimal width
+            const defaultBarW = Math.max(stepW, 10);
             bars.push({ nodeId: p.nodeId, xStart: node.x, xEnd: node.x + defaultBarW, barHeight: barH, yCenter: node.y });
           }
           // Post-process: resolve bar overlaps by shifting down

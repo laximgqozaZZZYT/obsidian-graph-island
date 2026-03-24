@@ -32,6 +32,23 @@ export function buildAdj(gd: GraphData): Map<string, Set<string>> {
   return adj;
 }
 
+/**
+ * Build adjacency list from separate node and edge arrays.
+ * Returns Map<string, string[]> (array-based for iteration efficiency).
+ */
+export function buildAdjFromEdges(
+  nodes: { id: string }[],
+  edges: { source: string; target: string }[],
+): Map<string, string[]> {
+  const adj = new Map<string, string[]>();
+  for (const n of nodes) adj.set(n.id, []);
+  for (const e of edges) {
+    adj.get(e.source)?.push(e.target);
+    adj.get(e.target)?.push(e.source);
+  }
+  return adj;
+}
+
 // ---------------------------------------------------------------------------
 // BFS utilities — consolidated from 5 duplicate implementations
 // ---------------------------------------------------------------------------

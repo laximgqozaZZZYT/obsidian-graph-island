@@ -5,6 +5,7 @@ import {
   computeLodLevel,
   screenToWorld,
   truncateLabel,
+  generateDisplacementOffsets,
 } from "../src/views/RenderPipeline";
 
 // =========================================================================
@@ -144,5 +145,52 @@ describe("truncateLabel", () => {
 
   it("handles empty string", () => {
     expect(truncateLabel("", 5)).toBe("");
+  });
+});
+
+// =========================================================================
+// generateDisplacementOffsets
+// =========================================================================
+describe("generateDisplacementOffsets", () => {
+  it("returns 12 offset candidates", () => {
+    const offsets = generateDisplacementOffsets(60, 14, 10);
+    expect(offsets).toHaveLength(12);
+  });
+
+  it("all offsets have dx and dy", () => {
+    const offsets = generateDisplacementOffsets(60, 14, 10);
+    for (const o of offsets) {
+      expect(typeof o.dx).toBe("number");
+      expect(typeof o.dy).toBe("number");
+      expect(Number.isFinite(o.dx)).toBe(true);
+      expect(Number.isFinite(o.dy)).toBe(true);
+    }
+  });
+
+  it("offsets cover all 4 quadrants", () => {
+    const offsets = generateDisplacementOffsets(50, 12, 8);
+    const hasTopRight = offsets.some(o => o.dx > 0 && o.dy < 0);
+    const hasTopLeft = offsets.some(o => o.dx < 0 && o.dy < 0);
+    const hasBottomRight = offsets.some(o => o.dx > 0 && o.dy > 0);
+    const hasBottomLeft = offsets.some(o => o.dx < 0 && o.dy > 0);
+    expect(hasTopRight).toBe(true);
+    expect(hasTopLeft).toBe(true);
+    expect(hasBottomRight).toBe(true);
+    expect(hasBottomLeft).toBe(true);
+  });
+
+  it("offsets scale with node radius", () => {
+    const small = generateDisplacementOffsets(50, 12, 5);
+    const large = generateDisplacementOffsets(50, 12, 20);
+    // Larger radius should produce larger offsets (at least first entry)
+    expect(Math.abs(large[0].dx) + Math.abs(large[0].dy))
+      .toBeGreaterThan(Math.abs(small[0].dx) + Math.abs(small[0].dy));
+  });
+
+  it("offsets scale with label width", () => {
+    const narrow = generateDisplacementOffsets(30, 12, 10);
+    const wide = generateDisplacementOffsets(100, 12, 10);
+    // Wider label should produce different offsets
+    expect(wide[0].dx).not.toBe(narrow[0].dx);
   });
 });

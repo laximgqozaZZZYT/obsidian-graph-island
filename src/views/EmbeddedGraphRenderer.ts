@@ -7,7 +7,7 @@ import type { GraphViewsSettings, GraphNode, GraphEdge, GraphData } from "../typ
 import { DEFAULT_COLORS } from "../types";
 import { buildGraphFromVault, assignNodeColors } from "../parsers/metadata-parser";
 import { EDGE_TYPE_HAS_TAG } from "../constants";
-import { edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
+import { edgeSourceId, edgeTargetId, buildAdj } from "../utils/graph-helpers";
 import { computeBoundingBox } from "../utils/geometry";
 
 interface EmbedConfig {
@@ -30,15 +30,7 @@ export function filterLocalGraph(data: GraphData, centerPath: string, hops: numb
   const centerId = data.nodes.find(n => n.filePath === centerPath || n.id === centerPath)?.id;
   if (!centerId) return { nodes: [], edges: [] };
 
-  const adj = new Map<string, Set<string>>();
-  for (const e of data.edges) {
-    const s = edgeSourceId(e);
-    const t = edgeTargetId(e);
-    if (!adj.has(s)) adj.set(s, new Set());
-    if (!adj.has(t)) adj.set(t, new Set());
-    adj.get(s)!.add(t);
-    adj.get(t)!.add(s);
-  }
+  const adj = buildAdj(data);
 
   const reachable = new Set<string>([centerId]);
   let frontier = [centerId];

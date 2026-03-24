@@ -53,6 +53,11 @@ test("fadeEdgesByDegree setting changes panel state", async () => {
 
   expect(result).not.toHaveProperty("error");
   expect(result.toggled).toBe(true);
+
+  // === Visual quality: verify toggle didn't break rendering ===
+  const _tgq = await measureSpread(page);
+  expect(_tgq.nanCount).toBe(0);
+  expect(_tgq.infCount).toBe(0);
 });
 
 test("cableBundleMode never with groupBy produces no crash", async () => {

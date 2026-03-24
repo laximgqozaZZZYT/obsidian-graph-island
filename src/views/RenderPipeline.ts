@@ -278,6 +278,38 @@ export function computeDensityMinDist(
   return Math.min(baseDist * computeDensityScale(zoom, threshold), maxDist);
 }
 
+/**
+ * Generate label displacement offset candidates for overlap avoidance.
+ * Returns 12 offsets sorted by distance from label center (farthest first by default).
+ *
+ * @param labelW  Label width in screen pixels
+ * @param labelH  Label height in screen pixels
+ * @param nodeScreenR  Node radius in screen pixels
+ * @returns Array of {dx, dy} offsets in screen coordinates
+ */
+export function generateDisplacementOffsets(
+  labelW: number,
+  labelH: number,
+  nodeScreenR: number,
+): Array<{ dx: number; dy: number }> {
+  const hw = labelW * 0.5;
+  const pad = nodeScreenR + 2;
+  return [
+    { dx: hw + pad, dy: pad + labelH },              // bottom-right
+    { dx: -(labelW + pad), dy: 0 },                  // left
+    { dx: 0, dy: pad + labelH * 1.2 },               // below
+    { dx: hw + pad, dy: -(pad + labelH) },            // top-right
+    { dx: -(labelW + pad), dy: -(pad + labelH) },     // top-left
+    { dx: -(labelW + pad), dy: pad + labelH },        // bottom-left
+    { dx: hw + pad, dy: -(pad + labelH * 1.2) },      // above-right
+    { dx: -(hw + pad), dy: -(pad + labelH * 1.2) },   // above-left
+    { dx: labelW + pad * 2, dy: 0 },                  // far right
+    { dx: 0, dy: -(pad + labelH * 1.5) },             // far above
+    { dx: -(labelW + pad * 2), dy: pad + labelH * 0.5 }, // far bottom-left
+    { dx: hw + pad, dy: pad + labelH * 1.5 },         // far below-right
+  ];
+}
+
 /** Darken a hex color by mixing toward black. factor 0 = unchanged, 1 = black. */
 export function darkenColor(hex: number, factor: number): number {
   const { r, g, b } = hexToRgb(hex);
@@ -2990,22 +3022,7 @@ export class RenderPipeline {
     const nodeR = pn.radius ?? 12;
     const screenNodeR = nodeR * zoom;
 
-    // Displacement offsets in screen space (12 directions for finer placement)
-    const hw = r.w * 0.5, pad = screenNodeR + 2;
-    const rawOffsets = [
-      { dx: hw + pad, dy: pad + r.h },         // bottom-right
-      { dx: -(r.w + pad), dy: 0 },             // left
-      { dx: 0, dy: pad + r.h * 1.2 },          // below
-      { dx: hw + pad, dy: -(pad + r.h) },      // top-right
-      { dx: -(r.w + pad), dy: -(pad + r.h) },  // top-left
-      { dx: -(r.w + pad), dy: pad + r.h },     // bottom-left
-      { dx: hw + pad, dy: -(pad + r.h * 1.2) }, // above-right
-      { dx: -(hw + pad), dy: -(pad + r.h * 1.2) }, // above-left
-      { dx: r.w + pad * 2, dy: 0 },            // far right
-      { dx: 0, dy: -(pad + r.h * 1.5) },       // far above
-      { dx: -(r.w + pad * 2), dy: pad + r.h * 0.5 }, // far bottom-left
-      { dx: hw + pad, dy: pad + r.h * 1.5 },   // far below-right
-    ];
+    const rawOffsets = generateDisplacementOffsets(r.w, r.h, screenNodeR);
     // Adaptive: sort offsets by distance from nearest placed label (farthest first)
     const offsets = rawOffsets.map(o => {
       // Use center point for distance scoring (not top-left corner)

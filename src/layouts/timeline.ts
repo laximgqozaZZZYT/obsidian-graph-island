@@ -189,56 +189,14 @@ function assignHierarchicalLanes(
   // Sort works for deterministic layout
   const sortedWorks = [...workGroups.keys()].sort();
 
-  // 4. Assign lanes: each work block, each parent gets a section
+  // 4. Assign lanes: all nodes in same work share one lane
+  //    Post-process in GVC resolves Y overlaps by shifting down
   let nextLane = 0;
   for (const work of sortedWorks) {
     const workNodes = workGroups.get(work)!;
-
-    // Find unique parents in this work
-    const parentsInWork = new Set<string>();
-    const orphans: string[] = []; // nodes without parent_id
     for (const n of workNodes) {
-      const pid = parentMap.get(n.id);
-      if (pid) {
-        parentsInWork.add(pid);
-      } else {
-        orphans.push(n.id);
-      }
+      laneMap.set(n.id, nextLane);
     }
-
-    // Sort parents by the earliest story_order of their children
-    const sortedParents = [...parentsInWork].sort((a, b) => {
-      const aChildren = childrenMap.get(a) ?? [];
-      const bChildren = childrenMap.get(b) ?? [];
-      const aMin = Math.min(...aChildren.map(c => orderMap.get(c) ?? Infinity));
-      const bMin = Math.min(...bChildren.map(c => orderMap.get(c) ?? Infinity));
-      return aMin - bMin;
-    });
-
-    // Assign lanes: orphans first (they may be parents themselves)
-    for (const id of orphans) {
-      // Check if this node IS a parent
-      const children = childrenMap.get(extractNodeName(id, workNodes));
-      if (children && children.length > 0) {
-        // This is a parent node — give it a lane header
-        laneMap.set(id, nextLane++);
-      } else {
-        laneMap.set(id, nextLane);
-      }
-    }
-    if (orphans.length > 0 && !orphans.every(id => childrenMap.has(extractNodeName(id, workNodes)))) {
-      nextLane++;
-    }
-
-    // Each parent group: children get individual lanes sorted by story_order
-    for (const parentId of sortedParents) {
-      const children = childrenMap.get(parentId) ?? [];
-      for (const childId of children) {
-        laneMap.set(childId, nextLane++);
-      }
-    }
-
-    // Gap between works
     nextLane++;
   }
 

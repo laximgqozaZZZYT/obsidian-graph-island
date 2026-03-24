@@ -1,5 +1,5 @@
 import type { GraphNode, GraphEdge } from "../types";
-import { incCounter } from "../utils/graph-helpers";
+import { incCounter, buildAdjFromEdges } from "../utils/graph-helpers";
 
 // ---------------------------------------------------------------------------
 // Graph Statistics (Feature CX)
@@ -73,13 +73,7 @@ export function countConnectedComponents(
   edges: GraphEdge[],
 ): number {
   if (nodes.length === 0) return 0;
-  // Build adjacency
-  const adj = new Map<string, string[]>();
-  for (const n of nodes) adj.set(n.id, []);
-  for (const e of edges) {
-    adj.get(e.source)?.push(e.target);
-    adj.get(e.target)?.push(e.source);
-  }
+  const adj = buildAdjFromEdges(nodes, edges);
   const visited = new Set<string>();
   let components = 0;
   for (const n of nodes) {
@@ -152,13 +146,7 @@ export function computeBetweennessCentrality(
   // Skip for very large graphs
   if (V > maxNodes) return bc;
 
-  // Build adjacency list
-  const adj = new Map<string, string[]>();
-  for (const n of nodes) adj.set(n.id, []);
-  for (const e of edges) {
-    adj.get(e.source)?.push(e.target);
-    adj.get(e.target)?.push(e.source);
-  }
+  const adj = buildAdjFromEdges(nodes, edges);
 
   // Brandes: BFS from each source
   for (const s of nodes) {
@@ -238,12 +226,7 @@ export function detectArticulationPoints(
   const result = new Set<string>();
   if (nodes.length === 0) return result;
 
-  const adj = new Map<string, string[]>();
-  for (const n of nodes) adj.set(n.id, []);
-  for (const e of edges) {
-    adj.get(e.source)?.push(e.target);
-    adj.get(e.target)?.push(e.source);
-  }
+  const adj = buildAdjFromEdges(nodes, edges);
 
   const disc = new Map<string, number>();
   const low = new Map<string, number>();

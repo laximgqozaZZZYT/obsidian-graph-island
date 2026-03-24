@@ -79,6 +79,11 @@ test("customGridOverlay setting changes panel state", async () => {
     return { before, after, toggled: before !== after };
   });
   expect(result.toggled).toBe(true);
+
+  // === Visual quality: verify toggle didn't break rendering ===
+  const _tgq = await measureSpread(page);
+  expect(_tgq.nanCount).toBe(0);
+  expect(_tgq.infCount).toBe(0);
 });
 
 // =========================================================================
