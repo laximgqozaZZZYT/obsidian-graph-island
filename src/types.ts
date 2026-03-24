@@ -1400,9 +1400,9 @@ export const DEFAULT_CARD_RENDER_CONFIG: Required<CardRenderConfig> = {
   cardShadowOffset: 2,
   cardHoverScale: 1.08,
   highlightDimAlpha: 0.1,
-  highlightHaloRadius: 2.2,
-  highlightHaloAlpha: 0.15,
-  highlightStrokeWidth: 1.8,
+  highlightHaloRadius: 2.5,
+  highlightHaloAlpha: 0.35,
+  highlightStrokeWidth: 2.5,
 };
 
 /** Default cardinality marker config */

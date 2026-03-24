@@ -264,4 +264,58 @@ describe("renderRelationMatrix", () => {
     const table = findEl(el, ".gi-matrix-table");
     expect(table).toBeNull();
   });
+
+  it("single node produces 1×1 matrix", () => {
+    const el = createMockEl();
+    renderRelationMatrix(el as any, true, [], makeHost([["a", 5]]), vi.fn());
+    const rows = findAllEl(el, "tr");
+    // 1 header row + 1 data row
+    expect(rows).toHaveLength(2);
+    const cells = findAllEl(el, ".gi-matrix-cell");
+    expect(cells).toHaveLength(1);
+  });
+
+  it("self-loop edge counted in diagonal cell", () => {
+    const edges = [{ source: "a", target: "a" }];
+    const el = createMockEl();
+    renderRelationMatrix(el as any, true, edges, makeHost([["a", 2]]), vi.fn());
+    const cells = findAllEl(el, ".gi-matrix-cell");
+    expect(cells).toHaveLength(1);
+    // Diagonal cell should show count=1 (set via textContent)
+    expect(cells[0].textContent).toBe("1");
+  });
+
+  it("exactly 20 nodes produces 20×20 matrix", () => {
+    const degrees: [string, number][] = [];
+    for (let i = 0; i < 20; i++) degrees.push([`n${i}`, 20 - i]);
+    const el = createMockEl();
+    renderRelationMatrix(el as any, true, [], makeHost(degrees), vi.fn());
+    const rows = findAllEl(el, "tr");
+    expect(rows).toHaveLength(21); // header + 20 data
+    const cells = findAllEl(el, ".gi-matrix-cell");
+    expect(cells).toHaveLength(400); // 20×20
+  });
+
+  it("duplicate edges accumulate count", () => {
+    const edges = [
+      { source: "a", target: "b" },
+      { source: "a", target: "b" },
+      { source: "a", target: "b" },
+    ];
+    const el = createMockEl();
+    renderRelationMatrix(el as any, true, edges, makeHost([["a", 3], ["b", 1]]), vi.fn());
+    const cells = findAllEl(el, ".gi-matrix-cell");
+    const withText = cells.filter(c => c.textContent === "3");
+    expect(withText).toHaveLength(1);
+  });
+
+  it("edges referencing nodes outside top-20 are ignored", () => {
+    const edges = [{ source: "a", target: "outside" }];
+    const el = createMockEl();
+    renderRelationMatrix(el as any, true, edges, makeHost([["a", 5]]), vi.fn());
+    // "outside" not in degrees → edge ignored, no count in cells
+    const cells = findAllEl(el, ".gi-matrix-cell");
+    const withText = cells.filter(c => c.textContent != null && c.textContent !== "");
+    expect(withText).toHaveLength(0);
+  });
 });

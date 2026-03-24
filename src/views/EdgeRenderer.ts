@@ -259,7 +259,7 @@ export const FADE_BY_DEGREE_MIN_ALPHA = 0.15;
 /** Alpha for relation-colored edges */
 export const RELATION_COLOR_ALPHA = 0.8;
 /** Highlighted edge line thickness */
-export const HIGHLIGHT_LINE_THICKNESS = 3.5;
+export const HIGHLIGHT_LINE_THICKNESS = 5;
 /** Highlighted cable trunk width */
 const HIGHLIGHT_CABLE_TRUNK_WIDTH = 3;
 /** Cable fan crowd attenuation threshold (edges) */
@@ -2571,6 +2571,7 @@ export function invalidateBundleCache(cache?: EdgeRenderCache): void {
 export interface EdgeStyle {
   alpha: number;
   lineThick: number;
+  isHighlighted?: boolean;
 }
 
 /**
@@ -2684,7 +2685,7 @@ export function resolveEdgeStyle(
   if (cfg.globalEdgeAlpha != null && cfg.globalEdgeAlpha < 1 && !isHighlighted) {
     alpha *= cfg.globalEdgeAlpha;
   }
-  return { alpha, lineThick };
+  return { alpha, lineThick, isHighlighted };
 }
 
 // ---------------------------------------------------------------------------
@@ -3206,11 +3207,12 @@ function _drawEdgesSinglePass(
     }
 
     let lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
-    let { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+    let { alpha, lineThick, isHighlighted: edgeHL } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
 
     // Zoom-out: desaturate edge colors toward gray for visual calm
+    // Skip for highlighted edges — they should stay vivid.
     const edgeWs = cfg.worldScale ?? 1;
-    if (edgeWs < 0.3) {
+    if (edgeWs < 0.3 && !edgeHL) {
       const gray = cfg.isDark ? 0x666666 : 0x999999;
       const blend = Math.min(1, (0.3 - edgeWs) / 0.2); // 0→1 as zoom 0.3→0.1
       const r1 = (lineColor >> 16) & 0xff, g1 = (lineColor >> 8) & 0xff, b1 = lineColor & 0xff;
@@ -3218,6 +3220,13 @@ function _drawEdgesSinglePass(
       lineColor = (Math.round(r1 + (r2 - r1) * blend * 0.5) << 16) |
                   (Math.round(g1 + (g2 - g1) * blend * 0.5) << 8) |
                    Math.round(b1 + (b2 - b1) * blend * 0.5);
+    }
+    // Brighten highlighted edges for visual emphasis
+    if (edgeHL) {
+      const rr = Math.min(255, ((lineColor >> 16) & 0xff) + 60);
+      const gg = Math.min(255, ((lineColor >> 8) & 0xff) + 60);
+      const bb = Math.min(255, (lineColor & 0xff) + 60);
+      lineColor = (rr << 16) | (gg << 8) | bb;
     }
 
     // S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
@@ -3325,8 +3334,16 @@ function _drawEdgesLayered(
         continue;
       }
 
-      const lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
-      let { alpha, lineThick } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+      let lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
+      let { alpha, lineThick, isHighlighted: edgeHLL } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+
+      // Brighten highlighted edges for visual emphasis
+      if (edgeHLL) {
+        const rr = Math.min(255, ((lineColor >> 16) & 0xff) + 60);
+        const gg = Math.min(255, ((lineColor >> 8) & 0xff) + 60);
+        const bb = Math.min(255, (lineColor & 0xff) + 60);
+        lineColor = (rr << 16) | (gg << 8) | bb;
+      }
 
       // S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
       if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {
