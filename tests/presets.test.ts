@@ -403,11 +403,13 @@ describe("GX: preset field completeness", () => {
 });
 
 describe("exportPresetDiff", () => {
-  it("returns empty object when panel equals defaults", () => {
+  it("returns only metadata when panel equals defaults", () => {
     const panel = { ...DEFAULT_PANEL };
     const diff = exportPresetDiff(panel as any, DEFAULT_PANEL as any);
     const parsed = JSON.parse(diff);
-    expect(Object.keys(parsed).length).toBe(0);
+    // Only _exportedAt should be present (no version when not provided)
+    const nonMetaKeys = Object.keys(parsed).filter(k => !k.startsWith("_"));
+    expect(nonMetaKeys.length).toBe(0);
   });
 
   it("includes only changed scalar fields", () => {
@@ -571,8 +573,71 @@ describe("exportPresetDiff edge cases", () => {
     const panel = { nodeSize: 15, showArrows: false } as any;
     const json = exportPresetDiff(panel, panel);
     const parsed = JSON.parse(json);
-    // Diff of identical should have very few keys
-    expect(Object.keys(parsed).length).toBeLessThanOrEqual(2);
+    // Diff of identical should have very few keys (+ _exportedAt metadata)
+    expect(Object.keys(parsed).length).toBeLessThanOrEqual(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Export metadata (_version, _exportedAt)
+// ---------------------------------------------------------------------------
+
+describe("export metadata", () => {
+  it("exportPreset includes _version when provided", () => {
+    const panel = { ...DEFAULT_PANEL } as any;
+    const json = exportPreset(panel, "0.6.0");
+    const parsed = JSON.parse(json);
+    expect(parsed._version).toBe("0.6.0");
+    expect(parsed._exportedAt).toBeDefined();
+    expect(typeof parsed._exportedAt).toBe("string");
+  });
+
+  it("exportPreset omits _version when not provided", () => {
+    const panel = { ...DEFAULT_PANEL } as any;
+    const json = exportPreset(panel);
+    const parsed = JSON.parse(json);
+    expect(parsed._version).toBeUndefined();
+    expect(parsed._exportedAt).toBeDefined();
+  });
+
+  it("exportPresetDiff includes metadata", () => {
+    const panel = { ...DEFAULT_PANEL, nodeSize: 99 } as any;
+    const json = exportPresetDiff(panel, DEFAULT_PANEL as any, "0.6.0");
+    const parsed = JSON.parse(json);
+    expect(parsed._version).toBe("0.6.0");
+    expect(parsed._exportedAt).toBeDefined();
+    expect(parsed.nodeSize).toBe(99);
+  });
+
+  it("importPreset strips metadata and populates migrationInfo", () => {
+    const json = JSON.stringify({
+      _version: "0.5.6",
+      _exportedAt: "2026-03-24T12:00:00Z",
+      nodeSize: 20,
+    });
+    const info = { migratedFields: [], removedFields: [] } as any;
+    const result = importPreset(json, info);
+    expect(result.nodeSize).toBe(20);
+    expect((result as any)._version).toBeUndefined();
+    expect((result as any)._exportedAt).toBeUndefined();
+    expect(info.sourceVersion).toBe("0.5.6");
+    expect(info.exportedAt).toBe("2026-03-24T12:00:00Z");
+  });
+
+  it("importPreset works without metadata", () => {
+    const json = JSON.stringify({ nodeSize: 15 });
+    const info = { migratedFields: [], removedFields: [] } as any;
+    const result = importPreset(json, info);
+    expect(result.nodeSize).toBe(15);
+    expect(info.sourceVersion).toBeUndefined();
+  });
+
+  it("_exportedAt is valid ISO date string", () => {
+    const panel = { ...DEFAULT_PANEL } as any;
+    const json = exportPreset(panel, "0.6.0");
+    const parsed = JSON.parse(json);
+    const date = new Date(parsed._exportedAt);
+    expect(date.getTime()).not.toBeNaN();
   });
 });
 

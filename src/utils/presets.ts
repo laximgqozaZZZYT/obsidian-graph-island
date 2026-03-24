@@ -157,17 +157,20 @@ const VALID_KEYS = new Set<string>([
  * Serialize a PanelState to a JSON string suitable for sharing.
  * Converts Set values to arrays for JSON compatibility.
  */
-export function exportPreset(panel: PanelState): string {
+export function exportPreset(panel: PanelState, version?: string): string {
   const serializable: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(panel)) {
     if (value instanceof Set) {
-      // Convert Set to Array for JSON serialization
       serializable[key] = Array.from(value);
     } else {
       serializable[key] = value;
     }
   }
+
+  // Add export metadata
+  if (version) serializable._version = version;
+  serializable._exportedAt = new Date().toISOString();
 
   return JSON.stringify(serializable, null, 2);
 }
@@ -176,7 +179,7 @@ export function exportPreset(panel: PanelState): string {
  * Export only settings that differ from defaults.
  * Produces a compact JSON with only user-customized values.
  */
-export function exportPresetDiff(panel: PanelState, defaults: PanelState): string {
+export function exportPresetDiff(panel: PanelState, defaults: PanelState, version?: string): string {
   const diff: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(panel)) {
     const defVal = (defaults as unknown as Record<string, unknown>)[key];
@@ -188,6 +191,8 @@ export function exportPresetDiff(panel: PanelState, defaults: PanelState): strin
     }
     if (value !== defVal) diff[key] = value;
   }
+  if (version) diff._version = version;
+  diff._exportedAt = new Date().toISOString();
   return JSON.stringify(diff, null, 2);
 }
 
@@ -211,7 +216,14 @@ export interface PresetMigrationInfo {
   migratedFields: string[];
   /** Fields that were stripped as deprecated */
   removedFields: string[];
+  /** Version from exported preset (if present) */
+  sourceVersion?: string;
+  /** Export timestamp (if present) */
+  exportedAt?: string;
 }
+
+/** Metadata fields added by exportPreset — stripped during import */
+const EXPORT_META_FIELDS = new Set(["_version", "_exportedAt"]);
 
 export function importPreset(json: string, migrationInfo?: PresetMigrationInfo): Partial<PanelState> {
   const raw = JSON.parse(json);
@@ -219,6 +231,13 @@ export function importPreset(json: string, migrationInfo?: PresetMigrationInfo):
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new Error("Preset must be a JSON object");
   }
+
+  // Extract export metadata before processing
+  if (migrationInfo) {
+    if (typeof raw._version === "string") migrationInfo.sourceVersion = raw._version;
+    if (typeof raw._exportedAt === "string") migrationInfo.exportedAt = raw._exportedAt;
+  }
+  for (const metaKey of EXPORT_META_FIELDS) delete raw[metaKey];
 
   // Migrate removed arrangement patterns to "grid"
   if (typeof raw.clusterArrangement === "string" && REMOVED_ARRANGEMENTS.has(raw.clusterArrangement)) {
