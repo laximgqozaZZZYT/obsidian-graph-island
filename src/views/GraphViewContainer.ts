@@ -7715,15 +7715,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (b.yCenter - b.barHeight / 2 < minY) minY = b.yCenter - b.barHeight / 2;
         if (b.yCenter + b.barHeight / 2 > maxY) maxY = b.yCenter + b.barHeight / 2;
       }
-      const pad = 40;
-      const bw = maxX - minX + pad * 2;
-      const bh = maxY - minY + pad * 2;
+      // 10% margin on each side for breathing room
+      const marginX = (maxX - minX) * 0.1;
+      const marginY = (maxY - minY) * 0.1;
+      const bw = maxX - minX + marginX * 2;
+      const bh = maxY - minY + marginY * 2;
       const scale = Math.min(W / bw, H / bh, 2);
       const wc = this.worldContainer;
       if (wc) {
         wc.scale.set(scale);
         wc.x = W / 2 - (minX + maxX) / 2 * scale;
         wc.y = H / 2 - (minY + maxY) / 2 * scale;
+        this.updateLabelsForZoom();
+        this.updateZoomIndicator(scale);
       }
     }
 
@@ -8696,6 +8700,49 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   // =========================================================================
+  // Sunburst arc hover highlight
+  // =========================================================================
+
+  /** Currently hovered sunburst arc (depth 1 ancestor name), or null */
+  private _hoveredSunburstGroup: string | null = null;
+
+  /** Hit-test sunburst arcs at world coordinates. Returns depth-1 group name or null. */
+  hitTestSunburstArc(wx: number, wy: number): string | null {
+    if (this.currentLayout !== LAYOUT_SUNBURST || this.sunburstLayoutArcs.length === 0) return null;
+    const { x: cx, y: cy } = this.sunburstCenter;
+    const dx = wx - cx;
+    const dy = wy - cy;
+    const r = Math.sqrt(dx * dx + dy * dy);
+    let angle = Math.atan2(dy, dx) + Math.PI / 2; // offset to match draw offset
+    if (angle < 0) angle += 2 * Math.PI;
+    if (angle > 2 * Math.PI) angle -= 2 * Math.PI;
+
+    // Find deepest arc that contains the point
+    let bestArc: typeof this.sunburstLayoutArcs[0] | null = null;
+    for (const arc of this.sunburstLayoutArcs) {
+      if (arc.depth === 0) continue;
+      if (r >= arc.y0 && r <= arc.y1 && angle >= arc.x0 && angle <= arc.x1) {
+        if (!bestArc || arc.depth > bestArc.depth) bestArc = arc;
+      }
+    }
+    if (!bestArc) return null;
+
+    // Find depth-1 ancestor
+    if (bestArc.depth === 1) return bestArc.name;
+    for (const arc of this.sunburstLayoutArcs) {
+      if (arc.depth === 1 && arc.x0 <= bestArc.x0 && arc.x1 >= bestArc.x1) return arc.name;
+    }
+    return bestArc.name;
+  }
+
+  /** Set hovered sunburst group and trigger re-render with highlight */
+  setSunburstHover(groupName: string | null): void {
+    if (groupName === this._hoveredSunburstGroup) return;
+    this._hoveredSunburstGroup = groupName;
+    this.markDirty();
+  }
+
+  // =========================================================================
   // Sunburst layout arc rendering (Canvas 2D)
   // =========================================================================
 
@@ -8755,17 +8802,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
       let color = cssColorToHex(css);
 
+      // Hover highlight: dim non-hovered groups, brighten hovered
+      const isHovered = this._hoveredSunburstGroup !== null && groupName === this._hoveredSunburstGroup;
+      const isDimmed = this._hoveredSunburstGroup !== null && !isHovered;
+
       if (isSunburstView) {
         // Ring chart style: opaque fill, depth-based lightening, white borders
         const lightenFactor = arc.depth > 1 ? (arc.depth - 1) / maxDepth * 0.4 : 0;
         color = this.lightenHexColor(color, lightenFactor);
-        const fillAlpha = Math.max(0.5, 0.85 - arc.depth * 0.06);
-        gfx.lineStyle(Math.max(1, 1.5 / worldScale), 0xffffff, 0.6);
+        let fillAlpha = Math.max(0.5, 0.85 - arc.depth * 0.06);
+        if (isDimmed) fillAlpha *= 0.4;
+        else if (isHovered) fillAlpha = Math.min(1, fillAlpha * 1.2);
+        const borderAlpha = isDimmed ? 0.2 : 0.6;
+        gfx.lineStyle(Math.max(1, 1.5 / worldScale), 0xffffff, borderAlpha);
         gfx.beginFill(color, fillAlpha);
       } else {
-        const fillAlpha = arc.depth === 1 ? 0.25 : 0.15;
+        let fillAlpha = arc.depth === 1 ? 0.25 : 0.15;
+        if (isDimmed) fillAlpha *= 0.3;
         gfx.beginFill(color, fillAlpha);
-        gfx.lineStyle(strokeW, color, 0.5);
+        gfx.lineStyle(strokeW, color, isDimmed ? 0.2 : 0.5);
       }
 
       // Draw annular sector: offset angles by -PI/2 so top is 0

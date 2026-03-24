@@ -170,6 +170,10 @@ export interface InteractionHost {
   toggleExpandNode?(nodeId: string): void;
   /** D1: Check if a node is expanded */
   isNodeExpanded?(nodeId: string): boolean;
+  /** Sunburst arc hit test: returns depth-1 group name at world coordinates */
+  hitTestSunburstArc?(wx: number, wy: number): string | null;
+  /** Set sunburst hover highlight group */
+  setSunburstHover?(groupName: string | null): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -565,6 +569,12 @@ export class InteractionManager {
         this.host.markDirty(true);
         // Cursor hint: pointer when hovering a node, default otherwise
         this.canvas.style.cursor = newId ? "pointer" : "";
+      }
+      // Sunburst arc hover: highlight group on hover
+      if (this.host.hitTestSunburstArc && this.host.setSunburstHover) {
+        const arcGroup = this.host.hitTestSunburstArc(worldPt.x, worldPt.y);
+        this.host.setSunburstHover(arcGroup);
+        if (arcGroup && !newId) this.canvas.style.cursor = "pointer";
       }
       // Hover preview: fire Obsidian hover-link event (once per node)
       if (newId && newId !== this.lastHoveredId) {
