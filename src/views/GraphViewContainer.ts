@@ -4591,9 +4591,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
    *  the text fade threshold (individual node labels become invisible). */
   private _updateGroupByLabels(): void {
     const ws = this.worldContainer?.scale.x ?? 1;
-    const fadeThreshold = this.panel.textFadeThreshold;
+    const fadeThreshold = Math.max(this.panel.textFadeThreshold, 0.4);
     const groupBy = this.panel.groupBy;
-    const hasGroups = groupBy && groupBy !== "none" && this.originalGraphData;
+    const hasGroups = groupBy && groupBy !== "none";
 
     // Hide all labels when not in group mode or zoomed in enough
     if (!hasGroups || ws >= fadeThreshold || this.panel.viewMode !== "graph") {
@@ -4649,7 +4649,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (!txt) {
         txt = new CanvasText(`${displayName} (${stats.count})`, {
           fontSize: 14,
-          fill: "var(--text-normal, #ddd)",
+          fill: "#dddddd",
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
           fontWeight: "600",
         });
@@ -4658,9 +4658,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         txt.strokeColor = 0x000000;
         txt.strokeWidth = 3;
         txt.bgColor = 0x1a1a2e;
-        txt.bgAlpha = 0.7;
-        txt.bgPadX = 6;
-        txt.bgPadY = 3;
+        txt.bgAlpha = 0.75;
+        txt.bgPadX = 8;
+        txt.bgPadY = 4;
         this.groupByLabels.set(key, txt);
         labelContainer.addChild(txt);
       } else {
