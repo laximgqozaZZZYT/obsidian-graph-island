@@ -1222,11 +1222,80 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (e.key === "Escape") { this._handleEscapeKey(); return; }
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      // Timeline keyboard navigation: arrow keys move between bars
+      if (this.panel.viewMode === "timeline" && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+        e.preventDefault();
+        this._handleTimelineArrowKey(e.key);
+        return;
+      }
+
       this._handleShortcutKey(e.key, e);
     });
   }
 
   /** Handle Escape key: close overlays or clear keyboard focus. */
+  /** Timeline arrow key navigation: move selection between bars. */
+  private _handleTimelineArrowKey(key: string): void {
+    const bars = (this.clusterMeta as any)?.timelineBars as any[] | undefined;
+    if (!bars || bars.length === 0) return;
+
+    // Find current selection index
+    const currentId = this.highlightedNodeId;
+    let currentIdx = currentId ? bars.findIndex((b: any) => b.nodeId === currentId) : -1;
+
+    // Sort bars by Y then X for navigation order
+    const sorted = bars
+      .map((b: any, i: number) => ({ ...b, origIdx: i }))
+      .sort((a: any, b: any) => a.yCenter - b.yCenter || a.xStart - b.xStart);
+
+    let sortedIdx = currentIdx >= 0
+      ? sorted.findIndex((b: any) => b.origIdx === currentIdx)
+      : -1;
+
+    switch (key) {
+      case "ArrowRight":
+        // Next bar in time order (same Y, next X; or next row)
+        sortedIdx = Math.min(sortedIdx + 1, sorted.length - 1);
+        if (sortedIdx < 0) sortedIdx = 0;
+        break;
+      case "ArrowLeft":
+        sortedIdx = Math.max(sortedIdx - 1, 0);
+        break;
+      case "ArrowDown": {
+        // Jump to next work group (find bar with significantly different Y)
+        const curY = sortedIdx >= 0 ? sorted[sortedIdx].yCenter : 0;
+        const next = sorted.find((b: any, i: number) => i > sortedIdx && b.yCenter > curY + 10);
+        if (next) sortedIdx = sorted.indexOf(next);
+        break;
+      }
+      case "ArrowUp": {
+        const curY = sortedIdx >= 0 ? sorted[sortedIdx].yCenter : Infinity;
+        // Find last bar with Y significantly above current
+        for (let i = sortedIdx - 1; i >= 0; i--) {
+          if (sorted[i].yCenter < curY - 10) { sortedIdx = i; break; }
+        }
+        break;
+      }
+    }
+
+    if (sortedIdx >= 0 && sortedIdx < sorted.length) {
+      const target = sorted[sortedIdx];
+      this.setHighlightedNodeId(target.nodeId);
+      // Pan to center the selected bar
+      const world = this.worldContainer;
+      const wrap = this.canvasWrap;
+      if (world && wrap) {
+        const ws = world.scale.x;
+        world.x = wrap.clientWidth / 2 - target.xStart * ws;
+        world.y = wrap.clientHeight / 2 - target.yCenter * ws;
+      }
+      this.applyHover();
+      this.drawTimelineBars();
+      this.wakeRenderLoop();
+    }
+  }
+
   private _handleEscapeKey(): void {
     // HY: Each Escape step announces what was cleared via aria-live
     if (this.diffOverlay.isActive()) {
