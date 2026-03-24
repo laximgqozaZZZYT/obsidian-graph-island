@@ -1224,10 +1224,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
       // Timeline keyboard navigation: arrow keys move between bars
-      if (this.panel.viewMode === "timeline" && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
-        e.preventDefault();
-        this._handleTimelineArrowKey(e.key);
-        return;
+      if (this.panel.viewMode === "timeline") {
+        if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+          e.preventDefault();
+          this._handleTimelineArrowKey(e.key);
+          return;
+        }
+        if (e.key === "Enter" && this.highlightedNodeId) {
+          e.preventDefault();
+          this._openTimelineBarNote(this.highlightedNodeId);
+          return;
+        }
       }
 
       this._handleShortcutKey(e.key, e);
@@ -1235,6 +1242,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   /** Handle Escape key: close overlays or clear keyboard focus. */
+  /** Open the note corresponding to a timeline bar. */
+  private _openTimelineBarNote(nodeId: string): void {
+    const pn = this.pixiNodes.get(nodeId);
+    const fp = (pn?.data as any)?.filePath;
+    if (!fp) return;
+    const tf = this.app.vault.getAbstractFileByPath(fp);
+    if (tf instanceof TFile) {
+      const leaf = this.app.workspace.getLeaf("tab");
+      leaf.openFile(tf);
+    }
+  }
+
   /** Timeline arrow key navigation: move selection between bars. */
   private _handleTimelineArrowKey(key: string): void {
     const bars = (this.clusterMeta as any)?.timelineBars as any[] | undefined;

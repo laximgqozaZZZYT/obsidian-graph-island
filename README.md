@@ -254,15 +254,14 @@ src/
 
 349+ E2E tests (CDP-based, Obsidian live testing)
 
-## What's New in v0.5.1
+## What's New in v0.5
 
-- **Timeline redesign**: Hierarchical lane assignment using parent_id; zero-overlap bar layout; compact 6px bars
-- **Tree viewMode removed**: Replaced by improved force layout + cluster arrangements
-- **Surprise feature removed**: Cleaned up toolbar and settings
+- **Timeline redesign**: Hierarchical lane assignment using parent_id; zero-overlap bar layout with work group separators
+- **Timeline interactions**: Hover highlights sibling bars; keyboard nav (←→↑↓); Enter opens note in new tab
+- **SVG export**: Toolbar button with right-click options (size, labels, background)
 - **Lasso selection**: Draw a freeform loop around nodes to select them as a group
 - **Subgraph view**: Drill into selected nodes as an isolated subgraph with back-navigation stack
-- **SVG export**: Pure function to convert graph to SVG string
-- **2394+ unit tests**: Coverage thresholds S28.9/B27.5/F25.7/L28.6
+- **2434+ unit tests**: Coverage thresholds S28.8/B27.3/F25.5/L28.5
 
 ## What's New in v0.4
 
