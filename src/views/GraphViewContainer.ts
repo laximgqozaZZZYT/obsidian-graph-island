@@ -9080,15 +9080,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const nodeIds = sorted.map(([id]) => id);
     const nodeIdSet = new Set(nodeIds);
 
-    // Build matrix
+    // Build matrix (count + edge type breakdown)
     const matrix = new Map<string, Map<string, number>>();
-    for (const id of nodeIds) matrix.set(id, new Map());
+    const matrixTypes = new Map<string, Map<string, Map<string, number>>>();
+    for (const id of nodeIds) {
+      matrix.set(id, new Map());
+      matrixTypes.set(id, new Map());
+    }
     for (const e of gd.edges) {
       const s = edgeSourceId(e);
       const t = edgeTargetId(e);
       if (nodeIdSet.has(s) && nodeIdSet.has(t)) {
-        const row = matrix.get(s)!;
-        incCounter(row, t);
+        incCounter(matrix.get(s)!, t);
+        const eType = (e as any).type ?? "link";
+        if (!matrixTypes.get(s)!.has(t)) matrixTypes.get(s)!.set(t, new Map());
+        incCounter(matrixTypes.get(s)!.get(t)!, eType);
       }
     }
 
@@ -9131,7 +9137,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     headerRow.createEl("th"); // corner
     for (const id of nodeIds) {
       const label = getLabel(id);
-      headerRow.createEl("th", { text: label.slice(0, 4), attr: { title: label } });
+      const deg = degrees.get(id) ?? 0;
+      headerRow.createEl("th", { text: label.slice(0, 4), attr: { title: `${label} (${deg} connections)` } });
     }
 
     // Data rows
@@ -9139,7 +9146,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     for (const rowId of nodeIds) {
       const tr = table.createEl("tr");
       const label = getLabel(rowId);
-      const td = tr.createEl("td", { text: label.slice(0, 8), cls: "gi-matrix-label", attr: { title: label } });
+      const deg = degrees.get(rowId) ?? 0;
+      const td = tr.createEl("td", { text: label.slice(0, 8), cls: "gi-matrix-label", attr: { title: `${label} (${deg} connections)` } });
       td.addEventListener("click", () => this._switchToGraphAndFocus(rowId));
 
       for (const colId of nodeIds) {
@@ -9151,6 +9159,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           cell.style.backgroundColor = isDark
             ? `rgba(99,102,241,${intensity * 0.6})`
             : `rgba(79,70,229,${intensity * 0.4})`;
+          // Edge type breakdown tooltip
+          const types = matrixTypes.get(rowId)?.get(colId);
+          if (types && types.size > 0) {
+            const parts = [...types.entries()].map(([t, c]) => `${t}: ${c}`);
+            cell.title = `${getLabel(rowId)} → ${getLabel(colId)}\n${parts.join(", ")}`;
+          }
         }
         cell.addEventListener("click", () => {
           if (count > 0) this._switchToGraphAndFocus(rowId, colId);
