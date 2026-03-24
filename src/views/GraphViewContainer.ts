@@ -4914,6 +4914,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const barLabelMinW = rt.timelineBarLabelMinWidth;
     const barLabelFontSize = rt.timelineBarLabelFontSize;
 
+    // Build sibling set: bars that share parent_id with the hovered bar
+    let siblingIds: Set<string> | null = null;
+    if (hoveredId) {
+      const hoveredNode = this.pixiNodes.get(hoveredId);
+      if (hoveredNode) {
+        const fp = (hoveredNode.data as any).filePath ?? hoveredId;
+        const tf = this.app.vault.getAbstractFileByPath(fp);
+        const parentId = tf ? (this.app.metadataCache.getFileCache(tf as any)?.frontmatter?.parent_id) : null;
+        if (parentId) {
+          siblingIds = new Set<string>();
+          for (const bar of bars) {
+            const bfp = (this.pixiNodes.get(bar.nodeId)?.data as any)?.filePath ?? bar.nodeId;
+            const btf = this.app.vault.getAbstractFileByPath(bfp);
+            const bpid = btf ? (this.app.metadataCache.getFileCache(btf as any)?.frontmatter?.parent_id) : null;
+            if (bpid === parentId) siblingIds.add(bar.nodeId);
+          }
+        }
+      }
+    }
+
     // Viewport culling: only draw bars visible in the current viewport
     const world = this.worldContainer;
     const wx = world?.x ?? 0, wy = world?.y ?? 0;
@@ -4944,13 +4964,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const color = pn ? pn.color : 0x888888;
       const cornerR = Math.min(h / 2, barCornerRBase);
       const isHovered = hoveredId === bar.nodeId;
-      const barFillAlpha = isHovered ? hoverAlpha : fillAlpha;
+      const isSibling = siblingIds?.has(bar.nodeId) ?? false;
+      // Hovered bar: full opacity; siblings: slightly brighter; others: dimmed when something is hovered
+      const barFillAlpha = isHovered ? hoverAlpha
+        : isSibling ? Math.min(hoverAlpha, fillAlpha * 1.5)
+        : hoveredId ? fillAlpha * 0.3
+        : fillAlpha;
+      const barStrokeAlpha = isHovered ? strokeAlpha * 1.5
+        : isSibling ? strokeAlpha
+        : hoveredId ? strokeAlpha * 0.3
+        : strokeAlpha;
 
       g.beginFill(color, barFillAlpha);
       g.drawRoundedRect(x, y, w, h, cornerR);
       g.endFill();
 
-      g.lineStyle(lineW, color, strokeAlpha);
+      g.lineStyle(lineW, color, barStrokeAlpha);
       g.drawRoundedRect(x, y, w, h, cornerR);
       g.lineStyle(0);
 
