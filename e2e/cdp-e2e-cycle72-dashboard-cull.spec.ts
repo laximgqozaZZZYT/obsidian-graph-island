@@ -242,6 +242,29 @@ test("§0: no errors during dashboard + culling tests", async () => {
 });
 
 
+
+// =========================================================================
+// Visual Quality Gate — post-test display state check
+// =========================================================================
+test("VISUAL-GATE: display quality after test operations", async () => {
+  const density = await measureScreenDensity(page);
+  const labels = await measureLabelReadability(page);
+  const edges = await measureEdgeVisibility(page);
+  console.log(`[VISUAL-GATE] nodes=${density.totalNodes} hotspot=${density.worstCellCount} labels=${labels.totalVisible} overlap=${labels.overlapRate} edges=${edges.visibleEdges} colors=${edges.colorVariety}`);
+  // Nodes should not be excessively piled up
+  if (density.totalNodes > 10) {
+    expect(density.worstCellCount).toBeLessThan(200);
+  }
+  // Labels that are visible should be mostly readable
+  if (labels.totalVisible > 5) {
+    expect(labels.overlapRate).toBeLessThan(0.80);
+  }
+  // Edges should be visible with some color variety
+  if (edges.totalEdges > 10) {
+    expect(edges.visibleEdges).toBeGreaterThan(0);
+  }
+});
+
 // =========================================================================
 // Screen-Space Visual Quality (auto-generated)
 // =========================================================================
