@@ -14,7 +14,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoints, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, exportGraphSVG, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, exportGraphSVG, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter, computeGaps, hitTestTimelineBars, autoBundleStrength } from "../utils/graph-helpers";
 import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph, filterByLocalGraph } from "../utils/graph-filter";
 import { pointInPolygon } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
@@ -2672,29 +2672,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   private _gapCache: { from: string; to: string }[] | null = null;
   private _computeGaps(): { from: string; to: string }[] {
-    const gaps: { from: string; to: string }[] = [];
-    const tagMap = new Map<string, Set<string>>();
-    for (const pn of this.pixiNodes.values()) {
-      for (const tag of pn.data.tags ?? []) {
-        if (!tagMap.has(tag)) tagMap.set(tag, new Set());
-        tagMap.get(tag)!.add(pn.data.id);
-      }
-    }
-    for (const [, members] of tagMap) {
-      const arr = [...members];
-      for (let i = 0; i < arr.length && gaps.length < 20; i++) {
-        for (let j = i + 1; j < arr.length && gaps.length < 20; j++) {
-          const a = arr[i], b = arr[j];
-          if (this.adj.get(a)?.has(b)) continue;
-          const nbA = this.adj.get(a) ?? new Set();
-          const nbB = this.adj.get(b) ?? new Set();
-          for (const n of nbA) {
-            if (nbB.has(n)) { gaps.push({ from: a, to: b }); break; }
-          }
-        }
-      }
-    }
-    return gaps;
+    const nodes = Array.from(this.pixiNodes.values(), pn => pn.data);
+    return computeGaps(nodes, this.adj);
   }
 
   getCanvasDimensions() {
@@ -2867,17 +2846,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Hit-test timeline duration bars (rectangles). */
   private _hitTestTimelineBars(wx: number, wy: number): PixiNode | null {
     const bars = this.clusterMeta?.timelineBars;
-    if (bars && bars.length > 0) {
-      for (const bar of bars) {
-        const halfH = bar.barHeight / 2;
-        if (wx >= bar.xStart && wx <= bar.xEnd &&
-            wy >= bar.yCenter - halfH && wy <= bar.yCenter + halfH) {
-          const pn = this.pixiNodes.get(bar.nodeId);
-          if (pn) return pn;
-        }
-      }
-    }
-    return null;
+    if (!bars || bars.length === 0) return null;
+    const nodeId = hitTestTimelineBars(bars, wx, wy);
+    return nodeId ? (this.pixiNodes.get(nodeId) ?? null) : null;
   }
 
   /** Toggle hold (pin) state for a node and persist to pinnedPositions */
@@ -4585,15 +4556,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       : liveCentroids ?? metaCentroids;
     cfg.clusterRadii = hasCableClusters ? (this.clusterMeta?.clusterRadii ?? null) : null;
     // Feature BB: auto-scale bundle strength based on node count
-    const nodeCount = this.pixiNodes.size;
-    const autoBundle = nodeCount > 500 ? 0.85
-      : nodeCount > 200 ? 0.7
-      : nodeCount > 50 ? 0.5
-      : 0.3;
     const userBundle = this.panel.edgeBundleStrength;
     cfg.bundleStrength = userBundle != null && userBundle >= 0
       ? userBundle
-      : autoBundle;
+      : autoBundleStrength(this.pixiNodes.size);
     cfg.cableBundleMode = this.panel.cableBundleMode;
     cfg.cableTrunkWidth = this.panel.cableTrunkWidth;
     cfg.cableTrunkAlpha = this.panel.cableTrunkAlpha;

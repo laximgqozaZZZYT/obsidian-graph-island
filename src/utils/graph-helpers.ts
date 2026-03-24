@@ -498,3 +498,70 @@ export function truncateBreadcrumb(path: string[]): string[] {
   if (path.length <= 5) return path;
   return [...path.slice(0, 2), "…", ...path.slice(-2)];
 }
+
+// ---------------------------------------------------------------------------
+// Pure functions extracted from GraphViewContainer
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute structural gaps: pairs of nodes that share a tag and have a
+ * common neighbor but are not directly connected (max 20 results).
+ */
+export function computeGaps(
+  nodes: Iterable<{ id: string; tags?: string[] }>,
+  adj: Map<string, Set<string>>,
+): { from: string; to: string }[] {
+  const gaps: { from: string; to: string }[] = [];
+  const tagMap = new Map<string, Set<string>>();
+  for (const n of nodes) {
+    for (const tag of n.tags ?? []) {
+      if (!tagMap.has(tag)) tagMap.set(tag, new Set());
+      tagMap.get(tag)!.add(n.id);
+    }
+  }
+  for (const [, members] of tagMap) {
+    const arr = [...members];
+    for (let i = 0; i < arr.length && gaps.length < 20; i++) {
+      for (let j = i + 1; j < arr.length && gaps.length < 20; j++) {
+        const a = arr[i], b = arr[j];
+        if (adj.get(a)?.has(b)) continue;
+        const nbA = adj.get(a) ?? new Set();
+        const nbB = adj.get(b) ?? new Set();
+        for (const n of nbA) {
+          if (nbB.has(n)) { gaps.push({ from: a, to: b }); break; }
+        }
+      }
+    }
+  }
+  return gaps;
+}
+
+/**
+ * Hit-test timeline bars at a given world coordinate.
+ * Returns the node ID of the bar that contains (wx, wy), or null.
+ */
+export function hitTestTimelineBars(
+  bars: readonly { nodeId: string; xStart: number; xEnd: number; yCenter: number; barHeight: number }[],
+  wx: number,
+  wy: number,
+): string | null {
+  for (const bar of bars) {
+    const halfH = bar.barHeight / 2;
+    if (wx >= bar.xStart && wx <= bar.xEnd &&
+        wy >= bar.yCenter - halfH && wy <= bar.yCenter + halfH) {
+      return bar.nodeId;
+    }
+  }
+  return null;
+}
+
+/**
+ * Compute auto edge-bundle strength based on node count.
+ * Returns a value between 0.3 and 0.85.
+ */
+export function autoBundleStrength(nodeCount: number): number {
+  if (nodeCount > 500) return 0.85;
+  if (nodeCount > 200) return 0.7;
+  if (nodeCount > 50) return 0.5;
+  return 0.3;
+}
