@@ -1188,19 +1188,6 @@ function buildFilterTab(
     });
   }, tHelp("help.filter"), false, "filter");
 
-  buildSection(filterTab, t("section.groups"), (body) => {
-    const list = body.createDiv();
-    renderGroupList(list, panel, ctx, cb);
-    const addBtn = body.createEl("button", { cls: "gi-add-group", text: t("groups.addGroup") });
-    addBtn.addEventListener("click", () => {
-      const idx = panel.groups.length;
-      panel.groups.push({ expression: null, color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length] });
-      renderGroupList(list, panel, ctx, cb);
-    });
-  }, tHelp("help.groups"), false, "layers");
-
-  // --- ブックマークセクション ---
-  _buildBookmarkSection(filterTab, panel, ctx, cb);
 }
 
 // ---------------------------------------------------------------------------
@@ -2037,15 +2024,10 @@ function buildDisplayTab(
 
   if (v("nodeDisplay"))        _buildNodeDisplaySection(displayTab, panel, ctx, cb);
   if (v("nodeDisplayMode"))    _buildNodeDisplayModeSection(displayTab, panel, ctx, cb);
-  if (v("nodeDecorations"))    _buildNodeDecorationSection(displayTab, panel, ctx, cb);
-  if (v("structureAnalysis"))  _buildStructureAnalysisSection(displayTab, panel, ctx, cb);
-  if (v("discovery"))          _buildDiscoverySection(displayTab, panel, ctx, cb);
-  if (v("interaction"))        _buildInteractionSection(displayTab, panel, ctx, cb);
   if (v("edgeDisplay"))        _buildEdgeDisplaySection(displayTab, panel, ctx, cb);
   if (v("cableDisplay"))       _buildCableDisplaySection(displayTab, panel, ctx, cb);
   if (v("roadNetwork"))        _buildRoadNetworkSection(displayTab, panel, ctx, cb);
   if (v("minimap"))            _buildMinimapSection(displayTab, panel, ctx, cb);
-  if (v("renderThresholds"))   _buildRenderThresholdsSection(displayTab, panel, ctx, cb);
   if (v("relationColors"))     _buildRelationColorSection(displayTab, panel, ctx, cb);
 }
 
@@ -2138,37 +2120,6 @@ function buildLayoutTab(
     }, undefined, true, "axis-3d");
   }
 
-  // Timeline controls (independent so timeline viewMode can show them)
-  if (v("timelineControls")) {
-    buildSection(layoutTab, t("section.timelineControls"), (body) => {
-      const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
-      _buildTimelineControls(sctx);
-    }, undefined, true, "calendar");
-  }
-
-  // Force simulation parameters
-  if (v("forceParameters")) {
-    buildSection(layoutTab, t("section.forceParameters"), (body) => {
-      const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
-      _buildForceParameters(sctx);
-    }, undefined, true, "magnet");
-  }
-
-  // Node rules
-  if (v("nodeRules")) {
-    buildSection(layoutTab, t("section.nodeRules"), (body) => {
-      const ruleListEl = body.createDiv({ cls: "gi-noderule-list" });
-      renderNodeRuleList(ruleListEl, panel, ctx, cb);
-
-      const addBtn = body.createEl("button", { cls: "gi-add-group", text: t("nodeRules.addRule") });
-      addBtn.addEventListener("click", () => {
-        panel.nodeRules.push({ query: "*", spacingMultiplier: 1.0, gravityAngle: -1, gravityStrength: 0.1, centerGravity: 1.0, repelMultiplier: 1.0 });
-        renderNodeRuleList(ruleListEl, panel, ctx, cb);
-        cb.applyNodeRules();
-        cb.restartSimulation(0.3);
-      });
-    }, tHelp("help.nodeRules"), true, "sliders-horizontal");
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2723,10 +2674,7 @@ function buildSettingsTab(
   ctx: PanelContext,
   cb: PanelCallbacks,
 ): void {
-  _buildGraphSyncSection(settingsTab, panel, ctx, cb);
-  _buildPluginSettingsSection(settingsTab, panel, ctx, cb);
   _buildOntologySection(settingsTab, panel, ctx, cb);
-  _buildCustomMappingsSection(settingsTab, panel, ctx, cb);
   _buildTagRelationsSection(settingsTab, panel, ctx, cb);
   _buildSettingsActionButtons(settingsTab, panel, ctx, cb);
 }

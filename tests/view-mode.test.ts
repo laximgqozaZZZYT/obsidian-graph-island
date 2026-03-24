@@ -67,26 +67,22 @@ describe("isSectionVisible", () => {
   it("graph mode shows all sections", () => {
     expect(isSectionVisible("graph", "clusterArrangement")).toBe(true);
     expect(isSectionVisible("graph", "edgeDisplay")).toBe(true);
-    expect(isSectionVisible("graph", "forceParameters")).toBe(true);
     expect(isSectionVisible("graph", "cableDisplay")).toBe(true);
   });
 
   it("sunburst hides graph-specific sections", () => {
     expect(isSectionVisible("sunburst", "clusterArrangement")).toBe(false);
-    expect(isSectionVisible("sunburst", "forceParameters")).toBe(false);
     expect(isSectionVisible("sunburst", "cableDisplay")).toBe(false);
     expect(isSectionVisible("sunburst", "edgeDisplay")).toBe(false);
   });
   it("sunburst shows filter, hides node-related", () => {
     expect(isSectionVisible("sunburst", "filter")).toBe(true);
     expect(isSectionVisible("sunburst", "nodeDisplay")).toBe(false);
-    expect(isSectionVisible("sunburst", "nodeDecorations")).toBe(false);
     expect(isSectionVisible("sunburst", "minimap")).toBe(false);
   });
 
   it("timeline hides irrelevant sections", () => {
     expect(isSectionVisible("timeline", "clusterArrangement")).toBe(false);
-    expect(isSectionVisible("timeline", "forceParameters")).toBe(false);
   });
   it("timeline shows timeline controls but hides edge display", () => {
     expect(isSectionVisible("timeline", "timelineControls")).toBe(true);
@@ -95,7 +91,6 @@ describe("isSectionVisible", () => {
 
   it("matrix hides most sections (DOM-based)", () => {
     expect(isSectionVisible("matrix", "clusterArrangement")).toBe(false);
-    expect(isSectionVisible("matrix", "forceParameters")).toBe(false);
     expect(isSectionVisible("matrix", "edgeDisplay")).toBe(false);
     expect(isSectionVisible("matrix", "nodeDisplay")).toBe(false);
     expect(isSectionVisible("matrix", "minimap")).toBe(false);
@@ -167,7 +162,7 @@ describe("viewMode integration", () => {
   });
 
   it("graph shows all, others hide clusterArrangement", () => {
-    const sections = ["filter", "clusterArrangement", "edgeDisplay", "forceParameters"] as const;
+    const sections = ["filter", "clusterArrangement", "edgeDisplay"] as const;
     for (const s of sections) {
       expect(isSectionVisible("graph", s)).toBe(true);
     }
@@ -195,11 +190,10 @@ describe("viewModeUsesDom", () => {
 describe("isSectionVisible matrix", () => {
   it("matrix hides all graph-specific sections", () => {
     const hidden = [
-      "nodeDisplay", "nodeDisplayMode", "nodeDecorations",
-      "structureAnalysis", "discovery", "interaction",
+      "nodeDisplay", "nodeDisplayMode",
       "edgeDisplay", "cableDisplay", "roadNetwork", "minimap",
       "relationColors", "clusterArrangement", "coordinateControls",
-      "timelineControls", "forceParameters", "nodeRules",
+      "timelineControls",
     ] as const;
     for (const s of hidden) {
       expect(isSectionVisible("matrix", s)).toBe(false);

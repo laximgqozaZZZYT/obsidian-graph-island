@@ -6,23 +6,14 @@ export type PanelSectionId =
   | "grouping"
   | "nodeDisplay"
   | "nodeDisplayMode"
-  | "nodeDecorations"
-  | "structureAnalysis"
-  | "discovery"
-  | "interaction"
   | "edgeDisplay"
   | "cableDisplay"
   | "roadNetwork"
   | "minimap"
-  | "renderThresholds"
   | "relationColors"
   | "clusterArrangement"
   | "coordinateControls"
   | "timelineControls"
-  | "forceParameters"
-  | "nodeRules"
-  | "graphSync"
-  | "pluginSettings"
   | "ontology";
 
 /** Sections that are HIDDEN for each non-graph viewMode.
@@ -31,10 +22,6 @@ const HIDDEN_SECTIONS: Record<Exclude<ViewMode, "graph">, Set<PanelSectionId>> =
   sunburst: new Set([
     "nodeDisplay",
     "nodeDisplayMode",
-    "nodeDecorations",
-    "structureAnalysis",
-    "discovery",
-    "interaction",
     "edgeDisplay",
     "cableDisplay",
     "roadNetwork",
@@ -43,32 +30,20 @@ const HIDDEN_SECTIONS: Record<Exclude<ViewMode, "graph">, Set<PanelSectionId>> =
     "clusterArrangement",
     "coordinateControls",
     "timelineControls",
-    "forceParameters",
-    "nodeRules",
   ]),
   timeline: new Set([
     "nodeDisplay",
     "nodeDisplayMode",
-    "nodeDecorations",
-    "structureAnalysis",
-    "discovery",
-    "interaction",
     "edgeDisplay",
     "cableDisplay",
     "roadNetwork",
     "relationColors",
     "clusterArrangement",
     "coordinateControls",
-    "forceParameters",
-    "nodeRules",
   ]),
   matrix: new Set([
     "nodeDisplay",
     "nodeDisplayMode",
-    "nodeDecorations",
-    "structureAnalysis",
-    "discovery",
-    "interaction",
     "edgeDisplay",
     "cableDisplay",
     "roadNetwork",
@@ -77,8 +52,6 @@ const HIDDEN_SECTIONS: Record<Exclude<ViewMode, "graph">, Set<PanelSectionId>> =
     "clusterArrangement",
     "coordinateControls",
     "timelineControls",
-    "forceParameters",
-    "nodeRules",
   ]),
 };
 
