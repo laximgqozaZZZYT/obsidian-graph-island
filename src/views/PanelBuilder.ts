@@ -1136,7 +1136,6 @@ function buildFilterTab(
     addToggle(body, t("filter.includeTagsInData"), panel.includeTagsInData, (v) => { panel.includeTagsInData = v; cb.invalidateDataKeepPanel(); }, t("desc.includeTagsInData"));
     addToggle(body, t("filter.orphans"), panel.showOrphans, (v) => { panel.showOrphans = v; cb.invalidateDataKeepPanel(); cb.rebuildPanel(); }, t("desc.orphans"));
     // GK: Auto-fit on filter change
-    addToggle(body, t("filter.autoFit") ?? "Auto-fit on filter", panel.autoFitOnFilter, (v) => { panel.autoFitOnFilter = v; cb.markDirty(); });
     // FZ: Degree filter
     addSlider(body, t("filter.minDegree") ?? "Min Degree", 0, 50, 1, panel.minDegreeFilter, (v) => {
       panel.minDegreeFilter = v;
