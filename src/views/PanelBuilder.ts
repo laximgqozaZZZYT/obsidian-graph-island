@@ -321,8 +321,6 @@ export interface PanelState {
   renderThresholds?: RenderThresholds;
   /** R2: Distance-based alpha gradient on hover (focus cone) */
   focusConeEnabled?: boolean;
-  /** V2: Scale edge width by average endpoint degree (0 = off, default 0) */
-  degreeEdgeWidth?: number;
   /** D1: Manually expanded nodes in local graph mode (IDs whose neighbors are shown beyond hop limit) */
   expandedNodes?: string[];
 }
@@ -499,7 +497,6 @@ export function createDefaultPanel(): PanelState {
     focusConeEnabled: true,
     expandedNodes: [],
     analysisOverlay: "off" as const,
-    degreeEdgeWidth: 0,
     showOntologyBackbone: false,
   };
 }
@@ -1803,11 +1800,6 @@ function _buildEdgeDisplaySection(
         panel.edgeDirectionFilter = v as "all" | "bidirectional" | "unidirectional";
         cb.markDirty();
       }, t("desc.edgeDirectionFilter"));
-      // Removed: showBidirectionalIndicator (subtle, rarely useful)
-      // Removed: edgeStrengthGlow (subtle degree-based glow)
-      // Removed: degreeEdgeWidth (default 0, minimal effect)
-      // Removed: showPathfinderOverlay (keyboard-controlled S/E, not a settings item)
-      // Removed: edgeWeightThickness (no weight data in typical vaults)
       // GN: Edge toggle with a11y announcements
       const _edgeToggle = (label: string, key: keyof PanelState, cb2: () => void) => (v: boolean) => {
         (panel as any)[key] = v;
@@ -1865,7 +1857,6 @@ function _buildEdgeDisplaySection(
         cb.rebuildPanel();
       });
 
-      // Removed: edgeCardinalityMode (crow's foot notation — too niche for graph viz)
     });
   }, tHelp("help.displayEdges"), false, "git-branch");
 }
@@ -1946,7 +1937,6 @@ function _buildMinimapSection(
     addToggle(body, t("display.showLegend"), panel.showLegend, (v) => { panel.showLegend = v; cb.refreshOverlays(); }, t("desc.showLegend"));
     addToggle(body, t("display.oobIndicator"), panel.showOutOfBoundsIndicator ?? false, (v) => { panel.showOutOfBoundsIndicator = v; cb.markDirty(); }, t("desc.oobIndicator"));
     addToggle(body, t("display.graphStats"), panel.showGraphStats ?? false, (v) => { panel.showGraphStats = v; cb.refreshOverlays(); cb.rebuildPanel(); }, t("desc.graphStats"));
-    // Removed: showAncestryBreadcrumb (tooltip-only, no visual change on graph)
     addToggle(body, t("display.highContrast") ?? "High Contrast", panel.highContrastMode, (v) => { panel.highContrastMode = v; cb.markDirty(); }, t("desc.highContrast") ?? "Thicker edges and stronger outlines for better visibility");
     // IL: Zoom wheel sensitivity slider (a11y: low-dexterity users)
     addSlider(body, t("display.zoomSensitivity") ?? "Zoom Sensitivity", 0.3, 2.0, 0.1, panel.zoomSensitivity, (v) => { panel.zoomSensitivity = v; }, t("desc.zoomSensitivity") ?? "Scroll wheel zoom speed (0.3=gentle, 1.0=normal, 2.0=fast)");
@@ -2013,7 +2003,6 @@ function _buildRenderThresholdsSection(
         ensureRT(panel).highlightEdgeNonMatchAlpha = v;
         cb.markDirty();
       }, t("render.highlightDimAlphaDesc"));
-    // Removed: showRecentVisitHalo (subtle effect, rarely noticed)
   }, tHelp("help.renderThresholds"), true, "sliders");
 }
 

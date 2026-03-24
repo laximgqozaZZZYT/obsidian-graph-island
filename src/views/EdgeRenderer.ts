@@ -116,8 +116,6 @@ export interface EdgeDrawConfig {
   edgeStrengthGlowMin?: number;
   /** Maximum width multiplier for edge strength glow (default 3.0) */
   edgeStrengthGlowMax?: number;
-  /** V2: Scale edge width by average endpoint degree (0 = off) */
-  degreeEdgeWidth?: number;
   /** Minimum zoom level to draw edges (default 0). Below this, edges are hidden for performance. */
   edgeMinZoom?: number;
   /** Zoom threshold below which edge thickness/alpha are gradually reduced (default 0.5).

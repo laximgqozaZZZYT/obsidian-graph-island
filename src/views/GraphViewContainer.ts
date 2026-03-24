@@ -2047,7 +2047,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // Bookmark ★ markers + DZ: Pin markers
       this._updateBookmarkMarkers();
       this._updatePinMarkers();
-      this._updateRecentVisitHalos();
     };
 
     // 密度ヒートマップ + 差分オーバーレイのフック設定
@@ -8404,18 +8403,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     );
   }
 
-  /** Track recent-visit halo graphics (feature removed — showRecentVisitHalo deleted) */
-  private _recentVisitHalos = new Map<string, CanvasGraphics>();
-
-  /** Update halos for recently visited nodes — now a no-op cleanup */
-  private _updateRecentVisitHalos() {
-    // Feature removed — clean up any leftover halos
-    for (const [id, gfx] of this._recentVisitHalos) {
-      const pn = this.pixiNodes.get(id);
-      if (pn) { pn.gfx.removeChild(gfx); gfx.destroy(); }
-    }
-    this._recentVisitHalos.clear();
-  }
 
   /** Compute sort ranks for all PixiNodes. Rank 0 = most prominent. */
   private computeSortRanks() {
