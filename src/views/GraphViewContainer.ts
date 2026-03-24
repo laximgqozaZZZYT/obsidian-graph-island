@@ -7327,13 +7327,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     nodeColor: (n: GraphNode) => number,
     cx: number, cy: number, W: number, H: number,
   ): void {
+    // Detect if saved positions are from a non-force layout (sunburst/concentric)
+    // by checking if coordinates are extreme relative to canvas size
+    const maxReasonableCoord = Math.max(W, H) * 5;
+    const savedPositionsValid = this.savedPositions.size > 0 &&
+      [...this.savedPositions.values()].every(p =>
+        isFinite(p.x) && isFinite(p.y) &&
+        Math.abs(p.x) < maxReasonableCoord && Math.abs(p.y) < maxReasonableCoord
+      );
+
     for (const n of gd.nodes) {
-      // Use saved positions from previous layout as starting positions
-      const saved = this.savedPositions.get(n.id);
+      // Use saved positions from previous layout as starting positions,
+      // but only if they are within a reasonable range (prevents sunburst/concentric
+      // polar coordinates from causing force layout divergence)
+      const saved = savedPositionsValid ? this.savedPositions.get(n.id) : undefined;
       if (saved) {
         n.x = saved.x;
         n.y = saved.y;
-      } else if (n.x === 0 && n.y === 0) {
+      } else if (!isFinite(n.x) || !isFinite(n.y) || (n.x === 0 && n.y === 0) ||
+                 Math.abs(n.x) > maxReasonableCoord || Math.abs(n.y) > maxReasonableCoord) {
         n.x = cx + (Math.random() - 0.5) * W * 0.8;
         n.y = cy + (Math.random() - 0.5) * H * 0.8;
       }
@@ -8794,9 +8806,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const leaderStart = maxOuterR + 4 / worldScale;
     const leaderEnd = maxOuterR + 30 / worldScale;
     const fontSize = Math.max(8, 11 / worldScale);
-    const depth2FontSize = Math.max(6, 9 / worldScale);
+    const depth2FontSize = Math.max(5, 8 / worldScale);
     const minSweep = 0.06; // ~3.4° — skip tiny arcs
-    const depth2MinSweep = 0.15; // ~8.6° — wider threshold for inner labels
+    const depth2MinSweep = 0.20; // ~11.5° — wider threshold for inner labels to reduce overlap
 
     // Leader line graphics (reuse sunburstGraphics — arcs are drawn before labels)
     const gfx = this.sunburstGraphics;
