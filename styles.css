@@ -3526,6 +3526,10 @@
 .gi-matrix-col-hover {
   background-color: rgba(99, 102, 241, 0.08) !important;
 }
+.gi-matrix-diag {
+  background-color: rgba(234, 179, 8, 0.12) !important;
+  border-bottom: 1px solid rgba(234, 179, 8, 0.3);
+}
 
 /* Subgraph back button */
 .gi-subgraph-back {

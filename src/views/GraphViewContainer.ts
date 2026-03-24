@@ -9149,7 +9149,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Data rows
     const isDark = this.isDarkTheme();
-    for (const rowId of nodeIds) {
+    for (let rowIdx = 0; rowIdx < nodeIds.length; rowIdx++) {
+      const rowId = nodeIds[rowIdx];
       const tr = table.createEl("tr");
       const label = getLabel(rowId);
       const deg = degrees.get(rowId) ?? 0;
@@ -9160,7 +9161,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       for (let colIdx = 0; colIdx < nodeIds.length; colIdx++) {
         const colId = nodeIds[colIdx];
         const count = matrix.get(rowId)?.get(colId) ?? 0;
-        const cell = tr.createEl("td", { cls: "gi-matrix-cell", attr: { "data-col": String(colIdx) } });
+        const isDiag = rowIdx === colIdx;
+        const cell = tr.createEl("td", {
+          cls: `gi-matrix-cell${isDiag ? " gi-matrix-diag" : ""}`,
+          attr: { "data-col": String(colIdx) },
+        });
         if (count > 0) {
           cell.textContent = String(count);
           const intensity = Math.min(1, count / maxCount);
