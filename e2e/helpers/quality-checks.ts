@@ -456,29 +456,33 @@ export async function measureEdgeVisibility(page: Page, sampleSize = 200): Promi
       return { totalEdges: 0, visibleEdges: 0, tooThinCount: 0, lowAlphaCount: 0, avgScreenThickness: 0, colorVariety: 0 };
     }
 
+    // Edge rendering: edgeGraphics is a single Graphics object (not children).
+    // Edge data is in graphEdges array. Check edgeGraphics visibility + edge data colors.
+    const eg = v.edgeGraphics;
+    const edgeAlpha = eg?.alpha ?? 1;
+    const egVisible = eg?.visible !== false;
     const ws = v.worldContainer?.scale?.x ?? 1;
     const edges = v.graphEdges;
     const total = edges.length;
-    let visible = 0, tooThin = 0, lowAlpha = 0, thicknessSum = 0;
     const colors = new Set<number>();
     const limit = Math.min(total, maxSample);
+    let visible = 0, lowAlpha = 0;
 
+    // If edgeGraphics is invisible or very transparent, all edges are invisible
+    if (!egVisible || edgeAlpha < 0.05) {
+      return { totalEdges: total, visibleEdges: 0, tooThinCount: 0, lowAlphaCount: total, avgScreenThickness: 0, colorVariety: 0 };
+    }
+
+    // Count edges by type/relation color
     for (let i = 0; i < limit; i++) {
       const e = edges[i];
       if (!e) continue;
-      const gfx = e.gfx ?? e._gfx;
-      if (!gfx || !gfx.visible) continue;
       visible++;
-
-      const alpha = gfx.alpha ?? 1;
-      if (alpha < 0.1) lowAlpha++;
-
-      const thickness = (e.thickness ?? e.lineWidth ?? 1) * ws;
-      thicknessSum += thickness;
-      if (thickness < 0.3) tooThin++;
-
-      const color = e.color ?? e.tint ?? 0;
+      // Edge color from edgeCache or relation type
+      const ec = v.edgeCache?.get?.(e.id);
+      const color = ec?.color ?? e.color ?? 0;
       colors.add(color);
+      if (edgeAlpha < 0.1) lowAlpha++;
     }
 
     return {
@@ -513,15 +517,16 @@ export async function measureEnclosureOverlap(page: Page): Promise<EnclosureRepo
       return { totalEnclosures: 0, overlappingPairs: 0, overlapRate: 0, avgArea: 0, tooSmallCount: 0 };
     }
 
-    const encContainer = v.enclosureContainer ?? v._enclosureContainer;
-    if (!encContainer || !encContainer.children) {
+    // Enclosure labels are in enclosureLabelContainer (enclosureGraphics is a single Graphics)
+    const elc = v.enclosureLabelContainer;
+    if (!elc || !elc.children || elc.children.length === 0) {
       return { totalEnclosures: 0, overlappingPairs: 0, overlapRate: 0, avgArea: 0, tooSmallCount: 0 };
     }
 
     const rects: { x: number; y: number; w: number; h: number }[] = [];
     let areaSum = 0, tooSmall = 0;
 
-    for (const child of encContainer.children) {
+    for (const child of elc.children) {
       if (!child.visible) continue;
       const b = child.getBounds?.();
       if (!b || b.width === 0 || b.height === 0) continue;
@@ -708,12 +713,14 @@ export async function measureMinimap(page: Page): Promise<MinimapReport> {
       .getLeavesOfType("graph-view")
       .find((l: any) => "pixiNodes" in l.view)?.view;
     if (!v) return { exists: false, visible: false, width: 0, height: 0 };
-    const mm = v.minimap ?? v._minimap;
+    const mm = v.minimap;
     if (!mm) return { exists: false, visible: false, width: 0, height: 0 };
-    const el = mm.canvas ?? mm.containerEl ?? mm.element;
-    const w = el?.offsetWidth ?? el?.width ?? 0;
-    const h = el?.offsetHeight ?? el?.height ?? 0;
-    return { exists: true, visible: w > 0 && h > 0, width: w, height: h };
+    // Minimap has visible, bounds properties directly
+    const visible = mm.visible !== false;
+    const b = mm.bounds;
+    const w = b?.width ?? 0;
+    const h = b?.height ?? 0;
+    return { exists: true, visible, width: w, height: h };
   });
 }
 
@@ -764,8 +771,10 @@ export async function measureGuides(page: Page): Promise<GuideReport> {
       .getLeavesOfType("graph-view")
       .find((l: any) => "pixiNodes" in l.view)?.view;
     if (!v) return { exists: false, lineCount: 0, labelCount: 0, overlappingLabels: 0 };
-    const gc = v.guideContainer ?? v._guideContainer;
-    if (!gc) return { exists: false, lineCount: 0, labelCount: 0, overlappingLabels: 0 };
+    // guideGraphics is a single Graphics (no children). Check guideRenderer or barLabelContainer for labels.
+    const gc = v.barLabelContainer ?? v.edgeLabelContainer ?? v.guideGraphics;
+    const hasGuide = !!(v.guideGraphics || v.guideRenderer);
+    if (!gc && !hasGuide) return { exists: false, lineCount: 0, labelCount: 0, overlappingLabels: 0 };
     let lineCount = 0;
     const rects: { x: number; y: number; w: number; h: number }[] = [];
     function walk(c: any) {
