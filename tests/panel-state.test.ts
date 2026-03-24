@@ -42,6 +42,7 @@ describe("createDefaultPanel", () => {
     expect(panel.edgeDirectionFilter).toBe("all");
     expect(panel.showOntologyBackbone).toBe(false);
     expect(panel.highContrastMode).toBe(false);
+    expect(panel.matrixSortMode).toBe("degree");
   });
 });
 
