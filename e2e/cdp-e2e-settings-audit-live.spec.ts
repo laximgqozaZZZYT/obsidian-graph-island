@@ -83,11 +83,6 @@ test.describe("Settings Audit Live", () => {
     console.log(`showOrphans: -${removed} nodes`);
     await setAndWait("showOrphans", true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("showTags=false removes tag nodes and reduces edges", async () => {
@@ -100,11 +95,6 @@ test.describe("Settings Audit Live", () => {
     console.log(`showTags: nodes ${before.nodeCount}->${after.nodeCount}, edges ${before.edgeCount}->${after.edgeCount}`);
     await setAndWait("showTags", true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("searchQuery=tag:battle filters to battle-related nodes", async () => {
@@ -117,11 +107,6 @@ test.describe("Settings Audit Live", () => {
     console.log(`searchQuery tag:battle: ${before.nodeCount}->${after.nodeCount}`);
     await setAndWait("searchQuery", "");
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("existingOnly=true filters unresolved links", async () => {

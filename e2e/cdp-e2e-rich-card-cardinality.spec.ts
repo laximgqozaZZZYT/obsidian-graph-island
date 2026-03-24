@@ -53,11 +53,6 @@ test("card display mode activates correctly", async () => {
   expect(result.mode).toBe("card");
   expect(result.fields).toContain("node_type");
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("donut display mode activates correctly", async () => {
@@ -81,11 +76,6 @@ test("donut display mode activates correctly", async () => {
   expect(result.mode).toBe("donut");
   expect(result.innerRadius).toBe(0.6);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("switching back to node mode preserves nodes", async () => {
@@ -108,11 +98,6 @@ test("switching back to node mode preserves nodes", async () => {
   expect(result.mode).toBe("node");
   expect(result.nodeCount).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

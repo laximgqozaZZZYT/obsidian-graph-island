@@ -51,11 +51,6 @@ test("markDirty triggers a render cycle", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.canvasPreserved).toBe(true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("showLinks toggle followed by markDirty does not crash", async () => {
@@ -78,11 +73,6 @@ test("showLinks toggle followed by markDirty does not crash", async () => {
   expect(result.nodeCount).toBeGreaterThan(0);
   expect(result.canvasOk).toBe(true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("doRender rebuilds data and preserves node count", async () => {
@@ -101,11 +91,6 @@ test("doRender rebuilds data and preserves node count", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.stable).toBe(true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

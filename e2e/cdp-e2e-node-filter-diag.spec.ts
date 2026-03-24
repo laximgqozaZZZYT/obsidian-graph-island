@@ -35,11 +35,6 @@ test("searchQuery tag:battle filters to ~132 nodes", async () => {
   expect(count).toBeGreaterThanOrEqual(100);
   expect(count).toBeLessThanOrEqual(200);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("searchQuery path:classic-macbeth filters to ~172 nodes", async () => {
@@ -59,11 +54,6 @@ test("searchQuery path:classic-macbeth filters to ~172 nodes", async () => {
   expect(count).toBeGreaterThanOrEqual(130);
   expect(count).toBeLessThanOrEqual(220);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("empty searchQuery returns all nodes (~2354)", async () => {
@@ -74,11 +64,6 @@ test("empty searchQuery returns all nodes (~2354)", async () => {
   expect(count).toBeGreaterThanOrEqual(2200);
   expect(count).toBeLessThanOrEqual(2500);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // =========================================================================

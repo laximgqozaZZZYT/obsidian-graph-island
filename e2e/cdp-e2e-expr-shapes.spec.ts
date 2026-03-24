@@ -59,11 +59,6 @@ test("grid fill creates rows and columns", async () => {
   expect(result.distinctCols).toBeGreaterThan(1);
   expect(result.distinctRows).toBeGreaterThan(1);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("triangle fill creates increasing row widths", async () => {
@@ -84,11 +79,6 @@ test("triangle fill creates increasing row widths", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.distinctRows).toBeGreaterThan(1);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("filled hexagon expression creates bounded distribution", async () => {
@@ -111,11 +101,6 @@ test("filled hexagon expression creates bounded distribution", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.nodeCount).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

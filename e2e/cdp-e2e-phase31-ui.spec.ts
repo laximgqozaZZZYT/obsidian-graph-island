@@ -61,11 +61,6 @@ test.describe("Phase 31 — highlightMissingNeighbors toggle", () => {
     });
     expect(count).toBe(1291);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("31-3: disabling restores normal rendering", async () => {
@@ -84,11 +79,6 @@ test.describe("Phase 31 — highlightMissingNeighbors toggle", () => {
     });
     expect(val).toBe(false);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 

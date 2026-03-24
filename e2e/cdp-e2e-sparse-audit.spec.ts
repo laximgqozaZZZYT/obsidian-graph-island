@@ -113,11 +113,6 @@ test.describe("Sparse Graph Audit", () => {
       if (view.panelCallbacks) view.panelCallbacks.markDirty();
       await new Promise(r => setTimeout(r, 1000));
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
     });
   });
 

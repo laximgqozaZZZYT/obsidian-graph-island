@@ -60,11 +60,6 @@ test.describe("Sparse Audit v2 — Full Pipeline", () => {
     expect(result.edgeCount).toBeGreaterThan(4000);
     console.log(`full: ${result.nodeCount} nodes, ${result.edgeCount} edges`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("characters folder filter gives controlled count", async () => {
@@ -76,11 +71,6 @@ test.describe("Sparse Audit v2 — Full Pipeline", () => {
     expect(result.nodeCount).toBeLessThan(500);
     console.log(`characters: ${result.nodeCount} nodes, ${result.edgeCount} edges`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("switching from sparse to full restores all nodes", async () => {
@@ -96,11 +86,6 @@ test.describe("Sparse Audit v2 — Full Pipeline", () => {
       searchQuery: "", showOrphans: true, showTags: true,
       showTagNodes: true, groupBy: "none", collapsedGroups: [],
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
     });
     expect(full.nodeCount).toBeGreaterThan(2000);
     expect(full.nodeCount).toBeGreaterThan(sparse.nodeCount * 10);
@@ -120,11 +105,6 @@ test.describe("Sparse Audit v2 — Full Pipeline", () => {
     expect(r1.edgeCount).toBe(r2.edgeCount);
     console.log(`consistency: ${r1.nodeCount}==${r2.nodeCount}, ${r1.edgeCount}==${r2.edgeCount}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 

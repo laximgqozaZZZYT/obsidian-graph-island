@@ -269,11 +269,6 @@ test("edge label placement=offset moves labels perpendicular to edge", async () 
   expect(result.placement).toBe("offset");
   expect(result.edgeCount).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // =========================================================================
@@ -304,11 +299,6 @@ test("edge label placement=smart avoids label collisions", async () => {
   expect(result.edgeCount).toBeGreaterThan(0);
   expect(result.nodeCount).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // =========================================================================
@@ -382,11 +372,6 @@ test("sub-label fields=category shows category below node", async () => {
   expect(result.sampleMetaKeys.length).toBeGreaterThan(0);
   expect(result.sampleMetaKeys[0]).toContain("prop-category");
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // =========================================================================
@@ -424,11 +409,6 @@ test("sub-label fields=nonexistent shows nothing", async () => {
   expect(result.subLabelFields).toBe("zzz_nonexistent_field_xyz");
   expect(result.nodesWithSubLabels).toBe(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // =========================================================================

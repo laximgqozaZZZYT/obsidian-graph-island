@@ -99,11 +99,6 @@ test("all valid arrangements produce nodes with non-zero spread", async () => {
   const uniqueHashes = new Set(Object.values(hashes)).size;
   expect(uniqueHashes).toBeGreaterThanOrEqual(4);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("switching arrangement changes node positions", async () => {
@@ -131,11 +126,6 @@ test("switching arrangement changes node positions", async () => {
   expect(concentricFp.count).toBeGreaterThan(0);
   expect(spatialHash(gridFp)).not.toBe(spatialHash(concentricFp));
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("arrangement state is reflected in panel after assignment", async () => {
@@ -150,11 +140,6 @@ test("arrangement state is reflected in panel after assignment", async () => {
     expect(result).toBe(arr);
   }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

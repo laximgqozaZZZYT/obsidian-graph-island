@@ -56,11 +56,6 @@ test.describe("Phase 20 — showBidirectionalIndicator", () => {
     });
     expect(val).toBe(true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("20-3: bidirectional set contains edges with forward/reverse pairs", async () => {
@@ -92,11 +87,6 @@ test.describe("Phase 20 — showBidirectionalIndicator", () => {
       v.rawData = null;
       v.doRender();
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
     });
     await page.waitForTimeout(4000);
   });

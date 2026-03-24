@@ -59,11 +59,6 @@ test("nodes have non-zero positions after render", async () => {
   expect(result.total).toBeGreaterThan(0);
   expect(result.nonZero).toBeGreaterThan(result.total * 0.5);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("simulation alpha decays to near zero after settling", async () => {

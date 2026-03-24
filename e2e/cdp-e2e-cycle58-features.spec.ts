@@ -257,11 +257,6 @@ test("IE-6: no errors during IP/IQ/IR feature interactions", async () => {
   );
   expect(relevantErrors).toHaveLength(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

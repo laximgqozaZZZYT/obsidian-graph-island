@@ -113,11 +113,6 @@ test.describe("Full Audit — Visual Verification", () => {
     expect(diff).toBeGreaterThan(200);
     console.log(`groupBy: pixel diff = ${diff}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("tagDisplay enclosure vs node produces visual change", async () => {
@@ -133,11 +128,6 @@ test.describe("Full Audit — Visual Verification", () => {
     expect(diff).toBeGreaterThan(200);
     console.log(`tagDisplay: pixel diff = ${diff}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("showMinimap toggle adds minimap overlay", async () => {

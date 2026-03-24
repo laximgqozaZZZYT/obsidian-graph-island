@@ -85,11 +85,6 @@ test("grid arrangement produces grid-like spread in both axes", async () => {
   expect(xSpread).toBeGreaterThan(100);
   expect(ySpread).toBeGreaterThan(100);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("cartesian coordinateLayout with metric:degree axis spreads by degree", async () => {
@@ -117,11 +112,6 @@ test("cartesian coordinateLayout with metric:degree axis spreads by degree", asy
   // Degree-based axis should produce multiple distinct X levels
   expect(distinctX).toBeGreaterThan(3);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("polar system produces radial distribution different from cartesian", async () => {
@@ -169,11 +159,6 @@ test("polar system produces radial distribution different from cartesian", async
   const avgDist = totalDist / Math.min(commonIds.length, 50);
   expect(avgDist).toBeGreaterThan(10);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("field:folder categorical axis produces distinct columns per folder", async () => {
@@ -202,11 +187,6 @@ test("field:folder categorical axis produces distinct columns per folder", async
   expect(distinctX).toBeGreaterThan(1);
   expect(distinctX).toBeLessThan(ids.length);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

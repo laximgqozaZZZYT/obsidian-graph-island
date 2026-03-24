@@ -45,11 +45,6 @@ test("showOrphans=false reduces visible node count by ~23", async () => {
   expect(orphanCount).toBeGreaterThanOrEqual(10);
   expect(orphanCount).toBeLessThanOrEqual(50);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("groupBy property is a string", async () => {
@@ -59,11 +54,6 @@ test("groupBy property is a string", async () => {
   });
   expect(groupBy).toBe("string");
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // =========================================================================

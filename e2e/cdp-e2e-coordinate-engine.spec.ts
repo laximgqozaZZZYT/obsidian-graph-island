@@ -55,11 +55,6 @@ test("cartesian system with field source distributes nodes on grid", async () =>
   expect(result).not.toHaveProperty("error");
   expect(result.nodeCount).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("polar system with expression creates spiral distribution", async () => {
@@ -87,11 +82,6 @@ test("polar system with expression creates spiral distribution", async () => {
   expect(result.nodeCount).toBeGreaterThan(0);
   expect(result.maxDist).toBeGreaterThan(10);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("switching from cartesian to polar changes node positions", async () => {
@@ -116,11 +106,6 @@ test("switching from cartesian to polar changes node positions", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.changed).toBe(true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

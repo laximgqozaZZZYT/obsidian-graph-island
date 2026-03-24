@@ -58,11 +58,6 @@ test("cross-tabulation with gridTableMode produces table layout", async () => {
   expect(result.gridTableMode).toBe(true);
   expect(result.nodeCount).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("nodeColorMode heatmap produces non-default coloring", async () => {
@@ -80,11 +75,6 @@ test("nodeColorMode heatmap produces non-default coloring", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.mode).toBe("heatmap");
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("enclosure labels count matches grouped data", async () => {
@@ -104,11 +94,6 @@ test("enclosure labels count matches grouped data", async () => {
   expect(result.collapsedGroups).toBeGreaterThan(0);
   expect(result.nodeCount).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

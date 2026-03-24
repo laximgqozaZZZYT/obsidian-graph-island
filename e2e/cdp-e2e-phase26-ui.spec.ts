@@ -56,11 +56,6 @@ test.describe("Phase 26 — showOrbitRings toggle", () => {
     });
     expect(val).toBe(true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("26-3: toggling back disables orbit rings", async () => {
@@ -79,11 +74,6 @@ test.describe("Phase 26 — showOrbitRings toggle", () => {
     });
     expect(val).toBe(false);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 

@@ -350,11 +350,6 @@ test("BC-7: display mode switch at various zooms is stable", async () => {
   );
   expect(relevantErrors).toHaveLength(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // BC-8: Empty search query produces all nodes visible

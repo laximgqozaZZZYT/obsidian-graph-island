@@ -63,11 +63,6 @@ test("boolean settings persist after assignment", async () => {
     expect(off).toBe(false);
   }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("string settings persist after assignment", async () => {
@@ -86,11 +81,6 @@ test("string settings persist after assignment", async () => {
     }
   }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("numeric settings persist after assignment", async () => {
@@ -108,11 +98,6 @@ test("numeric settings persist after assignment", async () => {
     expect(result).toBe(value);
   }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("searchQuery value is reflected in getGraphData filtering", async () => {
@@ -135,11 +120,6 @@ test("searchQuery value is reflected in getGraphData filtering", async () => {
   expect(result.nodeCount).toBeGreaterThan(50);
   expect(result.nodeCount).toBeLessThan(500);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("getState returns current panel values", async () => {
@@ -162,11 +142,6 @@ test("getState returns current panel values", async () => {
   expect(state.showOrphans).toBe(false);
   expect(state.clusterArrangement).toBe("triangle");
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

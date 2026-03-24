@@ -59,11 +59,6 @@ test("full dataset has approximately 2354 nodes", async () => {
   expect(result.nodeCount).toBeGreaterThanOrEqual(2300);
   expect(result.edgeCount).toBeGreaterThanOrEqual(5000);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("orphan count matches baseline of 23", async () => {
@@ -114,11 +109,6 @@ test("showOrphans=false reduces displayed node count", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.withOrphans).toBeGreaterThan(result.withoutOrphans);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

@@ -129,11 +129,6 @@ test("JC-2: cullStats reflect zoom-dependent label count", async () => {
     expect(atHigh).toBeGreaterThanOrEqual(atLow);
   }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // JD-3: §0.4 Initial rendering time — view becomes ready

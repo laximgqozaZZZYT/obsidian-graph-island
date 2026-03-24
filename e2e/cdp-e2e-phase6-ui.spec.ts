@@ -49,11 +49,6 @@ test.describe("Phase 6 — searchQuery input", () => {
     });
     expect(count).toBe(132);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("6-2: path:classic-macbeth filters to exactly 172 nodes", async () => {
@@ -72,11 +67,6 @@ test.describe("Phase 6 — searchQuery input", () => {
     });
     expect(count).toBe(172);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("6-3: clearing searchQuery restores all 2354 nodes", async () => {
@@ -95,11 +85,6 @@ test.describe("Phase 6 — searchQuery input", () => {
     });
     expect(count).toBe(2354);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 

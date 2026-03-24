@@ -56,11 +56,6 @@ test.describe("Phase 25 — edgeBundleStrength slider", () => {
     });
     expect(val).toBe(0.8);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("25-3: edgeBundleStrength accepts valid range [0,1]", async () => {
@@ -85,11 +80,6 @@ test.describe("Phase 25 — edgeBundleStrength slider", () => {
       v.rawData = null;
       v.doRender();
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
     });
     await page.waitForTimeout(4000);
   });

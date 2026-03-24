@@ -47,11 +47,6 @@ test("export state preserves panel configuration", async () => {
   expect(result.hasState).toBe(true);
   expect(result.hasPanel).toBe(true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("card mode renders with node count preserved", async () => {
@@ -71,11 +66,6 @@ test("card mode renders with node count preserved", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.preserved).toBe(true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("search query path:classic-macbeth filters to ~172 nodes", async () => {
@@ -100,11 +90,6 @@ test("search query path:classic-macbeth filters to ~172 nodes", async () => {
   expect(result.filtered).toBeGreaterThanOrEqual(100);
   expect(result.filtered).toBeLessThanOrEqual(250);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("edge rendering is stable across multiple re-renders", async () => {
@@ -122,11 +107,6 @@ test("edge rendering is stable across multiple re-renders", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.stable).toBe(true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

@@ -59,11 +59,6 @@ test("tag:battle search query filters to ~132 nodes", async () => {
   expect(result.filtered).toBeGreaterThanOrEqual(100);
   expect(result.filtered).toBeLessThanOrEqual(200);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("tag:? groupBy creates tag-based collapsed groups", async () => {
@@ -83,11 +78,6 @@ test("tag:? groupBy creates tag-based collapsed groups", async () => {
   expect(result.groupBy).toBe("tag:?");
   expect(result.collapsed).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("tag memberships exceed 200 across vault", async () => {

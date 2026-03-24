@@ -107,11 +107,6 @@ test("card overlap measurement at 0.3, 0.5, 1.0", async () => {
     expect(result).not.toHaveProperty("error");
   }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

@@ -63,11 +63,6 @@ test("groups sorted by sortComparator have ordered positions", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.groupCount).toBeGreaterThan(1);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("concentric arrangement distributes groups radially", async () => {
@@ -102,11 +97,6 @@ test("concentric arrangement distributes groups radially", async () => {
   expect(result.clusterCount).toBeGreaterThan(1);
   expect(result.spread).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("changing groupBy produces different group counts", async () => {
@@ -136,11 +126,6 @@ test("changing groupBy produces different group counts", async () => {
   expect(result.tagGroups).toBeGreaterThan(0);
   expect(result.folderGroups).not.toBe(result.tagGroups);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

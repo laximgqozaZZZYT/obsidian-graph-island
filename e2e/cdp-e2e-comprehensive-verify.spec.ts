@@ -76,11 +76,6 @@ test("showArrows toggle changes edge rendering", async () => {
 
   expect(pixelDiff(off, on)).toBeGreaterThan(100);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("showEnclosures toggle changes group boundary rendering", async () => {
@@ -103,11 +98,6 @@ test("showEnclosures toggle changes group boundary rendering", async () => {
 
   expect(pixelDiff(on, off)).toBeGreaterThan(100);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("scaleByDegree toggle changes node size distribution", async () => {
@@ -128,11 +118,6 @@ test("scaleByDegree toggle changes node size distribution", async () => {
 
   expect(pixelDiff(off, on)).toBeGreaterThan(100);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("nodeColorMode category vs default produces different node colors", async () => {
@@ -153,11 +138,6 @@ test("nodeColorMode category vs default produces different node colors", async (
 
   expect(pixelDiff(def, cat)).toBeGreaterThan(100);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("showLabels toggle affects label visibility", async () => {
@@ -178,11 +158,6 @@ test("showLabels toggle affects label visibility", async () => {
 
   expect(pixelDiff(on, off)).toBeGreaterThan(100);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

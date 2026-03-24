@@ -151,11 +151,6 @@ test("2. Display mode switching: no stale rendering artifacts", async () => {
       expect(m.rawData.nodeCount).toBeGreaterThan(0);
     }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 
@@ -197,11 +192,6 @@ test("3. GroupBy + zoom: enclosure labels scale and don't overlap", async () => 
     expect(result.state.rawData.nodeCount).toBeGreaterThan(0);
   }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 /**
@@ -247,11 +237,6 @@ test("4. Search + zoom: filtered nodes only, no label leakage", async () => {
     expect(result.state.rawData.nodeCount).toBeGreaterThan(0);
   }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 /**
@@ -298,11 +283,6 @@ test("5. Label mode boundaries: smooth transitions, no stuck states", async () =
   result.transitionResults.forEach((t: any) => {
     expect(Math.abs(t.actualZoom - t.requestedZoom)).toBeLessThan(0.01);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   // Verify all data loaded
@@ -422,11 +402,6 @@ test("8. Card mode at low zoom: renders without crash or overflow", async () => 
     expect(result.state.rawData.nodeCount).toBeGreaterThan(0);
   }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 /**

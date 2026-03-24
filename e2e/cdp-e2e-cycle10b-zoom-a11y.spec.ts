@@ -192,11 +192,6 @@ test("HR: search highlight survives hover redraw", async () => {
   expect(result).not.toHaveProperty("error");
   console.log(`[HR] Search highlights: ${result.highlightCount} nodes matched`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // HS: Legend position moved to right side

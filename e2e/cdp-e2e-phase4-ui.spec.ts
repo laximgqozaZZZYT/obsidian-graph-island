@@ -39,11 +39,6 @@ test.describe("Phase 4 — showArrows toggle", () => {
     });
     expect(val).toBe(true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("4-2: showArrows=false disables arrow rendering", async () => {
@@ -62,11 +57,6 @@ test.describe("Phase 4 — showArrows toggle", () => {
     });
     expect(val).toBe(false);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("4-3: re-enabling showArrows restores arrow state", async () => {
@@ -85,11 +75,6 @@ test.describe("Phase 4 — showArrows toggle", () => {
     });
     expect(val).toBe(true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 

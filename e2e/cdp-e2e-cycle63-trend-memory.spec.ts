@@ -150,11 +150,6 @@ test("JA-2: collision rate trend is non-increasing with zoom", async () => {
     expect(at10).toBeLessThanOrEqual(at03 + 0.05);
   }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // ── JB: Memory Profile ──

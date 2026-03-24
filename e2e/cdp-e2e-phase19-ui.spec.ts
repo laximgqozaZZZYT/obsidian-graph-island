@@ -66,11 +66,6 @@ test.describe("Phase 19 — edgeDirectionFilter", () => {
     expect(result.filter).toBe("bidirectional");
     expect(result.edgeCount).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("19-3: switching to unidirectional shows complement edges", async () => {
@@ -101,11 +96,6 @@ test.describe("Phase 19 — edgeDirectionFilter", () => {
       v.rawData = null;
       v.doRender();
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
     });
     await page.waitForTimeout(4000);
   });

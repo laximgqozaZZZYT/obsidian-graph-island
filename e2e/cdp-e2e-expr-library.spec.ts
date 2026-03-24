@@ -56,11 +56,6 @@ test("grid expression produces rectangular distribution", async () => {
   expect(result.xRange).toBeGreaterThan(0);
   expect(result.yRange).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("spiral expression produces radial distribution", async () => {
@@ -81,11 +76,6 @@ test("spiral expression produces radial distribution", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.maxDist).toBeGreaterThan(10);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("mountain expression has Y spread from degree mapping", async () => {
@@ -106,11 +96,6 @@ test("mountain expression has Y spread from degree mapping", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.yRange).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

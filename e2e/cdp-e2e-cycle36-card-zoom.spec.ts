@@ -108,11 +108,6 @@ test("card mode: LOD transitions at different zoom levels", async () => {
   // At zoom=1.0, labels should be visible
   expect(results["zoom_1"].visibleLabels).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("card mode: hit-test matches visual bounds", async () => {

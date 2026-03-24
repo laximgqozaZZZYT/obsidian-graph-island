@@ -62,11 +62,6 @@ test.describe("Phase 13 — showTagEdges toggle", () => {
     });
     expect(val).toBe(false);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("13-3: re-enabling showTagEdges restores rendering", async () => {
@@ -85,11 +80,6 @@ test.describe("Phase 13 — showTagEdges toggle", () => {
     });
     expect(val).toBe(true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 

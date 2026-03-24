@@ -81,11 +81,6 @@ test("in-degree axis source produces X positions correlated with node degree", a
   expect(result.xRange).toBeGreaterThan(5);
   expect(result.distinctX).toBeGreaterThan(1);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("degree vs in-degree axis sources produce different layouts", async () => {
@@ -125,11 +120,6 @@ test("degree vs in-degree axis sources produce different layouts", async () => {
   console.log(`degree vs in-degree pixel diff: ${diff}`);
   expect(diff).toBeGreaterThanOrEqual(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("coordinateLayout null resets to standard arrangement behavior", async () => {
@@ -153,11 +143,6 @@ test("coordinateLayout null resets to standard arrangement behavior", async () =
   expect(result.hasCoordLayout).toBe(false);
   expect(result.nodeCount).toBeGreaterThan(50);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

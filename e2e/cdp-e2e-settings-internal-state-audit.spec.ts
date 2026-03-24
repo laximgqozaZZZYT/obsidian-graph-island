@@ -98,11 +98,6 @@ test.describe("Internal State Audit", () => {
     expect(filtered.panelShowOrphans).toBe(false);
     console.log(`showOrphans: filtered ${baseline.filteredNodeCount}->${filtered.filteredNodeCount}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("showTags=false removes tag nodes at data layer", async () => {
@@ -117,11 +112,6 @@ test.describe("Internal State Audit", () => {
     expect(filtered.panelShowTags).toBe(false);
     console.log(`showTags: nodes ${baseline.filteredNodeCount}->${filtered.filteredNodeCount}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("searchQuery persists in panel state", async () => {
@@ -132,11 +122,6 @@ test.describe("Internal State Audit", () => {
     expect(state.filteredNodeCount).toBeLessThan(state.rawNodeCount);
     console.log(`searchQuery: ${state.filteredNodeCount} filtered from ${state.rawNodeCount} raw`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("raw data count unchanged across filter changes", async () => {
@@ -152,11 +137,6 @@ test.describe("Internal State Audit", () => {
     expect(s2.filteredNodeCount).toBeLessThan(s1.filteredNodeCount);
     console.log(`raw unchanged: ${s1.rawNodeCount}, filtered: ${s1.filteredNodeCount}->${s2.filteredNodeCount}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 

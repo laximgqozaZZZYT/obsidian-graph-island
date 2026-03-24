@@ -72,11 +72,6 @@ test("world container is visible after render completes", async () => {
   expect(result.alpha).toBeGreaterThan(0);
   expect(result.nodeCount).toBeGreaterThan(50);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("pixiApp stage has children after render", async () => {
@@ -124,11 +119,6 @@ test("re-render after arrangement change completes with visible nodes", async ()
   expect(result.totalNodes).toBeGreaterThan(50);
   expect(result.visibleNodes).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

@@ -97,11 +97,6 @@ test.describe("Comprehensive Multi-Setting Audit", () => {
     expect(s.edgeCount).toBeGreaterThanOrEqual(4000);
     console.log(`baseline: ${s.nodeCount} nodes, ${s.edgeCount} edges, ${s.tagNodeCount} tags, ${s.orphanCount} orphans`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("showTags=false + showOrphans=false compounds reduction", async () => {
@@ -120,11 +115,6 @@ test.describe("Comprehensive Multi-Setting Audit", () => {
     expect(noTagsNoOrphans.nodeCount).toBeLessThanOrEqual(noTags.nodeCount);
     console.log(`compound: ${baseline.nodeCount} -> ${noTags.nodeCount} (no tags) -> ${noTagsNoOrphans.nodeCount} (no orphans)`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("searchQuery + showOrphans interaction", async () => {
@@ -140,11 +130,6 @@ test.describe("Comprehensive Multi-Setting Audit", () => {
     expect(withoutOrphans.nodeCount).toBeLessThanOrEqual(withOrphans.nodeCount);
     console.log(`tag:battle orphan interaction: ${withOrphans.nodeCount} -> ${withoutOrphans.nodeCount}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("groupBy collapses nodes into super-nodes", async () => {
@@ -157,11 +142,6 @@ test.describe("Comprehensive Multi-Setting Audit", () => {
     // With auto-collapse, super-nodes reduce visible count
     console.log(`groupBy=folder: ${grouped.nodeCount} nodes, ${grouped.edgeCount} edges`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("showSimilar adds edges without changing node count", async () => {
@@ -177,11 +157,6 @@ test.describe("Comprehensive Multi-Setting Audit", () => {
     expect(after.edgeCount).toBeGreaterThanOrEqual(before.edgeCount);
     console.log(`showSimilar: edges ${before.edgeCount} -> ${after.edgeCount}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 

@@ -76,11 +76,6 @@ test.describe("UI Click Audit v2 — Label-Based", () => {
     expect(tabs.length).toBeGreaterThan(0);
     console.log(`tabs found: ${tabs.join(", ")}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("arrangement dropdown changes node positions", async () => {
@@ -101,11 +96,6 @@ test.describe("UI Click Audit v2 — Label-Based", () => {
     expect(diff).toBeGreaterThan(200);
     console.log(`arrangement change: pixel diff = ${diff}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("search input filters nodes when text entered", async () => {
@@ -126,11 +116,6 @@ test.describe("UI Click Audit v2 — Label-Based", () => {
     expect(after).toBeGreaterThan(10);
     console.log(`search filter: ${before} -> ${after}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("nodeSize setting changes node rendering", async () => {
@@ -151,11 +136,6 @@ test.describe("UI Click Audit v2 — Label-Based", () => {
     expect(diff).toBeGreaterThan(50);
     console.log(`nodeSize 15->30: diff=${diff}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 

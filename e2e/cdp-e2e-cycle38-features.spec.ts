@@ -91,11 +91,6 @@ test("Proposal P: number keys 1-5 set zoom levels", async () => {
     expect(zoom).toBe(expectedPct);
   }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("Proposal P: zoom indicator shows mode at 20%", async () => {

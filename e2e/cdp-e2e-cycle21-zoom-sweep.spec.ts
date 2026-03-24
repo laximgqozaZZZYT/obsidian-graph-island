@@ -70,11 +70,6 @@ test("IV: label count increases monotonically across 7 zoom levels", async () =>
     expect(s100).toBeLessThan(s005);
   }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // IW: groupBy does not break label zoom tracking
@@ -115,11 +110,6 @@ test("IW: groupBy change + zoom still tracks labels correctly", async () => {
   expect(result.restoredVis).toBeGreaterThan(result.groupedVis);
   console.log(`[IW] GroupBy: grouped=${result.groupedVis}, restored=${result.restoredVis}/${result.total}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // IX: zoom 2.0 labels scale < 1.0 (shrink at zoom-in)

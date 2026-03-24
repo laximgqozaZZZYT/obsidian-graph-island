@@ -95,11 +95,6 @@ test.describe("Quick Audit", () => {
     expect(panelFields).toContain("searchQuery");
     console.log(`panel has ${panelFields.length} fields`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 

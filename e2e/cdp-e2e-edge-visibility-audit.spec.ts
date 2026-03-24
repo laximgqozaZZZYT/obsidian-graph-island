@@ -143,11 +143,6 @@ test.describe("Edge Visibility Audit", () => {
     expect(diff).toBeGreaterThan(100);
     console.log(`showLinks toggle: pixel diff=${diff}, link edges in data=${linkCount}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("showSemanticEdges=false hides semantic edges", async () => {

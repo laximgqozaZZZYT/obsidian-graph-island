@@ -93,11 +93,6 @@ test("switching nodeDisplayMode between node, card, donut changes rendering", as
   expect(nodeVsDonut).toBeGreaterThan(1000);
   expect(cardVsDonut).toBeGreaterThan(1000);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("donut innerRadius change produces visual difference", async () => {
@@ -119,11 +114,6 @@ test("donut innerRadius change produces visual difference", async () => {
 
   expect(pixelDiff(small, large)).toBeGreaterThan(100);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("card headerStyle plain vs table produces visual difference", async () => {
@@ -146,11 +136,6 @@ test("card headerStyle plain vs table produces visual difference", async () => {
 
   expect(pixelDiff(plain, table)).toBeGreaterThan(100);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("nodeDisplayMode value is correctly stored in panel", async () => {

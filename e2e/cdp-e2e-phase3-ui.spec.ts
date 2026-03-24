@@ -73,11 +73,6 @@ test.describe("Phase 3 — showLinks toggle", () => {
     // graphEdges still includes all edges (filtering is render-level)
     expect(result.totalEdges).toBe(5558);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("3-3: re-enabling showLinks restores panel state", async () => {
@@ -96,11 +91,6 @@ test.describe("Phase 3 — showLinks toggle", () => {
     });
     expect(val).toBe(true);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 

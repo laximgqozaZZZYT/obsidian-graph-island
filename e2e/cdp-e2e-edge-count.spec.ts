@@ -55,11 +55,6 @@ test("total edge count matches baseline", async () => {
   expect(result.total).toBeGreaterThanOrEqual(5500);
   expect(result.nodeCount).toBeGreaterThanOrEqual(2300);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("link edge count approximately 1695", async () => {

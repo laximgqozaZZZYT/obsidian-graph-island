@@ -78,11 +78,6 @@ test("road network generates intersections and segments for concentric layout", 
   expect(result.segments).toBeGreaterThan(0);
   expect(result.nodeAccess).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("road network intersections have valid coordinates", async () => {

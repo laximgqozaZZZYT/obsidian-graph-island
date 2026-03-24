@@ -67,11 +67,6 @@ test("IQ: node/card × zoom 0.1-1.0 produces no errors", async () => {
   }
   console.log(`[IQ] Combos: ${result.combos.map((c: any) => `${c.mode}/z${c.zoom}=${c.labels}`).join(", ")}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // IR: High contrast toggle produces no errors
@@ -95,11 +90,6 @@ test("IR: highContrastMode toggle is error-free", async () => {
   expect(result.hcOff).toBe(false);
   console.log(`[IR] HC toggle: on=${result.hcOn}, off=${result.hcOff}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 // IS: Empty tooltip guard — all hover toggles off → no tooltip

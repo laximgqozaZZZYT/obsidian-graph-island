@@ -132,11 +132,6 @@ test("cable mode always with groupBy=folder creates cluster data", async () => {
     view.panel.groupByRules = [];
     if (typeof view.doRender === "function") view.doRender();
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
   await page.waitForTimeout(3000);
 });

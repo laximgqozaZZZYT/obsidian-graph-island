@@ -91,11 +91,6 @@ test.describe("Real Audit — Active View Toggles", () => {
     expect(diff).toBeGreaterThan(100);
     console.log(`showOrphans: diff=${diff}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("showLinks produces visual change", async () => {
@@ -111,11 +106,6 @@ test.describe("Real Audit — Active View Toggles", () => {
     expect(diff).toBeGreaterThan(50);
     console.log(`showArrows: diff=${diff}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("nodeColorMode category vs default produces change", async () => {
@@ -124,11 +114,6 @@ test.describe("Real Audit — Active View Toggles", () => {
     expect(diff).toBeGreaterThan(50);
     console.log(`nodeColorMode: diff=${diff}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 

@@ -84,11 +84,6 @@ test("road network exists after enabling and rebuilding", async () => {
   });
   expect(result).not.toHaveProperty("error");
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

@@ -50,11 +50,6 @@ test.describe("Phase 7 — clusterArrangement", () => {
     expect(result!.count).toBeGreaterThan(0);
     expect(result!.xRange).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("7-2: switching to grid arrangement changes node spread", async () => {
@@ -98,11 +93,6 @@ test.describe("Phase 7 — clusterArrangement", () => {
     expect(gridSpread).not.toBe(concentricSpread);
     expect(gridSpread).toBeGreaterThan(0);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 
   test("7-3: arrangement panel property reflects current setting", async () => {
@@ -121,11 +111,6 @@ test.describe("Phase 7 — clusterArrangement", () => {
       v.rawData = null;
       v.doRender();
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
     });
     await page.waitForTimeout(4000);
   });

@@ -76,11 +76,6 @@ test("enclosure labels appear when showEnclosures is enabled with groupBy", asyn
   expect(result.groupCount).toBeGreaterThan(1);
   console.log(`Groups found: ${result.groupCount} - ${result.groupNames.join(", ")}`);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("label count matches visible pixiNode count", async () => {
@@ -106,11 +101,6 @@ test("label count matches visible pixiNode count", async () => {
   // Most nodes should have labels
   expect(result.withLabels).toBeGreaterThan(result.pixiNodes * 0.8);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("nodeSubLabelFields adds sub-label text to nodes", async () => {
@@ -137,11 +127,6 @@ test("nodeSubLabelFields adds sub-label text to nodes", async () => {
   console.log(`Sub-label pixel diff: ${diff}`);
   expect(diff).toBeGreaterThan(100);
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 

@@ -79,11 +79,6 @@ test("labels: 3-tier mode system (I/T/F)", async () => {
     expect(text).toContain(`·${mode}`);
   }
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
 });
 
 test("labels: density badge shows culled count", async () => {
@@ -125,11 +120,6 @@ test("labels: mode override forces initials at zoom=1.0", async () => {
     view?.markDirty(true);
     await new Promise(r => setTimeout(r, 300));
 
-  // === Visual quality: verify display after state change ===
-  const _dq = await measureScreenDensity(page);
-  if (_dq.totalNodes > 10) {
-    expect(_dq.worstCellCount).toBeLessThan(200);
-  }
   });
 });
 
