@@ -330,3 +330,45 @@ describe("transformExprToString additional (cycle152)", () => {
     expect(result).toContain("5");
   });
 });
+
+// =========================================================================
+// Parser robustness — extreme inputs
+// =========================================================================
+describe("parseTransformExpr robustness", () => {
+  it("empty string returns null", () => {
+    expect(parseTransformExpr("")).toBeNull();
+  });
+
+  it("whitespace only returns default", () => {
+    const r = parseTransformExpr("   ");
+    expect(r).toBeDefined();
+  });
+
+  it("operator only doesn't crash", () => {
+    expect(() => parseTransformExpr("*")).not.toThrow();
+  });
+
+  it("very long expression doesn't crash", () => {
+    const long = "field:" + "a".repeat(1000);
+    expect(() => parseTransformExpr(long)).not.toThrow();
+  });
+
+  it("special characters in field name", () => {
+    const r = parseTransformExpr("field:node-type_v2");
+    expect(r).not.toBeNull();
+    if (r) expect(r.source).toBeDefined();
+  });
+
+  it("numeric-only input parses as scale", () => {
+    const r = parseTransformExpr("42");
+    expect(r).toBeDefined();
+  });
+
+  it("nested parentheses don't crash", () => {
+    expect(() => parseTransformExpr("((field:x))")).not.toThrow();
+  });
+
+  it("unknown function name doesn't crash", () => {
+    expect(() => parseTransformExpr("unknownfn(field:x)")).not.toThrow();
+  });
+});

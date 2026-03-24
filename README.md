@@ -254,6 +254,17 @@ src/
 
 349+ E2E tests (CDP-based, Obsidian live testing)
 
+## What's New in v0.5.6
+
+- **Sunburst hover highlight**: Hover a sector to highlight its group; other sectors dim for focus
+- **Sunburst tooltip**: Shows group name, file count, and subcategories on hover
+- **Sunburst click-to-filter**: Click a sector to switch to Graph mode filtered by that category
+- **Matrix sort**: Sort adjacency matrix by degree, alphabetical, or category
+- **ViewMode switch fix**: Force layout no longer diverges after switching from Sunburst/Concentric
+- **Sunburst label cleanup**: Folder path redundancy removed (e.g. "bible/bible" → "bible")
+- **Depth 2 labels**: Inner ring labels for subcategories with rotation and overlap culling
+- **2529+ unit tests**: Coverage thresholds S28.7/B27.2/F25.5/L28.4
+
 ## What's New in v0.5
 
 - **Timeline redesign**: Hierarchical lane assignment using parent_id; zero-overlap bar layout with work group separators

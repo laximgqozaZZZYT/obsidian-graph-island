@@ -9056,7 +9056,27 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Top N nodes by degree (fit in viewport: ~50 max for readability)
     const maxNodes = Math.min(50, Math.floor(Math.min(W, H) / 16));
-    const sorted = [...degrees.entries()].sort((a, b) => b[1] - a[1]).slice(0, maxNodes);
+    const sortMode = this.panel.matrixSortMode ?? "degree";
+    let sorted: [string, number][];
+    if (sortMode === "alpha") {
+      // Alphabetical by label
+      sorted = [...degrees.entries()].sort((a, b) => {
+        const la = (gd.nodes.find(n => n.id === a[0])?.label ?? a[0]).toLowerCase();
+        const lb = (gd.nodes.find(n => n.id === b[0])?.label ?? b[0]).toLowerCase();
+        return la.localeCompare(lb);
+      }).slice(0, maxNodes);
+    } else if (sortMode === "category") {
+      // By category, then degree within category
+      sorted = [...degrees.entries()].sort((a, b) => {
+        const ca = (gd.nodes.find(n => n.id === a[0]) as any)?.category ?? "";
+        const cb = (gd.nodes.find(n => n.id === b[0]) as any)?.category ?? "";
+        if (ca !== cb) return ca.localeCompare(cb);
+        return b[1] - a[1];
+      }).slice(0, maxNodes);
+    } else {
+      // Default: degree descending
+      sorted = [...degrees.entries()].sort((a, b) => b[1] - a[1]).slice(0, maxNodes);
+    }
     const nodeIds = sorted.map(([id]) => id);
     const nodeIdSet = new Set(nodeIds);
 
@@ -9084,8 +9104,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return node?.label ?? id.replace(/\.md$/, "").split("/").pop() ?? id;
     };
 
-    // Title
-    matrixEl.createDiv({ cls: "gi-matrix-title", text: `${t("display.relationMatrix")} (${nodeIds.length} / ${gd.nodes.length})` });
+    // Title + sort selector
+    const titleRow = matrixEl.createDiv({ cls: "gi-matrix-title-row" });
+    titleRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:4px;";
+    titleRow.createSpan({ text: `${t("display.relationMatrix")} (${nodeIds.length} / ${gd.nodes.length})` });
+    const sortSelect = titleRow.createEl("select", { cls: "gi-matrix-sort" });
+    sortSelect.style.cssText = "font-size:11px;padding:2px 4px;border-radius:3px;";
+    for (const opt of [
+      { value: "degree", label: "Degree" },
+      { value: "alpha", label: "A-Z" },
+      { value: "category", label: "Category" },
+    ]) {
+      const el = sortSelect.createEl("option", { text: opt.label, attr: { value: opt.value } });
+      if (opt.value === sortMode) el.selected = true;
+    }
+    sortSelect.addEventListener("change", () => {
+      this.panel.matrixSortMode = sortSelect.value as any;
+      this._renderMatrixViewMode(gd, W, H);
+    });
 
     // Build table
     const table = matrixEl.createEl("table", { cls: "gi-matrix-table" });

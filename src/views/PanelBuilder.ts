@@ -40,6 +40,8 @@ export interface PanelState {
   /** Explicitly excluded node IDs (hidden via Nodes tab) */
   /** Top-level visualization mode */
   viewMode: ViewMode;
+  /** Matrix sort mode: degree (default), alpha, category */
+  matrixSortMode: "degree" | "alpha" | "category";
   excludeNodes: string[];
   /** GK: Auto-fit view after filter changes */
   autoFitOnFilter: boolean;
@@ -317,6 +319,7 @@ export interface PanelState {
 export function createDefaultPanel(): PanelState {
   return {
     viewMode: "graph" as ViewMode,
+    matrixSortMode: "degree",
     excludeNodes: [],
     autoFitOnFilter: false,
     minDegreeFilter: 0,

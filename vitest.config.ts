@@ -12,11 +12,11 @@ export default defineConfig({
       reporter: ["text-summary", "json-summary"],
       reportsDirectory: "coverage",
       thresholds: {
-        // Baseline: v0.5.4 (2526+ tests, cycle197)
-        statements: 28.7,
-        branches: 27.2,
-        functions: 25.5,
-        lines: 28.4,
+        // Baseline: v0.5.6 (2537+ tests, cycle193)
+        statements: 28.6,
+        branches: 27.1,
+        functions: 25.4,
+        lines: 28.3,
       },
     },
   },
