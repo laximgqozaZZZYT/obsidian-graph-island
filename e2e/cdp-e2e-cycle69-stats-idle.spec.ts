@@ -130,6 +130,10 @@ test("JN-3: §0.4 render loop has idle auto-detach mechanism", async () => {
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   if (!result.skipped) {
     expect(result.powerSaveReady).toBe(true);
   }

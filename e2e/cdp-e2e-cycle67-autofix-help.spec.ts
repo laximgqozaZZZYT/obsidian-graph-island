@@ -163,6 +163,10 @@ test("JJ-3: help overlay has proper ARIA dialog attributes", async () => {
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   expect(result.hasDialog).toBe(true);
   expect(result.ariaLabel).toBeTruthy();
 });
