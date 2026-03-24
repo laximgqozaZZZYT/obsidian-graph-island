@@ -2210,9 +2210,8 @@ function drawIntraGroupCables(
   };
 
   if (cfg.highlightedNodeId) {
-    // Skip dim branch wires during hover for clean highlight visualization.
-    // Dim wires (thousands of unrelated tag/category edges) create visual noise
-    // that obscures the highlighted connections. Only bright (connected) wires shown.
+    // During hover: draw dim wires first (faint background), then bright on top.
+    _drawBranchWires("dim");
     _drawBranchWires("bright");
   } else {
     _drawBranchWires(null);
@@ -2228,7 +2227,7 @@ function drawIntraGroupCables(
         _drawSingleIntraCableGpb(g, cable, cfg, densityScale, portColorLanes, filterHL, getBranchHighlight);
       }
     };
-    // Skip dim GPB wires during hover — same rationale as branch wires
+    _drawGpbWires("dim");
     _drawGpbWires("bright");
   } else {
     for (const cable of cables) {
@@ -2501,7 +2500,8 @@ function drawTrunks(
     // Called as final pass — only draw bright wires
     _drawTrunkWires("bright");
   } else if (cfg.highlightedNodeId) {
-    // Skip dim trunk wires during hover for clean highlight visualization
+    // During hover: draw dim wires first (faint background), then bright on top
+    _drawTrunkWires("dim");
     _drawTrunkWires("bright");
   } else {
     _drawTrunkWires(null);
