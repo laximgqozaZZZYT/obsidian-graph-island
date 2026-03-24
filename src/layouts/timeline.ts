@@ -230,14 +230,12 @@ function assignHierarchicalLanes(
       nextLane++;
     }
 
-    // Each parent group gets consecutive lanes
+    // Each parent group: children get individual lanes sorted by story_order
     for (const parentId of sortedParents) {
       const children = childrenMap.get(parentId) ?? [];
-      // All children of this parent share a lane (stacked by story_order at same Y)
       for (const childId of children) {
-        laneMap.set(childId, nextLane);
+        laneMap.set(childId, nextLane++);
       }
-      nextLane++;
     }
 
     // Gap between works

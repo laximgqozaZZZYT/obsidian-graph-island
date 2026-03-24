@@ -7404,9 +7404,32 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
                 continue;
               }
             }
-            // Default: bar at minimum width for nodes without end-date
-            bars.push({ nodeId: p.nodeId, xStart: node.x, xEnd: node.x + stepW * 0.8, barHeight: barH, yCenter: node.y });
+            // Default: bar for nodes without end-date — use readable minimum width
+            const defaultBarW = Math.max(stepW * 2, 20);
+            bars.push({ nodeId: p.nodeId, xStart: node.x, xEnd: node.x + defaultBarW, barHeight: barH, yCenter: node.y });
           }
+          // Post-process: resolve bar overlaps by shifting down
+          // Sort by Y then X so we process top-to-bottom, left-to-right
+          bars.sort((a, b) => a.yCenter - b.yCenter || a.xStart - b.xStart);
+          for (let i = 1; i < bars.length; i++) {
+            for (let j = 0; j < i; j++) {
+              const prev = bars[j], cur = bars[i];
+              // Check X overlap
+              if (cur.xStart >= prev.xEnd || prev.xStart >= cur.xEnd) continue;
+              // Check Y overlap
+              const prevTop = prev.yCenter - prev.barHeight / 2;
+              const prevBot = prev.yCenter + prev.barHeight / 2;
+              const curTop = cur.yCenter - cur.barHeight / 2;
+              if (curTop < prevBot) {
+                // Shift current bar below the previous one
+                cur.yCenter = prevBot + cur.barHeight / 2 + 1;
+                // Also update the node Y position so labels follow
+                const node = ld.nodes.find(n => n.id === cur.nodeId);
+                if (node) node.y = cur.yCenter;
+              }
+            }
+          }
+
           if (!this.clusterMeta) this.clusterMeta = {} as any;
           (this.clusterMeta as any).timelineBars = bars;
           (this.clusterMeta as any).timelineSteps = tlResult.timeSteps;
