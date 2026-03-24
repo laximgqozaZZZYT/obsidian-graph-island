@@ -59,6 +59,30 @@ test("toggling highContrastMode triggers re-render", async () => {
   // Both renders should produce edge commands (graph is active)
   expect(result.cmdsBefore).toBeGreaterThan(0);
   expect(result.cmdsAfter).toBeGreaterThan(0);
+
+  // === Display Quality: high contrast should improve node-vs-bg contrast ===
+  const contrastCheck = await cdpEval(ws, nextId++, `(() => {
+    const v = app.workspace.getLeavesOfType('graph-view').find(l => 'pixiNodes' in l.view)?.view;
+    if (!v || !v.pixiNodes) return { checked: 0, avgRatio: 0 };
+    function srgbLum(c) { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }
+    function luminance(r, g, b) { return 0.2126 * srgbLum(r) + 0.7152 * srgbLum(g) + 0.0722 * srgbLum(b); }
+    const bgLum = luminance(0, 0, 0); // dark theme assumed
+    let checked = 0, ratioSum = 0;
+    for (const [, n] of v.pixiNodes) {
+      if (checked >= 50) break;
+      const hex = n.color;
+      if (hex == null) continue;
+      const r = (hex >> 16) & 0xff, g = (hex >> 8) & 0xff, b = hex & 0xff;
+      const nLum = luminance(r, g, b);
+      const l1 = Math.max(nLum, bgLum), l2 = Math.min(nLum, bgLum);
+      ratioSum += (l1 + 0.05) / (l2 + 0.05);
+      checked++;
+    }
+    return { checked, avgRatio: checked > 0 ? Math.round(ratioSum / checked * 100) / 100 : 0 };
+  })()`);
+  if (contrastCheck.checked > 0) {
+    expect(contrastCheck.avgRatio).toBeGreaterThan(2.0);
+  }
 });
 
 test("highContrastMode is preserved in preset export/import", async () => {

@@ -924,6 +924,10 @@ test.describe("20. Experience Quality", () => {
       await v.doRender();
     });
     await waitStable(page, 2000);
+    // === Display Quality: after searchMode reset, graph should be healthy ===
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    expect(spread.infCount).toBe(0);
   });
 
   // 20.3 removed (renderWith + waitStable too slow)
@@ -1523,6 +1527,10 @@ test.describe("40. Nodes Tab", () => {
     expect(result.tabCount).toBe(5);
     expect(result.hasExclude).toBe(true);
     expect(result.excluded).toBe(true);
+    // === Display Quality: after exclude/restore cycle, coordinates should be valid ===
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    expect(spread.infCount).toBe(0);
   });
 });
 

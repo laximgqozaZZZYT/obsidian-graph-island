@@ -62,6 +62,11 @@ test("Sunburst quality: arcs fill viewport, labels present", async () => {
   expect(result.nodeGfxInWorld).toBe(0);
   expect(result.edgeCmds).toBe(0);
   expect(result.labelCount).toBeGreaterThan(0);
+  // === Display Quality: sunburst labels should be readable ===
+  if (result.labelCount > 2) {
+    // Labels in sunburst should have reasonable screen size
+    expect(result.screenDiameter).toBeGreaterThan(100);
+  }
 });
 
 test("Timeline quality: bars visible at screen scale", async () => {
@@ -102,6 +107,8 @@ test("Timeline quality: bars visible at screen scale", async () => {
   expect(result.barsFitInView).toBe(true);
   expect(result.nodeGfxInWorld).toBe(0);
   expect(result.edgeCmds).toBe(0);
+  // === Display Quality: timeline bars should have readable height ===
+  expect(result.avgBarScreenHeight).toBeGreaterThan(1.5);
 });
 
 test("Graph restore quality: nodes restored with proper scale", async () => {
@@ -126,6 +133,9 @@ test("Graph restore quality: nodes restored with proper scale", async () => {
   expect(result.currentLayout).toBe("force");
   expect(result.nodeGfxInWorld).toBeGreaterThan(100);
   expect(result.nodeGfxInWorld).toBe(result.totalNodes);
+  // === Display Quality: restored graph should have reasonable scale ===
+  expect(result.scale).toBeGreaterThan(0.01);
+  expect(result.scale).toBeLessThan(10);
 });
 
 test("UI quality: toolbar buttons have text labels", async () => {

@@ -183,3 +183,30 @@ describe("constants — EDGE_TYPE_SPECS coverage", () => {
     expect(unexpectedDups).toEqual([]);
   });
 });
+
+// =========================================================================
+// Additional integrity
+// =========================================================================
+describe("constants — value integrity", () => {
+  it("TAG_DISPLAY values are distinct from EDGE_TYPE", () => {
+    const tagVals = [C.TAG_DISPLAY_ENCLOSURE, C.TAG_DISPLAY_NODE];
+    const edgeVals = [C.EDGE_TYPE_LINK, C.EDGE_TYPE_SEMANTIC, C.EDGE_TYPE_TAG, C.EDGE_TYPE_HAS_TAG,
+      C.EDGE_TYPE_INHERITANCE, C.EDGE_TYPE_AGGREGATION, C.EDGE_TYPE_SIMILAR, C.EDGE_TYPE_SIBLING, C.EDGE_TYPE_SEQUENCE];
+    for (const tv of tagVals) {
+      expect(edgeVals).not.toContain(tv);
+    }
+  });
+
+  it("EDGE_TYPE values are lowercase+hyphen only", () => {
+    const edgeTypes = [C.EDGE_TYPE_LINK, C.EDGE_TYPE_TAG, C.EDGE_TYPE_HAS_TAG,
+      C.EDGE_TYPE_INHERITANCE, C.EDGE_TYPE_AGGREGATION, C.EDGE_TYPE_SIMILAR, C.EDGE_TYPE_SIBLING, C.EDGE_TYPE_SEQUENCE];
+    for (const et of edgeTypes) {
+      expect(et).toMatch(/^[a-z-]+$/);
+    }
+  });
+
+  it("TAG_DISPLAY values are non-empty strings", () => {
+    expect(C.TAG_DISPLAY_ENCLOSURE.length).toBeGreaterThan(0);
+    expect(C.TAG_DISPLAY_NODE.length).toBeGreaterThan(0);
+  });
+});
