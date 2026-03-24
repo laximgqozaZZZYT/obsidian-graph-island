@@ -2084,17 +2084,6 @@ function buildLayoutTab(
           });
         }
       }
-      // Follow toggle: sync clusterGroupRules from groupByRules
-      addToggle(body, t("cluster.followsGroupBy"), panel.clusterFollowsGroupBy, (v) => {
-        panel.clusterFollowsGroupBy = v;
-        if (v && panel.groupByRules) {
-          const filled = panel.groupByRules.filter(r => r.field.trim() !== "");
-          panel.clusterGroupRules = deriveClusterRulesFromGroupBy(filled);
-        }
-        cb.applyClusterForce();
-        cb.restartSimulation(0.5);
-        cb.rebuildPanel();
-      }, t("cluster.followsGroupByDesc"));
     }, tHelp("help.displayGrouping"), false, "layers");
   }
 
