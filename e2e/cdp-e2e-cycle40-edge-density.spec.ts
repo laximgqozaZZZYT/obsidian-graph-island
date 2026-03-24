@@ -6,7 +6,7 @@
  * and console error checking.
  */
 import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
-import { measureNodeOverlap, measureSpread, measureContrast, measureScreenDensity, measureLabelReadability, measureEdgeVisibility, measureEnclosureOverlap, measureCardReadability } from "./helpers/quality-checks";
+import { measureNodeOverlap, measureSpread, measureContrast, measureScreenDensity, measureLabelReadability, measureEdgeVisibility, measureEnclosureOverlap, measureCardReadability, measureMinimap, measureGuides } from "./helpers/quality-checks";
 
 test.setTimeout(300_000);
 
@@ -569,7 +569,9 @@ test("VISUAL-GATE: display quality after test operations", async () => {
   const density = await measureScreenDensity(page);
   const labels = await measureLabelReadability(page);
   const edges = await measureEdgeVisibility(page);
-  console.log(`[VISUAL-GATE] nodes=${density.totalNodes} hotspot=${density.worstCellCount} labels=${labels.totalVisible} overlap=${labels.overlapRate} edges=${edges.visibleEdges} colors=${edges.colorVariety}`);
+  const minimap = await measureMinimap(page);
+  const guides = await measureGuides(page);
+  console.log(`[VISUAL-GATE] nodes=${density.totalNodes} hotspot=${density.worstCellCount} labels=${labels.totalVisible} overlap=${labels.overlapRate} edges=${edges.visibleEdges} colors=${edges.colorVariety} minimap=${minimap.visible} guides=${guides.lineCount}/${guides.labelCount}`);
   // Nodes should not be excessively piled up
   if (density.totalNodes > 10) {
     expect(density.worstCellCount).toBeLessThan(200);
@@ -581,6 +583,10 @@ test("VISUAL-GATE: display quality after test operations", async () => {
   // Edges should be visible with some color variety
   if (edges.totalEdges > 10) {
     expect(edges.visibleEdges).toBeGreaterThan(0);
+  }
+  // Guide labels should not all overlap each other
+  if (guides.labelCount > 2) {
+    expect(guides.overlappingLabels).toBeLessThan(guides.labelCount);
   }
 });
 

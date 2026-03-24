@@ -690,3 +690,101 @@ export async function measureCardReadability(page: Page, sampleSize = 50): Promi
     };
   }, sampleSize);
 }
+
+// ---------------------------------------------------------------------------
+// 12. Minimap quality
+// ---------------------------------------------------------------------------
+
+export interface MinimapReport {
+  exists: boolean;
+  visible: boolean;
+  width: number;
+  height: number;
+}
+
+export async function measureMinimap(page: Page): Promise<MinimapReport> {
+  return page.evaluate(() => {
+    const v = (window as any).app.workspace
+      .getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v) return { exists: false, visible: false, width: 0, height: 0 };
+    const mm = v.minimap ?? v._minimap;
+    if (!mm) return { exists: false, visible: false, width: 0, height: 0 };
+    const el = mm.canvas ?? mm.containerEl ?? mm.element;
+    const w = el?.offsetWidth ?? el?.width ?? 0;
+    const h = el?.offsetHeight ?? el?.height ?? 0;
+    return { exists: true, visible: w > 0 && h > 0, width: w, height: h };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 13. Legend quality
+// ---------------------------------------------------------------------------
+
+export interface LegendReport {
+  exists: boolean;
+  itemCount: number;
+  fitsViewport: boolean;
+}
+
+export async function measureLegend(page: Page): Promise<LegendReport> {
+  return page.evaluate(() => {
+    const v = (window as any).app.workspace
+      .getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v) return { exists: false, itemCount: 0, fitsViewport: true };
+    const el = v.containerEl?.querySelector(".gi-legend, .legend-container");
+    if (!el) return { exists: false, itemCount: 0, fitsViewport: true };
+    const items = el.querySelectorAll(".legend-item, .gi-legend-item, li, span");
+    const rect = el.getBoundingClientRect();
+    const cW = v.containerEl?.clientWidth ?? 800;
+    const cH = v.containerEl?.clientHeight ?? 600;
+    return {
+      exists: true,
+      itemCount: items.length,
+      fitsViewport: rect.right <= cW + 20 && rect.bottom <= cH + 20,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 14. Guide/grid line quality
+// ---------------------------------------------------------------------------
+
+export interface GuideReport {
+  exists: boolean;
+  lineCount: number;
+  labelCount: number;
+  overlappingLabels: number;
+}
+
+export async function measureGuides(page: Page): Promise<GuideReport> {
+  return page.evaluate(() => {
+    const v = (window as any).app.workspace
+      .getLeavesOfType("graph-view")
+      .find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v) return { exists: false, lineCount: 0, labelCount: 0, overlappingLabels: 0 };
+    const gc = v.guideContainer ?? v._guideContainer;
+    if (!gc) return { exists: false, lineCount: 0, labelCount: 0, overlappingLabels: 0 };
+    let lineCount = 0;
+    const rects: { x: number; y: number; w: number; h: number }[] = [];
+    function walk(c: any) {
+      if (!c?.children) return;
+      for (const ch of c.children) {
+        if (!ch.visible) continue;
+        if (ch.geometry || ch._geometry) lineCount++;
+        if (ch.text) { const b = ch.getBounds?.(); if (b) rects.push({ x: b.x, y: b.y, w: b.width, h: b.height }); }
+        if (ch.children) walk(ch);
+      }
+    }
+    walk(gc);
+    let overlapping = 0;
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i], b = rects[j];
+        if (a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y) overlapping++;
+      }
+    }
+    return { exists: true, lineCount, labelCount: rects.length, overlappingLabels: overlapping };
+  });
+}
