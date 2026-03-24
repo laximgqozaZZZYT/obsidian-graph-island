@@ -124,3 +124,52 @@ describe("exportGraphSVG", () => {
     expect((svg.match(/<line/g) ?? []).length).toBe(99);
   });
 });
+
+// =========================================================================
+// Edge cases
+// =========================================================================
+describe("exportGraphSVG edge cases", () => {
+  it("empty graph produces valid SVG shell", () => {
+    const svg = exportGraphSVG([], []);
+    expect(svg).toContain("<svg");
+    expect(svg).toContain("</svg>");
+    expect(svg).not.toContain("<circle");
+    expect(svg).not.toContain("<line");
+  });
+
+  it("single node with no edges", () => {
+    const svg = exportGraphSVG([mkNode("a", 100, 200)], []);
+    expect(svg).toContain("<circle");
+    expect(svg).not.toContain("<line");
+  });
+
+  it("NaN coordinates are handled gracefully", () => {
+    const svg = exportGraphSVG([mkNode("a", NaN, NaN)], []);
+    // Should produce valid SVG (node may be skipped or positioned at 0,0)
+    expect(svg).toContain("<svg");
+    expect(svg).toContain("</svg>");
+  });
+
+  it("angle brackets in labels are stripped", () => {
+    const nodes = [{ id: "a", label: '<b>bold</b>', x: 0, y: 0 }];
+    const svg = exportGraphSVG(nodes, []);
+    // Implementation strips <>&" characters
+    expect(svg).not.toContain("<b>");
+    expect(svg).not.toContain("</b>");
+    expect(svg).toContain("bold"); // text content preserved
+  });
+
+  it("very large coordinates produce valid SVG", () => {
+    const svg = exportGraphSVG(
+      [mkNode("a", 1e6, 1e6), mkNode("b", -1e6, -1e6)],
+      [mkEdge("a", "b")],
+    );
+    expect(svg).toContain("<circle");
+    expect(svg).toContain("<line");
+  });
+
+  it("zero dimensions option still produces SVG", () => {
+    const svg = exportGraphSVG([mkNode("a", 0, 0)], [], { width: 0, height: 0 });
+    expect(svg).toContain("<svg");
+  });
+});

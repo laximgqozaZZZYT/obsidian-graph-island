@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { test, expect, chromium, type Page, type Browser } from "@playwright/test";
-import { measureNodeOverlap, measureSpread, measureLabels, measureContrast, measureCardText } from "./helpers/quality-checks";
+import { measureNodeOverlap, measureSpread, measureLabels, measureContrast, measureCardText, measureScreenDensity, measureLabelReadability, measureEdgeVisibility, measureEnclosureOverlap, measureCardReadability, measureMinimap, measureLegend, measureGuides, measureTimelineAxis } from "./helpers/quality-checks";
 
 const CDP_URL = "http://localhost:9222";
 test.setTimeout(300_000);
@@ -211,6 +211,12 @@ test.describe("1. Graph Data Integrity", () => {
       return v?.graphEdges?.length ?? -1;
     });
     expect(count).toBeGreaterThan(3000);
+    // === Display Quality: edges should be visible and varied ===
+    const edgeVis = await measureEdgeVisibility(page);
+    if (edgeVis.totalEdges > 0) {
+      expect(edgeVis.visibleEdges).toBeGreaterThan(0);
+      expect(edgeVis.colorVariety).toBeGreaterThan(1);
+    }
   });
 
   test("1.3 edge type distribution has link, semantic, and tag edges", async () => {
@@ -228,6 +234,9 @@ test.describe("1. Graph Data Integrity", () => {
     expect(dist!["link"]).toBeGreaterThan(100);
     expect(dist!["semantic"]).toBeGreaterThan(100);
     expect(dist!["tag"]).toBeGreaterThan(100);
+    // === Display Quality: edge types should produce color variety ===
+    const edgeVis = await measureEdgeVisibility(page);
+    expect(edgeVis.colorVariety).toBeGreaterThan(1);
   });
 
   test("1.4 max degree node has significant connections", async () => {
@@ -270,6 +279,16 @@ test.describe("2. Filter Operations", () => {
       return count === 132;
     });
     expect(count).toBeGreaterThan(50);
+    // === Display Quality: filtered subset should be well-spread and readable ===
+    const overlap = await measureNodeOverlap(page);
+    expect(overlap.overlapRatio).toBeLessThan(0.10);
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    expect(spread.spreadRatio).toBeGreaterThan(0.05);
+    const labelQ = await measureLabelReadability(page);
+    if (labelQ.totalVisible > 5) {
+      expect(labelQ.tooSmallCount).toBeLessThan(labelQ.totalVisible * 0.5);
+    }
   });
 
   test("2.2 searchQuery='path:classic-macbeth' filters nodes", async () => {
@@ -287,6 +306,14 @@ test.describe("2. Filter Operations", () => {
       return count === 172;
     });
     expect(count).toBeGreaterThan(100);
+    // === Display Quality: path filter result spread + overlap ===
+    const overlap = await measureNodeOverlap(page);
+    expect(overlap.overlapRatio).toBeLessThan(0.10);
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    if (spread.bboxWidth > 0) {
+      expect(spread.spreadRatio).toBeGreaterThan(0.05);
+    }
   });
 
   test("2.4 showOrphans=false removes orphan nodes", async () => {
@@ -305,6 +332,11 @@ test.describe("2. Filter Operations", () => {
     });
     expect(count).toBeLessThan(BASELINE);
     expect(count).toBeGreaterThan(BASELINE * 0.8);
+    // === Display Quality: orphan removal should improve density ===
+    const density = await measureScreenDensity(page);
+    if (density.totalNodes > 10) {
+      expect(density.viewportUtilization).toBeGreaterThan(3);
+    }
 
     // Restore
     await renderWith(page, {
@@ -331,6 +363,11 @@ test.describe("4. Tag Enclosures", () => {
       return typeof v?.getTagMembership === "function" ? v.getTagMembership().size : -1;
     });
     expect(tagGroupCount).toBeGreaterThan(100);
+    // === Display Quality: enclosures should not excessively overlap ===
+    const encQ = await measureEnclosureOverlap(page);
+    if (encQ.totalEnclosures > 2) {
+      expect(encQ.overlapRate).toBeLessThan(0.5);
+    }
   });
 
   test("4.2 enclosure mode has total tag memberships > 1000", async () => {
@@ -344,6 +381,15 @@ test.describe("4. Tag Enclosures", () => {
       return total;
     });
     expect(membershipSize).toBeGreaterThan(1000);
+    // === Display Quality: enclosure labels should be readable ===
+    const labelQ = await measureLabelReadability(page);
+    if (labelQ.totalVisible > 0) {
+      expect(labelQ.avgScreenFontSize).toBeGreaterThan(0);
+    }
+    const encQ = await measureEnclosureOverlap(page);
+    if (encQ.totalEnclosures > 0) {
+      expect(encQ.tooSmallCount).toBeLessThan(encQ.totalEnclosures);
+    }
   });
 
   // 4.3 removed (getTagMembership not accessible in minified, intermittent)
@@ -448,6 +494,11 @@ test.describe("8. Edge Label Mode", () => {
     expect(result).not.toHaveProperty("error");
     expect(result.on).toBe(true);
     expect(result.off).toBe(false);
+    // === Display Quality: with labels on, check label readability ===
+    const labelQ = await measureLabelReadability(page);
+    if (labelQ.totalVisible > 0) {
+      expect(labelQ.avgScreenFontSize).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -746,6 +797,12 @@ test.describe("15. Context Menu Filter", () => {
     expect(result.filtered).toBeGreaterThan(50);
     expect(result.filtered).toBeLessThan(500);
     expect(result.restored).toBeGreaterThan(2000);
+    // === Display Quality: restored full graph should be well-distributed ===
+    const overlap = await measureNodeOverlap(page);
+    expect(overlap.overlapRatio).toBeLessThan(0.05);
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    expect(spread.infCount).toBe(0);
   });
 });
 
@@ -1085,6 +1142,13 @@ test.describe("28. NOT Operator", () => {
     // NOT should return more nodes than the positive filter
     expect(withoutBattle).toBeGreaterThan(withBattle);
     expect(withBattle).toBeGreaterThan(0);
+    // === Display Quality: NOT filter result should be well-spread ===
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    const density = await measureScreenDensity(page);
+    if (density.totalNodes > 10) {
+      expect(density.worstCellCount).toBeLessThan(200);
+    }
 
     // Restore
     await renderWith(page, { searchQuery: "" });
