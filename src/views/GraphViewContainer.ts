@@ -8746,6 +8746,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.markDirty();
   }
 
+  /** Handle click on a sunburst arc: switch to graph mode with a path filter */
+  onSunburstArcClick(groupName: string): void {
+    const displayName = cleanArcName(groupName);
+    // Set search query to filter by folder path
+    this.panel.searchQuery = `path:${displayName}`;
+    // Switch to graph mode
+    this.panel.viewMode = "graph";
+    this.currentLayout = "force" as any;
+    this.doRender();
+    this._announceA11y(`Filtered: ${displayName}`);
+  }
+
   /** Update or hide sunburst tooltip */
   private _updateSunburstTooltip(groupName: string | null): void {
     if (!groupName) {

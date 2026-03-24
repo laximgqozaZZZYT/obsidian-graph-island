@@ -174,6 +174,8 @@ export interface InteractionHost {
   hitTestSunburstArc?(wx: number, wy: number): string | null;
   /** Set sunburst hover highlight group */
   setSunburstHover?(groupName: string | null): void;
+  /** Handle click on a sunburst arc (switch to graph with filter) */
+  onSunburstArcClick?(groupName: string): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -719,8 +721,22 @@ export class InteractionManager {
       if (sim) sim.alphaTarget(0);
       this.draggedNode = null;
       this.host.markDirty(true);
+    } else if (!this.hasDragged && this.host.hitTestSunburstArc && this.host.onSunburstArcClick) {
+      // Sunburst arc click: no node was dragged, check if we clicked on an arc
+      const app2 = this.host.getPixiApp();
+      if (app2) {
+        const rect2 = this.canvas.getBoundingClientRect();
+        const mx2 = e.clientX - rect2.left;
+        const my2 = e.clientY - rect2.top;
+        const wp = this.world.toLocal({ x: mx2, y: my2 }, app2.stage);
+        const arcGroup = this.host.hitTestSunburstArc(wp.x, wp.y);
+        if (arcGroup) {
+          this.host.onSunburstArcClick(arcGroup);
+        }
+      }
     }
     this.isPanning = false;
+    this.hasDragged = false;
   }
 
   // -----------------------------------------------------------------------
