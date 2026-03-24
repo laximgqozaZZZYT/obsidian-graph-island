@@ -414,6 +414,9 @@ test.describe("5. Missing Neighbor Detection", () => {
     expect(result.enabled).toBe(true);
     // Missing neighbors should detect some nodes (count varies by vault)
     expect(result.missingCount).toBeGreaterThanOrEqual(0);
+    // === Display Quality: highlighted missing neighbors should be visible ===
+    const contrast = await measureContrast(page, 50);
+    expect(contrast.avgRatio).toBeGreaterThan(1.5);
 
     // Restore
     await renderWith(page, { highlightMissingNeighbors: false });

@@ -466,14 +466,14 @@ export async function measureEdgeVisibility(page: Page, sampleSize = 200): Promi
     const total = edges.length;
     const colors = new Set<number>();
     const limit = Math.min(total, maxSample);
-    let visible = 0, lowAlpha = 0;
+    let visible = 0, tooThin = 0, lowAlpha = 0, thicknessSum = 0;
 
     // If edgeGraphics is invisible or very transparent, all edges are invisible
     if (!egVisible || edgeAlpha < 0.05) {
       return { totalEdges: total, visibleEdges: 0, tooThinCount: 0, lowAlphaCount: total, avgScreenThickness: 0, colorVariety: 0 };
     }
 
-    // Count edges by type/relation color
+    // Count edges by type/relation color + screen-space thickness
     for (let i = 0; i < limit; i++) {
       const e = edges[i];
       if (!e) continue;
@@ -483,6 +483,10 @@ export async function measureEdgeVisibility(page: Page, sampleSize = 200): Promi
       const color = ec?.color ?? e.color ?? 0;
       colors.add(color);
       if (edgeAlpha < 0.1) lowAlpha++;
+      // Estimate screen-space thickness
+      const thickness = (ec?.thickness ?? e.thickness ?? 1) * ws;
+      thicknessSum += thickness;
+      if (thickness < 0.3) tooThin++;
     }
 
     return {

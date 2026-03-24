@@ -9157,9 +9157,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       td.style.cssText = "position:sticky;left:0;z-index:1;background:var(--background-primary);";
       td.addEventListener("click", () => this._switchToGraphAndFocus(rowId));
 
-      for (const colId of nodeIds) {
+      for (let colIdx = 0; colIdx < nodeIds.length; colIdx++) {
+        const colId = nodeIds[colIdx];
         const count = matrix.get(rowId)?.get(colId) ?? 0;
-        const cell = tr.createEl("td", { cls: "gi-matrix-cell" });
+        const cell = tr.createEl("td", { cls: "gi-matrix-cell", attr: { "data-col": String(colIdx) } });
         if (count > 0) {
           cell.textContent = String(count);
           const intensity = Math.min(1, count / maxCount);
@@ -9178,6 +9179,41 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         });
       }
     }
+
+    // Row/column highlight on cell hover
+    const allRows = table.querySelectorAll("tr");
+    table.addEventListener("mouseover", (ev) => {
+      const target = (ev.target as HTMLElement).closest("td, th") as HTMLElement | null;
+      if (!target) return;
+      const row = target.closest("tr");
+      if (row) row.classList.add("gi-matrix-row-hover");
+      const colAttr = target.dataset.col ?? (target as HTMLTableCellElement).cellIndex?.toString();
+      if (colAttr != null) {
+        const ci = parseInt(colAttr, 10);
+        if (!isNaN(ci)) {
+          allRows.forEach(r => {
+            const c = r.children[ci + 1] as HTMLElement | undefined; // +1 for label column
+            if (c) c.classList.add("gi-matrix-col-hover");
+          });
+        }
+      }
+    });
+    table.addEventListener("mouseout", (ev) => {
+      const target = (ev.target as HTMLElement).closest("td, th") as HTMLElement | null;
+      if (!target) return;
+      const row = target.closest("tr");
+      if (row) row.classList.remove("gi-matrix-row-hover");
+      const colAttr = target.dataset.col ?? (target as HTMLTableCellElement).cellIndex?.toString();
+      if (colAttr != null) {
+        const ci = parseInt(colAttr, 10);
+        if (!isNaN(ci)) {
+          allRows.forEach(r => {
+            const c = r.children[ci + 1] as HTMLElement | undefined;
+            if (c) c.classList.remove("gi-matrix-col-hover");
+          });
+        }
+      }
+    });
 
     // Status
     this.setStatus(`${nodeIds.length} × ${nodeIds.length} matrix, ${gd.edges.length} edges`);

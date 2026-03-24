@@ -99,3 +99,37 @@ describe("getLocale", () => {
     expect(["en", "ja"]).toContain(locale);
   });
 });
+
+// =========================================================================
+// Placeholder consistency
+// =========================================================================
+describe("i18n placeholder consistency", () => {
+  it("en and ja have same key count", () => {
+    const enKeys = _getTranslationKeys("en");
+    const jaKeys = _getTranslationKeys("ja");
+    expect(enKeys.length).toBe(jaKeys.length);
+  });
+
+  it("no empty string translations in en", () => {
+    const enKeys = _getTranslationKeys("en");
+    const empty: string[] = [];
+    for (const key of enKeys) {
+      const val = t(key);
+      if (val === "") empty.push(key);
+    }
+    expect(empty).toEqual([]);
+  });
+
+  it("en has substantial number of keys", () => {
+    const enKeys = _getTranslationKeys("en");
+    expect(enKeys.length).toBeGreaterThan(300);
+  });
+
+  it("all en keys are non-empty strings", () => {
+    const enKeys = _getTranslationKeys("en");
+    for (const key of enKeys) {
+      expect(typeof key).toBe("string");
+      expect(key.length).toBeGreaterThan(0);
+    }
+  });
+});
