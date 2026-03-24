@@ -537,3 +537,60 @@ describe("query edge cases", () => {
     expect(evaluateExpr(expr, makeNode({ tags: ["a"] }))).toBe(false);
   });
 });
+
+// =========================================================================
+// Parser robustness — edge cases
+// =========================================================================
+describe("parseQueryExpr robustness", () => {
+  it("empty string returns null", () => {
+    expect(parseQueryExpr("")).toBeNull();
+  });
+
+  it("whitespace-only returns null", () => {
+    expect(parseQueryExpr("   ")).toBeNull();
+  });
+
+  it("single keyword parses without crash", () => {
+    const expr = parseQueryExpr("hello");
+    expect(expr).not.toBeNull();
+  });
+
+  it("unclosed parenthesis parses gracefully", () => {
+    // Should not throw — may return partial parse or null
+    expect(() => parseQueryExpr("(tag:a")).not.toThrow();
+  });
+
+  it("extra closing paren parses gracefully", () => {
+    expect(() => parseQueryExpr("tag:a)")).not.toThrow();
+  });
+
+  it("deeply nested parens parse correctly", () => {
+    const expr = parseQueryExpr("(((tag:deep)))");
+    expect(expr).not.toBeNull();
+    if (expr) {
+      expect(evaluateExpr(expr, makeNode({ tags: ["deep"] }))).toBe(true);
+    }
+  });
+
+  it("special characters in field value", () => {
+    const expr = parseQueryExpr("path:folder/sub-folder/file.md");
+    expect(expr).not.toBeNull();
+  });
+
+  it("operator as value doesn't crash", () => {
+    // "OR" alone should parse as a field/value, not crash
+    expect(() => parseQueryExpr("OR")).not.toThrow();
+  });
+
+  it("multiple spaces between terms", () => {
+    expect(() => parseQueryExpr("tag:a    OR    tag:b")).not.toThrow();
+  });
+
+  it("mixed case operators", () => {
+    const expr = parseQueryExpr("tag:a or tag:b");
+    // May or may not recognize lowercase — just shouldn't crash
+    expect(() => {
+      if (expr) evaluateExpr(expr, makeNode({ tags: ["a"] }));
+    }).not.toThrow();
+  });
+});
