@@ -2287,10 +2287,6 @@
 .gi-fullscreen .graph-toolbar {
   background: var(--background-primary);
 }
-.gi-fullscreen-btn {
-  margin-left: 4px;
-}
-
 /* === Panel Resize Handle === */
 .gi-panel-resize-handle {
   width: 4px;

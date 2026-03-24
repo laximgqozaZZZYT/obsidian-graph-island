@@ -14,7 +14,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoints, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, exportGraphSVG, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter, computeGaps, hitTestTimelineBars, autoBundleStrength, computeNodeBBox, buildTagMembership, buildMissingNeighborSet } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter, computeGaps, hitTestTimelineBars, autoBundleStrength, computeNodeBBox, buildTagMembership, buildMissingNeighborSet } from "../utils/graph-helpers";
 import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph, filterByLocalGraph } from "../utils/graph-filter";
 import { pointInPolygon } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
@@ -684,7 +684,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
-  /** Create the toolbar with zoom, fit, export, local graph, fullscreen, and settings buttons. */
+  /** Create the toolbar with view-mode, zoom, marquee, and settings buttons. */
   private _initToolbar(root: HTMLElement): void {
     const toolbar = root.createDiv({ cls: "graph-toolbar", attr: { role: "toolbar", "aria-label": "Graph controls" } });
     this.statusEl = toolbar.createEl("span", { cls: "graph-status", attr: { "aria-live": "polite" } });
@@ -694,7 +694,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     const zoomGroup = toolbar.createDiv({ cls: "graph-toolbar-zoom" });
     this._initZoomButtons(zoomGroup);
-    this._initActionButtons(zoomGroup);
     this._initSettingsButtons(toolbar);
   }
 
@@ -737,20 +736,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     });
   }
 
-  /** Create zoom in/out, fit, and marquee buttons. */
+  /** Create zoom in/out and marquee buttons. */
   private _initZoomButtons(zoomGroup: HTMLElement): void {
-    const fitBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
-    setIcon(fitBtn, "maximize");
-    fitBtn.setAttribute("aria-label", `${t("toolbar.fitAll")} [F]`);
-    fitBtn.title = `${t("toolbar.fitAll")} [F]`;
-    fitBtn.addEventListener("click", () => {
-      if (!this.canvasWrap) return;
-      const W = this.canvasWrap.clientWidth;
-      const H = this.canvasWrap.clientHeight;
-      this.autoFitView(W, H);
-      this.markDirty();
-    });
-
     const zoomInBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(zoomInBtn, "zoom-in");
     zoomInBtn.setAttribute("aria-label", `${t("toolbar.zoomIn")} [+]`);
@@ -767,12 +754,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.zoomBy(1 / 1.3);
     });
 
-    // Zoom percentage indicator (click to reset to 100%)
+    // Zoom percentage indicator (hidden, kept for internal API)
     this.zoomIndicatorEl = zoomGroup.createEl("span", { cls: "gi-zoom-indicator", text: "100%" });
-    this.zoomIndicatorEl.title = "Click to reset zoom to 100%";
-    this.zoomIndicatorEl.setAttribute("role", "status");
-    this.zoomIndicatorEl.setAttribute("aria-live", "polite");
-    this.zoomIndicatorEl.addEventListener("click", () => { this.setZoom(1.0); });
+    this.zoomIndicatorEl.style.display = "none";
 
     // FPS monitor (debug, hidden by default)
     this.fpsEl = zoomGroup.createEl("span", { cls: "gi-fps-indicator", text: "" });
@@ -793,146 +777,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     });
     this.marqueeBtnEl = marqueeBtn;
-
-    // Lasso selection button
-    const lassoBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn gi-graph-only" });
-    setIcon(lassoBtn, "pen-tool");
-    lassoBtn.setAttribute("aria-label", t("toolbar.lasso") ?? "Lasso select");
-    lassoBtn.title = t("toolbar.lasso") ?? "Lasso select";
-    lassoBtn.addEventListener("click", () => {
-      if (this.interactionManager) {
-        this.interactionManager.lassoMode = !this.interactionManager.lassoMode;
-        lassoBtn.toggleClass("is-active", this.interactionManager.lassoMode);
-        if (this.interactionManager.lassoMode) {
-          this.interactionManager.marqueeMode = false;
-          this.marqueeBtnEl?.removeClass("is-active");
-        }
-      }
-    });
-    this.lassoBtnEl = lassoBtn;
-
-    // Subgraph back button (hidden by default)
-    const subgraphBackBtn = zoomGroup.createEl("button", {
-      cls: "graph-toolbar-btn gi-subgraph-back",
-    });
-    setIcon(subgraphBackBtn, "arrow-left");
-    subgraphBackBtn.setAttribute("aria-label", t("toolbar.backToFullGraph") ?? "Back to full graph");
-    subgraphBackBtn.title = t("toolbar.backToFullGraph") ?? "Back to full graph";
-    subgraphBackBtn.addEventListener("click", () => { this.exitSubgraph(); });
-    this.subgraphBackBtnEl = subgraphBackBtn;
-    subgraphBackBtn.style.display = "none";
   }
 
-  /** Create export, clipboard, and local graph buttons. */
-  private _initActionButtons(zoomGroup: HTMLElement): void {
-    const exportBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
-    setIcon(exportBtn, "camera");
-    exportBtn.setAttribute("aria-label", t("toolbar.exportPng"));
-    exportBtn.title = `${t("toolbar.exportPng")}`;
-    exportBtn.addEventListener("click", async () => {
-      if (!this.pixiApp || !this.worldContainer) return;
-      exportBtn.disabled = true;
-      const origLabel = exportBtn.getAttribute("aria-label") ?? "";
-      exportBtn.setAttribute("aria-label", t("toolbar.exporting"));
-      try {
-        const { exportGraphAsPng, downloadBlob, makeExportFilename } = await import("../utils/export-png");
-        const blob = await exportGraphAsPng(this.pixiApp);
-        downloadBlob(blob, makeExportFilename());
-        showToast(t("toast.pngExported"));
-      } catch (e) {
-        console.error("Graph Island: PNG export failed", e);
-        showToast(t("toast.pngFailed"), 5000);
-      } finally {
-        exportBtn.disabled = false;
-        exportBtn.setAttribute("aria-label", origLabel);
-      }
-    });
-
-    // SVG export button — click for default, right-click for options
-    const svgBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn gi-graph-only" });
-    setIcon(svgBtn, "file-code");
-    svgBtn.setAttribute("aria-label", t("toolbar.exportSvg") ?? "Export SVG");
-    svgBtn.title = t("toolbar.exportSvg") ?? "Export SVG";
-
-    const doSvgExport = (opts: { width: number; height: number; background: string; showLabels: boolean }) => {
-      const gd = this.getGraphData();
-      if (!gd || gd.nodes.length === 0) { showToast("No graph data"); return; }
-      const nodes = gd.nodes.map(n => ({
-        id: n.id, label: n.label ?? n.id,
-        x: n.x, y: n.y,
-        color: this.pixiNodes.get(n.id)?.color,
-      }));
-      const svg = exportGraphSVG(nodes, gd.edges, opts);
-      const blob = new Blob([svg], { type: "image/svg+xml" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `graph-island-${new Date().toISOString().slice(0, 10)}.svg`;
-      a.click();
-      URL.revokeObjectURL(url);
-      showToast(t("toast.svgExported") ?? "SVG exported");
-    };
-
-    // Left click: default export
-    svgBtn.addEventListener("click", () => {
-      const isDark = this.isDarkTheme();
-      doSvgExport({ width: 1200, height: 800, background: isDark ? "#1e1e2e" : "#ffffff", showLabels: true });
-    });
-
-    // Right click: show options menu
-    svgBtn.addEventListener("contextmenu", (e) => {
-      e.preventDefault();
-      const menu = new Menu();
-      const isDark = this.isDarkTheme();
-      menu.addItem(item => item.setTitle("1200×800 (default)").onClick(() =>
-        doSvgExport({ width: 1200, height: 800, background: isDark ? "#1e1e2e" : "#fff", showLabels: true })));
-      menu.addItem(item => item.setTitle("1920×1080 (HD)").onClick(() =>
-        doSvgExport({ width: 1920, height: 1080, background: isDark ? "#1e1e2e" : "#fff", showLabels: true })));
-      menu.addItem(item => item.setTitle("3840×2160 (4K)").onClick(() =>
-        doSvgExport({ width: 3840, height: 2160, background: isDark ? "#1e1e2e" : "#fff", showLabels: true })));
-      menu.addSeparator();
-      menu.addItem(item => item.setTitle("No labels").onClick(() =>
-        doSvgExport({ width: 1200, height: 800, background: isDark ? "#1e1e2e" : "#fff", showLabels: false })));
-      menu.addItem(item => item.setTitle("Transparent background").onClick(() =>
-        doSvgExport({ width: 1200, height: 800, background: "", showLabels: true })));
-      menu.showAtMouseEvent(e);
-    });
-
-    // Local graph toggle button
-    const localGraphBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
-    setIcon(localGraphBtn, "locate-fixed");
-    localGraphBtn.setAttribute("aria-label", t("toolbar.localGraph"));
-    localGraphBtn.title = t("toolbar.localGraph");
-    localGraphBtn.addEventListener("click", () => {
-      if (this.panel.localGraphCenter) {
-        // Turn off local graph
-        this.panel.localGraphCenter = null;
-        localGraphBtn.classList.remove("is-active");
-        showToast(t("toast.localGraphOff"));
-      } else {
-        // Turn on: use active editor file
-        const activeFile = this.app.workspace.getActiveFile();
-        if (activeFile) {
-          this.panel.localGraphCenter = activeFile.path;
-          localGraphBtn.classList.add("is-active");
-          const name = activeFile.basename;
-          showToast(t("toast.localGraphOn").replace("{name}", name).replace("{hops}", String(this.panel.localGraphHops)));
-        }
-      }
-      this.doRender();
-      this.requestSave();
-    });
-
-    // スナップショットボタン
-    const snapshotBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
-    setIcon(snapshotBtn, "bookmark");
-    snapshotBtn.setAttribute("aria-label", t("toolbar.snapshot"));
-    snapshotBtn.title = t("toolbar.snapshot");
-    snapshotBtn.addEventListener("click", (evt) => {
-      this._showSnapshotMenu(evt);
-    });
-
-  }
+  // _initActionButtons removed — export, local graph, snapshot moved to command palette
 
   // =========================================================================
   // スナップショット操作
@@ -1156,25 +1003,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Create fullscreen toggle and settings panel toggle buttons. */
   private _initSettingsButtons(toolbar: HTMLElement): void {
-    // Fullscreen toggle
-    const fullscreenBtn = toolbar.createEl("button", { cls: "graph-toolbar-btn gi-fullscreen-btn" });
-    setIcon(fullscreenBtn, "expand");
-    fullscreenBtn.setAttribute("aria-label", t("toolbar.fullscreen"));
-    fullscreenBtn.title = t("toolbar.fullscreen");
-    fullscreenBtn.addEventListener("click", () => {
-      const container = this.containerEl.querySelector<HTMLElement>(".graph-container");
-      if (!container) return;
-      const isFs = container.classList.toggle("gi-fullscreen");
-      setIcon(fullscreenBtn, isFs ? "shrink" : "expand");
-    });
-
-    // Help button (shows keyboard shortcut overlay)
-    const helpBtn = toolbar.createEl("button", { cls: "graph-toolbar-btn gi-help-btn" });
-    setIcon(helpBtn, "help-circle");
-    helpBtn.setAttribute("aria-label", `${t("toolbar.help")} [?]`);
-    helpBtn.title = `${t("toolbar.help")} [?]`;
-    helpBtn.addEventListener("click", () => { this._toggleHelpOverlay(); });
-
     const panelToggle = toolbar.createEl("button", { cls: "graph-settings-btn" });
     setIcon(panelToggle, "settings");
     panelToggle.setAttribute("aria-label", `${t("toolbar.graphSettings")} [P]`);
