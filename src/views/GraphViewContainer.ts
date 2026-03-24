@@ -499,8 +499,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _saveTimer: ReturnType<typeof setTimeout> | null = null;
   private _resizeOnMove: ((ev: PointerEvent) => void) | null = null;
   private _resizeOnUp: (() => void) | null = null;
-  /** I1b: Surprise auto-trigger interval timer */
-  private _surpriseTimer: ReturnType<typeof setInterval> | null = null;
 
   /** B3: doRender debounce — prevents rapid re-renders from slider drags */
   private _doRenderDebounceTimer = 0;
@@ -867,14 +865,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this._showSnapshotMenu(evt);
     });
 
-    // Surprise (random juxtaposition) button
-    const surpriseBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
-    setIcon(surpriseBtn, "shuffle");
-    surpriseBtn.setAttribute("aria-label", t("toolbar.surprise"));
-    surpriseBtn.title = t("toolbar.surprise");
-    surpriseBtn.addEventListener("click", () => {
-      this._triggerSurprise();
-    });
   }
 
   // =========================================================================
@@ -1729,7 +1719,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   async onClose() {
     clearTimeout(this._autoFitTimer);
-    if (this._surpriseTimer) clearInterval(this._surpriseTimer);
     // B3: Clear doRender debounce timer
     clearTimeout(this._doRenderDebounceTimer);
     // C1: Clear hover preview
@@ -3430,69 +3419,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Manual clustering feature removed — no-op
   }
 
-  // =========================================================================
-  // Surprise — Random Juxtaposition (Phase 5a)
-  // =========================================================================
-  /** Pick two unrelated nodes and zoom to show both + shortest path */
-  private _triggerSurprise(): void {
-    if (!this.adj) return;
-    const nodeIds = [...this.pixiNodes.keys()].filter(id => !id.startsWith("tag:"));
-    if (nodeIds.length < 2) return;
-
-    // Try up to 20 times to find a pair with no shared tags and path >= 3
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const i = Math.floor(Math.random() * nodeIds.length);
-      let j = Math.floor(Math.random() * (nodeIds.length - 1));
-      if (j >= i) j++;
-      const a = nodeIds[i];
-      const b = nodeIds[j];
-
-      // Check: no shared tags
-      const pnA = this.pixiNodes.get(a);
-      const pnB = this.pixiNodes.get(b);
-      if (!pnA || !pnB) continue;
-      const tagsA = new Set(pnA.data.tags ?? []);
-      const tagsB = pnB.data.tags ?? [];
-      if (tagsB.some(t => tagsA.has(t))) continue;
-
-      // Check: shortest path >= 3
-      const path = bfsShortestPath(this.adj, a, b);
-      if (path.length > 0 && path.length < 3) continue;
-
-      // Highlight the pair and their shortest path
-      this.setHighlightedNodeId(a);
-      // Zoom to fit both nodes
-      const world = this.worldContainer;
-      const wrap = this.canvasWrap;
-      if (world && wrap) {
-        const cx = (pnA.data.x + pnB.data.x) / 2;
-        const cy = (pnA.data.y + pnB.data.y) / 2;
-        const dx = Math.abs(pnA.data.x - pnB.data.x) + 200;
-        const dy = Math.abs(pnA.data.y - pnB.data.y) + 200;
-        const scale = Math.min(wrap.clientWidth / dx, wrap.clientHeight / dy, 2);
-        world.scale.set(scale);
-        world.x = wrap.clientWidth / 2 - cx * scale;
-        world.y = wrap.clientHeight / 2 - cy * scale;
-      }
-      this.applyHover();
-      this.wakeRenderLoop();
-      // I1b: Richer toast with tags info
-      const tagsInfo = (pnA.data.tags?.length || pnB.data.tags?.length)
-        ? ` [${(pnA.data.tags ?? []).slice(0, 2).join(",")} | ${(pnB.data.tags ?? []).slice(0, 2).join(",")}]`
-        : "";
-      showToast(`${pnA.data.label} ↔ ${pnB.data.label}` + (path.length > 0 ? ` (${path.length - 1} hops)` : " (unreachable)") + tagsInfo);
-      return;
-    }
-    showToast(t("surprise.noMatch"));
-  }
-
-  /** I1b: Start/stop the surprise auto-trigger timer (always off — surpriseInterval removed) */
-  private _updateSurpriseTimer(): void {
-    if (this._surpriseTimer) {
-      clearInterval(this._surpriseTimer);
-      this._surpriseTimer = null;
-    }
-  }
 
   // =========================================================================
   // I2: Blank Node Insertion
@@ -5825,8 +5751,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const ctx = this._buildPanelContext();
     const cb = this._buildPanelCallbacks();
     buildPanelUI(this.panelEl, this.panel, ctx, cb);
-    // I1b: Update surprise auto-trigger timer whenever panel rebuilds
-    this._updateSurpriseTimer();
   }
 
   /** Build the context object describing current graph state for the panel UI. */
@@ -5879,7 +5803,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       doRender: () => { this.doRender(); this.requestSave(); },
       doRenderKeepPanel: () => { this.skipPanelRebuildCount++; this.doRender().finally(() => { this.skipPanelRebuildCount = Math.max(0, this.skipPanelRebuildCount - 1); }); this.requestSave(); },
       markDirty: () => {
-        invalidateBundleCache(this.edgeCache); this.markDirty(true); this._updateSurpriseTimer(); this.requestSave();
+        invalidateBundleCache(this.edgeCache); this.markDirty(true); this.requestSave();
         // Fallback: force render if rAF is throttled (background tabs)
         setTimeout(() => { this.renderPipeline?.forceRender(); }, 100);
       },
@@ -5993,7 +5917,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.updateLegend();
         if (this.minimap) this.minimap.setVisible(this.panel.showMinimap && this.panel.viewMode === "graph");
         this.markDirty(true);
-        this._updateSurpriseTimer();
         this.requestSave();
       },
       rebuildNodesInPlace: () => { this.rebuildNodesInPlace(); },

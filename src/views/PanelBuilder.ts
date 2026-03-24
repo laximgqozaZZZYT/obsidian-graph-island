@@ -307,8 +307,6 @@ export interface PanelState {
   focusConeEnabled?: boolean;
   /** V2: Scale edge width by average endpoint degree (0 = off, default 0) */
   degreeEdgeWidth?: number;
-  /** I1b: Surprise auto-trigger interval in seconds (0 = disabled) */
-  surpriseInterval?: number;
   /** D1: Manually expanded nodes in local graph mode (IDs whose neighbors are shown beyond hop limit) */
   expandedNodes?: string[];
 }
@@ -471,7 +469,6 @@ export function createDefaultPanel(): PanelState {
     nodeIconField: "",
     nodeIconMap: {},
     focusConeEnabled: true,
-    surpriseInterval: 0,
     expandedNodes: [],
     analysisOverlay: "off" as const,
     degreeEdgeWidth: 0,
@@ -1677,7 +1674,6 @@ function _buildInteractionSection(
   }, tHelp("help.interaction"), true, "mouse-pointer-2");
 }
 
-// _buildAdvancedSection removed — presentationMode/surpriseInterval have no UI
 
 function _buildEdgeDisplaySection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
