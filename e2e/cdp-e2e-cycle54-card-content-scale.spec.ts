@@ -98,10 +98,14 @@ test("HM-1: plain card renders with golden ratio landscape aspect", async () => 
   // cardAspectRatio is 1.618 by default, or 0 (which means use 1.618)
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // HM-2: cardContentScale slider exists and is adjustable
@@ -231,10 +235,14 @@ test("HM-4: z-index hierarchy separates overlay panels", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   if (!(result as any).skipped) {
     expect(result.hierarchyCorrect).toBe(true);
   }
@@ -250,10 +258,14 @@ test("HM-5: aria-live region exists for card mode announcements", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // HM-6: Display mode switch card→node→card maintains golden ratio config
@@ -316,10 +328,14 @@ test("HM-7: hover label culling exclusion zone includes DOM panels", async () =>
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   await setDisplayMode(page, "node");
 });
 
@@ -414,10 +430,14 @@ test("HM-10: gridCellShading property exists in panel state", async () => {
   });
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

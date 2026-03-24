@@ -102,10 +102,14 @@ test("JE-1: §0.4 FPS during continuous zoom sweep", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   if (!result.skipped && result.samples > 0) {
     expect(result.pass).toBe(true);
   }
@@ -139,10 +143,14 @@ test("JE-2: FPS recovers after zoom stress", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   if (!result.skipped) {
     expect(result.recovered).toBe(true);
   }
@@ -207,10 +215,14 @@ test("JF-3: §4.2 hover tooltip stays within viewport bounds", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   if (!result.skipped && result.hasTooltip) {
     expect(result.tooltipInBounds).toBe(true);
   }
@@ -265,10 +277,14 @@ test("JF-4: §4.2 card mode tooltip offset > node radius", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   if (!result.skipped && result.hasTooltip) {
     expect(result.cardAware).toBe(true);
   }
@@ -299,10 +315,14 @@ test("JF-5: tooltip overlap adjustment exists", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   if (!result.skipped) {
     expect(result.bothExist).toBe(true);
   }

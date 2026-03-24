@@ -57,10 +57,14 @@ test("JG-1: edgeZoomFadeThreshold field is accessible", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   // Value should be undefined (default) or a number between 0.1 and 1.0
   if (result.value !== undefined) {
     expect(result.value).toBeGreaterThanOrEqual(0.1);
@@ -105,10 +109,14 @@ test("JG-2: edges fade at zoom below threshold", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   // Edge container should still exist (fade doesn't hide the container)
 });
 
@@ -150,10 +158,14 @@ test("JG-3: custom threshold changes fade behavior", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   expect(result.readBack).toBe(0.1);
 });
 
@@ -176,10 +188,14 @@ test("JH-4: kShortestPaths removed from graph-helpers", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // JH-5: edgeMinZoom slider still functions (regression check)
@@ -206,10 +222,14 @@ test("JH-5: edgeMinZoom slider exists in panel", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // JH-6: No console errors after edge threshold changes
@@ -248,10 +268,14 @@ test("JH-6: no console errors from edge fade config", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   expect(errors.filter(e => e.includes("edge") || e.includes("fade"))).toHaveLength(0);
 });
 

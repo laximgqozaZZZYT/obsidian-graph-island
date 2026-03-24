@@ -83,10 +83,14 @@ test("IN-1: card tooltip offset accounts for card dimensions", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // IO-2: Search count badge shows filtered/total format
@@ -162,10 +166,14 @@ test("IM-3: gridStyle table mode has distinct rendering from lines", async () =>
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // IN-4: Tooltip does not overlap card in card mode
@@ -207,10 +215,14 @@ test("IN-4: card mode hover creates non-overlapping tooltip position", async () 
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // IO-5: Search count badge has aria-live for screen reader
@@ -233,10 +245,14 @@ test("IO-5: search count badge is accessible", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   if (result.found) {
     expect(result.ariaLive).toBe("polite");
   }

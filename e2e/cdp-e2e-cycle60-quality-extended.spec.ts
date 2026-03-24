@@ -86,10 +86,14 @@ test("§0.2: mid-zoom 0.5 label visibility is moderate", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
   if (!result.skipped && result.total > 10) {
     expect(result.moderate).toBe(true);
   }
@@ -247,10 +251,14 @@ test("§0.3: Tab cycles through search results when active", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // §0.1: cullStats API returns valid collision rate
@@ -280,10 +288,14 @@ test("§0.1: collision rate at zoom 1.0 is quantified", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // §0.4: Zoom sweep performance — no frame drops
@@ -318,10 +330,14 @@ test("§0.3: key ARIA landmarks are present", async () => {
 
   expect(result.ok).toBe(true);
 
-  // === Coordinate sanity: no NaN/Inf after setting change ===
+  // === Coordinate sanity + visual quality after setting change ===
   const _csq = await measureSpread(page);
   expect(_csq.nanCount).toBe(0);
   expect(_csq.infCount).toBe(0);
+  const _vq = await measureScreenDensity(page);
+  if (_vq.totalNodes > 10) {
+    expect(_vq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

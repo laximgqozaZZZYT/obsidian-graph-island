@@ -58,6 +58,10 @@ test("road network overlay toggle controls visibility", async () => {
   const _tgq = await measureSpread(page);
   expect(_tgq.nanCount).toBe(0);
   expect(_tgq.infCount).toBe(0);
+  const _tvq = await measureScreenDensity(page);
+  if (_tvq.totalNodes > 10) {
+    expect(_tvq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("road network exists after enabling and rebuilding", async () => {

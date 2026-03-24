@@ -58,6 +58,10 @@ test("fadeEdgesByDegree setting changes panel state", async () => {
   const _tgq = await measureSpread(page);
   expect(_tgq.nanCount).toBe(0);
   expect(_tgq.infCount).toBe(0);
+  const _tvq = await measureScreenDensity(page);
+  if (_tvq.totalNodes > 10) {
+    expect(_tvq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("cableBundleMode never with groupBy produces no crash", async () => {
