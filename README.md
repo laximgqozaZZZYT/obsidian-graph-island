@@ -254,20 +254,22 @@ src/
 
 349+ E2E tests (CDP-based, Obsidian live testing)
 
-## What's New in v0.5
+## What's New in v0.5.1
 
+- **Timeline redesign**: Hierarchical lane assignment using parent_id; zero-overlap bar layout; compact 6px bars
+- **Tree viewMode removed**: Replaced by improved force layout + cluster arrangements
+- **Surprise feature removed**: Cleaned up toolbar and settings
 - **Lasso selection**: Draw a freeform loop around nodes to select them as a group
 - **Subgraph view**: Drill into selected nodes as an isolated subgraph with back-navigation stack
-- **Pure function extraction**: 13 functions extracted from view layer for testability (GVC + LabelManager)
-- **2327+ unit tests**: Coverage thresholds S28.7/B27.4/F25.3/L28.4
+- **SVG export**: Pure function to convert graph to SVG string
+- **2394+ unit tests**: Coverage thresholds S28.9/B27.5/F25.7/L28.6
 
 ## What's New in v0.4
 
-- **5 Visualization Modes**: Switch between Graph, Sunburst, Timeline, Tree, and Matrix views via the toolbar
+- **4 Visualization Modes**: Switch between Graph, Sunburst, Timeline, and Matrix views via the toolbar
 - **Sunburst ring chart**: Hierarchical folder/category breakdown as a colored ring chart with leader-line labels
 - **Timeline bar chart**: Duration bars for time-based data with auto-detected date fields and time axis labels
 - **Matrix adjacency table**: Full-screen node-to-node connection table with color-intensity cells; click to jump to Graph mode
-- **Tree horizontal layout**: Left-to-right hierarchical tree with canvas-fit scaling
 - **Mode-aware panel**: Settings sections automatically show/hide based on the active viewMode
 
 ## What's New in v0.3.1
