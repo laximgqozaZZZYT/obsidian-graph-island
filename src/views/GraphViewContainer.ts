@@ -145,6 +145,22 @@ export function cleanArcName(name: string): string {
   return segments[segments.length - 1] || name;
 }
 
+/** Check if saved positions are within a reasonable coordinate range for force layout reuse. */
+export function areSavedPositionsValid(
+  positions: Map<string, { x: number; y: number }>,
+  canvasW: number,
+  canvasH: number,
+): boolean {
+  if (positions.size === 0) return false;
+  const maxCoord = Math.max(canvasW, canvasH) * 5;
+  for (const p of positions.values()) {
+    if (!isFinite(p.x) || !isFinite(p.y) || Math.abs(p.x) > maxCoord || Math.abs(p.y) > maxCoord) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function lightenHex(hex: number, factor: number): number {
   const { r, g, b } = hexToRgb(hex);
   const lr = Math.min(255, r + Math.round(255 * factor));
@@ -7327,14 +7343,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     nodeColor: (n: GraphNode) => number,
     cx: number, cy: number, W: number, H: number,
   ): void {
-    // Detect if saved positions are from a non-force layout (sunburst/concentric)
-    // by checking if coordinates are extreme relative to canvas size
+    const savedPositionsValid = areSavedPositionsValid(this.savedPositions, W, H);
     const maxReasonableCoord = Math.max(W, H) * 5;
-    const savedPositionsValid = this.savedPositions.size > 0 &&
-      [...this.savedPositions.values()].every(p =>
-        isFinite(p.x) && isFinite(p.y) &&
-        Math.abs(p.x) < maxReasonableCoord && Math.abs(p.y) < maxReasonableCoord
-      );
 
     for (const n of gd.nodes) {
       // Use saved positions from previous layout as starting positions,

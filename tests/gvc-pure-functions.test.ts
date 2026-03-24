@@ -13,6 +13,7 @@ import {
   findMatchingGroupPreset,
   resolveNodeColor,
   cleanArcName,
+  areSavedPositionsValid,
 } from "../src/views/GraphViewContainer";
 import { hexToRgb } from "../src/utils/color";
 import type { GroupPreset } from "../src/types";
@@ -414,5 +415,70 @@ describe("cleanArcName", () => {
 
   it("handles path with Japanese folder", () => {
     expect(cleanArcName("mythology-japanese/mythology-japanese")).toBe("mythology-japanese");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// areSavedPositionsValid — detect extreme coordinates from non-force layouts
+// ---------------------------------------------------------------------------
+
+describe("areSavedPositionsValid", () => {
+  it("returns false for empty map", () => {
+    expect(areSavedPositionsValid(new Map(), 800, 600)).toBe(false);
+  });
+
+  it("returns true for positions within canvas range", () => {
+    const positions = new Map([
+      ["a", { x: 100, y: 200 }],
+      ["b", { x: -300, y: 400 }],
+    ]);
+    expect(areSavedPositionsValid(positions, 800, 600)).toBe(true);
+  });
+
+  it("returns false when any position has NaN", () => {
+    const positions = new Map([
+      ["a", { x: 100, y: 200 }],
+      ["b", { x: NaN, y: 400 }],
+    ]);
+    expect(areSavedPositionsValid(positions, 800, 600)).toBe(false);
+  });
+
+  it("returns false when any position has Infinity", () => {
+    const positions = new Map([
+      ["a", { x: Infinity, y: 200 }],
+    ]);
+    expect(areSavedPositionsValid(positions, 800, 600)).toBe(false);
+  });
+
+  it("returns false for extreme coordinates (sunburst-like)", () => {
+    // Sunburst produces Y values like -82000 for 800x600 canvas
+    const positions = new Map([
+      ["a", { x: -245, y: -82662 }],
+    ]);
+    // maxCoord = 800 * 5 = 4000, |-82662| > 4000
+    expect(areSavedPositionsValid(positions, 800, 600)).toBe(false);
+  });
+
+  it("returns true for positions at boundary of valid range", () => {
+    // maxCoord = max(800,600)*5 = 4000
+    const positions = new Map([
+      ["a", { x: 3999, y: -3999 }],
+    ]);
+    expect(areSavedPositionsValid(positions, 800, 600)).toBe(true);
+  });
+
+  it("returns false when just over boundary", () => {
+    const positions = new Map([
+      ["a", { x: 4001, y: 0 }],
+    ]);
+    expect(areSavedPositionsValid(positions, 800, 600)).toBe(false);
+  });
+
+  it("uses larger dimension for threshold", () => {
+    // Canvas 400x1000, maxCoord = 1000*5 = 5000
+    const positions = new Map([
+      ["a", { x: 4500, y: 0 }],
+    ]);
+    expect(areSavedPositionsValid(positions, 400, 1000)).toBe(true);
   });
 });
