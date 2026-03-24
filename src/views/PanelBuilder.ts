@@ -2046,6 +2046,48 @@ function buildLayoutTab(
   // --- Unified Grouping & Layout section ---
   if (v("grouping") || v("clusterArrangement") || v("coordinateControls")) {
     buildSection(layoutTab, t("section.displayGrouping"), (body) => {
+      // --- GroupBy rules ---
+      if (v("grouping")) {
+        const groupByLabel = body.createDiv({ cls: "setting-item-name", text: t("display.groupBy") });
+        const groupByListEl = body.createDiv({ cls: "gi-multirule-list" });
+        renderGroupByRules(groupByListEl, panel, ctx, cb);
+
+        if (panel.groupBy && panel.groupBy !== "none") {
+          const groupBtnRow = body.createDiv({ cls: "gi-setting-row gi-group-btn-row" });
+          const expandBtn = groupBtnRow.createEl("button", { cls: "gi-btn-sm", text: t("groups.expandAll") });
+          expandBtn.addEventListener("click", () => {
+            panel.collapsedGroups.clear();
+            panel.collapsedGroups.add("__gi_expand_all__");
+            cb.doRenderKeepPanel();
+            cb.rebuildPanel();
+            cb.announceA11y?.(`${t("groups.expandAll") ?? "Expand All"}: groups expanded`);
+          });
+          const collapseBtn = groupBtnRow.createEl("button", { cls: "gi-btn-sm", text: t("groups.collapseAll") });
+          collapseBtn.addEventListener("click", () => {
+            panel.collapsedGroups.clear();
+            cb.doRenderKeepPanel();
+            cb.rebuildPanel();
+            cb.announceA11y?.(`${t("groups.collapseAll") ?? "Collapse All"}: groups collapsed`);
+          });
+
+          addSlider(body, t("display.groupMinSize"), 1, 20, 1, panel.groupMinSize, (v) => {
+            panel.groupMinSize = v;
+            panel.collapsedGroups.clear();
+            cb.doRenderKeepPanel();
+          }, t("desc.groupMinSize"));
+          if (ctx.availableGroups.length > 0) {
+            const currentFilter = panel.groupFilter
+              ? new Set(panel.groupFilter.split(",").map(s => s.trim()).filter(Boolean))
+              : new Set(ctx.availableGroups);
+            addCheckboxGroup(body, t("display.groupFilter"), ctx.availableGroups, currentFilter, (sel) => {
+              panel.groupFilter = sel.size === ctx.availableGroups.length ? "" : [...sel].join(", ");
+              panel.collapsedGroups.clear();
+              cb.doRenderKeepPanel();
+            });
+          }
+        }
+      }
+
       // --- Cluster arrangement ---
       if (v("clusterArrangement")) {
         const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
