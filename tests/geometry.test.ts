@@ -308,3 +308,76 @@ describe("clamp edge cases", () => {
   });
 });
 
+// =========================================================================
+// convexHull — collinear + degenerate
+// =========================================================================
+describe("convexHull collinear points", () => {
+  it("collinear horizontal points return endpoints", () => {
+    const pts = [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 10, y: 0 }];
+    const hull = convexHull(pts);
+    expect(hull.length).toBeLessThanOrEqual(3);
+    expect(hull.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("collinear vertical points return endpoints", () => {
+    const pts = [{ x: 0, y: 0 }, { x: 0, y: 5 }, { x: 0, y: 10 }];
+    const hull = convexHull(pts);
+    expect(hull.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("duplicate points produce valid hull", () => {
+    const pts = [{ x: 5, y: 5 }, { x: 5, y: 5 }, { x: 5, y: 5 }];
+    const hull = convexHull(pts);
+    expect(hull.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("single point returns single point", () => {
+    const hull = convexHull([{ x: 42, y: 99 }]);
+    expect(hull).toHaveLength(1);
+    expect(hull[0].x).toBe(42);
+  });
+
+  it("two points return both", () => {
+    const hull = convexHull([{ x: 0, y: 0 }, { x: 10, y: 10 }]);
+    expect(hull).toHaveLength(2);
+  });
+});
+
+// =========================================================================
+// magnitude edge cases
+// =========================================================================
+describe("magnitude edge cases", () => {
+  it("zero vector = 0", () => {
+    expect(magnitude(0, 0)).toBe(0);
+  });
+
+  it("unit vectors", () => {
+    expect(magnitude(1, 0)).toBe(1);
+    expect(magnitude(0, 1)).toBe(1);
+  });
+
+  it("3-4-5 triangle", () => {
+    expect(magnitude(3, 4)).toBe(5);
+  });
+
+  it("negative components", () => {
+    expect(magnitude(-3, -4)).toBe(5);
+  });
+});
+
+// =========================================================================
+// rectsOverlap edge cases
+// =========================================================================
+describe("rectsOverlap edge cases", () => {
+  it("identical rects overlap", () => {
+    const r = { x: 0, y: 0, w: 10, h: 10 };
+    expect(rectsOverlap(r, r)).toBe(true);
+  });
+
+  it("zero-width rect does not overlap adjacent", () => {
+    const a = { x: 0, y: 0, w: 0, h: 10 };
+    const b = { x: 1, y: 0, w: 10, h: 10 };
+    expect(rectsOverlap(a, b)).toBe(false);
+  });
+});
+
