@@ -2274,29 +2274,6 @@
   cursor: pointer;
 }
 
-/* === Zoom Preset Buttons === */
-.gi-zoom-presets {
-  margin-left: 4px;
-  display: inline-flex;
-  gap: 1px;
-}
-.gi-zoom-preset-btn {
-  font-size: 9px;
-  padding: 4px 6px;
-  min-width: 24px;
-  min-height: 24px;
-  border: none;
-  border-radius: 3px;
-  background: var(--background-modifier-hover);
-  color: var(--text-muted);
-  cursor: pointer;
-  line-height: 1;
-}
-.gi-zoom-preset-btn:hover {
-  color: var(--text-normal);
-  background: var(--background-modifier-active-hover, var(--background-modifier-hover));
-}
-
 /* === Fullscreen === */
 .gi-fullscreen {
   position: fixed !important;

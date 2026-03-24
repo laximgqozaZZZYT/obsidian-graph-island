@@ -765,16 +765,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.zoomIndicatorEl.setAttribute("aria-live", "polite");
     this.zoomIndicatorEl.addEventListener("click", () => { this.setZoom(1.0); });
 
-    // Zoom preset buttons (10%, 30%, 50%, 100%)
-    const presetBar = zoomGroup.createEl("span", { cls: "gi-zoom-presets" });
-    for (const pct of [10, 30, 50, 100]) {
-      const btn = presetBar.createEl("button", { text: `${pct}`, cls: "gi-zoom-preset-btn" });
-      btn.title = `Zoom to ${pct}%`;
-      btn.setAttribute("aria-label", `Zoom to ${pct}%`);
-      btn.addEventListener("click", () => { this.setZoom(pct / 100); });
-    }
-
-    // FPS monitor (debug)
+    // FPS monitor (debug, hidden by default)
     this.fpsEl = zoomGroup.createEl("span", { cls: "gi-fps-indicator", text: "" });
     this.fpsEl.title = "Render FPS";
 
@@ -898,20 +889,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       menu.showAtMouseEvent(e);
     });
 
-    // ノートにグラフを埋め込むボタン
-    const embedBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
-    setIcon(embedBtn, "image-down");
-    embedBtn.setAttribute("aria-label", t("toolbar.embedInNote"));
-    embedBtn.title = t("toolbar.embedInNote");
-    embedBtn.addEventListener("click", async () => {
-      embedBtn.disabled = true;
-      try {
-        await this.embedGraphInNote();
-      } finally {
-        embedBtn.disabled = false;
-      }
-    });
-
     // Local graph toggle button
     const localGraphBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(localGraphBtn, "locate-fixed");
@@ -935,17 +912,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       this.doRender();
       this.requestSave();
-    });
-
-    // Clipboard copy button (next to camera/export)
-    const clipboardBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
-    setIcon(clipboardBtn, "clipboard-copy");
-    clipboardBtn.setAttribute("aria-label", `${t("toolbar.copyClipboard")} [Ctrl+Shift+C]`);
-    clipboardBtn.title = `${t("toolbar.copyClipboard")} [Ctrl+Shift+C]`;
-    clipboardBtn.addEventListener("click", async () => {
-      clipboardBtn.disabled = true;
-      await this.copyGraphToClipboard();
-      clipboardBtn.disabled = false;
     });
 
     // スナップショットボタン
