@@ -178,3 +178,71 @@ describe("hslToHex", () => {
     expect(hslToHex(480, 1, 0.5)).toBe(hslToHex(120, 1, 0.5));
   });
 });
+
+// =========================================================================
+// Edge cases: boundary colors + WCAG integration
+// =========================================================================
+describe("getLuminance edge cases", () => {
+  it("pure black = 0", () => {
+    expect(getLuminance(0, 0, 0)).toBe(0);
+  });
+
+  it("pure white = 255", () => {
+    expect(getLuminance(255, 255, 255)).toBeCloseTo(255, 0);
+  });
+
+  it("mid gray ≈ 128", () => {
+    const lum = getLuminance(128, 128, 128);
+    expect(lum).toBeGreaterThan(100);
+    expect(lum).toBeLessThan(160);
+  });
+
+  it("red has lower luminance than green (human perception)", () => {
+    expect(getLuminance(255, 0, 0)).toBeLessThan(getLuminance(0, 255, 0));
+  });
+});
+
+describe("contrastColor edge cases", () => {
+  it("returns white for dark backgrounds", () => {
+    expect(contrastColor(0x1a1a2e)).toBe(0xFFFFFF);
+  });
+
+  it("returns black for light backgrounds", () => {
+    expect(contrastColor(0xF0F0F0)).toBe(0x000000);
+  });
+
+  it("contrast ratio meets WCAG AA (4.5:1) for black bg", () => {
+    const text = contrastColor(0x000000);
+    const ratio = wcagContrastRatio(0x000000, text);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("contrast ratio meets WCAG AA for white bg", () => {
+    const text = contrastColor(0xFFFFFF);
+    const ratio = wcagContrastRatio(0xFFFFFF, text);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("handles mid-range colors", () => {
+    for (const c of [0x808080, 0x404040, 0xC0C0C0, 0x60A5FA, 0xFB923C]) {
+      const text = contrastColor(c);
+      expect(text === 0x000000 || text === 0xFFFFFF).toBe(true);
+    }
+  });
+});
+
+describe("wcagContrastRatio boundary", () => {
+  it("same color = 1:1", () => {
+    expect(wcagContrastRatio(0xFF0000, 0xFF0000)).toBeCloseTo(1, 1);
+  });
+
+  it("black vs white = 21:1", () => {
+    expect(wcagContrastRatio(0x000000, 0xFFFFFF)).toBeCloseTo(21, 0);
+  });
+
+  it("is symmetric", () => {
+    const r1 = wcagContrastRatio(0x60A5FA, 0x1A1A2E);
+    const r2 = wcagContrastRatio(0x1A1A2E, 0x60A5FA);
+    expect(r1).toBeCloseTo(r2, 2);
+  });
+});

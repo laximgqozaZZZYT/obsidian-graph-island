@@ -718,3 +718,113 @@ describe("assignValues edge cases", () => {
     expect(assignValues(root)).toBe(100);
   });
 });
+
+// ---------------------------------------------------------------------------
+// computeSunburstArcs — boundary values
+// ---------------------------------------------------------------------------
+
+describe("computeSunburstArcs boundary values", () => {
+  it("single leaf produces 2 arcs (root + leaf)", () => {
+    const root: SunburstData = {
+      name: "root",
+      children: [{ name: "only", value: 1 }],
+    };
+    const arcs = computeSunburstArcs(root, 400, 400);
+    expect(arcs.length).toBe(2);
+    expect(arcs[0].name).toBe("root");
+    expect(arcs[1].name).toBe("only");
+  });
+
+  it("root arc spans full 2π", () => {
+    const root: SunburstData = {
+      name: "root",
+      children: [
+        { name: "a", value: 1 },
+        { name: "b", value: 1 },
+      ],
+    };
+    const arcs = computeSunburstArcs(root, 400, 400);
+    const rootArc = arcs.find(a => a.name === "root")!;
+    expect(rootArc.x0).toBeCloseTo(0);
+    expect(rootArc.x1).toBeCloseTo(2 * Math.PI, 4);
+  });
+
+  it("children arcs partition parent angle evenly when equal values", () => {
+    const root: SunburstData = {
+      name: "root",
+      children: [
+        { name: "a", value: 1 },
+        { name: "b", value: 1 },
+        { name: "c", value: 1 },
+      ],
+    };
+    const arcs = computeSunburstArcs(root, 400, 400);
+    const childArcs = arcs.filter(a => a.depth === 1);
+    expect(childArcs.length).toBe(3);
+    const sweep0 = childArcs[0].x1 - childArcs[0].x0;
+    const sweep1 = childArcs[1].x1 - childArcs[1].x0;
+    const sweep2 = childArcs[2].x1 - childArcs[2].x0;
+    expect(sweep0).toBeCloseTo(sweep1, 8);
+    expect(sweep1).toBeCloseTo(sweep2, 8);
+  });
+
+  it("non-square viewport uses min dimension for radius", () => {
+    const root: SunburstData = {
+      name: "root",
+      children: [{ name: "a", value: 1 }],
+    };
+    const arcsWide = computeSunburstArcs(root, 800, 400);
+    const arcsTall = computeSunburstArcs(root, 400, 800);
+    // Both should use 400/2 = 200 as radius base
+    expect(arcsWide[1].y1).toBeCloseTo(arcsTall[1].y1, 4);
+  });
+
+  it("empty root with no children produces 1 arc", () => {
+    const root: SunburstData = { name: "empty" };
+    const arcs = computeSunburstArcs(root, 400, 400);
+    expect(arcs.length).toBe(1);
+    expect(arcs[0].depth).toBe(0);
+  });
+
+  it("deeply nested tree produces correct depth values", () => {
+    const root: SunburstData = {
+      name: "d0",
+      children: [{
+        name: "d1",
+        children: [{
+          name: "d2",
+          children: [{ name: "d3", value: 1 }],
+        }],
+      }],
+    };
+    const arcs = computeSunburstArcs(root, 400, 400);
+    expect(arcs.map(a => a.depth)).toEqual([0, 1, 2, 3]);
+    // y0/y1 should increase with depth
+    for (let i = 1; i < arcs.length; i++) {
+      expect(arcs[i].y0).toBeGreaterThan(arcs[i - 1].y0);
+    }
+  });
+
+  it("child with value 0 gets zero sweep", () => {
+    const root: SunburstData = {
+      name: "root",
+      children: [
+        { name: "big", value: 10 },
+        { name: "zero", value: 0 },
+      ],
+    };
+    const arcs = computeSunburstArcs(root, 400, 400);
+    const zeroArc = arcs.find(a => a.name === "zero")!;
+    expect(zeroArc.x1 - zeroArc.x0).toBeCloseTo(0, 8);
+  });
+
+  it("preserves filePath on leaf arcs", () => {
+    const root: SunburstData = {
+      name: "root",
+      children: [{ name: "file", value: 1, filePath: "docs/readme.md" }],
+    };
+    const arcs = computeSunburstArcs(root, 400, 400);
+    const leaf = arcs.find(a => a.name === "file")!;
+    expect(leaf.filePath).toBe("docs/readme.md");
+  });
+});

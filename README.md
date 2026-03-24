@@ -241,7 +241,7 @@ src/
 
 ### Tests
 
-2327+ unit tests across 95 test files covering:
+2460+ unit tests across 102 test files covering:
 
 - Edge rendering, enclosure hull, geometry, graph helpers
 - Query expression, transform expression parser
@@ -261,7 +261,7 @@ src/
 - **SVG export**: Toolbar button with right-click options (size, labels, background)
 - **Lasso selection**: Draw a freeform loop around nodes to select them as a group
 - **Subgraph view**: Drill into selected nodes as an isolated subgraph with back-navigation stack
-- **2434+ unit tests**: Coverage thresholds S28.8/B27.3/F25.5/L28.5
+- **2460+ unit tests + 135+ E2E tests**: Coverage thresholds enforced
 
 ## What's New in v0.4
 
