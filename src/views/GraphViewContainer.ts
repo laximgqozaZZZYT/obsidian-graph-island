@@ -8735,11 +8735,68 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return bestArc.name;
   }
 
-  /** Set hovered sunburst group and trigger re-render with highlight */
+  /** Sunburst tooltip element */
+  private _sunburstTooltipEl: HTMLElement | null = null;
+
+  /** Set hovered sunburst group and trigger re-render with highlight + tooltip */
   setSunburstHover(groupName: string | null): void {
     if (groupName === this._hoveredSunburstGroup) return;
     this._hoveredSunburstGroup = groupName;
+    this._updateSunburstTooltip(groupName);
     this.markDirty();
+  }
+
+  /** Update or hide sunburst tooltip */
+  private _updateSunburstTooltip(groupName: string | null): void {
+    if (!groupName) {
+      if (this._sunburstTooltipEl) this._sunburstTooltipEl.style.display = "none";
+      return;
+    }
+
+    // Count nodes in this group
+    const arcs = this.sunburstLayoutArcs;
+    let leafCount = 0;
+    let depth2Names: string[] = [];
+    for (const arc of arcs) {
+      if (arc.depth === 1 && arc.name === groupName) continue;
+      // Check if arc belongs to this group (depth-1 ancestor)
+      if (arc.depth >= 2) {
+        let isChild = false;
+        for (const parent of arcs) {
+          if (parent.depth === 1 && parent.name === groupName &&
+              parent.x0 <= arc.x0 && parent.x1 >= arc.x1) {
+            isChild = true; break;
+          }
+        }
+        if (!isChild) continue;
+        if (arc.depth === 2 && depth2Names.length < 5) {
+          depth2Names.push(cleanArcName(arc.name));
+        }
+        if (!arc.filePath && arc.value) leafCount += arc.value;
+        if (arc.filePath) leafCount++;
+      }
+    }
+
+    const displayName = cleanArcName(groupName);
+    const lines = [displayName];
+    if (leafCount > 0) lines.push(`${leafCount} files`);
+    if (depth2Names.length > 0) lines.push(depth2Names.join(", "));
+
+    // Create or update tooltip element
+    if (!this._sunburstTooltipEl && this.canvasWrap) {
+      this._sunburstTooltipEl = this.canvasWrap.createDiv({ cls: "gi-sunburst-tooltip" });
+      Object.assign(this._sunburstTooltipEl.style, {
+        position: "absolute", pointerEvents: "none", zIndex: "100",
+        background: "var(--background-secondary)", color: "var(--text-normal)",
+        padding: "4px 8px", borderRadius: "4px", fontSize: "12px",
+        maxWidth: "250px", whiteSpace: "pre-line", lineHeight: "1.4",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.3)", top: "8px", right: "8px",
+      });
+    }
+    if (this._sunburstTooltipEl) {
+      this._sunburstTooltipEl.textContent = lines.join("\n");
+      this._sunburstTooltipEl.style.display = "";
+    }
   }
 
   // =========================================================================
@@ -8839,6 +8896,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     this.sunburstLabels.clear();
     if (this.sunburstLabelContainer) this.sunburstLabelContainer.visible = false;
+    // Hide hover tooltip
+    this._hoveredSunburstGroup = null;
+    if (this._sunburstTooltipEl) this._sunburstTooltipEl.style.display = "none";
   }
 
   /** Sunburst label container for category names */

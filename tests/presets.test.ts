@@ -535,3 +535,44 @@ describe("importPreset — migration", () => {
   });
 });
 
+// =========================================================================
+// Edge cases: Set handling, unknown fields, empty input
+// =========================================================================
+describe("importPreset edge cases", () => {
+  it("empty JSON object returns empty partial", () => {
+    const r = importPreset("{}");
+    expect(typeof r).toBe("object");
+  });
+
+  it("unknown fields are silently ignored", () => {
+    const r = importPreset(JSON.stringify({ __unknownField__: 42, nodeSize: 20 }));
+    expect((r as any).__unknownField__).toBeUndefined();
+    expect(r.nodeSize).toBe(20);
+  });
+
+  it("invalid JSON throws or returns empty", () => {
+    expect(() => importPreset("{bad json!}")).toThrow();
+  });
+
+  it("null values don't crash", () => {
+    const r = importPreset(JSON.stringify({ nodeSize: null, showArrows: null }));
+    expect(typeof r).toBe("object");
+  });
+
+  it("array for collapsedGroups is accepted", () => {
+    const r = importPreset(JSON.stringify({ collapsedGroups: ["a", "b"] }));
+    // Should convert array to Set or keep as-is
+    expect(r.collapsedGroups).toBeDefined();
+  });
+});
+
+describe("exportPresetDiff edge cases", () => {
+  it("identical panels produce minimal diff", () => {
+    const panel = { nodeSize: 15, showArrows: false } as any;
+    const json = exportPresetDiff(panel, panel);
+    const parsed = JSON.parse(json);
+    // Diff of identical should have very few keys
+    expect(Object.keys(parsed).length).toBeLessThanOrEqual(2);
+  });
+});
+

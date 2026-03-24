@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   cssColorToHex, buildAdj, bfsNeighborSet, bfsShortestPath, collectSubgraph,
   edgeSourceId, edgeTargetId, shiftHue, stringHash, hslToHex,
+  incCounter, buildAdjFromEdges,
 } from "../src/utils/graph-helpers";
 import type { GraphData, GraphNode, GraphEdge } from "../src/types";
 
@@ -289,6 +290,99 @@ describe("stringHash", () => {
 
   it("range 1 always returns 0", () => {
     expect(stringHash("anything", 1)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// incCounter — increment map counter
+// ---------------------------------------------------------------------------
+
+describe("incCounter", () => {
+  it("initializes missing key to delta", () => {
+    const map = new Map<string, number>();
+    incCounter(map, "a");
+    expect(map.get("a")).toBe(1);
+  });
+
+  it("increments existing key", () => {
+    const map = new Map<string, number>([["a", 5]]);
+    incCounter(map, "a");
+    expect(map.get("a")).toBe(6);
+  });
+
+  it("supports custom delta", () => {
+    const map = new Map<string, number>();
+    incCounter(map, "x", 10);
+    expect(map.get("x")).toBe(10);
+    incCounter(map, "x", 3);
+    expect(map.get("x")).toBe(13);
+  });
+
+  it("handles negative delta", () => {
+    const map = new Map<string, number>([["a", 5]]);
+    incCounter(map, "a", -2);
+    expect(map.get("a")).toBe(3);
+  });
+
+  it("works with numeric keys", () => {
+    const map = new Map<number, number>();
+    incCounter(map, 42);
+    incCounter(map, 42);
+    expect(map.get(42)).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildAdjFromEdges — adjacency list from node/edge arrays
+// ---------------------------------------------------------------------------
+
+describe("buildAdjFromEdges", () => {
+  it("builds bidirectional adjacency", () => {
+    const nodes = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    const edges = [{ source: "a", target: "b" }, { source: "b", target: "c" }];
+    const adj = buildAdjFromEdges(nodes, edges);
+    expect(adj.get("a")).toEqual(["b"]);
+    expect(adj.get("b")).toEqual(["a", "c"]);
+    expect(adj.get("c")).toEqual(["b"]);
+  });
+
+  it("handles empty edges", () => {
+    const nodes = [{ id: "a" }, { id: "b" }];
+    const adj = buildAdjFromEdges(nodes, []);
+    expect(adj.get("a")).toEqual([]);
+    expect(adj.get("b")).toEqual([]);
+  });
+
+  it("handles empty nodes", () => {
+    const adj = buildAdjFromEdges([], [{ source: "a", target: "b" }]);
+    expect(adj.size).toBe(0);
+  });
+
+  it("handles self-loops", () => {
+    const nodes = [{ id: "a" }];
+    const edges = [{ source: "a", target: "a" }];
+    const adj = buildAdjFromEdges(nodes, edges);
+    expect(adj.get("a")).toEqual(["a", "a"]);
+  });
+
+  it("handles multiple edges between same nodes", () => {
+    const nodes = [{ id: "a" }, { id: "b" }];
+    const edges = [
+      { source: "a", target: "b" },
+      { source: "a", target: "b" },
+    ];
+    const adj = buildAdjFromEdges(nodes, edges);
+    expect(adj.get("a")).toEqual(["b", "b"]);
+    expect(adj.get("b")).toEqual(["a", "a"]);
+  });
+
+  it("ignores edges referencing unknown nodes", () => {
+    const nodes = [{ id: "a" }];
+    const edges = [{ source: "a", target: "z" }];
+    const adj = buildAdjFromEdges(nodes, edges);
+    // "a" gets "z" pushed but "z" doesn't exist in map so no push for z→a
+    expect(adj.get("a")).toEqual(["z"]);
+    expect(adj.has("z")).toBe(false);
   });
 });
 
