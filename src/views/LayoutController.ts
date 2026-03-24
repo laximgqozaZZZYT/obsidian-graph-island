@@ -113,7 +113,10 @@ export class LayoutController {
       if (n.collapsedMembers && n.collapsedMembers.length > 0) {
         return visualR + superCollidePad;
       }
-      return visualR + collidePad;
+      // Add label-aware spacing: longer labels need more room
+      const labelLen = n.label?.length ?? 0;
+      const labelPad = labelLen > 8 ? Math.min((labelLen - 8) * 0.8, 20) : 0;
+      return visualR + collidePad + labelPad;
     };
   }
 

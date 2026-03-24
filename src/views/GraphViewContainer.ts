@@ -4587,8 +4587,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);
   }
 
-  /** Show group name labels at each group's centroid when zoomed out past
-   *  the text fade threshold (individual node labels become invisible). */
+  /** Show group name labels when zoomed out past the text fade threshold.
+   *  Labels appear at each group's centroid (super-node position or member average). */
   private _updateGroupByLabels(): void {
     const ws = this.worldContainer?.scale.x ?? 1;
     const fadeThreshold = Math.max(this.panel.textFadeThreshold, 0.4);
@@ -4597,27 +4597,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Hide all labels when not in group mode or zoomed in enough
     if (!hasGroups || ws >= fadeThreshold || this.panel.viewMode !== "graph") {
-      for (const lbl of this.groupByLabels.values()) {
-        lbl.visible = false;
-      }
+      for (const lbl of this.groupByLabels.values()) lbl.visible = false;
       return;
     }
 
-    // Compute alpha: fade in as zoom decreases below threshold
+    // Alpha: fade in as zoom decreases below threshold
     const alpha = Math.min(1, (fadeThreshold - ws) / (fadeThreshold * 0.5));
 
-    // Build group membership from current pixiNodes using rendered positions
-    const groupMembers = new Map<string, { sumX: number; sumY: number; count: number }>();
+    // Collect group centroids: { key → { x, y, memberCount } }
+    const groups = new Map<string, { x: number; y: number; memberCount: number }>();
+
     for (const pn of this.pixiNodes.values()) {
-      const px = pn.gfx.x;
-      const py = pn.gfx.y;
-      // Super-nodes (collapsed groups) carry their key directly
+      // Collapsed super-nodes: position IS the group centroid
       if (pn.data.id.startsWith("__super__")) {
         const key = pn.data.id.replace("__super__", "");
-        groupMembers.set(key, { sumX: px, sumY: py, count: pn.data.collapsedMembers?.length ?? 1 });
+        groups.set(key, {
+          x: pn.gfx.x,
+          y: pn.gfx.y,
+          memberCount: pn.data.collapsedMembers?.length ?? 1,
+        });
         continue;
       }
-      // For expanded nodes, use the group field value
+      // Expanded nodes: accumulate positions per group field
       const fields = groupBy!.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",")
         .split(",").map(s => s.trim().replace(/:?\?$/, "")).filter(Boolean);
       for (const field of fields) {
@@ -4625,31 +4626,33 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (field === "folder") val = pn.data.filePath?.replace(/\/[^/]*$/, "") || "root";
         else if (field === "tag") val = pn.data.tags?.[0];
         else val = (pn.data.meta as any)?.[field] as string | undefined;
-        if (!val) val = "ungrouped";
+        if (!val) continue; // Skip ungrouped
         const key = `${field}:${val}`;
-        const entry = groupMembers.get(key) ?? { sumX: 0, sumY: 0, count: 0 };
-        entry.sumX += px;
-        entry.sumY += py;
-        entry.count++;
-        groupMembers.set(key, entry);
+        const existing = groups.get(key);
+        if (existing) {
+          // Running average: update centroid incrementally
+          const n = existing.memberCount + 1;
+          existing.x += (pn.gfx.x - existing.x) / n;
+          existing.y += (pn.gfx.y - existing.y) / n;
+          existing.memberCount = n;
+        } else {
+          groups.set(key, { x: pn.gfx.x, y: pn.gfx.y, memberCount: 1 });
+        }
       }
     }
 
-    // Mark existing labels for cleanup
-    const usedKeys = new Set<string>();
     const labelContainer = this.enclosureLabelContainer;
     if (!labelContainer) return;
 
-    for (const [key, stats] of groupMembers) {
-      if (stats.count < 2) continue; // Skip singleton groups
+    const usedKeys = new Set<string>();
+    for (const [key, g] of groups) {
+      if (g.memberCount < 2) continue;
       usedKeys.add(key);
-      const cx = stats.sumX / stats.count;
-      const cy = stats.sumY / stats.count;
-      const displayName = key.replace(/^[^:]+:/, ""); // Strip field prefix
+      const displayName = key.replace(/^[^:]+:/, "");
 
       let txt = this.groupByLabels.get(key);
       if (!txt) {
-        txt = new CanvasText(`${displayName} (${stats.count})`, {
+        txt = new CanvasText(`${displayName} (${g.memberCount})`, {
           fontSize: 14,
           fill: 0xeeeeee,
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
@@ -4666,12 +4669,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.groupByLabels.set(key, txt);
         labelContainer.addChild(txt);
       } else {
-        txt.text = `${displayName} (${stats.count})`;
+        txt.text = `${displayName} (${g.memberCount})`;
       }
 
       const labelScale = Math.min(8, Math.max(1.5, 1.5 / ws));
-      txt.x = cx;
-      txt.y = cy;
+      txt.x = g.x;
+      txt.y = g.y;
       txt.scale.set(labelScale);
       txt.alpha = alpha;
       txt.visible = true;
