@@ -1076,8 +1076,6 @@ export function buildPanel(
   const nodesTab = tabContainers.get("nodes")!;
   const settingsTab = tabContainers.get("settings")!;
 
-  // Preset bar (quick-apply simple/analysis/creative presets)
-  buildPresetBar(panelEl, cb);
 
   // 統計ダッシュボード（プリセットバーの下に配置）
   _buildStatsBar(panelEl, panel, ctx);
