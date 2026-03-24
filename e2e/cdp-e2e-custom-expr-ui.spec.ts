@@ -56,6 +56,12 @@ test("custom arrangement with grid expression produces grid layout", async () =>
 
   expect(result).not.toHaveProperty("error");
   expect(result.arrangement).toBe("grid");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("custom polar expression renders nodes with radial spread", async () => {
@@ -81,6 +87,12 @@ test("custom polar expression renders nodes with radial spread", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.nodeCount).toBeGreaterThan(0);
   expect(result.maxDist).toBeGreaterThan(10);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

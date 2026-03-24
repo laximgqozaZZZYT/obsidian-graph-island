@@ -72,6 +72,12 @@ test("showDotGrid ON vs OFF produces visual difference", async () => {
   const diff = pixelDiff(on, off);
   console.log(`showDotGrid pixel diff: ${diff}`);
   expect(diff).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("showDotGrid panel state persists correctly", async () => {
@@ -106,6 +112,12 @@ test("dot grid syncs with canvasApp state after markDirty", async () => {
     view.panel.showDotGrid = false;
     view.markDirty(true);
   `));
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================

@@ -54,6 +54,12 @@ test("all group arrangement modes apply without errors", async () => {
     }, mode);
     expect(result.nodeCount).toBeGreaterThan(0);
   }
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("horizontal mode produces wider X spread than Y", async () => {
@@ -77,6 +83,12 @@ test("horizontal mode produces wider X spread than Y", async () => {
   });
   expect(result).not.toHaveProperty("error");
   expect(result.xRange).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("concentric mode distributes clusters radially", async () => {
@@ -93,6 +105,12 @@ test("concentric mode distributes clusters radially", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.nodeCount).toBeGreaterThan(0);
   expect(result.arrangement).toBe("concentric");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

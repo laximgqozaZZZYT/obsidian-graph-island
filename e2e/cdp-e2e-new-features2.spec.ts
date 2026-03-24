@@ -180,6 +180,12 @@ test("community coloring assigns 20 distinct colors to nodes", async () => {
     v.panel.nodeColorMode = "community";
     v.rawData = null;
     await v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
   await page.waitForTimeout(10000);
 
@@ -218,6 +224,12 @@ test("community legend shows community entries with sizes", async () => {
     v.panel.groupBy = "folder";
     v.rawData = null;
     await v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
   await page.waitForTimeout(15000);
 
@@ -275,6 +287,12 @@ test("edgeCardinalityLabels shows count on multi-edges", async () => {
     v.panel.showEdgeCardinalityLabels = true;
     v.rawData = null;
     await v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
   await page.waitForTimeout(10000);
 
@@ -348,6 +366,12 @@ test("missing neighbors detects 1291 unlinked same-tag nodes", async () => {
     v.panel.highlightMissingNeighbors = true;
     v.rawData = null;
     await v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
   await page.waitForTimeout(10000);
 
@@ -395,6 +419,12 @@ test("OOB badge shows off-screen count as number", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.exists).toBe(true);
   expect(result.containsDigits).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================
@@ -409,6 +439,12 @@ test("ancestry breadcrumb shows path with separator on hover", async () => {
     v.panel.showAncestryBreadcrumb = true;
     v.rawData = null;
     await v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
   await page.waitForTimeout(10000);
 
@@ -462,6 +498,12 @@ test("edge glow changes edge rendering without changing node count", async () =>
     v.panel.renderThresholds.edgeStrengthGlow = true;
     v.rawData = null;
     await v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
   // Poll until node count stabilizes
   let countOn = 0;
@@ -501,6 +543,12 @@ test("all features combined: community+glow+stats+missing", async () => {
     v.panel.renderThresholds.edgeStrengthGlow = true;
     v.rawData = null;
     await v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
   await page.waitForTimeout(15000);
 

@@ -47,6 +47,12 @@ test.describe("Phase 1 — nodeSize slider", () => {
     expect(result!.count).toBeGreaterThan(0);
     expect(result!.min).toBeGreaterThan(0);
     expect(result!.max).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("1-2: increasing nodeSize to 10 produces larger average radius", async () => {
@@ -82,6 +88,12 @@ test.describe("Phase 1 — nodeSize slider", () => {
     });
 
     expect(largerAvg).toBeGreaterThan(baselineAvg);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("1-3: decreasing nodeSize to 1 produces smaller average radius", async () => {
@@ -125,6 +137,12 @@ test.describe("Phase 1 — nodeSize slider", () => {
       v.panel.nodeSize = 4;
       v.rawData = null;
       v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
     });
     await page.waitForTimeout(4000);
   });

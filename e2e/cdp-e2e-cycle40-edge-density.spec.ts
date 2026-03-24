@@ -217,6 +217,12 @@ test("3. Edge count vs visible edges across zoom levels", async () => {
     expect(r.visibleEdges).toBeLessThanOrEqual(r.totalEdges);
     expect(r.visibilityRatio).toBeGreaterThanOrEqual(0);
     expect(r.visibilityRatio).toBeLessThanOrEqual(1);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   console.log("Test 3 - Edge Count by Zoom Level:", results);
@@ -256,6 +262,12 @@ test("4. Edge and label interaction at zoom=0.3", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.edgeGraphicsExists).toBe(true);
   console.log("Test 4 - Edge and Label Interaction:", result);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // ============================================================================
@@ -310,6 +322,12 @@ test("5. Donut mode with edge rendering at zoom=0.5", async () => {
     console.log("Test 5 - Donut Mode with Edges:", result);
   } else {
     console.log("Test 5 - Donut layout not available (expected in some configurations):", result.error);
+  }
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
   }
 });
 
@@ -403,6 +421,12 @@ test("7. Edge visibility consistency across multiple render cycles", async () =>
       if (i > 0) {
         console.log(`Cycle ${i}: Edge/node counts consistent - OK`);
       }
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
     });
   }
 
@@ -506,6 +530,12 @@ test("9. Edge type visibility filtering behavior", async () => {
   expect(result.totalEdgeTypes).toBeGreaterThan(0);
   expect(result.totalEdges).toBeGreaterThan(0);
   console.log("Test 9 - Edge Type Visibility Map:", result);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // ============================================================================
@@ -552,6 +582,12 @@ test("10. Edge label rendering across zoom levels", async () => {
 
   expect(results.length).toBe(4);
   console.log("Test 10 - Edge Label Rendering:", results);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

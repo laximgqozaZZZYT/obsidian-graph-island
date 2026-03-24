@@ -48,6 +48,12 @@ test("showArrows toggle changes panel state", async () => {
     return { before, after, changed: before !== after };
   });
   expect(result.changed).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("showMinimap toggle changes panel state", async () => {
@@ -63,6 +69,12 @@ test("showMinimap toggle changes panel state", async () => {
     return { before, after, changed: before !== after };
   });
   expect(result.changed).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("scaleByDegree toggle changes panel state", async () => {
@@ -78,6 +90,12 @@ test("scaleByDegree toggle changes panel state", async () => {
     return { before, after, changed: before !== after };
   });
   expect(result.changed).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("showEdgeLabels toggle changes panel state", async () => {
@@ -93,6 +111,12 @@ test("showEdgeLabels toggle changes panel state", async () => {
     return { before, after, changed: before !== after };
   });
   expect(result.changed).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================

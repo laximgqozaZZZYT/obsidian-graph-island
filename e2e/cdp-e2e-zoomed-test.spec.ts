@@ -60,6 +60,12 @@ test("edge toggles work at zoomed-in view", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.linksOff).toBe(false);
   expect(result.linksOn).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("zoomed-out view still has canvas integrity", async () => {

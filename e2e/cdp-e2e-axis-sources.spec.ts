@@ -142,6 +142,12 @@ test("field:isTag source separates tags from files", async () => {
   if (result.tagCount > 0 && result.fileCount > 0) {
     expect(result.separation).toBeGreaterThan(10);
   }
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

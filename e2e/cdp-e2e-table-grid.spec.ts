@@ -50,6 +50,12 @@ test("gridTableMode activates with coordinate layout", async () => {
   expect(result.gridTableMode).toBe(true);
   expect(result.gridShowHeaders).toBe(true);
   expect(result.gridLabelPlacement).toBe("on-line");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("gridLabelPlacement switches between on-line and between", async () => {

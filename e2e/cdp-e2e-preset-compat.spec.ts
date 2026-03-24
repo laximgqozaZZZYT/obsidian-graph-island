@@ -56,6 +56,12 @@ test("all standard arrangements render with positive node count", async () => {
     expect(result.canvasOk).toBe(true);
     expect(result.nodeCount).toBeGreaterThan(0);
   }
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("switching between arrangements preserves canvas integrity", async () => {
@@ -74,6 +80,12 @@ test("switching between arrangements preserves canvas integrity", async () => {
 
   expect(result.canvasOk).toBe(true);
   expect(result.nodeCount).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

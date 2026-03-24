@@ -72,6 +72,12 @@ test("full vault renders expected node and edge counts", async () => {
   expect(result.edgeCount).toBeGreaterThan(2000);
   expect(result.pixiNodeCount).toBeGreaterThan(1000);
   console.log(`Pipeline: nodes=${result.nodeCount}, edges=${result.edgeCount}, pixiNodes=${result.pixiNodeCount}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("nodes have minimum separation (no exact overlaps)", async () => {
@@ -109,6 +115,12 @@ test("nodes have minimum separation (no exact overlaps)", async () => {
   expect(result.count).toBeGreaterThan(50);
   // Very few exact overlaps expected (some may exist for collapsed nodes)
   expect(result.overlaps).toBeLessThan(result.count * 0.1);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("edge types distribution matches expected baseline", async () => {
@@ -138,6 +150,12 @@ test("edge types distribution matches expected baseline", async () => {
   console.log("Edge type distribution:", JSON.stringify(result));
   // Baseline: link=1695, semantic=2363, tag=1500
   expect((result as any).link || 0).toBeGreaterThan(500);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("searchQuery filter reduces node count correctly", async () => {
@@ -167,6 +185,12 @@ test("searchQuery filter reduces node count correctly", async () => {
   expect(allResult.nodeCount).toBeGreaterThan(filteredResult.nodeCount);
   expect(filteredResult.nodeCount).toBeGreaterThan(10);
   console.log(`Filter: all=${allResult.nodeCount}, folder:characters=${filteredResult.nodeCount}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

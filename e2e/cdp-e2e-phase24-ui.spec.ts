@@ -55,6 +55,12 @@ test.describe("Phase 24 — fadeEdgesByDegree toggle", () => {
       return v?.panel?.fadeEdgesByDegree;
     });
     expect(val).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("24-3: toggling back restores uniform edge alpha", async () => {
@@ -72,6 +78,12 @@ test.describe("Phase 24 — fadeEdgesByDegree toggle", () => {
       return v?.panel?.fadeEdgesByDegree;
     });
     expect(val).toBe(false);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 

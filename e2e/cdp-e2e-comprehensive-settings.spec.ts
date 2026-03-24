@@ -69,6 +69,12 @@ test("groupBy folder creates collapsed super-nodes", async () => {
   expect(result.groupBy).toBe("folder:?");
   expect(result.collapsed).toBeGreaterThan(0);
   expect(result.nodeCount).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("cartesian coordinate system positions nodes on grid", async () => {
@@ -96,6 +102,12 @@ test("cartesian coordinate system positions nodes on grid", async () => {
 
   expect(result).not.toHaveProperty("error");
   expect(result.nodeCount).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("polar coordinate system distributes nodes radially", async () => {
@@ -125,6 +137,12 @@ test("polar coordinate system distributes nodes radially", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.nodeCount).toBeGreaterThan(0);
   expect(result.maxDist).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

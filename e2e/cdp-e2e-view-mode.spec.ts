@@ -79,6 +79,12 @@ test("Graph mode: nodes visible, force layout active", async () => {
   expect(result.nodeGfxInWorld).toBeGreaterThan(100);
   expect(result.toolbarButtons).toBe(5);
   expect(result.activeButton).toBe("graph");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("Sunburst mode: ring chart arcs visible, no node gfx in world", async () => {
@@ -108,6 +114,12 @@ test("Sunburst mode: ring chart arcs visible, no node gfx in world", async () =>
   expect(result.nodeGfxInWorld).toBe(0); // no node graphics in world
   expect(result.edgeGfxCmds).toBe(0); // edges cleared
   expect(result.activeButton).toBe("sunburst");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("Timeline mode: bars generated, no node gfx in world", async () => {
@@ -145,6 +157,12 @@ test("Timeline mode: bars generated, no node gfx in world", async () => {
   expect(result.activeButton).toBe("timeline");
   // Viewport scale should make bars visible (not microscopic)
   expect(result.worldScale).toBeGreaterThan(0.01);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("Graph restore: nodes visible again after returning from sunburst", async () => {
@@ -168,6 +186,12 @@ test("Graph restore: nodes visible again after returning from sunburst", async (
   expect(result.currentLayout).toBe("force");
   expect(result.nodeGfxInWorld).toBeGreaterThan(100);
   expect(result.activeButton).toBe("graph");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("Matrix mode: adjacency table visible, no node gfx, DOM-based", async () => {
@@ -195,6 +219,12 @@ test("Matrix mode: adjacency table visible, no node gfx, DOM-based", async () =>
   expect(result.matrixVisible).toBe(true);
   expect(result.cellCount).toBeGreaterThan(10); // adjacency table has cells
   expect(result.activeButton).toBe("matrix");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("Graph restore after matrix: nodes visible again", async () => {
@@ -221,6 +251,12 @@ test("Graph restore after matrix: nodes visible again", async () => {
   expect(result.nodeGfxInWorld).toBeGreaterThan(100);
   expect(result.matrixHidden).toBe(true); // matrix table hidden
   expect(result.activeButton).toBe("graph");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================

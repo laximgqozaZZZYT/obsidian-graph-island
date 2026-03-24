@@ -62,6 +62,12 @@ test.describe("Phase 5 — nodeColorMode dropdown", () => {
 
     const count = await page.evaluate(countDistinctColors());
     expect(count).toBe(20);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("5-3: heatmap mode produces 60+ distinct colors", async () => {
@@ -84,6 +90,12 @@ test.describe("Phase 5 — nodeColorMode dropdown", () => {
       v.panel.nodeColorMode = "default";
       v.rawData = null;
       v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
     });
     await page.waitForTimeout(4000);
   });

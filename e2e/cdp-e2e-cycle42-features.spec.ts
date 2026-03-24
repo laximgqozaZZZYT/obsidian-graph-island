@@ -106,6 +106,12 @@ test("Proposal AA: search highlight makes labels bold", async () => {
     await new Promise(r => setTimeout(r, 500));
   });
   expect(labels.length).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("Proposal AB: nodes appear larger at zoom-out", async () => {

@@ -76,6 +76,12 @@ test("custom arrangement accepts coordinateLayout and renders nodes", async () =
 
   expect(result.count).toBeGreaterThan(50);
   expect(result.arrangement).toBe("custom");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("custom arrangement with polar system produces radial pattern", async () => {
@@ -108,6 +114,12 @@ test("custom arrangement with polar system produces radial pattern", async () =>
 
   expect(result.count).toBeGreaterThan(50);
   expect(result.maxR).toBeGreaterThan(result.minR);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("switching from custom back to preset clears coordinateLayout effect", async () => {
@@ -130,6 +142,12 @@ test("switching from custom back to preset clears coordinateLayout effect", asyn
   expect(result.arrangement).toBe("grid");
   expect(result.coordNull).toBe(true);
   expect(result.nodeCount).toBeGreaterThan(50);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

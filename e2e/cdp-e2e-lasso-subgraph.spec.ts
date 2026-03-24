@@ -98,6 +98,12 @@ test.describe("lasso + subgraph view", () => {
     expect(result.afterCount).toBeLessThan(result.fullCount);
     expect(result.afterCount).toBeGreaterThan(0);
     expect(result.restoredCount).toBeGreaterThan(result.afterCount);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("LS-3: enterSubgraph/exitSubgraph roundtrip", async () => {

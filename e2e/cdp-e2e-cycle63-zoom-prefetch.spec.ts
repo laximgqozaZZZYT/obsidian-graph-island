@@ -153,6 +153,12 @@ test("JC: zoom sweep maintains monotonic label count", async () => {
   for (let i = 1; i < result.counts.length; i++) {
     expect(result.counts[i].visible).toBeGreaterThanOrEqual(result.counts[i - 1].visible);
   }
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // -------------------------------------------------------------------------
@@ -210,6 +216,12 @@ test("JE: rapid zoom sequence produces no errors", async () => {
   });
 
   expect(errors).toHaveLength(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

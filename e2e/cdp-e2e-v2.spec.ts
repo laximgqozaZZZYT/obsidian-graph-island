@@ -85,6 +85,12 @@ test("layout switching between spiral and grid works", async () => {
   expect(result.spiral).toBe("spiral");
   expect(result.grid).toBe("grid");
   expect(result.canvasOk).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("all standard arrangements render without crash", async () => {
@@ -102,6 +108,12 @@ test("all standard arrangements render without crash", async () => {
     }, layout);
     expect(result.canvasOk).toBe(true);
     expect(result.nodes).toBeGreaterThan(0);
+  }
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
   }
 });
 

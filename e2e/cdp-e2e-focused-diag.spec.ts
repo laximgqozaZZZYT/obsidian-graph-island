@@ -44,6 +44,12 @@ test("showOrphans=false reduces visible node count by ~23", async () => {
   const orphanCount = result!.withOrphans - result!.withoutOrphans;
   expect(orphanCount).toBeGreaterThanOrEqual(10);
   expect(orphanCount).toBeLessThanOrEqual(50);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("groupBy property is a string", async () => {
@@ -52,6 +58,12 @@ test("groupBy property is a string", async () => {
     return typeof v?.panel?.groupBy;
   });
   expect(groupBy).toBe("string");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================

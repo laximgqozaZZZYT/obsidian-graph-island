@@ -81,6 +81,12 @@ test("preset 02 concentric loads with spread positions", async () => {
   }, config);
   expect(result.nodeCount).toBeGreaterThan(0);
   expect(result.arrangement).toBe("concentric");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("preset 05 loads with positive node count", async () => {
@@ -99,6 +105,12 @@ test("preset 05 loads with positive node count", async () => {
     return { nodeCount: view.pixiNodes?.size ?? 0 };
   }, config);
   expect(result.nodeCount).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("preset 15 orphan-hunter loads correctly", async () => {
@@ -117,6 +129,12 @@ test("preset 15 orphan-hunter loads correctly", async () => {
     return { nodeCount: view.pixiNodes?.size ?? 0 };
   }, config);
   expect(result.nodeCount).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

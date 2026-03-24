@@ -80,6 +80,12 @@ test("node labels match graphData node labels", async () => {
   expect(result.graphDataLabels).toBeGreaterThan(50);
   expect(result.pixiLabels).toBeGreaterThan(50);
   expect(result.allPixiLabelsInGraphData).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("showEdgeLabels ON adds edge label children", async () => {
@@ -106,6 +112,12 @@ test("showEdgeLabels ON adds edge label children", async () => {
   // When edge labels are on, there should be more label children
   console.log(`Edge labels OFF=${off.children}, ON=${on.children}`);
   expect(on.children).toBeGreaterThanOrEqual(off.children);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("showLabels OFF hides node labels visually", async () => {
@@ -127,6 +139,12 @@ test("showLabels OFF hides node labels visually", async () => {
   let diff = 0;
   for (let i = 0; i < len; i++) { if (on[i] !== off[i]) diff++; }
   expect(diff).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

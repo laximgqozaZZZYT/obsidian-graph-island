@@ -65,6 +65,12 @@ test("filled hexagon (k=6) produces radial distribution", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.nodeCount).toBeGreaterThan(0);
   expect(result.maxDist).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("filled pentagon (k=5) layout matches sample preset", async () => {
@@ -90,6 +96,12 @@ test("filled pentagon (k=5) layout matches sample preset", async () => {
 
   expect(result).not.toHaveProperty("error");
   expect(result.nodeCount).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("changing k constant from 5 to 6 alters node positions", async () => {
@@ -119,6 +131,12 @@ test("changing k constant from 5 to 6 alters node positions", async () => {
 
   expect(result).not.toHaveProperty("error");
   expect(result.changed).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

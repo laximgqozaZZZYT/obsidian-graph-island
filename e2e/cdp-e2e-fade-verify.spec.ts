@@ -76,6 +76,12 @@ test("fadeEdgesByDegree ON vs OFF produces visual change", async () => {
   const diff = pixelDiff(off, on);
   console.log(`fadeEdgesByDegree pixel diff: ${diff}`);
   expect(diff).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("fadeEdgesByDegree panel state toggles correctly", async () => {
@@ -116,6 +122,12 @@ test("fade toggle via markDirty pipeline re-renders edges", async () => {
   // Edge container should still have children (edges still drawn, just with different alpha)
   expect(before.children).toBeGreaterThan(0);
   expect(after.children).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================

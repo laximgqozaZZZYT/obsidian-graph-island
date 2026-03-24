@@ -65,6 +65,12 @@ test("minimap wrapper is visible when showMinimap is true", async () => {
   expect(result.showMinimap).toBe(true);
   expect(result.wrapExists).toBe(true);
   expect(result.wrapDisplay).not.toBe("none");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("minimap wrapper is hidden when showMinimap is false", async () => {
@@ -85,6 +91,12 @@ test("minimap wrapper is hidden when showMinimap is false", async () => {
   expect(result.showMinimap).toBe(false);
   // Wrapper should be hidden (display:none or not visible)
   expect(result.wrapDisplay === "none" || result.wrapDisplay === "N/A").toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("minimap canvas has non-zero dimensions", async () => {
@@ -111,6 +123,12 @@ test("minimap canvas has non-zero dimensions", async () => {
     expect(result.width).toBeGreaterThan(0);
     expect(result.height).toBeGreaterThan(0);
   }
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("minimap toggle ON/OFF produces visual difference", async () => {
@@ -132,6 +150,12 @@ test("minimap toggle ON/OFF produces visual difference", async () => {
   let diff = 0;
   for (let i = 0; i < len; i++) { if (on[i] !== off[i]) diff++; }
   expect(diff).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================

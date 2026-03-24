@@ -97,6 +97,12 @@ test("Zoom prefetch: InteractionManager calls updateLabelsForZoom directly", asy
   if (result.error) { console.log(`[Prefetch] Skipped: ${result.error}`); return; }
   expect(result.hasUpdateLabels).toBe(true);
   console.log(`[Prefetch] updateLabelsForZoom=${result.hasUpdateLabels}, markDirty=${result.hasMarkDirty}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("No errors", async () => {

@@ -38,6 +38,12 @@ test("disabling showLinks hides link-type edges from rendering", async () => {
   });
   expect(result).not.toBeNull();
   expect(result!.allEdges).toBeGreaterThan(result!.withoutLinks);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("disabling showSimilar hides semantic-type edges", async () => {
@@ -60,6 +66,12 @@ test("disabling showSimilar hides semantic-type edges", async () => {
   });
   expect(result).not.toBeNull();
   expect(result!.withSimilar).toBeGreaterThan(result!.withoutSimilar);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================

@@ -74,6 +74,12 @@ test("showLinks toggle hides/shows link edges", async () => {
   const off = await page.screenshot();
 
   expect(pixelDiff(on, off)).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("gridStyle lines vs table produces visual change in grid arrangement", async () => {
@@ -100,6 +106,12 @@ test("gridStyle lines vs table produces visual change in grid arrangement", asyn
   const diff = pixelDiff(lines, table);
   console.log(`gridStyle lines vs table: ${diff}`);
   expect(diff).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("showSimilar toggle changes edge count", async () => {
@@ -131,6 +143,12 @@ test("showSimilar toggle changes edge count", async () => {
   // Enabling showSimilar should change edge count (semantic edges)
   console.log(`showSimilar OFF edges=${offResult.edgeCount}, ON edges=${onResult.edgeCount}`);
   expect(onResult.edgeCount).not.toBe(offResult.edgeCount);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("edgeDirectionFilter changes which edges are displayed", async () => {
@@ -151,6 +169,12 @@ test("edgeDirectionFilter changes which edges are displayed", async () => {
   const bidir = await page.screenshot();
 
   expect(pixelDiff(all, bidir)).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

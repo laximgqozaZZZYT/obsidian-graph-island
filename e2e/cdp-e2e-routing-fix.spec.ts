@@ -54,6 +54,12 @@ test("grid layout produces rectangular distribution", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.cols).toBeGreaterThan(1);
   expect(result.rows).toBeGreaterThan(1);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("triangle layout produces rows with increasing width", async () => {
@@ -73,6 +79,12 @@ test("triangle layout produces rows with increasing width", async () => {
   });
   expect(result).not.toHaveProperty("error");
   expect(result.rows).toBeGreaterThan(1);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("mountain layout produces vertical spread from degree mapping", async () => {
@@ -92,6 +104,12 @@ test("mountain layout produces vertical spread from degree mapping", async () =>
   });
   expect(result).not.toHaveProperty("error");
   expect(result.yRange).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

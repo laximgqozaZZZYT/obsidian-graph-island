@@ -94,6 +94,12 @@ test("HZ: label mode has hysteresis at zoom 0.2 boundary", async () => {
   console.log(`[HZ] At z=0.21: ${result.initialsCount} initials, ${result.truncatedCount} truncated — hysteresis: ${result.hysteresisActive}`);
   // Either initials (hysteresis working) or truncated (both are acceptable)
   expect(result.initialsCount + result.truncatedCount).toBeGreaterThanOrEqual(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // IA: Low-degree node fade is stronger at extreme zoom

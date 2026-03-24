@@ -43,6 +43,12 @@ test("enabling minimap creates a minimap element or canvas", async () => {
   });
   expect(result).not.toBeNull();
   expect(result!.withMinimap).toBeGreaterThanOrEqual(1);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================

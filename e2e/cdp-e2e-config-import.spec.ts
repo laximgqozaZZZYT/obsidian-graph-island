@@ -71,6 +71,12 @@ test("preset 01 round-trip preserves arrangement and groupBy", async () => {
   const readBack = await applyAndReadBack(raw);
   expect(readBack.clusterArrangement).toBe(raw.clusterArrangement);
   expect(readBack.groupBy).toBe(raw.groupBy);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("preset 08 round-trip preserves timeline settings", async () => {
@@ -78,6 +84,12 @@ test("preset 08 round-trip preserves timeline settings", async () => {
   const readBack = await applyAndReadBack(raw);
   expect(readBack.clusterArrangement).toBe("timeline");
   if ("showDurationBars" in raw) expect(readBack.showDurationBars).toBe(raw.showDurationBars);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("preset 10 round-trip preserves heatmapMode", async () => {
@@ -104,6 +116,12 @@ test("custom config round-trip preserves coordinateLayout constants", async () =
   expect(cl.constants.r).toBe(3);
   expect(cl.constants.s).toBe(0.7);
   expect(cl.axis1.transform.expr).toBe("cos(i*2*pi/n)");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================

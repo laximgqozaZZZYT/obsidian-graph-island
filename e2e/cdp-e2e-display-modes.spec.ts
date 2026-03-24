@@ -63,6 +63,12 @@ test("card display mode sets mode to card", async () => {
   });
   expect(result).not.toHaveProperty("error");
   expect(result.mode).toBe("card");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("donut display mode sets innerRadius", async () => {
@@ -112,6 +118,12 @@ test("switching display modes back to node preserves graph", async () => {
   });
   expect(result.mode).toBe("node");
   expect(result.nodeCount).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

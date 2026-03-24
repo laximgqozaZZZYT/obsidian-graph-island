@@ -90,6 +90,12 @@ test("showLinks toggle changes panel state correctly", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.before).toBe(true);
   expect(result.after).toBe(false);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("showSemanticEdges toggle changes panel state correctly", async () => {
@@ -112,6 +118,12 @@ test("showSemanticEdges toggle changes panel state correctly", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.before).toBe(true);
   expect(result.after).toBe(false);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("edge counts are stable across re-render", async () => {
@@ -143,6 +155,12 @@ test("edge counts are stable across re-render", async () => {
   expect(result.linkStable).toBe(true);
   expect(result.semanticStable).toBe(true);
   expect(result.tagStable).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

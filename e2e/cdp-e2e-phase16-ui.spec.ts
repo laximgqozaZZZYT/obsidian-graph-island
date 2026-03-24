@@ -55,6 +55,12 @@ test.describe("Phase 16 — showSequence edge toggle", () => {
       return v?.panel?.showSequence;
     });
     expect(val).toBe(false);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("16-3: sequence edge count in graphEdges data", async () => {
@@ -76,6 +82,12 @@ test.describe("Phase 16 — showSequence edge toggle", () => {
       v.panel.showSequence = true;
       v.rawData = null;
       v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
     });
     await page.waitForTimeout(4000);
   });

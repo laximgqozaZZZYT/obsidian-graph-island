@@ -90,6 +90,12 @@ test.describe("Final Audit — Scene Graph Inspection", () => {
       p.showOrphans = false;
       if (view.panelCallbacks) view.panelCallbacks.invalidateData();
       await new Promise(r => setTimeout(r, 2000));
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
     });
     const after = await getSceneState();
 
@@ -113,6 +119,12 @@ test.describe("Final Audit — Scene Graph Inspection", () => {
 
     expect(grid.positionHash).not.toBe(spiral.positionHash);
     console.log(`arrangement: spiral hash=${spiral.positionHash}, grid hash=${grid.positionHash}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("searchQuery filter reduces node count", async () => {
@@ -132,6 +144,12 @@ test.describe("Final Audit — Scene Graph Inspection", () => {
     expect(after.nodeCount).toBeLessThan(before.nodeCount);
     expect(after.nodeCount).toBeGreaterThan(10);
     console.log(`searchQuery: ${before.nodeCount} -> ${after.nodeCount} nodes`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 

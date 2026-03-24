@@ -81,6 +81,12 @@ test("total nodes approximately 2354 and edges approximately 5558", async () => 
   expect(result).not.toHaveProperty("error");
   expect(result.nodes).toBeGreaterThanOrEqual(2300);
   expect(result.edges).toBeGreaterThanOrEqual(5000);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

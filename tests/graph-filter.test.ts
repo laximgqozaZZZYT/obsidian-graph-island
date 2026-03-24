@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   filterOrphans, filterAttachments, filterTagNodes, filterSimilarEdges,
   filterByDegree, filterEdgesByNodeSet, filterExcludedNodes,
-  applyVisibilityFilters, type VisibilityOptions,
+  applyVisibilityFilters, filterBySubgraph, type VisibilityOptions,
 } from "../src/utils/graph-filter";
 import type { GraphNode, GraphEdge } from "../src/types";
 
@@ -370,5 +370,59 @@ describe("filterOrphans self-loop", () => {
     const edges = [edge("a", "a")]; // self-loop
     const result = filterOrphans(nodes, edges);
     expect(result.map(n => n.id)).toEqual(["a"]);
+  });
+});
+
+// =========================================================================
+// filterBySubgraph
+// =========================================================================
+describe("filterBySubgraph", () => {
+  it("empty subgraphIds returns all nodes and edges", () => {
+    const nodes = [node("a"), node("b")];
+    const edges = [edge("a", "b")];
+    const r = filterBySubgraph(nodes, edges, []);
+    expect(r.nodes).toHaveLength(2);
+    expect(r.edges).toHaveLength(1);
+  });
+
+  it("filters to specified node IDs", () => {
+    const nodes = [node("a"), node("b"), node("c")];
+    const edges = [edge("a", "b"), edge("b", "c")];
+    const r = filterBySubgraph(nodes, edges, ["a", "b"]);
+    expect(r.nodes.map(n => n.id)).toEqual(["a", "b"]);
+    // Only edge a→b survives (b→c has c outside subgraph)
+    expect(r.edges).toHaveLength(1);
+    expect(r.edges[0].source).toBe("a");
+  });
+
+  it("single node subgraph returns only that node", () => {
+    const nodes = [node("a"), node("b"), node("c")];
+    const edges = [edge("a", "b"), edge("b", "c")];
+    const r = filterBySubgraph(nodes, edges, ["b"]);
+    expect(r.nodes).toHaveLength(1);
+    expect(r.edges).toHaveLength(0); // no edge has both endpoints in {b}
+  });
+
+  it("handles unknown IDs gracefully", () => {
+    const nodes = [node("a"), node("b")];
+    const r = filterBySubgraph(nodes, [], ["x", "y"]);
+    expect(r.nodes).toHaveLength(0);
+  });
+
+  it("self-loop edge survives if node is in subgraph", () => {
+    const nodes = [node("a"), node("b")];
+    const edges = [edge("a", "a")];
+    const r = filterBySubgraph(nodes, edges, ["a"]);
+    expect(r.edges).toHaveLength(1);
+  });
+
+  it("preserves edge when both endpoints in subgraph", () => {
+    const nodes = [node("a"), node("b"), node("c"), node("d")];
+    const edges = [edge("a", "b"), edge("c", "d"), edge("a", "c")];
+    const r = filterBySubgraph(nodes, edges, ["a", "c"]);
+    expect(r.nodes).toHaveLength(2);
+    expect(r.edges).toHaveLength(1); // only a→c
+    expect(r.edges[0].source).toBe("a");
+    expect(r.edges[0].target).toBe("c");
   });
 });

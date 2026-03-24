@@ -61,6 +61,12 @@ test.describe("Phase 14 — showSemanticEdges toggle", () => {
       return v?.panel?.showSemanticEdges;
     });
     expect(val).toBe(false);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("14-3: re-enabling showSemanticEdges restores rendering", async () => {
@@ -78,6 +84,12 @@ test.describe("Phase 14 — showSemanticEdges toggle", () => {
       return v?.panel?.showSemanticEdges;
     });
     expect(val).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 

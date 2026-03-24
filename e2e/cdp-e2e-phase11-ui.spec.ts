@@ -38,6 +38,12 @@ test.describe("Phase 11 — showEdgeLabels toggle", () => {
       return v?.panel?.showEdgeLabels;
     });
     expect(val).toBe(false);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("11-2: showEdgeLabels=true enables edge label rendering", async () => {
@@ -59,6 +65,12 @@ test.describe("Phase 11 — showEdgeLabels toggle", () => {
     });
     expect(result.showEdgeLabels).toBe(true);
     expect(["center", "offset", "smart"]).toContain(result.edgeLabelPlacement);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("11-3: edgeLabelPlacement can be changed to offset", async () => {
@@ -85,6 +97,12 @@ test.describe("Phase 11 — showEdgeLabels toggle", () => {
       v.panel.edgeLabelPlacement = "center";
       v.rawData = null;
       v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
     });
     await page.waitForTimeout(4000);
   });

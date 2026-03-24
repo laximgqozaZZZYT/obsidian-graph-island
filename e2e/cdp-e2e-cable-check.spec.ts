@@ -68,6 +68,12 @@ test("setting cableBundleMode to never persists correctly", async () => {
   await page.evaluate(() => {
     const view = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
     if (view) { view.getPanel().cableBundleMode = "auto"; view.markDirty?.(); }
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 
@@ -85,6 +91,12 @@ test("modifying cableTrunkWidth updates the value", async () => {
   });
 
   expect(result.after).toBe(5);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("total edges count is positive with cable settings", async () => {

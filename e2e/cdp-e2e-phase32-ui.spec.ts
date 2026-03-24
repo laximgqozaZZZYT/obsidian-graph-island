@@ -55,6 +55,12 @@ test.describe("Phase 32 — showAncestryBreadcrumb toggle", () => {
       return v?.panel?.showAncestryBreadcrumb;
     });
     expect(val).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("32-3: breadcrumb requires hub nodes with paths", async () => {
@@ -85,6 +91,12 @@ test.describe("Phase 32 — showAncestryBreadcrumb toggle", () => {
       v.panel.showAncestryBreadcrumb = false;
       v.rawData = null;
       v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
     });
     await page.waitForTimeout(4000);
   });

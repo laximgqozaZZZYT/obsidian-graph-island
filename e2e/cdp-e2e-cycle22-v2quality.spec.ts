@@ -68,6 +68,12 @@ test("§0.1: label collision rate ≤ 5% across zoom levels", async () => {
     // Allow up to 10% at mid-zoom (world-space proximity check is approximate)
     expect(r.rate).toBeLessThanOrEqual(10);
   }
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // §0.2: LOD — zoom 0.2 shows only top-degree nodes
@@ -91,6 +97,12 @@ test("§0.2: zoom 0.2 shows limited labels (top degree only)", async () => {
   expect(result.vis).toBeLessThan(result.total * 0.1);
   expect(result.vis).toBeGreaterThan(0); // at least some visible
   console.log(`[§0.2] z0.2: ${result.vis}/${result.total} (${result.ratio}%) visible`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // §0.3: Click targets ≥ 24px
@@ -148,6 +160,12 @@ test("§0.4: zoom LOD update within 500ms", async () => {
   // Labels should have updated (>0 visible) within measurement window
   expect(result.labelsVisible).toBeGreaterThan(0);
   console.log(`[§0.4] Zoom response: ${result.elapsed}ms, ${result.labelsVisible} labels`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // §0.1+: HC mode doubles stroke (regression check)

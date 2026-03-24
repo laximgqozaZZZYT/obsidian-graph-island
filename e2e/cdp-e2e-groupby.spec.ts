@@ -54,6 +54,12 @@ test("tag:? grouping creates collapsed super-nodes", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.groupBy).toBe("tag:?");
   expect(result.collapsed).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("folder:? grouping creates folder-based groups", async () => {
@@ -73,6 +79,12 @@ test("folder:? grouping creates folder-based groups", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.groupBy).toBe("folder:?");
   expect(result.collapsed).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("groupBy none shows all nodes without grouping", async () => {
@@ -95,6 +107,12 @@ test("groupBy none shows all nodes without grouping", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.groupBy).toBe("none");
   expect(result.nodeCount).toBeGreaterThanOrEqual(2300);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("changing groupBy from tag to folder alters collapsed group count", async () => {
@@ -125,6 +143,12 @@ test("changing groupBy from tag to folder alters collapsed group count", async (
   expect(result.tagGroups).toBeGreaterThan(0);
   expect(result.folderGroups).toBeGreaterThan(0);
   expect(result.tagGroups).not.toBe(result.folderGroups);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

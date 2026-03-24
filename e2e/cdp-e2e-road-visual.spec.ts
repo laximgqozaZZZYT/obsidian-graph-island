@@ -83,6 +83,12 @@ test("road network exists after enabling and rebuilding", async () => {
     return { hasRoadNetwork: !!rn, intersections: rn?.intersections?.length ?? 0, segments: rn?.segments?.length ?? 0 };
   });
   expect(result).not.toHaveProperty("error");
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

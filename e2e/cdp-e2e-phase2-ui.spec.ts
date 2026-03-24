@@ -39,6 +39,12 @@ test.describe("Phase 2 — showOrphans toggle", () => {
       return v?.pixiNodes?.size ?? -1;
     });
     expect(count).toBe(2354);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("2-2: showOrphans=false reduces to 2331 nodes (23 orphans removed)", async () => {
@@ -56,6 +62,12 @@ test.describe("Phase 2 — showOrphans toggle", () => {
       return v?.pixiNodes?.size ?? -1;
     });
     expect(count).toBe(2331);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("2-3: re-enabling showOrphans restores 2354 nodes", async () => {
@@ -73,6 +85,12 @@ test.describe("Phase 2 — showOrphans toggle", () => {
       return v?.pixiNodes?.size ?? -1;
     });
     expect(count).toBe(2354);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 

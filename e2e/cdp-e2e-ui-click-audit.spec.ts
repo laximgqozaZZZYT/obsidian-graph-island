@@ -102,6 +102,12 @@ test.describe("UI Click Audit", () => {
 
     expect(after.nodes).toBeLessThan(before.nodes);
     console.log(`showOrphans off: ${before.nodes} -> ${after.nodes}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("programmatic searchQuery filters nodes", async () => {
@@ -121,6 +127,12 @@ test.describe("UI Click Audit", () => {
     expect(after.nodes).toBeLessThan(before.nodes);
     expect(after.nodes).toBeGreaterThan(10);
     console.log(`searchQuery: ${before.nodes} -> ${after.nodes}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("panel DOM contains expected control elements", async () => {

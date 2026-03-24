@@ -113,6 +113,12 @@ test("grid layout preserves 2354 nodes", async () => {
     v.panel.clusterArrangement = "grid";
     v.rawData = null;
     await v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
   await page.waitForTimeout(5000);
 
@@ -142,6 +148,12 @@ test("timeline layout preserves node count", async () => {
   });
   console.log(`Timeline layout nodeCount: ${count}`);
   expect(count).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================
@@ -152,6 +164,12 @@ test("force layout restores from grid", async () => {
   const forceCount = await resetAndReload(page);
   console.log(`Force restore: forceCount=${forceCount}`);
   expect(forceCount).toBe(BASELINE);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================
@@ -166,6 +184,12 @@ test("showOrphans=false removes orphans from baseline", async () => {
     v.panel.showOrphans = false;
     v.rawData = null;
     await v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
   await page.waitForTimeout(5000);
 
@@ -186,6 +210,12 @@ test("showOrphans=true restores to 2354", async () => {
   const restored = await resetAndReload(page);
   console.log(`Orphans restored: ${restored}`);
   expect(restored).toBe(BASELINE);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================
@@ -201,6 +231,12 @@ test("tagDisplay=enclosure creates enclosure labels", async () => {
     v.panel.showTagNodes = true;
     v.rawData = null;
     await v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
   await page.waitForTimeout(5000);
 
@@ -245,6 +281,12 @@ test("enclosureMinRatio=0.5 reduces enclosure count", async () => {
   await page.evaluate(() => {
     const v = (window as any).app.workspace.getLeavesOfType("graph-view")[0]?.view;
     v.plugin.settings.enclosureMinRatio = 0.05;
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 
@@ -327,6 +369,12 @@ test("searchQuery='tag:battle' + enclosure creates enclosures for filtered nodes
   expect(result.nodeCount).toBeLessThan(BASELINE);
   // Filtered nodes should produce at least one enclosure from their most-specific tags
   expect(result.labelCount).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================
@@ -355,6 +403,12 @@ test("searchQuery='' after filter restores full graph", async () => {
   const restoredCount = await resetAndReload(page);
   console.log(`Restored after clear: ${restoredCount}`);
   expect(restoredCount).toBe(BASELINE);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================
@@ -370,6 +424,12 @@ test("groupBy=folder creates collapsed super nodes", async () => {
     v.panel.collapsedGroups = new Set(); // ensure empty for auto-collapse
     v.rawData = null;
     await v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
   await page.waitForTimeout(15000);
 

@@ -120,6 +120,12 @@ test("preset 10 has heatmapMode enabled", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.heatmapMode).toBe(true);
   expect(result.nodeCount).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

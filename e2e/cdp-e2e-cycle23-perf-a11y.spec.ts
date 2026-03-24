@@ -86,6 +86,12 @@ test("§0.4+: zoom response with label update", async () => {
   console.log(`[§0.4+] Zoom 1.0→0.3: ${result.elapsed}ms, ${result.labels} labels`);
   // Labels should have updated (some visible)
   expect(result.labels).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // All buttons meet target size (updated check)

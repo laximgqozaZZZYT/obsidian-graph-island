@@ -55,6 +55,12 @@ test.describe("Phase 30 — showOutOfBoundsIndicator toggle", () => {
       return v?.panel?.showOutOfBoundsIndicator;
     });
     expect(val).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("30-3: toggling back disables indicator", async () => {
@@ -72,6 +78,12 @@ test.describe("Phase 30 — showOutOfBoundsIndicator toggle", () => {
       return v?.panel?.showOutOfBoundsIndicator;
     });
     expect(val).toBe(false);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 

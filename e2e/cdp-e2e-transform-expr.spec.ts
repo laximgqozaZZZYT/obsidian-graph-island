@@ -60,6 +60,12 @@ test("expression transform with cos/sin creates circular pattern", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.nodeCount).toBeGreaterThan(0);
   expect(result.maxDist).toBeGreaterThan(10);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("linear transform scales positions proportionally", async () => {
@@ -89,6 +95,12 @@ test("linear transform scales positions proportionally", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.xRange).toBeGreaterThan(0);
   expect(result.yRange).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("bin transform with field source creates discrete positions", async () => {
@@ -109,6 +121,12 @@ test("bin transform with field source creates discrete positions", async () => {
   });
   expect(result).not.toHaveProperty("error");
   expect(result.nodeCount).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

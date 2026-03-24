@@ -77,6 +77,12 @@ test("nodeShapeRules with octagon renders different from default circle", async 
   const diff = pixelDiff(circle, octagon);
   console.log(`Circle vs octagon pixel diff: ${diff}`);
   expect(diff).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("different shape rules produce different visuals", async () => {
@@ -95,6 +101,12 @@ test("different shape rules produce different visuals", async () => {
   const diamond = await page.screenshot();
 
   expect(pixelDiff(square, diamond)).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("nodeShapeRules value persists in panel", async () => {

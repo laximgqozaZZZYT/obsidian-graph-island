@@ -85,6 +85,12 @@ test("grid arrangement produces grid-like node positions", async () => {
   expect(result.count).toBeGreaterThan(50);
   expect(result.xSpread).toBeGreaterThan(100);
   expect(result.ySpread).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("gridCellShading ON vs OFF produces visual change", async () => {
@@ -107,6 +113,12 @@ test("gridCellShading ON vs OFF produces visual change", async () => {
   const on = await page.screenshot();
 
   expect(pixelDiff(off, on)).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("gridShowHeaders toggle affects header rendering", async () => {
@@ -128,6 +140,12 @@ test("gridShowHeaders toggle affects header rendering", async () => {
   const off = await page.screenshot();
 
   expect(pixelDiff(on, off)).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("gridLabelPlacement on-line vs between produces visual change", async () => {
@@ -150,6 +168,12 @@ test("gridLabelPlacement on-line vs between produces visual change", async () =>
   const between = await page.screenshot();
 
   expect(pixelDiff(online, between)).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

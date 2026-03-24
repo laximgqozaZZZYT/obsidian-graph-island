@@ -86,6 +86,12 @@ test.describe("Sparse Audit v3 — Filter Then Toggle", () => {
     const diff = pixelDiff(s1, s2);
     expect(diff).toBeGreaterThan(50);
     console.log(`showArrows on sparse: diff=${diff}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("arrangement change visible on sparse graph", async () => {
@@ -105,6 +111,12 @@ test.describe("Sparse Audit v3 — Filter Then Toggle", () => {
     const diff = pixelDiff(s1, s2);
     expect(diff).toBeGreaterThan(200);
     console.log(`arrangement spiral->grid on sparse: diff=${diff}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("colorEdgesByRelation toggle visible on sparse graph", async () => {
@@ -124,6 +136,12 @@ test.describe("Sparse Audit v3 — Filter Then Toggle", () => {
     const diff = pixelDiff(s1, s2);
     expect(diff).toBeGreaterThan(50);
     console.log(`colorEdgesByRelation toggle on sparse: diff=${diff}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 

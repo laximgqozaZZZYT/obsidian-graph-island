@@ -98,6 +98,12 @@ test.describe("UI Click Audit Final — Scene Graph", () => {
 
     expect(catVisuals.distinctTints).toBeGreaterThanOrEqual(defaultVisuals.distinctTints);
     console.log(`nodeColorMode: default tints=${defaultVisuals.distinctTints}, category tints=${catVisuals.distinctTints}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("showOrphans=false reduces visible node count", async () => {
@@ -116,6 +122,12 @@ test.describe("UI Click Audit Final — Scene Graph", () => {
 
     expect(after.totalNodes).toBeLessThanOrEqual(before.totalNodes);
     console.log(`showOrphans: ${before.totalNodes} -> ${after.totalNodes}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("minimap DOM element appears when showMinimap=true", async () => {
@@ -143,6 +155,12 @@ test.describe("UI Click Audit Final — Scene Graph", () => {
     // At least one state should show minimap
     console.log(`minimap: before=${beforeMinimap}, after=${afterMinimap}`);
     expect(afterMinimap || !beforeMinimap).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("panel state reflects current settings accurately", async () => {
@@ -166,6 +184,12 @@ test.describe("UI Click Audit Final — Scene Graph", () => {
     expect(state!.clusterArrangement).toBe("spiral");
     expect(state!.searchQuery).toBe("folder:characters");
     console.log(`panel state: ${JSON.stringify(state)}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 

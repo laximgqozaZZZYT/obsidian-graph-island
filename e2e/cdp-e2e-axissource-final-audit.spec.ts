@@ -121,6 +121,12 @@ test.describe("AxisSource Final Audit", () => {
     const rangeDiff = Math.abs(fieldResult.xRange - indexResult.xRange);
     expect(rangeDiff > 1 || fieldResult.xRange > 0).toBe(true);
     console.log(`field xRange=${fieldResult.xRange.toFixed(0)}, index xRange=${indexResult.xRange.toFixed(0)}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("coordinate layout with perGroup=true applies per group", async () => {
@@ -151,6 +157,12 @@ test.describe("AxisSource Final Audit", () => {
     expect(result.count).toBeGreaterThan(100);
     expect(result.spread).toBeGreaterThan(0);
     console.log(`perGroup=true: ${result.count} nodes, spread=${result.spread.toFixed(0)}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 

@@ -256,6 +256,12 @@ test("IE-6: no errors during IP/IQ/IR feature interactions", async () => {
     !e.includes("ResizeObserver") && !e.includes("Excalidraw") && !e.includes("net::ERR")
   );
   expect(relevantErrors).toHaveLength(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

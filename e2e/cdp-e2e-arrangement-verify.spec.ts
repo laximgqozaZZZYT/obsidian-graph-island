@@ -98,6 +98,12 @@ test("all valid arrangements produce nodes with non-zero spread", async () => {
   // At least 4 of 6 arrangements should produce distinct hashes
   const uniqueHashes = new Set(Object.values(hashes)).size;
   expect(uniqueHashes).toBeGreaterThanOrEqual(4);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("switching arrangement changes node positions", async () => {
@@ -124,6 +130,12 @@ test("switching arrangement changes node positions", async () => {
   expect(gridFp.count).toBeGreaterThan(0);
   expect(concentricFp.count).toBeGreaterThan(0);
   expect(spatialHash(gridFp)).not.toBe(spatialHash(concentricFp));
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("arrangement state is reflected in panel after assignment", async () => {
@@ -136,6 +148,12 @@ test("arrangement state is reflected in panel after assignment", async () => {
       return view.panel.clusterArrangement;
     `));
     expect(result).toBe(arr);
+  }
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
   }
 });
 

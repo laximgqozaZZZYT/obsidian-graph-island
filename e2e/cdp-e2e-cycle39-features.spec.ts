@@ -118,6 +118,12 @@ test("Proposal S: labelModeOverride forces mode regardless of zoom", async () =>
       view.markDirty(true);
     }
     await new Promise(r => setTimeout(r, 500));
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 
@@ -159,6 +165,12 @@ test("Proposal S: override=initials at zoom=1.0", async () => {
       view.markDirty(true);
     }
     await new Promise(r => setTimeout(r, 500));
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 

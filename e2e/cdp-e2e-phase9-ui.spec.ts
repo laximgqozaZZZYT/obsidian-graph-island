@@ -64,6 +64,12 @@ test.describe("Phase 9 — showMinimap toggle", () => {
     expect(result.panelVal).toBe(false);
     // Minimap should be either removed or hidden
     expect(result.hidden || !result.exists).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("9-3: re-enabling showMinimap restores minimap", async () => {
@@ -81,6 +87,12 @@ test.describe("Phase 9 — showMinimap toggle", () => {
       return { exists: !!minimap };
     });
     expect(result.exists).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 

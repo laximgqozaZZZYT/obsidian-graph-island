@@ -194,3 +194,59 @@ describe("generateDisplacementOffsets", () => {
     expect(wide[0].dx).not.toBe(narrow[0].dx);
   });
 });
+
+// =========================================================================
+// LOD + density integration: zoom sweep
+// =========================================================================
+describe("LOD transition sweep", () => {
+  const thresholds = {
+    cardLODExtremePx: 2,
+    cardLODMidLabelPx: 4,
+    cardLODNormalPx: 8,
+    cardLODCompactPx: 16,
+    cardLODFullCardPx: 32,
+  };
+  const BASE_PX = 15; // typical NODE_SCREEN_PX_BASE
+
+  it("LOD level is monotonically non-decreasing across zoom 0.1→5.0", () => {
+    const zooms = [0.1, 0.2, 0.3, 0.5, 0.8, 1.0, 1.5, 2.0, 3.0, 5.0];
+    let prevLod = -1;
+    for (const z of zooms) {
+      const screenPx = BASE_PX * z;
+      const lod = computeLodLevel(screenPx, thresholds);
+      expect(lod).toBeGreaterThanOrEqual(prevLod);
+      prevLod = lod;
+    }
+  });
+
+  it("density scale is monotonically non-increasing across zoom sweep", () => {
+    const T = 0.6;
+    const zooms = [0.1, 0.2, 0.3, 0.5, 0.6, 0.8, 1.0, 1.5, 2.0, 3.0, 5.0];
+    let prevScale = Infinity;
+    for (const z of zooms) {
+      const scale = computeDensityScale(z, T);
+      expect(scale).toBeLessThanOrEqual(prevScale + 0.001); // tolerance for float
+      prevScale = scale;
+    }
+  });
+
+  it("LOD + density combination: low zoom = high density scale + low LOD", () => {
+    const lowZoom = 0.15;
+    const highZoom = 3.0;
+    const T = 0.6;
+    const lodLow = computeLodLevel(BASE_PX * lowZoom, thresholds);
+    const lodHigh = computeLodLevel(BASE_PX * highZoom, thresholds);
+    const densLow = computeDensityScale(lowZoom, T);
+    const densHigh = computeDensityScale(highZoom, T);
+    expect(lodLow).toBeLessThan(lodHigh);
+    expect(densLow).toBeGreaterThan(densHigh);
+  });
+
+  it("all LOD levels reachable in sweep", () => {
+    const levels = new Set<number>();
+    for (let px = 0; px <= 50; px++) {
+      levels.add(computeLodLevel(px, thresholds));
+    }
+    expect(levels.size).toBe(6); // 0-5
+  });
+});

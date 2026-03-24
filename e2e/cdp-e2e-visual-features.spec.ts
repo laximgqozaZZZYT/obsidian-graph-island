@@ -208,6 +208,12 @@ test("enclosure mode shows labeled tag regions with unique tags and rendered lab
   expect(result.uniqueTagCount).toBeGreaterThanOrEqual(200);
   expect(result.totalMemberships).toBeGreaterThan(1000);
   expect(result.renderedLabelCount).toBeGreaterThanOrEqual(5);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================
@@ -279,6 +285,12 @@ test("heatmap legend shows gradient bar with min/max degree", async () => {
   expect(result.sectionTitles.length).toBeGreaterThan(0);
   expect(result.hasMinLabel).toBe(true);
   expect(result.maxDegree).toBeGreaterThan(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================
@@ -334,6 +346,12 @@ test("hover on node creates tooltip with node name (hoverLabel text === node.lab
   expect(result.hoverLabelText.length).toBeGreaterThan(0);
   // The hover label should contain the node's actual label text
   expect(result.labelMatch).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================
@@ -506,6 +524,12 @@ test("OOB badge displays numeric count of off-screen nodes", async () => {
     if (!view) return;
     if (typeof view.autoFitOnce === "function") view.autoFitOnce();
     await new Promise(r => setTimeout(r, 1000));
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 
@@ -529,6 +553,12 @@ test("missing neighbor ring marks nodes with orange indicator", async () => {
   expect(result).not.toHaveProperty("error");
   expect(result.highlightMissingNeighbors).toBe(true);
   expect(result.missingCount).toBeGreaterThan(1000);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================
@@ -619,6 +649,12 @@ test("community coloring legend shows sorted community entries", async () => {
     view.rawData = null;
     await view.doRender();
     await new Promise(r => setTimeout(r, 2000));
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 
@@ -693,6 +729,12 @@ test("community + missing neighbors both visible simultaneously", async () => {
     view.rawData = null;
     await view.doRender();
     await new Promise(r => setTimeout(r, 2000));
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 

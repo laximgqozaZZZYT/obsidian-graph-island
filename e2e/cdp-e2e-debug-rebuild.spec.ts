@@ -62,6 +62,12 @@ test("rebuild preserves total node count", async () => {
   });
   expect(result).not.toBeNull();
   expect(result!.after).toBe(result!.before);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // =========================================================================

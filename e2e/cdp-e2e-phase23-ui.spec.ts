@@ -39,6 +39,12 @@ test.describe("Phase 23 — groupBy setting", () => {
       return v?.pixiNodes?.size ?? -1;
     });
     expect(count).toBe(2354);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("23-2: groupBy=folder:? creates folder-based groups", async () => {
@@ -72,6 +78,12 @@ test.describe("Phase 23 — groupBy setting", () => {
     expect(result!.groupBy).toBe("folder:?");
     // With groupBy active and auto-collapse, visible nodes should be fewer than 2354
     expect(result!.visibleNodes).toBeLessThan(2354);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("23-3: clearing groupBy restores all nodes", async () => {
@@ -90,6 +102,12 @@ test.describe("Phase 23 — groupBy setting", () => {
       return v?.pixiNodes?.size ?? -1;
     });
     expect(count).toBe(2354);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 });
 

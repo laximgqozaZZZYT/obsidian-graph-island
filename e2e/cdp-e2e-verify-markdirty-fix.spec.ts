@@ -71,6 +71,12 @@ test("showArrows via markDirty changes edge rendering", async () => {
   const on = await page.screenshot();
 
   expect(pixelDiff(off, on)).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("showEnclosures via markDirty changes group boundary rendering", async () => {
@@ -92,6 +98,12 @@ test("showEnclosures via markDirty changes group boundary rendering", async () =
   const off = await page.screenshot();
 
   expect(pixelDiff(on, off)).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("fadeEdgesByDegree via markDirty changes edge appearance", async () => {
@@ -111,6 +123,12 @@ test("fadeEdgesByDegree via markDirty changes edge appearance", async () => {
   const on = await page.screenshot();
 
   expect(pixelDiff(off, on)).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("showDotGrid via markDirty changes background rendering", async () => {
@@ -129,6 +147,12 @@ test("showDotGrid via markDirty changes background rendering", async () => {
   const off = await page.screenshot();
 
   expect(pixelDiff(on, off)).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

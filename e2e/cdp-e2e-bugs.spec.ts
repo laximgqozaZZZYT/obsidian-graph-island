@@ -99,6 +99,12 @@ test("rapid toggle changes do not crash the canvas", async () => {
   const canvasOk = await page.evaluate(() =>
     document.querySelectorAll("canvas").length > 0);
   expect(canvasOk).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("close and reopen preserves canvas and node data", async () => {

@@ -74,6 +74,12 @@ test.describe("Full Settings Audit", () => {
     const diff = pixelDiff(s1, s2);
     expect(diff).toBeGreaterThan(100);
     console.log(`showEdgeLabels: diff=${diff}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("clusterGroupSpacing changes node spread", async () => {
@@ -85,6 +91,12 @@ test.describe("Full Settings Audit", () => {
     const diff = pixelDiff(s1, s2);
     expect(diff).toBeGreaterThan(50);
     console.log(`clusterGroupSpacing: diff=${diff}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("clusterGroupScale changes group sizing", async () => {
@@ -96,6 +108,12 @@ test.describe("Full Settings Audit", () => {
     const diff = pixelDiff(s1, s2);
     expect(diff).toBeGreaterThan(50);
     console.log(`clusterGroupScale: diff=${diff}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("showDurationBars on timeline produces visual change", async () => {
@@ -111,6 +129,12 @@ test.describe("Full Settings Audit", () => {
     const diff = pixelDiff(s1, s2);
     expect(diff).toBeGreaterThan(50);
     console.log(`showDurationBars: diff=${diff}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("edgeWeightThickness produces thicker lines for repeated edges", async () => {

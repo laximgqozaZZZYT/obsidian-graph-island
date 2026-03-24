@@ -57,6 +57,12 @@ test("boolean toggles change panel state", async () => {
   for (const field of toggles) {
     expect(result[field].before).not.toBe(result[field].after);
   }
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("nodeSize slider changes value", async () => {
@@ -74,6 +80,12 @@ test("nodeSize slider changes value", async () => {
 
   expect(result).not.toHaveProperty("error");
   expect(result.after).toBe(10);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("searchQuery filter reduces node count", async () => {
@@ -108,6 +120,12 @@ test("searchQuery filter reduces node count", async () => {
   expect(result.allNodes).toBeGreaterThan(0);
   expect(result.filtered).toBeGreaterThan(0);
   expect(result.filtered).toBeLessThan(result.allNodes);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("clusterArrangement change alters node positions", async () => {
@@ -132,6 +150,12 @@ test("clusterArrangement change alters node positions", async () => {
 
   expect(result).not.toHaveProperty("error");
   expect(result.changed).toBe(true);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 

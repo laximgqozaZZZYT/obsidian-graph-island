@@ -79,6 +79,12 @@ test("cardShowIcon ON vs OFF produces visual difference in card mode", async () 
   const diff = pixelDiff(off, on);
   console.log(`cardShowIcon pixel diff: ${diff}`);
   expect(diff).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("card mode with fields shows field content", async () => {
@@ -99,6 +105,12 @@ test("card mode with fields shows field content", async () => {
   const noFields = await page.screenshot();
 
   expect(pixelDiff(withFields, noFields)).toBeGreaterThan(100);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("cardDisplayConfig showIcon state persists", async () => {

@@ -93,6 +93,12 @@ test("Boundary: extreme zoom-in 5.0 produces no errors", async () => {
   });
   expect(result.vis).toBeGreaterThanOrEqual(0);
   console.log(`[Edge] z5.0: ${result.vis} labels, scale=${result.labelScale}`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // Boundary: rapid zoom oscillation
@@ -116,6 +122,12 @@ test("Boundary: 20 rapid zoom changes produce no errors", async () => {
   });
   expect(result.complete).toBe(true);
   console.log(`[Edge] 20 rapid zoom changes: no crash`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // Stability: labels at z1.0 after full stabilization
@@ -137,6 +149,12 @@ test("Stability: z1.0 shows >100 labels after full init", async () => {
   });
   expect(result.vis).toBeGreaterThan(100);
   console.log(`[Stable] z1.0: ${result.vis}/${result.withLabel} labeled, ${result.total} total`);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 // No console errors

@@ -124,6 +124,12 @@ test("Proposal I: card mode falls back to circles at low zoom", async () => {
     view.markDirty(true);
     await new Promise(r => setTimeout(r, 1000));
     return { nodeDisplayMode: view.panel.nodeDisplayMode };
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
   console.log(`  Card mode at zoom=1.0:`, normalZoomResult);
   expect(normalZoomResult.nodeDisplayMode).toBe("card");

@@ -55,6 +55,12 @@ test.describe("Phase 18 — showAggregation edge toggle", () => {
       return v?.panel?.showAggregation;
     });
     expect(val).toBe(false);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
   });
 
   test("18-3: aggregation edge count in graphEdges data", async () => {
@@ -76,6 +82,12 @@ test.describe("Phase 18 — showAggregation edge toggle", () => {
       v.panel.showAggregation = true;
       v.rawData = null;
       v.doRender();
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
     });
     await page.waitForTimeout(4000);
   });

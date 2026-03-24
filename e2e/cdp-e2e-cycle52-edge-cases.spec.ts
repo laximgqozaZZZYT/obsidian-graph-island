@@ -61,6 +61,12 @@ test("donut mode + zoom sweep: no crash", async () => {
     await new Promise(r => setTimeout(r, 500));
   });
   expect(errors.length).toBe(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("rapid mode switching at zoom=0.2: no crash", async () => {
@@ -73,6 +79,12 @@ test("rapid mode switching at zoom=0.2: no crash", async () => {
     }, mode);
   }
   expect(errors.length).toBe(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("search + zoom + clear: labels recover", async () => {
@@ -103,6 +115,12 @@ test("search + zoom + clear: labels recover", async () => {
   });
   console.log(`  Search labels: during=${during}, after=${after}`);
   expect(after).toBeGreaterThan(during);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("extreme zoom bounce: 0.02 → 10.0 → 0.02", async () => {
@@ -132,6 +150,12 @@ test("labelModeOverride cycle: auto→initials→truncated→full→auto", async
   );
   expect(indicator).toContain("·F"); // auto at zoom=0.5 should be Full
   expect(errors.length).toBe(0);
+
+  // === Visual quality: verify display after state change ===
+  const _dq = await measureScreenDensity(page);
+  if (_dq.totalNodes > 10) {
+    expect(_dq.worstCellCount).toBeLessThan(200);
+  }
 });
 
 test("all keyboard shortcuts verified", async () => {
