@@ -15,7 +15,7 @@ import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoi
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, exportGraphSVG, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter } from "../utils/graph-helpers";
-import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph } from "../utils/graph-filter";
+import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph, filterByLocalGraph } from "../utils/graph-filter";
 import { pointInPolygon } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
 import { hexToRgb } from "../utils/color";
@@ -6854,34 +6854,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return this._applyGroupCollapse({ nodes, edges });
   }
 
-  /** BFS N-hop filter for local graph mode. */
+  /** BFS N-hop filter for local graph mode. Delegates core BFS to pure function. */
   private _filterLocalGraph(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
     if (!this.panel.localGraphCenter) return { nodes, edges };
-    const centerId = nodes.find(n => n.filePath === this.panel.localGraphCenter || n.id === this.panel.localGraphCenter)?.id;
-    if (!centerId) return { nodes, edges };
 
-    const adj = new Map<string, Set<string>>();
-    for (const e of edges) {
-      if (!adj.has(e.source)) adj.set(e.source, new Set());
-      if (!adj.has(e.target)) adj.set(e.target, new Set());
-      adj.get(e.source)!.add(e.target);
-      adj.get(e.target)!.add(e.source);
-    }
-    const reachable = new Set<string>([centerId]);
-    let frontier = [centerId];
-    for (let h = 0; h < this.panel.localGraphHops && frontier.length > 0; h++) {
-      const next: string[] = [];
-      for (const id of frontier) {
-        const nb = adj.get(id);
-        if (nb) for (const n of nb) {
-          if (!reachable.has(n)) { reachable.add(n); next.push(n); }
-        }
-      }
-      frontier = next;
-    }
+    // Core BFS hop filter (pure function)
+    let result = filterByLocalGraph(nodes, edges, this.panel.localGraphCenter, this.panel.localGraphHops);
 
     // D1: Also include neighbors of manually expanded nodes
     if (this.panel.expandedNodes?.length) {
+      const adj = new Map<string, Set<string>>();
+      for (const e of edges) {
+        if (!adj.has(e.source)) adj.set(e.source, new Set());
+        if (!adj.has(e.target)) adj.set(e.target, new Set());
+        adj.get(e.source)!.add(e.target);
+        adj.get(e.target)!.add(e.source);
+      }
+      const reachable = new Set(result.nodes.map(n => n.id));
       for (const expandedId of this.panel.expandedNodes) {
         if (!reachable.has(expandedId)) continue;
         const neighbors = adj.get(expandedId);
@@ -6889,12 +6878,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           for (const nbId of neighbors) reachable.add(nbId);
         }
       }
+      result = {
+        nodes: nodes.filter(n => reachable.has(n.id)),
+        edges: edges.filter(e => reachable.has(e.source) && reachable.has(e.target)),
+      };
     }
 
-    return {
-      nodes: nodes.filter(n => reachable.has(n.id)),
-      edges: edges.filter(e => reachable.has(e.source) && reachable.has(e.target)),
-    };
+    return result;
   }
 
   /** Filter nodes by orphan/existing/attachment/tag visibility settings. */
