@@ -8,6 +8,7 @@ import { effectiveRadius } from "../layouts/cluster-force";
 import { clamp } from "../utils/geometry";
 import { hexToRgb, getLuminance, wcagContrastRatio, contrastColor } from "../utils/color";
 import { hslToHex, incCounter } from "../utils/graph-helpers";
+import { SpatialHashGrid } from "../utils/spatial-grid";
 
 // ---------------------------------------------------------------------------
 // CardText — CanvasText with a marker flag for card-mode text children
@@ -179,7 +180,7 @@ const CARD_ICON_FOLD_ALPHA = 0.15;
 /** Spatial hash grid cell size for label overlap detection (screen px) */
 const OVERLAP_GRID_CELL_SIZE = 120;
 /** Spatial hash grid prime for cell key computation */
-const OVERLAP_GRID_HASH_PRIME = 100003;
+// OVERLAP_GRID_HASH_PRIME removed — grid logic now in SpatialHashGrid
 
 /** Glow attenuation node count threshold (above this, glow starts fading) */
 const GLOW_ATTENUATE_THRESHOLD = 300;
@@ -2731,7 +2732,7 @@ export class RenderPipeline {
     const rects = this._collectLabelRects(pixiNodes, degrees, zoom, maxScreenW, maxScreenH);
 
     // 2. Build spatial hash grid for overlap detection
-    const grid = this._createOverlapGrid(margin);
+    const grid = new SpatialHashGrid<CullLabelRect>(OVERLAP_GRID_CELL_SIZE, margin);
 
     // 2.5: Reserve DOM overlay zones so labels don't displace into panels
     const app = this.host.getPixiApp();
@@ -2939,70 +2940,7 @@ export class RenderPipeline {
     return rects;
   }
 
-  /**
-   * Create a spatial hash grid for O(n*k) overlap detection.
-   * Returns an object with insert() and checkOverlap() methods.
-   */
-  private _createOverlapGrid(margin: number): CullOverlapGrid {
-    const CELL_SIZE = OVERLAP_GRID_CELL_SIZE;
-    const gridMap = new Map<number, CullLabelRect[]>();
-    const cellKey = (cx: number, cy: number) => cx * OVERLAP_GRID_HASH_PRIME + cy;
-
-    const getCellRange = (rect: CullLabelRect) => ({
-      x0: Math.floor((rect.x - margin) / CELL_SIZE),
-      y0: Math.floor((rect.y - margin) / CELL_SIZE),
-      x1: Math.floor((rect.x + rect.w + margin) / CELL_SIZE),
-      y1: Math.floor((rect.y + rect.h + margin) / CELL_SIZE),
-    });
-
-    return {
-      insert(rect: CullLabelRect) {
-        const { x0, y0, x1, y1 } = getCellRange(rect);
-        for (let cx = x0; cx <= x1; cx++) {
-          for (let cy = y0; cy <= y1; cy++) {
-            const k = cellKey(cx, cy);
-            const arr = gridMap.get(k);
-            if (arr) arr.push(rect); else gridMap.set(k, [rect]);
-          }
-        }
-      },
-      checkOverlap(rect: CullLabelRect): boolean {
-        const { x0, y0, x1, y1 } = getCellRange(rect);
-        for (let cx = x0; cx <= x1; cx++) {
-          for (let cy = y0; cy <= y1; cy++) {
-            const arr = gridMap.get(cellKey(cx, cy));
-            if (!arr) continue;
-            for (const p of arr) {
-              if (
-                rect.x - margin < p.x + p.w + margin &&
-                rect.x + rect.w + margin > p.x - margin &&
-                rect.y - margin < p.y + p.h + margin &&
-                rect.y + rect.h + margin > p.y - margin
-              ) return true;
-            }
-          }
-        }
-        return false;
-      },
-      /** Iterate placed rects near (x, y) within radius for adaptive displacement scoring */
-      forEachNear(x: number, y: number, radius: number, cb: (r: CullLabelRect) => void) {
-        const cx0 = Math.floor((x - radius) / CELL_SIZE);
-        const cy0 = Math.floor((y - radius) / CELL_SIZE);
-        const cx1 = Math.floor((x + radius) / CELL_SIZE);
-        const cy1 = Math.floor((y + radius) / CELL_SIZE);
-        const seen = new Set<CullLabelRect>();
-        for (let cx = cx0; cx <= cx1; cx++) {
-          for (let cy = cy0; cy <= cy1; cy++) {
-            const arr = gridMap.get(cellKey(cx, cy));
-            if (!arr) continue;
-            for (const p of arr) {
-              if (!seen.has(p)) { seen.add(p); cb(p); }
-            }
-          }
-        }
-      },
-    };
-  }
+  // _createOverlapGrid removed — replaced by SpatialHashGrid<CullLabelRect> from spatial-grid.ts
 
   /**
    * Try to displace a label to avoid overlap. Returns the placed rect on success,
@@ -3013,7 +2951,7 @@ export class RenderPipeline {
     r: CullLabelRect,
     zoom: number,
     maxDispRatio: number,
-    grid: CullOverlapGrid,
+    grid: SpatialHashGrid<CullLabelRect>,
     drawLeader: boolean,
     llWidth: number,
     llAlpha: number,
@@ -3132,7 +3070,7 @@ export class RenderPipeline {
     rt: RenderThresholds,
     rects: CullLabelRect[],
     placed: CullLabelRect[],
-    grid: CullOverlapGrid,
+    grid: SpatialHashGrid<CullLabelRect>,
     zoom: number,
     margin: number,
     minNonSuper: number,
@@ -3210,7 +3148,7 @@ export class RenderPipeline {
    */
   private _tryDisplaceForceShow(
     r: CullLabelRect,
-    grid: CullOverlapGrid,
+    grid: SpatialHashGrid<CullLabelRect>,
     margin: number,
     zoom: number,
     maxRadii: number,
@@ -3274,7 +3212,7 @@ export class RenderPipeline {
   private _sacrificeSuperLabels(
     placed: CullLabelRect[],
     hiddenRegulars: CullLabelRect[],
-    grid: CullOverlapGrid,
+    grid: SpatialHashGrid<CullLabelRect>,
     margin: number,
     zoom: number,
     maxRadii: number,
@@ -3362,7 +3300,7 @@ export class RenderPipeline {
     absoluteFloor: number,
     candidates: CullLabelRect[],
     placed: CullLabelRect[],
-    grid: CullOverlapGrid,
+    grid: SpatialHashGrid<CullLabelRect>,
     margin: number,
     zoom: number,
     maxRadii: number,
@@ -3428,10 +3366,4 @@ interface CullLabelRect {
   isSuper: boolean;
 }
 
-/** Spatial hash grid interface for label overlap detection */
-interface CullOverlapGrid {
-  insert(rect: CullLabelRect): void;
-  checkOverlap(rect: CullLabelRect): boolean;
-  /** Iterate placed rects near (x, y) within radius */
-  forEachNear(x: number, y: number, radius: number, cb: (r: CullLabelRect) => void): void;
-}
+// CullOverlapGrid interface removed — using SpatialHashGrid<CullLabelRect> directly

@@ -806,6 +806,36 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     });
 
+    // SVG export button
+    const svgBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    setIcon(svgBtn, "file-code");
+    svgBtn.setAttribute("aria-label", t("toolbar.exportSvg") ?? "Export SVG");
+    svgBtn.title = t("toolbar.exportSvg") ?? "Export SVG";
+    svgBtn.addEventListener("click", () => {
+      const gd = this.getGraphData();
+      if (!gd || gd.nodes.length === 0) { showToast("No graph data"); return; }
+      const nodes = gd.nodes.map(n => ({
+        id: n.id, label: n.label ?? n.id,
+        x: n.x, y: n.y,
+        color: this.pixiNodes.get(n.id)?.color,
+      }));
+      const { exportGraphSVG } = require("../utils/graph-helpers");
+      const isDark = this.isDarkTheme();
+      const svg = exportGraphSVG(nodes, gd.edges, {
+        width: 1200, height: 800,
+        background: isDark ? "#1e1e2e" : "#ffffff",
+        showLabels: true,
+      });
+      const blob = new Blob([svg], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `graph-island-${new Date().toISOString().slice(0, 10)}.svg`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(t("toast.svgExported") ?? "SVG exported");
+    });
+
     // ノートにグラフを埋め込むボタン
     const embedBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(embedBtn, "image-down");
@@ -5586,7 +5616,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const bw = maxX - minX + padding;
     const bh = maxY - minY + padding;
     let sc = Math.min(W / bw, H / bh, 1.5);
-    if (rt.autoFitMinScale > 0) sc = Math.max(sc, rt.autoFitMinScale);
+    // Timeline: allow smaller zoom to fit all bars; otherwise respect minScale
+    if (this.panel.viewMode !== "timeline" && rt.autoFitMinScale > 0) {
+      sc = Math.max(sc, rt.autoFitMinScale);
+    }
     // Card mode: ensure scale is high enough for LOD to show cards (not circles)
     if (isCardMode && this.pixiNodes.size > 0) {
       const sampleRadius = this.pixiNodes.values().next().value?.radius ?? 1;
