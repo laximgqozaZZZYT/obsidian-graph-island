@@ -1,37 +1,26 @@
 // ---------------------------------------------------------------------------
-// Timeline DAG layout — positions nodes on a time axis with branching lanes
+// Timeline layout — positions nodes on a time axis with hierarchical lanes
 // ---------------------------------------------------------------------------
-// Supports:
-//   - User-specified frontmatter key for temporal ordering
-//   - Fictional calendars (string-based lexicographic sort)
-//   - Branching, backtracking, and parallel timelines via sequence edges
-//   - Automatic lane assignment for parallel branches
+// Uses:
+//   - Frontmatter time key (start-date, story_order, etc.) for X position
+//   - parent_id for hierarchical lane grouping (parent → children in adjacent lanes)
+//   - Tags for secondary grouping when parent_id is absent
+//   - Folder path for work-level grouping (e.g. classic-hamlet, mythology-norse)
 // ---------------------------------------------------------------------------
 
 import type { GraphData, GraphNode, GraphEdge } from "../types";
 import { EDGE_TYPE_SEQUENCE } from "../constants";
-import { incCounter } from "../utils/graph-helpers";
 
 // ---------------------------------------------------------------------------
-// Constants — default layout parameters
+// Constants
 // ---------------------------------------------------------------------------
-
-/** Default horizontal spacing between time steps (px) */
 const DEFAULT_STEP_WIDTH = 120;
-/** Default vertical spacing between lanes (px) */
-const DEFAULT_LANE_HEIGHT = 80;
-/** Default starting X position */
+const DEFAULT_LANE_HEIGHT = 28;
 const DEFAULT_START_X = 60;
-/** Default starting Y position */
 const DEFAULT_START_Y = 60;
-/** Default vertical spacing for nodes stacked in the same cell */
 const DEFAULT_STACK_SPACING = 20;
-/** Maximum desired columns before auto-shrinking step width */
 const MAX_DESIRED_COLS = 40;
-/** Minimum step width when auto-shrinking (px).
- *  Set to 1 to allow viewMode-computed stepWidth to pass through. */
 const MIN_STEP_WIDTH = 1;
-/** Horizontal spacing factor for untimed nodes (fraction of effectiveStepWidth) */
 const UNTIMED_NODE_SPACING_FACTOR = 0.6;
 
 // ---------------------------------------------------------------------------
@@ -39,42 +28,32 @@ const UNTIMED_NODE_SPACING_FACTOR = 0.6;
 // ---------------------------------------------------------------------------
 
 export interface TimelineLayoutOptions {
-  /** Frontmatter key that holds the time value (e.g. "date", "era", "turn") */
   timeKey: string;
-  /** Custom sort function for time values. Defaults to lexicographic comparison. */
   timeComparator?: (a: string, b: string) => number;
-  /** Horizontal spacing between time steps */
   stepWidth?: number;
-  /** Vertical spacing between lanes (branches) */
   laneHeight?: number;
-  /** Starting X position */
   startX?: number;
-  /** Starting Y position */
   startY?: number;
-  /** Accessor for node frontmatter values. In tests, override this. */
   getNodeProperty?: (nodeId: string, key: string) => string | undefined;
-  /** When multiple timed nodes share the same time step, stack them vertically within the lane */
   stackSpacing?: number;
 }
 
-/** A node placed in the timeline with its assigned time slot and lane */
 export interface TimelinePlacement {
   nodeId: string;
   timeValue: string;
-  timeIndex: number;  // index in sorted unique time values
-  lane: number;       // 0-based lane index for vertical positioning
+  timeIndex: number;
+  lane: number;
 }
 
-/** Result of timeline layout computation */
 interface TimelineLayoutResult {
   data: GraphData;
   placements: TimelinePlacement[];
-  lanes: number;           // total number of lanes used
-  timeSteps: string[];     // sorted unique time values
+  lanes: number;
+  timeSteps: string[];
 }
 
 // ---------------------------------------------------------------------------
-// Default comparator — lexicographic string comparison
+// Comparators
 // ---------------------------------------------------------------------------
 
 export function defaultTimeComparator(a: string, b: string): number {
@@ -82,21 +61,15 @@ export function defaultTimeComparator(a: string, b: string): number {
 }
 
 // ---------------------------------------------------------------------------
-// DAG construction from sequence edges
+// DAG construction (kept for API compat)
 // ---------------------------------------------------------------------------
 
-/**
- * Build a DAG from sequence edges. Returns adjacency list (source → targets).
- * Only considers nodes that have a time value.
- */
 export function buildTimelineDAG(
   edges: GraphEdge[],
   nodesWithTime: Set<string>,
 ): Map<string, string[]> {
   const dag = new Map<string, string[]>();
-  for (const id of nodesWithTime) {
-    dag.set(id, []);
-  }
+  for (const id of nodesWithTime) dag.set(id, []);
   for (const e of edges) {
     if (e.type !== EDGE_TYPE_SEQUENCE) continue;
     if (!nodesWithTime.has(e.source) || !nodesWithTime.has(e.target)) continue;
@@ -106,100 +79,186 @@ export function buildTimelineDAG(
 }
 
 // ---------------------------------------------------------------------------
-// Lane assignment — assigns parallel branches to separate vertical lanes
+// Legacy assignLanes (kept for test compat)
 // ---------------------------------------------------------------------------
 
-/**
- * Assign lanes to nodes for parallel branch visualization.
- *
- * Algorithm:
- * 1. Find root nodes (nodes with no incoming sequence edges among timed nodes)
- * 2. BFS/DFS from each root, assigning lanes
- * 3. When a node has multiple outgoing edges (fork), children get new lanes
- * 4. When a node has multiple incoming edges (merge), it stays on the primary lane
- */
 export function assignLanes(
   dag: Map<string, string[]>,
   timeIndex: Map<string, number>,
 ): Map<string, number> {
   const laneMap = new Map<string, number>();
   const inDegree = new Map<string, number>();
-
-  // Compute in-degree within the DAG
-  for (const id of dag.keys()) {
-    inDegree.set(id, 0);
-  }
+  for (const id of dag.keys()) inDegree.set(id, 0);
   for (const [, targets] of dag) {
-    for (const t of targets) {
-      incCounter(inDegree, t);
-    }
+    for (const t of targets) inDegree.set(t, (inDegree.get(t) ?? 0) + 1);
   }
-
-  // Find roots (in-degree 0)
   const roots: string[] = [];
-  for (const [id, deg] of inDegree) {
-    if (deg === 0) roots.push(id);
-  }
-
-  // Sort roots by time index so the earliest appears first
+  for (const [id, deg] of inDegree) { if (deg === 0) roots.push(id); }
   roots.sort((a, b) => (timeIndex.get(a) ?? 0) - (timeIndex.get(b) ?? 0));
-
-  // If no roots, all nodes form cycles — just put them all in lane 0
   if (roots.length === 0) {
-    for (const id of dag.keys()) {
-      laneMap.set(id, 0);
-    }
+    for (const id of dag.keys()) laneMap.set(id, 0);
     return laneMap;
   }
-
   let nextLane = 0;
-
-  // BFS from each root
   for (const root of roots) {
     if (laneMap.has(root)) continue;
-    const baseLane = nextLane;
-    laneMap.set(root, baseLane);
-
+    laneMap.set(root, nextLane);
     const queue: string[] = [root];
     while (queue.length > 0) {
       const current = queue.shift()!;
-      const children = dag.get(current) ?? [];
-
-      // Sort children by time index
-      const sorted = [...children].sort(
+      const sorted = [...(dag.get(current) ?? [])].sort(
         (a, b) => (timeIndex.get(a) ?? 0) - (timeIndex.get(b) ?? 0)
       );
-
       for (let i = 0; i < sorted.length; i++) {
         const child = sorted[i];
         if (laneMap.has(child)) continue;
-
-        if (i === 0) {
-          // First child continues on same lane as parent
-          laneMap.set(child, laneMap.get(current)!);
-        } else {
-          // Subsequent children (forks) get new lanes
-          nextLane++;
-          laneMap.set(child, nextLane);
-        }
+        laneMap.set(child, i === 0 ? laneMap.get(current)! : ++nextLane);
         queue.push(child);
       }
     }
+    nextLane++;
+  }
+  return laneMap;
+}
 
+// ---------------------------------------------------------------------------
+// Hierarchical lane assignment using parent_id + work grouping
+// ---------------------------------------------------------------------------
+
+/**
+ * Assign lanes based on:
+ * 1. Work group (folder: classic-hamlet, mythology-norse, etc.)
+ * 2. Parent hierarchy (parent_id → children grouped under parent)
+ * 3. Story order within parent
+ *
+ * Structure: each work gets a block of lanes. Within a work:
+ *   - parent nodes get their own lane
+ *   - children of the same parent share adjacent lanes, sorted by story_order
+ */
+function assignHierarchicalLanes(
+  nodes: GraphNode[],
+  timedNodeIds: Set<string>,
+  getNodeProp: (id: string, key: string) => string | undefined,
+): Map<string, number> {
+  const laneMap = new Map<string, number>();
+  const timedNodes = nodes.filter(n => timedNodeIds.has(n.id));
+
+  // 1. Derive work group from folder path
+  function workGroup(n: GraphNode): string {
+    const fp = (n as any).filePath || n.id;
+    const segs = fp.split("/").filter((s: string) => s.length > 0);
+    // Find the "work" folder: skip root vault folder (e.g. "開発"), use next
+    for (const seg of segs) {
+      if (seg.startsWith("classic-") || seg.startsWith("mythology-") ||
+          seg.startsWith("bible-") || seg.includes("-")) {
+        return seg;
+      }
+    }
+    return segs.length >= 2 ? segs[segs.length - 2] : segs[0] ?? "other";
+  }
+
+  // 2. Get parent_id for each node
+  const parentMap = new Map<string, string>();  // nodeId → parentId
+  const childrenMap = new Map<string, string[]>(); // parentId → [childIds]
+  const orderMap = new Map<string, number>(); // nodeId → story_order
+
+  for (const n of timedNodes) {
+    const parentId = getNodeProp(n.id, "parent_id");
+    const order = getNodeProp(n.id, "story_order");
+    if (parentId) {
+      parentMap.set(n.id, parentId);
+      if (!childrenMap.has(parentId)) childrenMap.set(parentId, []);
+      childrenMap.get(parentId)!.push(n.id);
+    }
+    if (order) orderMap.set(n.id, parseFloat(order) || 0);
+  }
+
+  // Sort children by story_order
+  for (const [, children] of childrenMap) {
+    children.sort((a, b) => (orderMap.get(a) ?? 0) - (orderMap.get(b) ?? 0));
+  }
+
+  // 3. Group by work
+  const workGroups = new Map<string, GraphNode[]>();
+  for (const n of timedNodes) {
+    const w = workGroup(n);
+    if (!workGroups.has(w)) workGroups.set(w, []);
+    workGroups.get(w)!.push(n);
+  }
+
+  // Sort works for deterministic layout
+  const sortedWorks = [...workGroups.keys()].sort();
+
+  // 4. Assign lanes: each work block, each parent gets a section
+  let nextLane = 0;
+  for (const work of sortedWorks) {
+    const workNodes = workGroups.get(work)!;
+
+    // Find unique parents in this work
+    const parentsInWork = new Set<string>();
+    const orphans: string[] = []; // nodes without parent_id
+    for (const n of workNodes) {
+      const pid = parentMap.get(n.id);
+      if (pid) {
+        parentsInWork.add(pid);
+      } else {
+        orphans.push(n.id);
+      }
+    }
+
+    // Sort parents by the earliest story_order of their children
+    const sortedParents = [...parentsInWork].sort((a, b) => {
+      const aChildren = childrenMap.get(a) ?? [];
+      const bChildren = childrenMap.get(b) ?? [];
+      const aMin = Math.min(...aChildren.map(c => orderMap.get(c) ?? Infinity));
+      const bMin = Math.min(...bChildren.map(c => orderMap.get(c) ?? Infinity));
+      return aMin - bMin;
+    });
+
+    // Assign lanes: orphans first (they may be parents themselves)
+    for (const id of orphans) {
+      // Check if this node IS a parent
+      const children = childrenMap.get(extractNodeName(id, workNodes));
+      if (children && children.length > 0) {
+        // This is a parent node — give it a lane header
+        laneMap.set(id, nextLane++);
+      } else {
+        laneMap.set(id, nextLane);
+      }
+    }
+    if (orphans.length > 0 && !orphans.every(id => childrenMap.has(extractNodeName(id, workNodes)))) {
+      nextLane++;
+    }
+
+    // Each parent group gets consecutive lanes
+    for (const parentId of sortedParents) {
+      const children = childrenMap.get(parentId) ?? [];
+      // All children of this parent share a lane (stacked by story_order at same Y)
+      for (const childId of children) {
+        laneMap.set(childId, nextLane);
+      }
+      nextLane++;
+    }
+
+    // Gap between works
     nextLane++;
   }
 
   return laneMap;
 }
 
+/** Extract short node name from ID for parent_id matching */
+function extractNodeName(nodeId: string, nodes: GraphNode[]): string {
+  const n = nodes.find(n => n.id === nodeId);
+  const fp = (n as any)?.filePath || nodeId;
+  const filename = fp.split("/").pop()?.replace(".md", "") ?? nodeId;
+  return filename;
+}
+
 // ---------------------------------------------------------------------------
 // Main layout function
 // ---------------------------------------------------------------------------
 
-/**
- * Apply timeline layout to a graph.
- * Nodes without a time value are placed at the bottom in a separate row.
- */
 export function applyTimelineLayout(
   graph: GraphData,
   options: TimelineLayoutOptions,
@@ -219,7 +278,7 @@ export function applyTimelineLayout(
     return { data: { nodes: [], edges: graph.edges }, placements: [], lanes: 0, timeSteps: [] };
   }
 
-  // 1. Extract time values from nodes
+  // 1. Extract time values
   const nodeTimeValues = new Map<string, string>();
   for (const n of graph.nodes) {
     const val = getNodeProperty?.(n.id, timeKey);
@@ -228,10 +287,8 @@ export function applyTimelineLayout(
     }
   }
 
-  // 2. Compute sorted unique time values; dynamically adjust step width for large timelines
+  // 2. Sorted unique time values + step width
   const uniqueTimes = [...new Set(nodeTimeValues.values())];
-  // Auto-shrink step width when too many time steps to prevent extremely wide layouts.
-  // Target: total width should be at most ~40x the lane height for reasonable aspect ratio.
   const effectiveStepWidth = uniqueTimes.length > MAX_DESIRED_COLS
     ? Math.max(MIN_STEP_WIDTH, Math.round(MAX_DESIRED_COLS * stepWidth / uniqueTimes.length))
     : stepWidth;
@@ -239,42 +296,40 @@ export function applyTimelineLayout(
   const timeIndexMap = new Map<string, number>();
   uniqueTimes.forEach((t, i) => timeIndexMap.set(t, i));
 
-  // Map node → time index
   const nodeTimeIndex = new Map<string, number>();
   for (const [nodeId, tv] of nodeTimeValues) {
     const idx = timeIndexMap.get(tv);
-    if (idx === undefined) continue;
-    nodeTimeIndex.set(nodeId, idx);
+    if (idx !== undefined) nodeTimeIndex.set(nodeId, idx);
   }
 
-  // 3. Build DAG from sequence edges
+  // 3. Assign lanes — priority: hierarchical (parent_id) > sequence DAG > fallback
   const timedNodeIds = new Set(nodeTimeValues.keys());
-  const dag = buildTimelineDAG(graph.edges, timedNodeIds);
-
-  // 4. Check if DAG has any actual edges (sequence links)
-  let hasSequenceEdges = false;
-  for (const [, targets] of dag) {
-    if (targets.length > 0) { hasSequenceEdges = true; break; }
-  }
-
-  // 5. Assign lanes — use category swim-lanes when no sequence edges
   let laneMap: Map<string, number>;
   let totalLanes: number;
 
-  if (hasSequenceEdges) {
-    laneMap = assignLanes(dag, nodeTimeIndex);
-    totalLanes = laneMap.size > 0 ? Math.max(...laneMap.values()) + 1 : 1;
-  } else {
-    // Category-based swim lanes: group timed nodes by category
-    laneMap = assignLanesByCategory(graph.nodes, timedNodeIds);
-    totalLanes = laneMap.size > 0 ? Math.max(...laneMap.values()) + 1 : 1;
+  // Check if parent_id data exists
+  let hasParentIds = false;
+  if (getNodeProperty) {
+    for (const id of timedNodeIds) {
+      if (getNodeProperty(id, "parent_id")) { hasParentIds = true; break; }
+    }
   }
 
-  // 6. Position timed nodes
+  if (hasParentIds && getNodeProperty) {
+    // Use parent_id hierarchy for lane grouping
+    laneMap = assignHierarchicalLanes(graph.nodes, timedNodeIds, getNodeProperty);
+  } else {
+    // Fallback: sequence DAG or folder-based
+    const dag = buildTimelineDAG(graph.edges, timedNodeIds);
+    let hasSeq = false;
+    for (const [, t] of dag) { if (t.length > 0) { hasSeq = true; break; } }
+    laneMap = hasSeq ? assignLanes(dag, nodeTimeIndex) : assignFallbackLanes(graph.nodes, timedNodeIds);
+  }
+  totalLanes = laneMap.size > 0 ? Math.max(...laneMap.values()) + 1 : 1;
+
+  // 4. Position timed nodes
   const placements: TimelinePlacement[] = [];
   const positioned = new Map<string, { x: number; y: number }>();
-
-  // Track how many nodes share the same (timeIndex, lane) for stacking
   const cellCount = new Map<string, number>();
 
   for (const [nodeId, timeVal] of nodeTimeValues) {
@@ -290,14 +345,11 @@ export function applyTimelineLayout(
     placements.push({ nodeId, timeValue: timeVal, timeIndex: ti, lane });
   }
 
-  // 7. If no nodes had time values, arrange all nodes in a clean grid
+  // 5. Untimed nodes
   const untimedNodes = graph.nodes.filter(n => !nodeTimeValues.has(n.id));
   if (nodeTimeValues.size === 0 && untimedNodes.length > 0) {
-    // All nodes lack time metadata — create a balanced grid sorted by file path.
-    // This produces a clean horizontal/vertical arrangement.
     const sorted = [...untimedNodes].sort((a, b) =>
-      (a.filePath || a.id).localeCompare(b.filePath || b.id)
-    );
+      (a.filePath || a.id).localeCompare(b.filePath || b.id));
     const cols = Math.ceil(Math.sqrt(sorted.length));
     sorted.forEach((n, i) => {
       positioned.set(n.id, {
@@ -306,7 +358,6 @@ export function applyTimelineLayout(
       });
     });
   } else if (untimedNodes.length > 0) {
-    // Some nodes have time values, some don't — place untimed in grid at right edge
     const untimedX = startX + uniqueTimes.length * effectiveStepWidth + effectiveStepWidth;
     const cols = Math.max(1, Math.ceil(Math.sqrt(untimedNodes.length)));
     untimedNodes.forEach((n, i) => {
@@ -317,7 +368,7 @@ export function applyTimelineLayout(
     });
   }
 
-  // 8. Apply positions to nodes
+  // 6. Apply positions
   const positionedNodes = graph.nodes.map(n => ({
     ...n,
     x: positioned.get(n.id)?.x ?? n.x,
@@ -333,46 +384,29 @@ export function applyTimelineLayout(
 }
 
 // ---------------------------------------------------------------------------
-// Category-based lane assignment (fallback when no sequence edges)
+// Fallback lane assignment (no parent_id, no sequence edges)
 // ---------------------------------------------------------------------------
 
-/**
- * Assign swim-lanes based on node category.
- * Each unique category gets its own lane, producing a horizontal timeline
- * where rows represent categories and columns represent time steps.
- */
-function assignLanesByCategory(
+function assignFallbackLanes(
   nodes: GraphNode[],
   timedNodeIds: Set<string>,
 ): Map<string, number> {
   const laneMap = new Map<string, number>();
   const groupLanes = new Map<string, number>();
   let nextLane = 0;
-
   const timedNodes = nodes.filter(n => timedNodeIds.has(n.id));
 
-  // Derive group key from deepest meaningful folder segment
   function groupKey(n: GraphNode): string {
     const fp = (n as any).filePath || n.id;
-    const segments = fp.split("/").filter((s: string) => s.length > 0);
-    // Use the second-to-last folder (parent of the file), or first folder if shallow
-    // e.g. "開発/classic-hamlet/characters/hamlet.md" → "classic-hamlet"
-    // e.g. "classic-hamlet/characters/hamlet.md" → "classic-hamlet"
-    if (segments.length >= 3) return `dir:${segments[segments.length - 3]}`;
-    if (segments.length >= 2) return `dir:${segments[0]}`;
-    // Fallback: use category if available
-    if (n.category) return `cat:${n.category}`;
+    const segs = fp.split("/").filter((s: string) => s.length > 0);
+    if (segs.length >= 3) return segs[segs.length - 3];
+    if (segs.length >= 2) return segs[0];
+    if (n.category) return n.category;
     return "other";
   }
 
   const groups = [...new Set(timedNodes.map(n => groupKey(n)))].sort();
-  for (const g of groups) {
-    groupLanes.set(g, nextLane++);
-  }
-
-  for (const n of timedNodes) {
-    laneMap.set(n.id, groupLanes.get(groupKey(n)) ?? 0);
-  }
-
+  for (const g of groups) groupLanes.set(g, nextLane++);
+  for (const n of timedNodes) laneMap.set(n.id, groupLanes.get(groupKey(n)) ?? 0);
   return laneMap;
 }

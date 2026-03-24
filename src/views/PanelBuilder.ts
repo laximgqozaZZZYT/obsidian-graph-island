@@ -496,7 +496,7 @@ export function validatePanelState(panel: PanelState): void {
     }
   }
   // ViewMode validation
-  const validViewModes = new Set(["graph", "sunburst", "timeline", "tree", "matrix"]);
+  const validViewModes = new Set(["graph", "sunburst", "timeline", "matrix"]);
   if (!validViewModes.has(panel.viewMode)) {
     panel.viewMode = "graph";
   }
@@ -3304,7 +3304,6 @@ function buildViewModeBar(
     { mode: "graph",    icon: "git-branch",  labelKey: "viewMode.graph" },
     { mode: "sunburst", icon: "sun",         labelKey: "viewMode.sunburst" },
     { mode: "timeline", icon: "calendar",    labelKey: "viewMode.timeline" },
-    { mode: "tree",     icon: "list-tree",   labelKey: "viewMode.tree" },
   ];
 
   for (const m of modes) {

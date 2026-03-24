@@ -62,15 +62,6 @@ const HIDDEN_SECTIONS: Record<Exclude<ViewMode, "graph">, Set<PanelSectionId>> =
     "forceParameters",
     "nodeRules",
   ]),
-  tree: new Set([
-    "clusterArrangement",
-    "coordinateControls",
-    "timelineControls",
-    "forceParameters",
-    "nodeRules",
-    "cableDisplay",
-    "roadNetwork",
-  ]),
   matrix: new Set([
     "nodeDisplay",
     "nodeDisplayMode",

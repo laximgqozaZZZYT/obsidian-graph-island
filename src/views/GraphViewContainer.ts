@@ -665,7 +665,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       { mode: "graph",    icon: "git-branch",  labelKey: "viewMode.graph" },
       { mode: "sunburst", icon: "sun",         labelKey: "viewMode.sunburst" },
       { mode: "timeline", icon: "calendar",    labelKey: "viewMode.timeline" },
-      { mode: "tree",     icon: "list-tree",   labelKey: "viewMode.tree" },
       { mode: "matrix",   icon: "table-2",     labelKey: "viewMode.matrix" },
     ];
     for (const m of modes) {
@@ -7323,46 +7322,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.shells.forEach((s, i) => s.nodeIds.forEach((id) => this.nodeShellIndex.set(id, i)));
           break;
         }
-        case LAYOUT_TREE: {
-          const treeNodeCount = gd.nodes.length;
-          // Scale node spacing inversely with node count
-          const adaptiveNodeWidth = Math.max(4, Math.round(2000 / Math.sqrt(treeNodeCount)));
-          const adaptiveLevelHeight = Math.max(15, Math.round(1500 / Math.sqrt(treeNodeCount)));
-
-          ld = applyTreeLayout(gd, {
-            startX: 0, startY: 0,
-            sortComparator: sortCmp, nodeSpacingMap: nsMap,
-            nodeWidth: adaptiveNodeWidth,
-            levelHeight: adaptiveLevelHeight,
-          });
-          // Rotate: swap x↔y so depth goes left→right, siblings go top→bottom
-          for (const n of ld.nodes) {
-            const ox = n.x, oy = n.y;
-            n.x = oy + 60;
-            n.y = ox;
-          }
-          // Scale to fit canvas with generous padding (allow zoom to explore)
-          {
-            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-            for (const n of ld.nodes) {
-              if (n.x < minX) minX = n.x;
-              if (n.x > maxX) maxX = n.x;
-              if (n.y < minY) minY = n.y;
-              if (n.y > maxY) maxY = n.y;
-            }
-            const spreadX = maxX - minX || 1;
-            const spreadY = maxY - minY || 1;
-            // Scale to fit 2x canvas (user can zoom in/out)
-            const fitScale = Math.min((W * 2) / spreadX, (H * 2) / spreadY, 1);
-            const midX = (minX + maxX) / 2;
-            const midY = (minY + maxY) / 2;
-            for (const n of ld.nodes) {
-              n.x = cx + (n.x - midX) * fitScale;
-              n.y = cy + (n.y - midY) * fitScale;
-            }
-          }
-          break;
-        }
+        // LAYOUT_TREE removed — tree viewMode deleted
         case LAYOUT_ARC: ld = applyArcLayout(gd, { centerX: cx, centerY: cy, radius: Math.min(W, H) * 0.4, sortComparator: sortCmp }); break;
         case LAYOUT_SUNBURST: {
           const root = buildSunburstData(this.app, this.plugin.settings.groupField);

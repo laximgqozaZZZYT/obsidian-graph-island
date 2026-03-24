@@ -135,7 +135,7 @@ export type LayoutType =
 
 /** Top-level visualization mode — determines which layout algorithm and
  *  which panel sections are active. */
-export type ViewMode = "graph" | "sunburst" | "timeline" | "tree" | "matrix";
+export type ViewMode = "graph" | "sunburst" | "timeline" | "matrix";
 
 /** How to partition nodes into clusters within the force layout.
  *  Legacy values: "none" | "tag" | "backlinks" | "node_type"

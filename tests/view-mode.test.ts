@@ -16,11 +16,10 @@ import { isSectionVisible } from "../src/utils/view-mode-sections";
 import type { ViewMode } from "../src/types";
 
 describe("ViewMode constants", () => {
-  it("exports all 5 view mode constants", () => {
+  it("exports all 4 view mode constants", () => {
     expect(VIEW_MODE_GRAPH).toBe("graph");
     expect(VIEW_MODE_SUNBURST).toBe("sunburst");
     expect(VIEW_MODE_TIMELINE).toBe("timeline");
-    expect(VIEW_MODE_TREE).toBe("tree");
     expect(VIEW_MODE_MATRIX).toBe("matrix");
   });
 });
@@ -55,9 +54,6 @@ describe("viewModeToLayout", () => {
   });
   it("maps timeline → LAYOUT_TIMELINE", () => {
     expect(viewModeToLayout("timeline")).toBe(LAYOUT_TIMELINE);
-  });
-  it("maps tree → LAYOUT_TREE", () => {
-    expect(viewModeToLayout("tree")).toBe(LAYOUT_TREE);
   });
   it("maps matrix → LAYOUT_FORCE (DOM-based)", () => {
     expect(viewModeToLayout("matrix")).toBe(LAYOUT_FORCE);
@@ -97,15 +93,6 @@ describe("isSectionVisible", () => {
     expect(isSectionVisible("timeline", "edgeDisplay")).toBe(false);
   });
 
-  it("tree hides graph-specific sections", () => {
-    expect(isSectionVisible("tree", "clusterArrangement")).toBe(false);
-    expect(isSectionVisible("tree", "forceParameters")).toBe(false);
-    expect(isSectionVisible("tree", "timelineControls")).toBe(false);
-  });
-  it("tree shows edges", () => {
-    expect(isSectionVisible("tree", "edgeDisplay")).toBe(true);
-  });
-
   it("matrix hides most sections (DOM-based)", () => {
     expect(isSectionVisible("matrix", "clusterArrangement")).toBe(false);
     expect(isSectionVisible("matrix", "forceParameters")).toBe(false);
@@ -137,9 +124,6 @@ describe("viewModeSkipsNodeRendering", () => {
   it("timeline skips node rendering", () => {
     expect(viewModeSkipsNodeRendering("timeline")).toBe(true);
   });
-  it("tree does NOT skip node rendering", () => {
-    expect(viewModeSkipsNodeRendering("tree")).toBe(false);
-  });
   it("matrix skips node rendering (DOM-based)", () => {
     expect(viewModeSkipsNodeRendering("matrix")).toBe(true);
   });
@@ -161,9 +145,6 @@ describe("viewModeSkipsEdges", () => {
   it("timeline skips edges", () => {
     expect(viewModeSkipsEdges("timeline")).toBe(true);
   });
-  it("tree does NOT skip edges", () => {
-    expect(viewModeSkipsEdges("tree")).toBe(false);
-  });
   it("matrix skips edges (DOM-based)", () => {
     expect(viewModeSkipsEdges("matrix")).toBe(true);
   });
@@ -179,8 +160,8 @@ describe("viewMode integration", () => {
   });
 
   it("all view modes map to valid LayoutType values", () => {
-    const validLayouts = new Set(["force", "concentric", "tree", "arc", "sunburst", "timeline"]);
-    for (const mode of ["graph", "sunburst", "timeline", "tree", "matrix"] as ViewMode[]) {
+    const validLayouts = new Set(["force", "concentric", "arc", "sunburst", "timeline"]);
+    for (const mode of ["graph", "sunburst", "timeline", "matrix"] as ViewMode[]) {
       expect(validLayouts.has(viewModeToLayout(mode))).toBe(true);
     }
   });
@@ -190,7 +171,7 @@ describe("viewMode integration", () => {
     for (const s of sections) {
       expect(isSectionVisible("graph", s)).toBe(true);
     }
-    for (const mode of ["sunburst", "timeline", "tree", "matrix"] as ViewMode[]) {
+    for (const mode of ["sunburst", "timeline", "matrix"] as ViewMode[]) {
       expect(isSectionVisible(mode, "clusterArrangement")).toBe(false);
     }
   });
@@ -203,7 +184,7 @@ describe("viewModeUsesDom", () => {
   it("matrix uses DOM", () => {
     expect(viewModeUsesDom("matrix")).toBe(true);
   });
-  it.each(["graph", "sunburst", "timeline", "tree"] as ViewMode[])("%s does NOT use DOM", (mode) => {
+  it.each(["graph", "sunburst", "timeline"] as ViewMode[])("%s does NOT use DOM", (mode) => {
     expect(viewModeUsesDom(mode)).toBe(false);
   });
 });
@@ -234,7 +215,7 @@ describe("isSectionVisible matrix", () => {
 // Round-trip: viewMode → layout → back
 // ---------------------------------------------------------------------------
 describe("viewMode round-trip consistency", () => {
-  const ALL_MODES: ViewMode[] = ["graph", "sunburst", "timeline", "tree", "matrix"];
+  const ALL_MODES: ViewMode[] = ["graph", "sunburst", "timeline", "matrix"];
 
   it("every viewMode has a valid layout mapping", () => {
     for (const m of ALL_MODES) {

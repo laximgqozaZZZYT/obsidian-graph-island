@@ -3,14 +3,12 @@ import {
   LAYOUT_FORCE,
   LAYOUT_SUNBURST,
   LAYOUT_TIMELINE,
-  LAYOUT_TREE,
 } from "../constants";
 
 const VIEW_MODE_LAYOUT_MAP: Record<ViewMode, LayoutType> = {
   graph: LAYOUT_FORCE,
   sunburst: LAYOUT_SUNBURST,
   timeline: LAYOUT_TIMELINE,
-  tree: LAYOUT_TREE,
   matrix: LAYOUT_FORCE, // matrix uses DOM, not Canvas layout
 };
 
