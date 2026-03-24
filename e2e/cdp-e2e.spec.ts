@@ -663,6 +663,17 @@ test.describe("11. Timeline Layout", () => {
     if (spread.bboxWidth > 0 && spread.bboxHeight > 0) {
       expect(spread.bboxWidth).toBeGreaterThan(spread.bboxHeight * 0.5);
     }
+    // === Display Quality: timeline axis labels should be readable ===
+    const axisQ = await measureTimelineAxis(page);
+    if (axisQ.axisVisible) {
+      expect(axisQ.overlappingTickLabels).toBeLessThan(axisQ.tickCount);
+      expect(axisQ.labelsFit).toBe(true);
+    }
+    // === Display Quality: timeline labels should not pile up ===
+    const labelQ = await measureLabelReadability(page);
+    if (labelQ.totalVisible > 5) {
+      expect(labelQ.tooSmallCount).toBeLessThan(labelQ.totalVisible * 0.8);
+    }
 
     // Restore force layout
     await renderAndVerify(page, { clusterArrangement: "force", searchQuery: "" }, async (p) => {
@@ -750,6 +761,12 @@ test.describe("14. Legend Content", () => {
     expect(labels.totalNodes).toBeGreaterThan(0);
     if (labels.visibleLabels > 0) {
       expect(labels.avgFontScale).toBeGreaterThan(0);
+    }
+    // === Display Quality: legend should fit viewport and have items ===
+    const legendQ = await measureLegend(page);
+    if (legendQ.exists) {
+      expect(legendQ.itemCount).toBeGreaterThan(0);
+      expect(legendQ.fitsViewport).toBe(true);
     }
 
     // Restore
@@ -1282,6 +1299,13 @@ test.describe("33. Analysis Overlay", () => {
     expect(state.overlay).toBe("density");
     expect(state.densityFlag).toBe(true);
     expect(result).toBeGreaterThan(0);
+    // === Display Quality: density overlay should still show well-spread nodes ===
+    const density = await measureScreenDensity(page);
+    if (density.totalNodes > 10) {
+      expect(density.viewportUtilization).toBeGreaterThan(3);
+    }
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
   });
 
   test("33.2 off mode disables all overlay flags", async () => {
@@ -1319,6 +1343,12 @@ test.describe("34. Minimap", () => {
     expect(result).not.toHaveProperty("error");
     expect(result.exists).toBe(true);
     expect(result.hasMinimap).toBe(true);
+    // === Display Quality: minimap should have valid dimensions ===
+    const mm = await measureMinimap(page);
+    if (mm.exists && mm.visible) {
+      expect(mm.width).toBeGreaterThan(0);
+      expect(mm.height).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -1367,6 +1397,13 @@ test.describe("36. Layout Transition", () => {
     });
     expect(result).not.toHaveProperty("error");
     expect(result.after).toBe("grid");
+    // === Display Quality: layout switch should not produce degenerate positions ===
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    expect(spread.infCount).toBe(0);
+    if (spread.bboxWidth > 0) {
+      expect(spread.spreadRatio).toBeGreaterThan(0.01);
+    }
   });
 });
 
@@ -1401,6 +1438,9 @@ test.describe("37. Collapsed Group Tooltip", () => {
     expect(result).not.toHaveProperty("error");
     expect(result.superCount).toBeGreaterThan(5);
     expect(result.totalMembers).toBeGreaterThan(50);
+    // === Display Quality: collapsed super-nodes should not pile up ===
+    const overlap = await measureNodeOverlap(page);
+    expect(overlap.overlapRatio).toBeLessThan(0.15);
   });
 });
 
@@ -1527,6 +1567,11 @@ test.describe("41. Enclosure Tag Suppression", () => {
     expect(result.visibleTagLabels).toBe(0);
     // Hover tooltip should NOT contain # tag names
     expect(result.hoverHasTag).toBe(false);
+    // === Display Quality: enclosure boundaries should be visible ===
+    const encQ = await measureEnclosureOverlap(page);
+    if (encQ.totalEnclosures > 0) {
+      expect(encQ.avgArea).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -1632,6 +1677,15 @@ test.describe("42. Card Mode Content", () => {
     });
     expect(result).not.toHaveProperty("error");
     expect(result.hoverHasBody).toBe(true);
+    // === Display Quality: cards should be readable and not overlapping ===
+    const cardQ = await measureCardReadability(page);
+    if (cardQ.totalCards > 0) {
+      expect(cardQ.tooSmallCards).toBeLessThan(cardQ.totalCards);
+      if (cardQ.totalCards > 5) {
+        const overlapRate = cardQ.overlappingCards / cardQ.totalCards;
+        expect(overlapRate).toBeLessThan(0.5);
+      }
+    }
   });
 });
 
@@ -1655,6 +1709,10 @@ test.describe("43. Degree Filter", () => {
     });
     expect(result).not.toHaveProperty("error");
     expect(result.reduced).toBe(true);
+    // === Display Quality: filtered graph should have valid coordinates ===
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    expect(spread.infCount).toBe(0);
   });
 
   test("43.2 maxDegreeFilter removes high-degree nodes", async () => {
@@ -1673,6 +1731,9 @@ test.describe("43. Degree Filter", () => {
     });
     expect(result).not.toHaveProperty("error");
     expect(result.reduced).toBe(true);
+    // === Display Quality: max degree filter should leave readable graph ===
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
   });
 });
 
@@ -1794,6 +1855,10 @@ test.describe("46. Degree Filter Edge Sync", () => {
     expect(result).not.toHaveProperty("error");
     expect(result.hubExcluded).toBe(true);
     expect(result.afterCount).toBeGreaterThan(0);
+    // === Display Quality: after hub exclusion, remaining graph spread ===
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    expect(spread.infCount).toBe(0);
   });
 });
 
