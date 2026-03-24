@@ -344,6 +344,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** tag name → set of file node IDs that have this tag */
   private tagMembership: Map<string, Set<string>> = new Map();
   private enclosureLabels: Map<string, CanvasText> = new Map();
+  /** GroupBy group labels shown at zoom-out (key → CanvasText) */
+  private groupByLabels: Map<string, CanvasText> = new Map();
   private overlapCache: OverlapCache = { frame: 0, counts: new Map() };
   /** Cluster metadata for edge bundling (updated when cluster force is applied) */
   private clusterMeta: ClusterMetadata | null = null;
@@ -1781,6 +1783,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       try { lbl.destroy(); } catch { /* already destroyed */ }
     }
     this.enclosureLabels.clear();
+    // Clean up groupBy labels
+    for (const lbl of this.groupByLabels.values()) {
+      try { lbl.destroy(); } catch { /* already destroyed */ }
+    }
+    this.groupByLabels.clear();
     // Clean up sunburst labels
     for (const lbl of this.sunburstLabels.values()) {
       try { lbl.destroy(); } catch { /* already destroyed */ }
@@ -2047,6 +2054,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       // Bookmark ★ markers + DZ: Pin markers
       this._updateBookmarkMarkers();
       this._updatePinMarkers();
+      // GroupBy labels at zoom-out
+      this._updateGroupByLabels();
     };
 
     // 密度ヒートマップ + 差分オーバーレイのフック設定
@@ -4578,6 +4587,100 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     drawEnclosuresImpl(this.enclosureGraphics, this.enclosureLabels, this.overlapCache, cfg);
   }
 
+  /** Show group name labels at each group's centroid when zoomed out past
+   *  the text fade threshold (individual node labels become invisible). */
+  private _updateGroupByLabels(): void {
+    const ws = this.worldContainer?.scale.x ?? 1;
+    const fadeThreshold = this.panel.textFadeThreshold;
+    const groupBy = this.panel.groupBy;
+    const hasGroups = groupBy && groupBy !== "none" && this.originalGraphData;
+
+    // Hide all labels when not in group mode or zoomed in enough
+    if (!hasGroups || ws >= fadeThreshold || this.panel.viewMode !== "graph") {
+      for (const lbl of this.groupByLabels.values()) {
+        lbl.visible = false;
+      }
+      return;
+    }
+
+    // Compute alpha: fade in as zoom decreases below threshold
+    const alpha = Math.min(1, (fadeThreshold - ws) / (fadeThreshold * 0.5));
+
+    // Build group membership from current pixiNodes
+    const groupMembers = new Map<string, { sumX: number; sumY: number; count: number }>();
+    for (const pn of this.pixiNodes.values()) {
+      // Super-nodes (collapsed groups) carry their key directly
+      if (pn.data.id.startsWith("__super__")) {
+        const key = pn.data.id.replace("__super__", "");
+        groupMembers.set(key, { sumX: pn.data.x, sumY: pn.data.y, count: pn.data.collapsedMembers?.length ?? 1 });
+        continue;
+      }
+      // For expanded nodes, use the group field value
+      const fields = groupBy.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",")
+        .split(",").map(s => s.trim().replace(/:?\?$/, "")).filter(Boolean);
+      for (const field of fields) {
+        let val: string | undefined;
+        if (field === "folder") val = pn.data.filePath?.replace(/\/[^/]*$/, "") || "root";
+        else if (field === "tag") val = pn.data.tags?.[0];
+        else val = (pn.data.meta as any)?.[field] as string | undefined;
+        if (!val) val = "ungrouped";
+        const key = `${field}:${val}`;
+        const entry = groupMembers.get(key) ?? { sumX: 0, sumY: 0, count: 0 };
+        entry.sumX += pn.data.x;
+        entry.sumY += pn.data.y;
+        entry.count++;
+        groupMembers.set(key, entry);
+      }
+    }
+
+    // Mark existing labels for cleanup
+    const usedKeys = new Set<string>();
+    const labelContainer = this.enclosureLabelContainer;
+    if (!labelContainer) return;
+
+    for (const [key, stats] of groupMembers) {
+      if (stats.count < 2) continue; // Skip singleton groups
+      usedKeys.add(key);
+      const cx = stats.sumX / stats.count;
+      const cy = stats.sumY / stats.count;
+      const displayName = key.replace(/^[^:]+:/, ""); // Strip field prefix
+
+      let txt = this.groupByLabels.get(key);
+      if (!txt) {
+        txt = new CanvasText(`${displayName} (${stats.count})`, {
+          fontSize: 14,
+          fill: "var(--text-normal, #ddd)",
+          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+          fontWeight: "600",
+        });
+        txt.anchor.set(0.5, 0.5);
+        txt.resolution = 2;
+        txt.strokeColor = 0x000000;
+        txt.strokeWidth = 3;
+        txt.bgColor = 0x1a1a2e;
+        txt.bgAlpha = 0.7;
+        txt.bgPadX = 6;
+        txt.bgPadY = 3;
+        this.groupByLabels.set(key, txt);
+        labelContainer.addChild(txt);
+      } else {
+        txt.text = `${displayName} (${stats.count})`;
+      }
+
+      const labelScale = Math.min(8, Math.max(1.5, 1.5 / ws));
+      txt.x = cx;
+      txt.y = cy;
+      txt.scale.set(labelScale);
+      txt.alpha = alpha;
+      txt.visible = true;
+    }
+
+    // Hide stale labels
+    for (const [key, lbl] of this.groupByLabels) {
+      if (!usedKeys.has(key)) lbl.visible = false;
+    }
+  }
+
   drawSunburstArcs() {
     const gfx = this.sunburstGraphics;
     if (!gfx) return;
@@ -5399,6 +5502,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.redrawNodeBatch();
     this.drawOrbitRings();
     this.drawEnclosures();
+    this._updateGroupByLabels();
     this.drawSunburstArcs();
     this.drawClusterSunburstLabels();
     this.drawSunburstLayoutArcs();
