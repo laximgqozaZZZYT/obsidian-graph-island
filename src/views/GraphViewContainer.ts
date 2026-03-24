@@ -135,6 +135,16 @@ export function blendThemeLabel(bg: number, nodeColor: number): number {
 }
 
 /** Lighten a hex color by a factor (0-1). factor=0.2 means 20% lighter. */
+/** Clean sunburst arc name: strip redundant path prefix (e.g. "bible-apocrypha/bible-apocrypha" → "bible-apocrypha") */
+export function cleanArcName(name: string): string {
+  if (!name.includes("/")) return name;
+  const segments = name.split("/");
+  if (segments.length >= 2 && segments[segments.length - 1] === segments[segments.length - 2]) {
+    return segments[segments.length - 1];
+  }
+  return segments[segments.length - 1] || name;
+}
+
 export function lightenHex(hex: number, factor: number): number {
   const { r, g, b } = hexToRgb(hex);
   const lr = Math.min(255, r + Math.round(255 * factor));
@@ -8760,6 +8770,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private clusterSunburstLabelContainer: CanvasContainer | null = null;
   private clusterSunburstLabels: Map<string, CanvasText> = new Map();
 
+  /** @see cleanArcName (exported standalone) */
+
   private drawSunburstLabels(arcs: LayoutSunburstArc[], cx: number, cy: number) {
     if (!this.sunburstLabelContainer && this.worldContainer) {
       this.sunburstLabelContainer = new CanvasContainer();
@@ -8774,26 +8786,30 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const isSunburstView = this.panel.viewMode === "sunburst";
     const isDark = this.cachedIsDark ?? true;
     const textColor = isDark ? 0xdddddd : 0x333333;
+    const subtextColor = isDark ? 0xaaaaaa : 0x666666;
 
     // Find max outer radius for leader line start
     let maxOuterR = 0;
     for (const arc of arcs) { if (arc.y1 > maxOuterR) maxOuterR = arc.y1; }
     const leaderStart = maxOuterR + 4 / worldScale;
-    const leaderEnd = maxOuterR + 24 / worldScale;
+    const leaderEnd = maxOuterR + 30 / worldScale;
     const fontSize = Math.max(8, 11 / worldScale);
+    const depth2FontSize = Math.max(6, 9 / worldScale);
     const minSweep = 0.06; // ~3.4° — skip tiny arcs
+    const depth2MinSweep = 0.15; // ~8.6° — wider threshold for inner labels
 
     // Leader line graphics (reuse sunburstGraphics — arcs are drawn before labels)
     const gfx = this.sunburstGraphics;
 
+    // --- Depth 1 labels (outer, with leader lines) ---
     for (const arc of arcs) {
       if (arc.depth !== 1) continue;
-      if (arc.x1 - arc.x0 < minSweep) continue; // skip tiny arcs
+      if (arc.x1 - arc.x0 < minSweep) continue;
 
       const midAngle = (arc.x0 + arc.x1) / 2 - Math.PI / 2;
+      const displayName = cleanArcName(arc.name);
 
       if (isSunburstView && gfx) {
-        // Draw leader line from outer arc to label position
         const x1 = cx + leaderStart * Math.cos(midAngle);
         const y1 = cy + leaderStart * Math.sin(midAngle);
         const x2 = cx + leaderEnd * Math.cos(midAngle);
@@ -8803,27 +8819,60 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         gfx.lineTo(x2, y2);
       }
 
-      // Place label at leader line end (or at midRadius for non-sunburst viewMode)
       const labelR = isSunburstView ? leaderEnd + 4 / worldScale : (arc.y0 + arc.y1) / 2;
       const lx = cx + labelR * Math.cos(midAngle);
       const ly = cy + labelR * Math.sin(midAngle);
 
-      const text = new CanvasText(arc.name, {
+      const text = new CanvasText(displayName, {
         fontSize,
         fill: textColor,
         fontWeight: "bold",
         align: "center",
       });
 
-      // Anchor: left-align for right side, right-align for left side
       const isRight = midAngle > -Math.PI / 2 && midAngle < Math.PI / 2;
       text.anchor.set(isRight ? 0 : 1, 0.5);
       text.x = lx;
       text.y = ly;
-      text.rotation = 0; // horizontal labels for readability
+      text.rotation = 0;
 
       container.addChild(text);
-      this.sunburstLabels.set(arc.name, text);
+      this.sunburstLabels.set(`d1:${arc.name}`, text);
+    }
+
+    // --- Depth 2 labels (inside arcs, curved text placement) ---
+    if (isSunburstView) {
+      for (const arc of arcs) {
+        if (arc.depth !== 2) continue;
+        if (arc.x1 - arc.x0 < depth2MinSweep) continue;
+
+        const midAngle = (arc.x0 + arc.x1) / 2 - Math.PI / 2;
+        const midR = (arc.y0 + arc.y1) / 2;
+        const lx = cx + midR * Math.cos(midAngle);
+        const ly = cy + midR * Math.sin(midAngle);
+        const displayName = cleanArcName(arc.name);
+
+        const text = new CanvasText(displayName, {
+          fontSize: depth2FontSize,
+          fill: subtextColor,
+          fontWeight: "normal",
+          align: "center",
+        });
+
+        // Rotate label along arc direction
+        let rotation = midAngle + Math.PI / 2;
+        // Flip text on bottom half to keep it readable
+        if (midAngle > 0 && midAngle < Math.PI) {
+          rotation += Math.PI;
+        }
+        text.anchor.set(0.5, 0.5);
+        text.x = lx;
+        text.y = ly;
+        text.rotation = rotation;
+
+        container.addChild(text);
+        this.sunburstLabels.set(`d2:${arc.name}:${arc.x0.toFixed(3)}`, text);
+      }
     }
 
     this.cullOverlappingRotatedLabels(this.sunburstLabels);

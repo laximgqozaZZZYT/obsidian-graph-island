@@ -236,3 +236,59 @@ describe("getNodeDisplayConfig", () => {
     expect(config.card).toEqual({ fields: ["title"] });
   });
 });
+
+// =========================================================================
+// Edge cases
+// =========================================================================
+describe("drawShape edge cases", () => {
+  it("unknown shape falls back to circle", () => {
+    const { g: gfx, calls } = createMockGraphics();
+    drawShape(gfx, "nonexistent_shape" as any, 10, 0xff0000, 1);
+    expect(calls.length).toBeGreaterThan(0);
+  });
+
+  it("zero radius draws without error", () => {
+    const { g: gfx, calls } = createMockGraphics();
+    drawShape(gfx, "circle", 0, 0xff0000, 1);
+    expect(calls.length).toBeGreaterThan(0);
+  });
+
+  it("negative radius draws without error", () => {
+    const { g: gfx, calls } = createMockGraphics();
+    drawShape(gfx, "circle", -5, 0xff0000, 1);
+    expect(calls.length).toBeGreaterThan(0);
+  });
+});
+
+describe("getNodeShape edge cases", () => {
+  it("empty rules returns default shape", () => {
+    const node = makeNode();
+    const shape = getNodeShape(node, []);
+    expect(typeof shape).toBe("string");
+    expect(shape.length).toBeGreaterThan(0);
+  });
+
+  it("node without category still gets a shape", () => {
+    const node = { id: "x", label: "x" } as any;
+    const shape = getNodeShape(node, []);
+    expect(typeof shape).toBe("string");
+  });
+
+  it("tag node gets triangle when isTag rule present", () => {
+    const node = { ...makeNode(), isTag: true } as any;
+    const rules: ShapeRule[] = [
+      { match: "isTag", shape: "triangle" } as any,
+      { match: "category", category: "char", shape: "diamond" } as any,
+    ];
+    const shape = getNodeShape(node, rules);
+    expect(shape).toBe("triangle");
+  });
+});
+
+describe("drawShapeAt edge cases", () => {
+  it("draws at negative coordinates", () => {
+    const { g: gfx, calls } = createMockGraphics();
+    drawShapeAt(gfx, "hexagon", -100, -200, 10);
+    expect(calls.length).toBeGreaterThan(0);
+  });
+});

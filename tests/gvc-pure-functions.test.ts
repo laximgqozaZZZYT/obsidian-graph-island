@@ -12,6 +12,7 @@ import {
   COMMUNITY_PALETTE,
   findMatchingGroupPreset,
   resolveNodeColor,
+  cleanArcName,
 } from "../src/views/GraphViewContainer";
 import { hexToRgb } from "../src/utils/color";
 import type { GroupPreset } from "../src/types";
@@ -371,5 +372,47 @@ describe("resolveNodeColor", () => {
   it("handles empty colorMap", () => {
     const node = { category: "character" };
     expect(resolveNodeColor(node, new Map(), "#fallback")).toBe("#fallback");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cleanArcName — strip redundant path prefixes from sunburst arc names
+// ---------------------------------------------------------------------------
+
+describe("cleanArcName", () => {
+  it("returns simple name unchanged", () => {
+    expect(cleanArcName("Characters")).toBe("Characters");
+  });
+
+  it("strips redundant folder/folder pattern", () => {
+    expect(cleanArcName("bible-apocrypha/bible-apocrypha")).toBe("bible-apocrypha");
+  });
+
+  it("returns last segment for distinct parent/child", () => {
+    expect(cleanArcName("classic-hamlet/episodes")).toBe("episodes");
+  });
+
+  it("handles deeply nested paths", () => {
+    expect(cleanArcName("a/b/c/c")).toBe("c");
+  });
+
+  it("handles deeply nested non-matching paths", () => {
+    expect(cleanArcName("a/b/c/d")).toBe("d");
+  });
+
+  it("returns name if trailing slash leaves empty segment", () => {
+    expect(cleanArcName("folder/")).toBe("folder/");
+  });
+
+  it("handles single character names", () => {
+    expect(cleanArcName("A")).toBe("A");
+  });
+
+  it("handles Japanese names", () => {
+    expect(cleanArcName("よ")).toBe("よ");
+  });
+
+  it("handles path with Japanese folder", () => {
+    expect(cleanArcName("mythology-japanese/mythology-japanese")).toBe("mythology-japanese");
   });
 });
