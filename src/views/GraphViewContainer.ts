@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Menu, MarkdownView, Notice, type ViewStateResult } from "obsidian";
+import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Menu, MarkdownView, Notice, Modal, type ViewStateResult } from "obsidian";
 import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
@@ -806,12 +806,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     });
 
-    // SVG export button
+    // SVG export button — click for default, right-click for options
     const svgBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
     setIcon(svgBtn, "file-code");
     svgBtn.setAttribute("aria-label", t("toolbar.exportSvg") ?? "Export SVG");
     svgBtn.title = t("toolbar.exportSvg") ?? "Export SVG";
-    svgBtn.addEventListener("click", () => {
+
+    const doSvgExport = (opts: { width: number; height: number; background: string; showLabels: boolean }) => {
       const gd = this.getGraphData();
       if (!gd || gd.nodes.length === 0) { showToast("No graph data"); return; }
       const nodes = gd.nodes.map(n => ({
@@ -819,13 +820,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         x: n.x, y: n.y,
         color: this.pixiNodes.get(n.id)?.color,
       }));
-      // exportGraphSVG is imported at top of file
-      const isDark = this.isDarkTheme();
-      const svg = exportGraphSVG(nodes, gd.edges, {
-        width: 1200, height: 800,
-        background: isDark ? "#1e1e2e" : "#ffffff",
-        showLabels: true,
-      });
+      const svg = exportGraphSVG(nodes, gd.edges, opts);
       const blob = new Blob([svg], { type: "image/svg+xml" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -834,6 +829,31 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       a.click();
       URL.revokeObjectURL(url);
       showToast(t("toast.svgExported") ?? "SVG exported");
+    };
+
+    // Left click: default export
+    svgBtn.addEventListener("click", () => {
+      const isDark = this.isDarkTheme();
+      doSvgExport({ width: 1200, height: 800, background: isDark ? "#1e1e2e" : "#ffffff", showLabels: true });
+    });
+
+    // Right click: show options menu
+    svgBtn.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      const menu = new Menu();
+      const isDark = this.isDarkTheme();
+      menu.addItem(item => item.setTitle("1200×800 (default)").onClick(() =>
+        doSvgExport({ width: 1200, height: 800, background: isDark ? "#1e1e2e" : "#fff", showLabels: true })));
+      menu.addItem(item => item.setTitle("1920×1080 (HD)").onClick(() =>
+        doSvgExport({ width: 1920, height: 1080, background: isDark ? "#1e1e2e" : "#fff", showLabels: true })));
+      menu.addItem(item => item.setTitle("3840×2160 (4K)").onClick(() =>
+        doSvgExport({ width: 3840, height: 2160, background: isDark ? "#1e1e2e" : "#fff", showLabels: true })));
+      menu.addSeparator();
+      menu.addItem(item => item.setTitle("No labels").onClick(() =>
+        doSvgExport({ width: 1200, height: 800, background: isDark ? "#1e1e2e" : "#fff", showLabels: false })));
+      menu.addItem(item => item.setTitle("Transparent background").onClick(() =>
+        doSvgExport({ width: 1200, height: 800, background: "", showLabels: true })));
+      menu.showAtMouseEvent(e);
     });
 
     // ノートにグラフを埋め込むボタン
@@ -5037,12 +5057,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             g.lineTo(xEnd, sepY);
             g.lineStyle(0);
           }
-          // Work name label at left edge
+          // Work name label at left edge — canvas label (non-interactive)
+          const shortName = wg.name.replace(/^(classic-|mythology-|bible-)/, "");
           const fontSize = Math.max(5, 8 / worldScale);
-          const nameLabel = new CanvasText(wg.name.replace(/^(classic-|mythology-|bible-)/, ""), {
+          const nameLabel = new CanvasText(shortName, {
             fontSize,
             fill: labelColor,
             fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+            fontWeight: "bold",
           });
           nameLabel.x = 5;
           nameLabel.y = wg.minY;
