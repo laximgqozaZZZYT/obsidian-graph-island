@@ -638,6 +638,8 @@ export interface PanelCallbacks {
   rebuildNodesInPlace(): void;
   /** Rebuild hover adjacency list after hoverEdgeTypes change */
   rebuildHoverAdj(): void;
+  /** Clear cached hover tooltips so they are recreated with current settings */
+  clearHoverTooltips(): void;
   /** Switch to a different visualization mode (graph/sunburst/timeline/tree) */
   setViewMode(mode: ViewMode): void;
 }
@@ -1251,7 +1253,7 @@ function _buildNodeDisplaySection(
       // ET: Custom color palette input
       addTextInput(body, t("display.customPalette") ?? "Custom Palette", panel.customColorPalette ?? "", "#ff0000, #00ff00, #0000ff", (v) => {
         panel.customColorPalette = v;
-        cb.recolorNodes();
+        cb.doRenderKeepPanel();
       });
     }
     addSlider(body, t("display.nodeSize"), 5, 300, 1, panel.nodeSize, (v) => { panel.nodeSize = v; cb.resetZoomBaseNodeSize(); cb.recalcNodeRadii(); cb.markDirty(); }, t("desc.nodeSize"));
@@ -1280,7 +1282,7 @@ function _buildNodeDisplaySection(
     const rtLabel = mergeRenderThresholds(panel.renderThresholds);
     addSlider(body, t("display.labelMaxChars") ?? "Label Max Chars", 0, 60, 1, rtLabel.labelMaxChars, (v) => {
       ensureRT(panel).labelMaxChars = v;
-      cb.markDirty();
+      cb.rebuildNodesInPlace();
     });
     // --- Advanced (hidden by default) ---
     addAdvancedGroup(body, (adv) => {
@@ -1296,12 +1298,12 @@ function _buildNodeDisplaySection(
       });
       addTextInput(adv, t("display.hoverTooltipFields"), panel.hoverTooltipFields ?? "", "e.g. date, story_order", (v) => {
         panel.hoverTooltipFields = v;
-        cb.markDirty();
+        cb.clearHoverTooltips(); cb.applyHover(); cb.markDirty();
       });
       // IE: Hover/card content checklist
-      addToggle(adv, t("display.hoverShowTitle") ?? "Hover: Title", panel.hoverShowTitle, (v) => { panel.hoverShowTitle = v; cb.markDirty(); });
-      addToggle(adv, t("display.hoverShowMeta") ?? "Hover: Metadata", panel.hoverShowMeta, (v) => { panel.hoverShowMeta = v; cb.markDirty(); });
-      addToggle(adv, t("display.hoverShowBody") ?? "Hover: Body", panel.hoverShowBody, (v) => { panel.hoverShowBody = v; cb.markDirty(); });
+      addToggle(adv, t("display.hoverShowTitle") ?? "Hover: Title", panel.hoverShowTitle, (v) => { panel.hoverShowTitle = v; cb.clearHoverTooltips(); cb.applyHover(); cb.markDirty(); });
+      addToggle(adv, t("display.hoverShowMeta") ?? "Hover: Metadata", panel.hoverShowMeta, (v) => { panel.hoverShowMeta = v; cb.clearHoverTooltips(); cb.applyHover(); cb.markDirty(); });
+      addToggle(adv, t("display.hoverShowBody") ?? "Hover: Body", panel.hoverShowBody, (v) => { panel.hoverShowBody = v; cb.clearHoverTooltips(); cb.applyHover(); cb.markDirty(); });
       // A3: Node icon prefix
       addTextInput(adv, t("display.nodeIconField"), panel.nodeIconField ?? "", "e.g. node_type", (v) => {
         panel.nodeIconField = v;

@@ -5948,6 +5948,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       },
       rebuildNodesInPlace: () => { this.rebuildNodesInPlace(); },
       rebuildHoverAdj: () => { this._rebuildHoverAdj(); },
+      clearHoverTooltips: () => {
+        for (const pn of this.pixiNodes.values()) {
+          if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; pn.hoverForcedLabel = false; }
+        }
+      },
       setViewMode: (mode) => {
         this.panel.viewMode = mode;
         this.currentLayout = viewModeToLayout(mode);
