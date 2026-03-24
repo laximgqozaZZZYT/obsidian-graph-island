@@ -14,7 +14,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoints, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, exportGraphSVG, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter } from "../utils/graph-helpers";
 import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph } from "../utils/graph-filter";
 import { pointInPolygon } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
@@ -819,7 +819,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         x: n.x, y: n.y,
         color: this.pixiNodes.get(n.id)?.color,
       }));
-      const { exportGraphSVG } = require("../utils/graph-helpers");
+      // exportGraphSVG is imported at top of file
       const isDark = this.isDarkTheme();
       const svg = exportGraphSVG(nodes, gd.edges, {
         width: 1200, height: 800,
@@ -4924,9 +4924,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const vpRight = vpLeft + canvasW / worldScale;
     const vpBottom = vpTop + canvasH / worldScale;
 
-    // Label collision prevention: track placed label Y positions
-    const placedLabelYs: number[] = [];
-    const labelMinGap = 12 / worldScale; // minimum gap between labels
+    // Label collision prevention: track placed label rects (x, y, w, h)
+    const placedLabels: { x: number; y: number; w: number; h: number }[] = [];
+    // Limit total labels to avoid visual clutter at zoom-out
+    const maxLabels = Math.min(200, Math.round(80 * worldScale));
 
     let drawnBars = 0;
     for (const bar of bars) {
@@ -4953,14 +4954,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       g.drawRoundedRect(x, y, w, h, cornerR);
       g.lineStyle(0);
 
-      // Bar label with collision avoidance
-      if (showBarLabel && this.barLabelContainer && pn && w * worldScale >= barLabelMinW) {
-        const labelY = y - 2 / worldScale;
-        // Skip if too close to an existing label
-        const tooClose = placedLabelYs.some(py => Math.abs(py - labelY) < labelMinGap);
-        if (!tooClose) {
-          placedLabelYs.push(labelY);
-          const fontSize = Math.max(7, barLabelFontSize / worldScale);
+      // Bar label with 2D collision avoidance + zoom-adaptive density
+      if (showBarLabel && this.barLabelContainer && pn
+          && w * worldScale >= barLabelMinW
+          && placedLabels.length < maxLabels) {
+        const fontSize = Math.max(7, barLabelFontSize / worldScale);
+        const labelW = Math.min(pn.data.label.length * fontSize * 0.6, w);
+        const labelH = fontSize * 1.3;
+        const labelX = x;
+        const labelY = y - labelH - 1 / worldScale;
+
+        // Check 2D overlap with placed labels
+        const overlaps = placedLabels.some(p =>
+          labelX < p.x + p.w && labelX + labelW > p.x &&
+          labelY < p.y + p.h && labelY + labelH > p.y
+        );
+        if (!overlaps) {
+          placedLabels.push({ x: labelX, y: labelY, w: labelW, h: labelH });
           const label = new CanvasText(pn.data.label, {
             fontSize,
             fontWeight: "bold",
@@ -4971,7 +4981,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           label.bgAlpha = 0.7;
           label.bgPadX = 4 / worldScale;
           label.bgPadY = 2 / worldScale;
-          label.x = x;
+          label.x = labelX;
           label.y = labelY;
           label.maxWidth = Math.max(w, 40 / worldScale);
           this.barLabelContainer.addChild(label);
