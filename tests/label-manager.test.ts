@@ -308,3 +308,42 @@ describe("selectLabelMode", () => {
     expect(selectLabelMode(0.25, "full", iz, tz, h)).toBe("truncated");
   });
 });
+
+// =========================================================================
+// smartTruncateLabel — edge cases
+// =========================================================================
+describe("smartTruncateLabel edge cases", () => {
+  it("emoji text truncates without breaking", () => {
+    const r = smartTruncateLabel("🌟🌙🌈🎉🎊🎄🎁", 4);
+    expect(r.length).toBeLessThanOrEqual(5);
+  });
+
+  it("newline-containing text truncates", () => {
+    const r = smartTruncateLabel("line1\nline2\nline3", 8);
+    expect(r.length).toBeLessThanOrEqual(9);
+  });
+
+  it("maxChars=0 still produces a string", () => {
+    const r = smartTruncateLabel("hello world", 0);
+    expect(typeof r).toBe("string");
+    // Implementation produces ellipsis-truncated result; just verify no crash
+  });
+
+  it("maxChars=1 returns ellipsis or single char", () => {
+    const r = smartTruncateLabel("hello", 1);
+    expect(r.length).toBeLessThanOrEqual(2);
+  });
+
+  it("empty string returns empty", () => {
+    expect(smartTruncateLabel("", 10)).toBe("");
+  });
+
+  it("text exactly at maxChars returns unchanged", () => {
+    expect(smartTruncateLabel("abcde", 5)).toBe("abcde");
+  });
+
+  it("mixed CJK and ASCII", () => {
+    const r = smartTruncateLabel("日本語テスト-label", 8);
+    expect(r.length).toBeLessThanOrEqual(10);
+  });
+});

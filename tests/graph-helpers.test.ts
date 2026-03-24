@@ -387,3 +387,64 @@ describe("buildAdjFromEdges", () => {
 });
 
 // Export function tests consolidated into tests/export-formats.test.ts
+
+// =========================================================================
+// BFS boundary values
+// =========================================================================
+describe("bfsNeighborSet boundary", () => {
+  it("maxHops=0 returns only start node", () => {
+    const adj = new Map([["a", new Set(["b"])], ["b", new Set(["a"])]]);
+    const result = bfsNeighborSet(adj, "a", 0);
+    expect(result.size).toBe(1);
+    expect(result.has("a")).toBe(true);
+  });
+
+  it("start node not in adj returns just start", () => {
+    const adj = new Map([["x", new Set(["y"])]]);
+    const result = bfsNeighborSet(adj, "z", 3);
+    expect(result.size).toBe(1);
+    expect(result.has("z")).toBe(true);
+  });
+
+  it("self-loop doesn't cause infinite loop", () => {
+    const adj = new Map([["a", new Set(["a", "b"])], ["b", new Set(["a"])]]);
+    const result = bfsNeighborSet(adj, "a", 10);
+    expect(result.has("a")).toBe(true);
+    expect(result.has("b")).toBe(true);
+    expect(result.size).toBe(2);
+  });
+
+  it("large chain with limited hops", () => {
+    const adj = new Map<string, Set<string>>();
+    for (let i = 0; i < 100; i++) {
+      const neighbors = new Set<string>();
+      if (i > 0) neighbors.add(`n${i - 1}`);
+      if (i < 99) neighbors.add(`n${i + 1}`);
+      adj.set(`n${i}`, neighbors);
+    }
+    const result = bfsNeighborSet(adj, "n50", 3);
+    expect(result.size).toBe(7);
+    expect(result.has("n47")).toBe(true);
+    expect(result.has("n53")).toBe(true);
+    expect(result.has("n46")).toBe(false);
+  });
+});
+
+describe("bfsShortestPath boundary", () => {
+  it("start equals end returns single-element path", () => {
+    const adj = new Map([["a", new Set(["b"])], ["b", new Set(["a"])]]);
+    const path = bfsShortestPath(adj, "a", "a");
+    expect(path).toEqual(["a"]);
+  });
+
+  it("direct neighbor returns 2-element path", () => {
+    const adj = new Map([["a", new Set(["b"])], ["b", new Set(["a"])]]);
+    const path = bfsShortestPath(adj, "a", "b");
+    expect(path).toEqual(["a", "b"]);
+  });
+
+  it("unreachable returns empty", () => {
+    const adj = new Map([["a", new Set<string>()], ["b", new Set<string>()]]);
+    expect(bfsShortestPath(adj, "a", "b")).toEqual([]);
+  });
+});
