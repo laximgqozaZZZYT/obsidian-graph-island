@@ -437,6 +437,11 @@ test.describe("6. Graph Statistics", () => {
       return v?.panel?.showGraphStats === true;
     });
     expect(result).toBe(true);
+    // === Display Quality: stats overlay should not obscure graph ===
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
+    const contrast = await measureContrast(page, 30);
+    expect(contrast.avgRatio).toBeGreaterThan(1.5);
     // Restore
     await page.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;
@@ -890,6 +895,11 @@ test.describe("19. Degree Proportional Sizing", () => {
     expect(result).not.toHaveProperty("error");
     expect(result.sizeByDegree).toBe(true);
     expect(result.hasPixiNodes).toBe(true);
+    // === Display Quality: degree sizing should affect node distribution ===
+    const overlap = await measureNodeOverlap(page);
+    expect(overlap.overlapRatio).toBeLessThan(0.15);
+    const spread = await measureSpread(page);
+    expect(spread.nanCount).toBe(0);
     // Restore
     await page.evaluate(() => {
       const v = (window as any).app.workspace.getLeavesOfType("graph-view").find((l: any) => "pixiNodes" in l.view)?.view;

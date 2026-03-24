@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   filterOrphans, filterAttachments, filterTagNodes, filterSimilarEdges,
   filterByDegree, filterEdgesByNodeSet, filterExcludedNodes,
-  applyVisibilityFilters, filterBySubgraph, type VisibilityOptions,
+  applyVisibilityFilters, filterBySubgraph, filterByLocalGraph, type VisibilityOptions,
 } from "../src/utils/graph-filter";
 import type { GraphNode, GraphEdge } from "../src/types";
 
@@ -450,5 +450,84 @@ describe("filterBySubgraph", () => {
     expect(r.edges).toHaveLength(1); // only a→c
     expect(r.edges[0].source).toBe("a");
     expect(r.edges[0].target).toBe("c");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterByLocalGraph — BFS hop filter (cycle198)
+// ---------------------------------------------------------------------------
+describe("filterByLocalGraph", () => {
+  const n = (id: string, fp?: string) => ({ id, label: id, filePath: fp });
+  const e = (s: string, t: string) => ({ source: s, target: t, type: "link" as const });
+
+  it("returns all nodes when centerId not found", () => {
+    const nodes = [n("a"), n("b"), n("c")];
+    const edges = [e("a", "b"), e("b", "c")];
+    const r = filterByLocalGraph(nodes, edges, "nonexistent", 2);
+    expect(r.nodes).toHaveLength(3);
+    expect(r.edges).toHaveLength(2);
+  });
+
+  it("hop=0 returns only the center node", () => {
+    const nodes = [n("a"), n("b"), n("c")];
+    const edges = [e("a", "b"), e("b", "c")];
+    const r = filterByLocalGraph(nodes, edges, "a", 0);
+    expect(r.nodes).toHaveLength(1);
+    expect(r.nodes[0].id).toBe("a");
+    expect(r.edges).toHaveLength(0);
+  });
+
+  it("hop=1 returns center + direct neighbors", () => {
+    const nodes = [n("a"), n("b"), n("c"), n("d")];
+    const edges = [e("a", "b"), e("b", "c"), e("c", "d")];
+    const r = filterByLocalGraph(nodes, edges, "b", 1);
+    expect(r.nodes.map(x => x.id).sort()).toEqual(["a", "b", "c"]);
+    // edge b→c and a→b kept, c→d dropped (d not reachable)
+    expect(r.edges).toHaveLength(2);
+  });
+
+  it("hop=2 extends to 2nd-degree neighbors", () => {
+    const nodes = [n("a"), n("b"), n("c"), n("d"), n("e")];
+    const edges = [e("a", "b"), e("b", "c"), e("c", "d"), e("d", "e")];
+    const r = filterByLocalGraph(nodes, edges, "b", 2);
+    expect(r.nodes.map(x => x.id).sort()).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("large hops returns all connected nodes", () => {
+    const nodes = [n("a"), n("b"), n("c")];
+    const edges = [e("a", "b"), e("b", "c")];
+    const r = filterByLocalGraph(nodes, edges, "a", 100);
+    expect(r.nodes).toHaveLength(3);
+    expect(r.edges).toHaveLength(2);
+  });
+
+  it("isolated center node returns only itself", () => {
+    const nodes = [n("a"), n("b"), n("c")];
+    const edges = [e("b", "c")]; // a is isolated
+    const r = filterByLocalGraph(nodes, edges, "a", 3);
+    expect(r.nodes).toHaveLength(1);
+    expect(r.nodes[0].id).toBe("a");
+    expect(r.edges).toHaveLength(0);
+  });
+
+  it("resolves center by filePath", () => {
+    const nodes = [n("id-a", "folder/a.md"), n("id-b"), n("id-c")];
+    const edges = [e("id-a", "id-b")];
+    const r = filterByLocalGraph(nodes, edges, "folder/a.md", 1);
+    expect(r.nodes.map(x => x.id).sort()).toEqual(["id-a", "id-b"]);
+  });
+
+  it("handles cycle in graph without infinite loop", () => {
+    const nodes = [n("a"), n("b"), n("c")];
+    const edges = [e("a", "b"), e("b", "c"), e("c", "a")]; // cycle
+    const r = filterByLocalGraph(nodes, edges, "a", 1);
+    // hop=1: a + direct neighbors b, c (since c→a exists)
+    expect(r.nodes).toHaveLength(3);
+  });
+
+  it("empty graph returns empty", () => {
+    const r = filterByLocalGraph([], [], "a", 2);
+    expect(r.nodes).toHaveLength(0);
+    expect(r.edges).toHaveLength(0);
   });
 });

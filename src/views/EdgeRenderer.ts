@@ -2189,7 +2189,7 @@ function drawIntraGroupCables(
     for (const e of branchEdges) {
       const sid = edgeSourceId(e);
       const tid = edgeTargetId(e);
-      if (sid === hovId || tid === hovId) return "bright";
+      if (cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid)) return "bright";
     }
     return "dim";
   };
@@ -2393,14 +2393,13 @@ function _drawSingleTrunk(
     const wireWidth = (baseWireW + cableWeightThickness(wireEdges, cfg)) * zoomThicken * hcMul;
 
     if (cfg.highlightedNodeId) {
-      // An edge is "bright" only when the HOVERED node itself is one of its endpoints.
-      const hovId = cfg.highlightedNodeId;
+      // An edge is "bright" when either endpoint is in the highlight set (BFS neighbors).
       const brightEdges: GraphEdge[] = [];
       const dimEdges: GraphEdge[] = [];
       for (const e of wireEdges) {
         const sid = edgeSourceId(e);
         const tid = edgeTargetId(e);
-        if (sid === hovId || tid === hovId) {
+        if (cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid)) {
           brightEdges.push(e);
         } else {
           dimEdges.push(e);
@@ -2626,6 +2625,9 @@ export function resolveEdgeStyle(
     lineThick *= glowMin + t * (glowMax - glowMin);
   }
 
+  // Track whether this edge is actively highlighted (hovered node's connection)
+  let isHighlighted = false;
+
   if (cfg.highlightedNodeId) {
     const sid = src.id ?? (e.source as string);
     const tid = tgt.id ?? (e.target as string);
@@ -2634,6 +2636,7 @@ export function resolveEdgeStyle(
     if (highlighted) {
       lineThick = HIGHLIGHT_LINE_THICKNESS;
       alpha = cfg.highlightEdgeAlpha ?? 1.0;
+      isHighlighted = true;
     } else if (cfg.hoverDistMap && cfg.hoverDistMap.size > 0) {
       // DS: Distance-based edge alpha — use minimum distance of endpoints
       const dS = cfg.hoverDistMap.get(sid);
@@ -2659,22 +2662,26 @@ export function resolveEdgeStyle(
 
   // Zoom-adaptive edge thickness: maintain minimum visible thickness at zoom-out.
   // Old behavior thinned edges → color indistinguishable. New: floor at 60% of base.
+  // Skip zoom fade for highlighted edges — they should stay prominent at any zoom.
   const ws = cfg.worldScale ?? 1;
   const fadeZ = cfg.edgeZoomFadeThreshold ?? 0.5;
   const fadeFloor = cfg.edgeFadeMinAlpha ?? 0.1;
-  if (ws < fadeZ) {
+  if (ws < fadeZ && !isHighlighted) {
     lineThick *= Math.max(0.6, ws / fadeZ);
   }
 
   // Zoom-adaptive edge type fade: non-structural edges fade earlier at zoom-out
-  if (ws < fadeZ && (isSimilar || e.type === EDGE_TYPE_HAS_TAG)) {
-    alpha *= Math.max(fadeFloor, ws / fadeZ);
-  } else if (ws < fadeZ * 0.6 && isBreadcrumbs) {
-    alpha *= Math.max(fadeFloor * 2, ws / (fadeZ * 0.6));
+  // Skip for highlighted edges — hover emphasis overrides zoom fade.
+  if (!isHighlighted) {
+    if (ws < fadeZ && (isSimilar || e.type === EDGE_TYPE_HAS_TAG)) {
+      alpha *= Math.max(fadeFloor, ws / fadeZ);
+    } else if (ws < fadeZ * 0.6 && isBreadcrumbs) {
+      alpha *= Math.max(fadeFloor * 2, ws / (fadeZ * 0.6));
+    }
   }
 
-  // GG: Apply global edge alpha multiplier
-  if (cfg.globalEdgeAlpha != null && cfg.globalEdgeAlpha < 1) {
+  // GG: Apply global edge alpha multiplier (skip for highlighted — hover takes priority)
+  if (cfg.globalEdgeAlpha != null && cfg.globalEdgeAlpha < 1 && !isHighlighted) {
     alpha *= cfg.globalEdgeAlpha;
   }
   return { alpha, lineThick };

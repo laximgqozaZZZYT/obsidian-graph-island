@@ -254,6 +254,16 @@ src/
 
 349+ E2E tests (CDP-based, Obsidian live testing)
 
+## What's New in v0.6.0
+
+- **Matrix sort**: Sort adjacency matrix by degree, alphabetical, or category
+- **Matrix cell tooltip**: Hover cells to see edge type breakdown (e.g. "link: 2, semantic: 1")
+- **Matrix sticky headers**: Column/row headers stay visible while scrolling
+- **Matrix row/column highlight**: Hover a cell to highlight its entire row and column
+- **Matrix diagonal**: Self-connection cells highlighted with gold accent
+- **Quality Dashboard**: Frame time (ms) display in stats panel
+- **2581+ unit tests**: Coverage thresholds enforced
+
 ## What's New in v0.5.6
 
 - **Sunburst hover highlight**: Hover a sector to highlight its group; other sectors dim for focus

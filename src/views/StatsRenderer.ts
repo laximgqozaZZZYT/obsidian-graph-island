@@ -206,6 +206,8 @@ export function renderGraphStats(
     badge("Priority", `${qs.priority}/30`, qs.priority >= 15);
     badge("FPS", fps > 0 ? `${fps}` : "idle", fps >= 30 || fps === 0);
     if (memMB !== null) badge("Memory", `${memMB}MB`, memMB < 300);
+    const renderMs = host.getLastRenderTime();
+    if (renderMs > 0) badge("Frame", `${renderMs.toFixed(1)}ms`, renderMs < 16.7);
   }
 
   // Top hubs (clickable)

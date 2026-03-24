@@ -99,6 +99,70 @@ describe("renderBreadcrumb", () => {
     expect(all.length).toBeLessThanOrEqual(21);
   });
 
+  it("walks is-a relation edges (alternative hierarchy)", () => {
+    const edges = [
+      { source: "child", target: "parent", relation: "is-a" },
+    ];
+    const el = createMockEl();
+    renderBreadcrumb(el as any, true, "child", edges, { localGraphCenter: "child" }, makeHost({
+      parent: "Parent", child: "Child",
+    }));
+
+    const items = findAllEl(el, ".gi-breadcrumb-item");
+    expect(items).toHaveLength(1);
+    expect(items[0].text).toBe("Parent");
+  });
+
+  it("walks parent relation edges", () => {
+    const edges = [
+      { source: "child", target: "ancestor", relation: "parent" },
+    ];
+    const el = createMockEl();
+    renderBreadcrumb(el as any, true, "child", edges, { localGraphCenter: "child" }, makeHost());
+
+    const items = findAllEl(el, ".gi-breadcrumb-item");
+    expect(items).toHaveLength(1);
+    expect(items[0].text).toBe("ancestor");
+  });
+
+  it("mixed edge types only follows hierarchy edges", () => {
+    const edges = [
+      { source: "child", target: "link-neighbor", type: "link" },
+      { source: "child", target: "tag-peer", type: "tag" },
+      { source: "child", target: "real-parent", type: "inheritance" },
+      { source: "real-parent", target: "also-link", type: "link" },
+    ];
+    const el = createMockEl();
+    renderBreadcrumb(el as any, true, "child", edges, { localGraphCenter: "child" }, makeHost());
+
+    // Only real-parent in chain (link/tag ignored)
+    const items = findAllEl(el, ".gi-breadcrumb-item");
+    expect(items).toHaveLength(1);
+    expect(items[0].text).toBe("real-parent");
+  });
+
+  it("reverse-direction inheritance edge is still followed", () => {
+    // Edge stored as target→source instead of source→target
+    const edges = [
+      { source: "parent", target: "child", type: "inheritance" },
+    ];
+    const el = createMockEl();
+    renderBreadcrumb(el as any, true, "child", edges, { localGraphCenter: "child" }, makeHost());
+
+    const items = findAllEl(el, ".gi-breadcrumb-item");
+    expect(items).toHaveLength(1);
+    expect(items[0].text).toBe("parent");
+  });
+
+  it("empty edges produces single-node breadcrumb", () => {
+    const el = createMockEl();
+    renderBreadcrumb(el as any, true, "solo", [], { localGraphCenter: "solo" }, makeHost({ solo: "Solo" }));
+
+    expect(findAllEl(el, ".gi-breadcrumb-item")).toHaveLength(0);
+    expect(findEl(el, ".gi-breadcrumb-current")?.text).toBe("Solo");
+    expect(findAllEl(el, ".gi-breadcrumb-sep")).toHaveLength(0);
+  });
+
   it("handles cycle in inheritance (does not loop infinitely)", () => {
     const edges = [
       { source: "a", target: "b", type: "inheritance" },

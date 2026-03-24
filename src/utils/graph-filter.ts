@@ -140,3 +140,40 @@ export function filterBySubgraph<
   const filteredEdges = edges.filter(e => idSet.has(e.source) && idSet.has(e.target));
   return { nodes: filteredNodes, edges: filteredEdges };
 }
+
+/**
+ * BFS N-hop filter: keep only nodes within `hops` edges of `centerId`.
+ * Returns unmodified data when centerId is not found among nodes.
+ */
+export function filterByLocalGraph<
+  N extends { id: string; filePath?: string },
+  E extends { source: string; target: string },
+>(nodes: N[], edges: E[], centerId: string, hops: number): { nodes: N[]; edges: E[] } {
+  const resolved = nodes.find(n => n.filePath === centerId || n.id === centerId)?.id;
+  if (!resolved) return { nodes, edges };
+
+  const adj = new Map<string, Set<string>>();
+  for (const e of edges) {
+    if (!adj.has(e.source)) adj.set(e.source, new Set());
+    if (!adj.has(e.target)) adj.set(e.target, new Set());
+    adj.get(e.source)!.add(e.target);
+    adj.get(e.target)!.add(e.source);
+  }
+  const reachable = new Set<string>([resolved]);
+  let frontier = [resolved];
+  for (let h = 0; h < hops && frontier.length > 0; h++) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      const nb = adj.get(id);
+      if (nb) for (const n of nb) {
+        if (!reachable.has(n)) { reachable.add(n); next.push(n); }
+      }
+    }
+    frontier = next;
+  }
+
+  return {
+    nodes: nodes.filter(n => reachable.has(n.id)),
+    edges: edges.filter(e => reachable.has(e.source) && reachable.has(e.target)),
+  };
+}

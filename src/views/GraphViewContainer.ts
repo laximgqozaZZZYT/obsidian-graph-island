@@ -86,6 +86,8 @@ export interface StatsHost {
   getBetweennessCache(): Map<string, number> | undefined;
   /** Node spatial overlap ratio (0-1, sampled from current positions) */
   getNodeOverlapRatio(): number;
+  /** Last render frame time in ms (0 = not measured) */
+  getLastRenderTime(): number;
 }
 
 /**
@@ -4550,16 +4552,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.totalEdgeCount = this.graphEdges.length;
     cfg.globalEdgeAlpha = edgeRt.globalEdgeAlpha;
     cfg.edgeLabelFontSize = edgeRt.edgeLabelFontSize;
-    cfg.nodeClusterMap = this.clusterMeta?.nodeClusterMap ?? null;
+    // groupBy="none" → no cable-tray even if stale clusterMeta exists from a previous groupBy
+    const hasActiveGroupBy = this.panel.groupBy && this.panel.groupBy !== "none";
+    cfg.nodeClusterMap = hasActiveGroupBy ? (this.clusterMeta?.nodeClusterMap ?? null) : null;
     // Use live centroids when available, fall back to target centroids from clusterMeta
-    const liveCentroids = this.getCachedCentroids();
-    const metaCentroids = this.clusterMeta?.clusterCentroids ?? null;
+    const liveCentroids = hasActiveGroupBy ? this.getCachedCentroids() : null;
+    const metaCentroids = hasActiveGroupBy ? (this.clusterMeta?.clusterCentroids ?? null) : null;
     // Live centroids may have fewer entries during simulation startup (nodes overlap)
     // Use whichever has more entries
     cfg.clusterCentroids = (liveCentroids && metaCentroids && liveCentroids.size < metaCentroids.size)
       ? metaCentroids
       : liveCentroids ?? metaCentroids;
-    cfg.clusterRadii = this.clusterMeta?.clusterRadii ?? null;
+    cfg.clusterRadii = hasActiveGroupBy ? (this.clusterMeta?.clusterRadii ?? null) : null;
     // Feature BB: auto-scale bundle strength based on node count
     const nodeCount = this.pixiNodes.size;
     const autoBundle = nodeCount > 500 ? 0.85
@@ -6611,6 +6615,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return this.pixiNodes.get(id)?.data?.label ?? id.replace(/\.md$/, "").split("/").pop() ?? id;
   }
   getCurrentFps(): number { return this.renderPipeline?.currentFps ?? 0; }
+  getLastRenderTime(): number { return this.renderPipeline?.lastFrameMs ?? 0; }
   announceA11y(msg: string): void { this._announceA11y(msg); }
   invalidateAndRebuild(): void { this.rawData = null; this.doRender(); this.buildPanel(); }
 
