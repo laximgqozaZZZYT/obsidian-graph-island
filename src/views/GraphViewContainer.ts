@@ -5018,6 +5018,40 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
+    // Timeline viewMode: draw work group separators
+    if (this.panel.viewMode === "timeline" && this.barLabelContainer) {
+      const workGroups = (this.clusterMeta as any)?.timelineWorkGroups as { name: string; minY: number; maxY: number }[] | undefined;
+      if (workGroups && workGroups.length > 1) {
+        const sepColor = this.isDarkTheme() ? 0x555555 : 0xcccccc;
+        const labelColor = this.isDarkTheme() ? 0x999999 : 0x666666;
+        const sepLineW = Math.max(0.5, 1 / worldScale);
+        const xEnd = bars.length > 0 ? Math.max(...bars.map(b => b.xEnd)) + 20 : 200;
+
+        for (let i = 0; i < workGroups.length; i++) {
+          const wg = workGroups[i];
+          // Separator line between groups (above current group)
+          if (i > 0) {
+            const sepY = wg.minY - 4 / worldScale;
+            g.lineStyle(sepLineW, sepColor, 0.3);
+            g.moveTo(20, sepY);
+            g.lineTo(xEnd, sepY);
+            g.lineStyle(0);
+          }
+          // Work name label at left edge
+          const fontSize = Math.max(5, 8 / worldScale);
+          const nameLabel = new CanvasText(wg.name.replace(/^(classic-|mythology-|bible-)/, ""), {
+            fontSize,
+            fill: labelColor,
+            fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+          });
+          nameLabel.x = 5;
+          nameLabel.y = wg.minY;
+          nameLabel.alpha = 0.6;
+          this.barLabelContainer.addChild(nameLabel);
+        }
+      }
+    }
+
     // Timeline viewMode: draw time axis labels at bottom
     if (this.panel.viewMode === "timeline" && this.barLabelContainer) {
       const steps = (this.clusterMeta as any)?.timelineSteps as string[] | undefined;
@@ -7423,11 +7457,42 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
             }
           }
 
+          // Compute work group separators from bar positions
+          const workGroupRanges: { name: string; minY: number; maxY: number }[] = [];
+          {
+            const workBars = new Map<string, { minY: number; maxY: number }>();
+            for (const bar of bars) {
+              const fp = ld.nodes.find(n => n.id === bar.nodeId)?.filePath ?? bar.nodeId;
+              const segs = fp.split("/").filter((s: string) => s.length > 0);
+              let work = "other";
+              for (const seg of segs) {
+                if (seg.startsWith("classic-") || seg.startsWith("mythology-") ||
+                    seg.startsWith("bible-") || seg.includes("-")) {
+                  work = seg; break;
+                }
+              }
+              const y0 = bar.yCenter - bar.barHeight / 2;
+              const y1 = bar.yCenter + bar.barHeight / 2;
+              const existing = workBars.get(work);
+              if (existing) {
+                if (y0 < existing.minY) existing.minY = y0;
+                if (y1 > existing.maxY) existing.maxY = y1;
+              } else {
+                workBars.set(work, { minY: y0, maxY: y1 });
+              }
+            }
+            for (const [name, range] of workBars) {
+              workGroupRanges.push({ name, ...range });
+            }
+            workGroupRanges.sort((a, b) => a.minY - b.minY);
+          }
+
           if (!this.clusterMeta) this.clusterMeta = {} as any;
           (this.clusterMeta as any).timelineBars = bars;
           (this.clusterMeta as any).timelineSteps = tlResult.timeSteps;
           (this.clusterMeta as any).timelineStepWidth = stepW;
           (this.clusterMeta as any).timelineLanes = tlResult.lanes;
+          (this.clusterMeta as any).timelineWorkGroups = workGroupRanges;
           break;
         }
         default: {
