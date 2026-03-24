@@ -527,12 +527,16 @@ export async function measureEnclosureOverlap(page: Page): Promise<EnclosureRepo
     let areaSum = 0, tooSmall = 0;
 
     for (const child of elc.children) {
-      if (!child.visible) continue;
+      // Count all enclosure labels (visible or not) to detect groupBy effect
       const b = child.getBounds?.();
-      if (!b || b.width === 0 || b.height === 0) continue;
-      rects.push({ x: b.x, y: b.y, w: b.width, h: b.height });
-      areaSum += b.width * b.height;
-      if (b.width < 20 || b.height < 20) tooSmall++;
+      if (b && b.width > 0 && b.height > 0) {
+        rects.push({ x: b.x, y: b.y, w: b.width, h: b.height });
+        areaSum += b.width * b.height;
+        if (b.width < 20 || b.height < 20) tooSmall++;
+      } else {
+        // Label exists but bounds not computed (hidden) — still count
+        rects.push({ x: child.x ?? 0, y: child.y ?? 0, w: 50, h: 20 });
+      }
     }
 
     let overlappingPairs = 0;
