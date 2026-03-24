@@ -2039,74 +2039,69 @@ function buildLayoutTab(
 ): void {
   const v = (id: PanelSectionId) => isSectionVisible(panel.viewMode, id);
 
-  // --- Grouping (in Layout tab) ---
-  if (v("grouping")) {
+  // --- Unified Grouping & Layout section ---
+  if (v("grouping") || v("clusterArrangement") || v("coordinateControls")) {
     buildSection(layoutTab, t("section.displayGrouping"), (body) => {
-      {
+      // --- 1. GroupBy rules ---
+      if (v("grouping")) {
         const groupByLabel = body.createDiv({ cls: "setting-item-name", text: t("display.groupBy") });
         const groupByListEl = body.createDiv({ cls: "gi-multirule-list" });
         renderGroupByRules(groupByListEl, panel, ctx, cb);
-      }
-      if (panel.groupBy && panel.groupBy !== "none") {
-        // Expand/Collapse all groups buttons
-        const groupBtnRow = body.createDiv({ cls: "gi-setting-row gi-group-btn-row" });
-        const expandBtn = groupBtnRow.createEl("button", { cls: "gi-btn-sm", text: t("groups.expandAll") });
-        expandBtn.addEventListener("click", () => {
-          // Set a dummy marker so size>0 prevents auto-collapse, but no real group matches
-          panel.collapsedGroups.clear();
-          panel.collapsedGroups.add("__gi_expand_all__");
-          cb.doRenderKeepPanel();
-          cb.rebuildPanel();
-          cb.announceA11y?.(`${t("groups.expandAll") ?? "Expand All"}: groups expanded`);
-        });
-        const collapseBtn = groupBtnRow.createEl("button", { cls: "gi-btn-sm", text: t("groups.collapseAll") });
-        collapseBtn.addEventListener("click", () => {
-          panel.collapsedGroups.clear();
-          // Empty set triggers auto-collapse of all groups
-          cb.doRenderKeepPanel();
-          cb.rebuildPanel();
-          cb.announceA11y?.(`${t("groups.collapseAll") ?? "Collapse All"}: groups collapsed`);
-        });
 
-        addSlider(body, t("display.groupMinSize"), 1, 20, 1, panel.groupMinSize, (v) => {
-          panel.groupMinSize = v;
-          panel.collapsedGroups.clear();
-          cb.doRenderKeepPanel();
-        }, t("desc.groupMinSize"));
-        if (ctx.availableGroups.length > 0) {
-          const currentFilter = panel.groupFilter
-            ? new Set(panel.groupFilter.split(",").map(s => s.trim()).filter(Boolean))
-            : new Set(ctx.availableGroups);
-          addCheckboxGroup(body, t("display.groupFilter"), ctx.availableGroups, currentFilter, (sel) => {
-            panel.groupFilter = sel.size === ctx.availableGroups.length ? "" : [...sel].join(", ");
+        if (panel.groupBy && panel.groupBy !== "none") {
+          const groupBtnRow = body.createDiv({ cls: "gi-setting-row gi-group-btn-row" });
+          const expandBtn = groupBtnRow.createEl("button", { cls: "gi-btn-sm", text: t("groups.expandAll") });
+          expandBtn.addEventListener("click", () => {
+            panel.collapsedGroups.clear();
+            panel.collapsedGroups.add("__gi_expand_all__");
+            cb.doRenderKeepPanel();
+            cb.rebuildPanel();
+            cb.announceA11y?.(`${t("groups.expandAll") ?? "Expand All"}: groups expanded`);
+          });
+          const collapseBtn = groupBtnRow.createEl("button", { cls: "gi-btn-sm", text: t("groups.collapseAll") });
+          collapseBtn.addEventListener("click", () => {
             panel.collapsedGroups.clear();
             cb.doRenderKeepPanel();
+            cb.rebuildPanel();
+            cb.announceA11y?.(`${t("groups.collapseAll") ?? "Collapse All"}: groups collapsed`);
           });
+
+          addSlider(body, t("display.groupMinSize"), 1, 20, 1, panel.groupMinSize, (v) => {
+            panel.groupMinSize = v;
+            panel.collapsedGroups.clear();
+            cb.doRenderKeepPanel();
+          }, t("desc.groupMinSize"));
+          if (ctx.availableGroups.length > 0) {
+            const currentFilter = panel.groupFilter
+              ? new Set(panel.groupFilter.split(",").map(s => s.trim()).filter(Boolean))
+              : new Set(ctx.availableGroups);
+            addCheckboxGroup(body, t("display.groupFilter"), ctx.availableGroups, currentFilter, (sel) => {
+              panel.groupFilter = sel.size === ctx.availableGroups.length ? "" : [...sel].join(", ");
+              panel.collapsedGroups.clear();
+              cb.doRenderKeepPanel();
+            });
+          }
         }
       }
+
+      // --- 2. Cluster arrangement (progressive: shown when groupBy is active) ---
+      if (v("clusterArrangement")) {
+        const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
+        _buildArrangementPatternSelect(sctx);
+        _buildConcentricOptions(sctx);
+        _buildSpacingAndGroupArrangement(sctx);
+        _buildAutoFitAndGuides(sctx);
+        _buildClusterGroupRules(sctx);
+        _buildDirectionalGravityRules(sctx);
+        _buildSortRules(sctx);
+      }
+
+      // --- 3. Coordinate controls ---
+      if (v("coordinateControls")) {
+        const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
+        _buildCoordinateControls(sctx);
+      }
     }, tHelp("help.displayGrouping"), false, "layers");
-  }
-
-  // Cluster arrangement (core: pattern select, concentric, spacing, guides, cluster rules, sort)
-  if (v("clusterArrangement")) {
-    buildSection(layoutTab, t("section.clusterArrangement"), (body) => {
-      const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
-      _buildArrangementPatternSelect(sctx);
-      _buildConcentricOptions(sctx);
-      _buildSpacingAndGroupArrangement(sctx);  // Must come before autoFit (populates spacingSliders)
-      _buildAutoFitAndGuides(sctx);
-      _buildClusterGroupRules(sctx);
-      _buildDirectionalGravityRules(sctx);
-      _buildSortRules(sctx);
-    }, tHelp("help.clusterArrangement"), true, "layout-grid");
-  }
-
-  // Coordinate axis controls (independent so coordinate viewModes can show them)
-  if (v("coordinateControls")) {
-    buildSection(layoutTab, t("section.coordinateControls"), (body) => {
-      const sctx: ClusterSectionCtx = { body, panel, cb, ctx, spacingSliders: [] };
-      _buildCoordinateControls(sctx);
-    }, undefined, true, "axis-3d");
   }
 
 }
