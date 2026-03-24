@@ -722,10 +722,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         group.querySelectorAll(".gi-view-mode-btn").forEach(b => { b.removeClass("is-active"); b.setAttribute("aria-pressed", "false"); });
         btn.addClass("is-active");
         btn.setAttribute("aria-pressed", "true");
+        this._syncGraphOnlyButtons(m.mode);
         this.doRender();
         this._announceA11y(`${t("viewMode.switched")}: ${t(m.labelKey)}`);
       });
     }
+  }
+
+  /** Show/hide buttons that only apply to graph viewMode. */
+  private _syncGraphOnlyButtons(mode: ViewMode): void {
+    const isGraph = mode === "graph";
+    this.containerEl.querySelectorAll<HTMLElement>(".gi-graph-only").forEach(el => {
+      el.style.display = isGraph ? "" : "none";
+    });
   }
 
   /** Create zoom in/out, fit, and marquee buttons. */
@@ -769,7 +778,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.fpsEl = zoomGroup.createEl("span", { cls: "gi-fps-indicator", text: "" });
     this.fpsEl.title = "Render FPS";
 
-    const marqueeBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    const marqueeBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn gi-graph-only" });
     setIcon(marqueeBtn, "box-select");
     marqueeBtn.setAttribute("aria-label", t("toolbar.marquee"));
     marqueeBtn.title = `${t("toolbar.marquee")}`;
@@ -786,7 +795,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.marqueeBtnEl = marqueeBtn;
 
     // Lasso selection button
-    const lassoBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    const lassoBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn gi-graph-only" });
     setIcon(lassoBtn, "pen-tool");
     lassoBtn.setAttribute("aria-label", t("toolbar.lasso") ?? "Lasso select");
     lassoBtn.title = t("toolbar.lasso") ?? "Lasso select";
@@ -840,7 +849,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     });
 
     // SVG export button — click for default, right-click for options
-    const svgBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    const svgBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn gi-graph-only" });
     setIcon(svgBtn, "file-code");
     svgBtn.setAttribute("aria-label", t("toolbar.exportSvg") ?? "Export SVG");
     svgBtn.title = t("toolbar.exportSvg") ?? "Export SVG";
@@ -6969,6 +6978,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         b.setAttribute("aria-pressed", String(isActive));
       });
     }
+    this._syncGraphOnlyButtons(this.panel.viewMode);
 
     this.ac?.abort();
     this.ac = new AbortController();
