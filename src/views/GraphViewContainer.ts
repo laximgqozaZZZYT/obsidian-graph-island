@@ -14,7 +14,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoints, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, exportGraphSVG, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter, computeGaps, hitTestTimelineBars, autoBundleStrength } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, exportGraphSVG, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter, computeGaps, hitTestTimelineBars, autoBundleStrength, computeNodeBBox, buildTagMembership, buildMissingNeighborSet } from "../utils/graph-helpers";
 import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph, filterByLocalGraph } from "../utils/graph-filter";
 import { pointInPolygon } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
@@ -45,7 +45,6 @@ import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
 import { getNodeShape, drawShape } from "../utils/node-shapes";
 import {
-  EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_HAS_TAG,
   EDGE_TYPE_SIMILAR, LAYOUT_FORCE, LAYOUT_CONCENTRIC, LAYOUT_TREE,
   LAYOUT_ARC, LAYOUT_SUNBURST, LAYOUT_TIMELINE,
   TAG_DISPLAY_ENCLOSURE, TAG_DISPLAY_NODE,
@@ -5683,15 +5682,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Compute axis-aligned bounding box of all nodes (including radius). */
   private _computeNodeBBox(): { minX: number; minY: number; maxX: number; maxY: number } {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const pn of this.pixiNodes.values()) {
-      const r = pn.radius ?? 12;
-      minX = Math.min(minX, pn.data.x - r);
-      minY = Math.min(minY, pn.data.y - r);
-      maxX = Math.max(maxX, pn.data.x + r);
-      maxY = Math.max(maxY, pn.data.y + r);
-    }
-    return { minX, minY, maxX, maxY };
+    return computeNodeBBox(
+      Array.from(this.pixiNodes.values(), pn => ({ x: pn.data.x, y: pn.data.y, radius: pn.radius })),
+    );
   }
 
   /** Compute average node radius across all pixiNodes. */
@@ -7148,38 +7141,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.overlapCache.counts.clear();
     this.overlapCache.frame = 0;
     if (this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
-      // Pass 1: count members per tag to determine specificity
-      const tagCounts = new Map<string, number>();
-      for (const n of gd.nodes) {
-        if (n.isTag || !n.tags) continue;
-        for (const tag of n.tags) {
-          incCounter(tagCounts, tag);
-        }
-      }
-      // Pass 2: assign each node to ONLY its most specific (smallest) tag.
-      // This prevents parent tags from creating giant overlapping enclosures.
-      for (const n of gd.nodes) {
-        if (n.isTag || !n.tags || n.tags.length === 0) continue;
-        let bestTag = n.tags[0];
-        let bestCount = tagCounts.get(bestTag) ?? Infinity;
-        for (let i = 1; i < n.tags.length; i++) {
-          const c = tagCounts.get(n.tags[i]) ?? Infinity;
-          if (c < bestCount) { bestCount = c; bestTag = n.tags[i]; }
-        }
-        if (!this.tagMembership.has(bestTag)) this.tagMembership.set(bestTag, new Set());
-        this.tagMembership.get(bestTag)!.add(n.id);
-      }
-      // Pre-build tag relationship pairs (once per render, not per frame)
-      for (const e of gd.edges) {
-        if (e.type !== EDGE_TYPE_INHERITANCE && e.type !== EDGE_TYPE_AGGREGATION) continue;
-        const src = edgeSourceId(e);
-        const tgt = edgeTargetId(e);
-        if (src?.startsWith("tag:") && tgt?.startsWith("tag:")) {
-          const t1 = src.slice(4), t2 = tgt.slice(4);
-          this.tagRelPairsCache.add(`${t1}\0${t2}`);
-          this.tagRelPairsCache.add(`${t2}\0${t1}`);
-        }
-      }
+      const { tagMembership, tagRelPairs } = buildTagMembership(gd.nodes, gd.edges);
+      for (const [tag, ids] of tagMembership) this.tagMembership.set(tag, ids);
+      for (const pair of tagRelPairs) this.tagRelPairsCache.add(pair);
     }
     // Clear stale labels
     for (const lbl of this.enclosureLabels.values()) {
@@ -7197,47 +7161,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _buildMissingNeighborSet(gd: GraphData): void {
     this.missingNeighborNodeIds = null;
     if (!this.panel.highlightMissingNeighbors) return;
-
-    // Build tag → nodeIds map (all tags, not just enclosure-assigned)
-    const tagToNodes = new Map<string, string[]>();
-    for (const n of gd.nodes) {
-      if (n.isTag || !n.tags) continue;
-      for (const tag of n.tags) {
-        let arr = tagToNodes.get(tag);
-        if (!arr) { arr = []; tagToNodes.set(tag, arr); }
-        arr.push(n.id);
-      }
-    }
-
-    // Build edge adjacency set for O(1) lookup
-    const edgeSet = new Set<string>();
-    for (const e of gd.edges) {
-      const s = typeof e.source === "object" ? (e.source as GraphNode).id : e.source;
-      const t = typeof e.target === "object" ? (e.target as GraphNode).id : e.target;
-      edgeSet.add(s < t ? `${s}\0${t}` : `${t}\0${s}`);
-    }
-
-    // For each tag group, find pairs with no edge → mark both nodes
-    const result = new Set<string>();
-    for (const [, nodeIds] of tagToNodes) {
-      if (nodeIds.length < 2) continue;
-      // For large groups, check each pair. Cap at reasonable size to avoid O(n^2) blowup.
-      const len = Math.min(nodeIds.length, 200);
-      for (let i = 0; i < len; i++) {
-        let hasMissingPair = false;
-        for (let j = i + 1; j < len; j++) {
-          const a = nodeIds[i], b = nodeIds[j];
-          const key = a < b ? `${a}\0${b}` : `${b}\0${a}`;
-          if (!edgeSet.has(key)) {
-            hasMissingPair = true;
-            result.add(b);
-          }
-        }
-        if (hasMissingPair) result.add(nodeIds[i]);
-      }
-    }
-
-    this.missingNeighborNodeIds = result.size > 0 ? result : null;
+    this.missingNeighborNodeIds = buildMissingNeighborSet(gd.nodes, gd.edges);
   }
 
   /** Build the node radius function based on current panel settings. */

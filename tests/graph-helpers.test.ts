@@ -3,6 +3,7 @@ import {
   cssColorToHex, buildAdj, bfsNeighborSet, bfsShortestPath, collectSubgraph,
   edgeSourceId, edgeTargetId, shiftHue, stringHash, hslToHex,
   incCounter, buildAdjFromEdges,
+  computeNodeBBox, buildTagMembership, buildMissingNeighborSet,
 } from "../src/utils/graph-helpers";
 import type { GraphData, GraphNode, GraphEdge } from "../src/types";
 
@@ -446,5 +447,202 @@ describe("bfsShortestPath boundary", () => {
   it("unreachable returns empty", () => {
     const adj = new Map([["a", new Set<string>()], ["b", new Set<string>()]]);
     expect(bfsShortestPath(adj, "a", "b")).toEqual([]);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  computeNodeBBox                                                    */
+/* ------------------------------------------------------------------ */
+
+describe("computeNodeBBox", () => {
+  it("computes bbox from nodes with explicit radii", () => {
+    const nodes = [
+      { x: 10, y: 20, radius: 5 },
+      { x: 30, y: 40, radius: 10 },
+    ];
+    const bb = computeNodeBBox(nodes);
+    expect(bb.minX).toBe(5);   // 10 - 5
+    expect(bb.minY).toBe(15);  // 20 - 5
+    expect(bb.maxX).toBe(40);  // 30 + 10
+    expect(bb.maxY).toBe(50);  // 40 + 10
+  });
+
+  it("uses default radius when radius is undefined", () => {
+    const nodes = [{ x: 0, y: 0 }];
+    const bb = computeNodeBBox(nodes);
+    expect(bb.minX).toBe(-12);
+    expect(bb.maxX).toBe(12);
+  });
+
+  it("accepts custom default radius", () => {
+    const nodes = [{ x: 0, y: 0 }];
+    const bb = computeNodeBBox(nodes, 5);
+    expect(bb.minX).toBe(-5);
+    expect(bb.maxX).toBe(5);
+  });
+
+  it("returns Infinity bounds for empty array", () => {
+    const bb = computeNodeBBox([]);
+    expect(bb.minX).toBe(Infinity);
+    expect(bb.maxX).toBe(-Infinity);
+  });
+
+  it("handles single node", () => {
+    const bb = computeNodeBBox([{ x: 100, y: 200, radius: 3 }]);
+    expect(bb).toEqual({ minX: 97, minY: 197, maxX: 103, maxY: 203 });
+  });
+
+  it("handles negative coordinates", () => {
+    const bb = computeNodeBBox([
+      { x: -50, y: -30, radius: 10 },
+      { x: 50, y: 30, radius: 10 },
+    ]);
+    expect(bb.minX).toBe(-60);
+    expect(bb.minY).toBe(-40);
+    expect(bb.maxX).toBe(60);
+    expect(bb.maxY).toBe(40);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  buildTagMembership                                                 */
+/* ------------------------------------------------------------------ */
+
+describe("buildTagMembership", () => {
+  const mkNode = (id: string, tags?: string[], isTag = false): GraphNode =>
+    ({ id, label: id, x: 0, y: 0, tags, isTag }) as GraphNode;
+
+  it("assigns nodes to most specific (smallest) tag", () => {
+    const nodes = [
+      mkNode("a", ["broad", "narrow"]),
+      mkNode("b", ["broad"]),
+      mkNode("c", ["narrow"]),
+    ];
+    const { tagMembership } = buildTagMembership(nodes, []);
+    // "narrow" has 2 members (a, c), "broad" has 2 members (a, b)
+    // Both have same count=2, but "broad" is first in a's tags → a goes to "broad"?
+    // Actually: narrow count=2 (a,c), broad count=2 (a,b) — tie, first tag wins
+    // Let's verify: a has ["broad","narrow"]; broad count=2, narrow count=2; bestTag=broad (first)
+    expect(tagMembership.get("broad")?.has("a")).toBe(true);
+    expect(tagMembership.get("broad")?.has("b")).toBe(true);
+    expect(tagMembership.get("narrow")?.has("c")).toBe(true);
+  });
+
+  it("skips tag nodes", () => {
+    const nodes = [
+      mkNode("tag:foo", ["foo"], true),
+      mkNode("a", ["foo"]),
+    ];
+    const { tagMembership } = buildTagMembership(nodes, []);
+    expect(tagMembership.get("foo")?.size).toBe(1);
+    expect(tagMembership.get("foo")?.has("a")).toBe(true);
+  });
+
+  it("skips nodes without tags", () => {
+    const nodes = [mkNode("a"), mkNode("b", [])];
+    const { tagMembership } = buildTagMembership(nodes, []);
+    expect(tagMembership.size).toBe(0);
+  });
+
+  it("builds tag relationship pairs from inheritance edges", () => {
+    const nodes = [mkNode("a", ["x"])];
+    const edges: GraphEdge[] = [
+      { source: "tag:alpha", target: "tag:beta", type: "inheritance" } as GraphEdge,
+    ];
+    const { tagRelPairs } = buildTagMembership(nodes, edges);
+    expect(tagRelPairs.has("alpha\0beta")).toBe(true);
+    expect(tagRelPairs.has("beta\0alpha")).toBe(true);
+  });
+
+  it("builds tag relationship pairs from aggregation edges", () => {
+    const edges: GraphEdge[] = [
+      { source: "tag:x", target: "tag:y", type: "aggregation" } as GraphEdge,
+    ];
+    const { tagRelPairs } = buildTagMembership([], edges);
+    expect(tagRelPairs.has("x\0y")).toBe(true);
+  });
+
+  it("ignores non-tag edges for relationship pairs", () => {
+    const edges: GraphEdge[] = [
+      { source: "tag:x", target: "tag:y", type: "link" } as GraphEdge,
+    ];
+    const { tagRelPairs } = buildTagMembership([], edges);
+    expect(tagRelPairs.size).toBe(0);
+  });
+
+  it("assigns node to rarer tag when counts differ", () => {
+    const nodes = [
+      mkNode("a", ["common", "rare"]),
+      mkNode("b", ["common"]),
+      mkNode("c", ["common"]),
+    ];
+    const { tagMembership } = buildTagMembership(nodes, []);
+    // common=3, rare=1 → a goes to rare
+    expect(tagMembership.get("rare")?.has("a")).toBe(true);
+    expect(tagMembership.get("common")?.has("b")).toBe(true);
+    expect(tagMembership.get("common")?.has("c")).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  buildMissingNeighborSet                                            */
+/* ------------------------------------------------------------------ */
+
+describe("buildMissingNeighborSet", () => {
+  const mkNode = (id: string, tags?: string[]): GraphNode =>
+    ({ id, label: id, x: 0, y: 0, tags }) as GraphNode;
+  const mkEdge = (src: string, tgt: string): GraphEdge =>
+    ({ source: src, target: tgt, type: "link" }) as GraphEdge;
+
+  it("returns null when no missing neighbors", () => {
+    const nodes = [mkNode("a", ["t"]), mkNode("b", ["t"])];
+    const edges = [mkEdge("a", "b")];
+    expect(buildMissingNeighborSet(nodes, edges)).toBeNull();
+  });
+
+  it("detects nodes sharing a tag but no edge", () => {
+    const nodes = [mkNode("a", ["t"]), mkNode("b", ["t"])];
+    const result = buildMissingNeighborSet(nodes, []);
+    expect(result).not.toBeNull();
+    expect(result!.has("a")).toBe(true);
+    expect(result!.has("b")).toBe(true);
+  });
+
+  it("returns null for single-node tag groups", () => {
+    const nodes = [mkNode("a", ["t1"]), mkNode("b", ["t2"])];
+    expect(buildMissingNeighborSet(nodes, [])).toBeNull();
+  });
+
+  it("skips tag nodes", () => {
+    const nodes = [
+      { id: "tag:t", label: "t", x: 0, y: 0, tags: ["t"], isTag: true } as GraphNode,
+      mkNode("a", ["t"]),
+    ];
+    expect(buildMissingNeighborSet(nodes, [])).toBeNull();
+  });
+
+  it("handles d3-force object endpoints", () => {
+    const nodes = [mkNode("a", ["t"]), mkNode("b", ["t"])];
+    const edges = [{ source: { id: "a" }, target: { id: "b" }, type: "link" }] as any;
+    expect(buildMissingNeighborSet(nodes, edges)).toBeNull();
+  });
+
+  it("marks both nodes of a missing pair", () => {
+    const nodes = [mkNode("a", ["t"]), mkNode("b", ["t"]), mkNode("c", ["t"])];
+    const edges = [mkEdge("a", "b")]; // a-c and b-c missing
+    const result = buildMissingNeighborSet(nodes, edges);
+    expect(result).not.toBeNull();
+    expect(result!.has("c")).toBe(true);
+    // At least one of a or b should be marked (they share tag with c but no edge to c)
+    expect(result!.has("a") || result!.has("b")).toBe(true);
+  });
+
+  it("handles nodes without tags gracefully", () => {
+    const nodes = [mkNode("a"), mkNode("b", ["t"]), mkNode("c", ["t"])];
+    const result = buildMissingNeighborSet(nodes, []);
+    expect(result).not.toBeNull();
+    expect(result!.has("b")).toBe(true);
+    expect(result!.has("c")).toBe(true);
+    expect(result!.has("a")).toBe(false);
   });
 });

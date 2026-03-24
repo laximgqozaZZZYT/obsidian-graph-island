@@ -565,3 +565,126 @@ export function autoBundleStrength(nodeCount: number): number {
   if (nodeCount > 50) return 0.5;
   return 0.3;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Pure geometry / graph-metadata helpers (extracted from GVC)        */
+/* ------------------------------------------------------------------ */
+
+export interface BBox {
+  minX: number; minY: number; maxX: number; maxY: number;
+}
+
+/**
+ * Compute axis-aligned bounding box for a set of nodes with radii.
+ * Returns Infinity/-Infinity bounds when the input is empty.
+ */
+export function computeNodeBBox(
+  nodes: readonly { x: number; y: number; radius?: number }[],
+  defaultRadius = 12,
+): BBox {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of nodes) {
+    const r = n.radius ?? defaultRadius;
+    minX = Math.min(minX, n.x - r);
+    minY = Math.min(minY, n.y - r);
+    maxX = Math.max(maxX, n.x + r);
+    maxY = Math.max(maxY, n.y + r);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+/**
+ * Build tag membership map: assigns each non-tag node to its most specific
+ * (smallest-count) tag. Also builds tag relationship pairs cache from
+ * inheritance/aggregation edges between tag nodes.
+ */
+export function buildTagMembership(
+  nodes: readonly GraphNode[],
+  edges: readonly GraphEdge[],
+): { tagMembership: Map<string, Set<string>>; tagRelPairs: Set<string> } {
+  const tagMembership = new Map<string, Set<string>>();
+  const tagRelPairs = new Set<string>();
+
+  // Pass 1: count members per tag to determine specificity
+  const tagCounts = new Map<string, number>();
+  for (const n of nodes) {
+    if (n.isTag || !n.tags) continue;
+    for (const tag of n.tags) {
+      incCounter(tagCounts, tag);
+    }
+  }
+  // Pass 2: assign each node to ONLY its most specific (smallest) tag
+  for (const n of nodes) {
+    if (n.isTag || !n.tags || n.tags.length === 0) continue;
+    let bestTag = n.tags[0];
+    let bestCount = tagCounts.get(bestTag) ?? Infinity;
+    for (let i = 1; i < n.tags.length; i++) {
+      const c = tagCounts.get(n.tags[i]) ?? Infinity;
+      if (c < bestCount) { bestCount = c; bestTag = n.tags[i]; }
+    }
+    if (!tagMembership.has(bestTag)) tagMembership.set(bestTag, new Set());
+    tagMembership.get(bestTag)!.add(n.id);
+  }
+  // Build tag relationship pairs from inheritance/aggregation edges
+  for (const e of edges) {
+    if (e.type !== "inheritance" && e.type !== "aggregation") continue;
+    const src = edgeSourceId(e);
+    const tgt = edgeTargetId(e);
+    if (src?.startsWith("tag:") && tgt?.startsWith("tag:")) {
+      const t1 = src.slice(4), t2 = tgt.slice(4);
+      tagRelPairs.add(`${t1}\0${t2}`);
+      tagRelPairs.add(`${t2}\0${t1}`);
+    }
+  }
+
+  return { tagMembership, tagRelPairs };
+}
+
+/**
+ * Build the set of node IDs that share at least one tag with another node
+ * but have no direct edge between them (missing neighbor detection).
+ */
+export function buildMissingNeighborSet(
+  nodes: readonly GraphNode[],
+  edges: readonly GraphEdge[],
+): Set<string> | null {
+  // Build tag → nodeIds map
+  const tagToNodes = new Map<string, string[]>();
+  for (const n of nodes) {
+    if (n.isTag || !n.tags) continue;
+    for (const tag of n.tags) {
+      let arr = tagToNodes.get(tag);
+      if (!arr) { arr = []; tagToNodes.set(tag, arr); }
+      arr.push(n.id);
+    }
+  }
+
+  // Build edge adjacency set for O(1) lookup
+  const edgeSet = new Set<string>();
+  for (const e of edges) {
+    const s = typeof e.source === "object" ? (e.source as GraphNode).id : e.source;
+    const t = typeof e.target === "object" ? (e.target as GraphNode).id : e.target;
+    edgeSet.add(s < t ? `${s}\0${t}` : `${t}\0${s}`);
+  }
+
+  // For each tag group, find pairs with no edge → mark both nodes
+  const result = new Set<string>();
+  for (const [, nodeIds] of tagToNodes) {
+    if (nodeIds.length < 2) continue;
+    const len = Math.min(nodeIds.length, 200);
+    for (let i = 0; i < len; i++) {
+      let hasMissingPair = false;
+      for (let j = i + 1; j < len; j++) {
+        const a = nodeIds[i], b = nodeIds[j];
+        const key = a < b ? `${a}\0${b}` : `${b}\0${a}`;
+        if (!edgeSet.has(key)) {
+          hasMissingPair = true;
+          result.add(b);
+        }
+      }
+      if (hasMissingPair) result.add(nodeIds[i]);
+    }
+  }
+
+  return result.size > 0 ? result : null;
+}
