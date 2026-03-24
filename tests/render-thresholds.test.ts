@@ -168,3 +168,43 @@ describe("DEFAULT_RENDER_THRESHOLDS completeness", () => {
     }
   });
 });
+
+// =========================================================================
+// mergeRenderThresholds — additional edge cases
+// =========================================================================
+describe("mergeRenderThresholds edge cases", () => {
+  it("null user override returns defaults unchanged", () => {
+    const result = mergeRenderThresholds(null as any);
+    expect(result).toBeDefined();
+    expect(typeof result.cardLODExtremePx).toBe("number");
+  });
+
+  it("unknown fields in user override are passed through (spread)", () => {
+    const result = mergeRenderThresholds({ __unknownField__: 999 } as any);
+    // Spread-based merge preserves extra fields
+    expect((result as any).__unknownField__).toBe(999);
+  });
+
+  it("partial override preserves non-overridden defaults", () => {
+    const result = mergeRenderThresholds({ cardLODExtremePx: 999 });
+    expect(result.cardLODExtremePx).toBe(999);
+    // Other fields should still have default values
+    expect(typeof result.labelDensityMinScreenDist).toBe("number");
+    expect(result.labelDensityMinScreenDist).toBeGreaterThan(0);
+  });
+
+  it("NaN override is preserved (not silently replaced)", () => {
+    const result = mergeRenderThresholds({ cardLODExtremePx: NaN });
+    expect(isNaN(result.cardLODExtremePx)).toBe(true);
+  });
+
+  it("negative override is preserved", () => {
+    const result = mergeRenderThresholds({ cardLODExtremePx: -5 });
+    expect(result.cardLODExtremePx).toBe(-5);
+  });
+
+  it("string override for numeric field is preserved as-is", () => {
+    const result = mergeRenderThresholds({ cardLODExtremePx: "bad" } as any);
+    expect(result.cardLODExtremePx).toBe("bad");
+  });
+});

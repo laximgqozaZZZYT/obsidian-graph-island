@@ -9129,16 +9129,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this._renderMatrixViewMode(gd, W, H);
     });
 
-    // Build table
-    const table = matrixEl.createEl("table", { cls: "gi-matrix-table" });
+    // Build scrollable table wrapper
+    const tableWrap = matrixEl.createDiv({ cls: "gi-matrix-scroll" });
+    tableWrap.style.cssText = "overflow:auto;max-height:calc(100% - 30px);position:relative;";
+    const table = tableWrap.createEl("table", { cls: "gi-matrix-table" });
+    table.style.borderCollapse = "separate";
+    table.style.borderSpacing = "0";
 
-    // Header row
+    // Header row (sticky top)
     const headerRow = table.createEl("tr");
-    headerRow.createEl("th"); // corner
+    const cornerTh = headerRow.createEl("th");
+    cornerTh.style.cssText = "position:sticky;top:0;left:0;z-index:3;background:var(--background-primary);";
     for (const id of nodeIds) {
       const label = getLabel(id);
       const deg = degrees.get(id) ?? 0;
-      headerRow.createEl("th", { text: label.slice(0, 4), attr: { title: `${label} (${deg} connections)` } });
+      const th = headerRow.createEl("th", { text: label.slice(0, 4), attr: { title: `${label} (${deg} connections)` } });
+      th.style.cssText = "position:sticky;top:0;z-index:2;background:var(--background-primary);";
     }
 
     // Data rows
@@ -9148,6 +9154,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const label = getLabel(rowId);
       const deg = degrees.get(rowId) ?? 0;
       const td = tr.createEl("td", { text: label.slice(0, 8), cls: "gi-matrix-label", attr: { title: `${label} (${deg} connections)` } });
+      td.style.cssText = "position:sticky;left:0;z-index:1;background:var(--background-primary);";
       td.addEventListener("click", () => this._switchToGraphAndFocus(rowId));
 
       for (const colId of nodeIds) {
