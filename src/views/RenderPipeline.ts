@@ -536,6 +536,8 @@ export class RenderPipeline {
 
   /** Count of active leader lines (avoids O(N) clear loop when 0) */
   private _activeLeaderCount = 0;
+  /** Reusable buffer for timeline range filter */
+  private _timelineFilterBuf = new Set<string>();
 
   // Array pools for redrawNodeBatch() — reuse across frames to reduce GC
   private _visiblePool: PixiNode[] = [];
@@ -947,13 +949,13 @@ export class RenderPipeline {
     const xSpan = globalMaxX - globalMinX;
     const tlMinX = globalMinX + xSpan * tlRange.min;
     const tlMaxX = globalMinX + xSpan * tlRange.max;
-    const filtered = new Set<string>();
+    this._timelineFilterBuf.clear();
     for (const pn of visible) {
       if (pn.data.x < tlMinX || pn.data.x > tlMaxX) {
-        filtered.add(pn.data.id);
+        this._timelineFilterBuf.add(pn.data.id);
       }
     }
-    return filtered;
+    return this._timelineFilterBuf;
   }
 
   // =========================================================================
@@ -3105,7 +3107,8 @@ export class RenderPipeline {
 
     if (!(absoluteFloor > 0 || minNonSuper > 0)) return;
 
-    const placedSet = new Set(placed.map(r => r.pn.data.id));
+    const placedSet = new Set<string>();
+    for (const r of placed) placedSet.add(r.pn.data.id);
     const hiddenSupers = rects.filter(r => r.isSuper && !placedSet.has(r.pn.data.id))
       .sort((a, b) => b.degree - a.degree);
     const hiddenRegulars = rects.filter(r => !r.isSuper && !placedSet.has(r.pn.data.id))
@@ -3147,14 +3150,11 @@ export class RenderPipeline {
       placed, grid, margin, zoom, maxRadii, drawLeader, llWidth, llAlpha,
     );
 
-    // Final visibility sync — ensure unplaced labels stay hidden
-    const finalPlacedSet = new Set(placed.map(r => r.pn.data.id));
+    // Final visibility sync — reuse placedSet (updated by force-show)
+    placedSet.clear();
+    for (const r of placed) placedSet.add(r.pn.data.id);
     for (const r of rects) {
-      if (finalPlacedSet.has(r.pn.data.id)) {
-        r.label.visible = true;
-      } else {
-        r.label.visible = false;
-      }
+      r.label.visible = placedSet.has(r.pn.data.id);
     }
   }
 

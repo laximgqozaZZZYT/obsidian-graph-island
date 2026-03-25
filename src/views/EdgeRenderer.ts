@@ -173,19 +173,21 @@ export function shouldSkipEdge(e: GraphEdge, cfg: EdgeDrawConfig): boolean {
  * Build a set of edge keys ("source→target") that participate in bidirectional
  * pairs. An edge A→B is bidirectional if B→A also exists in the edge list.
  */
+const _bidirForwardBuf = new Set<string>();
+const _bidirResultBuf = new Set<string>();
 export function buildBidirectionalSet(edges: GraphEdge[]): Set<string> {
-  const forward = new Set<string>();
-  const bidir = new Set<string>();
+  _bidirForwardBuf.clear();
+  _bidirResultBuf.clear();
   for (const e of edges) {
     const fwd = `${e.source}→${e.target}`;
     const rev = `${e.target}→${e.source}`;
-    if (forward.has(rev)) {
-      bidir.add(rev);
-      bidir.add(fwd);
+    if (_bidirForwardBuf.has(rev)) {
+      _bidirResultBuf.add(rev);
+      _bidirResultBuf.add(fwd);
     }
-    forward.add(fwd);
+    _bidirForwardBuf.add(fwd);
   }
-  return bidir;
+  return _bidirResultBuf;
 }
 
 /** Check if an edge should be skipped based on the direction filter. */
