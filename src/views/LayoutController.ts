@@ -455,8 +455,19 @@ export class LayoutController {
 
     // When groupBy is inactive and clusterFollowsGroupBy is on, auto-derive
     // folder-based cluster rules so nodes are spatially grouped by folder.
+    // Only activate if multiple distinct top-level folders exist in the current nodes.
     const hasActiveGroupBy = panel.groupBy && panel.groupBy !== "none";
-    const isAutoFolder = !hasActiveGroupBy && panel.clusterFollowsGroupBy;
+    let isAutoFolder = !hasActiveGroupBy && panel.clusterFollowsGroupBy;
+    if (isAutoFolder) {
+      const folders = new Set<string>();
+      for (const n of sim.nodes()) {
+        const fp = n.filePath ?? "";
+        const slash = fp.indexOf("/");
+        folders.add(slash > 0 ? fp.substring(0, slash) : "/");
+        if (folders.size >= 3) break; // enough to confirm multiple folders
+      }
+      if (folders.size < 3) isAutoFolder = false; // single/two folders → no clustering needed
+    }
     const effectiveGroupRules = isAutoFolder
         ? [{ groupBy: "folder" as const, recursive: false }]
         : panel.clusterGroupRules;
