@@ -116,16 +116,21 @@
   will-change: transform;
 }
 
-/* === Control Panel — uses Obsidian's graph-controls classes === */
+/* === Control Panel — overlay on canvas (doesn't shrink canvas) === */
 .graph-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
   width: var(--graph-controls-width, 240px);
-  flex-shrink: 0;
-  background: var(--background-primary);
+  height: 100%;
+  z-index: 20;
+  background: var(--background-primary-alt, var(--background-primary));
   border-left: 1px solid var(--background-modifier-border);
   font-size: var(--font-ui-small);
   padding: 0;
   display: flex;
   flex-direction: column;
+  opacity: 0.95;
 }
 
 /* .graph-panel.is-hidden — slide animation defined in Phase 6 section below */

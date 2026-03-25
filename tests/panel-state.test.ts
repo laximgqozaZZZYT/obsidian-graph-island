@@ -38,7 +38,7 @@ describe("createDefaultPanel", () => {
     expect(panel.nodeSize).toBe(15);
     expect(panel.showLinks).toBe(true);
     expect(panel.showOrphans).toBe(true);
-    expect(panel.hoverHops).toBe(2);
+    expect(panel.hoverHops).toBe(1);
     expect(panel.edgeDirectionFilter).toBe("all");
     expect(panel.showOntologyBackbone).toBe(false);
     expect(panel.highContrastMode).toBe(false);

@@ -54,8 +54,9 @@ export function getNodeFieldValues(n: GraphNode, field: string): string[] {
       return n.category ? [n.category] : [];
     case "folder": {
       if (!n.filePath) return [];
-      const lastSlash = n.filePath.lastIndexOf("/");
-      return [lastSlash > 0 ? n.filePath.substring(0, lastSlash) : "/"];
+      // Use top-level folder only (not full nested path) to keep group count manageable
+      const firstSlash = n.filePath.indexOf("/");
+      return [firstSlash > 0 ? n.filePath.substring(0, firstSlash) : "/"];
     }
     case "path":
       return n.filePath ? [n.filePath] : [];

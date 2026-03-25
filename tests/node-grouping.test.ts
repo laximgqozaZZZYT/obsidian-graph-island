@@ -47,9 +47,9 @@ describe("getNodeFieldValues", () => {
     expect(getNodeFieldValues(makeNode("a"), "category")).toEqual([]);
   });
 
-  it("extracts folder from filePath", () => {
+  it("extracts top-level folder from filePath", () => {
     const n = makeNode("a", { filePath: "notes/daily/2024.md" });
-    expect(getNodeFieldValues(n, "folder")).toEqual(["notes/daily"]);
+    expect(getNodeFieldValues(n, "folder")).toEqual(["notes"]);
   });
 
   it("returns '/' for root-level files", () => {
@@ -180,7 +180,7 @@ describe("groupNodesByField", () => {
     ];
     const groups = groupNodesByField(nodes, "folder");
     expect(groups).toHaveLength(2);
-    expect(groups.find(g => g.key === "folder:notes/daily")!.memberIds).toEqual(["a", "b"]);
+    expect(groups.find(g => g.key === "folder:notes")!.memberIds).toEqual(["a", "b"]);
     expect(groups.find(g => g.key === "folder:projects")!.memberIds).toEqual(["c", "d"]);
   });
 

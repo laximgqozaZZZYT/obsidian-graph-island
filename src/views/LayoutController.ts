@@ -456,8 +456,8 @@ export class LayoutController {
     // When groupBy is inactive and clusterFollowsGroupBy is on, auto-derive
     // folder-based cluster rules so nodes are spatially grouped by folder.
     const hasActiveGroupBy = panel.groupBy && panel.groupBy !== "none";
-    const effectiveGroupRules =
-      !hasActiveGroupBy && panel.clusterFollowsGroupBy
+    const isAutoFolder = !hasActiveGroupBy && panel.clusterFollowsGroupBy;
+    const effectiveGroupRules = isAutoFolder
         ? [{ groupBy: "folder" as const, recursive: false }]
         : panel.clusterGroupRules;
 
@@ -469,9 +469,9 @@ export class LayoutController {
       width: W,
       height: H,
       nodeSize: panel.nodeSize,
-      nodeSpacing: panel.clusterNodeSpacing ?? 3,
-      groupScale: panel.clusterGroupScale ?? 3,
-      groupSpacing: panel.clusterGroupSpacing ?? 2,
+      nodeSpacing: isAutoFolder ? 1.5 : (panel.clusterNodeSpacing ?? 3),
+      groupScale: isAutoFolder ? 1.5 : (panel.clusterGroupScale ?? 3),
+      groupSpacing: isAutoFolder ? 0.8 : (panel.clusterGroupSpacing ?? 2),
       tagMembership: panel.tagDisplay === TAG_DISPLAY_ENCLOSURE ? tagMembership : undefined,
       enclosureSpacing: panel.enclosureSpacing,
       sortComparator: this.buildSortComparator(sim.nodes(), graphEdges),

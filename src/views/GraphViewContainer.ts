@@ -4989,7 +4989,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Target ~14px on screen
     const targetScreenPx = 14;
-    const baseFontSize = 14;
+    // Use large fontSize with lower scale for better Canvas2D rendering quality
+    const baseFontSize = Math.max(14, Math.round(14 / Math.max(ws, 0.01)));
     const rawScale = targetScreenPx / (baseFontSize * ws);
     const labelScale = isFinite(rawScale) ? Math.max(1, rawScale) : 4;
 
@@ -5033,6 +5034,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         labelContainer.addChild(txt);
       } else {
         txt.text = labelText;
+        txt.style.fontSize = baseFontSize;
       }
 
       txt.scale.set(labelScale);
@@ -6135,6 +6137,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
+
+    // NaN guard: abort if any computed value is invalid
+    if (!isFinite(sc) || !isFinite(cx) || !isFinite(cy) || sc <= 0 || bw <= 0 || bh <= 0) return;
 
     world.scale.set(sc);
     world.x = W / 2 - cx * sc;
@@ -7249,7 +7254,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         filter: this.panel.groupFilter,
       };
       const groups = this.resolveGroupByField(result.nodes, groupOpts);
-      if (this.panel.collapsedGroups.size === 0 && groups.length > 0) {
+      // Auto-collapse only when ≤20 groups to prevent freeze on large vaults
+      if (this.panel.collapsedGroups.size === 0 && groups.length > 0 && groups.length <= 20) {
         for (const g of groups) this.panel.collapsedGroups.add(g.key);
       }
       for (const g of groups) {

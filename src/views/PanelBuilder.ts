@@ -378,7 +378,7 @@ export function createDefaultPanel(): PanelState {
     showSemanticEdges: false,
     enclosureSpacing: 1.5,
     directionalGravityRules: [],
-    hoverHops: 2,
+    hoverHops: 1,
     hoverHighlightTypes: {
       forwardLinks: true,
       backlinks: true,
