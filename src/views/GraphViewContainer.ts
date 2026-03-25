@@ -346,6 +346,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private enclosureLabels: Map<string, CanvasText> = new Map();
   /** GroupBy group labels shown at zoom-out (key → CanvasText) */
   private groupByLabels: Map<string, CanvasText> = new Map();
+  /** Dedicated container for groupBy labels (rendered above nodes/edges) */
+  private groupByLabelContainer: CanvasContainer | null = null;
   private overlapCache: OverlapCache = { frame: 0, counts: new Map() };
   /** Cluster metadata for edge bundling (updated when cluster force is applied) */
   private clusterMeta: ClusterMetadata | null = null;
@@ -1788,6 +1790,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       try { lbl.destroy(); } catch { /* already destroyed */ }
     }
     this.groupByLabels.clear();
+    this.groupByLabelContainer = null;
     // Clean up sunburst labels
     for (const lbl of this.sunburstLabels.values()) {
       try { lbl.destroy(); } catch { /* already destroyed */ }
@@ -1980,6 +1983,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const labelContainer = new CanvasContainer();
     world.addChild(labelContainer);
     this.enclosureLabelContainer = labelContainer;
+
+    // GroupBy label container — must be LAST so it renders above nodes/edges
+    const groupLabelContainer = new CanvasContainer();
+    world.addChild(groupLabelContainer);
+    this.groupByLabelContainer = groupLabelContainer;
 
     return world;
   }
@@ -4590,7 +4598,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Show group name labels when zoomed out past the text fade threshold.
    *  Labels appear at each group's centroid (super-node position or member average). */
   private _updateGroupByLabels(): void {
-    const ws = this.worldContainer?.scale.x ?? 1;
+    const rawWs = this.worldContainer?.scale.x ?? 1;
+    const ws = isFinite(rawWs) && rawWs > 0 ? rawWs : 1;
     const fadeThreshold = Math.max(this.panel.textFadeThreshold, 0.4);
     const groupBy = this.panel.groupBy;
     const hasGroups = groupBy && groupBy !== "none";
@@ -4602,7 +4611,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
 
     // Alpha: fade in as zoom decreases below threshold
-    const alpha = Math.min(1, (fadeThreshold - ws) / (fadeThreshold * 0.5));
+    const rawAlpha = (fadeThreshold - ws) / (fadeThreshold * 0.5);
+    const alpha = isFinite(rawAlpha) ? Math.max(0, Math.min(1, rawAlpha)) : 1;
 
     // Collect group centroids: { key → { x, y, memberCount } }
     const groups = new Map<string, { x: number; y: number; memberCount: number }>();
@@ -4626,7 +4636,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (field === "folder") val = pn.data.filePath?.replace(/\/[^/]*$/, "") || "root";
         else if (field === "tag") val = pn.data.tags?.[0];
         else val = (pn.data.meta as any)?.[field] as string | undefined;
-        if (!val) continue; // Skip ungrouped
+        if (!val) val = "ungrouped";
         const key = `${field}:${val}`;
         const existing = groups.get(key);
         if (existing) {
@@ -4641,8 +4651,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
 
-    const labelContainer = this.enclosureLabelContainer;
+    const labelContainer = this.groupByLabelContainer;
     if (!labelContainer) return;
+    // Ensure container is at top of z-order
+    const world = this.worldContainer;
+    if (world && world.children[world.children.length - 1] !== labelContainer) {
+      world.removeChild(labelContainer);
+      world.addChild(labelContainer);
+    }
 
     const usedKeys = new Set<string>();
     for (const [key, g] of groups) {
@@ -4672,7 +4688,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         txt.text = `${displayName} (${g.memberCount})`;
       }
 
-      const labelScale = Math.min(8, Math.max(1.5, 1.5 / ws));
+      // Target ~16px on screen: scale = targetPx / (fontSize * worldScale)
+      const targetScreenPx = 16;
+      const fontSize = 14;
+      const rawScale = targetScreenPx / (fontSize * ws);
+      const labelScale = isFinite(rawScale) ? Math.max(1, rawScale) : 4;
       txt.x = g.x;
       txt.y = g.y;
       txt.scale.set(labelScale);
