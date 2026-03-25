@@ -354,6 +354,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private groupByLabelContainer: CanvasContainer | null = null;
   /** Graphics for cluster boundary outlines */
   private clusterBoundaryGraphics: CanvasGraphics | null = null;
+  /** Off-screen link tooltip elements (directional) */
+  private _offScreenTooltips: HTMLElement[] = [];
   private overlapCache: OverlapCache = { frame: 0, counts: new Map() };
   /** Cluster metadata for edge bundling (updated when cluster force is applied) */
   private clusterMeta: ClusterMetadata | null = null;
@@ -3915,6 +3917,102 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.updateNodeInfo();
     // EM: Sync Nodes tab hover highlight
     this._syncNodesTabHover(effectiveHId, curSet);
+    // Off-screen linked nodes directional tooltips
+    this._updateOffScreenLinkTooltips(effectiveHId);
+  }
+
+  /** Show directional tooltips for off-screen linked nodes grouped by cluster direction. */
+  private _updateOffScreenLinkTooltips(hoveredId: string | null): void {
+    // Clear existing tooltips
+    for (const el of this._offScreenTooltips) el.remove();
+    this._offScreenTooltips = [];
+    if (!hoveredId || !this.worldContainer || !this.canvasWrap) return;
+
+    const pn = this.pixiNodes.get(hoveredId);
+    if (!pn) return;
+    const ws = this.worldContainer.scale.x;
+    if (!isFinite(ws) || ws <= 0) return;
+    const worldX = this.worldContainer.x;
+    const worldY = this.worldContainer.y;
+    const canvasW = this.canvasWrap.clientWidth;
+    const canvasH = this.canvasWrap.clientHeight;
+    const margin = 10;
+
+    // Screen position of hovered node
+    const hovSx = pn.gfx.x * ws + worldX;
+    const hovSy = pn.gfx.y * ws + worldY;
+
+    // Find all directly linked nodes (1-hop from adj)
+    const neighbors = this.adj.get(hoveredId) ?? [];
+
+    // Group off-screen neighbors by cluster (folder)
+    const dirGroups = new Map<string, { names: string[]; avgSx: number; avgSy: number }>();
+    for (const nbId of neighbors) {
+      const nb = this.pixiNodes.get(nbId);
+      if (!nb) continue;
+      const sx = nb.gfx.x * ws + worldX;
+      const sy = nb.gfx.y * ws + worldY;
+      // Is off-screen?
+      if (sx >= margin && sx <= canvasW - margin && sy >= margin && sy <= canvasH - margin) continue;
+      // Determine cluster key
+      const path = nb.data.filePath ?? "";
+      const folder = path.split("/")[0] || "other";
+      const clusterKey = this.clusterMeta?.nodeClusterMap?.get(nbId) ?? folder;
+      const label = nb.data.label || nbId.replace(/\.md$/, "").split("/").pop() || nbId;
+      if (!dirGroups.has(clusterKey)) {
+        dirGroups.set(clusterKey, { names: [], avgSx: 0, avgSy: 0 });
+      }
+      const grp = dirGroups.get(clusterKey)!;
+      grp.names.push(label);
+      const n = grp.names.length;
+      grp.avgSx += (sx - grp.avgSx) / n;
+      grp.avgSy += (sy - grp.avgSy) / n;
+    }
+
+    if (dirGroups.size === 0) return;
+
+    // Create tooltip elements for each direction
+    const canvasArea = this.canvasWrap;
+    for (const [clusterKey, grp] of dirGroups) {
+      // Direction from hovered node to off-screen group
+      const dx = grp.avgSx - hovSx;
+      const dy = grp.avgSy - hovSy;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = dx / dist;
+      const ny = dy / dist;
+
+      // Place tooltip at canvas edge in the direction of the group
+      let tipX: number, tipY: number;
+      // Find intersection with canvas boundary
+      const tMax = 10000;
+      let t = tMax;
+      if (nx > 0.01) t = Math.min(t, (canvasW - margin - hovSx) / nx);
+      else if (nx < -0.01) t = Math.min(t, (margin - hovSx) / nx);
+      if (ny > 0.01) t = Math.min(t, (canvasH - margin - hovSy) / ny);
+      else if (ny < -0.01) t = Math.min(t, (margin - hovSy) / ny);
+      t = Math.max(40, t); // minimum distance from node
+      tipX = Math.max(margin, Math.min(canvasW - margin, hovSx + nx * t));
+      tipY = Math.max(margin, Math.min(canvasH - margin, hovSy + ny * t));
+
+      // Cluster display name
+      const clusterName = clusterKey.replace(/^folder:/, "").replace(/^[^:]+:/, "");
+      const displayNames = grp.names.slice(0, 5);
+      const extra = grp.names.length > 5 ? `\n+${grp.names.length - 5} more` : "";
+
+      const tip = document.createElement("div");
+      tip.className = "gi-offscreen-tooltip";
+      tip.style.cssText = `
+        position:absolute; left:${tipX}px; top:${tipY}px; transform:translate(-50%,-50%);
+        background:var(--background-secondary, #2a2a3e); color:var(--text-normal, #ddd);
+        padding:4px 8px; border-radius:6px; font-size:11px; line-height:1.4;
+        pointer-events:none; z-index:100; max-width:200px; white-space:pre-line;
+        border:1px solid var(--background-modifier-border, #444);
+        box-shadow:0 2px 8px rgba(0,0,0,0.3);
+      `;
+      tip.textContent = `→ ${clusterName}\n${displayNames.join("\n")}${extra}`;
+      canvasArea.appendChild(tip);
+      this._offScreenTooltips.push(tip);
+    }
   }
 
   /** EM: Highlight rows in the Nodes tab that match hovered node + neighbors */
