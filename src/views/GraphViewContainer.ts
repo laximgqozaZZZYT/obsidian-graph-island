@@ -346,6 +346,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private enclosureLabels: Map<string, CanvasText> = new Map();
   /** GroupBy group labels shown at zoom-out (key → CanvasText) */
   private groupByLabels: Map<string, CanvasText> = new Map();
+  /** GroupBy group member IDs (key → Set<nodeId>) for hover highlight */
+  private groupByMembers: Map<string, Set<string>> = new Map();
+  /** Currently hovered group label key (for highlight) */
+  private _hoveredGroupLabel: string | null = null;
   /** Dedicated container for groupBy labels (rendered above nodes/edges) */
   private groupByLabelContainer: CanvasContainer | null = null;
   private overlapCache: OverlapCache = { frame: 0, counts: new Map() };
@@ -1997,6 +2001,41 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Set up interaction handling (pointer events, drag, pan, hover, marquee)
     this.interactionManager?.detach();
     this.interactionManager = new InteractionManager(this as unknown as InteractionHost, canvas, world);
+
+    // Group label hover: highlight group members on pointermove
+    canvas.addEventListener("pointermove", (e) => {
+      if (!this.groupByLabels.size || !this.worldContainer) return;
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const ws = this.worldContainer.scale.x;
+      if (!isFinite(ws) || ws <= 0) return;
+      const worldX = this.worldContainer.x;
+      const worldY = this.worldContainer.y;
+
+      let hitKey: string | null = null;
+      for (const [key, txt] of this.groupByLabels) {
+        if (!txt.visible) continue;
+        const sx = txt.x * ws + worldX;
+        const sy = txt.y * ws + worldY;
+        const hw = (txt.text?.length ?? 10) * 14 * 0.55 * 0.5;
+        const hh = 14;
+        if (Math.abs(mx - sx) < hw && Math.abs(my - sy) < hh) {
+          hitKey = key;
+          break;
+        }
+      }
+
+      if (hitKey !== this._hoveredGroupLabel) {
+        this._hoveredGroupLabel = hitKey;
+        if (hitKey) {
+          const memberIds = this.groupByMembers.get(hitKey);
+          if (memberIds) this.applyEphemeralHighlight(memberIds);
+        } else {
+          this.applyEphemeralHighlight(null);
+        }
+      }
+    });
 
     // Set up render pipeline (render loop, Canvas 2D node creation, batch drawing)
     this.renderPipeline = new RenderPipeline(this);
@@ -4616,15 +4655,32 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const rawAlpha = (fadeThreshold - ws) / (fadeThreshold * 0.5);
     const alpha = isFinite(rawAlpha) ? Math.max(0, Math.min(1, rawAlpha)) : 1;
 
-    // Collect group centroids: { key → { x, y, memberCount } }
+    // Collect group centroids + member IDs
     const groups = new Map<string, { x: number; y: number; memberCount: number }>();
+    const members = new Map<string, Set<string>>();
+
+    const addMember = (key: string, nodeId: string, px: number, py: number) => {
+      const existing = groups.get(key);
+      if (existing) {
+        const n = existing.memberCount + 1;
+        existing.x += (px - existing.x) / n;
+        existing.y += (py - existing.y) / n;
+        existing.memberCount = n;
+      } else {
+        groups.set(key, { x: px, y: py, memberCount: 1 });
+      }
+      if (!members.has(key)) members.set(key, new Set());
+      members.get(key)!.add(nodeId);
+    };
 
     if (hasGroupBy) {
-      // GroupBy mode: use super-nodes and expanded node fields
       for (const pn of this.pixiNodes.values()) {
         if (pn.data.id.startsWith("__super__")) {
           const key = pn.data.id.replace("__super__", "");
           groups.set(key, { x: pn.gfx.x, y: pn.gfx.y, memberCount: pn.data.collapsedMembers?.length ?? 1 });
+          if (pn.data.collapsedMembers) {
+            members.set(key, new Set(pn.data.collapsedMembers));
+          }
           continue;
         }
         const fields = groupBy!.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",")
@@ -4635,36 +4691,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           else if (field === "tag") val = pn.data.tags?.[0];
           else val = (pn.data.meta as any)?.[field] as string | undefined;
           if (!val) val = "ungrouped";
-          const key = `${field}:${val}`;
-          const existing = groups.get(key);
-          if (existing) {
-            const n = existing.memberCount + 1;
-            existing.x += (pn.gfx.x - existing.x) / n;
-            existing.y += (pn.gfx.y - existing.y) / n;
-            existing.memberCount = n;
-          } else {
-            groups.set(key, { x: pn.gfx.x, y: pn.gfx.y, memberCount: 1 });
-          }
+          addMember(`${field}:${val}`, pn.data.id, pn.gfx.x, pn.gfx.y);
         }
       }
     } else if (hasTagEnclosures) {
-      // No explicit groupBy: compute folder-based centroids for labels
       for (const pn of this.pixiNodes.values()) {
         const path = pn.data.filePath ?? "";
         const folder = path.split("/")[0] || "root";
         if (!folder || folder === "root") continue;
-        const key = `folder:${folder}`;
-        const existing = groups.get(key);
-        if (existing) {
-          const n = existing.memberCount + 1;
-          existing.x += (pn.gfx.x - existing.x) / n;
-          existing.y += (pn.gfx.y - existing.y) / n;
-          existing.memberCount = n;
-        } else {
-          groups.set(key, { x: pn.gfx.x, y: pn.gfx.y, memberCount: 1 });
-        }
+        addMember(`folder:${folder}`, pn.data.id, pn.gfx.x, pn.gfx.y);
       }
     }
+    this.groupByMembers = members;
 
     const labelContainer = this.groupByLabelContainer;
     if (!labelContainer) return;
