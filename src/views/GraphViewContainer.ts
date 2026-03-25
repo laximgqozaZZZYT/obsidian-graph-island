@@ -4679,6 +4679,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     };
 
     if (hasGroupBy) {
+      const fields = groupBy!.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",")
+        .split(",").map(s => s.trim().replace(/:?\?$/, "")).filter(Boolean);
+
       for (const pn of this.pixiNodes.values()) {
         if (pn.data.id.startsWith("__super__")) {
           const key = pn.data.id.replace("__super__", "");
@@ -4688,16 +4691,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           }
           continue;
         }
-        const fields = groupBy!.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",")
-          .split(",").map(s => s.trim().replace(/:?\?$/, "")).filter(Boolean);
+        // Build composite key from ALL fields (e.g. "character · classic-hamlet")
+        const vals: string[] = [];
         for (const field of fields) {
           let val: string | undefined;
           if (field === "folder") val = pn.data.filePath?.replace(/\/[^/]*$/, "") || "root";
           else if (field === "tag") val = pn.data.tags?.[0];
           else val = (pn.data.meta as any)?.[field] as string | undefined;
-          if (!val) val = "ungrouped";
-          addMember(`${field}:${val}`, pn.data.id, pn.gfx.x, pn.gfx.y);
+          vals.push(val || "ungrouped");
         }
+        const compositeKey = vals.join(" · ");
+        addMember(compositeKey, pn.data.id, pn.gfx.x, pn.gfx.y);
       }
     } else if (hasTagEnclosures) {
       for (const pn of this.pixiNodes.values()) {
@@ -4739,7 +4743,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const usedKeys = new Set<string>();
     for (const [key, g] of sorted) {
       usedKeys.add(key);
-      const displayName = key.replace(/^[^:]+:/, "");
+      // Strip field prefix for single-field keys (e.g. "tag:character" → "character")
+      // Composite keys (e.g. "character · classic-hamlet") have no prefix
+      const displayName = key.includes(":") && !key.includes(" · ") ? key.replace(/^[^:]+:/, "") : key;
       const labelText = `${displayName} (${g.memberCount})`;
 
       let txt = this.groupByLabels.get(key);
