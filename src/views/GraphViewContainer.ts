@@ -2042,6 +2042,37 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     });
 
+    // Group label click: zoom to group members
+    canvas.addEventListener("click", (e) => {
+      if (!this._hoveredGroupLabel || !this.worldContainer) return;
+      const memberIds = this.groupByMembers.get(this._hoveredGroupLabel);
+      if (!memberIds || memberIds.size === 0) return;
+      e.stopPropagation();
+      // Compute bounding box of group members
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const id of memberIds) {
+        const pn = this.pixiNodes.get(id);
+        if (!pn) continue;
+        minX = Math.min(minX, pn.gfx.x); maxX = Math.max(maxX, pn.gfx.x);
+        minY = Math.min(minY, pn.gfx.y); maxY = Math.max(maxY, pn.gfx.y);
+      }
+      if (!isFinite(minX)) return;
+      const pad = 100;
+      const canvasW = this.canvasWrap?.clientWidth ?? 800;
+      const canvasH = this.canvasWrap?.clientHeight ?? 600;
+      const scaleX = canvasW / (maxX - minX + pad * 2);
+      const scaleY = canvasH / (maxY - minY + pad * 2);
+      const scale = Math.min(scaleX, scaleY, 2.0);
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      this.worldContainer.scale.set(scale);
+      this.worldContainer.x = canvasW / 2 - cx * scale;
+      this.worldContainer.y = canvasH / 2 - cy * scale;
+      this.applyEphemeralHighlight(null);
+      this._hoveredGroupLabel = null;
+      this.markDirty(true);
+    });
+
     // Set up render pipeline (render loop, Canvas 2D node creation, batch drawing)
     this.renderPipeline = new RenderPipeline(this);
 
@@ -4402,11 +4433,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     cfg.globalEdgeAlpha = edgeRt.globalEdgeAlpha;
     cfg.edgeLabelFontSize = edgeRt.edgeLabelFontSize;
     // Cable-tray requires: (1) groupBy active, (2) multiple clusters exist.
-    // Stale clusterMeta from a previous groupBy or single-group fallback
-    // (field not in nodes → all in __no_field__) must not enable cable-tray.
-    const hasActiveGroupBy = this.panel.groupBy && this.panel.groupBy !== "none";
+    // Enable cable-tray when cluster metadata exists with 2+ clusters
+    // (works with explicit groupBy OR auto-derived folder clusters)
     const centroidsAvailable = this.clusterMeta?.clusterCentroids?.size ?? 0;
-    const hasCableClusters = hasActiveGroupBy && centroidsAvailable >= 2;
+    const hasCableClusters = centroidsAvailable >= 2;
     cfg.nodeClusterMap = hasCableClusters ? (this.clusterMeta?.nodeClusterMap ?? null) : null;
     // Use live centroids when available, fall back to target centroids from clusterMeta
     const liveCentroids = hasCableClusters ? this.getCachedCentroids() : null;
@@ -4656,8 +4686,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       return;
     }
 
-    // Alpha: fade in as zoom decreases below threshold
-    const rawAlpha = (fadeThreshold - ws) / (fadeThreshold * 0.5);
+    // Crossfade: group labels fade in over a zone (60%-100% of threshold)
+    const fadeStart = fadeThreshold;       // fully hidden above this
+    const fadeFull = fadeThreshold * 0.6;  // fully visible below this
+    const rawAlpha = (fadeStart - ws) / (fadeStart - fadeFull);
     const alpha = isFinite(rawAlpha) ? Math.max(0, Math.min(1, rawAlpha)) : 1;
 
     // Collect group centroids + member IDs
