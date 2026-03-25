@@ -4799,6 +4799,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         lx += (dx / dist) * nudge / ws;
         ly += (dy / dist) * nudge / ws;
       }
+      // Clamp label position within visible canvas area
+      const margin = 20;
+      sx = Math.max(hw + margin, Math.min(canvasW - hw - margin, sx));
+      sy = Math.max(hh + margin, Math.min(canvasH - hh - margin, sy));
+      lx = (sx - (world?.x ?? 0)) / ws;
+      ly = (sy - (world?.y ?? 0)) / ws;
+
       txt.x = lx;
       txt.y = ly;
       txt.visible = resolved;
