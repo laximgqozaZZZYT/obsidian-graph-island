@@ -4602,7 +4602,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const ws = isFinite(rawWs) && rawWs > 0 ? rawWs : 1;
     const fadeThreshold = Math.max(this.panel.textFadeThreshold, 0.4);
     const groupBy = this.panel.groupBy;
-    const hasGroups = groupBy && groupBy !== "none";
+    const hasGroupBy = groupBy && groupBy !== "none";
+    const hasTagEnclosures = this.panel.showTagNodes && this.panel.tagDisplay === "enclosure" && this.tagMembership.size > 0;
+    const hasGroups = hasGroupBy || hasTagEnclosures;
 
     // Hide all labels when not in group mode or zoomed in enough
     if (!hasGroups || ws >= fadeThreshold || this.panel.viewMode !== "graph") {
@@ -4617,36 +4619,45 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Collect group centroids: { key → { x, y, memberCount } }
     const groups = new Map<string, { x: number; y: number; memberCount: number }>();
 
-    for (const pn of this.pixiNodes.values()) {
-      // Collapsed super-nodes: position IS the group centroid
-      if (pn.data.id.startsWith("__super__")) {
-        const key = pn.data.id.replace("__super__", "");
-        groups.set(key, {
-          x: pn.gfx.x,
-          y: pn.gfx.y,
-          memberCount: pn.data.collapsedMembers?.length ?? 1,
-        });
-        continue;
+    if (hasGroupBy) {
+      // GroupBy mode: use super-nodes and expanded node fields
+      for (const pn of this.pixiNodes.values()) {
+        if (pn.data.id.startsWith("__super__")) {
+          const key = pn.data.id.replace("__super__", "");
+          groups.set(key, { x: pn.gfx.x, y: pn.gfx.y, memberCount: pn.data.collapsedMembers?.length ?? 1 });
+          continue;
+        }
+        const fields = groupBy!.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",")
+          .split(",").map(s => s.trim().replace(/:?\?$/, "")).filter(Boolean);
+        for (const field of fields) {
+          let val: string | undefined;
+          if (field === "folder") val = pn.data.filePath?.replace(/\/[^/]*$/, "") || "root";
+          else if (field === "tag") val = pn.data.tags?.[0];
+          else val = (pn.data.meta as any)?.[field] as string | undefined;
+          if (!val) val = "ungrouped";
+          const key = `${field}:${val}`;
+          const existing = groups.get(key);
+          if (existing) {
+            const n = existing.memberCount + 1;
+            existing.x += (pn.gfx.x - existing.x) / n;
+            existing.y += (pn.gfx.y - existing.y) / n;
+            existing.memberCount = n;
+          } else {
+            groups.set(key, { x: pn.gfx.x, y: pn.gfx.y, memberCount: 1 });
+          }
+        }
       }
-      // Expanded nodes: accumulate positions per group field
-      const fields = groupBy!.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",")
-        .split(",").map(s => s.trim().replace(/:?\?$/, "")).filter(Boolean);
-      for (const field of fields) {
-        let val: string | undefined;
-        if (field === "folder") val = pn.data.filePath?.replace(/\/[^/]*$/, "") || "root";
-        else if (field === "tag") val = pn.data.tags?.[0];
-        else val = (pn.data.meta as any)?.[field] as string | undefined;
-        if (!val) val = "ungrouped";
-        const key = `${field}:${val}`;
-        const existing = groups.get(key);
-        if (existing) {
-          // Running average: update centroid incrementally
-          const n = existing.memberCount + 1;
-          existing.x += (pn.gfx.x - existing.x) / n;
-          existing.y += (pn.gfx.y - existing.y) / n;
-          existing.memberCount = n;
-        } else {
-          groups.set(key, { x: pn.gfx.x, y: pn.gfx.y, memberCount: 1 });
+    } else if (hasTagEnclosures) {
+      // Tag enclosure mode: compute centroids from tagMembership
+      for (const [tag, memberIds] of this.tagMembership) {
+        if (memberIds.size < 3) continue;
+        let sumX = 0, sumY = 0, count = 0;
+        for (const id of memberIds) {
+          const pn = this.pixiNodes.get(id);
+          if (pn) { sumX += pn.gfx.x; sumY += pn.gfx.y; count++; }
+        }
+        if (count >= 3) {
+          groups.set(`tag:${tag}`, { x: sumX / count, y: sumY / count, memberCount: count });
         }
       }
     }

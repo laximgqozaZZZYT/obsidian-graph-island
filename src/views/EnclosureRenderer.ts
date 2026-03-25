@@ -426,11 +426,10 @@ export function drawEnclosures(
     }
 
     // Place label outside the hull in the direction of the farthest node from centroid.
-    // Label scale adapts to zoom: larger when zoomed out, smaller when zoomed in.
-    // V1: Enhanced cluster labels at zoom-out — larger and bolder
-    const labelScale = zoomedOut
-      ? clamp(2.5 / ws, 2.0, 12)
-      : clamp(1 / ws, 1, 4);
+    // Label scale: target ~14px on screen regardless of zoom
+    const targetScreenPx = 14;
+    const rawLabelScale = targetScreenPx / (glFontSize * ws);
+    const labelScale = isFinite(rawLabelScale) ? clamp(rawLabelScale, 1, 300) : 4;
 
     // Find farthest node from centroid to determine label direction
     let farthestDist = 0;
