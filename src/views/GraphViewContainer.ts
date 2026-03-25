@@ -16,7 +16,7 @@ import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
 import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter, computeGaps, hitTestTimelineBars, autoBundleStrength, computeNodeBBox, buildTagMembership, buildMissingNeighborSet } from "../utils/graph-helpers";
 import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph, filterByLocalGraph } from "../utils/graph-filter";
-import { pointInPolygon } from "../utils/geometry";
+import { pointInPolygon, convexHull } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
 import { hexToRgb } from "../utils/color";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, type NodeTreeEntry, DEFAULT_PANEL, createDefaultPanel, validatePanelState, ensureRT } from "./PanelBuilder";
@@ -352,6 +352,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _hoveredGroupLabel: string | null = null;
   /** Dedicated container for groupBy labels (rendered above nodes/edges) */
   private groupByLabelContainer: CanvasContainer | null = null;
+  /** Graphics for cluster boundary outlines */
+  private clusterBoundaryGraphics: CanvasGraphics | null = null;
   private overlapCache: OverlapCache = { frame: 0, counts: new Map() };
   /** Cluster metadata for edge bundling (updated when cluster force is applied) */
   private clusterMeta: ClusterMetadata | null = null;
@@ -1987,6 +1989,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const labelContainer = new CanvasContainer();
     world.addChild(labelContainer);
     this.enclosureLabelContainer = labelContainer;
+
+    // Cluster boundary graphics — below nodes but above dot grid
+    const clusterBoundaryGfx = new CanvasGraphics();
+    world.addChild(clusterBoundaryGfx);
+    this.clusterBoundaryGraphics = clusterBoundaryGfx;
 
     // GroupBy label container — must be LAST so it renders above nodes/edges
     const groupLabelContainer = new CanvasContainer();
@@ -4744,6 +4751,45 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
     }
     this.groupByMembers = members;
+
+    // Draw cluster boundary outlines
+    const gfx = this.clusterBoundaryGraphics;
+    if (gfx) {
+      gfx.clear();
+      const minMembers = Math.max(5, Math.floor(this.pixiNodes.size * 0.01));
+      let colorIdx = 0;
+      const palette = [0x6366f1, 0x22d3ee, 0xfb923c, 0xa78bfa, 0x34d399, 0xf472b6, 0xfbbf24, 0x60a5fa];
+      for (const [key, memberIds] of members) {
+        if (memberIds.size < minMembers) continue;
+        const pts: { x: number; y: number }[] = [];
+        for (const id of memberIds) {
+          const pn = this.pixiNodes.get(id);
+          if (pn) pts.push({ x: pn.gfx.x, y: pn.gfx.y });
+        }
+        if (pts.length < 3) continue;
+        // Expand points outward for hull padding
+        const pad = 80;
+        const hullInput: { x: number; y: number }[] = [];
+        const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+        const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+        for (const p of pts) {
+          const dx = p.x - cx, dy = p.y - cy;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          hullInput.push({ x: p.x + (dx / dist) * pad, y: p.y + (dy / dist) * pad });
+        }
+        const hull = convexHull(hullInput);
+        if (hull.length < 3) continue;
+        const color = palette[colorIdx % palette.length];
+        colorIdx++;
+        const isHovered = key === this._hoveredGroupLabel;
+        gfx.lineStyle(isHovered ? 3 : 1.5, color, isHovered ? 0.6 : 0.25);
+        gfx.beginFill(color, isHovered ? 0.08 : 0.03);
+        gfx.moveTo(hull[0].x, hull[0].y);
+        for (let i = 1; i < hull.length; i++) gfx.lineTo(hull[i].x, hull[i].y);
+        gfx.closePath();
+        gfx.endFill();
+      }
+    }
 
     const labelContainer = this.groupByLabelContainer;
     if (!labelContainer) return;
