@@ -354,6 +354,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private groupByLabelContainer: CanvasContainer | null = null;
   /** Graphics for cluster boundary outlines */
   private clusterBoundaryGraphics: CanvasGraphics | null = null;
+  /** Viewport dirty flag — set by markDirty, consumed by onPostRender */
+  private _viewportDirty = true;
   /** Off-screen link tooltip elements (directional) */
   private _offScreenTooltips: HTMLElement[] = [];
   private overlapCache: OverlapCache = { frame: 0, counts: new Map() };
@@ -2127,13 +2129,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (this.pixiApp) {
         this.pixiApp.showDotGrid = this.panel.showDotGrid;
       }
-      if (this.minimap) {
-        this.minimap.setRenderThresholds(this.panel.renderThresholds ?? {});
-        this.minimap.setVisible(this.panel.showMinimap);
-        this.minimap.draw();
-      }
-      this._updateOobBadge();
-      // FPS monitor update
+      // FPS monitor (lightweight, always update)
       if (this.fpsEl && this.renderPipeline) {
         const rt = this.panel.renderThresholds ?? {};
         if (rt.showFpsMonitor) {
@@ -2143,10 +2139,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           this.fpsEl.style.display = "none";
         }
       }
-      // Bookmark ★ markers + DZ: Pin markers
+      // Skip heavy operations when viewport hasn't changed
+      if (!this._viewportDirty) return;
+      this._viewportDirty = false;
+      if (this.minimap) {
+        this.minimap.setRenderThresholds(this.panel.renderThresholds ?? {});
+        this.minimap.setVisible(this.panel.showMinimap);
+        this.minimap.draw();
+      }
+      this._updateOobBadge();
       this._updateBookmarkMarkers();
       this._updatePinMarkers();
-      // GroupBy labels at zoom-out
       this._updateGroupByLabels();
     };
 
@@ -2478,7 +2481,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return fields && fields.length > 0 ? fields : DEFAULT_ONTOLOGY.reverseSequenceFields;
   }
   getNodeShapeRules() { return this.panel.nodeShapeRules; }
-  getSearchHiddenNodes() { return new Set<string>(); }
+  private static readonly _EMPTY_STRING_SET = new Set<string>();
+  getSearchHiddenNodes() { return GraphViewContainer._EMPTY_STRING_SET; }
   getDefinitionField() { return this.panel.definitionField ?? ""; }
   updateDensityCulledBadge(count: number) {
     if (!this.densityCulledBadgeEl) return;
@@ -5772,6 +5776,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // Delegated to RenderPipeline
   // =========================================================================
   markDirty(forceFullRedraw = false) {
+    this._viewportDirty = true;
     this.renderPipeline?.markDirty(forceFullRedraw);
     // 注釈位置をワールド座標に同期
     this._updateAnnotationPositions();
@@ -7239,6 +7244,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   async doRender() {
     if (!this.canvasWrap) return;
+    // Invalidate per-frame caches
+    this._cachedBookmarkSet = null;
+    this._cachedPinSet = null;
+    this._viewportDirty = true;
     // Toggle subgraph back button visibility
     if (this.subgraphBackBtnEl) {
       this.subgraphBackBtnEl.style.display =
@@ -8869,17 +8878,26 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
+  private _cachedBookmarkSet: Set<string> | null = null;
+  private _cachedPinSet: Set<string> | null = null;
+
   private _updateBookmarkMarkers() {
+    if (!this._cachedBookmarkSet) {
+      this._cachedBookmarkSet = new Set(this.panel.bookmarkedNodes ?? []);
+    }
     this._syncNodeMarkers(
-      new Set(this.panel.bookmarkedNodes ?? []),
+      this._cachedBookmarkSet,
       this._bookmarkMarkers, "★",
       { fontSize: 10, fill: 0xfbbf24 }, 1, -1, 2,
     );
   }
 
   private _updatePinMarkers() {
+    if (!this._cachedPinSet) {
+      this._cachedPinSet = new Set(Object.keys(this.panel.pinnedPositions ?? {}));
+    }
     this._syncNodeMarkers(
-      new Set(Object.keys(this.panel.pinnedPositions ?? {})),
+      this._cachedPinSet,
       this._pinMarkers, "|",
       { fontSize: 8, fill: 0x94a3b8 }, 0, 1, 1,
     );
