@@ -4037,12 +4037,55 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
    *  Uses hoverAdj (edge-type-filtered) so only user-selected edge types are traversed. */
   private _buildHoverHighlightSet(hId: string | null): Set<string> {
     if (!hId) return new Set<string>();
-    const full = bfsNeighborSet(this.hoverAdj, hId, this.panel.hoverHops);
-    // HP: Cap hover neighbor labels to prevent label explosion on hub nodes
+    const result = new Set<string>([hId]);
+    const hht = this.panel.hoverHighlightTypes ?? { forwardLinks: true, backlinks: true, sharedTags: false, sameFolder: false };
+    const hops = this.panel.hoverHops;
+    const hoveredNode = this.pixiNodes.get(hId);
+
+    // Forward links + backlinks via BFS on hoverAdj (respects hoverEdgeTypes filter)
+    if (hht.forwardLinks || hht.backlinks) {
+      // BFS through hoverAdj (undirected by nature)
+      const bfsResult = bfsNeighborSet(this.hoverAdj, hId, hops);
+      if (hht.forwardLinks && hht.backlinks) {
+        for (const id of bfsResult) result.add(id);
+      } else {
+        // Directional filter: check edge direction in graphEdges
+        const forwardIds = new Set<string>();
+        const backlinkIds = new Set<string>();
+        for (const e of this.graphEdges) {
+          const src = typeof e.source === "string" ? e.source : (e.source as any)?.id ?? e.source;
+          const tgt = typeof e.target === "string" ? e.target : (e.target as any)?.id ?? e.target;
+          if (src === hId && bfsResult.has(tgt)) forwardIds.add(tgt);
+          if (tgt === hId && bfsResult.has(src)) backlinkIds.add(src);
+        }
+        if (hht.forwardLinks) for (const id of forwardIds) result.add(id);
+        if (hht.backlinks) for (const id of backlinkIds) result.add(id);
+      }
+    }
+
+    // Shared tags: nodes that share at least one tag with hovered node
+    if (hht.sharedTags && hoveredNode?.data.tags?.length) {
+      const hoveredTags = new Set(hoveredNode.data.tags);
+      for (const pn of this.pixiNodes.values()) {
+        if (pn.data.id === hId) continue;
+        if (pn.data.tags?.some(t => hoveredTags.has(t))) result.add(pn.data.id);
+      }
+    }
+
+    // Same folder: nodes in the same top-level folder
+    if (hht.sameFolder && hoveredNode?.data.filePath) {
+      const hoveredFolder = hoveredNode.data.filePath.split("/")[0];
+      if (hoveredFolder) {
+        for (const pn of this.pixiNodes.values()) {
+          if (pn.data.filePath?.split("/")[0] === hoveredFolder) result.add(pn.data.id);
+        }
+      }
+    }
+
+    // HP: Cap hover neighbor labels
     const maxNeighborLabels = this.panel.renderThresholds?.maxHoverNeighborLabels ?? 30;
-    if (full.size <= maxNeighborLabels + 1) return full; // +1 for hovered node itself
-    // Keep hovered node + top N by degree
-    const sorted = [...full].filter(id => id !== hId)
+    if (result.size <= maxNeighborLabels + 1) return result;
+    const sorted = [...result].filter(id => id !== hId)
       .sort((a, b) => (this.degrees.get(b) ?? 0) - (this.degrees.get(a) ?? 0))
       .slice(0, maxNeighborLabels);
     return new Set([hId, ...sorted]);

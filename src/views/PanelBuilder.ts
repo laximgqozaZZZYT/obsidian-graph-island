@@ -84,6 +84,13 @@ export interface PanelState {
   enclosureSpacing: number;
   directionalGravityRules: DirectionalGravityRule[];
   hoverHops: number;
+  /** Which node categories to highlight on hover (multi-select). */
+  hoverHighlightTypes: {
+    forwardLinks: boolean;
+    backlinks: boolean;
+    sharedTags: boolean;
+    sameFolder: boolean;
+  };
   /** Edge types to follow during hover BFS traversal.
    *  Only edge types set to true are traversed for hover highlighting. */
   hoverEdgeTypes: {
@@ -372,6 +379,12 @@ export function createDefaultPanel(): PanelState {
     enclosureSpacing: 1.5,
     directionalGravityRules: [],
     hoverHops: 2,
+    hoverHighlightTypes: {
+      forwardLinks: true,
+      backlinks: true,
+      sharedTags: false,
+      sameFolder: false,
+    },
     hoverEdgeTypes: {
       link: true,
       semantic: false,
@@ -1385,6 +1398,40 @@ function _buildNodeDisplaySection(
   }, tHelp("help.displayNodes"), false, "circle-dot");
 }
 
+function _buildHoverBehaviorSection(
+  tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  buildSection(tabEl, t("section.hoverBehavior") ?? "ホバー時の動作", (body) => {
+    // Hover highlight type toggles
+    const hht = panel.hoverHighlightTypes ?? { forwardLinks: true, backlinks: true, sharedTags: false, sameFolder: false };
+    addToggle(body, t("hover.forwardLinks") ?? "リンク先", hht.forwardLinks, (v) => {
+      if (!panel.hoverHighlightTypes) panel.hoverHighlightTypes = { ...hht };
+      panel.hoverHighlightTypes.forwardLinks = v;
+      cb.rebuildHoverAdj(); cb.applyHover(); cb.markDirty();
+    });
+    addToggle(body, t("hover.backlinks") ?? "バックリンク先", hht.backlinks, (v) => {
+      if (!panel.hoverHighlightTypes) panel.hoverHighlightTypes = { ...hht };
+      panel.hoverHighlightTypes.backlinks = v;
+      cb.rebuildHoverAdj(); cb.applyHover(); cb.markDirty();
+    });
+    addToggle(body, t("hover.sharedTags") ?? "同じタグのノード", hht.sharedTags, (v) => {
+      if (!panel.hoverHighlightTypes) panel.hoverHighlightTypes = { ...hht };
+      panel.hoverHighlightTypes.sharedTags = v;
+      cb.rebuildHoverAdj(); cb.applyHover(); cb.markDirty();
+    });
+    addToggle(body, t("hover.sameFolder") ?? "同じフォルダのノード", hht.sameFolder, (v) => {
+      if (!panel.hoverHighlightTypes) panel.hoverHighlightTypes = { ...hht };
+      panel.hoverHighlightTypes.sameFolder = v;
+      cb.rebuildHoverAdj(); cb.applyHover(); cb.markDirty();
+    });
+    // Hover depth
+    addSlider(body, t("display.hoverHops") ?? "ホバー深度", 1, 5, 1, panel.hoverHops, (v) => {
+      panel.hoverHops = v;
+      cb.rebuildHoverAdj(); cb.applyHover(); cb.markDirty();
+    }, t("desc.hoverHops"));
+  }, undefined, false, "mouse-pointer-2");
+}
+
 function _buildNodeDisplayModeSection(
   tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks,
 ): void {
@@ -2027,6 +2074,7 @@ function buildDisplayTab(
   const v = (id: PanelSectionId) => isSectionVisible(panel.viewMode, id);
 
   if (v("nodeDisplay"))        _buildNodeDisplaySection(displayTab, panel, ctx, cb);
+  if (v("nodeDisplay"))        _buildHoverBehaviorSection(displayTab, panel, ctx, cb);
   if (v("nodeDisplayMode"))    _buildNodeDisplayModeSection(displayTab, panel, ctx, cb);
   if (v("edgeDisplay"))        _buildEdgeDisplaySection(displayTab, panel, ctx, cb);
   if (v("cableDisplay"))       _buildCableDisplaySection(displayTab, panel, ctx, cb);
