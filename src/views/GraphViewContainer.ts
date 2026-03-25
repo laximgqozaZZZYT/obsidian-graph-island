@@ -5055,7 +5055,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
       // Try original position, then nudge outward if collision
       let resolved = false;
-      for (let attempt = 0; attempt < 8; attempt++) {
+      for (let attempt = 0; attempt < 12; attempt++) {
         const collides = placed.some(p =>
           Math.abs(sx - p.x) < (hw + p.hw) && Math.abs(sy - p.y) < (hh + p.hh)
         );
@@ -5066,11 +5066,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const dx = sx - cx || 1;
         const dy = sy - cy || 1;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const nudge = (labelH + 4) * (attempt + 1);
+        const nudge = (labelH + 12) * (attempt + 1);
         sx += (dx / dist) * nudge;
         sy += (dy / dist) * nudge;
         lx += (dx / dist) * nudge / ws;
         ly += (dy / dist) * nudge / ws;
+      }
+      // If still colliding after radial nudge, offset vertically instead of hiding
+      if (!resolved) {
+        const fallbackStep = labelH + 12;
+        for (let vAttempt = 0; vAttempt < 6; vAttempt++) {
+          sy += fallbackStep;
+          ly += fallbackStep / ws;
+          const collides = placed.some(p =>
+            Math.abs(sx - p.x) < (hw + p.hw) && Math.abs(sy - p.y) < (hh + p.hh)
+          );
+          if (!collides) { resolved = true; break; }
+        }
       }
       // Clamp label position within visible canvas area
       const margin = 20;
@@ -5081,8 +5093,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
       txt.x = lx;
       txt.y = ly;
-      txt.visible = resolved;
-      if (resolved) placed.push({ x: sx, y: sy, hw, hh });
+      txt.visible = true;
+      placed.push({ x: sx, y: sy, hw, hh });
     }
 
     // Hide stale labels
@@ -6141,9 +6153,31 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // NaN guard: abort if any computed value is invalid
     if (!isFinite(sc) || !isFinite(cx) || !isFinite(cy) || sc <= 0 || bw <= 0 || bh <= 0) return;
 
+    // Use fresh canvas dimensions if W/H look stale (e.g. 0 before layout)
+    if (W <= 0 || H <= 0) {
+      const wrap = this.canvasWrap;
+      if (!wrap) return;
+      W = wrap.clientWidth;
+      H = wrap.clientHeight;
+      if (W <= 0 || H <= 0) return;
+    }
+
     world.scale.set(sc);
+    // Force-center: place bounding-box center at viewport center
     world.x = W / 2 - cx * sc;
     world.y = H / 2 - cy * sc;
+
+    // Validation: verify the bbox center actually maps to viewport center.
+    // If PixiJS stage has a non-identity transform or the world container has
+    // a parent offset, the simple assignment above may be insufficient.
+    const mapped = world.toGlobal({ x: cx, y: cy });
+    const dx = W / 2 - mapped.x;
+    const dy = H / 2 - mapped.y;
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+      world.x += dx;
+      world.y += dy;
+    }
+
     this.updateLabelsForZoom();
     this.updateZoomIndicator(sc);
   }
