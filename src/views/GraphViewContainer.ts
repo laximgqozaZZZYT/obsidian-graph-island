@@ -4648,7 +4648,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
       }
     } else if (hasTagEnclosures) {
-      // No explicit groupBy: auto-detect clusters from folder structure
+      // No explicit groupBy: compute folder-based centroids for labels
       for (const pn of this.pixiNodes.values()) {
         const path = pn.data.filePath ?? "";
         const folder = path.split("/")[0] || "root";
