@@ -356,6 +356,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private clusterBoundaryGraphics: CanvasGraphics | null = null;
   /** Viewport dirty flag — set by markDirty, consumed by onPostRender */
   private _viewportDirty = true;
+  /** Cached hull data for cluster boundaries (avoid per-frame convexHull) */
+  private _cachedHulls: Map<string, { cx: number; cy: number; hull: { x: number; y: number }[] }> = new Map();
   /** Off-screen link tooltip elements (directional) */
   private _offScreenTooltips: HTMLElement[] = [];
   private overlapCache: OverlapCache = { frame: 0, counts: new Map() };
@@ -2990,7 +2992,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** ブックマーク済みノードIDセットを取得（RenderHost用） */
   getBookmarkedNodeIds(): Set<string> {
-    return new Set(this.panel.bookmarkedNodes);
+    if (!this._cachedBookmarkSet) {
+      this._cachedBookmarkSet = new Set(this.panel.bookmarkedNodes ?? []);
+    }
+    return this._cachedBookmarkSet;
   }
 
   // =========================================================================
@@ -4897,33 +4902,47 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     this.groupByMembers = members;
 
-    // Draw cluster boundary outlines
+    // Draw cluster boundary outlines (hull cached until centroid drifts > threshold)
     const gfx = this.clusterBoundaryGraphics;
     if (gfx) {
       gfx.clear();
       const minMembers = Math.max(5, Math.floor(this.pixiNodes.size * 0.01));
       let colorIdx = 0;
       const palette = [0x6366f1, 0x22d3ee, 0xfb923c, 0xa78bfa, 0x34d399, 0xf472b6, 0xfbbf24, 0x60a5fa];
+      const HULL_DRIFT_THRESHOLD = 50; // recompute hull only when centroid moves > 50px
       for (const [key, memberIds] of members) {
         if (memberIds.size < minMembers) continue;
-        const pts: { x: number; y: number }[] = [];
+        // Compute current centroid (lightweight O(M) — just x/y avg)
+        let sumX = 0, sumY = 0, count = 0;
         for (const id of memberIds) {
           const pn = this.pixiNodes.get(id);
-          if (pn) pts.push({ x: pn.gfx.x, y: pn.gfx.y });
+          if (pn) { sumX += pn.gfx.x; sumY += pn.gfx.y; count++; }
         }
-        if (pts.length < 3) continue;
-        // Expand points outward for hull padding
-        const pad = 80;
-        const hullInput: { x: number; y: number }[] = [];
-        const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-        const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-        for (const p of pts) {
-          const dx = p.x - cx, dy = p.y - cy;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          hullInput.push({ x: p.x + (dx / dist) * pad, y: p.y + (dy / dist) * pad });
+        if (count < 3) continue;
+        const cx = sumX / count, cy = sumY / count;
+
+        // Check hull cache — reuse if centroid hasn't drifted
+        let cached = this._cachedHulls.get(key);
+        if (!cached || Math.abs(cached.cx - cx) > HULL_DRIFT_THRESHOLD || Math.abs(cached.cy - cy) > HULL_DRIFT_THRESHOLD) {
+          // Recompute hull
+          const pts: { x: number; y: number }[] = [];
+          for (const id of memberIds) {
+            const pn = this.pixiNodes.get(id);
+            if (pn) pts.push({ x: pn.gfx.x, y: pn.gfx.y });
+          }
+          const pad = 80;
+          const hullInput: { x: number; y: number }[] = [];
+          for (const p of pts) {
+            const dx = p.x - cx, dy = p.y - cy;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            hullInput.push({ x: p.x + (dx / dist) * pad, y: p.y + (dy / dist) * pad });
+          }
+          const hull = convexHull(hullInput);
+          if (hull.length < 3) continue;
+          cached = { cx, cy, hull };
+          this._cachedHulls.set(key, cached);
         }
-        const hull = convexHull(hullInput);
-        if (hull.length < 3) continue;
+        const hull = cached.hull;
         const color = palette[colorIdx % palette.length];
         colorIdx++;
         const isHovered = key === this._hoveredGroupLabel;
@@ -7247,6 +7266,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Invalidate per-frame caches
     this._cachedBookmarkSet = null;
     this._cachedPinSet = null;
+    this._cachedHulls.clear();
     this._viewportDirty = true;
     // Toggle subgraph back button visibility
     if (this.subgraphBackBtnEl) {

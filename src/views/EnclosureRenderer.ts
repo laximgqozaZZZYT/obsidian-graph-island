@@ -157,6 +157,7 @@ const ZOOM_OUT_THRESHOLD = 0.45;
 // Module-level reusable buffers — reduce per-frame allocations
 const _hullInputBuf: Pt[] = [];
 const _enclosuresBuf: EncData[] = [];
+const _allPtsBuf: (Pt & { radius: number })[] = [];
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -201,12 +202,13 @@ export function drawEnclosures(
   for (const [tag, memberIds] of cfg.tagMembership) {
     if (memberIds.size < minCount) continue;
 
-    const allPts: (Pt & { radius: number })[] = [];
+    _allPtsBuf.length = 0;
     for (const id of memberIds) {
       const p = cfg.resolvePos(id);
-      if (p) allPts.push({ x: p.x, y: p.y, radius: p.radius ?? 12 });
+      if (p) _allPtsBuf.push({ x: p.x, y: p.y, radius: p.radius ?? 12 });
     }
-    if (allPts.length < 1) continue;
+    if (_allPtsBuf.length < 1) continue;
+    const allPts = _allPtsBuf;
 
     // Filter outliers: keep only nodes within factor×IQR of centroid distance.
     // This prevents scattered tag members from inflating the hull.

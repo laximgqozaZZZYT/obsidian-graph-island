@@ -304,7 +304,18 @@ export class LayoutController {
     }
 
     const relPairs = this.host.getTagRelPairsCache();
-    const tags = [...tagMembership.keys()];
+
+    // Pre-compute node references per tag (outside tick closure to avoid per-tick allocation)
+    const tagNodes: { tag: string; nodes: GraphNode[] }[] = [];
+    for (const [tag, ids] of tagMembership) {
+      if (!ids || ids.size === 0) continue;
+      const nodes: GraphNode[] = [];
+      for (const id of ids) {
+        const n = nodeIndex.get(id);
+        if (n) nodes.push(n);
+      }
+      if (nodes.length > 0) tagNodes.push({ tag, nodes });
+    }
 
     const PHASE_THRESHOLD = 0.3;
 
@@ -316,12 +327,8 @@ export class LayoutController {
       const baseStr = alpha > PHASE_THRESHOLD ? 4000 : 2000;
 
       const centroids: { tag: string; cx: number; cy: number; count: number; radius: number }[] = [];
-      for (const tag of tags) {
-        const ids = tagMembership.get(tag);
-        if (!ids || ids.size === 0) continue;
-        const points = [...ids].map(id => nodeIndex.get(id)).filter((n): n is GraphNode => !!n);
-        if (points.length === 0) continue;
-        const bb = computeBBoxWithCentroid(points);
+      for (const { tag, nodes } of tagNodes) {
+        const bb = computeBBoxWithCentroid(nodes);
         const r = Math.max(30, Math.hypot(bb.maxX - bb.minX, bb.maxY - bb.minY) / 2);
         centroids.push({ tag, cx: bb.cx, cy: bb.cy, count: bb.count, radius: r });
       }
