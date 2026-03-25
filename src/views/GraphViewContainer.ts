@@ -4660,16 +4660,32 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       world.addChild(labelContainer);
     }
 
+    // Target ~14px on screen
+    const targetScreenPx = 14;
+    const baseFontSize = 14;
+    const rawScale = targetScreenPx / (baseFontSize * ws);
+    const labelScale = isFinite(rawScale) ? Math.max(1, rawScale) : 4;
+
+    // Sort groups by member count descending (larger groups get priority)
+    const sorted = [...groups.entries()]
+      .filter(([, g]) => g.memberCount >= 2)
+      .sort((a, b) => b[1].memberCount - a[1].memberCount);
+
+    // Collision avoidance: track placed label screen rects
+    const placed: { x: number; y: number; hw: number; hh: number }[] = [];
+    const estCharW = targetScreenPx * 0.55; // approximate char width on screen
+    const labelH = targetScreenPx + 10; // font + padding
+
     const usedKeys = new Set<string>();
-    for (const [key, g] of groups) {
-      if (g.memberCount < 2) continue;
+    for (const [key, g] of sorted) {
       usedKeys.add(key);
       const displayName = key.replace(/^[^:]+:/, "");
+      const labelText = `${displayName} (${g.memberCount})`;
 
       let txt = this.groupByLabels.get(key);
       if (!txt) {
-        txt = new CanvasText(`${displayName} (${g.memberCount})`, {
-          fontSize: 14,
+        txt = new CanvasText(labelText, {
+          fontSize: baseFontSize,
           fill: 0xeeeeee,
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
           fontWeight: "600",
@@ -4685,19 +4701,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.groupByLabels.set(key, txt);
         labelContainer.addChild(txt);
       } else {
-        txt.text = `${displayName} (${g.memberCount})`;
+        txt.text = labelText;
       }
 
-      // Target ~16px on screen: scale = targetPx / (fontSize * worldScale)
-      const targetScreenPx = 16;
-      const fontSize = 14;
-      const rawScale = targetScreenPx / (fontSize * ws);
-      const labelScale = isFinite(rawScale) ? Math.max(1, rawScale) : 4;
       txt.x = g.x;
       txt.y = g.y;
       txt.scale.set(labelScale);
       txt.alpha = alpha;
-      txt.visible = true;
+
+      // Check collision with already-placed labels (screen space)
+      const sx = g.x * ws + (world?.x ?? 0);
+      const sy = g.y * ws + (world?.y ?? 0);
+      const hw = labelText.length * estCharW * 0.5;
+      const hh = labelH * 0.5;
+      const collides = placed.some(p =>
+        Math.abs(sx - p.x) < (hw + p.hw) && Math.abs(sy - p.y) < (hh + p.hh)
+      );
+      if (collides) {
+        txt.visible = false;
+      } else {
+        txt.visible = true;
+        placed.push({ x: sx, y: sy, hw, hh });
+      }
     }
 
     // Hide stale labels
