@@ -70,6 +70,11 @@ export interface EdgeDrawConfig {
   nodeRadii: Map<string, number> | null;
   /** Current world container scale (for zoom-dependent rendering) */
   worldScale?: number;
+  /** Viewport transform for edge culling */
+  viewportX?: number;
+  viewportY?: number;
+  viewportW?: number;
+  viewportH?: number;
   /** Edge cardinality marker mode */
   edgeCardinalityMode?: EdgeCardinalityMode;
   /** Custom cardinality rules */
@@ -3190,12 +3195,28 @@ function _drawEdgesSinglePass(
   arrowGfx?: CanvasGraphics | null,
   cache: EdgeRenderCache = _cache,
 ): void {
+  // Viewport culling bounds (world coords) — skip edges where BOTH endpoints are off-screen
+  const ws = cfg.worldScale ?? 1;
+  const vx = cfg.viewportX ?? 0;
+  const vy = cfg.viewportY ?? 0;
+  const vw = cfg.viewportW ?? 10000;
+  const vh = cfg.viewportH ?? 10000;
+  const vpLeft = -vx / ws - 200;
+  const vpRight = (vw - vx) / ws + 200;
+  const vpTop = -vy / ws - 200;
+  const vpBottom = (vh - vy) / ws + 200;
+
   for (const e of edges) {
     const isCabled = cablePrep.cabledEdgeIds.has(e.id) || cablePrep.intraHandledIds.has(e.id);
 
     const src = resolvePos(e.source);
     const tgt = resolvePos(e.target);
     if (!src || !tgt) continue;
+
+    // Skip edges where both endpoints are outside the viewport
+    const srcOut = src.x < vpLeft || src.x > vpRight || src.y < vpTop || src.y > vpBottom;
+    const tgtOut = tgt.x < vpLeft || tgt.x > vpRight || tgt.y < vpTop || tgt.y > vpBottom;
+    if (srcOut && tgtOut) continue;
 
     // When cable-tray handles this edge, skip the line segment but still draw decorations (arrows etc.)
     if (isCabled || cablePrep.hasClusters) {
