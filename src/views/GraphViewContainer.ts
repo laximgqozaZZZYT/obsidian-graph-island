@@ -4648,16 +4648,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         }
       }
     } else if (hasTagEnclosures) {
-      // Tag enclosure mode: compute centroids from tagMembership
-      for (const [tag, memberIds] of this.tagMembership) {
-        if (memberIds.size < 3) continue;
-        let sumX = 0, sumY = 0, count = 0;
-        for (const id of memberIds) {
-          const pn = this.pixiNodes.get(id);
-          if (pn) { sumX += pn.gfx.x; sumY += pn.gfx.y; count++; }
-        }
-        if (count >= 3) {
-          groups.set(`tag:${tag}`, { x: sumX / count, y: sumY / count, memberCount: count });
+      // No explicit groupBy: auto-detect clusters from folder structure
+      for (const pn of this.pixiNodes.values()) {
+        const path = pn.data.filePath ?? "";
+        const folder = path.split("/")[0] || "root";
+        if (!folder || folder === "root") continue;
+        const key = `folder:${folder}`;
+        const existing = groups.get(key);
+        if (existing) {
+          const n = existing.memberCount + 1;
+          existing.x += (pn.gfx.x - existing.x) / n;
+          existing.y += (pn.gfx.y - existing.y) / n;
+          existing.memberCount = n;
+        } else {
+          groups.set(key, { x: pn.gfx.x, y: pn.gfx.y, memberCount: 1 });
         }
       }
     }
@@ -4679,13 +4683,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Sort groups by member count descending (larger groups get priority)
     const sorted = [...groups.entries()]
-      .filter(([, g]) => g.memberCount >= 2)
+      .filter(([, g]) => g.memberCount >= Math.max(5, Math.floor(this.pixiNodes.size * 0.01)))
       .sort((a, b) => b[1].memberCount - a[1].memberCount);
 
     // Collision avoidance: track placed label screen rects
     const placed: { x: number; y: number; hw: number; hh: number }[] = [];
-    const estCharW = targetScreenPx * 0.55; // approximate char width on screen
-    const labelH = targetScreenPx + 10; // font + padding
+    const estCharW = targetScreenPx * 0.55;
+    const labelH = targetScreenPx + 10;
+    const canvasW = this.canvasWrap?.clientWidth ?? 800;
+    const canvasH = this.canvasWrap?.clientHeight ?? 600;
 
     const usedKeys = new Set<string>();
     for (const [key, g] of sorted) {
@@ -4715,25 +4721,40 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         txt.text = labelText;
       }
 
-      txt.x = g.x;
-      txt.y = g.y;
       txt.scale.set(labelScale);
       txt.alpha = alpha;
 
-      // Check collision with already-placed labels (screen space)
-      const sx = g.x * ws + (world?.x ?? 0);
-      const sy = g.y * ws + (world?.y ?? 0);
+      // Place label, nudging away from collisions (screen space)
+      let sx = g.x * ws + (world?.x ?? 0);
+      let sy = g.y * ws + (world?.y ?? 0);
+      let lx = g.x;
+      let ly = g.y;
       const hw = labelText.length * estCharW * 0.5;
       const hh = labelH * 0.5;
-      const collides = placed.some(p =>
-        Math.abs(sx - p.x) < (hw + p.hw) && Math.abs(sy - p.y) < (hh + p.hh)
-      );
-      if (collides) {
-        txt.visible = false;
-      } else {
-        txt.visible = true;
-        placed.push({ x: sx, y: sy, hw, hh });
+
+      // Try original position, then nudge outward if collision
+      let resolved = false;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const collides = placed.some(p =>
+          Math.abs(sx - p.x) < (hw + p.hw) && Math.abs(sy - p.y) < (hh + p.hh)
+        );
+        if (!collides) { resolved = true; break; }
+        // Nudge away from center: push label outward radially
+        const cx = (world?.x ?? 0) + canvasW * 0.5;
+        const cy = (world?.y ?? 0) + canvasH * 0.5;
+        const dx = sx - cx || 1;
+        const dy = sy - cy || 1;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nudge = (labelH + 4) * (attempt + 1);
+        sx += (dx / dist) * nudge;
+        sy += (dy / dist) * nudge;
+        lx += (dx / dist) * nudge / ws;
+        ly += (dy / dist) * nudge / ws;
       }
+      txt.x = lx;
+      txt.y = ly;
+      txt.visible = resolved;
+      if (resolved) placed.push({ x: sx, y: sy, hw, hh });
     }
 
     // Hide stale labels
