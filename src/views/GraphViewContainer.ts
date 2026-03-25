@@ -4925,8 +4925,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const isHovered = key === this._hoveredGroupLabel;
         gfx.lineStyle(isHovered ? 3 : 1.5, color, isHovered ? 0.6 : 0.25);
         gfx.beginFill(color, isHovered ? 0.08 : 0.03);
-        gfx.moveTo(hull[0].x, hull[0].y);
-        for (let i = 1; i < hull.length; i++) gfx.lineTo(hull[i].x, hull[i].y);
+        // Catmull-Rom spline through hull points for smooth boundary
+        const n = hull.length;
+        const pt = (i: number) => hull[((i % n) + n) % n];
+        const tension = 0.5;
+        gfx.moveTo((pt(0).x + pt(1).x) / 2, (pt(0).y + pt(1).y) / 2);
+        for (let i = 0; i < n; i++) {
+          const p0 = pt(i), p1 = pt(i + 1);
+          const cp1x = p0.x + (pt(i + 1).x - pt(i - 1).x) * tension / 3;
+          const cp1y = p0.y + (pt(i + 1).y - pt(i - 1).y) * tension / 3;
+          const cp2x = p1.x - (pt(i + 2).x - p0.x) * tension / 3;
+          const cp2y = p1.y - (pt(i + 2).y - p0.y) * tension / 3;
+          gfx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, (p0.x + p1.x) / 2 + (p1.x - p0.x) * 0.5, (p0.y + p1.y) / 2 + (p1.y - p0.y) * 0.5);
+        }
         gfx.closePath();
         gfx.endFill();
       }
