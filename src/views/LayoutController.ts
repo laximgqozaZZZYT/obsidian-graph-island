@@ -446,12 +446,12 @@ export class LayoutController {
     const graphEdges = this.host.getGraphEdges();
     const tagMembership = this.host.getTagMembership();
 
-    // When groupBy is inactive and clusterFollowsGroupBy is on, ignore stale
-    // clusterGroupRules so the force layout doesn't create phantom clusters.
+    // When groupBy is inactive and clusterFollowsGroupBy is on, auto-derive
+    // folder-based cluster rules so nodes are spatially grouped by folder.
     const hasActiveGroupBy = panel.groupBy && panel.groupBy !== "none";
     const effectiveGroupRules =
       !hasActiveGroupBy && panel.clusterFollowsGroupBy
-        ? []
+        ? [{ groupBy: "folder" as const, recursive: false }]
         : panel.clusterGroupRules;
 
     const baseCfg = {
