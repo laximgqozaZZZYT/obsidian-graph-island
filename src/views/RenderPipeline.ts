@@ -534,6 +534,9 @@ export class RenderPipeline {
   private _prevWorldScale = 1;
   private _labelCullCooldown = 0;
 
+  /** Count of active leader lines (avoids O(N) clear loop when 0) */
+  private _activeLeaderCount = 0;
+
   // Array pools for redrawNodeBatch() — reuse across frames to reduce GC
   private _visiblePool: PixiNode[] = [];
   private _degreesPool: number[] = [];
@@ -2788,11 +2791,15 @@ export class RenderPipeline {
     const maxDispRatio = rt.labelMaxDisplacementRatio;
 
     // Clear all existing leader lines before re-evaluation
-    for (const pn of pixiNodes.values()) {
-      if (pn.leaderLine) {
-        pn.leaderLine.clear();
-        pn.leaderLine.visible = false;
+    // Only iterate if we previously drew any leaders (tracked by counter)
+    if (this._activeLeaderCount > 0) {
+      for (const pn of pixiNodes.values()) {
+        if (pn.leaderLine) {
+          pn.leaderLine.clear();
+          pn.leaderLine.visible = false;
+        }
       }
+      this._activeLeaderCount = 0;
     }
 
     // 4. Place labels with displacement when overlapping
@@ -2827,20 +2834,29 @@ export class RenderPipeline {
       placed.sort((a, b) => (b.pn.priorityScore + (b.pn.hoverForcedLabel ? 80 : 0))
                           - (a.pn.priorityScore + (a.pn.hoverForcedLabel ? 80 : 0)));
       const kept: CullLabelRect[] = [];
+      // Use spatial buckets for O(N) density check instead of O(N²) nested loop
+      const bucketSize = Math.max(densityMinDist, 50);
+      const densityGrid = new Map<string, boolean>();
+      const toBucket = (x: number, y: number) => `${Math.floor(x / bucketSize)},${Math.floor(y / bucketSize)}`;
+
       for (const r of placed) {
         const cx = r.x + r.w / 2;
         const cy = r.y + r.h / 2;
+        const bx = Math.floor(cx / bucketSize);
+        const by = Math.floor(cy / bucketSize);
         let tooClose = false;
-        for (const k of kept) {
-          const kx = k.x + k.w / 2;
-          const ky = k.y + k.h / 2;
-          if ((cx - kx) ** 2 + (cy - ky) ** 2 < densityMinDist2) {
-            tooClose = true;
-            break;
+        // Check 3x3 neighborhood
+        outer: for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            if (densityGrid.has(`${bx + dx},${by + dy}`)) {
+              tooClose = true;
+              break outer;
+            }
           }
         }
         if (!tooClose) {
           kept.push(r);
+          densityGrid.set(toBucket(cx, cy), true);
         } else {
           r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - (rt.labelFadeRate ?? 0.15));
           if (r.label.alpha <= 0.05) r.label.visible = false;
@@ -3040,6 +3056,7 @@ export class RenderPipeline {
     const ll = pn.leaderLine;
     ll.clear();
     ll.visible = true;
+    this._activeLeaderCount++;
     const lx = r.label.x;
     const ly = r.label.y;
     const worldW = zoom > 0 ? r.w / zoom : r.w;

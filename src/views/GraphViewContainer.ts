@@ -358,6 +358,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _viewportDirty = true;
   /** Cached hull data for cluster boundaries (avoid per-frame convexHull) */
   private _cachedHulls: Map<string, { cx: number; cy: number; hull: { x: number; y: number }[] }> = new Map();
+  /** Throttle: last time _updateGroupByLabels ran full computation */
+  private _groupLabelLastUpdate = 0;
   /** Off-screen link tooltip elements (directional) */
   private _offScreenTooltips: HTMLElement[] = [];
   private overlapCache: OverlapCache = { frame: 0, counts: new Map() };
@@ -4840,8 +4842,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Hide all labels when not in group mode or zoomed in enough
     if (!hasGroups || ws >= fadeThreshold || this.panel.viewMode !== "graph") {
       for (const lbl of this.groupByLabels.values()) lbl.visible = false;
+      if (this.clusterBoundaryGraphics) this.clusterBoundaryGraphics.clear();
       return;
     }
+
+    // Throttle: skip full recomputation if < 100ms since last update (10fps cap)
+    const now = performance.now();
+    if (now - this._groupLabelLastUpdate < 100 && this.groupByLabels.size > 0) return;
+    this._groupLabelLastUpdate = now;
 
     // Crossfade: group labels fade in over a zone (60%-100% of threshold)
     const fadeStart = fadeThreshold;       // fully hidden above this

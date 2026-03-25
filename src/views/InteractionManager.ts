@@ -273,6 +273,9 @@ export class InteractionManager {
   // ビジュアルリンクエディタ: Alt+ドラッグでリンク作成
   private dragLinkSource: PixiNode | null = null;
 
+  // Hover hitTest minimum movement threshold
+  private _lastHoverX = 0;
+  private _lastHoverY = 0;
   // Debounced zoom layout recalculation
   private _zoomLayoutTimer = 0;
   // Debounced label cull (expensive overlap detection) during rapid zoom
@@ -561,7 +564,12 @@ export class InteractionManager {
       world.y = this.worldStart.y + (my - this.panStart.y);
       this.host.markDirty();
     } else {
-      // Hover
+      // Hover — skip hitTest if mouse moved < 3px since last test
+      const hoverDx = mx - this._lastHoverX;
+      const hoverDy = my - this._lastHoverY;
+      if (hoverDx * hoverDx + hoverDy * hoverDy < 9) return;
+      this._lastHoverX = mx;
+      this._lastHoverY = my;
       const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
       const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
       const newId = hit?.data.id ?? null;
