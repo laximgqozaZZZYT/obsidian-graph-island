@@ -2016,11 +2016,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       let hitKey: string | null = null;
       for (const [key, txt] of this.groupByLabels) {
         if (!txt.visible) continue;
+        // Screen position of label center
         const sx = txt.x * ws + worldX;
         const sy = txt.y * ws + worldY;
-        const hw = (txt.text?.length ?? 10) * 14 * 0.55 * 0.5;
-        const hh = 14;
-        if (Math.abs(mx - sx) < hw && Math.abs(my - sy) < hh) {
+        // Screen-space hit area (target 14px font, ~7px char width)
+        const textLen = txt.text?.length ?? 10;
+        const hw = textLen * 7 * 0.5 + 10; // half-width + padding
+        const hh = 14 + 5; // half-height + padding
+        if (mx >= sx - hw && mx <= sx + hw && my >= sy - hh && my <= sy + hh) {
           hitKey = key;
           break;
         }
@@ -2030,7 +2033,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this._hoveredGroupLabel = hitKey;
         if (hitKey) {
           const memberIds = this.groupByMembers.get(hitKey);
-          if (memberIds) this.applyEphemeralHighlight(memberIds);
+          if (memberIds && memberIds.size > 0) {
+            this.applyEphemeralHighlight(memberIds);
+          }
         } else {
           this.applyEphemeralHighlight(null);
         }
@@ -4761,6 +4766,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
       txt.scale.set(labelScale);
       txt.alpha = alpha;
+      // Visual feedback for hovered label
+      const isHovered = key === this._hoveredGroupLabel;
+      txt.bgColor = isHovered ? 0x4a4a8e : 0x2a2a3e;
+      txt.bgAlpha = isHovered ? 0.95 : 0.85;
+      txt.style.fill = isHovered ? 0xffffff : 0xeeeeee;
 
       // Place label, nudging away from collisions (screen space)
       let sx = g.x * ws + (world?.x ?? 0);
