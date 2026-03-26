@@ -712,10 +712,15 @@ export class RenderPipeline {
       const shape = getNodeShape(pn.data, this.host.getNodeShapeRules());
       const isKbFocused = this.host.getIsKeyboardFocused?.() ?? false;
 
-      // Use the same minWorldRadius as batch rendering so highlighted nodes
-      // don't shrink compared to their batch-rendered size at low zoom.
+      // Match batch rendering's LOD-aware minWorldRadius so highlighted nodes
+      // don't jump in size compared to their batch-rendered appearance.
       const worldScale = this.host.getWorldContainer()?.scale?.x ?? 1;
-      const minWorldRadius = Math.max(0, MIN_WORLD_RADIUS_PX / worldScale);
+      const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
+      const nodeScreenPx = pn.radius * worldScale;
+      const isExtremeZoom = nodeScreenPx < rt.cardLODExtremePx;
+      const minWorldRadius = isExtremeZoom
+        ? Math.max(0.5 / worldScale, 1)
+        : Math.max(0, MIN_WORLD_RADIUS_PX / worldScale);
       const effR = Math.max(pn.radius, minWorldRadius);
 
       if (isKbFocused) {
@@ -738,7 +743,11 @@ export class RenderPipeline {
           );
         }
       } else {
-        drawShape(pn.circle, shape, effR * crc.highlightHaloRadius, pn.color, crc.highlightHaloAlpha);
+        // At extreme zoom-out, cap halo expansion to avoid jarring size jump
+        const haloMult = isExtremeZoom
+          ? Math.min(crc.highlightHaloRadius, 1.2)
+          : crc.highlightHaloRadius;
+        drawShape(pn.circle, shape, effR * haloMult, pn.color, crc.highlightHaloAlpha);
       }
 
       const strokeCol = darkenColor(pn.color, crc.strokeDarken);
