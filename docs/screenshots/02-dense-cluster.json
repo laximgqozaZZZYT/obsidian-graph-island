@@ -180,497 +180,497 @@
   "presetZoomLevel": 0,
   "zoomSensitivity": 1,
   "pinnedPositions": {
-    "mythology-japanese/characters/amaterasu.md": {
-      "x": -657.5649722071689,
-      "y": -8380.176368590914
-    },
-    "mythology-japanese/characters/izanagi.md": {
-      "x": -1023.2769936543575,
-      "y": -8380.176368590914
-    },
-    "mythology-japanese/characters/susanoo.md": {
-      "x": 1536.7071564759635,
-      "y": -8745.888390038102
-    },
-    "mythology-japanese/characters/izanami.md": {
-      "x": 2999.555242264718,
-      "y": -8745.888390038102
-    },
-    "mythology-japanese/characters/takemikazuchi.md": {
-      "x": 1170.995135028775,
-      "y": -8745.888390038102
-    },
-    "mythology-japanese/characters/yamato-takeru.md": {
-      "x": 73.85907068720883,
-      "y": -8745.888390038102
-    },
-    "mythology-japanese/characters/okuninushi.md": {
-      "x": 2633.84322081753,
-      "y": -8745.888390038102
-    },
-    "mythology-japanese/concepts/kusanagi.md": {
-      "x": -291.8529507599801,
-      "y": -8745.888390038102
-    },
-    "mythology-japanese/MOC.md": {
-      "x": -291.8529507599801,
-      "y": -8380.176368590914
-    },
-    "mythology-japanese/characters/uzume.md": {
-      "x": 439.57109213439736,
-      "y": -8745.888390038102
-    },
-    "mythology-japanese/characters/tsukuyomi.md": {
-      "x": 805.2831135815862,
-      "y": -8745.888390038102
-    },
-    "mythology-japanese/episodes/ep04_yomi.md": {
-      "x": 439.57109213439736,
-      "y": -11305.872540168422
-    },
-    "mythology-japanese/characters/sarutahiko.md": {
-      "x": 1902.4191779231523,
-      "y": -8745.888390038102
-    },
-    "mythology-japanese/episodes/ep02_amano-iwato.md": {
-      "x": 1170.995135028775,
-      "y": -11305.872540168422
-    },
-    "mythology-japanese/concepts/takamagahara.md": {
-      "x": -657.5649722071689,
-      "y": -8745.888390038102
-    },
-    "mythology-japanese/episodes/sc04_03_pursuit_escape.md": {
-      "x": -1023.2769936543575,
-      "y": -11671.584561615611
-    },
-    "mythology-japanese/episodes/sc04_02_yomi_descent.md": {
-      "x": -657.5649722071689,
-      "y": -11671.584561615611
-    },
-    "mythology-japanese/episodes/sc04_01_izanami_death.md": {
-      "x": -291.8529507599801,
-      "y": -11671.584561615611
-    },
-    "mythology-japanese/episodes/ep07_tenson-korin.md": {
-      "x": -657.5649722071689,
-      "y": -11305.872540168422
-    },
-    "mythology-japanese/episodes/ep06_kuniyuzuri.md": {
-      "x": -291.8529507599801,
-      "y": -11305.872540168422
-    },
-    "mythology-japanese/episodes/ep03_yamata-no-orochi.md": {
-      "x": 805.2831135815862,
-      "y": -11305.872540168422
-    },
-    "mythology-japanese/episodes/sc05_03_final_journey.md": {
-      "x": 2268.131199370341,
-      "y": -12037.2965830628
-    },
-    "mythology-japanese/episodes/ep01_kuniumi.md": {
-      "x": 1536.7071564759635,
-      "y": -11305.872540168422
-    },
-    "mythology-japanese/concepts/yomi.md": {
-      "x": 2999.555242264718,
-      "y": -9111.600411485291
-    },
-    "mythology-japanese/concepts/yasakani.md": {
-      "x": -1023.2769936543575,
-      "y": -8745.888390038102
-    },
-    "mythology-japanese/characters/orochi.md": {
-      "x": 2268.131199370341,
-      "y": -8745.888390038102
-    },
-    "mythology-japanese/episodes/ep05_yamato-takeru-quest.md": {
-      "x": 73.85907068720883,
-      "y": -11305.872540168422
-    },
-    "mythology-japanese/episodes/bt03_03_02_kusanagi_found.md": {
-      "x": 1170.995135028775,
-      "y": -9843.024454379667
-    },
-    "mythology-japanese/episodes/act3_dominion.md": {
-      "x": 1902.4191779231523,
-      "y": -9111.600411485291
-    },
-    "mythology-japanese/episodes/act2_takamagahara.md": {
-      "x": 2268.131199370341,
-      "y": -9111.600411485291
-    },
-    "mythology-japanese/episodes/act1_creation.md": {
-      "x": 2633.84322081753,
-      "y": -9111.600411485291
-    },
-    "mythology-japanese/episodes/sc08_02_yatagarasu_guide.md": {
-      "x": -657.5649722071689,
-      "y": -12037.2965830628
-    },
-    "mythology-japanese/episodes/sc07_01_ninigi_descent.md": {
-      "x": 805.2831135815862,
-      "y": -12037.2965830628
-    },
-    "mythology-japanese/episodes/sc06_02_okuninushi_negotiation.md": {
-      "x": 1536.7071564759635,
-      "y": -12037.2965830628
-    },
-    "mythology-japanese/episodes/sc06_01_takemikazuchi_descent.md": {
-      "x": 1902.4191779231523,
-      "y": -12037.2965830628
-    },
-    "mythology-japanese/episodes/sc05_02_eastern_campaign.md": {
-      "x": 2633.84322081753,
-      "y": -12037.2965830628
-    },
-    "mythology-japanese/episodes/sc03_03_serpent_slain.md": {
-      "x": 73.85907068720883,
-      "y": -11671.584561615611
-    },
-    "mythology-japanese/episodes/sc02_01_amaterasu_retreat.md": {
-      "x": 1902.4191779231523,
-      "y": -11671.584561615611
-    },
-    "mythology-japanese/episodes/sc01_03_divine_children.md": {
-      "x": 2268.131199370341,
-      "y": -11671.584561615611
-    },
-    "mythology-japanese/episodes/sc01_02_island_birth.md": {
-      "x": 2633.84322081753,
-      "y": -11671.584561615611
-    },
-    "mythology-japanese/episodes/sc01_01_heavenly_spear.md": {
-      "x": 2999.555242264718,
-      "y": -11671.584561615611
-    },
-    "mythology-japanese/episodes/bt06_01_03_takeminakata_duel.md": {
-      "x": 1902.4191779231523,
-      "y": -10574.448497274045
-    },
-    "mythology-japanese/episodes/bt06_01_02_thunder_god_arrives.md": {
-      "x": 2268.131199370341,
-      "y": -10574.448497274045
-    },
-    "mythology-japanese/episodes/bt06_01_01_failed_envoys.md": {
-      "x": 2633.84322081753,
-      "y": -10574.448497274045
-    },
-    "mythology-japanese/episodes/bt05_03_01_ibuki_battle.md": {
-      "x": -657.5649722071689,
-      "y": -10208.736475826856
-    },
-    "mythology-japanese/episodes/bt05_02_02_fire_counter.md": {
-      "x": 73.85907068720883,
-      "y": -10208.736475826856
-    },
-    "mythology-japanese/episodes/bt05_02_01_kusanagi_gift.md": {
-      "x": 439.57109213439736,
-      "y": -10208.736475826856
-    },
-    "mythology-japanese/episodes/bt04_03_03_eternal_parting.md": {
-      "x": 1902.4191779231523,
-      "y": -10208.736475826856
-    },
-    "mythology-japanese/episodes/bt04_03_02_yomi_chase.md": {
-      "x": 2268.131199370341,
-      "y": -10208.736475826856
-    },
-    "mythology-japanese/episodes/bt04_03_01_broken_taboo.md": {
-      "x": 2633.84322081753,
-      "y": -10208.736475826856
-    },
-    "mythology-japanese/episodes/bt04_02_02_forbidden_promise.md": {
-      "x": -1023.2769936543575,
-      "y": -9843.024454379667
-    },
-    "mythology-japanese/episodes/bt04_02_01_descent_path.md": {
-      "x": -657.5649722071689,
-      "y": -9843.024454379667
-    },
-    "mythology-japanese/episodes/bt04_01_03_grief_decision.md": {
-      "x": -291.8529507599801,
-      "y": -9843.024454379667
-    },
-    "mythology-japanese/episodes/bt04_01_02_izanagi_rage.md": {
-      "x": 73.85907068720883,
-      "y": -9843.024454379667
-    },
-    "mythology-japanese/episodes/bt02_01_02_retreat_into_cave.md": {
-      "x": 2268.131199370341,
-      "y": -9477.312432932478
-    },
-    "mythology-japanese/episodes/bt01_03_02_fire_god_tragedy.md": {
-      "x": -1023.2769936543575,
-      "y": -9111.600411485291
-    },
-    "mythology-japanese/episodes/bt01_03_01_nature_gods.md": {
-      "x": -657.5649722071689,
-      "y": -9111.600411485291
-    },
-    "mythology-japanese/episodes/bt01_02_03_awaji_first.md": {
-      "x": -291.8529507599801,
-      "y": -9111.600411485291
-    },
-    "mythology-japanese/episodes/bt01_02_01_pillar_ritual.md": {
-      "x": 439.57109213439736,
-      "y": -9111.600411485291
-    },
-    "mythology-japanese/episodes/bt01_01_03_onogoro_birth.md": {
-      "x": 805.2831135815862,
-      "y": -9111.600411485291
-    },
-    "mythology-japanese/episodes/bt01_01_01_spear_thrust.md": {
-      "x": 1536.7071564759635,
-      "y": -9111.600411485291
-    },
-    "mythology-japanese/episodes/sc08_03_yamato_founding.md": {
-      "x": -1023.2769936543575,
-      "y": -12037.2965830628
-    },
-    "mythology-japanese/episodes/sc07_03_sacred_treasures.md": {
-      "x": 439.57109213439736,
-      "y": -12037.2965830628
-    },
-    "mythology-japanese/episodes/sc06_03_izumo_shrine.md": {
-      "x": 1170.995135028775,
-      "y": -12037.2965830628
-    },
-    "mythology-japanese/episodes/sc05_01_kumaso_mission.md": {
-      "x": 2999.555242264718,
-      "y": -12037.2965830628
-    },
-    "mythology-japanese/episodes/sc03_02_sake_trap.md": {
-      "x": 439.57109213439736,
-      "y": -11671.584561615611
-    },
-    "mythology-japanese/episodes/sc03_01_kushinadahime_tears.md": {
-      "x": 805.2831135815862,
-      "y": -11671.584561615611
-    },
-    "mythology-japanese/episodes/sc02_02_uzume_dance.md": {
-      "x": 1170.995135028775,
-      "y": -11671.584561615611
-    },
-    "mythology-japanese/episodes/sc02_03_mirror_reveal.md": {
-      "x": 1536.7071564759635,
-      "y": -11671.584561615611
-    },
-    "mythology-japanese/episodes/bt08_03_03_divine_lineage.md": {
-      "x": 1902.4191779231523,
-      "y": -11305.872540168422
-    },
-    "mythology-japanese/episodes/bt08_03_02_enthronement.md": {
-      "x": 2268.131199370341,
-      "y": -11305.872540168422
-    },
-    "mythology-japanese/episodes/bt08_02_03_mountain_passage.md": {
-      "x": 2633.84322081753,
-      "y": -11305.872540168422
-    },
-    "mythology-japanese/episodes/bt08_02_02_futsu_no_mitama.md": {
-      "x": -1023.2769936543575,
-      "y": -10940.160518721234
-    },
-    "mythology-japanese/episodes/bt08_02_01_divine_crow.md": {
-      "x": -657.5649722071689,
-      "y": -10940.160518721234
-    },
-    "mythology-japanese/episodes/bt08_01_03_kumano_detour.md": {
-      "x": -291.8529507599801,
-      "y": -10940.160518721234
-    },
-    "mythology-japanese/episodes/bt07_03_03_eternal_mandate.md": {
-      "x": 805.2831135815862,
-      "y": -10940.160518721234
-    },
-    "mythology-japanese/episodes/bt07_03_02_jewel_and_sword.md": {
-      "x": 1170.995135028775,
-      "y": -10940.160518721234
-    },
-    "mythology-japanese/episodes/bt07_03_01_mirror_bestowed.md": {
-      "x": 1536.7071564759635,
-      "y": -10940.160518721234
-    },
-    "mythology-japanese/episodes/bt07_01_03_takachiho_landing.md": {
-      "x": 2999.555242264718,
-      "y": -10940.160518721234
-    },
-    "mythology-japanese/episodes/bt07_01_02_sarutahiko_encounter.md": {
-      "x": -1023.2769936543575,
-      "y": -10574.448497274045
-    },
-    "mythology-japanese/episodes/bt07_01_01_amaterasu_decree.md": {
-      "x": -657.5649722071689,
-      "y": -10574.448497274045
-    },
-    "mythology-japanese/episodes/bt06_03_03_okuninushi_enshrined.md": {
-      "x": -291.8529507599801,
-      "y": -10574.448497274045
-    },
-    "mythology-japanese/episodes/bt06_03_02_pillar_rises.md": {
-      "x": 73.85907068720883,
-      "y": -10574.448497274045
-    },
-    "mythology-japanese/episodes/bt06_02_03_great_shrine_promise.md": {
-      "x": 805.2831135815862,
-      "y": -10574.448497274045
-    },
-    "mythology-japanese/episodes/bt06_02_02_sovereignty_transfer.md": {
-      "x": 1170.995135028775,
-      "y": -10574.448497274045
-    },
-    "mythology-japanese/episodes/bt06_02_01_okuninushi_terms.md": {
-      "x": 1536.7071564759635,
-      "y": -10574.448497274045
-    },
-    "mythology-japanese/episodes/bt05_03_03_white_bird.md": {
-      "x": 2999.555242264718,
-      "y": -10574.448497274045
-    },
-    "mythology-japanese/episodes/bt05_03_02_longing_for_home.md": {
-      "x": -1023.2769936543575,
-      "y": -10208.736475826856
-    },
-    "mythology-japanese/episodes/bt05_02_03_suruga_fire.md": {
-      "x": -291.8529507599801,
-      "y": -10208.736475826856
-    },
-    "mythology-japanese/episodes/bt05_01_03_name_bestowed.md": {
-      "x": 805.2831135815862,
-      "y": -10208.736475826856
-    },
-    "mythology-japanese/episodes/bt05_01_02_disguise.md": {
-      "x": 1170.995135028775,
-      "y": -10208.736475826856
-    },
-    "mythology-japanese/episodes/bt05_01_01_fathers_command.md": {
-      "x": 1536.7071564759635,
-      "y": -10208.736475826856
-    },
-    "mythology-japanese/episodes/bt04_02_03_maggots_horror.md": {
-      "x": 2999.555242264718,
-      "y": -10208.736475826856
-    },
-    "mythology-japanese/episodes/bt04_01_01_izanami_burns.md": {
-      "x": 439.57109213439736,
-      "y": -9843.024454379667
-    },
-    "mythology-japanese/episodes/bt03_03_03_reunion.md": {
-      "x": 805.2831135815862,
-      "y": -9843.024454379667
-    },
-    "mythology-japanese/episodes/bt03_03_01_slaying.md": {
-      "x": 1536.7071564759635,
-      "y": -9843.024454379667
-    },
-    "mythology-japanese/episodes/bt03_02_03_orochi_sleeps.md": {
-      "x": 1902.4191779231523,
-      "y": -9843.024454379667
-    },
-    "mythology-japanese/episodes/bt03_02_01_sake_brewing.md": {
-      "x": 2633.84322081753,
-      "y": -9843.024454379667
-    },
-    "mythology-japanese/episodes/bt03_01_03_vow_to_slay.md": {
-      "x": 2999.555242264718,
-      "y": -9843.024454379667
-    },
-    "mythology-japanese/episodes/bt03_01_02_weeping_family.md": {
-      "x": -1023.2769936543575,
-      "y": -9477.312432932478
-    },
-    "mythology-japanese/episodes/bt03_01_01_exile_arrival.md": {
-      "x": -657.5649722071689,
-      "y": -9477.312432932478
-    },
-    "mythology-japanese/episodes/bt02_03_03_sunlight_returns.md": {
-      "x": -291.8529507599801,
-      "y": -9477.312432932478
-    },
-    "mythology-japanese/episodes/bt02_03_02_mirror_light.md": {
-      "x": 73.85907068720883,
-      "y": -9477.312432932478
-    },
-    "mythology-japanese/episodes/bt02_03_01_curiosity.md": {
-      "x": 439.57109213439736,
-      "y": -9477.312432932478
-    },
-    "mythology-japanese/episodes/bt02_02_03_gods_laugh.md": {
-      "x": 805.2831135815862,
-      "y": -9477.312432932478
-    },
-    "mythology-japanese/episodes/bt02_01_01_susanoo_rampage.md": {
-      "x": 2633.84322081753,
-      "y": -9477.312432932478
-    },
-    "mythology-japanese/episodes/bt01_03_03_kagutsuchi_tragedy.md": {
-      "x": 2999.555242264718,
-      "y": -9477.312432932478
-    },
-    "mythology-japanese/episodes/sc08_01_departure_hyuga.md": {
-      "x": -291.8529507599801,
-      "y": -12037.2965830628
-    },
-    "mythology-japanese/episodes/sc07_02_konohanasakuya.md": {
-      "x": 73.85907068720883,
-      "y": -12037.2965830628
-    },
-    "mythology-japanese/episodes/ep08_jimmu_expedition.md": {
-      "x": -1023.2769936543575,
-      "y": -11305.872540168422
-    },
-    "mythology-japanese/episodes/bt08_03_01_nagasunehiko_battle.md": {
-      "x": 2999.555242264718,
-      "y": -11305.872540168422
-    },
-    "mythology-japanese/episodes/bt08_01_02_itsuse_falls.md": {
-      "x": 73.85907068720883,
-      "y": -10940.160518721234
-    },
-    "mythology-japanese/episodes/bt08_01_01_iwarebiko_resolve.md": {
-      "x": 439.57109213439736,
-      "y": -10940.160518721234
-    },
-    "mythology-japanese/episodes/bt07_02_03_mortal_fate.md": {
-      "x": 1902.4191779231523,
-      "y": -10940.160518721234
-    },
-    "mythology-japanese/episodes/bt07_02_02_rejected_sister.md": {
-      "x": 2268.131199370341,
-      "y": -10940.160518721234
-    },
-    "mythology-japanese/episodes/bt07_02_01_love_at_first.md": {
-      "x": 2633.84322081753,
-      "y": -10940.160518721234
-    },
-    "mythology-japanese/episodes/bt06_03_01_builders_gather.md": {
-      "x": 439.57109213439736,
-      "y": -10574.448497274045
-    },
-    "mythology-japanese/episodes/bt03_02_02_serpent_drinks.md": {
-      "x": 2268.131199370341,
-      "y": -9843.024454379667
-    },
-    "mythology-japanese/episodes/bt02_02_02_ecstatic_dance.md": {
-      "x": 1170.995135028775,
-      "y": -9477.312432932478
-    },
-    "mythology-japanese/episodes/bt02_02_01_divine_council.md": {
-      "x": 1536.7071564759635,
-      "y": -9477.312432932478
-    },
-    "mythology-japanese/episodes/bt02_01_03_world_darkness.md": {
-      "x": 1902.4191779231523,
-      "y": -9477.312432932478
-    },
-    "mythology-japanese/episodes/bt01_02_02_eight_islands.md": {
-      "x": 73.85907068720883,
-      "y": -9111.600411485291
-    },
-    "mythology-japanese/episodes/bt01_01_02_stir_chaos.md": {
-      "x": 1170.995135028775,
-      "y": -9111.600411485291
+    "classic-arthurian/characters/arthur.md": {
+      "x": -603.7900688318089,
+      "y": -8084.186011748155
+    },
+    "classic-arthurian/MOC.md": {
+      "x": -250.3267753756743,
+      "y": -8084.186011748155
+    },
+    "classic-arthurian/characters/lancelot.md": {
+      "x": 810.0631049927297,
+      "y": -8437.64930520429
+    },
+    "classic-arthurian/characters/gawain.md": {
+      "x": 2577.379572273403,
+      "y": -8437.64930520429
+    },
+    "classic-arthurian/characters/percival.md": {
+      "x": -603.7900688318089,
+      "y": -8437.64930520429
+    },
+    "classic-arthurian/characters/galahad.md": {
+      "x": -957.2533622879434,
+      "y": -8084.186011748155
+    },
+    "classic-arthurian/characters/tristan.md": {
+      "x": -957.2533622879434,
+      "y": -8437.64930520429
+    },
+    "classic-arthurian/characters/bedivere.md": {
+      "x": 2930.8428657295376,
+      "y": -8437.64930520429
+    },
+    "classic-arthurian/characters/morgan-le-fay.md": {
+      "x": -250.3267753756743,
+      "y": -8437.64930520429
+    },
+    "classic-arthurian/characters/kay.md": {
+      "x": 1516.9896919049988,
+      "y": -8437.64930520429
+    },
+    "classic-arthurian/characters/mordred.md": {
+      "x": 103.1365180804604,
+      "y": -8437.64930520429
+    },
+    "classic-arthurian/characters/merlin.md": {
+      "x": 456.59981153659504,
+      "y": -8437.64930520429
+    },
+    "classic-arthurian/characters/lady-of-the-lake.md": {
+      "x": 1163.526398448864,
+      "y": -8437.64930520429
+    },
+    "classic-arthurian/characters/guinevere.md": {
+      "x": 2223.916278817268,
+      "y": -8437.64930520429
+    },
+    "classic-arthurian/characters/uther-pendragon.md": {
+      "x": 2930.8428657295376,
+      "y": -8791.112598660424
+    },
+    "classic-arthurian/characters/isolde.md": {
+      "x": 1870.4529853611334,
+      "y": -8437.64930520429
+    },
+    "classic-arthurian/episodes/act3_fall-of-camelot.md": {
+      "x": 1870.4529853611334,
+      "y": -8791.112598660424
+    },
+    "classic-arthurian/episodes/act2_quest-for-grail.md": {
+      "x": 2223.916278817268,
+      "y": -8791.112598660424
+    },
+    "classic-arthurian/episodes/act1_rise-of-arthur.md": {
+      "x": 2577.379572273403,
+      "y": -8791.112598660424
+    },
+    "classic-arthurian/episodes/sc08_03_return-to-avalon.md": {
+      "x": -957.2533622879434,
+      "y": -11618.8189463095
+    },
+    "classic-arthurian/episodes/sc08_02_the-last-battle.md": {
+      "x": -603.7900688318089,
+      "y": -11618.8189463095
+    },
+    "classic-arthurian/episodes/sc08_01_mordreds-revolt.md": {
+      "x": -250.3267753756743,
+      "y": -11618.8189463095
+    },
+    "classic-arthurian/episodes/sc07_03_rescue-and-flight.md": {
+      "x": 103.1365180804604,
+      "y": -11618.8189463095
+    },
+    "classic-arthurian/episodes/sc07_02_the-accusation.md": {
+      "x": 456.59981153659504,
+      "y": -11618.8189463095
+    },
+    "classic-arthurian/episodes/sc07_01_secret-meetings.md": {
+      "x": 810.0631049927297,
+      "y": -11618.8189463095
+    },
+    "classic-arthurian/episodes/sc06_03_tragic-end.md": {
+      "x": 1163.526398448864,
+      "y": -11618.8189463095
+    },
+    "classic-arthurian/episodes/sc06_02_forbidden-love.md": {
+      "x": 1516.9896919049988,
+      "y": -11618.8189463095
+    },
+    "classic-arthurian/episodes/sc06_01_the-potion.md": {
+      "x": 1870.4529853611334,
+      "y": -11618.8189463095
+    },
+    "classic-arthurian/episodes/sc05_03_grail-castle.md": {
+      "x": 2223.916278817268,
+      "y": -11618.8189463095
+    },
+    "classic-arthurian/episodes/sc05_02_galahads-path.md": {
+      "x": 2577.379572273403,
+      "y": -11618.8189463095
+    },
+    "classic-arthurian/episodes/sc05_01_percivals-test.md": {
+      "x": 2930.8428657295376,
+      "y": -11618.8189463095
+    },
+    "classic-arthurian/episodes/sc04_03_departure.md": {
+      "x": -957.2533622879434,
+      "y": -11265.355652853366
+    },
+    "classic-arthurian/episodes/sc04_02_galahad-arrives.md": {
+      "x": -603.7900688318089,
+      "y": -11265.355652853366
+    },
+    "classic-arthurian/episodes/sc04_01_grail-vision.md": {
+      "x": -250.3267753756743,
+      "y": -11265.355652853366
+    },
+    "classic-arthurian/episodes/sc03_03_guinevere-arrives.md": {
+      "x": 103.1365180804604,
+      "y": -11265.355652853366
+    },
+    "classic-arthurian/episodes/sc03_02_knights-oath.md": {
+      "x": 456.59981153659504,
+      "y": -11265.355652853366
+    },
+    "classic-arthurian/episodes/sc03_01_camelot-built.md": {
+      "x": 810.0631049927297,
+      "y": -11265.355652853366
+    },
+    "classic-arthurian/episodes/sc02_03_the-gift.md": {
+      "x": 1163.526398448864,
+      "y": -11265.355652853366
+    },
+    "classic-arthurian/episodes/sc02_02_lake-journey.md": {
+      "x": 1516.9896919049988,
+      "y": -11265.355652853366
+    },
+    "classic-arthurian/episodes/sc02_01_broken-sword.md": {
+      "x": 1870.4529853611334,
+      "y": -11265.355652853366
+    },
+    "classic-arthurian/episodes/sc01_03_the-drawing.md": {
+      "x": 2223.916278817268,
+      "y": -11265.355652853366
+    },
+    "classic-arthurian/episodes/sc01_02_the-gathering.md": {
+      "x": 2577.379572273403,
+      "y": -11265.355652853366
+    },
+    "classic-arthurian/episodes/sc01_01_uthers-death.md": {
+      "x": 2930.8428657295376,
+      "y": -11265.355652853366
+    },
+    "classic-arthurian/episodes/ep08_battle-of-camlann.md": {
+      "x": -957.2533622879434,
+      "y": -10911.892359397232
+    },
+    "classic-arthurian/episodes/ep07_lancelot-affair.md": {
+      "x": -603.7900688318089,
+      "y": -10911.892359397232
+    },
+    "classic-arthurian/episodes/ep06_tristan-and-isolde.md": {
+      "x": -250.3267753756743,
+      "y": -10911.892359397232
+    },
+    "classic-arthurian/episodes/ep05_grail-trials.md": {
+      "x": 103.1365180804604,
+      "y": -10911.892359397232
+    },
+    "classic-arthurian/episodes/ep04_quest-begins.md": {
+      "x": 456.59981153659504,
+      "y": -10911.892359397232
+    },
+    "classic-arthurian/episodes/ep03_round-table.md": {
+      "x": 810.0631049927297,
+      "y": -10911.892359397232
+    },
+    "classic-arthurian/episodes/ep02_excalibur.md": {
+      "x": 1163.526398448864,
+      "y": -10911.892359397232
+    },
+    "classic-arthurian/episodes/ep01_sword-in-stone.md": {
+      "x": 1516.9896919049988,
+      "y": -10911.892359397232
+    },
+    "classic-arthurian/episodes/bt08_03_03_departure-to-avalon.md": {
+      "x": 1870.4529853611334,
+      "y": -10911.892359397232
+    },
+    "classic-arthurian/episodes/bt08_03_02_hand-receives.md": {
+      "x": 2223.916278817268,
+      "y": -10911.892359397232
+    },
+    "classic-arthurian/episodes/bt08_03_01_excalibur-returned.md": {
+      "x": 2577.379572273403,
+      "y": -10911.892359397232
+    },
+    "classic-arthurian/episodes/bt08_02_03_mutual-strike.md": {
+      "x": 2930.8428657295376,
+      "y": -10911.892359397232
+    },
+    "classic-arthurian/episodes/bt08_02_02_the-adder.md": {
+      "x": -957.2533622879434,
+      "y": -10558.429065941098
+    },
+    "classic-arthurian/episodes/bt08_02_01_eve-of-battle.md": {
+      "x": -603.7900688318089,
+      "y": -10558.429065941098
+    },
+    "classic-arthurian/episodes/bt08_01_03_arthurs-return.md": {
+      "x": -250.3267753756743,
+      "y": -10558.429065941098
+    },
+    "classic-arthurian/episodes/bt08_01_02_false-news.md": {
+      "x": 103.1365180804604,
+      "y": -10558.429065941098
+    },
+    "classic-arthurian/episodes/bt08_01_01_usurpation.md": {
+      "x": 456.59981153659504,
+      "y": -10558.429065941098
+    },
+    "classic-arthurian/episodes/bt07_03_03_flight-to-france.md": {
+      "x": 810.0631049927297,
+      "y": -10558.429065941098
+    },
+    "classic-arthurian/episodes/bt07_03_02_gareth-falls.md": {
+      "x": 1163.526398448864,
+      "y": -10558.429065941098
+    },
+    "classic-arthurian/episodes/bt07_03_01_rescue-charge.md": {
+      "x": 1516.9896919049988,
+      "y": -10558.429065941098
+    },
+    "classic-arthurian/episodes/bt07_02_03_death-sentence.md": {
+      "x": 1870.4529853611334,
+      "y": -10558.429065941098
+    },
+    "classic-arthurian/episodes/bt07_02_01_public-accusation.md": {
+      "x": 2223.916278817268,
+      "y": -10558.429065941098
+    },
+    "classic-arthurian/episodes/bt07_02_02_arthurs-anguish.md": {
+      "x": 2577.379572273403,
+      "y": -10558.429065941098
+    },
+    "classic-arthurian/episodes/bt07_01_03_caught-in-act.md": {
+      "x": 2930.8428657295376,
+      "y": -10558.429065941098
+    },
+    "classic-arthurian/episodes/bt07_01_02_evidence-gathered.md": {
+      "x": -957.2533622879434,
+      "y": -10204.965772484962
+    },
+    "classic-arthurian/episodes/bt07_01_01_mordreds-spy.md": {
+      "x": -603.7900688318089,
+      "y": -10204.965772484962
+    },
+    "classic-arthurian/episodes/bt06_03_03_lovers-death.md": {
+      "x": -250.3267753756743,
+      "y": -10204.965772484962
+    },
+    "classic-arthurian/episodes/bt06_03_02_exile.md": {
+      "x": 103.1365180804604,
+      "y": -10204.965772484962
+    },
+    "classic-arthurian/episodes/bt06_03_01_discovery.md": {
+      "x": 456.59981153659504,
+      "y": -10204.965772484962
+    },
+    "classic-arthurian/episodes/bt06_02_03_suspicion-grows.md": {
+      "x": 810.0631049927297,
+      "y": -10204.965772484962
+    },
+    "classic-arthurian/episodes/bt06_02_02_loyal-conflict.md": {
+      "x": 1163.526398448864,
+      "y": -10204.965772484962
+    },
+    "classic-arthurian/episodes/bt06_02_01_secret-tryst.md": {
+      "x": 1516.9896919049988,
+      "y": -10204.965772484962
+    },
+    "classic-arthurian/episodes/bt06_01_03_guilty-arrival.md": {
+      "x": 1870.4529853611334,
+      "y": -10204.965772484962
+    },
+    "classic-arthurian/episodes/bt06_01_02_the-drink.md": {
+      "x": 2223.916278817268,
+      "y": -10204.965772484962
+    },
+    "classic-arthurian/episodes/bt06_01_01_voyage-to-cornwall.md": {
+      "x": 2577.379572273403,
+      "y": -10204.965772484962
+    },
+    "classic-arthurian/episodes/bt05_03_03_return-to-camelot.md": {
+      "x": 2930.8428657295376,
+      "y": -10204.965772484962
+    },
+    "classic-arthurian/episodes/bt05_03_02_galahads-ascension.md": {
+      "x": -957.2533622879434,
+      "y": -9851.502479028828
+    },
+    "classic-arthurian/episodes/bt05_03_01_grail-chapel.md": {
+      "x": -603.7900688318089,
+      "y": -9851.502479028828
+    },
+    "classic-arthurian/episodes/bt05_02_03_three-unite.md": {
+      "x": -250.3267753756743,
+      "y": -9851.502479028828
+    },
+    "classic-arthurian/episodes/bt05_02_02_castle-of-maidens.md": {
+      "x": 103.1365180804604,
+      "y": -9851.502479028828
+    },
+    "classic-arthurian/episodes/bt05_02_01_healing-knight.md": {
+      "x": 456.59981153659504,
+      "y": -9851.502479028828
+    },
+    "classic-arthurian/episodes/bt05_01_03_purification.md": {
+      "x": 810.0631049927297,
+      "y": -9851.502479028828
+    },
+    "classic-arthurian/episodes/bt05_01_01_temptation.md": {
+      "x": 1163.526398448864,
+      "y": -9851.502479028828
+    },
+    "classic-arthurian/episodes/bt05_01_02_prayer.md": {
+      "x": 1516.9896919049988,
+      "y": -9851.502479028828
+    },
+    "classic-arthurian/episodes/bt04_03_03_empty-hall.md": {
+      "x": 1870.4529853611334,
+      "y": -9851.502479028828
+    },
+    "classic-arthurian/episodes/bt04_03_02_farewell.md": {
+      "x": 2223.916278817268,
+      "y": -9851.502479028828
+    },
+    "classic-arthurian/episodes/bt04_03_01_arthurs-sorrow.md": {
+      "x": 2577.379572273403,
+      "y": -9851.502479028828
+    },
+    "classic-arthurian/episodes/bt04_02_02_galahad-sits.md": {
+      "x": 2930.8428657295376,
+      "y": -9851.502479028828
+    },
+    "classic-arthurian/episodes/bt04_02_03_sword-in-stone-again.md": {
+      "x": -957.2533622879434,
+      "y": -9498.039185572694
+    },
+    "classic-arthurian/episodes/bt04_02_01_empty-seat.md": {
+      "x": -603.7900688318089,
+      "y": -9498.039185572694
+    },
+    "classic-arthurian/episodes/bt04_01_03_the-vow.md": {
+      "x": -250.3267753756743,
+      "y": -9498.039185572694
+    },
+    "classic-arthurian/episodes/bt04_01_02_thunder-and-light.md": {
+      "x": 103.1365180804604,
+      "y": -9498.039185572694
+    },
+    "classic-arthurian/episodes/bt04_01_01_pentecost-feast.md": {
+      "x": 456.59981153659504,
+      "y": -9498.039185572694
+    },
+    "classic-arthurian/episodes/bt03_03_03_first-glance.md": {
+      "x": 810.0631049927297,
+      "y": -9498.039185572694
+    },
+    "classic-arthurian/episodes/bt03_03_02_wedding-feast.md": {
+      "x": 1163.526398448864,
+      "y": -9498.039185572694
+    },
+    "classic-arthurian/episodes/bt03_03_01_the-proposal.md": {
+      "x": 1516.9896919049988,
+      "y": -9498.039185572694
+    },
+    "classic-arthurian/episodes/bt03_02_02_the-oath.md": {
+      "x": 1870.4529853611334,
+      "y": -9498.039185572694
+    },
+    "classic-arthurian/episodes/bt03_02_03_first-quest.md": {
+      "x": 2223.916278817268,
+      "y": -9498.039185572694
+    },
+    "classic-arthurian/episodes/bt03_02_01_lancelot-joins.md": {
+      "x": 2577.379572273403,
+      "y": -9498.039185572694
+    },
+    "classic-arthurian/episodes/bt03_01_03_the-round-table.md": {
+      "x": 2930.8428657295376,
+      "y": -9498.039185572694
+    },
+    "classic-arthurian/episodes/bt03_01_02_building.md": {
+      "x": -957.2533622879434,
+      "y": -9144.57589211656
+    },
+    "classic-arthurian/episodes/bt03_01_01_the-vision.md": {
+      "x": -603.7900688318089,
+      "y": -9144.57589211656
+    },
+    "classic-arthurian/episodes/bt02_03_02_the-scabbard.md": {
+      "x": -250.3267753756743,
+      "y": -9144.57589211656
+    },
+    "classic-arthurian/episodes/bt02_03_03_oath-to-lake.md": {
+      "x": 103.1365180804604,
+      "y": -9144.57589211656
+    },
+    "classic-arthurian/episodes/bt02_03_01_hand-from-lake.md": {
+      "x": 456.59981153659504,
+      "y": -9144.57589211656
+    },
+    "classic-arthurian/episodes/bt02_02_03_lake-arrival.md": {
+      "x": 810.0631049927297,
+      "y": -9144.57589211656
+    },
+    "classic-arthurian/episodes/bt02_02_02_the-mist.md": {
+      "x": 1163.526398448864,
+      "y": -9144.57589211656
+    },
+    "classic-arthurian/episodes/bt02_02_01_forest-path.md": {
+      "x": 1516.9896919049988,
+      "y": -9144.57589211656
+    },
+    "classic-arthurian/episodes/bt02_01_03_merlins-guidance.md": {
+      "x": 1870.4529853611334,
+      "y": -9144.57589211656
+    },
+    "classic-arthurian/episodes/bt02_01_02_sword-breaks.md": {
+      "x": 2223.916278817268,
+      "y": -9144.57589211656
+    },
+    "classic-arthurian/episodes/bt02_01_01_first-battle.md": {
+      "x": 2577.379572273403,
+      "y": -9144.57589211656
+    },
+    "classic-arthurian/episodes/bt01_03_03_coronation.md": {
+      "x": 2930.8428657295376,
+      "y": -9144.57589211656
+    },
+    "classic-arthurian/episodes/bt01_03_02_doubt-and-proof.md": {
+      "x": -957.2533622879434,
+      "y": -8791.112598660424
+    },
+    "classic-arthurian/episodes/bt01_03_01_the-pull.md": {
+      "x": -603.7900688318089,
+      "y": -8791.112598660424
+    },
+    "classic-arthurian/episodes/bt01_02_03_arthurs-chance.md": {
+      "x": -250.3267753756743,
+      "y": -8791.112598660424
+    },
+    "classic-arthurian/episodes/bt01_02_02_failed-attempts.md": {
+      "x": 103.1365180804604,
+      "y": -8791.112598660424
+    },
+    "classic-arthurian/episodes/bt01_02_01_lords-arrive.md": {
+      "x": 456.59981153659504,
+      "y": -8791.112598660424
+    },
+    "classic-arthurian/episodes/bt01_01_03_merlins-plan.md": {
+      "x": 810.0631049927297,
+      "y": -8791.112598660424
+    },
+    "classic-arthurian/episodes/bt01_01_02_kingdom-in-chaos.md": {
+      "x": 1163.526398448864,
+      "y": -8791.112598660424
+    },
+    "classic-arthurian/episodes/bt01_01_01_final-words.md": {
+      "x": 1516.9896919049988,
+      "y": -8791.112598660424
     }
   },
   "navHistory": [],
