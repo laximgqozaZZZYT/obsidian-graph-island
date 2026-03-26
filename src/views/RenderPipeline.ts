@@ -743,15 +743,17 @@ export class RenderPipeline {
           );
         }
       } else {
-        // At extreme zoom-out, cap halo expansion to avoid jarring size jump
-        const haloMult = isExtremeZoom
-          ? Math.min(crc.highlightHaloRadius, 1.2)
-          : crc.highlightHaloRadius;
-        drawShape(pn.circle, shape, effR * haloMult, pn.color, crc.highlightHaloAlpha);
+        // At extreme zoom-out, skip halo entirely to avoid perceived size jump.
+        // The filled node + stroke is enough to indicate hover state.
+        if (!isExtremeZoom) {
+          drawShape(pn.circle, shape, effR * crc.highlightHaloRadius, pn.color, crc.highlightHaloAlpha);
+        }
       }
 
       const strokeCol = darkenColor(pn.color, crc.strokeDarken);
-      pn.circle.lineStyle(crc.highlightStrokeWidth, strokeCol, 0.85);
+      // At extreme zoom, use brighter stroke instead of halo for hover feedback
+      const strokeAlpha = isExtremeZoom ? 1.0 : 0.85;
+      pn.circle.lineStyle(crc.highlightStrokeWidth, isExtremeZoom ? lightenColor(pn.color, 0.3) : strokeCol, strokeAlpha);
       drawShape(pn.circle, shape, effR, pn.color, 1);
     } else {
       pn.circle.visible = false;

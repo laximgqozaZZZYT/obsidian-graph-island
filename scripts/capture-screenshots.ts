@@ -409,6 +409,66 @@ async function main() {
       console.log(`  Saved: ${(fileSize / 1024).toFixed(0)}KB${qc.pass ? " ✓" : ""}`);
       results.push({ name: presetName, nodes: nodeCount, pass: qc.pass, issues: qc.issues });
 
+      // --- Zoomed-in (2.5x) variant centered on node centroid ---
+      const zoomedPath = path.join(OUT_DIR, `${presetName}-zoomed.png`);
+      await page.evaluate(async function() {
+        var v = (window as any).app.workspace
+          .getLeavesOfType("graph-view")
+          .find(function(l: any) { return "pixiNodes" in l.view; })?.view;
+        if (!v || !v.worldContainer) return;
+        var w = v.worldContainer;
+        var canvas = v.pixiApp?.view ?? v.app?.view;
+        var cw = canvas?.width ?? 1920;
+        var ch = canvas?.height ?? 1080;
+
+        // Compute centroid of visible nodes
+        var sumX = 0, sumY = 0, count = 0;
+        v.pixiNodes.forEach(function(pn) {
+          if (pn.data && isFinite(pn.data.x) && isFinite(pn.data.y)) {
+            sumX += pn.data.x; sumY += pn.data.y; count++;
+          }
+        });
+        if (count === 0) return;
+        var cx = sumX / count;
+        var cy = sumY / count;
+
+        // Zoom 2.5x centered on centroid
+        var factor = 2.5;
+        var newScale = w.scale.x * factor;
+        w.scale.set(newScale, newScale);
+        // Recenter: world.x = canvas_center - centroid * scale
+        w.x = cw / 2 - cx * newScale;
+        w.y = ch / 2 - cy * newScale;
+        v.markDirty();
+        await new Promise(function(r) { setTimeout(r, 1500); });
+      });
+      await hideChrome(page);
+      await page.waitForTimeout(300);
+      await captureScreenshot(cdp, zoomedPath);
+      const zoomSize = fs.existsSync(zoomedPath) ? fs.statSync(zoomedPath).size : 0;
+      if (zoomSize > 5000) {
+        console.log(`  Zoomed: ${(zoomSize / 1024).toFixed(0)}KB`);
+        // Save zoomed settings too
+        if (applyResult.settings) {
+          const zoomSettingsPath = path.join(OUT_DIR, `${presetName}-zoomed.json`);
+          const zoomSettings = { ...applyResult.settings, _zoomMultiplier: 2.5 };
+          fs.writeFileSync(zoomSettingsPath, JSON.stringify(zoomSettings, null, 2));
+        }
+      }
+
+      // Restore zoom for next preset
+      await page.evaluate(async function() {
+        var v = (window as any).app.workspace
+          .getLeavesOfType("graph-view")
+          .find(function(l: any) { return "pixiNodes" in l.view; })?.view;
+        if (v && v.worldContainer) {
+          var w = v.worldContainer;
+          w.scale.set(w.scale.x / 2.5, w.scale.y / 2.5);
+          v.markDirty();
+        }
+      });
+      await page.waitForTimeout(300);
+
     } catch (e) {
       console.error(`  ✗ Error: ${(e as Error).message.substring(0, 150)}`);
       try { await fullReload(page); } catch {}
