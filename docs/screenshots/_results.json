@@ -1,7 +1,7 @@
 [
   {
     "name": "01-panorama-overview",
-    "nodes": 119,
+    "nodes": 123,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -169,7 +169,7 @@
   },
   {
     "name": "22-timeline-ranged",
-    "nodes": 102,
+    "nodes": 123,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -193,7 +193,7 @@
   },
   {
     "name": "25-rose-curve",
-    "nodes": 123,
+    "nodes": 252,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -201,7 +201,7 @@
   },
   {
     "name": "26-lissajous-figure",
-    "nodes": 123,
+    "nodes": 246,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -209,7 +209,7 @@
   },
   {
     "name": "27-filled-pentagon",
-    "nodes": 252,
+    "nodes": 492,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -225,7 +225,7 @@
   },
   {
     "name": "29-concentric-degree",
-    "nodes": 492,
+    "nodes": 225,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -241,7 +241,7 @@
   },
   {
     "name": "31-cross-tabulation",
-    "nodes": 225,
+    "nodes": 127,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -249,7 +249,7 @@
   },
   {
     "name": "32-timeline-ticks",
-    "nodes": 246,
+    "nodes": 125,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -257,7 +257,7 @@
   },
   {
     "name": "33-polar-grid",
-    "nodes": 127,
+    "nodes": 123,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -273,7 +273,7 @@
   },
   {
     "name": "35-donut-groups",
-    "nodes": 125,
+    "nodes": 123,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -289,7 +289,7 @@
   },
   {
     "name": "37-hierarchical-sunburst",
-    "nodes": 123,
+    "nodes": 119,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -305,7 +305,7 @@
   },
   {
     "name": "39-large-nodes-overlap",
-    "nodes": 119,
+    "nodes": 123,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -353,7 +353,7 @@
   },
   {
     "name": "45-grid-tight-spacing",
-    "nodes": 123,
+    "nodes": 252,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -361,7 +361,7 @@
   },
   {
     "name": "46-tree-deep-hierarchy",
-    "nodes": 123,
+    "nodes": 246,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -369,7 +369,7 @@
   },
   {
     "name": "47-sunburst-with-tags",
-    "nodes": 252,
+    "nodes": 492,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -385,7 +385,7 @@
   },
   {
     "name": "49-orphan-flood",
-    "nodes": 492,
+    "nodes": 246,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -401,22 +401,6 @@
   },
   {
     "name": "51-enclosure-tight",
-    "nodes": 225,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
-  },
-  {
-    "name": "52-mixed-nodesize-stress",
-    "nodes": 246,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
-  },
-  {
-    "name": "53-accessibility-contrast",
     "nodes": 127,
     "pass": false,
     "issues": [
@@ -424,8 +408,24 @@
     ]
   },
   {
-    "name": "54-radial-dense",
+    "name": "52-mixed-nodesize-stress",
     "nodes": 125,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "53-accessibility-contrast",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "54-radial-dense",
+    "nodes": 123,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -457,7 +457,7 @@
   },
   {
     "name": "test-hub-radial",
-    "nodes": 123,
+    "nodes": 119,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -481,7 +481,7 @@
   },
   {
     "name": "test-tag-category-matrix",
-    "nodes": 119,
+    "nodes": 123,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"

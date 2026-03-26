@@ -387,7 +387,7 @@ export class LabelManager {
     const zoom = this.host.getWorldScale();
     const density = Math.max(0.2, Math.min(3.0, rt.labelDensity ?? 1.0));
     const zoomCap = zoom < 1.0
-      ? Math.max(15, Math.round(100 * density * zoom))  // 15-N labels depending on zoom & density
+      ? Math.max(30, Math.round(150 * density * zoom))  // 30-N labels depending on zoom & density
       : 0; // no cap at zoom >= 1
     const maxVisible = staticMax > 0
       ? (zoomCap > 0 ? Math.min(staticMax, zoomCap) : staticMax)

@@ -35,7 +35,7 @@ describe("createDefaultPanel", () => {
 
   it("has correct default values for key settings", () => {
     const panel = createDefaultPanel();
-    expect(panel.nodeSize).toBe(15);
+    expect(panel.nodeSize).toBe(20);
     expect(panel.showLinks).toBe(true);
     expect(panel.showOrphans).toBe(true);
     expect(panel.hoverHops).toBe(1);
@@ -52,7 +52,7 @@ describe("validatePanelState", () => {
     (panel as any).nodeSize = NaN;
     (panel as any).centerForce = Infinity;
     validatePanelState(panel);
-    expect(panel.nodeSize).toBe(15); // default
+    expect(panel.nodeSize).toBe(20); // default
     expect(isFinite(panel.centerForce)).toBe(true);
   });
 

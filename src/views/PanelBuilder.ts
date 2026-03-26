@@ -349,7 +349,7 @@ export function createDefaultPanel(): PanelState {
     showOrphans: true,
     showArrows: false,
     textFadeThreshold: 0.5,
-    nodeSize: 15,
+    nodeSize: 20,
     centerForce: 0.03,
     repelForce: 200,
     linkForce: 0.01,

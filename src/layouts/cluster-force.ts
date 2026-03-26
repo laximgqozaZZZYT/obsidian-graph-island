@@ -632,7 +632,7 @@ function resolveGapsAndOverlaps(
   if (minGap > 0 || lsfIntra > 0) {
     resolveIntraGroupGaps(
       targets, groups, minGap, cfg.nodeSize, degrees,
-      cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 15,
+      cfg.maxNodeRadius ?? 60, cfg.minNodeRadius ?? 18,
       lsfIntra, cfg.nodeLabelFontSizeMin ?? 11, cfg.nodeLabelFontSizeMax ?? 14,
     );
   }
@@ -875,7 +875,7 @@ export function estimateLabelExtent(
 
 /** Visual radius of a node — canonical formula used across the codebase.
  *  Enforces minNodeRadius floor so nodes remain hoverable/clickable. */
-export function nodeRadius(nodeSize: number, degree: number, minNodeRadius = 15, maxDegree = 0, sizeByDegree = false): number {
+export function nodeRadius(nodeSize: number, degree: number, minNodeRadius = 18, maxDegree = 0, sizeByDegree = false): number {
   const safeSize = isFinite(nodeSize) && nodeSize > 0 ? nodeSize : minNodeRadius;
   const baseR = Math.max(safeSize, minNodeRadius);
   if (sizeByDegree && maxDegree > 0 && degree > 0) {
@@ -892,7 +892,7 @@ export function nodeRadius(nodeSize: number, degree: number, minNodeRadius = 15,
  *  Enforces minNodeRadius floor. */
 export function effectiveRadius(
   n: GraphNode, nodeSize: number, degree: number,
-  maxNodeRadius = 60, minNodeRadius = 15, maxDegree = 0, sizeByDegree = false,
+  maxNodeRadius = 60, minNodeRadius = 18, maxDegree = 0, sizeByDegree = false,
   bodyLength = 0, maxBodyLength = 0, cardContentScale = 0,
 ): number {
   let baseR = nodeRadius(nodeSize, degree, minNodeRadius, maxDegree, sizeByDegree);
@@ -1290,7 +1290,7 @@ function computeUnifiedTimelineTargets(
   let maxGroupNodeR = nodeSize;
   if (allMembers.length > 0) {
     const maxR = cfg.maxNodeRadius ?? 60;
-    const minR = cfg.minNodeRadius ?? 15;
+    const minR = cfg.minNodeRadius ?? 18;
     for (const m of allMembers) {
       const r = effectiveRadius(m, cfg.nodeSize, degrees.get(m.id) ?? 0, maxR, minR);
       if (r > maxGroupNodeR) maxGroupNodeR = r;
@@ -2185,7 +2185,7 @@ function computeOffsets(
 ): ArrangementResult {
   const { nodeSpacing, groupScale, sortComparator, nodeSpacingMap } = cfg;
   const maxR = cfg.maxNodeRadius ?? 60;
-  const minR = cfg.minNodeRadius ?? 15;
+  const minR = cfg.minNodeRadius ?? 18;
 
   // ═══════════════════════════════════════════════════════════════════
   // 6-Step Pipeline — order is FIXED regardless of arrangement pattern
@@ -2416,7 +2416,7 @@ function dispatchHardcoded(
 function concentricOffsets(p: ArrangementParams): ArrangementResult {
   const { members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg } = p;
   const maxR = cfg.maxNodeRadius ?? 60;
-  const minR = cfg.minNodeRadius ?? 15;
+  const minR = cfg.minNodeRadius ?? 18;
   const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, maxR, minR);
 
   const sorted = [...members].sort(cmp);
@@ -2486,7 +2486,7 @@ function concentricOffsets(p: ArrangementParams): ArrangementResult {
 function radialOffsets(p: ArrangementParams): ArrangementResult {
   const { members, degrees, nodeSpacing, groupScale, nodeSize, cmp, nodeSpacingMap, cfg } = p;
   const maxR = cfg.maxNodeRadius ?? 60;
-  const minR = cfg.minNodeRadius ?? 15;
+  const minR = cfg.minNodeRadius ?? 18;
   const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, maxR, minR);
   const spokeCount = cfg.userConstants?._spokeCount;
 
@@ -2722,7 +2722,7 @@ function egoOffsets(p: ArrangementParams): ArrangementResult {
 function randomOffsets(p: ArrangementParams): Map<string, { dx: number; dy: number }> {
   const { members, degrees, nodeSpacing, groupScale, nodeSize, nodeSpacingMap, cfg } = p;
   const maxR = cfg.maxNodeRadius ?? 60;
-  const minR = cfg.minNodeRadius ?? 15;
+  const minR = cfg.minNodeRadius ?? 18;
   const effR = (n: GraphNode) => effectiveRadius(n, nodeSize, degrees.get(n.id) ?? 0, maxR, minR);
 
   const offsets = new Map<string, { dx: number; dy: number }>();
