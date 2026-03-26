@@ -2836,9 +2836,10 @@ export class RenderPipeline {
       placed.sort((a, b) => (b.pn.priorityScore + (b.pn.hoverForcedLabel ? 80 : 0))
                           - (a.pn.priorityScore + (a.pn.hoverForcedLabel ? 80 : 0)));
       const kept: CullLabelRect[] = [];
-      // Use spatial buckets for O(N) density check instead of O(N²) nested loop
+      // Use spatial buckets for O(N) density check instead of O(N²) nested loop.
+      // Store center-point arrays per bucket so we can do exact squared-distance checks.
       const bucketSize = Math.max(densityMinDist, 50);
-      const densityGrid = new Map<string, boolean>();
+      const densityGrid = new Map<string, { cx: number; cy: number }[]>();
       const toBucket = (x: number, y: number) => `${Math.floor(x / bucketSize)},${Math.floor(y / bucketSize)}`;
 
       for (const r of placed) {
@@ -2847,18 +2848,22 @@ export class RenderPipeline {
         const bx = Math.floor(cx / bucketSize);
         const by = Math.floor(cy / bucketSize);
         let tooClose = false;
-        // Check 3x3 neighborhood
-        outer: for (let dx = -1; dx <= 1; dx++) {
-          for (let dy = -1; dy <= 1; dy++) {
-            if (densityGrid.has(`${bx + dx},${by + dy}`)) {
-              tooClose = true;
-              break outer;
+        // Check 3x3 neighborhood — but do exact squared-distance comparison
+        outer: for (let ddx = -1; ddx <= 1; ddx++) {
+          for (let ddy = -1; ddy <= 1; ddy++) {
+            const neighbors = densityGrid.get(`${bx + ddx},${by + ddy}`);
+            if (!neighbors) continue;
+            for (const nb of neighbors) {
+              const d2 = (cx - nb.cx) ** 2 + (cy - nb.cy) ** 2;
+              if (d2 < densityMinDist2) { tooClose = true; break outer; }
             }
           }
         }
         if (!tooClose) {
           kept.push(r);
-          densityGrid.set(toBucket(cx, cy), true);
+          const key = toBucket(cx, cy);
+          const arr = densityGrid.get(key);
+          if (arr) arr.push({ cx, cy }); else densityGrid.set(key, [{ cx, cy }]);
         } else {
           r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - (rt.labelFadeRate ?? 0.15));
           if (r.label.alpha <= 0.05) r.label.visible = false;

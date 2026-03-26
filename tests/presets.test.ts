@@ -312,6 +312,52 @@ describe("importPreset — field classification fixes", () => {
     const preset = importPreset(JSON.stringify({ activeTab: "nodes" }));
     expect(preset.activeTab).toBe("nodes");
   });
+
+  it("migrates removed activeTab 'edges' → 'display' in importPreset", () => {
+    const migrationInfo = { migratedFields: [], removedFields: [] };
+    const preset = importPreset(JSON.stringify({ activeTab: "edges", nodeSize: 8 }), migrationInfo);
+    expect(preset.activeTab).toBe("display");
+    expect(migrationInfo.migratedFields).toContain("activeTab: edges → display");
+    // Other valid fields still imported
+    expect(preset.nodeSize).toBe(8);
+  });
+
+  it("migrates preset 17 activeTab 'edges' → 'display' without crashing", () => {
+    const preset17Fields = {
+      activeTab: "edges",
+      groupBy: "folder:?",
+      groupByRules: null,
+      nodeShapeRules: [
+        { match: "isTag", shape: "triangle" },
+        { match: "category", category: "deity", shape: "hexagon" },
+        { match: "default", shape: "circle" },
+      ],
+      nodeRules: [],
+    };
+    const result = importPreset(JSON.stringify(preset17Fields));
+    expect(result.activeTab).toBe("display");
+    expect((result as any).nodeShapeRules).toHaveLength(3);
+    expect((result as any).groupByRules).toBeNull();
+  });
+});
+
+describe("applyPreset — legacy migration", () => {
+  it("migrates removed activeTab 'edges' → 'display' in applyPreset", () => {
+    const current = makePanel({ activeTab: "filter" });
+    const preset = { activeTab: "edges" } as any;
+    const result = applyPreset(current as any, preset);
+    expect((result as any).activeTab).toBe("display");
+  });
+
+  it("drops invalid enum values in applyPreset", () => {
+    const current = makePanel({ activeTab: "filter", clusterArrangement: "grid" });
+    const preset = { activeTab: "totally-invalid", clusterArrangement: "not-a-real-arrangement" } as any;
+    const result = applyPreset(current as any, preset);
+    // Invalid enum values should be stripped (key absent from merged result)
+    // activeTab falls back because "edges" migration didn't match, but invalid is deleted
+    expect((result as any).activeTab).toBe("filter"); // kept from current since invalid was dropped
+    expect((result as any).clusterArrangement).toBe("grid"); // kept from current since invalid was dropped
+  });
 });
 
 describe("roundtrip: export -> import -> apply", () => {

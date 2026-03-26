@@ -1,0 +1,514 @@
+[
+  {
+    "name": "01-panorama-overview",
+    "nodes": 119,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "02-dense-cluster",
+    "nodes": 263,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "03-character-network",
+    "nodes": 238,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "04-shakespeare-compare",
+    "nodes": 492,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "05-mythology-pantheon",
+    "nodes": 498,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "06-sangokushi-factions",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "07-tag-taxonomy",
+    "nodes": 369,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "08-sequence-tracker",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "09-minimalist",
+    "nodes": 15,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "10-maximalist",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "11-bible-scholar",
+    "nodes": 369,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "12-genji-reader",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "13-battle-analyzer",
+    "nodes": 268,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "14-dialogue-theater",
+    "nodes": 1165,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "15-orphan-hunter",
+    "nodes": 246,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "16-edge-bundle-art",
+    "nodes": 246,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "17-ontology-mapper",
+    "nodes": 252,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "18-folder-compare",
+    "nodes": 348,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "19-hub-discovery",
+    "nodes": 246,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "20-arabian-nights",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "21-filled-hexagon",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "22-timeline-ranged",
+    "nodes": 102,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "23-spiral-galaxy",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "24-baobab-sunburst",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "25-rose-curve",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "26-lissajous-figure",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "27-filled-pentagon",
+    "nodes": 252,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "28-cardioid-heart",
+    "nodes": 246,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "29-concentric-degree",
+    "nodes": 492,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "30-mountain-ridge",
+    "nodes": 246,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "31-cross-tabulation",
+    "nodes": 225,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "32-timeline-ticks",
+    "nodes": 246,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "33-polar-grid",
+    "nodes": 127,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "34-card-view",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "35-donut-groups",
+    "nodes": 125,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "36-er-diagram",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "37-hierarchical-sunburst",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "38-tiny-nodes-stress",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "39-large-nodes-overlap",
+    "nodes": 119,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "40-force-ungrouped",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "41-all-edges-maxdensity",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "42-high-density-tags",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "43-concentric-tiny-accessibility",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "44-timeline-dense-overlap",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "45-grid-tight-spacing",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "46-tree-deep-hierarchy",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "47-sunburst-with-tags",
+    "nodes": 252,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "48-node-type-triangle",
+    "nodes": 246,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "49-orphan-flood",
+    "nodes": 492,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "50-arrow-heavy-directed",
+    "nodes": 246,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "51-enclosure-tight",
+    "nodes": 225,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "52-mixed-nodesize-stress",
+    "nodes": 246,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "53-accessibility-contrast",
+    "nodes": 127,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "54-radial-dense",
+    "nodes": 125,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "55-category-search-filtered",
+    "nodes": 29,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "test-arc",
+    "nodes": 246,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "test-concentric-layout",
+    "nodes": 246,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "test-hub-radial",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "test-sunburst-full",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "test-sunburst-layout",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "test-tag-category-matrix",
+    "nodes": 119,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "test-timeline-story",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "test-timeline",
+    "nodes": 369,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "test-tree",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  }
+]

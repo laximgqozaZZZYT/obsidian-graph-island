@@ -265,6 +265,11 @@ export function importPreset(json: string, migrationInfo?: PresetMigrationInfo):
     delete raw.colorNodesByCategory;
     delete raw.heatmapMode;
   }
+  // Migrate removed "edges" tab → "display" (edges section was merged into display tab)
+  if (raw.activeTab === "edges") {
+    raw.activeTab = "display";
+    migrationInfo?.migratedFields.push("activeTab: edges → display");
+  }
 
   const result: Partial<PanelState> = {};
   // Use a string-keyed record view for dynamic property assignment.
@@ -357,6 +362,16 @@ export function applyPreset(
   if (raw.showTags !== undefined && raw.includeTagsInData === undefined) {
     raw.includeTagsInData = raw.showTags;
     delete raw.showTags;
+  }
+  // Migrate removed "edges" tab → "display"
+  if (raw.activeTab === "edges") {
+    raw.activeTab = "display";
+  }
+  // Validate enum fields: drop any value not in the allowed list
+  for (const [key, allowed] of Object.entries(ENUM_VALUES)) {
+    if (key in raw && allowed && !allowed.includes(raw[key] as string)) {
+      delete raw[key];
+    }
   }
   const merged = { ...current };
   // Reset groupByRules when groupBy changes so the new string is re-parsed

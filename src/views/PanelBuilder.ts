@@ -1108,8 +1108,16 @@ export function buildPanel(
 
   function ensureTabBuilt(tabId: TabId) {
     if (builtTabs.has(tabId)) return;
+    // Guard against removed/invalid tab IDs stored in old presets (e.g. "edges").
+    // Fall back to "display" so the panel still renders without crashing.
+    const builder = tabBuilders[tabId];
+    if (!builder) {
+      panel.activeTab = "display";
+      ensureTabBuilt("display");
+      return;
+    }
     builtTabs.add(tabId);
-    tabBuilders[tabId]();
+    builder();
   }
 
   function ensureAllTabsBuilt() {

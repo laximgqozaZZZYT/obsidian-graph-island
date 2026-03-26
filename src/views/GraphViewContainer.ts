@@ -5046,46 +5046,46 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       txt.style.fill = isHovered ? 0xffffff : 0xeeeeee;
 
       // Place label, nudging away from collisions (screen space)
-      let sx = g.x * ws + (world?.x ?? 0);
-      let sy = g.y * ws + (world?.y ?? 0);
+      const originSx = g.x * ws + (world?.x ?? 0);
+      const originSy = g.y * ws + (world?.y ?? 0);
+      let sx = originSx;
+      let sy = originSy;
       let lx = g.x;
       let ly = g.y;
       const hw = labelText.length * estCharW * 0.5;
       const hh = labelH * 0.5;
+      const margin = 20;
 
-      // Try original position, then nudge outward if collision
-      let resolved = false;
-      for (let attempt = 0; attempt < 12; attempt++) {
-        const collides = placed.some(p =>
-          Math.abs(sx - p.x) < (hw + p.hw) && Math.abs(sy - p.y) < (hh + p.hh)
-        );
-        if (!collides) { resolved = true; break; }
-        // Nudge away from center: push label outward radially
-        const cx = (world?.x ?? 0) + canvasW * 0.5;
-        const cy = (world?.y ?? 0) + canvasH * 0.5;
-        const dx = sx - cx || 1;
-        const dy = sy - cy || 1;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const nudge = (labelH + 12) * (attempt + 1);
-        sx += (dx / dist) * nudge;
-        sy += (dy / dist) * nudge;
-        lx += (dx / dist) * nudge / ws;
-        ly += (dy / dist) * nudge / ws;
-      }
-      // If still colliding after radial nudge, offset vertically instead of hiding
+      const collides = (tx: number, ty: number) =>
+        placed.some(p => Math.abs(tx - p.x) < (hw + p.hw) && Math.abs(ty - p.y) < (hh + p.hh));
+
+      // Multi-directional spiral search: try 8 compass directions at increasing radii.
+      // This avoids the radial-from-center bias that fails for horizontal timeline layouts
+      // where many labels share the same Y strip.
+      const DIRS = [
+        [1, 0], [-1, 0], [0, 1], [0, -1],   // cardinal
+        [1, 1], [-1, 1], [1, -1], [-1, -1],  // diagonal
+      ];
+      const step = labelH + 4;
+      let resolved = !collides(sx, sy);
       if (!resolved) {
-        const fallbackStep = labelH + 12;
-        for (let vAttempt = 0; vAttempt < 6; vAttempt++) {
-          sy += fallbackStep;
-          ly += fallbackStep / ws;
-          const collides = placed.some(p =>
-            Math.abs(sx - p.x) < (hw + p.hw) && Math.abs(sy - p.y) < (hh + p.hh)
-          );
-          if (!collides) { resolved = true; break; }
+        outer: for (let radius = 1; radius <= 8; radius++) {
+          for (const [ddx, ddy] of DIRS) {
+            const tx = originSx + ddx * step * radius;
+            const ty = originSy + ddy * step * radius;
+            // Keep within canvas bounds before accepting position
+            const clampedTx = Math.max(hw + margin, Math.min(canvasW - hw - margin, tx));
+            const clampedTy = Math.max(hh + margin, Math.min(canvasH - hh - margin, ty));
+            if (!collides(clampedTx, clampedTy)) {
+              sx = clampedTx;
+              sy = clampedTy;
+              resolved = true;
+              break outer;
+            }
+          }
         }
       }
-      // Clamp label position within visible canvas area
-      const margin = 20;
+      // Clamp final position within visible canvas area
       sx = Math.max(hw + margin, Math.min(canvasW - hw - margin, sx));
       sy = Math.max(hh + margin, Math.min(canvasH - hh - margin, sy));
       lx = (sx - (world?.x ?? 0)) / ws;
@@ -5878,7 +5878,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     nodeR: (n: GraphNode) => number,
     nodeColor: (n: GraphNode) => number
   ) {
-    this.renderPipeline?.createPixiNodes(nodes, nodeR, nodeColor);
+    // Exclude phantom nodes (road-network routing junctions) from rendering
+    const visible = nodes.filter(n => !n.isPhantom);
+    this.renderPipeline?.createPixiNodes(visible, nodeR, nodeColor);
   }
 
   /** Rebuild PixiJS node display objects in place (no simulation restart).
@@ -6787,7 +6789,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   // Status
   // =========================================================================
-  private setStatus(t: string) { if (this.statusEl) this.statusEl.textContent = t; }
+  private setStatus(t: string) {
+    if (!this.statusEl) return;
+    this.statusEl.textContent = t;
+    // Restart CSS fade-out animation so the status is visible on each update
+    this.statusEl.style.animation = "none";
+    // Force reflow to reset the animation
+    void this.statusEl.offsetWidth;
+    this.statusEl.style.animation = "";
+  }
 
   /** U2: Build rich status text with mode, counts, groups, and filter info */
   private buildRichStatus(nodeCount: number, edgeCount: number): string {

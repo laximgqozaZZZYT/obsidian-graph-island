@@ -90,6 +90,13 @@
   color: var(--text-faint);
   white-space: nowrap;
   padding: 0 4px;
+  /* Auto-hide: fade out after 5s, stay hidden */
+  animation: gi-status-fadeout 0.5s ease 5s forwards;
+}
+
+@keyframes gi-status-fadeout {
+  from { opacity: 1; }
+  to   { opacity: 0; pointer-events: none; }
 }
 
 /* === Main area (canvas + panel) === */
