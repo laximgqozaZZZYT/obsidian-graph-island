@@ -2455,6 +2455,12 @@ export class RenderPipeline {
       // A11y: auto-correct label color if WCAG contrast ratio < 4.5:1
       let labelFill = isSuperNode ? 0xffffff
         : (this.host.isDarkTheme() ? 0xe0e0e0 : 0x222222);
+      // Map-style redundant encoding: tint label text toward node color
+      if (!isSuperNode && rt.labelTextColorSync && color != null) {
+        labelFill = this.host.isDarkTheme()
+          ? lightenColor(color, 0.55)
+          : darkenColor(color, 0.35);
+      }
       if (wcagContrastRatio(labelFill, labelBg) < 4.5) {
         labelFill = contrastColor(labelBg);
       }
