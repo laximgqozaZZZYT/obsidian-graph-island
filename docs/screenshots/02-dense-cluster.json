@@ -180,497 +180,1013 @@
   "presetZoomLevel": 0,
   "zoomSensitivity": 1,
   "pinnedPositions": {
-    "classic-arthurian/characters/arthur.md": {
-      "x": -603.7900688318089,
-      "y": -8084.186011748155
-    },
-    "classic-arthurian/MOC.md": {
-      "x": -250.3267753756743,
-      "y": -8084.186011748155
-    },
-    "classic-arthurian/characters/lancelot.md": {
-      "x": 810.0631049927297,
-      "y": -8437.64930520429
-    },
-    "classic-arthurian/characters/gawain.md": {
-      "x": 2577.379572273403,
-      "y": -8437.64930520429
-    },
-    "classic-arthurian/characters/percival.md": {
-      "x": -603.7900688318089,
-      "y": -8437.64930520429
-    },
-    "classic-arthurian/characters/galahad.md": {
-      "x": -957.2533622879434,
-      "y": -8084.186011748155
-    },
-    "classic-arthurian/characters/tristan.md": {
-      "x": -957.2533622879434,
-      "y": -8437.64930520429
-    },
-    "classic-arthurian/characters/bedivere.md": {
-      "x": 2930.8428657295376,
-      "y": -8437.64930520429
-    },
-    "classic-arthurian/characters/morgan-le-fay.md": {
-      "x": -250.3267753756743,
-      "y": -8437.64930520429
-    },
-    "classic-arthurian/characters/kay.md": {
-      "x": 1516.9896919049988,
-      "y": -8437.64930520429
-    },
-    "classic-arthurian/characters/mordred.md": {
-      "x": 103.1365180804604,
-      "y": -8437.64930520429
-    },
-    "classic-arthurian/characters/merlin.md": {
-      "x": 456.59981153659504,
-      "y": -8437.64930520429
-    },
-    "classic-arthurian/characters/lady-of-the-lake.md": {
-      "x": 1163.526398448864,
-      "y": -8437.64930520429
-    },
-    "classic-arthurian/characters/guinevere.md": {
-      "x": 2223.916278817268,
-      "y": -8437.64930520429
-    },
-    "classic-arthurian/characters/uther-pendragon.md": {
-      "x": 2930.8428657295376,
-      "y": -8791.112598660424
-    },
-    "classic-arthurian/characters/isolde.md": {
-      "x": 1870.4529853611334,
-      "y": -8437.64930520429
-    },
-    "classic-arthurian/episodes/act3_fall-of-camelot.md": {
-      "x": 1870.4529853611334,
-      "y": -8791.112598660424
-    },
-    "classic-arthurian/episodes/act2_quest-for-grail.md": {
-      "x": 2223.916278817268,
-      "y": -8791.112598660424
-    },
-    "classic-arthurian/episodes/act1_rise-of-arthur.md": {
-      "x": 2577.379572273403,
-      "y": -8791.112598660424
-    },
-    "classic-arthurian/episodes/sc08_03_return-to-avalon.md": {
-      "x": -957.2533622879434,
-      "y": -11618.8189463095
-    },
-    "classic-arthurian/episodes/sc08_02_the-last-battle.md": {
-      "x": -603.7900688318089,
-      "y": -11618.8189463095
-    },
-    "classic-arthurian/episodes/sc08_01_mordreds-revolt.md": {
-      "x": -250.3267753756743,
-      "y": -11618.8189463095
-    },
-    "classic-arthurian/episodes/sc07_03_rescue-and-flight.md": {
-      "x": 103.1365180804604,
-      "y": -11618.8189463095
-    },
-    "classic-arthurian/episodes/sc07_02_the-accusation.md": {
-      "x": 456.59981153659504,
-      "y": -11618.8189463095
-    },
-    "classic-arthurian/episodes/sc07_01_secret-meetings.md": {
-      "x": 810.0631049927297,
-      "y": -11618.8189463095
-    },
-    "classic-arthurian/episodes/sc06_03_tragic-end.md": {
-      "x": 1163.526398448864,
-      "y": -11618.8189463095
-    },
-    "classic-arthurian/episodes/sc06_02_forbidden-love.md": {
-      "x": 1516.9896919049988,
-      "y": -11618.8189463095
-    },
-    "classic-arthurian/episodes/sc06_01_the-potion.md": {
-      "x": 1870.4529853611334,
-      "y": -11618.8189463095
-    },
-    "classic-arthurian/episodes/sc05_03_grail-castle.md": {
-      "x": 2223.916278817268,
-      "y": -11618.8189463095
-    },
-    "classic-arthurian/episodes/sc05_02_galahads-path.md": {
-      "x": 2577.379572273403,
-      "y": -11618.8189463095
-    },
-    "classic-arthurian/episodes/sc05_01_percivals-test.md": {
-      "x": 2930.8428657295376,
-      "y": -11618.8189463095
-    },
-    "classic-arthurian/episodes/sc04_03_departure.md": {
-      "x": -957.2533622879434,
-      "y": -11265.355652853366
-    },
-    "classic-arthurian/episodes/sc04_02_galahad-arrives.md": {
-      "x": -603.7900688318089,
-      "y": -11265.355652853366
-    },
-    "classic-arthurian/episodes/sc04_01_grail-vision.md": {
-      "x": -250.3267753756743,
-      "y": -11265.355652853366
-    },
-    "classic-arthurian/episodes/sc03_03_guinevere-arrives.md": {
-      "x": 103.1365180804604,
-      "y": -11265.355652853366
-    },
-    "classic-arthurian/episodes/sc03_02_knights-oath.md": {
-      "x": 456.59981153659504,
-      "y": -11265.355652853366
-    },
-    "classic-arthurian/episodes/sc03_01_camelot-built.md": {
-      "x": 810.0631049927297,
-      "y": -11265.355652853366
-    },
-    "classic-arthurian/episodes/sc02_03_the-gift.md": {
-      "x": 1163.526398448864,
-      "y": -11265.355652853366
-    },
-    "classic-arthurian/episodes/sc02_02_lake-journey.md": {
-      "x": 1516.9896919049988,
-      "y": -11265.355652853366
-    },
-    "classic-arthurian/episodes/sc02_01_broken-sword.md": {
-      "x": 1870.4529853611334,
-      "y": -11265.355652853366
-    },
-    "classic-arthurian/episodes/sc01_03_the-drawing.md": {
-      "x": 2223.916278817268,
-      "y": -11265.355652853366
-    },
-    "classic-arthurian/episodes/sc01_02_the-gathering.md": {
-      "x": 2577.379572273403,
-      "y": -11265.355652853366
-    },
-    "classic-arthurian/episodes/sc01_01_uthers-death.md": {
-      "x": 2930.8428657295376,
-      "y": -11265.355652853366
-    },
-    "classic-arthurian/episodes/ep08_battle-of-camlann.md": {
-      "x": -957.2533622879434,
-      "y": -10911.892359397232
-    },
-    "classic-arthurian/episodes/ep07_lancelot-affair.md": {
-      "x": -603.7900688318089,
-      "y": -10911.892359397232
-    },
-    "classic-arthurian/episodes/ep06_tristan-and-isolde.md": {
-      "x": -250.3267753756743,
-      "y": -10911.892359397232
-    },
-    "classic-arthurian/episodes/ep05_grail-trials.md": {
-      "x": 103.1365180804604,
-      "y": -10911.892359397232
-    },
-    "classic-arthurian/episodes/ep04_quest-begins.md": {
-      "x": 456.59981153659504,
-      "y": -10911.892359397232
-    },
-    "classic-arthurian/episodes/ep03_round-table.md": {
-      "x": 810.0631049927297,
-      "y": -10911.892359397232
-    },
-    "classic-arthurian/episodes/ep02_excalibur.md": {
-      "x": 1163.526398448864,
-      "y": -10911.892359397232
-    },
-    "classic-arthurian/episodes/ep01_sword-in-stone.md": {
-      "x": 1516.9896919049988,
-      "y": -10911.892359397232
-    },
-    "classic-arthurian/episodes/bt08_03_03_departure-to-avalon.md": {
-      "x": 1870.4529853611334,
-      "y": -10911.892359397232
-    },
-    "classic-arthurian/episodes/bt08_03_02_hand-receives.md": {
-      "x": 2223.916278817268,
-      "y": -10911.892359397232
-    },
-    "classic-arthurian/episodes/bt08_03_01_excalibur-returned.md": {
-      "x": 2577.379572273403,
-      "y": -10911.892359397232
-    },
-    "classic-arthurian/episodes/bt08_02_03_mutual-strike.md": {
-      "x": 2930.8428657295376,
-      "y": -10911.892359397232
-    },
-    "classic-arthurian/episodes/bt08_02_02_the-adder.md": {
-      "x": -957.2533622879434,
-      "y": -10558.429065941098
-    },
-    "classic-arthurian/episodes/bt08_02_01_eve-of-battle.md": {
-      "x": -603.7900688318089,
-      "y": -10558.429065941098
-    },
-    "classic-arthurian/episodes/bt08_01_03_arthurs-return.md": {
-      "x": -250.3267753756743,
-      "y": -10558.429065941098
-    },
-    "classic-arthurian/episodes/bt08_01_02_false-news.md": {
-      "x": 103.1365180804604,
-      "y": -10558.429065941098
-    },
-    "classic-arthurian/episodes/bt08_01_01_usurpation.md": {
-      "x": 456.59981153659504,
-      "y": -10558.429065941098
-    },
-    "classic-arthurian/episodes/bt07_03_03_flight-to-france.md": {
-      "x": 810.0631049927297,
-      "y": -10558.429065941098
-    },
-    "classic-arthurian/episodes/bt07_03_02_gareth-falls.md": {
-      "x": 1163.526398448864,
-      "y": -10558.429065941098
-    },
-    "classic-arthurian/episodes/bt07_03_01_rescue-charge.md": {
-      "x": 1516.9896919049988,
-      "y": -10558.429065941098
-    },
-    "classic-arthurian/episodes/bt07_02_03_death-sentence.md": {
-      "x": 1870.4529853611334,
-      "y": -10558.429065941098
-    },
-    "classic-arthurian/episodes/bt07_02_01_public-accusation.md": {
-      "x": 2223.916278817268,
-      "y": -10558.429065941098
-    },
-    "classic-arthurian/episodes/bt07_02_02_arthurs-anguish.md": {
-      "x": 2577.379572273403,
-      "y": -10558.429065941098
-    },
-    "classic-arthurian/episodes/bt07_01_03_caught-in-act.md": {
-      "x": 2930.8428657295376,
-      "y": -10558.429065941098
-    },
-    "classic-arthurian/episodes/bt07_01_02_evidence-gathered.md": {
-      "x": -957.2533622879434,
-      "y": -10204.965772484962
-    },
-    "classic-arthurian/episodes/bt07_01_01_mordreds-spy.md": {
-      "x": -603.7900688318089,
-      "y": -10204.965772484962
-    },
-    "classic-arthurian/episodes/bt06_03_03_lovers-death.md": {
-      "x": -250.3267753756743,
-      "y": -10204.965772484962
-    },
-    "classic-arthurian/episodes/bt06_03_02_exile.md": {
-      "x": 103.1365180804604,
-      "y": -10204.965772484962
-    },
-    "classic-arthurian/episodes/bt06_03_01_discovery.md": {
-      "x": 456.59981153659504,
-      "y": -10204.965772484962
-    },
-    "classic-arthurian/episodes/bt06_02_03_suspicion-grows.md": {
-      "x": 810.0631049927297,
-      "y": -10204.965772484962
-    },
-    "classic-arthurian/episodes/bt06_02_02_loyal-conflict.md": {
-      "x": 1163.526398448864,
-      "y": -10204.965772484962
-    },
-    "classic-arthurian/episodes/bt06_02_01_secret-tryst.md": {
-      "x": 1516.9896919049988,
-      "y": -10204.965772484962
-    },
-    "classic-arthurian/episodes/bt06_01_03_guilty-arrival.md": {
-      "x": 1870.4529853611334,
-      "y": -10204.965772484962
-    },
-    "classic-arthurian/episodes/bt06_01_02_the-drink.md": {
-      "x": 2223.916278817268,
-      "y": -10204.965772484962
-    },
-    "classic-arthurian/episodes/bt06_01_01_voyage-to-cornwall.md": {
-      "x": 2577.379572273403,
-      "y": -10204.965772484962
-    },
-    "classic-arthurian/episodes/bt05_03_03_return-to-camelot.md": {
-      "x": 2930.8428657295376,
-      "y": -10204.965772484962
-    },
-    "classic-arthurian/episodes/bt05_03_02_galahads-ascension.md": {
-      "x": -957.2533622879434,
-      "y": -9851.502479028828
-    },
-    "classic-arthurian/episodes/bt05_03_01_grail-chapel.md": {
-      "x": -603.7900688318089,
-      "y": -9851.502479028828
-    },
-    "classic-arthurian/episodes/bt05_02_03_three-unite.md": {
-      "x": -250.3267753756743,
-      "y": -9851.502479028828
-    },
-    "classic-arthurian/episodes/bt05_02_02_castle-of-maidens.md": {
-      "x": 103.1365180804604,
-      "y": -9851.502479028828
-    },
-    "classic-arthurian/episodes/bt05_02_01_healing-knight.md": {
-      "x": 456.59981153659504,
-      "y": -9851.502479028828
-    },
-    "classic-arthurian/episodes/bt05_01_03_purification.md": {
-      "x": 810.0631049927297,
-      "y": -9851.502479028828
-    },
-    "classic-arthurian/episodes/bt05_01_01_temptation.md": {
-      "x": 1163.526398448864,
-      "y": -9851.502479028828
-    },
-    "classic-arthurian/episodes/bt05_01_02_prayer.md": {
-      "x": 1516.9896919049988,
-      "y": -9851.502479028828
-    },
-    "classic-arthurian/episodes/bt04_03_03_empty-hall.md": {
-      "x": 1870.4529853611334,
-      "y": -9851.502479028828
-    },
-    "classic-arthurian/episodes/bt04_03_02_farewell.md": {
-      "x": 2223.916278817268,
-      "y": -9851.502479028828
-    },
-    "classic-arthurian/episodes/bt04_03_01_arthurs-sorrow.md": {
-      "x": 2577.379572273403,
-      "y": -9851.502479028828
-    },
-    "classic-arthurian/episodes/bt04_02_02_galahad-sits.md": {
-      "x": 2930.8428657295376,
-      "y": -9851.502479028828
-    },
-    "classic-arthurian/episodes/bt04_02_03_sword-in-stone-again.md": {
-      "x": -957.2533622879434,
-      "y": -9498.039185572694
-    },
-    "classic-arthurian/episodes/bt04_02_01_empty-seat.md": {
-      "x": -603.7900688318089,
-      "y": -9498.039185572694
-    },
-    "classic-arthurian/episodes/bt04_01_03_the-vow.md": {
-      "x": -250.3267753756743,
-      "y": -9498.039185572694
-    },
-    "classic-arthurian/episodes/bt04_01_02_thunder-and-light.md": {
-      "x": 103.1365180804604,
-      "y": -9498.039185572694
-    },
-    "classic-arthurian/episodes/bt04_01_01_pentecost-feast.md": {
-      "x": 456.59981153659504,
-      "y": -9498.039185572694
-    },
-    "classic-arthurian/episodes/bt03_03_03_first-glance.md": {
-      "x": 810.0631049927297,
-      "y": -9498.039185572694
-    },
-    "classic-arthurian/episodes/bt03_03_02_wedding-feast.md": {
-      "x": 1163.526398448864,
-      "y": -9498.039185572694
-    },
-    "classic-arthurian/episodes/bt03_03_01_the-proposal.md": {
-      "x": 1516.9896919049988,
-      "y": -9498.039185572694
-    },
-    "classic-arthurian/episodes/bt03_02_02_the-oath.md": {
-      "x": 1870.4529853611334,
-      "y": -9498.039185572694
-    },
-    "classic-arthurian/episodes/bt03_02_03_first-quest.md": {
-      "x": 2223.916278817268,
-      "y": -9498.039185572694
-    },
-    "classic-arthurian/episodes/bt03_02_01_lancelot-joins.md": {
-      "x": 2577.379572273403,
-      "y": -9498.039185572694
-    },
-    "classic-arthurian/episodes/bt03_01_03_the-round-table.md": {
-      "x": 2930.8428657295376,
-      "y": -9498.039185572694
-    },
-    "classic-arthurian/episodes/bt03_01_02_building.md": {
-      "x": -957.2533622879434,
-      "y": -9144.57589211656
-    },
-    "classic-arthurian/episodes/bt03_01_01_the-vision.md": {
-      "x": -603.7900688318089,
-      "y": -9144.57589211656
-    },
-    "classic-arthurian/episodes/bt02_03_02_the-scabbard.md": {
-      "x": -250.3267753756743,
-      "y": -9144.57589211656
-    },
-    "classic-arthurian/episodes/bt02_03_03_oath-to-lake.md": {
-      "x": 103.1365180804604,
-      "y": -9144.57589211656
-    },
-    "classic-arthurian/episodes/bt02_03_01_hand-from-lake.md": {
-      "x": 456.59981153659504,
-      "y": -9144.57589211656
-    },
-    "classic-arthurian/episodes/bt02_02_03_lake-arrival.md": {
-      "x": 810.0631049927297,
-      "y": -9144.57589211656
-    },
-    "classic-arthurian/episodes/bt02_02_02_the-mist.md": {
-      "x": 1163.526398448864,
-      "y": -9144.57589211656
-    },
-    "classic-arthurian/episodes/bt02_02_01_forest-path.md": {
-      "x": 1516.9896919049988,
-      "y": -9144.57589211656
-    },
-    "classic-arthurian/episodes/bt02_01_03_merlins-guidance.md": {
-      "x": 1870.4529853611334,
-      "y": -9144.57589211656
-    },
-    "classic-arthurian/episodes/bt02_01_02_sword-breaks.md": {
-      "x": 2223.916278817268,
-      "y": -9144.57589211656
-    },
-    "classic-arthurian/episodes/bt02_01_01_first-battle.md": {
-      "x": 2577.379572273403,
-      "y": -9144.57589211656
-    },
-    "classic-arthurian/episodes/bt01_03_03_coronation.md": {
-      "x": 2930.8428657295376,
-      "y": -9144.57589211656
-    },
-    "classic-arthurian/episodes/bt01_03_02_doubt-and-proof.md": {
-      "x": -957.2533622879434,
-      "y": -8791.112598660424
-    },
-    "classic-arthurian/episodes/bt01_03_01_the-pull.md": {
-      "x": -603.7900688318089,
-      "y": -8791.112598660424
-    },
-    "classic-arthurian/episodes/bt01_02_03_arthurs-chance.md": {
-      "x": -250.3267753756743,
-      "y": -8791.112598660424
-    },
-    "classic-arthurian/episodes/bt01_02_02_failed-attempts.md": {
-      "x": 103.1365180804604,
-      "y": -8791.112598660424
-    },
-    "classic-arthurian/episodes/bt01_02_01_lords-arrive.md": {
-      "x": 456.59981153659504,
-      "y": -8791.112598660424
-    },
-    "classic-arthurian/episodes/bt01_01_03_merlins-plan.md": {
-      "x": 810.0631049927297,
-      "y": -8791.112598660424
-    },
-    "classic-arthurian/episodes/bt01_01_02_kingdom-in-chaos.md": {
-      "x": 1163.526398448864,
-      "y": -8791.112598660424
-    },
-    "classic-arthurian/episodes/bt01_01_01_final-words.md": {
-      "x": 1516.9896919049988,
-      "y": -8791.112598660424
+    "mythology-norse/characters/odin.md": {
+      "x": 127.37647794378461,
+      "y": -16455.736399751506
+    },
+    "mythology-norse/characters/loki.md": {
+      "x": 475.0983093235373,
+      "y": -16455.736399751506
+    },
+    "mythology-greek/characters/zeus.md": {
+      "x": 15778.425885762244,
+      "y": 11621.993903280389
+    },
+    "mythology-greek/characters/athena.md": {
+      "x": 14842.425885762244,
+      "y": 12089.993903280389
+    },
+    "mythology-norse/characters/thor.md": {
+      "x": -915.789016195474,
+      "y": -16455.736399751506
+    },
+    "mythology-norse/characters/fenrir.md": {
+      "x": 2561.4292976020542,
+      "y": -16455.736399751506
+    },
+    "mythology-norse/characters/baldur.md": {
+      "x": 2909.1511289818072,
+      "y": -16455.736399751506
+    },
+    "mythology-greek/characters/hades.md": {
+      "x": 14374.425885762244,
+      "y": 12089.993903280389
+    },
+    "mythology-greek/characters/odysseus.md": {
+      "x": 17182.425885762244,
+      "y": 11621.993903280389
+    },
+    "mythology-greek/characters/poseidon.md": {
+      "x": 16246.425885762244,
+      "y": 11621.993903280389
+    },
+    "mythology-greek/characters/heracles.md": {
+      "x": 19054.425885762244,
+      "y": 11621.993903280389
+    },
+    "mythology-greek/characters/aphrodite.md": {
+      "x": 16714.425885762244,
+      "y": 12089.993903280389
+    },
+    "mythology-norse/characters/freya.md": {
+      "x": 1865.9856348425487,
+      "y": -16455.736399751506
+    },
+    "mythology-norse/concepts/mjolnir.md": {
+      "x": -568.067184815721,
+      "y": -16108.014568371753
+    },
+    "mythology-greek/characters/perseus.md": {
+      "x": 16714.425885762244,
+      "y": 11621.993903280389
+    },
+    "mythology-greek/MOC.md": {
+      "x": 17182.425885762244,
+      "y": 12089.993903280389
+    },
+    "mythology-norse/MOC.md": {
+      "x": 475.0983093235373,
+      "y": -16108.014568371753
+    },
+    "mythology-greek/characters/ares.md": {
+      "x": 15778.425885762244,
+      "y": 12089.993903280389
+    },
+    "mythology-greek/characters/apollo.md": {
+      "x": 16246.425885762244,
+      "y": 12089.993903280389
+    },
+    "mythology-norse/concepts/yggdrasil.md": {
+      "x": -915.789016195474,
+      "y": -16108.014568371753
+    },
+    "mythology-norse/characters/tyr.md": {
+      "x": 2909.1511289818072,
+      "y": -16803.45823113126
+    },
+    "mythology-norse/characters/heimdall.md": {
+      "x": 1518.2638034627957,
+      "y": -16455.736399751506
+    },
+    "mythology-greek/characters/minotaur.md": {
+      "x": 17650.425885762244,
+      "y": 11621.993903280389
+    },
+    "mythology-norse/characters/hel.md": {
+      "x": 1170.541972083043,
+      "y": -16455.736399751506
+    },
+    "mythology-greek/characters/medusa.md": {
+      "x": 18586.425885762244,
+      "y": 11621.993903280389
+    },
+    "mythology-greek/characters/hephaestus.md": {
+      "x": 19522.425885762244,
+      "y": 11621.993903280389
+    },
+    "mythology-greek/characters/artemis.md": {
+      "x": 15310.425885762244,
+      "y": 12089.993903280389
+    },
+    "mythology-norse/characters/jormungandr.md": {
+      "x": 822.8201407032901,
+      "y": -16455.736399751506
+    },
+    "mythology-greek/concepts/labyrinth.md": {
+      "x": 14374.425885762244,
+      "y": 11621.993903280389
+    },
+    "mythology-greek/characters/kronos.md": {
+      "x": 18118.425885762244,
+      "y": 11621.993903280389
+    },
+    "mythology-norse/characters/sigurd.md": {
+      "x": -220.34535343596826,
+      "y": -16455.736399751506
+    },
+    "mythology-norse/concepts/bifrost.md": {
+      "x": 127.37647794378461,
+      "y": -16108.014568371753
+    },
+    "mythology-norse/characters/frey.md": {
+      "x": 2213.7074662223013,
+      "y": -16455.736399751506
+    },
+    "mythology-norse/concepts/gungnir.md": {
+      "x": -220.34535343596826,
+      "y": -16108.014568371753
+    },
+    "mythology-greek/episodes/ep03_twelve_labors.md": {
+      "x": 16714.425885762244,
+      "y": 8345.993903280389
+    },
+    "mythology-norse/characters/surtr.md": {
+      "x": -568.067184815721,
+      "y": -16455.736399751506
+    },
+    "mythology-greek/episodes/ep04_odyssey.md": {
+      "x": 16246.425885762244,
+      "y": 8345.993903280389
+    },
+    "mythology-greek/concepts/mount-olympus.md": {
+      "x": 19522.425885762244,
+      "y": 11153.993903280389
+    },
+    "mythology-greek/concepts/golden-fleece.md": {
+      "x": 14842.425885762244,
+      "y": 11621.993903280389
+    },
+    "mythology-greek/concepts/ambrosia.md": {
+      "x": 15310.425885762244,
+      "y": 11621.993903280389
+    },
+    "mythology-norse/episodes/sc05_02_great_battle.md": {
+      "x": 2561.4292976020542,
+      "y": -19585.232882169283
+    },
+    "mythology-norse/episodes/ep06_sigurd_dragon.md": {
+      "x": -220.34535343596826,
+      "y": -18889.789219409777
+    },
+    "mythology-norse/episodes/ep05_ragnarok.md": {
+      "x": 127.37647794378461,
+      "y": -18889.789219409777
+    },
+    "mythology-greek/episodes/ep08_theseus_labyrinth.md": {
+      "x": 14374.425885762244,
+      "y": 8345.993903280389
+    },
+    "mythology-greek/episodes/ep06_trojan_war.md": {
+      "x": 15310.425885762244,
+      "y": 8345.993903280389
+    },
+    "mythology-norse/episodes/sc04_03_hels_condition.md": {
+      "x": -915.789016195474,
+      "y": -19237.51105078953
+    },
+    "mythology-norse/episodes/sc03_02_thors_disguise.md": {
+      "x": 475.0983093235373,
+      "y": -19237.51105078953
+    },
+    "mythology-norse/episodes/ep03_theft_of_mjolnir.md": {
+      "x": 822.8201407032901,
+      "y": -18889.789219409777
+    },
+    "mythology-norse/episodes/sc07_02_tyrs_sacrifice.md": {
+      "x": 475.0983093235373,
+      "y": -19585.232882169283
+    },
+    "mythology-norse/episodes/sc03_01_mjolnir_missing.md": {
+      "x": 822.8201407032901,
+      "y": -19237.51105078953
+    },
+    "mythology-norse/episodes/ep07_binding_of_fenrir.md": {
+      "x": -568.067184815721,
+      "y": -18889.789219409777
+    },
+    "mythology-norse/episodes/ep04_death_of_baldur.md": {
+      "x": 475.0983093235373,
+      "y": -18889.789219409777
+    },
+    "mythology-norse/episodes/bt05_02_03_thor_last_stand.md": {
+      "x": -220.34535343596826,
+      "y": -17846.623725270518
+    },
+    "mythology-norse/episodes/bt05_02_01_chains_break.md": {
+      "x": 475.0983093235373,
+      "y": -17846.623725270518
+    },
+    "mythology-norse/episodes/bt04_03_02_tears_refused.md": {
+      "x": 2213.7074662223013,
+      "y": -17846.623725270518
+    },
+    "mythology-norse/episodes/bt04_03_01_journey_to_hel.md": {
+      "x": 2909.1511289818072,
+      "y": -17846.623725270518
+    },
+    "mythology-norse/episodes/bt03_03_03_mjolnir_reclaimed.md": {
+      "x": 822.8201407032901,
+      "y": -17498.901893890765
+    },
+    "mythology-norse/episodes/bt03_02_01_freyas_fury.md": {
+      "x": 2561.4292976020542,
+      "y": -17498.901893890765
+    },
+    "mythology-norse/episodes/bt03_01_03_thrym_demands.md": {
+      "x": 2909.1511289818072,
+      "y": -17498.901893890765
+    },
+    "mythology-norse/episodes/bt02_03_03_peace_restored.md": {
+      "x": -220.34535343596826,
+      "y": -17151.18006251101
+    },
+    "mythology-norse/episodes/act2_adventures.md": {
+      "x": 2213.7074662223013,
+      "y": -16803.45823113126
+    },
+    "mythology-greek/episodes/ep05_perseus.md": {
+      "x": 15778.425885762244,
+      "y": 8345.993903280389
+    },
+    "mythology-greek/episodes/ep01_titanomakhia.md": {
+      "x": 17650.425885762244,
+      "y": 8345.993903280389
+    },
+    "mythology-greek/episodes/act2_heroes.md": {
+      "x": 18586.425885762244,
+      "y": 11153.993903280389
+    },
+    "mythology-norse/episodes/sc05_03_rebirth.md": {
+      "x": 2213.7074662223013,
+      "y": -19585.232882169283
+    },
+    "mythology-norse/episodes/sc04_02_mistletoe_dart.md": {
+      "x": -568.067184815721,
+      "y": -19237.51105078953
+    },
+    "mythology-norse/episodes/sc03_03_thrym_defeated.md": {
+      "x": 127.37647794378461,
+      "y": -19237.51105078953
+    },
+    "mythology-norse/episodes/sc02_03_wall_complete.md": {
+      "x": 1170.541972083043,
+      "y": -19237.51105078953
+    },
+    "mythology-norse/episodes/sc02_01_builders_wager.md": {
+      "x": 1865.9856348425487,
+      "y": -19237.51105078953
+    },
+    "mythology-norse/episodes/sc01_03_world_shaping.md": {
+      "x": 2213.7074662223013,
+      "y": -19237.51105078953
+    },
+    "mythology-norse/episodes/ep02_wall_of_asgard.md": {
+      "x": 1170.541972083043,
+      "y": -18889.789219409777
+    },
+    "mythology-norse/episodes/ep01_creation.md": {
+      "x": 1518.2638034627957,
+      "y": -18889.789219409777
+    },
+    "mythology-norse/episodes/bt07_03_03_ragnarok_prophecy.md": {
+      "x": 822.8201407032901,
+      "y": -18542.067388030024
+    },
+    "mythology-norse/episodes/bt07_02_03_odins_foresight.md": {
+      "x": 1865.9856348425487,
+      "y": -18542.067388030024
+    },
+    "mythology-norse/episodes/bt07_02_02_binding_complete.md": {
+      "x": 2213.7074662223013,
+      "y": -18542.067388030024
+    },
+    "mythology-norse/episodes/bt07_02_01_tyrs_resolve.md": {
+      "x": 2561.4292976020542,
+      "y": -18542.067388030024
+    },
+    "mythology-norse/episodes/bt05_03_02_baldur_returns.md": {
+      "x": -915.789016195474,
+      "y": -17846.623725270518
+    },
+    "mythology-norse/episodes/bt05_02_02_odin_falls.md": {
+      "x": 127.37647794378461,
+      "y": -17846.623725270518
+    },
+    "mythology-norse/episodes/bt05_01_03_bonds_shatter.md": {
+      "x": 822.8201407032901,
+      "y": -17846.623725270518
+    },
+    "mythology-norse/episodes/bt04_02_02_fatal_throw.md": {
+      "x": -915.789016195474,
+      "y": -17498.901893890765
+    },
+    "mythology-norse/episodes/bt04_02_01_gods_game.md": {
+      "x": -568.067184815721,
+      "y": -17498.901893890765
+    },
+    "mythology-norse/episodes/bt04_01_03_odin_consults.md": {
+      "x": -220.34535343596826,
+      "y": -17498.901893890765
+    },
+    "mythology-norse/episodes/bt03_03_02_thrym_falls.md": {
+      "x": 1170.541972083043,
+      "y": -17498.901893890765
+    },
+    "mythology-norse/episodes/bt03_03_01_hammer_returned.md": {
+      "x": 1518.2638034627957,
+      "y": -17498.901893890765
+    },
+    "mythology-norse/episodes/bt03_02_02_bridal_march.md": {
+      "x": 1865.9856348425487,
+      "y": -17498.901893890765
+    },
+    "mythology-norse/episodes/bt03_02_03_feast_deception.md": {
+      "x": 2213.7074662223013,
+      "y": -17498.901893890765
+    },
+    "mythology-norse/episodes/bt03_01_02_lokis_flight.md": {
+      "x": -915.789016195474,
+      "y": -17151.18006251101
+    },
+    "mythology-norse/episodes/bt03_01_01_hammer_gone.md": {
+      "x": -568.067184815721,
+      "y": -17151.18006251101
+    },
+    "mythology-norse/episodes/bt02_03_02_thor_strikes.md": {
+      "x": 127.37647794378461,
+      "y": -17151.18006251101
+    },
+    "mythology-norse/episodes/bt02_02_03_sleipnir_born.md": {
+      "x": 822.8201407032901,
+      "y": -17151.18006251101
+    },
+    "mythology-norse/episodes/act3_ragnarok.md": {
+      "x": 1865.9856348425487,
+      "y": -16803.45823113126
+    },
+    "mythology-norse/episodes/act1_creation.md": {
+      "x": 2561.4292976020542,
+      "y": -16803.45823113126
+    },
+    "mythology-greek/episodes/sc08_02_labyrinth_battle.md": {
+      "x": 14842.425885762244,
+      "y": 7409.993903280389
+    },
+    "mythology-greek/episodes/sc06_01_judgment_of_paris.md": {
+      "x": 18118.425885762244,
+      "y": 7409.993903280389
+    },
+    "mythology-greek/episodes/sc05_02_medusa_cave.md": {
+      "x": 19054.425885762244,
+      "y": 7409.993903280389
+    },
+    "mythology-greek/episodes/sc05_01_divine_gifts.md": {
+      "x": 19522.425885762244,
+      "y": 7409.993903280389
+    },
+    "mythology-greek/episodes/sc03_03_cerberus.md": {
+      "x": 15778.425885762244,
+      "y": 7877.993903280389
+    },
+    "mythology-greek/episodes/sc01_02_zeus_uprising.md": {
+      "x": 19054.425885762244,
+      "y": 7877.993903280389
+    },
+    "mythology-greek/episodes/ep07_orpheus.md": {
+      "x": 14842.425885762244,
+      "y": 8345.993903280389
+    },
+    "mythology-greek/episodes/bt06_01_02_three_offers.md": {
+      "x": 18586.425885762244,
+      "y": 9281.993903280389
+    },
+    "mythology-greek/episodes/bt06_01_01_golden_apple.md": {
+      "x": 19522.425885762244,
+      "y": 9281.993903280389
+    },
+    "mythology-greek/episodes/bt05_03_02_stone_gaze.md": {
+      "x": 14374.425885762244,
+      "y": 9749.993903280389
+    },
+    "mythology-greek/episodes/bt05_02_02_medusa_slain.md": {
+      "x": 15778.425885762244,
+      "y": 9749.993903280389
+    },
+    "mythology-greek/episodes/bt04_03_01_disguise.md": {
+      "x": 19054.425885762244,
+      "y": 9749.993903280389
+    },
+    "mythology-greek/episodes/bt03_03_02_hades_deal.md": {
+      "x": 17182.425885762244,
+      "y": 10217.993903280389
+    },
+    "mythology-greek/episodes/bt01_03_03_kronos_falls.md": {
+      "x": 19522.425885762244,
+      "y": 10685.993903280389
+    },
+    "mythology-greek/episodes/bt01_02_02_siblings_freed.md": {
+      "x": 15778.425885762244,
+      "y": 11153.993903280389
+    },
+    "mythology-greek/episodes/bt01_01_03_zeus_hidden.md": {
+      "x": 16714.425885762244,
+      "y": 11153.993903280389
+    },
+    "mythology-greek/episodes/act3_wars.md": {
+      "x": 18118.425885762244,
+      "y": 11153.993903280389
+    },
+    "mythology-greek/episodes/act1_origins.md": {
+      "x": 19054.425885762244,
+      "y": 11153.993903280389
+    },
+    "mythology-norse/episodes/sc08_03_eagle_escape.md": {
+      "x": -915.789016195474,
+      "y": -19585.232882169283
+    },
+    "mythology-norse/episodes/sc08_02_odins_disguise.md": {
+      "x": -568.067184815721,
+      "y": -19585.232882169283
+    },
+    "mythology-norse/episodes/sc07_03_fenrir_howls.md": {
+      "x": 127.37647794378461,
+      "y": -19585.232882169283
+    },
+    "mythology-norse/episodes/sc07_01_gleipnir_creation.md": {
+      "x": 822.8201407032901,
+      "y": -19585.232882169283
+    },
+    "mythology-norse/episodes/sc06_03_brynhild_awakening.md": {
+      "x": 1170.541972083043,
+      "y": -19585.232882169283
+    },
+    "mythology-norse/episodes/sc06_01_reginn_forge.md": {
+      "x": 1865.9856348425487,
+      "y": -19585.232882169283
+    },
+    "mythology-norse/episodes/sc04_01_baldurs_dreams.md": {
+      "x": -220.34535343596826,
+      "y": -19237.51105078953
+    },
+    "mythology-norse/episodes/sc02_02_lokis_trick.md": {
+      "x": 1518.2638034627957,
+      "y": -19237.51105078953
+    },
+    "mythology-norse/episodes/ep08_mead_of_poetry.md": {
+      "x": -915.789016195474,
+      "y": -18889.789219409777
+    },
+    "mythology-norse/episodes/bt08_03_03_mead_shared.md": {
+      "x": 1865.9856348425487,
+      "y": -18889.789219409777
+    },
+    "mythology-norse/episodes/bt08_03_02_eagle_chase.md": {
+      "x": 2213.7074662223013,
+      "y": -18889.789219409777
+    },
+    "mythology-norse/episodes/bt08_03_01_three_draughts.md": {
+      "x": 2561.4292976020542,
+      "y": -18889.789219409777
+    },
+    "mythology-norse/episodes/bt08_02_03_serpent_entry.md": {
+      "x": 2909.1511289818072,
+      "y": -18889.789219409777
+    },
+    "mythology-norse/episodes/bt08_02_02_seasons_labor.md": {
+      "x": -915.789016195474,
+      "y": -18542.067388030024
+    },
+    "mythology-norse/episodes/bt08_02_01_bolverk_scheme.md": {
+      "x": -568.067184815721,
+      "y": -18542.067388030024
+    },
+    "mythology-norse/episodes/bt07_03_02_river_of_drool.md": {
+      "x": 1170.541972083043,
+      "y": -18542.067388030024
+    },
+    "mythology-norse/episodes/bt07_03_01_rage_unbound.md": {
+      "x": 1518.2638034627957,
+      "y": -18542.067388030024
+    },
+    "mythology-norse/episodes/bt07_01_03_island_challenge.md": {
+      "x": 2909.1511289818072,
+      "y": -18542.067388030024
+    },
+    "mythology-norse/episodes/bt07_01_01_chains_fail.md": {
+      "x": -568.067184815721,
+      "y": -18194.34555665027
+    },
+    "mythology-norse/episodes/bt06_03_02_valkyrie_wakes.md": {
+      "x": 127.37647794378461,
+      "y": -18194.34555665027
+    },
+    "mythology-norse/episodes/bt06_02_01_pit_trap.md": {
+      "x": 1518.2638034627957,
+      "y": -18194.34555665027
+    },
+    "mythology-norse/episodes/bt06_01_01_broken_blade.md": {
+      "x": 2561.4292976020542,
+      "y": -18194.34555665027
+    },
+    "mythology-norse/episodes/bt04_03_03_loki_imprisoned.md": {
+      "x": 1865.9856348425487,
+      "y": -17846.623725270518
+    },
+    "mythology-norse/episodes/bt04_02_03_loki_flees.md": {
+      "x": 2561.4292976020542,
+      "y": -17846.623725270518
+    },
+    "mythology-norse/episodes/bt04_01_02_friggs_oath.md": {
+      "x": 127.37647794378461,
+      "y": -17498.901893890765
+    },
+    "mythology-norse/episodes/bt04_01_01_dark_visions.md": {
+      "x": 475.0983093235373,
+      "y": -17498.901893890765
+    },
+    "mythology-norse/episodes/bt02_02_02_loki_transforms.md": {
+      "x": 1170.541972083043,
+      "y": -17151.18006251101
+    },
+    "mythology-norse/episodes/bt02_02_01_wall_rising.md": {
+      "x": 1518.2638034627957,
+      "y": -17151.18006251101
+    },
+    "mythology-norse/episodes/bt02_01_03_freya_stake.md": {
+      "x": 1865.9856348425487,
+      "y": -17151.18006251101
+    },
+    "mythology-norse/episodes/bt02_01_02_impossible_deadline.md": {
+      "x": 2213.7074662223013,
+      "y": -17151.18006251101
+    },
+    "mythology-norse/episodes/bt02_01_01_stranger_arrives.md": {
+      "x": 2561.4292976020542,
+      "y": -17151.18006251101
+    },
+    "mythology-norse/episodes/bt01_03_03_first_humans.md": {
+      "x": 2909.1511289818072,
+      "y": -17151.18006251101
+    },
+    "mythology-norse/episodes/bt01_03_02_nine_worlds.md": {
+      "x": -915.789016195474,
+      "y": -16803.45823113126
+    },
+    "mythology-norse/episodes/bt01_03_01_ymir_slain.md": {
+      "x": -568.067184815721,
+      "y": -16803.45823113126
+    },
+    "mythology-norse/episodes/bt01_02_02_buri_emerges.md": {
+      "x": 127.37647794378461,
+      "y": -16803.45823113126
+    },
+    "mythology-greek/episodes/sc08_01_voyage_to_crete.md": {
+      "x": 15310.425885762244,
+      "y": 7409.993903280389
+    },
+    "mythology-greek/episodes/sc07_03_looking_back.md": {
+      "x": 15778.425885762244,
+      "y": 7409.993903280389
+    },
+    "mythology-greek/episodes/sc07_02_underworld_journey.md": {
+      "x": 16246.425885762244,
+      "y": 7409.993903280389
+    },
+    "mythology-greek/episodes/sc06_03_trojan_horse.md": {
+      "x": 17182.425885762244,
+      "y": 7409.993903280389
+    },
+    "mythology-greek/episodes/sc05_03_andromeda_rescue.md": {
+      "x": 18586.425885762244,
+      "y": 7409.993903280389
+    },
+    "mythology-greek/episodes/sc04_03_return_to_ithaca.md": {
+      "x": 14374.425885762244,
+      "y": 7877.993903280389
+    },
+    "mythology-greek/episodes/sc04_02_sea_trials.md": {
+      "x": 14842.425885762244,
+      "y": 7877.993903280389
+    },
+    "mythology-greek/episodes/sc04_01_cyclops_island.md": {
+      "x": 15310.425885762244,
+      "y": 7877.993903280389
+    },
+    "mythology-greek/episodes/sc03_02_lernaean_hydra.md": {
+      "x": 16246.425885762244,
+      "y": 7877.993903280389
+    },
+    "mythology-greek/episodes/sc03_01_nemean_lion.md": {
+      "x": 16714.425885762244,
+      "y": 7877.993903280389
+    },
+    "mythology-greek/episodes/sc02_03_zeus_retribution.md": {
+      "x": 17182.425885762244,
+      "y": 7877.993903280389
+    },
+    "mythology-greek/episodes/sc02_02_theft_of_fire.md": {
+      "x": 17650.425885762244,
+      "y": 7877.993903280389
+    },
+    "mythology-greek/episodes/sc02_01_creation_of_man.md": {
+      "x": 18118.425885762244,
+      "y": 7877.993903280389
+    },
+    "mythology-greek/episodes/sc01_01_kronos_tyranny.md": {
+      "x": 19522.425885762244,
+      "y": 7877.993903280389
+    },
+    "mythology-greek/episodes/ep02_prometheus.md": {
+      "x": 17182.425885762244,
+      "y": 8345.993903280389
+    },
+    "mythology-greek/episodes/bt08_02_03_escape_thread.md": {
+      "x": 19522.425885762244,
+      "y": 8345.993903280389
+    },
+    "mythology-greek/episodes/bt08_02_02_minotaur_fight.md": {
+      "x": 14374.425885762244,
+      "y": 8813.993903280389
+    },
+    "mythology-greek/episodes/bt08_02_01_labyrinth_entry.md": {
+      "x": 14842.425885762244,
+      "y": 8813.993903280389
+    },
+    "mythology-greek/episodes/bt08_01_03_thread_given.md": {
+      "x": 15310.425885762244,
+      "y": 8813.993903280389
+    },
+    "mythology-greek/episodes/bt08_01_02_ariadne_meeting.md": {
+      "x": 15778.425885762244,
+      "y": 8813.993903280389
+    },
+    "mythology-greek/episodes/bt07_02_03_condition.md": {
+      "x": 17650.425885762244,
+      "y": 8813.993903280389
+    },
+    "mythology-greek/episodes/bt07_02_02_hades_moved.md": {
+      "x": 18586.425885762244,
+      "y": 8813.993903280389
+    },
+    "mythology-greek/episodes/bt06_03_01_horse_built.md": {
+      "x": 16246.425885762244,
+      "y": 9281.993903280389
+    },
+    "mythology-greek/episodes/bt06_01_03_paris_chooses.md": {
+      "x": 18118.425885762244,
+      "y": 9281.993903280389
+    },
+    "mythology-greek/episodes/bt05_03_03_liberation.md": {
+      "x": 19054.425885762244,
+      "y": 9281.993903280389
+    },
+    "mythology-greek/episodes/bt05_03_01_sea_monster.md": {
+      "x": 14842.425885762244,
+      "y": 9749.993903280389
+    },
+    "mythology-greek/episodes/bt05_02_03_escape_flight.md": {
+      "x": 15310.425885762244,
+      "y": 9749.993903280389
+    },
+    "mythology-greek/episodes/bt05_02_01_stone_forest.md": {
+      "x": 16246.425885762244,
+      "y": 9749.993903280389
+    },
+    "mythology-greek/episodes/bt05_01_03_departure.md": {
+      "x": 16714.425885762244,
+      "y": 9749.993903280389
+    },
+    "mythology-greek/episodes/bt05_01_02_gifts_received.md": {
+      "x": 17182.425885762244,
+      "y": 9749.993903280389
+    },
+    "mythology-greek/episodes/bt05_01_01_quest_given.md": {
+      "x": 17650.425885762244,
+      "y": 9749.993903280389
+    },
+    "mythology-greek/episodes/bt04_03_03_suitors_slain.md": {
+      "x": 18118.425885762244,
+      "y": 9749.993903280389
+    },
+    "mythology-greek/episodes/bt04_03_02_bow_contest.md": {
+      "x": 18586.425885762244,
+      "y": 9749.993903280389
+    },
+    "mythology-greek/episodes/bt04_02_03_calypso_release.md": {
+      "x": 19522.425885762244,
+      "y": 9749.993903280389
+    },
+    "mythology-greek/episodes/bt04_02_01_sirens_song.md": {
+      "x": 14842.425885762244,
+      "y": 10217.993903280389
+    },
+    "mythology-greek/episodes/bt04_01_03_nobody_trick.md": {
+      "x": 15310.425885762244,
+      "y": 10217.993903280389
+    },
+    "mythology-greek/episodes/bt04_01_01_cave_entry.md": {
+      "x": 16246.425885762244,
+      "y": 10217.993903280389
+    },
+    "mythology-greek/episodes/bt03_03_03_cerberus_captured.md": {
+      "x": 16714.425885762244,
+      "y": 10217.993903280389
+    },
+    "mythology-greek/episodes/bt03_03_01_descent.md": {
+      "x": 17650.425885762244,
+      "y": 10217.993903280389
+    },
+    "mythology-greek/episodes/bt03_02_03_immortal_head.md": {
+      "x": 18118.425885762244,
+      "y": 10217.993903280389
+    },
+    "mythology-greek/episodes/bt03_02_02_iolaus_fire.md": {
+      "x": 18586.425885762244,
+      "y": 10217.993903280389
+    },
+    "mythology-greek/episodes/bt03_02_01_hydra_appears.md": {
+      "x": 19054.425885762244,
+      "y": 10217.993903280389
+    },
+    "mythology-greek/episodes/bt03_01_03_lion_skin.md": {
+      "x": 19522.425885762244,
+      "y": 10217.993903280389
+    },
+    "mythology-greek/episodes/bt03_01_02_bare_hands.md": {
+      "x": 14374.425885762244,
+      "y": 10685.993903280389
+    },
+    "mythology-greek/episodes/bt03_01_01_lion_hunt.md": {
+      "x": 14842.425885762244,
+      "y": 10685.993903280389
+    },
+    "mythology-greek/episodes/bt02_03_01_pandora_created.md": {
+      "x": 16246.425885762244,
+      "y": 10685.993903280389
+    },
+    "mythology-greek/episodes/bt02_02_03_fire_given.md": {
+      "x": 16714.425885762244,
+      "y": 10685.993903280389
+    },
+    "mythology-greek/episodes/bt02_01_02_athena_breath.md": {
+      "x": 18586.425885762244,
+      "y": 10685.993903280389
+    },
+    "mythology-greek/episodes/bt01_03_02_cyclops_forge.md": {
+      "x": 14374.425885762244,
+      "y": 11153.993903280389
+    },
+    "mythology-greek/episodes/bt01_02_01_zeus_grows.md": {
+      "x": 16246.425885762244,
+      "y": 11153.993903280389
+    },
+    "mythology-greek/episodes/bt01_01_01_kronos_devours.md": {
+      "x": 17650.425885762244,
+      "y": 11153.993903280389
+    },
+    "mythology-norse/episodes/sc08_01_kvasirs_blood.md": {
+      "x": -220.34535343596826,
+      "y": -19585.232882169283
+    },
+    "mythology-norse/episodes/sc06_02_fafnir_slain.md": {
+      "x": 1518.2638034627957,
+      "y": -19585.232882169283
+    },
+    "mythology-norse/episodes/sc05_01_fimbulwinter.md": {
+      "x": 2909.1511289818072,
+      "y": -19585.232882169283
+    },
+    "mythology-norse/episodes/sc01_02_ymir_birth.md": {
+      "x": 2561.4292976020542,
+      "y": -19237.51105078953
+    },
+    "mythology-norse/episodes/sc01_01_ginnungagap.md": {
+      "x": 2909.1511289818072,
+      "y": -19237.51105078953
+    },
+    "mythology-norse/episodes/bt08_01_03_suttung_seizes.md": {
+      "x": -220.34535343596826,
+      "y": -18542.067388030024
+    },
+    "mythology-norse/episodes/bt08_01_02_dwarves_murder.md": {
+      "x": 127.37647794378461,
+      "y": -18542.067388030024
+    },
+    "mythology-norse/episodes/bt08_01_01_kvasir_born.md": {
+      "x": 475.0983093235373,
+      "y": -18542.067388030024
+    },
+    "mythology-norse/episodes/bt07_01_02_dwarven_craft.md": {
+      "x": -915.789016195474,
+      "y": -18194.34555665027
+    },
+    "mythology-norse/episodes/bt06_03_03_oath_exchanged.md": {
+      "x": -220.34535343596826,
+      "y": -18194.34555665027
+    },
+    "mythology-norse/episodes/bt06_03_01_flame_wall.md": {
+      "x": 475.0983093235373,
+      "y": -18194.34555665027
+    },
+    "mythology-norse/episodes/bt06_02_03_cursed_gold.md": {
+      "x": 822.8201407032901,
+      "y": -18194.34555665027
+    },
+    "mythology-norse/episodes/bt06_02_02_birds_whisper.md": {
+      "x": 1170.541972083043,
+      "y": -18194.34555665027
+    },
+    "mythology-norse/episodes/bt06_01_03_fafnirs_tale.md": {
+      "x": 1865.9856348425487,
+      "y": -18194.34555665027
+    },
+    "mythology-norse/episodes/bt06_01_02_gram_reforged.md": {
+      "x": 2213.7074662223013,
+      "y": -18194.34555665027
+    },
+    "mythology-norse/episodes/bt05_03_03_new_dawn.md": {
+      "x": 2909.1511289818072,
+      "y": -18194.34555665027
+    },
+    "mythology-norse/episodes/bt05_03_01_land_rises.md": {
+      "x": -568.067184815721,
+      "y": -17846.623725270518
+    },
+    "mythology-norse/episodes/bt05_01_02_sky_devoured.md": {
+      "x": 1170.541972083043,
+      "y": -17846.623725270518
+    },
+    "mythology-norse/episodes/bt05_01_01_endless_winter.md": {
+      "x": 1518.2638034627957,
+      "y": -17846.623725270518
+    },
+    "mythology-norse/episodes/bt02_03_01_giant_revealed.md": {
+      "x": 475.0983093235373,
+      "y": -17151.18006251101
+    },
+    "mythology-norse/episodes/bt01_02_03_frost_giants_rise.md": {
+      "x": -220.34535343596826,
+      "y": -16803.45823113126
+    },
+    "mythology-norse/episodes/bt01_02_01_ymir_awakens.md": {
+      "x": 475.0983093235373,
+      "y": -16803.45823113126
+    },
+    "mythology-norse/episodes/bt01_01_02_fire_and_ice.md": {
+      "x": 822.8201407032901,
+      "y": -16803.45823113126
+    },
+    "mythology-norse/episodes/bt01_01_03_audhumla_licks.md": {
+      "x": 1170.541972083043,
+      "y": -16803.45823113126
+    },
+    "mythology-norse/episodes/bt01_01_01_primordial_chaos.md": {
+      "x": 1518.2638034627957,
+      "y": -16803.45823113126
+    },
+    "mythology-greek/episodes/sc08_03_ariadne_abandoned.md": {
+      "x": 14374.425885762244,
+      "y": 7409.993903280389
+    },
+    "mythology-greek/episodes/sc07_01_eurydice_death.md": {
+      "x": 16714.425885762244,
+      "y": 7409.993903280389
+    },
+    "mythology-greek/episodes/sc06_02_wrath_of_achilles.md": {
+      "x": 17650.425885762244,
+      "y": 7409.993903280389
+    },
+    "mythology-greek/episodes/sc01_03_great_battle.md": {
+      "x": 18586.425885762244,
+      "y": 7877.993903280389
+    },
+    "mythology-greek/episodes/bt08_03_03_black_sail_tragedy.md": {
+      "x": 18118.425885762244,
+      "y": 8345.993903280389
+    },
+    "mythology-greek/episodes/bt08_03_02_ariadne_awakens.md": {
+      "x": 18586.425885762244,
+      "y": 8345.993903280389
+    },
+    "mythology-greek/episodes/bt08_03_01_naxos_shore.md": {
+      "x": 19054.425885762244,
+      "y": 8345.993903280389
+    },
+    "mythology-greek/episodes/bt08_01_01_black_sail.md": {
+      "x": 16246.425885762244,
+      "y": 8813.993903280389
+    },
+    "mythology-greek/episodes/bt07_03_03_eternal_song.md": {
+      "x": 16714.425885762244,
+      "y": 8813.993903280389
+    },
+    "mythology-greek/episodes/bt07_03_02_glance_back.md": {
+      "x": 17182.425885762244,
+      "y": 8813.993903280389
+    },
+    "mythology-greek/episodes/bt07_03_01_ascending.md": {
+      "x": 18118.425885762244,
+      "y": 8813.993903280389
+    },
+    "mythology-greek/episodes/bt07_02_01_cerberus_sleep.md": {
+      "x": 19054.425885762244,
+      "y": 8813.993903280389
+    },
+    "mythology-greek/episodes/bt07_01_03_orpheus_grief.md": {
+      "x": 19522.425885762244,
+      "y": 8813.993903280389
+    },
+    "mythology-greek/episodes/bt07_01_01_wedding_joy.md": {
+      "x": 14374.425885762244,
+      "y": 9281.993903280389
+    },
+    "mythology-greek/episodes/bt07_01_02_serpent_bite.md": {
+      "x": 14842.425885762244,
+      "y": 9281.993903280389
+    },
+    "mythology-greek/episodes/bt06_03_03_troy_falls.md": {
+      "x": 15310.425885762244,
+      "y": 9281.993903280389
+    },
+    "mythology-greek/episodes/bt06_03_02_gates_open.md": {
+      "x": 15778.425885762244,
+      "y": 9281.993903280389
+    },
+    "mythology-greek/episodes/bt06_02_03_hector_duel.md": {
+      "x": 16714.425885762244,
+      "y": 9281.993903280389
+    },
+    "mythology-greek/episodes/bt06_02_02_achilles_returns.md": {
+      "x": 17182.425885762244,
+      "y": 9281.993903280389
+    },
+    "mythology-greek/episodes/bt06_02_01_patroclus_death.md": {
+      "x": 17650.425885762244,
+      "y": 9281.993903280389
+    },
+    "mythology-greek/episodes/bt04_02_02_scylla_charybdis.md": {
+      "x": 14374.425885762244,
+      "y": 10217.993903280389
+    },
+    "mythology-greek/episodes/bt04_01_02_polyphemus_trap.md": {
+      "x": 15778.425885762244,
+      "y": 10217.993903280389
+    },
+    "mythology-greek/episodes/bt02_03_03_box_opened.md": {
+      "x": 15310.425885762244,
+      "y": 10685.993903280389
+    },
+    "mythology-greek/episodes/bt02_03_02_prometheus_chained.md": {
+      "x": 15778.425885762244,
+      "y": 10685.993903280389
+    },
+    "mythology-greek/episodes/bt02_02_02_stealing_fire.md": {
+      "x": 17182.425885762244,
+      "y": 10685.993903280389
+    },
+    "mythology-greek/episodes/bt02_02_01_humans_suffer.md": {
+      "x": 17650.425885762244,
+      "y": 10685.993903280389
+    },
+    "mythology-greek/episodes/bt02_01_03_first_steps.md": {
+      "x": 18118.425885762244,
+      "y": 10685.993903280389
+    },
+    "mythology-greek/episodes/bt02_01_01_clay_shaping.md": {
+      "x": 19054.425885762244,
+      "y": 10685.993903280389
+    },
+    "mythology-greek/episodes/bt01_03_01_titans_clash.md": {
+      "x": 14842.425885762244,
+      "y": 11153.993903280389
+    },
+    "mythology-greek/episodes/bt01_02_03_war_declared.md": {
+      "x": 15310.425885762244,
+      "y": 11153.993903280389
+    },
+    "mythology-greek/episodes/bt01_01_02_rhea_grief.md": {
+      "x": 17182.425885762244,
+      "y": 11153.993903280389
     }
   },
   "navHistory": [],
