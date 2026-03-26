@@ -177,7 +177,7 @@
   },
   {
     "name": "23-spiral-galaxy",
-    "nodes": 123,
+    "nodes": 252,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -185,7 +185,7 @@
   },
   {
     "name": "24-baobab-sunburst",
-    "nodes": 123,
+    "nodes": 246,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -193,7 +193,7 @@
   },
   {
     "name": "25-rose-curve",
-    "nodes": 252,
+    "nodes": 492,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -209,7 +209,7 @@
   },
   {
     "name": "27-filled-pentagon",
-    "nodes": 492,
+    "nodes": 246,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -225,22 +225,6 @@
   },
   {
     "name": "29-concentric-degree",
-    "nodes": 225,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
-  },
-  {
-    "name": "30-mountain-ridge",
-    "nodes": 246,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
-  },
-  {
-    "name": "31-cross-tabulation",
     "nodes": 127,
     "pass": false,
     "issues": [
@@ -248,7 +232,7 @@
     ]
   },
   {
-    "name": "32-timeline-ticks",
+    "name": "30-mountain-ridge",
     "nodes": 125,
     "pass": false,
     "issues": [
@@ -256,8 +240,24 @@
     ]
   },
   {
-    "name": "33-polar-grid",
+    "name": "31-cross-tabulation",
     "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "32-timeline-ticks",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "33-polar-grid",
+    "nodes": 119,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -289,7 +289,7 @@
   },
   {
     "name": "37-hierarchical-sunburst",
-    "nodes": 119,
+    "nodes": 123,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -337,7 +337,7 @@
   },
   {
     "name": "43-concentric-tiny-accessibility",
-    "nodes": 123,
+    "nodes": 252,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -345,7 +345,7 @@
   },
   {
     "name": "44-timeline-dense-overlap",
-    "nodes": 123,
+    "nodes": 246,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -353,7 +353,7 @@
   },
   {
     "name": "45-grid-tight-spacing",
-    "nodes": 252,
+    "nodes": 492,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -369,7 +369,7 @@
   },
   {
     "name": "47-sunburst-with-tags",
-    "nodes": 492,
+    "nodes": 246,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -385,22 +385,6 @@
   },
   {
     "name": "49-orphan-flood",
-    "nodes": 246,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
-  },
-  {
-    "name": "50-arrow-heavy-directed",
-    "nodes": 246,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
-  },
-  {
-    "name": "51-enclosure-tight",
     "nodes": 127,
     "pass": false,
     "issues": [
@@ -408,7 +392,7 @@
     ]
   },
   {
-    "name": "52-mixed-nodesize-stress",
+    "name": "50-arrow-heavy-directed",
     "nodes": 125,
     "pass": false,
     "issues": [
@@ -416,8 +400,24 @@
     ]
   },
   {
-    "name": "53-accessibility-contrast",
+    "name": "51-enclosure-tight",
     "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "52-mixed-nodesize-stress",
+    "nodes": 123,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
+    "name": "53-accessibility-contrast",
+    "nodes": 119,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -457,7 +457,7 @@
   },
   {
     "name": "test-hub-radial",
-    "nodes": 119,
+    "nodes": 123,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"

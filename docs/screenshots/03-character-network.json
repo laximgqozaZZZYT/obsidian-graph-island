@@ -180,1489 +180,1489 @@
   "presetZoomLevel": 0,
   "zoomSensitivity": 1,
   "pinnedPositions": {
-    "mythology-egyptian/characters/ra.md": {
-      "x": -2154.2190756874697,
-      "y": 1762.2085873418207
-    },
-    "mythology-egyptian/characters/osiris.md": {
-      "x": -1803.9294820909784,
-      "y": -29.573384304978006
-    },
-    "mythology-egyptian/characters/set.md": {
-      "x": 3118.601113614186,
-      "y": 2243.14114644398
-    },
-    "mythology-egyptian/characters/isis.md": {
-      "x": 378.6896004287456,
-      "y": 3216.907017916242
-    },
-    "mythology-egyptian/characters/thoth.md": {
-      "x": 2949.023928003965,
-      "y": -1478.7541614415861
-    },
-    "mythology-egyptian/characters/horus.md": {
-      "x": 2744.9375595062825,
-      "y": -857.7929612630116
-    },
-    "mythology-egyptian/characters/anubis.md": {
-      "x": -336.9800693379935,
-      "y": 3579.4437810093777
-    },
-    "mythology-egyptian/characters/sekhmet.md": {
-      "x": 3118.603252863785,
-      "y": -1288.6863408388929
-    },
-    "mythology-egyptian/MOC.md": {
-      "x": -333.3791261442864,
-      "y": -8676.166725433673
-    },
-    "mythology-egyptian/characters/bastet.md": {
-      "x": 3270.1919082524464,
-      "y": -1083.9881221108485
-    },
-    "mythology-egyptian/characters/apophis.md": {
-      "x": 2986.533538295046,
-      "y": 1402.237867824313
-    },
-    "mythology-egyptian/concepts/duat.md": {
-      "x": -1838.6140423541049,
-      "y": 222.77269377339223
-    },
-    "mythology-egyptian/episodes/ep06_ra_journey.md": {
-      "x": -333.3791261442864,
-      "y": -11699.852720939616
-    },
-    "mythology-egyptian/concepts/eye-of-ra.md": {
-      "x": 1641.41650795942,
-      "y": -2233.702931172452
-    },
-    "mythology-egyptian/characters/sobek.md": {
-      "x": 1885.0613239852337,
-      "y": -2159.415745109603
-    },
-    "mythology-egyptian/episodes/ep03_isis_quest.md": {
-      "x": 800.5031221704423,
-      "y": -11699.852720939616
-    },
-    "mythology-egyptian/episodes/sc08_03_moonlight_won.md": {
-      "x": -1089.300625020772,
-      "y": -12455.774219816103
-    },
-    "mythology-egyptian/episodes/sc04_03_final_judgment.md": {
-      "x": -1089.300625020772,
-      "y": -12077.81347037786
-    },
-    "mythology-egyptian/episodes/ep08_thoth_gambit.md": {
-      "x": -1089.300625020772,
-      "y": -11699.852720939616
-    },
-    "mythology-egyptian/episodes/ep04_horus_vs_set.md": {
-      "x": 422.5423727321994,
-      "y": -11699.852720939616
-    },
-    "mythology-egyptian/episodes/sc06_01_solar_barque.md": {
-      "x": 1934.3853704851708,
-      "y": -12455.774219816103
-    },
-    "mythology-egyptian/episodes/sc05_02_weighing_heart.md": {
-      "x": 2690.3068693616565,
-      "y": -12455.774219816103
-    },
-    "mythology-egyptian/episodes/sc03_02_body_restoration.md": {
-      "x": 422.5423727321994,
-      "y": -12077.81347037786
-    },
-    "mythology-egyptian/episodes/sc02_03_dismemberment.md": {
-      "x": 1178.463871608685,
-      "y": -12077.81347037786
-    },
-    "mythology-egyptian/episodes/ep05_book_of_dead.md": {
-      "x": 44.58162329395657,
-      "y": -11699.852720939616
-    },
-    "mythology-egyptian/episodes/ep02_osiris_betrayal.md": {
-      "x": 1178.463871608685,
-      "y": -11699.852720939616
-    },
-    "mythology-egyptian/episodes/ep01_creation.md": {
-      "x": 1556.4246210469278,
-      "y": -11699.852720939616
-    },
-    "mythology-egyptian/episodes/bt37_sc06_01_crew_assembles.md": {
-      "x": 1556.4246210469278,
-      "y": -10565.970472624887
-    },
-    "mythology-egyptian/episodes/act2_osiris.md": {
-      "x": 2312.3461199234134,
-      "y": -9432.08822431016
-    },
-    "mythology-egyptian/concepts/pyramid.md": {
-      "x": 2592.8529506150107,
-      "y": -1041.2305580396944
-    },
-    "mythology-egyptian/concepts/ankh.md": {
-      "x": 630.1791165136126,
-      "y": 3257.3254951944377
-    },
-    "mythology-egyptian/episodes/sc07_03_red_beer_trick.md": {
-      "x": 44.58162329395657,
-      "y": -12455.774219816103
-    },
-    "mythology-egyptian/episodes/sc06_02_apophis_battle.md": {
-      "x": 1556.4246210469278,
-      "y": -12455.774219816103
-    },
-    "mythology-egyptian/episodes/sc05_01_journey_to_duat.md": {
-      "x": 3068.2676187998986,
-      "y": -12455.774219816103
-    },
-    "mythology-egyptian/episodes/sc04_02_eye_of_horus.md": {
-      "x": -711.3398755825292,
-      "y": -12077.81347037786
-    },
-    "mythology-egyptian/episodes/sc04_01_contendings_begin.md": {
-      "x": -333.3791261442864,
-      "y": -12077.81347037786
-    },
-    "mythology-egyptian/episodes/sc03_03_horus_conception.md": {
-      "x": 44.58162329395657,
-      "y": -12077.81347037786
-    },
-    "mythology-egyptian/episodes/sc01_03_nine_gods.md": {
-      "x": 2312.3461199234134,
-      "y": -12077.81347037786
-    },
-    "mythology-egyptian/episodes/ep07_hathor_rage.md": {
-      "x": -711.3398755825292,
-      "y": -11699.852720939616
-    },
-    "mythology-egyptian/episodes/bt64_sc07_02_blood_river.md": {
-      "x": 422.5423727321994,
-      "y": -11321.891971501374
-    },
-    "mythology-egyptian/episodes/bt62_sc04_02_wedjat_restored.md": {
-      "x": 1178.463871608685,
-      "y": -11321.891971501374
-    },
-    "mythology-egyptian/episodes/bt61_sc03_02_missing_piece.md": {
-      "x": 1556.4246210469278,
-      "y": -11321.891971501374
-    },
-    "mythology-egyptian/episodes/bt59_sc02_01_civilization_gift.md": {
-      "x": 2312.3461199234134,
-      "y": -11321.891971501374
-    },
-    "mythology-egyptian/episodes/bt56_sc08_03_gods_are_born.md": {
-      "x": -1089.300625020772,
-      "y": -10943.931222063131
-    },
-    "mythology-egyptian/episodes/bt30_sc04_03_set_exile.md": {
-      "x": -333.3791261442864,
-      "y": -10188.009723186646
-    },
-    "mythology-egyptian/episodes/bt29_sc04_03_coronation.md": {
-      "x": 44.58162329395657,
-      "y": -10188.009723186646
-    },
-    "mythology-egyptian/episodes/bt24_sc04_01_set_defiance.md": {
-      "x": 1934.3853704851708,
-      "y": -10188.009723186646
-    },
-    "mythology-egyptian/episodes/bt22_sc03_03_isis_hiding.md": {
-      "x": 2690.3068693616565,
-      "y": -10188.009723186646
-    },
-    "mythology-egyptian/episodes/bt07_sc01_03_four_children.md": {
-      "x": -711.3398755825292,
-      "y": -9432.08822431016
-    },
-    "mythology-egyptian/episodes/act3_kingship.md": {
-      "x": 1934.3853704851708,
-      "y": -9432.08822431016
-    },
-    "mythology-egyptian/episodes/sc07_02_sekhmet_unleashed.md": {
-      "x": 422.5423727321994,
-      "y": -12455.774219816103
-    },
-    "mythology-egyptian/episodes/sc06_03_dawn_rebirth.md": {
-      "x": 1178.463871608685,
-      "y": -12455.774219816103
-    },
-    "mythology-egyptian/episodes/sc05_03_field_of_reeds.md": {
-      "x": 2312.3461199234134,
-      "y": -12455.774219816103
-    },
-    "mythology-egyptian/episodes/sc03_01_mourning_search.md": {
-      "x": 800.5031221704423,
-      "y": -12077.81347037786
-    },
-    "mythology-egyptian/episodes/sc02_02_set_trap.md": {
-      "x": 1556.4246210469278,
-      "y": -12077.81347037786
-    },
-    "mythology-egyptian/episodes/sc02_01_osiris_reign.md": {
-      "x": 1934.3853704851708,
-      "y": -12077.81347037786
-    },
-    "mythology-egyptian/episodes/bt66_sc08_03_calendar_born.md": {
-      "x": -333.3791261442864,
-      "y": -11321.891971501374
-    },
-    "mythology-egyptian/episodes/bt63_sc05_01_spells_recited.md": {
-      "x": 800.5031221704423,
-      "y": -11321.891971501374
-    },
-    "mythology-egyptian/episodes/bt55_sc08_03_five_days_born.md": {
-      "x": -711.3398755825292,
-      "y": -10943.931222063131
-    },
-    "mythology-egyptian/episodes/bt51_sc08_01_curse_pronounced.md": {
-      "x": 800.5031221704423,
-      "y": -10943.931222063131
-    },
-    "mythology-egyptian/episodes/bt49_sc07_03_hathor_returns.md": {
-      "x": 1556.4246210469278,
-      "y": -10943.931222063131
-    },
-    "mythology-egyptian/episodes/bt47_sc07_03_thoth_counsel.md": {
-      "x": 2312.3461199234134,
-      "y": -10943.931222063131
-    },
-    "mythology-egyptian/episodes/bt46_sc07_02_slaughter_begins.md": {
-      "x": 2690.3068693616565,
-      "y": -10943.931222063131
-    },
-    "mythology-egyptian/episodes/bt45_sc07_02_hathor_transforms.md": {
-      "x": 3068.2676187998986,
-      "y": -10943.931222063131
-    },
-    "mythology-egyptian/episodes/bt41_sc06_02_dawn_rebirth.md": {
-      "x": 44.58162329395657,
-      "y": -10565.970472624887
-    },
-    "mythology-egyptian/episodes/bt40_sc06_02_set_strikes.md": {
-      "x": 422.5423727321994,
-      "y": -10565.970472624887
-    },
-    "mythology-egyptian/episodes/bt32_sc05_01_twelve_gates.md": {
-      "x": -1089.300625020772,
-      "y": -10188.009723186646
-    },
-    "mythology-egyptian/episodes/bt28_sc04_03_osiris_letter.md": {
-      "x": 422.5423727321994,
-      "y": -10188.009723186646
-    },
-    "mythology-egyptian/episodes/bt27_sc04_02_thoth_heals.md": {
-      "x": 800.5031221704423,
-      "y": -10188.009723186646
-    },
-    "mythology-egyptian/episodes/bt26_sc04_02_eye_torn.md": {
-      "x": 1178.463871608685,
-      "y": -10188.009723186646
-    },
-    "mythology-egyptian/episodes/bt25_sc04_01_battle_begins.md": {
-      "x": 1556.4246210469278,
-      "y": -10188.009723186646
-    },
-    "mythology-egyptian/episodes/bt23_sc04_01_horus_claim.md": {
-      "x": 2312.3461199234134,
-      "y": -10188.009723186646
-    },
-    "mythology-egyptian/episodes/bt20_sc03_03_resurrection_moment.md": {
-      "x": -1089.300625020772,
-      "y": -9810.048973748402
-    },
-    "mythology-egyptian/episodes/bt19_sc03_02_thoth_spell.md": {
-      "x": -711.3398755825292,
-      "y": -9810.048973748402
-    },
-    "mythology-egyptian/episodes/bt16_sc03_01_nephthys_joins.md": {
-      "x": 422.5423727321994,
-      "y": -9810.048973748402
-    },
-    "mythology-egyptian/episodes/bt14_sc02_03_fourteen_pieces.md": {
-      "x": 1178.463871608685,
-      "y": -9810.048973748402
-    },
-    "mythology-egyptian/episodes/bt13_sc02_03_body_seized.md": {
-      "x": 1556.4246210469278,
-      "y": -9810.048973748402
-    },
-    "mythology-egyptian/episodes/bt11_sc02_02_coffin_sealed.md": {
-      "x": 2312.3461199234134,
-      "y": -9810.048973748402
-    },
-    "mythology-egyptian/episodes/bt10_sc02_02_banquet.md": {
-      "x": 2690.3068693616565,
-      "y": -9810.048973748402
-    },
-    "mythology-egyptian/episodes/act1_genesis.md": {
-      "x": 2690.3068693616565,
-      "y": -9432.08822431016
-    },
-    "mythology-egyptian/episodes/sc08_02_senet_game.md": {
-      "x": -711.3398755825292,
-      "y": -12455.774219816103
-    },
-    "mythology-egyptian/episodes/sc08_01_nut_curse.md": {
-      "x": -333.3791261442864,
-      "y": -12455.774219816103
-    },
-    "mythology-egyptian/episodes/sc07_01_humanitys_rebellion.md": {
-      "x": 800.5031221704423,
-      "y": -12455.774219816103
-    },
-    "mythology-egyptian/episodes/sc01_02_atum_emergence.md": {
-      "x": 2690.3068693616565,
-      "y": -12077.81347037786
-    },
-    "mythology-egyptian/episodes/bt72_sc06_03_world_awakens.md": {
-      "x": 1934.3853704851708,
-      "y": -11699.852720939616
-    },
-    "mythology-egyptian/episodes/bt71_sc06_03_khepri_transformation.md": {
-      "x": 2312.3461199234134,
-      "y": -11699.852720939616
-    },
-    "mythology-egyptian/episodes/bt70_sc06_03_last_gate.md": {
-      "x": 2690.3068693616565,
-      "y": -11699.852720939616
-    },
-    "mythology-egyptian/episodes/bt69_sc05_03_reunion_of_souls.md": {
-      "x": 3068.2676187998986,
-      "y": -11699.852720939616
-    },
-    "mythology-egyptian/episodes/bt67_sc05_03_osiris_blessing.md": {
-      "x": -711.3398755825292,
-      "y": -11321.891971501374
-    },
-    "mythology-egyptian/episodes/bt65_sc08_01_nut_despair.md": {
-      "x": 44.58162329395657,
-      "y": -11321.891971501374
-    },
-    "mythology-egyptian/episodes/bt60_sc02_03_isis_wails.md": {
-      "x": 1934.3853704851708,
-      "y": -11321.891971501374
-    },
-    "mythology-egyptian/episodes/bt54_sc08_02_moonlight_claimed.md": {
-      "x": -333.3791261442864,
-      "y": -10943.931222063131
-    },
-    "mythology-egyptian/episodes/bt53_sc08_02_game_unfolds.md": {
-      "x": 44.58162329395657,
-      "y": -10943.931222063131
-    },
-    "mythology-egyptian/episodes/bt52_sc08_02_thoth_challenges.md": {
-      "x": 422.5423727321994,
-      "y": -10943.931222063131
-    },
-    "mythology-egyptian/episodes/bt50_sc08_01_prophecy_of_heir.md": {
-      "x": 1178.463871608685,
-      "y": -10943.931222063131
-    },
-    "mythology-egyptian/episodes/bt48_sc07_03_beer_flood.md": {
-      "x": 1934.3853704851708,
-      "y": -10943.931222063131
-    },
-    "mythology-egyptian/episodes/bt44_sc07_01_ra_summons_council.md": {
-      "x": -1089.300625020772,
-      "y": -10565.970472624887
-    },
-    "mythology-egyptian/episodes/bt43_sc07_01_conspiracy_whispers.md": {
-      "x": -711.3398755825292,
-      "y": -10565.970472624887
-    },
-    "mythology-egyptian/episodes/bt42_sc07_01_ra_grows_old.md": {
-      "x": -333.3791261442864,
-      "y": -10565.970472624887
-    },
-    "mythology-egyptian/episodes/bt39_sc06_02_apophis_attack.md": {
-      "x": 800.5031221704423,
-      "y": -10565.970472624887
-    },
-    "mythology-egyptian/episodes/bt38_sc06_01_twelve_hours.md": {
-      "x": 1178.463871608685,
-      "y": -10565.970472624887
-    },
-    "mythology-egyptian/episodes/bt36_sc06_01_sunset_departure.md": {
-      "x": 1934.3853704851708,
-      "y": -10565.970472624887
-    },
-    "mythology-egyptian/episodes/bt35_sc05_02_osiris_verdict.md": {
-      "x": 2312.3461199234134,
-      "y": -10565.970472624887
-    },
-    "mythology-egyptian/episodes/bt34_sc05_02_thoth_records.md": {
-      "x": 2690.3068693616565,
-      "y": -10565.970472624887
-    },
-    "mythology-egyptian/episodes/bt33_sc05_02_heart_placed.md": {
-      "x": 3068.2676187998986,
-      "y": -10565.970472624887
-    },
-    "mythology-egyptian/episodes/bt21_sc03_03_osiris_descent.md": {
-      "x": 3068.2676187998986,
-      "y": -10188.009723186646
-    },
-    "mythology-egyptian/episodes/bt18_sc03_02_anubis_ritual.md": {
-      "x": -333.3791261442864,
-      "y": -9810.048973748402
-    },
-    "mythology-egyptian/episodes/bt15_sc03_01_isis_lament.md": {
-      "x": 800.5031221704423,
-      "y": -9810.048973748402
-    },
-    "mythology-egyptian/episodes/bt12_sc02_02_nile_casting.md": {
-      "x": 1934.3853704851708,
-      "y": -9810.048973748402
-    },
-    "mythology-egyptian/episodes/bt09_sc02_01_set_envy.md": {
-      "x": 3068.2676187998986,
-      "y": -9810.048973748402
-    },
-    "mythology-egyptian/episodes/bt08_sc02_01_golden_age.md": {
-      "x": -1089.300625020772,
-      "y": -9432.08822431016
-    },
-    "mythology-egyptian/episodes/bt05_sc01_02_shu_tefnut.md": {
-      "x": 44.58162329395657,
-      "y": -9432.08822431016
-    },
-    "mythology-egyptian/episodes/bt04_sc01_02_ra_selfborn.md": {
-      "x": 422.5423727321994,
-      "y": -9432.08822431016
-    },
-    "mythology-egyptian/episodes/sc01_01_primordial_waters.md": {
-      "x": 3068.2676187998986,
-      "y": -12077.81347037786
-    },
-    "mythology-egyptian/episodes/bt68_sc05_03_eternal_harvest.md": {
-      "x": -1089.300625020772,
-      "y": -11321.891971501374
-    },
-    "mythology-egyptian/episodes/bt58_sc01_03_cosmic_order.md": {
-      "x": 2690.3068693616565,
-      "y": -11321.891971501374
-    },
-    "mythology-egyptian/episodes/bt57_sc01_01_lotus_blooms.md": {
-      "x": 3068.2676187998986,
-      "y": -11321.891971501374
-    },
-    "mythology-egyptian/episodes/bt31_sc05_01_entering_duat.md": {
-      "x": -711.3398755825292,
-      "y": -10188.009723186646
-    },
-    "mythology-egyptian/episodes/bt17_sc03_01_gathering_pieces.md": {
-      "x": 44.58162329395657,
-      "y": -9810.048973748402
-    },
-    "mythology-egyptian/episodes/bt06_sc01_03_geb_nut.md": {
-      "x": -333.3791261442864,
-      "y": -9432.08822431016
-    },
-    "mythology-egyptian/episodes/bt03_sc01_02_benben_rise.md": {
-      "x": 800.5031221704423,
-      "y": -9432.08822431016
-    },
-    "mythology-egyptian/episodes/bt02_sc01_01_first_stirring.md": {
-      "x": 1178.463871608685,
-      "y": -9432.08822431016
-    },
-    "mythology-egyptian/episodes/bt01_sc01_01_silence_of_nun.md": {
-      "x": 1556.4246210469278,
-      "y": -9432.08822431016
-    },
-    "classic-saiyuki/characters/sun-wukong.md": {
-      "x": 4277.089891256826,
-      "y": 38.94322382021043
-    },
-    "classic-gilgamesh/characters/gilgamesh.md": {
-      "x": 4191.401568826116,
-      "y": -391.8394165039595
-    },
-    "classic-arthurian/characters/arthur.md": {
-      "x": 4050.2180201697033,
-      "y": -807.753915977678
-    },
-    "classic-hamlet/characters/hamlet.md": {
-      "x": 3855.954954592571,
-      "y": -1201.6809069751232
-    },
-    "mythology-greek/characters/zeus.md": {
-      "x": 3611.9342647691824,
-      "y": -1566.8823512725553
-    },
-    "mythology-norse/characters/odin.md": {
-      "x": 2626.908759724195,
-      "y": -2430.7262987897047
-    },
-    "classic-king-lear/characters/king-lear.md": {
-      "x": 2992.1083477311067,
-      "y": -2186.7086411229984
-    },
-    "classic-arthurian/characters/lancelot.md": {
-      "x": 3322.3348600512095,
-      "y": -1897.1076037317375
-    },
-    "classic-macbeth/characters/macbeth.md": {
-      "x": 1817.067950641264,
-      "y": -2766.174953624619
-    },
-    "classic-divine-comedy/characters/dante.md": {
-      "x": 2232.9811720167436,
-      "y": -2624.9910913549293
-    },
-    "classic-sangokushi/characters/guan-yu.md": {
-      "x": 509.71739013281143,
-      "y": -2851.863610578979
-    },
-    "classic-othello/characters/othello.md": {
-      "x": 948.0001823016556,
-      "y": -2880.589703091942
-    },
-    "classic-genji/characters/hikaru-genji.md": {
-      "x": 1386.2828856003775,
-      "y": -2851.8632510718357
-    },
-    "classic-sangokushi/characters/liu-bei.md": {
-      "x": -1715.935109918073,
-      "y": -1566.8826381016115
-    },
-    "classic-sangokushi/characters/cao-cao.md": {
-      "x": -1426.3341268951758,
-      "y": -1897.1075845296657
-    },
-    "classic-saiyuki/characters/zhu-bajie.md": {
-      "x": -1096.1092905284781,
-      "y": -2186.708537056602
-    },
-    "classic-saiyuki/characters/guanyin.md": {
-      "x": -730.9083043199768,
-      "y": -2430.728533071375
-    },
-    "classic-hamlet/characters/claudius.md": {
-      "x": -336.9806559817808,
-      "y": -2624.992313142983
-    },
-    "classic-arthurian/characters/gawain.md": {
-      "x": 78.93452563238945,
-      "y": -2766.1761387806514
-    },
-    "classic-sangokushi/characters/zhao-yun.md": {
-      "x": -2295.401891355763,
-      "y": 1346.293482730985
-    },
-    "classic-sangokushi/characters/lu-bu.md": {
-      "x": -2381.0895405596825,
-      "y": 915.5092622125788
-    },
-    "classic-saiyuki/characters/sha-wujing.md": {
-      "x": -2409.8164037383144,
-      "y": 477.22662289197393
-    },
-    "classic-saiyuki/characters/nezha.md": {
-      "x": -2381.090083017844,
-      "y": 38.94378758680855
-    },
-    "classic-saiyuki/characters/erlang-shen.md": {
-      "x": -2295.402320926601,
-      "y": -391.8396955786937
-    },
-    "classic-gilgamesh/characters/ea.md": {
-      "x": -2154.2182400708093,
-      "y": -807.7542778782793
-    },
-    "classic-gilgamesh/characters/anu.md": {
-      "x": -1959.9552351205566,
-      "y": -1201.6810920971245
-    },
-    "mythology-greek/characters/athena.md": {
-      "x": 78.93463827749521,
-      "y": 3720.6278026870714
-    },
-    "classic-sangokushi/characters/zhang-fei.md": {
-      "x": -730.9070174219679,
-      "y": 3385.180386324087
-    },
-    "classic-gilgamesh/characters/ishtar.md": {
-      "x": -1096.1077442744936,
-      "y": 3141.1615899017906
-    },
-    "classic-gilgamesh/characters/enlil.md": {
-      "x": -1426.3340064110712,
-      "y": 2851.5613714729907
-    },
-    "classic-arthurian/characters/percival.md": {
-      "x": -1715.93474402646,
-      "y": 2521.335676421586
-    },
-    "classic-arthurian/characters/galahad.md": {
-      "x": -1959.9533354826358,
-      "y": 2156.1358986389982
-    },
-    "mythology-norse/characters/loki.md": {
-      "x": 2232.9799779685413,
-      "y": 3579.4444927017635
-    },
-    "classic-sangokushi/characters/xiahou-dun.md": {
-      "x": 1817.0672910934554,
-      "y": 3720.627630811076
-    },
-    "classic-othello/characters/iago.md": {
-      "x": 1386.2822996276118,
-      "y": 3806.3158084676525
-    },
-    "classic-arthurian/characters/tristan.md": {
-      "x": 948.0010266221492,
-      "y": 3835.0409153152264
-    },
-    "classic-arthurian/characters/bedivere.md": {
-      "x": 509.7168706961763,
-      "y": 3806.3161133343356
-    },
-    "mythology-norse/concepts/yggdrasil.md": {
-      "x": 4305.814804540153,
-      "y": 477.2273924548581
-    },
-    "classic-sangokushi/characters/ma-chao.md": {
-      "x": 4277.089334526918,
-      "y": 915.5088446634489
-    },
-    "classic-sangokushi/characters/dian-wei.md": {
-      "x": 4191.401154854005,
-      "y": 1346.293799476675
-    },
-    "classic-saiyuki/characters/jade-emperor.md": {
-      "x": 4050.2182418177385,
-      "y": 1762.2068245453386
-    },
-    "classic-king-lear/characters/edmund.md": {
-      "x": 3855.9535856749453,
-      "y": 2156.1343781170767
-    },
-    "classic-gilgamesh/characters/shamash.md": {
-      "x": 3611.9355839358,
-      "y": 2521.3340839593047
-    },
-    "classic-gilgamesh/characters/ninsun.md": {
-      "x": 3322.334486007143,
-      "y": 2851.5614157357504
-    },
-    "classic-arthurian/characters/kay.md": {
-      "x": 2992.107442369422,
-      "y": 3141.1619968282216
-    },
-    "classic-arabian-nights/characters/genie-lamp.md": {
-      "x": 2626.907839709517,
-      "y": 3385.1806210946447
-    },
-    "classic-saiyuki/characters/buddha.md": {
-      "x": 3402.538930245518,
-      "y": -866.3515693390132
-    },
-    "classic-king-lear/characters/regan.md": {
-      "x": 3514.5469778688775,
-      "y": -637.5823771007803
-    },
-    "classic-king-lear/characters/goneril.md": {
-      "x": 3605.2878434443105,
-      "y": -399.5741515469325
-    },
-    "classic-divine-comedy/characters/lucifer.md": {
-      "x": 3674.0106711493545,
-      "y": -154.2997119286586
-    },
-    "bible-old-testament/concepts/ark-of-covenant.md": {
-      "x": 3720.1443242576293,
-      "y": 96.20503820907717
-    },
-    "bible-new-testament/characters/jesus.md": {
-      "x": 3743.3067632039356,
-      "y": 349.8669468074368
-    },
-    "mythology-japanese/concepts/kusanagi.md": {
-      "x": 630.17945214442,
-      "y": -2302.8734417362207
-    },
-    "mythology-japanese/characters/susanoo.md": {
-      "x": 884.3031414503923,
-      "y": -2320.2549036763608
-    },
     "mythology-japanese/characters/amaterasu.md": {
-      "x": 1138.955533058864,
-      "y": -2314.4574590538414
-    },
-    "mythology-greek/characters/poseidon.md": {
-      "x": 1392.0261892730862,
-      "y": -2285.526976031016
-    },
-    "classic-arabian-nights/characters/genie-ring.md": {
-      "x": 2120.941933701751,
-      "y": -2063.279010585361
-    },
-    "bible-new-testament/concepts/golgotha.md": {
-      "x": 2347.103771773266,
-      "y": -1946.0907259957717
-    },
-    "bible-apocrypha/concepts/seven-heavens.md": {
-      "x": 2561.671053410392,
-      "y": -1808.8247669515115
-    },
-    "bible-apocrypha/concepts/book-of-life.md": {
-      "x": 2762.867736156954,
-      "y": -1652.6152210414002
-    },
-    "classic-othello/characters/duke-of-venice.md": {
-      "x": -1746.4414611699565,
-      "y": -277.71868295392676
-    },
-    "classic-othello/characters/brabantio.md": {
-      "x": -1666.6277062318034,
-      "y": -519.6103302547396
-    },
-    "classic-macbeth/characters/ross.md": {
-      "x": -1565.1473307881465,
-      "y": -753.2421878947023
-    },
-    "classic-macbeth/characters/malcolm.md": {
-      "x": -1442.8416670382048,
-      "y": -976.6776494702121
-    },
-    "classic-macbeth/characters/banquo.md": {
-      "x": -1300.725432336709,
-      "y": -1188.0631563029913
-    },
-    "classic-king-lear/characters/king-of-france.md": {
-      "x": -1139.9764842784011,
-      "y": -1385.6507007737441
-    },
-    "classic-gilgamesh/characters/humbaba.md": {
-      "x": -961.9248483611965,
-      "y": -1567.8040823216445
-    },
-    "classic-genji/characters/kiritsubo-emperor.md": {
-      "x": -768.045795798818,
-      "y": -1733.0098776359437
-    },
-    "classic-arthurian/characters/uther-pendragon.md": {
-      "x": -559.9497276206807,
-      "y": -1879.899803832221
-    },
-    "classic-arthurian/characters/mordred.md": {
-      "x": -339.3572521199874,
-      "y": -2007.2585945072183
-    },
-    "classic-arabian-nights/characters/shahryar.md": {
-      "x": -108.09764690150138,
-      "y": -2114.030275479233
-    },
-    "classic-arabian-nights/characters/roc-bird.md": {
-      "x": 131.91378082199634,
-      "y": -2199.3327122413107
-    },
-    "bible-old-testament/characters/god-yhwh.md": {
-      "x": 378.68966920083227,
-      "y": -2262.455355489863
-    },
-    "mythology-norse/characters/thor.md": {
-      "x": -1300.7257374186215,
-      "y": 2142.5174296588057
-    },
-    "mythology-greek/characters/hades.md": {
-      "x": -1442.8410033683833,
-      "y": 1931.1322819752259
-    },
-    "classic-sangokushi/characters/sun-quan.md": {
-      "x": -1565.1482402682748,
-      "y": 1707.695854705469
-    },
-    "classic-king-lear/characters/albany.md": {
-      "x": -1666.627893545732,
-      "y": 1474.0631115678677
-    },
-    "classic-divine-comedy/characters/virgil.md": {
-      "x": -1746.4422782475128,
-      "y": 1232.1736352688451
-    },
-    "classic-arabian-nights/characters/jafar-vizier.md": {
-      "x": -1803.9296020955996,
-      "y": 984.0271087742715
-    },
-    "classic-arabian-nights/characters/harun-al-rashid.md": {
-      "x": -1838.6137837707736,
-      "y": 731.6818182721835
-    },
-    "bible-old-testament/concepts/ten-commandments.md": {
-      "x": -1850.2065567569848,
-      "y": 477.2261010019298
-    },
-    "mythology-norse/concepts/mjolnir.md": {
-      "x": 1392.0259312252904,
-      "y": 3239.979928615971
-    },
-    "mythology-norse/concepts/gungnir.md": {
-      "x": 1138.9556681789336,
-      "y": 3268.910961957271
-    },
-    "mythology-norse/concepts/bifrost.md": {
-      "x": 884.3034778978373,
-      "y": 3274.7084437416015
-    },
-    "classic-othello/characters/lodovico.md": {
-      "x": 131.91361236729924,
-      "y": 3153.7844169254563
-    },
-    "classic-othello/characters/gratiano.md": {
-      "x": -108.09729190906981,
-      "y": 3068.4824332244784
-    },
-    "classic-king-lear/characters/cornwall.md": {
-      "x": -339.3564873451481,
-      "y": 2961.711893655287
-    },
-    "classic-king-lear/characters/burgundy.md": {
-      "x": -559.9488179334519,
-      "y": 2834.3534874110064
-    },
-    "classic-arabian-nights/characters/scheherazade.md": {
-      "x": -768.0451020063776,
-      "y": 2687.464039754751
-    },
-    "bible-old-testament/concepts/promised-land.md": {
-      "x": -961.9240494608287,
-      "y": 2522.257403831273
-    },
-    "bible-apocrypha/concepts/dead-sea-scrolls.md": {
-      "x": -1139.9764082425627,
-      "y": 2340.1051189851114
-    },
-    "mythology-norse/characters/fenrir.md": {
-      "x": 3743.307628860895,
-      "y": 604.5846403903273
-    },
-    "mythology-japanese/concepts/yasakani.md": {
-      "x": 3720.1457900264995,
-      "y": 858.2478072216859
+      "x": 1138.9555329909651,
+      "y": -2314.4574592245185
     },
     "mythology-japanese/characters/izanagi.md": {
-      "x": 3674.0123805321764,
-      "y": 1108.754461515469
-    },
-    "mythology-greek/concepts/golden-fleece.md": {
-      "x": 3605.2888422959336,
-      "y": 1354.027888946697
-    },
-    "mythology-greek/concepts/ambrosia.md": {
-      "x": 3514.5463587347763,
-      "y": 1592.034304901822
-    },
-    "mythology-greek/characters/heracles.md": {
-      "x": 3402.5375175474314,
-      "y": 1820.806059353851
-    },
-    "mythology-greek/characters/aphrodite.md": {
-      "x": 3270.189995870649,
-      "y": 2038.4425789581794
-    },
-    "classic-sangokushi/characters/dong-zhuo.md": {
-      "x": 2949.0251622522915,
-      "y": 2433.2083588087607
-    },
-    "classic-saiyuki/characters/white-bone-spirit.md": {
-      "x": 2762.866899748163,
-      "y": 2607.0675434443933
-    },
-    "classic-saiyuki/characters/king-of-hell.md": {
-      "x": 2561.6707288802795,
-      "y": 2763.2772099811154
-    },
-    "classic-othello/characters/senator.md": {
-      "x": 2347.1053955924785,
-      "y": 2900.543052824267
-    },
-    "classic-macbeth/characters/lennox.md": {
-      "x": 2120.943080108629,
-      "y": 3017.731620801391
-    },
-    "classic-macbeth/characters/fleance.md": {
-      "x": 1885.061460665855,
-      "y": 3113.868147160469
-    },
-    "classic-genji/characters/kaoru.md": {
-      "x": 1641.4162845679327,
-      "y": 3188.155746986507
-    },
-    "mythology-norse/characters/baldur.md": {
-      "x": 1362.7849379220447,
-      "y": -1722.596626146263
-    },
-    "mythology-japanese/concepts/takamagahara.md": {
-      "x": 1594.261124625117,
-      "y": -1666.0442601355464
-    },
-    "mythology-greek/concepts/mount-olympus.md": {
-      "x": 1818.4157374010788,
-      "y": -1585.2077856350595
-    },
-    "mythology-greek/concepts/labyrinth.md": {
-      "x": 2032.708571625108,
-      "y": -1481.0053357229365
-    },
-    "mythology-greek/characters/ares.md": {
-      "x": 2234.7102734949735,
-      "y": -1354.6132437615258
-    },
-    "mythology-greek/characters/apollo.md": {
-      "x": 2422.1337489901116,
-      "y": -1207.4663700270287
-    },
-    "classic-othello/characters/montano.md": {
-      "x": 2876.6621661795452,
-      "y": -659.227366884822
-    },
-    "classic-othello/characters/desdemona.md": {
-      "x": 2986.533177109625,
-      "y": -447.78435124398214
-    },
-    "classic-king-lear/characters/oswald.md": {
-      "x": 3073.3088642648736,
-      "y": -225.86032271340335
-    },
-    "classic-arabian-nights/characters/forty-thieves-chief.md": {
-      "x": 3136.0021120836564,
-      "y": 4.0297447687306995
-    },
-    "bible-new-testament/concepts/nazareth.md": {
-      "x": 3173.903544964478,
-      "y": 239.2809190408377
-    },
-    "mythology-japanese/concepts/yomi.md": {
-      "x": -239.3949750709643,
-      "y": -1420.4985547064716
-    },
-    "classic-saiyuki/characters/xuanzang.md": {
-      "x": -30.951842143628458,
-      "y": -1535.9587585099055
-    },
-    "classic-othello/characters/herald.md": {
-      "x": 188.5856368116559,
-      "y": -1628.6115838636044
-    },
-    "classic-gilgamesh/characters/bull-of-heaven.md": {
-      "x": 416.72437451812436,
-      "y": -1697.4015513121446
-    },
-    "classic-arabian-nights/characters/dinarzade.md": {
-      "x": 650.8819840051564,
-      "y": -1741.5539457533407
-    },
-    "bible-old-testament/characters/moses.md": {
-      "x": 888.4061289961099,
-      "y": -1760.5658616460053
-    },
-    "bible-new-testament/concepts/holy-grail.md": {
-      "x": 1126.6082600083757,
-      "y": -1754.2221000232973
-    },
-    "mythology-norse/characters/hel.md": {
-      "x": -1136.8752331531825,
-      "y": 1292.4342237196622
-    },
-    "mythology-japanese/characters/tsukuyomi.md": {
-      "x": -1211.7155004051442,
-      "y": 1066.2043235480025
-    },
-    "mythology-greek/characters/odysseus.md": {
-      "x": -1262.085932368266,
-      "y": 833.3050508305848
-    },
-    "mythology-greek/characters/hephaestus.md": {
-      "x": -1287.413178179018,
-      "y": 596.3696631065202
-    },
-    "mythology-greek/characters/artemis.md": {
-      "x": -1287.4138135173355,
-      "y": 358.08403057153964
-    },
-    "classic-sangokushi/characters/zhuge-liang.md": {
-      "x": -1262.0843364055818,
-      "y": 121.14827068500614
-    },
-    "classic-king-lear/characters/cordelia.md": {
-      "x": -1211.7154071927503,
-      "y": -111.75061298377871
-    },
-    "classic-hamlet/characters/ophelia.md": {
-      "x": -1136.8756269477724,
-      "y": -337.9792158829095
-    },
-    "classic-genji/characters/yugao.md": {
-      "x": -1038.413176879102,
-      "y": -554.970260969181
-    },
-    "classic-genji/characters/murasaki-no-ue.md": {
-      "x": -917.4438630675029,
-      "y": -760.2647483643467
-    },
-    "classic-genji/characters/fujitsubo.md": {
-      "x": -775.3375668385904,
-      "y": -951.5395887212352
-    },
-    "classic-divine-comedy/characters/beatrice.md": {
-      "x": -613.7083082711365,
-      "y": -1126.6227314409882
-    },
-    "classic-arabian-nights/characters/aladdin.md": {
-      "x": -434.3827573381302,
-      "y": -1283.5363570150062
-    },
-    "mythology-greek/characters/medusa.md": {
-      "x": 416.7238770425116,
-      "y": 2651.8557454871825
-    },
-    "classic-macbeth/characters/witch-first.md": {
-      "x": 188.58696656813134,
-      "y": 2583.065099144488
-    },
-    "classic-king-lear/characters/fool-lear.md": {
-      "x": -30.95076291688444,
-      "y": 2490.4120050458187
-    },
-    "classic-gilgamesh/characters/urshanabi.md": {
-      "x": -239.394573903436,
-      "y": 2374.95200268899
-    },
-    "classic-genji/characters/tamakazura.md": {
-      "x": -434.3813207034963,
-      "y": 2237.989156314067
-    },
-    "classic-arthurian/characters/merlin.md": {
-      "x": -613.7079422646681,
-      "y": 2081.0761350350963
-    },
-    "classic-arabian-nights/characters/ali-baba.md": {
-      "x": -775.3378829696143,
-      "y": 1905.9916781649636
-    },
-    "bible-new-testament/characters/mary.md": {
-      "x": -917.4437413704596,
-      "y": 1714.717912090607
-    },
-    "bible-apocrypha/characters/judith.md": {
-      "x": -1038.4124410556317,
-      "y": 1509.4239571355356
-    },
-    "mythology-norse/characters/sigurd.md": {
-      "x": 3186.585183117736,
-      "y": 477.22699445029184
-    },
-    "mythology-norse/characters/jormungandr.md": {
-      "x": 3173.9037544822313,
-      "y": 715.1725429658686
-    },
-    "mythology-greek/characters/perseus.md": {
-      "x": 3136.0025492892,
-      "y": 950.4237591107436
-    },
-    "mythology-greek/characters/minotaur.md": {
-      "x": 3073.3089555240954,
-      "y": 1180.312650176019
-    },
-    "classic-macbeth/characters/macduff.md": {
-      "x": 2876.66250086008,
-      "y": 1613.679908702713
-    },
-    "classic-macbeth/characters/hecate.md": {
-      "x": 2744.9387713491515,
-      "y": 1812.2460136130073
-    },
-    "classic-hamlet/characters/polonius.md": {
-      "x": 2592.855157917839,
-      "y": 1995.686356113026
-    },
-    "classic-gilgamesh/characters/enkidu.md": {
-      "x": 2422.1333218108416,
-      "y": 2161.9205316532725
-    },
-    "classic-genji/characters/ukifune.md": {
-      "x": 2234.7114204471554,
-      "y": 2309.066774413192
-    },
-    "classic-divine-comedy/characters/saint-peter.md": {
-      "x": 2032.7087256925386,
-      "y": 2435.4575366378285
-    },
-    "bible-old-testament/characters/david.md": {
-      "x": 1818.4162405165528,
-      "y": 2539.661758273059
-    },
-    "bible-old-testament/characters/abraham.md": {
-      "x": 1594.2615574898919,
-      "y": 2620.497527484048
-    },
-    "bible-new-testament/characters/pontius-pilate.md": {
-      "x": 1362.7848647916876,
-      "y": 2677.0496700909002
-    },
-    "bible-apocrypha/characters/lilith.md": {
-      "x": 1126.6076469290147,
-      "y": 2708.676390679349
-    },
-    "bible-apocrypha/characters/enoch.md": {
-      "x": 888.4057511937752,
-      "y": 2715.0197491933536
-    },
-    "bible-apocrypha/characters/asmodeus.md": {
-      "x": 650.8819902910745,
-      "y": 2696.0077740702004
-    },
-    "mythology-norse/characters/tyr.md": {
-      "x": -258.08529532269085,
-      "y": -690.8025981691536
-    },
-    "mythology-norse/characters/heimdall.md": {
-      "x": -98.81837130117569,
-      "y": -835.4433289273715
-    },
-    "mythology-japanese/characters/yamato-takeru.md": {
-      "x": 77.63686152864831,
-      "y": -958.5304470319313
-    },
-    "mythology-japanese/characters/uzume.md": {
-      "x": 268.3812985509496,
-      "y": -1058.040415171831
-    },
-    "mythology-japanese/characters/takemikazuchi.md": {
-      "x": 470.2892293232888,
-      "y": -1132.3437647923536
+      "x": 3674.0123804683644,
+      "y": 1108.754461533697
+    },
+    "mythology-japanese/characters/susanoo.md": {
+      "x": 884.3031411984938,
+      "y": -2320.2549039269215
     },
     "mythology-japanese/characters/izanami.md": {
-      "x": 680.0383769712963,
-      "y": -1180.216539951338
-    },
-    "classic-macbeth/characters/witch-third.md": {
-      "x": 894.1887459237388,
-      "y": -1200.8768210126032
-    },
-    "classic-macbeth/characters/witch-second.md": {
-      "x": 1109.2194378414222,
-      "y": -1193.9814001777759
-    },
-    "classic-hamlet/characters/laertes.md": {
-      "x": 1321.6081405534828,
-      "y": -1159.6447203643231
-    },
-    "classic-hamlet/characters/gravedigger.md": {
-      "x": 1527.8598562377047,
-      "y": -1098.431085372827
-    },
-    "classic-gilgamesh/characters/utnapishtim.md": {
-      "x": 1724.58906185998,
-      "y": -1011.3435999299821
-    },
-    "classic-gilgamesh/characters/scorpion-man.md": {
-      "x": 1908.5665200841186,
-      "y": -899.8140921362741
-    },
-    "classic-genji/characters/to-no-chujo.md": {
-      "x": 2076.7700791286998,
-      "y": -765.6763596636987
-    },
-    "classic-genji/characters/akashi-no-kimi.md": {
-      "x": 2226.443772595193,
-      "y": -611.1271423467775
-    },
-    "classic-divine-comedy/characters/saint-bernard.md": {
-      "x": 2355.1220163628977,
-      "y": -438.7089537880617
-    },
-    "classic-arthurian/characters/morgan-le-fay.md": {
-      "x": 2460.6982745419723,
-      "y": -251.24812701980508
-    },
-    "classic-arthurian/characters/guinevere.md": {
-      "x": 2541.4315154488872,
-      "y": -51.82821248411805
-    },
-    "bible-new-testament/characters/peter.md": {
-      "x": 2596.0027315362036,
-      "y": 156.2776036186488
-    },
-    "bible-apocrypha/characters/samael.md": {
-      "x": 2623.515571982781,
-      "y": 369.65209886790024
-    },
-    "mythology-norse/characters/freya.md": {
-      "x": 470.2896172115505,
-      "y": 2086.7967356103827
-    },
-    "classic-sangokushi/characters/zhou-yu.md": {
-      "x": 268.38149466511703,
-      "y": 2012.4925517428103
-    },
-    "classic-saiyuki/characters/red-boy.md": {
-      "x": 77.63710476375009,
-      "y": 1912.9822905641906
-    },
-    "classic-saiyuki/characters/princess-iron-fan.md": {
-      "x": -98.81751212853814,
-      "y": 1789.8942137868137
-    },
-    "classic-saiyuki/characters/bull-demon-king.md": {
-      "x": -258.0827398279599,
-      "y": 1645.254788889717
-    },
-    "classic-othello/characters/roderigo.md": {
-      "x": -397.54509804317263,
-      "y": 1481.43513102959
-    },
-    "classic-othello/characters/cassio.md": {
-      "x": -514.9146739586353,
-      "y": 1301.1258633007446
-    },
-    "classic-macbeth/characters/lady-macduff.md": {
-      "x": -608.2619736883582,
-      "y": 1107.2869541788798
-    },
-    "classic-hamlet/characters/horatio.md": {
-      "x": -676.0567938395274,
-      "y": 903.1034046502598
-    },
-    "classic-divine-comedy/characters/minos.md": {
-      "x": -717.1826154920426,
-      "y": 691.9289373090442
-    },
-    "classic-divine-comedy/characters/charon.md": {
-      "x": -730.967417905042,
-      "y": 477.22683165662
-    },
-    "classic-divine-comedy/characters/cato.md": {
-      "x": -717.1821944170883,
-      "y": 262.5266993520531
-    },
-    "classic-arthurian/characters/lady-of-the-lake.md": {
-      "x": -676.0554267517476,
-      "y": 51.34896224743465
-    },
-    "bible-new-testament/characters/judas.md": {
-      "x": -608.261952010658,
-      "y": -152.83429373675338
-    },
-    "bible-new-testament/characters/john.md": {
-      "x": -514.9160654545448,
-      "y": -346.67301152408174
-    },
-    "bible-apocrypha/characters/tobias.md": {
-      "x": -397.54686770947745,
-      "y": -526.9824585804273
-    },
-    "classic-sangokushi/characters/sima-yi.md": {
-      "x": 2623.515001411648,
-      "y": 584.795173088155
-    },
-    "classic-othello/characters/emilia.md": {
-      "x": 2596.003604414551,
-      "y": 798.175868104132
-    },
-    "classic-othello/characters/bianca.md": {
-      "x": 2541.4331475196686,
-      "y": 1006.2813351330005
-    },
-    "classic-macbeth/characters/lady-macbeth.md": {
-      "x": 2460.6992325360657,
-      "y": 1205.7025888777328
-    },
-    "classic-macbeth/characters/duncan.md": {
-      "x": 2355.1242340277927,
-      "y": 1393.160526702333
-    },
-    "classic-king-lear/characters/gloucester.md": {
-      "x": 2226.443782010086,
-      "y": 1565.5817156051821
-    },
-    "classic-hamlet/characters/rosencrantz.md": {
-      "x": 2076.770790545386,
-      "y": 1720.1311369657865
-    },
-    "classic-hamlet/characters/guildenstern.md": {
-      "x": 1908.5651536117773,
-      "y": 1854.2692605971604
-    },
-    "classic-hamlet/characters/ghost-king.md": {
-      "x": 1724.5863903290895,
-      "y": 1965.7987404225246
-    },
-    "classic-genji/characters/suetsumuhana.md": {
-      "x": 1527.856279455641,
-      "y": 2052.8858170685835
-    },
-    "classic-divine-comedy/characters/statius.md": {
-      "x": 1321.6037190811774,
-      "y": 2114.0987010244235
-    },
-    "classic-divine-comedy/characters/matilda.md": {
-      "x": 1109.216681469828,
-      "y": 2148.433876089057
-    },
-    "bible-old-testament/characters/solomon.md": {
-      "x": 894.1861699205634,
-      "y": 2155.3292922057262
-    },
-    "bible-apocrypha/characters/metatron.md": {
-      "x": 680.0372304977885,
-      "y": 2134.669268875286
-    },
-    "mythology-norse/characters/frey.md": {
-      "x": -36.43978035085056,
-      "y": -55.52851639497063
-    },
-    "classic-sangokushi/characters/diao-chan.md": {
-      "x": 64.67499577708288,
-      "y": -210.29404780877132
-    },
-    "classic-othello/characters/clown-othello.md": {
-      "x": 189.88415426779278,
-      "y": -346.30750261418183
-    },
-    "classic-king-lear/characters/edgar.md": {
-      "x": 335.77194239957,
-      "y": -459.8573188189259
-    },
-    "classic-hamlet/characters/osric.md": {
-      "x": 498.3604656585211,
-      "y": -547.8461138591532
-    },
-    "classic-hamlet/characters/gertrude.md": {
-      "x": 673.2147916581065,
-      "y": -607.8736887126006
-    },
-    "classic-gilgamesh/characters/siduri.md": {
-      "x": 855.566325863829,
-      "y": -638.3029345881995
-    },
-    "classic-genji/characters/rokujo-no-miyasudokoro.md": {
-      "x": 1040.4389928407895,
-      "y": -638.3014270467501
-    },
-    "classic-genji/characters/niou-no-miya.md": {
-      "x": 1222.7886456937058,
-      "y": -607.8709928126925
-    },
-    "classic-genji/characters/kokiden-no-nyogo.md": {
-      "x": 1397.6424630311365,
-      "y": -547.8426698686433
-    },
-    "classic-genji/characters/aoi-no-ue.md": {
-      "x": 1560.229421852733,
-      "y": -459.8537539781212
-    },
-    "classic-divine-comedy/characters/ugolino.md": {
-      "x": 1706.1168598784493,
-      "y": -346.3031740020402
-    },
-    "classic-arabian-nights/characters/morgiana.md": {
-      "x": 1831.3240605438211,
-      "y": -210.28909503347637
-    },
-    "bible-old-testament/characters/samson.md": {
-      "x": 1932.4370291450205,
-      "y": -55.527026268848395
-    },
-    "bible-new-testament/characters/paul.md": {
-      "x": 2006.699219285656,
-      "y": 113.77341948076061
-    },
-    "bible-new-testament/characters/mary-magdalene.md": {
-      "x": 2052.0829156701657,
-      "y": 292.98763158295384
-    },
-    "mythology-norse/characters/surtr.md": {
-      "x": 335.77302051601407,
-      "y": 1414.307560664634
-    },
-    "classic-king-lear/characters/kent.md": {
-      "x": 189.88888264149074,
-      "y": 1300.759320128851
-    },
-    "classic-gilgamesh/characters/shamhat.md": {
-      "x": 64.67860325810744,
-      "y": 1164.7475401337626
-    },
-    "classic-divine-comedy/characters/paolo.md": {
-      "x": -36.436674673172135,
-      "y": 1009.9825012739074
-    },
-    "classic-divine-comedy/characters/francesca.md": {
-      "x": -110.70019601858621,
-      "y": 840.683709959541
-    },
-    "classic-arthurian/characters/isolde.md": {
-      "x": -156.08497764855065,
-      "y": 661.470698199149
-    },
-    "classic-arabian-nights/characters/princess-badroulbadour.md": {
-      "x": -171.35392176994097,
-      "y": 477.22848421429904
-    },
-    "bible-old-testament/characters/elijah.md": {
-      "x": -156.08718008372347,
-      "y": 292.98678617991027
-    },
-    "bible-old-testament/characters/adam.md": {
-      "x": -110.70375913439015,
-      "y": 113.77180064415016
+      "x": 680.0383767333037,
+      "y": -1180.2165400250674
+    },
+    "mythology-japanese/characters/takemikazuchi.md": {
+      "x": 470.2892293130215,
+      "y": -1132.3437649503614
+    },
+    "mythology-japanese/characters/yamato-takeru.md": {
+      "x": 77.63686156910187,
+      "y": -958.5304470588416
     },
     "mythology-japanese/characters/okuninushi.md": {
-      "x": 855.5654565519706,
-      "y": 1592.7543089309113
+      "x": 855.5654564503235,
+      "y": 1592.7543089806609
     },
-    "classic-arabian-nights/characters/sinbad.md": {
-      "x": 673.2144795882504,
-      "y": 1562.3249394824006
+    "mythology-japanese/concepts/kusanagi.md": {
+      "x": 630.1794523873157,
+      "y": -2302.8734420510514
     },
-    "classic-arabian-nights/characters/princess-of-ebony.md": {
-      "x": 498.3606031966315,
-      "y": 1502.2969244159449
+    "mythology-japanese/MOC.md": {
+      "x": -291.8529507599801,
+      "y": -8380.176368590914
+    },
+    "mythology-japanese/characters/uzume.md": {
+      "x": 268.3812985315257,
+      "y": -1058.0404151452508
+    },
+    "mythology-japanese/characters/tsukuyomi.md": {
+      "x": -1211.7155003952964,
+      "y": 1066.2043234053085
+    },
+    "mythology-japanese/episodes/ep04_yomi.md": {
+      "x": 439.57109213439736,
+      "y": -11305.872540168422
     },
     "mythology-japanese/characters/sarutahiko.md": {
-      "x": 1831.3249988748069,
-      "y": 1164.7469607789262
+      "x": 1831.3249985406928,
+      "y": 1164.7469607510575
     },
-    "mythology-greek/characters/kronos.md": {
-      "x": 1706.1156602164494,
-      "y": 1300.7607595411591
+    "mythology-japanese/episodes/ep02_amano-iwato.md": {
+      "x": 1170.995135028775,
+      "y": -11305.872540168422
     },
-    "classic-saiyuki/characters/dragon-horse.md": {
-      "x": 1560.2274403775154,
-      "y": 1414.3093796557696
+    "mythology-japanese/concepts/takamagahara.md": {
+      "x": 1594.2611248719834,
+      "y": -1666.0442600337144
     },
-    "classic-macbeth/characters/porter.md": {
-      "x": 1397.6391830058328,
-      "y": 1502.296948405385
+    "mythology-japanese/episodes/sc04_03_pursuit_escape.md": {
+      "x": -1023.2769936543575,
+      "y": -11671.584561615611
     },
-    "classic-hamlet/characters/yorick.md": {
-      "x": 1222.7854404754082,
-      "y": 1562.3234665820673
+    "mythology-japanese/episodes/sc04_02_yomi_descent.md": {
+      "x": -657.5649722071689,
+      "y": -11671.584561615611
     },
-    "classic-hamlet/characters/fortinbras.md": {
-      "x": 1040.4369104584773,
-      "y": 1592.7528521498577
+    "mythology-japanese/episodes/sc04_01_izanami_death.md": {
+      "x": -291.8529507599801,
+      "y": -11671.584561615611
+    },
+    "mythology-japanese/episodes/ep07_tenson-korin.md": {
+      "x": -657.5649722071689,
+      "y": -11305.872540168422
+    },
+    "mythology-japanese/episodes/ep06_kuniyuzuri.md": {
+      "x": -291.8529507599801,
+      "y": -11305.872540168422
+    },
+    "mythology-japanese/episodes/ep03_yamata-no-orochi.md": {
+      "x": 805.2831135815862,
+      "y": -11305.872540168422
+    },
+    "mythology-japanese/episodes/sc05_03_final_journey.md": {
+      "x": 2268.131199370341,
+      "y": -12037.2965830628
+    },
+    "mythology-japanese/episodes/ep01_kuniumi.md": {
+      "x": 1536.7071564759635,
+      "y": -11305.872540168422
+    },
+    "mythology-japanese/concepts/yomi.md": {
+      "x": -239.39497530268304,
+      "y": -1420.4985547687156
+    },
+    "mythology-japanese/concepts/yasakani.md": {
+      "x": 3720.1457899686566,
+      "y": 858.2478071489882
     },
     "mythology-japanese/characters/orochi.md": {
-      "x": 2067.3493532131497,
-      "y": 477.2274300963157
+      "x": 2067.3493531399045,
+      "y": 477.22743027720173
+    },
+    "mythology-japanese/episodes/ep05_yamato-takeru-quest.md": {
+      "x": 73.85907068720883,
+      "y": -11305.872540168422
+    },
+    "mythology-japanese/episodes/bt03_03_02_kusanagi_found.md": {
+      "x": 1170.995135028775,
+      "y": -9843.024454379667
+    },
+    "mythology-japanese/episodes/act3_dominion.md": {
+      "x": 1902.4191779231523,
+      "y": -9111.600411485291
+    },
+    "mythology-japanese/episodes/act2_takamagahara.md": {
+      "x": 2268.131199370341,
+      "y": -9111.600411485291
+    },
+    "mythology-japanese/episodes/act1_creation.md": {
+      "x": 2633.84322081753,
+      "y": -9111.600411485291
+    },
+    "mythology-japanese/episodes/sc08_02_yatagarasu_guide.md": {
+      "x": -657.5649722071689,
+      "y": -12037.2965830628
+    },
+    "mythology-japanese/episodes/sc07_01_ninigi_descent.md": {
+      "x": 805.2831135815862,
+      "y": -12037.2965830628
+    },
+    "mythology-japanese/episodes/sc06_02_okuninushi_negotiation.md": {
+      "x": 1536.7071564759635,
+      "y": -12037.2965830628
+    },
+    "mythology-japanese/episodes/sc06_01_takemikazuchi_descent.md": {
+      "x": 1902.4191779231523,
+      "y": -12037.2965830628
+    },
+    "mythology-japanese/episodes/sc05_02_eastern_campaign.md": {
+      "x": 2633.84322081753,
+      "y": -12037.2965830628
+    },
+    "mythology-japanese/episodes/sc03_03_serpent_slain.md": {
+      "x": 73.85907068720883,
+      "y": -11671.584561615611
+    },
+    "mythology-japanese/episodes/sc02_01_amaterasu_retreat.md": {
+      "x": 1902.4191779231523,
+      "y": -11671.584561615611
+    },
+    "mythology-japanese/episodes/sc01_03_divine_children.md": {
+      "x": 2268.131199370341,
+      "y": -11671.584561615611
+    },
+    "mythology-japanese/episodes/sc01_02_island_birth.md": {
+      "x": 2633.84322081753,
+      "y": -11671.584561615611
+    },
+    "mythology-japanese/episodes/sc01_01_heavenly_spear.md": {
+      "x": 2999.555242264718,
+      "y": -11671.584561615611
+    },
+    "mythology-japanese/episodes/bt06_01_03_takeminakata_duel.md": {
+      "x": 1902.4191779231523,
+      "y": -10574.448497274045
+    },
+    "mythology-japanese/episodes/bt06_01_02_thunder_god_arrives.md": {
+      "x": 2268.131199370341,
+      "y": -10574.448497274045
+    },
+    "mythology-japanese/episodes/bt06_01_01_failed_envoys.md": {
+      "x": 2633.84322081753,
+      "y": -10574.448497274045
+    },
+    "mythology-japanese/episodes/bt05_03_01_ibuki_battle.md": {
+      "x": -657.5649722071689,
+      "y": -10208.736475826856
+    },
+    "mythology-japanese/episodes/bt05_02_02_fire_counter.md": {
+      "x": 73.85907068720883,
+      "y": -10208.736475826856
+    },
+    "mythology-japanese/episodes/bt05_02_01_kusanagi_gift.md": {
+      "x": 439.57109213439736,
+      "y": -10208.736475826856
+    },
+    "mythology-japanese/episodes/bt04_03_03_eternal_parting.md": {
+      "x": 1902.4191779231523,
+      "y": -10208.736475826856
+    },
+    "mythology-japanese/episodes/bt04_03_02_yomi_chase.md": {
+      "x": 2268.131199370341,
+      "y": -10208.736475826856
+    },
+    "mythology-japanese/episodes/bt04_03_01_broken_taboo.md": {
+      "x": 2633.84322081753,
+      "y": -10208.736475826856
+    },
+    "mythology-japanese/episodes/bt04_02_02_forbidden_promise.md": {
+      "x": -1023.2769936543575,
+      "y": -9843.024454379667
+    },
+    "mythology-japanese/episodes/bt04_02_01_descent_path.md": {
+      "x": -657.5649722071689,
+      "y": -9843.024454379667
+    },
+    "mythology-japanese/episodes/bt04_01_03_grief_decision.md": {
+      "x": -291.8529507599801,
+      "y": -9843.024454379667
+    },
+    "mythology-japanese/episodes/bt04_01_02_izanagi_rage.md": {
+      "x": 73.85907068720883,
+      "y": -9843.024454379667
+    },
+    "mythology-japanese/episodes/bt02_01_02_retreat_into_cave.md": {
+      "x": 2268.131199370341,
+      "y": -9477.312432932478
+    },
+    "mythology-japanese/episodes/bt01_03_02_fire_god_tragedy.md": {
+      "x": -1023.2769936543575,
+      "y": -9111.600411485291
+    },
+    "mythology-japanese/episodes/bt01_03_01_nature_gods.md": {
+      "x": -657.5649722071689,
+      "y": -9111.600411485291
+    },
+    "mythology-japanese/episodes/bt01_02_03_awaji_first.md": {
+      "x": -291.8529507599801,
+      "y": -9111.600411485291
+    },
+    "mythology-japanese/episodes/bt01_02_01_pillar_ritual.md": {
+      "x": 439.57109213439736,
+      "y": -9111.600411485291
+    },
+    "mythology-japanese/episodes/bt01_01_03_onogoro_birth.md": {
+      "x": 805.2831135815862,
+      "y": -9111.600411485291
+    },
+    "mythology-japanese/episodes/bt01_01_01_spear_thrust.md": {
+      "x": 1536.7071564759635,
+      "y": -9111.600411485291
+    },
+    "mythology-japanese/episodes/sc08_03_yamato_founding.md": {
+      "x": -1023.2769936543575,
+      "y": -12037.2965830628
+    },
+    "mythology-japanese/episodes/sc07_03_sacred_treasures.md": {
+      "x": 439.57109213439736,
+      "y": -12037.2965830628
+    },
+    "mythology-japanese/episodes/sc06_03_izumo_shrine.md": {
+      "x": 1170.995135028775,
+      "y": -12037.2965830628
+    },
+    "mythology-japanese/episodes/sc05_01_kumaso_mission.md": {
+      "x": 2999.555242264718,
+      "y": -12037.2965830628
+    },
+    "mythology-japanese/episodes/sc03_02_sake_trap.md": {
+      "x": 439.57109213439736,
+      "y": -11671.584561615611
+    },
+    "mythology-japanese/episodes/sc03_01_kushinadahime_tears.md": {
+      "x": 805.2831135815862,
+      "y": -11671.584561615611
+    },
+    "mythology-japanese/episodes/sc02_02_uzume_dance.md": {
+      "x": 1170.995135028775,
+      "y": -11671.584561615611
+    },
+    "mythology-japanese/episodes/sc02_03_mirror_reveal.md": {
+      "x": 1536.7071564759635,
+      "y": -11671.584561615611
+    },
+    "mythology-japanese/episodes/bt08_03_03_divine_lineage.md": {
+      "x": 1902.4191779231523,
+      "y": -11305.872540168422
+    },
+    "mythology-japanese/episodes/bt08_03_02_enthronement.md": {
+      "x": 2268.131199370341,
+      "y": -11305.872540168422
+    },
+    "mythology-japanese/episodes/bt08_02_03_mountain_passage.md": {
+      "x": 2633.84322081753,
+      "y": -11305.872540168422
+    },
+    "mythology-japanese/episodes/bt08_02_02_futsu_no_mitama.md": {
+      "x": -1023.2769936543575,
+      "y": -10940.160518721234
+    },
+    "mythology-japanese/episodes/bt08_02_01_divine_crow.md": {
+      "x": -657.5649722071689,
+      "y": -10940.160518721234
+    },
+    "mythology-japanese/episodes/bt08_01_03_kumano_detour.md": {
+      "x": -291.8529507599801,
+      "y": -10940.160518721234
+    },
+    "mythology-japanese/episodes/bt07_03_03_eternal_mandate.md": {
+      "x": 805.2831135815862,
+      "y": -10940.160518721234
+    },
+    "mythology-japanese/episodes/bt07_03_02_jewel_and_sword.md": {
+      "x": 1170.995135028775,
+      "y": -10940.160518721234
+    },
+    "mythology-japanese/episodes/bt07_03_01_mirror_bestowed.md": {
+      "x": 1536.7071564759635,
+      "y": -10940.160518721234
+    },
+    "mythology-japanese/episodes/bt07_01_03_takachiho_landing.md": {
+      "x": 2999.555242264718,
+      "y": -10940.160518721234
+    },
+    "mythology-japanese/episodes/bt07_01_02_sarutahiko_encounter.md": {
+      "x": -1023.2769936543575,
+      "y": -10574.448497274045
+    },
+    "mythology-japanese/episodes/bt07_01_01_amaterasu_decree.md": {
+      "x": -657.5649722071689,
+      "y": -10574.448497274045
+    },
+    "mythology-japanese/episodes/bt06_03_03_okuninushi_enshrined.md": {
+      "x": -291.8529507599801,
+      "y": -10574.448497274045
+    },
+    "mythology-japanese/episodes/bt06_03_02_pillar_rises.md": {
+      "x": 73.85907068720883,
+      "y": -10574.448497274045
+    },
+    "mythology-japanese/episodes/bt06_02_03_great_shrine_promise.md": {
+      "x": 805.2831135815862,
+      "y": -10574.448497274045
+    },
+    "mythology-japanese/episodes/bt06_02_02_sovereignty_transfer.md": {
+      "x": 1170.995135028775,
+      "y": -10574.448497274045
+    },
+    "mythology-japanese/episodes/bt06_02_01_okuninushi_terms.md": {
+      "x": 1536.7071564759635,
+      "y": -10574.448497274045
+    },
+    "mythology-japanese/episodes/bt05_03_03_white_bird.md": {
+      "x": 2999.555242264718,
+      "y": -10574.448497274045
+    },
+    "mythology-japanese/episodes/bt05_03_02_longing_for_home.md": {
+      "x": -1023.2769936543575,
+      "y": -10208.736475826856
+    },
+    "mythology-japanese/episodes/bt05_02_03_suruga_fire.md": {
+      "x": -291.8529507599801,
+      "y": -10208.736475826856
+    },
+    "mythology-japanese/episodes/bt05_01_03_name_bestowed.md": {
+      "x": 805.2831135815862,
+      "y": -10208.736475826856
+    },
+    "mythology-japanese/episodes/bt05_01_02_disguise.md": {
+      "x": 1170.995135028775,
+      "y": -10208.736475826856
+    },
+    "mythology-japanese/episodes/bt05_01_01_fathers_command.md": {
+      "x": 1536.7071564759635,
+      "y": -10208.736475826856
+    },
+    "mythology-japanese/episodes/bt04_02_03_maggots_horror.md": {
+      "x": 2999.555242264718,
+      "y": -10208.736475826856
+    },
+    "mythology-japanese/episodes/bt04_01_01_izanami_burns.md": {
+      "x": 439.57109213439736,
+      "y": -9843.024454379667
+    },
+    "mythology-japanese/episodes/bt03_03_03_reunion.md": {
+      "x": 805.2831135815862,
+      "y": -9843.024454379667
+    },
+    "mythology-japanese/episodes/bt03_03_01_slaying.md": {
+      "x": 1536.7071564759635,
+      "y": -9843.024454379667
+    },
+    "mythology-japanese/episodes/bt03_02_03_orochi_sleeps.md": {
+      "x": 1902.4191779231523,
+      "y": -9843.024454379667
+    },
+    "mythology-japanese/episodes/bt03_02_01_sake_brewing.md": {
+      "x": 2633.84322081753,
+      "y": -9843.024454379667
+    },
+    "mythology-japanese/episodes/bt03_01_03_vow_to_slay.md": {
+      "x": 2999.555242264718,
+      "y": -9843.024454379667
+    },
+    "mythology-japanese/episodes/bt03_01_02_weeping_family.md": {
+      "x": -1023.2769936543575,
+      "y": -9477.312432932478
+    },
+    "mythology-japanese/episodes/bt03_01_01_exile_arrival.md": {
+      "x": -657.5649722071689,
+      "y": -9477.312432932478
+    },
+    "mythology-japanese/episodes/bt02_03_03_sunlight_returns.md": {
+      "x": -291.8529507599801,
+      "y": -9477.312432932478
+    },
+    "mythology-japanese/episodes/bt02_03_02_mirror_light.md": {
+      "x": 73.85907068720883,
+      "y": -9477.312432932478
+    },
+    "mythology-japanese/episodes/bt02_03_01_curiosity.md": {
+      "x": 439.57109213439736,
+      "y": -9477.312432932478
+    },
+    "mythology-japanese/episodes/bt02_02_03_gods_laugh.md": {
+      "x": 805.2831135815862,
+      "y": -9477.312432932478
+    },
+    "mythology-japanese/episodes/bt02_01_01_susanoo_rampage.md": {
+      "x": 2633.84322081753,
+      "y": -9477.312432932478
+    },
+    "mythology-japanese/episodes/bt01_03_03_kagutsuchi_tragedy.md": {
+      "x": 2999.555242264718,
+      "y": -9477.312432932478
+    },
+    "mythology-japanese/episodes/sc08_01_departure_hyuga.md": {
+      "x": -291.8529507599801,
+      "y": -12037.2965830628
+    },
+    "mythology-japanese/episodes/sc07_02_konohanasakuya.md": {
+      "x": 73.85907068720883,
+      "y": -12037.2965830628
+    },
+    "mythology-japanese/episodes/ep08_jimmu_expedition.md": {
+      "x": -1023.2769936543575,
+      "y": -11305.872540168422
+    },
+    "mythology-japanese/episodes/bt08_03_01_nagasunehiko_battle.md": {
+      "x": 2999.555242264718,
+      "y": -11305.872540168422
+    },
+    "mythology-japanese/episodes/bt08_01_02_itsuse_falls.md": {
+      "x": 73.85907068720883,
+      "y": -10940.160518721234
+    },
+    "mythology-japanese/episodes/bt08_01_01_iwarebiko_resolve.md": {
+      "x": 439.57109213439736,
+      "y": -10940.160518721234
+    },
+    "mythology-japanese/episodes/bt07_02_03_mortal_fate.md": {
+      "x": 1902.4191779231523,
+      "y": -10940.160518721234
+    },
+    "mythology-japanese/episodes/bt07_02_02_rejected_sister.md": {
+      "x": 2268.131199370341,
+      "y": -10940.160518721234
+    },
+    "mythology-japanese/episodes/bt07_02_01_love_at_first.md": {
+      "x": 2633.84322081753,
+      "y": -10940.160518721234
+    },
+    "mythology-japanese/episodes/bt06_03_01_builders_gather.md": {
+      "x": 439.57109213439736,
+      "y": -10574.448497274045
+    },
+    "mythology-japanese/episodes/bt03_02_02_serpent_drinks.md": {
+      "x": 2268.131199370341,
+      "y": -9843.024454379667
+    },
+    "mythology-japanese/episodes/bt02_02_02_ecstatic_dance.md": {
+      "x": 1170.995135028775,
+      "y": -9477.312432932478
+    },
+    "mythology-japanese/episodes/bt02_02_01_divine_council.md": {
+      "x": 1536.7071564759635,
+      "y": -9477.312432932478
+    },
+    "mythology-japanese/episodes/bt02_01_03_world_darkness.md": {
+      "x": 1902.4191779231523,
+      "y": -9477.312432932478
+    },
+    "mythology-japanese/episodes/bt01_02_02_eight_islands.md": {
+      "x": 73.85907068720883,
+      "y": -9111.600411485291
+    },
+    "mythology-japanese/episodes/bt01_01_02_stir_chaos.md": {
+      "x": 1170.995135028775,
+      "y": -9111.600411485291
+    },
+    "classic-saiyuki/characters/sun-wukong.md": {
+      "x": 4277.089891547689,
+      "y": 38.943223723335
+    },
+    "classic-gilgamesh/characters/gilgamesh.md": {
+      "x": 4191.401568842665,
+      "y": -391.83941643594454
+    },
+    "classic-arthurian/characters/arthur.md": {
+      "x": 4050.218020111494,
+      "y": -807.7539160230507
+    },
+    "classic-hamlet/characters/hamlet.md": {
+      "x": 3855.9549543718877,
+      "y": -1201.6809069830772
+    },
+    "mythology-greek/characters/zeus.md": {
+      "x": 3611.934264940772,
+      "y": -1566.88235124787
+    },
+    "mythology-norse/characters/odin.md": {
+      "x": 2626.9087595342107,
+      "y": -2430.7262987820595
+    },
+    "classic-king-lear/characters/king-lear.md": {
+      "x": 2992.1083478297746,
+      "y": -2186.70864116033
+    },
+    "classic-arthurian/characters/lancelot.md": {
+      "x": 3322.33486010162,
+      "y": -1897.1076035253225
+    },
+    "classic-macbeth/characters/macbeth.md": {
+      "x": 1817.067950703813,
+      "y": -2766.17495385309
+    },
+    "classic-divine-comedy/characters/dante.md": {
+      "x": 2232.9811719147365,
+      "y": -2624.9910912885034
+    },
+    "classic-sangokushi/characters/guan-yu.md": {
+      "x": 509.71739043926823,
+      "y": -2851.8636103744275
+    },
+    "classic-othello/characters/othello.md": {
+      "x": 948.0001825514971,
+      "y": -2880.589703139362
+    },
+    "classic-genji/characters/hikaru-genji.md": {
+      "x": 1386.2828855117286,
+      "y": -2851.8632508321343
+    },
+    "classic-sangokushi/characters/liu-bei.md": {
+      "x": -1715.9351097171696,
+      "y": -1566.8826379527939
+    },
+    "classic-sangokushi/characters/cao-cao.md": {
+      "x": -1426.3341270322983,
+      "y": -1897.107584637541
+    },
+    "classic-saiyuki/characters/zhu-bajie.md": {
+      "x": -1096.1092906317879,
+      "y": -2186.7085372694696
+    },
+    "classic-saiyuki/characters/guanyin.md": {
+      "x": -730.908304378338,
+      "y": -2430.7285331827225
+    },
+    "classic-hamlet/characters/claudius.md": {
+      "x": -336.98065597763434,
+      "y": -2624.99231310754
+    },
+    "classic-arthurian/characters/gawain.md": {
+      "x": 78.93452565939576,
+      "y": -2766.1761388213326
+    },
+    "mythology-egyptian/characters/ra.md": {
+      "x": -2154.2190757187764,
+      "y": 1762.208587359258
+    },
+    "classic-sangokushi/characters/zhao-yun.md": {
+      "x": -2295.401891144474,
+      "y": 1346.2934828466107
+    },
+    "classic-sangokushi/characters/lu-bu.md": {
+      "x": -2381.0895406986033,
+      "y": 915.5092620847093
+    },
+    "classic-saiyuki/characters/sha-wujing.md": {
+      "x": -2409.8164035155287,
+      "y": 477.22662273350124
+    },
+    "classic-saiyuki/characters/nezha.md": {
+      "x": -2381.090083022234,
+      "y": 38.943787676277715
+    },
+    "classic-saiyuki/characters/erlang-shen.md": {
+      "x": -2295.4023210841215,
+      "y": -391.8396956813845
+    },
+    "classic-gilgamesh/characters/ea.md": {
+      "x": -2154.2182399440157,
+      "y": -807.7542778264882
+    },
+    "classic-gilgamesh/characters/anu.md": {
+      "x": -1959.9552351090906,
+      "y": -1201.6810923384091
+    },
+    "mythology-greek/characters/athena.md": {
+      "x": 78.9346383226529,
+      "y": 3720.6278023286545
+    },
+    "mythology-egyptian/characters/anubis.md": {
+      "x": -336.9800695409233,
+      "y": 3579.443781168211
+    },
+    "classic-sangokushi/characters/zhang-fei.md": {
+      "x": -730.9070175180675,
+      "y": 3385.180386377539
+    },
+    "classic-gilgamesh/characters/ishtar.md": {
+      "x": -1096.107744137762,
+      "y": 3141.161589945172
+    },
+    "classic-gilgamesh/characters/enlil.md": {
+      "x": -1426.3340065909567,
+      "y": 2851.56137133639
+    },
+    "classic-arthurian/characters/percival.md": {
+      "x": -1715.9347438263935,
+      "y": 2521.335676296387
+    },
+    "classic-arthurian/characters/galahad.md": {
+      "x": -1959.9533356896652,
+      "y": 2156.13589872928
+    },
+    "mythology-norse/characters/loki.md": {
+      "x": 2232.979978146793,
+      "y": 3579.4444927799073
+    },
+    "classic-sangokushi/characters/xiahou-dun.md": {
+      "x": 1817.0672912000891,
+      "y": 3720.6276306740087
+    },
+    "classic-othello/characters/iago.md": {
+      "x": 1386.282299665034,
+      "y": 3806.3158081871843
+    },
+    "classic-arthurian/characters/tristan.md": {
+      "x": 948.0010263729291,
+      "y": 3835.040915445517
+    },
+    "classic-arthurian/characters/bedivere.md": {
+      "x": 509.71687070520034,
+      "y": 3806.3161136825242
+    },
+    "mythology-norse/concepts/yggdrasil.md": {
+      "x": 4305.814804254076,
+      "y": 477.2273924676065
+    },
+    "classic-sangokushi/characters/ma-chao.md": {
+      "x": 4277.089334591888,
+      "y": 915.5088444671646
+    },
+    "classic-sangokushi/characters/dian-wei.md": {
+      "x": 4191.4011548282915,
+      "y": 1346.2937994300028
+    },
+    "classic-saiyuki/characters/jade-emperor.md": {
+      "x": 4050.21824198799,
+      "y": 1762.2068245366224
+    },
+    "classic-king-lear/characters/edmund.md": {
+      "x": 3855.953585537879,
+      "y": 2156.1343781796936
+    },
+    "classic-gilgamesh/characters/shamash.md": {
+      "x": 3611.9355839080467,
+      "y": 2521.3340839140587
+    },
+    "classic-gilgamesh/characters/ninsun.md": {
+      "x": 3322.3344861831524,
+      "y": 2851.5614160676705
+    },
+    "classic-arthurian/characters/kay.md": {
+      "x": 2992.1074419919782,
+      "y": 3141.161996668044
+    },
+    "classic-arabian-nights/characters/genie-lamp.md": {
+      "x": 2626.9078395637393,
+      "y": 3385.1806208648836
+    },
+    "mythology-egyptian/characters/thoth.md": {
+      "x": 2949.0239277077694,
+      "y": -1478.7541612176972
+    },
+    "mythology-egyptian/characters/sekhmet.md": {
+      "x": 3118.6032526420504,
+      "y": -1288.6863407003764
+    },
+    "mythology-egyptian/characters/bastet.md": {
+      "x": 3270.191908286837,
+      "y": -1083.988122047761
+    },
+    "classic-saiyuki/characters/buddha.md": {
+      "x": 3402.5389300273823,
+      "y": -866.3515692690034
+    },
+    "classic-king-lear/characters/regan.md": {
+      "x": 3514.5469781879497,
+      "y": -637.5823772547726
+    },
+    "classic-king-lear/characters/goneril.md": {
+      "x": 3605.2878434176437,
+      "y": -399.5741513467653
+    },
+    "classic-divine-comedy/characters/lucifer.md": {
+      "x": 3674.010671108653,
+      "y": -154.29971219451872
+    },
+    "bible-old-testament/concepts/ark-of-covenant.md": {
+      "x": 3720.1443240826807,
+      "y": 96.20503815598522
+    },
+    "bible-new-testament/characters/jesus.md": {
+      "x": 3743.306763092214,
+      "y": 349.8669464614374
+    },
+    "mythology-greek/characters/poseidon.md": {
+      "x": 1392.026189039862,
+      "y": -2285.5269760614033
+    },
+    "mythology-egyptian/concepts/eye-of-ra.md": {
+      "x": 1641.4165077838777,
+      "y": -2233.702931328399
+    },
+    "mythology-egyptian/characters/sobek.md": {
+      "x": 1885.0613242596764,
+      "y": -2159.4157451429237
+    },
+    "classic-arabian-nights/characters/genie-ring.md": {
+      "x": 2120.9419334883273,
+      "y": -2063.27901056604
+    },
+    "bible-new-testament/concepts/golgotha.md": {
+      "x": 2347.1037717506733,
+      "y": -1946.090725900156
+    },
+    "bible-apocrypha/concepts/seven-heavens.md": {
+      "x": 2561.6710531968124,
+      "y": -1808.8247669955758
+    },
+    "bible-apocrypha/concepts/book-of-life.md": {
+      "x": 2762.8677362506614,
+      "y": -1652.615221368244
+    },
+    "mythology-egyptian/concepts/duat.md": {
+      "x": -1838.6140422802905,
+      "y": 222.77269381818002
+    },
+    "mythology-egyptian/characters/osiris.md": {
+      "x": -1803.9294822208124,
+      "y": -29.573384196778736
+    },
+    "classic-othello/characters/duke-of-venice.md": {
+      "x": -1746.4414610395002,
+      "y": -277.7186831240881
+    },
+    "classic-othello/characters/brabantio.md": {
+      "x": -1666.6277061749668,
+      "y": -519.6103305097284
+    },
+    "classic-macbeth/characters/ross.md": {
+      "x": -1565.1473309115395,
+      "y": -753.2421879086663
+    },
+    "classic-macbeth/characters/malcolm.md": {
+      "x": -1442.8416670560357,
+      "y": -976.6776492507553
+    },
+    "classic-macbeth/characters/banquo.md": {
+      "x": -1300.7254322474446,
+      "y": -1188.0631564656046
+    },
+    "classic-king-lear/characters/king-of-france.md": {
+      "x": -1139.9764843746054,
+      "y": -1385.6507006972731
+    },
+    "classic-gilgamesh/characters/humbaba.md": {
+      "x": -961.9248485895685,
+      "y": -1567.8040825834985
+    },
+    "classic-genji/characters/kiritsubo-emperor.md": {
+      "x": -768.0457956965444,
+      "y": -1733.0098774794162
+    },
+    "classic-arthurian/characters/uther-pendragon.md": {
+      "x": -559.9497276722375,
+      "y": -1879.8998039841454
+    },
+    "classic-arthurian/characters/mordred.md": {
+      "x": -339.35725228569106,
+      "y": -2007.2585947001849
+    },
+    "classic-arabian-nights/characters/shahryar.md": {
+      "x": -108.09764724985027,
+      "y": -2114.0302757197555
+    },
+    "classic-arabian-nights/characters/roc-bird.md": {
+      "x": 131.91378097187365,
+      "y": -2199.332712299257
+    },
+    "bible-old-testament/characters/god-yhwh.md": {
+      "x": 378.68966919282985,
+      "y": -2262.4553553484075
+    },
+    "mythology-norse/characters/thor.md": {
+      "x": -1300.7257375296374,
+      "y": 2142.5174297441836
+    },
+    "mythology-greek/characters/hades.md": {
+      "x": -1442.8410034022525,
+      "y": 1931.132281678243
+    },
+    "classic-sangokushi/characters/sun-quan.md": {
+      "x": -1565.1482404630074,
+      "y": 1707.6958547239922
+    },
+    "classic-king-lear/characters/albany.md": {
+      "x": -1666.6278937737666,
+      "y": 1474.0631116886937
+    },
+    "classic-divine-comedy/characters/virgil.md": {
+      "x": -1746.44227837809,
+      "y": 1232.1736353086471
+    },
+    "classic-arabian-nights/characters/jafar-vizier.md": {
+      "x": -1803.9296022478543,
+      "y": 984.0271089975605
+    },
+    "classic-arabian-nights/characters/harun-al-rashid.md": {
+      "x": -1838.6137838774337,
+      "y": 731.6818181595313
+    },
+    "bible-old-testament/concepts/ten-commandments.md": {
+      "x": -1850.2065569583888,
+      "y": 477.226101233296
+    },
+    "mythology-norse/concepts/mjolnir.md": {
+      "x": 1392.0259314265131,
+      "y": 3239.979928722197
+    },
+    "mythology-norse/concepts/gungnir.md": {
+      "x": 1138.9556681440133,
+      "y": 3268.9109622349733
+    },
+    "mythology-norse/concepts/bifrost.md": {
+      "x": 884.3034781989603,
+      "y": 3274.708443757199
+    },
+    "mythology-egyptian/concepts/ankh.md": {
+      "x": 630.1791164085354,
+      "y": 3257.325495298333
+    },
+    "mythology-egyptian/characters/isis.md": {
+      "x": 378.6896005903052,
+      "y": 3216.9070177048343
+    },
+    "classic-othello/characters/lodovico.md": {
+      "x": 131.9136121883526,
+      "y": 3153.784416896939
+    },
+    "classic-othello/characters/gratiano.md": {
+      "x": -108.09729157493922,
+      "y": 3068.482433313938
+    },
+    "classic-king-lear/characters/cornwall.md": {
+      "x": -339.35648737162546,
+      "y": 2961.7118936820407
+    },
+    "classic-king-lear/characters/burgundy.md": {
+      "x": -559.9488176990826,
+      "y": 2834.353487518055
+    },
+    "classic-arabian-nights/characters/scheherazade.md": {
+      "x": -768.045101944017,
+      "y": 2687.464039790966
+    },
+    "bible-old-testament/concepts/promised-land.md": {
+      "x": -961.924049494028,
+      "y": 2522.25740389956
+    },
+    "bible-apocrypha/concepts/dead-sea-scrolls.md": {
+      "x": -1139.976408564681,
+      "y": 2340.1051191726174
+    },
+    "mythology-norse/characters/fenrir.md": {
+      "x": 3743.3076288403086,
+      "y": 604.5846403329642
+    },
+    "mythology-greek/concepts/golden-fleece.md": {
+      "x": 3605.288842173308,
+      "y": 1354.0278893099648
+    },
+    "mythology-greek/concepts/ambrosia.md": {
+      "x": 3514.5463586422,
+      "y": 1592.0343050875892
+    },
+    "mythology-greek/characters/heracles.md": {
+      "x": 3402.5375174253636,
+      "y": 1820.8060594392725
+    },
+    "mythology-greek/characters/aphrodite.md": {
+      "x": 3270.1899959865627,
+      "y": 2038.4425791017734
+    },
+    "mythology-egyptian/characters/set.md": {
+      "x": 3118.6011135028316,
+      "y": 2243.1411465400515
+    },
+    "classic-sangokushi/characters/dong-zhuo.md": {
+      "x": 2949.025162138721,
+      "y": 2433.2083590208163
+    },
+    "classic-saiyuki/characters/white-bone-spirit.md": {
+      "x": 2762.866899844665,
+      "y": 2607.0675431713253
+    },
+    "classic-saiyuki/characters/king-of-hell.md": {
+      "x": 2561.670728898203,
+      "y": 2763.277209772063
+    },
+    "classic-othello/characters/senator.md": {
+      "x": 2347.1053954399554,
+      "y": 2900.5430528397806
+    },
+    "classic-macbeth/characters/lennox.md": {
+      "x": 2120.943080093459,
+      "y": 3017.7316207189187
+    },
+    "classic-macbeth/characters/fleance.md": {
+      "x": 1885.0614607200082,
+      "y": 3113.868147103642
+    },
+    "classic-genji/characters/kaoru.md": {
+      "x": 1641.4162845646613,
+      "y": 3188.1557473035923
+    },
+    "mythology-norse/characters/baldur.md": {
+      "x": 1362.7849378997591,
+      "y": -1722.5966262564154
+    },
+    "mythology-greek/concepts/mount-olympus.md": {
+      "x": 1818.4157373967123,
+      "y": -1585.207785399951
+    },
+    "mythology-greek/concepts/labyrinth.md": {
+      "x": 2032.708571732827,
+      "y": -1481.0053356242538
+    },
+    "mythology-greek/characters/ares.md": {
+      "x": 2234.7102734703794,
+      "y": -1354.6132440701454
+    },
+    "mythology-greek/characters/apollo.md": {
+      "x": 2422.133749096776,
+      "y": -1207.4663702051844
+    },
+    "mythology-egyptian/concepts/pyramid.md": {
+      "x": 2592.8529503903064,
+      "y": -1041.230558217815
+    },
+    "mythology-egyptian/characters/horus.md": {
+      "x": 2744.937559439063,
+      "y": -857.7929614058471
+    },
+    "classic-othello/characters/montano.md": {
+      "x": 2876.662166079634,
+      "y": -659.2273670099556
+    },
+    "classic-othello/characters/desdemona.md": {
+      "x": 2986.5331772212867,
+      "y": -447.7843513334814
+    },
+    "classic-king-lear/characters/oswald.md": {
+      "x": 3073.308864199745,
+      "y": -225.8603225982998
+    },
+    "classic-arabian-nights/characters/forty-thieves-chief.md": {
+      "x": 3136.0021120087426,
+      "y": 4.029744795500834
+    },
+    "bible-new-testament/concepts/nazareth.md": {
+      "x": 3173.9035449396115,
+      "y": 239.28091910306594
+    },
+    "classic-saiyuki/characters/xuanzang.md": {
+      "x": -30.95184212466008,
+      "y": -1535.9587583920772
+    },
+    "classic-othello/characters/herald.md": {
+      "x": 188.58563685089112,
+      "y": -1628.611583810851
+    },
+    "classic-gilgamesh/characters/bull-of-heaven.md": {
+      "x": 416.72437417939295,
+      "y": -1697.401551303163
+    },
+    "classic-arabian-nights/characters/dinarzade.md": {
+      "x": 650.8819843367315,
+      "y": -1741.5539460730906
+    },
+    "bible-old-testament/characters/moses.md": {
+      "x": 888.4061289113275,
+      "y": -1760.565861584279
+    },
+    "bible-new-testament/concepts/holy-grail.md": {
+      "x": 1126.6082599780946,
+      "y": -1754.2220997235233
+    },
+    "mythology-norse/characters/hel.md": {
+      "x": -1136.8752332034373,
+      "y": 1292.4342237590358
+    },
+    "mythology-greek/characters/odysseus.md": {
+      "x": -1262.0859324023816,
+      "y": 833.3050507890067
+    },
+    "mythology-greek/characters/hephaestus.md": {
+      "x": -1287.4131780496216,
+      "y": 596.3696630610259
+    },
+    "mythology-greek/characters/artemis.md": {
+      "x": -1287.4138137116688,
+      "y": 358.084030714538
+    },
+    "classic-sangokushi/characters/zhuge-liang.md": {
+      "x": -1262.0843364360937,
+      "y": 121.14827037853404
+    },
+    "classic-king-lear/characters/cordelia.md": {
+      "x": -1211.7154071996786,
+      "y": -111.75061292150124
+    },
+    "classic-hamlet/characters/ophelia.md": {
+      "x": -1136.8756268428353,
+      "y": -337.9792158579711
+    },
+    "classic-genji/characters/yugao.md": {
+      "x": -1038.413176905296,
+      "y": -554.9702608154972
+    },
+    "classic-genji/characters/murasaki-no-ue.md": {
+      "x": -917.4438630668403,
+      "y": -760.264748202724
+    },
+    "classic-genji/characters/fujitsubo.md": {
+      "x": -775.3375668802004,
+      "y": -951.5395886200405
+    },
+    "classic-divine-comedy/characters/beatrice.md": {
+      "x": -613.7083080673067,
+      "y": -1126.6227315700698
+    },
+    "classic-arabian-nights/characters/aladdin.md": {
+      "x": -434.3827571915782,
+      "y": -1283.536356890646
+    },
+    "mythology-greek/characters/medusa.md": {
+      "x": 416.723877059656,
+      "y": 2651.855745643766
+    },
+    "classic-macbeth/characters/witch-first.md": {
+      "x": 188.58696690618513,
+      "y": 2583.0650990778245
+    },
+    "classic-king-lear/characters/fool-lear.md": {
+      "x": -30.950762792513615,
+      "y": 2490.4120052142894
+    },
+    "classic-gilgamesh/characters/urshanabi.md": {
+      "x": -239.39457385828757,
+      "y": 2374.9520027733574
+    },
+    "classic-genji/characters/tamakazura.md": {
+      "x": -434.3813209227452,
+      "y": 2237.989156416881
+    },
+    "classic-arthurian/characters/merlin.md": {
+      "x": -613.7079420745417,
+      "y": 2081.076135237897
+    },
+    "classic-arabian-nights/characters/ali-baba.md": {
+      "x": -775.3378829305075,
+      "y": 1905.9916779800478
+    },
+    "bible-new-testament/characters/mary.md": {
+      "x": -917.4437417264386,
+      "y": 1714.7179119439518
+    },
+    "bible-apocrypha/characters/judith.md": {
+      "x": -1038.412440976805,
+      "y": 1509.4239572173965
+    },
+    "mythology-norse/characters/sigurd.md": {
+      "x": 3186.5851831759064,
+      "y": 477.22699480900195
+    },
+    "mythology-norse/characters/jormungandr.md": {
+      "x": 3173.903754608636,
+      "y": 715.1725429510202
+    },
+    "mythology-greek/characters/perseus.md": {
+      "x": 3136.002549433542,
+      "y": 950.4237588549158
+    },
+    "mythology-greek/characters/minotaur.md": {
+      "x": 3073.308955754192,
+      "y": 1180.3126503545272
+    },
+    "mythology-egyptian/characters/apophis.md": {
+      "x": 2986.5335383912175,
+      "y": 1402.2378680730737
+    },
+    "classic-macbeth/characters/macduff.md": {
+      "x": 2876.662500924754,
+      "y": 1613.6799087004813
+    },
+    "classic-macbeth/characters/hecate.md": {
+      "x": 2744.9387713045353,
+      "y": 1812.2460136422726
+    },
+    "classic-hamlet/characters/polonius.md": {
+      "x": 2592.855157924052,
+      "y": 1995.68635587017
+    },
+    "classic-gilgamesh/characters/enkidu.md": {
+      "x": 2422.133322034922,
+      "y": 2161.920531693013
+    },
+    "classic-genji/characters/ukifune.md": {
+      "x": 2234.711420241181,
+      "y": 2309.0667743665053
+    },
+    "classic-divine-comedy/characters/saint-peter.md": {
+      "x": 2032.7087256766845,
+      "y": 2435.4575364245015
+    },
+    "bible-old-testament/characters/david.md": {
+      "x": 1818.4162409012881,
+      "y": 2539.6617583223006
+    },
+    "bible-old-testament/characters/abraham.md": {
+      "x": 1594.2615576043909,
+      "y": 2620.497527482065
+    },
+    "bible-new-testament/characters/pontius-pilate.md": {
+      "x": 1362.78486468613,
+      "y": 2677.049669731384
+    },
+    "bible-apocrypha/characters/lilith.md": {
+      "x": 1126.6076467954506,
+      "y": 2708.6763907885356
+    },
+    "bible-apocrypha/characters/enoch.md": {
+      "x": 888.4057511398768,
+      "y": 2715.01974911664
+    },
+    "bible-apocrypha/characters/asmodeus.md": {
+      "x": 650.8819903189387,
+      "y": 2696.0077743123056
+    },
+    "mythology-norse/characters/tyr.md": {
+      "x": -258.08529543138417,
+      "y": -690.8025980706308
+    },
+    "mythology-norse/characters/heimdall.md": {
+      "x": -98.81837103247342,
+      "y": -835.4433291321825
+    },
+    "classic-macbeth/characters/witch-third.md": {
+      "x": 894.1887458976104,
+      "y": -1200.8768210318592
+    },
+    "classic-macbeth/characters/witch-second.md": {
+      "x": 1109.2194379401258,
+      "y": -1193.98140043697
+    },
+    "classic-hamlet/characters/laertes.md": {
+      "x": 1321.6081402304117,
+      "y": -1159.6447205219504
+    },
+    "classic-hamlet/characters/gravedigger.md": {
+      "x": 1527.8598564747467,
+      "y": -1098.4310855399444
+    },
+    "classic-gilgamesh/characters/utnapishtim.md": {
+      "x": 1724.58906187416,
+      "y": -1011.3435997419562
+    },
+    "classic-gilgamesh/characters/scorpion-man.md": {
+      "x": 1908.5665197741976,
+      "y": -899.8140922583555
+    },
+    "classic-genji/characters/to-no-chujo.md": {
+      "x": 2076.770079100188,
+      "y": -765.6763598913324
+    },
+    "classic-genji/characters/akashi-no-kimi.md": {
+      "x": 2226.4437722914595,
+      "y": -611.1271422172933
+    },
+    "classic-divine-comedy/characters/saint-bernard.md": {
+      "x": 2355.122016431336,
+      "y": -438.7089537696895
+    },
+    "classic-arthurian/characters/morgan-le-fay.md": {
+      "x": 2460.698274780115,
+      "y": -251.24812700280705
+    },
+    "classic-arthurian/characters/guinevere.md": {
+      "x": 2541.4315155496924,
+      "y": -51.82821234253035
+    },
+    "bible-new-testament/characters/peter.md": {
+      "x": 2596.002731708641,
+      "y": 156.27760395517092
+    },
+    "bible-apocrypha/characters/samael.md": {
+      "x": 2623.5155718596393,
+      "y": 369.6520989150906
+    },
+    "mythology-norse/characters/freya.md": {
+      "x": 470.2896170937467,
+      "y": 2086.7967354496272
+    },
+    "classic-sangokushi/characters/zhou-yu.md": {
+      "x": 268.3814946667062,
+      "y": 2012.4925518258049
+    },
+    "classic-saiyuki/characters/red-boy.md": {
+      "x": 77.63710467375566,
+      "y": 1912.9822908083736
+    },
+    "classic-saiyuki/characters/princess-iron-fan.md": {
+      "x": -98.81751195499234,
+      "y": 1789.8942137533245
+    },
+    "classic-saiyuki/characters/bull-demon-king.md": {
+      "x": -258.08273966395564,
+      "y": 1645.254788748124
+    },
+    "classic-othello/characters/roderigo.md": {
+      "x": -397.54509807691676,
+      "y": 1481.4351306902456
+    },
+    "classic-othello/characters/cassio.md": {
+      "x": -514.9146741771046,
+      "y": 1301.125863323595
+    },
+    "classic-macbeth/characters/lady-macduff.md": {
+      "x": -608.2619735467138,
+      "y": 1107.2869538637601
+    },
+    "classic-hamlet/characters/horatio.md": {
+      "x": -676.0567938320382,
+      "y": 903.1034046131803
+    },
+    "classic-divine-comedy/characters/minos.md": {
+      "x": -717.182615550108,
+      "y": 691.9289371213163
+    },
+    "classic-divine-comedy/characters/charon.md": {
+      "x": -730.9674178951578,
+      "y": 477.22683173316864
+    },
+    "classic-divine-comedy/characters/cato.md": {
+      "x": -717.1821947911073,
+      "y": 262.5266994170574
+    },
+    "classic-arthurian/characters/lady-of-the-lake.md": {
+      "x": -676.0554265772139,
+      "y": 51.348962315312704
+    },
+    "bible-new-testament/characters/judas.md": {
+      "x": -608.2619520877661,
+      "y": -152.83429378689684
+    },
+    "bible-new-testament/characters/john.md": {
+      "x": -514.9160656541824,
+      "y": -346.6730115504676
+    },
+    "bible-apocrypha/characters/tobias.md": {
+      "x": -397.5468679325792,
+      "y": -526.9824587432329
+    },
+    "classic-sangokushi/characters/sima-yi.md": {
+      "x": 2623.5150016184284,
+      "y": 584.7951727943008
+    },
+    "classic-othello/characters/emilia.md": {
+      "x": 2596.003604453618,
+      "y": 798.1758679781024
+    },
+    "classic-othello/characters/bianca.md": {
+      "x": 2541.4331472665467,
+      "y": 1006.2813351833208
+    },
+    "classic-macbeth/characters/lady-macbeth.md": {
+      "x": 2460.6992324637126,
+      "y": 1205.7025890296554
+    },
+    "classic-macbeth/characters/duncan.md": {
+      "x": 2355.1242340488584,
+      "y": 1393.160526631157
+    },
+    "classic-king-lear/characters/gloucester.md": {
+      "x": 2226.4437820277676,
+      "y": 1565.581715596779
+    },
+    "classic-hamlet/characters/rosencrantz.md": {
+      "x": 2076.7707904814692,
+      "y": 1720.1311370967474
+    },
+    "classic-hamlet/characters/guildenstern.md": {
+      "x": 1908.5651539171097,
+      "y": 1854.269260492965
+    },
+    "classic-hamlet/characters/ghost-king.md": {
+      "x": 1724.5863900655709,
+      "y": 1965.7987403238396
+    },
+    "classic-genji/characters/suetsumuhana.md": {
+      "x": 1527.856279350941,
+      "y": 2052.8858168665574
+    },
+    "classic-divine-comedy/characters/statius.md": {
+      "x": 1321.603719244852,
+      "y": 2114.0987009771175
+    },
+    "classic-divine-comedy/characters/matilda.md": {
+      "x": 1109.2166816253732,
+      "y": 2148.433876186702
+    },
+    "bible-old-testament/characters/solomon.md": {
+      "x": 894.1861700852594,
+      "y": 2155.3292924604334
+    },
+    "bible-apocrypha/characters/metatron.md": {
+      "x": 680.0372307097558,
+      "y": 2134.669269036198
+    },
+    "mythology-norse/characters/frey.md": {
+      "x": -36.43978037132774,
+      "y": -55.52851639173039
+    },
+    "classic-sangokushi/characters/diao-chan.md": {
+      "x": 64.67499555628514,
+      "y": -210.29404781945325
+    },
+    "classic-othello/characters/clown-othello.md": {
+      "x": 189.88415418441568,
+      "y": -346.30750236576176
+    },
+    "classic-king-lear/characters/edgar.md": {
+      "x": 335.7719425484409,
+      "y": -459.85731891288316
+    },
+    "classic-hamlet/characters/osric.md": {
+      "x": 498.3604657380508,
+      "y": -547.8461137871869
+    },
+    "classic-hamlet/characters/gertrude.md": {
+      "x": 673.2147917872501,
+      "y": -607.8736888894473
+    },
+    "classic-gilgamesh/characters/siduri.md": {
+      "x": 855.566326032299,
+      "y": -638.3029345889714
+    },
+    "classic-genji/characters/rokujo-no-miyasudokoro.md": {
+      "x": 1040.438993009008,
+      "y": -638.3014268417763
+    },
+    "classic-genji/characters/niou-no-miya.md": {
+      "x": 1222.7886456993915,
+      "y": -607.870993077842
+    },
+    "classic-genji/characters/kokiden-no-nyogo.md": {
+      "x": 1397.6424632226924,
+      "y": -547.8426697791359
+    },
+    "classic-genji/characters/aoi-no-ue.md": {
+      "x": 1560.2294218596667,
+      "y": -459.85375399927204
+    },
+    "classic-divine-comedy/characters/ugolino.md": {
+      "x": 1706.1168598744136,
+      "y": -346.30317394665616
+    },
+    "classic-arabian-nights/characters/morgiana.md": {
+      "x": 1831.3240607397781,
+      "y": -210.28909522341255
+    },
+    "bible-old-testament/characters/samson.md": {
+      "x": 1932.4370290419847,
+      "y": -55.527026213550144
+    },
+    "bible-new-testament/characters/paul.md": {
+      "x": 2006.6992192713396,
+      "y": 113.77341963463056
+    },
+    "bible-new-testament/characters/mary-magdalene.md": {
+      "x": 2052.0829157358617,
+      "y": 292.98763166900676
+    },
+    "mythology-norse/characters/surtr.md": {
+      "x": 335.7730205058515,
+      "y": 1414.3075607704102
+    },
+    "classic-king-lear/characters/kent.md": {
+      "x": 189.88888252285665,
+      "y": 1300.7593200366375
+    },
+    "classic-gilgamesh/characters/shamhat.md": {
+      "x": 64.67860319890615,
+      "y": 1164.7475400270996
+    },
+    "classic-divine-comedy/characters/paolo.md": {
+      "x": -36.43667483714314,
+      "y": 1009.9825012378733
+    },
+    "classic-divine-comedy/characters/francesca.md": {
+      "x": -110.70019587622511,
+      "y": 840.6837098609789
+    },
+    "classic-arthurian/characters/isolde.md": {
+      "x": -156.084977594447,
+      "y": 661.4706981403185
+    },
+    "classic-arabian-nights/characters/princess-badroulbadour.md": {
+      "x": -171.3539215811017,
+      "y": 477.2284841077576
+    },
+    "bible-old-testament/characters/elijah.md": {
+      "x": -156.0871802482566,
+      "y": 292.98678621910165
+    },
+    "bible-old-testament/characters/adam.md": {
+      "x": -110.70375903263475,
+      "y": 113.7718005032015
+    },
+    "classic-arabian-nights/characters/sinbad.md": {
+      "x": 673.2144799434863,
+      "y": 1562.3249394066074
+    },
+    "classic-arabian-nights/characters/princess-of-ebony.md": {
+      "x": 498.36060348802476,
+      "y": 1502.2969244082944
+    },
+    "mythology-greek/characters/kronos.md": {
+      "x": 1706.115660175291,
+      "y": 1300.7607593547432
+    },
+    "classic-saiyuki/characters/dragon-horse.md": {
+      "x": 1560.2274403204674,
+      "y": 1414.3093796490105
+    },
+    "classic-macbeth/characters/porter.md": {
+      "x": 1397.6391830047614,
+      "y": 1502.2969486802838
+    },
+    "classic-hamlet/characters/yorick.md": {
+      "x": 1222.7854406647243,
+      "y": 1562.3234667762003
+    },
+    "classic-hamlet/characters/fortinbras.md": {
+      "x": 1040.4369103904335,
+      "y": 1592.7528521354159
     },
     "classic-king-lear/characters/doctor-lear.md": {
-      "x": 2052.0816225006793,
-      "y": 661.4666002126214
+      "x": 2052.081622240612,
+      "y": 661.4666003147934
     },
     "classic-hamlet/characters/player-king.md": {
-      "x": 2006.697678384816,
-      "y": 840.6796143597109
+      "x": 2006.6976783903424,
+      "y": 840.6796141557724
     },
     "classic-divine-comedy/characters/ulysses.md": {
-      "x": 1932.4376508496837,
-      "y": 1009.9799304138892
+      "x": 1932.4376509395072,
+      "y": 1009.9799303558298
     }
   },
   "navHistory": [],
