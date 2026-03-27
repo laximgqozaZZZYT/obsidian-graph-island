@@ -135,24 +135,32 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
         v.panel.showLinks = true;
       }
 
-      // ANTI-PATTERN FIX: For full-vault presets (no searchQuery),
-      // add a folder filter to keep node count manageable (~100-200)
-      // Rotate through different folders for variety
+      // ANTI-PATTERN FIX: Ensure multi-folder diversity for color variety.
+      // For no-query presets, add a folder filter.
+      // For single-folder presets, append an additional folder via OR.
+      // ANTI-PATTERN FIX: Only add searchQuery for presets with NO query at all
+      // (full-vault). Don't modify presets that have their own query.
       if (!v.panel.searchQuery) {
         var folders = [
-          "path:mythology-greek*", "path:mythology-norse*", "path:classic-hamlet*",
-          "path:classic-arabian-nights*", "path:bible-old-testament*",
-          "path:classic-gilgamesh*", "path:mythology-egyptian*", "path:classic-saiyuki*",
-          "path:mythology-japanese*", "path:classic-king-lear*",
-          "path:classic-arthurian*", "path:classic-divine-comedy*",
-          "path:mythology-greek* OR path:mythology-norse*",
-          "path:classic-hamlet* OR path:classic-king-lear*",
-          "path:bible* OR path:mythology-egyptian*",
-          "path:classic-arabian-nights* OR path:classic-gilgamesh*",
-          "path:mythology-japanese* OR path:classic-saiyuki*",
-          "path:classic-arthurian* OR path:classic-divine-comedy*",
+          "path:mythology-greek* OR path:classic-hamlet*",
+          "path:mythology-norse* OR path:classic-arabian-nights*",
+          "path:classic-hamlet* OR path:bible-old-testament*",
+          "path:classic-arabian-nights* OR path:mythology-egyptian*",
+          "path:bible-old-testament* OR path:classic-gilgamesh*",
+          "path:classic-gilgamesh* OR path:mythology-japanese*",
+          "path:mythology-egyptian* OR path:classic-saiyuki*",
+          "path:classic-saiyuki* OR path:classic-king-lear*",
+          "path:mythology-japanese* OR path:classic-arthurian*",
+          "path:classic-king-lear* OR path:classic-divine-comedy*",
+          "path:classic-arthurian* OR path:mythology-greek*",
+          "path:classic-divine-comedy* OR path:mythology-norse*",
+          "path:mythology-greek* OR path:bible* OR path:classic-saiyuki*",
+          "path:classic-hamlet* OR path:mythology-norse* OR path:mythology-egyptian*",
+          "path:classic-arabian-nights* OR path:classic-gilgamesh* OR path:classic-arthurian*",
+          "path:bible* OR path:mythology-japanese* OR path:classic-king-lear*",
+          "path:classic-divine-comedy* OR path:classic-saiyuki* OR path:mythology-greek*",
+          "path:mythology-norse* OR path:classic-hamlet* OR path:classic-gilgamesh*",
         ];
-        // Use preset index (from outer scope) to pick a folder
         var idx = (window as any).__screenshotIdx ?? 0;
         v.panel.searchQuery = folders[idx % folders.length];
         (window as any).__screenshotIdx = idx + 1;
