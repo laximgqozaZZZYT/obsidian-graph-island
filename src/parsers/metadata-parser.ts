@@ -563,6 +563,43 @@ export function assignNodeColors(
   return colorMap;
 }
 
+/**
+ * Simple deterministic string hash (djb2).
+ * Returns a non-negative integer suitable for palette indexing.
+ */
+export function simpleHash(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+/**
+ * Detect monochrome category coloring and return a hash-based color function.
+ * When category-based coloring produces only 1 distinct color for 5+ nodes,
+ * falls back to deterministic hash-based coloring using the node id.
+ *
+ * @param nodes - The graph nodes
+ * @param categoryColorFn - The original category-based color function
+ * @param palette - Hex color palette (numeric values, e.g. 0x60a5fa)
+ * @returns The original function if colors are diverse, or a hash-based fallback
+ */
+export function applyMonochromeFallback<T extends { id: string }>(
+  nodes: T[],
+  categoryColorFn: (n: T) => number,
+  palette: number[]
+): (n: T) => number {
+  if (nodes.length < 5 || palette.length === 0) return categoryColorFn;
+  const uniqueColors = new Set<number>();
+  for (const n of nodes) {
+    uniqueColors.add(categoryColorFn(n));
+    if (uniqueColors.size > 1) return categoryColorFn;
+  }
+  // All nodes got the same color — fall back to hash-based coloring
+  return (n: T) => palette[simpleHash(n.id) % palette.length];
+}
+
 interface InlineFieldResult {
   relation: string;
   isOntology: boolean;

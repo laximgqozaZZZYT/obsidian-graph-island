@@ -143,8 +143,13 @@ export class LayoutController {
 
     // L1: Auto-adjust repelForce based on node count for consistent density
     const nodeCount = sim.nodes().length;
+    // Scale down repelForce for very small node counts (< 20) to prevent
+    // super-nodes from dispersing to canvas corners
+    const smallGraphScale = nodeCount < 20
+      ? Math.max(0.1, nodeCount / 20)
+      : 1;
     const autoRepel = nodeCount > 0
-      ? Math.max(50, Math.min(panel.repelForce, 400 / Math.sqrt(nodeCount) * (panel.repelForce / 200)))
+      ? Math.max(50, Math.min(panel.repelForce, 400 / Math.sqrt(nodeCount) * (panel.repelForce / 200))) * smallGraphScale
       : panel.repelForce;
 
     sim
@@ -420,14 +425,20 @@ export class LayoutController {
 
     const chargeForce = panel.renderThresholds?.clusterChargeForce
       ?? DEFAULT_RENDER_THRESHOLDS.clusterChargeForce;
+    // Scale down charge for very small node counts (< 20) to prevent
+    // super-nodes from dispersing to canvas corners
+    const clusterNodeCount = sim.nodes().length;
+    const clusterSmallScale = clusterNodeCount < 20
+      ? Math.max(0.1, clusterNodeCount / 20)
+      : 1;
     // Scale charge by node radius for super nodes (collapsed groups need stronger repulsion)
     const pixiNodesForCharge = this.host.getPixiNodes();
     sim.force("charge", forceManyBody<GraphNode>().strength((n: GraphNode) => {
       const pn = pixiNodesForCharge.get(n.id);
       if (pn && n.collapsedMembers && n.collapsedMembers.length > 0) {
-        return chargeForce * (pn.radius / 10); // Scale with radius (60px → 6x stronger)
+        return chargeForce * (pn.radius / 10) * clusterSmallScale;
       }
-      return chargeForce;
+      return chargeForce * clusterSmallScale;
     }));
     sim.force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(8));
     sim.force("center", null);
@@ -581,13 +592,20 @@ export class LayoutController {
     const repelMap = this.computeNodeRepelMap(nodes);
     const hasCustomRepel = repelMap.size > 0;
 
+    // Scale down repelForce for very small node counts (< 20) to prevent
+    // super-nodes from dispersing to canvas corners
+    const initSmallScale = nodes.length < 20
+      ? Math.max(0.1, nodes.length / 20)
+      : 1;
+    const initRepel = panel.repelForce * initSmallScale;
+
     const sim = forceSimulation<GraphNode, GraphEdge>(nodes)
       .force("charge", forceManyBody<GraphNode>().strength(hasCustomRepel
         ? ((n: GraphNode) => {
             const mult = repelMap.get(n.id) ?? 1.0;
-            return -panel.repelForce * mult;
+            return -initRepel * mult;
           })
-        : -panel.repelForce))
+        : -initRepel))
       .force("link", forceLink<GraphNode, GraphEdge>(edges)
         .id((d) => d.id)
         .distance((e) => edgeLinkDistance(e, panel.linkDistance))

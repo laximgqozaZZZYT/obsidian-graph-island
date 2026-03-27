@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyRelation, assignNodeColors, buildRelationColorMap } from "../src/parsers/metadata-parser";
+import { classifyRelation, assignNodeColors, buildRelationColorMap, simpleHash, applyMonochromeFallback } from "../src/parsers/metadata-parser";
 import { DEFAULT_COLORS } from "../src/types";
 import type { GraphNode, GraphEdge, OntologyConfig } from "../src/types";
 
@@ -309,5 +309,85 @@ describe("classifyRelation", () => {
 
   it("returns undefined for empty ontology", () => {
     expect(classifyRelation("anything", mkOnto())).toBeUndefined();
+  });
+});
+
+// =============================================
+// simpleHash
+// =============================================
+describe("simpleHash", () => {
+  it("returns a non-negative integer", () => {
+    expect(simpleHash("hello")).toBeGreaterThanOrEqual(0);
+    expect(Number.isInteger(simpleHash("hello"))).toBe(true);
+  });
+
+  it("is deterministic", () => {
+    expect(simpleHash("test")).toBe(simpleHash("test"));
+  });
+
+  it("produces different values for different strings", () => {
+    expect(simpleHash("alpha")).not.toBe(simpleHash("beta"));
+  });
+
+  it("handles empty string", () => {
+    expect(simpleHash("")).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// =============================================
+// applyMonochromeFallback
+// =============================================
+describe("applyMonochromeFallback", () => {
+  const palette = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff, 0xffa500, 0x800080];
+
+  it("returns original fn when fewer than 5 nodes", () => {
+    const nodes = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    const original = (_n: { id: string }) => 0xff0000;
+    const result = applyMonochromeFallback(nodes, original, palette);
+    expect(result).toBe(original);
+  });
+
+  it("returns original fn when colors are diverse (2+ unique)", () => {
+    const nodes = Array.from({ length: 10 }, (_, i) => ({ id: `n${i}` }));
+    const original = (n: { id: string }) => n.id === "n0" ? 0xff0000 : 0x00ff00;
+    const result = applyMonochromeFallback(nodes, original, palette);
+    expect(result).toBe(original);
+  });
+
+  it("falls back to hash-based coloring when all nodes share one color", () => {
+    const nodes = Array.from({ length: 10 }, (_, i) => ({ id: `node${i}` }));
+    const monochrome = (_n: { id: string }) => 0xaaaaaa;
+    const result = applyMonochromeFallback(nodes, monochrome, palette);
+    expect(result).not.toBe(monochrome);
+    // Should produce multiple colors from the palette
+    const colors = new Set(nodes.map(n => result(n)));
+    expect(colors.size).toBeGreaterThan(1);
+  });
+
+  it("fallback colors are deterministic", () => {
+    const nodes = Array.from({ length: 10 }, (_, i) => ({ id: `node${i}` }));
+    const monochrome = (_n: { id: string }) => 0xaaaaaa;
+    const fn1 = applyMonochromeFallback(nodes, monochrome, palette);
+    const fn2 = applyMonochromeFallback(nodes, monochrome, palette);
+    for (const n of nodes) {
+      expect(fn1(n)).toBe(fn2(n));
+    }
+  });
+
+  it("fallback colors come from the provided palette", () => {
+    const nodes = Array.from({ length: 10 }, (_, i) => ({ id: `node${i}` }));
+    const monochrome = (_n: { id: string }) => 0xaaaaaa;
+    const result = applyMonochromeFallback(nodes, monochrome, palette);
+    const paletteSet = new Set(palette);
+    for (const n of nodes) {
+      expect(paletteSet.has(result(n))).toBe(true);
+    }
+  });
+
+  it("returns original fn when palette is empty", () => {
+    const nodes = Array.from({ length: 10 }, (_, i) => ({ id: `n${i}` }));
+    const original = (_n: { id: string }) => 0xff0000;
+    const result = applyMonochromeFallback(nodes, original, []);
+    expect(result).toBe(original);
   });
 });

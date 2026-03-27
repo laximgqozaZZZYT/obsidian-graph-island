@@ -386,8 +386,13 @@ export class LabelManager {
     // Zoom-based dynamic cap: at zoom-out, show fewer labels to prevent overlap
     const zoom = this.host.getWorldScale();
     const density = Math.max(0.2, Math.min(3.0, rt.labelDensity ?? 1.0));
+    // Small-graph boost: show all labels when few nodes, more labels for medium graphs
+    const totalNodeCount = this.host.getPixiNodes().size;
+    const smallGraphFloor = totalNodeCount < 50 ? totalNodeCount
+      : totalNodeCount < 100 ? Math.max(60, Math.round(150 * density * zoom))
+      : 30;
     const zoomCap = zoom < 1.0
-      ? Math.max(30, Math.round(150 * density * zoom))  // 30-N labels depending on zoom & density
+      ? Math.max(smallGraphFloor, Math.round(150 * density * zoom))  // adaptive floor depending on graph size
       : 0; // no cap at zoom >= 1
     const maxVisible = staticMax > 0
       ? (zoomCap > 0 ? Math.min(staticMax, zoomCap) : staticMax)
@@ -422,8 +427,9 @@ export class LabelManager {
 
     let visCount = 0;
     for (const c of candidates) {
-      const { pn, isHovered } = c;
-      if (isHovered) {
+      const { pn, isHovered, isSuper } = c;
+      // Super-nodes and hovered nodes always bypass the maxVisible cap
+      if (isHovered || isSuper) {
         pn.label!.visible = true;
         pn.label!.alpha = Math.max(rt.labelAlphaMin, baseOpacity);
         pn.labelWasVisible = true;

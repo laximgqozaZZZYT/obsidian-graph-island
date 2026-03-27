@@ -5,7 +5,7 @@ import type GraphViewsPlugin from "../main";
 import type { GraphData, GraphNode, GraphEdge, LayoutType, ViewMode, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, GraphSnapshot, GraphTemplate } from "../types";
 import { DEFAULT_COLORS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
 import { evaluateExpr, parseQueryExpr, serializeExpr } from "../utils/query-expr";
-import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData } from "../parsers/metadata-parser";
+import { buildGraphFromVault, assignNodeColors, buildRelationColorMap, buildSunburstData, applyMonochromeFallback } from "../parsers/metadata-parser";
 import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
 import { applyTreeLayout } from "../layouts/tree";
 import { applyArcLayout } from "../layouts/arc";
@@ -7581,7 +7581,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // ノードルールのカラーオーバーライドをプリコンパイル
     const nodeRulesWithColor = (this.panel.nodeRules ?? []).filter(r => r.color);
 
-    return (n: GraphNode): number => {
+    const baseFn = (n: GraphNode): number => {
       // NodeRule カラーオーバーライドが最優先
       for (const rule of nodeRulesWithColor) {
         if (matchesFilter(n, rule.query)) return cssColorToHex(rule.color!);
@@ -7629,6 +7629,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       return defaultNodeColor;
     };
+
+    // Monochrome fallback: when category/field coloring produces only 1 distinct
+    // color for 5+ nodes, automatically diversify using hash-based coloring.
+    if (colorMode === "category" || colorMode === "field") {
+      const palette = DEFAULT_COLORS.map(c => cssColorToHex(c));
+      return applyMonochromeFallback(gd.nodes, baseFn, palette);
+    }
+    return baseFn;
   }
 
   /** Set up force-directed layout: create simulation, apply forces, and wire tick/end events. */
