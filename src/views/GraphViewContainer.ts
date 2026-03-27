@@ -774,6 +774,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.zoomBy(1 / 1.3);
     });
 
+    // Fit-all button (全体表示)
+    const fitAllBtn = zoomGroup.createEl("button", { cls: "graph-toolbar-btn" });
+    setIcon(fitAllBtn, "maximize");
+    fitAllBtn.setAttribute("aria-label", t("toolbar.fitAll"));
+    fitAllBtn.title = t("toolbar.fitAll");
+    fitAllBtn.addEventListener("click", () => {
+      // Temporarily remove minScale so autoFitView can zoom out fully
+      const rt = mergeRenderThresholds(this.panel.renderThresholds);
+      const saved = rt.autoFitMinScale;
+      rt.autoFitMinScale = 0;
+      this.autoFitOnce();
+      rt.autoFitMinScale = saved;
+    });
+
     // Zoom percentage indicator (hidden, kept for internal API)
     this.zoomIndicatorEl = zoomGroup.createEl("span", { cls: "gi-zoom-indicator", text: "100%" });
     this.zoomIndicatorEl.style.display = "none";
