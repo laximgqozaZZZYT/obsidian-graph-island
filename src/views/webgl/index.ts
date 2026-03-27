@@ -11,3 +11,14 @@ export {
 
 export { BufferPool } from "./buffer-pool";
 export type { BufferHandle } from "./buffer-pool";
+
+export { WebGLContainer } from "./WebGLContainer";
+export { WebGLGraphics } from "./WebGLGraphics";
+
+export {
+  mat3Identity,
+  mat3Translate,
+  mat3Scale,
+  mat3Multiply,
+  mat3MultiplyInto,
+} from "./mat3";
