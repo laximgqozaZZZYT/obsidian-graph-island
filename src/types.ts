@@ -545,13 +545,13 @@ export interface GraphViewsSettings {
 }
 
 export const DEFAULT_SETTINGS: GraphViewsSettings = {
-  nodeSize: 8,
+  nodeSize: 20,
   metadataFields: ["tags", "category", "characters", "locations"],
   edgeFields: ["tags", "category"],
   colorField: "category",
   groupField: "category",
   ontology: DEFAULT_ONTOLOGY,
-  showSimilar: false,
+  showSimilar: true,
   directionalGravityRules: [],
   enclosureMinRatio: 0.05,
   groupPresets: [

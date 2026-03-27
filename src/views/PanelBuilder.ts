@@ -688,6 +688,8 @@ export interface PanelContext {
   hasImageMetaNodes?: boolean;
   /** Whether any inheritance-type edges exist in the current graph */
   hasInheritanceEdges?: boolean;
+  /** Plugin directory path relative to vault (e.g. ".obsidian/plugins/graph-island") */
+  pluginDir?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -2717,9 +2719,85 @@ function buildSettingsTab(
   ctx: PanelContext,
   cb: PanelCallbacks,
 ): void {
+  _buildSamplePresetSelector(settingsTab, panel, ctx, cb);
   _buildOntologySection(settingsTab, panel, ctx, cb);
   _buildTagRelationsSection(settingsTab, panel, ctx, cb);
   _buildSettingsActionButtons(settingsTab, panel, ctx, cb);
+}
+
+/** Sample preset names (filenames without .json extension) */
+const SAMPLE_PRESET_NAMES = [
+  "01-panorama-overview",
+  "02-dense-cluster",
+  "03-character-network",
+  "04-shakespeare-compare",
+  "05-mythology-pantheon",
+  "06-sangokushi-factions",
+  "07-tag-taxonomy",
+  "08-sequence-tracker",
+  "09-minimalist",
+  "10-maximalist",
+  "11-bible-scholar",
+  "12-genji-reader",
+  "13-battle-analyzer",
+  "14-dialogue-theater",
+  "15-orphan-hunter",
+  "16-edge-bundle-art",
+  "17-ontology-mapper",
+  "18-folder-compare",
+  "19-hub-discovery",
+  "20-arabian-nights",
+  "21-filled-hexagon",
+  "22-timeline-ranged",
+  "23-spiral-galaxy",
+  "24-baobab-sunburst",
+  "25-rose-curve",
+];
+
+/** Build the sample preset selector dropdown at the top of settings tab */
+function _buildSamplePresetSelector(
+  tabEl: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks,
+): void {
+  const section = tabEl.createDiv({ cls: "gi-panel-section" });
+  section.createEl("div", { cls: "gi-panel-section-title", text: t("preset.samplePresets") });
+  const body = section.createDiv({ cls: "gi-panel-section-body" });
+
+  const row = body.createDiv({ cls: "gi-panel-row" });
+  row.createEl("span", { cls: "gi-panel-label", text: t("preset.samplePresetsDesc") });
+  const select = row.createEl("select", { cls: "gi-panel-select" });
+  const defaultOpt = select.createEl("option", { text: t("preset.selectSample"), value: "" });
+  defaultOpt.selected = true;
+
+  for (const name of SAMPLE_PRESET_NAMES) {
+    select.createEl("option", { text: name, value: name });
+  }
+
+  select.addEventListener("change", async () => {
+    const name = select.value;
+    if (!name) return;
+
+    try {
+      const app = ctx.app as any;
+      const pluginDir = ctx.pluginDir ?? ".obsidian/plugins/graph-island";
+      const filePath = `${pluginDir}/samples/${name}.json`;
+      const json = await app.vault.adapter.read(filePath);
+      const info: PresetMigrationInfo = { migratedFields: [], removedFields: [] };
+      const preset = importPreset(json, info);
+      const merged = applyPreset(panel, preset);
+      Object.assign(panel, merged);
+      cb.invalidateData();
+      if (panel.presetZoomLevel > 0) {
+        setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
+      }
+      cb.rebuildPanel();
+      showToast(t("preset.sampleLoaded").replace("{name}", name));
+    } catch {
+      showToast(t("preset.sampleLoadError"));
+    }
+
+    // Reset dropdown to placeholder
+    select.value = "";
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -6378,6 +6378,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       edgeTypeCounts: this._countEdgeTypes(),
       hasImageMetaNodes: this._hasImageMetaNodes(),
       hasInheritanceEdges: this.graphEdges.some(e => e.type === "inheritance"),
+      pluginDir: (this.plugin as any).manifest?.dir ?? "",
     };
   }
 

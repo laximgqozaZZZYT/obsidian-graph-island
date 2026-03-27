@@ -320,6 +320,11 @@ const en: TranslationMap = {
   "preset.activeFocusDesc": "Center graph on currently edited file (2-hop neighborhood)",
   "preset.fullAnalysis": "Full Analysis",
   "preset.fullAnalysisDesc": "All features: stats, bridges, entropy, community colors, missing neighbors",
+  "preset.samplePresets": "Sample Presets",
+  "preset.samplePresetsDesc": "Load a sample preset configuration",
+  "preset.selectSample": "-- Select a preset --",
+  "preset.sampleLoaded": "Preset loaded: {name}",
+  "preset.sampleLoadError": "Failed to load preset",
 
   // --- PanelBuilder: timeline ---
   "timeline.timeKey": "Time Field",
@@ -1181,6 +1186,11 @@ const ja: TranslationMap = {
   "preset.activeFocusDesc": "編集中ファイルを中心に2ホップ近隣を表示",
   "preset.fullAnalysis": "フル分析",
   "preset.fullAnalysisDesc": "全機能ON: 統計、ブリッジ、エントロピー、コミュニティ色、欠落隣接",
+  "preset.samplePresets": "サンプルプリセット",
+  "preset.samplePresetsDesc": "サンプルプリセット設定を読み込む",
+  "preset.selectSample": "-- プリセットを選択 --",
+  "preset.sampleLoaded": "プリセット読み込み完了: {name}",
+  "preset.sampleLoadError": "プリセットの読み込みに失敗しました",
 
   // --- PanelBuilder: timeline ---
   "timeline.timeKey": "時間フィールド",
