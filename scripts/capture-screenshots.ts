@@ -426,22 +426,20 @@ async function main() {
         var cw = canvas?.width ?? 1920;
         var ch = canvas?.height ?? 1080;
 
-        // Compute centroid of visible nodes
-        var sumX = 0, sumY = 0, count = 0;
-        v.pixiNodes.forEach(function(pn) {
-          if (pn.data && isFinite(pn.data.x) && isFinite(pn.data.y)) {
-            sumX += pn.data.x; sumY += pn.data.y; count++;
-          }
-        });
-        if (count === 0) return;
-        var cx = sumX / count;
-        var cy = sumY / count;
+        // Use autoFitView first, then zoom in 3x from that level
+        // This ensures we're centered on the actual visible content
+        if (v.autoFitView) v.autoFitView();
+        await new Promise(function(r) { setTimeout(r, 500); });
 
-        // Set absolute zoom to 0.8 (human-readable level) centered on centroid
-        var targetZoom = 0.8;
-        w.scale.set(targetZoom, targetZoom);
-        w.x = cw / 2 - cx * targetZoom;
-        w.y = ch / 2 - cy * targetZoom;
+        // Zoom in 3x from autoFit level, centered on canvas center
+        var curScale = w.scale.x;
+        var newScale = curScale * 3;
+        var pivotX = cw / 2;
+        var pivotY = ch / 2;
+        // Zoom toward canvas center
+        w.x = pivotX - (pivotX - w.x) * (newScale / curScale);
+        w.y = pivotY - (pivotY - w.y) * (newScale / curScale);
+        w.scale.set(newScale, newScale);
         v.markDirty();
         // Force label recalculation at new zoom level
         if (v.updateLabelsForZoom) v.updateLabelsForZoom();

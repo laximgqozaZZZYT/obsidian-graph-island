@@ -1547,8 +1547,8 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelDegreePctTier3: 0.30,
   labelMaxVisible: 0,
   labelDensity: 1.0,
-  labelInitialsZoom: 0.2,
-  labelTruncateZoom: 0.35,
+  labelInitialsZoom: 0.005,   // effectively disabled — always show text, not initials
+  labelTruncateZoom: 0.01,    // effectively disabled — always show full label
   labelTruncateMaxChars: 12,
   labelTruncateMinChars: 5,
   nodeLabelZoomMin: 0.08,
