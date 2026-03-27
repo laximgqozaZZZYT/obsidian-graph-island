@@ -77,7 +77,6 @@ test.beforeAll(async () => {
   browser = await chromium.connectOverCDP(CDP_URL);
   const pages = browser.contexts()[0].pages();
   page = pages.find(p => p.url().includes("index.html")) ?? pages[0];
-  await page.bringToFront();
   await ensureView();
 });
 

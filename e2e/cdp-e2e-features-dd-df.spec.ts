@@ -26,7 +26,6 @@ test.beforeAll(async () => {
   const pages = contexts[0].pages();
   page = pages.find(p => p.url().includes("index.html")) ?? pages[0];
   expect(page).toBeTruthy();
-  await page.bringToFront();
 
   // Reload plugin
   await page.evaluate(async () => {

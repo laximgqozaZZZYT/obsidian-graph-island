@@ -69,7 +69,6 @@ test.beforeAll(async ({}, testInfo) => {
   const pages = contexts[0].pages();
   page = pages.find(p => p.url().includes("index.html")) ?? pages[0];
   expect(page).toBeTruthy();
-  await page.bringToFront();
 
   await page.evaluate(async () => {
     const app = (window as any).app;

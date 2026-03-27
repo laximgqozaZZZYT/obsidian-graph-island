@@ -21,7 +21,6 @@ test.beforeAll(async () => {
   if (!page) {
     throw new Error("No Obsidian page found. Is Obsidian running with --remote-debugging-port=9222?");
   }
-  await page.bringToFront();
 
   // Wait for app to be ready
   await page.waitForTimeout(2000);

@@ -24,7 +24,6 @@ test.beforeAll(async () => {
   // Re-acquire page reference after reload
   const pages = ctx.pages();
   page = pages.find(p => p.url().includes("index.html")) ?? pages[0];
-  await page.bringToFront();
 
   // Open graph view
   await page.evaluate(async () => {

@@ -18,7 +18,6 @@ test.beforeAll(async () => {
   await initialPage.waitForTimeout(8000);
   const pages = ctx.pages();
   page = pages.find(p => p.url().includes("index.html")) ?? pages[0];
-  await page.bringToFront();
 
   await page.evaluate(async () => {
     const app = (window as any).app;
