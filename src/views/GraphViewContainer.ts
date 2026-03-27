@@ -5195,7 +5195,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Dim individual nodes when aggregate mode is active
     for (const pn of this.pixiNodes.values()) {
       if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) continue;
-      pn.gfx.alpha = aggregateMode ? 0.15 : 1;
+      if (aggregateMode) {
+        pn.gfx.visible = false;
+      } else {
+        pn.gfx.visible = true;
+        pn.gfx.alpha = 1;
+      }
     }
 
     if (!aggregateMode || this.pixiNodes.size === 0) return;
