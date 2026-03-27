@@ -354,6 +354,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _hoveredGroupLabel: string | null = null;
   /** Dedicated container for groupBy labels (rendered above nodes/edges) */
   private groupByLabelContainer: CanvasContainer | null = null;
+  /** Zoom-aggregate: folder summary circles when groupBy=none at extreme zoom-out */
+  private _aggregateGraphics: CanvasGraphics | null = null;
+  /** Zoom-aggregate: folder summary labels */
+  private _aggregateLabels: CanvasText[] = [];
   /** Graphics for cluster boundary outlines */
   private clusterBoundaryGraphics: CanvasGraphics | null = null;
   /** Viewport dirty flag — set by markDirty, consumed by onPostRender */
@@ -1821,6 +1825,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     this.groupByLabels.clear();
     this.groupByLabelContainer = null;
+    // Clean up zoom-aggregate labels
+    for (const lbl of this._aggregateLabels) {
+      try { lbl.destroy(); } catch { /* already destroyed */ }
+    }
+    this._aggregateLabels = [];
+    this._aggregateGraphics = null;
     // Clean up sunburst labels
     for (const lbl of this.sunburstLabels.values()) {
       try { lbl.destroy(); } catch { /* already destroyed */ }
@@ -2172,6 +2182,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this._updateBookmarkMarkers();
       this._updatePinMarkers();
       this._updateGroupByLabels();
+      this._drawZoomAggregates();
     };
 
     // 密度ヒートマップ + 差分オーバーレイのフック設定
@@ -5164,6 +5175,119 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
+  /**
+   * At extreme zoom-out (worldScale < 0.08) with groupBy="none", individual nodes
+   * are invisible but there are no group labels to replace them. This method
+   * auto-computes folder-based clusters from node positions and draws summary
+   * circles + labels so the canvas is not empty.
+   */
+  private _drawZoomAggregates(): void {
+    const ws = this.worldContainer?.scale?.x ?? 1;
+    const aggregateMode =
+      ws < 0.08 &&
+      (!this.panel.groupBy || this.panel.groupBy === "none") &&
+      this.panel.viewMode === "graph";
+
+    // Clear previous aggregates
+    if (this._aggregateGraphics) this._aggregateGraphics.clear();
+    for (const lbl of this._aggregateLabels) lbl.visible = false;
+
+    if (!aggregateMode || this.pixiNodes.size === 0) return;
+
+    // Lazily create the graphics layer
+    if (!this._aggregateGraphics && this.worldContainer) {
+      this._aggregateGraphics = new CanvasGraphics();
+      this.worldContainer.addChild(this._aggregateGraphics);
+    }
+    const g = this._aggregateGraphics;
+    if (!g) return;
+    g.clear();
+
+    // Group nodes by top-level folder
+    const groups = new Map<string, { nodes: PixiNode[]; sumX: number; sumY: number }>();
+    for (const pn of this.pixiNodes.values()) {
+      const fp = pn.data.filePath ?? "";
+      const slash = fp.indexOf("/");
+      const folder = slash > 0 ? fp.substring(0, slash) : "(root)";
+      let grp = groups.get(folder);
+      if (!grp) {
+        grp = { nodes: [], sumX: 0, sumY: 0 };
+        groups.set(folder, grp);
+      }
+      grp.nodes.push(pn);
+      grp.sumX += pn.data.x;
+      grp.sumY += pn.data.y;
+    }
+
+    // Draw summary for each folder group (3+ members)
+    const palette = [0x60a5fa, 0xf472b6, 0xa78bfa, 0x34d399, 0xfbbf24, 0xfb923c, 0x22d3ee, 0xe879f9];
+    let colorIdx = 0;
+    let labelIdx = 0;
+
+    for (const [folder, group] of groups) {
+      if (group.nodes.length < 3) continue;
+
+      const cx = group.sumX / group.nodes.length;
+      const cy = group.sumY / group.nodes.length;
+
+      // Compute spread radius from max distance to centroid
+      let maxDist = 0;
+      for (const pn of group.nodes) {
+        const dx = pn.data.x - cx;
+        const dy = pn.data.y - cy;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d > maxDist) maxDist = d;
+      }
+      const radius = Math.max(maxDist * 0.8, 50);
+
+      const color = palette[colorIdx % palette.length];
+      colorIdx++;
+
+      // Draw filled circle with outline
+      g.beginFill(color, 0.15);
+      g.drawCircle(cx, cy, radius);
+      g.endFill();
+      g.lineStyle(2, color, 0.5);
+      g.drawCircle(cx, cy, radius);
+
+      // Create or reuse label
+      const labelText = `${folder} (${group.nodes.length})`;
+      let lbl: CanvasText;
+      if (labelIdx < this._aggregateLabels.length) {
+        lbl = this._aggregateLabels[labelIdx];
+        lbl.text = labelText;
+        lbl.visible = true;
+      } else {
+        lbl = new CanvasText(labelText, {
+          fontSize: 14,
+          fill: 0xffffff,
+          fontWeight: "bold",
+        });
+        lbl.anchor.set(0.5, 0.5);
+        lbl.bgAlpha = 0.85;
+        lbl.bgPadX = 12;
+        lbl.bgPadY = 6;
+        lbl.strokeColor = 0x000000;
+        lbl.strokeWidth = 3;
+        if (this.worldContainer) this.worldContainer.addChild(lbl);
+        this._aggregateLabels.push(lbl);
+      }
+      lbl.bgColor = color;
+      lbl.x = cx;
+      lbl.y = cy - radius - 20;
+      // Counter-scale label so it's readable at any zoom
+      const counterScale = Math.min(8, 1 / ws);
+      lbl.scale.set(counterScale);
+
+      labelIdx++;
+    }
+
+    // Hide unused labels
+    for (let i = labelIdx; i < this._aggregateLabels.length; i++) {
+      this._aggregateLabels[i].visible = false;
+    }
+  }
+
   drawSunburstArcs() {
     const gfx = this.sunburstGraphics;
     if (!gfx) return;
@@ -5989,6 +6113,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.drawOrbitRings();
     this.drawEnclosures();
     this._updateGroupByLabels();
+    this._drawZoomAggregates();
     this.drawSunburstArcs();
     this.drawClusterSunburstLabels();
     this.drawSunburstLayoutArcs();
