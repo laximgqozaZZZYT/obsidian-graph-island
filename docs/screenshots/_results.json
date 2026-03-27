@@ -1,10 +1,10 @@
 [
   {
     "name": "01-panorama-overview",
-    "nodes": 246,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
@@ -73,7 +73,7 @@
   },
   {
     "name": "10-maximalist",
-    "nodes": 250,
+    "nodes": 5,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -161,7 +161,7 @@
   },
   {
     "name": "21-filled-hexagon",
-    "nodes": 248,
+    "nodes": 6,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -169,15 +169,15 @@
   },
   {
     "name": "22-timeline-ranged",
-    "nodes": 598,
+    "nodes": 3,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 3"
     ]
   },
   {
     "name": "23-spiral-galaxy",
-    "nodes": 371,
+    "nodes": 8,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -185,15 +185,15 @@
   },
   {
     "name": "24-baobab-sunburst",
-    "nodes": 369,
+    "nodes": 3,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 3"
     ]
   },
   {
     "name": "25-rose-curve",
-    "nodes": 615,
+    "nodes": 6,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -201,15 +201,15 @@
   },
   {
     "name": "26-lissajous-figure",
-    "nodes": 373,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "27-filled-pentagon",
-    "nodes": 371,
+    "nodes": 5,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -217,23 +217,23 @@
   },
   {
     "name": "28-cardioid-heart",
-    "nodes": 250,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "29-concentric-degree",
-    "nodes": 248,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "30-mountain-ridge",
-    "nodes": 242,
+    "nodes": 8,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -241,26 +241,26 @@
   },
   {
     "name": "31-cross-tabulation",
-    "nodes": 246,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "32-timeline-ticks",
-    "nodes": 242,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "33-polar-grid",
-    "nodes": 246,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
@@ -273,10 +273,10 @@
   },
   {
     "name": "35-donut-groups",
-    "nodes": 225,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
@@ -289,46 +289,30 @@
   },
   {
     "name": "37-hierarchical-sunburst",
-    "nodes": 225,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "38-tiny-nodes-stress",
-    "nodes": 246,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "39-large-nodes-overlap",
-    "nodes": 246,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "40-force-ungrouped",
-    "nodes": 250,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
-  },
-  {
-    "name": "41-all-edges-maxdensity",
-    "nodes": 248,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
-  },
-  {
-    "name": "42-high-density-tags",
     "nodes": 619,
     "pass": false,
     "issues": [
@@ -336,8 +320,24 @@
     ]
   },
   {
+    "name": "41-all-edges-maxdensity",
+    "nodes": 3,
+    "pass": false,
+    "issues": [
+      "Too few nodes: 3"
+    ]
+  },
+  {
+    "name": "42-high-density-tags",
+    "nodes": 5,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
     "name": "43-concentric-tiny-accessibility",
-    "nodes": 371,
+    "nodes": 5,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -345,31 +345,31 @@
   },
   {
     "name": "44-timeline-dense-overlap",
-    "nodes": 369,
+    "nodes": 3,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 3"
     ]
   },
   {
     "name": "45-grid-tight-spacing",
-    "nodes": 615,
+    "nodes": 3,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 3"
     ]
   },
   {
     "name": "46-tree-deep-hierarchy",
-    "nodes": 352,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "47-sunburst-with-tags",
-    "nodes": 371,
+    "nodes": 5,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -377,7 +377,7 @@
   },
   {
     "name": "48-node-type-triangle",
-    "nodes": 250,
+    "nodes": 8,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -385,31 +385,31 @@
   },
   {
     "name": "49-orphan-flood",
-    "nodes": 248,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "50-arrow-heavy-directed",
-    "nodes": 242,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "51-enclosure-tight",
-    "nodes": 246,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "52-mixed-nodesize-stress",
-    "nodes": 242,
+    "nodes": 5,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -417,18 +417,18 @@
   },
   {
     "name": "53-accessibility-contrast",
-    "nodes": 246,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "54-radial-dense",
-    "nodes": 225,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
@@ -457,15 +457,15 @@
   },
   {
     "name": "test-hub-radial",
-    "nodes": 225,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "test-sunburst-full",
-    "nodes": 246,
+    "nodes": 250,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -481,7 +481,7 @@
   },
   {
     "name": "test-tag-category-matrix",
-    "nodes": 246,
+    "nodes": 5,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -489,7 +489,7 @@
   },
   {
     "name": "test-timeline-story",
-    "nodes": 250,
+    "nodes": 5,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"

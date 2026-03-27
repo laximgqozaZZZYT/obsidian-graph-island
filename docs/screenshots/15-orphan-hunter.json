@@ -176,990 +176,6 @@
   "presetZoomLevel": 0,
   "zoomSensitivity": 1,
   "pinnedPositions": {
-    "classic-divine-comedy/characters/dante.md": {
-      "x": 75223.44290848034,
-      "y": -17587.6545700234
-    },
-    "classic-king-lear/characters/king-lear.md": {
-      "x": -25077.147100896767,
-      "y": -6093.36497113222
-    },
-    "classic-divine-comedy/characters/virgil.md": {
-      "x": 73002.29090848034,
-      "y": -19068.4225700234
-    },
-    "classic-divine-comedy/characters/beatrice.md": {
-      "x": 74483.05890848034,
-      "y": -16847.2705700234
-    },
-    "classic-king-lear/characters/cordelia.md": {
-      "x": -21973.406918877863,
-      "y": -6093.36497113222
-    },
-    "classic-king-lear/characters/edgar.md": {
-      "x": -23007.98697955083,
-      "y": -6093.36497113222
-    },
-    "classic-king-lear/characters/edmund.md": {
-      "x": -23352.846999775153,
-      "y": -6093.36497113222
-    },
-    "classic-king-lear/characters/regan.md": {
-      "x": -21973.406918877863,
-      "y": -6438.224991356542
-    },
-    "classic-king-lear/characters/gloucester.md": {
-      "x": -24042.5670402238,
-      "y": -6093.36497113222
-    },
-    "classic-king-lear/characters/goneril.md": {
-      "x": -24387.427060448124,
-      "y": -6093.36497113222
-    },
-    "classic-king-lear/characters/kent.md": {
-      "x": -24732.287080672446,
-      "y": -6093.36497113222
-    },
-    "classic-king-lear/characters/cornwall.md": {
-      "x": -22318.266939102185,
-      "y": -6093.36497113222
-    },
-    "classic-king-lear/characters/fool-lear.md": {
-      "x": -23697.707019999478,
-      "y": -6093.36497113222
-    },
-    "classic-king-lear/MOC.md": {
-      "x": -25077.147100896767,
-      "y": -5748.504950907896
-    },
-    "classic-divine-comedy/MOC.md": {
-      "x": 13396.16467700937,
-      "y": 10232.68781987842
-    },
-    "classic-king-lear/characters/albany.md": {
-      "x": -25422.007121121092,
-      "y": -5748.504950907896
-    },
-    "classic-divine-comedy/characters/matilda.md": {
-      "x": 73002.29090848034,
-      "y": -17587.6545700234
-    },
-    "classic-king-lear/characters/oswald.md": {
-      "x": -25766.867141345414,
-      "y": -6093.36497113222
-    },
-    "classic-divine-comedy/characters/statius.md": {
-      "x": 75223.44290848034,
-      "y": -19068.4225700234
-    },
-    "classic-divine-comedy/characters/saint-bernard.md": {
-      "x": 73742.67490848033,
-      "y": -18328.0385700234
-    },
-    "classic-divine-comedy/characters/saint-peter.md": {
-      "x": 73002.29090848034,
-      "y": -18328.0385700234
-    },
-    "classic-king-lear/episodes/ep08_final-battle.md": {
-      "x": 9519.685181582292,
-      "y": -459.9908569728958
-    },
-    "classic-divine-comedy/episodes/ep05_terraces.md": {
-      "x": -114522.62243964325,
-      "y": 140071.21070907984
-    },
-    "classic-divine-comedy/characters/ugolino.md": {
-      "x": 74483.05890848034,
-      "y": -19068.4225700234
-    },
-    "classic-king-lear/episodes/sc24_final-tragedy.md": {
-      "x": 60464.06619765224,
-      "y": 170472.822335329
-    },
-    "classic-king-lear/episodes/act3_war-and-death.md": {
-      "x": 8425.408949184914,
-      "y": -459.97603234621005
-    },
-    "classic-king-lear/episodes/act2_storm-and-madness.md": {
-      "x": 62343.62619765224,
-      "y": 177991.06233532898
-    },
-    "classic-divine-comedy/episodes/ep08_empyrean.md": {
-      "x": 12689.238090097102,
-      "y": 7404.981472229343
-    },
-    "classic-divine-comedy/episodes/ep02_upper-hell.md": {
-      "x": -119387.6392259504,
-      "y": 140766.21310712374
-    },
-    "classic-divine-comedy/episodes/act2_purgatorio.md": {
-      "x": -120082.64162399428,
-      "y": 144936.227495387
-    },
-    "classic-divine-comedy/characters/paolo.md": {
-      "x": 74483.05890848034,
-      "y": -18328.0385700234
-    },
-    "classic-divine-comedy/characters/francesca.md": {
-      "x": 74483.05890848034,
-      "y": -17587.6545700234
-    },
-    "classic-king-lear/characters/king-of-france.md": {
-      "x": -25422.007121121092,
-      "y": -6093.36497113222
-    },
-    "classic-divine-comedy/episodes/ep06_earthly-paradise.md": {
-      "x": -115217.62483768712,
-      "y": 140071.21070907984
-    },
-    "classic-divine-comedy/episodes/ep04_ante-purgatory.md": {
-      "x": -120777.64402203816,
-      "y": 140766.21310712374
-    },
-    "classic-divine-comedy/episodes/ep03_lower-hell.md": {
-      "x": -120082.64162399428,
-      "y": 140766.21310712374
-    },
-    "classic-divine-comedy/characters/cato.md": {
-      "x": 73742.67490848033,
-      "y": -16847.2705700234
-    },
-    "classic-king-lear/episodes/sc23_sisters-end.md": {
-      "x": 61403.84619765224,
-      "y": 170472.822335329
-    },
-    "classic-king-lear/episodes/bt71_lear-dies.md": {
-      "x": 66102.74619765223,
-      "y": 172352.382335329
-    },
-    "classic-king-lear/characters/burgundy.md": {
-      "x": -25766.867141345414,
-      "y": -5748.504950907896
-    },
-    "classic-divine-comedy/episodes/sc02_01_paolo-and-francesca.md": {
-      "x": -117997.63442986265,
-      "y": 140071.21070907984
-    },
-    "classic-divine-comedy/episodes/ep07_lower-spheres.md": {
-      "x": 13042.701383553236,
-      "y": 7404.981472229343
-    },
-    "classic-divine-comedy/episodes/ep01_dark-forest.md": {
-      "x": -118692.63682790652,
-      "y": 140766.21310712374
-    },
-    "classic-divine-comedy/episodes/act1_inferno.md": {
-      "x": -119387.6392259504,
-      "y": 144936.227495387
-    },
-    "classic-divine-comedy/characters/minos.md": {
-      "x": 75223.44290848034,
-      "y": -18328.0385700234
-    },
-    "classic-divine-comedy/characters/lucifer.md": {
-      "x": 73742.67490848033,
-      "y": -17587.6545700234
-    },
-    "classic-divine-comedy/characters/charon.md": {
-      "x": 73002.29090848034,
-      "y": -16847.2705700234
-    },
-    "classic-king-lear/episodes/ep06_mad-king.md": {
-      "x": -25422.007121121092,
-      "y": -8507.38511270248
-    },
-    "classic-king-lear/episodes/ep04_storm-on-heath.md": {
-      "x": 61403.84619765224,
-      "y": 172352.382335329
-    },
-    "classic-king-lear/episodes/bt70_cordelia-dead.md": {
-      "x": 67042.52619765223,
-      "y": 172352.382335329
-    },
-    "classic-king-lear/characters/doctor-lear.md": {
-      "x": -22663.12695932651,
-      "y": -6093.36497113222
-    },
-    "classic-divine-comedy/episodes/sc08_03_vision-of-god.md": {
-      "x": 12689.238090097102,
-      "y": 6698.054885317074
-    },
-    "classic-divine-comedy/episodes/sc08_01_exam-of-faith.md": {
-      "x": -120777.64402203816,
-      "y": 139376.20831103597
-    },
-    "classic-divine-comedy/episodes/sc06_03_waters-of-lethe.md": {
-      "x": -120082.64162399428,
-      "y": 139376.20831103597
-    },
-    "classic-divine-comedy/episodes/sc06_02_reunion-with-beatrice.md": {
-      "x": -119387.6392259504,
-      "y": 139376.20831103597
-    },
-    "classic-divine-comedy/episodes/sc05_03_wall-of-fire.md": {
-      "x": -117997.63442986265,
-      "y": 139376.20831103597
-    },
-    "classic-divine-comedy/episodes/sc05_02_meeting-statius.md": {
-      "x": -117302.63203181876,
-      "y": 139376.20831103597
-    },
-    "classic-divine-comedy/episodes/sc04_01_shore-of-purgatory.md": {
-      "x": -114522.62243964325,
-      "y": 139376.20831103597
-    },
-    "classic-divine-comedy/episodes/sc03_03_lucifer-encounter.md": {
-      "x": -2152.4207770099015,
-      "y": 2225.027962980155
-    },
-    "classic-divine-comedy/episodes/sc03_01_flame-of-ulysses.md": {
-      "x": -120777.64402203816,
-      "y": 140071.21070907984
-    },
-    "classic-divine-comedy/episodes/sc01_03_gates-of-hell.md": {
-      "x": -117302.63203181876,
-      "y": 140071.21070907984
-    },
-    "classic-divine-comedy/episodes/sc01_02_meeting-virgil.md": {
-      "x": -116607.62963377488,
-      "y": 140071.21070907984
-    },
-    "classic-divine-comedy/episodes/act3_paradiso.md": {
-      "x": 15516.944437746179,
-      "y": 9525.761232966152
-    },
-    "classic-divine-comedy/characters/ulysses.md": {
-      "x": 73742.67490848033,
-      "y": -19068.4225700234
-    },
-    "classic-king-lear/episodes/sc15_mad-king-flowers.md": {
-      "x": -22663.12695932651,
-      "y": -9197.105153151124
-    },
-    "classic-king-lear/episodes/sc09_storm-begins.md": {
-      "x": 67982.30619765223,
-      "y": 170472.822335329
-    },
-    "classic-king-lear/episodes/ep07_dover-reunion.md": {
-      "x": 67982.30619765223,
-      "y": 171412.602335329
-    },
-    "classic-king-lear/episodes/ep05_gloucester-blinding.md": {
-      "x": 60464.06619765224,
-      "y": 172352.382335329
-    },
-    "classic-divine-comedy/episodes/sc08_02_angelic-hierarchies.md": {
-      "x": 13042.701383553236,
-      "y": 6698.054885317074
-    },
-    "classic-divine-comedy/episodes/sc07_03_mars-and-jupiter.md": {
-      "x": 13749.627970465506,
-      "y": 6698.054885317074
-    },
-    "classic-divine-comedy/episodes/sc07_02_venus-and-sun.md": {
-      "x": 14103.09126392164,
-      "y": 6698.054885317074
-    },
-    "classic-divine-comedy/episodes/sc07_01_moon-and-mercury.md": {
-      "x": 14456.554557377774,
-      "y": 6698.054885317074
-    },
-    "classic-divine-comedy/episodes/sc06_01_garden-of-eden.md": {
-      "x": -118692.63682790652,
-      "y": 139376.20831103597
-    },
-    "classic-divine-comedy/episodes/sc05_01_terrace-of-pride.md": {
-      "x": -116607.62963377488,
-      "y": 139376.20831103597
-    },
-    "classic-divine-comedy/episodes/sc04_03_gate-of-purgatory.md": {
-      "x": -115912.62723573101,
-      "y": 139376.20831103597
-    },
-    "classic-divine-comedy/episodes/sc04_02_excommunicated-souls.md": {
-      "x": -115217.62483768712,
-      "y": 139376.20831103597
-    },
-    "classic-divine-comedy/episodes/sc03_02_ugolino-tragedy.md": {
-      "x": -120082.64162399428,
-      "y": 140071.21070907984
-    },
-    "classic-divine-comedy/episodes/sc02_03_plutus-and-misers.md": {
-      "x": -119387.6392259504,
-      "y": 140071.21070907984
-    },
-    "classic-divine-comedy/episodes/sc02_02_cerberus-and-gluttons.md": {
-      "x": -118692.63682790652,
-      "y": 140071.21070907984
-    },
-    "classic-king-lear/episodes/sc02_cordelia-nothing.md": {
-      "x": 66102.74619765223,
-      "y": 171412.602335329
-    },
-    "classic-king-lear/episodes/act1_division-of-kingdom.md": {
-      "x": 63283.406197652235,
-      "y": 177991.06233532898
-    },
-    "classic-divine-comedy/episodes/sc01_01_lost-in-dark-forest.md": {
-      "x": -115912.62723573101,
-      "y": 140071.21070907984
-    },
-    "classic-king-lear/episodes/sc21_battle-of-dover.md": {
-      "x": 9519.673258188906,
-      "y": -105.3468699070901
-    },
-    "classic-king-lear/episodes/sc19_edgar-oswald.md": {
-      "x": 9337.280488763508,
-      "y": -459.98790876149957
-    },
-    "classic-king-lear/episodes/sc17_cordelia-camp.md": {
-      "x": 63283.406197652235,
-      "y": 170472.822335329
-    },
-    "classic-king-lear/episodes/sc16_fool-vanishes.md": {
-      "x": 64223.186197652234,
-      "y": 170472.822335329
-    },
-    "classic-king-lear/episodes/sc11_gloucester-aid.md": {
-      "x": 67042.52619765223,
-      "y": 170472.822335329
-    },
-    "classic-king-lear/episodes/sc08_edgar-exile.md": {
-      "x": 60464.06619765224,
-      "y": 171412.602335329
-    },
-    "classic-king-lear/episodes/sc07_forged-letter.md": {
-      "x": 61403.84619765224,
-      "y": 171412.602335329
-    },
-    "classic-king-lear/episodes/sc06_regan-rejection.md": {
-      "x": 62343.62619765224,
-      "y": 171412.602335329
-    },
-    "classic-king-lear/episodes/sc05_goneril-cruelty.md": {
-      "x": 63283.406197652235,
-      "y": 171412.602335329
-    },
-    "classic-king-lear/episodes/sc01_throne-room.md": {
-      "x": 67042.52619765223,
-      "y": 171412.602335329
-    },
-    "classic-king-lear/episodes/ep02_banishment.md": {
-      "x": 63283.406197652235,
-      "y": 172352.382335329
-    },
-    "classic-king-lear/episodes/ep01_love-test.md": {
-      "x": 64223.186197652234,
-      "y": 172352.382335329
-    },
-    "classic-king-lear/episodes/bt36_eyes-gouged.md": {
-      "x": 67042.52619765223,
-      "y": 174231.942335329
-    },
-    "classic-king-lear/episodes/bt34_gloucester-captured.md": {
-      "x": 60464.06619765224,
-      "y": 175171.722335329
-    },
-    "classic-king-lear/episodes/bt25_blow-winds.md": {
-      "x": 66102.74619765223,
-      "y": 175171.722335329
-    },
-    "classic-king-lear/episodes/bt18_nothing-left.md": {
-      "x": 62343.62619765224,
-      "y": 176111.502335329
-    },
-    "classic-divine-comedy/episodes/bt08_03_01_rose-of-light.md": {
-      "x": 16223.871024658449,
-      "y": 7404.981472229343
-    },
-    "classic-divine-comedy/episodes/bt06_03_03_drinking-eunoe.md": {
-      "x": -120082.64162399428,
-      "y": 141461.2155051676
-    },
-    "classic-divine-comedy/episodes/bt06_02_02_beatrice-appears.md": {
-      "x": -117997.63442986265,
-      "y": 141461.2155051676
-    },
-    "classic-divine-comedy/episodes/bt05_03_03_through-fire.md": {
-      "x": -115217.62483768712,
-      "y": 141461.2155051676
-    },
-    "classic-divine-comedy/episodes/bt05_03_02_virgil-encouragement.md": {
-      "x": -114522.62243964325,
-      "y": 141461.2155051676
-    },
-    "classic-divine-comedy/episodes/bt05_02_03_reverence-for-master.md": {
-      "x": -120082.64162399428,
-      "y": 142156.21790321148
-    },
-    "classic-divine-comedy/episodes/bt04_01_02_cato-appears.md": {
-      "x": -117997.63442986265,
-      "y": 142851.22030125535
-    },
-    "classic-divine-comedy/episodes/bt03_01_02_twin-flame.md": {
-      "x": -119387.6392259504,
-      "y": 143546.22269929925
-    },
-    "classic-divine-comedy/episodes/bt02_01_03_dante-faints.md": {
-      "x": -114522.62243964325,
-      "y": 143546.22269929925
-    },
-    "classic-divine-comedy/episodes/bt02_01_02_francesca-tale.md": {
-      "x": -120777.64402203816,
-      "y": 144241.22509734312
-    },
-    "classic-divine-comedy/episodes/bt01_03_03_crossing-acheron.md": {
-      "x": -119387.6392259504,
-      "y": 144241.22509734312
-    },
-    "classic-king-lear/episodes/sc22_duel-of-brothers.md": {
-      "x": 10066.804951628734,
-      "y": -459.9910987473289
-    },
-    "classic-king-lear/episodes/sc20_armies-gather.md": {
-      "x": 62343.62619765224,
-      "y": 170472.822335329
-    },
-    "classic-king-lear/episodes/sc18_lear-awakens.md": {
-      "x": -23697.707019999478,
-      "y": -9197.105153151124
-    },
-    "classic-king-lear/episodes/sc12_cornwall-interrogation.md": {
-      "x": 66102.74619765223,
-      "y": 170472.822335329
-    },
-    "classic-king-lear/episodes/sc10_hovel-encounter.md": {
-      "x": -25077.147100896767,
-      "y": -8852.245132926802
-    },
-    "classic-king-lear/episodes/sc04_kent-exile.md": {
-      "x": 64223.186197652234,
-      "y": 171412.602335329
-    },
-    "classic-king-lear/episodes/sc03_suitors-choice.md": {
-      "x": 65162.96619765223,
-      "y": 171412.602335329
-    },
-    "classic-king-lear/episodes/ep03_edmund-plot.md": {
-      "x": 62343.62619765224,
-      "y": 172352.382335329
-    },
-    "classic-king-lear/episodes/bt72_new-order.md": {
-      "x": 65162.96619765223,
-      "y": 172352.382335329
-    },
-    "classic-king-lear/episodes/bt64_albany-accusation.md": {
-      "x": 62343.62619765224,
-      "y": 173292.162335329
-    },
-    "classic-king-lear/episodes/bt62_lear-cordelia-captured.md": {
-      "x": 63283.406197652235,
-      "y": 173292.162335329
-    },
-    "classic-king-lear/episodes/bt58_edmund-command.md": {
-      "x": 66102.74619765223,
-      "y": 173292.162335329
-    },
-    "classic-king-lear/episodes/bt57_letter-discovered.md": {
-      "x": -21973.406918877863,
-      "y": -8162.525092478157
-    },
-    "classic-king-lear/episodes/bt53_father-daughter.md": {
-      "x": -24732.287080672446,
-      "y": -7817.665072253833
-    },
-    "classic-king-lear/episodes/bt45_wisdom-in-madness.md": {
-      "x": -21973.406918877863,
-      "y": -7817.665072253833
-    },
-    "classic-king-lear/episodes/bt44_blind-meets-mad.md": {
-      "x": -25766.867141345414,
-      "y": -7472.805052029511
-    },
-    "classic-king-lear/episodes/bt35_regan-cruelty.md": {
-      "x": 67982.30619765223,
-      "y": 174231.942335329
-    },
-    "classic-king-lear/episodes/bt33_lear-to-dover.md": {
-      "x": 61403.84619765224,
-      "y": 175171.722335329
-    },
-    "classic-king-lear/episodes/bt30_mock-trial.md": {
-      "x": -25077.147100896767,
-      "y": -7127.945031805188
-    },
-    "classic-king-lear/episodes/bt28_poor-tom-meets-lear.md": {
-      "x": -24387.427060448124,
-      "y": -7127.945031805188
-    },
-    "classic-king-lear/episodes/bt17_kent-stocked.md": {
-      "x": 63283.406197652235,
-      "y": 176111.502335329
-    },
-    "classic-king-lear/episodes/bt16_cornwall-gate.md": {
-      "x": 64223.186197652234,
-      "y": 176111.502335329
-    },
-    "classic-king-lear/episodes/bt13_oswald-insolence.md": {
-      "x": 67042.52619765223,
-      "y": 176111.502335329
-    },
-    "classic-king-lear/episodes/bt07_burgundy-refusal.md": {
-      "x": 64223.186197652234,
-      "y": 177051.282335329
-    },
-    "classic-king-lear/episodes/bt04_nothing-spoken.md": {
-      "x": 67042.52619765223,
-      "y": 177051.282335329
-    },
-    "classic-king-lear/episodes/bt03_regan-flattery.md": {
-      "x": 67982.30619765223,
-      "y": 177051.282335329
-    },
-    "classic-king-lear/episodes/bt02_goneril-flattery.md": {
-      "x": 60464.06619765224,
-      "y": 177991.06233532898
-    },
-    "classic-king-lear/episodes/bt01_royal-decree.md": {
-      "x": 61403.84619765224,
-      "y": 177991.06233532898
-    },
-    "classic-divine-comedy/episodes/bt08_03_02_bernards-prayer.md": {
-      "x": 15870.407731202313,
-      "y": 7404.981472229343
-    },
-    "classic-divine-comedy/episodes/bt08_02_03_beatrice-explains.md": {
-      "x": -117997.63442986265,
-      "y": 140766.21310712374
-    },
-    "classic-divine-comedy/episodes/bt08_02_02_nine-rings.md": {
-      "x": 12689.238090097102,
-      "y": 7758.444765685478
-    },
-    "classic-divine-comedy/episodes/bt08_02_01_primum-mobile.md": {
-      "x": 13042.701383553236,
-      "y": 7758.444765685478
-    },
-    "classic-divine-comedy/episodes/bt08_01_03_peter-denounces.md": {
-      "x": -117302.63203181876,
-      "y": 140766.21310712374
-    },
-    "classic-divine-comedy/episodes/bt08_01_02_hope-and-love.md": {
-      "x": -116607.62963377488,
-      "y": 140766.21310712374
-    },
-    "classic-divine-comedy/episodes/bt08_01_01_peter-examines.md": {
-      "x": -115912.62723573101,
-      "y": 140766.21310712374
-    },
-    "classic-divine-comedy/episodes/bt07_03_03_eagle-of-justice.md": {
-      "x": 14456.554557377774,
-      "y": 7758.444765685478
-    },
-    "classic-divine-comedy/episodes/bt07_03_01_cross-of-mars.md": {
-      "x": 15163.481144290045,
-      "y": 7758.444765685478
-    },
-    "classic-divine-comedy/episodes/bt07_02_03_double-crown.md": {
-      "x": 15516.944437746179,
-      "y": 7758.444765685478
-    },
-    "classic-divine-comedy/episodes/bt07_02_02_sun-theologians.md": {
-      "x": 15870.407731202313,
-      "y": 7758.444765685478
-    },
-    "classic-divine-comedy/episodes/bt07_02_01_venus-lovers.md": {
-      "x": 16223.871024658449,
-      "y": 7758.444765685478
-    },
-    "classic-divine-comedy/episodes/bt07_01_03_mercury-spirits.md": {
-      "x": -114522.62243964325,
-      "y": 140766.21310712374
-    },
-    "classic-divine-comedy/episodes/bt07_01_02_piccarda.md": {
-      "x": -120777.64402203816,
-      "y": 141461.2155051676
-    },
-    "classic-divine-comedy/episodes/bt07_01_01_ascent-to-moon.md": {
-      "x": 13042.701383553236,
-      "y": 8111.908059141612
-    },
-    "classic-divine-comedy/episodes/bt06_03_02_beatrice-unveiled.md": {
-      "x": 13749.627970465506,
-      "y": 8111.908059141612
-    },
-    "classic-divine-comedy/episodes/bt06_03_01_immersion-in-lethe.md": {
-      "x": -119387.6392259504,
-      "y": 141461.2155051676
-    },
-    "classic-divine-comedy/episodes/bt06_02_03_beatrice-rebuke.md": {
-      "x": -118692.63682790652,
-      "y": 141461.2155051676
-    },
-    "classic-divine-comedy/episodes/bt06_01_03_two-rivers.md": {
-      "x": -117302.63203181876,
-      "y": 141461.2155051676
-    },
-    "classic-divine-comedy/episodes/bt06_01_02_matilda-singing.md": {
-      "x": -116607.62963377488,
-      "y": 141461.2155051676
-    },
-    "classic-divine-comedy/episodes/bt05_03_01_fear-of-flame.md": {
-      "x": -120777.64402203816,
-      "y": 142156.21790321148
-    },
-    "classic-divine-comedy/episodes/bt05_02_02_statius-confession.md": {
-      "x": -119387.6392259504,
-      "y": 142156.21790321148
-    },
-    "classic-divine-comedy/episodes/bt05_02_01_earthquake.md": {
-      "x": -118692.63682790652,
-      "y": 142156.21790321148
-    },
-    "classic-divine-comedy/episodes/bt05_01_03_first-p-erased.md": {
-      "x": -117997.63442986265,
-      "y": 142156.21790321148
-    },
-    "classic-divine-comedy/episodes/bt05_01_01_carved-humility.md": {
-      "x": -116607.62963377488,
-      "y": 142156.21790321148
-    },
-    "classic-divine-comedy/episodes/bt04_03_03_gate-opens.md": {
-      "x": -115912.62723573101,
-      "y": 142156.21790321148
-    },
-    "classic-divine-comedy/episodes/bt04_03_01_three-steps.md": {
-      "x": -114522.62243964325,
-      "y": 142156.21790321148
-    },
-    "classic-divine-comedy/episodes/bt04_02_02_lazy-penitents.md": {
-      "x": -120082.64162399428,
-      "y": 142851.22030125535
-    },
-    "classic-divine-comedy/episodes/bt04_01_03_angel-boat.md": {
-      "x": -118692.63682790652,
-      "y": 142851.22030125535
-    },
-    "classic-divine-comedy/episodes/bt04_01_01_dawn-on-shore.md": {
-      "x": -117302.63203181876,
-      "y": 142851.22030125535
-    },
-    "classic-divine-comedy/episodes/bt03_03_03_escape-to-stars.md": {
-      "x": -116607.62963377488,
-      "y": 142851.22030125535
-    },
-    "classic-divine-comedy/episodes/bt03_03_02_three-faces.md": {
-      "x": -1605.282873569545,
-      "y": 2225.027217516433
-    },
-    "classic-divine-comedy/episodes/bt03_03_01_judecca.md": {
-      "x": -115912.62723573101,
-      "y": 142851.22030125535
-    },
-    "classic-divine-comedy/episodes/bt03_02_03_eternal-gnawing.md": {
-      "x": -115217.62483768712,
-      "y": 142851.22030125535
-    },
-    "classic-divine-comedy/episodes/bt03_02_01_ice-of-cocytus.md": {
-      "x": -120777.64402203816,
-      "y": 143546.22269929925
-    },
-    "classic-divine-comedy/episodes/bt03_01_01_malebolge-descent.md": {
-      "x": -118692.63682790652,
-      "y": 143546.22269929925
-    },
-    "classic-divine-comedy/episodes/bt02_03_03_styx-crossing.md": {
-      "x": -117997.63442986265,
-      "y": 143546.22269929925
-    },
-    "classic-divine-comedy/episodes/bt02_03_02_rolling-weights.md": {
-      "x": -117302.63203181876,
-      "y": 143546.22269929925
-    },
-    "classic-divine-comedy/episodes/bt02_03_01_plutus-cry.md": {
-      "x": -116607.62963377488,
-      "y": 143546.22269929925
-    },
-    "classic-divine-comedy/episodes/bt02_02_01_rain-of-filth.md": {
-      "x": -115217.62483768712,
-      "y": 143546.22269929925
-    },
-    "classic-divine-comedy/episodes/bt02_01_01_minos-judgment.md": {
-      "x": -120082.64162399428,
-      "y": 144241.22509734312
-    },
-    "classic-divine-comedy/episodes/bt01_03_02_vestibule-neutrals.md": {
-      "x": -118692.63682790652,
-      "y": 144241.22509734312
-    },
-    "classic-divine-comedy/episodes/bt01_03_01_inscription.md": {
-      "x": -117997.63442986265,
-      "y": 144241.22509734312
-    },
-    "classic-divine-comedy/episodes/bt01_02_03_resolve-to-journey.md": {
-      "x": -117302.63203181876,
-      "y": 144241.22509734312
-    },
-    "classic-divine-comedy/episodes/bt01_02_02_beatrice-mission.md": {
-      "x": -116607.62963377488,
-      "y": 144241.22509734312
-    },
-    "classic-divine-comedy/episodes/bt01_02_01_shadow-appears.md": {
-      "x": -115912.62723573101,
-      "y": 144241.22509734312
-    },
-    "classic-king-lear/episodes/sc14_blind-wandering.md": {
-      "x": 65162.96619765223,
-      "y": 170472.822335329
-    },
-    "classic-king-lear/episodes/sc13_servant-revolt.md": {
-      "x": 5325.01887484035,
-      "y": -459.9522526367861
-    },
-    "classic-king-lear/episodes/bt69_edmund-repents.md": {
-      "x": -21973.406918877863,
-      "y": -8507.38511270248
-    },
-    "classic-king-lear/episodes/bt68_goneril-suicide.md": {
-      "x": 67982.30619765223,
-      "y": 172352.382335329
-    },
-    "classic-king-lear/episodes/bt67_regan-poisoned.md": {
-      "x": 60464.06619765224,
-      "y": 173292.162335329
-    },
-    "classic-king-lear/episodes/bt66_edmund-falls.md": {
-      "x": 10249.20627131027,
-      "y": -459.99164169202953
-    },
-    "classic-king-lear/episodes/bt65_edgar-reveals.md": {
-      "x": -24732.287080672446,
-      "y": -8162.525092478157
-    },
-    "classic-king-lear/episodes/bt63_prison-song.md": {
-      "x": 61403.84619765224,
-      "y": 173292.162335329
-    },
-    "classic-king-lear/episodes/bt61_french-defeat.md": {
-      "x": 12255.360540345253,
-      "y": -460.02075231040084
-    },
-    "classic-king-lear/episodes/bt60_eve-of-battle.md": {
-      "x": 64223.186197652234,
-      "y": 173292.162335329
-    },
-    "classic-king-lear/episodes/bt59_albany-doubt.md": {
-      "x": 65162.96619765223,
-      "y": 173292.162335329
-    },
-    "classic-king-lear/episodes/bt56_edgar-kills-oswald.md": {
-      "x": 12072.96347262004,
-      "y": -460.0184262264025
-    },
-    "classic-king-lear/episodes/bt55_oswald-attacks.md": {
-      "x": 11890.566166628369,
-      "y": -460.0155980560533
-    },
-    "classic-king-lear/episodes/bt54_forgiveness.md": {
-      "x": -25077.147100896767,
-      "y": -7817.665072253833
-    },
-    "classic-king-lear/episodes/bt52_music-plays.md": {
-      "x": 67042.52619765223,
-      "y": 173292.162335329
-    },
-    "classic-king-lear/episodes/bt51_kent-report.md": {
-      "x": 67982.30619765223,
-      "y": 173292.162335329
-    },
-    "classic-king-lear/episodes/bt50_doctor-counsel.md": {
-      "x": 60464.06619765224,
-      "y": 174231.942335329
-    },
-    "classic-king-lear/episodes/bt48_cordelia-approaches.md": {
-      "x": 62343.62619765224,
-      "y": 174231.942335329
-    },
-    "classic-king-lear/episodes/bt46_fool-last-words.md": {
-      "x": 64223.186197652234,
-      "y": 174231.942335329
-    },
-    "classic-king-lear/episodes/bt43_flower-crown.md": {
-      "x": -25422.007121121092,
-      "y": -7472.805052029511
-    },
-    "classic-king-lear/episodes/bt42_dover-cliff.md": {
-      "x": -25077.147100896767,
-      "y": -7472.805052029511
-    },
-    "classic-king-lear/episodes/bt41_edgar-guides.md": {
-      "x": 65162.96619765223,
-      "y": 174231.942335329
-    },
-    "classic-king-lear/episodes/bt38_cornwall-wounded.md": {
-      "x": 12984.883575480864,
-      "y": -460.0245256219818
-    },
-    "classic-king-lear/episodes/bt31_gloucester-loyalty.md": {
-      "x": 62343.62619765224,
-      "y": 175171.722335329
-    },
-    "classic-king-lear/episodes/bt32_edmund-betrayal.md": {
-      "x": 63283.406197652235,
-      "y": 175171.722335329
-    },
-    "classic-king-lear/episodes/bt29_lear-strips.md": {
-      "x": -24732.287080672446,
-      "y": -7127.945031805188
-    },
-    "classic-king-lear/episodes/bt27_kent-shelter.md": {
-      "x": 64223.186197652234,
-      "y": 175171.722335329
-    },
-    "classic-king-lear/episodes/bt26_fool-prophecy.md": {
-      "x": -23697.707019999478,
-      "y": -7127.945031805188
-    },
-    "classic-king-lear/episodes/bt24_edmund-rises.md": {
-      "x": 65162.96619765223,
-      "y": 175171.722335329
-    },
-    "classic-king-lear/episodes/bt23_poor-tom.md": {
-      "x": 67042.52619765223,
-      "y": 175171.722335329
-    },
-    "classic-king-lear/episodes/bt21_edgar-framed.md": {
-      "x": 67982.30619765223,
-      "y": 175171.722335329
-    },
-    "classic-king-lear/episodes/bt22_edgar-hunted.md": {
-      "x": 60464.06619765224,
-      "y": 176111.502335329
-    },
-    "classic-king-lear/episodes/bt20_gloucester-deceived.md": {
-      "x": 61403.84619765224,
-      "y": 176111.502335329
-    },
-    "classic-king-lear/episodes/bt15_lear-curse.md": {
-      "x": 65162.96619765223,
-      "y": 176111.502335329
-    },
-    "classic-king-lear/episodes/bt14_retinue-reduced.md": {
-      "x": 66102.74619765223,
-      "y": 176111.502335329
-    },
-    "classic-king-lear/episodes/bt11_kent-disguise.md": {
-      "x": 67982.30619765223,
-      "y": 176111.502335329
-    },
-    "classic-king-lear/episodes/bt12_kent-return.md": {
-      "x": 60464.06619765224,
-      "y": 177051.282335329
-    },
-    "classic-king-lear/episodes/bt10_kent-farewell.md": {
-      "x": 61403.84619765224,
-      "y": 177051.282335329
-    },
-    "classic-king-lear/episodes/bt09_sisters-plot.md": {
-      "x": 62343.62619765224,
-      "y": 177051.282335329
-    },
-    "classic-king-lear/episodes/bt08_france-acceptance.md": {
-      "x": 63283.406197652235,
-      "y": 177051.282335329
-    },
-    "classic-king-lear/episodes/bt06_kent-protest.md": {
-      "x": 65162.96619765223,
-      "y": 177051.282335329
-    },
-    "classic-king-lear/episodes/bt05_lear-rage.md": {
-      "x": 66102.74619765223,
-      "y": 177051.282335329
-    },
-    "classic-divine-comedy/episodes/bt08_03_03_ultimate-vision.md": {
-      "x": 15516.944437746179,
-      "y": 7404.981472229343
-    },
-    "classic-divine-comedy/episodes/bt07_03_02_cacciaguida-prophecy.md": {
-      "x": -115217.62483768712,
-      "y": 140766.21310712374
-    },
-    "classic-divine-comedy/episodes/bt06_02_01_heavenly-procession.md": {
-      "x": 15163.481144290045,
-      "y": 8111.908059141612
-    },
-    "classic-divine-comedy/episodes/bt06_01_01_divine-forest.md": {
-      "x": -115912.62723573101,
-      "y": 141461.2155051676
-    },
-    "classic-divine-comedy/episodes/bt05_01_02_bent-under-stones.md": {
-      "x": -117302.63203181876,
-      "y": 142156.21790321148
-    },
-    "classic-divine-comedy/episodes/bt04_03_02_seven-p-marks.md": {
-      "x": -115217.62483768712,
-      "y": 142156.21790321148
-    },
-    "classic-divine-comedy/episodes/bt04_02_03_valley-of-princes.md": {
-      "x": -120777.64402203816,
-      "y": 142851.22030125535
-    },
-    "classic-divine-comedy/episodes/bt04_02_01_manfred-story.md": {
-      "x": -119387.6392259504,
-      "y": 142851.22030125535
-    },
-    "classic-divine-comedy/episodes/bt03_02_02_tower-of-hunger.md": {
-      "x": -114522.62243964325,
-      "y": 142851.22030125535
-    },
-    "classic-divine-comedy/episodes/bt03_01_03_last-voyage.md": {
-      "x": -120082.64162399428,
-      "y": 143546.22269929925
-    },
-    "classic-divine-comedy/episodes/bt02_02_03_ciacco-prophecy.md": {
-      "x": -115912.62723573101,
-      "y": 143546.22269929925
-    },
-    "classic-divine-comedy/episodes/bt02_02_02_taming-cerberus.md": {
-      "x": 13167.24411526397,
-      "y": 2224.9702668152613
-    },
-    "classic-divine-comedy/episodes/bt01_01_03_driven-back.md": {
-      "x": -115217.62483768712,
-      "y": 144241.22509734312
-    },
-    "classic-divine-comedy/episodes/bt01_01_02_hill-of-light.md": {
-      "x": -114522.62243964325,
-      "y": 144241.22509734312
-    },
-    "classic-divine-comedy/episodes/bt01_01_01_wandering-in-darkness.md": {
-      "x": -120777.64402203816,
-      "y": 144936.227495387
-    },
-    "classic-king-lear/episodes/bt49_cordelia-prayer.md": {
-      "x": 61403.84619765224,
-      "y": 174231.942335329
-    },
-    "classic-king-lear/episodes/bt47_silence-descends.md": {
-      "x": 63283.406197652235,
-      "y": 174231.942335329
-    },
-    "classic-king-lear/episodes/bt40_gloucester-expelled.md": {
-      "x": 66102.74619765223,
-      "y": 174231.942335329
-    },
-    "classic-king-lear/episodes/bt39_gloucester-truth.md": {
-      "x": -24042.5670402238,
-      "y": -7472.805052029511
-    },
-    "classic-king-lear/episodes/bt37_servant-stands.md": {
-      "x": 12802.479703083696,
-      "y": -460.0243832237824
-    },
-    "classic-king-lear/episodes/bt19_edmund-soliloquy.md": {
-      "x": -25422.007121121092,
-      "y": -6783.085011580865
-    },
     "classic-saiyuki/characters/sun-wukong.md": {
       "x": 57604.71614580646,
       "y": 50506.35599703866
@@ -1169,28 +185,36 @@
       "y": 51987.123997038696
     },
     "classic-arthurian/characters/arthur.md": {
-      "x": 22338.935882472757,
-      "y": 16212.920987143592
+      "x": 1917.6232869935848,
+      "y": -6697.866675809505
     },
     "classic-hamlet/characters/hamlet.md": {
       "x": 1665.0995119991107,
       "y": 18485.25823002784
     },
     "mythology-greek/characters/zeus.md": {
-      "x": -440.4094488188962,
-      "y": -23928.55761992906
+      "x": -2470.792572606817,
+      "y": 152.7944614151545
     },
     "mythology-norse/characters/odin.md": {
       "x": 59.69257206479017,
       "y": -34651.59505726498
     },
+    "classic-king-lear/characters/king-lear.md": {
+      "x": -25077.147100896767,
+      "y": -6093.36497113222
+    },
     "classic-arthurian/characters/lancelot.md": {
-      "x": 24053.057873906564,
-      "y": 15784.390489285139
+      "x": 1529.7799251778115,
+      "y": -6697.863717681794
     },
     "classic-macbeth/characters/macbeth.md": {
       "x": 18645.0116732631,
       "y": 1505.3460687638496
+    },
+    "classic-divine-comedy/characters/dante.md": {
+      "x": 75223.44290848034,
+      "y": -17587.6545700234
     },
     "classic-sangokushi/characters/guan-yu.md": {
       "x": 2325.5053224689705,
@@ -1201,8 +225,8 @@
       "y": -15474.566092500141
     },
     "classic-genji/characters/hikaru-genji.md": {
-      "x": 12703.259455670111,
-      "y": -1286.1147876363507
+      "x": 12703.259455628413,
+      "y": -1286.1147878672853
     },
     "classic-sangokushi/characters/liu-bei.md": {
       "x": 1943.8991182714853,
@@ -1225,8 +249,8 @@
       "y": 18712.29359676115
     },
     "classic-arthurian/characters/gawain.md": {
-      "x": 26195.71036319883,
-      "y": 15784.390489285139
+      "x": 3081.165350282089,
+      "y": -6697.862453538878
     },
     "mythology-egyptian/characters/ra.md": {
       "x": -20052.548822291075,
@@ -1261,8 +285,8 @@
       "y": 52727.507997038694
     },
     "mythology-greek/characters/athena.md": {
-      "x": -1615.9294488188964,
-      "y": -23340.797619929057
+      "x": -984.3407921074431,
+      "y": 199.14190442445062
     },
     "mythology-egyptian/characters/anubis.md": {
       "x": -22268.69367952966,
@@ -1281,12 +305,12 @@
       "y": 51987.123997038696
     },
     "classic-arthurian/characters/percival.md": {
-      "x": 22338.935882472757,
-      "y": 15784.390489285139
+      "x": 3469.0171165458028,
+      "y": -6697.857625517299
     },
     "classic-arthurian/characters/galahad.md": {
-      "x": 21910.405384614303,
-      "y": 16212.920987143592
+      "x": 2693.3171708186483,
+      "y": -6697.865173308744
     },
     "mythology-norse/characters/loki.md": {
       "x": 436.0940245797105,
@@ -1301,12 +325,12 @@
       "y": -15474.566092500141
     },
     "classic-arthurian/characters/tristan.md": {
-      "x": 21910.405384614303,
-      "y": 15784.390489285139
+      "x": 366.2462297210012,
+      "y": -6697.878970470205
     },
     "classic-arthurian/characters/bedivere.md": {
-      "x": 26624.24086105728,
-      "y": 15784.390489285139
+      "x": 2305.471260336819,
+      "y": -6358.472305031994
     },
     "mythology-norse/concepts/yggdrasil.md": {
       "x": -1069.5117854799714,
@@ -1324,6 +348,10 @@
       "x": 56123.94814580646,
       "y": 51987.12399703867
     },
+    "classic-king-lear/characters/edmund.md": {
+      "x": -23352.846999775153,
+      "y": -6093.36497113222
+    },
     "classic-gilgamesh/characters/shamash.md": {
       "x": -55560.63934580644,
       "y": 51246.7399970387
@@ -1333,8 +361,8 @@
       "y": 51246.7399970387
     },
     "classic-arthurian/characters/kay.md": {
-      "x": 24910.118869623468,
-      "y": 15784.390489285139
+      "x": 754.0989883259231,
+      "y": -6697.874586200314
     },
     "classic-arabian-nights/characters/genie-lamp.md": {
       "x": -11017.870354382934,
@@ -1356,13 +384,25 @@
       "x": 56864.33214580646,
       "y": 52727.507997038665
     },
+    "classic-king-lear/characters/regan.md": {
+      "x": -21973.406918877863,
+      "y": -6438.224991356542
+    },
+    "classic-king-lear/characters/goneril.md": {
+      "x": -24387.427060448124,
+      "y": -6093.36497113222
+    },
+    "classic-divine-comedy/characters/lucifer.md": {
+      "x": 73742.67490848033,
+      "y": -17587.6545700234
+    },
     "bible-old-testament/concepts/ark-of-covenant.md": {
-      "x": 94.96706410877806,
-      "y": -3444.1055802348865
+      "x": 94.96706437884886,
+      "y": -3444.1055801680955
     },
     "bible-new-testament/characters/jesus.md": {
-      "x": 4950.817239396488,
-      "y": 190.93990357893182
+      "x": 4950.817239439377,
+      "y": 190.93990342547636
     },
     "mythology-japanese/concepts/kusanagi.md": {
       "x": 34637.43313151158,
@@ -1377,8 +417,8 @@
       "y": -8894.083972251097
     },
     "mythology-greek/characters/poseidon.md": {
-      "x": 147.3505511811038,
-      "y": -23928.55761992906
+      "x": -2322.135165487901,
+      "y": 245.48934743374681
     },
     "mythology-egyptian/concepts/eye-of-ra.md": {
       "x": -22638.05115573609,
@@ -1393,16 +433,16 @@
       "y": 75291.11355069152
     },
     "bible-new-testament/concepts/golgotha.md": {
-      "x": 376.88422914281205,
-      "y": -3494.9690101677
+      "x": 376.88422940373874,
+      "y": -3494.9690099896043
     },
     "bible-apocrypha/concepts/seven-heavens.md": {
-      "x": 1519.115694992772,
-      "y": -3494.9696816497653
+      "x": 1519.1156951585108,
+      "y": -3494.9696816795345
     },
     "bible-apocrypha/concepts/book-of-life.md": {
-      "x": 1801.0345365231115,
-      "y": -3444.1061687276165
+      "x": 1801.0345363425358,
+      "y": -3444.106168560766
     },
     "mythology-egyptian/concepts/duat.md": {
       "x": -22268.69367952966,
@@ -1432,21 +472,25 @@
       "x": 16488.175689296666,
       "y": 1732.3814354971585
     },
+    "classic-king-lear/characters/king-of-france.md": {
+      "x": -25422.007121121092,
+      "y": -6093.36497113222
+    },
     "classic-gilgamesh/characters/humbaba.md": {
       "x": -55560.63934580644,
       "y": 51987.123997038696
     },
     "classic-genji/characters/kiritsubo-emperor.md": {
-      "x": 10646.02423066866,
-      "y": -943.2176281723684
+      "x": 10646.02423073035,
+      "y": -943.2176280171819
     },
     "classic-arthurian/characters/uther-pendragon.md": {
-      "x": 26624.24086105728,
-      "y": 15355.859991426687
+      "x": 754.1056090573719,
+      "y": -6358.485136398939
     },
     "classic-arthurian/characters/mordred.md": {
-      "x": 23195.99687818966,
-      "y": 15784.390489285139
+      "x": 2693.318603669239,
+      "y": -6358.469983607016
     },
     "classic-arabian-nights/characters/shahryar.md": {
       "x": -11758.254354382934,
@@ -1457,20 +501,28 @@
       "y": 73810.34555069152
     },
     "bible-old-testament/characters/god-yhwh.md": {
-      "x": 4920.195439343281,
-      "y": -93.88771892767322
+      "x": 4920.195439401945,
+      "y": -93.88771889176999
     },
     "mythology-norse/characters/thor.md": {
       "x": -1069.5117854799714,
       "y": -34651.59505726498
     },
     "mythology-greek/characters/hades.md": {
-      "x": -2203.6894488188964,
-      "y": -23340.797619929057
+      "x": -1132.9817584552059,
+      "y": 291.836790443043
     },
     "classic-sangokushi/characters/sun-quan.md": {
       "x": 417.47430148154535,
       "y": -7211.52634946561
+    },
+    "classic-king-lear/characters/albany.md": {
+      "x": -25422.007121121092,
+      "y": -5748.504950907896
+    },
+    "classic-divine-comedy/characters/virgil.md": {
+      "x": 73002.29090848034,
+      "y": -19068.4225700234
     },
     "classic-arabian-nights/characters/jafar-vizier.md": {
       "x": -10277.486354382934,
@@ -1481,8 +533,8 @@
       "y": 75291.11355069152
     },
     "bible-old-testament/concepts/ten-commandments.md": {
-      "x": -3024.19568806643,
-      "y": -93.8891297438043
+      "x": -3024.195688149886,
+      "y": -93.88912941640102
     },
     "mythology-norse/concepts/mjolnir.md": {
       "x": -693.1103329650509,
@@ -1512,17 +564,25 @@
       "x": 1438.064145265802,
       "y": -15474.566092500141
     },
+    "classic-king-lear/characters/cornwall.md": {
+      "x": -22318.266939102185,
+      "y": -6093.36497113222
+    },
+    "classic-king-lear/characters/burgundy.md": {
+      "x": -25766.867141345414,
+      "y": -5748.504950907896
+    },
     "classic-arabian-nights/characters/scheherazade.md": {
       "x": -11017.870354382934,
       "y": 73810.34555069152
     },
     "bible-old-testament/concepts/promised-land.md": {
-      "x": -3054.8184256176405,
-      "y": 190.93902313915666
+      "x": -3054.8184257500498,
+      "y": 190.93902333405472
     },
     "bible-apocrypha/concepts/dead-sea-scrolls.md": {
-      "x": -2812.0203642427814,
-      "y": 1879.6398082872427
+      "x": -2812.0203640437517,
+      "y": 1879.6398081487496
     },
     "mythology-norse/characters/fenrir.md": {
       "x": 2694.5027396692335,
@@ -1537,20 +597,20 @@
       "y": -8894.083972251097
     },
     "mythology-greek/concepts/golden-fleece.md": {
-      "x": -1615.9294488188964,
-      "y": -23928.55761992906
+      "x": 20333.231358408288,
+      "y": 32326.489589974455
     },
     "mythology-greek/concepts/ambrosia.md": {
-      "x": -1028.1694488188962,
-      "y": -23928.55761992906
+      "x": 20839.831358408286,
+      "y": 32326.489589974455
     },
     "mythology-greek/characters/heracles.md": {
-      "x": 3673.910551181104,
-      "y": -23928.55761992906
+      "x": -1430.2673006145255,
+      "y": 616.2688915081161
     },
     "mythology-greek/characters/aphrodite.md": {
-      "x": 735.110551181104,
-      "y": -23340.797619929057
+      "x": -389.7731371962624,
+      "y": 338.1842334523391
     },
     "mythology-egyptian/characters/set.md": {
       "x": -20791.263774703937,
@@ -1581,8 +641,8 @@
       "y": 1505.3460687638496
     },
     "classic-genji/characters/kaoru.md": {
-      "x": 12997.161754298413,
-      "y": -943.2194626554324
+      "x": 12997.161754285473,
+      "y": -943.2194625403131
     },
     "mythology-norse/characters/baldur.md": {
       "x": 3070.9041921841535,
@@ -1593,20 +653,20 @@
       "y": -9263.441448457528
     },
     "mythology-greek/concepts/mount-olympus.md": {
-      "x": 4261.670551181103,
-      "y": -24516.317619929057
+      "x": 25399.231358408288,
+      "y": 31819.889589974457
     },
     "mythology-greek/concepts/labyrinth.md": {
-      "x": -2203.6894488188964,
-      "y": -23928.55761992906
+      "x": 19826.631358408285,
+      "y": 32326.489589974455
     },
     "mythology-greek/characters/ares.md": {
-      "x": -440.4094488188962,
-      "y": -23340.797619929057
+      "x": -687.0569425484035,
+      "y": 477.2265624802276
     },
     "mythology-greek/characters/apollo.md": {
-      "x": 147.3505511811038,
-      "y": -23340.797619929057
+      "x": -538.4155864422382,
+      "y": 523.5740054895238
     },
     "mythology-egyptian/concepts/pyramid.md": {
       "x": -18575.118917465352,
@@ -1624,13 +684,17 @@
       "x": 2119.170245465729,
       "y": -15474.566092500141
     },
+    "classic-king-lear/characters/oswald.md": {
+      "x": -25766.867141345414,
+      "y": -6093.36497113222
+    },
     "classic-arabian-nights/characters/forty-thieves-chief.md": {
       "x": -10277.486354382934,
       "y": 75291.11355069152
     },
     "bible-new-testament/concepts/nazareth.md": {
-      "x": -1221.6148508993595,
-      "y": 3853.215852753621
+      "x": -1221.6148507930286,
+      "y": 3853.2158525820164
     },
     "mythology-japanese/concepts/yomi.md": {
       "x": 37961.650417369456,
@@ -1653,12 +717,12 @@
       "y": 76031.49755069152
     },
     "bible-old-testament/characters/moses.md": {
-      "x": 4598.394926635016,
-      "y": -1189.8501515740818
+      "x": 4598.394926434816,
+      "y": -1189.8501514895027
     },
     "bible-new-testament/concepts/holy-grail.md": {
-      "x": 2350.4120817633907,
-      "y": 4237.247163843218
+      "x": 2350.4120819376662,
+      "y": 4237.247163775961
     },
     "mythology-norse/characters/hel.md": {
       "x": 1188.8969296095515,
@@ -1669,72 +733,84 @@
       "y": -9263.441448457528
     },
     "mythology-greek/characters/odysseus.md": {
-      "x": 1322.8705511811038,
-      "y": -23928.55761992906
+      "x": -2024.841231994841,
+      "y": 569.9214484988199
     },
     "mythology-greek/characters/hephaestus.md": {
-      "x": 4261.670551181103,
-      "y": -23928.55761992906
+      "x": -1281.624209034516,
+      "y": 384.5316764616353
     },
     "mythology-greek/characters/artemis.md": {
-      "x": -1028.1694488188962,
-      "y": -23340.797619929057
+      "x": -835.698457948983,
+      "y": 430.8791194709314
     },
     "classic-sangokushi/characters/zhuge-liang.md": {
       "x": 3088.7177308639402,
       "y": -7593.132553663095
+    },
+    "classic-king-lear/characters/cordelia.md": {
+      "x": -21973.406918877863,
+      "y": -6093.36497113222
     },
     "classic-hamlet/characters/ophelia.md": {
       "x": 983.9934117991842,
       "y": 18485.25823002784
     },
     "classic-genji/characters/yugao.md": {
-      "x": 10939.922792791278,
-      "y": -1286.1106010311785
+      "x": 10939.922792880137,
+      "y": -1286.1106010668502
     },
     "classic-genji/characters/murasaki-no-ue.md": {
-      "x": 11527.69408354806,
-      "y": -1286.1106181847354
+      "x": 11527.69408329887,
+      "y": -1286.1106181122725
     },
     "classic-genji/characters/fujitsubo.md": {
-      "x": 12409.365440770014,
-      "y": -1286.1185822325456
+      "x": 12409.365440808235,
+      "y": -1286.1185821823635
+    },
+    "classic-divine-comedy/characters/beatrice.md": {
+      "x": 74483.05890848034,
+      "y": -16847.2705700234
     },
     "classic-arabian-nights/characters/aladdin.md": {
       "x": -11017.870354382934,
       "y": 76031.49755069152
     },
     "mythology-greek/characters/medusa.md": {
-      "x": 3086.1505511811038,
-      "y": -23928.55761992906
+      "x": -1578.9105439058455,
+      "y": 708.9637775267083
     },
     "classic-macbeth/characters/witch-first.md": {
       "x": 17282.799472863248,
       "y": 1505.3460687638496
+    },
+    "classic-king-lear/characters/fool-lear.md": {
+      "x": -23697.707019999478,
+      "y": -6093.36497113222
     },
     "classic-gilgamesh/characters/urshanabi.md": {
       "x": -54820.255345806436,
       "y": 50506.35599703869
     },
     "classic-genji/characters/tamakazura.md": {
-      "x": 12703.26257625723,
-      "y": -943.2190911610377
+      "x": 12703.262576608002,
+      "y": -943.2190911194049
     },
     "classic-arthurian/characters/merlin.md": {
-      "x": 23624.527376048114,
-      "y": 15784.390489285139
+      "x": 1917.622402701883,
+      "y": -6358.474935540656
     },
     "classic-arabian-nights/characters/ali-baba.md": {
       "x": -11758.254354382934,
       "y": 76031.49755069152
     },
     "bible-new-testament/characters/mary.md": {
-      "x": 4708.0216454035935,
-      "y": -925.1860206843864
+      "x": 4708.021645529485,
+      "y": -925.1860207182059
     },
     "bible-apocrypha/characters/judith.md": {
-      "x": 2871.2488315889614,
-      "y": -3044.9384027483216
+      "x": 2871.2488316668646,
+      "y": -3044.9384025284203
     },
     "mythology-norse/characters/sigurd.md": {
       "x": -316.70888045013066,
@@ -1745,12 +821,12 @@
       "y": -34651.59505726498
     },
     "mythology-greek/characters/perseus.md": {
-      "x": 735.110551181104,
-      "y": -23928.55761992906
+      "x": -2173.4858376204597,
+      "y": 662.6163345174122
     },
     "mythology-greek/characters/minotaur.md": {
-      "x": 1910.6305511811036,
-      "y": -23928.55761992906
+      "x": -1876.1955323865204,
+      "y": 801.6586635453007
     },
     "mythology-egyptian/characters/apophis.md": {
       "x": -22638.05115573609,
@@ -1773,32 +849,36 @@
       "y": 51987.123997038696
     },
     "classic-genji/characters/ukifune.md": {
-      "x": 10646.02752151077,
-      "y": -1286.106959599141
+      "x": 10646.027521556593,
+      "y": -1286.1069595914591
+    },
+    "classic-divine-comedy/characters/saint-peter.md": {
+      "x": 73002.29090848034,
+      "y": -18328.0385700234
     },
     "bible-old-testament/characters/david.md": {
-      "x": 4323.98899703751,
-      "y": -1692.388011613929
+      "x": 4323.988997209301,
+      "y": -1692.3880114682631
     },
     "bible-old-testament/characters/abraham.md": {
-      "x": 947.9993860721478,
-      "y": -3535.8169976611907
+      "x": 947.9993860137457,
+      "y": -3535.8169972405635
     },
     "bible-new-testament/characters/pontius-pilate.md": {
-      "x": 2078.6045136332136,
-      "y": -3373.2598506621252
+      "x": 2078.604513402559,
+      "y": -3373.2598507421003
     },
     "bible-apocrypha/characters/lilith.md": {
-      "x": 2350.4138414691206,
-      "y": -3282.793826350349
+      "x": 2350.4138415932866,
+      "y": -3282.793826018831
     },
     "bible-apocrypha/characters/enoch.md": {
-      "x": 4798.487914492206,
-      "y": -653.3760634801371
+      "x": 4798.487914344691,
+      "y": -653.3760632564079
     },
     "bible-apocrypha/characters/asmodeus.md": {
-      "x": 661.7122398572063,
-      "y": -3525.5917847051614
+      "x": 661.7122400673144,
+      "y": -3525.591784727168
     },
     "mythology-norse/characters/tyr.md": {
       "x": 3070.9041921841535,
@@ -1849,28 +929,32 @@
       "y": 51246.7399970387
     },
     "classic-genji/characters/to-no-chujo.md": {
-      "x": 12997.15756586685,
-      "y": -1286.1087692569008
+      "x": 12997.157565939378,
+      "y": -1286.108769048511
     },
     "classic-genji/characters/akashi-no-kimi.md": {
-      "x": 11821.581074822958,
-      "y": -1286.1170220489525
+      "x": 11821.581074834145,
+      "y": -1286.1170220899041
+    },
+    "classic-divine-comedy/characters/saint-bernard.md": {
+      "x": 73742.67490848033,
+      "y": -18328.0385700234
     },
     "classic-arthurian/characters/morgan-le-fay.md": {
-      "x": 22767.466380331207,
-      "y": 15784.390489285139
+      "x": 3081.166836708626,
+      "y": -6358.469267464129
     },
     "classic-arthurian/characters/guinevere.md": {
-      "x": 25767.179865340375,
-      "y": 15784.390489285139
+      "x": 3469.0184950450707,
+      "y": -6358.470687903931
     },
     "bible-new-testament/characters/peter.md": {
-      "x": 4869.33257933799,
-      "y": -375.8047098359795
+      "x": 4869.332579478205,
+      "y": -375.80470989542465
     },
     "bible-apocrypha/characters/samael.md": {
-      "x": 3785.6504890049505,
-      "y": -2360.4261028006213
+      "x": 3785.650488783401,
+      "y": -2360.426102771181
     },
     "mythology-norse/characters/freya.md": {
       "x": 1941.6998346393925,
@@ -1908,21 +992,33 @@
       "x": 1438.064145265802,
       "y": 18485.25823002784
     },
+    "classic-divine-comedy/characters/minos.md": {
+      "x": 75223.44290848034,
+      "y": -18328.0385700234
+    },
+    "classic-divine-comedy/characters/charon.md": {
+      "x": 73002.29090848034,
+      "y": -16847.2705700234
+    },
+    "classic-divine-comedy/characters/cato.md": {
+      "x": 73742.67490848033,
+      "y": -16847.2705700234
+    },
     "classic-arthurian/characters/lady-of-the-lake.md": {
-      "x": 24481.588371765018,
-      "y": 15784.390489285139
+      "x": 1141.9413152654195,
+      "y": -6697.867218645941
     },
     "bible-new-testament/characters/judas.md": {
-      "x": 3352.927182174822,
-      "y": -2735.3822553775926
+      "x": 3352.9271820676613,
+      "y": -2735.3822552798456
     },
     "bible-new-testament/characters/john.md": {
-      "x": 1234.2875394754356,
-      "y": -3525.5922357533373
+      "x": 1234.2875395580309,
+      "y": -3525.592235719126
     },
     "bible-apocrypha/characters/tobias.md": {
-      "x": 4470.165979042711,
-      "y": -1446.0190369784113
+      "x": 4470.165978881134,
+      "y": -1446.0190370701625
     },
     "classic-sangokushi/characters/sima-yi.md": {
       "x": 799.0805056790305,
@@ -1944,6 +1040,10 @@
       "x": 16261.140322563357,
       "y": 1732.3814354971585
     },
+    "classic-king-lear/characters/gloucester.md": {
+      "x": -24042.5670402238,
+      "y": -6093.36497113222
+    },
     "classic-hamlet/characters/rosencrantz.md": {
       "x": 302.8873115992575,
       "y": 18485.25823002784
@@ -1957,16 +1057,24 @@
       "y": 18485.25823002784
     },
     "classic-genji/characters/suetsumuhana.md": {
-      "x": 12409.367007102961,
-      "y": -943.2196694837093
+      "x": 12409.367007051085,
+      "y": -943.219669370061
+    },
+    "classic-divine-comedy/characters/statius.md": {
+      "x": 75223.44290848034,
+      "y": -19068.4225700234
+    },
+    "classic-divine-comedy/characters/matilda.md": {
+      "x": 73002.29090848034,
+      "y": -17587.6545700234
     },
     "bible-old-testament/characters/solomon.md": {
-      "x": 3575.9853751995224,
-      "y": -2555.63195439129
+      "x": 3575.9853753479156,
+      "y": -2555.631954719286
     },
     "bible-apocrypha/characters/metatron.md": {
-      "x": 3980.857987825735,
-      "y": -2150.759377384459
+      "x": 3980.857987909924,
+      "y": -2150.7593777927314
     },
     "mythology-norse/characters/frey.md": {
       "x": 2318.1012871543126,
@@ -1979,6 +1087,10 @@
     "classic-othello/characters/clown-othello.md": {
       "x": 2346.205612199037,
       "y": -15474.566092500141
+    },
+    "classic-king-lear/characters/edgar.md": {
+      "x": -23007.98697955083,
+      "y": -6093.36497113222
     },
     "classic-hamlet/characters/osric.md": {
       "x": 756.9580450658752,
@@ -1993,60 +1105,76 @@
       "y": 50506.35599703869
     },
     "classic-genji/characters/rokujo-no-miyasudokoro.md": {
-      "x": 12115.471952824002,
-      "y": -943.2212474612109
+      "x": 12115.471952770373,
+      "y": -943.2212474657408
     },
     "classic-genji/characters/niou-no-miya.md": {
-      "x": 11821.575375203134,
-      "y": -943.2217051194802
+      "x": 11821.57537509671,
+      "y": -943.221704999437
     },
     "classic-genji/characters/kokiden-no-nyogo.md": {
-      "x": 10939.924718405886,
-      "y": -943.2177649457201
+      "x": 10939.92471843104,
+      "y": -943.2177649393722
     },
     "classic-genji/characters/aoi-no-ue.md": {
-      "x": 12115.472006155529,
-      "y": -1286.1196671572304
+      "x": 12115.472006134034,
+      "y": -1286.119667285061
+    },
+    "classic-divine-comedy/characters/ugolino.md": {
+      "x": 74483.05890848034,
+      "y": -19068.4225700234
     },
     "classic-arabian-nights/characters/morgiana.md": {
       "x": -11017.870354382934,
       "y": 74550.72955069151
     },
     "bible-old-testament/characters/samson.md": {
-      "x": -975.2457802395969,
-      "y": 3999.392927548126
+      "x": -975.2457802163428,
+      "y": 3999.392927413914
     },
     "bible-new-testament/characters/paul.md": {
-      "x": -2264.6089726078176,
-      "y": -1927.7012662494622
+      "x": -2264.6089725765755,
+      "y": -1927.701265979826
     },
     "bible-new-testament/characters/mary-magdalene.md": {
-      "x": 2615.077797690293,
-      "y": -3173.16815665902
+      "x": 2615.0777975838637,
+      "y": -3173.1681566057778
     },
     "mythology-norse/characters/surtr.md": {
       "x": -693.1103329650509,
       "y": -34651.59505726498
     },
+    "classic-king-lear/characters/kent.md": {
+      "x": -24732.287080672446,
+      "y": -6093.36497113222
+    },
     "classic-gilgamesh/characters/shamhat.md": {
       "x": -53339.48734580644,
       "y": 50506.35599703869
     },
+    "classic-divine-comedy/characters/paolo.md": {
+      "x": 74483.05890848034,
+      "y": -18328.0385700234
+    },
+    "classic-divine-comedy/characters/francesca.md": {
+      "x": 74483.05890848034,
+      "y": -17587.6545700234
+    },
     "classic-arthurian/characters/isolde.md": {
-      "x": 25338.64936748192,
-      "y": 15784.390489285139
+      "x": 366.25154525175805,
+      "y": -6358.492356267023
     },
     "classic-arabian-nights/characters/princess-badroulbadour.md": {
       "x": -11758.254354382934,
       "y": 74550.72955069151
     },
     "bible-old-testament/characters/elijah.md": {
-      "x": 3117.615946545508,
-      "y": -2898.7614657545055
+      "x": 3117.615946244589,
+      "y": -2898.7614658158504
     },
     "bible-old-testament/characters/adam.md": {
-      "x": 4160.609401285816,
-      "y": -1927.7011093477797
+      "x": 4160.609401305002,
+      "y": -1927.7011093480717
     },
     "mythology-japanese/characters/okuninushi.md": {
       "x": 37592.292941163025,
@@ -2065,8 +1193,8 @@
       "y": -9263.441448457528
     },
     "mythology-greek/characters/kronos.md": {
-      "x": 2498.3905511811035,
-      "y": -23928.55761992906
+      "x": -1727.552302652459,
+      "y": 755.3112205360046
     },
     "classic-saiyuki/characters/dragon-horse.md": {
       "x": 55383.56414580646,
@@ -2088,9 +1216,17 @@
       "x": 37222.935464956594,
       "y": -9263.441448457528
     },
+    "classic-king-lear/characters/doctor-lear.md": {
+      "x": -22663.12695932651,
+      "y": -6093.36497113222
+    },
     "classic-hamlet/characters/player-king.md": {
       "x": 529.9226783325664,
       "y": 18485.25823002784
+    },
+    "classic-divine-comedy/characters/ulysses.md": {
+      "x": 73742.67490848033,
+      "y": -19068.4225700234
     },
     "classic-othello/MOC.md": {
       "x": -264.701105234015,
@@ -2100,13 +1236,73 @@
       "x": 16715.211056029973,
       "y": 1732.3814354971585
     },
+    "classic-king-lear/MOC.md": {
+      "x": -25077.147100896767,
+      "y": -5748.504950907896
+    },
     "classic-hamlet/MOC.md": {
       "x": -264.701105234015,
       "y": 18712.29359676115
     },
+    "classic-king-lear/episodes/ep08_final-battle.md": {
+      "x": 9519.685181713414,
+      "y": -459.99085703730776
+    },
+    "classic-king-lear/episodes/ep06_mad-king.md": {
+      "x": -25422.007121121092,
+      "y": -8507.38511270248
+    },
+    "classic-king-lear/episodes/sc24_final-tragedy.md": {
+      "x": 60464.06619765224,
+      "y": 170472.822335329
+    },
+    "classic-king-lear/episodes/act3_war-and-death.md": {
+      "x": 8425.40894932117,
+      "y": -459.97603211735816
+    },
+    "classic-king-lear/episodes/act2_storm-and-madness.md": {
+      "x": 62343.62619765224,
+      "y": 177991.06233532898
+    },
+    "classic-king-lear/episodes/sc23_sisters-end.md": {
+      "x": 61403.84619765224,
+      "y": 170472.822335329
+    },
+    "classic-king-lear/episodes/sc16_fool-vanishes.md": {
+      "x": 64223.186197652234,
+      "y": 170472.822335329
+    },
+    "classic-king-lear/episodes/bt71_lear-dies.md": {
+      "x": 66102.74619765223,
+      "y": 172352.382335329
+    },
+    "classic-king-lear/episodes/ep04_storm-on-heath.md": {
+      "x": 61403.84619765224,
+      "y": 172352.382335329
+    },
+    "classic-king-lear/episodes/bt70_cordelia-dead.md": {
+      "x": 67042.52619765223,
+      "y": 172352.382335329
+    },
     "classic-othello/episodes/act2_seeds-of-jealousy.md": {
       "x": 162339.67636283944,
       "y": 97113.90490068549
+    },
+    "classic-king-lear/episodes/sc15_mad-king-flowers.md": {
+      "x": -22663.12695932651,
+      "y": -9197.105153151124
+    },
+    "classic-king-lear/episodes/sc09_storm-begins.md": {
+      "x": 67982.30619765223,
+      "y": 170472.822335329
+    },
+    "classic-king-lear/episodes/ep07_dover-reunion.md": {
+      "x": 67982.30619765223,
+      "y": 171412.602335329
+    },
+    "classic-king-lear/episodes/ep05_gloucester-blinding.md": {
+      "x": 60464.06619765224,
+      "y": 172352.382335329
     },
     "classic-othello/episodes/ep01_elopement.md": {
       "x": 163279.45636283944,
@@ -2136,13 +1332,21 @@
       "x": 122035.7152209547,
       "y": 145263.1992629075
     },
+    "classic-king-lear/episodes/sc02_cordelia-nothing.md": {
+      "x": 66102.74619765223,
+      "y": 171412.602335329
+    },
+    "classic-king-lear/episodes/act1_division-of-kingdom.md": {
+      "x": 63283.406197652235,
+      "y": 177991.06233532898
+    },
     "classic-hamlet/episodes/sc08_02_poison-duel.md": {
-      "x": 12072.942789207627,
-      "y": 705.1726814151721
+      "x": 12072.942789087458,
+      "y": 705.1726814004179
     },
     "classic-hamlet/episodes/ep08_final-duel.md": {
-      "x": 11890.556877287107,
-      "y": 1059.8194077568062
+      "x": 11890.556877307845,
+      "y": 1059.8194079527414
     },
     "classic-hamlet/episodes/bt03_02_02_spy-mission.md": {
       "x": 2910.831645569633,
@@ -2197,16 +1401,80 @@
       "y": 139624.5192629075
     },
     "classic-macbeth/episodes/ep07_macduff-revenge.md": {
-      "x": 10978.713095951141,
-      "y": -1625.1913862106903
+      "x": 10978.71309591265,
+      "y": -1625.1913863351963
     },
     "classic-macbeth/episodes/ep03_murder-of-duncan.md": {
       "x": 122035.7152209547,
       "y": 139624.5192629075
     },
     "classic-macbeth/episodes/act3_retribution.md": {
-      "x": 10796.316155798157,
-      "y": -1625.1892125668826
+      "x": 10796.316155782826,
+      "y": -1625.1892124457097
+    },
+    "classic-king-lear/episodes/sc21_battle-of-dover.md": {
+      "x": 9519.67325834613,
+      "y": -105.34687023752103
+    },
+    "classic-king-lear/episodes/sc19_edgar-oswald.md": {
+      "x": 9337.280488559754,
+      "y": -459.98790859149716
+    },
+    "classic-king-lear/episodes/sc17_cordelia-camp.md": {
+      "x": 63283.406197652235,
+      "y": 170472.822335329
+    },
+    "classic-king-lear/episodes/sc11_gloucester-aid.md": {
+      "x": 67042.52619765223,
+      "y": 170472.822335329
+    },
+    "classic-king-lear/episodes/sc08_edgar-exile.md": {
+      "x": 60464.06619765224,
+      "y": 171412.602335329
+    },
+    "classic-king-lear/episodes/sc07_forged-letter.md": {
+      "x": 61403.84619765224,
+      "y": 171412.602335329
+    },
+    "classic-king-lear/episodes/sc06_regan-rejection.md": {
+      "x": 62343.62619765224,
+      "y": 171412.602335329
+    },
+    "classic-king-lear/episodes/sc05_goneril-cruelty.md": {
+      "x": 63283.406197652235,
+      "y": 171412.602335329
+    },
+    "classic-king-lear/episodes/sc01_throne-room.md": {
+      "x": 67042.52619765223,
+      "y": 171412.602335329
+    },
+    "classic-king-lear/episodes/ep02_banishment.md": {
+      "x": 63283.406197652235,
+      "y": 172352.382335329
+    },
+    "classic-king-lear/episodes/ep01_love-test.md": {
+      "x": 64223.186197652234,
+      "y": 172352.382335329
+    },
+    "classic-king-lear/episodes/bt45_wisdom-in-madness.md": {
+      "x": -21973.406918877863,
+      "y": -7817.665072253833
+    },
+    "classic-king-lear/episodes/bt36_eyes-gouged.md": {
+      "x": 67042.52619765223,
+      "y": 174231.942335329
+    },
+    "classic-king-lear/episodes/bt34_gloucester-captured.md": {
+      "x": 60464.06619765224,
+      "y": 175171.722335329
+    },
+    "classic-king-lear/episodes/bt25_blow-winds.md": {
+      "x": 66102.74619765223,
+      "y": 175171.722335329
+    },
+    "classic-king-lear/episodes/bt18_nothing-left.md": {
+      "x": 62343.62619765224,
+      "y": 176111.502335329
     },
     "classic-hamlet/episodes/sc08_03_rest-is-silence.md": {
       "x": -2727.8483544303663,
@@ -2217,8 +1485,8 @@
       "y": 182395.77818074654
     },
     "classic-hamlet/episodes/ep06_death-of-polonius.md": {
-      "x": 13167.237793817549,
-      "y": 705.1633556797916
+      "x": 13167.237793772725,
+      "y": 705.1633559157987
     },
     "classic-hamlet/episodes/ep05_nunnery-scene.md": {
       "x": -2727.8483544303663,
@@ -2237,8 +1505,8 @@
       "y": 187094.67818074653
     },
     "classic-hamlet/episodes/act3_blood-and-death.md": {
-      "x": 12620.117791963494,
-      "y": 705.1649441865347
+      "x": 12620.117791831548,
+      "y": 705.1649443807564
     },
     "classic-hamlet/episodes/act2_madness-and-trap.md": {
       "x": 1971.0516455696334,
@@ -2341,24 +1609,24 @@
       "y": 97113.90490068549
     },
     "classic-macbeth/episodes/sc21_march-to-scotland.md": {
-      "x": 3683.61779800921,
-      "y": -1625.1498848968915
+      "x": 3683.617797901335,
+      "y": -1625.1498850371788
     },
     "classic-macbeth/episodes/sc20_grief-and-resolve.md": {
       "x": 117336.81522095471,
       "y": 138684.7392629075
     },
     "classic-macbeth/episodes/sc15_macduff-family-slaughter.md": {
-      "x": -1422.9102105426578,
-      "y": -1625.1341083477087
+      "x": -1422.910210773733,
+      "y": -1625.134108415355
     },
     "classic-macbeth/episodes/sc11_banquet-ghost.md": {
       "x": 18190.94093979648,
       "y": -765.0075985692392
     },
     "classic-macbeth/episodes/sc10_banquo-murder.md": {
-      "x": -5252.822424956614,
-      "y": -1625.1233081864411
+      "x": -5252.822425297681,
+      "y": -1625.1233083445654
     },
     "classic-macbeth/episodes/sc08_regicide.md": {
       "x": 116397.0352209547,
@@ -2377,8 +1645,8 @@
       "y": -310.9368651026216
     },
     "classic-macbeth/episodes/ep08_final-battle.md": {
-      "x": 11161.110079064996,
-      "y": -1625.1937438522143
+      "x": 11161.110079137425,
+      "y": -1625.1937438537914
     },
     "classic-macbeth/episodes/ep04_banquo-ghost.md": {
       "x": 17169.281789496592,
@@ -2408,6 +1676,114 @@
       "x": 18985.564723363063,
       "y": 1278.3107020305406
     },
+    "classic-king-lear/episodes/sc22_duel-of-brothers.md": {
+      "x": 10066.804951608901,
+      "y": -459.99109858952147
+    },
+    "classic-king-lear/episodes/sc20_armies-gather.md": {
+      "x": 62343.62619765224,
+      "y": 170472.822335329
+    },
+    "classic-king-lear/episodes/sc18_lear-awakens.md": {
+      "x": -23697.707019999478,
+      "y": -9197.105153151124
+    },
+    "classic-king-lear/episodes/sc12_cornwall-interrogation.md": {
+      "x": 66102.74619765223,
+      "y": 170472.822335329
+    },
+    "classic-king-lear/episodes/sc10_hovel-encounter.md": {
+      "x": -25077.147100896767,
+      "y": -8852.245132926802
+    },
+    "classic-king-lear/episodes/sc04_kent-exile.md": {
+      "x": 64223.186197652234,
+      "y": 171412.602335329
+    },
+    "classic-king-lear/episodes/sc03_suitors-choice.md": {
+      "x": 65162.96619765223,
+      "y": 171412.602335329
+    },
+    "classic-king-lear/episodes/ep03_edmund-plot.md": {
+      "x": 62343.62619765224,
+      "y": 172352.382335329
+    },
+    "classic-king-lear/episodes/bt72_new-order.md": {
+      "x": 65162.96619765223,
+      "y": 172352.382335329
+    },
+    "classic-king-lear/episodes/bt64_albany-accusation.md": {
+      "x": 62343.62619765224,
+      "y": 173292.162335329
+    },
+    "classic-king-lear/episodes/bt62_lear-cordelia-captured.md": {
+      "x": 63283.406197652235,
+      "y": 173292.162335329
+    },
+    "classic-king-lear/episodes/bt58_edmund-command.md": {
+      "x": 66102.74619765223,
+      "y": 173292.162335329
+    },
+    "classic-king-lear/episodes/bt57_letter-discovered.md": {
+      "x": -21973.406918877863,
+      "y": -8162.525092478157
+    },
+    "classic-king-lear/episodes/bt53_father-daughter.md": {
+      "x": -24732.287080672446,
+      "y": -7817.665072253833
+    },
+    "classic-king-lear/episodes/bt44_blind-meets-mad.md": {
+      "x": -25766.867141345414,
+      "y": -7472.805052029511
+    },
+    "classic-king-lear/episodes/bt35_regan-cruelty.md": {
+      "x": 67982.30619765223,
+      "y": 174231.942335329
+    },
+    "classic-king-lear/episodes/bt33_lear-to-dover.md": {
+      "x": 61403.84619765224,
+      "y": 175171.722335329
+    },
+    "classic-king-lear/episodes/bt30_mock-trial.md": {
+      "x": -25077.147100896767,
+      "y": -7127.945031805188
+    },
+    "classic-king-lear/episodes/bt28_poor-tom-meets-lear.md": {
+      "x": -24387.427060448124,
+      "y": -7127.945031805188
+    },
+    "classic-king-lear/episodes/bt17_kent-stocked.md": {
+      "x": 63283.406197652235,
+      "y": 176111.502335329
+    },
+    "classic-king-lear/episodes/bt16_cornwall-gate.md": {
+      "x": 64223.186197652234,
+      "y": 176111.502335329
+    },
+    "classic-king-lear/episodes/bt13_oswald-insolence.md": {
+      "x": 67042.52619765223,
+      "y": 176111.502335329
+    },
+    "classic-king-lear/episodes/bt07_burgundy-refusal.md": {
+      "x": 64223.186197652234,
+      "y": 177051.282335329
+    },
+    "classic-king-lear/episodes/bt04_nothing-spoken.md": {
+      "x": 67042.52619765223,
+      "y": 177051.282335329
+    },
+    "classic-king-lear/episodes/bt03_regan-flattery.md": {
+      "x": 67982.30619765223,
+      "y": 177051.282335329
+    },
+    "classic-king-lear/episodes/bt02_goneril-flattery.md": {
+      "x": 60464.06619765224,
+      "y": 177991.06233532898
+    },
+    "classic-king-lear/episodes/bt01_royal-decree.md": {
+      "x": 61403.84619765224,
+      "y": 177991.06233532898
+    },
     "classic-hamlet/episodes/sc08_01_graveyard-scene.md": {
       "x": -1788.0683544303665,
       "y": 181455.99818074654
@@ -2429,8 +1805,8 @@
       "y": 15987.869195961443
     },
     "classic-hamlet/episodes/sc06_02_killing-polonius.md": {
-      "x": 13167.250256763284,
-      "y": 1059.811537382196
+      "x": 13167.250256692134,
+      "y": 1059.8115373331548
     },
     "classic-hamlet/episodes/sc05_03_claudius-decides.md": {
       "x": 2910.831645569633,
@@ -2461,8 +1837,8 @@
       "y": 183335.55818074654
     },
     "classic-hamlet/episodes/bt08_02_01_duel-begins.md": {
-      "x": 13349.635477244363,
-      "y": 705.1652691654089
+      "x": 13349.6354769679,
+      "y": 705.165269407404
     },
     "classic-hamlet/episodes/bt08_01_03_ophelias-funeral.md": {
       "x": 1031.2716455696332,
@@ -2565,8 +1941,8 @@
       "y": -16836.778292899995
     },
     "classic-othello/episodes/bt66_iago-stabs-emilia.md": {
-      "x": 10613.892794090978,
-      "y": 10634.634753699485
+      "x": 10613.89279412937,
+      "y": 10634.634753483142
     },
     "classic-othello/episodes/bt65_iago-threatens-emilia.md": {
       "x": 158580.55636283944,
@@ -2681,8 +2057,8 @@
       "y": 94294.5649006855
     },
     "classic-othello/episodes/bt28_cassio-fights.md": {
-      "x": 1859.8591800089212,
-      "y": 10634.59298690739
+      "x": 1859.8591801593848,
+      "y": 10634.592987006698
     },
     "classic-othello/episodes/bt26_iago-drinking-plan.md": {
       "x": 165159.01636283944,
@@ -2753,12 +2129,12 @@
       "y": 97113.90490068549
     },
     "classic-macbeth/episodes/sc23_final-duel.md": {
-      "x": 5507.4071172887825,
-      "y": -1625.1580556972222
+      "x": 5507.407117439768,
+      "y": -1625.1580558567573
     },
     "classic-macbeth/episodes/sc22_birnam-wood-moves.md": {
-      "x": 4595.514373038308,
-      "y": -1625.1547124776864
+      "x": 4595.514373267997,
+      "y": -1625.1547125152763
     },
     "classic-macbeth/episodes/sc19_england-alliance.md": {
       "x": 118276.59522095471,
@@ -2801,28 +2177,28 @@
       "y": 140564.2992629075
     },
     "classic-macbeth/episodes/bt69_tyrant-falls.md": {
-      "x": 6054.541292526913,
-      "y": -1625.1534484524489
+      "x": 6054.541292514949,
+      "y": -1625.153448374946
     },
     "classic-macbeth/episodes/bt68_not-of-woman.md": {
       "x": 17055.764106129936,
       "y": 143.13386836399627
     },
     "classic-macbeth/episodes/bt67_swords-clash.md": {
-      "x": 5507.404024488958,
-      "y": -1270.516087232083
+      "x": 5507.404024188906,
+      "y": -1270.516087231209
     },
     "classic-macbeth/episodes/bt63_march-begins.md": {
-      "x": 4230.750880380502,
-      "y": -1625.1499659770877
+      "x": 4230.750880223309,
+      "y": -1625.1499660941179
     },
     "classic-macbeth/episodes/bt62_nobles-defect.md": {
       "x": 118276.59522095471,
       "y": 140564.2992629075
     },
     "classic-macbeth/episodes/bt61_army-gathers.md": {
-      "x": 3683.6179328664084,
-      "y": -1270.5108263173909
+      "x": 3683.6179330331624,
+      "y": -1270.510826545853
     },
     "classic-macbeth/episodes/bt60_grief-to-sword.md": {
       "x": 119216.37522095471,
@@ -2869,8 +2245,8 @@
       "y": 143383.6392629075
     },
     "classic-macbeth/episodes/bt30_fleance-escapes.md": {
-      "x": -4158.547421502516,
-      "y": -1625.124894437054
+      "x": -4158.547421356521,
+      "y": -1625.1248944934862
     },
     "classic-macbeth/episodes/bt31_ghost-appears.md": {
       "x": 18531.493989896444,
@@ -2932,6 +2308,174 @@
       "x": 18531.493989896444,
       "y": 1278.3107020305406
     },
+    "classic-king-lear/episodes/sc14_blind-wandering.md": {
+      "x": 65162.96619765223,
+      "y": 170472.822335329
+    },
+    "classic-king-lear/episodes/sc13_servant-revolt.md": {
+      "x": 5325.018875048488,
+      "y": -459.95225296410626
+    },
+    "classic-king-lear/episodes/bt69_edmund-repents.md": {
+      "x": -21973.406918877863,
+      "y": -8507.38511270248
+    },
+    "classic-king-lear/episodes/bt68_goneril-suicide.md": {
+      "x": 67982.30619765223,
+      "y": 172352.382335329
+    },
+    "classic-king-lear/episodes/bt67_regan-poisoned.md": {
+      "x": 60464.06619765224,
+      "y": 173292.162335329
+    },
+    "classic-king-lear/episodes/bt66_edmund-falls.md": {
+      "x": 10249.206271054087,
+      "y": -459.99164177563443
+    },
+    "classic-king-lear/episodes/bt65_edgar-reveals.md": {
+      "x": -24732.287080672446,
+      "y": -8162.525092478157
+    },
+    "classic-king-lear/episodes/bt63_prison-song.md": {
+      "x": 61403.84619765224,
+      "y": 173292.162335329
+    },
+    "classic-king-lear/episodes/bt61_french-defeat.md": {
+      "x": 12255.360540530324,
+      "y": -460.020752622472
+    },
+    "classic-king-lear/episodes/bt60_eve-of-battle.md": {
+      "x": 64223.186197652234,
+      "y": 173292.162335329
+    },
+    "classic-king-lear/episodes/bt59_albany-doubt.md": {
+      "x": 65162.96619765223,
+      "y": 173292.162335329
+    },
+    "classic-king-lear/episodes/bt56_edgar-kills-oswald.md": {
+      "x": 12072.963472654263,
+      "y": -460.01842622044353
+    },
+    "classic-king-lear/episodes/bt55_oswald-attacks.md": {
+      "x": 11890.566166519284,
+      "y": -460.01559803550225
+    },
+    "classic-king-lear/episodes/bt54_forgiveness.md": {
+      "x": -25077.147100896767,
+      "y": -7817.665072253833
+    },
+    "classic-king-lear/episodes/bt52_music-plays.md": {
+      "x": 67042.52619765223,
+      "y": 173292.162335329
+    },
+    "classic-king-lear/episodes/bt51_kent-report.md": {
+      "x": 67982.30619765223,
+      "y": 173292.162335329
+    },
+    "classic-king-lear/episodes/bt50_doctor-counsel.md": {
+      "x": 60464.06619765224,
+      "y": 174231.942335329
+    },
+    "classic-king-lear/episodes/bt48_cordelia-approaches.md": {
+      "x": 62343.62619765224,
+      "y": 174231.942335329
+    },
+    "classic-king-lear/episodes/bt46_fool-last-words.md": {
+      "x": 64223.186197652234,
+      "y": 174231.942335329
+    },
+    "classic-king-lear/episodes/bt43_flower-crown.md": {
+      "x": -25422.007121121092,
+      "y": -7472.805052029511
+    },
+    "classic-king-lear/episodes/bt42_dover-cliff.md": {
+      "x": -25077.147100896767,
+      "y": -7472.805052029511
+    },
+    "classic-king-lear/episodes/bt41_edgar-guides.md": {
+      "x": 65162.96619765223,
+      "y": 174231.942335329
+    },
+    "classic-king-lear/episodes/bt38_cornwall-wounded.md": {
+      "x": 12984.883575349073,
+      "y": -460.024525503799
+    },
+    "classic-king-lear/episodes/bt31_gloucester-loyalty.md": {
+      "x": 62343.62619765224,
+      "y": 175171.722335329
+    },
+    "classic-king-lear/episodes/bt32_edmund-betrayal.md": {
+      "x": 63283.406197652235,
+      "y": 175171.722335329
+    },
+    "classic-king-lear/episodes/bt29_lear-strips.md": {
+      "x": -24732.287080672446,
+      "y": -7127.945031805188
+    },
+    "classic-king-lear/episodes/bt27_kent-shelter.md": {
+      "x": 64223.186197652234,
+      "y": 175171.722335329
+    },
+    "classic-king-lear/episodes/bt26_fool-prophecy.md": {
+      "x": -23697.707019999478,
+      "y": -7127.945031805188
+    },
+    "classic-king-lear/episodes/bt24_edmund-rises.md": {
+      "x": 65162.96619765223,
+      "y": 175171.722335329
+    },
+    "classic-king-lear/episodes/bt23_poor-tom.md": {
+      "x": 67042.52619765223,
+      "y": 175171.722335329
+    },
+    "classic-king-lear/episodes/bt21_edgar-framed.md": {
+      "x": 67982.30619765223,
+      "y": 175171.722335329
+    },
+    "classic-king-lear/episodes/bt22_edgar-hunted.md": {
+      "x": 60464.06619765224,
+      "y": 176111.502335329
+    },
+    "classic-king-lear/episodes/bt20_gloucester-deceived.md": {
+      "x": 61403.84619765224,
+      "y": 176111.502335329
+    },
+    "classic-king-lear/episodes/bt15_lear-curse.md": {
+      "x": 65162.96619765223,
+      "y": 176111.502335329
+    },
+    "classic-king-lear/episodes/bt14_retinue-reduced.md": {
+      "x": 66102.74619765223,
+      "y": 176111.502335329
+    },
+    "classic-king-lear/episodes/bt11_kent-disguise.md": {
+      "x": 67982.30619765223,
+      "y": 176111.502335329
+    },
+    "classic-king-lear/episodes/bt12_kent-return.md": {
+      "x": 60464.06619765224,
+      "y": 177051.282335329
+    },
+    "classic-king-lear/episodes/bt10_kent-farewell.md": {
+      "x": 61403.84619765224,
+      "y": 177051.282335329
+    },
+    "classic-king-lear/episodes/bt09_sisters-plot.md": {
+      "x": 62343.62619765224,
+      "y": 177051.282335329
+    },
+    "classic-king-lear/episodes/bt08_france-acceptance.md": {
+      "x": 63283.406197652235,
+      "y": 177051.282335329
+    },
+    "classic-king-lear/episodes/bt06_kent-protest.md": {
+      "x": 65162.96619765223,
+      "y": 177051.282335329
+    },
+    "classic-king-lear/episodes/bt05_lear-rage.md": {
+      "x": 66102.74619765223,
+      "y": 177051.282335329
+    },
     "classic-hamlet/episodes/sc06_01_closet-confrontation.md": {
       "x": 1971.0516455696334,
       "y": 181455.99818074654
@@ -2973,16 +2517,16 @@
       "y": 16896.010662894678
     },
     "classic-hamlet/episodes/bt08_03_02_claudius-slain.md": {
-      "x": 12620.097067288407,
-      "y": 1414.436073361924
+      "x": 12620.097067516186,
+      "y": 1414.4360736217027
     },
     "classic-hamlet/episodes/bt08_02_03_swords-exchanged.md": {
-      "x": 12437.721583830174,
-      "y": 705.1678207437008
+      "x": 12437.721583757855,
+      "y": 705.1678207298775
     },
     "classic-hamlet/episodes/bt08_02_02_gertrude-drinks.md": {
-      "x": 13532.031810500008,
-      "y": 705.167641526544
+      "x": 13532.03181044378,
+      "y": 705.1676416480342
     },
     "classic-hamlet/episodes/bt08_01_01_gravedigger-riddles.md": {
       "x": 2910.831645569633,
@@ -2993,8 +2537,8 @@
       "y": 184275.33818074653
     },
     "classic-hamlet/episodes/bt07_02_01_laertes-storms-in.md": {
-      "x": 12620.101736719342,
-      "y": 1059.8124147335548
+      "x": 12620.1017367084,
+      "y": 1059.8124144411822
     },
     "classic-hamlet/episodes/bt06_03_03_hamlet-departs.md": {
       "x": 2910.831645569633,
@@ -3005,12 +2549,12 @@
       "y": 184275.33818074653
     },
     "classic-hamlet/episodes/bt06_02_02_polonius-falls.md": {
-      "x": 12255.331753642438,
-      "y": 705.1714690840073
+      "x": 12255.331753581375,
+      "y": 705.1714691140475
     },
     "classic-hamlet/episodes/bt06_02_01_rat-cry.md": {
-      "x": 11890.544934353911,
-      "y": 705.1730261772401
+      "x": 11890.544934314607,
+      "y": 705.1730262510923
     },
     "classic-hamlet/episodes/bt06_01_03_gertrude-cries.md": {
       "x": -2727.8483544303663,
@@ -3173,16 +2717,16 @@
       "y": -537.9722318359303
     },
     "classic-macbeth/episodes/bt66_macbeth-defiant.md": {
-      "x": 5142.643126494889,
-      "y": -1625.1544331667365
+      "x": 5142.643126567678,
+      "y": -1625.1544329158748
     },
     "classic-macbeth/episodes/bt65_forest-moves.md": {
       "x": 17736.870206329866,
       "y": 143.13386836399627
     },
     "classic-macbeth/episodes/bt64_branches-cut.md": {
-      "x": 4595.5105307453905,
-      "y": -1270.5110686616665
+      "x": 4595.51053053661,
+      "y": -1270.5110687148065
     },
     "classic-macbeth/episodes/bt59_all-my-children.md": {
       "x": 120156.15522095471,
@@ -3217,8 +2761,8 @@
       "y": 142443.8592629075
     },
     "classic-macbeth/episodes/bt45_slaughter.md": {
-      "x": -875.7731994999167,
-      "y": -1625.13435074165
+      "x": -875.773199619936,
+      "y": -1625.1343506045916
     },
     "classic-macbeth/episodes/bt43_order-to-kill.md": {
       "x": 119216.37522095471,
@@ -3253,8 +2797,8 @@
       "y": 142443.8592629075
     },
     "classic-macbeth/episodes/bt29_ambush.md": {
-      "x": -4888.0562434122,
-      "y": -1625.1235132109193
+      "x": -4888.0562433149225,
+      "y": -1625.1235131723386
     },
     "classic-macbeth/episodes/bt28_murderers-hired.md": {
       "x": 117336.81522095471,
@@ -3299,6 +2843,30 @@
     "classic-macbeth/episodes/bt01_storm-gathers.md": {
       "x": 19212.600090096374,
       "y": 1278.3107020305406
+    },
+    "classic-king-lear/episodes/bt49_cordelia-prayer.md": {
+      "x": 61403.84619765224,
+      "y": 174231.942335329
+    },
+    "classic-king-lear/episodes/bt47_silence-descends.md": {
+      "x": 63283.406197652235,
+      "y": 174231.942335329
+    },
+    "classic-king-lear/episodes/bt40_gloucester-expelled.md": {
+      "x": 66102.74619765223,
+      "y": 174231.942335329
+    },
+    "classic-king-lear/episodes/bt39_gloucester-truth.md": {
+      "x": -24042.5670402238,
+      "y": -7472.805052029511
+    },
+    "classic-king-lear/episodes/bt37_servant-stands.md": {
+      "x": 12802.479702947945,
+      "y": -460.0243834010993
+    },
+    "classic-king-lear/episodes/bt19_edmund-soliloquy.md": {
+      "x": -25422.007121121092,
+      "y": -6783.085011580865
     },
     "classic-hamlet/episodes/sc05_01_to-be-or-not.md": {
       "x": 4790.391645569633,
@@ -3389,8 +2957,8 @@
       "y": 188974.23818074653
     },
     "mythology-greek/MOC.md": {
-      "x": 1322.8705511811038,
-      "y": -23340.797619929057
+      "x": 22866.231358408288,
+      "y": 32833.08958997446
     },
     "mythology-norse/MOC.md": {
       "x": 436.0940245797105,
@@ -3429,8 +2997,8 @@
       "y": -37286.40522486943
     },
     "mythology-japanese/episodes/sc04_03_pursuit_escape.md": {
-      "x": -2517.1762119024543,
-      "y": -8514.966766705928
+      "x": -2517.176211802908,
+      "y": -8514.96676664725
     },
     "mythology-japanese/episodes/sc04_02_yomi_descent.md": {
       "x": 64694.72493449434,
@@ -3441,8 +3009,8 @@
       "y": -176100.1266840132
     },
     "mythology-greek/episodes/ep03_twelve_labors.md": {
-      "x": 735.110551181104,
-      "y": -28042.87761992906
+      "x": 22359.631358408285,
+      "y": 28780.289589974454
     },
     "mythology-japanese/episodes/sc05_03_final_journey.md": {
       "x": 63754.94493449434,
@@ -3453,20 +3021,20 @@
       "y": -11848.943781902544
     },
     "mythology-greek/episodes/ep07_orpheus.md": {
-      "x": -1615.9294488188964,
-      "y": -28042.87761992906
+      "x": 20333.231358408288,
+      "y": 28780.289589974454
     },
     "mythology-greek/episodes/ep04_odyssey.md": {
-      "x": 147.3505511811038,
-      "y": -28042.87761992906
+      "x": 21853.031358408287,
+      "y": 28780.289589974454
     },
     "mythology-norse/episodes/ep06_sigurd_dragon.md": {
       "x": -316.70888045013066,
       "y": -37286.40522486943
     },
     "mythology-greek/episodes/ep08_theseus_labyrinth.md": {
-      "x": -2203.6894488188964,
-      "y": -28042.87761992906
+      "x": 19826.631358408285,
+      "y": 28780.289589974454
     },
     "mythology-japanese/episodes/ep02_amano-iwato.md": {
       "x": 65634.50493449434,
@@ -3481,20 +3049,20 @@
       "y": -175160.3466840132
     },
     "mythology-japanese/episodes/ep03_yamata-no-orochi.md": {
-      "x": -7076.586299051062,
-      "y": -8514.963829627655
+      "x": -7076.586299071811,
+      "y": -8514.963829744489
     },
     "mythology-norse/episodes/sc05_02_great_battle.md": {
-      "x": -146.27353347311782,
-      "y": -9680.165152860844
+      "x": -146.27353337471575,
+      "y": -9680.165152917734
     },
     "mythology-norse/episodes/ep05_ragnarok.md": {
-      "x": -1787.6546432781952,
-      "y": -9680.161968595921
+      "x": -1787.6546435617352,
+      "y": -9680.161968859906
     },
     "mythology-greek/episodes/ep06_trojan_war.md": {
-      "x": 1859.873866176727,
-      "y": -6640.524452079575
+      "x": 1859.8738664857033,
+      "y": -6640.524452206016
     },
     "mythology-egyptian/episodes/sc08_03_moonlight_won.md": {
       "x": -22638.05115573609,
@@ -3509,8 +3077,8 @@
       "y": -93672.43472188218
     },
     "mythology-egyptian/episodes/ep04_horus_vs_set.md": {
-      "x": -3793.800717160614,
-      "y": -5120.696814354484
+      "x": -3793.8007172892876,
+      "y": -5120.696814158538
     },
     "mythology-norse/episodes/sc04_03_hels_condition.md": {
       "x": 3907.6056716418043,
@@ -3569,8 +3137,8 @@
       "y": -186269.4825354367
     },
     "mythology-norse/episodes/bt05_02_03_thor_last_stand.md": {
-      "x": 947.9990593369303,
-      "y": -9680.169430135153
+      "x": 947.999059583058,
+      "y": -9680.169430225942
     },
     "mythology-norse/episodes/bt05_02_01_chains_break.md": {
       "x": 148.48567164180474,
@@ -3585,8 +3153,8 @@
       "y": -182510.3625354367
     },
     "mythology-norse/episodes/bt03_03_03_mjolnir_reclaimed.md": {
-      "x": -4340.924439019111,
-      "y": -9680.157843509774
+      "x": -4340.924439149862,
+      "y": -9680.157843614597
     },
     "mythology-norse/episodes/bt03_02_01_freyas_fury.md": {
       "x": 2967.8256716418045,
@@ -3621,36 +3189,36 @@
       "y": -169521.6666840132
     },
     "mythology-greek/episodes/ep05_perseus.md": {
-      "x": -511.01837068915484,
-      "y": -6640.519614623866
+      "x": -511.0183705978938,
+      "y": -6640.519614538822
     },
     "mythology-greek/episodes/ep01_titanomakhia.md": {
-      "x": -11636.005273538814,
-      "y": -6640.536529933424
+      "x": -11636.005273399527,
+      "y": -6640.536529654704
     },
     "mythology-greek/episodes/act2_heroes.md": {
-      "x": 3086.1505511811038,
-      "y": -24516.317619929057
+      "x": 24386.031358408287,
+      "y": 31819.889589974457
     },
     "mythology-egyptian/episodes/sc07_03_red_beer_trick.md": {
       "x": 159503.42380996374,
       "y": -94612.21472188219
     },
     "mythology-egyptian/episodes/sc06_02_apophis_battle.md": {
-      "x": 3866.042237044816,
-      "y": -5475.334849256748
+      "x": 3866.0422370489046,
+      "y": -5475.334849290731
     },
     "mythology-egyptian/episodes/sc05_01_journey_to_duat.md": {
       "x": 162322.76380996374,
       "y": -94612.21472188219
     },
     "mythology-egyptian/episodes/sc04_02_eye_of_horus.md": {
-      "x": -3064.289709004422,
-      "y": -5475.324674997767
+      "x": -3064.2897087953766,
+      "y": -5475.324675088656
     },
     "mythology-egyptian/episodes/sc04_01_contendings_begin.md": {
-      "x": -3793.802924444142,
-      "y": -5475.332025424579
+      "x": -3793.802924634487,
+      "y": -5475.332025468604
     },
     "mythology-egyptian/episodes/sc03_03_horus_conception.md": {
       "x": -21529.9787271168,
@@ -3661,12 +3229,12 @@
       "y": -93672.43472188218
     },
     "mythology-egyptian/episodes/ep07_hathor_rage.md": {
-      "x": 2771.7574243469735,
-      "y": -5475.3320201230135
+      "x": 2771.757424491301,
+      "y": -5475.332020397112
     },
     "mythology-egyptian/episodes/bt64_sc07_02_blood_river.md": {
-      "x": -10906.47589751202,
-      "y": -5475.341871404321
+      "x": -10906.475897526801,
+      "y": -5475.341871595427
     },
     "mythology-egyptian/episodes/bt62_sc04_02_wedjat_restored.md": {
       "x": -20421.906298497506,
@@ -3705,8 +3273,8 @@
       "y": -88973.53472188218
     },
     "mythology-egyptian/episodes/act3_kingship.md": {
-      "x": -2699.52385912099,
-      "y": -5475.324813412452
+      "x": -2699.5238589326127,
+      "y": -5475.324813556917
     },
     "mythology-norse/episodes/sc05_03_rebirth.md": {
       "x": 2318.1012871543126,
@@ -3717,12 +3285,12 @@
       "y": -187209.2625354367
     },
     "mythology-norse/episodes/sc03_03_thrym_defeated.md": {
-      "x": -5617.5688496814855,
-      "y": -9680.167186046287
+      "x": -5617.568849552427,
+      "y": -9680.167186007211
     },
     "mythology-norse/episodes/sc02_03_wall_complete.md": {
-      "x": -8170.8465888115115,
-      "y": -9680.148197453635
+      "x": -8170.846588805688,
+      "y": -9680.148197302358
     },
     "mythology-norse/episodes/sc02_01_builders_wager.md": {
       "x": 148.48567164180474,
@@ -3749,8 +3317,8 @@
       "y": -36910.0037723545
     },
     "mythology-norse/episodes/bt07_02_02_binding_complete.md": {
-      "x": 6784.060449449103,
-      "y": -9680.153327181499
+      "x": 6784.060449378608,
+      "y": -9680.153327176673
     },
     "mythology-norse/episodes/bt07_02_01_tyrs_resolve.md": {
       "x": 148.48567164180474,
@@ -3761,8 +3329,8 @@
       "y": -36157.20086732467
     },
     "mythology-norse/episodes/bt05_02_02_odin_falls.md": {
-      "x": 218.4915763663747,
-      "y": -9680.166631414224
+      "x": 218.49157632717677,
+      "y": -9680.16663160193
     },
     "mythology-norse/episodes/bt05_01_03_bonds_shatter.md": {
       "x": 1088.2656716418046,
@@ -3781,12 +3349,12 @@
       "y": -35780.79941480974
     },
     "mythology-norse/episodes/bt03_03_02_thrym_falls.md": {
-      "x": -5070.4268400630635,
-      "y": -9680.16221935729
+      "x": -5070.426839922534,
+      "y": -9680.162219533191
     },
     "mythology-norse/episodes/bt03_03_01_hammer_returned.md": {
-      "x": -5617.5673192935665,
-      "y": -9325.531818956773
+      "x": -5617.567319042442,
+      "y": -9325.531818940595
     },
     "mythology-norse/episodes/bt03_02_02_bridal_march.md": {
       "x": 1088.2656716418046,
@@ -3805,24 +3373,24 @@
       "y": -181570.5825354367
     },
     "mythology-norse/episodes/bt02_03_02_thor_strikes.md": {
-      "x": -7806.0810528188695,
-      "y": -9680.149923719926
+      "x": -7806.081052943124,
+      "y": -9680.14992380342
     },
     "mythology-norse/episodes/bt02_02_03_sleipnir_born.md": {
       "x": 812.495477094631,
       "y": -35404.397962294825
     },
     "mythology-norse/episodes/act3_ragnarok.md": {
-      "x": -3976.160735884159,
-      "y": -9680.1570901943
+      "x": -3976.16073579081,
+      "y": -9680.15709008735
     },
     "mythology-norse/episodes/act1_creation.md": {
       "x": 148.48567164180474,
       "y": -180630.8025354367
     },
     "mythology-japanese/episodes/sc08_02_yatagarasu_guide.md": {
-      "x": 2771.7640473793376,
-      "y": -8514.982864907755
+      "x": 2771.764047661856,
+      "y": -8514.982865173979
     },
     "mythology-japanese/episodes/sc07_01_ninigi_descent.md": {
       "x": 61875.38493449434,
@@ -3833,16 +3401,16 @@
       "y": -176100.1266840132
     },
     "mythology-japanese/episodes/sc06_01_takemikazuchi_descent.md": {
-      "x": 1312.7428327018395,
-      "y": -8160.338150974186
+      "x": 1312.74283304465,
+      "y": -8160.3381510174095
     },
     "mythology-japanese/episodes/sc05_02_eastern_campaign.md": {
-      "x": -511.02482080843265,
-      "y": -8514.964048978281
+      "x": -511.0248206773991,
+      "y": -8514.964049289027
     },
     "mythology-japanese/episodes/sc03_03_serpent_slain.md": {
-      "x": -5070.420102788865,
-      "y": -8514.967716888214
+      "x": -5070.420102800067,
+      "y": -8514.96771687952
     },
     "mythology-japanese/episodes/sc02_01_amaterasu_retreat.md": {
       "x": 60935.60493449434,
@@ -3861,24 +3429,24 @@
       "y": -175160.3466840132
     },
     "mythology-japanese/episodes/bt06_01_03_takeminakata_duel.md": {
-      "x": 2771.7652737188164,
-      "y": -7805.706015929713
+      "x": 2771.765273645465,
+      "y": -7805.706015955062
     },
     "mythology-japanese/episodes/bt06_01_02_thunder_god_arrives.md": {
-      "x": 2042.2501468413716,
-      "y": -8514.975101016662
+      "x": 2042.2501467575457,
+      "y": -8514.975101034406
     },
     "mythology-japanese/episodes/bt06_01_01_failed_envoys.md": {
       "x": 67514.06493449434,
       "y": -174220.5666840132
     },
     "mythology-japanese/episodes/bt05_03_01_ibuki_battle.md": {
-      "x": 765.6140109813435,
-      "y": -8514.969342286171
+      "x": 765.6140110352296,
+      "y": -8514.969342619059
     },
     "mythology-japanese/episodes/bt05_02_02_fire_counter.md": {
-      "x": 36.101523256439215,
-      "y": -8514.964120491195
+      "x": 36.101523050643145,
+      "y": -8514.964120629515
     },
     "mythology-japanese/episodes/bt05_02_01_kusanagi_gift.md": {
       "x": 62815.16493449434,
@@ -3889,8 +3457,8 @@
       "y": -173280.7866840132
     },
     "mythology-japanese/episodes/bt04_03_02_yomi_chase.md": {
-      "x": -2334.774714373919,
-      "y": -8514.966759326757
+      "x": -2334.774714157745,
+      "y": -8514.96675958762
     },
     "mythology-japanese/episodes/bt04_03_01_broken_taboo.md": {
       "x": 66574.28493449434,
@@ -3941,28 +3509,28 @@
       "y": -169521.6666840132
     },
     "mythology-greek/episodes/sc08_02_labyrinth_battle.md": {
-      "x": -2334.7753436126286,
-      "y": -6640.524681778368
+      "x": -2334.775343377658,
+      "y": -6640.524681885481
     },
     "mythology-greek/episodes/sc06_01_judgment_of_paris.md": {
       "x": 119369.13324189965,
       "y": -142807.8167292373
     },
     "mythology-greek/episodes/sc05_02_medusa_cave.md": {
-      "x": -3611.4460385265984,
-      "y": -6640.525125138028
+      "x": -3611.446038544475,
+      "y": -6640.525125275503
     },
     "mythology-greek/episodes/sc05_01_divine_gifts.md": {
       "x": 120066.29634467607,
       "y": -142807.8167292373
     },
     "mythology-greek/episodes/sc03_03_cerberus.md": {
-      "x": -5617.551744021146,
-      "y": -6640.521607961421
+      "x": -5617.551743946739,
+      "y": -6640.521608235327
     },
     "mythology-greek/episodes/sc01_02_zeus_uprising.md": {
-      "x": -10724.117234458488,
-      "y": -6640.531854801899
+      "x": -10724.117234250616,
+      "y": -6640.531854584931
     },
     "mythology-greek/episodes/bt06_01_02_three_offers.md": {
       "x": 119369.13324189965,
@@ -3973,12 +3541,12 @@
       "y": -140716.327420908
     },
     "mythology-greek/episodes/bt05_03_02_stone_gaze.md": {
-      "x": -2881.889677132661,
-      "y": -6640.526373781341
+      "x": -2881.8896773832553,
+      "y": -6640.526373777769
     },
     "mythology-greek/episodes/bt05_02_02_medusa_slain.md": {
-      "x": -3429.053878265891,
-      "y": -6640.525279494568
+      "x": -3429.053878368691,
+      "y": -6640.525279119314
     },
     "mythology-greek/episodes/bt04_03_01_disguise.md": {
       "x": 118671.97013912322,
@@ -3989,28 +3557,28 @@
       "y": -140019.16431813157
     },
     "mythology-greek/episodes/bt01_03_03_kronos_falls.md": {
-      "x": -9447.461848799532,
-      "y": -6640.533071994171
+      "x": -9447.461848794004,
+      "y": -6640.533071998415
     },
     "mythology-greek/episodes/bt01_02_02_siblings_freed.md": {
-      "x": -440.4094488188962,
-      "y": -24516.317619929057
+      "x": 21346.43135840829,
+      "y": 31819.889589974457
     },
     "mythology-greek/episodes/bt01_01_03_zeus_hidden.md": {
       "x": 122157.78565300535,
       "y": -139322.00121535515
     },
     "mythology-greek/episodes/act3_wars.md": {
-      "x": 1859.8719557737415,
-      "y": -6285.889923642445
+      "x": 1859.8719556874157,
+      "y": -6285.889923687718
     },
     "mythology-greek/episodes/act1_origins.md": {
-      "x": -11636.007665491383,
-      "y": -6285.9024240018725
+      "x": -11636.007665555544,
+      "y": -6285.902423969891
     },
     "mythology-egyptian/episodes/sc07_02_sekhmet_unleashed.md": {
-      "x": 3683.6378191355707,
-      "y": -5475.333964747039
+      "x": 3683.637818894729,
+      "y": -5475.333964944241
     },
     "mythology-egyptian/episodes/sc06_03_dawn_rebirth.md": {
       "x": -20421.906298497506,
@@ -4057,20 +3625,20 @@
       "y": -91792.87472188218
     },
     "mythology-egyptian/episodes/bt46_sc07_02_slaughter_begins.md": {
-      "x": -11271.2418568677,
-      "y": -5475.345944815238
+      "x": -11271.24185697856,
+      "y": -5475.345944925211
     },
     "mythology-egyptian/episodes/bt45_sc07_02_hathor_transforms.md": {
-      "x": -11453.65087212275,
-      "y": -5475.345201730356
+      "x": -11453.65087227232,
+      "y": -5475.345201705864
     },
     "mythology-egyptian/episodes/bt41_sc06_02_dawn_rebirth.md": {
       "x": -21529.9787271168,
       "y": 30335.4959645036
     },
     "mythology-egyptian/episodes/bt40_sc06_02_set_strikes.md": {
-      "x": -11271.240224227753,
-      "y": -5120.696967299284
+      "x": -11271.240224223242,
+      "y": -5120.6969672567075
     },
     "mythology-egyptian/episodes/bt32_sc05_01_twelve_gates.md": {
       "x": 164202.32380996374,
@@ -4085,12 +3653,12 @@
       "y": 30704.85344071003
     },
     "mythology-egyptian/episodes/bt26_sc04_02_eye_torn.md": {
-      "x": -11453.635254571906,
-      "y": -4766.063830576011
+      "x": -11453.635254601095,
+      "y": -4766.063830411269
     },
     "mythology-egyptian/episodes/bt25_sc04_01_battle_begins.md": {
-      "x": -10906.474719868955,
-      "y": -5120.697280335034
+      "x": -10906.474720050719,
+      "y": -5120.697280296705
     },
     "mythology-egyptian/episodes/bt23_sc04_01_horus_claim.md": {
       "x": 162322.76380996374,
@@ -4209,8 +3777,8 @@
       "y": -36533.602319839585
     },
     "mythology-norse/episodes/bt06_02_01_pit_trap.md": {
-      "x": 3866.039950115236,
-      "y": -9325.545807203442
+      "x": 3866.039950176263,
+      "y": -9325.545807271752
     },
     "mythology-norse/episodes/bt06_01_01_broken_blade.md": {
       "x": -791.2943283581952,
@@ -4261,16 +3829,16 @@
       "y": -35027.9965097799
     },
     "mythology-norse/episodes/bt01_03_01_ymir_slain.md": {
-      "x": -10176.980545089926,
-      "y": -9680.140943755681
+      "x": -10176.980544799659,
+      "y": -9680.140943744402
     },
     "mythology-norse/episodes/bt01_02_02_buri_emerges.md": {
       "x": 59.69257206479017,
       "y": -35027.9965097799
     },
     "mythology-japanese/episodes/sc08_03_yamato_founding.md": {
-      "x": 3683.6654295341837,
-      "y": -8514.979608373871
+      "x": 3683.665429567512,
+      "y": -8514.979608241416
     },
     "mythology-japanese/episodes/sc07_03_sacred_treasures.md": {
       "x": 35376.14808392444,
@@ -4281,12 +3849,12 @@
       "y": -12587.658734315406
     },
     "mythology-japanese/episodes/sc05_01_kumaso_mission.md": {
-      "x": -1787.6530106048222,
-      "y": -8514.965457830056
+      "x": -1787.6530107197393,
+      "y": -8514.965458133383
     },
     "mythology-japanese/episodes/sc03_02_sake_trap.md": {
-      "x": -6164.707611538021,
-      "y": -8514.963516690374
+      "x": -6164.707611514351,
+      "y": -8514.963516501039
     },
     "mythology-japanese/episodes/sc03_01_kushinadahime_tears.md": {
       "x": 66574.28493449434,
@@ -4301,28 +3869,28 @@
       "y": -12218.301258108975
     },
     "mythology-japanese/episodes/bt08_03_03_divine_lineage.md": {
-      "x": 4413.182373884513,
-      "y": -8514.972988075722
+      "x": 4413.182373728468,
+      "y": -8514.972988199022
     },
     "mythology-japanese/episodes/bt08_03_02_enthronement.md": {
-      "x": 3866.0625770753154,
-      "y": -8514.977069167091
+      "x": 3866.0625767787637,
+      "y": -8514.977069341463
     },
     "mythology-japanese/episodes/bt08_02_03_mountain_passage.md": {
-      "x": 3501.2688924631952,
-      "y": -8514.979861102767
+      "x": 3501.268892259342,
+      "y": -8514.979861271158
     },
     "mythology-japanese/episodes/bt08_02_02_futsu_no_mitama.md": {
-      "x": 3136.522789226339,
-      "y": -8514.979425035363
+      "x": 3136.522789251619,
+      "y": -8514.979425256146
     },
     "mythology-japanese/episodes/bt08_02_01_divine_crow.md": {
-      "x": 2771.765883546713,
-      "y": -8160.339070048114
+      "x": 2771.7658832822667,
+      "y": -8160.339069855029
     },
     "mythology-japanese/episodes/bt08_01_03_kumano_detour.md": {
-      "x": 2224.646376765862,
-      "y": -8514.97648625071
+      "x": 2224.646376935325,
+      "y": -8514.976486306494
     },
     "mythology-japanese/episodes/bt07_03_03_eternal_mandate.md": {
       "x": 66574.28493449434,
@@ -4377,16 +3945,16 @@
       "y": -173280.7866840132
     },
     "mythology-japanese/episodes/bt05_02_03_suruga_fire.md": {
-      "x": 400.85764811055947,
-      "y": -8514.965280566661
+      "x": 400.8576484495597,
+      "y": -8514.965280566228
     },
     "mythology-japanese/episodes/bt05_01_03_name_bestowed.md": {
       "x": 63754.94493449434,
       "y": -173280.7866840132
     },
     "mythology-japanese/episodes/bt05_01_02_disguise.md": {
-      "x": -1240.5234137311334,
-      "y": -8514.965145488957
+      "x": -1240.523413671337,
+      "y": -8514.965145525028
     },
     "mythology-japanese/episodes/bt05_01_01_fathers_command.md": {
       "x": 64694.72493449434,
@@ -4405,12 +3973,12 @@
       "y": -172341.0066840132
     },
     "mythology-japanese/episodes/bt03_03_01_slaying.md": {
-      "x": -5070.424581051561,
-      "y": -8160.328766642644
+      "x": -5070.424581269753,
+      "y": -8160.328766538634
     },
     "mythology-japanese/episodes/bt03_02_03_orochi_sleeps.md": {
-      "x": -5435.185776654158,
-      "y": -8514.963804420711
+      "x": -5435.185776335903,
+      "y": -8514.963804568359
     },
     "mythology-japanese/episodes/bt03_02_01_sake_brewing.md": {
       "x": 66574.28493449434,
@@ -4457,48 +4025,48 @@
       "y": -142807.8167292373
     },
     "mythology-greek/episodes/sc07_03_looking_back.md": {
-      "x": -440.4094488188962,
-      "y": -29218.39761992906
+      "x": 21346.43135840829,
+      "y": 27767.089589974457
     },
     "mythology-greek/episodes/sc07_02_underworld_journey.md": {
       "x": 118671.97013912322,
       "y": -142807.8167292373
     },
     "mythology-greek/episodes/sc06_03_trojan_horse.md": {
-      "x": 3866.051530888103,
-      "y": -6640.528652217827
+      "x": 3866.051530991433,
+      "y": -6640.5286524193625
     },
     "mythology-greek/episodes/sc05_03_andromeda_rescue.md": {
-      "x": -3064.281180588204,
-      "y": -6640.5264926660975
+      "x": -3064.281180270733,
+      "y": -6640.526492375305
     },
     "mythology-greek/episodes/sc04_03_return_to_ithaca.md": {
       "x": 120763.4594474525,
       "y": -142807.8167292373
     },
     "mythology-greek/episodes/sc04_02_sea_trials.md": {
-      "x": 6236.929583248518,
-      "y": -6640.53960806144
+      "x": 6236.929583338022,
+      "y": -6640.539608127372
     },
     "mythology-greek/episodes/sc04_01_cyclops_island.md": {
-      "x": 5507.412291572188,
-      "y": -6640.536599078626
+      "x": 5507.4122913736755,
+      "y": -6640.536599356763
     },
     "mythology-greek/episodes/sc03_02_lernaean_hydra.md": {
-      "x": -6711.811217031901,
-      "y": -6640.532068034281
+      "x": -6711.81121727522,
+      "y": -6640.532068123735
     },
     "mythology-greek/episodes/sc03_01_nemean_lion.md": {
-      "x": -7076.60233681733,
-      "y": -6640.532738075184
+      "x": -7076.602336921944,
+      "y": -6640.5327380168055
     },
     "mythology-greek/episodes/sc02_03_zeus_retribution.md": {
-      "x": 1322.8705511811038,
-      "y": -28630.637619929057
+      "x": 22866.231358408288,
+      "y": 28273.689589974456
     },
     "mythology-greek/episodes/sc02_02_theft_of_fire.md": {
-      "x": -8900.345568334666,
-      "y": -6640.5275991454
+      "x": -8900.345568619543,
+      "y": -6640.527599459672
     },
     "mythology-greek/episodes/sc02_01_creation_of_man.md": {
       "x": 121460.62255022893,
@@ -4517,24 +4085,24 @@
       "y": -142110.65362646087
     },
     "mythology-greek/episodes/bt08_02_02_minotaur_fight.md": {
-      "x": -1970.015224411443,
-      "y": -6640.523182992084
+      "x": -1970.0152241154572,
+      "y": -6640.523182852998
     },
     "mythology-greek/episodes/bt08_02_01_labyrinth_entry.md": {
       "x": 120763.4594474525,
       "y": -142110.65362646087
     },
     "mythology-greek/episodes/bt08_01_03_thread_given.md": {
-      "x": -1028.1694488188962,
-      "y": -27455.117619929057
+      "x": 20839.831358408286,
+      "y": 29286.889589974457
     },
     "mythology-greek/episodes/bt08_01_02_ariadne_meeting.md": {
       "x": 121460.62255022893,
       "y": -142110.65362646087
     },
     "mythology-greek/episodes/bt07_02_03_condition.md": {
-      "x": 1910.6305511811036,
-      "y": -27455.117619929057
+      "x": 23372.831358408286,
+      "y": 29286.889589974457
     },
     "mythology-greek/episodes/bt07_02_02_hades_moved.md": {
       "x": 119369.13324189965,
@@ -4545,8 +4113,8 @@
       "y": -140716.327420908
     },
     "mythology-greek/episodes/bt06_01_03_paris_chooses.md": {
-      "x": 2498.3905511811035,
-      "y": -26867.35761992906
+      "x": 23879.431358408285,
+      "y": 29793.489589974455
     },
     "mythology-greek/episodes/bt05_03_03_liberation.md": {
       "x": 120066.29634467607,
@@ -4557,8 +4125,8 @@
       "y": -140716.327420908
     },
     "mythology-greek/episodes/bt05_02_03_escape_flight.md": {
-      "x": -3246.6676960241825,
-      "y": -6640.526394157759
+      "x": -3246.667696111651,
+      "y": -6640.526394382285
     },
     "mythology-greek/episodes/bt05_02_01_stone_forest.md": {
       "x": 122157.78565300535,
@@ -4569,20 +4137,20 @@
       "y": -140019.16431813157
     },
     "mythology-greek/episodes/bt05_01_02_gifts_received.md": {
-      "x": 1322.8705511811038,
-      "y": -26279.597619929056
+      "x": 22866.231358408288,
+      "y": 30300.089589974457
     },
     "mythology-greek/episodes/bt05_01_01_quest_given.md": {
       "x": 117974.8070363468,
       "y": -140019.16431813157
     },
     "mythology-greek/episodes/bt04_03_03_suitors_slain.md": {
-      "x": 7331.204087289397,
-      "y": -6640.543255618266
+      "x": 7331.204087318524,
+      "y": -6640.543255388799
     },
     "mythology-greek/episodes/bt04_03_02_bow_contest.md": {
-      "x": 6966.443734536955,
-      "y": -6640.542278095161
+      "x": 6966.443734689662,
+      "y": -6640.542277995554
     },
     "mythology-greek/episodes/bt04_02_03_calypso_release.md": {
       "x": 119369.13324189965,
@@ -4601,52 +4169,52 @@
       "y": -140019.16431813157
     },
     "mythology-greek/episodes/bt03_03_03_cerberus_captured.md": {
-      "x": -4523.306413102748,
-      "y": -6640.523360778221
+      "x": -4523.306412991778,
+      "y": -6640.523360566526
     },
     "mythology-greek/episodes/bt03_03_01_descent.md": {
       "x": 117277.64393357038,
       "y": -139322.00121535515
     },
     "mythology-greek/episodes/bt03_02_03_immortal_head.md": {
-      "x": -5982.308356579045,
-      "y": -6640.521966349135
+      "x": -5982.308356642521,
+      "y": -6640.521966142302
     },
     "mythology-greek/episodes/bt03_02_02_iolaus_fire.md": {
-      "x": -6347.062249941324,
-      "y": -6640.525753510731
+      "x": -6347.062249899437,
+      "y": -6640.525753283904
     },
     "mythology-greek/episodes/bt03_02_01_hydra_appears.md": {
-      "x": -6711.818280394377,
-      "y": -6285.87832645505
+      "x": -6711.818280286171,
+      "y": -6285.878326407386
     },
     "mythology-greek/episodes/bt03_01_03_lion_skin.md": {
       "x": 117974.8070363468,
       "y": -139322.00121535515
     },
     "mythology-greek/episodes/bt03_01_02_bare_hands.md": {
-      "x": -6894.206713089442,
-      "y": -6640.533076064268
+      "x": -6894.206713031939,
+      "y": -6640.533076042742
     },
     "mythology-greek/episodes/bt03_01_01_lion_hunt.md": {
-      "x": -7076.593170231095,
-      "y": -6285.879076355118
+      "x": -7076.593170218602,
+      "y": -6285.879076135816
     },
     "mythology-greek/episodes/bt02_03_01_pandora_created.md": {
-      "x": 147.3505511811038,
-      "y": -25104.07761992906
+      "x": 21853.031358408287,
+      "y": 31313.289589974454
     },
     "mythology-greek/episodes/bt02_02_03_fire_given.md": {
-      "x": 735.110551181104,
-      "y": -25104.07761992906
+      "x": 22359.631358408285,
+      "y": 31313.289589974454
     },
     "mythology-greek/episodes/bt02_01_02_athena_breath.md": {
-      "x": 3086.1505511811038,
-      "y": -25104.07761992906
+      "x": 24386.031358408287,
+      "y": 31313.289589974454
     },
     "mythology-greek/episodes/bt01_03_02_cyclops_forge.md": {
-      "x": -2203.6894488188964,
-      "y": -24516.317619929057
+      "x": 19826.631358408285,
+      "y": 31819.889589974457
     },
     "mythology-greek/episodes/bt01_02_01_zeus_grows.md": {
       "x": 121460.62255022893,
@@ -4733,8 +4301,8 @@
       "y": -91792.87472188218
     },
     "mythology-egyptian/episodes/bt39_sc06_02_apophis_attack.md": {
-      "x": -11453.651145821872,
-      "y": -5120.699033876538
+      "x": -11453.65114571134,
+      "y": -5120.699034100658
     },
     "mythology-egyptian/episodes/bt38_sc06_01_twelve_hours.md": {
       "x": 161382.98380996374,
@@ -4793,8 +4361,8 @@
       "y": -187209.2625354367
     },
     "mythology-norse/episodes/sc06_02_fafnir_slain.md": {
-      "x": 3866.036693738167,
-      "y": -9680.177393818265
+      "x": 3866.0366936979567,
+      "y": -9680.17739387563
     },
     "mythology-norse/episodes/sc05_01_fimbulwinter.md": {
       "x": 2967.8256716418045,
@@ -4889,28 +4457,28 @@
       "y": -180630.8025354367
     },
     "mythology-japanese/episodes/sc08_01_departure_hyuga.md": {
-      "x": 1312.7420823000975,
-      "y": -8514.978709051426
+      "x": 1312.7420824394355,
+      "y": -8514.978709203855
     },
     "mythology-japanese/episodes/sc07_02_konohanasakuya.md": {
       "x": 60935.60493449434,
       "y": -176100.1266840132
     },
     "mythology-japanese/episodes/ep08_jimmu_expedition.md": {
-      "x": 1312.7432738377713,
-      "y": -7805.706749182106
+      "x": 1312.74327380871,
+      "y": -7805.706749073749
     },
     "mythology-japanese/episodes/bt08_03_01_nagasunehiko_battle.md": {
-      "x": 3683.66687901989,
-      "y": -8160.328145781459
+      "x": 3683.66687930014,
+      "y": -8160.32814596755
     },
     "mythology-japanese/episodes/bt08_01_02_itsuse_falls.md": {
-      "x": 1677.5022618113085,
-      "y": -8514.976132629025
+      "x": 1677.5022617255975,
+      "y": -8514.97613285007
     },
     "mythology-japanese/episodes/bt08_01_01_iwarebiko_resolve.md": {
-      "x": 1312.7424184316608,
-      "y": -7451.0766208205005
+      "x": 1312.742418313542,
+      "y": -7451.076620963723
     },
     "mythology-japanese/episodes/bt07_02_03_mortal_fate.md": {
       "x": 36853.57798875016,
@@ -4929,8 +4497,8 @@
       "y": -174220.5666840132
     },
     "mythology-japanese/episodes/bt03_02_02_serpent_drinks.md": {
-      "x": -5799.944862874161,
-      "y": -8514.963761493891
+      "x": -5799.944862627832,
+      "y": -8514.96376152996
     },
     "mythology-japanese/episodes/bt02_02_02_ecstatic_dance.md": {
       "x": 64694.72493449434,
@@ -4957,16 +4525,16 @@
       "y": -142807.8167292373
     },
     "mythology-greek/episodes/sc07_01_eurydice_death.md": {
-      "x": 735.110551181104,
-      "y": -29218.39761992906
+      "x": 22359.631358408285,
+      "y": 27767.089589974457
     },
     "mythology-greek/episodes/sc06_02_wrath_of_achilles.md": {
-      "x": 2954.1328606223224,
-      "y": -6640.524100529577
+      "x": 2954.1328606879806,
+      "y": -6640.524100651904
     },
     "mythology-greek/episodes/sc01_03_great_battle.md": {
-      "x": -9629.863633139941,
-      "y": -6640.535092441386
+      "x": -9629.863633160267,
+      "y": -6640.535092353737
     },
     "mythology-greek/episodes/bt08_03_03_black_sail_tragedy.md": {
       "x": 117974.8070363468,
@@ -5013,44 +4581,44 @@
       "y": -141413.49052368442
     },
     "mythology-greek/episodes/bt06_03_03_troy_falls.md": {
-      "x": 4960.291163087004,
-      "y": -6640.533494090388
+      "x": 4960.2911632545365,
+      "y": -6640.533494251061
     },
     "mythology-greek/episodes/bt06_03_02_gates_open.md": {
       "x": 117277.64393357038,
       "y": -140716.327420908
     },
     "mythology-greek/episodes/bt06_02_03_hector_duel.md": {
-      "x": 3683.650202965884,
-      "y": -6640.527752219583
+      "x": 3683.650202915729,
+      "y": -6640.527752300936
     },
     "mythology-greek/episodes/bt06_02_02_achilles_returns.md": {
-      "x": 3318.8953406988253,
-      "y": -6640.525909133743
+      "x": 3318.8953404928293,
+      "y": -6640.52590908107
     },
     "mythology-greek/episodes/bt06_02_01_patroclus_death.md": {
       "x": 118671.97013912322,
       "y": -140716.327420908
     },
     "mythology-greek/episodes/bt04_02_02_scylla_charybdis.md": {
-      "x": 6601.686487877326,
-      "y": -6640.5411871225915
+      "x": 6601.68648775924,
+      "y": -6640.541187088048
     },
     "mythology-greek/episodes/bt04_01_02_polyphemus_trap.md": {
-      "x": 5689.812318536089,
-      "y": -6640.537413363562
+      "x": 5689.812318824088,
+      "y": -6640.537413360552
     },
     "mythology-greek/episodes/bt02_03_03_box_opened.md": {
       "x": 118671.97013912322,
       "y": -139322.00121535515
     },
     "mythology-greek/episodes/bt02_03_02_prometheus_chained.md": {
-      "x": -7441.354077696075,
-      "y": -6640.527688078382
+      "x": -7441.354077658648,
+      "y": -6640.527687869943
     },
     "mythology-greek/episodes/bt02_02_02_stealing_fire.md": {
-      "x": -8535.586934528605,
-      "y": -6640.526375736418
+      "x": -8535.586934766678,
+      "y": -6640.526375890229
     },
     "mythology-greek/episodes/bt02_02_01_humans_suffer.md": {
       "x": 119369.13324189965,
@@ -5065,12 +4633,12 @@
       "y": -139322.00121535515
     },
     "mythology-greek/episodes/bt01_03_01_titans_clash.md": {
-      "x": -9629.85370983051,
-      "y": -6285.886607847889
+      "x": -9629.853709991883,
+      "y": -6285.886607516771
     },
     "mythology-greek/episodes/bt01_02_03_war_declared.md": {
-      "x": -9994.620289176512,
-      "y": -6640.53258548115
+      "x": -9994.620289080394,
+      "y": -6640.532585378079
     },
     "mythology-greek/episodes/bt01_01_02_rhea_grief.md": {
       "x": 117277.64393357038,
@@ -5129,8 +4697,8 @@
       "y": -32992.076835689906
     },
     "classic-sangokushi/episodes/act1_rise-of-heroes.md": {
-      "x": -11636.006533587031,
-      "y": -3600.873533052099
+      "x": -11636.00653355244,
+      "y": -3600.8735333122577
     },
     "classic-sangokushi/episodes/sc02_03_chain-stratagem.md": {
       "x": 1180.6867098765154,
@@ -5141,24 +4709,24 @@
       "y": -32992.076835689906
     },
     "classic-sangokushi/episodes/ep06_battle-of-yiling.md": {
-      "x": 1130.3583253647564,
-      "y": -3955.519152740419
+      "x": 1130.358325292751,
+      "y": -3955.5191525266796
     },
     "classic-sangokushi/episodes/ep04_battle-of-chibi.md": {
-      "x": -3976.171364080124,
-      "y": -3955.52057589812
+      "x": -3976.1713637218268,
+      "y": -3955.520575882986
     },
     "classic-sangokushi/episodes/ep03_battle-of-guandu.md": {
-      "x": -7988.459427473864,
-      "y": -3955.5165120728707
+      "x": -7988.459427341369,
+      "y": -3955.516512084304
     },
     "classic-sangokushi/episodes/ep02_dong-zhuo-tyranny.md": {
       "x": 180449.48067232606,
       "y": -32312.699220700073
     },
     "classic-sangokushi/episodes/ep01_yellow-turban.md": {
-      "x": -11636.010553812666,
-      "y": -3955.5099316046862
+      "x": -11636.01055383778,
+      "y": -3955.509931542009
     },
     "classic-sangokushi/episodes/bt06_01_02_liu-bei-vow.md": {
       "x": 185205.12397725487,
@@ -5169,8 +4737,8 @@
       "y": -30953.943990720414
     },
     "classic-sangokushi/episodes/bt05_01_01_liu-bei-takes-yizhou.md": {
-      "x": -1787.6468694981886,
-      "y": -3955.5128156458277
+      "x": -1787.6468692959088,
+      "y": -3955.5128153059277
     },
     "classic-sangokushi/episodes/bt02_03_02_diao-chan-dance.md": {
       "x": 183166.9911322854,
@@ -5209,16 +4777,16 @@
       "y": -32992.076835689906
     },
     "classic-sangokushi/episodes/sc02_02_coalition-against-dong-zhuo.md": {
-      "x": -9265.110128740556,
-      "y": -3955.5112120313206
+      "x": -9265.110128727874,
+      "y": -3955.5112122147484
     },
     "classic-sangokushi/episodes/ep07_northern-expeditions.md": {
-      "x": 3683.635714198149,
-      "y": -3955.526734375539
+      "x": 3683.6357140132786,
+      "y": -3955.526734577702
     },
     "classic-sangokushi/episodes/bt07_03_01_final-expedition.md": {
-      "x": 6419.289439385492,
-      "y": -3955.5452639612417
+      "x": 6419.289439181432,
+      "y": -3955.5452639006194
     },
     "classic-sangokushi/episodes/bt07_02_02_empty-fort-bluff.md": {
       "x": 2325.5053224689705,
@@ -5233,8 +4801,8 @@
       "y": -31633.321605710244
     },
     "classic-sangokushi/episodes/bt06_02_03_zhao-yun-rescue.md": {
-      "x": 2589.3949532818283,
-      "y": -3955.5215208598343
+      "x": 2589.394953404632,
+      "y": -3955.521520554683
     },
     "classic-sangokushi/episodes/bt05_01_03_guan-yu-pride.md": {
       "x": 182487.61351729554,
@@ -5269,16 +4837,16 @@
       "y": -30274.566375730585
     },
     "classic-sangokushi/episodes/bt02_03_03_dong-zhuo-fall.md": {
-      "x": -8353.221195579124,
-      "y": -3955.515620531693
+      "x": -8353.221195896114,
+      "y": -3955.515620643338
     },
     "classic-sangokushi/episodes/bt02_01_03_cao-cao-assassination.md": {
       "x": 185205.12397725487,
       "y": -30274.566375730585
     },
     "classic-sangokushi/episodes/bt01_03_02_clash-with-rebels.md": {
-      "x": -10359.347052452134,
-      "y": -3955.504512449965
+      "x": -10359.34705211995,
+      "y": -3955.50451275349
     },
     "classic-sangokushi/episodes/sc08_02_sima-clan-rises.md": {
       "x": 180449.48067232606,
@@ -5297,52 +4865,52 @@
       "y": -33671.45445067973
     },
     "classic-sangokushi/episodes/sc06_02_yiling-inferno.md": {
-      "x": 1859.8742279962562,
-      "y": -3955.520490545161
+      "x": 1859.8742277721997,
+      "y": -3955.5204903475133
     },
     "classic-sangokushi/episodes/sc05_03_fall-of-guan-yu.md": {
       "x": 185205.12397725487,
       "y": -33671.45445067973
     },
     "classic-sangokushi/episodes/sc05_02_flood-of-fancheng.md": {
-      "x": -693.4027352246284,
-      "y": -3955.521943021698
+      "x": -693.402735275693,
+      "y": -3955.521943052064
     },
     "classic-sangokushi/episodes/sc04_03_fire-attack.md": {
-      "x": -2699.5381045257723,
-      "y": -3955.509895959988
+      "x": -2699.5381045269187,
+      "y": -3955.5098960666915
     },
     "classic-sangokushi/episodes/sc03_03_wuchao-raid.md": {
-      "x": -5799.945267098983,
-      "y": -3955.516796025203
+      "x": -5799.9452670161645,
+      "y": -3955.5167959389078
     },
     "classic-sangokushi/episodes/sc03_02_yuan-shao-marches.md": {
-      "x": -7076.583120668391,
-      "y": -3955.517801404843
+      "x": -7076.583120618826,
+      "y": -3955.517801432113
     },
     "classic-sangokushi/episodes/sc02_01_dong-zhuo-seizes-capital.md": {
       "x": 182487.61351729554,
       "y": -32992.076835689906
     },
     "classic-sangokushi/episodes/sc01_03_first-battle.md": {
-      "x": -10541.74745016273,
-      "y": -3955.5035376652113
+      "x": -10541.74745011593,
+      "y": -3955.503537669127
     },
     "classic-sangokushi/episodes/ep05_jingzhou-dispute.md": {
       "x": 185205.12397725487,
       "y": -32992.076835689906
     },
     "classic-sangokushi/episodes/bt08_02_03_wu-resistance.md": {
-      "x": 7878.3172594796115,
-      "y": -3955.5578024052106
+      "x": 7878.317259541037,
+      "y": -3955.557802510006
     },
     "classic-sangokushi/episodes/bt08_02_02_sima-usurpation.md": {
       "x": 182487.61351729554,
       "y": -32312.699220700073
     },
     "classic-sangokushi/episodes/bt08_01_01_jiang-wei-struggles.md": {
-      "x": 7148.794129769755,
-      "y": -3955.550154202708
+      "x": 7148.79413009424,
+      "y": -3955.5501540777395
     },
     "classic-sangokushi/episodes/bt07_03_03_star-falls.md": {
       "x": 184525.74636226502,
@@ -5361,12 +4929,12 @@
       "y": -31633.321605710244
     },
     "classic-sangokushi/episodes/bt07_01_03_first-expedition.md": {
-      "x": 4777.907783459891,
-      "y": -3955.5346701570625
+      "x": 4777.907783513264,
+      "y": -3955.534670268826
     },
     "classic-sangokushi/episodes/bt07_01_02_nanman-pacification.md": {
-      "x": 4048.4007683519544,
-      "y": -3955.5295464450924
+      "x": 4048.4007684241647,
+      "y": -3955.5295464509068
     },
     "classic-sangokushi/episodes/bt07_01_01_chu-shi-biao-text.md": {
       "x": 181808.23590230572,
@@ -5377,12 +4945,12 @@
       "y": -31633.321605710244
     },
     "classic-sangokushi/episodes/bt06_02_02_fire-of-camps.md": {
-      "x": 2406.99369258122,
-      "y": -3955.5209724875867
+      "x": 2406.9936927126523,
+      "y": -3955.5209726787584
     },
     "classic-sangokushi/episodes/bt06_01_03_shu-army-marches.md": {
-      "x": 1495.1153232294698,
-      "y": -3955.5199996252913
+      "x": 1495.1153231700005,
+      "y": -3955.519999750833
     },
     "classic-sangokushi/episodes/bt05_03_03_guan-yu-death.md": {
       "x": 181128.8582873159,
@@ -5393,24 +4961,24 @@
       "y": -30953.943990720414
     },
     "classic-sangokushi/episodes/bt05_03_01_jingzhou-falls.md": {
-      "x": 583.2307091493359,
-      "y": -3955.518149775634
+      "x": 583.2307092329772,
+      "y": -3955.5181499503337
     },
     "classic-sangokushi/episodes/bt05_02_03_lu-meng-plots.md": {
       "x": -345.73810691342476,
       "y": -8737.95116625555
     },
     "classic-sangokushi/episodes/bt05_02_02_flood-attack.md": {
-      "x": -328.6376669096702,
-      "y": -3955.519218451811
+      "x": -328.6376666377272,
+      "y": -3955.5192182766577
     },
     "classic-sangokushi/episodes/bt05_02_01_fancheng-siege.md": {
-      "x": -693.4002159799433,
-      "y": -3600.8805809887226
+      "x": -693.4002158043296,
+      "y": -3600.8805809940673
     },
     "classic-sangokushi/episodes/bt04_03_03_great-fire.md": {
-      "x": -2152.408338202867,
-      "y": -3955.511305571993
+      "x": -2152.4083383614825,
+      "y": -3955.5113056403034
     },
     "classic-sangokushi/episodes/bt04_03_02_east-wind.md": {
       "x": 2325.5053224689705,
@@ -5429,16 +4997,16 @@
       "y": -30953.943990720414
     },
     "classic-sangokushi/episodes/bt03_03_02_night-raid.md": {
-      "x": -5252.814176328353,
-      "y": -3955.5165671562404
+      "x": -5252.814176497075,
+      "y": -3955.5165669471844
     },
     "classic-sangokushi/episodes/bt03_03_03_yuan-shao-defeat.md": {
-      "x": -4705.68228379118,
-      "y": -3955.5167791971235
+      "x": -4705.682283744241,
+      "y": -3955.516779225259
     },
     "classic-sangokushi/episodes/bt03_02_03_guan-yu-slays-yan-liang.md": {
-      "x": -6529.448504736738,
-      "y": -3955.516794881745
+      "x": -6529.448504837121,
+      "y": -3955.51679480705
     },
     "classic-sangokushi/episodes/bt03_03_01_intelligence-leak.md": {
       "x": 1943.8991182714853,
@@ -5461,8 +5029,8 @@
       "y": -30274.566375730585
     },
     "classic-sangokushi/episodes/bt02_02_02_hulao-pass.md": {
-      "x": -9082.71057336166,
-      "y": -3955.512244270428
+      "x": -9082.710573487815,
+      "y": -3955.512244049609
     },
     "classic-sangokushi/episodes/bt02_02_01_coalition-forms.md": {
       "x": 184525.74636226502,
@@ -5477,8 +5045,8 @@
       "y": -29595.188760740755
     },
     "classic-sangokushi/episodes/bt01_03_03_first-victory.md": {
-      "x": -9812.228282691265,
-      "y": -3955.507866923587
+      "x": -9812.22828273184,
+      "y": -3955.5078668762085
     },
     "classic-sangokushi/episodes/bt01_02_03_forging-weapons.md": {
       "x": 182487.61351729554,
@@ -5489,8 +5057,8 @@
       "y": -29595.188760740755
     },
     "classic-sangokushi/episodes/act2_three-kingdoms.md": {
-      "x": -3976.1717296542115,
-      "y": -3600.8841823459466
+      "x": -3976.171729691363,
+      "y": -3600.8841823742514
     },
     "classic-sangokushi/episodes/sc08_03_unification.md": {
       "x": 181128.8582873159,
@@ -5513,12 +5081,12 @@
       "y": -32312.699220700073
     },
     "classic-sangokushi/episodes/bt08_03_01_wu-falls.md": {
-      "x": 8243.07338821521,
-      "y": -3955.562502821539
+      "x": 8243.073388144601,
+      "y": -3955.562502692351
     },
     "classic-sangokushi/episodes/bt08_01_03_deng-ai-march.md": {
-      "x": 7695.917275435023,
-      "y": -3955.5556957927447
+      "x": 7695.917275700121,
+      "y": -3955.555695707724
     },
     "classic-sangokushi/episodes/bt08_02_01_shu-surrender.md": {
       "x": 183166.9911322854,
@@ -5541,16 +5109,16 @@
       "y": -29595.188760740755
     },
     "classic-sangokushi/episodes/bt01_01_02_turban-uprising.md": {
-      "x": -11088.870348360872,
-      "y": -3955.503257734385
+      "x": -11088.87034851982,
+      "y": -3955.5032577118905
     },
     "classic-sangokushi/episodes/bt01_01_01_zhang-jiao-prophecy.md": {
       "x": 185205.12397725487,
       "y": -29595.188760740755
     },
     "classic-arthurian/MOC.md": {
-      "x": 22767.466380331207,
-      "y": 16212.920987143592
+      "x": 2305.4697727115986,
+      "y": -6697.866939643925
     },
     "classic-arthurian/episodes/act3_fall-of-camelot.md": {
       "x": -161652.97436498766,
@@ -5569,16 +5137,16 @@
       "y": 89286.77910047077
     },
     "classic-arthurian/episodes/sc08_02_the-last-battle.md": {
-      "x": 12255.313589889844,
-      "y": 3390.182747442271
+      "x": 12255.313589707346,
+      "y": 3390.1827476439908
     },
     "classic-arthurian/episodes/sc08_01_mordreds-revolt.md": {
-      "x": 11708.156310064347,
-      "y": 3390.1851381984925
+      "x": 11708.156310062668,
+      "y": 3390.185138127737
     },
     "classic-arthurian/episodes/sc07_03_rescue-and-flight.md": {
-      "x": 13532.023598859694,
-      "y": 3035.5358218554206
+      "x": 13532.023598878412,
+      "y": 3035.535822025908
     },
     "classic-arthurian/episodes/sc07_02_the-accusation.md": {
       "x": -161652.97436498766,
@@ -5601,16 +5169,16 @@
       "y": 89286.77910047077
     },
     "classic-arthurian/episodes/sc05_03_grail-castle.md": {
-      "x": 25767.179865340375,
-      "y": 11927.616008559069
+      "x": -797.255372796513,
+      "y": -5340.416440968504
     },
     "classic-arthurian/episodes/sc05_02_galahads-path.md": {
       "x": -156954.07436498764,
       "y": 89286.77910047077
     },
     "classic-arthurian/episodes/sc05_01_percivals-test.md": {
-      "x": 12620.075938231472,
-      "y": 3035.5278406964826
+      "x": 12620.075938496815,
+      "y": 3035.527840774267
     },
     "classic-arthurian/episodes/sc04_03_departure.md": {
       "x": -156014.29436498764,
@@ -5621,8 +5189,8 @@
       "y": 89286.77910047077
     },
     "classic-arthurian/episodes/sc04_01_grail-vision.md": {
-      "x": 22767.466380331207,
-      "y": 12356.146506417523
+      "x": -1573.014555654856,
+      "y": -5001.053842967523
     },
     "classic-arthurian/episodes/sc03_03_guinevere-arrives.md": {
       "x": -162592.75436498766,
@@ -5637,20 +5205,20 @@
       "y": 90226.55910047077
     },
     "classic-arthurian/episodes/sc02_03_the-gift.md": {
-      "x": 24481.588371765018,
-      "y": 12356.146506417523
+      "x": -797.2500227855336,
+      "y": -4322.323796046044
     },
     "classic-arthurian/episodes/sc02_02_lake-journey.md": {
       "x": -159773.41436498766,
       "y": 90226.55910047077
     },
     "classic-arthurian/episodes/sc02_01_broken-sword.md": {
-      "x": 12072.934545753807,
-      "y": 3035.5339053694515
+      "x": 12072.93454575351,
+      "y": 3035.533905407327
     },
     "classic-arthurian/episodes/sc01_03_the-drawing.md": {
-      "x": 25767.179865340375,
-      "y": 12356.146506417523
+      "x": -797.2479166121046,
+      "y": -3982.961187706609
     },
     "classic-arthurian/episodes/sc01_02_the-gathering.md": {
       "x": -158833.63436498764,
@@ -5661,8 +5229,8 @@
       "y": 90226.55910047077
     },
     "classic-arthurian/episodes/ep08_battle-of-camlann.md": {
-      "x": 11708.145963372359,
-      "y": 3035.538256693035
+      "x": 11708.145963274728,
+      "y": 3035.5382568691853
     },
     "classic-arthurian/episodes/ep07_lancelot-affair.md": {
       "x": -156954.07436498764,
@@ -5673,12 +5241,12 @@
       "y": 90226.55910047077
     },
     "classic-arthurian/episodes/ep05_grail-trials.md": {
-      "x": 12984.875960927342,
-      "y": 3744.8010149465385
+      "x": 12984.875960948477,
+      "y": 3744.8010149285183
     },
     "classic-arthurian/episodes/ep04_quest-begins.md": {
-      "x": 23624.527376048114,
-      "y": 12784.677004275974
+      "x": -1573.012847197511,
+      "y": -3304.23833751028
     },
     "classic-arthurian/episodes/ep03_round-table.md": {
       "x": -155074.51436498764,
@@ -5697,28 +5265,28 @@
       "y": 91166.33910047077
     },
     "classic-arthurian/episodes/bt08_03_02_hand-receives.md": {
-      "x": 25767.179865340375,
-      "y": 12784.677004275974
+      "x": -1185.1278383801578,
+      "y": -2625.5117398396824
     },
     "classic-arthurian/episodes/bt08_03_01_excalibur-returned.md": {
       "x": -159773.41436498766,
       "y": 91166.33910047077
     },
     "classic-arthurian/episodes/bt08_02_03_mutual-strike.md": {
-      "x": 12255.32842885854,
-      "y": 3035.530970890363
+      "x": 12255.328428819501,
+      "y": 3035.530971009447
     },
     "classic-arthurian/episodes/bt08_02_02_the-adder.md": {
-      "x": 11890.543511306632,
-      "y": 3035.5363754464024
+      "x": 11890.543511102765,
+      "y": 3035.536375242282
     },
     "classic-arthurian/episodes/bt08_02_01_eve-of-battle.md": {
       "x": -158833.63436498764,
       "y": 91166.33910047077
     },
     "classic-arthurian/episodes/bt08_01_03_arthurs-return.md": {
-      "x": 13167.267385727111,
-      "y": 3035.5297971752425
+      "x": 13167.267385720403,
+      "y": 3035.5297974367645
     },
     "classic-arthurian/episodes/bt08_01_02_false-news.md": {
       "x": -157893.85436498764,
@@ -5733,12 +5301,12 @@
       "y": 91166.33910047077
     },
     "classic-arthurian/episodes/bt07_03_02_gareth-falls.md": {
-      "x": 12984.87917108677,
-      "y": 3390.171644303023
+      "x": 12984.879171373106,
+      "y": 3390.171644291205
     },
     "classic-arthurian/episodes/bt07_03_01_rescue-charge.md": {
-      "x": 12802.45869018843,
-      "y": 3744.803672280563
+      "x": 12802.458690224516,
+      "y": 3744.80367247483
     },
     "classic-arthurian/episodes/bt07_02_03_death-sentence.md": {
       "x": -155074.51436498764,
@@ -5793,8 +5361,8 @@
       "y": 93045.89910047076
     },
     "classic-arthurian/episodes/bt06_01_02_the-drink.md": {
-      "x": 25767.179865340375,
-      "y": 13641.737999992878
+      "x": -1185.1290200262788,
+      "y": 89.3816909192754
     },
     "classic-arthurian/episodes/bt06_01_01_voyage-to-cornwall.md": {
       "x": -159773.41436498766,
@@ -5805,28 +5373,28 @@
       "y": 93045.89910047076
     },
     "classic-arthurian/episodes/bt05_03_02_galahads-ascension.md": {
-      "x": 21910.405384614303,
-      "y": 14070.26849785133
+      "x": -1185.1293869216192,
+      "y": 428.7438229536306
     },
     "classic-arthurian/episodes/bt05_03_01_grail-chapel.md": {
-      "x": 22338.935882472757,
-      "y": 14070.26849785133
+      "x": -1573.015355426722,
+      "y": 428.7441343284981
     },
     "classic-arthurian/episodes/bt05_02_03_three-unite.md": {
       "x": -157893.85436498764,
       "y": 93045.89910047076
     },
     "classic-arthurian/episodes/bt05_02_02_castle-of-maidens.md": {
-      "x": 12802.461408878095,
-      "y": 3390.1719345641754
+      "x": 12802.461408824993,
+      "y": 3390.171934766819
     },
     "classic-arthurian/episodes/bt05_02_01_healing-knight.md": {
       "x": -156954.07436498764,
       "y": 93045.89910047076
     },
     "classic-arthurian/episodes/bt05_01_03_purification.md": {
-      "x": 24053.057873906564,
-      "y": 14070.26849785133
+      "x": -797.2467188842141,
+      "y": 768.1049777180453
     },
     "classic-arthurian/episodes/bt05_01_01_temptation.md": {
       "x": -156014.29436498764,
@@ -5849,8 +5417,8 @@
       "y": 93985.67910047076
     },
     "classic-arthurian/episodes/bt04_02_02_galahad-sits.md": {
-      "x": 26624.24086105728,
-      "y": 14070.26849785133
+      "x": -1185.1312521897635,
+      "y": 1786.191965622929
     },
     "classic-arthurian/episodes/bt04_02_03_sword-in-stone-again.md": {
       "x": -159773.41436498766,
@@ -5865,8 +5433,8 @@
       "y": 93985.67910047076
     },
     "classic-arthurian/episodes/bt04_01_02_thunder-and-light.md": {
-      "x": 23195.99687818966,
-      "y": 14498.798995709783
+      "x": -1185.1324537682115,
+      "y": 2125.5544996129065
     },
     "classic-arthurian/episodes/bt04_01_01_pentecost-feast.md": {
       "x": -156954.07436498764,
@@ -5897,8 +5465,8 @@
       "y": 94925.45910047076
     },
     "classic-arthurian/episodes/bt03_01_03_the-round-table.md": {
-      "x": 26624.24086105728,
-      "y": 14498.798995709783
+      "x": -797.253077465116,
+      "y": 2804.278246987473
     },
     "classic-arthurian/episodes/bt03_01_02_building.md": {
       "x": -158833.63436498764,
@@ -5917,12 +5485,12 @@
       "y": 94925.45910047076
     },
     "classic-arthurian/episodes/bt02_03_01_hand-from-lake.md": {
-      "x": 23624.527376048114,
-      "y": 14927.329493568235
+      "x": -1573.0213661230132,
+      "y": 3483.0091403310043
     },
     "classic-arthurian/episodes/bt02_02_03_lake-arrival.md": {
-      "x": 24053.057873906564,
-      "y": 14927.329493568235
+      "x": -797.2565764620803,
+      "y": 3483.0058089663376
     },
     "classic-arthurian/episodes/bt02_02_02_the-mist.md": {
       "x": -155074.51436498764,
@@ -5937,12 +5505,12 @@
       "y": 95865.23910047076
     },
     "classic-arthurian/episodes/bt02_01_02_sword-breaks.md": {
-      "x": 12984.868755070347,
-      "y": 3035.5256339003845
+      "x": 12984.868755307823,
+      "y": 3035.5256337244946
     },
     "classic-arthurian/episodes/bt02_01_01_first-battle.md": {
-      "x": 12802.472309517127,
-      "y": 3035.525131215316
+      "x": 12802.47230913989,
+      "y": 3035.5251313227536
     },
     "classic-arthurian/episodes/bt01_03_03_coronation.md": {
       "x": -160713.19436498766,
@@ -5953,8 +5521,8 @@
       "y": 95865.23910047076
     },
     "classic-arthurian/episodes/bt01_03_01_the-pull.md": {
-      "x": 22338.935882472757,
-      "y": 15355.859991426687
+      "x": -1573.0224623439651,
+      "y": 4501.107076655712
     },
     "classic-arthurian/episodes/bt01_02_03_arthurs-chance.md": {
       "x": -158833.63436498764,
@@ -5981,64 +5549,64 @@
       "y": 96805.01910047076
     },
     "bible-old-testament/episodes/sc07_03_rain_returns.md": {
-      "x": -1889.6521823794617,
-      "y": -2360.425466068691
+      "x": -1889.6521824225458,
+      "y": -2360.4254659503076
     },
     "bible-old-testament/episodes/sc07_02_fire_from_heaven.md": {
-      "x": -1679.9855805940194,
-      "y": -2555.630718774705
+      "x": -1679.9855802876205,
+      "y": -2555.63071854082
     },
     "bible-old-testament/episodes/sc04_02_red_sea.md": {
-      "x": -1456.9277753939589,
-      "y": -2735.382150065326
+      "x": -1456.9277751482518,
+      "y": -2735.38214986717
     },
     "bible-old-testament/episodes/bt07_03_03_deluge_falls.md": {
-      "x": -1221.615366340542,
-      "y": -2898.762345382099
+      "x": -1221.6153662440638,
+      "y": -2898.762345422365
     },
     "bible-old-testament/episodes/bt07_02_02_elijahs_prayer.md": {
-      "x": -975.2468869212906,
-      "y": -3044.94046385629
+      "x": -975.2468869484013,
+      "y": -3044.9404639547315
     },
     "bible-old-testament/episodes/bt07_02_01_altar_prepared.md": {
-      "x": -719.0782897536798,
-      "y": -3173.169031500585
+      "x": -719.0782895827067,
+      "y": -3173.1690313618033
     },
     "bible-old-testament/episodes/bt04_02_03_egypt_swallowed.md": {
-      "x": 12255.30437042024,
-      "y": 5720.5287489635675
+      "x": 12255.304370244268,
+      "y": 5720.528748952146
     },
     "bible-old-testament/episodes/bt04_02_02_sea_parts.md": {
-      "x": -182.60359781002697,
-      "y": -3373.260856900571
+      "x": -182.60359787452867,
+      "y": -3373.2608569248932
     },
     "bible-old-testament/episodes/bt07_03_02_cloud_rises.md": {
-      "x": -2812.021423411911,
-      "y": -925.186236488597
+      "x": -2812.0214232850763,
+      "y": -925.186236361496
     },
     "bible-old-testament/episodes/bt07_03_01_elijah_prays.md": {
-      "x": -2702.395554787259,
-      "y": -1189.8516566480346
+      "x": -2702.3955548960366,
+      "y": -1189.8516565704438
     },
     "bible-old-testament/episodes/bt07_02_03_fire_falls.md": {
-      "x": -2574.1670794168376,
-      "y": -1446.020264061528
+      "x": -2574.167079626749,
+      "y": -1446.0202640020213
     },
     "bible-old-testament/MOC.md": {
-      "x": -2427.9891053227175,
-      "y": -1692.388751685988
+      "x": -2427.9891050324936,
+      "y": -1692.3887517023759
     },
     "bible-new-testament/MOC.md": {
-      "x": -2084.8573965080063,
-      "y": -2150.759006110083
+      "x": -2084.857396766828,
+      "y": -2150.759006117093
     },
     "bible-new-testament/episodes/ep06_crucifixion.md": {
-      "x": -2973.33211345586,
-      "y": -375.806432145288
+      "x": -2973.3321133728655,
+      "y": -375.8064324184849
     },
     "bible-apocrypha/MOC.md": {
-      "x": -2902.4871983909875,
-      "y": -653.3771223403585
+      "x": -2902.4871986778435,
+      "y": -653.3771221361458
     },
     "bible-old-testament/episodes/sc06_03_wisdom_fame.md": {
       "x": -181299.67197363082,
@@ -6061,24 +5629,24 @@
       "y": -31534.385256332906
     },
     "bible-old-testament/episodes/sc07_01_baal_prophets.md": {
-      "x": 3318.854806682889,
-      "y": 5720.559875203158
+      "x": 3318.8548065692603,
+      "y": 5720.55987547308
     },
     "bible-old-testament/episodes/sc05_01_philistine_challenge.md": {
-      "x": -1787.6682911586242,
-      "y": 5720.562049005146
+      "x": -1787.6682911840046,
+      "y": 5720.56204894473
     },
     "bible-old-testament/episodes/sc03_03_flood_waters.md": {
-      "x": -1889.653991515445,
-      "y": 3314.8765748935202
+      "x": -1889.6539913043339,
+      "y": 3314.8765749092076
     },
     "bible-old-testament/episodes/bt07_01_02_baal_fails.md": {
-      "x": 3683.6145182311866,
-      "y": 5720.563259402725
+      "x": 3683.6145185811893,
+      "y": 5720.563259092103
     },
     "bible-old-testament/episodes/bt07_01_01_challenge_issued.md": {
-      "x": 3318.858562224728,
-      "y": 6075.200349512458
+      "x": 3318.858562273652,
+      "y": 6075.200349171375
     },
     "bible-old-testament/episodes/bt06_03_02_nations_hear.md": {
       "x": -184119.01197363084,
@@ -6093,56 +5661,56 @@
       "y": -30594.605256332907
     },
     "bible-old-testament/episodes/sc04_03_sinai_covenant.md": {
-      "x": 1234.287261974934,
-      "y": 4480.043635687117
+      "x": 1234.2872620364285,
+      "y": 4480.04363585464
     },
     "bible-old-testament/episodes/ep04_exodus.md": {
-      "x": 947.999794322095,
-      "y": 4490.268401968032
+      "x": 947.999794337914,
+      "y": 4490.26840181143
     },
     "bible-old-testament/episodes/bt07_01_03_frenzied_worship.md": {
-      "x": 3866.015415427239,
-      "y": 5720.564460525208
+      "x": 3866.0154154870293,
+      "y": 5720.56446043597
     },
     "bible-old-testament/episodes/bt06_02_02_true_mother_revealed.md": {
       "x": -181299.67197363082,
       "y": -31534.385256332906
     },
     "bible-old-testament/episodes/bt05_01_02_army_trembles.md": {
-      "x": -1058.1541710126717,
-      "y": 5720.567540236333
+      "x": -1058.1541708538061,
+      "y": 5720.567540282913
     },
     "bible-old-testament/episodes/bt05_01_01_goliath_taunts.md": {
-      "x": -1787.6675920484513,
-      "y": 6075.197497358694
+      "x": -1787.6675920585378,
+      "y": 6075.197497180237
     },
     "bible-old-testament/episodes/bt04_03_03_covenant_sealed.md": {
-      "x": -454.41201806717834,
-      "y": 4237.248917655983
+      "x": -454.41201810660795,
+      "y": 4237.248917593223
     },
     "bible-old-testament/episodes/bt04_03_02_ten_commandments.md": {
-      "x": -719.0767835500089,
-      "y": 4127.621969878147
+      "x": -719.0767833406358,
+      "y": 4127.621969557336
     },
     "bible-old-testament/episodes/bt04_03_01_mountain_thunder.md": {
-      "x": 2871.244914887255,
-      "y": 3999.3920361886817
+      "x": 2871.2449149674376,
+      "y": 3999.392036437953
     },
     "bible-old-testament/episodes/bt03_03_03_rainbow_covenant.md": {
-      "x": 2615.0760080839323,
-      "y": 4127.620585668738
+      "x": 2615.0760080488076,
+      "y": 4127.620585796295
     },
     "bible-new-testament/episodes/ep04_miracles.md": {
-      "x": 2078.6025527297397,
-      "y": 4327.71302796879
+      "x": 2078.602552758552,
+      "y": 4327.713027843945
     },
     "bible-apocrypha/episodes/ep05_apocalypse_enoch.md": {
-      "x": 1801.0316265201664,
-      "y": 4398.558223208426
+      "x": 1801.031626516801,
+      "y": 4398.558223304414
     },
     "bible-apocrypha/episodes/ep01_enoch_ascension.md": {
-      "x": 1519.1149899707139,
-      "y": 4449.421334882757
+      "x": 1519.1149899944505,
+      "y": 4449.4213349236215
     },
     "bible-old-testament/episodes/sc04_01_ten_plagues.md": {
       "x": -178480.33197363082,
@@ -6193,16 +5761,16 @@
       "y": -94616.48644915492
     },
     "bible-apocrypha/episodes/ep03_tobit_journey.md": {
-      "x": 3575.9849303706524,
-      "y": 3510.085683924977
+      "x": 3575.984930109132,
+      "y": 3510.085684108811
     },
     "bible-apocrypha/episodes/ep02_watchers.md": {
-      "x": 3352.926812254365,
-      "y": 3689.836530160113
+      "x": 3352.926811986619,
+      "y": 3689.836530363283
     },
     "bible-apocrypha/episodes/act3_apocalypse.md": {
-      "x": 3117.613251288532,
-      "y": 3853.2157471528635
+      "x": 3117.6132512326867,
+      "y": 3853.2157469892877
     },
     "bible-old-testament/episodes/sc06_01_two_mothers.md": {
       "x": -179420.11197363082,
@@ -6221,8 +5789,8 @@
       "y": -33413.9452563329
     },
     "bible-old-testament/episodes/ep02_garden_of_eden.md": {
-      "x": 2742.2707619644134,
-      "y": -1939.34046203204
+      "x": 2742.270764753046,
+      "y": -1939.3404622943992
     },
     "bible-old-testament/episodes/bt06_01_01_dispute_brought.md": {
       "x": -177540.55197363082,
@@ -6265,20 +5833,20 @@
       "y": -95556.26644915492
     },
     "bible-new-testament/episodes/ep07_resurrection.md": {
-      "x": 3913.119735895287,
-      "y": -39.73928146604444
+      "x": 3913.1197351889136,
+      "y": -39.739280289800305
     },
     "bible-new-testament/episodes/act3_passion.md": {
       "x": -157970.52062814555,
       "y": -88038.02644915493
     },
     "bible-apocrypha/episodes/act1_heavenly.md": {
-      "x": 3956.054466728506,
-      "y": 373.3411464927845
+      "x": 3956.054465535134,
+      "y": 373.34114730143415
     },
     "bible-old-testament/episodes/ep07_elijah_fire.md": {
-      "x": 13532.026610849276,
-      "y": 6075.167466391802
+      "x": 13532.026610569797,
+      "y": 6075.167466024136
     },
     "bible-old-testament/episodes/ep06_solomons_judgment.md": {
       "x": -179420.11197363082,
@@ -6289,8 +5857,8 @@
       "y": -31534.385256332906
     },
     "bible-old-testament/episodes/bt04_01_03_firstborn_death.md": {
-      "x": -1372.4541300898572,
-      "y": -1439.7244323604914
+      "x": -1372.4541303369706,
+      "y": -1439.724432183206
     },
     "bible-old-testament/episodes/bt04_01_02_plagues_escalate.md": {
       "x": -182239.4519736308,
@@ -6321,20 +5889,20 @@
       "y": -95556.26644915492
     },
     "bible-new-testament/episodes/sc07_02_appearances.md": {
-      "x": -21.53386706916576,
-      "y": -2372.1913173118783
+      "x": -21.533866992422098,
+      "y": -2372.1913173067637
     },
     "bible-new-testament/episodes/sc06_03_golgotha.md": {
       "x": -159850.08062814554,
       "y": -95556.26644915492
     },
     "bible-new-testament/episodes/ep03_sermon_mount.md": {
-      "x": 379.92630209073735,
-      "y": -2478.527126061452
+      "x": 379.92630202776706,
+      "y": -2478.527126317605
     },
     "bible-new-testament/episodes/ep01_nativity.md": {
-      "x": 585.2041136441711,
-      "y": -2510.6778270598247
+      "x": 585.2041136424805,
+      "y": -2510.6778272995334
     },
     "bible-new-testament/episodes/bt06_03_02_crucified.md": {
       "x": -156090.96062814555,
@@ -6353,56 +5921,56 @@
       "y": -88038.02644915493
     },
     "bible-apocrypha/episodes/sc05_02_final_reckoning.md": {
-      "x": 1617.7588431359527,
-      "y": -2457.1580735879916
+      "x": 1617.7588408407073,
+      "y": -2457.158076777019
     },
     "bible-apocrypha/episodes/act2_earthly.md": {
       "x": -119009.52227977823,
       "y": -137871.56025555456
     },
     "bible-old-testament/episodes/sc05_03_israel_rallies.md": {
-      "x": 12984.866112789483,
-      "y": 6075.171980537827
+      "x": 12984.866112677222,
+      "y": 6075.17198057453
     },
     "bible-old-testament/episodes/sc05_02_sling_and_stone.md": {
-      "x": 12802.451929494122,
-      "y": 6075.168076375765
+      "x": 12802.45192940815,
+      "y": 6075.168076453269
     },
     "bible-old-testament/episodes/sc01_02_six_days.md": {
-      "x": 3913.120281781199,
-      "y": 994.1926081447824
+      "x": 3913.1202817738185,
+      "y": 994.1926082241853
     },
     "bible-old-testament/episodes/ep05_david_goliath.md": {
-      "x": 12802.45774421314,
-      "y": 5720.5200772790995
+      "x": 12802.457744120715,
+      "y": 5720.520077218091
     },
     "bible-old-testament/episodes/ep03_flood.md": {
-      "x": 3813.731001867705,
-      "y": 1397.4339005299128
+      "x": 3813.731001977047,
+      "y": 1397.4339005168706
     },
     "bible-old-testament/episodes/ep01_creation.md": {
-      "x": 3743.4171876976293,
-      "y": 1592.9507227233953
+      "x": 3743.4171874898207,
+      "y": 1592.9507228878028
     },
     "bible-old-testament/episodes/bt05_02_02_faith_declaration.md": {
       "x": -184119.01197363084,
       "y": -30594.605256332907
     },
     "bible-old-testament/episodes/bt03_03_01_deluge_begins.md": {
-      "x": 3563.224427727702,
-      "y": 1967.128621344471
+      "x": 3563.2244278486696,
+      "y": 1967.1286213610483
     },
     "bible-old-testament/episodes/bt01_02_03_creatures_and_man.md": {
-      "x": 3454.2020257759223,
-      "y": 2144.0068690295366
+      "x": 3454.2020258034945,
+      "y": 2144.0068690336825
     },
     "bible-new-testament/episodes/sc08_03_peter_sermon.md": {
       "x": -161729.64062814554,
       "y": -95556.26644915492
     },
     "bible-new-testament/episodes/sc07_01_empty_tomb.md": {
-      "x": 3200.904515094601,
-      "y": 2473.1290497428195
+      "x": 3200.9045149367626,
+      "y": 2473.129049806177
     },
     "bible-new-testament/episodes/sc06_01_gethsemane.md": {
       "x": -157970.52062814555,
@@ -6417,12 +5985,12 @@
       "y": -95556.26644915492
     },
     "bible-new-testament/episodes/sc04_03_feeding_multitude.md": {
-      "x": 2571.2739263651997,
-      "y": 3011.824374053814
+      "x": 2571.2739265847163,
+      "y": 3011.824374018738
     },
     "bible-new-testament/episodes/sc04_01_water_to_wine.md": {
-      "x": 2392.5409422035787,
-      "y": 3117.7763831179714
+      "x": 2392.5409423400633,
+      "y": 3117.776383109808
     },
     "bible-new-testament/episodes/sc03_01_beatitudes.md": {
       "x": -160789.86062814554,
@@ -6437,20 +6005,20 @@
       "y": -94616.48644915492
     },
     "bible-new-testament/episodes/ep09_road_to_damascus.md": {
-      "x": 1617.754678435657,
-      "y": 3411.611971819014
+      "x": 1617.7546785883308,
+      "y": 3411.6119718646755
     },
     "bible-new-testament/episodes/ep08_pentecost.md": {
-      "x": 1413.7112406168324,
-      "y": 3450.827464111959
+      "x": 1413.7112404107475,
+      "y": 3450.827464041976
     },
     "bible-new-testament/episodes/bt09_03_03_paul_preaches.md": {
       "x": -162669.42062814554,
       "y": -93676.70644915492
     },
     "bible-new-testament/episodes/bt09_03_02_scales_fall.md": {
-      "x": 999.9527888981736,
-      "y": 3486.628116543235
+      "x": 999.9527887381132,
+      "y": 3486.6281162475466
     },
     "bible-new-testament/episodes/bt08_01_02_matthias_chosen.md": {
       "x": -161729.64062814554,
@@ -6465,12 +6033,12 @@
       "y": -92736.92644915493
     },
     "bible-new-testament/episodes/bt07_02_01_mary_encounter.md": {
-      "x": 177.3621577641484,
-      "y": 3386.747259549694
+      "x": 177.3621578103434,
+      "y": 3386.7472595726713
     },
     "bible-new-testament/episodes/bt07_01_02_angel_announcement.md": {
-      "x": -21.53232453482183,
-      "y": 3326.6479615929375
+      "x": -21.532324285530922,
+      "y": 3326.6479615555445
     },
     "bible-new-testament/episodes/bt07_01_01_women_at_dawn.md": {
       "x": -157970.52062814555,
@@ -6537,36 +6105,36 @@
       "y": -88038.02644915493
     },
     "bible-apocrypha/episodes/sc05_03_new_jerusalem.md": {
-      "x": -2054.6764805693347,
-      "y": 684.8808332254926
+      "x": -2054.676480739683,
+      "y": 684.8808332815458
     },
     "bible-apocrypha/episodes/sc01_03_transformation.md": {
-      "x": -2061.848483741803,
-      "y": 477.2274526900233
+      "x": -2061.8484836659914,
+      "y": 477.22745263876044
     },
     "bible-apocrypha/episodes/ep04_judith_triumph.md": {
-      "x": 12620.112157185837,
-      "y": 6885.708393032772
+      "x": 12620.112156995887,
+      "y": 6885.708393220628
     },
     "bible-apocrypha/episodes/bt05_03_03_eternal_peace.md": {
-      "x": -2033.1944552181337,
-      "y": 62.91120925204019
+      "x": -2033.1944551713082,
+      "y": 62.91120946390623
     },
     "bible-apocrypha/episodes/bt05_03_01_holy_city_descends.md": {
-      "x": -1997.507414336513,
-      "y": -141.7803779685974
+      "x": -1997.5074144684675,
+      "y": -141.78037787589145
     },
     "bible-apocrypha/episodes/bt05_02_03_new_creation.md": {
-      "x": -1947.7824794863434,
-      "y": -343.5184712245906
+      "x": -1947.7824795490535,
+      "y": -343.51847124616086
     },
     "bible-apocrypha/episodes/bt05_02_02_righteous_saved.md": {
-      "x": -1884.2585402853626,
-      "y": -541.3448540389093
+      "x": -1884.2585402451818,
+      "y": -541.3448542379659
     },
     "bible-apocrypha/episodes/bt05_02_01_fire_judgment.md": {
-      "x": -1807.2366572350488,
-      "y": -734.3179558665323
+      "x": -1807.2366572049614,
+      "y": -734.3179555753709
     },
     "bible-old-testament/episodes/sc08_03_vindication.md": {
       "x": -184119.01197363084,
@@ -6581,12 +6149,12 @@
       "y": -34353.72525633291
     },
     "bible-old-testament/episodes/sc01_03_seventh_day.md": {
-      "x": 2930.7357361379936,
-      "y": 786.0291842512687
+      "x": 2930.7357322565904,
+      "y": 786.0291818976795
     },
     "bible-old-testament/episodes/sc01_01_void_and_light.md": {
-      "x": 2912.2108372571493,
-      "y": 887.6874845578012
+      "x": 2912.210833956246,
+      "y": 887.6874817251403
     },
     "bible-old-testament/episodes/ep08_daniels_lions.md": {
       "x": -180359.89197363082,
@@ -6617,80 +6185,80 @@
       "y": -32474.165256332904
     },
     "bible-old-testament/episodes/bt05_03_03_triumph_song.md": {
-      "x": 13532.038054757888,
-      "y": 5720.524481562635
+      "x": 13532.03805455211,
+      "y": 5720.524481703072
     },
     "bible-old-testament/episodes/bt05_03_02_enemy_flees.md": {
-      "x": 13349.640853835419,
-      "y": 5720.523641093237
+      "x": 13349.640853810437,
+      "y": 5720.523641039118
     },
     "bible-old-testament/episodes/bt05_03_01_pursuit_begins.md": {
-      "x": 13167.248083716408,
-      "y": 5720.52199052398
+      "x": 13167.248083565686,
+      "y": 5720.521990640152
     },
     "bible-old-testament/episodes/bt05_02_03_giant_falls.md": {
-      "x": 12984.854412196844,
-      "y": 5720.519439145758
+      "x": 12984.854412068536,
+      "y": 5720.519438988045
     },
     "bible-old-testament/episodes/bt05_02_01_armor_rejected.md": {
-      "x": 12620.058719741603,
-      "y": 5720.52373418846
+      "x": 12620.058719600625,
+      "y": 5720.5237341851325
     },
     "bible-old-testament/episodes/bt04_02_01_trapped.md": {
-      "x": 12072.900549310752,
-      "y": 5720.529105579984
+      "x": 12072.900549165366,
+      "y": 5720.529105522069
     },
     "bible-old-testament/episodes/bt01_03_03_blessing_declared.md": {
-      "x": 2152.416242585965,
-      "y": 2082.21761958982
+      "x": 2152.4162426337093,
+      "y": 2082.2176197079843
     },
     "bible-old-testament/episodes/bt01_03_02_sacred_rest.md": {
-      "x": 2068.1959152031336,
-      "y": 2142.091641237535
+      "x": 2068.195914940054,
+      "y": 2142.091641184357
     },
     "bible-old-testament/episodes/bt01_03_01_work_completed.md": {
-      "x": 1981.0044877508737,
-      "y": 2197.551167001054
+      "x": 1981.0044879858885,
+      "y": 2197.55116708633
     },
     "bible-old-testament/episodes/bt01_02_02_land_and_plants.md": {
-      "x": 1891.0705177075247,
-      "y": 2248.4537511726
+      "x": 1891.0705175465396,
+      "y": 2248.4537512078864
     },
     "bible-old-testament/episodes/bt01_02_01_sky_and_waters.md": {
-      "x": 1798.6421991735967,
-      "y": 2294.650645631513
+      "x": 1798.6421994162845,
+      "y": 2294.6506454017062
     },
     "bible-old-testament/episodes/bt01_01_03_separation.md": {
-      "x": 1703.953972594532,
-      "y": 2336.0300626638805
+      "x": 1703.9539725712789,
+      "y": 2336.030062566173
     },
     "bible-old-testament/episodes/bt01_01_02_let_there_be_light.md": {
-      "x": 1607.265178705207,
-      "y": 2372.478499491839
+      "x": 1607.2651787601258,
+      "y": 2372.4784994762695
     },
     "bible-old-testament/episodes/bt01_01_01_primordial_darkness.md": {
-      "x": 1508.8200394406242,
-      "y": 2403.9045738215586
+      "x": 1508.820039438372,
+      "y": 2403.9045736607
     },
     "bible-new-testament/episodes/sc09_03_ananias_healing.md": {
-      "x": 1408.8973545678853,
-      "y": 2430.2184751997543
+      "x": 1408.8973545921504,
+      "y": 2430.2184752027197
     },
     "bible-new-testament/episodes/sc09_02_blinding_light.md": {
-      "x": 1307.750199228309,
-      "y": 2451.3545611732934
+      "x": 1307.7501991997171,
+      "y": 2451.3545612511602
     },
     "bible-new-testament/episodes/sc07_03_great_commission.md": {
-      "x": 1205.6523811350487,
-      "y": 2467.25584507455
+      "x": 1205.6523808413865,
+      "y": 2467.2558448989116
     },
     "bible-new-testament/episodes/sc05_02_bread_and_wine.md": {
       "x": -156090.96062814555,
       "y": -95556.26644915492
     },
     "bible-new-testament/episodes/sc04_02_lazarus_raised.md": {
-      "x": 999.668994362946,
-      "y": 2483.20035037599
+      "x": 999.6689945401125,
+      "y": 2483.2003504591707
     },
     "bible-new-testament/episodes/sc03_03_golden_rule.md": {
       "x": -162669.42062814554,
@@ -6705,12 +6273,12 @@
       "y": -94616.48644915492
     },
     "bible-new-testament/episodes/sc02_02_jordan_baptism.md": {
-      "x": 588.2557059821339,
-      "y": 2451.3581039573096
+      "x": 588.2557061165056,
+      "y": 2451.3581037661484
     },
     "bible-new-testament/episodes/sc01_01_annunciation.md": {
-      "x": 487.1023403646807,
-      "y": 2430.2213778401083
+      "x": 487.1023402414071,
+      "y": 2430.2213775626833
     },
     "bible-new-testament/episodes/ep02_baptism.md": {
       "x": -155151.18062814555,
@@ -6721,8 +6289,8 @@
       "y": -93676.70644915492
     },
     "bible-new-testament/episodes/bt09_02_02_voice_from_heaven.md": {
-      "x": 192.04594426259837,
-      "y": 2336.030514146792
+      "x": 192.04594444272237,
+      "y": 2336.03051384722
     },
     "bible-new-testament/episodes/bt08_03_03_community_born.md": {
       "x": -157030.74062814555,
@@ -6741,20 +6309,20 @@
       "y": -92736.92644915493
     },
     "bible-new-testament/episodes/bt07_03_03_ascension_promise.md": {
-      "x": -256.4140688524539,
-      "y": 2082.218649477075
+      "x": -256.4140685288206,
+      "y": 2082.218649474245
     },
     "bible-new-testament/episodes/bt07_03_02_commission_given.md": {
-      "x": -337.44263148130835,
-      "y": 2018.0883553191272
+      "x": -337.4426316050924,
+      "y": 2018.0883553346375
     },
     "bible-new-testament/episodes/bt07_03_01_mountain_gathering.md": {
-      "x": -415.05615555714473,
-      "y": 1949.874861656424
+      "x": -415.0561554410186,
+      "y": 1949.8748618950751
     },
     "bible-new-testament/episodes/bt07_02_03_ascension.md": {
-      "x": -489.0631523181678,
-      "y": 1877.7494478658866
+      "x": -489.06315249966383,
+      "y": 1877.7494478809742
     },
     "bible-new-testament/episodes/bt07_01_03_peter_john_run.md": {
       "x": -158910.30062814555,
@@ -6777,8 +6345,8 @@
       "y": -91797.14644915493
     },
     "bible-new-testament/episodes/bt05_02_03_new_covenant.md": {
-      "x": -846.9151746040881,
-      "y": 1374.3843380113967
+      "x": -846.9151743785719,
+      "y": 1374.3843381231482
     },
     "bible-new-testament/episodes/bt05_02_02_cup_of_covenant.md": {
       "x": -162669.42062814554,
@@ -6793,16 +6361,16 @@
       "y": -90857.36644915493
     },
     "bible-new-testament/episodes/bt04_03_03_twelve_baskets.md": {
-      "x": -992.4787642883916,
-      "y": 988.2610533503874
+      "x": -992.4787642809504,
+      "y": 988.2610534389881
     },
     "bible-new-testament/episodes/bt04_03_02_abundance.md": {
-      "x": -1016.2135891231234,
-      "y": 887.689659430778
+      "x": -1016.2135893375311,
+      "y": 887.6896594390189
     },
     "bible-new-testament/episodes/bt04_02_03_come_forth.md": {
-      "x": -1034.7404908794194,
-      "y": 786.0258689989145
+      "x": -1034.7404909572476,
+      "y": 786.0258690337661
     },
     "bible-new-testament/episodes/bt04_02_02_jesus_weeps.md": {
       "x": -157030.74062814555,
@@ -6813,12 +6381,12 @@
       "y": -90857.36644915493
     },
     "bible-new-testament/episodes/bt04_01_03_disciples_believe.md": {
-      "x": -1058.6442758426292,
-      "y": 477.2319718360208
+      "x": -1058.6442757642214,
+      "y": 477.23197185665344
     },
     "bible-new-testament/episodes/bt04_01_02_water_transformed.md": {
-      "x": -1055.9838887615044,
-      "y": 373.93007400873057
+      "x": -1055.983888800717,
+      "y": 373.93007387911666
     },
     "bible-new-testament/episodes/bt03_03_03_wise_builder.md": {
       "x": -162669.42062814554,
@@ -6865,8 +6433,8 @@
       "y": -88977.80644915493
     },
     "bible-new-testament/episodes/bt02_02_02_heavens_open.md": {
-      "x": -625.4537883283233,
-      "y": -768.1128089639253
+      "x": -625.4537881510734,
+      "y": -768.1128086356166
     },
     "bible-new-testament/episodes/bt02_02_01_jesus_approaches.md": {
       "x": -158910.30062814555,
@@ -6881,20 +6449,20 @@
       "y": -88038.02644915493
     },
     "bible-new-testament/episodes/bt01_01_02_divine_message.md": {
-      "x": -337.4435961769683,
-      "y": -1063.6388410527256
+      "x": -337.44359664549313,
+      "y": -1063.638841471733
     },
     "bible-new-testament/episodes/bt01_01_01_gabriel_appears.md": {
-      "x": -256.41638820202724,
-      "y": -1127.767865039673
+      "x": -256.4163883078414,
+      "y": -1127.7678650749092
     },
     "bible-apocrypha/episodes/sc05_01_visions_judgment.md": {
-      "x": -172.19214941403283,
-      "y": -1187.6451010987303
+      "x": -172.19214958020197,
+      "y": -1187.645101305761
     },
     "bible-apocrypha/episodes/sc04_03_beheading.md": {
-      "x": 12437.703487176199,
-      "y": 7594.966897324457
+      "x": 12437.703486800241,
+      "y": 7594.966897498318
     },
     "bible-apocrypha/episodes/sc04_02_judith_plan.md": {
       "x": -116190.18227977824,
@@ -6921,24 +6489,24 @@
       "y": -142570.46025555456
     },
     "bible-apocrypha/episodes/sc01_02_heavenly_tour.md": {
-      "x": 588.2504963709816,
-      "y": -1496.9062465569284
+      "x": 588.2504994763176,
+      "y": -1496.9062431591337
     },
     "bible-apocrypha/episodes/sc01_01_enoch_calling.md": {
-      "x": 690.3544275795676,
-      "y": -1512.8085427707465
+      "x": 690.3544300428291,
+      "y": -1512.808538478851
     },
     "bible-apocrypha/episodes/bt05_03_02_righteous_dwell.md": {
-      "x": 793.1379023239559,
-      "y": -1523.4329337986387
+      "x": 793.1379044959484,
+      "y": -1523.432928626979
     },
     "bible-apocrypha/episodes/bt05_01_03_history_scroll.md": {
-      "x": 896.333809474503,
-      "y": -1528.7524325848372
+      "x": 896.3338100365943,
+      "y": -1528.7524264841238
     },
     "bible-apocrypha/episodes/bt05_01_01_throne_vision.md": {
-      "x": 999.6634669644844,
-      "y": -1528.7525502340368
+      "x": 999.6634665758232,
+      "y": -1528.7525434462596
     },
     "bible-apocrypha/episodes/bt04_03_03_thanksgiving.md": {
       "x": -116190.18227977824,
@@ -6949,8 +6517,8 @@
       "y": -140690.90025555456
     },
     "bible-apocrypha/episodes/bt04_03_01_sword_strike.md": {
-      "x": 12437.71029591236,
-      "y": 6885.703348753887
+      "x": 12437.710295806468,
+      "y": 6885.703348523173
     },
     "bible-apocrypha/episodes/bt04_02_03_enemy_trust.md": {
       "x": -114310.62227977822,
@@ -6973,24 +6541,24 @@
       "y": -139751.12025555456
     },
     "bible-apocrypha/episodes/bt03_03_02_raphael_reveal.md": {
-      "x": 1891.0772884950554,
-      "y": -1293.9930309606245
+      "x": 1891.0772784844723,
+      "y": -1293.9930386227586
     },
     "bible-apocrypha/episodes/bt03_03_01_eyes_restored.md": {
       "x": -117129.96227977824,
       "y": -139751.12025555456
     },
     "bible-apocrypha/episodes/bt03_02_03_demon_expelled.md": {
-      "x": 13532.036367759752,
-      "y": 6885.717126588151
+      "x": 13532.036367677625,
+      "y": 6885.717126768353
     },
     "bible-apocrypha/episodes/bt03_02_02_sarah_encounter.md": {
       "x": -116190.18227977824,
       "y": -139751.12025555456
     },
     "bible-apocrypha/episodes/bt03_02_01_great_fish.md": {
-      "x": 13349.625171892107,
-      "y": 6885.714589978173
+      "x": 13349.625171751019,
+      "y": 6885.71458962465
     },
     "bible-apocrypha/episodes/bt03_01_03_journey_begins.md": {
       "x": -115250.40227977822,
@@ -7021,40 +6589,40 @@
       "y": -137871.56025555456
     },
     "bible-apocrypha/episodes/bt01_03_03_metatron_born.md": {
-      "x": 2742.918305703938,
-      "y": -419.92978699670874
+      "x": 2742.9183006320495,
+      "y": -419.9297888578876
     },
     "bible-apocrypha/episodes/bt01_03_02_wings_manifest.md": {
-      "x": 2786.7226098048923,
-      "y": -326.3408750351326
+      "x": 2786.722605578072,
+      "y": -326.340877055666
     },
     "bible-apocrypha/episodes/bt01_03_01_holy_fire.md": {
-      "x": 2825.6512574212893,
-      "y": -230.6181140195196
+      "x": 2825.6512540120234,
+      "y": -230.61811663509053
     },
     "bible-apocrypha/episodes/bt01_02_03_face_of_god.md": {
-      "x": 2859.6026690108897,
-      "y": -133.01659874943633
+      "x": 2859.602739384592,
+      "y": -133.016527239277
     },
     "bible-apocrypha/episodes/bt01_02_02_seventh_heaven.md": {
-      "x": 2888.4831455874764,
-      "y": -33.79683713298645
+      "x": 2888.4831424176027,
+      "y": -33.796831172778845
     },
     "bible-apocrypha/episodes/bt01_02_01_first_heaven.md": {
-      "x": 2912.215075063927,
-      "y": 66.77103010821483
+      "x": 2912.2150706096677,
+      "y": 66.77103487711148
     },
     "bible-apocrypha/episodes/bt01_01_03_pillar_of_light.md": {
-      "x": 2930.7394775918856,
-      "y": 168.42917409013035
+      "x": 2930.7394722708113,
+      "y": 168.42917782897865
     },
     "bible-apocrypha/episodes/bt01_01_02_farewell.md": {
       "x": -119949.30227977823,
       "y": -137871.56025555456
     },
     "bible-apocrypha/episodes/bt01_01_01_divine_voice.md": {
-      "x": 2951.9797437576353,
-      "y": 373.9315458856823
+      "x": 2951.979738270627,
+      "y": 373.93154714188523
     },
     "bible-old-testament/episodes/bt08_03_01_accusers_punished.md": {
       "x": -184119.01197363084,
@@ -7073,16 +6641,16 @@
       "y": -95556.26644915492
     },
     "bible-new-testament/episodes/sc08_02_tongues_of_fire.md": {
-      "x": 1910.0114252506166,
-      "y": 638.2365177798099
+      "x": 1910.011390204905,
+      "y": 638.2365459914098
     },
     "bible-new-testament/episodes/sc02_01_john_preaching.md": {
       "x": -158910.30062814555,
       "y": -94616.48644915492
     },
     "bible-new-testament/episodes/bt09_03_01_ananias_vision.md": {
-      "x": 1887.67462309299,
-      "y": 731.4682289073752
+      "x": 1887.674642840753,
+      "y": 731.4682234195548
     },
     "bible-new-testament/episodes/bt09_02_01_journey_begins.md": {
       "x": -160789.86062814554,
@@ -7101,16 +6669,16 @@
       "y": -93676.70644915492
     },
     "bible-new-testament/episodes/bt08_02_03_crowd_amazed.md": {
-      "x": 1853.8970164870711,
-      "y": 980.8958963576966
+      "x": 1853.8970221268044,
+      "y": 980.8958930868077
     },
     "bible-new-testament/episodes/bt08_02_02_flames_descend.md": {
-      "x": 1775.4323056057249,
-      "y": 992.0722837496464
+      "x": 1775.4323110121861,
+      "y": 992.072278827347
     },
     "bible-new-testament/episodes/bt08_02_01_rushing_wind.md": {
-      "x": 1804.3560122321037,
-      "y": 1065.874654408216
+      "x": 1804.3560320986937,
+      "y": 1065.8746438948992
     },
     "bible-new-testament/episodes/bt02_01_03_pharisees_rebuked.md": {
       "x": -157970.52062814555,
@@ -7129,16 +6697,16 @@
       "y": -88038.02644915493
     },
     "bible-new-testament/episodes/bt01_02_03_shepherds_arrival.md": {
-      "x": 1592.803591126165,
-      "y": 1212.8539425734123
+      "x": 1592.8042308434467,
+      "y": 1212.8529107710474
     },
     "bible-apocrypha/episodes/sc08_03_lions_den.md": {
-      "x": 1592.578439007121,
-      "y": 1289.7430604147162
+      "x": 1592.5776897149315,
+      "y": 1289.7420117032582
     },
     "bible-apocrypha/episodes/sc08_02_dragon_slain.md": {
-      "x": 11890.52241708817,
-      "y": 7240.350968875619
+      "x": 11890.522417062355,
+      "y": 7240.350968732801
     },
     "bible-apocrypha/episodes/sc08_01_bel_exposed.md": {
       "x": -120889.08227977823,
@@ -7157,56 +6725,56 @@
       "y": -143510.24025555456
     },
     "bible-apocrypha/episodes/sc06_03_temple_rededication.md": {
-      "x": 1310.5805077188254,
-      "y": 1373.6493959792633
+      "x": 1310.6538300363525,
+      "y": 1373.6403635326176
     },
     "bible-apocrypha/episodes/sc06_02_mattathias_defiance.md": {
-      "x": 13349.64365014941,
-      "y": 7594.96458520117
+      "x": 13349.643650107282,
+      "y": 7594.9645854335895
     },
     "bible-apocrypha/episodes/sc06_01_antiochus_oppression.md": {
       "x": -117129.96227977824,
       "y": -143510.24025555456
     },
     "bible-apocrypha/episodes/sc04_01_holofernes_siege.md": {
-      "x": 12255.313131796856,
-      "y": 6885.69989264161
+      "x": 12255.313132017041,
+      "y": 6885.699892662437
     },
     "bible-apocrypha/episodes/sc02_03_nephilim.md": {
       "x": -119949.30227977823,
       "y": -142570.46025555456
     },
     "bible-apocrypha/episodes/ep08_bel_dragon.md": {
-      "x": 1099.02469902463,
-      "y": 1494.2314811021345
+      "x": 1099.0254242780632,
+      "y": 1494.2299293244118
     },
     "bible-apocrypha/episodes/ep07_susanna_trial.md": {
       "x": -117129.96227977824,
       "y": -142570.46025555456
     },
     "bible-apocrypha/episodes/ep06_maccabees_revolt.md": {
-      "x": 13349.638702393524,
-      "y": 7240.344719138559
+      "x": 13349.638702569397,
+      "y": 7240.344719298405
     },
     "bible-apocrypha/episodes/bt08_03_03_deliverance.md": {
-      "x": 951.026574610064,
-      "y": 1449.489633444184
+      "x": 951.0270736286859,
+      "y": 1449.4892716795318
     },
     "bible-apocrypha/episodes/bt08_03_02_habakkuk_flight.md": {
-      "x": 898.7746768625336,
-      "y": 1509.0873902879864
+      "x": 898.77514800576,
+      "y": 1509.0870024695294
     },
     "bible-apocrypha/episodes/bt08_03_01_into_the_pit.md": {
-      "x": 848.8482979607071,
-      "y": 1446.499302174308
+      "x": 848.8479736311094,
+      "y": 1446.499546126359
     },
     "bible-apocrypha/episodes/bt08_02_03_mob_anger.md": {
-      "x": 12072.929685304363,
-      "y": 7240.3520453795445
+      "x": 12072.929685192314,
+      "y": 7240.352045563926
     },
     "bible-apocrypha/episodes/bt08_02_02_pitch_cakes.md": {
-      "x": 11708.128597538196,
-      "y": 7594.979680388693
+      "x": 11708.128597760488,
+      "y": 7594.979680657596
     },
     "bible-apocrypha/episodes/bt08_02_01_living_god_claim.md": {
       "x": -116190.18227977824,
@@ -7261,28 +6829,28 @@
       "y": -140690.90025555456
     },
     "bible-apocrypha/episodes/bt06_03_03_hanukkah.md": {
-      "x": 203.38108134101134,
-      "y": 1104.9977695689108
+      "x": 203.38132953566316,
+      "y": 1104.9977715763114
     },
     "bible-apocrypha/episodes/bt06_03_02_miracle_oil.md": {
-      "x": 129.69375431070938,
-      "y": 1103.3046606755454
+      "x": 129.69400359753598,
+      "y": 1103.3046318201164
     },
     "bible-apocrypha/episodes/bt06_03_01_cleansing.md": {
-      "x": 149.59016195792913,
-      "y": 1031.5201321830068
+      "x": 149.5900511597246,
+      "y": 1031.5200024949413
     },
     "bible-apocrypha/episodes/bt06_02_03_jerusalem_march.md": {
-      "x": 12437.711623390762,
-      "y": 7240.34727257566
+      "x": 12437.711623508902,
+      "y": 7240.347272642101
     },
     "bible-apocrypha/episodes/bt06_02_02_guerrilla_war.md": {
-      "x": 12072.919759288745,
-      "y": 6885.697369776373
+      "x": 12072.919759281565,
+      "y": 6885.697369721628
     },
     "bible-apocrypha/episodes/bt06_02_01_altar_refusal.md": {
-      "x": 11708.11321876017,
-      "y": 7240.34787789135
+      "x": 11708.11321884314,
+      "y": 7240.347877970869
     },
     "bible-apocrypha/episodes/bt06_01_03_flight_to_hills.md": {
       "x": -119009.52227977823,
@@ -7297,20 +6865,20 @@
       "y": -140690.90025555456
     },
     "bible-apocrypha/episodes/bt05_01_02_fallen_judged.md": {
-      "x": -47.39916855451929,
-      "y": 746.831605413408
+      "x": -47.399132783209396,
+      "y": 746.8316848151862
     },
     "bible-apocrypha/episodes/bt04_01_02_water_cut.md": {
-      "x": 11890.520893450508,
-      "y": 6885.695746715825
+      "x": 11890.520893269424,
+      "y": 6885.695746602598
     },
     "bible-apocrypha/episodes/bt04_01_01_army_arrives.md": {
-      "x": 11708.115923104035,
-      "y": 6885.699435809812
+      "x": 11708.115923177373,
+      "y": 6885.699435752317
     },
     "bible-apocrypha/episodes/bt02_03_03_divine_decree.md": {
-      "x": -19.034044923810676,
-      "y": 595.1183915426318
+      "x": -19.03401029148628,
+      "y": 595.1184214713102
     },
     "bible-apocrypha/episodes/bt02_03_02_cry_to_heaven.md": {
       "x": -119949.30227977823,
@@ -7329,8 +6897,8 @@
       "y": -138811.34025555456
     },
     "classic-genji/MOC.md": {
-      "x": 11233.811175192703,
-      "y": -1286.108808654201
+      "x": 11233.811175270552,
+      "y": -1286.108808421206
     },
     "classic-genji/episodes/act3_twilight.md": {
       "x": -62098.13504664386,
@@ -7760,153 +7328,269 @@
       "x": -63037.91504664386,
       "y": 178332.212182845
     },
+    "classic-divine-comedy/episodes/sc03_03_lucifer-encounter.md": {
+      "x": -2152.42077670491,
+      "y": 2225.0279629865336
+    },
+    "classic-divine-comedy/episodes/bt03_03_02_three-faces.md": {
+      "x": -1605.2828736351828,
+      "y": 2225.027217618513
+    },
     "classic-saiyuki/episodes/seq7_final-trials.md": {
-      "x": 9519.694326374329,
-      "y": -2790.3772835192503
+      "x": 9519.694326401826,
+      "y": -2790.377283356312
     },
     "classic-saiyuki/episodes/seq6_flaming-mountain.md": {
-      "x": 8425.411296854036,
-      "y": -2790.3593081308495
+      "x": 8425.411297060342,
+      "y": -2790.3593081207487
     },
     "classic-saiyuki/episodes/seq5_white-bone-spirit.md": {
-      "x": 5872.153138364178,
-      "y": -2790.3501104884317
+      "x": 5872.1531384144755,
+      "y": -2790.3501105365226
     },
     "classic-saiyuki/episodes/seq2_heavenly-havoc.md": {
-      "x": -8717.978149873561,
-      "y": -2790.3128336605228
+      "x": -8717.978149628416,
+      "y": -2790.3128334941844
     },
     "classic-saiyuki/episodes/bt62_ice-trap.md": {
-      "x": 10431.599532635391,
-      "y": -2790.3797611034834
+      "x": 10431.599532585731,
+      "y": -2790.3797612150156
     },
     "classic-saiyuki/episodes/bt57_demon-subjugation.md": {
-      "x": 9884.481361812112,
-      "y": -2790.3772732499397
+      "x": 9884.481361972206,
+      "y": -2790.377272935791
     },
     "classic-saiyuki/episodes/bt56_wukong-swallowed.md": {
-      "x": 9702.087814502022,
-      "y": -2790.377694298235
+      "x": 9702.08781477924,
+      "y": -2790.377694028761
     },
     "classic-saiyuki/episodes/bt55_three-demons.md": {
-      "x": 9519.699510226286,
-      "y": -2435.7241732502425
+      "x": 9519.699510157147,
+      "y": -2435.7241734375566
     },
     "classic-saiyuki/episodes/bt51_heavenly-aid.md": {
-      "x": 9154.955072069852,
-      "y": -2790.3703240418913
+      "x": 9154.955071928176,
+      "y": -2790.370323979156
     },
     "classic-saiyuki/episodes/bt50_bull-rage.md": {
-      "x": 8972.568111445682,
-      "y": -2790.366981268455
+      "x": 8972.568111357354,
+      "y": -2790.3669814078444
     },
     "classic-saiyuki/episodes/bt49_disguise-theft.md": {
-      "x": 8790.18439504376,
-      "y": -2790.3641785731734
+      "x": 8790.184395031416,
+      "y": -2790.3641787592014
     },
     "classic-saiyuki/episodes/bt48_fake-fan.md": {
-      "x": 8607.800324615342,
-      "y": -2790.3616534438593
+      "x": 8607.800324666565,
+      "y": -2790.361653348074
     },
     "classic-saiyuki/episodes/bt44_final-blow.md": {
-      "x": 8060.66485683245,
-      "y": -2790.354429966368
+      "x": 8060.664856773711,
+      "y": -2790.3544297579133
     },
     "classic-saiyuki/episodes/bt41_second-strike.md": {
-      "x": 7513.5381384275815,
-      "y": -2790.3503874699413
+      "x": 7513.538138354971,
+      "y": -2790.35038738781
     },
     "classic-saiyuki/episodes/bt38_wukong-strikes.md": {
-      "x": 6236.917642349764,
-      "y": -2790.349814381052
+      "x": 6236.917642218463,
+      "y": -2790.3498145781045
     },
     "classic-saiyuki/episodes/bt36_quicksand-river.md": {
-      "x": 4595.51966669834,
-      "y": -2790.345334407621
+      "x": 4595.519666730645,
+      "y": -2790.345334078122
     },
     "classic-saiyuki/episodes/bt34_gao-village.md": {
-      "x": 3683.6315074009763,
-      "y": -2790.3358264964363
+      "x": 3683.6315072983143,
+      "y": -2790.3358265021097
     },
     "classic-saiyuki/episodes/bt32_dragon-fight.md": {
-      "x": 1859.8709902107569,
-      "y": -2790.3208491076143
+      "x": 1859.8709902692863,
+      "y": -2790.3208491863916
     },
     "classic-saiyuki/episodes/bt31_horse-eaten.md": {
-      "x": 1312.7336068385366,
-      "y": -2790.3195548682957
+      "x": 1312.733606729975,
+      "y": -2790.3195547768632
     },
     "classic-saiyuki/episodes/bt21_wukong-failure.md": {
-      "x": -3611.4026539384467,
-      "y": -2790.3156909261165
+      "x": -3611.402653844903,
+      "y": -2790.315690885459
     },
     "classic-saiyuki/episodes/bt20_palm-challenge.md": {
-      "x": -3793.8062238058505,
-      "y": -2790.3155363152787
+      "x": -3793.806223552849,
+      "y": -2790.3155363818246
     },
     "classic-saiyuki/episodes/bt18_furnace-escape.md": {
-      "x": -4705.679932594645,
-      "y": -2790.3163075516068
+      "x": -4705.67993258765,
+      "y": -2790.3163072860825
     },
     "classic-saiyuki/episodes/bt17_golden-eyes.md": {
-      "x": -5252.815328611035,
-      "y": -2790.316524545435
+      "x": -5252.8153284714845,
+      "y": -2790.3165243774047
     },
     "classic-saiyuki/episodes/bt16_furnace-entry.md": {
-      "x": -5799.948877177632,
-      "y": -2790.315662618088
+      "x": -5799.948877011788,
+      "y": -2790.315662430766
     },
     "classic-saiyuki/episodes/bt15_capture.md": {
-      "x": -6711.81119712046,
-      "y": -2790.3145961293117
+      "x": -6711.811197311409,
+      "y": -2790.31459612053
     },
     "classic-saiyuki/episodes/bt14_transformation-duel.md": {
-      "x": -6894.211032976413,
-      "y": -2790.3140917798105
+      "x": -6894.21103282979,
+      "y": -2790.314091917779
     },
     "classic-saiyuki/episodes/bt13_army-dispatch.md": {
-      "x": -7258.9611850795045,
-      "y": -2790.3139169399997
+      "x": -7258.961185021607,
+      "y": -2790.3139169346123
     },
     "classic-saiyuki/episodes/bt12_elixir-theft.md": {
-      "x": -7623.71669860569,
-      "y": -2790.3141889416447
+      "x": -7623.716698326293,
+      "y": -2790.31418866549
     },
     "classic-saiyuki/episodes/bt11_peach-feast.md": {
-      "x": -7988.47544189048,
-      "y": -2790.313614638557
+      "x": -7988.475441792398,
+      "y": -2790.3136146977913
+    },
+    "classic-divine-comedy/episodes/bt02_02_02_taming-cerberus.md": {
+      "x": 13167.244115167296,
+      "y": 2224.9702666438784
     },
     "classic-arabian-nights/episodes/sc17_roc-encounter.md": {
-      "x": 12802.479199924826,
-      "y": 4555.349141644116
+      "x": 12802.479199834663,
+      "y": 4555.349141684364
     },
     "classic-arabian-nights/episodes/sc15_morgianas-dance.md": {
-      "x": 12620.078326904468,
-      "y": 4555.347608141299
+      "x": 12620.078327070893,
+      "y": 4555.347608149737
     },
     "classic-arabian-nights/episodes/sc14_thieves-revenge.md": {
-      "x": 12437.686714804739,
-      "y": 4909.98146505992
+      "x": 12437.68671490625,
+      "y": 4909.981464940606
     },
     "classic-arabian-nights/episodes/bt61_sorcerer-defeated.md": {
-      "x": 12437.673851404732,
-      "y": 4555.346669673346
+      "x": 12437.673851458176,
+      "y": 4555.346669548631
     },
     "classic-arabian-nights/episodes/bt50_tied-to-claw.md": {
-      "x": 11708.157579500326,
-      "y": 4555.355613147029
+      "x": 11708.157579664263,
+      "y": 4555.355612987414
     },
     "classic-arabian-nights/episodes/bt44_sword-dance.md": {
-      "x": 13532.03227982815,
-      "y": 4555.347951311933
+      "x": 13532.03227989388,
+      "y": 4555.347951506117
     },
     "classic-arabian-nights/episodes/bt43_boiling-oil.md": {
-      "x": 13349.632674358338,
-      "y": 4555.34840831889
+      "x": 13349.632674318185,
+      "y": 4555.348408202423
     },
     "classic-arabian-nights/episodes/bt41_oil-jars-smuggled.md": {
-      "x": 13167.234352146519,
-      "y": 4555.34902400174
+      "x": 13167.234352222824,
+      "y": 4555.34902402985
+    },
+    "classic-divine-comedy/episodes/ep05_terraces.md": {
+      "x": -114522.62243964325,
+      "y": 140071.21070907984
+    },
+    "classic-divine-comedy/episodes/ep02_upper-hell.md": {
+      "x": -119387.6392259504,
+      "y": 140766.21310712374
+    },
+    "classic-divine-comedy/episodes/ep06_earthly-paradise.md": {
+      "x": -115217.62483768712,
+      "y": 140071.21070907984
+    },
+    "classic-divine-comedy/episodes/ep04_ante-purgatory.md": {
+      "x": -120777.64402203816,
+      "y": 140766.21310712374
+    },
+    "classic-divine-comedy/episodes/ep01_dark-forest.md": {
+      "x": -118692.63682790652,
+      "y": 140766.21310712374
+    },
+    "classic-divine-comedy/episodes/ep03_lower-hell.md": {
+      "x": -120082.64162399428,
+      "y": 140766.21310712374
+    },
+    "classic-divine-comedy/episodes/act2_purgatorio.md": {
+      "x": -120082.64162399428,
+      "y": 144936.227495387
+    },
+    "classic-divine-comedy/episodes/act1_inferno.md": {
+      "x": -119387.6392259504,
+      "y": 144936.227495387
+    },
+    "classic-divine-comedy/episodes/sc06_01_garden-of-eden.md": {
+      "x": -118692.63682790652,
+      "y": 139376.20831103597
+    },
+    "classic-divine-comedy/episodes/sc05_03_wall-of-fire.md": {
+      "x": -117997.63442986265,
+      "y": 139376.20831103597
+    },
+    "classic-divine-comedy/episodes/sc05_02_meeting-statius.md": {
+      "x": -117302.63203181876,
+      "y": 139376.20831103597
+    },
+    "classic-divine-comedy/episodes/sc05_01_terrace-of-pride.md": {
+      "x": -116607.62963377488,
+      "y": 139376.20831103597
+    },
+    "classic-divine-comedy/episodes/sc04_03_gate-of-purgatory.md": {
+      "x": -115912.62723573101,
+      "y": 139376.20831103597
+    },
+    "classic-divine-comedy/episodes/sc04_02_excommunicated-souls.md": {
+      "x": -115217.62483768712,
+      "y": 139376.20831103597
+    },
+    "classic-divine-comedy/episodes/sc04_01_shore-of-purgatory.md": {
+      "x": -114522.62243964325,
+      "y": 139376.20831103597
+    },
+    "classic-divine-comedy/episodes/sc03_01_flame-of-ulysses.md": {
+      "x": -120777.64402203816,
+      "y": 140071.21070907984
+    },
+    "classic-divine-comedy/episodes/sc03_02_ugolino-tragedy.md": {
+      "x": -120082.64162399428,
+      "y": 140071.21070907984
+    },
+    "classic-divine-comedy/episodes/sc02_03_plutus-and-misers.md": {
+      "x": -119387.6392259504,
+      "y": 140071.21070907984
+    },
+    "classic-divine-comedy/episodes/sc02_01_paolo-and-francesca.md": {
+      "x": -117997.63442986265,
+      "y": 140071.21070907984
+    },
+    "classic-divine-comedy/episodes/sc01_03_gates-of-hell.md": {
+      "x": -117302.63203181876,
+      "y": 140071.21070907984
+    },
+    "classic-divine-comedy/episodes/sc01_02_meeting-virgil.md": {
+      "x": -116607.62963377488,
+      "y": 140071.21070907984
+    },
+    "classic-divine-comedy/episodes/sc01_01_lost-in-dark-forest.md": {
+      "x": -115912.62723573101,
+      "y": 140071.21070907984
+    },
+    "classic-divine-comedy/episodes/sc08_01_exam-of-faith.md": {
+      "x": -120777.64402203816,
+      "y": 139376.20831103597
+    },
+    "classic-divine-comedy/episodes/sc06_03_waters-of-lethe.md": {
+      "x": -120082.64162399428,
+      "y": 139376.20831103597
+    },
+    "classic-divine-comedy/episodes/sc06_02_reunion-with-beatrice.md": {
+      "x": -119387.6392259504,
+      "y": 139376.20831103597
+    },
+    "classic-divine-comedy/episodes/sc02_02_cerberus-and-gluttons.md": {
+      "x": -118692.63682790652,
+      "y": 140071.21070907984
     },
     "classic-saiyuki/episodes/seq1_birth-of-monkey.md": {
       "x": 181823.50107361752,
@@ -7923,6 +7607,210 @@
     "classic-saiyuki/episodes/sc03_seeking-immortality.md": {
       "x": 182520.66417639394,
       "y": 30699.588517275934
+    },
+    "classic-divine-comedy/episodes/bt08_01_03_peter-denounces.md": {
+      "x": -117302.63203181876,
+      "y": 140766.21310712374
+    },
+    "classic-divine-comedy/episodes/bt08_01_02_hope-and-love.md": {
+      "x": -116607.62963377488,
+      "y": 140766.21310712374
+    },
+    "classic-divine-comedy/episodes/bt08_01_01_peter-examines.md": {
+      "x": -115912.62723573101,
+      "y": 140766.21310712374
+    },
+    "classic-divine-comedy/episodes/bt06_03_03_drinking-eunoe.md": {
+      "x": -120082.64162399428,
+      "y": 141461.2155051676
+    },
+    "classic-divine-comedy/episodes/bt06_03_01_immersion-in-lethe.md": {
+      "x": -119387.6392259504,
+      "y": 141461.2155051676
+    },
+    "classic-divine-comedy/episodes/bt06_02_03_beatrice-rebuke.md": {
+      "x": -118692.63682790652,
+      "y": 141461.2155051676
+    },
+    "classic-divine-comedy/episodes/bt06_02_02_beatrice-appears.md": {
+      "x": -117997.63442986265,
+      "y": 141461.2155051676
+    },
+    "classic-divine-comedy/episodes/bt06_01_03_two-rivers.md": {
+      "x": -117302.63203181876,
+      "y": 141461.2155051676
+    },
+    "classic-divine-comedy/episodes/bt06_01_02_matilda-singing.md": {
+      "x": -116607.62963377488,
+      "y": 141461.2155051676
+    },
+    "classic-divine-comedy/episodes/bt06_01_01_divine-forest.md": {
+      "x": -115912.62723573101,
+      "y": 141461.2155051676
+    },
+    "classic-divine-comedy/episodes/bt05_03_03_through-fire.md": {
+      "x": -115217.62483768712,
+      "y": 141461.2155051676
+    },
+    "classic-divine-comedy/episodes/bt05_03_02_virgil-encouragement.md": {
+      "x": -114522.62243964325,
+      "y": 141461.2155051676
+    },
+    "classic-divine-comedy/episodes/bt05_03_01_fear-of-flame.md": {
+      "x": -120777.64402203816,
+      "y": 142156.21790321148
+    },
+    "classic-divine-comedy/episodes/bt05_02_03_reverence-for-master.md": {
+      "x": -120082.64162399428,
+      "y": 142156.21790321148
+    },
+    "classic-divine-comedy/episodes/bt05_02_02_statius-confession.md": {
+      "x": -119387.6392259504,
+      "y": 142156.21790321148
+    },
+    "classic-divine-comedy/episodes/bt05_02_01_earthquake.md": {
+      "x": -118692.63682790652,
+      "y": 142156.21790321148
+    },
+    "classic-divine-comedy/episodes/bt05_01_03_first-p-erased.md": {
+      "x": -117997.63442986265,
+      "y": 142156.21790321148
+    },
+    "classic-divine-comedy/episodes/bt05_01_02_bent-under-stones.md": {
+      "x": -117302.63203181876,
+      "y": 142156.21790321148
+    },
+    "classic-divine-comedy/episodes/bt05_01_01_carved-humility.md": {
+      "x": -116607.62963377488,
+      "y": 142156.21790321148
+    },
+    "classic-divine-comedy/episodes/bt04_03_03_gate-opens.md": {
+      "x": -115912.62723573101,
+      "y": 142156.21790321148
+    },
+    "classic-divine-comedy/episodes/bt04_03_02_seven-p-marks.md": {
+      "x": -115217.62483768712,
+      "y": 142156.21790321148
+    },
+    "classic-divine-comedy/episodes/bt04_03_01_three-steps.md": {
+      "x": -114522.62243964325,
+      "y": 142156.21790321148
+    },
+    "classic-divine-comedy/episodes/bt04_02_03_valley-of-princes.md": {
+      "x": -120777.64402203816,
+      "y": 142851.22030125535
+    },
+    "classic-divine-comedy/episodes/bt04_02_02_lazy-penitents.md": {
+      "x": -120082.64162399428,
+      "y": 142851.22030125535
+    },
+    "classic-divine-comedy/episodes/bt04_02_01_manfred-story.md": {
+      "x": -119387.6392259504,
+      "y": 142851.22030125535
+    },
+    "classic-divine-comedy/episodes/bt04_01_03_angel-boat.md": {
+      "x": -118692.63682790652,
+      "y": 142851.22030125535
+    },
+    "classic-divine-comedy/episodes/bt04_01_02_cato-appears.md": {
+      "x": -117997.63442986265,
+      "y": 142851.22030125535
+    },
+    "classic-divine-comedy/episodes/bt04_01_01_dawn-on-shore.md": {
+      "x": -117302.63203181876,
+      "y": 142851.22030125535
+    },
+    "classic-divine-comedy/episodes/bt03_02_03_eternal-gnawing.md": {
+      "x": -115217.62483768712,
+      "y": 142851.22030125535
+    },
+    "classic-divine-comedy/episodes/bt03_02_02_tower-of-hunger.md": {
+      "x": -114522.62243964325,
+      "y": 142851.22030125535
+    },
+    "classic-divine-comedy/episodes/bt03_02_01_ice-of-cocytus.md": {
+      "x": -120777.64402203816,
+      "y": 143546.22269929925
+    },
+    "classic-divine-comedy/episodes/bt03_01_03_last-voyage.md": {
+      "x": -120082.64162399428,
+      "y": 143546.22269929925
+    },
+    "classic-divine-comedy/episodes/bt03_01_02_twin-flame.md": {
+      "x": -119387.6392259504,
+      "y": 143546.22269929925
+    },
+    "classic-divine-comedy/episodes/bt03_01_01_malebolge-descent.md": {
+      "x": -118692.63682790652,
+      "y": 143546.22269929925
+    },
+    "classic-divine-comedy/episodes/bt02_03_03_styx-crossing.md": {
+      "x": -117997.63442986265,
+      "y": 143546.22269929925
+    },
+    "classic-divine-comedy/episodes/bt02_03_02_rolling-weights.md": {
+      "x": -117302.63203181876,
+      "y": 143546.22269929925
+    },
+    "classic-divine-comedy/episodes/bt02_03_01_plutus-cry.md": {
+      "x": -116607.62963377488,
+      "y": 143546.22269929925
+    },
+    "classic-divine-comedy/episodes/bt02_02_03_ciacco-prophecy.md": {
+      "x": -115912.62723573101,
+      "y": 143546.22269929925
+    },
+    "classic-divine-comedy/episodes/bt02_02_01_rain-of-filth.md": {
+      "x": -115217.62483768712,
+      "y": 143546.22269929925
+    },
+    "classic-divine-comedy/episodes/bt02_01_03_dante-faints.md": {
+      "x": -114522.62243964325,
+      "y": 143546.22269929925
+    },
+    "classic-divine-comedy/episodes/bt02_01_02_francesca-tale.md": {
+      "x": -120777.64402203816,
+      "y": 144241.22509734312
+    },
+    "classic-divine-comedy/episodes/bt02_01_01_minos-judgment.md": {
+      "x": -120082.64162399428,
+      "y": 144241.22509734312
+    },
+    "classic-divine-comedy/episodes/bt01_03_03_crossing-acheron.md": {
+      "x": -119387.6392259504,
+      "y": 144241.22509734312
+    },
+    "classic-divine-comedy/episodes/bt01_03_02_vestibule-neutrals.md": {
+      "x": -118692.63682790652,
+      "y": 144241.22509734312
+    },
+    "classic-divine-comedy/episodes/bt01_03_01_inscription.md": {
+      "x": -117997.63442986265,
+      "y": 144241.22509734312
+    },
+    "classic-divine-comedy/episodes/bt01_02_03_resolve-to-journey.md": {
+      "x": -117302.63203181876,
+      "y": 144241.22509734312
+    },
+    "classic-divine-comedy/episodes/bt01_02_02_beatrice-mission.md": {
+      "x": -116607.62963377488,
+      "y": 144241.22509734312
+    },
+    "classic-divine-comedy/episodes/bt01_02_01_shadow-appears.md": {
+      "x": -115912.62723573101,
+      "y": 144241.22509734312
+    },
+    "classic-divine-comedy/episodes/bt01_01_03_driven-back.md": {
+      "x": -115217.62483768712,
+      "y": 144241.22509734312
+    },
+    "classic-divine-comedy/episodes/bt01_01_02_hill-of-light.md": {
+      "x": -114522.62243964325,
+      "y": 144241.22509734312
+    },
+    "classic-divine-comedy/episodes/bt01_01_01_wandering-in-darkness.md": {
+      "x": -120777.64402203816,
+      "y": 144936.227495387
     },
     "classic-saiyuki/episodes/seq4_gathering-companions.md": {
       "x": 180429.17486806467,
@@ -8107,6 +7995,30 @@
     "classic-saiyuki/episodes/act2_journey-begins.md": {
       "x": 180429.17486806467,
       "y": 34882.56713393449
+    },
+    "classic-divine-comedy/episodes/bt08_02_03_beatrice-explains.md": {
+      "x": -117997.63442986265,
+      "y": 140766.21310712374
+    },
+    "classic-divine-comedy/episodes/bt07_03_02_cacciaguida-prophecy.md": {
+      "x": -115217.62483768712,
+      "y": 140766.21310712374
+    },
+    "classic-divine-comedy/episodes/bt07_01_03_mercury-spirits.md": {
+      "x": -114522.62243964325,
+      "y": 140766.21310712374
+    },
+    "classic-divine-comedy/episodes/bt07_01_02_piccarda.md": {
+      "x": -120777.64402203816,
+      "y": 141461.2155051676
+    },
+    "classic-divine-comedy/episodes/bt03_03_03_escape-to-stars.md": {
+      "x": -116607.62963377488,
+      "y": 142851.22030125535
+    },
+    "classic-divine-comedy/episodes/bt03_03_01_judecca.md": {
+      "x": -115912.62723573101,
+      "y": 142851.22030125535
     },
     "classic-arabian-nights/episodes/sc22_thousand-nights-pass.md": {
       "x": -183252.88162924128,

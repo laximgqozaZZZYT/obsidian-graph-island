@@ -166,10 +166,7 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
         (window as any).__screenshotIdx = idx + 1;
       }
 
-      // Prevent auto-collapse for filtered graphs
-      if (v.panel.collapsedGroups instanceof Set && v.panel.collapsedGroups.size === 0) {
-        v.panel.collapsedGroups = new Set(["__screenshot_no_autoCollapse__"]);
-      }
+      // Let presets' collapsedGroups work as designed — don't override
 
       // ANTI-PATTERN FIX: Ensure color diversity
       if (!p["nodeColorMode"] || p["nodeColorMode"] === "folder") {

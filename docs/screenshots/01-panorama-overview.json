@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-king-lear* OR path:classic-divine-comedy*",
+  "searchQuery": "path:classic-divine-comedy* OR path:mythology-norse*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -83,7 +83,7 @@
   ],
   "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 2,
+  "clusterNodeSpacing": 10,
   "clusterGroupScale": 2.5,
   "clusterGroupSpacing": 2.5,
   "fadeEdgesByDegree": false,
@@ -115,7 +115,8 @@
   "groupMinSize": 2,
   "groupFilter": "",
   "collapsedGroups": [
-    "__screenshot_no_autoCollapse__"
+    "folder:mythology-norse",
+    "folder:classic-divine-comedy"
   ],
   "activeTab": "layout",
   "autoFit": true,
