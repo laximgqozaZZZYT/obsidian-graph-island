@@ -62,6 +62,8 @@ export interface CanvasAppOptions {
 
 export class CanvasApp implements IApp {
   view: HTMLCanvasElement;
+  /** For single-canvas backend the view container is the canvas itself. */
+  get viewContainer(): HTMLElement { return this.view; }
   private ctx: CanvasRenderingContext2D;
   stage: CanvasContainer;
   ticker: Ticker;

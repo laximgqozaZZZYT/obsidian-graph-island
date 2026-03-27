@@ -1,14 +1,14 @@
 /**
  * Renderer backend detection and factory functions.
  *
- * For Phase 1 of the WebGL migration, the factory always returns
- * Canvas 2D classes. The WebGL backend will be wired in Step 8
- * once WebGLApp is complete.
+ * Creates the appropriate IApp implementation based on WebGL2 availability.
+ * Falls back to Canvas 2D if WebGL2 initialization fails.
  */
 
 import { CanvasApp } from "./canvas2d";
 import type { CanvasAppOptions } from "./canvas2d";
 import type { IApp } from "./canvas2d/interfaces";
+import { WebGLApp } from "./webgl";
 
 export type RendererBackend = "canvas2d" | "webgl";
 
@@ -35,14 +35,21 @@ export function detectBackend(): RendererBackend {
 /**
  * Create an IApp instance for the given backend.
  *
- * Phase 1: always returns a CanvasApp regardless of the backend parameter.
- * The `backend` parameter is accepted for forward compatibility — once
- * WebGLApp is implemented (Step 8), this function will branch on it.
+ * When `backend` is "webgl" (or auto-detected as such), attempts to create
+ * a WebGLApp. Falls back to CanvasApp if WebGL2 initialization fails.
  */
 export function createApp(
   opts: CanvasAppOptions,
-  _backend?: RendererBackend,
+  backend?: RendererBackend,
 ): IApp {
-  // Phase 1: always Canvas 2D (WebGLApp not yet complete)
+  const b = backend ?? detectBackend();
+  if (b === "webgl") {
+    try {
+      return new WebGLApp(opts);
+    } catch {
+      // WebGL init failed — fall back to Canvas 2D
+      return new CanvasApp(opts);
+    }
+  }
   return new CanvasApp(opts);
 }

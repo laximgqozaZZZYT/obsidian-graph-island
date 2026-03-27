@@ -1,4 +1,5 @@
-import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
+import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
+import type { IApp } from "./canvas2d/interfaces";
 import type { GraphNode, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, CardRenderConfig, RenderThresholds } from "../types";
 import { DEFAULT_CARD_RENDER_CONFIG, mergeRenderThresholds } from "../types";
 import type { PixiNode } from "./InteractionManager";
@@ -371,8 +372,8 @@ export function truncateLabel(label: string, maxChars: number): string {
 // RenderHost — the interface the RenderPipeline needs from its parent
 // ---------------------------------------------------------------------------
 export interface RenderHost {
-  /** Get the CanvasApp instance */
-  getPixiApp(): CanvasApp | null;
+  /** Get the renderer app instance */
+  getPixiApp(): IApp | null;
   /** Get the PIXI node map */
   getPixiNodes(): Map<string, PixiNode>;
   /** Get the world container */

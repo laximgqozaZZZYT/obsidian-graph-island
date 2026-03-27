@@ -53,7 +53,7 @@ export class CanvasContainer implements IContainer {
     this.children.length = 0;
   }
 
-  toLocal(point: { x: number; y: number }, from?: CanvasContainer): { x: number; y: number } {
+  toLocal(point: { x: number; y: number }, from?: IContainer): { x: number; y: number } {
     let gx = point.x;
     let gy = point.y;
     if (from) {
@@ -85,9 +85,9 @@ export class CanvasContainer implements IContainer {
     return { x: gx, y: gy };
   }
 
-  private _getAncestorChain(node: CanvasContainer): CanvasContainer[] {
-    const chain: CanvasContainer[] = [];
-    let cur: CanvasContainer | null = node;
+  private _getAncestorChain(node: IContainer): IContainer[] {
+    const chain: IContainer[] = [];
+    let cur: IContainer | null = node;
     while (cur) {
       chain.push(cur);
       cur = cur.parent;

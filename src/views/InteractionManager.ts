@@ -1,4 +1,5 @@
-import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
+import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
+import type { IApp } from "./canvas2d/interfaces";
 import { Menu, Platform, type App } from "obsidian";
 import type { GraphNode, LayoutType, ShellInfo } from "../types";
 import { repositionShell } from "../layouts/concentric";
@@ -70,8 +71,8 @@ export interface InteractionHost {
   getAccentColor(): number;
   /** Zoom the view to fit a screen-space rectangle */
   zoomToScreenRect(sx: number, sy: number, sw: number, sh: number): void;
-  /** The CanvasApp instance (for coordinate transforms) */
-  getPixiApp(): CanvasApp | null;
+  /** The renderer app instance (for coordinate transforms) */
+  getPixiApp(): IApp | null;
   /** Handle double-click on a super node (collapsed group) — returns true if handled */
   handleSuperNodeDblClick(pn: PixiNode): boolean;
   /** Set pathfinder start or end node */

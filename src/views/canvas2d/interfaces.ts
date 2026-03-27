@@ -161,6 +161,10 @@ export interface IText {
 
 export interface IApp {
   view: HTMLCanvasElement;
+  /** The outermost DOM element to insert into the document.
+   *  For single-canvas backends this is the canvas itself;
+   *  for dual-canvas (WebGL+overlay) this is the wrapper div. */
+  viewContainer: HTMLElement;
   stage: IContainer;
   ticker: ITicker;
   renderer: { width: number; height: number };

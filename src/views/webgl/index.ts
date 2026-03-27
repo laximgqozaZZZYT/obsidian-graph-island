@@ -12,6 +12,8 @@ export {
 export { BufferPool } from "./buffer-pool";
 export type { BufferHandle } from "./buffer-pool";
 
+export { WebGLApp } from "./WebGLApp";
+export type { WebGLAppOptions } from "./WebGLApp";
 export { WebGLContainer } from "./WebGLContainer";
 export { WebGLGraphics } from "./WebGLGraphics";
 

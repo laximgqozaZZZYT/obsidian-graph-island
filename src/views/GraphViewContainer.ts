@@ -1,5 +1,7 @@
 import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Menu, MarkdownView, Notice, Modal, type ViewStateResult } from "obsidian";
-import { CanvasApp, CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
+import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
+import type { IApp } from "./canvas2d/interfaces";
+import { createApp } from "./renderer-factory";
 import type { Simulation } from "d3-force";
 import type GraphViewsPlugin from "../main";
 import type { GraphData, GraphNode, GraphEdge, LayoutType, ViewMode, ShellInfo, DirectionalGravityRule, GroupPreset, ClusterGroupRule, NodeRule, NodeDisplayMode, CardDisplayConfig, DonutDisplayConfig, GraphSnapshot, GraphTemplate } from "../types";
@@ -298,7 +300,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _ariaLiveEl: HTMLElement | null = null;
 
   // Canvas 2D
-  private pixiApp: CanvasApp | null = null;
+  private pixiApp: IApp | null = null;
   private worldContainer: CanvasContainer | null = null;
   private edgeGraphics: CanvasGraphics | null = null;
   private edgeCache = new EdgeRenderCache();
@@ -1857,7 +1859,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.markDirty();
   }
 
-  private initPixi(width: number, height: number): CanvasApp | null {
+  private initPixi(width: number, height: number): IApp | null {
     try {
       this.destroyPixi();
       if (this.canvasWrap) this.canvasWrap.empty();
@@ -1884,8 +1886,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
   }
 
-  /** Create the CanvasApp, attach the canvas element, and set up accessibility attributes. */
-  private _createCanvasApp(width: number, height: number): CanvasApp {
+  /** Create the renderer app, attach it to the DOM, and set up accessibility attributes. */
+  private _createCanvasApp(width: number, height: number): IApp {
     // Read CSS background
     let bgColor = 0x1e1e1e;
     const style = getComputedStyle(this.canvasWrap!);
@@ -1893,14 +1895,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       || style.getPropertyValue("--background-primary").trim();
     if (bgStr) { try { bgColor = cssColorToHex(bgStr); } catch { /* keep default */ } }
 
-    const app = new CanvasApp({
+    const app = createApp({
       width,
       height,
       backgroundColor: bgColor,
       resolution: window.devicePixelRatio || 1,
     });
 
-    this.canvasWrap!.appendChild(app.view);
+    // Insert the outermost DOM element (single canvas or wrapper div)
+    this.canvasWrap!.appendChild(app.viewContainer);
     const canvas = app.view;
     canvas.style.width = "100%";
     canvas.style.height = "100%";
@@ -1922,7 +1925,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   /** Create the world container and all graphics layers in correct z-order. */
-  private _setupGraphicsLayers(app: CanvasApp): CanvasContainer {
+  private _setupGraphicsLayers(app: IApp): CanvasContainer {
     // World container (for zoom/pan)
     const world = new CanvasContainer();
     app.stage.addChild(world);
@@ -2255,7 +2258,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   getNodeShellIndex(): Map<string, number> { return this.nodeShellIndex; }
   getPixiNodes(): Map<string, PixiNode> { return this.pixiNodes; }
   getSimulation(): Simulation<GraphNode, GraphEdge> | null { return this.simulation; }
-  getPixiApp(): CanvasApp | null { return this.pixiApp; }
+  getPixiApp(): IApp | null { return this.pixiApp; }
   openFile(filePath: string) { this.app.workspace.openLinkText(filePath, "", false); }
 
   /** ビジュアルリンクエディタが有効かどうか */

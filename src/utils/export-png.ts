@@ -1,19 +1,19 @@
 // ---------------------------------------------------------------------------
 // Export graph view as PNG
 // ---------------------------------------------------------------------------
-import type { CanvasApp } from "../views/canvas2d";
+import type { IApp } from "../views/canvas2d/interfaces";
 
 /**
- * Extract the current Canvas 2D graph view as a PNG Blob.
+ * Extract the current graph view as a PNG Blob.
  *
- * With the Canvas 2D adapter, `app.view` is already an HTMLCanvasElement,
- * so we can convert it directly to a PNG blob without any extraction step.
+ * `app.view` is an HTMLCanvasElement (overlay canvas for WebGL, sole canvas
+ * for Canvas 2D), so we can convert it directly to a PNG blob.
  *
- * @param app - The CanvasApp instance
+ * @param app - The IApp renderer instance
  * @returns A Promise resolving to a PNG Blob
  */
 export async function exportGraphAsPng(
-  app: CanvasApp,
+  app: IApp,
 ): Promise<Blob> {
   const canvas = app.view;
 
