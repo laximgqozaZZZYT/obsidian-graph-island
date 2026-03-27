@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-saiyuki* OR path:classic-king-lear*",
+  "searchQuery": "path:classic-king-lear* OR path:classic-divine-comedy*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -115,8 +115,8 @@
   "groupMinSize": 2,
   "groupFilter": "",
   "collapsedGroups": [
-    "folder:classic-saiyuki",
-    "folder:classic-king-lear"
+    "folder:classic-king-lear",
+    "folder:classic-divine-comedy"
   ],
   "activeTab": "layout",
   "autoFit": true,

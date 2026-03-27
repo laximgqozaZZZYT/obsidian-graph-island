@@ -161,23 +161,23 @@
   },
   {
     "name": "21-filled-hexagon",
-    "nodes": 4,
+    "nodes": 5,
     "pass": false,
     "issues": [
-      "Too few nodes: 4"
+      "Too few visible nodes in viewport: 0"
     ]
   },
   {
     "name": "22-timeline-ranged",
-    "nodes": 2,
+    "nodes": 5,
     "pass": false,
     "issues": [
-      "Too few nodes: 2"
+      "Too few visible nodes in viewport: 0"
     ]
   },
   {
     "name": "23-spiral-galaxy",
-    "nodes": 5,
+    "nodes": 6,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -185,15 +185,15 @@
   },
   {
     "name": "24-baobab-sunburst",
-    "nodes": 5,
+    "nodes": 3,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 3"
     ]
   },
   {
     "name": "25-rose-curve",
-    "nodes": 6,
+    "nodes": 8,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -209,7 +209,7 @@
   },
   {
     "name": "27-filled-pentagon",
-    "nodes": 8,
+    "nodes": 6,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -217,18 +217,18 @@
   },
   {
     "name": "28-cardioid-heart",
-    "nodes": 3,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few nodes: 3"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "29-concentric-degree",
-    "nodes": 3,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few nodes: 3"
+      "Too few nodes: 2"
     ]
   },
   {
@@ -313,7 +313,7 @@
   },
   {
     "name": "40-force-ungrouped",
-    "nodes": 246,
+    "nodes": 250,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -329,7 +329,7 @@
   },
   {
     "name": "42-high-density-tags",
-    "nodes": 5,
+    "nodes": 29,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -337,26 +337,26 @@
   },
   {
     "name": "43-concentric-tiny-accessibility",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
-  },
-  {
-    "name": "44-timeline-dense-overlap",
-    "nodes": 5,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
-  },
-  {
-    "name": "45-grid-tight-spacing",
     "nodes": 3,
     "pass": false,
     "issues": [
       "Too few nodes: 3"
+    ]
+  },
+  {
+    "name": "44-timeline-dense-overlap",
+    "nodes": 3,
+    "pass": false,
+    "issues": [
+      "Too few nodes: 3"
+    ]
+  },
+  {
+    "name": "45-grid-tight-spacing",
+    "nodes": 5,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
     ]
   },
   {
@@ -369,7 +369,7 @@
   },
   {
     "name": "47-sunburst-with-tags",
-    "nodes": 8,
+    "nodes": 6,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -377,7 +377,7 @@
   },
   {
     "name": "48-node-type-triangle",
-    "nodes": 9,
+    "nodes": 8,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -385,10 +385,10 @@
   },
   {
     "name": "49-orphan-flood",
-    "nodes": 3,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few nodes: 3"
+      "Too few nodes: 2"
     ]
   },
   {
