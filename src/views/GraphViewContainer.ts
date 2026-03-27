@@ -5066,10 +5066,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         [1, 0], [-1, 0], [0, 1], [0, -1],   // cardinal
         [1, 1], [-1, 1], [1, -1], [-1, -1],  // diagonal
       ];
-      const step = labelH + 4;
+      const step = Math.max(labelH + 4, hw * 1.5);
       let resolved = !collides(sx, sy);
       if (!resolved) {
-        outer: for (let radius = 1; radius <= 8; radius++) {
+        outer: for (let radius = 1; radius <= 12; radius++) {
           for (const [ddx, ddy] of DIRS) {
             const tx = originSx + ddx * step * radius;
             const ty = originSy + ddy * step * radius;
@@ -5095,6 +5095,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       txt.y = ly;
       txt.visible = true;
       placed.push({ x: sx, y: sy, hw, hh });
+    }
+
+    // Second pass: hide groupBy labels that still overlap after spiral nudge.
+    // Labels are already sorted by member count (largest first = highest priority).
+    {
+      const finalRects: { x: number; y: number; hw: number; hh: number }[] = [];
+      for (const [key] of sorted) {
+        const lbl = this.groupByLabels.get(key);
+        if (!lbl || !lbl.visible) continue;
+        const lblSx = lbl.x * ws + (world?.x ?? 0);
+        const lblSy = lbl.y * ws + (world?.y ?? 0);
+        const lblHw = (lbl.text?.length ?? 10) * estCharW * 0.5;
+        const lblHh = labelH * 0.5;
+        const overlaps = finalRects.some(
+          p => Math.abs(lblSx - p.x) < (lblHw + p.hw) && Math.abs(lblSy - p.y) < (lblHh + p.hh),
+        );
+        if (overlaps) {
+          lbl.visible = false;
+        } else {
+          finalRects.push({ x: lblSx, y: lblSy, hw: lblHw, hh: lblHh });
+        }
+      }
     }
 
     // Hide stale labels
