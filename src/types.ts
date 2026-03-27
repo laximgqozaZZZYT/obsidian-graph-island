@@ -1473,7 +1473,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   autoFitCardPadding: 20,
   cardLODNormalPx: 4.0,
   cardLODExtremePx: 1.5,
-  autoFitMinScale: 0,
+  autoFitMinScale: 0.05,
   autoFitBasePadding: 40,
   normalizeArrangementSpread: true,
   minViewportUtilization: 0.12,
