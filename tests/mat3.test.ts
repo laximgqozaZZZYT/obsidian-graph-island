@@ -153,4 +153,71 @@ describe("mat3MultiplyInto", () => {
     mat3MultiplyInto(target, a, b);
     expect(Array.from(target)).toEqual(Array.from(result1));
   });
+
+  it("in-place safety: target is same array as input a", () => {
+    const a = mat3Translate(3, 7);
+    const b = mat3Scale(2, 4);
+    // Compute expected result with a fresh output
+    const expected = mat3Multiply(a, b);
+    // Now multiply in-place where target === a
+    mat3MultiplyInto(a, a, b);
+    expect(Array.from(a)).toEqual(Array.from(expected));
+  });
+
+  it("in-place safety: target is same array as input b", () => {
+    const a = mat3Scale(5, 3);
+    const b = mat3Translate(2, 8);
+    const expected = mat3Multiply(a, b);
+    mat3MultiplyInto(b, a, b);
+    expect(Array.from(b)).toEqual(Array.from(expected));
+  });
+});
+
+describe("mat3Multiply associativity", () => {
+  it("(A*B)*C equals A*(B*C)", () => {
+    const A = mat3Translate(3, 7);
+    const B = mat3Scale(2, 5);
+    const C = mat3Translate(-1, 4);
+
+    const AB = mat3Multiply(A, B);
+    const AB_C = mat3Multiply(AB, C);
+
+    const BC = mat3Multiply(B, C);
+    const A_BC = mat3Multiply(A, BC);
+
+    // Float32 precision — use closeTo for each element
+    for (let i = 0; i < 9; i++) {
+      expect(AB_C[i]).toBeCloseTo(A_BC[i], 5);
+    }
+  });
+
+  it("associativity holds for three translations", () => {
+    const A = mat3Translate(1, 2);
+    const B = mat3Translate(3, 4);
+    const C = mat3Translate(5, 6);
+
+    const AB_C = mat3Multiply(mat3Multiply(A, B), C);
+    const A_BC = mat3Multiply(A, mat3Multiply(B, C));
+
+    expect(Array.from(AB_C)).toEqual(Array.from(A_BC));
+    // Final translation should be sum: (9, 12)
+    expect(AB_C[6]).toBe(9);
+    expect(AB_C[7]).toBe(12);
+  });
+
+  it("associativity holds for three scales", () => {
+    const A = mat3Scale(2, 3);
+    const B = mat3Scale(4, 5);
+    const C = mat3Scale(6, 7);
+
+    const AB_C = mat3Multiply(mat3Multiply(A, B), C);
+    const A_BC = mat3Multiply(A, mat3Multiply(B, C));
+
+    for (let i = 0; i < 9; i++) {
+      expect(AB_C[i]).toBeCloseTo(A_BC[i], 5);
+    }
+    // Diagonal should be product: (48, 105)
+    expect(AB_C[0]).toBe(48);
+    expect(AB_C[4]).toBe(105);
+  });
 });

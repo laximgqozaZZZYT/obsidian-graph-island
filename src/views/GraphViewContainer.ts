@@ -172,6 +172,9 @@ export function lightenHex(hex: number, factor: number): number {
   return (lr << 16) | (lg << 8) | lb;
 }
 
+/** Zoom threshold below which aggregate cluster summaries replace individual nodes */
+const AGGREGATE_ZOOM_THRESHOLD = 0.25;
+
 /**
  * Heatmap color ramp: cold (blue 0x3b82f6) → warm (red 0xef4444).
  * @param degree - node degree
@@ -5075,7 +5078,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
       // Aggregate mode: at extreme zoom-out, enlarge labels into prominent
       // summary bars so they replace the hidden individual nodes.
-      const isAggregateMode = ws < 0.25;
+      const isAggregateMode = ws < AGGREGATE_ZOOM_THRESHOLD;
       if (isAggregateMode) {
         const scaledFontSize = Math.max(14, Math.round(14 / Math.max(ws, 0.001) * 0.15));
         txt.style.fontSize = scaledFontSize;
@@ -5186,7 +5189,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _drawZoomAggregates(): void {
     const ws = this.worldContainer?.scale?.x ?? 1;
     const aggregateMode =
-      ws < 0.25 &&
+      ws < AGGREGATE_ZOOM_THRESHOLD &&
       (!this.panel.groupBy || this.panel.groupBy === "none") &&
       this.panel.viewMode === "graph";
 

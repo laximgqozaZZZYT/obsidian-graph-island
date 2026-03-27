@@ -390,4 +390,40 @@ describe("applyMonochromeFallback", () => {
     const result = applyMonochromeFallback(nodes, original, []);
     expect(result).toBe(original);
   });
+
+  it("activates fallback with exactly 5 nodes all same color", () => {
+    const nodes = Array.from({ length: 5 }, (_, i) => ({ id: `n${i}` }));
+    const monochrome = (_n: { id: string }) => 0xaaaaaa;
+    const result = applyMonochromeFallback(nodes, monochrome, palette);
+    expect(result).not.toBe(monochrome);
+    // Should produce colors from the palette, not the original monochrome
+    const colors = new Set(nodes.map(n => result(n)));
+    expect(colors.size).toBeGreaterThanOrEqual(1);
+    const paletteSet = new Set(palette);
+    for (const n of nodes) {
+      expect(paletteSet.has(result(n))).toBe(true);
+    }
+  });
+
+  it("does NOT activate fallback with 4 nodes all same color (below threshold)", () => {
+    const nodes = Array.from({ length: 4 }, (_, i) => ({ id: `n${i}` }));
+    const monochrome = (_n: { id: string }) => 0xaaaaaa;
+    const result = applyMonochromeFallback(nodes, monochrome, palette);
+    expect(result).toBe(monochrome);
+  });
+
+  it("fallback colors are drawn from expected palette entries", () => {
+    const nodes = Array.from({ length: 20 }, (_, i) => ({ id: `item${i}` }));
+    const monochrome = (_n: { id: string }) => 0x999999;
+    const customPalette = [0x110000, 0x220000, 0x330000];
+    const result = applyMonochromeFallback(nodes, monochrome, customPalette);
+    expect(result).not.toBe(monochrome);
+    const customSet = new Set(customPalette);
+    for (const n of nodes) {
+      expect(customSet.has(result(n))).toBe(true);
+    }
+    // With 20 nodes and 3 palette colors, all 3 should be used
+    const usedColors = new Set(nodes.map(n => result(n)));
+    expect(usedColors.size).toBe(3);
+  });
 });
