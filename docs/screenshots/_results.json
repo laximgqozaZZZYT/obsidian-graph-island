@@ -161,10 +161,10 @@
   },
   {
     "name": "21-filled-hexagon",
-    "nodes": 25,
+    "nodes": 4,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 4"
     ]
   },
   {
@@ -177,23 +177,23 @@
   },
   {
     "name": "23-spiral-galaxy",
-    "nodes": 4,
+    "nodes": 5,
     "pass": false,
     "issues": [
-      "Too few nodes: 4"
+      "Too few visible nodes in viewport: 0"
     ]
   },
   {
     "name": "24-baobab-sunburst",
-    "nodes": 2,
+    "nodes": 5,
     "pass": false,
     "issues": [
-      "Too few nodes: 2"
+      "Too few visible nodes in viewport: 0"
     ]
   },
   {
     "name": "25-rose-curve",
-    "nodes": 5,
+    "nodes": 6,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -201,15 +201,15 @@
   },
   {
     "name": "26-lissajous-figure",
-    "nodes": 5,
+    "nodes": 3,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 3"
     ]
   },
   {
     "name": "27-filled-pentagon",
-    "nodes": 6,
+    "nodes": 8,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -225,15 +225,15 @@
   },
   {
     "name": "29-concentric-degree",
-    "nodes": 5,
+    "nodes": 3,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 3"
     ]
   },
   {
     "name": "30-mountain-ridge",
-    "nodes": 30,
+    "nodes": 8,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -241,10 +241,10 @@
   },
   {
     "name": "31-cross-tabulation",
-    "nodes": 3,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few nodes: 3"
+      "Too few nodes: 2"
     ]
   },
   {
@@ -345,22 +345,6 @@
   },
   {
     "name": "44-timeline-dense-overlap",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
-  },
-  {
-    "name": "45-grid-tight-spacing",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
-  },
-  {
-    "name": "46-tree-deep-hierarchy",
     "nodes": 5,
     "pass": false,
     "issues": [
@@ -368,15 +352,23 @@
     ]
   },
   {
-    "name": "47-sunburst-with-tags",
-    "nodes": 6,
+    "name": "45-grid-tight-spacing",
+    "nodes": 3,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 3"
     ]
   },
   {
-    "name": "48-node-type-triangle",
+    "name": "46-tree-deep-hierarchy",
+    "nodes": 3,
+    "pass": false,
+    "issues": [
+      "Too few nodes: 3"
+    ]
+  },
+  {
+    "name": "47-sunburst-with-tags",
     "nodes": 8,
     "pass": false,
     "issues": [
@@ -384,15 +376,15 @@
     ]
   },
   {
-    "name": "49-orphan-flood",
-    "nodes": 5,
+    "name": "48-node-type-triangle",
+    "nodes": 9,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
     ]
   },
   {
-    "name": "50-arrow-heavy-directed",
+    "name": "49-orphan-flood",
     "nodes": 3,
     "pass": false,
     "issues": [
@@ -400,11 +392,19 @@
     ]
   },
   {
-    "name": "51-enclosure-tight",
-    "nodes": 3,
+    "name": "50-arrow-heavy-directed",
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few nodes: 3"
+      "Too few nodes: 2"
+    ]
+  },
+  {
+    "name": "51-enclosure-tight",
+    "nodes": 2,
+    "pass": false,
+    "issues": [
+      "Too few nodes: 2"
     ]
   },
   {
@@ -465,7 +465,7 @@
   },
   {
     "name": "test-sunburst-full",
-    "nodes": 242,
+    "nodes": 246,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -481,10 +481,10 @@
   },
   {
     "name": "test-tag-category-matrix",
-    "nodes": 5,
+    "nodes": 4,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few nodes: 4"
     ]
   },
   {
