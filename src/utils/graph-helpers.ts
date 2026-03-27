@@ -688,3 +688,42 @@ export function buildMissingNeighborSet(
 
   return result.size > 0 ? result : null;
 }
+
+/**
+ * Parse a groupBy expression string into individual field names.
+ * Strips boolean operators (AND/OR/XOR/NOR/NAND/NOT) and ":?" suffix.
+ * Returns empty array for falsy or "none" input.
+ */
+export function parseGroupByFields(groupBy: string | null | undefined): string[] {
+  if (!groupBy || groupBy === "none") return [];
+  const withoutOps = groupBy.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",");
+  return withoutOps.split(",").map(s => s.trim()).filter(Boolean).map(raw =>
+    raw.endsWith(":?") ? raw.slice(0, -2) : raw
+  ).filter(Boolean);
+}
+
+/**
+ * Given a set of node x-coordinates and a relative timeline range [min, max] ∈ [0,1],
+ * return the set of node IDs that fall OUTSIDE the range.
+ */
+export function computeTimelineFilteredIds(
+  allX: { id: string; x: number }[],
+  visibleIds: { id: string; x: number }[],
+  rangeMin: number,
+  rangeMax: number,
+): Set<string> {
+  let globalMinX = Infinity, globalMaxX = -Infinity;
+  for (const n of allX) {
+    if (n.x < globalMinX) globalMinX = n.x;
+    if (n.x > globalMaxX) globalMaxX = n.x;
+  }
+  const xSpan = globalMaxX - globalMinX;
+  if (xSpan <= 0) return new Set();
+  const tlMinX = globalMinX + xSpan * rangeMin;
+  const tlMaxX = globalMinX + xSpan * rangeMax;
+  const filtered = new Set<string>();
+  for (const n of visibleIds) {
+    if (n.x < tlMinX || n.x > tlMaxX) filtered.add(n.id);
+  }
+  return filtered;
+}

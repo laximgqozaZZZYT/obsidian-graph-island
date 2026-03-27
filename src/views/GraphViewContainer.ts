@@ -16,7 +16,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoints, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter, computeGaps, hitTestTimelineBars, autoBundleStrength, computeNodeBBox, buildTagMembership, buildMissingNeighborSet } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter, computeGaps, hitTestTimelineBars, autoBundleStrength, computeNodeBBox, buildTagMembership, buildMissingNeighborSet, parseGroupByFields } from "../utils/graph-helpers";
 import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph, filterByLocalGraph } from "../utils/graph-filter";
 import { pointInPolygon, convexHull } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
@@ -2382,17 +2382,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
    *  Supports both legacy format ("tag, category") and new format ("tag:? AND category:?").
    *  Operators (AND/OR/XOR/...) are stripped; each field is grouped independently. */
   private resolveGroupByField(nodes: GraphNode[], opts: GroupOptions): GroupSpec[] {
-    const groupBy = this.panel.groupBy;
-    if (!groupBy || groupBy === "none") return [];
-    // Strip operators (AND, OR, XOR, NOR, NAND, NOT) to extract bare field tokens
-    const withoutOps = groupBy.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",");
-    const fields = withoutOps.split(",").map(s => s.trim()).filter(Boolean);
+    const fields = parseGroupByFields(this.panel.groupBy);
     const allGroups: GroupSpec[] = [];
-    for (let raw of fields) {
-      // Strip ":?" suffix from new format (e.g. "tag:?" → "tag")
-      if (raw.endsWith(":?")) raw = raw.slice(0, -2);
-      if (!raw) continue;
-      // Louvain コミュニティ自動検出
+    for (const raw of fields) {
       if (raw === "louvain") {
         allGroups.push(...this.resolveLouvainGroups(nodes, opts));
         continue;

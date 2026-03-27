@@ -5,6 +5,8 @@ import {
   hitTestTimelineBars,
   computeGaps,
   stringHash,
+  parseGroupByFields,
+  computeTimelineFilteredIds,
 } from "../src/utils/graph-helpers";
 import type { GraphData, GraphNode, GraphEdge } from "../src/types";
 
@@ -289,5 +291,111 @@ describe("stringHash", () => {
   it("range=1 always returns 0", () => {
     expect(stringHash("anything", 1)).toBe(0);
     expect(stringHash("else", 1)).toBe(0);
+  });
+});
+
+// ===========================================================================
+// parseGroupByFields — groupBy expression → field names
+// ===========================================================================
+
+describe("parseGroupByFields", () => {
+  it("null → []", () => expect(parseGroupByFields(null)).toEqual([]));
+  it("undefined → []", () => expect(parseGroupByFields(undefined)).toEqual([]));
+  it("empty string → []", () => expect(parseGroupByFields("")).toEqual([]));
+  it('"none" → []', () => expect(parseGroupByFields("none")).toEqual([]));
+
+  it("plain field", () => expect(parseGroupByFields("folder")).toEqual(["folder"]));
+  it("field with :? suffix stripped", () => expect(parseGroupByFields("tag:?")).toEqual(["tag"]));
+  it("field with whitespace", () => expect(parseGroupByFields("  category:?  ")).toEqual(["category"]));
+
+  it("AND strips operator", () =>
+    expect(parseGroupByFields("folder AND tag")).toEqual(["folder", "tag"]));
+  it("OR strips operator", () =>
+    expect(parseGroupByFields("folder:? OR category:?")).toEqual(["folder", "category"]));
+  it("XOR strips operator", () =>
+    expect(parseGroupByFields("tag XOR louvain")).toEqual(["tag", "louvain"]));
+  it("case-insensitive operators", () =>
+    expect(parseGroupByFields("folder or tag")).toEqual(["folder", "tag"]));
+  it("multiple operators", () =>
+    expect(parseGroupByFields("folder:? OR tag:? AND category:?")).toEqual(["folder", "tag", "category"]));
+  it("louvain preserved", () =>
+    expect(parseGroupByFields("louvain")).toEqual(["louvain"]));
+  it("whitespace-only → []", () =>
+    expect(parseGroupByFields("   ")).toEqual([]));
+  it("operator-only → []", () =>
+    expect(parseGroupByFields("AND OR")).toEqual([]));
+});
+
+// ===========================================================================
+// computeTimelineFilteredIds — timeline range filter
+// ===========================================================================
+
+describe("computeTimelineFilteredIds", () => {
+  const mkXNodes = (xs: number[]) =>
+    xs.map((x, i) => ({ id: `n${i}`, x }));
+
+  it("full range filters nothing", () => {
+    const all = mkXNodes([0, 50, 100]);
+    expect(computeTimelineFilteredIds(all, all, 0, 1).size).toBe(0);
+  });
+
+  it("first half filters right nodes", () => {
+    const all = mkXNodes([0, 25, 50, 75, 100]);
+    const filtered = computeTimelineFilteredIds(all, all, 0, 0.5);
+    expect(filtered.has("n3")).toBe(true);  // x=75 out
+    expect(filtered.has("n4")).toBe(true);  // x=100 out
+    expect(filtered.has("n0")).toBe(false); // x=0 in
+  });
+
+  it("second half filters left nodes", () => {
+    const all = mkXNodes([0, 25, 50, 75, 100]);
+    const filtered = computeTimelineFilteredIds(all, all, 0.5, 1);
+    expect(filtered.has("n0")).toBe(true);  // x=0 out
+    expect(filtered.has("n3")).toBe(false); // x=75 in
+  });
+
+  it("narrow range filters most", () => {
+    const all = mkXNodes([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+    const filtered = computeTimelineFilteredIds(all, all, 0.4, 0.6);
+    expect(filtered.has("n4")).toBe(false); // x=40, in
+    expect(filtered.has("n0")).toBe(true);  // x=0, out
+    expect(filtered.has("n10")).toBe(true); // x=100, out
+  });
+
+  it("visible subset only checked", () => {
+    const all = mkXNodes([0, 50, 100]);
+    const visible = [{ id: "n0", x: 0 }];
+    const filtered = computeTimelineFilteredIds(all, visible, 0.6, 1);
+    expect(filtered.has("n0")).toBe(true);
+    expect(filtered.size).toBe(1);
+  });
+
+  it("empty input → empty", () => {
+    expect(computeTimelineFilteredIds([], [], 0, 1).size).toBe(0);
+  });
+
+  it("single node never filtered with full range", () => {
+    const all = mkXNodes([42]);
+    expect(computeTimelineFilteredIds(all, all, 0, 1).size).toBe(0);
+  });
+
+  it("all same x → zero span → empty", () => {
+    const all = mkXNodes([5, 5, 5]);
+    expect(computeTimelineFilteredIds(all, all, 0.2, 0.8).size).toBe(0);
+  });
+
+  it("negative coordinates", () => {
+    const all = [{ id: "a", x: -100 }, { id: "b", x: 0 }, { id: "c", x: 100 }];
+    const filtered = computeTimelineFilteredIds(all, all, 0, 0.5);
+    expect(filtered.has("c")).toBe(true);  // out of range
+    expect(filtered.has("a")).toBe(false); // in range
+  });
+
+  it("boundary inclusive", () => {
+    const all = mkXNodes([0, 50, 100]);
+    const filtered = computeTimelineFilteredIds(all, all, 0, 0.5);
+    expect(filtered.has("n0")).toBe(false); // x=0 == tlMinX
+    expect(filtered.has("n1")).toBe(false); // x=50 == tlMaxX
+    expect(filtered.has("n2")).toBe(true);  // x=100 > tlMaxX
   });
 });
