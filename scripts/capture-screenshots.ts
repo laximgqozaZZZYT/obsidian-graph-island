@@ -445,7 +445,10 @@ async function main() {
         w.x = cw / 2 - cx * newScale;
         w.y = ch / 2 - cy * newScale;
         v.markDirty();
-        await new Promise(function(r) { setTimeout(r, 1500); });
+        // Force label recalculation at new zoom level
+        if (v.updateLabelsForZoom) v.updateLabelsForZoom();
+        if (v.renderPipeline?.cullOverlappingLabels) v.renderPipeline.cullOverlappingLabels();
+        await new Promise(function(r) { setTimeout(r, 2000); });
       });
       await hideChrome(page);
       await page.waitForTimeout(300);
