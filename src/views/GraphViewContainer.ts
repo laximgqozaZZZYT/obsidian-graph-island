@@ -358,6 +358,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _aggregateGraphics: CanvasGraphics | null = null;
   /** Zoom-aggregate: folder summary labels */
   private _aggregateLabels: CanvasText[] = [];
+  /** Zoom-aggregate: label hit regions for click-to-zoom [worldX, worldY, worldW, worldH, centroidX, centroidY, radius] */
+  private _aggregateHitRegions: { x: number; y: number; w: number; h: number; cx: number; cy: number; r: number }[] = [];
   /** Graphics for cluster boundary outlines */
   private clusterBoundaryGraphics: CanvasGraphics | null = null;
   /** Viewport dirty flag — set by markDirty, consumed by onPostRender */
@@ -5197,6 +5199,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this.renderPipeline.aggregateMode = aggregateMode;
     }
 
+    this._aggregateHitRegions = [];
+
     if (!aggregateMode || this.pixiNodes.size === 0) return;
 
     // Lazily create the graphics layer
@@ -5284,6 +5288,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const counterScale = Math.min(8, 1 / ws);
       lbl.scale.set(counterScale);
 
+      // Store hit region for click-to-zoom (in world coords)
+      const estW = labelText.length * 8 * counterScale;
+      const estH = 28 * counterScale;
+      this._aggregateHitRegions.push({
+        x: cx - estW / 2, y: (cy - radius - 20) - estH / 2,
+        w: estW, h: estH,
+        cx, cy, r: radius,
+      });
+
       labelIdx++;
     }
 
@@ -5291,6 +5304,75 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     for (let i = labelIdx; i < this._aggregateLabels.length; i++) {
       this._aggregateLabels[i].visible = false;
     }
+  }
+
+  /** Hit-test group/aggregate labels and zoom to the matching cluster. */
+  hitTestAndZoomGroupLabel(wx: number, wy: number): boolean {
+    // Check aggregate hit regions (zoom-out folder summaries)
+    for (const hr of this._aggregateHitRegions) {
+      if (wx >= hr.x && wx <= hr.x + hr.w && wy >= hr.y && wy <= hr.y + hr.h) {
+        this._zoomToWorldRect(hr.cx - hr.r, hr.cy - hr.r, hr.r * 2, hr.r * 2);
+        return true;
+      }
+      // Also check the circle area itself
+      const dx = wx - hr.cx, dy = wy - hr.cy;
+      if (dx * dx + dy * dy <= hr.r * hr.r) {
+        this._zoomToWorldRect(hr.cx - hr.r, hr.cy - hr.r, hr.r * 2, hr.r * 2);
+        return true;
+      }
+    }
+    // Check groupBy labels
+    for (const [, txt] of this.groupByLabels) {
+      if (!txt.visible) continue;
+      const cs = txt.scale?.x ?? 1;
+      const tw = (txt.width ?? 100) * cs;
+      const th = 20 * cs;
+      const lx = txt.x - tw / 2;
+      const ly = txt.y - th / 2;
+      if (wx >= lx && wx <= lx + tw && wy >= ly && wy <= ly + th) {
+        // Find members of this group to compute bounding box
+        const memberKey = (txt as any)._groupKey;
+        if (memberKey) {
+          const members: { x: number; y: number }[] = [];
+          for (const pn of this.pixiNodes.values()) {
+            if (pn.data.filePath?.startsWith(memberKey) || pn.data.id?.startsWith(memberKey)) {
+              members.push({ x: pn.data.x, y: pn.data.y });
+            }
+          }
+          if (members.length > 0) {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const m of members) {
+              if (m.x < minX) minX = m.x; if (m.y < minY) minY = m.y;
+              if (m.x > maxX) maxX = m.x; if (m.y > maxY) maxY = m.y;
+            }
+            const pad = 50;
+            this._zoomToWorldRect(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2);
+            return true;
+          }
+        }
+        // Fallback: zoom to label position
+        this._zoomToWorldRect(txt.x - 200, txt.y - 200, 400, 400);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Animate zoom to a world-coordinate rectangle. */
+  private _zoomToWorldRect(wx: number, wy: number, ww: number, wh: number): void {
+    const world = this.worldContainer;
+    const canvas = this.pixiApp?.view ?? (this as any).app?.view;
+    if (!world || !canvas) return;
+    const cw = canvas.width;
+    const ch = canvas.height;
+    const newScale = Math.min(cw / Math.max(ww, 1), ch / Math.max(wh, 1), 2.0) * 0.85;
+    const cx = wx + ww / 2;
+    const cy = wy + wh / 2;
+    world.scale.set(newScale);
+    world.x = cw / 2 - cx * newScale;
+    world.y = ch / 2 - cy * newScale;
+    this.markDirty(true);
+    if (this.updateLabelsForZoom) this.updateLabelsForZoom();
   }
 
   drawSunburstArcs() {

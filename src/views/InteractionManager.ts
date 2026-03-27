@@ -145,6 +145,8 @@ export interface InteractionHost {
   toggleMultiSelect?(nodeId: string): void;
   /** Lasso selection: add all nodes inside polygon to multiSelect */
   lassoSelectNodes?(screenPolygon: { x: number; y: number }[], additive: boolean): void;
+  /** Hit-test group/aggregate labels at world coordinates. Returns true if handled (zoomed). */
+  hitTestAndZoomGroupLabel?(wx: number, wy: number): boolean;
   /** Enter subgraph mode with selected nodes */
   enterSubgraph?(nodeIds: string[], viewMode: string): void;
   /** Open subgraph in a new tab */
@@ -739,17 +741,28 @@ export class InteractionManager {
       if (sim) sim.alphaTarget(0);
       this.draggedNode = null;
       this.host.markDirty(true);
-    } else if (!this.hasDragged && this.host.hitTestSunburstArc && this.host.onSunburstArcClick) {
-      // Sunburst arc click: no node was dragged, check if we clicked on an arc
+    } else if (!this.hasDragged) {
       const app2 = this.host.getPixiApp();
       if (app2) {
         const rect2 = this.canvas.getBoundingClientRect();
         const mx2 = e.clientX - rect2.left;
         const my2 = e.clientY - rect2.top;
         const wp = this.world.toLocal({ x: mx2, y: my2 }, app2.stage);
-        const arcGroup = this.host.hitTestSunburstArc(wp.x, wp.y);
-        if (arcGroup) {
-          this.host.onSunburstArcClick(arcGroup);
+        // Sunburst arc click
+        if (this.host.hitTestSunburstArc && this.host.onSunburstArcClick) {
+          const arcGroup = this.host.hitTestSunburstArc(wp.x, wp.y);
+          if (arcGroup) {
+            this.host.onSunburstArcClick(arcGroup);
+            this.isPanning = false;
+            this.hasDragged = false;
+            return;
+          }
+        }
+        // Group/aggregate label click → zoom to group
+        if (this.host.hitTestAndZoomGroupLabel?.(wp.x, wp.y)) {
+          this.isPanning = false;
+          this.hasDragged = false;
+          return;
         }
       }
     }
