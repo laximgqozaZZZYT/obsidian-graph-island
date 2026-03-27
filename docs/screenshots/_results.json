@@ -1,514 +1,388 @@
 [
   {
     "name": "01-panorama-overview",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 246,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "02-dense-cluster",
     "nodes": 263,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "03-character-network",
     "nodes": 238,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "04-shakespeare-compare",
     "nodes": 492,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "05-mythology-pantheon",
     "nodes": 498,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "06-sangokushi-factions",
     "nodes": 123,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "07-tag-taxonomy",
     "nodes": 369,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "08-sequence-tracker",
     "nodes": 123,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "09-minimalist",
     "nodes": 15,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "10-maximalist",
-    "nodes": 5,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 246,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "11-bible-scholar",
     "nodes": 369,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "12-genji-reader",
     "nodes": 123,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "13-battle-analyzer",
     "nodes": 268,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "14-dialogue-theater",
     "nodes": 1165,
     "pass": false,
     "issues": [
-      "Too few visible nodes in viewport: 0"
+      "Too few visible nodes in viewport: 0/1165"
     ]
   },
   {
     "name": "15-orphan-hunter",
     "nodes": 246,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "16-edge-bundle-art",
     "nodes": 246,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "17-ontology-mapper",
     "nodes": 252,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "18-folder-compare",
     "nodes": 348,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "19-hub-discovery",
     "nodes": 246,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "20-arabian-nights",
     "nodes": 123,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "21-filled-hexagon",
-    "nodes": 6,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 246,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "22-timeline-ranged",
-    "nodes": 3,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 3"
-    ]
+    "nodes": 246,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "23-spiral-galaxy",
-    "nodes": 8,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 250,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "24-baobab-sunburst",
-    "nodes": 3,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 3"
-    ]
+    "nodes": 248,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "25-rose-curve",
-    "nodes": 6,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 619,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "26-lissajous-figure",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 371,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "27-filled-pentagon",
-    "nodes": 5,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 369,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "28-cardioid-heart",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 615,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "29-concentric-degree",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 352,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "30-mountain-ridge",
-    "nodes": 8,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 371,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "31-cross-tabulation",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 250,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "32-timeline-ticks",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 248,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "33-polar-grid",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 242,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "34-card-view",
     "nodes": 123,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "35-donut-groups",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 246,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "36-er-diagram",
     "nodes": 123,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "37-hierarchical-sunburst",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 242,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "38-tiny-nodes-stress",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 246,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "39-large-nodes-overlap",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 246,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "40-force-ungrouped",
-    "nodes": 619,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 246,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "41-all-edges-maxdensity",
-    "nodes": 3,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 3"
-    ]
+    "nodes": 246,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "42-high-density-tags",
-    "nodes": 5,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 246,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "43-concentric-tiny-accessibility",
-    "nodes": 5,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 250,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "44-timeline-dense-overlap",
-    "nodes": 3,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 3"
-    ]
+    "nodes": 248,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "45-grid-tight-spacing",
-    "nodes": 3,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 3"
-    ]
+    "nodes": 598,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "46-tree-deep-hierarchy",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 371,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "47-sunburst-with-tags",
-    "nodes": 5,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 369,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "48-node-type-triangle",
-    "nodes": 8,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 615,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "49-orphan-flood",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 373,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "50-arrow-heavy-directed",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 371,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "51-enclosure-tight",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 250,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "52-mixed-nodesize-stress",
-    "nodes": 5,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 248,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "53-accessibility-contrast",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 242,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "54-radial-dense",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 246,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "55-category-search-filtered",
     "nodes": 29,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "test-arc",
     "nodes": 246,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "test-concentric-layout",
     "nodes": 246,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "test-hub-radial",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
+    "nodes": 242,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "test-sunburst-full",
-    "nodes": 250,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 246,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "test-sunburst-layout",
     "nodes": 123,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "test-tag-category-matrix",
-    "nodes": 5,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 225,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "test-timeline-story",
-    "nodes": 5,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "nodes": 246,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "test-timeline",
     "nodes": 369,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   },
   {
     "name": "test-tree",
     "nodes": 123,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
+    "pass": true,
+    "issues": []
   }
 ]

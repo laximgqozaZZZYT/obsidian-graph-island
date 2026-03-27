@@ -12,7 +12,7 @@
   "linkForce": 0.04,
   "linkDistance": 55,
   "groups": [],
-  "searchQuery": "prop-category:talk OR prop-category:drama",
+  "searchQuery": "prop-category:talk AND path:mythology-greek*",
   "colorEdgesByRelation": true,
   "colorNodesByCategory": true,
   "showInheritance": false,

@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-divine-comedy* OR path:mythology-norse*",
+  "searchQuery": "path:mythology-egyptian* OR path:classic-saiyuki*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -83,7 +83,7 @@
   ],
   "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 10,
+  "clusterNodeSpacing": 2,
   "clusterGroupScale": 2.5,
   "clusterGroupSpacing": 2.5,
   "fadeEdgesByDegree": false,
@@ -115,8 +115,7 @@
   "groupMinSize": 2,
   "groupFilter": "",
   "collapsedGroups": [
-    "folder:mythology-norse",
-    "folder:classic-divine-comedy"
+    "__screenshot_no_autoCollapse__"
   ],
   "activeTab": "layout",
   "autoFit": true,

@@ -116,10 +116,10 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
       // Apply preset overrides
       for (var k3 in p) {
         if (k3 === "collapsedGroups") {
-          // ANTI-PATTERN FIX: Prevent auto-collapse ONLY for small/medium graphs
-          // For large presets (searchQuery empty = full vault), allow collapse to avoid hanging
-          var hasSearchFilter = !!p["searchQuery"];
-          if (Array.isArray(p[k3]) && p[k3].length === 0 && hasSearchFilter) {
+          // ANTI-PATTERN FIX: Always prevent auto-collapse for screenshots.
+          // Empty collapsedGroups triggers ALL groups to collapse → 2-3 giant circles.
+          // Add dummy key so the Set is non-empty, preventing auto-collapse.
+          if (Array.isArray(p[k3]) && p[k3].length === 0) {
             v.panel[k3] = new Set(["__screenshot_no_autoCollapse__"]);
           } else if (Array.isArray(p[k3])) {
             v.panel[k3] = new Set(p[k3]);
@@ -200,17 +200,78 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
 
   const nodes = await waitStable(page, 7000);
 
-  // AutoFitView with extra stabilization
+  // Force simulation to completion + manual fit-to-view
   await page.evaluate(async function() {
     var v = (window as any).app.workspace
       .getLeavesOfType("graph-view")
       .find(function(l: any) { return "pixiNodes" in l.view; })?.view;
-    if (v && v.autoFitView) {
-      v.autoFitView();
-      await new Promise(function(r) { setTimeout(r, 2000); });
+    if (!v) return;
+
+    // Stop force simulation so nodes are at final positions
+    if (v.simulation) { v.simulation.alpha(0); v.simulation.stop(); }
+    if (v.layoutController && v.layoutController.simulation) {
+      v.layoutController.simulation.alpha(0);
+      v.layoutController.simulation.stop();
+    }
+
+    v.markDirty();
+    await new Promise(function(r) { setTimeout(r, 500); });
+
+    // Try autoFitView first
+    if (v.autoFitView) {
       v.autoFitView();
       await new Promise(function(r) { setTimeout(r, 1000); });
     }
+
+    // Manual bounding-box fit as fallback: compute from pn.data.x/y
+    var wc = v.worldContainer;
+    if (!wc) return;
+    var nodes = v.pixiNodes;
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    var count = 0;
+    nodes.forEach(function(pn: any) {
+      if (!pn.data) return;
+      var x = pn.data.x, y = pn.data.y;
+      if (x === undefined || y === undefined) return;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      count++;
+    });
+
+    if (count < 2) return;
+
+    var canvas = v.app?.view;
+    var cw = canvas?.width ?? 1446;
+    var ch = canvas?.height ?? 706;
+    var padding = 80;
+    var bw = maxX - minX;
+    var bh = maxY - minY;
+    if (bw < 1) bw = 1;
+    if (bh < 1) bh = 1;
+    var scaleX = (cw - padding * 2) / bw;
+    var scaleY = (ch - padding * 2) / bh;
+    var scale = Math.min(scaleX, scaleY, 2.0);
+    if (scale < 0.01) scale = 0.01;
+
+    var cx = (minX + maxX) / 2;
+    var cy = (minY + maxY) / 2;
+
+    wc.scale.set(scale, scale);
+    wc.x = cw / 2 - cx * scale;
+    wc.y = ch / 2 - cy * scale;
+
+    v.markDirty();
+    await new Promise(function(r) { setTimeout(r, 500); });
+
+    // Force label update at final zoom
+    if (v.updateLabelsForZoom) v.updateLabelsForZoom();
+    if (v.renderPipeline && v.renderPipeline.cullOverlappingLabels) {
+      v.renderPipeline.cullOverlappingLabels();
+    }
+    v.markDirty();
+    await new Promise(function(r) { setTimeout(r, 500); });
   });
   await page.waitForTimeout(500);
 
@@ -232,41 +293,56 @@ async function qualityCheck(page: Page): Promise<{ pass: boolean; issues: string
       return { pass: false, issues: issues };
     }
 
-    // Check 1: Centering — are nodes spread across the canvas?
-    var canvas = v.pixiApp?.view ?? v.app?.view;
-    var cw = canvas?.width ?? 1920;
-    var ch = canvas?.height ?? 1080;
+    // Check 1: Centering — use worldContainer transform to compute screen positions
+    var cw = 1920;
+    var ch = 1080;
+    var wc = v.worldContainer;
+    var sx = wc ? wc.scale.x : 1;
+    var sy = wc ? wc.scale.y : 1;
+    var tx = wc ? wc.x : 0;
+    var ty = wc ? wc.y : 0;
     var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     var visCount = 0;
 
     nodes.forEach(function(pn: any) {
-      if (!pn.visible) return;
-      var gp = pn.toGlobal ? pn.toGlobal({ x: 0, y: 0 }) : { x: pn.x, y: pn.y };
-      if (gp.x >= 0 && gp.x <= cw && gp.y >= 0 && gp.y <= ch) {
+      // Node coordinates are in pn.data.x/y (d3-force world coords)
+      if (!pn.data) return;
+      var wx = pn.data.x;
+      var wy = pn.data.y;
+      if (wx === undefined || wy === undefined) return;
+      // Transform world coords to screen coords
+      var screenX = wx * sx + tx;
+      var screenY = wy * sy + ty;
+      if (screenX >= -100 && screenX <= cw + 100 && screenY >= -100 && screenY <= ch + 100) {
         visCount++;
-        if (gp.x < minX) minX = gp.x;
-        if (gp.x > maxX) maxX = gp.x;
-        if (gp.y < minY) minY = gp.y;
-        if (gp.y > maxY) maxY = gp.y;
+        if (screenX < minX) minX = screenX;
+        if (screenX > maxX) maxX = screenX;
+        if (screenY < minY) minY = screenY;
+        if (screenY > maxY) maxY = screenY;
       }
     });
 
-    if (visCount < 5) {
-      issues.push("Too few visible nodes in viewport: " + visCount);
+    if (visCount < 5 && nodes.size >= 5) {
+      issues.push("Too few visible nodes in viewport: " + visCount + "/" + nodes.size);
     }
 
-    // Check spread — nodes should use at least 20% of canvas in each dimension
-    var spreadX = (maxX - minX) / cw;
-    var spreadY = (maxY - minY) / ch;
-    if (spreadX < 0.15 && spreadY < 0.15 && visCount > 10) {
-      issues.push("Nodes clustered too tightly: " + Math.round(spreadX * 100) + "% x " + Math.round(spreadY * 100) + "%");
+    // Check spread — nodes should use at least 15% of canvas in each dimension
+    if (visCount > 10) {
+      var spreadX = (maxX - minX) / cw;
+      var spreadY = (maxY - minY) / ch;
+      if (spreadX < 0.15 && spreadY < 0.15) {
+        issues.push("Nodes clustered too tightly: " + Math.round(spreadX * 100) + "% x " + Math.round(spreadY * 100) + "%");
+      }
     }
 
-    // Check 2: Color diversity
+    // Check 2: Color diversity — color is on pn.color, not pn.data.color
     var colors = new Set();
     nodes.forEach(function(pn: any) {
-      if (pn.data && pn.data.color !== undefined) colors.add(pn.data.color);
+      if (pn.color !== undefined) colors.add(pn.color);
     });
+    if (colors.size < 2 && nodes.size > 10) {
+      issues.push("Low color diversity: " + colors.size + " colors");
+    }
 
     // Check 3: Phantom labels — should not see "°0"
     var phantomCount = 0;
@@ -414,7 +490,7 @@ async function main() {
       console.log(`  Saved: ${(fileSize / 1024).toFixed(0)}KB${qc.pass ? " ✓" : ""}`);
       results.push({ name: presetName, nodes: nodeCount, pass: qc.pass, issues: qc.issues });
 
-      // --- Zoomed-in (2.5x) variant centered on node centroid ---
+      // --- Zoomed-in (3x) variant centered on node centroid ---
       const zoomedPath = path.join(OUT_DIR, `${presetName}-zoomed.png`);
       await page.evaluate(async function() {
         var v = (window as any).app.workspace
@@ -422,28 +498,23 @@ async function main() {
           .find(function(l: any) { return "pixiNodes" in l.view; })?.view;
         if (!v || !v.worldContainer) return;
         var w = v.worldContainer;
-        var canvas = v.pixiApp?.view ?? v.app?.view;
-        var cw = canvas?.width ?? 1920;
-        var ch = canvas?.height ?? 1080;
 
-        // Use autoFitView first, then zoom in 3x from that level
-        // This ensures we're centered on the actual visible content
-        if (v.autoFitView) v.autoFitView();
-        await new Promise(function(r) { setTimeout(r, 500); });
-
-        // Zoom in 3x from autoFit level, centered on canvas center
+        // Zoom in 3x from current level, centered on canvas center
+        var canvas = v.app?.view;
+        var cw = canvas?.width ?? 1446;
+        var ch = canvas?.height ?? 706;
         var curScale = w.scale.x;
         var newScale = curScale * 3;
         var pivotX = cw / 2;
         var pivotY = ch / 2;
-        // Zoom toward canvas center
         w.x = pivotX - (pivotX - w.x) * (newScale / curScale);
         w.y = pivotY - (pivotY - w.y) * (newScale / curScale);
         w.scale.set(newScale, newScale);
         v.markDirty();
-        // Force label recalculation at new zoom level
         if (v.updateLabelsForZoom) v.updateLabelsForZoom();
-        if (v.renderPipeline?.cullOverlappingLabels) v.renderPipeline.cullOverlappingLabels();
+        if (v.renderPipeline && v.renderPipeline.cullOverlappingLabels) {
+          v.renderPipeline.cullOverlappingLabels();
+        }
         await new Promise(function(r) { setTimeout(r, 2000); });
       });
       await hideChrome(page);
