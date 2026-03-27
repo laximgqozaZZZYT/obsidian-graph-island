@@ -5073,7 +5073,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
       // Aggregate mode: at extreme zoom-out, enlarge labels into prominent
       // summary bars so they replace the hidden individual nodes.
-      const isAggregateMode = ws < 0.08;
+      const isAggregateMode = ws < 0.25;
       if (isAggregateMode) {
         const scaledFontSize = Math.max(14, Math.round(14 / Math.max(ws, 0.001) * 0.15));
         txt.style.fontSize = scaledFontSize;
@@ -5184,13 +5184,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private _drawZoomAggregates(): void {
     const ws = this.worldContainer?.scale?.x ?? 1;
     const aggregateMode =
-      ws < 0.08 &&
+      ws < 0.25 &&
       (!this.panel.groupBy || this.panel.groupBy === "none") &&
       this.panel.viewMode === "graph";
 
     // Clear previous aggregates
     if (this._aggregateGraphics) this._aggregateGraphics.clear();
     for (const lbl of this._aggregateLabels) lbl.visible = false;
+
+    // Dim individual nodes when aggregate mode is active
+    for (const pn of this.pixiNodes.values()) {
+      if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) continue;
+      pn.gfx.alpha = aggregateMode ? 0.15 : 1;
+    }
 
     if (!aggregateMode || this.pixiNodes.size === 0) return;
 
