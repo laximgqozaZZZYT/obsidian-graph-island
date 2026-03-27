@@ -742,13 +742,13 @@ export class InteractionManager {
       this.draggedNode = null;
       this.host.markDirty(true);
     } else if (!this.hasDragged) {
+      // No node was dragged — check sunburst arcs
       const app2 = this.host.getPixiApp();
       if (app2) {
         const rect2 = this.canvas.getBoundingClientRect();
         const mx2 = e.clientX - rect2.left;
         const my2 = e.clientY - rect2.top;
         const wp = this.world.toLocal({ x: mx2, y: my2 }, app2.stage);
-        // Sunburst arc click
         if (this.host.hitTestSunburstArc && this.host.onSunburstArcClick) {
           const arcGroup = this.host.hitTestSunburstArc(wp.x, wp.y);
           if (arcGroup) {
@@ -758,14 +758,25 @@ export class InteractionManager {
             return;
           }
         }
-        // Group/aggregate label click → zoom to group
-        if (this.host.hitTestAndZoomGroupLabel?.(wp.x, wp.y)) {
+      }
+    }
+
+    // Group/aggregate label click → zoom to group (check regardless of draggedNode)
+    if (!this.hasDragged) {
+      const app3 = this.host.getPixiApp();
+      if (app3) {
+        const rect3 = this.canvas.getBoundingClientRect();
+        const mx3 = e.clientX - rect3.left;
+        const my3 = e.clientY - rect3.top;
+        const wp3 = this.world.toLocal({ x: mx3, y: my3 }, app3.stage);
+        if (this.host.hitTestAndZoomGroupLabel?.(wp3.x, wp3.y)) {
           this.isPanning = false;
           this.hasDragged = false;
           return;
         }
       }
     }
+
     this.isPanning = false;
     this.hasDragged = false;
   }
