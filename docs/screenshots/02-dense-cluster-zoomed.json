@@ -219,5 +219,5 @@
   "showGuideLines": false,
   "guideLineMode": "shared",
   "showGroupGrid": false,
-  "_zoomMultiplier": 6
+  "_absoluteZoom": 0.8
 }

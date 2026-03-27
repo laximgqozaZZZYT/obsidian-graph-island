@@ -437,13 +437,11 @@ async function main() {
         var cx = sumX / count;
         var cy = sumY / count;
 
-        // Zoom 2.5x centered on centroid
-        var factor = 6;
-        var newScale = w.scale.x * factor;
-        w.scale.set(newScale, newScale);
-        // Recenter: world.x = canvas_center - centroid * scale
-        w.x = cw / 2 - cx * newScale;
-        w.y = ch / 2 - cy * newScale;
+        // Set absolute zoom to 0.8 (human-readable level) centered on centroid
+        var targetZoom = 0.8;
+        w.scale.set(targetZoom, targetZoom);
+        w.x = cw / 2 - cx * targetZoom;
+        w.y = ch / 2 - cy * targetZoom;
         v.markDirty();
         // Force label recalculation at new zoom level
         if (v.updateLabelsForZoom) v.updateLabelsForZoom();
@@ -459,7 +457,7 @@ async function main() {
         // Save zoomed settings too
         if (applyResult.settings) {
           const zoomSettingsPath = path.join(OUT_DIR, `${presetName}-zoomed.json`);
-          const zoomSettings = { ...applyResult.settings, _zoomMultiplier: 6 };
+          const zoomSettings = { ...applyResult.settings, _absoluteZoom: 0.8 };
           fs.writeFileSync(zoomSettingsPath, JSON.stringify(zoomSettings, null, 2));
         }
       }

@@ -358,8 +358,8 @@
       "y": 31948.86731017887
     },
     "mythology-norse/concepts/yggdrasil.md": {
-      "x": 4305.814804566297,
-      "y": 477.22739234475426
+      "x": 4305.814804384335,
+      "y": 477.22739231715366
     },
     "classic-sangokushi/characters/ma-chao.md": {
       "x": -70958.21410848034,
@@ -422,16 +422,16 @@
       "y": -17587.6545700234
     },
     "bible-old-testament/concepts/ark-of-covenant.md": {
-      "x": 3720.1443241963243,
-      "y": 96.20503848414171
+      "x": 3720.1443242657188,
+      "y": 96.20503822269488
     },
     "bible-new-testament/characters/jesus.md": {
       "x": -34844.92728385781,
       "y": 67620.70889524194
     },
     "mythology-japanese/concepts/kusanagi.md": {
-      "x": 630.1794524004903,
-      "y": -2302.8734419755215
+      "x": 630.179452290599,
+      "y": -2302.873441749558
     },
     "mythology-japanese/characters/susanoo.md": {
       "x": 24420.07176544999,
@@ -446,8 +446,8 @@
       "y": 29727.71531017883
     },
     "mythology-egyptian/concepts/eye-of-ra.md": {
-      "x": 1641.4165081345109,
-      "y": -2233.7029310322205
+      "x": 1641.4165079987831,
+      "y": -2233.702931006813
     },
     "mythology-egyptian/characters/sobek.md": {
       "x": -23802.91685635909,
@@ -458,20 +458,20 @@
       "y": 75291.11355069152
     },
     "bible-new-testament/concepts/golgotha.md": {
-      "x": 2347.1037717383847,
-      "y": -1946.0907262206727
+      "x": 2347.1037717885156,
+      "y": -1946.0907262201706
     },
     "bible-apocrypha/concepts/seven-heavens.md": {
-      "x": 2561.671053559484,
-      "y": -1808.8247667729856
+      "x": 2561.6710533248397,
+      "y": -1808.8247670330063
     },
     "bible-apocrypha/concepts/book-of-life.md": {
-      "x": 2762.867736273767,
-      "y": -1652.6152212372606
+      "x": 2762.8677361156933,
+      "y": -1652.6152213885052
     },
     "mythology-egyptian/concepts/duat.md": {
-      "x": -1838.6140423089068,
-      "y": 222.7726939037454
+      "x": -1838.6140424939385,
+      "y": 222.77269387186044
     },
     "mythology-egyptian/characters/osiris.md": {
       "x": -23802.91685635909,
@@ -558,24 +558,24 @@
       "y": 75291.11355069152
     },
     "bible-old-testament/concepts/ten-commandments.md": {
-      "x": -1850.2065568240794,
-      "y": 477.22610103641387
+      "x": -1850.2065568039188,
+      "y": 477.22610104354936
     },
     "mythology-norse/concepts/mjolnir.md": {
-      "x": 1392.0259314735206,
-      "y": 3239.979928715252
+      "x": 1392.0259312559774,
+      "y": 3239.979928735856
     },
     "mythology-norse/concepts/gungnir.md": {
-      "x": 1138.9556682265272,
-      "y": 3268.9109622343685
+      "x": 1138.9556684803415,
+      "y": 3268.910962095976
     },
     "mythology-norse/concepts/bifrost.md": {
-      "x": 884.303477977765,
-      "y": 3274.708443985741
+      "x": 884.3034779441451,
+      "y": 3274.7084438018874
     },
     "mythology-egyptian/concepts/ankh.md": {
-      "x": 630.1791163484692,
-      "y": 3257.3254955200064
+      "x": 630.1791164081029,
+      "y": 3257.3254954779577
     },
     "mythology-egyptian/characters/isis.md": {
       "x": -23062.53285635909,
@@ -602,32 +602,32 @@
       "y": 73810.34555069152
     },
     "bible-old-testament/concepts/promised-land.md": {
-      "x": -961.9240495880108,
-      "y": 2522.2574035523944
+      "x": -961.9240495953592,
+      "y": 2522.2574036597903
     },
     "bible-apocrypha/concepts/dead-sea-scrolls.md": {
-      "x": -1139.9764084762314,
-      "y": 2340.1051191269676
+      "x": -1139.9764083650398,
+      "y": 2340.105118860495
     },
     "mythology-norse/characters/fenrir.md": {
       "x": 77284.46942664255,
       "y": 7330.0217361442
     },
     "mythology-japanese/concepts/yasakani.md": {
-      "x": 3720.145789930304,
-      "y": 858.2478071969265
+      "x": 3720.1457899723464,
+      "y": 858.2478074158118
     },
     "mythology-japanese/characters/izanagi.md": {
       "x": 25160.455765449988,
       "y": -70027.7977580675
     },
     "mythology-greek/concepts/golden-fleece.md": {
-      "x": 3605.2888421545235,
-      "y": 1354.0278892537067
+      "x": 3605.2888422268043,
+      "y": 1354.0278892030124
     },
     "mythology-greek/concepts/ambrosia.md": {
-      "x": 3514.5463586207566,
-      "y": 1592.0343051649893
+      "x": 3514.546358661391,
+      "y": 1592.034305148809
     },
     "mythology-greek/characters/heracles.md": {
       "x": 71180.07964525344,
@@ -674,16 +674,16 @@
       "y": 8070.4057361442
     },
     "mythology-japanese/concepts/takamagahara.md": {
-      "x": 1594.2611249048227,
-      "y": -1666.044260098244
+      "x": 1594.2611246312777,
+      "y": -1666.0442601428583
     },
     "mythology-greek/concepts/mount-olympus.md": {
-      "x": 1818.4157372687237,
-      "y": -1585.207785608654
+      "x": 1818.4157374101565,
+      "y": -1585.2077856363674
     },
     "mythology-greek/concepts/labyrinth.md": {
-      "x": 2032.708571666956,
-      "y": -1481.005335905304
+      "x": 2032.7085715483468,
+      "y": -1481.0053355866835
     },
     "mythology-greek/characters/ares.md": {
       "x": 68958.92764525344,
@@ -694,8 +694,8 @@
       "y": 31948.86731017883
     },
     "mythology-egyptian/concepts/pyramid.md": {
-      "x": 2592.852950452911,
-      "y": -1041.2305582512263
+      "x": 2592.852950540991,
+      "y": -1041.230557899181
     },
     "mythology-egyptian/characters/horus.md": {
       "x": -22322.14885635909,
@@ -718,12 +718,12 @@
       "y": 75291.11355069152
     },
     "bible-new-testament/concepts/nazareth.md": {
-      "x": 3173.90354469057,
-      "y": 239.28091901713174
+      "x": 3173.9035450040315,
+      "y": 239.2809191501069
     },
     "mythology-japanese/concepts/yomi.md": {
-      "x": -239.39497519322939,
-      "y": -1420.498554403669
+      "x": -239.394975176753,
+      "y": -1420.4985547230635
     },
     "classic-saiyuki/characters/xuanzang.md": {
       "x": 56123.94814580646,
@@ -746,8 +746,8 @@
       "y": 6055.706966913456
     },
     "bible-new-testament/concepts/holy-grail.md": {
-      "x": 1126.6082597741213,
-      "y": -1754.2220996946464
+      "x": 1126.6082598539772,
+      "y": -1754.222099795564
     },
     "mythology-norse/characters/hel.md": {
       "x": 77284.46942664255,
@@ -3021,5 +3021,5 @@
   "showGuideLines": true,
   "guideLineMode": "per-group",
   "showGroupGrid": true,
-  "_zoomMultiplier": 6
+  "_absoluteZoom": 0.8
 }
