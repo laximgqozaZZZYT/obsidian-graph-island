@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-divine-comedy* OR path:mythology-norse*",
+  "searchQuery": "path:classic-hamlet* OR path:mythology-norse* OR path:mythology-egyptian*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -116,7 +116,8 @@
   "groupFilter": "",
   "collapsedGroups": [
     "folder:mythology-norse",
-    "folder:classic-divine-comedy"
+    "folder:mythology-egyptian",
+    "folder:classic-hamlet"
   ],
   "activeTab": "layout",
   "autoFit": true,
