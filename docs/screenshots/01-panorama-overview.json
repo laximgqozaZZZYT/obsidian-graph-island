@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:bible* OR path:mythology-japanese* OR path:classic-king-lear*",
+  "searchQuery": "path:mythology-norse* OR path:classic-hamlet* OR path:classic-gilgamesh*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -115,11 +115,9 @@
   "groupMinSize": 2,
   "groupFilter": "",
   "collapsedGroups": [
-    "folder:mythology-japanese",
-    "folder:classic-king-lear",
-    "folder:bible-old-testament",
-    "folder:bible-new-testament",
-    "folder:bible-apocrypha"
+    "folder:mythology-norse",
+    "folder:classic-hamlet",
+    "folder:classic-gilgamesh"
   ],
   "activeTab": "layout",
   "autoFit": true,

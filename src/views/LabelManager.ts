@@ -387,16 +387,9 @@ export class LabelManager {
     const zoom = this.host.getWorldScale();
     const density = Math.max(0.2, Math.min(3.0, rt.labelDensity ?? 1.0));
     // Small-graph boost: show all labels when few nodes, more labels for medium graphs
-    const totalNodeCount = this.host.getPixiNodes().size;
-    const smallGraphFloor = totalNodeCount < 50 ? totalNodeCount
-      : totalNodeCount < 100 ? Math.max(60, Math.round(150 * density * zoom))
-      : 30;
-    const zoomCap = zoom < 1.0
-      ? Math.max(smallGraphFloor, Math.round(150 * density * zoom))  // adaptive floor depending on graph size
-      : 0; // no cap at zoom >= 1
-    const maxVisible = staticMax > 0
-      ? (zoomCap > 0 ? Math.min(staticMax, zoomCap) : staticMax)
-      : zoomCap;
+    // Map-style labeling: no maxVisible cap. Show all labels that pass
+    // LOD tier checks. Overlap culling handles density separately.
+    const maxVisible = 0; // 0 = no cap
 
     // AP-5 diversity guarantee: promote top non-super nodes if too few
     const eligibleNonSuper = candidates.filter(c => !c.isSuper).length;
