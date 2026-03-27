@@ -3887,6 +3887,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         if (!pn.hoverLabel) {
           this._createHoverTooltip(pn);
         }
+        // Force-show the node's own label so linked nodes are identifiable
+        if (pn.label && !pn.label.visible) {
+          pn.label.visible = true;
+          pn.label.alpha = 1;
+          pn.hoverForcedLabel = true;
+        }
         // When hovering, also force-show tag label if present but hidden by LOD
         // (skip in enclosure mode — enclosure hull labels handle tags)
         if (pn.tagLabel && !pn.tagLabel.visible && this.panel.tagDisplay !== TAG_DISPLAY_ENCLOSURE) {
