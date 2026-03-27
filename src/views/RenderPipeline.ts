@@ -56,7 +56,7 @@ const NODE_SCREEN_PX_BASE = 30;
 
 /** Minimum world radius applied at non-extreme zoom to keep nodes visible.
  *  Nodes are always at least 2×this value in screen-pixel diameter. */
-export const MIN_WORLD_RADIUS_PX = 8;
+export const MIN_WORLD_RADIUS_PX = 3;
 
 /** Convert a screen-pixel size to world units, floored at `floor`. */
 export function screenToWorld(screenPx: number, ws: number, floor: number): number {
