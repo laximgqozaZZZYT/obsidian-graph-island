@@ -438,7 +438,7 @@ async function main() {
         var cy = sumY / count;
 
         // Zoom 2.5x centered on centroid
-        var factor = 2.5;
+        var factor = 6;
         var newScale = w.scale.x * factor;
         w.scale.set(newScale, newScale);
         // Recenter: world.x = canvas_center - centroid * scale
@@ -456,7 +456,7 @@ async function main() {
         // Save zoomed settings too
         if (applyResult.settings) {
           const zoomSettingsPath = path.join(OUT_DIR, `${presetName}-zoomed.json`);
-          const zoomSettings = { ...applyResult.settings, _zoomMultiplier: 2.5 };
+          const zoomSettings = { ...applyResult.settings, _zoomMultiplier: 6 };
           fs.writeFileSync(zoomSettingsPath, JSON.stringify(zoomSettings, null, 2));
         }
       }
@@ -468,7 +468,7 @@ async function main() {
           .find(function(l: any) { return "pixiNodes" in l.view; })?.view;
         if (v && v.worldContainer) {
           var w = v.worldContainer;
-          w.scale.set(w.scale.x / 2.5, w.scale.y / 2.5);
+          w.scale.set(w.scale.x / 6, w.scale.y / 6);
           v.markDirty();
         }
       });

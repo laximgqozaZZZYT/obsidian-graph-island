@@ -67,7 +67,7 @@ export function screenToWorld(screenPx: number, ws: number, floor: number): numb
 const VIEWPORT_CULL_MARGIN_PX = 60;
 
 /** Maximum number of labels created before dynamically raising degree threshold */
-const MAX_LABEL_COUNT = 500;
+const MAX_LABEL_COUNT = 1500;
 
 /** Default minimum degree threshold for showing node labels */
 const DEFAULT_LABEL_DEGREE_THRESHOLD = 3;
@@ -2357,14 +2357,11 @@ export class RenderPipeline {
 
     const degrees = this.host.getDegrees();
 
-    // Dynamically raise label threshold for large graphs to limit GPU texture memory.
+    // Create labels for ALL nodes (threshold = 0). Visibility is controlled
+    // by LabelManager LOD culling, not by skipping label creation.
+    // This ensures every node CAN show its label when zoomed in.
     const degValues = nodes.map(n => degrees.get(n.id) || 0).sort((a, b) => b - a);
-    // For small graphs (< 200 nodes), show all labels regardless of degree
-    this.pendingLabelThreshold = degValues.length < 200
-      ? 0
-      : degValues.length > MAX_LABEL_COUNT
-        ? Math.max(DEFAULT_LABEL_DEGREE_THRESHOLD, degValues[MAX_LABEL_COUNT - 1])
-        : DEFAULT_LABEL_DEGREE_THRESHOLD;
+    this.pendingLabelThreshold = 0;
 
     // Cache maxDeg once — avoids O(n²) recomputation inside createSinglePixiNode
     this._cachedMaxDeg = degValues.length > 0 ? degValues[0] : 1;

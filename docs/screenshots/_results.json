@@ -1,10 +1,10 @@
 [
   {
     "name": "01-panorama-overview",
-    "nodes": 3,
+    "nodes": 5,
     "pass": false,
     "issues": [
-      "Too few nodes: 3"
+      "Too few visible nodes in viewport: 0"
     ]
   },
   {
@@ -161,7 +161,7 @@
   },
   {
     "name": "21-filled-hexagon",
-    "nodes": 8,
+    "nodes": 6,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -169,15 +169,15 @@
   },
   {
     "name": "22-timeline-ranged",
-    "nodes": 3,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few nodes: 3"
+      "Too few nodes: 2"
     ]
   },
   {
     "name": "23-spiral-galaxy",
-    "nodes": 6,
+    "nodes": 5,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -233,7 +233,7 @@
   },
   {
     "name": "30-mountain-ridge",
-    "nodes": 29,
+    "nodes": 8,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -273,10 +273,10 @@
   },
   {
     "name": "35-donut-groups",
-    "nodes": 2,
+    "nodes": 5,
     "pass": false,
     "issues": [
-      "Too few nodes: 2"
+      "Too few visible nodes in viewport: 0"
     ]
   },
   {
@@ -289,22 +289,6 @@
   },
   {
     "name": "37-hierarchical-sunburst",
-    "nodes": 2,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 2"
-    ]
-  },
-  {
-    "name": "38-tiny-nodes-stress",
-    "nodes": 5,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
-  },
-  {
-    "name": "39-large-nodes-overlap",
     "nodes": 3,
     "pass": false,
     "issues": [
@@ -312,8 +296,24 @@
     ]
   },
   {
+    "name": "38-tiny-nodes-stress",
+    "nodes": 3,
+    "pass": false,
+    "issues": [
+      "Too few nodes: 3"
+    ]
+  },
+  {
+    "name": "39-large-nodes-overlap",
+    "nodes": 5,
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 0"
+    ]
+  },
+  {
     "name": "40-force-ungrouped",
-    "nodes": 369,
+    "nodes": 373,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -321,6 +321,14 @@
   },
   {
     "name": "41-all-edges-maxdensity",
+    "nodes": 3,
+    "pass": false,
+    "issues": [
+      "Too few nodes: 3"
+    ]
+  },
+  {
+    "name": "42-high-density-tags",
     "nodes": 5,
     "pass": false,
     "issues": [
@@ -328,19 +336,11 @@
     ]
   },
   {
-    "name": "42-high-density-tags",
-    "nodes": 27,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0"
-    ]
-  },
-  {
     "name": "43-concentric-tiny-accessibility",
-    "nodes": 3,
+    "nodes": 2,
     "pass": false,
     "issues": [
-      "Too few nodes: 3"
+      "Too few nodes: 2"
     ]
   },
   {
@@ -425,10 +425,10 @@
   },
   {
     "name": "54-radial-dense",
-    "nodes": 2,
+    "nodes": 5,
     "pass": false,
     "issues": [
-      "Too few nodes: 2"
+      "Too few visible nodes in viewport: 0"
     ]
   },
   {
@@ -457,15 +457,15 @@
   },
   {
     "name": "test-hub-radial",
-    "nodes": 2,
+    "nodes": 3,
     "pass": false,
     "issues": [
-      "Too few nodes: 2"
+      "Too few nodes: 3"
     ]
   },
   {
     "name": "test-sunburst-full",
-    "nodes": 619,
+    "nodes": 369,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"
@@ -481,7 +481,7 @@
   },
   {
     "name": "test-tag-category-matrix",
-    "nodes": 6,
+    "nodes": 8,
     "pass": false,
     "issues": [
       "Too few visible nodes in viewport: 0"

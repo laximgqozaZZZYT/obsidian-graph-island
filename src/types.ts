@@ -1551,7 +1551,7 @@ export const DEFAULT_RENDER_THRESHOLDS: Required<RenderThresholds> = {
   labelTruncateZoom: 0.35,
   labelTruncateMaxChars: 12,
   labelTruncateMinChars: 5,
-  nodeLabelZoomMin: 0.60,
+  nodeLabelZoomMin: 0.08,
   enclosureOutlierFactor: 2.0,
   labelMaxDisplacementRatio: 2.5,
   labelBgColor: 0x1a1a2e,
