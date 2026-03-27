@@ -5192,15 +5192,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (this._aggregateGraphics) this._aggregateGraphics.clear();
     for (const lbl of this._aggregateLabels) lbl.visible = false;
 
-    // Dim individual nodes when aggregate mode is active
-    for (const pn of this.pixiNodes.values()) {
-      if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) continue;
-      if (aggregateMode) {
-        pn.gfx.visible = false;
-      } else {
-        pn.gfx.visible = true;
-        pn.gfx.alpha = 1;
-      }
+    // Set aggregate flag on RenderPipeline so redrawNodeBatch skips individual nodes
+    if (this.renderPipeline) {
+      this.renderPipeline.aggregateMode = aggregateMode;
     }
 
     if (!aggregateMode || this.pixiNodes.size === 0) return;

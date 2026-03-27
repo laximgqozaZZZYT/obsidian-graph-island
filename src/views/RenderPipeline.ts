@@ -526,6 +526,9 @@ export function quickSelect(arr: number[], k: number): number {
 export class RenderPipeline {
   private host: RenderHost;
 
+  /** When true, individual non-super nodes are hidden by redrawNodeBatch */
+  aggregateMode = false;
+
   // Render loop state
   private needsRedraw = true;
   private needsFullRedraw = false;
@@ -914,6 +917,11 @@ export class RenderPipeline {
       const nx = pn.data.x, ny = pn.data.y;
       if (nx < vpMinX || nx > vpMaxX || ny < vpMinY || ny > vpMaxY) {
         // JT: §0.4 Hide off-viewport nodes from PixiJS renderer for perf
+        pn.gfx.visible = false;
+        continue;
+      }
+      // In aggregate mode, hide individual (non-super) nodes
+      if (this.aggregateMode && !(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0)) {
         pn.gfx.visible = false;
         continue;
       }
