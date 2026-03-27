@@ -1075,10 +1075,18 @@ export class RenderPipeline {
     worldScale: number,
     crc: ReturnType<typeof Object.assign>,
   ) {
-    // HM: 2px screen-space dots with 1px stroke for better visibility at extreme zoom
+    // At extreme zoom, hide individual (non-super) nodes — cluster summary bars
+    // rendered by _updateGroupByLabels replace them for a cleaner overview.
+    // Super-nodes (collapsed groups) still render as dots since they already
+    // represent aggregated clusters.
     const dotRadius = Math.max(1.5, 2 / worldScale);
     const strokeW = Math.max(0.5, 0.8 / worldScale);
     for (const pn of visible) {
+      const isSuperNode = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
+      if (!isSuperNode) {
+        pn.gfx.visible = false;
+        continue;
+      }
       const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
       g.lineStyle(strokeW, 0x000000, nodeAlpha * 0.4);
       g.beginFill(pn.color, nodeAlpha);

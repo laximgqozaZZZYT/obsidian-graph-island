@@ -5060,12 +5060,28 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         txt.style.fontSize = baseFontSize;
       }
 
+      // Aggregate mode: at extreme zoom-out, enlarge labels into prominent
+      // summary bars so they replace the hidden individual nodes.
+      const isAggregateMode = ws < 0.08;
+      if (isAggregateMode) {
+        const scaledFontSize = Math.max(14, Math.round(14 / Math.max(ws, 0.001) * 0.15));
+        txt.style.fontSize = scaledFontSize;
+        txt.bgPadX = 16;
+        txt.bgPadY = 8;
+        txt.strokeWidth = 6;
+      } else {
+        txt.style.fontSize = baseFontSize;
+        txt.bgPadX = 10;
+        txt.bgPadY = 5;
+        txt.strokeWidth = 4;
+      }
+
       txt.scale.set(labelScale);
       txt.alpha = alpha;
       // Visual feedback for hovered label
       const isHovered = key === this._hoveredGroupLabel;
-      txt.bgColor = isHovered ? 0x4a4a8e : 0x2a2a3e;
-      txt.bgAlpha = isHovered ? 0.95 : 0.85;
+      txt.bgColor = isHovered ? 0x4a4a8e : (isAggregateMode ? 0x3a3a5e : 0x2a2a3e);
+      txt.bgAlpha = isHovered ? 0.95 : (isAggregateMode ? 0.92 : 0.85);
       txt.style.fill = isHovered ? 0xffffff : 0xeeeeee;
 
       // Place label, nudging away from collisions (screen space)
