@@ -1,4 +1,5 @@
 import { hexToRgb } from "../../utils/color";
+import type { IGraphics } from "./interfaces";
 
 type DrawCmd =
   | { t: "lineStyle"; width: number; color: number; alpha: number; native?: boolean }
@@ -34,7 +35,7 @@ export function hexToRgba(hex: number, alpha: number): string {
   return result;
 }
 
-export class CanvasGraphics {
+export class CanvasGraphics implements IGraphics {
   x = 0;
   y = 0;
   alpha = 1;

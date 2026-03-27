@@ -1,9 +1,10 @@
 import { CanvasContainer } from "./CanvasContainer";
 import { hexToRgb, getLuminance } from "../../utils/color";
+import type { IApp, ITicker } from "./interfaces";
 
 type TickerCallback = () => void;
 
-class Ticker {
+class Ticker implements ITicker {
   private callbacks: { fn: TickerCallback; context: unknown }[] = [];
   private _rafId: number | null = null;
   private _running = false;
@@ -59,7 +60,7 @@ export interface CanvasAppOptions {
   autoDensity?: boolean;
 }
 
-export class CanvasApp {
+export class CanvasApp implements IApp {
   view: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   stage: CanvasContainer;

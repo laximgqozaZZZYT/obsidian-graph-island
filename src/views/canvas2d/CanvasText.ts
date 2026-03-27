@@ -1,4 +1,5 @@
 import { hexToRgba } from "./CanvasGraphics";
+import type { IText } from "./interfaces";
 
 export interface TextStyle {
   fontSize?: number;
@@ -9,7 +10,7 @@ export interface TextStyle {
   align?: string;
 }
 
-export class CanvasText {
+export class CanvasText implements IText {
   x = 0;
   y = 0;
   alpha = 1;

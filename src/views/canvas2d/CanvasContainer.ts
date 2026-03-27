@@ -1,9 +1,10 @@
 import type { CanvasGraphics } from "./CanvasGraphics";
 import type { CanvasText } from "./CanvasText";
+import type { IContainer } from "./interfaces";
 
 export type CanvasChild = CanvasContainer | CanvasGraphics | CanvasText;
 
-export class CanvasContainer {
+export class CanvasContainer implements IContainer {
   x = 0;
   y = 0;
   scale = { x: 1, y: 1, set(v: number) { this.x = v; this.y = v; } };
