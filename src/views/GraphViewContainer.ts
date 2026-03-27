@@ -7222,8 +7222,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // FZ: Degree filter
     nodes = filterByDegree(nodes, edges, this.panel.minDegreeFilter ?? 0, this.panel.maxDegreeFilter ?? 0);
 
-    const nodeSet = new Set(nodes.map((n) => n.id));
+    let nodeSet = new Set(nodes.map((n) => n.id));
     edges = filterEdgesByNodeSet(edges, nodeSet);
+
+    // Mobile lightweight mode: cap node count to reduce rendering load
+    if (Platform.isMobile && nodes.length > 200) {
+      const deg = this.degrees;
+      nodes.sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0));
+      nodes = nodes.slice(0, 200);
+      nodeSet = new Set(nodes.map(n => n.id));
+      edges = edges.filter(e => nodeSet.has(e.source) && nodeSet.has(e.target));
+    }
 
     // Skip group collapse for timeline/sunburst viewModes (they need individual nodes)
     if (this.panel.viewMode === "timeline" || this.panel.viewMode === "sunburst") {

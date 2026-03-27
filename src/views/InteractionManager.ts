@@ -400,6 +400,15 @@ export class InteractionManager {
     const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
 
     const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
+    // Mobile tap-to-hover: trigger hover highlight on tap (no pointermove hover on touch)
+    if (Platform.isMobile && hit) {
+      const newId = hit.data.id;
+      if (newId !== this.host.getHighlightedNodeId()) {
+        this.host.setHighlightedNodeId(newId);
+        this.host.applyHover();
+        this.host.markDirty(true);
+      }
+    }
     if (hit) {
       // ビジュアルリンクエディタ: Alt+ドラッグでリンク作成開始
       if (e.altKey && this.host.isVisualLinkEditorEnabled?.()) {

@@ -5,6 +5,7 @@ import type { PixiNode } from "./InteractionManager";
 import { getNodeShape, drawShape, drawShapeAt, getNodeDisplayConfig } from "../utils/node-shapes";
 import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
+import { Platform } from "obsidian";
 import { clamp } from "../utils/geometry";
 import { hexToRgb, getLuminance, wcagContrastRatio, contrastColor } from "../utils/color";
 import { hslToHex, incCounter } from "../utils/graph-helpers";
@@ -936,7 +937,12 @@ export class RenderPipeline {
       : Math.max(0, MIN_WORLD_RADIUS_PX / worldScale);
 
     // 5-level LOD (used when autoLOD is enabled)
-    const lodLevel = computeLodLevel(nodeScreenPx, rt as Parameters<typeof computeLodLevel>[1]);
+    let lodLevel = computeLodLevel(nodeScreenPx, rt as Parameters<typeof computeLodLevel>[1]);
+
+    // Mobile lightweight mode: force simplified rendering (no gradients/glow/complex shapes)
+    if (Platform.isMobile && lodLevel < 3) {
+      lodLevel = 3;
+    }
 
     return {
       visible, pixiNodes, tlFilteredOut, alpha, nodeCount,

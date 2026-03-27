@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import type { PixiNode } from "./InteractionManager";
 import type { RenderPipeline } from "./RenderPipeline";
 import type { CanvasText } from "./canvas2d";
@@ -389,7 +390,8 @@ export class LabelManager {
     // Small-graph boost: show all labels when few nodes, more labels for medium graphs
     // Map-style labeling: no maxVisible cap. Show all labels that pass
     // LOD tier checks. Overlap culling handles density separately.
-    const maxVisible = 0; // 0 = no cap
+    // Mobile lightweight mode: cap labels to 50 for performance
+    const maxVisible = Platform.isMobile ? 50 : 0; // 0 = no cap
 
     // AP-5 diversity guarantee: promote top non-super nodes if too few
     const eligibleNonSuper = candidates.filter(c => !c.isSuper).length;
