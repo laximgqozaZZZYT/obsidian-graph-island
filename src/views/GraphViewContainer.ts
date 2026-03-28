@@ -7658,6 +7658,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Non-graph viewModes: skip per-node rendering, use dedicated renderers
     this.renderPipeline?.setSkipNodeRendering(viewModeSkipsNodeRendering(this.panel.viewMode));
 
+    // Clean up graph-mode artifacts when switching to non-graph viewModes
+    if (this.panel.viewMode !== "graph") {
+      // Hide ALL individual node graphics (prevents ghost cards/circles)
+      for (const pn of this.pixiNodes.values()) {
+        pn.gfx.visible = false;
+        if (pn.label) pn.label.visible = false;
+      }
+      // Hide groupBy labels (they belong to graph mode)
+      for (const lbl of this.groupByLabels.values()) lbl.visible = false;
+      // Clear cluster boundary graphics
+      if (this.clusterBoundaryGraphics) this.clusterBoundaryGraphics.clear();
+      // Clear enclosure graphics (tag hulls)
+      if (this.enclosureGraphics) this.enclosureGraphics.clear();
+      // Clear edge graphics
+      if (this.edgeGraphics) this.edgeGraphics.clear();
+      // Force Canvas repaint to flush cleared state
+      this.markDirty(true);
+    }
+
     // Sync toolbar active button with restored viewMode
     const modeGroup = this.containerEl.querySelector(".gi-view-mode-group");
     if (modeGroup) {
