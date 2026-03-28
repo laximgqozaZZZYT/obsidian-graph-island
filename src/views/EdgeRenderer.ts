@@ -710,7 +710,7 @@ export function findPerimeterBranchPoint(
 }
 
 /** Junction grid: row gap midpoints (Y) and column gap midpoints (X) between nodes */
-interface JunctionGrid {
+export interface JunctionGrid {
   /** Sorted unique row Y values of nodes */
   rows: number[];
   /** Sorted unique column X values of nodes */
@@ -744,7 +744,7 @@ export function mergeNearbyValues(sorted: number[], minSpacing: number): number[
 /** Compute junction grid from node positions within a group.
  *  Nearby rows/columns are merged to form a clean grid even when
  *  tag/category nodes are at irregular positions. */
-function computeJunctionGrid(
+export function computeJunctionGrid(
   groupKey: string,
   resolvePos: (ref: string | object) => Pos | undefined,
   nodeClusterMap: Map<string, string>,
@@ -805,7 +805,7 @@ function computeJunctionGrid(
  * - Port on E → exclude the rightmost colGap (largest X)
  * - Port on W → exclude the leftmost colGap (smallest X)
  */
-function filterGridForPortFace(grid: JunctionGrid, face: BBoxFace): JunctionGrid {
+export function filterGridForPortFace(grid: JunctionGrid, face: BBoxFace): JunctionGrid {
   let { rowGaps, colGaps } = grid;
   switch (face) {
     case "N":
@@ -869,7 +869,7 @@ export function findGapBetween(gaps: number[], a: number, b: number): number | n
  *
  * Path: from → srcColGap → rowGap → tgtColGap → to
  */
-function routeViaJunctionGrid(
+export function routeViaJunctionGrid(
   from: { x: number; y: number },
   to: { x: number; y: number },
   grid: JunctionGrid,

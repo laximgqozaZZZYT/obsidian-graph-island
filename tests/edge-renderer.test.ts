@@ -23,6 +23,9 @@ import {
   shouldSkipEdge, buildBidirectionalSet, normalizeAngle,
   mergeNearbyValues, deduplicatePath, angleDist, shortestAngleDelta,
   getEdgeLabel, buildPairCounts,
+  computeJunctionGrid, filterGridForPortFace, routeViaJunctionGrid,
+  findNearestGap, findGapBetween,
+  type JunctionGrid,
 } from "../src/views/EdgeRenderer";
 import type { GraphEdge } from "../src/types";
 
@@ -531,5 +534,193 @@ describe("EDGE_TYPE_SPECS", () => {
       const spec = EDGE_TYPE_SPECS.get(t);
       expect(spec?.color, `${t} should use relation color (null)`).toBeNull();
     }
+  });
+});
+
+// ===========================================================================
+// computeJunctionGrid — builds row/col grid from node positions
+// ===========================================================================
+
+describe("computeJunctionGrid", () => {
+  const mkCluster = (pairs: [string, number, number][]) => {
+    const map = new Map<string, string>();
+    const positions = new Map<string, { x: number; y: number }>();
+    for (const [id, x, y] of pairs) {
+      map.set(id, "g1");
+      positions.set(id, { x, y });
+    }
+    const resolve = (ref: string | object) => positions.get(ref as string);
+    return { map, resolve };
+  };
+
+  it("creates rows and cols from node positions", () => {
+    const { map, resolve } = mkCluster([["a", 0, 0], ["b", 100, 0], ["c", 0, 100], ["d", 100, 100]]);
+    const grid = computeJunctionGrid("g1", resolve, map);
+    expect(grid.rows.length).toBeGreaterThanOrEqual(1);
+    expect(grid.cols.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("creates gaps between sufficiently spaced rows", () => {
+    const { map, resolve } = mkCluster([["a", 0, 0], ["b", 0, 200]]);
+    const grid = computeJunctionGrid("g1", resolve, map);
+    expect(grid.rowGaps.length).toBeGreaterThanOrEqual(1);
+    // Gap should be between 0 and 200
+    if (grid.rowGaps.length > 0) {
+      expect(grid.rowGaps[0]).toBeGreaterThan(0);
+      expect(grid.rowGaps[0]).toBeLessThan(200);
+    }
+  });
+
+  it("ignores nodes from other groups", () => {
+    const map = new Map([["a", "g1"], ["b", "g2"]]);
+    const positions = new Map([["a", { x: 0, y: 0 }], ["b", { x: 100, y: 100 }]]);
+    const resolve = (ref: string | object) => positions.get(ref as string);
+    const grid = computeJunctionGrid("g1", resolve, map);
+    // Only one node in g1, so minimal grid
+    expect(grid.rows.length).toBeLessThanOrEqual(1);
+  });
+
+  it("handles empty group", () => {
+    const grid = computeJunctionGrid("empty", () => undefined, new Map());
+    expect(grid.rows).toEqual([]);
+    expect(grid.cols).toEqual([]);
+    expect(grid.rowGaps).toEqual([]);
+    expect(grid.colGaps).toEqual([]);
+  });
+});
+
+// ===========================================================================
+// filterGridForPortFace — exclude port-face-adjacent gaps
+// ===========================================================================
+
+describe("filterGridForPortFace", () => {
+  const grid: JunctionGrid = {
+    rows: [0, 50, 100],
+    cols: [0, 50, 100],
+    rowGaps: [25, 75],
+    colGaps: [25, 75],
+  };
+
+  it("N face drops topmost (smallest Y) rowGap", () => {
+    const f = filterGridForPortFace(grid, "N");
+    expect(f.rowGaps).toEqual([75]);
+    expect(f.colGaps).toEqual([25, 75]); // unchanged
+  });
+
+  it("S face drops bottommost (largest Y) rowGap", () => {
+    const f = filterGridForPortFace(grid, "S");
+    expect(f.rowGaps).toEqual([25]);
+  });
+
+  it("E face drops rightmost (largest X) colGap", () => {
+    const f = filterGridForPortFace(grid, "E");
+    expect(f.colGaps).toEqual([25]);
+    expect(f.rowGaps).toEqual([25, 75]); // unchanged
+  });
+
+  it("W face drops leftmost (smallest X) colGap", () => {
+    const f = filterGridForPortFace(grid, "W");
+    expect(f.colGaps).toEqual([75]);
+  });
+
+  it("preserves rows and cols unmodified", () => {
+    const f = filterGridForPortFace(grid, "N");
+    expect(f.rows).toEqual([0, 50, 100]);
+    expect(f.cols).toEqual([0, 50, 100]);
+  });
+
+  it("handles single-gap grid gracefully", () => {
+    const small: JunctionGrid = { rows: [0, 100], cols: [0], rowGaps: [50], colGaps: [] };
+    const f = filterGridForPortFace(small, "N");
+    expect(f.rowGaps).toEqual([]);
+  });
+});
+
+// ===========================================================================
+// routeViaJunctionGrid — Manhattan routing through grid gaps
+// ===========================================================================
+
+describe("routeViaJunctionGrid", () => {
+  const grid: JunctionGrid = {
+    rows: [0, 100, 200],
+    cols: [0, 100, 200],
+    rowGaps: [50, 150],
+    colGaps: [50, 150],
+  };
+
+  it("returns [from, to] for coincident points", () => {
+    const path = routeViaJunctionGrid({ x: 50, y: 50 }, { x: 50, y: 50 }, grid);
+    expect(path.length).toBe(2);
+  });
+
+  it("produces axis-aligned segments", () => {
+    const path = routeViaJunctionGrid({ x: 10, y: 10 }, { x: 190, y: 190 }, grid);
+    // All segments should be either horizontal or vertical
+    for (let i = 1; i < path.length; i++) {
+      const dx = Math.abs(path[i].x - path[i - 1].x);
+      const dy = Math.abs(path[i].y - path[i - 1].y);
+      expect(dx < 2 || dy < 2).toBe(true); // one axis essentially constant
+    }
+  });
+
+  it("starts at from and ends at to", () => {
+    const from = { x: 5, y: 5 };
+    const to = { x: 195, y: 195 };
+    const path = routeViaJunctionGrid(from, to, grid);
+    expect(path[0]).toEqual(from);
+    expect(path[path.length - 1]).toEqual(to);
+  });
+
+  it("routes through gap coordinates", () => {
+    const path = routeViaJunctionGrid({ x: 10, y: 10 }, { x: 190, y: 190 }, grid);
+    // At least one intermediate point should use a gap value
+    const gapValues = new Set([50, 150]);
+    const usesGap = path.some(p => gapValues.has(p.x) || gapValues.has(p.y));
+    expect(usesGap).toBe(true);
+  });
+
+  it("handles empty grid gracefully", () => {
+    const emptyGrid: JunctionGrid = { rows: [], cols: [], rowGaps: [], colGaps: [] };
+    const path = routeViaJunctionGrid({ x: 0, y: 0 }, { x: 100, y: 100 }, emptyGrid);
+    expect(path.length).toBeGreaterThanOrEqual(2);
+    expect(path[0]).toEqual({ x: 0, y: 0 });
+    expect(path[path.length - 1]).toEqual({ x: 100, y: 100 });
+  });
+});
+
+// ===========================================================================
+// findNearestGap / findGapBetween
+// ===========================================================================
+
+describe("findNearestGap", () => {
+  it("returns null for empty gaps", () => {
+    expect(findNearestGap([], 50)).toBeNull();
+  });
+
+  it("returns the closest gap", () => {
+    expect(findNearestGap([10, 50, 90], 45)).toBe(50);
+    expect(findNearestGap([10, 50, 90], 80)).toBe(90);
+  });
+
+  it("returns first when equidistant", () => {
+    expect(findNearestGap([10, 30], 20)).toBe(10);
+  });
+});
+
+describe("findGapBetween", () => {
+  it("returns null for empty gaps", () => {
+    expect(findGapBetween([], 0, 100)).toBeNull();
+  });
+
+  it("prefers gap strictly between a and b", () => {
+    expect(findGapBetween([25, 50, 75], 20, 80)).toBe(50); // closest to midpoint
+  });
+
+  it("falls back to nearest when no gap strictly between", () => {
+    expect(findGapBetween([5, 95], 40, 60)).toBe(5); // neither is strictly between 40-60
+  });
+
+  it("handles reversed a/b order", () => {
+    expect(findGapBetween([50], 100, 0)).toBe(50);
   });
 });
