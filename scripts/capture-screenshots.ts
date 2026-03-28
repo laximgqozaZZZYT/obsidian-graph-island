@@ -135,6 +135,11 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
         v.panel.showLinks = true;
       }
 
+      // ANTI-PATTERN FIX: Hide coordinate system artifacts for clean screenshots
+      v.panel.showGuideLines = false;
+      v.panel.showAxisTitles = false;
+      v.panel.showDotGrid = false;
+
       // Vault prefix fix: when vault is parent "obsidian-plugins", content paths
       // start with "開発/". Rewrite "path:classic-" → "path:開発/classic-" etc.
       var vaultName2 = (window as any).app?.vault?.getName?.() ?? "";
@@ -263,7 +268,7 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
     if (bh < 1) bh = 1;
     var scaleX = (cw - padding * 2) / bw;
     var scaleY = (ch - padding * 2) / bh;
-    var scale = Math.min(scaleX, scaleY, 2.0);
+    var scale = Math.max(Math.min(scaleX, scaleY, 2.0), 0.3);
     if (scale < 0.01) scale = 0.01;
 
     var cx = (minX + maxX) / 2;
@@ -521,6 +526,7 @@ async function main() {
         w.x = pivotX - (pivotX - w.x) * (newScale / curScale);
         w.y = pivotY - (pivotY - w.y) * (newScale / curScale);
         w.scale.set(newScale, newScale);
+        if (v.renderPipeline) v.renderPipeline.aggregateMode = false;
         v.markDirty();
         if (v.updateLabelsForZoom) v.updateLabelsForZoom();
         if (v.renderPipeline && v.renderPipeline.cullOverlappingLabels) {
