@@ -355,6 +355,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private groupByMembers: Map<string, Set<string>> = new Map();
   /** Currently hovered group label key (for highlight) */
   private _hoveredGroupLabel: string | null = null;
+  /** Suppress autoFitView after user-initiated zoom (group label click, fit-all, etc.) */
+  private _suppressAutoFit = false;
   /** Dedicated container for groupBy labels (rendered above nodes/edges) */
   private groupByLabelContainer: CanvasContainer | null = null;
   /** Zoom-aggregate: folder summary circles when groupBy=none at extreme zoom-out */
@@ -5366,6 +5368,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.scale.set(newScale);
     world.x = cw / 2 - cx * newScale;
     world.y = ch / 2 - cy * newScale;
+    // Suppress autoFitView from simulation end — user explicitly zoomed to a region
+    this._suppressAutoFit = true;
     this.markDirty(true);
     if (this.updateLabelsForZoom) this.updateLabelsForZoom();
   }
@@ -8051,10 +8055,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       this._rebuildRoadNetwork(true);
       // Force full redraw now that all positions are final
       this.updatePositions(true);
-      // G1: Always autoFit when simulation ends — ensures nodes are visible after layout
-      if (wrap) {
+      // G1: AutoFit when simulation ends — but skip if user manually zoomed
+      // (e.g., clicked a group label to zoom into a cluster)
+      if (wrap && !this._suppressAutoFit) {
         this.autoFitView(wrap.clientWidth, wrap.clientHeight);
       }
+      this._suppressAutoFit = false;
       this.markDirty(true);
       // Re-cull labels after simulation settles to fix overlap
       // caused by node positions changing during simulation
@@ -8417,8 +8423,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       const wrap = this.canvasWrap;
       clearTimeout(this._autoFitTimer);
       this._autoFitTimer = window.setTimeout(() => {
-        this.autoFitView(wrap.clientWidth, wrap.clientHeight);
-        this.markDirty();
+        if (!this._suppressAutoFit) {
+          this.autoFitView(wrap.clientWidth, wrap.clientHeight);
+          this.markDirty();
+        }
       }, 600);
     }
   }
