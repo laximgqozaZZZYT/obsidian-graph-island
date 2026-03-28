@@ -347,3 +347,107 @@ describe("smartTruncateLabel edge cases", () => {
     expect(r.length).toBeLessThanOrEqual(10);
   });
 });
+
+// ===========================================================================
+// selectLabelMode — zoom-based mode with hysteresis
+// ===========================================================================
+
+describe("selectLabelMode", () => {
+  const IZ = 0.2;  // initialsZoom
+  const TZ = 0.5;  // truncateZoom
+  const H = 0.05;  // hysteresis
+
+  it("returns 'initials' below initialsZoom", () => {
+    expect(selectLabelMode(0.1, "full", IZ, TZ, H)).toBe("initials");
+  });
+
+  it("returns 'truncated' between initialsZoom and truncateZoom", () => {
+    expect(selectLabelMode(0.35, "full", IZ, TZ, H)).toBe("truncated");
+  });
+
+  it("returns 'full' above truncateZoom", () => {
+    expect(selectLabelMode(0.6, "truncated", IZ, TZ, H)).toBe("full");
+  });
+
+  it("hysteresis: stays 'initials' slightly above initialsZoom", () => {
+    // prevMode=initials, zoom=0.22 < initialsZoom(0.2) + hyst(0.05) = 0.25
+    expect(selectLabelMode(0.22, "initials", IZ, TZ, H)).toBe("initials");
+  });
+
+  it("hysteresis: stays 'full' slightly below truncateZoom", () => {
+    // prevMode=full, zoom=0.48 > truncateZoom(0.5) - hyst(0.05) = 0.45
+    expect(selectLabelMode(0.48, "full", IZ, TZ, H)).toBe("full");
+  });
+
+  it("transitions from 'initials' to 'truncated' when above hysteresis band", () => {
+    // zoom=0.3 > initialsZoom(0.2) + hyst(0.05) = 0.25
+    expect(selectLabelMode(0.3, "initials", IZ, TZ, H)).toBe("truncated");
+  });
+
+  it("transitions from 'full' to 'truncated' when below hysteresis band", () => {
+    // zoom=0.4 < truncateZoom(0.5) - hyst(0.05) = 0.45
+    expect(selectLabelMode(0.4, "full", IZ, TZ, H)).toBe("truncated");
+  });
+});
+
+// ===========================================================================
+// estimateTextWidth — character-count heuristic
+// ===========================================================================
+
+describe("estimateTextWidth", () => {
+  it("wider for bold text", () => {
+    const normal = estimateTextWidth("hello", 14, false);
+    const bold = estimateTextWidth("hello", 14, true);
+    expect(bold).toBeGreaterThan(normal);
+  });
+
+  it("proportional to text length", () => {
+    const short = estimateTextWidth("hi", 14, false);
+    const long = estimateTextWidth("hello world", 14, false);
+    expect(long).toBeGreaterThan(short);
+    expect(long / short).toBeCloseTo(11 / 2, 0);
+  });
+
+  it("proportional to fontSize", () => {
+    const small = estimateTextWidth("test", 10, false);
+    const large = estimateTextWidth("test", 20, false);
+    expect(large).toBeCloseTo(small * 2, 0);
+  });
+
+  it("returns 0 for empty string", () => {
+    expect(estimateTextWidth("", 14, false)).toBe(0);
+  });
+});
+
+// ===========================================================================
+// computeRotatedAABB — axis-aligned bounding box for rotated rect
+// ===========================================================================
+
+describe("computeRotatedAABB", () => {
+  it("no rotation returns original rect", () => {
+    const aabb = computeRotatedAABB(100, 50, 0, 0.5, 0.5, 200, 100);
+    expect(aabb.w).toBeCloseTo(100);
+    expect(aabb.h).toBeCloseTo(50);
+    expect(aabb.x).toBeCloseTo(150); // 200 - 100*0.5
+    expect(aabb.y).toBeCloseTo(75);  // 100 - 50*0.5
+  });
+
+  it("90° rotation swaps width and height", () => {
+    const aabb = computeRotatedAABB(100, 50, Math.PI / 2, 0.5, 0.5, 0, 0);
+    expect(aabb.w).toBeCloseTo(50, 0);  // height becomes width
+    expect(aabb.h).toBeCloseTo(100, 0); // width becomes height
+  });
+
+  it("45° rotation expands bounding box", () => {
+    const aabb = computeRotatedAABB(100, 50, Math.PI / 4, 0.5, 0.5, 0, 0);
+    // Rotated 45°: max dimension ≈ (100+50) * cos(45°) ≈ 106.1
+    expect(aabb.w).toBeGreaterThan(100);
+    expect(aabb.h).toBeGreaterThan(50);
+  });
+
+  it("anchor (0,0) positions AABB at the pivot", () => {
+    const aabb = computeRotatedAABB(100, 50, 0, 0, 0, 10, 20);
+    expect(aabb.x).toBe(10);
+    expect(aabb.y).toBe(20);
+  });
+});
