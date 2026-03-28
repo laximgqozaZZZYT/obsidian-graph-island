@@ -122,8 +122,17 @@ export class WebGLContainer extends CanvasContainer {
       if ("_flushGL" in child && typeof (child as any)._flushGL === "function") {
         (child as any)._flushGL(gl, program, local, effAlpha, overlayCtx);
       } else if (overlayCtx) {
-        // CanvasText or other Canvas 2D children: render on overlay
+        // CanvasText or other Canvas 2D children: render on overlay.
+        // Apply the accumulated mat3 transform to the 2D context so the
+        // child draws at the correct world position (not at the origin).
+        overlayCtx.save();
+        overlayCtx.transform(
+          local[0], local[1],   // a, b
+          local[3], local[4],   // c, d
+          local[6], local[7],   // tx, ty
+        );
         child._flush(overlayCtx, effAlpha);
+        overlayCtx.restore();
       }
     }
   }
