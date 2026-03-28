@@ -7679,6 +7679,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (this.enclosureGraphics) this.enclosureGraphics.clear();
       // Clear edge graphics
       if (this.edgeGraphics) this.edgeGraphics.clear();
+      // Clear timeline bar graphics (prevents ghost bars in sunburst/matrix)
+      if (this.barGraphics) this.barGraphics.clear();
+      // Clear arrow graphics
+      if (this.arrowGraphics) this.arrowGraphics.clear();
+      // Clear bar labels
+      if (this.barLabelContainer) {
+        for (const c of [...this.barLabelContainer.children]) c.visible = false;
+      }
       // Force Canvas repaint to flush cleared state
       this.markDirty(true);
     }
