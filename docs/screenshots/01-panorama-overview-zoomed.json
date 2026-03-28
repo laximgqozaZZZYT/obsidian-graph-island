@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-arabian-nights*",
+  "searchQuery": "path:mythology-greek*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -209,5 +209,6 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true
-  }
+  },
+  "_absoluteZoom": 0.8
 }

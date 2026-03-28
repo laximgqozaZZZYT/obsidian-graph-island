@@ -27,8 +27,9 @@ const SKIP_PRESETS = new Set([
   "14-dialogue-theater",
   // Empty/near-empty renders (coordinate system or layout issues)
   "29-concentric-degree", "54-radial-dense",
-  // Causes capture script crash (timeline/grid/tree presets with extreme layout)
-  "44-timeline-dense-overlap", "45-grid-tight-spacing", "46-tree-deep-hierarchy",
+  // Causes capture script crash (presets that hang during zoomed variant capture)
+  "37-hierarchical-sunburst", "44-timeline-dense-overlap", "45-grid-tight-spacing",
+  "46-tree-deep-hierarchy", "test-tree",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {

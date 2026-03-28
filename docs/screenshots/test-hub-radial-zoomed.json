@@ -21,7 +21,7 @@
   "showOrbitRings": false,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:classic-iliad*",
+  "searchQuery": "path:classic-arthurian*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -66,7 +66,7 @@
   ],
   "clusterArrangement": "custom",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 7.9,
+  "clusterNodeSpacing": 10,
   "clusterGroupScale": 1.2,
   "clusterGroupSpacing": 2,
   "fadeEdgesByDegree": true,
@@ -215,5 +215,6 @@
     "autoLOD": true
   },
   "guideLineMode": "per-group",
-  "showGroupGrid": false
+  "showGroupGrid": false,
+  "_absoluteZoom": 0.8
 }

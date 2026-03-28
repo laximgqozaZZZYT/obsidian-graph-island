@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-gilgamesh*",
+  "searchQuery": "path:classic-hamlet*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -231,7 +231,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 156
+    "labelOverlapMargin": 144
   },
   "gridTableMode": true
 }

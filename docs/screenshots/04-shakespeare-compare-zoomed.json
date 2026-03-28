@@ -225,5 +225,6 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true
-  }
+  },
+  "_absoluteZoom": 0.8
 }

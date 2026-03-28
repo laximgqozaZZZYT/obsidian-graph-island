@@ -21,7 +21,7 @@
   "showOrbitRings": false,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:classic-hamlet*",
+  "searchQuery": "path:classic-othello*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -186,7 +186,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 24
+    "labelOverlapMargin": 36
   },
   "guideLineMode": "shared",
   "showGroupGrid": false,

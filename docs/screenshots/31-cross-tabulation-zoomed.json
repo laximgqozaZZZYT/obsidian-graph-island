@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-arthurian*",
+  "searchQuery": "path:mythology-egyptian*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -258,7 +258,8 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 192
+    "labelOverlapMargin": 168
   },
-  "gridTableMode": true
+  "gridTableMode": true,
+  "_absoluteZoom": 0.8
 }

@@ -21,7 +21,7 @@
   "showOrbitRings": false,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:mythology-norse*",
+  "searchQuery": "path:classic-macbeth*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -258,5 +258,6 @@
   },
   "guideLineMode": "per-group",
   "showGroupGrid": true,
-  "gridTableMode": true
+  "gridTableMode": true,
+  "_absoluteZoom": 0.8
 }

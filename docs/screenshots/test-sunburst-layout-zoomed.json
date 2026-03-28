@@ -183,5 +183,6 @@
     "autoLOD": true
   },
   "guideLineMode": "per-group",
-  "showGroupGrid": false
+  "showGroupGrid": false,
+  "_absoluteZoom": 0.8
 }

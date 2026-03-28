@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:mythology-greek*",
+  "searchQuery": "path:classic-divine-comedy*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -192,5 +192,6 @@
     "autoLOD": true
   },
   "guideLineMode": "per-group",
-  "showGroupGrid": false
+  "showGroupGrid": false,
+  "_absoluteZoom": 0.8
 }

@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:mythology-egyptian*",
+  "searchQuery": "path:bible-old-testament*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -66,7 +66,7 @@
   ],
   "clusterArrangement": "custom",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 4.5,
+  "clusterNodeSpacing": 3,
   "clusterGroupScale": 1.2,
   "clusterGroupSpacing": 2,
   "fadeEdgesByDegree": false,
@@ -218,7 +218,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 168
+    "labelOverlapMargin": 156
   },
   "gridTableMode": true
 }

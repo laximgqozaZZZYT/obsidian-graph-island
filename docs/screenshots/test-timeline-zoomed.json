@@ -61,7 +61,7 @@
   "clusterGroupRules": [],
   "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 3.4,
+  "clusterNodeSpacing": 2.3,
   "clusterGroupScale": 1,
   "clusterGroupSpacing": 0.5,
   "fadeEdgesByDegree": true,
@@ -190,5 +190,6 @@
   },
   "guideLineMode": "shared",
   "showGroupGrid": false,
-  "gridTableMode": true
+  "gridTableMode": true,
+  "_absoluteZoom": 0.8
 }

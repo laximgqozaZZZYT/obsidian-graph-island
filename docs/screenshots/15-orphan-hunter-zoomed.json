@@ -202,5 +202,6 @@
     "autoLOD": true,
     "labelOverlapMargin": 108
   },
-  "gridTableMode": true
+  "gridTableMode": true,
+  "_absoluteZoom": 0.8
 }

@@ -205,5 +205,6 @@
     "nodeSizeByDegree": true,
     "autoLOD": true,
     "labelOverlapMargin": 36
-  }
+  },
+  "_absoluteZoom": 0.8
 }
