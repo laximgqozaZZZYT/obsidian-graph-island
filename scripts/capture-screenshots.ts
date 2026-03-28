@@ -268,24 +268,34 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
       await new Promise(function(r) { setTimeout(r, 1000); });
     }
 
-    // Manual bounding-box fit as fallback: compute from pn.data.x/y
+    // Manual bounding-box fit: use 95th-percentile range to exclude outliers
     var wc = v.worldContainer;
     if (!wc) return;
     var nodes = v.pixiNodes;
-    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    var count = 0;
+    var xs: number[] = [];
+    var ys: number[] = [];
     nodes.forEach(function(pn: any) {
       if (!pn.data) return;
       var x = pn.data.x, y = pn.data.y;
       if (x === undefined || y === undefined) return;
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-      count++;
+      if (isNaN(x) || isNaN(y)) return;
+      xs.push(x);
+      ys.push(y);
     });
+    var count = xs.length;
 
     if (count < 2) return;
+
+    xs.sort(function(a: number, b: number) { return a - b; });
+    ys.sort(function(a: number, b: number) { return a - b; });
+
+    // Use 2.5th–97.5th percentile to trim outliers for large datasets
+    var trimLo = count > 30 ? Math.floor(count * 0.025) : 0;
+    var trimHi = count > 30 ? Math.ceil(count * 0.975) - 1 : count - 1;
+    var minX = xs[trimLo];
+    var maxX = xs[trimHi];
+    var minY = ys[trimLo];
+    var maxY = ys[trimHi];
 
     var canvas = v.app?.view;
     var cw = canvas?.width ?? 1446;
@@ -321,17 +331,32 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
     var medianR = radii[Math.floor(radii.length / 2)] || 15;
     var screenNodePx = medianR * scale * 2; // diameter in screen pixels
     if (screenNodePx < 4 && count > 20) {
-      // Zoom in just enough for nodes to be 4px — but cap at 0.5 to avoid clipping
+      // Zoom in enough for nodes to be 4px, but never exceed the fit-to-canvas scale.
+      // Large cluster layouts (BBox 70k+) must stay at naturalScale to keep all nodes visible.
       var minNodeScale = 4 / (medianR * 2);
-      scale = Math.min(Math.max(scale, minNodeScale), 0.5);
+      if (minNodeScale <= naturalScale * 1.5) {
+        // Small boost OK — nodes will still be mostly in viewport
+        scale = Math.min(Math.max(scale, minNodeScale), 0.5);
+      }
+      // Otherwise keep current scale — nodes will be small but at least all visible
     }
 
     var cx = (minX + maxX) / 2;
     var cy = (minY + maxY) / 2;
 
+    // Store debug info for logging
+    (window as any).__bboxDebug = {
+      count: count, bw: Math.round(bw), bh: Math.round(bh),
+      scale: scale, medR: medianR, nodePx: medianR * scale * 2,
+      minX: minX, maxX: maxX, minY: minY, maxY: maxY,
+    };
+
     wc.scale.set(scale, scale);
     wc.x = cw / 2 - cx * scale;
     wc.y = ch / 2 - cy * scale;
+
+    // Suppress autoFitView from overriding our manual transform
+    v._suppressAutoFit = true;
 
     // Enable screenshot mode: disables zoomFade + aggregateMode in RenderPipeline
     if (v.renderPipeline) {
@@ -536,6 +561,12 @@ async function main() {
       }
       const nodeCount = applyResult.nodes;
       console.log(`  Nodes: ${nodeCount}`);
+
+      // Debug: log BBox info
+      const bboxDebug = await page.evaluate(() => (window as any).__bboxDebug);
+      if (bboxDebug) {
+        console.log(`  BBox: ${bboxDebug.bw}x${bboxDebug.bh} scale=${bboxDebug.scale?.toFixed(4)} nodePx=${bboxDebug.nodePx?.toFixed(1)} count=${bboxDebug.count}`);
+      }
 
       // Save effective settings JSON
       if (applyResult.settings) {
