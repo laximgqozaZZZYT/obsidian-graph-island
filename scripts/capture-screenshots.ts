@@ -167,25 +167,26 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
         // Detect vault prefix: if vault is parent ("obsidian-plugins"), content is under "開発/"
         var vaultName = (window as any).app?.vault?.getName?.() ?? "";
         var pfx = (vaultName === "obsidian-plugins" || vaultName === "obsidian plugins") ? "開発/" : "";
+        // Single-folder filters (100-130 nodes each) to avoid BBox spread
         var folders = [
-          "path:" + pfx + "mythology-greek* OR path:" + pfx + "classic-hamlet*",
-          "path:" + pfx + "mythology-norse* OR path:" + pfx + "classic-arabian-nights*",
-          "path:" + pfx + "classic-hamlet* OR path:" + pfx + "bible-old-testament*",
-          "path:" + pfx + "classic-arabian-nights* OR path:" + pfx + "mythology-egyptian*",
-          "path:" + pfx + "bible-old-testament* OR path:" + pfx + "classic-gilgamesh*",
-          "path:" + pfx + "classic-gilgamesh* OR path:" + pfx + "mythology-japanese*",
-          "path:" + pfx + "mythology-egyptian* OR path:" + pfx + "classic-saiyuki*",
-          "path:" + pfx + "classic-saiyuki* OR path:" + pfx + "classic-king-lear*",
-          "path:" + pfx + "mythology-japanese* OR path:" + pfx + "classic-arthurian*",
-          "path:" + pfx + "classic-king-lear* OR path:" + pfx + "classic-divine-comedy*",
-          "path:" + pfx + "classic-arthurian* OR path:" + pfx + "mythology-greek*",
-          "path:" + pfx + "classic-divine-comedy* OR path:" + pfx + "mythology-norse*",
-          "path:" + pfx + "mythology-greek* OR path:" + pfx + "bible* OR path:" + pfx + "classic-saiyuki*",
-          "path:" + pfx + "classic-hamlet* OR path:" + pfx + "mythology-norse* OR path:" + pfx + "mythology-egyptian*",
-          "path:" + pfx + "classic-arabian-nights* OR path:" + pfx + "classic-gilgamesh* OR path:" + pfx + "classic-arthurian*",
-          "path:" + pfx + "bible* OR path:" + pfx + "mythology-japanese* OR path:" + pfx + "classic-king-lear*",
-          "path:" + pfx + "classic-divine-comedy* OR path:" + pfx + "classic-saiyuki* OR path:" + pfx + "mythology-greek*",
-          "path:" + pfx + "mythology-norse* OR path:" + pfx + "classic-hamlet* OR path:" + pfx + "classic-gilgamesh*",
+          "path:" + pfx + "mythology-greek*",
+          "path:" + pfx + "mythology-norse*",
+          "path:" + pfx + "classic-hamlet*",
+          "path:" + pfx + "classic-arabian-nights*",
+          "path:" + pfx + "bible-old-testament*",
+          "path:" + pfx + "classic-gilgamesh*",
+          "path:" + pfx + "mythology-japanese*",
+          "path:" + pfx + "mythology-egyptian*",
+          "path:" + pfx + "classic-saiyuki*",
+          "path:" + pfx + "classic-king-lear*",
+          "path:" + pfx + "classic-arthurian*",
+          "path:" + pfx + "classic-divine-comedy*",
+          "path:" + pfx + "classic-macbeth*",
+          "path:" + pfx + "classic-othello*",
+          "path:" + pfx + "classic-genji*",
+          "path:" + pfx + "classic-sangokushi*",
+          "path:" + pfx + "bible-new-testament*",
+          "path:" + pfx + "classic-iliad*",
         ];
         var idx = (window as any).__screenshotIdx ?? 0;
         v.panel.searchQuery = folders[idx % folders.length];
@@ -294,6 +295,19 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
     }
     if (scale < 0.01) scale = 0.01;
 
+    // Ensure nodes are at least 4px on screen (prevents "texture grid" appearance)
+    // Use median node radius (from pn.radius, set by effectiveRadius)
+    var radii: number[] = [];
+    nodes.forEach(function(pn: any) { radii.push(pn.radius || 15); });
+    radii.sort(function(a: number, b: number) { return a - b; });
+    var medianR = radii[Math.floor(radii.length / 2)] || 15;
+    var screenNodePx = medianR * scale * 2; // diameter in screen pixels
+    if (screenNodePx < 4 && count > 20) {
+      // Zoom in just enough for nodes to be 4px — but cap at 0.5 to avoid clipping
+      var minNodeScale = 4 / (medianR * 2);
+      scale = Math.min(Math.max(scale, minNodeScale), 0.5);
+    }
+
     var cx = (minX + maxX) / 2;
     var cy = (minY + maxY) / 2;
 
@@ -301,8 +315,11 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
     wc.x = cw / 2 - cx * scale;
     wc.y = ch / 2 - cy * scale;
 
-    // Disable aggregate mode for screenshots
-    if (v.renderPipeline) v.renderPipeline.aggregateMode = false;
+    // Enable screenshot mode: disables zoomFade + aggregateMode in RenderPipeline
+    if (v.renderPipeline) {
+      v.renderPipeline.screenshotMode = true;
+      v.renderPipeline.aggregateMode = false;
+    }
 
     v.markDirty();
     await new Promise(function(r) { setTimeout(r, 500); });
@@ -515,6 +532,19 @@ async function main() {
       }
 
       await hideChrome(page);
+      await page.waitForTimeout(300);
+
+      // Ensure screenshotMode is still active before capture
+      await page.evaluate(function() {
+        var v = (window as any).app.workspace.getLeavesOfType("graph-view")
+          .find(function(l: any) { return "pixiNodes" in l.view; })?.view;
+        if (v && v.renderPipeline) {
+          v.renderPipeline.screenshotMode = true;
+          v.renderPipeline.aggregateMode = false;
+        }
+        // Trigger one more render with screenshotMode active
+        if (v) { v.markDirty(); }
+      });
       await page.waitForTimeout(300);
 
       const captured = await captureScreenshot(cdp, outPath);

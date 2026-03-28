@@ -545,6 +545,9 @@ export class RenderPipeline {
   /** When true, individual non-super nodes are hidden by redrawNodeBatch */
   aggregateMode = false;
 
+  /** When true, disables zoomFade and aggregateMode for screenshot capture */
+  screenshotMode = false;
+
   // Render loop state
   private needsRedraw = true;
   private needsFullRedraw = false;
@@ -936,8 +939,8 @@ export class RenderPipeline {
         pn.gfx.visible = false;
         continue;
       }
-      // In aggregate mode, hide individual (non-super) nodes
-      if (this.aggregateMode && !(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0)) {
+      // In aggregate mode, hide individual (non-super) nodes — skip in screenshot mode
+      if (this.aggregateMode && !this.screenshotMode && !(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0)) {
         pn.gfx.visible = false;
         continue;
       }
@@ -949,7 +952,8 @@ export class RenderPipeline {
     const tlFilteredOut = this._computeTimelineFilter(visible, pixiNodes);
 
     // Zoom-out fade: gradually reduce node/label/intra-cable alpha at extreme zoom
-    const zoomFade = computeZoomFadeAlpha(worldScale);
+    // In screenshot mode, disable fade so all nodes are fully visible
+    const zoomFade = this.screenshotMode ? 1 : computeZoomFadeAlpha(worldScale);
     const alpha = (hasHighlight ? crc.highlightDimAlpha : 1) * zoomFade;
     const nodeCount = visible.length;
     const shapeRules = this.host.getNodeShapeRules();
