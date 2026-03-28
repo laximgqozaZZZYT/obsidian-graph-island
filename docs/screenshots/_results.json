@@ -1,7 +1,7 @@
 [
   {
     "name": "01-panorama-overview",
-    "nodes": 246,
+    "nodes": 250,
     "pass": true,
     "issues": []
   },
@@ -55,7 +55,7 @@
   },
   {
     "name": "10-maximalist",
-    "nodes": 246,
+    "nodes": 248,
     "pass": true,
     "issues": []
   },
@@ -74,12 +74,6 @@
   {
     "name": "13-battle-analyzer",
     "nodes": 268,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "14-dialogue-theater",
-    "nodes": 7,
     "pass": true,
     "issues": []
   },
@@ -120,20 +114,8 @@
     "issues": []
   },
   {
-    "name": "21-filled-hexagon",
-    "nodes": 250,
-    "pass": true,
-    "issues": []
-  },
-  {
     "name": "22-timeline-ranged",
-    "nodes": 248,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "23-spiral-galaxy",
-    "nodes": 619,
+    "nodes": 598,
     "pass": true,
     "issues": []
   },
@@ -144,50 +126,38 @@
     "issues": []
   },
   {
-    "name": "25-rose-curve",
+    "name": "26-lissajous-figure",
     "nodes": 369,
     "pass": true,
     "issues": []
   },
   {
-    "name": "26-lissajous-figure",
+    "name": "28-cardioid-heart",
     "nodes": 615,
     "pass": true,
     "issues": []
   },
   {
-    "name": "27-filled-pentagon",
-    "nodes": 373,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "28-cardioid-heart",
-    "nodes": 371,
-    "pass": true,
-    "issues": []
-  },
-  {
     "name": "29-concentric-degree",
-    "nodes": 250,
+    "nodes": 352,
     "pass": true,
     "issues": []
   },
   {
     "name": "30-mountain-ridge",
-    "nodes": 248,
+    "nodes": 371,
     "pass": true,
     "issues": []
   },
   {
     "name": "31-cross-tabulation",
-    "nodes": 242,
+    "nodes": 250,
     "pass": true,
     "issues": []
   },
   {
     "name": "32-timeline-ticks",
-    "nodes": 246,
+    "nodes": 248,
     "pass": true,
     "issues": []
   },
@@ -217,7 +187,7 @@
   },
   {
     "name": "37-hierarchical-sunburst",
-    "nodes": 225,
+    "nodes": 242,
     "pass": true,
     "issues": []
   },
@@ -241,43 +211,31 @@
   },
   {
     "name": "41-all-edges-maxdensity",
-    "nodes": 250,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "42-high-density-tags",
-    "nodes": 248,
+    "nodes": 246,
     "pass": true,
     "issues": []
   },
   {
     "name": "43-concentric-tiny-accessibility",
-    "nodes": 598,
+    "nodes": 246,
     "pass": true,
     "issues": []
   },
   {
     "name": "44-timeline-dense-overlap",
-    "nodes": 371,
+    "nodes": 250,
     "pass": true,
     "issues": []
   },
   {
     "name": "45-grid-tight-spacing",
-    "nodes": 369,
+    "nodes": 248,
     "pass": true,
     "issues": []
   },
   {
     "name": "46-tree-deep-hierarchy",
-    "nodes": 615,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "47-sunburst-with-tags",
-    "nodes": 373,
+    "nodes": 598,
     "pass": true,
     "issues": []
   },
@@ -289,43 +247,85 @@
   },
   {
     "name": "49-orphan-flood",
-    "nodes": 250,
+    "nodes": 369,
     "pass": true,
     "issues": []
   },
   {
     "name": "50-arrow-heavy-directed",
-    "nodes": 248,
+    "nodes": 615,
     "pass": true,
     "issues": []
   },
   {
     "name": "51-enclosure-tight",
-    "nodes": 242,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "52-mixed-nodesize-stress",
-    "nodes": 246,
+    "nodes": 352,
     "pass": true,
     "issues": []
   },
   {
     "name": "53-accessibility-contrast",
-    "nodes": 242,
+    "nodes": 371,
     "pass": true,
     "issues": []
   },
   {
     "name": "54-radial-dense",
-    "nodes": 246,
+    "nodes": 250,
     "pass": true,
     "issues": []
   },
   {
     "name": "55-category-search-filtered",
     "nodes": 29,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "56-force-colorful",
+    "nodes": 238,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "57-concentric-characters",
+    "nodes": 15,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "58-timeline-arthurian",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "59-sunburst-bible",
+    "nodes": 369,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "60-dense-mythology",
+    "nodes": 252,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "61-enclosure-saiyuki",
+    "nodes": 102,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "62-grid-egyptian",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "63-radial-gilgamesh",
+    "nodes": 123,
     "pass": true,
     "issues": []
   },
@@ -343,13 +343,13 @@
   },
   {
     "name": "test-hub-radial",
-    "nodes": 225,
+    "nodes": 248,
     "pass": true,
     "issues": []
   },
   {
     "name": "test-sunburst-full",
-    "nodes": 246,
+    "nodes": 242,
     "pass": true,
     "issues": []
   },
@@ -367,7 +367,7 @@
   },
   {
     "name": "test-timeline-story",
-    "nodes": 246,
+    "nodes": 242,
     "pass": true,
     "issues": []
   },

@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:開発/mythology-japanese* OR path:開発/classic-arthurian*",
+  "searchQuery": "path:開発/classic-arthurian* OR path:開発/mythology-greek*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",

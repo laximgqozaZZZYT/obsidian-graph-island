@@ -15,9 +15,17 @@ const CDP_URL = "http://localhost:9222";
 const OUT_DIR = path.resolve(__dirname, "../docs/screenshots");
 const SAMPLES_DIR = path.resolve(__dirname, "../samples");
 
-// Skip degenerate test presets
-const SKIP_PRESETS = new Set(["test-random-scatter", "test-bfs-tree",
-  "test-density-concentric", "test-folder-degree"]);
+// Skip degenerate/low-quality presets (coordinateLayout produces curves-only,
+// or presets that generate too few visible nodes for a meaningful screenshot)
+const SKIP_PRESETS = new Set([
+  "test-random-scatter", "test-bfs-tree", "test-density-concentric", "test-folder-degree",
+  // Coordinate layout presets: render only curves/axes, no visible node content
+  "21-filled-hexagon", "23-spiral-galaxy", "25-rose-curve", "27-filled-pentagon",
+  // Tag-heavy presets with label clumping or sparse content
+  "42-high-density-tags", "47-sunburst-with-tags", "52-mixed-nodesize-stress",
+  // Too few nodes for meaningful screenshot
+  "14-dialogue-theater",
+]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {
   const browser = await chromium.connectOverCDP(CDP_URL, { timeout: 60000 });

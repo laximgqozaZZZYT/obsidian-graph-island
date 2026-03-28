@@ -1,0 +1,18 @@
+{
+  "layout": "force",
+  "searchQuery": "node_type:character",
+  "groupBy": "folder:?",
+  "collapsedGroups": [],
+  "nodeSize": 25,
+  "repelForce": 400,
+  "linkDistance": 120,
+  "showLinks": true,
+  "showSemanticEdges": true,
+  "showTagEdges": false,
+  "colorEdgesByRelation": true,
+  "colorNodesByCategory": true,
+  "nodeColorMode": "category",
+  "showMinimap": true,
+  "clusterArrangement": "concentric",
+  "activeTab": "layout"
+}

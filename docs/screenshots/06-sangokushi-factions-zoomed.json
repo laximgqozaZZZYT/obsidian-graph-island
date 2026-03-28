@@ -180,73 +180,85 @@
   "presetZoomLevel": 0,
   "zoomSensitivity": 1,
   "pinnedPositions": {
-    "開発/mythology-japanese/characters/amaterasu.md": {
-      "x": 2847.5208094433992,
-      "y": -24399.106871763906
-    },
-    "開発/mythology-japanese/characters/izanagi.md": {
-      "x": 2476.5555690109227,
-      "y": -24399.106871763906
-    },
-    "開発/mythology-japanese/characters/susanoo.md": {
-      "x": 621.729366848543,
-      "y": -24399.106871763906
-    },
-    "開発/mythology-japanese/characters/izanami.md": {
+    "開発/mythology-greek/characters/zeus.md": {
       "x": 2105.590328578447,
-      "y": -24399.106871763906
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/characters/athena.md": {
+      "x": -2716.9577970437417,
+      "y": -22173.31542916905
+    },
+    "開発/mythology-greek/characters/hades.md": {
+      "x": -3087.923037476218,
+      "y": -22173.31542916905
+    },
+    "開発/mythology-greek/characters/poseidon.md": {
+      "x": 2476.5555690109227,
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/characters/odysseus.md": {
+      "x": 3218.4860498758744,
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/characters/heracles.md": {
+      "x": 4702.347011605778,
+      "y": -22544.28066960153
     },
     "開発/classic-arthurian/characters/arthur.md": {
       "x": 803.8941176470576,
       "y": 16685.417812856376
     },
-    "開発/mythology-japanese/characters/takemikazuchi.md": {
-      "x": 250.7641264160667,
-      "y": -24399.106871763906
+    "開発/mythology-greek/characters/aphrodite.md": {
+      "x": -1233.0968353138373,
+      "y": -22173.31542916905
     },
-    "開発/mythology-japanese/characters/yamato-takeru.md": {
+    "開発/mythology-greek/MOC.md": {
       "x": -862.1315948813611,
-      "y": -24399.106871763906
+      "y": -22173.31542916905
     },
     "開発/classic-arthurian/MOC.md": {
-      "x": 77.02879394293507,
-      "y": -11517.06655249363
+      "x": 1530.9368492081244,
+      "y": -11223.04858910245
     },
-    "開発/mythology-japanese/characters/okuninushi.md": {
-      "x": 1734.6250881459705,
-      "y": -24399.106871763906
+    "開発/mythology-greek/characters/perseus.md": {
+      "x": 2847.5208094433992,
+      "y": -22544.28066960153
     },
-    "開発/mythology-japanese/concepts/kusanagi.md": {
-      "x": -1233.0968353138373,
-      "y": -24399.106871763906
+    "開発/mythology-greek/characters/ares.md": {
+      "x": -1975.027316178789,
+      "y": -22173.31542916905
     },
-    "開発/mythology-japanese/MOC.md": {
-      "x": 3218.4860498758744,
-      "y": -24399.106871763906
+    "開発/mythology-greek/characters/apollo.md": {
+      "x": -1604.0620757463134,
+      "y": -22173.31542916905
     },
-    "開発/mythology-japanese/characters/uzume.md": {
-      "x": -491.1663544488853,
-      "y": -24399.106871763906
+    "開発/mythology-greek/characters/hephaestus.md": {
+      "x": 5073.312252038255,
+      "y": -22544.28066960153
     },
-    "開発/mythology-japanese/characters/tsukuyomi.md": {
-      "x": -120.20111401640918,
-      "y": -24399.106871763906
+    "開発/mythology-greek/characters/artemis.md": {
+      "x": -2345.992556611266,
+      "y": -22173.31542916905
+    },
+    "開発/mythology-greek/characters/minotaur.md": {
+      "x": 3589.4512903083505,
+      "y": -22544.28066960153
     },
     "開発/classic-arthurian/characters/lancelot.md": {
       "x": 3417.0141176470565,
       "y": 16358.777812856377
     },
+    "開発/mythology-greek/characters/medusa.md": {
+      "x": 3960.4165307408266,
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/characters/kronos.md": {
+      "x": 4331.381771173303,
+      "y": -22544.28066960153
+    },
     "開発/classic-arthurian/characters/morgan-le-fay.md": {
       "x": 2437.0941176470574,
       "y": 16358.777812856377
-    },
-    "開発/mythology-japanese/episodes/ep04_yomi.md": {
-      "x": 2476.5555690109227,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/characters/sarutahiko.md": {
-      "x": 992.6946072810186,
-      "y": -24399.106871763906
     },
     "開発/classic-arthurian/characters/mordred.md": {
       "x": 2763.734117647057,
@@ -264,45 +276,21 @@
       "x": -502.66588235294216,
       "y": 16685.417812856376
     },
+    "開発/mythology-greek/concepts/labyrinth.md": {
+      "x": 992.6946072810186,
+      "y": -22544.28066960153
+    },
     "開発/classic-arthurian/characters/gawain.md": {
       "x": -176.0258823529423,
       "y": 16685.417812856376
-    },
-    "開発/mythology-japanese/episodes/ep02_amano-iwato.md": {
-      "x": 3218.4860498758744,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/concepts/takamagahara.md": {
-      "x": -1604.0620757463134,
-      "y": -24399.106871763906
     },
     "開発/classic-arthurian/characters/uther-pendragon.md": {
       "x": 1457.1741176470573,
       "y": 16358.777812856377
     },
-    "開発/mythology-japanese/episodes/sc04_03_pursuit_escape.md": {
-      "x": 5073.312252038255,
-      "y": -26253.933073926288
-    },
-    "開発/mythology-japanese/episodes/sc04_02_yomi_descent.md": {
-      "x": -3087.923037476218,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/sc04_01_izanami_death.md": {
+    "開発/mythology-greek/episodes/ep03_twelve_labors.md": {
       "x": -2716.9577970437417,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/ep07_tenson-korin.md": {
-      "x": 1363.6598477134949,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/ep06_kuniyuzuri.md": {
-      "x": 1734.6250881459705,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/ep03_yamata-no-orochi.md": {
-      "x": 2847.5208094433992,
-      "y": -25882.96783349381
+      "y": -23657.176390898956
     },
     "開発/classic-arthurian/characters/percival.md": {
       "x": 2110.454117647057,
@@ -312,9 +300,13 @@
       "x": 150.61411764705758,
       "y": 16685.417812856376
     },
-    "開発/mythology-japanese/episodes/sc05_03_final_journey.md": {
-      "x": 3960.4165307408266,
-      "y": -26253.933073926288
+    "開発/mythology-greek/episodes/ep06_trojan_war.md": {
+      "x": 4702.347011605778,
+      "y": -24028.141631331433
+    },
+    "開発/mythology-greek/episodes/ep04_odyssey.md": {
+      "x": -3087.923037476218,
+      "y": -23657.176390898956
     },
     "開発/classic-arthurian/characters/tristan.md": {
       "x": 1783.8141176470572,
@@ -328,841 +320,865 @@
       "x": 477.2541176470577,
       "y": 16685.417812856376
     },
-    "開発/mythology-japanese/episodes/ep01_kuniumi.md": {
-      "x": 3589.4512903083505,
-      "y": -25882.96783349381
+    "開発/mythology-greek/episodes/ep08_theseus_labyrinth.md": {
+      "x": 3960.4165307408266,
+      "y": -24028.141631331433
     },
-    "開発/mythology-japanese/concepts/yomi.md": {
-      "x": -2345.992556611266,
-      "y": -24399.106871763906
-    },
-    "開発/mythology-japanese/concepts/yasakani.md": {
-      "x": -1975.027316178789,
-      "y": -24399.106871763906
-    },
-    "開発/mythology-japanese/characters/orochi.md": {
-      "x": 1363.6598477134949,
-      "y": -24399.106871763906
+    "開発/mythology-greek/concepts/mount-olympus.md": {
+      "x": 621.729366848543,
+      "y": -22544.28066960153
     },
     "開発/classic-arthurian/characters/kay.md": {
       "x": -1155.9458823529421,
       "y": 16685.417812856376
     },
-    "開発/mythology-japanese/episodes/ep05_yamato-takeru-quest.md": {
-      "x": 2105.590328578447,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/bt03_03_02_kusanagi_found.md": {
-      "x": 3960.4165307408266,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/act3_dominion.md": {
+    "開発/mythology-greek/episodes/ep05_perseus.md": {
       "x": 5073.312252038255,
-      "y": -24770.072112196383
+      "y": -24028.141631331433
     },
-    "開発/mythology-japanese/episodes/act2_takamagahara.md": {
-      "x": -3087.923037476218,
+    "開発/mythology-greek/episodes/ep01_titanomakhia.md": {
+      "x": -1975.027316178789,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/act2_heroes.md": {
+      "x": -120.20111401640918,
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/concepts/golden-fleece.md": {
+      "x": 1363.6598477134949,
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/concepts/ambrosia.md": {
+      "x": 1734.6250881459705,
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/episodes/sc08_02_labyrinth_battle.md": {
+      "x": 3960.4165307408266,
       "y": -24399.106871763906
     },
-    "開発/mythology-japanese/episodes/act1_creation.md": {
-      "x": -2716.9577970437417,
+    "開発/mythology-greek/episodes/sc06_01_judgment_of_paris.md": {
+      "x": -1975.027316178789,
+      "y": -24028.141631331433
+    },
+    "開発/mythology-greek/episodes/sc05_02_medusa_cave.md": {
+      "x": -1233.0968353138373,
+      "y": -24028.141631331433
+    },
+    "開発/mythology-greek/episodes/sc05_01_divine_gifts.md": {
+      "x": -862.1315948813611,
+      "y": -24028.141631331433
+    },
+    "開発/mythology-greek/episodes/sc03_03_cerberus.md": {
+      "x": 621.729366848543,
+      "y": -24028.141631331433
+    },
+    "開発/mythology-greek/episodes/sc01_02_zeus_uprising.md": {
+      "x": 3218.4860498758744,
+      "y": -24028.141631331433
+    },
+    "開発/mythology-greek/episodes/bt06_01_02_three_offers.md": {
+      "x": -862.1315948813611,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt06_01_01_golden_apple.md": {
+      "x": -491.1663544488853,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt05_03_02_stone_gaze.md": {
+      "x": 250.7641264160667,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt05_02_02_medusa_slain.md": {
+      "x": 1363.6598477134949,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt04_03_01_disguise.md": {
+      "x": 3960.4165307408266,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt03_03_02_hades_deal.md": {
+      "x": -1604.0620757463134,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt01_03_03_kronos_falls.md": {
+      "x": 4702.347011605778,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt01_02_02_siblings_freed.md": {
+      "x": -2345.992556611266,
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/episodes/bt01_01_03_zeus_hidden.md": {
+      "x": -1604.0620757463134,
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/episodes/act3_wars.md": {
+      "x": -491.1663544488853,
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/episodes/act1_origins.md": {
+      "x": 250.7641264160667,
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/episodes/sc08_01_voyage_to_crete.md": {
+      "x": 4331.381771173303,
       "y": -24399.106871763906
     },
-    "開発/mythology-japanese/episodes/sc08_02_yatagarasu_guide.md": {
-      "x": 992.6946072810186,
-      "y": -26253.933073926288
-    },
-    "開発/mythology-japanese/episodes/sc07_01_ninigi_descent.md": {
-      "x": 2476.5555690109227,
-      "y": -26253.933073926288
-    },
-    "開発/mythology-japanese/episodes/sc06_02_okuninushi_negotiation.md": {
-      "x": 3218.4860498758744,
-      "y": -26253.933073926288
-    },
-    "開発/mythology-japanese/episodes/sc06_01_takemikazuchi_descent.md": {
-      "x": 3589.4512903083505,
-      "y": -26253.933073926288
-    },
-    "開発/mythology-japanese/episodes/sc05_02_eastern_campaign.md": {
-      "x": 4331.381771173303,
-      "y": -26253.933073926288
-    },
-    "開発/mythology-japanese/episodes/sc03_03_serpent_slain.md": {
-      "x": -2345.992556611266,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/sc02_01_amaterasu_retreat.md": {
-      "x": -491.1663544488853,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/sc01_03_divine_children.md": {
-      "x": -120.20111401640918,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/sc01_02_island_birth.md": {
-      "x": 250.7641264160667,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/sc01_01_heavenly_spear.md": {
-      "x": 621.729366848543,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/bt06_01_03_takeminakata_duel.md": {
-      "x": 4331.381771173303,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt06_01_02_thunder_god_arrives.md": {
+    "開発/mythology-greek/episodes/sc07_03_looking_back.md": {
       "x": 4702.347011605778,
-      "y": -25512.002593061337
+      "y": -24399.106871763906
     },
-    "開発/mythology-japanese/episodes/bt06_01_01_failed_envoys.md": {
+    "開発/mythology-greek/episodes/sc07_02_underworld_journey.md": {
       "x": 5073.312252038255,
-      "y": -25512.002593061337
+      "y": -24399.106871763906
     },
-    "開発/mythology-japanese/episodes/bt05_03_01_ibuki_battle.md": {
-      "x": -2345.992556611266,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt05_02_02_fire_counter.md": {
-      "x": -1604.0620757463134,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt05_02_01_kusanagi_gift.md": {
-      "x": -1233.0968353138373,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt04_03_03_eternal_parting.md": {
-      "x": 250.7641264160667,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt04_03_02_yomi_chase.md": {
-      "x": 621.729366848543,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt04_03_01_broken_taboo.md": {
-      "x": 992.6946072810186,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt04_02_02_forbidden_promise.md": {
-      "x": 1734.6250881459705,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt04_02_01_descent_path.md": {
-      "x": 2105.590328578447,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt04_01_03_grief_decision.md": {
-      "x": 2476.5555690109227,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt04_01_02_izanagi_rage.md": {
-      "x": 2847.5208094433992,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt02_01_02_retreat_into_cave.md": {
-      "x": 992.6946072810186,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt01_03_02_fire_god_tragedy.md": {
-      "x": 2105.590328578447,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt01_03_01_nature_gods.md": {
-      "x": 2476.5555690109227,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt01_02_03_awaji_first.md": {
-      "x": 2847.5208094433992,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt01_02_01_pillar_ritual.md": {
-      "x": 3589.4512903083505,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt01_01_03_onogoro_birth.md": {
-      "x": 3960.4165307408266,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt01_01_01_spear_thrust.md": {
-      "x": 4702.347011605778,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/sc08_03_yamato_founding.md": {
-      "x": 621.729366848543,
-      "y": -26253.933073926288
-    },
-    "開発/mythology-japanese/episodes/sc07_03_sacred_treasures.md": {
-      "x": 1734.6250881459705,
-      "y": -26253.933073926288
-    },
-    "開発/mythology-japanese/episodes/sc06_03_izumo_shrine.md": {
-      "x": 2847.5208094433992,
-      "y": -26253.933073926288
-    },
-    "開発/mythology-japanese/episodes/sc05_01_kumaso_mission.md": {
-      "x": 4702.347011605778,
-      "y": -26253.933073926288
-    },
-    "開発/mythology-japanese/episodes/sc03_02_sake_trap.md": {
-      "x": -1975.027316178789,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/sc03_01_kushinadahime_tears.md": {
-      "x": -1604.0620757463134,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/sc02_03_mirror_reveal.md": {
-      "x": -1233.0968353138373,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/sc02_02_uzume_dance.md": {
-      "x": -862.1315948813611,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/bt08_03_03_divine_lineage.md": {
-      "x": 3960.4165307408266,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/bt08_03_02_enthronement.md": {
-      "x": 4331.381771173303,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/bt08_02_03_mountain_passage.md": {
-      "x": 5073.312252038255,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/bt08_02_02_futsu_no_mitama.md": {
-      "x": -3087.923037476218,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt08_02_01_divine_crow.md": {
+    "開発/mythology-greek/episodes/sc06_03_trojan_horse.md": {
       "x": -2716.9577970437417,
-      "y": -25512.002593061337
+      "y": -24028.141631331433
     },
-    "開発/mythology-japanese/episodes/bt08_01_03_kumano_detour.md": {
-      "x": -2345.992556611266,
-      "y": -25512.002593061337
+    "開発/mythology-greek/episodes/sc05_03_andromeda_rescue.md": {
+      "x": -1604.0620757463134,
+      "y": -24028.141631331433
     },
-    "開発/mythology-japanese/episodes/bt07_03_03_eternal_mandate.md": {
-      "x": -1233.0968353138373,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt07_03_02_jewel_and_sword.md": {
-      "x": -862.1315948813611,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt07_03_01_mirror_bestowed.md": {
+    "開発/mythology-greek/episodes/sc04_03_return_to_ithaca.md": {
       "x": -491.1663544488853,
-      "y": -25512.002593061337
+      "y": -24028.141631331433
     },
-    "開発/mythology-japanese/episodes/bt07_01_03_takachiho_landing.md": {
-      "x": 992.6946072810186,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt07_01_02_sarutahiko_encounter.md": {
-      "x": 1363.6598477134949,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt07_01_01_amaterasu_decree.md": {
-      "x": 1734.6250881459705,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt06_03_03_okuninushi_enshrined.md": {
-      "x": 2105.590328578447,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt06_03_02_pillar_rises.md": {
-      "x": 2476.5555690109227,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt06_02_03_great_shrine_promise.md": {
-      "x": 3218.4860498758744,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt06_02_02_sovereignty_transfer.md": {
-      "x": 3589.4512903083505,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt06_02_01_okuninushi_terms.md": {
-      "x": 3960.4165307408266,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt05_03_03_white_bird.md": {
-      "x": -3087.923037476218,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt05_03_02_longing_for_home.md": {
-      "x": -2716.9577970437417,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt05_02_03_suruga_fire.md": {
-      "x": -1975.027316178789,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt05_01_03_name_bestowed.md": {
-      "x": -862.1315948813611,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt05_01_02_disguise.md": {
-      "x": -491.1663544488853,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt05_01_01_fathers_command.md": {
+    "開発/mythology-greek/episodes/sc04_02_sea_trials.md": {
       "x": -120.20111401640918,
-      "y": -25141.03735262886
+      "y": -24028.141631331433
     },
-    "開発/mythology-japanese/episodes/bt04_02_03_maggots_horror.md": {
+    "開発/mythology-greek/episodes/sc04_01_cyclops_island.md": {
+      "x": 250.7641264160667,
+      "y": -24028.141631331433
+    },
+    "開発/mythology-greek/episodes/sc03_02_lernaean_hydra.md": {
+      "x": 992.6946072810186,
+      "y": -24028.141631331433
+    },
+    "開発/mythology-greek/episodes/sc03_01_nemean_lion.md": {
       "x": 1363.6598477134949,
-      "y": -25141.03735262886
+      "y": -24028.141631331433
     },
-    "開発/mythology-japanese/episodes/bt04_01_01_izanami_burns.md": {
-      "x": 3218.4860498758744,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt03_03_03_reunion.md": {
-      "x": 3589.4512903083505,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt03_03_01_slaying.md": {
-      "x": 4331.381771173303,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt03_02_03_orochi_sleeps.md": {
-      "x": 4702.347011605778,
-      "y": -25141.03735262886
-    },
-    "開発/mythology-japanese/episodes/bt03_02_01_sake_brewing.md": {
-      "x": -3087.923037476218,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt03_01_03_vow_to_slay.md": {
-      "x": -2716.9577970437417,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt03_01_02_weeping_family.md": {
-      "x": -2345.992556611266,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt03_01_01_exile_arrival.md": {
-      "x": -1975.027316178789,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt02_03_03_sunlight_returns.md": {
-      "x": -1604.0620757463134,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt02_03_02_mirror_light.md": {
-      "x": -1233.0968353138373,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt02_03_01_curiosity.md": {
-      "x": -862.1315948813611,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt02_02_03_gods_laugh.md": {
-      "x": -491.1663544488853,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt02_01_01_susanoo_rampage.md": {
-      "x": 1363.6598477134949,
-      "y": -24770.072112196383
-    },
-    "開発/mythology-japanese/episodes/bt01_03_03_kagutsuchi_tragedy.md": {
+    "開発/mythology-greek/episodes/sc02_03_zeus_retribution.md": {
       "x": 1734.6250881459705,
-      "y": -24770.072112196383
+      "y": -24028.141631331433
+    },
+    "開発/mythology-greek/episodes/sc02_02_theft_of_fire.md": {
+      "x": 2105.590328578447,
+      "y": -24028.141631331433
+    },
+    "開発/mythology-greek/episodes/sc02_01_creation_of_man.md": {
+      "x": 2476.5555690109227,
+      "y": -24028.141631331433
+    },
+    "開発/mythology-greek/episodes/sc01_01_kronos_tyranny.md": {
+      "x": 3589.4512903083505,
+      "y": -24028.141631331433
+    },
+    "開発/mythology-greek/episodes/ep07_orpheus.md": {
+      "x": 4331.381771173303,
+      "y": -24028.141631331433
+    },
+    "開発/mythology-greek/episodes/ep02_prometheus.md": {
+      "x": -2345.992556611266,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt08_02_03_escape_thread.md": {
+      "x": -491.1663544488853,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt08_02_02_minotaur_fight.md": {
+      "x": -120.20111401640918,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt08_02_01_labyrinth_entry.md": {
+      "x": 250.7641264160667,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt08_01_03_thread_given.md": {
+      "x": 621.729366848543,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt08_01_02_ariadne_meeting.md": {
+      "x": 992.6946072810186,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt07_02_03_condition.md": {
+      "x": 2847.5208094433992,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt07_02_02_hades_moved.md": {
+      "x": 3218.4860498758744,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt06_03_01_horse_built.md": {
+      "x": -2716.9577970437417,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt06_01_03_paris_chooses.md": {
+      "x": -1233.0968353138373,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt05_03_03_liberation.md": {
+      "x": -120.20111401640918,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt05_03_01_sea_monster.md": {
+      "x": 621.729366848543,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt05_02_03_escape_flight.md": {
+      "x": 992.6946072810186,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt05_02_01_stone_forest.md": {
+      "x": 1734.6250881459705,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt05_01_03_departure.md": {
+      "x": 2105.590328578447,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt05_01_02_gifts_received.md": {
+      "x": 2476.5555690109227,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt05_01_01_quest_given.md": {
+      "x": 2847.5208094433992,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt04_03_03_suitors_slain.md": {
+      "x": 3218.4860498758744,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt04_03_02_bow_contest.md": {
+      "x": 3589.4512903083505,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt04_02_03_calypso_release.md": {
+      "x": 4331.381771173303,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt04_02_01_sirens_song.md": {
+      "x": 5073.312252038255,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt04_01_03_nobody_trick.md": {
+      "x": -3087.923037476218,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt04_01_01_cave_entry.md": {
+      "x": -2345.992556611266,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt03_03_03_cerberus_captured.md": {
+      "x": -1975.027316178789,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt03_03_01_descent.md": {
+      "x": -1233.0968353138373,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt03_02_03_immortal_head.md": {
+      "x": -862.1315948813611,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt03_02_02_iolaus_fire.md": {
+      "x": -491.1663544488853,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt03_02_01_hydra_appears.md": {
+      "x": -120.20111401640918,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt03_01_03_lion_skin.md": {
+      "x": 250.7641264160667,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt03_01_02_bare_hands.md": {
+      "x": 621.729366848543,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt03_01_01_lion_hunt.md": {
+      "x": 992.6946072810186,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt02_03_01_pandora_created.md": {
+      "x": 2105.590328578447,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt02_02_03_fire_given.md": {
+      "x": 2476.5555690109227,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt02_01_02_athena_breath.md": {
+      "x": 3960.4165307408266,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt01_03_02_cyclops_forge.md": {
+      "x": 5073.312252038255,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt01_02_01_zeus_grows.md": {
+      "x": -1975.027316178789,
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/episodes/bt01_01_01_kronos_devours.md": {
+      "x": -862.1315948813611,
+      "y": -22544.28066960153
     },
     "開発/classic-arthurian/episodes/act3_fall-of-camelot.md": {
-      "x": -655.4803229460842,
-      "y": -11883.321110938141
+      "x": 811.2617267289601,
+      "y": -11582.88615034203
     },
     "開発/classic-arthurian/episodes/act2_quest-for-grail.md": {
-      "x": -289.22576450157476,
-      "y": -11883.321110938141
+      "x": 1171.0992879685423,
+      "y": -11582.88615034203
     },
     "開発/classic-arthurian/episodes/act1_rise-of-arthur.md": {
-      "x": 77.02879394293507,
-      "y": -11883.321110938141
+      "x": 1530.9368492081244,
+      "y": -11582.88615034203
     },
-    "開発/mythology-japanese/episodes/sc08_01_departure_hyuga.md": {
-      "x": 1363.6598477134949,
-      "y": -26253.933073926288
+    "開発/mythology-greek/episodes/sc08_03_ariadne_abandoned.md": {
+      "x": 3589.4512903083505,
+      "y": -24399.106871763906
     },
-    "開発/mythology-japanese/episodes/sc07_02_konohanasakuya.md": {
-      "x": 2105.590328578447,
-      "y": -26253.933073926288
+    "開発/mythology-greek/episodes/sc07_01_eurydice_death.md": {
+      "x": -3087.923037476218,
+      "y": -24028.141631331433
     },
-    "開発/mythology-japanese/episodes/ep08_jimmu_expedition.md": {
-      "x": 992.6946072810186,
-      "y": -25882.96783349381
+    "開発/mythology-greek/episodes/sc06_02_wrath_of_achilles.md": {
+      "x": -2345.992556611266,
+      "y": -24028.141631331433
     },
-    "開発/mythology-japanese/episodes/bt08_03_01_nagasunehiko_battle.md": {
-      "x": 4702.347011605778,
-      "y": -25882.96783349381
-    },
-    "開発/mythology-japanese/episodes/bt08_01_02_itsuse_falls.md": {
-      "x": -1975.027316178789,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt08_01_01_iwarebiko_resolve.md": {
-      "x": -1604.0620757463134,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt07_02_03_mortal_fate.md": {
-      "x": -120.20111401640918,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt07_02_02_rejected_sister.md": {
-      "x": 250.7641264160667,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt07_02_01_love_at_first.md": {
-      "x": 621.729366848543,
-      "y": -25512.002593061337
-    },
-    "開発/mythology-japanese/episodes/bt06_03_01_builders_gather.md": {
+    "開発/mythology-greek/episodes/sc01_03_great_battle.md": {
       "x": 2847.5208094433992,
-      "y": -25512.002593061337
+      "y": -24028.141631331433
     },
-    "開発/mythology-japanese/episodes/bt03_02_02_serpent_drinks.md": {
-      "x": 5073.312252038255,
-      "y": -25141.03735262886
+    "開発/mythology-greek/episodes/bt08_03_03_black_sail_tragedy.md": {
+      "x": -1604.0620757463134,
+      "y": -23657.176390898956
     },
-    "開発/mythology-japanese/episodes/bt02_02_02_ecstatic_dance.md": {
-      "x": -120.20111401640918,
-      "y": -24770.072112196383
+    "開発/mythology-greek/episodes/bt08_03_02_ariadne_awakens.md": {
+      "x": -1233.0968353138373,
+      "y": -23657.176390898956
     },
-    "開発/mythology-japanese/episodes/bt02_02_01_divine_council.md": {
-      "x": 250.7641264160667,
-      "y": -24770.072112196383
+    "開発/mythology-greek/episodes/bt08_03_01_naxos_shore.md": {
+      "x": -862.1315948813611,
+      "y": -23657.176390898956
     },
-    "開発/mythology-japanese/episodes/bt02_01_03_world_darkness.md": {
-      "x": 621.729366848543,
-      "y": -24770.072112196383
+    "開発/mythology-greek/episodes/bt08_01_01_black_sail.md": {
+      "x": 1363.6598477134949,
+      "y": -23657.176390898956
     },
-    "開発/mythology-japanese/episodes/bt01_02_02_eight_islands.md": {
-      "x": 3218.4860498758744,
-      "y": -24770.072112196383
+    "開発/mythology-greek/episodes/bt07_03_03_eternal_song.md": {
+      "x": 1734.6250881459705,
+      "y": -23657.176390898956
     },
-    "開発/mythology-japanese/episodes/bt01_01_02_stir_chaos.md": {
+    "開発/mythology-greek/episodes/bt07_03_02_glance_back.md": {
+      "x": 2105.590328578447,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt07_03_01_ascending.md": {
+      "x": 2476.5555690109227,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt07_02_01_cerberus_sleep.md": {
+      "x": 3589.4512903083505,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt07_01_03_orpheus_grief.md": {
+      "x": 3960.4165307408266,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt07_01_02_serpent_bite.md": {
       "x": 4331.381771173303,
-      "y": -24770.072112196383
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt07_01_01_wedding_joy.md": {
+      "x": 4702.347011605778,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt06_03_03_troy_falls.md": {
+      "x": 5073.312252038255,
+      "y": -23657.176390898956
+    },
+    "開発/mythology-greek/episodes/bt06_03_02_gates_open.md": {
+      "x": -3087.923037476218,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt06_02_03_hector_duel.md": {
+      "x": -2345.992556611266,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt06_02_02_achilles_returns.md": {
+      "x": -1975.027316178789,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt06_02_01_patroclus_death.md": {
+      "x": -1604.0620757463134,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt04_02_02_scylla_charybdis.md": {
+      "x": 4702.347011605778,
+      "y": -23286.21115046648
+    },
+    "開発/mythology-greek/episodes/bt04_01_02_polyphemus_trap.md": {
+      "x": -2716.9577970437417,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt02_03_03_box_opened.md": {
+      "x": 1363.6598477134949,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt02_03_02_prometheus_chained.md": {
+      "x": 1734.6250881459705,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt02_02_02_stealing_fire.md": {
+      "x": 2847.5208094433992,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt02_02_01_humans_suffer.md": {
+      "x": 3218.4860498758744,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt02_01_03_first_steps.md": {
+      "x": 3589.4512903083505,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt02_01_01_clay_shaping.md": {
+      "x": 4331.381771173303,
+      "y": -22915.245910034002
+    },
+    "開発/mythology-greek/episodes/bt01_03_01_titans_clash.md": {
+      "x": -3087.923037476218,
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/episodes/bt01_02_03_war_declared.md": {
+      "x": -2716.9577970437417,
+      "y": -22544.28066960153
+    },
+    "開発/mythology-greek/episodes/bt01_01_02_rhea_grief.md": {
+      "x": -1233.0968353138373,
+      "y": -22544.28066960153
     },
     "開発/classic-arthurian/episodes/sc08_03_return-to-avalon.md": {
-      "x": 2274.5561446099928,
-      "y": -14447.103020049708
+      "x": 3689.9622166456165,
+      "y": -14101.749079019106
     },
     "開発/classic-arthurian/episodes/sc08_02_the-last-battle.md": {
-      "x": 2640.8107030545025,
-      "y": -14447.103020049708
+      "x": -1707.6012019481145,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc08_01_mordreds-revolt.md": {
-      "x": 3007.0652614990117,
-      "y": -14447.103020049708
+      "x": -1347.7636407085324,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc07_03_rescue-and-flight.md": {
-      "x": 3373.319819943522,
-      "y": -14447.103020049708
+      "x": -987.9260794689505,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc07_02_the-accusation.md": {
-      "x": 3739.574378388031,
-      "y": -14447.103020049708
+      "x": -628.0885182293682,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc07_01_secret-meetings.md": {
-      "x": -1754.2439982796136,
-      "y": -14080.8484616052
+      "x": -268.2509569897861,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc06_03_tragic-end.md": {
-      "x": -1387.989439835104,
-      "y": -14080.8484616052
+      "x": 91.58660424979598,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc06_02_forbidden-love.md": {
-      "x": -1021.7348813905942,
-      "y": -14080.8484616052
+      "x": 451.4241654893779,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc06_01_the-potion.md": {
-      "x": -655.4803229460842,
-      "y": -14080.8484616052
+      "x": 811.2617267289601,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc05_03_grail-castle.md": {
-      "x": -289.22576450157476,
-      "y": -14080.8484616052
+      "x": 1171.0992879685423,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc05_02_galahads-path.md": {
-      "x": 77.02879394293507,
-      "y": -14080.8484616052
+      "x": 1530.9368492081244,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc05_01_percivals-test.md": {
-      "x": 443.2833523874446,
-      "y": -14080.8484616052
+      "x": 1890.7744104477065,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc04_03_departure.md": {
-      "x": 809.5379108319543,
-      "y": -14080.8484616052
+      "x": 2250.611971687289,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc04_02_galahad-arrives.md": {
-      "x": 1175.7924692764639,
-      "y": -14080.8484616052
+      "x": 2610.4495329268702,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc04_01_grail-vision.md": {
-      "x": 1542.0470277209733,
-      "y": -14080.8484616052
+      "x": 2970.2870941664523,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc03_03_guinevere-arrives.md": {
-      "x": 1908.3015861654835,
-      "y": -14080.8484616052
+      "x": 3330.1246554060344,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc03_02_knights-oath.md": {
-      "x": 2274.5561446099928,
-      "y": -14080.8484616052
+      "x": 3689.9622166456165,
+      "y": -13741.911517779523
     },
     "開発/classic-arthurian/episodes/sc03_01_camelot-built.md": {
-      "x": 2640.8107030545025,
-      "y": -14080.8484616052
+      "x": -1707.6012019481145,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/sc02_03_the-gift.md": {
-      "x": 3007.0652614990117,
-      "y": -14080.8484616052
+      "x": -1347.7636407085324,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/sc02_02_lake-journey.md": {
-      "x": 3373.319819943522,
-      "y": -14080.8484616052
+      "x": -987.9260794689505,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/sc02_01_broken-sword.md": {
-      "x": 3739.574378388031,
-      "y": -14080.8484616052
+      "x": -628.0885182293682,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/sc01_03_the-drawing.md": {
-      "x": -1754.2439982796136,
-      "y": -13714.593903160689
+      "x": -268.2509569897861,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/sc01_02_the-gathering.md": {
-      "x": -1387.989439835104,
-      "y": -13714.593903160689
+      "x": 91.58660424979598,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/sc01_01_uthers-death.md": {
-      "x": -1021.7348813905942,
-      "y": -13714.593903160689
+      "x": 451.4241654893779,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/ep08_battle-of-camlann.md": {
-      "x": -655.4803229460842,
-      "y": -13714.593903160689
+      "x": 811.2617267289601,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/ep07_lancelot-affair.md": {
-      "x": -289.22576450157476,
-      "y": -13714.593903160689
+      "x": 1171.0992879685423,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/ep06_tristan-and-isolde.md": {
-      "x": 77.02879394293507,
-      "y": -13714.593903160689
+      "x": 1530.9368492081244,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/ep05_grail-trials.md": {
-      "x": 443.2833523874446,
-      "y": -13714.593903160689
+      "x": 1890.7744104477065,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/ep04_quest-begins.md": {
-      "x": 809.5379108319543,
-      "y": -13714.593903160689
+      "x": 2250.611971687289,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/ep03_round-table.md": {
-      "x": 1175.7924692764639,
-      "y": -13714.593903160689
+      "x": 2610.4495329268702,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/ep02_excalibur.md": {
-      "x": 1542.0470277209733,
-      "y": -13714.593903160689
+      "x": 2970.2870941664523,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/ep01_sword-in-stone.md": {
-      "x": 1908.3015861654835,
-      "y": -13714.593903160689
+      "x": 3330.1246554060344,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/bt08_03_03_departure-to-avalon.md": {
-      "x": 2274.5561446099928,
-      "y": -13714.593903160689
+      "x": 3689.9622166456165,
+      "y": -13382.073956539942
     },
     "開発/classic-arthurian/episodes/bt08_03_02_hand-receives.md": {
-      "x": 2640.8107030545025,
-      "y": -13714.593903160689
+      "x": -1707.6012019481145,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt08_03_01_excalibur-returned.md": {
-      "x": 3007.0652614990117,
-      "y": -13714.593903160689
+      "x": -1347.7636407085324,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt08_02_03_mutual-strike.md": {
-      "x": 3373.319819943522,
-      "y": -13714.593903160689
+      "x": -987.9260794689505,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt08_02_02_the-adder.md": {
-      "x": 3739.574378388031,
-      "y": -13714.593903160689
+      "x": -628.0885182293682,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt08_02_01_eve-of-battle.md": {
-      "x": -1754.2439982796136,
-      "y": -13348.33934471618
+      "x": -268.2509569897861,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt08_01_03_arthurs-return.md": {
-      "x": -1387.989439835104,
-      "y": -13348.33934471618
+      "x": 91.58660424979598,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt08_01_02_false-news.md": {
-      "x": -1021.7348813905942,
-      "y": -13348.33934471618
+      "x": 451.4241654893779,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt08_01_01_usurpation.md": {
-      "x": -655.4803229460842,
-      "y": -13348.33934471618
+      "x": 811.2617267289601,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt07_03_03_flight-to-france.md": {
-      "x": -289.22576450157476,
-      "y": -13348.33934471618
+      "x": 1171.0992879685423,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt07_03_02_gareth-falls.md": {
-      "x": 77.02879394293507,
-      "y": -13348.33934471618
+      "x": 1530.9368492081244,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt07_03_01_rescue-charge.md": {
-      "x": 443.2833523874446,
-      "y": -13348.33934471618
+      "x": 1890.7744104477065,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt07_02_02_arthurs-anguish.md": {
-      "x": 809.5379108319543,
-      "y": -13348.33934471618
+      "x": 2250.611971687289,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt07_02_03_death-sentence.md": {
-      "x": 1175.7924692764639,
-      "y": -13348.33934471618
+      "x": 2610.4495329268702,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt07_02_01_public-accusation.md": {
-      "x": 1542.0470277209733,
-      "y": -13348.33934471618
+      "x": 2970.2870941664523,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt07_01_03_caught-in-act.md": {
-      "x": 1908.3015861654835,
-      "y": -13348.33934471618
+      "x": 3330.1246554060344,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt07_01_02_evidence-gathered.md": {
-      "x": 2274.5561446099928,
-      "y": -13348.33934471618
+      "x": 3689.9622166456165,
+      "y": -13022.236395300359
     },
     "開発/classic-arthurian/episodes/bt07_01_01_mordreds-spy.md": {
-      "x": 2640.8107030545025,
-      "y": -13348.33934471618
+      "x": -1707.6012019481145,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt06_03_02_exile.md": {
-      "x": 3007.0652614990117,
-      "y": -13348.33934471618
+      "x": -1347.7636407085324,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt06_03_03_lovers-death.md": {
-      "x": 3373.319819943522,
-      "y": -13348.33934471618
+      "x": -987.9260794689505,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt06_03_01_discovery.md": {
-      "x": 3739.574378388031,
-      "y": -13348.33934471618
+      "x": -628.0885182293682,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt06_02_03_suspicion-grows.md": {
-      "x": -1754.2439982796136,
-      "y": -12982.08478627167
+      "x": -268.2509569897861,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt06_02_02_loyal-conflict.md": {
-      "x": -1387.989439835104,
-      "y": -12982.08478627167
+      "x": 91.58660424979598,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt06_01_03_guilty-arrival.md": {
-      "x": -1021.7348813905942,
-      "y": -12982.08478627167
+      "x": 451.4241654893779,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt06_02_01_secret-tryst.md": {
-      "x": -655.4803229460842,
-      "y": -12982.08478627167
+      "x": 811.2617267289601,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt06_01_02_the-drink.md": {
-      "x": -289.22576450157476,
-      "y": -12982.08478627167
+      "x": 1171.0992879685423,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt06_01_01_voyage-to-cornwall.md": {
-      "x": 77.02879394293507,
-      "y": -12982.08478627167
+      "x": 1530.9368492081244,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt05_03_03_return-to-camelot.md": {
-      "x": 443.2833523874446,
-      "y": -12982.08478627167
+      "x": 1890.7744104477065,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt05_03_02_galahads-ascension.md": {
-      "x": 809.5379108319543,
-      "y": -12982.08478627167
+      "x": 2250.611971687289,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt05_03_01_grail-chapel.md": {
-      "x": 1175.7924692764639,
-      "y": -12982.08478627167
+      "x": 2610.4495329268702,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt05_02_03_three-unite.md": {
-      "x": 1542.0470277209733,
-      "y": -12982.08478627167
+      "x": 2970.2870941664523,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt05_02_02_castle-of-maidens.md": {
-      "x": 1908.3015861654835,
-      "y": -12982.08478627167
+      "x": 3330.1246554060344,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt05_02_01_healing-knight.md": {
-      "x": 2274.5561446099928,
-      "y": -12982.08478627167
+      "x": 3689.9622166456165,
+      "y": -12662.398834060778
     },
     "開発/classic-arthurian/episodes/bt05_01_03_purification.md": {
-      "x": 2640.8107030545025,
-      "y": -12982.08478627167
+      "x": -1707.6012019481145,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt05_01_02_prayer.md": {
-      "x": 3007.0652614990117,
-      "y": -12982.08478627167
+      "x": -1347.7636407085324,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt05_01_01_temptation.md": {
-      "x": 3373.319819943522,
-      "y": -12982.08478627167
+      "x": -987.9260794689505,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt04_03_03_empty-hall.md": {
-      "x": 3739.574378388031,
-      "y": -12982.08478627167
+      "x": -628.0885182293682,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt04_03_02_farewell.md": {
-      "x": -1754.2439982796136,
-      "y": -12615.83022782716
+      "x": -268.2509569897861,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt04_03_01_arthurs-sorrow.md": {
-      "x": -1387.989439835104,
-      "y": -12615.83022782716
+      "x": 91.58660424979598,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt04_02_03_sword-in-stone-again.md": {
-      "x": -1021.7348813905942,
-      "y": -12615.83022782716
+      "x": 451.4241654893779,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt04_02_02_galahad-sits.md": {
-      "x": -655.4803229460842,
-      "y": -12615.83022782716
+      "x": 811.2617267289601,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt04_02_01_empty-seat.md": {
-      "x": -289.22576450157476,
-      "y": -12615.83022782716
+      "x": 1171.0992879685423,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt04_01_03_the-vow.md": {
-      "x": 77.02879394293507,
-      "y": -12615.83022782716
+      "x": 1530.9368492081244,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt04_01_02_thunder-and-light.md": {
-      "x": 443.2833523874446,
-      "y": -12615.83022782716
+      "x": 1890.7744104477065,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt04_01_01_pentecost-feast.md": {
-      "x": 809.5379108319543,
-      "y": -12615.83022782716
+      "x": 2250.611971687289,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt03_03_03_first-glance.md": {
-      "x": 1175.7924692764639,
-      "y": -12615.83022782716
+      "x": 2610.4495329268702,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt03_03_02_wedding-feast.md": {
-      "x": 1542.0470277209733,
-      "y": -12615.83022782716
+      "x": 2970.2870941664523,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt03_03_01_the-proposal.md": {
-      "x": 1908.3015861654835,
-      "y": -12615.83022782716
+      "x": 3330.1246554060344,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt03_02_03_first-quest.md": {
-      "x": 2274.5561446099928,
-      "y": -12615.83022782716
+      "x": 3689.9622166456165,
+      "y": -12302.561272821196
     },
     "開発/classic-arthurian/episodes/bt03_02_02_the-oath.md": {
-      "x": 2640.8107030545025,
-      "y": -12615.83022782716
+      "x": -1707.6012019481145,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt03_02_01_lancelot-joins.md": {
-      "x": 3007.0652614990117,
-      "y": -12615.83022782716
+      "x": -1347.7636407085324,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt03_01_03_the-round-table.md": {
-      "x": 3373.319819943522,
-      "y": -12615.83022782716
+      "x": -987.9260794689505,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt03_01_02_building.md": {
-      "x": 3739.574378388031,
-      "y": -12615.83022782716
+      "x": -628.0885182293682,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt03_01_01_the-vision.md": {
-      "x": -1754.2439982796136,
-      "y": -12249.575669382652
+      "x": -268.2509569897861,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt02_03_03_oath-to-lake.md": {
-      "x": -1387.989439835104,
-      "y": -12249.575669382652
+      "x": 91.58660424979598,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt02_03_02_the-scabbard.md": {
-      "x": -1021.7348813905942,
-      "y": -12249.575669382652
+      "x": 451.4241654893779,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt02_03_01_hand-from-lake.md": {
-      "x": -655.4803229460842,
-      "y": -12249.575669382652
+      "x": 811.2617267289601,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt02_02_03_lake-arrival.md": {
-      "x": -289.22576450157476,
-      "y": -12249.575669382652
+      "x": 1171.0992879685423,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt02_02_02_the-mist.md": {
-      "x": 77.02879394293507,
-      "y": -12249.575669382652
+      "x": 1530.9368492081244,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt02_02_01_forest-path.md": {
-      "x": 443.2833523874446,
-      "y": -12249.575669382652
+      "x": 1890.7744104477065,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt02_01_03_merlins-guidance.md": {
-      "x": 809.5379108319543,
-      "y": -12249.575669382652
+      "x": 2250.611971687289,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt02_01_02_sword-breaks.md": {
-      "x": 1175.7924692764639,
-      "y": -12249.575669382652
+      "x": 2610.4495329268702,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt02_01_01_first-battle.md": {
-      "x": 1542.0470277209733,
-      "y": -12249.575669382652
+      "x": 2970.2870941664523,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt01_03_03_coronation.md": {
-      "x": 1908.3015861654835,
-      "y": -12249.575669382652
+      "x": 3330.1246554060344,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt01_03_02_doubt-and-proof.md": {
-      "x": 2274.5561446099928,
-      "y": -12249.575669382652
+      "x": 3689.9622166456165,
+      "y": -11942.723711581613
     },
     "開発/classic-arthurian/episodes/bt01_03_01_the-pull.md": {
-      "x": 2640.8107030545025,
-      "y": -12249.575669382652
+      "x": -1707.6012019481145,
+      "y": -11582.88615034203
     },
     "開発/classic-arthurian/episodes/bt01_02_03_arthurs-chance.md": {
-      "x": 3007.0652614990117,
-      "y": -12249.575669382652
+      "x": -1347.7636407085324,
+      "y": -11582.88615034203
     },
     "開発/classic-arthurian/episodes/bt01_02_02_failed-attempts.md": {
-      "x": 3373.319819943522,
-      "y": -12249.575669382652
+      "x": -987.9260794689505,
+      "y": -11582.88615034203
     },
     "開発/classic-arthurian/episodes/bt01_01_03_merlins-plan.md": {
-      "x": 3739.574378388031,
-      "y": -12249.575669382652
+      "x": -628.0885182293682,
+      "y": -11582.88615034203
     },
     "開発/classic-arthurian/episodes/bt01_02_01_lords-arrive.md": {
-      "x": -1754.2439982796136,
-      "y": -11883.321110938141
+      "x": -268.2509569897861,
+      "y": -11582.88615034203
     },
     "開発/classic-arthurian/episodes/bt01_01_02_kingdom-in-chaos.md": {
-      "x": -1387.989439835104,
-      "y": -11883.321110938141
+      "x": 91.58660424979598,
+      "y": -11582.88615034203
     },
     "開発/classic-arthurian/episodes/bt01_01_01_final-words.md": {
-      "x": -1021.7348813905942,
-      "y": -11883.321110938141
+      "x": 451.4241654893779,
+      "y": -11582.88615034203
     },
     "開発/classic-gilgamesh/characters/gilgamesh.md": {
       "x": 150.61411764705758,
@@ -1175,10 +1191,6 @@
     "開発/classic-hamlet/characters/hamlet.md": {
       "x": -2431.5248482505817,
       "y": -15405.77936079555
-    },
-    "開発/mythology-greek/characters/zeus.md": {
-      "x": 2105.590328578447,
-      "y": -22544.28066960153
     },
     "開発/mythology-norse/characters/odin.md": {
       "x": -3087.923037476218,
@@ -1247,10 +1259,6 @@
     "開発/classic-gilgamesh/characters/anu.md": {
       "x": 1783.8141176470572,
       "y": 15705.497812856376
-    },
-    "開発/mythology-greek/characters/athena.md": {
-      "x": -2716.9577970437417,
-      "y": -22173.31542916905
     },
     "開発/mythology-egyptian/characters/anubis.md": {
       "x": 1734.6250881459705,
@@ -1337,16 +1345,20 @@
       "y": 16358.777812856377
     },
     "開発/bible-old-testament/concepts/ark-of-covenant.md": {
-      "x": 364.9236855886518,
-      "y": 3785.027695011734
+      "x": 364.92368544604153,
+      "y": 3785.027694873373
     },
     "開発/bible-new-testament/characters/jesus.md": {
       "x": 477.2541176470577,
       "y": 17338.697812856375
     },
-    "開発/mythology-greek/characters/poseidon.md": {
-      "x": 2476.5555690109227,
-      "y": -22544.28066960153
+    "開発/mythology-japanese/characters/susanoo.md": {
+      "x": 621.729366848543,
+      "y": -24399.106871763906
+    },
+    "開発/mythology-japanese/characters/amaterasu.md": {
+      "x": 2847.5208094433992,
+      "y": -24399.106871763906
     },
     "開発/mythology-egyptian/characters/sobek.md": {
       "x": -1604.0620757463134,
@@ -1357,16 +1369,20 @@
       "y": 17012.057812856376
     },
     "開発/bible-new-testament/concepts/golgotha.md": {
-      "x": 3753.4123748033835,
-      "y": 2323.3761645400227
+      "x": 3753.412374828422,
+      "y": 2323.3761646317125
     },
     "開発/bible-apocrypha/concepts/seven-heavens.md": {
-      "x": 3520.232803216152,
-      "y": 2636.5858244473757
+      "x": 3520.232803246972,
+      "y": 2636.5858244380097
     },
     "開発/bible-apocrypha/concepts/book-of-life.md": {
-      "x": 3252.269988629922,
-      "y": 2920.6099146642255
+      "x": 3252.2699889797964,
+      "y": 2920.609914775039
+    },
+    "開発/mythology-japanese/concepts/kusanagi.md": {
+      "x": -1233.0968353138373,
+      "y": -24399.106871763906
     },
     "開発/mythology-egyptian/concepts/eye-of-ra.md": {
       "x": -3087.923037476218,
@@ -1428,10 +1444,6 @@
       "x": 4331.381771173303,
       "y": -26624.898314358765
     },
-    "開発/mythology-greek/characters/hades.md": {
-      "x": -3087.923037476218,
-      "y": -22173.31542916905
-    },
     "開発/classic-sangokushi/characters/sun-quan.md": {
       "x": 803.8941176470576,
       "y": 13745.657812856378
@@ -1453,8 +1465,8 @@
       "y": 17012.057812856376
     },
     "開発/bible-old-testament/concepts/ten-commandments.md": {
-      "x": 697.1705605280679,
-      "y": -2308.7094444663767
+      "x": 697.1705606586146,
+      "y": -2308.7094443565215
     },
     "開発/mythology-norse/concepts/bifrost.md": {
       "x": 3589.4512903083505,
@@ -1493,12 +1505,12 @@
       "y": 16685.417812856376
     },
     "開発/bible-old-testament/concepts/promised-land.md": {
-      "x": -1239.7218882300783,
-      "y": -1266.4214150210114
+      "x": -1239.7218881208473,
+      "y": -1266.4214151192155
     },
     "開発/bible-apocrypha/concepts/dead-sea-scrolls.md": {
-      "x": -1074.5248881605244,
-      "y": -1455.5047610721795
+      "x": -1074.5248881731438,
+      "y": -1455.504761197252
     },
     "開発/mythology-norse/concepts/mjolnir.md": {
       "x": 2847.5208094433992,
@@ -1512,13 +1524,9 @@
       "x": -491.1663544488853,
       "y": -26253.933073926288
     },
-    "開発/mythology-greek/characters/heracles.md": {
-      "x": 4702.347011605778,
-      "y": -22544.28066960153
-    },
-    "開発/mythology-greek/characters/aphrodite.md": {
-      "x": -1233.0968353138373,
-      "y": -22173.31542916905
+    "開発/mythology-japanese/characters/izanagi.md": {
+      "x": 2476.5555690109227,
+      "y": -24399.106871763906
     },
     "開発/mythology-egyptian/concepts/ankh.md": {
       "x": -2345.992556611266,
@@ -1564,29 +1572,13 @@
       "x": -120.20111401640918,
       "y": -26253.933073926288
     },
-    "開発/mythology-greek/concepts/mount-olympus.md": {
-      "x": 621.729366848543,
-      "y": -22544.28066960153
-    },
-    "開発/mythology-greek/concepts/labyrinth.md": {
-      "x": 992.6946072810186,
-      "y": -22544.28066960153
-    },
-    "開発/mythology-greek/concepts/golden-fleece.md": {
-      "x": 1363.6598477134949,
-      "y": -22544.28066960153
-    },
-    "開発/mythology-greek/concepts/ambrosia.md": {
-      "x": 1734.6250881459705,
-      "y": -22544.28066960153
-    },
-    "開発/mythology-greek/characters/ares.md": {
+    "開発/mythology-japanese/concepts/yasakani.md": {
       "x": -1975.027316178789,
-      "y": -22173.31542916905
+      "y": -24399.106871763906
     },
-    "開発/mythology-greek/characters/apollo.md": {
+    "開発/mythology-japanese/concepts/takamagahara.md": {
       "x": -1604.0620757463134,
-      "y": -22173.31542916905
+      "y": -24399.106871763906
     },
     "開発/mythology-egyptian/concepts/pyramid.md": {
       "x": 5073.312252038255,
@@ -1613,12 +1605,16 @@
       "y": 17012.057812856376
     },
     "開発/bible-new-testament/concepts/nazareth.md": {
-      "x": 1447.6391358490935,
-      "y": 3231.4597337105793
+      "x": 1447.6391358818823,
+      "y": 3231.4597335930594
     },
     "開発/mythology-norse/concepts/yggdrasil.md": {
       "x": 2476.5555690109227,
       "y": -26624.898314358765
+    },
+    "開発/mythology-japanese/concepts/yomi.md": {
+      "x": -2345.992556611266,
+      "y": -24399.106871763906
     },
     "開発/classic-saiyuki/characters/xuanzang.md": {
       "x": -829.3058823529423,
@@ -1641,24 +1637,16 @@
       "y": 17012.057812856376
     },
     "開発/bible-new-testament/concepts/holy-grail.md": {
-      "x": 3170.2600005734403,
-      "y": 208.39575526586012
+      "x": 3170.2600008815452,
+      "y": 208.3957555852972
     },
     "開発/mythology-norse/characters/hel.md": {
       "x": -1975.027316178789,
       "y": -26253.933073926288
     },
-    "開発/mythology-greek/characters/odysseus.md": {
-      "x": 3218.4860498758744,
-      "y": -22544.28066960153
-    },
-    "開発/mythology-greek/characters/hephaestus.md": {
-      "x": 5073.312252038255,
-      "y": -22544.28066960153
-    },
-    "開発/mythology-greek/characters/artemis.md": {
-      "x": -2345.992556611266,
-      "y": -22173.31542916905
+    "開発/mythology-japanese/characters/tsukuyomi.md": {
+      "x": -120.20111401640918,
+      "y": -24399.106871763906
     },
     "開発/classic-sangokushi/characters/zhuge-liang.md": {
       "x": -829.3058823529423,
@@ -1691,10 +1679,6 @@
     "開発/classic-arabian-nights/characters/aladdin.md": {
       "x": 477.2541176470577,
       "y": 17012.057812856376
-    },
-    "開発/mythology-greek/characters/medusa.md": {
-      "x": 3960.4165307408266,
-      "y": -22544.28066960153
     },
     "開発/classic-macbeth/characters/witch-first.md": {
       "x": -2089.188791973191,
@@ -1731,14 +1715,6 @@
     "開発/mythology-norse/characters/jormungandr.md": {
       "x": -2345.992556611266,
       "y": -26253.933073926288
-    },
-    "開発/mythology-greek/characters/perseus.md": {
-      "x": 2847.5208094433992,
-      "y": -22544.28066960153
-    },
-    "開発/mythology-greek/characters/minotaur.md": {
-      "x": 3589.4512903083505,
-      "y": -22544.28066960153
     },
     "開発/mythology-egyptian/characters/apophis.md": {
       "x": 1363.6598477134949,
@@ -1799,6 +1775,22 @@
     "開発/mythology-norse/characters/heimdall.md": {
       "x": -1604.0620757463134,
       "y": -26253.933073926288
+    },
+    "開発/mythology-japanese/characters/yamato-takeru.md": {
+      "x": -862.1315948813611,
+      "y": -24399.106871763906
+    },
+    "開発/mythology-japanese/characters/uzume.md": {
+      "x": -491.1663544488853,
+      "y": -24399.106871763906
+    },
+    "開発/mythology-japanese/characters/takemikazuchi.md": {
+      "x": 250.7641264160667,
+      "y": -24399.106871763906
+    },
+    "開発/mythology-japanese/characters/izanami.md": {
+      "x": 2105.590328578447,
+      "y": -24399.106871763906
     },
     "開発/classic-macbeth/characters/witch-third.md": {
       "x": -2773.8609045279727,
@@ -2056,6 +2048,10 @@
       "x": 2763.734117647057,
       "y": 17012.057812856376
     },
+    "開発/mythology-japanese/characters/okuninushi.md": {
+      "x": 1734.6250881459705,
+      "y": -24399.106871763906
+    },
     "開発/classic-arabian-nights/characters/sinbad.md": {
       "x": 1130.5341176470574,
       "y": 16685.417812856376
@@ -2064,9 +2060,9 @@
       "x": 2437.0941176470574,
       "y": 16685.417812856376
     },
-    "開発/mythology-greek/characters/kronos.md": {
-      "x": 4331.381771173303,
-      "y": -22544.28066960153
+    "開発/mythology-japanese/characters/sarutahiko.md": {
+      "x": 992.6946072810186,
+      "y": -24399.106871763906
     },
     "開発/classic-saiyuki/characters/dragon-horse.md": {
       "x": 2763.734117647057,
@@ -2083,6 +2079,10 @@
     "開発/classic-hamlet/characters/fortinbras.md": {
       "x": -719.8445668636281,
       "y": -15405.77936079555
+    },
+    "開発/mythology-japanese/characters/orochi.md": {
+      "x": 1363.6598477134949,
+      "y": -24399.106871763906
     },
     "開発/classic-king-lear/characters/doctor-lear.md": {
       "x": 3388.188108465061,
@@ -3824,17 +3824,21 @@
       "x": 1334.1717708007163,
       "y": -15748.115417072942
     },
-    "開発/mythology-greek/MOC.md": {
-      "x": -862.1315948813611,
-      "y": -22173.31542916905
-    },
     "開発/mythology-norse/MOC.md": {
       "x": 250.7641264160667,
       "y": -26253.933073926288
     },
+    "開発/mythology-japanese/MOC.md": {
+      "x": 3218.4860498758744,
+      "y": -24399.106871763906
+    },
     "開発/mythology-egyptian/MOC.md": {
       "x": 2105.590328578447,
       "y": -20318.48922700667
+    },
+    "開発/mythology-japanese/episodes/ep04_yomi.md": {
+      "x": 2476.5555690109227,
+      "y": -25882.96783349381
     },
     "開発/mythology-egyptian/episodes/ep06_ra_journey.md": {
       "x": 621.729366848543,
@@ -3856,25 +3860,45 @@
       "x": -1233.0968353138373,
       "y": -27737.794035656192
     },
-    "開発/mythology-greek/episodes/ep03_twelve_labors.md": {
-      "x": -2716.9577970437417,
-      "y": -23657.176390898956
+    "開発/mythology-japanese/episodes/sc04_03_pursuit_escape.md": {
+      "x": 5073.312252038255,
+      "y": -26253.933073926288
     },
-    "開発/mythology-greek/episodes/ep07_orpheus.md": {
-      "x": 4331.381771173303,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/ep04_odyssey.md": {
+    "開発/mythology-japanese/episodes/sc04_02_yomi_descent.md": {
       "x": -3087.923037476218,
-      "y": -23657.176390898956
+      "y": -25882.96783349381
+    },
+    "開発/mythology-japanese/episodes/sc04_01_izanami_death.md": {
+      "x": -2716.9577970437417,
+      "y": -25882.96783349381
+    },
+    "開発/mythology-japanese/episodes/sc05_03_final_journey.md": {
+      "x": 3960.4165307408266,
+      "y": -26253.933073926288
+    },
+    "開発/mythology-japanese/episodes/ep05_yamato-takeru-quest.md": {
+      "x": 2105.590328578447,
+      "y": -25882.96783349381
     },
     "開発/mythology-norse/episodes/ep06_sigurd_dragon.md": {
       "x": -1975.027316178789,
       "y": -27737.794035656192
     },
-    "開発/mythology-greek/episodes/ep08_theseus_labyrinth.md": {
-      "x": 3960.4165307408266,
-      "y": -24028.141631331433
+    "開発/mythology-japanese/episodes/ep02_amano-iwato.md": {
+      "x": 3218.4860498758744,
+      "y": -25882.96783349381
+    },
+    "開発/mythology-japanese/episodes/ep07_tenson-korin.md": {
+      "x": 1363.6598477134949,
+      "y": -25882.96783349381
+    },
+    "開発/mythology-japanese/episodes/ep06_kuniyuzuri.md": {
+      "x": 1734.6250881459705,
+      "y": -25882.96783349381
+    },
+    "開発/mythology-japanese/episodes/ep03_yamata-no-orochi.md": {
+      "x": 2847.5208094433992,
+      "y": -25882.96783349381
     },
     "開発/mythology-norse/episodes/sc05_02_great_battle.md": {
       "x": 621.729366848543,
@@ -3883,10 +3907,6 @@
     "開発/mythology-norse/episodes/ep05_ragnarok.md": {
       "x": -1604.0620757463134,
       "y": -27737.794035656192
-    },
-    "開発/mythology-greek/episodes/ep06_trojan_war.md": {
-      "x": 4702.347011605778,
-      "y": -24028.141631331433
     },
     "開発/mythology-egyptian/episodes/sc08_03_moonlight_won.md": {
       "x": -491.1663544488853,
@@ -3915,6 +3935,10 @@
     "開発/mythology-norse/episodes/ep03_theft_of_mjolnir.md": {
       "x": -862.1315948813611,
       "y": -27737.794035656192
+    },
+    "開発/mythology-japanese/episodes/ep01_kuniumi.md": {
+      "x": 3589.4512903083505,
+      "y": -25882.96783349381
     },
     "開発/mythology-egyptian/episodes/sc06_01_solar_barque.md": {
       "x": 2476.5555690109227,
@@ -3992,17 +4016,21 @@
       "x": 1734.6250881459705,
       "y": -26624.898314358765
     },
-    "開発/mythology-greek/episodes/ep05_perseus.md": {
+    "開発/mythology-japanese/episodes/bt03_03_02_kusanagi_found.md": {
+      "x": 3960.4165307408266,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/act3_dominion.md": {
       "x": 5073.312252038255,
-      "y": -24028.141631331433
+      "y": -24770.072112196383
     },
-    "開発/mythology-greek/episodes/ep01_titanomakhia.md": {
-      "x": -1975.027316178789,
-      "y": -23657.176390898956
+    "開発/mythology-japanese/episodes/act2_takamagahara.md": {
+      "x": -3087.923037476218,
+      "y": -24399.106871763906
     },
-    "開発/mythology-greek/episodes/act2_heroes.md": {
-      "x": -120.20111401640918,
-      "y": -22544.28066960153
+    "開発/mythology-japanese/episodes/act1_creation.md": {
+      "x": -2716.9577970437417,
+      "y": -24399.106871763906
     },
     "開発/mythology-egyptian/episodes/sc07_03_red_beer_trick.md": {
       "x": 621.729366848543,
@@ -4192,73 +4220,125 @@
       "x": 2105.590328578447,
       "y": -26624.898314358765
     },
-    "開発/mythology-greek/episodes/sc08_02_labyrinth_battle.md": {
-      "x": 3960.4165307408266,
-      "y": -24399.106871763906
+    "開発/mythology-japanese/episodes/sc08_02_yatagarasu_guide.md": {
+      "x": 992.6946072810186,
+      "y": -26253.933073926288
     },
-    "開発/mythology-greek/episodes/sc06_01_judgment_of_paris.md": {
-      "x": -1975.027316178789,
-      "y": -24028.141631331433
+    "開発/mythology-japanese/episodes/sc07_01_ninigi_descent.md": {
+      "x": 2476.5555690109227,
+      "y": -26253.933073926288
     },
-    "開発/mythology-greek/episodes/sc05_02_medusa_cave.md": {
-      "x": -1233.0968353138373,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc05_01_divine_gifts.md": {
-      "x": -862.1315948813611,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc03_03_cerberus.md": {
-      "x": 621.729366848543,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc01_02_zeus_uprising.md": {
+    "開発/mythology-japanese/episodes/sc06_02_okuninushi_negotiation.md": {
       "x": 3218.4860498758744,
-      "y": -24028.141631331433
+      "y": -26253.933073926288
     },
-    "開発/mythology-greek/episodes/bt06_01_02_three_offers.md": {
-      "x": -862.1315948813611,
-      "y": -23286.21115046648
+    "開発/mythology-japanese/episodes/sc06_01_takemikazuchi_descent.md": {
+      "x": 3589.4512903083505,
+      "y": -26253.933073926288
     },
-    "開発/mythology-greek/episodes/bt06_01_01_golden_apple.md": {
-      "x": -491.1663544488853,
-      "y": -23286.21115046648
+    "開発/mythology-japanese/episodes/sc05_02_eastern_campaign.md": {
+      "x": 4331.381771173303,
+      "y": -26253.933073926288
     },
-    "開発/mythology-greek/episodes/bt05_03_02_stone_gaze.md": {
-      "x": 250.7641264160667,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt05_02_02_medusa_slain.md": {
-      "x": 1363.6598477134949,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt04_03_01_disguise.md": {
-      "x": 3960.4165307408266,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt03_03_02_hades_deal.md": {
-      "x": -1604.0620757463134,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt01_03_03_kronos_falls.md": {
-      "x": 4702.347011605778,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt01_02_02_siblings_freed.md": {
+    "開発/mythology-japanese/episodes/sc03_03_serpent_slain.md": {
       "x": -2345.992556611266,
-      "y": -22544.28066960153
+      "y": -25882.96783349381
     },
-    "開発/mythology-greek/episodes/bt01_01_03_zeus_hidden.md": {
-      "x": -1604.0620757463134,
-      "y": -22544.28066960153
-    },
-    "開発/mythology-greek/episodes/act3_wars.md": {
+    "開発/mythology-japanese/episodes/sc02_01_amaterasu_retreat.md": {
       "x": -491.1663544488853,
-      "y": -22544.28066960153
+      "y": -25882.96783349381
     },
-    "開発/mythology-greek/episodes/act1_origins.md": {
+    "開発/mythology-japanese/episodes/sc01_03_divine_children.md": {
+      "x": -120.20111401640918,
+      "y": -25882.96783349381
+    },
+    "開発/mythology-japanese/episodes/sc01_02_island_birth.md": {
       "x": 250.7641264160667,
-      "y": -22544.28066960153
+      "y": -25882.96783349381
+    },
+    "開発/mythology-japanese/episodes/sc01_01_heavenly_spear.md": {
+      "x": 621.729366848543,
+      "y": -25882.96783349381
+    },
+    "開発/mythology-japanese/episodes/bt06_01_03_takeminakata_duel.md": {
+      "x": 4331.381771173303,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt06_01_02_thunder_god_arrives.md": {
+      "x": 4702.347011605778,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt06_01_01_failed_envoys.md": {
+      "x": 5073.312252038255,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt05_03_01_ibuki_battle.md": {
+      "x": -2345.992556611266,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt05_02_02_fire_counter.md": {
+      "x": -1604.0620757463134,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt05_02_01_kusanagi_gift.md": {
+      "x": -1233.0968353138373,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt04_03_03_eternal_parting.md": {
+      "x": 250.7641264160667,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt04_03_02_yomi_chase.md": {
+      "x": 621.729366848543,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt04_03_01_broken_taboo.md": {
+      "x": 992.6946072810186,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt04_02_02_forbidden_promise.md": {
+      "x": 1734.6250881459705,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt04_02_01_descent_path.md": {
+      "x": 2105.590328578447,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt04_01_03_grief_decision.md": {
+      "x": 2476.5555690109227,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt04_01_02_izanagi_rage.md": {
+      "x": 2847.5208094433992,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt02_01_02_retreat_into_cave.md": {
+      "x": 992.6946072810186,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt01_03_02_fire_god_tragedy.md": {
+      "x": 2105.590328578447,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt01_03_01_nature_gods.md": {
+      "x": 2476.5555690109227,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt01_02_03_awaji_first.md": {
+      "x": 2847.5208094433992,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt01_02_01_pillar_ritual.md": {
+      "x": 3589.4512903083505,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt01_01_03_onogoro_birth.md": {
+      "x": 3960.4165307408266,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt01_01_01_spear_thrust.md": {
+      "x": 4702.347011605778,
+      "y": -24770.072112196383
     },
     "開発/mythology-egyptian/episodes/sc07_02_sekhmet_unleashed.md": {
       "x": 992.6946072810186,
@@ -4520,209 +4600,189 @@
       "x": -491.1663544488853,
       "y": -26624.898314358765
     },
-    "開発/mythology-greek/episodes/sc08_01_voyage_to_crete.md": {
-      "x": 4331.381771173303,
-      "y": -24399.106871763906
+    "開発/mythology-japanese/episodes/sc08_03_yamato_founding.md": {
+      "x": 621.729366848543,
+      "y": -26253.933073926288
     },
-    "開発/mythology-greek/episodes/sc07_03_looking_back.md": {
+    "開発/mythology-japanese/episodes/sc07_03_sacred_treasures.md": {
+      "x": 1734.6250881459705,
+      "y": -26253.933073926288
+    },
+    "開発/mythology-japanese/episodes/sc06_03_izumo_shrine.md": {
+      "x": 2847.5208094433992,
+      "y": -26253.933073926288
+    },
+    "開発/mythology-japanese/episodes/sc05_01_kumaso_mission.md": {
       "x": 4702.347011605778,
-      "y": -24399.106871763906
+      "y": -26253.933073926288
     },
-    "開発/mythology-greek/episodes/sc07_02_underworld_journey.md": {
-      "x": 5073.312252038255,
-      "y": -24399.106871763906
+    "開発/mythology-japanese/episodes/sc03_02_sake_trap.md": {
+      "x": -1975.027316178789,
+      "y": -25882.96783349381
     },
-    "開発/mythology-greek/episodes/sc06_03_trojan_horse.md": {
-      "x": -2716.9577970437417,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc05_03_andromeda_rescue.md": {
+    "開発/mythology-japanese/episodes/sc03_01_kushinadahime_tears.md": {
       "x": -1604.0620757463134,
-      "y": -24028.141631331433
+      "y": -25882.96783349381
     },
-    "開発/mythology-greek/episodes/sc04_03_return_to_ithaca.md": {
-      "x": -491.1663544488853,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc04_02_sea_trials.md": {
-      "x": -120.20111401640918,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc04_01_cyclops_island.md": {
-      "x": 250.7641264160667,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc03_02_lernaean_hydra.md": {
-      "x": 992.6946072810186,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc03_01_nemean_lion.md": {
-      "x": 1363.6598477134949,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc02_03_zeus_retribution.md": {
-      "x": 1734.6250881459705,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc02_02_theft_of_fire.md": {
-      "x": 2105.590328578447,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc02_01_creation_of_man.md": {
-      "x": 2476.5555690109227,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc01_01_kronos_tyranny.md": {
-      "x": 3589.4512903083505,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/ep02_prometheus.md": {
-      "x": -2345.992556611266,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt08_02_03_escape_thread.md": {
-      "x": -491.1663544488853,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt08_02_02_minotaur_fight.md": {
-      "x": -120.20111401640918,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt08_02_01_labyrinth_entry.md": {
-      "x": 250.7641264160667,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt08_01_03_thread_given.md": {
-      "x": 621.729366848543,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt08_01_02_ariadne_meeting.md": {
-      "x": 992.6946072810186,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt07_02_03_condition.md": {
-      "x": 2847.5208094433992,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt07_02_02_hades_moved.md": {
-      "x": 3218.4860498758744,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt06_03_01_horse_built.md": {
-      "x": -2716.9577970437417,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt06_01_03_paris_chooses.md": {
+    "開発/mythology-japanese/episodes/sc02_03_mirror_reveal.md": {
       "x": -1233.0968353138373,
-      "y": -23286.21115046648
+      "y": -25882.96783349381
     },
-    "開発/mythology-greek/episodes/bt05_03_03_liberation.md": {
-      "x": -120.20111401640918,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt05_03_01_sea_monster.md": {
-      "x": 621.729366848543,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt05_02_03_escape_flight.md": {
-      "x": 992.6946072810186,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt05_02_01_stone_forest.md": {
-      "x": 1734.6250881459705,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt05_01_03_departure.md": {
-      "x": 2105.590328578447,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt05_01_02_gifts_received.md": {
-      "x": 2476.5555690109227,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt05_01_01_quest_given.md": {
-      "x": 2847.5208094433992,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt04_03_03_suitors_slain.md": {
-      "x": 3218.4860498758744,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt04_03_02_bow_contest.md": {
-      "x": 3589.4512903083505,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt04_02_03_calypso_release.md": {
-      "x": 4331.381771173303,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt04_02_01_sirens_song.md": {
-      "x": 5073.312252038255,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt04_01_03_nobody_trick.md": {
-      "x": -3087.923037476218,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt04_01_01_cave_entry.md": {
-      "x": -2345.992556611266,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt03_03_03_cerberus_captured.md": {
-      "x": -1975.027316178789,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt03_03_01_descent.md": {
-      "x": -1233.0968353138373,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt03_02_03_immortal_head.md": {
+    "開発/mythology-japanese/episodes/sc02_02_uzume_dance.md": {
       "x": -862.1315948813611,
-      "y": -22915.245910034002
+      "y": -25882.96783349381
     },
-    "開発/mythology-greek/episodes/bt03_02_02_iolaus_fire.md": {
-      "x": -491.1663544488853,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt03_02_01_hydra_appears.md": {
-      "x": -120.20111401640918,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt03_01_03_lion_skin.md": {
-      "x": 250.7641264160667,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt03_01_02_bare_hands.md": {
-      "x": 621.729366848543,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt03_01_01_lion_hunt.md": {
-      "x": 992.6946072810186,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt02_03_01_pandora_created.md": {
-      "x": 2105.590328578447,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt02_02_03_fire_given.md": {
-      "x": 2476.5555690109227,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt02_01_02_athena_breath.md": {
+    "開発/mythology-japanese/episodes/bt08_03_03_divine_lineage.md": {
       "x": 3960.4165307408266,
-      "y": -22915.245910034002
+      "y": -25882.96783349381
     },
-    "開発/mythology-greek/episodes/bt01_03_02_cyclops_forge.md": {
+    "開発/mythology-japanese/episodes/bt08_03_02_enthronement.md": {
+      "x": 4331.381771173303,
+      "y": -25882.96783349381
+    },
+    "開発/mythology-japanese/episodes/bt08_02_03_mountain_passage.md": {
       "x": 5073.312252038255,
-      "y": -22915.245910034002
+      "y": -25882.96783349381
     },
-    "開発/mythology-greek/episodes/bt01_02_01_zeus_grows.md": {
-      "x": -1975.027316178789,
-      "y": -22544.28066960153
+    "開発/mythology-japanese/episodes/bt08_02_02_futsu_no_mitama.md": {
+      "x": -3087.923037476218,
+      "y": -25512.002593061337
     },
-    "開発/mythology-greek/episodes/bt01_01_01_kronos_devours.md": {
+    "開発/mythology-japanese/episodes/bt08_02_01_divine_crow.md": {
+      "x": -2716.9577970437417,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt08_01_03_kumano_detour.md": {
+      "x": -2345.992556611266,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt07_03_03_eternal_mandate.md": {
+      "x": -1233.0968353138373,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt07_03_02_jewel_and_sword.md": {
       "x": -862.1315948813611,
-      "y": -22544.28066960153
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt07_03_01_mirror_bestowed.md": {
+      "x": -491.1663544488853,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt07_01_03_takachiho_landing.md": {
+      "x": 992.6946072810186,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt07_01_02_sarutahiko_encounter.md": {
+      "x": 1363.6598477134949,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt07_01_01_amaterasu_decree.md": {
+      "x": 1734.6250881459705,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt06_03_03_okuninushi_enshrined.md": {
+      "x": 2105.590328578447,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt06_03_02_pillar_rises.md": {
+      "x": 2476.5555690109227,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt06_02_03_great_shrine_promise.md": {
+      "x": 3218.4860498758744,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt06_02_02_sovereignty_transfer.md": {
+      "x": 3589.4512903083505,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt06_02_01_okuninushi_terms.md": {
+      "x": 3960.4165307408266,
+      "y": -25512.002593061337
+    },
+    "開発/mythology-japanese/episodes/bt05_03_03_white_bird.md": {
+      "x": -3087.923037476218,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt05_03_02_longing_for_home.md": {
+      "x": -2716.9577970437417,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt05_02_03_suruga_fire.md": {
+      "x": -1975.027316178789,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt05_01_03_name_bestowed.md": {
+      "x": -862.1315948813611,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt05_01_02_disguise.md": {
+      "x": -491.1663544488853,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt05_01_01_fathers_command.md": {
+      "x": -120.20111401640918,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt04_02_03_maggots_horror.md": {
+      "x": 1363.6598477134949,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt04_01_01_izanami_burns.md": {
+      "x": 3218.4860498758744,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt03_03_03_reunion.md": {
+      "x": 3589.4512903083505,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt03_03_01_slaying.md": {
+      "x": 4331.381771173303,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt03_02_03_orochi_sleeps.md": {
+      "x": 4702.347011605778,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt03_02_01_sake_brewing.md": {
+      "x": -3087.923037476218,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt03_01_03_vow_to_slay.md": {
+      "x": -2716.9577970437417,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt03_01_02_weeping_family.md": {
+      "x": -2345.992556611266,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt03_01_01_exile_arrival.md": {
+      "x": -1975.027316178789,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt02_03_03_sunlight_returns.md": {
+      "x": -1604.0620757463134,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt02_03_02_mirror_light.md": {
+      "x": -1233.0968353138373,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt02_03_01_curiosity.md": {
+      "x": -862.1315948813611,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt02_02_03_gods_laugh.md": {
+      "x": -491.1663544488853,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt02_01_01_susanoo_rampage.md": {
+      "x": 1363.6598477134949,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt01_03_03_kagutsuchi_tragedy.md": {
+      "x": 1734.6250881459705,
+      "y": -24770.072112196383
     },
     "開発/mythology-egyptian/episodes/sc08_02_senet_game.md": {
       "x": -120.20111401640918,
@@ -4956,129 +5016,69 @@
       "x": 992.6946072810186,
       "y": -26624.898314358765
     },
-    "開発/mythology-greek/episodes/sc08_03_ariadne_abandoned.md": {
-      "x": 3589.4512903083505,
-      "y": -24399.106871763906
-    },
-    "開発/mythology-greek/episodes/sc07_01_eurydice_death.md": {
-      "x": -3087.923037476218,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc06_02_wrath_of_achilles.md": {
-      "x": -2345.992556611266,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/sc01_03_great_battle.md": {
-      "x": 2847.5208094433992,
-      "y": -24028.141631331433
-    },
-    "開発/mythology-greek/episodes/bt08_03_03_black_sail_tragedy.md": {
-      "x": -1604.0620757463134,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt08_03_02_ariadne_awakens.md": {
-      "x": -1233.0968353138373,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt08_03_01_naxos_shore.md": {
-      "x": -862.1315948813611,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt08_01_01_black_sail.md": {
+    "開発/mythology-japanese/episodes/sc08_01_departure_hyuga.md": {
       "x": 1363.6598477134949,
-      "y": -23657.176390898956
+      "y": -26253.933073926288
     },
-    "開発/mythology-greek/episodes/bt07_03_03_eternal_song.md": {
-      "x": 1734.6250881459705,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt07_03_02_glance_back.md": {
+    "開発/mythology-japanese/episodes/sc07_02_konohanasakuya.md": {
       "x": 2105.590328578447,
-      "y": -23657.176390898956
+      "y": -26253.933073926288
     },
-    "開発/mythology-greek/episodes/bt07_03_01_ascending.md": {
-      "x": 2476.5555690109227,
-      "y": -23657.176390898956
+    "開発/mythology-japanese/episodes/ep08_jimmu_expedition.md": {
+      "x": 992.6946072810186,
+      "y": -25882.96783349381
     },
-    "開発/mythology-greek/episodes/bt07_02_01_cerberus_sleep.md": {
-      "x": 3589.4512903083505,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt07_01_03_orpheus_grief.md": {
-      "x": 3960.4165307408266,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt07_01_02_serpent_bite.md": {
-      "x": 4331.381771173303,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt07_01_01_wedding_joy.md": {
+    "開発/mythology-japanese/episodes/bt08_03_01_nagasunehiko_battle.md": {
       "x": 4702.347011605778,
-      "y": -23657.176390898956
+      "y": -25882.96783349381
     },
-    "開発/mythology-greek/episodes/bt06_03_03_troy_falls.md": {
-      "x": 5073.312252038255,
-      "y": -23657.176390898956
-    },
-    "開発/mythology-greek/episodes/bt06_03_02_gates_open.md": {
-      "x": -3087.923037476218,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt06_02_03_hector_duel.md": {
-      "x": -2345.992556611266,
-      "y": -23286.21115046648
-    },
-    "開発/mythology-greek/episodes/bt06_02_02_achilles_returns.md": {
+    "開発/mythology-japanese/episodes/bt08_01_02_itsuse_falls.md": {
       "x": -1975.027316178789,
-      "y": -23286.21115046648
+      "y": -25512.002593061337
     },
-    "開発/mythology-greek/episodes/bt06_02_01_patroclus_death.md": {
+    "開発/mythology-japanese/episodes/bt08_01_01_iwarebiko_resolve.md": {
       "x": -1604.0620757463134,
-      "y": -23286.21115046648
+      "y": -25512.002593061337
     },
-    "開発/mythology-greek/episodes/bt04_02_02_scylla_charybdis.md": {
-      "x": 4702.347011605778,
-      "y": -23286.21115046648
+    "開発/mythology-japanese/episodes/bt07_02_03_mortal_fate.md": {
+      "x": -120.20111401640918,
+      "y": -25512.002593061337
     },
-    "開発/mythology-greek/episodes/bt04_01_02_polyphemus_trap.md": {
-      "x": -2716.9577970437417,
-      "y": -22915.245910034002
+    "開発/mythology-japanese/episodes/bt07_02_02_rejected_sister.md": {
+      "x": 250.7641264160667,
+      "y": -25512.002593061337
     },
-    "開発/mythology-greek/episodes/bt02_03_03_box_opened.md": {
-      "x": 1363.6598477134949,
-      "y": -22915.245910034002
+    "開発/mythology-japanese/episodes/bt07_02_01_love_at_first.md": {
+      "x": 621.729366848543,
+      "y": -25512.002593061337
     },
-    "開発/mythology-greek/episodes/bt02_03_02_prometheus_chained.md": {
-      "x": 1734.6250881459705,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt02_02_02_stealing_fire.md": {
+    "開発/mythology-japanese/episodes/bt06_03_01_builders_gather.md": {
       "x": 2847.5208094433992,
-      "y": -22915.245910034002
+      "y": -25512.002593061337
     },
-    "開発/mythology-greek/episodes/bt02_02_01_humans_suffer.md": {
+    "開発/mythology-japanese/episodes/bt03_02_02_serpent_drinks.md": {
+      "x": 5073.312252038255,
+      "y": -25141.03735262886
+    },
+    "開発/mythology-japanese/episodes/bt02_02_02_ecstatic_dance.md": {
+      "x": -120.20111401640918,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt02_02_01_divine_council.md": {
+      "x": 250.7641264160667,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt02_01_03_world_darkness.md": {
+      "x": 621.729366848543,
+      "y": -24770.072112196383
+    },
+    "開発/mythology-japanese/episodes/bt01_02_02_eight_islands.md": {
       "x": 3218.4860498758744,
-      "y": -22915.245910034002
+      "y": -24770.072112196383
     },
-    "開発/mythology-greek/episodes/bt02_01_03_first_steps.md": {
-      "x": 3589.4512903083505,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt02_01_01_clay_shaping.md": {
+    "開発/mythology-japanese/episodes/bt01_01_02_stir_chaos.md": {
       "x": 4331.381771173303,
-      "y": -22915.245910034002
-    },
-    "開発/mythology-greek/episodes/bt01_03_01_titans_clash.md": {
-      "x": -3087.923037476218,
-      "y": -22544.28066960153
-    },
-    "開発/mythology-greek/episodes/bt01_02_03_war_declared.md": {
-      "x": -2716.9577970437417,
-      "y": -22544.28066960153
-    },
-    "開発/mythology-greek/episodes/bt01_01_02_rhea_grief.md": {
-      "x": -1233.0968353138373,
-      "y": -22544.28066960153
+      "y": -24770.072112196383
     },
     "開発/mythology-egyptian/episodes/sc01_01_primordial_waters.md": {
       "x": -491.1663544488853,

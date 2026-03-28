@@ -1,0 +1,15 @@
+{
+  "layout": "force",
+  "searchQuery": "node_type:character AND path:mythology-greek*",
+  "groupBy": "none",
+  "nodeSize": 30,
+  "repelForce": 300,
+  "linkDistance": 100,
+  "showLinks": true,
+  "showSemanticEdges": false,
+  "colorEdgesByRelation": true,
+  "nodeColorMode": "category",
+  "showMinimap": true,
+  "clusterArrangement": "concentric",
+  "activeTab": "layout"
+}

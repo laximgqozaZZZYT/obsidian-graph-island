@@ -1,0 +1,10 @@
+{
+  "layout": "force",
+  "searchQuery": "path:bible*",
+  "groupBy": "folder:?",
+  "collapsedGroups": [],
+  "viewMode": "sunburst",
+  "nodeColorMode": "category",
+  "showMinimap": true,
+  "activeTab": "layout"
+}

@@ -1,0 +1,18 @@
+{
+  "layout": "force",
+  "searchQuery": "path:mythology-norse* OR path:mythology-greek*",
+  "groupBy": "folder:?",
+  "collapsedGroups": [],
+  "nodeSize": 20,
+  "repelForce": 350,
+  "linkDistance": 80,
+  "showLinks": true,
+  "showSemanticEdges": true,
+  "showTagEdges": true,
+  "showSimilar": true,
+  "colorEdgesByRelation": true,
+  "nodeColorMode": "category",
+  "clusterArrangement": "grid",
+  "showMinimap": true,
+  "activeTab": "layout"
+}
