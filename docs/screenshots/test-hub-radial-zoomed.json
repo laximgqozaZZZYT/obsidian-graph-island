@@ -1,5 +1,5 @@
 {
-  "viewMode": "sunburst",
+  "viewMode": "graph",
   "matrixSortMode": "degree",
   "excludeNodes": [],
   "autoFitOnFilter": false,
@@ -21,7 +21,7 @@
   "showOrbitRings": false,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:classic-divine-comedy*",
+  "searchQuery": "path:classic-saiyuki*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -68,8 +68,8 @@
   "clusterArrangement": "custom",
   "clusterGroupArrangement": "auto",
   "clusterNodeSpacing": 3.5,
-  "clusterGroupScale": 3,
-  "clusterGroupSpacing": 2,
+  "clusterGroupScale": 5,
+  "clusterGroupSpacing": 5,
   "fadeEdgesByDegree": true,
   "edgeBundleStrength": 0.6,
   "sortRules": [
