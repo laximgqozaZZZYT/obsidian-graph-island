@@ -268,7 +268,20 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
     if (bh < 1) bh = 1;
     var scaleX = (cw - padding * 2) / bw;
     var scaleY = (ch - padding * 2) / bh;
-    var scale = Math.max(Math.min(scaleX, scaleY, 2.0), 0.3);
+    var naturalScale = Math.min(scaleX, scaleY, 2.0);
+
+    // For extreme aspect ratios (tall/narrow or wide/flat layouts),
+    // zoom in more so content fills at least 50% of the shorter dimension.
+    // This prevents layouts like timeline columns from leaving 60% of screen empty.
+    var aspectRatio = Math.max(bw / bh, bh / bw);
+    var scale = naturalScale;
+    if (aspectRatio > 1.8) {
+      // Blend toward the larger scale to fill more of the screen.
+      // More extreme ratio → stronger blend (up to 0.5).
+      var blendFactor = Math.min((aspectRatio - 1.8) / 3, 0.5);
+      var largerScale = Math.max(scaleX, scaleY);
+      scale = Math.min(naturalScale + (largerScale - naturalScale) * blendFactor, 2.0);
+    }
     if (scale < 0.01) scale = 0.01;
 
     var cx = (minX + maxX) / 2;
@@ -278,6 +291,9 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
     wc.x = cw / 2 - cx * scale;
     wc.y = ch / 2 - cy * scale;
 
+    // Disable aggregate mode for screenshots
+    if (v.renderPipeline) v.renderPipeline.aggregateMode = false;
+
     v.markDirty();
     await new Promise(function(r) { setTimeout(r, 500); });
 
@@ -286,6 +302,14 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
     if (v.renderPipeline && v.renderPipeline.cullOverlappingLabels) {
       v.renderPipeline.cullOverlappingLabels();
     }
+
+    // Force all node graphics visible (counter zoomFade at low zoom)
+    nodes.forEach(function(pn: any) {
+      if (pn.gfx) pn.gfx.visible = true;
+      if (pn.gfx) pn.gfx.alpha = 1;
+      if (pn.label) pn.label.visible = true;
+    });
+
     v.markDirty();
     await new Promise(function(r) { setTimeout(r, 500); });
   });

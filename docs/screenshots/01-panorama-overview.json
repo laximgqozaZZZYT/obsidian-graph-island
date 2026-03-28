@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:開発/classic-gilgamesh* OR path:開発/mythology-japanese*",
+  "searchQuery": "path:開発/mythology-japanese* OR path:開発/classic-arthurian*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",

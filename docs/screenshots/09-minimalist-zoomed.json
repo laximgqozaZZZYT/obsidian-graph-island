@@ -193,14 +193,6 @@
   "presetZoomLevel": 0,
   "zoomSensitivity": 1,
   "pinnedPositions": {
-    "開発/classic-gilgamesh/characters/gilgamesh.md": {
-      "x": 150.61411764705758,
-      "y": 15705.497812856376
-    },
-    "開発/classic-gilgamesh/characters/enkidu.md": {
-      "x": 803.8941176470576,
-      "y": 15705.497812856376
-    },
     "開発/mythology-japanese/characters/amaterasu.md": {
       "x": 2847.5208094433992,
       "y": -24399.106871763906
@@ -217,29 +209,9 @@
       "x": 2105.590328578447,
       "y": -24399.106871763906
     },
-    "開発/classic-gilgamesh/characters/anu.md": {
-      "x": 1783.8141176470572,
-      "y": 15705.497812856376
-    },
-    "開発/classic-gilgamesh/characters/ishtar.md": {
-      "x": -502.66588235294216,
-      "y": 15705.497812856376
-    },
-    "開発/classic-gilgamesh/characters/utnapishtim.md": {
-      "x": 2437.0941176470574,
-      "y": 15378.857812856377
-    },
-    "開発/classic-gilgamesh/characters/urshanabi.md": {
-      "x": 2763.734117647057,
-      "y": 15378.857812856377
-    },
-    "開発/classic-gilgamesh/characters/shamash.md": {
-      "x": -1482.585882352942,
-      "y": 15705.497812856376
-    },
-    "開発/classic-gilgamesh/characters/enlil.md": {
-      "x": 477.2541176470577,
-      "y": 15705.497812856376
+    "開発/classic-arthurian/characters/arthur.md": {
+      "x": 1917.6232871944721,
+      "y": -6696.866675895401
     },
     "開発/mythology-japanese/characters/takemikazuchi.md": {
       "x": 250.7641264160667,
@@ -249,13 +221,9 @@
       "x": -862.1315948813611,
       "y": -24399.106871763906
     },
-    "開発/classic-gilgamesh/characters/ninsun.md": {
-      "x": -829.3058823529423,
-      "y": 15705.497812856376
-    },
-    "開発/classic-gilgamesh/MOC.md": {
-      "x": -10.485059297249109,
-      "y": -12720.328024275306
+    "開発/classic-arthurian/MOC.md": {
+      "x": 2305.4697728884275,
+      "y": -6696.866939547881
     },
     "開発/mythology-japanese/characters/okuninushi.md": {
       "x": 1734.6250881459705,
@@ -265,25 +233,9 @@
       "x": -1233.0968353138373,
       "y": -24399.106871763906
     },
-    "開発/classic-gilgamesh/characters/humbaba.md": {
-      "x": -176.0258823529423,
-      "y": 15705.497812856376
-    },
-    "開発/classic-gilgamesh/characters/ea.md": {
-      "x": 1130.5341176470574,
-      "y": 15705.497812856376
-    },
-    "開発/classic-gilgamesh/characters/bull-of-heaven.md": {
-      "x": 1457.1741176470573,
-      "y": 15705.497812856376
-    },
     "開発/mythology-japanese/MOC.md": {
       "x": 3218.4860498758744,
       "y": -24399.106871763906
-    },
-    "開発/classic-gilgamesh/characters/shamhat.md": {
-      "x": 3417.0141176470565,
-      "y": 15378.857812856377
     },
     "開発/mythology-japanese/characters/uzume.md": {
       "x": -491.1663544488853,
@@ -293,13 +245,13 @@
       "x": -120.20111401640918,
       "y": -24399.106871763906
     },
-    "開発/classic-gilgamesh/characters/siduri.md": {
-      "x": 3090.374117647057,
-      "y": 15378.857812856377
+    "開発/classic-arthurian/characters/lancelot.md": {
+      "x": 1529.7799255370642,
+      "y": -6696.863717622847
     },
-    "開発/classic-gilgamesh/characters/scorpion-man.md": {
-      "x": -1155.9458823529421,
-      "y": 15705.497812856376
+    "開発/classic-arthurian/characters/morgan-le-fay.md": {
+      "x": 3081.165350176393,
+      "y": -6696.862453341413
     },
     "開発/mythology-japanese/episodes/ep04_yomi.md": {
       "x": 2476.5555690109227,
@@ -309,6 +261,26 @@
       "x": 992.6946072810186,
       "y": -24399.106871763906
     },
+    "開発/classic-arthurian/characters/mordred.md": {
+      "x": 2693.3171710259003,
+      "y": -6696.865173302498
+    },
+    "開発/classic-arthurian/characters/merlin.md": {
+      "x": 1917.622402586593,
+      "y": -6357.474935919002
+    },
+    "開発/classic-arthurian/characters/lady-of-the-lake.md": {
+      "x": 1141.9413154367683,
+      "y": -6696.86721869082
+    },
+    "開発/classic-arthurian/characters/guinevere.md": {
+      "x": 3469.017116588558,
+      "y": -6696.857625264096
+    },
+    "開発/classic-arthurian/characters/gawain.md": {
+      "x": 3081.166836988766,
+      "y": -6357.469267485399
+    },
     "開発/mythology-japanese/episodes/ep02_amano-iwato.md": {
       "x": 3218.4860498758744,
       "y": -25882.96783349381
@@ -316,6 +288,10 @@
     "開発/mythology-japanese/concepts/takamagahara.md": {
       "x": -1604.0620757463134,
       "y": -24399.106871763906
+    },
+    "開発/classic-arthurian/characters/uther-pendragon.md": {
+      "x": 754.0989881382146,
+      "y": -6696.874586107582
     },
     "開発/mythology-japanese/episodes/sc04_03_pursuit_escape.md": {
       "x": 5073.312252038255,
@@ -341,17 +317,29 @@
       "x": 2847.5208094433992,
       "y": -25882.96783349381
     },
+    "開発/classic-arthurian/characters/percival.md": {
+      "x": 3469.0184950787575,
+      "y": -6357.470688030626
+    },
+    "開発/classic-arthurian/characters/galahad.md": {
+      "x": 2693.3186036033185,
+      "y": -6357.469983409984
+    },
     "開発/mythology-japanese/episodes/sc05_03_final_journey.md": {
       "x": 3960.4165307408266,
       "y": -26253.933073926288
     },
-    "開発/classic-gilgamesh/episodes/ep04_bull-of-heaven.md": {
-      "x": 2407.8464749296595,
-      "y": -14332.549047093245
+    "開発/classic-arthurian/characters/tristan.md": {
+      "x": 366.251544942543,
+      "y": -6357.492356139369
     },
-    "開発/classic-gilgamesh/episodes/act3_wisdom.md": {
-      "x": -816.5955707062186,
-      "y": -13123.38327997979
+    "開発/classic-arthurian/characters/isolde.md": {
+      "x": 366.2462295946825,
+      "y": -6696.878970361547
+    },
+    "開発/classic-arthurian/characters/bedivere.md": {
+      "x": 2305.471260297232,
+      "y": -6357.472304874349
     },
     "開発/mythology-japanese/episodes/ep01_kuniumi.md": {
       "x": 3589.4512903083505,
@@ -369,33 +357,9 @@
       "x": 1363.6598477134949,
       "y": -24399.106871763906
     },
-    "開発/classic-gilgamesh/episodes/ep06_quest-for-immortality.md": {
-      "x": -1622.706082115188,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep05_death-of-enkidu.md": {
-      "x": 3617.0122420431135,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep04_sc03_bull-slaying.md": {
-      "x": 4020.067497747599,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep03_sc03_humbaba-battle.md": {
-      "x": 2810.9017306341443,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep03_cedar-forest.md": {
-      "x": 1198.680707816205,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/act2_loss-and-grief.md": {
-      "x": -413.5403150017338,
-      "y": -13123.38327997979
-    },
-    "開発/classic-gilgamesh/episodes/act1_friendship.md": {
-      "x": -10.485059297249109,
-      "y": -13123.38327997979
+    "開発/classic-arthurian/characters/kay.md": {
+      "x": 754.1056093046906,
+      "y": -6357.48513627436
     },
     "開発/mythology-japanese/episodes/ep05_yamato-takeru-quest.md": {
       "x": 2105.590328578447,
@@ -416,78 +380,6 @@
     "開発/mythology-japanese/episodes/act1_creation.md": {
       "x": -2716.9577970437417,
       "y": -24399.106871763906
-    },
-    "開発/classic-gilgamesh/episodes/ep07_utnapishtim.md": {
-      "x": 1198.680707816205,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep07_sc03_plant-of-youth.md": {
-      "x": 1601.73596352069,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep07_sc01_flood-story.md": {
-      "x": -1622.706082115188,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep07_sc01_bt03_flood-narrative.md": {
-      "x": -1219.6508264107033,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep06_sc03_siduri-encounter.md": {
-      "x": -10.485059297249109,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep05_sc02_bt02_curse-and-blessing.md": {
-      "x": 1198.680707816205,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep05_sc01_divine-judgment.md": {
-      "x": 2004.7912192251747,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep05_sc01_bt01_gods-debate.md": {
-      "x": 3213.956986338629,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep04_sc03_bt01_combined-attack.md": {
-      "x": -1219.6508264107033,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep04_sc02_bull-unleashed.md": {
-      "x": -816.5955707062186,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep04_sc02_bt03_heroes-respond.md": {
-      "x": -413.5403150017338,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep03_sc03_bt03_humbaba-falls.md": {
-      "x": 3213.956986338629,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep03_sc03_bt02_thirteen-winds.md": {
-      "x": 3617.0122420431135,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep03_sc02_forest-approach.md": {
-      "x": -2025.761337819673,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep03_sc01_departure.md": {
-      "x": -413.5403150017338,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep03_sc01_bt03_ninsun-prayer.md": {
-      "x": -10.485059297249109,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep03_sc01_bt02_enkidu-warns.md": {
-      "x": 392.5701964072357,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep02_sc03_journey-to-uruk.md": {
-      "x": 1601.73596352069,
-      "y": -13929.493791388759
     },
     "開発/mythology-japanese/episodes/sc08_02_yatagarasu_guide.md": {
       "x": 992.6946072810186,
@@ -608,222 +500,6 @@
     "開発/mythology-japanese/episodes/bt01_01_01_spear_thrust.md": {
       "x": 4702.347011605778,
       "y": -24770.072112196383
-    },
-    "開発/classic-gilgamesh/episodes/ep08_sc02_walls-of-uruk.md": {
-      "x": 4020.067497747599,
-      "y": -15944.770069911183
-    },
-    "開発/classic-gilgamesh/episodes/ep08_sc02_bt02_showing-walls.md": {
-      "x": -1622.706082115188,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep08_sc02_bt01_approaching-uruk.md": {
-      "x": -1219.6508264107033,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep08_sc01_serpents-theft.md": {
-      "x": -816.5955707062186,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep08_sc01_bt03_weeping-king.md": {
-      "x": -413.5403150017338,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep08_return-to-uruk.md": {
-      "x": 795.6254521117204,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep07_sc03_bt03_hope-restored.md": {
-      "x": 2004.7912192251747,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep07_sc03_bt01_wifes-mercy.md": {
-      "x": 2810.9017306341443,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep07_sc02_sleep-trial.md": {
-      "x": 3213.956986338629,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep07_sc02_bt03_bread-proof.md": {
-      "x": 3617.0122420431135,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep07_sc02_bt02_instant-sleep.md": {
-      "x": 4020.067497747599,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep07_sc02_bt01_challenge-issued.md": {
-      "x": -2025.761337819673,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep07_sc01_bt02_meeting-immortal.md": {
-      "x": -816.5955707062186,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep07_sc01_bt01_crossing-death-waters.md": {
-      "x": -413.5403150017338,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep06_sc03_bt03_urshanabi-meeting.md": {
-      "x": 392.5701964072357,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep06_sc03_bt02_siduri-advice.md": {
-      "x": 795.6254521117204,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep06_sc02_mashu-mountain.md": {
-      "x": 1601.73596352069,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep06_sc02_bt02_permission-granted.md": {
-      "x": 2407.8464749296595,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep06_sc02_bt01_scorpion-gate.md": {
-      "x": 2810.9017306341443,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep05_sc03_death-and-mourning.md": {
-      "x": -1219.6508264107033,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep05_sc03_bt03_seven-nights-vigil.md": {
-      "x": -816.5955707062186,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep05_sc03_bt02_enkidu-dies.md": {
-      "x": -413.5403150017338,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep05_sc03_bt01_twelve-days.md": {
-      "x": -10.485059297249109,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep05_sc02_enkidus-dreams.md": {
-      "x": 392.5701964072357,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep05_sc01_bt03_illness-begins.md": {
-      "x": 2407.8464749296595,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep05_sc01_bt02_enkidu-chosen.md": {
-      "x": 2810.9017306341443,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep04_sc03_bt03_victory-feast.md": {
-      "x": -2025.761337819673,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep04_sc03_bt02_insult-to-ishtar.md": {
-      "x": -1622.706082115188,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep04_sc02_bt01_bull-descends.md": {
-      "x": 392.5701964072357,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep04_sc01_ishtars-proposal.md": {
-      "x": 795.6254521117204,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep04_sc01_bt03_ishtar-rage.md": {
-      "x": 1198.680707816205,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep04_sc01_bt02_rejection.md": {
-      "x": 1601.73596352069,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep04_sc01_bt01_ishtar-desire.md": {
-      "x": 2004.7912192251747,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep03_sc03_bt01_humbaba-roar.md": {
-      "x": 4020.067497747599,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep03_sc02_bt03_shamash-voice.md": {
-      "x": -1622.706082115188,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep03_sc02_bt02_cedar-gate.md": {
-      "x": -1219.6508264107033,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep03_sc02_bt01_journey-dreams.md": {
-      "x": -816.5955707062186,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep03_sc01_bt01_glory-speech.md": {
-      "x": 795.6254521117204,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep02_sc03_bt03_gate-confrontation.md": {
-      "x": 2004.7912192251747,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep02_sc03_bt02_hearing-of-gilgamesh.md": {
-      "x": 2407.8464749296595,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep02_sc03_bt01_bread-and-beer.md": {
-      "x": 2810.9017306341443,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep02_sc02_shamhats-teaching.md": {
-      "x": 3213.956986338629,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep02_sc02_bt03_awakening.md": {
-      "x": 3617.0122420431135,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep02_sc02_bt02_seven-nights.md": {
-      "x": 4020.067497747599,
-      "y": -13929.493791388759
-    },
-    "開発/classic-gilgamesh/episodes/ep02_sc02_bt01_shamhat-arrives.md": {
-      "x": -2025.761337819673,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep02_enkidu-creation.md": {
-      "x": -10.485059297249109,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep01_tyrant-of-uruk.md": {
-      "x": 392.5701964072357,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep01_sc03_prophetic-dreams.md": {
-      "x": 795.6254521117204,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep01_sc03_bt03_ninsun-interprets.md": {
-      "x": 1198.680707816205,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep01_sc03_bt02_second-dream.md": {
-      "x": 1601.73596352069,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep01_sc03_bt01_first-dream.md": {
-      "x": 2004.7912192251747,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep01_sc02_divine-council.md": {
-      "x": 2407.8464749296595,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep01_sc02_bt03_divine-plan.md": {
-      "x": 2810.9017306341443,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep01_sc02_bt02_aruru-creates.md": {
-      "x": 3213.956986338629,
-      "y": -13526.438535684276
     },
     "開発/mythology-japanese/episodes/sc08_03_yamato_founding.md": {
       "x": 621.729366848543,
@@ -1009,109 +685,17 @@
       "x": 1734.6250881459705,
       "y": -24770.072112196383
     },
-    "開発/classic-gilgamesh/episodes/ep08_sc03_stone-tablet.md": {
-      "x": 2407.8464749296595,
-      "y": -15944.770069911183
+    "開発/classic-arthurian/episodes/act3_fall-of-camelot.md": {
+      "x": -797.2712059541777,
+      "y": -6696.897430424842
     },
-    "開発/classic-gilgamesh/episodes/ep08_sc03_bt03_eternal-story.md": {
-      "x": 2810.9017306341443,
-      "y": -15944.770069911183
+    "開発/classic-arthurian/episodes/act2_quest-for-grail.md": {
+      "x": -1185.1358466222218,
+      "y": -6696.901784085005
     },
-    "開発/classic-gilgamesh/episodes/ep08_sc03_bt02_all-journeys-told.md": {
-      "x": 3213.956986338629,
-      "y": -15944.770069911183
-    },
-    "開発/classic-gilgamesh/episodes/ep08_sc03_bt01_chisel-in-hand.md": {
-      "x": 3617.0122420431135,
-      "y": -15944.770069911183
-    },
-    "開発/classic-gilgamesh/episodes/ep08_sc02_bt03_mortal-immortality.md": {
-      "x": -2025.761337819673,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep08_sc01_bt02_serpent-strikes.md": {
-      "x": -10.485059297249109,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep08_sc01_bt01_pool-rest.md": {
-      "x": 392.5701964072357,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep07_sc03_bt02_diving-deep.md": {
-      "x": 2407.8464749296595,
-      "y": -15541.714814206698
-    },
-    "開発/classic-gilgamesh/episodes/ep06_sc03_bt01_jewel-garden.md": {
-      "x": 1198.680707816205,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep06_sc02_bt03_dark-passage.md": {
-      "x": 2004.7912192251747,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep06_sc01_wilderness-wandering.md": {
-      "x": 3213.956986338629,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep06_sc01_bt03_lions-at-pass.md": {
-      "x": 3617.0122420431135,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep06_sc01_bt02_wild-wandering.md": {
-      "x": 4020.067497747599,
-      "y": -15138.659558502213
-    },
-    "開発/classic-gilgamesh/episodes/ep06_sc01_bt01_fear-of-death.md": {
-      "x": -2025.761337819673,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep05_sc02_bt03_netherworld-vision.md": {
-      "x": 795.6254521117204,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep05_sc02_bt01_cursing-gate.md": {
-      "x": 1601.73596352069,
-      "y": -14735.604302797728
-    },
-    "開発/classic-gilgamesh/episodes/ep04_sc02_bt02_devastation.md": {
-      "x": -10.485059297249109,
-      "y": -14332.549047093245
-    },
-    "開発/classic-gilgamesh/episodes/ep02_sc01_bt03_trapper-discovers.md": {
-      "x": -1622.706082115188,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep02_sc01_bt02_life-with-beasts.md": {
-      "x": -1219.6508264107033,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep02_sc01_bt01_clay-birth.md": {
-      "x": -816.5955707062186,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep02_sc01_birth-in-wilderness.md": {
-      "x": -413.5403150017338,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep01_sc02_bt01_anu-hears.md": {
-      "x": 3617.0122420431135,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep01_sc01_peoples-lament.md": {
-      "x": 4020.067497747599,
-      "y": -13526.438535684276
-    },
-    "開発/classic-gilgamesh/episodes/ep01_sc01_bt03_walls-description.md": {
-      "x": -2025.761337819673,
-      "y": -13123.38327997979
-    },
-    "開発/classic-gilgamesh/episodes/ep01_sc01_bt02_cries-to-heaven.md": {
-      "x": -1622.706082115188,
-      "y": -13123.38327997979
-    },
-    "開発/classic-gilgamesh/episodes/ep01_sc01_bt01_oppression.md": {
-      "x": -1219.6508264107033,
-      "y": -13123.38327997979
+    "開発/classic-arthurian/episodes/act1_rise-of-arthur.md": {
+      "x": -1573.0023080785645,
+      "y": -6696.896901345229
     },
     "開発/mythology-japanese/episodes/sc08_01_departure_hyuga.md": {
       "x": 1363.6598477134949,
@@ -1177,13 +761,429 @@
       "x": 4331.381771173303,
       "y": -24770.072112196383
     },
+    "開発/classic-arthurian/episodes/sc08_03_return-to-avalon.md": {
+      "x": -797.2649481221273,
+      "y": -6357.521766577728
+    },
+    "開発/classic-arthurian/episodes/sc08_02_the-last-battle.md": {
+      "x": -1185.1357890710954,
+      "y": -6357.52564702046
+    },
+    "開発/classic-arthurian/episodes/sc08_01_mordreds-revolt.md": {
+      "x": -1573.0087974470264,
+      "y": -6357.5226965400425
+    },
+    "開発/classic-arthurian/episodes/sc07_03_rescue-and-flight.md": {
+      "x": -797.2607081523886,
+      "y": -6018.1510773725195
+    },
+    "開発/classic-arthurian/episodes/sc07_02_the-accusation.md": {
+      "x": -1185.134920367361,
+      "y": -6018.1533595709525
+    },
+    "開発/classic-arthurian/episodes/sc07_01_secret-meetings.md": {
+      "x": -1573.012035791435,
+      "y": -6018.152749110957
+    },
+    "開発/classic-arthurian/episodes/sc06_03_tragic-end.md": {
+      "x": -797.2570115773449,
+      "y": -5678.782086738662
+    },
+    "開発/classic-arthurian/episodes/sc06_02_forbidden-love.md": {
+      "x": -1185.1344579945498,
+      "y": -5678.785223999351
+    },
+    "開発/classic-arthurian/episodes/sc06_01_the-potion.md": {
+      "x": -1573.0137823626446,
+      "y": -5678.784889531181
+    },
+    "開発/classic-arthurian/episodes/sc05_03_grail-castle.md": {
+      "x": -797.2553726805044,
+      "y": -5339.416441060673
+    },
+    "開発/classic-arthurian/episodes/sc05_02_galahads-path.md": {
+      "x": -1185.133099976318,
+      "y": -5339.418391558043
+    },
+    "開発/classic-arthurian/episodes/sc05_01_percivals-test.md": {
+      "x": -1573.0140975330974,
+      "y": -5339.418481077649
+    },
+    "開発/classic-arthurian/episodes/sc04_03_departure.md": {
+      "x": -797.252354535463,
+      "y": -5000.051858476864
+    },
+    "開発/classic-arthurian/episodes/sc04_02_galahad-arrives.md": {
+      "x": -1185.1328313401887,
+      "y": -5000.052960728848
+    },
+    "開発/classic-arthurian/episodes/sc04_01_grail-vision.md": {
+      "x": -1573.0145555354732,
+      "y": -5000.053843174495
+    },
+    "開発/classic-arthurian/episodes/sc03_03_guinevere-arrives.md": {
+      "x": -797.2502881817485,
+      "y": -4660.686542728315
+    },
+    "開発/classic-arthurian/episodes/sc03_02_knights-oath.md": {
+      "x": -1185.1317422664101,
+      "y": -4660.688727690724
+    },
+    "開発/classic-arthurian/episodes/sc03_01_camelot-built.md": {
+      "x": -1573.014934121727,
+      "y": -4660.689132186581
+    },
+    "開発/classic-arthurian/episodes/sc02_03_the-gift.md": {
+      "x": -797.250022763474,
+      "y": -4321.323796310894
+    },
+    "開発/classic-arthurian/episodes/sc02_02_lake-journey.md": {
+      "x": -1185.1305966256677,
+      "y": -4321.324886867975
+    },
+    "開発/classic-arthurian/episodes/sc02_01_broken-sword.md": {
+      "x": -1573.0142902547318,
+      "y": -4321.32521491288
+    },
+    "開発/classic-arthurian/episodes/sc01_03_the-drawing.md": {
+      "x": -797.247916599166,
+      "y": -3981.9611874919506
+    },
+    "開発/classic-arthurian/episodes/sc01_02_the-gathering.md": {
+      "x": -1185.13025849806,
+      "y": -3981.9612220739546
+    },
+    "開発/classic-arthurian/episodes/sc01_01_uthers-death.md": {
+      "x": -1573.014488490506,
+      "y": -3981.9618047959552
+    },
+    "開発/classic-arthurian/episodes/ep08_battle-of-camlann.md": {
+      "x": -1185.1298995354175,
+      "y": -3642.5981428819773
+    },
+    "開発/classic-arthurian/episodes/ep07_lancelot-affair.md": {
+      "x": -1573.0149431266684,
+      "y": -3642.5985073318275
+    },
+    "開発/classic-arthurian/episodes/ep06_tristan-and-isolde.md": {
+      "x": -797.2465773472604,
+      "y": -3642.59679211926
+    },
+    "開発/classic-arthurian/episodes/ep05_grail-trials.md": {
+      "x": -1185.1284646776207,
+      "y": -3303.238101169238
+    },
+    "開発/classic-arthurian/episodes/ep04_quest-begins.md": {
+      "x": -1573.0128471794037,
+      "y": -3303.2383375906543
+    },
+    "開発/classic-arthurian/episodes/ep03_round-table.md": {
+      "x": -797.2470787213593,
+      "y": -3303.2369122511254
+    },
+    "開発/classic-arthurian/episodes/ep02_excalibur.md": {
+      "x": -1185.128142310588,
+      "y": -2963.875136172402
+    },
+    "開発/classic-arthurian/episodes/ep01_sword-in-stone.md": {
+      "x": -1573.013213433474,
+      "y": -2963.8755838606166
+    },
+    "開発/classic-arthurian/episodes/bt08_03_03_departure-to-avalon.md": {
+      "x": -797.2449161848722,
+      "y": -2963.875087104414
+    },
+    "開発/classic-arthurian/episodes/bt08_03_02_hand-receives.md": {
+      "x": -1185.1278382978103,
+      "y": -2624.5117397833465
+    },
+    "開発/classic-arthurian/episodes/bt08_03_01_excalibur-returned.md": {
+      "x": -1573.0133382423232,
+      "y": -2624.512085633307
+    },
+    "開発/classic-arthurian/episodes/bt08_02_03_mutual-strike.md": {
+      "x": -797.2440568921467,
+      "y": -2624.5105216735583
+    },
+    "開発/classic-arthurian/episodes/bt08_02_02_the-adder.md": {
+      "x": -1185.127133309579,
+      "y": -2285.149704591162
+    },
+    "開発/classic-arthurian/episodes/bt08_02_01_eve-of-battle.md": {
+      "x": -1573.0125577049755,
+      "y": -2285.1498128805797
+    },
+    "開発/classic-arthurian/episodes/bt08_01_03_arthurs-return.md": {
+      "x": -797.244852897536,
+      "y": -2285.1494036280055
+    },
+    "開発/classic-arthurian/episodes/bt08_01_02_false-news.md": {
+      "x": -1185.1272196016089,
+      "y": -1945.7873841955727
+    },
+    "開発/classic-arthurian/episodes/bt08_01_01_usurpation.md": {
+      "x": -1573.0127835154005,
+      "y": -1945.7876966268548
+    },
+    "開発/classic-arthurian/episodes/bt07_03_03_flight-to-france.md": {
+      "x": -797.2435892590547,
+      "y": -1945.7880218836178
+    },
+    "開発/classic-arthurian/episodes/bt07_03_02_gareth-falls.md": {
+      "x": -1185.127252734852,
+      "y": -1606.425330569679
+    },
+    "開発/classic-arthurian/episodes/bt07_03_01_rescue-charge.md": {
+      "x": -1573.0133327457,
+      "y": -1606.4254207922065
+    },
+    "開発/classic-arthurian/episodes/bt07_02_02_arthurs-anguish.md": {
+      "x": -1185.1268403248143,
+      "y": -1267.0637375932295
+    },
+    "開発/classic-arthurian/episodes/bt07_02_03_death-sentence.md": {
+      "x": -797.242946928373,
+      "y": -1606.4245590956605
+    },
+    "開発/classic-arthurian/episodes/bt07_02_01_public-accusation.md": {
+      "x": -1573.0127151617132,
+      "y": -1267.0635776500171
+    },
+    "開発/classic-arthurian/episodes/bt07_01_03_caught-in-act.md": {
+      "x": -797.244144804405,
+      "y": -1267.0637946291201
+    },
+    "開発/classic-arthurian/episodes/bt07_01_02_evidence-gathered.md": {
+      "x": -1185.1272101831437,
+      "y": -927.7033269477259
+    },
+    "開発/classic-arthurian/episodes/bt07_01_01_mordreds-spy.md": {
+      "x": -1573.0130622420738,
+      "y": -927.7031944603237
+    },
+    "開発/classic-arthurian/episodes/bt06_03_02_exile.md": {
+      "x": -1185.127496535961,
+      "y": -588.3404939520958
+    },
+    "開発/classic-arthurian/episodes/bt06_03_03_lovers-death.md": {
+      "x": -797.2433097671299,
+      "y": -927.7041078688542
+    },
+    "開発/classic-arthurian/episodes/bt06_03_01_discovery.md": {
+      "x": -1573.0135720952705,
+      "y": -588.3402976413412
+    },
+    "開発/classic-arthurian/episodes/bt06_02_03_suspicion-grows.md": {
+      "x": -797.2432028403542,
+      "y": -588.3400017380669
+    },
+    "開発/classic-arthurian/episodes/bt06_02_02_loyal-conflict.md": {
+      "x": -1185.1286371436438,
+      "y": -248.98072524844778
+    },
+    "開発/classic-arthurian/episodes/bt06_01_03_guilty-arrival.md": {
+      "x": -797.2464534156811,
+      "y": -248.980713543528
+    },
+    "開発/classic-arthurian/episodes/bt06_02_01_secret-tryst.md": {
+      "x": -1573.0139193135117,
+      "y": -248.9804868630009
+    },
+    "開発/classic-arthurian/episodes/bt06_01_02_the-drink.md": {
+      "x": -1185.1290201180045,
+      "y": 90.38169075498496
+    },
+    "開発/classic-arthurian/episodes/bt06_01_01_voyage-to-cornwall.md": {
+      "x": -1573.0144699169784,
+      "y": 90.38174714953425
+    },
+    "開発/classic-arthurian/episodes/bt05_03_03_return-to-camelot.md": {
+      "x": -797.2454545670432,
+      "y": 90.38070378827547
+    },
+    "開発/classic-arthurian/episodes/bt05_03_02_galahads-ascension.md": {
+      "x": -1185.1293871472342,
+      "y": 429.74382323129646
+    },
+    "開発/classic-arthurian/episodes/bt05_03_01_grail-chapel.md": {
+      "x": -1573.0153555008633,
+      "y": 429.74413451742504
+    },
+    "開発/classic-arthurian/episodes/bt05_02_03_three-unite.md": {
+      "x": -797.2451390050697,
+      "y": 429.7441894420353
+    },
+    "開発/classic-arthurian/episodes/bt05_02_02_castle-of-maidens.md": {
+      "x": -1185.1293503199877,
+      "y": 769.1054957467625
+    },
+    "開発/classic-arthurian/episodes/bt05_02_01_healing-knight.md": {
+      "x": -1573.0150998854351,
+      "y": 769.1061015801447
+    },
+    "開発/classic-arthurian/episodes/bt05_01_03_purification.md": {
+      "x": -797.24671896037,
+      "y": 769.1049778712385
+    },
+    "開発/classic-arthurian/episodes/bt05_01_02_prayer.md": {
+      "x": -1185.1301250085337,
+      "y": 1108.4667852828068
+    },
+    "開発/classic-arthurian/episodes/bt05_01_01_temptation.md": {
+      "x": -1573.015625115382,
+      "y": 1108.467378035333
+    },
+    "開発/classic-arthurian/episodes/bt04_03_03_empty-hall.md": {
+      "x": -797.2465077045341,
+      "y": 1108.4654521913308
+    },
+    "開発/classic-arthurian/episodes/bt04_03_02_farewell.md": {
+      "x": -1185.1308837091324,
+      "y": 1447.829938868231
+    },
+    "開発/classic-arthurian/episodes/bt04_03_01_arthurs-sorrow.md": {
+      "x": -1573.0165109285865,
+      "y": 1447.8306471742872
+    },
+    "開発/classic-arthurian/episodes/bt04_02_03_sword-in-stone-again.md": {
+      "x": -797.246959872399,
+      "y": 1447.8298013110311
+    },
+    "開発/classic-arthurian/episodes/bt04_02_02_galahad-sits.md": {
+      "x": -1185.1312519152386,
+      "y": 1787.1919656616756
+    },
+    "開発/classic-arthurian/episodes/bt04_02_01_empty-seat.md": {
+      "x": -1573.0165285352866,
+      "y": 1787.192952050455
+    },
+    "開発/classic-arthurian/episodes/bt04_01_03_the-vow.md": {
+      "x": -797.249063037608,
+      "y": 1787.190884521573
+    },
+    "開発/classic-arthurian/episodes/bt04_01_02_thunder-and-light.md": {
+      "x": -1185.1324537091896,
+      "y": 2126.554499694009
+    },
+    "開発/classic-arthurian/episodes/bt04_01_01_pentecost-feast.md": {
+      "x": -1573.0176037927858,
+      "y": 2126.5553485745445
+    },
+    "開発/classic-arthurian/episodes/bt03_03_03_first-glance.md": {
+      "x": -797.2491492727974,
+      "y": 2126.55241652887
+    },
+    "開発/classic-arthurian/episodes/bt03_03_02_wedding-feast.md": {
+      "x": -1185.1337603100114,
+      "y": 2465.917508737129
+    },
+    "開発/classic-arthurian/episodes/bt03_03_01_the-proposal.md": {
+      "x": -1573.0189112712458,
+      "y": 2465.9186350799896
+    },
+    "開発/classic-arthurian/episodes/bt03_02_03_first-quest.md": {
+      "x": -797.2502457840942,
+      "y": 2465.9166261943124
+    },
+    "開発/classic-arthurian/episodes/bt03_02_02_the-oath.md": {
+      "x": -1185.134665060655,
+      "y": 2805.2800499706186
+    },
+    "開発/classic-arthurian/episodes/bt03_02_01_lancelot-joins.md": {
+      "x": -1573.0191759188885,
+      "y": 2805.281506766975
+    },
+    "開発/classic-arthurian/episodes/bt03_01_03_the-round-table.md": {
+      "x": -797.2530774282209,
+      "y": 2805.2782467646352
+    },
+    "開発/classic-arthurian/episodes/bt03_01_02_building.md": {
+      "x": -1185.1363295071685,
+      "y": 3144.6426816805506
+    },
+    "開発/classic-arthurian/episodes/bt03_01_01_the-vision.md": {
+      "x": -1573.0201991740425,
+      "y": 3144.6440821931565
+    },
+    "開発/classic-arthurian/episodes/bt02_03_03_oath-to-lake.md": {
+      "x": -797.2543680258972,
+      "y": 3144.639837634818
+    },
+    "開発/classic-arthurian/episodes/bt02_03_02_the-scabbard.md": {
+      "x": -1185.1381373931317,
+      "y": 3484.0076447463384
+    },
+    "開発/classic-arthurian/episodes/bt02_03_01_hand-from-lake.md": {
+      "x": -1573.0213661507678,
+      "y": 3484.009140131722
+    },
+    "開発/classic-arthurian/episodes/bt02_02_03_lake-arrival.md": {
+      "x": -797.2565765096633,
+      "y": 3484.005808934342
+    },
+    "開発/classic-arthurian/episodes/bt02_02_02_the-mist.md": {
+      "x": -1185.1395545616726,
+      "y": 3823.3721910306217
+    },
+    "開発/classic-arthurian/episodes/bt02_02_01_forest-path.md": {
+      "x": -1573.0216197178493,
+      "y": 3823.3737880812428
+    },
+    "開発/classic-arthurian/episodes/bt02_01_03_merlins-guidance.md": {
+      "x": -797.260773284193,
+      "y": 3823.3692680212826
+    },
+    "開発/classic-arthurian/episodes/bt02_01_02_sword-breaks.md": {
+      "x": -1185.1421838044987,
+      "y": 4162.737504143643
+    },
+    "開発/classic-arthurian/episodes/bt02_01_01_first-battle.md": {
+      "x": -1573.0223218504384,
+      "y": 4162.738731291403
+    },
+    "開発/classic-arthurian/episodes/bt01_03_03_coronation.md": {
+      "x": -797.2641262357768,
+      "y": 4162.733050206986
+    },
+    "開発/classic-arthurian/episodes/bt01_03_02_doubt-and-proof.md": {
+      "x": -1185.1442599374332,
+      "y": 4502.106698083107
+    },
+    "開発/classic-arthurian/episodes/bt01_03_01_the-pull.md": {
+      "x": -1573.0224621976326,
+      "y": 4502.107076863119
+    },
+    "開発/classic-arthurian/episodes/bt01_02_03_arthurs-chance.md": {
+      "x": -797.2690629406346,
+      "y": 4502.103199138947
+    },
+    "開発/classic-arthurian/episodes/bt01_02_02_failed-attempts.md": {
+      "x": -1185.1453955836566,
+      "y": 4841.478156732429
+    },
+    "開発/classic-arthurian/episodes/bt01_01_03_merlins-plan.md": {
+      "x": -797.2778311863603,
+      "y": 4841.475584545893
+    },
+    "開発/classic-arthurian/episodes/bt01_02_01_lords-arrive.md": {
+      "x": -1573.0196759964379,
+      "y": 4841.476627532939
+    },
+    "開発/classic-arthurian/episodes/bt01_01_02_kingdom-in-chaos.md": {
+      "x": -1185.146297527822,
+      "y": 5180.850053404946
+    },
+    "開発/classic-arthurian/episodes/bt01_01_01_final-words.md": {
+      "x": -1573.0150682347873,
+      "y": 5180.848776253172
+    },
+    "開発/classic-gilgamesh/characters/gilgamesh.md": {
+      "x": 150.61411764705758,
+      "y": 15705.497812856376
+    },
     "開発/classic-saiyuki/characters/sun-wukong.md": {
       "x": -176.0258823529423,
       "y": 14072.297812856377
-    },
-    "開発/classic-arthurian/characters/arthur.md": {
-      "x": 1917.6232870007025,
-      "y": -6696.866675973384
     },
     "開発/classic-hamlet/characters/hamlet.md": {
       "x": 343.12193440395754,
@@ -1253,6 +1253,14 @@
       "x": 1562.2929140740002,
       "y": -7210.52634946561
     },
+    "開発/classic-gilgamesh/characters/ea.md": {
+      "x": 1130.5341176470574,
+      "y": 15705.497812856376
+    },
+    "開発/classic-gilgamesh/characters/anu.md": {
+      "x": 1783.8141176470572,
+      "y": 15705.497812856376
+    },
     "開発/mythology-greek/characters/athena.md": {
       "x": -2716.9577970437417,
       "y": -22173.31542916905
@@ -1264,6 +1272,14 @@
     "開発/classic-sangokushi/characters/zhang-fei.md": {
       "x": -345.73810691342476,
       "y": -7210.52634946561
+    },
+    "開発/classic-gilgamesh/characters/ishtar.md": {
+      "x": -502.66588235294216,
+      "y": 15705.497812856376
+    },
+    "開発/classic-gilgamesh/characters/enlil.md": {
+      "x": 477.2541176470577,
+      "y": 15705.497812856376
     },
     "開発/mythology-norse/characters/loki.md": {
       "x": -2716.9577970437417,
@@ -1292,6 +1308,14 @@
     "開発/classic-king-lear/characters/edmund.md": {
       "x": 2703.5159959102793,
       "y": -17459.795698459897
+    },
+    "開発/classic-gilgamesh/characters/shamash.md": {
+      "x": -1482.585882352942,
+      "y": 15705.497812856376
+    },
+    "開発/classic-gilgamesh/characters/ninsun.md": {
+      "x": -829.3058823529423,
+      "y": 15705.497812856376
     },
     "開発/classic-arabian-nights/characters/genie-lamp.md": {
       "x": -829.3058823529423,
@@ -1326,8 +1350,8 @@
       "y": 16358.777812856377
     },
     "開発/bible-old-testament/concepts/ark-of-covenant.md": {
-      "x": 364.9236857372345,
-      "y": 3785.0276948890046
+      "x": 364.9236855886518,
+      "y": 3785.027695011734
     },
     "開発/bible-new-testament/characters/jesus.md": {
       "x": 477.2541176470577,
@@ -1346,16 +1370,16 @@
       "y": 17012.057812856376
     },
     "開発/bible-new-testament/concepts/golgotha.md": {
-      "x": 3753.412375055657,
-      "y": 2323.3761646157636
+      "x": 3753.4123748033835,
+      "y": 2323.3761645400227
     },
     "開発/bible-apocrypha/concepts/seven-heavens.md": {
-      "x": 3520.232803289561,
-      "y": 2636.5858244160804
+      "x": 3520.232803216152,
+      "y": 2636.5858244473757
     },
     "開発/bible-apocrypha/concepts/book-of-life.md": {
-      "x": 3252.2699887543035,
-      "y": 2920.6099146276074
+      "x": 3252.269988629922,
+      "y": 2920.6099146642255
     },
     "開発/mythology-egyptian/concepts/eye-of-ra.md": {
       "x": -3087.923037476218,
@@ -1393,21 +1417,13 @@
       "x": 649.4996582459348,
       "y": -17459.795698459897
     },
+    "開発/classic-gilgamesh/characters/humbaba.md": {
+      "x": -176.0258823529423,
+      "y": 15705.497812856376
+    },
     "開発/classic-genji/characters/kiritsubo-emperor.md": {
       "x": -176.0258823529423,
       "y": 16032.137812856377
-    },
-    "開発/classic-arthurian/characters/uther-pendragon.md": {
-      "x": 754.0989883378172,
-      "y": -6696.874586059655
-    },
-    "開発/classic-arthurian/characters/mordred.md": {
-      "x": 2693.3171708496907,
-      "y": -6696.865173349797
-    },
-    "開発/classic-arthurian/characters/lancelot.md": {
-      "x": 1529.7799252413479,
-      "y": -6696.863717395729
     },
     "開発/classic-arabian-nights/characters/shahryar.md": {
       "x": 1457.1741176470573,
@@ -1450,8 +1466,8 @@
       "y": 17012.057812856376
     },
     "開発/bible-old-testament/concepts/ten-commandments.md": {
-      "x": 697.1705602943993,
-      "y": -2308.7094444902505
+      "x": 697.1705605280679,
+      "y": -2308.7094444663767
     },
     "開発/mythology-norse/concepts/bifrost.md": {
       "x": 3589.4512903083505,
@@ -1490,12 +1506,12 @@
       "y": 16685.417812856376
     },
     "開発/bible-old-testament/concepts/promised-land.md": {
-      "x": -1239.7218882269208,
-      "y": -1266.4214148756569
+      "x": -1239.7218882300783,
+      "y": -1266.4214150210114
     },
     "開発/bible-apocrypha/concepts/dead-sea-scrolls.md": {
-      "x": -1074.5248882558722,
-      "y": -1455.5047612060923
+      "x": -1074.5248881605244,
+      "y": -1455.5047610721795
     },
     "開発/mythology-norse/concepts/mjolnir.md": {
       "x": 2847.5208094433992,
@@ -1557,10 +1573,6 @@
       "x": 150.61411764705758,
       "y": 16032.137812856377
     },
-    "開発/classic-arthurian/characters/gawain.md": {
-      "x": 3081.166836776488,
-      "y": -6357.469267327402
-    },
     "開発/mythology-norse/characters/baldur.md": {
       "x": -120.20111401640918,
       "y": -26253.933073926288
@@ -1614,8 +1626,8 @@
       "y": 17012.057812856376
     },
     "開発/bible-new-testament/concepts/nazareth.md": {
-      "x": 1447.6391359323093,
-      "y": 3231.459733448751
+      "x": 1447.6391358490935,
+      "y": 3231.4597337105793
     },
     "開発/mythology-norse/concepts/yggdrasil.md": {
       "x": 2476.5555690109227,
@@ -1629,13 +1641,9 @@
       "x": 1213.297397191248,
       "y": -14108.141066676622
     },
-    "開発/classic-arthurian/characters/percival.md": {
-      "x": 3469.018495229822,
-      "y": -6357.47068778606
-    },
-    "開発/classic-arthurian/characters/galahad.md": {
-      "x": 2693.318603645098,
-      "y": -6357.469983664276
+    "開発/classic-gilgamesh/characters/bull-of-heaven.md": {
+      "x": 1457.1741176470573,
+      "y": 15705.497812856376
     },
     "開発/classic-arabian-nights/characters/dinarzade.md": {
       "x": -176.0258823529423,
@@ -1646,8 +1654,8 @@
       "y": 17012.057812856376
     },
     "開発/bible-new-testament/concepts/holy-grail.md": {
-      "x": 3170.2600008144723,
-      "y": 208.39575545007924
+      "x": 3170.2600005734403,
+      "y": 208.39575526586012
     },
     "開発/mythology-norse/characters/hel.md": {
       "x": -1975.027316178789,
@@ -1693,14 +1701,6 @@
       "x": 1130.5341176470574,
       "y": 16358.777812856377
     },
-    "開発/classic-arthurian/characters/tristan.md": {
-      "x": 366.2515453014746,
-      "y": -6357.492356256668
-    },
-    "開発/classic-arthurian/characters/bedivere.md": {
-      "x": 2305.4712606166827,
-      "y": -6357.472305107756
-    },
     "開発/classic-arabian-nights/characters/aladdin.md": {
       "x": 477.2541176470577,
       "y": 17012.057812856376
@@ -1717,17 +1717,13 @@
       "x": 2361.1799396328884,
       "y": -17459.795698459897
     },
+    "開発/classic-gilgamesh/characters/urshanabi.md": {
+      "x": 2763.734117647057,
+      "y": 15378.857812856377
+    },
     "開発/classic-genji/characters/tamakazura.md": {
       "x": 3090.374117647057,
       "y": 15705.497812856376
-    },
-    "開発/classic-arthurian/characters/merlin.md": {
-      "x": 1917.6224027691303,
-      "y": -6357.474935715203
-    },
-    "開発/classic-arthurian/characters/kay.md": {
-      "x": 754.1056090151238,
-      "y": -6357.485136252169
     },
     "開発/classic-arabian-nights/characters/ali-baba.md": {
       "x": 150.61411764705758,
@@ -1772,6 +1768,10 @@
     "開発/classic-hamlet/characters/polonius.md": {
       "x": -962.1412597769782,
       "y": -11497.614678314752
+    },
+    "開発/classic-gilgamesh/characters/enkidu.md": {
+      "x": 803.8941176470576,
+      "y": 15705.497812856376
     },
     "開発/classic-genji/characters/ukifune.md": {
       "x": 2437.0941176470574,
@@ -1829,6 +1829,14 @@
       "x": 778.2096657976026,
       "y": -11497.614678314752
     },
+    "開発/classic-gilgamesh/characters/utnapishtim.md": {
+      "x": 2437.0941176470574,
+      "y": 15378.857812856377
+    },
+    "開発/classic-gilgamesh/characters/scorpion-man.md": {
+      "x": -1155.9458823529421,
+      "y": 15705.497812856376
+    },
     "開発/classic-genji/characters/to-no-chujo.md": {
       "x": 2763.734117647057,
       "y": 15705.497812856376
@@ -1840,14 +1848,6 @@
     "開発/classic-divine-comedy/characters/saint-bernard.md": {
       "x": 3417.0141176470565,
       "y": 16032.137812856377
-    },
-    "開発/classic-arthurian/characters/morgan-le-fay.md": {
-      "x": 3081.1653501570213,
-      "y": -6696.862453382514
-    },
-    "開発/classic-arthurian/characters/guinevere.md": {
-      "x": 3469.0171167776884,
-      "y": -6696.857625478318
     },
     "開発/bible-new-testament/characters/peter.md": {
       "x": -1482.585882352942,
@@ -1904,10 +1904,6 @@
     "開発/classic-divine-comedy/characters/cato.md": {
       "x": 803.8941176470576,
       "y": 16358.777812856377
-    },
-    "開発/classic-arthurian/characters/lady-of-the-lake.md": {
-      "x": 1141.9413153578141,
-      "y": -6696.867218573197
     },
     "開発/bible-new-testament/characters/judas.md": {
       "x": -176.0258823529423,
@@ -2001,6 +1997,10 @@
       "x": 1213.297397191248,
       "y": -11497.614678314752
     },
+    "開発/classic-gilgamesh/characters/siduri.md": {
+      "x": 3090.374117647057,
+      "y": 15378.857812856377
+    },
     "開発/classic-genji/characters/rokujo-no-miyasudokoro.md": {
       "x": -1482.585882352942,
       "y": 16032.137812856377
@@ -2045,6 +2045,10 @@
       "x": 1334.1717708007163,
       "y": -17459.795698459897
     },
+    "開発/classic-gilgamesh/characters/shamhat.md": {
+      "x": 3417.0141176470565,
+      "y": 15378.857812856377
+    },
     "開発/classic-divine-comedy/characters/paolo.md": {
       "x": -1482.585882352942,
       "y": 16358.777812856377
@@ -2052,10 +2056,6 @@
     "開発/classic-divine-comedy/characters/francesca.md": {
       "x": -176.0258823529423,
       "y": 16358.777812856377
-    },
-    "開発/classic-arthurian/characters/isolde.md": {
-      "x": 366.24622984790926,
-      "y": -6696.878970190301
     },
     "開発/classic-arabian-nights/characters/princess-badroulbadour.md": {
       "x": 2763.734117647057,
@@ -5564,438 +5564,6 @@
     "開発/classic-sangokushi/episodes/bt01_01_01_zhang-jiao-prophecy.md": {
       "x": 1562.2929140740002,
       "y": -7592.132553663095
-    },
-    "開発/classic-arthurian/MOC.md": {
-      "x": 2305.4697728702836,
-      "y": -6696.8669395939805
-    },
-    "開発/classic-arthurian/episodes/act3_fall-of-camelot.md": {
-      "x": -797.2712058487487,
-      "y": -6696.897430096672
-    },
-    "開発/classic-arthurian/episodes/act2_quest-for-grail.md": {
-      "x": -1185.135846882276,
-      "y": -6696.901784118976
-    },
-    "開発/classic-arthurian/episodes/act1_rise-of-arthur.md": {
-      "x": -1573.0023080905423,
-      "y": -6696.896901142774
-    },
-    "開発/classic-arthurian/episodes/sc08_03_return-to-avalon.md": {
-      "x": -797.2649480639627,
-      "y": -6357.521766739518
-    },
-    "開発/classic-arthurian/episodes/sc08_02_the-last-battle.md": {
-      "x": -1185.1357888011057,
-      "y": -6357.525647292497
-    },
-    "開発/classic-arthurian/episodes/sc08_01_mordreds-revolt.md": {
-      "x": -1573.0087973343202,
-      "y": -6357.522696463678
-    },
-    "開発/classic-arthurian/episodes/sc07_03_rescue-and-flight.md": {
-      "x": -797.2607081900343,
-      "y": -6018.15107765615
-    },
-    "開発/classic-arthurian/episodes/sc07_02_the-accusation.md": {
-      "x": -1185.1349201110388,
-      "y": -6018.153359319909
-    },
-    "開発/classic-arthurian/episodes/sc07_01_secret-meetings.md": {
-      "x": -1573.0120359888322,
-      "y": -6018.152749060691
-    },
-    "開発/classic-arthurian/episodes/sc06_03_tragic-end.md": {
-      "x": -797.2570114733875,
-      "y": -5678.782086839218
-    },
-    "開発/classic-arthurian/episodes/sc06_02_forbidden-love.md": {
-      "x": -1185.1344577830396,
-      "y": -5678.785223896955
-    },
-    "開発/classic-arthurian/episodes/sc06_01_the-potion.md": {
-      "x": -1573.013782410973,
-      "y": -5678.784889657596
-    },
-    "開発/classic-arthurian/episodes/sc05_03_grail-castle.md": {
-      "x": -797.2553725748778,
-      "y": -5339.416440831628
-    },
-    "開発/classic-arthurian/episodes/sc05_02_galahads-path.md": {
-      "x": -1185.133099756123,
-      "y": -5339.418391748462
-    },
-    "開発/classic-arthurian/episodes/sc05_01_percivals-test.md": {
-      "x": -1573.014097447497,
-      "y": -5339.4184812494495
-    },
-    "開発/classic-arthurian/episodes/sc04_03_departure.md": {
-      "x": -797.2523547764168,
-      "y": -5000.051858525303
-    },
-    "開発/classic-arthurian/episodes/sc04_02_galahad-arrives.md": {
-      "x": -1185.1328314298805,
-      "y": -5000.052960714495
-    },
-    "開発/classic-arthurian/episodes/sc04_01_grail-vision.md": {
-      "x": -1573.0145555867934,
-      "y": -5000.053842927619
-    },
-    "開発/classic-arthurian/episodes/sc03_03_guinevere-arrives.md": {
-      "x": -797.250288169735,
-      "y": -4660.686542739254
-    },
-    "開発/classic-arthurian/episodes/sc03_02_knights-oath.md": {
-      "x": -1185.1317420216599,
-      "y": -4660.688727736865
-    },
-    "開発/classic-arthurian/episodes/sc03_01_camelot-built.md": {
-      "x": -1573.0149341899357,
-      "y": -4660.689132137761
-    },
-    "開発/classic-arthurian/episodes/sc02_03_the-gift.md": {
-      "x": -797.2500228620904,
-      "y": -4321.323795967927
-    },
-    "開発/classic-arthurian/episodes/sc02_02_lake-journey.md": {
-      "x": -1185.130596887796,
-      "y": -4321.324886783599
-    },
-    "開発/classic-arthurian/episodes/sc02_01_broken-sword.md": {
-      "x": -1573.0142901716767,
-      "y": -4321.325214985515
-    },
-    "開発/classic-arthurian/episodes/sc01_03_the-drawing.md": {
-      "x": -797.2479163649994,
-      "y": -3981.9611875028745
-    },
-    "開発/classic-arthurian/episodes/sc01_02_the-gathering.md": {
-      "x": -1185.1302585079734,
-      "y": -3981.9612220534896
-    },
-    "開発/classic-arthurian/episodes/sc01_01_uthers-death.md": {
-      "x": -1573.0144886764062,
-      "y": -3981.9618045617076
-    },
-    "開発/classic-arthurian/episodes/ep08_battle-of-camlann.md": {
-      "x": -1185.1298997361819,
-      "y": -3642.5981425183386
-    },
-    "開発/classic-arthurian/episodes/ep07_lancelot-affair.md": {
-      "x": -1573.0149431051423,
-      "y": -3642.598507168458
-    },
-    "開発/classic-arthurian/episodes/ep06_tristan-and-isolde.md": {
-      "x": -797.2465772799438,
-      "y": -3642.596791925097
-    },
-    "開発/classic-arthurian/episodes/ep05_grail-trials.md": {
-      "x": -1185.128464686804,
-      "y": -3303.238101028266
-    },
-    "開発/classic-arthurian/episodes/ep04_quest-begins.md": {
-      "x": -1573.0128470742861,
-      "y": -3303.2383378100717
-    },
-    "開発/classic-arthurian/episodes/ep03_round-table.md": {
-      "x": -797.2470784477948,
-      "y": -3303.23691212655
-    },
-    "開発/classic-arthurian/episodes/ep02_excalibur.md": {
-      "x": -1185.1281422404973,
-      "y": -2963.875136257342
-    },
-    "開発/classic-arthurian/episodes/ep01_sword-in-stone.md": {
-      "x": -1573.0132131215485,
-      "y": -2963.87558376645
-    },
-    "開発/classic-arthurian/episodes/bt08_03_03_departure-to-avalon.md": {
-      "x": -797.2449161791924,
-      "y": -2963.8750871229404
-    },
-    "開発/classic-arthurian/episodes/bt08_03_02_hand-receives.md": {
-      "x": -1185.1278383528656,
-      "y": -2624.5117399527558
-    },
-    "開発/classic-arthurian/episodes/bt08_03_01_excalibur-returned.md": {
-      "x": -1573.013338384446,
-      "y": -2624.512085607018
-    },
-    "開発/classic-arthurian/episodes/bt08_02_03_mutual-strike.md": {
-      "x": -797.2440569295104,
-      "y": -2624.510521771136
-    },
-    "開発/classic-arthurian/episodes/bt08_02_02_the-adder.md": {
-      "x": -1185.1271334382427,
-      "y": -2285.149704744594
-    },
-    "開発/classic-arthurian/episodes/bt08_02_01_eve-of-battle.md": {
-      "x": -1573.012557703163,
-      "y": -2285.1498128950147
-    },
-    "開発/classic-arthurian/episodes/bt08_01_03_arthurs-return.md": {
-      "x": -797.2448530001435,
-      "y": -2285.149403791535
-    },
-    "開発/classic-arthurian/episodes/bt08_01_02_false-news.md": {
-      "x": -1185.1272197915123,
-      "y": -1945.7873842995743
-    },
-    "開発/classic-arthurian/episodes/bt08_01_01_usurpation.md": {
-      "x": -1573.0127835184155,
-      "y": -1945.787696614734
-    },
-    "開発/classic-arthurian/episodes/bt07_03_03_flight-to-france.md": {
-      "x": -797.2435892436831,
-      "y": -1945.7880218746086
-    },
-    "開発/classic-arthurian/episodes/bt07_03_02_gareth-falls.md": {
-      "x": -1185.1272526642713,
-      "y": -1606.4253306715148
-    },
-    "開発/classic-arthurian/episodes/bt07_03_01_rescue-charge.md": {
-      "x": -1573.0133327652732,
-      "y": -1606.4254210675495
-    },
-    "開発/classic-arthurian/episodes/bt07_02_02_arthurs-anguish.md": {
-      "x": -1185.1268403943043,
-      "y": -1267.0637375225047
-    },
-    "開発/classic-arthurian/episodes/bt07_02_03_death-sentence.md": {
-      "x": -797.2429468133904,
-      "y": -1606.4245593605451
-    },
-    "開発/classic-arthurian/episodes/bt07_02_01_public-accusation.md": {
-      "x": -1573.0127152390542,
-      "y": -1267.0635779541412
-    },
-    "開発/classic-arthurian/episodes/bt07_01_03_caught-in-act.md": {
-      "x": -797.2441446645674,
-      "y": -1267.0637948317394
-    },
-    "開発/classic-arthurian/episodes/bt07_01_02_evidence-gathered.md": {
-      "x": -1185.1272098874858,
-      "y": -927.7033269175291
-    },
-    "開発/classic-arthurian/episodes/bt07_01_01_mordreds-spy.md": {
-      "x": -1573.0130623939838,
-      "y": -927.7031945522134
-    },
-    "開発/classic-arthurian/episodes/bt06_03_02_exile.md": {
-      "x": -1185.1274965804953,
-      "y": -588.3404938576377
-    },
-    "開発/classic-arthurian/episodes/bt06_03_03_lovers-death.md": {
-      "x": -797.2433099694744,
-      "y": -927.7041077333528
-    },
-    "開発/classic-arthurian/episodes/bt06_03_01_discovery.md": {
-      "x": -1573.013572154068,
-      "y": -588.3402976222495
-    },
-    "開発/classic-arthurian/episodes/bt06_02_03_suspicion-grows.md": {
-      "x": -797.2432028382588,
-      "y": -588.3400016371334
-    },
-    "開発/classic-arthurian/episodes/bt06_02_02_loyal-conflict.md": {
-      "x": -1185.128636889436,
-      "y": -248.98072521098723
-    },
-    "開発/classic-arthurian/episodes/bt06_01_03_guilty-arrival.md": {
-      "x": -797.2464531956014,
-      "y": -248.98071335784826
-    },
-    "開発/classic-arthurian/episodes/bt06_02_01_secret-tryst.md": {
-      "x": -1573.0139194265898,
-      "y": -248.98048686218485
-    },
-    "開発/classic-arthurian/episodes/bt06_01_02_the-drink.md": {
-      "x": -1185.1290197968792,
-      "y": 90.38169098041546
-    },
-    "開発/classic-arthurian/episodes/bt06_01_01_voyage-to-cornwall.md": {
-      "x": -1573.0144697217213,
-      "y": 90.38174714603115
-    },
-    "開発/classic-arthurian/episodes/bt05_03_03_return-to-camelot.md": {
-      "x": -797.2454548198776,
-      "y": 90.38070381986375
-    },
-    "開発/classic-arthurian/episodes/bt05_03_02_galahads-ascension.md": {
-      "x": -1185.1293870641125,
-      "y": 429.743823181591
-    },
-    "開発/classic-arthurian/episodes/bt05_03_01_grail-chapel.md": {
-      "x": -1573.0153554235733,
-      "y": 429.7441345038362
-    },
-    "開発/classic-arthurian/episodes/bt05_02_03_three-unite.md": {
-      "x": -797.2451392480237,
-      "y": 429.74418911968644
-    },
-    "開発/classic-arthurian/episodes/bt05_02_02_castle-of-maidens.md": {
-      "x": -1185.1293506555426,
-      "y": 769.1054958051526
-    },
-    "開発/classic-arthurian/episodes/bt05_02_01_healing-knight.md": {
-      "x": -1573.0150998775532,
-      "y": 769.1061014120179
-    },
-    "開発/classic-arthurian/episodes/bt05_01_03_purification.md": {
-      "x": -797.2467189920643,
-      "y": 769.1049777754206
-    },
-    "開発/classic-arthurian/episodes/bt05_01_02_prayer.md": {
-      "x": -1185.1301249341927,
-      "y": 1108.4667850783753
-    },
-    "開発/classic-arthurian/episodes/bt05_01_01_temptation.md": {
-      "x": -1573.0156252148804,
-      "y": 1108.4673780846706
-    },
-    "開発/classic-arthurian/episodes/bt04_03_03_empty-hall.md": {
-      "x": -797.2465078847106,
-      "y": 1108.4654521364478
-    },
-    "開発/classic-arthurian/episodes/bt04_03_02_farewell.md": {
-      "x": -1185.130883761904,
-      "y": 1447.8299387523011
-    },
-    "開発/classic-arthurian/episodes/bt04_03_01_arthurs-sorrow.md": {
-      "x": -1573.016510974822,
-      "y": 1447.8306471339477
-    },
-    "開発/classic-arthurian/episodes/bt04_02_03_sword-in-stone-again.md": {
-      "x": -797.2469596695914,
-      "y": 1447.8298013646622
-    },
-    "開発/classic-arthurian/episodes/bt04_02_02_galahad-sits.md": {
-      "x": -1185.131251908518,
-      "y": 1787.1919656539499
-    },
-    "開発/classic-arthurian/episodes/bt04_02_01_empty-seat.md": {
-      "x": -1573.0165283320875,
-      "y": 1787.192952130295
-    },
-    "開発/classic-arthurian/episodes/bt04_01_03_the-vow.md": {
-      "x": -797.2490630062946,
-      "y": 1787.1908843172089
-    },
-    "開発/classic-arthurian/episodes/bt04_01_02_thunder-and-light.md": {
-      "x": -1185.132453747234,
-      "y": 2126.554499621205
-    },
-    "開発/classic-arthurian/episodes/bt04_01_01_pentecost-feast.md": {
-      "x": -1573.0176039061446,
-      "y": 2126.555348813711
-    },
-    "開発/classic-arthurian/episodes/bt03_03_03_first-glance.md": {
-      "x": -797.2491493264948,
-      "y": 2126.5524163051273
-    },
-    "開発/classic-arthurian/episodes/bt03_03_02_wedding-feast.md": {
-      "x": -1185.1337602475344,
-      "y": 2465.9175087807403
-    },
-    "開発/classic-arthurian/episodes/bt03_03_01_the-proposal.md": {
-      "x": -1573.018911411612,
-      "y": 2465.9186348275675
-    },
-    "開発/classic-arthurian/episodes/bt03_02_03_first-quest.md": {
-      "x": -797.2502461362022,
-      "y": 2465.9166261788164
-    },
-    "開発/classic-arthurian/episodes/bt03_02_02_the-oath.md": {
-      "x": -1185.134665050392,
-      "y": 2805.28004981754
-    },
-    "開発/classic-arthurian/episodes/bt03_02_01_lancelot-joins.md": {
-      "x": -1573.0191759419981,
-      "y": 2805.281506804691
-    },
-    "開発/classic-arthurian/episodes/bt03_01_03_the-round-table.md": {
-      "x": -797.2530775320861,
-      "y": 2805.278246753167
-    },
-    "開発/classic-arthurian/episodes/bt03_01_02_building.md": {
-      "x": -1185.1363294652492,
-      "y": 3144.6426815489585
-    },
-    "開発/classic-arthurian/episodes/bt03_01_01_the-vision.md": {
-      "x": -1573.0201992570333,
-      "y": 3144.644082181847
-    },
-    "開発/classic-arthurian/episodes/bt02_03_03_oath-to-lake.md": {
-      "x": -797.2543677708346,
-      "y": 3144.639837667341
-    },
-    "開発/classic-arthurian/episodes/bt02_03_02_the-scabbard.md": {
-      "x": -1185.1381375288206,
-      "y": 3484.0076447560978
-    },
-    "開発/classic-arthurian/episodes/bt02_03_01_hand-from-lake.md": {
-      "x": -1573.0213663266977,
-      "y": 3484.009140116743
-    },
-    "開発/classic-arthurian/episodes/bt02_02_03_lake-arrival.md": {
-      "x": -797.2565763306585,
-      "y": 3484.00580909029
-    },
-    "開発/classic-arthurian/episodes/bt02_02_02_the-mist.md": {
-      "x": -1185.1395544681773,
-      "y": 3823.3721910800823
-    },
-    "開発/classic-arthurian/episodes/bt02_02_01_forest-path.md": {
-      "x": -1573.02161970211,
-      "y": 3823.3737880563585
-    },
-    "開発/classic-arthurian/episodes/bt02_01_03_merlins-guidance.md": {
-      "x": -797.2607729220078,
-      "y": 3823.3692676852816
-    },
-    "開発/classic-arthurian/episodes/bt02_01_02_sword-breaks.md": {
-      "x": -1185.142183638182,
-      "y": 4162.737504322033
-    },
-    "開発/classic-arthurian/episodes/bt02_01_01_first-battle.md": {
-      "x": -1573.0223218966794,
-      "y": 4162.738731208495
-    },
-    "開発/classic-arthurian/episodes/bt01_03_03_coronation.md": {
-      "x": -797.2641260618493,
-      "y": 4162.733050205562
-    },
-    "開発/classic-arthurian/episodes/bt01_03_02_doubt-and-proof.md": {
-      "x": -1185.1442601467736,
-      "y": 4502.10669831541
-    },
-    "開発/classic-arthurian/episodes/bt01_03_01_the-pull.md": {
-      "x": -1573.0224623298152,
-      "y": 4502.107076781414
-    },
-    "開発/classic-arthurian/episodes/bt01_02_03_arthurs-chance.md": {
-      "x": -797.2690628216018,
-      "y": 4502.103199165534
-    },
-    "開発/classic-arthurian/episodes/bt01_02_02_failed-attempts.md": {
-      "x": -1185.1453954141587,
-      "y": 4841.478156746472
-    },
-    "開発/classic-arthurian/episodes/bt01_01_03_merlins-plan.md": {
-      "x": -797.2778311470719,
-      "y": 4841.475584523364
-    },
-    "開発/classic-arthurian/episodes/bt01_02_01_lords-arrive.md": {
-      "x": -1573.0196757755061,
-      "y": 4841.476627594966
-    },
-    "開発/classic-arthurian/episodes/bt01_01_02_kingdom-in-chaos.md": {
-      "x": -1185.1462976116893,
-      "y": 5180.850053374163
-    },
-    "開発/classic-arthurian/episodes/bt01_01_01_final-words.md": {
-      "x": -1573.0150683406655,
-      "y": 5180.848776461799
     }
   },
   "navHistory": [],
