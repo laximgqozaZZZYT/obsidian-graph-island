@@ -21,7 +21,7 @@
   "showOrbitRings": false,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:classic-saiyuki*",
+  "searchQuery": "path:mythology-egyptian*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -237,7 +237,7 @@
       "y": -1169.2017619408125
     },
     "classic-macbeth/characters/banquo.md": {
-      "x": 2265.639713770172,
+      "x": 2116.4385413839027,
       "y": 2396.7627798374892
     },
     "classic-hamlet/characters/laertes.md": {
@@ -249,7 +249,7 @@
       "y": 2247.56160745122
     },
     "classic-macbeth/characters/duncan.md": {
-      "x": 2116.4385413839027,
+      "x": 2265.639713770172,
       "y": 2396.7627798374892
     },
     "classic-hamlet/characters/ghost-king.md": {
@@ -412,11 +412,11 @@
       "x": 1486.579841784583,
       "y": -1318.4029343270818
     },
-    "classic-macbeth/episodes/sc21_march-to-scotland.md": {
+    "classic-macbeth/episodes/sc20_grief-and-resolve.md": {
       "x": 2564.0420585427105,
       "y": 904.7510559747964
     },
-    "classic-macbeth/episodes/sc20_grief-and-resolve.md": {
+    "classic-macbeth/episodes/sc21_march-to-scotland.md": {
       "x": 2713.2432309289798,
       "y": 904.7510559747964
     },
@@ -436,11 +436,11 @@
       "x": 2713.2432309289798,
       "y": 1053.9522283610656
     },
-    "classic-macbeth/episodes/sc02_prophecy-delivered.md": {
+    "classic-macbeth/episodes/sc03_cawdor-confirmed.md": {
       "x": 3459.249092860326,
       "y": 1053.9522283610656
     },
-    "classic-macbeth/episodes/sc03_cawdor-confirmed.md": {
+    "classic-macbeth/episodes/sc02_prophecy-delivered.md": {
       "x": 3608.4502652465953,
       "y": 1053.9522283610656
     },
@@ -1213,6 +1213,11 @@
   "showTags": false,
   "colorNodesByCategory": true,
   "showGuideLines": false,
+  "renderThresholds": {
+    "minNodeRadius": 8,
+    "nodeSizeByDegree": true,
+    "autoLOD": true
+  },
   "guideLineMode": "per-group",
   "showGroupGrid": false
 }

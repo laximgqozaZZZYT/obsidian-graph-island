@@ -84,7 +84,7 @@
   "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
   "clusterNodeSpacing": 2,
-  "clusterGroupScale": 2.5,
+  "clusterGroupScale": 1.2,
   "clusterGroupSpacing": 2.5,
   "fadeEdgesByDegree": false,
   "edgeBundleStrength": 0.7,
@@ -223,5 +223,10 @@
   "heatmapMode": false,
   "showGuideLines": false,
   "guideLineMode": "shared",
-  "showGroupGrid": false
+  "showGroupGrid": false,
+  "renderThresholds": {
+    "minNodeRadius": 8,
+    "nodeSizeByDegree": true,
+    "autoLOD": true
+  }
 }

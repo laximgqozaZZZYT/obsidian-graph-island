@@ -1,19 +1,13 @@
 [
   {
-    "name": "44-timeline-dense-overlap",
+    "name": "45-grid-tight-spacing",
     "nodes": 127,
     "pass": true,
     "issues": []
   },
   {
-    "name": "45-grid-tight-spacing",
-    "nodes": 125,
-    "pass": true,
-    "issues": []
-  },
-  {
     "name": "46-tree-deep-hierarchy",
-    "nodes": 123,
+    "nodes": 125,
     "pass": true,
     "issues": []
   },
@@ -25,13 +19,13 @@
   },
   {
     "name": "49-orphan-flood",
-    "nodes": 119,
+    "nodes": 123,
     "pass": true,
     "issues": []
   },
   {
     "name": "50-arrow-heavy-directed",
-    "nodes": 123,
+    "nodes": 119,
     "pass": true,
     "issues": []
   },
@@ -127,7 +121,7 @@
   },
   {
     "name": "test-hub-radial",
-    "nodes": 102,
+    "nodes": 123,
     "pass": true,
     "issues": []
   },

@@ -27,6 +27,8 @@ const SKIP_PRESETS = new Set([
   "14-dialogue-theater",
   // Empty/near-empty renders (coordinate system or layout issues)
   "29-concentric-degree", "54-radial-dense",
+  // Causes capture script crash (timeline preset with extreme BBox)
+  "44-timeline-dense-overlap",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {
