@@ -427,3 +427,99 @@ describe("applyMonochromeFallback", () => {
     expect(usedColors.size).toBe(3);
   });
 });
+
+// ===========================================================================
+// assignNodeColors — edge cases
+// ===========================================================================
+
+describe("assignNodeColors edge cases", () => {
+  it("returns empty map for empty nodes", () => {
+    const result = assignNodeColors([], "category");
+    expect(result.size).toBe(0);
+  });
+
+  it("assigns colors to categories sorted alphabetically", () => {
+    const nodes = [
+      mkNode("a", { category: "Zeus" }),
+      mkNode("b", { category: "Apollo" }),
+    ];
+    const result = assignNodeColors(nodes, "category");
+    expect(result.has("Apollo")).toBe(true);
+    expect(result.has("Zeus")).toBe(true);
+    // Apollo (alphabetically first) should get first color
+    expect(result.get("Apollo")).toBe(DEFAULT_COLORS[0]);
+    expect(result.get("Zeus")).toBe(DEFAULT_COLORS[1]);
+  });
+
+  it("assigns tag colors with 'tag:' prefix", () => {
+    const nodes = [mkNode("a", { tags: ["hero", "villain"] })];
+    const result = assignNodeColors(nodes, "category");
+    expect(result.has("tag:hero")).toBe(true);
+    expect(result.has("tag:villain")).toBe(true);
+  });
+
+  it("deduplicates categories across nodes", () => {
+    const nodes = [
+      mkNode("a", { category: "warrior" }),
+      mkNode("b", { category: "warrior" }),
+      mkNode("c", { category: "mage" }),
+    ];
+    const result = assignNodeColors(nodes, "category");
+    // 2 unique categories + 0 tags = 2 entries
+    expect(result.size).toBe(2);
+  });
+
+  it("handles nodes with both category and tags", () => {
+    const nodes = [mkNode("a", { category: "hero", tags: ["greek"] })];
+    const result = assignNodeColors(nodes, "category");
+    expect(result.has("hero")).toBe(true);
+    expect(result.has("tag:greek")).toBe(true);
+    expect(result.size).toBe(2);
+  });
+
+  it("wraps around DEFAULT_COLORS for many categories", () => {
+    const nodes = Array.from({ length: 30 }, (_, i) =>
+      mkNode(`n${i}`, { category: `cat${i}` })
+    );
+    const result = assignNodeColors(nodes, "category");
+    expect(result.size).toBe(30);
+    // Colors should wrap (30 categories, DEFAULT_COLORS has ~20 colors)
+    const colors = [...result.values()];
+    const uniqueColors = new Set(colors);
+    expect(uniqueColors.size).toBeLessThanOrEqual(DEFAULT_COLORS.length);
+  });
+});
+
+// ===========================================================================
+// classifyRelation — additional edge cases
+// ===========================================================================
+
+describe("classifyRelation edge cases", () => {
+  const emptyOnto = {
+    inheritanceFields: [] as string[],
+    aggregationFields: [] as string[],
+    siblingFields: [] as string[],
+    sequenceFields: [] as string[],
+    similarFields: [] as string[],
+    reverseInheritanceFields: [] as string[],
+    reverseAggregationFields: [] as string[],
+    reverseSequenceFields: [] as string[],
+    customMappings: {} as Record<string, string>,
+    categoryField: "category",
+  };
+
+  it("returns undefined for unknown field", () => {
+    expect(classifyRelation("unknown_field", emptyOnto)).toBeUndefined();
+  });
+
+  it("trims whitespace from field name", () => {
+    expect(classifyRelation("  unknown  ", emptyOnto)).toBeUndefined();
+  });
+
+  it("strips @ prefix", () => {
+    const onto = { ...emptyOnto, inheritanceFields: ["parent"] };
+    const result = classifyRelation("@parent", onto);
+    expect(result).toBeDefined();
+    expect(result!.type).toBe("inheritance");
+  });
+});
