@@ -6510,9 +6510,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const target = Math.max(0.02, Math.min(10, level));
     const current = world.scale.x;
 
-    // Skip animation for tiny changes or reduced-motion preference
+    // Skip animation for tiny changes, reduced-motion preference,
+    // or Canvas2D backend (CPU-only rendering makes animation expensive)
     if (Math.abs(target - current) < 0.01 ||
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+        !this.pixiApp?.supportsAnimation) {
       this._applyZoomImmediate(target);
       return;
     }
@@ -8345,9 +8347,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.savedPositions.clear();
 
     if (transitionData.length > 0) {
-      this.layoutTransition.start(transitionData, () => {
+      // Skip layout animation on Canvas2D with large graphs to avoid frame drops
+      if (!this.pixiApp?.supportsAnimation && transitionData.length > 500) {
+        for (const td of transitionData) {
+          td.data.x = td.toX;
+          td.data.y = td.toY;
+        }
         this.markDirty(true);
-      });
+      } else {
+        this.layoutTransition.start(transitionData, () => {
+          this.markDirty(true);
+        });
+      }
     }
 
     this.setStatus(`Drawing ${ld.edges.length} edges...`);
@@ -8759,9 +8770,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const targetX = wrap.clientWidth / 2 - pn.data.x * world.scale.x;
     const targetY = wrap.clientHeight / 2 - pn.data.y * world.scale.y;
 
-    // Reduced motion: jump immediately
+    // Skip animation: reduced motion or Canvas2D backend
     const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReduced) {
+    if (prefersReduced || !this.pixiApp?.supportsAnimation) {
       world.x = targetX;
       world.y = targetY;
       this.markDirty(true);
@@ -8801,7 +8812,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const targetY = wrap.clientHeight / 2 - pn.data.y * finalZoom;
 
     const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReduced) {
+    if (prefersReduced || !this.pixiApp?.supportsAnimation) {
       world.scale.set(finalZoom);
       world.x = targetX;
       world.y = targetY;

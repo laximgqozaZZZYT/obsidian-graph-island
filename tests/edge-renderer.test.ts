@@ -724,3 +724,24 @@ describe("findGapBetween", () => {
     expect(findGapBetween([50], 100, 0)).toBe(50);
   });
 });
+
+// ===========================================================================
+// EdgeDrawConfig.trunkMinEdges — bundling threshold validation
+// ===========================================================================
+
+describe("EdgeDrawConfig.trunkMinEdges", () => {
+  it("defaults to undefined (buildTrunks uses 2)", () => {
+    const cfg = baseCfg();
+    expect(cfg.trunkMinEdges).toBeUndefined();
+  });
+
+  it("can be set to 1 for aggressive bundling", () => {
+    const cfg = baseCfg({ trunkMinEdges: 1 });
+    expect(cfg.trunkMinEdges).toBe(1);
+  });
+
+  it("can be set to higher values for sparse bundling", () => {
+    const cfg = baseCfg({ trunkMinEdges: 5 });
+    expect(cfg.trunkMinEdges).toBe(5);
+  });
+});

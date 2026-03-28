@@ -83,6 +83,9 @@ export interface EdgeDrawConfig {
   cardinalityRenderConfig?: CardinalityRenderConfig;
   /** Cable bundling mode: auto (when clusters exist), always, never */
   cableBundleMode?: "auto" | "always" | "never";
+  /** Minimum edge count per group pair to create a trunk (default 2).
+   *  Lower values bundle more aggressively; set to 1 to bundle all inter-group edges. */
+  trunkMinEdges?: number;
   /** Cable trunk line width (px) */
   cableTrunkWidth?: number;
   /** Cable trunk opacity (0-1) */
@@ -1504,6 +1507,7 @@ function buildTrunks(
 
   // Compute a single trunk endpoint per group pointing toward the other group.
   // This gives 1 trunk per group pair (not per direction pair).
+  const trunkMinEdges = cfg.trunkMinEdges ?? 2;
   for (const [pairKey, pair] of pairData) {
     const cables: TrunkCable[] = [];
     const allEdges: GraphEdge[] = [];
@@ -1511,6 +1515,8 @@ function buildTrunks(
       cables.push({ color, edges: edgeList });
       for (const e of edgeList) allEdges.push(e);
     }
+    // Skip pairs with too few edges (below bundling threshold)
+    if (allEdges.length < trunkMinEdges) continue;
 
     // Use the SAME shared ports from computeGroupPorts so that trunk endpoints
     // match groupPortBranch endpoints exactly (no gap).
