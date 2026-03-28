@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { DiffOverlay, layoutGhostNodes, ghostLabel } from "../src/views/DiffOverlay";
+import { DiffOverlay, layoutGhostNodes, ghostLabel, formatDelta, formatSnapshotDate, buildTimelineEntries } from "../src/views/DiffOverlay";
 import type { SnapshotDiff } from "../src/types";
 
 // ---------------------------------------------------------------------------
@@ -616,5 +616,85 @@ describe("DiffOverlay render()", () => {
     const dashCalls = ctx._calls.filter(c => c.method === "setLineDash");
     const lastDash = dashCalls[dashCalls.length - 1];
     expect(lastDash.args[0]).toEqual([]);
+  });
+});
+
+// ===========================================================================
+// formatDelta — signed string with color hint
+// ===========================================================================
+describe("formatDelta", () => {
+  it("positive delta returns green +N", () => {
+    expect(formatDelta(5)).toEqual({ text: "+5", color: "green" });
+  });
+  it("negative delta returns red -N", () => {
+    expect(formatDelta(-3)).toEqual({ text: "-3", color: "red" });
+  });
+  it("zero returns muted dash", () => {
+    expect(formatDelta(0)).toEqual({ text: "—", color: "muted" });
+  });
+  it("undefined returns muted dash", () => {
+    expect(formatDelta(undefined)).toEqual({ text: "—", color: "muted" });
+  });
+});
+
+// ===========================================================================
+// formatSnapshotDate — locale-aware date formatting
+// ===========================================================================
+describe("formatSnapshotDate", () => {
+  it("formats valid ISO date", () => {
+    const result = formatSnapshotDate("2026-03-23T09:06:47", "en-US");
+    expect(result).toContain("3");
+    expect(result).toContain("23");
+  });
+  it("returns input for invalid date", () => {
+    expect(formatSnapshotDate("not-a-date")).toBe("not-a-date");
+  });
+  it("returns input for empty string", () => {
+    expect(formatSnapshotDate("")).toBe("");
+  });
+});
+
+// ===========================================================================
+// buildTimelineEntries — snapshot list → timeline with deltas
+// ===========================================================================
+describe("buildTimelineEntries", () => {
+  it("returns empty for no snapshots", () => {
+    expect(buildTimelineEntries([])).toEqual([]);
+  });
+
+  it("single snapshot has no delta", () => {
+    const entries = buildTimelineEntries([
+      { name: "snap1", createdAt: "2026-03-01", context: { nodeCount: 10, edgeCount: 5 } },
+    ]);
+    expect(entries.length).toBe(1);
+    expect(entries[0].nodeDelta).toBeUndefined();
+  });
+
+  it("computes deltas between consecutive snapshots", () => {
+    const entries = buildTimelineEntries([
+      { name: "a", createdAt: "2026-03-01", context: { nodeCount: 10, edgeCount: 5 } },
+      { name: "b", createdAt: "2026-03-02", context: { nodeCount: 15, edgeCount: 8 } },
+    ]);
+    expect(entries[1].nodeDelta).toBe(5);
+    expect(entries[1].edgeDelta).toBe(3);
+  });
+
+  it("sorts by createdAt ascending", () => {
+    const entries = buildTimelineEntries([
+      { name: "later", createdAt: "2026-03-10", context: { nodeCount: 20, edgeCount: 10 } },
+      { name: "earlier", createdAt: "2026-03-01", context: { nodeCount: 10, edgeCount: 5 } },
+    ]);
+    expect(entries[0].name).toBe("earlier");
+    expect(entries[1].name).toBe("later");
+    expect(entries[1].nodeDelta).toBe(10);
+  });
+
+  it("handles negative deltas", () => {
+    const entries = buildTimelineEntries([
+      { name: "a", createdAt: "2026-03-01", context: { nodeCount: 20, edgeCount: 10 } },
+      { name: "b", createdAt: "2026-03-02", context: { nodeCount: 15, edgeCount: 7 } },
+    ]);
+    expect(entries[1].nodeDelta).toBe(-5);
+    expect(entries[1].edgeDelta).toBe(-3);
   });
 });
