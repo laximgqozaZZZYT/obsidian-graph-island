@@ -516,8 +516,8 @@ export class GuideRenderer {
     this.clearCustomGridLabels();
 
     if (!this.customGridLabelContainer && this.host.worldContainer) {
-      const grApp = this.host.getPixiApp?.();
-      this.customGridLabelContainer = (grApp ? grApp.createContainer() : new CanvasContainer()) as CanvasContainer;
+      // Grid label container holds CanvasText — must be CanvasContainer
+      this.customGridLabelContainer = new CanvasContainer();
       this.host.worldContainer.addChild(this.customGridLabelContainer);
     }
     const container = this.customGridLabelContainer;

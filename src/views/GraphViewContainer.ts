@@ -1998,8 +1998,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.addChild(edgeGfx);
     this.edgeGraphics = edgeGfx;
 
-    // Edge label layer (CanvasText objects — on top of edges, below nodes)
-    const edgeLabelCont = app.createContainer() as CanvasContainer;
+    // Edge label layer (CanvasText objects — must be CanvasContainer, not WebGL)
+    const edgeLabelCont = new CanvasContainer();
     world.addChild(edgeLabelCont);
     this.edgeLabelContainer = edgeLabelCont;
 
@@ -2023,13 +2023,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.addChild(pfGfx);
     this.pathfinderGraphics = pfGfx;
 
-    // Bar label container — ON TOP of nodes/arrows so bar text is always readable
-    const barLabelCont = app.createContainer() as CanvasContainer;
+    // Bar label container — must be CanvasContainer (children are CanvasText)
+    const barLabelCont = new CanvasContainer();
     world.addChild(barLabelCont);
     this.barLabelContainer = barLabelCont;
 
-    // Enclosure label container — on top of nodes so labels are visible & hoverable
-    const labelContainer = app.createContainer() as CanvasContainer;
+    // Enclosure label container — must be CanvasContainer (children are CanvasText)
+    const labelContainer = new CanvasContainer();
     world.addChild(labelContainer);
     this.enclosureLabelContainer = labelContainer;
 
@@ -2038,8 +2038,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.addChild(clusterBoundaryGfx);
     this.clusterBoundaryGraphics = clusterBoundaryGfx;
 
-    // GroupBy label container — must be LAST so it renders above nodes/edges
-    const groupLabelContainer = app.createContainer() as CanvasContainer;
+    // GroupBy label container — must be CanvasContainer (children are CanvasText)
+    const groupLabelContainer = new CanvasContainer();
     world.addChild(groupLabelContainer);
     this.groupByLabelContainer = groupLabelContainer;
 
@@ -5489,7 +5489,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
 
     if (!this.clusterSunburstLabelContainer && this.worldContainer) {
-      this.clusterSunburstLabelContainer = this.pixiApp!.createContainer() as CanvasContainer;
+      this.clusterSunburstLabelContainer = new CanvasContainer();
       this.worldContainer.addChild(this.clusterSunburstLabelContainer);
     }
     const container = this.clusterSunburstLabelContainer;
@@ -9558,7 +9558,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   private drawSunburstLabels(arcs: LayoutSunburstArc[], cx: number, cy: number) {
     if (!this.sunburstLabelContainer && this.worldContainer) {
-      this.sunburstLabelContainer = this.pixiApp!.createContainer() as CanvasContainer;
+      this.sunburstLabelContainer = new CanvasContainer();
       this.worldContainer.addChild(this.sunburstLabelContainer);
     }
     const container = this.sunburstLabelContainer;
