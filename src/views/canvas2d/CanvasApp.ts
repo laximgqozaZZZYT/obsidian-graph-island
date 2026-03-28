@@ -1,4 +1,5 @@
 import { CanvasContainer } from "./CanvasContainer";
+import { CanvasGraphics } from "./CanvasGraphics";
 import { hexToRgb, getLuminance } from "../../utils/color";
 import type { IApp, ITicker } from "./interfaces";
 
@@ -77,6 +78,11 @@ export class CanvasApp implements IApp {
 
   /** Canvas2D does not support GPU-accelerated animations */
   readonly supportsAnimation = false;
+
+  /** Create a Canvas2D graphics object */
+  createGraphics(): CanvasGraphics { return new CanvasGraphics(); }
+  /** Create a Canvas2D container object */
+  createContainer(): CanvasContainer { return new CanvasContainer(); }
 
   /** シーン描画前に呼ばれるコールバック（背景オーバーレイ等で使用） */
   onPreFlush: ((ctx: CanvasRenderingContext2D, dpr: number) => void) | null = null;

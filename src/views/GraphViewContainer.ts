@@ -1955,90 +1955,91 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return app;
   }
 
-  /** Create the world container and all graphics layers in correct z-order. */
+  /** Create the world container and all graphics layers in correct z-order.
+   *  Uses app.createGraphics()/createContainer() so WebGL backend gets GPU-accelerated objects. */
   private _setupGraphicsLayers(app: IApp): CanvasContainer {
     // World container (for zoom/pan)
-    const world = new CanvasContainer();
+    const world = app.createContainer() as CanvasContainer;
     app.stage.addChild(world);
     this.worldContainer = world;
 
     // Guide layer (grid lines, axis titles, tick labels — drawn first, behind everything)
-    const guideGfx = new CanvasGraphics();
+    const guideGfx = app.createGraphics() as CanvasGraphics;
     world.addChild(guideGfx);
     this.guideGraphics = guideGfx;
 
     // Orbit ring layer (drawn behind edges)
-    const orbitGfx = new CanvasGraphics();
+    const orbitGfx = app.createGraphics() as CanvasGraphics;
     world.addChild(orbitGfx);
     this.orbitGraphics = orbitGfx;
 
     // Sunburst arc guide lines (drawn behind enclosures)
-    const sunburstGfx = new CanvasGraphics();
+    const sunburstGfx = app.createGraphics() as CanvasGraphics;
     world.addChild(sunburstGfx);
     this.sunburstGraphics = sunburstGfx;
 
     // Route line layer (transit map style — per-group colored paths)
-    const routeGfx = new CanvasGraphics();
+    const routeGfx = app.createGraphics() as CanvasGraphics;
     world.addChild(routeGfx);
     this.routeGraphics = routeGfx;
 
     // Road network layer (auto-generated roads from coordinate grid)
-    const roadGfx = new CanvasGraphics();
+    const roadGfx = app.createGraphics() as CanvasGraphics;
     world.addChild(roadGfx);
     this.trayGraphics = roadGfx;
 
     // Enclosure layer (tag enclosures, drawn behind edges)
-    const enclosureGfx = new CanvasGraphics();
+    const enclosureGfx = app.createGraphics() as CanvasGraphics;
     world.addChild(enclosureGfx);
     this.enclosureGraphics = enclosureGfx;
 
     // Edge layer (single Graphics object — batch drawn)
-    const edgeGfx = new CanvasGraphics();
+    const edgeGfx = app.createGraphics() as CanvasGraphics;
     world.addChild(edgeGfx);
     this.edgeGraphics = edgeGfx;
 
     // Edge label layer (CanvasText objects — on top of edges, below nodes)
-    const edgeLabelCont = new CanvasContainer();
+    const edgeLabelCont = app.createContainer() as CanvasContainer;
     world.addChild(edgeLabelCont);
     this.edgeLabelContainer = edgeLabelCont;
 
     // Timeline duration bar layer (drawn behind node circles)
-    const barGfx = new CanvasGraphics();
+    const barGfx = app.createGraphics() as CanvasGraphics;
     world.addChild(barGfx);
     this.barGraphics = barGfx;
 
     // Batch node circle layer — draws all non-highlighted circles in one draw call
-    const batchGfx = new CanvasGraphics();
+    const batchGfx = app.createGraphics() as CanvasGraphics;
     world.addChild(batchGfx);
     this.nodeCircleBatch = batchGfx;
 
     // Arrow layer — drawn ON TOP of nodes so directional arrows are visible
-    const arrowGfx = new CanvasGraphics();
+    const arrowGfx = app.createGraphics() as CanvasGraphics;
     world.addChild(arrowGfx);
     this.arrowGraphics = arrowGfx;
 
     // Pathfinder overlay layer — ON TOP of arrows for maximum visibility
-    const pfGfx = new CanvasGraphics();
+    const pfGfx = app.createGraphics() as CanvasGraphics;
     world.addChild(pfGfx);
     this.pathfinderGraphics = pfGfx;
 
     // Bar label container — ON TOP of nodes/arrows so bar text is always readable
-    const barLabelCont = new CanvasContainer();
+    const barLabelCont = app.createContainer() as CanvasContainer;
     world.addChild(barLabelCont);
     this.barLabelContainer = barLabelCont;
 
     // Enclosure label container — on top of nodes so labels are visible & hoverable
-    const labelContainer = new CanvasContainer();
+    const labelContainer = app.createContainer() as CanvasContainer;
     world.addChild(labelContainer);
     this.enclosureLabelContainer = labelContainer;
 
     // Cluster boundary graphics — below nodes but above dot grid
-    const clusterBoundaryGfx = new CanvasGraphics();
+    const clusterBoundaryGfx = app.createGraphics() as CanvasGraphics;
     world.addChild(clusterBoundaryGfx);
     this.clusterBoundaryGraphics = clusterBoundaryGfx;
 
     // GroupBy label container — must be LAST so it renders above nodes/edges
-    const groupLabelContainer = new CanvasContainer();
+    const groupLabelContainer = app.createContainer() as CanvasContainer;
     world.addChild(groupLabelContainer);
     this.groupByLabelContainer = groupLabelContainer;
 

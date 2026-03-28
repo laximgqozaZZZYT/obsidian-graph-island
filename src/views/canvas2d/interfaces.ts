@@ -179,6 +179,13 @@ export interface IApp {
    *  Consumers should skip heavy animations when false. */
   readonly supportsAnimation: boolean;
 
+  /** Create a graphics object appropriate for this backend.
+   *  WebGLApp returns WebGLGraphics (GPU-tessellated); CanvasApp returns CanvasGraphics. */
+  createGraphics(): IGraphics;
+  /** Create a container object appropriate for this backend.
+   *  WebGLApp returns WebGLContainer (GPU dispatch); CanvasApp returns CanvasContainer. */
+  createContainer(): IContainer;
+
   markNeedsRender(): void;
   setBackgroundColor(color: number): void;
   resize(width: number, height: number): void;
