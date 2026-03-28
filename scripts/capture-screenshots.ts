@@ -150,6 +150,24 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
       v.panel.showAxisTitles = false;
       v.panel.showDotGrid = false;
 
+      // Clear all graphics to prevent ghost artifacts from previous presets
+      if (v.worldContainer) {
+        for (var ci = 0; ci < v.worldContainer.children.length; ci++) {
+          var child = v.worldContainer.children[ci];
+          if (child && typeof child.clear === 'function') child.clear();
+        }
+      }
+      // Also clear specific graphics containers
+      if (v.enclosureGraphics && typeof v.enclosureGraphics.clear === 'function') v.enclosureGraphics.clear();
+      if (v.sunburstGraphics && typeof v.sunburstGraphics.clear === 'function') v.sunburstGraphics.clear();
+      if (v.clusterBoundaryGraphics && typeof v.clusterBoundaryGraphics.clear === 'function') v.clusterBoundaryGraphics.clear();
+      // Clear groupBy labels
+      if (v.groupByLabels) {
+        v.groupByLabels.forEach(function(lbl: any) { lbl.visible = false; });
+      }
+      // Clear sunburst labels
+      if (v._clearSunburstLabels) v._clearSunburstLabels();
+
       // Vault prefix fix: when vault is parent "obsidian-plugins", content paths
       // start with "開発/". Rewrite "path:classic-" → "path:開発/classic-" etc.
       var vaultName2 = (window as any).app?.vault?.getName?.() ?? "";
