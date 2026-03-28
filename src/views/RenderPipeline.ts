@@ -2444,7 +2444,8 @@ export class RenderPipeline {
     nodeColor: (n: GraphNode) => number,
     world: CanvasContainer,
   ) {
-    const container = new CanvasContainer();
+    const app = this.host.getPixiApp();
+    const container = (app ? app.createContainer() : new CanvasContainer()) as CanvasContainer;
     container.x = n.x;
     container.y = n.y;
 
@@ -2457,7 +2458,7 @@ export class RenderPipeline {
     const r = effectiveRadius(n, ns, nodeDeg, maxR, rtNode.minNodeRadius, this._cachedMaxDeg, sizeByDeg,
       n.bodyLength ?? 0, this._cachedMaxBodyLength ?? 0, rtNode.cardContentScale);
     const color = nodeColor(n);
-    const circle = new CanvasGraphics();
+    const circle = (app ? app.createGraphics() : new CanvasGraphics()) as CanvasGraphics;
     if (isSuperNode) {
       const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
       circle.lineStyle(rt.superNodeOuterStroke, color, 1);
@@ -3116,7 +3117,8 @@ export class RenderPipeline {
   ): void {
     const nodeR = pn.radius ?? 12;
     if (!pn.leaderLine) {
-      pn.leaderLine = new CanvasGraphics();
+      const llApp = this.host.getPixiApp();
+      pn.leaderLine = (llApp ? llApp.createGraphics() : new CanvasGraphics()) as CanvasGraphics;
       pn.gfx.addChild(pn.leaderLine);
     }
     const ll = pn.leaderLine;

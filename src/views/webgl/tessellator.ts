@@ -391,3 +391,84 @@ function pointLineDistance(
   // Perpendicular distance from point to infinite line
   return Math.abs(dy * px - dx * py + lx1 * ly0 - ly1 * lx0) / Math.sqrt(lenSq);
 }
+
+// ── Dash line splitting ────────────────────────────────────────────
+
+type Pt = { x: number; y: number };
+
+/**
+ * Split a polyline into visible dash segments based on a dash pattern.
+ *
+ * @param points - The polyline vertices (at least 2).
+ * @param pattern - Dash pattern [dash, gap, dash, gap, ...]. Empty = no dash (return whole strip).
+ * @returns Array of visible segments (each is a sub-polyline).
+ *
+ * Pure function — no side effects.
+ */
+export function dashifyLineStrip(
+  points: Pt[],
+  pattern: number[],
+): Pt[][] {
+  if (points.length < 2) return [];
+  if (pattern.length === 0) return [points];
+  // All-zero pattern → solid
+  if (pattern.every(v => v <= 0)) return [points];
+
+  const result: Pt[][] = [];
+  let patIdx = 0;         // current position in pattern
+  let remaining = pattern[0]; // distance left in current dash/gap
+  let isDash = true;      // even indices = dash, odd = gap
+  let current: Pt[] = [];
+
+  for (let i = 0; i < points.length - 1; i++) {
+    let sx = points[i].x;
+    let sy = points[i].y;
+    const ex = points[i + 1].x;
+    const ey = points[i + 1].y;
+    let segDx = ex - sx;
+    let segDy = ey - sy;
+    let segLen = Math.sqrt(segDx * segDx + segDy * segDy);
+
+    if (segLen === 0) continue;
+
+    while (segLen > 0) {
+      if (remaining <= 0) {
+        // Advance to next pattern entry
+        if (isDash && current.length >= 2) {
+          result.push(current);
+          current = [];
+        } else {
+          current = [];
+        }
+        patIdx = (patIdx + 1) % pattern.length;
+        isDash = !isDash;
+        remaining = pattern[patIdx];
+        if (remaining <= 0) remaining = 0.001; // avoid infinite loop
+      }
+
+      const consume = Math.min(remaining, segLen);
+      const t = consume / Math.sqrt(segDx * segDx + segDy * segDy);
+      const nx = sx + segDx * t;
+      const ny = sy + segDy * t;
+
+      if (isDash) {
+        if (current.length === 0) current.push({ x: sx, y: sy });
+        current.push({ x: nx, y: ny });
+      }
+
+      remaining -= consume;
+      segLen -= consume;
+      sx = nx;
+      sy = ny;
+      segDx = ex - sx;
+      segDy = ey - sy;
+    }
+  }
+
+  // Flush last segment
+  if (isDash && current.length >= 2) {
+    result.push(current);
+  }
+
+  return result;
+}

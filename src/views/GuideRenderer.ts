@@ -5,6 +5,7 @@
  * Extracted from GraphViewContainer to reduce God Object size.
  */
 import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
+import type { IApp } from "./canvas2d/interfaces";
 import { DEFAULT_RENDER_THRESHOLDS } from "../types";
 import type { GraphNode } from "../types";
 import { parseExpr, evalExpr } from "../utils/expr-eval";
@@ -27,6 +28,8 @@ export interface GuideRendererHost {
   };
   /** Nodes for cell-shading density heatmap (may return undefined). */
   getCurrentNodes(): GraphNode[] | undefined;
+  /** App instance for factory method access. */
+  getPixiApp?(): IApp | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -513,7 +516,8 @@ export class GuideRenderer {
     this.clearCustomGridLabels();
 
     if (!this.customGridLabelContainer && this.host.worldContainer) {
-      this.customGridLabelContainer = new CanvasContainer();
+      const grApp = this.host.getPixiApp?.();
+      this.customGridLabelContainer = (grApp ? grApp.createContainer() : new CanvasContainer()) as CanvasContainer;
       this.host.worldContainer.addChild(this.customGridLabelContainer);
     }
     const container = this.customGridLabelContainer;

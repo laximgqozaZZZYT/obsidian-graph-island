@@ -15,6 +15,7 @@ import {
   flattenBezier,
   flattenQuadratic,
   expandLineStrip,
+  dashifyLineStrip,
 } from "./tessellator";
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -289,13 +290,23 @@ export class WebGLGraphics extends CanvasGraphics {
     let pathPoints: { x: number; y: number }[] = [];
     let lastX = 0;
     let lastY = 0;
+    let dashPattern: number[] = [];
 
     const flushStroke = () => {
       if (strokeWidth > 0 && strokeAlpha > 0 && pathPoints.length >= 2) {
         const [sr, sg, sb] = hexToFloats(strokeColor);
         const sa = strokeAlpha * effAlpha;
-        const quads = expandLineStrip(pathPoints, strokeWidth);
-        appendColoredVertices(vertices, quads, sr, sg, sb, sa);
+        if (dashPattern.length > 0) {
+          // Split into visible dash segments, then expand each
+          const segments = dashifyLineStrip(pathPoints, dashPattern);
+          for (const seg of segments) {
+            const quads = expandLineStrip(seg, strokeWidth);
+            appendColoredVertices(vertices, quads, sr, sg, sb, sa);
+          }
+        } else {
+          const quads = expandLineStrip(pathPoints, strokeWidth);
+          appendColoredVertices(vertices, quads, sr, sg, sb, sa);
+        }
       }
       pathPoints = [];
     };
@@ -474,8 +485,11 @@ export class WebGLGraphics extends CanvasGraphics {
           }
           break;
 
-        // These don't have meaningful WebGL equivalents in this pass
         case "setLineDash":
+          dashPattern = cmd.segments.length > 0 ? [...cmd.segments] : [];
+          break;
+
+        // These don't have meaningful WebGL equivalents in this pass
         case "setLineCap":
         case "setLineJoin":
           break;

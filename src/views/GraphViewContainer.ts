@@ -2334,7 +2334,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   drawLinkPreview(srcX: number, srcY: number, dstX: number, dstY: number): void {
     if (!this.worldContainer) return;
     if (!this.linkPreviewGfx) {
-      this.linkPreviewGfx = new CanvasGraphics();
+      this.linkPreviewGfx = this.pixiApp!.createGraphics() as CanvasGraphics;
       this.worldContainer.addChild(this.linkPreviewGfx);
     }
     const gfx = this.linkPreviewGfx;
@@ -5203,7 +5203,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Lazily create the graphics layer
     if (!this._aggregateGraphics && this.worldContainer) {
-      this._aggregateGraphics = new CanvasGraphics();
+      this._aggregateGraphics = this.pixiApp!.createGraphics() as CanvasGraphics;
       this.worldContainer.addChild(this._aggregateGraphics);
     }
     const g = this._aggregateGraphics;
@@ -5489,7 +5489,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
 
     if (!this.clusterSunburstLabelContainer && this.worldContainer) {
-      this.clusterSunburstLabelContainer = new CanvasContainer();
+      this.clusterSunburstLabelContainer = this.pixiApp!.createContainer() as CanvasContainer;
       this.worldContainer.addChild(this.clusterSunburstLabelContainer);
     }
     const container = this.clusterSunburstLabelContainer;
@@ -9558,7 +9558,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   private drawSunburstLabels(arcs: LayoutSunburstArc[], cx: number, cy: number) {
     if (!this.sunburstLabelContainer && this.worldContainer) {
-      this.sunburstLabelContainer = new CanvasContainer();
+      this.sunburstLabelContainer = this.pixiApp!.createContainer() as CanvasContainer;
       this.worldContainer.addChild(this.sunburstLabelContainer);
     }
     const container = this.sunburstLabelContainer;
