@@ -222,7 +222,26 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
         v.panel.colorEdgesByRelation = true;
       }
 
+      // ANTI-PATTERN FIX: Reduce cluster spread for screenshots so nodes are visible.
+      // Large clusterGroupScale (2.5+) pushes groups too far apart → invisible nodes.
+      if (v.panel.groupBy && v.panel.groupBy !== "none") {
+        v.panel.clusterGroupScale = Math.min(v.panel.clusterGroupScale || 1, 1.2);
+      }
+
+      // ANTI-PATTERN FIX: Ensure minimum node size for screenshot visibility.
+      if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
+      if (!v.panel.renderThresholds.minNodeRadius || v.panel.renderThresholds.minNodeRadius < 8) {
+        v.panel.renderThresholds.minNodeRadius = 8;
+      }
+
       v.rawData = null;
+      // Reset existing node positions so force simulation starts fresh
+      // (prevents inheriting spread from previous preset's cluster layout)
+      if (v.pixiNodes) {
+        v.pixiNodes.forEach(function(pn: any) {
+          if (pn.data) { delete pn.data.x; delete pn.data.y; delete pn.data.vx; delete pn.data.vy; }
+        });
+      }
       await v.doRender();
 
       // Serialize the effective panel state for saving
