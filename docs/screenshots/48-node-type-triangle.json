@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-macbeth*",
+  "searchQuery": "path:classic-arabian-nights*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -100,7 +100,11 @@
   "groupMinSize": 2,
   "groupFilter": "",
   "collapsedGroups": [
-    "folder:classic-divine-comedy"
+    "node_type:scene",
+    "node_type:sequence",
+    "node_type:beat",
+    "node_type:act",
+    "node_type:character"
   ],
   "activeTab": "layout",
   "autoFit": false,
@@ -206,7 +210,6 @@
   "showTags": false,
   "colorNodesByCategory": true,
   "showGuideLines": false,
-  "guideLineMode": "perGroup",
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,

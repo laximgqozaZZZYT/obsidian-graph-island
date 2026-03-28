@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-divine-comedy*",
+  "searchQuery": "path:classic-arabian-nights*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -120,7 +120,7 @@
   "groupMinSize": 2,
   "groupFilter": "",
   "collapsedGroups": [
-    "folder:classic-divine-comedy"
+    "folder:classic-arabian-nights"
   ],
   "activeTab": "layout",
   "autoFit": true,
