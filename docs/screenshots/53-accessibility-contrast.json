@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:mythology-japanese*",
+  "searchQuery": "path:bible-new-testament*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -58,6 +58,12 @@
     "inheritance": true,
     "aggregation": true
   },
+  "commonQueries": [
+    {
+      "query": "backlinks:*",
+      "recursive": false
+    }
+  ],
   "clusterGroupRules": [
     {
       "groupBy": "folder:?",
@@ -93,6 +99,9 @@
   ],
   "groupMinSize": 2,
   "groupFilter": "",
+  "collapsedGroups": [
+    "folder:classic-divine-comedy"
+  ],
   "activeTab": "layout",
   "autoFit": false,
   "showDurationBars": true,
@@ -133,14 +142,20 @@
   "cableFanWidth": 2.5,
   "cableFanAlpha": 0.9,
   "syncWithEditor": true,
+  "localGraphCenter": null,
   "localGraphHops": 2,
   "edgeWeightThickness": true,
   "edgeLayerMode": false,
   "focusMode": false,
+  "focusNodeId": null,
+  "syncViewId": null,
+  "annotations": [],
+  "bookmarkedNodes": [],
   "edgeDirectionFilter": "all",
   "showPathfinderOverlay": true,
   "showLegend": true,
   "showOutOfBoundsIndicator": false,
+  "searchHistory": [],
   "orphanClusterField": "",
   "highlightMissingNeighbors": false,
   "showGraphStats": false,
@@ -150,8 +165,1982 @@
   "hoverShowTitle": true,
   "hoverShowMeta": true,
   "hoverShowBody": false,
+  "savedSearchQueries": [],
+  "savedViewports": [],
   "presetZoomLevel": 0,
   "zoomSensitivity": 1,
+  "pinnedPositions": {
+    "classic-macbeth/characters/macbeth.md": {
+      "x": 1375.1887536908573,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/macduff.md": {
+      "x": 1177.2820994385959,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/lady-macbeth.md": {
+      "x": 1968.9087164476416,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/malcolm.md": {
+      "x": 979.3754451863344,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/witch-first.md": {
+      "x": 385.65548242955015,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/banquo.md": {
+      "x": -504.9244617056264,
+      "y": -4445.087364028761
+    },
+    "classic-macbeth/characters/ross.md": {
+      "x": 583.5621366818116,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/duncan.md": {
+      "x": -307.017807453365,
+      "y": -4445.087364028761
+    },
+    "classic-macbeth/MOC.md": {
+      "x": -109.11115320110355,
+      "y": -4445.087364028761
+    },
+    "classic-macbeth/characters/witch-third.md": {
+      "x": -10.157826074972718,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/witch-second.md": {
+      "x": 187.7488281772886,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/hecate.md": {
+      "x": 2166.8153706999033,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/lennox.md": {
+      "x": 1573.0954079431187,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/lady-macduff.md": {
+      "x": 1771.0020621953802,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/fleance.md": {
+      "x": 2364.7220249521647,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/episodes/ep05_witches-second.md": {
+      "x": 1573.0954079431187,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/ep01_witches-prophecy.md": {
+      "x": 880.4221180602037,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/act2_crown-of-blood.md": {
+      "x": -405.9711345794957,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/episodes/act1_prophecy-and-murder.md": {
+      "x": -208.06448032723426,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/porter.md": {
+      "x": 781.468790934073,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/episodes/sc24_coronation.md": {
+      "x": 979.3754451863344,
+      "y": -7413.687177812682
+    },
+    "classic-macbeth/episodes/sc13_hecate-command.md": {
+      "x": 781.468790934073,
+      "y": -6622.060560803637
+    },
+    "classic-macbeth/episodes/sc09_discovery.md": {
+      "x": 484.6088095556809,
+      "y": -6424.153906551375
+    },
+    "classic-macbeth/episodes/sc06_duncan-arrives.md": {
+      "x": 1078.3287723124652,
+      "y": -6424.153906551375
+    },
+    "classic-macbeth/episodes/ep07_macduff-revenge.md": {
+      "x": 1177.2820994385959,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/ep03_murder-of-duncan.md": {
+      "x": 484.6088095556809,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/act3_retribution.md": {
+      "x": 2265.768697826034,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/sc20_grief-and-resolve.md": {
+      "x": 781.468790934073,
+      "y": -7017.87386930816
+    },
+    "classic-macbeth/episodes/sc21_march-to-scotland.md": {
+      "x": 979.3754451863344,
+      "y": -7017.87386930816
+    },
+    "classic-macbeth/episodes/sc15_macduff-family-slaughter.md": {
+      "x": 1276.2354265647266,
+      "y": -6819.967215055899
+    },
+    "classic-macbeth/episodes/sc11_banquet-ghost.md": {
+      "x": 1177.2820994385959,
+      "y": -6622.060560803637
+    },
+    "classic-macbeth/episodes/sc10_banquo-murder.md": {
+      "x": 1375.1887536908573,
+      "y": -6622.060560803637
+    },
+    "classic-macbeth/episodes/sc08_regicide.md": {
+      "x": 682.5154638079423,
+      "y": -6424.153906551375
+    },
+    "classic-macbeth/episodes/sc03_cawdor-confirmed.md": {
+      "x": 385.65548242955015,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/sc02_prophecy-delivered.md": {
+      "x": 583.5621366818116,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/sc01_heath-encounter.md": {
+      "x": 781.468790934073,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/ep08_final-battle.md": {
+      "x": 979.3754451863344,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/ep04_banquo-ghost.md": {
+      "x": 286.7021553034193,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/ep02_lady-macbeth-urge.md": {
+      "x": 682.5154638079423,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/bt71_hail-king-malcolm.md": {
+      "x": 1276.2354265647266,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/bt39_witches-prepare.md": {
+      "x": 1968.9087164476416,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt18_feast-before-murder.md": {
+      "x": 1375.1887536908573,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt03_witches-vanish.md": {
+      "x": 1672.0487350692495,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt02_fair-is-foul.md": {
+      "x": 1869.955389321511,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/sc23_final-duel.md": {
+      "x": 880.4221180602037,
+      "y": -7215.780523560421
+    },
+    "classic-macbeth/episodes/sc22_birnam-wood-moves.md": {
+      "x": 1078.3287723124652,
+      "y": -7215.780523560421
+    },
+    "classic-macbeth/episodes/sc19_england-alliance.md": {
+      "x": 1177.2820994385959,
+      "y": -7017.87386930816
+    },
+    "classic-macbeth/episodes/sc18_queens-death.md": {
+      "x": 682.5154638079423,
+      "y": -6819.967215055899
+    },
+    "classic-macbeth/episodes/sc17_queens-confession.md": {
+      "x": 880.4221180602037,
+      "y": -6819.967215055899
+    },
+    "classic-macbeth/episodes/sc14_cauldron-apparitions.md": {
+      "x": 583.5621366818116,
+      "y": -6622.060560803637
+    },
+    "classic-macbeth/episodes/sc12_resolve-to-visit-witches.md": {
+      "x": 979.3754451863344,
+      "y": -6622.060560803637
+    },
+    "classic-macbeth/episodes/sc05_persuasion.md": {
+      "x": 1276.2354265647266,
+      "y": -6424.153906551375
+    },
+    "classic-macbeth/episodes/sc04_letter-to-wife.md": {
+      "x": 1474.142080816988,
+      "y": -6424.153906551375
+    },
+    "classic-macbeth/episodes/ep06_lady-macbeth-madness.md": {
+      "x": 1375.1887536908573,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/bt72_order-restored.md": {
+      "x": 1078.3287723124652,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/bt70_head-presented.md": {
+      "x": 1474.142080816988,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/bt69_tyrant-falls.md": {
+      "x": 1672.0487350692495,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/bt68_not-of-woman.md": {
+      "x": 187.7488281772886,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt67_swords-clash.md": {
+      "x": 385.65548242955015,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt63_march-begins.md": {
+      "x": 1177.2820994385959,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt62_nobles-defect.md": {
+      "x": 1375.1887536908573,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt61_army-gathers.md": {
+      "x": 1573.0954079431187,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt60_grief-to-sword.md": {
+      "x": 1771.0020621953802,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt58_ross-brings-news.md": {
+      "x": 286.7021553034193,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt57_alliance-sealed.md": {
+      "x": 484.6088095556809,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt56_macduff-despairs.md": {
+      "x": 682.5154638079423,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt55_malcolm-tests.md": {
+      "x": 880.4221180602037,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt52_death-reported.md": {
+      "x": 1474.142080816988,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt50_banquo-confession.md": {
+      "x": 1869.955389321511,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt44_lady-macduff-warning.md": {
+      "x": 979.3754451863344,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt37_hecate-scolds.md": {
+      "x": 88.795501051158,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt35_spy-network.md": {
+      "x": 484.6088095556809,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt32_macbeth-raves.md": {
+      "x": 1078.3287723124652,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt31_ghost-appears.md": {
+      "x": 1276.2354265647266,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt30_fleance-escapes.md": {
+      "x": 1474.142080816988,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt26_body-found.md": {
+      "x": -208.06448032723426,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt23_hands-of-blood.md": {
+      "x": 385.65548242955015,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt22_deed-done.md": {
+      "x": 583.5621366818116,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt21_bell-tolls.md": {
+      "x": 781.468790934073,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt17_lady-greets-king.md": {
+      "x": 1573.0954079431187,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt16_king-welcomed.md": {
+      "x": 1771.0020621953802,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt15_resolve-hardened.md": {
+      "x": 1968.9087164476416,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt14_manhood-challenged.md": {
+      "x": 2166.8153706999033,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt12_plot-hatched.md": {
+      "x": -109.11115320110355,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt08_title-bestowed.md": {
+      "x": 682.5154638079423,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt07_ross-arrives.md": {
+      "x": 880.4221180602037,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt06_macbeth-ponders.md": {
+      "x": 1078.3287723124652,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt05_banquo-prophecy.md": {
+      "x": 1276.2354265647266,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt04_hail-macbeth.md": {
+      "x": 1474.142080816988,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/sc16_sleepwalking.md": {
+      "x": 1078.3287723124652,
+      "y": -6819.967215055899
+    },
+    "classic-macbeth/episodes/sc07_dagger-vision.md": {
+      "x": 880.4221180602037,
+      "y": -6424.153906551375
+    },
+    "classic-macbeth/episodes/bt66_macbeth-defiant.md": {
+      "x": 583.5621366818116,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt65_forest-moves.md": {
+      "x": 781.468790934073,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt64_branches-cut.md": {
+      "x": 979.3754451863344,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt59_all-my-children.md": {
+      "x": 88.795501051158,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt54_tale-told-by-idiot.md": {
+      "x": 1078.3287723124652,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt53_tomorrow-soliloquy.md": {
+      "x": 1276.2354265647266,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt51_incurable-mind.md": {
+      "x": 1672.0487350692495,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt49_duncan-confession.md": {
+      "x": -10.157826074972718,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt48_smell-of-blood.md": {
+      "x": 187.7488281772886,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt47_doctor-watches.md": {
+      "x": 385.65548242955015,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt46_out-damned-spot.md": {
+      "x": 583.5621366818116,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt45_slaughter.md": {
+      "x": 781.468790934073,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt43_order-to-kill.md": {
+      "x": 1177.2820994385959,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt42_crowned-child.md": {
+      "x": 1375.1887536908573,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt41_bloody-child.md": {
+      "x": 1573.0954079431187,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt40_armed-head.md": {
+      "x": 1771.0020621953802,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt38_overconfidence-trap.md": {
+      "x": -109.11115320110355,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt36_to-the-witches.md": {
+      "x": 286.7021553034193,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt34_blood-calls-blood.md": {
+      "x": 682.5154638079423,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt33_lady-covers.md": {
+      "x": 880.4221180602037,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt29_ambush.md": {
+      "x": 1672.0487350692495,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt28_murderers-hired.md": {
+      "x": 1869.955389321511,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt27_princes-flee.md": {
+      "x": 2067.862043573772,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt25_porter-knocking.md": {
+      "x": -10.157826074972718,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt24_daggers-planted.md": {
+      "x": 187.7488281772886,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt20_hallucination-deepens.md": {
+      "x": 979.3754451863344,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt19_dagger-appears.md": {
+      "x": 1177.2820994385959,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt13_macbeth-hesitates.md": {
+      "x": -307.017807453365,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt11_unsex-me.md": {
+      "x": 88.795501051158,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt10_reading-letter.md": {
+      "x": 286.7021553034193,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt09_dark-desire.md": {
+      "x": 484.6088095556809,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt01_storm-gathers.md": {
+      "x": 2067.862043573772,
+      "y": -4840.900672533284
+    },
+    "classic-othello/characters/othello.md": {
+      "x": 370.30389516756395,
+      "y": -1651.7887139055888
+    },
+    "classic-othello/characters/iago.md": {
+      "x": 765.0629001363953,
+      "y": -1651.7887139055888
+    },
+    "classic-othello/characters/desdemona.md": {
+      "x": 1422.9945750844477,
+      "y": -1651.7887139055888
+    },
+    "classic-othello/characters/cassio.md": {
+      "x": 1686.1672450636684,
+      "y": -1651.7887139055888
+    },
+    "classic-othello/characters/emilia.md": {
+      "x": 1159.8219051052265,
+      "y": -1651.7887139055888
+    },
+    "classic-othello/characters/brabantio.md": {
+      "x": 238.7175601779536,
+      "y": -1520.2023789159782
+    },
+    "classic-othello/characters/lodovico.md": {
+      "x": 633.4765651467849,
+      "y": -1651.7887139055888
+    },
+    "classic-othello/characters/roderigo.md": {
+      "x": 238.7175601779536,
+      "y": -1651.7887139055888
+    },
+    "classic-othello/MOC.md": {
+      "x": 501.8902301571744,
+      "y": -1520.2023789159782
+    },
+    "classic-othello/characters/duke-of-venice.md": {
+      "x": 1291.408240094837,
+      "y": -1651.7887139055888
+    },
+    "classic-othello/characters/montano.md": {
+      "x": 501.8902301571744,
+      "y": -1651.7887139055888
+    },
+    "classic-othello/characters/senator.md": {
+      "x": 1686.1672450636684,
+      "y": -1783.3750488951991
+    },
+    "classic-othello/characters/gratiano.md": {
+      "x": 1028.2355701156162,
+      "y": -1651.7887139055888
+    },
+    "classic-othello/characters/herald.md": {
+      "x": 896.6492351260058,
+      "y": -1651.7887139055888
+    },
+    "classic-othello/characters/bianca.md": {
+      "x": 370.30389516756395,
+      "y": -1520.2023789159782
+    },
+    "classic-othello/episodes/act2_seeds-of-jealousy.md": {
+      "x": 1422.9945750844477,
+      "y": -1783.3750488951991
+    },
+    "classic-othello/episodes/ep01_elopement.md": {
+      "x": 1159.8219051052265,
+      "y": -2572.893058832862
+    },
+    "classic-othello/episodes/act3_murder-and-truth.md": {
+      "x": 1291.408240094837,
+      "y": -1783.3750488951991
+    },
+    "classic-othello/episodes/act1_love-and-war.md": {
+      "x": 1554.580910074058,
+      "y": -1783.3750488951991
+    },
+    "classic-othello/characters/clown-othello.md": {
+      "x": 1554.580910074058,
+      "y": -1651.7887139055888
+    },
+    "classic-othello/episodes/sc23_iago-exposed.md": {
+      "x": 370.30389516756395,
+      "y": -2836.065728812083
+    },
+    "classic-othello/episodes/sc16_eavesdrop.md": {
+      "x": 1291.408240094837,
+      "y": -2836.065728812083
+    },
+    "classic-othello/episodes/ep08_truth-revealed.md": {
+      "x": 238.7175601779536,
+      "y": -2572.893058832862
+    },
+    "classic-othello/episodes/ep06_jealousy-grows.md": {
+      "x": 501.8902301571744,
+      "y": -2572.893058832862
+    },
+    "classic-othello/episodes/ep05_handkerchief.md": {
+      "x": 633.4765651467849,
+      "y": -2572.893058832862
+    },
+    "classic-othello/episodes/ep04_iago-plot.md": {
+      "x": 765.0629001363953,
+      "y": -2572.893058832862
+    },
+    "classic-othello/episodes/ep03_cyprus-arrival.md": {
+      "x": 896.6492351260058,
+      "y": -2572.893058832862
+    },
+    "classic-othello/episodes/ep02_venetian-court.md": {
+      "x": 1028.2355701156162,
+      "y": -2572.893058832862
+    },
+    "classic-othello/episodes/sc24_othello-death.md": {
+      "x": 238.7175601779536,
+      "y": -2836.065728812083
+    },
+    "classic-othello/episodes/sc22_emilia-accusation.md": {
+      "x": 501.8902301571744,
+      "y": -2836.065728812083
+    },
+    "classic-othello/episodes/sc21_emilia-discovery.md": {
+      "x": 633.4765651467849,
+      "y": -2836.065728812083
+    },
+    "classic-othello/episodes/sc17_lodovico-arrives.md": {
+      "x": 1159.8219051052265,
+      "y": -2836.065728812083
+    },
+    "classic-othello/episodes/sc13_handkerchief-stolen.md": {
+      "x": 1686.1672450636684,
+      "y": -2836.065728812083
+    },
+    "classic-othello/episodes/sc12_iago-counsel.md": {
+      "x": 238.7175601779536,
+      "y": -2704.479393822472
+    },
+    "classic-othello/episodes/sc11_cassio-dismissed.md": {
+      "x": 370.30389516756395,
+      "y": -2704.479393822472
+    },
+    "classic-othello/episodes/sc10_cassio-drunk.md": {
+      "x": 501.8902301571744,
+      "y": -2704.479393822472
+    },
+    "classic-othello/episodes/sc09_victory-feast.md": {
+      "x": 633.4765651467849,
+      "y": -2704.479393822472
+    },
+    "classic-othello/episodes/sc07_storm-landing.md": {
+      "x": 896.6492351260058,
+      "y": -2704.479393822472
+    },
+    "classic-othello/episodes/sc06_cyprus-order.md": {
+      "x": 1028.2355701156162,
+      "y": -2704.479393822472
+    },
+    "classic-othello/episodes/sc05_desdemona-testimony.md": {
+      "x": 1159.8219051052265,
+      "y": -2704.479393822472
+    },
+    "classic-othello/episodes/sc04_senate-trial.md": {
+      "x": 1291.408240094837,
+      "y": -2704.479393822472
+    },
+    "classic-othello/episodes/sc03_othello-summoned.md": {
+      "x": 1422.9945750844477,
+      "y": -2704.479393822472
+    },
+    "classic-othello/episodes/ep07_murder-of-desdemona.md": {
+      "x": 370.30389516756395,
+      "y": -2572.893058832862
+    },
+    "classic-othello/episodes/bt72_lodovico-epilogue.md": {
+      "x": 1291.408240094837,
+      "y": -2572.893058832862
+    },
+    "classic-othello/episodes/bt50_othello-strikes.md": {
+      "x": 1028.2355701156162,
+      "y": -2309.720388853641
+    },
+    "classic-othello/episodes/bt48_bianca-handkerchief.md": {
+      "x": 1291.408240094837,
+      "y": -2309.720388853641
+    },
+    "classic-othello/episodes/bt47_cassio-bianca-talk.md": {
+      "x": 1422.9945750844477,
+      "y": -2309.720388853641
+    },
+    "classic-othello/episodes/bt27_feast-begins.md": {
+      "x": 896.6492351260058,
+      "y": -2046.5477188744203
+    },
+    "classic-othello/episodes/bt21_iago-observes.md": {
+      "x": 1686.1672450636684,
+      "y": -2046.5477188744203
+    },
+    "classic-othello/episodes/bt20_desdemona-lands.md": {
+      "x": 238.7175601779536,
+      "y": -1914.9613838848097
+    },
+    "classic-othello/episodes/bt09_march-to-senate.md": {
+      "x": 1686.1672450636684,
+      "y": -1914.9613838848097
+    },
+    "classic-othello/episodes/bt02_shout-window.md": {
+      "x": 1028.2355701156162,
+      "y": -1783.3750488951991
+    },
+    "classic-othello/episodes/sc20_smothering.md": {
+      "x": 765.0629001363953,
+      "y": -2836.065728812083
+    },
+    "classic-othello/episodes/sc19_willow-song.md": {
+      "x": 896.6492351260058,
+      "y": -2836.065728812083
+    },
+    "classic-othello/episodes/sc18_murder-resolve.md": {
+      "x": 1028.2355701156162,
+      "y": -2836.065728812083
+    },
+    "classic-othello/episodes/sc15_demand-proof.md": {
+      "x": 1422.9945750844477,
+      "y": -2836.065728812083
+    },
+    "classic-othello/episodes/sc14_poison-words.md": {
+      "x": 1554.580910074058,
+      "y": -2836.065728812083
+    },
+    "classic-othello/episodes/sc08_reunion.md": {
+      "x": 765.0629001363953,
+      "y": -2704.479393822472
+    },
+    "classic-othello/episodes/sc02_brabantio-rage.md": {
+      "x": 1554.580910074058,
+      "y": -2704.479393822472
+    },
+    "classic-othello/episodes/sc01_night-alarm.md": {
+      "x": 1686.1672450636684,
+      "y": -2704.479393822472
+    },
+    "classic-othello/episodes/bt71_othello-suicide.md": {
+      "x": 1422.9945750844477,
+      "y": -2572.893058832862
+    },
+    "classic-othello/episodes/bt70_othello-final-speech.md": {
+      "x": 1554.580910074058,
+      "y": -2572.893058832862
+    },
+    "classic-othello/episodes/bt69_iago-captured.md": {
+      "x": 1686.1672450636684,
+      "y": -2572.893058832862
+    },
+    "classic-othello/episodes/bt68_roderigo-letters.md": {
+      "x": 238.7175601779536,
+      "y": -2441.3067238432513
+    },
+    "classic-othello/episodes/bt67_cassio-testimony.md": {
+      "x": 370.30389516756395,
+      "y": -2441.3067238432513
+    },
+    "classic-othello/episodes/bt66_iago-stabs-emilia.md": {
+      "x": 501.8902301571744,
+      "y": -2441.3067238432513
+    },
+    "classic-othello/episodes/bt65_iago-threatens-emilia.md": {
+      "x": 633.4765651467849,
+      "y": -2441.3067238432513
+    },
+    "classic-othello/episodes/bt64_emilia-reveals.md": {
+      "x": 765.0629001363953,
+      "y": -2441.3067238432513
+    },
+    "classic-othello/episodes/bt63_emilia-screams.md": {
+      "x": 896.6492351260058,
+      "y": -2441.3067238432513
+    },
+    "classic-othello/episodes/bt62_desdemona-last-words.md": {
+      "x": 1028.2355701156162,
+      "y": -2441.3067238432513
+    },
+    "classic-othello/episodes/bt61_emilia-knocks.md": {
+      "x": 1159.8219051052265,
+      "y": -2441.3067238432513
+    },
+    "classic-othello/episodes/bt60_suffocation.md": {
+      "x": 1291.408240094837,
+      "y": -2441.3067238432513
+    },
+    "classic-othello/episodes/bt59_desdemona-pleads.md": {
+      "x": 1422.9945750844477,
+      "y": -2441.3067238432513
+    },
+    "classic-othello/episodes/bt58_othello-enters-bedroom.md": {
+      "x": 1554.580910074058,
+      "y": -2441.3067238432513
+    },
+    "classic-othello/episodes/bt57_emilia-farewell.md": {
+      "x": 1686.1672450636684,
+      "y": -2441.3067238432513
+    },
+    "classic-othello/episodes/bt55_desdemona-prepares.md": {
+      "x": 370.30389516756395,
+      "y": -2309.720388853641
+    },
+    "classic-othello/episodes/bt53_roderigo-assassination.md": {
+      "x": 633.4765651467849,
+      "y": -2309.720388853641
+    },
+    "classic-othello/episodes/bt52_othello-accuses-desdemona.md": {
+      "x": 765.0629001363953,
+      "y": -2309.720388853641
+    },
+    "classic-othello/episodes/bt51_lodovico-shock.md": {
+      "x": 896.6492351260058,
+      "y": -2309.720388853641
+    },
+    "classic-othello/episodes/bt49_letter-from-venice.md": {
+      "x": 1159.8219051052265,
+      "y": -2309.720388853641
+    },
+    "classic-othello/episodes/bt46_hiding-othello.md": {
+      "x": 1554.580910074058,
+      "y": -2309.720388853641
+    },
+    "classic-othello/episodes/bt45_handkerchief-testimony.md": {
+      "x": 1686.1672450636684,
+      "y": -2309.720388853641
+    },
+    "classic-othello/episodes/bt44_cassio-dream-lie.md": {
+      "x": 238.7175601779536,
+      "y": -2178.1340538640306
+    },
+    "classic-othello/episodes/bt43_othello-demands.md": {
+      "x": 370.30389516756395,
+      "y": -2178.1340538640306
+    },
+    "classic-othello/episodes/bt41_green-eyed-monster.md": {
+      "x": 633.4765651467849,
+      "y": -2178.1340538640306
+    },
+    "classic-othello/episodes/bt40_first-insinuation.md": {
+      "x": 765.0629001363953,
+      "y": -2178.1340538640306
+    },
+    "classic-othello/episodes/bt39_plant-evidence.md": {
+      "x": 896.6492351260058,
+      "y": -2178.1340538640306
+    },
+    "classic-othello/episodes/bt38_iago-takes-handkerchief.md": {
+      "x": 1028.2355701156162,
+      "y": -2178.1340538640306
+    },
+    "classic-othello/episodes/bt37_emilia-picks-up.md": {
+      "x": 1159.8219051052265,
+      "y": -2178.1340538640306
+    },
+    "classic-othello/episodes/bt34_iago-friendly-advice.md": {
+      "x": 1554.580910074058,
+      "y": -2178.1340538640306
+    },
+    "classic-othello/episodes/bt33_montano-wounded.md": {
+      "x": 1686.1672450636684,
+      "y": -2178.1340538640306
+    },
+    "classic-othello/episodes/bt31_cassio-stripped.md": {
+      "x": 370.30389516756395,
+      "y": -2046.5477188744203
+    },
+    "classic-othello/episodes/bt30_othello-intervenes.md": {
+      "x": 501.8902301571744,
+      "y": -2046.5477188744203
+    },
+    "classic-othello/episodes/bt29_alarm-bell.md": {
+      "x": 633.4765651467849,
+      "y": -2046.5477188744203
+    },
+    "classic-othello/episodes/bt28_cassio-fights.md": {
+      "x": 765.0629001363953,
+      "y": -2046.5477188744203
+    },
+    "classic-othello/episodes/bt26_iago-drinking-plan.md": {
+      "x": 1028.2355701156162,
+      "y": -2046.5477188744203
+    },
+    "classic-othello/episodes/bt25_herald-proclamation.md": {
+      "x": 1159.8219051052265,
+      "y": -2046.5477188744203
+    },
+    "classic-othello/episodes/bt23_lovers-embrace.md": {
+      "x": 1422.9945750844477,
+      "y": -2046.5477188744203
+    },
+    "classic-othello/episodes/bt19_ships-arrive.md": {
+      "x": 370.30389516756395,
+      "y": -1914.9613838848097
+    },
+    "classic-othello/episodes/bt18_iago-soliloquy-plan.md": {
+      "x": 501.8902301571744,
+      "y": -1914.9613838848097
+    },
+    "classic-othello/episodes/bt17_desdemona-request.md": {
+      "x": 633.4765651467849,
+      "y": -1914.9613838848097
+    },
+    "classic-othello/episodes/bt16_cyprus-command.md": {
+      "x": 765.0629001363953,
+      "y": -1914.9613838848097
+    },
+    "classic-othello/episodes/bt15_brabantio-warning.md": {
+      "x": 896.6492351260058,
+      "y": -1914.9613838848097
+    },
+    "classic-othello/episodes/bt14_duke-ruling.md": {
+      "x": 1028.2355701156162,
+      "y": -1914.9613838848097
+    },
+    "classic-othello/episodes/bt13_desdemona-speaks.md": {
+      "x": 1159.8219051052265,
+      "y": -1914.9613838848097
+    },
+    "classic-othello/episodes/bt12_othello-speech.md": {
+      "x": 1291.408240094837,
+      "y": -1914.9613838848097
+    },
+    "classic-othello/episodes/bt11_brabantio-plea.md": {
+      "x": 1422.9945750844477,
+      "y": -1914.9613838848097
+    },
+    "classic-othello/episodes/bt10_turkey-report.md": {
+      "x": 1554.580910074058,
+      "y": -1914.9613838848097
+    },
+    "classic-othello/episodes/bt07_cassio-message.md": {
+      "x": 370.30389516756395,
+      "y": -1783.3750488951991
+    },
+    "classic-othello/episodes/bt06_confrontation-street.md": {
+      "x": 501.8902301571744,
+      "y": -1783.3750488951991
+    },
+    "classic-othello/episodes/bt04_brabantio-accuses.md": {
+      "x": 765.0629001363953,
+      "y": -1783.3750488951991
+    },
+    "classic-othello/episodes/bt01_iago-roderigo-street.md": {
+      "x": 1159.8219051052265,
+      "y": -1783.3750488951991
+    },
+    "classic-othello/episodes/bt56_willow-song-sung.md": {
+      "x": 238.7175601779536,
+      "y": -2309.720388853641
+    },
+    "classic-othello/episodes/bt54_death-oath.md": {
+      "x": 501.8902301571744,
+      "y": -2309.720388853641
+    },
+    "classic-othello/episodes/bt42_othello-shaken.md": {
+      "x": 501.8902301571744,
+      "y": -2178.1340538640306
+    },
+    "classic-othello/episodes/bt36_iago-soliloquy-web.md": {
+      "x": 1291.408240094837,
+      "y": -2178.1340538640306
+    },
+    "classic-othello/episodes/bt35_cassio-agrees.md": {
+      "x": 1422.9945750844477,
+      "y": -2178.1340538640306
+    },
+    "classic-othello/episodes/bt32_cassio-despair.md": {
+      "x": 238.7175601779536,
+      "y": -2046.5477188744203
+    },
+    "classic-othello/episodes/bt24_iago-vow.md": {
+      "x": 1291.408240094837,
+      "y": -2046.5477188744203
+    },
+    "classic-othello/episodes/bt22_othello-arrives-cyprus.md": {
+      "x": 1554.580910074058,
+      "y": -2046.5477188744203
+    },
+    "classic-othello/episodes/bt08_iago-aside.md": {
+      "x": 238.7175601779536,
+      "y": -1783.3750488951991
+    },
+    "classic-othello/episodes/bt05_armed-search.md": {
+      "x": 633.4765651467849,
+      "y": -1783.3750488951991
+    },
+    "classic-othello/episodes/bt03_brabantio-awakens.md": {
+      "x": 896.6492351260058,
+      "y": -1783.3750488951991
+    },
+    "classic-genji/characters/hikaru-genji.md": {
+      "x": 948.0028998621325,
+      "y": 1183.0785203289383
+    },
+    "classic-genji/MOC.md": {
+      "x": 947.9995849282544,
+      "y": -228.63416661748286
+    },
+    "classic-genji/characters/yugao.md": {
+      "x": 1157.9272800971753,
+      "y": 55.61269623626809
+    },
+    "classic-genji/characters/murasaki-no-ue.md": {
+      "x": 1296.0717302719913,
+      "y": 159.9169652262916
+    },
+    "classic-genji/characters/fujitsubo.md": {
+      "x": 1387.1969921776717,
+      "y": 307.0903184261036
+    },
+    "classic-genji/characters/tamakazura.md": {
+      "x": 992.0004921154576,
+      "y": 7.744431103249332
+    },
+    "classic-genji/characters/ukifune.md": {
+      "x": 819.1078624263506,
+      "y": 24.228801487495904
+    },
+    "classic-genji/characters/to-no-chujo.md": {
+      "x": 527.8211369720435,
+      "y": 218.04211010603672
+    },
+    "classic-genji/characters/akashi-no-kimi.md": {
+      "x": 664.1745454453571,
+      "y": 101.37654697563916
+    },
+    "classic-genji/characters/suetsumuhana.md": {
+      "x": 477.0981816939232,
+      "y": 391.3155416811981
+    },
+    "classic-genji/characters/niou-no-miya.md": {
+      "x": 662.5600814640503,
+      "y": 860.8780986203566
+    },
+    "classic-genji/characters/kaoru.md": {
+      "x": 541.1874117202178,
+      "y": 722.8469389529113
+    },
+    "classic-genji/characters/aoi-no-ue.md": {
+      "x": 485.03367473408485,
+      "y": 563.7815617189584
+    },
+    "classic-genji/characters/rokujo-no-miyasudokoro.md": {
+      "x": 1157.9425918792886,
+      "y": 898.833894198007
+    },
+    "classic-genji/characters/kokiden-no-nyogo.md": {
+      "x": 991.4549387133619,
+      "y": 946.1829428518063
+    },
+    "classic-genji/characters/kiritsubo-emperor.md": {
+      "x": 818.7839587227616,
+      "y": 931.1197505671897
+    },
+    "classic-genji/episodes/act3_twilight.md": {
+      "x": 1419.8440887739184,
+      "y": 477.8402437267474
+    },
+    "classic-genji/episodes/act2_glory.md": {
+      "x": 1387.174123139456,
+      "y": 647.3698675314885
+    },
+    "classic-genji/episodes/act1_youth.md": {
+      "x": 1296.8323470562827,
+      "y": 794.6810649317745
+    },
+    "classic-genji/episodes/sc08_03_yume-no-ukihashi.md": {
+      "x": 967.1776474762364,
+      "y": 477.2275910873041
+    },
+    "classic-genji/episodes/sc08_02_two-suitors.md": {
+      "x": 1196.4160374847115,
+      "y": 450.1821639497341
+    },
+    "classic-genji/episodes/sc08_01_ukifune-discovery.md": {
+      "x": 1237.8857643144183,
+      "y": 397.74465452512527
+    },
+    "classic-genji/episodes/sc07_03_nakanokimi-match.md": {
+      "x": 1297.2226775134707,
+      "y": 436.5266977569792
+    },
+    "classic-genji/episodes/sc07_02_oigimi-love.md": {
+      "x": 1319.2076642508107,
+      "y": 499.0122460642214
+    },
+    "classic-genji/episodes/sc07_01_uji-princesses.md": {
+      "x": 1148.4253311797388,
+      "y": 493.79352989283876
+    },
+    "classic-genji/episodes/sc06_03_murasaki-death.md": {
+      "x": 1093.7438516948337,
+      "y": 449.28537334742407
+    },
+    "classic-genji/episodes/sc06_02_kashiwagi-sin.md": {
+      "x": 1085.5534422049554,
+      "y": 514.8963774827155
+    },
+    "classic-genji/episodes/sc06_01_onna-san-no-miya.md": {
+      "x": 1135.6491715808374,
+      "y": 561.275427884201
+    },
+    "classic-genji/episodes/sc05_03_murasaki-maturity.md": {
+      "x": 1205.195741144327,
+      "y": 548.9424238620142
+    },
+    "classic-genji/episodes/sc05_02_picture-contest.md": {
+      "x": 1275.4064881460993,
+      "y": 548.1063307434147
+    },
+    "classic-genji/episodes/sc05_01_tamakazura-arrival.md": {
+      "x": 1317.774065197285,
+      "y": 607.1184719736002
+    },
+    "classic-genji/episodes/sc04_03_rokujoin-splendor.md": {
+      "x": 1273.0643871102295,
+      "y": 675.6968789385932
+    },
+    "classic-genji/episodes/sc04_02_akashi-princess.md": {
+      "x": 1247.2282618247857,
+      "y": 610.727880259793
+    },
+    "classic-genji/episodes/sc04_01_return-capital.md": {
+      "x": 1203.6331356644043,
+      "y": 676.1415903220949
+    },
+    "classic-genji/episodes/sc03_03_akashi-encounter.md": {
+      "x": 1137.079489211465,
+      "y": 693.0110678110218
+    },
+    "classic-genji/episodes/sc03_02_suma-exile.md": {
+      "x": 1226.428877290072,
+      "y": 735.5705675583872
+    },
+    "classic-genji/episodes/sc03_01_political-fall.md": {
+      "x": 1179.9210871148941,
+      "y": 613.8305040527657
+    },
+    "classic-genji/episodes/sc02_03_rokujo-jealousy.md": {
+      "x": 1068.8141383807674,
+      "y": 580.5630047591987
+    },
+    "classic-genji/episodes/sc02_02_yugao-tragedy.md": {
+      "x": 1115.9886273902086,
+      "y": 628.6326193383292
+    },
+    "classic-genji/episodes/sc02_01_fujitsubo-longing.md": {
+      "x": 1017.082082020934,
+      "y": 532.6781679755138
+    },
+    "classic-genji/episodes/sc01_03_young-prince.md": {
+      "x": 1005.3590149463515,
+      "y": 599.3570482465498
+    },
+    "classic-genji/episodes/sc01_02_mothers-death.md": {
+      "x": 1054.3396777975095,
+      "y": 767.2447906078417
+    },
+    "classic-genji/episodes/sc01_01_imperial-love.md": {
+      "x": 1166.992433219879,
+      "y": 757.4981286456867
+    },
+    "classic-genji/episodes/ep08_ukifune.md": {
+      "x": 1109.2730938070697,
+      "y": 747.973926803929
+    },
+    "classic-genji/episodes/ep07_uji-bridge.md": {
+      "x": 1073.7969284115768,
+      "y": 707.4496426626035
+    },
+    "classic-genji/episodes/ep06_decline.md": {
+      "x": 1160.5786473863602,
+      "y": 815.8158317730623
+    },
+    "classic-genji/episodes/ep05_murasaki-love.md": {
+      "x": 1105.3490876015205,
+      "y": 804.1886024231021
+    },
+    "classic-genji/episodes/ep04_return-to-glory.md": {
+      "x": 1030.8745389369494,
+      "y": 837.9583713248492
+    },
+    "classic-genji/episodes/ep03_exile-to-suma.md": {
+      "x": 1088.103376930226,
+      "y": 862.903357118071
+    },
+    "classic-genji/episodes/ep02_forbidden-love.md": {
+      "x": 1014.6257992992415,
+      "y": 716.991317973729
+    },
+    "classic-genji/episodes/ep01_kiritsubo.md": {
+      "x": 948.8257457630399,
+      "y": 617.6516324210825
+    },
+    "classic-genji/episodes/bt08_03_03_final-refusal.md": {
+      "x": 1050.7894385151117,
+      "y": 648.5131072871131
+    },
+    "classic-genji/episodes/bt08_03_02_nun-life.md": {
+      "x": 986.6123642748927,
+      "y": 661.2446750317314
+    },
+    "classic-genji/episodes/bt08_03_01_rescue.md": {
+      "x": 955.0550869879536,
+      "y": 731.1404472515047
+    },
+    "classic-genji/episodes/bt08_02_03_river-despair.md": {
+      "x": 988.2468570746444,
+      "y": 785.9811980853655
+    },
+    "classic-genji/episodes/bt08_02_02_torn-heart.md": {
+      "x": 921.4476822915566,
+      "y": 798.1203671215911
+    },
+    "classic-genji/episodes/bt08_02_01_niou-intrusion.md": {
+      "x": 894.1966061094763,
+      "y": 866.144703207648
+    },
+    "classic-genji/episodes/bt08_01_03_ukifune-heart.md": {
+      "x": 963.672661044515,
+      "y": 851.9213607635688
+    },
+    "classic-genji/episodes/bt08_01_02_uji-hideaway.md": {
+      "x": 811.2613982820712,
+      "y": 859.3887768846188
+    },
+    "classic-genji/episodes/bt08_01_01_resemblance.md": {
+      "x": 855.8226996356346,
+      "y": 808.3641119696897
+    },
+    "classic-genji/episodes/bt07_03_03_nakanokimi-capital.md": {
+      "x": 879.3209499909678,
+      "y": 739.556424347569
+    },
+    "classic-genji/episodes/bt07_03_02_distance-sorrow.md": {
+      "x": 920.3005362534094,
+      "y": 675.3955065897635
+    },
+    "classic-genji/episodes/bt07_03_01_niou-pursuit.md": {
+      "x": 808.6782826526422,
+      "y": 759.70900845308
+    },
+    "classic-genji/episodes/bt07_02_03_oigimi-death.md": {
+      "x": 941.9589567443302,
+      "y": 556.4950304324162
+    },
+    "classic-genji/episodes/bt07_02_02_oigimi-refusal.md": {
+      "x": 874.2176349412262,
+      "y": 538.9446923399778
+    },
+    "classic-genji/episodes/bt07_02_01_kaoru-confession.md": {
+      "x": 883.8933871510094,
+      "y": 610.6150373369815
+    },
+    "classic-genji/episodes/bt07_01_03_hachi-no-miya-death.md": {
+      "x": 780.585571644008,
+      "y": 691.296897402769
+    },
+    "classic-genji/episodes/bt07_01_02_sisters-beauty.md": {
+      "x": 730.168018712026,
+      "y": 746.60579429429
+    },
+    "classic-genji/episodes/bt07_01_01_uji-visit.md": {
+      "x": 710.3211468815879,
+      "y": 681.0679480514292
+    },
+    "classic-genji/episodes/bt06_03_03_farewell.md": {
+      "x": 815.7580830951705,
+      "y": 618.0780994188253
+    },
+    "classic-genji/episodes/bt06_03_02_last-spring.md": {
+      "x": 663.4917222201418,
+      "y": 726.4628827941292
+    },
+    "classic-genji/episodes/bt06_03_01_illness-onset.md": {
+      "x": 676.9619796119088,
+      "y": 793.5115181181459
+    },
+    "classic-genji/episodes/bt06_02_03_karma-cycle.md": {
+      "x": 850.2704826531752,
+      "y": 672.1312404633757
+    },
+    "classic-genji/episodes/bt06_02_02_forbidden-sin.md": {
+      "x": 760.9744283363609,
+      "y": 810.0219952754367
+    },
+    "classic-genji/episodes/bt06_02_01_kashiwagi-obsession.md": {
+      "x": 671.7418871986685,
+      "y": 620.2429409770065
+    },
+    "classic-genji/episodes/bt06_01_03_young-wife.md": {
+      "x": 599.8299941203613,
+      "y": 744.7346467011799
+    },
+    "classic-genji/episodes/bt06_01_02_murasaki-heartbreak.md": {
+      "x": 612.4133472647312,
+      "y": 673.1486916246263
+    },
+    "classic-genji/episodes/bt06_01_01_suzaku-request.md": {
+      "x": 723.683764320754,
+      "y": 553.799249370836
+    },
+    "classic-genji/episodes/bt05_03_03_hidden-anxiety.md": {
+      "x": 795.396210687763,
+      "y": 553.6881426402615
+    },
+    "classic-genji/episodes/bt05_03_02_seasonal-beauty.md": {
+      "x": 747.984456319108,
+      "y": 621.5717119142473
+    },
+    "classic-genji/episodes/bt05_03_01_stable-love.md": {
+      "x": 601.5410861994867,
+      "y": 597.5890963695235
+    },
+    "classic-genji/episodes/bt05_02_03_art-victory.md": {
+      "x": 759.3708405738982,
+      "y": 494.20095188357914
+    },
+    "classic-genji/episodes/bt05_02_02_suma-scroll.md": {
+      "x": 507.4236192937732,
+      "y": 496.4954134670926
+    },
+    "classic-genji/episodes/bt05_02_01_painting-preparation.md": {
+      "x": 573.9697203166152,
+      "y": 528.6111306307586
+    },
+    "classic-genji/episodes/bt05_01_03_rokujoin-welcome.md": {
+      "x": 650.0673767746387,
+      "y": 545.5069246201878
+    },
+    "classic-genji/episodes/bt05_01_02_discovery.md": {
+      "x": 694.6082015821712,
+      "y": 492.715427426946
+    },
+    "classic-genji/episodes/bt05_01_01_tsukushi-years.md": {
+      "x": 628.9250202899013,
+      "y": 475.00270858241663
+    },
+    "classic-genji/episodes/bt04_03_03_glory-peak.md": {
+      "x": 615.882783774222,
+      "y": 407.4068039840804
+    },
+    "classic-genji/episodes/bt04_03_02_ladies-arrangement.md": {
+      "x": 549.6186401843058,
+      "y": 380.4390872859975
+    },
+    "classic-genji/episodes/bt04_03_01_rokujoin-plan.md": {
+      "x": 561.2652256563132,
+      "y": 453.5372409215187
+    },
+    "classic-genji/episodes/bt04_02_03_akashi-sorrow.md": {
+      "x": 599.4391180462031,
+      "y": 325.55410112042665
+    },
+    "classic-genji/episodes/bt04_02_02_murasaki-foster.md": {
+      "x": 664.2488597613648,
+      "y": 355.89571319978137
+    },
+    "classic-genji/episodes/bt04_02_01_princess-birth.md": {
+      "x": 827.669201835877,
+      "y": 482.9986207426138
+    },
+    "classic-genji/episodes/bt04_01_03_political-rise.md": {
+      "x": 681.4485484195181,
+      "y": 426.20046190168887
+    },
+    "classic-genji/episodes/bt04_01_02_triumphant-return.md": {
+      "x": 808.0176697807345,
+      "y": 357.6482771227171
+    },
+    "classic-genji/episodes/bt04_01_01_imperial-pardon.md": {
+      "x": 736.269469858633,
+      "y": 379.2206408787177
+    },
+    "classic-genji/episodes/bt03_03_03_akashi-love.md": {
+      "x": 784.9429131075478,
+      "y": 428.9700288081583
+    },
+    "classic-genji/episodes/bt03_03_02_akashi-nyudo.md": {
+      "x": 896.510256427096,
+      "y": 470.7083908301333
+    },
+    "classic-genji/episodes/bt03_03_01_fathers-dream.md": {
+      "x": 852.232337694513,
+      "y": 415.83555464019696
+    },
+    "classic-genji/episodes/bt03_02_03_storm-omen.md": {
+      "x": 719.0896181045557,
+      "y": 312.9423335586081
+    },
+    "classic-genji/episodes/bt03_02_02_lonely-autumn.md": {
+      "x": 658.4641838564314,
+      "y": 283.8733091027278
+    },
+    "classic-genji/episodes/bt03_02_01_suma-arrival.md": {
+      "x": 655.6245076831106,
+      "y": 214.46057043416255
+    },
+    "classic-genji/episodes/bt03_01_03_decision-to-leave.md": {
+      "x": 592.7883189416274,
+      "y": 251.63098910474545
+    },
+    "classic-genji/episodes/bt03_01_02_kokiden-plot.md": {
+      "x": 775.6999626879038,
+      "y": 211.02178603044973
+    },
+    "classic-genji/episodes/bt03_01_01_oborozukiyo.md": {
+      "x": 775.7179421059318,
+      "y": 143.32191705305675
+    },
+    "classic-genji/episodes/bt02_03_03_living-spirit.md": {
+      "x": 715.6707745352086,
+      "y": 176.2131340177818
+    },
+    "classic-genji/episodes/bt02_03_02_aoi-festival.md": {
+      "x": 716.801400424067,
+      "y": 245.52948798088087
+    },
+    "classic-genji/episodes/bt02_03_01_fading-love.md": {
+      "x": 892.2505707845131,
+      "y": 359.55841076090553
+    },
+    "classic-genji/episodes/bt02_02_03_spirit-attack.md": {
+      "x": 935.3884813496362,
+      "y": 412.48279558680304
+    },
+    "classic-genji/episodes/bt02_02_02_hidden-rendezvous.md": {
+      "x": 784.2423458981558,
+      "y": 284.2574084235205
+    },
+    "classic-genji/episodes/bt02_02_01_gojo-encounter.md": {
+      "x": 856.7761412645046,
+      "y": 300.30957652499103
+    },
+    "classic-genji/episodes/bt02_01_03_secret-child.md": {
+      "x": 911.7092622431173,
+      "y": 176.4459135628853
+    },
+    "classic-genji/episodes/bt02_01_02_forbidden-night.md": {
+      "x": 841.1559817136603,
+      "y": 171.42998014149578
+    },
+    "classic-genji/episodes/bt02_01_01_mothers-shadow.md": {
+      "x": 830.60660505183,
+      "y": 99.9263447167214
+    },
+    "classic-genji/episodes/bt01_03_03_talent-display.md": {
+      "x": 902.0068584564411,
+      "y": 106.97263152925711
+    },
+    "classic-genji/episodes/bt01_03_02_aoi-marriage.md": {
+      "x": 898.3803753744792,
+      "y": 243.53140807189646
+    },
+    "classic-genji/episodes/bt01_03_01_genpuku.md": {
+      "x": 834.6483564430131,
+      "y": 237.70409780679688
+    },
+    "classic-genji/episodes/bt01_02_03_emperors-grief.md": {
+      "x": 934.4402259478592,
+      "y": 303.7062561281388
+    },
+    "classic-genji/episodes/bt01_02_02_kiritsubo-death.md": {
+      "x": 982.7629465797748,
+      "y": 357.93984463374244
+    },
+    "classic-genji/episodes/bt01_02_01_birth-of-light.md": {
+      "x": 1004.9627322720278,
+      "y": 288.99310271815597
+    },
+    "classic-genji/episodes/bt01_01_03_love-amid-sorrow.md": {
+      "x": 967.7741256969292,
+      "y": 225.90080431571155
+    },
+    "classic-genji/episodes/bt01_01_02_court-jealousy.md": {
+      "x": 1021.6227482635178,
+      "y": 175.80842026724963
+    },
+    "classic-genji/episodes/bt01_01_01_emperors-gaze.md": {
+      "x": 975.9507561001342,
+      "y": 114.73694281648146
+    },
+    "classic-sangokushi/characters/zhuge-liang.md": {
+      "x": 947.9992710483126,
+      "y": 477.2236304571406
+    },
+    "classic-sangokushi/characters/liu-bei.md": {
+      "x": 1146.6668485675511,
+      "y": 549.5388896475522
+    },
+    "classic-sangokushi/characters/guan-yu.md": {
+      "x": 1053.7093852135868,
+      "y": 660.322550395718
+    },
+    "classic-sangokushi/characters/cao-cao.md": {
+      "x": 911.2863899491786,
+      "y": 685.4329341469814
+    },
+    "classic-sangokushi/characters/zhang-fei.md": {
+      "x": 786.0412658497895,
+      "y": 613.122789705778
+    },
+    "classic-sangokushi/characters/lu-bu.md": {
+      "x": 736.5760026352357,
+      "y": 477.2202419655379
+    },
+    "classic-sangokushi/MOC.md": {
+      "x": 786.0409451859542,
+      "y": 341.3227514104081
+    },
+    "classic-sangokushi/characters/dong-zhuo.md": {
+      "x": 911.2883379186628,
+      "y": 269.0118161892128
+    },
+    "classic-sangokushi/characters/zhao-yun.md": {
+      "x": 1053.7099188517273,
+      "y": 294.131033802461
+    },
+    "classic-sangokushi/characters/sima-yi.md": {
+      "x": 1146.667172471078,
+      "y": 404.91631367384457
+    },
+    "classic-sangokushi/characters/zhou-yu.md": {
+      "x": 1370.847931905078,
+      "y": 477.22655302034093
+    },
+    "classic-sangokushi/characters/sun-quan.md": {
+      "x": 1355.1693933298625,
+      "y": 591.3085018381463
+    },
+    "classic-sangokushi/characters/xiahou-dun.md": {
+      "x": 1309.2942427404987,
+      "y": 696.9355352130461
+    },
+    "classic-sangokushi/characters/ma-chao.md": {
+      "x": 1236.6192950043844,
+      "y": 786.2619229659313
+    },
+    "classic-sangokushi/characters/dian-wei.md": {
+      "x": 1142.5388153110637,
+      "y": 852.6725770448934
+    },
+    "classic-sangokushi/characters/diao-chan.md": {
+      "x": 1034.0311352889198,
+      "y": 891.2306237771136
+    },
+    "classic-sangokushi/episodes/sc06_01_liu-bei-rage.md": {
+      "x": 919.1404289212753,
+      "y": 899.0870137985089
+    },
+    "classic-sangokushi/episodes/sc04_01_alliance-negotiation.md": {
+      "x": 806.3902257648941,
+      "y": 875.6595628977311
+    },
+    "classic-sangokushi/episodes/act1_rise-of-heroes.md": {
+      "x": 704.1467593296958,
+      "y": 822.6822527049097
+    },
+    "classic-sangokushi/episodes/sc02_03_chain-stratagem.md": {
+      "x": 619.9856985986888,
+      "y": 744.0791663328772
+    },
+    "classic-sangokushi/episodes/sc01_02_peach-garden-oath.md": {
+      "x": 560.1577815048818,
+      "y": 645.6884671241369
+    },
+    "classic-sangokushi/episodes/ep06_battle-of-yiling.md": {
+      "x": 529.0914809852425,
+      "y": 534.8038677164461
+    },
+    "classic-sangokushi/episodes/ep04_battle-of-chibi.md": {
+      "x": 529.0864064442864,
+      "y": 419.6518283641812
+    },
+    "classic-sangokushi/episodes/ep03_battle-of-guandu.md": {
+      "x": 560.160554629049,
+      "y": 308.7685982924772
+    },
+    "classic-sangokushi/episodes/ep02_dong-zhuo-tyranny.md": {
+      "x": 619.9929565387215,
+      "y": 210.37411630098177
+    },
+    "classic-sangokushi/episodes/ep01_yellow-turban.md": {
+      "x": 704.1556284179784,
+      "y": 131.77607721133595
+    },
+    "classic-sangokushi/episodes/bt06_01_02_liu-bei-vow.md": {
+      "x": 806.4025034381882,
+      "y": 78.78914633797156
+    },
+    "classic-sangokushi/episodes/bt06_01_01_zhang-fei-death.md": {
+      "x": 919.1462793057652,
+      "y": 55.359973850066126
+    },
+    "classic-sangokushi/episodes/bt05_01_01_liu-bei-takes-yizhou.md": {
+      "x": 1034.033099189838,
+      "y": 63.22113772023508
+    },
+    "classic-sangokushi/episodes/bt02_03_02_diao-chan-dance.md": {
+      "x": 1142.534388657063,
+      "y": 101.78433394477878
+    },
+    "classic-sangokushi/episodes/bt02_03_01_wang-yun-plot.md": {
+      "x": 1236.6116118054886,
+      "y": 168.1901362163254
+    },
+    "classic-sangokushi/episodes/bt01_02_01_meeting-guan-zhang.md": {
+      "x": 1309.2892181103748,
+      "y": 257.5237591450352
+    },
+    "classic-sangokushi/episodes/act3_fall-and-unity.md": {
+      "x": 1355.1663564780754,
+      "y": 363.14544330303374
+    },
+    "classic-sangokushi/episodes/sc07_02_empty-fort-strategy.md": {
+      "x": 1558.9095223071463,
+      "y": 494.3113136571515
+    },
+    "classic-sangokushi/episodes/sc06_03_white-emperor-castle.md": {
+      "x": 1605.6481578727926,
+      "y": 554.4395803935593
+    },
+    "classic-sangokushi/episodes/sc05_01_guan-yu-guards-jingzhou.md": {
+      "x": 1547.5310820642605,
+      "y": 608.4133187382935
+    },
+    "classic-sangokushi/episodes/sc04_02_borrowing-arrows.md": {
+      "x": 1583.5970455899521,
+      "y": 675.4980096560272
+    },
+    "classic-sangokushi/episodes/sc03_01_three-visits.md": {
+      "x": 1516.3576281038709,
+      "y": 678.6608837547645
+    },
+    "classic-sangokushi/episodes/sc02_02_coalition-against-dong-zhuo.md": {
+      "x": 1520.9322986654709,
+      "y": 753.1158675988614
+    },
+    "classic-sangokushi/episodes/ep07_northern-expeditions.md": {
+      "x": 1513.788365087317,
+      "y": 831.352337867154
+    },
+    "classic-sangokushi/episodes/bt07_03_01_final-expedition.md": {
+      "x": 1440.1330650388425,
+      "y": 829.3082207486136
+    },
+    "classic-sangokushi/episodes/bt07_02_02_empty-fort-bluff.md": {
+      "x": 1451.5443114281043,
+      "y": 903.7617349378124
+    },
+    "classic-sangokushi/episodes/bt06_03_03_liu-bei-death.md": {
+      "x": 1378.6440862492398,
+      "y": 906.7541850336634
+    },
+    "classic-sangokushi/episodes/bt06_03_02_entrusting-zhuge.md": {
+      "x": 1375.7412105919109,
+      "y": 979.6674871562977
+    },
+    "classic-sangokushi/episodes/bt06_02_03_zhao-yun-rescue.md": {
+      "x": 1301.3643743832786,
+      "y": 975.3709878624826
+    },
+    "classic-sangokushi/episodes/bt05_01_03_guan-yu-pride.md": {
+      "x": 1288.5034177733007,
+      "y": 1046.2899656378388
+    },
+    "classic-sangokushi/episodes/bt05_01_02_wu-demands-return.md": {
+      "x": 1216.8669927042124,
+      "y": 1028.9508737528067
+    },
+    "classic-sangokushi/episodes/bt04_02_02_fog-strategy.md": {
+      "x": 1186.961767819772,
+      "y": 1095.4842694292224
+    },
+    "classic-sangokushi/episodes/bt04_02_01_arrow-challenge.md": {
+      "x": 1123.0100336601063,
+      "y": 1063.7786865279238
+    },
+    "classic-sangokushi/episodes/bt04_01_03_zhou-yu-rivalry.md": {
+      "x": 1083.6980117558142,
+      "y": 1126.1981010368538
+    },
+    "classic-sangokushi/episodes/bt04_01_02_sun-quan-decides.md": {
+      "x": 1034.3776127362898,
+      "y": 1070.3714796931863
+    },
+    "classic-sangokushi/episodes/bt03_01_02_three-visits-patience.md": {
+      "x": 983.7594478876703,
+      "y": 1131.5253375352174
+    },
+    "classic-sangokushi/episodes/bt03_01_01_seeking-advisor.md": {
+      "x": 905.1102000160325,
+      "y": 1131.1501795304057
+    },
+    "classic-sangokushi/episodes/bt02_03_03_dong-zhuo-fall.md": {
+      "x": 873.2560255798069,
+      "y": 1065.6744037160804
+    },
+    "classic-sangokushi/episodes/bt02_01_03_cao-cao-assassination.md": {
+      "x": 826.2480186211327,
+      "y": 1127.3670845114518
+    },
+    "classic-sangokushi/episodes/bt01_03_02_clash-with-rebels.md": {
+      "x": 757.0601807412938,
+      "y": 1086.8888446600265
+    },
+    "classic-sangokushi/episodes/sc08_02_sima-clan-rises.md": {
+      "x": 706.6055293999459,
+      "y": 1035.46699598677
+    },
+    "classic-sangokushi/episodes/sc08_01_shu-decline.md": {
+      "x": 651.9261002433001,
+      "y": 1068.5591736187573
+    },
+    "classic-sangokushi/episodes/sc07_03_wuzhangyuan.md": {
+      "x": 634.288651193454,
+      "y": 1010.2808910473864
+    },
+    "classic-sangokushi/episodes/sc07_01_chu-shi-biao.md": {
+      "x": 572.5586864382191,
+      "y": 1011.1660685925457
+    },
+    "classic-sangokushi/episodes/sc06_02_yiling-inferno.md": {
+      "x": 551.5401762304764,
+      "y": 950.7269726635143
+    },
+    "classic-sangokushi/episodes/sc05_03_fall-of-guan-yu.md": {
+      "x": 485.8361709092078,
+      "y": 941.6000335595766
+    },
+    "classic-sangokushi/episodes/sc05_02_flood-of-fancheng.md": {
+      "x": 472.24477474325613,
+      "y": 874.1839976030354
+    },
+    "classic-sangokushi/episodes/sc04_03_fire-attack.md": {
+      "x": 409.90380866505416,
+      "y": 853.78461211501
+    },
+    "classic-sangokushi/episodes/sc03_03_wuchao-raid.md": {
+      "x": 425.70302232594094,
+      "y": 795.1436667896157
+    },
+    "classic-sangokushi/episodes/sc03_02_yuan-shao-marches.md": {
+      "x": 363.48428577793334,
+      "y": 774.9016643683755
+    },
+    "classic-sangokushi/episodes/sc02_01_dong-zhuo-seizes-capital.md": {
+      "x": 367.6146592101471,
+      "y": 699.2147163572712
+    },
+    "classic-sangokushi/episodes/sc01_03_first-battle.md": {
+      "x": 311.6346160646342,
+      "y": 654.1811111022922
+    },
+    "classic-sangokushi/episodes/ep05_jingzhou-dispute.md": {
+      "x": 349.8482131995617,
+      "y": 603.9450549438352
+    },
+    "classic-sangokushi/episodes/bt08_02_03_wu-resistance.md": {
+      "x": 291.9302883008142,
+      "y": 571.6689058554778
+    },
+    "classic-sangokushi/episodes/bt08_02_02_sima-usurpation.md": {
+      "x": 334.4132519195289,
+      "y": 515.7067193942447
+    },
+    "classic-sangokushi/episodes/bt08_01_01_jiang-wei-struggles.md": {
+      "x": 313.9510956889467,
+      "y": 443.42022775653174
+    },
+    "classic-sangokushi/episodes/bt07_03_03_star-falls.md": {
+      "x": 290.99190677617304,
+      "y": 376.06261721915905
+    },
+    "classic-sangokushi/episodes/bt07_03_02_star-prayer.md": {
+      "x": 351.4914439288971,
+      "y": 353.24346537198323
+    },
+    "classic-sangokushi/episodes/bt07_02_03_sima-yi-regret.md": {
+      "x": 318.9019598723577,
+      "y": 293.7054286216806
+    },
+    "classic-sangokushi/episodes/bt07_02_01_ma-su-failure.md": {
+      "x": 378.07897941138884,
+      "y": 257.21198317239
+    },
+    "classic-sangokushi/episodes/bt07_01_03_first-expedition.md": {
+      "x": 350.7626755020345,
+      "y": 191.5240756802943
+    },
+    "classic-sangokushi/episodes/bt07_01_02_nanman-pacification.md": {
+      "x": 421.75243449312893,
+      "y": 164.7458671872312
+    },
+    "classic-sangokushi/episodes/bt07_01_01_chu-shi-biao-text.md": {
+      "x": 412.25648681096015,
+      "y": 88.66690526210535
+    },
+    "classic-sangokushi/episodes/bt06_03_01_liu-bei-illness.md": {
+      "x": 485.1078233180524,
+      "y": 80.03952979113556
+    },
+    "classic-sangokushi/episodes/bt06_02_02_fire-of-camps.md": {
+      "x": 480.03618517027996,
+      "y": 10.132225016864828
+    },
+    "classic-sangokushi/episodes/bt06_01_03_shu-army-marches.md": {
+      "x": 550.9865591513491,
+      "y": 8.937828583788255
+    },
+    "classic-sangokushi/episodes/bt05_03_03_guan-yu-death.md": {
+      "x": 563.2002077556878,
+      "y": -60.97029629162032
+    },
+    "classic-sangokushi/episodes/bt05_03_02_maicheng-retreat.md": {
+      "x": 633.2406561759478,
+      "y": -49.28404347403185
+    },
+    "classic-sangokushi/episodes/bt05_03_01_jingzhou-falls.md": {
+      "x": 660.4460193488568,
+      "y": -115.76821982853646
+    },
+    "classic-sangokushi/episodes/bt05_02_03_lu-meng-plots.md": {
+      "x": 726.2823537968941,
+      "y": -93.82533071040343
+    },
+    "classic-sangokushi/episodes/bt05_02_02_flood-attack.md": {
+      "x": 758.9001277659822,
+      "y": -153.26263204974956
+    },
+    "classic-sangokushi/episodes/bt05_02_01_fancheng-siege.md": {
+      "x": 822.4327585490022,
+      "y": -127.62634966493118
+    },
+    "classic-sangokushi/episodes/bt04_03_03_great-fire.md": {
+      "x": 871.389962262013,
+      "y": -173.36431466487858
+    },
+    "classic-sangokushi/episodes/bt04_03_02_east-wind.md": {
+      "x": 922.8578674664242,
+      "y": -136.68223190208894
+    },
+    "classic-sangokushi/episodes/bt04_03_01_chain-ships.md": {
+      "x": 968.3095908138814,
+      "y": -181.56007564709358
+    },
+    "classic-sangokushi/episodes/bt04_02_03_arrows-harvested.md": {
+      "x": 1016.4225276914806,
+      "y": -131.65891739737242
+    },
+    "classic-sangokushi/episodes/bt04_01_01_zhuge-liang-debates.md": {
+      "x": 1083.043408504566,
+      "y": -167.7227436651505
+    },
+    "classic-sangokushi/episodes/bt03_03_03_yuan-shao-defeat.md": {
+      "x": 1131.243417093991,
+      "y": -109.18784890643025
+    },
+    "classic-sangokushi/episodes/bt03_03_02_night-raid.md": {
+      "x": 1191.0699244894777,
+      "y": -142.8080212421801
+    },
+    "classic-sangokushi/episodes/bt03_03_01_intelligence-leak.md": {
+      "x": 1196.9750565031188,
+      "y": -73.74652616690429
+    },
+    "classic-sangokushi/episodes/bt03_02_03_guan-yu-slays-yan-liang.md": {
+      "x": 1275.6410422295112,
+      "y": -81.70265957717
+    },
+    "classic-sangokushi/episodes/bt03_02_02_cao-cao-strategy.md": {
+      "x": 1348.446625109792,
+      "y": -52.7543377521179
+    },
+    "classic-sangokushi/episodes/bt03_02_01_yuan-shao-ambition.md": {
+      "x": 1343.3025513657567,
+      "y": 21.993632294736557
+    },
+    "classic-sangokushi/episodes/bt03_01_03_longzhong-plan.md": {
+      "x": 1415.1391719387714,
+      "y": 6.951838121216225
+    },
+    "classic-sangokushi/episodes/bt02_02_03_coalition-collapse.md": {
+      "x": 1419.6252253187006,
+      "y": 80.28721901568058
+    },
+    "classic-sangokushi/episodes/bt02_02_02_hulao-pass.md": {
+      "x": 1488.5602112838549,
+      "y": 93.98807492253464
+    },
+    "classic-sangokushi/episodes/bt02_02_01_coalition-forms.md": {
+      "x": 1472.642989823194,
+      "y": 159.948070827136
+    },
+    "classic-sangokushi/episodes/bt02_01_02_emperor-deposed.md": {
+      "x": 1539.1748252094467,
+      "y": 186.94270201323934
+    },
+    "classic-sangokushi/episodes/bt02_01_01_dong-zhuo-enters.md": {
+      "x": 1520.3399115481293,
+      "y": 257.03513251456604
+    },
+    "classic-sangokushi/episodes/bt01_03_03_first-victory.md": {
+      "x": 1585.8800068938272,
+      "y": 284.19604484816944
+    },
+    "classic-sangokushi/episodes/bt01_02_03_forging-weapons.md": {
+      "x": 1546.0412769050988,
+      "y": 341.9356707227535
+    },
+    "classic-sangokushi/episodes/bt01_01_03_liu-bei-resolve.md": {
+      "x": 1576.8762923579905,
+      "y": 406.86862213353317
+    },
+    "classic-sangokushi/episodes/act2_three-kingdoms.md": {
+      "x": 1617.2211786213534,
+      "y": 459.4398418326805
+    },
+    "classic-sangokushi/episodes/sc08_03_unification.md": {
+      "x": 1793.8353728632474,
+      "y": 477.22905551628793
+    },
+    "classic-sangokushi/episodes/sc01_01_yellow-turban-rises.md": {
+      "x": 1785.9573092631863,
+      "y": 592.4002523590347
+    },
+    "classic-sangokushi/episodes/ep08_fall-of-three-kingdoms.md": {
+      "x": 1762.4722250071584,
+      "y": 705.4280083582764
+    },
+    "classic-sangokushi/episodes/bt08_03_03_epilogue.md": {
+      "x": 1723.8121576508624,
+      "y": 814.2090702386837
+    },
+    "classic-sangokushi/episodes/bt08_03_02_jin-unification.md": {
+      "x": 1670.7027716925895,
+      "y": 916.7095995809713
+    },
+    "classic-sangokushi/episodes/bt08_03_01_wu-falls.md": {
+      "x": 1604.1276361075277,
+      "y": 1011.0254098637802
+    },
+    "classic-sangokushi/episodes/bt08_02_01_shu-surrender.md": {
+      "x": 1525.3255758743376,
+      "y": 1095.397194723102
+    },
+    "classic-sangokushi/episodes/bt08_01_03_deng-ai-march.md": {
+      "x": 1435.7752537096937,
+      "y": 1168.2533781064483
+    },
+    "classic-sangokushi/episodes/bt08_01_02_eunuch-corruption.md": {
+      "x": 1337.1359792346536,
+      "y": 1228.2343175527444
+    },
+    "classic-sangokushi/episodes/bt06_02_01_lu-xun-patience.md": {
+      "x": 1231.2504216990742,
+      "y": 1274.2268223281724
+    },
+    "classic-sangokushi/episodes/bt01_03_01_volunteer-army.md": {
+      "x": 1120.0867937288965,
+      "y": 1305.3709129978693
+    },
+    "classic-sangokushi/episodes/bt01_02_02_oath-ceremony.md": {
+      "x": 1005.7202051867881,
+      "y": 1321.0895413222347
+    },
+    "classic-sangokushi/episodes/bt01_01_02_turban-uprising.md": {
+      "x": 890.2818826505621,
+      "y": 1321.0901339856607
+    },
+    "classic-sangokushi/episodes/bt01_01_01_zhang-jiao-prophecy.md": {
+      "x": 775.9082712126933,
+      "y": 1305.37212609241
+    }
+  },
+  "navHistory": [],
+  "navHistoryCursor": -1,
   "semanticZoom": false,
   "showTagBadges": false,
   "highContrastMode": false,
@@ -169,12 +2158,16 @@
   "showStructureQuestions": false,
   "showEntropyOverlay": false,
   "showClusterCompare": false,
+  "multiSelectNodeIds": [],
+  "subgraphNodeIds": [],
+  "subgraphStack": [],
   "showRelationMatrix": false,
   "presentationMode": false,
   "showNodeThumbnails": false,
   "nodeIconField": "",
   "nodeIconMap": {},
   "focusConeEnabled": true,
+  "expandedNodes": [],
   "analysisOverlay": "off",
   "showOntologyBackbone": false,
   "showGapEdges": false,
@@ -182,11 +2175,11 @@
   "showTags": false,
   "colorNodesByCategory": true,
   "showGuideLines": false,
+  "guideLineMode": "perGroup",
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 60
-  },
-  "guideLineMode": "perGroup"
+    "labelOverlapMargin": 36
+  }
 }

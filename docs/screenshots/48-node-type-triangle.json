@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-hamlet*",
+  "searchQuery": "path:classic-macbeth*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -58,6 +58,12 @@
     "inheritance": true,
     "aggregation": true
   },
+  "commonQueries": [
+    {
+      "query": "backlinks:*",
+      "recursive": false
+    }
+  ],
   "clusterGroupRules": [
     {
       "groupBy": "node_type:?",
@@ -93,6 +99,9 @@
   ],
   "groupMinSize": 2,
   "groupFilter": "",
+  "collapsedGroups": [
+    "folder:classic-divine-comedy"
+  ],
   "activeTab": "layout",
   "autoFit": false,
   "showDurationBars": true,
@@ -133,14 +142,20 @@
   "cableFanWidth": 2.5,
   "cableFanAlpha": 0.9,
   "syncWithEditor": true,
+  "localGraphCenter": null,
   "localGraphHops": 2,
   "edgeWeightThickness": true,
   "edgeLayerMode": false,
   "focusMode": false,
+  "focusNodeId": null,
+  "syncViewId": null,
+  "annotations": [],
+  "bookmarkedNodes": [],
   "edgeDirectionFilter": "all",
   "showPathfinderOverlay": true,
   "showLegend": true,
   "showOutOfBoundsIndicator": false,
+  "searchHistory": [],
   "orphanClusterField": "",
   "highlightMissingNeighbors": false,
   "showGraphStats": false,
@@ -150,8 +165,13 @@
   "hoverShowTitle": true,
   "hoverShowMeta": true,
   "hoverShowBody": false,
+  "savedSearchQueries": [],
+  "savedViewports": [],
   "presetZoomLevel": 0,
   "zoomSensitivity": 1,
+  "pinnedPositions": {},
+  "navHistory": [],
+  "navHistoryCursor": -1,
   "semanticZoom": false,
   "showTagBadges": false,
   "highContrastMode": false,
@@ -169,12 +189,16 @@
   "showStructureQuestions": false,
   "showEntropyOverlay": false,
   "showClusterCompare": false,
+  "multiSelectNodeIds": [],
+  "subgraphNodeIds": [],
+  "subgraphStack": [],
   "showRelationMatrix": false,
   "presentationMode": false,
   "showNodeThumbnails": false,
   "nodeIconField": "",
   "nodeIconMap": {},
   "focusConeEnabled": true,
+  "expandedNodes": [],
   "analysisOverlay": "off",
   "showOntologyBackbone": false,
   "showGapEdges": false,
@@ -182,11 +206,10 @@
   "showTags": false,
   "colorNodesByCategory": true,
   "showGuideLines": false,
+  "guideLineMode": "perGroup",
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true,
-    "labelOverlapMargin": 36
-  },
-  "guideLineMode": "perGroup"
+    "autoLOD": true
+  }
 }

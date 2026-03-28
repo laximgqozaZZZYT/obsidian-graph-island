@@ -1,15 +1,11 @@
 [
   {
-    "name": "45-grid-tight-spacing",
-    "nodes": 127,
-    "pass": true,
-    "issues": []
-  },
-  {
     "name": "46-tree-deep-hierarchy",
-    "nodes": 125,
-    "pass": true,
-    "issues": []
+    "nodes": 1,
+    "pass": false,
+    "issues": [
+      "Too few nodes: 1"
+    ]
   },
   {
     "name": "48-node-type-triangle",
@@ -25,7 +21,7 @@
   },
   {
     "name": "50-arrow-heavy-directed",
-    "nodes": 119,
+    "nodes": 123,
     "pass": true,
     "issues": []
   },
@@ -37,19 +33,19 @@
   },
   {
     "name": "53-accessibility-contrast",
-    "nodes": 123,
+    "nodes": 132,
     "pass": true,
     "issues": []
   },
   {
     "name": "55-category-search-filtered",
-    "nodes": 29,
+    "nodes": 28,
     "pass": true,
     "issues": []
   },
   {
     "name": "56-force-colorful",
-    "nodes": 238,
+    "nodes": 224,
     "pass": true,
     "issues": []
   },
@@ -121,13 +117,15 @@
   },
   {
     "name": "test-hub-radial",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
+    "nodes": 0,
+    "pass": false,
+    "issues": [
+      "Too few nodes: 0"
+    ]
   },
   {
     "name": "test-sunburst-full",
-    "nodes": 123,
+    "nodes": 127,
     "pass": true,
     "issues": []
   },
@@ -139,9 +137,11 @@
   },
   {
     "name": "test-tag-category-matrix",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
+    "nodes": 4,
+    "pass": false,
+    "issues": [
+      "Too few nodes: 4"
+    ]
   },
   {
     "name": "test-timeline-story",

@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-arabian-nights*",
+  "searchQuery": "path:classic-othello*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -58,6 +58,12 @@
     "inheritance": true,
     "aggregation": true
   },
+  "commonQueries": [
+    {
+      "query": "backlinks:*",
+      "recursive": false
+    }
+  ],
   "clusterGroupRules": [
     {
       "groupBy": "folder:?",
@@ -93,6 +99,9 @@
   ],
   "groupMinSize": 2,
   "groupFilter": "",
+  "collapsedGroups": [
+    "folder:classic-divine-comedy"
+  ],
   "activeTab": "layout",
   "autoFit": false,
   "showDurationBars": true,
@@ -133,14 +142,20 @@
   "cableFanWidth": 2.5,
   "cableFanAlpha": 0.9,
   "syncWithEditor": true,
+  "localGraphCenter": null,
   "localGraphHops": 2,
   "edgeWeightThickness": true,
   "edgeLayerMode": false,
   "focusMode": false,
+  "focusNodeId": null,
+  "syncViewId": null,
+  "annotations": [],
+  "bookmarkedNodes": [],
   "edgeDirectionFilter": "all",
   "showPathfinderOverlay": true,
   "showLegend": true,
   "showOutOfBoundsIndicator": false,
+  "searchHistory": [],
   "orphanClusterField": "",
   "highlightMissingNeighbors": false,
   "showGraphStats": false,
@@ -150,8 +165,506 @@
   "hoverShowTitle": true,
   "hoverShowMeta": true,
   "hoverShowBody": false,
+  "savedSearchQueries": [],
+  "savedViewports": [],
   "presetZoomLevel": 0,
   "zoomSensitivity": 1,
+  "pinnedPositions": {
+    "classic-macbeth/characters/macbeth.md": {
+      "x": 1375.1887536908573,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/macduff.md": {
+      "x": 1177.2820994385959,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/lady-macbeth.md": {
+      "x": 1968.9087164476416,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/malcolm.md": {
+      "x": 979.3754451863344,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/witch-first.md": {
+      "x": 385.65548242955015,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/banquo.md": {
+      "x": -504.9244617056264,
+      "y": -4445.087364028761
+    },
+    "classic-macbeth/characters/ross.md": {
+      "x": 583.5621366818116,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/duncan.md": {
+      "x": -307.017807453365,
+      "y": -4445.087364028761
+    },
+    "classic-macbeth/MOC.md": {
+      "x": -109.11115320110355,
+      "y": -4445.087364028761
+    },
+    "classic-macbeth/characters/witch-third.md": {
+      "x": -10.157826074972718,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/witch-second.md": {
+      "x": 187.7488281772886,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/hecate.md": {
+      "x": 2166.8153706999033,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/lennox.md": {
+      "x": 1573.0954079431187,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/lady-macduff.md": {
+      "x": 1771.0020621953802,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/fleance.md": {
+      "x": 2364.7220249521647,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/episodes/ep05_witches-second.md": {
+      "x": 1573.0954079431187,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/ep01_witches-prophecy.md": {
+      "x": 880.4221180602037,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/act2_crown-of-blood.md": {
+      "x": -405.9711345794957,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/episodes/act1_prophecy-and-murder.md": {
+      "x": -208.06448032723426,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/characters/porter.md": {
+      "x": 781.468790934073,
+      "y": -4642.994018281022
+    },
+    "classic-macbeth/episodes/sc24_coronation.md": {
+      "x": 979.3754451863344,
+      "y": -7413.687177812682
+    },
+    "classic-macbeth/episodes/sc13_hecate-command.md": {
+      "x": 781.468790934073,
+      "y": -6622.060560803637
+    },
+    "classic-macbeth/episodes/sc09_discovery.md": {
+      "x": 484.6088095556809,
+      "y": -6424.153906551375
+    },
+    "classic-macbeth/episodes/sc06_duncan-arrives.md": {
+      "x": 1078.3287723124652,
+      "y": -6424.153906551375
+    },
+    "classic-macbeth/episodes/ep07_macduff-revenge.md": {
+      "x": 1177.2820994385959,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/ep03_murder-of-duncan.md": {
+      "x": 484.6088095556809,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/act3_retribution.md": {
+      "x": 2265.768697826034,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/sc20_grief-and-resolve.md": {
+      "x": 781.468790934073,
+      "y": -7017.87386930816
+    },
+    "classic-macbeth/episodes/sc21_march-to-scotland.md": {
+      "x": 979.3754451863344,
+      "y": -7017.87386930816
+    },
+    "classic-macbeth/episodes/sc15_macduff-family-slaughter.md": {
+      "x": 1276.2354265647266,
+      "y": -6819.967215055899
+    },
+    "classic-macbeth/episodes/sc11_banquet-ghost.md": {
+      "x": 1177.2820994385959,
+      "y": -6622.060560803637
+    },
+    "classic-macbeth/episodes/sc10_banquo-murder.md": {
+      "x": 1375.1887536908573,
+      "y": -6622.060560803637
+    },
+    "classic-macbeth/episodes/sc08_regicide.md": {
+      "x": 682.5154638079423,
+      "y": -6424.153906551375
+    },
+    "classic-macbeth/episodes/sc03_cawdor-confirmed.md": {
+      "x": 385.65548242955015,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/sc02_prophecy-delivered.md": {
+      "x": 583.5621366818116,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/sc01_heath-encounter.md": {
+      "x": 781.468790934073,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/ep08_final-battle.md": {
+      "x": 979.3754451863344,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/ep04_banquo-ghost.md": {
+      "x": 286.7021553034193,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/ep02_lady-macbeth-urge.md": {
+      "x": 682.5154638079423,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/bt71_hail-king-malcolm.md": {
+      "x": 1276.2354265647266,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/bt39_witches-prepare.md": {
+      "x": 1968.9087164476416,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt18_feast-before-murder.md": {
+      "x": 1375.1887536908573,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt03_witches-vanish.md": {
+      "x": 1672.0487350692495,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt02_fair-is-foul.md": {
+      "x": 1869.955389321511,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/sc23_final-duel.md": {
+      "x": 880.4221180602037,
+      "y": -7215.780523560421
+    },
+    "classic-macbeth/episodes/sc22_birnam-wood-moves.md": {
+      "x": 1078.3287723124652,
+      "y": -7215.780523560421
+    },
+    "classic-macbeth/episodes/sc19_england-alliance.md": {
+      "x": 1177.2820994385959,
+      "y": -7017.87386930816
+    },
+    "classic-macbeth/episodes/sc18_queens-death.md": {
+      "x": 682.5154638079423,
+      "y": -6819.967215055899
+    },
+    "classic-macbeth/episodes/sc17_queens-confession.md": {
+      "x": 880.4221180602037,
+      "y": -6819.967215055899
+    },
+    "classic-macbeth/episodes/sc14_cauldron-apparitions.md": {
+      "x": 583.5621366818116,
+      "y": -6622.060560803637
+    },
+    "classic-macbeth/episodes/sc12_resolve-to-visit-witches.md": {
+      "x": 979.3754451863344,
+      "y": -6622.060560803637
+    },
+    "classic-macbeth/episodes/sc05_persuasion.md": {
+      "x": 1276.2354265647266,
+      "y": -6424.153906551375
+    },
+    "classic-macbeth/episodes/sc04_letter-to-wife.md": {
+      "x": 1474.142080816988,
+      "y": -6424.153906551375
+    },
+    "classic-macbeth/episodes/ep06_lady-macbeth-madness.md": {
+      "x": 1375.1887536908573,
+      "y": -6226.247252299114
+    },
+    "classic-macbeth/episodes/bt72_order-restored.md": {
+      "x": 1078.3287723124652,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/bt70_head-presented.md": {
+      "x": 1474.142080816988,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/bt69_tyrant-falls.md": {
+      "x": 1672.0487350692495,
+      "y": -6028.340598046852
+    },
+    "classic-macbeth/episodes/bt68_not-of-woman.md": {
+      "x": 187.7488281772886,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt67_swords-clash.md": {
+      "x": 385.65548242955015,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt63_march-begins.md": {
+      "x": 1177.2820994385959,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt62_nobles-defect.md": {
+      "x": 1375.1887536908573,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt61_army-gathers.md": {
+      "x": 1573.0954079431187,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt60_grief-to-sword.md": {
+      "x": 1771.0020621953802,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt58_ross-brings-news.md": {
+      "x": 286.7021553034193,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt57_alliance-sealed.md": {
+      "x": 484.6088095556809,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt56_macduff-despairs.md": {
+      "x": 682.5154638079423,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt55_malcolm-tests.md": {
+      "x": 880.4221180602037,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt52_death-reported.md": {
+      "x": 1474.142080816988,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt50_banquo-confession.md": {
+      "x": 1869.955389321511,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt44_lady-macduff-warning.md": {
+      "x": 979.3754451863344,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt37_hecate-scolds.md": {
+      "x": 88.795501051158,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt35_spy-network.md": {
+      "x": 484.6088095556809,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt32_macbeth-raves.md": {
+      "x": 1078.3287723124652,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt31_ghost-appears.md": {
+      "x": 1276.2354265647266,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt30_fleance-escapes.md": {
+      "x": 1474.142080816988,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt26_body-found.md": {
+      "x": -208.06448032723426,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt23_hands-of-blood.md": {
+      "x": 385.65548242955015,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt22_deed-done.md": {
+      "x": 583.5621366818116,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt21_bell-tolls.md": {
+      "x": 781.468790934073,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt17_lady-greets-king.md": {
+      "x": 1573.0954079431187,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt16_king-welcomed.md": {
+      "x": 1771.0020621953802,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt15_resolve-hardened.md": {
+      "x": 1968.9087164476416,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt14_manhood-challenged.md": {
+      "x": 2166.8153706999033,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt12_plot-hatched.md": {
+      "x": -109.11115320110355,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt08_title-bestowed.md": {
+      "x": 682.5154638079423,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt07_ross-arrives.md": {
+      "x": 880.4221180602037,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt06_macbeth-ponders.md": {
+      "x": 1078.3287723124652,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt05_banquo-prophecy.md": {
+      "x": 1276.2354265647266,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt04_hail-macbeth.md": {
+      "x": 1474.142080816988,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/sc16_sleepwalking.md": {
+      "x": 1078.3287723124652,
+      "y": -6819.967215055899
+    },
+    "classic-macbeth/episodes/sc07_dagger-vision.md": {
+      "x": 880.4221180602037,
+      "y": -6424.153906551375
+    },
+    "classic-macbeth/episodes/bt66_macbeth-defiant.md": {
+      "x": 583.5621366818116,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt65_forest-moves.md": {
+      "x": 781.468790934073,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt64_branches-cut.md": {
+      "x": 979.3754451863344,
+      "y": -5830.433943794591
+    },
+    "classic-macbeth/episodes/bt59_all-my-children.md": {
+      "x": 88.795501051158,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt54_tale-told-by-idiot.md": {
+      "x": 1078.3287723124652,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt53_tomorrow-soliloquy.md": {
+      "x": 1276.2354265647266,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt51_incurable-mind.md": {
+      "x": 1672.0487350692495,
+      "y": -5632.5272895423295
+    },
+    "classic-macbeth/episodes/bt49_duncan-confession.md": {
+      "x": -10.157826074972718,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt48_smell-of-blood.md": {
+      "x": 187.7488281772886,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt47_doctor-watches.md": {
+      "x": 385.65548242955015,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt46_out-damned-spot.md": {
+      "x": 583.5621366818116,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt45_slaughter.md": {
+      "x": 781.468790934073,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt43_order-to-kill.md": {
+      "x": 1177.2820994385959,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt42_crowned-child.md": {
+      "x": 1375.1887536908573,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt41_bloody-child.md": {
+      "x": 1573.0954079431187,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt40_armed-head.md": {
+      "x": 1771.0020621953802,
+      "y": -5434.620635290068
+    },
+    "classic-macbeth/episodes/bt38_overconfidence-trap.md": {
+      "x": -109.11115320110355,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt36_to-the-witches.md": {
+      "x": 286.7021553034193,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt34_blood-calls-blood.md": {
+      "x": 682.5154638079423,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt33_lady-covers.md": {
+      "x": 880.4221180602037,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt29_ambush.md": {
+      "x": 1672.0487350692495,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt28_murderers-hired.md": {
+      "x": 1869.955389321511,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt27_princes-flee.md": {
+      "x": 2067.862043573772,
+      "y": -5236.713981037807
+    },
+    "classic-macbeth/episodes/bt25_porter-knocking.md": {
+      "x": -10.157826074972718,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt24_daggers-planted.md": {
+      "x": 187.7488281772886,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt20_hallucination-deepens.md": {
+      "x": 979.3754451863344,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt19_dagger-appears.md": {
+      "x": 1177.2820994385959,
+      "y": -5038.807326785545
+    },
+    "classic-macbeth/episodes/bt13_macbeth-hesitates.md": {
+      "x": -307.017807453365,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt11_unsex-me.md": {
+      "x": 88.795501051158,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt10_reading-letter.md": {
+      "x": 286.7021553034193,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt09_dark-desire.md": {
+      "x": 484.6088095556809,
+      "y": -4840.900672533284
+    },
+    "classic-macbeth/episodes/bt01_storm-gathers.md": {
+      "x": 2067.862043573772,
+      "y": -4840.900672533284
+    }
+  },
+  "navHistory": [],
+  "navHistoryCursor": -1,
   "semanticZoom": false,
   "showTagBadges": false,
   "highContrastMode": false,
@@ -169,12 +682,16 @@
   "showStructureQuestions": false,
   "showEntropyOverlay": false,
   "showClusterCompare": false,
+  "multiSelectNodeIds": [],
+  "subgraphNodeIds": [],
+  "subgraphStack": [],
   "showRelationMatrix": false,
   "presentationMode": false,
   "showNodeThumbnails": false,
   "nodeIconField": "",
   "nodeIconMap": {},
   "focusConeEnabled": true,
+  "expandedNodes": [],
   "analysisOverlay": "off",
   "showOntologyBackbone": false,
   "showGapEdges": false,
@@ -182,11 +699,11 @@
   "showTags": false,
   "colorNodesByCategory": false,
   "showGuideLines": false,
+  "guideLineMode": "perGroup",
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true,
-    "labelOverlapMargin": 48
+    "autoLOD": true
   },
-  "guideLineMode": "perGroup"
+  "_absoluteZoom": 0.8
 }

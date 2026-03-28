@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:classic-saiyuki*",
+  "searchQuery": "path:mythology-greek*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -58,6 +58,12 @@
     "inheritance": true,
     "aggregation": true
   },
+  "commonQueries": [
+    {
+      "query": "backlinks:*",
+      "recursive": false
+    }
+  ],
   "clusterGroupRules": [
     {
       "groupBy": "folder:?",
@@ -97,6 +103,7 @@
   "groupByRules": [],
   "groupMinSize": 1,
   "groupFilter": "",
+  "collapsedGroups": [],
   "activeTab": "layout",
   "autoFit": false,
   "showDurationBars": false,
@@ -137,14 +144,20 @@
   "cableFanWidth": 2.5,
   "cableFanAlpha": 0.9,
   "syncWithEditor": true,
+  "localGraphCenter": null,
   "localGraphHops": 2,
   "edgeWeightThickness": true,
   "edgeLayerMode": false,
   "focusMode": false,
+  "focusNodeId": null,
+  "syncViewId": null,
+  "annotations": [],
+  "bookmarkedNodes": [],
   "edgeDirectionFilter": "all",
   "showPathfinderOverlay": true,
   "showLegend": true,
   "showOutOfBoundsIndicator": false,
+  "searchHistory": [],
   "orphanClusterField": "",
   "highlightMissingNeighbors": false,
   "showGraphStats": false,
@@ -154,8 +167,998 @@
   "hoverShowTitle": true,
   "hoverShowMeta": true,
   "hoverShowBody": false,
+  "savedSearchQueries": [],
+  "savedViewports": [],
   "presetZoomLevel": 0,
   "zoomSensitivity": 1,
+  "pinnedPositions": {
+    "classic-hamlet/characters/hamlet.md": {
+      "x": 1188.1774970120448,
+      "y": -1169.2017619408125
+    },
+    "classic-macbeth/characters/macbeth.md": {
+      "x": 3011.6455757015183,
+      "y": 2247.56160745122
+    },
+    "classic-hamlet/characters/claudius.md": {
+      "x": 292.970462694429,
+      "y": -1020.0005895545431
+    },
+    "classic-macbeth/characters/macduff.md": {
+      "x": 2862.444403315249,
+      "y": 2247.56160745122
+    },
+    "classic-macbeth/characters/lady-macbeth.md": {
+      "x": 3459.249092860326,
+      "y": 2247.56160745122
+    },
+    "classic-macbeth/characters/malcolm.md": {
+      "x": 2713.2432309289798,
+      "y": 2247.56160745122
+    },
+    "classic-hamlet/characters/polonius.md": {
+      "x": 292.970462694429,
+      "y": -1169.2017619408125
+    },
+    "classic-hamlet/characters/ophelia.md": {
+      "x": 740.5739798532368,
+      "y": -1169.2017619408125
+    },
+    "classic-macbeth/characters/witch-first.md": {
+      "x": 2265.639713770172,
+      "y": 2247.56160745122
+    },
+    "classic-hamlet/characters/gertrude.md": {
+      "x": 1784.982186557122,
+      "y": -1169.2017619408125
+    },
+    "classic-hamlet/characters/horatio.md": {
+      "x": 1038.9763246257753,
+      "y": -1169.2017619408125
+    },
+    "classic-macbeth/characters/banquo.md": {
+      "x": 2116.4385413839027,
+      "y": 2396.7627798374892
+    },
+    "classic-hamlet/characters/laertes.md": {
+      "x": 889.7751522395062,
+      "y": -1169.2017619408125
+    },
+    "classic-macbeth/characters/ross.md": {
+      "x": 2414.8408861564412,
+      "y": 2247.56160745122
+    },
+    "classic-macbeth/characters/duncan.md": {
+      "x": 2265.639713770172,
+      "y": 2396.7627798374892
+    },
+    "classic-hamlet/characters/ghost-king.md": {
+      "x": 1635.7810141708526,
+      "y": -1169.2017619408125
+    },
+    "classic-macbeth/MOC.md": {
+      "x": 2414.8408861564412,
+      "y": 2396.7627798374892
+    },
+    "classic-hamlet/MOC.md": {
+      "x": 442.17163508069825,
+      "y": -1020.0005895545431
+    },
+    "classic-macbeth/characters/witch-third.md": {
+      "x": 3757.651437632865,
+      "y": 2098.3604350649507
+    },
+    "classic-macbeth/characters/witch-second.md": {
+      "x": 2116.4385413839027,
+      "y": 2247.56160745122
+    },
+    "classic-macbeth/characters/hecate.md": {
+      "x": 3608.4502652465953,
+      "y": 2247.56160745122
+    },
+    "classic-macbeth/characters/lennox.md": {
+      "x": 3160.8467480877875,
+      "y": 2247.56160745122
+    },
+    "classic-hamlet/characters/rosencrantz.md": {
+      "x": 143.76929030815973,
+      "y": -1169.2017619408125
+    },
+    "classic-hamlet/characters/guildenstern.md": {
+      "x": 1337.378669398314,
+      "y": -1169.2017619408125
+    },
+    "classic-macbeth/characters/lady-macduff.md": {
+      "x": 3310.047920474057,
+      "y": 2247.56160745122
+    },
+    "classic-macbeth/characters/fleance.md": {
+      "x": 3757.651437632865,
+      "y": 2247.56160745122
+    },
+    "classic-hamlet/characters/osric.md": {
+      "x": 591.3728074669675,
+      "y": -1169.2017619408125
+    },
+    "classic-hamlet/characters/fortinbras.md": {
+      "x": 143.76929030815973,
+      "y": -1020.0005895545431
+    },
+    "classic-hamlet/characters/gravedigger.md": {
+      "x": 1486.579841784583,
+      "y": -1169.2017619408125
+    },
+    "classic-hamlet/characters/yorick.md": {
+      "x": 1784.982186557122,
+      "y": -1318.4029343270818
+    },
+    "classic-hamlet/characters/player-king.md": {
+      "x": 442.17163508069825,
+      "y": -1169.2017619408125
+    },
+    "classic-macbeth/episodes/ep05_witches-second.md": {
+      "x": 2564.0420585427105,
+      "y": 1203.153400747335
+    },
+    "classic-macbeth/episodes/ep01_witches-prophecy.md": {
+      "x": 3160.8467480877875,
+      "y": 1203.153400747335
+    },
+    "classic-macbeth/episodes/act2_crown-of-blood.md": {
+      "x": 3459.249092860326,
+      "y": 2098.3604350649507
+    },
+    "classic-macbeth/episodes/act1_prophecy-and-murder.md": {
+      "x": 3608.4502652465953,
+      "y": 2098.3604350649507
+    },
+    "classic-macbeth/characters/porter.md": {
+      "x": 2564.0420585427105,
+      "y": 2247.56160745122
+    },
+    "classic-hamlet/episodes/sc08_02_poison-duel.md": {
+      "x": 292.970462694429,
+      "y": -2512.0123134172363
+    },
+    "classic-hamlet/episodes/ep08_final-duel.md": {
+      "x": 143.76929030815973,
+      "y": -2213.609968644698
+    },
+    "classic-hamlet/episodes/bt03_02_02_spy-mission.md": {
+      "x": 1486.579841784583,
+      "y": -1616.8052790996203
+    },
+    "classic-macbeth/episodes/sc24_coronation.md": {
+      "x": 2116.4385413839027,
+      "y": 904.7510559747964
+    },
+    "classic-macbeth/episodes/sc13_hecate-command.md": {
+      "x": 3757.651437632865,
+      "y": 904.7510559747964
+    },
+    "classic-macbeth/episodes/sc09_discovery.md": {
+      "x": 2564.0420585427105,
+      "y": 1053.9522283610656
+    },
+    "classic-macbeth/episodes/sc06_duncan-arrives.md": {
+      "x": 3011.6455757015183,
+      "y": 1053.9522283610656
+    },
+    "classic-macbeth/episodes/ep07_macduff-revenge.md": {
+      "x": 2265.639713770172,
+      "y": 1203.153400747335
+    },
+    "classic-macbeth/episodes/ep03_murder-of-duncan.md": {
+      "x": 2862.444403315249,
+      "y": 1203.153400747335
+    },
+    "classic-macbeth/episodes/act3_retribution.md": {
+      "x": 3310.047920474057,
+      "y": 2098.3604350649507
+    },
+    "classic-hamlet/episodes/sc08_03_rest-is-silence.md": {
+      "x": 143.76929030815973,
+      "y": -2512.0123134172363
+    },
+    "classic-hamlet/episodes/sc03_02_spies-dispatched.md": {
+      "x": 740.5739798532368,
+      "y": -2362.8111410309666
+    },
+    "classic-hamlet/episodes/ep06_death-of-polonius.md": {
+      "x": 442.17163508069825,
+      "y": -2213.609968644698
+    },
+    "classic-hamlet/episodes/ep05_nunnery-scene.md": {
+      "x": 591.3728074669675,
+      "y": -2213.609968644698
+    },
+    "classic-hamlet/episodes/bt08_03_01_laertes-confesses.md": {
+      "x": 1635.7810141708526,
+      "y": -2213.609968644698
+    },
+    "classic-hamlet/episodes/bt03_02_01_king-summons-friends.md": {
+      "x": 1635.7810141708526,
+      "y": -1616.8052790996203
+    },
+    "classic-hamlet/episodes/bt03_01_03_polonius-theory.md": {
+      "x": 1784.982186557122,
+      "y": -1616.8052790996203
+    },
+    "classic-hamlet/episodes/act3_blood-and-death.md": {
+      "x": 1337.378669398314,
+      "y": -1318.4029343270818
+    },
+    "classic-hamlet/episodes/act2_madness-and-trap.md": {
+      "x": 1486.579841784583,
+      "y": -1318.4029343270818
+    },
+    "classic-macbeth/episodes/sc20_grief-and-resolve.md": {
+      "x": 2564.0420585427105,
+      "y": 904.7510559747964
+    },
+    "classic-macbeth/episodes/sc21_march-to-scotland.md": {
+      "x": 2713.2432309289798,
+      "y": 904.7510559747964
+    },
+    "classic-macbeth/episodes/sc15_macduff-family-slaughter.md": {
+      "x": 3459.249092860326,
+      "y": 904.7510559747964
+    },
+    "classic-macbeth/episodes/sc11_banquet-ghost.md": {
+      "x": 2265.639713770172,
+      "y": 1053.9522283610656
+    },
+    "classic-macbeth/episodes/sc10_banquo-murder.md": {
+      "x": 2414.8408861564412,
+      "y": 1053.9522283610656
+    },
+    "classic-macbeth/episodes/sc08_regicide.md": {
+      "x": 2713.2432309289798,
+      "y": 1053.9522283610656
+    },
+    "classic-macbeth/episodes/sc03_cawdor-confirmed.md": {
+      "x": 3459.249092860326,
+      "y": 1053.9522283610656
+    },
+    "classic-macbeth/episodes/sc02_prophecy-delivered.md": {
+      "x": 3608.4502652465953,
+      "y": 1053.9522283610656
+    },
+    "classic-macbeth/episodes/sc01_heath-encounter.md": {
+      "x": 3757.651437632865,
+      "y": 1053.9522283610656
+    },
+    "classic-macbeth/episodes/ep08_final-battle.md": {
+      "x": 2116.4385413839027,
+      "y": 1203.153400747335
+    },
+    "classic-macbeth/episodes/ep04_banquo-ghost.md": {
+      "x": 2713.2432309289798,
+      "y": 1203.153400747335
+    },
+    "classic-macbeth/episodes/ep02_lady-macbeth-urge.md": {
+      "x": 3011.6455757015183,
+      "y": 1203.153400747335
+    },
+    "classic-macbeth/episodes/bt71_hail-king-malcolm.md": {
+      "x": 3459.249092860326,
+      "y": 1203.153400747335
+    },
+    "classic-macbeth/episodes/bt39_witches-prepare.md": {
+      "x": 2862.444403315249,
+      "y": 1650.756917906143
+    },
+    "classic-macbeth/episodes/bt18_feast-before-murder.md": {
+      "x": 2414.8408861564412,
+      "y": 1949.1592626786814
+    },
+    "classic-macbeth/episodes/bt03_witches-vanish.md": {
+      "x": 2862.444403315249,
+      "y": 2098.3604350649507
+    },
+    "classic-macbeth/episodes/bt02_fair-is-foul.md": {
+      "x": 3011.6455757015183,
+      "y": 2098.3604350649507
+    },
+    "classic-hamlet/episodes/sc08_01_graveyard-scene.md": {
+      "x": 442.17163508069825,
+      "y": -2512.0123134172363
+    },
+    "classic-hamlet/episodes/sc07_03_drowning-of-ophelia.md": {
+      "x": 591.3728074669675,
+      "y": -2512.0123134172363
+    },
+    "classic-hamlet/episodes/sc07_02_laertes-returns.md": {
+      "x": 740.5739798532368,
+      "y": -2512.0123134172363
+    },
+    "classic-hamlet/episodes/sc07_01_ophelias-songs.md": {
+      "x": 889.7751522395062,
+      "y": -2512.0123134172363
+    },
+    "classic-hamlet/episodes/sc06_03_ghost-reappears.md": {
+      "x": 1038.9763246257753,
+      "y": -2512.0123134172363
+    },
+    "classic-hamlet/episodes/sc06_02_killing-polonius.md": {
+      "x": 1188.1774970120448,
+      "y": -2512.0123134172363
+    },
+    "classic-hamlet/episodes/sc05_03_claudius-decides.md": {
+      "x": 1486.579841784583,
+      "y": -2512.0123134172363
+    },
+    "classic-hamlet/episodes/sc04_02_play-within-play.md": {
+      "x": 292.970462694429,
+      "y": -2362.8111410309666
+    },
+    "classic-hamlet/episodes/sc04_01_players-arrive.md": {
+      "x": 442.17163508069825,
+      "y": -2362.8111410309666
+    },
+    "classic-hamlet/episodes/sc03_01_hamlets-madness.md": {
+      "x": 889.7751522395062,
+      "y": -2362.8111410309666
+    },
+    "classic-hamlet/episodes/sc02_01_ghosts-revelation.md": {
+      "x": 1337.378669398314,
+      "y": -2362.8111410309666
+    },
+    "classic-hamlet/episodes/ep03_antic-disposition.md": {
+      "x": 889.7751522395062,
+      "y": -2213.609968644698
+    },
+    "classic-hamlet/episodes/bt08_03_03_rest-is-silence.md": {
+      "x": 1337.378669398314,
+      "y": -2213.609968644698
+    },
+    "classic-hamlet/episodes/bt08_02_01_duel-begins.md": {
+      "x": 292.970462694429,
+      "y": -2064.408796258428
+    },
+    "classic-hamlet/episodes/bt08_01_03_ophelias-funeral.md": {
+      "x": 442.17163508069825,
+      "y": -2064.408796258428
+    },
+    "classic-hamlet/episodes/bt08_01_02_yoricks-skull.md": {
+      "x": 591.3728074669675,
+      "y": -2064.408796258428
+    },
+    "classic-hamlet/episodes/bt07_02_03_poison-plot.md": {
+      "x": 1337.378669398314,
+      "y": -2064.408796258428
+    },
+    "classic-hamlet/episodes/bt07_02_02_claudius-manipulates.md": {
+      "x": 1486.579841784583,
+      "y": -2064.408796258428
+    },
+    "classic-hamlet/episodes/bt07_01_02_mad-songs.md": {
+      "x": 143.76929030815973,
+      "y": -1915.2076238721588
+    },
+    "classic-hamlet/episodes/bt06_03_01_ghost-in-closet.md": {
+      "x": 740.5739798532368,
+      "y": -1915.2076238721588
+    },
+    "classic-hamlet/episodes/bt06_02_03_gertrude-horror.md": {
+      "x": 889.7751522395062,
+      "y": -1915.2076238721588
+    },
+    "classic-hamlet/episodes/bt04_03_02_hamlet-triumph.md": {
+      "x": 1486.579841784583,
+      "y": -1766.0064514858896
+    },
+    "classic-hamlet/episodes/bt03_02_03_friends-accept.md": {
+      "x": 1337.378669398314,
+      "y": -1616.8052790996203
+    },
+    "classic-hamlet/episodes/bt03_01_02_ophelia-reports.md": {
+      "x": 143.76929030815973,
+      "y": -1467.604106713351
+    },
+    "classic-hamlet/episodes/bt02_02_03_ghost-voice-below.md": {
+      "x": 889.7751522395062,
+      "y": -1467.604106713351
+    },
+    "classic-hamlet/episodes/bt02_01_03_revenge-command.md": {
+      "x": 1337.378669398314,
+      "y": -1467.604106713351
+    },
+    "classic-macbeth/episodes/sc23_final-duel.md": {
+      "x": 2265.639713770172,
+      "y": 904.7510559747964
+    },
+    "classic-macbeth/episodes/sc22_birnam-wood-moves.md": {
+      "x": 2414.8408861564412,
+      "y": 904.7510559747964
+    },
+    "classic-macbeth/episodes/sc19_england-alliance.md": {
+      "x": 2862.444403315249,
+      "y": 904.7510559747964
+    },
+    "classic-macbeth/episodes/sc18_queens-death.md": {
+      "x": 3011.6455757015183,
+      "y": 904.7510559747964
+    },
+    "classic-macbeth/episodes/sc17_queens-confession.md": {
+      "x": 3160.8467480877875,
+      "y": 904.7510559747964
+    },
+    "classic-macbeth/episodes/sc14_cauldron-apparitions.md": {
+      "x": 3608.4502652465953,
+      "y": 904.7510559747964
+    },
+    "classic-macbeth/episodes/sc12_resolve-to-visit-witches.md": {
+      "x": 2116.4385413839027,
+      "y": 1053.9522283610656
+    },
+    "classic-macbeth/episodes/sc05_persuasion.md": {
+      "x": 3160.8467480877875,
+      "y": 1053.9522283610656
+    },
+    "classic-macbeth/episodes/sc04_letter-to-wife.md": {
+      "x": 3310.047920474057,
+      "y": 1053.9522283610656
+    },
+    "classic-macbeth/episodes/ep06_lady-macbeth-madness.md": {
+      "x": 2414.8408861564412,
+      "y": 1203.153400747335
+    },
+    "classic-macbeth/episodes/bt72_order-restored.md": {
+      "x": 3310.047920474057,
+      "y": 1203.153400747335
+    },
+    "classic-macbeth/episodes/bt70_head-presented.md": {
+      "x": 3608.4502652465953,
+      "y": 1203.153400747335
+    },
+    "classic-macbeth/episodes/bt69_tyrant-falls.md": {
+      "x": 3757.651437632865,
+      "y": 1203.153400747335
+    },
+    "classic-macbeth/episodes/bt68_not-of-woman.md": {
+      "x": 2116.4385413839027,
+      "y": 1352.3545731336044
+    },
+    "classic-macbeth/episodes/bt67_swords-clash.md": {
+      "x": 2265.639713770172,
+      "y": 1352.3545731336044
+    },
+    "classic-macbeth/episodes/bt63_march-begins.md": {
+      "x": 2862.444403315249,
+      "y": 1352.3545731336044
+    },
+    "classic-macbeth/episodes/bt62_nobles-defect.md": {
+      "x": 3011.6455757015183,
+      "y": 1352.3545731336044
+    },
+    "classic-macbeth/episodes/bt61_army-gathers.md": {
+      "x": 3160.8467480877875,
+      "y": 1352.3545731336044
+    },
+    "classic-macbeth/episodes/bt60_grief-to-sword.md": {
+      "x": 3310.047920474057,
+      "y": 1352.3545731336044
+    },
+    "classic-macbeth/episodes/bt58_ross-brings-news.md": {
+      "x": 3608.4502652465953,
+      "y": 1352.3545731336044
+    },
+    "classic-macbeth/episodes/bt57_alliance-sealed.md": {
+      "x": 3757.651437632865,
+      "y": 1352.3545731336044
+    },
+    "classic-macbeth/episodes/bt56_macduff-despairs.md": {
+      "x": 2116.4385413839027,
+      "y": 1501.5557455198737
+    },
+    "classic-macbeth/episodes/bt55_malcolm-tests.md": {
+      "x": 2265.639713770172,
+      "y": 1501.5557455198737
+    },
+    "classic-macbeth/episodes/bt52_death-reported.md": {
+      "x": 2713.2432309289798,
+      "y": 1501.5557455198737
+    },
+    "classic-macbeth/episodes/bt50_banquo-confession.md": {
+      "x": 3011.6455757015183,
+      "y": 1501.5557455198737
+    },
+    "classic-macbeth/episodes/bt44_lady-macduff-warning.md": {
+      "x": 2116.4385413839027,
+      "y": 1650.756917906143
+    },
+    "classic-macbeth/episodes/bt37_hecate-scolds.md": {
+      "x": 3160.8467480877875,
+      "y": 1650.756917906143
+    },
+    "classic-macbeth/episodes/bt35_spy-network.md": {
+      "x": 3459.249092860326,
+      "y": 1650.756917906143
+    },
+    "classic-macbeth/episodes/bt32_macbeth-raves.md": {
+      "x": 2116.4385413839027,
+      "y": 1799.9580902924122
+    },
+    "classic-macbeth/episodes/bt31_ghost-appears.md": {
+      "x": 2265.639713770172,
+      "y": 1799.9580902924122
+    },
+    "classic-macbeth/episodes/bt30_fleance-escapes.md": {
+      "x": 2414.8408861564412,
+      "y": 1799.9580902924122
+    },
+    "classic-macbeth/episodes/bt26_body-found.md": {
+      "x": 3011.6455757015183,
+      "y": 1799.9580902924122
+    },
+    "classic-macbeth/episodes/bt23_hands-of-blood.md": {
+      "x": 3459.249092860326,
+      "y": 1799.9580902924122
+    },
+    "classic-macbeth/episodes/bt22_deed-done.md": {
+      "x": 3608.4502652465953,
+      "y": 1799.9580902924122
+    },
+    "classic-macbeth/episodes/bt21_bell-tolls.md": {
+      "x": 3757.651437632865,
+      "y": 1799.9580902924122
+    },
+    "classic-macbeth/episodes/bt17_lady-greets-king.md": {
+      "x": 2564.0420585427105,
+      "y": 1949.1592626786814
+    },
+    "classic-macbeth/episodes/bt16_king-welcomed.md": {
+      "x": 2713.2432309289798,
+      "y": 1949.1592626786814
+    },
+    "classic-macbeth/episodes/bt15_resolve-hardened.md": {
+      "x": 2862.444403315249,
+      "y": 1949.1592626786814
+    },
+    "classic-macbeth/episodes/bt14_manhood-challenged.md": {
+      "x": 3011.6455757015183,
+      "y": 1949.1592626786814
+    },
+    "classic-macbeth/episodes/bt12_plot-hatched.md": {
+      "x": 3310.047920474057,
+      "y": 1949.1592626786814
+    },
+    "classic-macbeth/episodes/bt08_title-bestowed.md": {
+      "x": 2116.4385413839027,
+      "y": 2098.3604350649507
+    },
+    "classic-macbeth/episodes/bt07_ross-arrives.md": {
+      "x": 2265.639713770172,
+      "y": 2098.3604350649507
+    },
+    "classic-macbeth/episodes/bt06_macbeth-ponders.md": {
+      "x": 2414.8408861564412,
+      "y": 2098.3604350649507
+    },
+    "classic-macbeth/episodes/bt05_banquo-prophecy.md": {
+      "x": 2564.0420585427105,
+      "y": 2098.3604350649507
+    },
+    "classic-macbeth/episodes/bt04_hail-macbeth.md": {
+      "x": 2713.2432309289798,
+      "y": 2098.3604350649507
+    },
+    "classic-hamlet/episodes/sc06_01_closet-confrontation.md": {
+      "x": 1337.378669398314,
+      "y": -2512.0123134172363
+    },
+    "classic-hamlet/episodes/sc05_02_get-thee-to-nunnery.md": {
+      "x": 1635.7810141708526,
+      "y": -2512.0123134172363
+    },
+    "classic-hamlet/episodes/sc04_03_king-rises.md": {
+      "x": 143.76929030815973,
+      "y": -2362.8111410309666
+    },
+    "classic-hamlet/episodes/sc03_03_fishmonger-exchange.md": {
+      "x": 591.3728074669675,
+      "y": -2362.8111410309666
+    },
+    "classic-hamlet/episodes/sc02_02_swear-upon-sword.md": {
+      "x": 1188.1774970120448,
+      "y": -2362.8111410309666
+    },
+    "classic-hamlet/episodes/sc01_03_hamlet-follows.md": {
+      "x": 1486.579841784583,
+      "y": -2362.8111410309666
+    },
+    "classic-hamlet/episodes/sc01_02_ghost-on-ramparts.md": {
+      "x": 1635.7810141708526,
+      "y": -2362.8111410309666
+    },
+    "classic-hamlet/episodes/ep04_mousetrap.md": {
+      "x": 740.5739798532368,
+      "y": -2213.609968644698
+    },
+    "classic-hamlet/episodes/ep02_oath-of-revenge.md": {
+      "x": 1038.9763246257753,
+      "y": -2213.609968644698
+    },
+    "classic-hamlet/episodes/ep01_ghost-appears.md": {
+      "x": 1188.1774970120448,
+      "y": -2213.609968644698
+    },
+    "classic-hamlet/episodes/bt08_03_02_claudius-slain.md": {
+      "x": 1486.579841784583,
+      "y": -2213.609968644698
+    },
+    "classic-hamlet/episodes/bt08_02_03_swords-exchanged.md": {
+      "x": 1784.982186557122,
+      "y": -2213.609968644698
+    },
+    "classic-hamlet/episodes/bt08_02_02_gertrude-drinks.md": {
+      "x": 143.76929030815973,
+      "y": -2064.408796258428
+    },
+    "classic-hamlet/episodes/bt08_01_01_gravedigger-riddles.md": {
+      "x": 740.5739798532368,
+      "y": -2064.408796258428
+    },
+    "classic-hamlet/episodes/bt07_03_01_willow-tree.md": {
+      "x": 1188.1774970120448,
+      "y": -2064.408796258428
+    },
+    "classic-hamlet/episodes/bt07_02_01_laertes-storms-in.md": {
+      "x": 1635.7810141708526,
+      "y": -2064.408796258428
+    },
+    "classic-hamlet/episodes/bt06_03_03_hamlet-departs.md": {
+      "x": 442.17163508069825,
+      "y": -1915.2076238721588
+    },
+    "classic-hamlet/episodes/bt06_03_02_gertrude-sees-nothing.md": {
+      "x": 591.3728074669675,
+      "y": -1915.2076238721588
+    },
+    "classic-hamlet/episodes/bt06_02_02_polonius-falls.md": {
+      "x": 1038.9763246257753,
+      "y": -1915.2076238721588
+    },
+    "classic-hamlet/episodes/bt06_02_01_rat-cry.md": {
+      "x": 1188.1774970120448,
+      "y": -1915.2076238721588
+    },
+    "classic-hamlet/episodes/bt06_01_03_gertrude-cries.md": {
+      "x": 1337.378669398314,
+      "y": -1915.2076238721588
+    },
+    "classic-hamlet/episodes/bt06_01_01_mother-confronted.md": {
+      "x": 1635.7810141708526,
+      "y": -1915.2076238721588
+    },
+    "classic-hamlet/episodes/bt05_03_03_polonius-suggests.md": {
+      "x": 1784.982186557122,
+      "y": -1915.2076238721588
+    },
+    "classic-hamlet/episodes/bt05_03_02_england-plan.md": {
+      "x": 143.76929030815973,
+      "y": -1766.0064514858896
+    },
+    "classic-hamlet/episodes/bt05_03_01_claudius-assessment.md": {
+      "x": 292.970462694429,
+      "y": -1766.0064514858896
+    },
+    "classic-hamlet/episodes/bt05_02_02_nunnery-outburst.md": {
+      "x": 591.3728074669675,
+      "y": -1766.0064514858896
+    },
+    "classic-hamlet/episodes/bt05_02_01_return-gifts.md": {
+      "x": 740.5739798532368,
+      "y": -1766.0064514858896
+    },
+    "classic-hamlet/episodes/bt04_03_03_claudius-prays.md": {
+      "x": 1337.378669398314,
+      "y": -1766.0064514858896
+    },
+    "classic-hamlet/episodes/bt04_02_03_poison-scene.md": {
+      "x": 1784.982186557122,
+      "y": -1766.0064514858896
+    },
+    "classic-hamlet/episodes/bt04_02_01_court-assembles.md": {
+      "x": 292.970462694429,
+      "y": -1616.8052790996203
+    },
+    "classic-hamlet/episodes/bt04_01_03_mousetrap-plan.md": {
+      "x": 442.17163508069825,
+      "y": -1616.8052790996203
+    },
+    "classic-hamlet/episodes/bt04_01_02_hecuba-speech.md": {
+      "x": 591.3728074669675,
+      "y": -1616.8052790996203
+    },
+    "classic-hamlet/episodes/bt04_01_01_troupe-welcome.md": {
+      "x": 740.5739798532368,
+      "y": -1616.8052790996203
+    },
+    "classic-hamlet/episodes/bt03_03_03_method-in-madness.md": {
+      "x": 889.7751522395062,
+      "y": -1616.8052790996203
+    },
+    "classic-hamlet/episodes/bt03_03_02_words-words-words.md": {
+      "x": 1038.9763246257753,
+      "y": -1616.8052790996203
+    },
+    "classic-hamlet/episodes/bt03_03_01_fishmonger-taunt.md": {
+      "x": 1188.1774970120448,
+      "y": -1616.8052790996203
+    },
+    "classic-hamlet/episodes/bt03_01_01_disheveled-visit.md": {
+      "x": 292.970462694429,
+      "y": -1467.604106713351
+    },
+    "classic-hamlet/episodes/bt02_03_02_antic-plan.md": {
+      "x": 591.3728074669675,
+      "y": -1467.604106713351
+    },
+    "classic-hamlet/episodes/bt02_02_02_oath-on-sword.md": {
+      "x": 1038.9763246257753,
+      "y": -1467.604106713351
+    },
+    "classic-hamlet/episodes/bt02_01_01_murder-revealed.md": {
+      "x": 1635.7810141708526,
+      "y": -1467.604106713351
+    },
+    "classic-hamlet/episodes/bt01_03_03_friends-restrain.md": {
+      "x": 1784.982186557122,
+      "y": -1467.604106713351
+    },
+    "classic-hamlet/episodes/bt01_03_02_ghost-beckons.md": {
+      "x": 143.76929030815973,
+      "y": -1318.4029343270818
+    },
+    "classic-hamlet/episodes/bt01_03_01_hamlet-arrives.md": {
+      "x": 292.970462694429,
+      "y": -1318.4029343270818
+    },
+    "classic-hamlet/episodes/bt01_02_03_tell-hamlet.md": {
+      "x": 442.17163508069825,
+      "y": -1318.4029343270818
+    },
+    "classic-hamlet/episodes/bt01_02_02_horatio-speaks.md": {
+      "x": 591.3728074669675,
+      "y": -1318.4029343270818
+    },
+    "classic-hamlet/episodes/bt01_02_01_ghost-appears-first.md": {
+      "x": 740.5739798532368,
+      "y": -1318.4029343270818
+    },
+    "classic-hamlet/episodes/act1_ghost-and-oath.md": {
+      "x": 1635.7810141708526,
+      "y": -1318.4029343270818
+    },
+    "classic-macbeth/episodes/sc16_sleepwalking.md": {
+      "x": 3310.047920474057,
+      "y": 904.7510559747964
+    },
+    "classic-macbeth/episodes/sc07_dagger-vision.md": {
+      "x": 2862.444403315249,
+      "y": 1053.9522283610656
+    },
+    "classic-macbeth/episodes/bt66_macbeth-defiant.md": {
+      "x": 2414.8408861564412,
+      "y": 1352.3545731336044
+    },
+    "classic-macbeth/episodes/bt65_forest-moves.md": {
+      "x": 2564.0420585427105,
+      "y": 1352.3545731336044
+    },
+    "classic-macbeth/episodes/bt64_branches-cut.md": {
+      "x": 2713.2432309289798,
+      "y": 1352.3545731336044
+    },
+    "classic-macbeth/episodes/bt59_all-my-children.md": {
+      "x": 3459.249092860326,
+      "y": 1352.3545731336044
+    },
+    "classic-macbeth/episodes/bt54_tale-told-by-idiot.md": {
+      "x": 2414.8408861564412,
+      "y": 1501.5557455198737
+    },
+    "classic-macbeth/episodes/bt53_tomorrow-soliloquy.md": {
+      "x": 2564.0420585427105,
+      "y": 1501.5557455198737
+    },
+    "classic-macbeth/episodes/bt51_incurable-mind.md": {
+      "x": 2862.444403315249,
+      "y": 1501.5557455198737
+    },
+    "classic-macbeth/episodes/bt49_duncan-confession.md": {
+      "x": 3160.8467480877875,
+      "y": 1501.5557455198737
+    },
+    "classic-macbeth/episodes/bt48_smell-of-blood.md": {
+      "x": 3310.047920474057,
+      "y": 1501.5557455198737
+    },
+    "classic-macbeth/episodes/bt47_doctor-watches.md": {
+      "x": 3459.249092860326,
+      "y": 1501.5557455198737
+    },
+    "classic-macbeth/episodes/bt46_out-damned-spot.md": {
+      "x": 3608.4502652465953,
+      "y": 1501.5557455198737
+    },
+    "classic-macbeth/episodes/bt45_slaughter.md": {
+      "x": 3757.651437632865,
+      "y": 1501.5557455198737
+    },
+    "classic-macbeth/episodes/bt43_order-to-kill.md": {
+      "x": 2265.639713770172,
+      "y": 1650.756917906143
+    },
+    "classic-macbeth/episodes/bt42_crowned-child.md": {
+      "x": 2414.8408861564412,
+      "y": 1650.756917906143
+    },
+    "classic-macbeth/episodes/bt41_bloody-child.md": {
+      "x": 2564.0420585427105,
+      "y": 1650.756917906143
+    },
+    "classic-macbeth/episodes/bt40_armed-head.md": {
+      "x": 2713.2432309289798,
+      "y": 1650.756917906143
+    },
+    "classic-macbeth/episodes/bt38_overconfidence-trap.md": {
+      "x": 3011.6455757015183,
+      "y": 1650.756917906143
+    },
+    "classic-macbeth/episodes/bt36_to-the-witches.md": {
+      "x": 3310.047920474057,
+      "y": 1650.756917906143
+    },
+    "classic-macbeth/episodes/bt34_blood-calls-blood.md": {
+      "x": 3608.4502652465953,
+      "y": 1650.756917906143
+    },
+    "classic-macbeth/episodes/bt33_lady-covers.md": {
+      "x": 3757.651437632865,
+      "y": 1650.756917906143
+    },
+    "classic-macbeth/episodes/bt29_ambush.md": {
+      "x": 2564.0420585427105,
+      "y": 1799.9580902924122
+    },
+    "classic-macbeth/episodes/bt28_murderers-hired.md": {
+      "x": 2713.2432309289798,
+      "y": 1799.9580902924122
+    },
+    "classic-macbeth/episodes/bt27_princes-flee.md": {
+      "x": 2862.444403315249,
+      "y": 1799.9580902924122
+    },
+    "classic-macbeth/episodes/bt25_porter-knocking.md": {
+      "x": 3160.8467480877875,
+      "y": 1799.9580902924122
+    },
+    "classic-macbeth/episodes/bt24_daggers-planted.md": {
+      "x": 3310.047920474057,
+      "y": 1799.9580902924122
+    },
+    "classic-macbeth/episodes/bt20_hallucination-deepens.md": {
+      "x": 2116.4385413839027,
+      "y": 1949.1592626786814
+    },
+    "classic-macbeth/episodes/bt19_dagger-appears.md": {
+      "x": 2265.639713770172,
+      "y": 1949.1592626786814
+    },
+    "classic-macbeth/episodes/bt13_macbeth-hesitates.md": {
+      "x": 3160.8467480877875,
+      "y": 1949.1592626786814
+    },
+    "classic-macbeth/episodes/bt11_unsex-me.md": {
+      "x": 3459.249092860326,
+      "y": 1949.1592626786814
+    },
+    "classic-macbeth/episodes/bt10_reading-letter.md": {
+      "x": 3608.4502652465953,
+      "y": 1949.1592626786814
+    },
+    "classic-macbeth/episodes/bt09_dark-desire.md": {
+      "x": 3757.651437632865,
+      "y": 1949.1592626786814
+    },
+    "classic-macbeth/episodes/bt01_storm-gathers.md": {
+      "x": 3160.8467480877875,
+      "y": 2098.3604350649507
+    },
+    "classic-hamlet/episodes/sc05_01_to-be-or-not.md": {
+      "x": 1784.982186557122,
+      "y": -2512.0123134172363
+    },
+    "classic-hamlet/episodes/sc02_03_time-out-of-joint.md": {
+      "x": 1038.9763246257753,
+      "y": -2362.8111410309666
+    },
+    "classic-hamlet/episodes/ep07_ophelia-madness.md": {
+      "x": 292.970462694429,
+      "y": -2213.609968644698
+    },
+    "classic-hamlet/episodes/bt07_03_03_laertes-rage.md": {
+      "x": 889.7751522395062,
+      "y": -2064.408796258428
+    },
+    "classic-hamlet/episodes/bt07_03_02_singing-in-water.md": {
+      "x": 1038.9763246257753,
+      "y": -2064.408796258428
+    },
+    "classic-hamlet/episodes/bt07_01_03_court-grief.md": {
+      "x": 1784.982186557122,
+      "y": -2064.408796258428
+    },
+    "classic-hamlet/episodes/bt07_01_01_flowers-distributed.md": {
+      "x": 292.970462694429,
+      "y": -1915.2076238721588
+    },
+    "classic-hamlet/episodes/bt06_01_02_two-portraits.md": {
+      "x": 1486.579841784583,
+      "y": -1915.2076238721588
+    },
+    "classic-hamlet/episodes/bt05_02_03_ophelia-laments.md": {
+      "x": 442.17163508069825,
+      "y": -1766.0064514858896
+    },
+    "classic-hamlet/episodes/bt05_01_03_conscience-cowards.md": {
+      "x": 889.7751522395062,
+      "y": -1766.0064514858896
+    },
+    "classic-hamlet/episodes/bt05_01_02_sleep-of-death.md": {
+      "x": 1038.9763246257753,
+      "y": -1766.0064514858896
+    },
+    "classic-hamlet/episodes/bt05_01_01_soliloquy-begins.md": {
+      "x": 1188.1774970120448,
+      "y": -1766.0064514858896
+    },
+    "classic-hamlet/episodes/bt04_03_01_king-disturbed.md": {
+      "x": 1635.7810141708526,
+      "y": -1766.0064514858896
+    },
+    "classic-hamlet/episodes/bt04_02_02_dumb-show.md": {
+      "x": 143.76929030815973,
+      "y": -1616.8052790996203
+    },
+    "classic-hamlet/episodes/bt02_03_03_cursed-spite.md": {
+      "x": 442.17163508069825,
+      "y": -1467.604106713351
+    },
+    "classic-hamlet/episodes/bt02_03_01_world-disjointed.md": {
+      "x": 740.5739798532368,
+      "y": -1467.604106713351
+    },
+    "classic-hamlet/episodes/bt02_02_01_hamlet-shaken.md": {
+      "x": 1188.1774970120448,
+      "y": -1467.604106713351
+    },
+    "classic-hamlet/episodes/bt02_01_02_purgatory.md": {
+      "x": 1486.579841784583,
+      "y": -1467.604106713351
+    },
+    "classic-hamlet/episodes/bt01_01_03_fortinbras-threat.md": {
+      "x": 889.7751522395062,
+      "y": -1318.4029343270818
+    },
+    "classic-hamlet/episodes/bt01_01_02_horatio-summoned.md": {
+      "x": 1038.9763246257753,
+      "y": -1318.4029343270818
+    },
+    "classic-hamlet/episodes/sc01_01_sentinels-watch.md": {
+      "x": 1784.982186557122,
+      "y": -2362.8111410309666
+    },
+    "classic-hamlet/episodes/bt01_01_01_whos-there.md": {
+      "x": 1188.1774970120448,
+      "y": -1318.4029343270818
+    }
+  },
+  "navHistory": [],
+  "navHistoryCursor": -1,
   "semanticZoom": false,
   "showTagBadges": false,
   "highContrastMode": false,
@@ -173,12 +1176,16 @@
   "showStructureQuestions": false,
   "showEntropyOverlay": false,
   "showClusterCompare": false,
+  "multiSelectNodeIds": [],
+  "subgraphNodeIds": [],
+  "subgraphStack": [],
   "showRelationMatrix": false,
   "presentationMode": false,
   "showNodeThumbnails": false,
   "nodeIconField": "",
   "nodeIconMap": {},
   "focusConeEnabled": true,
+  "expandedNodes": [],
   "analysisOverlay": "off",
   "showOntologyBackbone": false,
   "showGapEdges": false,
@@ -192,5 +1199,6 @@
     "autoLOD": true
   },
   "guideLineMode": "per-group",
-  "showGroupGrid": false
+  "showGroupGrid": false,
+  "_absoluteZoom": 0.8
 }
