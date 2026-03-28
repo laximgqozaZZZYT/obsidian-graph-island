@@ -279,6 +279,14 @@ const CABLE_FAN_CROWD_MIN_FRACTION = 0.4;
 const CABLE_FAN_CONNECTED_FACTOR = 0.8;
 /** Cable fan alpha dampen factor for non-matching edges during hover */
 const CABLE_FAN_NON_MATCH_DAMPEN = 0.15;
+/** Zoom-out fade for intra-group cables (does NOT affect trunks).
+ *  Returns 1.0 at zoom >= 0.5, fading to 0.05 at zoom <= 0.15. */
+function _zoomFadeAlpha(zoom: number): number {
+  if (zoom >= 0.5) return 1;
+  if (zoom <= 0.15) return 0.05;
+  return 0.05 + 0.95 * (zoom - 0.15) / (0.5 - 0.15);
+}
+
 /** Cable lane spacing in screen pixels — wide enough to distinguish parallel cables */
 const CABLE_LANE_SPACING = 14;
 /** Cable layout margin from cluster boundary */
@@ -2078,6 +2086,7 @@ function _drawSingleIntraCableBranches(
   densityScale: number,
   filterHighlight: "normal" | "bright" | "dim" | null,
   getBranchHighlight: (edges: GraphEdge[]) => "normal" | "bright" | "dim",
+  zoomFade = 1,
 ): void {
   for (const branch of cable.branches) {
     const colorMap = new Map<number, GraphEdge[]>();
@@ -2111,9 +2120,10 @@ function _drawSingleIntraCableBranches(
       const wirePath = off === 0 ? branch.path
         : branch.path.map(p => ({ x: p.x + perpX * off, y: p.y + perpY * off }));
 
-      const finalAlpha = highlight === "bright"
+      const baseAlpha = highlight === "bright"
         ? wireAlpha
         : Math.max(wireAlpha * densityScale, highlight === "dim" ? 0.05 : 0.1);
+      const finalAlpha = baseAlpha * zoomFade;
       const wireWidth = (cfg.cableFanWidth ?? WIRE_SCREEN_WIDTH) + cableWeightThickness(edges, cfg);
       _drawSmoothPath(g, wirePath, wireWidth, color, finalAlpha);
       ci++;
@@ -2133,6 +2143,7 @@ function _drawSingleIntraCableGpb(
   portColorLanes: PortColorLanes | undefined,
   filterHighlight: "dim" | "bright" | null,
   getBranchHighlight: (edges: GraphEdge[]) => "normal" | "bright" | "dim",
+  zoomFade = 1,
 ): void {
   const gpb = cable.groupPortBranch;
   if (!gpb || gpb.edges.length === 0) return;
@@ -2169,13 +2180,13 @@ function _drawSingleIntraCableGpb(
       else wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
       wireAlpha *= fadeMul;
 
-      const gpFinalAlpha = gpHighlight === "bright"
+      const gpFinalAlpha = (gpHighlight === "bright"
         ? wireAlpha
-        : Math.max(wireAlpha * densityScale, 0.05);
+        : Math.max(wireAlpha * densityScale, 0.05)) * zoomFade;
       _drawSmoothPath(g, wirePath, wireWidth, color, gpFinalAlpha);
     } else {
       // Normal mode — draw all at base alpha
-      const gpFinalAlpha = Math.max(baseA * fadeMul * densityScale, 0.1);
+      const gpFinalAlpha = Math.max(baseA * fadeMul * densityScale, 0.1) * zoomFade;
       _drawSmoothPath(g, wirePath, wireWidth, color, gpFinalAlpha);
     }
   }
@@ -2192,6 +2203,12 @@ function drawIntraGroupCables(
   portColorLanes?: PortColorLanes,
 ): void {
   if (cables.length === 0) return;
+
+  // Zoom-out fade: reduce intra-group cable alpha at extreme zoom.
+  // Trunks (inter-group) are NOT affected — only intra-group wires fade.
+  const ws = cfg.worldScale ?? 1;
+  const zoomFade = _zoomFadeAlpha(ws);
+  if (zoomFade < 0.02) return; // Fully faded: skip drawing entirely
 
   // Highlight helper: an edge is "bright" only when the HOVERED node itself
   // is one of its endpoints (not just any highlight-set member).
@@ -2217,7 +2234,7 @@ function drawIntraGroupCables(
   // When highlighting, draw in 2 sub-passes: dim first, then bright on top.
   const _drawBranchWires = (filterHighlight: "normal" | "bright" | "dim" | null) => {
     for (const cable of cables) {
-      _drawSingleIntraCableBranches(g, cable, cfg, densityScale, filterHighlight, getBranchHighlight);
+      _drawSingleIntraCableBranches(g, cable, cfg, densityScale, filterHighlight, getBranchHighlight, zoomFade);
     }
   };
 
@@ -2236,14 +2253,14 @@ function drawIntraGroupCables(
     // Per-cable drawing with 2 sub-passes: dim first, bright on top.
     const _drawGpbWires = (filterHL: "dim" | "bright") => {
       for (const cable of cables) {
-        _drawSingleIntraCableGpb(g, cable, cfg, densityScale, portColorLanes, filterHL, getBranchHighlight);
+        _drawSingleIntraCableGpb(g, cable, cfg, densityScale, portColorLanes, filterHL, getBranchHighlight, zoomFade);
       }
     };
     _drawGpbWires("dim");
     _drawGpbWires("bright");
   } else {
     for (const cable of cables) {
-      _drawSingleIntraCableGpb(g, cable, cfg, densityScale, portColorLanes, null, getBranchHighlight);
+      _drawSingleIntraCableGpb(g, cable, cfg, densityScale, portColorLanes, null, getBranchHighlight, zoomFade);
     }
   }
 }

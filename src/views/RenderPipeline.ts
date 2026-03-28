@@ -68,6 +68,22 @@ export function screenToWorld(screenPx: number, ws: number, floor: number): numb
 /** Viewport culling margin in world units (divided by worldScale) */
 const VIEWPORT_CULL_MARGIN_PX = 60;
 
+/**
+ * Compute a fade-out alpha for individual nodes/intra-group cables at extreme zoom-out.
+ * Returns 1.0 at zoom >= fadeStart, linearly fading to fadeFloor at zoom <= fadeEnd.
+ * Does NOT affect trunks (inter-group cables).
+ */
+export function computeZoomFadeAlpha(
+  zoom: number,
+  fadeStart = 0.5,
+  fadeEnd = 0.15,
+  fadeFloor = 0.05,
+): number {
+  if (zoom >= fadeStart) return 1;
+  if (zoom <= fadeEnd) return fadeFloor;
+  return fadeFloor + (1 - fadeFloor) * (zoom - fadeEnd) / (fadeStart - fadeEnd);
+}
+
 /** Maximum number of labels created before dynamically raising degree threshold */
 const MAX_LABEL_COUNT = 1500;
 
@@ -932,7 +948,9 @@ export class RenderPipeline {
     // Timeline range filtering
     const tlFilteredOut = this._computeTimelineFilter(visible, pixiNodes);
 
-    const alpha = hasHighlight ? crc.highlightDimAlpha : 1;
+    // Zoom-out fade: gradually reduce node/label/intra-cable alpha at extreme zoom
+    const zoomFade = computeZoomFadeAlpha(worldScale);
+    const alpha = (hasHighlight ? crc.highlightDimAlpha : 1) * zoomFade;
     const nodeCount = visible.length;
     const shapeRules = this.host.getNodeShapeRules();
 
