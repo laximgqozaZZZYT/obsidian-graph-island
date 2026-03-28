@@ -4877,8 +4877,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const hasTagEnclosures = this.panel.showTagNodes && this.panel.tagDisplay === "enclosure" && this.tagMembership.size > 0;
     const hasGroups = hasGroupBy || hasTagEnclosures;
 
-    // Hide all labels when not in group mode or zoomed in enough
-    if (!hasGroups || ws >= fadeThreshold || this.panel.viewMode !== "graph") {
+    // At distant zoom without explicit groupBy, auto-generate folder-based
+    // group labels so the user can orient themselves in the graph.
+    const autoFolderGroups = !hasGroups && ws < fadeThreshold && this.panel.viewMode === "graph";
+
+    // Hide all labels when zoomed in enough or in non-graph viewMode
+    if (!hasGroups && !autoFolderGroups || ws >= fadeThreshold || this.panel.viewMode !== "graph") {
       for (const lbl of this.groupByLabels.values()) lbl.visible = false;
       if (this.clusterBoundaryGraphics) this.clusterBoundaryGraphics.clear();
       return;
@@ -4938,7 +4942,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const compositeKey = vals.join(" · ");
         addMember(compositeKey, pn.data.id, pn.gfx.x, pn.gfx.y);
       }
-    } else if (hasTagEnclosures) {
+    } else if (hasTagEnclosures || autoFolderGroups) {
+      // Auto-generate folder-based groups from file paths
       for (const pn of this.pixiNodes.values()) {
         const path = pn.data.filePath ?? "";
         const folder = path.split("/")[0] || "root";
