@@ -115,25 +115,31 @@ export class WebGLContainer extends CanvasContainer {
       this._localTransform,
     );
 
+    // Apply this container's transform to the overlay context so that
+    // any Canvas 2D children (CanvasText labels) at any nesting depth
+    // render at the correct world position.
+    const hasOverlay = overlayCtx != null;
+    if (hasOverlay) {
+      overlayCtx!.save();
+      overlayCtx!.translate(this.x, this.y);
+      if (this.scale.x !== 1 || this.scale.y !== 1) {
+        overlayCtx!.scale(this.scale.x, this.scale.y);
+      }
+    }
+
     for (let i = 0; i < len; i++) {
       const child = children[i];
       if (!child.visible) continue;
 
       if ("_flushGL" in child && typeof (child as any)._flushGL === "function") {
         (child as any)._flushGL(gl, program, local, effAlpha, overlayCtx);
-      } else if (overlayCtx) {
-        // CanvasText or other Canvas 2D children: render on overlay.
-        // Apply the accumulated mat3 transform to the 2D context so the
-        // child draws at the correct world position (not at the origin).
-        overlayCtx.save();
-        overlayCtx.transform(
-          local[0], local[1],   // a, b
-          local[3], local[4],   // c, d
-          local[6], local[7],   // tx, ty
-        );
-        child._flush(overlayCtx, effAlpha);
-        overlayCtx.restore();
+      } else if (hasOverlay) {
+        child._flush(overlayCtx!, effAlpha);
       }
+    }
+
+    if (hasOverlay) {
+      overlayCtx!.restore();
     }
   }
 }
