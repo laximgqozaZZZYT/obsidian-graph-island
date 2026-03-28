@@ -135,31 +135,42 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
         v.panel.showLinks = true;
       }
 
+      // Vault prefix fix: when vault is parent "obsidian-plugins", content paths
+      // start with "開発/". Rewrite "path:classic-" → "path:開発/classic-" etc.
+      var vaultName2 = (window as any).app?.vault?.getName?.() ?? "";
+      var needsPrefix = vaultName2 === "obsidian-plugins" || vaultName2 === "obsidian plugins";
+      if (needsPrefix && v.panel.searchQuery) {
+        v.panel.searchQuery = v.panel.searchQuery.replace(/path:(?!開発\/)/g, "path:開発/");
+      }
+
       // ANTI-PATTERN FIX: Ensure multi-folder diversity for color variety.
       // For no-query presets, add a folder filter.
       // For single-folder presets, append an additional folder via OR.
       // ANTI-PATTERN FIX: Only add searchQuery for presets with NO query at all
       // (full-vault). Don't modify presets that have their own query.
       if (!v.panel.searchQuery) {
+        // Detect vault prefix: if vault is parent ("obsidian-plugins"), content is under "開発/"
+        var vaultName = (window as any).app?.vault?.getName?.() ?? "";
+        var pfx = (vaultName === "obsidian-plugins" || vaultName === "obsidian plugins") ? "開発/" : "";
         var folders = [
-          "path:mythology-greek* OR path:classic-hamlet*",
-          "path:mythology-norse* OR path:classic-arabian-nights*",
-          "path:classic-hamlet* OR path:bible-old-testament*",
-          "path:classic-arabian-nights* OR path:mythology-egyptian*",
-          "path:bible-old-testament* OR path:classic-gilgamesh*",
-          "path:classic-gilgamesh* OR path:mythology-japanese*",
-          "path:mythology-egyptian* OR path:classic-saiyuki*",
-          "path:classic-saiyuki* OR path:classic-king-lear*",
-          "path:mythology-japanese* OR path:classic-arthurian*",
-          "path:classic-king-lear* OR path:classic-divine-comedy*",
-          "path:classic-arthurian* OR path:mythology-greek*",
-          "path:classic-divine-comedy* OR path:mythology-norse*",
-          "path:mythology-greek* OR path:bible* OR path:classic-saiyuki*",
-          "path:classic-hamlet* OR path:mythology-norse* OR path:mythology-egyptian*",
-          "path:classic-arabian-nights* OR path:classic-gilgamesh* OR path:classic-arthurian*",
-          "path:bible* OR path:mythology-japanese* OR path:classic-king-lear*",
-          "path:classic-divine-comedy* OR path:classic-saiyuki* OR path:mythology-greek*",
-          "path:mythology-norse* OR path:classic-hamlet* OR path:classic-gilgamesh*",
+          "path:" + pfx + "mythology-greek* OR path:" + pfx + "classic-hamlet*",
+          "path:" + pfx + "mythology-norse* OR path:" + pfx + "classic-arabian-nights*",
+          "path:" + pfx + "classic-hamlet* OR path:" + pfx + "bible-old-testament*",
+          "path:" + pfx + "classic-arabian-nights* OR path:" + pfx + "mythology-egyptian*",
+          "path:" + pfx + "bible-old-testament* OR path:" + pfx + "classic-gilgamesh*",
+          "path:" + pfx + "classic-gilgamesh* OR path:" + pfx + "mythology-japanese*",
+          "path:" + pfx + "mythology-egyptian* OR path:" + pfx + "classic-saiyuki*",
+          "path:" + pfx + "classic-saiyuki* OR path:" + pfx + "classic-king-lear*",
+          "path:" + pfx + "mythology-japanese* OR path:" + pfx + "classic-arthurian*",
+          "path:" + pfx + "classic-king-lear* OR path:" + pfx + "classic-divine-comedy*",
+          "path:" + pfx + "classic-arthurian* OR path:" + pfx + "mythology-greek*",
+          "path:" + pfx + "classic-divine-comedy* OR path:" + pfx + "mythology-norse*",
+          "path:" + pfx + "mythology-greek* OR path:" + pfx + "bible* OR path:" + pfx + "classic-saiyuki*",
+          "path:" + pfx + "classic-hamlet* OR path:" + pfx + "mythology-norse* OR path:" + pfx + "mythology-egyptian*",
+          "path:" + pfx + "classic-arabian-nights* OR path:" + pfx + "classic-gilgamesh* OR path:" + pfx + "classic-arthurian*",
+          "path:" + pfx + "bible* OR path:" + pfx + "mythology-japanese* OR path:" + pfx + "classic-king-lear*",
+          "path:" + pfx + "classic-divine-comedy* OR path:" + pfx + "classic-saiyuki* OR path:" + pfx + "mythology-greek*",
+          "path:" + pfx + "mythology-norse* OR path:" + pfx + "classic-hamlet* OR path:" + pfx + "classic-gilgamesh*",
         ];
         var idx = (window as any).__screenshotIdx ?? 0;
         v.panel.searchQuery = folders[idx % folders.length];

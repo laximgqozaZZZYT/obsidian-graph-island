@@ -55,7 +55,7 @@
   },
   {
     "name": "10-maximalist",
-    "nodes": 246,
+    "nodes": 242,
     "pass": true,
     "issues": []
   },
@@ -79,11 +79,9 @@
   },
   {
     "name": "14-dialogue-theater",
-    "nodes": 1165,
-    "pass": false,
-    "issues": [
-      "Too few visible nodes in viewport: 0/1165"
-    ]
+    "nodes": 7,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "15-orphan-hunter",
@@ -129,73 +127,73 @@
   },
   {
     "name": "22-timeline-ranged",
-    "nodes": 246,
+    "nodes": 225,
     "pass": true,
     "issues": []
   },
   {
     "name": "23-spiral-galaxy",
-    "nodes": 250,
+    "nodes": 246,
     "pass": true,
     "issues": []
   },
   {
     "name": "24-baobab-sunburst",
-    "nodes": 248,
+    "nodes": 246,
     "pass": true,
     "issues": []
   },
   {
     "name": "25-rose-curve",
-    "nodes": 619,
+    "nodes": 246,
     "pass": true,
     "issues": []
   },
   {
     "name": "26-lissajous-figure",
-    "nodes": 371,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "27-filled-pentagon",
-    "nodes": 369,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "28-cardioid-heart",
-    "nodes": 615,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "29-concentric-degree",
-    "nodes": 352,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "30-mountain-ridge",
-    "nodes": 371,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "31-cross-tabulation",
     "nodes": 250,
     "pass": true,
     "issues": []
   },
   {
-    "name": "32-timeline-ticks",
+    "name": "27-filled-pentagon",
     "nodes": 248,
     "pass": true,
     "issues": []
   },
   {
+    "name": "28-cardioid-heart",
+    "nodes": 619,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "29-concentric-degree",
+    "nodes": 371,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "30-mountain-ridge",
+    "nodes": 369,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "31-cross-tabulation",
+    "nodes": 615,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "32-timeline-ticks",
+    "nodes": 352,
+    "pass": true,
+    "issues": []
+  },
+  {
     "name": "33-polar-grid",
-    "nodes": 242,
+    "nodes": 371,
     "pass": true,
     "issues": []
   },
@@ -207,7 +205,7 @@
   },
   {
     "name": "35-donut-groups",
-    "nodes": 246,
+    "nodes": 250,
     "pass": true,
     "issues": []
   },
@@ -219,13 +217,13 @@
   },
   {
     "name": "37-hierarchical-sunburst",
-    "nodes": 242,
+    "nodes": 248,
     "pass": true,
     "issues": []
   },
   {
     "name": "38-tiny-nodes-stress",
-    "nodes": 246,
+    "nodes": 242,
     "pass": true,
     "issues": []
   },
@@ -237,7 +235,7 @@
   },
   {
     "name": "40-force-ungrouped",
-    "nodes": 246,
+    "nodes": 242,
     "pass": true,
     "issues": []
   },
@@ -255,73 +253,73 @@
   },
   {
     "name": "43-concentric-tiny-accessibility",
-    "nodes": 250,
+    "nodes": 225,
     "pass": true,
     "issues": []
   },
   {
     "name": "44-timeline-dense-overlap",
-    "nodes": 248,
+    "nodes": 246,
     "pass": true,
     "issues": []
   },
   {
     "name": "45-grid-tight-spacing",
-    "nodes": 598,
+    "nodes": 246,
     "pass": true,
     "issues": []
   },
   {
     "name": "46-tree-deep-hierarchy",
-    "nodes": 371,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "47-sunburst-with-tags",
-    "nodes": 369,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "48-node-type-triangle",
-    "nodes": 615,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "49-orphan-flood",
-    "nodes": 373,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "50-arrow-heavy-directed",
-    "nodes": 371,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "51-enclosure-tight",
     "nodes": 250,
     "pass": true,
     "issues": []
   },
   {
-    "name": "52-mixed-nodesize-stress",
+    "name": "47-sunburst-with-tags",
     "nodes": 248,
     "pass": true,
     "issues": []
   },
   {
+    "name": "48-node-type-triangle",
+    "nodes": 598,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "49-orphan-flood",
+    "nodes": 371,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "50-arrow-heavy-directed",
+    "nodes": 369,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "51-enclosure-tight",
+    "nodes": 615,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "52-mixed-nodesize-stress",
+    "nodes": 352,
+    "pass": true,
+    "issues": []
+  },
+  {
     "name": "53-accessibility-contrast",
-    "nodes": 242,
+    "nodes": 371,
     "pass": true,
     "issues": []
   },
   {
     "name": "54-radial-dense",
-    "nodes": 246,
+    "nodes": 250,
     "pass": true,
     "issues": []
   },
@@ -345,13 +343,13 @@
   },
   {
     "name": "test-hub-radial",
-    "nodes": 242,
+    "nodes": 248,
     "pass": true,
     "issues": []
   },
   {
     "name": "test-sunburst-full",
-    "nodes": 246,
+    "nodes": 242,
     "pass": true,
     "issues": []
   },
@@ -363,13 +361,13 @@
   },
   {
     "name": "test-tag-category-matrix",
-    "nodes": 225,
+    "nodes": 246,
     "pass": true,
     "issues": []
   },
   {
     "name": "test-timeline-story",
-    "nodes": 246,
+    "nodes": 242,
     "pass": true,
     "issues": []
   },
