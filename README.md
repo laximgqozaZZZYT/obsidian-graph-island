@@ -1,176 +1,161 @@
 # Graph Island
 
-**Multiple graph visualization layouts for Obsidian**
+**Advanced graph visualization for Obsidian** &mdash; Force layouts, cable-tray wiring, 4 view modes, and 60+ sample presets.
 
-Graph Island replaces and extends Obsidian's built-in graph view with rich layout options, metadata-driven coloring, tag-based enclosures, cluster arrangements, and a detailed node inspector panel.
+![Graph Island — Force Layout with Concentric Clusters](docs/screenshots/02-dense-cluster-zoomed.png)
 
-![Force Layout](docs/images/readme-force-layout.png)
+Graph Island replaces Obsidian's built-in graph view with a feature-rich canvas that supports metadata-driven coloring, tag enclosures, cable-tray edge bundling, multiple layout algorithms, and a configurable settings panel &mdash; all within the graph view itself.
+
+## View Modes
+
+Switch between four visualization modes using the tab bar at the top of the graph view.
+
+### Graph
+
+Force-directed layout with customizable physics (repulsion, link distance, center force). Nodes are colored by category, tag, or folder. Edges are routed through cable-tray conduits when cluster grouping is active.
+
+![Graph Mode — Grid Cluster Arrangement](docs/screenshots/06-sangokushi-factions-zoomed.png)
+
+### Sunburst
+
+Hierarchical pie chart showing folder or tag structure. Click a sector to filter the graph by that category. Hover for group stats.
+
+![Sunburst Mode](docs/screenshots/59-sunburst-bible.png)
+
+### Timeline
+
+Nodes arranged chronologically by a frontmatter date field (`start-date`, `date`, etc.). Duration bars show event spans. Sequence edges connect related events.
+
+![Timeline Mode](docs/screenshots/58-timeline-arthurian.png)
+
+### Matrix
+
+Adjacency matrix showing all connections between nodes. Sort by degree, label, or category. Hover a cell to see edge type breakdown.
 
 ## Features
 
-### Multiple Layouts
-
-| Layout | Description |
-|--------|-------------|
-| **Force** | Physics-based simulation with customizable gravity, node rules, and edge bundling |
-| **Concentric** | Nodes arranged in concentric shells by degree, category, or custom sort |
-| **Tree** | Hierarchical tree layout grouped by category |
-| **Arc** | Arc/radial arrangement sorted by degree or label |
-| **Sunburst** | Hierarchical pie chart based on tag or folder structure |
-
 ### Cluster Arrangements
 
-When cluster mode is enabled, nodes are first grouped (by tag, backlink count, or node type), then each cluster is arranged using one of **8 patterns**:
+When `groupBy` is set (folder, tag, category, or Louvain community), nodes are grouped and each cluster is arranged using one of 8 patterns:
 
 | Pattern | Description |
 |---------|-------------|
 | Grid | Even grid layout |
-| Tree | Hierarchical tree within each cluster |
+| Concentric | Concentric rings by degree |
+| Tree | Hierarchical tree |
 | Spiral | Archimedean spiral |
-| Concentric | Concentric rings within each cluster |
-| Sunburst | Radial sector layout |
+| Sunburst | Radial sectors |
 | Triangle | Triangular packing |
-| Mountain | Mountain/peak arrangement |
-| Random | Random scatter |
+| Mountain | Peak arrangement |
+| Custom | Coordinate-system based (polar/cartesian) |
 
-Multi-level grouping is supported — e.g., first group by tag, then subdivide by connected components.
+![Concentric Cluster Arrangement](docs/screenshots/51-enclosure-tight.png)
 
-![Cluster Sunburst](docs/images/readme-sunburst.png)
+### Cable-Tray Edge Bundling
+
+Edges between clusters are routed through shared conduits (trunks), with individual wires color-coded by edge type. Intra-group edges use junction-grid Manhattan routing. This replaces the visual noise of crossing lines with organized wiring.
+
+- **Trunks**: Inter-group conduits with color-separated cables
+- **Wires**: Individual edge paths with perpendicular offset
+- **Port routing**: Automatic entry/exit point selection per cluster
+- Configurable bundling threshold via `trunkMinEdges`
+
+![Edge Bundling](docs/screenshots/17-ontology-mapper.png)
 
 ### Enclosure Display
 
-Tag groups can be visualized as **convex hull enclosures** — smooth boundaries that wrap around all nodes sharing the same tag. Enclosure labels appear on hover.
+Tag groups rendered as convex hull boundaries. Enclosure labels appear at group centroids with zoom-adaptive crossfade.
 
-- Minimum-ratio threshold to hide small groups
-- Zoomed-out mode fills enclosures with translucent color for overview
-- Zoomed-in mode shows stroke-only outlines
-
-![Enclosures with Labels](docs/images/readme-enclosure-labels.png)
-
-### Node Detail Panel
-
-A dedicated side panel shows detailed information for hovered or pinned nodes:
-
-- Tag badges, link count
-- One-click file open
-- Inline preview (rendered markdown)
-- Properties table (frontmatter)
-- Backlinks & outgoing links with expand/collapse
-
-![Node Detail](docs/images/readme-node-detail-full.png)
-
-### Edge Types & Rendering
-
-Graph Island recognizes multiple edge types derived from your vault:
-
-- **Links** — standard `[[wikilinks]]` and markdown links
-- **Tags** — shared tag connections
-- **Categories** — shared frontmatter category
-- **Semantic** — ontology-based edges (inheritance, aggregation, similarity)
-
-Edges are color-coded by type and support **edge bundling** for cleaner visualization at any zoom level.
-
-### Ontology System
-
-Define semantic relationships between notes:
-
-- **Inheritance** (is-a): `parent`, `extends`, `up` fields
-- **Aggregation** (has-a): `contains`, `parts`, `has` fields
-- **Similarity**: `similar`, `related` fields
-- **Tag Hierarchy**: Nested tags (`#entity/character`) auto-generate inheritance edges
-- **Custom Mappings**: Map arbitrary field names to ontology types
-
-### Query-Based Color Groups
-
-Define conditional color groups using a boolean query language:
-
-```json
-[{
-  "condition": { "layout": "force" },
-  "groups": [
-    { "expression": { "type": "leaf", "field": "tag", "value": "character" }, "color": "#ff6b6b" },
-    { "expression": { "type": "leaf", "field": "tag", "value": "location" }, "color": "#4ecdc4" }
-  ]
-}]
-```
-
-Supports `AND`, `OR`, `NOT` operators and fields: `tag`, `category`, `path`, `node_type`, `backlinks`.
-
-### Node Rules
-
-Per-node spacing and gravity control via query filters:
-
-```json
-[{ "query": "tag:character", "spacingMultiplier": 2.0, "gravityAngle": 270, "gravityStrength": 0.1 }]
-```
-
-### Directional Gravity
-
-Push groups of nodes toward specific directions:
-
-```json
-[{ "filter": "tag:character", "direction": "top", "strength": 0.1 }]
-```
-
-### Thinking Modes
-
-Three preset modes for different workflows:
-
-| Mode | Use Case |
-|------|----------|
-| **Explore** | Active file centered, gap detection, similar suggestions |
-| **Analyze** | Full structure: stats, bridges, entropy, communities |
-| **Write** | Local graph, large nodes, minimal edges, focus cone |
-
-Switch via command palette (`Graph: Explore/Analyze/Write mode`) or keyboard shortcut.
-
-### Analysis Overlays
-
-- **Bridge nodes** — gold ring on high betweenness centrality nodes
-- **Gap detection** — dotted edges between tag-sharing but unlinked nodes
-- **Missing neighbors** — orange dashed ring on nodes missing expected connections
-- **Entropy overlay** — knowledge diversity heatmap
-- **Community detection** — Louvain-based coloring
-
-### Interactive Controls
-
-- **Toolbar**: Fit-all, zoom in/out, marquee select, settings toggle
-- **Hover highlighting**: Configurable hop-depth for neighborhood highlighting
-- **Hold/pin**: Pin node detail panel to keep it visible
-- **Shell rotation**: Concentric shells rotate on click (clockwise/counter-clockwise)
-- **Alt+Click**: Set pathfinder start/end for shortest path visualization
-- **Shift+Click**: Multi-select for bulk operations
-- **Ctrl+Click**: Compare nodes side-by-side
-- **Onboarding**: First-launch help overlay with keyboard shortcuts and mode guide
-
-### Node Display Modes
+### Node Display
 
 | Mode | Description |
 |------|-------------|
-| **Node** | Circles/shapes with LOD-based label visibility |
-| **Card** | Metadata table with frontmatter fields, body preview |
-| **Donut** | Category breakdown ring chart |
-| **Sunburst Segment** | Hierarchical sector visualization |
+| Circle/Shape | LOD-based labels with halo, leader lines, collision avoidance |
+| Card | Metadata table with frontmatter fields and body preview |
 
-### Settings Management
+### Edge Types
 
-- **JSON import/export**: Share settings as `.json` files
-- **Vault-based storage**: Export settings to a vault path
-- **All-in-panel UI**: Every setting is adjustable from the side panel — no need to leave the graph
-- **Settings search**: Filter all settings across tabs by keyword
-- **Context help**: Every section has a `?` help popup (25/25 coverage)
-- **12 keyboard shortcuts** registered in command palette
-- **Sample configs** included in `examples/`
+| Type | Source | Default Color |
+|------|--------|---------------|
+| Link | `[[wikilinks]]` | Blue |
+| Tag | Shared tags | Cyan |
+| Semantic | Ontology fields (parent, contains, similar) | Orange |
+| Has-tag | Node-to-tag connection | Gray |
 
-![Settings Panel](docs/images/readme-enclosure.png)
+### Ontology System
+
+Define semantic relationships via frontmatter fields:
+
+- **Inheritance**: `parent`, `extends`, `up`
+- **Aggregation**: `contains`, `parts`, `has`
+- **Similarity**: `similar`, `related`
+- **Sequence**: `next`, `prev`, `story_order`
+- **Tag Hierarchy**: `#entity/character` auto-generates inheritance edges
+
+### Search Query Language
+
+Filter nodes with boolean expressions:
+
+```
+path:mythology-greek* OR tag:deity
+node_type:character AND NOT path:classic-hamlet*
+hop:zeus:2
+```
+
+Supports `AND`, `OR`, `NOT`, `XOR`, `NOR`, `NAND`, wildcards (`*`), and fuzzy matching (`~`).
+
+### Interactive Controls
+
+| Action | Description |
+|--------|-------------|
+| Hover | Highlight N-hop neighborhood, show linked node labels |
+| Click + drag | Move nodes |
+| Scroll | Zoom in/out |
+| Fit All button | Zoom to show all nodes |
+| Group label click | Zoom into that cluster |
+| Alt+Click | Pathfinder start/end |
+| Shift+Click | Multi-select |
+| Ctrl+Click | Side-by-side comparison |
+| Tab | Cycle through nodes (keyboard navigation) |
+
+### Zoom-Adaptive Rendering
+
+Nodes, labels, and intra-group cables fade out at extreme zoom-out levels, while inter-group trunks and group labels remain visible. This prevents visual clutter when viewing large graphs at overview zoom.
+
+| Zoom | Nodes | Labels | Edges |
+|------|-------|--------|-------|
+| < 0.15 | Near-invisible | Hidden | Trunks only |
+| 0.15 - 0.5 | Fading | Group labels only | Trunks + fading cables |
+| > 0.5 | Full | All visible | Full |
+
+### GPU Animation Gating
+
+When the WebGL backend is available (`IApp.supportsAnimation = true`), zoom/pan/layout transitions are smoothly animated. On Canvas2D fallback, animations are skipped for performance &mdash; views jump directly to the target state.
+
+### Settings Panel
+
+All settings configurable from the in-view side panel:
+
+- Layout parameters (force physics, node size, spacing)
+- Display toggles (edges, labels, minimap, legend)
+- Color mode (category, folder, tag)
+- Preset selector with 60+ sample configurations
+- JSON import/export
+- Search across all settings
 
 ### i18n
 
-Fully localized for **English** and **Japanese**. The UI language follows Obsidian's locale setting automatically.
+English and Japanese. Follows Obsidian's locale setting.
 
-## Installation
+### Mobile Support
 
-### From Source
+Lightweight rendering mode on mobile: node cap (200), label cap (50), LOD floor, tap-to-hover.
+
+## Quick Start
+
+### Installation
+
+**From source:**
 
 ```bash
 git clone https://github.com/laximgqozaZZZYT/obsidian-graph-island.git
@@ -179,143 +164,87 @@ npm install
 npm run build
 ```
 
-Copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plugins/graph-island/` directory.
+Copy `main.js`, `manifest.json`, and `styles.css` to `.obsidian/plugins/graph-island/` in your vault.
 
-### Usage
+### First Use
 
-1. Enable the plugin in **Settings → Community Plugins**
-2. Open the command palette and run **Graph Island: Open Graph View**
-3. Use the gear icon (top-right) to configure layout, colors, and display options
+1. Enable **Graph Island** in Settings > Community Plugins
+2. Run **Graph Island: Open Graph View** from the command palette
+3. Click the gear icon to open the settings panel
+4. Try a sample preset from the **Sample Presets** dropdown
 
-## Configuration
+## Sample Gallery
 
-All settings can be configured through:
+128 sample screenshots are available in [`docs/screenshots/`](docs/screenshots/). Each screenshot has a corresponding `.json` file with the exact settings used.
 
-1. **Side panel UI** — directly in the graph view
-2. **JSON file** — import/export via Settings tab
-3. **Sample configs** — see `examples/` directory for pre-built configurations
+<details>
+<summary>View sample screenshots</summary>
 
-### Example: Novel Writing Setup
+| Preview | Preset |
+|---------|--------|
+| ![](docs/screenshots/01-panorama-overview.png) | Panorama Overview |
+| ![](docs/screenshots/02-dense-cluster-zoomed.png) | Dense Cluster (zoomed) |
+| ![](docs/screenshots/05-mythology-pantheon.png) | Mythology Pantheon |
+| ![](docs/screenshots/06-sangokushi-factions-zoomed.png) | Sangokushi Factions (zoomed) |
+| ![](docs/screenshots/09-minimalist.png) | Minimalist |
+| ![](docs/screenshots/16-edge-bundle-art.png) | Edge Bundle Art |
+| ![](docs/screenshots/20-arabian-nights.png) | Arabian Nights |
+| ![](docs/screenshots/29-concentric-degree.png) | Concentric by Degree |
+| ![](docs/screenshots/36-er-diagram-zoomed.png) | ER Diagram (zoomed) |
+| ![](docs/screenshots/55-category-search-filtered-zoomed.png) | Category Search Filtered (zoomed) |
+| ![](docs/screenshots/58-timeline-arthurian.png) | Timeline Arthurian |
+| ![](docs/screenshots/63-radial-gilgamesh.png) | Radial Gilgamesh |
 
-```json
-{
-  "metadataFields": ["tags", "category", "characters", "locations"],
-  "colorField": "category",
-  "groupField": "category",
-  "ontology": {
-    "inheritanceFields": ["parent", "extends"],
-    "aggregationFields": ["contains", "parts"],
-    "similarFields": ["similar", "related"],
-    "useTagHierarchy": true
-  }
-}
-```
+</details>
 
 ## Development
 
 ```bash
-npm run dev       # Watch mode (auto-rebuild)
+npm run dev       # Watch mode
 npm run build     # Production build
-npm run test      # Run vitest unit tests
+npm run test      # Unit tests (vitest)
 ```
+
+### Test Coverage
+
+- **2987+ unit tests** across 111 test files
+- Coverage thresholds enforced: Statements 29.7%, Branches 27.9%, Functions 27.7%, Lines 29.4%
+- E2E tests via CDP (Chrome DevTools Protocol) against live Obsidian
 
 ### Architecture
 
 ```
 src/
-├── main.ts                    # Plugin entry point
-├── types.ts                   # Type definitions & defaults
-├── i18n.ts                    # Internationalization (en/ja)
-├── settings.ts                # Settings tab (JSON import/export)
+├── main.ts                     # Plugin entry
+├── types.ts                    # Types, defaults, ontology
+├── i18n.ts                     # EN/JA localization
+├── settings.ts                 # Settings tab
+├── constants.ts                # Edge types, layout constants
 ├── utils/
-│   ├── geometry.ts            # Convex hull, capsule geometry
-│   ├── graph-helpers.ts       # Graph data utilities
-│   └── query-expr.ts          # Boolean query expression engine
+│   ├── graph-helpers.ts        # BFS, adjacency, auto-fit, filtering
+│   ├── query-expr.ts           # Boolean query parser
+│   ├── geometry.ts             # Convex hull, spatial grid
+│   ├── color.ts                # WCAG contrast, HSL
+│   └── export-png.ts           # PNG/SVG export
+├── parsers/
+│   └── metadata-parser.ts      # Vault → GraphData pipeline
+├── layouts/
+│   ├── cluster-force.ts        # d3-force + cluster arrangements
+│   ├── cable-tray.ts           # Road network for edge routing
+│   └── coordinate-engine.ts    # Polar/cartesian coordinate system
 └── views/
-    ├── GraphViewContainer.ts  # Main view (PIXI.js canvas, force sim)
-    ├── PanelBuilder.ts        # Side panel UI builder
-    ├── EdgeRenderer.ts        # Edge drawing & bundling
-    ├── EnclosureRenderer.ts   # Tag enclosure convex hulls
-    └── NodeDetailView.ts      # Node inspector panel
+    ├── GraphViewContainer.ts   # Main orchestrator (Canvas2D)
+    ├── RenderPipeline.ts       # Frame rendering, LOD, label culling
+    ├── EdgeRenderer.ts         # Cable-tray wiring, trunk routing
+    ├── InteractionManager.ts   # Pointer, zoom, marquee, lasso
+    ├── LabelManager.ts         # Label placement, collision avoidance
+    ├── EnclosureRenderer.ts    # Tag enclosure hulls
+    ├── PanelBuilder.ts         # Settings panel UI
+    ├── LayoutTransition.ts     # Smooth position animation
+    ├── canvas2d/               # Canvas2D backend (IApp, IContainer, IGraphics)
+    ├── webgl/                  # WebGL2 backend (dual-canvas)
+    └── renderer-factory.ts     # Backend detection + factory
 ```
-
-### Tests
-
-2460+ unit tests across 102 test files covering:
-
-- Edge rendering, enclosure hull, geometry, graph helpers
-- Query expression, transform expression parser
-- Color contrast (WCAG), HSL conversion
-- Panel state validation, preset configuration
-- Keyboard shortcut handler, snapshot diff
-- Graph data filtering pipeline, constants integrity
-- Tag relation detection, i18n translation keys
-- Render thresholds (mergeRenderThresholds)
-
-349+ E2E tests (CDP-based, Obsidian live testing)
-
-## What's New in v0.6.0
-
-- **Matrix sort**: Sort adjacency matrix by degree, alphabetical, or category
-- **Matrix cell tooltip**: Hover cells to see edge type breakdown (e.g. "link: 2, semantic: 1")
-- **Matrix sticky headers**: Column/row headers stay visible while scrolling
-- **Matrix row/column highlight**: Hover a cell to highlight its entire row and column
-- **Matrix diagonal**: Self-connection cells highlighted with gold accent
-- **Quality Dashboard**: Frame time (ms) display in stats panel
-- **2581+ unit tests**: Coverage thresholds enforced
-
-## What's New in v0.5.6
-
-- **Sunburst hover highlight**: Hover a sector to highlight its group; other sectors dim for focus
-- **Sunburst tooltip**: Shows group name, file count, and subcategories on hover
-- **Sunburst click-to-filter**: Click a sector to switch to Graph mode filtered by that category
-- **Matrix sort**: Sort adjacency matrix by degree, alphabetical, or category
-- **ViewMode switch fix**: Force layout no longer diverges after switching from Sunburst/Concentric
-- **Sunburst label cleanup**: Folder path redundancy removed (e.g. "bible/bible" → "bible")
-- **Depth 2 labels**: Inner ring labels for subcategories with rotation and overlap culling
-- **2529+ unit tests**: Coverage thresholds S28.7/B27.2/F25.5/L28.4
-
-## What's New in v0.5
-
-- **Timeline redesign**: Hierarchical lane assignment using parent_id; zero-overlap bar layout with work group separators
-- **Timeline interactions**: Hover highlights sibling bars; keyboard nav (←→↑↓); Enter opens note in new tab
-- **SVG export**: Toolbar button with right-click options (size, labels, background)
-- **Lasso selection**: Draw a freeform loop around nodes to select them as a group
-- **Subgraph view**: Drill into selected nodes as an isolated subgraph with back-navigation stack
-- **2460+ unit tests + 135+ E2E tests**: Coverage thresholds enforced
-
-## What's New in v0.4
-
-- **4 Visualization Modes**: Switch between Graph, Sunburst, Timeline, and Matrix views via the toolbar
-- **Sunburst ring chart**: Hierarchical folder/category breakdown as a colored ring chart with leader-line labels
-- **Timeline bar chart**: Duration bars for time-based data with auto-detected date fields and time axis labels
-- **Matrix adjacency table**: Full-screen node-to-node connection table with color-intensity cells; click to jump to Graph mode
-- **Mode-aware panel**: Settings sections automatically show/hide based on the active viewMode
-
-## What's New in v0.3.1
-
-- **Snapshot diff system**: Capture graph state, compare across time, timeline view with clickable entries
-- **Edge toggle progressive disclosure**: Hide edge type toggles with 0 edges, show count in label
-- **Auto-snapshot**: Configurable interval (0-30 min), [auto] prefix, max 10 entries
-- **70+ pure functions exported**: Extracted from View layer for testability (LOD, zoom, edge rendering, etc.)
-- **1500+ unit tests**: Coverage thresholds set (S24/B22/F20/L24) to prevent regression
-- **i18n parity**: 690 en/ja keys verified to be in sync
-
-### v0.2.0
-
-- **Configurable edge rendering**: 14 new threshold fields for edge visibility, fade, thickness, and alpha
-- **Label overlap culling**: Automatic label placement with collision avoidance and LOD
-- **Preset tooltip preview**: Hover over mode/preset buttons to see settings summary
-- **Road network overlay**: Auto-generated road network with configurable opacity and zoom threshold
-- **Quality dashboard**: Real-time stats panel with collision rate, FPS, and label quality score
-- **Keyboard shortcuts**: 20+ shortcuts (Space=fit, Tab=focus, L=legend, ±=zoom, etc.)
-- **Accessibility**: WCAG 4.5:1 contrast, 24px+ targets, ARIA landmarks, screen reader support
-- **Performance**: Edge pre-filter optimization, viewport culling, render cooldown tuning
-
-## Requirements
-
-- Obsidian 1.0.0+
-- Desktop and mobile supported
 
 ## License
 
