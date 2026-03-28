@@ -74,12 +74,6 @@
     "inheritance": true,
     "aggregation": true
   },
-  "commonQueries": [
-    {
-      "query": "backlinks:*",
-      "recursive": false
-    }
-  ],
   "clusterGroupRules": [
     {
       "groupBy": "folder:?",
@@ -119,9 +113,6 @@
   ],
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [
-    "folder:classic-arabian-nights"
-  ],
   "activeTab": "layout",
   "autoFit": true,
   "showDurationBars": false,
@@ -162,20 +153,14 @@
   "cableFanWidth": 2.5,
   "cableFanAlpha": 0.9,
   "syncWithEditor": true,
-  "localGraphCenter": null,
   "localGraphHops": 2,
   "edgeWeightThickness": true,
   "edgeLayerMode": false,
   "focusMode": false,
-  "focusNodeId": null,
-  "syncViewId": null,
-  "annotations": [],
-  "bookmarkedNodes": [],
   "edgeDirectionFilter": "all",
   "showPathfinderOverlay": true,
   "showLegend": true,
   "showOutOfBoundsIndicator": false,
-  "searchHistory": [],
   "orphanClusterField": "",
   "highlightMissingNeighbors": false,
   "showGraphStats": false,
@@ -185,13 +170,8 @@
   "hoverShowTitle": true,
   "hoverShowMeta": true,
   "hoverShowBody": false,
-  "savedSearchQueries": [],
-  "savedViewports": [],
   "presetZoomLevel": 0,
   "zoomSensitivity": 1,
-  "pinnedPositions": {},
-  "navHistory": [],
-  "navHistoryCursor": -1,
   "semanticZoom": false,
   "showTagBadges": false,
   "highContrastMode": false,
@@ -209,16 +189,12 @@
   "showStructureQuestions": false,
   "showEntropyOverlay": false,
   "showClusterCompare": false,
-  "multiSelectNodeIds": [],
-  "subgraphNodeIds": [],
-  "subgraphStack": [],
   "showRelationMatrix": false,
   "presentationMode": false,
   "showNodeThumbnails": false,
   "nodeIconField": "",
   "nodeIconMap": {},
   "focusConeEnabled": true,
-  "expandedNodes": [],
   "analysisOverlay": "off",
   "showOntologyBackbone": false,
   "showGapEdges": false,
@@ -233,6 +209,5 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true
-  },
-  "_absoluteZoom": 0.8
+  }
 }

@@ -58,12 +58,6 @@
     "inheritance": true,
     "aggregation": true
   },
-  "commonQueries": [
-    {
-      "query": "backlinks:*",
-      "recursive": false
-    }
-  ],
   "clusterGroupRules": [
     {
       "groupBy": "folder:?",
@@ -104,13 +98,6 @@
   ],
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [
-    "node_type:scene",
-    "node_type:sequence",
-    "node_type:beat",
-    "node_type:act",
-    "node_type:character"
-  ],
   "activeTab": "layout",
   "autoFit": false,
   "showDurationBars": true,
@@ -151,20 +138,14 @@
   "cableFanWidth": 2.5,
   "cableFanAlpha": 0.9,
   "syncWithEditor": true,
-  "localGraphCenter": null,
   "localGraphHops": 2,
   "edgeWeightThickness": true,
   "edgeLayerMode": false,
   "focusMode": false,
-  "focusNodeId": null,
-  "syncViewId": null,
-  "annotations": [],
-  "bookmarkedNodes": [],
   "edgeDirectionFilter": "all",
   "showPathfinderOverlay": true,
   "showLegend": true,
   "showOutOfBoundsIndicator": false,
-  "searchHistory": [],
   "orphanClusterField": "",
   "highlightMissingNeighbors": false,
   "showGraphStats": false,
@@ -174,494 +155,8 @@
   "hoverShowTitle": true,
   "hoverShowMeta": true,
   "hoverShowBody": false,
-  "savedSearchQueries": [],
-  "savedViewports": [],
   "presetZoomLevel": 0,
   "zoomSensitivity": 1,
-  "pinnedPositions": {
-    "classic-arabian-nights/MOC.md": {
-      "x": 951.3909870157324,
-      "y": -752.6592223349387
-    },
-    "bible-old-testament/characters/god-yhwh.md": {
-      "x": 553.8121008403373,
-      "y": -2249.288537930809
-    },
-    "bible-old-testament/characters/moses.md": {
-      "x": 348.97210084033725,
-      "y": -2249.288537930809
-    },
-    "bible-old-testament/characters/david.md": {
-      "x": 963.4921008403371,
-      "y": -2249.288537930809
-    },
-    "bible-old-testament/characters/adam.md": {
-      "x": 1168.3321008403373,
-      "y": -2249.288537930809
-    },
-    "bible-old-testament/characters/solomon.md": {
-      "x": -60.7078991596627,
-      "y": -2249.288537930809
-    },
-    "bible-old-testament/characters/elijah.md": {
-      "x": 758.6521008403372,
-      "y": -2249.288537930809
-    },
-    "bible-old-testament/episodes/sc07_03_rain_returns.md": {
-      "x": 553.8121008403373,
-      "y": -4297.688537930809
-    },
-    "bible-old-testament/episodes/sc07_02_fire_from_heaven.md": {
-      "x": 758.6521008403372,
-      "y": -4297.688537930809
-    },
-    "bible-old-testament/episodes/sc04_02_red_sea.md": {
-      "x": 348.97210084033725,
-      "y": -4092.8485379308086
-    },
-    "bible-old-testament/episodes/bt07_03_03_deluge_falls.md": {
-      "x": 1578.012100840337,
-      "y": -3683.1685379308087
-    },
-    "bible-old-testament/episodes/bt07_02_02_elijahs_prayer.md": {
-      "x": 144.13210084033722,
-      "y": -3478.328537930809
-    },
-    "bible-old-testament/episodes/bt07_02_01_altar_prepared.md": {
-      "x": 348.97210084033725,
-      "y": -3478.328537930809
-    },
-    "bible-old-testament/episodes/bt04_02_03_egypt_swallowed.md": {
-      "x": 963.4921008403371,
-      "y": -3068.6485379308087
-    },
-    "bible-old-testament/episodes/bt04_02_02_sea_parts.md": {
-      "x": 1168.3321008403373,
-      "y": -3068.6485379308087
-    },
-    "bible-old-testament/characters/abraham.md": {
-      "x": 1373.1721008403372,
-      "y": -2249.288537930809
-    },
-    "bible-old-testament/episodes/bt07_03_02_cloud_rises.md": {
-      "x": 1782.852100840337,
-      "y": -3683.1685379308087
-    },
-    "bible-old-testament/episodes/bt07_03_01_elijah_prays.md": {
-      "x": 1987.692100840337,
-      "y": -3683.1685379308087
-    },
-    "bible-old-testament/episodes/bt07_02_03_fire_falls.md": {
-      "x": -60.7078991596627,
-      "y": -3478.328537930809
-    },
-    "bible-old-testament/MOC.md": {
-      "x": 1578.012100840337,
-      "y": -2249.288537930809
-    },
-    "bible-old-testament/episodes/sc06_03_wisdom_fame.md": {
-      "x": 1168.3321008403373,
-      "y": -4297.688537930809
-    },
-    "bible-old-testament/episodes/sc06_02_wise_verdict.md": {
-      "x": 1373.1721008403372,
-      "y": -4297.688537930809
-    },
-    "bible-old-testament/episodes/bt06_03_03_kingdom_prospers.md": {
-      "x": 963.4921008403371,
-      "y": -3478.328537930809
-    },
-    "bible-old-testament/episodes/bt06_03_01_news_spreads.md": {
-      "x": 1578.012100840337,
-      "y": -3478.328537930809
-    },
-    "bible-old-testament/episodes/bt06_02_03_wisdom_proclaimed.md": {
-      "x": 1782.852100840337,
-      "y": -3478.328537930809
-    },
-    "bible-old-testament/concepts/ark-of-covenant.md": {
-      "x": 1987.692100840337,
-      "y": -2454.128537930809
-    },
-    "bible-old-testament/episodes/sc07_01_baal_prophets.md": {
-      "x": 963.4921008403371,
-      "y": -4297.688537930809
-    },
-    "bible-old-testament/episodes/sc05_01_philistine_challenge.md": {
-      "x": -60.7078991596627,
-      "y": -4092.8485379308086
-    },
-    "bible-old-testament/episodes/sc03_03_flood_waters.md": {
-      "x": 758.6521008403372,
-      "y": -4092.8485379308086
-    },
-    "bible-old-testament/episodes/bt07_01_02_baal_fails.md": {
-      "x": 758.6521008403372,
-      "y": -3478.328537930809
-    },
-    "bible-old-testament/episodes/bt07_01_01_challenge_issued.md": {
-      "x": 1168.3321008403373,
-      "y": -3478.328537930809
-    },
-    "bible-old-testament/episodes/bt06_03_02_nations_hear.md": {
-      "x": 1373.1721008403372,
-      "y": -3478.328537930809
-    },
-    "bible-old-testament/episodes/bt06_02_01_sword_command.md": {
-      "x": -60.7078991596627,
-      "y": -3273.488537930809
-    },
-    "bible-old-testament/episodes/bt05_01_03_david_arrives.md": {
-      "x": 1987.692100840337,
-      "y": -3273.488537930809
-    },
-    "bible-old-testament/episodes/sc04_03_sinai_covenant.md": {
-      "x": 144.13210084033722,
-      "y": -4092.8485379308086
-    },
-    "bible-old-testament/episodes/bt07_01_03_frenzied_worship.md": {
-      "x": 553.8121008403373,
-      "y": -3478.328537930809
-    },
-    "bible-old-testament/episodes/bt06_02_02_true_mother_revealed.md": {
-      "x": 1987.692100840337,
-      "y": -3478.328537930809
-    },
-    "bible-old-testament/episodes/bt05_01_02_army_trembles.md": {
-      "x": -60.7078991596627,
-      "y": -3068.6485379308087
-    },
-    "bible-old-testament/episodes/bt05_01_01_goliath_taunts.md": {
-      "x": 144.13210084033722,
-      "y": -3068.6485379308087
-    },
-    "bible-old-testament/episodes/bt04_03_03_covenant_sealed.md": {
-      "x": 348.97210084033725,
-      "y": -3068.6485379308087
-    },
-    "bible-old-testament/episodes/bt04_03_02_ten_commandments.md": {
-      "x": 553.8121008403373,
-      "y": -3068.6485379308087
-    },
-    "bible-old-testament/concepts/ten-commandments.md": {
-      "x": 1578.012100840337,
-      "y": -2454.128537930809
-    },
-    "bible-old-testament/episodes/bt04_03_01_mountain_thunder.md": {
-      "x": 758.6521008403372,
-      "y": -3068.6485379308087
-    },
-    "bible-old-testament/episodes/bt03_03_03_rainbow_covenant.md": {
-      "x": -60.7078991596627,
-      "y": -2863.808537930809
-    },
-    "bible-old-testament/concepts/promised-land.md": {
-      "x": 1782.852100840337,
-      "y": -2454.128537930809
-    },
-    "bible-old-testament/characters/samson.md": {
-      "x": 144.13210084033722,
-      "y": -2249.288537930809
-    },
-    "bible-old-testament/episodes/sc04_01_ten_plagues.md": {
-      "x": 553.8121008403373,
-      "y": -4092.8485379308086
-    },
-    "bible-old-testament/episodes/sc02_03_expulsion.md": {
-      "x": 1373.1721008403372,
-      "y": -4092.8485379308086
-    },
-    "bible-old-testament/episodes/sc02_01_garden_paradise.md": {
-      "x": 1782.852100840337,
-      "y": -4092.8485379308086
-    },
-    "bible-old-testament/episodes/bt06_01_03_impossible_puzzle.md": {
-      "x": 144.13210084033722,
-      "y": -3273.488537930809
-    },
-    "bible-old-testament/episodes/bt04_01_01_moses_confronts.md": {
-      "x": 1987.692100840337,
-      "y": -3068.6485379308087
-    },
-    "bible-old-testament/episodes/bt02_03_03_driven_out.md": {
-      "x": 1782.852100840337,
-      "y": -2863.808537930809
-    },
-    "bible-old-testament/episodes/bt02_03_02_judgment_pronounced.md": {
-      "x": 1987.692100840337,
-      "y": -2863.808537930809
-    },
-    "bible-old-testament/episodes/bt02_03_01_gods_question.md": {
-      "x": -60.7078991596627,
-      "y": -2658.968537930809
-    },
-    "bible-old-testament/episodes/bt02_01_03_eve_created.md": {
-      "x": 758.6521008403372,
-      "y": -2658.968537930809
-    },
-    "bible-old-testament/episodes/bt02_01_02_naming_animals.md": {
-      "x": 963.4921008403371,
-      "y": -2658.968537930809
-    },
-    "bible-old-testament/episodes/bt02_01_01_eden_planted.md": {
-      "x": 1168.3321008403373,
-      "y": -2658.968537930809
-    },
-    "bible-old-testament/episodes/sc06_01_two_mothers.md": {
-      "x": 1578.012100840337,
-      "y": -4297.688537930809
-    },
-    "bible-old-testament/episodes/sc03_02_ark_building.md": {
-      "x": 963.4921008403371,
-      "y": -4092.8485379308086
-    },
-    "bible-old-testament/episodes/sc03_01_wickedness.md": {
-      "x": 1168.3321008403373,
-      "y": -4092.8485379308086
-    },
-    "bible-old-testament/episodes/sc02_02_serpent_temptation.md": {
-      "x": 1578.012100840337,
-      "y": -4092.8485379308086
-    },
-    "bible-old-testament/episodes/ep04_exodus.md": {
-      "x": 1168.3321008403373,
-      "y": -3888.008537930809
-    },
-    "bible-old-testament/episodes/bt06_01_01_dispute_brought.md": {
-      "x": 553.8121008403373,
-      "y": -3273.488537930809
-    },
-    "bible-old-testament/episodes/bt03_02_02_gathering_animals.md": {
-      "x": 553.8121008403373,
-      "y": -2863.808537930809
-    },
-    "bible-old-testament/episodes/bt03_02_03_faith_amid_mockery.md": {
-      "x": 758.6521008403372,
-      "y": -2863.808537930809
-    },
-    "bible-old-testament/episodes/bt03_02_01_divine_blueprint.md": {
-      "x": 963.4921008403371,
-      "y": -2863.808537930809
-    },
-    "bible-old-testament/episodes/bt03_01_03_noah_found_grace.md": {
-      "x": 1168.3321008403373,
-      "y": -2863.808537930809
-    },
-    "bible-old-testament/episodes/bt03_01_02_gods_grief.md": {
-      "x": 1373.1721008403372,
-      "y": -2863.808537930809
-    },
-    "bible-old-testament/episodes/bt03_01_01_spreading_evil.md": {
-      "x": 1578.012100840337,
-      "y": -2863.808537930809
-    },
-    "bible-old-testament/episodes/bt02_02_03_eyes_opened.md": {
-      "x": 144.13210084033722,
-      "y": -2658.968537930809
-    },
-    "bible-old-testament/episodes/act3_kingdom.md": {
-      "x": 963.4921008403371,
-      "y": -2454.128537930809
-    },
-    "bible-old-testament/episodes/ep07_elijah_fire.md": {
-      "x": 553.8121008403373,
-      "y": -3888.008537930809
-    },
-    "bible-old-testament/episodes/ep06_solomons_judgment.md": {
-      "x": 758.6521008403372,
-      "y": -3888.008537930809
-    },
-    "bible-old-testament/episodes/bt06_01_02_conflicting_claims.md": {
-      "x": 348.97210084033725,
-      "y": -3273.488537930809
-    },
-    "bible-old-testament/episodes/bt04_01_03_firstborn_death.md": {
-      "x": 1578.012100840337,
-      "y": -3068.6485379308087
-    },
-    "bible-old-testament/episodes/bt04_01_02_plagues_escalate.md": {
-      "x": 1782.852100840337,
-      "y": -3068.6485379308087
-    },
-    "bible-old-testament/episodes/bt03_03_02_waters_recede.md": {
-      "x": 144.13210084033722,
-      "y": -2863.808537930809
-    },
-    "bible-old-testament/episodes/bt02_02_02_forbidden_fruit.md": {
-      "x": 348.97210084033725,
-      "y": -2658.968537930809
-    },
-    "bible-old-testament/episodes/bt02_02_01_serpent_approaches.md": {
-      "x": 553.8121008403373,
-      "y": -2658.968537930809
-    },
-    "bible-old-testament/episodes/act2_patriarchs.md": {
-      "x": 1168.3321008403373,
-      "y": -2454.128537930809
-    },
-    "bible-old-testament/episodes/act1_primordial.md": {
-      "x": 1373.1721008403372,
-      "y": -2454.128537930809
-    },
-    "bible-old-testament/episodes/sc05_03_israel_rallies.md": {
-      "x": 1782.852100840337,
-      "y": -4297.688537930809
-    },
-    "bible-old-testament/episodes/sc05_02_sling_and_stone.md": {
-      "x": 1987.692100840337,
-      "y": -4297.688537930809
-    },
-    "bible-old-testament/episodes/sc01_02_six_days.md": {
-      "x": -60.7078991596627,
-      "y": -3888.008537930809
-    },
-    "bible-old-testament/episodes/ep05_david_goliath.md": {
-      "x": 963.4921008403371,
-      "y": -3888.008537930809
-    },
-    "bible-old-testament/episodes/ep03_flood.md": {
-      "x": 1373.1721008403372,
-      "y": -3888.008537930809
-    },
-    "bible-old-testament/episodes/ep02_garden_of_eden.md": {
-      "x": 1578.012100840337,
-      "y": -3888.008537930809
-    },
-    "bible-old-testament/episodes/ep01_creation.md": {
-      "x": 1782.852100840337,
-      "y": -3888.008537930809
-    },
-    "bible-old-testament/episodes/bt05_02_02_faith_declaration.md": {
-      "x": 1578.012100840337,
-      "y": -3273.488537930809
-    },
-    "bible-old-testament/episodes/bt03_03_01_deluge_begins.md": {
-      "x": 348.97210084033725,
-      "y": -2863.808537930809
-    },
-    "bible-old-testament/episodes/bt01_02_03_creatures_and_man.md": {
-      "x": 1987.692100840337,
-      "y": -2658.968537930809
-    },
-    "bible-old-testament/episodes/sc08_03_vindication.md": {
-      "x": -60.7078991596627,
-      "y": -4297.688537930809
-    },
-    "bible-old-testament/episodes/sc08_02_lions_den_miracle.md": {
-      "x": 144.13210084033722,
-      "y": -4297.688537930809
-    },
-    "bible-old-testament/episodes/sc08_01_decree_and_prayer.md": {
-      "x": 348.97210084033725,
-      "y": -4297.688537930809
-    },
-    "bible-old-testament/episodes/sc01_03_seventh_day.md": {
-      "x": 1987.692100840337,
-      "y": -4092.8485379308086
-    },
-    "bible-old-testament/episodes/ep08_daniels_lions.md": {
-      "x": 144.13210084033722,
-      "y": -3888.008537930809
-    },
-    "bible-old-testament/episodes/sc01_01_void_and_light.md": {
-      "x": 348.97210084033725,
-      "y": -3888.008537930809
-    },
-    "bible-old-testament/episodes/bt08_03_03_daniel_prospers.md": {
-      "x": 1987.692100840337,
-      "y": -3888.008537930809
-    },
-    "bible-old-testament/episodes/bt08_03_02_royal_decree.md": {
-      "x": -60.7078991596627,
-      "y": -3683.1685379308087
-    },
-    "bible-old-testament/episodes/bt08_02_03_king_rejoices.md": {
-      "x": 348.97210084033725,
-      "y": -3683.1685379308087
-    },
-    "bible-old-testament/episodes/bt08_02_02_angel_shuts_mouths.md": {
-      "x": 553.8121008403373,
-      "y": -3683.1685379308087
-    },
-    "bible-old-testament/episodes/bt08_02_01_thrown_to_lions.md": {
-      "x": 758.6521008403372,
-      "y": -3683.1685379308087
-    },
-    "bible-old-testament/episodes/bt08_01_03_daniels_prayer.md": {
-      "x": 963.4921008403371,
-      "y": -3683.1685379308087
-    },
-    "bible-old-testament/episodes/bt05_03_03_triumph_song.md": {
-      "x": 758.6521008403372,
-      "y": -3273.488537930809
-    },
-    "bible-old-testament/episodes/bt05_03_02_enemy_flees.md": {
-      "x": 963.4921008403371,
-      "y": -3273.488537930809
-    },
-    "bible-old-testament/episodes/bt05_03_01_pursuit_begins.md": {
-      "x": 1168.3321008403373,
-      "y": -3273.488537930809
-    },
-    "bible-old-testament/episodes/bt05_02_03_giant_falls.md": {
-      "x": 1373.1721008403372,
-      "y": -3273.488537930809
-    },
-    "bible-old-testament/episodes/bt05_02_01_armor_rejected.md": {
-      "x": 1782.852100840337,
-      "y": -3273.488537930809
-    },
-    "bible-old-testament/episodes/bt04_02_01_trapped.md": {
-      "x": 1373.1721008403372,
-      "y": -3068.6485379308087
-    },
-    "bible-old-testament/episodes/bt01_03_03_blessing_declared.md": {
-      "x": 1373.1721008403372,
-      "y": -2658.968537930809
-    },
-    "bible-old-testament/episodes/bt01_03_02_sacred_rest.md": {
-      "x": 1578.012100840337,
-      "y": -2658.968537930809
-    },
-    "bible-old-testament/episodes/bt01_03_01_work_completed.md": {
-      "x": 1782.852100840337,
-      "y": -2658.968537930809
-    },
-    "bible-old-testament/episodes/bt01_02_02_land_and_plants.md": {
-      "x": -60.7078991596627,
-      "y": -2454.128537930809
-    },
-    "bible-old-testament/episodes/bt01_02_01_sky_and_waters.md": {
-      "x": 144.13210084033722,
-      "y": -2454.128537930809
-    },
-    "bible-old-testament/episodes/bt01_01_03_separation.md": {
-      "x": 348.97210084033725,
-      "y": -2454.128537930809
-    },
-    "bible-old-testament/episodes/bt01_01_02_let_there_be_light.md": {
-      "x": 553.8121008403373,
-      "y": -2454.128537930809
-    },
-    "bible-old-testament/episodes/bt01_01_01_primordial_darkness.md": {
-      "x": 758.6521008403372,
-      "y": -2454.128537930809
-    },
-    "bible-old-testament/episodes/bt08_03_01_accusers_punished.md": {
-      "x": 144.13210084033722,
-      "y": -3683.1685379308087
-    },
-    "bible-old-testament/episodes/bt08_01_02_royal_decree.md": {
-      "x": 1168.3321008403373,
-      "y": -3683.1685379308087
-    },
-    "bible-old-testament/episodes/bt08_01_01_courtiers_plot.md": {
-      "x": 1373.1721008403372,
-      "y": -3683.1685379308087
-    }
-  },
-  "navHistory": [],
-  "navHistoryCursor": -1,
   "semanticZoom": false,
   "showTagBadges": false,
   "highContrastMode": false,
@@ -679,16 +174,12 @@
   "showStructureQuestions": false,
   "showEntropyOverlay": false,
   "showClusterCompare": false,
-  "multiSelectNodeIds": [],
-  "subgraphNodeIds": [],
-  "subgraphStack": [],
   "showRelationMatrix": false,
   "presentationMode": false,
   "showNodeThumbnails": false,
   "nodeIconField": "",
   "nodeIconMap": {},
   "focusConeEnabled": true,
-  "expandedNodes": [],
   "analysisOverlay": "off",
   "showOntologyBackbone": false,
   "showGapEdges": false,
@@ -701,6 +192,5 @@
     "nodeSizeByDegree": true,
     "autoLOD": true,
     "labelOverlapMargin": 24
-  },
-  "_absoluteZoom": 0.8
+  }
 }
