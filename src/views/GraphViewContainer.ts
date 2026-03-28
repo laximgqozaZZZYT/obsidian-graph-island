@@ -1959,42 +1959,42 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
    *  Uses app.createGraphics()/createContainer() so WebGL backend gets GPU-accelerated objects. */
   private _setupGraphicsLayers(app: IApp): CanvasContainer {
     // World container (for zoom/pan)
-    const world = app.createContainer() as CanvasContainer;
+    const world = new CanvasContainer();
     app.stage.addChild(world);
     this.worldContainer = world;
 
     // Guide layer (grid lines, axis titles, tick labels — drawn first, behind everything)
-    const guideGfx = app.createGraphics() as CanvasGraphics;
+    const guideGfx = new CanvasGraphics();
     world.addChild(guideGfx);
     this.guideGraphics = guideGfx;
 
     // Orbit ring layer (drawn behind edges)
-    const orbitGfx = app.createGraphics() as CanvasGraphics;
+    const orbitGfx = new CanvasGraphics();
     world.addChild(orbitGfx);
     this.orbitGraphics = orbitGfx;
 
     // Sunburst arc guide lines (drawn behind enclosures)
-    const sunburstGfx = app.createGraphics() as CanvasGraphics;
+    const sunburstGfx = new CanvasGraphics();
     world.addChild(sunburstGfx);
     this.sunburstGraphics = sunburstGfx;
 
     // Route line layer (transit map style — per-group colored paths)
-    const routeGfx = app.createGraphics() as CanvasGraphics;
+    const routeGfx = new CanvasGraphics();
     world.addChild(routeGfx);
     this.routeGraphics = routeGfx;
 
     // Road network layer (auto-generated roads from coordinate grid)
-    const roadGfx = app.createGraphics() as CanvasGraphics;
+    const roadGfx = new CanvasGraphics();
     world.addChild(roadGfx);
     this.trayGraphics = roadGfx;
 
     // Enclosure layer (tag enclosures, drawn behind edges)
-    const enclosureGfx = app.createGraphics() as CanvasGraphics;
+    const enclosureGfx = new CanvasGraphics();
     world.addChild(enclosureGfx);
     this.enclosureGraphics = enclosureGfx;
 
     // Edge layer (single Graphics object — batch drawn)
-    const edgeGfx = app.createGraphics() as CanvasGraphics;
+    const edgeGfx = new CanvasGraphics();
     world.addChild(edgeGfx);
     this.edgeGraphics = edgeGfx;
 
@@ -2004,22 +2004,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.edgeLabelContainer = edgeLabelCont;
 
     // Timeline duration bar layer (drawn behind node circles)
-    const barGfx = app.createGraphics() as CanvasGraphics;
+    const barGfx = new CanvasGraphics();
     world.addChild(barGfx);
     this.barGraphics = barGfx;
 
     // Batch node circle layer — draws all non-highlighted circles in one draw call
-    const batchGfx = app.createGraphics() as CanvasGraphics;
+    const batchGfx = new CanvasGraphics();
     world.addChild(batchGfx);
     this.nodeCircleBatch = batchGfx;
 
     // Arrow layer — drawn ON TOP of nodes so directional arrows are visible
-    const arrowGfx = app.createGraphics() as CanvasGraphics;
+    const arrowGfx = new CanvasGraphics();
     world.addChild(arrowGfx);
     this.arrowGraphics = arrowGfx;
 
     // Pathfinder overlay layer — ON TOP of arrows for maximum visibility
-    const pfGfx = app.createGraphics() as CanvasGraphics;
+    const pfGfx = new CanvasGraphics();
     world.addChild(pfGfx);
     this.pathfinderGraphics = pfGfx;
 
@@ -2034,7 +2034,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.enclosureLabelContainer = labelContainer;
 
     // Cluster boundary graphics — below nodes but above dot grid
-    const clusterBoundaryGfx = app.createGraphics() as CanvasGraphics;
+    const clusterBoundaryGfx = new CanvasGraphics();
     world.addChild(clusterBoundaryGfx);
     this.clusterBoundaryGraphics = clusterBoundaryGfx;
 
@@ -2334,7 +2334,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   drawLinkPreview(srcX: number, srcY: number, dstX: number, dstY: number): void {
     if (!this.worldContainer) return;
     if (!this.linkPreviewGfx) {
-      this.linkPreviewGfx = this.pixiApp!.createGraphics() as CanvasGraphics;
+      this.linkPreviewGfx = new CanvasGraphics();
       this.worldContainer.addChild(this.linkPreviewGfx);
     }
     const gfx = this.linkPreviewGfx;
@@ -5208,7 +5208,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Lazily create the graphics layer
     if (!this._aggregateGraphics && this.worldContainer) {
-      this._aggregateGraphics = this.pixiApp!.createGraphics() as CanvasGraphics;
+      this._aggregateGraphics = new CanvasGraphics();
       this.worldContainer.addChild(this._aggregateGraphics);
     }
     const g = this._aggregateGraphics;

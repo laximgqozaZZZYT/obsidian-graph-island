@@ -453,7 +453,7 @@ export class InteractionManager {
       this.lassoPoints = [{ x: mx, y: my }];
       const lApp = this.host.getPixiApp();
       if (lApp && !this.lassoGraphics) {
-        this.lassoGraphics = lApp.createGraphics() as CanvasGraphics;
+        this.lassoGraphics = new CanvasGraphics();
         lApp.stage.addChild(this.lassoGraphics);
       }
       if (this.lassoGraphics) this.lassoGraphics.clear();
@@ -462,7 +462,7 @@ export class InteractionManager {
       this.isMarqueeActive = true;
       this.marqueeStart = { x: mx, y: my };
       if (!this.marqueeGraphics) {
-        this.marqueeGraphics = app.createGraphics() as CanvasGraphics;
+        this.marqueeGraphics = new CanvasGraphics();
         app.stage.addChild(this.marqueeGraphics);
       }
       this.marqueeGraphics.clear();
