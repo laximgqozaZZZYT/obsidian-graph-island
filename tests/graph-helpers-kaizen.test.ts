@@ -7,6 +7,7 @@ import {
   stringHash,
   parseGroupByFields,
   computeTimelineFilteredIds,
+  computeAutoFitTransform,
 } from "../src/utils/graph-helpers";
 import type { GraphData, GraphNode, GraphEdge } from "../src/types";
 
@@ -397,5 +398,124 @@ describe("computeTimelineFilteredIds", () => {
     expect(filtered.has("n0")).toBe(false); // x=0 == tlMinX
     expect(filtered.has("n1")).toBe(false); // x=50 == tlMaxX
     expect(filtered.has("n2")).toBe(true);  // x=100 > tlMaxX
+  });
+});
+
+// ===========================================================================
+// computeAutoFitTransform — bounding box → viewport transform
+// ===========================================================================
+
+describe("computeAutoFitTransform", () => {
+  const mkFitNodes = (coords: [number, number][]) =>
+    coords.map(([x, y]) => ({ x, y, r: 10 }));
+
+  it("returns null for empty nodes", () => {
+    expect(computeAutoFitTransform({ nodes: [], canvasW: 800, canvasH: 600 })).toBeNull();
+  });
+
+  it("returns null for zero canvas", () => {
+    const nodes = mkFitNodes([[0, 0]]);
+    expect(computeAutoFitTransform({ nodes, canvasW: 0, canvasH: 600 })).toBeNull();
+  });
+
+  it("centers single node at canvas center", () => {
+    const nodes = mkFitNodes([[100, 200]]);
+    const result = computeAutoFitTransform({ nodes, canvasW: 800, canvasH: 600 });
+    expect(result).not.toBeNull();
+    // Center of BBox = (100, 200)
+    expect(result!.cx).toBe(100);
+    expect(result!.cy).toBe(200);
+    // Screen center offset: x = 400 - 100*scale, y = 300 - 200*scale
+    expect(result!.x).toBeCloseTo(800 / 2 - 100 * result!.scale);
+    expect(result!.y).toBeCloseTo(600 / 2 - 200 * result!.scale);
+  });
+
+  it("scales to fit all nodes with padding", () => {
+    // Nodes from -500 to 500 in both axes (BBox 1000x1000)
+    const nodes = mkFitNodes([[-500, -500], [500, 500]]);
+    const result = computeAutoFitTransform({
+      nodes, canvasW: 800, canvasH: 600, padding: 0,
+    });
+    expect(result).not.toBeNull();
+    // BBox: (-510,-510) to (510,510) with r=10
+    // Scale = min(800/1020, 600/1020, 1.5) ≈ 0.588
+    expect(result!.scale).toBeCloseTo(600 / 1020, 2);
+  });
+
+  it("respects maxScale", () => {
+    // Tiny graph that would need high zoom
+    const nodes = mkFitNodes([[0, 0], [1, 1]]);
+    const result = computeAutoFitTransform({
+      nodes, canvasW: 800, canvasH: 600, maxScale: 1.5,
+    });
+    expect(result!.scale).toBeLessThanOrEqual(1.5);
+  });
+
+  it("respects minScale for small graphs", () => {
+    // Nodes spread moderately — natural scale is above minScale
+    const nodes = mkFitNodes([[0, 0], [200, 200]]);
+    const result = computeAutoFitTransform({
+      nodes, canvasW: 800, canvasH: 600, minScale: 0.1,
+    });
+    // Natural scale ≈ min(800/300, 600/300) = 2.0, clamped to maxScale 1.5
+    expect(result!.scale).toBeLessThanOrEqual(1.5);
+  });
+
+  it("relaxes minScale when >20% of nodes would be clipped", () => {
+    // Large graph: nodes from -10000 to 10000
+    const coords: [number, number][] = [];
+    for (let i = -10; i <= 10; i++) {
+      for (let j = -10; j <= 10; j++) {
+        coords.push([i * 1000, j * 1000]);
+      }
+    }
+    const nodes = mkFitNodes(coords); // 441 nodes
+    const result = computeAutoFitTransform({
+      nodes, canvasW: 800, canvasH: 600, minScale: 0.15,
+    });
+    expect(result).not.toBeNull();
+    // Natural scale = min(800/20100, 600/20100) ≈ 0.03
+    // At minScale=0.15, visible range ≈ ±2667 → only ~28% visible
+    // Should relax to natural scale
+    expect(result!.scale).toBeLessThan(0.15);
+  });
+
+  it("keeps minScale when most nodes are visible at that scale", () => {
+    // Small-ish graph where minScale is fine
+    const coords: [number, number][] = [];
+    for (let i = 0; i < 20; i++) {
+      coords.push([i * 50, i * 30]); // 0..950 x 0..570
+    }
+    const nodes = mkFitNodes(coords);
+    const result = computeAutoFitTransform({
+      nodes, canvasW: 800, canvasH: 600, minScale: 0.15,
+    });
+    expect(result).not.toBeNull();
+    // Natural scale = min(800/1050, 600/670) ≈ 0.76
+    // All nodes visible at 0.76 > minScale → minScale irrelevant
+    expect(result!.scale).toBeGreaterThan(0.15);
+  });
+
+  it("handles negative coordinates correctly", () => {
+    const nodes = mkFitNodes([[-300, -200], [300, 200]]);
+    const result = computeAutoFitTransform({ nodes, canvasW: 800, canvasH: 600 });
+    expect(result!.cx).toBeCloseTo(0);
+    expect(result!.cy).toBeCloseTo(0);
+  });
+
+  it("returns positive scale for valid input", () => {
+    const nodes = mkFitNodes([[0, 0], [100, 100]]);
+    const result = computeAutoFitTransform({ nodes, canvasW: 800, canvasH: 600 });
+    expect(result!.scale).toBeGreaterThan(0);
+  });
+
+  it("BBox center maps to canvas center", () => {
+    const nodes = mkFitNodes([[50, 80], [250, 320]]);
+    const result = computeAutoFitTransform({ nodes, canvasW: 800, canvasH: 600 });
+    // Verify: cx * scale + x ≈ canvasW / 2
+    const screenX = result!.cx * result!.scale + result!.x;
+    const screenY = result!.cy * result!.scale + result!.y;
+    expect(screenX).toBeCloseTo(400, 0);
+    expect(screenY).toBeCloseTo(300, 0);
   });
 });

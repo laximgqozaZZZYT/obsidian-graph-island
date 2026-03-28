@@ -16,7 +16,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoints, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter, computeGaps, hitTestTimelineBars, autoBundleStrength, computeNodeBBox, buildTagMembership, buildMissingNeighborSet, parseGroupByFields } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter, computeGaps, hitTestTimelineBars, autoBundleStrength, computeNodeBBox, buildTagMembership, buildMissingNeighborSet, parseGroupByFields, computeAutoFitTransform } from "../utils/graph-helpers";
 import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph, filterByLocalGraph } from "../utils/graph-filter";
 import { pointInPolygon, convexHull } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
@@ -6404,25 +6404,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       minX -= encPad; minY -= encPad; maxX += encPad; maxY += encPad;
     }
 
-    const bw = maxX - minX + padding;
-    const bh = maxY - minY + padding;
-    let sc = Math.min(W / bw, H / bh, 1.5);
-    // Timeline: allow smaller zoom to fit all bars; otherwise respect minScale
-    if (this.panel.viewMode !== "timeline" && rt.autoFitMinScale > 0) {
-      sc = Math.max(sc, rt.autoFitMinScale);
-    }
-    // Card mode: ensure scale is high enough for LOD to show cards (not circles)
-    if (isCardMode && this.pixiNodes.size > 0) {
-      const sampleRadius = this.pixiNodes.values().next().value?.radius ?? 1;
-      const lodMin = rt.cardLODNormalPx / Math.max(sampleRadius, 1);
-      sc = Math.max(sc, lodMin);
-    }
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-
-    // NaN guard: abort if any computed value is invalid
-    if (!isFinite(sc) || !isFinite(cx) || !isFinite(cy) || sc <= 0 || bw <= 0 || bh <= 0) return;
-
     // Use fresh canvas dimensions if W/H look stale (e.g. 0 before layout)
     if (W <= 0 || H <= 0) {
       const wrap = this.canvasWrap;
@@ -6432,15 +6413,39 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       if (W <= 0 || H <= 0) return;
     }
 
-    world.scale.set(sc);
-    // Force-center: place bounding-box center at viewport center
-    world.x = W / 2 - cx * sc;
-    world.y = H / 2 - cy * sc;
+    // Build node array for computeAutoFitTransform
+    const fitNodes: { x: number; y: number; r: number }[] = [];
+    for (const pn of this.pixiNodes.values()) {
+      fitNodes.push({ x: pn.data.x, y: pn.data.y, r: pn.radius });
+    }
 
-    // Validation: verify the bbox center actually maps to viewport center.
-    // If PixiJS stage has a non-identity transform or the world container has
-    // a parent offset, the simple assignment above may be insufficient.
-    const mapped = world.toGlobal({ x: cx, y: cy });
+    // Use extracted pure function for bounding-box fit
+    const effectiveMinScale = this.panel.viewMode === "timeline" ? 0 : rt.autoFitMinScale;
+    const fit = computeAutoFitTransform({
+      nodes: fitNodes,
+      canvasW: W,
+      canvasH: H,
+      padding,
+      minScale: effectiveMinScale,
+      maxScale: 1.5,
+    });
+    if (!fit) return;
+
+    let sc = fit.scale;
+
+    // Card mode: ensure scale is high enough for LOD to show cards (not circles)
+    if (isCardMode && this.pixiNodes.size > 0) {
+      const sampleRadius = this.pixiNodes.values().next().value?.radius ?? 1;
+      const lodMin = rt.cardLODNormalPx / Math.max(sampleRadius, 1);
+      sc = Math.max(sc, lodMin);
+    }
+
+    world.scale.set(sc);
+    world.x = W / 2 - fit.cx * sc;
+    world.y = H / 2 - fit.cy * sc;
+
+    // Validation: verify the bbox center maps to viewport center
+    const mapped = world.toGlobal({ x: fit.cx, y: fit.cy });
     const dx = W / 2 - mapped.x;
     const dy = H / 2 - mapped.y;
     if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {

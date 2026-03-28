@@ -689,6 +689,98 @@ export function buildMissingNeighborSet(
   return result.size > 0 ? result : null;
 }
 
+// ---------------------------------------------------------------------------
+// Auto-fit view transform computation
+// ---------------------------------------------------------------------------
+
+export interface AutoFitInput {
+  /** Node positions and radii */
+  nodes: { x: number; y: number; r: number }[];
+  /** Canvas width */
+  canvasW: number;
+  /** Canvas height */
+  canvasH: number;
+  /** Padding around the bounding box in world units */
+  padding?: number;
+  /** Minimum scale constraint (0 = no limit) */
+  minScale?: number;
+  /** Maximum scale constraint */
+  maxScale?: number;
+}
+
+export interface AutoFitResult {
+  /** Computed scale factor */
+  scale: number;
+  /** World-container X offset (canvas coords) */
+  x: number;
+  /** World-container Y offset (canvas coords) */
+  y: number;
+  /** Center X of bounding box (world coords) */
+  cx: number;
+  /** Center Y of bounding box (world coords) */
+  cy: number;
+}
+
+/**
+ * Compute the transform (scale, x, y) that fits all nodes within the canvas.
+ * For large graphs where minScale would clip nodes, the minScale is relaxed
+ * to ensure at least 80% of nodes are visible.
+ */
+export function computeAutoFitTransform(input: AutoFitInput): AutoFitResult | null {
+  const { nodes, canvasW, canvasH } = input;
+  if (nodes.length === 0 || canvasW <= 0 || canvasH <= 0) return null;
+
+  const padding = input.padding ?? 80;
+  const maxScale = input.maxScale ?? 1.5;
+  let configMinScale = input.minScale ?? 0;
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of nodes) {
+    if (n.x - n.r < minX) minX = n.x - n.r;
+    if (n.y - n.r < minY) minY = n.y - n.r;
+    if (n.x + n.r > maxX) maxX = n.x + n.r;
+    if (n.y + n.r > maxY) maxY = n.y + n.r;
+  }
+
+  const bw = maxX - minX + padding;
+  const bh = maxY - minY + padding;
+  if (bw <= 0 || bh <= 0) return null;
+
+  // Natural scale to fit all nodes
+  const naturalScale = Math.min(canvasW / bw, canvasH / bh, maxScale);
+
+  // If minScale would cause clipping, relax it for large graphs
+  let scale = naturalScale;
+  if (configMinScale > 0 && naturalScale < configMinScale) {
+    // Check what fraction of nodes would be visible at minScale
+    const halfW = canvasW / (2 * configMinScale);
+    const halfH = canvasH / (2 * configMinScale);
+    const cx0 = (minX + maxX) / 2;
+    const cy0 = (minY + maxY) / 2;
+    let visibleCount = 0;
+    for (const n of nodes) {
+      if (Math.abs(n.x - cx0) <= halfW && Math.abs(n.y - cy0) <= halfH) visibleCount++;
+    }
+    const visibleFraction = visibleCount / nodes.length;
+    // If less than 80% visible at minScale, use natural scale instead
+    scale = visibleFraction < 0.8 ? naturalScale : configMinScale;
+  }
+
+  if (!isFinite(scale) || scale <= 0) return null;
+
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  if (!isFinite(cx) || !isFinite(cy)) return null;
+
+  return {
+    scale,
+    x: canvasW / 2 - cx * scale,
+    y: canvasH / 2 - cy * scale,
+    cx,
+    cy,
+  };
+}
+
 /**
  * Parse a groupBy expression string into individual field names.
  * Strips boolean operators (AND/OR/XOR/NOR/NAND/NOT) and ":?" suffix.
