@@ -246,14 +246,24 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
       }
       await v.doRender();
 
-      // Serialize the effective panel state for saving
+      // Serialize the effective panel state for saving (exclude vault-specific data)
+      var EXCLUDE_KEYS = ['pinnedPositions', 'expandedNodes', 'bookmarkedNodes',
+        'multiSelectNodeIds', 'subgraphNodeIds', 'focusNodeId', 'localGraphCenter',
+        'navHistory', 'navHistoryCursor', 'searchHistory', 'savedViewports',
+        'savedSearchQueries', 'subgraphStack', 'syncViewId', 'commonQueries',
+        'annotations', 'collapsedGroups'];
       var snapshot: Record<string, any> = {};
       for (var sk in v.panel) {
         if (sk.startsWith("_")) continue;
+        if (EXCLUDE_KEYS.indexOf(sk) >= 0) continue;
         var sv = v.panel[sk];
         if (sv instanceof Set) { snapshot[sk] = Array.from(sv); }
         else if (typeof sv === "function") { /* skip */ }
         else { snapshot[sk] = sv; }
+      }
+      // Strip vault prefix from searchQuery
+      if (snapshot.searchQuery) {
+        snapshot.searchQuery = snapshot.searchQuery.replace(/path:開発\//g, 'path:');
       }
       return snapshot;
     } catch (e) {
