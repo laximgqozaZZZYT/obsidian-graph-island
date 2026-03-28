@@ -1,0 +1,16 @@
+{
+  "layout": "force",
+  "searchQuery": "path:mythology-japanese*",
+  "groupBy": "folder:?",
+  "collapsedGroups": [],
+  "nodeSize": 24,
+  "repelForce": 300,
+  "linkDistance": 90,
+  "showLinks": true,
+  "showSemanticEdges": true,
+  "colorEdgesByRelation": true,
+  "nodeColorMode": "category",
+  "clusterArrangement": "concentric",
+  "showMinimap": true,
+  "activeTab": "layout"
+}

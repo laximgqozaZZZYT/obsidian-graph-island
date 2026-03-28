@@ -25,6 +25,8 @@ const SKIP_PRESETS = new Set([
   "42-high-density-tags", "47-sunburst-with-tags", "52-mixed-nodesize-stress",
   // Too few nodes for meaningful screenshot
   "14-dialogue-theater",
+  // Empty/near-empty renders (coordinate system or layout issues)
+  "29-concentric-degree", "54-radial-dense",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {
@@ -312,11 +314,15 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
     }
 
     // Force all node graphics visible (counter zoomFade at low zoom)
-    nodes.forEach(function(pn: any) {
-      if (pn.gfx) pn.gfx.visible = true;
-      if (pn.gfx) pn.gfx.alpha = 1;
-      if (pn.label) pn.label.visible = true;
-    });
+    // BUT only in graph viewMode — sunburst/timeline/matrix hide nodes intentionally
+    var viewMode = v.panel?.viewMode ?? "graph";
+    if (viewMode === "graph") {
+      nodes.forEach(function(pn: any) {
+        if (pn.gfx) pn.gfx.visible = true;
+        if (pn.gfx) pn.gfx.alpha = 1;
+        if (pn.label) pn.label.visible = true;
+      });
+    }
 
     v.markDirty();
     await new Promise(function(r) { setTimeout(r, 500); });
