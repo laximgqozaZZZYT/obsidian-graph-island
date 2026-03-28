@@ -6,6 +6,11 @@ import {
   resolvePrefix,
   parseActiveToken,
   angleToPreset,
+  getQueryOptions,
+  getSortKeyOptions,
+  getGravityDirOptions,
+  setCachedFieldSuggestions,
+  getGroupByOptions,
 } from "../src/views/panel-widgets";
 
 // ---------------------------------------------------------------------------
@@ -246,5 +251,115 @@ describe("deriveClusterRulesFromGroupBy", () => {
       { field: "tags", indent: 0, recursive: true },
     ]);
     expect(result[0].recursive).toBe(true);
+  });
+});
+
+// ===========================================================================
+// getQueryOptions — search query prefix list
+// ===========================================================================
+
+describe("getQueryOptions", () => {
+  it("returns base prefixes", () => {
+    const options = getQueryOptions();
+    const prefixes = options.map(o => o.prefix);
+    expect(prefixes).toContain("path:");
+    expect(prefixes).toContain("file:");
+    expect(prefixes).toContain("tag:");
+    expect(prefixes).toContain("category:");
+    expect(prefixes).toContain("id:");
+  });
+
+  it("includes wildcard and boolean operators", () => {
+    const options = getQueryOptions();
+    const prefixes = options.map(o => o.prefix);
+    expect(prefixes).toContain("*");
+    expect(prefixes).toContain("AND / OR");
+  });
+
+  it("includes hop syntax", () => {
+    const options = getQueryOptions();
+    expect(options.some(o => o.prefix.startsWith("hop:"))).toBe(true);
+  });
+
+  it("has desc for every option", () => {
+    for (const opt of getQueryOptions()) {
+      expect(opt.desc).toBeTruthy();
+    }
+  });
+
+  it("includes cached field suggestions when set", () => {
+    setCachedFieldSuggestions(["node_type", "story_order"]);
+    const options = getQueryOptions();
+    const prefixes = options.map(o => o.prefix);
+    expect(prefixes).toContain("node_type:");
+    expect(prefixes).toContain("story_order:");
+    setCachedFieldSuggestions([]); // cleanup
+  });
+
+  it("does not duplicate existing prefixes from cache", () => {
+    setCachedFieldSuggestions(["category"]); // already in base
+    const options = getQueryOptions();
+    const catCount = options.filter(o => o.prefix === "category:").length;
+    expect(catCount).toBe(1);
+    setCachedFieldSuggestions([]); // cleanup
+  });
+});
+
+// ===========================================================================
+// getSortKeyOptions — sort key dropdown options
+// ===========================================================================
+
+describe("getSortKeyOptions", () => {
+  it("returns at least 5 sort keys", () => {
+    expect(getSortKeyOptions().length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("includes degree and label", () => {
+    const values = getSortKeyOptions().map(o => o.value);
+    expect(values).toContain("degree");
+    expect(values).toContain("label");
+  });
+
+  it("includes importance", () => {
+    const values = getSortKeyOptions().map(o => o.value);
+    expect(values).toContain("importance");
+  });
+
+  it("all options have labels", () => {
+    for (const opt of getSortKeyOptions()) {
+      expect(opt.label).toBeTruthy();
+    }
+  });
+});
+
+// ===========================================================================
+// getGravityDirOptions — directional gravity dropdown
+// ===========================================================================
+
+describe("getGravityDirOptions", () => {
+  it("returns none, up, down, left, right, custom", () => {
+    const values = getGravityDirOptions().map(o => o.value);
+    expect(values).toEqual(["none", "up", "down", "left", "right", "custom"]);
+  });
+
+  it("cardinal directions have correct angles", () => {
+    const byValue = Object.fromEntries(getGravityDirOptions().map(o => [o.value, o.angle]));
+    expect(byValue.up).toBe(270);
+    expect(byValue.down).toBe(90);
+    expect(byValue.left).toBe(180);
+    expect(byValue.right).toBe(0);
+  });
+
+  it("none and custom have angle -1", () => {
+    const byValue = Object.fromEntries(getGravityDirOptions().map(o => [o.value, o.angle]));
+    expect(byValue.none).toBe(-1);
+    expect(byValue.custom).toBe(-1);
+  });
+
+  it("roundtrips with angleToPreset", () => {
+    for (const opt of getGravityDirOptions()) {
+      if (opt.value === "none" || opt.value === "custom") continue;
+      expect(angleToPreset(opt.angle)).toBe(opt.value);
+    }
   });
 });

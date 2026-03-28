@@ -12,11 +12,11 @@ export default defineConfig({
       reporter: ["text-summary", "json-summary"],
       reportsDirectory: "coverage",
       thresholds: {
-        // Baseline: v0.6.1 (2907 tests, cycle221 junction grid routing + port face filter)
+        // Baseline: v0.6.1 (2936 tests, cycle223 panel-widgets + nodeRadius/effectiveRadius)
         statements: 29.7,
         branches: 27.9,
-        functions: 27.5,
-        lines: 29.3,
+        functions: 27.7,
+        lines: 29.4,
       },
     },
   },
