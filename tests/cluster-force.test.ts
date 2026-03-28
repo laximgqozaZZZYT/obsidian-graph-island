@@ -1135,3 +1135,104 @@ describe("computeAutoOptimize", () => {
     expect(result.needsMore).toBe(false);
   });
 });
+
+// ===========================================================================
+// nodeRadius — base radius calculation from nodeSize + degree
+// ===========================================================================
+
+describe("nodeRadius", () => {
+  it("returns nodeSize when larger than minNodeRadius", () => {
+    expect(nodeRadius(30, 0)).toBe(30);
+  });
+
+  it("returns minNodeRadius when nodeSize is smaller", () => {
+    expect(nodeRadius(5, 0, 18)).toBe(18);
+  });
+
+  it("returns minNodeRadius for zero nodeSize", () => {
+    expect(nodeRadius(0, 0, 18)).toBe(18);
+  });
+
+  it("returns minNodeRadius for NaN nodeSize", () => {
+    expect(nodeRadius(NaN, 0, 18)).toBe(18);
+  });
+
+  it("scales by degree when sizeByDegree=true", () => {
+    const r0 = nodeRadius(20, 0, 18, 10, true);
+    const rMax = nodeRadius(20, 10, 18, 10, true);
+    expect(rMax).toBeGreaterThan(r0);
+  });
+
+  it("degree scaling: max degree gives 2x base", () => {
+    // At maxDegree: t=sqrt(1)=1, result = baseR * (0.7 + 1.3) = baseR * 2.0
+    const max = nodeRadius(20, 10, 18, 10, true);
+    expect(max).toBeCloseTo(20 * 2.0, 0);
+    // degree=0 bypasses scaling (degree > 0 guard), returns baseR as-is
+    const base = nodeRadius(20, 0, 18, 10, true);
+    expect(base).toBe(20);
+  });
+
+  it("ignores degree when sizeByDegree=false", () => {
+    const r1 = nodeRadius(25, 0, 18, 10, false);
+    const r2 = nodeRadius(25, 10, 18, 10, false);
+    expect(r1).toBe(r2);
+  });
+
+  it("ignores degree when maxDegree=0", () => {
+    const r1 = nodeRadius(25, 5, 18, 0, true);
+    const r2 = nodeRadius(25, 0, 18, 0, true);
+    expect(r1).toBe(r2);
+  });
+});
+
+// ===========================================================================
+// effectiveRadius — visual radius with super-node + content scaling
+// ===========================================================================
+
+describe("effectiveRadius", () => {
+  const mkNode = (overrides?: Partial<GraphNode>) =>
+    ({ id: "n1", label: "test", x: 0, y: 0, isTag: false, ...overrides } as GraphNode);
+
+  it("returns base radius for normal node", () => {
+    const r = effectiveRadius(mkNode(), 20, 0);
+    expect(r).toBeGreaterThanOrEqual(18); // minNodeRadius default
+  });
+
+  it("inflates for super nodes (collapsed groups)", () => {
+    const superNode = mkNode({ collapsedMembers: ["a", "b", "c", "d"] });
+    const normal = effectiveRadius(mkNode(), 20, 0);
+    const superR = effectiveRadius(superNode, 20, 0);
+    expect(superR).toBeGreaterThan(normal);
+  });
+
+  it("caps at maxNodeRadius", () => {
+    const superNode = mkNode({ collapsedMembers: Array.from({ length: 100 }, (_, i) => `m${i}`) });
+    const r = effectiveRadius(superNode, 20, 0, 40);
+    expect(r).toBeLessThanOrEqual(40);
+  });
+
+  it("enforces minNodeRadius floor", () => {
+    const r = effectiveRadius(mkNode(), 1, 0, 60, 18);
+    expect(r).toBeGreaterThanOrEqual(18);
+  });
+
+  it("applies content scaling when cardContentScale > 0", () => {
+    const rPlain = effectiveRadius(mkNode(), 20, 0, 60, 18, 0, false, 0, 0, 0);
+    const rScaled = effectiveRadius(mkNode(), 20, 0, 60, 18, 0, false, 500, 1000, 1.0);
+    expect(rScaled).toBeGreaterThan(rPlain);
+  });
+
+  it("content scaling is logarithmic", () => {
+    const r100 = effectiveRadius(mkNode(), 20, 0, 60, 18, 0, false, 100, 1000, 1.0);
+    const r900 = effectiveRadius(mkNode(), 20, 0, 60, 18, 0, false, 900, 1000, 1.0);
+    // Log scaling: difference between 100 and 900 should be less than linear
+    const ratio = (r900 - 20) / (r100 - 20);
+    expect(ratio).toBeLessThan(9); // linear would be 9
+  });
+
+  it("no content scaling when bodyLength=0", () => {
+    const r = effectiveRadius(mkNode(), 20, 0, 60, 18, 0, false, 0, 1000, 1.0);
+    const rBase = effectiveRadius(mkNode(), 20, 0);
+    expect(r).toBe(rBase);
+  });
+});
