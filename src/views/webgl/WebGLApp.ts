@@ -110,6 +110,9 @@ export class WebGLApp implements IApp {
   /** Whether to show the background dot grid. */
   showDotGrid = true;
 
+  /** WebGL backend supports GPU-accelerated animations */
+  readonly supportsAnimation = true;
+
   /** Called before scene graph flush, receives overlay Canvas 2D ctx. */
   onPreFlush: ((ctx: CanvasRenderingContext2D, dpr: number) => void) | null = null;
 

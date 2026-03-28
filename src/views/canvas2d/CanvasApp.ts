@@ -75,6 +75,9 @@ export class CanvasApp implements IApp {
   /** Whether to show the background dot grid */
   showDotGrid = true;
 
+  /** Canvas2D does not support GPU-accelerated animations */
+  readonly supportsAnimation = false;
+
   /** シーン描画前に呼ばれるコールバック（背景オーバーレイ等で使用） */
   onPreFlush: ((ctx: CanvasRenderingContext2D, dpr: number) => void) | null = null;
   /** シーン描画完了後に呼ばれるコールバック（差分オーバーレイ等で使用） */

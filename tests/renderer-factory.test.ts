@@ -109,6 +109,8 @@ describe("createApp", () => {
     expect(app.renderer.height).toBe(100);
     expect(app.stage).toBeDefined();
     expect(app.ticker).toBeDefined();
+    // Canvas2D backend does NOT support GPU animations
+    expect(app.supportsAnimation).toBe(false);
 
     app.destroy();
   });

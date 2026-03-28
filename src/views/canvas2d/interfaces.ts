@@ -174,6 +174,11 @@ export interface IApp {
   onPreFlush: ((ctx: CanvasRenderingContext2D, dpr: number) => void) | null;
   onPostFlush: ((ctx: CanvasRenderingContext2D, dpr: number) => void) | null;
 
+  /** Whether the backend supports GPU-accelerated animations.
+   *  Canvas2D returns false; WebGL returns true.
+   *  Consumers should skip heavy animations when false. */
+  readonly supportsAnimation: boolean;
+
   markNeedsRender(): void;
   setBackgroundColor(color: number): void;
   resize(width: number, height: number): void;
