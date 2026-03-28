@@ -29,18 +29,30 @@
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 1,
-  "commonQueries": [],
-  "clusterGroupRules": [{ "groupBy": "folder:?", "recursive": false }],
+  "clusterGroupRules": [
+    {
+      "groupBy": "folder:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "custom",
   "clusterNodeSpacing": 3.0,
   "clusterGroupScale": 2.5,
   "clusterGroupSpacing": 2.0,
   "fadeEdgesByDegree": false,
   "edgeBundleStrength": 0.5,
-  "sortRules": [{ "key": "degree", "order": "desc" }],
+  "sortRules": [
+    {
+      "key": "degree",
+      "order": "desc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    { "match": "default", "shape": "circle" }
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "start-date",
   "showEdgeLabels": false,
@@ -49,7 +61,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout",
   "heatmapMode": false,
   "showDotGrid": false,
@@ -68,19 +79,63 @@
   "gridStyle": "lines",
   "coordinateLayout": {
     "system": "polar",
-    "axis1": { "source": { "kind": "metric", "metric": "degree" }, "transform": { "kind": "bin", "count": 5 } },
-    "axis2": { "source": { "kind": "index" }, "transform": { "kind": "even-divide", "totalRange": 360 } },
+    "axis1": {
+      "source": {
+        "kind": "metric",
+        "metric": "degree"
+      },
+      "transform": {
+        "kind": "bin",
+        "count": 5
+      }
+    },
+    "axis2": {
+      "source": {
+        "kind": "index"
+      },
+      "transform": {
+        "kind": "even-divide",
+        "totalRange": 360
+      }
+    },
     "perGroup": false,
     "grid": {
       "axis1Grid": {
-        "positions": { "kind": "count", "n": 5 },
-        "shape": { "kind": "circle" },
-        "ticks": { "show": true, "labels": { "kind": "custom", "values": ["low", "mid-low", "mid", "mid-high", "high"] } }
+        "positions": {
+          "kind": "count",
+          "n": 5
+        },
+        "shape": {
+          "kind": "circle"
+        },
+        "ticks": {
+          "show": true,
+          "labels": {
+            "kind": "custom",
+            "values": [
+              "low",
+              "mid-low",
+              "mid",
+              "mid-high",
+              "high"
+            ]
+          }
+        }
       },
       "axis2Grid": {
-        "positions": { "kind": "count", "n": 8 },
-        "shape": { "kind": "radial" },
-        "ticks": { "show": true, "labels": { "kind": "auto" } }
+        "positions": {
+          "kind": "count",
+          "n": 8
+        },
+        "shape": {
+          "kind": "radial"
+        },
+        "ticks": {
+          "show": true,
+          "labels": {
+            "kind": "auto"
+          }
+        }
       },
       "style": "lines"
     }

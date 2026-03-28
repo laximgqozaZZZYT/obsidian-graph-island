@@ -2,7 +2,6 @@
   "layout": "force",
   "searchQuery": "path:classic-gilgamesh*",
   "groupBy": "folder:?",
-  "collapsedGroups": [],
   "nodeSize": 26,
   "repelForce": 350,
   "linkDistance": 100,

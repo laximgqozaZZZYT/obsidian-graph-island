@@ -2,7 +2,6 @@
   "layout": "force",
   "searchQuery": "node_type:character",
   "groupBy": "folder:?",
-  "collapsedGroups": [],
   "nodeSize": 25,
   "repelForce": 400,
   "linkDistance": 120,

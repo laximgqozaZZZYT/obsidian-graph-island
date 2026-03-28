@@ -2,7 +2,6 @@
   "layout": "force",
   "searchQuery": "path:classic-arthurian*",
   "groupBy": "folder:?",
-  "collapsedGroups": [],
   "viewMode": "timeline",
   "timelineKey": "start-date",
   "showLinks": true,

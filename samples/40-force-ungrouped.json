@@ -29,7 +29,6 @@
   "enclosureSpacing": 1.0,
   "directionalGravityRules": [],
   "hoverHops": 1,
-  "commonQueries": [],
   "clusterGroupRules": [],
   "clusterArrangement": "grid",
   "clusterNodeSpacing": 2.0,
@@ -39,7 +38,12 @@
   "edgeBundleStrength": 0.3,
   "sortRules": [],
   "nodeRules": [],
-  "nodeShapeRules": [{"match": "default", "shape": "circle"}],
+  "nodeShapeRules": [
+    {
+      "match": "default",
+      "shape": "circle"
+    }
+  ],
   "timelineKey": "start-date",
   "showEdgeLabels": false,
   "showMinimap": false,
@@ -47,6 +51,5 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout"
 }

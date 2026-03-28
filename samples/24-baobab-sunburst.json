@@ -29,19 +29,34 @@
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 1,
-  "commonQueries": [],
-  "clusterGroupRules": [{ "groupBy": "folder:?", "recursive": false }],
+  "clusterGroupRules": [
+    {
+      "groupBy": "folder:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "grid",
   "clusterNodeSpacing": 3.0,
   "clusterGroupScale": 3.0,
   "clusterGroupSpacing": 2.0,
   "fadeEdgesByDegree": false,
   "edgeBundleStrength": 0.5,
-  "sortRules": [{ "key": "degree", "order": "desc" }],
+  "sortRules": [
+    {
+      "key": "degree",
+      "order": "desc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    { "match": "isTag", "shape": "triangle" },
-    { "match": "default", "shape": "circle" }
+    {
+      "match": "isTag",
+      "shape": "triangle"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "dataviewQuery": "",
   "timelineKey": "date",
@@ -54,7 +69,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout",
   "autoFit": true,
   "showDurationBars": false,
@@ -63,10 +77,32 @@
   "showGroupGrid": true,
   "coordinateLayout": {
     "system": "polar",
-    "axis1": { "source": { "kind": "const", "value": 1 }, "transform": { "kind": "linear", "scale": 1 } },
-    "axis2": { "source": { "kind": "index" }, "transform": { "kind": "even-divide", "totalRange": 360 } },
+    "axis1": {
+      "source": {
+        "kind": "const",
+        "value": 1
+      },
+      "transform": {
+        "kind": "linear",
+        "scale": 1
+      }
+    },
+    "axis2": {
+      "source": {
+        "kind": "index"
+      },
+      "transform": {
+        "kind": "even-divide",
+        "totalRange": 360
+      }
+    },
     "perGroup": false,
-    "constants": { "_ringW": 0.25, "_ringGap": 0.02, "_hole": 3.0, "_sectorGap": 0.015 }
+    "constants": {
+      "_ringW": 0.25,
+      "_ringGap": 0.02,
+      "_hole": 3.0,
+      "_sectorGap": 0.015
+    }
   },
   "timelineRangeMin": 0,
   "timelineRangeMax": 1

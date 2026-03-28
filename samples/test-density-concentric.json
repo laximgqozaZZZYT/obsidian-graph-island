@@ -29,19 +29,34 @@
   "enclosureSpacing": 1.8,
   "directionalGravityRules": [],
   "hoverHops": 1,
-  "commonQueries": [],
-  "clusterGroupRules": [{ "groupBy": "folder:?", "recursive": false }],
+  "clusterGroupRules": [
+    {
+      "groupBy": "folder:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "concentric",
   "clusterNodeSpacing": 2.5,
   "clusterGroupScale": 3.5,
   "clusterGroupSpacing": 2.5,
   "fadeEdgesByDegree": true,
   "edgeBundleStrength": 0.7,
-  "sortRules": [{ "key": "degree", "order": "desc" }],
+  "sortRules": [
+    {
+      "key": "degree",
+      "order": "desc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    { "match": "isTag", "shape": "triangle" },
-    { "match": "default", "shape": "circle" }
+    {
+      "match": "isTag",
+      "shape": "triangle"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "date",
   "showEdgeLabels": false,
@@ -50,7 +65,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout",
   "concentricMinRadius": 40,
   "concentricRadiusStep": 50,
@@ -66,8 +80,25 @@
   "dataviewQuery": "",
   "coordinateLayout": {
     "system": "polar",
-    "axis1": { "source": { "kind": "metric", "metric": "degree" }, "transform": { "kind": "bin", "count": 5 } },
-    "axis2": { "source": { "kind": "index" }, "transform": { "kind": "even-divide", "totalRange": 360 } },
+    "axis1": {
+      "source": {
+        "kind": "metric",
+        "metric": "degree"
+      },
+      "transform": {
+        "kind": "bin",
+        "count": 5
+      }
+    },
+    "axis2": {
+      "source": {
+        "kind": "index"
+      },
+      "transform": {
+        "kind": "even-divide",
+        "totalRange": 360
+      }
+    },
     "perGroup": false
   }
 }

@@ -2,7 +2,6 @@
   "layout": "force",
   "searchQuery": "path:classic-saiyuki*",
   "groupBy": "folder:?",
-  "collapsedGroups": [],
   "tagDisplay": "enclosure",
   "showTagNodes": true,
   "showLinks": true,

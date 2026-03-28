@@ -2,7 +2,6 @@
   "layout": "force",
   "searchQuery": "path:classic-divine-comedy*",
   "groupBy": "folder:?",
-  "collapsedGroups": [],
   "nodeSize": 22,
   "repelForce": 350,
   "linkDistance": 100,

@@ -29,8 +29,12 @@
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 2,
-  "commonQueries": [],
-  "clusterGroupRules": [{"groupBy": "folder:?", "recursive": false}],
+  "clusterGroupRules": [
+    {
+      "groupBy": "folder:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "grid",
   "clusterNodeSpacing": 2.0,
   "clusterGroupScale": 1.5,
@@ -40,9 +44,20 @@
   "sortRules": [],
   "nodeRules": [],
   "nodeShapeRules": [
-    {"match": "category", "category": "protagonist", "shape": "star"},
-    {"match": "category", "category": "deity", "shape": "diamond"},
-    {"match": "default", "shape": "circle"}
+    {
+      "match": "category",
+      "category": "protagonist",
+      "shape": "star"
+    },
+    {
+      "match": "category",
+      "category": "deity",
+      "shape": "diamond"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "start-date",
   "showEdgeLabels": true,
@@ -51,7 +66,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout",
   "showGuideLines": true,
   "guideLineMode": "perGroup"

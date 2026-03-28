@@ -29,7 +29,6 @@
   "enclosureSpacing": 2.0,
   "directionalGravityRules": [],
   "hoverHops": 3,
-  "commonQueries": [],
   "clusterGroupRules": [
     {
       "groupBy": "folder:?",
@@ -76,7 +75,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout",
   "heatmapMode": true,
   "showDotGrid": true,

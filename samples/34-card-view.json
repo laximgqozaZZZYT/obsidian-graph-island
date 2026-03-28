@@ -29,19 +29,35 @@
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 2,
-  "commonQueries": [],
-  "clusterGroupRules": [{ "groupBy": "category:?", "recursive": false }],
+  "clusterGroupRules": [
+    {
+      "groupBy": "category:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "grid",
   "clusterNodeSpacing": 4.0,
   "clusterGroupScale": 2.0,
   "clusterGroupSpacing": 3.0,
   "fadeEdgesByDegree": false,
   "edgeBundleStrength": 0.5,
-  "sortRules": [{ "key": "label", "order": "asc" }],
+  "sortRules": [
+    {
+      "key": "label",
+      "order": "asc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    { "match": "category", "category": "protagonist", "shape": "hexagon" },
-    { "match": "default", "shape": "circle" }
+    {
+      "match": "category",
+      "category": "protagonist",
+      "shape": "hexagon"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "start-date",
   "showEdgeLabels": false,
@@ -50,7 +66,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "display",
   "heatmapMode": false,
   "showDotGrid": false,
@@ -64,7 +79,14 @@
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "nodeDisplayMode": "card",
-  "cardDisplayConfig": { "fields": ["node_type", "story_order"], "maxWidth": 120, "showIcon": false },
+  "cardDisplayConfig": {
+    "fields": [
+      "node_type",
+      "story_order"
+    ],
+    "maxWidth": 120,
+    "showIcon": false
+  },
   "coordinateLayout": null,
   "dataviewQuery": ""
 }

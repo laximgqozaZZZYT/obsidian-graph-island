@@ -29,19 +29,34 @@
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 1,
-  "commonQueries": [],
-  "clusterGroupRules": [{"groupBy": "tag:?", "recursive": false}],
+  "clusterGroupRules": [
+    {
+      "groupBy": "tag:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "grid",
   "clusterNodeSpacing": 1.5,
   "clusterGroupScale": 1.5,
   "clusterGroupSpacing": 2.0,
   "fadeEdgesByDegree": true,
   "edgeBundleStrength": 0.4,
-  "sortRules": [{"key": "degree", "direction": "desc"}],
+  "sortRules": [
+    {
+      "key": "degree",
+      "direction": "desc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    {"match": "isTag", "shape": "diamond"},
-    {"match": "default", "shape": "circle"}
+    {
+      "match": "isTag",
+      "shape": "diamond"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "start-date",
   "showEdgeLabels": false,
@@ -50,6 +65,5 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout"
 }

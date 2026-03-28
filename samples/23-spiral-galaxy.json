@@ -29,19 +29,35 @@
   "enclosureSpacing": 1.0,
   "directionalGravityRules": [],
   "hoverHops": 1,
-  "commonQueries": [],
-  "clusterGroupRules": [{ "groupBy": "tag:?", "recursive": false }],
+  "clusterGroupRules": [
+    {
+      "groupBy": "tag:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "grid",
   "clusterNodeSpacing": 2.5,
   "clusterGroupScale": 2.5,
   "clusterGroupSpacing": 2.0,
   "fadeEdgesByDegree": true,
   "edgeBundleStrength": 0.5,
-  "sortRules": [{ "key": "degree", "order": "desc" }],
+  "sortRules": [
+    {
+      "key": "degree",
+      "order": "desc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    { "match": "category", "category": "ruler", "shape": "hexagon" },
-    { "match": "default", "shape": "circle" }
+    {
+      "match": "category",
+      "category": "ruler",
+      "shape": "hexagon"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "dataviewQuery": "",
   "timelineKey": "date",
@@ -54,7 +70,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout",
   "autoFit": true,
   "showDurationBars": false,

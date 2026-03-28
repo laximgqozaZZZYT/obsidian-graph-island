@@ -29,19 +29,35 @@
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 2,
-  "commonQueries": [],
-  "clusterGroupRules": [{ "groupBy": "category:?", "recursive": false }],
+  "clusterGroupRules": [
+    {
+      "groupBy": "category:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "grid",
   "clusterNodeSpacing": 5.0,
   "clusterGroupScale": 2.5,
   "clusterGroupSpacing": 4.0,
   "fadeEdgesByDegree": false,
   "edgeBundleStrength": 0.3,
-  "sortRules": [{ "key": "label", "order": "asc" }],
+  "sortRules": [
+    {
+      "key": "label",
+      "order": "asc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    { "match": "category", "category": "protagonist", "shape": "hexagon" },
-    { "match": "default", "shape": "square" }
+    {
+      "match": "category",
+      "category": "protagonist",
+      "shape": "hexagon"
+    },
+    {
+      "match": "default",
+      "shape": "square"
+    }
   ],
   "timelineKey": "start-date",
   "showEdgeLabels": true,
@@ -50,7 +66,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "display",
   "heatmapMode": false,
   "showDotGrid": false,
@@ -64,14 +79,40 @@
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "nodeDisplayMode": "card",
-  "cardDisplayConfig": { "fields": ["node_type", "story_order"], "maxWidth": 140, "showIcon": false, "headerStyle": "table" },
-  "donutDisplayConfig": { "innerRadius": 0.6 },
+  "cardDisplayConfig": {
+    "fields": [
+      "node_type",
+      "story_order"
+    ],
+    "maxWidth": 140,
+    "showIcon": false,
+    "headerStyle": "table"
+  },
+  "donutDisplayConfig": {
+    "innerRadius": 0.6
+  },
   "edgeCardinalityMode": "crowsfoot",
   "cardinalityRules": [
-    { "edgeType": "inheritance", "sourceCardinality": "1", "targetCardinality": "0..N" },
-    { "edgeType": "aggregation", "sourceCardinality": "1", "targetCardinality": "0..N" },
-    { "edgeType": "link", "sourceCardinality": "1", "targetCardinality": "0..1" },
-    { "edgeType": "sequence", "sourceCardinality": "1", "targetCardinality": "1" }
+    {
+      "edgeType": "inheritance",
+      "sourceCardinality": "1",
+      "targetCardinality": "0..N"
+    },
+    {
+      "edgeType": "aggregation",
+      "sourceCardinality": "1",
+      "targetCardinality": "0..N"
+    },
+    {
+      "edgeType": "link",
+      "sourceCardinality": "1",
+      "targetCardinality": "0..1"
+    },
+    {
+      "edgeType": "sequence",
+      "sourceCardinality": "1",
+      "targetCardinality": "1"
+    }
   ],
   "coordinateLayout": null,
   "dataviewQuery": ""

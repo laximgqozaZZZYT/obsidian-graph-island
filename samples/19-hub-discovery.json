@@ -40,7 +40,6 @@
     }
   ],
   "hoverHops": 2,
-  "commonQueries": [],
   "clusterGroupRules": [
     {
       "groupBy": "category:?",
@@ -78,6 +77,5 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout"
 }

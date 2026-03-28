@@ -29,7 +29,6 @@
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 2,
-  "commonQueries": [],
   "clusterGroupRules": [
     {
       "groupBy": "category:?",
@@ -62,7 +61,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout",
   "heatmapMode": false,
   "showDotGrid": false,
@@ -81,14 +79,39 @@
   "gridStyle": "lines",
   "coordinateLayout": {
     "system": "cartesian",
-    "axis1": { "source": { "kind": "property", "key": "story_order" }, "transform": { "kind": "date-to-index" } },
-    "axis2": { "source": { "kind": "index" }, "transform": { "kind": "stack-avoid" } },
+    "axis1": {
+      "source": {
+        "kind": "property",
+        "key": "story_order"
+      },
+      "transform": {
+        "kind": "date-to-index"
+      }
+    },
+    "axis2": {
+      "source": {
+        "kind": "index"
+      },
+      "transform": {
+        "kind": "stack-avoid"
+      }
+    },
     "perGroup": true,
     "grid": {
       "axis1Grid": {
-        "positions": { "kind": "count", "n": 8 },
-        "shape": { "kind": "line" },
-        "ticks": { "show": true, "labels": { "kind": "auto" } }
+        "positions": {
+          "kind": "count",
+          "n": 8
+        },
+        "shape": {
+          "kind": "line"
+        },
+        "ticks": {
+          "show": true,
+          "labels": {
+            "kind": "auto"
+          }
+        }
       },
       "style": "lines"
     }

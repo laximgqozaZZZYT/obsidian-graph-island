@@ -29,8 +29,12 @@
   "enclosureSpacing": 1.0,
   "directionalGravityRules": [],
   "hoverHops": 1,
-  "commonQueries": [],
-  "clusterGroupRules": [{ "groupBy": "folder:?", "recursive": false }],
+  "clusterGroupRules": [
+    {
+      "groupBy": "folder:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "custom",
   "clusterNodeSpacing": 3.0,
   "clusterGroupScale": 3.0,
@@ -39,7 +43,12 @@
   "edgeBundleStrength": 0.5,
   "sortRules": [],
   "nodeRules": [],
-  "nodeShapeRules": [{ "match": "default", "shape": "circle" }],
+  "nodeShapeRules": [
+    {
+      "match": "default",
+      "shape": "circle"
+    }
+  ],
   "dataviewQuery": "",
   "timelineKey": "date",
   "timelineEndKey": "end-date",
@@ -51,7 +60,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout",
   "autoFit": true,
   "showDurationBars": false,
@@ -61,15 +69,32 @@
   "coordinateLayout": {
     "system": "cartesian",
     "axis1": {
-      "source": { "kind": "index" },
-      "transform": { "kind": "expression", "expr": "sin(a*i/n*2*pi+d)", "scale": 1 }
+      "source": {
+        "kind": "index"
+      },
+      "transform": {
+        "kind": "expression",
+        "expr": "sin(a*i/n*2*pi+d)",
+        "scale": 1
+      }
     },
     "axis2": {
-      "source": { "kind": "index" },
-      "transform": { "kind": "expression", "expr": "sin(b*i/n*2*pi)", "scale": 1 }
+      "source": {
+        "kind": "index"
+      },
+      "transform": {
+        "kind": "expression",
+        "expr": "sin(b*i/n*2*pi)",
+        "scale": 1
+      }
     },
     "perGroup": true,
-    "constants": { "a": 3, "b": 2, "d": 0.5, "_minGap": 6 }
+    "constants": {
+      "a": 3,
+      "b": 2,
+      "d": 0.5,
+      "_minGap": 6
+    }
   },
   "timelineRangeMin": 0,
   "timelineRangeMax": 1

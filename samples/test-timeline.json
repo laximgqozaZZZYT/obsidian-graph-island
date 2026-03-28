@@ -29,7 +29,6 @@
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 2,
-  "commonQueries": [],
   "clusterGroupRules": [],
   "clusterArrangement": "grid",
   "clusterNodeSpacing": 3.0,
@@ -40,9 +39,20 @@
   "sortRules": [],
   "nodeRules": [],
   "nodeShapeRules": [
-    {"match": "category", "category": "protagonist", "shape": "hexagon"},
-    {"match": "category", "category": "antagonist", "shape": "diamond"},
-    {"match": "default", "shape": "circle"}
+    {
+      "match": "category",
+      "category": "protagonist",
+      "shape": "hexagon"
+    },
+    {
+      "match": "category",
+      "category": "antagonist",
+      "shape": "diamond"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "start-date",
   "showEdgeLabels": false,
@@ -51,6 +61,5 @@
   "groupByRules": null,
   "groupMinSize": 1,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout"
 }

@@ -2,7 +2,6 @@
   "layout": "force",
   "searchQuery": "path:mythology-egyptian*",
   "groupBy": "folder:?",
-  "collapsedGroups": [],
   "nodeSize": 24,
   "repelForce": 300,
   "linkDistance": 90,

@@ -29,19 +29,34 @@
   "enclosureSpacing": 2.0,
   "directionalGravityRules": [],
   "hoverHops": 1,
-  "commonQueries": [],
-  "clusterGroupRules": [{ "groupBy": "tag:?", "recursive": false }],
+  "clusterGroupRules": [
+    {
+      "groupBy": "tag:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "custom",
   "clusterNodeSpacing": 4.0,
   "clusterGroupScale": 2.5,
   "clusterGroupSpacing": 4.0,
   "fadeEdgesByDegree": false,
   "edgeBundleStrength": 0.8,
-  "sortRules": [{ "key": "label", "order": "asc" }],
+  "sortRules": [
+    {
+      "key": "label",
+      "order": "asc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    { "match": "isTag", "shape": "diamond" },
-    { "match": "default", "shape": "circle" }
+    {
+      "match": "isTag",
+      "shape": "diamond"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "date",
   "showEdgeLabels": true,
@@ -50,7 +65,6 @@
   "groupByRules": null,
   "groupMinSize": 3,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout",
   "concentricMinRadius": 50,
   "concentricRadiusStep": 60,
@@ -70,19 +84,59 @@
   "gridStyle": "table",
   "coordinateLayout": {
     "system": "cartesian",
-    "axis1": { "source": { "kind": "field", "field": "tag" }, "transform": { "kind": "linear", "scale": 1 } },
-    "axis2": { "source": { "kind": "field", "field": "category" }, "transform": { "kind": "linear", "scale": 1 } },
+    "axis1": {
+      "source": {
+        "kind": "field",
+        "field": "tag"
+      },
+      "transform": {
+        "kind": "linear",
+        "scale": 1
+      }
+    },
+    "axis2": {
+      "source": {
+        "kind": "field",
+        "field": "category"
+      },
+      "transform": {
+        "kind": "linear",
+        "scale": 1
+      }
+    },
     "perGroup": false,
     "grid": {
       "axis1Grid": {
-        "positions": { "kind": "field", "field": "tag" },
-        "shape": { "kind": "line" },
-        "ticks": { "show": true, "labels": { "kind": "field", "field": "tag" } }
+        "positions": {
+          "kind": "field",
+          "field": "tag"
+        },
+        "shape": {
+          "kind": "line"
+        },
+        "ticks": {
+          "show": true,
+          "labels": {
+            "kind": "field",
+            "field": "tag"
+          }
+        }
       },
       "axis2Grid": {
-        "positions": { "kind": "field", "field": "category" },
-        "shape": { "kind": "line" },
-        "ticks": { "show": true, "labels": { "kind": "field", "field": "category" } }
+        "positions": {
+          "kind": "field",
+          "field": "category"
+        },
+        "shape": {
+          "kind": "line"
+        },
+        "ticks": {
+          "show": true,
+          "labels": {
+            "kind": "field",
+            "field": "category"
+          }
+        }
       },
       "style": "table",
       "cellShading": true

@@ -29,8 +29,12 @@
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 2,
-  "commonQueries": [],
-  "clusterGroupRules": [{ "groupBy": "category:?", "recursive": false }],
+  "clusterGroupRules": [
+    {
+      "groupBy": "category:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "custom",
   "clusterNodeSpacing": 2.5,
   "clusterGroupScale": 2.0,
@@ -40,8 +44,15 @@
   "sortRules": [],
   "nodeRules": [],
   "nodeShapeRules": [
-    { "match": "category", "category": "protagonist", "shape": "hexagon" },
-    { "match": "default", "shape": "circle" }
+    {
+      "match": "category",
+      "category": "protagonist",
+      "shape": "hexagon"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "story_order",
   "showEdgeLabels": false,
@@ -50,7 +61,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout",
   "heatmapMode": false,
   "showDotGrid": false,
@@ -69,14 +79,39 @@
   "gridStyle": "lines",
   "coordinateLayout": {
     "system": "cartesian",
-    "axis1": { "source": { "kind": "property", "key": "story_order" }, "transform": { "kind": "date-to-index" } },
-    "axis2": { "source": { "kind": "index" }, "transform": { "kind": "stack-avoid" } },
+    "axis1": {
+      "source": {
+        "kind": "property",
+        "key": "story_order"
+      },
+      "transform": {
+        "kind": "date-to-index"
+      }
+    },
+    "axis2": {
+      "source": {
+        "kind": "index"
+      },
+      "transform": {
+        "kind": "stack-avoid"
+      }
+    },
     "perGroup": true,
     "grid": {
       "axis1Grid": {
-        "positions": { "kind": "count", "n": 10 },
-        "shape": { "kind": "line" },
-        "ticks": { "show": true, "labels": { "kind": "auto" } }
+        "positions": {
+          "kind": "count",
+          "n": 10
+        },
+        "shape": {
+          "kind": "line"
+        },
+        "ticks": {
+          "show": true,
+          "labels": {
+            "kind": "auto"
+          }
+        }
       },
       "style": "lines"
     }

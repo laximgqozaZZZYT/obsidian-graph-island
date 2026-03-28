@@ -2,7 +2,6 @@
   "layout": "force",
   "searchQuery": "path:mythology-norse* OR path:mythology-greek*",
   "groupBy": "folder:?",
-  "collapsedGroups": [],
   "nodeSize": 20,
   "repelForce": 350,
   "linkDistance": 80,

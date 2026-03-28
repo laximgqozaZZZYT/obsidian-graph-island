@@ -29,18 +29,30 @@
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 2,
-  "commonQueries": [],
-  "clusterGroupRules": [{ "groupBy": "folder:?", "recursive": false }],
+  "clusterGroupRules": [
+    {
+      "groupBy": "folder:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "concentric",
   "clusterNodeSpacing": 3.0,
   "clusterGroupScale": 2.5,
   "clusterGroupSpacing": 2.5,
   "fadeEdgesByDegree": true,
   "edgeBundleStrength": 0.7,
-  "sortRules": [{ "key": "degree", "order": "desc" }],
+  "sortRules": [
+    {
+      "key": "degree",
+      "order": "desc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    { "match": "default", "shape": "circle" }
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "start-date",
   "showEdgeLabels": false,
@@ -49,7 +61,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "display",
   "heatmapMode": false,
   "showDotGrid": false,
@@ -63,7 +74,10 @@
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "nodeDisplayMode": "donut",
-  "donutDisplayConfig": { "breakdownField": "node_type", "innerRadius": 0.6 },
+  "donutDisplayConfig": {
+    "breakdownField": "node_type",
+    "innerRadius": 0.6
+  },
   "coordinateLayout": null,
   "dataviewQuery": ""
 }

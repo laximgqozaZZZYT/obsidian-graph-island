@@ -28,26 +28,62 @@
   "showSemanticEdges": false,
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [
-    {"filter": "path:classic-hamlet*",    "direction": -1.5708, "strength": 0.80},
-    {"filter": "path:classic-macbeth*",   "direction":  0,      "strength": 0.80},
-    {"filter": "path:classic-othello*",   "direction":  1.5708, "strength": 0.80},
-    {"filter": "path:classic-king-lear*", "direction":  3.1416, "strength": 0.80}
+    {
+      "filter": "path:classic-hamlet*",
+      "direction": -1.5708,
+      "strength": 0.8
+    },
+    {
+      "filter": "path:classic-macbeth*",
+      "direction": 0,
+      "strength": 0.8
+    },
+    {
+      "filter": "path:classic-othello*",
+      "direction": 1.5708,
+      "strength": 0.8
+    },
+    {
+      "filter": "path:classic-king-lear*",
+      "direction": 3.1416,
+      "strength": 0.8
+    }
   ],
   "hoverHops": 2,
-  "commonQueries": [],
-  "clusterGroupRules": [{"groupBy": "folder:?", "recursive": false}],
+  "clusterGroupRules": [
+    {
+      "groupBy": "folder:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "grid",
   "clusterNodeSpacing": 2.5,
   "clusterGroupScale": 2.0,
   "clusterGroupSpacing": 2.5,
   "fadeEdgesByDegree": false,
   "edgeBundleStrength": 0.7,
-  "sortRules": [{"key": "degree", "direction": "desc"}],
+  "sortRules": [
+    {
+      "key": "degree",
+      "direction": "desc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    {"match": "category", "category": "protagonist", "shape": "hexagon"},
-    {"match": "category", "category": "villain", "shape": "diamond"},
-    {"match": "default", "shape": "circle"}
+    {
+      "match": "category",
+      "category": "protagonist",
+      "shape": "hexagon"
+    },
+    {
+      "match": "category",
+      "category": "villain",
+      "shape": "diamond"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "start-date",
   "showEdgeLabels": false,
@@ -56,7 +92,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout",
   "heatmapMode": false,
   "showDotGrid": false,

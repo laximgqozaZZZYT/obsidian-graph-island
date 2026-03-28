@@ -29,15 +29,24 @@
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 1,
-  "commonQueries": [],
-  "clusterGroupRules": [{ "groupBy": "folder", "recursive": false }],
+  "clusterGroupRules": [
+    {
+      "groupBy": "folder",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "grid",
   "clusterNodeSpacing": 3.0,
   "clusterGroupScale": 2.0,
   "clusterGroupSpacing": 3.0,
   "fadeEdgesByDegree": false,
   "edgeBundleStrength": 0.0,
-  "sortRules": [{ "key": "label", "order": "asc" }],
+  "sortRules": [
+    {
+      "key": "label",
+      "order": "asc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [],
   "timelineKey": "",
@@ -47,7 +56,6 @@
   "groupByRules": null,
   "groupMinSize": 1,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "display",
   "heatmapMode": false,
   "showDotGrid": false,
@@ -61,8 +69,15 @@
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "nodeDisplayMode": "default",
-  "cardDisplayConfig": { "fields": [], "maxWidth": 140, "showIcon": false, "headerStyle": "default" },
-  "donutDisplayConfig": { "innerRadius": 0.6 },
+  "cardDisplayConfig": {
+    "fields": [],
+    "maxWidth": 140,
+    "showIcon": false,
+    "headerStyle": "default"
+  },
+  "donutDisplayConfig": {
+    "innerRadius": 0.6
+  },
   "edgeCardinalityMode": "none",
   "cardinalityRules": [],
   "coordinateLayout": null,

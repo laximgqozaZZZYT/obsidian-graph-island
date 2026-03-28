@@ -28,12 +28,24 @@
   "showSemanticEdges": false,
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [
-    {"filter": "path:classic-saiyuki*",    "direction": -1.5708, "strength": 0.80},
-    {"filter": "path:classic-gilgamesh*",  "direction":  1.5708, "strength": 0.80}
+    {
+      "filter": "path:classic-saiyuki*",
+      "direction": -1.5708,
+      "strength": 0.8
+    },
+    {
+      "filter": "path:classic-gilgamesh*",
+      "direction": 1.5708,
+      "strength": 0.8
+    }
   ],
   "hoverHops": 1,
-  "commonQueries": [],
-  "clusterGroupRules": [{"groupBy": "folder:?", "recursive": false}],
+  "clusterGroupRules": [
+    {
+      "groupBy": "folder:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "grid",
   "clusterNodeSpacing": 2.5,
   "clusterGroupScale": 2.0,
@@ -43,7 +55,10 @@
   "sortRules": [],
   "nodeRules": [],
   "nodeShapeRules": [
-    {"match": "default", "shape": "circle"}
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "start-date",
   "showEdgeLabels": false,
@@ -52,6 +67,5 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout"
 }

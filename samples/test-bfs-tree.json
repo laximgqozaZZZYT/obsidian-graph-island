@@ -29,8 +29,12 @@
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 2,
-  "commonQueries": [],
-  "clusterGroupRules": [{ "groupBy": "folder:?", "recursive": false }],
+  "clusterGroupRules": [
+    {
+      "groupBy": "folder:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "grid",
   "clusterNodeSpacing": 3.5,
   "clusterGroupScale": 4.0,
@@ -40,8 +44,14 @@
   "sortRules": [],
   "nodeRules": [],
   "nodeShapeRules": [
-    { "match": "isTag", "shape": "triangle" },
-    { "match": "default", "shape": "circle" }
+    {
+      "match": "isTag",
+      "shape": "triangle"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "date",
   "showEdgeLabels": false,
@@ -50,7 +60,6 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout",
   "concentricMinRadius": 50,
   "concentricRadiusStep": 60,

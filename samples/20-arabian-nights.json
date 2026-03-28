@@ -29,20 +29,40 @@
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
   "hoverHops": 2,
-  "commonQueries": [],
-  "clusterGroupRules": [{"groupBy": "node_type:?", "recursive": false}],
+  "clusterGroupRules": [
+    {
+      "groupBy": "node_type:?",
+      "recursive": false
+    }
+  ],
   "clusterArrangement": "grid",
   "clusterNodeSpacing": 2.5,
   "clusterGroupScale": 2.0,
   "clusterGroupSpacing": 2.5,
   "fadeEdgesByDegree": false,
   "edgeBundleStrength": 0.8,
-  "sortRules": [{"key": "degree", "direction": "desc"}],
+  "sortRules": [
+    {
+      "key": "degree",
+      "direction": "desc"
+    }
+  ],
   "nodeRules": [],
   "nodeShapeRules": [
-    {"match": "category", "category": "protagonist", "shape": "hexagon"},
-    {"match": "category", "category": "villain", "shape": "diamond"},
-    {"match": "default", "shape": "circle"}
+    {
+      "match": "category",
+      "category": "protagonist",
+      "shape": "hexagon"
+    },
+    {
+      "match": "category",
+      "category": "villain",
+      "shape": "diamond"
+    },
+    {
+      "match": "default",
+      "shape": "circle"
+    }
   ],
   "timelineKey": "story_order",
   "showEdgeLabels": false,
@@ -51,6 +71,5 @@
   "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "collapsedGroups": [],
   "activeTab": "layout"
 }
