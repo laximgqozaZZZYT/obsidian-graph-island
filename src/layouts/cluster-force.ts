@@ -2861,7 +2861,7 @@ interface BBox {
 /** Alias for effectiveRadius (used by auto-fit computation) */
 
 /** Estimate label width for a node (approximation: 7px per char) */
-function estimateLabelWidth(n: GraphNode): number {
+export function estimateLabelWidth(n: GraphNode): number {
   const label = n.label || n.id;
   // Super nodes have "(N)" suffix appended
   const suffix = n.collapsedMembers ? ` (${n.collapsedMembers.length})` : "";

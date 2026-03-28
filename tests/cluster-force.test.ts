@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { forceSimulation, forceManyBody, type Simulation } from "d3-force";
-import { buildClusterForce, nodeRadius, effectiveRadius, computeGroupGap, pairwiseGap, estimateLabelExtent, analyzeOverlap, computeAutoOptimize, type ClusterForceConfig, type ClusterForceResult } from "../src/layouts/cluster-force";
+import { buildClusterForce, nodeRadius, effectiveRadius, computeGroupGap, pairwiseGap, estimateLabelExtent, analyzeOverlap, computeAutoOptimize, estimateLabelWidth, type ClusterForceConfig, type ClusterForceResult } from "../src/layouts/cluster-force";
 
 /** Extract the force function from a ClusterForceResult (mirrors the old API). */
 function extractForce(result: ClusterForceResult | null): ((alpha: number) => void) | null {
@@ -1234,5 +1234,47 @@ describe("effectiveRadius", () => {
     const r = effectiveRadius(mkNode(), 20, 0, 60, 18, 0, false, 0, 1000, 1.0);
     const rBase = effectiveRadius(mkNode(), 20, 0);
     expect(r).toBe(rBase);
+  });
+});
+
+// ===========================================================================
+// estimateLabelWidth — character-based width estimation
+// ===========================================================================
+
+describe("estimateLabelWidth", () => {
+  const mkLabelNode = (overrides?: Partial<GraphNode>) =>
+    ({ id: "n1", label: "test", x: 0, y: 0, isTag: false, ...overrides } as GraphNode);
+
+  it("returns width proportional to label length", () => {
+    const short = estimateLabelWidth(mkLabelNode({ label: "ab" }));
+    const long = estimateLabelWidth(mkLabelNode({ label: "abcdefghij" }));
+    expect(long).toBeGreaterThan(short);
+    expect(long / short).toBeCloseTo(10 / 2, 0);
+  });
+
+  it("uses id when label is empty", () => {
+    const n = mkLabelNode({ id: "test-node", label: "" });
+    const w = estimateLabelWidth(n);
+    expect(w).toBe("test-node".length * 7);
+  });
+
+  it("adds suffix width for super nodes", () => {
+    const normal = mkLabelNode({ label: "group" });
+    const superNode = mkLabelNode({ label: "group", collapsedMembers: ["a", "b", "c"] });
+    const normalW = estimateLabelWidth(normal);
+    const superW = estimateLabelWidth(superNode);
+    expect(superW).toBeGreaterThan(normalW);
+    // Suffix " (3)" adds 4 chars × 7px = 28px
+    expect(superW - normalW).toBe(4 * 7);
+  });
+
+  it("returns 7px per character", () => {
+    const n = mkLabelNode({ label: "x" });
+    expect(estimateLabelWidth(n)).toBe(7);
+  });
+
+  it("handles node with only id (no label property)", () => {
+    const n = { id: "myid", x: 0, y: 0, isTag: false } as GraphNode;
+    expect(estimateLabelWidth(n)).toBe("myid".length * 7);
   });
 });
