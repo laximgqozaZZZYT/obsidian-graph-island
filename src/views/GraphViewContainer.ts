@@ -3888,6 +3888,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         this.drawNodeCircle(pn, false);
         if (pn.hoverLabel) { pn.gfx.removeChild(pn.hoverLabel); pn.hoverLabel.destroy(); pn.hoverLabel = null; pn.hoverForcedLabel = false; }
       } else if (curSet.has(pn.data.id)) {
+        pn.gfx.visible = true;
         pn.gfx.alpha = 1;
         if (isCardMode && pn.data.id === effectiveHId) {
           pn.gfx.scale.set(crc.cardHoverScale);

@@ -2218,7 +2218,10 @@ function drawIntraGroupCables(
     for (const e of branchEdges) {
       const sid = edgeSourceId(e);
       const tid = edgeTargetId(e);
-      if (cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid)) return "bright";
+      // Both endpoints must be in highlight set for the edge to be "bright".
+      // This prevents trunk/branch lines unrelated to the hovered node from
+      // being highlighted just because they share a group port.
+      if (cfg.highlightSet.has(sid) && cfg.highlightSet.has(tid)) return "bright";
     }
     return "dim";
   };
