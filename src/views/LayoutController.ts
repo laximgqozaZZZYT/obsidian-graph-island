@@ -101,11 +101,11 @@ export class LayoutController {
         const crc = panel.cardRenderConfig ?? {};
         const cardAR = (crc as any).cardAspectRatio > 0 ? (crc as any).cardAspectRatio : 1.618;
         const headerH = ((crc as any).tableHeaderHeight ?? 18) * cardScale;
-        const fieldLineH = ((crc as any).fieldLineHeight ?? 14) * cardScale;
-        const hasDefField = (panel.definitionField ?? "").length > 0 ? 1 : 0;
-        const hasPreview = 1; // bodyPreview row
-        const fieldCount = (panel.cardDisplayConfig?.fields?.length ?? 0) + hasDefField + hasPreview;
-        const cardH = headerH + fieldCount * fieldLineH + 8 * cardScale;
+        const bodyLineH = ((crc as any).fieldLineHeight ?? 14) * cardScale;
+        // Body-driven card height: estimate from bodyLength
+        const bodyLen = n.bodyLength ?? 0;
+        const bodyLines = Math.min(Math.max(1, Math.ceil(bodyLen / 75)), 4); // 1-4 lines
+        const cardH = headerH + bodyLines * bodyLineH + 8 * cardScale;
         const cardW = cardH * cardAR;
         const halfDiag = Math.sqrt(cardW * cardW + cardH * cardH) / 2;
         return Math.max(halfDiag + cardCollidePad, visualR + cardCollidePad);
