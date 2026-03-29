@@ -778,7 +778,9 @@ export class RenderPipeline {
       // At extreme zoom, use brighter stroke instead of halo for hover feedback
       const strokeAlpha = isExtremeZoom ? 1.0 : 0.85;
       pn.circle.lineStyle(crc.highlightStrokeWidth, isExtremeZoom ? lightenColor(pn.color, 0.3) : strokeCol, strokeAlpha);
-      drawShape(pn.circle, shape, effR, pn.color, 1);
+      // Fill node interior with a bright, opaque version of the node color
+      // so highlighted nodes are clearly distinguishable from dimmed ones
+      drawShape(pn.circle, shape, effR, lightenColor(pn.color, 0.2), 1);
     } else {
       pn.circle.visible = false;
     }
