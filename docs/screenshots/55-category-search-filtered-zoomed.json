@@ -195,8 +195,7 @@
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true,
-    "labelOverlapMargin": 68
+    "autoLOD": true
   },
   "guideLineMode": "perGroup",
   "_absoluteZoom": 0.8

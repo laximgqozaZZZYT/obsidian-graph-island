@@ -196,7 +196,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 80
+    "labelOverlapMargin": 24
   },
   "guideLineMode": "perGroup"
 }

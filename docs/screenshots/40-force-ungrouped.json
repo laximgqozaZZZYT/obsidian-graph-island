@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-hamlet*",
+  "searchQuery": "path:classic-othello*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -84,10 +84,10 @@
   "groupMinSize": 2,
   "groupFilter": "",
   "activeTab": "layout",
-  "autoFit": false,
-  "showDurationBars": true,
+  "autoFit": true,
+  "showDurationBars": false,
   "showTimelineRoutes": true,
-  "timelineEndKey": "end-date",
+  "timelineEndKey": "",
   "timelineOrderFields": "",
   "coordinateLayout": null,
   "showDotGrid": false,
@@ -99,23 +99,48 @@
   "showTimelineTickLabels": true,
   "gridCellShading": false,
   "gridStyle": "lines",
-  "gridLabelPlacement": "on-line",
+  "gridLabelPlacement": "between",
   "clusterGravity": {
     "interGroupAttraction": 0.5,
     "intraGroupDensity": 1
   },
   "clusterFollowsGroupBy": true,
-  "nodeDisplayMode": "node",
+  "nodeDisplayMode": "card",
   "cardDisplayConfig": {
-    "fields": [],
-    "maxWidth": 120,
-    "showIcon": false
+    "fields": [
+      "node_type",
+      "story_order"
+    ],
+    "maxWidth": 140,
+    "showIcon": false,
+    "headerStyle": "table"
   },
   "donutDisplayConfig": {
     "innerRadius": 0.6
   },
-  "edgeCardinalityMode": "none",
-  "cardinalityRules": [],
+  "edgeCardinalityMode": "crowsfoot",
+  "cardinalityRules": [
+    {
+      "edgeType": "inheritance",
+      "sourceCardinality": "1",
+      "targetCardinality": "0..N"
+    },
+    {
+      "edgeType": "aggregation",
+      "sourceCardinality": "1",
+      "targetCardinality": "0..N"
+    },
+    {
+      "edgeType": "link",
+      "sourceCardinality": "1",
+      "targetCardinality": "0..1"
+    },
+    {
+      "edgeType": "sequence",
+      "sourceCardinality": "1",
+      "targetCardinality": "1"
+    }
+  ],
   "cableBundleMode": "auto",
   "cableTrunkWidth": 12,
   "cableTrunkAlpha": 0.25,
@@ -171,10 +196,15 @@
   "layout": "force",
   "showTags": false,
   "colorNodesByCategory": false,
+  "heatmapMode": false,
   "showGuideLines": false,
+  "guideLineMode": "per-group",
+  "showGroupGrid": false,
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true
-  }
+    "autoLOD": true,
+    "labelOverlapMargin": 216
+  },
+  "gridTableMode": true
 }

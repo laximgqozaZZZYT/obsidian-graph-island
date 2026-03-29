@@ -256,7 +256,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 180
+    "labelOverlapMargin": 168
   },
   "gridTableMode": true,
   "_absoluteZoom": 0.8

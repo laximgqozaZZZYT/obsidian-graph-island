@@ -1,25 +1,15 @@
 [
   {
-    "name": "48-node-type-triangle",
-    "nodes": 6,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "49-orphan-flood",
-    "nodes": 119,
-    "pass": true,
-    "issues": []
-  },
-  {
     "name": "50-arrow-heavy-directed",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
+    "nodes": 1,
+    "pass": false,
+    "issues": [
+      "Too few nodes: 1"
+    ]
   },
   {
     "name": "51-enclosure-tight",
-    "nodes": 123,
+    "nodes": 125,
     "pass": true,
     "issues": []
   },
@@ -37,7 +27,7 @@
   },
   {
     "name": "56-force-colorful",
-    "nodes": 238,
+    "nodes": 224,
     "pass": true,
     "issues": []
   },
@@ -104,6 +94,44 @@
   {
     "name": "test-concentric-layout",
     "nodes": 246,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "test-hub-radial",
+    "nodes": 1,
+    "pass": false,
+    "issues": [
+      "Too few nodes: 1"
+    ]
+  },
+  {
+    "name": "test-sunburst-full",
+    "nodes": 119,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "test-sunburst-layout",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "test-tag-category-matrix",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "test-timeline-story",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "test-timeline",
+    "nodes": 369,
     "pass": true,
     "issues": []
   }
