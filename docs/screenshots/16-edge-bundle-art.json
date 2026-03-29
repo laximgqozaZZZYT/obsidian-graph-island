@@ -163,12 +163,11 @@
     "intraGroupDensity": 1
   },
   "clusterFollowsGroupBy": true,
-  "nodeDisplayMode": "card",
+  "nodeDisplayMode": "node",
   "cardDisplayConfig": {
     "fields": [],
     "maxWidth": 120,
-    "showIcon": false,
-    "headerStyle": "table"
+    "showIcon": false
   },
   "donutDisplayConfig": {
     "innerRadius": 0.6
@@ -227,17 +226,18 @@
   "analysisOverlay": "off",
   "showOntologyBackbone": false,
   "showGapEdges": false,
-  "renderThresholds": {
-    "labelOverlapMargin": 24,
-    "minNodeRadius": 8,
-    "nodeSizeByDegree": true,
-    "autoLOD": true
-  },
   "layout": "force",
   "showTags": false,
   "colorNodesByCategory": true,
   "heatmapMode": false,
   "showGuideLines": false,
   "guideLineMode": "shared",
-  "showGroupGrid": false
+  "showGroupGrid": false,
+  "renderThresholds": {
+    "minNodeRadius": 8,
+    "nodeSizeByDegree": true,
+    "autoLOD": true,
+    "labelOverlapMargin": 96
+  },
+  "gridTableMode": true
 }

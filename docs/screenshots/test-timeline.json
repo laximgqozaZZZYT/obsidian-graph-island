@@ -61,9 +61,9 @@
   "clusterGroupRules": [],
   "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 2.3,
-  "clusterGroupScale": 1,
-  "clusterGroupSpacing": 0.5,
+  "clusterNodeSpacing": 1,
+  "clusterGroupScale": 5,
+  "clusterGroupSpacing": 5,
   "fadeEdgesByDegree": true,
   "edgeBundleStrength": 0.8,
   "sortRules": [],
@@ -95,11 +95,70 @@
   "groupFilter": "",
   "activeTab": "layout",
   "autoFit": true,
-  "showDurationBars": true,
+  "showDurationBars": false,
   "showTimelineRoutes": true,
-  "timelineEndKey": "end-date",
-  "timelineOrderFields": "next,prev,parent_id,story_order",
-  "coordinateLayout": null,
+  "timelineEndKey": "",
+  "timelineOrderFields": "",
+  "coordinateLayout": {
+    "system": "cartesian",
+    "axis1": {
+      "source": {
+        "kind": "field",
+        "field": "tag"
+      },
+      "transform": {
+        "kind": "linear",
+        "scale": 1
+      }
+    },
+    "axis2": {
+      "source": {
+        "kind": "field",
+        "field": "category"
+      },
+      "transform": {
+        "kind": "linear",
+        "scale": 1
+      }
+    },
+    "perGroup": false,
+    "grid": {
+      "axis1Grid": {
+        "positions": {
+          "kind": "field",
+          "field": "tag"
+        },
+        "shape": {
+          "kind": "line"
+        },
+        "ticks": {
+          "show": true,
+          "labels": {
+            "kind": "field",
+            "field": "tag"
+          }
+        }
+      },
+      "axis2Grid": {
+        "positions": {
+          "kind": "field",
+          "field": "category"
+        },
+        "shape": {
+          "kind": "line"
+        },
+        "ticks": {
+          "show": true,
+          "labels": {
+            "kind": "field",
+            "field": "category"
+          }
+        }
+      },
+      "style": "table",
+      "cellShading": true
+    }
+  },
   "showDotGrid": false,
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
@@ -186,9 +245,9 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 36
+    "labelOverlapMargin": 48
   },
-  "guideLineMode": "shared",
-  "showGroupGrid": false,
+  "guideLineMode": "per-group",
+  "showGroupGrid": true,
   "gridTableMode": true
 }

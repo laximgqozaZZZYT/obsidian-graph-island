@@ -30,6 +30,7 @@ const SKIP_PRESETS = new Set([
   // Causes capture script crash (presets that hang during zoomed variant capture)
   "37-hierarchical-sunburst", "41-all-edges-maxdensity",
   "44-timeline-dense-overlap", "45-grid-tight-spacing",
+  "43-concentric-tiny-accessibility",
   "46-tree-deep-hierarchy", "49-orphan-flood", "test-timeline-story", "test-tree",
 ]);
 

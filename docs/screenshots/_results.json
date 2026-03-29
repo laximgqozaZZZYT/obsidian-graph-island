@@ -1,15 +1,19 @@
 [
   {
+    "name": "48-node-type-triangle",
+    "nodes": 7,
+    "pass": true,
+    "issues": []
+  },
+  {
     "name": "50-arrow-heavy-directed",
-    "nodes": 1,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 1"
-    ]
+    "nodes": 125,
+    "pass": true,
+    "issues": []
   },
   {
     "name": "51-enclosure-tight",
-    "nodes": 125,
+    "nodes": 123,
     "pass": true,
     "issues": []
   },
@@ -27,7 +31,7 @@
   },
   {
     "name": "56-force-colorful",
-    "nodes": 224,
+    "nodes": 238,
     "pass": true,
     "issues": []
   },
@@ -107,7 +111,7 @@
   },
   {
     "name": "test-sunburst-full",
-    "nodes": 119,
+    "nodes": 123,
     "pass": true,
     "issues": []
   },
@@ -120,14 +124,10 @@
   {
     "name": "test-tag-category-matrix",
     "nodes": 123,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "test-timeline-story",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
+    "pass": false,
+    "issues": [
+      "Too few visible nodes in viewport: 4/123"
+    ]
   },
   {
     "name": "test-timeline",
