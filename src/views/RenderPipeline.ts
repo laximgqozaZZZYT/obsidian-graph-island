@@ -91,10 +91,10 @@ const MAX_LABEL_COUNT = 1500;
 const DEFAULT_LABEL_DEGREE_THRESHOLD = 3;
 
 /** Number of nodes created synchronously before deferring the rest */
-const IMMEDIATE_BATCH_SIZE = 200;
+const IMMEDIATE_BATCH_SIZE = 50;
 
 /** Number of nodes processed per deferred batch frame (higher = faster initial render) */
-const DEFERRED_BATCH_SIZE = 200;
+const DEFERRED_BATCH_SIZE = 500;
 
 /** Sunburst segment default arc angle in degrees */
 const SUNBURST_SEGMENT_ARC_DEG = 30;
@@ -2655,12 +2655,14 @@ export class RenderPipeline {
 
   private scheduleDeferredBatch() {
     if (this.deferredBatchId !== null) return;
-    this.deferredBatchId = setTimeout(this.processDeferredBatch, 0);
+    // Use requestAnimationFrame to yield to the renderer between batches,
+    // keeping the UI responsive during progressive node creation.
+    this.deferredBatchId = requestAnimationFrame(this.processDeferredBatch) as unknown as ReturnType<typeof setTimeout>;
   }
 
   cancelDeferredBatch() {
     if (this.deferredBatchId !== null) {
-      clearTimeout(this.deferredBatchId);
+      cancelAnimationFrame(this.deferredBatchId as unknown as number);
       this.deferredBatchId = null;
     }
     this.pendingNodes = [];
