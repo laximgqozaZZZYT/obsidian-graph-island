@@ -8109,21 +8109,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
       }
       // Rebuild road network now that final node positions are available
       this._rebuildRoadNetwork(true);
-      // Post-process: run extra collide iterations for card mode to resolve overlaps
-      // that the simulation didn't fully resolve during its alpha decay.
-      if (this.panel.nodeDisplayMode === "card" && this.simulation) {
-        const collide = this.simulation.force("collide");
-        if (collide) {
-          for (let i = 0; i < 50; i++) {
-            (collide as any)(0.3); // manual tick with moderate alpha
-          }
-          // Sync positions after extra collide passes
-          for (const pn of this.pixiNodes.values()) {
-            pn.gfx.x = pn.data.x;
-            pn.gfx.y = pn.data.y;
-          }
-        }
-      }
+      // Card overlap is handled by forceCollide during the simulation itself.
+      // No post-process needed — collide radius in LayoutController accounts
+      // for card dimensions in world coordinates.
       // Force full redraw now that all positions are final
       this.updatePositions(true);
       // G1: AutoFit when simulation ends — but skip if user manually zoomed

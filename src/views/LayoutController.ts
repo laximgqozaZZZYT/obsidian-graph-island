@@ -94,21 +94,11 @@ export class LayoutController {
       const visualR = pn ? Math.max(pn.radius, canonicalR) : canonicalR;
 
       if (panel.nodeDisplayMode === "card") {
-        // Compute actual card half-diagonal for proper collision avoidance
-        // Must account for counter-scale: cards render at cardScale = min(1/zoom, 8)
-        const worldScale = this.host.getWorldScale();
-        const cardScale = Math.min(1 / Math.max(worldScale, 0.02), 8);
-        const crc = panel.cardRenderConfig ?? {};
-        const cardAR = (crc as any).cardAspectRatio > 0 ? (crc as any).cardAspectRatio : 1.618;
-        const headerH = ((crc as any).tableHeaderHeight ?? 18) * cardScale;
-        const bodyLineH = ((crc as any).fieldLineHeight ?? 14) * cardScale;
-        // Body-driven card height: estimate from bodyLength (match RenderPipeline's charPerLine=25)
-        const bodyLen = n.bodyLength ?? 0;
-        const bodyLines = Math.min(Math.max(1, Math.ceil(bodyLen / 25)), 4); // 1-4 lines
-        const cardH = headerH + bodyLines * bodyLineH + 8 * cardScale;
-        const cardW = cardH * cardAR;
-        const halfDiag = Math.sqrt(cardW * cardW + cardH * cardH) / 2;
-        return Math.max(halfDiag + cardCollidePad, visualR + cardCollidePad);
+        // Card mode: add extra padding to the node's visual radius.
+        // Cards are counter-scaled at render time (1/zoom), so their screen
+        // size depends on zoom. The collide radius works in world coords
+        // and should give modest extra spacing — not the full card pixel size.
+        return visualR + cardCollidePad;
       }
       if (n.collapsedMembers && n.collapsedMembers.length > 0) {
         return visualR + superCollidePad;
@@ -163,7 +153,8 @@ export class LayoutController {
         .id((d) => d.id)
         .distance((e) => edgeLinkDistance(e, panel.linkDistance))
         .strength((e) => edgeLinkStrength(e, panel.linkForce)))
-      .force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(8));
+      .force("collide", forceCollide<GraphNode>().radius(this.collideRadius())
+        .iterations(panel.nodeDisplayMode === "card" ? 20 : 8));
 
     // Per-node center gravity from NodeRules
     const centerGravMap = this.computeCenterGravityMap(sim.nodes());
@@ -440,7 +431,8 @@ export class LayoutController {
       }
       return chargeForce * clusterSmallScale;
     }));
-    sim.force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(8));
+    sim.force("collide", forceCollide<GraphNode>().radius(this.collideRadius())
+      .iterations(panel.nodeDisplayMode === "card" ? 20 : 8));
     sim.force("center", null);
     sim.force("link", null);
     sim.force("directionalGravity", null);
@@ -610,7 +602,8 @@ export class LayoutController {
         .id((d) => d.id)
         .distance((e) => edgeLinkDistance(e, panel.linkDistance))
         .strength((e) => edgeLinkStrength(e, panel.linkForce)))
-      .force("collide", forceCollide<GraphNode>().radius(this.collideRadius()).iterations(8))
+      .force("collide", forceCollide<GraphNode>().radius(this.collideRadius())
+        .iterations(panel.nodeDisplayMode === "card" ? 20 : 8))
       .alphaDecay(0.18)
       .velocityDecay(0.55);
 
