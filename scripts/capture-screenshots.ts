@@ -30,7 +30,7 @@ const SKIP_PRESETS = new Set([
   // Causes capture script crash (presets that hang during zoomed variant capture)
   "37-hierarchical-sunburst", "41-all-edges-maxdensity",
   "44-timeline-dense-overlap", "45-grid-tight-spacing",
-  "43-concentric-tiny-accessibility",
+  "43-concentric-tiny-accessibility", "48-node-type-triangle",
   "46-tree-deep-hierarchy", "49-orphan-flood", "test-timeline-story", "test-tree",
 ]);
 
@@ -172,6 +172,12 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
       }
       // Clear sunburst labels
       if (v._clearSunburstLabels) v._clearSunburstLabels();
+      // Clear cluster sunburst labels
+      if (v.clusterSunburstLabels) {
+        v.clusterSunburstLabels.forEach(function(lbl: any) { lbl.visible = false; });
+      }
+      // Force viewMode to graph for all presets (sunburst/timeline handled by preset)
+      if (!p["viewMode"]) v.panel.viewMode = "graph";
 
       // Vault prefix fix: when vault is parent "obsidian-plugins", content paths
       // start with "開発/". Rewrite "path:classic-" → "path:開発/classic-" etc.
@@ -227,10 +233,12 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
         v.panel.colorEdgesByRelation = true;
       }
 
-      // ANTI-PATTERN FIX: Reduce cluster spread for screenshots so nodes are visible.
-      // Large clusterGroupScale (2.5+) pushes groups too far apart → invisible nodes.
-      if (v.panel.groupBy && v.panel.groupBy !== "none") {
-        v.panel.clusterGroupScale = Math.min(v.panel.clusterGroupScale || 1, 1.2);
+      // ANTI-PATTERN FIX: Disable groupBy for screenshots to prevent
+      // auto-collapse creating near-empty screens with 1-3 giant group nodes.
+      // Individual node layouts produce more visually informative screenshots.
+      if (!p["groupBy"] || p["groupBy"] === "folder:?" || p["groupBy"] === "category:?") {
+        v.panel.groupBy = "none";
+        v.panel.clusterGroupRules = [];
       }
 
       // ANTI-PATTERN FIX: Ensure minimum node size for screenshot visibility.

@@ -58,16 +58,11 @@
     "inheritance": true,
     "aggregation": true
   },
-  "clusterGroupRules": [
-    {
-      "groupBy": "folder:?",
-      "recursive": false
-    }
-  ],
+  "clusterGroupRules": [],
   "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
   "clusterNodeSpacing": 2,
-  "clusterGroupScale": 1.2,
+  "clusterGroupScale": 3,
   "clusterGroupSpacing": 3,
   "fadeEdgesByDegree": true,
   "edgeBundleStrength": 0.9,
@@ -103,13 +98,8 @@
   "showEdgeLabels": false,
   "edgeLabelPlacement": "center",
   "showMinimap": true,
-  "groupBy": "folder:?",
-  "groupByRules": [
-    {
-      "field": "folder:?",
-      "indent": 0
-    }
-  ],
+  "groupBy": "none",
+  "groupByRules": [],
   "groupMinSize": 2,
   "groupFilter": "",
   "activeTab": "layout",
@@ -208,7 +198,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 60
+    "labelOverlapMargin": 72
   },
   "gridTableMode": true,
   "_absoluteZoom": 0.8

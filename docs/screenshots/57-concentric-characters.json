@@ -58,16 +58,11 @@
     "inheritance": true,
     "aggregation": true
   },
-  "clusterGroupRules": [
-    {
-      "groupBy": "folder:?",
-      "recursive": false
-    }
-  ],
+  "clusterGroupRules": [],
   "clusterArrangement": "concentric",
   "clusterGroupArrangement": "auto",
   "clusterNodeSpacing": 2,
-  "clusterGroupScale": 1.2,
+  "clusterGroupScale": 1.5,
   "clusterGroupSpacing": 2,
   "fadeEdgesByDegree": false,
   "edgeBundleStrength": 0.3,
@@ -95,12 +90,7 @@
   "edgeLabelPlacement": "center",
   "showMinimap": true,
   "groupBy": "none",
-  "groupByRules": [
-    {
-      "field": "folder:?",
-      "indent": 0
-    }
-  ],
+  "groupByRules": [],
   "groupMinSize": 2,
   "groupFilter": "",
   "activeTab": "layout",

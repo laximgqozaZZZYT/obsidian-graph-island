@@ -67,7 +67,7 @@
   "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
   "clusterNodeSpacing": 2.5,
-  "clusterGroupScale": 1.2,
+  "clusterGroupScale": 2,
   "clusterGroupSpacing": 2.5,
   "fadeEdgesByDegree": false,
   "edgeBundleStrength": 0.8,
@@ -231,7 +231,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 96
+    "labelOverlapMargin": 120
   },
   "gridTableMode": true
 }

@@ -1,5 +1,5 @@
 {
-  "viewMode": "sunburst",
+  "viewMode": "graph",
   "matrixSortMode": "degree",
   "excludeNodes": [],
   "autoFitOnFilter": false,
