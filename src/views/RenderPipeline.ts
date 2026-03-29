@@ -1497,34 +1497,36 @@ export class RenderPipeline {
     const fieldLineH = crc.fieldLineHeight * cardScale;
     const pad = crc.cardPadding * cardScale;
     const cornerR = crc.cardCornerRadius * cardScale;
-    // IE: Card content respects hover checklist for meta/body display
-    const panelMeta = this.host.getPanel?.()?.hoverShowMeta ?? true;
-    const panelBody = this.host.getPanel?.()?.hoverShowBody ?? false;
-    const showMeta = panelMeta && nodeCount < rt.cardTextNodeCount && cardConfig.fields.length > 0;
-    const fieldCount = showMeta ? cardConfig.fields.length : 0;
-    // M4: extra rows for definitionField and bodyPreview
-    const defField = this.host.getDefinitionField?.() ?? "";
-    const hasDefField = (panelMeta && defField.length > 0) ? 1 : 0;
-    const hasPreview = panelBody ? 1 : 0;
-    const totalH = headerH + (fieldCount + hasDefField + hasPreview) * fieldLineH + pad * 2;
+    // Card content: show body text instead of frontmatter fields.
+    // Body line count varies per node — use max for uniform card sizing,
+    // but cap to prevent enormous cards.
+    const MAX_BODY_LINES = 4;
+    const bodyLineH = fieldLineH;
+    // Compute per-node body line count for variable card height
+    const defaultBodyLines = 1; // minimum: 1 line for nodes without body
 
     const tableCardNodes: PixiNode[] = [];
-
-    // Card width: golden ratio (or custom aspect ratio) based on content height
     const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
-    const arHalfW = (totalH * cardAR) / 2;
 
     for (const pn of visible) {
       const effR = Math.max(pn.radius, minWorldRadius);
       const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
-      // Card minimum width: at least 40 world-px so body text is readable, capped to prevent enormous cards
+
+      // Body-driven card height: count body lines from bodyPreview
+      const bodyText = pn.data.bodyPreview ?? "";
+      const charPerLine = 25; // approximate chars per line at card width
+      const rawLines = bodyText.length > 0 ? Math.ceil(bodyText.length / charPerLine) : 0;
+      const bodyLines = Math.min(rawLines, MAX_BODY_LINES);
+      const totalH = headerH + Math.max(defaultBodyLines, bodyLines) * bodyLineH + pad * 2;
+
+      const arHalfW = (totalH * cardAR) / 2;
       const MIN_CARD_HALF_W = Math.min(20 / worldScale, 20 * CARD_SCALE_CAP);
       const halfW = Math.max(MIN_CARD_HALF_W, Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor));
       const cardW = halfW * 2;
       const cardX = pn.data.x - halfW;
       const cardY = pn.data.y - totalH / 2;
 
-      // 0. Drop shadow (behind card)
+      // 0. Drop shadow
       if (crc.cardShadowAlpha > 0) {
         const shadowOff = crc.cardShadowOffset / worldScale;
         g.lineStyle(0);
@@ -1533,7 +1535,7 @@ export class RenderPipeline {
         g.endFill();
       }
 
-      // 1. Card background (thin fill)
+      // 1. Card background
       g.lineStyle(0);
       g.beginFill(pn.color, nodeAlpha * crc.cardBackgroundAlpha);
       g.drawRoundedRect(cardX, cardY, cardW, totalH, cornerR);
@@ -1547,7 +1549,7 @@ export class RenderPipeline {
       g.drawRect(cardX, cardY + headerH, cardW, cornerR);
       g.endFill();
 
-      // 2b. File icon in header (when showIcon enabled)
+      // 2b. File icon
       if (showIcon) {
         this._renderCardIcon(g, cardX, cardY, headerH, pad, worldScale, nodeAlpha);
       }
@@ -1558,19 +1560,9 @@ export class RenderPipeline {
       g.moveTo(cardX, cardY + headerH);
       g.lineTo(cardX + cardW, cardY + headerH);
 
-      // 4. Striped field rows
-      if (fieldCount > 0) {
-        g.lineStyle(0);
-        for (let fi = 0; fi < fieldCount; fi++) {
-          const rowY = cardY + headerH + fi * fieldLineH;
-          const rowAlpha = fi % 2 === 0 ? crc.cardRowAlphaEven : crc.cardRowAlphaOdd;
-          g.beginFill(pn.color, nodeAlpha * rowAlpha);
-          g.drawRect(cardX, rowY, cardW, fieldLineH);
-          g.endFill();
-        }
-      }
+      // No striped field rows — body text fills this area instead
 
-      // Outer border (IK: high contrast doubles stroke)
+      // Outer border
       const hcTable = this.host.isHighContrastMode?.() ? 2 : 1;
       const strokeColor = darkenColor(pn.color, crc.strokeDarken);
       g.lineStyle(hcTable, strokeColor, nodeAlpha * crc.strokeAlpha);
@@ -1578,13 +1570,16 @@ export class RenderPipeline {
       g.drawRoundedRect(cardX, cardY, cardW, totalH, cornerR);
       g.endFill();
 
+      // Store computed dimensions for text pass
+      (pn as any)._cardTotalH = totalH;
+      (pn as any)._cardBodyLines = bodyLines;
       if (nodeCount < rt.cardTextNodeCount) tableCardNodes.push(pn);
     }
 
     // Text pass for table cards (only when node count < threshold)
     if (tableCardNodes.length > 0) {
       this._renderTableCardText(tableCardNodes, crc, rt, cardConfig, cardMaxW,
-        showIcon, headerH, fieldLineH, pad, totalH, arHalfW, worldScale, minWorldRadius);
+        showIcon, headerH, bodyLineH, pad, 0 /* per-node */, 0 /* per-node */, worldScale, minWorldRadius);
     }
   }
 
@@ -1619,7 +1614,7 @@ export class RenderPipeline {
     g.endFill();
   }
 
-  /** Render text labels for table (ER-diagram) cards. */
+  /** Render text labels for table cards: header + body text (no frontmatter). */
   private _renderTableCardText(
     tableCardNodes: PixiNode[],
     crc: ReturnType<typeof Object.assign>,
@@ -1627,69 +1622,50 @@ export class RenderPipeline {
     cardConfig: CardDisplayConfig,
     cardMaxW: number,
     showIcon: boolean,
-    headerH: number, fieldLineH: number, pad: number,
-    totalH: number, arHalfW: number,
+    headerH: number, bodyLineH: number, pad: number,
+    _totalH: number, _arHalfW: number,
     worldScale: number, minWorldRadius: number,
   ) {
     const labelColor = this.host.getLabelColor();
+    const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
 
     for (const pn of tableCardNodes) {
+      const totalH = (pn as any)._cardTotalH ?? headerH + bodyLineH + pad * 2;
+      const bodyLines = (pn as any)._cardBodyLines ?? 0;
+      const arHalfW = (totalH * cardAR) / 2;
       const effR = Math.max(pn.radius, minWorldRadius);
       const MIN_CARD_HALF_W_TEXT = Math.min(20 / worldScale, 20 * CARD_SCALE_CAP);
       const halfW = Math.max(MIN_CARD_HALF_W_TEXT, Math.min(cardMaxW / 2, crc.cardAspectRatio > 0 ? arHalfW : effR * crc.cardWidthFactor));
-      const cardY = -totalH / 2;  // relative to pn.gfx
+      const cardY = -totalH / 2;
       const textPadX = pad;
       const fontSize = Math.min(Math.max(crc.headerFontSizeMin, crc.headerFontSizeBase / worldScale), crc.headerFontSizeBase * CARD_SCALE_CAP);
       const smallFontSize = Math.min(Math.max(crc.fieldFontSizeMin, crc.fieldFontSizeBase / worldScale), crc.fieldFontSizeBase * CARD_SCALE_CAP);
-      const fieldCount2 = cardConfig.fields.length;
       const gfx = pn.gfx;
 
-      // Icon offset for header text
       const iconOffset = showIcon ? (headerH * CARD_ICON_SIZE_RATIO + pad) : 0;
       const availableTextW = halfW * 2 - textPadX * 2 - iconOffset;
 
-      // Header text (bold, white) — apply GD labelMaxChars
+      // Header text (bold, contrasting color)
       const headerText = createCardText(truncateLabel(pn.data.label, rt.labelMaxChars), fontSize, contrastColor(pn.color), "bold");
       headerText.x = -halfW + textPadX + iconOffset;
       headerText.y = cardY + headerH / 2 + fontSize * crc.fontBaselineOffset;
       if (rt.cardTextTruncation !== false) headerText.maxWidth = availableTextW;
       gfx.addChild(headerText);
 
-      // M4: Definition field (bold line above regular fields)
-      const defField = this.host.getDefinitionField?.() ?? "";
-      const meta = pn.data.meta ?? {};
-      let extraRowOffset = 0;
-      if (defField && meta[defField] != null && String(meta[defField]) !== "") {
-        const defText = createCardText(String(meta[defField]), smallFontSize, labelColor, "bold");
-        defText.x = -halfW + textPadX;
-        defText.y = cardY + headerH + extraRowOffset * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
-        if (rt.cardTextTruncation !== false) defText.maxWidth = availableTextW;
-        gfx.addChild(defText);
-        extraRowOffset++;
-      }
-
-      // Field rows
-      const fieldValueOnly = cardConfig.fieldFormat === "value-only";
-      for (let fi = 0; fi < fieldCount2; fi++) {
-        const fieldName = cardConfig.fields[fi];
-        const rawVal = meta[fieldName];
-        const valStr = rawVal == null ? "" : String(rawVal);
-        const displayText = fieldValueOnly ? valStr : `${fieldName}: ${valStr}`;
-        const fieldText = createCardText(displayText, smallFontSize, labelColor);
-        fieldText.x = -halfW + textPadX;
-        fieldText.y = cardY + headerH + (fi + extraRowOffset) * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
-        if (rt.cardTextTruncation !== false) fieldText.maxWidth = availableTextW;
-        gfx.addChild(fieldText);
-      }
-
-      // M4: Body preview (italic, last line)
-      if (pn.data.bodyPreview) {
-        const previewText = createCardText(pn.data.bodyPreview, smallFontSize, labelColor, "normal", "italic");
-        previewText.x = -halfW + textPadX;
-        previewText.y = cardY + headerH + (fieldCount2 + extraRowOffset) * fieldLineH + fieldLineH / 2 + smallFontSize * crc.fontBaselineOffset;
-        previewText.alpha = crc.cardSubTextAlpha;
-        if (rt.cardTextTruncation !== false) previewText.maxWidth = availableTextW;
-        gfx.addChild(previewText);
+      // Body text (wrap into multiple lines)
+      if (bodyLines > 0 && pn.data.bodyPreview) {
+        const body = pn.data.bodyPreview;
+        const charPerLine = Math.max(10, Math.floor(availableTextW / (smallFontSize * 0.6)));
+        for (let li = 0; li < bodyLines; li++) {
+          const lineText = body.substring(li * charPerLine, (li + 1) * charPerLine);
+          if (!lineText) break;
+          const bodyLine = createCardText(lineText, smallFontSize, labelColor);
+          bodyLine.x = -halfW + textPadX;
+          bodyLine.y = cardY + headerH + li * bodyLineH + bodyLineH / 2 + smallFontSize * crc.fontBaselineOffset;
+          bodyLine.alpha = 0.85;
+          if (rt.cardTextTruncation !== false) bodyLine.maxWidth = availableTextW;
+          gfx.addChild(bodyLine);
+        }
       }
     }
   }
