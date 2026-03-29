@@ -289,23 +289,23 @@ describe("screenToWorld", () => {
 // computeZoomFadeAlpha — zoom-out fade for nodes/intra-group cables
 // ===========================================================================
 describe("computeZoomFadeAlpha", () => {
-  it("returns 1 at zoom >= 0.5", () => {
-    expect(computeZoomFadeAlpha(0.5)).toBe(1);
+  it("returns 1 at zoom >= fadeStart (0.7)", () => {
+    expect(computeZoomFadeAlpha(0.7)).toBe(1);
     expect(computeZoomFadeAlpha(1.0)).toBe(1);
     expect(computeZoomFadeAlpha(5.0)).toBe(1);
   });
 
   it("returns fadeFloor at zoom <= fadeEnd", () => {
-    expect(computeZoomFadeAlpha(0.15)).toBe(0.05);
-    expect(computeZoomFadeAlpha(0.1)).toBe(0.05);
-    expect(computeZoomFadeAlpha(0.01)).toBe(0.05);
+    expect(computeZoomFadeAlpha(0.15)).toBe(0.03);
+    expect(computeZoomFadeAlpha(0.1)).toBe(0.03);
+    expect(computeZoomFadeAlpha(0.01)).toBe(0.03);
   });
 
   it("returns intermediate values between fadeEnd and fadeStart", () => {
-    const mid = computeZoomFadeAlpha(0.325); // midpoint of [0.15, 0.5]
-    expect(mid).toBeGreaterThan(0.05);
+    const mid = computeZoomFadeAlpha(0.425); // midpoint of [0.15, 0.7]
+    expect(mid).toBeGreaterThan(0.03);
     expect(mid).toBeLessThan(1);
-    expect(mid).toBeCloseTo(0.525, 1);
+    expect(mid).toBeCloseTo(0.515, 1);
   });
 
   it("is monotonically increasing", () => {
@@ -323,11 +323,16 @@ describe("computeZoomFadeAlpha", () => {
   });
 
   it("respects custom fadeEnd", () => {
-    expect(computeZoomFadeAlpha(0.3, 0.5, 0.3)).toBe(0.05);
-    expect(computeZoomFadeAlpha(0.31, 0.5, 0.3)).toBeGreaterThan(0.05);
+    expect(computeZoomFadeAlpha(0.3, 0.5, 0.3)).toBe(0.03);
+    expect(computeZoomFadeAlpha(0.31, 0.5, 0.3)).toBeGreaterThan(0.03);
   });
 
   it("respects custom fadeFloor", () => {
     expect(computeZoomFadeAlpha(0, 0.5, 0.15, 0.2)).toBe(0.2);
+  });
+
+  it("fades individual nodes more at mid-zoom than default", () => {
+    // At zoom 0.5 (just below new fadeStart 0.7), fade should be active
+    expect(computeZoomFadeAlpha(0.5)).toBeLessThan(1);
   });
 });

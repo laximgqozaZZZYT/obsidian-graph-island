@@ -75,9 +75,9 @@ const VIEWPORT_CULL_MARGIN_PX = 60;
  */
 export function computeZoomFadeAlpha(
   zoom: number,
-  fadeStart = 0.5,
+  fadeStart = 0.7,
   fadeEnd = 0.15,
-  fadeFloor = 0.05,
+  fadeFloor = 0.03,
 ): number {
   if (zoom >= fadeStart) return 1;
   if (zoom <= fadeEnd) return fadeFloor;
@@ -1126,7 +1126,8 @@ export class RenderPipeline {
     g.lineStyle(0);
   }
 
-  /** Mid zoom: all circles (skip shape lookup + gradient for speed). */
+  /** Mid zoom: all circles (skip shape lookup + gradient for speed).
+   *  SuperNodes (collapsed groups) render at full alpha; individual nodes fade out. */
   private _renderMidZoom(
     g: CanvasGraphics,
     visible: PixiNode[],
@@ -1137,8 +1138,11 @@ export class RenderPipeline {
   ) {
     g.lineStyle(0);
     for (const pn of visible) {
+      const isSuperNode = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
       const effR = Math.max(pn.radius, minWorldRadius);
-      const nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+      let nodeAlpha = (tlFilteredOut && tlFilteredOut.has(pn.data.id)) ? alpha * crc.filteredNodeAlpha : alpha;
+      // Individual (non-super) nodes get extra fade at mid-zoom to reduce clumping
+      if (!isSuperNode) nodeAlpha *= 0.4;
       g.beginFill(pn.color, nodeAlpha);
       g.drawCircle(pn.data.x, pn.data.y, effR);
       g.endFill();
