@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:bible-old-testament*",
+  "searchQuery": "path:classic-arthurian*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -218,7 +218,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 132
+    "labelOverlapMargin": 144
   },
   "gridTableMode": true,
   "_absoluteZoom": 0.8

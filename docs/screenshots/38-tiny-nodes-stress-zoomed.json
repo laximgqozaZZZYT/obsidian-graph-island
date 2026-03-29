@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-divine-comedy*",
+  "searchQuery": "path:classic-iliad*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -66,7 +66,7 @@
   ],
   "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 2.3,
+  "clusterNodeSpacing": 10,
   "clusterGroupScale": 1,
   "clusterGroupSpacing": 1,
   "fadeEdgesByDegree": false,
@@ -214,7 +214,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 192
+    "labelOverlapMargin": 216
   },
   "gridTableMode": true,
   "_absoluteZoom": 0.8

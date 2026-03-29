@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-macbeth*",
+  "searchQuery": "path:mythology-greek*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -214,7 +214,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 204
+    "labelOverlapMargin": 216
   },
   "gridTableMode": true,
   "_absoluteZoom": 0.8

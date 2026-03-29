@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:bible-old-testament*",
+  "searchQuery": "path:mythology-japanese*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -189,7 +189,8 @@
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true
+    "autoLOD": true,
+    "labelOverlapMargin": 24
   },
   "guideLineMode": "per-group",
   "showGroupGrid": false

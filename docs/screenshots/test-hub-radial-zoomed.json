@@ -21,7 +21,7 @@
   "showOrbitRings": false,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:classic-arabian-nights*",
+  "searchQuery": "path:classic-gilgamesh*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -212,7 +212,8 @@
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true
+    "autoLOD": true,
+    "labelOverlapMargin": 24
   },
   "guideLineMode": "per-group",
   "showGroupGrid": false,

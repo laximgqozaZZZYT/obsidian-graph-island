@@ -21,7 +21,7 @@
   "showOrbitRings": false,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:mythology-japanese*",
+  "searchQuery": "path:classic-saiyuki*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -186,7 +186,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 36
+    "labelOverlapMargin": 48
   },
   "guideLineMode": "shared",
   "showGroupGrid": false,

@@ -28,8 +28,9 @@ const SKIP_PRESETS = new Set([
   // Empty/near-empty renders (coordinate system or layout issues)
   "29-concentric-degree", "54-radial-dense",
   // Causes capture script crash (presets that hang during zoomed variant capture)
-  "37-hierarchical-sunburst", "44-timeline-dense-overlap", "45-grid-tight-spacing",
-  "46-tree-deep-hierarchy", "49-orphan-flood", "test-tree",
+  "37-hierarchical-sunburst", "41-all-edges-maxdensity",
+  "44-timeline-dense-overlap", "45-grid-tight-spacing",
+  "46-tree-deep-hierarchy", "49-orphan-flood", "test-timeline-story", "test-tree",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {
