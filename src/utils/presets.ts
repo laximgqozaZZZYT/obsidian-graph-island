@@ -105,7 +105,7 @@ const ARRAY_FIELDS: (keyof PanelState)[] = [
 const ENUM_VALUES: Partial<Record<keyof PanelState, readonly string[]>> = {
   viewMode: ["graph", "sunburst", "timeline", "tree", "matrix"] as const,
   tagDisplay: ["node", "enclosure"] as const,
-  clusterArrangement: ["concentric", "radial", "phyllotaxis", "grid", "triangle", "random", "timeline", "custom", "ego"] as const,
+  clusterArrangement: ["inherit", "concentric", "radial", "phyllotaxis", "grid", "triangle", "random", "timeline", "custom", "ego"] as const,
   clusterGroupArrangement: ["auto", "circle", "horizontal", "vertical", "concentric", "grid"] as const,
   nodeDisplayMode: ["node", "card", "donut", "sunburst-segment"] as const,
   edgeCardinalityMode: ["none", "crowsfoot"] as const,

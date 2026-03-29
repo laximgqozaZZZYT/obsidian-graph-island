@@ -398,7 +398,7 @@ export function createDefaultPanel(): PanelState {
     },
     commonQueries: [],
     clusterGroupRules: [],
-    clusterArrangement: "grid" as ClusterArrangement,
+    clusterArrangement: "inherit" as ClusterArrangement,
     clusterGroupArrangement: "auto" as ClusterGroupArrangement,
     clusterNodeSpacing: 3.0,
     clusterGroupScale: 3.0,
@@ -2807,6 +2807,7 @@ function _buildSamplePresetSelector(
 /** Arrangement pattern dropdown */
 function _buildArrangementPatternSelect(s: ClusterSectionCtx): void {
   addSelect(s.body, t("cluster.pattern"), [
+    { value: "inherit", label: t("cluster.inherit") },
     { value: "concentric", label: t("cluster.concentric") },
     { value: "radial", label: t("cluster.radial") },
     { value: "phyllotaxis", label: t("cluster.phyllotaxis") },

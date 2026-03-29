@@ -230,6 +230,7 @@ const en: TranslationMap = {
 
   // --- PanelBuilder: cluster arrangement ---
   "cluster.pattern": "Arrangement Pattern",
+  "cluster.inherit": "Inherit from group",
   "cluster.concentric": "Concentric",
   "cluster.radial": "Radial",
   "cluster.phyllotaxis": "Phyllotaxis",
@@ -1096,6 +1097,7 @@ const ja: TranslationMap = {
 
   // --- PanelBuilder: cluster arrangement ---
   "cluster.pattern": "配置パターン",
+  "cluster.inherit": "グループ配置を継承",
   "cluster.concentric": "同心円",
   "cluster.radial": "放射",
   "cluster.phyllotaxis": "フィロタキシス",

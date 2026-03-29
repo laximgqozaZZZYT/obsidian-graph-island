@@ -104,6 +104,14 @@ export const CURVE_REGISTRY: Record<CurveKind, CurveDefinition> = {
  * The coordinate system is NOT coupled to the arrangement; users can override freely.
  */
 export const ARRANGEMENT_PRESETS: Record<ClusterArrangement, CoordinateLayout> = {
+  // "inherit" resolves at runtime in LayoutController — placeholder only.
+  // Uses a distinct marker so resolveArrangementFromLayout doesn't confuse it with "grid".
+  inherit: {
+    system: "cartesian",
+    axis1: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_LINEAR, scale: 1 } },
+    axis2: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_LINEAR, scale: 1 } },
+    perGroup: true,
+  },
   concentric: {
     system: "polar",
     axis1: { source: { kind: SOURCE_INDEX }, transform: { kind: TRANSFORM_EXPRESSION, expr: "floor(i / _ringSize) + 1", scale: 1 } },

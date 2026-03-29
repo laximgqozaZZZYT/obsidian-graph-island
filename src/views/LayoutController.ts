@@ -1,5 +1,5 @@
 import { forceSimulation, forceManyBody, forceCenter, forceLink, forceCollide, type Simulation, type Force } from "d3-force";
-import type { GraphNode, GraphEdge, DirectionalGravityRule, ClusterGroupRule, NodeRule } from "../types";
+import type { GraphNode, GraphEdge, DirectionalGravityRule, ClusterGroupRule, NodeRule, ClusterArrangement } from "../types";
 import {
   TAG_DISPLAY_ENCLOSURE, SOURCE_PROPERTY,
   ARRANGEMENT_CONCENTRIC, ARRANGEMENT_RADIAL, ARRANGEMENT_TIMELINE,
@@ -420,7 +420,11 @@ export class LayoutController {
     const sim = this.host.getSimulation();
     if (!sim) return;
     const panel = this.host.getPanel();
-    const { clusterArrangement } = panel;
+    // "inherit" mode: derive node arrangement from group arrangement
+    const rawArrangement = panel.clusterArrangement;
+    const clusterArrangement = rawArrangement === "inherit"
+      ? this._resolveInheritArrangement(panel.clusterGroupArrangement)
+      : rawArrangement;
     const grav = panel.clusterGravity ?? { interGroupAttraction: 0.5, intraGroupDensity: 1.0 };
 
     const chargeForce = panel.renderThresholds?.clusterChargeForce
@@ -633,5 +637,17 @@ export class LayoutController {
 
     this.host.setSimulation(sim);
     return sim;
+  }
+
+  /** Map clusterGroupArrangement → clusterArrangement for "inherit" mode. */
+  private _resolveInheritArrangement(groupArrangement: string): ClusterArrangement {
+    switch (groupArrangement) {
+      case "circle": return "concentric";
+      case "concentric": return "concentric";
+      case "grid": return "grid";
+      case "horizontal": return "grid";
+      case "vertical": return "grid";
+      default: return "grid"; // "auto" fallback
+    }
   }
 }
