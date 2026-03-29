@@ -1993,6 +1993,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     world.addChild(roadGfx);
     this.trayGraphics = roadGfx;
 
+    // Cluster boundary graphics — behind edges and nodes
+    const clusterBoundaryGfx = new CanvasGraphics();
+    world.addChild(clusterBoundaryGfx);
+    this.clusterBoundaryGraphics = clusterBoundaryGfx;
+
     // Enclosure layer (tag enclosures, drawn behind edges)
     const enclosureGfx = new CanvasGraphics();
     world.addChild(enclosureGfx);
@@ -2037,11 +2042,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     const labelContainer = new CanvasContainer();
     world.addChild(labelContainer);
     this.enclosureLabelContainer = labelContainer;
-
-    // Cluster boundary graphics — below nodes but above dot grid
-    const clusterBoundaryGfx = new CanvasGraphics();
-    world.addChild(clusterBoundaryGfx);
-    this.clusterBoundaryGraphics = clusterBoundaryGfx;
 
     // GroupBy label container — must be CanvasContainer (children are CanvasText)
     const groupLabelContainer = new CanvasContainer();
