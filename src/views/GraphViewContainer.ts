@@ -582,6 +582,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   getState() {
+    // Restore "inherit" before serialization if it was resolved during render
+    if (this._inheritResolved) {
+      this.panel.clusterArrangement = "inherit";
+      this._inheritResolved = false;
+    }
     const sup = super.getState();
     // Serialize panel with special handling for Set (collapsedGroups) and transient fields
     const panelClone: Record<string, unknown> = {};
@@ -3732,6 +3737,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** JK: Run auto-optimize once after layout settles (debounced, no-op if already optimized). */
   private _labelOptimized = false;
+  /** Whether clusterArrangement was resolved from "inherit" during this render */
+  private _inheritResolved = false;
   private _autoOptimizeLabelOverlapOnce(): void {
     if (this._labelOptimized) return;
     this._labelOptimized = true;
@@ -7651,6 +7658,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // B2: Sanitize panel state before rendering
     validatePanelState(this.panel);
+
+    // Resolve "inherit" → concrete arrangement based on clusterGroupArrangement.
+    // This must happen before any code reads panel.clusterArrangement.
+    if (this.panel.clusterArrangement === "inherit") {
+      const gga = this.panel.clusterGroupArrangement ?? "auto";
+      this.panel.clusterArrangement = (
+        gga === "circle" || gga === "concentric" ? "concentric"
+        : gga === "grid" ? "grid"
+        : gga === "horizontal" ? "grid"
+        : gga === "vertical" ? "grid"
+        : "grid"
+      ) as any;
+      // Mark so we can restore "inherit" after render for correct serialization
+      this._inheritResolved = true;
+    }
 
     // Sync currentLayout from viewMode (ensures saved state is respected)
     this.currentLayout = viewModeToLayout(this.panel.viewMode);
