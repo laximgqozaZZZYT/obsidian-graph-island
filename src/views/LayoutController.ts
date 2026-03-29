@@ -102,9 +102,9 @@ export class LayoutController {
         const cardAR = (crc as any).cardAspectRatio > 0 ? (crc as any).cardAspectRatio : 1.618;
         const headerH = ((crc as any).tableHeaderHeight ?? 18) * cardScale;
         const bodyLineH = ((crc as any).fieldLineHeight ?? 14) * cardScale;
-        // Body-driven card height: estimate from bodyLength
+        // Body-driven card height: estimate from bodyLength (match RenderPipeline's charPerLine=25)
         const bodyLen = n.bodyLength ?? 0;
-        const bodyLines = Math.min(Math.max(1, Math.ceil(bodyLen / 75)), 4); // 1-4 lines
+        const bodyLines = Math.min(Math.max(1, Math.ceil(bodyLen / 25)), 4); // 1-4 lines
         const cardH = headerH + bodyLines * bodyLineH + 8 * cardScale;
         const cardW = cardH * cardAR;
         const halfDiag = Math.sqrt(cardW * cardW + cardH * cardH) / 2;
