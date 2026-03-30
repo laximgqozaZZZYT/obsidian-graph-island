@@ -1,0 +1,13 @@
+{
+  "layout": "concentric",
+  "searchQuery": "path:classic-saiyuki*",
+  "nodeSize": 7,
+  "showLinks": true,
+  "showSemanticEdges": false,
+  "showTagEdges": true,
+  "colorEdgesByRelation": true,
+  "nodeColorMode": "category",
+  "showMinimap": true,
+  "showArrows": true,
+  "sortRules": [{"key": "degree", "direction": "desc"}]
+}

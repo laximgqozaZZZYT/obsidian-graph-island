@@ -98,7 +98,7 @@
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "ringChartMode": false,
-  "gridShowHeaders": true,
+  "gridShowHeaders": false,
   "showAxisTitles": false,
   "showTimelineTickLabels": true,
   "gridCellShading": false,

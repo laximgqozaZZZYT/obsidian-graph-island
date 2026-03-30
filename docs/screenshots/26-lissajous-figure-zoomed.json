@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:mythology-egyptian*",
+  "searchQuery": "path:classic-othello*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -123,7 +123,7 @@
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "ringChartMode": false,
-  "gridShowHeaders": true,
+  "gridShowHeaders": false,
   "showAxisTitles": false,
   "showTimelineTickLabels": true,
   "gridCellShading": false,
@@ -208,8 +208,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 144
+    "labelOverlapMargin": 152
   },
-  "gridTableMode": true,
   "_absoluteZoom": 0.8
 }

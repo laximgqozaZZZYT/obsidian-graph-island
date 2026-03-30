@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:classic-divine-comedy*",
+  "searchQuery": "path:classic-hamlet*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -108,7 +108,7 @@
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "ringChartMode": false,
-  "gridShowHeaders": true,
+  "gridShowHeaders": false,
   "showAxisTitles": false,
   "showTimelineTickLabels": true,
   "gridCellShading": false,
@@ -183,15 +183,14 @@
   "showOntologyBackbone": false,
   "showGapEdges": false,
   "layout": "force",
-  "showTags": true,
-  "colorNodesByCategory": true,
   "showGuideLines": false,
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true,
-    "labelOverlapMargin": 44
+    "autoLOD": true
   },
+  "showTags": true,
+  "colorNodesByCategory": true,
   "guideLineMode": "per-group",
   "showGroupGrid": false
 }

@@ -1,0 +1,12 @@
+{
+  "layout": "force",
+  "viewMode": "sunburst",
+  "searchQuery": "path:mythology-egyptian*",
+  "nodeSize": 6,
+  "showLinks": true,
+  "showSemanticEdges": false,
+  "showTagEdges": false,
+  "colorEdgesByRelation": false,
+  "nodeColorMode": "category",
+  "showMinimap": true
+}

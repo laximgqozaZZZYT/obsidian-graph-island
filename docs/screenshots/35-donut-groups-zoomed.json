@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-sangokushi*",
+  "searchQuery": "path:classic-hamlet*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -61,7 +61,7 @@
   "clusterGroupRules": [],
   "clusterArrangement": "concentric",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 6.8,
+  "clusterNodeSpacing": 4.5,
   "clusterGroupScale": 2.5,
   "clusterGroupSpacing": 2.5,
   "fadeEdgesByDegree": true,
@@ -104,7 +104,7 @@
   "showTimelineTickLabels": true,
   "gridCellShading": false,
   "gridStyle": "lines",
-  "gridLabelPlacement": "between",
+  "gridLabelPlacement": "on-line",
   "clusterGravity": {
     "interGroupAttraction": 0.5,
     "intraGroupDensity": 1
@@ -188,7 +188,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 168
+    "labelOverlapMargin": 188
   },
   "gridTableMode": true,
   "_absoluteZoom": 0.8

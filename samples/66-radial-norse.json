@@ -1,0 +1,12 @@
+{
+  "layout": "radial",
+  "searchQuery": "path:mythology-norse*",
+  "nodeSize": 8,
+  "showLinks": true,
+  "showSemanticEdges": true,
+  "showTagEdges": true,
+  "colorEdgesByRelation": true,
+  "nodeColorMode": "category",
+  "showMinimap": true,
+  "showArrows": true
+}

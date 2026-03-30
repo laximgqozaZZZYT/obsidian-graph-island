@@ -61,9 +61,9 @@
   "clusterGroupRules": [],
   "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 2,
-  "clusterGroupScale": 1.5,
-  "clusterGroupSpacing": 2,
+  "clusterNodeSpacing": 2.3,
+  "clusterGroupScale": 1,
+  "clusterGroupSpacing": 0.5,
   "fadeEdgesByDegree": false,
   "edgeBundleStrength": 0.3,
   "sortRules": [],
@@ -94,11 +94,11 @@
   "groupMinSize": 2,
   "groupFilter": "",
   "activeTab": "layout",
-  "autoFit": false,
+  "autoFit": true,
   "showDurationBars": true,
   "showTimelineRoutes": true,
   "timelineEndKey": "end-date",
-  "timelineOrderFields": "",
+  "timelineOrderFields": "next,prev",
   "coordinateLayout": null,
   "showDotGrid": false,
   "timelineRangeMin": 0,
@@ -115,11 +115,12 @@
     "intraGroupDensity": 1
   },
   "clusterFollowsGroupBy": true,
-  "nodeDisplayMode": "node",
+  "nodeDisplayMode": "default",
   "cardDisplayConfig": {
     "fields": [],
-    "maxWidth": 120,
-    "showIcon": false
+    "maxWidth": 140,
+    "showIcon": false,
+    "headerStyle": "default"
   },
   "donutDisplayConfig": {
     "innerRadius": 0.6
@@ -181,13 +182,16 @@
   "layout": "force",
   "showTags": false,
   "colorNodesByCategory": true,
+  "heatmapMode": false,
   "showGuideLines": false,
+  "guideLineMode": "perGroup",
+  "showGroupGrid": false,
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 44
+    "labelOverlapMargin": 224
   },
-  "guideLineMode": "perGroup",
+  "gridTableMode": true,
   "_absoluteZoom": 0.8
 }

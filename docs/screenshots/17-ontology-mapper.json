@@ -146,7 +146,7 @@
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "ringChartMode": false,
-  "gridShowHeaders": true,
+  "gridShowHeaders": false,
   "showAxisTitles": false,
   "showTimelineTickLabels": true,
   "gridCellShading": false,
@@ -231,7 +231,6 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 96
-  },
-  "gridTableMode": true
+    "labelOverlapMargin": 104
+  }
 }

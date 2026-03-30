@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:mythology-norse*",
+  "searchQuery": "path:classic-king-lear*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -113,7 +113,7 @@
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "ringChartMode": false,
-  "gridShowHeaders": true,
+  "gridShowHeaders": false,
   "showAxisTitles": false,
   "showTimelineTickLabels": true,
   "gridCellShading": false,
@@ -198,7 +198,6 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 60
-  },
-  "gridTableMode": true
+    "labelOverlapMargin": 68
+  }
 }

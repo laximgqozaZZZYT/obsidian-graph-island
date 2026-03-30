@@ -85,54 +85,16 @@
   "groupFilter": "",
   "activeTab": "layout",
   "autoFit": false,
-  "showDurationBars": true,
+  "showDurationBars": false,
   "showTimelineRoutes": true,
-  "timelineEndKey": "end_order",
-  "timelineOrderFields": "next,prev,parent_id,story_order",
-  "coordinateLayout": {
-    "system": "cartesian",
-    "axis1": {
-      "source": {
-        "kind": "property",
-        "key": "story_order"
-      },
-      "transform": {
-        "kind": "date-to-index"
-      }
-    },
-    "axis2": {
-      "source": {
-        "kind": "index"
-      },
-      "transform": {
-        "kind": "stack-avoid"
-      }
-    },
-    "perGroup": true,
-    "grid": {
-      "axis1Grid": {
-        "positions": {
-          "kind": "count",
-          "n": 8
-        },
-        "shape": {
-          "kind": "line"
-        },
-        "ticks": {
-          "show": true,
-          "labels": {
-            "kind": "auto"
-          }
-        }
-      },
-      "style": "lines"
-    }
-  },
+  "timelineEndKey": "end-date",
+  "timelineOrderFields": "next,prev",
+  "coordinateLayout": null,
   "showDotGrid": false,
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "ringChartMode": false,
-  "gridShowHeaders": true,
+  "gridShowHeaders": false,
   "showAxisTitles": false,
   "showTimelineTickLabels": true,
   "gridCellShading": false,
@@ -219,6 +181,5 @@
     "autoLOD": true,
     "labelOverlapMargin": 60
   },
-  "gridTableMode": true,
   "_absoluteZoom": 0.8
 }

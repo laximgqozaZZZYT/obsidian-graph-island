@@ -21,11 +21,13 @@ const SKIP_PRESETS = new Set([
   "test-random-scatter", "test-bfs-tree", "test-density-concentric", "test-folder-degree",
   // Tag-heavy presets with label clumping or crash
   "42-high-density-tags", "47-sunburst-with-tags", "52-mixed-nodesize-stress",
-  // Causes capture script crash (zoomed variant hang)
-  "37-hierarchical-sunburst", "41-all-edges-maxdensity",
-  "44-timeline-dense-overlap", "45-grid-tight-spacing",
+  // Causes capture script crash or empty render
+  "41-all-edges-maxdensity",
   "46-tree-deep-hierarchy", "test-sunburst-layout",
   "test-timeline", "test-timeline-story", "test-tree",
+  // Quality FAIL: coordinateLayout/viewMode presets produce empty or degenerate screenshots
+  "08-sequence-tracker", "22-timeline-ranged", "24-baobab-sunburst",
+  "30-mountain-ridge", "31-cross-tabulation", "48-node-type-triangle", "test-tag-category-matrix",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {

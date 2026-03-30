@@ -1,0 +1,14 @@
+{
+  "layout": "force",
+  "searchQuery": "path:bible-new-testament*",
+  "nodeSize": 5,
+  "repelForce": 250,
+  "linkDistance": 60,
+  "showLinks": true,
+  "showSemanticEdges": true,
+  "showTagEdges": false,
+  "colorEdgesByRelation": true,
+  "nodeColorMode": "category",
+  "showMinimap": true,
+  "showArrows": true
+}

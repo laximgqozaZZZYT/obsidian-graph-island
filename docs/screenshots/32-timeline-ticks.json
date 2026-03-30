@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-othello*",
+  "searchQuery": "path:mythology-greek*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -142,7 +142,7 @@
   "showTimelineTickLabels": true,
   "gridCellShading": false,
   "gridStyle": "lines",
-  "gridLabelPlacement": "between",
+  "gridLabelPlacement": "on-line",
   "clusterGravity": {
     "interGroupAttraction": 0.5,
     "intraGroupDensity": 1
@@ -222,7 +222,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 156
+    "labelOverlapMargin": 188
   },
   "gridTableMode": true
 }

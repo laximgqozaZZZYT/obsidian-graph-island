@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-arabian-nights*",
+  "searchQuery": "path:mythology-egyptian*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -61,7 +61,7 @@
   "clusterGroupRules": [],
   "clusterArrangement": "concentric",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 1,
+  "clusterNodeSpacing": 7.6,
   "clusterGroupScale": 1,
   "clusterGroupSpacing": 1,
   "fadeEdgesByDegree": false,
@@ -84,10 +84,10 @@
   "groupMinSize": 2,
   "groupFilter": "",
   "activeTab": "layout",
-  "autoFit": false,
-  "showDurationBars": true,
+  "autoFit": true,
+  "showDurationBars": false,
   "showTimelineRoutes": true,
-  "timelineEndKey": "end-date",
+  "timelineEndKey": "",
   "timelineOrderFields": "",
   "coordinateLayout": null,
   "showDotGrid": false,
@@ -105,11 +105,12 @@
     "intraGroupDensity": 1
   },
   "clusterFollowsGroupBy": true,
-  "nodeDisplayMode": "node",
+  "nodeDisplayMode": "default",
   "cardDisplayConfig": {
     "fields": [],
-    "maxWidth": 120,
-    "showIcon": false
+    "maxWidth": 140,
+    "showIcon": false,
+    "headerStyle": "default"
   },
   "donutDisplayConfig": {
     "innerRadius": 0.6
@@ -171,11 +172,15 @@
   "layout": "force",
   "showTags": false,
   "colorNodesByCategory": true,
+  "heatmapMode": false,
   "showGuideLines": false,
+  "guideLineMode": "shared",
+  "showGroupGrid": false,
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 40
-  }
+    "labelOverlapMargin": 200
+  },
+  "gridTableMode": true
 }

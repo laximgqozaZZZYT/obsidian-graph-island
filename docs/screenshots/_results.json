@@ -1,103 +1,7 @@
 [
   {
-    "name": "43-concentric-tiny-accessibility",
-    "nodes": 127,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "48-node-type-triangle",
-    "nodes": 7,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "49-orphan-flood",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "50-arrow-heavy-directed",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "51-enclosure-tight",
-    "nodes": 119,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "53-accessibility-contrast",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "55-category-search-filtered",
-    "nodes": 29,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "56-force-colorful",
-    "nodes": 238,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "57-concentric-characters",
-    "nodes": 15,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "58-timeline-arthurian",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "59-sunburst-bible",
-    "nodes": 369,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "60-dense-mythology",
-    "nodes": 252,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "61-enclosure-saiyuki",
-    "nodes": 102,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "62-grid-egyptian",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "63-radial-gilgamesh",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "64-force-divine-comedy",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "65-concentric-japanese",
-    "nodes": 123,
+    "name": "71-force-iliad-dense",
+    "nodes": 132,
     "pass": true,
     "issues": []
   },
@@ -115,25 +19,13 @@
   },
   {
     "name": "test-hub-radial",
-    "nodes": 123,
+    "nodes": 125,
     "pass": true,
     "issues": []
   },
   {
     "name": "test-sunburst-full",
     "nodes": 123,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "test-sunburst-layout",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "test-tag-category-matrix",
-    "nodes": 102,
     "pass": true,
     "issues": []
   }

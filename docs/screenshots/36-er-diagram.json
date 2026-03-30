@@ -109,7 +109,7 @@
   "showTimelineTickLabels": true,
   "gridCellShading": false,
   "gridStyle": "lines",
-  "gridLabelPlacement": "between",
+  "gridLabelPlacement": "on-line",
   "clusterGravity": {
     "interGroupAttraction": 0.5,
     "intraGroupDensity": 1
@@ -214,7 +214,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 168
+    "labelOverlapMargin": 188
   },
   "gridTableMode": true
 }

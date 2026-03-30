@@ -104,7 +104,7 @@
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "ringChartMode": false,
-  "gridShowHeaders": true,
+  "gridShowHeaders": false,
   "showAxisTitles": false,
   "showTimelineTickLabels": true,
   "gridCellShading": false,
@@ -179,15 +179,13 @@
   "showOntologyBackbone": false,
   "showGapEdges": false,
   "layout": "arc",
-  "showTags": false,
-  "colorNodesByCategory": true,
   "showGuideLines": false,
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true,
-    "labelOverlapMargin": 44
+    "autoLOD": true
   },
-  "guideLineMode": "perGroup",
+  "showTags": false,
+  "colorNodesByCategory": true,
   "_absoluteZoom": 0.8
 }

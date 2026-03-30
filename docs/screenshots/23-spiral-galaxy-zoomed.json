@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:bible-old-testament*",
+  "searchQuery": "path:classic-divine-comedy*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -66,7 +66,7 @@
   ],
   "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 10,
+  "clusterNodeSpacing": 2.5,
   "clusterGroupScale": 2.5,
   "clusterGroupSpacing": 2,
   "fadeEdgesByDegree": true,
@@ -113,11 +113,12 @@
     "system": "cartesian",
     "axis1": {
       "source": {
-        "kind": "property",
-        "key": "story_order"
+        "kind": "index"
       },
       "transform": {
-        "kind": "date-to-index"
+        "kind": "expression",
+        "expr": "(i/n)^d*(cos(pi/k)/cos(i*2.39996%(2*pi/k)-pi/k))*cos(i*2.39996)",
+        "scale": 1
       }
     },
     "axis2": {
@@ -125,34 +126,23 @@
         "kind": "index"
       },
       "transform": {
-        "kind": "stack-avoid"
+        "kind": "expression",
+        "expr": "(i/n)^d*(cos(pi/k)/cos(i*2.39996%(2*pi/k)-pi/k))*sin(i*2.39996)",
+        "scale": 1
       }
     },
     "perGroup": true,
-    "grid": {
-      "axis1Grid": {
-        "positions": {
-          "kind": "step",
-          "step": 5
-        },
-        "shape": {
-          "kind": "line"
-        },
-        "ticks": {
-          "show": true,
-          "labels": {
-            "kind": "auto"
-          }
-        }
-      },
-      "style": "lines"
+    "constants": {
+      "k": 6,
+      "d": 0.5,
+      "_minGap": 8
     }
   },
   "showDotGrid": false,
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "ringChartMode": false,
-  "gridShowHeaders": true,
+  "gridShowHeaders": false,
   "showAxisTitles": false,
   "showTimelineTickLabels": true,
   "gridCellShading": false,
@@ -237,8 +227,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 132
+    "labelOverlapMargin": 128
   },
-  "gridTableMode": true,
   "_absoluteZoom": 0.8
 }
