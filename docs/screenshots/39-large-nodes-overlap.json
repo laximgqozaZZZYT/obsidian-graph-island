@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:mythology-japanese*",
+  "searchQuery": "path:mythology-norse*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -61,7 +61,7 @@
   "clusterGroupRules": [],
   "clusterArrangement": "concentric",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 7.6,
+  "clusterNodeSpacing": 1,
   "clusterGroupScale": 1,
   "clusterGroupSpacing": 1.5,
   "fadeEdgesByDegree": true,
@@ -84,10 +84,10 @@
   "groupMinSize": 2,
   "groupFilter": "",
   "activeTab": "layout",
-  "autoFit": true,
-  "showDurationBars": false,
+  "autoFit": false,
+  "showDurationBars": true,
   "showTimelineRoutes": true,
-  "timelineEndKey": "",
+  "timelineEndKey": "end-date",
   "timelineOrderFields": "",
   "coordinateLayout": null,
   "showDotGrid": false,
@@ -99,18 +99,17 @@
   "showTimelineTickLabels": true,
   "gridCellShading": false,
   "gridStyle": "lines",
-  "gridLabelPlacement": "between",
+  "gridLabelPlacement": "on-line",
   "clusterGravity": {
     "interGroupAttraction": 0.5,
     "intraGroupDensity": 1
   },
   "clusterFollowsGroupBy": true,
-  "nodeDisplayMode": "default",
+  "nodeDisplayMode": "node",
   "cardDisplayConfig": {
     "fields": [],
-    "maxWidth": 140,
-    "showIcon": false,
-    "headerStyle": "default"
+    "maxWidth": 120,
+    "showIcon": false
   },
   "donutDisplayConfig": {
     "innerRadius": 0.6
@@ -172,15 +171,11 @@
   "layout": "force",
   "showTags": false,
   "colorNodesByCategory": true,
-  "heatmapMode": false,
   "showGuideLines": false,
-  "guideLineMode": "shared",
-  "showGroupGrid": false,
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 192
-  },
-  "gridTableMode": true
+    "labelOverlapMargin": 24
+  }
 }
