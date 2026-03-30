@@ -7095,12 +7095,18 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.statusEl.style.animation = "";
   }
 
-  /** U2: Build rich status text with mode, counts, groups, and filter info */
-  private buildRichStatus(nodeCount: number, edgeCount: number): string {
+  /** U2: Build rich status text with mode, counts, groups, layout, and filter info */
+  private buildRichStatus(nodeCount: number, edgeCount: number, totalNodes?: number): string {
     const parts: string[] = [];
     if (this.panel.localGraphCenter) parts.push("Local");
     else if (this.panel.focusLayout) parts.push("Focus");
-    parts.push(`${nodeCount} nodes`);
+    // Show filtered ratio when applicable
+    const total = totalNodes ?? (this.rawData?.nodes.length ?? nodeCount);
+    if (total !== nodeCount) {
+      parts.push(`${nodeCount} / ${total} nodes`);
+    } else {
+      parts.push(`${nodeCount} nodes`);
+    }
     if (edgeCount > 0) parts.push(`${edgeCount} edges`);
     // Show group count if groupBy is active
     const groupCount = this.panel.collapsedGroups?.size ?? 0;
@@ -7112,6 +7118,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     // Show view mode if not default graph
     if (this.panel.viewMode && this.panel.viewMode !== "graph") {
       parts.push(this.panel.viewMode);
+    }
+    // Show groupBy field when active
+    if (this.panel.groupBy && this.panel.groupBy !== "none") {
+      parts.push(`by ${this.panel.groupBy}`);
     }
     return parts.join(" \u00B7 ");
   }
@@ -8436,14 +8446,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Update status, legend, search, and panel after static layout render completes. */
   private _postRenderUpdate(ld: GraphData): void {
-    const groupCount = this.nodeColorMap.size;
     const totalNodes = this.rawData?.nodes.length ?? ld.nodes.length;
-    const totalEdges = this.rawData?.edges.length ?? ld.edges.length;
-    const filtered = totalNodes !== ld.nodes.length;
-    const statusParts = [`${ld.nodes.length}${filtered ? ' / ' + totalNodes : ''} nodes`];
-    statusParts.push(`${ld.edges.length} edges`);
-    if (groupCount > 0) statusParts.push(`${groupCount} groups`);
-    this.setStatus(statusParts.join(', '));
+    this.setStatus(this.buildRichStatus(ld.nodes.length, ld.edges.length, totalNodes));
     this.updateLegend();
     this.updateEntropyScores();
     this.updateGraphStats(ld);

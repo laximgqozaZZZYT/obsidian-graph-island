@@ -432,7 +432,7 @@ export function createDefaultPanel(): PanelState {
     timelineRangeMin: 0,
     timelineRangeMax: 1,
     ringChartMode: false,
-    gridShowHeaders: true,
+    gridShowHeaders: false,
     showAxisTitles: true,
     showTimelineTickLabels: true,
     gridCellShading: false,

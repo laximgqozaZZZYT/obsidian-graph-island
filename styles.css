@@ -2394,7 +2394,15 @@
   .gi-help-overlay,
   .gi-graph-stats,
   .gi-compare-wrap,
-  .gi-detail-root {
+  .gi-detail-root,
+  .graph-status,
+  .gi-tab-content,
+  .gi-ont-rel-popup,
+  .gi-ac-popup,
+  .gi-search-results,
+  .gi-help-popup,
+  .gi-search-help-popup,
+  .graph-panel .graph-control-section-header .tree-item-icon {
     animation: none !important;
     transition: none !important;
   }
