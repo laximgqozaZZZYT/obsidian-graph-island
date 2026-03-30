@@ -7,14 +7,14 @@
   "maxDegreeFilter": 0,
   "includeTagsInData": true,
   "showAttachments": false,
-  "existingOnly": false,
-  "showOrphans": true,
+  "existingOnly": true,
+  "showOrphans": false,
   "showArrows": true,
-  "textFadeThreshold": 0.5,
+  "textFadeThreshold": 0.4,
   "nodeSize": 5,
-  "centerForce": 0.03,
+  "centerForce": 0.005,
   "repelForce": 250,
-  "linkForce": 0.01,
+  "linkForce": 0.02,
   "linkDistance": 60,
   "concentricMinRadius": 50,
   "concentricRadiusStep": 60,
@@ -27,20 +27,20 @@
   "nodeColorMode": "category",
   "nodeColorField": "",
   "customColorPalette": "",
-  "showInheritance": false,
+  "showInheritance": true,
   "showAggregation": false,
   "showTagNodes": true,
   "tagDisplay": "enclosure",
-  "showSimilar": false,
+  "showSimilar": true,
   "showSibling": false,
-  "showSequence": false,
+  "showSequence": true,
   "showLinks": true,
   "showTagEdges": false,
   "showCategoryEdges": false,
   "showSemanticEdges": true,
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
-  "hoverHops": 1,
+  "hoverHops": 2,
   "hoverHighlightTypes": {
     "forwardLinks": true,
     "backlinks": true,
@@ -59,28 +59,30 @@
     "aggregation": true
   },
   "clusterGroupRules": [],
-  "clusterArrangement": "grid",
+  "clusterArrangement": "concentric",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 1.5,
-  "clusterGroupScale": 3,
-  "clusterGroupSpacing": 3,
+  "clusterNodeSpacing": 10,
+  "clusterGroupScale": 1,
+  "clusterGroupSpacing": 0.5,
   "fadeEdgesByDegree": false,
-  "edgeBundleStrength": 0.65,
+  "edgeBundleStrength": 0.3,
   "sortRules": [
     {
       "key": "degree",
-      "order": "desc"
-    },
-    {
-      "key": "label",
-      "order": "asc"
+      "direction": "desc"
     }
   ],
   "nodeRules": [],
   "nodeShapeRules": [
     {
-      "match": "isTag",
-      "shape": "triangle"
+      "match": "category",
+      "category": "protagonist",
+      "shape": "star"
+    },
+    {
+      "match": "category",
+      "category": "deity",
+      "shape": "diamond"
     },
     {
       "match": "default",
@@ -88,26 +90,26 @@
     }
   ],
   "dataviewQuery": "",
-  "timelineKey": "date",
-  "showEdgeLabels": false,
+  "timelineKey": "start-date",
+  "showEdgeLabels": true,
   "edgeLabelPlacement": "center",
   "showMinimap": true,
   "groupBy": "none",
-  "groupByRules": null,
+  "groupByRules": [],
   "groupMinSize": 2,
   "groupFilter": "",
-  "activeTab": "filter",
-  "autoFit": false,
+  "activeTab": "layout",
+  "autoFit": true,
   "showDurationBars": true,
   "showTimelineRoutes": true,
   "timelineEndKey": "end-date",
-  "timelineOrderFields": "",
+  "timelineOrderFields": "next,prev",
   "coordinateLayout": null,
   "showDotGrid": false,
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "ringChartMode": false,
-  "gridShowHeaders": false,
+  "gridShowHeaders": true,
   "showAxisTitles": false,
   "showTimelineTickLabels": true,
   "gridCellShading": false,
@@ -118,11 +120,13 @@
     "intraGroupDensity": 1
   },
   "clusterFollowsGroupBy": true,
-  "nodeDisplayMode": "node",
+  "nodeDisplayMode": "card",
   "cardDisplayConfig": {
-    "fields": [],
-    "maxWidth": 120,
-    "showIcon": false
+    "fields": [
+      "node_type"
+    ],
+    "maxWidth": 140,
+    "showIcon": true
   },
   "donutDisplayConfig": {
     "innerRadius": 0.6
@@ -182,10 +186,17 @@
   "showOntologyBackbone": false,
   "showGapEdges": false,
   "layout": "force",
+  "showTags": false,
+  "colorNodesByCategory": true,
+  "heatmapMode": false,
   "showGuideLines": false,
+  "guideLineMode": "perGroup",
+  "showGroupGrid": false,
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true
-  }
+    "autoLOD": true,
+    "labelOverlapMargin": 200
+  },
+  "gridTableMode": true
 }

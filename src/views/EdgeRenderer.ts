@@ -263,7 +263,7 @@ export const DEFAULT_LINE_THICKNESS = 2;
 /** Edge weight additional thickness per log2 step */
 export const WEIGHT_THICKNESS_FACTOR = 0.6;
 /** Fade-by-degree minimum alpha fraction */
-export const FADE_BY_DEGREE_MIN_ALPHA = 0.15;
+export const FADE_BY_DEGREE_MIN_ALPHA = 0.3;
 /** Alpha for relation-colored edges */
 export const RELATION_COLOR_ALPHA = 0.8;
 /** Highlighted edge line thickness */
@@ -2698,7 +2698,7 @@ export function resolveEdgeStyle(
   // Skip zoom fade for highlighted edges — they should stay prominent at any zoom.
   const ws = cfg.worldScale ?? 1;
   const fadeZ = cfg.edgeZoomFadeThreshold ?? 0.5;
-  const fadeFloor = cfg.edgeFadeMinAlpha ?? 0.1;
+  const fadeFloor = cfg.edgeFadeMinAlpha ?? 0.25;
   if (ws < fadeZ && !isHighlighted) {
     lineThick *= Math.max(0.6, ws / fadeZ);
   }

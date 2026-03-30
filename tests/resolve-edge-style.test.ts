@@ -160,7 +160,7 @@ describe("resolveEdgeStyle", () => {
       highlightSet: new Set(["x"]),
     });
     const s = resolveEdgeStyle(makeEdge(), src, tgt, cfg, 1, null);
-    expect(s.alpha).toBeLessThan(0.2);
+    expect(s.alpha).toBeLessThan(0.4);
   });
 
   it("colorEdgesByRelation uses RELATION_COLOR_ALPHA for relation edges", () => {

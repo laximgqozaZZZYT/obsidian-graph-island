@@ -21,7 +21,7 @@
   "showOrbitRings": false,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:mythology-norse*",
+  "searchQuery": "path:classic-divine-comedy*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -200,7 +200,8 @@
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true
+    "autoLOD": true,
+    "labelOverlapMargin": 24
   },
   "showTags": false,
   "colorNodesByCategory": true,

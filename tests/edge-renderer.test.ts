@@ -199,8 +199,8 @@ describe("drawEdges", () => {
     expect(lineStyleCalls.length).toBe(2);
     // First edge (a→b) should have highlight alpha=1 (one endpoint "a" in highlightSet)
     expect(lineStyleCalls[0].args[0].alpha).toBe(1);
-    // Second edge (b→c) should have non-highlight alpha (default 0.15)
-    expect(lineStyleCalls[1].args[0].alpha).toBe(0.15);
+    // Second edge (b→c) should have non-highlight alpha (default FADE_BY_DEGREE_MIN_ALPHA=0.3)
+    expect(lineStyleCalls[1].args[0].alpha).toBe(0.3);
   });
 
   it("uses relation colors when colorEdgesByRelation is true", () => {

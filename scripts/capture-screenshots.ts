@@ -28,6 +28,8 @@ const SKIP_PRESETS = new Set([
   // Quality FAIL: coordinateLayout/viewMode presets produce empty or degenerate screenshots
   "08-sequence-tracker", "22-timeline-ranged", "24-baobab-sunburst",
   "30-mountain-ridge", "31-cross-tabulation", "48-node-type-triangle", "test-tag-category-matrix",
+  // Enclosure/auto-collapse makes these degenerate even with groupBy=none
+  "15-orphan-hunter", "39-large-nodes-overlap",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {
@@ -229,13 +231,13 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
         v.panel.colorEdgesByRelation = true;
       }
 
-      // ANTI-PATTERN FIX: Disable groupBy for screenshots to prevent
+      // ANTI-PATTERN FIX: Disable ALL groupBy for screenshots to prevent
       // auto-collapse creating near-empty screens with 1-3 giant group nodes.
-      // Individual node layouts produce more visually informative screenshots.
-      if (!p["groupBy"] || p["groupBy"] === "folder:?" || p["groupBy"] === "category:?") {
-        v.panel.groupBy = "none";
-        v.panel.clusterGroupRules = [];
-      }
+      // Even presets with explicit groupBy values trigger auto-collapse when
+      // collapsedGroups is empty (default behavior).
+      v.panel.groupBy = "none";
+      v.panel.clusterGroupRules = [];
+      v.panel.collapsedGroups = new Set(["__screenshot_no_autoCollapse__"]);
 
       // ANTI-PATTERN FIX: Ensure minimum node size for screenshot visibility.
       if (!v.panel.renderThresholds) v.panel.renderThresholds = {};

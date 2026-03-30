@@ -183,7 +183,8 @@
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true
+    "autoLOD": true,
+    "labelOverlapMargin": 24
   },
   "showTags": false,
   "colorNodesByCategory": true,

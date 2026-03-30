@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-genji*",
+  "searchQuery": "path:classic-king-lear*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -58,12 +58,7 @@
     "inheritance": true,
     "aggregation": true
   },
-  "clusterGroupRules": [
-    {
-      "groupBy": "tag:?",
-      "recursive": false
-    }
-  ],
+  "clusterGroupRules": [],
   "clusterArrangement": "custom",
   "clusterGroupArrangement": "auto",
   "clusterNodeSpacing": 3,
@@ -93,13 +88,8 @@
   "showEdgeLabels": false,
   "edgeLabelPlacement": "center",
   "showMinimap": true,
-  "groupBy": "tag:?",
-  "groupByRules": [
-    {
-      "field": "tag:?",
-      "indent": 0
-    }
-  ],
+  "groupBy": "none",
+  "groupByRules": [],
   "groupMinSize": 2,
   "groupFilter": "",
   "activeTab": "layout",
@@ -226,7 +216,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 164
+    "labelOverlapMargin": 128
   },
   "_absoluteZoom": 0.8
 }

@@ -1,7 +1,13 @@
 [
   {
-    "name": "71-force-iliad-dense",
-    "nodes": 132,
+    "name": "72-force-king-lear",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "73-concentric-othello",
+    "nodes": 123,
     "pass": true,
     "issues": []
   },
@@ -19,7 +25,7 @@
   },
   {
     "name": "test-hub-radial",
-    "nodes": 125,
+    "nodes": 123,
     "pass": true,
     "issues": []
   },

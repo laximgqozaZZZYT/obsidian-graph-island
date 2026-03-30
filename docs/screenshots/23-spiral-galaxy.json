@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-divine-comedy*",
+  "searchQuery": "path:mythology-japanese*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -58,12 +58,7 @@
     "inheritance": true,
     "aggregation": true
   },
-  "clusterGroupRules": [
-    {
-      "groupBy": "tag:?",
-      "recursive": false
-    }
-  ],
+  "clusterGroupRules": [],
   "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
   "clusterNodeSpacing": 2.5,
@@ -94,13 +89,8 @@
   "showEdgeLabels": false,
   "edgeLabelPlacement": "center",
   "showMinimap": true,
-  "groupBy": "tag:?",
-  "groupByRules": [
-    {
-      "field": "tag:?",
-      "indent": 0
-    }
-  ],
+  "groupBy": "none",
+  "groupByRules": [],
   "groupMinSize": 2,
   "groupFilter": "",
   "activeTab": "layout",
@@ -227,6 +217,6 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 128
+    "labelOverlapMargin": 116
   }
 }

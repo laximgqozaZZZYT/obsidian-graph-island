@@ -58,12 +58,7 @@
     "inheritance": true,
     "aggregation": true
   },
-  "clusterGroupRules": [
-    {
-      "groupBy": "node_type:?",
-      "recursive": false
-    }
-  ],
+  "clusterGroupRules": [],
   "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
   "clusterNodeSpacing": 2.5,
@@ -99,13 +94,8 @@
   "showEdgeLabels": false,
   "edgeLabelPlacement": "center",
   "showMinimap": false,
-  "groupBy": "node_type:?",
-  "groupByRules": [
-    {
-      "field": "node_type:?",
-      "indent": 0
-    }
-  ],
+  "groupBy": "none",
+  "groupByRules": [],
   "groupMinSize": 2,
   "groupFilter": "",
   "activeTab": "layout",
