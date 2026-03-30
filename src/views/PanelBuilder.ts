@@ -535,6 +535,11 @@ export function validatePanelState(panel: PanelState): void {
   if (!validViewModes.has(panel.viewMode)) {
     panel.viewMode = "graph";
   }
+  // ClusterArrangement validation — reject unknown values (e.g. "force" from old configs)
+  const validArrangements = new Set(["inherit", "concentric", "radial", "phyllotaxis", "grid", "triangle", "random", "timeline", "custom", "ego"]);
+  if (!validArrangements.has(panel.clusterArrangement)) {
+    panel.clusterArrangement = "inherit" as any;
+  }
   // Clamp hoverHops to 0-10
   if (panel.hoverHops < 0) panel.hoverHops = 0;
   if (panel.hoverHops > 10) panel.hoverHops = 10;
