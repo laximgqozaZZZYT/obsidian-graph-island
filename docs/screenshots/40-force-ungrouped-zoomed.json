@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-othello*",
+  "searchQuery": "path:classic-sangokushi*",
   "searchMode": "filter",
   "colorEdgesByRelation": false,
   "nodeColorMode": "category",
@@ -105,42 +105,18 @@
     "intraGroupDensity": 1
   },
   "clusterFollowsGroupBy": true,
-  "nodeDisplayMode": "card",
+  "nodeDisplayMode": "default",
   "cardDisplayConfig": {
-    "fields": [
-      "node_type",
-      "story_order"
-    ],
+    "fields": [],
     "maxWidth": 140,
     "showIcon": false,
-    "headerStyle": "table"
+    "headerStyle": "default"
   },
   "donutDisplayConfig": {
     "innerRadius": 0.6
   },
-  "edgeCardinalityMode": "crowsfoot",
-  "cardinalityRules": [
-    {
-      "edgeType": "inheritance",
-      "sourceCardinality": "1",
-      "targetCardinality": "0..N"
-    },
-    {
-      "edgeType": "aggregation",
-      "sourceCardinality": "1",
-      "targetCardinality": "0..N"
-    },
-    {
-      "edgeType": "link",
-      "sourceCardinality": "1",
-      "targetCardinality": "0..1"
-    },
-    {
-      "edgeType": "sequence",
-      "sourceCardinality": "1",
-      "targetCardinality": "1"
-    }
-  ],
+  "edgeCardinalityMode": "none",
+  "cardinalityRules": [],
   "cableBundleMode": "auto",
   "cableTrunkWidth": 12,
   "cableTrunkAlpha": 0.25,
@@ -198,13 +174,13 @@
   "colorNodesByCategory": false,
   "heatmapMode": false,
   "showGuideLines": false,
-  "guideLineMode": "per-group",
+  "guideLineMode": "shared",
   "showGroupGrid": false,
   "renderThresholds": {
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 180
+    "labelOverlapMargin": 168
   },
   "gridTableMode": true,
   "_absoluteZoom": 0.8

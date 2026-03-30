@@ -19,19 +19,15 @@ const SAMPLES_DIR = path.resolve(__dirname, "../samples");
 // or presets that generate too few visible nodes for a meaningful screenshot)
 const SKIP_PRESETS = new Set([
   "test-random-scatter", "test-bfs-tree", "test-density-concentric", "test-folder-degree",
-  // Coordinate layout presets: render only curves/axes, no visible node content
-  "21-filled-hexagon", "23-spiral-galaxy", "25-rose-curve", "27-filled-pentagon",
-  // Tag-heavy presets with label clumping or sparse content
-  "42-high-density-tags", "47-sunburst-with-tags", "52-mixed-nodesize-stress",
-  // Too few nodes for meaningful screenshot
-  "14-dialogue-theater",
+  // Coordinate layout presets: render only curves/axes
+  "23-spiral-galaxy", "25-rose-curve", "27-filled-pentagon",
+  // Tag-heavy presets with label clumping
+  "47-sunburst-with-tags", "52-mixed-nodesize-stress",
   // Empty/near-empty renders (coordinate system or layout issues)
   "29-concentric-degree", "54-radial-dense",
-  // Causes capture script crash (presets that hang during zoomed variant capture)
-  "37-hierarchical-sunburst", "41-all-edges-maxdensity",
-  "44-timeline-dense-overlap", "45-grid-tight-spacing",
-  "43-concentric-tiny-accessibility", "48-node-type-triangle",
-  "46-tree-deep-hierarchy", "49-orphan-flood", "test-timeline-story", "test-tree",
+  // Causes capture script crash (zoomed variant hang)
+  "41-all-edges-maxdensity", "44-timeline-dense-overlap", "45-grid-tight-spacing",
+  "46-tree-deep-hierarchy", "test-timeline", "test-timeline-story", "test-tree",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {

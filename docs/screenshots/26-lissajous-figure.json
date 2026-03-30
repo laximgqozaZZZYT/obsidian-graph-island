@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:bible-old-testament*",
+  "searchQuery": "path:classic-gilgamesh*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -61,7 +61,7 @@
   "clusterGroupRules": [],
   "clusterArrangement": "custom",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 4.5,
+  "clusterNodeSpacing": 6.8,
   "clusterGroupScale": 3,
   "clusterGroupSpacing": 2,
   "fadeEdgesByDegree": false,
@@ -208,7 +208,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 132
+    "labelOverlapMargin": 120
   },
   "gridTableMode": true
 }
