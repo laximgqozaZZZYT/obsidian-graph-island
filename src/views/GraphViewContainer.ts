@@ -4961,9 +4961,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     }
     this.groupByMembers = members;
 
-    // Draw cluster boundary outlines (hull cached until centroid drifts > threshold)
+    // Draw cluster boundary outlines (only for explicit groupBy, not auto-folder)
+    // Auto-folder groups show labels only — boundaries would be distractingly large
     const gfx = this.clusterBoundaryGraphics;
-    if (gfx) {
+    if (gfx && autoFolderGroups) gfx.clear();
+    if (gfx && !autoFolderGroups) {
       gfx.clear();
       const minMembers = Math.max(5, Math.floor(this.pixiNodes.size * 0.01));
       let colorIdx = 0;
