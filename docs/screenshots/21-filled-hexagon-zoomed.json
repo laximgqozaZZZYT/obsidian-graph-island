@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-hamlet*",
+  "searchQuery": "path:classic-macbeth*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -226,7 +226,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 96
+    "labelOverlapMargin": 120
   },
   "gridTableMode": true,
   "_absoluteZoom": 0.8

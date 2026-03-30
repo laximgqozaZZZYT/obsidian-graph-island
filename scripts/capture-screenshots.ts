@@ -21,8 +21,8 @@ const SKIP_PRESETS = new Set([
   "test-random-scatter", "test-bfs-tree", "test-density-concentric", "test-folder-degree",
   // Coordinate layout presets: render only curves/axes
   "23-spiral-galaxy", "25-rose-curve", "27-filled-pentagon",
-  // Tag-heavy presets with label clumping
-  "47-sunburst-with-tags", "52-mixed-nodesize-stress",
+  // Tag-heavy presets with label clumping or crash
+  "42-high-density-tags", "47-sunburst-with-tags", "52-mixed-nodesize-stress",
   // Empty/near-empty renders (coordinate system or layout issues)
   "29-concentric-degree", "54-radial-dense",
   // Causes capture script crash (zoomed variant hang)

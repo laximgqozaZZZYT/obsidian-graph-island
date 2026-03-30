@@ -1,13 +1,31 @@
 [
   {
-    "name": "50-arrow-heavy-directed",
+    "name": "43-concentric-tiny-accessibility",
     "nodes": 127,
     "pass": true,
     "issues": []
   },
   {
+    "name": "48-node-type-triangle",
+    "nodes": 7,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "49-orphan-flood",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "50-arrow-heavy-directed",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
     "name": "51-enclosure-tight",
-    "nodes": 125,
+    "nodes": 119,
     "pass": true,
     "issues": []
   },
@@ -103,7 +121,7 @@
   },
   {
     "name": "test-sunburst-full",
-    "nodes": 119,
+    "nodes": 123,
     "pass": true,
     "issues": []
   },
@@ -115,15 +133,7 @@
   },
   {
     "name": "test-tag-category-matrix",
-    "nodes": 3,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 3"
-    ]
-  },
-  {
-    "name": "test-timeline",
-    "nodes": 369,
+    "nodes": 102,
     "pass": true,
     "issues": []
   }
