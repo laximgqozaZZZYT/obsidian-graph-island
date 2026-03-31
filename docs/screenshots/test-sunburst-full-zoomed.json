@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:classic-genji*",
+  "searchQuery": "path:classic-othello*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -103,7 +103,7 @@
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "ringChartMode": false,
-  "gridShowHeaders": true,
+  "gridShowHeaders": false,
   "showAxisTitles": false,
   "showTimelineTickLabels": true,
   "gridCellShading": false,
@@ -114,13 +114,11 @@
     "intraGroupDensity": 1
   },
   "clusterFollowsGroupBy": true,
-  "nodeDisplayMode": "card",
+  "nodeDisplayMode": "node",
   "cardDisplayConfig": {
-    "fields": [
-      "node_type"
-    ],
-    "maxWidth": 110,
-    "showIcon": true
+    "fields": [],
+    "maxWidth": 120,
+    "showIcon": false
   },
   "donutDisplayConfig": {
     "innerRadius": 0.6
@@ -182,7 +180,6 @@
   "layout": "force",
   "showTags": true,
   "colorNodesByCategory": true,
-  "heatmapMode": false,
   "showGuideLines": false,
   "guideLineMode": "per-group",
   "showGroupGrid": false,
@@ -190,9 +187,7 @@
     "enclosureFillOpacity": 0,
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true,
-    "labelOverlapMargin": 212
+    "autoLOD": true
   },
-  "gridTableMode": true,
   "_absoluteZoom": 0.8
 }

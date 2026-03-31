@@ -41,7 +41,7 @@ const SKIP_PRESETS = new Set([
   "61-enclosure-saiyuki", "63-radial-gilgamesh", "79-japanese-force",
   "85-sangokushi-dense", "77-force-divine-comedy-cards",
   "49-orphan-flood", "12-genji-reader",
-  "test-arc", "test-concentric-layout", "21-filled-hexagon",
+  "test-arc", "test-concentric-layout", "21-filled-hexagon", "10-maximalist", "26-lissajous-figure",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {
@@ -276,6 +276,12 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
       }
 
       v.rawData = null;
+      // Enable screenshotMode BEFORE doRender so that drawRoadNetwork,
+      // drawEnclosures, and _updateGroupByLabels skip their rendering
+      if (v.renderPipeline) {
+        v.renderPipeline.screenshotMode = true;
+        v.renderPipeline.aggregateMode = false;
+      }
       // Reset existing node positions so force simulation starts fresh
       // (prevents inheriting spread from previous preset's cluster layout)
       if (v.pixiNodes) {

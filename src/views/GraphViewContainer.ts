@@ -4797,6 +4797,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (!this.enclosureGraphics) return;
     // Ring chart mode or non-graph viewMode: hide enclosures
     if (this.isRingChartMode() || viewModeSkipsNodeRendering(this.panel.viewMode)) { this.enclosureGraphics.clear(); return; }
+    // Screenshot mode: skip enclosure drawing for cleaner captures
+    if (this.renderPipeline?.screenshotMode) { this.enclosureGraphics.clear(); return; }
     const rt = mergeRenderThresholds(this.panel.renderThresholds);
     const cfg: EnclosureConfig = {
       tagDisplay: this.panel.tagDisplay,
@@ -4877,6 +4879,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Show group name labels when zoomed out past the text fade threshold.
    *  Labels appear at each group's centroid (super-node position or member average). */
   private _updateGroupByLabels(): void {
+    // Screenshot mode: skip cluster boundary and group labels for cleaner captures
+    if (this.renderPipeline?.screenshotMode) {
+      if (this.clusterBoundaryGraphics) this.clusterBoundaryGraphics.clear();
+      for (const lbl of this.groupByLabels.values()) lbl.visible = false;
+      return;
+    }
     const rawWs = this.worldContainer?.scale.x ?? 1;
     const ws = isFinite(rawWs) && rawWs > 0 ? rawWs : 1;
     const fadeThreshold = Math.max(this.panel.textFadeThreshold, 0.4);
@@ -5985,6 +5993,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   drawRoadNetwork() {
     // Non-graph viewModes: skip road network
     if (this.panel.viewMode !== "graph") {
+      if (this.trayGraphics) this.trayGraphics.clear();
+      return;
+    }
+    // Screenshot mode: skip cable-tray drawing for cleaner captures
+    if (this.renderPipeline?.screenshotMode) {
       if (this.trayGraphics) this.trayGraphics.clear();
       return;
     }
