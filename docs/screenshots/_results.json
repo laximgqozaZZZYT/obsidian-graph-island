@@ -1,5 +1,271 @@
 [
   {
+    "name": "01-panorama-overview",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "03-character-network",
+    "nodes": 238,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "04-shakespeare-compare",
+    "nodes": 492,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "05-mythology-pantheon",
+    "nodes": 498,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "06-sangokushi-factions",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "07-tag-taxonomy",
+    "nodes": 369,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "09-minimalist",
+    "nodes": 15,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "10-maximalist",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "12-genji-reader",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "18-folder-compare",
+    "nodes": 348,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "20-arabian-nights",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "21-filled-hexagon",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "23-spiral-galaxy",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "26-lissajous-figure",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "27-filled-pentagon",
+    "nodes": 132,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "28-cardioid-heart",
+    "nodes": 0,
+    "pass": false,
+    "issues": [
+      "Too few nodes: 0"
+    ]
+  },
+  {
+    "name": "29-concentric-degree",
+    "nodes": 127,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "32-timeline-ticks",
+    "nodes": 125,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "33-polar-grid",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "37-hierarchical-sunburst",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "38-tiny-nodes-stress",
+    "nodes": 119,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "40-force-ungrouped",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "43-concentric-tiny-accessibility",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "45-grid-tight-spacing",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "49-orphan-flood",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "50-arrow-heavy-directed",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "51-enclosure-tight",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "53-accessibility-contrast",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "55-category-search-filtered",
+    "nodes": 29,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "56-force-colorful",
+    "nodes": 238,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "57-concentric-characters",
+    "nodes": 15,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "58-timeline-arthurian",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "59-sunburst-bible",
+    "nodes": 369,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "61-enclosure-saiyuki",
+    "nodes": 102,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "62-grid-egyptian",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "63-radial-gilgamesh",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "64-force-divine-comedy",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "65-concentric-japanese",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "66-radial-norse",
+    "nodes": 125,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "67-force-hamlet-large",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "68-concentric-saiyuki",
+    "nodes": 102,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "69-force-gilgamesh-cards",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "70-sunburst-egyptian",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "71-force-iliad-dense",
+    "nodes": 132,
+    "pass": true,
+    "issues": []
+  },
+  {
     "name": "72-force-king-lear",
     "nodes": 123,
     "pass": true,
@@ -7,6 +273,90 @@
   },
   {
     "name": "73-concentric-othello",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "74-force-macbeth",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "75-radial-greek",
+    "nodes": 127,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "76-concentric-arabian",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "77-force-divine-comedy-cards",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "78-force-apocrypha",
+    "nodes": 118,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "79-japanese-force",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "80-ot-concentric",
+    "nodes": 119,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "81-arthurian-force",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "82-genji-radial",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "83-norse-cards",
+    "nodes": 125,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "84-hamlet-concentric",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "85-sangokushi-dense",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "86-egyptian-arrows",
+    "nodes": 123,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "87-lear-radial",
     "nodes": 123,
     "pass": true,
     "issues": []

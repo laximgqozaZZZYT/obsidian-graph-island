@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:classic-arabian-nights*",
+  "searchQuery": "path:classic-divine-comedy*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -30,7 +30,7 @@
   "showInheritance": true,
   "showAggregation": false,
   "showTagNodes": true,
-  "tagDisplay": "enclosure",
+  "tagDisplay": "node",
   "showSimilar": false,
   "showSibling": false,
   "showSequence": false,
@@ -196,6 +196,7 @@
   "guideLineMode": "shared",
   "showGroupGrid": false,
   "renderThresholds": {
+    "enclosureFillOpacity": 0,
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true

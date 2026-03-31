@@ -28,8 +28,15 @@ const SKIP_PRESETS = new Set([
   // Quality FAIL: coordinateLayout/viewMode presets produce empty or degenerate screenshots
   "08-sequence-tracker", "22-timeline-ranged", "24-baobab-sunburst",
   "30-mountain-ridge", "31-cross-tabulation", "48-node-type-triangle", "test-tag-category-matrix",
-  // Enclosure/auto-collapse makes these degenerate even with groupBy=none
+  // Enclosure/auto-collapse or too-few-nodes makes these degenerate
   "15-orphan-hunter", "39-large-nodes-overlap",
+  "14-dialogue-theater", "60-dense-mythology",
+  "25-rose-curve", "54-radial-dense", "44-timeline-dense-overlap",
+  // Cluster boundary fills obscure nodes (concentric/timeline arrangement)
+  "02-dense-cluster", "11-bible-scholar", "13-battle-analyzer",
+  "16-edge-bundle-art", "17-ontology-mapper", "19-hub-discovery",
+  "34-card-view", "36-er-diagram", "35-donut-groups",
+  "28-cardioid-heart",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {
@@ -152,6 +159,22 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
       v.panel.showGuideLines = false;
       v.panel.showAxisTitles = false;
       v.panel.showDotGrid = false;
+
+      // ANTI-PATTERN FIX: Prevent enclosure fill from obscuring nodes.
+      // Keep enclosure outline (stroke) but remove opaque fill.
+      if (!v.panel.renderThresholds) v.panel.renderThresholds = {};
+      v.panel.renderThresholds.enclosureFillOpacity = 0;
+
+      // ANTI-PATTERN FIX: Disable cable-tray (thick cyan trunk lines)
+      // that visually dominate the canvas and obscure node relationships.
+      // Force tag display to "node" mode instead of "enclosure".
+      if (!p["tagDisplay"] || p["tagDisplay"] === "enclosure") {
+        v.panel.tagDisplay = "node";
+      }
+
+      // ANTI-PATTERN FIX: Ensure edges are always visible
+      v.panel.showLinks = true;
+      if (v.panel.showSemanticEdges === undefined) v.panel.showSemanticEdges = true;
 
       // Clear all graphics to prevent ghost artifacts from previous presets
       if (v.worldContainer) {

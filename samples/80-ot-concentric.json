@@ -1,0 +1,14 @@
+{
+  "layout": "concentric",
+  "searchQuery": "path:bible-old-testament*",
+  "nodeSize": 8,
+  "repelForce": 219,
+  "linkDistance": 118,
+  "showLinks": true,
+  "showSemanticEdges": true,
+  "showTagEdges": false,
+  "colorEdgesByRelation": true,
+  "nodeColorMode": "category",
+  "showMinimap": true,
+  "showArrows": false
+}

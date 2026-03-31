@@ -1,0 +1,14 @@
+{
+  "layout": "force",
+  "searchQuery": "path:classic-arthurian*",
+  "nodeSize": 5,
+  "repelForce": 343,
+  "linkDistance": 67,
+  "showLinks": true,
+  "showSemanticEdges": true,
+  "showTagEdges": false,
+  "colorEdgesByRelation": true,
+  "nodeColorMode": "category",
+  "showMinimap": true,
+  "showArrows": true
+}

@@ -191,6 +191,7 @@
   "guideLineMode": "shared",
   "showGroupGrid": false,
   "renderThresholds": {
+    "enclosureFillOpacity": 0,
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true

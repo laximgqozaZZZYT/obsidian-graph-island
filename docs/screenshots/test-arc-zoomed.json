@@ -181,10 +181,10 @@
   "layout": "arc",
   "showGuideLines": false,
   "renderThresholds": {
+    "enclosureFillOpacity": 0,
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true,
-    "labelOverlapMargin": 24
+    "autoLOD": true
   },
   "showTags": false,
   "colorNodesByCategory": true,

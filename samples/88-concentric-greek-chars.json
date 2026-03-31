@@ -1,0 +1,13 @@
+{
+  "layout": "concentric",
+  "searchQuery": "node_type:character AND path:mythology-greek*",
+  "nodeSize": 8,
+  "showLinks": true,
+  "showSemanticEdges": true,
+  "showTagEdges": false,
+  "colorEdgesByRelation": true,
+  "nodeColorMode": "category",
+  "showMinimap": true,
+  "showArrows": true,
+  "sortRules": [{"key": "degree", "direction": "desc"}]
+}

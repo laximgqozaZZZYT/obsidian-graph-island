@@ -176,6 +176,7 @@
   "guideLineMode": "per-group",
   "showGroupGrid": true,
   "renderThresholds": {
+    "enclosureFillOpacity": 0,
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,

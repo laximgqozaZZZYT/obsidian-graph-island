@@ -1,0 +1,14 @@
+{
+  "layout": "concentric",
+  "searchQuery": "path:classic-hamlet*",
+  "nodeSize": 7,
+  "repelForce": 382,
+  "linkDistance": 92,
+  "showLinks": true,
+  "showSemanticEdges": true,
+  "showTagEdges": false,
+  "colorEdgesByRelation": true,
+  "nodeColorMode": "category",
+  "showMinimap": true,
+  "showArrows": true
+}

@@ -298,12 +298,12 @@ export function drawEnclosures(
     const memberCount = pts.length;
     const sizeFade = Math.max(SIZE_FADE_MIN, 1 - memberCount / SIZE_FADE_DIVISOR);
     const baseFill = overlaps > 0 ? FILL_ALPHA_OVERLAP : FILL_ALPHA_BASE;
-    // FY: Allow user override of enclosure fill opacity
+    // FY: Allow user override of enclosure fill opacity (0 = outline-only)
     const opacityOverride = cfg.enclosureFillOpacity;
     // At extreme zoom-out (blend > 0.8), switch to outline-only for clarity
     const fillAlpha = blend > 0.8 ? 0
-      : opacityOverride && opacityOverride > 0
-        ? opacityOverride * sizeFade
+      : opacityOverride !== undefined && opacityOverride !== null
+        ? (opacityOverride > 0 ? opacityOverride * sizeFade : 0)
         : (blend > 0 ? blend * baseFill * sizeFade : 0);
 
     let labelX = 0, labelY = 0;
