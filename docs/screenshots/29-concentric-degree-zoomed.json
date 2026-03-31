@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:mythology-greek*",
+  "searchQuery": "path:classic-arabian-nights*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -100,14 +100,14 @@
   "timelineEndKey": "end-date",
   "timelineOrderFields": "",
   "coordinateLayout": {
-    "system": "polar",
+    "system": "cartesian",
     "axis1": {
       "source": {
         "kind": "index"
       },
       "transform": {
         "kind": "expression",
-        "expr": "a*(1+cos(i/n*2*pi))",
+        "expr": "(i/n)^d*(cos(pi/k)/cos(i*2.39996%(2*pi/k)-pi/k))*cos(i*2.39996)",
         "scale": 1
       }
     },
@@ -117,14 +117,15 @@
       },
       "transform": {
         "kind": "expression",
-        "expr": "i/n*360",
+        "expr": "(i/n)^d*(cos(pi/k)/cos(i*2.39996%(2*pi/k)-pi/k))*sin(i*2.39996)",
         "scale": 1
       }
     },
     "perGroup": true,
     "constants": {
-      "a": 1,
-      "_minGap": 6
+      "k": 5,
+      "d": 0.5,
+      "_minGap": 8
     }
   },
   "showDotGrid": false,
@@ -217,7 +218,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 128
+    "labelOverlapMargin": 104
   },
   "_absoluteZoom": 0.8
 }

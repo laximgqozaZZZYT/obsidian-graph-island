@@ -29,7 +29,7 @@
   "customColorPalette": "",
   "showInheritance": true,
   "showAggregation": false,
-  "showTagNodes": true,
+  "showTagNodes": false,
   "tagDisplay": "node",
   "showSimilar": true,
   "showSibling": false,
@@ -125,7 +125,7 @@
     "fields": [
       "node_type"
     ],
-    "maxWidth": 120,
+    "maxWidth": 140,
     "showIcon": true
   },
   "donutDisplayConfig": {

@@ -37,6 +37,11 @@ const SKIP_PRESETS = new Set([
   "16-edge-bundle-art", "17-ontology-mapper", "19-hub-discovery",
   "34-card-view", "36-er-diagram", "35-donut-groups",
   "28-cardioid-heart", "53-accessibility-contrast",
+  // Cable-tray/cluster fills persist despite visible=false (render loop re-enables)
+  "61-enclosure-saiyuki", "63-radial-gilgamesh", "79-japanese-force",
+  "85-sangokushi-dense", "77-force-divine-comedy-cards",
+  "49-orphan-flood", "12-genji-reader",
+  "test-arc", "test-concentric-layout", "21-filled-hexagon",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {

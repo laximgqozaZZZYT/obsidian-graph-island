@@ -29,7 +29,7 @@
   "customColorPalette": "",
   "showInheritance": true,
   "showAggregation": false,
-  "showTagNodes": true,
+  "showTagNodes": false,
   "tagDisplay": "node",
   "showSimilar": true,
   "showSibling": false,
@@ -61,7 +61,7 @@
   "clusterGroupRules": [],
   "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 10,
+  "clusterNodeSpacing": 2.3,
   "clusterGroupScale": 5,
   "clusterGroupSpacing": 5,
   "fadeEdgesByDegree": false,
@@ -191,7 +191,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 176
+    "labelOverlapMargin": 140
   },
   "gridTableMode": true,
   "_absoluteZoom": 0.8

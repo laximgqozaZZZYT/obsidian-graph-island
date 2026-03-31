@@ -196,6 +196,6 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 92
+    "labelOverlapMargin": 80
   }
 }
