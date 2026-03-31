@@ -11,36 +11,36 @@
   "showOrphans": false,
   "showArrows": true,
   "textFadeThreshold": 0.5,
-  "nodeSize": 5,
-  "centerForce": 0.001,
-  "repelForce": 80,
+  "nodeSize": 9,
+  "centerForce": 0.005,
+  "repelForce": 350,
   "linkForce": 0.02,
-  "linkDistance": 50,
+  "linkDistance": 100,
   "concentricMinRadius": 50,
   "concentricRadiusStep": 60,
   "showOrbitRings": true,
   "orbitAutoRotate": true,
   "groups": [],
-  "searchQuery": "path:mythology-norse*",
+  "searchQuery": "node_type:character AND path:mythology-greek*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
   "nodeColorField": "",
   "customColorPalette": "",
-  "showInheritance": true,
+  "showInheritance": false,
   "showAggregation": false,
   "showTagNodes": false,
   "tagDisplay": "node",
-  "showSimilar": false,
+  "showSimilar": true,
   "showSibling": false,
   "showSequence": false,
   "showLinks": true,
   "showTagEdges": false,
   "showCategoryEdges": false,
-  "showSemanticEdges": false,
-  "enclosureSpacing": 1,
+  "showSemanticEdges": true,
+  "enclosureSpacing": 0.5,
   "directionalGravityRules": [],
-  "hoverHops": 2,
+  "hoverHops": 1,
   "hoverHighlightTypes": {
     "forwardLinks": true,
     "backlinks": true,
@@ -61,73 +61,35 @@
   "clusterGroupRules": [],
   "clusterArrangement": "concentric",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 10,
-  "clusterGroupScale": 2.5,
-  "clusterGroupSpacing": 2,
+  "clusterNodeSpacing": 1.2,
+  "clusterGroupScale": 1,
+  "clusterGroupSpacing": 1,
   "fadeEdgesByDegree": true,
-  "edgeBundleStrength": 0.5,
-  "sortRules": [
-    {
-      "key": "degree",
-      "order": "desc"
-    }
-  ],
+  "edgeBundleStrength": 0.3,
+  "sortRules": [],
   "nodeRules": [],
   "nodeShapeRules": [
-    {
-      "match": "category",
-      "category": "deity",
-      "shape": "hexagon"
-    },
     {
       "match": "default",
       "shape": "circle"
     }
   ],
   "dataviewQuery": "",
-  "timelineKey": "date",
+  "timelineKey": "start-date",
   "showEdgeLabels": false,
   "edgeLabelPlacement": "center",
   "showMinimap": true,
   "groupBy": "none",
   "groupByRules": [],
-  "groupMinSize": 2,
+  "groupMinSize": 1,
   "groupFilter": "",
   "activeTab": "layout",
-  "autoFit": true,
-  "showDurationBars": false,
+  "autoFit": false,
+  "showDurationBars": true,
   "showTimelineRoutes": true,
   "timelineEndKey": "end-date",
   "timelineOrderFields": "",
-  "coordinateLayout": {
-    "system": "cartesian",
-    "axis1": {
-      "source": {
-        "kind": "index"
-      },
-      "transform": {
-        "kind": "expression",
-        "expr": "(i/n)^d*(cos(pi/k)/cos(i*2.39996%(2*pi/k)-pi/k))*cos(i*2.39996)",
-        "scale": 1
-      }
-    },
-    "axis2": {
-      "source": {
-        "kind": "index"
-      },
-      "transform": {
-        "kind": "expression",
-        "expr": "(i/n)^d*(cos(pi/k)/cos(i*2.39996%(2*pi/k)-pi/k))*sin(i*2.39996)",
-        "scale": 1
-      }
-    },
-    "perGroup": true,
-    "constants": {
-      "k": 5,
-      "d": 0.5,
-      "_minGap": 8
-    }
-  },
+  "coordinateLayout": null,
   "showDotGrid": false,
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
@@ -209,18 +171,15 @@
   "showOntologyBackbone": false,
   "showGapEdges": false,
   "layout": "force",
-  "showTags": false,
-  "colorNodesByCategory": true,
-  "heatmapMode": false,
   "showGuideLines": false,
-  "guideLineMode": "shared",
-  "showGroupGrid": true,
   "renderThresholds": {
     "enclosureFillOpacity": 0,
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 108
+    "labelOverlapMargin": 36
   },
+  "showTags": false,
+  "colorNodesByCategory": true,
   "_absoluteZoom": 0.8
 }

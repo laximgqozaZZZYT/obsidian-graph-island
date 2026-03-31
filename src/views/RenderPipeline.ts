@@ -713,10 +713,12 @@ export class RenderPipeline {
     if (forceFullRedraw || this.edgeRedrawCounter >= EDGE_REDRAW_SKIP) {
       this.edgeRedrawCounter = 0;
       this.host.drawGuides(); // Grid lines, axis titles, tick labels (background layer)
-      this.host.drawEnclosures();
-      this.host.drawSunburstArcs();
-      this.host.drawRouteLines();
-      this.host.drawRoadNetwork();
+      if (!this.screenshotMode) {
+        this.host.drawEnclosures();
+        this.host.drawSunburstArcs();
+        this.host.drawRouteLines();
+        this.host.drawRoadNetwork();
+      }
       this.host.drawTimelineBars();
       this.host.drawEdges();
     }

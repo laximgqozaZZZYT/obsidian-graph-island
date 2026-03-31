@@ -41,7 +41,7 @@ const SKIP_PRESETS = new Set([
   "61-enclosure-saiyuki", "63-radial-gilgamesh", "79-japanese-force",
   "85-sangokushi-dense", "77-force-divine-comedy-cards",
   "49-orphan-flood", "12-genji-reader",
-  "test-arc", "test-concentric-layout", "21-filled-hexagon", "10-maximalist", "26-lissajous-figure",
+  "test-arc", "test-concentric-layout", "21-filled-hexagon", "10-maximalist", "26-lissajous-figure", "29-concentric-degree",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {

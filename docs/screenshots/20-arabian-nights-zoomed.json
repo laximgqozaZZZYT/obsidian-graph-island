@@ -100,10 +100,10 @@
   "groupFilter": "",
   "activeTab": "layout",
   "autoFit": false,
-  "showDurationBars": false,
+  "showDurationBars": true,
   "showTimelineRoutes": true,
   "timelineEndKey": "end-date",
-  "timelineOrderFields": "next,prev",
+  "timelineOrderFields": "",
   "coordinateLayout": null,
   "showDotGrid": false,
   "timelineRangeMin": 0,
@@ -186,18 +186,15 @@
   "showOntologyBackbone": false,
   "showGapEdges": false,
   "layout": "force",
-  "showTags": false,
-  "colorNodesByCategory": true,
-  "heatmapMode": false,
   "showGuideLines": false,
-  "guideLineMode": "per-group",
-  "showGroupGrid": true,
   "renderThresholds": {
     "enclosureFillOpacity": 0,
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 84
+    "labelOverlapMargin": 36
   },
+  "showTags": false,
+  "colorNodesByCategory": true,
   "_absoluteZoom": 0.8
 }
