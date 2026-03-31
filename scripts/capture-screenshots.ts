@@ -36,7 +36,7 @@ const SKIP_PRESETS = new Set([
   "02-dense-cluster", "11-bible-scholar", "13-battle-analyzer",
   "16-edge-bundle-art", "17-ontology-mapper", "19-hub-discovery",
   "34-card-view", "36-er-diagram", "35-donut-groups",
-  "28-cardioid-heart",
+  "28-cardioid-heart", "53-accessibility-contrast",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {
@@ -183,10 +183,12 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
           if (child && typeof child.clear === 'function') child.clear();
         }
       }
-      // Also clear specific graphics containers
-      if (v.enclosureGraphics && typeof v.enclosureGraphics.clear === 'function') v.enclosureGraphics.clear();
-      if (v.sunburstGraphics && typeof v.sunburstGraphics.clear === 'function') v.sunburstGraphics.clear();
-      if (v.clusterBoundaryGraphics && typeof v.clusterBoundaryGraphics.clear === 'function') v.clusterBoundaryGraphics.clear();
+      // Also clear and HIDE specific graphics containers to prevent re-drawing
+      if (v.enclosureGraphics) { v.enclosureGraphics.clear(); v.enclosureGraphics.visible = false; }
+      if (v.sunburstGraphics) { v.sunburstGraphics.clear(); v.sunburstGraphics.visible = false; }
+      if (v.clusterBoundaryGraphics) { v.clusterBoundaryGraphics.clear(); v.clusterBoundaryGraphics.visible = false; }
+      // ANTI-PATTERN FIX: Hide cable-tray trunk lines that dominate the canvas
+      if (v.trayGraphics) { v.trayGraphics.clear(); v.trayGraphics.visible = false; }
       // Clear groupBy labels
       if (v.groupByLabels) {
         v.groupByLabels.forEach(function(lbl: any) { lbl.visible = false; });
@@ -277,6 +279,11 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
         });
       }
       await v.doRender();
+
+      // Re-hide graphics after doRender (it may re-create/re-show them)
+      if (v.enclosureGraphics) { v.enclosureGraphics.clear(); v.enclosureGraphics.visible = false; }
+      if (v.clusterBoundaryGraphics) { v.clusterBoundaryGraphics.clear(); v.clusterBoundaryGraphics.visible = false; }
+      if (v.trayGraphics) { v.trayGraphics.clear(); v.trayGraphics.visible = false; }
 
       // Serialize the effective panel state for saving (exclude vault-specific data)
       var EXCLUDE_KEYS = ['pinnedPositions', 'expandedNodes', 'bookmarkedNodes',
@@ -429,6 +436,11 @@ async function applyPresetSafe(page: Page, preset: Record<string, any>): Promise
 
     v.markDirty();
     await new Promise(function(r) { setTimeout(r, 500); });
+
+    // Re-hide cluster/enclosure/tray graphics after markDirty
+    if (v.enclosureGraphics) { v.enclosureGraphics.clear(); v.enclosureGraphics.visible = false; }
+    if (v.clusterBoundaryGraphics) { v.clusterBoundaryGraphics.clear(); v.clusterBoundaryGraphics.visible = false; }
+    if (v.trayGraphics) { v.trayGraphics.clear(); v.trayGraphics.visible = false; }
 
     // Force label update at final zoom
     if (v.updateLabelsForZoom) v.updateLabelsForZoom();
