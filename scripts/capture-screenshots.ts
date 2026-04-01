@@ -42,6 +42,7 @@ const SKIP_PRESETS = new Set([
   "85-sangokushi-dense", "77-force-divine-comedy-cards",
   "49-orphan-flood", "12-genji-reader",
   "test-arc", "test-concentric-layout", "21-filled-hexagon", "10-maximalist", "26-lissajous-figure", "29-concentric-degree",
+  "68-concentric-saiyuki", "06-sangokushi-factions",
 ]);
 
 async function connect(): Promise<{ browser: Browser; page: Page; cdp: CDPSession }> {

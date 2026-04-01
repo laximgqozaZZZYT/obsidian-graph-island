@@ -7,15 +7,15 @@
   "maxDegreeFilter": 0,
   "includeTagsInData": true,
   "showAttachments": false,
-  "existingOnly": true,
-  "showOrphans": false,
-  "showArrows": true,
-  "textFadeThreshold": 0.4,
-  "nodeSize": 7,
-  "centerForce": 0.005,
-  "repelForce": 300,
-  "linkForce": 0.02,
-  "linkDistance": 80,
+  "existingOnly": false,
+  "showOrphans": true,
+  "showArrows": false,
+  "textFadeThreshold": 0.5,
+  "nodeSize": 6,
+  "centerForce": 0.03,
+  "repelForce": 400,
+  "linkForce": 0.01,
+  "linkDistance": 120,
   "concentricMinRadius": 50,
   "concentricRadiusStep": 60,
   "showOrbitRings": true,
@@ -27,20 +27,20 @@
   "nodeColorMode": "category",
   "nodeColorField": "",
   "customColorPalette": "",
-  "showInheritance": true,
+  "showInheritance": false,
   "showAggregation": false,
-  "showTagNodes": false,
+  "showTagNodes": true,
   "tagDisplay": "node",
-  "showSimilar": true,
+  "showSimilar": false,
   "showSibling": false,
-  "showSequence": true,
+  "showSequence": false,
   "showLinks": true,
-  "showTagEdges": true,
+  "showTagEdges": false,
   "showCategoryEdges": false,
-  "showSemanticEdges": false,
+  "showSemanticEdges": true,
   "enclosureSpacing": 1.5,
   "directionalGravityRules": [],
-  "hoverHops": 2,
+  "hoverHops": 1,
   "hoverHighlightTypes": {
     "forwardLinks": true,
     "backlinks": true,
@@ -59,30 +59,28 @@
     "aggregation": true
   },
   "clusterGroupRules": [],
-  "clusterArrangement": "concentric",
+  "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 10,
-  "clusterGroupScale": 5,
-  "clusterGroupSpacing": 5,
+  "clusterNodeSpacing": 1.5,
+  "clusterGroupScale": 3,
+  "clusterGroupSpacing": 3,
   "fadeEdgesByDegree": false,
-  "edgeBundleStrength": 0.3,
+  "edgeBundleStrength": 0.65,
   "sortRules": [
     {
       "key": "degree",
-      "direction": "desc"
+      "order": "desc"
+    },
+    {
+      "key": "label",
+      "order": "asc"
     }
   ],
   "nodeRules": [],
   "nodeShapeRules": [
     {
-      "match": "category",
-      "category": "protagonist",
-      "shape": "star"
-    },
-    {
-      "match": "category",
-      "category": "deity",
-      "shape": "diamond"
+      "match": "isTag",
+      "shape": "triangle"
     },
     {
       "match": "default",
@@ -90,26 +88,26 @@
     }
   ],
   "dataviewQuery": "",
-  "timelineKey": "start-date",
-  "showEdgeLabels": true,
+  "timelineKey": "date",
+  "showEdgeLabels": false,
   "edgeLabelPlacement": "center",
   "showMinimap": true,
   "groupBy": "none",
-  "groupByRules": [],
+  "groupByRules": null,
   "groupMinSize": 2,
   "groupFilter": "",
-  "activeTab": "layout",
-  "autoFit": true,
-  "showDurationBars": false,
+  "activeTab": "filter",
+  "autoFit": false,
+  "showDurationBars": true,
   "showTimelineRoutes": true,
-  "timelineEndKey": "",
+  "timelineEndKey": "end-date",
   "timelineOrderFields": "",
   "coordinateLayout": null,
   "showDotGrid": false,
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "ringChartMode": false,
-  "gridShowHeaders": true,
+  "gridShowHeaders": false,
   "showAxisTitles": false,
   "showTimelineTickLabels": true,
   "gridCellShading": false,
@@ -120,12 +118,13 @@
     "intraGroupDensity": 1
   },
   "clusterFollowsGroupBy": true,
-  "nodeDisplayMode": "default",
+  "nodeDisplayMode": "card",
   "cardDisplayConfig": {
-    "fields": [],
-    "maxWidth": 140,
-    "showIcon": false,
-    "headerStyle": "default"
+    "fields": [
+      "node_type"
+    ],
+    "maxWidth": 120,
+    "showIcon": true
   },
   "donutDisplayConfig": {
     "innerRadius": 0.6
@@ -184,20 +183,12 @@
   "analysisOverlay": "off",
   "showOntologyBackbone": false,
   "showGapEdges": false,
-  "layout": "concentric",
-  "showTags": false,
-  "colorNodesByCategory": true,
-  "heatmapMode": false,
+  "layout": "force",
   "showGuideLines": false,
-  "guideLineMode": "perGroup",
-  "showGroupGrid": false,
   "renderThresholds": {
     "enclosureFillOpacity": 0,
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
-    "autoLOD": true,
-    "labelOverlapMargin": 180
-  },
-  "gridTableMode": true,
-  "_absoluteZoom": 0.8
+    "autoLOD": true
+  }
 }

@@ -1,47 +1,5 @@
 [
   {
-    "name": "01-panorama-overview",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "03-character-network",
-    "nodes": 238,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "04-shakespeare-compare",
-    "nodes": 492,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "05-mythology-pantheon",
-    "nodes": 498,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "06-sangokushi-factions",
-    "nodes": 123,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "07-tag-taxonomy",
-    "nodes": 369,
-    "pass": true,
-    "issues": []
-  },
-  {
-    "name": "09-minimalist",
-    "nodes": 15,
-    "pass": true,
-    "issues": []
-  },
-  {
     "name": "100-force-sangokushi-cards",
     "nodes": 123,
     "pass": true,
@@ -50,6 +8,12 @@
   {
     "name": "101-concentric-apocrypha",
     "nodes": 118,
+    "pass": true,
+    "issues": []
+  },
+  {
+    "name": "102-force-greek-chars",
+    "nodes": 15,
     "pass": true,
     "issues": []
   },
@@ -73,27 +37,19 @@
   },
   {
     "name": "27-filled-pentagon",
-    "nodes": 132,
+    "nodes": 123,
     "pass": true,
     "issues": []
   },
   {
-    "name": "29-concentric-degree",
-    "nodes": 0,
-    "pass": false,
-    "issues": [
-      "Too few nodes: 0"
-    ]
-  },
-  {
     "name": "32-timeline-ticks",
-    "nodes": 127,
+    "nodes": 123,
     "pass": true,
     "issues": []
   },
   {
     "name": "33-polar-grid",
-    "nodes": 125,
+    "nodes": 123,
     "pass": true,
     "issues": []
   },
@@ -105,25 +61,27 @@
   },
   {
     "name": "38-tiny-nodes-stress",
-    "nodes": 123,
+    "nodes": 132,
     "pass": true,
     "issues": []
   },
   {
     "name": "40-force-ungrouped",
-    "nodes": 119,
-    "pass": true,
-    "issues": []
+    "nodes": 0,
+    "pass": false,
+    "issues": [
+      "Too few nodes: 0"
+    ]
   },
   {
     "name": "43-concentric-tiny-accessibility",
-    "nodes": 123,
+    "nodes": 127,
     "pass": true,
     "issues": []
   },
   {
     "name": "45-grid-tight-spacing",
-    "nodes": 123,
+    "nodes": 2233,
     "pass": true,
     "issues": []
   },
@@ -135,7 +93,7 @@
   },
   {
     "name": "51-enclosure-tight",
-    "nodes": 102,
+    "nodes": 123,
     "pass": true,
     "issues": []
   },
@@ -183,7 +141,7 @@
   },
   {
     "name": "65-concentric-japanese",
-    "nodes": 123,
+    "nodes": 2233,
     "pass": true,
     "issues": []
   },
@@ -201,7 +159,7 @@
   },
   {
     "name": "68-concentric-saiyuki",
-    "nodes": 102,
+    "nodes": 123,
     "pass": true,
     "issues": []
   },
@@ -213,7 +171,7 @@
   },
   {
     "name": "70-sunburst-egyptian",
-    "nodes": 123,
+    "nodes": 238,
     "pass": true,
     "issues": []
   },
@@ -225,13 +183,13 @@
   },
   {
     "name": "72-force-king-lear",
-    "nodes": 123,
+    "nodes": 6,
     "pass": true,
     "issues": []
   },
   {
     "name": "73-concentric-othello",
-    "nodes": 123,
+    "nodes": 2233,
     "pass": true,
     "issues": []
   },
@@ -375,7 +333,7 @@
   },
   {
     "name": "test-hub-radial",
-    "nodes": 123,
+    "nodes": 119,
     "pass": true,
     "issues": []
   },

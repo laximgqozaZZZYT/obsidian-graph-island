@@ -6,9 +6,9 @@
   "minDegreeFilter": 0,
   "maxDegreeFilter": 0,
   "includeTagsInData": true,
-  "showAttachments": false,
-  "existingOnly": true,
-  "showOrphans": false,
+  "showAttachments": true,
+  "existingOnly": false,
+  "showOrphans": true,
   "showArrows": true,
   "textFadeThreshold": 0.4,
   "nodeSize": 8,
@@ -59,11 +59,11 @@
     "aggregation": true
   },
   "clusterGroupRules": [],
-  "clusterArrangement": "concentric",
+  "clusterArrangement": "grid",
   "clusterGroupArrangement": "auto",
-  "clusterNodeSpacing": 5.3,
-  "clusterGroupScale": 5,
-  "clusterGroupSpacing": 5,
+  "clusterNodeSpacing": 2,
+  "clusterGroupScale": 1.5,
+  "clusterGroupSpacing": 2,
   "fadeEdgesByDegree": false,
   "edgeBundleStrength": 0.3,
   "sortRules": [],
@@ -94,17 +94,17 @@
   "groupMinSize": 2,
   "groupFilter": "",
   "activeTab": "layout",
-  "autoFit": true,
-  "showDurationBars": false,
+  "autoFit": false,
+  "showDurationBars": true,
   "showTimelineRoutes": true,
-  "timelineEndKey": "",
+  "timelineEndKey": "end-date",
   "timelineOrderFields": "",
   "coordinateLayout": null,
   "showDotGrid": false,
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "ringChartMode": false,
-  "gridShowHeaders": true,
+  "gridShowHeaders": false,
   "showAxisTitles": false,
   "showTimelineTickLabels": true,
   "gridCellShading": false,
@@ -115,12 +115,13 @@
     "intraGroupDensity": 1
   },
   "clusterFollowsGroupBy": true,
-  "nodeDisplayMode": "default",
+  "nodeDisplayMode": "card",
   "cardDisplayConfig": {
-    "fields": [],
-    "maxWidth": 140,
-    "showIcon": false,
-    "headerStyle": "default"
+    "fields": [
+      "node_type"
+    ],
+    "maxWidth": 120,
+    "showIcon": true
   },
   "donutDisplayConfig": {
     "innerRadius": 0.6
@@ -180,19 +181,13 @@
   "showOntologyBackbone": false,
   "showGapEdges": false,
   "layout": "radial",
-  "showTags": false,
-  "colorNodesByCategory": true,
-  "heatmapMode": false,
   "showGuideLines": false,
-  "guideLineMode": "perGroup",
-  "showGroupGrid": false,
   "renderThresholds": {
     "enclosureFillOpacity": 0,
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 156
+    "labelOverlapMargin": 24
   },
-  "gridTableMode": true,
   "_absoluteZoom": 0.8
 }

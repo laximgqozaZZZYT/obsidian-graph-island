@@ -21,7 +21,7 @@
   "showOrbitRings": true,
   "orbitAutoRotate": false,
   "groups": [],
-  "searchQuery": "path:classic-arthurian*",
+  "searchQuery": "path:classic-gilgamesh*",
   "searchMode": "filter",
   "colorEdgesByRelation": true,
   "nodeColorMode": "category",
@@ -103,7 +103,7 @@
   "timelineRangeMin": 0,
   "timelineRangeMax": 1,
   "ringChartMode": false,
-  "gridShowHeaders": true,
+  "gridShowHeaders": false,
   "showAxisTitles": false,
   "showTimelineTickLabels": true,
   "gridCellShading": false,
@@ -180,19 +180,17 @@
   "showOntologyBackbone": false,
   "showGapEdges": false,
   "layout": "force",
-  "showTags": true,
-  "colorNodesByCategory": true,
-  "heatmapMode": false,
   "showGuideLines": false,
-  "guideLineMode": "per-group",
-  "showGroupGrid": false,
   "renderThresholds": {
     "enclosureFillOpacity": 0,
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 216
+    "labelOverlapMargin": 108
   },
-  "gridTableMode": true,
+  "showTags": true,
+  "colorNodesByCategory": true,
+  "guideLineMode": "per-group",
+  "showGroupGrid": false,
   "_absoluteZoom": 0.8
 }
