@@ -126,7 +126,7 @@
     "fields": [
       "node_type"
     ],
-    "maxWidth": 120,
+    "maxWidth": 130,
     "showIcon": true
   },
   "donutDisplayConfig": {
@@ -193,7 +193,7 @@
     "minNodeRadius": 8,
     "nodeSizeByDegree": true,
     "autoLOD": true,
-    "labelOverlapMargin": 24
+    "labelOverlapMargin": 36
   },
   "showTags": false,
   "colorNodesByCategory": true

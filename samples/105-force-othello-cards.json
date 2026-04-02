@@ -1,0 +1,1 @@
+{"layout":"force","searchQuery":"path:classic-othello*","nodeDisplayMode":"card","cardDisplayConfig":{"fields":["node_type"],"maxWidth":120,"showIcon":true},"nodeSize":6,"repelForce":400,"linkDistance":120,"showLinks":true,"showSemanticEdges":true,"showTagEdges":false,"colorEdgesByRelation":true,"nodeColorMode":"category","showMinimap":true}
