@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Menu, MarkdownView, Notice, Modal, type ViewStateResult } from "obsidian";
+import { ItemView, WorkspaceLeaf, Platform, TFile, FileView, setIcon, Notice, Modal, type ViewStateResult } from "obsidian";
 import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
 import type { IApp } from "./canvas2d/interfaces";
 import { createApp } from "./renderer-factory";
@@ -16,7 +16,7 @@ import { applyTimelineLayout } from "../layouts/timeline";
 import { computeNodeDegrees, computeBetweennessCentrality, detectArticulationPoints, computeSimilarNodes, type SimilarNode } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import { RoadNetworkBuilder, getBestRoadNetwork, type RoadNetworkHost } from "../layouts/RoadNetworkBuilder";
-import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, collectSubgraph, exportSubgraphJSON, exportFullGraphJSON, exportGraphCSV, exportGraphMermaid, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter, computeGaps, hitTestTimelineBars, autoBundleStrength, computeNodeBBox, buildTagMembership, buildMissingNeighborSet, parseGroupByFields, computeAutoFitTransform } from "../utils/graph-helpers";
+import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, edgeTargetId, bfsNeighborSet, bfsShortestPath, edgeTypeSummary, collapsedGroupSummary, truncateBreadcrumb, incCounter, computeGaps, hitTestTimelineBars, autoBundleStrength, computeNodeBBox, buildTagMembership, buildMissingNeighborSet, parseGroupByFields, computeAutoFitTransform } from "../utils/graph-helpers";
 import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph, filterByLocalGraph } from "../utils/graph-filter";
 import { pointInPolygon, convexHull } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
@@ -35,8 +35,21 @@ import { RenderPipeline, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPi
 import { LayoutController, type LayoutHost } from "./LayoutController";
 import { LabelManager } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
-import { DiffOverlay, buildTimelineEntries, formatDelta, formatSnapshotDate } from "./DiffOverlay";
-import { captureSnapshot, computeSnapshotDiff, computeSnapshotToSnapshotDiff } from "../utils/snapshot";
+import { DiffOverlay } from "./DiffOverlay";
+import {
+  showSnapshotMenu, saveSnapshot as saveSnapshotImpl, compareWithSnapshot as compareWithSnapshotImpl,
+  deleteSnapshot as deleteSnapshotImpl, showSnapshotTimeline as showSnapshotTimelineImpl,
+  clearDiffOverlay as clearDiffOverlayImpl, createAutoSnapshot, AUTO_SNAP_PREFIX,
+  type SnapshotHost,
+} from "./SnapshotManager";
+import {
+  exportSubgraph as exportSubgraphImpl, exportPng as exportPngImpl,
+  exportFullGraph as exportFullGraphImpl, exportGraphAsCSV as exportGraphAsCSVImpl,
+  exportGraphAsMermaid as exportGraphAsMermaidImpl, downloadFile,
+  copyGraphToClipboard as copyGraphToClipboardImpl,
+  embedGraphInNote as embedGraphInNoteImpl, exportCanvasAsBlob as exportCanvasBlobImpl,
+  type ExportHost,
+} from "./ExportManager";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./StatsRenderer";
@@ -832,224 +845,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // _initActionButtons removed — export, local graph, snapshot moved to command palette
 
   // =========================================================================
-  // スナップショット操作
+  // スナップショット操作 (delegated to SnapshotManager)
   // =========================================================================
 
-  /** スナップショットメニューを表示する */
-  private _showSnapshotMenu(evt: MouseEvent): void {
-    const menu = new Menu();
-
-    // 保存メニュー項目
-    menu.addItem((item) => {
-      item.setTitle(t("snapshot.save"))
-        .setIcon("plus")
-        .onClick(() => this._saveSnapshot());
-    });
-
-    const snapshots = this.plugin.settings.snapshots ?? [];
-    if (snapshots.length > 0) {
-      menu.addSeparator();
-
-      // 各スナップショットのサブメニュー
-      for (let i = 0; i < snapshots.length; i++) {
-        const snap = snapshots[i];
-        const title = snap.notes ? `${snap.name} — ${snap.notes}` : snap.name;
-        menu.addItem((item) => {
-          item.setTitle(title)
-            .setIcon("bookmark")
-            .onClick(() => this._compareWithSnapshot(snap));
-        });
-      }
-
-      // 削除用サブメニュー
-      menu.addSeparator();
-      for (let i = 0; i < snapshots.length; i++) {
-        const snap = snapshots[i];
-        menu.addItem((item) => {
-          item.setTitle(`${t("snapshot.delete")}: ${snap.name}`)
-            .setIcon("trash")
-            .onClick(() => this._deleteSnapshot(i));
-        });
-      }
-    }
-
-    // Timeline view
-    if (snapshots.length >= 2) {
-      menu.addSeparator();
-      menu.addItem((item) => {
-        item.setTitle("Timeline")
-          .setIcon("clock")
-          .onClick(() => this._showSnapshotTimeline());
-      });
-    }
-
-    // 差分が有効な場合、解除ボタンを表示
-    if (this.diffOverlay.isActive()) {
-      menu.addSeparator();
-      menu.addItem((item) => {
-        item.setTitle(t("snapshot.clearDiff"))
-          .setIcon("x")
-          .onClick(() => this._clearDiffOverlay());
-      });
-    }
-
-    menu.showAtMouseEvent(evt);
-  }
-
-  /** 現在のグラフ状態をスナップショットとして保存する */
-  private _saveSnapshot(): void {
-    const snapshots = this.plugin.settings.snapshots ?? [];
-
-    // 10件制限チェック
-    if (snapshots.length >= 10) {
-      showToast(t("snapshot.limitReached"), 5000);
-      return;
-    }
-
-    // 名前入力（簡易プロンプト）
-    const name = window.prompt(
-      t("snapshot.enterName"),
-      `Snapshot ${snapshots.length + 1}`,
-    );
-    if (!name) return;
-
-    // オプション: メモ入力
-    const notes = window.prompt(t("snapshot.enterNotes"), "") ?? undefined;
-
-    // 現在のグラフデータを取得してキャプチャ
-    const data = this.getGraphData();
-    const snapshot = captureSnapshot(data, name, {
-      layout: this.currentLayout ?? "force",
-      searchQuery: this.panel.searchQuery ?? "",
-      groupBy: (this.panel.clusterGroupRules?.[0]?.groupBy) ?? "",
-    });
-    if (notes) snapshot.notes = notes;
-
-    // 設定に保存
-    if (!this.plugin.settings.snapshots) {
-      this.plugin.settings.snapshots = [];
-    }
-    this.plugin.settings.snapshots.push(snapshot);
-    this.plugin.saveSettings();
-
-    showToast(t("snapshot.saved").replace("{name}", name));
-  }
-
-  /** スナップショットと現在のグラフを比較する */
-  private _compareWithSnapshot(snapshot: GraphSnapshot): void {
-    const data = this.getGraphData();
-    const diff = computeSnapshotDiff(data, snapshot);
-    this.diffOverlay.activate(diff, snapshot.name);
-
-    // Build clickable diff list panel
-    const canvasArea = this.containerEl.querySelector<HTMLElement>(".gi-canvas-area");
-    if (canvasArea) {
-      this.diffOverlay.buildDiffList(
-        canvasArea,
-        (id) => this.getNodeLabel(id),
-        (id) => { this.panToNode(id); this.setHighlightedNodeId(id); this.applyHover(); },
-        () => this._clearDiffOverlay(),
-      );
-    }
-
-    // 再描画を要求してオーバーレイを表示
-    this.pixiApp?.markNeedsRender();
-    this.wakeRenderLoop();
-  }
-
-  /** スナップショットを削除する */
-  private _deleteSnapshot(index: number): void {
-    const snapshots = this.plugin.settings.snapshots ?? [];
-    if (index < 0 || index >= snapshots.length) return;
-
-    const name = snapshots[index].name;
-    snapshots.splice(index, 1);
-    this.plugin.saveSettings();
-
-    showToast(t("snapshot.deleted").replace("{name}", name));
-  }
-
-  /** Show snapshot timeline panel */
-  private _showSnapshotTimeline(): void {
-    const snapshots = this.plugin.settings.snapshots ?? [];
-    if (snapshots.length < 2) return;
-
-    const entries = buildTimelineEntries(snapshots);
-    const canvasArea = this.containerEl.querySelector<HTMLElement>(".gi-canvas-area");
-    if (!canvasArea) return;
-
-    // Remove existing timeline
-    canvasArea.querySelector(".gi-snapshot-timeline")?.remove();
-
-    const panel = canvasArea.createDiv({ cls: "gi-snapshot-timeline" });
-
-    // Header
-    const header = panel.createDiv({ cls: "gi-snapshot-timeline-header" });
-    header.createEl("span", { text: `Snapshot Timeline (${entries.length})`, cls: "gi-snapshot-timeline-title" });
-    const closeBtn = header.createEl("button", { text: "\u00d7", cls: "gi-snapshot-timeline-close", attr: { "aria-label": "Close timeline" } });
-    closeBtn.addEventListener("click", () => panel.remove());
-
-    // Mini bar chart
-    const maxNodes = Math.max(1, ...entries.map(e => e.nodeCount));
-    const chartEl = panel.createDiv({ cls: "gi-snapshot-chart" });
-    let _selectedSnap: typeof snapshots[0] | null = null;
-    const bars: HTMLElement[] = [];
-    for (const entry of entries) {
-      const bar = chartEl.createDiv({ cls: "gi-snapshot-bar" });
-      bars.push(bar);
-      const h = Math.max(2, (entry.nodeCount / maxNodes) * 36);
-      bar.style.height = `${h}px`;
-      bar.title = `${entry.name}: ${entry.nodeCount}n, ${entry.edgeCount}e — Shift+click to compare two`;
-      bar.addEventListener("click", (ev: MouseEvent) => {
-        const snap = snapshots.find(s => s.name === entry.name);
-        if (!snap) return;
-        if (ev.shiftKey && _selectedSnap && _selectedSnap !== snap) {
-          // Compare two snapshots
-          const [older, newer] = _selectedSnap.createdAt < snap.createdAt
-            ? [_selectedSnap, snap]
-            : [snap, _selectedSnap];
-          const diff = computeSnapshotToSnapshotDiff(newer, older);
-          this.diffOverlay.activate(diff, `${older.name} → ${newer.name}`);
-          panel.remove();
-          this.pixiApp?.markNeedsRender();
-          this.wakeRenderLoop();
-        } else if (ev.shiftKey) {
-          // First shift-click: select this snapshot
-          _selectedSnap = snap;
-          bars.forEach(b => b.style.outline = "");
-          bar.style.outline = "2px solid var(--text-accent)";
-        } else {
-          // Normal click: compare with current graph
-          panel.remove();
-          this._compareWithSnapshot(snap);
-        }
-      });
-    }
-
-    // Entry list
-    for (const entry of entries) {
-      const row = panel.createDiv({ cls: "gi-snapshot-row" });
-      const displayName = entry.name.replace("[auto] ", "📷 ");
-      const dateStr = formatSnapshotDate(entry.createdAt);
-      row.createEl("span", { text: displayName, cls: "gi-snapshot-row-name", attr: { title: `${entry.name} (${dateStr})` } });
-      row.createEl("span", { text: dateStr, cls: "gi-snapshot-row-date" });
-      const statsEl = row.createDiv({ cls: "gi-snapshot-row-stats" });
-      statsEl.createEl("span", { text: `${entry.nodeCount}n` });
-      if (entry.nodeDelta !== undefined) {
-        const d = formatDelta(entry.nodeDelta);
-        statsEl.createEl("span", { text: d.text, attr: { style: `color:${d.color === "green" ? "var(--text-success,#38a169)" : d.color === "red" ? "var(--text-error,#e53e3e)" : "var(--text-muted)"};` } });
-      }
-    }
-  }
-
-  /** 差分オーバーレイを解除する */
-  private _clearDiffOverlay(): void {
-    this.diffOverlay.deactivate();
-    const canvasArea = this.containerEl.querySelector<HTMLElement>(".gi-canvas-area");
-    if (canvasArea) this.diffOverlay.removeDiffList(canvasArea);
-    this.pixiApp?.markNeedsRender();
-    this.wakeRenderLoop();
-  }
+  private _showSnapshotMenu(evt: MouseEvent): void { showSnapshotMenu(this as unknown as SnapshotHost, evt); }
+  private _saveSnapshot(): void { saveSnapshotImpl(this as unknown as SnapshotHost); }
+  private _compareWithSnapshot(snapshot: GraphSnapshot): void { compareWithSnapshotImpl(this as unknown as SnapshotHost, snapshot); }
+  private _deleteSnapshot(index: number): void { deleteSnapshotImpl(this as unknown as SnapshotHost, index); }
+  private _showSnapshotTimeline(): void { showSnapshotTimelineImpl(this as unknown as SnapshotHost); }
+  private _clearDiffOverlay(): void { clearDiffOverlayImpl(this as unknown as SnapshotHost); }
 
   /** Create fullscreen toggle and settings panel toggle buttons. */
   private _initSettingsButtons(toolbar: HTMLElement): void {
@@ -1499,8 +1303,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const mins = this.plugin.settings.autoSnapshotIntervalMin ?? 5;
         return mins * 60 * 1000;
       };
-      const AUTO_SNAP_MAX = 10;
-      const AUTO_SNAP_PREFIX = "[auto] ";
       this.registerEvent(
         this.app.metadataCache.on("changed", () => {
           const debounceMs = getDebounceMs();
@@ -1508,26 +1310,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           if (autoSnapTimer) window.clearTimeout(autoSnapTimer);
           autoSnapTimer = window.setTimeout(() => {
             autoSnapTimer = 0;
-            if (!this.pixiNodes.size) return; // no graph data yet
-            const snapshots = this.plugin.settings.snapshots ?? [];
-            // Remove oldest auto-snapshots if at limit
-            const autoSnaps = snapshots.filter(s => s.name.startsWith(AUTO_SNAP_PREFIX));
-            while (autoSnaps.length >= AUTO_SNAP_MAX) {
-              const oldest = autoSnaps.shift()!;
-              const idx = snapshots.indexOf(oldest);
-              if (idx >= 0) snapshots.splice(idx, 1);
-            }
-            // Capture
-            const data = this.getGraphData();
-            const name = AUTO_SNAP_PREFIX + new Date().toISOString().replace("T", " ").slice(0, 16);
-            const snap = captureSnapshot(data, name, {
-              layout: this.currentLayout ?? "force",
-              searchQuery: this.panel.searchQuery ?? "",
-              groupBy: (this.panel.clusterGroupRules?.[0]?.groupBy) ?? "",
-            });
-            snapshots.push(snap as any);
-            this.plugin.settings.snapshots = snapshots;
-            this.plugin.saveSettings();
+            createAutoSnapshot(this as unknown as SnapshotHost);
           }, debounceMs) as unknown as number;
         })
       );
@@ -3034,36 +2817,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   }
 
   // =========================================================================
-  // Subgraph Export (Feature CY)
+  // Subgraph Export (Feature CY) — delegated to ExportManager
   // =========================================================================
-  /** Export an N-hop subgraph around a node as a JSON download. */
-  exportSubgraph(nodeId: string): void {
-    if (!this.adj || !this.graphEdges) return;
-    const nodes = [...this.pixiNodes.values()].map((pn) => pn.data);
-    const edges = this.graphEdges;
-    const hops = this.panel.hoverHops || 2;
-    const sub = collectSubgraph(this.adj, nodeId, hops, nodes, edges);
-    const json = exportSubgraphJSON(sub);
-
-    // Download as file
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const pn = this.pixiNodes.get(nodeId);
-    const label = pn?.data?.label ?? nodeId;
-    a.download = `subgraph-${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    // Toast notification
-    const msg = t("toast.subgraphExported")
-      .replace("{nodes}", String(sub.nodes.length))
-      .replace("{edges}", String(sub.edges.length));
-    new Notice(msg, 3000);
-  }
+  exportSubgraph(nodeId: string): void { exportSubgraphImpl(this as unknown as ExportHost, nodeId); }
 
   setSearchQuery(query: string): void {
     this.panel.searchQuery = query;
@@ -3138,59 +2894,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     this.requestSave();
   }
 
-  // FC: Export graph canvas as PNG
-  exportPng(): void {
-    const canvas = this.pixiApp?.view;
-    if (!canvas) return;
-    canvas.toBlob((blob: Blob | null) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `graph-island-${new Date().toISOString().slice(0, 10)}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      new Notice("Graph exported as PNG", 2000);
-    }, "image/png");
-  }
-
-  exportFullGraph(): void {
-    const gd = this.getGraphData();
-    const json = exportFullGraphJSON(gd.nodes, gd.edges);
-    this._downloadFile(json, "application/json", `graph-island-export-${new Date().toISOString().slice(0, 10)}.json`);
-    new Notice(`Graph exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, 3000);
-  }
-
-  exportGraphAsCSV(): void {
-    const gd = this.getGraphData();
-    const csv = exportGraphCSV(gd.nodes, gd.edges);
-    this._downloadFile(csv, "text/csv", `graph-island-${new Date().toISOString().slice(0, 10)}.csv`);
-    new Notice(`CSV exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, 3000);
-  }
-
-  exportGraphAsMermaid(): void {
-    const gd = this.getGraphData();
-    const mmd = exportGraphMermaid(gd.nodes, gd.edges);
-    navigator.clipboard.writeText(mmd).then(() => {
-      new Notice(`Mermaid diagram copied to clipboard (${Math.min(200, gd.nodes.length)} nodes)`, 3000);
-    }).catch(() => {
-      this._downloadFile(mmd, "text/plain", `graph-island-${new Date().toISOString().slice(0, 10)}.mmd`);
-    });
-  }
-
-  private _downloadFile(content: string, type: string, filename: string): void {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
+  // FC: Export — delegated to ExportManager
+  exportPng(): void { exportPngImpl(this as unknown as ExportHost); }
+  exportFullGraph(): void { exportFullGraphImpl(this as unknown as ExportHost); }
+  exportGraphAsCSV(): void { exportGraphAsCSVImpl(this as unknown as ExportHost); }
+  exportGraphAsMermaid(): void { exportGraphAsMermaidImpl(this as unknown as ExportHost); }
+  private _downloadFile(content: string, type: string, filename: string): void { downloadFile(content, type, filename); }
 
   // =========================================================================
   // C3+F2: Ontology type picker & relation type picker
@@ -8659,88 +8368,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     requestAnimationFrame(() => { if (this._ariaLiveEl) this._ariaLiveEl.textContent = msg; });
   }
 
-  /** Copy the current graph view as PNG to clipboard */
-  private async copyGraphToClipboard() {
-    if (!this.pixiApp) return;
-    try {
-      const { exportGraphAsPng } = await import("../utils/export-png");
-      const blob = await exportGraphAsPng(this.pixiApp);
-      await navigator.clipboard.write([
-        new ClipboardItem({ "image/png": blob }),
-      ]);
-      showToast(t("toast.copiedToClipboard"));
-    } catch (e) {
-      console.error("Graph Island: clipboard copy failed", e);
-      showToast(t("toast.clipboardFailed"), 5000);
-    }
-  }
+  /** Copy the current graph view as PNG to clipboard — delegated to ExportManager */
+  private async copyGraphToClipboard() { return copyGraphToClipboardImpl(this as unknown as ExportHost); }
 
-  /**
-   * 現在のグラフをPNGとしてキャプチャし、アクティブなノートに埋め込む。
-   * ツールバーボタンおよびコマンドパレットから呼び出される。
-   */
-  public async embedGraphInNote(): Promise<void> {
-    // アクティブなエディタを取得
-    const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!mdView || !mdView.editor) {
-      showToast(t("toast.embedNoEditor"), 5000);
-      return;
-    }
-    if (!this.pixiApp) {
-      showToast(t("toast.embedNoGraph"), 5000);
-      return;
-    }
+  /** Embed graph PNG in active note — delegated to ExportManager */
+  public async embedGraphInNote(): Promise<void> { return embedGraphInNoteImpl(this as unknown as ExportHost); }
 
-    try {
-      const { exportGraphAsPng } = await import("../utils/export-png");
-      const blob = await exportGraphAsPng(this.pixiApp);
-
-      // タイムスタンプ付きファイル名を生成
-      const now = new Date();
-      const ts = [
-        now.getFullYear(),
-        String(now.getMonth() + 1).padStart(2, "0"),
-        String(now.getDate()).padStart(2, "0"),
-        String(now.getHours()).padStart(2, "0"),
-        String(now.getMinutes()).padStart(2, "0"),
-        String(now.getSeconds()).padStart(2, "0"),
-      ].join("");
-      const filename = `graph-island-${ts}.png`;
-
-      // Obsidianの添付ファイルフォルダ設定を尊重してパスを決定
-      const activeFile = mdView.file;
-      const attachPath = (this.app.vault as any).getAvailablePath
-        ? (this.app.vault as any).getAvailablePath(
-            ((this.app.vault as any).config?.attachmentFolderPath || "") + "/" + filename.replace(".png", ""),
-            "png"
-          )
-        : filename;
-
-      // バイナリデータとしてvaultに保存
-      const buffer = await blob.arrayBuffer();
-      await this.app.vault.createBinary(attachPath, buffer);
-
-      // エディタのカーソル位置にwikilink画像を挿入
-      const editor = mdView.editor;
-      const basename = attachPath.replace(/^.*\//, "");
-      editor.replaceSelection(`![[${basename}]]\n`);
-
-      showToast(t("toast.embedSuccess"));
-    } catch (e) {
-      console.error("Graph Island: embed failed", e);
-      showToast(t("toast.embedFailed"), 5000);
-    }
-  }
-
-  /**
-   * キャンバスをPNG Blobとしてエクスポートする公開メソッド。
-   * コマンドパレットからの呼び出し用。
-   */
-  public async exportCanvasAsBlob(): Promise<Blob | null> {
-    if (!this.pixiApp) return null;
-    const { exportGraphAsPng } = await import("../utils/export-png");
-    return exportGraphAsPng(this.pixiApp);
-  }
+  /** Export canvas as PNG Blob — delegated to ExportManager */
+  public async exportCanvasAsBlob(): Promise<Blob | null> { return exportCanvasBlobImpl(this as unknown as ExportHost); }
 
   /** Collect all unique tag names from graph nodes */
   private collectAvailableTags(): string[] {
