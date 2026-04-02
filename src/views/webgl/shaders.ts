@@ -59,63 +59,51 @@ void main() {
 // ---------------------------------------------------------------------------
 
 /** Compile a single shader from source. Throws on compilation error. */
-export function compileShader(
-  gl: WebGL2RenderingContext,
-  type: number,
-  source: string,
-): WebGLShader {
-  const shader = gl.createShader(type);
-  if (!shader) {
-    throw new Error(`Failed to create shader (type=${type})`);
-  }
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
+export function compileShader(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
+	const shader = gl.createShader(type);
+	if (!shader) {
+		throw new Error(`Failed to create shader (type=${type})`);
+	}
+	gl.shaderSource(shader, source);
+	gl.compileShader(shader);
 
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    const log = gl.getShaderInfoLog(shader) ?? "(no log)";
-    gl.deleteShader(shader);
-    throw new Error(`Shader compile error: ${log}`);
-  }
-  return shader;
+	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+		const log = gl.getShaderInfoLog(shader) ?? "(no log)";
+		gl.deleteShader(shader);
+		throw new Error(`Shader compile error: ${log}`);
+	}
+	return shader;
 }
 
 /** Link vertex + fragment shaders into a program. Throws on link error. */
-export function createProgram(
-  gl: WebGL2RenderingContext,
-  vs: WebGLShader,
-  fs: WebGLShader,
-): WebGLProgram {
-  const program = gl.createProgram();
-  if (!program) {
-    throw new Error("Failed to create WebGL program");
-  }
-  gl.attachShader(program, vs);
-  gl.attachShader(program, fs);
-  gl.linkProgram(program);
+export function createProgram(gl: WebGL2RenderingContext, vs: WebGLShader, fs: WebGLShader): WebGLProgram {
+	const program = gl.createProgram();
+	if (!program) {
+		throw new Error("Failed to create WebGL program");
+	}
+	gl.attachShader(program, vs);
+	gl.attachShader(program, fs);
+	gl.linkProgram(program);
 
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    const log = gl.getProgramInfoLog(program) ?? "(no log)";
-    gl.deleteProgram(program);
-    throw new Error(`Program link error: ${log}`);
-  }
-  return program;
+	if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+		const log = gl.getProgramInfoLog(program) ?? "(no log)";
+		gl.deleteProgram(program);
+		throw new Error(`Program link error: ${log}`);
+	}
+	return program;
 }
 
 /** Compile + link a shader program from source strings. */
-export function buildProgram(
-  gl: WebGL2RenderingContext,
-  vsSrc: string,
-  fsSrc: string,
-): WebGLProgram {
-  const vs = compileShader(gl, gl.VERTEX_SHADER, vsSrc);
-  const fs = compileShader(gl, gl.FRAGMENT_SHADER, fsSrc);
-  try {
-    return createProgram(gl, vs, fs);
-  } finally {
-    // Shaders can be detached after linking; delete to free GPU memory.
-    gl.deleteShader(vs);
-    gl.deleteShader(fs);
-  }
+export function buildProgram(gl: WebGL2RenderingContext, vsSrc: string, fsSrc: string): WebGLProgram {
+	const vs = compileShader(gl, gl.VERTEX_SHADER, vsSrc);
+	const fs = compileShader(gl, gl.FRAGMENT_SHADER, fsSrc);
+	try {
+		return createProgram(gl, vs, fs);
+	} finally {
+		// Shaders can be detached after linking; delete to free GPU memory.
+		gl.deleteShader(vs);
+		gl.deleteShader(fs);
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -124,34 +112,34 @@ export function buildProgram(
 
 /** Simple string hash for cache keys. */
 function hashSources(vsSrc: string, fsSrc: string): string {
-  // Use a fast numeric hash; collisions are harmless (just a cache miss).
-  let h = 0;
-  const combined = vsSrc + "\0" + fsSrc;
-  for (let i = 0; i < combined.length; i++) {
-    h = (Math.imul(31, h) + combined.charCodeAt(i)) | 0;
-  }
-  return h.toString(36);
+	// Use a fast numeric hash; collisions are harmless (just a cache miss).
+	let h = 0;
+	const combined = vsSrc + "\0" + fsSrc;
+	for (let i = 0; i < combined.length; i++) {
+		h = (Math.imul(31, h) + combined.charCodeAt(i)) | 0;
+	}
+	return h.toString(36);
 }
 
 export class ShaderCache {
-  private cache = new Map<string, WebGLProgram>();
+	private cache = new Map<string, WebGLProgram>();
 
-  /** Return a cached program or compile + cache a new one. */
-  get(gl: WebGL2RenderingContext, vsSrc: string, fsSrc: string): WebGLProgram {
-    const key = hashSources(vsSrc, fsSrc);
-    let prog = this.cache.get(key);
-    if (!prog) {
-      prog = buildProgram(gl, vsSrc, fsSrc);
-      this.cache.set(key, prog);
-    }
-    return prog;
-  }
+	/** Return a cached program or compile + cache a new one. */
+	get(gl: WebGL2RenderingContext, vsSrc: string, fsSrc: string): WebGLProgram {
+		const key = hashSources(vsSrc, fsSrc);
+		let prog = this.cache.get(key);
+		if (!prog) {
+			prog = buildProgram(gl, vsSrc, fsSrc);
+			this.cache.set(key, prog);
+		}
+		return prog;
+	}
 
-  /** Delete all cached programs from GPU. */
-  destroy(gl: WebGL2RenderingContext): void {
-    for (const prog of this.cache.values()) {
-      gl.deleteProgram(prog);
-    }
-    this.cache.clear();
-  }
+	/** Delete all cached programs from GPU. */
+	destroy(gl: WebGL2RenderingContext): void {
+		for (const prog of this.cache.values()) {
+			gl.deleteProgram(prog);
+		}
+		this.cache.clear();
+	}
 }

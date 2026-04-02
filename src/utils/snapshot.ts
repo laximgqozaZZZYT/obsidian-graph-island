@@ -4,14 +4,7 @@
 // 純粋関数のみ。DOM・Canvas依存なし。
 // ---------------------------------------------------------------------------
 
-import type {
-  GraphData,
-  GraphNode,
-  GraphSnapshot,
-  SnapshotNode,
-  SnapshotEdge,
-  SnapshotDiff,
-} from "../types";
+import type { GraphData, GraphNode, GraphSnapshot, SnapshotNode, SnapshotEdge, SnapshotDiff } from "../types";
 
 // ---------------------------------------------------------------------------
 // FNV-1a 32bit ハッシュ — 変更検出用（暗号用途ではない）
@@ -21,13 +14,13 @@ const FNV_PRIME = 0x01000193;
 
 /** 文字列を FNV-1a 32bit ハッシュに変換し、16進文字列で返す */
 export function fnv1a(str: string): string {
-  let hash = FNV_OFFSET;
-  for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
-    hash = Math.imul(hash, FNV_PRIME);
-  }
-  // 符号なし32ビットに変換して16進文字列化
-  return (hash >>> 0).toString(16);
+	let hash = FNV_OFFSET;
+	for (let i = 0; i < str.length; i++) {
+		hash ^= str.charCodeAt(i);
+		hash = Math.imul(hash, FNV_PRIME);
+	}
+	// 符号なし32ビットに変換して16進文字列化
+	return (hash >>> 0).toString(16);
 }
 
 // ---------------------------------------------------------------------------
@@ -36,20 +29,20 @@ export function fnv1a(str: string): string {
 
 /** オブジェクトのキーを再帰的にソートして安定した文字列表現を得る */
 function stableStringify(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  if (typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) {
-    return "[" + value.map(stableStringify).join(",") + "]";
-  }
-  const obj = value as Record<string, unknown>;
-  const keys = Object.keys(obj).sort();
-  return "{" + keys.map(k => JSON.stringify(k) + ":" + stableStringify(obj[k])).join(",") + "}";
+	if (value === null || value === undefined) return "";
+	if (typeof value !== "object") return JSON.stringify(value);
+	if (Array.isArray(value)) {
+		return "[" + value.map(stableStringify).join(",") + "]";
+	}
+	const obj = value as Record<string, unknown>;
+	const keys = Object.keys(obj).sort();
+	return "{" + keys.map((k) => JSON.stringify(k) + ":" + stableStringify(obj[k])).join(",") + "}";
 }
 
 /** ノードのメタデータからハッシュ文字列を生成する */
 export function hashMeta(meta: Record<string, unknown> | undefined): string {
-  if (!meta || Object.keys(meta).length === 0) return "";
-  return fnv1a(stableStringify(meta));
+	if (!meta || Object.keys(meta).length === 0) return "";
+	return fnv1a(stableStringify(meta));
 }
 
 // ---------------------------------------------------------------------------
@@ -58,36 +51,36 @@ export function hashMeta(meta: Record<string, unknown> | undefined): string {
 
 /** 現在のグラフ状態からスナップショットを作成する */
 export function captureSnapshot(
-  data: GraphData,
-  name: string,
-  context: {
-    layout: string;
-    searchQuery: string;
-    groupBy: string;
-  },
+	data: GraphData,
+	name: string,
+	context: {
+		layout: string;
+		searchQuery: string;
+		groupBy: string;
+	},
 ): GraphSnapshot {
-  const nodes: SnapshotNode[] = data.nodes.map(n => ({
-    id: n.id,
-    metaHash: hashMeta(n.meta),
-  }));
+	const nodes: SnapshotNode[] = data.nodes.map((n) => ({
+		id: n.id,
+		metaHash: hashMeta(n.meta),
+	}));
 
-  const edges: SnapshotEdge[] = data.edges.map(e => ({
-    source: typeof e.source === "string" ? e.source : (e.source as unknown as GraphNode).id,
-    target: typeof e.target === "string" ? e.target : (e.target as unknown as GraphNode).id,
-    type: e.type ?? "link",
-  }));
+	const edges: SnapshotEdge[] = data.edges.map((e) => ({
+		source: typeof e.source === "string" ? e.source : (e.source as unknown as GraphNode).id,
+		target: typeof e.target === "string" ? e.target : (e.target as unknown as GraphNode).id,
+		type: e.type ?? "link",
+	}));
 
-  return {
-    name,
-    createdAt: new Date().toISOString(),
-    nodes,
-    edges,
-    context: {
-      ...context,
-      nodeCount: nodes.length,
-      edgeCount: edges.length,
-    },
-  };
+	return {
+		name,
+		createdAt: new Date().toISOString(),
+		nodes,
+		edges,
+		context: {
+			...context,
+			nodeCount: nodes.length,
+			edgeCount: edges.length,
+		},
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -96,7 +89,7 @@ export function captureSnapshot(
 
 /** エッジを一意に識別するキー文字列を生成する (NUL区切り — IDに含まれない文字) */
 export function edgeKey(source: string, target: string, type: string): string {
-  return `${source}\0${target}\0${type}`;
+	return `${source}\0${target}\0${type}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -104,77 +97,74 @@ export function edgeKey(source: string, target: string, type: string): string {
 // ---------------------------------------------------------------------------
 
 /** スナップショットと現在のグラフデータの差分を計算する */
-export function computeSnapshotDiff(
-  current: GraphData,
-  snapshot: GraphSnapshot,
-): SnapshotDiff {
-  // スナップショットのノードをMapに変換
-  const snapNodeMap = new Map<string, SnapshotNode>();
-  for (const sn of snapshot.nodes) {
-    snapNodeMap.set(sn.id, sn);
-  }
+export function computeSnapshotDiff(current: GraphData, snapshot: GraphSnapshot): SnapshotDiff {
+	// スナップショットのノードをMapに変換
+	const snapNodeMap = new Map<string, SnapshotNode>();
+	for (const sn of snapshot.nodes) {
+		snapNodeMap.set(sn.id, sn);
+	}
 
-  const addedNodeIds = new Set<string>();
-  const changedNodeIds = new Set<string>();
-  const seenIds = new Set<string>();
+	const addedNodeIds = new Set<string>();
+	const changedNodeIds = new Set<string>();
+	const seenIds = new Set<string>();
 
-  // 現在のノードを走査
-  for (const node of current.nodes) {
-    const snapNode = snapNodeMap.get(node.id);
-    if (!snapNode) {
-      // スナップショットに存在しない → 追加されたノード
-      addedNodeIds.add(node.id);
-    } else {
-      // メタデータハッシュが異なる → 変更されたノード
-      const currentHash = hashMeta(node.meta);
-      if (currentHash !== snapNode.metaHash) {
-        changedNodeIds.add(node.id);
-      }
-    }
-    seenIds.add(node.id);
-  }
+	// 現在のノードを走査
+	for (const node of current.nodes) {
+		const snapNode = snapNodeMap.get(node.id);
+		if (!snapNode) {
+			// スナップショットに存在しない → 追加されたノード
+			addedNodeIds.add(node.id);
+		} else {
+			// メタデータハッシュが異なる → 変更されたノード
+			const currentHash = hashMeta(node.meta);
+			if (currentHash !== snapNode.metaHash) {
+				changedNodeIds.add(node.id);
+			}
+		}
+		seenIds.add(node.id);
+	}
 
-  // スナップショットにあって現在のグラフにないノード → 削除されたノード
-  const removedNodes: SnapshotNode[] = [];
-  for (const sn of snapshot.nodes) {
-    if (!seenIds.has(sn.id)) {
-      removedNodes.push(sn);
-    }
-  }
+	// スナップショットにあって現在のグラフにないノード → 削除されたノード
+	const removedNodes: SnapshotNode[] = [];
+	for (const sn of snapshot.nodes) {
+		if (!seenIds.has(sn.id)) {
+			removedNodes.push(sn);
+		}
+	}
 
-  // エッジの差分計算
-  const snapEdgeKeys = new Set<string>();
-  for (const se of snapshot.edges) {
-    snapEdgeKeys.add(edgeKey(se.source, se.target, se.type));
-  }
+	// エッジの差分計算
+	const snapEdgeKeys = new Set<string>();
+	for (const se of snapshot.edges) {
+		snapEdgeKeys.add(edgeKey(se.source, se.target, se.type));
+	}
 
-  const currentEdgeKeys = new Set<string>();
-  const addedEdgeKeys = new Set<string>();
-  for (const e of current.edges) {
-    const src = typeof e.source === "string" ? e.source : (e.source as unknown as GraphNode).id;
-    const tgt = typeof e.target === "string" ? e.target : (e.target as unknown as GraphNode).id;
-    const k = edgeKey(src, tgt, e.type ?? "link");
-    currentEdgeKeys.add(k);
-    if (!snapEdgeKeys.has(k)) {
-      addedEdgeKeys.add(k);
-    }
-  }
+	const currentEdgeKeys = new Set<string>();
+	const addedEdgeKeys = new Set<string>();
+	for (const e of current.edges) {
+		const src = typeof e.source === "string" ? e.source : (e.source as unknown as GraphNode).id;
+		const tgt = typeof e.target === "string" ? e.target : (e.target as unknown as GraphNode).id;
+		const k = edgeKey(src, tgt, e.type ?? "link");
+		currentEdgeKeys.add(k);
+		if (!snapEdgeKeys.has(k)) {
+			addedEdgeKeys.add(k);
+		}
+	}
 
-  const removedEdges: SnapshotEdge[] = [];
-  for (const se of snapshot.edges) {
-    const k = edgeKey(se.source, se.target, se.type);
-    if (!currentEdgeKeys.has(k)) {
-      removedEdges.push(se);
-    }
-  }
+	const removedEdges: SnapshotEdge[] = [];
+	for (const se of snapshot.edges) {
+		const k = edgeKey(se.source, se.target, se.type);
+		if (!currentEdgeKeys.has(k)) {
+			removedEdges.push(se);
+		}
+	}
 
-  return {
-    addedNodeIds,
-    removedNodes,
-    changedNodeIds,
-    addedEdgeKeys,
-    removedEdges,
-  };
+	return {
+		addedNodeIds,
+		removedNodes,
+		changedNodeIds,
+		addedEdgeKeys,
+		removedEdges,
+	};
 }
 
 /**
@@ -184,47 +174,44 @@ export function computeSnapshotDiff(
  * Nodes in older but not in newer → removed.
  * Nodes in both with different metaHash → changed.
  */
-export function computeSnapshotToSnapshotDiff(
-  newer: GraphSnapshot,
-  older: GraphSnapshot,
-): SnapshotDiff {
-  const olderNodeMap = new Map<string, SnapshotNode>();
-  for (const sn of older.nodes) olderNodeMap.set(sn.id, sn);
+export function computeSnapshotToSnapshotDiff(newer: GraphSnapshot, older: GraphSnapshot): SnapshotDiff {
+	const olderNodeMap = new Map<string, SnapshotNode>();
+	for (const sn of older.nodes) olderNodeMap.set(sn.id, sn);
 
-  const addedNodeIds = new Set<string>();
-  const changedNodeIds = new Set<string>();
-  const seenIds = new Set<string>();
+	const addedNodeIds = new Set<string>();
+	const changedNodeIds = new Set<string>();
+	const seenIds = new Set<string>();
 
-  for (const sn of newer.nodes) {
-    const old = olderNodeMap.get(sn.id);
-    if (!old) {
-      addedNodeIds.add(sn.id);
-    } else if (sn.metaHash !== old.metaHash) {
-      changedNodeIds.add(sn.id);
-    }
-    seenIds.add(sn.id);
-  }
+	for (const sn of newer.nodes) {
+		const old = olderNodeMap.get(sn.id);
+		if (!old) {
+			addedNodeIds.add(sn.id);
+		} else if (sn.metaHash !== old.metaHash) {
+			changedNodeIds.add(sn.id);
+		}
+		seenIds.add(sn.id);
+	}
 
-  const removedNodes: SnapshotNode[] = [];
-  for (const sn of older.nodes) {
-    if (!seenIds.has(sn.id)) removedNodes.push(sn);
-  }
+	const removedNodes: SnapshotNode[] = [];
+	for (const sn of older.nodes) {
+		if (!seenIds.has(sn.id)) removedNodes.push(sn);
+	}
 
-  // Edge diff
-  const olderEdgeKeys = new Set(older.edges.map(e => edgeKey(e.source, e.target, e.type)));
-  const newerEdgeKeys = new Set(newer.edges.map(e => edgeKey(e.source, e.target, e.type)));
+	// Edge diff
+	const olderEdgeKeys = new Set(older.edges.map((e) => edgeKey(e.source, e.target, e.type)));
+	const newerEdgeKeys = new Set(newer.edges.map((e) => edgeKey(e.source, e.target, e.type)));
 
-  const addedEdgeKeys = new Set<string>();
-  for (const k of newerEdgeKeys) {
-    if (!olderEdgeKeys.has(k)) addedEdgeKeys.add(k);
-  }
+	const addedEdgeKeys = new Set<string>();
+	for (const k of newerEdgeKeys) {
+		if (!olderEdgeKeys.has(k)) addedEdgeKeys.add(k);
+	}
 
-  const removedEdges: SnapshotEdge[] = [];
-  for (const e of older.edges) {
-    if (!newerEdgeKeys.has(edgeKey(e.source, e.target, e.type))) {
-      removedEdges.push(e);
-    }
-  }
+	const removedEdges: SnapshotEdge[] = [];
+	for (const e of older.edges) {
+		if (!newerEdgeKeys.has(edgeKey(e.source, e.target, e.type))) {
+			removedEdges.push(e);
+		}
+	}
 
-  return { addedNodeIds, removedNodes, changedNodeIds, addedEdgeKeys, removedEdges };
+	return { addedNodeIds, removedNodes, changedNodeIds, addedEdgeKeys, removedEdges };
 }

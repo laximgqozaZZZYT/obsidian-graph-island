@@ -7,29 +7,29 @@ export type NodeShape = "circle" | "triangle" | "diamond" | "hexagon" | "square"
 
 /** Minimal graphics interface for shape drawing (compatible with both CanvasGraphics and PIXI.Graphics) */
 export interface ShapeGraphics {
-  beginFill(color: number, alpha: number): void;
-  endFill(): void;
-  drawCircle(x: number, y: number, r: number): void;
-  drawRect(x: number, y: number, w: number, h: number): void;
-  moveTo(x: number, y: number): void;
-  lineTo(x: number, y: number): void;
-  closePath(): void;
+	beginFill(color: number, alpha: number): void;
+	endFill(): void;
+	drawCircle(x: number, y: number, r: number): void;
+	drawRect(x: number, y: number, w: number, h: number): void;
+	moveTo(x: number, y: number): void;
+	lineTo(x: number, y: number): void;
+	closePath(): void;
 }
 
 export const ALL_SHAPES: NodeShape[] = ["circle", "triangle", "diamond", "hexagon", "square"];
 
 export interface ShapeRule {
-  match: "isTag" | "category" | "default";
-  category?: string;  // only used when match === "category"
-  shape: NodeShape;
-  display?: DisplayConfig;  // optional per-rule display override
+	match: "isTag" | "category" | "default";
+	category?: string; // only used when match === "category"
+	shape: NodeShape;
+	display?: DisplayConfig; // optional per-rule display override
 }
 
 // Pre-computed constants for triangle and hexagon vertices
 const SQRT3_HALF = Math.sqrt(3) / 2; // ~0.866
 const HEX_ANGLES: number[] = [];
 for (let i = 0; i < 6; i++) {
-  HEX_ANGLES.push((Math.PI / 3) * i - Math.PI / 2); // start from top
+	HEX_ANGLES.push((Math.PI / 3) * i - Math.PI / 2); // start from top
 }
 
 /**
@@ -37,78 +37,66 @@ for (let i = 0; i < 6; i++) {
  * Calls beginFill/endFill internally.
  */
 export function drawShape(
-  g: ShapeGraphics,
-  shape: NodeShape,
-  radius: number,
-  fillColor: number,
-  fillAlpha: number,
+	g: ShapeGraphics,
+	shape: NodeShape,
+	radius: number,
+	fillColor: number,
+	fillAlpha: number,
 ): void {
-  g.beginFill(fillColor, fillAlpha);
-  drawShapePath(g, shape, 0, 0, radius);
-  g.endFill();
+	g.beginFill(fillColor, fillAlpha);
+	drawShapePath(g, shape, 0, 0, radius);
+	g.endFill();
 }
 
 /**
  * Draw a shape outline (path only, no fill/endFill) at (cx, cy).
  * Used within batch drawing where beginFill is called externally.
  */
-export function drawShapeAt(
-  g: ShapeGraphics,
-  shape: NodeShape,
-  cx: number,
-  cy: number,
-  radius: number,
-): void {
-  drawShapePath(g, shape, cx, cy, radius);
+export function drawShapeAt(g: ShapeGraphics, shape: NodeShape, cx: number, cy: number, radius: number): void {
+	drawShapePath(g, shape, cx, cy, radius);
 }
 
 /**
  * Internal: draw the shape path at given center coordinates.
  */
-function drawShapePath(
-  g: ShapeGraphics,
-  shape: NodeShape,
-  cx: number,
-  cy: number,
-  r: number,
-): void {
-  switch (shape) {
-    case "circle":
-      g.drawCircle(cx, cy, r);
-      break;
+function drawShapePath(g: ShapeGraphics, shape: NodeShape, cx: number, cy: number, r: number): void {
+	switch (shape) {
+		case "circle":
+			g.drawCircle(cx, cy, r);
+			break;
 
-    case "triangle":
-      g.moveTo(cx, cy - r);
-      g.lineTo(cx + r * SQRT3_HALF, cy + r * 0.5);
-      g.lineTo(cx - r * SQRT3_HALF, cy + r * 0.5);
-      g.closePath();
-      break;
+		case "triangle":
+			g.moveTo(cx, cy - r);
+			g.lineTo(cx + r * SQRT3_HALF, cy + r * 0.5);
+			g.lineTo(cx - r * SQRT3_HALF, cy + r * 0.5);
+			g.closePath();
+			break;
 
-    case "diamond":
-      g.moveTo(cx, cy - r);
-      g.lineTo(cx + r, cy);
-      g.lineTo(cx, cy + r);
-      g.lineTo(cx - r, cy);
-      g.closePath();
-      break;
+		case "diamond":
+			g.moveTo(cx, cy - r);
+			g.lineTo(cx + r, cy);
+			g.lineTo(cx, cy + r);
+			g.lineTo(cx - r, cy);
+			g.closePath();
+			break;
 
-    case "hexagon": {
-      for (let i = 0; i < 6; i++) {
-        const px = cx + r * Math.cos(HEX_ANGLES[i]);
-        const py = cy + r * Math.sin(HEX_ANGLES[i]);
-        if (i === 0) g.moveTo(px, py);
-        else g.lineTo(px, py);
-      }
-      g.closePath();
-      break;
-    }
+		case "hexagon": {
+			for (let i = 0; i < 6; i++) {
+				const px = cx + r * Math.cos(HEX_ANGLES[i]);
+				const py = cy + r * Math.sin(HEX_ANGLES[i]);
+				if (i === 0) g.moveTo(px, py);
+				else g.lineTo(px, py);
+			}
+			g.closePath();
+			break;
+		}
 
-    case "square": {
-      const half = r * 0.7;
-      g.drawRect(cx - half, cy - half, half * 2, half * 2);
-      break;
-    }
-  }
+		case "square": {
+			const half = r * 0.7;
+			g.drawRect(cx - half, cy - half, half * 2, half * 2);
+			break;
+		}
+	}
 }
 
 /**
@@ -116,23 +104,20 @@ function drawShapePath(
  * Rules are evaluated top-to-bottom; the first match wins.
  * If no rule matches, returns "circle".
  */
-export function getNodeShape(
-  node: GraphNode,
-  shapeRules: ShapeRule[],
-): NodeShape {
-  for (const rule of shapeRules) {
-    switch (rule.match) {
-      case "isTag":
-        if (node.isTag) return rule.shape;
-        break;
-      case "category":
-        if (rule.category && node.category === rule.category) return rule.shape;
-        break;
-      case "default":
-        return rule.shape;
-    }
-  }
-  return "circle";
+export function getNodeShape(node: GraphNode, shapeRules: ShapeRule[]): NodeShape {
+	for (const rule of shapeRules) {
+		switch (rule.match) {
+			case "isTag":
+				if (node.isTag) return rule.shape;
+				break;
+			case "category":
+				if (rule.category && node.category === rule.category) return rule.shape;
+				break;
+			case "default":
+				return rule.shape;
+		}
+	}
+	return "circle";
 }
 
 /**
@@ -141,28 +126,28 @@ export function getNodeShape(
  * Falls back to the provided default mode and config.
  */
 export function getNodeDisplayConfig(
-  node: GraphNode,
-  rules: ShapeRule[],
-  defaultMode: NodeDisplayMode,
-  defaultCard?: CardDisplayConfig,
-  defaultDonut?: DonutDisplayConfig,
+	node: GraphNode,
+	rules: ShapeRule[],
+	defaultMode: NodeDisplayMode,
+	defaultCard?: CardDisplayConfig,
+	defaultDonut?: DonutDisplayConfig,
 ): DisplayConfig {
-  for (const rule of rules) {
-    if (!rule.display) continue;
-    switch (rule.match) {
-      case "isTag":
-        if (node.isTag) return rule.display;
-        break;
-      case "category":
-        if (rule.category && node.category === rule.category) return rule.display;
-        break;
-      case "default":
-        return rule.display;
-    }
-  }
-  return {
-    mode: defaultMode,
-    card: defaultCard,
-    donut: defaultDonut,
-  };
+	for (const rule of rules) {
+		if (!rule.display) continue;
+		switch (rule.match) {
+			case "isTag":
+				if (node.isTag) return rule.display;
+				break;
+			case "category":
+				if (rule.category && node.category === rule.category) return rule.display;
+				break;
+			case "default":
+				return rule.display;
+		}
+	}
+	return {
+		mode: defaultMode,
+		card: defaultCard,
+		donut: defaultDonut,
+	};
 }

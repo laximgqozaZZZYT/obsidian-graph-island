@@ -1,0 +1,8 @@
+main.js
+node_modules
+coverage
+dist
+e2e/archive
+docs
+*.config.*
+pnpm-lock.yaml

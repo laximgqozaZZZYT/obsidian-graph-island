@@ -17,282 +17,269 @@ const DEFAULT_TREE_GAP = 80;
 /** Minimum fan-out per node (controls tree depth vs breadth) */
 const MIN_FANOUT = 3;
 
-export function applyTreeLayout(
-  graph: GraphData,
-  options?: TreeLayoutOptions
-): GraphData {
-  if (graph.nodes.length === 0) {
-    return { nodes: [], edges: graph.edges };
-  }
+export function applyTreeLayout(graph: GraphData, options?: TreeLayoutOptions): GraphData {
+	if (graph.nodes.length === 0) {
+		return { nodes: [], edges: graph.edges };
+	}
 
-  const {
-    startX = 0,
-    startY = 0,
-    levelHeight = DEFAULT_LEVEL_HEIGHT,
-    nodeWidth = DEFAULT_NODE_WIDTH,
-    groupByCategory = false,
-    categoryGap = DEFAULT_CATEGORY_GAP,
-    treeGap = DEFAULT_TREE_GAP,
-  } = options ?? {};
+	const {
+		startX = 0,
+		startY = 0,
+		levelHeight = DEFAULT_LEVEL_HEIGHT,
+		nodeWidth = DEFAULT_NODE_WIDTH,
+		groupByCategory = false,
+		categoryGap = DEFAULT_CATEGORY_GAP,
+		treeGap = DEFAULT_TREE_GAP,
+	} = options ?? {};
 
-  const nodesMap = new Map(graph.nodes.map((n) => [n.id, { ...n }]));
+	const nodesMap = new Map(graph.nodes.map((n) => [n.id, { ...n }]));
 
-  // Build adjacency — prioritize inheritance/aggregation edges for tree structure
-  const undirected = new Map<string, Set<string>>();
-  const directed = new Map<string, string[]>();
-  // Track which edges are structural (inheritance/aggregation) for root selection
-  const structuralChildren = new Map<string, string[]>();
+	// Build adjacency — prioritize inheritance/aggregation edges for tree structure
+	const undirected = new Map<string, Set<string>>();
+	const directed = new Map<string, string[]>();
+	// Track which edges are structural (inheritance/aggregation) for root selection
+	const structuralChildren = new Map<string, string[]>();
 
-  for (const n of graph.nodes) {
-    undirected.set(n.id, new Set());
-  }
+	for (const n of graph.nodes) {
+		undirected.set(n.id, new Set());
+	}
 
-  // Sort edges: inheritance/aggregation first so they define primary tree shape
-  const sortedEdges = [...graph.edges].sort((a, b) => {
-    const aStructural = a.type === EDGE_TYPE_INHERITANCE || a.type === EDGE_TYPE_AGGREGATION ? 0 : 1;
-    const bStructural = b.type === EDGE_TYPE_INHERITANCE || b.type === EDGE_TYPE_AGGREGATION ? 0 : 1;
-    return aStructural - bStructural;
-  });
+	// Sort edges: inheritance/aggregation first so they define primary tree shape
+	const sortedEdges = [...graph.edges].sort((a, b) => {
+		const aStructural = a.type === EDGE_TYPE_INHERITANCE || a.type === EDGE_TYPE_AGGREGATION ? 0 : 1;
+		const bStructural = b.type === EDGE_TYPE_INHERITANCE || b.type === EDGE_TYPE_AGGREGATION ? 0 : 1;
+		return aStructural - bStructural;
+	});
 
-  for (const e of sortedEdges) {
-    undirected.get(e.source)?.add(e.target);
-    undirected.get(e.target)?.add(e.source);
-    if (!directed.has(e.source)) directed.set(e.source, []);
-    directed.get(e.source)!.push(e.target);
+	for (const e of sortedEdges) {
+		undirected.get(e.source)?.add(e.target);
+		undirected.get(e.target)?.add(e.source);
+		if (!directed.has(e.source)) directed.set(e.source, []);
+		directed.get(e.source)!.push(e.target);
 
-    if (e.type === EDGE_TYPE_INHERITANCE || e.type === EDGE_TYPE_AGGREGATION) {
-      // For inheritance: source extends target, so target is parent
-      // For aggregation: source contains target, so source is parent
-      if (e.type === EDGE_TYPE_INHERITANCE) {
-        if (!structuralChildren.has(e.target)) structuralChildren.set(e.target, []);
-        structuralChildren.get(e.target)!.push(e.source);
-      } else {
-        if (!structuralChildren.has(e.source)) structuralChildren.set(e.source, []);
-        structuralChildren.get(e.source)!.push(e.target);
-      }
-    }
-  }
+		if (e.type === EDGE_TYPE_INHERITANCE || e.type === EDGE_TYPE_AGGREGATION) {
+			// For inheritance: source extends target, so target is parent
+			// For aggregation: source contains target, so source is parent
+			if (e.type === EDGE_TYPE_INHERITANCE) {
+				if (!structuralChildren.has(e.target)) structuralChildren.set(e.target, []);
+				structuralChildren.get(e.target)!.push(e.source);
+			} else {
+				if (!structuralChildren.has(e.source)) structuralChildren.set(e.source, []);
+				structuralChildren.get(e.source)!.push(e.target);
+			}
+		}
+	}
 
-  // Connected components
-  const componentOf = new Map<string, number>();
-  const components: string[][] = [];
-  let compIdx = 0;
+	// Connected components
+	const componentOf = new Map<string, number>();
+	const components: string[][] = [];
+	let compIdx = 0;
 
-  for (const n of graph.nodes) {
-    if (componentOf.has(n.id)) continue;
-    const comp: string[] = [];
-    const q = [n.id];
-    let qi = 0;
-    componentOf.set(n.id, compIdx);
-    while (qi < q.length) {
-      const cur = q[qi++];
-      comp.push(cur);
-      for (const nb of undirected.get(cur) ?? []) {
-        if (!componentOf.has(nb)) {
-          componentOf.set(nb, compIdx);
-          q.push(nb);
-        }
-      }
-    }
-    components.push(comp);
-    compIdx++;
-  }
-  components.sort((a, b) => b.length - a.length);
+	for (const n of graph.nodes) {
+		if (componentOf.has(n.id)) continue;
+		const comp: string[] = [];
+		const q = [n.id];
+		let qi = 0;
+		componentOf.set(n.id, compIdx);
+		while (qi < q.length) {
+			const cur = q[qi++];
+			comp.push(cur);
+			for (const nb of undirected.get(cur) ?? []) {
+				if (!componentOf.has(nb)) {
+					componentOf.set(nb, compIdx);
+					q.push(nb);
+				}
+			}
+		}
+		components.push(comp);
+		compIdx++;
+	}
+	components.sort((a, b) => b.length - a.length);
 
-  const inDegrees = computeInDegree(graph.nodes, graph.edges);
+	const inDegrees = computeInDegree(graph.nodes, graph.edges);
 
-  function layoutComponent(nodeIds: string[]) {
-    const nodeSet = new Set(nodeIds);
+	function layoutComponent(nodeIds: string[]) {
+		const nodeSet = new Set(nodeIds);
 
-    let rootId: string | undefined;
-    if (options?.rootId && nodeSet.has(options.rootId)) {
-      rootId = options.rootId;
-    }
-    if (!rootId) {
-      // Prefer nodes that are structural parents (inheritance targets / aggregation sources)
-      // Build a set of all nodes that appear as someone's child — O(N)
-      const isChild = new Set<string>();
-      for (const id of nodeIds) {
-        const children = structuralChildren.get(id);
-        if (children) {
-          for (const c of children) isChild.add(c);
-        }
-      }
-      // Structural roots = has children but is not a child itself — O(N)
-      const structuralRoots = nodeIds.filter(
-        (id) => (structuralChildren.get(id)?.length ?? 0) > 0 && !isChild.has(id)
-      );
-      if (structuralRoots.length > 0) {
-        structuralRoots.sort(
-          (a, b) => (structuralChildren.get(b)?.length || 0) - (structuralChildren.get(a)?.length || 0)
-        );
-        rootId = structuralRoots[0];
-      }
-    }
-    if (!rootId) {
-      const candidates = nodeIds.filter((id) => (inDegrees.get(id) || 0) === 0);
-      if (candidates.length > 0) {
-        candidates.sort(
-          (a, b) =>
-            (directed.get(b)?.length || 0) - (directed.get(a)?.length || 0)
-        );
-        rootId = candidates[0];
-      } else {
-        const sorted = [...nodeIds].sort(
-          (a, b) =>
-            (directed.get(b)?.length || 0) - (directed.get(a)?.length || 0)
-        );
-        rootId = sorted[0];
-      }
-    }
+		let rootId: string | undefined;
+		if (options?.rootId && nodeSet.has(options.rootId)) {
+			rootId = options.rootId;
+		}
+		if (!rootId) {
+			// Prefer nodes that are structural parents (inheritance targets / aggregation sources)
+			// Build a set of all nodes that appear as someone's child — O(N)
+			const isChild = new Set<string>();
+			for (const id of nodeIds) {
+				const children = structuralChildren.get(id);
+				if (children) {
+					for (const c of children) isChild.add(c);
+				}
+			}
+			// Structural roots = has children but is not a child itself — O(N)
+			const structuralRoots = nodeIds.filter(
+				(id) => (structuralChildren.get(id)?.length ?? 0) > 0 && !isChild.has(id),
+			);
+			if (structuralRoots.length > 0) {
+				structuralRoots.sort(
+					(a, b) => (structuralChildren.get(b)?.length || 0) - (structuralChildren.get(a)?.length || 0),
+				);
+				rootId = structuralRoots[0];
+			}
+		}
+		if (!rootId) {
+			const candidates = nodeIds.filter((id) => (inDegrees.get(id) || 0) === 0);
+			if (candidates.length > 0) {
+				candidates.sort((a, b) => (directed.get(b)?.length || 0) - (directed.get(a)?.length || 0));
+				rootId = candidates[0];
+			} else {
+				const sorted = [...nodeIds].sort(
+					(a, b) => (directed.get(b)?.length || 0) - (directed.get(a)?.length || 0),
+				);
+				rootId = sorted[0];
+			}
+		}
 
-    // Limit fan-out per node to force deeper trees on dense graphs.
-    // Use 4th root for deep, narrow trees: 2233 nodes → maxFanOut≈7, depth≈~20
-    const maxFanOut = Math.max(MIN_FANOUT, Math.ceil(Math.pow(nodeIds.length, 0.25)));
+		// Limit fan-out per node to force deeper trees on dense graphs.
+		// Use 4th root for deep, narrow trees: 2233 nodes → maxFanOut≈7, depth≈~20
+		const maxFanOut = Math.max(MIN_FANOUT, Math.ceil(Math.pow(nodeIds.length, 0.25)));
 
-    const levels = new Map<string, number>();
-    const visited = new Set<string>();
-    const queue: { id: string; level: number }[] = [
-      { id: rootId!, level: 0 },
-    ];
-    let qIdx = 0;
-    visited.add(rootId!);
-    levels.set(rootId!, 0);
-    const unvisited = new Set(nodeIds);
-    unvisited.delete(rootId!);
-    // Track how many children each node has already claimed
-    const childCount = new Map<string, number>();
+		const levels = new Map<string, number>();
+		const visited = new Set<string>();
+		const queue: { id: string; level: number }[] = [{ id: rootId!, level: 0 }];
+		let qIdx = 0;
+		visited.add(rootId!);
+		levels.set(rootId!, 0);
+		const unvisited = new Set(nodeIds);
+		unvisited.delete(rootId!);
+		// Track how many children each node has already claimed
+		const childCount = new Map<string, number>();
 
-    while (qIdx < queue.length || unvisited.size > 0) {
-      if (qIdx >= queue.length && unvisited.size > 0) {
-        // Pick the unvisited node closest (by edges) to already-visited nodes
-        let bestId: string | undefined;
-        let bestLevel = 0;
-        for (const uid of unvisited) {
-          const neighbors = undirected.get(uid) ?? new Set<string>();
-          for (const nb of neighbors) {
-            if (visited.has(nb)) {
-              const parentLvl = levels.get(nb) ?? 0;
-              if (!bestId || parentLvl < bestLevel) {
-                bestId = uid;
-                bestLevel = parentLvl;
-              }
-              break;
-            }
-          }
-        }
-        if (!bestId) bestId = unvisited.values().next().value!;
-        queue.push({ id: bestId, level: bestLevel + 1 });
-        visited.add(bestId);
-        unvisited.delete(bestId);
-        levels.set(bestId, bestLevel + 1);
-      }
+		while (qIdx < queue.length || unvisited.size > 0) {
+			if (qIdx >= queue.length && unvisited.size > 0) {
+				// Pick the unvisited node closest (by edges) to already-visited nodes
+				let bestId: string | undefined;
+				let bestLevel = 0;
+				for (const uid of unvisited) {
+					const neighbors = undirected.get(uid) ?? new Set<string>();
+					for (const nb of neighbors) {
+						if (visited.has(nb)) {
+							const parentLvl = levels.get(nb) ?? 0;
+							if (!bestId || parentLvl < bestLevel) {
+								bestId = uid;
+								bestLevel = parentLvl;
+							}
+							break;
+						}
+					}
+				}
+				if (!bestId) bestId = unvisited.values().next().value!;
+				queue.push({ id: bestId, level: bestLevel + 1 });
+				visited.add(bestId);
+				unvisited.delete(bestId);
+				levels.set(bestId, bestLevel + 1);
+			}
 
-      const item = queue[qIdx++];
-      if (!item) continue;
-      const { id, level } = item;
-      const currentFanOut = childCount.get(id) ?? 0;
-      const remaining = maxFanOut - currentFanOut;
-      if (remaining <= 0) continue;
+			const item = queue[qIdx++];
+			if (!item) continue;
+			const { id, level } = item;
+			const currentFanOut = childCount.get(id) ?? 0;
+			const remaining = maxFanOut - currentFanOut;
+			if (remaining <= 0) continue;
 
-      // Prioritize directed children, then undirected neighbors
-      const directedChildren = (directed.get(id) || []).filter(
-        c => !visited.has(c) && nodeSet.has(c)
-      );
-      const undirectedNeighbors = [...(undirected.get(id) ?? [])].filter(
-        c => !visited.has(c) && nodeSet.has(c) && !directedChildren.includes(c)
-      );
-      const candidates = [...directedChildren, ...undirectedNeighbors].slice(0, remaining);
+			// Prioritize directed children, then undirected neighbors
+			const directedChildren = (directed.get(id) || []).filter((c) => !visited.has(c) && nodeSet.has(c));
+			const undirectedNeighbors = [...(undirected.get(id) ?? [])].filter(
+				(c) => !visited.has(c) && nodeSet.has(c) && !directedChildren.includes(c),
+			);
+			const candidates = [...directedChildren, ...undirectedNeighbors].slice(0, remaining);
 
-      childCount.set(id, currentFanOut + candidates.length);
-      for (const childId of candidates) {
-        visited.add(childId);
-        unvisited.delete(childId);
-        levels.set(childId, level + 1);
-        queue.push({ id: childId, level: level + 1 });
-      }
-    }
+			childCount.set(id, currentFanOut + candidates.length);
+			for (const childId of candidates) {
+				visited.add(childId);
+				unvisited.delete(childId);
+				levels.set(childId, level + 1);
+				queue.push({ id: childId, level: level + 1 });
+			}
+		}
 
-    const levelsArr: string[][] = [];
-    let maxLevel = 0;
-    for (const [id, lvl] of levels) {
-      if (lvl > maxLevel) maxLevel = lvl;
-      if (!levelsArr[lvl]) levelsArr[lvl] = [];
-      levelsArr[lvl].push(id);
-    }
+		const levelsArr: string[][] = [];
+		let maxLevel = 0;
+		for (const [id, lvl] of levels) {
+			if (lvl > maxLevel) maxLevel = lvl;
+			if (!levelsArr[lvl]) levelsArr[lvl] = [];
+			levelsArr[lvl].push(id);
+		}
 
-    return { levels: levelsArr, maxLevel };
-  }
+		return { levels: levelsArr, maxLevel };
+	}
 
-  const treeResults = components.map((comp) => layoutComponent(comp));
-  let offsetY = startY;
+	const treeResults = components.map((comp) => layoutComponent(comp));
+	let offsetY = startY;
 
-  for (const tr of treeResults) {
-    const treeCenterX = startX;
+	for (const tr of treeResults) {
+		const treeCenterX = startX;
 
-    for (let lvl = 0; lvl <= tr.maxLevel; lvl++) {
-      const levelNodes = tr.levels[lvl];
-      if (!levelNodes) continue;
+		for (let lvl = 0; lvl <= tr.maxLevel; lvl++) {
+			const levelNodes = tr.levels[lvl];
+			if (!levelNodes) continue;
 
-      // Apply custom sort comparator to level nodes if provided
-      if (options?.sortComparator) {
-        const cmp = options.sortComparator;
-        levelNodes.sort((a, b) => {
-          const na = nodesMap.get(a);
-          const nb = nodesMap.get(b);
-          if (!na || !nb) return 0;
-          return cmp(na, nb);
-        });
-      }
+			// Apply custom sort comparator to level nodes if provided
+			if (options?.sortComparator) {
+				const cmp = options.sortComparator;
+				levelNodes.sort((a, b) => {
+					const na = nodesMap.get(a);
+					const nb = nodesMap.get(b);
+					if (!na || !nb) return 0;
+					return cmp(na, nb);
+				});
+			}
 
-      if (groupByCategory) {
-        levelNodes.sort((a, b) => {
-          const catA = nodesMap.get(a)?.category || "";
-          const catB = nodesMap.get(b)?.category || "";
-          return catA.localeCompare(catB);
-        });
+			if (groupByCategory) {
+				levelNodes.sort((a, b) => {
+					const catA = nodesMap.get(a)?.category || "";
+					const catB = nodesMap.get(b)?.category || "";
+					return catA.localeCompare(catB);
+				});
 
-        let numGaps = 0;
-        for (let i = 1; i < levelNodes.length; i++) {
-          const prevCat = nodesMap.get(levelNodes[i - 1])?.category || "";
-          const curCat = nodesMap.get(levelNodes[i])?.category || "";
-          if (curCat !== prevCat) numGaps++;
-        }
+				let numGaps = 0;
+				for (let i = 1; i < levelNodes.length; i++) {
+					const prevCat = nodesMap.get(levelNodes[i - 1])?.category || "";
+					const curCat = nodesMap.get(levelNodes[i])?.category || "";
+					if (curCat !== prevCat) numGaps++;
+				}
 
-        const levelW =
-          levelNodes.length * nodeWidth + numGaps * categoryGap;
-        let cx = treeCenterX - levelW / 2;
+				const levelW = levelNodes.length * nodeWidth + numGaps * categoryGap;
+				let cx = treeCenterX - levelW / 2;
 
-        levelNodes.forEach((nodeId, i) => {
-          if (i > 0) {
-            const prevCat =
-              nodesMap.get(levelNodes[i - 1])?.category || "";
-            const curCat = nodesMap.get(nodeId)?.category || "";
-            if (curCat !== prevCat) cx += categoryGap;
-          }
-          const node = nodesMap.get(nodeId)!;
-          node.x = cx + nodeWidth / 2;
-          node.y = offsetY + lvl * levelHeight;
-          cx += nodeWidth;
-        });
-      } else {
-        const nsMap = options?.nodeSpacingMap;
-        // Compute per-node widths using spacing multiplier
-        const widths = levelNodes.map(id => nodeWidth * (nsMap?.get(id) ?? 1.0));
-        const levelW = widths.reduce((s, w) => s + w, 0);
-        let cx = treeCenterX - levelW / 2;
-        levelNodes.forEach((nodeId, ni) => {
-          const node = nodesMap.get(nodeId)!;
-          node.x = cx + widths[ni] / 2;
-          node.y = offsetY + lvl * levelHeight;
-          cx += widths[ni];
-        });
-      }
-    }
+				levelNodes.forEach((nodeId, i) => {
+					if (i > 0) {
+						const prevCat = nodesMap.get(levelNodes[i - 1])?.category || "";
+						const curCat = nodesMap.get(nodeId)?.category || "";
+						if (curCat !== prevCat) cx += categoryGap;
+					}
+					const node = nodesMap.get(nodeId)!;
+					node.x = cx + nodeWidth / 2;
+					node.y = offsetY + lvl * levelHeight;
+					cx += nodeWidth;
+				});
+			} else {
+				const nsMap = options?.nodeSpacingMap;
+				// Compute per-node widths using spacing multiplier
+				const widths = levelNodes.map((id) => nodeWidth * (nsMap?.get(id) ?? 1.0));
+				const levelW = widths.reduce((s, w) => s + w, 0);
+				let cx = treeCenterX - levelW / 2;
+				levelNodes.forEach((nodeId, ni) => {
+					const node = nodesMap.get(nodeId)!;
+					node.x = cx + widths[ni] / 2;
+					node.y = offsetY + lvl * levelHeight;
+					cx += widths[ni];
+				});
+			}
+		}
 
-    const treeHeight = (tr.maxLevel + 1) * levelHeight;
-    offsetY += treeHeight + treeGap;
-  }
+		const treeHeight = (tr.maxLevel + 1) * levelHeight;
+		offsetY += treeHeight + treeGap;
+	}
 
-  return { nodes: Array.from(nodesMap.values()), edges: graph.edges };
+	return { nodes: Array.from(nodesMap.values()), edges: graph.edges };
 }

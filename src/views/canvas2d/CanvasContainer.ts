@@ -5,121 +5,131 @@ import type { IContainer } from "./interfaces";
 export type CanvasChild = CanvasContainer | CanvasGraphics | CanvasText;
 
 export class CanvasContainer implements IContainer {
-  x = 0;
-  y = 0;
-  scale = { x: 1, y: 1, set(v: number) { this.x = v; this.y = v; } };
-  alpha = 1;
-  visible = true;
-  parent: CanvasContainer | null = null;
-  children: CanvasChild[] = [];
+	x = 0;
+	y = 0;
+	scale = {
+		x: 1,
+		y: 1,
+		set(v: number) {
+			this.x = v;
+			this.y = v;
+		},
+	};
+	alpha = 1;
+	visible = true;
+	parent: CanvasContainer | null = null;
+	children: CanvasChild[] = [];
 
-  addChild(child: CanvasChild): CanvasChild {
-    // Prevent duplicate insertion (e.g., arrow layer re-added every tick)
-    if (child.parent === this && this.children.indexOf(child) >= 0) {
-      return child;
-    }
-    child.parent = this;
-    this.children.push(child);
-    return child;
-  }
+	addChild(child: CanvasChild): CanvasChild {
+		// Prevent duplicate insertion (e.g., arrow layer re-added every tick)
+		if (child.parent === this && this.children.indexOf(child) >= 0) {
+			return child;
+		}
+		child.parent = this;
+		this.children.push(child);
+		return child;
+	}
 
-  addChildAt(child: CanvasChild, index: number): CanvasChild {
-    if (child.parent === this && this.children.indexOf(child) >= 0) {
-      return child;
-    }
-    child.parent = this;
-    const clamped = Math.max(0, Math.min(index, this.children.length));
-    this.children.splice(clamped, 0, child);
-    return child;
-  }
+	addChildAt(child: CanvasChild, index: number): CanvasChild {
+		if (child.parent === this && this.children.indexOf(child) >= 0) {
+			return child;
+		}
+		child.parent = this;
+		const clamped = Math.max(0, Math.min(index, this.children.length));
+		this.children.splice(clamped, 0, child);
+		return child;
+	}
 
-  removeChild(child: CanvasChild): CanvasChild {
-    const idx = this.children.indexOf(child);
-    if (idx >= 0) {
-      this.children.splice(idx, 1);
-      child.parent = null;
-    }
-    return child;
-  }
+	removeChild(child: CanvasChild): CanvasChild {
+		const idx = this.children.indexOf(child);
+		if (idx >= 0) {
+			this.children.splice(idx, 1);
+			child.parent = null;
+		}
+		return child;
+	}
 
-  removeChildren(): CanvasChild[] {
-    const removed = this.children.splice(0);
-    for (const c of removed) c.parent = null;
-    return removed;
-  }
+	removeChildren(): CanvasChild[] {
+		const removed = this.children.splice(0);
+		for (const c of removed) c.parent = null;
+		return removed;
+	}
 
-  destroy() {
-    for (const c of this.children) c.destroy();
-    this.children.length = 0;
-  }
+	destroy() {
+		for (const c of this.children) c.destroy();
+		this.children.length = 0;
+	}
 
-  toLocal(point: { x: number; y: number }, from?: IContainer): { x: number; y: number } {
-    let gx = point.x;
-    let gy = point.y;
-    if (from) {
-      const chain = this._getAncestorChain(from);
-      for (const node of chain) {
-        gx = node.x + gx * node.scale.x;
-        gy = node.y + gy * node.scale.y;
-      }
-    }
-    const myChain = this._getAncestorChain(this);
-    for (let i = myChain.length - 1; i >= 0; i--) {
-      const node = myChain[i];
-      const sx = node.scale.x || 1;
-      const sy = node.scale.y || 1;
-      gx = (gx - node.x) / sx;
-      gy = (gy - node.y) / sy;
-    }
-    return { x: gx, y: gy };
-  }
+	toLocal(point: { x: number; y: number }, from?: IContainer): { x: number; y: number } {
+		let gx = point.x;
+		let gy = point.y;
+		if (from) {
+			const chain = this._getAncestorChain(from);
+			for (const node of chain) {
+				gx = node.x + gx * node.scale.x;
+				gy = node.y + gy * node.scale.y;
+			}
+		}
+		const myChain = this._getAncestorChain(this);
+		for (let i = myChain.length - 1; i >= 0; i--) {
+			const node = myChain[i];
+			const sx = node.scale.x || 1;
+			const sy = node.scale.y || 1;
+			gx = (gx - node.x) / sx;
+			gy = (gy - node.y) / sy;
+		}
+		return { x: gx, y: gy };
+	}
 
-  toGlobal(point: { x: number; y: number }): { x: number; y: number } {
-    let gx = point.x;
-    let gy = point.y;
-    const chain = this._getAncestorChain(this);
-    for (const node of chain) {
-      gx = node.x + gx * node.scale.x;
-      gy = node.y + gy * node.scale.y;
-    }
-    return { x: gx, y: gy };
-  }
+	toGlobal(point: { x: number; y: number }): { x: number; y: number } {
+		let gx = point.x;
+		let gy = point.y;
+		const chain = this._getAncestorChain(this);
+		for (const node of chain) {
+			gx = node.x + gx * node.scale.x;
+			gy = node.y + gy * node.scale.y;
+		}
+		return { x: gx, y: gy };
+	}
 
-  private _getAncestorChain(node: IContainer): IContainer[] {
-    const chain: IContainer[] = [];
-    let cur: IContainer | null = node;
-    while (cur) {
-      chain.push(cur);
-      cur = cur.parent;
-    }
-    return chain;
-  }
+	private _getAncestorChain(node: IContainer): IContainer[] {
+		const chain: IContainer[] = [];
+		let cur: IContainer | null = node;
+		while (cur) {
+			chain.push(cur);
+			cur = cur.parent;
+		}
+		return chain;
+	}
 
-  _flush(ctx: CanvasRenderingContext2D, parentAlpha: number) {
-    if (!this.visible) return;
+	_flush(ctx: CanvasRenderingContext2D, parentAlpha: number) {
+		if (!this.visible) return;
 
-    const children = this.children;
-    const len = children.length;
-    if (len === 0) return;
+		const children = this.children;
+		const len = children.length;
+		if (len === 0) return;
 
-    // Quick scan: skip entire subtree if no child is visible.
-    // This eliminates ~2000 ctx.save/restore pairs for invisible node containers.
-    let anyVisible = false;
-    for (let i = 0; i < len; i++) {
-      if (children[i].visible) { anyVisible = true; break; }
-    }
-    if (!anyVisible) return;
+		// Quick scan: skip entire subtree if no child is visible.
+		// This eliminates ~2000 ctx.save/restore pairs for invisible node containers.
+		let anyVisible = false;
+		for (let i = 0; i < len; i++) {
+			if (children[i].visible) {
+				anyVisible = true;
+				break;
+			}
+		}
+		if (!anyVisible) return;
 
-    const effAlpha = parentAlpha * this.alpha;
+		const effAlpha = parentAlpha * this.alpha;
 
-    ctx.save();
-    if (this.x !== 0 || this.y !== 0) ctx.translate(this.x, this.y);
-    if (this.scale.x !== 1 || this.scale.y !== 1) ctx.scale(this.scale.x, this.scale.y);
+		ctx.save();
+		if (this.x !== 0 || this.y !== 0) ctx.translate(this.x, this.y);
+		if (this.scale.x !== 1 || this.scale.y !== 1) ctx.scale(this.scale.x, this.scale.y);
 
-    for (let i = 0; i < len; i++) {
-      children[i]._flush(ctx, effAlpha);
-    }
+		for (let i = 0; i < len; i++) {
+			children[i]._flush(ctx, effAlpha);
+		}
 
-    ctx.restore();
-  }
+		ctx.restore();
+	}
 }

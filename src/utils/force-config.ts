@@ -1,7 +1,10 @@
 import type { GraphEdge } from "../types";
 import {
-  EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_SEQUENCE,
-  EDGE_TYPE_SIBLING, EDGE_TYPE_HAS_TAG,
+	EDGE_TYPE_INHERITANCE,
+	EDGE_TYPE_AGGREGATION,
+	EDGE_TYPE_SEQUENCE,
+	EDGE_TYPE_SIBLING,
+	EDGE_TYPE_HAS_TAG,
 } from "../constants";
 
 /**
@@ -11,11 +14,11 @@ import {
  * than normal links.
  */
 export function edgeLinkDistance(e: GraphEdge, baseDist: number): number {
-  if (e.type === EDGE_TYPE_INHERITANCE || e.type === EDGE_TYPE_AGGREGATION) return baseDist * 0.5;
-  if (e.type === EDGE_TYPE_HAS_TAG) return baseDist * 0.7;
-  if (e.type === EDGE_TYPE_SIBLING) return baseDist * 0.8;
-  if (e.type === EDGE_TYPE_SEQUENCE) return baseDist * 0.6;
-  return baseDist;
+	if (e.type === EDGE_TYPE_INHERITANCE || e.type === EDGE_TYPE_AGGREGATION) return baseDist * 0.5;
+	if (e.type === EDGE_TYPE_HAS_TAG) return baseDist * 0.7;
+	if (e.type === EDGE_TYPE_SIBLING) return baseDist * 0.8;
+	if (e.type === EDGE_TYPE_SEQUENCE) return baseDist * 0.6;
+	return baseDist;
 }
 
 /**
@@ -24,9 +27,9 @@ export function edgeLinkDistance(e: GraphEdge, baseDist: number): number {
  * stay tightly grouped.
  */
 export function edgeLinkStrength(e: GraphEdge, baseStrength: number): number {
-  if (e.type === EDGE_TYPE_INHERITANCE || e.type === EDGE_TYPE_AGGREGATION) return baseStrength * 3;
-  if (e.type === EDGE_TYPE_HAS_TAG) return baseStrength * 1.5;
-  if (e.type === EDGE_TYPE_SIBLING) return baseStrength * 2;
-  if (e.type === EDGE_TYPE_SEQUENCE) return baseStrength * 2.5;
-  return baseStrength;
+	if (e.type === EDGE_TYPE_INHERITANCE || e.type === EDGE_TYPE_AGGREGATION) return baseStrength * 3;
+	if (e.type === EDGE_TYPE_HAS_TAG) return baseStrength * 1.5;
+	if (e.type === EDGE_TYPE_SIBLING) return baseStrength * 2;
+	if (e.type === EDGE_TYPE_SEQUENCE) return baseStrength * 2.5;
+	return baseStrength;
 }

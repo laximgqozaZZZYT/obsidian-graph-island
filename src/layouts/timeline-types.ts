@@ -13,59 +13,59 @@ import type { GraphNode } from "../types";
 
 /** タイムライン構造グラフ上のノード */
 export interface TimelineNode {
-  id: string;
-  graphNode: GraphNode;
-  /** 解決済みの時間値 (timelineKey フィールド由来)。未設定なら null */
-  timeValue: string | null;
-  /** 親スコープ内での story_order (数値) */
-  storyOrder: number;
-  /** 親ノード ID (parent_id フィールド由来)。ルートなら null */
-  parentId: string | null;
-  /** 期間バーの開始日 (timelineKey または start-date 由来) */
-  startDate: string | null;
-  /** 期間バーの終了日 (timelineEndKey 由来) */
-  endDate: string | null;
+	id: string;
+	graphNode: GraphNode;
+	/** 解決済みの時間値 (timelineKey フィールド由来)。未設定なら null */
+	timeValue: string | null;
+	/** 親スコープ内での story_order (数値) */
+	storyOrder: number;
+	/** 親ノード ID (parent_id フィールド由来)。ルートなら null */
+	parentId: string | null;
+	/** 期間バーの開始日 (timelineKey または start-date 由来) */
+	startDate: string | null;
+	/** 期間バーの終了日 (timelineEndKey 由来) */
+	endDate: string | null;
 }
 
 /** タイムライン構造グラフ上の有向辺 */
 export interface TimelineEdge {
-  from: string;   // ソースノード ID
-  to: string;     // ターゲットノード ID
-  type: "sequence" | "hierarchy" | "branch";
+	from: string; // ソースノード ID
+	to: string; // ターゲットノード ID
+	type: "sequence" | "hierarchy" | "branch";
 }
 
 /** シーケンスリンクで接続されたノードの線形チェーン */
 export interface TimelineChain {
-  /** 先頭から末尾までの順序付きノード ID */
-  nodeIds: string[];
-  /** チェーン ID (レーン割り当て用) */
-  chainId: string;
+	/** 先頭から末尾までの順序付きノード ID */
+	nodeIds: string[];
+	/** チェーン ID (レーン割り当て用) */
+	chainId: string;
 }
 
 /** サイクルを示すバックエッジ */
 export interface CycleBackEdge {
-  fromId: string;
-  toId: string;
-  /** このサイクルが属するチェーン */
-  chainId: string;
+	fromId: string;
+	toId: string;
+	/** このサイクルが属するチェーン */
+	chainId: string;
 }
 
 /** 親ノードをルートとするツリー */
 export interface HierarchyTree {
-  rootId: string;
-  children: Map<string, { id: string; storyOrder: number }[]>;
+	rootId: string;
+	children: Map<string, { id: string; storyOrder: number }[]>;
 }
 
 /** 完全な中間表現 */
 export interface TimelineGraph {
-  nodes: Map<string, TimelineNode>;
-  edges: TimelineEdge[];
-  /** 検出されたチェーン (線形シーケンス) */
-  chains: TimelineChain[];
-  /** 検出されたサイクル (バックエッジ) */
-  cycles: CycleBackEdge[];
-  /** 階層ツリー (親→子) */
-  hierarchies: HierarchyTree[];
+	nodes: Map<string, TimelineNode>;
+	edges: TimelineEdge[];
+	/** 検出されたチェーン (線形シーケンス) */
+	chains: TimelineChain[];
+	/** 検出されたサイクル (バックエッジ) */
+	cycles: CycleBackEdge[];
+	/** 階層ツリー (親→子) */
+	hierarchies: HierarchyTree[];
 }
 
 // ---------------------------------------------------------------------------
@@ -74,27 +74,27 @@ export interface TimelineGraph {
 
 /** タイムラインレイアウト上の水平レーン */
 export interface TimelineLane {
-  /** ユニークなレーンインデックス (0 = 最上部) */
-  index: number;
-  /** レイアウト原点からの Y オフセット */
-  yOffset: number;
-  /** このレーンを占有するチェーンまたはサブチェーン */
-  chainId: string;
-  /** 子レーンかどうか (親の下にインデントされる) */
-  isChildLane: boolean;
-  /** 親レーンインデックス (子レーンまたは分岐レーンの場合) */
-  parentLaneIndex: number | null;
+	/** ユニークなレーンインデックス (0 = 最上部) */
+	index: number;
+	/** レイアウト原点からの Y オフセット */
+	yOffset: number;
+	/** このレーンを占有するチェーンまたはサブチェーン */
+	chainId: string;
+	/** 子レーンかどうか (親の下にインデントされる) */
+	isChildLane: boolean;
+	/** 親レーンインデックス (子レーンまたは分岐レーンの場合) */
+	parentLaneIndex: number | null;
 }
 
 /** 単一ノードの配置結果 */
 export interface TimelinePlacement {
-  nodeId: string;
-  /** X 位置 (時間軸) */
-  x: number;
-  /** Y 位置 (レーン軸) */
-  y: number;
-  /** 割り当て先レーン */
-  laneIndex: number;
-  /** 時間軸上のカラムインデックス */
-  columnIndex: number;
+	nodeId: string;
+	/** X 位置 (時間軸) */
+	x: number;
+	/** Y 位置 (レーン軸) */
+	y: number;
+	/** 割り当て先レーン */
+	laneIndex: number;
+	/** 時間軸上のカラムインデックス */
+	columnIndex: number;
 }

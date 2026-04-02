@@ -17,19 +17,19 @@ export type RendererBackend = "canvas2d" | "webgl";
  * Returns "webgl" if a WebGL2 context can be created, otherwise "canvas2d".
  */
 export function detectBackend(): RendererBackend {
-  try {
-    const c = document.createElement("canvas");
-    const gl = c.getContext("webgl2");
-    if (gl) {
-      // Lose the context immediately to free GPU resources
-      const ext = gl.getExtension("WEBGL_lose_context");
-      if (ext) ext.loseContext();
-      return "webgl";
-    }
-  } catch {
-    // WebGL2 not available
-  }
-  return "canvas2d";
+	try {
+		const c = document.createElement("canvas");
+		const gl = c.getContext("webgl2");
+		if (gl) {
+			// Lose the context immediately to free GPU resources
+			const ext = gl.getExtension("WEBGL_lose_context");
+			if (ext) ext.loseContext();
+			return "webgl";
+		}
+	} catch {
+		// WebGL2 not available
+	}
+	return "canvas2d";
 }
 
 /**
@@ -38,18 +38,15 @@ export function detectBackend(): RendererBackend {
  * When `backend` is "webgl" (or auto-detected as such), attempts to create
  * a WebGLApp. Falls back to CanvasApp if WebGL2 initialization fails.
  */
-export function createApp(
-  opts: CanvasAppOptions,
-  backend?: RendererBackend,
-): IApp {
-  const b = backend ?? detectBackend();
-  if (b === "webgl") {
-    try {
-      return new WebGLApp(opts);
-    } catch {
-      // WebGL init failed — fall back to Canvas 2D
-      return new CanvasApp(opts);
-    }
-  }
-  return new CanvasApp(opts);
+export function createApp(opts: CanvasAppOptions, backend?: RendererBackend): IApp {
+	const b = backend ?? detectBackend();
+	if (b === "webgl") {
+		try {
+			return new WebGLApp(opts);
+		} catch {
+			// WebGL init failed — fall back to Canvas 2D
+			return new CanvasApp(opts);
+		}
+	}
+	return new CanvasApp(opts);
 }

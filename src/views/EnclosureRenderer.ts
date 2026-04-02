@@ -12,48 +12,48 @@ import { TAG_DISPLAY_ENCLOSURE } from "../constants";
 // ---------------------------------------------------------------------------
 
 export interface EnclosureConfig {
-  tagDisplay: "node" | "enclosure";
-  tagMembership: Map<string, Set<string>>;
-  nodeColorMap: Map<string, string>;
-  tagRelPairsCache: Set<string>;
-  resolvePos: (id: string) => (Pt & { radius?: number }) | undefined;
-  /** Current world scale (zoom level). Used to adapt rendering style. */
-  worldScale: number;
-  /** IK: High contrast mode — thicker borders for enclosures */
-  highContrast?: boolean;
-  /** Total number of nodes in the graph. Used with enclosureMinRatio. */
-  totalNodeCount: number;
-  /** Minimum fraction (0–1) of totalNodeCount a group must have to show an enclosure. */
-  enclosureMinRatio: number;
-  /** Called when a tag label is hovered (tag) or unhovered (null). */
-  onTagHover?: (tag: string | null) => void;
-  /** FJ: Called when a tag enclosure label is clicked. */
-  onTagClick?: (tag: string) => void;
-  /** Currently hovered tag (used to boost label alpha). */
-  hoveredTag?: string | null;
-  /** Dedicated container for labels (ensures z-order above nodes). */
-  labelContainer?: CanvasContainer;
-  /** RenderThresholds for group label styling. */
-  groupLabelFontSize?: number;
-  groupLabelFontWeight?: string;
-  groupLabelLetterSpacing?: number;
-  groupLabelAlpha?: number;
-  groupLabelHullOffset?: number;
-  groupLabelBgAlpha?: number;
-  /** IQR multiplier for outlier filtering (default 2.0). Higher = more inclusive. */
-  enclosureOutlierFactor?: number;
-  /** FU: Label position within enclosure ("top" | "center" | "bottom", default "top") */
-  enclosureLabelPosition?: "top" | "center" | "bottom";
-  /** FY: Override fill opacity for enclosure (0 = auto, >0 = manual) */
-  enclosureFillOpacity?: number;
-  /** GC: Override stroke width for enclosure (0 = auto) */
-  enclosureStrokeWidth?: number;
-  /** S3: Cluster label detail level */
-  clusterLabelDetail?: "minimal" | "standard" | "detailed" | "rich";
-  /** S3: Cluster summary generator for rich labels */
-  getClusterSummary?: (tag: string, memberCount: number) => string;
-  /** Zoom threshold below which enclosures switch to outline-only mode (default 0.45). */
-  enclosureZoomOutThreshold?: number;
+	tagDisplay: "node" | "enclosure";
+	tagMembership: Map<string, Set<string>>;
+	nodeColorMap: Map<string, string>;
+	tagRelPairsCache: Set<string>;
+	resolvePos: (id: string) => (Pt & { radius?: number }) | undefined;
+	/** Current world scale (zoom level). Used to adapt rendering style. */
+	worldScale: number;
+	/** IK: High contrast mode — thicker borders for enclosures */
+	highContrast?: boolean;
+	/** Total number of nodes in the graph. Used with enclosureMinRatio. */
+	totalNodeCount: number;
+	/** Minimum fraction (0–1) of totalNodeCount a group must have to show an enclosure. */
+	enclosureMinRatio: number;
+	/** Called when a tag label is hovered (tag) or unhovered (null). */
+	onTagHover?: (tag: string | null) => void;
+	/** FJ: Called when a tag enclosure label is clicked. */
+	onTagClick?: (tag: string) => void;
+	/** Currently hovered tag (used to boost label alpha). */
+	hoveredTag?: string | null;
+	/** Dedicated container for labels (ensures z-order above nodes). */
+	labelContainer?: CanvasContainer;
+	/** RenderThresholds for group label styling. */
+	groupLabelFontSize?: number;
+	groupLabelFontWeight?: string;
+	groupLabelLetterSpacing?: number;
+	groupLabelAlpha?: number;
+	groupLabelHullOffset?: number;
+	groupLabelBgAlpha?: number;
+	/** IQR multiplier for outlier filtering (default 2.0). Higher = more inclusive. */
+	enclosureOutlierFactor?: number;
+	/** FU: Label position within enclosure ("top" | "center" | "bottom", default "top") */
+	enclosureLabelPosition?: "top" | "center" | "bottom";
+	/** FY: Override fill opacity for enclosure (0 = auto, >0 = manual) */
+	enclosureFillOpacity?: number;
+	/** GC: Override stroke width for enclosure (0 = auto) */
+	enclosureStrokeWidth?: number;
+	/** S3: Cluster label detail level */
+	clusterLabelDetail?: "minimal" | "standard" | "detailed" | "rich";
+	/** S3: Cluster summary generator for rich labels */
+	getClusterSummary?: (tag: string, memberCount: number) => string;
+	/** Zoom threshold below which enclosures switch to outline-only mode (default 0.45). */
+	enclosureZoomOutThreshold?: number;
 }
 
 /**
@@ -61,8 +61,8 @@ export interface EnclosureConfig {
  * drawEnclosures reads/writes these fields to amortize overlap computation.
  */
 export interface OverlapCache {
-  frame: number;
-  counts: Map<string, number>;
+	frame: number;
+	counts: Map<string, number>;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,11 +70,14 @@ export interface OverlapCache {
 // ---------------------------------------------------------------------------
 
 interface EncData {
-  tag: string;
-  pts: (Pt & { radius: number })[];
-  hex: number;
-  expanded: Pt[];
-  minX: number; minY: number; maxX: number; maxY: number;
+	tag: string;
+	pts: (Pt & { radius: number })[];
+	hex: number;
+	expanded: Pt[];
+	minX: number;
+	minY: number;
+	maxX: number;
+	maxY: number;
 }
 
 /** Minimum extra padding beyond node radius for the outline.
@@ -94,7 +97,7 @@ const OVERLAP_RECOMPUTE_FRAMES = 30;
 const SIZE_FADE_DIVISOR = 200;
 
 /** Base fill alpha for non-overlapping enclosures (zoomed out) */
-const FILL_ALPHA_BASE = 0.10;
+const FILL_ALPHA_BASE = 0.1;
 /** Base fill alpha for overlapping enclosures (zoomed out) */
 const FILL_ALPHA_OVERLAP = 0.04;
 
@@ -105,7 +108,7 @@ const LABEL_COLLISION_MAX_ATTEMPTS = 6;
  *  HX: Scales with zoom to prevent labels from being too close at extreme zoom-out. */
 const LABEL_OFFSET_BASE = 8;
 function labelOffset(ws: number): number {
-  return Math.max(LABEL_OFFSET_BASE, LABEL_OFFSET_BASE * Math.max(1, 0.4 / Math.max(ws, 0.02)));
+	return Math.max(LABEL_OFFSET_BASE, LABEL_OFFSET_BASE * Math.max(1, 0.4 / Math.max(ws, 0.02)));
 }
 
 /** Capsule end-cap curve factor (scales beyond 1.0 for rounder ends) */
@@ -143,9 +146,9 @@ const COLLISION_ESCAPE_MARGIN = 0.15;
 
 /** Compute dynamic padding for a given node radius */
 function outlinePad(radius: number, memberCount?: number): number {
-  const base = Math.max(OUTLINE_PAD_MIN, radius * OUTLINE_PAD_FACTOR);
-  // DQ-10: Shrink padding for very small groups (1-3 members)
-  return memberCount != null && memberCount <= 3 ? base * 0.6 : base;
+	const base = Math.max(OUTLINE_PAD_MIN, radius * OUTLINE_PAD_FACTOR);
+	// DQ-10: Shrink padding for very small groups (1-3 members)
+	return memberCount != null && memberCount <= 3 ? base * 0.6 : base;
 }
 
 /**
@@ -173,383 +176,418 @@ const _allPtsBuf: (Pt & { radius: number })[] = [];
  *     with large, prominent labels so groups are identifiable at a glance.
  */
 export function drawEnclosures(
-  g: CanvasGraphics,
-  enclosureLabels: Map<string, CanvasText>,
-  overlapCache: OverlapCache,
-  cfg: EnclosureConfig,
+	g: CanvasGraphics,
+	enclosureLabels: Map<string, CanvasText>,
+	overlapCache: OverlapCache,
+	cfg: EnclosureConfig,
 ): void {
-  g.clear();
+	g.clear();
 
-  if (cfg.tagDisplay !== TAG_DISPLAY_ENCLOSURE) {
-    for (const lbl of enclosureLabels.values()) lbl.visible = false;
-    return;
-  }
+	if (cfg.tagDisplay !== TAG_DISPLAY_ENCLOSURE) {
+		for (const lbl of enclosureLabels.values()) lbl.visible = false;
+		return;
+	}
 
-  const ws = cfg.worldScale || 1;
-  const zoomOutTh = cfg.enclosureZoomOutThreshold ?? ZOOM_OUT_THRESHOLD;
-  const zoomedOut = ws < zoomOutTh;
-  // Smooth blend factor: 1 = fully zoomed-out style, 0 = fully zoomed-in style
-  const blend = zoomedOut
-    ? Math.min(1, (zoomOutTh - ws) / (zoomOutTh * 0.5))
-    : 0;
+	const ws = cfg.worldScale || 1;
+	const zoomOutTh = cfg.enclosureZoomOutThreshold ?? ZOOM_OUT_THRESHOLD;
+	const zoomedOut = ws < zoomOutTh;
+	// Smooth blend factor: 1 = fully zoomed-out style, 0 = fully zoomed-in style
+	const blend = zoomedOut ? Math.min(1, (zoomOutTh - ws) / (zoomOutTh * 0.5)) : 0;
 
-  // Phase 1: Collect node positions + radii per tag, compute expanded hull
-  const minCount = Math.max(1, Math.floor(cfg.totalNodeCount * cfg.enclosureMinRatio));
-  // Reuse enclosures array across frames
-  _enclosuresBuf.length = 0;
-  const enclosures = _enclosuresBuf;
+	// Phase 1: Collect node positions + radii per tag, compute expanded hull
+	const minCount = Math.max(1, Math.floor(cfg.totalNodeCount * cfg.enclosureMinRatio));
+	// Reuse enclosures array across frames
+	_enclosuresBuf.length = 0;
+	const enclosures = _enclosuresBuf;
 
-  for (const [tag, memberIds] of cfg.tagMembership) {
-    if (memberIds.size < minCount) continue;
+	for (const [tag, memberIds] of cfg.tagMembership) {
+		if (memberIds.size < minCount) continue;
 
-    _allPtsBuf.length = 0;
-    for (const id of memberIds) {
-      const p = cfg.resolvePos(id);
-      if (p) _allPtsBuf.push({ x: p.x, y: p.y, radius: p.radius ?? 12 });
-    }
-    if (_allPtsBuf.length < 1) continue;
-    const allPts = _allPtsBuf;
+		_allPtsBuf.length = 0;
+		for (const id of memberIds) {
+			const p = cfg.resolvePos(id);
+			if (p) _allPtsBuf.push({ x: p.x, y: p.y, radius: p.radius ?? 12 });
+		}
+		if (_allPtsBuf.length < 1) continue;
+		const allPts = _allPtsBuf;
 
-    // Filter outliers: keep only nodes within factor×IQR of centroid distance.
-    // This prevents scattered tag members from inflating the hull.
-    const pts = filterOutliers(allPts, cfg.enclosureOutlierFactor ?? 2.0);
-    if (pts.length < 1) continue;
+		// Filter outliers: keep only nodes within factor×IQR of centroid distance.
+		// This prevents scattered tag members from inflating the hull.
+		const pts = filterOutliers(allPts, cfg.enclosureOutlierFactor ?? 2.0);
+		if (pts.length < 1) continue;
 
-    // Deterministic enclosure color from tag name hash (DQ-06)
-    // Using tag name hash ensures color stays consistent regardless of filter order.
-    const hue = stringHash(tag, 360);
-    const hex = hslToHex(hue, 0.55, 0.55);
+		// Deterministic enclosure color from tag name hash (DQ-06)
+		// Using tag name hash ensures color stays consistent regardless of filter order.
+		const hue = stringHash(tag, 360);
+		const hex = hslToHex(hue, 0.55, 0.55);
 
-    // Generate boundary sample points around each node's circle
-    // so the convex hull fully contains every node regardless of radius.
-    // Reuse module-level buffer to reduce per-tag array allocation
-    _hullInputBuf.length = 0;
-    const mc = pts.length; // member count for padding calculation
-    for (const p of pts) {
-      const r = p.radius + outlinePad(p.radius, mc);
-      for (let k = 0; k < HULL_SAMPLES; k++) {
-        const angle = (k / HULL_SAMPLES) * Math.PI * 2;
-        _hullInputBuf.push({ x: p.x + Math.cos(angle) * r, y: p.y + Math.sin(angle) * r });
-      }
-    }
+		// Generate boundary sample points around each node's circle
+		// so the convex hull fully contains every node regardless of radius.
+		// Reuse module-level buffer to reduce per-tag array allocation
+		_hullInputBuf.length = 0;
+		const mc = pts.length; // member count for padding calculation
+		for (const p of pts) {
+			const r = p.radius + outlinePad(p.radius, mc);
+			for (let k = 0; k < HULL_SAMPLES; k++) {
+				const angle = (k / HULL_SAMPLES) * Math.PI * 2;
+				_hullInputBuf.push({ x: p.x + Math.cos(angle) * r, y: p.y + Math.sin(angle) * r });
+			}
+		}
 
-    let expanded: Pt[];
-    if (pts.length === 1) {
-      const p = pts[0];
-      const r = p.radius + outlinePad(p.radius, mc);
-      expanded = [
-        { x: p.x - r, y: p.y - r },
-        { x: p.x + r, y: p.y - r },
-        { x: p.x + r, y: p.y + r },
-        { x: p.x - r, y: p.y + r },
-      ];
-    } else {
-      expanded = convexHull(_hullInputBuf);
-    }
+		let expanded: Pt[];
+		if (pts.length === 1) {
+			const p = pts[0];
+			const r = p.radius + outlinePad(p.radius, mc);
+			expanded = [
+				{ x: p.x - r, y: p.y - r },
+				{ x: p.x + r, y: p.y - r },
+				{ x: p.x + r, y: p.y + r },
+				{ x: p.x - r, y: p.y + r },
+			];
+		} else {
+			expanded = convexHull(_hullInputBuf);
+		}
 
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const p of expanded) {
-      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-    }
+		let minX = Infinity,
+			minY = Infinity,
+			maxX = -Infinity,
+			maxY = -Infinity;
+		for (const p of expanded) {
+			if (p.x < minX) minX = p.x;
+			if (p.x > maxX) maxX = p.x;
+			if (p.y < minY) minY = p.y;
+			if (p.y > maxY) maxY = p.y;
+		}
 
-    enclosures.push({ tag, pts, hex, expanded, minX, minY, maxX, maxY });
-  }
+		enclosures.push({ tag, pts, hex, expanded, minX, minY, maxX, maxY });
+	}
 
-  // Phase 2: Sort large-first for z-order (matters for fill overlap)
-  enclosures.sort((a, b) => {
-    const areaA = (a.maxX - a.minX) * (a.maxY - a.minY);
-    const areaB = (b.maxX - b.minX) * (b.maxY - b.minY);
-    return areaB - areaA;
-  });
+	// Phase 2: Sort large-first for z-order (matters for fill overlap)
+	enclosures.sort((a, b) => {
+		const areaA = (a.maxX - a.minX) * (a.maxY - a.minY);
+		const areaB = (b.maxX - b.minX) * (b.maxY - b.minY);
+		return areaB - areaA;
+	});
 
-  // Phase 3: Overlap count (recompute every 30 frames for perf)
-  overlapCache.frame++;
-  if (overlapCache.frame >= OVERLAP_RECOMPUTE_FRAMES) {
-    overlapCache.frame = 0;
-    overlapCache.counts.clear();
-    const relPairs = cfg.tagRelPairsCache;
-    for (let i = 0; i < enclosures.length; i++) {
-      for (let j = i + 1; j < enclosures.length; j++) {
-        const a = enclosures[i], b = enclosures[j];
-        if (relPairs.has(`${a.tag}\0${b.tag}`)) continue;
-        if (a.maxX < b.minX || a.minX > b.maxX || a.maxY < b.minY || a.minY > b.maxY) continue;
-        overlapCache.counts.set(a.tag, (overlapCache.counts.get(a.tag) || 0) + 1);
-        overlapCache.counts.set(b.tag, (overlapCache.counts.get(b.tag) || 0) + 1);
-      }
-    }
-  }
+	// Phase 3: Overlap count (recompute every 30 frames for perf)
+	overlapCache.frame++;
+	if (overlapCache.frame >= OVERLAP_RECOMPUTE_FRAMES) {
+		overlapCache.frame = 0;
+		overlapCache.counts.clear();
+		const relPairs = cfg.tagRelPairsCache;
+		for (let i = 0; i < enclosures.length; i++) {
+			for (let j = i + 1; j < enclosures.length; j++) {
+				const a = enclosures[i],
+					b = enclosures[j];
+				if (relPairs.has(`${a.tag}\0${b.tag}`)) continue;
+				if (a.maxX < b.minX || a.minX > b.maxX || a.maxY < b.minY || a.minY > b.maxY) continue;
+				overlapCache.counts.set(a.tag, (overlapCache.counts.get(a.tag) || 0) + 1);
+				overlapCache.counts.set(b.tag, (overlapCache.counts.get(b.tag) || 0) + 1);
+			}
+		}
+	}
 
-  // Phase 4: Draw
-  const usedLabels = new Set<string>();
-  for (const enc of enclosures) {
-    const { tag, pts, hex, expanded } = enc;
-    const overlaps = overlapCache.counts.get(tag) || 0;
+	// Phase 4: Draw
+	const usedLabels = new Set<string>();
+	for (const enc of enclosures) {
+		const { tag, pts, hex, expanded } = enc;
+		const overlaps = overlapCache.counts.get(tag) || 0;
 
-    // --- Stroke style ---
-    const baseLineAlpha = overlaps === 0 ? STROKE_ALPHA_NO_OVERLAP : Math.max(STROKE_ALPHA_OVERLAP_MIN, STROKE_ALPHA_OVERLAP_BASE / (1 + overlaps * 0.1));
-    // GC: Allow override of enclosure stroke width
-    const strokeOverride = cfg.enclosureStrokeWidth ?? 0;
-    // IK: High contrast mode triples enclosure border width for visibility
-    const hcMul = cfg.highContrast ? 3 : 1;
-    const lineWidth = (strokeOverride > 0 ? strokeOverride : (overlaps === 0 ? STROKE_WIDTH_NO_OVERLAP : Math.max(STROKE_WIDTH_OVERLAP_MIN, STROKE_WIDTH_OVERLAP_BASE - overlaps * 0.3))) * hcMul;
+		// --- Stroke style ---
+		const baseLineAlpha =
+			overlaps === 0
+				? STROKE_ALPHA_NO_OVERLAP
+				: Math.max(STROKE_ALPHA_OVERLAP_MIN, STROKE_ALPHA_OVERLAP_BASE / (1 + overlaps * 0.1));
+		// GC: Allow override of enclosure stroke width
+		const strokeOverride = cfg.enclosureStrokeWidth ?? 0;
+		// IK: High contrast mode triples enclosure border width for visibility
+		const hcMul = cfg.highContrast ? 3 : 1;
+		const lineWidth =
+			(strokeOverride > 0
+				? strokeOverride
+				: overlaps === 0
+					? STROKE_WIDTH_NO_OVERLAP
+					: Math.max(STROKE_WIDTH_OVERLAP_MIN, STROKE_WIDTH_OVERLAP_BASE - overlaps * 0.3)) * hcMul;
 
-    // --- Fill style (zoomed-out: light tint; large groups get lighter to avoid obscuring nodes) ---
-    const memberCount = pts.length;
-    const sizeFade = Math.max(SIZE_FADE_MIN, 1 - memberCount / SIZE_FADE_DIVISOR);
-    const baseFill = overlaps > 0 ? FILL_ALPHA_OVERLAP : FILL_ALPHA_BASE;
-    // FY: Allow user override of enclosure fill opacity (0 = outline-only)
-    const opacityOverride = cfg.enclosureFillOpacity;
-    // At extreme zoom-out (blend > 0.8), switch to outline-only for clarity
-    const fillAlpha = blend > 0.8 ? 0
-      : opacityOverride !== undefined && opacityOverride !== null
-        ? (opacityOverride > 0 ? opacityOverride * sizeFade : 0)
-        : (blend > 0 ? blend * baseFill * sizeFade : 0);
+		// --- Fill style (zoomed-out: light tint; large groups get lighter to avoid obscuring nodes) ---
+		const memberCount = pts.length;
+		const sizeFade = Math.max(SIZE_FADE_MIN, 1 - memberCount / SIZE_FADE_DIVISOR);
+		const baseFill = overlaps > 0 ? FILL_ALPHA_OVERLAP : FILL_ALPHA_BASE;
+		// FY: Allow user override of enclosure fill opacity (0 = outline-only)
+		const opacityOverride = cfg.enclosureFillOpacity;
+		// At extreme zoom-out (blend > 0.8), switch to outline-only for clarity
+		const fillAlpha =
+			blend > 0.8
+				? 0
+				: opacityOverride !== undefined && opacityOverride !== null
+					? opacityOverride > 0
+						? opacityOverride * sizeFade
+						: 0
+					: blend > 0
+						? blend * baseFill * sizeFade
+						: 0;
 
-    let labelX = 0, labelY = 0;
-    let labelCenterX = 0, labelCenterY = 0;
+		let labelX = 0,
+			labelY = 0;
+		let labelCenterX = 0,
+			labelCenterY = 0;
 
-    // Draw solid fill (behind stroke) — flat color for clear map-style territories
-    if (fillAlpha > FILL_ALPHA_VISIBILITY_THRESHOLD) {
-      g.lineStyle(0);
-      g.beginFill(hex, fillAlpha);
-      if (pts.length === 1) {
-        const p0 = pts[0];
-        const r = p0.radius + outlinePad(p0.radius, memberCount);
-        g.drawCircle(p0.x, p0.y, r);
-      } else if (pts.length === 2) {
-        const maxR = Math.max(pts[0].radius, pts[1].radius);
-        const r = maxR + outlinePad(maxR, memberCount);
-        drawCapsule(g, pts[0], pts[1], r);
-      } else {
-        drawSmoothHull(g, expanded);
-      }
-      g.endFill();
-    }
+		// Draw solid fill (behind stroke) — flat color for clear map-style territories
+		if (fillAlpha > FILL_ALPHA_VISIBILITY_THRESHOLD) {
+			g.lineStyle(0);
+			g.beginFill(hex, fillAlpha);
+			if (pts.length === 1) {
+				const p0 = pts[0];
+				const r = p0.radius + outlinePad(p0.radius, memberCount);
+				g.drawCircle(p0.x, p0.y, r);
+			} else if (pts.length === 2) {
+				const maxR = Math.max(pts[0].radius, pts[1].radius);
+				const r = maxR + outlinePad(maxR, memberCount);
+				drawCapsule(g, pts[0], pts[1], r);
+			} else {
+				drawSmoothHull(g, expanded);
+			}
+			g.endFill();
+		}
 
-    // Draw double-border: outer darker line + inner colored line (map-style boundary)
-    // Pass 1: outer border (dark, wider)
-    const outerAlpha = baseLineAlpha * BORDER_OUTER_ALPHA_FACTOR;
-    const isDark = (hex & 0xffffff) < 0x808080;
-    const outerColor = isDark ? 0x222222 : 0x000000;
-    g.lineStyle(BORDER_OUTER_WIDTH, outerColor, outerAlpha);
-    if (pts.length === 1) {
-      const p = pts[0];
-      const r = p.radius + outlinePad(p.radius, memberCount);
-      g.drawCircle(p.x, p.y, r);
-    } else if (pts.length === 2) {
-      const maxR = Math.max(pts[0].radius, pts[1].radius);
-      const r = maxR + outlinePad(maxR, memberCount);
-      drawCapsule(g, pts[0], pts[1], r);
-    } else {
-      drawSmoothHull(g, expanded);
-    }
-    // Pass 2: inner colored border
-    g.lineStyle(lineWidth, hex, baseLineAlpha);
-    if (pts.length === 1) {
-      const p = pts[0];
-      const r = p.radius + outlinePad(p.radius, memberCount);
-      g.drawCircle(p.x, p.y, r);
-      labelX = p.x; labelY = p.y - r - labelOffset(ws);
-      labelCenterX = p.x; labelCenterY = p.y;
-    } else if (pts.length === 2) {
-      const maxR = Math.max(pts[0].radius, pts[1].radius);
-      const r = maxR + outlinePad(maxR, memberCount);
-      drawCapsule(g, pts[0], pts[1], r);
-      labelX = (pts[0].x + pts[1].x) / 2;
-      labelY = Math.min(pts[0].y, pts[1].y) - r - labelOffset(ws);
-      labelCenterX = labelX;
-      labelCenterY = (pts[0].y + pts[1].y) / 2;
-    } else {
-      drawSmoothHull(g, expanded);
-      let topY = Infinity;
-      let sumX = 0, sumY = 0;
-      for (const p of expanded) {
-        sumX += p.x; sumY += p.y;
-        if (p.y < topY) { topY = p.y; labelX = p.x; }
-      }
-      labelY = topY - labelOffset(ws);
-      labelCenterX = sumX / expanded.length;
-      labelCenterY = sumY / expanded.length;
-    }
+		// Draw double-border: outer darker line + inner colored line (map-style boundary)
+		// Pass 1: outer border (dark, wider)
+		const outerAlpha = baseLineAlpha * BORDER_OUTER_ALPHA_FACTOR;
+		const isDark = (hex & 0xffffff) < 0x808080;
+		const outerColor = isDark ? 0x222222 : 0x000000;
+		g.lineStyle(BORDER_OUTER_WIDTH, outerColor, outerAlpha);
+		if (pts.length === 1) {
+			const p = pts[0];
+			const r = p.radius + outlinePad(p.radius, memberCount);
+			g.drawCircle(p.x, p.y, r);
+		} else if (pts.length === 2) {
+			const maxR = Math.max(pts[0].radius, pts[1].radius);
+			const r = maxR + outlinePad(maxR, memberCount);
+			drawCapsule(g, pts[0], pts[1], r);
+		} else {
+			drawSmoothHull(g, expanded);
+		}
+		// Pass 2: inner colored border
+		g.lineStyle(lineWidth, hex, baseLineAlpha);
+		if (pts.length === 1) {
+			const p = pts[0];
+			const r = p.radius + outlinePad(p.radius, memberCount);
+			g.drawCircle(p.x, p.y, r);
+			labelX = p.x;
+			labelY = p.y - r - labelOffset(ws);
+			labelCenterX = p.x;
+			labelCenterY = p.y;
+		} else if (pts.length === 2) {
+			const maxR = Math.max(pts[0].radius, pts[1].radius);
+			const r = maxR + outlinePad(maxR, memberCount);
+			drawCapsule(g, pts[0], pts[1], r);
+			labelX = (pts[0].x + pts[1].x) / 2;
+			labelY = Math.min(pts[0].y, pts[1].y) - r - labelOffset(ws);
+			labelCenterX = labelX;
+			labelCenterY = (pts[0].y + pts[1].y) / 2;
+		} else {
+			drawSmoothHull(g, expanded);
+			let topY = Infinity;
+			let sumX = 0,
+				sumY = 0;
+			for (const p of expanded) {
+				sumX += p.x;
+				sumY += p.y;
+				if (p.y < topY) {
+					topY = p.y;
+					labelX = p.x;
+				}
+			}
+			labelY = topY - labelOffset(ws);
+			labelCenterX = sumX / expanded.length;
+			labelCenterY = sumY / expanded.length;
+		}
 
-    // --- Label ---
-    usedLabels.add(tag);
-    const glFontSize = cfg.groupLabelFontSize ?? 12;
-    const glFontWeight = cfg.groupLabelFontWeight ?? "500";
-    const glLetterSpacing = cfg.groupLabelLetterSpacing ?? 0.15;
-    const glAlpha = cfg.groupLabelAlpha ?? 0.6;
-    const glBgAlpha = cfg.groupLabelBgAlpha ?? 0.65;
-    const glHullOffset = cfg.groupLabelHullOffset ?? 24;
+		// --- Label ---
+		usedLabels.add(tag);
+		const glFontSize = cfg.groupLabelFontSize ?? 12;
+		const glFontWeight = cfg.groupLabelFontWeight ?? "500";
+		const glLetterSpacing = cfg.groupLabelLetterSpacing ?? 0.15;
+		const glAlpha = cfg.groupLabelAlpha ?? 0.6;
+		const glBgAlpha = cfg.groupLabelBgAlpha ?? 0.65;
+		const glHullOffset = cfg.groupLabelHullOffset ?? 24;
 
-    let txt = enclosureLabels.get(tag);
-    if (!txt) {
-      const hexStr = "#" + hex.toString(16).padStart(6, "0");
-      // S3: Cluster label text by detail level
-      let labelText: string;
-      const detail = cfg.clusterLabelDetail ?? "standard";
-      if (detail === "minimal") {
-        labelText = `#${tag}`;
-      } else if ((detail === "detailed" || detail === "rich") && cfg.getClusterSummary) {
-        labelText = cfg.getClusterSummary(tag, memberCount);
-      } else {
-        labelText = `#${tag} (${memberCount})`;
-      }
-      txt = new CanvasText(labelText, {
-        fontSize: glFontSize,
-        fill: hexStr,
-        fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-        fontWeight: glFontWeight,
-      });
-      txt.anchor.set(0.5, 0.5);
-      txt.resolution = 2;
-      txt.letterSpacing = glLetterSpacing;
-      txt.strokeColor = 0x000000;
-      txt.strokeWidth = 2;
-      enclosureLabels.set(tag, txt);
-    }
-    // Pill background: darken the enclosure hue for the background
-    const bgHex = darkenColor(hex, LABEL_DARKEN_FACTOR);
-    txt.bgColor = bgHex;
-    txt.bgAlpha = glBgAlpha;
-    txt.bgPadX = LABEL_PILL_PAD_X;
-    txt.bgPadY = LABEL_PILL_PAD_Y;
-    // GL: WCAG contrast auto-correction for enclosure labels
-    if (wcagContrastRatio(hex, bgHex) < 3.0) {
-      txt.style.fill = "#" + contrastColor(bgHex).toString(16).padStart(6, "0");
-    }
+		let txt = enclosureLabels.get(tag);
+		if (!txt) {
+			const hexStr = "#" + hex.toString(16).padStart(6, "0");
+			// S3: Cluster label text by detail level
+			let labelText: string;
+			const detail = cfg.clusterLabelDetail ?? "standard";
+			if (detail === "minimal") {
+				labelText = `#${tag}`;
+			} else if ((detail === "detailed" || detail === "rich") && cfg.getClusterSummary) {
+				labelText = cfg.getClusterSummary(tag, memberCount);
+			} else {
+				labelText = `#${tag} (${memberCount})`;
+			}
+			txt = new CanvasText(labelText, {
+				fontSize: glFontSize,
+				fill: hexStr,
+				fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+				fontWeight: glFontWeight,
+			});
+			txt.anchor.set(0.5, 0.5);
+			txt.resolution = 2;
+			txt.letterSpacing = glLetterSpacing;
+			txt.strokeColor = 0x000000;
+			txt.strokeWidth = 2;
+			enclosureLabels.set(tag, txt);
+		}
+		// Pill background: darken the enclosure hue for the background
+		const bgHex = darkenColor(hex, LABEL_DARKEN_FACTOR);
+		txt.bgColor = bgHex;
+		txt.bgAlpha = glBgAlpha;
+		txt.bgPadX = LABEL_PILL_PAD_X;
+		txt.bgPadY = LABEL_PILL_PAD_Y;
+		// GL: WCAG contrast auto-correction for enclosure labels
+		if (wcagContrastRatio(hex, bgHex) < 3.0) {
+			txt.style.fill = "#" + contrastColor(bgHex).toString(16).padStart(6, "0");
+		}
 
-    // Ensure label is in the correct parent (idempotent).
-    // Interactive events (eventMode/on) are not supported by CanvasText;
-    // hover callbacks are handled at the container level instead.
-    const targetParent = cfg.labelContainer ?? (g.parent as CanvasContainer | null);
-    if (txt.parent !== targetParent && targetParent) {
-      targetParent.addChild(txt);
-    }
+		// Ensure label is in the correct parent (idempotent).
+		// Interactive events (eventMode/on) are not supported by CanvasText;
+		// hover callbacks are handled at the container level instead.
+		const targetParent = cfg.labelContainer ?? (g.parent as CanvasContainer | null);
+		if (txt.parent !== targetParent && targetParent) {
+			targetParent.addChild(txt);
+		}
 
-    // Place label outside the hull in the direction of the farthest node from centroid.
-    // Label scale: target ~14px on screen regardless of zoom
-    const targetScreenPx = 14;
-    const rawLabelScale = targetScreenPx / (glFontSize * ws);
-    const labelScale = isFinite(rawLabelScale) ? clamp(rawLabelScale, 1, 300) : 4;
+		// Place label outside the hull in the direction of the farthest node from centroid.
+		// Label scale: target ~14px on screen regardless of zoom
+		const targetScreenPx = 14;
+		const rawLabelScale = targetScreenPx / (glFontSize * ws);
+		const labelScale = isFinite(rawLabelScale) ? clamp(rawLabelScale, 1, 300) : 4;
 
-    // Find farthest node from centroid to determine label direction
-    let farthestDist = 0;
-    let farthestX = labelCenterX;
-    let farthestY = labelCenterY - 1; // default: above centroid
-    for (const p of expanded) {
-      const dx = p.x - labelCenterX;
-      const dy = p.y - labelCenterY;
-      const d = dx * dx + dy * dy;
-      if (d > farthestDist) {
-        farthestDist = d;
-        farthestX = p.x;
-        farthestY = p.y;
-      }
-    }
-    // Direction unit vector from centroid to farthest point
-    const dirX = farthestX - labelCenterX;
-    const dirY = farthestY - labelCenterY;
-    const dirLen = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
-    const ux = dirX / dirLen;
-    const uy = dirY / dirLen;
+		// Find farthest node from centroid to determine label direction
+		let farthestDist = 0;
+		let farthestX = labelCenterX;
+		let farthestY = labelCenterY - 1; // default: above centroid
+		for (const p of expanded) {
+			const dx = p.x - labelCenterX;
+			const dy = p.y - labelCenterY;
+			const d = dx * dx + dy * dy;
+			if (d > farthestDist) {
+				farthestDist = d;
+				farthestX = p.x;
+				farthestY = p.y;
+			}
+		}
+		// Direction unit vector from centroid to farthest point
+		const dirX = farthestX - labelCenterX;
+		const dirY = farthestY - labelCenterY;
+		const dirLen = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+		const ux = dirX / dirLen;
+		const uy = dirY / dirLen;
 
-    // FU: Place label based on position setting
-    txt.anchor.set(0.5, 0.5);
-    const lpos = cfg.enclosureLabelPosition ?? "top";
-    if (lpos === "center") {
-      txt.x = labelCenterX;
-      txt.y = labelCenterY;
-    } else if (lpos === "bottom") {
-      // Mirror: use lowest Y instead of highest
-      let bottomY = -Infinity;
-      let bottomX = labelCenterX;
-      for (const p of expanded) { if (p.y > bottomY) { bottomY = p.y; bottomX = p.x; } }
-      txt.x = bottomX;
-      txt.y = bottomY + glHullOffset;
-    } else {
-      // Default: top (farthest from centroid)
-      txt.x = farthestX + ux * glHullOffset;
-      txt.y = farthestY + uy * glHullOffset;
-    }
-    txt.scale.set(labelScale);
-    const isHovered = cfg.hoveredTag === tag;
-    const baseAlpha = isHovered ? Math.min(1, glAlpha + 0.3) : glAlpha;
-    txt.alpha = baseAlpha;
-    // Brighten pill background on hover
-    txt.bgAlpha = isHovered ? glBgAlpha + 0.2 : glBgAlpha;
-    txt.visible = true;
-  }
+		// FU: Place label based on position setting
+		txt.anchor.set(0.5, 0.5);
+		const lpos = cfg.enclosureLabelPosition ?? "top";
+		if (lpos === "center") {
+			txt.x = labelCenterX;
+			txt.y = labelCenterY;
+		} else if (lpos === "bottom") {
+			// Mirror: use lowest Y instead of highest
+			let bottomY = -Infinity;
+			let bottomX = labelCenterX;
+			for (const p of expanded) {
+				if (p.y > bottomY) {
+					bottomY = p.y;
+					bottomX = p.x;
+				}
+			}
+			txt.x = bottomX;
+			txt.y = bottomY + glHullOffset;
+		} else {
+			// Default: top (farthest from centroid)
+			txt.x = farthestX + ux * glHullOffset;
+			txt.y = farthestY + uy * glHullOffset;
+		}
+		txt.scale.set(labelScale);
+		const isHovered = cfg.hoveredTag === tag;
+		const baseAlpha = isHovered ? Math.min(1, glAlpha + 0.3) : glAlpha;
+		txt.alpha = baseAlpha;
+		// Brighten pill background on hover
+		txt.bgAlpha = isHovered ? glBgAlpha + 0.2 : glBgAlpha;
+		txt.visible = true;
+	}
 
-  // --- Label collision avoidance ---
-  // Collect visible label bounding rects, then nudge overlapping labels apart.
-  // If nudging can't resolve the overlap, hide the smaller group's label.
-  const visibleLabels: { tag: string; txt: CanvasText; memberCount: number }[] = [];
-  for (const tag of usedLabels) {
-    const txt = enclosureLabels.get(tag);
-    if (txt && txt.visible) {
-      const members = cfg.tagMembership.get(tag);
-      visibleLabels.push({ tag, txt, memberCount: members?.size ?? 0 });
-    }
-  }
-  // Sort by member count descending — larger groups get priority placement
-  visibleLabels.sort((a, b) => b.memberCount - a.memberCount);
+	// --- Label collision avoidance ---
+	// Collect visible label bounding rects, then nudge overlapping labels apart.
+	// If nudging can't resolve the overlap, hide the smaller group's label.
+	const visibleLabels: { tag: string; txt: CanvasText; memberCount: number }[] = [];
+	for (const tag of usedLabels) {
+		const txt = enclosureLabels.get(tag);
+		if (txt && txt.visible) {
+			const members = cfg.tagMembership.get(tag);
+			visibleLabels.push({ tag, txt, memberCount: members?.size ?? 0 });
+		}
+	}
+	// Sort by member count descending — larger groups get priority placement
+	visibleLabels.sort((a, b) => b.memberCount - a.memberCount);
 
-  // Get approximate bounding box for a label (in world coords).
-  // CanvasText.width/height include scale.
-  const labelRect = (txt: CanvasText) => {
-    const w = txt.width;
-    const h = txt.height;
-    const ax = txt.anchor.x;
-    const ay = txt.anchor.y;
-    return {
-      x: txt.x - w * ax,
-      y: txt.y - h * ay,
-      w,
-      h,
-    };
-  };
+	// Get approximate bounding box for a label (in world coords).
+	// CanvasText.width/height include scale.
+	const labelRect = (txt: CanvasText) => {
+		const w = txt.width;
+		const h = txt.height;
+		const ax = txt.anchor.x;
+		const ay = txt.anchor.y;
+		return {
+			x: txt.x - w * ax,
+			y: txt.y - h * ay,
+			w,
+			h,
+		};
+	};
 
-  // rectsOverlap imported from geometry.ts
+	// rectsOverlap imported from geometry.ts
 
-  // Greedy nudge: for each label (priority-sorted), push away from collisions.
-  const placedRects: { x: number; y: number; w: number; h: number }[] = [];
-  for (const { txt } of visibleLabels) {
-    let rect = labelRect(txt);
-    let resolved = false;
+	// Greedy nudge: for each label (priority-sorted), push away from collisions.
+	const placedRects: { x: number; y: number; w: number; h: number }[] = [];
+	for (const { txt } of visibleLabels) {
+		let rect = labelRect(txt);
+		let resolved = false;
 
-    for (let attempt = 0; attempt < LABEL_COLLISION_MAX_ATTEMPTS; attempt++) {
-      // Find first overlapping rect
-      const blocker = placedRects.find(pr => rectsOverlap(rect, pr));
-      if (!blocker) { resolved = true; break; }
+		for (let attempt = 0; attempt < LABEL_COLLISION_MAX_ATTEMPTS; attempt++) {
+			// Find first overlapping rect
+			const blocker = placedRects.find((pr) => rectsOverlap(rect, pr));
+			if (!blocker) {
+				resolved = true;
+				break;
+			}
 
-      // Nudge away from the blocker — choose the shortest escape direction
-      const overlapX = Math.min(rect.x + rect.w - blocker.x, blocker.x + blocker.w - rect.x);
-      const overlapY = Math.min(rect.y + rect.h - blocker.y, blocker.y + blocker.h - rect.y);
+			// Nudge away from the blocker — choose the shortest escape direction
+			const overlapX = Math.min(rect.x + rect.w - blocker.x, blocker.x + blocker.w - rect.x);
+			const overlapY = Math.min(rect.y + rect.h - blocker.y, blocker.y + blocker.h - rect.y);
 
-      if (overlapY <= overlapX) {
-        // Escape vertically (down from blocker center)
-        const dy = (rect.y + rect.h / 2) > (blocker.y + blocker.h / 2) ? 1 : -1;
-        txt.y += dy * (overlapY + rect.h * COLLISION_ESCAPE_MARGIN);
-      } else {
-        // Escape horizontally (away from blocker center)
-        const dx = (rect.x + rect.w / 2) > (blocker.x + blocker.w / 2) ? 1 : -1;
-        txt.x += dx * (overlapX + rect.w * COLLISION_ESCAPE_MARGIN);
-      }
-      rect = labelRect(txt);
-    }
+			if (overlapY <= overlapX) {
+				// Escape vertically (down from blocker center)
+				const dy = rect.y + rect.h / 2 > blocker.y + blocker.h / 2 ? 1 : -1;
+				txt.y += dy * (overlapY + rect.h * COLLISION_ESCAPE_MARGIN);
+			} else {
+				// Escape horizontally (away from blocker center)
+				const dx = rect.x + rect.w / 2 > blocker.x + blocker.w / 2 ? 1 : -1;
+				txt.x += dx * (overlapX + rect.w * COLLISION_ESCAPE_MARGIN);
+			}
+			rect = labelRect(txt);
+		}
 
-    if (!resolved) {
-      txt.visible = false;
-    } else {
-      placedRects.push(rect);
-    }
-  }
+		if (!resolved) {
+			txt.visible = false;
+		} else {
+			placedRects.push(rect);
+		}
+	}
 
-  // Hide unused labels
-  for (const [tag, lbl] of enclosureLabels) {
-    if (!usedLabels.has(tag)) lbl.visible = false;
-  }
+	// Hide unused labels
+	for (const [tag, lbl] of enclosureLabels) {
+		if (!usedLabels.has(tag)) lbl.visible = false;
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -558,39 +596,40 @@ export function drawEnclosures(
 
 /** 直線のみの多角形 — 地図の国境スタイル */
 export function drawSmoothHull(g: CanvasGraphics, points: Pt[]) {
-  if (points.length < 3) return;
-  g.moveTo(points[0].x, points[0].y);
-  for (let i = 1; i < points.length; i++) {
-    g.lineTo(points[i].x, points[i].y);
-  }
-  g.closePath();
+	if (points.length < 3) return;
+	g.moveTo(points[0].x, points[0].y);
+	for (let i = 1; i < points.length; i++) {
+		g.lineTo(points[i].x, points[i].y);
+	}
+	g.closePath();
 }
 
 export function drawCapsule(g: CanvasGraphics, p0: Pt, p1: Pt, radius: number) {
-  const dx = p1.x - p0.x;
-  const dy = p1.y - p0.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const ux = dx / len, uy = dy / len;
-  const px = -uy, py = ux;
+	const dx = p1.x - p0.x;
+	const dy = p1.y - p0.y;
+	const len = Math.hypot(dx, dy) || 1;
+	const ux = dx / len,
+		uy = dy / len;
+	const px = -uy,
+		py = ux;
 
-  const r = radius;
-  const a = { x: p0.x + px * r, y: p0.y + py * r };
-  const b = { x: p1.x + px * r, y: p1.y + py * r };
-  const c = { x: p1.x - px * r, y: p1.y - py * r };
-  const d = { x: p0.x - px * r, y: p0.y - py * r };
+	const r = radius;
+	const a = { x: p0.x + px * r, y: p0.y + py * r };
+	const b = { x: p1.x + px * r, y: p1.y + py * r };
+	const c = { x: p1.x - px * r, y: p1.y - py * r };
+	const d = { x: p0.x - px * r, y: p0.y - py * r };
 
-  const k = CAPSULE_CURVE_FACTOR;
-  const p1out = { x: p1.x + ux * r * k, y: p1.y + uy * r * k };
-  const p0out = { x: p0.x - ux * r * k, y: p0.y - uy * r * k };
+	const k = CAPSULE_CURVE_FACTOR;
+	const p1out = { x: p1.x + ux * r * k, y: p1.y + uy * r * k };
+	const p0out = { x: p0.x - ux * r * k, y: p0.y - uy * r * k };
 
-  // 直線的な国境スタイル — 角丸なしの矩形カプセル
-  g.moveTo(a.x, a.y);
-  g.lineTo(b.x, b.y);
-  g.lineTo(c.x, c.y);
-  g.lineTo(d.x, d.y);
-  g.closePath();
+	// 直線的な国境スタイル — 角丸なしの矩形カプセル
+	g.moveTo(a.x, a.y);
+	g.lineTo(b.x, b.y);
+	g.lineTo(c.x, c.y);
+	g.lineTo(d.x, d.y);
+	g.closePath();
 }
-
 
 // Reusable buffers for filterOutliers — eliminates per-call array allocations
 const _distBuf: number[] = [];
@@ -607,28 +646,33 @@ const _sortBuf: number[] = [];
  * (~40 tags × 2 arrays = 80 array allocations saved per 3 frames).
  */
 export function filterOutliers<T extends Pt>(pts: T[], iqrFactor = 2.0): T[] {
-  if (pts.length <= 3) return pts;
+	if (pts.length <= 3) return pts;
 
-  const n = pts.length;
-  let cx = 0, cy = 0;
-  for (let i = 0; i < n; i++) { cx += pts[i].x; cy += pts[i].y; }
-  cx /= n; cy /= n;
+	const n = pts.length;
+	let cx = 0,
+		cy = 0;
+	for (let i = 0; i < n; i++) {
+		cx += pts[i].x;
+		cy += pts[i].y;
+	}
+	cx /= n;
+	cy /= n;
 
-  _distBuf.length = n;
-  _sortBuf.length = n;
-  for (let i = 0; i < n; i++) {
-    const d = Math.hypot(pts[i].x - cx, pts[i].y - cy);
-    _distBuf[i] = d;
-    _sortBuf[i] = d;
-  }
-  _sortBuf.sort((a, b) => a - b);
-  const q1 = _sortBuf[Math.floor(n * 0.25)];
-  const q3 = _sortBuf[Math.floor(n * 0.75)];
-  const cutoff = q3 + iqrFactor * (q3 - q1);
+	_distBuf.length = n;
+	_sortBuf.length = n;
+	for (let i = 0; i < n; i++) {
+		const d = Math.hypot(pts[i].x - cx, pts[i].y - cy);
+		_distBuf[i] = d;
+		_sortBuf[i] = d;
+	}
+	_sortBuf.sort((a, b) => a - b);
+	const q1 = _sortBuf[Math.floor(n * 0.25)];
+	const q3 = _sortBuf[Math.floor(n * 0.75)];
+	const cutoff = q3 + iqrFactor * (q3 - q1);
 
-  const result: T[] = [];
-  for (let i = 0; i < n; i++) {
-    if (_distBuf[i] <= cutoff) result.push(pts[i]);
-  }
-  return result.length >= 1 ? result : pts;
+	const result: T[] = [];
+	for (let i = 0; i < n; i++) {
+		if (_distBuf[i] <= cutoff) result.push(pts[i]);
+	}
+	return result.length >= 1 ? result : pts;
 }
