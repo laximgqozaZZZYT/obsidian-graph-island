@@ -48,3 +48,7 @@ export class Menu {
 export const Platform = {
   isMobile: false,
 };
+
+export class Notice {
+  constructor(public message: string, public duration?: number) {}
+}
