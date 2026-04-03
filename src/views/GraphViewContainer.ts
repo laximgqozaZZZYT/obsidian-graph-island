@@ -8,7 +8,6 @@ import {
 	Menu,
 	MarkdownView,
 	Notice,
-	Modal,
 	type ViewStateResult,
 } from "obsidian";
 import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
@@ -26,10 +25,6 @@ import type {
 	DirectionalGravityRule,
 	GroupPreset,
 	ClusterGroupRule,
-	NodeRule,
-	NodeDisplayMode,
-	CardDisplayConfig,
-	DonutDisplayConfig,
 	GraphSnapshot,
 	GraphTemplate,
 } from "../types";
@@ -43,7 +38,6 @@ import {
 	applyMonochromeFallback,
 } from "../parsers/metadata-parser";
 import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
-import { applyTreeLayout } from "../layouts/tree";
 import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
@@ -64,7 +58,6 @@ import {
 	edgeSourceId,
 	edgeTargetId,
 	bfsNeighborSet,
-	bfsShortestPath,
 	collectSubgraph,
 	exportSubgraphJSON,
 	exportFullGraphJSON,
@@ -72,7 +65,6 @@ import {
 	exportGraphMermaid,
 	edgeTypeSummary,
 	collapsedGroupSummary,
-	truncateBreadcrumb,
 	incCounter,
 	computeGaps,
 	hitTestTimelineBars,
@@ -99,7 +91,6 @@ import {
 	type PanelState,
 	type PanelCallbacks,
 	type PanelContext,
-	type NodeTreeEntry,
 	DEFAULT_PANEL,
 	createDefaultPanel,
 	validatePanelState,
@@ -142,7 +133,6 @@ import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
 import { getNodeShape, drawShape } from "../utils/node-shapes";
 import {
-	EDGE_TYPE_SIMILAR,
 	LAYOUT_FORCE,
 	LAYOUT_CONCENTRIC,
 	LAYOUT_TREE,
@@ -150,7 +140,6 @@ import {
 	LAYOUT_SUNBURST,
 	LAYOUT_TIMELINE,
 	TAG_DISPLAY_ENCLOSURE,
-	TAG_DISPLAY_NODE,
 	ARRANGEMENT_TIMELINE,
 	ARRANGEMENT_CONCENTRIC,
 	ARRANGEMENT_GRID,
@@ -351,7 +340,7 @@ export function resolveNodeColor(
 
 export const VIEW_TYPE_GRAPH = "graph-view";
 
-const TICK_SKIP = 4;
+const _TICK_SKIP = 4;
 
 /** Fallback canvas dimensions when DOM element is not yet measured */
 const DEFAULT_CANVAS_WIDTH = 600;
@@ -752,7 +741,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	private applyGroupPresets() {
 		const presets = this.plugin.settings.groupPresets ?? [];
-		let applied = false;
 		for (const preset of presets) {
 			const cond = preset.condition;
 			if (cond.layout && cond.layout !== this.currentLayout) continue;
@@ -775,7 +763,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				];
 			}
 			this.panel.clusterGroupRules = deriveClusterRules(preset);
-			applied = true;
 			break;
 		}
 		// Fallback: enclosure mode should always have a commonQuery
@@ -3908,7 +3895,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		editorDiv.style.left = `${sx}px`;
 		editorDiv.style.top = `${sy + 20}px`;
 
-		const title = editorDiv.createEl("div", { cls: "gi-inline-editor-title", text: pn.data.label });
+		editorDiv.createEl("div", { cls: "gi-inline-editor-title", text: pn.data.label });
 
 		// Show top 5 frontmatter fields as inputs
 		const fields = fm
@@ -4608,7 +4595,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const ny = dy / dist;
 
 			// Place tooltip at canvas edge in the direction of the group
-			let tipX: number, tipY: number;
 			// Find intersection with canvas boundary
 			const tMax = 10000;
 			let t = tMax;
@@ -4617,8 +4603,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			if (ny > 0.01) t = Math.min(t, (canvasH - margin - hovSy) / ny);
 			else if (ny < -0.01) t = Math.min(t, (margin - hovSy) / ny);
 			t = Math.max(40, t); // minimum distance from node
-			tipX = Math.max(margin, Math.min(canvasW - margin, hovSx + nx * t));
-			tipY = Math.max(margin, Math.min(canvasH - margin, hovSy + ny * t));
+			const tipX = Math.max(margin, Math.min(canvasW - margin, hovSx + nx * t));
+			const tipY = Math.max(margin, Math.min(canvasH - margin, hovSy + ny * t));
 
 			// Cluster display name
 			const clusterName = clusterKey.replace(/^folder:/, "").replace(/^[^:]+:/, "");
@@ -4929,7 +4915,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	 * When nodeIds is null, the ephemeral highlight is cleared.
 	 */
 	private applyEphemeralHighlight(nodeIds: Set<string> | null) {
-		const prev = this.ephemeralHighlight;
+		const _prev = this.ephemeralHighlight;
 		this.ephemeralHighlight = nodeIds;
 
 		// If there's a normal hover active, ephemeral highlight overlays on top
@@ -6342,7 +6328,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Limit total labels to avoid visual clutter at zoom-out
 		const maxLabels = Math.min(200, Math.round(80 * worldScale));
 
-		let drawnBars = 0;
 		for (const bar of bars) {
 			const w = bar.xEnd - bar.xStart;
 			const h = bar.barHeight;
@@ -6351,8 +6336,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 			// Viewport cull
 			if (x + w < vpLeft || x > vpRight || y + h < vpTop || y > vpBottom) continue;
-
-			drawnBars++;
 			const pn = this.pixiNodes.get(bar.nodeId);
 			const color = pn ? pn.color : 0x888888;
 			const cornerR = Math.min(h / 2, barCornerRBase);
@@ -6704,7 +6687,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Road width adapts to zoom: ensure minimum screen-space visibility.
 		// We must redraw when zoom changes significantly because lineStyle
 		// width is baked into the draw commands.
-		const isDark = this.isDarkTheme();
+		const _isDark = this.isDarkTheme();
 		const roadColor = rt.roadColor;
 		const baseRoadWidth = rt.roadWidth;
 		// Minimum 1px on screen → minWorldWidth = 1/worldScale
@@ -6925,7 +6908,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.renderPipeline?.redrawNodeBatch();
 	}
 
-	private updatePositions(forceFullRedraw = false) {
+	private updatePositions(_forceFullRedraw = false) {
 		// Delegate position sync to the pipeline; this method is still called
 		// from doRender for the initial layout draw.
 		for (const pn of this.pixiNodes.values()) {
@@ -9237,7 +9220,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 							// Check X overlap
 							if (cur.xStart >= prev.xEnd || prev.xStart >= cur.xEnd) continue;
 							// Check Y overlap
-							const prevTop = prev.yCenter - prev.barHeight / 2;
+							const _prevTop = prev.yCenter - prev.barHeight / 2;
 							const prevBot = prev.yCenter + prev.barHeight / 2;
 							const curTop = cur.yCenter - cur.barHeight / 2;
 							if (curTop < prevBot) {
@@ -9733,7 +9716,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const filename = `graph-island-${ts}.png`;
 
 			// Obsidianの添付ファイルフォルダ設定を尊重してパスを決定
-			const activeFile = mdView.file;
+			const _activeFile = mdView.file;
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian vault internal API
 			const attachPath = (this.app.vault as any).getAvailablePath
 				? // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -10093,21 +10076,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const targetY = wrap.clientHeight / 2 - pn.data.y * world.scale.y;
 		const startTime = performance.now();
 
-		const self = this;
-		function animate(now: number) {
+		const animate = (now: number) => {
 			const elapsed = now - startTime;
 			const t = Math.min(1, elapsed / durationMs);
 			const ease = t * (2 - t); // ease-out quadratic
 			world!.x = startX + (targetX - startX) * ease;
 			world!.y = startY + (targetY - startY) * ease;
-			self.markDirty();
+			this.markDirty();
 			if (t < 1) {
 				requestAnimationFrame(animate);
 			} else {
-				self.setHighlightedNodeId(nodeId);
-				self.applyHover();
+				this.setHighlightedNodeId(nodeId);
+				this.applyHover();
 			}
-		}
+		};
 		requestAnimationFrame(animate);
 	}
 
@@ -10116,15 +10098,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const startAlpha = pn.gfx.alpha;
 		if (Math.abs(startAlpha - targetAlpha) < 0.01) return;
 		const startTime = performance.now();
-		const self = this;
-		function tick(now: number) {
+		const tick = (now: number) => {
 			const t = Math.min(1, (now - startTime) / durationMs);
 			pn.gfx.alpha = startAlpha + (targetAlpha - startAlpha) * t;
 			if (t < 1) {
 				requestAnimationFrame(tick);
 			}
-			self.markDirty();
-		}
+			this.markDirty();
+		};
 		requestAnimationFrame(tick);
 	}
 

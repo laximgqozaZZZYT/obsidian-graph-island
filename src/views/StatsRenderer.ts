@@ -4,7 +4,7 @@
  * and hierarchy breadcrumb bar.
  * Communicates with GVC via StatsHost interface to avoid tight coupling.
  */
-import type { GraphData, GraphNode, GraphEdge } from "../types";
+import type { GraphData } from "../types";
 import { computeGraphStats, generateStructureQuestions } from "../analysis/graph-analysis";
 import { t } from "../i18n";
 import { Notice } from "obsidian";

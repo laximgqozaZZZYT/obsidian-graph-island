@@ -353,8 +353,8 @@ export class GuideRenderer {
 		bounds: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number },
 		lineW: number,
 		color: number,
-		axis1Title?: string,
-		axis2Title?: string,
+		_axis1Title?: string,
+		_axis2Title?: string,
 	) {
 		const { axis1Lines, axis2Lines, axis1Shape, axis2Shape, style, cellShading } = gridInfo;
 		const isDark = this.host.isDarkTheme();

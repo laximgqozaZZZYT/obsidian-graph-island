@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, MarkdownRenderer, Component, setIcon } from "obsidian";
+import { ItemView, TFile, MarkdownRenderer, Component, setIcon } from "obsidian";
 import type { GraphNode, GraphEdge } from "../types";
 import type { PixiNode } from "./InteractionManager";
 import { edgeSourceId, edgeTargetId } from "../utils/graph-helpers";

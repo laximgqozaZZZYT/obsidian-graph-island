@@ -374,7 +374,7 @@ export function exportGraphMermaid(nodes: GraphNode[], edges: GraphEdge[]): stri
 	const nodeSlice = nodes.slice(0, 200);
 	const nodeIds = new Set(nodeSlice.map((n) => n.id));
 	for (const n of nodeSlice) {
-		const safe = n.label.replace(/["\[\]()]/g, "");
+		const safe = n.label.replace(/["[\]()]/g, "");
 		const mid = n.id.replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 50);
 		lines.push(`  ${mid}["${safe}"]`);
 	}

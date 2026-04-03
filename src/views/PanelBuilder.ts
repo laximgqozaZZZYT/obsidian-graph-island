@@ -6,7 +6,6 @@ import type {
 	DirectionalGravityRule,
 	ClusterArrangement,
 	ClusterGroupArrangement,
-	ClusterGroupBy,
 	ClusterGroupRule,
 	GroupRule,
 	SortRule,
@@ -14,30 +13,23 @@ import type {
 	SortOrder,
 	NodeRule,
 	GraphViewsSettings,
-	OntologyRule,
-	OntologyRelation,
+	NodeDisplayMode,
+	CardDisplayConfig,
+	DonutDisplayConfig,
 	CoordinateLayout,
 	CoordinateSystem,
 	AxisSource,
 	AxisConfig,
 	AxisTransform,
-	CurveKind,
 	ClusterGravityConfig,
-	NodeDisplayMode,
-	CardDisplayConfig,
-	DonutDisplayConfig,
 	EdgeCardinalityMode,
 	CardinalityRule,
 	CardRenderConfig,
 	CardinalityRenderConfig,
 	RenderThresholds,
 } from "../types";
-import { DEFAULT_CARD_RENDER_CONFIG, DEFAULT_CARDINALITY_RENDER_CONFIG, mergeRenderThresholds } from "../types";
+import { mergeRenderThresholds } from "../types";
 import { ontologyToRules, rulesToOntologyFields } from "../types";
-import { DEFAULT_COLORS } from "../types";
-import { repositionShell } from "../layouts/concentric";
-import type { QueryExpression, BoolOp } from "../utils/query-expr";
-import { parseQueryExpr, serializeExpr } from "../utils/query-expr";
 import { setIcon, Menu } from "obsidian";
 import { t, tHelp, getLocale } from "../i18n";
 import type { ShapeRule, NodeShape } from "../utils/node-shapes";
@@ -45,12 +37,10 @@ import { ALL_SHAPES } from "../utils/node-shapes";
 import { exportPreset, exportPresetDiff, importPreset, applyPreset, type PresetMigrationInfo } from "../utils/presets";
 import { showToast } from "../utils/toast";
 import { ARRANGEMENT_PRESETS, findMatchingPreset, CURVE_REGISTRY } from "../layouts/coordinate-presets";
-import { validateExpr, parseExpr, evalExpr, setUserVars, type ExprNode } from "../utils/expr-eval";
+import { validateExpr, parseExpr, evalExpr, setUserVars } from "../utils/expr-eval";
 import {
 	parseTransformExpr,
 	transformExprToString,
-	getTransformExprSuggestions,
-	TRANSFORM_FUNCTION_NAMES,
 } from "../utils/transform-expr";
 import {
 	TAG_DISPLAY_ENCLOSURE,
@@ -59,41 +49,29 @@ import {
 	ARRANGEMENT_TIMELINE,
 	SOURCE_PROPERTY,
 	TRANSFORM_EVEN_DIVIDE,
-	EDGE_TYPE_INHERITANCE,
 } from "../constants";
 import { isSectionVisible } from "../utils/view-mode-sections";
 import type { PanelSectionId } from "../utils/view-mode-sections";
 import {
-	updateSliderProgress,
 	buildDualRangeSlider,
 	_buildQueryHintContainer,
 	addSlider,
 	addToggle,
 	addSelect,
 	addTextInput,
-	addMultiValueInput,
 	addCheckboxGroup,
-	attachAutocomplete,
 	attachDatalist,
 	renderClusterRuleList,
 	renderDirectionalGravityList,
 	renderSortRuleList,
 	getUnifiedFieldSuggestions,
 	renderGroupByRules,
-	getGroupByOptions,
-	parseGroupByRules,
-	deriveClusterRulesFromGroupBy,
-	serializeGroupByRules,
 	renderOntologyRule,
 	renderCustomMappings,
 	renderTagRelations,
-	getQueryOptions,
-	resolvePrefix,
 	attachQueryHint,
 	setCachedFieldSuggestions,
 	attachSearchJump,
-	renderGroupList,
-	renderNodeRuleList,
 } from "./panel-widgets";
 
 // ---------------------------------------------------------------------------
@@ -1267,7 +1245,7 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 	ensureTabBuilt(panel.activeTab);
 
 	// Patch tab switch to lazily build on first visit
-	const origOnSwitch = tabContainers.get(panel.activeTab)!.parentElement;
+	const _origOnSwitch = tabContainers.get(panel.activeTab)!.parentElement;
 	const tabBar = panelEl.querySelector(".gi-tab-bar");
 	if (tabBar) {
 		// Re-wire click handlers to include lazy build
@@ -3128,7 +3106,7 @@ function _buildRelationColorSection(
 				const container = body.createDiv({ cls: "graph-color-groups-container" });
 				for (const [rel, color] of ctx.relationColors) {
 					const group = container.createDiv({ cls: "graph-color-group" });
-					const label = group.createEl("span", {
+					group.createEl("span", {
 						text: rel,
 						cls: "graph-color-group-label gi-color-group-label",
 					});
@@ -3172,7 +3150,7 @@ function buildLayoutTab(layoutTab: HTMLElement, panel: PanelState, ctx: PanelCon
 			(body) => {
 				// --- GroupBy rules ---
 				if (v("grouping")) {
-					const groupByLabel = body.createDiv({ cls: "setting-item-name", text: t("display.groupBy") });
+					body.createDiv({ cls: "setting-item-name", text: t("display.groupBy") });
 					const groupByListEl = body.createDiv({ cls: "gi-multirule-list" });
 					renderGroupByRules(groupByListEl, panel, ctx, cb);
 
@@ -3653,7 +3631,7 @@ function _buildNodesTab(tabEl: HTMLElement, panel: PanelState, _ctx: PanelContex
 	const root: DirNode = { children: new Map(), files: [] };
 	for (const entry of entries) {
 		const parts = entry.path.split("/");
-		const fileName = parts.pop()!;
+		parts.pop();
 		let cur = root;
 		for (const dir of parts) {
 			if (!cur.children.has(dir)) cur.children.set(dir, { children: new Map(), files: [] });
@@ -4874,7 +4852,7 @@ function buildTabBar(
 	}
 }
 
-function buildViewModeBar(container: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
+function _buildViewModeBar(container: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
 	const modeBar = container.createDiv({ cls: "gi-view-mode-bar" });
 
 	const modes: { mode: ViewMode; icon: string; labelKey: string }[] = [
@@ -4903,7 +4881,7 @@ function buildViewModeBar(container: HTMLElement, panel: PanelState, cb: PanelCa
 	}
 }
 
-function buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
+function _buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
 	// Thinking Mode switcher (M1) — 3 primary modes
 	const modes: { key: string; icon: string; labelKey: string; descKey: string }[] = [
 		{ key: "explore", icon: "compass", labelKey: "mode.explore", descKey: "mode.exploreDesc" },
@@ -5091,7 +5069,7 @@ function evalTransform(
 		case "date-to-index":
 			return t;
 		case "golden-angle":
-			return (i * 2.39996322972865332) % (Math.PI * 2);
+			return (i * 2.3999632297286535) % (Math.PI * 2);
 		case "even-divide": {
 			const totalRad = ((transform.totalRange ?? 360) * Math.PI) / 180;
 			return t * totalRad;
@@ -5168,7 +5146,7 @@ function plotCurve(
 	for (let i = 0; i < n; i++) {
 		const sx = x0 + (i / (n - 1)) * w;
 		const sy = y0 + h - ((samples[i] - lo) / range) * h;
-		i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+		if (i === 0) { ctx.moveTo(sx, sy); } else { ctx.lineTo(sx, sy); }
 	}
 	ctx.stroke();
 
@@ -5689,7 +5667,7 @@ function buildAxisTextInput(
 	panel: PanelState,
 	cb: PanelCallbacks,
 	_ctx: PanelContext,
-	suggestions: string[],
+	_suggestions: string[],
 ) {
 	const axisKey = axisNum === 1 ? "axis1" : "axis2";
 
@@ -5842,7 +5820,7 @@ export function parseAxisSourceString(s: string): AxisSource | null {
 
 	// Anything else with ":" suffix pattern like "tag:?" → treat as field name before ":"
 	// But "tag:?" is just "tag" effectively, so strip trailing ":?" or ":*"
-	const fieldMatch = trimmed.replace(/:[\?\*]?$/, "");
+	const fieldMatch = trimmed.replace(/:[?*]?$/, "");
 	if (fieldMatch && fieldMatch !== trimmed) {
 		return { kind: "field", field: fieldMatch };
 	}

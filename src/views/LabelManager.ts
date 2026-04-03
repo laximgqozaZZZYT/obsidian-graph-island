@@ -230,7 +230,7 @@ export class LabelManager {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
 		rt: Record<string, any>,
 		degrees: Map<string, number>,
-		baseOpacity: number,
+		_baseOpacity: number,
 	): { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[] {
 		const hoverSet = this.host.getPrevHighlightSet();
 		const renderPipeline = this.host.getRenderPipeline();
@@ -413,10 +413,10 @@ export class LabelManager {
 		degrees: Map<string, number>,
 		baseOpacity: number,
 	): void {
-		const staticMax = rt.labelMaxVisible ?? 0;
+		const _staticMax = rt.labelMaxVisible ?? 0;
 		// Zoom-based dynamic cap: at zoom-out, show fewer labels to prevent overlap
 		const zoom = this.host.getWorldScale();
-		const density = Math.max(0.2, Math.min(3.0, rt.labelDensity ?? 1.0));
+		const _density = Math.max(0.2, Math.min(3.0, rt.labelDensity ?? 1.0));
 		// Small-graph boost: show all labels when few nodes, more labels for medium graphs
 		// Map-style labeling: no maxVisible cap. Show all labels that pass
 		// LOD tier checks. Overlap culling handles density separately.

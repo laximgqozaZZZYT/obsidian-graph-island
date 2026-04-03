@@ -203,14 +203,6 @@ function assignHierarchicalLanes(
 	return laneMap;
 }
 
-/** Extract short node name from ID for parent_id matching */
-function extractNodeName(nodeId: string, nodes: GraphNode[]): string {
-	const n = nodes.find((n) => n.id === nodeId);
-	const fp = n?.filePath || nodeId;
-	const filename = fp.split("/").pop()?.replace(".md", "") ?? nodeId;
-	return filename;
-}
-
 // ---------------------------------------------------------------------------
 // Main layout function
 // ---------------------------------------------------------------------------
@@ -259,7 +251,6 @@ export function applyTimelineLayout(graph: GraphData, options: TimelineLayoutOpt
 	// 3. Assign lanes — priority: hierarchical (parent_id) > sequence DAG > fallback
 	const timedNodeIds = new Set(nodeTimeValues.keys());
 	let laneMap: Map<string, number>;
-	let totalLanes: number;
 
 	// Check if parent_id data exists
 	let hasParentIds = false;
@@ -287,7 +278,7 @@ export function applyTimelineLayout(graph: GraphData, options: TimelineLayoutOpt
 		}
 		laneMap = hasSeq ? assignLanes(dag, nodeTimeIndex) : assignFallbackLanes(graph.nodes, timedNodeIds);
 	}
-	totalLanes = laneMap.size > 0 ? Math.max(...laneMap.values()) + 1 : 1;
+	const totalLanes = laneMap.size > 0 ? Math.max(...laneMap.values()) + 1 : 1;
 
 	// 4. Position timed nodes
 	const placements: TimelinePlacement[] = [];
