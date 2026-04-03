@@ -497,11 +497,8 @@ export type { PixiNode } from "./InteractionManager";
 // ---------------------------------------------------------------------------
 // View
 // ---------------------------------------------------------------------------
-export class GraphViewContainer
-	extends ItemView
-	implements InteractionHost, RenderHost, LayoutHost
-/* StatsHost: Phase 1 */ {
-	plugin: GraphViewsPlugin;
+export class GraphViewContainer extends ItemView implements InteractionHost, RenderHost, LayoutHost {
+	/* StatsHost: Phase 1 */ plugin: GraphViewsPlugin;
 	private currentLayout: LayoutType;
 	private rawData: GraphData | null = null;
 	/** Original (pre-grouping) graph data, used for expand operations */
@@ -1464,7 +1461,7 @@ export class GraphViewContainer
 
 		// Find current selection index
 		const currentId = this.highlightedNodeId;
-		let currentIdx = currentId ? bars.findIndex((b) => b.nodeId === currentId) : -1;
+		const currentIdx = currentId ? bars.findIndex((b) => b.nodeId === currentId) : -1;
 
 		// Sort bars by Y then X for navigation order
 		const sorted = bars
@@ -8593,8 +8590,7 @@ export class GraphViewContainer
 							: gga === "vertical"
 								? "grid"
 								: "grid"
-			) as // eslint-disable-next-line @typescript-eslint/no-explicit-any -- arrangement type narrowing
-			any;
+			) as any; // eslint-disable-next-line @typescript-eslint/no-explicit-any -- arrangement type narrowing
 			// Mark so we can restore "inherit" after render for correct serialization
 			this._inheritResolved = true;
 		}
@@ -10531,7 +10527,7 @@ export class GraphViewContainer
 		// Count nodes in this group
 		const arcs = this.sunburstLayoutArcs;
 		let leafCount = 0;
-		let depth2Names: string[] = [];
+		const depth2Names: string[] = [];
 		for (const arc of arcs) {
 			if (arc.depth === 1 && arc.name === groupName) continue;
 			// Check if arc belongs to this group (depth-1 ancestor)

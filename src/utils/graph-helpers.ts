@@ -785,7 +785,7 @@ export function computeAutoFitTransform(input: AutoFitInput): AutoFitResult | nu
 
 	const padding = input.padding ?? 80;
 	const maxScale = input.maxScale ?? 1.5;
-	let configMinScale = input.minScale ?? 0;
+	const configMinScale = input.minScale ?? 0;
 
 	let minX = Infinity,
 		minY = Infinity,

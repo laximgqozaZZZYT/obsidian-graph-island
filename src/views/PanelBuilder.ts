@@ -4707,28 +4707,28 @@ function saveSectionState(title: string, collapsed: boolean) {
 
 // EW: Node directory folder collapse state persistence
 const NODE_DIR_STATE_KEY = "graph-island-node-dir-state";
-function _getNodeDirStates(): Record<string, boolean> {
+export function _getNodeDirStates(): Record<string, boolean> {
 	try {
 		return JSON.parse(localStorage.getItem(NODE_DIR_STATE_KEY) || "{}");
 	} catch {
 		return {};
 	}
 }
-function _saveNodeDirStates(states: Record<string, boolean>) {
+export function _saveNodeDirStates(states: Record<string, boolean>) {
 	localStorage.setItem(NODE_DIR_STATE_KEY, JSON.stringify(states));
 }
 
 // ---------------------------------------------------------------------------
 // P2: Progressive disclosure — Advanced settings group
 // ---------------------------------------------------------------------------
-function addAdvancedGroup(parent: HTMLElement, callback: (container: HTMLElement) => void): void {
+export function addAdvancedGroup(parent: HTMLElement, callback: (container: HTMLElement) => void): void {
 	const details = parent.createEl("details", { cls: "gi-advanced-group" });
 	details.createEl("summary", { cls: "gi-advanced-summary", text: t("panel.advanced") });
 	const inner = details.createDiv({ cls: "gi-advanced-inner" });
 	callback(inner);
 }
 
-function buildSection(
+export function buildSection(
 	container: HTMLElement,
 	title: string,
 	build: (body: HTMLElement) => void,

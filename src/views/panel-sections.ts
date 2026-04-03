@@ -23,7 +23,7 @@ export function buildNodeDisplaySection(
 	buildSection(
 		tabEl,
 		t("section.displayNodes"),
-		(body) => {
+		(body: HTMLElement) => {
 			// --- Basic (always visible) ---
 			// Node color mode dropdown
 			const colorModeOptions = [
@@ -142,7 +142,7 @@ export function buildNodeDisplaySection(
 				cb.rebuildNodesInPlace();
 			});
 			// --- Advanced (hidden by default) ---
-			addAdvancedGroup(body, (adv) => {
+			addAdvancedGroup(body, (adv: HTMLElement) => {
 				const rtNode = mergeRenderThresholds(panel.renderThresholds);
 				addToggle(
 					adv,
@@ -373,7 +373,7 @@ export function buildEdgeDisplaySection(
 	buildSection(
 		tabEl,
 		t("section.displayEdges"),
-		(body) => {
+		(body: HTMLElement) => {
 			// --- Basic (always visible) ---
 			addToggle(
 				body,
@@ -524,7 +524,7 @@ export function buildEdgeDisplaySection(
 				},
 			);
 			// --- Advanced (hidden by default) ---
-			addAdvancedGroup(body, (adv) => {
+			addAdvancedGroup(body, (adv: HTMLElement) => {
 				addToggle(
 					adv,
 					t("display.edgeColor"),
