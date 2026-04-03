@@ -16,6 +16,7 @@ export interface LabelManagerHost {
   /** Panel textFadeThreshold value */
   getTextFadeThreshold(): number;
   /** Panel renderThresholds (merged with defaults by caller) */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
   getRenderThresholds(): Record<string, any> | undefined;
   /** Current world-container scale (zoom) */
   getWorldScale(): number;
@@ -167,6 +168,7 @@ export class LabelManager {
   // =========================================================================
 
   /** Compute priority scores and minShowZoom for all PixiNodes (cached, recomputed only when needed). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
   private _computePriorityScores(rt: Record<string, any>): void {
     const degrees = this.host.getDegrees();
     const pixiArr = [...this.host.getPixiNodes().values()];
@@ -213,6 +215,7 @@ export class LabelManager {
    *  Returns the list of eligible label candidates. */
   private _evaluateLOD(
     zoom: number, counterScale: number,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
     rt: Record<string, any>, degrees: Map<string, number>,
     baseOpacity: number,
   ): { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[] {
@@ -379,6 +382,7 @@ export class LabelManager {
   /** AP-5 diversity guarantee (promote non-super nodes) and apply maxVisible cap. */
   private _applyDiversityAndCap(
     candidates: { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
     rt: Record<string, any>,
     degrees: Map<string, number>,
     baseOpacity: number,
@@ -485,6 +489,7 @@ export class LabelManager {
   }
 
   /** Scale sunburst, cluster sunburst, and group grid labels based on zoom level. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
   private _scaleGroupLabels(zoom: number, rt: Record<string, any>): void {
     // Enclosure labels are managed by EnclosureRenderer (drawEnclosuresImpl)
     // which runs every frame with its own zoom-dependent scaling (1/ws).

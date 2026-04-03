@@ -134,7 +134,9 @@ export class RoadNetworkBuilder {
         const g = gg.guide;
         if (!g) continue;
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- guide type narrowing
         if (g.type === GUIDE_TYPE_COORDINATE && (g as any).gridInfo) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           coordGuides.push({ guide: g as any, centerX: gg.centerX, centerY: gg.centerY });
         }
         if (this._buildFromConcentric(g, gg, allNodes)) return;
@@ -176,6 +178,7 @@ export class RoadNetworkBuilder {
   }
 
   /** ConcentricGuide: rings become circle roads, uniform spokes become radial roads */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- guide type discriminated union
   private _buildFromConcentric(g: any, gg: { centerX: number; centerY: number }, allNodes: GraphNode[]): boolean {
     if (g.type !== "concentric") return false;
     const cg = g as { type: "concentric"; rings: number[] };
@@ -200,6 +203,7 @@ export class RoadNetworkBuilder {
   }
 
   /** GridGuide: verticals/horizontals become line roads */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- guide type discriminated union
   private _buildFromGrid(g: any, gg: { centerX: number; centerY: number }, allNodes: GraphNode[]): boolean {
     if (g.type !== "grid") return false;
     const gg2 = g as { type: "grid"; verticals: number[]; horizontals: number[]; bounds: { xMin: number; yMin: number; xMax: number; yMax: number } };
@@ -219,6 +223,7 @@ export class RoadNetworkBuilder {
   }
 
   /** TriangleGuide: horizontal roads at each row, vertical roads spanning columns */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- guide type discriminated union
   private _buildFromTriangle(g: any, gg: { centerX: number; centerY: number }, allNodes: GraphNode[]): boolean {
     if (g.type !== ARRANGEMENT_TRIANGLE) return false;
     const tg = g as { type: "triangle"; vertices: [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }] };
@@ -253,6 +258,7 @@ export class RoadNetworkBuilder {
   }
 
   /** TimelineGuide: ticks become vertical roads, axisY becomes horizontal road */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- guide type discriminated union
   private _buildFromTimeline(g: any, allNodes: GraphNode[]): boolean {
     if (g.type !== "timeline") return false;
     const tl = g as { type: "timeline"; axisY: number; ticks: { x: number; label: string }[] };
@@ -400,12 +406,14 @@ export class RoadNetworkBuilder {
 // ---------------------------------------------------------------------------
 
 function _getBestRoadNetwork(): RoadNetwork | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- global cache on window
   return (window as any).__gi_bestRoadNetwork ?? null;
 }
 
 function _setBestRoadNetwork(rn: RoadNetwork) {
   const cur = _getBestRoadNetwork();
   if (!cur || rn.intersections.length > cur.intersections.length) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- global cache on window
     (window as any).__gi_bestRoadNetwork = rn;
   }
 }

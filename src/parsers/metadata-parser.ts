@@ -90,6 +90,7 @@ export function buildGraphFromVault(
       const info = extractBodyInfo(rawContent, 100);
       node.bodyPreview = info.preview;
       node.bodyLength = info.length;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cachedRead may return Promise in some Obsidian versions
     } else if (rawContent && typeof (rawContent as any).then === "function") {
       // cachedRead returns Promise — backfill asynchronously
       (rawContent as Promise<string>).then(text => {

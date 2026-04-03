@@ -215,6 +215,7 @@ export function handleShortcutKey(
   // Escape: clear focus/selection
   if (key === "Escape") {
     if (host.isKeyboardFocused) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 0 used as sentinel to clear focus
       host.cycleFocusNode(0 as any); // clear
     }
     return true;

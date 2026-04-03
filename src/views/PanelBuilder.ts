@@ -527,6 +527,7 @@ export function validatePanelState(panel: PanelState): void {
   for (const key of numericKeys) {
     const val = panel[key] as number;
     if (typeof val !== "number" || !isFinite(val)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic key access for validation
       (panel as any)[key] = (defaults as any)[key];
     }
   }
@@ -538,6 +539,7 @@ export function validatePanelState(panel: PanelState): void {
   // ClusterArrangement validation — reject unknown values (e.g. "force" from old configs)
   const validArrangements = new Set(["inherit", "concentric", "radial", "phyllotaxis", "grid", "triangle", "random", "timeline", "custom", "ego"]);
   if (!validArrangements.has(panel.clusterArrangement)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fallback to default arrangement
     panel.clusterArrangement = "inherit" as any;
   }
   // Clamp hoverHops to 0-10
@@ -1202,6 +1204,7 @@ function buildFilterTab(
       dvInput.placeholder = '#tag, "folder"';
       dvInput.setAttribute("aria-label", t("filter.dataviewHint"));
       // Check if Dataview plugin is available
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian internal plugin API
       const dvApi = (ctx.app as any)?.plugins?.plugins?.dataview?.api;
       if (!dvApi) {
         dvInput.disabled = true;
@@ -1356,8 +1359,10 @@ function _buildNodeDisplaySection(
         ["sequence", t("hover.sequence") ?? "Sequence"],
       ];
       for (const [key, label] of hoverTypeEntries) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic key access for hover edge types
         addToggle(adv, label, (het as any)[key] ?? false, (v) => {
           if (!panel.hoverEdgeTypes) panel.hoverEdgeTypes = { ...het };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (panel.hoverEdgeTypes as any)[key] = v;
           cb.rebuildHoverAdj();
           cb.applyHover();
@@ -1531,8 +1536,11 @@ function _buildNodeDisplayModeSection(
       }, t("desc.cardContentScale"));
       // GE: Card background opacity
       const crcGE = panel.cardRenderConfig ?? {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- card render config dynamic access
       addSlider(body, t("display.cardBgOpacity") ?? "Card Opacity", 0.1, 1.0, 0.05, (crcGE as any).plainCardFillAlpha ?? 0.8, (v) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (!panel.cardRenderConfig) panel.cardRenderConfig = {} as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (panel.cardRenderConfig as any).plainCardFillAlpha = v;
         cb.doRenderKeepPanel();
       });
@@ -1854,6 +1862,7 @@ function _buildEdgeDisplaySection(
       }, t("desc.edgeDirectionFilter"));
       // GN: Edge toggle with a11y announcements
       const _edgeToggle = (label: string, key: keyof PanelState, cb2: () => void) => (v: boolean) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic key access
         (panel as any)[key] = v;
         cb2();
         cb.announceA11y?.(`${label}: ${v ? "on" : "off"}`);
@@ -2360,6 +2369,7 @@ function _buildSettingsActionButtons(
           const lines: string[] = [];
           if (info.migratedFields.length > 0) lines.push(`Migrated: ${info.migratedFields.join(", ")}`);
           if (info.removedFields.length > 0) lines.push(`Removed: ${info.removedFields.join(", ")}`);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian Notice on window
           new (window as any).Notice(lines.join("\n"), 5000);
         }
         modal.remove();
@@ -2631,7 +2641,9 @@ function _buildNodesTab(
           cb.invalidateDataKeepPanel();
         }));
         menu.addItem(item => item.setTitle("Open File").setIcon("file-text").onClick(() => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian global app access
           const file = (window as any).app?.vault?.getAbstractFileByPath(entry.id);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if (file) (window as any).app?.workspace?.getLeaf(false)?.openFile(file);
         }));
         menu.showAtPosition({ x: e.clientX, y: e.clientY });
@@ -2782,6 +2794,7 @@ function _buildSamplePresetSelector(
     if (!name) return;
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian vault adapter API
       const app = ctx.app as any;
       const pluginDir = ctx.pluginDir ?? ".obsidian/plugins/graph-island";
       const filePath = `${pluginDir}/samples/${name}.json`;

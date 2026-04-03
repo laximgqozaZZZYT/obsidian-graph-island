@@ -1571,7 +1571,9 @@ export class RenderPipeline {
       g.endFill();
 
       // Store computed dimensions for text pass
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime card dimension cache
       (pn as any)._cardTotalH = totalH;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (pn as any)._cardBodyLines = bodyLines;
       if (nodeCount < rt.cardTextNodeCount) tableCardNodes.push(pn);
     }
@@ -1630,7 +1632,9 @@ export class RenderPipeline {
     const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
 
     for (const pn of tableCardNodes) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime card dimension cache
       const totalH = (pn as any)._cardTotalH ?? headerH + bodyLineH + pad * 2;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const bodyLines = (pn as any)._cardBodyLines ?? 0;
       const arHalfW = (totalH * cardAR) / 2;
       const effR = Math.max(pn.radius, minWorldRadius);
@@ -2797,6 +2801,7 @@ export class RenderPipeline {
         grid.insert({
           x: r.left - canvasRect.left, y: r.top - canvasRect.top,
           w: r.width, h: r.height,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- grid exclusion zone, no label/pn
           label: null as any, pn: null as any,
           degree: 999, isSuper: false,
         });
@@ -2815,6 +2820,7 @@ export class RenderPipeline {
           const sy = (lbl.y * world.scale.y + world.y);
           const sw = (lbl.width ?? 60) * lbl.scale.x;
           const sh = (lbl.height ?? 14) * lbl.scale.y;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- grid exclusion zone, no label/pn
           grid.insert({ x: sx - sw / 2, y: sy - sh / 2, w: sw, h: sh, label: null as any, pn: null as any, degree: 500, isSuper: false });
         }
       }

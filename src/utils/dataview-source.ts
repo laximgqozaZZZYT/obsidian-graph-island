@@ -4,7 +4,9 @@ import type { GraphNode } from "../types";
 /**
  * Get the Dataview API instance, or null if unavailable.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian internal plugin API
 function getDataviewApi(app: App): any | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian internal plugin API
   const dv = (app as any).plugins?.plugins?.["dataview"];
   return dv?.api ?? null;
 }
@@ -31,6 +33,7 @@ export function queryDataviewPages(app: App, query: string): Set<string> {
     const pages = api.pages(query);
     const paths = new Set<string>();
     if (pages && typeof pages.forEach === "function") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Dataview page type is untyped
       pages.forEach((page: any) => {
         const p = page?.file?.path;
         if (typeof p === "string") paths.add(p);

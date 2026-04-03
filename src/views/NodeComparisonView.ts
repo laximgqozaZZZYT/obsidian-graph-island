@@ -48,6 +48,7 @@ export class NodeComparisonView extends ItemView {
 
     // 比較イベントをリスン
     this.registerEvent(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
       (this.app.workspace as any).on(
         EVENT_COMPARE_NODES,
         (data: CompareEvent | null) => {
@@ -71,6 +72,7 @@ export class NodeComparisonView extends ItemView {
   // ハイライト通知
   // ---------------------------------------------------------------------------
   private triggerHighlight(nodeIds: Set<string> | null) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
     this.app.workspace.trigger(EVENT_HIGHLIGHT_NODES as any, nodeIds);
   }
 
@@ -207,6 +209,7 @@ export class NodeComparisonView extends ItemView {
     setIcon(clearBtn.createSpan({ cls: "gi-compare-clear-icon" }), "x");
     clearBtn.addEventListener("click", () => {
       // クリアイベントを発火 (nullペイロード)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
       this.app.workspace.trigger(EVENT_COMPARE_NODES as any, null);
     });
 

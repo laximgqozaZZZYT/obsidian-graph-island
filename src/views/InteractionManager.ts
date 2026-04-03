@@ -57,6 +57,7 @@ export interface InteractionHost {
   /** The PIXI node map */
   getPixiNodes(): Map<string, PixiNode>;
   /** The d3 force simulation (null for static layouts) */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- d3-force link type
   getSimulation(): Simulation<GraphNode, any> | null;
   /** Open a file in the workspace */
   openFile(filePath: string): void;
@@ -531,8 +532,8 @@ export class InteractionManager {
         this.draggedNode.data.y = this._dragStartY;
         const sim = this.host.getSimulation();
         if (sim) {
-          this.draggedNode.data.fx = undefined as any;
-          this.draggedNode.data.fy = undefined as any;
+          this.draggedNode.data.fx = undefined;
+          this.draggedNode.data.fy = undefined;
         }
         this.draggedNode = null;
         this.host.markDirty();
@@ -911,11 +912,13 @@ export class InteractionManager {
         .setIcon("search")
         .onClick(() => {
           const app = this.host.getApp();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian internal commands API
           (app as any).commands.executeCommandById("global-search:open");
           // Delay to let search pane open, then set query
           setTimeout(() => {
             const searchLeaf = app.workspace.getLeavesOfType("search")[0];
             if (searchLeaf) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian search view API
               const search = (searchLeaf.view as any);
               if (search?.setQuery) search.setQuery(node.data.label);
             }

@@ -20,6 +20,7 @@ export interface GuideRendererHost {
   readonly worldContainer: CanvasContainer | null;
   isDarkTheme(): boolean;
   getPanel(): {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render threshold config
     renderThresholds?: Record<string, any>;
     gridShowHeaders?: boolean;
     gridLabelPlacement?: string;

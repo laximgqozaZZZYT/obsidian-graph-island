@@ -1,5 +1,7 @@
 import { ItemView, WorkspaceLeaf, TFile, MarkdownRenderer, Component, setIcon } from "obsidian";
 import type { GraphNode, GraphEdge } from "../types";
+import type { PixiNode } from "./InteractionManager";
+import { edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
 import { t } from "../i18n";
 import { EVENT_HOVER_NODE, EVENT_HIGHLIGHT_NODES } from "../constants";
 
@@ -20,7 +22,7 @@ export class NodeDetailView extends ItemView {
   private bodyEl: HTMLElement | null = null;
 
   /** Cached references for hover-highlight from graph */
-  private pixiNodes: Map<string, any> = new Map();
+  private pixiNodes: Map<string, PixiNode> = new Map();
 
   getViewType() { return VIEW_TYPE_NODE_DETAIL; }
   getDisplayText() { return "Graph Node Detail"; }
@@ -42,9 +44,10 @@ export class NodeDetailView extends ItemView {
     this.renderEmpty();
 
     this.registerEvent(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
       (this.app.workspace as any).on(
         EVENT_HOVER_NODE,
-        (node: GraphNode | null, adj: Map<string, Set<string>>, pixiNodes: Map<string, any>, degrees: Map<string, number>, edges?: GraphEdge[]) => {
+        (node: GraphNode | null, adj: Map<string, Set<string>>, pixiNodes: Map<string, PixiNode>, degrees: Map<string, number>, edges?: GraphEdge[]) => {
           if (this.held && this.holdCaptured) return; // locked
           this.pixiNodes = pixiNodes;
           this.renderNode(node, adj, pixiNodes, degrees, edges);
@@ -85,6 +88,7 @@ export class NodeDetailView extends ItemView {
   // ---------------------------------------------------------------------------
 
   private triggerHighlight(nodeIds: Set<string> | null) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
     this.app.workspace.trigger(EVENT_HIGHLIGHT_NODES as any, nodeIds);
   }
 
@@ -139,7 +143,7 @@ export class NodeDetailView extends ItemView {
   private async renderNode(
     node: GraphNode | null,
     adj: Map<string, Set<string>>,
-    pixiNodes: Map<string, any>,
+    pixiNodes: Map<string, PixiNode>,
     degrees: Map<string, number>,
     edges?: GraphEdge[],
   ) {
@@ -236,12 +240,12 @@ export class NodeDetailView extends ItemView {
     parent: HTMLElement,
     nodeId: string,
     edges: GraphEdge[],
-    pixiNodes: Map<string, any>,
+    pixiNodes: Map<string, PixiNode>,
   ) {
     // Filter edges that touch this node
     const relevant = edges.filter(e => {
-      const src = typeof e.source === "object" ? (e.source as any).id : e.source;
-      const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+      const src = edgeSourceId(e);
+      const tgt = edgeTargetId(e);
       return src === nodeId || tgt === nodeId;
     });
     if (relevant.length === 0) return;
@@ -249,8 +253,8 @@ export class NodeDetailView extends ItemView {
     // Group by edge type
     const grouped = new Map<string, { neighborId: string; direction: string }[]>();
     for (const e of relevant) {
-      const src = typeof e.source === "object" ? (e.source as any).id : e.source;
-      const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+      const src = edgeSourceId(e);
+      const tgt = edgeTargetId(e);
       const type = e.type || "link";
       const isOutgoing = src === nodeId;
       const neighborId = isOutgoing ? tgt : src;
@@ -537,7 +541,7 @@ export class NodeDetailView extends ItemView {
     parent: HTMLElement,
     node: GraphNode,
     adj: Map<string, Set<string>>,
-    pixiNodes: Map<string, any>,
+    pixiNodes: Map<string, PixiNode>,
   ) {
     // Find suggestion candidates: nodes sharing tags but not directly connected
     const neighbors = adj.get(node.id) ?? new Set<string>();
@@ -584,6 +588,7 @@ export class NodeDetailView extends ItemView {
       const linkBtn = li.createEl("button", { cls: "gi-suggest-link-btn", text: "Link" });
       linkBtn.addEventListener("click", () => {
         // Trigger link creation via workspace event
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
         this.app.workspace.trigger("graph-island:create-link" as any, node.id, s.id);
         li.remove();
       });

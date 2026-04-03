@@ -181,6 +181,7 @@ export function renderGraphStats(
   {
     const qs = host.getLabelQualityScore();
     const fps = host.getCurrentFps();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Chrome-specific performance.memory API
     const mem = (performance as any).memory?.usedJSHeapSize;
     const memMB = mem ? Math.round(mem / (1024 * 1024)) : null;
 
