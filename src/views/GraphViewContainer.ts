@@ -44,8 +44,9 @@ import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRendere
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
 import { groupNodesByField, getNodeFieldValues, collapseGroup, type GroupSpec, type GroupOptions } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
-import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
+// dataview-source used via SearchOrchestrator
 import { getNodeShape, drawShape } from "../utils/node-shapes";
+import { parseHopFilters, computeHopSet, filterBySearchExpr, filterByDataview, classifySearchMatch, countSearchMatches, computeCardHaloGeometry, expandLocalGraphNeighbors, capNodesByDegree, buildRichStatus as buildRichStatusPure, computePathfinderBFS, computeEntropyScores } from "./SearchOrchestrator";
 import {
   EDGE_TYPE_SIMILAR, LAYOUT_FORCE, LAYOUT_CONCENTRIC, LAYOUT_TREE,
   LAYOUT_ARC, LAYOUT_SUNBURST, LAYOUT_TIMELINE,
@@ -3755,53 +3756,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   private computePathfinderPath() {
     this.pathfinderPath = null;
     this.pathfinderEdgeSet = null;
+    this.pathfinderNodeSet = null;
     if (!this.pathfinderStartId || !this.pathfinderEndId) return;
-    if (this.pathfinderStartId === this.pathfinderEndId) return;
-    if (!this.adj.size) return;
 
-    const start = this.pathfinderStartId;
-    const end = this.pathfinderEndId;
-    const visited = new Set<string>([start]);
-    const parent = new Map<string, string>();
-    const queue: string[] = [start];
+    const result = computePathfinderBFS(this.pathfinderStartId, this.pathfinderEndId, this.adj);
+    if (!result) return;
 
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      if (current === end) break;
-      const neighbors = this.adj.get(current);
-      if (!neighbors) continue;
-      for (const n of neighbors) {
-        if (!visited.has(n)) {
-          visited.add(n);
-          parent.set(n, current);
-          queue.push(n);
-        }
-      }
-    }
-
-    if (!parent.has(end)) return; // no path found
-
-    // Reconstruct path
-    const path: string[] = [];
-    let cur = end;
-    while (cur !== start) {
-      path.unshift(cur);
-      cur = parent.get(cur)!;
-    }
-    path.unshift(start);
-    this.pathfinderPath = path;
-    this.pathfinderNodeSet = new Set(path);
-
-    // Build edge set for highlighting
-    const edgeSet = new Set<string>();
-    for (let i = 0; i < path.length - 1; i++) {
-      const a = path[i], b = path[i + 1];
-      edgeSet.add(`${a}→${b}`);
-      edgeSet.add(`${b}→${a}`);
-    }
-    this.pathfinderEdgeSet = edgeSet;
-
-    showToast(`Path: ${path.length} nodes, ${path.length - 1} hops`);
+    this.pathfinderPath = result.path;
+    this.pathfinderNodeSet = result.nodeSet;
+    this.pathfinderEdgeSet = result.edgeSet;
+    showToast(`Path: ${result.path.length} nodes, ${result.path.length - 1} hops`);
   }
 
   /** Get the pathfinder node set (for render pipeline highlight) */
@@ -7097,33 +7061,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** U2: Build rich status text with mode, counts, groups, layout, and filter info */
   private buildRichStatus(nodeCount: number, edgeCount: number, totalNodes?: number): string {
-    const parts: string[] = [];
-    if (this.panel.localGraphCenter) parts.push("Local");
-    else if (this.panel.focusLayout) parts.push("Focus");
-    // Show filtered ratio when applicable
     const total = totalNodes ?? (this.rawData?.nodes.length ?? nodeCount);
-    if (total !== nodeCount) {
-      parts.push(`${nodeCount} / ${total} nodes`);
-    } else {
-      parts.push(`${nodeCount} nodes`);
-    }
-    if (edgeCount > 0) parts.push(`${edgeCount} edges`);
-    // Show group count if groupBy is active
-    const groupCount = this.panel.collapsedGroups?.size ?? 0;
-    if (groupCount > 0) parts.push(`${groupCount} groups`);
-    if (this.panel.searchQuery) {
-      const mode = this.panel.searchMode === "highlight" ? "HL" : "F";
-      parts.push(`[${mode}: ${this.panel.searchQuery.slice(0, 20)}]`);
-    }
-    // Show view mode if not default graph
-    if (this.panel.viewMode && this.panel.viewMode !== "graph") {
-      parts.push(this.panel.viewMode);
-    }
-    // Show groupBy field when active
-    if (this.panel.groupBy && this.panel.groupBy !== "none") {
-      parts.push(`by ${this.panel.groupBy}`);
-    }
-    return parts.join(" \u00B7 ");
+    return buildRichStatusPure(nodeCount, edgeCount, total, this.panel);
   }
 
   /** D6: Compute per-node entropy scores (knowledge diversity).
@@ -7137,23 +7076,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     if (raw && this._entropyCacheRef === raw && this._entropyScores) return;
     this._entropyCacheRef = raw;
 
-    const scores = new Map<string, number>();
-    const adj = this.adj;
-    const pixiNodes = this.pixiNodes;
-
-    for (const [nodeId, neighbors] of adj) {
-      if (neighbors.size === 0) continue;
-      const allTags = new Set<string>();
-      for (const nbId of neighbors) {
-        const nb = pixiNodes.get(nbId);
-        if (nb?.data.tags) {
-          for (const tag of nb.data.tags) allTags.add(tag);
-        }
-      }
-      const entropy = allTags.size / neighbors.size;
-      scores.set(nodeId, Math.min(1, entropy));
+    // Build node tags map from pixiNodes for pure function
+    const nodeTags = new Map<string, string[]>();
+    for (const [id, pn] of this.pixiNodes) {
+      if (pn.data.tags) nodeTags.set(id, pn.data.tags);
     }
-    this._entropyScores = scores;
+    this._entropyScores = computeEntropyScores(this.adj, nodeTags);
   }
 
   /** A3: Update thumbnail positions and visibility. */
@@ -7504,11 +7432,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // Mobile lightweight mode: cap node count to reduce rendering load
     if (Platform.isMobile && nodes.length > 200) {
-      const deg = this.degrees;
-      nodes.sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0));
-      nodes = nodes.slice(0, 200);
+      ({ nodes, edges } = capNodesByDegree(nodes, edges, this.degrees, 200));
       nodeSet = new Set(nodes.map(n => n.id));
-      edges = edges.filter(e => nodeSet.has(e.source) && nodeSet.has(e.target));
     }
 
     // Skip group collapse for timeline/sunburst viewModes (they need individual nodes)
@@ -7518,34 +7443,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return this._applyGroupCollapse({ nodes, edges });
   }
 
-  /** BFS N-hop filter for local graph mode. Delegates core BFS to pure function. */
+  /** BFS N-hop filter for local graph mode. Delegates to pure functions. */
   private _filterLocalGraph(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
     if (!this.panel.localGraphCenter) return { nodes, edges };
 
     // Core BFS hop filter (pure function)
-    let result = filterByLocalGraph(nodes, edges, this.panel.localGraphCenter, this.panel.localGraphHops);
+    const result = filterByLocalGraph(nodes, edges, this.panel.localGraphCenter, this.panel.localGraphHops);
 
-    // D1: Also include neighbors of manually expanded nodes
+    // D1: Also include neighbors of manually expanded nodes (pure function)
     if (this.panel.expandedNodes?.length) {
-      const adj = new Map<string, Set<string>>();
-      for (const e of edges) {
-        if (!adj.has(e.source)) adj.set(e.source, new Set());
-        if (!adj.has(e.target)) adj.set(e.target, new Set());
-        adj.get(e.source)!.add(e.target);
-        adj.get(e.target)!.add(e.source);
-      }
-      const reachable = new Set(result.nodes.map(n => n.id));
-      for (const expandedId of this.panel.expandedNodes) {
-        if (!reachable.has(expandedId)) continue;
-        const neighbors = adj.get(expandedId);
-        if (neighbors) {
-          for (const nbId of neighbors) reachable.add(nbId);
-        }
-      }
-      result = {
-        nodes: nodes.filter(n => reachable.has(n.id)),
-        edges: edges.filter(e => reachable.has(e.source) && reachable.has(e.target)),
-      };
+      return expandLocalGraphNeighbors(nodes, edges, result.nodes, this.panel.expandedNodes);
     }
 
     return result;
@@ -7572,33 +7479,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     return { nodes, edges };
   }
 
-  /** Apply dataview and search query filters. */
+  /** Apply dataview and search query filters. Delegates to SearchOrchestrator. */
   private _filterByQuery(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
     // Reset highlight set at start of each data build
     this._searchHighlightSet = null;
 
-    if (this.panel.dataviewQuery.trim()) {
-      const matchingPaths = queryDataviewPages(this.app, this.panel.dataviewQuery.trim());
-      if (matchingPaths.size > 0) {
-        nodes = filterNodesByDataview(nodes, matchingPaths, this.panel.showTagNodes);
-      }
-    }
+    // Dataview filter
+    nodes = filterByDataview(nodes, this.app, this.panel.dataviewQuery, this.panel.showTagNodes);
 
-    const raw = this.panel.searchQuery;
-    const remaining = raw.replace(/hop:[^:,]+:\d+/gi, "").replace(/,/g, " ").trim();
-    if (remaining) {
-      const searchExpr = parseQueryExpr(remaining);
-      if (searchExpr) {
-        const matchedIds = new Set(nodes.filter((n) => evaluateExpr(searchExpr, n)).map((n) => n.id));
-        if (this.panel.searchMode === "highlight") {
-          // N2: Highlight mode — keep all nodes, store matched IDs for visual dimming
-          this._searchHighlightSet = matchedIds;
-        } else {
-          // Default filter mode — remove non-matching nodes
-          nodes = nodes.filter((n) => matchedIds.has(n.id));
-        }
-      }
-    }
+    // Search expression filter/highlight
+    const { nodes: filtered, highlightSet } = filterBySearchExpr(
+      nodes, this.panel.searchQuery, this.panel.searchMode,
+    );
+    nodes = filtered;
+    this._searchHighlightSet = highlightSet;
 
     return { nodes, edges };
   }
@@ -9098,48 +8992,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   private applySearch() {
     const raw = this.panel.searchQuery;
-    // Parse hop filters: "hop:name:n" (comma-separated, mixable with text)
-    const hopMatches = [...raw.matchAll(/hop:([^:,]+):(\d+)/gi)];
-    const textParts: string[] = [];
-    let remaining = raw;
-    for (const m of hopMatches) remaining = remaining.replace(m[0], "");
-    const trimmed = remaining.replace(/,/g, " ").trim().toLowerCase();
-    if (trimmed) textParts.push(trimmed);
+    // Parse hop filters via SearchOrchestrator
+    const { hopFilters } = parseHopFilters(raw);
 
-    // Build hop highlight set via BFS from each specified origin
-    let hopSet: Set<string> | null = null;
-    if (hopMatches.length > 0) {
-      hopSet = new Set<string>();
-      for (const m of hopMatches) {
-        const name = m[1].toLowerCase();
-        const hops = parseInt(m[2], 10);
-        // Find origin node(s) by partial name match
-        const origins: string[] = [];
-        for (const pn of this.pixiNodes.values()) {
-          if (pn.data.label.toLowerCase().includes(name)) origins.push(pn.data.id);
-        }
-        // BFS from each origin
-        for (const origin of origins) {
-          hopSet.add(origin);
-          let frontier = [origin];
-          for (let h = 0; h < hops && frontier.length > 0; h++) {
-            const next: string[] = [];
-            for (const id of frontier) {
-              const nb = this.adj.get(id);
-              if (nb) for (const n of nb) {
-                if (!hopSet.has(n)) { hopSet.add(n); next.push(n); }
-              }
-            }
-            frontier = next;
-          }
-        }
-      }
+    // Build node label map for hop BFS
+    const nodeLabels = new Map<string, string>();
+    for (const pn of this.pixiNodes.values()) {
+      nodeLabels.set(pn.data.id, pn.data.label.toLowerCase());
     }
 
-    const hasHop = hopSet !== null;
+    // Compute hop set via SearchOrchestrator BFS
+    const hopSet = computeHopSet(hopFilters, nodeLabels, this.adj);
+
     // N2: Combine hop set and text-based highlight set
     const hlSet = this._searchHighlightSet;
-    const hasHighlight = hasHop || hlSet !== null;
+    const hasHighlight = hopSet !== null || hlSet !== null;
 
     for (const pn of this.pixiNodes.values()) {
       if (!hasHighlight) {
@@ -9148,10 +9015,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         continue;
       }
 
-      // A node is "matched" if it passes hop filter (when active) AND text highlight (when active)
-      const hopMatch = hopSet === null || hopSet.has(pn.data.id);
-      const textMatch = !hlSet || hlSet.has(pn.data.id);
-      const isMatch = hopMatch && textMatch;
+      const { isMatch } = classifySearchMatch(pn.data.id, hopSet, hlSet);
 
       if (isMatch) {
         this._fadeNodeAlpha(pn, 1);
@@ -9163,18 +9027,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
         const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
         if (isCardMode) {
           const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
-          // HM: Use golden ratio for halo rect (matching plain card rendering)
-          const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
-          const baseH = pn.radius * 2;
-          const halfH = baseH;
-          const halfW = Math.max(20, (baseH * cardAR) / 2);
-          const outset = 4;
-          const cr = crc.cardCornerRadius ?? 6;
+          const halo = computeCardHaloGeometry(pn.radius, crc.cardAspectRatio, crc.cardCornerRadius ?? 6);
           pn.circle.beginFill(searchHitColor, 0.10);
-          pn.circle.drawRoundedRect(-halfW - outset, -halfH - outset, (halfW + outset) * 2, (halfH + outset) * 2, cr);
+          pn.circle.drawRoundedRect(-halo.halfW - halo.outset, -halo.halfH - halo.outset, (halo.halfW + halo.outset) * 2, (halo.halfH + halo.outset) * 2, halo.cornerRadius);
           pn.circle.endFill();
           pn.circle.lineStyle(2, searchHitColor, 0.85);
-          pn.circle.drawRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, cr);
+          pn.circle.drawRoundedRect(-halo.halfW, -halo.halfH, halo.halfW * 2, halo.halfH * 2, halo.cornerRadius);
         } else {
           drawShape(pn.circle, shape, pn.radius * 2.2, searchHitColor, 0.10);
           pn.circle.lineStyle(2, searchHitColor, 0.85);
@@ -9210,12 +9068,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
     // A11y: announce filter results for screen readers
     if (hasHighlight) {
-      let matchCount = 0;
-      for (const pn of this.pixiNodes.values()) {
-        const hopOk = hopSet === null || hopSet.has(pn.data.id);
-        const textOk = !hlSet || hlSet.has(pn.data.id);
-        if (hopOk && textOk) matchCount++;
-      }
+      const matchCount = countSearchMatches(this.pixiNodes.keys(), hopSet, hlSet);
       this._announceA11y(`${t("a11y.filterResult") ?? "Filter"}: ${matchCount} / ${this.pixiNodes.size} ${t("a11y.nodesVisible") ?? "nodes"}`);
     } else if (!raw.trim()) {
       this._announceA11y(t("a11y.filterCleared") ?? "Filter cleared");
