@@ -20,7 +20,6 @@ import { yieldFrame, buildAdj, buildAdjFiltered, cssColorToHex, edgeSourceId, ed
 import { applyVisibilityFilters, filterByDegree, filterExcludedNodes, filterEdgesByNodeSet, filterBySubgraph, filterByLocalGraph } from "../utils/graph-filter";
 import { pointInPolygon, convexHull } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
-import { hexToRgb } from "../utils/color";
 import { buildPanel as buildPanelUI, type PanelState, type PanelCallbacks, type PanelContext, type NodeTreeEntry, DEFAULT_PANEL, createDefaultPanel, validatePanelState, ensureRT } from "./PanelBuilder";
 import { drawEdges as drawEdgesImpl, drawEdgeLabels as drawEdgeLabelsImpl, invalidateBundleCache, EdgeRenderCache, type EdgeDrawConfig } from "./EdgeRenderer";
 import { t } from "../i18n";
@@ -56,6 +55,24 @@ import {
   POLAR_ARRANGEMENTS,
 } from "../constants";
 import { viewModeToLayout, viewModeSkipsNodeRendering, viewModeSkipsEdges, viewModeUsesDom } from "../utils/view-mode-map";
+import {
+  ALL_PRESETS, AGGREGATE_ZOOM_THRESHOLD,
+  COMMUNITY_PALETTE,
+  setFrontmatterField, addFrontmatterTag, countEdgeTypes, getPresetSummary,
+  buildHoverTooltipText, hasImageMetaNodes,
+  computeViewportScaleFactor, computeAvgRadius, computeDegenerateSpread,
+  generatePhantomNodes, resolveAnalysisOverlay,
+  blendThemeLabel, heatmapColor, lightenHex, cleanArcName,
+  deriveClusterRules, deriveClusterRulesFromQueries,
+  areSavedPositionsValid, resolveNodeColor,
+} from "./RenderHelpers";
+
+// Re-export pure functions for backward compatibility (tests and other modules import from here)
+export {
+  deriveOneRule, deriveClusterRulesFromQueries, deriveClusterRules,
+  blendThemeLabel, lightenHex, heatmapColor, COMMUNITY_PALETTE,
+  findMatchingGroupPreset, resolveNodeColor, cleanArcName, areSavedPositionsValid,
+} from "./RenderHelpers";
 
 // ---------------------------------------------------------------------------
 // StatsHost — interface for future StatsRenderer extraction (Phase 0)
@@ -91,150 +108,6 @@ export interface StatsHost {
   getLastRenderTime(): number;
 }
 
-/**
- * Derive a single ClusterGroupRule from a query string + recursive flag.
- * Supports wildcard patterns like "tag:*" → groupBy: "tag".
- */
-export function deriveOneRule(queryText: string, recursive: boolean): ClusterGroupRule | null {
-  if (!queryText.trim()) return null;
-  const expr = parseQueryExpr(queryText.trim());
-  if (!expr) return null;
-  if (expr.type === "leaf" && expr.value === "*") {
-    // Use field:? format (e.g. "tag:?", "category:?")
-    return { groupBy: `${expr.field}:?`, recursive };
-  }
-  return { groupBy: `${expr.type === "leaf" ? expr.field : "tag"}:?`, recursive };
-}
-
-/** Derive ClusterGroupRule[] from multiple common queries (pipeline). */
-export function deriveClusterRulesFromQueries(queries: { query: string; recursive: boolean }[]): ClusterGroupRule[] {
-  const rules: ClusterGroupRule[] = [];
-  for (const q of queries) {
-    const rule = deriveOneRule(q.query, q.recursive);
-    if (rule) rules.push(rule);
-  }
-  return rules;
-}
-
-export function deriveClusterRules(preset: GroupPreset): ClusterGroupRule[] {
-  if (preset.commonQueries?.length) {
-    return deriveClusterRulesFromQueries(preset.commonQueries);
-  }
-  // Legacy: single commonQuery field
-  const cq = preset.commonQuery;
-  if (!cq?.expression) return [];
-  const queryText = serializeExpr(cq.expression);
-  const rule = deriveOneRule(queryText, preset.recursive ?? false);
-  return rule ? [rule] : [];
-}
-
-/** Blend bg toward nodeColor at 15% — used for label tinting. */
-export function blendThemeLabel(bg: number, nodeColor: number): number {
-  const r1 = (bg >> 16) & 0xff, g1 = (bg >> 8) & 0xff, b1 = bg & 0xff;
-  const r2 = (nodeColor >> 16) & 0xff, g2 = (nodeColor >> 8) & 0xff, b2 = nodeColor & 0xff;
-  return (Math.round(r1 + (r2 - r1) * 0.15) << 16) |
-         (Math.round(g1 + (g2 - g1) * 0.15) << 8) |
-          Math.round(b1 + (b2 - b1) * 0.15);
-}
-
-/** Lighten a hex color by a factor (0-1). factor=0.2 means 20% lighter. */
-/** Clean sunburst arc name: strip redundant path prefix (e.g. "bible-apocrypha/bible-apocrypha" → "bible-apocrypha") */
-export function cleanArcName(name: string): string {
-  if (!name.includes("/")) return name;
-  const segments = name.split("/");
-  if (segments.length >= 2 && segments[segments.length - 1] === segments[segments.length - 2]) {
-    return segments[segments.length - 1];
-  }
-  return segments[segments.length - 1] || name;
-}
-
-/** Check if saved positions are within a reasonable coordinate range for force layout reuse. */
-export function areSavedPositionsValid(
-  positions: Map<string, { x: number; y: number }>,
-  canvasW: number,
-  canvasH: number,
-): boolean {
-  if (positions.size === 0) return false;
-  const maxCoord = Math.max(canvasW, canvasH) * 5;
-  for (const p of positions.values()) {
-    if (!isFinite(p.x) || !isFinite(p.y) || Math.abs(p.x) > maxCoord || Math.abs(p.y) > maxCoord) {
-      return false;
-    }
-  }
-  return true;
-}
-
-export function lightenHex(hex: number, factor: number): number {
-  const { r, g, b } = hexToRgb(hex);
-  const lr = Math.min(255, r + Math.round(255 * factor));
-  const lg = Math.min(255, g + Math.round(255 * factor));
-  const lb = Math.min(255, b + Math.round(255 * factor));
-  return (lr << 16) | (lg << 8) | lb;
-}
-
-/** Zoom threshold below which aggregate cluster summaries replace individual nodes */
-const AGGREGATE_ZOOM_THRESHOLD = 0.25;
-
-/**
- * Heatmap color ramp: cold (blue 0x3b82f6) → warm (red 0xef4444).
- * @param degree - node degree
- * @param maxDegree - maximum degree in the graph (for normalization)
- */
-export function heatmapColor(degree: number, maxDegree: number): number {
-  const t = Math.min(1, degree / Math.max(1, maxDegree));
-  const r = Math.round(59 + t * (239 - 59));   // 0x3b -> 0xef
-  const g = Math.round(130 - t * (130 - 68));   // 0x82 -> 0x44
-  const b = Math.round(246 - t * (246 - 68));   // 0xf6 -> 0x44
-  return (r << 16) | (g << 8) | b;
-}
-
-/** 20-color deterministic palette for community coloring (Tableau 20-inspired). */
-export const COMMUNITY_PALETTE: readonly number[] = [
-  0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd,
-  0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf,
-  0xaec7e8, 0xffbb78, 0x98df8a, 0xff9896, 0xc5b0d5,
-  0xc49c94, 0xf7b6d2, 0xc7c7c7, 0xdbdb8d, 0x9edae5,
-];
-
-/**
- * Find the first GroupPreset whose condition matches the current layout + tagDisplay.
- * Returns the matching preset or null.
- */
-export function findMatchingGroupPreset(
-  presets: GroupPreset[],
-  currentLayout: string,
-  tagDisplay: string,
-): GroupPreset | null {
-  for (const preset of presets) {
-    const cond = preset.condition;
-    if (cond.layout && cond.layout !== currentLayout) continue;
-    if (cond.tagDisplay && cond.tagDisplay !== tagDisplay) continue;
-    return preset;
-  }
-  return null;
-}
-
-/**
- * Resolve node color from a colorMap + node data.
- * Pure lookup: category → tag fallback → default.
- */
-export function resolveNodeColor(
-  node: { category?: string; tags?: string[] },
-  colorMap: Map<string, string>,
-  defaultColor: string,
-): string {
-  if (node.category) {
-    const css = colorMap.get(node.category);
-    if (css) return css;
-  }
-  if (node.tags && node.tags.length > 0) {
-    const tagKey = `tag:${node.tags[0]}`;
-    const css = colorMap.get(tagKey);
-    if (css) return css;
-  }
-  return defaultColor;
-}
-
 export const VIEW_TYPE_GRAPH = "graph-view";
 
 const TICK_SKIP = 4;
@@ -242,30 +115,6 @@ const TICK_SKIP = 4;
 /** Fallback canvas dimensions when DOM element is not yet measured */
 const DEFAULT_CANVAS_WIDTH = 600;
 const DEFAULT_CANVAS_HEIGHT = 400;
-
-/** All preset definitions — single source of truth for applyPreset, applyPresetByKey, getPresetSummary */
-const ALL_PRESETS: Record<string, Record<string, unknown>> = {
-  // Quick presets
-  simple: { showLinks: true, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: false, fadeEdgesByDegree: false, nodeColorMode: "category", showEdgeLabels: false, showArrows: false },
-  analysis: { showLinks: true, showTagEdges: true, showCategoryEdges: true, showSemanticEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSibling: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, nodeColorMode: "category", showEdgeLabels: false, showArrows: true },
-  creative: { showLinks: true, showTagEdges: true, showCategoryEdges: false, showSemanticEdges: true, showInheritance: false, showAggregation: false, showSimilar: false, showSibling: false, showSequence: false, colorEdgesByRelation: true, fadeEdgesByDegree: false, nodeColorMode: "category", tagDisplay: "enclosure", showTagNodes: true },
-  "active-focus": { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 2, focusLayout: true, hoverHops: 1, showArrows: true, fadeEdgesByDegree: true },
-  "semantic-shapes": {
-    nodeShapeRules: [
-      { match: "category" as const, category: "character", shape: "circle" as const },
-      { match: "category" as const, category: "place", shape: "hexagon" as const },
-      { match: "category" as const, category: "event", shape: "diamond" as const },
-      { match: "category" as const, category: "concept", shape: "triangle" as const },
-      { match: "default" as const, shape: "square" as const },
-    ],
-  },
-  "full-analysis": { showLinks: true, showTagEdges: true, showInheritance: true, showAggregation: true, showSimilar: true, showSequence: true, colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showGraphStats: true, showBridgeNodes: true, showImportanceRing: true, nodeColorMode: "community", showEntropyOverlay: true, highlightMissingNeighbors: true },
-  // Thinking modes (M1)
-  explore: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 3, focusLayout: true, focusConeEnabled: true, hoverHops: 2, showGapEdges: true, showSimilarSuggestions: true, fadeEdgesByDegree: true, showArrows: false, nodeColorMode: "category" },
-  analyze: { syncWithEditor: false, localGraphCenter: null, showGraphStats: true, showBridgeNodes: true, showEntropyOverlay: true, highlightMissingNeighbors: true, nodeColorMode: "community", colorEdgesByRelation: true, fadeEdgesByDegree: true, showArrows: true, showOntologyBackbone: true, showHierarchyTree: true,
-    directionalGravityRules: [{ filter: "type:inheritance", direction: "bottom", strength: 0.08 }] },
-  write: { syncWithEditor: true, localGraphCenter: "__active__", localGraphHops: 1, focusLayout: true, presentationMode: true, hoverHops: 1, showArrows: false, fadeEdgesByDegree: false, nodeColorMode: "category", nodeSize: 25, showTagEdges: false, showCategoryEdges: false, showSemanticEdges: false, showSimilar: false, focusConeEnabled: true },
-};
 
 // Re-export PixiNode so other modules can import from either location
 export type { PixiNode } from "./InteractionManager";
@@ -3246,20 +3095,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Helper: set a frontmatter field (creates YAML block if needed) */
   private _setFrontmatterField(content: string, key: string, value: string): string {
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (fmMatch) {
-      const fmBody = fmMatch[1];
-      const regex = new RegExp(`^${key}:.*$`, "m");
-      if (regex.test(fmBody)) {
-        const newFm = fmBody.replace(regex, `${key}: ${value}`);
-        return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-      } else {
-        const newFm = fmBody + `\n${key}: ${value}`;
-        return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-      }
-    } else {
-      return `---\n${key}: ${value}\n---\n${content}`;
-    }
+    return setFrontmatterField(content, key, value);
   }
 
   // =========================================================================
@@ -5894,63 +5730,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     realNodes: GraphNode[],
     cx: number, cy: number,
   ): GraphNode[] {
-    const arrangement = this.panel.clusterArrangement;
-    const isPolar = POLAR_ARRANGEMENTS.has(arrangement);
-    const phantoms: GraphNode[] = [];
-
-    if (isPolar) {
-      const spokeCount = Math.min(12, Math.max(8, Math.ceil(Math.sqrt(realNodes.length / 5))));
-      const ringCount = Math.min(8, Math.max(4, Math.ceil(Math.sqrt(realNodes.length / 10))));
-      // Estimate max radius from node positions (or use viewport)
-      let maxR = 0;
-      for (const n of realNodes) {
-        if (n.isPhantom) continue;
-        const d = Math.sqrt((n.x - cx) ** 2 + (n.y - cy) ** 2);
-        if (d > maxR) maxR = d;
-      }
-      if (maxR < 10) maxR = 500;
-
-      for (let ri = 1; ri <= ringCount; ri++) {
-        const r = (maxR * ri) / (ringCount + 1);
-        for (let si = 0; si < spokeCount; si++) {
-          const theta = (si / spokeCount) * Math.PI * 2;
-          phantoms.push({
-            id: `__phantom_r${ri}_s${si}`,
-            label: "",
-            x: cx + r * Math.cos(theta),
-            y: cy + r * Math.sin(theta),
-            vx: 0, vy: 0,
-            isPhantom: true,
-          });
-        }
-      }
-    } else {
-      const gridSize = Math.min(10, Math.max(6, Math.ceil(Math.sqrt(realNodes.length / 8))));
-      let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
-      for (const n of realNodes) {
-        if (n.isPhantom) continue;
-        if (n.x < xMin) xMin = n.x; if (n.x > xMax) xMax = n.x;
-        if (n.y < yMin) yMin = n.y; if (n.y > yMax) yMax = n.y;
-      }
-      if (xMin === Infinity) { xMin = cx - 250; xMax = cx + 250; yMin = cy - 250; yMax = cy + 250; }
-      const w = (xMax - xMin) || 500;
-      const h = (yMax - yMin) || 500;
-
-      for (let xi = 0; xi <= gridSize; xi++) {
-        for (let yi = 0; yi <= gridSize; yi++) {
-          phantoms.push({
-            id: `__phantom_x${xi}_y${yi}`,
-            label: "",
-            x: xMin + (w * xi) / gridSize,
-            y: yMin + (h * yi) / gridSize,
-            vx: 0, vy: 0,
-            isPhantom: true,
-          });
-        }
-      }
-    }
-
-    return phantoms;
+    const isPolar = POLAR_ARRANGEMENTS.has(this.panel.clusterArrangement);
+    return generatePhantomNodes(realNodes, cx, cy, isPolar) as GraphNode[];
   }
 
   // =========================================================================
@@ -6308,9 +6089,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Compute average node radius across all pixiNodes. */
   private _computeAvgNodeRadius(): number {
-    let sum = 0;
-    for (const pn of this.pixiNodes.values()) sum += pn.radius ?? 12;
-    return sum / this.pixiNodes.size;
+    return computeAvgRadius(
+      Array.from(this.pixiNodes.values(), pn => pn.radius),
+      this.pixiNodes.size,
+    );
   }
 
   /**
@@ -6318,27 +6100,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
    * roughly square before uniform scaling.
    */
   private _spreadDegenerateAxis(
-    cx: number, cy: number, vpW: number, vpH: number,
+    cx: number, cy: number, _vpW: number, _vpH: number,
     bboxW: number, bboxH: number, degenerateThreshold: number,
     minUtil: number, vpArea: number,
   ): void {
-    if (bboxW > degenerateThreshold && bboxH < degenerateThreshold) {
-      const targetH = Math.max(bboxW * 0.3, minUtil * vpArea / bboxW);
-      const nodes = Array.from(this.pixiNodes.values());
-      const n = nodes.length;
-      nodes.forEach((pn, i) => {
-        const t = n > 1 ? (i / (n - 1) - 0.5) : 0;
-        pn.data.y = cy + t * targetH;
-      });
-    } else if (bboxH > degenerateThreshold && bboxW < degenerateThreshold) {
-      const targetW = Math.max(bboxH * 0.3, minUtil * vpArea / bboxH);
-      const nodes = Array.from(this.pixiNodes.values());
-      const n = nodes.length;
-      nodes.forEach((pn, i) => {
-        const t = n > 1 ? (i / (n - 1) - 0.5) : 0;
-        pn.data.x = cx + t * targetW;
-      });
-    }
+    const result = computeDegenerateSpread(bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
+    if (!result) return;
+    const nodes = Array.from(this.pixiNodes.values());
+    const n = nodes.length;
+    nodes.forEach((pn, i) => {
+      const t = n > 1 ? (i / (n - 1) - 0.5) : 0;
+      if (result.axis === "y") pn.data.y = cy + t * result.targetSpan;
+      else pn.data.x = cx + t * result.targetSpan;
+    });
   }
 
   /**
@@ -6349,16 +6123,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
     bboxW: number, bboxH: number,
     minUtil: number, vpArea: number, util: number,
   ): number {
-    const avgR = this._computeAvgNodeRadius();
-    const posSpanW = Math.max(bboxW - 2 * avgR, 1);
-    const posSpanH = Math.max(bboxH - 2 * avgR, 1);
-    const A = posSpanW * posSpanH;
-    const B = 2 * avgR * (posSpanW + posSpanH);
-    const C = 4 * avgR * avgR - minUtil * vpArea;
-    const disc = B * B - 4 * A * C;
-    return disc >= 0
-      ? (-B + Math.sqrt(disc)) / (2 * A)
-      : Math.sqrt(minUtil / util); // fallback
+    return computeViewportScaleFactor(bboxW, bboxH, minUtil, vpArea, util, this._computeAvgNodeRadius());
   }
 
   private autoFitView(W: number, H: number) {
@@ -6657,21 +6422,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Count edges by type for progressive disclosure of edge toggles. */
   private _countEdgeTypes(): Record<string, number> {
-    const counts: Record<string, number> = {};
-    for (const e of this.graphEdges) {
-      const t = e.type || "link";
-      counts[t] = (counts[t] || 0) + 1;
-    }
-    return counts;
+    return countEdgeTypes(this.graphEdges);
   }
 
   /** Check if any nodes have image/thumbnail/cover frontmatter metadata. */
   private _hasImageMetaNodes(): boolean {
-    for (const pn of this.pixiNodes.values()) {
-      const m = pn.data?.meta;
-      if (m && (m.image || m.thumbnail || m.cover)) return true;
-    }
-    return false;
+    return hasImageMetaNodes(Array.from(this.pixiNodes.values(), pn => pn.data));
   }
 
   /** Build the callbacks object wiring panel UI actions to graph view methods. */
@@ -6851,27 +6607,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
   /** Helper: add a tag to frontmatter tags array */
   private _addFrontmatterTag(content: string, tag: string): string {
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (fmMatch) {
-      const fmBody = fmMatch[1];
-      const tagsRegex = /^tags:\s*\[([^\]]*)\]/m;
-      const tagsListRegex = /^tags:\s*$/m;
-      if (tagsRegex.test(fmBody)) {
-        const newFm = fmBody.replace(tagsRegex, (match, inner) => {
-          const existing = inner ? inner + ", " : "";
-          return `tags: [${existing}${tag}]`;
-        });
-        return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-      } else if (tagsListRegex.test(fmBody)) {
-        const newFm = fmBody.replace(tagsListRegex, `tags:\n  - ${tag}`);
-        return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-      } else {
-        const newFm = fmBody + `\ntags: [${tag}]`;
-        return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-      }
-    } else {
-      return `---\ntags: [${tag}]\n---\n${content}`;
-    }
+    return addFrontmatterTag(content, tag);
   }
 
   /** Execute the reset-panel action: restore defaults and re-render. */
@@ -7069,12 +6805,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
           recolorCommunityMap = this._getCommunityMap(this.originalGraphData);
         }
         const cid = recolorCommunityMap?.get(n.id) ?? 0;
-        const COMMUNITY_PALETTE: number[] = [
-          0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd,
-          0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf,
-          0xaec7e8, 0xffbb78, 0x98df8a, 0xff9896, 0xc5b0d5,
-          0xc49c94, 0xf7b6d2, 0xc7c7c7, 0xdbdb8d, 0x9edae5,
-        ];
         color = COMMUNITY_PALETTE[cid % COMMUNITY_PALETTE.length];
       }
       pn.color = color;
@@ -7400,12 +7130,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   // =========================================================================
   private _showDensityHeatmap = false;
   private _applyAnalysisOverlay(): void {
-    const mode = this.panel.analysisOverlay ?? "off";
-    this.panel.showBridgeNodes = mode === "bridges" || mode === "all";
-    this.panel.showEntropyOverlay = mode === "entropy" || mode === "all";
-    this.panel.highlightMissingNeighbors = mode === "missing" || mode === "all";
-    this.panel.showGapEdges = mode === "gaps" || mode === "all";
-    this._showDensityHeatmap = mode === "density" || mode === "all";
+    const flags = resolveAnalysisOverlay(this.panel.analysisOverlay ?? "off");
+    this.panel.showBridgeNodes = flags.showBridgeNodes;
+    this.panel.showEntropyOverlay = flags.showEntropyOverlay;
+    this.panel.highlightMissingNeighbors = flags.highlightMissingNeighbors;
+    this.panel.showGapEdges = flags.showGapEdges;
+    this._showDensityHeatmap = flags.showDensityHeatmap;
   }
 
   // =========================================================================
@@ -8981,19 +8711,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
   /** Apply a named preset by key (used by keyboard shortcut commands). */
   /** Get human-readable summary of a preset's settings for tooltip preview */
   private _getPresetSummary(key: string): string {
-    const presetDefs: Record<string, Record<string, unknown>> = {
-      simple: { edges: "links only", arrows: false, color: "category" },
-      analysis: { edges: "all types", arrows: true, color: "category", fade: true },
-      creative: { edges: "links+tags+semantic", tags: "enclosure", color: "category" },
-      "active-focus": { mode: "local graph", hops: 2, focus: true, arrows: true },
-      "full-analysis": { edges: "all types", arrows: true, stats: true, color: "community", bridges: true },
-      explore: { mode: "local graph", hops: 3, focus: true, similar: true },
-      analyze: { stats: true, bridges: true, entropy: true, color: "community", arrows: true },
-      write: { mode: "local graph", hops: 1, focus: true, presentation: true },
-    };
-    const def = presetDefs[key];
-    if (!def) return "";
-    return Object.entries(def).map(([k, v]) => `${k}: ${v}`).join("\n");
+    return getPresetSummary(key);
   }
 
   applyPresetByKey(preset: string): void {
