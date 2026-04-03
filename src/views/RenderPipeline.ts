@@ -2562,7 +2562,7 @@ export class RenderPipeline {
 					const sy = lbl.y * world.scale.y + world.y;
 					const sw = (lbl.width ?? 60) * lbl.scale.x;
 					const sh = (lbl.height ?? 14) * lbl.scale.y;
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- grid exclusion zone, no label/pn
+					 
 					grid.insert({
 						x: sx - sw / 2,
 						y: sy - sh / 2,

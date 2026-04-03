@@ -5980,7 +5980,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					for (const bar of bars) {
 						const bfp = this.pixiNodes.get(bar.nodeId)?.data?.filePath ?? bar.nodeId;
 						const btf = this.app.vault.getAbstractFileByPath(bfp);
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TFile type narrowing
+						 
 						const bpid = btf
 							? this.app.metadataCache.getFileCache(btf as any)?.frontmatter?.parent_id
 							: null;
@@ -8053,7 +8053,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 							: gga === "vertical"
 								? "grid"
 								: "grid"
-			) as any; // eslint-disable-next-line @typescript-eslint/no-explicit-any -- arrangement type narrowing
+			) as any;  
 			// Mark so we can restore "inherit" after render for correct serialization
 			this._inheritResolved = true;
 		}
