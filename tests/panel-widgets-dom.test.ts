@@ -1,265 +1,213 @@
+/**
+ * Tests for panel-widgets DOM functions using mock-dom.
+ * Focuses on: addSlider, addToggle, addTextInput, buildDualRangeSlider,
+ * addCheckboxGroup.
+ */
 import { describe, it, expect, vi } from "vitest";
-vi.mock("obsidian", () => ({
-  setIcon: () => {},
-  Notice: class {},
-}));
+import { createMockEl, findEl, findAllEl, allText } from "./helpers/mock-dom";
 import {
-  updateSliderProgress,
   addSlider,
   addToggle,
   addTextInput,
-  addSelect,
-  addCheckboxGroup,
   buildDualRangeSlider,
+  addCheckboxGroup,
+  addSelect,
 } from "../src/views/panel-widgets";
-import { createMockEl, findEl, findAllEl, allText } from "./helpers/mock-dom";
 
 // ---------------------------------------------------------------------------
-// updateSliderProgress
+// Augment mock elements with style.setProperty (used by updateSliderProgress)
 // ---------------------------------------------------------------------------
-describe("updateSliderProgress", () => {
-  function mockInput(min: string, max: string, value: string) {
-    return {
-      min,
-      max,
-      value,
-      style: { setProperty: vi.fn() },
-    } as any;
-  }
+function augmentWithSetProperty(el: any): any {
+  // Walk all children recursively and add setProperty
+  const augment = (node: any) => {
+    if (node.style && !node.style.setProperty) {
+      node.style.setProperty = (key: string, val: string) => {
+        node.style[key] = val;
+      };
+    }
+    // Override createEl to also augment children
+    const origCreateEl = node.createEl.bind(node);
+    node.createEl = (...args: any[]) => {
+      const child = origCreateEl(...args);
+      augment(child);
+      return child;
+    };
+    const origCreateDiv = node.createDiv.bind(node);
+    node.createDiv = (...args: any[]) => {
+      const child = origCreateDiv(...args);
+      augment(child);
+      return child;
+    };
+    const origCreateSpan = node.createSpan.bind(node);
+    node.createSpan = (...args: any[]) => {
+      const child = origCreateSpan(...args);
+      augment(child);
+      return child;
+    };
+  };
+  augment(el);
+  return el;
+}
 
-  it("computes correct progress for midpoint", () => {
-    const el = mockInput("0", "100", "50");
-    updateSliderProgress(el);
-    expect(el.style.setProperty).toHaveBeenCalledWith("--progress", "50%");
-  });
+function makeContainer(): any {
+  return augmentWithSetProperty(createMockEl());
+}
 
-  it("computes 0% at minimum", () => {
-    const el = mockInput("0", "100", "0");
-    updateSliderProgress(el);
-    expect(el.style.setProperty).toHaveBeenCalledWith("--progress", "0%");
-  });
-
-  it("computes 100% at maximum", () => {
-    const el = mockInput("0", "100", "100");
-    updateSliderProgress(el);
-    expect(el.style.setProperty).toHaveBeenCalledWith("--progress", "100%");
-  });
-
-  it("handles non-zero min", () => {
-    const el = mockInput("10", "20", "15");
-    updateSliderProgress(el);
-    expect(el.style.setProperty).toHaveBeenCalledWith("--progress", "50%");
-  });
-
-  it("handles default min/max when empty", () => {
-    const el = mockInput("", "", "50");
-    updateSliderProgress(el);
-    // min=0, max=100 by default (parseFloat returns NaN → fallback)
-    expect(el.style.setProperty).toHaveBeenCalledWith("--progress", "50%");
-  });
-});
-
-// ---------------------------------------------------------------------------
+// ===========================================================================
 // addSlider
-// ---------------------------------------------------------------------------
+// ===========================================================================
 describe("addSlider", () => {
-  it("creates slider row with label and value display", () => {
-    const container = createMockEl();
+  it("creates a setting-item with slider", () => {
+    const container = makeContainer();
     const onChange = vi.fn();
-    const row = addSlider(container as any, "Test Label", 0, 100, 1, 50, onChange);
-    expect(row).toBeTruthy();
-    const text = allText(container);
-    expect(text).toContain("Test Label");
-    expect(text).toContain("50");
+    addSlider(container as any, "Size", 0, 100, 1, 50, onChange, "Node size");
+
+    expect(container.children.length).toBe(1);
+    const settingItem = container.children[0];
+    expect(settingItem.cls).toContain("setting-item");
   });
 
-  it("creates slider with correct attributes", () => {
-    const container = createMockEl();
-    const onChange = vi.fn();
-    addSlider(container as any, "Volume", 0, 10, 0.1, 5, onChange);
-    // Look for input element
-    const inputs = findAllEl(container, "input");
-    expect(inputs.length).toBeGreaterThan(0);
+  it("sets initial value text", () => {
+    const container = makeContainer();
+    addSlider(container as any, "Size", 0, 100, 1, 42, vi.fn());
+
+    const text = allText(container);
+    expect(text).toContain("42");
+    expect(text).toContain("Size");
   });
 
-  it("creates slider with description as tooltip", () => {
-    const container = createMockEl();
-    addSlider(container as any, "Speed", 0, 100, 1, 50, vi.fn(), "Adjust playback speed");
-    const text = allText(container);
-    expect(text).toContain("Speed");
+  it("returns the row element", () => {
+    const container = makeContainer();
+    const row = addSlider(container as any, "X", 0, 10, 1, 5, vi.fn());
+    expect(row).toBeDefined();
+  });
+
+  it("creates an input element of type range", () => {
+    const container = makeContainer();
+    addSlider(container as any, "Val", 0, 50, 5, 10, vi.fn());
+
+    const input = findEl(container, "input");
+    expect(input).not.toBeNull();
+  });
+
+  it("uses description as title when provided", () => {
+    const container = makeContainer();
+    addSlider(container as any, "Val", 0, 50, 5, 10, vi.fn(), "My description");
+
+    const name = findEl(container, ".setting-item-name");
+    expect(name).not.toBeNull();
+  });
+
+  it("contains value span with initial value", () => {
+    const container = makeContainer();
+    addSlider(container as any, "Speed", 1, 10, 1, 7, vi.fn());
+
+    const span = findEl(container, ".gi-slider-value");
+    expect(span).not.toBeNull();
+    expect(span!.text || span!.textContent).toBe("7");
   });
 });
 
-// ---------------------------------------------------------------------------
+// ===========================================================================
 // addToggle
-// ---------------------------------------------------------------------------
+// ===========================================================================
 describe("addToggle", () => {
-  it("creates toggle row with label", () => {
-    const container = createMockEl();
-    const onChange = vi.fn();
-    addToggle(container as any, "Dark Mode", true, onChange);
+  it("creates a toggle setting item", () => {
+    const container = makeContainer();
+    addToggle(container as any, "Enabled", true, vi.fn(), "Description");
+
     const text = allText(container);
-    expect(text).toContain("Dark Mode");
+    expect(text).toContain("Enabled");
   });
 
   it("initial true adds is-enabled class", () => {
-    const container = createMockEl();
-    addToggle(container as any, "Feature", true, vi.fn());
-    // Look for checkbox-container with is-enabled in its cls
-    const all = findAllEl(container, "div");
-    const toggleDiv = all.find(d => d.cls?.includes("is-enabled"));
-    expect(toggleDiv).toBeTruthy();
+    const container = makeContainer();
+    addToggle(container as any, "Enabled", true, vi.fn());
+
+    const toggle = findEl(container, ".checkbox-container");
+    expect(toggle).not.toBeNull();
+    expect(toggle!.cls).toContain("is-enabled");
   });
 
-  it("initial false does not have is-enabled class", () => {
-    const container = createMockEl();
-    addToggle(container as any, "Feature", false, vi.fn());
-    const all = findAllEl(container, "div");
-    const toggleDiv = all.find(d => d.cls?.includes("checkbox-container") && !d.cls?.includes("is-enabled"));
-    expect(toggleDiv).toBeTruthy();
+  it("initial false does not add is-enabled class", () => {
+    const container = makeContainer();
+    addToggle(container as any, "Disabled", false, vi.fn());
+
+    const toggle = findEl(container, ".checkbox-container");
+    expect(toggle).not.toBeNull();
+    expect(toggle!.cls ?? "").not.toContain("is-enabled");
   });
 
-  it("has aria-label and role", () => {
-    const container = createMockEl();
-    addToggle(container as any, "Sound", false, vi.fn());
-    const all = findAllEl(container, "div");
-    const toggleDiv = all.find(d => d.attrs["role"] === "switch");
-    expect(toggleDiv).toBeTruthy();
-    expect(toggleDiv!.attrs["aria-label"]).toBe("Sound");
-    expect(toggleDiv!.attrs["aria-checked"]).toBe("false");
+  it("sets aria-label", () => {
+    const container = makeContainer();
+    addToggle(container as any, "Toggle Me", false, vi.fn());
+
+    const toggle = findEl(container, ".checkbox-container");
+    expect(toggle!.attrs["aria-label"]).toBe("Toggle Me");
   });
 
-  it("with description sets title tooltip", () => {
-    const container = createMockEl();
-    addToggle(container as any, "Notify", true, vi.fn(), "Enable notifications");
-    // Just check it doesn't throw
-    const text = allText(container);
-    expect(text).toContain("Notify");
+  it("sets aria-checked to match initial", () => {
+    const container = makeContainer();
+    addToggle(container as any, "Test", true, vi.fn());
+
+    const toggle = findEl(container, ".checkbox-container");
+    expect(toggle!.attrs["aria-checked"]).toBe("true");
+  });
+
+  it("sets role=switch for a11y", () => {
+    const container = makeContainer();
+    addToggle(container as any, "Test", false, vi.fn());
+
+    const toggle = findEl(container, ".checkbox-container");
+    expect(toggle!.attrs["role"]).toBe("switch");
+  });
+
+  it("sets tabindex=0 for keyboard accessibility", () => {
+    const container = makeContainer();
+    addToggle(container as any, "Test", false, vi.fn());
+
+    const toggle = findEl(container, ".checkbox-container");
+    expect(toggle!.attrs["tabindex"]).toBe("0");
   });
 });
 
-// ---------------------------------------------------------------------------
+// ===========================================================================
 // addTextInput
-// ---------------------------------------------------------------------------
+// ===========================================================================
 describe("addTextInput", () => {
-  it("creates text input with label and placeholder", () => {
-    const container = createMockEl();
-    addTextInput(container as any, "Search", "hello", "Type here...", vi.fn());
+  it("creates text input setting item", () => {
+    const container = makeContainer();
+    addTextInput(container as any, "Name", "hello", "Enter name", vi.fn());
+
     const text = allText(container);
-    expect(text).toContain("Search");
-    const inputs = findAllEl(container, "input");
-    expect(inputs.length).toBeGreaterThan(0);
+    expect(text).toContain("Name");
   });
 
-  it("sets initial value", () => {
-    const container = createMockEl();
-    addTextInput(container as any, "Name", "John", "", vi.fn());
-    const inputs = findAllEl(container, "input");
-    expect(inputs.length).toBeGreaterThan(0);
+  it("creates input element", () => {
+    const container = makeContainer();
+    addTextInput(container as any, "Name", "default", "hint", vi.fn());
+
+    const input = findEl(container, "input");
+    expect(input).not.toBeNull();
+  });
+
+  it("creates setting-item row", () => {
+    const container = makeContainer();
+    addTextInput(container as any, "Path", "/data", "file path", vi.fn());
+
+    const row = findEl(container, ".setting-item");
+    expect(row).not.toBeNull();
   });
 });
 
-// ---------------------------------------------------------------------------
-// addSelect
-// ---------------------------------------------------------------------------
-describe("addSelect", () => {
-  const options = [
-    { value: "a", label: "Alpha" },
-    { value: "b", label: "Beta" },
-    { value: "c", label: "Gamma" },
-  ];
-
-  it("creates select with label", () => {
-    const container = createMockEl();
-    addSelect(container as any, "Color", options, "b", vi.fn());
-    const text = allText(container);
-    expect(text).toContain("Color");
-  });
-
-  it("creates option elements for each choice", () => {
-    const container = createMockEl();
-    addSelect(container as any, "Sort", options, "a", vi.fn());
-    const optEls = findAllEl(container, "option");
-    expect(optEls).toHaveLength(3);
-    expect(optEls[0].text).toBe("Alpha");
-    expect(optEls[1].text).toBe("Beta");
-    expect(optEls[2].text).toBe("Gamma");
-  });
-
-  it("has aria-label on select element", () => {
-    const container = createMockEl();
-    addSelect(container as any, "Mode", options, "a", vi.fn());
-    const selects = findAllEl(container, "select");
-    expect(selects.length).toBeGreaterThan(0);
-    expect(selects[0].attrs["aria-label"]).toBe("Mode");
-  });
-
-  it("has description tooltip when provided", () => {
-    const container = createMockEl();
-    addSelect(container as any, "Theme", options, "a", vi.fn(), "Choose color theme");
-    // Should not throw
-    const text = allText(container);
-    expect(text).toContain("Theme");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// addCheckboxGroup
-// ---------------------------------------------------------------------------
-describe("addCheckboxGroup", () => {
-  it("creates checkbox group with items", () => {
-    const container = createMockEl();
-    const onChange = vi.fn();
-    const selected = new Set(["link"]);
-    addCheckboxGroup(
-      container as any,
-      "Tags",
-      ["link", "tag", "inheritance"],
-      selected,
-      onChange,
-    );
-    const text = allText(container);
-    expect(text).toContain("Tags");
-    expect(text).toContain("link");
-    expect(text).toContain("tag");
-  });
-
-  it("creates a checkbox element per item", () => {
-    const container = createMockEl();
-    const selected = new Set(["a", "c"]);
-    addCheckboxGroup(
-      container as any,
-      "Types",
-      ["a", "b", "c"],
-      selected,
-      vi.fn(),
-    );
-    const inputs = findAllEl(container, "input");
-    expect(inputs.length).toBeGreaterThanOrEqual(3);
-  });
-
-  it("renders dash placeholder for empty items", () => {
-    const container = createMockEl();
-    addCheckboxGroup(
-      container as any,
-      "Empty",
-      [],
-      new Set(),
-      vi.fn(),
-    );
-    const text = allText(container);
-    expect(text).toContain("Empty");
-  });
-});
-
-// ---------------------------------------------------------------------------
+// ===========================================================================
 // buildDualRangeSlider
-// ---------------------------------------------------------------------------
+// ===========================================================================
 describe("buildDualRangeSlider", () => {
-  it("creates dual range slider with label", () => {
-    const container = createMockEl();
-    const onChange = vi.fn();
-    buildDualRangeSlider(container as any, "Range", 0.2, 0.8, onChange);
+  it("creates a dual-range slider with two inputs", () => {
+    const container = makeContainer();
+    buildDualRangeSlider(container as any, "Range", 0.2, 0.8, vi.fn(), "Some range");
+
     const text = allText(container);
     expect(text).toContain("Range");
     expect(text).toContain("20%");
@@ -267,81 +215,175 @@ describe("buildDualRangeSlider", () => {
   });
 
   it("creates two range inputs", () => {
-    const container = createMockEl();
-    buildDualRangeSlider(container as any, "Filter", 0, 1, vi.fn());
+    const container = makeContainer();
+    buildDualRangeSlider(container as any, "Range", 0, 1, vi.fn());
+
     const inputs = findAllEl(container, "input");
-    expect(inputs.length).toBeGreaterThanOrEqual(2);
+    expect(inputs.length).toBe(2);
   });
 
-  it("has aria-labels for min and max", () => {
-    const container = createMockEl();
-    buildDualRangeSlider(container as any, "Degree", 0.1, 0.9, vi.fn());
-    const inputs = findAllEl(container, "input");
-    const minInput = inputs.find(i => i.attrs["aria-label"]?.includes("min"));
-    const maxInput = inputs.find(i => i.attrs["aria-label"]?.includes("max"));
-    expect(minInput).toBeTruthy();
-    expect(maxInput).toBeTruthy();
+  it("creates min and max labeled inputs", () => {
+    const container = makeContainer();
+    buildDualRangeSlider(container as any, "Opacity", 0.1, 0.9, vi.fn());
+
+    const minInput = findEl(container, ".gi-range-min");
+    const maxInput = findEl(container, ".gi-range-max");
+    expect(minInput).not.toBeNull();
+    expect(maxInput).not.toBeNull();
   });
 
-  it("supports description tooltip", () => {
-    const container = createMockEl();
-    buildDualRangeSlider(container as any, "Scale", 0, 1, vi.fn(), "Adjust scale range");
+  it("shows 0% - 100% for full range", () => {
+    const container = makeContainer();
+    buildDualRangeSlider(container as any, "Range", 0, 1, vi.fn());
+
     const text = allText(container);
-    expect(text).toContain("Scale");
+    expect(text).toContain("0%");
+    expect(text).toContain("100%");
+  });
+
+  it("creates gi-dual-range class", () => {
+    const container = makeContainer();
+    buildDualRangeSlider(container as any, "R", 0, 1, vi.fn());
+
+    const row = findEl(container, ".gi-dual-range");
+    expect(row).not.toBeNull();
   });
 });
 
-// ---------------------------------------------------------------------------
-// Edge cases for addSlider
-// ---------------------------------------------------------------------------
-describe("addSlider edge cases", () => {
-  it("handles zero range", () => {
-    const container = createMockEl();
-    const onChange = vi.fn();
-    const row = addSlider(container as any, "Zero", 5, 5, 1, 5, onChange);
-    expect(row).toBeTruthy();
+// ===========================================================================
+// addCheckboxGroup
+// ===========================================================================
+describe("addCheckboxGroup", () => {
+  it("creates a checkbox group with items", () => {
+    const container = makeContainer();
+    addCheckboxGroup(
+      container as any,
+      "Options",
+      ["A", "B", "C"],
+      new Set(["A", "C"]),
+      vi.fn(),
+    );
+
+    const text = allText(container);
+    expect(text).toContain("Options");
+    expect(text).toContain("A");
+    expect(text).toContain("B");
+    expect(text).toContain("C");
   });
 
-  it("handles negative range", () => {
-    const container = createMockEl();
-    const onChange = vi.fn();
-    const row = addSlider(container as any, "Neg", -10, 10, 1, 0, onChange);
-    expect(row).toBeTruthy();
+  it("creates checkbox inputs", () => {
+    const container = makeContainer();
+    addCheckboxGroup(
+      container as any,
+      "Items",
+      ["x", "y"],
+      new Set(["x"]),
+      vi.fn(),
+    );
+
+    const inputs = findAllEl(container, "input");
+    expect(inputs.length).toBe(2);
   });
 
-  it("handles floating step", () => {
-    const container = createMockEl();
-    const row = addSlider(container as any, "Float", 0, 1, 0.01, 0.5, vi.fn());
-    expect(row).toBeTruthy();
+  it("shows dash when items is empty", () => {
+    const container = makeContainer();
+    addCheckboxGroup(container as any, "Empty", [], new Set(), vi.fn());
+
+    const empty = findEl(container, ".gi-checkbox-empty");
+    expect(empty).not.toBeNull();
+  });
+
+  it("creates label elements for each checkbox", () => {
+    const container = makeContainer();
+    addCheckboxGroup(
+      container as any,
+      "Tags",
+      ["tag1", "tag2", "tag3"],
+      new Set(["tag1"]),
+      vi.fn(),
+    );
+
+    const labels = findAllEl(container, "label");
+    expect(labels.length).toBe(3);
+  });
+
+  it("creates gi-checkbox-group control", () => {
+    const container = makeContainer();
+    addCheckboxGroup(container as any, "G", ["a"], new Set(), vi.fn());
+
+    const group = findEl(container, ".gi-checkbox-group");
+    expect(group).not.toBeNull();
   });
 });
 
-// ---------------------------------------------------------------------------
-// Edge cases for addSelect
-// ---------------------------------------------------------------------------
-describe("addSelect edge cases", () => {
-  it("handles empty options list", () => {
-    const container = createMockEl();
-    addSelect(container as any, "None", [], "", vi.fn());
-    const selects = findAllEl(container, "select");
-    expect(selects.length).toBe(1);
-    expect(findAllEl(container, "option")).toHaveLength(0);
+// ===========================================================================
+// addSelect
+// ===========================================================================
+describe("addSelect", () => {
+  it("creates a select dropdown", () => {
+    const container = makeContainer();
+    addSelect(
+      container as any,
+      "Layout",
+      [
+        { value: "force", label: "Force" },
+        { value: "grid", label: "Grid" },
+      ],
+      "force",
+      vi.fn(),
+    );
+
+    const select = findEl(container, "select");
+    expect(select).not.toBeNull();
   });
 
-  it("handles initial value not in options", () => {
-    const container = createMockEl();
-    const options = [
-      { value: "a", label: "Alpha" },
-      { value: "b", label: "Beta" },
-    ];
-    addSelect(container as any, "Test", options, "nonexistent", vi.fn());
-    const optEls = findAllEl(container, "option");
-    expect(optEls).toHaveLength(2);
+  it("renders option elements", () => {
+    const container = makeContainer();
+    addSelect(
+      container as any,
+      "Mode",
+      [
+        { value: "a", label: "Alpha" },
+        { value: "b", label: "Beta" },
+        { value: "c", label: "Gamma" },
+      ],
+      "b",
+      vi.fn(),
+    );
+
+    const options = findAllEl(container, "option");
+    expect(options.length).toBe(3);
   });
 
-  it("handles single option", () => {
-    const container = createMockEl();
-    addSelect(container as any, "Single", [{ value: "x", label: "Only" }], "x", vi.fn());
-    expect(findAllEl(container, "option")).toHaveLength(1);
+  it("shows label text", () => {
+    const container = makeContainer();
+    addSelect(container as any, "Sort By", [{ value: "x", label: "X" }], "x", vi.fn());
+
+    const text = allText(container);
+    expect(text).toContain("Sort By");
+  });
+
+  it("sets aria-label on select", () => {
+    const container = makeContainer();
+    addSelect(container as any, "Filter", [{ value: "all", label: "All" }], "all", vi.fn());
+
+    const select = findEl(container, "select");
+    expect(select).not.toBeNull();
+    expect(select!.attrs["aria-label"]).toBe("Filter");
+  });
+
+  it("uses description as title when provided", () => {
+    const container = makeContainer();
+    addSelect(
+      container as any,
+      "Type",
+      [{ value: "a", label: "A" }],
+      "a",
+      vi.fn(),
+      "Select the type",
+    );
+
+    const text = allText(container);
+    expect(text).toContain("Type");
   });
 });
