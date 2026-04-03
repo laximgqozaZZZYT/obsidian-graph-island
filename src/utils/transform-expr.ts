@@ -333,7 +333,7 @@ function curveToFuncName(curve: CurveKind): string {
 	return MAP[curve] ?? curve.toUpperCase();
 }
 
-function formatCurveParams(curve: CurveKind, params?: Record<string, number>): string {
+function _formatCurveParams(curve: CurveKind, params?: Record<string, number>): string {
 	if (!params) return "";
 	const def = CURVE_REGISTRY[curve];
 	if (!def) return "";
@@ -349,7 +349,7 @@ function formatCurveParams(curve: CurveKind, params?: Record<string, number>): s
 }
 
 /** Try to reverse-map an expression string to a known math function name */
-function exprToMathFunc(expr: string): string | null {
+function _exprToMathFunc(expr: string): string | null {
 	const normalized = expr.replace(/\s+/g, "");
 	const MAP: Record<string, string> = {
 		"sin(t*pi*2)": "SIN",

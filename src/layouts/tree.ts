@@ -1,4 +1,4 @@
-import type { GraphData, GraphNode, TreeLayoutOptions } from "../types";
+import type { GraphData, TreeLayoutOptions } from "../types";
 import { computeInDegree } from "../analysis/graph-analysis";
 import { EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION } from "../constants";
 

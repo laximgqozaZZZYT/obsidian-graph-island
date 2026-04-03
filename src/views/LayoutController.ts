@@ -7,7 +7,7 @@ import {
 	type Simulation,
 	type Force,
 } from "d3-force";
-import type { GraphNode, GraphEdge, DirectionalGravityRule, ClusterGroupRule, NodeRule } from "../types";
+import type { GraphNode, GraphEdge, DirectionalGravityRule } from "../types";
 import {
 	TAG_DISPLAY_ENCLOSURE,
 	SOURCE_PROPERTY,

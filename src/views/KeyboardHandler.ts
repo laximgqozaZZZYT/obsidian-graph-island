@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // KeyboardHandler — keyboard shortcut handling extracted from GVC (Phase 4)
 // ---------------------------------------------------------------------------
-import type { App, TFile } from "obsidian";
+import type { App } from "obsidian";
 import { t } from "../i18n";
 
 /** Minimal interface for GVC methods needed by keyboard shortcuts */

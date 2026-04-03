@@ -9,7 +9,7 @@
  */
 
 import { CanvasContainer } from "../canvas2d/CanvasContainer";
-import { mat3Identity, mat3Multiply, mat3Translate, mat3Scale } from "./mat3";
+import { mat3Multiply } from "./mat3";
 
 // Pre-allocated scratch matrices to avoid per-frame allocations
 const _scratchTranslate = new Float32Array(9);

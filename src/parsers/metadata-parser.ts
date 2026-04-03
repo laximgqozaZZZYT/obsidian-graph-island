@@ -510,7 +510,7 @@ export function buildSunburstData(app: App, groupField: string): SunburstData {
  * Tag nodes (isTag) are colored by their tag name.
  * File nodes are colored by category first, then by first tag.
  */
-export function assignNodeColors(nodes: GraphNode[], colorField: string): Map<string, string> {
+export function assignNodeColors(nodes: GraphNode[], _colorField: string): Map<string, string> {
 	const colorMap = new Map<string, string>();
 	const categories = new Set<string>();
 	const tags = new Set<string>();

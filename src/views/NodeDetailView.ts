@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, MarkdownRenderer, Component, setIcon } from "obsidian";
+import { ItemView, TFile, MarkdownRenderer, Component, setIcon } from "obsidian";
 import type { GraphNode, GraphEdge } from "../types";
 import { t } from "../i18n";
 import { EVENT_HOVER_NODE, EVENT_HIGHLIGHT_NODES } from "../constants";

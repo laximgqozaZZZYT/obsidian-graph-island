@@ -1,10 +1,10 @@
 import { CanvasGraphics, CanvasContainer, CanvasText } from "./canvas2d";
 import type { Pt } from "../utils/geometry";
 import { convexHull, clamp, rectsOverlap } from "../utils/geometry";
-import { cssColorToHex, shiftHue, hslToHex, stringHash } from "../utils/graph-helpers";
-import { hexToRgb, wcagContrastRatio, contrastColor } from "../utils/color";
+import { hslToHex, stringHash } from "../utils/graph-helpers";
+import { wcagContrastRatio, contrastColor } from "../utils/color";
 import { darkenColor } from "./RenderPipeline";
-import { DEFAULT_COLORS } from "../types";
+// DEFAULT_COLORS removed (unused)
 import { TAG_DISPLAY_ENCLOSURE } from "../constants";
 
 // ---------------------------------------------------------------------------
@@ -328,7 +328,7 @@ export function drawEnclosures(
 						: 0;
 
 		let labelX = 0,
-			labelY = 0;
+			_labelY = 0;
 		let labelCenterX = 0,
 			labelCenterY = 0;
 
@@ -374,7 +374,7 @@ export function drawEnclosures(
 			const r = p.radius + outlinePad(p.radius, memberCount);
 			g.drawCircle(p.x, p.y, r);
 			labelX = p.x;
-			labelY = p.y - r - labelOffset(ws);
+			_labelY = p.y - r - labelOffset(ws);
 			labelCenterX = p.x;
 			labelCenterY = p.y;
 		} else if (pts.length === 2) {
@@ -382,7 +382,7 @@ export function drawEnclosures(
 			const r = maxR + outlinePad(maxR, memberCount);
 			drawCapsule(g, pts[0], pts[1], r);
 			labelX = (pts[0].x + pts[1].x) / 2;
-			labelY = Math.min(pts[0].y, pts[1].y) - r - labelOffset(ws);
+			_labelY = Math.min(pts[0].y, pts[1].y) - r - labelOffset(ws);
 			labelCenterX = labelX;
 			labelCenterY = (pts[0].y + pts[1].y) / 2;
 		} else {
@@ -398,7 +398,7 @@ export function drawEnclosures(
 					labelX = p.x;
 				}
 			}
-			labelY = topY - labelOffset(ws);
+			// _labelY computed but unused — label placement uses labelCenterY instead
 			labelCenterX = sumX / expanded.length;
 			labelCenterY = sumY / expanded.length;
 		}
@@ -620,8 +620,8 @@ export function drawCapsule(g: CanvasGraphics, p0: Pt, p1: Pt, radius: number) {
 	const d = { x: p0.x - px * r, y: p0.y - py * r };
 
 	const k = CAPSULE_CURVE_FACTOR;
-	const p1out = { x: p1.x + ux * r * k, y: p1.y + uy * r * k };
-	const p0out = { x: p0.x - ux * r * k, y: p0.y - uy * r * k };
+	const _p1out = { x: p1.x + ux * r * k, y: p1.y + uy * r * k };
+	const _p0out = { x: p0.x - ux * r * k, y: p0.y - uy * r * k };
 
 	// 直線的な国境スタイル — 角丸なしの矩形カプセル
 	g.moveTo(a.x, a.y);

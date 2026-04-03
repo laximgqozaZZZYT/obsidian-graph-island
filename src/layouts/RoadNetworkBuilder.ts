@@ -9,7 +9,7 @@
 import type { GraphNode, GraphEdge, RenderThresholds } from "../types";
 import { DEFAULT_RENDER_THRESHOLDS } from "../types";
 import { buildRoadNetwork, buildRoadNetworkFromPhantoms, addTrunkRoads, type RoadNetwork } from "./cable-tray";
-import type { ClusterMetadata, ArrangementGuide, GroupGuideEntry } from "./cluster-force";
+import type { ClusterMetadata } from "./cluster-force";
 import type { ResolvedGridInfo } from "./coordinate-engine";
 import type { Simulation } from "d3-force";
 import { ARRANGEMENT_TRIANGLE, GUIDE_TYPE_COORDINATE, POLAR_ARRANGEMENTS } from "../constants";

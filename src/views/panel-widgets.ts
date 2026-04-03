@@ -8,12 +8,8 @@ import type {
 	ClusterGroupRule,
 	ClusterGroupBy,
 	GraphViewsSettings,
-	NodeRule,
-	GroupRule,
-	SortRule,
-	SortOrder,
 } from "../types";
-import type { ShapeRule, NodeShape } from "../utils/node-shapes";
+// ShapeRule import removed (unused)
 import { DEFAULT_COLORS } from "../types";
 import { EDGE_TYPE_INHERITANCE } from "../constants";
 import { parseQueryExpr, serializeExpr } from "../utils/query-expr";

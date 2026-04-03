@@ -3,7 +3,7 @@
 // Renders a `graph-island` code block as a Canvas 2D graph snapshot.
 // ---------------------------------------------------------------------------
 import type { App } from "obsidian";
-import type { GraphViewsSettings, GraphNode, GraphEdge, GraphData } from "../types";
+import type { GraphViewsSettings, GraphNode, GraphData } from "../types";
 import { DEFAULT_COLORS } from "../types";
 import { buildGraphFromVault, assignNodeColors } from "../parsers/metadata-parser";
 import { EDGE_TYPE_HAS_TAG } from "../constants";
@@ -147,7 +147,7 @@ function doRender(container: HTMLElement, config: EmbedConfig, app: App, setting
 	layoutConcentric(data.nodes, config.center);
 
 	// Assign colors
-	const colorMap = assignNodeColors(data.nodes, settings.colorField);
+	const _colorMap = assignNodeColors(data.nodes, settings.colorField);
 
 	// Create canvas
 	const canvas = document.createElement("canvas");
@@ -187,7 +187,7 @@ function doRender(container: HTMLElement, config: EmbedConfig, app: App, setting
 	}
 
 	// Build node lookup for edge positions
-	const nodeById = new Map(data.nodes.map((n) => [n.id, n]));
+	const _nodeById = new Map(data.nodes.map((n) => [n.id, n]));
 
 	// Draw nodes
 	const nodeRadius = Math.max(3, Math.min(8, 200 / Math.sqrt(data.nodes.length)));

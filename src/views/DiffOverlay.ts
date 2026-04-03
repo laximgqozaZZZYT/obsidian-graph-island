@@ -5,7 +5,7 @@
 // 既存のインタラクション（ホバー、クリック、ドラッグ）に干渉しない。
 // ---------------------------------------------------------------------------
 
-import type { SnapshotDiff, SnapshotNode, SnapshotEdge } from "../types";
+import type { SnapshotDiff, SnapshotNode } from "../types";
 import type { PixiNode } from "./InteractionManager";
 
 // ---------------------------------------------------------------------------
@@ -15,7 +15,7 @@ import type { PixiNode } from "./InteractionManager";
 /** 追加ノードのリング色（緑） */
 const ADDED_COLOR = "#22c55e";
 /** 追加ノードのリングアルファ */
-const ADDED_ALPHA = 0.7;
+const _ADDED_ALPHA = 0.7;
 
 /** 削除ノードの色（グレー） */
 const REMOVED_COLOR = "#9ca3af";
@@ -25,7 +25,7 @@ const REMOVED_ALPHA = 0.3;
 /** メタデータ変更ノードのリング色（黄色） */
 const CHANGED_COLOR = "#eab308";
 /** メタデータ変更ノードのリングアルファ */
-const CHANGED_ALPHA = 0.7;
+const _CHANGED_ALPHA = 0.7;
 
 /** 追加エッジの色（緑） */
 const ADDED_EDGE_COLOR = "#22c55e";

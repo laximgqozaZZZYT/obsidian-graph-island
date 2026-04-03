@@ -246,7 +246,7 @@ export function computeSunburstArcs(root: SunburstData, width: number, height: n
 
 		for (const child of node.children) {
 			const childValue = child.value ?? 0;
-			const childSpan = totalValue > 0 ? (childValue / totalValue) * (2 * Math.PI) : 0;
+			const _childSpan = totalValue > 0 ? (childValue / totalValue) * (2 * Math.PI) : 0;
 			const childEnd = currentAngle + (childValue / (node.value ?? 1)) * span;
 			traverse(child, depth + 1, currentAngle, childEnd);
 			currentAngle = childEnd;

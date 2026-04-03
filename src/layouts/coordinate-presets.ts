@@ -1,4 +1,4 @@
-import type { CoordinateLayout, ClusterArrangement, AxisConfig, AxisSource, CurveKind } from "../types";
+import type { CoordinateLayout, ClusterArrangement, CurveKind } from "../types";
 import {
 	SOURCE_PROPERTY,
 	SOURCE_RANDOM,

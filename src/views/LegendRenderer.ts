@@ -2,7 +2,7 @@
  * LegendRenderer — extracted from GraphViewContainer (Phase 2).
  * Renders the interactive legend overlay (node colors, edge relations, shapes).
  */
-import type { PanelState } from "./PanelBuilder";
+// PanelState import removed (unused)
 import { invalidateBundleCache } from "./EdgeRenderer";
 import { t } from "../i18n";
 import { incCounter } from "../utils/graph-helpers";

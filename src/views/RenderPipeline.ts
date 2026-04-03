@@ -10,7 +10,7 @@ import type {
 } from "../types";
 import { DEFAULT_CARD_RENDER_CONFIG, mergeRenderThresholds } from "../types";
 import type { PixiNode } from "./InteractionManager";
-import { getNodeShape, drawShape, drawShapeAt, getNodeDisplayConfig } from "../utils/node-shapes";
+import { getNodeShape, drawShape, drawShapeAt } from "../utils/node-shapes";
 import type { ShapeRule } from "../utils/node-shapes";
 import { effectiveRadius } from "../layouts/cluster-force";
 import { Platform } from "obsidian";
@@ -93,10 +93,10 @@ export function computeZoomFadeAlpha(zoom: number, fadeStart = 0.7, fadeEnd = 0.
 }
 
 /** Maximum number of labels created before dynamically raising degree threshold */
-const MAX_LABEL_COUNT = 1500;
+const _MAX_LABEL_COUNT = 1500;
 
 /** Default minimum degree threshold for showing node labels */
-const DEFAULT_LABEL_DEGREE_THRESHOLD = 3;
+const _DEFAULT_LABEL_DEGREE_THRESHOLD = 3;
 
 /** Number of nodes created synchronously before deferring the rest */
 const IMMEDIATE_BATCH_SIZE = 50;
@@ -1098,7 +1098,6 @@ export class RenderPipeline {
 			pixiNodes,
 			tlFilteredOut,
 			alpha,
-			nodeCount,
 			worldScale,
 			isExtremeZoom,
 			isMidZoom,
@@ -1581,7 +1580,7 @@ export class RenderPipeline {
 		// Cap card counter-scale to prevent cards from becoming enormous at extreme zoom-out
 		const cardScale = Math.min(1 / worldScale, CARD_SCALE_CAP);
 		// Sync font size cap with cardScale to prevent text overflow
-		const cardFontScaleCap = CARD_SCALE_CAP * worldScale; // effective 1/worldScale capped
+		const _cardFontScaleCap = CARD_SCALE_CAP * worldScale; // effective 1/worldScale capped
 		const headerH = crc.tableHeaderHeight * cardScale;
 		const fieldLineH = crc.fieldLineHeight * cardScale;
 		const pad = crc.cardPadding * cardScale;
@@ -1824,7 +1823,7 @@ export class RenderPipeline {
 		const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
 
 		for (const pn of visible) {
-			const effR = Math.max(pn.radius, minWorldRadius);
+			const _effR = Math.max(pn.radius, minWorldRadius);
 			const nodeAlpha = tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * crc.filteredNodeAlpha : alpha;
 			const MIN_PLAIN_HALF_W = 20 / worldScale;
 			// HM: Step 1 — estimate base height (title + optional meta)
@@ -2430,7 +2429,7 @@ export class RenderPipeline {
 	// =========================================================================
 	// Pass 15: S1 Hierarchy tree overlay — purple lines from focused node
 	// =========================================================================
-	private _renderHierarchyOverlay(g: CanvasGraphics, ctx: { visible: PixiNode[] }) {
+	private _renderHierarchyOverlay(g: CanvasGraphics, _ctx: { visible: PixiNode[] }) {
 		const tree = this.host.getHierarchyTree?.();
 		if (!tree || tree.size === 0) return;
 

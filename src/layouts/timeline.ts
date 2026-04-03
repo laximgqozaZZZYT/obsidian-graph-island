@@ -204,7 +204,7 @@ function assignHierarchicalLanes(
 }
 
 /** Extract short node name from ID for parent_id matching */
-function extractNodeName(nodeId: string, nodes: GraphNode[]): string {
+function _extractNodeName(nodeId: string, nodes: GraphNode[]): string {
 	const n = nodes.find((n) => n.id === nodeId);
 	const fp = (n as any)?.filePath || nodeId;
 	const filename = fp.split("/").pop()?.replace(".md", "") ?? nodeId;

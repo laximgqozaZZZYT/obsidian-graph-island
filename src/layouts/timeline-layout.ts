@@ -395,7 +395,7 @@ export function timelineAlignHierarchy(
 ): void {
 	// BFS from roots: place children directly below their parent
 	const roots: string[] = [];
-	for (const [childId, parentId] of parentMap) {
+	for (const [, parentId] of parentMap) {
 		if (!parentMap.has(parentId)) roots.push(parentId);
 	}
 	// Deduplicate roots

@@ -1,4 +1,4 @@
-import { Plugin, MarkdownView } from "obsidian";
+import { Plugin } from "obsidian";
 import { GraphViewsSettingTab } from "./settings";
 import { GraphViewContainer, VIEW_TYPE_GRAPH } from "./views/GraphViewContainer";
 import { NodeDetailView, VIEW_TYPE_NODE_DETAIL } from "./views/NodeDetailView";
@@ -208,7 +208,7 @@ export default class GraphViewsPlugin extends Plugin {
 		this.addSettingTab(new GraphViewsSettingTab(this.app, this));
 
 		// Code block processor for embedded mini-graphs in notes
-		this.registerMarkdownCodeBlockProcessor("graph-island", (source, el, ctx) => {
+		this.registerMarkdownCodeBlockProcessor("graph-island", (source, el, _ctx) => {
 			import("./views/EmbeddedGraphRenderer")
 				.then(({ renderEmbeddedGraph }) => {
 					renderEmbeddedGraph(el, source, this.app, this.settings);

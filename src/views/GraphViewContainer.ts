@@ -8,7 +8,6 @@ import {
 	Menu,
 	MarkdownView,
 	Notice,
-	Modal,
 	type ViewStateResult,
 } from "obsidian";
 import { CanvasContainer, CanvasGraphics, CanvasText } from "./canvas2d";
@@ -26,10 +25,6 @@ import type {
 	DirectionalGravityRule,
 	GroupPreset,
 	ClusterGroupRule,
-	NodeRule,
-	NodeDisplayMode,
-	CardDisplayConfig,
-	DonutDisplayConfig,
 	GraphSnapshot,
 	GraphTemplate,
 } from "../types";
@@ -43,7 +38,7 @@ import {
 	applyMonochromeFallback,
 } from "../parsers/metadata-parser";
 import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
-import { applyTreeLayout } from "../layouts/tree";
+// applyTreeLayout removed (unused import)
 import { applyArcLayout } from "../layouts/arc";
 import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import { applyTimelineLayout } from "../layouts/timeline";
@@ -64,7 +59,6 @@ import {
 	edgeSourceId,
 	edgeTargetId,
 	bfsNeighborSet,
-	bfsShortestPath,
 	collectSubgraph,
 	exportSubgraphJSON,
 	exportFullGraphJSON,
@@ -72,7 +66,6 @@ import {
 	exportGraphMermaid,
 	edgeTypeSummary,
 	collapsedGroupSummary,
-	truncateBreadcrumb,
 	incCounter,
 	computeGaps,
 	hitTestTimelineBars,
@@ -99,7 +92,6 @@ import {
 	type PanelState,
 	type PanelCallbacks,
 	type PanelContext,
-	type NodeTreeEntry,
 	DEFAULT_PANEL,
 	createDefaultPanel,
 	validatePanelState,
@@ -156,7 +148,6 @@ import {
 	computeEntropyScores,
 } from "./SearchOrchestrator";
 import {
-	EDGE_TYPE_SIMILAR,
 	LAYOUT_FORCE,
 	LAYOUT_CONCENTRIC,
 	LAYOUT_TREE,
@@ -164,7 +155,6 @@ import {
 	LAYOUT_SUNBURST,
 	LAYOUT_TIMELINE,
 	TAG_DISPLAY_ENCLOSURE,
-	TAG_DISPLAY_NODE,
 	ARRANGEMENT_TIMELINE,
 	ARRANGEMENT_CONCENTRIC,
 	ARRANGEMENT_GRID,
@@ -365,7 +355,7 @@ export function resolveNodeColor(
 
 export const VIEW_TYPE_GRAPH = "graph-view";
 
-const TICK_SKIP = 4;
+const _TICK_SKIP = 4;
 
 /** Fallback canvas dimensions when DOM element is not yet measured */
 const DEFAULT_CANVAS_WIDTH = 600;
@@ -769,7 +759,7 @@ export class GraphViewContainer
 
 	private applyGroupPresets() {
 		const presets = this.plugin.settings.groupPresets ?? [];
-		let applied = false;
+		// applied flag removed (was assigned but never read)
 		for (const preset of presets) {
 			const cond = preset.condition;
 			if (cond.layout && cond.layout !== this.currentLayout) continue;
@@ -792,7 +782,7 @@ export class GraphViewContainer
 				];
 			}
 			this.panel.clusterGroupRules = deriveClusterRules(preset);
-			applied = true;
+			// applied flag (unused — preset always matches)
 			break;
 		}
 		// Fallback: enclosure mode should always have a commonQuery
@@ -3910,7 +3900,7 @@ export class GraphViewContainer
 		editorDiv.style.left = `${sx}px`;
 		editorDiv.style.top = `${sy + 20}px`;
 
-		const title = editorDiv.createEl("div", { cls: "gi-inline-editor-title", text: pn.data.label });
+		editorDiv.createEl("div", { cls: "gi-inline-editor-title", text: pn.data.label });
 
 		// Show top 5 frontmatter fields as inputs
 		const fields = fm
@@ -4889,7 +4879,7 @@ export class GraphViewContainer
 	 * When nodeIds is null, the ephemeral highlight is cleared.
 	 */
 	private applyEphemeralHighlight(nodeIds: Set<string> | null) {
-		const prev = this.ephemeralHighlight;
+		// prev ephemeral state not needed for overlay logic
 		this.ephemeralHighlight = nodeIds;
 
 		// If there's a normal hover active, ephemeral highlight overlays on top
@@ -6296,7 +6286,6 @@ export class GraphViewContainer
 		// Limit total labels to avoid visual clutter at zoom-out
 		const maxLabels = Math.min(200, Math.round(80 * worldScale));
 
-		let drawnBars = 0;
 		for (const bar of bars) {
 			const w = bar.xEnd - bar.xStart;
 			const h = bar.barHeight;
@@ -6306,7 +6295,6 @@ export class GraphViewContainer
 			// Viewport cull
 			if (x + w < vpLeft || x > vpRight || y + h < vpTop || y > vpBottom) continue;
 
-			drawnBars++;
 			const pn = this.pixiNodes.get(bar.nodeId);
 			const color = pn ? pn.color : 0x888888;
 			const cornerR = Math.min(h / 2, barCornerRBase);
@@ -6655,7 +6643,6 @@ export class GraphViewContainer
 		// Road width adapts to zoom: ensure minimum screen-space visibility.
 		// We must redraw when zoom changes significantly because lineStyle
 		// width is baked into the draw commands.
-		const isDark = this.isDarkTheme();
 		const roadColor = rt.roadColor;
 		const baseRoadWidth = rt.roadWidth;
 		// Minimum 1px on screen → minWorldWidth = 1/worldScale
@@ -6875,7 +6862,7 @@ export class GraphViewContainer
 		this.renderPipeline?.redrawNodeBatch();
 	}
 
-	private updatePositions(forceFullRedraw = false) {
+	private updatePositions(_forceFullRedraw = false) {
 		// Delegate position sync to the pipeline; this method is still called
 		// from doRender for the initial layout draw.
 		for (const pn of this.pixiNodes.values()) {
@@ -9112,7 +9099,6 @@ export class GraphViewContainer
 							// Check X overlap
 							if (cur.xStart >= prev.xEnd || prev.xStart >= cur.xEnd) continue;
 							// Check Y overlap
-							const prevTop = prev.yCenter - prev.barHeight / 2;
 							const prevBot = prev.yCenter + prev.barHeight / 2;
 							const curTop = cur.yCenter - cur.barHeight / 2;
 							if (curTop < prevBot) {
@@ -9602,7 +9588,7 @@ export class GraphViewContainer
 			const filename = `graph-island-${ts}.png`;
 
 			// Obsidianの添付ファイルフォルダ設定を尊重してパスを決定
-			const activeFile = mdView.file;
+			const _activeFile = mdView.file;
 			const attachPath = (this.app.vault as any).getAvailablePath
 				? (this.app.vault as any).getAvailablePath(
 						((this.app.vault as any).config?.attachmentFolderPath || "") +

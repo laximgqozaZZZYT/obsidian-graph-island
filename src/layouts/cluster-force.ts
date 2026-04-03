@@ -22,7 +22,7 @@
 import type { GraphNode, GraphEdge, ClusterArrangement, ClusterGroupRule, CoordinateLayout } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
 import { computeBBoxWithCentroid, magnitude } from "../utils/geometry";
-import { resolveArrangementFromLayout, isExactPreset, ARRANGEMENT_PRESETS } from "./coordinate-presets";
+import { ARRANGEMENT_PRESETS } from "./coordinate-presets";
 import { coordinateOffsets, type CoordinateGuide, type CoordinateContext } from "./coordinate-engine";
 import {
 	ARRANGEMENT_CONCENTRIC,
@@ -460,7 +460,7 @@ export function buildClusterForce(
 		const overrides = cfg.manualClusterOverrides;
 		for (const [nodeId, targetGroup] of Object.entries(overrides)) {
 			// Remove from current group
-			for (const [gk, members] of groups) {
+			for (const [, members] of groups) {
 				const idx = members.findIndex((n) => n.id === nodeId);
 				if (idx >= 0) {
 					const [node] = members.splice(idx, 1);
@@ -1431,7 +1431,7 @@ function computeUnifiedTimelineTargets(
 	}
 
 	// --- Step 2: re-stack Y per group ---
-	const { perGroupOffsets, minNodeGap } = unifiedTimelineRestackY(
+	const { perGroupOffsets } = unifiedTimelineRestackY(
 		unified.offsets,
 		groupOfNode,
 		groupKeys,
@@ -2099,7 +2099,6 @@ function layoutGroupsConcentric(
 	// Step 4-5: Distribute remaining groups across concentric rings
 	// using pairwise max-reference for inter-group distance
 	const centerR = groupRadii.get(keys[0]) ?? 0;
-	let prevMaxR = centerR;
 	let ringRadius = centerR + pairwiseGap(centerR, groupRadii.get(keys[1]) ?? 0, cfg.groupSpacing);
 	let idx = 1;
 
@@ -2131,7 +2130,6 @@ function layoutGroupsConcentric(
 		const ringMaxR = Math.max(...ringGroups.map((k) => groupRadii.get(k) ?? 0));
 		const nextR = idx < keys.length ? (groupRadii.get(keys[idx]) ?? 0) : ringMaxR;
 		ringRadius += ringMaxR + pairwiseGap(ringMaxR, nextR, cfg.groupSpacing) + nextR;
-		prevMaxR = ringMaxR;
 	}
 }
 
@@ -2773,7 +2771,7 @@ function radialOffsets(p: ArrangementParams): ArrangementResult {
 // ---------------------------------------------------------------------------
 
 function gridOffsets(p: ArrangementParams): ArrangementResult {
-	const { members, degrees, nodeSpacing, groupScale, maxGroupNodeR: nodeSize, cmp, nodeSpacingMap } = p;
+	const { members, nodeSpacing, groupScale, maxGroupNodeR: nodeSize, cmp, nodeSpacingMap } = p;
 	const sorted = [...members].sort(cmp);
 	const offsets = new Map<string, { dx: number; dy: number }>();
 	const n = sorted.length;
@@ -2824,7 +2822,7 @@ function gridOffsets(p: ArrangementParams): ArrangementResult {
 // ---------------------------------------------------------------------------
 
 function triangleOffsets(p: ArrangementParams): ArrangementResult {
-	const { members, degrees, nodeSpacing, groupScale, maxGroupNodeR: nodeSize, cmp, nodeSpacingMap } = p;
+	const { members, nodeSpacing, groupScale, maxGroupNodeR: nodeSize, cmp, nodeSpacingMap } = p;
 	const sorted = [...members].sort(cmp);
 	const offsets = new Map<string, { dx: number; dy: number }>();
 	const n = sorted.length;
@@ -3053,7 +3051,7 @@ function randomOffsets(p: ArrangementParams): Map<string, { dx: number; dy: numb
  *
  * Max nudge per node per tick is capped to prevent pattern destruction.
  */
-function nudgeEnclosureGroups(
+function _nudgeEnclosureGroups(
 	nodeIdx: Map<string, GraphNode>,
 	tagMembership: Map<string, Set<string>>,
 	nodeSpacing: number,

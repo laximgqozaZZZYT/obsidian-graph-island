@@ -1,4 +1,4 @@
-import { App, Modal, Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
+import { App, Modal, Notice, PluginSettingTab, Setting } from "obsidian";
 import type GraphViewsPlugin from "./main";
 import type { GraphViewsSettings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";

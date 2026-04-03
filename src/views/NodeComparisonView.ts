@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, setIcon } from "obsidian";
+import { ItemView, setIcon } from "obsidian";
 import type { GraphNode } from "../types";
 import { t } from "../i18n";
 import { EVENT_COMPARE_NODES, EVENT_HIGHLIGHT_NODES } from "../constants";

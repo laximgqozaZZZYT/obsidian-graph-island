@@ -20,10 +20,8 @@ import type {
 	CoordinateLayout,
 	CoordinateSystem,
 	ShapeFillKind,
-	GridConfig,
 	GridAxisConfig,
 	GridShape,
-	GridPositionSource,
 	GridStyle,
 	CurveKind,
 } from "../types";
@@ -612,7 +610,7 @@ function transformExpression(
 	let ast: ExprNode;
 	try {
 		ast = parseExpr(expr);
-	} catch (parseErr) {
+	} catch {
 		// Invalid expression — fallback to linear
 		// Invalid expression — fallback to linear spacing
 		for (const [id, v] of rawValues) {
