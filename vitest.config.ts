@@ -12,11 +12,11 @@ export default defineConfig({
       reporter: ["text-summary", "json-summary"],
       reportsDirectory: "coverage",
       thresholds: {
-        // Ratchet: Round 2 coverage expansion (+82 tests, 5 new test files)
-        statements: 35.9,
-        branches: 31.9,
-        functions: 33.2,
-        lines: 35.8,
+        // Ratchet: Round 3 coverage expansion (+219 tests, 5 new test files)
+        statements: 36.1,
+        branches: 32.2,
+        functions: 33.6,
+        lines: 36.0,
       },
     },
   },
