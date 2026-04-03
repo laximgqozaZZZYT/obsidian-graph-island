@@ -290,13 +290,8 @@ export interface PresetMigrationInfo {
 /** Metadata fields added by exportPreset — stripped during import */
 const EXPORT_META_FIELDS = new Set(["_version", "_exportedAt"]);
 
-export function importPreset(json: string, migrationInfo?: PresetMigrationInfo): Partial<PanelState> {
-	const raw = JSON.parse(json);
-
-	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-		throw new Error("Preset must be a JSON object");
-	}
-
+/** Extract metadata and apply legacy field migrations to the raw preset object */
+function migratePresetFields(raw: Record<string, unknown>, migrationInfo?: PresetMigrationInfo): void {
 	// Extract export metadata before processing
 	if (migrationInfo) {
 		if (typeof raw._version === "string") migrationInfo.sourceVersion = raw._version;
@@ -330,78 +325,61 @@ export function importPreset(json: string, migrationInfo?: PresetMigrationInfo):
 		delete raw.colorNodesByCategory;
 		delete raw.heatmapMode;
 	}
-	// Migrate removed "edges" tab → "display" (edges section was merged into display tab)
+	// Migrate removed "edges" tab → "display"
 	if (raw.activeTab === "edges") {
 		raw.activeTab = "display";
 		migrationInfo?.migratedFields.push("activeTab: edges → display");
 	}
+}
+
+/** Validate and assign a single field value to the result object by type category */
+function validateAndAssignField(out: Record<string, unknown>, key: string, value: unknown): void {
+	if ((BOOLEAN_FIELDS as string[]).includes(key)) {
+		if (typeof value === "boolean") out[key] = value;
+		return;
+	}
+	if ((NUMBER_FIELDS as string[]).includes(key)) {
+		if (typeof value === "number" && isFinite(value)) out[key] = value;
+		return;
+	}
+	if ((STRING_FIELDS as string[]).includes(key)) {
+		if (typeof value === "string") out[key] = value;
+		return;
+	}
+	if (key in ENUM_VALUES) {
+		const k = key as keyof PanelState;
+		const allowed = ENUM_VALUES[k];
+		if (allowed && typeof value === "string" && allowed.includes(value)) out[key] = value;
+		return;
+	}
+	if ((ARRAY_FIELDS as string[]).includes(key)) {
+		if (Array.isArray(value) || value === null) out[key] = value;
+		return;
+	}
+	if ((SET_FIELDS as string[]).includes(key)) {
+		if (Array.isArray(value)) out[key] = value;
+		return;
+	}
+	if ((NULLABLE_OBJECT_FIELDS as string[]).includes(key)) {
+		if (value === null || (typeof value === "object" && !Array.isArray(value))) out[key] = value;
+	}
+}
+
+export function importPreset(json: string, migrationInfo?: PresetMigrationInfo): Partial<PanelState> {
+	const raw = JSON.parse(json);
+
+	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+		throw new Error("Preset must be a JSON object");
+	}
+
+	migratePresetFields(raw, migrationInfo);
 
 	const result: Partial<PanelState> = {};
-	// Use a string-keyed record view for dynamic property assignment.
-	// This is safe because every key written is validated against VALID_KEYS
-	// and type-checked per category before assignment.
 	const out = result as Record<string, unknown>;
 
 	for (const [key, value] of Object.entries(raw)) {
 		if (!VALID_KEYS.has(key)) continue;
-
-		// Boolean fields
-		if ((BOOLEAN_FIELDS as string[]).includes(key)) {
-			if (typeof value === "boolean") {
-				out[key] = value;
-			}
-			continue;
-		}
-
-		// Number fields
-		if ((NUMBER_FIELDS as string[]).includes(key)) {
-			if (typeof value === "number" && isFinite(value)) {
-				out[key] = value;
-			}
-			continue;
-		}
-
-		// String fields
-		if ((STRING_FIELDS as string[]).includes(key)) {
-			if (typeof value === "string") {
-				out[key] = value;
-			}
-			continue;
-		}
-
-		// Enum fields
-		if (key in ENUM_VALUES) {
-			const k = key as keyof PanelState;
-			const allowed = ENUM_VALUES[k];
-			if (allowed && typeof value === "string" && allowed.includes(value)) {
-				out[key] = value;
-			}
-			continue;
-		}
-
-		// Array fields (some are nullable, e.g. groupByRules)
-		if ((ARRAY_FIELDS as string[]).includes(key)) {
-			if (Array.isArray(value) || value === null) {
-				out[key] = value;
-			}
-			continue;
-		}
-
-		// Set fields — accept arrays (will be converted to Set in applyPreset)
-		if ((SET_FIELDS as string[]).includes(key)) {
-			if (Array.isArray(value)) {
-				out[key] = value;
-			}
-			continue;
-		}
-
-		// Nullable object fields (object | null)
-		if ((NULLABLE_OBJECT_FIELDS as string[]).includes(key)) {
-			if (value === null || (typeof value === "object" && !Array.isArray(value))) {
-				out[key] = value;
-			}
-			continue;
-		}
+		validateAndAssignField(out, key, value);
 	}
 
 	return result;

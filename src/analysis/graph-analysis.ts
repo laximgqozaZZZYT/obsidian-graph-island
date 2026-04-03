@@ -261,66 +261,77 @@ export function detectArticulationPoints(nodes: GraphNode[], edges: GraphEdge[])
  * @param degrees Pre-computed degree map
  * @param betweenness Optional betweenness centrality map
  */
-export function generateStructureQuestions(
-	nodes: GraphNode[],
-	edges: GraphEdge[],
-	degrees: Map<string, number>,
-	betweenness?: Map<string, number>,
-): string[] {
-	const questions: string[] = [];
-	if (nodes.length === 0) return questions;
-
-	// Top hub
-	let maxDeg = 0;
-	let maxDegId = "";
-	for (const [id, deg] of degrees) {
-		if (deg > maxDeg) {
-			maxDeg = deg;
-			maxDegId = id;
+/** Find the entry with the highest value in a map */
+function findMaxEntry(map: Map<string, number>): [string, number] {
+	let maxVal = 0;
+	let maxId = "";
+	for (const [id, val] of map) {
+		if (val > maxVal) {
+			maxVal = val;
+			maxId = id;
 		}
 	}
+	return [maxId, maxVal];
+}
+
+/** Hub and betweenness questions */
+function hubQuestions(
+	nodes: GraphNode[],
+	degrees: Map<string, number>,
+	betweenness: Map<string, number> | undefined,
+): { questions: string[]; maxDegId: string; maxDeg: number } {
+	const questions: string[] = [];
+	const [maxDegId, maxDeg] = findMaxEntry(degrees);
+
 	if (maxDegId) {
 		const label = nodes.find((n) => n.id === maxDegId)?.label ?? maxDegId;
 		questions.push(`Why is "${label}" so highly connected (${maxDeg} edges)?`);
 	}
 
-	// Top betweenness (bridge node)
 	if (betweenness && betweenness.size > 0) {
-		let maxBet = 0;
-		let maxBetId = "";
-		for (const [id, bc] of betweenness) {
-			if (bc > maxBet) {
-				maxBet = bc;
-				maxBetId = id;
-			}
-		}
+		const [maxBetId] = findMaxEntry(betweenness);
 		if (maxBetId && maxBetId !== maxDegId) {
 			const label = nodes.find((n) => n.id === maxBetId)?.label ?? maxBetId;
 			questions.push(`What disconnects if "${label}" is removed? (highest betweenness)`);
 		}
 	}
 
-	// Orphans
+	return { questions, maxDegId, maxDeg };
+}
+
+/** Coverage and density questions */
+function coverageQuestions(
+	nodes: GraphNode[],
+	edges: GraphEdge[],
+	degrees: Map<string, number>,
+): { questions: string[]; orphanCount: number } {
+	const questions: string[] = [];
+
 	const orphanCount = nodes.filter((n) => (degrees.get(n.id) ?? 0) === 0).length;
 	if (orphanCount > 3) {
 		questions.push(`${orphanCount} orphan nodes — should they be linked?`);
 	}
 
-	// Tag coverage
 	const taggedCount = nodes.filter((n) => n.tags && n.tags.length > 0).length;
 	const untaggedPct = nodes.length > 0 ? ((nodes.length - taggedCount) / nodes.length) * 100 : 0;
 	if (untaggedPct > 30) {
 		questions.push(`${untaggedPct.toFixed(0)}% of nodes are untagged — consider adding tags?`);
 	}
 
-	// Density
 	const density = nodes.length > 1 ? (2 * edges.length) / (nodes.length * (nodes.length - 1)) : 0;
 	if (density < 0.01 && nodes.length > 10) {
 		questions.push(`Graph density is very low (${density.toFixed(4)}) — are relations missing?`);
 	}
 
-	// I6: Gap questions — why are clusters disconnected?
-	// Build adjacency and count connected components
+	return { questions, orphanCount };
+}
+
+/** Build adjacency map and count connected components */
+function componentQuestions(
+	nodes: GraphNode[],
+	edges: GraphEdge[],
+): { questions: string[]; adj: Map<string, Set<string>> } {
+	const questions: string[] = [];
 	const adj = new Map<string, Set<string>>();
 	for (const n of nodes) adj.set(n.id, new Set());
 	for (const e of edges) {
@@ -345,47 +356,61 @@ export function generateStructureQuestions(
 	if (componentCount > 1) {
 		questions.push(`Graph has ${componentCount} disconnected components — what bridges are missing?`);
 	}
+	return { questions, adj };
+}
 
-	// I6: Resilience questions — what if the top hub is removed?
-	if (maxDegId && maxDeg > 5) {
-		const hubNeighbors = adj.get(maxDegId);
-		if (hubNeighbors && hubNeighbors.size > 0) {
-			const hubLabel = nodes.find((n) => n.id === maxDegId)?.label ?? maxDegId;
-			questions.push(`If "${hubLabel}" were removed, would ${hubNeighbors.size} neighbors stay connected?`);
-		}
-	}
-
-	// I6: Opportunity questions — high orphan rate suggests linking potential
-	const orphanRate = nodes.length > 0 ? orphanCount / nodes.length : 0;
-	if (orphanRate > 0.3 && orphanCount > 5) {
-		questions.push(
-			`${(orphanRate * 100).toFixed(0)}% orphan rate — could metadata fields reveal hidden connections?`,
-		);
-	}
-
-	// I6: Tag diversity question — are tags too concentrated?
+/** Tag diversity question */
+function tagDiversityQuestion(nodes: GraphNode[]): string | null {
 	const tagFreq = new Map<string, number>();
 	for (const n of nodes) {
 		for (const t of n.tags ?? []) {
 			incCounter(tagFreq, t);
 		}
 	}
-	if (tagFreq.size > 0) {
-		let topTag = "";
-		let topTagCount = 0;
-		for (const [tag, count] of tagFreq) {
-			if (count > topTagCount) {
-				topTagCount = count;
-				topTag = tag;
-			}
-		}
-		const tagDominance = topTagCount / nodes.length;
-		if (tagDominance > 0.5 && tagFreq.size < 5) {
-			questions.push(
-				`Tag "${topTag}" covers ${(tagDominance * 100).toFixed(0)}% of nodes — should it be split into sub-tags?`,
-			);
+	if (tagFreq.size === 0) return null;
+
+	const [topTag, topTagCount] = findMaxEntry(tagFreq);
+	const tagDominance = topTagCount / nodes.length;
+	if (tagDominance > 0.5 && tagFreq.size < 5) {
+		return `Tag "${topTag}" covers ${(tagDominance * 100).toFixed(0)}% of nodes — should it be split into sub-tags?`;
+	}
+	return null;
+}
+
+export function generateStructureQuestions(
+	nodes: GraphNode[],
+	edges: GraphEdge[],
+	degrees: Map<string, number>,
+	betweenness?: Map<string, number>,
+): string[] {
+	if (nodes.length === 0) return [];
+
+	const hub = hubQuestions(nodes, degrees, betweenness);
+	const cov = coverageQuestions(nodes, edges, degrees);
+	const comp = componentQuestions(nodes, edges);
+
+	const questions = [...hub.questions, ...cov.questions, ...comp.questions];
+
+	// Resilience: what if the top hub is removed?
+	if (hub.maxDegId && hub.maxDeg > 5) {
+		const hubNeighbors = comp.adj.get(hub.maxDegId);
+		if (hubNeighbors && hubNeighbors.size > 0) {
+			const hubLabel = nodes.find((n) => n.id === hub.maxDegId)?.label ?? hub.maxDegId;
+			questions.push(`If "${hubLabel}" were removed, would ${hubNeighbors.size} neighbors stay connected?`);
 		}
 	}
+
+	// Opportunity: high orphan rate suggests linking potential
+	const orphanRate = nodes.length > 0 ? cov.orphanCount / nodes.length : 0;
+	if (orphanRate > 0.3 && cov.orphanCount > 5) {
+		questions.push(
+			`${(orphanRate * 100).toFixed(0)}% orphan rate — could metadata fields reveal hidden connections?`,
+		);
+	}
+
+	// Tag diversity
+	const tagQ = tagDiversityQuestion(nodes);
+	if (tagQ) questions.push(tagQ);
 
 	return questions;
 }
