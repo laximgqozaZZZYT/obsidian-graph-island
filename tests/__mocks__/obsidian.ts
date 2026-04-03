@@ -15,11 +15,36 @@ export class ItemView extends Component {
   getDisplayText() { return ""; }
 }
 
+export class WorkspaceLeaf {}
+
 export class App {
   vault = {
     getAbstractFileByPath: () => null,
+    cachedRead: async () => "",
   };
   metadataCache = {
     getFileCache: () => null,
+    resolvedLinks: {},
+  };
+  workspace = {
+    trigger: () => {},
+    on: () => ({ id: "" }),
+    openLinkText: async () => {},
   };
 }
+
+export function setIcon(_el: any, _icon: string) {}
+
+export const MarkdownRenderer = {
+  render: async () => {},
+};
+
+export class Menu {
+  addItem() { return this; }
+  addSeparator() { return this; }
+  showAtPosition() {}
+}
+
+export const Platform = {
+  isMobile: false,
+};

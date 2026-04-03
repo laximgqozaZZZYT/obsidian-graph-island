@@ -94,3 +94,38 @@ describe("clampScale", () => {
     expect(clampScale(-Infinity)).toBe(ZOOM_SCALE_MIN);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Zoom factor + clamp integration
+// ---------------------------------------------------------------------------
+describe("zoom factor + clamp integration", () => {
+  it("repeated zoom-in stays within bounds", () => {
+    let scale = 1.0;
+    for (let i = 0; i < 200; i++) {
+      scale *= computeZoomFactor(-1, 2.0);
+      scale = clampScale(scale);
+    }
+    expect(scale).toBe(ZOOM_SCALE_MAX);
+  });
+
+  it("repeated zoom-out stays within bounds", () => {
+    let scale = 1.0;
+    for (let i = 0; i < 200; i++) {
+      scale *= computeZoomFactor(1, 2.0);
+      scale = clampScale(scale);
+    }
+    expect(scale).toBe(ZOOM_SCALE_MIN);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PixiNode interface shape (type-level, verifying import works)
+// ---------------------------------------------------------------------------
+describe("PixiNode interface", () => {
+  it("can be imported from InteractionManager", async () => {
+    const mod = await import("../src/views/InteractionManager");
+    // Just verifying module loads without error
+    expect(mod.computeZoomFactor).toBeTypeOf("function");
+    expect(mod.clampScale).toBeTypeOf("function");
+  });
+});

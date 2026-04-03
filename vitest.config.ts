@@ -12,11 +12,11 @@ export default defineConfig({
       reporter: ["text-summary", "json-summary"],
       reportsDirectory: "coverage",
       thresholds: {
-        // Baseline: v0.6.1 (2936 tests, cycle223 panel-widgets + nodeRadius/effectiveRadius)
-        statements: 35.0,
-        branches: 31.3,
-        functions: 32.7,
-        lines: 35.0,
+        // Ratchet: Round 2 coverage expansion (+82 tests, 5 new test files)
+        statements: 35.8,
+        branches: 31.9,
+        functions: 33.2,
+        lines: 35.7,
       },
     },
   },

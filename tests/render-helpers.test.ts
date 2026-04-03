@@ -12,6 +12,16 @@ import {
   computeDegenerateSpread,
   generatePhantomNodes,
   resolveAnalysisOverlay,
+  blendThemeLabel,
+  lightenHex,
+  heatmapColor,
+  resolveNodeColor,
+  cleanArcName,
+  areSavedPositionsValid,
+  findMatchingGroupPreset,
+  COMMUNITY_PALETTE,
+  AGGREGATE_ZOOM_THRESHOLD,
+  ALL_PRESETS,
   type TooltipTextOptions,
 } from "../src/views/RenderHelpers";
 
@@ -403,5 +413,327 @@ describe("resolveAnalysisOverlay", () => {
     const flags = resolveAnalysisOverlay("gaps");
     expect(flags.showGapEdges).toBe(true);
     expect(flags.showBridgeNodes).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// blendThemeLabel — blend bg toward nodeColor at 15%
+// ---------------------------------------------------------------------------
+describe("blendThemeLabel", () => {
+  it("returns bg color when nodeColor equals bg", () => {
+    expect(blendThemeLabel(0xffffff, 0xffffff)).toBe(0xffffff);
+  });
+
+  it("blends black bg toward white at 15%", () => {
+    const result = blendThemeLabel(0x000000, 0xffffff);
+    // 15% of 255 = ~38 for each channel
+    const r = (result >> 16) & 0xff;
+    const g = (result >> 8) & 0xff;
+    const b = result & 0xff;
+    expect(r).toBeCloseTo(38, 0);
+    expect(g).toBeCloseTo(38, 0);
+    expect(b).toBeCloseTo(38, 0);
+  });
+
+  it("blends white bg toward black at 15%", () => {
+    const result = blendThemeLabel(0xffffff, 0x000000);
+    const r = (result >> 16) & 0xff;
+    expect(r).toBeCloseTo(217, 0); // 255 - 38
+  });
+
+  it("produces valid 24-bit color", () => {
+    const result = blendThemeLabel(0x336699, 0xff0000);
+    expect(result).toBeGreaterThanOrEqual(0);
+    expect(result).toBeLessThanOrEqual(0xffffff);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// lightenHex — lighten a color by factor
+// ---------------------------------------------------------------------------
+describe("lightenHex", () => {
+  it("returns same color at factor 0", () => {
+    expect(lightenHex(0x336699, 0)).toBe(0x336699);
+  });
+
+  it("clamps to white at factor 1", () => {
+    expect(lightenHex(0x000000, 1.0)).toBe(0xffffff);
+  });
+
+  it("lightens by partial factor", () => {
+    const result = lightenHex(0x000000, 0.5);
+    const r = (result >> 16) & 0xff;
+    expect(r).toBe(128); // 0 + 255*0.5 = 127.5 -> 128
+  });
+
+  it("does not exceed 255 per channel", () => {
+    const result = lightenHex(0xffffff, 0.5);
+    expect(result).toBe(0xffffff);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// heatmapColor — cold-to-warm gradient
+// ---------------------------------------------------------------------------
+describe("heatmapColor", () => {
+  it("returns cold (blue) color at degree 0", () => {
+    const result = heatmapColor(0, 100);
+    const r = (result >> 16) & 0xff;
+    const b = result & 0xff;
+    expect(b).toBeGreaterThan(r); // blue-dominant
+  });
+
+  it("returns warm (red) color at max degree", () => {
+    const result = heatmapColor(100, 100);
+    const r = (result >> 16) & 0xff;
+    const b = result & 0xff;
+    expect(r).toBeGreaterThan(b); // red-dominant
+  });
+
+  it("clamps t to 1 when degree exceeds maxDegree", () => {
+    const atMax = heatmapColor(100, 100);
+    const beyond = heatmapColor(200, 100);
+    expect(beyond).toBe(atMax);
+  });
+
+  it("handles maxDegree of 0 gracefully", () => {
+    const result = heatmapColor(5, 0);
+    // t = min(1, 5/max(1,0)) = min(1,5) = 1
+    expect(result).toBe(heatmapColor(100, 100));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveNodeColor — category -> tag fallback -> default
+// ---------------------------------------------------------------------------
+describe("resolveNodeColor", () => {
+  it("returns category color when available", () => {
+    const colorMap = new Map([["character", "#ff0000"]]);
+    expect(resolveNodeColor({ category: "character" }, colorMap, "#ccc")).toBe("#ff0000");
+  });
+
+  it("falls back to tag color when no category match", () => {
+    const colorMap = new Map([["tag:hero", "#00ff00"]]);
+    expect(resolveNodeColor({ tags: ["hero"] }, colorMap, "#ccc")).toBe("#00ff00");
+  });
+
+  it("returns default when no match", () => {
+    expect(resolveNodeColor({}, new Map(), "#ccc")).toBe("#ccc");
+  });
+
+  it("prefers category over tag", () => {
+    const colorMap = new Map([
+      ["character", "#ff0000"],
+      ["tag:hero", "#00ff00"],
+    ]);
+    expect(resolveNodeColor(
+      { category: "character", tags: ["hero"] },
+      colorMap,
+      "#ccc",
+    )).toBe("#ff0000");
+  });
+
+  it("uses first tag only", () => {
+    const colorMap = new Map([["tag:second", "#00ff00"]]);
+    expect(resolveNodeColor({ tags: ["first", "second"] }, colorMap, "#ccc")).toBe("#ccc");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cleanArcName — strip redundant path prefix
+// ---------------------------------------------------------------------------
+describe("cleanArcName", () => {
+  it("returns name as-is when no slash", () => {
+    expect(cleanArcName("simple")).toBe("simple");
+  });
+
+  it("strips duplicate last segment", () => {
+    expect(cleanArcName("bible-apocrypha/bible-apocrypha")).toBe("bible-apocrypha");
+  });
+
+  it("returns last segment for non-duplicate path", () => {
+    expect(cleanArcName("fiction/characters")).toBe("characters");
+  });
+
+  it("handles deeper paths", () => {
+    expect(cleanArcName("a/b/c")).toBe("c");
+  });
+
+  it("handles trailing slash edge case", () => {
+    // "a/" splits to ["a", ""], last is "", second-last is "a" — not equal
+    const result = cleanArcName("a/");
+    expect(result).toBe("a/"); // falls to last || name
+  });
+});
+
+// ---------------------------------------------------------------------------
+// areSavedPositionsValid
+// ---------------------------------------------------------------------------
+describe("areSavedPositionsValid", () => {
+  it("returns false for empty map", () => {
+    expect(areSavedPositionsValid(new Map(), 800, 600)).toBe(false);
+  });
+
+  it("returns true for valid positions", () => {
+    const positions = new Map([
+      ["a", { x: 100, y: 200 }],
+      ["b", { x: -300, y: 400 }],
+    ]);
+    expect(areSavedPositionsValid(positions, 800, 600)).toBe(true);
+  });
+
+  it("returns false when position has NaN", () => {
+    const positions = new Map([["a", { x: NaN, y: 100 }]]);
+    expect(areSavedPositionsValid(positions, 800, 600)).toBe(false);
+  });
+
+  it("returns false when position has Infinity", () => {
+    const positions = new Map([["a", { x: Infinity, y: 100 }]]);
+    expect(areSavedPositionsValid(positions, 800, 600)).toBe(false);
+  });
+
+  it("returns false when position exceeds 5x canvas dimension", () => {
+    const positions = new Map([["a", { x: 5000, y: 0 }]]);
+    // maxCoord = max(800, 600) * 5 = 4000
+    expect(areSavedPositionsValid(positions, 800, 600)).toBe(false);
+  });
+
+  it("returns true at boundary of 5x canvas dimension", () => {
+    const positions = new Map([["a", { x: 4000, y: 0 }]]);
+    expect(areSavedPositionsValid(positions, 800, 600)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findMatchingGroupPreset
+// ---------------------------------------------------------------------------
+describe("findMatchingGroupPreset", () => {
+  const presets = [
+    { condition: { layout: "force", tagDisplay: "label" }, name: "p1" },
+    { condition: { layout: "concentric" }, name: "p2" },
+    { condition: {}, name: "p3" },
+  ] as any[];
+
+  it("matches preset with matching layout and tagDisplay", () => {
+    const result = findMatchingGroupPreset(presets, "force", "label");
+    expect(result?.name).toBe("p1");
+  });
+
+  it("matches preset with only layout condition", () => {
+    const result = findMatchingGroupPreset(presets, "concentric", "any");
+    expect(result?.name).toBe("p2");
+  });
+
+  it("matches catch-all preset (empty condition)", () => {
+    const result = findMatchingGroupPreset(presets, "timeline", "any");
+    expect(result?.name).toBe("p3");
+  });
+
+  it("returns null for empty presets array", () => {
+    expect(findMatchingGroupPreset([], "force", "label")).toBeNull();
+  });
+
+  it("skips preset when layout does not match", () => {
+    // Only p3 (catch-all) should match for "grid" layout
+    const result = findMatchingGroupPreset(
+      [{ condition: { layout: "force" }, name: "p1" }] as any[],
+      "grid",
+      "label",
+    );
+    expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+describe("RenderHelpers constants", () => {
+  it("COMMUNITY_PALETTE has 20 colors", () => {
+    expect(COMMUNITY_PALETTE.length).toBe(20);
+  });
+
+  it("COMMUNITY_PALETTE entries are valid 24-bit colors", () => {
+    for (const c of COMMUNITY_PALETTE) {
+      expect(c).toBeGreaterThanOrEqual(0);
+      expect(c).toBeLessThanOrEqual(0xffffff);
+    }
+  });
+
+  it("AGGREGATE_ZOOM_THRESHOLD is between 0 and 1", () => {
+    expect(AGGREGATE_ZOOM_THRESHOLD).toBeGreaterThan(0);
+    expect(AGGREGATE_ZOOM_THRESHOLD).toBeLessThan(1);
+  });
+
+  it("ALL_PRESETS contains expected preset keys", () => {
+    expect(ALL_PRESETS).toHaveProperty("simple");
+    expect(ALL_PRESETS).toHaveProperty("analysis");
+    expect(ALL_PRESETS).toHaveProperty("creative");
+    expect(ALL_PRESETS).toHaveProperty("explore");
+    expect(ALL_PRESETS).toHaveProperty("analyze");
+    expect(ALL_PRESETS).toHaveProperty("write");
+  });
+
+  it("ALL_PRESETS values are objects", () => {
+    for (const [key, val] of Object.entries(ALL_PRESETS)) {
+      expect(typeof val).toBe("object");
+      expect(val).not.toBeNull();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildHoverTooltipText — custom fields and collapsed members
+// ---------------------------------------------------------------------------
+describe("buildHoverTooltipText (additional)", () => {
+  const baseOpts: TooltipTextOptions = {
+    label: "Node A",
+    showTitle: true,
+    showTooltip: true,
+    showMeta: true,
+    showBody: false,
+    isKeyboardFocused: false,
+    showSimilarSuggestions: false,
+    degree: 5,
+    isEnclosure: false,
+    hasVisibleTagLabel: false,
+    edgeTypeSummary: new Map(),
+    similarNodes: [],
+  };
+
+  it("includes custom field values via getFieldValue", () => {
+    const text = buildHoverTooltipText({
+      ...baseOpts,
+      hoverTooltipFields: "status, priority",
+      getFieldValue: (field: string) =>
+        field === "status" ? "active" : field === "priority" ? "high" : undefined,
+    });
+    expect(text).toContain("status: active");
+    expect(text).toContain("priority: high");
+  });
+
+  it("skips custom fields with no value", () => {
+    const text = buildHoverTooltipText({
+      ...baseOpts,
+      hoverTooltipFields: "missing",
+      getFieldValue: () => undefined,
+    });
+    expect(text).not.toContain("missing:");
+  });
+
+  it("includes collapsed member count", () => {
+    const text = buildHoverTooltipText({
+      ...baseOpts,
+      collapsedMembers: ["a", "b", "c"],
+    });
+    expect(text).toContain("3 members");
+  });
+
+  it("skips tags for enclosure nodes", () => {
+    const text = buildHoverTooltipText({
+      ...baseOpts,
+      tags: ["tag1"],
+      isEnclosure: true,
+    });
+    expect(text).not.toContain("#tag1");
   });
 });
