@@ -2272,7 +2272,9 @@ function _drawEdgesSinglePass(
 		}
 
 		let lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
-		let { alpha, lineThick, isHighlighted: edgeHL } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+		const { alpha: _alpha, lineThick: _lineThick, isHighlighted: edgeHL } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+		let alpha = _alpha;
+		let lineThick = _lineThick;
 
 		// Zoom-out: desaturate edge colors toward gray for visual calm
 		// Skip for highlighted edges — they should stay vivid.
@@ -2405,11 +2407,13 @@ function _drawEdgesLayered(
 			}
 
 			let lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
-			let {
-				alpha,
-				lineThick,
+			const {
+				alpha: _alpha2,
+				lineThick: _lineThick2,
 				isHighlighted: edgeHLL,
 			} = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+			let alpha = _alpha2;
+			let lineThick = _lineThick2;
 
 			// Brighten highlighted edges for visual emphasis
 			if (edgeHLL) {
