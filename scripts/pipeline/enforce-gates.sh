@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # enforce-gates.sh — Mechanical quality gate enforcement
 # Usage: bash scripts/pipeline/enforce-gates.sh [--skip-e2e] [--json]
-set -euo pipefail
+set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 SKIP_E2E=false
