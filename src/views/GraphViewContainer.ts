@@ -1218,7 +1218,7 @@ export class GraphViewContainer
 
 		// Find current selection index
 		const currentId = this.highlightedNodeId;
-		let currentIdx = currentId ? bars.findIndex((b: any) => b.nodeId === currentId) : -1;
+		const currentIdx = currentId ? bars.findIndex((b: any) => b.nodeId === currentId) : -1;
 
 		// Sort bars by Y then X for navigation order
 		const sorted = bars
@@ -4337,7 +4337,6 @@ export class GraphViewContainer
 			const ny = dy / dist;
 
 			// Place tooltip at canvas edge in the direction of the group
-			let tipX: number, tipY: number;
 			// Find intersection with canvas boundary
 			const tMax = 10000;
 			let t = tMax;
@@ -4346,8 +4345,8 @@ export class GraphViewContainer
 			if (ny > 0.01) t = Math.min(t, (canvasH - margin - hovSy) / ny);
 			else if (ny < -0.01) t = Math.min(t, (margin - hovSy) / ny);
 			t = Math.max(40, t); // minimum distance from node
-			tipX = Math.max(margin, Math.min(canvasW - margin, hovSx + nx * t));
-			tipY = Math.max(margin, Math.min(canvasH - margin, hovSy + ny * t));
+			const tipX = Math.max(margin, Math.min(canvasW - margin, hovSx + nx * t));
+			const tipY = Math.max(margin, Math.min(canvasH - margin, hovSy + ny * t));
 
 			// Cluster display name
 			const clusterName = clusterKey.replace(/^folder:/, "").replace(/^[^:]+:/, "");
@@ -9670,21 +9669,20 @@ export class GraphViewContainer
 		const targetY = wrap.clientHeight / 2 - pn.data.y * world.scale.y;
 		const startTime = performance.now();
 
-		const self = this;
-		function animate(now: number) {
+		const animate = (now: number) => {
 			const elapsed = now - startTime;
 			const t = Math.min(1, elapsed / durationMs);
 			const ease = t * (2 - t); // ease-out quadratic
 			world!.x = startX + (targetX - startX) * ease;
 			world!.y = startY + (targetY - startY) * ease;
-			self.markDirty();
+			this.markDirty();
 			if (t < 1) {
 				requestAnimationFrame(animate);
 			} else {
-				self.setHighlightedNodeId(nodeId);
-				self.applyHover();
+				this.setHighlightedNodeId(nodeId);
+				this.applyHover();
 			}
-		}
+		};
 		requestAnimationFrame(animate);
 	}
 
@@ -9693,15 +9691,14 @@ export class GraphViewContainer
 		const startAlpha = pn.gfx.alpha;
 		if (Math.abs(startAlpha - targetAlpha) < 0.01) return;
 		const startTime = performance.now();
-		const self = this;
-		function tick(now: number) {
+		const tick = (now: number) => {
 			const t = Math.min(1, (now - startTime) / durationMs);
 			pn.gfx.alpha = startAlpha + (targetAlpha - startAlpha) * t;
 			if (t < 1) {
 				requestAnimationFrame(tick);
 			}
-			self.markDirty();
-		}
+			this.markDirty();
+		};
 		requestAnimationFrame(tick);
 	}
 
@@ -10096,7 +10093,7 @@ export class GraphViewContainer
 		// Count nodes in this group
 		const arcs = this.sunburstLayoutArcs;
 		let leafCount = 0;
-		let depth2Names: string[] = [];
+		const depth2Names: string[] = [];
 		for (const arc of arcs) {
 			if (arc.depth === 1 && arc.name === groupName) continue;
 			// Check if arc belongs to this group (depth-1 ancestor)
