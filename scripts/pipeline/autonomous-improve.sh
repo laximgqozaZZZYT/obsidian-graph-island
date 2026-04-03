@@ -3,6 +3,10 @@
 # crontab: 23 */3 * * * /home/ubuntu/obsidian-plugins/obsidian-graph-island/scripts/pipeline/autonomous-improve.sh >> /tmp/graph-island-improve.log 2>&1
 set -uo pipefail
 
+# ── PATH setup (cron inherits minimal PATH) ──
+export PATH="/home/ubuntu/.local/bin:/home/ubuntu/.nvm/versions/node/v22.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export HOME="/home/ubuntu"
+
 PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
 LOCK_FILE="/tmp/graph-island-improve.lock"
 LOG_FILE="/tmp/graph-island-improve.log"
