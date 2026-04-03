@@ -12,11 +12,11 @@ export default defineConfig({
       reporter: ["text-summary", "json-summary"],
       reportsDirectory: "coverage",
       thresholds: {
-        // Baseline: v0.6.1 (2936 tests, cycle223 panel-widgets + nodeRadius/effectiveRadius)
-        statements: 29.7,
-        branches: 27.9,
-        functions: 27.7,
-        lines: 29.4,
+        // Baseline: Cycle4R1 (3268 tests, +256 tests covering EmbeddedGraphRenderer/InteractionManager/NodeDetail/GVC/RoadNetworkBuilder/RenderPipeline/PanelWidgets)
+        statements: 30.2,
+        branches: 28.2,
+        functions: 28.1,
+        lines: 29.8,
       },
     },
   },
