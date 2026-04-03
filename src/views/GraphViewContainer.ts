@@ -34,13 +34,10 @@ import {
 	buildGraphFromVault,
 	assignNodeColors,
 	buildRelationColorMap,
-	buildSunburstData,
 	applyMonochromeFallback,
 } from "../parsers/metadata-parser";
-import { applyConcentricLayout, repositionShell } from "../layouts/concentric";
-import { applyArcLayout } from "../layouts/arc";
-import { applySunburstLayout, type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
-import { applyTimelineLayout } from "../layouts/timeline";
+import { repositionShell } from "../layouts/concentric";
+import { type SunburstArc as LayoutSunburstArc } from "../layouts/sunburst";
 import {
 	computeNodeDegrees,
 	computeBetweennessCentrality,
@@ -83,7 +80,18 @@ import {
 	filterBySubgraph,
 	filterByLocalGraph,
 } from "../utils/graph-filter";
-import { pointInPolygon, convexHull } from "../utils/geometry";
+import { pointInPolygon } from "../utils/geometry";
+import {
+	AGGREGATE_ZOOM_THRESHOLD,
+	collectGroupCentroids,
+	drawClusterBoundaries,
+	computeGroupLabelPlacements,
+	applyGroupLabelPlacements,
+	computeAggregateGroups,
+	drawAggregateGroups,
+	computeGroupLabelAlpha,
+	type GroupNodeInfo,
+} from "./group-label-manager";
 import { expandSuperNodeIds } from "../utils/node-grouping";
 import { hexToRgb } from "../utils/color";
 import {
@@ -155,6 +163,14 @@ import {
 	viewModeSkipsEdges,
 	viewModeUsesDom,
 } from "../utils/view-mode-map";
+import {
+	buildSunburstTooltipContent,
+	drawSunburstLayoutArcs as drawSunburstLayoutArcsImpl,
+	drawSunburstLabels as drawSunburstLabelsImpl,
+	clearSunburstLabels as clearSunburstLabelsImpl,
+} from "./sunburst-renderer";
+import { renderMatrixViewMode as renderMatrixViewModeImpl, type MatrixSortMode } from "./matrix-renderer";
+import { computeStaticLayout, type StaticLayoutResult } from "./layout-compute";
 
 // ---------------------------------------------------------------------------
 // StatsHost — interface for future StatsRenderer extraction (Phase 0)
@@ -276,9 +292,6 @@ export function lightenHex(hex: number, factor: number): number {
 	const lb = Math.min(255, b + Math.round(255 * factor));
 	return (lr << 16) | (lg << 8) | lb;
 }
-
-/** Zoom threshold below which aggregate cluster summaries replace individual nodes */
-const AGGREGATE_ZOOM_THRESHOLD = 0.25;
 
 /**
  * Heatmap color ramp: cold (blue 0x3b82f6) → warm (red 0xef4444).
@@ -5470,19 +5483,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	/** Show group name labels when zoomed out past the text fade threshold.
-	 *  Labels appear at each group's centroid (super-node position or member average). */
+	 *  Labels appear at each group's centroid (super-node position or member average).
+	 *  Heavy logic delegated to group-label-manager.ts. */
 	private _updateGroupByLabels(): void {
 		const rawWs = this.worldContainer?.scale.x ?? 1;
 		const ws = isFinite(rawWs) && rawWs > 0 ? rawWs : 1;
 		const fadeThreshold = Math.max(this.panel.textFadeThreshold, 0.4);
 		const groupBy = this.panel.groupBy;
-		const hasGroupBy = groupBy && groupBy !== "none";
+		const hasGroupBy = !!(groupBy && groupBy !== "none");
 		const hasTagEnclosures =
 			this.panel.showTagNodes && this.panel.tagDisplay === "enclosure" && this.tagMembership.size > 0;
 		const hasGroups = hasGroupBy || hasTagEnclosures;
-
-		// At distant zoom without explicit groupBy, auto-generate folder-based
-		// group labels so the user can orient themselves in the graph.
 		const autoFolderGroups = !hasGroups && ws < fadeThreshold && this.panel.viewMode === "graph";
 
 		// Hide all labels when zoomed in enough or in non-graph viewMode
@@ -5497,153 +5508,45 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (now - this._groupLabelLastUpdate < 100 && this.groupByLabels.size > 0) return;
 		this._groupLabelLastUpdate = now;
 
-		// Crossfade: group labels fade in over a zone (60%-100% of threshold)
-		const fadeStart = fadeThreshold; // fully hidden above this
-		const fadeFull = fadeThreshold * 0.6; // fully visible below this
-		const rawAlpha = (fadeStart - ws) / (fadeStart - fadeFull);
-		const alpha = isFinite(rawAlpha) ? Math.max(0, Math.min(1, rawAlpha)) : 1;
-
-		// Collect group centroids + member IDs
-		const groups = new Map<string, { x: number; y: number; memberCount: number }>();
-		const members = new Map<string, Set<string>>();
-
-		const addMember = (key: string, nodeId: string, px: number, py: number) => {
-			const existing = groups.get(key);
-			if (existing) {
-				const n = existing.memberCount + 1;
-				existing.x += (px - existing.x) / n;
-				existing.y += (py - existing.y) / n;
-				existing.memberCount = n;
-			} else {
-				groups.set(key, { x: px, y: py, memberCount: 1 });
-			}
-			if (!members.has(key)) members.set(key, new Set());
-			members.get(key)!.add(nodeId);
-		};
-
-		if (hasGroupBy) {
-			const fields = groupBy!
-				.replace(/\b(AND|OR|XOR|NOR|NAND|NOT)\b/gi, ",")
-				.split(",")
-				.map((s) => s.trim().replace(/:?\?$/, ""))
-				.filter(Boolean);
-
-			for (const pn of this.pixiNodes.values()) {
-				if (pn.data.id.startsWith("__super__")) {
-					const key = pn.data.id.replace("__super__", "");
-					groups.set(key, { x: pn.gfx.x, y: pn.gfx.y, memberCount: pn.data.collapsedMembers?.length ?? 1 });
-					if (pn.data.collapsedMembers) {
-						members.set(key, new Set(pn.data.collapsedMembers));
-					}
-					continue;
-				}
-				// Build composite key from ALL fields (e.g. "character · classic-hamlet")
-				const vals: string[] = [];
-				for (const field of fields) {
-					let val: string | undefined;
-					if (field === "folder") val = pn.data.filePath?.replace(/\/[^/]*$/, "") || "root";
-					else if (field === "tag") val = pn.data.tags?.[0];
-					else val = pn.data.meta?.[field] as string | undefined;
-					vals.push(val || "ungrouped");
-				}
-				const compositeKey = vals.join(" · ");
-				addMember(compositeKey, pn.data.id, pn.gfx.x, pn.gfx.y);
-			}
-		} else if (hasTagEnclosures || autoFolderGroups) {
-			// Auto-generate folder-based groups from file paths
-			for (const pn of this.pixiNodes.values()) {
-				const path = pn.data.filePath ?? "";
-				const folder = path.split("/")[0] || "root";
-				if (!folder || folder === "root") continue;
-				addMember(`folder:${folder}`, pn.data.id, pn.gfx.x, pn.gfx.y);
-			}
+		// Collect group centroids + member IDs via extracted function
+		const nodeInfos: GroupNodeInfo[] = [];
+		for (const pn of this.pixiNodes.values()) {
+			nodeInfos.push({
+				id: pn.data.id,
+				filePath: pn.data.filePath,
+				tags: pn.data.tags,
+				meta: pn.data.meta as Record<string, unknown> | undefined,
+				x: pn.data.x,
+				y: pn.data.y,
+				gfxX: pn.gfx.x,
+				gfxY: pn.gfx.y,
+				collapsedMembers: pn.data.collapsedMembers,
+			});
 		}
+		const { groups, members } = collectGroupCentroids(nodeInfos, {
+			hasGroupBy,
+			groupByFields: hasGroupBy ? parseGroupByFields(groupBy!) : [],
+			hasTagEnclosures,
+			autoFolderGroups,
+		});
 		this.groupByMembers = members;
 
 		// Draw cluster boundary outlines (only for explicit groupBy, not auto-folder)
-		// Auto-folder groups show labels only — boundaries would be distractingly large
 		const gfx = this.clusterBoundaryGraphics;
 		if (gfx && autoFolderGroups) gfx.clear();
 		if (gfx && !autoFolderGroups) {
-			gfx.clear();
-			const minMembers = Math.max(5, Math.floor(this.pixiNodes.size * 0.01));
-			let colorIdx = 0;
-			const palette = [0x6366f1, 0x22d3ee, 0xfb923c, 0xa78bfa, 0x34d399, 0xf472b6, 0xfbbf24, 0x60a5fa];
-			const HULL_DRIFT_THRESHOLD = 50; // recompute hull only when centroid moves > 50px
-			for (const [key, memberIds] of members) {
-				if (memberIds.size < minMembers) continue;
-				// Compute current centroid (lightweight O(M) — just x/y avg)
-				let sumX = 0,
-					sumY = 0,
-					count = 0;
-				for (const id of memberIds) {
-					const pn = this.pixiNodes.get(id);
-					if (pn) {
-						sumX += pn.gfx.x;
-						sumY += pn.gfx.y;
-						count++;
-					}
-				}
-				if (count < 3) continue;
-				const cx = sumX / count,
-					cy = sumY / count;
-
-				// Check hull cache — reuse if centroid hasn't drifted
-				let cached = this._cachedHulls.get(key);
-				if (
-					!cached ||
-					Math.abs(cached.cx - cx) > HULL_DRIFT_THRESHOLD ||
-					Math.abs(cached.cy - cy) > HULL_DRIFT_THRESHOLD
-				) {
-					// Recompute hull
-					const pts: { x: number; y: number }[] = [];
-					for (const id of memberIds) {
-						const pn = this.pixiNodes.get(id);
-						if (pn) pts.push({ x: pn.gfx.x, y: pn.gfx.y });
-					}
-					const pad = 80;
-					const hullInput: { x: number; y: number }[] = [];
-					for (const p of pts) {
-						const dx = p.x - cx,
-							dy = p.y - cy;
-						const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-						hullInput.push({ x: p.x + (dx / dist) * pad, y: p.y + (dy / dist) * pad });
-					}
-					const hull = convexHull(hullInput);
-					if (hull.length < 3) continue;
-					cached = { cx, cy, hull };
-					this._cachedHulls.set(key, cached);
-				}
-				const hull = cached.hull;
-				const color = palette[colorIdx % palette.length];
-				colorIdx++;
-				const isHovered = key === this._hoveredGroupLabel;
-				gfx.lineStyle(isHovered ? 3 : 1.5, color, isHovered ? 0.6 : 0.25);
-				gfx.beginFill(color, isHovered ? 0.08 : 0.03);
-				// Catmull-Rom spline through hull points for smooth boundary
-				const n = hull.length;
-				const pt = (i: number) => hull[((i % n) + n) % n];
-				const tension = 0.5;
-				gfx.moveTo((pt(0).x + pt(1).x) / 2, (pt(0).y + pt(1).y) / 2);
-				for (let i = 0; i < n; i++) {
-					const p0 = pt(i),
-						p1 = pt(i + 1);
-					const cp1x = p0.x + ((pt(i + 1).x - pt(i - 1).x) * tension) / 3;
-					const cp1y = p0.y + ((pt(i + 1).y - pt(i - 1).y) * tension) / 3;
-					const cp2x = p1.x - ((pt(i + 2).x - p0.x) * tension) / 3;
-					const cp2y = p1.y - ((pt(i + 2).y - p0.y) * tension) / 3;
-					gfx.bezierCurveTo(
-						cp1x,
-						cp1y,
-						cp2x,
-						cp2y,
-						(p0.x + p1.x) / 2 + (p1.x - p0.x) * 0.5,
-						(p0.y + p1.y) / 2 + (p1.y - p0.y) * 0.5,
-					);
-				}
-				gfx.closePath();
-				gfx.endFill();
+			const nodePositions = new Map<string, { x: number; y: number }>();
+			for (const pn of this.pixiNodes.values()) {
+				nodePositions.set(pn.data.id, { x: pn.gfx.x, y: pn.gfx.y });
 			}
+			drawClusterBoundaries(
+				gfx,
+				members,
+				nodePositions,
+				this.pixiNodes.size,
+				this._hoveredGroupLabel,
+				this._cachedHulls,
+			);
 		}
 
 		const labelContainer = this.groupByLabelContainer;
@@ -5655,171 +5558,34 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			world.addChild(labelContainer);
 		}
 
-		// Target ~14px on screen
-		const targetScreenPx = 14;
-		// Use large fontSize with lower scale for better Canvas2D rendering quality
-		const baseFontSize = Math.max(14, Math.round(14 / Math.max(ws, 0.01)));
-		const rawScale = targetScreenPx / (baseFontSize * ws);
-		const labelScale = isFinite(rawScale) ? Math.max(1, rawScale) : 4;
-
-		// Sort groups by member count descending (larger groups get priority)
-		const sorted = [...groups.entries()]
-			.filter(([, g]) => g.memberCount >= Math.max(5, Math.floor(this.pixiNodes.size * 0.01)))
-			.sort((a, b) => b[1].memberCount - a[1].memberCount);
-
-		// Collision avoidance: track placed label screen rects
-		const placed: { x: number; y: number; hw: number; hh: number }[] = [];
-		const estCharW = targetScreenPx * 0.55;
-		const labelH = targetScreenPx + 10;
 		const canvasW = this.canvasWrap?.clientWidth ?? 800;
 		const canvasH = this.canvasWrap?.clientHeight ?? 600;
+		const alpha = computeGroupLabelAlpha(ws, fadeThreshold);
 
-		const usedKeys = new Set<string>();
-		for (const [key, g] of sorted) {
-			usedKeys.add(key);
-			// Strip field prefix for single-field keys (e.g. "tag:character" → "character")
-			// Composite keys (e.g. "character · classic-hamlet") have no prefix
-			const displayName = key.includes(":") && !key.includes(" · ") ? key.replace(/^[^:]+:/, "") : key;
-			const labelText = `${displayName} (${g.memberCount})`;
+		const { placements, visibleKeys } = computeGroupLabelPlacements(
+			groups,
+			this.pixiNodes.size,
+			ws,
+			world?.x ?? 0,
+			world?.y ?? 0,
+			canvasW,
+			canvasH,
+		);
 
-			let txt = this.groupByLabels.get(key);
-			if (!txt) {
-				txt = new CanvasText(labelText, {
-					fontSize: baseFontSize,
-					fill: 0xeeeeee,
-					fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-					fontWeight: "600",
-				});
-				txt.anchor.set(0.5, 0.5);
-				txt.resolution = 2;
-				txt.strokeColor = 0x000000;
-				txt.strokeWidth = 4;
-				txt.bgColor = 0x2a2a3e;
-				txt.bgAlpha = 0.85;
-				txt.bgPadX = 10;
-				txt.bgPadY = 5;
-				this.groupByLabels.set(key, txt);
-				labelContainer.addChild(txt);
-			} else {
-				txt.text = labelText;
-				txt.style.fontSize = baseFontSize;
-			}
-
-			// Aggregate mode: at extreme zoom-out, enlarge labels into prominent
-			// summary bars so they replace the hidden individual nodes.
-			const isAggregateMode = ws < AGGREGATE_ZOOM_THRESHOLD;
-			if (isAggregateMode) {
-				const scaledFontSize = Math.max(14, Math.round((14 / Math.max(ws, 0.001)) * 0.15));
-				txt.style.fontSize = scaledFontSize;
-				txt.bgPadX = 16;
-				txt.bgPadY = 8;
-				txt.strokeWidth = 6;
-			} else {
-				txt.style.fontSize = baseFontSize;
-				txt.bgPadX = 10;
-				txt.bgPadY = 5;
-				txt.strokeWidth = 4;
-			}
-
-			txt.scale.set(labelScale);
-			txt.alpha = alpha;
-			// Visual feedback for hovered label
-			const isHovered = key === this._hoveredGroupLabel;
-			txt.bgColor = isHovered ? 0x4a4a8e : isAggregateMode ? 0x3a3a5e : 0x2a2a3e;
-			txt.bgAlpha = isHovered ? 0.95 : isAggregateMode ? 0.92 : 0.85;
-			txt.style.fill = isHovered ? 0xffffff : 0xeeeeee;
-
-			// Place label, nudging away from collisions (screen space)
-			const originSx = g.x * ws + (world?.x ?? 0);
-			const originSy = g.y * ws + (world?.y ?? 0);
-			let sx = originSx;
-			let sy = originSy;
-			let lx = g.x;
-			let ly = g.y;
-			const hw = labelText.length * estCharW * 0.5;
-			const hh = labelH * 0.5;
-			const margin = 20;
-
-			const collides = (tx: number, ty: number) =>
-				placed.some((p) => Math.abs(tx - p.x) < hw + p.hw && Math.abs(ty - p.y) < hh + p.hh);
-
-			// Multi-directional spiral search: try 8 compass directions at increasing radii.
-			// This avoids the radial-from-center bias that fails for horizontal timeline layouts
-			// where many labels share the same Y strip.
-			const DIRS = [
-				[1, 0],
-				[-1, 0],
-				[0, 1],
-				[0, -1], // cardinal
-				[1, 1],
-				[-1, 1],
-				[1, -1],
-				[-1, -1], // diagonal
-			];
-			const step = Math.max(labelH + 4, hw * 1.5);
-			let resolved = !collides(sx, sy);
-			if (!resolved) {
-				outer: for (let radius = 1; radius <= 12; radius++) {
-					for (const [ddx, ddy] of DIRS) {
-						const tx = originSx + ddx * step * radius;
-						const ty = originSy + ddy * step * radius;
-						// Keep within canvas bounds before accepting position
-						const clampedTx = Math.max(hw + margin, Math.min(canvasW - hw - margin, tx));
-						const clampedTy = Math.max(hh + margin, Math.min(canvasH - hh - margin, ty));
-						if (!collides(clampedTx, clampedTy)) {
-							sx = clampedTx;
-							sy = clampedTy;
-							resolved = true;
-							break outer;
-						}
-					}
-				}
-			}
-			// Clamp final position within visible canvas area
-			sx = Math.max(hw + margin, Math.min(canvasW - hw - margin, sx));
-			sy = Math.max(hh + margin, Math.min(canvasH - hh - margin, sy));
-			lx = (sx - (world?.x ?? 0)) / ws;
-			ly = (sy - (world?.y ?? 0)) / ws;
-
-			txt.x = lx;
-			txt.y = ly;
-			txt.visible = true;
-			placed.push({ x: sx, y: sy, hw, hh });
-		}
-
-		// Second pass: hide groupBy labels that still overlap after spiral nudge.
-		// Labels are already sorted by member count (largest first = highest priority).
-		{
-			const finalRects: { x: number; y: number; hw: number; hh: number }[] = [];
-			for (const [key] of sorted) {
-				const lbl = this.groupByLabels.get(key);
-				if (!lbl || !lbl.visible) continue;
-				const lblSx = lbl.x * ws + (world?.x ?? 0);
-				const lblSy = lbl.y * ws + (world?.y ?? 0);
-				const lblHw = (lbl.text?.length ?? 10) * estCharW * 0.5;
-				const lblHh = labelH * 0.5;
-				const overlaps = finalRects.some(
-					(p) => Math.abs(lblSx - p.x) < lblHw + p.hw && Math.abs(lblSy - p.y) < lblHh + p.hh,
-				);
-				if (overlaps) {
-					lbl.visible = false;
-				} else {
-					finalRects.push({ x: lblSx, y: lblSy, hw: lblHw, hh: lblHh });
-				}
-			}
-		}
-
-		// Hide stale labels
-		for (const [key, lbl] of this.groupByLabels) {
-			if (!usedKeys.has(key)) lbl.visible = false;
-		}
+		applyGroupLabelPlacements(
+			placements,
+			visibleKeys,
+			this.groupByLabels,
+			labelContainer,
+			ws,
+			alpha,
+			this._hoveredGroupLabel,
+		);
 	}
 
 	/**
-	 * At extreme zoom-out (worldScale < 0.08) with groupBy="none", individual nodes
-	 * are invisible but there are no group labels to replace them. This method
-	 * auto-computes folder-based clusters from node positions and draws summary
-	 * circles + labels so the canvas is not empty.
+	 * At extreme zoom-out with groupBy="none", draw folder-based aggregate
+	 * summaries so the canvas is not empty. Heavy logic in group-label-manager.ts.
 	 */
 	private _drawZoomAggregates(): void {
 		const ws = this.worldContainer?.scale?.x ?? 1;
@@ -5847,105 +5613,16 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this.worldContainer.addChild(this._aggregateGraphics);
 		}
 		const g = this._aggregateGraphics;
-		if (!g) return;
-		g.clear();
+		if (!g || !this.worldContainer) return;
 
-		// Group nodes by top-level folder
-		const groups = new Map<string, { nodes: PixiNode[]; sumX: number; sumY: number }>();
-		for (const pn of this.pixiNodes.values()) {
-			const fp = pn.data.filePath ?? "";
-			const slash = fp.indexOf("/");
-			const folder = slash > 0 ? fp.substring(0, slash) : "(root)";
-			let grp = groups.get(folder);
-			if (!grp) {
-				grp = { nodes: [], sumX: 0, sumY: 0 };
-				groups.set(folder, grp);
-			}
-			grp.nodes.push(pn);
-			grp.sumX += pn.data.x;
-			grp.sumY += pn.data.y;
-		}
-
-		// Draw summary for each folder group (3+ members)
-		const palette = [0x60a5fa, 0xf472b6, 0xa78bfa, 0x34d399, 0xfbbf24, 0xfb923c, 0x22d3ee, 0xe879f9];
-		let colorIdx = 0;
-		let labelIdx = 0;
-
-		for (const [folder, group] of groups) {
-			if (group.nodes.length < 3) continue;
-
-			const cx = group.sumX / group.nodes.length;
-			const cy = group.sumY / group.nodes.length;
-
-			// Compute spread radius from max distance to centroid
-			let maxDist = 0;
-			for (const pn of group.nodes) {
-				const dx = pn.data.x - cx;
-				const dy = pn.data.y - cy;
-				const d = Math.sqrt(dx * dx + dy * dy);
-				if (d > maxDist) maxDist = d;
-			}
-			const radius = Math.max(maxDist * 0.8, 50);
-
-			const color = palette[colorIdx % palette.length];
-			colorIdx++;
-
-			// Draw filled circle with outline
-			g.beginFill(color, 0.15);
-			g.drawCircle(cx, cy, radius);
-			g.endFill();
-			g.lineStyle(2, color, 0.5);
-			g.drawCircle(cx, cy, radius);
-
-			// Create or reuse label
-			const labelText = `${folder} (${group.nodes.length})`;
-			let lbl: CanvasText;
-			if (labelIdx < this._aggregateLabels.length) {
-				lbl = this._aggregateLabels[labelIdx];
-				lbl.text = labelText;
-				lbl.visible = true;
-			} else {
-				lbl = new CanvasText(labelText, {
-					fontSize: 14,
-					fill: 0xffffff,
-					fontWeight: "bold",
-				});
-				lbl.anchor.set(0.5, 0.5);
-				lbl.bgAlpha = 0.85;
-				lbl.bgPadX = 12;
-				lbl.bgPadY = 6;
-				lbl.strokeColor = 0x000000;
-				lbl.strokeWidth = 3;
-				if (this.worldContainer) this.worldContainer.addChild(lbl);
-				this._aggregateLabels.push(lbl);
-			}
-			lbl.bgColor = color;
-			lbl.x = cx;
-			lbl.y = cy - radius - 20;
-			// Counter-scale label so it's readable at any zoom
-			const counterScale = Math.min(8, 1 / ws);
-			lbl.scale.set(counterScale);
-
-			// Store hit region for click-to-zoom (in world coords)
-			const estW = labelText.length * 8 * counterScale;
-			const estH = 28 * counterScale;
-			this._aggregateHitRegions.push({
-				x: cx - estW / 2,
-				y: cy - radius - 20 - estH / 2,
-				w: estW,
-				h: estH,
-				cx,
-				cy,
-				r: radius,
-			});
-
-			labelIdx++;
-		}
-
-		// Hide unused labels
-		for (let i = labelIdx; i < this._aggregateLabels.length; i++) {
-			this._aggregateLabels[i].visible = false;
-		}
+		const nodeData = Array.from(this.pixiNodes.values(), (pn) => ({
+			filePath: pn.data.filePath,
+			x: pn.data.x,
+			y: pn.data.y,
+		}));
+		const aggregateGroups = computeAggregateGroups(nodeData);
+		const { hitRegions } = drawAggregateGroups(aggregateGroups, g, this.worldContainer, this._aggregateLabels, ws);
+		this._aggregateHitRegions = hitRegions;
 	}
 
 	/** Hit-test group/aggregate labels and zoom to the matching cluster. */
@@ -9076,231 +8753,48 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this._renderAllAnnotations();
 	}
 
-	/** Compute a static layout (concentric, tree, arc, sunburst, timeline) and return the result. */
+	/** Compute a static layout (delegates to layout-compute). */
 	private _computeStaticLayout(gd: GraphData, cx: number, cy: number, W: number, H: number): GraphData | null {
-		let ld: GraphData;
 		this.shells = [];
 		this.nodeShellIndex.clear();
-		try {
-			const sortCmp = this.buildSortComparator(gd.nodes, gd.edges);
-			const nsMap = this.computeNodeSpacingMap(gd.nodes);
-			switch (this.currentLayout) {
-				case LAYOUT_CONCENTRIC: {
-					const result = applyConcentricLayout(gd, {
-						centerX: cx,
-						centerY: cy,
-						minRadius: this.panel.concentricMinRadius,
-						radiusStep: this.panel.concentricRadiusStep,
-						sortComparator: sortCmp,
-						nodeSpacingMap: nsMap,
-					});
-					ld = result.data;
-					this.shells = result.shells;
-					this.shells.forEach((s, i) => s.nodeIds.forEach((id) => this.nodeShellIndex.set(id, i)));
-					break;
-				}
-				// LAYOUT_TREE removed — tree viewMode deleted
-				case LAYOUT_ARC:
-					ld = applyArcLayout(gd, {
-						centerX: cx,
-						centerY: cy,
-						radius: Math.min(W, H) * 0.4,
-						sortComparator: sortCmp,
-					});
-					break;
-				case LAYOUT_SUNBURST: {
-					const root = buildSunburstData(this.app, this.plugin.settings.groupField);
-					const result = applySunburstLayout(gd, root, {
-						centerX: cx,
-						centerY: cy,
-						width: W,
-						height: H,
-						groupField: this.plugin.settings.groupField,
-						sortComparator: sortCmp,
-					});
-					ld = result.data;
-					this.sunburstLayoutArcs = result.arcs;
-					this.sunburstCenter = { x: result.cx, y: result.cy };
-					break;
-				}
-				case LAYOUT_TIMELINE: {
-					const getNodeProp = (nodeId: string, key: string): string | undefined => {
-						const fp = gd.nodes.find((n) => n.id === nodeId)?.filePath;
-						if (!fp) return undefined;
-						const tf = this.app.vault.getAbstractFileByPath(fp);
-						if (!(tf instanceof TFile)) return undefined;
-						const val = this.app.metadataCache.getFileCache(tf)?.frontmatter?.[key];
-						return val !== undefined && val !== null ? String(val) : undefined;
-					};
-					// Auto-detect best timeKey: use panel setting, fall back to field with most values
-					let timeKey = this.panel.timelineKey || "date";
-					const candidates = [timeKey, "start-date", "date", "created", "story_order", "order"];
-					let bestKey = timeKey;
-					let bestCount = 0;
-					for (const candidate of candidates) {
-						let count = 0;
-						for (const n of gd.nodes) {
-							if (getNodeProp(n.id, candidate)) count++;
-						}
-						if (count > bestCount) {
-							bestCount = count;
-							bestKey = candidate;
-						}
-						if (bestCount > gd.nodes.length * 0.3) break; // good enough
-					}
-					timeKey = bestKey;
-					// Fit timeline to canvas width: compute stepWidth from unique dates
-					// First pass: count unique time values to determine stepWidth
-					const timeVals = new Set<string>();
-					for (const n of gd.nodes) {
-						const tv = getNodeProp(n.id, timeKey);
-						if (tv) timeVals.add(tv);
-					}
-					const numSteps = Math.max(timeVals.size, 1);
-					// Ensure minimum readable step width
-					const stepW = Math.max(8, (W - 120) / numSteps);
-					// Lane height = gap between work groups
-					const laneH = Math.max(20, Math.round(H / 20));
-					// Bar height — compact to minimize Y spread
-					const barH = Math.max(Math.round(laneH * 0.3), 4);
-					const stackSp = barH + 1;
-					const tlResult = applyTimelineLayout(gd, {
-						timeKey,
-						startX: 60,
-						startY: 60,
-						stepWidth: stepW,
-						laneHeight: laneH,
-						stackSpacing: stackSp,
-						getNodeProperty: getNodeProp,
-					});
-					ld = tlResult.data;
-					// Build timeline bars from placements for drawTimelineBars()
-					const endKey = this.panel.timelineEndKey || "end-date";
-					const timeIdxMap = new Map<string, number>();
-					tlResult.timeSteps.forEach((ts, i) => timeIdxMap.set(ts, i));
-					const bars: import("../layouts/cluster-force").TimelineBarInfo[] = [];
-					// Maximum bar width: proportional to step width, never dominate the timeline
-					const maxBarWidth = Math.max(stepW * 3, 30);
-					for (const p of tlResult.placements) {
-						const node = ld.nodes.find((n) => n.id === p.nodeId);
-						if (!node) continue;
-						const endVal = getNodeProp(p.nodeId, endKey);
-						if (endVal && endVal !== p.timeValue) {
-							const endIdx = timeIdxMap.get(endVal);
-							if (endIdx !== undefined && endIdx > p.timeIndex) {
-								const rawEnd = 60 + endIdx * stepW;
-								const clampedEnd = Math.min(rawEnd, node.x + maxBarWidth);
-								bars.push({
-									nodeId: p.nodeId,
-									xStart: node.x,
-									xEnd: clampedEnd,
-									barHeight: barH,
-									yCenter: node.y,
-								});
-								continue;
-							}
-						}
-						// Default: bar for nodes without end-date — minimal width
-						const defaultBarW = Math.max(stepW, 10);
-						bars.push({
-							nodeId: p.nodeId,
-							xStart: node.x,
-							xEnd: node.x + defaultBarW,
-							barHeight: barH,
-							yCenter: node.y,
-						});
-					}
-					// Post-process: resolve bar overlaps by shifting down
-					// Sort by Y then X so we process top-to-bottom, left-to-right
-					bars.sort((a, b) => a.yCenter - b.yCenter || a.xStart - b.xStart);
-					for (let i = 1; i < bars.length; i++) {
-						for (let j = 0; j < i; j++) {
-							const prev = bars[j],
-								cur = bars[i];
-							// Check X overlap
-							if (cur.xStart >= prev.xEnd || prev.xStart >= cur.xEnd) continue;
-							// Check Y overlap
-							const _prevTop = prev.yCenter - prev.barHeight / 2;
-							const prevBot = prev.yCenter + prev.barHeight / 2;
-							const curTop = cur.yCenter - cur.barHeight / 2;
-							if (curTop < prevBot) {
-								// Shift current bar below the previous one
-								cur.yCenter = prevBot + cur.barHeight / 2 + 1;
-								// Also update the node Y position so labels follow
-								const node = ld.nodes.find((n) => n.id === cur.nodeId);
-								if (node) node.y = cur.yCenter;
-							}
-						}
-					}
-
-					// Compute work group separators from bar positions
-					const workGroupRanges: { name: string; minY: number; maxY: number }[] = [];
-					{
-						const workBars = new Map<string, { minY: number; maxY: number }>();
-						for (const bar of bars) {
-							const fp = ld.nodes.find((n) => n.id === bar.nodeId)?.filePath ?? bar.nodeId;
-							const segs = fp.split("/").filter((s: string) => s.length > 0);
-							let work = "other";
-							for (const seg of segs) {
-								if (
-									seg.startsWith("classic-") ||
-									seg.startsWith("mythology-") ||
-									seg.startsWith("bible-") ||
-									seg.includes("-")
-								) {
-									work = seg;
-									break;
-								}
-							}
-							const y0 = bar.yCenter - bar.barHeight / 2;
-							const y1 = bar.yCenter + bar.barHeight / 2;
-							const existing = workBars.get(work);
-							if (existing) {
-								if (y0 < existing.minY) existing.minY = y0;
-								if (y1 > existing.maxY) existing.maxY = y1;
-							} else {
-								workBars.set(work, { minY: y0, maxY: y1 });
-							}
-						}
-						for (const [name, range] of workBars) {
-							workGroupRanges.push({ name, ...range });
-						}
-						workGroupRanges.sort((a, b) => a.minY - b.minY);
-					}
-
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended clusterMeta for timeline
-					if (!this.clusterMeta) this.clusterMeta = {} as any;
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					(this.clusterMeta as any).timelineBars = bars;
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					(this.clusterMeta as any).timelineSteps = tlResult.timeSteps;
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					(this.clusterMeta as any).timelineStepWidth = stepW;
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					(this.clusterMeta as any).timelineLanes = tlResult.lanes;
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					(this.clusterMeta as any).timelineWorkGroups = workGroupRanges;
-					break;
-				}
-				default: {
-					const result = applyConcentricLayout(gd, {
-						centerX: cx,
-						centerY: cy,
-						sortComparator: sortCmp,
-						nodeSpacingMap: nsMap,
-					});
-					ld = result.data;
-					this.shells = result.shells;
-					this.shells.forEach((s, i) => s.nodeIds.forEach((id) => this.nodeShellIndex.set(id, i)));
-					break;
-				}
-			}
-		} catch (err) {
-			console.error("[Graph Island] Layout computation failed:", err);
+		const sortCmp = this.buildSortComparator(gd.nodes, gd.edges);
+		const nsMap = this.computeNodeSpacingMap(gd.nodes);
+		const result: StaticLayoutResult | null = computeStaticLayout(gd, {
+			layout: this.currentLayout,
+			cx, cy, W, H,
+			sortComparator: sortCmp,
+			nodeSpacingMap: nsMap,
+			app: this.app,
+			groupField: this.plugin.settings.groupField,
+			concentricMinRadius: this.panel.concentricMinRadius,
+			concentricRadiusStep: this.panel.concentricRadiusStep,
+			timelineKey: this.panel.timelineKey,
+			timelineEndKey: this.panel.timelineEndKey,
+		});
+		if (!result) {
 			this.setStatus(t("error.layoutFailed"));
 			return null;
 		}
-		return ld;
+		// Apply result to GVC state
+		this.shells = result.shells;
+		for (const [id, idx] of result.nodeShellIndex) this.nodeShellIndex.set(id, idx);
+		if (result.sunburstArcs) this.sunburstLayoutArcs = result.sunburstArcs;
+		if (result.sunburstCenter) this.sunburstCenter = result.sunburstCenter;
+		if (result.timelineBars) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended clusterMeta for timeline
+			if (!this.clusterMeta) this.clusterMeta = {} as any;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(this.clusterMeta as any).timelineBars = result.timelineBars;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(this.clusterMeta as any).timelineSteps = result.timelineSteps;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(this.clusterMeta as any).timelineStepWidth = result.timelineStepWidth;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(this.clusterMeta as any).timelineLanes = result.timelineLanes;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(this.clusterMeta as any).timelineWorkGroups = result.timelineWorkGroups;
+		}
+		return result.data;
 	}
 
 	/** Create nodes, build transition animation, and finalize the static layout render. */
@@ -10498,43 +9992,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this._announceA11y(`Filtered: ${displayName}`);
 	}
 
-	/** Update or hide sunburst tooltip */
+	/** Update or hide sunburst tooltip (delegates to sunburst-renderer) */
 	private _updateSunburstTooltip(groupName: string | null): void {
 		if (!groupName) {
 			if (this._sunburstTooltipEl) this._sunburstTooltipEl.style.display = "none";
 			return;
 		}
-
-		// Count nodes in this group
-		const arcs = this.sunburstLayoutArcs;
-		let leafCount = 0;
-		const depth2Names: string[] = [];
-		for (const arc of arcs) {
-			if (arc.depth === 1 && arc.name === groupName) continue;
-			// Check if arc belongs to this group (depth-1 ancestor)
-			if (arc.depth >= 2) {
-				let isChild = false;
-				for (const parent of arcs) {
-					if (parent.depth === 1 && parent.name === groupName && parent.x0 <= arc.x0 && parent.x1 >= arc.x1) {
-						isChild = true;
-						break;
-					}
-				}
-				if (!isChild) continue;
-				if (arc.depth === 2 && depth2Names.length < 5) {
-					depth2Names.push(cleanArcName(arc.name));
-				}
-				if (!arc.filePath && arc.value) leafCount += arc.value;
-				if (arc.filePath) leafCount++;
-			}
-		}
-
-		const displayName = cleanArcName(groupName);
-		const lines = [displayName];
-		if (leafCount > 0) lines.push(`${leafCount} files`);
-		if (depth2Names.length > 0) lines.push(depth2Names.join(", "));
-
-		// Create or update tooltip element
+		const { lines } = buildSunburstTooltipContent(this.sunburstLayoutArcs, groupName);
 		if (!this._sunburstTooltipEl && this.canvasWrap) {
 			this._sunburstTooltipEl = this.canvasWrap.createDiv({ cls: "gi-sunburst-tooltip" });
 			Object.assign(this._sunburstTooltipEl.style, {
@@ -10564,10 +10028,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// Sunburst layout arc rendering (Canvas 2D)
 	// =========================================================================
 
-	/**
-	 * Draw sunburst layout arcs behind nodes using CanvasGraphics.
-	 * Called from updatePositions when sunburst layout is active.
-	 */
+	/** Draw sunburst layout arcs (delegates to sunburst-renderer). */
 	private drawSunburstLayoutArcs() {
 		const gfx = this.sunburstGraphics;
 		if (!gfx) return;
@@ -10580,88 +10041,23 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		const arcs = this.sunburstLayoutArcs;
 		const { x: cx, y: cy } = this.sunburstCenter;
-
-		// Assign colors by depth-1 group (top-level category)
-		const groupColorMap = new Map<string, number>();
-		let groupIdx = 0;
-		for (const arc of arcs) {
-			if (arc.depth === 1 && !groupColorMap.has(arc.name)) {
-				groupColorMap.set(arc.name, groupIdx++);
-			}
-		}
-
-		// Find depth-1 ancestor by angle range containment
-		const arcGroupName = (arc: LayoutSunburstArc): string | null => {
-			for (const a of arcs) {
-				if (a.depth === 1 && a.x0 <= arc.x0 && a.x1 >= arc.x1) {
-					return a.name;
-				}
-			}
-			return null;
-		};
-
-		const worldScale = this.worldContainer?.scale.x ?? 1;
-		const strokeW = Math.max(0.5, 1.0 / worldScale);
-		const isSunburstView = this.panel.viewMode === "sunburst";
-		let maxDepth = 1;
-		for (const arc of arcs) {
-			if (arc.depth > maxDepth) maxDepth = arc.depth;
-		}
-
-		for (let i = 0; i < arcs.length; i++) {
-			const arc = arcs[i];
-			if (arc.depth === 0) continue;
-
-			let groupName: string;
-			if (arc.depth === 1) {
-				groupName = arc.name;
-			} else {
-				groupName = arcGroupName(arc) ?? arc.name;
-			}
-			const ci = groupColorMap.get(groupName) ?? 0;
-			const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
-			let color = cssColorToHex(css);
-
-			// Hover highlight: dim non-hovered groups, brighten hovered
-			const isHovered = this._hoveredSunburstGroup !== null && groupName === this._hoveredSunburstGroup;
-			const isDimmed = this._hoveredSunburstGroup !== null && !isHovered;
-
-			if (isSunburstView) {
-				// Ring chart style: opaque fill, depth-based lightening, white borders
-				const lightenFactor = arc.depth > 1 ? ((arc.depth - 1) / maxDepth) * 0.4 : 0;
-				color = this.lightenHexColor(color, lightenFactor);
-				let fillAlpha = Math.max(0.5, 0.85 - arc.depth * 0.06);
-				if (isDimmed) fillAlpha *= 0.4;
-				else if (isHovered) fillAlpha = Math.min(1, fillAlpha * 1.2);
-				const borderAlpha = isDimmed ? 0.2 : 0.6;
-				gfx.lineStyle(Math.max(1, 1.5 / worldScale), 0xffffff, borderAlpha);
-				gfx.beginFill(color, fillAlpha);
-			} else {
-				let fillAlpha = arc.depth === 1 ? 0.25 : 0.15;
-				if (isDimmed) fillAlpha *= 0.3;
-				gfx.beginFill(color, fillAlpha);
-				gfx.lineStyle(strokeW, color, isDimmed ? 0.2 : 0.5);
-			}
-
-			// Draw annular sector: offset angles by -PI/2 so top is 0
-			this.drawArcPath(gfx, cx, cy, arc.y0, arc.y1, arc.x0 - Math.PI / 2, arc.x1 - Math.PI / 2);
-			gfx.endFill();
-		}
-
+		drawSunburstLayoutArcsImpl({
+			gfx,
+			arcs,
+			cx,
+			cy,
+			worldScale: this.worldContainer?.scale.x ?? 1,
+			isSunburstView: this.panel.viewMode === "sunburst",
+			hoveredGroup: this._hoveredSunburstGroup,
+			drawArcPath: this.drawArcPath.bind(this),
+		});
 		this.drawSunburstLabels(arcs, cx, cy);
 	}
 
-	/** Remove all sunburst layout labels when leaving sunburst viewMode. */
+	/** Remove all sunburst layout labels (delegates to sunburst-renderer). */
 	private _clearSunburstLabels(): void {
-		for (const lbl of this.sunburstLabels.values()) {
-			lbl.parent?.removeChild(lbl);
-			lbl.destroy();
-		}
-		this.sunburstLabels.clear();
-		if (this.sunburstLabelContainer) this.sunburstLabelContainer.visible = false;
-		// Hide hover tooltip
+		clearSunburstLabelsImpl(this.sunburstLabels, this.sunburstLabelContainer, this._sunburstTooltipEl);
 		this._hoveredSunburstGroup = null;
-		if (this._sunburstTooltipEl) this._sunburstTooltipEl.style.display = "none";
 	}
 
 	/** Sunburst label container for category names */
@@ -10670,8 +10066,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private clusterSunburstLabelContainer: CanvasContainer | null = null;
 	private clusterSunburstLabels: Map<string, CanvasText> = new Map();
 
-	/** @see cleanArcName (exported standalone) */
-
+	/** Draw sunburst labels (delegates to sunburst-renderer). */
 	private drawSunburstLabels(arcs: LayoutSunburstArc[], cx: number, cy: number) {
 		if (!this.sunburstLabelContainer && this.worldContainer) {
 			this.sunburstLabelContainer = new CanvasContainer();
@@ -10682,313 +10077,41 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		container.visible = true;
 		this._clearSunburstLabels();
 
-		const worldScale = this.worldContainer?.scale.x ?? 1;
-		const isSunburstView = this.panel.viewMode === "sunburst";
-		const isDark = this.cachedIsDark ?? true;
-		const textColor = isDark ? 0xdddddd : 0x333333;
-		const subtextColor = isDark ? 0xaaaaaa : 0x666666;
-
-		// Find max outer radius for leader line start
-		let maxOuterR = 0;
-		for (const arc of arcs) {
-			if (arc.y1 > maxOuterR) maxOuterR = arc.y1;
-		}
-		const leaderStart = maxOuterR + 4 / worldScale;
-		const leaderEnd = maxOuterR + 30 / worldScale;
-		const fontSize = Math.max(8, 11 / worldScale);
-		const depth2FontSize = Math.max(5, 8 / worldScale);
-		const minSweep = 0.06; // ~3.4° — skip tiny arcs
-		const depth2MinSweep = 0.2; // ~11.5° — wider threshold for inner labels to reduce overlap
-
-		// Leader line graphics (reuse sunburstGraphics — arcs are drawn before labels)
-		const gfx = this.sunburstGraphics;
-
-		// --- Depth 1 labels (outer, with leader lines) ---
-		for (const arc of arcs) {
-			if (arc.depth !== 1) continue;
-			if (arc.x1 - arc.x0 < minSweep) continue;
-
-			const midAngle = (arc.x0 + arc.x1) / 2 - Math.PI / 2;
-			const displayName = cleanArcName(arc.name);
-
-			if (isSunburstView && gfx) {
-				const x1 = cx + leaderStart * Math.cos(midAngle);
-				const y1 = cy + leaderStart * Math.sin(midAngle);
-				const x2 = cx + leaderEnd * Math.cos(midAngle);
-				const y2 = cy + leaderEnd * Math.sin(midAngle);
-				gfx.lineStyle(Math.max(0.5, 1 / worldScale), textColor, 0.5);
-				gfx.moveTo(x1, y1);
-				gfx.lineTo(x2, y2);
-			}
-
-			const labelR = isSunburstView ? leaderEnd + 4 / worldScale : (arc.y0 + arc.y1) / 2;
-			const lx = cx + labelR * Math.cos(midAngle);
-			const ly = cy + labelR * Math.sin(midAngle);
-
-			const text = new CanvasText(displayName, {
-				fontSize,
-				fill: textColor,
-				fontWeight: "bold",
-				align: "center",
-			});
-
-			const isRight = midAngle > -Math.PI / 2 && midAngle < Math.PI / 2;
-			text.anchor.set(isRight ? 0 : 1, 0.5);
-			text.x = lx;
-			text.y = ly;
-			text.rotation = 0;
-
-			container.addChild(text);
-			this.sunburstLabels.set(`d1:${arc.name}`, text);
-		}
-
-		// --- Depth 2 labels (inside arcs, curved text placement) ---
-		if (isSunburstView) {
-			for (const arc of arcs) {
-				if (arc.depth !== 2) continue;
-				if (arc.x1 - arc.x0 < depth2MinSweep) continue;
-
-				const midAngle = (arc.x0 + arc.x1) / 2 - Math.PI / 2;
-				const midR = (arc.y0 + arc.y1) / 2;
-				const lx = cx + midR * Math.cos(midAngle);
-				const ly = cy + midR * Math.sin(midAngle);
-				const displayName = cleanArcName(arc.name);
-
-				const text = new CanvasText(displayName, {
-					fontSize: depth2FontSize,
-					fill: subtextColor,
-					fontWeight: "normal",
-					align: "center",
-				});
-
-				// Rotate label along arc direction
-				let rotation = midAngle + Math.PI / 2;
-				// Flip text on bottom half to keep it readable
-				if (midAngle > 0 && midAngle < Math.PI) {
-					rotation += Math.PI;
-				}
-				text.anchor.set(0.5, 0.5);
-				text.x = lx;
-				text.y = ly;
-				text.rotation = rotation;
-
-				container.addChild(text);
-				this.sunburstLabels.set(`d2:${arc.name}:${arc.x0.toFixed(3)}`, text);
-			}
-		}
-
-		this.cullOverlappingRotatedLabels(this.sunburstLabels);
+		this.sunburstLabels = drawSunburstLabelsImpl({
+			arcs,
+			cx,
+			cy,
+			container,
+			gfx: this.sunburstGraphics,
+			worldScale: this.worldContainer?.scale.x ?? 1,
+			isSunburstView: this.panel.viewMode === "sunburst",
+			isDark: this.cachedIsDark ?? true,
+			cullOverlappingRotatedLabels: this.cullOverlappingRotatedLabels.bind(this),
+		});
 	}
 
-	/** Render matrix viewMode: full-screen adjacency table, no Canvas. */
+	/** Render matrix viewMode (delegates to matrix-renderer). */
 	private _renderMatrixViewMode(gd: GraphData, W: number, H: number): void {
 		// Hide Canvas, show DOM matrix
 		if (this.canvasWrap) {
 			const canvas = this.canvasWrap.querySelector("canvas");
 			if (canvas) canvas.style.display = "none";
 		}
-
-		// Reuse or create full-screen matrix container
-		let matrixEl = this.containerEl.querySelector<HTMLElement>(".gi-matrix-fullscreen");
-		if (!matrixEl) {
-			matrixEl = this.canvasWrap!.createDiv({ cls: "gi-matrix-fullscreen" });
-		}
-		matrixEl.empty();
-		matrixEl.style.display = "";
-		matrixEl.style.width = W + "px";
-		matrixEl.style.height = H + "px";
-
-		// Build adjacency data from ALL edges (not just top 20)
-		const degrees = new Map<string, number>();
-		for (const e of gd.edges) {
-			const s = edgeSourceId(e);
-			const t = edgeTargetId(e);
-			incCounter(degrees, s);
-			incCounter(degrees, t);
-		}
-
-		// Top N nodes by degree (fit in viewport: ~50 max for readability)
-		const maxNodes = Math.min(50, Math.floor(Math.min(W, H) / 16));
-		const sortMode = this.panel.matrixSortMode ?? "degree";
-		let sorted: [string, number][];
-		if (sortMode === "alpha") {
-			// Alphabetical by label
-			sorted = [...degrees.entries()]
-				.sort((a, b) => {
-					const la = (gd.nodes.find((n) => n.id === a[0])?.label ?? a[0]).toLowerCase();
-					const lb = (gd.nodes.find((n) => n.id === b[0])?.label ?? b[0]).toLowerCase();
-					return la.localeCompare(lb);
-				})
-				.slice(0, maxNodes);
-		} else if (sortMode === "category") {
-			// By category, then degree within category
-			sorted = [...degrees.entries()]
-				.sort((a, b) => {
-					const ca = gd.nodes.find((n) => n.id === a[0])?.category ?? "";
-					const cb = gd.nodes.find((n) => n.id === b[0])?.category ?? "";
-					if (ca !== cb) return ca.localeCompare(cb);
-					return b[1] - a[1];
-				})
-				.slice(0, maxNodes);
-		} else {
-			// Default: degree descending
-			sorted = [...degrees.entries()].sort((a, b) => b[1] - a[1]).slice(0, maxNodes);
-		}
-		const nodeIds = sorted.map(([id]) => id);
-		const nodeIdSet = new Set(nodeIds);
-
-		// Build matrix (count + edge type breakdown)
-		const matrix = new Map<string, Map<string, number>>();
-		const matrixTypes = new Map<string, Map<string, Map<string, number>>>();
-		for (const id of nodeIds) {
-			matrix.set(id, new Map());
-			matrixTypes.set(id, new Map());
-		}
-		for (const e of gd.edges) {
-			const s = edgeSourceId(e);
-			const t = edgeTargetId(e);
-			if (nodeIdSet.has(s) && nodeIdSet.has(t)) {
-				incCounter(matrix.get(s)!, t);
-				const eType = e.type ?? "link";
-				if (!matrixTypes.get(s)!.has(t)) matrixTypes.get(s)!.set(t, new Map());
-				incCounter(matrixTypes.get(s)!.get(t)!, eType);
-			}
-		}
-
-		// Find max count for color scaling
-		let maxCount = 1;
-		for (const row of matrix.values()) {
-			for (const count of row.values()) {
-				if (count > maxCount) maxCount = count;
-			}
-		}
-
-		// Get label function
-		const getLabel = (id: string) => {
-			const node = gd.nodes.find((n) => n.id === id);
-			return node?.label ?? id.replace(/\.md$/, "").split("/").pop() ?? id;
-		};
-
-		// Title + sort selector
-		const titleRow = matrixEl.createDiv({ cls: "gi-matrix-title-row" });
-		titleRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:4px;";
-		titleRow.createSpan({ text: `${t("display.relationMatrix")} (${nodeIds.length} / ${gd.nodes.length})` });
-		const sortSelect = titleRow.createEl("select", { cls: "gi-matrix-sort" });
-		sortSelect.style.cssText = "font-size:11px;padding:2px 4px;border-radius:3px;";
-		for (const opt of [
-			{ value: "degree", label: "Degree" },
-			{ value: "alpha", label: "A-Z" },
-			{ value: "category", label: "Category" },
-		]) {
-			const el = sortSelect.createEl("option", { text: opt.label, attr: { value: opt.value } });
-			if (opt.value === sortMode) el.selected = true;
-		}
-		sortSelect.addEventListener("change", () => {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- select value to enum type
-			this.panel.matrixSortMode = sortSelect.value as any;
-			this._renderMatrixViewMode(gd, W, H);
+		renderMatrixViewModeImpl({
+			containerEl: this.canvasWrap ?? this.containerEl,
+			W,
+			H,
+			gd,
+			sortMode: (this.panel.matrixSortMode ?? "degree") as MatrixSortMode,
+			isDark: this.isDarkTheme(),
+			onSortChange: (mode) => {
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- select value to enum type
+				this.panel.matrixSortMode = mode as any;
+				this._renderMatrixViewMode(gd, W, H);
+			},
+			onCellClick: (nodeId, secondId) => this._switchToGraphAndFocus(nodeId, secondId),
+			setStatus: (text) => this.setStatus(text),
 		});
-
-		// Build scrollable table wrapper
-		const tableWrap = matrixEl.createDiv({ cls: "gi-matrix-scroll" });
-		tableWrap.style.cssText = "overflow:auto;max-height:calc(100% - 30px);position:relative;";
-		const table = tableWrap.createEl("table", { cls: "gi-matrix-table" });
-		table.style.borderCollapse = "separate";
-		table.style.borderSpacing = "0";
-
-		// Header row (sticky top)
-		const headerRow = table.createEl("tr");
-		const cornerTh = headerRow.createEl("th");
-		cornerTh.style.cssText = "position:sticky;top:0;left:0;z-index:3;background:var(--background-primary);";
-		for (const id of nodeIds) {
-			const label = getLabel(id);
-			const deg = degrees.get(id) ?? 0;
-			const th = headerRow.createEl("th", {
-				text: label.slice(0, 4),
-				attr: { title: `${label} (${deg} connections)` },
-			});
-			th.style.cssText = "position:sticky;top:0;z-index:2;background:var(--background-primary);";
-		}
-
-		// Data rows
-		const isDark = this.isDarkTheme();
-		for (let rowIdx = 0; rowIdx < nodeIds.length; rowIdx++) {
-			const rowId = nodeIds[rowIdx];
-			const tr = table.createEl("tr");
-			const label = getLabel(rowId);
-			const deg = degrees.get(rowId) ?? 0;
-			const td = tr.createEl("td", {
-				text: label.slice(0, 8),
-				cls: "gi-matrix-label",
-				attr: { title: `${label} (${deg} connections)` },
-			});
-			td.style.cssText = "position:sticky;left:0;z-index:1;background:var(--background-primary);";
-			td.addEventListener("click", () => this._switchToGraphAndFocus(rowId));
-
-			for (let colIdx = 0; colIdx < nodeIds.length; colIdx++) {
-				const colId = nodeIds[colIdx];
-				const count = matrix.get(rowId)?.get(colId) ?? 0;
-				const isDiag = rowIdx === colIdx;
-				const cell = tr.createEl("td", {
-					cls: `gi-matrix-cell${isDiag ? " gi-matrix-diag" : ""}`,
-					attr: { "data-col": String(colIdx) },
-				});
-				if (count > 0) {
-					cell.textContent = String(count);
-					const intensity = Math.min(1, count / maxCount);
-					cell.style.backgroundColor = isDark
-						? `rgba(99,102,241,${intensity * 0.6})`
-						: `rgba(79,70,229,${intensity * 0.4})`;
-					// Edge type breakdown tooltip
-					const types = matrixTypes.get(rowId)?.get(colId);
-					if (types && types.size > 0) {
-						const parts = [...types.entries()].map(([t, c]) => `${t}: ${c}`);
-						cell.title = `${getLabel(rowId)} → ${getLabel(colId)}\n${parts.join(", ")}`;
-					}
-				}
-				cell.addEventListener("click", () => {
-					if (count > 0) this._switchToGraphAndFocus(rowId, colId);
-				});
-			}
-		}
-
-		// Row/column highlight on cell hover
-		const allRows = table.querySelectorAll("tr");
-		table.addEventListener("mouseover", (ev) => {
-			const target = (ev.target as HTMLElement).closest("td, th") as HTMLElement | null;
-			if (!target) return;
-			const row = target.closest("tr");
-			if (row) row.classList.add("gi-matrix-row-hover");
-			const colAttr = target.dataset.col ?? (target as HTMLTableCellElement).cellIndex?.toString();
-			if (colAttr != null) {
-				const ci = parseInt(colAttr, 10);
-				if (!isNaN(ci)) {
-					allRows.forEach((r) => {
-						const c = r.children[ci + 1] as HTMLElement | undefined; // +1 for label column
-						if (c) c.classList.add("gi-matrix-col-hover");
-					});
-				}
-			}
-		});
-		table.addEventListener("mouseout", (ev) => {
-			const target = (ev.target as HTMLElement).closest("td, th") as HTMLElement | null;
-			if (!target) return;
-			const row = target.closest("tr");
-			if (row) row.classList.remove("gi-matrix-row-hover");
-			const colAttr = target.dataset.col ?? (target as HTMLTableCellElement).cellIndex?.toString();
-			if (colAttr != null) {
-				const ci = parseInt(colAttr, 10);
-				if (!isNaN(ci)) {
-					allRows.forEach((r) => {
-						const c = r.children[ci + 1] as HTMLElement | undefined;
-						if (c) c.classList.remove("gi-matrix-col-hover");
-					});
-				}
-			}
-		});
-
-		// Status
-		this.setStatus(`${nodeIds.length} × ${nodeIds.length} matrix, ${gd.edges.length} edges`);
 		// Hide all overlays (stats, legend, minimap, relation matrix overlay)
 		if (this.graphStatsEl) this.graphStatsEl.style.display = "none";
 		if (this.legendEl) this.legendEl.style.display = "none";
