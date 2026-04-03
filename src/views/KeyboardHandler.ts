@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // KeyboardHandler — keyboard shortcut handling extracted from GVC (Phase 4)
 // ---------------------------------------------------------------------------
-import type { App } from "obsidian";
+import type { App, TFile } from "obsidian";
 import { t } from "../i18n";
 
 /** Minimal interface for GVC methods needed by keyboard shortcuts */
@@ -213,6 +213,7 @@ export function handleShortcutKey(host: KeyboardHost, key: string, e: KeyboardEv
 	// Escape: clear focus/selection
 	if (key === "Escape") {
 		if (host.isKeyboardFocused) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- 0 used as sentinel to clear focus
 			host.cycleFocusNode(0 as any); // clear
 		}
 		return true;

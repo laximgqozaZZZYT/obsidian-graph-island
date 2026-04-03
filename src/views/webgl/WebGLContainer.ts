@@ -9,7 +9,7 @@
  */
 
 import { CanvasContainer } from "../canvas2d/CanvasContainer";
-import { mat3Multiply } from "./mat3";
+import { mat3Identity, mat3Multiply, mat3Translate, mat3Scale } from "./mat3";
 
 // Pre-allocated scratch matrices to avoid per-frame allocations
 const _scratchTranslate = new Float32Array(9);
@@ -137,7 +137,9 @@ export class WebGLContainer extends CanvasContainer {
 			const child = children[i];
 			if (!child.visible) continue;
 
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- duck-typed WebGL flush check
 			if ("_flushGL" in child && typeof (child as any)._flushGL === "function") {
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				(child as any)._flushGL(gl, program, local, effAlpha, overlayCtx);
 			} else if (hasOverlay) {
 				child._flush(overlayCtx!, effAlpha);

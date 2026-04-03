@@ -141,7 +141,7 @@ function assignHierarchicalLanes(
 
 	// 1. Derive work group from folder path
 	function workGroup(n: GraphNode): string {
-		const fp = (n as any).filePath || n.id;
+		const fp = n.filePath || n.id;
 		const segs = fp.split("/").filter((s: string) => s.length > 0);
 		// Find the "work" folder: skip root vault folder (e.g. "開発"), use next
 		for (const seg of segs) {
@@ -204,9 +204,9 @@ function assignHierarchicalLanes(
 }
 
 /** Extract short node name from ID for parent_id matching */
-function _extractNodeName(nodeId: string, nodes: GraphNode[]): string {
+function extractNodeName(nodeId: string, nodes: GraphNode[]): string {
 	const n = nodes.find((n) => n.id === nodeId);
-	const fp = (n as any)?.filePath || nodeId;
+	const fp = n?.filePath || nodeId;
 	const filename = fp.split("/").pop()?.replace(".md", "") ?? nodeId;
 	return filename;
 }
@@ -259,6 +259,7 @@ export function applyTimelineLayout(graph: GraphData, options: TimelineLayoutOpt
 	// 3. Assign lanes — priority: hierarchical (parent_id) > sequence DAG > fallback
 	const timedNodeIds = new Set(nodeTimeValues.keys());
 	let laneMap: Map<string, number>;
+	let totalLanes: number;
 
 	// Check if parent_id data exists
 	let hasParentIds = false;
@@ -286,7 +287,7 @@ export function applyTimelineLayout(graph: GraphData, options: TimelineLayoutOpt
 		}
 		laneMap = hasSeq ? assignLanes(dag, nodeTimeIndex) : assignFallbackLanes(graph.nodes, timedNodeIds);
 	}
-	const totalLanes = laneMap.size > 0 ? Math.max(...laneMap.values()) + 1 : 1;
+	totalLanes = laneMap.size > 0 ? Math.max(...laneMap.values()) + 1 : 1;
 
 	// 4. Position timed nodes
 	const placements: TimelinePlacement[] = [];
@@ -354,7 +355,7 @@ function assignFallbackLanes(nodes: GraphNode[], timedNodeIds: Set<string>): Map
 	const timedNodes = nodes.filter((n) => timedNodeIds.has(n.id));
 
 	function groupKey(n: GraphNode): string {
-		const fp = (n as any).filePath || n.id;
+		const fp = n.filePath || n.id;
 		const segs = fp.split("/").filter((s: string) => s.length > 0);
 		if (segs.length >= 3) return segs[segs.length - 3];
 		if (segs.length >= 2) return segs[0];

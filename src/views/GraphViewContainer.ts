@@ -93,6 +93,7 @@ import {
 } from "../utils/graph-filter";
 import { pointInPolygon, convexHull } from "../utils/geometry";
 import { expandSuperNodeIds } from "../utils/node-grouping";
+import { hexToRgb } from "../utils/color";
 import {
 	buildPanel as buildPanelUI,
 	type PanelState,
@@ -165,45 +166,6 @@ import {
 	viewModeSkipsEdges,
 	viewModeUsesDom,
 } from "../utils/view-mode-map";
-import {
-	ALL_PRESETS,
-	AGGREGATE_ZOOM_THRESHOLD,
-	COMMUNITY_PALETTE,
-	setFrontmatterField,
-	addFrontmatterTag,
-	countEdgeTypes,
-	getPresetSummary,
-	buildHoverTooltipText,
-	hasImageMetaNodes,
-	computeViewportScaleFactor,
-	computeAvgRadius,
-	computeDegenerateSpread,
-	generatePhantomNodes,
-	resolveAnalysisOverlay,
-	blendThemeLabel,
-	heatmapColor,
-	lightenHex,
-	cleanArcName,
-	deriveClusterRules,
-	deriveClusterRulesFromQueries,
-	areSavedPositionsValid,
-	resolveNodeColor,
-} from "./RenderHelpers";
-
-// Re-export pure functions for backward compatibility (tests and other modules import from here)
-export {
-	deriveOneRule,
-	deriveClusterRulesFromQueries,
-	deriveClusterRules,
-	blendThemeLabel,
-	lightenHex,
-	heatmapColor,
-	COMMUNITY_PALETTE,
-	findMatchingGroupPreset,
-	resolveNodeColor,
-	cleanArcName,
-	areSavedPositionsValid,
-} from "./RenderHelpers";
 
 // ---------------------------------------------------------------------------
 // StatsHost — interface for future StatsRenderer extraction (Phase 0)
@@ -239,6 +201,154 @@ export interface StatsHost {
 	getLastRenderTime(): number;
 }
 
+/**
+ * Derive a single ClusterGroupRule from a query string + recursive flag.
+ * Supports wildcard patterns like "tag:*" → groupBy: "tag".
+ */
+export function deriveOneRule(queryText: string, recursive: boolean): ClusterGroupRule | null {
+	if (!queryText.trim()) return null;
+	const expr = parseQueryExpr(queryText.trim());
+	if (!expr) return null;
+	if (expr.type === "leaf" && expr.value === "*") {
+		// Use field:? format (e.g. "tag:?", "category:?")
+		return { groupBy: `${expr.field}:?`, recursive };
+	}
+	return { groupBy: `${expr.type === "leaf" ? expr.field : "tag"}:?`, recursive };
+}
+
+/** Derive ClusterGroupRule[] from multiple common queries (pipeline). */
+export function deriveClusterRulesFromQueries(queries: { query: string; recursive: boolean }[]): ClusterGroupRule[] {
+	const rules: ClusterGroupRule[] = [];
+	for (const q of queries) {
+		const rule = deriveOneRule(q.query, q.recursive);
+		if (rule) rules.push(rule);
+	}
+	return rules;
+}
+
+export function deriveClusterRules(preset: GroupPreset): ClusterGroupRule[] {
+	if (preset.commonQueries?.length) {
+		return deriveClusterRulesFromQueries(preset.commonQueries);
+	}
+	// Legacy: single commonQuery field
+	const cq = preset.commonQuery;
+	if (!cq?.expression) return [];
+	const queryText = serializeExpr(cq.expression);
+	const rule = deriveOneRule(queryText, preset.recursive ?? false);
+	return rule ? [rule] : [];
+}
+
+/** Blend bg toward nodeColor at 15% — used for label tinting. */
+export function blendThemeLabel(bg: number, nodeColor: number): number {
+	const r1 = (bg >> 16) & 0xff,
+		g1 = (bg >> 8) & 0xff,
+		b1 = bg & 0xff;
+	const r2 = (nodeColor >> 16) & 0xff,
+		g2 = (nodeColor >> 8) & 0xff,
+		b2 = nodeColor & 0xff;
+	return (
+		(Math.round(r1 + (r2 - r1) * 0.15) << 16) |
+		(Math.round(g1 + (g2 - g1) * 0.15) << 8) |
+		Math.round(b1 + (b2 - b1) * 0.15)
+	);
+}
+
+/** Lighten a hex color by a factor (0-1). factor=0.2 means 20% lighter. */
+/** Clean sunburst arc name: strip redundant path prefix (e.g. "bible-apocrypha/bible-apocrypha" → "bible-apocrypha") */
+export function cleanArcName(name: string): string {
+	if (!name.includes("/")) return name;
+	const segments = name.split("/");
+	if (segments.length >= 2 && segments[segments.length - 1] === segments[segments.length - 2]) {
+		return segments[segments.length - 1];
+	}
+	return segments[segments.length - 1] || name;
+}
+
+/** Check if saved positions are within a reasonable coordinate range for force layout reuse. */
+export function areSavedPositionsValid(
+	positions: Map<string, { x: number; y: number }>,
+	canvasW: number,
+	canvasH: number,
+): boolean {
+	if (positions.size === 0) return false;
+	const maxCoord = Math.max(canvasW, canvasH) * 5;
+	for (const p of positions.values()) {
+		if (!isFinite(p.x) || !isFinite(p.y) || Math.abs(p.x) > maxCoord || Math.abs(p.y) > maxCoord) {
+			return false;
+		}
+	}
+	return true;
+}
+
+export function lightenHex(hex: number, factor: number): number {
+	const { r, g, b } = hexToRgb(hex);
+	const lr = Math.min(255, r + Math.round(255 * factor));
+	const lg = Math.min(255, g + Math.round(255 * factor));
+	const lb = Math.min(255, b + Math.round(255 * factor));
+	return (lr << 16) | (lg << 8) | lb;
+}
+
+/** Zoom threshold below which aggregate cluster summaries replace individual nodes */
+const AGGREGATE_ZOOM_THRESHOLD = 0.25;
+
+/**
+ * Heatmap color ramp: cold (blue 0x3b82f6) → warm (red 0xef4444).
+ * @param degree - node degree
+ * @param maxDegree - maximum degree in the graph (for normalization)
+ */
+export function heatmapColor(degree: number, maxDegree: number): number {
+	const t = Math.min(1, degree / Math.max(1, maxDegree));
+	const r = Math.round(59 + t * (239 - 59)); // 0x3b -> 0xef
+	const g = Math.round(130 - t * (130 - 68)); // 0x82 -> 0x44
+	const b = Math.round(246 - t * (246 - 68)); // 0xf6 -> 0x44
+	return (r << 16) | (g << 8) | b;
+}
+
+/** 20-color deterministic palette for community coloring (Tableau 20-inspired). */
+export const COMMUNITY_PALETTE: readonly number[] = [
+	0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd, 0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf, 0xaec7e8,
+	0xffbb78, 0x98df8a, 0xff9896, 0xc5b0d5, 0xc49c94, 0xf7b6d2, 0xc7c7c7, 0xdbdb8d, 0x9edae5,
+];
+
+/**
+ * Find the first GroupPreset whose condition matches the current layout + tagDisplay.
+ * Returns the matching preset or null.
+ */
+export function findMatchingGroupPreset(
+	presets: GroupPreset[],
+	currentLayout: string,
+	tagDisplay: string,
+): GroupPreset | null {
+	for (const preset of presets) {
+		const cond = preset.condition;
+		if (cond.layout && cond.layout !== currentLayout) continue;
+		if (cond.tagDisplay && cond.tagDisplay !== tagDisplay) continue;
+		return preset;
+	}
+	return null;
+}
+
+/**
+ * Resolve node color from a colorMap + node data.
+ * Pure lookup: category → tag fallback → default.
+ */
+export function resolveNodeColor(
+	node: { category?: string; tags?: string[] },
+	colorMap: Map<string, string>,
+	defaultColor: string,
+): string {
+	if (node.category) {
+		const css = colorMap.get(node.category);
+		if (css) return css;
+	}
+	if (node.tags && node.tags.length > 0) {
+		const tagKey = `tag:${node.tags[0]}`;
+		const css = colorMap.get(tagKey);
+		if (css) return css;
+	}
+	return defaultColor;
+}
+
 export const VIEW_TYPE_GRAPH = "graph-view";
 
 const TICK_SKIP = 4;
@@ -246,6 +356,140 @@ const TICK_SKIP = 4;
 /** Fallback canvas dimensions when DOM element is not yet measured */
 const DEFAULT_CANVAS_WIDTH = 600;
 const DEFAULT_CANVAS_HEIGHT = 400;
+
+/** All preset definitions — single source of truth for applyPreset, applyPresetByKey, getPresetSummary */
+const ALL_PRESETS: Record<string, Record<string, unknown>> = {
+	// Quick presets
+	simple: {
+		showLinks: true,
+		showTagEdges: false,
+		showCategoryEdges: false,
+		showSemanticEdges: false,
+		showInheritance: false,
+		showAggregation: false,
+		showSimilar: false,
+		showSibling: false,
+		showSequence: false,
+		colorEdgesByRelation: false,
+		fadeEdgesByDegree: false,
+		nodeColorMode: "category",
+		showEdgeLabels: false,
+		showArrows: false,
+	},
+	analysis: {
+		showLinks: true,
+		showTagEdges: true,
+		showCategoryEdges: true,
+		showSemanticEdges: true,
+		showInheritance: true,
+		showAggregation: true,
+		showSimilar: true,
+		showSibling: true,
+		showSequence: true,
+		colorEdgesByRelation: true,
+		fadeEdgesByDegree: true,
+		nodeColorMode: "category",
+		showEdgeLabels: false,
+		showArrows: true,
+	},
+	creative: {
+		showLinks: true,
+		showTagEdges: true,
+		showCategoryEdges: false,
+		showSemanticEdges: true,
+		showInheritance: false,
+		showAggregation: false,
+		showSimilar: false,
+		showSibling: false,
+		showSequence: false,
+		colorEdgesByRelation: true,
+		fadeEdgesByDegree: false,
+		nodeColorMode: "category",
+		tagDisplay: "enclosure",
+		showTagNodes: true,
+	},
+	"active-focus": {
+		syncWithEditor: true,
+		localGraphCenter: "__active__",
+		localGraphHops: 2,
+		focusLayout: true,
+		hoverHops: 1,
+		showArrows: true,
+		fadeEdgesByDegree: true,
+	},
+	"semantic-shapes": {
+		nodeShapeRules: [
+			{ match: "category" as const, category: "character", shape: "circle" as const },
+			{ match: "category" as const, category: "place", shape: "hexagon" as const },
+			{ match: "category" as const, category: "event", shape: "diamond" as const },
+			{ match: "category" as const, category: "concept", shape: "triangle" as const },
+			{ match: "default" as const, shape: "square" as const },
+		],
+	},
+	"full-analysis": {
+		showLinks: true,
+		showTagEdges: true,
+		showInheritance: true,
+		showAggregation: true,
+		showSimilar: true,
+		showSequence: true,
+		colorEdgesByRelation: true,
+		fadeEdgesByDegree: true,
+		showArrows: true,
+		showGraphStats: true,
+		showBridgeNodes: true,
+		showImportanceRing: true,
+		nodeColorMode: "community",
+		showEntropyOverlay: true,
+		highlightMissingNeighbors: true,
+	},
+	// Thinking modes (M1)
+	explore: {
+		syncWithEditor: true,
+		localGraphCenter: "__active__",
+		localGraphHops: 3,
+		focusLayout: true,
+		focusConeEnabled: true,
+		hoverHops: 2,
+		showGapEdges: true,
+		showSimilarSuggestions: true,
+		fadeEdgesByDegree: true,
+		showArrows: false,
+		nodeColorMode: "category",
+	},
+	analyze: {
+		syncWithEditor: false,
+		localGraphCenter: null,
+		showGraphStats: true,
+		showBridgeNodes: true,
+		showEntropyOverlay: true,
+		highlightMissingNeighbors: true,
+		nodeColorMode: "community",
+		colorEdgesByRelation: true,
+		fadeEdgesByDegree: true,
+		showArrows: true,
+		showOntologyBackbone: true,
+		showHierarchyTree: true,
+		directionalGravityRules: [{ filter: "type:inheritance", direction: "bottom", strength: 0.08 }],
+	},
+	write: {
+		syncWithEditor: true,
+		localGraphCenter: "__active__",
+		localGraphHops: 1,
+		focusLayout: true,
+		presentationMode: true,
+		hoverHops: 1,
+		showArrows: false,
+		fadeEdgesByDegree: false,
+		nodeColorMode: "category",
+		nodeSize: 25,
+		showTagEdges: false,
+		showCategoryEdges: false,
+		showSemanticEdges: false,
+		showSimilar: false,
+		focusConeEnabled: true,
+	},
+};
 
 // Re-export PixiNode so other modules can import from either location
 export type { PixiNode } from "./InteractionManager";
@@ -612,6 +856,7 @@ export class GraphViewContainer
 		};
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian API override signature
 	async setState(state: any, result: ViewStateResult): Promise<void> {
 		await super.setState(state, result);
 		// Layout is always "force"; legacy state values are migrated to cluster arrangement
@@ -658,6 +903,7 @@ export class GraphViewContainer
 				.map((s) => s.trim())
 				.filter(Boolean);
 			this.panel.clusterGroupRules = fields.map((f) => ({
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic groupBy string
 				groupBy: (f.endsWith(":?") ? f : f + ":?") as any,
 				recursive: false,
 			}));
@@ -1202,7 +1448,7 @@ export class GraphViewContainer
 	/** Open the note corresponding to a timeline bar. */
 	private _openTimelineBarNote(nodeId: string): void {
 		const pn = this.pixiNodes.get(nodeId);
-		const fp = (pn?.data as any)?.filePath;
+		const fp = pn?.data?.filePath;
 		if (!fp) return;
 		const tf = this.app.vault.getAbstractFileByPath(fp);
 		if (tf instanceof TFile) {
@@ -1213,19 +1459,19 @@ export class GraphViewContainer
 
 	/** Timeline arrow key navigation: move selection between bars. */
 	private _handleTimelineArrowKey(key: string): void {
-		const bars = (this.clusterMeta as any)?.timelineBars as any[] | undefined;
+		const bars = this.clusterMeta?.timelineBars;
 		if (!bars || bars.length === 0) return;
 
 		// Find current selection index
 		const currentId = this.highlightedNodeId;
-		const currentIdx = currentId ? bars.findIndex((b: any) => b.nodeId === currentId) : -1;
+		let currentIdx = currentId ? bars.findIndex((b) => b.nodeId === currentId) : -1;
 
 		// Sort bars by Y then X for navigation order
 		const sorted = bars
-			.map((b: any, i: number) => ({ ...b, origIdx: i }))
-			.sort((a: any, b: any) => a.yCenter - b.yCenter || a.xStart - b.xStart);
+			.map((b, i) => ({ ...b, origIdx: i }))
+			.sort((a, b) => a.yCenter - b.yCenter || a.xStart - b.xStart);
 
-		let sortedIdx = currentIdx >= 0 ? sorted.findIndex((b: any) => b.origIdx === currentIdx) : -1;
+		let sortedIdx = currentIdx >= 0 ? sorted.findIndex((b) => b.origIdx === currentIdx) : -1;
 
 		switch (key) {
 			case "ArrowRight":
@@ -1239,7 +1485,7 @@ export class GraphViewContainer
 			case "ArrowDown": {
 				// Jump to next work group (find bar with significantly different Y)
 				const curY = sortedIdx >= 0 ? sorted[sortedIdx].yCenter : 0;
-				const next = sorted.find((b: any, i: number) => i > sortedIdx && b.yCenter > curY + 10);
+				const next = sorted.find((b, i) => i > sortedIdx && b.yCenter > curY + 10);
 				if (next) sortedIdx = sorted.indexOf(next);
 				break;
 			}
@@ -1351,11 +1597,14 @@ export class GraphViewContainer
 		return {
 			panelEl: this.panelEl,
 			containerEl: this.containerEl,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- bridge to KeyboardHost interface
 			worldContainer: this.worldContainer as any,
 			highlightedNodeId: this.highlightedNodeId,
 			isKeyboardFocused: this._isKeyboardFocused,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			panel: this.panel as any,
 			compareNodeIds: this.compareNodeIds,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			pixiNodes: this.pixiNodes as any,
 			app: this.app,
 			autoFitView: (w, h) => this.autoFitView(w, h),
@@ -1575,6 +1824,7 @@ export class GraphViewContainer
 		// Theme / CSS snippet change — invalidate color caches and update canvas background
 		this.registerEvent(
 			// "css-change" is an undocumented Obsidian workspace event not in the public type definitions
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			this.app.workspace.on("css-change" as any, () => {
 				this.invalidateThemeCache();
 			}),
@@ -1613,6 +1863,7 @@ export class GraphViewContainer
 							searchQuery: this.panel.searchQuery ?? "",
 							groupBy: this.panel.clusterGroupRules?.[0]?.groupBy ?? "",
 						});
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any -- snapshot type mismatch
 						snapshots.push(snap as any);
 						this.plugin.settings.snapshots = snapshots;
 						this.plugin.saveSettings();
@@ -1624,6 +1875,7 @@ export class GraphViewContainer
 		// Ephemeral highlight from side-panel (property value hover, backlink hover)
 		this.registerEvent(
 			// Custom plugin event not in Obsidian's Workspace type definitions
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			(this.app.workspace as any).on(EVENT_HIGHLIGHT_NODES, (nodeIds: Set<string> | null) => {
 				this.applyEphemeralHighlight(nodeIds);
 			}),
@@ -1631,6 +1883,7 @@ export class GraphViewContainer
 
 		// O2: Link creation from NodeDetailView suggestion
 		this.registerEvent(
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom plugin event
 			(this.app.workspace as any).on("graph-island:create-link", (srcId: string, tgtId: string) => {
 				this.createLink(srcId, tgtId);
 			}),
@@ -1638,11 +1891,13 @@ export class GraphViewContainer
 
 		// ビュー同期: 他の Graph Island ビューからのパネル状態変更を受信
 		this.registerEvent(
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom plugin event
 			(this.app.workspace as any).on(
 				EVENT_SYNC_PANEL,
 				(data: { senderId: string; panel: Record<string, unknown> }) => {
 					if (!data || !this.panel.syncViewId) return;
 					// 自分自身が送信元の場合は無視
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian leaf.id not in public types
 					if (data.senderId === (this.leaf as any).id) return;
 					this._syncReceiving = true;
 					try {
@@ -1703,7 +1958,9 @@ export class GraphViewContainer
 			payload[key] = (this.panel as unknown as Record<string, unknown>)[key];
 		}
 		// workspace.trigger でカスタムイベントを発火
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
 		(this.app.workspace as any).trigger(EVENT_SYNC_PANEL, {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian leaf.id
 			senderId: (this.leaf as any).id,
 			panel: payload,
 		});
@@ -2773,8 +3030,8 @@ export class GraphViewContainer
 			const next: string[] = [];
 			for (const parentId of frontier) {
 				for (const e of this.graphEdges) {
-					const src = typeof e.source === "object" ? (e.source as any).id : e.source;
-					const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+					const src = edgeSourceId(e);
+					const tgt = edgeTargetId(e);
 					if (!relTypes.has(e.type ?? "") && !relTypes.has(e.relation ?? "")) continue;
 					const childId = src === parentId ? tgt : tgt === parentId ? src : null;
 					if (childId && !visited.has(childId)) {
@@ -2797,8 +3054,8 @@ export class GraphViewContainer
 			const t = e.type ?? "";
 			const r = e.relation ?? "";
 			if (t === "inheritance" || r === "is-a" || r === "parent") {
-				const src = typeof e.source === "object" ? (e.source as any).id : e.source;
-				const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+				const src = edgeSourceId(e);
+				const tgt = edgeTargetId(e);
 				result.push({ from: src, to: tgt });
 			}
 		}
@@ -3520,7 +3777,20 @@ export class GraphViewContainer
 
 	/** Helper: set a frontmatter field (creates YAML block if needed) */
 	private _setFrontmatterField(content: string, key: string, value: string): string {
-		return setFrontmatterField(content, key, value);
+		const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+		if (fmMatch) {
+			const fmBody = fmMatch[1];
+			const regex = new RegExp(`^${key}:.*$`, "m");
+			if (regex.test(fmBody)) {
+				const newFm = fmBody.replace(regex, `${key}: ${value}`);
+				return content.replace(fmMatch[0], `---\n${newFm}\n---`);
+			} else {
+				const newFm = fmBody + `\n${key}: ${value}`;
+				return content.replace(fmMatch[0], `---\n${newFm}\n---`);
+			}
+		} else {
+			return `---\n${key}: ${value}\n---\n${content}`;
+		}
 	}
 
 	// =========================================================================
@@ -3572,6 +3842,7 @@ export class GraphViewContainer
 			zoom: app?.stage.scale.x ?? 1,
 		});
 		this.panel.subgraphNodeIds = [...nodeIds];
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- viewMode string from runtime
 		this.panel.viewMode = viewMode as any;
 		this.panel.multiSelectNodeIds = [];
 		this.rawData = null;
@@ -3585,6 +3856,7 @@ export class GraphViewContainer
 		const prev = this.panel.subgraphStack.pop();
 		if (prev) {
 			this.panel.subgraphNodeIds = prev.nodeIds;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- viewMode string from saved state
 			this.panel.viewMode = prev.viewMode as any;
 		} else {
 			this.panel.subgraphNodeIds = [];
@@ -3735,8 +4007,8 @@ export class GraphViewContainer
 		let interEdges = 0;
 		const bridgeNodes = new Set<string>();
 		for (const e of this.graphEdges) {
-			const src = typeof e.source === "object" ? (e.source as any).id : e.source;
-			const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+			const src = edgeSourceId(e);
+			const tgt = edgeTargetId(e);
 			if ((setA.has(src) && setB.has(tgt)) || (setB.has(src) && setA.has(tgt))) {
 				interEdges++;
 				if (setA.has(src)) bridgeNodes.add(src);
@@ -3904,6 +4176,7 @@ export class GraphViewContainer
 			const b = this.pixiNodes.get(this.compareNodeIds[1]);
 			if (a && b) {
 				const venn = this.computeCompareVenn();
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
 				this.app.workspace.trigger(EVENT_COMPARE_NODES as any, {
 					nodeA: a.data,
 					nodeB: b.data,
@@ -3916,6 +4189,7 @@ export class GraphViewContainer
 				this.setPathfinderNode(this.compareNodeIds[1], "end");
 			}
 		} else {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
 			this.app.workspace.trigger(EVENT_COMPARE_NODES as any, null);
 			this.clearPathfinder();
 		}
@@ -4337,6 +4611,7 @@ export class GraphViewContainer
 			const ny = dy / dist;
 
 			// Place tooltip at canvas edge in the direction of the group
+			let tipX: number, tipY: number;
 			// Find intersection with canvas boundary
 			const tMax = 10000;
 			let t = tMax;
@@ -4345,8 +4620,8 @@ export class GraphViewContainer
 			if (ny > 0.01) t = Math.min(t, (canvasH - margin - hovSy) / ny);
 			else if (ny < -0.01) t = Math.min(t, (margin - hovSy) / ny);
 			t = Math.max(40, t); // minimum distance from node
-			const tipX = Math.max(margin, Math.min(canvasW - margin, hovSx + nx * t));
-			const tipY = Math.max(margin, Math.min(canvasH - margin, hovSy + ny * t));
+			tipX = Math.max(margin, Math.min(canvasW - margin, hovSx + nx * t));
+			tipY = Math.max(margin, Math.min(canvasH - margin, hovSy + ny * t));
 
 			// Cluster display name
 			const clusterName = clusterKey.replace(/^folder:/, "").replace(/^[^:]+:/, "");
@@ -4411,8 +4686,8 @@ export class GraphViewContainer
 				const forwardIds = new Set<string>();
 				const backlinkIds = new Set<string>();
 				for (const e of this.graphEdges) {
-					const src = typeof e.source === "string" ? e.source : ((e.source as any)?.id ?? e.source);
-					const tgt = typeof e.target === "string" ? e.target : ((e.target as any)?.id ?? e.target);
+					const src = edgeSourceId(e);
+					const tgt = edgeTargetId(e);
 					if (src === hId && bfsResult.has(tgt)) forwardIds.add(tgt);
 					if (tgt === hId && bfsResult.has(src)) backlinkIds.add(src);
 				}
@@ -4590,6 +4865,7 @@ export class GraphViewContainer
 	}
 
 	/** HM: Reposition hover tooltip if it overlaps DOM panels (legend, stats, minimap, node-info). */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- CanvasText with dynamic properties
 	private _adjustTooltipForOverlap(pn: PixiNode, hl: any, counterScale: number, gfxScale: number) {
 		const world = this.worldContainer;
 		if (!world) return;
@@ -5284,7 +5560,7 @@ export class GraphViewContainer
 					let val: string | undefined;
 					if (field === "folder") val = pn.data.filePath?.replace(/\/[^/]*$/, "") || "root";
 					else if (field === "tag") val = pn.data.tags?.[0];
-					else val = (pn.data.meta as any)?.[field] as string | undefined;
+					else val = pn.data.meta?.[field] as string | undefined;
 					vals.push(val || "ungrouped");
 				}
 				const compositeKey = vals.join(" · ");
@@ -5715,6 +5991,7 @@ export class GraphViewContainer
 			const ly = txt.y - th / 2;
 			if (wx >= lx && wx <= lx + tw && wy >= ly && wy <= ly + th) {
 				// Find members of this group to compute bounding box
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime property on CanvasText
 				const memberKey = (txt as any)._groupKey;
 				if (memberKey) {
 					const members: { x: number; y: number }[] = [];
@@ -5750,6 +6027,7 @@ export class GraphViewContainer
 	/** Animate zoom to a world-coordinate rectangle. */
 	private _zoomToWorldRect(wx: number, wy: number, ww: number, wh: number): void {
 		const world = this.worldContainer;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- fallback canvas access
 		const canvas = this.pixiApp?.view ?? (this as any).app?.view;
 		if (!world || !canvas) return;
 		const cw = canvas.width;
@@ -5777,6 +6055,7 @@ export class GraphViewContainer
 			return;
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended clusterMeta property
 		const sunburstArcs = (this.clusterMeta as any)?.sunburstArcs;
 		if (!sunburstArcs || sunburstArcs.length === 0) return;
 
@@ -5868,6 +6147,7 @@ export class GraphViewContainer
 
 	/** Draw labels on cluster sunburst arcs (depth ≤ 1 only, wide arcs) */
 	private drawClusterSunburstLabels() {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended clusterMeta property
 		const sunburstArcs = (this.clusterMeta as any)?.sunburstArcs;
 		if (!sunburstArcs || sunburstArcs.length === 0) {
 			// Clear existing labels
@@ -6030,14 +6310,16 @@ export class GraphViewContainer
 		if (hoveredId) {
 			const hoveredNode = this.pixiNodes.get(hoveredId);
 			if (hoveredNode) {
-				const fp = (hoveredNode.data as any).filePath ?? hoveredId;
+				const fp = hoveredNode.data.filePath ?? hoveredId;
 				const tf = this.app.vault.getAbstractFileByPath(fp);
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TFile type narrowing for metadataCache
 				const parentId = tf ? this.app.metadataCache.getFileCache(tf as any)?.frontmatter?.parent_id : null;
 				if (parentId) {
 					siblingIds = new Set<string>();
 					for (const bar of bars) {
-						const bfp = (this.pixiNodes.get(bar.nodeId)?.data as any)?.filePath ?? bar.nodeId;
+						const bfp = this.pixiNodes.get(bar.nodeId)?.data?.filePath ?? bar.nodeId;
 						const btf = this.app.vault.getAbstractFileByPath(bfp);
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TFile type narrowing
 						const bpid = btf
 							? this.app.metadataCache.getFileCache(btf as any)?.frontmatter?.parent_id
 							: null;
@@ -6143,6 +6425,7 @@ export class GraphViewContainer
 
 		// Timeline viewMode: draw work group separators
 		if (this.panel.viewMode === "timeline" && this.barLabelContainer) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended clusterMeta property
 			const workGroups = (this.clusterMeta as any)?.timelineWorkGroups as
 				| { name: string; minY: number; maxY: number }[]
 				| undefined;
@@ -6181,7 +6464,9 @@ export class GraphViewContainer
 
 		// Timeline viewMode: draw time axis labels at bottom
 		if (this.panel.viewMode === "timeline" && this.barLabelContainer) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended clusterMeta property
 			const steps = (this.clusterMeta as any)?.timelineSteps as string[] | undefined;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const stepW = (this.clusterMeta as any)?.timelineStepWidth as number | undefined;
 			if (steps && stepW && steps.length > 0) {
 				const axisFontSize = Math.max(6, 9 / worldScale);
@@ -6282,8 +6567,75 @@ export class GraphViewContainer
 	 * Cartesian layouts: grid intersections
 	 */
 	private _generatePhantomNodes(realNodes: GraphNode[], cx: number, cy: number): GraphNode[] {
-		const isPolar = POLAR_ARRANGEMENTS.has(this.panel.clusterArrangement);
-		return generatePhantomNodes(realNodes, cx, cy, isPolar) as GraphNode[];
+		const arrangement = this.panel.clusterArrangement;
+		const isPolar = POLAR_ARRANGEMENTS.has(arrangement);
+		const phantoms: GraphNode[] = [];
+
+		if (isPolar) {
+			const spokeCount = Math.min(12, Math.max(8, Math.ceil(Math.sqrt(realNodes.length / 5))));
+			const ringCount = Math.min(8, Math.max(4, Math.ceil(Math.sqrt(realNodes.length / 10))));
+			// Estimate max radius from node positions (or use viewport)
+			let maxR = 0;
+			for (const n of realNodes) {
+				if (n.isPhantom) continue;
+				const d = Math.sqrt((n.x - cx) ** 2 + (n.y - cy) ** 2);
+				if (d > maxR) maxR = d;
+			}
+			if (maxR < 10) maxR = 500;
+
+			for (let ri = 1; ri <= ringCount; ri++) {
+				const r = (maxR * ri) / (ringCount + 1);
+				for (let si = 0; si < spokeCount; si++) {
+					const theta = (si / spokeCount) * Math.PI * 2;
+					phantoms.push({
+						id: `__phantom_r${ri}_s${si}`,
+						label: "",
+						x: cx + r * Math.cos(theta),
+						y: cy + r * Math.sin(theta),
+						vx: 0,
+						vy: 0,
+						isPhantom: true,
+					});
+				}
+			}
+		} else {
+			const gridSize = Math.min(10, Math.max(6, Math.ceil(Math.sqrt(realNodes.length / 8))));
+			let xMin = Infinity,
+				xMax = -Infinity,
+				yMin = Infinity,
+				yMax = -Infinity;
+			for (const n of realNodes) {
+				if (n.isPhantom) continue;
+				if (n.x < xMin) xMin = n.x;
+				if (n.x > xMax) xMax = n.x;
+				if (n.y < yMin) yMin = n.y;
+				if (n.y > yMax) yMax = n.y;
+			}
+			if (xMin === Infinity) {
+				xMin = cx - 250;
+				xMax = cx + 250;
+				yMin = cy - 250;
+				yMax = cy + 250;
+			}
+			const w = xMax - xMin || 500;
+			const h = yMax - yMin || 500;
+
+			for (let xi = 0; xi <= gridSize; xi++) {
+				for (let yi = 0; yi <= gridSize; yi++) {
+					phantoms.push({
+						id: `__phantom_x${xi}_y${yi}`,
+						label: "",
+						x: xMin + (w * xi) / gridSize,
+						y: yMin + (h * yi) / gridSize,
+						vx: 0,
+						vy: 0,
+						isPhantom: true,
+					});
+				}
+			}
+		}
+
+		return phantoms;
 	}
 
 	// =========================================================================
@@ -6548,6 +6900,7 @@ export class GraphViewContainer
 		// Get current graph data
 		const nodes = [...this.pixiNodes.values()].map((pn) => pn.data);
 		const nodeR = this._buildNodeRadiusFn();
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial GraphData for computation
 		const gd = { nodes, edges: this.graphEdges } as any;
 		const nodeColor = this._buildNodeColorFn(gd);
 		// Recreate display objects
@@ -6683,10 +7036,9 @@ export class GraphViewContainer
 
 	/** Compute average node radius across all pixiNodes. */
 	private _computeAvgNodeRadius(): number {
-		return computeAvgRadius(
-			Array.from(this.pixiNodes.values(), (pn) => pn.radius),
-			this.pixiNodes.size,
-		);
+		let sum = 0;
+		for (const pn of this.pixiNodes.values()) sum += pn.radius ?? 12;
+		return sum / this.pixiNodes.size;
 	}
 
 	/**
@@ -6696,23 +7048,31 @@ export class GraphViewContainer
 	private _spreadDegenerateAxis(
 		cx: number,
 		cy: number,
-		_vpW: number,
-		_vpH: number,
+		vpW: number,
+		vpH: number,
 		bboxW: number,
 		bboxH: number,
 		degenerateThreshold: number,
 		minUtil: number,
 		vpArea: number,
 	): void {
-		const result = computeDegenerateSpread(bboxW, bboxH, degenerateThreshold, minUtil, vpArea);
-		if (!result) return;
-		const nodes = Array.from(this.pixiNodes.values());
-		const n = nodes.length;
-		nodes.forEach((pn, i) => {
-			const t = n > 1 ? i / (n - 1) - 0.5 : 0;
-			if (result.axis === "y") pn.data.y = cy + t * result.targetSpan;
-			else pn.data.x = cx + t * result.targetSpan;
-		});
+		if (bboxW > degenerateThreshold && bboxH < degenerateThreshold) {
+			const targetH = Math.max(bboxW * 0.3, (minUtil * vpArea) / bboxW);
+			const nodes = Array.from(this.pixiNodes.values());
+			const n = nodes.length;
+			nodes.forEach((pn, i) => {
+				const t = n > 1 ? i / (n - 1) - 0.5 : 0;
+				pn.data.y = cy + t * targetH;
+			});
+		} else if (bboxH > degenerateThreshold && bboxW < degenerateThreshold) {
+			const targetW = Math.max(bboxH * 0.3, (minUtil * vpArea) / bboxH);
+			const nodes = Array.from(this.pixiNodes.values());
+			const n = nodes.length;
+			nodes.forEach((pn, i) => {
+				const t = n > 1 ? i / (n - 1) - 0.5 : 0;
+				pn.data.x = cx + t * targetW;
+			});
+		}
 	}
 
 	/**
@@ -6726,7 +7086,14 @@ export class GraphViewContainer
 		vpArea: number,
 		util: number,
 	): number {
-		return computeViewportScaleFactor(bboxW, bboxH, minUtil, vpArea, util, this._computeAvgNodeRadius());
+		const avgR = this._computeAvgNodeRadius();
+		const posSpanW = Math.max(bboxW - 2 * avgR, 1);
+		const posSpanH = Math.max(bboxH - 2 * avgR, 1);
+		const A = posSpanW * posSpanH;
+		const B = 2 * avgR * (posSpanW + posSpanH);
+		const C = 4 * avgR * avgR - minUtil * vpArea;
+		const disc = B * B - 4 * A * C;
+		return disc >= 0 ? (-B + Math.sqrt(disc)) / (2 * A) : Math.sqrt(minUtil / util); // fallback
 	}
 
 	private autoFitView(W: number, H: number) {
@@ -7049,18 +7416,28 @@ export class GraphViewContainer
 			edgeTypeCounts: this._countEdgeTypes(),
 			hasImageMetaNodes: this._hasImageMetaNodes(),
 			hasInheritanceEdges: this.graphEdges.some((e) => e.type === "inheritance"),
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian plugin manifest access
 			pluginDir: (this.plugin as any).manifest?.dir ?? "",
 		};
 	}
 
 	/** Count edges by type for progressive disclosure of edge toggles. */
 	private _countEdgeTypes(): Record<string, number> {
-		return countEdgeTypes(this.graphEdges);
+		const counts: Record<string, number> = {};
+		for (const e of this.graphEdges) {
+			const t = e.type || "link";
+			counts[t] = (counts[t] || 0) + 1;
+		}
+		return counts;
 	}
 
 	/** Check if any nodes have image/thumbnail/cover frontmatter metadata. */
 	private _hasImageMetaNodes(): boolean {
-		return hasImageMetaNodes(Array.from(this.pixiNodes.values(), (pn) => pn.data));
+		for (const pn of this.pixiNodes.values()) {
+			const m = pn.data?.meta;
+			if (m && (m.image || m.thumbnail || m.cover)) return true;
+		}
+		return false;
 	}
 
 	/** Build the callbacks object wiring panel UI actions to graph view methods. */
@@ -7233,6 +7610,7 @@ export class GraphViewContainer
 			getBacklinks: (nodeId: string) => this._getBacklinks(nodeId),
 			toggleNodeVisibility: (nodeId: string) => this._toggleNodeVisibility(nodeId),
 			refreshOverlays: () => {
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial GraphData
 				const gd =
 					this.originalGraphData ??
 					({ nodes: [...this.pixiNodes.values()].map((pn) => pn.data), edges: this.graphEdges } as any);
@@ -7313,7 +7691,27 @@ export class GraphViewContainer
 
 	/** Helper: add a tag to frontmatter tags array */
 	private _addFrontmatterTag(content: string, tag: string): string {
-		return addFrontmatterTag(content, tag);
+		const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+		if (fmMatch) {
+			const fmBody = fmMatch[1];
+			const tagsRegex = /^tags:\s*\[([^\]]*)\]/m;
+			const tagsListRegex = /^tags:\s*$/m;
+			if (tagsRegex.test(fmBody)) {
+				const newFm = fmBody.replace(tagsRegex, (match, inner) => {
+					const existing = inner ? inner + ", " : "";
+					return `tags: [${existing}${tag}]`;
+				});
+				return content.replace(fmMatch[0], `---\n${newFm}\n---`);
+			} else if (tagsListRegex.test(fmBody)) {
+				const newFm = fmBody.replace(tagsListRegex, `tags:\n  - ${tag}`);
+				return content.replace(fmMatch[0], `---\n${newFm}\n---`);
+			} else {
+				const newFm = fmBody + `\ntags: [${tag}]`;
+				return content.replace(fmMatch[0], `---\n${newFm}\n---`);
+			}
+		} else {
+			return `---\ntags: [${tag}]\n---\n${content}`;
+		}
 	}
 
 	/** Execute the reset-panel action: restore defaults and re-render. */
@@ -7547,6 +7945,10 @@ export class GraphViewContainer
 					recolorCommunityMap = this._getCommunityMap(this.originalGraphData);
 				}
 				const cid = recolorCommunityMap?.get(n.id) ?? 0;
+				const COMMUNITY_PALETTE: number[] = [
+					0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd, 0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf,
+					0xaec7e8, 0xffbb78, 0x98df8a, 0xff9896, 0xc5b0d5, 0xc49c94, 0xf7b6d2, 0xc7c7c7, 0xdbdb8d, 0x9edae5,
+				];
 				color = COMMUNITY_PALETTE[cid % COMMUNITY_PALETTE.length];
 			}
 			pn.color = color;
@@ -7899,12 +8301,12 @@ export class GraphViewContainer
 	// =========================================================================
 	private _showDensityHeatmap = false;
 	private _applyAnalysisOverlay(): void {
-		const flags = resolveAnalysisOverlay(this.panel.analysisOverlay ?? "off");
-		this.panel.showBridgeNodes = flags.showBridgeNodes;
-		this.panel.showEntropyOverlay = flags.showEntropyOverlay;
-		this.panel.highlightMissingNeighbors = flags.highlightMissingNeighbors;
-		this.panel.showGapEdges = flags.showGapEdges;
-		this._showDensityHeatmap = flags.showDensityHeatmap;
+		const mode = this.panel.analysisOverlay ?? "off";
+		this.panel.showBridgeNodes = mode === "bridges" || mode === "all";
+		this.panel.showEntropyOverlay = mode === "entropy" || mode === "all";
+		this.panel.highlightMissingNeighbors = mode === "missing" || mode === "all";
+		this.panel.showGapEdges = mode === "gaps" || mode === "all";
+		this._showDensityHeatmap = mode === "density" || mode === "all";
 	}
 
 	// =========================================================================
@@ -7915,6 +8317,7 @@ export class GraphViewContainer
 		if (!world || !this.pixiNodes) return;
 		const wx = world.x;
 		const wy = world.y;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- PixiJS Container scale property
 		const ws = (world as any).scale?.x ?? 1;
 		const cw = this.canvasWrap?.clientWidth ?? DEFAULT_CANVAS_WIDTH;
 		const ch = this.canvasWrap?.clientHeight ?? DEFAULT_CANVAS_HEIGHT;
@@ -7929,6 +8332,7 @@ export class GraphViewContainer
 		// add a Gaussian contribution to nearby cells
 		const RADIUS = 3; // cells radius for Gaussian spread
 		for (const [, pn] of this.pixiNodes) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy graphics property fallback
 			const gfx = (pn as any).graphics ?? pn.gfx;
 			if (!gfx || !gfx.visible) continue;
 			const sx = gfx.x * ws + wx;
@@ -8189,7 +8593,8 @@ export class GraphViewContainer
 							: gga === "vertical"
 								? "grid"
 								: "grid"
-			) as any;
+			) as // eslint-disable-next-line @typescript-eslint/no-explicit-any -- arrangement type narrowing
+			any;
 			// Mark so we can restore "inherit" after render for correct serialization
 			this._inheritResolved = true;
 		}
@@ -8884,11 +9289,17 @@ export class GraphViewContainer
 						workGroupRanges.sort((a, b) => a.minY - b.minY);
 					}
 
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended clusterMeta for timeline
 					if (!this.clusterMeta) this.clusterMeta = {} as any;
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					(this.clusterMeta as any).timelineBars = bars;
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					(this.clusterMeta as any).timelineSteps = tlResult.timeSteps;
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					(this.clusterMeta as any).timelineStepWidth = stepW;
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					(this.clusterMeta as any).timelineLanes = tlResult.lanes;
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					(this.clusterMeta as any).timelineWorkGroups = workGroupRanges;
 					break;
 				}
@@ -9327,8 +9738,11 @@ export class GraphViewContainer
 
 			// Obsidianの添付ファイルフォルダ設定を尊重してパスを決定
 			const activeFile = mdView.file;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian vault internal API
 			const attachPath = (this.app.vault as any).getAvailablePath
-				? (this.app.vault as any).getAvailablePath(
+				? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+					(this.app.vault as any).getAvailablePath(
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
 						((this.app.vault as any).config?.attachmentFolderPath || "") +
 							"/" +
 							filename.replace(".png", ""),
@@ -9601,7 +10015,21 @@ export class GraphViewContainer
 	/** Apply a named preset by key (used by keyboard shortcut commands). */
 	/** Get human-readable summary of a preset's settings for tooltip preview */
 	private _getPresetSummary(key: string): string {
-		return getPresetSummary(key);
+		const presetDefs: Record<string, Record<string, unknown>> = {
+			simple: { edges: "links only", arrows: false, color: "category" },
+			analysis: { edges: "all types", arrows: true, color: "category", fade: true },
+			creative: { edges: "links+tags+semantic", tags: "enclosure", color: "category" },
+			"active-focus": { mode: "local graph", hops: 2, focus: true, arrows: true },
+			"full-analysis": { edges: "all types", arrows: true, stats: true, color: "community", bridges: true },
+			explore: { mode: "local graph", hops: 3, focus: true, similar: true },
+			analyze: { stats: true, bridges: true, entropy: true, color: "community", arrows: true },
+			write: { mode: "local graph", hops: 1, focus: true, presentation: true },
+		};
+		const def = presetDefs[key];
+		if (!def) return "";
+		return Object.entries(def)
+			.map(([k, v]) => `${k}: ${v}`)
+			.join("\n");
 	}
 
 	applyPresetByKey(preset: string): void {
@@ -9669,20 +10097,21 @@ export class GraphViewContainer
 		const targetY = wrap.clientHeight / 2 - pn.data.y * world.scale.y;
 		const startTime = performance.now();
 
-		const animate = (now: number) => {
+		const self = this;
+		function animate(now: number) {
 			const elapsed = now - startTime;
 			const t = Math.min(1, elapsed / durationMs);
 			const ease = t * (2 - t); // ease-out quadratic
 			world!.x = startX + (targetX - startX) * ease;
 			world!.y = startY + (targetY - startY) * ease;
-			this.markDirty();
+			self.markDirty();
 			if (t < 1) {
 				requestAnimationFrame(animate);
 			} else {
-				this.setHighlightedNodeId(nodeId);
-				this.applyHover();
+				self.setHighlightedNodeId(nodeId);
+				self.applyHover();
 			}
-		};
+		}
 		requestAnimationFrame(animate);
 	}
 
@@ -9691,14 +10120,15 @@ export class GraphViewContainer
 		const startAlpha = pn.gfx.alpha;
 		if (Math.abs(startAlpha - targetAlpha) < 0.01) return;
 		const startTime = performance.now();
-		const tick = (now: number) => {
+		const self = this;
+		function tick(now: number) {
 			const t = Math.min(1, (now - startTime) / durationMs);
 			pn.gfx.alpha = startAlpha + (targetAlpha - startAlpha) * t;
 			if (t < 1) {
 				requestAnimationFrame(tick);
 			}
-			this.markDirty();
-		};
+			self.markDirty();
+		}
 		requestAnimationFrame(tick);
 	}
 
@@ -9799,7 +10229,9 @@ export class GraphViewContainer
 				// HE: In card mode, tint card title text with accent color for visual match indicator
 				if (isCardMode && pn.gfx.children.length > 0) {
 					for (const child of pn.gfx.children) {
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime card text properties
 						if ((child as any)._isCardText && (child as any).style) {
+							// eslint-disable-next-line @typescript-eslint/no-explicit-any
 							(child as any).style.fill = "#" + searchHitColor.toString(16).padStart(6, "0");
 							break; // Only tint the first (title) text
 						}
@@ -9808,17 +10240,22 @@ export class GraphViewContainer
 				// EJ: Pulse animation — brief scale bounce on first search highlight
 				// A11y: skip animation when prefers-reduced-motion is set
 				const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime pulse tracking
 				if (hlSet && !(pn as any)._searchPulsed && !reducedMotion) {
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					(pn as any)._searchPulsed = true;
 					const sx = pn.gfx.scale.x;
 					pn.gfx.scale.set(sx * 1.3);
 					setTimeout(() => {
 						if (pn.gfx) pn.gfx.scale.set(sx);
 					}, 300);
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				} else if (hlSet && !(pn as any)._searchPulsed) {
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					(pn as any)._searchPulsed = true;
 				}
 			} else {
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				(pn as any)._searchPulsed = false;
 				this._fadeNodeAlpha(pn, 0.12);
 				this.drawNodeCircle(pn, false);
@@ -10078,6 +10515,7 @@ export class GraphViewContainer
 		this.panel.searchQuery = `path:${displayName}`;
 		// Switch to graph mode
 		this.panel.viewMode = "graph";
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- layout type literal
 		this.currentLayout = "force" as any;
 		this.doRender();
 		this._announceA11y(`Filtered: ${displayName}`);
@@ -10093,7 +10531,7 @@ export class GraphViewContainer
 		// Count nodes in this group
 		const arcs = this.sunburstLayoutArcs;
 		let leafCount = 0;
-		const depth2Names: string[] = [];
+		let depth2Names: string[] = [];
 		for (const arc of arcs) {
 			if (arc.depth === 1 && arc.name === groupName) continue;
 			// Check if arc belongs to this group (depth-1 ancestor)
@@ -10409,8 +10847,8 @@ export class GraphViewContainer
 			// By category, then degree within category
 			sorted = [...degrees.entries()]
 				.sort((a, b) => {
-					const ca = (gd.nodes.find((n) => n.id === a[0]) as any)?.category ?? "";
-					const cb = (gd.nodes.find((n) => n.id === b[0]) as any)?.category ?? "";
+					const ca = gd.nodes.find((n) => n.id === a[0])?.category ?? "";
+					const cb = gd.nodes.find((n) => n.id === b[0])?.category ?? "";
 					if (ca !== cb) return ca.localeCompare(cb);
 					return b[1] - a[1];
 				})
@@ -10434,7 +10872,7 @@ export class GraphViewContainer
 			const t = edgeTargetId(e);
 			if (nodeIdSet.has(s) && nodeIdSet.has(t)) {
 				incCounter(matrix.get(s)!, t);
-				const eType = (e as any).type ?? "link";
+				const eType = e.type ?? "link";
 				if (!matrixTypes.get(s)!.has(t)) matrixTypes.get(s)!.set(t, new Map());
 				incCounter(matrixTypes.get(s)!.get(t)!, eType);
 			}
@@ -10469,6 +10907,7 @@ export class GraphViewContainer
 			if (opt.value === sortMode) el.selected = true;
 		}
 		sortSelect.addEventListener("change", () => {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- select value to enum type
 			this.panel.matrixSortMode = sortSelect.value as any;
 			this._renderMatrixViewMode(gd, W, H);
 		});

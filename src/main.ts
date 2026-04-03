@@ -1,4 +1,4 @@
-import { Plugin } from "obsidian";
+import { Plugin, MarkdownView } from "obsidian";
 import { GraphViewsSettingTab } from "./settings";
 import { GraphViewContainer, VIEW_TYPE_GRAPH } from "./views/GraphViewContainer";
 import { NodeDetailView, VIEW_TYPE_NODE_DETAIL } from "./views/NodeDetailView";
@@ -28,7 +28,8 @@ export default class GraphViewsPlugin extends Plugin {
 
 		// 比較イベント発火時に比較パネルを自動オープン
 		this.registerEvent(
-			this.app.workspace.on(EVENT_COMPARE_NODES as any, (data: any) => {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			this.app.workspace.on(EVENT_COMPARE_NODES as any, (data: unknown) => {
 				if (data) this.ensureComparePane();
 			}),
 		);
@@ -97,6 +98,7 @@ export default class GraphViewsPlugin extends Plugin {
 			callback: () => {
 				const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
 				if (view) {
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing private panel for command
 					const v = view as any;
 					v.panel.focusMode = !v.panel.focusMode;
 					v.markDirty(true);
@@ -109,6 +111,7 @@ export default class GraphViewsPlugin extends Plugin {
 			callback: () => {
 				const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
 				if (view) {
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing private panelEl
 					const searchInput = (view as any).panelEl?.querySelector("input[type='text']");
 					if (searchInput) searchInput.focus();
 				}
@@ -116,11 +119,13 @@ export default class GraphViewsPlugin extends Plugin {
 		});
 
 		// D2: Additional command palette integrations
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- command callbacks access private GVC members
+		const gv = (): any => this._getGraphView();
 		this.addCommand({
 			id: "graph-toggle-stats",
 			name: "Graph: Toggle statistics panel",
 			callback: () => {
-				const v = this._getGraphView() as any;
+				const v = gv();
 				if (v) {
 					v.panel.showGraphStats = !v.panel.showGraphStats;
 					v.markDirty(true);
@@ -131,7 +136,7 @@ export default class GraphViewsPlugin extends Plugin {
 			id: "graph-toggle-arrows",
 			name: "Graph: Toggle edge arrows",
 			callback: () => {
-				const v = this._getGraphView() as any;
+				const v = gv();
 				if (v) {
 					v.panel.showArrows = !v.panel.showArrows;
 					v.markDirty(true);
@@ -142,7 +147,7 @@ export default class GraphViewsPlugin extends Plugin {
 			id: "graph-analysis-all",
 			name: "Graph: Show all analysis overlays",
 			callback: () => {
-				const v = this._getGraphView() as any;
+				const v = gv();
 				if (v) {
 					v.panel.analysisOverlay = "all";
 					v.doRender();
@@ -153,7 +158,7 @@ export default class GraphViewsPlugin extends Plugin {
 			id: "graph-analysis-off",
 			name: "Graph: Hide analysis overlays",
 			callback: () => {
-				const v = this._getGraphView() as any;
+				const v = gv();
 				if (v) {
 					v.panel.analysisOverlay = "off";
 					v.doRender();
@@ -164,7 +169,7 @@ export default class GraphViewsPlugin extends Plugin {
 			id: "graph-help",
 			name: "Graph: Show keyboard shortcuts",
 			callback: () => {
-				const v = this._getGraphView() as any;
+				const v = gv();
 				if (v) {
 					v._toggleHelpOverlay?.();
 				}
@@ -176,7 +181,7 @@ export default class GraphViewsPlugin extends Plugin {
 			id: "graph-copy-png",
 			name: "Graph: Copy graph as PNG",
 			callback: () => {
-				const v = this._getGraphView() as any;
+				const v = gv();
 				if (v) v.copyGraphToClipboard?.();
 			},
 		});
@@ -184,7 +189,7 @@ export default class GraphViewsPlugin extends Plugin {
 			id: "graph-export-full",
 			name: "Graph: Export full graph as JSON",
 			callback: () => {
-				const v = this._getGraphView() as any;
+				const v = gv();
 				if (v) v.exportFullGraph?.();
 			},
 		});
@@ -192,7 +197,7 @@ export default class GraphViewsPlugin extends Plugin {
 			id: "graph-export-csv",
 			name: "Graph: Export as CSV",
 			callback: () => {
-				const v = this._getGraphView() as any;
+				const v = gv();
 				if (v) v.exportGraphAsCSV?.();
 			},
 		});
@@ -200,7 +205,7 @@ export default class GraphViewsPlugin extends Plugin {
 			id: "graph-export-mermaid",
 			name: "Graph: Export as Mermaid diagram",
 			callback: () => {
-				const v = this._getGraphView() as any;
+				const v = gv();
 				if (v) v.exportGraphAsMermaid?.();
 			},
 		});
@@ -208,7 +213,7 @@ export default class GraphViewsPlugin extends Plugin {
 		this.addSettingTab(new GraphViewsSettingTab(this.app, this));
 
 		// Code block processor for embedded mini-graphs in notes
-		this.registerMarkdownCodeBlockProcessor("graph-island", (source, el, _ctx) => {
+		this.registerMarkdownCodeBlockProcessor("graph-island", (source, el, ctx) => {
 			import("./views/EmbeddedGraphRenderer")
 				.then(({ renderEmbeddedGraph }) => {
 					renderEmbeddedGraph(el, source, this.app, this.settings);
@@ -230,6 +235,7 @@ export default class GraphViewsPlugin extends Plugin {
 		await this.saveData(this.settings);
 		// Notify all graph views to rebuild with updated settings
 		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing private GVC members
 			const view = leaf.view as any;
 			if (view?.rawData !== undefined) {
 				view.rawData = null;
@@ -285,6 +291,7 @@ export default class GraphViewsPlugin extends Plugin {
 		this.app.workspace.revealLeaf(leaf);
 		// Configure the new view after creation
 		setTimeout(() => {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing private GVC members
 			const view = leaf.view as any;
 			if (view?.panel) {
 				view.panel.subgraphNodeIds = [...nodeIds];

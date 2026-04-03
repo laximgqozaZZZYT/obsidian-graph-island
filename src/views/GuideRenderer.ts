@@ -20,6 +20,7 @@ export interface GuideRendererHost {
 	readonly worldContainer: CanvasContainer | null;
 	isDarkTheme(): boolean;
 	getPanel(): {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render threshold config
 		renderThresholds?: Record<string, any>;
 		gridShowHeaders?: boolean;
 		gridLabelPlacement?: string;
@@ -352,8 +353,8 @@ export class GuideRenderer {
 		bounds: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number },
 		lineW: number,
 		color: number,
-		_axis1Title?: string,
-		_axis2Title?: string,
+		axis1Title?: string,
+		axis2Title?: string,
 	) {
 		const { axis1Lines, axis2Lines, axis1Shape, axis2Shape, style, cellShading } = gridInfo;
 		const isDark = this.host.isDarkTheme();

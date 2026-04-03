@@ -1,4 +1,4 @@
-import { ItemView, setIcon } from "obsidian";
+import { ItemView, WorkspaceLeaf, setIcon } from "obsidian";
 import type { GraphNode } from "../types";
 import { t } from "../i18n";
 import { EVENT_COMPARE_NODES, EVENT_HIGHLIGHT_NODES } from "../constants";
@@ -15,7 +15,7 @@ interface CompareEvent {
 }
 
 /** 比較結果の計算データ */
-export interface ComparisonResult {
+interface ComparisonResult {
 	sharedNeighbors: string[];
 	uniqueToA: string[];
 	uniqueToB: string[];
@@ -25,103 +25,6 @@ export interface ComparisonResult {
 	sharedCategories: string[];
 	shortestPath: string[] | null;
 	pathLength: number;
-}
-
-// ---------------------------------------------------------------------------
-// Pure graph algorithms (exported for testing)
-// ---------------------------------------------------------------------------
-
-/** BFS shortest path between two nodes. Returns path array or null if unreachable. */
-export function bfsShortestPath(adj: Map<string, Set<string>>, startId: string, endId: string): string[] | null {
-	if (startId === endId) return [startId];
-	const visited = new Set<string>([startId]);
-	const parent = new Map<string, string>();
-	const queue: string[] = [startId];
-
-	while (queue.length > 0) {
-		const current = queue.shift()!;
-		if (current === endId) break;
-		const neighbors = adj.get(current);
-		if (!neighbors) continue;
-		for (const n of neighbors) {
-			if (!visited.has(n)) {
-				visited.add(n);
-				parent.set(n, current);
-				queue.push(n);
-			}
-		}
-	}
-
-	if (!parent.has(endId)) return null;
-
-	const path: string[] = [];
-	let cur = endId;
-	while (cur !== startId) {
-		path.unshift(cur);
-		cur = parent.get(cur)!;
-	}
-	path.unshift(startId);
-	return path;
-}
-
-/** Compute comparison data between two nodes (shared/unique neighbors, tags, path). */
-export function computeComparison(nodeA: GraphNode, nodeB: GraphNode, adj: Map<string, Set<string>>): ComparisonResult {
-	const neighborsA = adj.get(nodeA.id) ?? new Set<string>();
-	const neighborsB = adj.get(nodeB.id) ?? new Set<string>();
-
-	const sharedNeighbors: string[] = [];
-	for (const id of neighborsA) {
-		if (id !== nodeA.id && id !== nodeB.id && neighborsB.has(id)) {
-			sharedNeighbors.push(id);
-		}
-	}
-
-	const uniqueToA: string[] = [];
-	for (const id of neighborsA) {
-		if (id !== nodeB.id && !neighborsB.has(id)) {
-			uniqueToA.push(id);
-		}
-	}
-
-	const uniqueToB: string[] = [];
-	for (const id of neighborsB) {
-		if (id !== nodeA.id && !neighborsA.has(id)) {
-			uniqueToB.push(id);
-		}
-	}
-
-	const tagsA = new Set(nodeA.tags ?? []);
-	const tagsB = new Set(nodeB.tags ?? []);
-	const sharedTags: string[] = [];
-	const uniqueTagsA: string[] = [];
-	const uniqueTagsB: string[] = [];
-	for (const tg of tagsA) {
-		if (tagsB.has(tg)) sharedTags.push(tg);
-		else uniqueTagsA.push(tg);
-	}
-	for (const tg of tagsB) {
-		if (!tagsA.has(tg)) uniqueTagsB.push(tg);
-	}
-
-	const sharedCategories: string[] = [];
-	if (nodeA.category && nodeB.category && nodeA.category === nodeB.category) {
-		sharedCategories.push(nodeA.category);
-	}
-
-	const shortestPath = bfsShortestPath(adj, nodeA.id, nodeB.id);
-	const pathLength = shortestPath ? shortestPath.length - 1 : -1;
-
-	return {
-		sharedNeighbors,
-		uniqueToA,
-		uniqueToB,
-		sharedTags,
-		uniqueTagsA,
-		uniqueTagsB,
-		sharedCategories,
-		shortestPath,
-		pathLength,
-	};
 }
 
 /**
@@ -151,6 +54,7 @@ export class NodeComparisonView extends ItemView {
 
 		// 比較イベントをリスン
 		this.registerEvent(
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
 			(this.app.workspace as any).on(EVENT_COMPARE_NODES, (data: CompareEvent | null) => {
 				if (!data) {
 					this.renderEmpty();
@@ -171,6 +75,7 @@ export class NodeComparisonView extends ItemView {
 	// ハイライト通知
 	// ---------------------------------------------------------------------------
 	private triggerHighlight(nodeIds: Set<string> | null) {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
 		this.app.workspace.trigger(EVENT_HIGHLIGHT_NODES as any, nodeIds);
 	}
 
@@ -187,14 +92,104 @@ export class NodeComparisonView extends ItemView {
 	}
 
 	// ---------------------------------------------------------------------------
-	// 比較計算 — delegates to exported pure functions
+	// 比較計算 (BFS最短経路 + 集合演算)
 	// ---------------------------------------------------------------------------
-	private computeComparisonResult(
-		nodeA: GraphNode,
-		nodeB: GraphNode,
-		adj: Map<string, Set<string>>,
-	): ComparisonResult {
-		return computeComparison(nodeA, nodeB, adj);
+	private computeComparison(nodeA: GraphNode, nodeB: GraphNode, adj: Map<string, Set<string>>): ComparisonResult {
+		const neighborsA = adj.get(nodeA.id) ?? new Set<string>();
+		const neighborsB = adj.get(nodeB.id) ?? new Set<string>();
+
+		// 共通隣接ノード (自分自身を除外)
+		const sharedNeighbors: string[] = [];
+		for (const id of neighborsA) {
+			if (id !== nodeA.id && id !== nodeB.id && neighborsB.has(id)) {
+				sharedNeighbors.push(id);
+			}
+		}
+
+		// A固有の隣接ノード
+		const uniqueToA: string[] = [];
+		for (const id of neighborsA) {
+			if (id !== nodeB.id && !neighborsB.has(id)) {
+				uniqueToA.push(id);
+			}
+		}
+
+		// B固有の隣接ノード
+		const uniqueToB: string[] = [];
+		for (const id of neighborsB) {
+			if (id !== nodeA.id && !neighborsA.has(id)) {
+				uniqueToB.push(id);
+			}
+		}
+
+		// 共通タグ
+		const tagsA = new Set(nodeA.tags ?? []);
+		const tagsB = new Set(nodeB.tags ?? []);
+		const sharedTags: string[] = [];
+		const uniqueTagsA: string[] = [];
+		const uniqueTagsB: string[] = [];
+		for (const t of tagsA) {
+			if (tagsB.has(t)) sharedTags.push(t);
+			else uniqueTagsA.push(t);
+		}
+		for (const t of tagsB) {
+			if (!tagsA.has(t)) uniqueTagsB.push(t);
+		}
+
+		// 共通カテゴリ
+		const sharedCategories: string[] = [];
+		if (nodeA.category && nodeB.category && nodeA.category === nodeB.category) {
+			sharedCategories.push(nodeA.category);
+		}
+
+		// BFS最短経路
+		const shortestPath = this.bfs(adj, nodeA.id, nodeB.id);
+		const pathLength = shortestPath ? shortestPath.length - 1 : -1;
+
+		return {
+			sharedNeighbors,
+			uniqueToA,
+			uniqueToB,
+			sharedTags,
+			uniqueTagsA,
+			uniqueTagsB,
+			sharedCategories,
+			shortestPath,
+			pathLength,
+		};
+	}
+
+	/** BFS最短経路探索 */
+	private bfs(adj: Map<string, Set<string>>, startId: string, endId: string): string[] | null {
+		if (startId === endId) return [startId];
+		const visited = new Set<string>([startId]);
+		const parent = new Map<string, string>();
+		const queue: string[] = [startId];
+
+		while (queue.length > 0) {
+			const current = queue.shift()!;
+			if (current === endId) break;
+			const neighbors = adj.get(current);
+			if (!neighbors) continue;
+			for (const n of neighbors) {
+				if (!visited.has(n)) {
+					visited.add(n);
+					parent.set(n, current);
+					queue.push(n);
+				}
+			}
+		}
+
+		if (!parent.has(endId)) return null;
+
+		const path: string[] = [];
+		let cur = endId;
+		while (cur !== startId) {
+			path.unshift(cur);
+			cur = parent.get(cur)!;
+		}
+		path.unshift(startId);
+		return path;
 	}
 
 	// ---------------------------------------------------------------------------
@@ -205,7 +200,7 @@ export class NodeComparisonView extends ItemView {
 		this.bodyEl.empty();
 
 		const { nodeA, nodeB, adj, pixiNodes } = data;
-		const result = this.computeComparisonResult(nodeA, nodeB, adj);
+		const result = this.computeComparison(nodeA, nodeB, adj);
 
 		// HP: A11y — comparison panel as ARIA region with descriptive label
 		const wrap = this.bodyEl.createDiv({
@@ -222,6 +217,7 @@ export class NodeComparisonView extends ItemView {
 		setIcon(clearBtn.createSpan({ cls: "gi-compare-clear-icon" }), "x");
 		clearBtn.addEventListener("click", () => {
 			// クリアイベントを発火 (nullペイロード)
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
 			this.app.workspace.trigger(EVENT_COMPARE_NODES as any, null);
 		});
 

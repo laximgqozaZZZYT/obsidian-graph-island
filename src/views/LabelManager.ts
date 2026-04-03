@@ -16,6 +16,7 @@ export interface LabelManagerHost {
 	/** Panel textFadeThreshold value */
 	getTextFadeThreshold(): number;
 	/** Panel renderThresholds (merged with defaults by caller) */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
 	getRenderThresholds(): Record<string, any> | undefined;
 	/** Current world-container scale (zoom) */
 	getWorldScale(): number;
@@ -172,6 +173,7 @@ export class LabelManager {
 	// =========================================================================
 
 	/** Compute priority scores and minShowZoom for all PixiNodes (cached, recomputed only when needed). */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
 	private _computePriorityScores(rt: Record<string, any>): void {
 		const degrees = this.host.getDegrees();
 		const pixiArr = [...this.host.getPixiNodes().values()];
@@ -225,9 +227,10 @@ export class LabelManager {
 	private _evaluateLOD(
 		zoom: number,
 		counterScale: number,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
 		rt: Record<string, any>,
 		degrees: Map<string, number>,
-		_baseOpacity: number,
+		baseOpacity: number,
 	): { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[] {
 		const hoverSet = this.host.getPrevHighlightSet();
 		const renderPipeline = this.host.getRenderPipeline();
@@ -405,14 +408,15 @@ export class LabelManager {
 	/** AP-5 diversity guarantee (promote non-super nodes) and apply maxVisible cap. */
 	private _applyDiversityAndCap(
 		candidates: { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[],
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
 		rt: Record<string, any>,
 		degrees: Map<string, number>,
 		baseOpacity: number,
 	): void {
-		const _staticMax = rt.labelMaxVisible ?? 0;
+		const staticMax = rt.labelMaxVisible ?? 0;
 		// Zoom-based dynamic cap: at zoom-out, show fewer labels to prevent overlap
 		const zoom = this.host.getWorldScale();
-		const _density = Math.max(0.2, Math.min(3.0, rt.labelDensity ?? 1.0));
+		const density = Math.max(0.2, Math.min(3.0, rt.labelDensity ?? 1.0));
 		// Small-graph boost: show all labels when few nodes, more labels for medium graphs
 		// Map-style labeling: no maxVisible cap. Show all labels that pass
 		// LOD tier checks. Overlap culling handles density separately.
@@ -511,6 +515,7 @@ export class LabelManager {
 	}
 
 	/** Scale sunburst, cluster sunburst, and group grid labels based on zoom level. */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
 	private _scaleGroupLabels(zoom: number, rt: Record<string, any>): void {
 		// Enclosure labels are managed by EnclosureRenderer (drawEnclosuresImpl)
 		// which runs every frame with its own zoom-dependent scaling (1/ws).

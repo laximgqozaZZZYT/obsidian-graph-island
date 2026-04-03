@@ -4,7 +4,7 @@
  * and hierarchy breadcrumb bar.
  * Communicates with GVC via StatsHost interface to avoid tight coupling.
  */
-import type { GraphData } from "../types";
+import type { GraphData, GraphNode, GraphEdge } from "../types";
 import { computeGraphStats, generateStructureQuestions } from "../analysis/graph-analysis";
 import { t } from "../i18n";
 import { Notice } from "obsidian";
@@ -180,6 +180,7 @@ export function renderGraphStats(el: HTMLElement, gd: GraphData, panel: StatsPan
 	{
 		const qs = host.getLabelQualityScore();
 		const fps = host.getCurrentFps();
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Chrome-specific performance.memory API
 		const mem = (performance as any).memory?.usedJSHeapSize;
 		const memMB = mem ? Math.round(mem / (1024 * 1024)) : null;
 

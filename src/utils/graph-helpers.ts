@@ -60,7 +60,7 @@ export function buildAdjFiltered(gd: GraphData, allowedTypes: Record<string, boo
 	const adj = new Map<string, Set<string>>();
 	for (const n of gd.nodes) adj.set(n.id, new Set());
 	for (const e of gd.edges) {
-		const edgeType = (e as any).type ?? "link";
+		const edgeType = e.type ?? "link";
 		if (!allowed.has(edgeType)) continue;
 		adj.get(e.source)?.add(e.target);
 		adj.get(e.target)?.add(e.source);
@@ -333,8 +333,8 @@ export function exportFullGraphJSON(nodes: GraphNode[], edges: GraphEdge[]): str
 				meta: n.meta,
 			})),
 			edges: edges.map((e) => ({
-				source: typeof e.source === "object" ? (e.source as any).id : e.source,
-				target: typeof e.target === "object" ? (e.target as any).id : e.target,
+				source: edgeSourceId(e),
+				target: edgeTargetId(e),
 				type: e.type,
 				label: e.label,
 			})),
@@ -361,8 +361,8 @@ export function exportGraphCSV(nodes: GraphNode[], edges: GraphEdge[]): string {
 	lines.push("# Edges");
 	lines.push("source,target,type,label");
 	for (const e of edges) {
-		const src = typeof e.source === "object" ? (e.source as any).id : e.source;
-		const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+		const src = edgeSourceId(e);
+		const tgt = edgeTargetId(e);
 		lines.push(`${src},${tgt},${e.type ?? "link"},${(e.label ?? "").replace(/,/g, " ")}`);
 	}
 	return lines.join("\n");
@@ -374,15 +374,15 @@ export function exportGraphMermaid(nodes: GraphNode[], edges: GraphEdge[]): stri
 	const nodeSlice = nodes.slice(0, 200);
 	const nodeIds = new Set(nodeSlice.map((n) => n.id));
 	for (const n of nodeSlice) {
-		const safe = n.label.replace(/["[\]()]/g, "");
+		const safe = n.label.replace(/["\[\]()]/g, "");
 		const mid = n.id.replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 50);
 		lines.push(`  ${mid}["${safe}"]`);
 	}
 	let ec = 0;
 	for (const e of edges) {
 		if (ec >= 500) break;
-		const src = typeof e.source === "object" ? (e.source as any).id : e.source;
-		const tgt = typeof e.target === "object" ? (e.target as any).id : e.target;
+		const src = edgeSourceId(e);
+		const tgt = edgeTargetId(e);
 		if (!nodeIds.has(src) || !nodeIds.has(tgt)) continue;
 		const srcM = src.replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 50);
 		const tgtM = tgt.replace(/[^a-zA-Z0-9_-]/g, "_").substring(0, 50);
@@ -465,8 +465,8 @@ export function exportGraphSVG(
 	// Edges
 	lines.push(`  <g class="edges" stroke="#888" stroke-width="0.5" opacity="${edgeAlpha}">`);
 	for (const e of edges) {
-		const sid = typeof e.source === "object" ? (e.source as any).id : e.source;
-		const tid = typeof e.target === "object" ? (e.target as any).id : e.target;
+		const sid = edgeSourceId(e);
+		const tid = edgeTargetId(e);
 		const sp = posMap.get(sid);
 		const tp = posMap.get(tid);
 		if (!sp || !tp) continue;
@@ -785,7 +785,7 @@ export function computeAutoFitTransform(input: AutoFitInput): AutoFitResult | nu
 
 	const padding = input.padding ?? 80;
 	const maxScale = input.maxScale ?? 1.5;
-	const configMinScale = input.minScale ?? 0;
+	let configMinScale = input.minScale ?? 0;
 
 	let minX = Infinity,
 		minY = Infinity,

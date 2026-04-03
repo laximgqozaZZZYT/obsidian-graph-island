@@ -6,6 +6,9 @@ import { wcagContrastRatio, contrastColor } from "../utils/color";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import {
 	routeEdge,
+	findNearestIntersection,
+	cachedFindShortestPath,
+	pathToWaypoints,
 	invalidatePathCache,
 } from "../layouts/cable-tray";
 import {
@@ -283,15 +286,15 @@ export const RELATION_COLOR_ALPHA = 0.8;
 /** Multiplier applied to edge thickness when highlighted (hover/focus). */
 export const HIGHLIGHT_THICKNESS_MULTIPLIER = 2.5;
 /** Highlighted cable trunk width */
-const _HIGHLIGHT_CABLE_TRUNK_WIDTH = 3;
+const HIGHLIGHT_CABLE_TRUNK_WIDTH = 3;
 /** Cable fan crowd attenuation threshold (edges) */
-const _CABLE_FAN_CROWD_THRESHOLD = 6.0;
+const CABLE_FAN_CROWD_THRESHOLD = 6.0;
 /** Cable fan crowd min alpha fraction */
-const _CABLE_FAN_CROWD_MIN_FRACTION = 0.4;
+const CABLE_FAN_CROWD_MIN_FRACTION = 0.4;
 /** Cable fan alpha factor for highlighted (connected) edges */
-const _CABLE_FAN_CONNECTED_FACTOR = 0.8;
+const CABLE_FAN_CONNECTED_FACTOR = 0.8;
 /** Cable fan alpha dampen factor for non-matching edges during hover */
-const _CABLE_FAN_NON_MATCH_DAMPEN = 0.15;
+const CABLE_FAN_NON_MATCH_DAMPEN = 0.15;
 /** Zoom-out fade for intra-group cables (does NOT affect trunks).
  *  Returns 1.0 at zoom >= 0.5, fading to 0.05 at zoom <= 0.15. */
 function _zoomFadeAlpha(zoom: number): number {
@@ -303,19 +306,19 @@ function _zoomFadeAlpha(zoom: number): number {
 /** Cable lane spacing in screen pixels — wide enough to distinguish parallel cables */
 const CABLE_LANE_SPACING = 14;
 /** Cable layout margin from cluster boundary */
-const _CABLE_LAYOUT_MARGIN = 5;
+const CABLE_LAYOUT_MARGIN = 5;
 /** Cable layout overlap start/end fraction */
-const _CABLE_OVERLAP_FRAC = 0.4;
+const CABLE_OVERLAP_FRAC = 0.4;
 /** Trunk conduit alpha — semi-transparent so wires show through */
 const TRUNK_CONDUIT_ALPHA = 0.12;
 /** Cable conduit alpha — semi-transparent so wires show through */
-const _CABLE_CONDUIT_ALPHA = 0;
+const CABLE_CONDUIT_ALPHA = 0;
 /** Wire alpha — most opaque layer, clearly visible */
 const WIRE_BASE_ALPHA = 0.9;
 /** Wire spacing within a cable (screen pixels between parallel wires) */
 const STUB_WIRE_SPACING = 7;
 /** Maximum conduit width in screen pixels */
-const _MAX_CONDUIT_WIDTH = 16;
+const MAX_CONDUIT_WIDTH = 16;
 /** Trunk conduit screen width (px) — thickest layer */
 const TRUNK_SCREEN_WIDTH = 12;
 /** Cable conduit screen width (px) — medium layer */
@@ -946,6 +949,8 @@ export function routeViaJunctionGrid(
 	// Find colGap nearest to target X (the "aisle" to enter the target node)
 	const tgtColGap = findNearestGap(grid.colGaps, to.x);
 	// Find rowGap between the two Y positions
+	const rowGap = findGapBetween(grid.rowGaps, from.y, to.y);
+
 	// Find rowGap nearest to source (to avoid running along a node row)
 	const srcRowGap = findNearestGap(grid.rowGaps, from.y);
 	// Find rowGap nearest to target
@@ -1708,9 +1713,9 @@ interface IntraGroupCable {
 }
 
 /** Node port offset: fraction of node spacing to place port below/beside node */
-const _NODE_PORT_OFFSET_RATIO = 0.5;
+const NODE_PORT_OFFSET_RATIO = 0.5;
 /** Minimum node port offset distance (world units) */
-const _NODE_PORT_MIN_OFFSET = 50;
+const NODE_PORT_MIN_OFFSET = 50;
 
 /** Cable routing options */
 interface CableRouteOpts {
@@ -1731,7 +1736,7 @@ interface CableRouteOpts {
  * Polar: arc through ring gaps
  *   from → (radial to gapRing) → (arc along gapRing) → (radial to target) → to
  */
-function _computeCablePath(
+function computeCablePath(
 	from: { x: number; y: number },
 	to: { x: number; y: number },
 	offset: number,
@@ -2663,8 +2668,8 @@ function drawTrunks(
 	const cfgTrunkWidth = cfg.cableTrunkWidth ?? TRUNK_SCREEN_WIDTH;
 	const cfgTrunkAlpha = cfg.cableTrunkAlpha ?? TRUNK_CONDUIT_ALPHA;
 	const cfgLaneSpacing = cfg.cableSpacing ?? CABLE_LANE_SPACING;
-	const _cfgWireWidth = cfg.cableFanWidth ?? WIRE_SCREEN_WIDTH;
-	const _cfgWireAlpha = cfg.cableFanAlpha ?? WIRE_BASE_ALPHA;
+	const cfgWireWidth = cfg.cableFanWidth ?? WIRE_SCREEN_WIDTH;
+	const cfgWireAlpha = cfg.cableFanAlpha ?? WIRE_BASE_ALPHA;
 	const laneSpacing = cfgLaneSpacing;
 
 	// PASS 1: Trunk conduits — width adapts to cable count so all lanes fit inside.
@@ -3504,13 +3509,7 @@ function _drawEdgesSinglePass(
 		}
 
 		let lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
-		const {
-			alpha: resolvedAlpha,
-			lineThick: resolvedThick,
-			isHighlighted: edgeHL,
-		} = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
-		let alpha = resolvedAlpha;
-		let lineThick = resolvedThick;
+		let { alpha, lineThick, isHighlighted: edgeHL } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
 
 		// Zoom-out: desaturate edge colors toward gray for visual calm
 		// Skip for highlighted edges — they should stay vivid.
@@ -3643,13 +3642,11 @@ function _drawEdgesLayered(
 			}
 
 			let lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
-			const {
-				alpha: resolvedAlpha2,
-				lineThick: resolvedThick2,
+			let {
+				alpha,
+				lineThick,
 				isHighlighted: edgeHLL,
 			} = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
-			let alpha = resolvedAlpha2;
-			let lineThick = resolvedThick2;
 
 			// Brighten highlighted edges for visual emphasis
 			if (edgeHLL) {
@@ -4052,7 +4049,7 @@ export function drawEdgeLabels(
 		const seenNodes = new Set<string>();
 		for (const { edge: e } of labelable) {
 			for (const ref of [e.source, e.target]) {
-				const id = typeof ref === "string" ? ref : (ref as any)?.id;
+				const id = typeof ref === "string" ? ref : (ref as { id?: string })?.id;
 				if (!id || seenNodes.has(id)) continue;
 				seenNodes.add(id);
 				const pos = resolvePos(ref);

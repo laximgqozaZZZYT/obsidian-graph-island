@@ -9,12 +9,7 @@ import type { NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
 import type { PanelCallbacks, PanelContext, PanelState, NodeTreeEntry } from "./PanelBuilder";
 import { ensureRT, buildSection, addAdvancedGroup, _getNodeDirStates, _saveNodeDirStates } from "./PanelBuilder";
-import {
-	addSlider,
-	addToggle,
-	addSelect,
-	addTextInput,
-} from "./panel-widgets";
+import { addSlider, addToggle, addSelect, addTextInput } from "./panel-widgets";
 
 // ---------------------------------------------------------------------------
 // Node Display Section (was _buildNodeDisplaySection)
@@ -677,12 +672,7 @@ export function buildEdgeDisplaySection(
 // ---------------------------------------------------------------------------
 // Nodes Tab (was _buildNodesTab)
 // ---------------------------------------------------------------------------
-export function buildNodesTab(
-	tabEl: HTMLElement,
-	panel: PanelState,
-	_ctx: PanelContext,
-	cb: PanelCallbacks,
-): void {
+export function buildNodesTab(tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks): void {
 	const entries = cb.getNodeTreeData();
 	const hoveredId = cb.getHoveredNodeId();
 	const excludeSet = new Set(panel.excludeNodes ?? []);

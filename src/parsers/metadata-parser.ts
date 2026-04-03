@@ -87,6 +87,7 @@ export function buildGraphFromVault(app: App, settings: GraphViewsSettings): Gra
 			const info = extractBodyInfo(rawContent, 100);
 			node.bodyPreview = info.preview;
 			node.bodyLength = info.length;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- cachedRead may return Promise in some Obsidian versions
 		} else if (rawContent && typeof (rawContent as any).then === "function") {
 			// cachedRead returns Promise — backfill asynchronously
 			(rawContent as Promise<string>)
@@ -510,7 +511,7 @@ export function buildSunburstData(app: App, groupField: string): SunburstData {
  * Tag nodes (isTag) are colored by their tag name.
  * File nodes are colored by category first, then by first tag.
  */
-export function assignNodeColors(nodes: GraphNode[], _colorField: string): Map<string, string> {
+export function assignNodeColors(nodes: GraphNode[], colorField: string): Map<string, string> {
 	const colorMap = new Map<string, string>();
 	const categories = new Set<string>();
 	const tags = new Set<string>();
