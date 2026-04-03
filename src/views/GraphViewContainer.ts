@@ -5,6 +5,8 @@ import {
 	TFile,
 	FileView,
 	setIcon,
+	Menu,
+	MarkdownView,
 	Notice,
 	Modal,
 	type ViewStateResult,
@@ -63,6 +65,11 @@ import {
 	edgeTargetId,
 	bfsNeighborSet,
 	bfsShortestPath,
+	collectSubgraph,
+	exportSubgraphJSON,
+	exportFullGraphJSON,
+	exportGraphCSV,
+	exportGraphMermaid,
 	edgeTypeSummary,
 	collapsedGroupSummary,
 	truncateBreadcrumb,
@@ -117,30 +124,8 @@ import { RenderPipeline, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPi
 import { LayoutController, type LayoutHost } from "./LayoutController";
 import { LabelManager } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
-import { DiffOverlay } from "./DiffOverlay";
-import {
-	showSnapshotMenu,
-	saveSnapshot as saveSnapshotImpl,
-	compareWithSnapshot as compareWithSnapshotImpl,
-	deleteSnapshot as deleteSnapshotImpl,
-	showSnapshotTimeline as showSnapshotTimelineImpl,
-	clearDiffOverlay as clearDiffOverlayImpl,
-	createAutoSnapshot,
-	AUTO_SNAP_PREFIX,
-	type SnapshotHost,
-} from "./SnapshotManager";
-import {
-	exportSubgraph as exportSubgraphImpl,
-	exportPng as exportPngImpl,
-	exportFullGraph as exportFullGraphImpl,
-	exportGraphAsCSV as exportGraphAsCSVImpl,
-	exportGraphAsMermaid as exportGraphAsMermaidImpl,
-	downloadFile,
-	copyGraphToClipboard as copyGraphToClipboardImpl,
-	embedGraphInNote as embedGraphInNoteImpl,
-	exportCanvasAsBlob as exportCanvasBlobImpl,
-	type ExportHost,
-} from "./ExportManager";
+import { DiffOverlay, buildTimelineEntries, formatDelta, formatSnapshotDate } from "./DiffOverlay";
+import { captureSnapshot, computeSnapshotDiff, computeSnapshotToSnapshotDiff } from "../utils/snapshot";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./StatsRenderer";
@@ -154,8 +139,22 @@ import {
 	type GroupOptions,
 } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
-import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
+// dataview-source used via SearchOrchestrator
 import { getNodeShape, drawShape } from "../utils/node-shapes";
+import {
+	parseHopFilters,
+	computeHopSet,
+	filterBySearchExpr,
+	filterByDataview,
+	classifySearchMatch,
+	countSearchMatches,
+	computeCardHaloGeometry,
+	expandLocalGraphNeighbors,
+	capNodesByDegree,
+	buildRichStatus as buildRichStatusPure,
+	computePathfinderBFS,
+	computeEntropyScores,
+} from "./SearchOrchestrator";
 import {
 	EDGE_TYPE_SIMILAR,
 	LAYOUT_FORCE,
@@ -1118,26 +1117,236 @@ export class GraphViewContainer
 	// _initActionButtons removed — export, local graph, snapshot moved to command palette
 
 	// =========================================================================
-	// スナップショット操作 (delegated to SnapshotManager)
+	// スナップショット操作
 	// =========================================================================
 
+	/** スナップショットメニューを表示する */
 	private _showSnapshotMenu(evt: MouseEvent): void {
-		showSnapshotMenu(this as unknown as SnapshotHost, evt);
+		const menu = new Menu();
+
+		// 保存メニュー項目
+		menu.addItem((item) => {
+			item.setTitle(t("snapshot.save"))
+				.setIcon("plus")
+				.onClick(() => this._saveSnapshot());
+		});
+
+		const snapshots = this.plugin.settings.snapshots ?? [];
+		if (snapshots.length > 0) {
+			menu.addSeparator();
+
+			// 各スナップショットのサブメニュー
+			for (let i = 0; i < snapshots.length; i++) {
+				const snap = snapshots[i];
+				const title = snap.notes ? `${snap.name} — ${snap.notes}` : snap.name;
+				menu.addItem((item) => {
+					item.setTitle(title)
+						.setIcon("bookmark")
+						.onClick(() => this._compareWithSnapshot(snap));
+				});
+			}
+
+			// 削除用サブメニュー
+			menu.addSeparator();
+			for (let i = 0; i < snapshots.length; i++) {
+				const snap = snapshots[i];
+				menu.addItem((item) => {
+					item.setTitle(`${t("snapshot.delete")}: ${snap.name}`)
+						.setIcon("trash")
+						.onClick(() => this._deleteSnapshot(i));
+				});
+			}
+		}
+
+		// Timeline view
+		if (snapshots.length >= 2) {
+			menu.addSeparator();
+			menu.addItem((item) => {
+				item.setTitle("Timeline")
+					.setIcon("clock")
+					.onClick(() => this._showSnapshotTimeline());
+			});
+		}
+
+		// 差分が有効な場合、解除ボタンを表示
+		if (this.diffOverlay.isActive()) {
+			menu.addSeparator();
+			menu.addItem((item) => {
+				item.setTitle(t("snapshot.clearDiff"))
+					.setIcon("x")
+					.onClick(() => this._clearDiffOverlay());
+			});
+		}
+
+		menu.showAtMouseEvent(evt);
 	}
+
+	/** 現在のグラフ状態をスナップショットとして保存する */
 	private _saveSnapshot(): void {
-		saveSnapshotImpl(this as unknown as SnapshotHost);
+		const snapshots = this.plugin.settings.snapshots ?? [];
+
+		// 10件制限チェック
+		if (snapshots.length >= 10) {
+			showToast(t("snapshot.limitReached"), 5000);
+			return;
+		}
+
+		// 名前入力（簡易プロンプト）
+		const name = window.prompt(t("snapshot.enterName"), `Snapshot ${snapshots.length + 1}`);
+		if (!name) return;
+
+		// オプション: メモ入力
+		const notes = window.prompt(t("snapshot.enterNotes"), "") ?? undefined;
+
+		// 現在のグラフデータを取得してキャプチャ
+		const data = this.getGraphData();
+		const snapshot = captureSnapshot(data, name, {
+			layout: this.currentLayout ?? "force",
+			searchQuery: this.panel.searchQuery ?? "",
+			groupBy: this.panel.clusterGroupRules?.[0]?.groupBy ?? "",
+		});
+		if (notes) snapshot.notes = notes;
+
+		// 設定に保存
+		if (!this.plugin.settings.snapshots) {
+			this.plugin.settings.snapshots = [];
+		}
+		this.plugin.settings.snapshots.push(snapshot);
+		this.plugin.saveSettings();
+
+		showToast(t("snapshot.saved").replace("{name}", name));
 	}
+
+	/** スナップショットと現在のグラフを比較する */
 	private _compareWithSnapshot(snapshot: GraphSnapshot): void {
-		compareWithSnapshotImpl(this as unknown as SnapshotHost, snapshot);
+		const data = this.getGraphData();
+		const diff = computeSnapshotDiff(data, snapshot);
+		this.diffOverlay.activate(diff, snapshot.name);
+
+		// Build clickable diff list panel
+		const canvasArea = this.containerEl.querySelector<HTMLElement>(".gi-canvas-area");
+		if (canvasArea) {
+			this.diffOverlay.buildDiffList(
+				canvasArea,
+				(id) => this.getNodeLabel(id),
+				(id) => {
+					this.panToNode(id);
+					this.setHighlightedNodeId(id);
+					this.applyHover();
+				},
+				() => this._clearDiffOverlay(),
+			);
+		}
+
+		// 再描画を要求してオーバーレイを表示
+		this.pixiApp?.markNeedsRender();
+		this.wakeRenderLoop();
 	}
+
+	/** スナップショットを削除する */
 	private _deleteSnapshot(index: number): void {
-		deleteSnapshotImpl(this as unknown as SnapshotHost, index);
+		const snapshots = this.plugin.settings.snapshots ?? [];
+		if (index < 0 || index >= snapshots.length) return;
+
+		const name = snapshots[index].name;
+		snapshots.splice(index, 1);
+		this.plugin.saveSettings();
+
+		showToast(t("snapshot.deleted").replace("{name}", name));
 	}
+
+	/** Show snapshot timeline panel */
 	private _showSnapshotTimeline(): void {
-		showSnapshotTimelineImpl(this as unknown as SnapshotHost);
+		const snapshots = this.plugin.settings.snapshots ?? [];
+		if (snapshots.length < 2) return;
+
+		const entries = buildTimelineEntries(snapshots);
+		const canvasArea = this.containerEl.querySelector<HTMLElement>(".gi-canvas-area");
+		if (!canvasArea) return;
+
+		// Remove existing timeline
+		canvasArea.querySelector(".gi-snapshot-timeline")?.remove();
+
+		const panel = canvasArea.createDiv({ cls: "gi-snapshot-timeline" });
+
+		// Header
+		const header = panel.createDiv({ cls: "gi-snapshot-timeline-header" });
+		header.createEl("span", { text: `Snapshot Timeline (${entries.length})`, cls: "gi-snapshot-timeline-title" });
+		const closeBtn = header.createEl("button", {
+			text: "\u00d7",
+			cls: "gi-snapshot-timeline-close",
+			attr: { "aria-label": "Close timeline" },
+		});
+		closeBtn.addEventListener("click", () => panel.remove());
+
+		// Mini bar chart
+		const maxNodes = Math.max(1, ...entries.map((e) => e.nodeCount));
+		const chartEl = panel.createDiv({ cls: "gi-snapshot-chart" });
+		let _selectedSnap: (typeof snapshots)[0] | null = null;
+		const bars: HTMLElement[] = [];
+		for (const entry of entries) {
+			const bar = chartEl.createDiv({ cls: "gi-snapshot-bar" });
+			bars.push(bar);
+			const h = Math.max(2, (entry.nodeCount / maxNodes) * 36);
+			bar.style.height = `${h}px`;
+			bar.title = `${entry.name}: ${entry.nodeCount}n, ${entry.edgeCount}e — Shift+click to compare two`;
+			bar.addEventListener("click", (ev: MouseEvent) => {
+				const snap = snapshots.find((s) => s.name === entry.name);
+				if (!snap) return;
+				if (ev.shiftKey && _selectedSnap && _selectedSnap !== snap) {
+					// Compare two snapshots
+					const [older, newer] =
+						_selectedSnap.createdAt < snap.createdAt ? [_selectedSnap, snap] : [snap, _selectedSnap];
+					const diff = computeSnapshotToSnapshotDiff(newer, older);
+					this.diffOverlay.activate(diff, `${older.name} → ${newer.name}`);
+					panel.remove();
+					this.pixiApp?.markNeedsRender();
+					this.wakeRenderLoop();
+				} else if (ev.shiftKey) {
+					// First shift-click: select this snapshot
+					_selectedSnap = snap;
+					bars.forEach((b) => (b.style.outline = ""));
+					bar.style.outline = "2px solid var(--text-accent)";
+				} else {
+					// Normal click: compare with current graph
+					panel.remove();
+					this._compareWithSnapshot(snap);
+				}
+			});
+		}
+
+		// Entry list
+		for (const entry of entries) {
+			const row = panel.createDiv({ cls: "gi-snapshot-row" });
+			const displayName = entry.name.replace("[auto] ", "📷 ");
+			const dateStr = formatSnapshotDate(entry.createdAt);
+			row.createEl("span", {
+				text: displayName,
+				cls: "gi-snapshot-row-name",
+				attr: { title: `${entry.name} (${dateStr})` },
+			});
+			row.createEl("span", { text: dateStr, cls: "gi-snapshot-row-date" });
+			const statsEl = row.createDiv({ cls: "gi-snapshot-row-stats" });
+			statsEl.createEl("span", { text: `${entry.nodeCount}n` });
+			if (entry.nodeDelta !== undefined) {
+				const d = formatDelta(entry.nodeDelta);
+				statsEl.createEl("span", {
+					text: d.text,
+					attr: {
+						style: `color:${d.color === "green" ? "var(--text-success,#38a169)" : d.color === "red" ? "var(--text-error,#e53e3e)" : "var(--text-muted)"};`,
+					},
+				});
+			}
+		}
 	}
+
+	/** 差分オーバーレイを解除する */
 	private _clearDiffOverlay(): void {
-		clearDiffOverlayImpl(this as unknown as SnapshotHost);
+		this.diffOverlay.deactivate();
+		const canvasArea = this.containerEl.querySelector<HTMLElement>(".gi-canvas-area");
+		if (canvasArea) this.diffOverlay.removeDiffList(canvasArea);
+		this.pixiApp?.markNeedsRender();
+		this.wakeRenderLoop();
 	}
 
 	/** Create fullscreen toggle and settings panel toggle buttons. */
@@ -1267,7 +1476,7 @@ export class GraphViewContainer
 
 		// Find current selection index
 		const currentId = this.highlightedNodeId;
-		const currentIdx = currentId ? bars.findIndex((b: any) => b.nodeId === currentId) : -1;
+		let currentIdx = currentId ? bars.findIndex((b: any) => b.nodeId === currentId) : -1;
 
 		// Sort bars by Y then X for navigation order
 		const sorted = bars
@@ -1636,6 +1845,8 @@ export class GraphViewContainer
 				const mins = this.plugin.settings.autoSnapshotIntervalMin ?? 5;
 				return mins * 60 * 1000;
 			};
+			const AUTO_SNAP_MAX = 10;
+			const AUTO_SNAP_PREFIX = "[auto] ";
 			this.registerEvent(
 				this.app.metadataCache.on("changed", () => {
 					const debounceMs = getDebounceMs();
@@ -1643,7 +1854,26 @@ export class GraphViewContainer
 					if (autoSnapTimer) window.clearTimeout(autoSnapTimer);
 					autoSnapTimer = window.setTimeout(() => {
 						autoSnapTimer = 0;
-						createAutoSnapshot(this as unknown as SnapshotHost);
+						if (!this.pixiNodes.size) return; // no graph data yet
+						const snapshots = this.plugin.settings.snapshots ?? [];
+						// Remove oldest auto-snapshots if at limit
+						const autoSnaps = snapshots.filter((s) => s.name.startsWith(AUTO_SNAP_PREFIX));
+						while (autoSnaps.length >= AUTO_SNAP_MAX) {
+							const oldest = autoSnaps.shift()!;
+							const idx = snapshots.indexOf(oldest);
+							if (idx >= 0) snapshots.splice(idx, 1);
+						}
+						// Capture
+						const data = this.getGraphData();
+						const name = AUTO_SNAP_PREFIX + new Date().toISOString().replace("T", " ").slice(0, 16);
+						const snap = captureSnapshot(data, name, {
+							layout: this.currentLayout ?? "force",
+							searchQuery: this.panel.searchQuery ?? "",
+							groupBy: this.panel.clusterGroupRules?.[0]?.groupBy ?? "",
+						});
+						snapshots.push(snap as any);
+						this.plugin.settings.snapshots = snapshots;
+						this.plugin.saveSettings();
 					}, debounceMs) as unknown as number;
 				}),
 			);
@@ -3325,10 +3555,35 @@ export class GraphViewContainer
 	}
 
 	// =========================================================================
-	// Subgraph Export (Feature CY) — delegated to ExportManager
+	// Subgraph Export (Feature CY)
 	// =========================================================================
+	/** Export an N-hop subgraph around a node as a JSON download. */
 	exportSubgraph(nodeId: string): void {
-		exportSubgraphImpl(this as unknown as ExportHost, nodeId);
+		if (!this.adj || !this.graphEdges) return;
+		const nodes = [...this.pixiNodes.values()].map((pn) => pn.data);
+		const edges = this.graphEdges;
+		const hops = this.panel.hoverHops || 2;
+		const sub = collectSubgraph(this.adj, nodeId, hops, nodes, edges);
+		const json = exportSubgraphJSON(sub);
+
+		// Download as file
+		const blob = new Blob([json], { type: "application/json" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		const pn = this.pixiNodes.get(nodeId);
+		const label = pn?.data?.label ?? nodeId;
+		a.download = `subgraph-${label.replace(/[^a-zA-Z0-9_-]/g, "_")}.json`;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+
+		// Toast notification
+		const msg = t("toast.subgraphExported")
+			.replace("{nodes}", String(sub.nodes.length))
+			.replace("{edges}", String(sub.edges.length));
+		new Notice(msg, 3000);
 	}
 
 	setSearchQuery(query: string): void {
@@ -3404,21 +3659,65 @@ export class GraphViewContainer
 		this.requestSave();
 	}
 
-	// FC: Export — delegated to ExportManager
+	// FC: Export graph canvas as PNG
 	exportPng(): void {
-		exportPngImpl(this as unknown as ExportHost);
+		const canvas = this.pixiApp?.view;
+		if (!canvas) return;
+		canvas.toBlob((blob: Blob | null) => {
+			if (!blob) return;
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = `graph-island-${new Date().toISOString().slice(0, 10)}.png`;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+			new Notice("Graph exported as PNG", 2000);
+		}, "image/png");
 	}
+
 	exportFullGraph(): void {
-		exportFullGraphImpl(this as unknown as ExportHost);
+		const gd = this.getGraphData();
+		const json = exportFullGraphJSON(gd.nodes, gd.edges);
+		this._downloadFile(
+			json,
+			"application/json",
+			`graph-island-export-${new Date().toISOString().slice(0, 10)}.json`,
+		);
+		new Notice(`Graph exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, 3000);
 	}
+
 	exportGraphAsCSV(): void {
-		exportGraphAsCSVImpl(this as unknown as ExportHost);
+		const gd = this.getGraphData();
+		const csv = exportGraphCSV(gd.nodes, gd.edges);
+		this._downloadFile(csv, "text/csv", `graph-island-${new Date().toISOString().slice(0, 10)}.csv`);
+		new Notice(`CSV exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, 3000);
 	}
+
 	exportGraphAsMermaid(): void {
-		exportGraphAsMermaidImpl(this as unknown as ExportHost);
+		const gd = this.getGraphData();
+		const mmd = exportGraphMermaid(gd.nodes, gd.edges);
+		navigator.clipboard
+			.writeText(mmd)
+			.then(() => {
+				new Notice(`Mermaid diagram copied to clipboard (${Math.min(200, gd.nodes.length)} nodes)`, 3000);
+			})
+			.catch(() => {
+				this._downloadFile(mmd, "text/plain", `graph-island-${new Date().toISOString().slice(0, 10)}.mmd`);
+			});
 	}
+
 	private _downloadFile(content: string, type: string, filename: string): void {
-		downloadFile(content, type, filename);
+		const blob = new Blob([content], { type });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = filename;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
 	}
 
 	// =========================================================================
@@ -4015,54 +4314,16 @@ export class GraphViewContainer
 	private computePathfinderPath() {
 		this.pathfinderPath = null;
 		this.pathfinderEdgeSet = null;
+		this.pathfinderNodeSet = null;
 		if (!this.pathfinderStartId || !this.pathfinderEndId) return;
-		if (this.pathfinderStartId === this.pathfinderEndId) return;
-		if (!this.adj.size) return;
 
-		const start = this.pathfinderStartId;
-		const end = this.pathfinderEndId;
-		const visited = new Set<string>([start]);
-		const parent = new Map<string, string>();
-		const queue: string[] = [start];
+		const result = computePathfinderBFS(this.pathfinderStartId, this.pathfinderEndId, this.adj);
+		if (!result) return;
 
-		while (queue.length > 0) {
-			const current = queue.shift()!;
-			if (current === end) break;
-			const neighbors = this.adj.get(current);
-			if (!neighbors) continue;
-			for (const n of neighbors) {
-				if (!visited.has(n)) {
-					visited.add(n);
-					parent.set(n, current);
-					queue.push(n);
-				}
-			}
-		}
-
-		if (!parent.has(end)) return; // no path found
-
-		// Reconstruct path
-		const path: string[] = [];
-		let cur = end;
-		while (cur !== start) {
-			path.unshift(cur);
-			cur = parent.get(cur)!;
-		}
-		path.unshift(start);
-		this.pathfinderPath = path;
-		this.pathfinderNodeSet = new Set(path);
-
-		// Build edge set for highlighting
-		const edgeSet = new Set<string>();
-		for (let i = 0; i < path.length - 1; i++) {
-			const a = path[i],
-				b = path[i + 1];
-			edgeSet.add(`${a}→${b}`);
-			edgeSet.add(`${b}→${a}`);
-		}
-		this.pathfinderEdgeSet = edgeSet;
-
-		showToast(`Path: ${path.length} nodes, ${path.length - 1} hops`);
+		this.pathfinderPath = result.path;
+		this.pathfinderNodeSet = result.nodeSet;
+		this.pathfinderEdgeSet = result.edgeSet;
+		showToast(`Path: ${result.path.length} nodes, ${result.path.length - 1} hops`);
 	}
 
 	/** Get the pathfinder node set (for render pipeline highlight) */
@@ -4309,6 +4570,7 @@ export class GraphViewContainer
 			const ny = dy / dist;
 
 			// Place tooltip at canvas edge in the direction of the group
+			let tipX: number, tipY: number;
 			// Find intersection with canvas boundary
 			const tMax = 10000;
 			let t = tMax;
@@ -4317,8 +4579,8 @@ export class GraphViewContainer
 			if (ny > 0.01) t = Math.min(t, (canvasH - margin - hovSy) / ny);
 			else if (ny < -0.01) t = Math.min(t, (margin - hovSy) / ny);
 			t = Math.max(40, t); // minimum distance from node
-			const tipX = Math.max(margin, Math.min(canvasW - margin, hovSx + nx * t));
-			const tipY = Math.max(margin, Math.min(canvasH - margin, hovSy + ny * t));
+			tipX = Math.max(margin, Math.min(canvasW - margin, hovSx + nx * t));
+			tipY = Math.max(margin, Math.min(canvasH - margin, hovSy + ny * t));
 
 			// Cluster display name
 			const clusterName = clusterKey.replace(/^folder:/, "").replace(/^[^:]+:/, "");
@@ -7655,33 +7917,8 @@ export class GraphViewContainer
 
 	/** U2: Build rich status text with mode, counts, groups, layout, and filter info */
 	private buildRichStatus(nodeCount: number, edgeCount: number, totalNodes?: number): string {
-		const parts: string[] = [];
-		if (this.panel.localGraphCenter) parts.push("Local");
-		else if (this.panel.focusLayout) parts.push("Focus");
-		// Show filtered ratio when applicable
 		const total = totalNodes ?? this.rawData?.nodes.length ?? nodeCount;
-		if (total !== nodeCount) {
-			parts.push(`${nodeCount} / ${total} nodes`);
-		} else {
-			parts.push(`${nodeCount} nodes`);
-		}
-		if (edgeCount > 0) parts.push(`${edgeCount} edges`);
-		// Show group count if groupBy is active
-		const groupCount = this.panel.collapsedGroups?.size ?? 0;
-		if (groupCount > 0) parts.push(`${groupCount} groups`);
-		if (this.panel.searchQuery) {
-			const mode = this.panel.searchMode === "highlight" ? "HL" : "F";
-			parts.push(`[${mode}: ${this.panel.searchQuery.slice(0, 20)}]`);
-		}
-		// Show view mode if not default graph
-		if (this.panel.viewMode && this.panel.viewMode !== "graph") {
-			parts.push(this.panel.viewMode);
-		}
-		// Show groupBy field when active
-		if (this.panel.groupBy && this.panel.groupBy !== "none") {
-			parts.push(`by ${this.panel.groupBy}`);
-		}
-		return parts.join(" \u00B7 ");
+		return buildRichStatusPure(nodeCount, edgeCount, total, this.panel);
 	}
 
 	/** D6: Compute per-node entropy scores (knowledge diversity).
@@ -7695,23 +7932,12 @@ export class GraphViewContainer
 		if (raw && this._entropyCacheRef === raw && this._entropyScores) return;
 		this._entropyCacheRef = raw;
 
-		const scores = new Map<string, number>();
-		const adj = this.adj;
-		const pixiNodes = this.pixiNodes;
-
-		for (const [nodeId, neighbors] of adj) {
-			if (neighbors.size === 0) continue;
-			const allTags = new Set<string>();
-			for (const nbId of neighbors) {
-				const nb = pixiNodes.get(nbId);
-				if (nb?.data.tags) {
-					for (const tag of nb.data.tags) allTags.add(tag);
-				}
-			}
-			const entropy = allTags.size / neighbors.size;
-			scores.set(nodeId, Math.min(1, entropy));
+		// Build node tags map from pixiNodes for pure function
+		const nodeTags = new Map<string, string[]>();
+		for (const [id, pn] of this.pixiNodes) {
+			if (pn.data.tags) nodeTags.set(id, pn.data.tags);
 		}
-		this._entropyScores = scores;
+		this._entropyScores = computeEntropyScores(this.adj, nodeTags);
 	}
 
 	/** A3: Update thumbnail positions and visibility. */
@@ -8089,11 +8315,8 @@ export class GraphViewContainer
 
 		// Mobile lightweight mode: cap node count to reduce rendering load
 		if (Platform.isMobile && nodes.length > 200) {
-			const deg = this.degrees;
-			nodes.sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0));
-			nodes = nodes.slice(0, 200);
+			({ nodes, edges } = capNodesByDegree(nodes, edges, this.degrees, 200));
 			nodeSet = new Set(nodes.map((n) => n.id));
-			edges = edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));
 		}
 
 		// Skip group collapse for timeline/sunburst viewModes (they need individual nodes)
@@ -8103,34 +8326,16 @@ export class GraphViewContainer
 		return this._applyGroupCollapse({ nodes, edges });
 	}
 
-	/** BFS N-hop filter for local graph mode. Delegates core BFS to pure function. */
+	/** BFS N-hop filter for local graph mode. Delegates to pure functions. */
 	private _filterLocalGraph(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
 		if (!this.panel.localGraphCenter) return { nodes, edges };
 
 		// Core BFS hop filter (pure function)
-		let result = filterByLocalGraph(nodes, edges, this.panel.localGraphCenter, this.panel.localGraphHops);
+		const result = filterByLocalGraph(nodes, edges, this.panel.localGraphCenter, this.panel.localGraphHops);
 
-		// D1: Also include neighbors of manually expanded nodes
+		// D1: Also include neighbors of manually expanded nodes (pure function)
 		if (this.panel.expandedNodes?.length) {
-			const adj = new Map<string, Set<string>>();
-			for (const e of edges) {
-				if (!adj.has(e.source)) adj.set(e.source, new Set());
-				if (!adj.has(e.target)) adj.set(e.target, new Set());
-				adj.get(e.source)!.add(e.target);
-				adj.get(e.target)!.add(e.source);
-			}
-			const reachable = new Set(result.nodes.map((n) => n.id));
-			for (const expandedId of this.panel.expandedNodes) {
-				if (!reachable.has(expandedId)) continue;
-				const neighbors = adj.get(expandedId);
-				if (neighbors) {
-					for (const nbId of neighbors) reachable.add(nbId);
-				}
-			}
-			result = {
-				nodes: nodes.filter((n) => reachable.has(n.id)),
-				edges: edges.filter((e) => reachable.has(e.source) && reachable.has(e.target)),
-			};
+			return expandLocalGraphNeighbors(nodes, edges, result.nodes, this.panel.expandedNodes);
 		}
 
 		return result;
@@ -8157,36 +8362,22 @@ export class GraphViewContainer
 		return { nodes, edges };
 	}
 
-	/** Apply dataview and search query filters. */
+	/** Apply dataview and search query filters. Delegates to SearchOrchestrator. */
 	private _filterByQuery(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
 		// Reset highlight set at start of each data build
 		this._searchHighlightSet = null;
 
-		if (this.panel.dataviewQuery.trim()) {
-			const matchingPaths = queryDataviewPages(this.app, this.panel.dataviewQuery.trim());
-			if (matchingPaths.size > 0) {
-				nodes = filterNodesByDataview(nodes, matchingPaths, this.panel.showTagNodes);
-			}
-		}
+		// Dataview filter
+		nodes = filterByDataview(nodes, this.app, this.panel.dataviewQuery, this.panel.showTagNodes);
 
-		const raw = this.panel.searchQuery;
-		const remaining = raw
-			.replace(/hop:[^:,]+:\d+/gi, "")
-			.replace(/,/g, " ")
-			.trim();
-		if (remaining) {
-			const searchExpr = parseQueryExpr(remaining);
-			if (searchExpr) {
-				const matchedIds = new Set(nodes.filter((n) => evaluateExpr(searchExpr, n)).map((n) => n.id));
-				if (this.panel.searchMode === "highlight") {
-					// N2: Highlight mode — keep all nodes, store matched IDs for visual dimming
-					this._searchHighlightSet = matchedIds;
-				} else {
-					// Default filter mode — remove non-matching nodes
-					nodes = nodes.filter((n) => matchedIds.has(n.id));
-				}
-			}
-		}
+		// Search expression filter/highlight
+		const { nodes: filtered, highlightSet } = filterBySearchExpr(
+			nodes,
+			this.panel.searchQuery,
+			this.panel.searchMode,
+		);
+		nodes = filtered;
+		this._searchHighlightSet = highlightSet;
 
 		return { nodes, edges };
 	}
@@ -9365,19 +9556,87 @@ export class GraphViewContainer
 		});
 	}
 
-	/** Copy the current graph view as PNG to clipboard — delegated to ExportManager */
+	/** Copy the current graph view as PNG to clipboard */
 	private async copyGraphToClipboard() {
-		return copyGraphToClipboardImpl(this as unknown as ExportHost);
+		if (!this.pixiApp) return;
+		try {
+			const { exportGraphAsPng } = await import("../utils/export-png");
+			const blob = await exportGraphAsPng(this.pixiApp);
+			await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+			showToast(t("toast.copiedToClipboard"));
+		} catch (e) {
+			console.error("Graph Island: clipboard copy failed", e);
+			showToast(t("toast.clipboardFailed"), 5000);
+		}
 	}
 
-	/** Embed graph PNG in active note — delegated to ExportManager */
+	/**
+	 * 現在のグラフをPNGとしてキャプチャし、アクティブなノートに埋め込む。
+	 * ツールバーボタンおよびコマンドパレットから呼び出される。
+	 */
 	public async embedGraphInNote(): Promise<void> {
-		return embedGraphInNoteImpl(this as unknown as ExportHost);
+		// アクティブなエディタを取得
+		const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!mdView || !mdView.editor) {
+			showToast(t("toast.embedNoEditor"), 5000);
+			return;
+		}
+		if (!this.pixiApp) {
+			showToast(t("toast.embedNoGraph"), 5000);
+			return;
+		}
+
+		try {
+			const { exportGraphAsPng } = await import("../utils/export-png");
+			const blob = await exportGraphAsPng(this.pixiApp);
+
+			// タイムスタンプ付きファイル名を生成
+			const now = new Date();
+			const ts = [
+				now.getFullYear(),
+				String(now.getMonth() + 1).padStart(2, "0"),
+				String(now.getDate()).padStart(2, "0"),
+				String(now.getHours()).padStart(2, "0"),
+				String(now.getMinutes()).padStart(2, "0"),
+				String(now.getSeconds()).padStart(2, "0"),
+			].join("");
+			const filename = `graph-island-${ts}.png`;
+
+			// Obsidianの添付ファイルフォルダ設定を尊重してパスを決定
+			const activeFile = mdView.file;
+			const attachPath = (this.app.vault as any).getAvailablePath
+				? (this.app.vault as any).getAvailablePath(
+						((this.app.vault as any).config?.attachmentFolderPath || "") +
+							"/" +
+							filename.replace(".png", ""),
+						"png",
+					)
+				: filename;
+
+			// バイナリデータとしてvaultに保存
+			const buffer = await blob.arrayBuffer();
+			await this.app.vault.createBinary(attachPath, buffer);
+
+			// エディタのカーソル位置にwikilink画像を挿入
+			const editor = mdView.editor;
+			const basename = attachPath.replace(/^.*\//, "");
+			editor.replaceSelection(`![[${basename}]]\n`);
+
+			showToast(t("toast.embedSuccess"));
+		} catch (e) {
+			console.error("Graph Island: embed failed", e);
+			showToast(t("toast.embedFailed"), 5000);
+		}
 	}
 
-	/** Export canvas as PNG Blob — delegated to ExportManager */
+	/**
+	 * キャンバスをPNG Blobとしてエクスポートする公開メソッド。
+	 * コマンドパレットからの呼び出し用。
+	 */
 	public async exportCanvasAsBlob(): Promise<Blob | null> {
-		return exportCanvasBlobImpl(this as unknown as ExportHost);
+		if (!this.pixiApp) return null;
+		const { exportGraphAsPng } = await import("../utils/export-png");
+		return exportGraphAsPng(this.pixiApp);
 	}
 
 	/** Collect all unique tag names from graph nodes */
@@ -9701,20 +9960,21 @@ export class GraphViewContainer
 		const targetY = wrap.clientHeight / 2 - pn.data.y * world.scale.y;
 		const startTime = performance.now();
 
-		const animate = (now: number) => {
+		const self = this;
+		function animate(now: number) {
 			const elapsed = now - startTime;
 			const t = Math.min(1, elapsed / durationMs);
 			const ease = t * (2 - t); // ease-out quadratic
 			world!.x = startX + (targetX - startX) * ease;
 			world!.y = startY + (targetY - startY) * ease;
-			this.markDirty();
+			self.markDirty();
 			if (t < 1) {
 				requestAnimationFrame(animate);
 			} else {
-				this.setHighlightedNodeId(nodeId);
-				this.applyHover();
+				self.setHighlightedNodeId(nodeId);
+				self.applyHover();
 			}
-		};
+		}
 		requestAnimationFrame(animate);
 	}
 
@@ -9723,65 +9983,35 @@ export class GraphViewContainer
 		const startAlpha = pn.gfx.alpha;
 		if (Math.abs(startAlpha - targetAlpha) < 0.01) return;
 		const startTime = performance.now();
-		const tick = (now: number) => {
+		const self = this;
+		function tick(now: number) {
 			const t = Math.min(1, (now - startTime) / durationMs);
 			pn.gfx.alpha = startAlpha + (targetAlpha - startAlpha) * t;
 			if (t < 1) {
 				requestAnimationFrame(tick);
 			}
-			this.markDirty();
-		};
+			self.markDirty();
+		}
 		requestAnimationFrame(tick);
 	}
 
 	private applySearch() {
 		const raw = this.panel.searchQuery;
-		// Parse hop filters: "hop:name:n" (comma-separated, mixable with text)
-		const hopMatches = [...raw.matchAll(/hop:([^:,]+):(\d+)/gi)];
-		const textParts: string[] = [];
-		let remaining = raw;
-		for (const m of hopMatches) remaining = remaining.replace(m[0], "");
-		const trimmed = remaining.replace(/,/g, " ").trim().toLowerCase();
-		if (trimmed) textParts.push(trimmed);
+		// Parse hop filters via SearchOrchestrator
+		const { hopFilters } = parseHopFilters(raw);
 
-		// Build hop highlight set via BFS from each specified origin
-		let hopSet: Set<string> | null = null;
-		if (hopMatches.length > 0) {
-			hopSet = new Set<string>();
-			for (const m of hopMatches) {
-				const name = m[1].toLowerCase();
-				const hops = parseInt(m[2], 10);
-				// Find origin node(s) by partial name match
-				const origins: string[] = [];
-				for (const pn of this.pixiNodes.values()) {
-					if (pn.data.label.toLowerCase().includes(name)) origins.push(pn.data.id);
-				}
-				// BFS from each origin
-				for (const origin of origins) {
-					hopSet.add(origin);
-					let frontier = [origin];
-					for (let h = 0; h < hops && frontier.length > 0; h++) {
-						const next: string[] = [];
-						for (const id of frontier) {
-							const nb = this.adj.get(id);
-							if (nb)
-								for (const n of nb) {
-									if (!hopSet.has(n)) {
-										hopSet.add(n);
-										next.push(n);
-									}
-								}
-						}
-						frontier = next;
-					}
-				}
-			}
+		// Build node label map for hop BFS
+		const nodeLabels = new Map<string, string>();
+		for (const pn of this.pixiNodes.values()) {
+			nodeLabels.set(pn.data.id, pn.data.label.toLowerCase());
 		}
 
-		const hasHop = hopSet !== null;
+		// Compute hop set via SearchOrchestrator BFS
+		const hopSet = computeHopSet(hopFilters, nodeLabels, this.adj);
+
 		// N2: Combine hop set and text-based highlight set
 		const hlSet = this._searchHighlightSet;
-		const hasHighlight = hasHop || hlSet !== null;
+		const hasHighlight = hopSet !== null || hlSet !== null;
 
 		for (const pn of this.pixiNodes.values()) {
 			if (!hasHighlight) {
@@ -9790,10 +10020,7 @@ export class GraphViewContainer
 				continue;
 			}
 
-			// A node is "matched" if it passes hop filter (when active) AND text highlight (when active)
-			const hopMatch = hopSet === null || hopSet.has(pn.data.id);
-			const textMatch = !hlSet || hlSet.has(pn.data.id);
-			const isMatch = hopMatch && textMatch;
+			const { isMatch } = classifySearchMatch(pn.data.id, hopSet, hlSet);
 
 			if (isMatch) {
 				this._fadeNodeAlpha(pn, 1);
@@ -9805,24 +10032,24 @@ export class GraphViewContainer
 				const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
 				if (isCardMode) {
 					const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
-					// HM: Use golden ratio for halo rect (matching plain card rendering)
-					const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
-					const baseH = pn.radius * 2;
-					const halfH = baseH;
-					const halfW = Math.max(20, (baseH * cardAR) / 2);
-					const outset = 4;
-					const cr = crc.cardCornerRadius ?? 6;
+					const halo = computeCardHaloGeometry(pn.radius, crc.cardAspectRatio, crc.cardCornerRadius ?? 6);
 					pn.circle.beginFill(searchHitColor, 0.1);
 					pn.circle.drawRoundedRect(
-						-halfW - outset,
-						-halfH - outset,
-						(halfW + outset) * 2,
-						(halfH + outset) * 2,
-						cr,
+						-halo.halfW - halo.outset,
+						-halo.halfH - halo.outset,
+						(halo.halfW + halo.outset) * 2,
+						(halo.halfH + halo.outset) * 2,
+						halo.cornerRadius,
 					);
 					pn.circle.endFill();
 					pn.circle.lineStyle(2, searchHitColor, 0.85);
-					pn.circle.drawRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, cr);
+					pn.circle.drawRoundedRect(
+						-halo.halfW,
+						-halo.halfH,
+						halo.halfW * 2,
+						halo.halfH * 2,
+						halo.cornerRadius,
+					);
 				} else {
 					drawShape(pn.circle, shape, pn.radius * 2.2, searchHitColor, 0.1);
 					pn.circle.lineStyle(2, searchHitColor, 0.85);
@@ -9860,12 +10087,7 @@ export class GraphViewContainer
 
 		// A11y: announce filter results for screen readers
 		if (hasHighlight) {
-			let matchCount = 0;
-			for (const pn of this.pixiNodes.values()) {
-				const hopOk = hopSet === null || hopSet.has(pn.data.id);
-				const textOk = !hlSet || hlSet.has(pn.data.id);
-				if (hopOk && textOk) matchCount++;
-			}
+			const matchCount = countSearchMatches(this.pixiNodes.keys(), hopSet, hlSet);
 			this._announceA11y(
 				`${t("a11y.filterResult") ?? "Filter"}: ${matchCount} / ${this.pixiNodes.size} ${t("a11y.nodesVisible") ?? "nodes"}`,
 			);
@@ -10125,7 +10347,7 @@ export class GraphViewContainer
 		// Count nodes in this group
 		const arcs = this.sunburstLayoutArcs;
 		let leafCount = 0;
-		const depth2Names: string[] = [];
+		let depth2Names: string[] = [];
 		for (const arc of arcs) {
 			if (arc.depth === 1 && arc.name === groupName) continue;
 			// Check if arc belongs to this group (depth-1 ancestor)
