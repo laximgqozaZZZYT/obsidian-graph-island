@@ -569,6 +569,32 @@ export class LayoutController {
 		return false;
 	}
 
+	/** Resolve render-threshold props with defaults for cluster config */
+	private _resolveClusterRenderProps(rt: PanelState["renderThresholds"]) {
+		return {
+			maxNodeRadius: rt?.maxNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.maxNodeRadius,
+			minNodeRadius: rt?.minNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.minNodeRadius,
+			blendConfig: {
+				clusterBlendDefault: rt?.clusterBlendDefault,
+				clusterBlendDecayFactor: rt?.clusterBlendDecayFactor,
+			},
+			normalizeArrangementSpread: rt?.normalizeArrangementSpread,
+			labelSpacingFactor: rt?.labelSpacingFactor ?? DEFAULT_RENDER_THRESHOLDS.labelSpacingFactor,
+			nodeLabelFontSizeMin: rt?.nodeLabelFontSizeMin ?? DEFAULT_RENDER_THRESHOLDS.nodeLabelFontSizeMin,
+			nodeLabelFontSizeMax: rt?.nodeLabelFontSizeMax ?? DEFAULT_RENDER_THRESHOLDS.nodeLabelFontSizeMax,
+		};
+	}
+
+	/** Resolve spacing values, applying auto-folder defaults */
+	private _resolveClusterSpacing(panel: PanelState, isAutoFolder: boolean) {
+		if (isAutoFolder) return { nodeSpacing: 1.0, groupScale: 1.0, groupSpacing: 0.5 };
+		return {
+			nodeSpacing: panel.clusterNodeSpacing ?? 3,
+			groupScale: panel.clusterGroupScale ?? 3,
+			groupSpacing: panel.clusterGroupSpacing ?? 2,
+		};
+	}
+
 	/** Build the cluster force configuration object */
 	private _buildClusterConfig(
 		sim: Simulation<GraphNode, GraphEdge>,
@@ -583,6 +609,9 @@ export class LayoutController {
 		const effectiveGroupRules = isAutoFolder
 			? [{ groupBy: "folder" as const, recursive: false }]
 			: panel.clusterGroupRules;
+		const spacing = this._resolveClusterSpacing(panel, isAutoFolder);
+		const renderProps = this._resolveClusterRenderProps(panel.renderThresholds);
+		const coordLayout = resolveCoordinateLayout(clusterArrangement, panel.coordinateLayout ?? null);
 
 		const baseCfg = {
 			groupRules: effectiveGroupRules,
@@ -592,9 +621,7 @@ export class LayoutController {
 			width: W,
 			height: H,
 			nodeSize: panel.nodeSize,
-			nodeSpacing: isAutoFolder ? 1.0 : (panel.clusterNodeSpacing ?? 3),
-			groupScale: isAutoFolder ? 1.0 : (panel.clusterGroupScale ?? 3),
-			groupSpacing: isAutoFolder ? 0.5 : (panel.clusterGroupSpacing ?? 2),
+			...spacing,
 			tagMembership: panel.tagDisplay === TAG_DISPLAY_ENCLOSURE ? tagMembership : undefined,
 			enclosureSpacing: panel.enclosureSpacing,
 			sortComparator: this.buildSortComparator(sim.nodes(), graphEdges),
@@ -605,31 +632,18 @@ export class LayoutController {
 			sequenceFields: this.host.getSequenceFields(),
 			reverseSequenceFields: this.host.getReverseSequenceFields(),
 			getNodeProperty: (nodeId: string, key: string) => this.host.getNodeProperty(nodeId, key),
-			coordinateLayout: resolveCoordinateLayout(clusterArrangement, panel.coordinateLayout ?? null),
+			coordinateLayout: coordLayout,
 			userConstants: panel.coordinateLayout?.constants,
 			groupLayoutMode: resolveGroupLayoutMode(panel.clusterGroupArrangement, clusterArrangement),
 			skipGroupOverlap: clusterArrangement === ARRANGEMENT_TIMELINE,
-			maxNodeRadius: panel.renderThresholds?.maxNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.maxNodeRadius,
-			minNodeRadius: panel.renderThresholds?.minNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.minNodeRadius,
+			...renderProps,
 			repelForce: panel.repelForce,
-			blendConfig: {
-				clusterBlendDefault: panel.renderThresholds?.clusterBlendDefault,
-				clusterBlendDecayFactor: panel.renderThresholds?.clusterBlendDecayFactor,
-			},
-			normalizeArrangementSpread: panel.renderThresholds?.normalizeArrangementSpread,
-			labelSpacingFactor:
-				panel.renderThresholds?.labelSpacingFactor ?? DEFAULT_RENDER_THRESHOLDS.labelSpacingFactor,
-			nodeLabelFontSizeMin:
-				panel.renderThresholds?.nodeLabelFontSizeMin ?? DEFAULT_RENDER_THRESHOLDS.nodeLabelFontSizeMin,
-			nodeLabelFontSizeMax:
-				panel.renderThresholds?.nodeLabelFontSizeMax ?? DEFAULT_RENDER_THRESHOLDS.nodeLabelFontSizeMax,
 			orphanClusterField: panel.orphanClusterField || undefined,
 		};
 
 		// If coordinateLayout specifies a property source, use it as timelineKey
-		const resolved = baseCfg.coordinateLayout;
-		if (resolved && resolved.axis1.source.kind === SOURCE_PROPERTY) {
-			baseCfg.timelineKey = (resolved.axis1.source as { kind: typeof SOURCE_PROPERTY; key: string }).key;
+		if (coordLayout && coordLayout.axis1.source.kind === SOURCE_PROPERTY) {
+			baseCfg.timelineKey = (coordLayout.axis1.source as { kind: typeof SOURCE_PROPERTY; key: string }).key;
 		}
 
 		return baseCfg;
