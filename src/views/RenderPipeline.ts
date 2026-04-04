@@ -33,6 +33,22 @@ import {
 	FULL_CARD_FONT_BASE,
 	FULL_CARD_FONT_MIN,
 } from "./card-renderer";
+import {
+	renderPathfinderMarkers,
+	renderCompareRings,
+	renderBookmarkStars,
+	renderMissingNeighborRings,
+	renderTagBadges,
+	renderImportanceRings,
+	renderRecencyMarkers,
+	renderBridgeNodes,
+	renderArticulationPoints,
+	renderEntropyOverlay,
+	renderMultiSelectRings,
+	renderHierarchyOverlay,
+	renderOntologyBackbone,
+	renderGapEdges,
+} from "./node-decorations";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -87,6 +103,8 @@ const SUNBURST_SEGMENT_ARC_DEG = 30;
 const HOLD_RING_LINE_WIDTH = 2;
 /** Hold indicator ring padding beyond node radius */
 const HOLD_RING_PADDING = 4;
+/** Hold ring / pathfinder ring stroke alpha */
+const INDICATOR_RING_ALPHA = 0.9;
 
 /** Zone placement text-anchor cosine thresholds */
 const ZONE_ANCHOR_COS_POSITIVE = 0.3;
@@ -109,29 +127,6 @@ const SUPER_NODE_FILL_ALPHA = 0.3;
 const RING_STROKE_DARKEN = 0.4;
 /** Donut/sunburst ring stroke alpha multiplier */
 const RING_STROKE_ALPHA = 0.5;
-/** Hold ring / pathfinder ring stroke alpha */
-const INDICATOR_RING_ALPHA = 0.9;
-/** Pathfinder line width for start/end nodes */
-const PF_ENDPOINT_LINE_WIDTH = 3;
-/** Pathfinder line width for intermediate path nodes */
-const PF_INTERMEDIATE_LINE_WIDTH = 2;
-/** Pathfinder radius padding for start/end nodes */
-const PF_ENDPOINT_RADIUS_PAD = 6;
-/** Pathfinder radius padding for intermediate path nodes */
-const PF_INTERMEDIATE_RADIUS_PAD = 3;
-
-/** 比較選択リングの線幅 */
-const COMPARE_RING_LINE_WIDTH = 2.5;
-/** 比較選択リングの半径パディング */
-const COMPARE_RING_RADIUS_PAD = 8;
-/** 比較選択リングの色 (マゼンタ系) */
-const COMPARE_RING_COLOR = 0xe879f9;
-/** 比較選択リングのアルファ */
-const COMPARE_RING_ALPHA = 0.85;
-/** 比較選択リングの破線セグメント数 */
-const COMPARE_RING_SEGMENTS = 8;
-/** 比較選択リングの破線ギャップ比率 */
-const COMPARE_RING_GAP = 0.3;
 
 /** Keyboard focus ring line width */
 const KB_FOCUS_LINE_WIDTH = 2.5;
@@ -786,62 +781,62 @@ export class RenderPipeline {
 		passes.push((g, c) => this._renderHoldRings(g, c));
 
 		// Pass 4: Pathfinder start/end node markers
-		passes.push((g, c) => this._renderPathfinderMarkers(g, c));
+		passes.push((g, c) => renderPathfinderMarkers(this.host, g, c));
 
 		// Pass 5: Compare selection rings
-		passes.push((g, c) => this._renderCompareRings(g, c));
+		passes.push((g, c) => renderCompareRings(this.host, g, c));
 
 		// Pass 6: Bookmark star overlay
-		passes.push((g, c) => this._renderBookmarkStars(g, c));
+		passes.push((g, c) => renderBookmarkStars(this.host, g, c));
 
 		// Pass 7: Missing neighbor orange rings
-		passes.push((g, c) => this._renderMissingNeighborRings(g, c));
+		passes.push((g, c) => renderMissingNeighborRings(this.host, g, c));
 
 		// Pass 8: Tag badges on node circumference
 		if (this.host.getShowTagBadges?.()) {
-			passes.push((g, c) => this._renderTagBadges(g, c));
+			passes.push((g, c) => renderTagBadges(this.host, g, c));
 		}
 
 		// Pass 9: Importance ring
 		if (this.host.getShowImportanceRing?.()) {
-			passes.push((g, c) => this._renderImportanceRings(g, c));
+			passes.push((g, c) => renderImportanceRings(this.host, g, c));
 		}
 
 		// Pass 10: Recency marker
 		if (this.host.getRecencyConfig?.()) {
-			passes.push((g, c) => this._renderRecencyMarkers(g, c));
+			passes.push((g, c) => renderRecencyMarkers(this.host, g, c));
 		}
 
 		// Pass 11: Bridge nodes — gold ring for high betweenness
 		if (this.host.getBridgeNodeIds?.()) {
-			passes.push((g, c) => this._renderBridgeNodes(g, c));
+			passes.push((g, c) => renderBridgeNodes(this.host, g, c));
 		}
 
 		// Pass 12: Articulation point warning ring
 		if (this.host.getArticulationPointIds?.()) {
-			passes.push((g, c) => this._renderArticulationPoints(g, c));
+			passes.push((g, c) => renderArticulationPoints(this.host, g, c));
 		}
 
 		// Pass 13: Entropy overlay — knowledge diversity heatmap
 		if (this.host.getShowEntropyOverlay?.()) {
-			passes.push((g, c) => this._renderEntropyOverlay(g, c));
+			passes.push((g, c) => renderEntropyOverlay(this.host, g, c));
 		}
 
 		// Pass 14: Multi-select rings
 		const msIds = this.host.getMultiSelectNodeIds?.();
 		if (msIds && msIds.length > 0) {
 			const ids = msIds;
-			passes.push((g, c) => this._renderMultiSelectRings(g, c, ids));
+			passes.push((g, c) => renderMultiSelectRings(this.host, g, c, ids));
 		}
 
 		// Pass 15: S1 Hierarchy tree overlay
-		passes.push((g, c) => this._renderHierarchyOverlay(g, c));
+		passes.push((g) => renderHierarchyOverlay(this.host, g));
 
 		// Pass 16: S6 Ontology backbone
-		passes.push((g) => this._renderOntologyBackbone(g));
+		passes.push((g) => renderOntologyBackbone(this.host, g));
 
 		// Pass 17: S4 Gap detection dotted edges
-		passes.push((g) => this._renderGapEdges(g));
+		passes.push((g) => renderGapEdges(this.host, g));
 
 		// Execute all active passes
 		for (const pass of passes) pass(g, ctx);
@@ -1605,455 +1600,6 @@ export class RenderPipeline {
 			drawShapeAt(g, shape, pn.data.x, pn.data.y, pn.radius + HOLD_RING_PADDING);
 			g.endFill();
 		}
-	}
-
-	// =========================================================================
-	// Pass 4: Pathfinder markers
-	// =========================================================================
-	/** Render pathfinder start/end node markers. */
-	private _renderPathfinderMarkers(g: CanvasGraphics, ctx: { visible: PixiNode[]; shapeRules: ShapeRule[] }) {
-		const pfNodes = this.host.getPathfinderNodeSet?.() ?? null;
-		const pfState = this.host.getPathfinderState?.();
-		if (!pfNodes || pfNodes.size === 0) return;
-
-		const rtt = this.host.getRenderThresholds?.() ?? {};
-		const pfStartColor = rtt.pathfinderStartColor;
-		const pfEndColor = rtt.pathfinderEndColor;
-		const { visible, shapeRules } = ctx;
-		for (const pn of visible) {
-			if (!pfNodes.has(pn.data.id)) continue;
-			const shape = getNodeShape(pn.data, shapeRules);
-			const isStart = pfState?.startId === pn.data.id;
-			const isEnd = pfState?.endId === pn.data.id;
-			const ringColor = isStart ? pfStartColor : isEnd ? pfEndColor : pfStartColor;
-			g.lineStyle(
-				isStart || isEnd ? PF_ENDPOINT_LINE_WIDTH : PF_INTERMEDIATE_LINE_WIDTH,
-				ringColor,
-				INDICATOR_RING_ALPHA,
-			);
-			g.beginFill(0, 0);
-			drawShapeAt(
-				g,
-				shape,
-				pn.data.x,
-				pn.data.y,
-				pn.radius + (isStart || isEnd ? PF_ENDPOINT_RADIUS_PAD : PF_INTERMEDIATE_RADIUS_PAD),
-			);
-			g.endFill();
-		}
-	}
-
-	// =========================================================================
-	// Pass 5: 比較選択ノードのリング (破線スタイル)
-	// =========================================================================
-	/** 比較選択中のノードに破線リングを描画 */
-	private _renderCompareRings(g: CanvasGraphics, ctx: { visible: PixiNode[]; shapeRules: ShapeRule[] }) {
-		const compareIds = this.host.getCompareNodeIds?.() ?? [];
-		if (compareIds.length === 0) return;
-		const compareSet = new Set(compareIds);
-
-		const { visible } = ctx;
-		for (const pn of visible) {
-			if (!compareSet.has(pn.data.id)) continue;
-			const ringRadius = pn.radius + COMPARE_RING_RADIUS_PAD;
-			// 破線リングを描画 (セグメント化された弧)
-			g.lineStyle(COMPARE_RING_LINE_WIDTH, COMPARE_RING_COLOR, COMPARE_RING_ALPHA);
-			g.beginFill(0, 0);
-			for (let i = 0; i < COMPARE_RING_SEGMENTS; i++) {
-				const startAngle = (i / COMPARE_RING_SEGMENTS) * Math.PI * 2;
-				const endAngle = startAngle + ((1 - COMPARE_RING_GAP) / COMPARE_RING_SEGMENTS) * Math.PI * 2;
-				g.arc(pn.data.x, pn.data.y, ringRadius, startAngle, endAngle);
-				g.moveTo(pn.data.x + Math.cos(endAngle) * ringRadius, pn.data.y + Math.sin(endAngle) * ringRadius);
-			}
-			g.endFill();
-		}
-	}
-
-	// =========================================================================
-	// Pass 6: ブックマーク星オーバーレイ
-	// =========================================================================
-	/** ブックマーク済みノードに星形アイコンを描画 */
-	private _renderBookmarkStars(g: CanvasGraphics, ctx: { visible: PixiNode[] }) {
-		const bookmarked = this.host.getBookmarkedNodeIds?.() ?? null;
-		if (!bookmarked || bookmarked.size === 0) return;
-
-		const { visible } = ctx;
-		const starColor = this.host.getRenderThresholds?.()?.bookmarkStarColor ?? 0xf5c542;
-		const starAlpha = 0.9;
-		for (const pn of visible) {
-			if (!bookmarked.has(pn.data.id)) continue;
-			// ノード右上に小さな星を描画
-			const sr = Math.max(4, pn.radius * 0.35);
-			const cx = pn.data.x + pn.radius * 0.7;
-			const cy = pn.data.y - pn.radius * 0.7;
-			// 5頂点の星形
-			g.beginFill(starColor, starAlpha);
-			g.lineStyle(0);
-			const spikes = 5;
-			const outerR = sr;
-			const innerR = sr * 0.4;
-			for (let i = 0; i < spikes * 2; i++) {
-				const angle = (i * Math.PI) / spikes - Math.PI / 2;
-				const r = i % 2 === 0 ? outerR : innerR;
-				const px = cx + Math.cos(angle) * r;
-				const py = cy + Math.sin(angle) * r;
-				if (i === 0) g.moveTo(px, py);
-				else g.lineTo(px, py);
-			}
-			g.closePath();
-			g.endFill();
-		}
-	}
-
-	// =========================================================================
-	// Pass 7: 未接続同タグノードのオレンジダッシュリング
-	// =========================================================================
-	/** Draw a dashed orange ring around nodes that share a tag but have no direct edge. */
-	private _renderMissingNeighborRings(g: CanvasGraphics, ctx: { visible: PixiNode[] }) {
-		const missingSet = this.host.getMissingNeighborNodeIds?.() ?? null;
-		if (!missingSet || missingSet.size === 0) return;
-
-		const { visible } = ctx;
-		const ringColor = this.host.getRenderThresholds?.()?.missingNeighborRingColor ?? 0xff8c00;
-		const ringAlpha = 0.85;
-		const lineWidth = 2;
-		const dashSegments = 10;
-		const gapFraction = 0.35;
-		const radiusPad = 4;
-
-		for (const pn of visible) {
-			if (!missingSet.has(pn.data.id)) continue;
-			const r = pn.radius + radiusPad;
-			const cx = pn.data.x;
-			const cy = pn.data.y;
-			// Draw dashed circle as individual arc segments
-			g.lineStyle(lineWidth, ringColor, ringAlpha);
-			g.beginFill(0, 0); // no fill
-			const segAngle = (2 * Math.PI) / dashSegments;
-			const drawAngle = segAngle * (1 - gapFraction);
-			for (let i = 0; i < dashSegments; i++) {
-				const startA = i * segAngle;
-				const endA = startA + drawAngle;
-				g.moveTo(cx + Math.cos(startA) * r, cy + Math.sin(startA) * r);
-				// Approximate arc with short line segments
-				const steps = 4;
-				for (let s = 1; s <= steps; s++) {
-					const a = startA + (endA - startA) * (s / steps);
-					g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-				}
-			}
-			g.endFill();
-		}
-	}
-
-	// =========================================================================
-	// Pass 8: Tag badges — colored pills on node circumference
-	// =========================================================================
-	private _renderTagBadges(
-		g: CanvasGraphics,
-		ctx: { visible: PixiNode[]; worldScale: number; minWorldRadius: number },
-	) {
-		const MAX_BADGES = 4;
-		// Ensure badge is at least 3 screen pixels at any zoom
-		const minScreenPx = 3;
-		const ws = ctx.worldScale || 1;
-		const BADGE_R = screenToWorld(minScreenPx, ws, 3);
-		const PAD = BADGE_R * 0.7;
-
-		for (const pn of ctx.visible) {
-			const tags = pn.data.tags;
-			if (!tags || tags.length === 0) continue;
-			const nodeR = Math.max(pn.radius, ctx.minWorldRadius);
-			const cx = pn.data.x;
-			const cy = pn.data.y;
-			const count = Math.min(tags.length, MAX_BADGES);
-			const startAngle = -Math.PI / 2; // top
-
-			for (let i = 0; i < count; i++) {
-				const angle = startAngle + (i / count) * Math.PI * 2;
-				const bx = cx + Math.cos(angle) * (nodeR + PAD + BADGE_R);
-				const by = cy + Math.sin(angle) * (nodeR + PAD + BADGE_R);
-				const hue = hashStringToHue(tags[i]);
-				const color = hslToHex(hue, 0.7, 0.5);
-				g.lineStyle(0);
-				g.beginFill(color, 0.9);
-				g.drawCircle(bx, by, BADGE_R);
-				g.endFill();
-			}
-			if (tags.length > MAX_BADGES) {
-				const angle = startAngle + (MAX_BADGES / (MAX_BADGES + 1)) * Math.PI * 2;
-				const bx = cx + Math.cos(angle) * (nodeR + PAD + BADGE_R);
-				const by = cy + Math.sin(angle) * (nodeR + PAD + BADGE_R);
-				g.lineStyle(screenToWorld(1, ws, 1), 0x888888, 0.7);
-				g.beginFill(0x888888, 0.4);
-				g.drawCircle(bx, by, BADGE_R);
-				g.endFill();
-			}
-		}
-	}
-
-	// =========================================================================
-	// Pass 9: Importance ring — metric-proportional ring around nodes
-	// =========================================================================
-	private _renderImportanceRings(
-		g: CanvasGraphics,
-		ctx: { visible: PixiNode[]; worldScale: number; minWorldRadius: number },
-	) {
-		const config = this.host.getShowImportanceRing?.();
-		if (!config) return;
-
-		const degrees = this.host.getDegrees();
-		let metricMap: Map<string, number>;
-		if (config.metric === "betweenness") {
-			metricMap = this.host.getBetweennessCache?.() ?? degrees;
-		} else {
-			metricMap = degrees;
-		}
-		if (metricMap.size === 0) return;
-
-		let maxVal = 0;
-		for (const v of metricMap.values()) {
-			if (v > maxVal) maxVal = v;
-		}
-		if (maxVal === 0) return;
-
-		const ws = ctx.worldScale || 1;
-		// Ensure ring is at least 2 screen pixels wide
-		const minRingPx = 2;
-		const RING_PAD = screenToWorld(minRingPx, ws, 3);
-		const MAX_RING_WIDTH = screenToWorld(4, ws, 4);
-
-		for (const pn of ctx.visible) {
-			const val = metricMap.get(pn.data.id) ?? 0;
-			if (val === 0) continue;
-			const t = val / maxVal;
-			const ringWidth = Math.max(ws > 0 ? 1 / ws : 1, 1 + t * MAX_RING_WIDTH);
-			const hue = (1 - t) * 240;
-			const color = hslToHex(hue, 0.8, 0.6);
-			g.lineStyle(ringWidth, color, 0.6);
-			const nodeR = Math.max(pn.radius, ctx.minWorldRadius);
-			g.drawCircle(pn.data.x, pn.data.y, nodeR + RING_PAD);
-			g.lineStyle(0);
-		}
-	}
-
-	// =========================================================================
-	// Pass 10: Recency marker — green dot for recent, fade for old
-	// =========================================================================
-	private _renderRecencyMarkers(g: CanvasGraphics, ctx: { visible: PixiNode[] }) {
-		const config = this.host.getRecencyConfig?.();
-		if (!config) return;
-
-		const now = Date.now();
-		const recentThresholdMs = config.days * 24 * 60 * 60 * 1000;
-		const oldThresholdMs = 90 * 24 * 60 * 60 * 1000; // 90 days
-		const DOT_R = 3;
-
-		for (const pn of ctx.visible) {
-			const mtime = pn.data.mtime;
-			if (!mtime) continue;
-			const age = now - mtime;
-
-			if (age < recentThresholdMs) {
-				// Recent: green dot at top-right (bright green, full opacity)
-				const dx = pn.radius * 0.7;
-				const dy = -pn.radius * 0.7;
-				g.lineStyle(0);
-				g.beginFill(this.host.getRenderThresholds?.()?.recencyMarkerColor ?? 0x22c55e, 0.9);
-				g.drawCircle(pn.data.x + dx, pn.data.y + dy, DOT_R);
-				g.endFill();
-			} else if (age > oldThresholdMs) {
-				// Old: semi-transparent overlay to fade
-				g.lineStyle(0);
-				g.beginFill(0x000000, 0.3);
-				g.drawCircle(pn.data.x, pn.data.y, pn.radius);
-				g.endFill();
-			} else {
-				// DP: Intermediate age — amber dot with fading alpha
-				const t = (age - recentThresholdMs) / (oldThresholdMs - recentThresholdMs);
-				const alpha = 0.8 * (1 - t); // fades as age increases
-				if (alpha > 0.1) {
-					const dx = pn.radius * 0.7;
-					const dy = -pn.radius * 0.7;
-					g.lineStyle(0);
-					g.beginFill(0xf59e0b, alpha); // amber-500
-					g.drawCircle(pn.data.x + dx, pn.data.y + dy, DOT_R);
-					g.endFill();
-				}
-			}
-		}
-	}
-
-	// =========================================================================
-	// Pass 11: Bridge nodes — gold ring for high betweenness centrality
-	// =========================================================================
-	private _renderBridgeNodes(
-		g: CanvasGraphics,
-		ctx: { visible: PixiNode[]; worldScale: number; minWorldRadius: number },
-	) {
-		const bridgeIds = this.host.getBridgeNodeIds?.();
-		if (!bridgeIds || bridgeIds.size === 0) return;
-
-		const GOLD = 0xffd700;
-		const ws = ctx.worldScale || 1;
-		const RING_WIDTH = screenToWorld(2, ws, 3);
-		const PAD = screenToWorld(3, ws, 5);
-
-		for (const pn of ctx.visible) {
-			if (!bridgeIds.has(pn.data.id)) continue;
-			g.lineStyle(RING_WIDTH, GOLD, 0.8);
-			const nodeR = Math.max(pn.radius, ctx.minWorldRadius);
-			g.drawCircle(pn.data.x, pn.data.y, nodeR + PAD);
-			g.lineStyle(0);
-		}
-	}
-
-	// =========================================================================
-	// Pass 12: Articulation points — red warning ring
-	// =========================================================================
-	private _renderArticulationPoints(
-		g: CanvasGraphics,
-		ctx: { visible: PixiNode[]; worldScale: number; minWorldRadius: number },
-	) {
-		const apIds = this.host.getArticulationPointIds?.();
-		if (!apIds || apIds.size === 0) return;
-
-		const WARNING_COLOR = 0xff4444;
-		const ws = ctx.worldScale || 1;
-		const RING_WIDTH = screenToWorld(1.5, ws, 2);
-		const PAD = screenToWorld(3, ws, 6);
-
-		for (const pn of ctx.visible) {
-			if (!apIds.has(pn.data.id)) continue;
-			const nodeR = Math.max(pn.radius, ctx.minWorldRadius);
-			g.lineStyle(RING_WIDTH, WARNING_COLOR, 0.7);
-			g.drawCircle(pn.data.x, pn.data.y, nodeR + PAD);
-			g.drawCircle(pn.data.x, pn.data.y, nodeR + PAD + screenToWorld(2, ws, 3));
-			g.lineStyle(0);
-		}
-	}
-
-	// =========================================================================
-	// Pass 13: Entropy overlay — semi-transparent halo sized by knowledge diversity
-	// =========================================================================
-	private _renderEntropyOverlay(
-		g: CanvasGraphics,
-		ctx: { visible: PixiNode[]; worldScale: number; minWorldRadius: number },
-	) {
-		const scores = this.host.getEntropyScores?.();
-		if (!scores || scores.size === 0) return;
-
-		const ws = ctx.worldScale || 1;
-		for (const pn of ctx.visible) {
-			const entropy = scores.get(pn.data.id);
-			if (entropy === undefined || entropy === 0) continue;
-			const t = Math.min(1, entropy);
-			const nodeR = Math.max(pn.radius, ctx.minWorldRadius);
-			// Ensure halo is at least 4 screen pixels
-			const minHaloWorld = ws > 0 ? 4 / ws : nodeR * 2;
-			const haloRadius = Math.max(minHaloWorld, nodeR * (1 + t * 2));
-			const hue = (1 - t) * 240;
-			const color = hslToHex(hue, 0.7, 0.5);
-			g.lineStyle(0);
-			g.beginFill(color, 0.15 + t * 0.2);
-			g.drawCircle(pn.data.x, pn.data.y, haloRadius);
-			g.endFill();
-		}
-	}
-
-	// =========================================================================
-	// Pass 14: Multi-select rings — solid cyan ring
-	// =========================================================================
-	private _renderMultiSelectRings(g: CanvasGraphics, ctx: { visible: PixiNode[] }, selectedIds: string[]) {
-		const selectedSet = new Set(selectedIds);
-		const RING_COLOR = 0x06b6d4; // cyan-500
-		const RING_WIDTH = 2.5;
-		const PAD = 5;
-
-		for (const pn of ctx.visible) {
-			if (!selectedSet.has(pn.data.id)) continue;
-			g.lineStyle(RING_WIDTH, RING_COLOR, 0.85);
-			g.drawCircle(pn.data.x, pn.data.y, pn.radius + PAD);
-			g.lineStyle(0);
-		}
-	}
-
-	// =========================================================================
-	// Pass 15: S1 Hierarchy tree overlay — purple lines from focused node
-	// =========================================================================
-	private _renderHierarchyOverlay(g: CanvasGraphics, _ctx: { visible: PixiNode[] }) {
-		const tree = this.host.getHierarchyTree?.();
-		if (!tree || tree.size === 0) return;
-
-		const pixiNodes = this.host.getPixiNodes();
-		const EDGE_COLOR = 0x8b5cf6; // purple-500
-		const EDGE_WIDTH = 2.5;
-
-		g.lineStyle(EDGE_WIDTH, EDGE_COLOR, 0.6);
-		for (const [childId, parentId] of tree) {
-			const child = pixiNodes.get(childId);
-			const parent = pixiNodes.get(parentId);
-			if (!child || !parent) continue;
-			g.moveTo(parent.data.x, parent.data.y);
-			g.lineTo(child.data.x, child.data.y);
-		}
-		g.lineStyle(0);
-	}
-
-	// =========================================================================
-	// Pass 16: S6 Ontology backbone — translucent indigo skeleton
-	// =========================================================================
-	private _renderOntologyBackbone(g: CanvasGraphics) {
-		const backbone = this.host.getOntologyBackbone?.();
-		if (!backbone || backbone.length === 0) return;
-
-		const pixiNodes = this.host.getPixiNodes();
-		g.lineStyle(4, 0x6366f1, 0.25); // indigo-500, very translucent
-		for (const { from, to } of backbone) {
-			const pnFrom = pixiNodes.get(from);
-			const pnTo = pixiNodes.get(to);
-			if (!pnFrom || !pnTo) continue;
-			g.moveTo(pnFrom.data.x, pnFrom.data.y);
-			g.lineTo(pnTo.data.x, pnTo.data.y);
-		}
-		g.lineStyle(0);
-	}
-
-	// =========================================================================
-	// Pass 17: S4 Gap detection — dashed amber lines for missing connections
-	// =========================================================================
-	private _renderGapEdges(g: CanvasGraphics) {
-		const gaps = this.host.getStructuralGaps?.();
-		if (!gaps || gaps.length === 0) return;
-
-		const pixiNodes = this.host.getPixiNodes();
-		const GAP_COLOR = 0xfbbf24; // amber-400
-		const DASH_LEN = 6;
-		const GAP_LEN = 4;
-
-		for (const { from, to } of gaps) {
-			const pnA = pixiNodes.get(from);
-			const pnB = pixiNodes.get(to);
-			if (!pnA || !pnB) continue;
-
-			// Draw dashed line
-			const dx = pnB.data.x - pnA.data.x;
-			const dy = pnB.data.y - pnA.data.y;
-			const dist = Math.sqrt(dx * dx + dy * dy);
-			if (dist < 1) continue;
-			const ux = dx / dist;
-			const uy = dy / dist;
-			const step = DASH_LEN + GAP_LEN;
-			let d = 0;
-			g.lineStyle(1.5, GAP_COLOR, 0.45);
-			while (d < dist) {
-				const end = Math.min(d + DASH_LEN, dist);
-				g.moveTo(pnA.data.x + ux * d, pnA.data.y + uy * d);
-				g.lineTo(pnA.data.x + ux * end, pnA.data.y + uy * end);
-				d += step;
-			}
-		}
-		g.lineStyle(0);
 	}
 
 	// =========================================================================
