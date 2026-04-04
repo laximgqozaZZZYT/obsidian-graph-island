@@ -257,7 +257,6 @@ export function computeGroupLabelPlacements(
 	canvasW: number,
 	canvasH: number,
 ): { placements: LabelPlacement[]; visibleKeys: Set<string> } {
-	const fadeThreshold = 0.4; // not used for filtering here, but for aggregate check
 	const targetScreenPx = 14;
 	const estCharW = targetScreenPx * 0.55;
 	const labelH = targetScreenPx + 10;
@@ -301,8 +300,7 @@ export function computeGroupLabelPlacements(
 			[-1, -1],
 		];
 		const step = Math.max(labelH + 4, hw * 1.5);
-		let resolved = !collides(sx, sy);
-		if (!resolved) {
+		if (collides(sx, sy)) {
 			outer: for (let radius = 1; radius <= 12; radius++) {
 				for (const [ddx, ddy] of DIRS) {
 					const tx = originSx + ddx * step * radius;
@@ -312,7 +310,6 @@ export function computeGroupLabelPlacements(
 					if (!collides(clampedTx, clampedTy)) {
 						sx = clampedTx;
 						sy = clampedTy;
-						resolved = true;
 						break outer;
 					}
 				}

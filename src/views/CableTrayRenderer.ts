@@ -19,8 +19,6 @@ import {
 	buildPerimeterPath,
 	computeJunctionGrid,
 	filterGridForPortFace,
-	findNearestGap,
-	findGapBetween,
 	routeViaJunctionGrid,
 	angleDist,
 	shortestAngleDelta,

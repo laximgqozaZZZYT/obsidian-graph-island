@@ -16,10 +16,9 @@ import { effectiveRadius } from "../layouts/cluster-force";
 import { Platform } from "obsidian";
 import { clamp } from "../utils/geometry";
 import { hexToRgb, getLuminance, wcagContrastRatio, contrastColor } from "../utils/color";
-import { hslToHex, incCounter } from "../utils/graph-helpers";
+import { incCounter } from "../utils/graph-helpers";
 import { SpatialHashGrid } from "../utils/spatial-grid";
 import {
-	isCardText,
 	createCardText,
 	cleanupCardText,
 	cleanupCardTextAll,
@@ -311,8 +310,6 @@ export function hashStringToHue(str: string): number {
 	}
 	return ((hash % 360) + 360) % 360;
 }
-
-// hslToHex imported from ../utils/graph-helpers (DRY: removed local duplicate)
 
 /** Truncate a label to maxChars, appending "…" if truncated. 0 or negative maxChars means no truncation. */
 export function truncateLabel(label: string, maxChars: number): string {
@@ -760,8 +757,8 @@ export class RenderPipeline {
 		this._lastLodLevel = ctx.lodLevel;
 
 		// P1: Build active pass list — only active passes enter the loop
-		type PassFn = (g: CanvasGraphics, ctx: typeof ctxRef) => void;
-		const ctxRef = ctx;
+		type BatchCtx = ReturnType<RenderPipeline["_buildBatchContext"]>;
+		type PassFn = (g: CanvasGraphics, ctx: BatchCtx) => void;
 		const passes: PassFn[] = [];
 
 		// Pass 1: Glow halos (enhanced for hub nodes) — skip at extreme/mid zoom
@@ -2099,7 +2096,7 @@ export class RenderPipeline {
 			const sh = (lbl.height ?? 14) * lbl.scale.y;
 			grid.insert({
 				x: sx - sw / 2, y: sy - sh / 2, w: sw, h: sh,
-				label: null as any, pn: null as any, degree: 500, isSuper: false,
+				label: null as unknown as CanvasText, pn: null as unknown as PixiNode, degree: 500, isSuper: false,
 			});
 		}
 	}
@@ -2406,7 +2403,7 @@ export class RenderPipeline {
 		}
 
 		// Phase 2: super-node sacrifice for regular labels (AP-5 concession)
-		nonSuperCount = this._sacrificeSuperLabels(
+		this._sacrificeSuperLabels(
 			placed,
 			hiddenRegulars,
 			grid,

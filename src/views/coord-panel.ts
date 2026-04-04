@@ -21,7 +21,6 @@ import { addSlider, getUnifiedFieldSuggestions } from "./panel-widgets";
 import {
 	syncArrangementFromLayout,
 	getPreset,
-	type ClusterSectionCtx,
 } from "./panel-sections-layout";
 import type { PanelState, PanelContext, PanelCallbacks } from "./PanelBuilder";
 import { mergeRenderThresholds } from "../types";
