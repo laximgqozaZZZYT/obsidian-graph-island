@@ -1569,6 +1569,88 @@ export interface EdgeStyle {
 	isHighlighted?: boolean;
 }
 
+/** Classify an edge type for style resolution. */
+function classifyEdgeType(type: string | undefined): {
+	isOnto: boolean;
+	isSimilar: boolean;
+	isBreadcrumbs: boolean;
+	isStructural: boolean;
+} {
+	const isOnto = type === EDGE_TYPE_INHERITANCE || type === EDGE_TYPE_AGGREGATION;
+	const isSimilar = type === EDGE_TYPE_SIMILAR;
+	const isBreadcrumbs = type === EDGE_TYPE_SIBLING || type === EDGE_TYPE_SEQUENCE;
+	const isStructural = isOnto || type === EDGE_TYPE_HAS_TAG || isSimilar || isBreadcrumbs;
+	return { isOnto, isSimilar, isBreadcrumbs, isStructural };
+}
+
+/** Apply edge weight thickness and alpha boost based on pair count. */
+function applyEdgeWeight(
+	e: GraphEdge,
+	pairCount: Map<string, number>,
+	alpha: number,
+): { alpha: number; lineThick: number } {
+	const pairKey = [e.source, e.target].sort().join(":");
+	const weight = pairCount.get(pairKey) ?? 1;
+	const lineThick = DEFAULT_LINE_THICKNESS + Math.log2(weight) * WEIGHT_THICKNESS_FACTOR;
+	const newAlpha = weight > 2 ? alpha * Math.min(1.3, 1 + (weight - 2) * 0.05) : alpha;
+	return { alpha: newAlpha, lineThick };
+}
+
+/** Resolve highlight alpha/thickness when a node is hovered. */
+function resolveHighlightAlpha(
+	sid: string,
+	tid: string,
+	cfg: EdgeDrawConfig,
+	lineThick: number,
+): { alpha: number; lineThick: number; isHighlighted: boolean } {
+	const highlighted = cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid);
+	if (highlighted) {
+		return {
+			alpha: cfg.highlightEdgeAlpha ?? 1.0,
+			lineThick: lineThick * HIGHLIGHT_THICKNESS_MULTIPLIER,
+			isHighlighted: true,
+		};
+	}
+	if (cfg.hoverDistMap && cfg.hoverDistMap.size > 0) {
+		const dS = cfg.hoverDistMap.get(sid);
+		const dT = cfg.hoverDistMap.get(tid);
+		if (dS !== undefined || dT !== undefined) {
+			const minDist = Math.min(dS ?? 99, dT ?? 99);
+			const falloff = cfg.hoverEdgeFalloff ?? 0.6;
+			return {
+				alpha: Math.max(cfg.edgeHoverFalloffMinAlpha ?? 0.08, Math.pow(falloff, minDist)),
+				lineThick,
+				isHighlighted: false,
+			};
+		}
+		return { alpha: cfg.highlightEdgeNonMatchAlpha ?? 0.04, lineThick, isHighlighted: false };
+	}
+	return { alpha: cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA, lineThick, isHighlighted: false };
+}
+
+/** Apply zoom-adaptive thickness and type-based alpha fade. */
+function applyZoomFade(
+	alpha: number,
+	lineThick: number,
+	isHighlighted: boolean,
+	isSimilar: boolean,
+	isBreadcrumbs: boolean,
+	edgeType: string | undefined,
+	cfg: EdgeDrawConfig,
+): { alpha: number; lineThick: number } {
+	const ws = cfg.worldScale ?? 1;
+	const fadeZ = cfg.edgeZoomFadeThreshold ?? 0.5;
+	const fadeFloor = cfg.edgeFadeMinAlpha ?? 0.25;
+	if (isHighlighted) return { alpha, lineThick };
+	if (ws < fadeZ) lineThick *= Math.max(0.6, ws / fadeZ);
+	if (ws < fadeZ && (isSimilar || edgeType === EDGE_TYPE_HAS_TAG)) {
+		alpha *= Math.max(fadeFloor, ws / fadeZ);
+	} else if (ws < fadeZ * 0.6 && isBreadcrumbs) {
+		alpha *= Math.max(fadeFloor * 2, ws / (fadeZ * 0.6));
+	}
+	return { alpha, lineThick };
+}
+
 /**
  * Compute alpha and line thickness for a single edge based on type,
  * relation coloring, degree fading, edge weight, and hover highlight.
@@ -1581,20 +1663,15 @@ export function resolveEdgeStyle(
 	densityScale: number,
 	pairCount: Map<string, number> | null,
 ): EdgeStyle {
-	const isOnto = e.type === EDGE_TYPE_INHERITANCE || e.type === EDGE_TYPE_AGGREGATION;
-	const isSimilar = e.type === EDGE_TYPE_SIMILAR;
-	const isBreadcrumbs = e.type === EDGE_TYPE_SIBLING || e.type === EDGE_TYPE_SEQUENCE;
-	const isStructural = isOnto || e.type === EDGE_TYPE_HAS_TAG || isSimilar || isBreadcrumbs;
+	const { isOnto, isSimilar, isBreadcrumbs, isStructural } = classifyEdgeType(e.type);
 	let alpha = (isStructural ? STRUCTURAL_EDGE_ALPHA : NON_STRUCTURAL_EDGE_ALPHA) * densityScale;
 	let lineThick = DEFAULT_LINE_THICKNESS;
 
 	// Edge weight: thicken based on same source-target pair count
 	if (pairCount) {
-		const pairKey = [e.source, e.target].sort().join(":");
-		const weight = pairCount.get(pairKey) ?? 1;
-		lineThick = DEFAULT_LINE_THICKNESS + Math.log2(weight) * WEIGHT_THICKNESS_FACTOR;
-		// Slightly increase alpha for heavy edges
-		if (weight > 2) alpha *= Math.min(1.3, 1 + (weight - 2) * 0.05);
+		const w = applyEdgeWeight(e, pairCount, alpha);
+		alpha = w.alpha;
+		lineThick = w.lineThick;
 	}
 
 	if (!isOnto && e.relation && cfg.colorEdgesByRelation) alpha = RELATION_COLOR_ALPHA * densityScale;
@@ -1603,10 +1680,7 @@ export function resolveEdgeStyle(
 	if (cfg.fadeByDegree && cfg.maxDegree > 0) {
 		const sid = src.id ?? (e.source as string);
 		const tid = tgt.id ?? (e.target as string);
-		const srcDeg = cfg.degrees.get(sid) ?? 0;
-		const tgtDeg = cfg.degrees.get(tid) ?? 0;
-		const minDeg = Math.min(srcDeg, tgtDeg);
-		// sqrt normalization: 0->MIN_ALPHA, maxDegree->base alpha
+		const minDeg = Math.min(cfg.degrees.get(sid) ?? 0, cfg.degrees.get(tid) ?? 0);
 		const t = Math.sqrt(minDeg / cfg.maxDegree);
 		alpha *= FADE_BY_DEGREE_MIN_ALPHA + (1 - FADE_BY_DEGREE_MIN_ALPHA) * t;
 	}
@@ -1614,11 +1688,8 @@ export function resolveEdgeStyle(
 	// Edge strength glow: scale width by target node in-degree
 	if (cfg.edgeStrengthGlow && cfg.maxDegree > 0) {
 		const tid = tgt.id ?? (e.target as string);
-		const targetDeg = cfg.degrees.get(tid) ?? 0;
-		const t = Math.min(1, targetDeg / cfg.maxDegree);
-		const glowMin = cfg.edgeStrengthGlowMin ?? 0.5;
-		const glowMax = cfg.edgeStrengthGlowMax ?? 3.0;
-		lineThick *= glowMin + t * (glowMax - glowMin);
+		const t = Math.min(1, (cfg.degrees.get(tid) ?? 0) / cfg.maxDegree);
+		lineThick *= (cfg.edgeStrengthGlowMin ?? 0.5) + t * ((cfg.edgeStrengthGlowMax ?? 3.0) - (cfg.edgeStrengthGlowMin ?? 0.5));
 	}
 
 	// Track whether this edge is actively highlighted (hovered node's connection)
@@ -1627,27 +1698,10 @@ export function resolveEdgeStyle(
 	if (cfg.highlightedNodeId) {
 		const sid = src.id ?? (e.source as string);
 		const tid = tgt.id ?? (e.target as string);
-		// An edge is highlighted when at least one endpoint is in the highlight set
-		const highlighted = cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid);
-		if (highlighted) {
-			lineThick *= HIGHLIGHT_THICKNESS_MULTIPLIER;
-			alpha = cfg.highlightEdgeAlpha ?? 1.0;
-			isHighlighted = true;
-		} else if (cfg.hoverDistMap && cfg.hoverDistMap.size > 0) {
-			// DS: Distance-based edge alpha — use minimum distance of endpoints
-			const dS = cfg.hoverDistMap.get(sid);
-			const dT = cfg.hoverDistMap.get(tid);
-			if (dS !== undefined || dT !== undefined) {
-				const minDist = Math.min(dS ?? 99, dT ?? 99);
-				// HT: configurable hover edge falloff (default 0.6)
-				const falloff = cfg.hoverEdgeFalloff ?? 0.6;
-				alpha = Math.max(cfg.edgeHoverFalloffMinAlpha ?? 0.08, Math.pow(falloff, minDist));
-			} else {
-				alpha = cfg.highlightEdgeNonMatchAlpha ?? 0.04;
-			}
-		} else {
-			alpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
-		}
+		const hl = resolveHighlightAlpha(sid, tid, cfg, lineThick);
+		alpha = hl.alpha;
+		lineThick = hl.lineThick;
+		isHighlighted = hl.isHighlighted;
 	}
 
 	// A11y: High contrast mode — double line thickness for visibility
@@ -1656,25 +1710,10 @@ export function resolveEdgeStyle(
 		alpha = Math.min(1, alpha * 1.3);
 	}
 
-	// Zoom-adaptive edge thickness: maintain minimum visible thickness at zoom-out.
-	// Old behavior thinned edges → color indistinguishable. New: floor at 60% of base.
-	// Skip zoom fade for highlighted edges — they should stay prominent at any zoom.
-	const ws = cfg.worldScale ?? 1;
-	const fadeZ = cfg.edgeZoomFadeThreshold ?? 0.5;
-	const fadeFloor = cfg.edgeFadeMinAlpha ?? 0.25;
-	if (ws < fadeZ && !isHighlighted) {
-		lineThick *= Math.max(0.6, ws / fadeZ);
-	}
-
-	// Zoom-adaptive edge type fade: non-structural edges fade earlier at zoom-out
-	// Skip for highlighted edges — hover emphasis overrides zoom fade.
-	if (!isHighlighted) {
-		if (ws < fadeZ && (isSimilar || e.type === EDGE_TYPE_HAS_TAG)) {
-			alpha *= Math.max(fadeFloor, ws / fadeZ);
-		} else if (ws < fadeZ * 0.6 && isBreadcrumbs) {
-			alpha *= Math.max(fadeFloor * 2, ws / (fadeZ * 0.6));
-		}
-	}
+	// Zoom-adaptive edge thickness and type fade
+	const zf = applyZoomFade(alpha, lineThick, isHighlighted, isSimilar, isBreadcrumbs, e.type, cfg);
+	alpha = zf.alpha;
+	lineThick = zf.lineThick;
 
 	// GG: Apply global edge alpha multiplier (skip for highlighted — hover takes priority)
 	if (cfg.globalEdgeAlpha != null && cfg.globalEdgeAlpha < 1 && !isHighlighted) {
@@ -2740,6 +2779,105 @@ export function getEdgeLabel(e: GraphEdge): string | null {
 	}
 }
 
+/** Collect labelable edges, filtering hidden types and those without a label. */
+function collectLabelableEdges(
+	edges: GraphEdge[],
+	cfg: EdgeDrawConfig,
+): { edge: GraphEdge; label: string }[] {
+	const labelable: { edge: GraphEdge; label: string }[] = [];
+	for (const e of edges) {
+		if (shouldSkipEdge(e, cfg)) continue;
+		if (shouldSkipByDirection(e, cfg)) continue;
+		const label = getEdgeLabel(e);
+		if (!label) continue;
+		labelable.push({ edge: e, label });
+	}
+	return labelable;
+}
+
+/** Trim labelable list to effectiveMax, prioritizing high-degree endpoints. */
+function trimLabelsByDegree(
+	labelable: { edge: GraphEdge; label: string }[],
+	effectiveMax: number,
+	degrees: Map<string, number>,
+): void {
+	if (labelable.length <= effectiveMax) return;
+	if (degrees.size > 0) {
+		labelable.sort((a, b) => {
+			const da = (degrees.get(a.edge.source as string) ?? 0) + (degrees.get(a.edge.target as string) ?? 0);
+			const db = (degrees.get(b.edge.source as string) ?? 0) + (degrees.get(b.edge.target as string) ?? 0);
+			return db - da;
+		});
+	}
+	labelable.length = effectiveMax;
+}
+
+/** Seed placedRects with node positions to prevent label/node overlap. */
+function seedNodeRects(
+	labelable: { edge: GraphEdge }[],
+	resolvePos: (ref: string | object) => Pos | undefined,
+	nodeRadii: Map<string, number> | null,
+): { x: number; y: number; hw: number; hh: number }[] {
+	const rects: { x: number; y: number; hw: number; hh: number }[] = [];
+	const seenNodes = new Set<string>();
+	for (const { edge: e } of labelable) {
+		for (const ref of [e.source, e.target]) {
+			const id = typeof ref === "string" ? ref : (ref as any)?.id;
+			if (!id || seenNodes.has(id)) continue;
+			seenNodes.add(id);
+			const pos = resolvePos(ref);
+			if (pos) {
+				const nr = nodeRadii?.get(id) ?? 15;
+				rects.push({ x: pos.x, y: pos.y, hw: nr, hh: nr });
+			}
+		}
+	}
+	return rects;
+}
+
+const SMART_LABEL_HW = 25; // estimated half-width of a label
+const SMART_LABEL_HH = 7; // estimated half-height of a label
+const SMART_SHIFT_STEP = 12; // shift distance per collision attempt
+const SMART_MAX_SHIFTS = 4; // maximum shift attempts
+const PERPENDICULAR_OFFSET = 8;
+
+/** Compute label position with optional offset and smart collision avoidance. */
+function computeLabelPosition(
+	sp: Pos,
+	tp: Pos,
+	placement: "center" | "offset" | "smart",
+	placedRects: { x: number; y: number; hw: number; hh: number }[],
+): { x: number; y: number } {
+	const mx = (sp.x + tp.x) / 2;
+	const my = (sp.y + tp.y) / 2;
+	if (placement === "center") return { x: mx, y: my };
+
+	const dx = tp.x - sp.x;
+	const dy = tp.y - sp.y;
+	const len = Math.sqrt(dx * dx + dy * dy) || 1;
+	const nx = -dy / len;
+	const ny = dx / len;
+	let labelX = mx + nx * PERPENDICULAR_OFFSET;
+	let labelY = my + ny * PERPENDICULAR_OFFSET;
+
+	if (placement === "smart") {
+		for (let attempt = 0; attempt < SMART_MAX_SHIFTS; attempt++) {
+			let collides = false;
+			for (const rect of placedRects) {
+				if (Math.abs(labelX - rect.x) < SMART_LABEL_HW + rect.hw && Math.abs(labelY - rect.y) < SMART_LABEL_HH + rect.hh) {
+					collides = true;
+					break;
+				}
+			}
+			if (!collides) break;
+			labelX += nx * SMART_SHIFT_STEP;
+			labelY += ny * SMART_SHIFT_STEP;
+		}
+		placedRects.push({ x: labelX, y: labelY, hw: SMART_LABEL_HW, hh: SMART_LABEL_HH });
+	}
+	return { x: labelX, y: labelY };
+}
+
 /**
  * Draw text labels on edges into a dedicated CanvasContainer.
  *
@@ -2769,115 +2907,24 @@ export function drawEdgeLabels(
 	if (zoom < labelHideZ) return;
 	const edgeLabelAlpha = zoom < labelFadeZ ? (zoom - labelHideZ) / (labelFadeZ - labelHideZ) : 1;
 
-	// --- 通常のエッジラベル（関係名/種別名） ---
-
-	// Collect labelable edges (skip hidden types and those without a label)
-	const labelable: { edge: GraphEdge; label: string }[] = [];
-	for (const e of edges) {
-		if (shouldSkipEdge(e, cfg)) continue;
-		if (shouldSkipByDirection(e, cfg)) continue;
-		const label = getEdgeLabel(e);
-		if (!label) continue;
-		labelable.push({ edge: e, label });
-	}
+	const labelable = collectLabelableEdges(edges, cfg);
 
 	// LOD: Zoom-based label thinning — at low zoom, show fewer labels.
-	// At zoom ≥ 1.0 show MAX_EDGE_LABELS, at zoom 0.1 show ~20% of max.
 	const zoomScale = Math.min(1, Math.max(0.2, cfg.worldScale ?? 1));
 	const effectiveMax = Math.max(10, Math.floor(MAX_EDGE_LABELS * zoomScale));
-
-	// Performance guard: show only the most important labels when count exceeds limit.
-	// Prioritize edges whose endpoints have higher combined degree (more connected = more visible).
-	if (labelable.length > effectiveMax) {
-		if (cfg.degrees && cfg.degrees.size > 0) {
-			labelable.sort((a, b) => {
-				const da =
-					(cfg.degrees.get(a.edge.source as string) ?? 0) + (cfg.degrees.get(a.edge.target as string) ?? 0);
-				const db =
-					(cfg.degrees.get(b.edge.source as string) ?? 0) + (cfg.degrees.get(b.edge.target as string) ?? 0);
-				return db - da;
-			});
-		}
-		labelable.length = effectiveMax;
-	}
+	trimLabelsByDegree(labelable, effectiveMax, cfg.degrees);
 
 	const fillColor = a11yEdgeLabelFill(cfg.isDark);
 	const placement = cfg.edgeLabelPlacement ?? "center";
-	const PERPENDICULAR_OFFSET = 8;
-	// For "smart" mode: track placed label bounding boxes to avoid collisions
-	const placedRects: { x: number; y: number; hw: number; hh: number }[] = [];
-	const SMART_LABEL_HW = 25; // estimated half-width of a label
-	const SMART_LABEL_HH = 7; // estimated half-height of a label
-	const SMART_SHIFT_STEP = 12; // shift distance per collision attempt
-	const SMART_MAX_SHIFTS = 4; // maximum shift attempts
-
-	// IF: Seed placedRects with node positions to prevent edge labels from overlapping nodes
-	if (placement === "smart") {
-		const seenNodes = new Set<string>();
-		for (const { edge: e } of labelable) {
-			for (const ref of [e.source, e.target]) {
-				const id = typeof ref === "string" ? ref : (ref as any)?.id;
-				if (!id || seenNodes.has(id)) continue;
-				seenNodes.add(id);
-				const pos = resolvePos(ref);
-				if (pos) {
-					const nr = cfg.nodeRadii?.get(id) ?? 15;
-					placedRects.push({ x: pos.x, y: pos.y, hw: nr, hh: nr });
-				}
-			}
-		}
-	}
+	const placedRects: { x: number; y: number; hw: number; hh: number }[] =
+		placement === "smart" ? seedNodeRects(labelable, resolvePos, cfg.nodeRadii) : [];
 
 	for (const { edge: e, label } of labelable) {
 		const sp = resolvePos(e.source);
 		const tp = resolvePos(e.target);
 		if (!sp || !tp) continue;
 
-		// Base position: edge midpoint
-		const mx = (sp.x + tp.x) / 2;
-		const my = (sp.y + tp.y) / 2;
-
-		let labelX = mx;
-		let labelY = my;
-
-		if (placement === "offset" || placement === "smart") {
-			// Compute perpendicular offset (above edge)
-			const dx = tp.x - sp.x;
-			const dy = tp.y - sp.y;
-			const len = Math.sqrt(dx * dx + dy * dy) || 1;
-			const nx = -dy / len; // perpendicular normal
-			const ny = dx / len;
-			labelX = mx + nx * PERPENDICULAR_OFFSET;
-			labelY = my + ny * PERPENDICULAR_OFFSET;
-		}
-
-		if (placement === "smart") {
-			// Simple collision avoidance: check against previously placed labels
-			// and shift along perpendicular if overlapping
-			const dx = tp.x - sp.x;
-			const dy = tp.y - sp.y;
-			const len = Math.sqrt(dx * dx + dy * dy) || 1;
-			const nx = -dy / len;
-			const ny = dx / len;
-
-			for (let attempt = 0; attempt < SMART_MAX_SHIFTS; attempt++) {
-				let collides = false;
-				for (const rect of placedRects) {
-					if (
-						Math.abs(labelX - rect.x) < SMART_LABEL_HW + rect.hw &&
-						Math.abs(labelY - rect.y) < SMART_LABEL_HH + rect.hh
-					) {
-						collides = true;
-						break;
-					}
-				}
-				if (!collides) break;
-				// Shift further along perpendicular
-				labelX += nx * SMART_SHIFT_STEP;
-				labelY += ny * SMART_SHIFT_STEP;
-			}
-			placedRects.push({ x: labelX, y: labelY, hw: SMART_LABEL_HW, hh: SMART_LABEL_HH });
-		}
+		const pos = computeLabelPosition(sp, tp, placement, placedRects);
 
 		const text = new CanvasText(label, {
 			fontSize: cfg.edgeLabelFontSize ?? EDGE_LABEL_FONT_SIZE_DEFAULT,
@@ -2885,8 +2932,8 @@ export function drawEdgeLabels(
 			fontFamily: "sans-serif",
 		});
 		text.anchor.set(0.5, 0.5);
-		text.x = labelX;
-		text.y = labelY;
+		text.x = pos.x;
+		text.y = pos.y;
 		text.alpha = EDGE_LABEL_ALPHA * edgeLabelAlpha;
 		text.resolution = EDGE_LABEL_RESOLUTION;
 		// A11y: background pill for edge label contrast

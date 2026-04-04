@@ -788,6 +788,79 @@ export function computeGroupPorts(
 // Trunk building
 // ---------------------------------------------------------------------------
 
+/** Group inter-group edges by color within each pair of groups. */
+function collectPairData(
+	edges: GraphEdge[],
+	nodeClusterMap: Map<string, string>,
+	relationColors: Map<string, string>,
+	isDark: boolean,
+): Map<string, { srcGroup: string; tgtGroup: string; byColor: Map<number, GraphEdge[]> }> {
+	const pairData = new Map<
+		string,
+		{ srcGroup: string; tgtGroup: string; byColor: Map<number, GraphEdge[]> }
+	>();
+	for (const e of edges) {
+		const sid = edgeSourceId(e);
+		const tid = edgeTargetId(e);
+		const srcGroup = nodeClusterMap.get(sid);
+		const tgtGroup = nodeClusterMap.get(tid);
+		if (!srcGroup || !tgtGroup || srcGroup === tgtGroup) continue;
+		const [a, b] = srcGroup < tgtGroup ? [srcGroup, tgtGroup] : [tgtGroup, srcGroup];
+		const pairKey = `${a}|${b}`;
+		let pair = pairData.get(pairKey);
+		if (!pair) {
+			pair = { srcGroup: a, tgtGroup: b, byColor: new Map() };
+			pairData.set(pairKey, pair);
+		}
+		const color = resolveEdgeColor(e, true, relationColors, isDark);
+		let group = pair.byColor.get(color);
+		if (!group) {
+			group = [];
+			pair.byColor.set(color, group);
+		}
+		group.push(e);
+	}
+	return pairData;
+}
+
+/** Compute junction point: port + 30% radius outward (away from centroid). */
+function computeJunction(
+	port: { x: number; y: number },
+	centroid: { x: number; y: number } | undefined,
+	radius: number,
+): { x: number; y: number } {
+	const jDist = radius * 0.3;
+	const dx = port.x - (centroid?.x ?? port.x);
+	const dy = port.y - (centroid?.y ?? port.y);
+	const len = Math.sqrt(dx * dx + dy * dy);
+	return len > 1
+		? { x: port.x + (dx / len) * jDist, y: port.y + (dy / len) * jDist }
+		: { x: port.x, y: port.y };
+}
+
+/** Select the appropriate middle-segment routing strategy for a trunk path. */
+function buildTrunkMiddlePath(
+	jctA: { x: number; y: number },
+	jctB: { x: number; y: number },
+	cfg: EdgeDrawConfig,
+): { x: number; y: number }[] {
+	const isPolar = cfg.coordinateSystem === "polar";
+	const polarCenter = isPolar ? computePolarCenter(cfg) : undefined;
+	if (isPolar && polarCenter) return buildPolarTrunkPath(jctA, jctB, polarCenter);
+	const arrangement = cfg.clusterArrangement ?? "grid";
+	if (arrangement === "horizontal" || arrangement === "timeline") return buildHorizontalTrunkPath(jctA, jctB);
+	if (arrangement === "vertical") return buildVerticalTrunkPath(jctA, jctB);
+	return buildManhattanPath(jctA, jctB);
+}
+
+/** Append a point to path if it differs from the last point by > 1px. */
+function pushIfDistinct(path: { x: number; y: number }[], pt: { x: number; y: number }): void {
+	const prev = path[path.length - 1];
+	if (Math.abs(pt.x - prev.x) > 1 || Math.abs(pt.y - prev.y) > 1) {
+		path.push(pt);
+	}
+}
+
 /**
  * Group inter-group edges into Trunks (one per group pair).
  * Each trunk contains cables grouped by edge color.
@@ -804,39 +877,7 @@ export function buildTrunks(
 	const { nodeClusterMap } = cfg;
 	if (!nodeClusterMap) return { trunks, cabledEdgeIds };
 
-	// pairData key: "groupA|groupB" (alphabetically sorted, 1 trunk per pair)
-	const pairData = new Map<
-		string,
-		{
-			srcGroup: string;
-			tgtGroup: string;
-			byColor: Map<number, GraphEdge[]>;
-		}
-	>();
-
-	for (const e of edges) {
-		const sid = edgeSourceId(e);
-		const tid = edgeTargetId(e);
-		const srcGroup = nodeClusterMap.get(sid);
-		const tgtGroup = nodeClusterMap.get(tid);
-		if (!srcGroup || !tgtGroup || srcGroup === tgtGroup) continue;
-		const [a, b] = srcGroup < tgtGroup ? [srcGroup, tgtGroup] : [tgtGroup, srcGroup];
-		const pairKey = `${a}|${b}`;
-		let pair = pairData.get(pairKey);
-		if (!pair) {
-			pair = { srcGroup: a, tgtGroup: b, byColor: new Map() };
-			pairData.set(pairKey, pair);
-		}
-		// Cable-tray wires always use type-based coloring for visual differentiation,
-		// even when colorEdgesByRelation is off for regular edge rendering.
-		const color = resolveEdgeColor(e, true, cfg.relationColors, cfg.isDark);
-		let group = pair.byColor.get(color);
-		if (!group) {
-			group = [];
-			pair.byColor.set(color, group);
-		}
-		group.push(e);
-	}
+	const pairData = collectPairData(edges, nodeClusterMap, cfg.relationColors, cfg.isDark);
 
 	// Build connection map for Port computation (if allPorts not provided)
 	const connections = new Map<string, Set<string>>();
@@ -855,7 +896,6 @@ export function buildTrunks(
 	let ports = allPorts;
 	if (!ports) {
 		const groupKeys = new Set(connections.keys());
-		// Compute polarCenter from all centroids
 		let _polarCenter: { x: number; y: number } | undefined;
 		if (cfg.coordinateSystem === "polar" && centroids.size > 0) {
 			let sx = 0,
@@ -867,19 +907,11 @@ export function buildTrunks(
 			_polarCenter = { x: sx / centroids.size, y: sy / centroids.size };
 		}
 		ports = computeGroupPorts(
-			groupKeys,
-			centroids,
-			_radii,
-			connections,
-			cfg.coordinateSystem,
-			_polarCenter,
-			resolvePos,
-			cfg.nodeClusterMap ?? undefined,
+			groupKeys, centroids, _radii, connections,
+			cfg.coordinateSystem, _polarCenter, resolvePos, cfg.nodeClusterMap ?? undefined,
 		);
 	}
 
-	// Compute a single trunk endpoint per group pointing toward the other group.
-	// This gives 1 trunk per group pair (not per direction pair).
 	const trunkMinEdges = cfg.trunkMinEdges ?? 2;
 	for (const [pairKey, pair] of pairData) {
 		const cables: TrunkCable[] = [];
@@ -888,69 +920,22 @@ export function buildTrunks(
 			cables.push({ color, edges: edgeList });
 			for (const e of edgeList) allEdges.push(e);
 		}
-		// Skip pairs with too few edges (below bundling threshold)
 		if (allEdges.length < trunkMinEdges) continue;
 
-		// Use the SAME shared ports from computeGroupPorts so that trunk endpoints
-		// match groupPortBranch endpoints exactly (no gap).
 		const portA = ports.get(pair.srcGroup);
 		const portB = ports.get(pair.tgtGroup);
 		if (!portA || !portB) continue;
 
-		const rA = _radii.get(pair.srcGroup) ?? DEFAULT_CLUSTER_RADIUS;
-		const rB = _radii.get(pair.tgtGroup) ?? DEFAULT_CLUSTER_RADIUS;
-		const cA = centroids.get(pair.srcGroup);
-		const cB = centroids.get(pair.tgtGroup);
+		const jctA = computeJunction(portA, centroids.get(pair.srcGroup), _radii.get(pair.srcGroup) ?? DEFAULT_CLUSTER_RADIUS);
+		const jctB = computeJunction(portB, centroids.get(pair.tgtGroup), _radii.get(pair.tgtGroup) ?? DEFAULT_CLUSTER_RADIUS);
 
-		// Junction = port + 30% radius outward (away from centroid)
-		const jDistA = rA * 0.3;
-		const jDistB = rB * 0.3;
-		const dxA = portA.x - (cA?.x ?? portA.x),
-			dyA = portA.y - (cA?.y ?? portA.y);
-		const lenA = Math.sqrt(dxA * dxA + dyA * dyA);
-		const jctA =
-			lenA > 1
-				? { x: portA.x + (dxA / lenA) * jDistA, y: portA.y + (dyA / lenA) * jDistA }
-				: { x: portA.x, y: portA.y };
-		const dxB = portB.x - (cB?.x ?? portB.x),
-			dyB = portB.y - (cB?.y ?? portB.y);
-		const lenB = Math.sqrt(dxB * dxB + dyB * dyB);
-		const jctB =
-			lenB > 1
-				? { x: portB.x + (dxB / lenB) * jDistB, y: portB.y + (dyB / lenB) * jDistB }
-				: { x: portB.x, y: portB.y };
+		const middle = buildTrunkMiddlePath(jctA, jctB, cfg);
 
-		// Path: PortA -> JunctionA -> (middle segment) -> JunctionB -> PortB
-		// Route style depends on coordinate system AND group arrangement pattern.
-		const isPolar = cfg.coordinateSystem === "polar";
-		const _polarCenter = isPolar ? computePolarCenter(cfg) : undefined;
-		const arrangement = cfg.clusterArrangement ?? "grid";
-		const middle =
-			isPolar && _polarCenter
-				? buildPolarTrunkPath(jctA, jctB, _polarCenter)
-				: arrangement === "horizontal" || arrangement === "timeline"
-					? buildHorizontalTrunkPath(jctA, jctB)
-					: arrangement === "vertical"
-						? buildVerticalTrunkPath(jctA, jctB)
-						: buildManhattanPath(jctA, jctB);
-		const path: { x: number; y: number }[] = [];
-		path.push(portA);
-		if (Math.abs(jctA.x - portA.x) > 1 || Math.abs(jctA.y - portA.y) > 1) {
-			path.push(jctA);
-		}
-		for (const p of middle) {
-			const prev = path[path.length - 1];
-			if (Math.abs(p.x - prev.x) > 1 || Math.abs(p.y - prev.y) > 1) {
-				path.push(p);
-			}
-		}
-		const lastPt = path[path.length - 1];
-		if (Math.abs(jctB.x - lastPt.x) > 1 || Math.abs(jctB.y - lastPt.y) > 1) {
-			path.push(jctB);
-		}
-		if (Math.abs(portB.x - path[path.length - 1].x) > 1 || Math.abs(portB.y - path[path.length - 1].y) > 1) {
-			path.push(portB);
-		}
+		const path: { x: number; y: number }[] = [portA];
+		pushIfDistinct(path, jctA);
+		for (const p of middle) pushIfDistinct(path, p);
+		pushIfDistinct(path, jctB);
+		pushIfDistinct(path, portB);
 
 		trunks.push({ pairKey, srcGroup: pair.srcGroup, tgtGroup: pair.tgtGroup, path, cables, allEdges });
 		for (const e of allEdges) cabledEdgeIds.add(e.id);
@@ -1110,6 +1095,108 @@ export function routeExternalOnlyNode(
 	return { groupKey, junction, branches: [], groupPortBranch };
 }
 
+/** Append an edge to a nested Map<string, Map<string, GraphEdge[]>>. */
+function appendToNestedMap(
+	map: Map<string, Map<string, GraphEdge[]>>,
+	groupKey: string,
+	nodeId: string,
+	edge: GraphEdge,
+): void {
+	let inner = map.get(groupKey);
+	if (!inner) {
+		inner = new Map();
+		map.set(groupKey, inner);
+	}
+	let list = inner.get(nodeId);
+	if (!list) {
+		list = [];
+		inner.set(nodeId, list);
+	}
+	list.push(edge);
+}
+
+/** Classify edges into intra-group (same group) and external (cross-group) maps. */
+function classifyIntraExternalEdges(
+	edges: GraphEdge[],
+	nodeClusterMap: Map<string, string>,
+): {
+	groupSourceMap: Map<string, Map<string, GraphEdge[]>>;
+	groupExternalMap: Map<string, Map<string, GraphEdge[]>>;
+} {
+	const groupSourceMap = new Map<string, Map<string, GraphEdge[]>>();
+	const groupExternalMap = new Map<string, Map<string, GraphEdge[]>>();
+	for (const e of edges) {
+		const sid = edgeSourceId(e);
+		const tid = edgeTargetId(e);
+		const srcGroup = nodeClusterMap.get(sid);
+		const tgtGroup = nodeClusterMap.get(tid);
+		if (!srcGroup || !tgtGroup) continue;
+		if (srcGroup === tgtGroup) {
+			appendToNestedMap(groupSourceMap, srcGroup, sid, e);
+		} else {
+			appendToNestedMap(groupExternalMap, srcGroup, sid, e);
+			appendToNestedMap(groupExternalMap, tgtGroup, tid, e);
+		}
+	}
+	return { groupSourceMap, groupExternalMap };
+}
+
+/** Estimate margin for group bbox from nearest-neighbor distance. */
+function estimateBBoxMargin(
+	groupKey: string,
+	nodeClusterMap: Map<string, string>,
+	resolvePos: (ref: string | object) => Pos | undefined,
+): number {
+	const positions: { x: number; y: number }[] = [];
+	for (const [nid, g] of nodeClusterMap) {
+		if (g !== groupKey) continue;
+		const p = resolvePos(nid);
+		if (p) positions.push({ x: p.x, y: p.y });
+	}
+	if (positions.length < 2) return 30;
+	let minDist = Infinity;
+	const cap = Math.min(positions.length, 50);
+	for (let i = 0; i < cap; i++) {
+		for (let j = i + 1; j < cap; j++) {
+			const d = Math.sqrt((positions[i].x - positions[j].x) ** 2 + (positions[i].y - positions[j].y) ** 2);
+			if (d > 1 && d < minDist) minDist = d;
+		}
+	}
+	return minDist < Infinity ? minDist * 0.5 : 30;
+}
+
+/** Compute perimeter info (bbox, face, port, grid) for a single group. */
+function computeGroupPerimInfo(
+	groupKey: string,
+	graphCenter: { x: number; y: number },
+	isPolar: boolean,
+	clusterCentroids: Map<string, { x: number; y: number }>,
+	nodeClusterMap: Map<string, string>,
+	resolvePos: (ref: string | object) => Pos | undefined,
+	cache?: { groupBBox: Map<string, GroupBBox | null>; graphCenter: { x: number; y: number } | null },
+): GroupPerimInfo | null {
+	let bbox = cache?.groupBBox.get(groupKey) ?? null;
+	if (!bbox) {
+		const margin = estimateBBoxMargin(groupKey, nodeClusterMap, resolvePos);
+		bbox = computeGroupBBox(groupKey, resolvePos, nodeClusterMap, margin);
+		if (cache) cache.groupBBox.set(groupKey, bbox);
+	}
+	if (!bbox) return null;
+
+	const face = computePortFace(bbox, graphCenter);
+	const port = faceCenter(bbox, face);
+	const perimeterPath = buildPerimeterPath(bbox, face, port);
+	const grid = computeJunctionGrid(groupKey, resolvePos, nodeClusterMap);
+
+	let polarGrid: PolarJunctionGrid | undefined;
+	if (isPolar) {
+		const centroid = clusterCentroids.get(groupKey);
+		if (centroid) polarGrid = computePolarJunctionGrid(groupKey, resolvePos, nodeClusterMap, centroid);
+	}
+
+	return { bbox, face, port, perimeterPath, grid, polarGrid };
+}
+
 /**
  * Build intra-group cables using perimeter routing.
  *
@@ -1134,110 +1221,21 @@ export function buildIntraGroupCables(
 	const { nodeClusterMap, clusterCentroids } = cfg;
 	if (!nodeClusterMap || !clusterCentroids) return { cables, handledEdgeIds };
 
-	// Step 1: Collect intra-group and external edges, grouped by (group, source node)
-	const groupSourceMap = new Map<string, Map<string, GraphEdge[]>>();
-	const groupExternalMap = new Map<string, Map<string, GraphEdge[]>>();
-
-	for (const e of edges) {
-		const sid = edgeSourceId(e);
-		const tid = edgeTargetId(e);
-		const srcGroup = nodeClusterMap.get(sid);
-		const tgtGroup = nodeClusterMap.get(tid);
-		if (!srcGroup || !tgtGroup) continue;
-		if (srcGroup === tgtGroup) {
-			let sourceMap = groupSourceMap.get(srcGroup);
-			if (!sourceMap) {
-				sourceMap = new Map();
-				groupSourceMap.set(srcGroup, sourceMap);
-			}
-			let edgeList = sourceMap.get(sid);
-			if (!edgeList) {
-				edgeList = [];
-				sourceMap.set(sid, edgeList);
-			}
-			edgeList.push(e);
-		} else {
-			// Cross-group -- external edge (for group port wiring on BOTH sides)
-			let extMap = groupExternalMap.get(srcGroup);
-			if (!extMap) {
-				extMap = new Map();
-				groupExternalMap.set(srcGroup, extMap);
-			}
-			let extList = extMap.get(sid);
-			if (!extList) {
-				extList = [];
-				extMap.set(sid, extList);
-			}
-			extList.push(e);
-			let tgtExtMap = groupExternalMap.get(tgtGroup);
-			if (!tgtExtMap) {
-				tgtExtMap = new Map();
-				groupExternalMap.set(tgtGroup, tgtExtMap);
-			}
-			let tgtExtList = tgtExtMap.get(tid);
-			if (!tgtExtList) {
-				tgtExtList = [];
-				tgtExtMap.set(tid, tgtExtList);
-			}
-			tgtExtList.push(e);
-		}
-	}
+	// Step 1: Classify edges into intra-group and external maps
+	const { groupSourceMap, groupExternalMap } = classifyIntraExternalEdges(edges, nodeClusterMap);
 
 	// Step 2: Pre-compute group bboxes, perimeter paths, and junction grids
 	const isPolar = cfg.coordinateSystem === "polar";
 	const groupPerimeters = new Map<string, GroupPerimInfo>();
-
 	const graphCenter = cache?.graphCenter ?? computeGraphCenter(clusterCentroids);
 
-	// Collect all group keys that need perimeter info
 	const allGroupKeys = new Set<string>();
 	for (const gk of groupSourceMap.keys()) allGroupKeys.add(gk);
 	for (const gk of groupExternalMap.keys()) allGroupKeys.add(gk);
 
 	for (const groupKey of allGroupKeys) {
-		// Try cached bbox first
-		let bbox = cache?.groupBBox.get(groupKey) ?? null;
-		if (!bbox) {
-			// Estimate margin from node spacing
-			const positions: { x: number; y: number }[] = [];
-			for (const [nid, g] of nodeClusterMap) {
-				if (g !== groupKey) continue;
-				const p = resolvePos(nid);
-				if (p) positions.push({ x: p.x, y: p.y });
-			}
-			let margin = 30;
-			if (positions.length >= 2) {
-				let minDist = Infinity;
-				for (let i = 0; i < Math.min(positions.length, 50); i++) {
-					for (let j = i + 1; j < Math.min(positions.length, 50); j++) {
-						const d = Math.sqrt(
-							(positions[i].x - positions[j].x) ** 2 + (positions[i].y - positions[j].y) ** 2,
-						);
-						if (d > 1 && d < minDist) minDist = d;
-					}
-				}
-				if (minDist < Infinity) margin = minDist * 0.5;
-			}
-			bbox = computeGroupBBox(groupKey, resolvePos, nodeClusterMap, margin);
-			if (cache) cache.groupBBox.set(groupKey, bbox);
-		}
-		if (!bbox) continue;
-
-		const face = computePortFace(bbox, graphCenter);
-		const port = faceCenter(bbox, face);
-		const perimeterPath = buildPerimeterPath(bbox, face, port);
-		const grid = computeJunctionGrid(groupKey, resolvePos, nodeClusterMap);
-
-		// For polar coordinate systems, also compute the polar junction grid
-		let polarGrid: PolarJunctionGrid | undefined;
-		if (isPolar) {
-			const centroid = clusterCentroids.get(groupKey);
-			if (centroid) {
-				polarGrid = computePolarJunctionGrid(groupKey, resolvePos, nodeClusterMap, centroid);
-			}
-		}
-
-		groupPerimeters.set(groupKey, { bbox, face, port, perimeterPath, grid, polarGrid });
+		const info = computeGroupPerimInfo(groupKey, graphCenter, isPolar, clusterCentroids, nodeClusterMap, resolvePos, cache);
+		if (info) groupPerimeters.set(groupKey, info);
 	}
 
 	// Step 3: Build cables with perimeter routing
@@ -1249,17 +1247,9 @@ export function buildIntraGroupCables(
 
 		for (const [sourceNodeId, edgeList] of sourceMap) {
 			const cable = routeSingleIntraCable(
-				sourceNodeId,
-				edgeList,
-				groupKey,
-				centroid,
-				portForKey ?? null,
-				perimInfo ?? null,
-				isPolar,
-				resolvePos,
-				nodeClusterMap,
-				groupExternalMap,
-				handledEdgeIds,
+				sourceNodeId, edgeList, groupKey, centroid,
+				portForKey ?? null, perimInfo ?? null, isPolar,
+				resolvePos, nodeClusterMap, groupExternalMap, handledEdgeIds,
 			);
 			if (cable) cables.push(cable);
 		}
@@ -1277,16 +1267,9 @@ export function buildIntraGroupCables(
 
 		for (const [nodeId, externalEdges] of extNodeMap) {
 			if (sourceMap?.has(nodeId)) continue;
-
 			const cable = routeExternalOnlyNode(
-				nodeId,
-				externalEdges,
-				groupKey,
-				centroid,
-				portForKey,
-				perimInfo ?? null,
-				isPolar,
-				resolvePos,
+				nodeId, externalEdges, groupKey, centroid,
+				portForKey, perimInfo ?? null, isPolar, resolvePos,
 			);
 			if (cable) cables.push(cable);
 		}
