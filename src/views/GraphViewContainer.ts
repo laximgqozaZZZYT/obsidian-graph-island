@@ -42,7 +42,6 @@ import {
 	computeNodeDegrees,
 	computeBetweennessCentrality,
 	detectArticulationPoints,
-	computeSimilarNodes,
 	type SimilarNode,
 } from "../analysis/graph-analysis";
 import type { RoadNetwork } from "../layouts/cable-tray";
@@ -60,12 +59,9 @@ import {
 	exportFullGraphJSON,
 	exportGraphCSV,
 	exportGraphMermaid,
-	edgeTypeSummary,
-	collapsedGroupSummary,
 	incCounter,
 	computeGaps,
 	hitTestTimelineBars,
-	autoBundleStrength,
 	computeNodeBBox,
 	buildTagMembership,
 	buildMissingNeighborSet,
@@ -91,6 +87,7 @@ import {
 	drawAggregateGroups,
 	computeGroupLabelAlpha,
 	type GroupNodeInfo,
+	type GroupCentroid,
 } from "./group-label-manager";
 import { expandSuperNodeIds } from "../utils/node-grouping";
 import { hexToRgb } from "../utils/color";
@@ -134,7 +131,6 @@ import { renderTimelineBars } from "./timeline-bar-renderer";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
 import {
 	groupNodesByField,
-	getNodeFieldValues,
 	collapseGroup,
 	type GroupSpec,
 	type GroupOptions,
@@ -174,6 +170,25 @@ import {
 } from "./sunburst-renderer";
 import { renderMatrixViewMode as renderMatrixViewModeImpl, type MatrixSortMode } from "./matrix-renderer";
 import { computeStaticLayout, type StaticLayoutResult } from "./layout-compute";
+import {
+	createDefaultEdgeDrawConfig,
+	computeEffectiveHighlight,
+	computeMaxDegree,
+	resolveCableClusters,
+	populateEdgeDrawConfig,
+} from "./edge-draw-config";
+import {
+	buildHoverTooltipText,
+	groupOffScreenNeighbors,
+	computeTooltipEdgePosition,
+	findSharedTagNodes,
+	findSameFolderNodes,
+	resolveInheritArrangement,
+	clearNonGraphLayers,
+	computeCardBBox,
+	buildTransitionData,
+	computeTimelineFit,
+} from "./hover-helpers";
 
 // ---------------------------------------------------------------------------
 // StatsHost — interface for future StatsRenderer extraction (Phase 0)
@@ -4478,59 +4493,33 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Screen position of hovered node
 		const hovSx = pn.gfx.x * ws + worldX;
 		const hovSy = pn.gfx.y * ws + worldY;
+		const neighbors = this.adj.get(hoveredId);
+		if (!neighbors || neighbors.size === 0) return;
 
-		// Find all directly linked nodes (1-hop from adj)
-		const neighbors = this.adj.get(hoveredId) ?? [];
-
-		// Group off-screen neighbors by cluster (folder)
-		const dirGroups = new Map<string, { names: string[]; avgSx: number; avgSy: number }>();
-		for (const nbId of neighbors) {
-			const nb = this.pixiNodes.get(nbId);
-			if (!nb) continue;
-			const sx = nb.gfx.x * ws + worldX;
-			const sy = nb.gfx.y * ws + worldY;
-			// Is off-screen?
-			if (sx >= margin && sx <= canvasW - margin && sy >= margin && sy <= canvasH - margin) continue;
-			// Determine cluster key
-			const path = nb.data.filePath ?? "";
-			const folder = path.split("/")[0] || "other";
-			const clusterKey = this.clusterMeta?.nodeClusterMap?.get(nbId) ?? folder;
-			const label = nb.data.label || nbId.replace(/\.md$/, "").split("/").pop() || nbId;
-			if (!dirGroups.has(clusterKey)) {
-				dirGroups.set(clusterKey, { names: [], avgSx: 0, avgSy: 0 });
-			}
-			const grp = dirGroups.get(clusterKey)!;
-			grp.names.push(label);
-			const n = grp.names.length;
-			grp.avgSx += (sx - grp.avgSx) / n;
-			grp.avgSy += (sy - grp.avgSy) / n;
-		}
-
+		// Group off-screen neighbors by cluster (delegated to pure function)
+		const clusterMetaRef = this.clusterMeta;
+		const dirGroups = groupOffScreenNeighbors(
+			[...neighbors],
+			(id) => {
+				const nb = this.pixiNodes.get(id);
+				return nb ? { id, gfxX: nb.gfx.x, gfxY: nb.gfx.y, filePath: nb.data.filePath, label: nb.data.label } : null;
+			},
+			ws, worldX, worldY, canvasW, canvasH, margin,
+			(id, folder) => clusterMetaRef?.nodeClusterMap?.get(id) ?? folder,
+		);
 		if (dirGroups.size === 0) return;
 
-		// Create tooltip elements for each direction
-		const canvasArea = this.canvasWrap;
+		this._createOffScreenTooltipElements(dirGroups, hovSx, hovSy, canvasW, canvasH, margin);
+	}
+
+	/** Create DOM elements for off-screen link tooltips at canvas edges. */
+	private _createOffScreenTooltipElements(
+		dirGroups: Map<string, { names: string[]; avgSx: number; avgSy: number }>,
+		hovSx: number, hovSy: number, canvasW: number, canvasH: number, margin: number,
+	): void {
+		const canvasArea = this.canvasWrap!;
 		for (const [clusterKey, grp] of dirGroups) {
-			// Direction from hovered node to off-screen group
-			const dx = grp.avgSx - hovSx;
-			const dy = grp.avgSy - hovSy;
-			const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-			const nx = dx / dist;
-			const ny = dy / dist;
-
-			// Place tooltip at canvas edge in the direction of the group
-			// Find intersection with canvas boundary
-			const tMax = 10000;
-			let t = tMax;
-			if (nx > 0.01) t = Math.min(t, (canvasW - margin - hovSx) / nx);
-			else if (nx < -0.01) t = Math.min(t, (margin - hovSx) / nx);
-			if (ny > 0.01) t = Math.min(t, (canvasH - margin - hovSy) / ny);
-			else if (ny < -0.01) t = Math.min(t, (margin - hovSy) / ny);
-			t = Math.max(40, t); // minimum distance from node
-			const tipX = Math.max(margin, Math.min(canvasW - margin, hovSx + nx * t));
-			const tipY = Math.max(margin, Math.min(canvasH - margin, hovSy + ny * t));
-
-			// Cluster display name
+			const { tipX, tipY } = computeTooltipEdgePosition(hovSx, hovSy, grp.avgSx, grp.avgSy, canvasW, canvasH, margin);
 			const clusterName = clusterKey.replace(/^folder:/, "").replace(/^[^:]+:/, "");
 			const displayNames = grp.names.slice(0, 5);
 			const extra = grp.names.length > 5 ? `\n+${grp.names.length - 5} more` : "";
@@ -4675,50 +4664,54 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			sharedTags: false,
 			sameFolder: false,
 		};
-		const hops = this.panel.hoverHops;
 		const hoveredNode = this.pixiNodes.get(hId);
 
-		// Forward links + backlinks via BFS on hoverAdj (respects hoverEdgeTypes filter)
+		// Forward links + backlinks via BFS on hoverAdj
 		if (hht.forwardLinks || hht.backlinks) {
-			// BFS through hoverAdj (undirected by nature)
-			const bfsResult = bfsNeighborSet(this.hoverAdj, hId, hops);
-			if (hht.forwardLinks && hht.backlinks) {
-				for (const id of bfsResult) result.add(id);
-			} else {
-				// Directional filter: check edge direction in graphEdges
-				const forwardIds = new Set<string>();
-				const backlinkIds = new Set<string>();
-				for (const e of this.graphEdges) {
-					const src = edgeSourceId(e);
-					const tgt = edgeTargetId(e);
-					if (src === hId && bfsResult.has(tgt)) forwardIds.add(tgt);
-					if (tgt === hId && bfsResult.has(src)) backlinkIds.add(src);
-				}
-				if (hht.forwardLinks) for (const id of forwardIds) result.add(id);
-				if (hht.backlinks) for (const id of backlinkIds) result.add(id);
-			}
+			this._addLinkNeighbors(result, hId, hht);
 		}
 
 		// Shared tags: nodes that share at least one tag with hovered node
 		if (hht.sharedTags && hoveredNode?.data.tags?.length) {
-			const hoveredTags = new Set(hoveredNode.data.tags);
-			for (const pn of this.pixiNodes.values()) {
-				if (pn.data.id === hId) continue;
-				if (pn.data.tags?.some((t) => hoveredTags.has(t))) result.add(pn.data.id);
-			}
+			const nodes = [...this.pixiNodes.values()].map((pn) => ({ id: pn.data.id, tags: pn.data.tags, filePath: pn.data.filePath }));
+			for (const id of findSharedTagNodes(hoveredNode.data.tags, hId, nodes)) result.add(id);
 		}
 
 		// Same folder: nodes in the same top-level folder
 		if (hht.sameFolder && hoveredNode?.data.filePath) {
-			const hoveredFolder = hoveredNode.data.filePath.split("/")[0];
-			if (hoveredFolder) {
-				for (const pn of this.pixiNodes.values()) {
-					if (pn.data.filePath?.split("/")[0] === hoveredFolder) result.add(pn.data.id);
-				}
-			}
+			const nodes = [...this.pixiNodes.values()].map((pn) => ({ id: pn.data.id, tags: pn.data.tags, filePath: pn.data.filePath }));
+			for (const id of findSameFolderNodes(hoveredNode.data.filePath, hId, nodes)) result.add(id);
 		}
 
-		// HP: Cap hover neighbor labels
+		return this._capHoverLabels(result, hId);
+	}
+
+	/** Add link neighbors (forward/back) to the result set via BFS. */
+	private _addLinkNeighbors(
+		result: Set<string>,
+		hId: string,
+		hht: { forwardLinks: boolean; backlinks: boolean },
+	): void {
+		const bfsResult = bfsNeighborSet(this.hoverAdj, hId, this.panel.hoverHops);
+		if (hht.forwardLinks && hht.backlinks) {
+			for (const id of bfsResult) result.add(id);
+			return;
+		}
+		// Directional filter
+		const forwardIds = new Set<string>();
+		const backlinkIds = new Set<string>();
+		for (const e of this.graphEdges) {
+			const src = edgeSourceId(e);
+			const tgt = edgeTargetId(e);
+			if (src === hId && bfsResult.has(tgt)) forwardIds.add(tgt);
+			if (tgt === hId && bfsResult.has(src)) backlinkIds.add(src);
+		}
+		if (hht.forwardLinks) for (const id of forwardIds) result.add(id);
+		if (hht.backlinks) for (const id of backlinkIds) result.add(id);
+	}
+
+	/** Cap the hover highlight set to maxHoverNeighborLabels, keeping highest-degree nodes. */
+	private _capHoverLabels(result: Set<string>, hId: string): Set<string> {
 		const maxNeighborLabels = this.panel.renderThresholds?.maxHoverNeighborLabels ?? 30;
 		if (result.size <= maxNeighborLabels + 1) return result;
 		const sorted = [...result]
@@ -4750,92 +4743,50 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const showTooltip = rt.hoverTooltipShow;
 		const zoom = this.worldContainer?.scale.x ?? 1;
 
-		// IE: Checklist-based hover content control
-		const showTitle = this.panel.hoverShowTitle ?? true;
-		const showMeta = this.panel.hoverShowMeta ?? true;
-		const showBody = this.panel.hoverShowBody ?? false;
-
-		let tooltipText = "";
-
-		// Title
-		if (showTitle) {
-			tooltipText = pn.data.label;
-		}
-
-		// Metadata (tags, category, custom fields, degree, edge types)
-		if (showTooltip && showMeta) {
-			const isEnclosure = this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE;
-			const hasVisibleTagLabel = !!(pn.tagLabel && pn.tagLabel.visible);
-			if (pn.data.tags && pn.data.tags.length > 0 && !hasVisibleTagLabel && !isEnclosure) {
-				tooltipText += "\n" + pn.data.tags.map((t: string) => `#${t}`).join(" ");
-			}
-			if (pn.data.category) {
-				tooltipText += "\n[" + pn.data.category + "]";
-			}
-			const tooltipFields = this.panel.hoverTooltipFields;
-			if (tooltipFields) {
-				const fields = tooltipFields
-					.split(",")
-					.map((s) => s.trim())
-					.filter(Boolean);
-				for (const field of fields) {
-					const val = this.getNodeProperty(pn.data.id, field);
-					if (val !== undefined && val !== "") {
-						tooltipText += `\n${field}: ${val}`;
-					}
-				}
-			}
-			const deg = this.degrees.get(pn.data.id) ?? 0;
-			tooltipText += `\n° ${deg}`;
-
-			// DQ: Collapsed group node summary
-			if (pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0) {
-				tooltipText += "\n" + collapsedGroupSummary(pn.data.collapsedMembers);
-			}
-
-			// EK: Edge type summary
-			if (this.graphEdges) {
-				const edgeTypes = edgeTypeSummary(this.graphEdges, pn.data.id);
-				if (edgeTypes.size > 0) {
-					tooltipText += `\n${[...edgeTypes.entries()].map(([t, c]) => `${t}:${c}`).join(" ")}`;
-				}
-			}
-		}
-
-		// Body preview
-		if (showTooltip && showBody && pn.data.bodyPreview) {
-			tooltipText += "\n---\n" + pn.data.bodyPreview;
-		}
-
-		// IB: Shortcut hints for keyboard users
-		if (showTooltip && this._isKeyboardFocused) {
-			tooltipText += "\n─ Enter: open · Shift+Enter: select · Ctrl+Enter: compare";
-		}
-
-		// M3: Similar node suggestions
-		if (this.panel.showSimilarSuggestions) {
-			let similar = this._similarCache.get(pn.data.id);
-			if (!similar) {
-				const allNodes = [...this.pixiNodes.values()].map((p) => p.data);
-				similar = computeSimilarNodes(pn.data.id, allNodes, this.graphEdges, 3, 0.15);
-				this._similarCache.set(pn.data.id, similar);
-			}
-			if (similar.length > 0) {
-				tooltipText += "\n— Similar —";
-				for (const s of similar) {
-					tooltipText += `\n  ${s.label} (${(s.score * 100).toFixed(0)}%)`;
-				}
-			}
-		}
+		// Build tooltip text via extracted pure function
+		const tooltipText = buildHoverTooltipText(
+			{
+				label: pn.data.label,
+				tags: pn.data.tags,
+				category: pn.data.category,
+				collapsedMembers: pn.data.collapsedMembers,
+				bodyPreview: pn.data.bodyPreview,
+				id: pn.data.id,
+			},
+			{
+				showTitle: this.panel.hoverShowTitle ?? true,
+				showMeta: this.panel.hoverShowMeta ?? true,
+				showBody: this.panel.hoverShowBody ?? false,
+				showTooltip,
+				isKeyboardFocused: this._isKeyboardFocused,
+				showSimilarSuggestions: this.panel.showSimilarSuggestions,
+				tagDisplayEnclosure: this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE,
+				hasVisibleTagLabel: !!(pn.tagLabel && pn.tagLabel.visible),
+				tooltipFields: this.panel.hoverTooltipFields,
+				degree: this.degrees.get(pn.data.id) ?? 0,
+				graphEdges: this.graphEdges,
+				getNodeProperty: (id, field) => this.getNodeProperty(id, field),
+				similarCache: this._similarCache,
+				allNodes: [...this.pixiNodes.values()].map((p) => p.data),
+			},
+		);
 
 		// Guard: skip tooltip if all content is disabled
 		if (!tooltipText.trim()) return;
 
-		// Counter-scale: keep label readable regardless of zoom level
+		this._attachHoverTooltipLabel(pn, tooltipText, rt, zoom);
+	}
+
+	/** Create, position, and attach the CanvasText hover tooltip to a PixiNode. */
+	private _attachHoverTooltipLabel(
+		pn: PixiNode,
+		tooltipText: string,
+		rt: ReturnType<typeof mergeRenderThresholds>,
+		zoom: number,
+	): void {
 		const counterScale = Math.max(0.5, 1 / zoom);
-		const tooltipFontSize = rt.hoverTooltipFontSize;
 		const hl = new CanvasText(tooltipText, {
-			fontSize: tooltipFontSize,
+			fontSize: rt.hoverTooltipFontSize,
 			fill: this.getLabelColor(),
 			fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
 			fontWeight: "600",
@@ -4849,7 +4800,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		// Position: right of node (account for card-mode scale-up)
 		const gfxScale = pn.gfx.scale?.x ?? 1;
-		// IN: In card mode, offset by card half-width instead of radius to avoid overlap
 		const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
 		const crc = isCardMode ? { ...(this.panel.cardRenderConfig ?? {}) } : null;
 		const cardAR = crc ? (crc.cardAspectRatio ?? 1.618) : 0;
@@ -4858,12 +4808,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		hl.x = offsetX * gfxScale;
 		hl.y = -(pn.radius * 0.4 + 2) * gfxScale;
 		hl.resolution = 2;
-		// Mark as hover-forced for overlap culling priority
 		pn.hoverForcedLabel = true;
 		pn.gfx.addChild(hl);
 		pn.hoverLabel = hl;
 
-		// HM: Reposition tooltip if it overlaps with DOM panels
 		this._adjustTooltipForOverlap(pn, hl, counterScale, gfxScale);
 	}
 
@@ -5164,153 +5112,51 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Assemble the EdgeDrawConfig from current panel state (reuses object to avoid allocation). */
 	private _buildEdgeDrawConfig(): EdgeDrawConfig {
-		// Pre-compute max degree for fade normalization
-		let maxDeg = 0;
-		if (this.panel.fadeEdgesByDegree) {
-			for (const d of this.degrees.values()) {
-				if (d > maxDeg) maxDeg = d;
-			}
-		}
-		// Ephemeral highlight (from side panel hover) overrides normal hover for edge drawing
-		const ephActive = this.ephemeralHighlight && this.ephemeralHighlight.size > 0;
-		// フォーカスモード: ホバーがない場合、フォーカスノードIDを実効ハイライトIDとして使用
-		const focusFallbackId =
-			this.panel.focusMode && this.panel.focusNodeId && !this.highlightedNodeId ? this.panel.focusNodeId : null;
-		const effectiveHighlightId = ephActive ? "__ephemeral__" : this.highlightedNodeId || focusFallbackId;
-		const effectiveHighlightSet = ephActive ? this.ephemeralHighlight! : this.prevHighlightSet;
+		const maxDeg = computeMaxDegree(this.degrees, this.panel.fadeEdgesByDegree);
+		const { effectiveId, effectiveSet } = computeEffectiveHighlight(
+			this.ephemeralHighlight,
+			this.highlightedNodeId,
+			this.panel.focusMode,
+			this.panel.focusNodeId,
+			this.prevHighlightSet,
+		);
 
-		const edgeRt = mergeRenderThresholds(this.panel.renderThresholds);
 		// Reuse EdgeDrawConfig object — mutate in place to avoid per-frame allocation
-		let cfg = this._edgeDrawCfg;
-		if (!cfg) {
-			cfg = {
-				showLinks: false,
-				showTagEdges: false,
-				showCategoryEdges: false,
-				showSemanticEdges: false,
-				showInheritance: false,
-				showAggregation: false,
-				showTagNodes: false,
-				showSimilar: false,
-				showSibling: false,
-				showSequence: false,
-				colorEdgesByRelation: false,
-				isArcLayout: false,
-				highlightedNodeId: null,
-				highlightSet: new Set(),
-				bgColor: 0,
-				relationColors: new Map(),
-				fadeByDegree: false,
-				degrees: new Map(),
-				maxDegree: 0,
-				nodeClusterMap: null,
-				clusterCentroids: null,
-				clusterRadii: null,
-				bundleStrength: 0,
-				isDark: false,
-				showEdgeLabels: false,
-				showArrows: false,
-				nodeRadii: null,
-			} as EdgeDrawConfig;
-			this._edgeDrawCfg = cfg;
+		if (!this._edgeDrawCfg) {
+			this._edgeDrawCfg = createDefaultEdgeDrawConfig();
 		}
-		cfg.showLinks = this.panel.showLinks;
-		cfg.showTagEdges = this.panel.showTagEdges;
-		cfg.showCategoryEdges = this.panel.showCategoryEdges;
-		cfg.showSemanticEdges = this.panel.showSemanticEdges;
-		cfg.showInheritance = this.panel.showInheritance;
-		cfg.showAggregation = this.panel.showAggregation;
-		cfg.showTagNodes = this.panel.showTagNodes;
-		cfg.showSimilar = this.panel.showSimilar;
-		cfg.showSibling = this.panel.showSibling;
-		cfg.showSequence = this.panel.showSequence;
-		cfg.colorEdgesByRelation = this.panel.colorEdgesByRelation;
-		cfg.isArcLayout = this.currentLayout === LAYOUT_ARC;
-		cfg.highlightedNodeId = effectiveHighlightId;
-		cfg.highlightSet = effectiveHighlightSet;
-		cfg.hoverDistMap = this._hoverDistMap;
-		cfg.hoverEdgeFalloff = edgeRt.hoverEdgeFalloff;
-		cfg.bgColor = this.cachedBgColor!;
-		cfg.relationColors = this.relationColors;
-		cfg.fadeByDegree = this.panel.fadeEdgesByDegree;
-		cfg.degrees = this.degrees;
-		cfg.maxDegree = maxDeg;
-		cfg.totalEdgeCount = this.graphEdges.length;
-		cfg.globalEdgeAlpha = edgeRt.globalEdgeAlpha;
-		cfg.edgeLabelFontSize = edgeRt.edgeLabelFontSize;
-		// Cable-tray requires: (1) groupBy active, (2) multiple clusters exist.
-		// Enable cable-tray when cluster metadata exists with 2+ clusters
-		// (works with explicit groupBy OR auto-derived folder clusters)
-		const centroidsAvailable = this.clusterMeta?.clusterCentroids?.size ?? 0;
-		const hasCableClusters = centroidsAvailable >= 2;
-		cfg.nodeClusterMap = hasCableClusters ? (this.clusterMeta?.nodeClusterMap ?? null) : null;
-		// Use live centroids when available, fall back to target centroids from clusterMeta
-		const liveCentroids = hasCableClusters ? this.getCachedCentroids() : null;
-		const metaCentroids = hasCableClusters ? (this.clusterMeta?.clusterCentroids ?? null) : null;
-		// Live centroids may have fewer entries during simulation startup (nodes overlap)
-		// Use whichever has more entries
-		cfg.clusterCentroids =
-			liveCentroids && metaCentroids && liveCentroids.size < metaCentroids.size
-				? metaCentroids
-				: (liveCentroids ?? metaCentroids);
-		cfg.clusterRadii = hasCableClusters ? (this.clusterMeta?.clusterRadii ?? null) : null;
-		// Feature BB: auto-scale bundle strength based on node count
-		const userBundle = this.panel.edgeBundleStrength;
-		cfg.bundleStrength =
-			userBundle != null && userBundle >= 0 ? userBundle : autoBundleStrength(this.pixiNodes.size);
-		cfg.cableBundleMode = this.panel.cableBundleMode;
-		cfg.cableTrunkWidth = this.panel.cableTrunkWidth;
-		cfg.cableTrunkAlpha = this.panel.cableTrunkAlpha;
-		cfg.cableSpacing = this.panel.cableSpacing;
-		cfg.cableFanWidth = this.panel.cableFanWidth;
-		cfg.cableFanAlpha = this.panel.cableFanAlpha;
-		cfg.edgeDensityFloor = edgeRt.edgeDensityFloor;
-		cfg.highlightEdgeAlpha = edgeRt.highlightEdgeAlpha;
-		cfg.highlightEdgeNonMatchAlpha = edgeRt.highlightEdgeNonMatchAlpha;
-		cfg.edgeBidirectionalBoost = edgeRt.edgeBidirectionalBoost;
-		cfg.edgeUnidirectionalDim = edgeRt.edgeUnidirectionalDim;
-		cfg.edgeHierarchyBoost = edgeRt.edgeHierarchyBoost;
-		cfg.edgeBidirectionalThickFactor = edgeRt.edgeBidirectionalThickFactor;
-		cfg.edgeHierarchyThickFactor = edgeRt.edgeHierarchyThickFactor;
-		cfg.arcMaxEdgeCount = edgeRt.arcMaxEdgeCount;
-		cfg.edgeHoverFalloffMinAlpha = edgeRt.edgeHoverFalloffMinAlpha;
-		cfg.isDark = this.isDarkTheme();
-		cfg.highContrast = this.panel.highContrastMode;
-		cfg.showEdgeLabels = this.panel.showEdgeLabels;
-		cfg.edgeLabelPlacement = this.panel.edgeLabelPlacement;
-		cfg.edgeLayerMode = this.panel.edgeLayerMode;
-		cfg.showArrows = this.panel.showArrows;
-		cfg.nodeRadii =
-			this.panel.showArrows || this.panel.edgeCardinalityMode !== "none" ? this.getCachedNodeRadii() : null;
-		cfg.worldScale = this.worldContainer?.scale?.x ?? 1;
-		cfg.viewportX = this.worldContainer?.x ?? 0;
-		cfg.viewportY = this.worldContainer?.y ?? 0;
-		cfg.viewportW = this.canvasWrap?.clientWidth ?? 10000;
-		cfg.viewportH = this.canvasWrap?.clientHeight ?? 10000;
-		cfg.edgeMinZoom = edgeRt.edgeMinZoom;
-		cfg.edgeZoomFadeThreshold = edgeRt.edgeZoomFadeThreshold;
-		cfg.edgeLabelZoomHide = edgeRt.edgeLabelZoomHide;
-		cfg.edgeLabelZoomFade = edgeRt.edgeLabelZoomFade;
-		cfg.edgeFadeMinAlpha = edgeRt.edgeFadeMinAlpha;
-		cfg.edgeCardinalityMode = this.panel.edgeCardinalityMode;
-		cfg.cardinalityRules = this.panel.cardinalityRules;
-		cfg.cardinalityRenderConfig = this.panel.cardinalityRenderConfig;
-		cfg.edgeWeightThickness = this.panel.edgeWeightThickness;
-		cfg.edgeStrengthGlow = edgeRt.edgeStrengthGlow;
-		cfg.edgeStrengthGlowMin = edgeRt.edgeStrengthGlowMin;
-		cfg.edgeStrengthGlowMax = edgeRt.edgeStrengthGlowMax;
-		cfg.edgeDirectionFilter = this.panel.edgeDirectionFilter ?? "all";
-		cfg.showOntologyBackbone = this.panel.showOntologyBackbone ?? false;
-		// roadRouteEdges toggle: when off, suppress road network so edges draw straight
-		cfg.roadNetwork = edgeRt.roadRouteEdges !== false ? this.getRoadNetwork() : null;
-		cfg.clusterArrangement = this.panel.clusterArrangement;
-		// Resolve coordinate system: check panel.coordinateLayout first, then infer from arrangement name
-		cfg.coordinateSystem =
-			this.panel.coordinateLayout?.system === "polar"
-				? "polar"
-				: POLAR_ARRANGEMENTS.has(this.panel.clusterArrangement)
-					? "polar"
-					: "cartesian";
+		const cfg = this._edgeDrawCfg;
+
+		const cluster = resolveCableClusters(
+			this.clusterMeta,
+			() => this.getCachedCentroids(),
+		);
+
+		populateEdgeDrawConfig(
+			cfg,
+			this.panel,
+			this.currentLayout,
+			effectiveId,
+			effectiveSet,
+			this._hoverDistMap,
+			this.cachedBgColor!,
+			this.relationColors,
+			this.degrees,
+			maxDeg,
+			this.graphEdges.length,
+			this.pixiNodes.size,
+			cluster,
+			this.isDarkTheme(),
+			{
+				scale: this.worldContainer?.scale?.x ?? 1,
+				x: this.worldContainer?.x ?? 0,
+				y: this.worldContainer?.y ?? 0,
+				w: this.canvasWrap?.clientWidth ?? 10000,
+				h: this.canvasWrap?.clientHeight ?? 10000,
+			},
+			() => this.getCachedNodeRadii(),
+			() => this.getRoadNetwork(),
+		);
 		return cfg;
 	}
 
@@ -5515,50 +5361,51 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (now - this._groupLabelLastUpdate < 100 && this.groupByLabels.size > 0) return;
 		this._groupLabelLastUpdate = now;
 
-		// Collect group centroids + member IDs via extracted function
+		const { groups, members } = this._collectGroupData(hasGroupBy, groupBy, hasTagEnclosures, autoFolderGroups);
+		this.groupByMembers = members;
+
+		this._drawGroupBoundaries(members, autoFolderGroups);
+		this._placeGroupLabels(groups, ws, fadeThreshold);
+	}
+
+	/** Collect group centroids and member IDs from pixiNodes. */
+	private _collectGroupData(hasGroupBy: boolean, groupBy: string | undefined, hasTagEnclosures: boolean, autoFolderGroups: boolean): ReturnType<typeof collectGroupCentroids> {
 		const nodeInfos: GroupNodeInfo[] = [];
 		for (const pn of this.pixiNodes.values()) {
 			nodeInfos.push({
-				id: pn.data.id,
-				filePath: pn.data.filePath,
-				tags: pn.data.tags,
+				id: pn.data.id, filePath: pn.data.filePath, tags: pn.data.tags,
 				meta: pn.data.meta as Record<string, unknown> | undefined,
-				x: pn.data.x,
-				y: pn.data.y,
-				gfxX: pn.gfx.x,
-				gfxY: pn.gfx.y,
+				x: pn.data.x, y: pn.data.y, gfxX: pn.gfx.x, gfxY: pn.gfx.y,
 				collapsedMembers: pn.data.collapsedMembers,
 			});
 		}
-		const { groups, members } = collectGroupCentroids(nodeInfos, {
+		return collectGroupCentroids(nodeInfos, {
 			hasGroupBy,
 			groupByFields: hasGroupBy ? parseGroupByFields(groupBy!) : [],
 			hasTagEnclosures,
 			autoFolderGroups,
 		});
-		this.groupByMembers = members;
+	}
 
-		// Draw cluster boundary outlines (only for explicit groupBy, not auto-folder)
+	/** Draw cluster boundary outlines (only for explicit groupBy, not auto-folder). */
+	private _drawGroupBoundaries(members: Map<string, Set<string>>, autoFolderGroups: boolean): void {
 		const gfx = this.clusterBoundaryGraphics;
-		if (gfx && autoFolderGroups) gfx.clear();
-		if (gfx && !autoFolderGroups) {
-			const nodePositions = new Map<string, { x: number; y: number }>();
-			for (const pn of this.pixiNodes.values()) {
-				nodePositions.set(pn.data.id, { x: pn.gfx.x, y: pn.gfx.y });
-			}
-			drawClusterBoundaries(
-				gfx,
-				members,
-				nodePositions,
-				this.pixiNodes.size,
-				this._hoveredGroupLabel,
-				this._cachedHulls,
-			);
+		if (!gfx) return;
+		if (autoFolderGroups) { gfx.clear(); return; }
+		const nodePositions = new Map<string, { x: number; y: number }>();
+		for (const pn of this.pixiNodes.values()) {
+			nodePositions.set(pn.data.id, { x: pn.gfx.x, y: pn.gfx.y });
 		}
+		drawClusterBoundaries(gfx, members, nodePositions, this.pixiNodes.size, this._hoveredGroupLabel, this._cachedHulls);
+	}
 
+	/** Compute and apply group label placements. */
+	private _placeGroupLabels(
+		groups: Map<string, GroupCentroid>,
+		ws: number, fadeThreshold: number,
+	): void {
 		const labelContainer = this.groupByLabelContainer;
 		if (!labelContainer) return;
-		// Ensure container is at top of z-order
 		const world = this.worldContainer;
 		if (world && world.children[world.children.length - 1] !== labelContainer) {
 			world.removeChild(labelContainer);
@@ -5570,24 +5417,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const alpha = computeGroupLabelAlpha(ws, fadeThreshold);
 
 		const { placements, visibleKeys } = computeGroupLabelPlacements(
-			groups,
-			this.pixiNodes.size,
-			ws,
-			world?.x ?? 0,
-			world?.y ?? 0,
-			canvasW,
-			canvasH,
+			groups, this.pixiNodes.size, ws, world?.x ?? 0, world?.y ?? 0, canvasW, canvasH,
 		);
-
-		applyGroupLabelPlacements(
-			placements,
-			visibleKeys,
-			this.groupByLabels,
-			labelContainer,
-			ws,
-			alpha,
-			this._hoveredGroupLabel,
-		);
+		applyGroupLabelPlacements(placements, visibleKeys, this.groupByLabels, labelContainer, ws, alpha, this._hoveredGroupLabel);
 	}
 
 	/**
@@ -6544,12 +6376,31 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
 		const rt = mergeRenderThresholds(this.panel.renderThresholds);
 		const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
+		const padding = isCardMode ? rt.autoFitCardPadding * 2 : rt.autoFitBasePadding;
 
-		// Pass 1: compute bounding box from node positions only (no card size)
-		let minX = Infinity,
-			minY = Infinity,
-			maxX = -Infinity,
-			maxY = -Infinity;
+		// Card mode: two-pass auto-fit with card dimensions
+		if (isCardMode) {
+			this._autoFitCardMode(W, H, rt, crc, padding);
+			return;
+		}
+
+		// DQ-09: Expand bounding box when enclosures are active
+		if (this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
+			// Note: enclosure padding is handled inside computeAutoFitTransform via node radii
+		}
+
+		this._autoFitApply(W, H, rt, padding, isCardMode);
+	}
+
+	/** Card-mode two-pass auto-fit: estimate scale, compute card bbox, then fit. */
+	private _autoFitCardMode(
+		W: number, H: number,
+		rt: ReturnType<typeof mergeRenderThresholds>,
+		crc: Record<string, number>,
+		padding: number,
+	): void {
+		// Pass 1: estimate scale from node positions
+		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 		for (const pn of this.pixiNodes.values()) {
 			const r = pn.radius;
 			if (pn.data.x - r < minX) minX = pn.data.x - r;
@@ -6557,57 +6408,29 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			if (pn.data.x + r > maxX) maxX = pn.data.x + r;
 			if (pn.data.y + r > maxY) maxY = pn.data.y + r;
 		}
-
-		const padding = isCardMode ? rt.autoFitCardPadding * 2 : rt.autoFitBasePadding;
-
-		if (isCardMode) {
-			// Two-pass auto-fit for card mode:
-			// 1. Estimate worldScale from node positions
-			const bw0 = maxX - minX + padding;
-			const bh0 = maxY - minY + padding;
-			let sc0 = Math.min(W / bw0, H / bh0, 1.5);
-			if (rt.autoFitMinScale > 0) sc0 = Math.max(sc0, rt.autoFitMinScale);
-			if (this.pixiNodes.size > 0) {
-				const sampleR = this.pixiNodes.values().next().value?.radius ?? 1;
-				const lodMin = rt.cardLODNormalPx / Math.max(sampleR, 1);
-				sc0 = Math.max(sc0, lodMin);
-			}
-
-			// 2. Compute actual card dimensions at estimated scale
-			const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
-			const cardConfig = this.panel.cardDisplayConfig ?? { fields: [] };
-			const numFields = (cardConfig.fields ?? []).length;
-			const hH = crc.tableHeaderHeight / sc0;
-			const fLH = crc.fieldLineHeight / sc0;
-			const padW = crc.cardPadding / sc0;
-			const totalH = hH + numFields * fLH + padW * 2;
-			const cardHalfW = (totalH * cardAR) / 2;
-			const cardHalfH = totalH / 2;
-
-			// 3. Recompute bounding box with actual card extents
-			minX = Infinity;
-			minY = Infinity;
-			maxX = -Infinity;
-			maxY = -Infinity;
-			for (const pn of this.pixiNodes.values()) {
-				if (pn.data.x - cardHalfW < minX) minX = pn.data.x - cardHalfW;
-				if (pn.data.y - cardHalfH < minY) minY = pn.data.y - cardHalfH;
-				if (pn.data.x + cardHalfW > maxX) maxX = pn.data.x + cardHalfW;
-				if (pn.data.y + cardHalfH > maxY) maxY = pn.data.y + cardHalfH;
-			}
+		const bw0 = maxX - minX + padding;
+		const bh0 = maxY - minY + padding;
+		let sc0 = Math.min(W / bw0, H / bh0, 1.5);
+		if (rt.autoFitMinScale > 0) sc0 = Math.max(sc0, rt.autoFitMinScale);
+		if (this.pixiNodes.size > 0) {
+			const sampleR = this.pixiNodes.values().next().value?.radius ?? 1;
+			sc0 = Math.max(sc0, rt.cardLODNormalPx / Math.max(sampleR, 1));
 		}
 
-		// DQ-09: Expand bounding box when enclosures are active
-		// so they are not clipped at viewport edges after auto-fit.
-		if (this.panel.tagDisplay === TAG_DISPLAY_ENCLOSURE) {
-			const encPad = 30; // OUTLINE_PAD + typical label height
-			minX -= encPad;
-			minY -= encPad;
-			maxX += encPad;
-			maxY += encPad;
-		}
+		// Pass 2: recompute bbox with card dimensions
+		const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
+		const numFields = (this.panel.cardDisplayConfig?.fields ?? []).length;
+		const nodes = [...this.pixiNodes.values()].map((pn) => ({ x: pn.data.x, y: pn.data.y, radius: pn.radius }));
+		computeCardBBox(nodes, sc0, cardAR, crc as { tableHeaderHeight: number; fieldLineHeight: number; cardPadding: number }, numFields);
 
-		// Use fresh canvas dimensions if W/H look stale (e.g. 0 before layout)
+		this._autoFitApply(W, H, rt, padding, true);
+	}
+
+	/** Core auto-fit logic: compute transform and apply to world container. */
+	private _autoFitApply(W: number, H: number, rt: ReturnType<typeof mergeRenderThresholds>, padding: number, isCardMode: boolean): void {
+		const world = this.worldContainer!;
+
+		// Use fresh canvas dimensions if W/H look stale
 		if (W <= 0 || H <= 0) {
 			const wrap = this.canvasWrap;
 			if (!wrap) return;
@@ -6616,13 +6439,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			if (W <= 0 || H <= 0) return;
 		}
 
-		// Build node array for computeAutoFitTransform
 		const fitNodes: { x: number; y: number; r: number }[] = [];
 		for (const pn of this.pixiNodes.values()) {
 			fitNodes.push({ x: pn.data.x, y: pn.data.y, r: pn.radius });
 		}
 
-		// Use extracted pure function for bounding-box fit
 		const effectiveMinScale = this.panel.viewMode === "timeline" ? 0 : rt.autoFitMinScale;
 		const fit = computeAutoFitTransform({
 			nodes: fitNodes,
@@ -6635,12 +6456,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (!fit) return;
 
 		let sc = fit.scale;
-
-		// Card mode: ensure scale is high enough for LOD to show cards (not circles)
 		if (isCardMode && this.pixiNodes.size > 0) {
 			const sampleRadius = this.pixiNodes.values().next().value?.radius ?? 1;
-			const lodMin = rt.cardLODNormalPx / Math.max(sampleRadius, 1);
-			sc = Math.max(sc, lodMin);
+			sc = Math.max(sc, rt.cardLODNormalPx / Math.max(sampleRadius, 1));
 		}
 
 		world.scale.set(sc);
@@ -7765,124 +7583,27 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// =========================================================================
 	async doRender() {
 		if (!this.canvasWrap) return;
-		// Invalidate per-frame caches
-		this._cachedBookmarkSet = null;
-		this._cachedPinSet = null;
-		this._cachedHulls.clear();
-		this._viewportDirty = true;
-		// Toggle subgraph back button visibility
-		if (this.subgraphBackBtnEl) {
-			this.subgraphBackBtnEl.style.display = this.panel.subgraphNodeIds?.length > 0 ? "" : "none";
-		}
-		// JK: Reset auto-optimize flag on new render (layout may change)
-		this._labelOptimized = false;
-		// Sanitize critical numeric fields to prevent NaN propagation
-		if (!isFinite(this.panel.nodeSize) || this.panel.nodeSize <= 0) this.panel.nodeSize = 15;
+		this._invalidateRenderCaches();
 
 		// B3: Debounce — first call passes through; subsequent calls within 50ms are deferred
-		const now = performance.now();
-		if (this._lastDoRenderTime && now - this._lastDoRenderTime < 50) {
-			clearTimeout(this._doRenderDebounceTimer);
-			this._doRenderDebounceTimer = window.setTimeout(() => this.doRender(), 50) as unknown as number;
-			return;
-		}
-		if (this._doRenderDebounceTimer) {
-			clearTimeout(this._doRenderDebounceTimer);
-			this._doRenderDebounceTimer = 0;
-		}
-		this._lastDoRenderTime = now;
+		if (this._shouldDebounceRender()) return;
 
-		// B2: Sanitize panel state before rendering
 		validatePanelState(this.panel);
-
-		// Resolve "inherit" → concrete arrangement based on clusterGroupArrangement.
-		// This must happen before any code reads panel.clusterArrangement.
-		if (this.panel.clusterArrangement === "inherit") {
-			const gga = this.panel.clusterGroupArrangement ?? "auto";
-			this.panel.clusterArrangement = (
-				gga === "circle" || gga === "concentric"
-					? "concentric"
-					: gga === "grid"
-						? "grid"
-						: gga === "horizontal"
-							? "grid"
-							: gga === "vertical"
-								? "grid"
-								: "grid"
-			) as any;  
-			// Mark so we can restore "inherit" after render for correct serialization
-			this._inheritResolved = true;
-		}
-
-		// Sync currentLayout from viewMode (ensures saved state is respected)
+		this._resolveInheritArrangement();
 		this.currentLayout = viewModeToLayout(this.panel.viewMode);
 
-		// Always hide matrix fullscreen at start of doRender (matrix viewMode re-shows it later)
-		const matrixFs = this.containerEl.querySelector<HTMLElement>(".gi-matrix-fullscreen");
-		if (matrixFs) matrixFs.style.display = "none";
-		// Show canvas (matrix viewMode hides it)
-		const canvasEl = this.canvasWrap?.querySelector("canvas");
-		if (canvasEl) canvasEl.style.display = "";
-
-		// Non-graph viewModes: skip per-node rendering, use dedicated renderers
-		this.renderPipeline?.setSkipNodeRendering(viewModeSkipsNodeRendering(this.panel.viewMode));
-
-		// Clean up graph-mode artifacts when switching to non-graph viewModes
-		if (this.panel.viewMode !== "graph") {
-			// Hide ALL individual node graphics (prevents ghost cards/circles)
-			for (const pn of this.pixiNodes.values()) {
-				pn.gfx.visible = false;
-				if (pn.label) pn.label.visible = false;
-			}
-			// Hide groupBy labels (they belong to graph mode)
-			for (const lbl of this.groupByLabels.values()) lbl.visible = false;
-			// Clear cluster boundary graphics
-			if (this.clusterBoundaryGraphics) this.clusterBoundaryGraphics.clear();
-			// Clear enclosure graphics (tag hulls)
-			if (this.enclosureGraphics) this.enclosureGraphics.clear();
-			// Clear edge graphics
-			if (this.edgeGraphics) this.edgeGraphics.clear();
-			// Clear timeline bar graphics (prevents ghost bars in sunburst/matrix)
-			if (this.barGraphics) this.barGraphics.clear();
-			// Clear arrow graphics
-			if (this.arrowGraphics) this.arrowGraphics.clear();
-			// Clear bar labels
-			if (this.barLabelContainer) {
-				for (const c of [...this.barLabelContainer.children]) c.visible = false;
-			}
-			// Force Canvas repaint to flush cleared state
-			this.markDirty(true);
-		}
-
-		// Sync toolbar active button with restored viewMode
-		const modeGroup = this.containerEl.querySelector(".gi-view-mode-group");
-		if (modeGroup) {
-			modeGroup.querySelectorAll(".gi-view-mode-btn").forEach((b) => {
-				const isActive = (b as HTMLElement).dataset.mode === this.panel.viewMode;
-				b.toggleClass("is-active", isActive);
-				b.setAttribute("aria-pressed", String(isActive));
-			});
-		}
-		this._syncGraphOnlyButtons(this.panel.viewMode);
+		this._prepareViewModeUI();
 
 		this.ac?.abort();
 		this.ac = new AbortController();
 		const signal = this.ac.signal;
-		// Cancel any in-progress layout transition
 		this.layoutTransition.cancel();
-
-		// R2: Map consolidated analysisOverlay to individual flags
 		this._applyAnalysisOverlay();
-
 		this._savePositionsForTransition();
-
 		this.stopSim();
 		this.stopOrbitAnimation();
-		this.cachedBgColor = null; // invalidate bg color cache on re-render
+		this.cachedBgColor = null;
 		this.cachedLabelColor = null;
-
-		// Capture baseline nodeSize for zoom-correlated sizing (only on first render
-		// or when user explicitly changes nodeSize via slider — never from zoom-adapted values)
 		if (this._zoomBaseNodeSize === null) {
 			this._zoomBaseNodeSize = this.panel.nodeSize;
 		}
@@ -7890,8 +7611,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const rect = this.canvasWrap.getBoundingClientRect();
 		const W = rect.width || DEFAULT_CANVAS_WIDTH;
 		const H = rect.height || DEFAULT_CANVAS_HEIGHT;
-		const cx = W / 2;
-		const cy = H / 2;
 
 		this.setStatus("Building...");
 		await yieldFrame();
@@ -7909,20 +7628,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		await yieldFrame();
 		if (signal.aborted) return;
 
-		// Matrix viewMode: DOM-based rendering, skip Canvas entirely
 		if (viewModeUsesDom(this.panel.viewMode)) {
 			this._renderMatrixViewMode(gd, W, H);
 			return;
 		}
 
-		// Hide matrix fullscreen if returning from matrix viewMode
-		// Init Canvas 2D
 		const pixiResult = this.initPixi(W, H);
 		if (!pixiResult) return;
-		if (signal.aborted) {
-			this.destroyPixi();
-			return;
-		}
+		if (signal.aborted) { this.destroyPixi(); return; }
 
 		this._buildGraphMetadata(gd);
 		this._buildTagMembership(gd);
@@ -7930,23 +7643,101 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		const nodeR = this._buildNodeRadiusFn();
 		const nodeColor = this._buildNodeColorFn(gd);
+		const cx = W / 2;
+		const cy = H / 2;
 
-		// ==== Force layout ====
 		if (this.currentLayout === LAYOUT_FORCE) {
 			this._setupForceLayout(gd, nodeR, nodeColor, cx, cy, W, H);
 			return;
 		}
 
-		// ==== Static layouts ====
 		this.setStatus("Computing layout...");
 		await yieldFrame();
 		if (signal.aborted) return;
 
 		const ld = this._computeStaticLayout(gd, cx, cy, W, H);
-		if (!ld) return;
-		if (signal.aborted) return;
+		if (!ld || signal.aborted) return;
 
 		await this._finalizeStaticLayout(ld, nodeR, nodeColor, W, H, signal);
+	}
+
+	/** Invalidate per-frame caches at the start of doRender. */
+	private _invalidateRenderCaches(): void {
+		this._cachedBookmarkSet = null;
+		this._cachedPinSet = null;
+		this._cachedHulls.clear();
+		this._viewportDirty = true;
+		if (this.subgraphBackBtnEl) {
+			this.subgraphBackBtnEl.style.display = this.panel.subgraphNodeIds?.length > 0 ? "" : "none";
+		}
+		this._labelOptimized = false;
+		if (!isFinite(this.panel.nodeSize) || this.panel.nodeSize <= 0) this.panel.nodeSize = 15;
+	}
+
+	/** Check if doRender should be debounced. Returns true if debounced (caller should return). */
+	private _shouldDebounceRender(): boolean {
+		const now = performance.now();
+		if (this._lastDoRenderTime && now - this._lastDoRenderTime < 50) {
+			clearTimeout(this._doRenderDebounceTimer);
+			this._doRenderDebounceTimer = window.setTimeout(() => this.doRender(), 50) as unknown as number;
+			return true;
+		}
+		if (this._doRenderDebounceTimer) {
+			clearTimeout(this._doRenderDebounceTimer);
+			this._doRenderDebounceTimer = 0;
+		}
+		this._lastDoRenderTime = now;
+		return false;
+	}
+
+	/** Resolve "inherit" clusterArrangement to a concrete value. */
+	private _resolveInheritArrangement(): void {
+		if (this.panel.clusterArrangement !== "inherit") return;
+		this.panel.clusterArrangement = resolveInheritArrangement(this.panel.clusterGroupArrangement) as any;
+		this._inheritResolved = true;
+	}
+
+	/** Prepare viewMode-specific UI state at the start of doRender. */
+	private _prepareViewModeUI(): void {
+		const matrixFs = this.containerEl.querySelector<HTMLElement>(".gi-matrix-fullscreen");
+		if (matrixFs) matrixFs.style.display = "none";
+		const canvasEl = this.canvasWrap?.querySelector("canvas");
+		if (canvasEl) canvasEl.style.display = "";
+
+		this.renderPipeline?.setSkipNodeRendering(viewModeSkipsNodeRendering(this.panel.viewMode));
+
+		if (this.panel.viewMode !== "graph") {
+			this._cleanupNonGraphArtifacts();
+		}
+
+		// Sync toolbar active button with restored viewMode
+		const modeGroup = this.containerEl.querySelector(".gi-view-mode-group");
+		if (modeGroup) {
+			modeGroup.querySelectorAll(".gi-view-mode-btn").forEach((b) => {
+				const isActive = (b as HTMLElement).dataset.mode === this.panel.viewMode;
+				b.toggleClass("is-active", isActive);
+				b.setAttribute("aria-pressed", String(isActive));
+			});
+		}
+		this._syncGraphOnlyButtons(this.panel.viewMode);
+	}
+
+	/** Clean up graph-mode artifacts when switching to non-graph viewModes. */
+	private _cleanupNonGraphArtifacts(): void {
+		for (const pn of this.pixiNodes.values()) {
+			pn.gfx.visible = false;
+			if (pn.label) pn.label.visible = false;
+		}
+		for (const lbl of this.groupByLabels.values()) lbl.visible = false;
+		if (this.clusterBoundaryGraphics) this.clusterBoundaryGraphics.clear();
+		if (this.enclosureGraphics) this.enclosureGraphics.clear();
+		if (this.edgeGraphics) this.edgeGraphics.clear();
+		if (this.barGraphics) this.barGraphics.clear();
+		if (this.arrowGraphics) this.arrowGraphics.clear();
+		if (this.barLabelContainer) {
+			for (const c of [...this.barLabelContainer.children]) c.visible = false;
+		}
+		this.markDirty(true);
 	}
 
 	/** Save current node positions for animated transition, including super node member spreading. */
@@ -8371,124 +8162,88 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		await yieldFrame();
 		if (signal.aborted) return;
 
-		// Set skip flag on the NEW renderPipeline instance (created by initPixi above)
 		this.renderPipeline?.setSkipNodeRendering(viewModeSkipsNodeRendering(this.panel.viewMode));
 		this.createPixiNodes(ld.nodes, nodeR, nodeColor);
 		this.computeSortRanks();
 		await yieldFrame();
 		if (signal.aborted) return;
 
-		// Ensure viewport utilization BEFORE building transition data,
-		// so the expanded positions become the animation target (toX/toY).
 		this.ensureViewportUtilization(W, H);
 
-		// Non-graph viewModes: clear ALL canvas layers that aren't used by the mode.
-		// This prevents residual graphics (enclosures, roads, guides) from showing.
+		// Non-graph viewModes: clear unused canvas layers
 		if (this.panel.viewMode !== "graph") {
-			const clearLayers = [
-				this.edgeGraphics,
-				this.orbitGraphics,
-				this.enclosureGraphics,
-				this.arrowGraphics,
-				this.trayGraphics,
-				this.linkPreviewGfx,
-				this.pathfinderGraphics,
-				this.nodeCircleBatch,
-			];
-			// Keep guideGraphics for timeline axis; keep sunburstGraphics for sunburst arcs;
-			// keep barGraphics for timeline bars; keep routeGraphics for timeline routes.
-			if (this.panel.viewMode !== "sunburst") clearLayers.push(this.sunburstGraphics);
-			if (this.panel.viewMode !== "timeline") {
-				clearLayers.push(this.barGraphics, this.routeGraphics, this.guideGraphics);
-			}
-			for (const gfx of clearLayers) {
-				if (gfx) gfx.clear();
-			}
-			// Hide all DOM overlays
-			if (this.graphStatsEl) this.graphStatsEl.style.display = "none";
-			if (this.legendEl) this.legendEl.style.display = "none";
-			if (this.minimap) this.minimap.setVisible(false);
-			if (this.relationMatrixEl) this.relationMatrixEl.style.display = "none";
+			this._clearNonGraphCanvasLayers();
 		}
 
-		// updatePositions + autoFitView BEFORE layoutTransition.start(),
-		// because start() immediately resets data.x/y = fromX/fromY.
-		// If we wait until after, autoFitView would compute bbox from
-		// the old saved positions instead of the new layout targets.
 		this.updatePositions(true);
 		this.autoFitView(W, H);
+		this._applyTimelineFit(W, H);
 
-		// Timeline/Sunburst viewMode: fit viewport to content bbox instead of node bbox
-		if (this.panel.viewMode === "timeline" && this.clusterMeta?.timelineBars?.length) {
-			const bars = this.clusterMeta.timelineBars;
-			let minX = Infinity,
-				maxX = -Infinity,
-				minY = Infinity,
-				maxY = -Infinity;
-			for (const b of bars) {
-				if (b.xStart < minX) minX = b.xStart;
-				if (b.xEnd > maxX) maxX = b.xEnd;
-				if (b.yCenter - b.barHeight / 2 < minY) minY = b.yCenter - b.barHeight / 2;
-				if (b.yCenter + b.barHeight / 2 > maxY) maxY = b.yCenter + b.barHeight / 2;
-			}
-			// 10% margin on each side for breathing room
-			const marginX = (maxX - minX) * 0.1;
-			const marginY = (maxY - minY) * 0.1;
-			const bw = maxX - minX + marginX * 2;
-			const bh = maxY - minY + marginY * 2;
-			const scale = Math.min(W / bw, H / bh, 2);
-			const wc = this.worldContainer;
-			if (wc) {
-				wc.scale.set(scale);
-				wc.x = W / 2 - ((minX + maxX) / 2) * scale;
-				wc.y = H / 2 - ((minY + maxY) / 2) * scale;
-				this.updateLabelsForZoom();
-				this.updateZoomIndicator(scale);
-			}
-		}
-
-		// Build transition data: from saved positions, to new layout positions
-		const transitionData: {
-			data: { x: number; y: number };
-			fromX: number;
-			fromY: number;
-			toX: number;
-			toY: number;
-		}[] = [];
-		for (const pn of this.pixiNodes.values()) {
-			const saved = this.savedPositions.get(pn.data.id);
-			if (saved && (Math.abs(saved.x - pn.data.x) > 1 || Math.abs(saved.y - pn.data.y) > 1)) {
-				transitionData.push({
-					data: pn.data,
-					fromX: saved.x,
-					fromY: saved.y,
-					toX: pn.data.x,
-					toY: pn.data.y,
-				});
-			}
-		}
+		// Build and apply layout transition animation
+		const transitionData = buildTransitionData(this.pixiNodes.values(), this.savedPositions);
 		this.savedPositions.clear();
-
-		if (transitionData.length > 0) {
-			// Skip layout animation on Canvas2D with large graphs to avoid frame drops
-			if (!this.pixiApp?.supportsAnimation && transitionData.length > 500) {
-				for (const td of transitionData) {
-					td.data.x = td.toX;
-					td.data.y = td.toY;
-				}
-				this.markDirty(true);
-			} else {
-				this.layoutTransition.start(transitionData, () => {
-					this.markDirty(true);
-				});
-			}
-		}
+		this._applyLayoutTransition(transitionData);
 
 		this.setStatus(`Drawing ${ld.edges.length} edges...`);
 		await yieldFrame();
 		if (signal.aborted) return;
 
 		this._postRenderUpdate(ld);
+	}
+
+	/** Clear canvas layers not used by the current non-graph viewMode and hide DOM overlays. */
+	private _clearNonGraphCanvasLayers(): void {
+		clearNonGraphLayers(this.panel.viewMode, {
+			edgeGraphics: this.edgeGraphics,
+			orbitGraphics: this.orbitGraphics,
+			enclosureGraphics: this.enclosureGraphics,
+			arrowGraphics: this.arrowGraphics,
+			trayGraphics: this.trayGraphics,
+			linkPreviewGfx: this.linkPreviewGfx,
+			pathfinderGraphics: this.pathfinderGraphics,
+			nodeCircleBatch: this.nodeCircleBatch,
+			sunburstGraphics: this.sunburstGraphics,
+			barGraphics: this.barGraphics,
+			routeGraphics: this.routeGraphics,
+			guideGraphics: this.guideGraphics,
+		});
+		if (this.graphStatsEl) this.graphStatsEl.style.display = "none";
+		if (this.legendEl) this.legendEl.style.display = "none";
+		if (this.minimap) this.minimap.setVisible(false);
+		if (this.relationMatrixEl) this.relationMatrixEl.style.display = "none";
+	}
+
+	/** Apply timeline viewport fit from bar data if in timeline viewMode. */
+	private _applyTimelineFit(W: number, H: number): void {
+		if (this.panel.viewMode !== "timeline" || !this.clusterMeta?.timelineBars?.length) return;
+		const fit = computeTimelineFit(this.clusterMeta.timelineBars, W, H);
+		if (!fit) return;
+		const wc = this.worldContainer;
+		if (wc) {
+			wc.scale.set(fit.scale);
+			wc.x = W / 2 - fit.cx * fit.scale;
+			wc.y = H / 2 - fit.cy * fit.scale;
+			this.updateLabelsForZoom();
+			this.updateZoomIndicator(fit.scale);
+		}
+	}
+
+	/** Apply layout transition animation or snap positions immediately. */
+	private _applyLayoutTransition(
+		transitionData: { data: { x: number; y: number }; fromX: number; fromY: number; toX: number; toY: number }[],
+	): void {
+		if (transitionData.length === 0) return;
+		if (!this.pixiApp?.supportsAnimation && transitionData.length > 500) {
+			for (const td of transitionData) {
+				td.data.x = td.toX;
+				td.data.y = td.toY;
+			}
+			this.markDirty(true);
+		} else {
+			this.layoutTransition.start(transitionData, () => {
+				this.markDirty(true);
+			});
+		}
 	}
 
 	/** Update status, legend, search, and panel after static layout render completes. */
