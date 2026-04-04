@@ -199,30 +199,35 @@ function handleToggleKey(host: KeyboardHost, key: string, e: KeyboardEvent): boo
 	return false;
 }
 
+/** Handle Enter key on a focused node (Shift=multiSelect, Ctrl/Cmd=compare, plain=open) */
+function handleEnterOnNode(host: KeyboardHost, nodeId: string, e: KeyboardEvent): void {
+	if (e.shiftKey) {
+		host.toggleMultiSelect?.(nodeId);
+		const selTotal = host.panel.multiSelectNodeIds?.length ?? 0;
+		const nodeName = host.pixiNodes.get(nodeId)?.data.label ?? nodeId;
+		const isAdded = host.panel.multiSelectNodeIds?.includes(nodeId);
+		host.announceA11y(
+			`${isAdded ? (t("a11y.selected") ?? "Selected") : (t("a11y.deselected") ?? "Deselected")}: ${nodeName} (${selTotal} total)`,
+		);
+	} else if (e.ctrlKey || e.metaKey) {
+		host.addCompareNode(nodeId);
+		const cmpCount = host.compareNodeIds.length;
+		const nodeName = host.pixiNodes.get(nodeId)?.data.label ?? nodeId;
+		host.announceA11y(`${t("a11y.compared") ?? "Compare"}: ${nodeName} (${cmpCount} nodes)`);
+	} else {
+		const pn = host.pixiNodes.get(nodeId);
+		if (pn?.data.filePath) {
+			host.openFile(pn.data.filePath);
+		}
+	}
+}
+
 /** Handle node-action shortcuts: Enter, Z, S, E, and focused-node ops */
 function handleNodeActionKey(host: KeyboardHost, key: string, e: KeyboardEvent): boolean {
 	// Enter: activate focused node
 	if (key === "Enter" && host.isKeyboardFocused && host.highlightedNodeId) {
 		e.preventDefault();
-		if (e.shiftKey) {
-			host.toggleMultiSelect?.(host.highlightedNodeId);
-			const selTotal = host.panel.multiSelectNodeIds?.length ?? 0;
-			const nodeName = host.pixiNodes.get(host.highlightedNodeId)?.data.label ?? host.highlightedNodeId;
-			const isAdded = host.panel.multiSelectNodeIds?.includes(host.highlightedNodeId);
-			host.announceA11y(
-				`${isAdded ? (t("a11y.selected") ?? "Selected") : (t("a11y.deselected") ?? "Deselected")}: ${nodeName} (${selTotal} total)`,
-			);
-		} else if (e.ctrlKey || e.metaKey) {
-			host.addCompareNode(host.highlightedNodeId);
-			const cmpCount = host.compareNodeIds.length;
-			const nodeName = host.pixiNodes.get(host.highlightedNodeId)?.data.label ?? host.highlightedNodeId;
-			host.announceA11y(`${t("a11y.compared") ?? "Compare"}: ${nodeName} (${cmpCount} nodes)`);
-		} else {
-			const pn = host.pixiNodes.get(host.highlightedNodeId);
-			if (pn?.data.filePath) {
-				host.openFile(pn.data.filePath);
-			}
-		}
+		handleEnterOnNode(host, host.highlightedNodeId, e);
 		return true;
 	}
 
