@@ -18,6 +18,7 @@ import { clamp } from "../utils/geometry";
 import { hexToRgb, getLuminance, wcagContrastRatio, contrastColor } from "../utils/color";
 import { incCounter } from "../utils/graph-helpers";
 import { SpatialHashGrid } from "../utils/spatial-grid";
+import { computeViewportBounds, collectVisibleNodes } from "./batch-context";
 import {
 	createCardText,
 	cleanupCardText,
@@ -854,41 +855,21 @@ export class RenderPipeline {
 		const world = this.host.getWorldContainer();
 		const worldScale = world?.scale?.x ?? 1;
 		const { width: cw, height: ch } = this.host.getCanvasDimensions();
-		const wx = world?.x ?? 0;
-		const wy = world?.y ?? 0;
-		const margin = VIEWPORT_CULL_MARGIN_PX / worldScale;
-		const vpMinX = -wx / worldScale - margin;
-		const vpMinY = -wy / worldScale - margin;
-		const vpMaxX = vpMinX + cw / worldScale + margin * 2;
-		const vpMaxY = vpMinY + ch / worldScale + margin * 2;
+		const viewport = computeViewportBounds(
+			world?.x ?? 0, world?.y ?? 0, worldScale, cw, ch, VIEWPORT_CULL_MARGIN_PX,
+		);
 
 		// Collect visible nodes (reuse pooled array)
 		const visible = this._visiblePool;
-		visible.length = 0;
 		const pixiNodes = this.host.getPixiNodes();
-		const hiddenBySearch = this.host.getSearchHiddenNodes();
-		for (const pn of pixiNodes.values()) {
-			if (hiddenBySearch.has(pn.data.id)) continue;
-			if (hasHighlight && activeSet.has(pn.data.id)) continue;
-			const nx = pn.data.x,
-				ny = pn.data.y;
-			if (nx < vpMinX || nx > vpMaxX || ny < vpMinY || ny > vpMaxY) {
-				// JT: §0.4 Hide off-viewport nodes from PixiJS renderer for perf
-				pn.gfx.visible = false;
-				continue;
-			}
-			// In aggregate mode, hide individual (non-super) nodes — skip in screenshot mode
-			if (
-				this.aggregateMode &&
-				!this.screenshotMode &&
-				!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0)
-			) {
-				pn.gfx.visible = false;
-				continue;
-			}
-			pn.gfx.visible = true;
-			visible.push(pn);
-		}
+		collectVisibleNodes(pixiNodes, visible, {
+			hiddenBySearch: this.host.getSearchHiddenNodes(),
+			hasHighlight,
+			activeSet,
+			aggregateMode: this.aggregateMode,
+			screenshotMode: this.screenshotMode,
+			viewport,
+		});
 
 		// Timeline range filtering
 		const tlFilteredOut = this._computeTimelineFilter(visible, pixiNodes);
