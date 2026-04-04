@@ -234,6 +234,55 @@ export interface ClusterForceConfig {
  * Returns null if groupRules is empty.
  * Also returns ClusterMetadata for edge bundling.
  */
+/** Shift all member node targets by (dx, dy). */
+function shiftGroupMembers(
+	members: GraphNode[] | undefined,
+	targets: Map<string, { x: number; y: number }>,
+	dx: number,
+	dy: number,
+): void {
+	if (!members) return;
+	for (const m of members) {
+		const t = targets.get(m.id);
+		if (t) {
+			t.x += dx;
+			t.y += dy;
+		}
+	}
+}
+
+/** Compute actual group radii from target positions (more accurate than estimateGroupRadius). */
+function computeActualRadii(
+	keys: string[],
+	groups: Map<string, GraphNode[]>,
+	targets: Map<string, { x: number; y: number }>,
+	clusterCentroids: Map<string, { x: number; y: number }>,
+	clusterRadii: Map<string, number>,
+	nodeSize: number,
+	degrees: Map<string, number>,
+	groupLabelPad: number,
+): Map<string, number> {
+	const actualRadii = new Map<string, number>();
+	for (const key of keys) {
+		const members = groups.get(key);
+		const centroid = clusterCentroids.get(key);
+		if (!members || !centroid) continue;
+		let maxDist = 0;
+		for (const m of members) {
+			const t = targets.get(m.id);
+			if (!t) continue;
+			const r = effectiveRadius(m, nodeSize, degrees.get(m.id) ?? 0);
+			const d = magnitude(t.x - centroid.x, t.y - centroid.y) + r;
+			if (d > maxDist) maxDist = d;
+		}
+		const estimated = clusterRadii.get(key) ?? 0;
+		const effective = Math.max(estimated, maxDist) + groupLabelPad;
+		actualRadii.set(key, effective);
+		clusterRadii.set(key, effective);
+	}
+	return actualRadii;
+}
+
 /**
  * Post-process targets to resolve pairwise group overlaps.
  * For each overlapping group pair, push them apart along the line connecting their centers.
@@ -252,27 +301,9 @@ function resolveGroupOverlaps(
 	const keys = [...groups.keys()];
 	if (keys.length < 2) return;
 
-	// Compute actual radii from target positions (more accurate than estimateGroupRadius)
-	const actualRadii = new Map<string, number>();
-	for (const key of keys) {
-		const members = groups.get(key);
-		const centroid = clusterCentroids.get(key);
-		if (!members || !centroid) continue;
-		let maxDist = 0;
-		for (const m of members) {
-			const t = targets.get(m.id);
-			if (!t) continue;
-			// Use effectiveRadius for super nodes (collapsed groups) to prevent overlap
-			const r = effectiveRadius(m, nodeSize, degrees.get(m.id) ?? 0);
-			const d = magnitude(t.x - centroid.x, t.y - centroid.y) + r;
-			if (d > maxDist) maxDist = d;
-		}
-		const estimated = clusterRadii.get(key) ?? 0;
-		// Add group label padding to account for label placed outside the hull
-		const effective = Math.max(estimated, maxDist) + groupLabelPad;
-		actualRadii.set(key, effective);
-		clusterRadii.set(key, effective);
-	}
+	const actualRadii = computeActualRadii(
+		keys, groups, targets, clusterCentroids, clusterRadii, nodeSize, degrees, groupLabelPad,
+	);
 
 	const maxIter = Math.max(5, Math.min(keys.length, 15));
 	for (let iter = 0; iter < maxIter; iter++) {
@@ -301,9 +332,8 @@ function resolveGroupOverlaps(
 				// Asymmetric push: smaller group moves more than larger group
 				const overlap = minDist - dist;
 				const totalR = rA + rB;
-				// Weight inversely proportional to radius — small group gets pushed more
-				const wB = totalR > 0 ? rA / totalR : 0.5; // wB is fraction B moves
-				const wA = 1 - wB; // wA is fraction A moves
+				const wB = totalR > 0 ? rA / totalR : 0.5;
+				const wA = 1 - wB;
 
 				const nx = dist > 0.01 ? dx / dist : 1;
 				const ny = dist > 0.01 ? dy / dist : 0;
@@ -313,33 +343,13 @@ function resolveGroupOverlaps(
 				const shiftBx = nx * overlap * wB;
 				const shiftBy = ny * overlap * wB;
 
-				// Update centroids
 				cA.x += shiftAx;
 				cA.y += shiftAy;
 				cB.x += shiftBx;
 				cB.y += shiftBy;
 
-				// Shift all member targets
-				const membersA = groups.get(kA);
-				const membersB = groups.get(kB);
-				if (membersA) {
-					for (const m of membersA) {
-						const t = targets.get(m.id);
-						if (t) {
-							t.x += shiftAx;
-							t.y += shiftAy;
-						}
-					}
-				}
-				if (membersB) {
-					for (const m of membersB) {
-						const t = targets.get(m.id);
-						if (t) {
-							t.x += shiftBx;
-							t.y += shiftBy;
-						}
-					}
-				}
+				shiftGroupMembers(groups.get(kA), targets, shiftAx, shiftAy);
+				shiftGroupMembers(groups.get(kB), targets, shiftBx, shiftBy);
 			}
 		}
 

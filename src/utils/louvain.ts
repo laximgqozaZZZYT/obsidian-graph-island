@@ -75,6 +75,28 @@ export function louvainCommunities(nodeIds: string[], edges: LouvainEdge[]): Map
 	const sigmaTot = new Float64Array(n);
 	for (let i = 0; i < n; i++) sigmaTot[i] = degree[i];
 
+	/** Find the best neighbor community for node i; returns community id or -1 if no improvement. */
+	function findBestCommunity(
+		i: number,
+		neighborComm: Map<number, number>,
+		kiIn: number,
+	): number {
+		const ci = community[i];
+		const ki = degree[i];
+		const removeCost = kiIn - ((sigmaTot[ci] - ki) * ki) / m2;
+		let bestComm = -1;
+		let bestGain = 0;
+		for (const [cTarget, wTarget] of neighborComm) {
+			if (cTarget === ci) continue;
+			const gain = wTarget - (sigmaTot[cTarget] * ki) / m2 - removeCost;
+			if (gain > bestGain) {
+				bestGain = gain;
+				bestComm = cTarget;
+			}
+		}
+		return bestComm;
+	}
+
 	// Phase 1: ローカルな移動による最適化
 	const MAX_PASSES = 20;
 	for (let pass = 0; pass < MAX_PASSES; pass++) {
@@ -85,45 +107,28 @@ export function louvainCommunities(nodeIds: string[], edges: LouvainEdge[]): Map
 			const ki = degree[i];
 
 			// ノードiの各隣接コミュニティへの接続重みを計算
-			const neighborComm = new Map<number, number>(); // community → weight to i
-			let kiIn = 0; // ノードiから自身のコミュニティへの重み
+			const neighborComm = new Map<number, number>();
+			let kiIn = 0;
 			for (const [j, w] of adj[i]) {
 				const cj = community[j];
 				neighborComm.set(cj, (neighborComm.get(cj) ?? 0) + w);
 				if (cj === ci) kiIn += w;
 			}
 
-			// ノードiを現在のコミュニティから除去した場合のモジュラリティ変化
-			const removeCost = kiIn - ((sigmaTot[ci] - ki) * ki) / m2;
+			const bestComm = findBestCommunity(i, neighborComm, kiIn);
+			if (bestComm < 0) continue;
 
-			// 最良の移動先を探索
-			let bestComm = ci;
-			let bestGain = 0;
+			// 現在のコミュニティから除去
+			sigmaIn[ci] -= 2 * kiIn;
+			sigmaTot[ci] -= ki;
 
-			for (const [cTarget, wTarget] of neighborComm) {
-				if (cTarget === ci) continue;
-				// cTargetに追加した場合のモジュラリティ改善
-				const gain = wTarget - (sigmaTot[cTarget] * ki) / m2 - removeCost;
-				if (gain > bestGain) {
-					bestGain = gain;
-					bestComm = cTarget;
-				}
-			}
+			// 新しいコミュニティに追加
+			const kiNewIn = neighborComm.get(bestComm) ?? 0;
+			sigmaIn[bestComm] += 2 * kiNewIn;
+			sigmaTot[bestComm] += ki;
 
-			// 改善があれば移動
-			if (bestComm !== ci) {
-				// 現在のコミュニティから除去
-				sigmaIn[ci] -= 2 * kiIn; // kiInは片方向なので×2
-				sigmaTot[ci] -= ki;
-
-				// 新しいコミュニティに追加
-				const kiNewIn = neighborComm.get(bestComm) ?? 0;
-				sigmaIn[bestComm] += 2 * kiNewIn;
-				sigmaTot[bestComm] += ki;
-
-				community[i] = bestComm;
-				improved = true;
-			}
+			community[i] = bestComm;
+			improved = true;
 		}
 
 		if (!improved) break;

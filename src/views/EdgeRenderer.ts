@@ -1972,6 +1972,54 @@ function prepareBundles(
 
 // computePolarCenter, CablePrepResult moved to CableTrayRenderer.ts
 
+/** Invalidate cable caches when centroid count changes or on bundle skip cycle. */
+function invalidateCableCacheIfNeeded(cfg: EdgeDrawConfig, cache: EdgeRenderCache): void {
+	const curCentroidCount = cfg.clusterCentroids?.size ?? 0;
+	if (curCentroidCount !== cache.cableCentroidCount) {
+		cache.cableDirty = true;
+		cache.intraCableDirty = true;
+		cache.portColorLanes = null;
+		cache.cableCentroidCount = curCentroidCount;
+	}
+	if (cache.bundleFrameCount === 0) {
+		cache.cableDirty = true;
+		cache.intraCableDirty = true;
+		cache.portColorLanes = null;
+	}
+}
+
+/** Rebuild trunk cables and group ports when the cable cache is dirty. */
+function rebuildTrunkCables(
+	edges: GraphEdge[],
+	resolvePos: (ref: string | object) => Pos | undefined,
+	cfg: EdgeDrawConfig,
+	polarCenter: Pos | undefined,
+	cache: EdgeRenderCache,
+): void {
+	const centroids = cfg.clusterCentroids!;
+	const radii = cfg.clusterRadii!;
+	const groupKeys = new Set(cfg.nodeClusterMap!.values());
+	const connections = new Map<string, Set<string>>();
+	for (const e of edges) {
+		const sg = cfg.nodeClusterMap!.get(edgeSourceId(e));
+		const tg = cfg.nodeClusterMap!.get(edgeTargetId(e));
+		if (!sg || !tg || sg === tg) continue;
+		if (!connections.has(sg)) connections.set(sg, new Set());
+		if (!connections.has(tg)) connections.set(tg, new Set());
+		connections.get(sg)!.add(tg);
+		connections.get(tg)!.add(sg);
+	}
+	cache.groupBBox.clear();
+	const allGroupPorts = computeGroupPorts(
+		groupKeys, centroids, radii, connections,
+		cfg.coordinateSystem, polarCenter, resolvePos,
+		cfg.nodeClusterMap ?? undefined, cache,
+	);
+	cache.cachedGroupPorts = allGroupPorts;
+	cache.cable = buildTrunks(edges, resolvePos, cfg, allGroupPorts);
+	cache.cableDirty = false;
+}
+
 /**
  * Prepare cable trunks and intra-group cables (cached).
  * Updates cache.cable, cache.intraCable, cache.portColorLanes as needed.
@@ -1990,63 +2038,20 @@ function prepareCables(
 		return { hasClusters: false, cabledEdgeIds: new Set<string>(), intraHandledIds: new Set<string>() };
 	}
 
-	// Auto-invalidate when centroid count changes or on bundle skip cycle
-	// (ensures cable paths update as nodes spread during simulation)
-	const curCentroidCount = cfg.clusterCentroids?.size ?? 0;
-	if (curCentroidCount !== cache.cableCentroidCount) {
-		cache.cableDirty = true;
-		cache.intraCableDirty = true;
-		cache.portColorLanes = null;
-		cache.cableCentroidCount = curCentroidCount;
-	}
-	if (cache.bundleFrameCount === 0) {
-		cache.cableDirty = true;
-		cache.intraCableDirty = true;
-		cache.portColorLanes = null;
-	}
+	invalidateCableCacheIfNeeded(cfg, cache);
 
 	const polarCenter = computePolarCenter(cfg);
 
 	if (cache.cableDirty || !cache.cable) {
-		// Pre-compute group ports for buildTrunks
-		const centroids = cfg.clusterCentroids!;
-		const radii = cfg.clusterRadii!;
-		const groupKeys = new Set(cfg.nodeClusterMap!.values());
-		// Build connection map from edges (which groups connect to which)
-		const connections = new Map<string, Set<string>>();
-		for (const e of edges) {
-			const sg = cfg.nodeClusterMap!.get(edgeSourceId(e));
-			const tg = cfg.nodeClusterMap!.get(edgeTargetId(e));
-			if (!sg || !tg || sg === tg) continue;
-			if (!connections.has(sg)) connections.set(sg, new Set());
-			if (!connections.has(tg)) connections.set(tg, new Set());
-			connections.get(sg)!.add(tg);
-			connections.get(tg)!.add(sg);
-		}
-		cache.groupBBox.clear(); // clear bbox cache when recomputing ports
-		const allGroupPorts = computeGroupPorts(
-			groupKeys,
-			centroids,
-			radii,
-			connections,
-			cfg.coordinateSystem,
-			polarCenter,
-			resolvePos,
-			cfg.nodeClusterMap ?? undefined,
-			cache,
-		);
-		cache.cachedGroupPorts = allGroupPorts;
-		cache.cable = buildTrunks(edges, resolvePos, cfg, allGroupPorts);
-		cache.cableDirty = false;
+		rebuildTrunkCables(edges, resolvePos, cfg, polarCenter, cache);
 	}
 
-	const cabledEdgeIds = cache.cable.cabledEdgeIds;
+	const cabledEdgeIds = cache.cable!.cabledEdgeIds;
 
 	// Intra-group cable wiring
 	let intraHandledIds = new Set<string>();
 	if (cache.cable) {
 		if (cache.intraCableDirty || !cache.intraCable) {
-			// Compute group ports for intra-group cables
 			if (!cache.cachedGroupPorts) {
 				const centroids = cfg.clusterCentroids!;
 				const radii = cfg.clusterRadii!;
@@ -2060,23 +2065,16 @@ function prepareCables(
 				const groupKeys = new Set(cfg.nodeClusterMap!.values());
 				const pc = computePolarCenter(cfg);
 				cache.cachedGroupPorts = computeGroupPorts(
-					groupKeys,
-					centroids,
-					radii,
-					connections,
-					cfg.coordinateSystem,
-					pc,
-					resolvePos,
-					cfg.nodeClusterMap ?? undefined,
-					cache,
+					groupKeys, centroids, radii, connections,
+					cfg.coordinateSystem, pc, resolvePos,
+					cfg.nodeClusterMap ?? undefined, cache,
 				);
 			}
 			cache.intraCable = buildIntraGroupCables(edges, resolvePos, cfg, cache.cachedGroupPorts, cache);
 			cache.intraCableDirty = false;
-			cache.portColorLanes = null; // invalidate shared mapping
+			cache.portColorLanes = null;
 		}
 
-		// Build shared port color lane mapping (after both caches are ready)
 		if (!cache.portColorLanes && cache.cachedGroupPorts) {
 			cache.portColorLanes = buildPortColorLanes(
 				cache.cable.trunks,
@@ -2224,6 +2222,28 @@ export function drawEdges(
 	}
 }
 
+/** Desaturate a color toward gray based on zoom level. Returns original if zoom >= 0.3. */
+function desaturateAtZoom(color: number, worldScale: number, isDark: boolean): number {
+	if (worldScale >= 0.3) return color;
+	const gray = isDark ? 0x666666 : 0x999999;
+	const blend = Math.min(1, (0.3 - worldScale) / 0.2);
+	const r1 = (color >> 16) & 0xff, g1 = (color >> 8) & 0xff, b1 = color & 0xff;
+	const r2 = (gray >> 16) & 0xff, g2 = (gray >> 8) & 0xff, b2 = gray & 0xff;
+	return (
+		(Math.round(r1 + (r2 - r1) * blend * 0.5) << 16) |
+		(Math.round(g1 + (g2 - g1) * blend * 0.5) << 8) |
+		Math.round(b1 + (b2 - b1) * blend * 0.5)
+	);
+}
+
+/** Brighten a color by adding a fixed offset to each channel. */
+function brightenColor(color: number, offset: number): number {
+	const rr = Math.min(255, ((color >> 16) & 0xff) + offset);
+	const gg = Math.min(255, ((color >> 8) & 0xff) + offset);
+	const bb = Math.min(255, (color & 0xff) + offset);
+	return (rr << 16) | (gg << 8) | bb;
+}
+
 /** 単一パス描画 (従来動作) */
 function _drawEdgesSinglePass(
 	g: CanvasGraphics,
@@ -2276,30 +2296,10 @@ function _drawEdgesSinglePass(
 		let alpha = _alpha;
 		let lineThick = _lineThick;
 
-		// Zoom-out: desaturate edge colors toward gray for visual calm
-		// Skip for highlighted edges — they should stay vivid.
-		const edgeWs = cfg.worldScale ?? 1;
-		if (edgeWs < 0.3 && !edgeHL) {
-			const gray = cfg.isDark ? 0x666666 : 0x999999;
-			const blend = Math.min(1, (0.3 - edgeWs) / 0.2); // 0→1 as zoom 0.3→0.1
-			const r1 = (lineColor >> 16) & 0xff,
-				g1 = (lineColor >> 8) & 0xff,
-				b1 = lineColor & 0xff;
-			const r2 = (gray >> 16) & 0xff,
-				g2 = (gray >> 8) & 0xff,
-				b2 = gray & 0xff;
-			lineColor =
-				(Math.round(r1 + (r2 - r1) * blend * 0.5) << 16) |
-				(Math.round(g1 + (g2 - g1) * blend * 0.5) << 8) |
-				Math.round(b1 + (b2 - b1) * blend * 0.5);
-		}
+		// Zoom-out: desaturate edge colors toward gray for visual calm (skip highlighted)
+		if (!edgeHL) lineColor = desaturateAtZoom(lineColor, ws, cfg.isDark);
 		// Brighten highlighted edges for visual emphasis
-		if (edgeHL) {
-			const rr = Math.min(255, ((lineColor >> 16) & 0xff) + 60);
-			const gg = Math.min(255, ((lineColor >> 8) & 0xff) + 60);
-			const bb = Math.min(255, (lineColor & 0xff) + 60);
-			lineColor = (rr << 16) | (gg << 8) | bb;
-		}
+		if (edgeHL) lineColor = brightenColor(lineColor, 60);
 
 		// S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
 		if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {

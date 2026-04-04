@@ -98,46 +98,45 @@ export function applyTreeLayout(graph: GraphData, options?: TreeLayoutOptions): 
 
 	const inDegrees = computeInDegree(graph.nodes, graph.edges);
 
+	/** Pick the best root for a component: user-specified > structural parent > zero-indegree > max-outdegree. */
+	function pickRoot(nodeIds: string[], nodeSet: Set<string>): string {
+		if (options?.rootId && nodeSet.has(options.rootId)) return options.rootId;
+
+		// Prefer structural parents (inheritance targets / aggregation sources)
+		const isChild = new Set<string>();
+		for (const id of nodeIds) {
+			const children = structuralChildren.get(id);
+			if (children) {
+				for (const c of children) isChild.add(c);
+			}
+		}
+		const structuralRoots = nodeIds.filter(
+			(id) => (structuralChildren.get(id)?.length ?? 0) > 0 && !isChild.has(id),
+		);
+		if (structuralRoots.length > 0) {
+			structuralRoots.sort(
+				(a, b) => (structuralChildren.get(b)?.length || 0) - (structuralChildren.get(a)?.length || 0),
+			);
+			return structuralRoots[0];
+		}
+
+		// Zero in-degree nodes
+		const candidates = nodeIds.filter((id) => (inDegrees.get(id) || 0) === 0);
+		if (candidates.length > 0) {
+			candidates.sort((a, b) => (directed.get(b)?.length || 0) - (directed.get(a)?.length || 0));
+			return candidates[0];
+		}
+
+		// Fallback: most outgoing edges
+		const sorted = [...nodeIds].sort(
+			(a, b) => (directed.get(b)?.length || 0) - (directed.get(a)?.length || 0),
+		);
+		return sorted[0];
+	}
+
 	function layoutComponent(nodeIds: string[]) {
 		const nodeSet = new Set(nodeIds);
-
-		let rootId: string | undefined;
-		if (options?.rootId && nodeSet.has(options.rootId)) {
-			rootId = options.rootId;
-		}
-		if (!rootId) {
-			// Prefer nodes that are structural parents (inheritance targets / aggregation sources)
-			// Build a set of all nodes that appear as someone's child — O(N)
-			const isChild = new Set<string>();
-			for (const id of nodeIds) {
-				const children = structuralChildren.get(id);
-				if (children) {
-					for (const c of children) isChild.add(c);
-				}
-			}
-			// Structural roots = has children but is not a child itself — O(N)
-			const structuralRoots = nodeIds.filter(
-				(id) => (structuralChildren.get(id)?.length ?? 0) > 0 && !isChild.has(id),
-			);
-			if (structuralRoots.length > 0) {
-				structuralRoots.sort(
-					(a, b) => (structuralChildren.get(b)?.length || 0) - (structuralChildren.get(a)?.length || 0),
-				);
-				rootId = structuralRoots[0];
-			}
-		}
-		if (!rootId) {
-			const candidates = nodeIds.filter((id) => (inDegrees.get(id) || 0) === 0);
-			if (candidates.length > 0) {
-				candidates.sort((a, b) => (directed.get(b)?.length || 0) - (directed.get(a)?.length || 0));
-				rootId = candidates[0];
-			} else {
-				const sorted = [...nodeIds].sort(
-					(a, b) => (directed.get(b)?.length || 0) - (directed.get(a)?.length || 0),
-				);
-				rootId = sorted[0];
-			}
-		}
+		const rootId = pickRoot(nodeIds, nodeSet);
 
 		// Limit fan-out per node to force deeper trees on dense graphs.
 		// Use 4th root for deep, narrow trees: 2233 nodes → maxFanOut≈7, depth≈~20
