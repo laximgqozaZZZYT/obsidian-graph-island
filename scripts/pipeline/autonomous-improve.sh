@@ -51,8 +51,8 @@ if ! node -e "process.exit(0)" 2>/dev/null; then
   exit 1
 fi
 
-# ── Count active sessions ──
-ACTIVE_COUNT=$(pgrep -f "autonomous-improve.sh" 2>/dev/null | grep -v $$ | wc -l || echo "0")
+# ── Count active sessions (exclude self + parent shell wrappers) ──
+ACTIVE_COUNT=$(pgrep -xf "bash .*/autonomous-improve.sh" 2>/dev/null | grep -v $$ | wc -l || echo "0")
 if [[ $ACTIVE_COUNT -ge $MAX_SESSIONS ]]; then
   log "SKIP: $ACTIVE_COUNT sessions already running (max $MAX_SESSIONS)"
   exit 0
