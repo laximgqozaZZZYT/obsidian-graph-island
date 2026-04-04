@@ -36,6 +36,27 @@ import { edgeLinkDistance, edgeLinkStrength } from "../utils/force-config";
 import type { PixiNode } from "./InteractionManager";
 
 // ---------------------------------------------------------------------------
+// Pure helpers (outside class to reduce method complexity)
+// ---------------------------------------------------------------------------
+
+/** Resolve the inter-group layout mode from panel settings and arrangement */
+function resolveGroupLayoutMode(
+	groupArrangement: string | undefined,
+	clusterArrangement: string,
+): "circle" | "horizontal" | "concentric" | "vertical" | "grid" {
+	if (groupArrangement && groupArrangement !== GROUP_ARRANGEMENT_AUTO) {
+		return groupArrangement as "circle" | "horizontal" | "concentric" | "vertical" | "grid";
+	}
+	if (clusterArrangement === ARRANGEMENT_CONCENTRIC || clusterArrangement === ARRANGEMENT_RADIAL) {
+		return GROUP_ARRANGEMENT_CONCENTRIC as "concentric";
+	}
+	if (clusterArrangement === ARRANGEMENT_TIMELINE) {
+		return GROUP_ARRANGEMENT_VERTICAL as "vertical";
+	}
+	return GROUP_ARRANGEMENT_CIRCLE as "circle";
+}
+
+// ---------------------------------------------------------------------------
 // LayoutHost — the interface the LayoutController needs from its parent
 // ---------------------------------------------------------------------------
 export interface LayoutHost {
@@ -458,15 +479,40 @@ export class LayoutController {
 		const sim = this.host.getSimulation();
 		if (!sim) return;
 		const panel = this.host.getPanel();
-		const { clusterArrangement } = panel;
 		const grav = panel.clusterGravity ?? { interGroupAttraction: 0.5, intraGroupDensity: 1.0 };
 
+		this._applyClusterChargeAndCollide(sim, panel);
+
+		const { width: W, height: H } = this.host.getCanvasSize();
+		this._resetClusterNodeState(sim, resetPositions, W / 2, H / 2);
+
+		const graphEdges = this.host.getGraphEdges();
+		const isAutoFolder = this._shouldAutoFolder(sim.nodes(), panel);
+		const baseCfg = this._buildClusterConfig(sim, panel, graphEdges, isAutoFolder, W, H);
+
+		this._applyAutoFitAndGravity(baseCfg, sim, graphEdges, panel, grav);
+
+		const result = buildClusterForce(sim.nodes(), graphEdges, this.host.getDegrees(), baseCfg);
+		if (result) {
+			sim.force("clusterArrangement", result.force as Force<GraphNode, GraphEdge>);
+			this.host.setClusterMeta(result.metadata);
+		} else {
+			sim.force("clusterArrangement", null);
+			this.host.setClusterMeta(null);
+		}
+
+		sim.alpha(resetPositions ? 1.0 : 0.5).restart();
+		this.host.wakeRenderLoop();
+	}
+
+	/** Configure charge and collide forces for cluster layout */
+	private _applyClusterChargeAndCollide(
+		sim: Simulation<GraphNode, GraphEdge>,
+		panel: PanelState,
+	) {
 		const chargeForce = panel.renderThresholds?.clusterChargeForce ?? DEFAULT_RENDER_THRESHOLDS.clusterChargeForce;
-		// Scale down charge for very small node counts (< 20) to prevent
-		// super-nodes from dispersing to canvas corners
 		const clusterNodeCount = sim.nodes().length;
 		const clusterSmallScale = clusterNodeCount < 20 ? Math.max(0.1, clusterNodeCount / 20) : 1;
-		// Scale charge by node radius for super nodes (collapsed groups need stronger repulsion)
 		const pixiNodesForCharge = this.host.getPixiNodes();
 		sim.force(
 			"charge",
@@ -488,13 +534,15 @@ export class LayoutController {
 		sim.force("link", null);
 		sim.force("directionalGravity", null);
 		sim.force("enclosureRepulsion", null);
+	}
 
-		const { width: W, height: H } = this.host.getCanvasSize();
-		const cx = W / 2,
-			cy = H / 2;
-
-		// Reset velocities and release pinned nodes.
-		// When resetPositions=true (arrangement change), also reset positions to center.
+	/** Reset node velocities/pins; optionally reset positions to center */
+	private _resetClusterNodeState(
+		sim: Simulation<GraphNode, GraphEdge>,
+		resetPositions: boolean,
+		cx: number,
+		cy: number,
+	) {
 		for (const n of sim.nodes()) {
 			if (resetPositions) {
 				n.x = cx + (Math.random() - 0.5) * 2;
@@ -505,24 +553,33 @@ export class LayoutController {
 			n.fx = null;
 			n.fy = null;
 		}
-		const graphEdges = this.host.getGraphEdges();
-		const tagMembership = this.host.getTagMembership();
+	}
 
-		// When groupBy is inactive and clusterFollowsGroupBy is on, auto-derive
-		// folder-based cluster rules so nodes are spatially grouped by folder.
-		// Only activate if multiple distinct top-level folders exist in the current nodes.
+	/** Determine if auto-folder clustering should activate */
+	private _shouldAutoFolder(nodes: GraphNode[], panel: PanelState): boolean {
 		const hasActiveGroupBy = panel.groupBy && panel.groupBy !== "none";
-		let isAutoFolder = !hasActiveGroupBy && panel.clusterFollowsGroupBy;
-		if (isAutoFolder) {
-			const folders = new Set<string>();
-			for (const n of sim.nodes()) {
-				const fp = n.filePath ?? "";
-				const slash = fp.indexOf("/");
-				folders.add(slash > 0 ? fp.substring(0, slash) : "/");
-				if (folders.size >= 3) break; // enough to confirm multiple folders
-			}
-			if (folders.size < 3) isAutoFolder = false; // single/two folders → no clustering needed
+		if (hasActiveGroupBy || !panel.clusterFollowsGroupBy) return false;
+		const folders = new Set<string>();
+		for (const n of nodes) {
+			const fp = n.filePath ?? "";
+			const slash = fp.indexOf("/");
+			folders.add(slash > 0 ? fp.substring(0, slash) : "/");
+			if (folders.size >= 3) return true;
 		}
+		return false;
+	}
+
+	/** Build the cluster force configuration object */
+	private _buildClusterConfig(
+		sim: Simulation<GraphNode, GraphEdge>,
+		panel: PanelState,
+		graphEdges: GraphEdge[],
+		isAutoFolder: boolean,
+		W: number,
+		H: number,
+	) {
+		const { clusterArrangement } = panel;
+		const tagMembership = this.host.getTagMembership();
 		const effectiveGroupRules = isAutoFolder
 			? [{ groupBy: "folder" as const, recursive: false }]
 			: panel.clusterGroupRules;
@@ -550,14 +607,7 @@ export class LayoutController {
 			getNodeProperty: (nodeId: string, key: string) => this.host.getNodeProperty(nodeId, key),
 			coordinateLayout: resolveCoordinateLayout(clusterArrangement, panel.coordinateLayout ?? null),
 			userConstants: panel.coordinateLayout?.constants,
-			// Inter-group layout: explicit setting overrides auto-derived mode
-			groupLayoutMode: (panel.clusterGroupArrangement && panel.clusterGroupArrangement !== GROUP_ARRANGEMENT_AUTO
-				? panel.clusterGroupArrangement
-				: clusterArrangement === ARRANGEMENT_CONCENTRIC || clusterArrangement === ARRANGEMENT_RADIAL
-					? GROUP_ARRANGEMENT_CONCENTRIC
-					: clusterArrangement === ARRANGEMENT_TIMELINE
-						? GROUP_ARRANGEMENT_VERTICAL
-						: GROUP_ARRANGEMENT_CIRCLE) as "circle" | "horizontal" | "concentric" | "vertical" | "grid",
+			groupLayoutMode: resolveGroupLayoutMode(panel.clusterGroupArrangement, clusterArrangement),
 			skipGroupOverlap: clusterArrangement === ARRANGEMENT_TIMELINE,
 			maxNodeRadius: panel.renderThresholds?.maxNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.maxNodeRadius,
 			minNodeRadius: panel.renderThresholds?.minNodeRadius ?? DEFAULT_RENDER_THRESHOLDS.minNodeRadius,
@@ -582,20 +632,27 @@ export class LayoutController {
 			baseCfg.timelineKey = (resolved.axis1.source as { kind: typeof SOURCE_PROPERTY; key: string }).key;
 		}
 
-		// Auto-fit: compute optimal spacing values
+		return baseCfg;
+	}
+
+	/** Apply auto-fit spacing and cluster gravity coefficients */
+	private _applyAutoFitAndGravity(
+		baseCfg: { nodeSpacing: number; groupScale: number; groupSpacing: number },
+		sim: Simulation<GraphNode, GraphEdge>,
+		graphEdges: GraphEdge[],
+		panel: PanelState,
+		grav: { interGroupAttraction?: number; intraGroupDensity?: number },
+	) {
 		if (panel.autoFit) {
-			const optimal = computeAutoFitSpacing(sim.nodes(), graphEdges, this.host.getDegrees(), baseCfg);
-			// Update panel values so sliders reflect auto-computed values
+			const optimal = computeAutoFitSpacing(sim.nodes(), graphEdges, this.host.getDegrees(), baseCfg as Parameters<typeof computeAutoFitSpacing>[3]);
 			panel.clusterNodeSpacing = optimal.nodeSpacing;
 			panel.clusterGroupScale = optimal.groupScale;
 			panel.clusterGroupSpacing = optimal.groupSpacing;
-			// Apply to config
 			baseCfg.nodeSpacing = optimal.nodeSpacing;
 			baseCfg.groupScale = optimal.groupScale;
 			baseCfg.groupSpacing = optimal.groupSpacing;
 		}
 
-		// Apply cluster gravity coefficients (after auto-fit so coefficients modify final values)
 		const interAttr = Math.max(0.01, grav.interGroupAttraction ?? 0.5);
 		const intraDens = Math.max(0.01, grav.intraGroupDensity ?? 1.0);
 		if (interAttr !== 1.0) {
@@ -604,19 +661,6 @@ export class LayoutController {
 		if (intraDens !== 1.0) {
 			baseCfg.nodeSpacing = baseCfg.nodeSpacing / intraDens;
 		}
-
-		const result = buildClusterForce(sim.nodes(), graphEdges, this.host.getDegrees(), baseCfg);
-		if (result) {
-			sim.force("clusterArrangement", result.force as Force<GraphNode, GraphEdge>);
-			this.host.setClusterMeta(result.metadata);
-		} else {
-			sim.force("clusterArrangement", null);
-			this.host.setClusterMeta(null);
-		}
-
-		// Reheat simulation: alpha=1.0 for full reset, 0.5 for parameter-only changes
-		sim.alpha(resetPositions ? 1.0 : 0.5).restart();
-		this.host.wakeRenderLoop();
 	}
 
 	// =========================================================================

@@ -30,6 +30,42 @@ export function detectTagRelations(app: App): TagRelation[] {
 	const files = app.vault.getMarkdownFiles();
 
 	// Step 1: Collect tag sets per file
+	const { tagSets, tagCounts } = _collectTagSets(files, app);
+
+	// Step 2: Compute co-occurrence matrix and identify hub candidates
+	const hubCandidates = [...tagCounts.entries()]
+		.filter(([, count]) => count >= 10)
+		.sort((a, b) => b[1] - a[1])
+		.map(([tag]) => tag);
+
+	const cooccurrence = _buildCooccurrenceMatrix(tagSets);
+
+	// Step 3: Generate relationships — assign non-hub tags to their best hub parent
+	const relations: TagRelation[] = [];
+	const assigned = new Set<string>();
+	const allTags = [...tagCounts.entries()].filter(([, count]) => count >= MIN_TAG_COUNT).map(([tag]) => tag);
+
+	for (const tag of allTags) {
+		if (assigned.has(tag) || hubCandidates.includes(tag)) continue;
+		const bestHub = _findBestHub(tag, tagCounts, cooccurrence, hubCandidates);
+		if (bestHub) {
+			relations.push({ source: tag, target: bestHub, type: EDGE_TYPE_INHERITANCE });
+			assigned.add(tag);
+		}
+	}
+
+	// Step 4: Check for transitive chains among hubs
+	_buildHubTransitiveChains(hubCandidates, assigned, tagCounts, cooccurrence, relations);
+
+	// Step 5: Deduplicate and remove cycles
+	return deduplicateAndValidate(relations);
+}
+
+/** Collect normalized tag sets and per-tag counts from vault files */
+function _collectTagSets(
+	files: ReturnType<App["vault"]["getMarkdownFiles"]>,
+	app: App,
+): { tagSets: Set<string>[]; tagCounts: Map<string, number> } {
 	const tagSets: Set<string>[] = [];
 	const tagCounts = new Map<string, number>();
 
@@ -41,10 +77,7 @@ export function detectTagRelations(app: App): TagRelation[] {
 		const tags: string[] = Array.isArray(rawTags)
 			? rawTags.filter((t: unknown): t is string => typeof t === "string")
 			: typeof rawTags === "string"
-				? rawTags
-						.split(",")
-						.map((t: string) => t.trim())
-						.filter(Boolean)
+				? rawTags.split(",").map((t: string) => t.trim()).filter(Boolean)
 				: [];
 
 		if (tags.length === 0) continue;
@@ -57,105 +90,85 @@ export function detectTagRelations(app: App): TagRelation[] {
 		}
 	}
 
-	// Step 2: Compute co-occurrence matrix for candidate hub tags
-	// Hub tags = tags with high count that serve as category labels
-	const hubCandidates = [...tagCounts.entries()]
-		.filter(([, count]) => count >= 10)
-		.sort((a, b) => b[1] - a[1])
-		.map(([tag]) => tag);
+	return { tagSets, tagCounts };
+}
 
-	// For each non-hub tag, find which hub tag it co-occurs with most consistently
+/** Build pairwise co-occurrence counts from tag sets */
+function _buildCooccurrenceMatrix(tagSets: Set<string>[]): Map<string, Map<string, number>> {
 	const cooccurrence = new Map<string, Map<string, number>>();
-
 	for (const tagSet of tagSets) {
 		for (const tag of tagSet) {
 			if (!cooccurrence.has(tag)) cooccurrence.set(tag, new Map());
 			const tagCooc = cooccurrence.get(tag)!;
 			for (const other of tagSet) {
-				if (other === tag) continue;
-				incCounter(tagCooc, other);
+				if (other !== tag) incCounter(tagCooc, other);
 			}
 		}
 	}
+	return cooccurrence;
+}
 
-	// Step 3: Generate relationships
-	const relations: TagRelation[] = [];
-	const assigned = new Set<string>(); // tags already assigned a parent
+/** Find the best (most specific) hub for a tag based on co-occurrence ratio */
+function _findBestHub(
+	tag: string,
+	tagCounts: Map<string, number>,
+	cooccurrence: Map<string, Map<string, number>>,
+	hubCandidates: string[],
+): string {
+	const tagTotal = tagCounts.get(tag) ?? 0;
+	const tagCooc = cooccurrence.get(tag);
+	if (!tagCooc) return "";
 
-	// Structural hierarchies are detected via co-occurrence (no hardcoded pairs).
-	// Previously this had hardcoded beat→scene→sequence→act→timeline which violated
-	// the no-hardcoding policy. These relationships are now discovered automatically
-	// through the co-occurrence analysis below (hub detection + transitive chains).
+	let bestHub = "";
+	let bestRatio = 0;
+	let bestHubCount = Infinity;
 
-	// For remaining tags: find the best hub parent based on co-occurrence
-	const allTags = [...tagCounts.entries()].filter(([, count]) => count >= MIN_TAG_COUNT).map(([tag]) => tag);
+	for (const hub of hubCandidates) {
+		if (hub === tag) continue;
+		const ratio = (tagCooc.get(hub) ?? 0) / tagTotal;
+		if (ratio < MIN_COOCCURRENCE_RATIO) continue;
 
-	for (const tag of allTags) {
-		if (assigned.has(tag)) continue;
-		if (hubCandidates.includes(tag)) continue; // hubs don't get parents from this pass
+		const hubCount = tagCounts.get(hub) ?? 0;
 
-		const tagTotal = tagCounts.get(tag) ?? 0;
-		const tagCooc = cooccurrence.get(tag);
-		if (!tagCooc) continue;
-
-		// Find the most specific hub with sufficient co-occurrence.
-		// Among hubs with similar ratio (within 0.1), prefer the smallest
-		// (most specific) one — e.g., "deity"(17) over "character"(238).
-		let bestHub = "";
-		let bestRatio = 0;
-		let bestHubCount = Infinity;
-
-		for (const hub of hubCandidates) {
-			if (hub === tag) continue;
-			const coocCount = tagCooc.get(hub) ?? 0;
-			const ratio = coocCount / tagTotal;
-
-			if (ratio < MIN_COOCCURRENCE_RATIO) continue;
-
-			const hubCount = tagCounts.get(hub) ?? 0;
-
-			if (!bestHub) {
-				bestHub = hub;
-				bestRatio = ratio;
-				bestHubCount = hubCount;
-			} else if (ratio > bestRatio + 0.1) {
-				// Substantially better ratio wins regardless of specificity
-				bestHub = hub;
-				bestRatio = ratio;
-				bestHubCount = hubCount;
-			} else if (ratio >= bestRatio - 0.1 && hubCount < bestHubCount) {
-				// Similar ratio — prefer more specific (smaller count) hub
-				bestHub = hub;
-				bestRatio = ratio;
-				bestHubCount = hubCount;
-			}
-		}
-
-		if (bestHub) {
-			relations.push({ source: tag, target: bestHub, type: EDGE_TYPE_INHERITANCE });
-			assigned.add(tag);
+		if (!bestHub) {
+			bestHub = hub;
+			bestRatio = ratio;
+			bestHubCount = hubCount;
+		} else if (ratio > bestRatio + 0.1) {
+			bestHub = hub;
+			bestRatio = ratio;
+			bestHubCount = hubCount;
+		} else if (ratio >= bestRatio - 0.1 && hubCount < bestHubCount) {
+			bestHub = hub;
+			bestRatio = ratio;
+			bestHubCount = hubCount;
 		}
 	}
 
-	// Step 4: Check for transitive chains among hubs
-	// e.g., if "deity" always co-occurs with "character", add deity → character
-	for (let i = 0; i < hubCandidates.length; i++) {
-		const hub = hubCandidates[i];
+	return bestHub;
+}
+
+/** Discover transitive hub-to-hub chains (e.g. deity -> character) */
+function _buildHubTransitiveChains(
+	hubCandidates: string[],
+	assigned: Set<string>,
+	tagCounts: Map<string, number>,
+	cooccurrence: Map<string, Map<string, number>>,
+	relations: TagRelation[],
+) {
+	for (const hub of hubCandidates) {
 		if (assigned.has(hub)) continue;
 
 		const hubTotal = tagCounts.get(hub) ?? 0;
 		const hubCooc = cooccurrence.get(hub);
 		if (!hubCooc) continue;
 
-		// Find a broader hub this one belongs to
 		for (const broaderHub of hubCandidates) {
 			if (broaderHub === hub) continue;
 			const broaderCount = tagCounts.get(broaderHub) ?? 0;
-			if (broaderCount <= hubTotal) continue; // broader hub should be more common
+			if (broaderCount <= hubTotal) continue;
 
-			const coocCount = hubCooc.get(broaderHub) ?? 0;
-			const ratio = coocCount / hubTotal;
-
+			const ratio = (hubCooc.get(broaderHub) ?? 0) / hubTotal;
 			if (ratio >= MIN_COOCCURRENCE_RATIO) {
 				relations.push({ source: hub, target: broaderHub, type: EDGE_TYPE_INHERITANCE });
 				assigned.add(hub);
@@ -163,9 +176,6 @@ export function detectTagRelations(app: App): TagRelation[] {
 			}
 		}
 	}
-
-	// Step 5: Deduplicate and remove cycles
-	return deduplicateAndValidate(relations);
 }
 
 /** Remove duplicate relations and simple cycles */

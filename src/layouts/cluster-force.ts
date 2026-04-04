@@ -3156,21 +3156,16 @@ export function computeAutoFitSpacing(
 	degrees: Map<string, number>,
 	baseCfg: ClusterForceConfig,
 ): { nodeSpacing: number; groupScale: number; groupSpacing: number } {
-	// Upper bounds (match slider maximums)
-	// When group overlap is skipped (e.g. timeline), keep spacing moderate
 	const constrained = !!baseCfg.skipGroupOverlap;
 	const MAX_NODE_SPACING = constrained ? 4 : 10;
 	const MAX_GROUP_SCALE = constrained ? 3 : 5;
 	const MAX_GROUP_SPACING = constrained ? 2 : 5;
 
-	// Start from the base config's values, clamped to current maximums
 	let nodeSpacing = Math.min(baseCfg.nodeSpacing, MAX_NODE_SPACING);
 	let groupScale = Math.min(baseCfg.groupScale, MAX_GROUP_SCALE);
 	let groupSpacing = Math.min(baseCfg.groupSpacing, MAX_GROUP_SPACING);
 
 	const baseSize = baseCfg.nodeSize;
-
-	// Limit iterations for large graphs — O(n²) overlap detection is too expensive
 	const maxIterations = nodes.length > 500 ? 2 : 5;
 
 	for (let iteration = 0; iteration < maxIterations; iteration++) {
@@ -3185,180 +3180,18 @@ export function computeAutoFitSpacing(
 		const result = buildClusterForce(nodes, edges, degrees, cfg);
 		if (!result) break;
 
-		// Snapshot positions, apply force once, read targets, restore
-		const saved = nodes.map((n) => ({ x: n.x, y: n.y, vx: n.vx, vy: n.vy }));
-		result.force(1.0);
-		const targets = nodes.map((n) => ({ id: n.id, x: n.x, y: n.y }));
-		for (let i = 0; i < nodes.length; i++) {
-			nodes[i].x = saved[i].x;
-			nodes[i].y = saved[i].y;
-			nodes[i].vx = saved[i].vx;
-			nodes[i].vy = saved[i].vy;
-		}
+		const nodeInfos = _snapshotAndBuildNodeInfos(nodes, degrees, baseSize, result);
+		const overlap = _detectAutoFitOverlaps(nodeInfos, baseSize, result.metadata);
 
-		// Build per-node info: target position, visual radius, label half-width
-		const nodeInfos = nodes.map((n, i) => {
-			const deg = degrees.get(n.id) ?? 0;
-			const r = effectiveRadius(n, baseSize, deg);
-			const labelHW = estimateLabelWidth(n) / 2;
-			const group = result.metadata.nodeClusterMap.get(n.id) ?? "__none__";
-			return { id: n.id, x: targets[i].x, y: targets[i].y, r, labelHW, group };
-		});
-
-		// --- Detect overlaps ---
-		let maxOverlapRatio = 0;
-		let hasNodeOverlap = false;
-		let hasCrossGroupOverlap = false;
-
-		// 1. Grid-based node overlap detection — O(n) instead of O(n²)
-		//    Bucket nodes into spatial grid cells, only compare within neighboring cells.
-		{
-			const LABEL_H = 12;
-			// Cell size: max extent of any node (radius + label)
-			let maxExtent = 40;
-			for (const ni of nodeInfos) {
-				const ext = Math.max(ni.r, ni.labelHW) + ni.r + LABEL_H;
-				if (ext > maxExtent) maxExtent = ext;
-			}
-			const cellSize = maxExtent * 2;
-			const grid = new Map<string, number[]>();
-			for (let i = 0; i < nodeInfos.length; i++) {
-				const ni = nodeInfos[i];
-				const gx = Math.floor(ni.x / cellSize);
-				const gy = Math.floor(ni.y / cellSize);
-				const key = `${gx},${gy}`;
-				let arr = grid.get(key);
-				if (!arr) {
-					arr = [];
-					grid.set(key, arr);
-				}
-				arr.push(i);
-			}
-			// Check 3×3 neighborhood per cell (avoids duplicates via i < j)
-			for (const [key, indices] of grid) {
-				const [gxStr, gyStr] = key.split(",");
-				const gx = parseInt(gxStr, 10);
-				const gy = parseInt(gyStr, 10);
-				// Collect neighboring indices
-				const neighbors: number[] = [];
-				for (let dx = -1; dx <= 1; dx++) {
-					for (let dy = -1; dy <= 1; dy++) {
-						const nk = `${gx + dx},${gy + dy}`;
-						const arr = grid.get(nk);
-						if (arr) neighbors.push(...arr);
-					}
-				}
-				for (const i of indices) {
-					const a = nodeInfos[i];
-					for (const j of neighbors) {
-						if (j <= i) continue;
-						const b = nodeInfos[j];
-						const ddx = Math.abs(a.x - b.x);
-						const ddy = Math.abs(a.y - b.y);
-						const hExtA = Math.max(a.r, a.labelHW);
-						const hExtB = Math.max(b.r, b.labelHW);
-						const minDx = hExtA + hExtB;
-						const vExtA = a.r + LABEL_H;
-						const vExtB = b.r + LABEL_H;
-						const minDy = vExtA + vExtB;
-						const overlapX = minDx - ddx;
-						const overlapY = minDy - ddy;
-						if (overlapX > 0 && overlapY > 0) {
-							hasNodeOverlap = true;
-							if (a.group !== b.group) {
-								hasCrossGroupOverlap = true;
-								const overlapArea = overlapX * overlapY;
-								const minExtent = minDx * minDy * 4;
-								const ratio = overlapArea / (minExtent || 1);
-								if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
-							}
-						}
-					}
-				}
-			}
-		}
-
-		// 2. Group BBox overlap detection (catches cases where individual nodes
-		//    don't overlap but group footprints do)
-		const groupNodes = new Map<string, typeof nodeInfos>();
-		for (const ni of nodeInfos) {
-			if (!groupNodes.has(ni.group)) groupNodes.set(ni.group, []);
-			groupNodes.get(ni.group)!.push(ni);
-		}
-		const groupKeys = [...groupNodes.keys()].filter((k) => k !== "__none__");
-		if (groupKeys.length > 1) {
-			const groupBBoxes = new Map<string, BBox>();
-			const pad = baseSize * 2;
-			for (const k of groupKeys) {
-				const members = groupNodes.get(k)!;
-				let minX = Infinity,
-					minY = Infinity,
-					maxX = -Infinity,
-					maxY = -Infinity;
-				for (const m of members) {
-					if (m.x - m.r < minX) minX = m.x - m.r;
-					if (m.y - m.r < minY) minY = m.y - m.r;
-					if (m.x + m.r > maxX) maxX = m.x + m.r;
-					if (m.y + m.r > maxY) maxY = m.y + m.r;
-				}
-				groupBBoxes.set(k, { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad });
-			}
-			for (let i = 0; i < groupKeys.length; i++) {
-				for (let j = i + 1; j < groupKeys.length; j++) {
-					const a = groupBBoxes.get(groupKeys[i])!;
-					const b = groupBBoxes.get(groupKeys[j])!;
-					const ox = Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX);
-					const oy = Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY);
-					if (ox > 0 && oy > 0) {
-						hasCrossGroupOverlap = true;
-						hasNodeOverlap = true;
-						const overlapArea = ox * oy;
-						const aArea = (a.maxX - a.minX) * (a.maxY - a.minY);
-						const bArea = (b.maxX - b.minX) * (b.maxY - b.minY);
-						const ratio = overlapArea / (Math.min(aArea, bArea) || 1);
-						if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
-					}
-				}
-			}
-
-			// 3. Group-level bounding circle overlap check
-			const simRadii = result.metadata.clusterRadii;
-			const simCentroids = result.metadata.clusterCentroids;
-			for (let i = 0; i < groupKeys.length; i++) {
-				for (let j = i + 1; j < groupKeys.length; j++) {
-					const gA = groupKeys[i];
-					const gB = groupKeys[j];
-					const rA = simRadii.get(gA) ?? 0;
-					const rB = simRadii.get(gB) ?? 0;
-					const cA = simCentroids.get(gA);
-					const cB = simCentroids.get(gB);
-					if (!cA || !cB || rA < 1 || rB < 1) continue;
-					const cdx = cB.x - cA.x;
-					const cdy = cB.y - cA.y;
-					const dist = magnitude(cdx, cdy);
-					if (dist < (rA + rB) * 1.1) {
-						hasCrossGroupOverlap = true;
-						hasNodeOverlap = true;
-						const circleOverlap = (rA + rB) * 1.1 - dist;
-						const ratio = circleOverlap / (rA + rB || 1);
-						if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
-					}
-				}
-			}
-		}
-
-		// If no overlaps detected, we're done
-		if (!hasNodeOverlap) break;
+		if (!overlap.hasNodeOverlap) break;
 
 		// Adjust spacing values based on overlap type
-		if (hasCrossGroupOverlap) {
-			// Cross-group overlap: increase group spacing and scale
-			const scaleFactor = 1 + Math.max(maxOverlapRatio, 0.3) * 2.0;
+		if (overlap.hasCrossGroupOverlap) {
+			const scaleFactor = 1 + Math.max(overlap.maxOverlapRatio, 0.3) * 2.0;
 			groupSpacing = Math.min(groupSpacing * scaleFactor, MAX_GROUP_SPACING);
-			groupScale = Math.min(groupScale * (1 + Math.max(maxOverlapRatio, 0.2)), MAX_GROUP_SCALE);
+			groupScale = Math.min(groupScale * (1 + Math.max(overlap.maxOverlapRatio, 0.2)), MAX_GROUP_SCALE);
 		}
-		if (hasNodeOverlap && !hasCrossGroupOverlap) {
-			// Intra-group node overlap only: increase node spacing
+		if (overlap.hasNodeOverlap && !overlap.hasCrossGroupOverlap) {
 			nodeSpacing = Math.min(nodeSpacing * 1.5, MAX_NODE_SPACING);
 		}
 	}
@@ -3368,6 +3201,211 @@ export function computeAutoFitSpacing(
 		groupScale: Math.round(groupScale * 10) / 10,
 		groupSpacing: Math.round(groupSpacing * 10) / 10,
 	};
+}
+
+/** Node info for overlap detection */
+interface AutoFitNodeInfo {
+	id: string;
+	x: number;
+	y: number;
+	r: number;
+	labelHW: number;
+	group: string;
+}
+
+/** Snapshot positions, apply force, build node infos, then restore positions */
+function _snapshotAndBuildNodeInfos(
+	nodes: GraphNode[],
+	degrees: Map<string, number>,
+	baseSize: number,
+	result: { force: (alpha: number) => void; metadata: ClusterMetadata },
+): AutoFitNodeInfo[] {
+	const saved = nodes.map((n) => ({ x: n.x, y: n.y, vx: n.vx, vy: n.vy }));
+	result.force(1.0);
+	const targets = nodes.map((n) => ({ id: n.id, x: n.x, y: n.y }));
+	for (let i = 0; i < nodes.length; i++) {
+		nodes[i].x = saved[i].x;
+		nodes[i].y = saved[i].y;
+		nodes[i].vx = saved[i].vx;
+		nodes[i].vy = saved[i].vy;
+	}
+	return nodes.map((n, i) => {
+		const deg = degrees.get(n.id) ?? 0;
+		const r = effectiveRadius(n, baseSize, deg);
+		const labelHW = estimateLabelWidth(n) / 2;
+		const group = result.metadata.nodeClusterMap.get(n.id) ?? "__none__";
+		return { id: n.id, x: targets[i].x, y: targets[i].y, r, labelHW, group };
+	});
+}
+
+/** Detect all overlap types: grid-based node, group bbox, group circle */
+function _detectAutoFitOverlaps(
+	nodeInfos: AutoFitNodeInfo[],
+	baseSize: number,
+	metadata: ClusterMetadata,
+): { maxOverlapRatio: number; hasNodeOverlap: boolean; hasCrossGroupOverlap: boolean } {
+	let maxOverlapRatio = 0;
+	let hasNodeOverlap = false;
+	let hasCrossGroupOverlap = false;
+
+	// 1. Grid-based node overlap detection
+	const gridResult = _detectGridNodeOverlaps(nodeInfos);
+	if (gridResult.hasNodeOverlap) hasNodeOverlap = true;
+	if (gridResult.hasCrossGroupOverlap) hasCrossGroupOverlap = true;
+	if (gridResult.maxOverlapRatio > maxOverlapRatio) maxOverlapRatio = gridResult.maxOverlapRatio;
+
+	// 2+3. Group-level overlap detection (bbox + circle)
+	const groupResult = _detectGroupOverlaps(nodeInfos, baseSize, metadata);
+	if (groupResult.hasNodeOverlap) hasNodeOverlap = true;
+	if (groupResult.hasCrossGroupOverlap) hasCrossGroupOverlap = true;
+	if (groupResult.maxOverlapRatio > maxOverlapRatio) maxOverlapRatio = groupResult.maxOverlapRatio;
+
+	return { maxOverlapRatio, hasNodeOverlap, hasCrossGroupOverlap };
+}
+
+/** Grid-based spatial node overlap detection — O(n) via cell bucketing */
+function _detectGridNodeOverlaps(
+	nodeInfos: AutoFitNodeInfo[],
+): { maxOverlapRatio: number; hasNodeOverlap: boolean; hasCrossGroupOverlap: boolean } {
+	const LABEL_H = 12;
+	let maxOverlapRatio = 0;
+	let hasNodeOverlap = false;
+	let hasCrossGroupOverlap = false;
+
+	let maxExtent = 40;
+	for (const ni of nodeInfos) {
+		const ext = Math.max(ni.r, ni.labelHW) + ni.r + LABEL_H;
+		if (ext > maxExtent) maxExtent = ext;
+	}
+	const cellSize = maxExtent * 2;
+	const grid = new Map<string, number[]>();
+	for (let i = 0; i < nodeInfos.length; i++) {
+		const ni = nodeInfos[i];
+		const gx = Math.floor(ni.x / cellSize);
+		const gy = Math.floor(ni.y / cellSize);
+		const key = `${gx},${gy}`;
+		let arr = grid.get(key);
+		if (!arr) {
+			arr = [];
+			grid.set(key, arr);
+		}
+		arr.push(i);
+	}
+	for (const [key, indices] of grid) {
+		const [gxStr, gyStr] = key.split(",");
+		const gx = parseInt(gxStr, 10);
+		const gy = parseInt(gyStr, 10);
+		const neighbors: number[] = [];
+		for (let dx = -1; dx <= 1; dx++) {
+			for (let dy = -1; dy <= 1; dy++) {
+				const nk = `${gx + dx},${gy + dy}`;
+				const arr = grid.get(nk);
+				if (arr) neighbors.push(...arr);
+			}
+		}
+		for (const i of indices) {
+			const a = nodeInfos[i];
+			for (const j of neighbors) {
+				if (j <= i) continue;
+				const b = nodeInfos[j];
+				const ddx = Math.abs(a.x - b.x);
+				const ddy = Math.abs(a.y - b.y);
+				const hExtA = Math.max(a.r, a.labelHW);
+				const hExtB = Math.max(b.r, b.labelHW);
+				const minDx = hExtA + hExtB;
+				const vExtA = a.r + LABEL_H;
+				const vExtB = b.r + LABEL_H;
+				const minDy = vExtA + vExtB;
+				const overlapX = minDx - ddx;
+				const overlapY = minDy - ddy;
+				if (overlapX > 0 && overlapY > 0) {
+					hasNodeOverlap = true;
+					if (a.group !== b.group) {
+						hasCrossGroupOverlap = true;
+						const overlapArea = overlapX * overlapY;
+						const minExtent = minDx * minDy * 4;
+						const ratio = overlapArea / (minExtent || 1);
+						if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
+					}
+				}
+			}
+		}
+	}
+	return { maxOverlapRatio, hasNodeOverlap, hasCrossGroupOverlap };
+}
+
+/** Group BBox + bounding circle overlap detection */
+function _detectGroupOverlaps(
+	nodeInfos: AutoFitNodeInfo[],
+	baseSize: number,
+	metadata: ClusterMetadata,
+): { maxOverlapRatio: number; hasNodeOverlap: boolean; hasCrossGroupOverlap: boolean } {
+	let maxOverlapRatio = 0;
+	let hasNodeOverlap = false;
+	let hasCrossGroupOverlap = false;
+
+	const groupNodes = new Map<string, AutoFitNodeInfo[]>();
+	for (const ni of nodeInfos) {
+		if (!groupNodes.has(ni.group)) groupNodes.set(ni.group, []);
+		groupNodes.get(ni.group)!.push(ni);
+	}
+	const groupKeys = [...groupNodes.keys()].filter((k) => k !== "__none__");
+	if (groupKeys.length <= 1) return { maxOverlapRatio, hasNodeOverlap, hasCrossGroupOverlap };
+
+	// BBox overlap
+	const groupBBoxes = new Map<string, BBox>();
+	const pad = baseSize * 2;
+	for (const k of groupKeys) {
+		const members = groupNodes.get(k)!;
+		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		for (const m of members) {
+			if (m.x - m.r < minX) minX = m.x - m.r;
+			if (m.y - m.r < minY) minY = m.y - m.r;
+			if (m.x + m.r > maxX) maxX = m.x + m.r;
+			if (m.y + m.r > maxY) maxY = m.y + m.r;
+		}
+		groupBBoxes.set(k, { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad });
+	}
+	for (let i = 0; i < groupKeys.length; i++) {
+		for (let j = i + 1; j < groupKeys.length; j++) {
+			const a = groupBBoxes.get(groupKeys[i])!;
+			const b = groupBBoxes.get(groupKeys[j])!;
+			const ox = Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX);
+			const oy = Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY);
+			if (ox > 0 && oy > 0) {
+				hasCrossGroupOverlap = true;
+				hasNodeOverlap = true;
+				const overlapArea = ox * oy;
+				const aArea = (a.maxX - a.minX) * (a.maxY - a.minY);
+				const bArea = (b.maxX - b.minX) * (b.maxY - b.minY);
+				const ratio = overlapArea / (Math.min(aArea, bArea) || 1);
+				if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
+			}
+		}
+	}
+
+	// Circle overlap
+	const simRadii = metadata.clusterRadii;
+	const simCentroids = metadata.clusterCentroids;
+	for (let i = 0; i < groupKeys.length; i++) {
+		for (let j = i + 1; j < groupKeys.length; j++) {
+			const rA = simRadii.get(groupKeys[i]) ?? 0;
+			const rB = simRadii.get(groupKeys[j]) ?? 0;
+			const cA = simCentroids.get(groupKeys[i]);
+			const cB = simCentroids.get(groupKeys[j]);
+			if (!cA || !cB || rA < 1 || rB < 1) continue;
+			const dist = magnitude(cB.x - cA.x, cB.y - cA.y);
+			if (dist < (rA + rB) * 1.1) {
+				hasCrossGroupOverlap = true;
+				hasNodeOverlap = true;
+				const circleOverlap = (rA + rB) * 1.1 - dist;
+				const ratio = circleOverlap / (rA + rB || 1);
+				if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
+			}
+		}
+	}
+
+	return { maxOverlapRatio, hasNodeOverlap, hasCrossGroupOverlap };
 }
 
 // ---------------------------------------------------------------------------
