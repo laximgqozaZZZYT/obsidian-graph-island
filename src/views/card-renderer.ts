@@ -414,6 +414,45 @@ function renderTableCard(
 	}
 }
 
+/** Estimate the number of body-preview lines that fit in the given card width. */
+export function estimateBodyLineCount(
+	bodyPreview: string | undefined,
+	maxBodyLines: number,
+	cardTextW: number,
+	charW: number,
+): number {
+	if (!bodyPreview) return 0;
+	const charsPerLine = Math.max(5, Math.floor(cardTextW / charW));
+	return Math.min(maxBodyLines, Math.ceil(bodyPreview.length / charsPerLine));
+}
+
+/** Render wrapped body-preview lines into a plain card node. */
+function renderPlainCardBodyLines(
+	pn: PixiNode,
+	halfW: number,
+	halfH: number,
+	pad: number,
+	fontSize: number,
+	smallFont: number,
+	bodyFill: number,
+	lineH: number,
+	textW: number,
+	maxLines: number,
+	cardSubTextAlpha: number,
+	truncateText: boolean,
+): void {
+	const charsPerLine = Math.max(5, Math.floor(textW / (smallFont * 0.55)));
+	const lines = wrapTextToLines(pn.data.bodyPreview!, charsPerLine, maxLines);
+	for (let li = 0; li < lines.length; li++) {
+		const bodyLine = createCardText(lines[li], smallFont, bodyFill);
+		bodyLine.x = -halfW + pad;
+		bodyLine.y = -halfH + pad + fontSize * PLAIN_CARD_BODY_LINE_HEIGHT + li * lineH;
+		bodyLine.alpha = cardSubTextAlpha;
+		if (truncateText) bodyLine.maxWidth = textW;
+		pn.gfx.addChild(bodyLine);
+	}
+}
+
 /** Plain card style rendering. */
 function renderPlainCard(
 	host: RenderHost,
@@ -440,6 +479,7 @@ function renderPlainCard(
 
 	// HM: Golden ratio for plain cards — compute width from height × AR
 	const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
+	const charW = (8 / worldScale) * 0.55;
 
 	for (const pn of visible) {
 		const _effR = Math.max(pn.radius, minWorldRadius);
@@ -452,16 +492,8 @@ function renderPlainCard(
 		const halfW = Math.max(MIN_PLAIN_HALF_W, Math.min(cardMaxW / 2, arHalfW));
 		// FI: Dynamic card height based on body content (uses final width for line wrapping)
 		// IP: Use cardBodyMaxLines (not hardcoded 3) for consistent card height
-		const maxBodyLines = rt.cardBodyMaxLines;
-		const bodyLines = pn.data.bodyPreview
-			? Math.min(
-					maxBodyLines,
-					Math.ceil(
-						pn.data.bodyPreview.length /
-							Math.max(5, Math.floor((halfW * 2 - 8 / worldScale) / ((8 / worldScale) * 0.55))),
-					),
-				)
-			: 0;
+		const cardTextW = halfW * 2 - 8 / worldScale;
+		const bodyLines = estimateBodyLineCount(pn.data.bodyPreview, rt.cardBodyMaxLines, cardTextW, charW);
 		const bodyExtraH = bodyLines * ((8 / worldScale) * 1.3);
 		const totalH = baseH + bodyExtraH;
 		const halfH = totalH / 2;
@@ -481,61 +513,41 @@ function renderPlainCard(
 		g.endFill();
 
 		// FH/FI: Plain card with title + wrapped body preview
-		{
-			const fontSize = Math.min(
-				Math.max(PLAIN_CARD_TITLE_FONT_MIN, FULL_CARD_FONT_BASE / worldScale),
-				FULL_CARD_FONT_BASE * CARD_SCALE_CAP,
+		const fontSize = Math.min(
+			Math.max(PLAIN_CARD_TITLE_FONT_MIN, FULL_CARD_FONT_BASE / worldScale),
+			FULL_CARD_FONT_BASE * CARD_SCALE_CAP,
+		);
+		const bodyFontBase = rt.cardBodyFontSize;
+		const smallFont = Math.min(
+			Math.max(PLAIN_CARD_BODY_FONT_MIN, bodyFontBase / worldScale),
+			bodyFontBase * CARD_SCALE_CAP,
+		);
+		const pad = Math.min(PLAIN_CARD_PAD / worldScale, PLAIN_CARD_PAD * CARD_SCALE_CAP);
+		const textW = halfW * 2 - pad * 2;
+		const lineH = smallFont * CARD_LINE_HEIGHT;
+		// A11y: auto-select title/body text color for WCAG contrast against card background
+		const titleFill = contrastColor(pn.color);
+		const bodyFill = titleFill === 0xffffff ? 0xcccccc : 0x444444;
+		// Title (apply GD labelMaxChars truncation)
+		const title = createCardText(
+			truncateLabel(pn.data.label, rt.labelMaxChars),
+			fontSize,
+			titleFill,
+			"bold",
+		);
+		title.x = -halfW + pad;
+		title.y = -halfH + pad;
+		if (rt.cardTextTruncation !== false) title.maxWidth = textW;
+		pn.gfx.addChild(title);
+		// FH: Wrapped body preview — split into multiple lines
+		// IE: Card content respects hoverShowBody checklist
+		const cardShowBody = host.getPanel?.()?.hoverShowBody ?? true;
+		if (pn.data.bodyPreview && cardShowBody) {
+			renderPlainCardBodyLines(
+				pn, halfW, halfH, pad, fontSize, smallFont, bodyFill,
+				lineH, textW, rt.cardBodyMaxLines, crc.cardSubTextAlpha,
+				rt.cardTextTruncation !== false,
 			);
-			const bodyFontBase = rt.cardBodyFontSize;
-			const smallFont = Math.min(
-				Math.max(PLAIN_CARD_BODY_FONT_MIN, bodyFontBase / worldScale),
-				bodyFontBase * CARD_SCALE_CAP,
-			);
-			const pad = Math.min(PLAIN_CARD_PAD / worldScale, PLAIN_CARD_PAD * CARD_SCALE_CAP);
-			const textW = halfW * 2 - pad * 2;
-			const lineH = smallFont * CARD_LINE_HEIGHT;
-			// A11y: auto-select title/body text color for WCAG contrast against card background
-			const titleFill = contrastColor(pn.color);
-			const bodyFill = titleFill === 0xffffff ? 0xcccccc : 0x444444;
-			// Title (apply GD labelMaxChars truncation)
-			const title = createCardText(
-				truncateLabel(pn.data.label, rt.labelMaxChars),
-				fontSize,
-				titleFill,
-				"bold",
-			);
-			title.x = -halfW + pad;
-			title.y = -halfH + pad;
-			if (rt.cardTextTruncation !== false) title.maxWidth = textW;
-			pn.gfx.addChild(title);
-			// FH: Wrapped body preview — split into multiple lines
-			// IE: Card content respects hoverShowBody checklist
-			const cardShowBody = host.getPanel?.()?.hoverShowBody ?? true;
-			if (pn.data.bodyPreview && cardShowBody) {
-				const maxLines = rt.cardBodyMaxLines;
-				const charsPerLine = Math.max(5, Math.floor(textW / (smallFont * 0.55)));
-				const words = pn.data.bodyPreview.split(/\s+/);
-				const lines: string[] = [];
-				let cur = "";
-				for (const w of words) {
-					if (cur.length + w.length + 1 > charsPerLine) {
-						lines.push(cur);
-						cur = w;
-						if (lines.length >= maxLines) break;
-					} else {
-						cur = cur ? cur + " " + w : w;
-					}
-				}
-				if (cur && lines.length < maxLines) lines.push(cur);
-				for (let li = 0; li < lines.length; li++) {
-					const bodyLine = createCardText(lines[li], smallFont, bodyFill);
-					bodyLine.x = -halfW + pad;
-					bodyLine.y = -halfH + pad + fontSize * PLAIN_CARD_BODY_LINE_HEIGHT + li * lineH;
-					bodyLine.alpha = crc.cardSubTextAlpha;
-					if (rt.cardTextTruncation !== false) bodyLine.maxWidth = textW;
-					pn.gfx.addChild(bodyLine);
-				}
-			}
 		}
 	}
 }

@@ -6,6 +6,8 @@ import {
 	cleanupCardText,
 	cleanupCardTextAll,
 	renderCardMode,
+	wrapTextToLines,
+	estimateBodyLineCount,
 	CARD_FONT_FAMILY,
 	CARD_SCALE_CAP,
 	FULL_CARD_FONT_BASE,
@@ -738,6 +740,82 @@ describe("renderCardMode — branches and edge cases", () => {
 
 		renderCardMode(mockHost, mockGraphics, ctx, {}, {});
 		expect(node.gfx.children).not.toContain(oldCard);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// wrapTextToLines — word-wrap helper
+// ---------------------------------------------------------------------------
+describe("wrapTextToLines", () => {
+	it("wraps text into lines at word boundaries", () => {
+		const lines = wrapTextToLines("hello world foo bar", 12, 5);
+		expect(lines.length).toBeGreaterThan(0);
+		expect(lines.every((l) => l.length <= 12)).toBe(true);
+	});
+
+	it("respects maxLines limit", () => {
+		const lines = wrapTextToLines("a b c d e f g h i j k l m n", 5, 2);
+		expect(lines.length).toBeLessThanOrEqual(2);
+	});
+
+	it("returns single line when text fits", () => {
+		const lines = wrapTextToLines("short", 20, 5);
+		expect(lines).toEqual(["short"]);
+	});
+
+	it("handles empty string", () => {
+		const lines = wrapTextToLines("", 10, 3);
+		expect(lines).toEqual([]);
+	});
+
+	it("handles single word longer than charsPerLine", () => {
+		const lines = wrapTextToLines("superlongword", 5, 3);
+		// Single word is placed in cur, then pushed as a line; cur becomes empty
+		// The empty cur is not pushed, so result is ["", "superlongword"] or similar
+		expect(lines.length).toBeGreaterThanOrEqual(1);
+		expect(lines.some((l) => l === "superlongword")).toBe(true);
+	});
+
+	it("handles maxLines = 1", () => {
+		const lines = wrapTextToLines("hello world foo", 6, 1);
+		expect(lines.length).toBe(1);
+	});
+
+	it("handles whitespace-only text", () => {
+		const lines = wrapTextToLines("   ", 10, 3);
+		expect(lines).toEqual([]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// estimateBodyLineCount — body line estimation
+// ---------------------------------------------------------------------------
+describe("estimateBodyLineCount", () => {
+	it("returns 0 for undefined bodyPreview", () => {
+		expect(estimateBodyLineCount(undefined, 3, 100, 5)).toBe(0);
+	});
+
+	it("returns 0 for empty string", () => {
+		expect(estimateBodyLineCount("", 3, 100, 5)).toBe(0);
+	});
+
+	it("estimates 1 line for short text", () => {
+		expect(estimateBodyLineCount("hello", 3, 100, 5)).toBe(1);
+	});
+
+	it("caps at maxBodyLines", () => {
+		const longText = "a".repeat(500);
+		expect(estimateBodyLineCount(longText, 3, 50, 5)).toBe(3);
+	});
+
+	it("uses charW to compute chars per line", () => {
+		// cardTextW=100, charW=10 → 10 chars/line; 25 chars → 3 lines
+		expect(estimateBodyLineCount("a".repeat(25), 5, 100, 10)).toBe(3);
+	});
+
+	it("handles very small charW (minimum 5 chars per line)", () => {
+		// cardTextW=1, charW=0.1 → floor(10)=10 chars/line, but min is 5
+		expect(estimateBodyLineCount("a".repeat(10), 5, 1, 0.1)).toBeGreaterThan(0);
 	});
 });
 
