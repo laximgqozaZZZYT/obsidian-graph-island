@@ -153,45 +153,47 @@ export function parseQueryExpr(input: string): QueryExpression | null {
 	return parseExpr();
 }
 
+const BOOL_OPS = new Set(["AND", "OR", "XOR", "NOR", "NAND", "NOT"]);
+
+/** Normalize boolean operators to uppercase; pass through everything else */
+function normalizeBoolOp(tok: string): string {
+	const upper = tok.toUpperCase();
+	return BOOL_OPS.has(upper) ? upper : tok;
+}
+
+/** Read a single token starting at position i, returning the token and next position */
+function readToken(input: string, start: number): { tok: string; next: number } {
+	let i = start;
+	let tok = "";
+	while (i < input.length && input[i] !== " " && input[i] !== "\t" && input[i] !== "(" && input[i] !== ")") {
+		if (input[i] === '"') {
+			tok += input[i++]; // opening quote
+			while (i < input.length && input[i] !== '"') tok += input[i++];
+			if (i < input.length) tok += input[i++]; // closing quote
+		} else {
+			tok += input[i++];
+		}
+	}
+	return { tok, next: i };
+}
+
 /** Tokenize input: splits on whitespace but preserves quoted strings and parens */
 function tokenize(input: string): string[] {
 	const tokens: string[] = [];
 	let i = 0;
 	while (i < input.length) {
-		// Skip whitespace
 		if (input[i] === " " || input[i] === "\t") {
 			i++;
 			continue;
 		}
-
-		// Parentheses
 		if (input[i] === "(" || input[i] === ")") {
 			tokens.push(input[i]);
 			i++;
 			continue;
 		}
-
-		// Accumulate token (may contain field:"quoted value")
-		let tok = "";
-		while (i < input.length && input[i] !== " " && input[i] !== "\t" && input[i] !== "(" && input[i] !== ")") {
-			if (input[i] === '"') {
-				// Consume quoted string including quotes
-				tok += input[i++]; // opening quote
-				while (i < input.length && input[i] !== '"') tok += input[i++];
-				if (i < input.length) tok += input[i++]; // closing quote
-			} else {
-				tok += input[i++];
-			}
-		}
-		if (tok) {
-			// Normalize boolean operators to uppercase
-			const upper = tok.toUpperCase();
-			if (["AND", "OR", "XOR", "NOR", "NAND", "NOT"].includes(upper)) {
-				tokens.push(upper);
-			} else {
-				tokens.push(tok);
-			}
-		}
+		const { tok, next } = readToken(input, i);
+		i = next;
+		if (tok) tokens.push(normalizeBoolOp(tok));
 	}
 	return tokens;
 }
