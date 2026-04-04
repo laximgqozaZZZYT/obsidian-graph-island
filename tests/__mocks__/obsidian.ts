@@ -7,7 +7,10 @@ export class TFile {
   extension = "md";
 }
 
-export class Component {}
+export class Component {
+  load() {}
+  unload() {}
+}
 
 export class ItemView extends Component {
   containerEl = { empty: () => {}, createEl: () => ({}) } as any;
