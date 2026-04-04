@@ -14,6 +14,71 @@ export interface LouvainEdge {
 	weight?: number;
 }
 
+/** 隣接リスト構築結果 */
+interface AdjacencyResult {
+	adj: Map<number, number>[];
+	totalWeight: number;
+}
+
+/**
+ * エッジ配列から無向グラフの隣接リストを構築する。
+ * 自己ループは無視し、同一ペアの重みは加算される。
+ */
+export function buildAdjacencyList(
+	edges: LouvainEdge[],
+	idToIdx: Map<string, number>,
+	n: number,
+): AdjacencyResult {
+	const adj: Map<number, number>[] = new Array(n);
+	for (let i = 0; i < n; i++) adj[i] = new Map();
+
+	let totalWeight = 0;
+	for (const e of edges) {
+		const si = idToIdx.get(e.source);
+		const ti = idToIdx.get(e.target);
+		if (si === undefined || ti === undefined) continue;
+		if (si === ti) continue;
+		const w = e.weight ?? 1;
+		adj[si].set(ti, (adj[si].get(ti) ?? 0) + w);
+		adj[ti].set(si, (adj[ti].get(si) ?? 0) + w);
+		totalWeight += w;
+	}
+
+	return { adj, totalWeight };
+}
+
+/** 各ノードの次数（隣接エッジ重みの合計）を計算する。 */
+export function computeNodeDegrees(adj: Map<number, number>[], n: number): Float64Array {
+	const degree = new Float64Array(n);
+	for (let i = 0; i < n; i++) {
+		let d = 0;
+		for (const w of adj[i].values()) d += w;
+		degree[i] = d;
+	}
+	return degree;
+}
+
+/** コミュニティIDを連番に振り直し、ノードID → コミュニティID マッピングを返す。 */
+export function renumberCommunities(
+	community: Int32Array,
+	nodeIds: string[],
+): Map<string, number> {
+	const uniqueComms = new Map<number, number>();
+	let nextId = 0;
+	for (let i = 0; i < community.length; i++) {
+		const c = community[i];
+		if (!uniqueComms.has(c)) {
+			uniqueComms.set(c, nextId++);
+		}
+	}
+
+	const result = new Map<string, number>();
+	for (let i = 0; i < community.length; i++) {
+		result.set(nodeIds[i], uniqueComms.get(community[i])!);
+	}
+	return result;
+}
+
 /**
  * Louvain コミュニティ検出を実行する。
  * @param nodeIds ノードIDの配列
@@ -23,55 +88,29 @@ export interface LouvainEdge {
 export function louvainCommunities(nodeIds: string[], edges: LouvainEdge[]): Map<string, number> {
 	if (nodeIds.length === 0) return new Map();
 
-	// ノードIDを連番インデックスにマッピング
 	const idToIdx = new Map<string, number>();
 	for (let i = 0; i < nodeIds.length; i++) {
 		idToIdx.set(nodeIds[i], i);
 	}
 
 	const n = nodeIds.length;
-
-	// 隣接リストと重み行列（スパース）を構築
-	// adj[i] = Map<neighbor_index, weight>
-	const adj: Map<number, number>[] = new Array(n);
-	for (let i = 0; i < n; i++) adj[i] = new Map();
-
-	let totalWeight = 0;
-	for (const e of edges) {
-		const si = idToIdx.get(e.source);
-		const ti = idToIdx.get(e.target);
-		if (si === undefined || ti === undefined) continue;
-		if (si === ti) continue; // 自己ループは無視
-		const w = e.weight ?? 1;
-		// 無向グラフとして両方向に追加（既存の重みに加算）
-		adj[si].set(ti, (adj[si].get(ti) ?? 0) + w);
-		adj[ti].set(si, (adj[ti].get(si) ?? 0) + w);
-		totalWeight += w;
-	}
+	const { adj, totalWeight } = buildAdjacencyList(edges, idToIdx, n);
 
 	if (totalWeight === 0) {
-		// エッジがない場合は各ノードを独立コミュニティにする
 		const result = new Map<string, number>();
 		for (let i = 0; i < n; i++) result.set(nodeIds[i], i);
 		return result;
 	}
 
-	const m2 = totalWeight * 2; // 2m（無向グラフの総エッジ重みの2倍）
-
-	// 各ノードの次数（重み合計）
-	const degree = new Float64Array(n);
-	for (let i = 0; i < n; i++) {
-		let d = 0;
-		for (const w of adj[i].values()) d += w;
-		degree[i] = d;
-	}
+	const m2 = totalWeight * 2;
+	const degree = computeNodeDegrees(adj, n);
 
 	// 初期コミュニティ: 各ノードが独自のコミュニティ
 	const community = new Int32Array(n);
 	for (let i = 0; i < n; i++) community[i] = i;
 
 	// コミュニティ内の重み合計（Σ_in）とコミュニティの次数合計（Σ_tot）
-	const sigmaIn = new Float64Array(n); // 初期は0（1ノードのみのコミュニティ）
+	const sigmaIn = new Float64Array(n);
 	const sigmaTot = new Float64Array(n);
 	for (let i = 0; i < n; i++) sigmaTot[i] = degree[i];
 
@@ -104,9 +143,7 @@ export function louvainCommunities(nodeIds: string[], edges: LouvainEdge[]): Map
 
 		for (let i = 0; i < n; i++) {
 			const ci = community[i];
-			const ki = degree[i];
 
-			// ノードiの各隣接コミュニティへの接続重みを計算
 			const neighborComm = new Map<number, number>();
 			let kiIn = 0;
 			for (const [j, w] of adj[i]) {
@@ -118,11 +155,10 @@ export function louvainCommunities(nodeIds: string[], edges: LouvainEdge[]): Map
 			const bestComm = findBestCommunity(i, neighborComm, kiIn);
 			if (bestComm < 0) continue;
 
-			// 現在のコミュニティから除去
+			const ki = degree[i];
 			sigmaIn[ci] -= 2 * kiIn;
 			sigmaTot[ci] -= ki;
 
-			// 新しいコミュニティに追加
 			const kiNewIn = neighborComm.get(bestComm) ?? 0;
 			sigmaIn[bestComm] += 2 * kiNewIn;
 			sigmaTot[bestComm] += ki;
@@ -134,21 +170,5 @@ export function louvainCommunities(nodeIds: string[], edges: LouvainEdge[]): Map
 		if (!improved) break;
 	}
 
-	// コミュニティIDを連番に振り直す
-	const uniqueComms = new Map<number, number>();
-	let nextId = 0;
-	for (let i = 0; i < n; i++) {
-		const c = community[i];
-		if (!uniqueComms.has(c)) {
-			uniqueComms.set(c, nextId++);
-		}
-	}
-
-	// 結果マッピングを構築
-	const result = new Map<string, number>();
-	for (let i = 0; i < n; i++) {
-		result.set(nodeIds[i], uniqueComms.get(community[i])!);
-	}
-
-	return result;
+	return renumberCommunities(community, nodeIds);
 }
