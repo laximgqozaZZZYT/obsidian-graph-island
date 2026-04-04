@@ -10,7 +10,7 @@ export default tseslint.config(
 		files: ["src/**/*.ts"],
 		rules: {
 			// Complexity guard — flag functions that are too complex
-			complexity: ["warn", { max: 30 }],
+			complexity: ["warn", { max: 25 }],
 
 			// TypeScript-specific
 			"@typescript-eslint/no-unused-vars": [

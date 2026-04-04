@@ -298,6 +298,39 @@ export class LabelManager {
 		return Math.min(counterScale * adaptiveScale, scaleCap);
 	}
 
+	/** Position a label using zone-based or fixed placement. */
+	private _positionLabel(
+		pn: PixiNode,
+		counterScale: number,
+		rt: RenderThresholds,
+		renderPipeline: ReturnType<typeof this.host.getRenderPipeline>,
+	): void {
+		if (!pn.label) return;
+		const r = pn.radius ?? 12;
+		if (rt.labelZonePlacement && renderPipeline) {
+			const placement = renderPipeline.computeZonePlacement(pn.data, r, rt.labelZoneOffset ?? 6);
+			pn.label.x = placement.x;
+			pn.label.y = placement.y;
+			pn.label.anchor.set(placement.anchorX, 0);
+		} else {
+			const csOffset = counterScale > 2 ? Math.min(counterScale * 1.5, 12) : 0;
+			pn.label.x = r + 2 + csOffset;
+			pn.label.y = -(r * 0.4 + 2 + csOffset * 0.5);
+		}
+	}
+
+	/** Check if a node should be filtered out by AutoLOD level 2. */
+	private _isFilteredByAutoLOD(
+		pn: PixiNode,
+		isSuper: boolean,
+		isHovered: boolean,
+	): boolean {
+		if (isSuper || isHovered) return false;
+		const rp = this.host.getRenderPipeline();
+		if (!rp?.isAutoLODActive() || rp.getLastLodLevel() !== 2) return false;
+		return pn.priorityScore <= 70;
+	}
+
 	/** Determine whether a node label is eligible for display (priority LOD + hysteresis). */
 	private _isLabelEligible(
 		pn: PixiNode,
@@ -354,8 +387,7 @@ export class LabelManager {
 		}
 
 		// A1: autoLOD level 4+ bypasses sub-label zoom threshold
-		const rp = this.host.getRenderPipeline();
-		const autoLodLevel = rp?.isAutoLODActive() ? rp.getLastLodLevel() : 0;
+		const autoLodLevel = renderPipeline?.isAutoLODActive() ? renderPipeline.getLastLodLevel() : 0;
 		const subLabelForceShow = autoLodLevel >= 4;
 
 		for (const pn of this.host.getPixiNodes().values()) {
@@ -372,31 +404,15 @@ export class LabelManager {
 
 			this._applyTruncation(pn, shouldTruncate, effectiveMaxChars, labelMode);
 
-			// Reset label position (zone-based or fixed)
-			const r = pn.radius ?? 12;
-			if (rt.labelZonePlacement && renderPipeline) {
-				const placement = renderPipeline.computeZonePlacement(pn.data, r, rt.labelZoneOffset ?? 6);
-				pn.label.x = placement.x;
-				pn.label.y = placement.y;
-				pn.label.anchor.set(placement.anchorX, 0);
-			} else {
-				const csOffset = counterScale > 2 ? Math.min(counterScale * 1.5, 12) : 0;
-				pn.label.x = r + 2 + csOffset;
-				pn.label.y = -(r * 0.4 + 2 + csOffset * 0.5);
-			}
+			this._positionLabel(pn, counterScale, rt, renderPipeline);
 
 			const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
 			const isHovered = hoverSet.size > 0 && hoverSet.has(pn.data.id);
 			const deg = degrees.get(pn.data.id) ?? 0;
 
-			let eligible = this._isLabelEligible(pn, zoom, hysteresisHideFactor, isSuper, isHovered);
-
-			// AutoLOD level 2: only show labels for top-30% priority nodes
-			if (eligible && !isSuper && !isHovered) {
-				if (rp?.isAutoLODActive() && rp.getLastLodLevel() === 2) {
-					if (pn.priorityScore <= 70) eligible = false;
-				}
-			}
+			const eligible =
+				this._isLabelEligible(pn, zoom, hysteresisHideFactor, isSuper, isHovered) &&
+				!this._isFilteredByAutoLOD(pn, isSuper, isHovered);
 
 			if (!eligible) {
 				this._hideNodeLabel(pn);
