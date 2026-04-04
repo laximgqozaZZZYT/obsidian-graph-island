@@ -251,6 +251,108 @@ export class WebGLGraphics extends CanvasGraphics {
 	 * @param transform 3x3 column-major transform matrix (Float32Array[9])
 	 * @param parentAlpha  Inherited alpha from parent container
 	 */
+	/** Tessellate a drawCircle command (fill + optional stroke outline). */
+	private _tessellateCircle(
+		cmd: { x: number; y: number; r: number },
+		addFillShape: (d: Float32Array) => void,
+		vertices: number[],
+		strokeWidth: number, strokeColor: number, strokeAlpha: number, effAlpha: number,
+	): void {
+		const segs = cmd.r < 4 ? 12 : cmd.r < 20 ? 24 : 48;
+		addFillShape(tessellateCircle(cmd.x, cmd.y, cmd.r, segs));
+		if (strokeWidth > 0 && strokeAlpha > 0) {
+			const outlinePoints: { x: number; y: number }[] = [];
+			const step = (Math.PI * 2) / segs;
+			for (let i = 0; i <= segs; i++) {
+				const a = i * step;
+				outlinePoints.push({ x: cmd.x + cmd.r * Math.cos(a), y: cmd.y + cmd.r * Math.sin(a) });
+			}
+			const [sr, sg, sb] = hexToFloats(strokeColor);
+			appendColoredVertices(vertices, expandLineStrip(outlinePoints, strokeWidth), sr, sg, sb, strokeAlpha * effAlpha);
+		}
+	}
+
+	/** Tessellate a drawRect command (fill + optional stroke outline). */
+	private _tessellateRect(
+		cmd: { x: number; y: number; w: number; h: number },
+		addFillShape: (d: Float32Array) => void,
+		vertices: number[],
+		strokeWidth: number, strokeColor: number, strokeAlpha: number, effAlpha: number,
+	): void {
+		addFillShape(tessellateRect(cmd.x, cmd.y, cmd.w, cmd.h));
+		if (strokeWidth > 0 && strokeAlpha > 0) {
+			const outline = [
+				{ x: cmd.x, y: cmd.y }, { x: cmd.x + cmd.w, y: cmd.y },
+				{ x: cmd.x + cmd.w, y: cmd.y + cmd.h }, { x: cmd.x, y: cmd.y + cmd.h },
+				{ x: cmd.x, y: cmd.y },
+			];
+			const [sr, sg, sb] = hexToFloats(strokeColor);
+			appendColoredVertices(vertices, expandLineStrip(outline, strokeWidth), sr, sg, sb, strokeAlpha * effAlpha);
+		}
+	}
+
+	/** Tessellate an arc command and append arc points to pathPoints for stroke. */
+	private _tessellateArc(
+		cmd: { cx: number; cy: number; r: number; start: number; end: number; ccw: boolean },
+		addFillShape: (d: Float32Array) => void,
+		pathPoints: { x: number; y: number }[],
+	): { lastX: number; lastY: number } {
+		addFillShape(tessellateArc(cmd.cx, cmd.cy, cmd.r, cmd.start, cmd.end, cmd.ccw));
+		const sweep = cmd.end - cmd.start;
+		const arcSegs = Math.max(1, Math.ceil(Math.abs(sweep) / (Math.PI / 12)));
+		const arcStep = sweep / arcSegs;
+		let lx = 0, ly = 0;
+		for (let i = 0; i <= arcSegs; i++) {
+			const a = cmd.start + i * arcStep;
+			lx = cmd.cx + cmd.r * Math.cos(a);
+			ly = cmd.cy + cmd.r * Math.sin(a);
+			pathPoints.push({ x: lx, y: ly });
+		}
+		return { lastX: lx, lastY: ly };
+	}
+
+	/** Upload interleaved vertex data and issue a single draw call. */
+	private _uploadAndDraw(
+		gl: WebGL2RenderingContext, program: WebGLProgram, localTransform: Float32Array,
+		effAlpha: number, vertices: number[],
+	): void {
+		if (vertices.length === 0) return;
+		const vertexData = new Float32Array(vertices);
+		const vertexCount = vertexData.length / FLOATS_PER_VERTEX;
+
+		gl.useProgram(program);
+		const vbo = gl.createBuffer();
+		if (!vbo) return;
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+		gl.bufferData(gl.ARRAY_BUFFER, vertexData, gl.STREAM_DRAW);
+
+		const aPos = gl.getAttribLocation(program, "a_position");
+		const aColor = gl.getAttribLocation(program, "a_color");
+		const stride = FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT;
+
+		if (aPos >= 0) {
+			gl.enableVertexAttribArray(aPos);
+			gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, stride, 0);
+		}
+		if (aColor >= 0) {
+			gl.enableVertexAttribArray(aColor);
+			gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, stride, 2 * Float32Array.BYTES_PER_ELEMENT);
+		}
+
+		const uTransform = gl.getUniformLocation(program, "u_transform");
+		const uAlpha = gl.getUniformLocation(program, "u_alpha");
+		if (uTransform) gl.uniformMatrix3fv(uTransform, false, localTransform);
+		if (uAlpha) gl.uniform1f(uAlpha, effAlpha);
+
+		gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+
+		if (aPos >= 0) gl.disableVertexAttribArray(aPos);
+		if (aColor >= 0) gl.disableVertexAttribArray(aColor);
+		gl.bindBuffer(gl.ARRAY_BUFFER, null);
+		gl.deleteBuffer(vbo);
+	}
+
 	_flushGL(gl: WebGL2RenderingContext, program: WebGLProgram, transform: Float32Array, parentAlpha: number): void {
 		if (!this.visible || this.glCmds.length === 0) return;
 
@@ -259,12 +361,10 @@ export class WebGLGraphics extends CanvasGraphics {
 		// Build a local transform that incorporates this object's position
 		const localTransform = new Float32Array(transform);
 		if (this.x !== 0 || this.y !== 0) {
-			// Translate: t[6] += t[0]*x + t[3]*y, t[7] += t[1]*x + t[4]*y
 			localTransform[6] += localTransform[0] * this.x + localTransform[3] * this.y;
 			localTransform[7] += localTransform[1] * this.x + localTransform[4] * this.y;
 		}
 
-		// Accumulate all triangle vertices as interleaved [x, y, r, g, b, a]
 		const vertices: number[] = [];
 
 		let fillColor = 0x000000;
@@ -274,7 +374,6 @@ export class WebGLGraphics extends CanvasGraphics {
 		let strokeAlpha = 1;
 		let hasFill = false;
 
-		// Path tracking for stroke expansion
 		let pathPoints: { x: number; y: number }[] = [];
 		let lastX = 0;
 		let lastY = 0;
@@ -285,15 +384,12 @@ export class WebGLGraphics extends CanvasGraphics {
 				const [sr, sg, sb] = hexToFloats(strokeColor);
 				const sa = strokeAlpha * effAlpha;
 				if (dashPattern.length > 0) {
-					// Split into visible dash segments, then expand each
 					const segments = dashifyLineStrip(pathPoints, dashPattern);
 					for (const seg of segments) {
-						const quads = expandLineStrip(seg, strokeWidth);
-						appendColoredVertices(vertices, quads, sr, sg, sb, sa);
+						appendColoredVertices(vertices, expandLineStrip(seg, strokeWidth), sr, sg, sb, sa);
 					}
 				} else {
-					const quads = expandLineStrip(pathPoints, strokeWidth);
-					appendColoredVertices(vertices, quads, sr, sg, sb, sa);
+					appendColoredVertices(vertices, expandLineStrip(pathPoints, strokeWidth), sr, sg, sb, sa);
 				}
 			}
 			pathPoints = [];
@@ -302,8 +398,7 @@ export class WebGLGraphics extends CanvasGraphics {
 		const addFillShape = (posData: Float32Array) => {
 			if (!hasFill) return;
 			const [fr, fg, fb] = hexToFloats(fillColor);
-			const fa = fillAlpha * effAlpha;
-			appendColoredVertices(vertices, posData, fr, fg, fb, fa);
+			appendColoredVertices(vertices, posData, fr, fg, fb, fillAlpha * effAlpha);
 		};
 
 		for (const cmd of this.glCmds) {
@@ -323,8 +418,6 @@ export class WebGLGraphics extends CanvasGraphics {
 					break;
 
 				case "beginRadialFill":
-					// WebGL approximation: use inner color as flat fill
-					// (true radial gradient requires a separate shader pass)
 					flushStroke();
 					fillColor = cmd.innerColor;
 					fillAlpha = cmd.innerAlpha;
@@ -337,7 +430,6 @@ export class WebGLGraphics extends CanvasGraphics {
 					break;
 
 				case "moveTo":
-					// Start new sub-path — flush any existing stroke
 					if (pathPoints.length >= 2) flushStroke();
 					else pathPoints = [];
 					lastX = cmd.x;
@@ -351,83 +443,28 @@ export class WebGLGraphics extends CanvasGraphics {
 					pathPoints.push({ x: cmd.x, y: cmd.y });
 					break;
 
-				case "drawCircle": {
-					// Determine segment count based on radius
-					const segs = cmd.r < 4 ? 12 : cmd.r < 20 ? 24 : 48;
-					const circleTris = tessellateCircle(cmd.x, cmd.y, cmd.r, segs);
-					addFillShape(circleTris);
-
-					// For stroked circles, generate an outline as a line strip
-					if (strokeWidth > 0 && strokeAlpha > 0) {
-						const outlinePoints: { x: number; y: number }[] = [];
-						const step = (Math.PI * 2) / segs;
-						for (let i = 0; i <= segs; i++) {
-							const a = i * step;
-							outlinePoints.push({
-								x: cmd.x + cmd.r * Math.cos(a),
-								y: cmd.y + cmd.r * Math.sin(a),
-							});
-						}
-						const [sr, sg, sb] = hexToFloats(strokeColor);
-						const sa = strokeAlpha * effAlpha;
-						const quads = expandLineStrip(outlinePoints, strokeWidth);
-						appendColoredVertices(vertices, quads, sr, sg, sb, sa);
-					}
+				case "drawCircle":
+					this._tessellateCircle(cmd, addFillShape, vertices, strokeWidth, strokeColor, strokeAlpha, effAlpha);
 					break;
-				}
 
-				case "drawRect": {
-					const rectTris = tessellateRect(cmd.x, cmd.y, cmd.w, cmd.h);
-					addFillShape(rectTris);
-
-					if (strokeWidth > 0 && strokeAlpha > 0) {
-						const rectOutline: { x: number; y: number }[] = [
-							{ x: cmd.x, y: cmd.y },
-							{ x: cmd.x + cmd.w, y: cmd.y },
-							{ x: cmd.x + cmd.w, y: cmd.y + cmd.h },
-							{ x: cmd.x, y: cmd.y + cmd.h },
-							{ x: cmd.x, y: cmd.y }, // close
-						];
-						const [sr, sg, sb] = hexToFloats(strokeColor);
-						const sa = strokeAlpha * effAlpha;
-						const quads = expandLineStrip(rectOutline, strokeWidth);
-						appendColoredVertices(vertices, quads, sr, sg, sb, sa);
-					}
+				case "drawRect":
+					this._tessellateRect(cmd, addFillShape, vertices, strokeWidth, strokeColor, strokeAlpha, effAlpha);
 					break;
-				}
 
-				case "roundedRect": {
-					const rrTris = tessellateRoundedRect(cmd.x, cmd.y, cmd.w, cmd.h, cmd.r);
-					addFillShape(rrTris);
+				case "roundedRect":
+					addFillShape(tessellateRoundedRect(cmd.x, cmd.y, cmd.w, cmd.h, cmd.r));
 					break;
-				}
 
 				case "arc": {
-					const arcTris = tessellateArc(cmd.cx, cmd.cy, cmd.r, cmd.start, cmd.end, cmd.ccw);
-					addFillShape(arcTris);
-
-					// Also add arc points to current path for stroke
-					const sweep = cmd.end - cmd.start;
-					const absSweep = Math.abs(sweep);
-					const arcSegs = Math.max(1, Math.ceil(absSweep / (Math.PI / 12)));
-					const arcStep = sweep / arcSegs;
-					for (let i = 0; i <= arcSegs; i++) {
-						const a = cmd.start + i * arcStep;
-						const px = cmd.cx + cmd.r * Math.cos(a);
-						const py = cmd.cy + cmd.r * Math.sin(a);
-						pathPoints.push({ x: px, y: py });
-						lastX = px;
-						lastY = py;
-					}
+					const pos = this._tessellateArc(cmd, addFillShape, pathPoints);
+					lastX = pos.lastX;
+					lastY = pos.lastY;
 					break;
 				}
 
 				case "quadraticCurveTo": {
 					const qPoints = flattenQuadratic(lastX, lastY, cmd.cx, cmd.cy, cmd.x, cmd.y);
-					// Skip first point (it's the current position, already in pathPoints)
-					for (let i = 1; i < qPoints.length; i++) {
-						pathPoints.push(qPoints[i]);
-					}
+					for (let i = 1; i < qPoints.length; i++) pathPoints.push(qPoints[i]);
 					lastX = cmd.x;
 					lastY = cmd.y;
 					break;
@@ -435,9 +472,7 @@ export class WebGLGraphics extends CanvasGraphics {
 
 				case "bezierCurveTo": {
 					const bPoints = flattenBezier(lastX, lastY, cmd.cp1x, cmd.cp1y, cmd.cp2x, cmd.cp2y, cmd.x, cmd.y);
-					for (let i = 1; i < bPoints.length; i++) {
-						pathPoints.push(bPoints[i]);
-					}
+					for (let i = 1; i < bPoints.length; i++) pathPoints.push(bPoints[i]);
 					lastX = cmd.x;
 					lastY = cmd.y;
 					break;
@@ -445,7 +480,6 @@ export class WebGLGraphics extends CanvasGraphics {
 
 				case "closePath":
 					if (pathPoints.length >= 2) {
-						// Close the path by connecting back to the first point
 						pathPoints.push({ x: pathPoints[0].x, y: pathPoints[0].y });
 					}
 					break;
@@ -454,59 +488,13 @@ export class WebGLGraphics extends CanvasGraphics {
 					dashPattern = cmd.segments.length > 0 ? [...cmd.segments] : [];
 					break;
 
-				// These don't have meaningful WebGL equivalents in this pass
 				case "setLineCap":
 				case "setLineJoin":
 					break;
 			}
 		}
 
-		// Flush any remaining stroke path
 		flushStroke();
-
-		// Nothing to draw
-		if (vertices.length === 0) return;
-
-		// Upload and draw
-		const vertexData = new Float32Array(vertices);
-		const vertexCount = vertexData.length / FLOATS_PER_VERTEX;
-
-		gl.useProgram(program);
-
-		// Create a temporary VBO (a production path would use BufferPool)
-		const vbo = gl.createBuffer();
-		if (!vbo) return;
-
-		gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-		gl.bufferData(gl.ARRAY_BUFFER, vertexData, gl.STREAM_DRAW);
-
-		// Attribute locations
-		const aPos = gl.getAttribLocation(program, "a_position");
-		const aColor = gl.getAttribLocation(program, "a_color");
-
-		const stride = FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT;
-
-		if (aPos >= 0) {
-			gl.enableVertexAttribArray(aPos);
-			gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, stride, 0);
-		}
-		if (aColor >= 0) {
-			gl.enableVertexAttribArray(aColor);
-			gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, stride, 2 * Float32Array.BYTES_PER_ELEMENT);
-		}
-
-		// Uniforms
-		const uTransform = gl.getUniformLocation(program, "u_transform");
-		const uAlpha = gl.getUniformLocation(program, "u_alpha");
-		if (uTransform) gl.uniformMatrix3fv(uTransform, false, localTransform);
-		if (uAlpha) gl.uniform1f(uAlpha, effAlpha);
-
-		gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
-
-		// Cleanup
-		if (aPos >= 0) gl.disableVertexAttribArray(aPos);
-		if (aColor >= 0) gl.disableVertexAttribArray(aColor);
-		gl.bindBuffer(gl.ARRAY_BUFFER, null);
-		gl.deleteBuffer(vbo);
+		this._uploadAndDraw(gl, program, localTransform, effAlpha, vertices);
 	}
 }

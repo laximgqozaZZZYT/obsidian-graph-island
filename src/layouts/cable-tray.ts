@@ -64,119 +64,116 @@ export interface RoadNetworkConfig {
 	nodes: GraphNode[];
 }
 
-/** Generate a road network from coordinate grid lines. */
-export function buildRoadNetwork(cfg: RoadNetworkConfig): RoadNetwork {
-	const intersections: RoadIntersection[] = [];
-	const segments: RoadSegment[] = [];
-	let nextId = 0;
+/** Build polar grid (Paris-style: ring roads + radial avenues). */
+function buildPolarGrid(
+	cfg: RoadNetworkConfig,
+	intersections: RoadIntersection[],
+	segments: RoadSegment[],
+): number[][] | null {
+	const rValues = cfg.axis1Lines.map((l) => l.position).filter((r) => r > 0).sort((a, b) => a - b);
+	const thetaValues = cfg.axis2Lines.map((l) => l.position).sort((a, b) => a - b);
 
-	// Grid of intersection IDs: [axis1Idx][axis2Idx] → intersection ID
+	if (rValues.length === 0 || thetaValues.length === 0) return null;
+
+	let nextId = 0;
 	const grid: number[][] = [];
 
-	if (cfg.system === "polar") {
-		// Polar: axis1 = r (circles), axis2 = θ (radials)
-		const rValues = cfg.axis1Lines
-			.map((l) => l.position)
-			.filter((r) => r > 0)
-			.sort((a, b) => a - b);
-		const thetaValues = cfg.axis2Lines.map((l) => l.position).sort((a, b) => a - b);
+	// Center intersection (r=0)
+	const centerId = nextId++;
+	intersections.push({ id: centerId, x: cfg.cx, y: cfg.cy });
 
-		if (rValues.length === 0 || thetaValues.length === 0) {
-			return emptyNetwork(cfg);
-		}
-
-		// Add center intersection (r=0)
-		const centerId = nextId++;
-		intersections.push({ id: centerId, x: cfg.cx, y: cfg.cy });
-
-		// Generate intersections at each (r, θ)
-		for (let ri = 0; ri < rValues.length; ri++) {
-			grid[ri] = [];
-			const r = rValues[ri];
-			for (let ti = 0; ti < thetaValues.length; ti++) {
-				const theta = thetaValues[ti];
-				const id = nextId++;
-				const x = cfg.cx + r * Math.cos(theta);
-				const y = cfg.cy + r * Math.sin(theta);
-				intersections.push({ id, x, y });
-				grid[ri][ti] = id;
-			}
-		}
-
-		// Ring road segments (along same r, between adjacent θ)
-		for (let ri = 0; ri < rValues.length; ri++) {
-			const r = rValues[ri];
-			const n = thetaValues.length;
-			for (let ti = 0; ti < n; ti++) {
-				const nextTi = (ti + 1) % n;
-				const fromId = grid[ri][ti];
-				const toId = grid[ri][nextTi];
-				const theta1 = thetaValues[ti];
-				const theta2 = ti + 1 < n ? thetaValues[nextTi] : thetaValues[0] + Math.PI * 2;
-
-				// Arc waypoints for smooth ring road
-				const arcWaypoints = generateArcWaypoints(cfg.cx, cfg.cy, r, theta1, theta2, 8);
-				const arcLen = arcLength(r, theta1, theta2);
-				segments.push({ from: fromId, to: toId, waypoints: arcWaypoints, length: arcLen });
-			}
-		}
-
-		// Radial segments (along same θ, between adjacent r)
+	// Intersections at each (r, θ)
+	for (let ri = 0; ri < rValues.length; ri++) {
+		grid[ri] = [];
+		const r = rValues[ri];
 		for (let ti = 0; ti < thetaValues.length; ti++) {
-			// Center → first ring
-			const firstRingId = grid[0][ti];
-			const centerDist = rValues[0];
-			segments.push({ from: centerId, to: firstRingId, waypoints: [], length: centerDist });
-
-			// Between rings
-			for (let ri = 0; ri < rValues.length - 1; ri++) {
-				const fromId = grid[ri][ti];
-				const toId = grid[ri + 1][ti];
-				const dist = rValues[ri + 1] - rValues[ri];
-				segments.push({ from: fromId, to: toId, waypoints: [], length: dist });
-			}
-		}
-	} else {
-		// Cartesian: axis1 = x (vertical lines), axis2 = y (horizontal lines)
-		const xValues = cfg.axis1Lines.map((l) => l.position).sort((a, b) => a - b);
-		const yValues = cfg.axis2Lines.map((l) => l.position).sort((a, b) => a - b);
-
-		if (xValues.length === 0 || yValues.length === 0) {
-			return emptyNetwork(cfg);
-		}
-
-		// Generate intersections at each (x, y)
-		for (let xi = 0; xi < xValues.length; xi++) {
-			grid[xi] = [];
-			for (let yi = 0; yi < yValues.length; yi++) {
-				const id = nextId++;
-				intersections.push({ id, x: cfg.cx + xValues[xi], y: cfg.cy + yValues[yi] });
-				grid[xi][yi] = id;
-			}
-		}
-
-		// Horizontal segments (same y, between adjacent x)
-		for (let yi = 0; yi < yValues.length; yi++) {
-			for (let xi = 0; xi < xValues.length - 1; xi++) {
-				const fromId = grid[xi][yi];
-				const toId = grid[xi + 1][yi];
-				const dist = xValues[xi + 1] - xValues[xi];
-				segments.push({ from: fromId, to: toId, waypoints: [], length: dist });
-			}
-		}
-
-		// Vertical segments (same x, between adjacent y)
-		for (let xi = 0; xi < xValues.length; xi++) {
-			for (let yi = 0; yi < yValues.length - 1; yi++) {
-				const fromId = grid[xi][yi];
-				const toId = grid[xi][yi + 1];
-				const dist = yValues[yi + 1] - yValues[yi];
-				segments.push({ from: fromId, to: toId, waypoints: [], length: dist });
-			}
+			const theta = thetaValues[ti];
+			const id = nextId++;
+			intersections.push({ id, x: cfg.cx + r * Math.cos(theta), y: cfg.cy + r * Math.sin(theta) });
+			grid[ri][ti] = id;
 		}
 	}
 
-	// Build adjacency list (bidirectional)
+	// Ring road segments (along same r, between adjacent θ)
+	for (let ri = 0; ri < rValues.length; ri++) {
+		const r = rValues[ri];
+		const n = thetaValues.length;
+		for (let ti = 0; ti < n; ti++) {
+			const nextTi = (ti + 1) % n;
+			const theta1 = thetaValues[ti];
+			const theta2 = ti + 1 < n ? thetaValues[nextTi] : thetaValues[0] + Math.PI * 2;
+			segments.push({
+				from: grid[ri][ti], to: grid[ri][nextTi],
+				waypoints: generateArcWaypoints(cfg.cx, cfg.cy, r, theta1, theta2, 8),
+				length: arcLength(r, theta1, theta2),
+			});
+		}
+	}
+
+	// Radial segments (along same θ, between adjacent r)
+	for (let ti = 0; ti < thetaValues.length; ti++) {
+		segments.push({ from: centerId, to: grid[0][ti], waypoints: [], length: rValues[0] });
+		for (let ri = 0; ri < rValues.length - 1; ri++) {
+			segments.push({
+				from: grid[ri][ti], to: grid[ri + 1][ti],
+				waypoints: [], length: rValues[ri + 1] - rValues[ri],
+			});
+		}
+	}
+
+	return grid;
+}
+
+/** Build cartesian grid (Manhattan-style: horizontal + vertical streets). */
+function buildCartesianGrid(
+	cfg: RoadNetworkConfig,
+	intersections: RoadIntersection[],
+	segments: RoadSegment[],
+): number[][] | null {
+	const xValues = cfg.axis1Lines.map((l) => l.position).sort((a, b) => a - b);
+	const yValues = cfg.axis2Lines.map((l) => l.position).sort((a, b) => a - b);
+
+	if (xValues.length === 0 || yValues.length === 0) return null;
+
+	let nextId = intersections.length;
+	const grid: number[][] = [];
+
+	for (let xi = 0; xi < xValues.length; xi++) {
+		grid[xi] = [];
+		for (let yi = 0; yi < yValues.length; yi++) {
+			const id = nextId++;
+			intersections.push({ id, x: cfg.cx + xValues[xi], y: cfg.cy + yValues[yi] });
+			grid[xi][yi] = id;
+		}
+	}
+
+	// Horizontal segments
+	for (let yi = 0; yi < yValues.length; yi++) {
+		for (let xi = 0; xi < xValues.length - 1; xi++) {
+			segments.push({
+				from: grid[xi][yi], to: grid[xi + 1][yi],
+				waypoints: [], length: xValues[xi + 1] - xValues[xi],
+			});
+		}
+	}
+
+	// Vertical segments
+	for (let xi = 0; xi < xValues.length; xi++) {
+		for (let yi = 0; yi < yValues.length - 1; yi++) {
+			segments.push({
+				from: grid[xi][yi], to: grid[xi][yi + 1],
+				waypoints: [], length: yValues[yi + 1] - yValues[yi],
+			});
+		}
+	}
+
+	return grid;
+}
+
+/** Build bidirectional adjacency list from segments. */
+function buildAdjacency(
+	segments: RoadSegment[],
+): Map<number, { to: number; weight: number; segIdx: number }[]> {
 	const adjacency = new Map<number, { to: number; weight: number; segIdx: number }[]>();
 	for (let si = 0; si < segments.length; si++) {
 		const seg = segments[si];
@@ -185,96 +182,124 @@ export function buildRoadNetwork(cfg: RoadNetworkConfig): RoadNetwork {
 		adjacency.get(seg.from)!.push({ to: seg.to, weight: seg.length, segIdx: si });
 		adjacency.get(seg.to)!.push({ to: seg.from, weight: seg.length, segIdx: si });
 	}
+	return adjacency;
+}
 
-	// Improved: Map each node to nearest point ON a road segment
+/** Find the closest point on a straight segment to a node (for cartesian mid-segment snapping). */
+function findClosestSegmentPoint(
+	node: GraphNode,
+	segments: RoadSegment[],
+	intersections: RoadIntersection[],
+	bestDist: number,
+): { segIdx: number; t: number; dist: number } | null {
+	let result: { segIdx: number; t: number; dist: number } | null = null;
+	let bd = bestDist;
+	for (let si = 0; si < segments.length; si++) {
+		const seg = segments[si];
+		if (seg.waypoints.length > 0) continue;
+		const fromIsect = intersections[seg.from];
+		const toIsect = intersections[seg.to];
+		if (!fromIsect || !toIsect) continue;
+
+		const sdx = toIsect.x - fromIsect.x;
+		const sdy = toIsect.y - fromIsect.y;
+		const lenSq = sdx * sdx + sdy * sdy;
+		if (lenSq === 0) continue;
+
+		let t = ((node.x - fromIsect.x) * sdx + (node.y - fromIsect.y) * sdy) / lenSq;
+		t = Math.max(0, Math.min(1, t));
+		if (t <= 0.05 || t >= 0.95) continue;
+
+		const projX = fromIsect.x + t * sdx;
+		const projY = fromIsect.y + t * sdy;
+		const d = (node.x - projX) ** 2 + (node.y - projY) ** 2;
+
+		if (d < bd) {
+			bd = d;
+			result = { segIdx: si, t, dist: d };
+		}
+	}
+	return result;
+}
+
+/** Split a segment at parameter t and update adjacency for the new intersection. */
+function splitSegmentAtPoint(
+	bestSegIdx: number, bestT: number,
+	intersections: RoadIntersection[],
+	segments: RoadSegment[],
+	adjacency: Map<number, { to: number; weight: number; segIdx: number }[]>,
+): number {
+	const seg = segments[bestSegIdx];
+	const fromIsect = intersections[seg.from];
+	const toIsect = intersections[seg.to];
+	const newX = fromIsect.x + bestT * (toIsect.x - fromIsect.x);
+	const newY = fromIsect.y + bestT * (toIsect.y - fromIsect.y);
+	const newId = intersections.length;
+	intersections.push({ id: newId, x: newX, y: newY });
+
+	const oldLen = seg.length;
+	const len1 = oldLen * bestT;
+	const len2 = oldLen * (1 - bestT);
+
+	const removeAdj = (from: number, to: number, si: number) => {
+		const adj = adjacency.get(from);
+		if (adj) {
+			const idx = adj.findIndex((a) => a.to === to && a.segIdx === si);
+			if (idx >= 0) adj.splice(idx, 1);
+		}
+	};
+	removeAdj(seg.from, seg.to, bestSegIdx);
+	removeAdj(seg.to, seg.from, bestSegIdx);
+
+	const si1 = segments.length;
+	segments.push({ from: seg.from, to: newId, waypoints: [], length: len1 });
+	const si2 = segments.length;
+	segments.push({ from: newId, to: seg.to, waypoints: [], length: len2 });
+
+	if (!adjacency.has(newId)) adjacency.set(newId, []);
+	adjacency.get(seg.from)!.push({ to: newId, weight: len1, segIdx: si1 });
+	adjacency.get(newId)!.push({ to: seg.from, weight: len1, segIdx: si1 });
+	adjacency.get(newId)!.push({ to: seg.to, weight: len2, segIdx: si2 });
+	adjacency.get(seg.to)!.push({ to: newId, weight: len2, segIdx: si2 });
+
+	return newId;
+}
+
+/** Generate a road network from coordinate grid lines. */
+export function buildRoadNetwork(cfg: RoadNetworkConfig): RoadNetwork {
+	const intersections: RoadIntersection[] = [];
+	const segments: RoadSegment[] = [];
+
+	const grid = cfg.system === "polar"
+		? buildPolarGrid(cfg, intersections, segments)
+		: buildCartesianGrid(cfg, intersections, segments);
+
+	if (!grid) return emptyNetwork(cfg);
+
+	const adjacency = buildAdjacency(segments);
+
+	// Map each node to nearest point ON a road segment
 	const nodeAccess = new Map<string, number>();
 	for (const node of cfg.nodes) {
 		let bestId = intersections.length > 0 ? intersections[0].id : -1;
-		let bestDist = Infinity; // squared distance
+		let bestDist = Infinity;
 		let bestSegIdx = -1;
 		let bestT = 0;
 
-		// Check existing intersections
 		for (const isect of intersections) {
 			const dx = node.x - isect.x;
 			const dy = node.y - isect.y;
 			const d = dx * dx + dy * dy;
-			if (d < bestDist) {
-				bestDist = d;
-				bestId = isect.id;
-				bestSegIdx = -1;
-			}
+			if (d < bestDist) { bestDist = d; bestId = isect.id; bestSegIdx = -1; }
 		}
 
-		// For cartesian systems: also check mid-segment points
 		if (cfg.system === "cartesian") {
-			for (let si = 0; si < segments.length; si++) {
-				const seg = segments[si];
-				if (seg.waypoints.length > 0) continue; // skip arc segments
-				const fromIsect = intersections[seg.from];
-				const toIsect = intersections[seg.to];
-				if (!fromIsect || !toIsect) continue;
-
-				const sdx = toIsect.x - fromIsect.x;
-				const sdy = toIsect.y - fromIsect.y;
-				const lenSq = sdx * sdx + sdy * sdy;
-				if (lenSq === 0) continue;
-
-				let t = ((node.x - fromIsect.x) * sdx + (node.y - fromIsect.y) * sdy) / lenSq;
-				t = Math.max(0, Math.min(1, t));
-				// Skip if near endpoints — existing intersections handle those
-				if (t <= 0.05 || t >= 0.95) continue;
-
-				const projX = fromIsect.x + t * sdx;
-				const projY = fromIsect.y + t * sdy;
-				const d = (node.x - projX) ** 2 + (node.y - projY) ** 2;
-
-				if (d < bestDist) {
-					bestDist = d;
-					bestSegIdx = si;
-					bestT = t;
-				}
-			}
+			const snap = findClosestSegmentPoint(node, segments, intersections, bestDist);
+			if (snap) { bestSegIdx = snap.segIdx; bestT = snap.t; }
 		}
 
 		if (bestSegIdx >= 0) {
-			// Split the segment and create new intersection
-			const seg = segments[bestSegIdx];
-			const fromIsect = intersections[seg.from];
-			const toIsect = intersections[seg.to];
-			const newX = fromIsect.x + bestT * (toIsect.x - fromIsect.x);
-			const newY = fromIsect.y + bestT * (toIsect.y - fromIsect.y);
-			const newId = intersections.length;
-			intersections.push({ id: newId, x: newX, y: newY });
-
-			const oldLen = seg.length;
-			const len1 = oldLen * bestT;
-			const len2 = oldLen * (1 - bestT);
-
-			// Remove old adjacency entries for this segment
-			const removeAdj = (from: number, to: number, si: number) => {
-				const adj = adjacency.get(from);
-				if (adj) {
-					const idx = adj.findIndex((a) => a.to === to && a.segIdx === si);
-					if (idx >= 0) adj.splice(idx, 1);
-				}
-			};
-			removeAdj(seg.from, seg.to, bestSegIdx);
-			removeAdj(seg.to, seg.from, bestSegIdx);
-
-			// Add new segments
-			const si1 = segments.length;
-			segments.push({ from: seg.from, to: newId, waypoints: [], length: len1 });
-			const si2 = segments.length;
-			segments.push({ from: newId, to: seg.to, waypoints: [], length: len2 });
-
-			if (!adjacency.has(newId)) adjacency.set(newId, []);
-			adjacency.get(seg.from)!.push({ to: newId, weight: len1, segIdx: si1 });
-			adjacency.get(newId)!.push({ to: seg.from, weight: len1, segIdx: si1 });
-			adjacency.get(newId)!.push({ to: seg.to, weight: len2, segIdx: si2 });
-			adjacency.get(seg.to)!.push({ to: newId, weight: len2, segIdx: si2 });
-
-			nodeAccess.set(node.id, newId);
+			nodeAccess.set(node.id, splitSegmentAtPoint(bestSegIdx, bestT, intersections, segments, adjacency));
 		} else {
 			nodeAccess.set(node.id, bestId);
 		}

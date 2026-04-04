@@ -154,14 +154,113 @@ export function computeStaticLayout(
 // Timeline layout (internal helper)
 // ---------------------------------------------------------------------------
 
+/** Auto-detect the best time key by counting how many nodes have each candidate property. */
+function detectTimeKey(
+	gd: GraphData,
+	defaultKey: string,
+	getNodeProp: (nodeId: string, key: string) => string | undefined,
+): string {
+	const candidates = [defaultKey, "start-date", "date", "created", "story_order", "order"];
+	let bestKey = defaultKey;
+	let bestCount = 0;
+	for (const candidate of candidates) {
+		let count = 0;
+		for (const n of gd.nodes) {
+			if (getNodeProp(n.id, candidate)) count++;
+		}
+		if (count > bestCount) { bestCount = count; bestKey = candidate; }
+		if (bestCount > gd.nodes.length * 0.3) break;
+	}
+	return bestKey;
+}
+
+/** Build timeline bars from placements, using end-key for duration bars. */
+function buildTimelineBars(
+	placements: { nodeId: string; timeValue: string; timeIndex: number }[],
+	nodes: GraphNode[],
+	stepW: number,
+	barH: number,
+	endKey: string,
+	timeIdxMap: Map<string, number>,
+	getNodeProp: (nodeId: string, key: string) => string | undefined,
+): TimelineBarInfo[] {
+	const bars: TimelineBarInfo[] = [];
+	const maxBarWidth = Math.max(stepW * 3, 30);
+
+	for (const p of placements) {
+		const node = nodes.find((n) => n.id === p.nodeId);
+		if (!node) continue;
+		const endVal = getNodeProp(p.nodeId, endKey);
+		if (endVal && endVal !== p.timeValue) {
+			const endIdx = timeIdxMap.get(endVal);
+			if (endIdx !== undefined && endIdx > p.timeIndex) {
+				const clampedEnd = Math.min(60 + endIdx * stepW, node.x + maxBarWidth);
+				bars.push({ nodeId: p.nodeId, xStart: node.x, xEnd: clampedEnd, barHeight: barH, yCenter: node.y });
+				continue;
+			}
+		}
+		const defaultBarW = Math.max(stepW, 10);
+		bars.push({ nodeId: p.nodeId, xStart: node.x, xEnd: node.x + defaultBarW, barHeight: barH, yCenter: node.y });
+	}
+	return bars;
+}
+
+/** Resolve bar overlaps by shifting overlapping bars downward. */
+function resolveBarOverlaps(bars: TimelineBarInfo[], nodes: GraphNode[]): void {
+	bars.sort((a, b) => a.yCenter - b.yCenter || a.xStart - b.xStart);
+	for (let i = 1; i < bars.length; i++) {
+		for (let j = 0; j < i; j++) {
+			const prev = bars[j], cur = bars[i];
+			if (cur.xStart >= prev.xEnd || prev.xStart >= cur.xEnd) continue;
+			const prevBot = prev.yCenter + prev.barHeight / 2;
+			const curTop = cur.yCenter - cur.barHeight / 2;
+			if (curTop < prevBot) {
+				cur.yCenter = prevBot + cur.barHeight / 2 + 1;
+				const node = nodes.find((n) => n.id === cur.nodeId);
+				if (node) node.y = cur.yCenter;
+			}
+		}
+	}
+}
+
+/** Compute work group Y-ranges from bars based on file path segments. */
+function computeWorkGroupRanges(
+	bars: TimelineBarInfo[],
+	nodes: GraphNode[],
+): { name: string; minY: number; maxY: number }[] {
+	const workBars = new Map<string, { minY: number; maxY: number }>();
+	for (const bar of bars) {
+		const fp = nodes.find((n) => n.id === bar.nodeId)?.filePath ?? bar.nodeId;
+		const segs = fp.split("/").filter((s: string) => s.length > 0);
+		let work = "other";
+		for (const seg of segs) {
+			if (seg.startsWith("classic-") || seg.startsWith("mythology-") || seg.startsWith("bible-") || seg.includes("-")) {
+				work = seg;
+				break;
+			}
+		}
+		const y0 = bar.yCenter - bar.barHeight / 2;
+		const y1 = bar.yCenter + bar.barHeight / 2;
+		const existing = workBars.get(work);
+		if (existing) {
+			if (y0 < existing.minY) existing.minY = y0;
+			if (y1 > existing.maxY) existing.maxY = y1;
+		} else {
+			workBars.set(work, { minY: y0, maxY: y1 });
+		}
+	}
+	const ranges: { name: string; minY: number; maxY: number }[] = [];
+	for (const [name, range] of workBars) ranges.push({ name, ...range });
+	ranges.sort((a, b) => a.minY - b.minY);
+	return ranges;
+}
+
 function computeTimelineLayout(
 	gd: GraphData,
 	config: StaticLayoutConfig,
 	app: App,
 ): StaticLayoutResult {
-	const { cx: _cx, cy: _cy, W, H } = config;
-	void _cx;
-	void _cy;
+	const { W, H } = config;
 
 	const getNodeProp = (nodeId: string, key: string): string | undefined => {
 		const fp = gd.nodes.find((n) => n.id === nodeId)?.filePath;
@@ -172,23 +271,7 @@ function computeTimelineLayout(
 		return val !== undefined && val !== null ? String(val) : undefined;
 	};
 
-	// Auto-detect best timeKey
-	let timeKey = config.timelineKey || "date";
-	const candidates = [timeKey, "start-date", "date", "created", "story_order", "order"];
-	let bestKey = timeKey;
-	let bestCount = 0;
-	for (const candidate of candidates) {
-		let count = 0;
-		for (const n of gd.nodes) {
-			if (getNodeProp(n.id, candidate)) count++;
-		}
-		if (count > bestCount) {
-			bestCount = count;
-			bestKey = candidate;
-		}
-		if (bestCount > gd.nodes.length * 0.3) break;
-	}
-	timeKey = bestKey;
+	const timeKey = detectTimeKey(gd, config.timelineKey || "date", getNodeProp);
 
 	// Compute stepWidth from unique dates
 	const timeVals = new Set<string>();
@@ -200,7 +283,6 @@ function computeTimelineLayout(
 	const stepW = Math.max(8, (W - 120) / numSteps);
 	const laneH = Math.max(20, Math.round(H / 20));
 	const barH = Math.max(Math.round(laneH * 0.3), 4);
-	const stackSp = barH + 1;
 
 	const tlResult = applyTimelineLayout(gd, {
 		timeKey,
@@ -208,98 +290,17 @@ function computeTimelineLayout(
 		startY: 60,
 		stepWidth: stepW,
 		laneHeight: laneH,
-		stackSpacing: stackSp,
+		stackSpacing: barH + 1,
 		getNodeProperty: getNodeProp,
 	});
 	const ld = tlResult.data;
 
-	// Build timeline bars from placements
 	const endKey = config.timelineEndKey || "end-date";
 	const timeIdxMap = new Map<string, number>();
 	tlResult.timeSteps.forEach((ts, i) => timeIdxMap.set(ts, i));
-	const bars: TimelineBarInfo[] = [];
-	const maxBarWidth = Math.max(stepW * 3, 30);
 
-	for (const p of tlResult.placements) {
-		const node = ld.nodes.find((n) => n.id === p.nodeId);
-		if (!node) continue;
-		const endVal = getNodeProp(p.nodeId, endKey);
-		if (endVal && endVal !== p.timeValue) {
-			const endIdx = timeIdxMap.get(endVal);
-			if (endIdx !== undefined && endIdx > p.timeIndex) {
-				const rawEnd = 60 + endIdx * stepW;
-				const clampedEnd = Math.min(rawEnd, node.x + maxBarWidth);
-				bars.push({
-					nodeId: p.nodeId,
-					xStart: node.x,
-					xEnd: clampedEnd,
-					barHeight: barH,
-					yCenter: node.y,
-				});
-				continue;
-			}
-		}
-		const defaultBarW = Math.max(stepW, 10);
-		bars.push({
-			nodeId: p.nodeId,
-			xStart: node.x,
-			xEnd: node.x + defaultBarW,
-			barHeight: barH,
-			yCenter: node.y,
-		});
-	}
-
-	// Post-process: resolve bar overlaps by shifting down
-	bars.sort((a, b) => a.yCenter - b.yCenter || a.xStart - b.xStart);
-	for (let i = 1; i < bars.length; i++) {
-		for (let j = 0; j < i; j++) {
-			const prev = bars[j],
-				cur = bars[i];
-			if (cur.xStart >= prev.xEnd || prev.xStart >= cur.xEnd) continue;
-			const prevBot = prev.yCenter + prev.barHeight / 2;
-			const curTop = cur.yCenter - cur.barHeight / 2;
-			if (curTop < prevBot) {
-				cur.yCenter = prevBot + cur.barHeight / 2 + 1;
-				const node = ld.nodes.find((n) => n.id === cur.nodeId);
-				if (node) node.y = cur.yCenter;
-			}
-		}
-	}
-
-	// Compute work group separators
-	const workGroupRanges: { name: string; minY: number; maxY: number }[] = [];
-	{
-		const workBars = new Map<string, { minY: number; maxY: number }>();
-		for (const bar of bars) {
-			const fp = ld.nodes.find((n) => n.id === bar.nodeId)?.filePath ?? bar.nodeId;
-			const segs = fp.split("/").filter((s: string) => s.length > 0);
-			let work = "other";
-			for (const seg of segs) {
-				if (
-					seg.startsWith("classic-") ||
-					seg.startsWith("mythology-") ||
-					seg.startsWith("bible-") ||
-					seg.includes("-")
-				) {
-					work = seg;
-					break;
-				}
-			}
-			const y0 = bar.yCenter - bar.barHeight / 2;
-			const y1 = bar.yCenter + bar.barHeight / 2;
-			const existing = workBars.get(work);
-			if (existing) {
-				if (y0 < existing.minY) existing.minY = y0;
-				if (y1 > existing.maxY) existing.maxY = y1;
-			} else {
-				workBars.set(work, { minY: y0, maxY: y1 });
-			}
-		}
-		for (const [name, range] of workBars) {
-			workGroupRanges.push({ name, ...range });
-		}
-		workGroupRanges.sort((a, b) => a.minY - b.minY);
-	}
+	const bars = buildTimelineBars(tlResult.placements, ld.nodes, stepW, barH, endKey, timeIdxMap, getNodeProp);
+	resolveBarOverlaps(bars, ld.nodes);
 
 	return {
 		data: ld,
@@ -309,6 +310,6 @@ function computeTimelineLayout(
 		timelineSteps: tlResult.timeSteps,
 		timelineStepWidth: stepW,
 		timelineLanes: tlResult.lanes,
-		timelineWorkGroups: workGroupRanges,
+		timelineWorkGroups: computeWorkGroupRanges(bars, ld.nodes),
 	};
 }

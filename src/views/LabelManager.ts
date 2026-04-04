@@ -222,20 +222,12 @@ export class LabelManager {
 		}
 	}
 
-	/** Evaluate per-node label visibility: apply counter-scaling, truncation, placement, and LOD hysteresis.
-	 *  Returns the list of eligible label candidates. */
-	private _evaluateLOD(
+	/** Resolve the 3-tier label mode (initials / truncated / full) with hysteresis. */
+	private _resolveLabelMode(
 		zoom: number,
-		counterScale: number,
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
 		rt: Record<string, any>,
-		degrees: Map<string, number>,
-		_baseOpacity: number,
-	): { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[] {
-		const hoverSet = this.host.getPrevHighlightSet();
-		const renderPipeline = this.host.getRenderPipeline();
-
-		// Zoom-aware 3-tier label truncation: initials → truncated → full
+	): { labelMode: "initials" | "truncated" | "full"; shouldTruncate: boolean; effectiveMaxChars: number } {
 		const initialsZoom = rt.labelInitialsZoom ?? 0.2;
 		const truncateZoom = rt.labelTruncateZoom ?? 0.35;
 		const truncateMaxChars = rt.labelTruncateMaxChars ?? 12;
@@ -249,9 +241,7 @@ export class LabelManager {
 		const labelMode: "initials" | "truncated" | "full" =
 			safeOverride !== "auto"
 				? safeOverride
-				: // Going from initials→truncated requires zoom > initialsZoom + hyst
-					// Going from truncated→initials requires zoom < initialsZoom - hyst
-					prevMode === "initials" && zoom < initialsZoom + hyst
+				: prevMode === "initials" && zoom < initialsZoom + hyst
 					? "initials"
 					: prevMode === "full" && zoom > truncateZoom - hyst
 						? "full"
@@ -271,23 +261,101 @@ export class LabelManager {
 							Math.round(truncateMaxChars * ((zoom - initialsZoom) / (truncateZoom - initialsZoom))),
 						)
 					: Infinity;
+		return { labelMode, shouldTruncate, effectiveMaxChars };
+	}
 
-		// Tag label LOD threshold
+	/** Update tag-label and sub-label visibility/scale for a single node. */
+	private _updateAuxLabels(
+		pn: PixiNode,
+		zoom: number,
+		tagLabelZoomMin: number,
+		subLabelForceShow: boolean,
+		counterScale: number,
+		tagLabelShow: boolean,
+	): void {
+		if (pn.tagLabel) {
+			pn.tagLabel.visible = tagLabelShow && (zoom >= tagLabelZoomMin || subLabelForceShow);
+			if (pn.tagLabel.visible) pn.tagLabel.scale.set(counterScale);
+		}
+		if (pn.subLabels) {
+			for (const sl of pn.subLabels) {
+				sl.visible = zoom >= tagLabelZoomMin || subLabelForceShow;
+				if (sl.visible) sl.scale.set(counterScale);
+			}
+		}
+	}
+
+	/** Compute the adaptive label scale for a single node. */
+	private _computeAdaptiveScale(
+		nodeDeg: number,
+		maxDeg: number,
+		adaptiveMin: number,
+		adaptiveMax: number,
+		counterScale: number,
+		zoom: number,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
+		rt: Record<string, any>,
+	): number {
+		const degRatio = maxDeg > 0 ? nodeDeg / maxDeg : 0;
+		const adaptiveScale = adaptiveMin + degRatio * (adaptiveMax - adaptiveMin);
+		const scaleCap = zoom < 0.1 ? (rt.labelScaleMaxExtreme ?? 7) * 1.2 : rt.labelScaleMax * 1.5;
+		return Math.min(counterScale * adaptiveScale, scaleCap);
+	}
+
+	/** Determine whether a node label is eligible for display (priority LOD + hysteresis). */
+	private _isLabelEligible(
+		pn: PixiNode,
+		zoom: number,
+		hysteresisHideFactor: number,
+		isSuper: boolean,
+		isHovered: boolean,
+	): boolean {
+		if (isSuper || isHovered) return true;
+		const showThreshold = pn.minShowZoom;
+		const hideThreshold = showThreshold * hysteresisHideFactor;
+		if (pn.labelWasVisible) return zoom >= hideThreshold;
+		return zoom >= showThreshold;
+	}
+
+	/** Hide a node's label and associated sub-labels. */
+	private _hideNodeLabel(pn: PixiNode): void {
+		pn.label!.visible = false;
+		pn.label!.alpha = 0;
+		pn.labelWasVisible = false;
+		if (pn.tagLabel) pn.tagLabel.visible = false;
+		if (pn.subLabels) for (const sl of pn.subLabels) sl.visible = false;
+	}
+
+	/** Evaluate per-node label visibility: apply counter-scaling, truncation, placement, and LOD hysteresis.
+	 *  Returns the list of eligible label candidates. */
+	private _evaluateLOD(
+		zoom: number,
+		counterScale: number,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
+		rt: Record<string, any>,
+		degrees: Map<string, number>,
+		_baseOpacity: number,
+	): { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[] {
+		const hoverSet = this.host.getPrevHighlightSet();
+		const renderPipeline = this.host.getRenderPipeline();
+
+		const { labelMode, shouldTruncate, effectiveMaxChars } = this._resolveLabelMode(zoom, rt);
+
 		const tagLabelZoomMin = rt.tagLabelZoomMin ?? 1.2;
+		const tagLabelShow = rt.tagLabelShow !== false;
 
-		// Hysteresis: once visible, keep visible until zoom drops below threshold.
-		// Zoom-adaptive: wider band at extreme zoom to prevent flicker during slow zoom
+		// Hysteresis: zoom-adaptive wider band at extreme zoom to prevent flicker
 		const baseHysteresis = rt.labelHysteresisHideFactor ?? 0.7;
 		const hysteresisHideFactor = zoom < 0.2 ? 0.5 : zoom < 0.5 ? 0.6 : baseHysteresis;
 
 		const candidates: { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[] = [];
 
 		// R6: Adaptive label font size — precompute max degree
-		const _adaptiveMin = rt.adaptiveLabelMin ?? 0.7;
-		const _adaptiveMax = rt.adaptiveLabelMax ?? 1.5;
-		let _maxDegForAdaptive = 1;
+		const adaptiveMin = rt.adaptiveLabelMin ?? 0.7;
+		const adaptiveMax = rt.adaptiveLabelMax ?? 1.5;
+		let maxDegForAdaptive = 1;
 		for (const d of degrees.values()) {
-			if (d > _maxDegForAdaptive) _maxDegForAdaptive = d;
+			if (d > maxDegForAdaptive) maxDegForAdaptive = d;
 		}
 
 		// A1: autoLOD level 4+ bypasses sub-label zoom threshold
@@ -296,31 +364,17 @@ export class LabelManager {
 		const subLabelForceShow = autoLodLevel >= 4;
 
 		for (const pn of this.host.getPixiNodes().values()) {
-			// --- Tag label LOD (suppressed when tagLabelShow=false, e.g. enclosure mode) ---
-			if (pn.tagLabel) {
-				pn.tagLabel.visible = rt.tagLabelShow !== false && (zoom >= tagLabelZoomMin || subLabelForceShow);
-				if (pn.tagLabel.visible) pn.tagLabel.scale.set(counterScale);
-			}
-			// --- Sub-label LOD (same threshold as tagLabel, bypassed at LOD 4+) ---
-			if (pn.subLabels) {
-				for (const sl of pn.subLabels) {
-					sl.visible = zoom >= tagLabelZoomMin || subLabelForceShow;
-					if (sl.visible) sl.scale.set(counterScale);
-				}
-			}
+			this._updateAuxLabels(pn, zoom, tagLabelZoomMin, subLabelForceShow, counterScale, tagLabelShow);
 
 			if (!pn.label) continue;
 
 			// Apply counter-scaling with R6 adaptive label sizing
 			const nodeDeg = degrees.get(pn.data.id) ?? 0;
-			const degRatio = _maxDegForAdaptive > 0 ? nodeDeg / _maxDegForAdaptive : 0;
-			const adaptiveScale = _adaptiveMin + degRatio * (_adaptiveMax - _adaptiveMin);
-			// HN: Cap final label scale — use extreme cap at zoom < 0.1 for readability
-			const scaleCap = zoom < 0.1 ? (rt.labelScaleMaxExtreme ?? 7) * 1.2 : rt.labelScaleMax * 1.5;
-			const finalScale = Math.min(counterScale * adaptiveScale, scaleCap);
+			const finalScale = this._computeAdaptiveScale(
+				nodeDeg, maxDegForAdaptive, adaptiveMin, adaptiveMax, counterScale, zoom, rt,
+			);
 			pn.label.scale.set(finalScale);
 
-			// Smart truncation: preserve the distinguishing part of the label
 			this._applyTruncation(pn, shouldTruncate, effectiveMaxChars, labelMode);
 
 			// Reset label position (zone-based or fixed)
@@ -331,8 +385,6 @@ export class LabelManager {
 				pn.label.y = placement.y;
 				pn.label.anchor.set(placement.anchorX, 0);
 			} else {
-				// Zoom-adaptive label offset: at low zoom + high counter-scale, push label
-				// further from node center to prevent label overlapping the node circle
 				const csOffset = counterScale > 2 ? Math.min(counterScale * 1.5, 12) : 0;
 				pn.label.x = r + 2 + csOffset;
 				pn.label.y = -(r * 0.4 + 2 + csOffset * 0.5);
@@ -342,34 +394,17 @@ export class LabelManager {
 			const isHovered = hoverSet.size > 0 && hoverSet.has(pn.data.id);
 			const deg = degrees.get(pn.data.id) ?? 0;
 
-			// --- Priority-based LOD with hysteresis ---
-			const showThreshold = pn.minShowZoom;
-			const hideThreshold = showThreshold * hysteresisHideFactor;
-			let eligible: boolean;
-			if (isSuper || isHovered) {
-				eligible = true;
-			} else if (pn.labelWasVisible) {
-				// Was visible: keep until zoom drops below hide threshold
-				eligible = zoom >= hideThreshold;
-			} else {
-				// Was hidden: only show when zoom reaches show threshold
-				eligible = zoom >= showThreshold;
-			}
+			let eligible = this._isLabelEligible(pn, zoom, hysteresisHideFactor, isSuper, isHovered);
 
 			// AutoLOD level 2: only show labels for top-30% priority nodes
 			if (eligible && !isSuper && !isHovered) {
-				const rp = this.host.getRenderPipeline();
 				if (rp?.isAutoLODActive() && rp.getLastLodLevel() === 2) {
 					if (pn.priorityScore <= 70) eligible = false;
 				}
 			}
 
 			if (!eligible) {
-				pn.label.visible = false;
-				pn.label.alpha = 0;
-				pn.labelWasVisible = false;
-				if (pn.tagLabel) pn.tagLabel.visible = false;
-				if (pn.subLabels) for (const sl of pn.subLabels) sl.visible = false;
+				this._hideNodeLabel(pn);
 				continue;
 			}
 
