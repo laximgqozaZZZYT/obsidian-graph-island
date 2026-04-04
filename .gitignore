@@ -88,3 +88,4 @@ samples/test-*.json
 # Plan docs (tracked separately in memory)
 docs/plans/
 coverage/
+.autonomous-worktrees/

@@ -2,257 +2,249 @@
 # ============================================================
 # autonomous-improve.sh — Headless autonomous improvement cycle
 # ============================================================
-# crontab entry:
-#   23 */3 * * * /home/ubuntu/obsidian-plugins/obsidian-graph-island/scripts/pipeline/autonomous-improve.sh >> /tmp/graph-island-improve.log 2>&1
+# Supports up to MAX_SESSIONS parallel instances via git worktrees.
+# Each session gets its own worktree, runs independently, and
+# merges results back to main on success.
 #
-# Architecture:
-#   - This script is the WORKFLOW LAYER for /improve
-#   - It mechanically enforces: assess → implement → verify → commit
-#   - Claude handles judgment (what to fix, how to fix)
-#   - The shell handles control flow (loop, gate check, commit)
+# crontab: 7,37 * * * * .../autonomous-improve.sh >> /tmp/graph-island-improve.log 2>&1
 # ============================================================
 set -uo pipefail
 
-# ── Environment (cron inherits minimal PATH) ──
+# ── Environment ──
 export PATH="/home/ubuntu/.local/bin:/home/ubuntu/.nvm/versions/node/v22.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export HOME="/home/ubuntu"
 
 PROJECT_DIR="/home/ubuntu/obsidian-plugins/obsidian-graph-island"
-LOCK_FILE="/tmp/graph-island-improve.lock"
 LOG_FILE="/tmp/graph-island-improve.log"
-RESULT_FILE="/tmp/graph-island-improve-result.json"
+RESULT_DIR="/tmp/graph-island-improve-results"
 MAX_LOG_SIZE=$((10 * 1024 * 1024))
-MAX_ITERATIONS=5
-MAX_TURNS=40
+MAX_SESSIONS=3
+MAX_ITERATIONS=3
+MAX_TURNS=30
 
 cd "$PROJECT_DIR" || exit 1
-
-# ── Lock: prevent concurrent runs ──
-if [[ -f "$LOCK_FILE" ]]; then
-  LOCK_PID=$(cat "$LOCK_FILE" 2>/dev/null || echo "0")
-  if kill -0 "$LOCK_PID" 2>/dev/null; then
-    echo "[$(date -Iseconds)] SKIP: Previous run active (PID $LOCK_PID)"
-    exit 0
-  fi
-  echo "[$(date -Iseconds)] STALE: Removing stale lock (PID $LOCK_PID)"
-  rm -f "$LOCK_FILE"
-fi
-echo $$ > "$LOCK_FILE"
-trap 'rm -f "$LOCK_FILE"' EXIT
 
 # ── Log rotation ──
 if [[ -f "$LOG_FILE" ]] && [[ $(stat -c%s "$LOG_FILE" 2>/dev/null || echo 0) -gt $MAX_LOG_SIZE ]]; then
   mv "$LOG_FILE" "${LOG_FILE}.old"
 fi
+mkdir -p "$RESULT_DIR"
 
-echo ""
-echo "================================================================"
-echo "[$(date -Iseconds)] AUTONOMOUS IMPROVE CYCLE START"
-echo "================================================================"
+# ── Session ID ──
+SESSION_ID="auto-$(date +%Y%m%d-%H%M%S)-$$"
+SESSION_LOG="$RESULT_DIR/$SESSION_ID.log"
+
+log() { echo "[$(date -Iseconds)] [$SESSION_ID] $*" | tee -a "$SESSION_LOG"; }
+
+log "================================================================"
+log "AUTONOMOUS IMPROVE CYCLE START"
+log "================================================================"
 
 # ── Pre-flight checks ──
-
-# 1. Claude CLI available?
 if ! command -v claude &>/dev/null; then
-  echo "[$(date -Iseconds)] ERROR: claude CLI not found"
+  log "ERROR: claude CLI not found"
   exit 1
 fi
 
-# 2. Another Claude session active?
-CLAUDE_PIDS=$(pgrep -f "claude.*-p" 2>/dev/null | grep -v $$ || true)
-if [[ -n "$CLAUDE_PIDS" ]]; then
-  echo "[$(date -Iseconds)] SKIP: Another Claude session active (PIDs: $CLAUDE_PIDS)"
-  exit 0
-fi
-
-# 3. Working directory clean?
-if [[ -n "$(git status --porcelain)" ]]; then
-  echo "[$(date -Iseconds)] SKIP: Working directory dirty"
-  git status --short | head -5
-  exit 0
-fi
-
-# 4. Node/npm working?
 if ! node -e "process.exit(0)" 2>/dev/null; then
-  echo "[$(date -Iseconds)] ERROR: node not working"
+  log "ERROR: node not working"
   exit 1
 fi
 
-echo "[$(date -Iseconds)] Pre-flight OK"
+# ── Count active sessions ──
+ACTIVE_COUNT=$(pgrep -f "autonomous-improve.sh" 2>/dev/null | grep -v $$ | wc -l || echo "0")
+if [[ $ACTIVE_COUNT -ge $MAX_SESSIONS ]]; then
+  log "SKIP: $ACTIVE_COUNT sessions already running (max $MAX_SESSIONS)"
+  exit 0
+fi
+log "Active sessions: $ACTIVE_COUNT/$MAX_SESSIONS — proceeding as session $((ACTIVE_COUNT + 1))"
 
-# ── CDP / E2E availability ──
+# ── Ensure main is clean for worktree creation ──
+cd "$PROJECT_DIR" || exit 1
+if [[ -n "$(git status --porcelain)" ]]; then
+  log "SKIP: Main working directory dirty"
+  git status --short | head -5 | while IFS= read -r line; do log "  $line"; done
+  exit 0
+fi
+
+# ── Create isolated worktree ──
+WORKTREE_DIR="$PROJECT_DIR/.autonomous-worktrees/$SESSION_ID"
+WORKTREE_BRANCH="auto-improve-$SESSION_ID"
+mkdir -p "$PROJECT_DIR/.autonomous-worktrees"
+
+git branch "$WORKTREE_BRANCH" HEAD 2>/dev/null
+git worktree add "$WORKTREE_DIR" "$WORKTREE_BRANCH" 2>&1 | while IFS= read -r line; do log "  $line"; done
+
+if [[ ! -d "$WORKTREE_DIR" ]]; then
+  log "ERROR: Failed to create worktree"
+  git branch -D "$WORKTREE_BRANCH" 2>/dev/null
+  exit 1
+fi
+
+log "Worktree created: $WORKTREE_DIR"
+
+# ── Cleanup trap ──
+cleanup() {
+  log "Cleaning up worktree..."
+  cd "$PROJECT_DIR" || true
+  git worktree remove "$WORKTREE_DIR" --force 2>/dev/null || rm -rf "$WORKTREE_DIR"
+  git branch -D "$WORKTREE_BRANCH" 2>/dev/null || true
+  git worktree prune 2>/dev/null
+  log "Cleanup complete"
+}
+trap cleanup EXIT
+
+# ── Work in worktree ──
+cd "$WORKTREE_DIR" || exit 1
+
+# ── Choose focus area based on session number to avoid conflicts ──
+FOCUS_AREAS=("coverage" "eslint" "refactor")
+FOCUS_INDEX=$((ACTIVE_COUNT % ${#FOCUS_AREAS[@]}))
+FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
+log "Focus area: $FOCUS (session slot $((ACTIVE_COUNT + 1)))"
+
+# ── CDP check ──
 CDP_AVAILABLE=false
-if curl -sf "http://localhost:9222/json/version" >/dev/null 2>&1; then
-  CDP_AVAILABLE=true
-  echo "[$(date -Iseconds)] CDP available — E2E visual quality enabled"
-else
-  echo "[$(date -Iseconds)] CDP unavailable — E2E visual quality skipped"
-fi
-
-# ── Record "before" state ──
-BEFORE_COMMIT=$(git rev-parse --short HEAD)
-BEFORE_TESTS=$(npx vitest run 2>&1 | grep -oP '\d+ passed' | head -1 || echo "?")
-BEFORE_COVERAGE=$(python3 -c "
-import json
-d=json.load(open('coverage/coverage-summary.json'))['total']
-print(f\"S{d['statements']['pct']:.1f}/B{d['branches']['pct']:.1f}/F{d['functions']['pct']:.1f}/L{d['lines']['pct']:.1f}\")
-" 2>/dev/null || echo "?")
-BEFORE_VISUAL="n/a"
-if [[ "$CDP_AVAILABLE" == true ]]; then
-  npx tsx scripts/pipeline/visual-report.ts 2>/dev/null
-  BEFORE_VISUAL=$(python3 -c "
-import json
-r=json.load(open('scripts/pipeline/visual-report.json'))
-print(f\"{r['overallScore']}/100\")
-" 2>/dev/null || echo "?")
-  echo "[$(date -Iseconds)] Before visual: $BEFORE_VISUAL"
-fi
-echo "[$(date -Iseconds)] Before: commit=$BEFORE_COMMIT tests=$BEFORE_TESTS coverage=$BEFORE_COVERAGE visual=$BEFORE_VISUAL"
+curl -sf "http://localhost:9222/json/version" >/dev/null 2>&1 && CDP_AVAILABLE=true
 
 # ============================================================
-# IMPROVEMENT LOOP (WORKFLOW LAYER — shell controls iteration)
+# IMPROVEMENT LOOP
 # ============================================================
 TOTAL_COMMITS=0
 
 for iter in $(seq 1 "$MAX_ITERATIONS"); do
-  echo ""
-  echo "── Iteration $iter/$MAX_ITERATIONS ──"
+  log "── Iteration $iter/$MAX_ITERATIONS (focus: $FOCUS) ──"
 
-  # ── Step 1: ASSESS (shell — mechanical) ──
-  echo "[$(date +%H:%M:%S)] Assessing..."
+  # ── ASSESS ──
   GATE_JSON=$(bash scripts/pipeline/enforce-gates.sh --json --skip-e2e 2>/dev/null || echo '{"passed":0}')
-  GATE_PASSED=$(echo "$GATE_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('passed',0))" 2>/dev/null || echo "0")
-
   GODOBJ_JSON=$(bash scripts/pipeline/god-object-audit.sh --json 2>&1 || echo '{"passed":0}')
-  GODOBJ_PASSED=$(echo "$GODOBJ_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('passed',0))" 2>/dev/null || echo "0")
 
-  # Visual quality (if CDP available)
   VISUAL_INFO="CDP unavailable"
   if [[ "$CDP_AVAILABLE" == true ]]; then
     npx tsx scripts/pipeline/visual-report.ts 2>/dev/null
     VISUAL_INFO=$(python3 -c "
-import json
-r=json.load(open('scripts/pipeline/visual-report.json'))
-scores = ' '.join(f\"{s['name']}:{s['score']}\" for s in r['scores'])
-issues = '; '.join(r['topIssues'][:3]) if r['topIssues'] else 'none'
-print(f\"overall:{r['overallScore']}/100 [{scores}] issues: {issues}\")
-" 2>/dev/null || echo "report failed")
-    echo "[$(date +%H:%M:%S)] Visual: $VISUAL_INFO"
+import json; r=json.load(open('scripts/pipeline/visual-report.json'))
+print(f\"overall:{r['overallScore']}/100\")
+" 2>/dev/null || echo "?")
   fi
 
-  # ── Step 2: PRIORITIZE + IMPLEMENT (agent — judgment) ──
-  echo "[$(date +%H:%M:%S)] Claude implementing improvement..."
+  # ── IMPLEMENT ──
+  log "Claude implementing ($FOCUS)..."
 
-  PROMPT="自律改善サイクル iteration $iter/$MAX_ITERATIONS。
+  PROMPT="自律改善サイクル iteration $iter/$MAX_ITERATIONS。focus: $FOCUS
 
-現在の状態:
-- ゲート: $(echo "$GATE_JSON" | python3 -c "import sys,json; g=json.load(sys.stdin).get('gates',{}); print(' '.join(f'{k}:{v}' for k,v in g.items()))" 2>/dev/null || echo "unknown")
-- God Objects: $(echo "$GODOBJ_JSON" | python3 -c "
-import sys,json
-f=json.load(sys.stdin).get('files',{})
-for k,v in f.items():
-  if v.get('status')=='fail': print(f\"{k.split('/')[-1]}: {v['current']}/{v['limit']}\", end=' ')
-" 2>/dev/null || echo "all pass")
+状態:
+- ゲート: $(echo "$GATE_JSON" | python3 -c "import sys,json; g=json.load(sys.stdin).get('gates',{}); print(' '.join(f'{k}:{v}' for k,v in g.items()))" 2>/dev/null || echo "?")
+- God Objects: $(echo "$GODOBJ_JSON" | python3 -c "import sys,json; [print(f\"{k.split('/')[-1]}:{v['current']}/{v['limit']}\",end=' ') for k,v in json.load(sys.stdin).get('files',{}).items() if v.get('status')=='fail']" 2>/dev/null || echo "all pass")
 - 視覚品質: $VISUAL_INFO
 
-優先順位: gate failure > god object > visual quality(score<50) > coverage > lint > visual(50-80)
-1つだけ選んで修正。実装後は何もせず終了すること（検証はシェルが行う）。
-視覚品質の問題がある場合は scripts/pipeline/visual-report.json を読んで詳細を確認すること。"
+focus=$FOCUS の改善を1つ実装せよ:
+- coverage: 低カバレッジファイルにテスト追加
+- eslint: complexity警告のリファクタ (GVC内は行数を減らす方向で)
+- refactor: God Object からのロジック抽出
+
+実装後は何もせず終了（検証はシェルが行う）。CLAUDE.md厳守。"
 
   claude -p "$PROMPT" \
     --allowedTools "Bash,Read,Write,Edit,Glob,Grep,Agent" \
     --max-turns "$MAX_TURNS" \
-    2>&1 | tail -10
+    2>&1 | tail -5
 
-  # ── Step 3: VERIFY (shell — mechanical, Claude cannot skip) ──
-  echo "[$(date +%H:%M:%S)] Verifying gates..."
+  # ── VERIFY ──
+  log "Verifying gates..."
   VERIFY_OK=false
-
   for fix_attempt in $(seq 1 3); do
     if bash scripts/pipeline/enforce-gates.sh --skip-e2e >/dev/null 2>&1; then
       VERIFY_OK=true
       break
     fi
-
     if [[ $fix_attempt -lt 3 ]]; then
-      echo "[$(date +%H:%M:%S)] Gate failed, fix attempt $fix_attempt/3..."
+      log "Gate failed, fix attempt $fix_attempt/3..."
       ERRORS=$(bash scripts/pipeline/enforce-gates.sh --skip-e2e 2>&1 | grep "^FAIL" || echo "unknown")
-      claude -p "ゲートが失敗しました: $ERRORS — 修正してください。" \
+      claude -p "ゲートが失敗: $ERRORS — 修正せよ。" \
         --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
-        --max-turns 15 \
+        --max-turns 10 \
         2>&1 | tail -3
     fi
   done
 
   if [[ "$VERIFY_OK" != true ]]; then
-    echo "[$(date +%H:%M:%S)] ABORT: Gates failed after 3 fix attempts"
+    log "ABORT: Gates failed after 3 fix attempts"
     break
   fi
 
-  # ── Step 3b: VISUAL VERIFY (shell — if CDP available) ──
-  if [[ "$CDP_AVAILABLE" == true ]]; then
-    echo "[$(date +%H:%M:%S)] Deploying + visual verify..."
-    cp main.js "/home/ubuntu/obsidian-plugins/開発/.obsidian/plugins/graph-island/main.js" 2>/dev/null || true
-    cp main.js "/home/ubuntu/obsidian-plugins/.obsidian/plugins/graph-island/main.js" 2>/dev/null || true
-    sleep 2
-    npx tsx scripts/pipeline/visual-report.ts 2>/dev/null
-    ITER_VISUAL=$(python3 -c "import json; r=json.load(open('scripts/pipeline/visual-report.json')); print(f\"{r['overallScore']}/100\")" 2>/dev/null || echo "?")
-    echo "[$(date +%H:%M:%S)] Visual after iteration $iter: $ITER_VISUAL"
-  fi
-
-  # ── Step 4: COMMIT (shell — mechanical) ──
+  # ── COMMIT in worktree ──
   if [[ -n "$(git status --porcelain)" ]]; then
-    echo "[$(date +%H:%M:%S)] Committing..."
     git add -A
-    git commit -m "chore: autonomous improvement cycle iteration $iter
+    git commit -m "$(cat <<COMMITMSG
+chore(auto): $FOCUS improvement (session $SESSION_ID, iter $iter)
 
-Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" 2>&1 | tail -1
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+COMMITMSG
+)" 2>&1 | tail -1
     TOTAL_COMMITS=$((TOTAL_COMMITS + 1))
+    log "Committed (iter $iter)"
   else
-    echo "[$(date +%H:%M:%S)] No changes to commit"
+    log "No changes (iter $iter)"
   fi
 
-  # ── Step 5: Ratchet coverage if applicable ──
-  if [[ -f coverage/coverage-summary.json ]]; then
+  # ── RATCHET if applicable ──
+  if [[ "$FOCUS" == "coverage" && -f coverage/coverage-summary.json ]]; then
     bash scripts/coverage-ratchet.sh 2>&1 | tail -1
     if [[ -n "$(git status --porcelain vitest.config.ts)" ]]; then
       git add vitest.config.ts
-      git commit -m "chore: ratchet coverage thresholds (auto)
+      git commit -m "chore(auto): ratchet coverage
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" 2>&1 | tail -1
       TOTAL_COMMITS=$((TOTAL_COMMITS + 1))
     fi
   fi
-
 done
 
 # ============================================================
-# SUMMARY
+# MERGE BACK TO MAIN
 # ============================================================
-AFTER_COMMIT=$(git rev-parse --short HEAD)
-AFTER_TESTS=$(npx vitest run 2>&1 | grep -oP '\d+ passed' | head -1 || echo "?")
-AFTER_VISUAL="n/a"
-if [[ "$CDP_AVAILABLE" == true ]]; then
-  AFTER_VISUAL=$(python3 -c "import json; r=json.load(open('scripts/pipeline/visual-report.json')); print(f\"{r['overallScore']}/100\")" 2>/dev/null || echo "?")
+if [[ $TOTAL_COMMITS -gt 0 ]]; then
+  log "Merging $TOTAL_COMMITS commits back to main..."
+  cd "$PROJECT_DIR" || exit 1
+
+  # Acquire merge lock (only one session merges at a time)
+  MERGE_LOCK="/tmp/graph-island-merge.lock"
+  for wait in $(seq 1 30); do
+    if mkdir "$MERGE_LOCK" 2>/dev/null; then
+      break
+    fi
+    sleep 2
+  done
+  trap 'rmdir "$MERGE_LOCK" 2>/dev/null; cleanup' EXIT
+
+  # Verify main is clean
+  if [[ -n "$(git status --porcelain)" ]]; then
+    log "WARN: Main dirty at merge time, skipping merge"
+  else
+    git merge "$WORKTREE_BRANCH" --no-edit 2>&1 | while IFS= read -r line; do log "  $line"; done
+    MERGE_EXIT=$?
+    if [[ $MERGE_EXIT -ne 0 ]]; then
+      log "WARN: Merge conflict — aborting merge, keeping worktree branch"
+      git merge --abort 2>/dev/null
+    else
+      log "Merge successful"
+    fi
+  fi
+
+  rmdir "$MERGE_LOCK" 2>/dev/null
+else
+  log "No commits to merge"
 fi
 
-echo ""
-echo "================================================================"
-echo "[$(date -Iseconds)] AUTONOMOUS IMPROVE CYCLE COMPLETE"
-echo "================================================================"
-echo "Iterations: $MAX_ITERATIONS attempted"
-echo "Commits: $TOTAL_COMMITS"
-echo "Before: $BEFORE_COMMIT ($BEFORE_TESTS, $BEFORE_COVERAGE, visual=$BEFORE_VISUAL)"
-echo "After:  $AFTER_COMMIT ($AFTER_TESTS, visual=$AFTER_VISUAL)"
-echo ""
-
-# Write structured result for external tools
-cat > "$RESULT_FILE" << ENDJSON
+# ── Result file ──
+cat > "$RESULT_DIR/$SESSION_ID.json" << ENDJSON
 {
-  "timestamp": "$(date -Iseconds)",
-  "iterations": $MAX_ITERATIONS,
+  "session": "$SESSION_ID",
+  "focus": "$FOCUS",
   "commits": $TOTAL_COMMITS,
-  "before": {"commit": "$BEFORE_COMMIT", "tests": "$BEFORE_TESTS", "coverage": "$BEFORE_COVERAGE"},
-  "after": {"commit": "$AFTER_COMMIT", "tests": "$AFTER_TESTS", "visual": "$AFTER_VISUAL"}
+  "timestamp": "$(date -Iseconds)"
 }
 ENDJSON
+
+log "AUTONOMOUS IMPROVE CYCLE COMPLETE ($TOTAL_COMMITS commits)"
