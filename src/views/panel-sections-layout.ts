@@ -2,7 +2,7 @@
 // Layout & Settings tab section builders — extracted from PanelBuilder.ts
 // ---------------------------------------------------------------------------
 import type {
-  ClusterArrangement, ClusterGroupArrangement,
+  AxisConfig, ClusterArrangement, ClusterGroupArrangement,
   CoordinateLayout, CoordinateSystem,
 } from "../types";
 import { mergeRenderThresholds, ontologyToRules, rulesToOntologyFields } from "../types";
@@ -312,7 +312,7 @@ export function buildConcentricOptions(s: ClusterSectionCtx): void {
 /** Coordinate system, axis inputs, preview, expression library, constants, perGroup, polar range */
 export function buildCoordinateControls(
   s: ClusterSectionCtx,
-  buildAxisTextInput: (body: HTMLElement, label: string, axis: any, idx: 1 | 2, panel: PanelState, cb: PanelCallbacks, ctx: PanelContext, suggestions: string[]) => void,
+  buildAxisTextInput: (body: HTMLElement, label: string, axis: AxisConfig, idx: 1 | 2, panel: PanelState, cb: PanelCallbacks, ctx: PanelContext, suggestions: string[]) => void,
   buildCoordPreview: (body: HTMLElement, layout: CoordinateLayout) => void,
   buildExprLibrary: (body: HTMLElement, panel: PanelState, cb: PanelCallbacks) => void,
   buildConstantsUI: (body: HTMLElement, panel: PanelState, cb: PanelCallbacks) => void,

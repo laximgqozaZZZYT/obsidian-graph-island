@@ -167,9 +167,9 @@ export function buildNodeDisplayModeSection(
       }, t("desc.cardContentScale"));
       // GE: Card background opacity
       const crcGE = panel.cardRenderConfig ?? {};
-      addSlider(body, t("display.cardBgOpacity") ?? "Card Opacity", 0.1, 1.0, 0.05, (crcGE as any).plainCardFillAlpha ?? 0.8, (v) => {
-        if (!panel.cardRenderConfig) panel.cardRenderConfig = {} as any;
-        (panel.cardRenderConfig as any).plainCardFillAlpha = v;
+      addSlider(body, t("display.cardBgOpacity") ?? "Card Opacity", 0.1, 1.0, 0.05, crcGE.plainCardFillAlpha ?? 0.8, (v) => {
+        if (!panel.cardRenderConfig) panel.cardRenderConfig = {};
+        panel.cardRenderConfig.plainCardFillAlpha = v;
         cb.doRenderKeepPanel();
       });
       // FX: Card body font size

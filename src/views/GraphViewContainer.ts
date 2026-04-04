@@ -25,6 +25,7 @@ import type {
 	DirectionalGravityRule,
 	GroupPreset,
 	ClusterGroupRule,
+	ClusterArrangement,
 	GraphSnapshot,
 	GraphTemplate,
 } from "../types";
@@ -7628,7 +7629,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** Resolve "inherit" clusterArrangement to a concrete value. */
 	private _resolveInheritArrangement(): void {
 		if (this.panel.clusterArrangement !== "inherit") return;
-		this.panel.clusterArrangement = resolveInheritArrangement(this.panel.clusterGroupArrangement) as any;
+		this.panel.clusterArrangement = resolveInheritArrangement(this.panel.clusterGroupArrangement) as ClusterArrangement;
 		this._inheritResolved = true;
 	}
 

@@ -254,9 +254,10 @@ export function buildNodeDisplaySection(
 					["sequence", t("hover.sequence") ?? "Sequence"],
 				];
 				for (const [key, label] of hoverTypeEntries) {
-					addToggle(adv, label, (het as any)[key] ?? false, (v) => {
+					const hetRec = het as Record<string, boolean>;
+					addToggle(adv, label, hetRec[key] ?? false, (v) => {
 						if (!panel.hoverEdgeTypes) panel.hoverEdgeTypes = { ...het };
-						(panel.hoverEdgeTypes as any)[key] = v;
+						(panel.hoverEdgeTypes as Record<string, boolean>)[key] = v;
 						cb.rebuildHoverAdj();
 						cb.applyHover();
 						cb.markDirty();
@@ -575,7 +576,7 @@ export function buildEdgeDisplaySection(
 				);
 				// GN: Edge toggle with a11y announcements
 				const _edgeToggle = (label: string, key: keyof PanelState, cb2: () => void) => (v: boolean) => {
-					(panel as any)[key] = v;
+					(panel as unknown as Record<string, unknown>)[key] = v;
 					cb2();
 					cb.announceA11y?.(`${label}: ${v ? "on" : "off"}`);
 				};

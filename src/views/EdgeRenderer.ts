@@ -2794,7 +2794,7 @@ function seedNodeRects(
 	const seenNodes = new Set<string>();
 	for (const { edge: e } of labelable) {
 		for (const ref of [e.source, e.target]) {
-			const id = typeof ref === "string" ? ref : (ref as any)?.id;
+			const id = typeof ref === "string" ? ref : (ref as { id?: string })?.id;
 			if (!id || seenNodes.has(id)) continue;
 			seenNodes.add(id);
 			const pos = resolvePos(ref);
