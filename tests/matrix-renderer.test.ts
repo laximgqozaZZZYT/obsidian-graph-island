@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
 	renderMatrixViewMode,
+	buildMatrixData,
+	matrixNodeLabel,
 	type MatrixRenderParams,
 	type MatrixSortMode,
 } from "../src/views/matrix-renderer";
@@ -468,5 +470,126 @@ describe("renderMatrixViewMode", () => {
 		const diagCells = result.querySelectorAll(".gi-matrix-diag");
 		// Should have diagonal cells
 		expect(diagCells.length).toBeGreaterThanOrEqual(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// buildMatrixData (pure function)
+// ---------------------------------------------------------------------------
+
+describe("buildMatrixData", () => {
+	it("computes degrees from edges", () => {
+		const gd = mkGraph(["a", "b", "c"], [["a", "b"], ["a", "c"]]);
+		const data = buildMatrixData(gd, "degree", 50);
+		expect(data.degrees.get("a")).toBe(2);
+		expect(data.degrees.get("b")).toBe(1);
+		expect(data.degrees.get("c")).toBe(1);
+	});
+
+	it("sorts by degree descending", () => {
+		const gd = mkGraph(["a", "b", "c"], [["a", "b"], ["a", "c"], ["b", "c"]]);
+		const data = buildMatrixData(gd, "degree", 50);
+		// All have degree 2, so order is stable but all present
+		expect(data.nodeIds).toHaveLength(3);
+	});
+
+	it("sorts alphabetically", () => {
+		const gd = mkGraph(["zebra", "apple", "mango"], [["zebra", "apple"], ["apple", "mango"]]);
+		const data = buildMatrixData(gd, "alpha", 50);
+		expect(data.nodeIds[0]).toBe("apple");
+		expect(data.nodeIds[data.nodeIds.length - 1]).toBe("zebra");
+	});
+
+	it("sorts by category then degree", () => {
+		const gd: GraphData = {
+			nodes: [
+				mkNode("a", "A", "cat2"),
+				mkNode("b", "B", "cat1"),
+				mkNode("c", "C", "cat1"),
+			],
+			edges: [mkEdge("a", "b"), mkEdge("b", "c"), mkEdge("a", "c")],
+		};
+		const data = buildMatrixData(gd, "category", 50);
+		// cat1 nodes (b, c) before cat2 (a)
+		expect(data.nodeIds.indexOf("b")).toBeLessThan(data.nodeIds.indexOf("a"));
+		expect(data.nodeIds.indexOf("c")).toBeLessThan(data.nodeIds.indexOf("a"));
+	});
+
+	it("limits to maxNodes", () => {
+		const ids = Array.from({ length: 100 }, (_, i) => `n${i}`);
+		const edges: [string, string][] = ids.slice(1).map(id => ["n0", id]);
+		const gd = mkGraph(ids, edges);
+		const data = buildMatrixData(gd, "degree", 10);
+		expect(data.nodeIds).toHaveLength(10);
+	});
+
+	it("builds adjacency matrix counts", () => {
+		const gd = mkGraph(["a", "b"], [["a", "b"], ["a", "b"]]);
+		const data = buildMatrixData(gd, "degree", 50);
+		expect(data.matrix.get("a")?.get("b")).toBe(2);
+	});
+
+	it("tracks edge type breakdown", () => {
+		const gd: GraphData = {
+			nodes: [mkNode("a"), mkNode("b")],
+			edges: [mkEdge("a", "b", "link"), mkEdge("a", "b", "tag")],
+		};
+		const data = buildMatrixData(gd, "degree", 50);
+		const types = data.matrixTypes.get("a")?.get("b");
+		expect(types?.get("link")).toBe(1);
+		expect(types?.get("tag")).toBe(1);
+	});
+
+	it("computes maxCount for color scaling", () => {
+		const gd = mkGraph(["a", "b", "c"], [["a", "b"], ["a", "b"], ["a", "b"], ["b", "c"]]);
+		const data = buildMatrixData(gd, "degree", 50);
+		expect(data.maxCount).toBe(3); // a→b has 3 edges
+	});
+
+	it("returns maxCount=1 for empty graph", () => {
+		const gd = mkGraph([], []);
+		const data = buildMatrixData(gd, "degree", 50);
+		expect(data.maxCount).toBe(1);
+		expect(data.nodeIds).toHaveLength(0);
+	});
+
+	it("excludes edges to nodes outside the top-N set", () => {
+		const ids = ["hub", "a", "b", "c"];
+		const gd = mkGraph(ids, [["hub", "a"], ["hub", "b"], ["hub", "c"], ["a", "b"]]);
+		const data = buildMatrixData(gd, "degree", 2); // only top-2 by degree
+		// hub (3) + one of a/b (2 each) — edges to excluded nodes shouldn't appear
+		for (const [rowId, row] of data.matrix) {
+			for (const colId of row.keys()) {
+				expect(data.nodeIds).toContain(rowId);
+				expect(data.nodeIds).toContain(colId);
+			}
+		}
+	});
+});
+
+// ---------------------------------------------------------------------------
+// matrixNodeLabel
+// ---------------------------------------------------------------------------
+
+describe("matrixNodeLabel", () => {
+	it("returns node label when available", () => {
+		const gd: GraphData = {
+			nodes: [mkNode("a.md", "Alice")],
+			edges: [],
+		};
+		expect(matrixNodeLabel(gd, "a.md")).toBe("Alice");
+	});
+
+	it("strips .md and returns filename when no label", () => {
+		const gd: GraphData = {
+			nodes: [{ id: "folder/file.md", x: 0, y: 0, group: "", tags: [], category: "" } as GraphNode],
+			edges: [],
+		};
+		expect(matrixNodeLabel(gd, "folder/file.md")).toBe("file");
+	});
+
+	it("returns id as fallback for unknown node", () => {
+		const gd: GraphData = { nodes: [], edges: [] };
+		expect(matrixNodeLabel(gd, "unknown")).toBe("unknown");
 	});
 });

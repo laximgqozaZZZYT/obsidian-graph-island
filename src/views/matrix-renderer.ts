@@ -36,29 +36,24 @@ export interface MatrixRenderParams {
 }
 
 // ---------------------------------------------------------------------------
-// Matrix rendering
+// Data preparation (pure, testable)
 // ---------------------------------------------------------------------------
 
-/**
- * Render matrix viewMode: full-screen adjacency table, no Canvas.
- * Extracted from GraphViewContainer._renderMatrixViewMode.
- *
- * Returns the matrix container element for further manipulation.
- */
-export function renderMatrixViewMode(params: MatrixRenderParams): HTMLElement {
-	const { containerEl, W, H, gd, sortMode, isDark, onSortChange, onCellClick, setStatus } = params;
+export interface MatrixData {
+	nodeIds: string[];
+	degrees: Map<string, number>;
+	matrix: Map<string, Map<string, number>>;
+	matrixTypes: Map<string, Map<string, Map<string, number>>>;
+	maxCount: number;
+}
 
-	// Reuse or create full-screen matrix container
-	let matrixEl = containerEl.querySelector<HTMLElement>(".gi-matrix-fullscreen");
-	if (!matrixEl) {
-		matrixEl = containerEl.createDiv({ cls: "gi-matrix-fullscreen" });
-	}
-	matrixEl.empty();
-	matrixEl.style.display = "";
-	matrixEl.style.width = W + "px";
-	matrixEl.style.height = H + "px";
-
-	// Build adjacency data from ALL edges
+/** Build adjacency matrix data from graph edges + sorting config. */
+export function buildMatrixData(
+	gd: GraphData,
+	sortMode: MatrixSortMode,
+	maxNodes: number,
+): MatrixData {
+	// Compute degree per node
 	const degrees = new Map<string, number>();
 	for (const e of gd.edges) {
 		const s = edgeSourceId(e);
@@ -67,8 +62,7 @@ export function renderMatrixViewMode(params: MatrixRenderParams): HTMLElement {
 		incCounter(degrees, tgt);
 	}
 
-	// Top N nodes by degree (fit in viewport: ~50 max for readability)
-	const maxNodes = Math.min(50, Math.floor(Math.min(W, H) / 16));
+	// Sort + slice to top N
 	let sorted: [string, number][];
 	if (sortMode === "alpha") {
 		sorted = [...degrees.entries()]
@@ -93,7 +87,7 @@ export function renderMatrixViewMode(params: MatrixRenderParams): HTMLElement {
 	const nodeIds = sorted.map(([id]) => id);
 	const nodeIdSet = new Set(nodeIds);
 
-	// Build matrix (count + edge type breakdown)
+	// Build adjacency matrix (count + edge type breakdown)
 	const matrix = new Map<string, Map<string, number>>();
 	const matrixTypes = new Map<string, Map<string, Map<string, number>>>();
 	for (const id of nodeIds) {
@@ -111,7 +105,7 @@ export function renderMatrixViewMode(params: MatrixRenderParams): HTMLElement {
 		}
 	}
 
-	// Find max count for color scaling
+	// Max count for color scaling
 	let maxCount = 1;
 	for (const row of matrix.values()) {
 		for (const count of row.values()) {
@@ -119,11 +113,42 @@ export function renderMatrixViewMode(params: MatrixRenderParams): HTMLElement {
 		}
 	}
 
-	// Get label function
-	const getLabel = (id: string) => {
-		const node = gd.nodes.find((n: GraphNode) => n.id === id);
-		return node?.label ?? id.replace(/\.md$/, "").split("/").pop() ?? id;
-	};
+	return { nodeIds, degrees, matrix, matrixTypes, maxCount };
+}
+
+/** Get display label for a node ID. */
+export function matrixNodeLabel(gd: GraphData, id: string): string {
+	const node = gd.nodes.find((n: GraphNode) => n.id === id);
+	return node?.label ?? id.replace(/\.md$/, "").split("/").pop() ?? id;
+}
+
+// ---------------------------------------------------------------------------
+// Matrix rendering
+// ---------------------------------------------------------------------------
+
+/**
+ * Render matrix viewMode: full-screen adjacency table, no Canvas.
+ * Extracted from GraphViewContainer._renderMatrixViewMode.
+ *
+ * Returns the matrix container element for further manipulation.
+ */
+export function renderMatrixViewMode(params: MatrixRenderParams): HTMLElement {
+	const { containerEl, W, H, gd, sortMode, isDark, onSortChange, onCellClick, setStatus } = params;
+
+	// Reuse or create full-screen matrix container
+	let matrixEl = containerEl.querySelector<HTMLElement>(".gi-matrix-fullscreen");
+	if (!matrixEl) {
+		matrixEl = containerEl.createDiv({ cls: "gi-matrix-fullscreen" });
+	}
+	matrixEl.empty();
+	matrixEl.style.display = "";
+	matrixEl.style.width = W + "px";
+	matrixEl.style.height = H + "px";
+
+	// Data preparation
+	const maxNodes = Math.min(50, Math.floor(Math.min(W, H) / 16));
+	const { nodeIds, degrees, matrix, matrixTypes, maxCount } = buildMatrixData(gd, sortMode, maxNodes);
+	const getLabel = (id: string) => matrixNodeLabel(gd, id);
 
 	// Title + sort selector
 	const titleRow = matrixEl.createDiv({ cls: "gi-matrix-title-row" });
