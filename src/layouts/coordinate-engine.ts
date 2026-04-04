@@ -1118,6 +1118,98 @@ export function resolveAxisCategories(
 	return undefined;
 }
 
+/** Resolve grid line positions from the positions config */
+function resolveGridLinePositions(
+	positions: GridAxisConfig["positions"],
+	axisSource: AxisSource,
+	members: GraphNode[],
+	ctx: CoordinateContext,
+	transformedValues: Map<string, number>,
+	spacing: number,
+	gridStyle: string | undefined,
+	tMin: number,
+	tMax: number,
+	tRange: number,
+	constants?: Record<string, number>,
+): { linePositions: number[]; autoLabels?: string[] } {
+	switch (positions.kind) {
+		case "auto": {
+			const cats = resolveAxisCategories(members, axisSource, ctx);
+			if (cats) {
+				const catPositions = collectCategoryPositions(members, axisSource, ctx, transformedValues);
+				const resolved = resolveCategoryGridPositions(catPositions, gridStyle, spacing);
+				return { linePositions: resolved.linePositions, autoLabels: resolved.autoLabels };
+			}
+			// Continuous: equal divisions (configurable)
+			const divs = ctx.coordinateGridDivisions ?? DEFAULT_RENDER_THRESHOLDS.coordinateGridDivisions;
+			const lp: number[] = [];
+			for (let i = 0; i <= divs; i++) {
+				lp.push(tMin + (tRange / divs) * i);
+			}
+			return { linePositions: lp };
+		}
+		case "count": {
+			const n = Math.max(positions.n, 1);
+			const lp: number[] = [];
+			for (let i = 0; i <= n; i++) {
+				lp.push(tMin + (tRange / n) * i);
+			}
+			return { linePositions: lp };
+		}
+		case "step": {
+			const step = Math.abs(positions.step) || 1;
+			const lp: number[] = [];
+			for (let v = tMin; v <= tMax + step * 0.01; v += step) {
+				lp.push(v);
+			}
+			return { linePositions: lp };
+		}
+		case "values":
+			return { linePositions: positions.values };
+		case "field":
+		case "property": {
+			const source: AxisSource = positions.kind === "field"
+				? { kind: SOURCE_FIELD, field: positions.field }
+				: { kind: SOURCE_PROPERTY, key: positions.key };
+			const catPositions = collectCategoryPositions(members, source, ctx, transformedValues);
+			const resolved = resolveCategoryGridPositions(catPositions, gridStyle, spacing);
+			return { linePositions: resolved.linePositions, autoLabels: resolved.autoLabels };
+		}
+		case "expression":
+			return { linePositions: resolveExpressionGridPositions(positions.expr, tMin, tRange, constants, ctx) };
+	}
+	return { linePositions: [] };
+}
+
+/** Resolve grid line labels from ticks config */
+function resolveGridLineLabels(
+	ticks: GridAxisConfig["ticks"],
+	autoLabels: string[] | undefined,
+	linePositions: number[],
+	spacing: number,
+	members: GraphNode[],
+	ctx: CoordinateContext,
+): string[] | undefined {
+	let labels = autoLabels;
+	const labelSource = ticks?.labels ?? { kind: "auto" as const };
+	switch (labelSource.kind) {
+		case "auto":
+			if (!labels) {
+				labels = linePositions.map((v) => formatGridValue(v, spacing));
+			}
+			break;
+		case "field": {
+			const fieldCats = resolveAxisCategories(members, { kind: SOURCE_FIELD, field: labelSource.field }, ctx);
+			if (fieldCats) labels = fieldCats;
+			break;
+		}
+		case "custom":
+			labels = labelSource.values;
+			break;
+	}
+	return labels;
+}
+
 /**
  * Resolve grid line positions and labels for one axis.
  * Positions are returned in the TRANSFORMED coordinate space.
@@ -1147,88 +1239,14 @@ function resolveGridLines(
 	}
 	const tRange = tMax - tMin || 1;
 
-	let linePositions: number[] = [];
-	let autoLabels: string[] | undefined;
-
 	// Resolve positions
-	switch (positions.kind) {
-		case "auto": {
-			const cats = resolveAxisCategories(members, axisSource, ctx);
-			if (cats) {
-				const catPositions = collectCategoryPositions(members, axisSource, ctx, transformedValues);
-				const resolved = resolveCategoryGridPositions(catPositions, gridStyle, spacing);
-				linePositions = resolved.linePositions;
-				autoLabels = resolved.autoLabels;
-			} else {
-				// Continuous: equal divisions (configurable)
-				const divs = ctx.coordinateGridDivisions ?? DEFAULT_RENDER_THRESHOLDS.coordinateGridDivisions;
-				for (let i = 0; i <= divs; i++) {
-					linePositions.push(tMin + (tRange / divs) * i);
-				}
-			}
-			break;
-		}
-		case "count": {
-			const n = Math.max(positions.n, 1);
-			for (let i = 0; i <= n; i++) {
-				linePositions.push(tMin + (tRange / n) * i);
-			}
-			break;
-		}
-		case "step": {
-			const step = Math.abs(positions.step) || 1;
-			for (let v = tMin; v <= tMax + step * 0.01; v += step) {
-				linePositions.push(v);
-			}
-			break;
-		}
-		case "values": {
-			linePositions = positions.values;
-			break;
-		}
-		case "field": {
-			const fieldSource: AxisSource = { kind: SOURCE_FIELD, field: positions.field };
-			const catPositions = collectCategoryPositions(members, fieldSource, ctx, transformedValues);
-			const resolved = resolveCategoryGridPositions(catPositions, gridStyle, spacing);
-			linePositions = resolved.linePositions;
-			autoLabels = resolved.autoLabels;
-			break;
-		}
-		case "property": {
-			const propSource: AxisSource = { kind: SOURCE_PROPERTY, key: positions.key };
-			const catPositions = collectCategoryPositions(members, propSource, ctx, transformedValues);
-			const resolved = resolveCategoryGridPositions(catPositions, gridStyle, spacing);
-			linePositions = resolved.linePositions;
-			autoLabels = resolved.autoLabels;
-			break;
-		}
-		case "expression": {
-			linePositions = resolveExpressionGridPositions(positions.expr, tMin, tRange, constants, ctx);
-			break;
-		}
-	}
+	const { linePositions, autoLabels } = resolveGridLinePositions(
+		positions, axisSource, members, ctx, transformedValues, spacing, gridStyle, tMin, tMax, tRange, constants,
+	);
 
 	// Resolve labels from ticks config (default: auto labels with show=true)
 	const showLabels = ticks?.show !== false;
-	let labels: string[] | undefined = autoLabels;
-
-	const labelSource = ticks?.labels ?? { kind: "auto" as const };
-	switch (labelSource.kind) {
-		case "auto":
-			// Use category-derived autoLabels if available, otherwise format numbers
-			if (!labels) {
-				labels = linePositions.map((v) => formatGridValue(v, spacing));
-			}
-			break;
-		case "field": {
-			const fieldCats = resolveAxisCategories(members, { kind: SOURCE_FIELD, field: labelSource.field }, ctx);
-			if (fieldCats) labels = fieldCats;
-			break;
-		}
-		case "custom":
-			labels = labelSource.values;
-			break;
-	}
+	const labels = resolveGridLineLabels(ticks, autoLabels, linePositions, spacing, members, ctx);
 
 	return linePositions.map((pos, i) => ({
 		position: pos,
