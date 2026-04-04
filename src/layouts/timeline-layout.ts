@@ -18,6 +18,30 @@ function getSpacing(id: string, map?: Map<string, number>): number {
 	return map?.get(id) ?? 1.0;
 }
 
+/**
+ * orderMap に含まれるノードを untimed から timed へ昇格させる。
+ * prefix は合成タイムスタンプの接頭辞 (例: "__chain_", "__hier_")。
+ */
+function promoteOrderedToTimed(
+	untimed: GraphNode[],
+	timed: { node: GraphNode; value: string }[],
+	orderMap: Map<string, number>,
+	prefix: string,
+): GraphNode[] {
+	const ordered: GraphNode[] = [];
+	const remaining: GraphNode[] = [];
+	for (const nd of untimed) {
+		if (orderMap.has(nd.id)) ordered.push(nd);
+		else remaining.push(nd);
+	}
+	ordered.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+	const startIdx = timed.length;
+	for (let i = 0; i < ordered.length; i++) {
+		timed.push({ node: ordered[i], value: `${prefix}${String(startIdx + i).padStart(6, "0")}` });
+	}
+	return remaining;
+}
+
 /** 2要素間のペアワイズギャップ (中心間距離) */
 function pairwiseGap(r1: number, r2: number, spacing: number): number {
 	return Math.max(r1, r2) * 2 * spacing;
@@ -234,18 +258,7 @@ export function timelinePartitionNodes(
 			);
 			if (chainOrder.size > 0) {
 				if (chains.length > 0) detectedChains = chains;
-				const chainOrdered: GraphNode[] = [];
-				const remaining: GraphNode[] = [];
-				for (const nd of untimed) {
-					if (chainOrder.has(nd.id)) chainOrdered.push(nd);
-					else remaining.push(nd);
-				}
-				chainOrdered.sort((a, b) => (chainOrder.get(a.id) ?? 0) - (chainOrder.get(b.id) ?? 0));
-				const startIdx = timed.length > 0 ? timed.length : 0;
-				for (let i = 0; i < chainOrdered.length; i++) {
-					timed.push({ node: chainOrdered[i], value: `__chain_${String(startIdx + i).padStart(6, "0")}` });
-				}
-				untimed = remaining;
+				untimed = promoteOrderedToTimed(untimed, timed, chainOrder, "__chain_");
 			}
 		}
 
@@ -254,18 +267,7 @@ export function timelinePartitionNodes(
 			if (hierOrder.size > 0) {
 				hierParentMap = hierOrder.parentMap;
 				hierChildrenMap = hierOrder.childrenMap;
-				const hierOrdered: GraphNode[] = [];
-				const remaining: GraphNode[] = [];
-				for (const nd of untimed) {
-					if (hierOrder.has(nd.id)) hierOrdered.push(nd);
-					else remaining.push(nd);
-				}
-				hierOrdered.sort((a, b) => (hierOrder.get(a.id) ?? 0) - (hierOrder.get(b.id) ?? 0));
-				const startIdx = timed.length > 0 ? timed.length : 0;
-				for (let i = 0; i < hierOrdered.length; i++) {
-					timed.push({ node: hierOrdered[i], value: `__hier_${String(startIdx + i).padStart(6, "0")}` });
-				}
-				untimed = remaining;
+				untimed = promoteOrderedToTimed(untimed, timed, hierOrder, "__hier_");
 			}
 		}
 	}
