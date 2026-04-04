@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { exportGraphSVG } from "../src/utils/graph-helpers";
+import { exportGraphSVG, buildPositionMap, computeSvgViewBox, nodeColorHex } from "../src/utils/graph-helpers";
 
 function mkNode(id: string, x: number, y: number, color?: number) {
   return { id, label: id, x, y, color };
@@ -171,5 +171,113 @@ describe("exportGraphSVG edge cases", () => {
   it("zero dimensions option still produces SVG", () => {
     const svg = exportGraphSVG([mkNode("a", 0, 0)], [], { width: 0, height: 0 });
     expect(svg).toContain("<svg");
+  });
+});
+
+// =========================================================================
+// buildPositionMap
+// =========================================================================
+describe("buildPositionMap", () => {
+  it("includes nodes with valid x,y", () => {
+    const map = buildPositionMap([
+      { id: "a", x: 10, y: 20 },
+      { id: "b", x: 30, y: 40 },
+    ]);
+    expect(map.size).toBe(2);
+    expect(map.get("a")).toEqual({ x: 10, y: 20 });
+  });
+
+  it("skips nodes with null/undefined coordinates", () => {
+    const map = buildPositionMap([
+      { id: "a", x: 10, y: 20 },
+      { id: "b", x: undefined, y: 30 },
+      { id: "c" },
+    ]);
+    expect(map.size).toBe(1);
+    expect(map.has("b")).toBe(false);
+    expect(map.has("c")).toBe(false);
+  });
+
+  it("returns empty map for empty input", () => {
+    expect(buildPositionMap([]).size).toBe(0);
+  });
+
+  it("treats x=0, y=0 as valid", () => {
+    const map = buildPositionMap([{ id: "origin", x: 0, y: 0 }]);
+    expect(map.size).toBe(1);
+    expect(map.get("origin")).toEqual({ x: 0, y: 0 });
+  });
+});
+
+// =========================================================================
+// computeSvgViewBox
+// =========================================================================
+describe("computeSvgViewBox", () => {
+  it("returns transform functions that map to viewport", () => {
+    const posMap = new Map([
+      ["a", { x: 0, y: 0 }],
+      ["b", { x: 100, y: 100 }],
+    ]);
+    const { tx, ty } = computeSvgViewBox(posMap, 800, 600);
+    // min point should map to pad (40)
+    expect(tx(0)).toBeCloseTo(40, 1);
+    expect(ty(0)).toBeCloseTo(40, 1);
+    // max point should map to width/height - pad
+    const maxTx = tx(100);
+    const maxTy = ty(100);
+    expect(maxTx).toBeLessThanOrEqual(800);
+    expect(maxTy).toBeLessThanOrEqual(600);
+  });
+
+  it("handles empty position map (falls back to full viewport)", () => {
+    const { tx, ty } = computeSvgViewBox(new Map(), 800, 600);
+    expect(tx(0)).toBeCloseTo(40, 1);
+    expect(ty(0)).toBeCloseTo(40, 1);
+  });
+
+  it("handles single point (dataW/dataH = 1 fallback)", () => {
+    const posMap = new Map([["a", { x: 50, y: 50 }]]);
+    const { tx, ty } = computeSvgViewBox(posMap, 400, 300);
+    // Should not crash — single point means dataW = dataH = 1
+    expect(typeof tx(50)).toBe("number");
+    expect(typeof ty(50)).toBe("number");
+  });
+
+  it("respects custom padding", () => {
+    const posMap = new Map([["a", { x: 0, y: 0 }]]);
+    const { tx: tx10 } = computeSvgViewBox(posMap, 800, 600, 10);
+    const { tx: tx80 } = computeSvgViewBox(posMap, 800, 600, 80);
+    expect(tx10(0)).toBeCloseTo(10, 1);
+    expect(tx80(0)).toBeCloseTo(80, 1);
+  });
+});
+
+// =========================================================================
+// nodeColorHex
+// =========================================================================
+describe("nodeColorHex", () => {
+  it("converts numeric color to hex string", () => {
+    expect(nodeColorHex(0xff0000)).toBe("#ff0000");
+    expect(nodeColorHex(0x00ff00)).toBe("#00ff00");
+    expect(nodeColorHex(0x0000ff)).toBe("#0000ff");
+  });
+
+  it("pads short hex values", () => {
+    expect(nodeColorHex(0x000001)).toBe("#000001");
+    expect(nodeColorHex(0)).toBe("#000000");
+  });
+
+  it("returns fallback for null/undefined", () => {
+    expect(nodeColorHex(null)).toBe("#60a5fa");
+    expect(nodeColorHex(undefined)).toBe("#60a5fa");
+  });
+
+  it("supports custom fallback", () => {
+    expect(nodeColorHex(null, "#abc")).toBe("#abc");
+    expect(nodeColorHex(undefined, "#123456")).toBe("#123456");
+  });
+
+  it("masks to 24-bit", () => {
+    expect(nodeColorHex(0xffffffff)).toBe("#ffffff");
   });
 });

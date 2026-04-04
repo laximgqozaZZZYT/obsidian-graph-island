@@ -410,29 +410,24 @@ export interface SvgExportOptions {
 	edgeAlpha?: number;
 }
 
-/** Convert graph nodes + edges to an SVG string.
- *  Nodes must have x, y coordinates (from layout). */
-export function exportGraphSVG(
-	nodes: { id: string; label?: string; x?: number; y?: number; color?: number }[],
-	edges: { source: string | { id: string }; target: string | { id: string }; type?: string }[],
-	opts: SvgExportOptions = {},
-): string {
-	const {
-		width = 800,
-		height = 600,
-		background = "#1e1e2e",
-		nodeRadius = 5,
-		showLabels = true,
-		edgeAlpha = 0.4,
-	} = opts;
-
-	// Build position lookup
+/** Build a Map from node ID → {x, y} for nodes that have valid coordinates. */
+export function buildPositionMap(
+	nodes: ReadonlyArray<{ id: string; x?: number; y?: number }>,
+): Map<string, { x: number; y: number }> {
 	const posMap = new Map<string, { x: number; y: number }>();
 	for (const n of nodes) {
 		if (n.x != null && n.y != null) posMap.set(n.id, { x: n.x, y: n.y });
 	}
+	return posMap;
+}
 
-	// Compute bounding box and scale to fit
+/** Compute bounding-box-based scale and translate functions for SVG export. */
+export function computeSvgViewBox(
+	posMap: ReadonlyMap<string, { x: number; y: number }>,
+	width: number,
+	height: number,
+	pad = 40,
+): { tx: (x: number) => number; ty: (y: number) => number } {
 	let minX = Infinity,
 		minY = Infinity,
 		maxX = -Infinity,
@@ -449,12 +444,38 @@ export function exportGraphSVG(
 		maxX = width;
 		maxY = height;
 	}
-	const pad = 40;
 	const dataW = maxX - minX || 1;
 	const dataH = maxY - minY || 1;
 	const scale = Math.min((width - pad * 2) / dataW, (height - pad * 2) / dataH);
-	const tx = (x: number) => pad + (x - minX) * scale;
-	const ty = (y: number) => pad + (y - minY) * scale;
+	return {
+		tx: (x: number) => pad + (x - minX) * scale,
+		ty: (y: number) => pad + (y - minY) * scale,
+	};
+}
+
+/** Convert an optional numeric color (0xRRGGBB) to a CSS hex string. */
+export function nodeColorHex(color: number | undefined | null, fallback = "#60a5fa"): string {
+	return color != null ? `#${(color & 0xffffff).toString(16).padStart(6, "0")}` : fallback;
+}
+
+/** Convert graph nodes + edges to an SVG string.
+ *  Nodes must have x, y coordinates (from layout). */
+export function exportGraphSVG(
+	nodes: { id: string; label?: string; x?: number; y?: number; color?: number }[],
+	edges: { source: string | { id: string }; target: string | { id: string }; type?: string }[],
+	opts: SvgExportOptions = {},
+): string {
+	const {
+		width = 800,
+		height = 600,
+		background = "#1e1e2e",
+		nodeRadius = 5,
+		showLabels = true,
+		edgeAlpha = 0.4,
+	} = opts;
+
+	const posMap = buildPositionMap(nodes);
+	const { tx, ty } = computeSvgViewBox(posMap, width, height);
 
 	const lines: string[] = [];
 	lines.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">`);
@@ -465,10 +486,8 @@ export function exportGraphSVG(
 	// Edges
 	lines.push(`  <g class="edges" stroke="#888" stroke-width="0.5" opacity="${edgeAlpha}">`);
 	for (const e of edges) {
-		const sid = edgeSourceId(e);
-		const tid = edgeTargetId(e);
-		const sp = posMap.get(sid);
-		const tp = posMap.get(tid);
+		const sp = posMap.get(edgeSourceId(e));
+		const tp = posMap.get(edgeTargetId(e));
 		if (!sp || !tp) continue;
 		lines.push(
 			`    <line x1="${tx(sp.x).toFixed(1)}" y1="${ty(sp.y).toFixed(1)}" x2="${tx(tp.x).toFixed(1)}" y2="${ty(tp.y).toFixed(1)}"/>`,
@@ -481,9 +500,8 @@ export function exportGraphSVG(
 	for (const n of nodes) {
 		const p = posMap.get(n.id);
 		if (!p) continue;
-		const hex = n.color != null ? `#${(n.color & 0xffffff).toString(16).padStart(6, "0")}` : "#60a5fa";
 		lines.push(
-			`    <circle cx="${tx(p.x).toFixed(1)}" cy="${ty(p.y).toFixed(1)}" r="${nodeRadius}" fill="${hex}"/>`,
+			`    <circle cx="${tx(p.x).toFixed(1)}" cy="${ty(p.y).toFixed(1)}" r="${nodeRadius}" fill="${nodeColorHex(n.color)}"/>`,
 		);
 	}
 	lines.push(`  </g>`);
