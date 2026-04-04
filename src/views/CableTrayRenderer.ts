@@ -6,9 +6,8 @@
  * caches.  Drawing code stays in EdgeRenderer which imports these helpers.
  */
 
-import type { GraphEdge, EdgeCardinalityMode } from "../types";
+import type { GraphEdge } from "../types";
 import { edgeSourceId, edgeTargetId, incCounter } from "../utils/graph-helpers";
-import { EDGE_TYPE_INHERITANCE, EDGE_TYPE_AGGREGATION, EDGE_TYPE_SEQUENCE } from "../constants";
 import type { EdgeDrawConfig, GroupBBox, BBoxFace, JunctionGrid } from "./EdgeRenderer";
 import {
 	resolveEdgeColor,

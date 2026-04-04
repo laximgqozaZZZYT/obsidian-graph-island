@@ -6,9 +6,6 @@ import { wcagContrastRatio, contrastColor } from "../utils/color";
 import type { RoadNetwork } from "../layouts/cable-tray";
 import {
 	routeEdge,
-	findNearestIntersection,
-	cachedFindShortestPath,
-	pathToWaypoints,
 	invalidatePathCache,
 } from "../layouts/cable-tray";
 import {
@@ -33,35 +30,15 @@ import {
 	type PortLaneInfo,
 	type PortColorLanes,
 	type CablePrepResult,
-	HIGHLIGHT_CABLE_TRUNK_WIDTH,
-	CABLE_FAN_CROWD_THRESHOLD,
-	CABLE_FAN_CROWD_MIN_FRACTION,
-	CABLE_FAN_CONNECTED_FACTOR,
-	CABLE_FAN_NON_MATCH_DAMPEN,
 	CABLE_LANE_SPACING,
-	CABLE_LAYOUT_MARGIN,
-	CABLE_OVERLAP_FRAC,
 	TRUNK_CONDUIT_ALPHA,
-	CABLE_CONDUIT_ALPHA,
 	WIRE_BASE_ALPHA,
 	STUB_WIRE_SPACING,
-	MAX_CONDUIT_WIDTH,
 	TRUNK_SCREEN_WIDTH,
 	CABLE_SCREEN_WIDTH,
 	WIRE_SCREEN_WIDTH,
-	DEFAULT_CLUSTER_RADIUS,
-	NODE_PORT_OFFSET_RATIO,
-	NODE_PORT_MIN_OFFSET,
 	zoomFadeAlpha as _zoomFadeAlpha,
-	buildManhattanPath,
-	buildHorizontalTrunkPath,
-	buildVerticalTrunkPath,
-	buildPolarTrunkPath,
-	computeCablePath,
 	computePolarCenter,
-	computePolarJunctionGrid,
-	filterPolarGridForPort,
-	routeViaPolarGrid,
 	computeGroupPorts,
 	buildTrunks,
 	buildIntraGroupCables,
@@ -946,8 +923,6 @@ export function routeViaJunctionGrid(
 	const srcColGap = findNearestGap(grid.colGaps, from.x);
 	// Find colGap nearest to target X (the "aisle" to enter the target node)
 	const tgtColGap = findNearestGap(grid.colGaps, to.x);
-	// Find rowGap between the two Y positions
-	const rowGap = findGapBetween(grid.rowGaps, from.y, to.y);
 
 	// Find rowGap nearest to source (to avoid running along a node row)
 	const srcRowGap = findNearestGap(grid.rowGaps, from.y);
@@ -1203,10 +1178,9 @@ function _drawSingleIntraCableGpb(
 			const gpHighlight = getBranchHighlight(edges);
 			if (gpHighlight !== filterHighlight) continue;
 
-			let wireAlpha = baseA;
-			if (gpHighlight === "bright") wireAlpha = cfg.highlightEdgeAlpha ?? 1.0;
-			else wireAlpha = cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA;
-			wireAlpha *= fadeMul;
+			const wireAlpha = (gpHighlight === "bright"
+				? (cfg.highlightEdgeAlpha ?? 1.0)
+				: (cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA)) * fadeMul;
 
 			const gpFinalAlpha =
 				(gpHighlight === "bright" ? wireAlpha : Math.max(wireAlpha * densityScale, 0.05)) * zoomFade;
@@ -1450,8 +1424,6 @@ function drawTrunks(
 	const cfgTrunkWidth = cfg.cableTrunkWidth ?? TRUNK_SCREEN_WIDTH;
 	const cfgTrunkAlpha = cfg.cableTrunkAlpha ?? TRUNK_CONDUIT_ALPHA;
 	const cfgLaneSpacing = cfg.cableSpacing ?? CABLE_LANE_SPACING;
-	const cfgWireWidth = cfg.cableFanWidth ?? WIRE_SCREEN_WIDTH;
-	const cfgWireAlpha = cfg.cableFanAlpha ?? WIRE_BASE_ALPHA;
 	const laneSpacing = cfgLaneSpacing;
 
 	// PASS 1: Trunk conduits — width adapts to cable count so all lanes fit inside.
