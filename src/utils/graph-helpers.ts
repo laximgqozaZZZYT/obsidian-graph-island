@@ -879,3 +879,78 @@ export function computeTimelineFilteredIds(
 	}
 	return filtered;
 }
+
+// ---------------------------------------------------------------------------
+// Compare Venn — exclusive/shared neighbor sets for compare nodes
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute Venn-like exclusive/shared neighbor sets for a list of compare nodes.
+ * Returns null if fewer than 2 nodes are given.
+ */
+export function computeCompareVenn(
+	compareNodeIds: readonly string[],
+	adj: Map<string, Set<string>>,
+): { exclusive: Map<string, Set<string>>; shared: Set<string> } | null {
+	if (compareNodeIds.length < 2) return null;
+	const neighborSets = new Map<string, Set<string>>();
+	for (const nid of compareNodeIds) {
+		const neighbors = new Set<string>();
+		for (const nb of adj.get(nid) ?? []) {
+			if (!compareNodeIds.includes(nb)) neighbors.add(nb);
+		}
+		neighborSets.set(nid, neighbors);
+	}
+	// Shared: neighbors in ALL selected nodes
+	const allSets = [...neighborSets.values()];
+	const shared = new Set<string>();
+	if (allSets.length > 0) {
+		for (const nb of allSets[0]) {
+			if (allSets.every((s) => s.has(nb))) shared.add(nb);
+		}
+	}
+	// Exclusive: neighbors unique to each node
+	const exclusive = new Map<string, Set<string>>();
+	for (const [nid, nbs] of neighborSets) {
+		const exc = new Set<string>();
+		for (const nb of nbs) {
+			const othersHave = [...neighborSets.entries()].some(([k, s]) => k !== nid && s.has(nb));
+			if (!othersHave) exc.add(nb);
+		}
+		exclusive.set(nid, exc);
+	}
+	return { exclusive, shared };
+}
+
+// ---------------------------------------------------------------------------
+// Pathfinder — BFS shortest path + edge set construction
+// ---------------------------------------------------------------------------
+
+export interface PathfinderResult {
+	path: string[];
+	nodeSet: Set<string>;
+	edgeSet: Set<string>;
+}
+
+/**
+ * Find the shortest path between two nodes and build highlight sets.
+ * Returns null if no path exists or inputs are invalid.
+ */
+export function computePathfinderResult(
+	adj: Map<string, Set<string>>,
+	startId: string | null,
+	endId: string | null,
+): PathfinderResult | null {
+	if (!startId || !endId || startId === endId || !adj.size) return null;
+	const path = bfsShortestPath(adj, startId, endId);
+	if (path.length === 0) return null;
+	const nodeSet = new Set(path);
+	const edgeSet = new Set<string>();
+	for (let i = 0; i < path.length - 1; i++) {
+		const a = path[i],
+			b = path[i + 1];
+		edgeSet.add(`${a}→${b}`);
+		edgeSet.add(`${b}→${a}`);
+	}
+	return { path, nodeSet, edgeSet };
+}

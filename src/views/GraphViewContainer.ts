@@ -67,6 +67,8 @@ import {
 	buildMissingNeighborSet,
 	parseGroupByFields,
 	computeAutoFitTransform,
+	computeCompareVenn,
+	computePathfinderResult,
 } from "../utils/graph-helpers";
 import {
 	applyVisibilityFilters,
@@ -3487,34 +3489,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** W3: Compute Venn-like exclusive/shared neighbor sets for compare nodes */
 	computeCompareVenn(): { exclusive: Map<string, Set<string>>; shared: Set<string> } | null {
-		if (this.compareNodeIds.length < 2 || !this.adj) return null;
-		const neighborSets = new Map<string, Set<string>>();
-		for (const nid of this.compareNodeIds) {
-			const neighbors = new Set<string>();
-			for (const nb of this.adj.get(nid) ?? []) {
-				if (!this.compareNodeIds.includes(nb)) neighbors.add(nb);
-			}
-			neighborSets.set(nid, neighbors);
-		}
-		// Shared: neighbors in ALL selected nodes
-		const allSets = [...neighborSets.values()];
-		const shared = new Set<string>();
-		if (allSets.length > 0) {
-			for (const nb of allSets[0]) {
-				if (allSets.every((s) => s.has(nb))) shared.add(nb);
-			}
-		}
-		// Exclusive: neighbors unique to each node
-		const exclusive = new Map<string, Set<string>>();
-		for (const [nid, nbs] of neighborSets) {
-			const exc = new Set<string>();
-			for (const nb of nbs) {
-				const othersHave = [...neighborSets.entries()].some(([k, s]) => k !== nid && s.has(nb));
-				if (!othersHave) exc.add(nb);
-			}
-			exclusive.set(nid, exc);
-		}
-		return { exclusive, shared };
+		if (!this.adj) return null;
+		return computeCompareVenn(this.compareNodeIds, this.adj);
 	}
 
 	// =========================================================================
@@ -4310,58 +4286,17 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		});
 	}
 
-	/** BFS shortest path using adj map */
+	/** BFS shortest path using adj map (delegates to pure function) */
 	private computePathfinderPath() {
 		this.pathfinderPath = null;
+		this.pathfinderNodeSet = null;
 		this.pathfinderEdgeSet = null;
-		if (!this.pathfinderStartId || !this.pathfinderEndId) return;
-		if (this.pathfinderStartId === this.pathfinderEndId) return;
-		if (!this.adj.size) return;
-
-		const start = this.pathfinderStartId;
-		const end = this.pathfinderEndId;
-		const visited = new Set<string>([start]);
-		const parent = new Map<string, string>();
-		const queue: string[] = [start];
-
-		while (queue.length > 0) {
-			const current = queue.shift()!;
-			if (current === end) break;
-			const neighbors = this.adj.get(current);
-			if (!neighbors) continue;
-			for (const n of neighbors) {
-				if (!visited.has(n)) {
-					visited.add(n);
-					parent.set(n, current);
-					queue.push(n);
-				}
-			}
-		}
-
-		if (!parent.has(end)) return; // no path found
-
-		// Reconstruct path
-		const path: string[] = [];
-		let cur = end;
-		while (cur !== start) {
-			path.unshift(cur);
-			cur = parent.get(cur)!;
-		}
-		path.unshift(start);
-		this.pathfinderPath = path;
-		this.pathfinderNodeSet = new Set(path);
-
-		// Build edge set for highlighting
-		const edgeSet = new Set<string>();
-		for (let i = 0; i < path.length - 1; i++) {
-			const a = path[i],
-				b = path[i + 1];
-			edgeSet.add(`${a}→${b}`);
-			edgeSet.add(`${b}→${a}`);
-		}
-		this.pathfinderEdgeSet = edgeSet;
-
-		showToast(`Path: ${path.length} nodes, ${path.length - 1} hops`);
+		const result = computePathfinderResult(this.adj, this.pathfinderStartId, this.pathfinderEndId);
+		if (!result) return;
+		this.pathfinderPath = result.path;
+		this.pathfinderNodeSet = result.nodeSet;
+		this.pathfinderEdgeSet = result.edgeSet;
+		showToast(`Path: ${result.path.length} nodes, ${result.path.length - 1} hops`);
 	}
 
 	/** Get the pathfinder node set (for render pipeline highlight) */

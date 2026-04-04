@@ -4,6 +4,7 @@ import {
   edgeSourceId, edgeTargetId, shiftHue, stringHash, hslToHex,
   incCounter, buildAdjFromEdges,
   computeNodeBBox, buildTagMembership, buildMissingNeighborSet,
+  computeCompareVenn, computePathfinderResult,
 } from "../src/utils/graph-helpers";
 import type { GraphData, GraphNode, GraphEdge } from "../src/types";
 
