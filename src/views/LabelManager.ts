@@ -453,28 +453,7 @@ export class LabelManager {
 		const maxVisible = Platform.isMobile ? 50 : 0; // 0 = no cap
 
 		// AP-5 diversity guarantee: promote top non-super nodes if too few
-		const eligibleNonSuper = candidates.filter((c) => !c.isSuper).length;
-		const eligibleSuper = candidates.filter((c) => c.isSuper).length;
-		const targetRegulars = Math.max(rt.labelMinNonSuper ?? 5, Math.ceil(eligibleSuper * 0.5));
-		if (eligibleNonSuper < targetRegulars) {
-			const needed = targetRegulars - eligibleNonSuper;
-			const hiddenNonSupers: { pn: PixiNode; deg: number }[] = [];
-			for (const pn of this.host.getPixiNodes().values()) {
-				if (!pn.label || !pn.label.text) continue;
-				const isS = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
-				if (isS) continue;
-				if (candidates.some((c) => c.pn === pn)) continue;
-				const d = degrees.get(pn.data.id) ?? 0;
-				hiddenNonSupers.push({ pn, deg: d });
-			}
-			hiddenNonSupers.sort((a, b) => b.deg - a.deg);
-			for (let i = 0; i < Math.min(needed, hiddenNonSupers.length); i++) {
-				const { pn: npn, deg: ndeg } = hiddenNonSupers[i];
-				npn.label!.visible = true;
-				npn.label!.alpha = Math.max(rt.labelAlphaMin ?? 0.7, baseOpacity);
-				candidates.push({ pn: npn, deg: ndeg, isSuper: false, isHovered: false });
-			}
-		}
+		this._promoteDiversityNodes(candidates, rt, degrees, baseOpacity);
 
 		// Sort by priority score, apply maxVisible cap
 		candidates.sort((a, b) => b.pn.priorityScore - a.pn.priorityScore);
@@ -518,6 +497,35 @@ export class LabelManager {
 					lbl.bgPadX = Math.max(lbl.bgPadX, 4 + emphasisBoost * 10);
 				}
 			}
+		}
+	}
+
+	private _promoteDiversityNodes(
+		candidates: { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[],
+		rt: RenderThresholds,
+		degrees: Map<string, number>,
+		baseOpacity: number,
+	): void {
+		const eligibleNonSuper = candidates.filter((c) => !c.isSuper).length;
+		const eligibleSuper = candidates.filter((c) => c.isSuper).length;
+		const targetRegulars = Math.max(rt.labelMinNonSuper ?? 5, Math.ceil(eligibleSuper * 0.5));
+		if (eligibleNonSuper >= targetRegulars) return;
+		const needed = targetRegulars - eligibleNonSuper;
+		const hiddenNonSupers: { pn: PixiNode; deg: number }[] = [];
+		for (const pn of this.host.getPixiNodes().values()) {
+			if (!pn.label || !pn.label.text) continue;
+			const isS = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
+			if (isS) continue;
+			if (candidates.some((c) => c.pn === pn)) continue;
+			const d = degrees.get(pn.data.id) ?? 0;
+			hiddenNonSupers.push({ pn, deg: d });
+		}
+		hiddenNonSupers.sort((a, b) => b.deg - a.deg);
+		for (let i = 0; i < Math.min(needed, hiddenNonSupers.length); i++) {
+			const { pn: npn, deg: ndeg } = hiddenNonSupers[i];
+			npn.label!.visible = true;
+			npn.label!.alpha = Math.max(rt.labelAlphaMin ?? 0.7, baseOpacity);
+			candidates.push({ pn: npn, deg: ndeg, isSuper: false, isHovered: false });
 		}
 	}
 
