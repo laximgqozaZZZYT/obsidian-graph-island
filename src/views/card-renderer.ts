@@ -68,6 +68,27 @@ const CARD_ICON_FILL_ALPHA = 0.25;
 /** Card icon fold fill alpha */
 const CARD_ICON_FOLD_ALPHA = 0.15;
 
+/**
+ * Word-wrap text into lines by splitting on whitespace boundaries.
+ * Returns at most `maxLines` lines, each no wider than `charsPerLine`.
+ */
+export function wrapTextToLines(text: string, charsPerLine: number, maxLines: number): string[] {
+	const words = text.split(/\s+/);
+	const lines: string[] = [];
+	let cur = "";
+	for (const w of words) {
+		if (cur.length + w.length + 1 > charsPerLine) {
+			lines.push(cur);
+			cur = w;
+			if (lines.length >= maxLines) break;
+		} else {
+			cur = cur ? cur + " " + w : w;
+		}
+	}
+	if (cur && lines.length < maxLines) lines.push(cur);
+	return lines;
+}
+
 /** Plain card title font minimum size (px) */
 const PLAIN_CARD_TITLE_FONT_MIN = 3;
 /** Plain card body font minimum size (px) */
