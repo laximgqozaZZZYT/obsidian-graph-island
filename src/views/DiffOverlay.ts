@@ -169,7 +169,24 @@ export class DiffOverlay {
 
 		// --- ゴーストノード（削除されたノード、右下にグリッド配置） ---
 		const ghostPositions = this._layoutGhostNodes(this.diff.removedNodes, viewport);
+		this._renderGhostNodes(ctx, ghostPositions, this.diff.removedNodes);
 
+		// --- 削除エッジ（赤い破線） ---
+		this._renderRemovedEdges(ctx, pixiNodes, ghostPositions, this.diff.removedNodes, this.diff.removedEdges, toScreen);
+
+		// --- ステータスバー（左下に表示） ---
+		this._renderStatusBar(ctx, viewport);
+
+		// グローバルアルファをリセット
+		ctx.globalAlpha = 1;
+	}
+
+	/** ゴーストノード（削除済みノード）をドット+ラベルで描画する */
+	private _renderGhostNodes(
+		ctx: CanvasRenderingContext2D,
+		ghostPositions: Array<{ x: number; y: number }>,
+		removedNodes: SnapshotNode[],
+	): void {
 		ctx.fillStyle = REMOVED_COLOR;
 		ctx.globalAlpha = REMOVED_ALPHA;
 		for (const { x, y } of ghostPositions) {
@@ -178,7 +195,7 @@ export class DiffOverlay {
 			ctx.fill();
 		}
 
-		// ゴーストノードのラベル
+		// ラベル
 		ctx.fillStyle = REMOVED_COLOR;
 		ctx.globalAlpha = 0.5;
 		ctx.font = `${GHOST_FONT_SIZE}px sans-serif`;
@@ -186,12 +203,11 @@ export class DiffOverlay {
 		ctx.textBaseline = "top";
 		for (let i = 0; i < ghostPositions.length; i++) {
 			const { x, y } = ghostPositions[i];
-			const node = this.diff.removedNodes[i];
-			ctx.fillText(ghostLabel(node.id), x, y + GHOST_RADIUS + 2);
+			ctx.fillText(ghostLabel(removedNodes[i].id), x, y + GHOST_RADIUS + 2);
 		}
 
-		// ゴーストオーバーフロー表示
-		const overflow = this.diff.removedNodes.length - ghostPositions.length;
+		// オーバーフロー表示
+		const overflow = removedNodes.length - ghostPositions.length;
 		if (overflow > 0 && ghostPositions.length > 0) {
 			const last = ghostPositions[ghostPositions.length - 1];
 			ctx.fillStyle = REMOVED_COLOR;
@@ -201,21 +217,28 @@ export class DiffOverlay {
 			ctx.textBaseline = "top";
 			ctx.fillText(`+${overflow} more`, last.x, last.y + GHOST_RADIUS + GHOST_FONT_SIZE + 4);
 		}
+	}
 
-		// --- 削除エッジ（赤い破線） ---
-		// 両端ノードが現在のグラフかゴーストに存在する場合のみ描画
+	/** 削除エッジを赤い破線で描画する */
+	private _renderRemovedEdges(
+		ctx: CanvasRenderingContext2D,
+		pixiNodes: Map<string, PixiNode>,
+		ghostPositions: Array<{ x: number; y: number }>,
+		removedNodes: SnapshotNode[],
+		removedEdges: Array<{ source: string; target: string }>,
+		toScreen: (wx: number, wy: number) => [number, number],
+	): void {
 		ctx.strokeStyle = REMOVED_EDGE_COLOR;
 		ctx.lineWidth = 1.5;
 		ctx.globalAlpha = 0.4;
 		ctx.setLineDash([4, 4]);
 
-		// ゴーストノード位置マップを構築（表示中のノードのみ）
 		const ghostPosMap = new Map<string, { x: number; y: number }>();
 		for (let i = 0; i < ghostPositions.length; i++) {
-			ghostPosMap.set(this.diff.removedNodes[i].id, ghostPositions[i]);
+			ghostPosMap.set(removedNodes[i].id, ghostPositions[i]);
 		}
 
-		for (const edge of this.diff.removedEdges) {
+		for (const edge of removedEdges) {
 			const srcPn = pixiNodes.get(edge.source);
 			const tgtPn = pixiNodes.get(edge.target);
 			const srcGhost = ghostPosMap.get(edge.source);
@@ -246,14 +269,7 @@ export class DiffOverlay {
 			}
 		}
 
-		// 破線リセット
 		ctx.setLineDash([]);
-
-		// --- ステータスバー（左下に表示） ---
-		this._renderStatusBar(ctx, viewport);
-
-		// グローバルアルファをリセット
-		ctx.globalAlpha = 1;
 	}
 
 	/** 削除ノードをビューポート右下にグリッド配置する */

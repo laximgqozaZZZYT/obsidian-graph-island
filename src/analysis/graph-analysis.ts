@@ -425,6 +425,24 @@ export interface SimilarNode {
 	score: number;
 }
 
+/** Build a feature set of prefixed tags + neighbors for a node. */
+function buildFeatureSet(node: GraphNode, neighbors: string[]): Set<string> {
+	const features = new Set<string>();
+	for (const tag of node.tags ?? []) features.add(`tag:${tag}`);
+	for (const nb of neighbors) features.add(`nb:${nb}`);
+	return features;
+}
+
+/** Jaccard similarity = |A ∩ B| / |A ∪ B|. */
+function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
+	let intersection = 0;
+	for (const f of a) {
+		if (b.has(f)) intersection++;
+	}
+	const union = a.size + b.size - intersection;
+	return union > 0 ? intersection / union : 0;
+}
+
 /**
  * Find similar nodes to the given node based on Jaccard similarity
  * of (tags ∪ neighbors).
@@ -436,45 +454,23 @@ export function computeSimilarNodes(
 	topN = 3,
 	threshold = 0.15,
 ): SimilarNode[] {
-	// Build adjacency
-	const adj = new Map<string, Set<string>>();
-	for (const n of nodes) adj.set(n.id, new Set());
-	for (const e of edges) {
-		adj.get(e.source)?.add(e.target);
-		adj.get(e.target)?.add(e.source);
-	}
+	const adj = buildAdjFromEdges(nodes, edges);
 
-	// Feature set for target node
 	const targetNode = nodes.find((n) => n.id === nodeId);
 	if (!targetNode) return [];
-	const targetFeatures = new Set<string>();
-	for (const tag of targetNode.tags ?? []) targetFeatures.add(`tag:${tag}`);
-	for (const nb of adj.get(nodeId) ?? []) targetFeatures.add(`nb:${nb}`);
-
+	const targetFeatures = buildFeatureSet(targetNode, adj.get(nodeId) ?? []);
 	if (targetFeatures.size === 0) return [];
 
-	// Already linked nodes (exclude from suggestions)
-	const linked = adj.get(nodeId) ?? new Set();
+	const linked = new Set(adj.get(nodeId) ?? []);
 
 	const results: SimilarNode[] = [];
 	for (const n of nodes) {
-		if (n.id === nodeId) continue;
-		if (linked.has(n.id)) continue; // skip already-connected
+		if (n.id === nodeId || linked.has(n.id)) continue;
 
-		const nFeatures = new Set<string>();
-		for (const tag of n.tags ?? []) nFeatures.add(`tag:${tag}`);
-		for (const nb of adj.get(n.id) ?? []) nFeatures.add(`nb:${nb}`);
-
+		const nFeatures = buildFeatureSet(n, adj.get(n.id) ?? []);
 		if (nFeatures.size === 0) continue;
 
-		// Jaccard = |A ∩ B| / |A ∪ B|
-		let intersection = 0;
-		for (const f of targetFeatures) {
-			if (nFeatures.has(f)) intersection++;
-		}
-		const union = targetFeatures.size + nFeatures.size - intersection;
-		const score = union > 0 ? intersection / union : 0;
-
+		const score = jaccardSimilarity(targetFeatures, nFeatures);
 		if (score >= threshold) {
 			results.push({ id: n.id, label: n.label, score });
 		}
