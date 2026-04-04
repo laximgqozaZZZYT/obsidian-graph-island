@@ -105,9 +105,10 @@ const FILL_ALPHA_OVERLAP = 0.04;
 const LABEL_COLLISION_MAX_ATTEMPTS = 6;
 
 /** Label offset beyond hull for placement direction.
- *  HX: Scales with zoom to prevent labels from being too close at extreme zoom-out. */
+ *  HX: Scales with zoom to prevent labels from being too close at extreme zoom-out.
+ *  Currently unused (_labelY was removed) but kept for future use. */
 const LABEL_OFFSET_BASE = 8;
-function labelOffset(ws: number): number {
+function _labelOffset(ws: number): number {
 	return Math.max(LABEL_OFFSET_BASE, LABEL_OFFSET_BASE * Math.max(1, 0.4 / Math.max(ws, 0.02)));
 }
 
@@ -166,6 +167,341 @@ const _allPtsBuf: (Pt & { radius: number })[] = [];
 // Public API
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Extracted helpers for drawEnclosures (complexity reduction)
+// ---------------------------------------------------------------------------
+
+/** Build EncData for a single tag group. Returns null if group should be skipped. */
+function buildEncData(
+	tag: string,
+	memberIds: Set<string>,
+	cfg: EnclosureConfig,
+	minCount: number,
+): EncData | null {
+	if (memberIds.size < minCount) return null;
+
+	_allPtsBuf.length = 0;
+	for (const id of memberIds) {
+		const p = cfg.resolvePos(id);
+		if (p) _allPtsBuf.push({ x: p.x, y: p.y, radius: p.radius ?? 12 });
+	}
+	if (_allPtsBuf.length < 1) return null;
+
+	const pts = filterOutliers(_allPtsBuf, cfg.enclosureOutlierFactor ?? 2.0);
+	if (pts.length < 1) return null;
+
+	const hue = stringHash(tag, 360);
+	const hex = hslToHex(hue, 0.55, 0.55);
+
+	_hullInputBuf.length = 0;
+	const mc = pts.length;
+	for (const p of pts) {
+		const r = p.radius + outlinePad(p.radius, mc);
+		for (let k = 0; k < HULL_SAMPLES; k++) {
+			const angle = (k / HULL_SAMPLES) * Math.PI * 2;
+			_hullInputBuf.push({ x: p.x + Math.cos(angle) * r, y: p.y + Math.sin(angle) * r });
+		}
+	}
+
+	let expanded: Pt[];
+	if (pts.length === 1) {
+		const p = pts[0];
+		const r = p.radius + outlinePad(p.radius, mc);
+		expanded = [
+			{ x: p.x - r, y: p.y - r },
+			{ x: p.x + r, y: p.y - r },
+			{ x: p.x + r, y: p.y + r },
+			{ x: p.x - r, y: p.y + r },
+		];
+	} else {
+		expanded = convexHull(_hullInputBuf);
+	}
+
+	let minX = Infinity,
+		minY = Infinity,
+		maxX = -Infinity,
+		maxY = -Infinity;
+	for (const p of expanded) {
+		if (p.x < minX) minX = p.x;
+		if (p.x > maxX) maxX = p.x;
+		if (p.y < minY) minY = p.y;
+		if (p.y > maxY) maxY = p.y;
+	}
+
+	return { tag, pts, hex, expanded, minX, minY, maxX, maxY };
+}
+
+/** Recompute overlap counts between enclosures (amortized every N frames). */
+function recomputeOverlapCounts(
+	overlapCache: OverlapCache,
+	enclosures: EncData[],
+	relPairs: Set<string>,
+): void {
+	overlapCache.frame++;
+	if (overlapCache.frame < OVERLAP_RECOMPUTE_FRAMES) return;
+	overlapCache.frame = 0;
+	overlapCache.counts.clear();
+	for (let i = 0; i < enclosures.length; i++) {
+		for (let j = i + 1; j < enclosures.length; j++) {
+			const a = enclosures[i],
+				b = enclosures[j];
+			if (relPairs.has(`${a.tag}\0${b.tag}`)) continue;
+			if (a.maxX < b.minX || a.minX > b.maxX || a.maxY < b.minY || a.minY > b.maxY) continue;
+			overlapCache.counts.set(a.tag, (overlapCache.counts.get(a.tag) || 0) + 1);
+			overlapCache.counts.set(b.tag, (overlapCache.counts.get(b.tag) || 0) + 1);
+		}
+	}
+}
+
+/** Compute stroke alpha and line width for an enclosure. */
+function computeStrokeStyle(
+	overlaps: number,
+	cfg: EnclosureConfig,
+): { baseLineAlpha: number; lineWidth: number } {
+	const baseLineAlpha =
+		overlaps === 0
+			? STROKE_ALPHA_NO_OVERLAP
+			: Math.max(STROKE_ALPHA_OVERLAP_MIN, STROKE_ALPHA_OVERLAP_BASE / (1 + overlaps * 0.1));
+	const strokeOverride = cfg.enclosureStrokeWidth ?? 0;
+	const hcMul = cfg.highContrast ? 3 : 1;
+	const lineWidth =
+		(strokeOverride > 0
+			? strokeOverride
+			: overlaps === 0
+				? STROKE_WIDTH_NO_OVERLAP
+				: Math.max(STROKE_WIDTH_OVERLAP_MIN, STROKE_WIDTH_OVERLAP_BASE - overlaps * 0.3)) * hcMul;
+	return { baseLineAlpha, lineWidth };
+}
+
+/** Compute fill alpha for an enclosure based on zoom blend and overlap state. */
+function computeFillAlpha(
+	blend: number,
+	overlaps: number,
+	memberCount: number,
+	opacityOverride: number | undefined | null,
+): number {
+	const sizeFade = Math.max(SIZE_FADE_MIN, 1 - memberCount / SIZE_FADE_DIVISOR);
+	if (blend > 0.8) return 0;
+	if (opacityOverride !== undefined && opacityOverride !== null) {
+		return opacityOverride > 0 ? opacityOverride * sizeFade : 0;
+	}
+	if (blend > 0) {
+		const baseFill = overlaps > 0 ? FILL_ALPHA_OVERLAP : FILL_ALPHA_BASE;
+		return blend * baseFill * sizeFade;
+	}
+	return 0;
+}
+
+/** Draw the enclosure shape (circle, capsule, or hull polygon) on the graphics context. */
+function drawEnclosureShape(
+	g: CanvasGraphics,
+	pts: (Pt & { radius: number })[],
+	expanded: Pt[],
+	memberCount: number,
+): void {
+	if (pts.length === 1) {
+		const p = pts[0];
+		const r = p.radius + outlinePad(p.radius, memberCount);
+		g.drawCircle(p.x, p.y, r);
+	} else if (pts.length === 2) {
+		const maxR = Math.max(pts[0].radius, pts[1].radius);
+		const r = maxR + outlinePad(maxR, memberCount);
+		drawCapsule(g, pts[0], pts[1], r);
+	} else {
+		drawSmoothHull(g, expanded);
+	}
+}
+
+/** Compute label anchor position (labelCenterX/Y) from the enclosure geometry. */
+function computeLabelCenter(
+	pts: (Pt & { radius: number })[],
+	expanded: Pt[],
+): { labelCenterX: number; labelCenterY: number } {
+	if (pts.length === 1) {
+		return { labelCenterX: pts[0].x, labelCenterY: pts[0].y };
+	}
+	if (pts.length === 2) {
+		return {
+			labelCenterX: (pts[0].x + pts[1].x) / 2,
+			labelCenterY: (pts[0].y + pts[1].y) / 2,
+		};
+	}
+	let sumX = 0,
+		sumY = 0;
+	for (const p of expanded) {
+		sumX += p.x;
+		sumY += p.y;
+	}
+	return {
+		labelCenterX: sumX / expanded.length,
+		labelCenterY: sumY / expanded.length,
+	};
+}
+
+/** Ensure a CanvasText label exists for the given tag, creating one if needed. */
+function ensureLabel(
+	tag: string,
+	hex: number,
+	memberCount: number,
+	enclosureLabels: Map<string, CanvasText>,
+	cfg: EnclosureConfig,
+	glFontSize: number,
+	glFontWeight: string,
+	glLetterSpacing: number,
+	glBgAlpha: number,
+): CanvasText {
+	let txt = enclosureLabels.get(tag);
+	if (!txt) {
+		const hexStr = "#" + hex.toString(16).padStart(6, "0");
+		const detail = cfg.clusterLabelDetail ?? "standard";
+		let labelText: string;
+		if (detail === "minimal") {
+			labelText = `#${tag}`;
+		} else if ((detail === "detailed" || detail === "rich") && cfg.getClusterSummary) {
+			labelText = cfg.getClusterSummary(tag, memberCount);
+		} else {
+			labelText = `#${tag} (${memberCount})`;
+		}
+		txt = new CanvasText(labelText, {
+			fontSize: glFontSize,
+			fill: hexStr,
+			fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+			fontWeight: glFontWeight,
+		});
+		txt.anchor.set(0.5, 0.5);
+		txt.resolution = 2;
+		txt.letterSpacing = glLetterSpacing;
+		txt.strokeColor = 0x000000;
+		txt.strokeWidth = 2;
+		enclosureLabels.set(tag, txt);
+	}
+	// Pill background: darken the enclosure hue
+	const bgHex = darkenColor(hex, LABEL_DARKEN_FACTOR);
+	txt.bgColor = bgHex;
+	txt.bgAlpha = glBgAlpha;
+	txt.bgPadX = LABEL_PILL_PAD_X;
+	txt.bgPadY = LABEL_PILL_PAD_Y;
+	// WCAG contrast auto-correction
+	if (wcagContrastRatio(hex, bgHex) < 3.0) {
+		txt.style.fill = "#" + contrastColor(bgHex).toString(16).padStart(6, "0");
+	}
+	return txt;
+}
+
+/** Find farthest hull vertex from centroid and return direction unit vector. */
+function farthestDirection(
+	expanded: Pt[],
+	labelCenterX: number,
+	labelCenterY: number,
+): { farthestX: number; farthestY: number; ux: number; uy: number } {
+	let farthestDist = 0;
+	let farthestX = labelCenterX;
+	let farthestY = labelCenterY - 1;
+	for (const p of expanded) {
+		const dx = p.x - labelCenterX;
+		const dy = p.y - labelCenterY;
+		const d = dx * dx + dy * dy;
+		if (d > farthestDist) {
+			farthestDist = d;
+			farthestX = p.x;
+			farthestY = p.y;
+		}
+	}
+	const dirX = farthestX - labelCenterX;
+	const dirY = farthestY - labelCenterY;
+	const dirLen = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+	return { farthestX, farthestY, ux: dirX / dirLen, uy: dirY / dirLen };
+}
+
+/** Position a label according to enclosureLabelPosition setting. */
+function positionLabel(
+	txt: CanvasText,
+	expanded: Pt[],
+	labelCenterX: number,
+	labelCenterY: number,
+	far: { farthestX: number; farthestY: number; ux: number; uy: number },
+	glHullOffset: number,
+	lpos: "top" | "center" | "bottom",
+): void {
+	txt.anchor.set(0.5, 0.5);
+	if (lpos === "center") {
+		txt.x = labelCenterX;
+		txt.y = labelCenterY;
+	} else if (lpos === "bottom") {
+		let bottomY = -Infinity;
+		let bottomX = labelCenterX;
+		for (const p of expanded) {
+			if (p.y > bottomY) {
+				bottomY = p.y;
+				bottomX = p.x;
+			}
+		}
+		txt.x = bottomX;
+		txt.y = bottomY + glHullOffset;
+	} else {
+		txt.x = far.farthestX + far.ux * glHullOffset;
+		txt.y = far.farthestY + far.uy * glHullOffset;
+	}
+}
+
+/** Get approximate bounding box for a label (in world coords). */
+function labelRect(txt: CanvasText): { x: number; y: number; w: number; h: number } {
+	const w = txt.width;
+	const h = txt.height;
+	return { x: txt.x - w * txt.anchor.x, y: txt.y - h * txt.anchor.y, w, h };
+}
+
+/** Resolve label-to-label collisions via greedy nudging, hiding unresolvable labels. */
+function resolveCollisions(
+	usedLabels: Set<string>,
+	enclosureLabels: Map<string, CanvasText>,
+	tagMembership: Map<string, Set<string>>,
+): void {
+	const visibleLabels: { tag: string; txt: CanvasText; memberCount: number }[] = [];
+	for (const tag of usedLabels) {
+		const txt = enclosureLabels.get(tag);
+		if (txt && txt.visible) {
+			const members = tagMembership.get(tag);
+			visibleLabels.push({ tag, txt, memberCount: members?.size ?? 0 });
+		}
+	}
+	visibleLabels.sort((a, b) => b.memberCount - a.memberCount);
+
+	const placedRects: { x: number; y: number; w: number; h: number }[] = [];
+	for (const { txt } of visibleLabels) {
+		let rect = labelRect(txt);
+		let resolved = false;
+
+		for (let attempt = 0; attempt < LABEL_COLLISION_MAX_ATTEMPTS; attempt++) {
+			const blocker = placedRects.find((pr) => rectsOverlap(rect, pr));
+			if (!blocker) {
+				resolved = true;
+				break;
+			}
+			const overlapX = Math.min(rect.x + rect.w - blocker.x, blocker.x + blocker.w - rect.x);
+			const overlapY = Math.min(rect.y + rect.h - blocker.y, blocker.y + blocker.h - rect.y);
+			if (overlapY <= overlapX) {
+				const dy = rect.y + rect.h / 2 > blocker.y + blocker.h / 2 ? 1 : -1;
+				txt.y += dy * (overlapY + rect.h * COLLISION_ESCAPE_MARGIN);
+			} else {
+				const dx = rect.x + rect.w / 2 > blocker.x + blocker.w / 2 ? 1 : -1;
+				txt.x += dx * (overlapX + rect.w * COLLISION_ESCAPE_MARGIN);
+			}
+			rect = labelRect(txt);
+		}
+
+		if (!resolved) {
+			txt.visible = false;
+		} else {
+			placedRects.push(rect);
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 /**
  * Draw tag enclosures around node groups.
  *
@@ -190,399 +526,95 @@ export function drawEnclosures(
 
 	const ws = cfg.worldScale || 1;
 	const zoomOutTh = cfg.enclosureZoomOutThreshold ?? ZOOM_OUT_THRESHOLD;
-	const zoomedOut = ws < zoomOutTh;
-	// Smooth blend factor: 1 = fully zoomed-out style, 0 = fully zoomed-in style
-	const blend = zoomedOut ? Math.min(1, (zoomOutTh - ws) / (zoomOutTh * 0.5)) : 0;
+	const blend = ws < zoomOutTh ? Math.min(1, (zoomOutTh - ws) / (zoomOutTh * 0.5)) : 0;
 
-	// Phase 1: Collect node positions + radii per tag, compute expanded hull
+	// Phase 1: Collect enclosure data per tag
 	const minCount = Math.max(1, Math.floor(cfg.totalNodeCount * cfg.enclosureMinRatio));
-	// Reuse enclosures array across frames
 	_enclosuresBuf.length = 0;
 	const enclosures = _enclosuresBuf;
-
 	for (const [tag, memberIds] of cfg.tagMembership) {
-		if (memberIds.size < minCount) continue;
-
-		_allPtsBuf.length = 0;
-		for (const id of memberIds) {
-			const p = cfg.resolvePos(id);
-			if (p) _allPtsBuf.push({ x: p.x, y: p.y, radius: p.radius ?? 12 });
-		}
-		if (_allPtsBuf.length < 1) continue;
-		const allPts = _allPtsBuf;
-
-		// Filter outliers: keep only nodes within factor×IQR of centroid distance.
-		// This prevents scattered tag members from inflating the hull.
-		const pts = filterOutliers(allPts, cfg.enclosureOutlierFactor ?? 2.0);
-		if (pts.length < 1) continue;
-
-		// Deterministic enclosure color from tag name hash (DQ-06)
-		// Using tag name hash ensures color stays consistent regardless of filter order.
-		const hue = stringHash(tag, 360);
-		const hex = hslToHex(hue, 0.55, 0.55);
-
-		// Generate boundary sample points around each node's circle
-		// so the convex hull fully contains every node regardless of radius.
-		// Reuse module-level buffer to reduce per-tag array allocation
-		_hullInputBuf.length = 0;
-		const mc = pts.length; // member count for padding calculation
-		for (const p of pts) {
-			const r = p.radius + outlinePad(p.radius, mc);
-			for (let k = 0; k < HULL_SAMPLES; k++) {
-				const angle = (k / HULL_SAMPLES) * Math.PI * 2;
-				_hullInputBuf.push({ x: p.x + Math.cos(angle) * r, y: p.y + Math.sin(angle) * r });
-			}
-		}
-
-		let expanded: Pt[];
-		if (pts.length === 1) {
-			const p = pts[0];
-			const r = p.radius + outlinePad(p.radius, mc);
-			expanded = [
-				{ x: p.x - r, y: p.y - r },
-				{ x: p.x + r, y: p.y - r },
-				{ x: p.x + r, y: p.y + r },
-				{ x: p.x - r, y: p.y + r },
-			];
-		} else {
-			expanded = convexHull(_hullInputBuf);
-		}
-
-		let minX = Infinity,
-			minY = Infinity,
-			maxX = -Infinity,
-			maxY = -Infinity;
-		for (const p of expanded) {
-			if (p.x < minX) minX = p.x;
-			if (p.x > maxX) maxX = p.x;
-			if (p.y < minY) minY = p.y;
-			if (p.y > maxY) maxY = p.y;
-		}
-
-		enclosures.push({ tag, pts, hex, expanded, minX, minY, maxX, maxY });
+		const enc = buildEncData(tag, memberIds, cfg, minCount);
+		if (enc) enclosures.push(enc);
 	}
 
-	// Phase 2: Sort large-first for z-order (matters for fill overlap)
+	// Phase 2: Sort large-first for z-order
 	enclosures.sort((a, b) => {
 		const areaA = (a.maxX - a.minX) * (a.maxY - a.minY);
 		const areaB = (b.maxX - b.minX) * (b.maxY - b.minY);
 		return areaB - areaA;
 	});
 
-	// Phase 3: Overlap count (recompute every 30 frames for perf)
-	overlapCache.frame++;
-	if (overlapCache.frame >= OVERLAP_RECOMPUTE_FRAMES) {
-		overlapCache.frame = 0;
-		overlapCache.counts.clear();
-		const relPairs = cfg.tagRelPairsCache;
-		for (let i = 0; i < enclosures.length; i++) {
-			for (let j = i + 1; j < enclosures.length; j++) {
-				const a = enclosures[i],
-					b = enclosures[j];
-				if (relPairs.has(`${a.tag}\0${b.tag}`)) continue;
-				if (a.maxX < b.minX || a.minX > b.maxX || a.maxY < b.minY || a.minY > b.maxY) continue;
-				overlapCache.counts.set(a.tag, (overlapCache.counts.get(a.tag) || 0) + 1);
-				overlapCache.counts.set(b.tag, (overlapCache.counts.get(b.tag) || 0) + 1);
-			}
-		}
-	}
+	// Phase 3: Overlap count (amortized)
+	recomputeOverlapCounts(overlapCache, enclosures, cfg.tagRelPairsCache);
 
-	// Phase 4: Draw
+	// Phase 4: Draw each enclosure + label
 	const usedLabels = new Set<string>();
+	const glFontSize = cfg.groupLabelFontSize ?? 12;
+	const glFontWeight = cfg.groupLabelFontWeight ?? "500";
+	const glLetterSpacing = cfg.groupLabelLetterSpacing ?? 0.15;
+	const glAlpha = cfg.groupLabelAlpha ?? 0.6;
+	const glBgAlpha = cfg.groupLabelBgAlpha ?? 0.65;
+	const glHullOffset = cfg.groupLabelHullOffset ?? 24;
+
 	for (const enc of enclosures) {
 		const { tag, pts, hex, expanded } = enc;
+		const memberCount = pts.length;
 		const overlaps = overlapCache.counts.get(tag) || 0;
 
-		// --- Stroke style ---
-		const baseLineAlpha =
-			overlaps === 0
-				? STROKE_ALPHA_NO_OVERLAP
-				: Math.max(STROKE_ALPHA_OVERLAP_MIN, STROKE_ALPHA_OVERLAP_BASE / (1 + overlaps * 0.1));
-		// GC: Allow override of enclosure stroke width
-		const strokeOverride = cfg.enclosureStrokeWidth ?? 0;
-		// IK: High contrast mode triples enclosure border width for visibility
-		const hcMul = cfg.highContrast ? 3 : 1;
-		const lineWidth =
-			(strokeOverride > 0
-				? strokeOverride
-				: overlaps === 0
-					? STROKE_WIDTH_NO_OVERLAP
-					: Math.max(STROKE_WIDTH_OVERLAP_MIN, STROKE_WIDTH_OVERLAP_BASE - overlaps * 0.3)) * hcMul;
+		const { baseLineAlpha, lineWidth } = computeStrokeStyle(overlaps, cfg);
+		const fillAlpha = computeFillAlpha(blend, overlaps, memberCount, cfg.enclosureFillOpacity);
 
-		// --- Fill style (zoomed-out: light tint; large groups get lighter to avoid obscuring nodes) ---
-		const memberCount = pts.length;
-		const sizeFade = Math.max(SIZE_FADE_MIN, 1 - memberCount / SIZE_FADE_DIVISOR);
-		const baseFill = overlaps > 0 ? FILL_ALPHA_OVERLAP : FILL_ALPHA_BASE;
-		// FY: Allow user override of enclosure fill opacity (0 = outline-only)
-		const opacityOverride = cfg.enclosureFillOpacity;
-		// At extreme zoom-out (blend > 0.8), switch to outline-only for clarity
-		const fillAlpha =
-			blend > 0.8
-				? 0
-				: opacityOverride !== undefined && opacityOverride !== null
-					? opacityOverride > 0
-						? opacityOverride * sizeFade
-						: 0
-					: blend > 0
-						? blend * baseFill * sizeFade
-						: 0;
-
-		let labelX = 0,
-			_labelY = 0;
-		let labelCenterX = 0,
-			labelCenterY = 0;
-
-		// Draw solid fill (behind stroke) — flat color for clear map-style territories
+		// Draw fill
 		if (fillAlpha > FILL_ALPHA_VISIBILITY_THRESHOLD) {
 			g.lineStyle(0);
 			g.beginFill(hex, fillAlpha);
-			if (pts.length === 1) {
-				const p0 = pts[0];
-				const r = p0.radius + outlinePad(p0.radius, memberCount);
-				g.drawCircle(p0.x, p0.y, r);
-			} else if (pts.length === 2) {
-				const maxR = Math.max(pts[0].radius, pts[1].radius);
-				const r = maxR + outlinePad(maxR, memberCount);
-				drawCapsule(g, pts[0], pts[1], r);
-			} else {
-				drawSmoothHull(g, expanded);
-			}
+			drawEnclosureShape(g, pts, expanded, memberCount);
 			g.endFill();
 		}
 
-		// Draw double-border: outer darker line + inner colored line (map-style boundary)
-		// Pass 1: outer border (dark, wider)
+		// Draw double-border: outer darker + inner colored
 		const outerAlpha = baseLineAlpha * BORDER_OUTER_ALPHA_FACTOR;
 		const isDark = (hex & 0xffffff) < 0x808080;
-		const outerColor = isDark ? 0x222222 : 0x000000;
-		g.lineStyle(BORDER_OUTER_WIDTH, outerColor, outerAlpha);
-		if (pts.length === 1) {
-			const p = pts[0];
-			const r = p.radius + outlinePad(p.radius, memberCount);
-			g.drawCircle(p.x, p.y, r);
-		} else if (pts.length === 2) {
-			const maxR = Math.max(pts[0].radius, pts[1].radius);
-			const r = maxR + outlinePad(maxR, memberCount);
-			drawCapsule(g, pts[0], pts[1], r);
-		} else {
-			drawSmoothHull(g, expanded);
-		}
-		// Pass 2: inner colored border
+		g.lineStyle(BORDER_OUTER_WIDTH, isDark ? 0x222222 : 0x000000, outerAlpha);
+		drawEnclosureShape(g, pts, expanded, memberCount);
+
 		g.lineStyle(lineWidth, hex, baseLineAlpha);
-		if (pts.length === 1) {
-			const p = pts[0];
-			const r = p.radius + outlinePad(p.radius, memberCount);
-			g.drawCircle(p.x, p.y, r);
-			labelX = p.x;
-			_labelY = p.y - r - labelOffset(ws);
-			labelCenterX = p.x;
-			labelCenterY = p.y;
-		} else if (pts.length === 2) {
-			const maxR = Math.max(pts[0].radius, pts[1].radius);
-			const r = maxR + outlinePad(maxR, memberCount);
-			drawCapsule(g, pts[0], pts[1], r);
-			labelX = (pts[0].x + pts[1].x) / 2;
-			_labelY = Math.min(pts[0].y, pts[1].y) - r - labelOffset(ws);
-			labelCenterX = labelX;
-			labelCenterY = (pts[0].y + pts[1].y) / 2;
-		} else {
-			drawSmoothHull(g, expanded);
-			let topY = Infinity;
-			let sumX = 0,
-				sumY = 0;
-			for (const p of expanded) {
-				sumX += p.x;
-				sumY += p.y;
-				if (p.y < topY) {
-					topY = p.y;
-					labelX = p.x;
-				}
-			}
-			// _labelY computed but unused — label placement uses labelCenterY instead
-			labelCenterX = sumX / expanded.length;
-			labelCenterY = sumY / expanded.length;
-		}
+		drawEnclosureShape(g, pts, expanded, memberCount);
 
-		// --- Label ---
+		// Label
 		usedLabels.add(tag);
-		const glFontSize = cfg.groupLabelFontSize ?? 12;
-		const glFontWeight = cfg.groupLabelFontWeight ?? "500";
-		const glLetterSpacing = cfg.groupLabelLetterSpacing ?? 0.15;
-		const glAlpha = cfg.groupLabelAlpha ?? 0.6;
-		const glBgAlpha = cfg.groupLabelBgAlpha ?? 0.65;
-		const glHullOffset = cfg.groupLabelHullOffset ?? 24;
+		const { labelCenterX, labelCenterY } = computeLabelCenter(pts, expanded);
+		const txt = ensureLabel(
+			tag, hex, memberCount, enclosureLabels, cfg,
+			glFontSize, glFontWeight, glLetterSpacing, glBgAlpha,
+		);
 
-		let txt = enclosureLabels.get(tag);
-		if (!txt) {
-			const hexStr = "#" + hex.toString(16).padStart(6, "0");
-			// S3: Cluster label text by detail level
-			let labelText: string;
-			const detail = cfg.clusterLabelDetail ?? "standard";
-			if (detail === "minimal") {
-				labelText = `#${tag}`;
-			} else if ((detail === "detailed" || detail === "rich") && cfg.getClusterSummary) {
-				labelText = cfg.getClusterSummary(tag, memberCount);
-			} else {
-				labelText = `#${tag} (${memberCount})`;
-			}
-			txt = new CanvasText(labelText, {
-				fontSize: glFontSize,
-				fill: hexStr,
-				fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-				fontWeight: glFontWeight,
-			});
-			txt.anchor.set(0.5, 0.5);
-			txt.resolution = 2;
-			txt.letterSpacing = glLetterSpacing;
-			txt.strokeColor = 0x000000;
-			txt.strokeWidth = 2;
-			enclosureLabels.set(tag, txt);
-		}
-		// Pill background: darken the enclosure hue for the background
-		const bgHex = darkenColor(hex, LABEL_DARKEN_FACTOR);
-		txt.bgColor = bgHex;
-		txt.bgAlpha = glBgAlpha;
-		txt.bgPadX = LABEL_PILL_PAD_X;
-		txt.bgPadY = LABEL_PILL_PAD_Y;
-		// GL: WCAG contrast auto-correction for enclosure labels
-		if (wcagContrastRatio(hex, bgHex) < 3.0) {
-			txt.style.fill = "#" + contrastColor(bgHex).toString(16).padStart(6, "0");
-		}
-
-		// Ensure label is in the correct parent (idempotent).
-		// Interactive events (eventMode/on) are not supported by CanvasText;
-		// hover callbacks are handled at the container level instead.
+		// Reparent label if needed
 		const targetParent = cfg.labelContainer ?? (g.parent as CanvasContainer | null);
 		if (txt.parent !== targetParent && targetParent) {
 			targetParent.addChild(txt);
 		}
 
-		// Place label outside the hull in the direction of the farthest node from centroid.
-		// Label scale: target ~14px on screen regardless of zoom
+		// Scale + position
 		const targetScreenPx = 14;
 		const rawLabelScale = targetScreenPx / (glFontSize * ws);
 		const labelScale = isFinite(rawLabelScale) ? clamp(rawLabelScale, 1, 300) : 4;
 
-		// Find farthest node from centroid to determine label direction
-		let farthestDist = 0;
-		let farthestX = labelCenterX;
-		let farthestY = labelCenterY - 1; // default: above centroid
-		for (const p of expanded) {
-			const dx = p.x - labelCenterX;
-			const dy = p.y - labelCenterY;
-			const d = dx * dx + dy * dy;
-			if (d > farthestDist) {
-				farthestDist = d;
-				farthestX = p.x;
-				farthestY = p.y;
-			}
-		}
-		// Direction unit vector from centroid to farthest point
-		const dirX = farthestX - labelCenterX;
-		const dirY = farthestY - labelCenterY;
-		const dirLen = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
-		const ux = dirX / dirLen;
-		const uy = dirY / dirLen;
+		const far = farthestDirection(expanded, labelCenterX, labelCenterY);
+		positionLabel(
+			txt, expanded, labelCenterX, labelCenterY, far,
+			glHullOffset, cfg.enclosureLabelPosition ?? "top",
+		);
 
-		// FU: Place label based on position setting
-		txt.anchor.set(0.5, 0.5);
-		const lpos = cfg.enclosureLabelPosition ?? "top";
-		if (lpos === "center") {
-			txt.x = labelCenterX;
-			txt.y = labelCenterY;
-		} else if (lpos === "bottom") {
-			// Mirror: use lowest Y instead of highest
-			let bottomY = -Infinity;
-			let bottomX = labelCenterX;
-			for (const p of expanded) {
-				if (p.y > bottomY) {
-					bottomY = p.y;
-					bottomX = p.x;
-				}
-			}
-			txt.x = bottomX;
-			txt.y = bottomY + glHullOffset;
-		} else {
-			// Default: top (farthest from centroid)
-			txt.x = farthestX + ux * glHullOffset;
-			txt.y = farthestY + uy * glHullOffset;
-		}
 		txt.scale.set(labelScale);
 		const isHovered = cfg.hoveredTag === tag;
-		const baseAlpha = isHovered ? Math.min(1, glAlpha + 0.3) : glAlpha;
-		txt.alpha = baseAlpha;
-		// Brighten pill background on hover
+		txt.alpha = isHovered ? Math.min(1, glAlpha + 0.3) : glAlpha;
 		txt.bgAlpha = isHovered ? glBgAlpha + 0.2 : glBgAlpha;
 		txt.visible = true;
 	}
 
-	// --- Label collision avoidance ---
-	// Collect visible label bounding rects, then nudge overlapping labels apart.
-	// If nudging can't resolve the overlap, hide the smaller group's label.
-	const visibleLabels: { tag: string; txt: CanvasText; memberCount: number }[] = [];
-	for (const tag of usedLabels) {
-		const txt = enclosureLabels.get(tag);
-		if (txt && txt.visible) {
-			const members = cfg.tagMembership.get(tag);
-			visibleLabels.push({ tag, txt, memberCount: members?.size ?? 0 });
-		}
-	}
-	// Sort by member count descending — larger groups get priority placement
-	visibleLabels.sort((a, b) => b.memberCount - a.memberCount);
-
-	// Get approximate bounding box for a label (in world coords).
-	// CanvasText.width/height include scale.
-	const labelRect = (txt: CanvasText) => {
-		const w = txt.width;
-		const h = txt.height;
-		const ax = txt.anchor.x;
-		const ay = txt.anchor.y;
-		return {
-			x: txt.x - w * ax,
-			y: txt.y - h * ay,
-			w,
-			h,
-		};
-	};
-
-	// rectsOverlap imported from geometry.ts
-
-	// Greedy nudge: for each label (priority-sorted), push away from collisions.
-	const placedRects: { x: number; y: number; w: number; h: number }[] = [];
-	for (const { txt } of visibleLabels) {
-		let rect = labelRect(txt);
-		let resolved = false;
-
-		for (let attempt = 0; attempt < LABEL_COLLISION_MAX_ATTEMPTS; attempt++) {
-			// Find first overlapping rect
-			const blocker = placedRects.find((pr) => rectsOverlap(rect, pr));
-			if (!blocker) {
-				resolved = true;
-				break;
-			}
-
-			// Nudge away from the blocker — choose the shortest escape direction
-			const overlapX = Math.min(rect.x + rect.w - blocker.x, blocker.x + blocker.w - rect.x);
-			const overlapY = Math.min(rect.y + rect.h - blocker.y, blocker.y + blocker.h - rect.y);
-
-			if (overlapY <= overlapX) {
-				// Escape vertically (down from blocker center)
-				const dy = rect.y + rect.h / 2 > blocker.y + blocker.h / 2 ? 1 : -1;
-				txt.y += dy * (overlapY + rect.h * COLLISION_ESCAPE_MARGIN);
-			} else {
-				// Escape horizontally (away from blocker center)
-				const dx = rect.x + rect.w / 2 > blocker.x + blocker.w / 2 ? 1 : -1;
-				txt.x += dx * (overlapX + rect.w * COLLISION_ESCAPE_MARGIN);
-			}
-			rect = labelRect(txt);
-		}
-
-		if (!resolved) {
-			txt.visible = false;
-		} else {
-			placedRects.push(rect);
-		}
-	}
+	// Phase 5: Label collision avoidance
+	resolveCollisions(usedLabels, enclosureLabels, cfg.tagMembership);
 
 	// Hide unused labels
 	for (const [tag, lbl] of enclosureLabels) {
