@@ -1623,6 +1623,24 @@ function applyZoomFade(
 	return { alpha, lineThick };
 }
 
+/** Compute alpha multiplier based on minimum endpoint degree. */
+function computeDegreeFade(e: GraphEdge, src: Pos, tgt: Pos, cfg: EdgeDrawConfig): number {
+	const sid = src.id ?? (e.source as string);
+	const tid = tgt.id ?? (e.target as string);
+	const minDeg = Math.min(cfg.degrees.get(sid) ?? 0, cfg.degrees.get(tid) ?? 0);
+	const t = Math.sqrt(minDeg / cfg.maxDegree);
+	return FADE_BY_DEGREE_MIN_ALPHA + (1 - FADE_BY_DEGREE_MIN_ALPHA) * t;
+}
+
+/** Compute line thickness multiplier based on target node in-degree. */
+function computeStrengthGlow(e: GraphEdge, tgt: Pos, cfg: EdgeDrawConfig): number {
+	const tid = tgt.id ?? (e.target as string);
+	const t = Math.min(1, (cfg.degrees.get(tid) ?? 0) / cfg.maxDegree);
+	const min = cfg.edgeStrengthGlowMin ?? 0.5;
+	const max = cfg.edgeStrengthGlowMax ?? 3.0;
+	return min + t * (max - min);
+}
+
 /**
  * Compute alpha and line thickness for a single edge based on type,
  * relation coloring, degree fading, edge weight, and hover highlight.
@@ -1650,18 +1668,12 @@ export function resolveEdgeStyle(
 
 	// Fade by source node degree: low-degree -> faint, high-degree -> opaque
 	if (cfg.fadeByDegree && cfg.maxDegree > 0) {
-		const sid = src.id ?? (e.source as string);
-		const tid = tgt.id ?? (e.target as string);
-		const minDeg = Math.min(cfg.degrees.get(sid) ?? 0, cfg.degrees.get(tid) ?? 0);
-		const t = Math.sqrt(minDeg / cfg.maxDegree);
-		alpha *= FADE_BY_DEGREE_MIN_ALPHA + (1 - FADE_BY_DEGREE_MIN_ALPHA) * t;
+		alpha *= computeDegreeFade(e, src, tgt, cfg);
 	}
 
 	// Edge strength glow: scale width by target node in-degree
 	if (cfg.edgeStrengthGlow && cfg.maxDegree > 0) {
-		const tid = tgt.id ?? (e.target as string);
-		const t = Math.min(1, (cfg.degrees.get(tid) ?? 0) / cfg.maxDegree);
-		lineThick *= (cfg.edgeStrengthGlowMin ?? 0.5) + t * ((cfg.edgeStrengthGlowMax ?? 3.0) - (cfg.edgeStrengthGlowMin ?? 0.5));
+		lineThick *= computeStrengthGlow(e, tgt, cfg);
 	}
 
 	// Track whether this edge is actively highlighted (hovered node's connection)
