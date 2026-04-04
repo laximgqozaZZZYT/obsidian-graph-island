@@ -170,11 +170,15 @@ export async function embedGraphInNote(host: ExportHost): Promise<void> {
 		].join("");
 		const filename = `graph-island-${ts}.png`;
 
-		// Respect Obsidian's attachment folder setting
+		// Respect Obsidian's attachment folder setting (internal Vault API not in public types)
 		const _activeFile = mdView.file;
-		const attachPath = (host.app.vault as any).getAvailablePath
-			? (host.app.vault as any).getAvailablePath(
-					((host.app.vault as any).config?.attachmentFolderPath || "") + "/" + filename.replace(".png", ""),
+		const vault = host.app.vault as unknown as {
+			getAvailablePath?: (base: string, ext: string) => string;
+			config?: { attachmentFolderPath?: string };
+		};
+		const attachPath = vault.getAvailablePath
+			? vault.getAvailablePath(
+					(vault.config?.attachmentFolderPath || "") + "/" + filename.replace(".png", ""),
 					"png",
 				)
 			: filename;

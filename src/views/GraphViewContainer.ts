@@ -8293,7 +8293,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private focusNodeOrder: string[] = [];
 	private _focusSearchGen = -1; // IR: track search set size for rebuild
 
-	private cycleFocusNode(direction: 1 | -1) {
+	private cycleFocusNode(direction: 0 | 1 | -1) {
+		if (direction === 0) {
+			this.focusNodeIndex = -1;
+			this._isKeyboardFocused = false;
+			this.setHighlightedNodeId(null);
+			this.applyHover();
+			this._announceA11y(t("a11y.focusCleared"));
+			return;
+		}
 		// IR: When search is active, cycle only through matching nodes
 		const searchSet = this._searchHighlightSet;
 		const targetSize = searchSet ? searchSet.size : this.pixiNodes.size;

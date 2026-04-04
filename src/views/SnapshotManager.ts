@@ -17,7 +17,7 @@ import type { IApp } from "./canvas2d/interfaces";
 export interface SnapshotHost {
 	readonly containerEl: HTMLElement;
 	readonly pixiApp: IApp | null;
-	readonly pixiNodes: Map<string, any>;
+	readonly pixiNodes: Map<string, unknown>;
 	readonly plugin: {
 		settings: {
 			snapshots?: GraphSnapshot[];

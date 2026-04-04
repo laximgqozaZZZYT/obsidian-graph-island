@@ -31,7 +31,7 @@ export interface KeyboardHost {
 	updateLegend(): void;
 	requestSave(): void;
 	copyGraphToClipboard(): void;
-	cycleFocusNode(direction: 1 | -1): void;
+	cycleFocusNode(direction: 0 | 1 | -1): void;
 	focusZoomToNode(nodeId: string): void;
 	navigateNeighbor(dir: "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown"): void;
 	announceA11y(msg: string): void;
@@ -103,7 +103,7 @@ function handleNavigationKey(host: KeyboardHost, key: string, e: KeyboardEvent):
 	// Escape: clear focus/selection
 	if (key === "Escape") {
 		if (host.isKeyboardFocused) {
-			host.cycleFocusNode(0 as any); // clear
+			host.cycleFocusNode(0); // clear
 		}
 		return true;
 	}

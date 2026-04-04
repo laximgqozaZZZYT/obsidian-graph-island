@@ -1,8 +1,15 @@
 import { ItemView, setIcon } from "obsidian";
+import type { EventRef, Workspace } from "obsidian";
 import type { GraphNode } from "../types";
 import { t } from "../i18n";
 import { EVENT_COMPARE_NODES, EVENT_HIGHLIGHT_NODES } from "../constants";
 import type { PixiNode } from "./InteractionManager";
+
+/** Obsidian Workspace with custom-event overloads (internal runtime API) */
+type CustomEventWorkspace = Workspace & {
+	on(name: string, callback: (...data: unknown[]) => void): EventRef;
+	trigger(name: string, ...data: unknown[]): void;
+};
 
 export const VIEW_TYPE_NODE_COMPARE = "graph-node-compare";
 
