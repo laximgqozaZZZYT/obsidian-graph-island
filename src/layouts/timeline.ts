@@ -250,34 +250,7 @@ export function applyTimelineLayout(graph: GraphData, options: TimelineLayoutOpt
 
 	// 3. Assign lanes — priority: hierarchical (parent_id) > sequence DAG > fallback
 	const timedNodeIds = new Set(nodeTimeValues.keys());
-	let laneMap: Map<string, number>;
-
-	// Check if parent_id data exists
-	let hasParentIds = false;
-	if (getNodeProperty) {
-		for (const id of timedNodeIds) {
-			if (getNodeProperty(id, "parent_id")) {
-				hasParentIds = true;
-				break;
-			}
-		}
-	}
-
-	if (hasParentIds && getNodeProperty) {
-		// Use parent_id hierarchy for lane grouping
-		laneMap = assignHierarchicalLanes(graph.nodes, timedNodeIds, getNodeProperty);
-	} else {
-		// Fallback: sequence DAG or folder-based
-		const dag = buildTimelineDAG(graph.edges, timedNodeIds);
-		let hasSeq = false;
-		for (const [, t] of dag) {
-			if (t.length > 0) {
-				hasSeq = true;
-				break;
-			}
-		}
-		laneMap = hasSeq ? assignLanes(dag, nodeTimeIndex) : assignFallbackLanes(graph.nodes, timedNodeIds);
-	}
+	const laneMap = selectLaneStrategy(graph, timedNodeIds, nodeTimeIndex, getNodeProperty);
 	const totalLanes = laneMap.size > 0 ? Math.max(...laneMap.values()) + 1 : 1;
 
 	// 4. Position timed nodes
@@ -300,25 +273,14 @@ export function applyTimelineLayout(graph: GraphData, options: TimelineLayoutOpt
 
 	// 5. Untimed nodes
 	const untimedNodes = graph.nodes.filter((n) => !nodeTimeValues.has(n.id));
-	if (nodeTimeValues.size === 0 && untimedNodes.length > 0) {
-		const sorted = [...untimedNodes].sort((a, b) => (a.filePath || a.id).localeCompare(b.filePath || b.id));
-		const cols = Math.ceil(Math.sqrt(sorted.length));
-		sorted.forEach((n, i) => {
-			positioned.set(n.id, {
-				x: startX + (i % cols) * effectiveStepWidth,
-				y: startY + Math.floor(i / cols) * laneHeight,
-			});
-		});
-	} else if (untimedNodes.length > 0) {
-		const untimedX = startX + uniqueTimes.length * effectiveStepWidth + effectiveStepWidth;
-		const cols = Math.max(1, Math.ceil(Math.sqrt(untimedNodes.length)));
-		untimedNodes.forEach((n, i) => {
-			positioned.set(n.id, {
-				x: untimedX + (i % cols) * (effectiveStepWidth * UNTIMED_NODE_SPACING_FACTOR),
-				y: startY + Math.floor(i / cols) * laneHeight,
-			});
-		});
-	}
+	placeUntimedNodes(untimedNodes, positioned, {
+		allUntimed: nodeTimeValues.size === 0,
+		startX,
+		startY,
+		stepWidth: effectiveStepWidth,
+		laneHeight,
+		timedCount: uniqueTimes.length,
+	});
 
 	// 6. Apply positions
 	const positionedNodes = graph.nodes.map((n) => ({
@@ -358,4 +320,76 @@ function assignFallbackLanes(nodes: GraphNode[], timedNodeIds: Set<string>): Map
 	for (const g of groups) groupLanes.set(g, nextLane++);
 	for (const n of timedNodes) laneMap.set(n.id, groupLanes.get(groupKey(n)) ?? 0);
 	return laneMap;
+}
+
+// ---------------------------------------------------------------------------
+// Extracted helpers — reduce applyTimelineLayout complexity
+// ---------------------------------------------------------------------------
+
+/** Choose the best lane assignment strategy based on available data. */
+function selectLaneStrategy(
+	graph: GraphData,
+	timedNodeIds: Set<string>,
+	nodeTimeIndex: Map<string, number>,
+	getNodeProperty?: (id: string, key: string) => string | undefined,
+): Map<string, number> {
+	let hasParentIds = false;
+	if (getNodeProperty) {
+		for (const id of timedNodeIds) {
+			if (getNodeProperty(id, "parent_id")) {
+				hasParentIds = true;
+				break;
+			}
+		}
+	}
+
+	if (hasParentIds && getNodeProperty) {
+		return assignHierarchicalLanes(graph.nodes, timedNodeIds, getNodeProperty);
+	}
+
+	const dag = buildTimelineDAG(graph.edges, timedNodeIds);
+	let hasSeq = false;
+	for (const [, t] of dag) {
+		if (t.length > 0) {
+			hasSeq = true;
+			break;
+		}
+	}
+	return hasSeq ? assignLanes(dag, nodeTimeIndex) : assignFallbackLanes(graph.nodes, timedNodeIds);
+}
+
+/** Place untimed nodes in a grid layout. */
+function placeUntimedNodes(
+	untimedNodes: GraphNode[],
+	positioned: Map<string, { x: number; y: number }>,
+	cfg: {
+		allUntimed: boolean;
+		startX: number;
+		startY: number;
+		stepWidth: number;
+		laneHeight: number;
+		timedCount: number;
+	},
+): void {
+	if (untimedNodes.length === 0) return;
+
+	if (cfg.allUntimed) {
+		const sorted = [...untimedNodes].sort((a, b) => (a.filePath || a.id).localeCompare(b.filePath || b.id));
+		const cols = Math.ceil(Math.sqrt(sorted.length));
+		sorted.forEach((n, i) => {
+			positioned.set(n.id, {
+				x: cfg.startX + (i % cols) * cfg.stepWidth,
+				y: cfg.startY + Math.floor(i / cols) * cfg.laneHeight,
+			});
+		});
+	} else {
+		const untimedX = cfg.startX + cfg.timedCount * cfg.stepWidth + cfg.stepWidth;
+		const cols = Math.max(1, Math.ceil(Math.sqrt(untimedNodes.length)));
+		untimedNodes.forEach((n, i) => {
+			positioned.set(n.id, {
+				x: untimedX + (i % cols) * (cfg.stepWidth * UNTIMED_NODE_SPACING_FACTOR),
+				y: cfg.startY + Math.floor(i / cols) * cfg.laneHeight,
+			});
+		});
+	}
 }
