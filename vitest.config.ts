@@ -13,10 +13,10 @@ export default defineConfig({
       reportsDirectory: "coverage",
       thresholds: {
         // Ratchet: Round 3 coverage expansion (+219 tests, 5 new test files)
-        statements: 41.5,
-        branches: 35.7,
-        functions: 39.4,
-        lines: 41.7,
+        statements: 42.3,
+        branches: 36.4,
+        functions: 40.5,
+        lines: 42.5,
       },
     },
   },
