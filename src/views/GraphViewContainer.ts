@@ -130,6 +130,7 @@ import { LayoutTransition } from "./LayoutTransition";
 import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./StatsRenderer";
 import { buildPanelCallbacks, type PanelCallbackHost } from "./panel-callbacks";
 import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
+import { renderTimelineBars } from "./timeline-bar-renderer";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
 import {
 	groupNodesByField,
@@ -140,6 +141,7 @@ import {
 } from "../utils/node-grouping";
 import { louvainCommunities } from "../utils/louvain";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
+import { addFrontmatterTag, setFrontmatterField } from "../utils/frontmatter-helper";
 import { getNodeShape, drawShape } from "../utils/node-shapes";
 import {
 	LAYOUT_FORCE,
@@ -3741,7 +3743,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const tf = this.app.vault.getAbstractFileByPath(pn.data.filePath);
 			if (!(tf instanceof TFile)) return;
 			const content = await this.app.vault.read(tf);
-			const newContent = this._setFrontmatterField(content, "node_type", type);
+			const newContent = setFrontmatterField(content, "node_type", type);
 			await this.app.vault.modify(tf, newContent);
 			this.rawData = null;
 			this.doRender();
@@ -3770,24 +3772,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			showToast(t("toast.relationAdded").replace("{type}", relType));
 		} catch {
 			showToast(t("toast.relationFailed"));
-		}
-	}
-
-	/** Helper: set a frontmatter field (creates YAML block if needed) */
-	private _setFrontmatterField(content: string, key: string, value: string): string {
-		const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-		if (fmMatch) {
-			const fmBody = fmMatch[1];
-			const regex = new RegExp(`^${key}:.*$`, "m");
-			if (regex.test(fmBody)) {
-				const newFm = fmBody.replace(regex, `${key}: ${value}`);
-				return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-			} else {
-				const newFm = fmBody + `\n${key}: ${value}`;
-				return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-			}
-		} else {
-			return `---\n${key}: ${value}\n---\n${content}`;
 		}
 	}
 
@@ -3933,7 +3917,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			try {
 				let content = await this.app.vault.read(tf);
 				for (const { key, input } of inputs) {
-					content = this._setFrontmatterField(content, key, input.value);
+					content = setFrontmatterField(content, key, input.value);
 				}
 				await this.app.vault.modify(tf, content);
 				this.rawData = null;
@@ -4453,85 +4437,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		for (const pn of nodesToUpdate) {
 			if (!effectiveHId) {
-				pn.gfx.alpha = 1;
-				if (isCardMode) pn.gfx.scale.set(1);
-				this.drawNodeCircle(pn, false);
-				if (pn.hoverLabel) {
-					pn.gfx.removeChild(pn.hoverLabel);
-					pn.hoverLabel.destroy();
-					pn.hoverLabel = null;
-					pn.hoverForcedLabel = false;
-				}
+				this._hoverResetNode(pn, isCardMode);
 			} else if (curSet.has(pn.data.id)) {
-				pn.gfx.visible = true;
-				pn.gfx.alpha = 1;
-				if (isCardMode && pn.data.id === effectiveHId) {
-					pn.gfx.scale.set(crc.cardHoverScale);
-				} else if (isCardMode) {
-					pn.gfx.scale.set(1);
-				}
-				this.drawNodeCircle(pn, true);
-				// HK: Re-apply search halo after hover redraw so it's not lost
-				if (this._searchHighlightSet?.has(pn.data.id)) {
-					const searchHitColor = this.getAccentColor();
-					pn.circle.lineStyle(2, searchHitColor, 0.85);
-					if (isCardMode) {
-						const crc2 = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
-						// HM: Golden ratio halo rect
-						const cardAR2 = crc2.cardAspectRatio > 0 ? crc2.cardAspectRatio : 1.618;
-						const baseH2 = pn.radius * 2;
-						const halfW = Math.max(20, (baseH2 * cardAR2) / 2);
-						const halfH = baseH2;
-						pn.circle.drawRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, crc2.cardCornerRadius ?? 6);
-					} else {
-						const shape = getNodeShape(pn.data, this.panel.nodeShapeRules);
-						drawShape(pn.circle, shape, pn.radius * 1.5, searchHitColor, hoverRt.searchHaloAlpha);
-					}
-				}
-				if (!pn.hoverLabel) {
-					this._createHoverTooltip(pn);
-				}
-				// Force-show the node's own label so linked nodes are identifiable
-				if (pn.label && !pn.label.visible) {
-					pn.label.visible = true;
-					pn.label.alpha = 1;
-					pn.hoverForcedLabel = true;
-				}
-				// When hovering, also force-show tag label if present but hidden by LOD
-				// (skip in enclosure mode — enclosure hull labels handle tags)
-				if (pn.tagLabel && !pn.tagLabel.visible && this.panel.tagDisplay !== TAG_DISPLAY_ENCLOSURE) {
-					pn.tagLabel.visible = true;
-				}
+				this._hoverHighlightNode(pn, effectiveHId, isCardMode, crc, hoverRt);
 			} else {
-				// R2: Focus cone — distance-based alpha gradient
-				// GR: Coordinate with searchHighlight to avoid alpha conflict
-				const searchActive = this._searchHighlightSet !== null;
-				const searchMatch = !this._searchHighlightSet || this._searchHighlightSet.has(pn.data.id);
-				if (this.panel.focusConeEnabled && distMap.size > 0) {
-					const dist = distMap.get(pn.data.id);
-					let coneAlpha: number;
-					if (dist === undefined) {
-						coneAlpha = hoverRt.focusConeMinAlpha;
-					} else {
-						// Exponential falloff: depth 0 → 1.0, depth 1 → falloff, depth 2 → falloff², ...
-						coneAlpha = Math.max(hoverRt.focusConeMinAlpha, Math.pow(hoverRt.focusConeFalloff, dist));
-					}
-					// HZ: Use max() instead of min() — focusCone already handles distance dimming,
-					// search highlight should not make it even darker (was causing double-dim)
-					// IK: dimFloor prevents WCAG contrast issues in dark themes
-					pn.gfx.alpha =
-						searchActive && !searchMatch ? Math.max(coneAlpha * 0.5, hoverRt.focusConeDimFloor) : coneAlpha;
-				} else {
-					// IK: searchDimAlpha for dark-theme visibility; focusConeDimFloor as idle base
-					pn.gfx.alpha = searchActive && !searchMatch ? hoverRt.searchDimAlpha : hoverRt.focusConeDimFloor;
-				}
-				if (isCardMode) pn.gfx.scale.set(1);
-				if (pn.hoverLabel) {
-					pn.gfx.removeChild(pn.hoverLabel);
-					pn.hoverLabel.destroy();
-					pn.hoverLabel = null;
-					pn.hoverForcedLabel = false;
-				}
+				this._hoverDimNode(pn, isCardMode, distMap, hoverRt);
 			}
 		}
 
@@ -4655,6 +4565,102 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				// ER: Auto-scroll to hovered row
 				el.scrollIntoView({ block: "nearest", behavior: "smooth" });
 			} else if (highlightSet.has(id)) el.classList.add("gi-node-linked");
+		}
+	}
+
+	/** Reset a node to non-highlighted state (no hover active). */
+	private _hoverResetNode(pn: PixiNode, isCardMode: boolean): void {
+		pn.gfx.alpha = 1;
+		if (isCardMode) pn.gfx.scale.set(1);
+		this.drawNodeCircle(pn, false);
+		if (pn.hoverLabel) {
+			pn.gfx.removeChild(pn.hoverLabel);
+			pn.hoverLabel.destroy();
+			pn.hoverLabel = null;
+			pn.hoverForcedLabel = false;
+		}
+	}
+
+	/** Apply highlight styling to a node within the hover set. */
+	private _hoverHighlightNode(
+		pn: PixiNode,
+		effectiveHId: string,
+		isCardMode: boolean,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		crc: any,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		hoverRt: any,
+	): void {
+		pn.gfx.visible = true;
+		pn.gfx.alpha = 1;
+		if (isCardMode && pn.data.id === effectiveHId) {
+			pn.gfx.scale.set(crc.cardHoverScale);
+		} else if (isCardMode) {
+			pn.gfx.scale.set(1);
+		}
+		this.drawNodeCircle(pn, true);
+		// HK: Re-apply search halo after hover redraw so it's not lost
+		if (this._searchHighlightSet?.has(pn.data.id)) {
+			this._drawSearchHalo(pn, isCardMode, hoverRt);
+		}
+		if (!pn.hoverLabel) {
+			this._createHoverTooltip(pn);
+		}
+		if (pn.label && !pn.label.visible) {
+			pn.label.visible = true;
+			pn.label.alpha = 1;
+			pn.hoverForcedLabel = true;
+		}
+		if (pn.tagLabel && !pn.tagLabel.visible && this.panel.tagDisplay !== TAG_DISPLAY_ENCLOSURE) {
+			pn.tagLabel.visible = true;
+		}
+	}
+
+	/** Dim a node outside the hover highlight set, respecting focus cone & search. */
+	private _hoverDimNode(
+		pn: PixiNode,
+		isCardMode: boolean,
+		distMap: Map<string, number>,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		hoverRt: any,
+	): void {
+		const searchActive = this._searchHighlightSet !== null;
+		const searchMatch = !this._searchHighlightSet || this._searchHighlightSet.has(pn.data.id);
+		if (this.panel.focusConeEnabled && distMap.size > 0) {
+			const dist = distMap.get(pn.data.id);
+			const coneAlpha =
+				dist === undefined
+					? hoverRt.focusConeMinAlpha
+					: Math.max(hoverRt.focusConeMinAlpha, Math.pow(hoverRt.focusConeFalloff, dist));
+			pn.gfx.alpha =
+				searchActive && !searchMatch ? Math.max(coneAlpha * 0.5, hoverRt.focusConeDimFloor) : coneAlpha;
+		} else {
+			pn.gfx.alpha = searchActive && !searchMatch ? hoverRt.searchDimAlpha : hoverRt.focusConeDimFloor;
+		}
+		if (isCardMode) pn.gfx.scale.set(1);
+		if (pn.hoverLabel) {
+			pn.gfx.removeChild(pn.hoverLabel);
+			pn.hoverLabel.destroy();
+			pn.hoverLabel = null;
+			pn.hoverForcedLabel = false;
+		}
+	}
+
+	/** Draw search halo ring/rect on a highlighted node. */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	private _drawSearchHalo(pn: PixiNode, isCardMode: boolean, hoverRt: any): void {
+		const searchHitColor = this.getAccentColor();
+		pn.circle.lineStyle(2, searchHitColor, 0.85);
+		if (isCardMode) {
+			const crc2 = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
+			const cardAR2 = crc2.cardAspectRatio > 0 ? crc2.cardAspectRatio : 1.618;
+			const baseH2 = pn.radius * 2;
+			const halfW = Math.max(20, (baseH2 * cardAR2) / 2);
+			const halfH = baseH2;
+			pn.circle.drawRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, crc2.cardCornerRadius ?? 6);
+		} else {
+			const shape = getNodeShape(pn.data, this.panel.nodeShapeRules);
+			drawShape(pn.circle, shape, pn.radius * 1.5, searchHitColor, hoverRt.searchHaloAlpha);
 		}
 	}
 
@@ -5936,233 +5942,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// Timeline duration bars
 	// =========================================================================
 	drawTimelineBars() {
-		const g = this.barGraphics;
-		if (!g) return;
-		g.clear();
-
-		// Clear previous bar labels
-		if (this.barLabelContainer) {
-			for (const child of [...this.barLabelContainer.children]) {
-				this.barLabelContainer.removeChild(child);
-				child.destroy();
-			}
-		}
-
-		// Timeline viewMode: always show bars; graph mode: respect panel setting
-		if (!this.panel.showDurationBars && this.panel.viewMode !== "timeline") return;
-		const bars = this.clusterMeta?.timelineBars;
-		if (!bars || bars.length === 0) return;
-
-		const worldScale = this.worldContainer?.scale.x ?? 1;
-		const lineW = Math.max(0.5, 1.0 / worldScale);
-
-		const rt = mergeRenderThresholds(this.panel.renderThresholds);
-		const fillAlpha = rt.timelineBarFillAlpha;
-		const strokeAlpha = rt.timelineBarStrokeAlpha;
-		const hoverAlpha = rt.timelineBarHoverAlpha;
-		const barCornerRBase = rt.timelineBarCornerRadius;
-		const hoveredId = this.highlightedNodeId;
-		const showBarLabel = rt.timelineBarShowLabel;
-		const barLabelMinW = rt.timelineBarLabelMinWidth;
-		const barLabelFontSize = rt.timelineBarLabelFontSize;
-
-		// Build sibling set: bars that share parent_id with the hovered bar
-		let siblingIds: Set<string> | null = null;
-		if (hoveredId) {
-			const hoveredNode = this.pixiNodes.get(hoveredId);
-			if (hoveredNode) {
-				const fp = hoveredNode.data.filePath ?? hoveredId;
-				const tf = this.app.vault.getAbstractFileByPath(fp);
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TFile type narrowing for metadataCache
-				const parentId = tf ? this.app.metadataCache.getFileCache(tf as any)?.frontmatter?.parent_id : null;
-				if (parentId) {
-					siblingIds = new Set<string>();
-					for (const bar of bars) {
-						const bfp = this.pixiNodes.get(bar.nodeId)?.data?.filePath ?? bar.nodeId;
-						const btf = this.app.vault.getAbstractFileByPath(bfp);
-						 
-						const bpid = btf
-							? this.app.metadataCache.getFileCache(btf as any)?.frontmatter?.parent_id
-							: null;
-						if (bpid === parentId) siblingIds.add(bar.nodeId);
-					}
-				}
-			}
-		}
-
-		// Viewport culling: only draw bars visible in the current viewport
-		const world = this.worldContainer;
-		const wx = world?.x ?? 0,
-			wy = world?.y ?? 0;
-		const canvasW = this.canvasWrap?.clientWidth ?? 1200;
-		const canvasH = this.canvasWrap?.clientHeight ?? 800;
-		const vpLeft = -wx / worldScale;
-		const vpTop = -wy / worldScale;
-		const vpRight = vpLeft + canvasW / worldScale;
-		const vpBottom = vpTop + canvasH / worldScale;
-
-		// Label collision prevention: track placed label rects (x, y, w, h)
-		const placedLabels: { x: number; y: number; w: number; h: number }[] = [];
-		// Limit total labels to avoid visual clutter at zoom-out
-		const maxLabels = Math.min(200, Math.round(80 * worldScale));
-
-		for (const bar of bars) {
-			const w = bar.xEnd - bar.xStart;
-			const h = bar.barHeight;
-			const x = bar.xStart;
-			const y = bar.yCenter - h / 2;
-
-			// Viewport cull
-			if (x + w < vpLeft || x > vpRight || y + h < vpTop || y > vpBottom) continue;
-			const pn = this.pixiNodes.get(bar.nodeId);
-			const color = pn ? pn.color : 0x888888;
-			const cornerR = Math.min(h / 2, barCornerRBase);
-			const isHovered = hoveredId === bar.nodeId;
-			const isSibling = siblingIds?.has(bar.nodeId) ?? false;
-			// Hovered bar: full opacity; siblings: slightly brighter; others: dimmed when something is hovered
-			const barFillAlpha = isHovered
-				? hoverAlpha
-				: isSibling
-					? Math.min(hoverAlpha, fillAlpha * 1.5)
-					: hoveredId
-						? fillAlpha * 0.3
-						: fillAlpha;
-			const barStrokeAlpha = isHovered
-				? strokeAlpha * 1.5
-				: isSibling
-					? strokeAlpha
-					: hoveredId
-						? strokeAlpha * 0.3
-						: strokeAlpha;
-
-			g.beginFill(color, barFillAlpha);
-			g.drawRoundedRect(x, y, w, h, cornerR);
-			g.endFill();
-
-			g.lineStyle(lineW, color, barStrokeAlpha);
-			g.drawRoundedRect(x, y, w, h, cornerR);
-			g.lineStyle(0);
-
-			// Bar label with 2D collision avoidance + zoom-adaptive density
-			if (
-				showBarLabel &&
-				this.barLabelContainer &&
-				pn &&
-				w * worldScale >= barLabelMinW &&
-				placedLabels.length < maxLabels
-			) {
-				const fontSize = Math.max(7, barLabelFontSize / worldScale);
-				const labelW = Math.min(pn.data.label.length * fontSize * 0.6, w);
-				const labelH = fontSize * 1.3;
-				const labelX = x;
-				const labelY = y - labelH - 1 / worldScale;
-
-				// Check 2D overlap with placed labels
-				const overlaps = placedLabels.some(
-					(p) => labelX < p.x + p.w && labelX + labelW > p.x && labelY < p.y + p.h && labelY + labelH > p.y,
-				);
-				if (!overlaps) {
-					placedLabels.push({ x: labelX, y: labelY, w: labelW, h: labelH });
-					const label = new CanvasText(pn.data.label, {
-						fontSize,
-						fontWeight: "bold",
-						fill: this.isDarkTheme() ? 0xffffff : 0x111111,
-						fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-					});
-					label.bgColor = color;
-					label.bgAlpha = 0.7;
-					label.bgPadX = 4 / worldScale;
-					label.bgPadY = 2 / worldScale;
-					label.x = labelX;
-					label.y = labelY;
-					label.maxWidth = Math.max(w, 40 / worldScale);
-					this.barLabelContainer.addChild(label);
-				}
-			}
-		}
-
-		// Timeline viewMode: draw work group separators
-		if (this.panel.viewMode === "timeline" && this.barLabelContainer) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended clusterMeta property
-			const workGroups = (this.clusterMeta as any)?.timelineWorkGroups as
-				| { name: string; minY: number; maxY: number }[]
-				| undefined;
-			if (workGroups && workGroups.length > 1) {
-				const sepColor = this.isDarkTheme() ? 0x555555 : 0xcccccc;
-				const labelColor = this.isDarkTheme() ? 0x999999 : 0x666666;
-				const sepLineW = Math.max(0.5, 1 / worldScale);
-				const xEnd = bars.length > 0 ? Math.max(...bars.map((b) => b.xEnd)) + 20 : 200;
-
-				for (let i = 0; i < workGroups.length; i++) {
-					const wg = workGroups[i];
-					// Separator line between groups (above current group)
-					if (i > 0) {
-						const sepY = wg.minY - 4 / worldScale;
-						g.lineStyle(sepLineW, sepColor, 0.3);
-						g.moveTo(20, sepY);
-						g.lineTo(xEnd, sepY);
-						g.lineStyle(0);
-					}
-					// Work name label at left edge — canvas label (non-interactive)
-					const shortName = wg.name.replace(/^(classic-|mythology-|bible-)/, "");
-					const fontSize = Math.max(5, 8 / worldScale);
-					const nameLabel = new CanvasText(shortName, {
-						fontSize,
-						fill: labelColor,
-						fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-						fontWeight: "bold",
-					});
-					nameLabel.x = 5;
-					nameLabel.y = wg.minY;
-					nameLabel.alpha = 0.6;
-					this.barLabelContainer.addChild(nameLabel);
-				}
-			}
-		}
-
-		// Timeline viewMode: draw time axis labels at bottom
-		if (this.panel.viewMode === "timeline" && this.barLabelContainer) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended clusterMeta property
-			const steps = (this.clusterMeta as any)?.timelineSteps as string[] | undefined;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const stepW = (this.clusterMeta as any)?.timelineStepWidth as number | undefined;
-			if (steps && stepW && steps.length > 0) {
-				const axisFontSize = Math.max(6, 9 / worldScale);
-				// Find bar Y range for axis position
-				let maxBarY = 0;
-				for (const b of bars) {
-					const by = b.yCenter + b.barHeight / 2;
-					if (by > maxBarY) maxBarY = by;
-				}
-				const axisY = maxBarY + 12 / worldScale;
-				// Decimate labels if too many
-				const maxLabels = Math.min(steps.length, Math.floor((800 * worldScale) / 40));
-				const labelStep = Math.max(1, Math.ceil(steps.length / maxLabels));
-				const axisColor = this.isDarkTheme() ? 0xaaaaaa : 0x666666;
-
-				// Axis line
-				g.lineStyle(Math.max(0.5, 1 / worldScale), axisColor, 0.4);
-				g.moveTo(60, axisY - 4 / worldScale);
-				g.lineTo(60 + (steps.length - 1) * stepW, axisY - 4 / worldScale);
-
-				for (let i = 0; i < steps.length; i += labelStep) {
-					const x = 60 + i * stepW;
-					// Tick mark
-					g.moveTo(x, axisY - 6 / worldScale);
-					g.lineTo(x, axisY - 2 / worldScale);
-
-					const axisLabel = new CanvasText(steps[i], {
-						fontSize: axisFontSize,
-						fill: axisColor,
-					});
-					axisLabel.anchor.set(0, 0);
-					axisLabel.x = x;
-					axisLabel.y = axisY;
-					axisLabel.rotation = Math.PI / 4; // 45° rotation
-					this.barLabelContainer.addChild(axisLabel);
-				}
-			}
-		}
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TimelineBarHost duck-type access to private fields
+		renderTimelineBars(this as any);
 	}
 
 	drawRouteLines() {
@@ -7119,7 +6900,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			if (!(tf instanceof TFile)) continue;
 			try {
 				const content = await this.app.vault.read(tf);
-				const newContent = this._addFrontmatterTag(content, tag);
+				const newContent = addFrontmatterTag(content, tag);
 				await this.app.vault.modify(tf, newContent);
 			} catch {
 				/* ignore individual failures */
@@ -7138,7 +6919,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			if (!(tf instanceof TFile)) continue;
 			try {
 				const content = await this.app.vault.read(tf);
-				const newContent = this._setFrontmatterField(content, field, value);
+				const newContent = setFrontmatterField(content, field, value);
 				await this.app.vault.modify(tf, newContent);
 			} catch {
 				/* ignore individual failures */
@@ -7147,31 +6928,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.rawData = null;
 		this.doRender();
 		showToast(`Field "${field}" set on ${nodeIds.length} nodes`);
-	}
-
-	/** Helper: add a tag to frontmatter tags array */
-	private _addFrontmatterTag(content: string, tag: string): string {
-		const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-		if (fmMatch) {
-			const fmBody = fmMatch[1];
-			const tagsRegex = /^tags:\s*\[([^\]]*)\]/m;
-			const tagsListRegex = /^tags:\s*$/m;
-			if (tagsRegex.test(fmBody)) {
-				const newFm = fmBody.replace(tagsRegex, (match, inner) => {
-					const existing = inner ? inner + ", " : "";
-					return `tags: [${existing}${tag}]`;
-				});
-				return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-			} else if (tagsListRegex.test(fmBody)) {
-				const newFm = fmBody.replace(tagsListRegex, `tags:\n  - ${tag}`);
-				return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-			} else {
-				const newFm = fmBody + `\ntags: [${tag}]`;
-				return content.replace(fmMatch[0], `---\n${newFm}\n---`);
-			}
-		} else {
-			return `---\ntags: [${tag}]\n---\n${content}`;
-		}
 	}
 
 	/** Execute the reset-panel action: restore defaults and re-render. */
@@ -9408,52 +9164,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	private applySearch() {
 		const raw = this.panel.searchQuery;
-		// Parse hop filters: "hop:name:n" (comma-separated, mixable with text)
-		const hopMatches = [...raw.matchAll(/hop:([^:,]+):(\d+)/gi)];
-		const textParts: string[] = [];
-		let remaining = raw;
-		for (const m of hopMatches) remaining = remaining.replace(m[0], "");
-		const trimmed = remaining.replace(/,/g, " ").trim().toLowerCase();
-		if (trimmed) textParts.push(trimmed);
-
-		// Build hop highlight set via BFS from each specified origin
-		let hopSet: Set<string> | null = null;
-		if (hopMatches.length > 0) {
-			hopSet = new Set<string>();
-			for (const m of hopMatches) {
-				const name = m[1].toLowerCase();
-				const hops = parseInt(m[2], 10);
-				// Find origin node(s) by partial name match
-				const origins: string[] = [];
-				for (const pn of this.pixiNodes.values()) {
-					if (pn.data.label.toLowerCase().includes(name)) origins.push(pn.data.id);
-				}
-				// BFS from each origin
-				for (const origin of origins) {
-					hopSet.add(origin);
-					let frontier = [origin];
-					for (let h = 0; h < hops && frontier.length > 0; h++) {
-						const next: string[] = [];
-						for (const id of frontier) {
-							const nb = this.adj.get(id);
-							if (nb)
-								for (const n of nb) {
-									if (!hopSet.has(n)) {
-										hopSet.add(n);
-										next.push(n);
-									}
-								}
-						}
-						frontier = next;
-					}
-				}
-			}
-		}
-
-		const hasHop = hopSet !== null;
-		// N2: Combine hop set and text-based highlight set
+		const hopSet = this._buildSearchHopSet(raw);
 		const hlSet = this._searchHighlightSet;
-		const hasHighlight = hasHop || hlSet !== null;
+		const hasHighlight = hopSet !== null || hlSet !== null;
 
 		for (const pn of this.pixiNodes.values()) {
 			if (!hasHighlight) {
@@ -9461,73 +9174,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				this.drawNodeCircle(pn, false);
 				continue;
 			}
-
-			// A node is "matched" if it passes hop filter (when active) AND text highlight (when active)
 			const hopMatch = hopSet === null || hopSet.has(pn.data.id);
 			const textMatch = !hlSet || hlSet.has(pn.data.id);
-			const isMatch = hopMatch && textMatch;
-
-			if (isMatch) {
-				this._fadeNodeAlpha(pn, 1);
-				pn.circle.visible = true;
-				pn.circle.clear();
-				const searchHitColor = this.getAccentColor();
-				const shape = getNodeShape(pn.data, this.panel.nodeShapeRules);
-				// GU: In card mode, draw a rect halo matching the card size instead of a circle
-				const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
-				if (isCardMode) {
-					const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
-					// HM: Use golden ratio for halo rect (matching plain card rendering)
-					const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
-					const baseH = pn.radius * 2;
-					const halfH = baseH;
-					const halfW = Math.max(20, (baseH * cardAR) / 2);
-					const outset = 4;
-					const cr = crc.cardCornerRadius ?? 6;
-					pn.circle.beginFill(searchHitColor, 0.1);
-					pn.circle.drawRoundedRect(
-						-halfW - outset,
-						-halfH - outset,
-						(halfW + outset) * 2,
-						(halfH + outset) * 2,
-						cr,
-					);
-					pn.circle.endFill();
-					pn.circle.lineStyle(2, searchHitColor, 0.85);
-					pn.circle.drawRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, cr);
-				} else {
-					drawShape(pn.circle, shape, pn.radius * 2.2, searchHitColor, 0.1);
-					pn.circle.lineStyle(2, searchHitColor, 0.85);
-					drawShape(pn.circle, shape, pn.radius, pn.color, 1);
-				}
-				// HE: In card mode, tint card title text with accent color for visual match indicator
-				if (isCardMode && pn.gfx.children.length > 0) {
-					for (const child of pn.gfx.children) {
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime card text properties
-						if ((child as any)._isCardText && (child as any).style) {
-							// eslint-disable-next-line @typescript-eslint/no-explicit-any
-							(child as any).style.fill = "#" + searchHitColor.toString(16).padStart(6, "0");
-							break; // Only tint the first (title) text
-						}
-					}
-				}
-				// EJ: Pulse animation — brief scale bounce on first search highlight
-				// A11y: skip animation when prefers-reduced-motion is set
-				const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime pulse tracking
-				if (hlSet && !(pn as any)._searchPulsed && !reducedMotion) {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					(pn as any)._searchPulsed = true;
-					const sx = pn.gfx.scale.x;
-					pn.gfx.scale.set(sx * 1.3);
-					setTimeout(() => {
-						if (pn.gfx) pn.gfx.scale.set(sx);
-					}, 300);
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				} else if (hlSet && !(pn as any)._searchPulsed) {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					(pn as any)._searchPulsed = true;
-				}
+			if (hopMatch && textMatch) {
+				this._searchHighlightMatchedNode(pn, hlSet);
 			} else {
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				(pn as any)._searchPulsed = false;
@@ -9536,8 +9186,117 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			}
 		}
 		this.markDirty();
+		this._announceSearchResults(raw, hopSet, hlSet);
 
-		// A11y: announce filter results for screen readers
+		// N1: Auto-fit view to search results after filtering
+		if (raw.trim() && this.canvasWrap) {
+			const wrap = this.canvasWrap;
+			setTimeout(() => this.autoFitView(wrap.clientWidth, wrap.clientHeight), 100);
+		}
+	}
+
+	/** Parse hop:name:n filters and BFS to build the hop highlight set. */
+	private _buildSearchHopSet(raw: string): Set<string> | null {
+		const hopMatches = [...raw.matchAll(/hop:([^:,]+):(\d+)/gi)];
+		if (hopMatches.length === 0) return null;
+
+		const hopSet = new Set<string>();
+		for (const m of hopMatches) {
+			const name = m[1].toLowerCase();
+			const hops = parseInt(m[2], 10);
+			const origins: string[] = [];
+			for (const pn of this.pixiNodes.values()) {
+				if (pn.data.label.toLowerCase().includes(name)) origins.push(pn.data.id);
+			}
+			for (const origin of origins) {
+				hopSet.add(origin);
+				let frontier = [origin];
+				for (let h = 0; h < hops && frontier.length > 0; h++) {
+					const next: string[] = [];
+					for (const id of frontier) {
+						const nb = this.adj.get(id);
+						if (nb)
+							for (const n of nb) {
+								if (!hopSet.has(n)) {
+									hopSet.add(n);
+									next.push(n);
+								}
+							}
+					}
+					frontier = next;
+				}
+			}
+		}
+		return hopSet;
+	}
+
+	/** Apply search halo + pulse to a matched node. */
+	private _searchHighlightMatchedNode(pn: PixiNode, hlSet: Set<string> | null): void {
+		this._fadeNodeAlpha(pn, 1);
+		pn.circle.visible = true;
+		pn.circle.clear();
+		const searchHitColor = this.getAccentColor();
+		const shape = getNodeShape(pn.data, this.panel.nodeShapeRules);
+		const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
+		if (isCardMode) {
+			this._drawSearchCardHalo(pn, searchHitColor);
+		} else {
+			drawShape(pn.circle, shape, pn.radius * 2.2, searchHitColor, 0.1);
+			pn.circle.lineStyle(2, searchHitColor, 0.85);
+			drawShape(pn.circle, shape, pn.radius, pn.color, 1);
+		}
+		// HE: Tint card title text
+		if (isCardMode && pn.gfx.children.length > 0) {
+			for (const child of pn.gfx.children) {
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime card text properties
+				if ((child as any)._isCardText && (child as any).style) {
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					(child as any).style.fill = "#" + searchHitColor.toString(16).padStart(6, "0");
+					break;
+				}
+			}
+		}
+		this._searchPulse(pn, hlSet);
+	}
+
+	/** Draw card-mode search halo rect. */
+	private _drawSearchCardHalo(pn: PixiNode, searchHitColor: number): void {
+		const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
+		const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
+		const baseH = pn.radius * 2;
+		const halfH = baseH;
+		const halfW = Math.max(20, (baseH * cardAR) / 2);
+		const outset = 4;
+		const cr = crc.cardCornerRadius ?? 6;
+		pn.circle.beginFill(searchHitColor, 0.1);
+		pn.circle.drawRoundedRect(-halfW - outset, -halfH - outset, (halfW + outset) * 2, (halfH + outset) * 2, cr);
+		pn.circle.endFill();
+		pn.circle.lineStyle(2, searchHitColor, 0.85);
+		pn.circle.drawRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, cr);
+	}
+
+	/** EJ: Pulse animation — brief scale bounce on first search highlight. */
+	private _searchPulse(pn: PixiNode, hlSet: Set<string> | null): void {
+		const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime pulse tracking
+		if (hlSet && !(pn as any)._searchPulsed && !reducedMotion) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(pn as any)._searchPulsed = true;
+			const sx = pn.gfx.scale.x;
+			pn.gfx.scale.set(sx * 1.3);
+			setTimeout(() => {
+				if (pn.gfx) pn.gfx.scale.set(sx);
+			}, 300);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		} else if (hlSet && !(pn as any)._searchPulsed) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(pn as any)._searchPulsed = true;
+		}
+	}
+
+	/** A11y: announce search filter results for screen readers. */
+	private _announceSearchResults(raw: string, hopSet: Set<string> | null, hlSet: Set<string> | null): void {
+		const hasHighlight = hopSet !== null || hlSet !== null;
 		if (hasHighlight) {
 			let matchCount = 0;
 			for (const pn of this.pixiNodes.values()) {
@@ -9550,12 +9309,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			);
 		} else if (!raw.trim()) {
 			this._announceA11y(t("a11y.filterCleared") ?? "Filter cleared");
-		}
-
-		// N1: Auto-fit view to search results after filtering
-		if (raw.trim() && this.canvasWrap) {
-			const wrap = this.canvasWrap;
-			setTimeout(() => this.autoFitView(wrap.clientWidth, wrap.clientHeight), 100);
 		}
 	}
 
