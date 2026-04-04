@@ -12,6 +12,235 @@ import { ensureRT, buildSection, addAdvancedGroup, _getNodeDirStates, _saveNodeD
 import { addSlider, addToggle, addSelect, addTextInput } from "./panel-widgets";
 
 // ---------------------------------------------------------------------------
+// Node Advanced Controls — extracted to reduce complexity of the outer arrow fn
+// ---------------------------------------------------------------------------
+function _buildNodeAdvancedControls(
+	adv: HTMLElement,
+	panel: PanelState,
+	cb: PanelCallbacks,
+): void {
+	const rtNode = mergeRenderThresholds(panel.renderThresholds);
+	addToggle(
+		adv,
+		t("display.nodeSizeByDegree"),
+		rtNode.nodeSizeByDegree,
+		(v) => {
+			ensureRT(panel).nodeSizeByDegree = v;
+			cb.recalcNodeRadii();
+			cb.markDirty();
+		},
+		t("desc.nodeSizeByDegree"),
+	);
+	addTextInput(
+		adv,
+		t("display.nodeSubLabelFields"),
+		panel.nodeSubLabelFields ?? "",
+		"e.g. category, date, degree",
+		(v) => {
+			panel.nodeSubLabelFields = v;
+			cb.rebuildNodesInPlace();
+		},
+	);
+	addTextInput(
+		adv,
+		t("display.hoverTooltipFields"),
+		panel.hoverTooltipFields ?? "",
+		"e.g. date, story_order",
+		(v) => {
+			panel.hoverTooltipFields = v;
+			cb.clearHoverTooltips();
+			cb.applyHover();
+			cb.markDirty();
+		},
+	);
+	// IE: Hover/card content checklist
+	addToggle(adv, t("display.hoverShowTitle") ?? "Hover: Title", panel.hoverShowTitle, (v) => {
+		panel.hoverShowTitle = v;
+		cb.clearHoverTooltips();
+		cb.applyHover();
+		cb.markDirty();
+	});
+	addToggle(adv, t("display.hoverShowMeta") ?? "Hover: Metadata", panel.hoverShowMeta, (v) => {
+		panel.hoverShowMeta = v;
+		cb.clearHoverTooltips();
+		cb.applyHover();
+		cb.markDirty();
+	});
+	addToggle(adv, t("display.hoverShowBody") ?? "Hover: Body", panel.hoverShowBody, (v) => {
+		panel.hoverShowBody = v;
+		cb.clearHoverTooltips();
+		cb.applyHover();
+		cb.markDirty();
+	});
+	// A3: Node icon prefix
+	addTextInput(adv, t("display.nodeIconField"), panel.nodeIconField ?? "", "e.g. node_type", (v) => {
+		panel.nodeIconField = v;
+		cb.rebuildNodesInPlace();
+	});
+	addTextInput(
+		adv,
+		t("display.nodeIconMap"),
+		JSON.stringify(panel.nodeIconMap ?? {}),
+		'{"character":"👤","episode":"📖"}',
+		(v) => {
+			try {
+				panel.nodeIconMap = JSON.parse(v);
+			} catch {
+				/* ignore invalid JSON */
+			}
+			cb.rebuildNodesInPlace();
+		},
+	);
+	_buildNodeHoverAndShapeControls(adv, panel, cb);
+}
+
+function _buildNodeHoverAndShapeControls(
+	adv: HTMLElement,
+	panel: PanelState,
+	cb: PanelCallbacks,
+): void {
+	addSlider(
+		adv,
+		t("display.hoverHops"),
+		1,
+		5,
+		1,
+		panel.hoverHops,
+		(v) => {
+			panel.hoverHops = v;
+			cb.rebuildHoverAdj();
+			cb.applyHover();
+			cb.markDirty();
+		},
+		t("desc.hoverHops"),
+	);
+	// Hover edge type filter — which edge types to follow during hover BFS
+	const het = panel.hoverEdgeTypes ?? {
+		link: true,
+		semantic: false,
+		tag: false,
+		hasTag: false,
+		similar: false,
+		sibling: false,
+		sequence: false,
+		inheritance: true,
+		aggregation: true,
+	};
+	const hoverTypeEntries: [string, string][] = [
+		["link", t("hover.link") ?? "Link"],
+		["semantic", t("hover.semantic") ?? "Semantic"],
+		["tag", t("hover.tag") ?? "Tag"],
+		["hasTag", t("hover.hasTag") ?? "Has-Tag"],
+		["similar", t("hover.similar") ?? "Similar"],
+		["inheritance", t("hover.inheritance") ?? "Inheritance"],
+		["aggregation", t("hover.aggregation") ?? "Aggregation"],
+		["sibling", t("hover.sibling") ?? "Sibling"],
+		["sequence", t("hover.sequence") ?? "Sequence"],
+	];
+	for (const [key, label] of hoverTypeEntries) {
+		const hetRec = het as Record<string, boolean>;
+		addToggle(adv, label, hetRec[key] ?? false, (v) => {
+			if (!panel.hoverEdgeTypes) panel.hoverEdgeTypes = { ...het };
+			(panel.hoverEdgeTypes as Record<string, boolean>)[key] = v;
+			cb.rebuildHoverAdj();
+			cb.applyHover();
+			cb.markDirty();
+		});
+	}
+	// HR: Max hover neighbor labels
+	const rtHover = mergeRenderThresholds(panel.renderThresholds);
+	addSlider(
+		adv,
+		t("display.maxHoverLabels") ?? "Max Hover Labels",
+		5,
+		100,
+		5,
+		rtHover.maxHoverNeighborLabels,
+		(v) => {
+			ensureRT(panel).maxHoverNeighborLabels = v;
+			cb.applyHover();
+			cb.announceA11y?.(`${t("display.maxHoverLabels") ?? "Max Hover Labels"}: ${v}`);
+		},
+	);
+	// フォーカスモード: クリックでハイライトを固定
+	addToggle(
+		adv,
+		t("display.focusMode"),
+		panel.focusMode,
+		(v) => {
+			panel.focusMode = v;
+			if (!v) {
+				panel.focusNodeId = null;
+				cb.applyHover();
+			}
+			cb.markDirty();
+			cb.rebuildPanel();
+		},
+		t("desc.focusMode"),
+	);
+	// R2: フォーカスコーン — only shown when focusMode is enabled (progressive disclosure)
+	if (panel.focusMode) {
+		addToggle(
+			adv,
+			t("display.focusCone"),
+			panel.focusConeEnabled ?? true,
+			(v) => {
+				panel.focusConeEnabled = v;
+				cb.applyHover();
+			},
+			t("desc.focusCone"),
+		);
+	}
+	// R2: highlightMissingNeighbors toggle removed — now controlled via analysisOverlay dropdown
+	// --- ノード形状 ---
+	// GH: Shape preview swatches
+	const shapeIcons: Record<string, string> = {
+		circle: "O",
+		triangle: "^",
+		square: "#",
+		diamond: "<>",
+		pentagon: "5",
+		hexagon: "6",
+		star: "*",
+		cross: "+",
+	};
+	const shapeOptions = ALL_SHAPES.map((s) => ({
+		value: s,
+		label: `${shapeIcons[s] ?? ""} ${t(`shape.${s}`)}`,
+	}));
+	const defaultRule = panel.nodeShapeRules.find((r) => r.match === "default");
+	if (panel.showTagNodes) {
+		const tagRule = panel.nodeShapeRules.find((r) => r.match === "isTag");
+		addSelect(
+			adv,
+			t("display.tagNodeShape"),
+			shapeOptions,
+			tagRule?.shape ?? "triangle",
+			(v) => {
+				const rule = panel.nodeShapeRules.find((r) => r.match === "isTag");
+				if (rule) rule.shape = v as NodeShape;
+				else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
+				cb.rebuildNodesInPlace();
+			},
+			t("desc.tagNodeShape"),
+		);
+	}
+	addSelect(
+		adv,
+		t("display.defaultNodeShape"),
+		shapeOptions,
+		defaultRule?.shape ?? "circle",
+		(v) => {
+			const rule = panel.nodeShapeRules.find((r) => r.match === "default");
+			if (rule) rule.shape = v as NodeShape;
+			else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
+			cb.rebuildNodesInPlace();
+		},
+		t("desc.defaultNodeShape"),
+	);
+}
+
+// ---------------------------------------------------------------------------
 // Node Display Section (was _buildNodeDisplaySection)
 // ---------------------------------------------------------------------------
 export function buildNodeDisplaySection(
@@ -142,219 +371,7 @@ export function buildNodeDisplaySection(
 				cb.rebuildNodesInPlace();
 			});
 			// --- Advanced (hidden by default) ---
-			addAdvancedGroup(body, (adv: HTMLElement) => {
-				const rtNode = mergeRenderThresholds(panel.renderThresholds);
-				addToggle(
-					adv,
-					t("display.nodeSizeByDegree"),
-					rtNode.nodeSizeByDegree,
-					(v) => {
-						ensureRT(panel).nodeSizeByDegree = v;
-						cb.recalcNodeRadii();
-						cb.markDirty();
-					},
-					t("desc.nodeSizeByDegree"),
-				);
-				addTextInput(
-					adv,
-					t("display.nodeSubLabelFields"),
-					panel.nodeSubLabelFields ?? "",
-					"e.g. category, date, degree",
-					(v) => {
-						panel.nodeSubLabelFields = v;
-						cb.rebuildNodesInPlace();
-					},
-				);
-				addTextInput(
-					adv,
-					t("display.hoverTooltipFields"),
-					panel.hoverTooltipFields ?? "",
-					"e.g. date, story_order",
-					(v) => {
-						panel.hoverTooltipFields = v;
-						cb.clearHoverTooltips();
-						cb.applyHover();
-						cb.markDirty();
-					},
-				);
-				// IE: Hover/card content checklist
-				addToggle(adv, t("display.hoverShowTitle") ?? "Hover: Title", panel.hoverShowTitle, (v) => {
-					panel.hoverShowTitle = v;
-					cb.clearHoverTooltips();
-					cb.applyHover();
-					cb.markDirty();
-				});
-				addToggle(adv, t("display.hoverShowMeta") ?? "Hover: Metadata", panel.hoverShowMeta, (v) => {
-					panel.hoverShowMeta = v;
-					cb.clearHoverTooltips();
-					cb.applyHover();
-					cb.markDirty();
-				});
-				addToggle(adv, t("display.hoverShowBody") ?? "Hover: Body", panel.hoverShowBody, (v) => {
-					panel.hoverShowBody = v;
-					cb.clearHoverTooltips();
-					cb.applyHover();
-					cb.markDirty();
-				});
-				// A3: Node icon prefix
-				addTextInput(adv, t("display.nodeIconField"), panel.nodeIconField ?? "", "e.g. node_type", (v) => {
-					panel.nodeIconField = v;
-					cb.rebuildNodesInPlace();
-				});
-				addTextInput(
-					adv,
-					t("display.nodeIconMap"),
-					JSON.stringify(panel.nodeIconMap ?? {}),
-					'{"character":"👤","episode":"📖"}',
-					(v) => {
-						try {
-							panel.nodeIconMap = JSON.parse(v);
-						} catch {
-							/* ignore invalid JSON */
-						}
-						cb.rebuildNodesInPlace();
-					},
-				);
-				addSlider(
-					adv,
-					t("display.hoverHops"),
-					1,
-					5,
-					1,
-					panel.hoverHops,
-					(v) => {
-						panel.hoverHops = v;
-						cb.rebuildHoverAdj();
-						cb.applyHover();
-						cb.markDirty();
-					},
-					t("desc.hoverHops"),
-				);
-				// Hover edge type filter — which edge types to follow during hover BFS
-				const het = panel.hoverEdgeTypes ?? {
-					link: true,
-					semantic: false,
-					tag: false,
-					hasTag: false,
-					similar: false,
-					sibling: false,
-					sequence: false,
-					inheritance: true,
-					aggregation: true,
-				};
-				const hoverTypeEntries: [string, string][] = [
-					["link", t("hover.link") ?? "Link"],
-					["semantic", t("hover.semantic") ?? "Semantic"],
-					["tag", t("hover.tag") ?? "Tag"],
-					["hasTag", t("hover.hasTag") ?? "Has-Tag"],
-					["similar", t("hover.similar") ?? "Similar"],
-					["inheritance", t("hover.inheritance") ?? "Inheritance"],
-					["aggregation", t("hover.aggregation") ?? "Aggregation"],
-					["sibling", t("hover.sibling") ?? "Sibling"],
-					["sequence", t("hover.sequence") ?? "Sequence"],
-				];
-				for (const [key, label] of hoverTypeEntries) {
-					const hetRec = het as Record<string, boolean>;
-					addToggle(adv, label, hetRec[key] ?? false, (v) => {
-						if (!panel.hoverEdgeTypes) panel.hoverEdgeTypes = { ...het };
-						(panel.hoverEdgeTypes as Record<string, boolean>)[key] = v;
-						cb.rebuildHoverAdj();
-						cb.applyHover();
-						cb.markDirty();
-					});
-				}
-				// HR: Max hover neighbor labels
-				const rtHover = mergeRenderThresholds(panel.renderThresholds);
-				addSlider(
-					adv,
-					t("display.maxHoverLabels") ?? "Max Hover Labels",
-					5,
-					100,
-					5,
-					rtHover.maxHoverNeighborLabels,
-					(v) => {
-						ensureRT(panel).maxHoverNeighborLabels = v;
-						cb.applyHover();
-						cb.announceA11y?.(`${t("display.maxHoverLabels") ?? "Max Hover Labels"}: ${v}`);
-					},
-				);
-				// フォーカスモード: クリックでハイライトを固定
-				addToggle(
-					adv,
-					t("display.focusMode"),
-					panel.focusMode,
-					(v) => {
-						panel.focusMode = v;
-						if (!v) {
-							panel.focusNodeId = null;
-							cb.applyHover();
-						}
-						cb.markDirty();
-						cb.rebuildPanel();
-					},
-					t("desc.focusMode"),
-				);
-				// R2: フォーカスコーン — only shown when focusMode is enabled (progressive disclosure)
-				if (panel.focusMode) {
-					addToggle(
-						adv,
-						t("display.focusCone"),
-						panel.focusConeEnabled ?? true,
-						(v) => {
-							panel.focusConeEnabled = v;
-							cb.applyHover();
-						},
-						t("desc.focusCone"),
-					);
-				}
-				// R2: highlightMissingNeighbors toggle removed — now controlled via analysisOverlay dropdown
-				// --- ノード形状 ---
-				// GH: Shape preview swatches
-				const shapeIcons: Record<string, string> = {
-					circle: "O",
-					triangle: "^",
-					square: "#",
-					diamond: "<>",
-					pentagon: "5",
-					hexagon: "6",
-					star: "*",
-					cross: "+",
-				};
-				const shapeOptions = ALL_SHAPES.map((s) => ({
-					value: s,
-					label: `${shapeIcons[s] ?? ""} ${t(`shape.${s}`)}`,
-				}));
-				const defaultRule = panel.nodeShapeRules.find((r) => r.match === "default");
-				if (panel.showTagNodes) {
-					const tagRule = panel.nodeShapeRules.find((r) => r.match === "isTag");
-					addSelect(
-						adv,
-						t("display.tagNodeShape"),
-						shapeOptions,
-						tagRule?.shape ?? "triangle",
-						(v) => {
-							const rule = panel.nodeShapeRules.find((r) => r.match === "isTag");
-							if (rule) rule.shape = v as NodeShape;
-							else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
-							cb.rebuildNodesInPlace();
-						},
-						t("desc.tagNodeShape"),
-					);
-				}
-				addSelect(
-					adv,
-					t("display.defaultNodeShape"),
-					shapeOptions,
-					defaultRule?.shape ?? "circle",
-					(v) => {
-						const rule = panel.nodeShapeRules.find((r) => r.match === "default");
-						if (rule) rule.shape = v as NodeShape;
-						else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
-						cb.rebuildNodesInPlace();
-					},
-					t("desc.defaultNodeShape"),
-				);
-			});
+			addAdvancedGroup(body, (adv: HTMLElement) => _buildNodeAdvancedControls(adv, panel, cb));
 		},
 		tHelp("help.displayNodes"),
 		false,
