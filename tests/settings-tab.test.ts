@@ -261,3 +261,219 @@ describe("DEFAULT_SETTINGS shape", () => {
     expect(DEFAULT_SETTINGS.showSimilar).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Additional GraphViewsSettingTab display tests
+// ---------------------------------------------------------------------------
+
+describe("GraphViewsSettingTab.display() — additional coverage", () => {
+  function createMockPlugin() {
+    return {
+      settings: {
+        ...DEFAULT_SETTINGS,
+        settingsJsonPath: "settings/graph-island.json",
+        autoSnapshotIntervalMin: 5,
+        ontology: {
+          ...DEFAULT_SETTINGS.ontology,
+          inheritanceFields: ["parent"],
+          aggregationFields: ["contains"],
+          customMappings: { "derived-from": "inheritance" },
+          tagRelations: [{ source: "tag1", target: "tag2", type: "inheritance" }],
+        },
+      },
+      saveSettings: vi.fn(async () => {}),
+    };
+  }
+
+  it("displays ontology field editors", () => {
+    const app = { vault: { getFolderByPath: vi.fn() } } as any;
+    const plugin = createMockPlugin() as any;
+    const tab = new GraphViewsSettingTab(app, plugin);
+    expect(() => tab.display()).not.toThrow();
+    expect((tab as any).containerEl.createEl).toHaveBeenCalled();
+  });
+
+  it("displays custom mappings section", () => {
+    const app = { vault: { getFolderByPath: vi.fn() } } as any;
+    const plugin = createMockPlugin() as any;
+    const tab = new GraphViewsSettingTab(app, plugin);
+    tab.display();
+    // Should not throw even with custom mappings
+    expect(plugin.saveSettings).toBeDefined();
+  });
+
+  it("displays tag relations section", () => {
+    const app = { vault: { getFolderByPath: vi.fn() } } as any;
+    const plugin = createMockPlugin() as any;
+    const tab = new GraphViewsSettingTab(app, plugin);
+    tab.display();
+    expect((tab as any).containerEl.createEl).toHaveBeenCalled();
+  });
+
+  it("handles missing ontology fields gracefully", () => {
+    const app = { vault: { getFolderByPath: vi.fn() } } as any;
+    const plugin = createMockPlugin() as any;
+    plugin.settings.ontology.reverseInheritanceFields = undefined;
+    plugin.settings.ontology.reverseAggregationFields = undefined;
+    plugin.settings.ontology.siblingFields = undefined;
+    plugin.settings.ontology.sequenceFields = undefined;
+    plugin.settings.ontology.reverseSequenceFields = undefined;
+
+    const tab = new GraphViewsSettingTab(app, plugin);
+    expect(() => tab.display()).not.toThrow();
+  });
+
+  it("displays settings preview as read-only textarea", () => {
+    const app = { vault: { getFolderByPath: vi.fn() } } as any;
+    const plugin = createMockPlugin() as any;
+    const tab = new GraphViewsSettingTab(app, plugin);
+    tab.display();
+    // Preview should contain JSON stringified settings
+    const preview = (tab as any).containerEl.createEl.mock.calls.find(
+      (call: any) => call[0] === "textarea"
+    );
+    expect(preview).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HelpEntry type and HELP record coverage
+// ---------------------------------------------------------------------------
+
+describe("HELP record completeness", () => {
+  it("all required help entries exist", () => {
+    const requiredKeys = [
+      "metadataFields",
+      "colorField",
+      "groupField",
+      "enclosure",
+      "ontology",
+      "groupPresets",
+      "clusterGroupRules",
+      "directionalGravity",
+      "nodeRules",
+    ];
+    for (const key of requiredKeys) {
+      expect(HELP).toHaveProperty(key);
+      expect(HELP[key as keyof typeof HELP]).toBeDefined();
+    }
+  });
+
+  it("all entries have descriptive content", () => {
+    const entries = Object.entries(HELP) as [string, HelpEntry][];
+    for (const [key, entry] of entries) {
+      expect(entry.title).toBeTruthy();
+      expect(entry.body.length).toBeGreaterThan(30);
+    }
+  });
+
+  it("body content is domain-specific", () => {
+    const bodies = Object.values(HELP).map(e => e.body.toLowerCase());
+    const aggregationEntry = bodies.find(b => b.includes("aggregation"));
+    const inheritanceEntry = bodies.find(b => b.includes("inheritance"));
+    expect(aggregationEntry).toBeDefined();
+    expect(inheritanceEntry).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DEFAULT_SETTINGS extended structure validation
+// ---------------------------------------------------------------------------
+
+describe("DEFAULT_SETTINGS complete structure", () => {
+  it("has complete ontology configuration", () => {
+    const o = DEFAULT_SETTINGS.ontology;
+    expect(o).toHaveProperty("inheritanceFields");
+    expect(o).toHaveProperty("aggregationFields");
+    expect(o).toHaveProperty("reverseInheritanceFields");
+    expect(o).toHaveProperty("reverseAggregationFields");
+    expect(o).toHaveProperty("similarFields");
+    expect(o).toHaveProperty("siblingFields");
+    expect(o).toHaveProperty("sequenceFields");
+    expect(o).toHaveProperty("reverseSequenceFields");
+    expect(o).toHaveProperty("customMappings");
+    expect(o).toHaveProperty("useTagHierarchy");
+  });
+
+  it("all field arrays are properly typed", () => {
+    const o = DEFAULT_SETTINGS.ontology;
+    expect(Array.isArray(o.inheritanceFields)).toBe(true);
+    expect(Array.isArray(o.aggregationFields)).toBe(true);
+    expect(Array.isArray(o.reverseInheritanceFields)).toBe(true);
+    expect(Array.isArray(o.reverseAggregationFields)).toBe(true);
+    expect(Array.isArray(o.similarFields)).toBe(true);
+    expect(Array.isArray(o.siblingFields ?? [])).toBe(true);
+    expect(Array.isArray(o.sequenceFields ?? [])).toBe(true);
+    expect(Array.isArray(o.reverseSequenceFields ?? [])).toBe(true);
+  });
+
+  it("customMappings is an object", () => {
+    expect(typeof DEFAULT_SETTINGS.ontology.customMappings).toBe("object");
+  });
+
+  it("all arrays contain strings or are empty", () => {
+    const o = DEFAULT_SETTINGS.ontology;
+    for (const arr of [
+      o.inheritanceFields,
+      o.aggregationFields,
+      o.reverseInheritanceFields,
+      o.reverseAggregationFields,
+      o.similarFields,
+      o.siblingFields ?? [],
+      o.sequenceFields ?? [],
+      o.reverseSequenceFields ?? [],
+    ]) {
+      for (const item of arr) {
+        expect(typeof item).toBe("string");
+      }
+    }
+  });
+
+  it("booleans have correct default values", () => {
+    expect(DEFAULT_SETTINGS.ontology.useTagHierarchy).toBe(true);
+    expect(typeof DEFAULT_SETTINGS.showSimilar).toBe("boolean");
+  });
+
+  it("numeric settings are within valid ranges", () => {
+    expect(DEFAULT_SETTINGS.nodeSize).toBeGreaterThan(0);
+    expect(DEFAULT_SETTINGS.enclosureMinRatio).toBeGreaterThanOrEqual(0);
+    expect(DEFAULT_SETTINGS.enclosureMinRatio).toBeLessThanOrEqual(1);
+    if (DEFAULT_SETTINGS.autoSnapshotIntervalMin !== undefined) {
+      expect(DEFAULT_SETTINGS.autoSnapshotIntervalMin).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HelpModal edge cases
+// ---------------------------------------------------------------------------
+
+describe("HelpModal edge cases", () => {
+  it("handles entry with very long title", () => {
+    const app = {} as any;
+    const entry: HelpEntry = {
+      title: "A".repeat(100),
+      body: "Short body",
+    };
+    const modal = new HelpModal(app, entry);
+    expect(modal).toBeDefined();
+  });
+
+  it("handles entry with newlines in body", () => {
+    const app = {} as any;
+    const entry: HelpEntry = {
+      title: "Test",
+      body: "Line 1\\nLine 2\\nLine 3",
+    };
+    const modal = new HelpModal(app, entry);
+    modal.onOpen();
+    expect((modal as any).contentEl.createEl).toHaveBeenCalled();
+  });
+
+  it("property assignment in constructor", () => {
+    const app = {} as any;
+    const entry: HelpEntry = { title: "T", body: "B" };
+    const modal = new HelpModal(app, entry);
+    expect((modal as any).entry).toBe(entry);
+  });
+});

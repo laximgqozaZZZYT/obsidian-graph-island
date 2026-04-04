@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { classifyRelation, assignNodeColors, buildRelationColorMap, simpleHash, applyMonochromeFallback } from "../src/parsers/metadata-parser";
 import { DEFAULT_COLORS } from "../src/types";
 import type { GraphNode, GraphEdge, OntologyConfig } from "../src/types";
@@ -521,5 +521,289 @@ describe("classifyRelation edge cases", () => {
     const result = classifyRelation("@parent", onto);
     expect(result).toBeDefined();
     expect(result!.type).toBe("inheritance");
+  });
+});
+
+// ===========================================================================
+// Additional coverage tests for simpleHash edge cases
+// ===========================================================================
+
+describe("simpleHash edge cases", () => {
+  it("handles very long strings", () => {
+    const long = "a".repeat(1000);
+    const hash = simpleHash(long);
+    expect(Number.isInteger(hash)).toBe(true);
+    expect(hash).toBeGreaterThanOrEqual(0);
+  });
+
+  it("handles unicode characters", () => {
+    expect(simpleHash("日本語")).toBeGreaterThanOrEqual(0);
+  });
+
+  it("produces different hashes for single character variations", () => {
+    const h1 = simpleHash("a");
+    const h2 = simpleHash("b");
+    expect(h1).not.toBe(h2);
+  });
+
+  it("handles numeric string", () => {
+    const hash = simpleHash("12345");
+    expect(hash).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ===========================================================================
+// applyMonochromeFallback additional edge cases
+// ===========================================================================
+
+describe("applyMonochromeFallback additional tests", () => {
+  const palette = [0xff0000, 0x00ff00, 0x0000ff];
+
+  it("threshold is exactly 5 nodes", () => {
+    const nodes = Array.from({ length: 5 }, (_, i) => ({ id: `n${i}` }));
+    const monochrome = () => 0xaaaaaa;
+    const result = applyMonochromeFallback(nodes, monochrome, palette);
+    expect(result).not.toBe(monochrome);
+  });
+
+  it("does not fallback with 4 nodes", () => {
+    const nodes = Array.from({ length: 4 }, (_, i) => ({ id: `n${i}` }));
+    const monochrome = (_n: any) => 0xbbbbbb;
+    const result = applyMonochromeFallback(nodes, monochrome, palette);
+    expect(result).toBe(monochrome);
+  });
+
+  it("multiple colors prevent fallback", () => {
+    const nodes = Array.from({ length: 10 }, (_, i) => ({ id: `n${i}` }));
+    const multiColor = (n: any) => (n.id === "n0" ? 0xff0000 : 0x00ff00);
+    const result = applyMonochromeFallback(nodes, multiColor, palette);
+    expect(result).toBe(multiColor);
+  });
+
+  it("fallback uses modulo for palette cycling", () => {
+    const nodes = Array.from({ length: 100 }, (_, i) => ({ id: `node${i}` }));
+    const monochrome = () => 0xffffff;
+    const smallPalette = [0xaa0000, 0x00aa00];
+    const result = applyMonochromeFallback(nodes, monochrome, smallPalette);
+    for (const n of nodes) {
+      expect(smallPalette).toContain(result(n));
+    }
+  });
+});
+
+// ===========================================================================
+// assignNodeColors with special values
+// ===========================================================================
+
+describe("assignNodeColors with special category values", () => {
+  it("filters out empty category strings", () => {
+    const nodes = [
+      mkNode("a", { category: "" }),
+      mkNode("b", { category: "valid" }),
+    ];
+    const colors = assignNodeColors(nodes, "category");
+    expect(colors.has("")).toBe(false);
+    expect(colors.has("valid")).toBe(true);
+  });
+
+  it("handles undefined categories", () => {
+    const nodes = [mkNode("a"), mkNode("b", { category: "cat" })];
+    const colors = assignNodeColors(nodes, "category");
+    expect(colors.has("cat")).toBe(true);
+  });
+
+  it("preserves determinism across multiple calls", () => {
+    const nodes = [
+      mkNode("a", { category: "z" }),
+      mkNode("b", { category: "a" }),
+      mkNode("c", { category: "m" }),
+    ];
+    const colors1 = assignNodeColors(nodes, "category");
+    const colors2 = assignNodeColors(nodes, "category");
+    expect([...colors1.entries()].sort()).toEqual([...colors2.entries()].sort());
+  });
+});
+
+// ===========================================================================
+// buildRelationColorMap additional coverage
+// ===========================================================================
+
+describe("buildRelationColorMap additional tests", () => {
+  it("handles edge without type field", () => {
+    const edges = [
+      { id: "e1", source: "a", target: "b" } as GraphEdge,
+      { id: "e2", source: "c", target: "d", relation: "Author" } as GraphEdge,
+    ];
+    const colors = buildRelationColorMap(edges);
+    expect(colors.size).toBe(1);
+    expect(colors.has("Author")).toBe(true);
+  });
+
+  it("deterministic order with many relations", () => {
+    const edges = Array.from({ length: 20 }, (_, i) =>
+      mkEdge("a", "b", `Relation${String(i).padStart(2, "0")}`)
+    );
+    const colors1 = buildRelationColorMap(edges);
+    const colors2 = buildRelationColorMap(edges);
+    expect([...colors1.entries()].sort()).toEqual([...colors2.entries()].sort());
+  });
+});
+
+// ===========================================================================
+// Additional tests for uncovered functions — extractBodyInfo
+// ===========================================================================
+
+import { extractBodyInfo } from "../src/parsers/metadata-parser";
+
+describe("extractBodyInfo", () => {
+  it("extracts preview and length from plain text", () => {
+    const result = extractBodyInfo("Hello world", 5);
+    expect(result.preview).toBe("Hello…");
+    expect(result.length).toBe(11);
+  });
+
+  it("strips YAML frontmatter before preview", () => {
+    const content = "---\ntitle: Test\n---\nBody here";
+    const result = extractBodyInfo(content, 50);
+    expect(result.preview).toContain("Body");
+    expect(result.preview).not.toContain("---");
+  });
+
+  it("returns full text when shorter than maxLen", () => {
+    const text = "Short";
+    const result = extractBodyInfo(text, 100);
+    expect(result.preview).toBe("Short");
+    expect(result.preview).not.toContain("…");
+  });
+
+  it("handles content without frontmatter", () => {
+    const result = extractBodyInfo("Direct content", 50);
+    expect(result.preview).toContain("Direct content");
+  });
+
+  it("collapses multiple whitespace into single space", () => {
+    const result = extractBodyInfo("Text   with   spaces", 50);
+    expect(result.preview).not.toContain("   ");
+  });
+
+  it("strips heading markers", () => {
+    const result = extractBodyInfo("# Title\n## Subtitle\nContent", 50);
+    expect(result.preview).not.toContain("#");
+  });
+
+  it("returns empty content for empty input", () => {
+    const result = extractBodyInfo("", 10);
+    expect(result.preview).toBe("");
+    expect(result.length).toBe(0);
+  });
+
+  it("handles frontmatter without closing marker", () => {
+    const content = "---\ntitle: value\nActual content";
+    const result = extractBodyInfo(content, 50);
+    expect(result.preview).toBeDefined();
+  });
+
+  it("correctly reports body length after processing", () => {
+    const content = "This is the actual body";
+    const result = extractBodyInfo(content, 100);
+    expect(result.length).toBe(content.length);
+  });
+
+  it("truncates exactly at maxLen with ellipsis", () => {
+    const result = extractBodyInfo("0123456789", 5);
+    expect(result.preview).toBe("01234…");
+  });
+});
+
+// ===========================================================================
+// Additional coverage for buildSunburstData
+// ===========================================================================
+
+import { buildSunburstData } from "../src/parsers/metadata-parser";
+
+describe("buildSunburstData", () => {
+  it("creates root with name Vault", () => {
+    const mockApp = {
+      vault: {
+        getMarkdownFiles: vi.fn(() => []),
+      },
+      metadataCache: {
+        getFileCache: vi.fn(() => ({})),
+      },
+    } as any;
+
+    const result = buildSunburstData(mockApp, "category");
+    expect(result.name).toBe("Vault");
+    expect(result.children).toBeDefined();
+  });
+
+  it("groups files by specified field", () => {
+    const mockApp = {
+      vault: {
+        getMarkdownFiles: vi.fn(() => [
+          {
+            path: "file1.md",
+            basename: "file1",
+            stat: { mtime: 0, ctime: 0 },
+          },
+        ]),
+      },
+      metadataCache: {
+        getFileCache: vi.fn(() => ({
+          frontmatter: { category: "test" },
+        })),
+      },
+    } as any;
+
+    const result = buildSunburstData(mockApp, "category");
+    expect(result.children?.length).toBeGreaterThan(0);
+    const testGroup = result.children?.find((c: any) => c.name === "test");
+    expect(testGroup).toBeDefined();
+  });
+
+  it("defaults to Uncategorized when field missing", () => {
+    const mockApp = {
+      vault: {
+        getMarkdownFiles: vi.fn(() => [
+          {
+            path: "file.md",
+            basename: "file",
+            stat: { mtime: 0, ctime: 0 },
+          },
+        ]),
+      },
+      metadataCache: {
+        getFileCache: vi.fn(() => ({})),
+      },
+    } as any;
+
+    const result = buildSunburstData(mockApp, "missing");
+    const uncategorized = result.children?.find((c: any) => c.name === "Uncategorized");
+    expect(uncategorized).toBeDefined();
+  });
+
+  it("preserves file path and basename", () => {
+    const mockApp = {
+      vault: {
+        getMarkdownFiles: vi.fn(() => [
+          {
+            path: "folder/file.md",
+            basename: "file",
+            stat: { mtime: 0, ctime: 0 },
+          },
+        ]),
+      },
+      metadataCache: {
+        getFileCache: vi.fn(() => ({
+          frontmatter: { cat: "test" },
+        })),
+      },
+    } as any;
+
+    const result = buildSunburstData(mockApp, "cat");
+    const group = result.children?.[0];
+    const file = group?.children?.[0];
+    expect(file?.filePath).toBe("folder/file.md");
+    expect(file?.name).toBe("file");
   });
 });
