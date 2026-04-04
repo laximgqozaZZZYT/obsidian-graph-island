@@ -636,75 +636,51 @@ export class GuideRenderer {
 			this.customGridLabels.push(text);
 		};
 
-		// Axis1 labels -- placed above the grid
-		if (useBetween && axis1Lines.length >= 2) {
-			for (let i = 0; i + 1 < axis1Lines.length; i++) {
-				const label = axis1Lines[i].label;
-				if (!label) continue;
-				const midPos = (axis1Lines[i].position + axis1Lines[i + 1].position) / 2;
-
-				if (axis1Shape.kind === "radial") {
-					const maxR = bounds.maxR ?? Math.max(Math.abs(bounds.xMax), Math.abs(bounds.yMax));
-					const angle = midPos;
-					addLabel(
-						label,
-						cx + (maxR + labelOffset * 2) * Math.cos(angle),
-						cy + (maxR + labelOffset * 2) * Math.sin(angle),
-						0.5,
-						0.5,
-					);
-				} else {
-					addLabel(label, cx + midPos, cy + bounds.yMin - labelOffset, 0.5, 1);
-				}
-			}
-		} else {
-			for (const line of axis1Lines) {
-				if (!line.label) continue;
-				if (axis1Shape.kind === "radial") {
-					const maxR = bounds.maxR ?? Math.max(Math.abs(bounds.xMax), Math.abs(bounds.yMax));
-					const angle = line.position;
-					addLabel(
-						line.label,
-						cx + (maxR + labelOffset * 2) * Math.cos(angle),
-						cy + (maxR + labelOffset * 2) * Math.sin(angle),
-						0.5,
-						0.5,
-					);
-				} else {
-					addLabel(line.label, cx + line.position, cy + bounds.yMin - labelOffset, 0.5, 1);
-				}
+		const axis1Pos = GuideRenderer._resolveAxisLabelPositions(axis1Lines, useBetween);
+		for (const { label, pos } of axis1Pos) {
+			if (axis1Shape.kind === "radial") {
+				const maxR = bounds.maxR ?? Math.max(Math.abs(bounds.xMax), Math.abs(bounds.yMax));
+				addLabel(
+					label,
+					cx + (maxR + labelOffset * 2) * Math.cos(pos),
+					cy + (maxR + labelOffset * 2) * Math.sin(pos),
+					0.5,
+					0.5,
+				);
+			} else {
+				addLabel(label, cx + pos, cy + bounds.yMin - labelOffset, 0.5, 1);
 			}
 		}
 
-		// Axis2 labels -- placed to the left of the grid
-		if (useBetween && axis2Lines.length >= 2) {
-			for (let i = 0; i + 1 < axis2Lines.length; i++) {
-				const label = axis2Lines[i].label;
-				if (!label) continue;
-				const midPos = (axis2Lines[i].position + axis2Lines[i + 1].position) / 2;
-
-				if (axis2Shape.kind === "circle") {
-					addLabel(label, cx + Math.abs(midPos) + labelOffset * 0.5, cy - labelOffset * 0.5, 0, 0.5);
-				} else {
-					addLabel(label, cx + bounds.xMin - labelOffset, cy + midPos, 1, 0.5);
-				}
-			}
-		} else {
-			for (const line of axis2Lines) {
-				if (!line.label) continue;
-				if (axis2Shape.kind === "circle") {
-					addLabel(
-						line.label,
-						cx + Math.abs(line.position) + labelOffset * 0.5,
-						cy - labelOffset * 0.5,
-						0,
-						0.5,
-					);
-				} else {
-					addLabel(line.label, cx + bounds.xMin - labelOffset, cy + line.position, 1, 0.5);
-				}
+		const axis2Pos = GuideRenderer._resolveAxisLabelPositions(axis2Lines, useBetween);
+		for (const { label, pos } of axis2Pos) {
+			if (axis2Shape.kind === "circle") {
+				addLabel(label, cx + Math.abs(pos) + labelOffset * 0.5, cy - labelOffset * 0.5, 0, 0.5);
+			} else {
+				addLabel(label, cx + bounds.xMin - labelOffset, cy + pos, 1, 0.5);
 			}
 		}
+	}
+
+	/**
+	 * Resolve grid lines into label positions, using midpoints when placement is "between".
+	 */
+	private static _resolveAxisLabelPositions(
+		lines: ResolvedGridLine[],
+		useBetween: boolean,
+	): { label: string; pos: number }[] {
+		const result: { label: string; pos: number }[] = [];
+		if (useBetween && lines.length >= 2) {
+			for (let i = 0; i + 1 < lines.length; i++) {
+				const label = lines[i].label;
+				if (label) result.push({ label, pos: (lines[i].position + lines[i + 1].position) / 2 });
+			}
+		} else {
+			for (const line of lines) {
+				if (line.label) result.push({ label: line.label, pos: line.position });
+			}
+		}
+		return result;
 	}
 
 	drawAxisTitles(
