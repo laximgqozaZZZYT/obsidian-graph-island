@@ -172,7 +172,7 @@ export class NodeComparisonView extends ItemView {
 	// ハイライト通知
 	// ---------------------------------------------------------------------------
 	private triggerHighlight(nodeIds: Set<string> | null) {
-		(this.app.workspace as any).trigger(EVENT_HIGHLIGHT_NODES, nodeIds);
+		this.app.workspace.trigger(EVENT_HIGHLIGHT_NODES, nodeIds);
 	}
 
 	// ---------------------------------------------------------------------------
@@ -223,7 +223,7 @@ export class NodeComparisonView extends ItemView {
 		setIcon(clearBtn.createSpan({ cls: "gi-compare-clear-icon" }), "x");
 		clearBtn.addEventListener("click", () => {
 			// クリアイベントを発火 (nullペイロード)
-			(this.app.workspace as any).trigger(EVENT_COMPARE_NODES, null);
+			this.app.workspace.trigger(EVENT_COMPARE_NODES, null);
 		});
 
 		// === ヘッダー: ノードA vs ノードB ===

@@ -277,6 +277,7 @@ export default class GraphViewsPlugin extends Plugin {
 		this.settings.ontology.tagRelations = detected;
 		await this.saveSettings();
 
+		// eslint-disable-next-line no-console -- startup diagnostics, stripped in prod
 		console.info(`Graph Island: auto-detected ${detected.length} tag relationships from vault`);
 	}
 

@@ -135,6 +135,7 @@ export async function copyGraphToClipboard(host: ExportHost): Promise<void> {
 		await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 		showToast(t("toast.copiedToClipboard"));
 	} catch (e) {
+		// eslint-disable-next-line no-console -- error detail for dev, stripped in prod
 		console.error("Graph Island: clipboard copy failed", e);
 		showToast(t("toast.clipboardFailed"), 5000);
 	}
@@ -194,6 +195,7 @@ export async function embedGraphInNote(host: ExportHost): Promise<void> {
 
 		showToast(t("toast.embedSuccess"));
 	} catch (e) {
+		// eslint-disable-next-line no-console -- error detail for dev, stripped in prod
 		console.error("Graph Island: embed failed", e);
 		showToast(t("toast.embedFailed"), 5000);
 	}

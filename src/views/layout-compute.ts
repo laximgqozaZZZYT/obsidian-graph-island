@@ -145,6 +145,7 @@ export function computeStaticLayout(
 			}
 		}
 	} catch (err) {
+		// eslint-disable-next-line no-console -- error detail for dev, stripped in prod
 		console.error("[Graph Island] Layout computation failed:", err);
 		return null;
 	}
