@@ -481,139 +481,158 @@ export class InteractionManager {
 	private handlePointerMove(e: PointerEvent) {
 		const app = this.host.getPixiApp();
 		if (!app) return;
-		const world = this.world;
 
 		const rect = this.canvas.getBoundingClientRect();
 		const mx = e.clientX - rect.left;
 		const my = e.clientY - rect.top;
 
-		// ビジュアルリンクエディタ: プレビュー線を描画 + ターゲットハイライト
 		if (this.dragLinkSource) {
-			this.hasDragged = true;
-			const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
-			// ターゲットノードのハイライト（スナップ）
-			const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
-			const targetId = hit && hit !== this.dragLinkSource ? hit.data.id : null;
-			if (targetId !== this.host.getHighlightedNodeId()) {
-				this.host.setHighlightedNodeId(targetId);
-				this.host.applyHover();
-			}
-			// ターゲットにスナップする場合はターゲット中心座標を使用
-			const dstX = hit && hit !== this.dragLinkSource ? hit.data.x : worldPt.x;
-			const dstY = hit && hit !== this.dragLinkSource ? hit.data.y : worldPt.y;
-			this.host.drawLinkPreview?.(this.dragLinkSource.data.x, this.dragLinkSource.data.y, dstX, dstY);
-			this.host.markDirty();
+			this._moveLinkPreview(app, mx, my);
 			return;
 		}
 		if (this.rotatingShellIdx !== null) {
-			this.hasDragged = true;
-			const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
-			const shell = this.host.getShells()[this.rotatingShellIdx];
-			const currentAngle = Math.atan2(worldPt.y - shell.centerY, worldPt.x - shell.centerX);
-			shell.angleOffset = this.rotateStartOffset + (currentAngle - this.rotateStartAngle);
-			const nodeMap = new Map<string, GraphNode>();
-			for (const pn of this.host.getPixiNodes().values()) nodeMap.set(pn.data.id, pn.data);
-			repositionShell(shell, nodeMap);
-			this.host.markDirty();
+			this._moveRotateShell(app, mx, my);
 		} else if (this.draggedNode) {
-			this.hasDragged = true;
-			const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
-			const nx = worldPt.x - this.dragOffset.x;
-			const ny = worldPt.y - this.dragOffset.y;
-
-			// Drag distance limit: auto-release if dragged too far (prevents node loss)
-			const dragDist = Math.sqrt((nx - this._dragStartX) ** 2 + (ny - this._dragStartY) ** 2);
-			const maxDist = (Math.max(this.canvas.width, this.canvas.height) * 3) / (world.scale.x || 1);
-			if (dragDist > maxDist) {
-				// Snap back to start position
-				this.draggedNode.data.x = this._dragStartX;
-				this.draggedNode.data.y = this._dragStartY;
-				const sim = this.host.getSimulation();
-				if (sim) {
-					this.draggedNode.data.fx = undefined;
-					this.draggedNode.data.fy = undefined;
-				}
-				this.draggedNode = null;
-				this.host.markDirty();
-				return;
-			}
-
-			this.draggedNode.data.x = nx;
-			this.draggedNode.data.y = ny;
-			const sim = this.host.getSimulation();
-			if (sim) {
-				this.draggedNode.data.fx = nx;
-				this.draggedNode.data.fy = ny;
-			}
-			this.host.markDirty();
+			this._moveDragNode(app, mx, my);
 		} else if (this.isLassoActive && this.lassoGraphics) {
-			this.lassoPoints.push({ x: mx, y: my });
-			this.lassoGraphics.clear();
-			const lassoColor = this.host.getAccentColor();
-			this.lassoGraphics.lineStyle(LASSO_STROKE_WIDTH, lassoColor, LASSO_STROKE_ALPHA);
-			this.lassoGraphics.beginFill(lassoColor, LASSO_FILL_ALPHA);
-			this.lassoGraphics.moveTo(this.lassoPoints[0].x, this.lassoPoints[0].y);
-			for (let i = 1; i < this.lassoPoints.length; i++) {
-				this.lassoGraphics.lineTo(this.lassoPoints[i].x, this.lassoPoints[i].y);
-			}
-			this.lassoGraphics.closePath();
-			this.lassoGraphics.endFill();
+			this._moveLassoDraw(mx, my);
 		} else if (this.isMarqueeActive && this.marqueeGraphics) {
-			this.hasDragged = true;
-			const sx = this.marqueeStart.x;
-			const sy = this.marqueeStart.y;
-			const w = mx - sx;
-			const h = my - sy;
-			this.marqueeGraphics.clear();
-			const marqueeColor = this.host.getAccentColor();
-			this.marqueeGraphics.lineStyle(MARQUEE_STROKE_WIDTH, marqueeColor, MARQUEE_STROKE_ALPHA);
-			this.marqueeGraphics.beginFill(marqueeColor, MARQUEE_FILL_ALPHA);
-			this.marqueeGraphics.drawRect(Math.min(sx, mx), Math.min(sy, my), Math.abs(w), Math.abs(h));
-			this.marqueeGraphics.endFill();
+			this._moveMarqueeDraw(mx, my);
 		} else if (this.isPanning) {
-			world.x = this.worldStart.x + (mx - this.panStart.x);
-			world.y = this.worldStart.y + (my - this.panStart.y);
+			this.world.x = this.worldStart.x + (mx - this.panStart.x);
+			this.world.y = this.worldStart.y + (my - this.panStart.y);
 			this.host.markDirty();
 		} else {
-			// Hover — skip hitTest if mouse moved < 3px since last test
-			const hoverDx = mx - this._lastHoverX;
-			const hoverDy = my - this._lastHoverY;
-			if (hoverDx * hoverDx + hoverDy * hoverDy < 9) return;
-			this._lastHoverX = mx;
-			this._lastHoverY = my;
-			const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
-			const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
-			const newId = hit?.data.id ?? null;
-			if (newId !== this.host.getHighlightedNodeId()) {
-				this.host.setHighlightedNodeId(newId);
-				this.host.applyHover();
-				this.host.markDirty(true);
-				// Cursor hint: pointer when hovering a node, default otherwise
-				this.canvas.style.cursor = newId ? "pointer" : "";
+			this._moveHover(e, app, mx, my);
+		}
+	}
+
+	/** Link preview drag: draw line + highlight snap target */
+	private _moveLinkPreview(app: IApp, mx: number, my: number) {
+		this.hasDragged = true;
+		const worldPt = this.world.toLocal({ x: mx, y: my }, app.stage);
+		const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
+		const targetId = hit && hit !== this.dragLinkSource ? hit.data.id : null;
+		if (targetId !== this.host.getHighlightedNodeId()) {
+			this.host.setHighlightedNodeId(targetId);
+			this.host.applyHover();
+		}
+		const dstX = hit && hit !== this.dragLinkSource ? hit.data.x : worldPt.x;
+		const dstY = hit && hit !== this.dragLinkSource ? hit.data.y : worldPt.y;
+		this.host.drawLinkPreview?.(this.dragLinkSource!.data.x, this.dragLinkSource!.data.y, dstX, dstY);
+		this.host.markDirty();
+	}
+
+	/** Concentric shell rotation */
+	private _moveRotateShell(app: IApp, mx: number, my: number) {
+		this.hasDragged = true;
+		const worldPt = this.world.toLocal({ x: mx, y: my }, app.stage);
+		const shell = this.host.getShells()[this.rotatingShellIdx!];
+		const currentAngle = Math.atan2(worldPt.y - shell.centerY, worldPt.x - shell.centerX);
+		shell.angleOffset = this.rotateStartOffset + (currentAngle - this.rotateStartAngle);
+		const nodeMap = new Map<string, GraphNode>();
+		for (const pn of this.host.getPixiNodes().values()) nodeMap.set(pn.data.id, pn.data);
+		repositionShell(shell, nodeMap);
+		this.host.markDirty();
+	}
+
+	/** Node drag with distance limit */
+	private _moveDragNode(app: IApp, mx: number, my: number) {
+		this.hasDragged = true;
+		const world = this.world;
+		const worldPt = world.toLocal({ x: mx, y: my }, app.stage);
+		const nx = worldPt.x - this.dragOffset.x;
+		const ny = worldPt.y - this.dragOffset.y;
+
+		const dragDist = Math.sqrt((nx - this._dragStartX) ** 2 + (ny - this._dragStartY) ** 2);
+		const maxDist = (Math.max(this.canvas.width, this.canvas.height) * 3) / (world.scale.x || 1);
+		if (dragDist > maxDist) {
+			this.draggedNode!.data.x = this._dragStartX;
+			this.draggedNode!.data.y = this._dragStartY;
+			const sim = this.host.getSimulation();
+			if (sim) {
+				this.draggedNode!.data.fx = undefined;
+				this.draggedNode!.data.fy = undefined;
 			}
-			// Sunburst arc hover: highlight group on hover
-			if (this.host.hitTestSunburstArc && this.host.setSunburstHover) {
-				const arcGroup = this.host.hitTestSunburstArc(worldPt.x, worldPt.y);
-				this.host.setSunburstHover(arcGroup);
-				if (arcGroup && !newId) this.canvas.style.cursor = "pointer";
+			this.draggedNode = null;
+			this.host.markDirty();
+			return;
+		}
+
+		this.draggedNode!.data.x = nx;
+		this.draggedNode!.data.y = ny;
+		const sim = this.host.getSimulation();
+		if (sim) {
+			this.draggedNode!.data.fx = nx;
+			this.draggedNode!.data.fy = ny;
+		}
+		this.host.markDirty();
+	}
+
+	/** Lasso polygon drawing */
+	private _moveLassoDraw(mx: number, my: number) {
+		this.lassoPoints.push({ x: mx, y: my });
+		this.lassoGraphics!.clear();
+		const lassoColor = this.host.getAccentColor();
+		this.lassoGraphics!.lineStyle(LASSO_STROKE_WIDTH, lassoColor, LASSO_STROKE_ALPHA);
+		this.lassoGraphics!.beginFill(lassoColor, LASSO_FILL_ALPHA);
+		this.lassoGraphics!.moveTo(this.lassoPoints[0].x, this.lassoPoints[0].y);
+		for (let i = 1; i < this.lassoPoints.length; i++) {
+			this.lassoGraphics!.lineTo(this.lassoPoints[i].x, this.lassoPoints[i].y);
+		}
+		this.lassoGraphics!.closePath();
+		this.lassoGraphics!.endFill();
+	}
+
+	/** Marquee rectangle drawing */
+	private _moveMarqueeDraw(mx: number, my: number) {
+		this.hasDragged = true;
+		const sx = this.marqueeStart.x;
+		const sy = this.marqueeStart.y;
+		this.marqueeGraphics!.clear();
+		const marqueeColor = this.host.getAccentColor();
+		this.marqueeGraphics!.lineStyle(MARQUEE_STROKE_WIDTH, marqueeColor, MARQUEE_STROKE_ALPHA);
+		this.marqueeGraphics!.beginFill(marqueeColor, MARQUEE_FILL_ALPHA);
+		this.marqueeGraphics!.drawRect(Math.min(sx, mx), Math.min(sy, my), Math.abs(mx - sx), Math.abs(my - sy));
+		this.marqueeGraphics!.endFill();
+	}
+
+	/** Hover hit-test, sunburst arc highlight, and hover-link event */
+	private _moveHover(e: PointerEvent, app: IApp, mx: number, my: number) {
+		const hoverDx = mx - this._lastHoverX;
+		const hoverDy = my - this._lastHoverY;
+		if (hoverDx * hoverDx + hoverDy * hoverDy < 9) return;
+		this._lastHoverX = mx;
+		this._lastHoverY = my;
+		const worldPt = this.world.toLocal({ x: mx, y: my }, app.stage);
+		const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
+		const newId = hit?.data.id ?? null;
+		if (newId !== this.host.getHighlightedNodeId()) {
+			this.host.setHighlightedNodeId(newId);
+			this.host.applyHover();
+			this.host.markDirty(true);
+			this.canvas.style.cursor = newId ? "pointer" : "";
+		}
+		if (this.host.hitTestSunburstArc && this.host.setSunburstHover) {
+			const arcGroup = this.host.hitTestSunburstArc(worldPt.x, worldPt.y);
+			this.host.setSunburstHover(arcGroup);
+			if (arcGroup && !newId) this.canvas.style.cursor = "pointer";
+		}
+		if (newId && newId !== this.lastHoveredId) {
+			this.lastHoveredId = newId;
+			const filePath = hit?.data.filePath;
+			if (filePath) {
+				this.host.getApp().workspace.trigger("hover-link", {
+					event: e,
+					source: "graph-island",
+					hoverParent: this.host.getContainerEl(),
+					targetEl: e.target,
+					linktext: filePath,
+					sourcePath: filePath,
+				});
 			}
-			// Hover preview: fire Obsidian hover-link event (once per node)
-			if (newId && newId !== this.lastHoveredId) {
-				this.lastHoveredId = newId;
-				const filePath = hit?.data.filePath;
-				if (filePath) {
-					this.host.getApp().workspace.trigger("hover-link", {
-						event: e,
-						source: "graph-island",
-						hoverParent: this.host.getContainerEl(),
-						targetEl: e.target,
-						linktext: filePath,
-						sourcePath: filePath,
-					});
-				}
-			} else if (!newId) {
-				this.lastHoveredId = null;
-			}
+		} else if (!newId) {
+			this.lastHoveredId = null;
 		}
 	}
 
@@ -621,62 +640,16 @@ export class InteractionManager {
 	// Pointer up
 	// -----------------------------------------------------------------------
 	private handlePointerUp(e: PointerEvent) {
-		// ビジュアルリンクエディタ: ドロップでリンク作成
 		if (this.dragLinkSource) {
-			const src = this.dragLinkSource;
-			this.dragLinkSource = null;
-			this.host.clearLinkPreview?.();
-			this.host.setHighlightedNodeId(null);
-			this.host.applyHover();
-			if (this.hasDragged) {
-				const app = this.host.getPixiApp();
-				if (app) {
-					const rect = this.canvas.getBoundingClientRect();
-					const mx = e.clientX - rect.left;
-					const my = e.clientY - rect.top;
-					const worldPt = this.world.toLocal({ x: mx, y: my }, app.stage);
-					const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
-					// ターゲットがソースと異なるノードの場合のみリンク作成
-					if (hit && hit !== src && hit.data.id !== src.data.id) {
-						this.host.createLink?.(src.data.id, hit.data.id);
-					}
-				}
-			}
-			this.hasDragged = false;
-			this.host.markDirty(true);
+			this._upLinkDrop(e);
 			return;
 		}
 		if (this.isLassoActive) {
-			this.isLassoActive = false;
-			if (this.lassoGraphics) this.lassoGraphics.clear();
-			if (this.lassoPoints.length >= LASSO_MIN_POINTS && this.host.lassoSelectNodes) {
-				const additive = e.shiftKey;
-				this.host.lassoSelectNodes(this.lassoPoints, additive);
-			}
-			this.lassoPoints = [];
+			this._upLassoComplete(e);
 			return;
 		}
 		if (this.isMarqueeActive) {
-			this.isMarqueeActive = false;
-			if (this.marqueeGraphics) {
-				this.marqueeGraphics.clear();
-			}
-			if (this.hasDragged) {
-				const rect = this.canvas.getBoundingClientRect();
-				const mx = e.clientX - rect.left;
-				const my = e.clientY - rect.top;
-				const sx = this.marqueeStart.x;
-				const sy = this.marqueeStart.y;
-				const minSx = Math.min(sx, mx);
-				const minSy = Math.min(sy, my);
-				const w = Math.abs(mx - sx);
-				const h = Math.abs(my - sy);
-				// Only zoom if rectangle is large enough (> 10px each dimension)
-				if (w > MARQUEE_MIN_SIZE_PX && h > MARQUEE_MIN_SIZE_PX) {
-					this.host.zoomToScreenRect(minSx, minSy, w, h);
-				}
-			}
-			this.hasDragged = false;
+			this._upMarqueeComplete(e);
 			return;
 		}
 		if (this.rotatingShellIdx !== null) {
@@ -684,100 +657,166 @@ export class InteractionManager {
 			return;
 		}
 		if (this.draggedNode) {
-			const node = this.draggedNode;
-			if (!this.hasDragged) {
-				// Super node single-click → expand children
-				if (node.data.collapsedMembers && node.data.id.startsWith("__super__")) {
-					this.host.handleSuperNodeDblClick(node);
-					this.draggedNode = null;
-					this.host.markDirty(true);
-					return;
-				}
-				// Click (no drag) → toggle hold (pin position)
-				if (e.shiftKey && this.host.toggleMultiSelect) {
-					// Shift+click: multi-select toggle (C6)
-					this.host.toggleMultiSelect(node.data.id);
-					this.host.markDirty(true);
-					this.draggedNode = null;
-					this.isPanning = false;
-					return;
-				} else if (e.altKey) {
-					// B2: Alt+click: pathfinder — first alt+click sets start, second sets end
-					const pf = this.host.getPathfinderState();
-					if (!pf.startId) {
-						this.host.setPathfinderNode(node.data.id, "start");
-					} else if (!pf.endId) {
-						this.host.setPathfinderNode(node.data.id, "end");
-					} else {
-						// Both set — reset and set new start
-						this.host.clearPathfinder();
-						this.host.setPathfinderNode(node.data.id, "start");
-					}
-					this.draggedNode = null;
-					this.isPanning = false;
-					return;
-				} else if (e.ctrlKey || e.metaKey) {
-					// Ctrl+click: 比較選択に追加し、holdもトグル (focusは変更しない)
-					this.host.addCompareNode(node.data.id);
-				} else {
-					// 通常クリック: 他のholdと比較選択をクリア + フォーカス適用
-					this.host.clearAllHolds();
-					this.host.clearCompareSelection();
-					this.host.applyFocusOnClick?.(node.data.id);
-				}
-				this.host.toggleHold(node);
-			} else {
-				// Drag ended — if node was held, keep it pinned; otherwise release
-				const sim = this.host.getSimulation();
-				if (!node.held && sim) {
-					node.data.fx = null;
-					node.data.fy = null;
-				}
-				// I1: Auto-persist drag position
-				this.host.saveDragPosition?.(node.data.id, node.data.x, node.data.y);
-			}
-			const sim = this.host.getSimulation();
-			if (sim) sim.alphaTarget(0);
-			this.draggedNode = null;
-			this.host.markDirty(true);
+			this._upNodeRelease(e);
 		} else if (!this.hasDragged) {
-			// No node was dragged — check sunburst arcs
-			const app2 = this.host.getPixiApp();
-			if (app2) {
-				const rect2 = this.canvas.getBoundingClientRect();
-				const mx2 = e.clientX - rect2.left;
-				const my2 = e.clientY - rect2.top;
-				const wp = this.world.toLocal({ x: mx2, y: my2 }, app2.stage);
-				if (this.host.hitTestSunburstArc && this.host.onSunburstArcClick) {
-					const arcGroup = this.host.hitTestSunburstArc(wp.x, wp.y);
-					if (arcGroup) {
-						this.host.onSunburstArcClick(arcGroup);
-						this.isPanning = false;
-						this.hasDragged = false;
-						return;
-					}
-				}
-			}
+			if (this._upSunburstArcClick(e)) return;
 		}
-
-		// Group/aggregate label click → zoom to group (check regardless of draggedNode)
-		if (!this.hasDragged) {
-			const app3 = this.host.getPixiApp();
-			if (app3) {
-				const rect3 = this.canvas.getBoundingClientRect();
-				const mx3 = e.clientX - rect3.left;
-				const my3 = e.clientY - rect3.top;
-				const wp3 = this.world.toLocal({ x: mx3, y: my3 }, app3.stage);
-				if (this.host.hitTestAndZoomGroupLabel?.(wp3.x, wp3.y)) {
-					this.isPanning = false;
-					this.hasDragged = false;
-					return;
-				}
-			}
-		}
+		if (!this.hasDragged && this._upGroupLabelClick(e)) return;
 
 		this.isPanning = false;
 		this.hasDragged = false;
+	}
+
+	/** Link editor: finalize link on drop */
+	private _upLinkDrop(e: PointerEvent) {
+		const src = this.dragLinkSource!;
+		this.dragLinkSource = null;
+		this.host.clearLinkPreview?.();
+		this.host.setHighlightedNodeId(null);
+		this.host.applyHover();
+		if (this.hasDragged) {
+			const app = this.host.getPixiApp();
+			if (app) {
+				const rect = this.canvas.getBoundingClientRect();
+				const mx = e.clientX - rect.left;
+				const my = e.clientY - rect.top;
+				const worldPt = this.world.toLocal({ x: mx, y: my }, app.stage);
+				const hit = this.host.hitTestNode(worldPt.x, worldPt.y);
+				if (hit && hit !== src && hit.data.id !== src.data.id) {
+					this.host.createLink?.(src.data.id, hit.data.id);
+				}
+			}
+		}
+		this.hasDragged = false;
+		this.host.markDirty(true);
+	}
+
+	/** Lasso: finalize selection */
+	private _upLassoComplete(e: PointerEvent) {
+		this.isLassoActive = false;
+		if (this.lassoGraphics) this.lassoGraphics.clear();
+		if (this.lassoPoints.length >= LASSO_MIN_POINTS && this.host.lassoSelectNodes) {
+			this.host.lassoSelectNodes(this.lassoPoints, e.shiftKey);
+		}
+		this.lassoPoints = [];
+	}
+
+	/** Marquee: finalize zoom-to-rect */
+	private _upMarqueeComplete(e: PointerEvent) {
+		this.isMarqueeActive = false;
+		if (this.marqueeGraphics) this.marqueeGraphics.clear();
+		if (this.hasDragged) {
+			const rect = this.canvas.getBoundingClientRect();
+			const mx = e.clientX - rect.left;
+			const my = e.clientY - rect.top;
+			const sx = this.marqueeStart.x;
+			const sy = this.marqueeStart.y;
+			const w = Math.abs(mx - sx);
+			const h = Math.abs(my - sy);
+			if (w > MARQUEE_MIN_SIZE_PX && h > MARQUEE_MIN_SIZE_PX) {
+				this.host.zoomToScreenRect(Math.min(sx, mx), Math.min(sy, my), w, h);
+			}
+		}
+		this.hasDragged = false;
+	}
+
+	/** Node click or drag-end handling */
+	private _upNodeRelease(e: PointerEvent) {
+		const node = this.draggedNode!;
+		if (!this.hasDragged) {
+			this._upNodeClick(e, node);
+		} else {
+			const sim = this.host.getSimulation();
+			if (!node.held && sim) {
+				node.data.fx = null;
+				node.data.fy = null;
+			}
+			this.host.saveDragPosition?.(node.data.id, node.data.x, node.data.y);
+		}
+		const sim = this.host.getSimulation();
+		if (sim) sim.alphaTarget(0);
+		this.draggedNode = null;
+		this.host.markDirty(true);
+	}
+
+	/** Handle click (no drag) on a node: super-node, shift/alt/ctrl, or normal click */
+	private _upNodeClick(e: PointerEvent, node: PixiNode) {
+		if (node.data.collapsedMembers && node.data.id.startsWith("__super__")) {
+			this.host.handleSuperNodeDblClick(node);
+			this.draggedNode = null;
+			this.host.markDirty(true);
+			return;
+		}
+		if (e.shiftKey && this.host.toggleMultiSelect) {
+			this.host.toggleMultiSelect(node.data.id);
+			this.host.markDirty(true);
+			this.draggedNode = null;
+			this.isPanning = false;
+			return;
+		}
+		if (e.altKey) {
+			this._upPathfinderClick(node);
+			this.draggedNode = null;
+			this.isPanning = false;
+			return;
+		}
+		if (e.ctrlKey || e.metaKey) {
+			this.host.addCompareNode(node.data.id);
+		} else {
+			this.host.clearAllHolds();
+			this.host.clearCompareSelection();
+			this.host.applyFocusOnClick?.(node.data.id);
+		}
+		this.host.toggleHold(node);
+	}
+
+	/** Alt+click pathfinder: cycle start → end → reset */
+	private _upPathfinderClick(node: PixiNode) {
+		const pf = this.host.getPathfinderState();
+		if (!pf.startId) {
+			this.host.setPathfinderNode(node.data.id, "start");
+		} else if (!pf.endId) {
+			this.host.setPathfinderNode(node.data.id, "end");
+		} else {
+			this.host.clearPathfinder();
+			this.host.setPathfinderNode(node.data.id, "start");
+		}
+	}
+
+	/** Sunburst arc click — returns true if handled */
+	private _upSunburstArcClick(e: PointerEvent): boolean {
+		const app = this.host.getPixiApp();
+		if (!app) return false;
+		const rect = this.canvas.getBoundingClientRect();
+		const mx = e.clientX - rect.left;
+		const my = e.clientY - rect.top;
+		const wp = this.world.toLocal({ x: mx, y: my }, app.stage);
+		if (this.host.hitTestSunburstArc && this.host.onSunburstArcClick) {
+			const arcGroup = this.host.hitTestSunburstArc(wp.x, wp.y);
+			if (arcGroup) {
+				this.host.onSunburstArcClick(arcGroup);
+				this.isPanning = false;
+				this.hasDragged = false;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Group label click — returns true if handled */
+	private _upGroupLabelClick(e: PointerEvent): boolean {
+		const app = this.host.getPixiApp();
+		if (!app) return false;
+		const rect = this.canvas.getBoundingClientRect();
+		const mx = e.clientX - rect.left;
+		const my = e.clientY - rect.top;
+		const wp = this.world.toLocal({ x: mx, y: my }, app.stage);
+		if (this.host.hitTestAndZoomGroupLabel?.(wp.x, wp.y)) {
+			this.isPanning = false;
+			this.hasDragged = false;
+			return true;
+		}
+		return false;
 	}
 
 	// -----------------------------------------------------------------------
@@ -843,7 +882,6 @@ export class InteractionManager {
 
 		e.preventDefault();
 
-		// Empty canvas right-click: show canvas context menu
 		if (!hit) {
 			this._showCanvasContextMenu(e, worldPt);
 			return;
@@ -852,7 +890,22 @@ export class InteractionManager {
 		const menu = new Menu();
 		const node = hit;
 
-		// --- Section: Open ---
+		this._ctxOpenSection(menu, node);
+		this._ctxNeighborSection(menu, node);
+		this._ctxEditSection(menu, node);
+		this._ctxFilterSection(menu, node);
+		this._ctxPathfinderSection(menu, node);
+		this._ctxOntologySection(menu, node);
+		this._ctxRelationSection(menu, node);
+		this._ctxClusterSection(menu, node);
+		this._ctxMultiSelectSection(menu, node);
+		this._ctxSubgraphSection(menu);
+
+		menu.showAtPosition({ x: e.clientX, y: e.clientY });
+	}
+
+	/** Context menu: Open file + focus zoom */
+	private _ctxOpenSection(menu: Menu, node: PixiNode) {
 		if (node.data.filePath) {
 			menu.addItem((item) => {
 				item.setTitle(t("context.openFile"))
@@ -860,61 +913,58 @@ export class InteractionManager {
 					.onClick(() => this.host.openFile(node.data.filePath!));
 			});
 		}
+	}
 
-		// --- Section: Linked nodes ---
+	/** Context menu: Linked neighbor nodes */
+	private _ctxNeighborSection(menu: Menu, node: PixiNode) {
 		const neighborIds = this.host.getNeighborIds?.(node.data.id) ?? [];
-		if (neighborIds.length > 0) {
-			menu.addSeparator();
-			const topNeighbors = neighborIds.slice(0, 8);
-			for (const nbId of topNeighbors) {
-				const nbPn = this.host.getPixiNodes().get(nbId);
-				if (!nbPn) continue;
-				const nbLabel = nbPn.data.label || nbId.split("/").pop() || nbId;
-				menu.addItem((item) => {
-					item.setTitle(`→ ${nbLabel}`)
-						.setIcon("arrow-right")
-						.onClick(() => {
-							this.host.setHighlightedNodeId(nbId);
-							this.host.applyHover();
-							if (nbPn.data.filePath) this.host.openFile(nbPn.data.filePath);
-						});
-				});
-			}
-			if (neighborIds.length > 8) {
-				menu.addItem((item) => {
-					item.setTitle(`… +${neighborIds.length - 8} more`)
-						.setIcon("more-horizontal")
-						.setDisabled(true);
-				});
-			}
+		if (neighborIds.length === 0) return;
+		menu.addSeparator();
+		for (const nbId of neighborIds.slice(0, 8)) {
+			const nbPn = this.host.getPixiNodes().get(nbId);
+			if (!nbPn) continue;
+			const nbLabel = nbPn.data.label || nbId.split("/").pop() || nbId;
+			menu.addItem((item) => {
+				item.setTitle(`→ ${nbLabel}`)
+					.setIcon("arrow-right")
+					.onClick(() => {
+						this.host.setHighlightedNodeId(nbId);
+						this.host.applyHover();
+						if (nbPn.data.filePath) this.host.openFile(nbPn.data.filePath);
+					});
+			});
 		}
+		if (neighborIds.length > 8) {
+			menu.addItem((item) => {
+				item.setTitle(`… +${neighborIds.length - 8} more`)
+					.setIcon("more-horizontal")
+					.setDisabled(true);
+			});
+		}
+	}
 
-		// --- Section: Navigation ---
+	/** Context menu: Pin, search, copy, bookmark, expand, export */
+	private _ctxEditSection(menu: Menu, node: PixiNode) {
 		menu.addSeparator();
 		menu.addItem((item) => {
 			item.setTitle("Focus zoom")
 				.setIcon("maximize-2")
 				.onClick(() => this.host.focusZoomToNode?.(node.data.id));
 		});
-
-		// --- Section: Edit ---
 		menu.addItem((item) => {
 			item.setTitle(node.held ? t("context.unpin") : t("context.pin"))
 				.setIcon(node.held ? "pin-off" : "pin")
 				.onClick(() => this.host.toggleHold(node));
 		});
-
-		// Search in vault
 		menu.addItem((item) => {
 			item.setTitle("Search in vault")
 				.setIcon("search")
 				.onClick(() => {
-					const app = this.host.getApp();
+					const obsApp = this.host.getApp();
 					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian internal commands API
-					(app as any).commands.executeCommandById("global-search:open");
-					// Delay to let search pane open, then set query
+					(obsApp as any).commands.executeCommandById("global-search:open");
 					setTimeout(() => {
-						const searchLeaf = app.workspace.getLeavesOfType("search")[0];
+						const searchLeaf = obsApp.workspace.getLeavesOfType("search")[0];
 						if (searchLeaf) {
 							// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian search view API
 							const search = searchLeaf.view as any;
@@ -923,15 +973,12 @@ export class InteractionManager {
 					}, 300);
 				});
 		});
-
 		const copyText = node.data.filePath || node.data.id;
 		menu.addItem((item) => {
 			item.setTitle(t("context.copyPath"))
 				.setIcon("copy")
 				.onClick(() => navigator.clipboard.writeText(copyText));
 		});
-
-		// ブックマーク
 		if (this.host.toggleBookmark) {
 			const isBookmarked = this.host.isBookmarked?.(node.data.id) ?? false;
 			menu.addItem((item) => {
@@ -940,8 +987,6 @@ export class InteractionManager {
 					.onClick(() => this.host.toggleBookmark!(node.data.id));
 			});
 		}
-
-		// D1: Expand/collapse node neighbors (local graph mode only)
 		if (this.host.toggleExpandNode) {
 			const isExpanded = this.host.isNodeExpanded?.(node.data.id) ?? false;
 			menu.addItem((item) => {
@@ -950,8 +995,6 @@ export class InteractionManager {
 					.onClick(() => this.host.toggleExpandNode!(node.data.id));
 			});
 		}
-
-		// Export subgraph (Feature CY)
 		if (this.host.exportSubgraph) {
 			menu.addItem((item) => {
 				item.setTitle(t("context.exportSubgraph"))
@@ -959,8 +1002,10 @@ export class InteractionManager {
 					.onClick(() => this.host.exportSubgraph!(node.data.id));
 			});
 		}
+	}
 
-		// Filter shortcuts
+	/** Context menu: Filter by folder/tag */
+	private _ctxFilterSection(menu: Menu, node: PixiNode) {
 		menu.addSeparator();
 		if (node.data.filePath) {
 			const folder = node.data.filePath.split("/").slice(0, -1).join("/");
@@ -973,17 +1018,17 @@ export class InteractionManager {
 			}
 		}
 		if (node.data.tags && node.data.tags.length > 0) {
-			const firstTag = node.data.tags[0];
 			menu.addItem((item) => {
-				item.setTitle(`Filter: #${firstTag}`)
+				item.setTitle(`Filter: #${node.data.tags![0]}`)
 					.setIcon("tag")
-					.onClick(() => this.host.setSearchQuery(`tag:${firstTag}`));
+					.onClick(() => this.host.setSearchQuery(`tag:${node.data.tags![0]}`));
 			});
 		}
+	}
 
-		// --- Section: Navigate ---
+	/** Context menu: Pathfinder start/end/clear */
+	private _ctxPathfinderSection(menu: Menu, node: PixiNode) {
 		menu.addSeparator();
-		const pfState = this.host.getPathfinderState();
 		menu.addItem((item) => {
 			item.setTitle(t("context.pathStart"))
 				.setIcon("navigation")
@@ -994,6 +1039,7 @@ export class InteractionManager {
 				.setIcon("flag")
 				.onClick(() => this.host.setPathfinderNode(node.data.id, "end"));
 		});
+		const pfState = this.host.getPathfinderState();
 		if (pfState.startId || pfState.endId) {
 			menu.addItem((item) => {
 				item.setTitle(t("context.pathClear"))
@@ -1001,40 +1047,41 @@ export class InteractionManager {
 					.onClick(() => this.host.clearPathfinder());
 			});
 		}
+	}
 
-		// F2: Inline ontology editor — set node type
-		if (this.host.isInlineOntologyEnabled?.()) {
-			menu.addSeparator();
-			const ontologyTypes = ["is-a", "has-a", "similar"];
-			for (const otype of ontologyTypes) {
-				menu.addItem((item) => {
-					item.setTitle(t("context.setType").replace("{type}", otype))
-						.setIcon("tag")
-						.onClick(() => this.host.setNodeOntologyType?.(node.data.id, otype));
-				});
-			}
+	/** Context menu: Inline ontology type editor */
+	private _ctxOntologySection(menu: Menu, node: PixiNode) {
+		if (!this.host.isInlineOntologyEnabled?.()) return;
+		menu.addSeparator();
+		for (const otype of ["is-a", "has-a", "similar"]) {
+			menu.addItem((item) => {
+				item.setTitle(t("context.setType").replace("{type}", otype))
+					.setIcon("tag")
+					.onClick(() => this.host.setNodeOntologyType?.(node.data.id, otype));
+			});
 		}
+	}
 
-		// C3: Relation type picker — relate to top 2 neighbors (simplified)
-		if (this.host.isRelationTypePickerEnabled?.()) {
-			const neighborIds = this.host.getNeighborIds?.(node.data.id) ?? [];
-			const topNeighbors = neighborIds.slice(0, 2);
-			if (topNeighbors.length > 0) {
-				menu.addSeparator();
-				for (const nbId of topNeighbors) {
-					const nbPn = this.host.getPixiNodes().get(nbId);
-					if (!nbPn) continue;
-					const nbLabel = nbPn.data.label || nbId;
-					menu.addItem((item) => {
-						item.setTitle(`Link → ${nbLabel}`)
-							.setIcon("git-branch")
-							.onClick(() => this.host.addRelationToNode?.(node.data.id, nbId, "is-a"));
-					});
-				}
-			}
+	/** Context menu: Relation type picker */
+	private _ctxRelationSection(menu: Menu, node: PixiNode) {
+		if (!this.host.isRelationTypePickerEnabled?.()) return;
+		const nbIds = this.host.getNeighborIds?.(node.data.id) ?? [];
+		if (nbIds.length === 0) return;
+		menu.addSeparator();
+		for (const nbId of nbIds.slice(0, 2)) {
+			const nbPn = this.host.getPixiNodes().get(nbId);
+			if (!nbPn) continue;
+			const nbLabel = nbPn.data.label || nbId;
+			menu.addItem((item) => {
+				item.setTitle(`Link → ${nbLabel}`)
+					.setIcon("git-branch")
+					.onClick(() => this.host.addRelationToNode?.(node.data.id, nbId, "is-a"));
+			});
 		}
+	}
 
-		// D5: Cluster compare
+	/** Context menu: Cluster compare + manual clustering */
+	private _ctxClusterSection(menu: Menu, node: PixiNode) {
 		if (this.host.isClusterCompareEnabled?.()) {
 			menu.addSeparator();
 			menu.addItem((item) => {
@@ -1043,8 +1090,6 @@ export class InteractionManager {
 					.onClick(() => this.host.toggleClusterCompare?.(node.data.id));
 			});
 		}
-
-		// C4: Manual clustering — move to group
 		if (this.host.isManualClusteringEnabled?.()) {
 			const groupKeys = this.host.getClusterGroupKeys?.() ?? [];
 			if (groupKeys.length > 0) {
@@ -1058,43 +1103,43 @@ export class InteractionManager {
 				}
 			}
 		}
+	}
 
-		// C6: Multi-select
-		if (this.host.toggleMultiSelect) {
-			menu.addSeparator();
-			menu.addItem((item) => {
-				item.setTitle(t("context.multiSelect"))
-					.setIcon("check-square")
-					.onClick(() => this.host.toggleMultiSelect!(node.data.id));
-			});
-		}
+	/** Context menu: Multi-select toggle */
+	private _ctxMultiSelectSection(menu: Menu, node: PixiNode) {
+		if (!this.host.toggleMultiSelect) return;
+		menu.addSeparator();
+		menu.addItem((item) => {
+			item.setTitle(t("context.multiSelect"))
+				.setIcon("check-square")
+				.onClick(() => this.host.toggleMultiSelect!(node.data.id));
+		});
+	}
 
-		// Subgraph view (requires multi-select with >= 2 nodes)
+	/** Context menu: Subgraph view entries */
+	private _ctxSubgraphSection(menu: Menu) {
 		const panel = this.host.getPanel?.();
 		const multiIds = panel?.multiSelectNodeIds ?? [];
-		if (multiIds.length >= 2 && this.host.enterSubgraph) {
+		if (multiIds.length < 2 || !this.host.enterSubgraph) return;
+		menu.addSeparator();
+		const viewModes = ["graph", "sunburst", "timeline", "tree", "matrix"] as const;
+		for (const vm of viewModes) {
+			menu.addItem((item) => {
+				item.setTitle(`${t("context.openSubgraph") ?? "Open as subgraph"} → ${vm}`)
+					.setIcon("git-branch")
+					.onClick(() => this.host.enterSubgraph!([...multiIds], vm));
+			});
+		}
+		if (this.host.openSubgraphNewTab) {
 			menu.addSeparator();
-			const viewModes = ["graph", "sunburst", "timeline", "tree", "matrix"] as const;
 			for (const vm of viewModes) {
 				menu.addItem((item) => {
-					item.setTitle(`${t("context.openSubgraph") ?? "Open as subgraph"} → ${vm}`)
-						.setIcon("git-branch")
-						.onClick(() => this.host.enterSubgraph!([...multiIds], vm));
+					item.setTitle(`${t("context.openSubgraphNewTab") ?? "Open in new tab"} → ${vm}`)
+						.setIcon("external-link")
+						.onClick(() => this.host.openSubgraphNewTab!([...multiIds], vm));
 				});
 			}
-			if (this.host.openSubgraphNewTab) {
-				menu.addSeparator();
-				for (const vm of viewModes) {
-					menu.addItem((item) => {
-						item.setTitle(`${t("context.openSubgraphNewTab") ?? "Open in new tab"} → ${vm}`)
-							.setIcon("external-link")
-							.onClick(() => this.host.openSubgraphNewTab!([...multiIds], vm));
-					});
-				}
-			}
 		}
-
-		menu.showAtPosition({ x: e.clientX, y: e.clientY });
 	}
 
 	// -----------------------------------------------------------------------
