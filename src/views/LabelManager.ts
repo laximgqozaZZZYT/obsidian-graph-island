@@ -2,7 +2,7 @@ import { Platform } from "obsidian";
 import type { PixiNode } from "./InteractionManager";
 import type { RenderPipeline } from "./RenderPipeline";
 import type { CanvasText } from "./canvas2d";
-import { DEFAULT_RENDER_THRESHOLDS } from "../types";
+import { DEFAULT_RENDER_THRESHOLDS, type RenderThresholds } from "../types";
 import { rectsOverlap } from "../utils/geometry";
 
 // ---------------------------------------------------------------------------
@@ -16,8 +16,7 @@ export interface LabelManagerHost {
 	/** Panel textFadeThreshold value */
 	getTextFadeThreshold(): number;
 	/** Panel renderThresholds (merged with defaults by caller) */
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
-	getRenderThresholds(): Record<string, any> | undefined;
+	getRenderThresholds(): Partial<RenderThresholds> | undefined;
 	/** Current world-container scale (zoom) */
 	getWorldScale(): number;
 	/** The render pipeline (for zone placement) */
@@ -173,8 +172,7 @@ export class LabelManager {
 	// =========================================================================
 
 	/** Compute priority scores and minShowZoom for all PixiNodes (cached, recomputed only when needed). */
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
-	private _computePriorityScores(rt: Record<string, any>): void {
+	private _computePriorityScores(rt: RenderThresholds): void {
 		const degrees = this.host.getDegrees();
 		const pixiArr = [...this.host.getPixiNodes().values()];
 		// Recompute when scores are uninitialized. Use -1 sentinel instead of 0
@@ -198,12 +196,12 @@ export class LabelManager {
 		const sorted = [...pixiArr].filter((p) => p.label).sort((a, b) => b.priorityScore - a.priorityScore);
 		const n = sorted.length;
 		// LOD tiers — all boundaries from RenderThresholds (no hardcoded values)
-		const lodZoom1 = rt.labelZoomTier1; // default 0.15
-		const lodZoom2 = rt.labelZoomTier2; // default 0.35
-		const lodZoom3 = rt.labelZoomTier3; // default 0.70
-		const lodPct1 = rt.labelDegreePctTier1; // default 0.10 (top 10%)
-		const lodPct2 = rt.labelDegreePctTier2; // default 0.30 (top 30%)
-		const lodPct3 = rt.labelDegreePctTier3; // default 0.50 (top 50%)
+		const lodZoom1 = rt.labelZoomTier1 ?? 0.01;
+		const lodZoom2 = rt.labelZoomTier2 ?? 0.02;
+		const lodZoom3 = rt.labelZoomTier3 ?? 0.03;
+		const lodPct1 = rt.labelDegreePctTier1 ?? 0.03;
+		const lodPct2 = rt.labelDegreePctTier2 ?? 0.1;
+		const lodPct3 = rt.labelDegreePctTier3 ?? 0.3;
 		// Interpolation: rank percentile -> minShowZoom
 		const lodZoomFloor = rt.nodeLabelZoomMin ?? 0.9;
 		for (let i = 0; i < n; i++) {
@@ -225,8 +223,7 @@ export class LabelManager {
 	/** Resolve the 3-tier label mode (initials / truncated / full) with hysteresis. */
 	private _resolveLabelMode(
 		zoom: number,
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
-		rt: Record<string, any>,
+		rt: RenderThresholds,
 	): { labelMode: "initials" | "truncated" | "full"; shouldTruncate: boolean; effectiveMaxChars: number } {
 		const initialsZoom = rt.labelInitialsZoom ?? 0.2;
 		const truncateZoom = rt.labelTruncateZoom ?? 0.35;
@@ -293,12 +290,11 @@ export class LabelManager {
 		adaptiveMax: number,
 		counterScale: number,
 		zoom: number,
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
-		rt: Record<string, any>,
+		rt: RenderThresholds,
 	): number {
 		const degRatio = maxDeg > 0 ? nodeDeg / maxDeg : 0;
 		const adaptiveScale = adaptiveMin + degRatio * (adaptiveMax - adaptiveMin);
-		const scaleCap = zoom < 0.1 ? (rt.labelScaleMaxExtreme ?? 7) * 1.2 : rt.labelScaleMax * 1.5;
+		const scaleCap = zoom < 0.1 ? (rt.labelScaleMaxExtreme ?? 7) * 1.2 : (rt.labelScaleMax ?? 6) * 1.5;
 		return Math.min(counterScale * adaptiveScale, scaleCap);
 	}
 
@@ -331,8 +327,7 @@ export class LabelManager {
 	private _evaluateLOD(
 		zoom: number,
 		counterScale: number,
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
-		rt: Record<string, any>,
+		rt: RenderThresholds,
 		degrees: Map<string, number>,
 		_baseOpacity: number,
 	): { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[] {
@@ -443,8 +438,7 @@ export class LabelManager {
 	/** AP-5 diversity guarantee (promote non-super nodes) and apply maxVisible cap. */
 	private _applyDiversityAndCap(
 		candidates: { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[],
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
-		rt: Record<string, any>,
+		rt: RenderThresholds,
 		degrees: Map<string, number>,
 		baseOpacity: number,
 	): void {
@@ -477,7 +471,7 @@ export class LabelManager {
 			for (let i = 0; i < Math.min(needed, hiddenNonSupers.length); i++) {
 				const { pn: npn, deg: ndeg } = hiddenNonSupers[i];
 				npn.label!.visible = true;
-				npn.label!.alpha = Math.max(rt.labelAlphaMin, baseOpacity);
+				npn.label!.alpha = Math.max(rt.labelAlphaMin ?? 0.7, baseOpacity);
 				candidates.push({ pn: npn, deg: ndeg, isSuper: false, isHovered: false });
 			}
 		}
@@ -491,7 +485,7 @@ export class LabelManager {
 			// Super-nodes and hovered nodes always bypass the maxVisible cap
 			if (isHovered || isSuper) {
 				pn.label!.visible = true;
-				pn.label!.alpha = Math.max(rt.labelAlphaMin, baseOpacity);
+				pn.label!.alpha = Math.max(rt.labelAlphaMin ?? 0.7, baseOpacity);
 				pn.labelWasVisible = true;
 				continue;
 			}
@@ -504,7 +498,7 @@ export class LabelManager {
 				continue;
 			}
 			pn.label!.visible = true;
-			pn.label!.alpha = Math.max(rt.labelAlphaMin, baseOpacity);
+			pn.label!.alpha = Math.max(rt.labelAlphaMin ?? 0.7, baseOpacity);
 			pn.labelWasVisible = true;
 			visCount++;
 		}
@@ -550,20 +544,21 @@ export class LabelManager {
 	}
 
 	/** Scale sunburst, cluster sunburst, and group grid labels based on zoom level. */
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose render config
-	private _scaleGroupLabels(zoom: number, rt: Record<string, any>): void {
+	private _scaleGroupLabels(zoom: number, rt: RenderThresholds): void {
 		// Enclosure labels are managed by EnclosureRenderer (drawEnclosuresImpl)
 		// which runs every frame with its own zoom-dependent scaling (1/ws).
 		// We only handle sunburst/grid labels here.
 
 		const groupLabelScale = Math.min(
-			rt.groupLabelScaleMax,
-			Math.max(rt.groupLabelScaleMin, 1 / Math.pow(zoom, rt.groupLabelScalePower)),
+			rt.groupLabelScaleMax ?? 4.0,
+			Math.max(rt.groupLabelScaleMin ?? 0.6, 1 / Math.pow(zoom, rt.groupLabelScalePower ?? 0.45)),
 		);
+
+		const zoomTier1 = rt.labelZoomTier1 ?? 0.01;
 
 		// --- Cluster sunburst labels: hide at low zoom ---
 		for (const [, lbl] of this.host.getClusterSunburstLabels()) {
-			if (zoom < rt.labelZoomTier1) {
+			if (zoom < zoomTier1) {
 				lbl.visible = false;
 			} else {
 				lbl.scale.set(groupLabelScale);
@@ -572,7 +567,7 @@ export class LabelManager {
 
 		// --- Sunburst layout labels ---
 		for (const [, lbl] of this.host.getSunburstLabels()) {
-			if (zoom < rt.labelZoomTier1) {
+			if (zoom < zoomTier1) {
 				lbl.visible = false;
 			} else {
 				lbl.scale.set(groupLabelScale);
