@@ -2,7 +2,7 @@
  * Extracted panel section builders — moved from PanelBuilder.ts to reduce file size.
  * Each function builds a collapsible section inside the panel UI.
  */
-import { Menu } from "obsidian";
+import { Menu, TFile } from "obsidian";
 import { t, tHelp } from "../i18n";
 import { mergeRenderThresholds } from "../types";
 import type { NodeShape } from "../utils/node-shapes";
@@ -673,7 +673,7 @@ export function buildEdgeDisplaySection(
 // ---------------------------------------------------------------------------
 // Nodes Tab (was _buildNodesTab)
 // ---------------------------------------------------------------------------
-export function buildNodesTab(tabEl: HTMLElement, panel: PanelState, _ctx: PanelContext, cb: PanelCallbacks): void {
+export function buildNodesTab(tabEl: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks): void {
 	const entries = cb.getNodeTreeData();
 	const hoveredId = cb.getHoveredNodeId();
 	const excludeSet = new Set(panel.excludeNodes ?? []);
@@ -901,8 +901,8 @@ export function buildNodesTab(tabEl: HTMLElement, panel: PanelState, _ctx: Panel
 						.setTitle("Open File")
 						.setIcon("file-text")
 						.onClick(() => {
-							const file = (window as any).app?.vault?.getAbstractFileByPath(entry.id);
-							if (file) (window as any).app?.workspace?.getLeaf(false)?.openFile(file);
+							const file = ctx.app.vault.getAbstractFileByPath(entry.id);
+							if (file instanceof TFile) ctx.app.workspace.getLeaf(false).openFile(file);
 						}),
 				);
 				menu.showAtPosition({ x: e.clientX, y: e.clientY });

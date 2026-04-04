@@ -239,7 +239,7 @@ export function buildSamplePresetSelector(
     if (!name) return;
 
     try {
-      const app = ctx.app as any;
+      const app = ctx.app;
       const pluginDir = ctx.pluginDir ?? ".obsidian/plugins/graph-island";
       const filePath = `${pluginDir}/samples/${name}.json`;
       const json = await app.vault.adapter.read(filePath);

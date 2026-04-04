@@ -1,15 +1,8 @@
 import { ItemView, setIcon } from "obsidian";
-import type { EventRef, Workspace } from "obsidian";
 import type { GraphNode } from "../types";
 import { t } from "../i18n";
 import { EVENT_COMPARE_NODES, EVENT_HIGHLIGHT_NODES } from "../constants";
 import type { PixiNode } from "./InteractionManager";
-
-/** Obsidian Workspace with custom-event overloads (internal runtime API) */
-type CustomEventWorkspace = Workspace & {
-	on(name: string, callback: (...data: unknown[]) => void): EventRef;
-	trigger(name: string, ...data: unknown[]): void;
-};
 
 export const VIEW_TYPE_NODE_COMPARE = "graph-node-compare";
 
@@ -158,6 +151,7 @@ export class NodeComparisonView extends ItemView {
 
 		// 比較イベントをリスン
 		this.registerEvent(
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian workspace custom events
 			(this.app.workspace as any).on(EVENT_COMPARE_NODES, (data: CompareEvent | null) => {
 				if (!data) {
 					this.renderEmpty();
@@ -178,7 +172,7 @@ export class NodeComparisonView extends ItemView {
 	// ハイライト通知
 	// ---------------------------------------------------------------------------
 	private triggerHighlight(nodeIds: Set<string> | null) {
-		this.app.workspace.trigger(EVENT_HIGHLIGHT_NODES as any, nodeIds);
+		(this.app.workspace as any).trigger(EVENT_HIGHLIGHT_NODES, nodeIds);
 	}
 
 	// ---------------------------------------------------------------------------
@@ -229,7 +223,7 @@ export class NodeComparisonView extends ItemView {
 		setIcon(clearBtn.createSpan({ cls: "gi-compare-clear-icon" }), "x");
 		clearBtn.addEventListener("click", () => {
 			// クリアイベントを発火 (nullペイロード)
-			this.app.workspace.trigger(EVENT_COMPARE_NODES as any, null);
+			(this.app.workspace as any).trigger(EVENT_COMPARE_NODES, null);
 		});
 
 		// === ヘッダー: ノードA vs ノードB ===

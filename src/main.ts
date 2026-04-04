@@ -220,6 +220,7 @@ export default class GraphViewsPlugin extends Plugin {
 				})
 				.catch((e) => {
 					el.createDiv({ cls: "gi-embed-error", text: "Graph Island: render failed" });
+					// eslint-disable-next-line no-console
 					console.error("Graph Island embed error:", e);
 				});
 		});

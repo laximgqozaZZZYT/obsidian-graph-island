@@ -29,6 +29,7 @@ import type {
 } from "../types";
 import { mergeRenderThresholds } from "../types";
 import { setIcon, Menu } from "obsidian";
+import type { App } from "obsidian";
 import { t, tHelp, getLocale } from "../i18n";
 import type { ShapeRule, NodeShape } from "../utils/node-shapes";
 import { ALL_SHAPES } from "../utils/node-shapes";
@@ -767,7 +768,7 @@ export interface PanelContext {
 	saveSettings(): void;
 	nodeCount: number;
 	edgeCount: number;
-	app: unknown;
+	app: App;
 	/** All frontmatter keys discovered in the vault */
 	frontmatterKeys: string[];
 	/** Available group names for current groupBy mode (e.g. tag names, category values, folder paths) */
