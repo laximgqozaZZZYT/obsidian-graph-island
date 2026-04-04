@@ -175,6 +175,14 @@ import {
 import { renderMatrixViewMode as renderMatrixViewModeImpl, type MatrixSortMode } from "./matrix-renderer";
 import { computeStaticLayout, type StaticLayoutResult } from "./layout-compute";
 import {
+	labelModeChar,
+	buildLabelInfo,
+	modeDescription,
+	buildZoomTooltip,
+	parseCulledCount,
+	buildZoomA11yMessage,
+} from "./zoom-indicator";
+import {
 	createDefaultEdgeDrawConfig,
 	computeEffectiveHighlight,
 	computeMaxDegree,
@@ -6530,48 +6538,24 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (!this.zoomIndicatorEl) return;
 		const s = scale ?? this.worldContainer?.scale?.x ?? 1;
 		const pct = `${Math.round(s * 100)}%`;
-		// Show visible label count and label mode at zoom-out as LOD hint
 		let labelInfo = "";
+		let mChar = "";
 		if (s < 1.0 && this.pixiNodes) {
 			let vis = 0;
 			for (const pn of this.pixiNodes.values()) {
 				if (pn.label?.visible && pn.label.alpha >= 0.1) vis++;
 			}
 			const rt = mergeRenderThresholds(this.panel.renderThresholds);
-			const override = rt.labelModeOverride;
-			const initialsZ = rt.labelInitialsZoom;
-			const truncateZ = rt.labelTruncateZoom;
-			const modeChar =
-				override !== "auto"
-					? override === "initials"
-						? "I"
-						: override === "truncated"
-							? "T"
-							: "F"
-					: s < initialsZ
-						? "I"
-						: s < truncateZ
-							? "T"
-							: "F";
-			labelInfo = ` · ${vis}L·${modeChar}`;
+			mChar = labelModeChar(s, rt.labelModeOverride, rt.labelInitialsZoom, rt.labelTruncateZoom);
+			labelInfo = buildLabelInfo(vis, mChar);
 		}
 		this.zoomIndicatorEl.textContent = pct + labelInfo;
-		// Enhanced tooltip with mode description and shortcut hints
-		const modeDesc = labelInfo.includes("·I")
-			? "Initials mode (2 chars)"
-			: labelInfo.includes("·T")
-				? "Truncated mode (5-12 chars)"
-				: labelInfo.includes("·F")
-					? "Full name mode"
-					: "";
-		this.zoomIndicatorEl.title = `Click to reset to 100%\n${modeDesc ? `Label: ${modeDesc}\n` : ""}Keys: 0-9 for zoom, Z for focus-zoom`;
-		// HO: Include density-culled count in zoom a11y announcement
-		const culledCount =
-			this.densityCulledBadgeEl?.style.display !== "none"
-				? parseInt(this.densityCulledBadgeEl?.textContent?.match(/\+(\d+)/)?.[1] ?? "0", 10)
-				: 0;
-		const culledInfo = culledCount > 0 ? `, ${culledCount} hidden` : "";
-		this._announceA11y(`Zoom: ${pct}${labelInfo ? `, ${labelInfo.trim()} labels visible` : ""}${culledInfo}`);
+		this.zoomIndicatorEl.title = buildZoomTooltip(modeDescription(mChar));
+		const culled = parseCulledCount(
+			this.densityCulledBadgeEl?.style.display !== "none",
+			this.densityCulledBadgeEl?.textContent ?? null,
+		);
+		this._announceA11y(buildZoomA11yMessage(pct, labelInfo, culled));
 	}
 
 	// =========================================================================
