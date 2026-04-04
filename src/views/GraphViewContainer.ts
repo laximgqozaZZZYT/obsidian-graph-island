@@ -94,6 +94,7 @@ import {
 } from "./group-label-manager";
 import { expandSuperNodeIds } from "../utils/node-grouping";
 import { hexToRgb } from "../utils/color";
+import { computeNodeDisplayColor } from "./node-coloring";
 import {
 	buildPanel as buildPanelUI,
 	type PanelState,
@@ -6869,60 +6870,22 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private recolorNodes() {
 		const defaultNodeColor = cssColorToHex(DEFAULT_COLORS[0]);
 		const colorMap = this.nodeColorMap ?? new Map<string, string>();
-		let recolorCommunityMap: Map<string, number> | null = null;
+		const colorMode = this.panel.nodeColorMode ?? "category";
+		let communityMap: Map<string, number> | null = null;
+		if (colorMode === "community" && this.originalGraphData) {
+			communityMap = this._getCommunityMap(this.originalGraphData);
+		}
+		const ctx = {
+			groups: this.panel.groups,
+			colorMode,
+			colorField: this.panel.nodeColorField,
+			customColorPalette: this.panel.customColorPalette,
+			colorMap,
+			communityMap,
+			getNodeProperty: (id: string, field: string) => this.getNodeProperty(id, field),
+		};
 		for (const pn of this.pixiNodes.values()) {
-			const n = pn.data;
-			let color = defaultNodeColor;
-			// Manual group overrides take priority
-			let matched = false;
-			for (const grp of this.panel.groups) {
-				if (grp.expression && evaluateExpr(grp.expression, n)) {
-					color = cssColorToHex(grp.color);
-					matched = true;
-					break;
-				}
-			}
-			const colorModeForUpdate = this.panel.nodeColorMode ?? "category";
-			if (!matched && colorModeForUpdate === "category") {
-				if (n.category) {
-					color = cssColorToHex(colorMap.get(n.category) || DEFAULT_COLORS[0]);
-				} else if (n.tags && n.tags.length > 0) {
-					color = cssColorToHex(colorMap.get(`tag:${n.tags[0]}`) || DEFAULT_COLORS[0]);
-				}
-			}
-			// EO+ET: Color by arbitrary frontmatter field with optional custom palette
-			if (!matched && colorModeForUpdate === "field" && this.panel.nodeColorField) {
-				const fieldVal = this.getNodeProperty(n.id, this.panel.nodeColorField);
-				if (fieldVal !== undefined && fieldVal !== "") {
-					const key = String(fieldVal);
-					if (!colorMap.has(key)) {
-						// ET: Use custom palette if provided
-						const customPalette = this.panel.customColorPalette
-							? this.panel.customColorPalette
-									.split(",")
-									.map((s) => s.trim())
-									.filter(Boolean)
-							: [];
-						const palette =
-							customPalette.length > 0 ? customPalette : (DEFAULT_COLORS as unknown as string[]);
-						const idx = colorMap.size % palette.length;
-						colorMap.set(key, palette[idx]);
-					}
-					color = cssColorToHex(colorMap.get(key)!);
-				}
-			}
-			if (!matched && colorModeForUpdate === "community") {
-				if (!recolorCommunityMap && this.originalGraphData) {
-					recolorCommunityMap = this._getCommunityMap(this.originalGraphData);
-				}
-				const cid = recolorCommunityMap?.get(n.id) ?? 0;
-				const COMMUNITY_PALETTE: number[] = [
-					0x1f77b4, 0xff7f0e, 0x2ca02c, 0xd62728, 0x9467bd, 0x8c564b, 0xe377c2, 0x7f7f7f, 0xbcbd22, 0x17becf,
-					0xaec7e8, 0xffbb78, 0x98df8a, 0xff9896, 0xc5b0d5, 0xc49c94, 0xf7b6d2, 0xc7c7c7, 0xdbdb8d, 0x9edae5,
-				];
-				color = COMMUNITY_PALETTE[cid % COMMUNITY_PALETTE.length];
-			}
-			pn.color = color;
+			pn.color = computeNodeDisplayColor(pn.data, ctx, defaultNodeColor);
 		}
 		this.markDirty(true);
 	}
