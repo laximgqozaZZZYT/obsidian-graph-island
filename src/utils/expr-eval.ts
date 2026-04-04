@@ -126,6 +126,47 @@ type Token =
 	| { type: "comma" }
 	| { type: "eof" };
 
+/** Read a number literal starting at `pos`, return token and new position. */
+function readNumberToken(input: string, pos: number): { token: Token; end: number } {
+	let numStr = "";
+	const len = input.length;
+	while (pos < len && ((input[pos] >= "0" && input[pos] <= "9") || input[pos] === ".")) {
+		numStr += input[pos++];
+	}
+	return { token: { type: "number", value: parseFloat(numStr) }, end: pos };
+}
+
+/** Read an identifier (or Greek alias) starting at `pos`, return token and new position. */
+function readIdentToken(input: string, pos: number): { token: Token; end: number } {
+	const ch = input[pos];
+	// Greek letter: resolve alias immediately
+	if (ch in GREEK_ALIASES) {
+		return { token: { type: "ident", name: GREEK_ALIASES[ch] }, end: pos + 1 };
+	}
+	// ASCII identifier
+	let name = "";
+	const len = input.length;
+	while (pos < len && isIdentContinue(input[pos])) {
+		name += input[pos++];
+	}
+	return { token: { type: "ident", name: name.toLowerCase() }, end: pos };
+}
+
+/** Map single characters to their token representation. */
+const SINGLE_CHAR_TOKENS: Record<string, Token> = {
+	"(": { type: "lparen" },
+	")": { type: "rparen" },
+	",": { type: "comma" },
+};
+
+function isNumberStart(input: string, pos: number): boolean {
+	const ch = input[pos];
+	return (
+		(ch >= "0" && ch <= "9") ||
+		(ch === "." && pos + 1 < input.length && input[pos + 1] >= "0" && input[pos + 1] <= "9")
+	);
+}
+
 function tokenize(input: string): Token[] {
 	const tokens: Token[] = [];
 	let pos = 0;
@@ -134,62 +175,34 @@ function tokenize(input: string): Token[] {
 	while (pos < len) {
 		const ch = input[pos];
 
-		// Skip whitespace
 		if (ch === " " || ch === "\t" || ch === "\n" || ch === "\r") {
 			pos++;
 			continue;
 		}
 
-		// Number literal (including decimals like .5)
-		if (
-			(ch >= "0" && ch <= "9") ||
-			(ch === "." && pos + 1 < len && input[pos + 1] >= "0" && input[pos + 1] <= "9")
-		) {
-			let numStr = "";
-			while (pos < len && ((input[pos] >= "0" && input[pos] <= "9") || input[pos] === ".")) {
-				numStr += input[pos++];
-			}
-			tokens.push({ type: "number", value: parseFloat(numStr) });
+		if (isNumberStart(input, pos)) {
+			const r = readNumberToken(input, pos);
+			tokens.push(r.token);
+			pos = r.end;
 			continue;
 		}
 
-		// Identifier (function, variable, constant) — including Greek letters
 		if (isIdentStart(ch)) {
-			// Greek letter: resolve alias immediately (each Greek letter is a standalone token)
-			if (ch in GREEK_ALIASES) {
-				const alias = GREEK_ALIASES[ch];
-				pos++; // Greek letters are single code points but may be multi-byte; JS string indexing is by code point here
-				tokens.push({ type: "ident", name: alias });
-				continue;
-			}
-			// ASCII identifier
-			let name = "";
-			while (pos < len && isIdentContinue(input[pos])) {
-				name += input[pos++];
-			}
-			tokens.push({ type: "ident", name: name.toLowerCase() });
+			const r = readIdentToken(input, pos);
+			tokens.push(r.token);
+			pos = r.end;
 			continue;
 		}
 
-		// Operators
 		if ("+-*/%^".includes(ch)) {
 			tokens.push({ type: "op", op: ch });
 			pos++;
 			continue;
 		}
 
-		if (ch === "(") {
-			tokens.push({ type: "lparen" });
-			pos++;
-			continue;
-		}
-		if (ch === ")") {
-			tokens.push({ type: "rparen" });
-			pos++;
-			continue;
-		}
-		if (ch === ",") {
-			tokens.push({ type: "comma" });
+		const singleToken = SINGLE_CHAR_TOKENS[ch];
+		if (singleToken) {
+			tokens.push(singleToken);
 			pos++;
 			continue;
 		}
