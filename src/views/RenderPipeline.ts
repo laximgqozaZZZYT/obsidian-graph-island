@@ -2129,8 +2129,6 @@ export class RenderPipeline {
 		nodeColor: (n: GraphNode) => number,
 		world: CanvasContainer,
 	) {
-		// Node containers hold CanvasGraphics + CanvasText — must stay as CanvasContainer
-		// to ensure labels render correctly on the Canvas2D overlay.
 		const container = new CanvasContainer();
 		container.x = n.x;
 		container.y = n.y;
@@ -2140,207 +2138,167 @@ export class RenderPipeline {
 		const maxR = rtNode.maxNodeRadius > 0 ? rtNode.maxNodeRadius : Infinity;
 		const ns = this.host.getNodeSize?.() ?? nodeR(n);
 		const nodeDeg = this.host.getDegrees().get(n.id) || 0;
-		const sizeByDeg = rtNode.nodeSizeByDegree;
 		const r = effectiveRadius(
-			n,
-			ns,
-			nodeDeg,
-			maxR,
-			rtNode.minNodeRadius,
-			this._cachedMaxDeg,
-			sizeByDeg,
-			n.bodyLength ?? 0,
-			this._cachedMaxBodyLength ?? 0,
-			rtNode.cardContentScale,
+			n, ns, nodeDeg, maxR, rtNode.minNodeRadius, this._cachedMaxDeg,
+			rtNode.nodeSizeByDegree, n.bodyLength ?? 0, this._cachedMaxBodyLength ?? 0, rtNode.cardContentScale,
 		);
 		const color = nodeColor(n);
 		const circle = new CanvasGraphics();
 		if (isSuperNode) {
-			const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
-			circle.lineStyle(rt.superNodeOuterStroke, color, 1);
-			circle.drawCircle(0, 0, r);
-			circle.lineStyle(rt.superNodeInnerStroke, color, rt.superNodeInnerAlpha);
-			circle.drawCircle(0, 0, r * rt.superNodeInnerRatio);
-			circle.beginFill(color, SUPER_NODE_FILL_ALPHA);
-			circle.drawCircle(0, 0, r);
-			circle.endFill();
-			circle.visible = true;
+			this._drawSuperNodeCircle(circle, color, r);
 		} else {
 			circle.visible = false;
 		}
 		container.addChild(circle);
 
+		const deg = this.host.getDegrees().get(n.id) || 0;
 		let label: CanvasText | null = null;
 		let tagLabel: CanvasText | null = null;
-		const degrees = this.host.getDegrees();
-		const deg = degrees.get(n.id) || 0;
 		if (isSuperNode || deg > this.pendingLabelThreshold) {
 			const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
-
-			// --- Importance-based font size: scale between min and max based on degree ---
-			const maxDeg = this._cachedMaxDeg || 1;
-			const importance = maxDeg > 0 ? Math.min(1, deg / maxDeg) : 0;
-			const fontMin = rt.nodeLabelFontSizeMin;
-			const fontMax = rt.nodeLabelFontSizeMax;
-			const superFontSize = rt.superNodeFontSize;
-			const scaledFontSize = isSuperNode ? superFontSize : Math.round(fontMin + importance * (fontMax - fontMin));
-
-			const labelFontWeight = isSuperNode ? "bold" : "500";
-			// For super nodes, use group color as pill background; for regular nodes, use theme-aware bg
-			const themeLabelBg = this.host.isDarkTheme() ? rt.labelBgColor : rt.labelBgColorLight;
-			// AL: Optionally sync label bg with node color (subtle tint)
-			const syncBg = rt.labelBgColorSync && color != null;
-			const labelBg = isSuperNode
-				? color != null
-					? darkenColor(color, 0.6)
-					: themeLabelBg
-				: syncBg
-					? blendColors(themeLabelBg, color, 0.15)
-					: themeLabelBg;
-			// Use bright text when pill background is present for better contrast
-			// A11y: auto-correct label color if WCAG contrast ratio < 4.5:1
-			let labelFill = isSuperNode ? 0xffffff : this.host.isDarkTheme() ? 0xe0e0e0 : 0x222222;
-			// Map-style redundant encoding: tint label text toward node color
-			if (!isSuperNode && rt.labelTextColorSync && color != null) {
-				labelFill = this.host.isDarkTheme() ? lightenColor(color, 0.55) : darkenColor(color, 0.35);
-			}
-			if (wcagContrastRatio(labelFill, labelBg) < 4.5) {
-				labelFill = contrastColor(labelBg);
-			}
-			// GD: Truncate label to max chars
-			// A3: Prepend icon prefix from nodeIconField mapping
-			let displayLabel = truncateLabel(n.label, rt.labelMaxChars);
-			const iconCfg = this.host.getNodeIconConfig?.();
-			if (iconCfg && iconCfg.field && n.meta) {
-				const fieldVal = String(n.meta[iconCfg.field] ?? "");
-				const icon = iconCfg.map[fieldVal];
-				if (icon) displayLabel = `${icon} ${displayLabel}`;
-			}
-			label = new CanvasText(displayLabel, {
-				fontSize: scaledFontSize,
-				fill: labelFill,
-				fontWeight: labelFontWeight,
-				fontFamily: CARD_FONT_FAMILY,
-			});
-			label.bgColor = labelBg;
-			// Theme-adaptive bgAlpha: light theme needs higher opacity for contrast
-			const baseBgAlpha = isSuperNode ? rt.superNodeLabelBgAlpha : rt.labelBgAlpha;
-			label.bgAlpha = this.host.isDarkTheme() ? baseBgAlpha : Math.min(1.0, baseBgAlpha + 0.1);
-			label.bgPadX = isSuperNode ? SUPER_LABEL_PAD_X : REGULAR_LABEL_PAD_X;
-			label.bgPadY = isSuperNode ? SUPER_LABEL_PAD_Y : REGULAR_LABEL_PAD_Y;
-			label.cornerRadius = rt.labelHaloCornerRadius;
-			label.strokeColor = rt.labelStrokeColor;
-			label.strokeWidth = rt.labelStrokeWidth;
-
-			// --- Zone-based label placement ---
-			// Analyze adjacent node angles and place label in the direction of the largest gap.
-			const zoneOffset = rt.labelZoneOffset;
-			if (rt.labelZonePlacement) {
-				const placement = this.computeZonePlacement(n, r, zoneOffset);
-				label.x = placement.x;
-				label.y = placement.y;
-				label.anchor.set(placement.anchorX, 0);
-			} else {
-				label.x = r + LABEL_EDGE_OFFSET;
-				label.y = -(r * LABEL_Y_OFFSET_FACTOR + LABEL_EDGE_OFFSET);
-			}
+			label = this._createNodeLabel(n, rt, isSuperNode, color, deg, r);
 			container.addChild(label);
-
-			// --- Tag label (below node, fixed offset) ---
 			if (rt.tagLabelShow && n.tags && n.tags.length > 0 && !isSuperNode) {
-				const maxTags = rt.tagLabelMaxTags;
-				const tagText = n.tags
-					.slice(0, maxTags)
-					.map((t) => `#${t}`)
-					.join(" ");
-				const accentColor = this.host.getAccentColor?.() ?? 0x818cf8;
-				tagLabel = new CanvasText(tagText, {
-					fontSize: rt.tagLabelFontSize,
-					fill: accentColor,
-					fontWeight: "400",
-					fontFamily: CARD_FONT_FAMILY,
-				});
-				tagLabel.alpha = rt.tagLabelAlpha;
-				tagLabel.bgColor = rt.labelBgColor;
-				tagLabel.bgAlpha = rt.labelBgAlpha * TAG_BG_ALPHA_DAMPEN;
-				tagLabel.bgPadX = TAG_LABEL_PAD_X;
-				tagLabel.bgPadY = TAG_LABEL_PAD_Y;
-				tagLabel.cornerRadius = rt.labelHaloCornerRadius;
-				tagLabel.anchor.set(0.5, 0);
-				tagLabel.x = 0;
-				tagLabel.y = r + rt.tagLabelOffset;
-				// Tag labels start hidden; LOD in applyTextFade controls visibility
-				tagLabel.visible = false;
+				tagLabel = this._createTagLabel(n, rt, r);
 				container.addChild(tagLabel);
 			}
 		}
 
-		// --- Sub-labels: additional metadata fields below node ---
+		const subLabels = this._createSubLabels(n, isSuperNode, label, tagLabel, r);
+		for (const sl of subLabels) container.addChild(sl);
+
+		if (!this._skipNodeRendering) world.addChild(container);
+
+		this.host.getPixiNodes().set(n.id, {
+			data: n, gfx: container, circle, label, tagLabel, subLabels,
+			hoverLabel: null, leaderLine: null, radius: r, color,
+			held: false, sortRank: -1, priorityScore: -1,
+			minShowZoom: 1.0, labelWasVisible: false, hoverForcedLabel: false,
+		});
+	}
+
+	private _drawSuperNodeCircle(circle: CanvasGraphics, color: number, r: number) {
+		const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
+		circle.lineStyle(rt.superNodeOuterStroke, color, 1);
+		circle.drawCircle(0, 0, r);
+		circle.lineStyle(rt.superNodeInnerStroke, color, rt.superNodeInnerAlpha);
+		circle.drawCircle(0, 0, r * rt.superNodeInnerRatio);
+		circle.beginFill(color, SUPER_NODE_FILL_ALPHA);
+		circle.drawCircle(0, 0, r);
+		circle.endFill();
+		circle.visible = true;
+	}
+
+	private _computeLabelColors(
+		rt: Required<RenderThresholds>, isSuperNode: boolean, color: number,
+	): { labelBg: number; labelFill: number } {
+		const themeLabelBg = this.host.isDarkTheme() ? rt.labelBgColor : rt.labelBgColorLight;
+		const syncBg = rt.labelBgColorSync && color != null;
+		const labelBg = isSuperNode
+			? (color != null ? darkenColor(color, 0.6) : themeLabelBg)
+			: syncBg ? blendColors(themeLabelBg, color, 0.15) : themeLabelBg;
+		let labelFill = isSuperNode ? 0xffffff : this.host.isDarkTheme() ? 0xe0e0e0 : 0x222222;
+		if (!isSuperNode && rt.labelTextColorSync && color != null) {
+			labelFill = this.host.isDarkTheme() ? lightenColor(color, 0.55) : darkenColor(color, 0.35);
+		}
+		if (wcagContrastRatio(labelFill, labelBg) < 4.5) labelFill = contrastColor(labelBg);
+		return { labelBg, labelFill };
+	}
+
+	private _createNodeLabel(
+		n: GraphNode, rt: Required<RenderThresholds>, isSuperNode: boolean,
+		color: number, deg: number, r: number,
+	): CanvasText {
+		const maxDeg = this._cachedMaxDeg || 1;
+		const importance = maxDeg > 0 ? Math.min(1, deg / maxDeg) : 0;
+		const scaledFontSize = isSuperNode
+			? rt.superNodeFontSize
+			: Math.round(rt.nodeLabelFontSizeMin + importance * (rt.nodeLabelFontSizeMax - rt.nodeLabelFontSizeMin));
+		const { labelBg, labelFill } = this._computeLabelColors(rt, isSuperNode, color);
+		let displayLabel = truncateLabel(n.label, rt.labelMaxChars);
+		const iconCfg = this.host.getNodeIconConfig?.();
+		if (iconCfg && iconCfg.field && n.meta) {
+			const icon = iconCfg.map[String(n.meta[iconCfg.field] ?? "")];
+			if (icon) displayLabel = `${icon} ${displayLabel}`;
+		}
+		const label = new CanvasText(displayLabel, {
+			fontSize: scaledFontSize, fill: labelFill,
+			fontWeight: isSuperNode ? "bold" : "500", fontFamily: CARD_FONT_FAMILY,
+		});
+		label.bgColor = labelBg;
+		const baseBgAlpha = isSuperNode ? rt.superNodeLabelBgAlpha : rt.labelBgAlpha;
+		label.bgAlpha = this.host.isDarkTheme() ? baseBgAlpha : Math.min(1.0, baseBgAlpha + 0.1);
+		label.bgPadX = isSuperNode ? SUPER_LABEL_PAD_X : REGULAR_LABEL_PAD_X;
+		label.bgPadY = isSuperNode ? SUPER_LABEL_PAD_Y : REGULAR_LABEL_PAD_Y;
+		label.cornerRadius = rt.labelHaloCornerRadius;
+		label.strokeColor = rt.labelStrokeColor;
+		label.strokeWidth = rt.labelStrokeWidth;
+		if (rt.labelZonePlacement) {
+			const placement = this.computeZonePlacement(n, r, rt.labelZoneOffset);
+			label.x = placement.x;
+			label.y = placement.y;
+			label.anchor.set(placement.anchorX, 0);
+		} else {
+			label.x = r + LABEL_EDGE_OFFSET;
+			label.y = -(r * LABEL_Y_OFFSET_FACTOR + LABEL_EDGE_OFFSET);
+		}
+		return label;
+	}
+
+	private _createTagLabel(n: GraphNode, rt: Required<RenderThresholds>, r: number): CanvasText {
+		const tagText = n.tags!.slice(0, rt.tagLabelMaxTags).map((t) => `#${t}`).join(" ");
+		const accentColor = this.host.getAccentColor?.() ?? 0x818cf8;
+		const tagLabel = new CanvasText(tagText, {
+			fontSize: rt.tagLabelFontSize, fill: accentColor, fontWeight: "400", fontFamily: CARD_FONT_FAMILY,
+		});
+		tagLabel.alpha = rt.tagLabelAlpha;
+		tagLabel.bgColor = rt.labelBgColor;
+		tagLabel.bgAlpha = rt.labelBgAlpha * TAG_BG_ALPHA_DAMPEN;
+		tagLabel.bgPadX = TAG_LABEL_PAD_X;
+		tagLabel.bgPadY = TAG_LABEL_PAD_Y;
+		tagLabel.cornerRadius = rt.labelHaloCornerRadius;
+		tagLabel.anchor.set(0.5, 0);
+		tagLabel.x = 0;
+		tagLabel.y = r + rt.tagLabelOffset;
+		tagLabel.visible = false;
+		return tagLabel;
+	}
+
+	private _createSubLabels(
+		n: GraphNode, isSuperNode: boolean,
+		label: CanvasText | null, tagLabel: CanvasText | null, r: number,
+	): CanvasText[] {
 		const subLabels: CanvasText[] = [];
 		const subFieldsRaw = this.host.getNodeSubLabelFields?.() ?? "";
-		if (subFieldsRaw && label && !isSuperNode) {
-			const srt = mergeRenderThresholds(this.host.getRenderThresholds?.());
-			const fields = subFieldsRaw
-				.split(",")
-				.map((s) => s.trim())
-				.filter(Boolean);
-			// Stack sub-labels below tagLabel (or below node if no tagLabel)
-			let yOffset = tagLabel
-				? r + srt.tagLabelOffset + srt.tagLabelFontSize + SUB_LABEL_GAP
-				: r + srt.tagLabelOffset;
-			for (const field of fields) {
-				// Resolve via host.getNodeProperty if available, else fall back to meta
-				const val = this.host.getNodeProperty
-					? this.host.getNodeProperty(n.id, field)
-					: n.meta?.[field] !== undefined && n.meta?.[field] !== null
-						? String(n.meta[field])
-						: undefined;
-				if (!val) continue;
-				const subLabel = new CanvasText(val, {
-					fontSize: SUB_LABEL_FONT_SIZE,
-					fill: this.host.isDarkTheme() ? 0xbbbbbb : 0x555555,
-					fontWeight: "400",
-					fontFamily: CARD_FONT_FAMILY,
-				});
-				subLabel.alpha = SUB_LABEL_ALPHA;
-				subLabel.bgColor = srt.labelBgColor;
-				subLabel.bgAlpha = srt.labelBgAlpha * TAG_BG_ALPHA_DAMPEN;
-				subLabel.bgPadX = TAG_LABEL_PAD_X;
-				subLabel.bgPadY = TAG_LABEL_PAD_Y;
-				subLabel.cornerRadius = srt.labelHaloCornerRadius;
-				subLabel.anchor.set(0.5, 0);
-				subLabel.x = 0;
-				subLabel.y = yOffset;
-				subLabel.visible = false; // LOD-gated same as tagLabel
-				container.addChild(subLabel);
-				subLabels.push(subLabel);
-				yOffset += SUB_LABEL_FONT_SIZE + SUB_LABEL_GAP;
-			}
+		if (!subFieldsRaw || !label || isSuperNode) return subLabels;
+		const srt = mergeRenderThresholds(this.host.getRenderThresholds?.());
+		const fields = subFieldsRaw.split(",").map((s) => s.trim()).filter(Boolean);
+		let yOffset = tagLabel
+			? r + srt.tagLabelOffset + srt.tagLabelFontSize + SUB_LABEL_GAP
+			: r + srt.tagLabelOffset;
+		for (const field of fields) {
+			const val = this.host.getNodeProperty
+				? this.host.getNodeProperty(n.id, field)
+				: n.meta?.[field] !== undefined && n.meta?.[field] !== null ? String(n.meta[field]) : undefined;
+			if (!val) continue;
+			const subLabel = new CanvasText(val, {
+				fontSize: SUB_LABEL_FONT_SIZE, fill: this.host.isDarkTheme() ? 0xbbbbbb : 0x555555,
+				fontWeight: "400", fontFamily: CARD_FONT_FAMILY,
+			});
+			subLabel.alpha = SUB_LABEL_ALPHA;
+			subLabel.bgColor = srt.labelBgColor;
+			subLabel.bgAlpha = srt.labelBgAlpha * TAG_BG_ALPHA_DAMPEN;
+			subLabel.bgPadX = TAG_LABEL_PAD_X;
+			subLabel.bgPadY = TAG_LABEL_PAD_Y;
+			subLabel.cornerRadius = srt.labelHaloCornerRadius;
+			subLabel.anchor.set(0.5, 0);
+			subLabel.x = 0;
+			subLabel.y = yOffset;
+			subLabel.visible = false;
+			subLabels.push(subLabel);
+			yOffset += SUB_LABEL_FONT_SIZE + SUB_LABEL_GAP;
 		}
-
-		if (!this._skipNodeRendering) {
-			world.addChild(container);
-		}
-
-		const pixiNodes = this.host.getPixiNodes();
-		pixiNodes.set(n.id, {
-			data: n,
-			gfx: container,
-			circle,
-			label,
-			tagLabel,
-			subLabels,
-			hoverLabel: null,
-			leaderLine: null,
-			radius: r,
-			color,
-			held: false,
-			sortRank: -1,
-			priorityScore: -1,
-			minShowZoom: 1.0,
-			labelWasVisible: false,
-			hoverForcedLabel: false,
-		});
+		return subLabels;
 	}
 
 	/** Process the next batch of deferred nodes from the stack */
@@ -2505,84 +2463,23 @@ export class RenderPipeline {
 		const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
 		if (!rt.labelOverlapCulling) {
 			this.host.updateDensityCulledBadge?.(0);
-			// Reset stale stats when culling is disabled
 			this._lastCullStats = { totalLabels: 0, visibleLabels: 0, culledLabels: 0, collisionRate: 0 };
 			return;
 		}
 
-		// Scale margin inversely with zoom — at low zoom, labels are counterscaled larger
-		// so overlap detection needs more generous spacing
 		const zoom = this.host.getWorldContainer()?.scale.x ?? 1;
 		const zoomMarginScale = zoom < 0.5 ? Math.min(4, 1 + (0.5 - zoom) * 6) : 1;
 		const margin = rt.labelOverlapMargin * zoomMarginScale;
 		const pixiNodes = this.host.getPixiNodes();
 		const degrees = this.host.getDegrees();
-		const maxScreenW = rt.labelOverlapMaxScreenW;
-		const maxScreenH = rt.labelOverlapMaxScreenH;
 
-		// 1. Collect all visible labels into screen-space rects
-		const rects = this._collectLabelRects(pixiNodes, degrees, zoom, maxScreenW, maxScreenH);
-
-		// 2. Build spatial hash grid for overlap detection
+		const rects = this._collectLabelRects(pixiNodes, degrees, zoom, rt.labelOverlapMaxScreenW, rt.labelOverlapMaxScreenH);
 		const grid = new SpatialHashGrid<CullLabelRect>(OVERLAP_GRID_CELL_SIZE, margin);
 
-		// 2.5: Reserve DOM overlay zones so labels don't displace into panels
-		const app = this.host.getPixiApp();
-		if (app?.view) {
-			const canvasRect = app.view.getBoundingClientRect();
-			const panels = [".gi-graph-stats", ".gi-legend", ".gi-minimap-wrap", ".gi-node-info"];
-			for (const sel of panels) {
-				const el = app.view.parentElement?.querySelector(sel) as HTMLElement | null;
-				if (!el || el.style.display === "none" || !el.offsetParent) continue;
-				const r = el.getBoundingClientRect();
-				// Convert DOM rect to screen-space relative to canvas
-				grid.insert({
-					x: r.left - canvasRect.left,
-					y: r.top - canvasRect.top,
-					w: r.width,
-					h: r.height,
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- grid exclusion zone, no label/pn
-					label: null as any,
-					pn: null as any,
-					degree: 999,
-					isSuper: false,
-				});
-			}
-		}
+		this._reserveDomExclusionZones(grid);
+		this._reserveEnclosureLabelZones(grid);
 
-		// 2.7: HL — Reserve enclosure label positions as exclusion zones
-		const encLabels = this.host.getEnclosureLabels?.();
-		if (encLabels && encLabels.size > 0) {
-			const world = this.host.getWorldContainer();
-			if (world) {
-				for (const lbl of encLabels.values()) {
-					if (!lbl.visible) continue;
-					// Convert world coords to screen coords
-					const sx = lbl.x * world.scale.x + world.x;
-					const sy = lbl.y * world.scale.y + world.y;
-					const sw = (lbl.width ?? 60) * lbl.scale.x;
-					const sh = (lbl.height ?? 14) * lbl.scale.y;
-					 
-					grid.insert({
-						x: sx - sw / 2,
-						y: sy - sh / 2,
-						w: sw,
-						h: sh,
-						label: null as any,
-						pn: null as any,
-						degree: 500,
-						isSuper: false,
-					});
-				}
-			}
-		}
-
-		// 3. Sort by priority score — highest priority first (Google Maps-style)
-		// Hover-forced labels get priority boost so they survive culling (displaced with leader lines if needed)
-		const minNonSuper = rt.labelMinNonSuper;
 		rects.sort((a, b) => {
-			// HY: Reduced hover boost from 200→80 to prevent hover labels from
-			// displacing too many normal labels at mid-zoom
 			const aBoost = a.pn.hoverForcedLabel ? 80 : 0;
 			const bBoost = b.pn.hoverForcedLabel ? 80 : 0;
 			return b.pn.priorityScore + bBoost - (a.pn.priorityScore + aBoost);
@@ -2592,118 +2489,120 @@ export class RenderPipeline {
 		const drawLeader = rt.labelLeaderLines;
 		const llAlpha = rt.labelLeaderLineAlpha;
 		const llWidth = rt.labelLeaderLineWidth;
-		const maxDispRatio = rt.labelMaxDisplacementRatio;
 
-		// Clear all existing leader lines before re-evaluation
-		// Only iterate if we previously drew any leaders (tracked by counter)
 		if (this._activeLeaderCount > 0) {
 			for (const pn of pixiNodes.values()) {
-				if (pn.leaderLine) {
-					pn.leaderLine.clear();
-					pn.leaderLine.visible = false;
-				}
+				if (pn.leaderLine) { pn.leaderLine.clear(); pn.leaderLine.visible = false; }
 			}
 			this._activeLeaderCount = 0;
 		}
 
-		// 4. Place labels with displacement when overlapping
 		for (const r of rects) {
-			if (!grid.checkOverlap(r)) {
-				placed.push(r);
-				grid.insert(r);
-				continue;
-			}
-
-			const found = this._tryDisplaceLabel(r, zoom, maxDispRatio, grid, drawLeader, llWidth, llAlpha);
-			if (found) {
-				placed.push(found);
-				grid.insert(found);
-			} else {
-				// Smooth fade-out instead of instant hide (AD: collision animation)
-				// Gentler fade rate (0.15) for less jarring transitions during zoom
-				r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - (rt.labelFadeRate ?? 0.15));
-				if (r.label.alpha <= 0.05) r.label.visible = false;
-			}
+			if (!grid.checkOverlap(r)) { placed.push(r); grid.insert(r); continue; }
+			const found = this._tryDisplaceLabel(r, zoom, rt.labelMaxDisplacementRatio, grid, drawLeader, llWidth, llAlpha);
+			if (found) { placed.push(found); grid.insert(found); }
+			else { this._fadeOutLabel(r.label, rt.labelFadeRate); }
 		}
 
-		// 4.5. Density-adaptive culling: remove labels that are too close together
-		// HV: Extended to all zoom levels (was zoom < 0.5 only), with gentler spacing at high zoom
-		const densityZoomThreshold = rt.labelDensityZoomThreshold;
-		if (placed.length > 10) {
-			const densityMinDist = computeDensityMinDist(
-				rt.labelDensityMinScreenDist,
-				rt.labelDensityMaxDist,
-				zoom,
-				densityZoomThreshold,
-			);
-			const densityMinDist2 = densityMinDist * densityMinDist;
-			// Sort placed by priority (highest first) — keep high priority, remove low
-			placed.sort(
-				(a, b) =>
-					b.pn.priorityScore +
-					(b.pn.hoverForcedLabel ? 80 : 0) -
-					(a.pn.priorityScore + (a.pn.hoverForcedLabel ? 80 : 0)),
-			);
-			const kept: CullLabelRect[] = [];
-			// Use spatial buckets for O(N) density check instead of O(N²) nested loop.
-			// Store center-point arrays per bucket so we can do exact squared-distance checks.
-			const bucketSize = Math.max(densityMinDist, 50);
-			const densityGrid = new Map<string, { cx: number; cy: number }[]>();
-			const toBucket = (x: number, y: number) => `${Math.floor(x / bucketSize)},${Math.floor(y / bucketSize)}`;
+		this._runDensityCulling(rt, placed, zoom);
 
-			for (const r of placed) {
-				const cx = r.x + r.w / 2;
-				const cy = r.y + r.h / 2;
-				const bx = Math.floor(cx / bucketSize);
-				const by = Math.floor(cy / bucketSize);
-				let tooClose = false;
-				// Check 3x3 neighborhood — but do exact squared-distance comparison
-				outer: for (let ddx = -1; ddx <= 1; ddx++) {
-					for (let ddy = -1; ddy <= 1; ddy++) {
-						const neighbors = densityGrid.get(`${bx + ddx},${by + ddy}`);
-						if (!neighbors) continue;
-						for (const nb of neighbors) {
-							const d2 = (cx - nb.cx) ** 2 + (cy - nb.cy) ** 2;
-							if (d2 < densityMinDist2) {
-								tooClose = true;
-								break outer;
-							}
-						}
-					}
-				}
-				if (!tooClose) {
-					kept.push(r);
-					const key = toBucket(cx, cy);
-					const arr = densityGrid.get(key);
-					if (arr) arr.push({ cx, cy });
-					else densityGrid.set(key, [{ cx, cy }]);
-				} else {
-					r.label.alpha = Math.max(0, (r.label.alpha ?? 1) - (rt.labelFadeRate ?? 0.15));
-					if (r.label.alpha <= 0.05) r.label.visible = false;
-				}
-			}
-			placed.length = 0;
-			placed.push(...kept);
-		}
-
-		// 5. Guarantee placement floor (AP-4 + AP-5)
-		this._guaranteePlacementFloor(rt, rects, placed, grid, zoom, margin, minNonSuper, drawLeader, llWidth, llAlpha);
-
-		// 6. Draw leader lines for non-displaced labels at high counter-scale
+		this._guaranteePlacementFloor(rt, rects, placed, grid, zoom, margin, rt.labelMinNonSuper, drawLeader, llWidth, llAlpha);
 		this._drawCounterScaleLeaderLines(rt, placed, zoom, drawLeader, llWidth, llAlpha);
 
-		// 7. Report density-culled count to host for badge display
 		const totalVisible = rects.filter((r) => r.label.visible).length;
 		const densityCulled = rects.length - totalVisible;
 		this.host.updateDensityCulledBadge?.(densityCulled);
-
-		// §0.1: Expose label collision stats for quality monitoring
 		this._lastCullStats = {
-			totalLabels: rects.length,
-			visibleLabels: totalVisible,
-			culledLabels: densityCulled,
-			collisionRate: rects.length > 0 ? densityCulled / rects.length : 0,
+			totalLabels: rects.length, visibleLabels: totalVisible,
+			culledLabels: densityCulled, collisionRate: rects.length > 0 ? densityCulled / rects.length : 0,
 		};
+	}
+
+	private _fadeOutLabel(label: CanvasText, fadeRate?: number) {
+		label.alpha = Math.max(0, (label.alpha ?? 1) - (fadeRate ?? 0.15));
+		if (label.alpha <= 0.05) label.visible = false;
+	}
+
+	private _reserveDomExclusionZones(grid: SpatialHashGrid<CullLabelRect>) {
+		const app = this.host.getPixiApp();
+		if (!app?.view) return;
+		const canvasRect = app.view.getBoundingClientRect();
+		const panels = [".gi-graph-stats", ".gi-legend", ".gi-minimap-wrap", ".gi-node-info"];
+		for (const sel of panels) {
+			const el = app.view.parentElement?.querySelector(sel) as HTMLElement | null;
+			if (!el || el.style.display === "none" || !el.offsetParent) continue;
+			const r = el.getBoundingClientRect();
+			grid.insert({
+				x: r.left - canvasRect.left, y: r.top - canvasRect.top, w: r.width, h: r.height,
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- grid exclusion zone
+				label: null as any, pn: null as any, degree: 999, isSuper: false,
+			});
+		}
+	}
+
+	private _reserveEnclosureLabelZones(grid: SpatialHashGrid<CullLabelRect>) {
+		const encLabels = this.host.getEnclosureLabels?.();
+		if (!encLabels || encLabels.size === 0) return;
+		const world = this.host.getWorldContainer();
+		if (!world) return;
+		for (const lbl of encLabels.values()) {
+			if (!lbl.visible) continue;
+			const sx = lbl.x * world.scale.x + world.x;
+			const sy = lbl.y * world.scale.y + world.y;
+			const sw = (lbl.width ?? 60) * lbl.scale.x;
+			const sh = (lbl.height ?? 14) * lbl.scale.y;
+			grid.insert({
+				x: sx - sw / 2, y: sy - sh / 2, w: sw, h: sh,
+				label: null as any, pn: null as any, degree: 500, isSuper: false,
+			});
+		}
+	}
+
+	private _runDensityCulling(rt: Required<RenderThresholds>, placed: CullLabelRect[], zoom: number) {
+		if (placed.length <= 10) return;
+		const densityMinDist = computeDensityMinDist(
+			rt.labelDensityMinScreenDist, rt.labelDensityMaxDist, zoom, rt.labelDensityZoomThreshold,
+		);
+		const densityMinDist2 = densityMinDist * densityMinDist;
+		placed.sort((a, b) =>
+			b.pn.priorityScore + (b.pn.hoverForcedLabel ? 80 : 0)
+			- (a.pn.priorityScore + (a.pn.hoverForcedLabel ? 80 : 0)),
+		);
+		const kept: CullLabelRect[] = [];
+		const bucketSize = Math.max(densityMinDist, 50);
+		const densityGrid = new Map<string, { cx: number; cy: number }[]>();
+		for (const r of placed) {
+			const cx = r.x + r.w / 2;
+			const cy = r.y + r.h / 2;
+			if (this._isDensityTooClose(cx, cy, bucketSize, densityMinDist2, densityGrid)) {
+				this._fadeOutLabel(r.label, rt.labelFadeRate);
+			} else {
+				kept.push(r);
+				const key = `${Math.floor(cx / bucketSize)},${Math.floor(cy / bucketSize)}`;
+				const arr = densityGrid.get(key);
+				if (arr) arr.push({ cx, cy }); else densityGrid.set(key, [{ cx, cy }]);
+			}
+		}
+		placed.length = 0;
+		placed.push(...kept);
+	}
+
+	private _isDensityTooClose(
+		cx: number, cy: number, bucketSize: number, minDist2: number,
+		grid: Map<string, { cx: number; cy: number }[]>,
+	): boolean {
+		const bx = Math.floor(cx / bucketSize);
+		const by = Math.floor(cy / bucketSize);
+		for (let ddx = -1; ddx <= 1; ddx++) {
+			for (let ddy = -1; ddy <= 1; ddy++) {
+				const neighbors = grid.get(`${bx + ddx},${by + ddy}`);
+				if (!neighbors) continue;
+				for (const nb of neighbors) {
+					if ((cx - nb.cx) ** 2 + (cy - nb.cy) ** 2 < minDist2) return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	/** §0.1 Quality stats from last cullOverlappingLabels run */
@@ -2727,11 +2626,9 @@ export class RenderPipeline {
 		maxScreenW: number,
 		maxScreenH: number,
 	): CullLabelRect[] {
-		// Viewport bounds for culling (skip off-screen labels to reduce O(n²) cost)
 		const dims = this.host.getCanvasDimensions();
 		const world = this.host.getWorldContainer();
-		const vpMargin = 100; // extra margin to avoid popping at edges
-		// Cap effective margin to prevent extreme zoom-out from including entire world
+		const vpMargin = 100;
 		const effectiveVpMargin = Math.min(vpMargin / zoom, vpMargin * 5);
 		const vpLeft = world ? -world.x / zoom - effectiveVpMargin : -Infinity;
 		const vpTop = world ? -world.y / zoom - effectiveVpMargin : -Infinity;
@@ -2740,39 +2637,42 @@ export class RenderPipeline {
 
 		const rects: CullLabelRect[] = [];
 		for (const pn of pixiNodes.values()) {
-			// Skip nodes outside viewport (world coordinates)
 			if (pn.data.x < vpLeft || pn.data.x > vpRight || pn.data.y < vpTop || pn.data.y > vpBottom) continue;
-			// Collect main label OR hoverLabel (prefer hoverLabel when present for overlap culling)
-			const isHoverLabel = !!(pn.hoverLabel && pn.hoverLabel.visible);
-			const label = isHoverLabel ? pn.hoverLabel : pn.label;
-			if (!label || !label.text || !label.visible) continue;
-			const fontSize = (label.style.fontSize as number) ?? 11;
-			// Bold text (hoverLabel) is ~10% wider — increase char width estimate
-			const boldFactor = isHoverLabel ? 1.1 : 1.0;
-			const charW = fontSize * LABEL_CHAR_WIDTH_FACTOR * boldFactor;
-			const scaleX = label.scale?.x ?? 1;
-			const scaleY = label.scale?.y ?? 1;
-			const padX = label.bgPadX ?? 0;
-			const padY = label.bgPadY ?? 0;
-			// Use measured dimensions when available (more accurate than estimates)
-			const measuredW = label.width && label.width > 0 ? label.width : 0;
-			const measuredH = label.height && label.height > 0 ? label.height : 0;
-			const estimatedW = label.text.length * charW + padX * 2;
-			const estimatedH = fontSize * LABEL_LINE_HEIGHT_FACTOR + padY * 2;
-			const baseW = measuredW > 0 ? measuredW : estimatedW;
-			const baseH = measuredH > 0 ? measuredH : estimatedH;
-			const rawW = baseW * scaleX * zoom;
-			const rawH = baseH * scaleY * zoom;
-			const w = Math.min(rawW, maxScreenW > 0 ? maxScreenW : Infinity);
-			const h = Math.min(rawH, maxScreenH > 0 ? maxScreenH : Infinity);
-			const anchorX = label.anchor?.x ?? 0;
-			const anchorY = label.anchor?.y ?? 0;
-			const wx = (pn.data.x + label.x) * zoom - w * anchorX;
-			const wy = (pn.data.y + label.y) * zoom - h * anchorY;
-			const isSuper = !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0);
-			rects.push({ pn, label, x: wx, y: wy, w, h, degree: degrees.get(pn.data.id) ?? 0, isSuper });
+			const rect = this._buildLabelRect(pn, degrees, zoom, maxScreenW, maxScreenH);
+			if (rect) rects.push(rect);
 		}
 		return rects;
+	}
+
+	private _buildLabelRect(
+		pn: PixiNode, degrees: Map<string, number>, zoom: number, maxScreenW: number, maxScreenH: number,
+	): CullLabelRect | null {
+		const isHoverLabel = !!(pn.hoverLabel && pn.hoverLabel.visible);
+		const label = isHoverLabel ? pn.hoverLabel : pn.label;
+		if (!label || !label.text || !label.visible) return null;
+		const fontSize = (label.style.fontSize as number) ?? 11;
+		const boldFactor = isHoverLabel ? 1.1 : 1.0;
+		const charW = fontSize * LABEL_CHAR_WIDTH_FACTOR * boldFactor;
+		const scaleX = label.scale?.x ?? 1;
+		const scaleY = label.scale?.y ?? 1;
+		const padX = label.bgPadX ?? 0;
+		const padY = label.bgPadY ?? 0;
+		const measuredW = label.width && label.width > 0 ? label.width : 0;
+		const measuredH = label.height && label.height > 0 ? label.height : 0;
+		const baseW = measuredW > 0 ? measuredW : label.text.length * charW + padX * 2;
+		const baseH = measuredH > 0 ? measuredH : fontSize * LABEL_LINE_HEIGHT_FACTOR + padY * 2;
+		const w = Math.min(baseW * scaleX * zoom, maxScreenW > 0 ? maxScreenW : Infinity);
+		const h = Math.min(baseH * scaleY * zoom, maxScreenH > 0 ? maxScreenH : Infinity);
+		const anchorX = label.anchor?.x ?? 0;
+		const anchorY = label.anchor?.y ?? 0;
+		return {
+			pn, label,
+			x: (pn.data.x + label.x) * zoom - w * anchorX,
+			y: (pn.data.y + label.y) * zoom - h * anchorY,
+			w, h,
+			degree: degrees.get(pn.data.id) ?? 0,
+			isSuper: !!(pn.data.collapsedMembers && pn.data.collapsedMembers.length > 0),
+		};
 	}
 
 	// _createOverlapGrid removed — replaced by SpatialHashGrid<CullLabelRect> from spatial-grid.ts
