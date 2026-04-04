@@ -8,6 +8,16 @@ import type { GraphData } from "../types";
 import { computeGraphStats, generateStructureQuestions } from "../analysis/graph-analysis";
 import { t } from "../i18n";
 import { Notice } from "obsidian";
+
+/** Chrome-only Performance.memory API (non-standard). */
+interface PerformanceMemory {
+	usedJSHeapSize: number;
+	totalJSHeapSize: number;
+	jsHeapSizeLimit: number;
+}
+interface PerformanceWithMemory extends Performance {
+	memory?: PerformanceMemory;
+}
 import type { StatsHost } from "./GraphViewContainer";
 import { incCounter } from "../utils/graph-helpers";
 
@@ -192,7 +202,7 @@ function renderComplexityAndLabels(
 function renderQualityDashboard(el: HTMLElement, host: StatsHost): void {
 	const qs = host.getLabelQualityScore();
 	const fps = host.getCurrentFps();
-	const mem = (performance as any).memory?.usedJSHeapSize;
+	const mem = (performance as PerformanceWithMemory).memory?.usedJSHeapSize;
 	const memMB = mem ? Math.round(mem / (1024 * 1024)) : null;
 
 	const dashTitle = el.createEl("div", { cls: "gi-stats-hub-title", text: "Quality Dashboard" });

@@ -297,7 +297,7 @@ export function createAutoSnapshot(host: SnapshotHost): void {
 		searchQuery: host.panel.searchQuery ?? "",
 		groupBy: host.panel.clusterGroupRules?.[0]?.groupBy ?? "",
 	});
-	snapshots.push(snap as any);
+	snapshots.push(snap);
 	host.plugin.settings.snapshots = snapshots;
 	host.plugin.saveSettings();
 }

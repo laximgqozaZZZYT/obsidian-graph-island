@@ -6,6 +6,7 @@
 // (no PixiJS / Obsidian dependencies) to enable unit testing.
 // ---------------------------------------------------------------------------
 
+import type { App } from "obsidian";
 import type { GraphNode, GraphEdge } from "../types";
 import { evaluateExpr, parseQueryExpr } from "../utils/query-expr";
 import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
@@ -175,7 +176,7 @@ export function filterBySearchExpr(
  */
 export function filterByDataview(
 	nodes: GraphNode[],
-	app: any,
+	app: App,
 	dataviewQuery: string,
 	showTagNodes: boolean,
 ): GraphNode[] {
