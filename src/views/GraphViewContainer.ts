@@ -8431,8 +8431,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const blob = await exportGraphAsPng(this.pixiApp);
 			await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 			showToast(t("toast.copiedToClipboard"));
-		} catch (e) {
-			console.error("Graph Island: clipboard copy failed", e);
+		} catch (_e) {
 			showToast(t("toast.clipboardFailed"), 5000);
 		}
 	}
@@ -8493,8 +8492,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			editor.replaceSelection(`![[${basename}]]\n`);
 
 			showToast(t("toast.embedSuccess"));
-		} catch (e) {
-			console.error("Graph Island: embed failed", e);
+		} catch (_e) {
 			showToast(t("toast.embedFailed"), 5000);
 		}
 	}
