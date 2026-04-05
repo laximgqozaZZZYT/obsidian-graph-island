@@ -116,9 +116,9 @@ if [[ -n "$ISSUE_FILE" ]]; then
   ISSUE_CONTENT=$(cat "$ISSUE_FILE")
   ISSUE_NAME=$(basename "$ISSUE_FILE")
   log "USER ISSUE: $ISSUE_NAME (priority: $prio)"
-  # Mark as in-progress
-  sed -i 's/status: pending/status: in-progress/' "$ISSUE_FILE"
+  # Mark as in-progress + commit to keep main clean
   sed -i 's/status: pending/status: in-progress/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null || true
+  (cd "$PROJECT_DIR" && git add "scripts/pipeline/issues/$ISSUE_NAME" && git commit -m "chore: mark issue $ISSUE_NAME as in-progress" --no-verify 2>/dev/null) || true
 else
   # ── Choose focus based on time-of-day rotation (not session count) ──
   # This ensures all 3 focus areas get equal time even with 1 session
@@ -127,6 +127,8 @@ else
   FOCUS_INDEX=$(( (HOUR / 2) % 3 ))
   FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
 fi
+HOUR=${HOUR:-$(date +%-H)}
+FOCUS_INDEX=${FOCUS_INDEX:-0}
 log "Focus area: $FOCUS (hour=$HOUR, slot=$((FOCUS_INDEX + 1)))"
 
 # ── CDP check (E2E runs via CDP — no display occupation) ──
@@ -301,6 +303,7 @@ COMMITMSG
     # Update status in main repo
     sed -i 's/status: in-progress/status: done/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null
     mv "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" "$PROJECT_DIR/scripts/pipeline/issues/done/$ISSUE_NAME" 2>/dev/null
+    (cd "$PROJECT_DIR" && git add "scripts/pipeline/issues/" && git commit -m "chore: issue $ISSUE_NAME done" --no-verify 2>/dev/null) || true
     log "Issue $ISSUE_NAME marked as done and moved to done/"
     # Clear issue for next iteration (fall back to auto-focus)
     ISSUE_FILE=""
