@@ -93,8 +93,7 @@ export interface PanelCallbackHost {
 // Builder function
 // ---------------------------------------------------------------------------
 
-/** Build the PanelCallbacks object wiring panel UI actions to graph view methods. */
-export function buildPanelCallbacks(host: PanelCallbackHost): PanelCallbacks {
+function _buildRenderCallbacks(host: PanelCallbackHost): Partial<PanelCallbacks> {
 	return {
 		doRender: () => {
 			host.doRender();
@@ -111,7 +110,6 @@ export function buildPanelCallbacks(host: PanelCallbackHost): PanelCallbacks {
 			invalidateBundleCache(host.edgeCache);
 			host.markDirty(true);
 			host.requestSave();
-			// Fallback: force render if rAF is throttled (background tabs)
 			setTimeout(() => {
 				host.renderPipeline?.forceRender();
 			}, 100);
@@ -155,13 +153,36 @@ export function buildPanelCallbacks(host: PanelCallbackHost): PanelCallbacks {
 			host.requestSave();
 		},
 		announceA11y: (msg: string) => host._announceA11y(msg),
+		setZoom: (level: number) => host.setZoom(level),
+		restartSimulation: (alpha: number) => {
+			if (host.simulation) {
+				host.simulation.alpha(alpha).restart();
+				host.wakeRenderLoop();
+			}
+		},
+		recolorNodes: () => {
+			host.recolorNodes();
+			host.requestSave();
+		},
+		recalcNodeRadii: () => {
+			host.recalcNodeRadii();
+		},
+		setViewMode: (mode) => {
+			host.panel.viewMode = mode;
+			host.currentLayout = viewModeToLayout(mode);
+			host.doRender();
+		},
+	};
+}
+
+function _buildDataCallbacks(host: PanelCallbackHost): Partial<PanelCallbacks> {
+	return {
 		invalidateData: () => {
 			host.rawData = null;
 			host._similarCache.clear();
 			host.doRender();
 			host.requestSave();
 		},
-		setZoom: (level: number) => host.setZoom(level),
 		invalidateDataKeepPanel: () => {
 			host.rawData = null;
 			host._similarCache.clear();
@@ -175,12 +196,6 @@ export function buildPanelCallbacks(host: PanelCallbackHost): PanelCallbacks {
 			});
 			host.requestSave();
 		},
-		restartSimulation: (alpha: number) => {
-			if (host.simulation) {
-				host.simulation.alpha(alpha).restart();
-				host.wakeRenderLoop();
-			}
-		},
 		collectFieldSuggestions: () => {
 			const builtIn = ["label", "tag", "category", "folder", "path", "file", "id", "isTag"];
 			const fmKeys = host.collectFrontmatterKeys();
@@ -190,17 +205,13 @@ export function buildPanelCallbacks(host: PanelCallbackHost): PanelCallbacks {
 			const values = new Set<string>();
 			for (const pn of host.pixiNodes.values()) {
 				for (const v of getNodeFieldValues(pn.data, field)) values.add(v);
-				// "label" is not in getNodeFieldValues, handle explicitly
 				if (field === "label") values.add(pn.data.label);
 			}
 			return [...values].sort();
 		},
 		saveGroupPreset: () => {
-			// Reverse-derive commonQueries from clusterGroupRules for preset backward compat
 			const derivedQueries = host.panel.clusterGroupRules.map((r) => {
-				// Convert "field:?" → "field:*" for query format
 				const field = r.groupBy.endsWith(":?") ? r.groupBy.slice(0, -2) : r.groupBy;
-				// Legacy mapping for backward compat
 				const legacyMap: Record<string, string> = { node_type: "category", none: "tag" };
 				const queryField = legacyMap[field] ?? field;
 				return { query: `${queryField}:*`, recursive: r.recursive };
@@ -216,52 +227,12 @@ export function buildPanelCallbacks(host: PanelCallbackHost): PanelCallbacks {
 			host.plugin.settings.groupPresets.push(preset);
 			host.plugin.saveSettings();
 		},
-		resetPanel: () => host._buildResetPanelCallback(),
-		restoreViewport: (name: string) => host.restoreViewport(name),
-		applyPreset: (preset: string) => {
-			const p = host.allPresets[preset];
-			if (p) {
-				// Reset groupByRules so new groupBy string is re-parsed
-				if ("groupBy" in p && !("groupByRules" in p)) {
-					host.panel.groupByRules = null;
-				}
-				Object.assign(host.panel, p);
-				// Fix A: localGraphCenter="__active__" means "use active file" — resolve dynamically
-				if (host.panel.localGraphCenter === "__active__") {
-					const af = host.app.workspace.getActiveFile();
-					host.panel.localGraphCenter = af?.path ?? null;
-				}
-				host.doRender();
-				host.requestSave();
-			}
-		},
-		getPresetSummary: (key: string) => host._getPresetSummary(key),
-		jumpToNode: (nodeId: string) => host.jumpToNode(nodeId),
-		getNodeIds: () => [...host.pixiNodes.keys()],
-		recolorNodes: () => {
-			host.recolorNodes();
-			host.requestSave();
-		},
-		autoOptimize: () => host._buildAutoOptimizeCallback(),
-		saveTemplate: (name: string) => host._saveTemplate(name),
-		loadTemplate: (name: string) => host._loadTemplate(name),
-		deleteTemplate: (name: string) => host._deleteTemplate(name),
-		resetZoomBaseNodeSize: () => {
-			host._zoomBaseNodeSize = null;
-		},
-		recalcNodeRadii: () => {
-			host.recalcNodeRadii();
-		},
-		navBack: () => host.navBack(),
-		navForward: () => host.navForward(),
-		applyEgoToVisible: () => host.applyEgoToVisible(),
-		bulkAddTag: (nodeIds: string[], tag: string) => host.bulkAddTag(nodeIds, tag),
-		bulkSetField: (nodeIds: string[], field: string, value: string) => host.bulkSetField(nodeIds, field, value),
 		getNodeTreeData: () => host._getNodeTreeData(),
 		getHoveredNodeId: () => host.highlightedNodeId,
 		getForwardLinks: (nodeId: string) => host._getForwardLinks(nodeId),
 		getBacklinks: (nodeId: string) => host._getBacklinks(nodeId),
 		toggleNodeVisibility: (nodeId: string) => host._toggleNodeVisibility(nodeId),
+		getNodeIds: () => [...host.pixiNodes.keys()],
 		refreshOverlays: () => {
 			const gd =
 				host.originalGraphData ??
@@ -292,10 +263,50 @@ export function buildPanelCallbacks(host: PanelCallbackHost): PanelCallbacks {
 				}
 			}
 		},
-		setViewMode: (mode) => {
-			host.panel.viewMode = mode;
-			host.currentLayout = viewModeToLayout(mode);
-			host.doRender();
-		},
 	};
+}
+
+function _buildNavigationCallbacks(host: PanelCallbackHost): Partial<PanelCallbacks> {
+	return {
+		resetPanel: () => host._buildResetPanelCallback(),
+		restoreViewport: (name: string) => host.restoreViewport(name),
+		applyPreset: (preset: string) => {
+			const p = host.allPresets[preset];
+			if (p) {
+				if ("groupBy" in p && !("groupByRules" in p)) {
+					host.panel.groupByRules = null;
+				}
+				Object.assign(host.panel, p);
+				if (host.panel.localGraphCenter === "__active__") {
+					const af = host.app.workspace.getActiveFile();
+					host.panel.localGraphCenter = af?.path ?? null;
+				}
+				host.doRender();
+				host.requestSave();
+			}
+		},
+		getPresetSummary: (key: string) => host._getPresetSummary(key),
+		jumpToNode: (nodeId: string) => host.jumpToNode(nodeId),
+		autoOptimize: () => host._buildAutoOptimizeCallback(),
+		saveTemplate: (name: string) => host._saveTemplate(name),
+		loadTemplate: (name: string) => host._loadTemplate(name),
+		deleteTemplate: (name: string) => host._deleteTemplate(name),
+		resetZoomBaseNodeSize: () => {
+			host._zoomBaseNodeSize = null;
+		},
+		navBack: () => host.navBack(),
+		navForward: () => host.navForward(),
+		applyEgoToVisible: () => host.applyEgoToVisible(),
+		bulkAddTag: (nodeIds: string[], tag: string) => host.bulkAddTag(nodeIds, tag),
+		bulkSetField: (nodeIds: string[], field: string, value: string) => host.bulkSetField(nodeIds, field, value),
+	};
+}
+
+/** Build the PanelCallbacks object wiring panel UI actions to graph view methods. */
+export function buildPanelCallbacks(host: PanelCallbackHost): PanelCallbacks {
+	return {
+		..._buildRenderCallbacks(host),
+		..._buildDataCallbacks(host),
+		..._buildNavigationCallbacks(host),
+	} as PanelCallbacks;
 }

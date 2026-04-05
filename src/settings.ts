@@ -177,6 +177,28 @@ export class GraphViewsSettingTab extends PluginSettingTab {
 			cls: "gi-settings-description",
 		});
 
+		this._buildImportExportSection(containerEl);
+		this._buildOntologySection(containerEl);
+
+		// --- Custom Mappings ---
+		containerEl.createEl("h3", { text: t("settings.customMappingsHeading") });
+		const mappingsListEl = containerEl.createDiv({ cls: "gi-ontology-list" });
+		this.renderSettingsCustomMappings(mappingsListEl);
+
+		// --- Tag Relations ---
+		containerEl.createEl("h3", { text: t("settings.tagRelationsHeading") });
+		const tagRelListEl = containerEl.createDiv({ cls: "gi-ontology-list" });
+		this.renderSettingsTagRelations(tagRelListEl);
+
+		// --- Preview: show current settings as read-only JSON ---
+		containerEl.createEl("h3", { text: t("settingsTab.preview") });
+
+		const preview = containerEl.createEl("textarea", { cls: "gi-settings-preview" });
+		preview.readOnly = true;
+		preview.value = JSON.stringify(this.plugin.settings, null, 2);
+	}
+
+	private _buildImportExportSection(containerEl: HTMLElement) {
 		// --- Import section ---
 		new Setting(containerEl)
 			.setName(t("settingsTab.import"))
@@ -270,137 +292,50 @@ export class GraphViewsSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+	}
 
-		// --- Ontology field editors ---
+	private _buildOntologyFieldSetting(
+		containerEl: HTMLElement,
+		name: string,
+		placeholder: string,
+		getValue: () => string[],
+		setValue: (v: string[]) => void,
+	) {
+		new Setting(containerEl).setName(name).addText((text) =>
+			text
+				.setPlaceholder(placeholder)
+				.setValue(getValue().join(", "))
+				.onChange(async (v) => {
+					setValue(
+						v
+							.split(",")
+							.map((x) => x.trim())
+							.filter(Boolean),
+					);
+					await this.plugin.saveSettings();
+				}),
+		);
+	}
+
+	private _buildOntologySection(containerEl: HTMLElement) {
 		containerEl.createEl("h3", { text: t("settings.ontologyHeading") });
+		const onto = this.plugin.settings.ontology;
 
-		new Setting(containerEl).setName(t("settings.inheritanceFields")).addText((text) =>
-			text
-				.setPlaceholder("parent, extends, up")
-				.setValue(this.plugin.settings.ontology.inheritanceFields.join(", "))
-				.onChange(async (v) => {
-					this.plugin.settings.ontology.inheritanceFields = v
-						.split(",")
-						.map((x) => x.trim())
-						.filter(Boolean);
-					await this.plugin.saveSettings();
-				}),
-		);
-
-		new Setting(containerEl).setName(t("settings.aggregationFields")).addText((text) =>
-			text
-				.setPlaceholder("contains, parts, has")
-				.setValue(this.plugin.settings.ontology.aggregationFields.join(", "))
-				.onChange(async (v) => {
-					this.plugin.settings.ontology.aggregationFields = v
-						.split(",")
-						.map((x) => x.trim())
-						.filter(Boolean);
-					await this.plugin.saveSettings();
-				}),
-		);
-
-		new Setting(containerEl).setName(t("settings.reverseInheritanceFields")).addText((text) =>
-			text
-				.setPlaceholder("child, down")
-				.setValue((this.plugin.settings.ontology.reverseInheritanceFields ?? []).join(", "))
-				.onChange(async (v) => {
-					this.plugin.settings.ontology.reverseInheritanceFields = v
-						.split(",")
-						.map((x) => x.trim())
-						.filter(Boolean);
-					await this.plugin.saveSettings();
-				}),
-		);
-
-		new Setting(containerEl).setName(t("settings.reverseAggregationFields")).addText((text) =>
-			text
-				.setPlaceholder("part-of, belongs-to")
-				.setValue((this.plugin.settings.ontology.reverseAggregationFields ?? []).join(", "))
-				.onChange(async (v) => {
-					this.plugin.settings.ontology.reverseAggregationFields = v
-						.split(",")
-						.map((x) => x.trim())
-						.filter(Boolean);
-					await this.plugin.saveSettings();
-				}),
-		);
-
-		new Setting(containerEl).setName(t("settings.similarFields")).addText((text) =>
-			text
-				.setPlaceholder("similar, related")
-				.setValue(this.plugin.settings.ontology.similarFields.join(", "))
-				.onChange(async (v) => {
-					this.plugin.settings.ontology.similarFields = v
-						.split(",")
-						.map((x) => x.trim())
-						.filter(Boolean);
-					await this.plugin.saveSettings();
-				}),
-		);
-
-		new Setting(containerEl).setName(t("settings.siblingFields")).addText((text) =>
-			text
-				.setPlaceholder("sibling, same")
-				.setValue((this.plugin.settings.ontology.siblingFields ?? []).join(", "))
-				.onChange(async (v) => {
-					this.plugin.settings.ontology.siblingFields = v
-						.split(",")
-						.map((x) => x.trim())
-						.filter(Boolean);
-					await this.plugin.saveSettings();
-				}),
-		);
-
-		new Setting(containerEl).setName(t("settings.sequenceFields")).addText((text) =>
-			text
-				.setPlaceholder("next")
-				.setValue((this.plugin.settings.ontology.sequenceFields ?? []).join(", "))
-				.onChange(async (v) => {
-					this.plugin.settings.ontology.sequenceFields = v
-						.split(",")
-						.map((x) => x.trim())
-						.filter(Boolean);
-					await this.plugin.saveSettings();
-				}),
-		);
-
-		new Setting(containerEl).setName(t("settings.reverseSequenceFields")).addText((text) =>
-			text
-				.setPlaceholder("prev, previous")
-				.setValue((this.plugin.settings.ontology.reverseSequenceFields ?? []).join(", "))
-				.onChange(async (v) => {
-					this.plugin.settings.ontology.reverseSequenceFields = v
-						.split(",")
-						.map((x) => x.trim())
-						.filter(Boolean);
-					await this.plugin.saveSettings();
-				}),
-		);
+		this._buildOntologyFieldSetting(containerEl, t("settings.inheritanceFields"), "parent, extends, up", () => onto.inheritanceFields, (v) => { onto.inheritanceFields = v; });
+		this._buildOntologyFieldSetting(containerEl, t("settings.aggregationFields"), "contains, parts, has", () => onto.aggregationFields, (v) => { onto.aggregationFields = v; });
+		this._buildOntologyFieldSetting(containerEl, t("settings.reverseInheritanceFields"), "child, down", () => onto.reverseInheritanceFields ?? [], (v) => { onto.reverseInheritanceFields = v; });
+		this._buildOntologyFieldSetting(containerEl, t("settings.reverseAggregationFields"), "part-of, belongs-to", () => onto.reverseAggregationFields ?? [], (v) => { onto.reverseAggregationFields = v; });
+		this._buildOntologyFieldSetting(containerEl, t("settings.similarFields"), "similar, related", () => onto.similarFields, (v) => { onto.similarFields = v; });
+		this._buildOntologyFieldSetting(containerEl, t("settings.siblingFields"), "sibling, same", () => onto.siblingFields ?? [], (v) => { onto.siblingFields = v; });
+		this._buildOntologyFieldSetting(containerEl, t("settings.sequenceFields"), "next", () => onto.sequenceFields ?? [], (v) => { onto.sequenceFields = v; });
+		this._buildOntologyFieldSetting(containerEl, t("settings.reverseSequenceFields"), "prev, previous", () => onto.reverseSequenceFields ?? [], (v) => { onto.reverseSequenceFields = v; });
 
 		new Setting(containerEl).setName(t("settings.tagHierarchy")).addToggle((toggle) =>
-			toggle.setValue(this.plugin.settings.ontology.useTagHierarchy).onChange(async (v) => {
-				this.plugin.settings.ontology.useTagHierarchy = v;
+			toggle.setValue(onto.useTagHierarchy).onChange(async (v) => {
+				onto.useTagHierarchy = v;
 				await this.plugin.saveSettings();
 			}),
 		);
-
-		// --- Custom Mappings ---
-		containerEl.createEl("h3", { text: t("settings.customMappingsHeading") });
-		const mappingsListEl = containerEl.createDiv({ cls: "gi-ontology-list" });
-		this.renderSettingsCustomMappings(mappingsListEl);
-
-		// --- Tag Relations ---
-		containerEl.createEl("h3", { text: t("settings.tagRelationsHeading") });
-		const tagRelListEl = containerEl.createDiv({ cls: "gi-ontology-list" });
-		this.renderSettingsTagRelations(tagRelListEl);
-
-		// --- Preview: show current settings as read-only JSON ---
-		containerEl.createEl("h3", { text: t("settingsTab.preview") });
-
-		const preview = containerEl.createEl("textarea", { cls: "gi-settings-preview" });
-		preview.readOnly = true;
-		preview.value = JSON.stringify(this.plugin.settings, null, 2);
 	}
 
 	private renderSettingsCustomMappings(container: HTMLElement) {

@@ -132,43 +132,16 @@ export function matrixNodeLabel(gd: GraphData, id: string): string {
  *
  * Returns the matrix container element for further manipulation.
  */
-export function renderMatrixViewMode(params: MatrixRenderParams): HTMLElement {
-	const { containerEl, W, H, gd, sortMode, isDark, onSortChange, onCellClick, setStatus } = params;
-
-	// Reuse or create full-screen matrix container
-	let matrixEl = containerEl.querySelector<HTMLElement>(".gi-matrix-fullscreen");
-	if (!matrixEl) {
-		matrixEl = containerEl.createDiv({ cls: "gi-matrix-fullscreen" });
-	}
-	matrixEl.empty();
-	matrixEl.style.display = "";
-	matrixEl.style.width = W + "px";
-	matrixEl.style.height = H + "px";
-
-	// Data preparation
-	const maxNodes = Math.min(50, Math.floor(Math.min(W, H) / 16));
-	const { nodeIds, degrees, matrix, matrixTypes, maxCount } = buildMatrixData(gd, sortMode, maxNodes);
+function _buildMatrixTable(
+	matrixEl: HTMLElement,
+	data: MatrixData,
+	gd: GraphData,
+	isDark: boolean,
+	onCellClick: (nodeId: string, secondId?: string) => void,
+): HTMLTableElement {
+	const { nodeIds, degrees, matrix, matrixTypes, maxCount } = data;
 	const getLabel = (id: string) => matrixNodeLabel(gd, id);
 
-	// Title + sort selector
-	const titleRow = matrixEl.createDiv({ cls: "gi-matrix-title-row" });
-	titleRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:4px;";
-	titleRow.createSpan({ text: `${t("display.relationMatrix")} (${nodeIds.length} / ${gd.nodes.length})` });
-	const sortSelect = titleRow.createEl("select", { cls: "gi-matrix-sort" });
-	sortSelect.style.cssText = "font-size:11px;padding:2px 4px;border-radius:3px;";
-	for (const opt of [
-		{ value: "degree", label: "Degree" },
-		{ value: "alpha", label: "A-Z" },
-		{ value: "category", label: "Category" },
-	]) {
-		const el = sortSelect.createEl("option", { text: opt.label, attr: { value: opt.value } });
-		if (opt.value === sortMode) el.selected = true;
-	}
-	sortSelect.addEventListener("change", () => {
-		onSortChange(sortSelect.value as MatrixSortMode);
-	});
-
-	// Build scrollable table wrapper
 	const tableWrap = matrixEl.createDiv({ cls: "gi-matrix-scroll" });
 	tableWrap.style.cssText = "overflow:auto;max-height:calc(100% - 30px);position:relative;";
 	const table = tableWrap.createEl("table", { cls: "gi-matrix-table" });
@@ -217,7 +190,6 @@ export function renderMatrixViewMode(params: MatrixRenderParams): HTMLElement {
 				cell.style.backgroundColor = isDark
 					? `rgba(99,102,241,${intensity * 0.6})`
 					: `rgba(79,70,229,${intensity * 0.4})`;
-				// Edge type breakdown tooltip
 				const types = matrixTypes.get(rowId)?.get(colId);
 				if (types && types.size > 0) {
 					const parts = [...types.entries()].map(([tp, c]) => `${tp}: ${c}`);
@@ -230,7 +202,10 @@ export function renderMatrixViewMode(params: MatrixRenderParams): HTMLElement {
 		}
 	}
 
-	// Row/column highlight on cell hover
+	return table;
+}
+
+function _attachMatrixHoverHandlers(table: HTMLTableElement) {
 	const allRows = table.querySelectorAll("tr");
 	table.addEventListener("mouseover", (ev) => {
 		const target = (ev.target as HTMLElement).closest("td, th") as HTMLElement | null;
@@ -242,7 +217,7 @@ export function renderMatrixViewMode(params: MatrixRenderParams): HTMLElement {
 			const ci = parseInt(colAttr, 10);
 			if (!isNaN(ci)) {
 				allRows.forEach((r) => {
-					const c = r.children[ci + 1] as HTMLElement | undefined; // +1 for label column
+					const c = r.children[ci + 1] as HTMLElement | undefined;
 					if (c) c.classList.add("gi-matrix-col-hover");
 				});
 			}
@@ -264,9 +239,45 @@ export function renderMatrixViewMode(params: MatrixRenderParams): HTMLElement {
 			}
 		}
 	});
+}
 
-	// Status
-	setStatus(`${nodeIds.length} × ${nodeIds.length} matrix, ${gd.edges.length} edges`);
+export function renderMatrixViewMode(params: MatrixRenderParams): HTMLElement {
+	const { containerEl, W, H, gd, sortMode, isDark, onSortChange, onCellClick, setStatus } = params;
+
+	let matrixEl = containerEl.querySelector<HTMLElement>(".gi-matrix-fullscreen");
+	if (!matrixEl) {
+		matrixEl = containerEl.createDiv({ cls: "gi-matrix-fullscreen" });
+	}
+	matrixEl.empty();
+	matrixEl.style.display = "";
+	matrixEl.style.width = W + "px";
+	matrixEl.style.height = H + "px";
+
+	const maxNodes = Math.min(50, Math.floor(Math.min(W, H) / 16));
+	const data = buildMatrixData(gd, sortMode, maxNodes);
+
+	// Title + sort selector
+	const titleRow = matrixEl.createDiv({ cls: "gi-matrix-title-row" });
+	titleRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:4px;";
+	titleRow.createSpan({ text: `${t("display.relationMatrix")} (${data.nodeIds.length} / ${gd.nodes.length})` });
+	const sortSelect = titleRow.createEl("select", { cls: "gi-matrix-sort" });
+	sortSelect.style.cssText = "font-size:11px;padding:2px 4px;border-radius:3px;";
+	for (const opt of [
+		{ value: "degree", label: "Degree" },
+		{ value: "alpha", label: "A-Z" },
+		{ value: "category", label: "Category" },
+	]) {
+		const el = sortSelect.createEl("option", { text: opt.label, attr: { value: opt.value } });
+		if (opt.value === sortMode) el.selected = true;
+	}
+	sortSelect.addEventListener("change", () => {
+		onSortChange(sortSelect.value as MatrixSortMode);
+	});
+
+	const table = _buildMatrixTable(matrixEl, data, gd, isDark, onCellClick);
+	_attachMatrixHoverHandlers(table);
+
+	setStatus(`${data.nodeIds.length} × ${data.nodeIds.length} matrix, ${gd.edges.length} edges`);
 
 	return matrixEl;
 }
