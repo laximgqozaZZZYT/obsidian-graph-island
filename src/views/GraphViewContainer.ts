@@ -70,6 +70,8 @@ import {
 	computeAutoFitTransform,
 	computeCompareVenn,
 	computePathfinderResult,
+	buildSimEndA11yMessage,
+	resolveViewportSize,
 } from "../utils/graph-helpers";
 import {
 	applyVisibilityFilters,
@@ -7807,13 +7809,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			// JR: §0.3 First-launch guide for screen readers (one-time, stored in localStorage)
 			const SR_GUIDE_KEY = "gi-sr-guide-shown";
 			const isFirstLaunch = !localStorage.getItem(SR_GUIDE_KEY);
-			const guide = isFirstLaunch
-				? ` ${t("a11y.srGuide") ?? "Tab to cycle nodes, Enter to open, Shift+Enter to select, ? for keyboard shortcuts."}`
-				: "";
 			if (isFirstLaunch) localStorage.setItem(SR_GUIDE_KEY, "1");
-			this._announceA11y(
-				`${t("a11y.graphLoaded") ?? "Graph loaded"}: ${gd.nodes.length} ${t("a11y.nodes") ?? "nodes"}, ${gd.edges.length} ${t("a11y.edges") ?? "edges"}.${guide}`,
-			);
+			this._announceA11y(buildSimEndA11yMessage(gd.nodes.length, gd.edges.length, isFirstLaunch, {
+				graphLoaded: t("a11y.graphLoaded") ?? "Graph loaded",
+				nodes: t("a11y.nodes") ?? "nodes",
+				edges: t("a11y.edges") ?? "edges",
+				srGuide: t("a11y.srGuide") ?? "Tab to cycle nodes, Enter to open, Shift+Enter to select, ? for keyboard shortcuts.",
+			}));
 			this.updateEntropyScores();
 			this.updateGraphStats(gd);
 			this.updateRelationMatrix(gd);
@@ -7822,17 +7824,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const wrap = this.canvasWrap;
 			// Ensure minimum viewport utilization regardless of autoFit
 			{
-				let evW = wrap?.clientWidth ?? 0;
-				let evH = wrap?.clientHeight ?? 0;
-				// Fallback to renderer size if DOM element has zero dimensions
-				if (evW <= 0 || evH <= 0) {
-					const renderer = this.pixiApp?.renderer;
-					evW = renderer?.width ?? 800;
-					evH = renderer?.height ?? 600;
-				}
-				if (evW > 0 && evH > 0) {
-					this.ensureViewportUtilization(evW, evH);
-				}
+				const renderer = this.pixiApp?.renderer;
+				const [evW, evH] = resolveViewportSize(
+					wrap?.clientWidth ?? 0, wrap?.clientHeight ?? 0,
+					renderer?.width ?? 0, renderer?.height ?? 0,
+				);
+				if (evW > 0 && evH > 0) this.ensureViewportUtilization(evW, evH);
 			}
 			// Rebuild road network now that final node positions are available
 			this._rebuildRoadNetwork(true);

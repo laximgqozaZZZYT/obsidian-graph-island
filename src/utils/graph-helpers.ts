@@ -972,3 +972,36 @@ export function computePathfinderResult(
 	}
 	return { path, nodeSet, edgeSet };
 }
+
+// ---------------------------------------------------------------------------
+// Simulation-end helpers (extracted from GVC to reduce callback complexity)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the A11y announcement message shown when the graph finishes loading.
+ * On first launch (isFirstLaunch=true), appends the screen-reader guide text.
+ */
+export function buildSimEndA11yMessage(
+	nodeCount: number,
+	edgeCount: number,
+	isFirstLaunch: boolean,
+	labels: { graphLoaded: string; nodes: string; edges: string; srGuide: string },
+): string {
+	const guide = isFirstLaunch ? ` ${labels.srGuide}` : "";
+	return `${labels.graphLoaded}: ${nodeCount} ${labels.nodes}, ${edgeCount} ${labels.edges}.${guide}`;
+}
+
+/**
+ * Resolve effective viewport dimensions from a DOM wrapper element
+ * with fallback to renderer dimensions.
+ * Returns [width, height] — both > 0 when a valid size is found.
+ */
+export function resolveViewportSize(
+	wrapW: number,
+	wrapH: number,
+	rendererW: number,
+	rendererH: number,
+): [number, number] {
+	if (wrapW > 0 && wrapH > 0) return [wrapW, wrapH];
+	return [rendererW || 800, rendererH || 600];
+}
