@@ -740,7 +740,7 @@ function renderNodeDir(
 		cb: PanelCallbacks;
 	},
 ) {
-	const { excludeSet, hoveredId, fwdLinks, bkLinks, panel, ctx, cb } = opts;
+	const { excludeSet, panel, cb } = opts;
 	const sortedDirs = [...dir.children.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 	const sortedFiles = [...dir.files].sort((a, b) => a.label.localeCompare(b.label));
 
