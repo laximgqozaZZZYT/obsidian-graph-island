@@ -44,6 +44,103 @@ export function hexToRgba(hex: number, alpha: number): string {
 	return result;
 }
 
+// ---------------------------------------------------------------------------
+// Flush state + helpers (extracted from _flush to reduce method size)
+// ---------------------------------------------------------------------------
+
+interface _FlushState {
+	fillColor: number; fillAlpha: number;
+	strokeWidth: number; strokeColor: number; strokeAlpha: number; strokeNative: boolean;
+	inPath: boolean; hasFill: boolean; radialGradient: CanvasGradient | null;
+}
+
+function _beginNewPath(ctx: CanvasRenderingContext2D, st: _FlushState) {
+	if (!st.inPath) { ctx.beginPath(); st.inPath = true; }
+}
+
+function _flushShape(ctx: CanvasRenderingContext2D, st: _FlushState, effAlpha: number) {
+	if (!st.inPath) return;
+	if (st.hasFill) {
+		ctx.fillStyle = st.radialGradient ?? hexToRgba(st.fillColor, st.fillAlpha * effAlpha);
+		ctx.fill();
+	}
+	if (st.strokeWidth > 0 && st.strokeAlpha > 0) {
+		ctx.strokeStyle = hexToRgba(st.strokeColor, st.strokeAlpha * effAlpha);
+		if (st.strokeNative) {
+			const t = ctx.getTransform();
+			const ctmScale = Math.sqrt(t.a * t.a + t.b * t.b);
+			ctx.lineWidth = ctmScale > 0 ? st.strokeWidth / ctmScale : st.strokeWidth;
+		} else {
+			ctx.lineWidth = st.strokeWidth;
+		}
+		ctx.stroke();
+	}
+	st.inPath = false;
+}
+
+function _processDrawCmd(ctx: CanvasRenderingContext2D, cmd: DrawCmd, st: _FlushState, effAlpha: number) {
+	switch (cmd.t) {
+		case "lineStyle":
+			_flushShape(ctx, st, effAlpha);
+			st.strokeWidth = cmd.width; st.strokeColor = cmd.color;
+			st.strokeAlpha = cmd.alpha; st.strokeNative = cmd.native ?? false;
+			break;
+		case "beginFill":
+			_flushShape(ctx, st, effAlpha);
+			st.fillColor = cmd.color; st.fillAlpha = cmd.alpha;
+			st.hasFill = true; st.radialGradient = null;
+			_beginNewPath(ctx, st);
+			break;
+		case "beginRadialFill": {
+			_flushShape(ctx, st, effAlpha);
+			const safeR = cmd.r > 0 && isFinite(cmd.r) ? cmd.r : 1;
+			const grad = ctx.createRadialGradient(cmd.cx, cmd.cy, 0, cmd.cx, cmd.cy, safeR);
+			grad.addColorStop(0, hexToRgba(cmd.innerColor, cmd.innerAlpha * effAlpha));
+			grad.addColorStop(1, hexToRgba(cmd.outerColor, cmd.outerAlpha * effAlpha));
+			st.radialGradient = grad; st.hasFill = true;
+			_beginNewPath(ctx, st);
+			break;
+		}
+		case "endFill":
+			_flushShape(ctx, st, effAlpha);
+			st.hasFill = false; st.radialGradient = null;
+			break;
+		case "setLineDash":
+			_flushShape(ctx, st, effAlpha);
+			ctx.setLineDash(cmd.segments);
+			break;
+		case "moveTo": _beginNewPath(ctx, st); ctx.moveTo(cmd.x, cmd.y); break;
+		case "lineTo": _beginNewPath(ctx, st); ctx.lineTo(cmd.x, cmd.y); break;
+		case "drawCircle":
+			_beginNewPath(ctx, st);
+			ctx.moveTo(cmd.x + cmd.r, cmd.y);
+			ctx.arc(cmd.x, cmd.y, cmd.r, 0, Math.PI * 2);
+			break;
+		case "drawRect": _beginNewPath(ctx, st); ctx.rect(cmd.x, cmd.y, cmd.w, cmd.h); break;
+		case "quadraticCurveTo": _beginNewPath(ctx, st); ctx.quadraticCurveTo(cmd.cx, cmd.cy, cmd.x, cmd.y); break;
+		case "closePath": ctx.closePath(); break;
+		case "arc": _beginNewPath(ctx, st); ctx.arc(cmd.cx, cmd.cy, cmd.r, cmd.start, cmd.end, cmd.ccw); break;
+		case "bezierCurveTo": _beginNewPath(ctx, st); ctx.bezierCurveTo(cmd.cp1x, cmd.cp1y, cmd.cp2x, cmd.cp2y, cmd.x, cmd.y); break;
+		case "setLineCap": _flushShape(ctx, st, effAlpha); ctx.lineCap = cmd.cap; break;
+		case "setLineJoin": _flushShape(ctx, st, effAlpha); ctx.lineJoin = cmd.join; break;
+		case "roundedRect": {
+			_beginNewPath(ctx, st);
+			const rr = Math.max(0, Math.min(cmd.r, cmd.w / 2, cmd.h / 2));
+			ctx.moveTo(cmd.x + rr, cmd.y);
+			ctx.lineTo(cmd.x + cmd.w - rr, cmd.y);
+			ctx.arcTo(cmd.x + cmd.w, cmd.y, cmd.x + cmd.w, cmd.y + rr, rr);
+			ctx.lineTo(cmd.x + cmd.w, cmd.y + cmd.h - rr);
+			ctx.arcTo(cmd.x + cmd.w, cmd.y + cmd.h, cmd.x + cmd.w - rr, cmd.y + cmd.h, rr);
+			ctx.lineTo(cmd.x + rr, cmd.y + cmd.h);
+			ctx.arcTo(cmd.x, cmd.y + cmd.h, cmd.x, cmd.y + cmd.h - rr, rr);
+			ctx.lineTo(cmd.x, cmd.y + rr);
+			ctx.arcTo(cmd.x, cmd.y, cmd.x + rr, cmd.y, rr);
+			ctx.closePath();
+			break;
+		}
+	}
+}
+
 export class CanvasGraphics implements IGraphics {
 	x = 0;
 	y = 0;
@@ -167,147 +264,16 @@ export class CanvasGraphics implements IGraphics {
 		ctx.save();
 		if (this.x !== 0 || this.y !== 0) ctx.translate(this.x, this.y);
 
-		let fillColor = 0x000000;
-		let fillAlpha = 1;
-		let strokeWidth = 0;
-		let strokeColor = 0x000000;
-		let strokeAlpha = 1;
-		let strokeNative = false;
-		let inPath = false;
-		let hasFill = false;
-		let radialGradient: CanvasGradient | null = null;
-
-		const beginNewPath = () => {
-			if (!inPath) {
-				ctx.beginPath();
-				inPath = true;
-			}
-		};
-
-		const flushShape = () => {
-			if (!inPath) return;
-			if (hasFill) {
-				if (radialGradient) {
-					ctx.fillStyle = radialGradient;
-				} else {
-					ctx.fillStyle = hexToRgba(fillColor, fillAlpha * effAlpha);
-				}
-				ctx.fill();
-			}
-			if (strokeWidth > 0 && strokeAlpha > 0) {
-				ctx.strokeStyle = hexToRgba(strokeColor, strokeAlpha * effAlpha);
-				if (strokeNative) {
-					// native: line width in screen pixels, independent of zoom
-					const t = ctx.getTransform();
-					const ctmScale = Math.sqrt(t.a * t.a + t.b * t.b);
-					ctx.lineWidth = ctmScale > 0 ? strokeWidth / ctmScale : strokeWidth;
-				} else {
-					ctx.lineWidth = strokeWidth;
-				}
-				ctx.stroke();
-			}
-			inPath = false;
+		const st: _FlushState = {
+			fillColor: 0x000000, fillAlpha: 1,
+			strokeWidth: 0, strokeColor: 0x000000, strokeAlpha: 1, strokeNative: false,
+			inPath: false, hasFill: false, radialGradient: null,
 		};
 
 		for (const cmd of this.commands) {
-			switch (cmd.t) {
-				case "lineStyle":
-					// Flush any open path before changing stroke style so that the
-					// already-accumulated segments are stroked with the current style
-					// rather than the new one.
-					flushShape();
-					strokeWidth = cmd.width;
-					strokeColor = cmd.color;
-					strokeAlpha = cmd.alpha;
-					strokeNative = cmd.native ?? false;
-					break;
-				case "beginFill":
-					flushShape();
-					fillColor = cmd.color;
-					fillAlpha = cmd.alpha;
-					hasFill = true;
-					radialGradient = null;
-					beginNewPath();
-					break;
-				case "beginRadialFill": {
-					flushShape();
-					// Guard: createRadialGradient throws if r <= 0, NaN, or Infinity
-					const safeR = cmd.r > 0 && isFinite(cmd.r) ? cmd.r : 1;
-					const grad = ctx.createRadialGradient(cmd.cx, cmd.cy, 0, cmd.cx, cmd.cy, safeR);
-					grad.addColorStop(0, hexToRgba(cmd.innerColor, cmd.innerAlpha * effAlpha));
-					grad.addColorStop(1, hexToRgba(cmd.outerColor, cmd.outerAlpha * effAlpha));
-					radialGradient = grad;
-					hasFill = true;
-					beginNewPath();
-					break;
-				}
-				case "endFill":
-					flushShape();
-					hasFill = false;
-					radialGradient = null;
-					break;
-				case "setLineDash":
-					flushShape();
-					ctx.setLineDash(cmd.segments);
-					break;
-				case "moveTo":
-					beginNewPath();
-					ctx.moveTo(cmd.x, cmd.y);
-					break;
-				case "lineTo":
-					beginNewPath();
-					ctx.lineTo(cmd.x, cmd.y);
-					break;
-				case "drawCircle":
-					beginNewPath();
-					ctx.moveTo(cmd.x + cmd.r, cmd.y);
-					ctx.arc(cmd.x, cmd.y, cmd.r, 0, Math.PI * 2);
-					break;
-				case "drawRect":
-					beginNewPath();
-					ctx.rect(cmd.x, cmd.y, cmd.w, cmd.h);
-					break;
-				case "quadraticCurveTo":
-					beginNewPath();
-					ctx.quadraticCurveTo(cmd.cx, cmd.cy, cmd.x, cmd.y);
-					break;
-				case "closePath":
-					ctx.closePath();
-					break;
-				case "arc":
-					beginNewPath();
-					ctx.arc(cmd.cx, cmd.cy, cmd.r, cmd.start, cmd.end, cmd.ccw);
-					break;
-				case "bezierCurveTo":
-					beginNewPath();
-					ctx.bezierCurveTo(cmd.cp1x, cmd.cp1y, cmd.cp2x, cmd.cp2y, cmd.x, cmd.y);
-					break;
-				case "setLineCap":
-					flushShape();
-					ctx.lineCap = cmd.cap;
-					break;
-				case "setLineJoin":
-					flushShape();
-					ctx.lineJoin = cmd.join;
-					break;
-				case "roundedRect": {
-					beginNewPath();
-					const rr = Math.max(0, Math.min(cmd.r, cmd.w / 2, cmd.h / 2));
-					ctx.moveTo(cmd.x + rr, cmd.y);
-					ctx.lineTo(cmd.x + cmd.w - rr, cmd.y);
-					ctx.arcTo(cmd.x + cmd.w, cmd.y, cmd.x + cmd.w, cmd.y + rr, rr);
-					ctx.lineTo(cmd.x + cmd.w, cmd.y + cmd.h - rr);
-					ctx.arcTo(cmd.x + cmd.w, cmd.y + cmd.h, cmd.x + cmd.w - rr, cmd.y + cmd.h, rr);
-					ctx.lineTo(cmd.x + rr, cmd.y + cmd.h);
-					ctx.arcTo(cmd.x, cmd.y + cmd.h, cmd.x, cmd.y + cmd.h - rr, rr);
-					ctx.lineTo(cmd.x, cmd.y + rr);
-					ctx.arcTo(cmd.x, cmd.y, cmd.x + rr, cmd.y, rr);
-					ctx.closePath();
-					break;
-				}
-			}
+			_processDrawCmd(ctx, cmd, st, effAlpha);
 		}
-		flushShape();
+		_flushShape(ctx, st, effAlpha);
 		ctx.restore();
 	}
 }

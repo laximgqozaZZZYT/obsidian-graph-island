@@ -38,6 +38,24 @@ export default class GraphViewsPlugin extends Plugin {
 			this.activateView();
 		});
 
+		this._registerCoreCommands();
+		this._registerGraphUtilityCommands();
+
+		this.addSettingTab(new GraphViewsSettingTab(this.app, this));
+
+		// Code block processor for embedded mini-graphs in notes
+		this.registerMarkdownCodeBlockProcessor("graph-island", (source, el, _ctx) => {
+			import("./views/EmbeddedGraphRenderer")
+				.then(({ renderEmbeddedGraph }) => {
+					renderEmbeddedGraph(el, source, this.app, this.settings);
+				})
+				.catch(() => {
+					el.createDiv({ cls: "gi-embed-error", text: "Graph Island: render failed" });
+				});
+		});
+	}
+
+	private _registerCoreCommands() {
 		this.addCommand({
 			id: "open-graph-view",
 			name: "Open graph view",
@@ -117,7 +135,9 @@ export default class GraphViewsPlugin extends Plugin {
 				}
 			},
 		});
+	}
 
+	private _registerGraphUtilityCommands() {
 		// D2: Additional command palette integrations
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- command callbacks access private GVC members
 		const gv = (): any => this._getGraphView();
@@ -208,19 +228,6 @@ export default class GraphViewsPlugin extends Plugin {
 				const v = gv();
 				if (v) v.exportGraphAsMermaid?.();
 			},
-		});
-
-		this.addSettingTab(new GraphViewsSettingTab(this.app, this));
-
-		// Code block processor for embedded mini-graphs in notes
-		this.registerMarkdownCodeBlockProcessor("graph-island", (source, el, _ctx) => {
-			import("./views/EmbeddedGraphRenderer")
-				.then(({ renderEmbeddedGraph }) => {
-					renderEmbeddedGraph(el, source, this.app, this.settings);
-				})
-				.catch(() => {
-					el.createDiv({ cls: "gi-embed-error", text: "Graph Island: render failed" });
-				});
 		});
 	}
 

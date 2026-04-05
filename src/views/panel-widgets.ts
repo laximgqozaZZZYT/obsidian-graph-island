@@ -8,6 +8,7 @@ import type {
 	ClusterGroupRule,
 	ClusterGroupBy,
 	GraphViewsSettings,
+	NodeRule,
 } from "../types";
 // ShapeRule import removed (unused)
 import { DEFAULT_COLORS } from "../types";
@@ -1567,6 +1568,179 @@ export function angleToPreset(angle: number): string {
 	return "custom";
 }
 
+function _buildRuleColorControl(row2: HTMLElement, rule: NodeRule, cb: PanelCallbacks) {
+	const colorRow = row2.createDiv({ cls: "setting-item" });
+	colorRow.addClass("gi-spacing-row");
+	const colorInfo = colorRow.createDiv({ cls: "setting-item-info" });
+	colorInfo.createDiv({ cls: "setting-item-name", text: t("nodeRules.color") });
+	const colorControl = colorRow.createDiv({ cls: "setting-item-control" });
+	const colorPicker = colorControl.createEl("input", {
+		type: "color",
+		attr: { "aria-label": t("nodeRules.color") },
+	});
+	colorPicker.value = rule.color || "#ffffff";
+	colorPicker.addClass("gi-color-picker");
+	const colorClear = colorControl.createEl("button", {
+		cls: "gi-color-clear",
+		text: "\u00D7",
+		attr: { "aria-label": "Clear color" },
+	});
+	colorClear.style.display = rule.color ? "" : "none";
+	const colorEnabled = colorControl.createEl("input", {
+		type: "checkbox",
+		attr: { "aria-label": "Enable color override" },
+	});
+	colorEnabled.checked = !!rule.color;
+	colorEnabled.addClass("gi-color-enable");
+	colorPicker.style.opacity = rule.color ? "1" : "0.4";
+	colorPicker.addEventListener("input", () => {
+		rule.color = colorPicker.value;
+		colorPicker.style.opacity = "1";
+		colorEnabled.checked = true;
+		colorClear.style.display = "";
+		cb.doRenderKeepPanel();
+	});
+	colorClear.addEventListener("click", () => {
+		rule.color = undefined;
+		colorPicker.style.opacity = "0.4";
+		colorEnabled.checked = false;
+		colorClear.style.display = "none";
+		cb.doRenderKeepPanel();
+	});
+	colorEnabled.addEventListener("change", () => {
+		if (colorEnabled.checked) {
+			rule.color = colorPicker.value;
+			colorPicker.style.opacity = "1";
+			colorClear.style.display = "";
+		} else {
+			rule.color = undefined;
+			colorPicker.style.opacity = "0.4";
+			colorClear.style.display = "none";
+		}
+		cb.doRenderKeepPanel();
+	});
+}
+
+function _buildRuleGravityControl(row2: HTMLElement, rule: NodeRule, cb: PanelCallbacks) {
+	const gravRow = row2.createDiv({ cls: "gi-group-item" });
+	gravRow.addClass("gi-gravity-row");
+
+	const gravLabel = gravRow.createEl("span", { cls: "setting-item-name", text: t("nodeRules.gravity") });
+	gravLabel.addClass("gi-gravity-label");
+
+	const dirSelect = gravRow.createEl("select", {
+		cls: "dropdown",
+		attr: { "aria-label": t("nodeRules.gravity") },
+	});
+	dirSelect.addClass("gi-gravity-dir-select");
+	const currentPreset = angleToPreset(rule.gravityAngle);
+	for (const opt of getGravityDirOptions()) {
+		const el = dirSelect.createEl("option", { text: opt.label, value: opt.value });
+		if (opt.value === currentPreset) el.selected = true;
+	}
+
+	const angleInput = gravRow.createEl("input", {
+		cls: "gi-search",
+		type: "number",
+		attr: { "aria-label": "Gravity custom angle (degrees)" },
+	});
+	angleInput.addClass("gi-angle-input");
+	angleInput.step = "1";
+	angleInput.min = "0";
+	angleInput.max = "360";
+	angleInput.placeholder = "°";
+	angleInput.value = currentPreset === "custom" ? String(rule.gravityAngle) : "0";
+	angleInput.style.display = currentPreset === "custom" ? "" : "none";
+
+	const strSlider = gravRow.createEl("input", { type: "range", attr: { "aria-label": "Gravity strength" } });
+	strSlider.min = "0.01";
+	strSlider.max = "1";
+	strSlider.step = "0.01";
+	strSlider.value = String(rule.gravityStrength);
+	strSlider.addClass("gi-str-slider");
+	updateSliderProgress(strSlider);
+	strSlider.style.display = currentPreset === "none" ? "none" : "";
+
+	dirSelect.addEventListener("change", () => {
+		const val = dirSelect.value;
+		if (val === "none") {
+			rule.gravityAngle = -1;
+			angleInput.style.display = "none";
+			strSlider.style.display = "none";
+		} else if (val === "custom") {
+			rule.gravityAngle = parseFloat(angleInput.value) || 0;
+			angleInput.style.display = "";
+			strSlider.style.display = "";
+		} else {
+			const preset = getGravityDirOptions().find((o) => o.value === val);
+			rule.gravityAngle = preset?.angle ?? -1;
+			angleInput.style.display = "none";
+			strSlider.style.display = "";
+		}
+		cb.applyNodeRules();
+		cb.restartSimulation(0.3);
+	});
+
+	angleInput.addEventListener("input", () => {
+		rule.gravityAngle = parseFloat(angleInput.value) || 0;
+		cb.applyNodeRules();
+		cb.restartSimulation(0.3);
+	});
+
+	strSlider.addEventListener("input", () => {
+		rule.gravityStrength = parseFloat(strSlider.value);
+		updateSliderProgress(strSlider);
+		cb.applyNodeRules();
+		cb.restartSimulation(0.3);
+	});
+}
+
+function _buildRuleForceSliders(row2: HTMLElement, rule: NodeRule, cb: PanelCallbacks) {
+	// Center gravity slider
+	const cgRow = row2.createDiv({ cls: "setting-item mod-slider" });
+	cgRow.addClass("gi-spacing-row");
+	const cgInfo = cgRow.createDiv({ cls: "setting-item-info" });
+	cgInfo.createDiv({ cls: "setting-item-name", text: t("gravity.centerGravity") });
+	const cgControl = cgRow.createDiv({ cls: "setting-item-control" });
+	const cgSlider = cgControl.createEl("input", { type: "range" });
+	cgSlider.min = "0";
+	cgSlider.max = "2";
+	cgSlider.step = "0.1";
+	cgSlider.value = String(rule.centerGravity ?? 1.0);
+	updateSliderProgress(cgSlider);
+	const cgLabel = cgControl.createEl("span", { text: String(rule.centerGravity ?? 1.0) });
+	cgLabel.addClass("gi-slider-label");
+	cgSlider.addEventListener("input", () => {
+		rule.centerGravity = parseFloat(cgSlider.value);
+		cgLabel.textContent = cgSlider.value;
+		updateSliderProgress(cgSlider);
+		cb.applyNodeRules();
+		cb.restartSimulation(0.3);
+	});
+
+	// Repel multiplier slider
+	const rmRow = row2.createDiv({ cls: "setting-item mod-slider" });
+	rmRow.addClass("gi-spacing-row");
+	const rmInfo = rmRow.createDiv({ cls: "setting-item-info" });
+	rmInfo.createDiv({ cls: "setting-item-name", text: t("gravity.repelMultiplier") });
+	const rmControl = rmRow.createDiv({ cls: "setting-item-control" });
+	const rmSlider = rmControl.createEl("input", { type: "range" });
+	rmSlider.min = "0";
+	rmSlider.max = "3";
+	rmSlider.step = "0.1";
+	rmSlider.value = String(rule.repelMultiplier ?? 1.0);
+	updateSliderProgress(rmSlider);
+	const rmLabel = rmControl.createEl("span", { text: String(rule.repelMultiplier ?? 1.0) });
+	rmLabel.addClass("gi-slider-label");
+	rmSlider.addEventListener("input", () => {
+		rule.repelMultiplier = parseFloat(rmSlider.value);
+		rmLabel.textContent = rmSlider.value;
+		updateSliderProgress(rmSlider);
+		cb.applyNodeRules();
+		cb.restartSimulation(0.3);
+	});
+}
+
 export function renderNodeRuleList(container: HTMLElement, panel: PanelState, ctx: PanelContext, cb: PanelCallbacks) {
 	container.empty();
 	const rules = panel.nodeRules;
@@ -1629,176 +1803,8 @@ export function renderNodeRuleList(container: HTMLElement, panel: PanelState, ct
 			cb.restartSimulation(0.3);
 		});
 
-		// カラーオーバーライド (color picker)
-		const colorRow = row2.createDiv({ cls: "setting-item" });
-		colorRow.addClass("gi-spacing-row");
-		const colorInfo = colorRow.createDiv({ cls: "setting-item-info" });
-		colorInfo.createDiv({ cls: "setting-item-name", text: t("nodeRules.color") });
-		const colorControl = colorRow.createDiv({ cls: "setting-item-control" });
-		const colorPicker = colorControl.createEl("input", {
-			type: "color",
-			attr: { "aria-label": t("nodeRules.color") },
-		});
-		colorPicker.value = rule.color || "#ffffff";
-		colorPicker.addClass("gi-color-picker");
-		const colorClear = colorControl.createEl("button", {
-			cls: "gi-color-clear",
-			text: "\u00D7",
-			attr: { "aria-label": "Clear color" },
-		});
-		colorClear.style.display = rule.color ? "" : "none";
-		// カラー有効/無効を示すチェックボックス
-		const colorEnabled = colorControl.createEl("input", {
-			type: "checkbox",
-			attr: { "aria-label": "Enable color override" },
-		});
-		colorEnabled.checked = !!rule.color;
-		colorEnabled.addClass("gi-color-enable");
-		colorPicker.style.opacity = rule.color ? "1" : "0.4";
-		colorPicker.addEventListener("input", () => {
-			rule.color = colorPicker.value;
-			colorPicker.style.opacity = "1";
-			colorEnabled.checked = true;
-			colorClear.style.display = "";
-			cb.doRenderKeepPanel();
-		});
-		colorClear.addEventListener("click", () => {
-			rule.color = undefined;
-			colorPicker.style.opacity = "0.4";
-			colorEnabled.checked = false;
-			colorClear.style.display = "none";
-			cb.doRenderKeepPanel();
-		});
-		colorEnabled.addEventListener("change", () => {
-			if (colorEnabled.checked) {
-				rule.color = colorPicker.value;
-				colorPicker.style.opacity = "1";
-				colorClear.style.display = "";
-			} else {
-				rule.color = undefined;
-				colorPicker.style.opacity = "0.4";
-				colorClear.style.display = "none";
-			}
-			cb.doRenderKeepPanel();
-		});
-
-		// Gravity direction dropdown
-		const gravRow = row2.createDiv({ cls: "gi-group-item" });
-		gravRow.addClass("gi-gravity-row");
-
-		const gravLabel = gravRow.createEl("span", { cls: "setting-item-name", text: t("nodeRules.gravity") });
-		gravLabel.addClass("gi-gravity-label");
-
-		const dirSelect = gravRow.createEl("select", {
-			cls: "dropdown",
-			attr: { "aria-label": t("nodeRules.gravity") },
-		});
-		dirSelect.addClass("gi-gravity-dir-select");
-		const currentPreset = angleToPreset(rule.gravityAngle);
-		for (const opt of getGravityDirOptions()) {
-			const el = dirSelect.createEl("option", { text: opt.label, value: opt.value });
-			if (opt.value === currentPreset) el.selected = true;
-		}
-
-		// Custom angle input (hidden unless custom)
-		const angleInput = gravRow.createEl("input", {
-			cls: "gi-search",
-			type: "number",
-			attr: { "aria-label": "Gravity custom angle (degrees)" },
-		});
-		angleInput.addClass("gi-angle-input");
-		angleInput.step = "1";
-		angleInput.min = "0";
-		angleInput.max = "360";
-		angleInput.placeholder = "°";
-		angleInput.value = currentPreset === "custom" ? String(rule.gravityAngle) : "0";
-		angleInput.style.display = currentPreset === "custom" ? "" : "none";
-
-		// Strength slider (hidden if direction=none)
-		const strSlider = gravRow.createEl("input", { type: "range", attr: { "aria-label": "Gravity strength" } });
-		strSlider.min = "0.01";
-		strSlider.max = "1";
-		strSlider.step = "0.01";
-		strSlider.value = String(rule.gravityStrength);
-		strSlider.addClass("gi-str-slider");
-		updateSliderProgress(strSlider);
-		strSlider.style.display = currentPreset === "none" ? "none" : "";
-
-		dirSelect.addEventListener("change", () => {
-			const val = dirSelect.value;
-			if (val === "none") {
-				rule.gravityAngle = -1;
-				angleInput.style.display = "none";
-				strSlider.style.display = "none";
-			} else if (val === "custom") {
-				rule.gravityAngle = parseFloat(angleInput.value) || 0;
-				angleInput.style.display = "";
-				strSlider.style.display = "";
-			} else {
-				const preset = getGravityDirOptions().find((o) => o.value === val);
-				rule.gravityAngle = preset?.angle ?? -1;
-				angleInput.style.display = "none";
-				strSlider.style.display = "";
-			}
-			cb.applyNodeRules();
-			cb.restartSimulation(0.3);
-		});
-
-		angleInput.addEventListener("input", () => {
-			rule.gravityAngle = parseFloat(angleInput.value) || 0;
-			cb.applyNodeRules();
-			cb.restartSimulation(0.3);
-		});
-
-		strSlider.addEventListener("input", () => {
-			rule.gravityStrength = parseFloat(strSlider.value);
-			updateSliderProgress(strSlider);
-			cb.applyNodeRules();
-			cb.restartSimulation(0.3);
-		});
-
-		// Center gravity slider (Force layout per-node center pull)
-		const cgRow = row2.createDiv({ cls: "setting-item mod-slider" });
-		cgRow.addClass("gi-spacing-row");
-		const cgInfo = cgRow.createDiv({ cls: "setting-item-info" });
-		cgInfo.createDiv({ cls: "setting-item-name", text: t("gravity.centerGravity") });
-		const cgControl = cgRow.createDiv({ cls: "setting-item-control" });
-		const cgSlider = cgControl.createEl("input", { type: "range" });
-		cgSlider.min = "0";
-		cgSlider.max = "2";
-		cgSlider.step = "0.1";
-		cgSlider.value = String(rule.centerGravity ?? 1.0);
-		updateSliderProgress(cgSlider);
-		const cgLabel = cgControl.createEl("span", { text: String(rule.centerGravity ?? 1.0) });
-		cgLabel.addClass("gi-slider-label");
-		cgSlider.addEventListener("input", () => {
-			rule.centerGravity = parseFloat(cgSlider.value);
-			cgLabel.textContent = cgSlider.value;
-			updateSliderProgress(cgSlider);
-			cb.applyNodeRules();
-			cb.restartSimulation(0.3);
-		});
-
-		// Repel multiplier slider (Force layout per-node repulsion)
-		const rmRow = row2.createDiv({ cls: "setting-item mod-slider" });
-		rmRow.addClass("gi-spacing-row");
-		const rmInfo = rmRow.createDiv({ cls: "setting-item-info" });
-		rmInfo.createDiv({ cls: "setting-item-name", text: t("gravity.repelMultiplier") });
-		const rmControl = rmRow.createDiv({ cls: "setting-item-control" });
-		const rmSlider = rmControl.createEl("input", { type: "range" });
-		rmSlider.min = "0";
-		rmSlider.max = "3";
-		rmSlider.step = "0.1";
-		rmSlider.value = String(rule.repelMultiplier ?? 1.0);
-		updateSliderProgress(rmSlider);
-		const rmLabel = rmControl.createEl("span", { text: String(rule.repelMultiplier ?? 1.0) });
-		rmLabel.addClass("gi-slider-label");
-		rmSlider.addEventListener("input", () => {
-			rule.repelMultiplier = parseFloat(rmSlider.value);
-			rmLabel.textContent = rmSlider.value;
-			updateSliderProgress(rmSlider);
-			cb.applyNodeRules();
-			cb.restartSimulation(0.3);
-		});
+		_buildRuleColorControl(row2, rule, cb);
+		_buildRuleGravityControl(row2, rule, cb);
+		_buildRuleForceSliders(row2, rule, cb);
 	});
 }
