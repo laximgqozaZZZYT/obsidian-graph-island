@@ -163,6 +163,51 @@ export class CanvasText implements IText {
 		}
 	}
 
+	/** Update cached text measurement if text, font, or letter spacing changed. */
+	private _updateMeasureCache(ctx: CanvasRenderingContext2D, fontStr: string) {
+		if (
+			this.text !== this._measuredText ||
+			fontStr !== this._measuredFont ||
+			this.letterSpacing !== this._measuredLetterSpacing
+		) {
+			this._measuredWidth = this._measureWithSpacing(ctx, this.text);
+			this._measuredText = this.text;
+			this._measuredFont = fontStr;
+			this._measuredLetterSpacing = this.letterSpacing;
+		}
+	}
+
+	/** Resolve fill style string from the style.fill value. */
+	private _resolveFillStyle(effAlpha: number): string {
+		const fill = this.style.fill;
+		if (typeof fill === "number") return hexToRgba(fill, effAlpha);
+		if (typeof fill === "string") return fill;
+		return hexToRgba(0xffffff, effAlpha);
+	}
+
+	/** Whether fill style is a string (needs globalAlpha instead of baked-in alpha). */
+	private _fillNeedsGlobalAlpha(): boolean {
+		return typeof this.style.fill === "string";
+	}
+
+	/** Draw text content (fill or stroke) with or without letter spacing. */
+	private _renderTextContent(
+		ctx: CanvasRenderingContext2D,
+		text: string,
+		tx: number,
+		ty: number,
+		mode: "fill" | "stroke",
+		useSpacing: boolean,
+	) {
+		if (useSpacing) {
+			this._drawTextWithSpacing(ctx, text, tx, ty, mode);
+		} else if (mode === "stroke") {
+			ctx.strokeText(text, tx, ty);
+		} else {
+			ctx.fillText(text, tx, ty);
+		}
+	}
+
 	private _drawPillBg(
 		ctx: CanvasRenderingContext2D,
 		tx: number,
@@ -208,17 +253,7 @@ export class CanvasText implements IText {
 		const fontStr = `${fontWeight} ${fontSize}px ${fontFamily}`;
 		ctx.font = fontStr;
 
-		// Cache measureText result — only re-measure when text, font, or letterSpacing changes
-		if (
-			this.text !== this._measuredText ||
-			fontStr !== this._measuredFont ||
-			this.letterSpacing !== this._measuredLetterSpacing
-		) {
-			this._measuredWidth = this._measureWithSpacing(ctx, this.text);
-			this._measuredText = this.text;
-			this._measuredFont = fontStr;
-			this._measuredLetterSpacing = this.letterSpacing;
-		}
+		this._updateMeasureCache(ctx, fontStr);
 
 		// Determine display text (truncated if maxWidth is set and exceeded)
 		const needsTruncation = this.maxWidth !== null && this._measuredWidth > this.maxWidth;
@@ -240,28 +275,13 @@ export class CanvasText implements IText {
 			ctx.lineWidth = this.strokeWidth;
 			ctx.lineJoin = "round";
 			ctx.miterLimit = 2;
-			if (useSpacing) {
-				this._drawTextWithSpacing(ctx, displayText, tx, ty, "stroke");
-			} else {
-				ctx.strokeText(displayText, tx, ty);
-			}
+			this._renderTextContent(ctx, displayText, tx, ty, "stroke", useSpacing);
 		}
 
-		const fill = this.style.fill;
-		if (typeof fill === "number") {
-			ctx.fillStyle = hexToRgba(fill, effAlpha);
-		} else if (typeof fill === "string") {
-			ctx.globalAlpha = effAlpha;
-			ctx.fillStyle = fill;
-		} else {
-			ctx.fillStyle = hexToRgba(0xffffff, effAlpha);
-		}
+		ctx.fillStyle = this._resolveFillStyle(effAlpha);
+		if (this._fillNeedsGlobalAlpha()) ctx.globalAlpha = effAlpha;
 
-		if (useSpacing) {
-			this._drawTextWithSpacing(ctx, displayText, tx, ty, "fill");
-		} else {
-			ctx.fillText(displayText, tx, ty);
-		}
+		this._renderTextContent(ctx, displayText, tx, ty, "fill", useSpacing);
 		ctx.restore();
 	}
 }
