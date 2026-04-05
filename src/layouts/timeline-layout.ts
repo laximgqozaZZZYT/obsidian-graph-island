@@ -781,16 +781,16 @@ export function buildHierarchyOrder(
 	};
 	const idSet = new Set(members.map((n) => n.id));
 
-	// 親→子マップを構築
+	// 親→子マップ + parentMap を単一パスで構築
 	const children = new Map<string, { id: string; storyOrder: number }[]>();
-	const hasParent = new Set<string>();
+	const parentMap = new Map<string, string>();
 
 	for (const nd of members) {
 		const parentVal = getNodeProperty(nd.id, "parent_id");
 		if (parentVal) {
 			const parentId = extractWikilink(parentVal) || parentVal;
 			if (idSet.has(parentId)) {
-				hasParent.add(nd.id);
+				parentMap.set(nd.id, parentId);
 				if (!children.has(parentId)) children.set(parentId, []);
 				const so = Number(getNodeProperty(nd.id, "story_order") ?? "0") || 0;
 				children.get(parentId)!.push({ id: nd.id, storyOrder: so });
@@ -800,18 +800,6 @@ export function buildHierarchyOrder(
 
 	if (children.size === 0) return order;
 
-	// parentMap (child→parent) と childrenMap (parent→children) を構築して返す
-	const parentMap = new Map<string, string>();
-	for (const nd of members) {
-		const parentVal = getNodeProperty(nd.id, "parent_id");
-		if (parentVal) {
-			const parentId = extractWikilink(parentVal) || parentVal;
-			if (idSet.has(parentId)) {
-				parentMap.set(nd.id, parentId);
-			}
-		}
-	}
-
 	// story_order で子をソート
 	for (const ch of children.values()) {
 		ch.sort((a, b) => a.storyOrder - b.storyOrder);
@@ -820,7 +808,7 @@ export function buildHierarchyOrder(
 	// ルートを検出 (親だが自身は親を持たないノード)
 	const roots: string[] = [];
 	for (const id of children.keys()) {
-		if (!hasParent.has(id)) roots.push(id);
+		if (!parentMap.has(id)) roots.push(id);
 	}
 	// ルートが見つからない場合、最も子を持つノードを使用
 	if (roots.length === 0) {
@@ -851,7 +839,7 @@ export function buildHierarchyOrder(
 
 	// 親を持つが到達できなかった残りのノードを追加
 	for (const nd of members) {
-		if (!visited.has(nd.id) && hasParent.has(nd.id)) {
+		if (!visited.has(nd.id) && parentMap.has(nd.id)) {
 			order.set(nd.id, idx++);
 		}
 	}
