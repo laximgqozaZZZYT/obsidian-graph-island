@@ -1505,6 +1505,54 @@ function computeUnifiedTimelineTargets(
 // computeUnifiedTimelineTargets helpers — file-private sub-functions
 // ---------------------------------------------------------------------------
 
+/** Compute effective column spacing from the X range of unified offsets. */
+function computeEffectiveColumnSpacing(
+	unifiedOffsets: Map<string, { dx: number; dy: number }>,
+	nodeSize: number,
+): number {
+	const uniqueXPositions = new Set<number>();
+	for (const { dx } of unifiedOffsets.values()) uniqueXPositions.add(Math.round(dx * 100));
+	const nCols = Math.max(1, uniqueXPositions.size);
+	if (nCols < 2) return nodeSize * 2;
+	let minDx = Infinity,
+		maxDx = -Infinity;
+	for (const { dx } of unifiedOffsets.values()) {
+		if (dx < minDx) minDx = dx;
+		if (dx > maxDx) maxDx = dx;
+	}
+	return (maxDx - minDx) / (nCols - 1);
+}
+
+/** Stack nodes in a column by degree, then center Y around zero. */
+function stackAndCenterColumn(
+	cols: Map<number, string[]>,
+	nodeDx: Map<string, number>,
+	degrees: Map<string, number>,
+	minNodeGap: number,
+): Map<string, { dx: number; dy: number }> {
+	const offsets = new Map<string, { dx: number; dy: number }>();
+	for (const [, nodeIds] of cols) {
+		nodeIds.sort((a, b) => (degrees.get(b) || 0) - (degrees.get(a) || 0));
+		for (let i = 0; i < nodeIds.length; i++) {
+			const nid = nodeIds[i];
+			offsets.set(nid, { dx: nodeDx.get(nid) ?? 0, dy: i * minNodeGap });
+		}
+	}
+	if (offsets.size > 0) {
+		let minY = Infinity,
+			maxY = -Infinity;
+		for (const { dy } of offsets.values()) {
+			if (dy < minY) minY = dy;
+			if (dy > maxY) maxY = dy;
+		}
+		const yAdj = (minY + maxY) / 2;
+		for (const [id, pos] of offsets) {
+			offsets.set(id, { dx: pos.dx, dy: pos.dy - yAdj });
+		}
+	}
+	return offsets;
+}
+
 /** Re-stack Y positions per group: nodes in the same X-column get independent Y stacking per group. */
 function unifiedTimelineRestackY(
 	unifiedOffsets: Map<string, { dx: number; dy: number }>,
@@ -1531,22 +1579,7 @@ function unifiedTimelineRestackY(
 		list.push(nodeId);
 	}
 
-	// Derive effective spacing from actual X range
-	const uniqueXPositions = new Set<number>();
-	for (const { dx } of unifiedOffsets.values()) uniqueXPositions.add(Math.round(dx * 100));
-	const nCols = Math.max(1, uniqueXPositions.size);
-	let effectiveSpacing: number;
-	if (nCols >= 2) {
-		let minDx = Infinity,
-			maxDx = -Infinity;
-		for (const { dx } of unifiedOffsets.values()) {
-			if (dx < minDx) minDx = dx;
-			if (dx > maxDx) maxDx = dx;
-		}
-		effectiveSpacing = (maxDx - minDx) / (nCols - 1);
-	} else {
-		effectiveSpacing = nodeSize * 2;
-	}
+	const effectiveSpacing = computeEffectiveColumnSpacing(unifiedOffsets, nodeSize);
 	const barH = nodeSize * 2;
 	const barGapMin = nodeSize * (cfg.userConstants?._barGapFactor ?? 1.5);
 	const minYStack = barH + barGapMin;
@@ -1555,28 +1588,7 @@ function unifiedTimelineRestackY(
 
 	const perGroupOffsets = new Map<string, Map<string, { dx: number; dy: number }>>();
 	for (const [gk, cols] of nodesByGroupCol) {
-		const offsets = new Map<string, { dx: number; dy: number }>();
-		for (const [, nodeIds] of cols) {
-			nodeIds.sort((a, b) => (degrees.get(b) || 0) - (degrees.get(a) || 0));
-			for (let i = 0; i < nodeIds.length; i++) {
-				const nid = nodeIds[i];
-				offsets.set(nid, { dx: nodeDx.get(nid) ?? 0, dy: i * minNodeGap });
-			}
-		}
-		// Center Y per group
-		if (offsets.size > 0) {
-			let minY = Infinity,
-				maxY = -Infinity;
-			for (const { dy } of offsets.values()) {
-				if (dy < minY) minY = dy;
-				if (dy > maxY) maxY = dy;
-			}
-			const yAdj = (minY + maxY) / 2;
-			for (const [id, pos] of offsets) {
-				offsets.set(id, { dx: pos.dx, dy: pos.dy - yAdj });
-			}
-		}
-		perGroupOffsets.set(gk, offsets);
+		perGroupOffsets.set(gk, stackAndCenterColumn(cols, nodeDx, degrees, minNodeGap));
 	}
 
 	return { perGroupOffsets, minNodeGap };
