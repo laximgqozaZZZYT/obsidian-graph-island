@@ -451,6 +451,46 @@ function labelRect(txt: CanvasText): { x: number; y: number; w: number; h: numbe
 	return { x: txt.x - w * txt.anchor.x, y: txt.y - h * txt.anchor.y, w, h };
 }
 
+/** Reparent, scale, and position a label for a single enclosure. */
+function applyLabelTransform(
+	txt: CanvasText,
+	enc: EncData,
+	g: CanvasGraphics,
+	cfg: EnclosureConfig,
+	glFontSize: number,
+	glHullOffset: number,
+	glAlpha: number,
+	glBgAlpha: number,
+): void {
+	const ws = cfg.worldScale || 1;
+	const { pts, expanded, tag } = enc;
+
+	const { labelCenterX, labelCenterY } = computeLabelCenter(pts, expanded);
+
+	// Reparent label if needed
+	const targetParent = cfg.labelContainer ?? (g.parent as CanvasContainer | null);
+	if (txt.parent !== targetParent && targetParent) {
+		targetParent.addChild(txt);
+	}
+
+	// Scale + position
+	const targetScreenPx = 14;
+	const rawLabelScale = targetScreenPx / (glFontSize * ws);
+	const labelScale = isFinite(rawLabelScale) ? clamp(rawLabelScale, 1, 300) : 4;
+
+	const far = farthestDirection(expanded, labelCenterX, labelCenterY);
+	positionLabel(
+		txt, expanded, labelCenterX, labelCenterY, far,
+		glHullOffset, cfg.enclosureLabelPosition ?? "top",
+	);
+
+	txt.scale.set(labelScale);
+	const isHovered = cfg.hoveredTag === tag;
+	txt.alpha = isHovered ? Math.min(1, glAlpha + 0.3) : glAlpha;
+	txt.bgAlpha = isHovered ? glBgAlpha + 0.2 : glBgAlpha;
+	txt.visible = true;
+}
+
 /** Resolve label-to-label collisions via greedy nudging, hiding unresolvable labels. */
 function resolveCollisions(
 	usedLabels: Set<string>,
@@ -583,34 +623,11 @@ export function drawEnclosures(
 
 		// Label
 		usedLabels.add(tag);
-		const { labelCenterX, labelCenterY } = computeLabelCenter(pts, expanded);
 		const txt = ensureLabel(
 			tag, hex, memberCount, enclosureLabels, cfg,
 			glFontSize, glFontWeight, glLetterSpacing, glBgAlpha,
 		);
-
-		// Reparent label if needed
-		const targetParent = cfg.labelContainer ?? (g.parent as CanvasContainer | null);
-		if (txt.parent !== targetParent && targetParent) {
-			targetParent.addChild(txt);
-		}
-
-		// Scale + position
-		const targetScreenPx = 14;
-		const rawLabelScale = targetScreenPx / (glFontSize * ws);
-		const labelScale = isFinite(rawLabelScale) ? clamp(rawLabelScale, 1, 300) : 4;
-
-		const far = farthestDirection(expanded, labelCenterX, labelCenterY);
-		positionLabel(
-			txt, expanded, labelCenterX, labelCenterY, far,
-			glHullOffset, cfg.enclosureLabelPosition ?? "top",
-		);
-
-		txt.scale.set(labelScale);
-		const isHovered = cfg.hoveredTag === tag;
-		txt.alpha = isHovered ? Math.min(1, glAlpha + 0.3) : glAlpha;
-		txt.bgAlpha = isHovered ? glBgAlpha + 0.2 : glBgAlpha;
-		txt.visible = true;
+		applyLabelTransform(txt, enc, g, cfg, glFontSize, glHullOffset, glAlpha, glBgAlpha);
 	}
 
 	// Phase 5: Label collision avoidance
