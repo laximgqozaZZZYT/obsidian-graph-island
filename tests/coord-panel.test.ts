@@ -141,6 +141,39 @@ describe("evalSource", () => {
 		expect(v).toBeGreaterThanOrEqual(0);
 		expect(v).toBeLessThanOrEqual(1);
 	});
+
+	it("random source with undefined seed falls back to 42", () => {
+		const withUndefined = evalSource({ kind: "random" } as AxisSource, 3, 10);
+		const withExplicit42 = evalSource({ kind: "random", seed: 42 }, 3, 10);
+		expect(withUndefined).toBe(withExplicit42);
+	});
+
+	it("const source with undefined value falls back to 1", () => {
+		const v = evalSource({ kind: "const" } as AxisSource, 5, 10);
+		expect(v).toBe(1);
+	});
+
+	it("metric with unknown metric name returns t", () => {
+		const v = evalSource({ kind: "metric", metric: "unknown-metric" } as AxisSource, 5, 10);
+		expect(v).toBeCloseTo(5 / 9, 5);
+	});
+
+	it("unknown source kind returns t (default branch)", () => {
+		const v = evalSource({ kind: "something-unknown" } as AxisSource, 5, 10);
+		expect(v).toBeCloseTo(5 / 9, 5);
+	});
+
+	it("n=1 avoids division by zero", () => {
+		const v = evalSource({ kind: "index" }, 0, 1);
+		expect(v).toBe(0);
+	});
+
+	it("metric: in-degree / out-degree fall through to default t", () => {
+		const vin = evalSource({ kind: "metric", metric: "in-degree" } as AxisSource, 3, 10);
+		const vout = evalSource({ kind: "metric", metric: "out-degree" } as AxisSource, 3, 10);
+		expect(vin).toBeCloseTo(3 / 9, 5);
+		expect(vout).toBeCloseTo(3 / 9, 5);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -214,6 +247,70 @@ describe("evalTransform", () => {
 			10,
 		);
 		expect(v).toBeCloseTo(0.5, 5);
+	});
+
+	it("linear with undefined scale defaults to 1", () => {
+		const v = evalTransform({ kind: "linear" } as AxisTransform, 0.7, 0, 10);
+		expect(v).toBeCloseTo(0.7, 5);
+	});
+
+	it("curve with unknown curve name returns t", () => {
+		const v = evalTransform(
+			{ kind: "curve", curve: "nonexistent-curve", params: {} },
+			0.5,
+			0,
+			10,
+		);
+		expect(v).toBeCloseTo(0.5, 5);
+	});
+
+	it("expression with empty expr defaults to 't'", () => {
+		const v = evalTransform(
+			{ kind: "expression", expr: "", scale: 1 },
+			0.3,
+			2,
+			10,
+		);
+		// expr fallback to "t", t passed as t*n = 0.3*10 = 3
+		expect(v).toBeCloseTo(3, 1);
+	});
+
+	it("expression with scale undefined defaults to 1", () => {
+		const v = evalTransform(
+			{ kind: "expression", expr: "t" } as AxisTransform,
+			0.5,
+			0,
+			10,
+		);
+		// t = 0.5 * 10 = 5, scale = 1
+		expect(v).toBeCloseTo(5, 1);
+	});
+
+	it("bin with count=1 returns 0", () => {
+		const v = evalTransform({ kind: "bin", count: 1 }, 0.5, 0, 10);
+		expect(v).toBe(0);
+	});
+
+	it("even-divide with undefined totalRange defaults to 360", () => {
+		const v = evalTransform({ kind: "even-divide" } as AxisTransform, 1, 0, 10);
+		expect(v).toBeCloseTo(2 * Math.PI, 3);
+	});
+
+	it("unknown transform kind returns t (fallthrough)", () => {
+		const v = evalTransform({ kind: "unknown-kind" } as AxisTransform, 0.6, 0, 10);
+		expect(v).toBeCloseTo(0.6, 5);
+	});
+
+	it("curve transform with constants overrides params", () => {
+		const v = evalTransform(
+			{ kind: "curve", curve: "rose", params: { k: 3 } },
+			0.5,
+			0,
+			10,
+			{ k: 7 },
+		);
+		expect(typeof v).toBe("number");
+		expect(isFinite(v)).toBe(true);
 	});
 });
 
@@ -465,6 +562,65 @@ describe("parseAxisSourceString", () => {
 		expect(parseAxisSourceString("")).toBeNull();
 		expect(parseAxisSourceString("   ")).toBeNull();
 	});
+
+	it("parses random with NaN seed falls back to 42", () => {
+		const src = parseAxisSourceString("random:abc");
+		expect(src?.kind).toBe("random");
+		expect((src as any)?.seed).toBe(42);
+	});
+
+	it("parses const with NaN value falls back to 1", () => {
+		const src = parseAxisSourceString("const:xyz");
+		expect(src?.kind).toBe("const");
+		expect((src as any)?.value).toBe(1);
+	});
+
+	it("parses bare 'hop' without target", () => {
+		const src = parseAxisSourceString("hop");
+		expect(src?.kind).toBe("hop");
+		expect((src as any)?.from).toBe("");
+	});
+
+	it("parses 'out-degree' and 'sibling-rank' metrics", () => {
+		expect(parseAxisSourceString("out-degree")).toEqual({ kind: "metric", metric: "out-degree" });
+		expect(parseAxisSourceString("sibling-rank")).toEqual({ kind: "metric", metric: "sibling-rank" });
+	});
+
+	it("strips trailing ':?' or ':*' from field names", () => {
+		const src = parseAxisSourceString("myfield:?");
+		expect(src?.kind).toBe("field");
+		expect((src as any)?.field).toBe("myfield");
+
+		const src2 = parseAxisSourceString("category:*");
+		expect(src2?.kind).toBe("field");
+		expect((src2 as any)?.field).toBe("category");
+	});
+
+	it("parses all built-in fields", () => {
+		for (const f of ["path", "file", "folder", "tag", "category", "id", "isTag"]) {
+			const src = parseAxisSourceString(f);
+			expect(src?.kind).toBe("field");
+			expect((src as any)?.field).toBe(f);
+		}
+	});
+
+	it("handles hop with NaN maxDepth", () => {
+		const src = parseAxisSourceString("hop:root:abc");
+		expect(src?.kind).toBe("hop");
+		expect((src as any)?.from).toBe("root");
+		expect((src as any)?.maxDepth).toBeUndefined();
+	});
+
+	it("handles whitespace-padded input", () => {
+		const src = parseAxisSourceString("  index  ");
+		expect(src?.kind).toBe("index");
+	});
+
+	it("parses const without colon (bare keyword)", () => {
+		const src = parseAxisSourceString("const");
+		expect(src?.kind).toBe("const");
+		expect((src as any)?.value).toBe(1);
+	});
 });
 
 // ---------------------------------------------------------------------------
@@ -514,6 +670,16 @@ describe("axisSourceToString", () => {
 	it("converts hop with maxDepth", () => {
 		const src = { kind: "hop" as const, from: "root", maxDepth: 5 };
 		expect(axisSourceToString(src)).toBe("hop:root:5");
+	});
+
+	it("converts property source (legacy)", () => {
+		const src = { kind: "property" as const, key: "start-date" };
+		expect(axisSourceToString(src)).toBe("start-date");
+	});
+
+	it("converts unknown kind to 'index' (default branch)", () => {
+		const src = { kind: "unknown" as never };
+		expect(axisSourceToString(src)).toBe("index");
 	});
 });
 
