@@ -12,7 +12,7 @@ import type { GraphNode } from "../types";
 // ---------------------------------------------------------------------------
 
 /** タイムライン構造グラフ上のノード */
-export interface TimelineNode {
+interface TimelineNode {
 	id: string;
 	graphNode: GraphNode;
 	/** 解決済みの時間値 (timelineKey フィールド由来)。未設定なら null */
@@ -28,14 +28,14 @@ export interface TimelineNode {
 }
 
 /** タイムライン構造グラフ上の有向辺 */
-export interface TimelineEdge {
+interface TimelineEdge {
 	from: string; // ソースノード ID
 	to: string; // ターゲットノード ID
 	type: "sequence" | "hierarchy" | "branch";
 }
 
 /** シーケンスリンクで接続されたノードの線形チェーン */
-export interface TimelineChain {
+interface TimelineChain {
 	/** 先頭から末尾までの順序付きノード ID */
 	nodeIds: string[];
 	/** チェーン ID (レーン割り当て用) */
@@ -43,7 +43,7 @@ export interface TimelineChain {
 }
 
 /** サイクルを示すバックエッジ */
-export interface CycleBackEdge {
+interface CycleBackEdge {
 	fromId: string;
 	toId: string;
 	/** このサイクルが属するチェーン */
@@ -51,21 +51,9 @@ export interface CycleBackEdge {
 }
 
 /** 親ノードをルートとするツリー */
-export interface HierarchyTree {
+interface HierarchyTree {
 	rootId: string;
 	children: Map<string, { id: string; storyOrder: number }[]>;
-}
-
-/** 完全な中間表現 */
-export interface TimelineGraph {
-	nodes: Map<string, TimelineNode>;
-	edges: TimelineEdge[];
-	/** 検出されたチェーン (線形シーケンス) */
-	chains: TimelineChain[];
-	/** 検出されたサイクル (バックエッジ) */
-	cycles: CycleBackEdge[];
-	/** 階層ツリー (親→子) */
-	hierarchies: HierarchyTree[];
 }
 
 // ---------------------------------------------------------------------------
@@ -73,7 +61,7 @@ export interface TimelineGraph {
 // ---------------------------------------------------------------------------
 
 /** タイムラインレイアウト上の水平レーン */
-export interface TimelineLane {
+interface TimelineLane {
 	/** ユニークなレーンインデックス (0 = 最上部) */
 	index: number;
 	/** レイアウト原点からの Y オフセット */

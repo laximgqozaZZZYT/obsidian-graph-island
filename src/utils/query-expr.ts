@@ -1,4 +1,4 @@
-export type BoolOp = "AND" | "OR" | "XOR" | "NOR" | "NAND";
+type BoolOp = "AND" | "OR" | "XOR" | "NOR" | "NAND";
 
 export interface QueryLeaf {
 	type: "leaf";
@@ -8,7 +8,7 @@ export interface QueryLeaf {
 	fuzzy?: boolean;
 }
 
-export interface QueryNot {
+interface QueryNot {
 	type: "not";
 	child: QueryExpression;
 }

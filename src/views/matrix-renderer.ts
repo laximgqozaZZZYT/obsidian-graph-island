@@ -39,7 +39,7 @@ export interface MatrixRenderParams {
 // Data preparation (pure, testable)
 // ---------------------------------------------------------------------------
 
-export interface MatrixData {
+interface MatrixData {
 	nodeIds: string[];
 	degrees: Map<string, number>;
 	matrix: Map<string, Map<string, number>>;

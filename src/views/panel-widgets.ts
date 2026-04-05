@@ -952,7 +952,7 @@ export function _buildQueryHintContainer(
 }
 
 /** Wire up focus/blur/input/keydown listeners for query hint. */
-export function _setupQueryHintListeners(
+function _setupQueryHintListeners(
 	input: HTMLInputElement,
 	ctx: {
 		show: () => void;
@@ -1166,7 +1166,7 @@ export function attachSearchJump(input: HTMLInputElement, cb: PanelCallbacks) {
 }
 
 /** Build or rebuild the search jump dropdown DOM. Returns the dropdown element. */
-export function _rebuildSearchDropdown(
+function _rebuildSearchDropdown(
 	existing: HTMLElement | null,
 	anchor: HTMLElement,
 	ids: string[],
@@ -1205,7 +1205,7 @@ export function _rebuildSearchDropdown(
 }
 
 /** Wire up input/keydown/blur listeners for search jump. */
-export function _setupSearchJumpListeners(
+function _setupSearchJumpListeners(
 	input: HTMLInputElement,
 	ctx: {
 		rebuild: () => void;

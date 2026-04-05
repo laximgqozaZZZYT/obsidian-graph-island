@@ -59,7 +59,7 @@ export function computeNodeDegrees(adj: Map<number, number>[], n: number): Float
 }
 
 /** コミュニティIDを連番に振り直し、ノードID → コミュニティID マッピングを返す。 */
-export function renumberCommunities(
+function renumberCommunities(
 	community: Int32Array,
 	nodeIds: string[],
 ): Map<string, number> {

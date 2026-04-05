@@ -52,7 +52,7 @@ function pairwiseGap(r1: number, r2: number, spacing: number): number {
 // ---------------------------------------------------------------------------
 
 /** cluster-force.ts 内の ArrangementParams と同一構造 */
-export interface TimelineArrangementParams {
+interface TimelineArrangementParams {
 	members: GraphNode[];
 	degrees: Map<string, number>;
 	edges: GraphEdge[];

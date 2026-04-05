@@ -3,7 +3,7 @@
  * Used when switching between static layouts (concentric, arc, tree).
  */
 
-export interface TransitionNode {
+interface TransitionNode {
 	/** The node data with mutable x, y */
 	data: { x: number; y: number };
 	/** Animation start position */
@@ -114,5 +114,4 @@ export function easeInOutCubic(t: number): number {
 
 /** Exported constants for testing */
 export const LAYOUT_TRANSITION_DURATION_MS = TRANSITION_DURATION_MS;
-export const LAYOUT_TRANSITION_DURATION_LARGE_MS = TRANSITION_DURATION_LARGE_MS;
 export const LAYOUT_LARGE_GRAPH_THRESHOLD = LARGE_GRAPH_THRESHOLD;

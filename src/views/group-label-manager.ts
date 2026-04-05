@@ -32,7 +32,7 @@ export interface GroupCentroid {
 	memberCount: number;
 }
 
-export interface HullCache {
+interface HullCache {
 	cx: number;
 	cy: number;
 	hull: { x: number; y: number }[];
@@ -234,7 +234,7 @@ export function drawClusterBoundaries(
 // 3. Compute label layout (collision-aware placement)
 // ---------------------------------------------------------------------------
 
-export interface LabelPlacement {
+interface LabelPlacement {
 	key: string;
 	displayName: string;
 	labelText: string;
@@ -434,7 +434,7 @@ export function applyGroupLabelPlacements(
 // 5. Zoom-aggregate renderer (folder summaries at extreme zoom-out)
 // ---------------------------------------------------------------------------
 
-export interface AggregateGroup {
+interface AggregateGroup {
 	folder: string;
 	cx: number;
 	cy: number;

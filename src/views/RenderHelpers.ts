@@ -634,7 +634,7 @@ export function generatePhantomNodes(
 // Analysis overlay flag mapping
 // ---------------------------------------------------------------------------
 
-export interface AnalysisOverlayFlags {
+interface AnalysisOverlayFlags {
 	showBridgeNodes: boolean;
 	showEntropyOverlay: boolean;
 	highlightMissingNeighbors: boolean;

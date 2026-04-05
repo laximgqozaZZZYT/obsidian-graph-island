@@ -229,7 +229,7 @@ export interface CoordinateLayout {
 // ---------------------------------------------------------------------------
 
 /** Source of grid line positions */
-export type GridPositionSource =
+type GridPositionSource =
 	| { kind: "auto" }
 	| { kind: "count"; n: number }
 	| { kind: "step"; step: number }
@@ -242,13 +242,13 @@ export type GridPositionSource =
 export type GridShape = { kind: "line" } | { kind: "circle" } | { kind: "radial" } | { kind: "curve"; expr: string };
 
 /** Source of tick labels */
-export type GridLabelSource =
+type GridLabelSource =
 	| { kind: "auto" }
 	| { kind: "field"; field: string }
 	| { kind: "custom"; values: string[] };
 
 /** Tick/label configuration for a grid axis */
-export interface GridTickConfig {
+interface GridTickConfig {
 	show: boolean;
 	labels: GridLabelSource;
 	position?: "on-line" | "between";
@@ -265,7 +265,7 @@ export interface GridAxisConfig {
 export type GridStyle = "lines" | "table";
 
 /** Complete grid configuration */
-export interface GridConfig {
+interface GridConfig {
 	axis1Grid?: GridAxisConfig;
 	axis2Grid?: GridAxisConfig;
 	style: GridStyle;
@@ -287,7 +287,7 @@ export interface GroupRule {
 }
 
 /** Common query applied across all groups — splits nodes by match pattern */
-export interface CommonGroupQuery {
+interface CommonGroupQuery {
 	expression: QueryExpression;
 }
 
@@ -625,7 +625,7 @@ export interface DonutDisplayConfig {
 }
 
 /** Sunburst segment display configuration */
-export interface SunburstSegmentConfig {
+interface SunburstSegmentConfig {
 	arcAngle?: number; // Segment angle in degrees (default: 30)
 }
 

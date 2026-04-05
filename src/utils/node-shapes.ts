@@ -6,7 +6,7 @@ import type { GraphNode, DisplayConfig, NodeDisplayMode, CardDisplayConfig, Donu
 export type NodeShape = "circle" | "triangle" | "diamond" | "hexagon" | "square";
 
 /** Minimal graphics interface for shape drawing (compatible with both CanvasGraphics and PIXI.Graphics) */
-export interface ShapeGraphics {
+interface ShapeGraphics {
 	beginFill(color: number, alpha: number): void;
 	endFill(): void;
 	drawCircle(x: number, y: number, r: number): void;

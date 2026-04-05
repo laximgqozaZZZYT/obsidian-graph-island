@@ -615,7 +615,7 @@ export interface PriorityInput {
 }
 
 /** Computed priority score + LOD tier assignment */
-export interface PriorityResult {
+interface PriorityResult {
 	id: string;
 	priorityScore: number;
 	minShowZoom: number;

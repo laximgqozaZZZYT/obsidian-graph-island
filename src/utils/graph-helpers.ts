@@ -397,7 +397,7 @@ export function exportGraphMermaid(nodes: GraphNode[], edges: GraphEdge[]): stri
 // SVG export — pure function for graph-to-SVG conversion
 // ---------------------------------------------------------------------------
 
-export interface SvgExportOptions {
+interface SvgExportOptions {
 	width?: number;
 	height?: number;
 	/** Background color (CSS). Empty string = transparent. */
@@ -764,7 +764,7 @@ export function buildMissingNeighborSet(nodes: readonly GraphNode[], edges: read
 // Auto-fit view transform computation
 // ---------------------------------------------------------------------------
 
-export interface AutoFitInput {
+interface AutoFitInput {
 	/** Node positions and radii */
 	nodes: { x: number; y: number; r: number }[];
 	/** Canvas width */
@@ -779,7 +779,7 @@ export interface AutoFitInput {
 	maxScale?: number;
 }
 
-export interface AutoFitResult {
+interface AutoFitResult {
 	/** Computed scale factor */
 	scale: number;
 	/** World-container X offset (canvas coords) */
