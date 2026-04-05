@@ -397,6 +397,39 @@ function buildSharedMetadataEdges(
 }
 
 /**
+ * Collect all unique tags from file nodes, including ancestor tags for hierarchy.
+ * e.g. nodes with tag "a/b/c" → Set{"a/b/c", "a/b", "a"}
+ */
+export function collectAllTags(fileNodes: readonly GraphNode[]): Set<string> {
+	const allTags = new Set<string>();
+	for (const node of fileNodes) {
+		if (!node.tags) continue;
+		for (const tag of node.tags) {
+			allTags.add(tag);
+			const parts = tag.split("/");
+			for (let i = 1; i < parts.length; i++) {
+				allTags.add(parts.slice(0, i).join("/"));
+			}
+		}
+	}
+	return allTags;
+}
+
+/** Create a virtual tag node with random initial position. */
+function createVirtualTagNode(tag: string): GraphNode {
+	return {
+		id: `tag:${tag}`,
+		label: `#${tag}`,
+		x: Math.random() * INITIAL_SCATTER_X - INITIAL_SCATTER_X / 2,
+		y: Math.random() * INITIAL_SCATTER_Y - INITIAL_SCATTER_Y / 2,
+		vx: 0,
+		vy: 0,
+		isTag: true,
+		tags: [tag],
+	};
+}
+
+/**
  * Build virtual tag nodes, tag-to-tag inheritance edges (from nested tags),
  * and note-to-tag (has-tag) edges.
  *
@@ -415,35 +448,13 @@ function buildTagNodesAndEdges(
 	const nodes: GraphNode[] = [];
 	const edges: GraphEdge[] = [];
 
-	// Collect all unique tags across all file nodes
-	const allTags = new Set<string>();
-	for (const node of fileNodes) {
-		if (!node.tags) continue;
-		for (const tag of node.tags) {
-			allTags.add(tag);
-			// Also add ancestor tags for hierarchy completeness
-			// e.g. "a/b/c" → also ensure "a/b" and "a" exist
-			const parts = tag.split("/");
-			for (let i = 1; i < parts.length; i++) {
-				allTags.add(parts.slice(0, i).join("/"));
-			}
-		}
-	}
+	const allTags = collectAllTags(fileNodes);
 
 	// Create virtual tag nodes
 	for (const tag of allTags) {
 		const tagId = `tag:${tag}`;
 		if (nodeMap.has(tagId)) continue;
-		const tagNode: GraphNode = {
-			id: tagId,
-			label: `#${tag}`,
-			x: Math.random() * INITIAL_SCATTER_X - INITIAL_SCATTER_X / 2,
-			y: Math.random() * INITIAL_SCATTER_Y - INITIAL_SCATTER_Y / 2,
-			vx: 0,
-			vy: 0,
-			isTag: true,
-			tags: [tag],
-		};
+		const tagNode = createVirtualTagNode(tag);
 		nodes.push(tagNode);
 		nodeMap.set(tagId, tagNode);
 	}
@@ -475,21 +486,11 @@ function buildTagNodesAndEdges(
 		for (const rel of settings.ontology.tagRelations) {
 			const srcTag = rel.source;
 			const tgtTag = rel.target;
-			// Ensure both tag nodes exist (create if needed)
 			for (const tag of [srcTag, tgtTag]) {
 				const tagId = `tag:${tag}`;
 				if (!nodeMap.has(tagId)) {
 					allTags.add(tag);
-					const tagNode: GraphNode = {
-						id: tagId,
-						label: `#${tag}`,
-						x: Math.random() * INITIAL_SCATTER_X - INITIAL_SCATTER_X / 2,
-						y: Math.random() * INITIAL_SCATTER_Y - INITIAL_SCATTER_Y / 2,
-						vx: 0,
-						vy: 0,
-						isTag: true,
-						tags: [tag],
-					};
+					const tagNode = createVirtualTagNode(tag);
 					nodes.push(tagNode);
 					nodeMap.set(tagId, tagNode);
 				}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { classifyRelation, assignNodeColors, buildRelationColorMap, simpleHash, applyMonochromeFallback } from "../src/parsers/metadata-parser";
+import { classifyRelation, assignNodeColors, buildRelationColorMap, simpleHash, applyMonochromeFallback, collectAllTags } from "../src/parsers/metadata-parser";
 import { DEFAULT_COLORS } from "../src/types";
 import type { GraphNode, GraphEdge, OntologyConfig } from "../src/types";
 
@@ -805,5 +805,60 @@ describe("buildSunburstData", () => {
     const file = group?.children?.[0];
     expect(file?.filePath).toBe("folder/file.md");
     expect(file?.name).toBe("file");
+  });
+});
+
+// =============================================
+// collectAllTags
+// =============================================
+describe("collectAllTags", () => {
+  it("returns empty set for no nodes", () => {
+    expect(collectAllTags([]).size).toBe(0);
+  });
+
+  it("returns empty set when nodes have no tags", () => {
+    const nodes = [mkNode("a"), mkNode("b")];
+    expect(collectAllTags(nodes).size).toBe(0);
+  });
+
+  it("collects flat tags from multiple nodes", () => {
+    const nodes = [
+      mkNode("a", { tags: ["character"] }),
+      mkNode("b", { tags: ["place"] }),
+      mkNode("c", { tags: ["character"] }),
+    ];
+    const tags = collectAllTags(nodes);
+    expect(tags).toEqual(new Set(["character", "place"]));
+  });
+
+  it("expands nested tags into ancestor tags", () => {
+    const nodes = [mkNode("a", { tags: ["entity/character/hero"] })];
+    const tags = collectAllTags(nodes);
+    expect(tags).toEqual(new Set(["entity/character/hero", "entity/character", "entity"]));
+  });
+
+  it("deduplicates ancestor tags across nodes", () => {
+    const nodes = [
+      mkNode("a", { tags: ["entity/character"] }),
+      mkNode("b", { tags: ["entity/place"] }),
+    ];
+    const tags = collectAllTags(nodes);
+    expect(tags).toEqual(new Set(["entity/character", "entity/place", "entity"]));
+  });
+
+  it("handles mixed flat and nested tags", () => {
+    const nodes = [mkNode("a", { tags: ["flat", "a/b/c"] })];
+    const tags = collectAllTags(nodes);
+    expect(tags).toEqual(new Set(["flat", "a/b/c", "a/b", "a"]));
+  });
+
+  it("handles deeply nested tags (4 levels)", () => {
+    const nodes = [mkNode("a", { tags: ["a/b/c/d"] })];
+    const tags = collectAllTags(nodes);
+    expect(tags.has("a/b/c/d")).toBe(true);
+    expect(tags.has("a/b/c")).toBe(true);
+    expect(tags.has("a/b")).toBe(true);
+    expect(tags.has("a")).toBe(true);
+    expect(tags.size).toBe(4);
   });
 });
