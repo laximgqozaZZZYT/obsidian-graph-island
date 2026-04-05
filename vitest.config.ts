@@ -15,7 +15,7 @@ export default defineConfig({
         // Ratchet: transform-expr curve param + serialization tests (+8 tests)
         statements: 47.0,
         branches: 41.54,
-        functions: 44.22,
+        functions: 44.4,
         lines: 47.44,
       },
     },
