@@ -97,18 +97,39 @@ trap cleanup EXIT
 # ── Work in worktree ──
 cd "$WORKTREE_DIR" || exit 1
 
-# ── Check user issue queue (HIGHEST PRIORITY) ──
+# ── DISCOVER: scan for real problems (not ideas) ──
+log "Running issue discovery..."
+bash "$PROJECT_DIR/scripts/pipeline/discover-issues.sh" 2>&1 | tail -5 | while IFS= read -r line; do log "  $line"; done
+
+# ── PRIORITIZE issues: user-reported > auto-discovered > auto-focus ──
+# Priority order:
+#   1. User issues (critical > high > medium > low)
+#   2. Auto-discovered issues (critical > high > medium > low)
+#   3. Auto-focus rotation (coverage/eslint/refactor)
 ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
 ISSUE_FILE=""
 ISSUE_CONTENT=""
 if [[ -d "$ISSUE_DIR" ]]; then
-  # Pick highest-priority pending issue (critical > high > medium > low)
+  # First pass: user-reported issues (no "source: auto-discovered")
   for prio in critical high medium low; do
     ISSUE_FILE=$(grep -rl "priority: $prio" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
-      grep -q "status: pending" "$f" && echo "$f" && break
+      grep -q "status: pending" "$f" || continue
+      grep -q "source: auto-discovered" "$f" && continue  # skip auto, user first
+      echo "$f" && break
     done)
     [[ -n "$ISSUE_FILE" ]] && break
   done
+
+  # Second pass: auto-discovered issues (only if no user issues)
+  if [[ -z "$ISSUE_FILE" ]]; then
+    for prio in critical high medium low; do
+      ISSUE_FILE=$(grep -rl "priority: $prio" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
+        grep -q "status: pending" "$f" || continue
+        echo "$f" && break
+      done)
+      [[ -n "$ISSUE_FILE" ]] && break
+    done
+  fi
 fi
 
 if [[ -n "$ISSUE_FILE" ]]; then
