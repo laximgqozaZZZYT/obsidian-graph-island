@@ -41,9 +41,10 @@ file_issue() {
 
   # Find next number
   local last_num
-  last_num=$(ls "$ISSUE_DIR"/*.md "$DONE_DIR"/*.md 2>/dev/null | grep -oP '^\d+' | sort -n | tail -1)
+  last_num=$(ls "$ISSUE_DIR"/*.md "$DONE_DIR"/*.md 2>/dev/null | xargs -I{} basename {} | grep -oP '^\d+' | sort -n | tail -1)
   last_num=${last_num:-0}
-  last_num=${last_num##0}  # strip leading zeros
+  # Strip leading zeros safely
+  last_num=$(echo "$last_num" | sed 's/^0*//' )
   last_num=${last_num:-0}
   local next_num=$(printf "%03d" $((last_num + 1)))
 
@@ -330,6 +331,84 @@ ratio = test_lines / max(src_lines, 1)
 print(f'{ratio:.2f}')
 " 2>/dev/null || echo "0")
 # Healthy ratio is 0.5+ (1 test line per 2 src lines)
+
+# ============================================================
+# 15. EXPLICIT ANY — type safety gaps
+# ============================================================
+ANY_COUNT=$(grep -rn ": any\b\|as any" src/ --include="*.ts" 2>/dev/null | grep -v "// " | wc -l || echo "0")
+ANY_COUNT=${ANY_COUNT//[^0-9]/}; ANY_COUNT=${ANY_COUNT:-0}
+if [[ $ANY_COUNT -gt 30 ]]; then
+  file_issue "explicit-any-types" "medium" \
+    "${ANY_COUNT}個の explicit any 型 — 型安全性の穴" \
+    "ソースコードに : any または as any が${ANY_COUNT}箇所ある。\n型推論の恩恵が失われ、ランタイムエラーの原因になる。" \
+    "- [ ] any 型を 30 個以下に削減 (適切な型定義に置換)"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
+
+# ============================================================
+# 16. HARDCODED STRINGS — i18n gaps (t() 未使用)
+# ============================================================
+I18N_GAPS=$(grep -rn "setText(\|\.textContent\s*=" src/ --include="*.ts" 2>/dev/null | grep -v "t(\|tHelp(\|\.test\.\|__mocks__" | wc -l || echo "0")
+I18N_GAPS=${I18N_GAPS//[^0-9]/}; I18N_GAPS=${I18N_GAPS:-0}
+if [[ $I18N_GAPS -gt 10 ]]; then
+  file_issue "i18n-hardcoded-strings" "medium" \
+    "${I18N_GAPS}箇所のハードコード文字列 (t() 未使用)" \
+    "setText()やtextContentに直接文字列を渡している箇所が${I18N_GAPS}個。\nCLAUDE.mdルール: 全user-facing stringsはt()関数を通すこと。" \
+    "- [ ] ハードコード文字列を 10 個以下に (t() でラップ)"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
+
+# ============================================================
+# 17. MAGIC NUMBERS in GVC — RenderThresholds 外の数値リテラル
+# ============================================================
+MAGIC_COUNT=$(grep -rnE "\b(0\.[0-9]{2,}|[2-9][0-9]{2,})\b" src/views/GraphViewContainer.ts 2>/dev/null | grep -v "RenderThresholds\|rt\.\|threshold\|const \|let \|enum \|import \|// " | wc -l || echo "0")
+MAGIC_COUNT=${MAGIC_COUNT//[^0-9]/}; MAGIC_COUNT=${MAGIC_COUNT:-0}
+if [[ $MAGIC_COUNT -gt 20 ]]; then
+  file_issue "magic-numbers-gvc" "medium" \
+    "GVC に ${MAGIC_COUNT}個のマジックナンバー (RenderThresholds外)" \
+    "CLAUDE.md禁止パターン: ハードコードされた数値リテラルがGVCに${MAGIC_COUNT}箇所。\nRenderThresholdsまたは定数に移行すべき。" \
+    "- [ ] マジックナンバーを 20 個以下に (定数化 or RenderThresholds)"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
+
+# ============================================================
+# 18. EMPTY CATCH — swallowed errors
+# ============================================================
+EMPTY_CATCH=$(grep -rnE "catch\s*\{|catch\s*\(\s*\)" src/ --include="*.ts" 2>/dev/null | wc -l || echo "0")
+EMPTY_CATCH=${EMPTY_CATCH//[^0-9]/}; EMPTY_CATCH=${EMPTY_CATCH:-0}
+if [[ $EMPTY_CATCH -gt 10 ]]; then
+  file_issue "empty-catch-blocks" "medium" \
+    "${EMPTY_CATCH}個の空catch — エラーが握りつぶされている" \
+    "catch {} や catch() でエラーを黙殺している箇所が${EMPTY_CATCH}個。\n予期しない動作の原因になる。最低限 error を parameter として受け取るべき。" \
+    "- [ ] 空catchを 10 個以下に (適切なエラー処理を追加)"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
+
+# ============================================================
+# 19. TYPE ASSERTIONS — unsafe 'as' casts
+# ============================================================
+AS_COUNT=$(grep -rn " as [A-Z]" src/ --include="*.ts" 2>/dev/null | grep -v "// \|import \|export " | wc -l || echo "0")
+AS_COUNT=${AS_COUNT//[^0-9]/}; AS_COUNT=${AS_COUNT:-0}
+if [[ $AS_COUNT -gt 80 ]]; then
+  file_issue "type-assertions" "low" \
+    "${AS_COUNT}個の型アサーション (as T) — 型安全性リスク" \
+    "as キャストが${AS_COUNT}箇所。コンパイラの型チェックをバイパスしている。\n可能な限り型ガードや正しい型定義に置換すべき。" \
+    "- [ ] 型アサーションを 80 個以下に"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
+
+# ============================================================
+# 20. UNUSED IMPORTS — dead import statements
+# ============================================================
+UNUSED_IMPORTS=$(npx tsc --noEmit --noUnusedLocals 2>&1 | grep -c "declared but its value is never read" 2>/dev/null || echo "0")
+UNUSED_IMPORTS=${UNUSED_IMPORTS//[^0-9]/}; UNUSED_IMPORTS=${UNUSED_IMPORTS:-0}
+if [[ $UNUSED_IMPORTS -gt 10 ]]; then
+  file_issue "unused-imports" "low" \
+    "${UNUSED_IMPORTS}個の未使用import/変数" \
+    "tsc --noUnusedLocals で${UNUSED_IMPORTS}件の未使用宣言が検出。\nデッドコードとしてバンドルサイズに影響。" \
+    "- [ ] 未使用import を 10 個以下に"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
 
 # ============================================================
 # Summary
