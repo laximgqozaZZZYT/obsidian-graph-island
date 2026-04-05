@@ -665,3 +665,44 @@ export function hasImageMetaNodes(nodes: Iterable<{ meta?: Record<string, unknow
 	}
 	return false;
 }
+
+// ---------------------------------------------------------------------------
+// Viewport size resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve effective viewport dimensions, falling back to renderer size when
+ * the DOM wrapper reports zero dimensions (e.g. during layout shifts).
+ * Returns `{ w: 0, h: 0 }` if no valid size could be determined.
+ */
+export function resolveViewportDimensions(
+	wrapW: number,
+	wrapH: number,
+	rendererW: number,
+	rendererH: number,
+): { w: number; h: number } {
+	if (wrapW > 0 && wrapH > 0) return { w: wrapW, h: wrapH };
+	const w = rendererW > 0 ? rendererW : 0;
+	const h = rendererH > 0 ? rendererH : 0;
+	return { w, h };
+}
+
+// ---------------------------------------------------------------------------
+// A11y simulation-end announcement
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the screen-reader announcement text for when a simulation ends.
+ * Includes a one-time keyboard-shortcut guide for first-launch users.
+ */
+export function buildSimulationEndAnnouncement(
+	nodeCount: number,
+	edgeCount: number,
+	isFirstLaunch: boolean,
+	tFn: (key: string) => string | undefined,
+): string {
+	const guide = isFirstLaunch
+		? ` ${tFn("a11y.srGuide") ?? "Tab to cycle nodes, Enter to open, Shift+Enter to select, ? for keyboard shortcuts."}`
+		: "";
+	return `${tFn("a11y.graphLoaded") ?? "Graph loaded"}: ${nodeCount} ${tFn("a11y.nodes") ?? "nodes"}, ${edgeCount} ${tFn("a11y.edges") ?? "edges"}.${guide}`;
+}
