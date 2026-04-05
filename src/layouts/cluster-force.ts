@@ -3334,25 +3334,82 @@ function _detectGridNodeOverlaps(
 	return { maxOverlapRatio, hasNodeOverlap, hasCrossGroupOverlap };
 }
 
+interface OverlapResult {
+	maxOverlapRatio: number;
+	hasNodeOverlap: boolean;
+	hasCrossGroupOverlap: boolean;
+}
+
+/** Pairwise BBox overlap ratio for groups */
+function _detectBBoxOverlaps(
+	groupKeys: string[],
+	groupBBoxes: Map<string, BBox>,
+): OverlapResult {
+	let maxOverlapRatio = 0;
+	let hasOverlap = false;
+	for (let i = 0; i < groupKeys.length; i++) {
+		for (let j = i + 1; j < groupKeys.length; j++) {
+			const a = groupBBoxes.get(groupKeys[i])!;
+			const b = groupBBoxes.get(groupKeys[j])!;
+			const ox = Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX);
+			const oy = Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY);
+			if (ox > 0 && oy > 0) {
+				hasOverlap = true;
+				const overlapArea = ox * oy;
+				const aArea = (a.maxX - a.minX) * (a.maxY - a.minY);
+				const bArea = (b.maxX - b.minX) * (b.maxY - b.minY);
+				const ratio = overlapArea / (Math.min(aArea, bArea) || 1);
+				if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
+			}
+		}
+	}
+	return { maxOverlapRatio, hasNodeOverlap: hasOverlap, hasCrossGroupOverlap: hasOverlap };
+}
+
+/** Pairwise bounding-circle overlap ratio for groups */
+function _detectCircleOverlaps(
+	groupKeys: string[],
+	centroids: Map<string, { x: number; y: number }>,
+	radii: Map<string, number>,
+): OverlapResult {
+	let maxOverlapRatio = 0;
+	let hasOverlap = false;
+	for (let i = 0; i < groupKeys.length; i++) {
+		for (let j = i + 1; j < groupKeys.length; j++) {
+			const rA = radii.get(groupKeys[i]) ?? 0;
+			const rB = radii.get(groupKeys[j]) ?? 0;
+			const cA = centroids.get(groupKeys[i]);
+			const cB = centroids.get(groupKeys[j]);
+			if (!cA || !cB || rA < 1 || rB < 1) continue;
+			const dist = magnitude(cB.x - cA.x, cB.y - cA.y);
+			if (dist < (rA + rB) * 1.1) {
+				hasOverlap = true;
+				const circleOverlap = (rA + rB) * 1.1 - dist;
+				const ratio = circleOverlap / (rA + rB || 1);
+				if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
+			}
+		}
+	}
+	return { maxOverlapRatio, hasNodeOverlap: hasOverlap, hasCrossGroupOverlap: hasOverlap };
+}
+
 /** Group BBox + bounding circle overlap detection */
 function _detectGroupOverlaps(
 	nodeInfos: AutoFitNodeInfo[],
 	baseSize: number,
 	metadata: ClusterMetadata,
-): { maxOverlapRatio: number; hasNodeOverlap: boolean; hasCrossGroupOverlap: boolean } {
-	let maxOverlapRatio = 0;
-	let hasNodeOverlap = false;
-	let hasCrossGroupOverlap = false;
-
+): OverlapResult {
 	const groupNodes = new Map<string, AutoFitNodeInfo[]>();
 	for (const ni of nodeInfos) {
 		if (!groupNodes.has(ni.group)) groupNodes.set(ni.group, []);
 		groupNodes.get(ni.group)!.push(ni);
 	}
 	const groupKeys = [...groupNodes.keys()].filter((k) => k !== "__none__");
-	if (groupKeys.length <= 1) return { maxOverlapRatio, hasNodeOverlap, hasCrossGroupOverlap };
+	if (groupKeys.length <= 1) {
+		return { maxOverlapRatio: 0, hasNodeOverlap: false, hasCrossGroupOverlap: false };
+	}
 
-	// BBox overlap
+	// Build padded BBoxes per group
 	const groupBBoxes = new Map<string, BBox>();
 	const pad = baseSize * 2;
 	for (const k of groupKeys) {
@@ -3366,46 +3423,15 @@ function _detectGroupOverlaps(
 		}
 		groupBBoxes.set(k, { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad });
 	}
-	for (let i = 0; i < groupKeys.length; i++) {
-		for (let j = i + 1; j < groupKeys.length; j++) {
-			const a = groupBBoxes.get(groupKeys[i])!;
-			const b = groupBBoxes.get(groupKeys[j])!;
-			const ox = Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX);
-			const oy = Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY);
-			if (ox > 0 && oy > 0) {
-				hasCrossGroupOverlap = true;
-				hasNodeOverlap = true;
-				const overlapArea = ox * oy;
-				const aArea = (a.maxX - a.minX) * (a.maxY - a.minY);
-				const bArea = (b.maxX - b.minX) * (b.maxY - b.minY);
-				const ratio = overlapArea / (Math.min(aArea, bArea) || 1);
-				if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
-			}
-		}
-	}
 
-	// Circle overlap
-	const simRadii = metadata.clusterRadii;
-	const simCentroids = metadata.clusterCentroids;
-	for (let i = 0; i < groupKeys.length; i++) {
-		for (let j = i + 1; j < groupKeys.length; j++) {
-			const rA = simRadii.get(groupKeys[i]) ?? 0;
-			const rB = simRadii.get(groupKeys[j]) ?? 0;
-			const cA = simCentroids.get(groupKeys[i]);
-			const cB = simCentroids.get(groupKeys[j]);
-			if (!cA || !cB || rA < 1 || rB < 1) continue;
-			const dist = magnitude(cB.x - cA.x, cB.y - cA.y);
-			if (dist < (rA + rB) * 1.1) {
-				hasCrossGroupOverlap = true;
-				hasNodeOverlap = true;
-				const circleOverlap = (rA + rB) * 1.1 - dist;
-				const ratio = circleOverlap / (rA + rB || 1);
-				if (ratio > maxOverlapRatio) maxOverlapRatio = ratio;
-			}
-		}
-	}
+	const bbox = _detectBBoxOverlaps(groupKeys, groupBBoxes);
+	const circle = _detectCircleOverlaps(groupKeys, metadata.clusterCentroids, metadata.clusterRadii);
 
-	return { maxOverlapRatio, hasNodeOverlap, hasCrossGroupOverlap };
+	return {
+		maxOverlapRatio: Math.max(bbox.maxOverlapRatio, circle.maxOverlapRatio),
+		hasNodeOverlap: bbox.hasNodeOverlap || circle.hasNodeOverlap,
+		hasCrossGroupOverlap: bbox.hasCrossGroupOverlap || circle.hasCrossGroupOverlap,
+	};
 }
 
 // ---------------------------------------------------------------------------
