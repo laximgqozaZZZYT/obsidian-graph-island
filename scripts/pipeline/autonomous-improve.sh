@@ -97,9 +97,71 @@ trap cleanup EXIT
 # ── Work in worktree ──
 cd "$WORKTREE_DIR" || exit 1
 
-# ── DISCOVER: scan for real problems (not ideas) ──
-log "Running issue discovery..."
+# ── DISCOVER: static scan + kaizen analysis ──
+log "Running static issue discovery..."
 bash "$PROJECT_DIR/scripts/pipeline/discover-issues.sh" 2>&1 | tail -5 | while IFS= read -r line; do log "  $line"; done
+
+# Kaizen-driven deep analysis (every 4th session to save API calls)
+HOUR=${HOUR:-$(date +%-H)}
+if [[ $((HOUR % 4)) -eq 0 ]]; then
+  PENDING_COUNT=$(ls "$PROJECT_DIR/scripts/pipeline/issues"/*.md 2>/dev/null | wc -l || echo "0")
+  if [[ $PENDING_COUNT -lt 5 ]]; then
+    log "Running /kaizen issue discovery (hour=$HOUR, pending=$PENDING_COUNT)..."
+    KAIZEN_PROMPT="あなたはKaizen(継続的改善)のスペシャリストです。
+
+Graph Island Obsidian プラグインのソースコード(src/)を分析し、
+既存コードの品質課題を発見してください。
+
+## ルール
+- 機能追加のアイデアは禁止。既存コードの問題だけ報告すること
+- 課題 = バグ、品質劣化、規約違反、一貫性の欠如、リスクのある実装
+- アイデア ≠ 課題。「こうしたら良い」ではなく「ここが壊れている/危険」を報告
+- CLAUDE.md のルールに照らして違反を探す
+- 具体的なファイル名と行番号を含めること
+
+## 分析対象 (優先順位順)
+1. ランタイムバグの可能性 (null参照、境界値、競合状態)
+2. リソースリーク (イベントリスナー未解除、タイマー未クリア)
+3. CLAUDE.md規約違反 (ハードコード値、God Object肥大化兆候)
+4. エラーハンドリングの欠陥
+5. 型安全性の穴 (any型、unsafe cast)
+6. テストされていない危険なコードパス
+
+## 出力形式
+発見した課題ごとに以下を scripts/pipeline/issues/ にファイルとして書き出すこと:
+
+ファイル名: scripts/pipeline/issues/NNN-slug.md (NNNは既存最大番号+1)
+
+内容:
+---
+priority: high または medium
+reported: $(date +%Y-%m-%d)
+status: pending
+source: kaizen
+summary: 1行要約
+---
+## Description
+詳細説明(ファイル名:行番号を含む)
+## Acceptance criteria
+- [ ] 具体的な修正基準
+
+最大3件まで。既に scripts/pipeline/issues/ にある課題と重複しないこと。
+既存のissueを確認してから書くこと。"
+
+    claude -p "$KAIZEN_PROMPT" \
+      --allowedTools "Bash,Read,Glob,Grep,Write" \
+      --max-turns 20 \
+      2>&1 | tail -5 | while IFS= read -r line; do log "  kaizen: $line"; done
+
+    # Auto-commit any newly created issues to keep main clean
+    if [[ -n "$(cd "$PROJECT_DIR" && git status --porcelain scripts/pipeline/issues/)" ]]; then
+      (cd "$PROJECT_DIR" && git add scripts/pipeline/issues/ && git commit -m "chore: kaizen-discovered issues
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>" --no-verify 2>/dev/null) || true
+      log "Kaizen issues committed to main"
+    fi
+  fi
+fi
 
 # ── PRIORITIZE issues: user-reported > auto-discovered > auto-focus ──
 # Priority order:
