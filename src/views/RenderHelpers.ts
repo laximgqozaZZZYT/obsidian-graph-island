@@ -426,62 +426,62 @@ export interface TooltipTextOptions {
 }
 
 /**
+ * Build the metadata section of a tooltip: tags, category, custom fields,
+ * degree, collapsed-member count, and edge-type summary.
+ */
+export function buildTooltipMetadata(opts: TooltipTextOptions): string {
+	let meta = "";
+	if (opts.tags && opts.tags.length > 0 && !opts.hasVisibleTagLabel && !opts.isEnclosure) {
+		meta += "\n" + opts.tags.map((t: string) => `#${t}`).join(" ");
+	}
+	if (opts.category) {
+		meta += "\n[" + opts.category + "]";
+	}
+	if (opts.hoverTooltipFields) {
+		const fields = opts.hoverTooltipFields
+			.split(",")
+			.map((s) => s.trim())
+			.filter(Boolean);
+		for (const field of fields) {
+			const val = opts.getFieldValue?.(field);
+			if (val !== undefined && val !== "") {
+				meta += `\n${field}: ${val}`;
+			}
+		}
+	}
+	meta += `\n\u00B0 ${opts.degree}`;
+	if (opts.collapsedMembers && opts.collapsedMembers.length > 0) {
+		meta += `\n${opts.collapsedMembers.length} members`;
+	}
+	if (opts.edgeTypeSummary.size > 0) {
+		meta += `\n${[...opts.edgeTypeSummary.entries()].map(([t, c]) => `${t}:${c}`).join(" ")}`;
+	}
+	return meta;
+}
+
+/**
  * Assemble hover tooltip text from node data (pure function).
  * Returns empty string when no content should be displayed.
  */
 export function buildHoverTooltipText(opts: TooltipTextOptions): string {
 	let text = "";
 
-	// Title
 	if (opts.showTitle) {
 		text = opts.label;
 	}
 
-	// Metadata (tags, category, custom fields, degree, edge types)
 	if (opts.showTooltip && opts.showMeta) {
-		if (opts.tags && opts.tags.length > 0 && !opts.hasVisibleTagLabel && !opts.isEnclosure) {
-			text += "\n" + opts.tags.map((t: string) => `#${t}`).join(" ");
-		}
-		if (opts.category) {
-			text += "\n[" + opts.category + "]";
-		}
-		if (opts.hoverTooltipFields) {
-			const fields = opts.hoverTooltipFields
-				.split(",")
-				.map((s) => s.trim())
-				.filter(Boolean);
-			for (const field of fields) {
-				const val = opts.getFieldValue?.(field);
-				if (val !== undefined && val !== "") {
-					text += `\n${field}: ${val}`;
-				}
-			}
-		}
-		text += `\n\u00B0 ${opts.degree}`;
-
-		// Collapsed group node summary
-		if (opts.collapsedMembers && opts.collapsedMembers.length > 0) {
-			// Use imported collapsedGroupSummary if available, otherwise inline
-			text += `\n${opts.collapsedMembers.length} members`;
-		}
-
-		// Edge type summary
-		if (opts.edgeTypeSummary.size > 0) {
-			text += `\n${[...opts.edgeTypeSummary.entries()].map(([t, c]) => `${t}:${c}`).join(" ")}`;
-		}
+		text += buildTooltipMetadata(opts);
 	}
 
-	// Body preview
 	if (opts.showTooltip && opts.showBody && opts.bodyPreview) {
 		text += "\n---\n" + opts.bodyPreview;
 	}
 
-	// Shortcut hints for keyboard users
 	if (opts.showTooltip && opts.isKeyboardFocused) {
 		text += "\n\u2500 Enter: open \u00B7 Shift+Enter: select \u00B7 Ctrl+Enter: compare";
 	}
 
-	// Similar node suggestions
 	if (opts.showSimilarSuggestions && opts.similarNodes.length > 0) {
 		text += "\n\u2014 Similar \u2014";
 		for (const s of opts.similarNodes) {

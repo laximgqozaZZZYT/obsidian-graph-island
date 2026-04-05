@@ -6,6 +6,7 @@ import {
   countEdgeTypes,
   getPresetSummary,
   buildHoverTooltipText,
+  buildTooltipMetadata,
   hasImageMetaNodes,
   computeViewportScaleFactor,
   computeAvgRadius,
@@ -308,6 +309,57 @@ describe("buildHoverTooltipText", () => {
     });
     expect(text).toContain("link:3");
     expect(text).toContain("tag:2");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildTooltipMetadata
+// ---------------------------------------------------------------------------
+describe("buildTooltipMetadata", () => {
+  const baseOpts: TooltipTextOptions = {
+    label: "X",
+    showTitle: false,
+    showTooltip: true,
+    showMeta: true,
+    showBody: false,
+    isKeyboardFocused: false,
+    showSimilarSuggestions: false,
+    degree: 3,
+    isEnclosure: false,
+    hasVisibleTagLabel: false,
+    edgeTypeSummary: new Map(),
+    similarNodes: [],
+  };
+
+  it("includes tags when not enclosure and no visible tag label", () => {
+    const meta = buildTooltipMetadata({ ...baseOpts, tags: ["a", "b"] });
+    expect(meta).toContain("#a");
+    expect(meta).toContain("#b");
+  });
+
+  it("skips tags for enclosure nodes", () => {
+    const meta = buildTooltipMetadata({ ...baseOpts, tags: ["a"], isEnclosure: true });
+    expect(meta).not.toContain("#a");
+  });
+
+  it("includes custom field values", () => {
+    const meta = buildTooltipMetadata({
+      ...baseOpts,
+      hoverTooltipFields: "status, priority",
+      getFieldValue: (f) => (f === "status" ? "active" : undefined),
+    });
+    expect(meta).toContain("status: active");
+    expect(meta).not.toContain("priority");
+  });
+
+  it("includes collapsed member count", () => {
+    const meta = buildTooltipMetadata({ ...baseOpts, collapsedMembers: ["a", "b", "c"] });
+    expect(meta).toContain("3 members");
+  });
+
+  it("always includes degree", () => {
+    const meta = buildTooltipMetadata(baseOpts);
+    expect(meta).toContain("3");
   });
 });
 
