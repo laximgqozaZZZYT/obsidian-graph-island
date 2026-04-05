@@ -256,7 +256,18 @@ print(f\"overall:{r['overallScore']}/100\")
   GODOBJ_STATUS=$(echo "$GODOBJ_JSON" | python3 -c "import sys,json; [print(f\"{k.split('/')[-1]}:{v['current']}/{v['limit']}\",end=' ') for k,v in json.load(sys.stdin).get('files',{}).items() if v.get('status')=='fail']" 2>/dev/null || echo "all pass")
 
   if [[ "$FOCUS" == "user-issue" ]]; then
-    PROMPT="ユーザーから報告された課題を修正してください。
+    # Layer: /research → /systematic-debugging → implement
+    PROMPT="あなたはコードベース調査と問題解決のスペシャリストです。
+
+## Phase 1: /research — 課題の理解
+まずコードベースを調査して、課題に関連するファイルと実装を理解してください。
+関連する型定義、関数、依存関係を把握すること。
+
+## Phase 2: /systematic-debugging — 根本原因特定
+仮説を立てる前に事実を集める。根本原因を特定してから修正する。
+
+## Phase 3: 実装
+根本原因に対する最小限の修正を行う。
 
 ## 課題内容
 $ISSUE_CONTENT
@@ -273,7 +284,42 @@ $ISSUE_CONTENT
 - 課題の acceptance criteria を満たすこと
 - 実装後は何もせず終了（検証はシェルが行う）"
   else
+    # Each focus uses its appropriate skill
+    SKILL_CONTEXT=""
+    case "$FOCUS" in
+      coverage)
+        SKILL_CONTEXT="あなたは /test スペシャリストです。
+## /test の原則
+- カバレッジレポートを読んで最も効果的なテスト対象を選ぶ
+- 純粋関数を優先 (DOM/Canvas依存は後回し)
+- 境界値テスト: 空入力、極端な値、型境界
+- 既存テストと重複しない
+- テストの意味がある (形式だけのテストは不要)"
+        ;;
+      eslint)
+        SKILL_CONTEXT="あなたは /simplify スペシャリストです。
+## /simplify の原則
+- 複雑な関数を小さなヘルパーに分割
+- 早期returnで分岐を減らす
+- 重複コードを共通関数に抽出
+- 動作は変えない (純粋なリファクタ)
+- ESLint complexity 閾値は 25"
+        ;;
+      refactor)
+        SKILL_CONTEXT="あなたは /research + /simplify スペシャリストです。
+## /research の原則
+- まずコードを読んで構造を理解する
+- 依存関係を把握してから抽出する
+## /simplify の原則
+- God Object からロジックを新ファイルに抽出
+- importを正しく更新
+- 行数削減を確認"
+        ;;
+    esac
+
     PROMPT="自律改善サイクル iteration $iter/$MAX_ITERATIONS。focus: $FOCUS
+
+$SKILL_CONTEXT
 
 状態:
 - ゲート: $GATE_STATUS
@@ -299,7 +345,7 @@ focus=$FOCUS の改善を1つ実装せよ:
     --max-turns "$MAX_TURNS" \
     2>&1 | tail -5
 
-  # ── VERIFY ──
+  # ── VERIFY: gates (mechanical) ──
   log "Verifying gates..."
   VERIFY_OK=false
   for fix_attempt in $(seq 1 3); do
@@ -308,11 +354,22 @@ focus=$FOCUS の改善を1つ実装せよ:
       break
     fi
     if [[ $fix_attempt -lt 3 ]]; then
-      log "Gate failed, fix attempt $fix_attempt/3..."
+      log "Gate failed, fix attempt $fix_attempt/3 — /systematic-debugging..."
       ERRORS=$(bash scripts/pipeline/enforce-gates.sh --skip-e2e 2>&1 | grep "^FAIL" || echo "unknown")
-      claude -p "ゲートが失敗: $ERRORS — 修正せよ。" \
+      # Layer: /systematic-debugging — diagnose root cause before fixing
+      claude -p "あなたは systematic-debugging のスペシャリストです。
+
+ゲートが失敗しました: $ERRORS
+
+## 手順 (systematic-debugging)
+1. エラーメッセージを正確に読む
+2. 仮説を立てる前に事実を集める (ファイルを読む、テストを実行する)
+3. 根本原因を特定してから修正する (表面的なband-aid fix禁止)
+4. 修正後に同じテストが通ることを確認
+
+修正してください。CLAUDE.md厳守。" \
         --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
-        --max-turns 10 \
+        --max-turns 15 \
         2>&1 | tail -3
     fi
   done
@@ -320,6 +377,58 @@ focus=$FOCUS の改善を1つ実装せよ:
   if [[ "$VERIFY_OK" != true ]]; then
     log "ABORT: Gates failed after 3 fix attempts"
     break
+  fi
+
+  # ── REVIEW: /review — code review the changes ──
+  log "Running /review on changes..."
+  DIFF_STAT=$(git diff HEAD~1 --stat 2>/dev/null | tail -3 || echo "no diff")
+  REVIEW_FINDINGS=$(claude -p "あなたはコードレビューのスペシャリストです。
+
+直近の変更をレビューしてください。
+
+diff stat: $DIFF_STAT
+全diffを確認するには git diff HEAD~1 を実行してください。
+
+## レビュー観点 (/review)
+1. 正確性: ロジックエラー、境界値の見落とし
+2. セキュリティ: インジェクション、XSS、unsafe patterns
+3. CLAUDE.md規約: God Object肥大化、ハードコード値、console文
+4. パフォーマンス: 不要な再計算、O(n²)ループ
+
+findingsがあれば番号付きリストで出力。なければ 'NO FINDINGS' と出力。" \
+    --allowedTools "Bash,Read,Glob,Grep" \
+    --max-turns 10 \
+    2>&1 || echo "NO FINDINGS")
+
+  if echo "$REVIEW_FINDINGS" | grep -qi "NO FINDINGS"; then
+    log "Review: clean"
+  else
+    log "Review: findings detected — /simplify で修正..."
+    # Layer: /simplify — fix review findings + simplify
+    claude -p "あなたはコード簡素化のスペシャリストです。
+
+以下のレビューfindingsを修正し、コードを簡素化してください。
+
+## Findings
+$REVIEW_FINDINGS
+
+## /simplify の原則
+- 変更されたコードに焦点を当てる
+- 冗長なコードを簡潔にする
+- 重複を排除する
+- 命名を改善する
+- 動作は変えない (純粋なリファクタ)
+
+CLAUDE.md厳守。God Object行数を増やさない。" \
+      --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
+      --max-turns 10 \
+      2>&1 | tail -3
+
+    # Re-verify after simplification
+    if ! bash scripts/pipeline/enforce-gates.sh --skip-e2e >/dev/null 2>&1; then
+      log "WARN: Simplification broke gates — reverting"
+      git checkout -- . 2>/dev/null
+    fi
   fi
 
   # ── E2E VISUAL CHECK (background, no display occupation) ──
