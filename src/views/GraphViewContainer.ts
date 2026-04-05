@@ -207,6 +207,63 @@ import {
 } from "./hover-helpers";
 
 // ---------------------------------------------------------------------------
+// File-local constants — no hardcoded magic numbers in method bodies
+// ---------------------------------------------------------------------------
+
+// ---- Timing (ms) ----
+const SAVE_DEBOUNCE_MS = 500;
+const ONBOARDING_HELP_DELAY_MS = 500;
+const ONBOARDING_HINT_DELAY_MS = 3000;
+const HOVER_PREVIEW_DELAY_MS = 800;
+const AUTOFIT_DELAY_MS = 600;
+const ANIMATE_TO_NODE_MS = 500;
+const FADE_ALPHA_MS = 300;
+const SEARCH_PULSE_MS = 300;
+
+// ---- Toast / Notice durations (ms) ----
+const TOAST_SHORT_MS = 2000;
+const TOAST_MEDIUM_MS = 3000;
+const TOAST_LONG_MS = 5000;
+
+// ---- Cache TTL (ms) ----
+const FM_KEYS_CACHE_TTL_MS = 5000;
+
+// ---- Thresholds ----
+const EXTREME_ZOOM_THRESHOLD = 0.15;
+const MOBILE_NODE_CAP = 200;
+const LARGE_GRAPH_LOCAL_THRESHOLD = 500;
+const TRANSITION_SKIP_THRESHOLD = 500;
+const SNAPSHOT_MAX_COUNT = 10;
+
+// ---- Rendering constants ----
+const BLEND_LABEL_FACTOR = 0.15;
+const GOLDEN_RATIO_FALLBACK = 1.618;
+const BODY_PREVIEW_MAX_CHARS = 200;
+const COLLISION_RATE_OK = 0.05;
+const DIMMED_NODE_ALPHA = 0.12;
+const SEARCH_HALO_STROKE_WIDTH = 2;
+const SEARCH_HALO_STROKE_ALPHA = 0.85;
+const HOVER_TOOLTIP_BG_ALPHA = 0.92;
+const SEARCH_PULSE_SCALE = 1.3;
+const ALPHA_EPSILON = 0.01;
+const ARC_ANGLE_EPSILON = 0.001;
+const HEATMAP_MIN_VALUE = 0.05;
+const ZOOM_TO_LABEL_RECT = 400;
+
+// ---- Sunburst fill alpha (ring chart mode) ----
+const RING_FILL_ALPHA_FLOOR = 0.3;
+const RING_FILL_ALPHA_BASE = 0.7;
+const RING_FILL_ALPHA_DEPTH_DECAY = 0.08;
+
+// ---- Sunburst fill alpha (normal mode) ----
+const SUNBURST_FILL_ALPHA_FLOOR = 0.02;
+const SUNBURST_FILL_ALPHA_BASE = 0.1;
+const SUNBURST_FILL_ALPHA_DEPTH_DECAY = 0.015;
+const SUNBURST_STROKE_ALPHA_FLOOR = 0.15;
+const SUNBURST_STROKE_ALPHA_BASE = 0.4;
+const SUNBURST_STROKE_ALPHA_DEPTH_DECAY = 0.05;
+
+// ---------------------------------------------------------------------------
 // StatsHost — interface for future StatsRenderer extraction (Phase 0)
 // Defines the minimal GVC surface that updateGraphStats/updateLegend require.
 // Phase 1 will create StatsRenderer class consuming this interface.
@@ -286,9 +343,9 @@ export function blendThemeLabel(bg: number, nodeColor: number): number {
 		g2 = (nodeColor >> 8) & 0xff,
 		b2 = nodeColor & 0xff;
 	return (
-		(Math.round(r1 + (r2 - r1) * 0.15) << 16) |
-		(Math.round(g1 + (g2 - g1) * 0.15) << 8) |
-		Math.round(b1 + (b2 - b1) * 0.15)
+		(Math.round(r1 + (r2 - r1) * BLEND_LABEL_FACTOR) << 16) |
+		(Math.round(g1 + (g2 - g1) * BLEND_LABEL_FACTOR) << 8) |
+		Math.round(b1 + (b2 - b1) * BLEND_LABEL_FACTOR)
 	);
 }
 
@@ -866,7 +923,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this._saveTimer = setTimeout(() => {
 			this.app.workspace.requestSaveLayout();
 			this._saveTimer = null;
-		}, 500);
+		}, SAVE_DEBOUNCE_MS);
 	}
 
 	getState() {
@@ -1016,9 +1073,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const ONBOARDING_KEY = "graph-island-onboarding-shown";
 		if (!localStorage.getItem(ONBOARDING_KEY)) {
 			localStorage.setItem(ONBOARDING_KEY, "1");
-			this._scheduleTimer(() => this._toggleHelpOverlay(), 500);
+			this._scheduleTimer(() => this._toggleHelpOverlay(), ONBOARDING_HELP_DELAY_MS);
 			// Contextual hint after help overlay auto-dismisses
-			this._scheduleTimer(() => showToast(t("toast.contextMenuHint"), 5000), 3000);
+			this._scheduleTimer(() => showToast(t("toast.contextMenuHint"), TOAST_LONG_MS), ONBOARDING_HINT_DELAY_MS);
 		}
 	}
 
@@ -1217,8 +1274,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const snapshots = this.plugin.settings.snapshots ?? [];
 
 		// 10件制限チェック
-		if (snapshots.length >= 10) {
-			showToast(t("snapshot.limitReached"), 5000);
+		if (snapshots.length >= SNAPSHOT_MAX_COUNT) {
+			showToast(t("snapshot.limitReached"), TOAST_LONG_MS);
 			return;
 		}
 
@@ -2688,7 +2745,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this._cancelHoverPreview();
 		this._hoverPreviewTimer = window.setTimeout(() => {
 			this._showHoverPreview(nodeId);
-		}, 800) as unknown as number;
+		}, HOVER_PREVIEW_DELAY_MS) as unknown as number;
 	}
 
 	private _cancelHoverPreview(): void {
@@ -3024,7 +3081,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			// Show culled count + top folder summary at extreme zoom-out
 			let text = t("density.moreHidden").replace("{count}", String(count));
 			const zoom = this.worldContainer?.scale?.x ?? 1;
-			if (zoom < 0.15 && this.pixiNodes.size > 0) {
+			if (zoom < EXTREME_ZOOM_THRESHOLD && this.pixiNodes.size > 0) {
 				const folders = new Map<string, number>();
 				for (const pn of this.pixiNodes.values()) {
 					if (!pn.label?.visible) continue;
@@ -3303,7 +3360,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const headerStyle = cardConfig.headerStyle ?? "plain";
 			const fieldLineH = crc.fieldLineHeight / zoom;
 			hitCardMaxHalfW = (cardConfig.maxWidth ?? 120) / zoom / 2;
-			hitCardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
+			hitCardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : GOLDEN_RATIO_FALLBACK;
 			hitCardWidthFactor = crc.cardWidthFactor;
 			hitCardAspectRatio = crc.cardAspectRatio;
 			if (headerStyle === "table") {
@@ -3418,7 +3475,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				.cachedRead(tf)
 				.then((content) => {
 					const stripped = content.replace(/^---[\s\S]*?---\n?/, "").trim();
-					bodyEl.textContent = stripped.slice(0, 200) + (stripped.length > 200 ? "..." : "");
+					bodyEl.textContent = stripped.slice(0, BODY_PREVIEW_MAX_CHARS) + (stripped.length > BODY_PREVIEW_MAX_CHARS ? "..." : "");
 				})
 				.catch(() => {
 					bodyEl.textContent = t("hover.couldNotRead");
@@ -3601,7 +3658,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const msg = t("toast.subgraphExported")
 			.replace("{nodes}", String(sub.nodes.length))
 			.replace("{edges}", String(sub.edges.length));
-		new Notice(msg, 3000);
+		new Notice(msg, TOAST_MEDIUM_MS);
 	}
 
 	setSearchQuery(query: string): void {
@@ -3624,7 +3681,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.panel.savedViewports = this.panel.savedViewports.filter((v) => v.name !== name);
 		this.panel.savedViewports.push({ name, x: world.x, y: world.y, scale: world.scale.x });
 		this.requestSave();
-		new Notice(`Viewport saved: ${name}`, 2000);
+		new Notice(`Viewport saved: ${name}`, TOAST_SHORT_MS);
 	}
 	restoreViewport(name: string): void {
 		const world = this.worldContainer;
@@ -3691,7 +3748,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			a.click();
 			document.body.removeChild(a);
 			URL.revokeObjectURL(url);
-			new Notice("Graph exported as PNG", 2000);
+			new Notice("Graph exported as PNG", TOAST_SHORT_MS);
 		}, "image/png");
 	}
 
@@ -3703,14 +3760,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			"application/json",
 			`graph-island-export-${new Date().toISOString().slice(0, 10)}.json`,
 		);
-		new Notice(`Graph exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, 3000);
+		new Notice(`Graph exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, TOAST_MEDIUM_MS);
 	}
 
 	exportGraphAsCSV(): void {
 		const gd = this.getGraphData();
 		const csv = exportGraphCSV(gd.nodes, gd.edges);
 		this._downloadFile(csv, "text/csv", `graph-island-${new Date().toISOString().slice(0, 10)}.csv`);
-		new Notice(`CSV exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, 3000);
+		new Notice(`CSV exported: ${gd.nodes.length} nodes, ${gd.edges.length} edges`, TOAST_MEDIUM_MS);
 	}
 
 	exportGraphAsMermaid(): void {
@@ -3719,7 +3776,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		navigator.clipboard
 			.writeText(mmd)
 			.then(() => {
-				new Notice(`Mermaid diagram copied to clipboard (${Math.min(200, gd.nodes.length)} nodes)`, 3000);
+				new Notice(`Mermaid diagram copied to clipboard (${Math.min(MOBILE_NODE_CAP, gd.nodes.length)} nodes)`, TOAST_MEDIUM_MS);
 			})
 			.catch(() => {
 				this._downloadFile(mmd, "text/plain", `graph-island-${new Date().toISOString().slice(0, 10)}.mmd`);
@@ -4108,7 +4165,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this.doRender();
 			showToast(t("context.noteCreated").replace("{name}", file.basename));
 		} catch (err) {
-			showToast(`Failed to create note: ${err}`, 5000);
+			showToast(`Failed to create note: ${err}`, TOAST_LONG_MS);
 		}
 	}
 
@@ -4289,7 +4346,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			// Re-cull with current margin
 			this.renderPipeline?.cullOverlappingLabels();
 			const stats = this.getVisibleLabelCollisions();
-			if (stats.total === 0 || stats.rate <= 0.05) {
+			if (stats.total === 0 || stats.rate <= COLLISION_RATE_OK) {
 				return { optimized: i > 0, finalMargin: margin, finalRate: stats.rate };
 			}
 			// Increase margin
@@ -4606,10 +4663,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private _drawSearchHalo(pn: PixiNode, isCardMode: boolean, hoverRt: any): void {
 		const searchHitColor = this.getAccentColor();
-		pn.circle.lineStyle(2, searchHitColor, 0.85);
+		pn.circle.lineStyle(SEARCH_HALO_STROKE_WIDTH, searchHitColor, SEARCH_HALO_STROKE_ALPHA);
 		if (isCardMode) {
 			const crc2 = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
-			const cardAR2 = crc2.cardAspectRatio > 0 ? crc2.cardAspectRatio : 1.618;
+			const cardAR2 = crc2.cardAspectRatio > 0 ? crc2.cardAspectRatio : GOLDEN_RATIO_FALLBACK;
 			const baseH2 = pn.radius * 2;
 			const halfW = Math.max(20, (baseH2 * cardAR2) / 2);
 			const halfH = baseH2;
@@ -4759,7 +4816,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			fontWeight: "600",
 		});
 		hl.bgColor = rt.labelBgColor;
-		hl.bgAlpha = 0.92;
+		hl.bgAlpha = HOVER_TOOLTIP_BG_ALPHA;
 		hl.bgPadX = 8;
 		hl.bgPadY = 4;
 		hl.cornerRadius = rt.labelHaloCornerRadius;
@@ -4769,7 +4826,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const gfxScale = pn.gfx.scale?.x ?? 1;
 		const isCardMode = (this.panel.nodeDisplayMode ?? "node") === "card";
 		const crc = isCardMode ? { ...(this.panel.cardRenderConfig ?? {}) } : null;
-		const cardAR = crc ? (crc.cardAspectRatio ?? 1.618) : 0;
+		const cardAR = crc ? (crc.cardAspectRatio ?? GOLDEN_RATIO_FALLBACK) : 0;
 		const cardHalfW = isCardMode ? Math.max(pn.radius * 2, (pn.radius * 2 * cardAR) / 2) : 0;
 		const offsetX = isCardMode ? cardHalfW + 8 : pn.radius + 4;
 		hl.x = offsetX * gfxScale;
@@ -4804,7 +4861,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		const isCardFlip = (this.panel.nodeDisplayMode ?? "node") === "card";
 		const crcFlip = isCardFlip ? (this.panel.cardRenderConfig ?? {}) : null;
-		const arFlip = crcFlip ? (crcFlip.cardAspectRatio ?? 1.618) : 0;
+		const arFlip = crcFlip ? (crcFlip.cardAspectRatio ?? GOLDEN_RATIO_FALLBACK) : 0;
 
 		const result = adjustTooltipPosition({
 			nodeX: pn.data.x,
@@ -4857,7 +4914,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				pn.gfx.alpha = 1;
 				this.drawNodeCircle(pn, true);
 			} else {
-				pn.gfx.alpha = 0.12;
+				pn.gfx.alpha = DIMMED_NODE_ALPHA;
 			}
 		}
 		this.redrawNodeBatch();
@@ -5445,7 +5502,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					}
 				}
 				// Fallback: zoom to label position
-				this._zoomToWorldRect(txt.x - 200, txt.y - 200, 400, 400);
+				this._zoomToWorldRect(txt.x - ZOOM_TO_LABEL_RECT / 2, txt.y - ZOOM_TO_LABEL_RECT / 2, ZOOM_TO_LABEL_RECT, ZOOM_TO_LABEL_RECT);
 				return true;
 			}
 		}
@@ -5521,13 +5578,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			// === Ring Chart Mode: opaque filled sectors with depth gradient ===
 			for (const arc of sunburstArcs) {
 				const { cx, cy, rInner, rOuter, startAngle, endAngle, depth } = arc;
-				if (rOuter <= 0 || endAngle - startAngle < 0.001) continue;
+				if (rOuter <= 0 || endAngle - startAngle < ARC_ANGLE_EPSILON) continue;
 
 				const ci = getColorIdx(arc);
 				const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
 				const baseColor = cssColorToHex(css);
 				const color = this.lightenHexColor(baseColor, depth * depthLighten);
-				const fillAlpha = Math.max(0.3, 0.7 - depth * 0.08);
+				const fillAlpha = Math.max(RING_FILL_ALPHA_FLOOR, RING_FILL_ALPHA_BASE - depth * RING_FILL_ALPHA_DEPTH_DECAY);
 
 				gfx.lineStyle(bdrW, 0xffffff, borderAlpha);
 				gfx.beginFill(color, fillAlpha);
@@ -5538,14 +5595,14 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			// === Normal Mode: light fill + outlines with depth gradient ===
 			for (const arc of sunburstArcs) {
 				const { cx, cy, rInner, rOuter, startAngle, endAngle, depth } = arc;
-				if (rOuter <= 0 || endAngle - startAngle < 0.001) continue;
+				if (rOuter <= 0 || endAngle - startAngle < ARC_ANGLE_EPSILON) continue;
 
 				const ci = getColorIdx(arc);
 				const css = DEFAULT_COLORS[ci % DEFAULT_COLORS.length];
 				const baseColor = cssColorToHex(css);
 				const color = this.lightenHexColor(baseColor, depth * depthLighten);
-				const fillAlpha = Math.max(0.02, 0.1 - depth * 0.015);
-				const strokeAlpha = Math.max(0.15, 0.4 - depth * 0.05);
+				const fillAlpha = Math.max(SUNBURST_FILL_ALPHA_FLOOR, SUNBURST_FILL_ALPHA_BASE - depth * SUNBURST_FILL_ALPHA_DEPTH_DECAY);
+				const strokeAlpha = Math.max(SUNBURST_STROKE_ALPHA_FLOOR, SUNBURST_STROKE_ALPHA_BASE - depth * SUNBURST_STROKE_ALPHA_DEPTH_DECAY);
 
 				// Light fill
 				gfx.beginFill(color, fillAlpha);
@@ -6263,7 +6320,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 
 		// Pass 2: recompute bbox with card dimensions
-		const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
+		const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : GOLDEN_RATIO_FALLBACK;
 		const numFields = (this.panel.cardDisplayConfig?.fields ?? []).length;
 		const nodes = [...this.pixiNodes.values()].map((pn) => ({ x: pn.data.x, y: pn.data.y, radius: pn.radius }));
 		computeCardBBox(nodes, sc0, cardAR, crc as { tableHeaderHeight: number; fieldLineHeight: number; cardPadding: number }, numFields);
@@ -6379,7 +6436,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Skip animation for tiny changes, reduced-motion preference,
 		// or Canvas2D backend (CPU-only rendering makes animation expensive)
 		if (
-			Math.abs(target - current) < 0.01 ||
+			Math.abs(target - current) < ALPHA_EPSILON ||
 			window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
 			!this.pixiApp?.supportsAnimation
 		) {
@@ -7154,7 +7211,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		for (let r = 0; r < rows; r++) {
 			for (let c = 0; c < cols; c++) {
 				const v = grid[r * cols + c] / maxD;
-				if (v < 0.05) continue;
+				if (v < HEATMAP_MIN_VALUE) continue;
 				const h = (1 - v) * 240;
 				const a = v * 0.25;
 				ctx.fillStyle = `hsla(${h}, 80%, 50%, ${a})`;
@@ -7222,10 +7279,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		edges = filterEdgesByNodeSet(edges, nodeSet);
 
 		// Mobile lightweight mode: cap node count to reduce rendering load
-		if (Platform.isMobile && nodes.length > 200) {
+		if (Platform.isMobile && nodes.length > MOBILE_NODE_CAP) {
 			const deg = this.degrees;
 			nodes.sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0));
-			nodes = nodes.slice(0, 200);
+			nodes = nodes.slice(0, MOBILE_NODE_CAP);
 			nodeSet = new Set(nodes.map((n) => n.id));
 			edges = edges.filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target));
 		}
@@ -8024,7 +8081,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		transitionData: { data: { x: number; y: number }; fromX: number; fromY: number; toX: number; toY: number }[],
 	): void {
 		if (transitionData.length === 0) return;
-		if (!this.pixiApp?.supportsAnimation && transitionData.length > 500) {
+		if (!this.pixiApp?.supportsAnimation && transitionData.length > TRANSITION_SKIP_THRESHOLD) {
 			for (const td of transitionData) {
 				td.data.x = td.toX;
 				td.data.y = td.toY;
@@ -8091,7 +8148,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					this.autoFitView(wrap.clientWidth, wrap.clientHeight);
 					this.markDirty();
 				}
-			}, 600);
+			}, AUTOFIT_DELAY_MS);
 		}
 	}
 	private _autoFitTimer: number = 0;
@@ -8113,7 +8170,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private collectFrontmatterKeys(): string[] {
 		// Cache for 5 seconds — vault metadata rarely changes mid-interaction
 		const now = Date.now();
-		if (this._fmKeysCache && now - this._fmKeysCacheTime < 5000) {
+		if (this._fmKeysCache && now - this._fmKeysCacheTime < FM_KEYS_CACHE_TTL_MS) {
 			return this._fmKeysCache;
 		}
 		const keys = new Set<string>();
@@ -8285,7 +8342,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 			showToast(t("toast.copiedToClipboard"));
 		} catch (_e) {
-			showToast(t("toast.clipboardFailed"), 5000);
+			showToast(t("toast.clipboardFailed"), TOAST_LONG_MS);
 		}
 	}
 
@@ -8297,11 +8354,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// アクティブなエディタを取得
 		const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!mdView || !mdView.editor) {
-			showToast(t("toast.embedNoEditor"), 5000);
+			showToast(t("toast.embedNoEditor"), TOAST_LONG_MS);
 			return;
 		}
 		if (!this.pixiApp) {
-			showToast(t("toast.embedNoGraph"), 5000);
+			showToast(t("toast.embedNoGraph"), TOAST_LONG_MS);
 			return;
 		}
 
@@ -8346,7 +8403,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 			showToast(t("toast.embedSuccess"));
 		} catch (_e) {
-			showToast(t("toast.embedFailed"), 5000);
+			showToast(t("toast.embedFailed"), TOAST_LONG_MS);
 		}
 	}
 
@@ -8411,7 +8468,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		// R16: Default to local graph centered on active file for better first impression
 		// Only apply if large graph (>500) and no localGraphCenter set
-		if (this.panel.localGraphCenter === null && this.pixiNodes.size > 500 && this.panel.syncWithEditor) {
+		if (this.panel.localGraphCenter === null && this.pixiNodes.size > LARGE_GRAPH_LOCAL_THRESHOLD && this.panel.syncWithEditor) {
 			this.panel.localGraphCenter = activeFile.path;
 			this.panel.localGraphHops = 1;
 			this.rawData = null;
@@ -8668,7 +8725,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	/** E5: Animated pan to a node with ease-out (presentation mode). */
-	private _animateToNode(nodeId: string, durationMs = 500): void {
+	private _animateToNode(nodeId: string, durationMs = ANIMATE_TO_NODE_MS): void {
 		const pn = this.pixiNodes.get(nodeId);
 		if (!pn) return;
 		const world = this.worldContainer;
@@ -8699,9 +8756,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	// V1: Smooth fade animation for search filter transitions
-	private _fadeNodeAlpha(pn: PixiNode, targetAlpha: number, durationMs = 300): void {
+	private _fadeNodeAlpha(pn: PixiNode, targetAlpha: number, durationMs = FADE_ALPHA_MS): void {
 		const startAlpha = pn.gfx.alpha;
-		if (Math.abs(startAlpha - targetAlpha) < 0.01) return;
+		if (Math.abs(startAlpha - targetAlpha) < ALPHA_EPSILON) return;
 		const startTime = performance.now();
 		const tick = (now: number) => {
 			const t = Math.min(1, (now - startTime) / durationMs);
@@ -8733,7 +8790,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			} else {
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				(pn as any)._searchPulsed = false;
-				this._fadeNodeAlpha(pn, 0.12);
+				this._fadeNodeAlpha(pn, DIMMED_NODE_ALPHA);
 				this.drawNodeCircle(pn, false);
 			}
 		}
@@ -8794,7 +8851,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this._drawSearchCardHalo(pn, searchHitColor);
 		} else {
 			drawShape(pn.circle, shape, pn.radius * 2.2, searchHitColor, 0.1);
-			pn.circle.lineStyle(2, searchHitColor, 0.85);
+			pn.circle.lineStyle(SEARCH_HALO_STROKE_WIDTH, searchHitColor, SEARCH_HALO_STROKE_ALPHA);
 			drawShape(pn.circle, shape, pn.radius, pn.color, 1);
 		}
 		// HE: Tint card title text
@@ -8814,7 +8871,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** Draw card-mode search halo rect. */
 	private _drawSearchCardHalo(pn: PixiNode, searchHitColor: number): void {
 		const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...(this.panel.cardRenderConfig ?? {}) };
-		const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
+		const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : GOLDEN_RATIO_FALLBACK;
 		const baseH = pn.radius * 2;
 		const halfH = baseH;
 		const halfW = Math.max(20, (baseH * cardAR) / 2);
@@ -8823,7 +8880,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		pn.circle.beginFill(searchHitColor, 0.1);
 		pn.circle.drawRoundedRect(-halfW - outset, -halfH - outset, (halfW + outset) * 2, (halfH + outset) * 2, cr);
 		pn.circle.endFill();
-		pn.circle.lineStyle(2, searchHitColor, 0.85);
+		pn.circle.lineStyle(SEARCH_HALO_STROKE_WIDTH, searchHitColor, SEARCH_HALO_STROKE_ALPHA);
 		pn.circle.drawRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, cr);
 	}
 
@@ -8835,10 +8892,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			(pn as any)._searchPulsed = true;
 			const sx = pn.gfx.scale.x;
-			pn.gfx.scale.set(sx * 1.3);
+			pn.gfx.scale.set(sx * SEARCH_PULSE_SCALE);
 			this._scheduleTimer(() => {
 				if (pn.gfx) pn.gfx.scale.set(sx);
-			}, 300);
+			}, SEARCH_PULSE_MS);
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		} else if (hlSet && !(pn as any)._searchPulsed) {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
