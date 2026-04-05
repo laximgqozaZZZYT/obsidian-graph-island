@@ -841,6 +841,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _zoomAnimId = 0;
 	private _lastDoRenderTime = 0;
 
+	/** Tracked one-shot timers — cleared on close to prevent leaks */
+	private _pendingTimers = new Set<ReturnType<typeof setTimeout>>();
+
+	/** Schedule a one-shot timer that is auto-tracked and cleared on close. */
+	private _scheduleTimer(cb: () => void, ms: number): ReturnType<typeof setTimeout> {
+		const id = setTimeout(() => {
+			this._pendingTimers.delete(id);
+			cb();
+		}, ms);
+		this._pendingTimers.add(id);
+		return id;
+	}
+
 	/** C1: Hover preview toast state */
 	private _hoverPreviewTimer = 0;
 	private _hoverPreviewEl: HTMLElement | null = null;
@@ -1003,9 +1016,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const ONBOARDING_KEY = "graph-island-onboarding-shown";
 		if (!localStorage.getItem(ONBOARDING_KEY)) {
 			localStorage.setItem(ONBOARDING_KEY, "1");
-			setTimeout(() => this._toggleHelpOverlay(), 500);
+			this._scheduleTimer(() => this._toggleHelpOverlay(), 500);
 			// Contextual hint after help overlay auto-dismisses
-			setTimeout(() => showToast(t("toast.contextMenuHint"), 5000), 3000);
+			this._scheduleTimer(() => showToast(t("toast.contextMenuHint"), 5000), 3000);
 		}
 	}
 
@@ -2149,6 +2162,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		clearTimeout(this._autoFitTimer);
 		// B3: Clear doRender debounce timer
 		clearTimeout(this._doRenderDebounceTimer);
+		// Clear all tracked one-shot timers
+		for (const id of this._pendingTimers) clearTimeout(id);
+		this._pendingTimers.clear();
 		// C1: Clear hover preview
 		this._cancelHoverPreview();
 		// Clean up panel resize listeners (may persist if destroyed mid-drag)
@@ -6717,7 +6733,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				this.wakeRenderLoop();
 			}
 			// Re-read positions after simulation settles
-			setTimeout(() => {
+			this._scheduleTimer(() => {
 				for (const [id, pn] of this.pixiNodes) {
 					const n = nodes.find((nd) => nd.id === id);
 					if (n) {
@@ -8727,7 +8743,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// N1: Auto-fit view to search results after filtering
 		if (raw.trim() && this.canvasWrap) {
 			const wrap = this.canvasWrap;
-			setTimeout(() => this.autoFitView(wrap.clientWidth, wrap.clientHeight), 100);
+			this._scheduleTimer(() => this.autoFitView(wrap.clientWidth, wrap.clientHeight), 100);
 		}
 	}
 
@@ -8820,7 +8836,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			(pn as any)._searchPulsed = true;
 			const sx = pn.gfx.scale.x;
 			pn.gfx.scale.set(sx * 1.3);
-			setTimeout(() => {
+			this._scheduleTimer(() => {
 				if (pn.gfx) pn.gfx.scale.set(sx);
 			}, 300);
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -9226,7 +9242,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 		this.doRender();
 		// After render completes, jump to node
-		setTimeout(() => {
+		this._scheduleTimer(() => {
 			this.jumpToNode(nodeId);
 			if (secondId) this.applyEphemeralHighlight(new Set([nodeId, secondId]));
 		}, 1000);

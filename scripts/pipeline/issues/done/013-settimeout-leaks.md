@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-05
-status: pending
+status: done
 source: auto-discovered
 summary: setTimeout 34個 vs clearTimeout 16個 — 18個が未クリア
 ---
