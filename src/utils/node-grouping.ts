@@ -38,6 +38,33 @@ function matchesFilter(label: string, tokens: string[]): boolean {
 	return tokens.some((tok) => lower.includes(tok));
 }
 
+/** Resolve a dot-separated frontmatter field path (e.g. "a.b.c") from node meta */
+export function resolveFrontmatterField(meta: Record<string, unknown>, field: string): string[] {
+	const parts = field.split(".");
+	let val: unknown = meta;
+	for (const p of parts) {
+		if (val == null || typeof val !== "object") return [];
+		val = (val as Record<string, unknown>)[p];
+	}
+	if (val == null) return [];
+	if (Array.isArray(val)) return val.map(String);
+	return [String(val)];
+}
+
+/** Pick the value from vals that has the highest count in the counts map */
+export function pickLargestGroup(vals: string[], counts: Map<string, number>): string {
+	let best = vals[0];
+	let bestCount = counts.get(best) || 0;
+	for (let i = 1; i < vals.length; i++) {
+		const cnt = counts.get(vals[i]) || 0;
+		if (cnt > bestCount) {
+			best = vals[i];
+			bestCount = cnt;
+		}
+	}
+	return best;
+}
+
 /** Group nodes by their tags (delegates to groupNodesByField). */
 export function groupNodesByTag(nodes: GraphNode[], opts?: GroupOptions): GroupSpec[] {
 	return groupNodesByField(nodes, "tag", opts);
@@ -71,19 +98,8 @@ export function getNodeFieldValues(n: GraphNode, field: string): string[] {
 			return [n.id];
 		case "isTag":
 			return n.isTag ? ["true"] : ["false"];
-		default: {
-			// Frontmatter property (including nested: "a.b.c")
-			if (!n.meta) return [];
-			const parts = field.split(".");
-			let val: unknown = n.meta;
-			for (const p of parts) {
-				if (val == null || typeof val !== "object") return [];
-				val = (val as Record<string, unknown>)[p];
-			}
-			if (val == null) return [];
-			if (Array.isArray(val)) return val.map(String);
-			return [String(val)];
-		}
+		default:
+			return n.meta ? resolveFrontmatterField(n.meta, field) : [];
 	}
 }
 
@@ -114,16 +130,7 @@ export function groupNodesByField(nodes: GraphNode[], field: string, opts?: Grou
 		if (assigned.has(n.id)) continue;
 		const vals = getNodeFieldValues(n, field);
 		if (vals.length === 0) continue;
-		// Pick the value with the most members
-		let bestVal = vals[0];
-		let bestCount = valueCounts.get(bestVal) || 0;
-		for (let i = 1; i < vals.length; i++) {
-			const cnt = valueCounts.get(vals[i]) || 0;
-			if (cnt > bestCount) {
-				bestVal = vals[i];
-				bestCount = cnt;
-			}
-		}
+		const bestVal = pickLargestGroup(vals, valueCounts);
 		assigned.add(n.id);
 		if (!groupMap.has(bestVal)) groupMap.set(bestVal, []);
 		groupMap.get(bestVal)!.push(n.id);

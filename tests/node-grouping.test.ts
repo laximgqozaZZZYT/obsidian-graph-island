@@ -6,6 +6,8 @@ import {
   getNodeFieldValues,
   collapseGroup,
   expandGroup,
+  resolveFrontmatterField,
+  pickLargestGroup,
   type GroupSpec,
 } from "../src/utils/node-grouping";
 
@@ -551,5 +553,59 @@ describe("expandGroup boundary values", () => {
     const edgesBC = expanded.edges.filter(e => e.source === "b" && e.target === "c");
     expect(edgesAC).toHaveLength(1);
     expect(edgesBC).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveFrontmatterField
+// ---------------------------------------------------------------------------
+describe("resolveFrontmatterField", () => {
+  it("resolves a simple top-level field", () => {
+    expect(resolveFrontmatterField({ color: "red" }, "color")).toEqual(["red"]);
+  });
+
+  it("resolves a nested dot-path field", () => {
+    expect(resolveFrontmatterField({ a: { b: { c: 42 } } }, "a.b.c")).toEqual(["42"]);
+  });
+
+  it("returns array elements as strings", () => {
+    expect(resolveFrontmatterField({ tags: ["x", "y"] }, "tags")).toEqual(["x", "y"]);
+  });
+
+  it("returns empty for missing field", () => {
+    expect(resolveFrontmatterField({ a: 1 }, "b")).toEqual([]);
+  });
+
+  it("returns empty for broken dot-path", () => {
+    expect(resolveFrontmatterField({ a: "string" }, "a.b")).toEqual([]);
+  });
+
+  it("returns empty when intermediate is null", () => {
+    expect(resolveFrontmatterField({ a: null }, "a.b")).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// pickLargestGroup
+// ---------------------------------------------------------------------------
+describe("pickLargestGroup", () => {
+  it("picks the value with the highest count", () => {
+    const counts = new Map([["a", 3], ["b", 7], ["c", 1]]);
+    expect(pickLargestGroup(["a", "b", "c"], counts)).toBe("b");
+  });
+
+  it("returns first value when all counts are equal", () => {
+    const counts = new Map([["x", 5], ["y", 5]]);
+    expect(pickLargestGroup(["x", "y"], counts)).toBe("x");
+  });
+
+  it("handles single value", () => {
+    const counts = new Map([["only", 10]]);
+    expect(pickLargestGroup(["only"], counts)).toBe("only");
+  });
+
+  it("treats missing counts as 0", () => {
+    const counts = new Map([["a", 3]]);
+    expect(pickLargestGroup(["missing", "a"], counts)).toBe("a");
   });
 });
