@@ -133,6 +133,7 @@ import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./Stat
 import { buildPanelCallbacks, type PanelCallbackHost } from "./panel-callbacks";
 import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
 import { renderTimelineBars } from "./timeline-bar-renderer";
+import { generatePhantomNodes } from "./phantom-node-generator";
 import { adjustTooltipPosition, type PanelRect } from "../utils/tooltip-position";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
 import {
@@ -5733,89 +5734,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 	}
 
-	// =========================================================================
-	// Phantom Nodes — invisible junction points for road network
-	// =========================================================================
-
-	/**
-	 * Generate phantom nodes at layout pattern intersections.
-	 * These participate in the simulation (forces, arrangement, auto-adjustment)
-	 * but are never rendered (isPhantom = true, nodeR = 0).
-	 *
-	 * Polar layouts: spoke × ring intersections
-	 * Cartesian layouts: grid intersections
-	 */
-	private _generatePhantomNodes(realNodes: GraphNode[], cx: number, cy: number): GraphNode[] {
-		const arrangement = this.panel.clusterArrangement;
-		const isPolar = POLAR_ARRANGEMENTS.has(arrangement);
-		const phantoms: GraphNode[] = [];
-
-		if (isPolar) {
-			const spokeCount = Math.min(12, Math.max(8, Math.ceil(Math.sqrt(realNodes.length / 5))));
-			const ringCount = Math.min(8, Math.max(4, Math.ceil(Math.sqrt(realNodes.length / 10))));
-			// Estimate max radius from node positions (or use viewport)
-			let maxR = 0;
-			for (const n of realNodes) {
-				if (n.isPhantom) continue;
-				const d = Math.sqrt((n.x - cx) ** 2 + (n.y - cy) ** 2);
-				if (d > maxR) maxR = d;
-			}
-			if (maxR < 10) maxR = 500;
-
-			for (let ri = 1; ri <= ringCount; ri++) {
-				const r = (maxR * ri) / (ringCount + 1);
-				for (let si = 0; si < spokeCount; si++) {
-					const theta = (si / spokeCount) * Math.PI * 2;
-					phantoms.push({
-						id: `__phantom_r${ri}_s${si}`,
-						label: "",
-						x: cx + r * Math.cos(theta),
-						y: cy + r * Math.sin(theta),
-						vx: 0,
-						vy: 0,
-						isPhantom: true,
-					});
-				}
-			}
-		} else {
-			const gridSize = Math.min(10, Math.max(6, Math.ceil(Math.sqrt(realNodes.length / 8))));
-			let xMin = Infinity,
-				xMax = -Infinity,
-				yMin = Infinity,
-				yMax = -Infinity;
-			for (const n of realNodes) {
-				if (n.isPhantom) continue;
-				if (n.x < xMin) xMin = n.x;
-				if (n.x > xMax) xMax = n.x;
-				if (n.y < yMin) yMin = n.y;
-				if (n.y > yMax) yMax = n.y;
-			}
-			if (xMin === Infinity) {
-				xMin = cx - 250;
-				xMax = cx + 250;
-				yMin = cy - 250;
-				yMax = cy + 250;
-			}
-			const w = xMax - xMin || 500;
-			const h = yMax - yMin || 500;
-
-			for (let xi = 0; xi <= gridSize; xi++) {
-				for (let yi = 0; yi <= gridSize; yi++) {
-					phantoms.push({
-						id: `__phantom_x${xi}_y${yi}`,
-						label: "",
-						x: xMin + (w * xi) / gridSize,
-						y: yMin + (h * yi) / gridSize,
-						vx: 0,
-						vy: 0,
-						isPhantom: true,
-					});
-				}
-			}
-		}
-
-		return phantoms;
-	}
+	// Phantom node generation extracted to phantom-node-generator.ts
 
 	// =========================================================================
 	// Road Network — auto-generated roads from coordinate grid lines
@@ -7829,7 +7748,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Generate phantom junction nodes for road network routing.
 		// Phantom nodes participate in the same simulation as real nodes
 		// but are excluded from rendering (isPhantom = true).
-		const phantomNodes = this._generatePhantomNodes(gd.nodes, cx, cy);
+		const phantomNodes = generatePhantomNodes(gd.nodes, cx, cy, this.panel.clusterArrangement);
 		if (phantomNodes.length > 0) {
 			gd.nodes.push(...phantomNodes);
 		}
