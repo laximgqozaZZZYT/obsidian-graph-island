@@ -18,7 +18,7 @@ import {
   // Polar junction grid
   computePolarJunctionGrid, filterPolarGridForPort, routeViaPolarGrid,
   // Group ports
-  computeGroupPorts,
+  computeRadialPort, estimateNodeSpacingMargin, computeGroupPorts,
   // Wire helpers
   cableFadeByDegree, cableWeightThickness,
   // Port color lanes
@@ -314,6 +314,73 @@ describe("filterPolarGridForPort", () => {
     const filtered = filterPolarGridForPort(grid, 73);
     expect(filtered.ringGaps).toHaveLength(1);
     expect(filtered.ringGaps[0]).toBe(45);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeRadialPort
+// ---------------------------------------------------------------------------
+
+describe("computeRadialPort", () => {
+  it("places port on boundary toward target", () => {
+    const port = computeRadialPort("g1", { x: 100, y: 0 }, { x: 0, y: 0 }, 30);
+    // Direction from centroid(100,0) toward target(0,0) is negative-x
+    expect(port.x).toBeLessThan(100);
+    expect(port.x).toBeCloseTo(70, 0);
+    expect(port.y).toBeCloseTo(0, 0);
+    expect(port.groupKey).toBe("g1");
+  });
+
+  it("uses default direction when centroid equals target", () => {
+    const port = computeRadialPort("g1", { x: 5, y: 5 }, { x: 5, y: 5 }, 20);
+    // dirLen < 0.01 → fallback direction (0, -1)
+    expect(port.x).toBeCloseTo(5, 0);
+    expect(port.y).toBeCloseTo(-15, 0);
+  });
+
+  it("computes perpendicular as 90deg CCW from radial direction", () => {
+    const port = computeRadialPort("g1", { x: 0, y: 0 }, { x: 100, y: 0 }, 50);
+    // dir = (1, 0), perp = (0, 1) (90° CCW)
+    expect(port.perpX).toBeCloseTo(0, 5);
+    expect(port.perpY).toBeCloseTo(1, 5);
+  });
+
+  it("handles diagonal direction", () => {
+    const port = computeRadialPort("g1", { x: 0, y: 0 }, { x: 100, y: 100 }, 50);
+    const expectedDist = Math.sqrt(port.x ** 2 + port.y ** 2);
+    expect(expectedDist).toBeCloseTo(50, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// estimateNodeSpacingMargin
+// ---------------------------------------------------------------------------
+
+describe("estimateNodeSpacingMargin", () => {
+  it("returns default for fewer than 2 positions", () => {
+    expect(estimateNodeSpacingMargin([])).toBe(30);
+    expect(estimateNodeSpacingMargin([{ x: 0, y: 0 }])).toBe(30);
+  });
+
+  it("returns custom default when specified", () => {
+    expect(estimateNodeSpacingMargin([], 50)).toBe(50);
+  });
+
+  it("returns half the minimum pairwise distance", () => {
+    const positions = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 30, y: 0 }];
+    // Min distance = 10 (between first two), margin = 5
+    expect(estimateNodeSpacingMargin(positions)).toBeCloseTo(5, 0);
+  });
+
+  it("ignores distances <= 1 (overlapping nodes)", () => {
+    const positions = [{ x: 0, y: 0 }, { x: 0.5, y: 0 }, { x: 20, y: 0 }];
+    // d=0.5 ignored, min usable = 20, margin = 10
+    expect(estimateNodeSpacingMargin(positions)).toBeCloseTo(10, 0);
+  });
+
+  it("returns default when all nodes overlap", () => {
+    const positions = [{ x: 0, y: 0 }, { x: 0.1, y: 0 }, { x: 0.2, y: 0 }];
+    expect(estimateNodeSpacingMargin(positions)).toBe(30);
   });
 });
 

@@ -639,6 +639,53 @@ export function routeViaPolarGrid(
 // ---------------------------------------------------------------------------
 
 /**
+ * Compute a radial port on the group boundary in the direction toward a target point.
+ * Shared by polar mode and cartesian fallback.
+ */
+export function computeRadialPort(
+	groupKey: string,
+	centroid: { x: number; y: number },
+	target: { x: number; y: number },
+	radius: number,
+): GroupPort {
+	let dirX = target.x - centroid.x;
+	let dirY = target.y - centroid.y;
+	const dirLen = Math.sqrt(dirX * dirX + dirY * dirY);
+	if (dirLen < 0.01) {
+		dirX = 0;
+		dirY = -1;
+	} else {
+		dirX /= dirLen;
+		dirY /= dirLen;
+	}
+	const perpX = -dirY,
+		perpY = dirX;
+	return { groupKey, x: centroid.x + dirX * radius, y: centroid.y + dirY * radius, perpX, perpY };
+}
+
+/**
+ * Estimate margin from minimum pairwise node distance.
+ * Samples up to 50 positions to keep computation bounded.
+ */
+export function estimateNodeSpacingMargin(
+	positions: readonly { x: number; y: number }[],
+	defaultMargin: number = 30,
+): number {
+	if (positions.length < 2) return defaultMargin;
+	let minDist = Infinity;
+	const limit = Math.min(positions.length, 50);
+	for (let i = 0; i < limit; i++) {
+		for (let j = i + 1; j < limit; j++) {
+			const d = Math.sqrt(
+				(positions[i].x - positions[j].x) ** 2 + (positions[i].y - positions[j].y) ** 2,
+			);
+			if (d > 1 && d < minDist) minDist = d;
+		}
+	}
+	return minDist < Infinity ? minDist * 0.5 : defaultMargin;
+}
+
+/**
  * Compute 1 Port per group.
  * - Cartesian: placed at the center of the bbox face closest to graph center.
  * - Polar: placed at the point on the group boundary closest to graph center,
@@ -663,31 +710,13 @@ export function computeGroupPorts(
 	const graphCenter = polarCenter ?? computeGraphCenter(centroids);
 	if (cache) cache.graphCenter = graphCenter;
 
-	// Estimate margin from node spacing (will be refined per-group if resolvePos available)
-	const defaultMargin = 30;
-
 	for (const gk of groupKeys) {
 		const c = centroids.get(gk);
 		if (!c) continue;
+		const r = radii.get(gk) ?? DEFAULT_CLUSTER_RADIUS;
 
 		if (isPolar) {
-			// Polar port: place on group boundary in the direction toward graph center.
-			// The perpendicular is the arc-tangent direction (perpendicular to radius).
-			const r = radii.get(gk) ?? DEFAULT_CLUSTER_RADIUS;
-			let dirX = graphCenter.x - c.x;
-			let dirY = graphCenter.y - c.y;
-			const dirLen = Math.sqrt(dirX * dirX + dirY * dirY);
-			if (dirLen < 0.01) {
-				dirX = 0;
-				dirY = -1;
-			} else {
-				dirX /= dirLen;
-				dirY /= dirLen;
-			}
-			// Perpendicular = tangent to the arc (90deg CCW from radial direction)
-			const perpX = -dirY,
-				perpY = dirX;
-			ports.set(gk, { groupKey: gk, x: c.x + dirX * r, y: c.y + dirY * r, perpX, perpY });
+			ports.set(gk, computeRadialPort(gk, c, graphCenter, r));
 			continue;
 		}
 
@@ -700,19 +729,7 @@ export function computeGroupPorts(
 				const p = resolvePos(nid);
 				if (p) positions.push({ x: p.x, y: p.y });
 			}
-			let margin = defaultMargin;
-			if (positions.length >= 2) {
-				let minDist = Infinity;
-				for (let i = 0; i < Math.min(positions.length, 50); i++) {
-					for (let j = i + 1; j < Math.min(positions.length, 50); j++) {
-						const d = Math.sqrt(
-							(positions[i].x - positions[j].x) ** 2 + (positions[i].y - positions[j].y) ** 2,
-						);
-						if (d > 1 && d < minDist) minDist = d;
-					}
-				}
-				if (minDist < Infinity) margin = minDist * 0.5;
-			}
+			const margin = estimateNodeSpacingMargin(positions);
 			bbox = computeGroupBBox(gk, resolvePos, nodeClusterMap, margin);
 			if (cache) cache.groupBBox.set(gk, bbox);
 		}
@@ -723,21 +740,7 @@ export function computeGroupPorts(
 			const { perpX, perpY } = facePerpendicular(face);
 			ports.set(gk, { groupKey: gk, x: pos.x, y: pos.y, perpX, perpY });
 		} else {
-			// Fallback: same as polar (centroid + radius toward center)
-			const r = radii.get(gk) ?? DEFAULT_CLUSTER_RADIUS;
-			let dirX = graphCenter.x - c.x;
-			let dirY = graphCenter.y - c.y;
-			const dirLen = Math.sqrt(dirX * dirX + dirY * dirY);
-			if (dirLen < 0.01) {
-				dirX = 0;
-				dirY = -1;
-			} else {
-				dirX /= dirLen;
-				dirY /= dirLen;
-			}
-			const perpX = -dirY,
-				perpY = dirX;
-			ports.set(gk, { groupKey: gk, x: c.x + dirX * r, y: c.y + dirY * r, perpX, perpY });
+			ports.set(gk, computeRadialPort(gk, c, graphCenter, r));
 		}
 	}
 	return ports;
