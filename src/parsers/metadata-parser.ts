@@ -120,8 +120,7 @@ function attachBodyPreview(node: GraphNode, app: App, file: TFile): void {
 		const info = extractBodyInfo(rawContent, 100);
 		node.bodyPreview = info.preview;
 		node.bodyLength = info.length;
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- cachedRead may return Promise in some Obsidian versions
-	} else if (rawContent && typeof (rawContent as any).then === "function") {
+		} else if (rawContent && typeof (rawContent as unknown as Promise<string>).then === "function") {
 		(rawContent as Promise<string>)
 			.then((text) => {
 				const info = extractBodyInfo(text, 100);

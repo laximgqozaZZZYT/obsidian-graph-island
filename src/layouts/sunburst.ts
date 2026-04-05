@@ -20,6 +20,18 @@ export interface SunburstArc {
 	filePath?: string;
 }
 
+/** Enriched SunburstArc with computed rendering properties (added by GVC drawing code). */
+export interface SunburstArcEnriched extends SunburstArc {
+	cx: number;
+	cy: number;
+	rInner: number;
+	rOuter: number;
+	startAngle: number;
+	endAngle: number;
+	groupKey: string;
+	parentKey?: string;
+}
+
 /** Result of applying a sunburst layout: positioned nodes/edges plus arc metadata for rendering */
 interface SunburstLayoutResult {
 	data: GraphData;

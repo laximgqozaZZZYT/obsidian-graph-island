@@ -137,10 +137,9 @@ export class WebGLContainer extends CanvasContainer {
 			const child = children[i];
 			if (!child.visible) continue;
 
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- duck-typed WebGL flush check
-			if ("_flushGL" in child && typeof (child as any)._flushGL === "function") {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				(child as any)._flushGL(gl, program, local, effAlpha, overlayCtx);
+			type FlushGLFn = (gl: WebGLRenderingContext, p: WebGLProgram | null, m: Float32Array, a: number, ctx?: CanvasRenderingContext2D | null) => void;
+			if ("_flushGL" in child && typeof (child as unknown as { _flushGL: FlushGLFn })._flushGL === "function") {
+				(child as unknown as { _flushGL: FlushGLFn })._flushGL(gl, program, local, effAlpha, overlayCtx);
 			} else if (hasOverlay) {
 				child._flush(overlayCtx!, effAlpha);
 			}

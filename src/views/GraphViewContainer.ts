@@ -135,6 +135,7 @@ import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./Stat
 import { buildPanelCallbacks, type PanelCallbackHost } from "./panel-callbacks";
 import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
 import { renderTimelineBars } from "./timeline-bar-renderer";
+import { asInternalWorkspace, type ObsidianVaultInternal } from "../obsidian-internals";
 import { generatePhantomNodes } from "./phantom-node-generator";
 import { adjustTooltipPosition, type PanelRect } from "../utils/tooltip-position";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
@@ -956,8 +957,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		};
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian API override signature
-	async setState(state: any, result: ViewStateResult): Promise<void> {
+	async setState(state: Record<string, unknown>, result: ViewStateResult): Promise<void> {
 		await super.setState(state, result);
 		// Layout is always "force"; legacy state values are migrated to cluster arrangement
 		if (state.layout && typeof state.layout === "string" && state.layout !== LAYOUT_FORCE) {
@@ -970,8 +970,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				[LAYOUT_ARC]: ARRANGEMENT_CONCENTRIC,
 			};
 			const mapped = legacyMap[state.layout];
-			if (mapped && state.panel) {
-				state.panel.clusterArrangement = mapped;
+			if (mapped && state.panel && typeof state.panel === "object") {
+				(state.panel as Record<string, unknown>).clusterArrangement = mapped;
 			}
 		}
 		this.currentLayout = LAYOUT_FORCE;
@@ -1003,8 +1003,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				.map((s) => s.trim())
 				.filter(Boolean);
 			this.panel.clusterGroupRules = fields.map((f) => ({
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic groupBy string
-				groupBy: (f.endsWith(":?") ? f : f + ":?") as any,
+				groupBy: f.endsWith(":?") ? f : f + ":?",
 				recursive: false,
 			}));
 		}
@@ -1697,15 +1696,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		return {
 			panelEl: this.panelEl,
 			containerEl: this.containerEl,
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- bridge to KeyboardHost interface
-			worldContainer: this.worldContainer as any,
+			worldContainer: this.worldContainer as KeyboardHost["worldContainer"],
 			highlightedNodeId: this.highlightedNodeId,
 			isKeyboardFocused: this._isKeyboardFocused,
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			panel: this.panel as any,
+			panel: this.panel as KeyboardHost["panel"],
 			compareNodeIds: this.compareNodeIds,
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			pixiNodes: this.pixiNodes as any,
+			pixiNodes: this.pixiNodes as KeyboardHost["pixiNodes"],
 			app: this.app,
 			autoFitView: (w, h) => this.autoFitView(w, h),
 			zoomBy: (f) => this.zoomBy(f),
@@ -1923,9 +1919,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		// Theme / CSS snippet change — invalidate color caches and update canvas background
 		this.registerEvent(
-			// "css-change" is an undocumented Obsidian workspace event not in the public type definitions
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			this.app.workspace.on("css-change" as any, () => {
+			// "css-change" is an undocumented Obsidian workspace event
+			asInternalWorkspace(this.app.workspace).on("css-change", () => {
 				this.invalidateThemeCache();
 			}),
 		);
@@ -1963,8 +1958,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 							searchQuery: this.panel.searchQuery ?? "",
 							groupBy: this.panel.clusterGroupRules?.[0]?.groupBy ?? "",
 						});
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any -- snapshot type mismatch
-						snapshots.push(snap as any);
+						snapshots.push(snap);
 						this.plugin.settings.snapshots = snapshots;
 						this.plugin.saveSettings();
 					}, debounceMs) as unknown as number;
@@ -1974,31 +1968,27 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		// Ephemeral highlight from side-panel (property value hover, backlink hover)
 		this.registerEvent(
-			// Custom plugin event not in Obsidian's Workspace type definitions
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(this.app.workspace as any).on(EVENT_HIGHLIGHT_NODES, (nodeIds: Set<string> | null) => {
-				this.applyEphemeralHighlight(nodeIds);
+			asInternalWorkspace(this.app.workspace).on(EVENT_HIGHLIGHT_NODES, (...args: unknown[]) => {
+				this.applyEphemeralHighlight(args[0] as Set<string> | null);
 			}),
 		);
 
 		// O2: Link creation from NodeDetailView suggestion
 		this.registerEvent(
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom plugin event
-			(this.app.workspace as any).on("graph-island:create-link", (srcId: string, tgtId: string) => {
-				this.createLink(srcId, tgtId);
+			asInternalWorkspace(this.app.workspace).on("graph-island:create-link", (...args: unknown[]) => {
+				this.createLink(args[0] as string, args[1] as string);
 			}),
 		);
 
 		// ビュー同期: 他の Graph Island ビューからのパネル状態変更を受信
 		this.registerEvent(
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom plugin event
-			(this.app.workspace as any).on(
+			asInternalWorkspace(this.app.workspace).on(
 				EVENT_SYNC_PANEL,
-				(data: { senderId: string; panel: Record<string, unknown> }) => {
+				(...args: unknown[]) => {
+					const data = args[0] as { senderId: string; panel: Record<string, unknown> } | null;
 					if (!data || !this.panel.syncViewId) return;
 					// 自分自身が送信元の場合は無視
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian leaf.id not in public types
-					if (data.senderId === (this.leaf as any).id) return;
+					if (data.senderId === (this.leaf as unknown as { id: string }).id) return;
 					this._syncReceiving = true;
 					try {
 						this._applySyncedPanel(data.panel);
@@ -2058,10 +2048,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			payload[key] = (this.panel as unknown as Record<string, unknown>)[key];
 		}
 		// workspace.trigger でカスタムイベントを発火
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
-		(this.app.workspace as any).trigger(EVENT_SYNC_PANEL, {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian leaf.id
-			senderId: (this.leaf as any).id,
+		asInternalWorkspace(this.app.workspace).trigger(EVENT_SYNC_PANEL, {
+			senderId: (this.leaf as unknown as { id: string }).id,
 			panel: payload,
 		});
 	}
@@ -3900,8 +3888,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			zoom: app?.stage.scale.x ?? 1,
 		});
 		this.panel.subgraphNodeIds = [...nodeIds];
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- viewMode string from runtime
-		this.panel.viewMode = viewMode as any;
+		this.panel.viewMode = viewMode as ViewMode;
 		this.panel.multiSelectNodeIds = [];
 		this.rawData = null;
 		this.doRender();
@@ -3914,8 +3901,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const prev = this.panel.subgraphStack.pop();
 		if (prev) {
 			this.panel.subgraphNodeIds = prev.nodeIds;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- viewMode string from saved state
-			this.panel.viewMode = prev.viewMode as any;
+			this.panel.viewMode = prev.viewMode as ViewMode;
 		} else {
 			this.panel.subgraphNodeIds = [];
 		}
@@ -4238,8 +4224,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const b = this.pixiNodes.get(this.compareNodeIds[1]);
 			if (a && b) {
 				const venn = this.computeCompareVenn();
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
-				this.app.workspace.trigger(EVENT_COMPARE_NODES as any, {
+				asInternalWorkspace(this.app.workspace).trigger(EVENT_COMPARE_NODES, {
 					nodeA: a.data,
 					nodeB: b.data,
 					adj: this.adj,
@@ -4251,8 +4236,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				this.setPathfinderNode(this.compareNodeIds[1], "end");
 			}
 		} else {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
-			this.app.workspace.trigger(EVENT_COMPARE_NODES as any, null);
+			asInternalWorkspace(this.app.workspace).trigger(EVENT_COMPARE_NODES, null);
 			this.clearPathfinder();
 		}
 	}
@@ -4596,18 +4580,13 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Apply highlight styling to a node within the hover set. */
 	private _hoverHighlightNode(
-		pn: PixiNode,
-		effectiveHId: string,
-		isCardMode: boolean,
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		crc: any,
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		hoverRt: any,
+		pn: PixiNode, effectiveHId: string, isCardMode: boolean,
+		crc: import("../types").CardRenderConfig, hoverRt: Required<import("../types").RenderThresholds>,
 	): void {
 		pn.gfx.visible = true;
 		pn.gfx.alpha = 1;
 		if (isCardMode && pn.data.id === effectiveHId) {
-			pn.gfx.scale.set(crc.cardHoverScale);
+			pn.gfx.scale.set(crc.cardHoverScale ?? 1.08);
 		} else if (isCardMode) {
 			pn.gfx.scale.set(1);
 		}
@@ -4631,11 +4610,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Dim a node outside the hover highlight set, respecting focus cone & search. */
 	private _hoverDimNode(
-		pn: PixiNode,
-		isCardMode: boolean,
-		distMap: Map<string, number>,
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		hoverRt: any,
+		pn: PixiNode, isCardMode: boolean, distMap: Map<string, number>,
+		hoverRt: Required<import("../types").RenderThresholds>,
 	): void {
 		const searchActive = this._searchHighlightSet !== null;
 		const searchMatch = !this._searchHighlightSet || this._searchHighlightSet.has(pn.data.id);
@@ -4660,8 +4636,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	/** Draw search halo ring/rect on a highlighted node. */
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private _drawSearchHalo(pn: PixiNode, isCardMode: boolean, hoverRt: any): void {
+	 
+	private _drawSearchHalo(pn: PixiNode, isCardMode: boolean, hoverRt: Required<import("../types").RenderThresholds>): void {
 		const searchHitColor = this.getAccentColor();
 		pn.circle.lineStyle(SEARCH_HALO_STROKE_WIDTH, searchHitColor, SEARCH_HALO_STROKE_ALPHA);
 		if (isCardMode) {
@@ -4840,8 +4816,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	/** HM: Reposition hover tooltip if it overlaps DOM panels (legend, stats, minimap, node-info). */
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- CanvasText with dynamic properties
-	private _adjustTooltipForOverlap(pn: PixiNode, hl: any, counterScale: number, gfxScale: number) {
+	private _adjustTooltipForOverlap(pn: PixiNode, hl: CanvasText, counterScale: number, gfxScale: number) {
 		const world = this.worldContainer;
 		if (!world) return;
 		const canvas = this.containerEl as HTMLElement | null;
@@ -5492,8 +5467,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const lx = txt.x - tw / 2;
 			const ly = txt.y - th / 2;
 			if (wx >= lx && wx <= lx + tw && wy >= ly && wy <= ly + th) {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime property on CanvasText
-				const memberKey = (txt as any)._groupKey as string | undefined;
+				 
+				const memberKey = (txt as CanvasText & { _groupKey?: string })._groupKey;
 				if (memberKey) {
 					const bounds = computeGroupMemberBounds(this.pixiNodes.values(), memberKey, 50);
 					if (bounds) {
@@ -5512,8 +5487,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** Animate zoom to a world-coordinate rectangle. */
 	private _zoomToWorldRect(wx: number, wy: number, ww: number, wh: number): void {
 		const world = this.worldContainer;
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- fallback canvas access
-		const canvas = this.pixiApp?.view ?? (this as any).app?.view;
+		const canvas = this.pixiApp?.view;
 		if (!world || !canvas) return;
 		const cw = canvas.width;
 		const ch = canvas.height;
@@ -5540,8 +5514,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			return;
 		}
 
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended clusterMeta property
-		const sunburstArcs = (this.clusterMeta as any)?.sunburstArcs;
+		const sunburstArcs = this.clusterMeta?.sunburstArcs;
 		if (!sunburstArcs || sunburstArcs.length === 0) return;
 
 		const rt = mergeRenderThresholds(this.panel.renderThresholds);
@@ -5632,8 +5605,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 	/** Draw labels on cluster sunburst arcs (depth ≤ 1 only, wide arcs) */
 	private drawClusterSunburstLabels() {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended clusterMeta property
-		const sunburstArcs = (this.clusterMeta as any)?.sunburstArcs;
+		const sunburstArcs = this.clusterMeta?.sunburstArcs;
 		if (!sunburstArcs || sunburstArcs.length === 0) {
 			// Clear existing labels
 			for (const lbl of this.clusterSunburstLabels.values()) {
@@ -5682,8 +5654,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	}
 
 	/** Create a positioned and rotated label for a sunburst arc. */
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- sunburstArcs arc shape
-	private _createSunburstArcLabel(arc: any, fontSize: number, textColor: number): CanvasText {
+	 
+	private _createSunburstArcLabel(arc: import("../layouts/sunburst").SunburstArcEnriched, fontSize: number, textColor: number): CanvasText {
 		const midAngle = (arc.startAngle + arc.endAngle) / 2;
 		const midR = (arc.rInner + arc.rOuter) / 2;
 		const displayName = arc.groupKey.replace(/::.*$/, "").split("/").pop() || arc.groupKey;
@@ -5757,8 +5729,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// Timeline duration bars
 	// =========================================================================
 	drawTimelineBars() {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- TimelineBarHost duck-type access to private fields
-		renderTimelineBars(this as any);
+		renderTimelineBars(this as unknown as import("./timeline-bar-renderer").TimelineBarHost);
 	}
 
 	drawRouteLines() {
@@ -6073,8 +6044,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Get current graph data
 		const nodes = [...this.pixiNodes.values()].map((pn) => pn.data);
 		const nodeR = this._buildNodeRadiusFn();
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial GraphData for computation
-		const gd = { nodes, edges: this.graphEdges } as any;
+		const gd: GraphData = { nodes, edges: this.graphEdges };
 		const nodeColor = this._buildNodeColorFn(gd);
 		// Recreate display objects
 		this.createPixiNodes(nodes, nodeR, nodeColor);
@@ -6551,8 +6521,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			edgeTypeCounts: this._countEdgeTypes(),
 			hasImageMetaNodes: this._hasImageMetaNodes(),
 			hasInheritanceEdges: this.graphEdges.some((e) => e.type === "inheritance"),
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian plugin manifest access
-			pluginDir: (this.plugin as any).manifest?.dir ?? "",
+			pluginDir: this.plugin.manifest?.dir ?? "",
 		};
 	}
 
@@ -6578,8 +6547,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** Build the callbacks object wiring panel UI actions to graph view methods.
 	 *  Delegates to panel-callbacks.ts for the actual construction. */
 	private _buildPanelCallbacks(): PanelCallbacks {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- GVC satisfies PanelCallbackHost at runtime
-		const host = this as any as PanelCallbackHost;
+		 
+		const host = this as unknown as PanelCallbackHost;
 		host.allPresets = ALL_PRESETS;
 		return buildPanelCallbacks(host);
 	}
@@ -7187,12 +7156,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// DF: Density heatmap background overlay
 	// =========================================================================
 	private _renderDensityHeatmap(ctx: CanvasRenderingContext2D): void {
-		const world = this.pixiApp?.stage.children[0];
+		const world = this.pixiApp?.stage.children[0] as CanvasContainer | undefined;
 		if (!world || !this.pixiNodes) return;
 		const wx = world.x;
 		const wy = world.y;
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- PixiJS Container scale property
-		const ws = (world as any).scale?.x ?? 1;
+		const ws = world.scale?.x ?? 1;
 		const cw = this.canvasWrap?.clientWidth ?? DEFAULT_CANVAS_WIDTH;
 		const ch = this.canvasWrap?.clientHeight ?? DEFAULT_CANVAS_HEIGHT;
 
@@ -7225,8 +7193,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const grid = new Float32Array(cols * rows);
 		const RADIUS = 3;
 		for (const [, pn] of this.pixiNodes) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy graphics property fallback
-			const gfx = (pn as any).graphics ?? pn.gfx;
+			 
+			const gfx = (pn as unknown as { graphics?: CanvasContainer }).graphics ?? pn.gfx;
 			if (!gfx || !gfx.visible) continue;
 			const sx = gfx.x * ws + wx;
 			const sy = gfx.y * ws + wy;
@@ -7979,18 +7947,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (result.sunburstArcs) this.sunburstLayoutArcs = result.sunburstArcs;
 		if (result.sunburstCenter) this.sunburstCenter = result.sunburstCenter;
 		if (result.timelineBars) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended clusterMeta for timeline
-			if (!this.clusterMeta) this.clusterMeta = {} as any;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(this.clusterMeta as any).timelineBars = result.timelineBars;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(this.clusterMeta as any).timelineSteps = result.timelineSteps;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(this.clusterMeta as any).timelineStepWidth = result.timelineStepWidth;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(this.clusterMeta as any).timelineLanes = result.timelineLanes;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(this.clusterMeta as any).timelineWorkGroups = result.timelineWorkGroups;
+			if (!this.clusterMeta) this.clusterMeta = { nodeClusterMap: new Map(), clusterCentroids: new Map(), clusterRadii: new Map() };
+			this.clusterMeta.timelineBars = result.timelineBars;
+			this.clusterMeta.timelineSteps = result.timelineSteps;
+			this.clusterMeta.timelineStepWidth = result.timelineStepWidth;
+			this.clusterMeta.timelineLanes = result.timelineLanes;
+			this.clusterMeta.timelineWorkGroups = result.timelineWorkGroups;
 		}
 		return result.data;
 	}
@@ -8380,12 +8342,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 			// Obsidianの添付ファイルフォルダ設定を尊重してパスを決定
 			const _activeFile = mdView.file;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian vault internal API
-			const attachPath = (this.app.vault as any).getAvailablePath
-				? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-					(this.app.vault as any).getAvailablePath(
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any
-						((this.app.vault as any).config?.attachmentFolderPath || "") +
+			const vault = this.app.vault as ObsidianVaultInternal;
+			const attachPath = vault.getAvailablePath
+				? vault.getAvailablePath(
+						(vault.config?.attachmentFolderPath || "") +
 							"/" +
 							filename.replace(".png", ""),
 						"png",
@@ -8788,8 +8748,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			if (hopMatch && textMatch) {
 				this._searchHighlightMatchedNode(pn, hlSet);
 			} else {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				(pn as any)._searchPulsed = false;
+				 
+				pn._searchPulsed = false;
 				this._fadeNodeAlpha(pn, DIMMED_NODE_ALPHA);
 				this.drawNodeCircle(pn, false);
 			}
@@ -8857,10 +8817,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// HE: Tint card title text
 		if (isCardMode && pn.gfx.children.length > 0) {
 			for (const child of pn.gfx.children) {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime card text properties
-				if ((child as any)._isCardText && (child as any).style) {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					(child as any).style.fill = "#" + searchHitColor.toString(16).padStart(6, "0");
+				const ct = child as unknown as { _isCardText?: boolean; style?: { fill: string } };
+				if (ct._isCardText && ct.style) {
+					ct.style.fill = "#" + searchHitColor.toString(16).padStart(6, "0");
 					break;
 				}
 			}
@@ -8887,19 +8846,19 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** EJ: Pulse animation — brief scale bounce on first search highlight. */
 	private _searchPulse(pn: PixiNode, hlSet: Set<string> | null): void {
 		const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime pulse tracking
-		if (hlSet && !(pn as any)._searchPulsed && !reducedMotion) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(pn as any)._searchPulsed = true;
+		 
+		if (hlSet && !pn._searchPulsed && !reducedMotion) {
+			 
+			pn._searchPulsed = true;
 			const sx = pn.gfx.scale.x;
 			pn.gfx.scale.set(sx * SEARCH_PULSE_SCALE);
 			this._scheduleTimer(() => {
 				if (pn.gfx) pn.gfx.scale.set(sx);
 			}, SEARCH_PULSE_MS);
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		} else if (hlSet && !(pn as any)._searchPulsed) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(pn as any)._searchPulsed = true;
+		 
+		} else if (hlSet && !pn._searchPulsed) {
+			 
+			pn._searchPulsed = true;
 		}
 	}
 
@@ -9151,8 +9110,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		this.panel.searchQuery = `path:${displayName}`;
 		// Switch to graph mode
 		this.panel.viewMode = "graph";
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- layout type literal
-		this.currentLayout = "force" as any;
+		 
+		this.currentLayout = LAYOUT_FORCE;
 		this.doRender();
 		this._announceA11y(`Filtered: ${displayName}`);
 	}
@@ -9270,8 +9229,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			sortMode: (this.panel.matrixSortMode ?? "degree") as MatrixSortMode,
 			isDark: this.isDarkTheme(),
 			onSortChange: (mode) => {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- select value to enum type
-				this.panel.matrixSortMode = mode as any;
+				this.panel.matrixSortMode = mode as PanelState["matrixSortMode"];
 				this._renderMatrixViewMode(gd, W, H);
 			},
 			onCellClick: (nodeId, secondId) => this._switchToGraphAndFocus(nodeId, secondId),

@@ -6,6 +6,7 @@ import { repositionShell } from "../layouts/concentric";
 import type { Simulation } from "d3-force";
 import { LAYOUT_CONCENTRIC } from "../constants";
 import { t } from "../i18n";
+import { asInternalApp } from "../obsidian-internals";
 
 // ---------------------------------------------------------------------------
 // PixiNode shape (mirrors the one in GraphViewContainer)
@@ -34,6 +35,14 @@ export interface PixiNode {
 	hoverForcedLabel: boolean;
 	/** Sub-labels showing additional metadata fields below the node */
 	subLabels: CanvasText[];
+	/** Runtime card dimension cache: total card height (set by card-renderer) */
+	_cardTotalH?: number;
+	/** Runtime card dimension cache: number of body lines (set by card-renderer) */
+	_cardBodyLines?: number;
+	/** Runtime flag: whether search pulse animation has fired */
+	_searchPulsed?: boolean;
+	/** Runtime: group key for collapsed text labels */
+	_groupKey?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -961,13 +970,11 @@ export class InteractionManager {
 				.setIcon("search")
 				.onClick(() => {
 					const obsApp = this.host.getApp();
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian internal commands API
-					(obsApp as any).commands.executeCommandById("global-search:open");
+					asInternalApp(obsApp).commands?.executeCommandById("global-search:open");
 					setTimeout(() => {
 						const searchLeaf = obsApp.workspace.getLeavesOfType("search")[0];
 						if (searchLeaf) {
-							// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian search view API
-							const search = searchLeaf.view as any;
+							const search = searchLeaf.view as unknown as { setQuery?: (q: string) => void };
 							if (search?.setQuery) search.setQuery(node.data.label);
 						}
 					}, 300);

@@ -137,6 +137,16 @@ export interface ClusterMetadata {
 	timelineRoutes?: TimelineRoute[];
 	/** Per-group arrangement guide data (grid lines, rings, etc.) for road network generation */
 	groupGuides?: GroupGuideEntry[];
+	/** Timeline step labels (only for timeline layout) */
+	timelineSteps?: string[];
+	/** Timeline step width in world units (only for timeline layout) */
+	timelineStepWidth?: number;
+	/** Number of timeline swim lanes (only for timeline layout) */
+	timelineLanes?: number;
+	/** Timeline work group ranges (only for timeline layout) */
+	timelineWorkGroups?: { name: string; minY: number; maxY: number }[];
+	/** Sunburst arc data with computed rendering properties (only for sunburst layout) */
+	sunburstArcs?: import("./sunburst").SunburstArcEnriched[];
 }
 
 /** Result of buildClusterForce: force function + cluster metadata for bundling. */

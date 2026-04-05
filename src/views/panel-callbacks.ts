@@ -236,8 +236,7 @@ function _buildDataCallbacks(host: PanelCallbackHost): Partial<PanelCallbacks> {
 		refreshOverlays: () => {
 			const gd =
 				host.originalGraphData ??
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial GraphData
-				({ nodes: [...host.pixiNodes.values()].map((pn) => pn.data), edges: host.graphEdges } as any);
+				({ nodes: [...host.pixiNodes.values()].map((pn) => pn.data), edges: host.graphEdges } as import("../types").GraphData);
 			host.updateGraphStats(gd);
 			host.updateRelationMatrix(gd);
 			host.updateThumbnails();

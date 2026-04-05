@@ -10,7 +10,7 @@ import type { GraphNode, GraphEdge, RenderThresholds } from "../types";
 import { DEFAULT_RENDER_THRESHOLDS } from "../types";
 import { buildRoadNetwork, buildRoadNetworkFromPhantoms, addTrunkRoads, type RoadNetwork } from "./cable-tray";
 import type { ClusterMetadata, ArrangementGuide } from "./cluster-force";
-import type { ResolvedGridInfo } from "./coordinate-engine";
+import type { CoordinateGuide, ResolvedGridInfo } from "./coordinate-engine";
 import type { Simulation } from "d3-force";
 import { ARRANGEMENT_TRIANGLE, GUIDE_TYPE_COORDINATE, POLAR_ARRANGEMENTS } from "../constants";
 
@@ -141,10 +141,9 @@ export class RoadNetworkBuilder {
 				const g = gg.guide;
 				if (!g) continue;
 
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- guide type narrowing
-				if (g.type === GUIDE_TYPE_COORDINATE && (g as any).gridInfo) {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					coordGuides.push({ guide: g as any, centerX: gg.centerX, centerY: gg.centerY });
+				const coordGuide = g.type === GUIDE_TYPE_COORDINATE ? (g as CoordinateGuide) : null;
+				if (coordGuide?.gridInfo) {
+					coordGuides.push({ guide: coordGuide as CoordinateGuide & { gridInfo: ResolvedGridInfo }, centerX: gg.centerX, centerY: gg.centerY });
 				}
 				if (this._buildFromConcentric(g, gg, allNodes)) return;
 				if (this._buildFromGrid(g, gg, allNodes)) return;
@@ -440,16 +439,19 @@ export class RoadNetworkBuilder {
 // Global cache — stored on window to persist across plugin disable/enable
 // ---------------------------------------------------------------------------
 
+/** Window-global cache for road network persistence across plugin reloads. */
+function _getGlobalCache(): { __gi_bestRoadNetwork?: RoadNetwork } {
+	return (typeof window !== "undefined" ? window : globalThis) as unknown as { __gi_bestRoadNetwork?: RoadNetwork };
+}
+
 function _getBestRoadNetwork(): RoadNetwork | null {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- global cache on window
-	return (window as any).__gi_bestRoadNetwork ?? null;
+	return _getGlobalCache().__gi_bestRoadNetwork ?? null;
 }
 
 function _setBestRoadNetwork(rn: RoadNetwork) {
 	const cur = _getBestRoadNetwork();
 	if (!cur || rn.intersections.length > cur.intersections.length) {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- global cache on window
-		(window as any).__gi_bestRoadNetwork = rn;
+		_getGlobalCache().__gi_bestRoadNetwork = rn;
 	}
 }
 

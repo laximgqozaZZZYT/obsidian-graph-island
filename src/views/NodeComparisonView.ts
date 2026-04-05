@@ -3,6 +3,7 @@ import type { GraphNode } from "../types";
 import { t } from "../i18n";
 import { EVENT_COMPARE_NODES, EVENT_HIGHLIGHT_NODES } from "../constants";
 import type { PixiNode } from "./InteractionManager";
+import { asInternalWorkspace } from "../obsidian-internals";
 
 export const VIEW_TYPE_NODE_COMPARE = "graph-node-compare";
 
@@ -151,8 +152,8 @@ export class NodeComparisonView extends ItemView {
 
 		// 比較イベントをリスン
 		this.registerEvent(
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian workspace custom events
-			(this.app.workspace as any).on(EVENT_COMPARE_NODES, (data: CompareEvent | null) => {
+			asInternalWorkspace(this.app.workspace).on(EVENT_COMPARE_NODES, (...args: unknown[]) => {
+				const data = args[0] as CompareEvent | null;
 				if (!data) {
 					this.renderEmpty();
 					return;

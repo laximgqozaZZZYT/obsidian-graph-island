@@ -4,6 +4,7 @@ import type { PixiNode } from "./InteractionManager";
 import { edgeSourceId, edgeTargetId } from "../utils/graph-helpers";
 import { t } from "../i18n";
 import { EVENT_HOVER_NODE, EVENT_HIGHLIGHT_NODES } from "../constants";
+import { asInternalWorkspace } from "../obsidian-internals";
 
 export const VIEW_TYPE_NODE_DETAIL = "graph-node-detail";
 
@@ -50,16 +51,14 @@ export class NodeDetailView extends ItemView {
 		this.renderEmpty();
 
 		this.registerEvent(
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
-			(this.app.workspace as any).on(
+			asInternalWorkspace(this.app.workspace).on(
 				EVENT_HOVER_NODE,
-				(
-					node: GraphNode | null,
-					adj: Map<string, Set<string>>,
-					pixiNodes: Map<string, PixiNode>,
-					degrees: Map<string, number>,
-					edges?: GraphEdge[],
-				) => {
+				(...args: unknown[]) => {
+					const node = args[0] as GraphNode | null;
+					const adj = args[1] as Map<string, Set<string>>;
+					const pixiNodes = args[2] as Map<string, PixiNode>;
+					const degrees = args[3] as Map<string, number>;
+					const edges = args[4] as GraphEdge[] | undefined;
 					if (this.held && this.holdCaptured) return; // locked
 					this.pixiNodes = pixiNodes;
 					this.renderNode(node, adj, pixiNodes, degrees, edges);
@@ -100,8 +99,7 @@ export class NodeDetailView extends ItemView {
 	// ---------------------------------------------------------------------------
 
 	private triggerHighlight(nodeIds: Set<string> | null) {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
-		this.app.workspace.trigger(EVENT_HIGHLIGHT_NODES as any, nodeIds);
+		asInternalWorkspace(this.app.workspace).trigger(EVENT_HIGHLIGHT_NODES, nodeIds);
 	}
 
 	/** Find all pixi node IDs whose frontmatter[key] contains `value` */
@@ -584,8 +582,7 @@ export class NodeDetailView extends ItemView {
 			const linkBtn = li.createEl("button", { cls: "gi-suggest-link-btn", text: t("detail.linkBtn") });
 			linkBtn.addEventListener("click", () => {
 				// Trigger link creation via workspace event
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event
-				this.app.workspace.trigger("graph-island:create-link" as any, node.id, s.id);
+				asInternalWorkspace(this.app.workspace).trigger("graph-island:create-link", node.id, s.id);
 				li.remove();
 			});
 		}

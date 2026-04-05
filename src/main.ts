@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS, type GraphViewsSettings } from "./types";
 import { detectTagRelations } from "./utils/tag-relation-presets";
 import { t } from "./i18n";
 import { showToast } from "./utils/toast";
+import { asInternalWorkspace, asGraphView, type GraphViewInternal } from "./obsidian-internals";
 
 export default class GraphViewsPlugin extends Plugin {
 	settings: GraphViewsSettings = DEFAULT_SETTINGS;
@@ -28,8 +29,7 @@ export default class GraphViewsPlugin extends Plugin {
 
 		// 比較イベント発火時に比較パネルを自動オープン
 		this.registerEvent(
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			this.app.workspace.on(EVENT_COMPARE_NODES as any, (data: unknown) => {
+			asInternalWorkspace(this.app.workspace).on(EVENT_COMPARE_NODES, (data: unknown) => {
 				if (data) this.ensureComparePane();
 			}),
 		);
@@ -114,12 +114,12 @@ export default class GraphViewsPlugin extends Plugin {
 			id: "graph-focus-toggle",
 			name: "Graph: Toggle focus mode",
 			callback: () => {
-				const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
-				if (view) {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing private panel for command
-					const v = view as any;
+				const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0];
+				if (leaf) {
+					const v = asGraphView(leaf);
+					if (!v) return;
 					v.panel.focusMode = !v.panel.focusMode;
-					v.markDirty(true);
+					v.markDirty?.(true);
 				}
 			},
 		});
@@ -127,10 +127,10 @@ export default class GraphViewsPlugin extends Plugin {
 			id: "graph-search-focus",
 			name: "Graph: Focus search bar",
 			callback: () => {
-				const view = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0]?.view;
-				if (view) {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing private panelEl
-					const searchInput = (view as any).panelEl?.querySelector("input[type='text']");
+				const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0];
+				if (leaf) {
+					const v = asGraphView(leaf);
+					const searchInput = v?.panelEl?.querySelector("input[type='text']") as HTMLInputElement | null;
 					if (searchInput) searchInput.focus();
 				}
 			},
@@ -139,8 +139,10 @@ export default class GraphViewsPlugin extends Plugin {
 
 	private _registerGraphUtilityCommands() {
 		// D2: Additional command palette integrations
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- command callbacks access private GVC members
-		const gv = (): any => this._getGraphView();
+		const gv = (): GraphViewInternal | null => {
+			const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0];
+			return leaf ? asGraphView(leaf) : null;
+		};
 		this.addCommand({
 			id: "graph-toggle-stats",
 			name: "Graph: Toggle statistics panel",
@@ -148,7 +150,7 @@ export default class GraphViewsPlugin extends Plugin {
 				const v = gv();
 				if (v) {
 					v.panel.showGraphStats = !v.panel.showGraphStats;
-					v.markDirty(true);
+					v.markDirty?.(true);
 				}
 			},
 		});
@@ -159,7 +161,7 @@ export default class GraphViewsPlugin extends Plugin {
 				const v = gv();
 				if (v) {
 					v.panel.showArrows = !v.panel.showArrows;
-					v.markDirty(true);
+					v.markDirty?.(true);
 				}
 			},
 		});
@@ -170,7 +172,7 @@ export default class GraphViewsPlugin extends Plugin {
 				const v = gv();
 				if (v) {
 					v.panel.analysisOverlay = "all";
-					v.doRender();
+					v.doRender?.();
 				}
 			},
 		});
@@ -181,7 +183,7 @@ export default class GraphViewsPlugin extends Plugin {
 				const v = gv();
 				if (v) {
 					v.panel.analysisOverlay = "off";
-					v.doRender();
+					v.doRender?.();
 				}
 			},
 		});
@@ -241,8 +243,7 @@ export default class GraphViewsPlugin extends Plugin {
 		await this.saveData(this.settings);
 		// Notify all graph views to rebuild with updated settings
 		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing private GVC members
-			const view = leaf.view as any;
+			const view = asGraphView(leaf);
 			if (view?.rawData !== undefined) {
 				view.rawData = null;
 				view.doRender?.();
@@ -296,8 +297,7 @@ export default class GraphViewsPlugin extends Plugin {
 		this.app.workspace.revealLeaf(leaf);
 		// Configure the new view after creation
 		setTimeout(() => {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing private GVC members
-			const view = leaf.view as any;
+			const view = asGraphView(leaf);
 			if (view?.panel) {
 				view.panel.subgraphNodeIds = [...nodeIds];
 				view.panel.viewMode = viewMode;

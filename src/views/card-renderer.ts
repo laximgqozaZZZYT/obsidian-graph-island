@@ -225,10 +225,8 @@ function renderTableCardText(
 	const cardAR = crc.cardAspectRatio > 0 ? crc.cardAspectRatio : 1.618;
 
 	for (const pn of tableCardNodes) {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime card dimension cache
-		const totalH = (pn as any)._cardTotalH ?? headerH + bodyLineH + pad * 2;
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const bodyLines = (pn as any)._cardBodyLines ?? 0;
+		const totalH = pn._cardTotalH ?? headerH + bodyLineH + pad * 2;
+		const bodyLines = pn._cardBodyLines ?? 0;
 		const arHalfW = (totalH * cardAR) / 2;
 		const effR = Math.max(pn.radius, minWorldRadius);
 		const MIN_CARD_HALF_W_TEXT = Math.min(20 / worldScale, 20 * CARD_SCALE_CAP);
@@ -386,10 +384,8 @@ function renderTableCard(
 		g.endFill();
 
 		// Store computed dimensions for text pass
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime card dimension cache
-		(pn as any)._cardTotalH = totalH;
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(pn as any)._cardBodyLines = bodyLines;
+		pn._cardTotalH = totalH;
+		pn._cardBodyLines = bodyLines;
 		if (nodeCount < rt.cardTextNodeCount) tableCardNodes.push(pn);
 	}
 

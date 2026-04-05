@@ -1964,8 +1964,7 @@ export function _getTranslationKeys(locale: string): string[] {
 function detectLocale(): string {
 	try {
 		// Obsidian sets moment locale to match the user's language preference
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian injects moment on window
-		const m = (window as any).moment;
+		const m = (window as unknown as { moment?: { locale: () => string } }).moment;
 		if (m && typeof m.locale === "function") {
 			const loc = m.locale();
 			if (typeof loc === "string" && loc.startsWith("ja")) return "ja";

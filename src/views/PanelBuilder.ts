@@ -45,6 +45,7 @@ import {
 	TAG_DISPLAY_ENCLOSURE,
 	TAG_DISPLAY_NODE,
 } from "../constants";
+import { asInternalApp, asObsidianWindow } from "../obsidian-internals";
 import { isSectionVisible } from "../utils/view-mode-sections";
 import type { PanelSectionId } from "../utils/view-mode-sections";
 import {
@@ -603,8 +604,8 @@ export function validatePanelState(panel: PanelState): void {
 	for (const key of numericKeys) {
 		const val = panel[key] as number;
 		if (typeof val !== "number" || !isFinite(val)) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic key access for validation
-			(panel as any)[key] = (defaults as any)[key];
+			// Safe: numericKeys is constrained to keyof PanelState with number values
+			(panel as unknown as Record<string, unknown>)[key] = (defaults as unknown as Record<string, unknown>)[key];
 		}
 	}
 	// ViewMode validation
@@ -626,8 +627,7 @@ export function validatePanelState(panel: PanelState): void {
 		"ego",
 	]);
 	if (!validArrangements.has(panel.clusterArrangement)) {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- fallback to default arrangement
-		panel.clusterArrangement = "inherit" as any;
+		panel.clusterArrangement = "inherit";
 	}
 	// Clamp hoverHops to 0-10
 	if (panel.hoverHops < 0) panel.hoverHops = 0;
@@ -1340,8 +1340,7 @@ function buildFilterTab(filterTab: HTMLElement, panel: PanelState, ctx: PanelCon
 				dvInput.placeholder = '#tag, "folder"';
 				dvInput.setAttribute("aria-label", t("filter.dataviewHint"));
 				// Check if Dataview plugin is available
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian internal plugin API
-				const dvApi = (ctx.app as any)?.plugins?.plugins?.dataview?.api;
+				const dvApi = asInternalApp(ctx.app)?.plugins?.plugins?.dataview?.api;
 				if (!dvApi) {
 					dvInput.disabled = true;
 					dvInput.placeholder = t("filter.dataviewUnavailable");
@@ -1639,7 +1638,8 @@ function _addHoverEdgeTypeToggles(adv: HTMLElement, panel: PanelState, cb: Panel
 		link: true, semantic: false, tag: false, hasTag: false, similar: false,
 		sibling: false, sequence: false, inheritance: true, aggregation: true,
 	};
-	const hoverTypeEntries: [string, string][] = [
+	type HetKey = keyof typeof het;
+	const hoverTypeEntries: [HetKey, string][] = [
 		["link", t("hover.link") ?? "Link"],
 		["semantic", t("hover.semantic") ?? "Semantic"],
 		["tag", t("hover.tag") ?? "Tag"],
@@ -1651,11 +1651,9 @@ function _addHoverEdgeTypeToggles(adv: HTMLElement, panel: PanelState, cb: Panel
 		["sequence", t("hover.sequence") ?? "Sequence"],
 	];
 	for (const [key, label] of hoverTypeEntries) {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic key access for hover edge types
-		addToggle(adv, label, (het as any)[key] ?? false, (v) => {
+		addToggle(adv, label, het[key] ?? false, (v) => {
 			if (!panel.hoverEdgeTypes) panel.hoverEdgeTypes = { ...het };
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(panel.hoverEdgeTypes as any)[key] = v;
+			panel.hoverEdgeTypes[key] = v;
 			cb.rebuildHoverAdj();
 			cb.applyHover();
 			cb.markDirty();
@@ -1906,8 +1904,7 @@ function _buildEdgeDisplaySection(tabEl: HTMLElement, panel: PanelState, _ctx: P
 				);
 				// GN: Edge toggle with a11y announcements
 				const _edgeToggle = (label: string, key: keyof PanelState, cb2: () => void) => (v: boolean) => {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic key access
-					(panel as any)[key] = v;
+					(panel as unknown as Record<string, unknown>)[key] = v;
 					cb2();
 					cb.announceA11y?.(`${label}: ${v ? "on" : "off"}`);
 				};
@@ -2192,8 +2189,7 @@ function _buildSettingsActionButtons(
 					const lines: string[] = [];
 					if (info.migratedFields.length > 0) lines.push(`Migrated: ${info.migratedFields.join(", ")}`);
 					if (info.removedFields.length > 0) lines.push(`Removed: ${info.removedFields.join(", ")}`);
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian Notice on window
-					new (window as any).Notice(lines.join("\n"), 5000);
+					new (asObsidianWindow()).Notice(lines.join("\n"), 5000);
 				}
 				modal.remove();
 				cb.invalidateData();
@@ -2492,10 +2488,8 @@ function _buildNodesTab(tabEl: HTMLElement, panel: PanelState, _ctx: PanelContex
 						.setTitle("Open File")
 						.setIcon("file-text")
 						.onClick(() => {
-							// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian global app access
-							const file = (window as any).app?.vault?.getAbstractFileByPath(entry.id);
-							// eslint-disable-next-line @typescript-eslint/no-explicit-any
-							if (file) (window as any).app?.workspace?.getLeaf(false)?.openFile(file);
+							const file = asObsidianWindow().app?.vault?.getAbstractFileByPath(entry.id);
+							if (file) asObsidianWindow().app?.workspace?.getLeaf(false)?.openFile(file as import("obsidian").TFile);
 						}),
 				);
 				menu.showAtPosition({ x: e.clientX, y: e.clientY });

@@ -1,13 +1,12 @@
 import type { App } from "obsidian";
 import type { GraphNode } from "../types";
+import { asInternalApp } from "../obsidian-internals";
 
 /**
  * Get the Dataview API instance, or null if unavailable.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian internal plugin API
-function getDataviewApi(app: App): any | null {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian internal plugin API
-	const dv = (app as any).plugins?.plugins?.["dataview"];
+function getDataviewApi(app: App): unknown | null {
+	const dv = asInternalApp(app).plugins?.plugins?.["dataview"];
 	return dv?.api ?? null;
 }
 
@@ -30,12 +29,11 @@ export function queryDataviewPages(app: App, query: string): Set<string> {
 
 	try {
 		// dv.pages(source) returns a DataArray of page objects with a .file.path property
-		const pages = api.pages(query);
+		const pages = (api as { pages: (q: string) => Iterable<unknown> & { forEach?: (fn: (p: unknown) => void) => void } }).pages(query);
 		const paths = new Set<string>();
 		if (pages && typeof pages.forEach === "function") {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Dataview page type is untyped
-			pages.forEach((page: any) => {
-				const p = page?.file?.path;
+			pages.forEach((page: unknown) => {
+				const p = (page as { file?: { path?: string } })?.file?.path;
 				if (typeof p === "string") paths.add(p);
 			});
 		}

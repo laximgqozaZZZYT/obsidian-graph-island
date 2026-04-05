@@ -435,6 +435,24 @@ export function quickSelect(arr: number[], k: number): number {
 	return k >= 0 && k < arr.length ? arr[k] : 0;
 }
 
+/** Shared context built once per redrawNodeBatch call and passed to sub-passes. */
+interface BatchCtx {
+	visible: PixiNode[];
+	pixiNodes: Map<string, PixiNode>;
+	tlFilteredOut: Set<string> | null;
+	alpha: number;
+	nodeCount: number;
+	shapeRules: ShapeRule[];
+	worldScale: number;
+	isExtremeZoom: boolean;
+	isMidZoom: boolean;
+	minWorldRadius: number;
+	lodLevel: number;
+}
+
+/** Render pass function operating on a CanvasGraphics with BatchCtx. */
+type PassFn = (g: CanvasGraphics, ctx: BatchCtx) => void;
+
 export class RenderPipeline {
 	private host: RenderHost;
 
@@ -738,8 +756,6 @@ export class RenderPipeline {
 		this._lastLodLevel = ctx.lodLevel;
 
 		// P1: Build active pass list — only active passes enter the loop
-		type BatchCtx = ReturnType<RenderPipeline["_buildBatchContext"]>;
-		type PassFn = (g: CanvasGraphics, ctx: BatchCtx) => void;
 		const passes: PassFn[] = [];
 
 		// Pass 1: Glow halos (enhanced for hub nodes) — skip at extreme/mid zoom
@@ -794,37 +810,30 @@ export class RenderPipeline {
 	}
 
 	/** Register conditional overlay passes (tag badges, importance rings, etc.) */
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- pass array uses local type alias from caller
-	private _registerConditionalPasses(passes: any[]): void {
+	private _registerConditionalPasses(passes: PassFn[]): void {
 		// Pass 8: Tag badges on node circumference
 		if (this.host.getShowTagBadges?.()) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- BatchCtx type local to caller
-			passes.push((g: CanvasGraphics, c: any) => renderTagBadges(this.host, g, c));
+			passes.push((g: CanvasGraphics, c: BatchCtx) => renderTagBadges(this.host, g, c));
 		}
 		// Pass 9: Importance ring
 		if (this.host.getShowImportanceRing?.()) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			passes.push((g: CanvasGraphics, c: any) => renderImportanceRings(this.host, g, c));
+			passes.push((g: CanvasGraphics, c: BatchCtx) => renderImportanceRings(this.host, g, c));
 		}
 		// Pass 10: Recency marker
 		if (this.host.getRecencyConfig?.()) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			passes.push((g: CanvasGraphics, c: any) => renderRecencyMarkers(this.host, g, c));
+			passes.push((g: CanvasGraphics, c: BatchCtx) => renderRecencyMarkers(this.host, g, c));
 		}
 		// Pass 11: Bridge nodes — gold ring for high betweenness
 		if (this.host.getBridgeNodeIds?.()) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			passes.push((g: CanvasGraphics, c: any) => renderBridgeNodes(this.host, g, c));
+			passes.push((g: CanvasGraphics, c: BatchCtx) => renderBridgeNodes(this.host, g, c));
 		}
 		// Pass 12: Articulation point warning ring
 		if (this.host.getArticulationPointIds?.()) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			passes.push((g: CanvasGraphics, c: any) => renderArticulationPoints(this.host, g, c));
+			passes.push((g: CanvasGraphics, c: BatchCtx) => renderArticulationPoints(this.host, g, c));
 		}
 		// Pass 13: Entropy overlay — knowledge diversity heatmap
 		if (this.host.getShowEntropyOverlay?.()) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			passes.push((g: CanvasGraphics, c: any) => renderEntropyOverlay(this.host, g, c));
+			passes.push((g: CanvasGraphics, c: BatchCtx) => renderEntropyOverlay(this.host, g, c));
 		}
 	}
 
@@ -2029,8 +2038,7 @@ export class RenderPipeline {
 			const r = el.getBoundingClientRect();
 			grid.insert({
 				x: r.left - canvasRect.left, y: r.top - canvasRect.top, w: r.width, h: r.height,
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- grid exclusion zone
-				label: null as any, pn: null as any, degree: 999, isSuper: false,
+				label: null as unknown as CanvasText, pn: null as unknown as PixiNode, degree: 999, isSuper: false,
 			});
 		}
 	}
@@ -2130,8 +2138,7 @@ export class RenderPipeline {
 
 	/** Measure label dimensions in screen space, accounting for scale and padding. */
 	private _measureLabelDims(
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- CanvasText with dynamic label props
-		label: any, fontSize: number, charW: number, zoom: number, maxScreenW: number, maxScreenH: number,
+		label: CanvasText, fontSize: number, charW: number, zoom: number, maxScreenW: number, maxScreenH: number,
 	): { w: number; h: number } {
 		const scaleX = label.scale?.x ?? 1;
 		const scaleY = label.scale?.y ?? 1;

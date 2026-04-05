@@ -3,9 +3,10 @@
  * Extracted from GraphViewContainer.drawTimelineBars to reduce complexity.
  */
 import { CanvasText, type CanvasGraphics, type CanvasContainer } from "./canvas2d";
-import type { TimelineBarInfo } from "../layouts/cluster-force";
+import type { ClusterMetadata, TimelineBarInfo } from "../layouts/cluster-force";
 import type { PixiNode } from "./InteractionManager";
 import { mergeRenderThresholds, type RenderThresholds } from "../types";
+import type { App } from "obsidian";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -25,10 +26,8 @@ export interface TimelineBarHost {
 		viewMode: string;
 		renderThresholds: Partial<RenderThresholds>;
 	};
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian App type
-	app: any;
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- extended clusterMeta
-	clusterMeta: any;
+	app: App;
+	clusterMeta: ClusterMetadata | null;
 }
 
 interface Viewport {
@@ -59,23 +58,20 @@ function buildSiblingSet(
 	hoveredId: string,
 	bars: TimelineBarInfo[],
 	pixiNodes: Map<string, PixiNode>,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	app: any,
+	app: App,
 ): Set<string> | null {
 	const hoveredNode = pixiNodes.get(hoveredId);
 	if (!hoveredNode) return null;
 	const fp = hoveredNode.data.filePath ?? hoveredId;
 	const tf = app.vault.getAbstractFileByPath(fp);
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const parentId = tf ? app.metadataCache.getFileCache(tf as any)?.frontmatter?.parent_id : null;
+	const parentId = tf ? app.metadataCache.getFileCache(tf as import("obsidian").TFile)?.frontmatter?.parent_id : null;
 	if (!parentId) return null;
 
 	const siblings = new Set<string>();
 	for (const bar of bars) {
 		const bfp = pixiNodes.get(bar.nodeId)?.data?.filePath ?? bar.nodeId;
 		const btf = app.vault.getAbstractFileByPath(bfp);
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const bpid = btf ? app.metadataCache.getFileCache(btf as any)?.frontmatter?.parent_id : null;
+		const bpid = btf ? app.metadataCache.getFileCache(btf as import("obsidian").TFile)?.frontmatter?.parent_id : null;
 		if (bpid === parentId) siblings.add(bar.nodeId);
 	}
 	return siblings;
