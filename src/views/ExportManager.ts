@@ -134,9 +134,7 @@ export async function copyGraphToClipboard(host: ExportHost): Promise<void> {
 		const blob = await exportGraphAsPng(host.pixiApp);
 		await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 		showToast(t("toast.copiedToClipboard"));
-	} catch (e) {
-		// eslint-disable-next-line no-console -- error detail for dev, stripped in prod
-		console.error("Graph Island: clipboard copy failed", e);
+	} catch {
 		showToast(t("toast.clipboardFailed"), 5000);
 	}
 }
@@ -194,9 +192,7 @@ export async function embedGraphInNote(host: ExportHost): Promise<void> {
 		editor.replaceSelection(`![[${basename}]]\n`);
 
 		showToast(t("toast.embedSuccess"));
-	} catch (e) {
-		// eslint-disable-next-line no-console -- error detail for dev, stripped in prod
-		console.error("Graph Island: embed failed", e);
+	} catch {
 		showToast(t("toast.embedFailed"), 5000);
 	}
 }

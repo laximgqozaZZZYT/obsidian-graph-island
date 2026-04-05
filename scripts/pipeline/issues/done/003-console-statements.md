@@ -1,7 +1,7 @@
 ---
 priority: low
 reported: 2026-04-05
-status: pending
+status: done
 source: auto-discovered
 summary: 本番コードに6個のconsole文
 ---

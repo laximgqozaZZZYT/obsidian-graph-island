@@ -2322,9 +2322,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this._wireCanvasManagers(canvas, world);
 
 			return app;
-		} catch (err) {
-			// eslint-disable-next-line no-console -- error detail for dev, stripped in prod
-			console.error("[Graph Island] Failed to initialize Canvas 2D renderer:", err);
+		} catch {
 			if (this.canvasWrap) {
 				this.canvasWrap.empty();
 				this.canvasWrap.createEl("div", {
@@ -7467,9 +7465,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		let gd: GraphData;
 		try {
 			gd = this.getGraphData();
-		} catch (err) {
-			// eslint-disable-next-line no-console -- error detail for dev, stripped in prod
-			console.error("[Graph Island] Failed to build graph:", err);
+		} catch {
 			this.setStatus(t("error.graphBuildFailed"));
 			return;
 		}
