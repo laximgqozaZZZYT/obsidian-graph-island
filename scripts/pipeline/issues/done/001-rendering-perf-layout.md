@@ -1,7 +1,7 @@
 ---
 priority: high
 reported: 2026-04-05
-status: in-progress
+status: done
 summary: 描画遅い + 初期表示でzoom-to-fit未実行 + 同心円グルーピング不安定
 ---
 
