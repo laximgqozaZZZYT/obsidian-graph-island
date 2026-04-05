@@ -6,7 +6,6 @@
 // (no PixiJS / Obsidian dependencies) to enable unit testing.
 // ---------------------------------------------------------------------------
 
-import type { App } from "obsidian";
 import type { GraphNode, GraphEdge } from "../types";
 import { evaluateExpr, parseQueryExpr } from "../utils/query-expr";
 
