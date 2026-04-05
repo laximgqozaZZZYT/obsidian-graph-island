@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock obsidian
 vi.mock("obsidian", () => {
@@ -209,5 +209,386 @@ describe("view type constants", () => {
     expect(viewTypes).toContain("graph-view");
     expect(viewTypes).toContain("node-detail");
     expect(viewTypes).toContain("node-compare");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// activateView - opens graph in new tab + ensures detail pane
+// ---------------------------------------------------------------------------
+describe("activateView", () => {
+  let plugin: GraphViewsPlugin;
+
+  beforeEach(() => {
+    plugin = new GraphViewsPlugin() as any;
+  });
+
+  it("opens graph view in a tab leaf", async () => {
+    await plugin.activateView();
+    const leaf = (plugin as any).app.workspace.getLeaf.mock.results[0].value;
+    expect(leaf.setViewState).toHaveBeenCalledWith({
+      type: "graph-view",
+      active: true,
+    });
+  });
+
+  it("reveals the leaf to user", async () => {
+    await plugin.activateView();
+    expect((plugin as any).app.workspace.revealLeaf).toHaveBeenCalled();
+  });
+
+  it("calls ensureDetailPane", async () => {
+    const ensureDetailPaneSpy = vi.spyOn(plugin as any, "ensureDetailPane");
+    await plugin.activateView();
+    expect(ensureDetailPaneSpy).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// openSubgraphInNewTab - splits view with subgraph filters
+// ---------------------------------------------------------------------------
+describe("openSubgraphInNewTab", () => {
+  let plugin: GraphViewsPlugin;
+
+  beforeEach(() => {
+    plugin = new GraphViewsPlugin() as any;
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.runAllTimersAsync();
+    vi.useRealTimers();
+  });
+
+  it("opens a new split view", async () => {
+    await plugin.openSubgraphInNewTab(["node1", "node2"], "force-layout");
+    expect((plugin as any).app.workspace.getLeaf).toHaveBeenCalledWith("split");
+  });
+
+  it("sets subgraph config after delay", async () => {
+    await plugin.openSubgraphInNewTab(["node1", "node2"], "force-layout");
+    const leaf = (plugin as any).app.workspace.getLeaf.mock.results[0].value;
+    leaf.view = { panel: {} };
+
+    vi.advanceTimersByTime(100);
+
+    expect(leaf.view.panel.subgraphNodeIds).toEqual(["node1", "node2"]);
+    expect(leaf.view.panel.viewMode).toBe("force-layout");
+    expect(leaf.view.panel.multiSelectNodeIds).toEqual([]);
+    expect(leaf.view.panel.subgraphStack).toEqual([]);
+  });
+
+  it("triggers render after subgraph config", async () => {
+    await plugin.openSubgraphInNewTab(["node1"], "timeline");
+    const leaf = (plugin as any).app.workspace.getLeaf.mock.results[0].value;
+    leaf.view = { panel: {}, doRender: vi.fn(), rawData: null };
+
+    vi.advanceTimersByTime(100);
+
+    expect(leaf.view.doRender).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ribbon icon + command palette callbacks
+// ---------------------------------------------------------------------------
+describe("ribbon icon + commands", () => {
+  let plugin: GraphViewsPlugin;
+
+  beforeEach(() => {
+    plugin = new GraphViewsPlugin() as any;
+  });
+
+  it("ribbon icon callback activates view", async () => {
+    const activateViewSpy = vi.spyOn(plugin, "activateView");
+    await plugin.onload();
+    const ribbonCalls = (plugin as any).addRibbonIcon.mock.calls;
+    expect(ribbonCalls.length).toBeGreaterThan(0);
+
+    const callback = ribbonCalls[0][2];
+    callback();
+    expect(activateViewSpy).toHaveBeenCalled();
+  });
+
+  it("open-graph-view command activates view", async () => {
+    const activateViewSpy = vi.spyOn(plugin, "activateView");
+    await plugin.onload();
+
+    const openGraphCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "open-graph-view",
+    )[0];
+    openGraphCmd.callback();
+    expect(activateViewSpy).toHaveBeenCalled();
+  });
+
+  it("embed-graph-in-note command shows toast when no graph", async () => {
+    const { showToast } = await import("../src/utils/toast");
+    await plugin.onload();
+
+    const embedCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "embed-graph-in-note",
+    )[0];
+    await embedCmd.editorCallback();
+    expect(showToast).toHaveBeenCalledWith(expect.any(String), 5000);
+  });
+
+  it("mode commands access active graph view", async () => {
+    await plugin.onload();
+
+    const graphViewMock = { applyPresetByKey: vi.fn() };
+    (plugin as any).app.workspace.getLeavesOfType.mockReturnValue([
+      { view: graphViewMock },
+    ]);
+
+    const exploreCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-mode-explore",
+    )[0];
+    exploreCmd.callback();
+    expect(graphViewMock.applyPresetByKey).toHaveBeenCalledWith("explore");
+
+    const analyzeCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-mode-analyze",
+    )[0];
+    analyzeCmd.callback();
+    expect(graphViewMock.applyPresetByKey).toHaveBeenCalledWith("analyze");
+
+    const writeCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-mode-write",
+    )[0];
+    writeCmd.callback();
+    expect(graphViewMock.applyPresetByKey).toHaveBeenCalledWith("write");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// focus + search + statistics + analysis commands
+// ---------------------------------------------------------------------------
+describe("graph control commands", () => {
+  let plugin: GraphViewsPlugin;
+  let graphViewMock: any;
+
+  beforeEach(() => {
+    plugin = new GraphViewsPlugin() as any;
+    graphViewMock = {
+      panel: {},
+      markDirty: vi.fn(),
+      doRender: vi.fn(),
+      _toggleHelpOverlay: vi.fn(),
+      copyGraphToClipboard: vi.fn(),
+      exportFullGraph: vi.fn(),
+      exportGraphAsCSV: vi.fn(),
+      exportGraphAsMermaid: vi.fn(),
+      panelEl: {},
+    };
+    (plugin as any).app.workspace.getLeavesOfType.mockReturnValue([
+      { view: graphViewMock },
+    ]);
+  });
+
+  it("focus-toggle command toggles focusMode", async () => {
+    await plugin.onload();
+    const focusCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-focus-toggle",
+    )[0];
+
+    graphViewMock.panel.focusMode = false;
+    focusCmd.callback();
+    expect(graphViewMock.panel.focusMode).toBe(true);
+    expect(graphViewMock.markDirty).toHaveBeenCalled();
+  });
+
+  it("toggle-stats command toggles showGraphStats", async () => {
+    await plugin.onload();
+    const statsCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-toggle-stats",
+    )[0];
+
+    graphViewMock.panel.showGraphStats = false;
+    statsCmd.callback();
+    expect(graphViewMock.panel.showGraphStats).toBe(true);
+    expect(graphViewMock.markDirty).toHaveBeenCalled();
+  });
+
+  it("toggle-arrows command toggles showArrows", async () => {
+    await plugin.onload();
+    const arrowsCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-toggle-arrows",
+    )[0];
+
+    graphViewMock.panel.showArrows = false;
+    arrowsCmd.callback();
+    expect(graphViewMock.panel.showArrows).toBe(true);
+    expect(graphViewMock.markDirty).toHaveBeenCalled();
+  });
+
+  it("analysis-all command sets analysisOverlay = all", async () => {
+    await plugin.onload();
+    const allCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-analysis-all",
+    )[0];
+    allCmd.callback();
+    expect(graphViewMock.panel.analysisOverlay).toBe("all");
+    expect(graphViewMock.doRender).toHaveBeenCalled();
+  });
+
+  it("analysis-off command sets analysisOverlay = off", async () => {
+    await plugin.onload();
+    const offCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-analysis-off",
+    )[0];
+    offCmd.callback();
+    expect(graphViewMock.panel.analysisOverlay).toBe("off");
+    expect(graphViewMock.doRender).toHaveBeenCalled();
+  });
+
+  it("help command calls _toggleHelpOverlay", async () => {
+    await plugin.onload();
+    const helpCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-help",
+    )[0];
+    helpCmd.callback();
+    expect(graphViewMock._toggleHelpOverlay).toHaveBeenCalled();
+  });
+
+  it("export commands call appropriate methods", async () => {
+    await plugin.onload();
+
+    const pngCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-copy-png",
+    )[0];
+    pngCmd.callback();
+    expect(graphViewMock.copyGraphToClipboard).toHaveBeenCalled();
+
+    const jsonCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-export-full",
+    )[0];
+    jsonCmd.callback();
+    expect(graphViewMock.exportFullGraph).toHaveBeenCalled();
+
+    const csvCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-export-csv",
+    )[0];
+    csvCmd.callback();
+    expect(graphViewMock.exportGraphAsCSV).toHaveBeenCalled();
+
+    const mermaidCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-export-mermaid",
+    )[0];
+    mermaidCmd.callback();
+    expect(graphViewMock.exportGraphAsMermaid).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// search-focus command
+// ---------------------------------------------------------------------------
+describe("search-focus command", () => {
+  let plugin: GraphViewsPlugin;
+
+  beforeEach(() => {
+    plugin = new GraphViewsPlugin() as any;
+  });
+
+  it("search-focus command is registered", async () => {
+    await plugin.onload();
+
+    const focusSearchCmd = (plugin as any).addCommand.mock.calls.find(
+      (c: any) => c[0].id === "graph-search-focus",
+    );
+    expect(focusSearchCmd).toBeDefined();
+    expect(focusSearchCmd[0].name).toBe("Graph: Focus search bar");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pane management (detail + compare)
+// ---------------------------------------------------------------------------
+describe("pane management", () => {
+  let plugin: GraphViewsPlugin;
+
+  beforeEach(() => {
+    plugin = new GraphViewsPlugin() as any;
+  });
+
+  it("ensureDetailPane opens detail pane if missing", async () => {
+    (plugin as any).app.workspace.getLeavesOfType.mockReturnValue([]);
+    (plugin as any).app.workspace.getRightLeaf.mockReturnValue({
+      setViewState: vi.fn(),
+    });
+
+    await plugin.activateView();
+
+    expect((plugin as any).app.workspace.getRightLeaf).toHaveBeenCalledWith(
+      false,
+    );
+  });
+
+  it("registerEvent is called to register compare event", async () => {
+    await plugin.onload();
+
+    const registerEventCalls = (plugin as any).registerEvent.mock.calls;
+    expect(registerEventCalls.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// markdown code block processor
+// ---------------------------------------------------------------------------
+describe("markdown code block processor", () => {
+  let plugin: GraphViewsPlugin;
+
+  beforeEach(() => {
+    plugin = new GraphViewsPlugin() as any;
+  });
+
+  it("registers graph-island code block processor", async () => {
+    await plugin.onload();
+    expect(
+      (plugin as any).registerMarkdownCodeBlockProcessor,
+    ).toHaveBeenCalledWith("graph-island", expect.any(Function));
+  });
+
+  it("processor callback is a function", async () => {
+    await plugin.onload();
+    const processorCall = (plugin as any)
+      .registerMarkdownCodeBlockProcessor.mock.calls[0];
+    const processor = processorCall[1];
+    expect(typeof processor).toBe("function");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// saveSettings - notifies all graph views to rebuild
+// ---------------------------------------------------------------------------
+describe("saveSettings", () => {
+  let plugin: GraphViewsPlugin;
+
+  beforeEach(() => {
+    plugin = new GraphViewsPlugin() as any;
+  });
+
+  it("notifies graph views to rebuild when settings change", async () => {
+    const graphView1 = { rawData: { nodes: [] }, doRender: vi.fn() };
+    const graphView2 = { rawData: { nodes: [] }, doRender: vi.fn() };
+    (plugin as any).app.workspace.getLeavesOfType.mockReturnValue([
+      { view: graphView1 },
+      { view: graphView2 },
+    ]);
+
+    await plugin.saveSettings();
+
+    expect(graphView1.rawData).toBeNull();
+    expect(graphView2.rawData).toBeNull();
+    expect(graphView1.doRender).toHaveBeenCalled();
+    expect(graphView2.doRender).toHaveBeenCalled();
+  });
+
+  it("ignores views without rawData property", async () => {
+    const graphView = {}; // no rawData property
+    (plugin as any).app.workspace.getLeavesOfType.mockReturnValue([
+      { view: graphView },
+    ]);
+
+    // Should not throw
+    await expect(plugin.saveSettings()).resolves.not.toThrow();
   });
 });
