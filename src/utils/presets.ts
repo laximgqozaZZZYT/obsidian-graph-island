@@ -215,6 +215,44 @@ const VALID_KEYS = new Set<string>([
 ]);
 
 // ---------------------------------------------------------------------------
+// Field validator lookup — O(1) dispatch instead of linear includes() chains
+// ---------------------------------------------------------------------------
+
+type FieldValidator = (key: string, value: unknown, out: Record<string, unknown>) => void;
+
+const validateBoolean: FieldValidator = (key, value, out) => {
+	if (typeof value === "boolean") out[key] = value;
+};
+const validateNumber: FieldValidator = (key, value, out) => {
+	if (typeof value === "number" && isFinite(value)) out[key] = value;
+};
+const validateString: FieldValidator = (key, value, out) => {
+	if (typeof value === "string") out[key] = value;
+};
+const validateEnum: FieldValidator = (key, value, out) => {
+	const allowed = ENUM_VALUES[key as keyof PanelState];
+	if (allowed && typeof value === "string" && allowed.includes(value)) out[key] = value;
+};
+const validateArray: FieldValidator = (key, value, out) => {
+	if (Array.isArray(value) || value === null) out[key] = value;
+};
+const validateSet: FieldValidator = (key, value, out) => {
+	if (Array.isArray(value)) out[key] = value;
+};
+const validateNullableObject: FieldValidator = (key, value, out) => {
+	if (value === null || (typeof value === "object" && !Array.isArray(value))) out[key] = value;
+};
+
+const FIELD_VALIDATOR = new Map<string, FieldValidator>();
+for (const k of BOOLEAN_FIELDS) FIELD_VALIDATOR.set(k, validateBoolean);
+for (const k of NUMBER_FIELDS) FIELD_VALIDATOR.set(k, validateNumber);
+for (const k of STRING_FIELDS) FIELD_VALIDATOR.set(k, validateString);
+for (const k of Object.keys(ENUM_VALUES)) FIELD_VALIDATOR.set(k, validateEnum);
+for (const k of ARRAY_FIELDS) FIELD_VALIDATOR.set(k, validateArray);
+for (const k of SET_FIELDS) FIELD_VALIDATOR.set(k, validateSet);
+for (const k of NULLABLE_OBJECT_FIELDS) FIELD_VALIDATOR.set(k, validateNullableObject);
+
+// ---------------------------------------------------------------------------
 // Export
 // ---------------------------------------------------------------------------
 
@@ -334,35 +372,8 @@ function migratePresetFields(raw: Record<string, unknown>, migrationInfo?: Prese
 
 /** Validate and assign a single field value to the result object by type category */
 function validateAndAssignField(out: Record<string, unknown>, key: string, value: unknown): void {
-	if ((BOOLEAN_FIELDS as string[]).includes(key)) {
-		if (typeof value === "boolean") out[key] = value;
-		return;
-	}
-	if ((NUMBER_FIELDS as string[]).includes(key)) {
-		if (typeof value === "number" && isFinite(value)) out[key] = value;
-		return;
-	}
-	if ((STRING_FIELDS as string[]).includes(key)) {
-		if (typeof value === "string") out[key] = value;
-		return;
-	}
-	if (key in ENUM_VALUES) {
-		const k = key as keyof PanelState;
-		const allowed = ENUM_VALUES[k];
-		if (allowed && typeof value === "string" && allowed.includes(value)) out[key] = value;
-		return;
-	}
-	if ((ARRAY_FIELDS as string[]).includes(key)) {
-		if (Array.isArray(value) || value === null) out[key] = value;
-		return;
-	}
-	if ((SET_FIELDS as string[]).includes(key)) {
-		if (Array.isArray(value)) out[key] = value;
-		return;
-	}
-	if ((NULLABLE_OBJECT_FIELDS as string[]).includes(key)) {
-		if (value === null || (typeof value === "object" && !Array.isArray(value))) out[key] = value;
-	}
+	const validator = FIELD_VALIDATOR.get(key);
+	if (validator) validator(key, value, out);
 }
 
 export function importPreset(json: string, migrationInfo?: PresetMigrationInfo): Partial<PanelState> {
