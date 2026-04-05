@@ -41,8 +41,11 @@ file_issue() {
 
   # Find next number
   local last_num
-  last_num=$(ls "$ISSUE_DIR"/*.md "$DONE_DIR"/*.md 2>/dev/null | grep -oP '\d+' | sort -n | tail -1 || echo "0")
-  local next_num=$(printf "%03d" $((10#${last_num:-0} + 1)))
+  last_num=$(ls "$ISSUE_DIR"/*.md "$DONE_DIR"/*.md 2>/dev/null | grep -oP '^\d+' | sort -n | tail -1)
+  last_num=${last_num:-0}
+  last_num=${last_num##0}  # strip leading zeros
+  last_num=${last_num:-0}
+  local next_num=$(printf "%03d" $((last_num + 1)))
 
   cat > "$ISSUE_DIR/${next_num}-${slug}.md" << ISSUE_EOF
 ---
@@ -197,6 +200,136 @@ if [[ $TSC_ERRORS -gt 0 ]]; then
     "- [ ] npx tsc --noEmit がクリーン"
   ISSUES_FOUND=$((ISSUES_FOUND + 1))
 fi
+
+# ============================================================
+# 9. GIANT FUNCTIONS (>120 lines) — complexity hiding spots
+# ============================================================
+GIANT_COUNT=$(python3 -c "
+import re, glob
+count = 0
+for f in sorted(glob.glob('src/**/*.ts', recursive=True)):
+    if 'types.ts' in f: continue  # type definitions are OK
+    lines = open(f).readlines()
+    in_func = False; start = 0; depth = 0; name = ''
+    for i, line in enumerate(lines):
+        if re.match(r'\s*(export\s+)?(async\s+)?(function|method)\s+\w+|.*\)\s*(\{|=>)', line) and '{' in line:
+            if in_func and (i - start) > 120:
+                count += 1
+            in_func = True; start = i; name = line.strip()[:50]
+    if in_func and (len(lines) - start) > 120: count += 1
+print(count)
+" 2>/dev/null || echo "0")
+GIANT_COUNT=${GIANT_COUNT//[^0-9]/}
+GIANT_COUNT=${GIANT_COUNT:-0}
+if [[ $GIANT_COUNT -gt 5 ]]; then
+  file_issue "giant-functions" "medium" \
+    "${GIANT_COUNT}個の巨大関数 (120行以上) が存在" \
+    "120行を超える関数が${GIANT_COUNT}個ある。可読性・テスタビリティの低下を招く。\n分割またはヘルパー抽出で改善可能。" \
+    "- [ ] 120行超の関数を5個以下に削減"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
+
+# ============================================================
+# 10. DEAD EXPORTS — unused public API surface
+# ============================================================
+DEAD_COUNT=$(python3 -c "
+import re, glob
+exports = set()
+imports = set()
+for f in glob.glob('src/**/*.ts', recursive=True):
+    content = open(f).read()
+    for m in re.finditer(r'export\s+(?:function|const|class|interface|type|enum)\s+(\w+)', content):
+        exports.add(m.group(1))
+    for m in re.finditer(r'import\s+.*?\{([^}]+)\}', content):
+        for item in m.group(1).split(','):
+            imports.add(item.strip().split(' as ')[0].strip())
+# Also check test imports
+for f in glob.glob('tests/**/*.ts', recursive=True):
+    content = open(f).read()
+    for m in re.finditer(r'import\s+.*?\{([^}]+)\}', content):
+        for item in m.group(1).split(','):
+            imports.add(item.strip().split(' as ')[0].strip())
+dead = [e for e in exports if e not in imports and not e.startswith('_')]
+print(len(dead))
+" 2>/dev/null || echo "0")
+DEAD_COUNT=${DEAD_COUNT//[^0-9]/}
+DEAD_COUNT=${DEAD_COUNT:-0}
+if [[ $DEAD_COUNT -gt 50 ]]; then
+  file_issue "dead-exports" "medium" \
+    "${DEAD_COUNT}個のdead exports (使われていないpublic API)" \
+    "exportされているが、プロジェクト内のどこからもimportされていない名前が${DEAD_COUNT}個。\nバンドルサイズ・メンテナンスコストに影響。" \
+    "- [ ] dead exports を 50個以下に削減 (削除 or export解除)"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
+
+# ============================================================
+# 11. CONSOLE STATEMENTS in production code
+# ============================================================
+CONSOLE_COUNT=$(grep -rn "console\.\(log\|error\|warn\|debug\)" src/ --include="*.ts" 2>/dev/null | grep -v "// " | wc -l || echo "0")
+CONSOLE_COUNT=${CONSOLE_COUNT//[^0-9]/}
+CONSOLE_COUNT=${CONSOLE_COUNT:-0}
+if [[ $CONSOLE_COUNT -gt 3 ]]; then
+  file_issue "console-statements" "low" \
+    "本番コードに${CONSOLE_COUNT}個のconsole文" \
+    "CLAUDE.mdで禁止されているconsole.*が残存。esbuildがprodで除去するが、コード品質として問題。" \
+    "- [ ] console文を0にする"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
+
+# ============================================================
+# 12. CDP RUNTIME ERRORS (if Obsidian running)
+# ============================================================
+if curl -sf "http://localhost:9222/json/version" >/dev/null 2>&1; then
+  CDP_ERRORS=$(python3 -c "
+import subprocess, json
+# Connect via CDP and check for console errors
+result = subprocess.run(['node', '-e', '''
+const ws = require(\"ws\");
+const http = require(\"http\");
+http.get(\"http://localhost:9222/json\", res => {
+  let data = \"\";
+  res.on(\"data\", c => data += c);
+  res.on(\"end\", () => {
+    const tabs = JSON.parse(data);
+    const tab = tabs.find(t => t.url.includes(\"index.html\"));
+    if (!tab) { console.log(\"0\"); process.exit(0); }
+    // Just report that CDP is available, actual error collection needs Runtime.enable
+    console.log(\"0\");
+  });
+}).on(\"error\", () => console.log(\"0\"));
+'''], capture_output=True, text=True, timeout=10)
+print(result.stdout.strip() or '0')
+" 2>/dev/null || echo "0")
+  CDP_ERRORS=${CDP_ERRORS//[^0-9]/}
+  CDP_ERRORS=${CDP_ERRORS:-0}
+  # Note: full console error collection requires persistent CDP session
+fi
+
+# ============================================================
+# 13. STALE WORKTREES — abandoned parallel sessions
+# ============================================================
+STALE_WT=$(git worktree list 2>/dev/null | grep -c "autonomous-worktrees" || echo "0")
+STALE_WT=${STALE_WT//[^0-9]/}
+STALE_WT=${STALE_WT:-0}
+if [[ $STALE_WT -gt 2 ]]; then
+  file_issue "stale-worktrees" "low" \
+    "${STALE_WT}個の放置されたworktree" \
+    "自律セッションのworktreeがクリーンアップされずに残っている。ディスク容量を消費。" \
+    "- [ ] git worktree prune で不要worktreeを削除"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
+
+# ============================================================
+# 14. TEST-TO-CODE RATIO — undertested areas
+# ============================================================
+TEST_RATIO=$(python3 -c "
+import glob
+src_lines = sum(len(open(f).readlines()) for f in glob.glob('src/**/*.ts', recursive=True))
+test_lines = sum(len(open(f).readlines()) for f in glob.glob('tests/**/*.ts', recursive=True))
+ratio = test_lines / max(src_lines, 1)
+print(f'{ratio:.2f}')
+" 2>/dev/null || echo "0")
+# Healthy ratio is 0.5+ (1 test line per 2 src lines)
 
 # ============================================================
 # Summary
