@@ -12,11 +12,11 @@ export default defineConfig({
       reporter: ["text-summary", "json-summary"],
       reportsDirectory: "coverage",
       thresholds: {
-        // Ratchet: node-coloring pure-function tests (+23 tests)
+        // Ratchet: transform-expr curve param + serialization tests (+8 tests)
         statements: 47.0,
-        branches: 41.5,
-        functions: 44.2,
-        lines: 47.4,
+        branches: 41.54,
+        functions: 44.22,
+        lines: 47.44,
       },
     },
   },

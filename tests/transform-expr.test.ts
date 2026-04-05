@@ -372,3 +372,83 @@ describe("parseTransformExpr robustness", () => {
     expect(() => parseTransformExpr("unknownfn(field:x)")).not.toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// parseTransformExpr — curve function param handling
+// ---------------------------------------------------------------------------
+describe("parseTransformExpr curve param handling", () => {
+  it("ARCHIMEDEAN with positional numeric param", () => {
+    const result = parseTransformExpr("ARCHIMEDEAN(index, 3)");
+    expect(result).not.toBeNull();
+    expect(result!.transform.kind).toBe("curve");
+    // positional param → first default key (a) gets value 3
+    expect((result!.transform as any).params.a).toBe(3);
+  });
+
+  it("LISSAJOUS with key=value params", () => {
+    const result = parseTransformExpr("LISSAJOUS(index, a=2, b=3)");
+    expect(result).not.toBeNull();
+    expect(result!.transform.kind).toBe("curve");
+    expect((result!.transform as any).params.a).toBe(2);
+    expect((result!.transform as any).params.b).toBe(3);
+  });
+
+  it("curve function with invalid numeric param uses default", () => {
+    const result = parseTransformExpr("FERMAT(index, notanumber)");
+    expect(result).not.toBeNull();
+    expect(result!.transform.kind).toBe("curve");
+    // Invalid number string → default stays
+    expect((result!.transform as any).params.a).toBe(1);
+  });
+
+  it("BIN with key=value arg extracts value", () => {
+    const result = parseTransformExpr("BIN(index, count=10)");
+    expect(result).not.toBeNull();
+    expect(result!.transform.kind).toBe("bin");
+    expect((result!.transform as any).count).toBe(10);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// transformExprToString — SOURCE_PROPERTY and curve registry paths
+// ---------------------------------------------------------------------------
+describe("transformExprToString property and curve paths", () => {
+  it("serializes SOURCE_PROPERTY using src.key", () => {
+    const source: AxisSource = { kind: "property" as any, key: "start-date" };
+    const transform: AxisTransform = { kind: TRANSFORM_LINEAR, scale: 1 };
+    const result = transformExprToString(source, transform);
+    expect(result).toBe("start-date");
+  });
+
+  it("curve transform with known curve displays formula from registry", () => {
+    const source: AxisSource = { kind: SOURCE_INDEX };
+    const transform: AxisTransform = {
+      kind: "curve" as any,
+      curve: "archimedean",
+      params: { a: 0, b: 1 },
+      scale: 1,
+    };
+    const result = transformExprToString(source, transform);
+    // CURVE_REGISTRY.archimedean.formula = "a + b*t"
+    expect(result).toBe("a + b*t");
+  });
+
+  it("curve transform with known curve fermat displays formula", () => {
+    const source: AxisSource = { kind: SOURCE_INDEX };
+    const transform: AxisTransform = {
+      kind: "curve" as any,
+      curve: "fermat",
+      params: { a: 1 },
+      scale: 1,
+    };
+    const result = transformExprToString(source, transform);
+    expect(result).toBe("a*sqrt(t)");
+  });
+
+  it("unknown transform kind returns UNKNOWN", () => {
+    const source: AxisSource = { kind: SOURCE_INDEX };
+    const transform = { kind: "nonexistent" } as any;
+    const result = transformExprToString(source, transform);
+    expect(result).toBe("UNKNOWN");
+  });
+});
