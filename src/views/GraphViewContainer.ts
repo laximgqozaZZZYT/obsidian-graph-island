@@ -7877,7 +7877,9 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				this.redrawNodeBatch();
 				// First frame: fit viewport so nodes are visible immediately
 				if (tickCount === 1 && this.canvasWrap) {
-					this.autoFitView(this.canvasWrap.clientWidth, this.canvasWrap.clientHeight);
+					const cw = this.canvasWrap.clientWidth || DEFAULT_CANVAS_WIDTH;
+					const ch = this.canvasWrap.clientHeight || DEFAULT_CANVAS_HEIGHT;
+					this.autoFitView(cw, ch);
 				}
 			}
 		});
@@ -7928,7 +7930,20 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			// G1: AutoFit when simulation ends — but skip if user manually zoomed
 			// (e.g., clicked a group label to zoom into a cluster)
 			if (wrap && !this._suppressAutoFit) {
-				this.autoFitView(wrap.clientWidth, wrap.clientHeight);
+				const fw = wrap.clientWidth || DEFAULT_CANVAS_WIDTH;
+				const fh = wrap.clientHeight || DEFAULT_CANVAS_HEIGHT;
+				this.autoFitView(fw, fh);
+				// Safety: re-fit after a frame so DOM layout is guaranteed settled
+				requestAnimationFrame(() => {
+					if (this.canvasWrap && !this._suppressAutoFit) {
+						const rw = this.canvasWrap.clientWidth;
+						const rh = this.canvasWrap.clientHeight;
+						if (rw > 0 && rh > 0) {
+							this.autoFitView(rw, rh);
+							this.markDirty();
+						}
+					}
+				});
 			}
 			this._suppressAutoFit = false;
 			this.markDirty(true);

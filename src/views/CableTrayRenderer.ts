@@ -20,6 +20,7 @@ import {
 	computeJunctionGrid,
 	filterGridForPortFace,
 	routeViaJunctionGrid,
+	findNearestGap,
 	angleDist,
 	shortestAngleDelta,
 	mergeNearbyValues,
@@ -341,15 +342,7 @@ export function computeCablePath(
 
 		// Pick the ring gap between from and to radii
 		const midR = (fromR + toR) / 2;
-		let gapR = opts.ringGaps[0];
-		let bestDist = Math.abs(gapR - midR);
-		for (const r of opts.ringGaps) {
-			const d = Math.abs(r - midR);
-			if (d < bestDist) {
-				bestDist = d;
-				gapR = r;
-			}
-		}
+		const gapR = findNearestGap(opts.ringGaps, midR) ?? opts.ringGaps[0];
 
 		// Arc interpolation along the gap ring from fromAngle to toAngle
 		let dAngle = toA - fromA;
@@ -380,29 +373,12 @@ export function computeCablePath(
 	// -- Cartesian routing --
 	if (opts?.rowGaps && opts.rowGaps.length > 0) {
 		const midY = (from.y + to.y) / 2;
-		let gapY = opts.rowGaps[0];
-		let bestDist = Math.abs(gapY - midY);
-		for (const g of opts.rowGaps) {
-			const d = Math.abs(g - midY);
-			if (d < bestDist) {
-				bestDist = d;
-				gapY = g;
-			}
-		}
+		const nearest = findNearestGap(opts.rowGaps, midY) ?? opts.rowGaps[0];
 		// Prefer a gap between from and to
 		const minY = Math.min(from.y, to.y);
 		const maxY = Math.max(from.y, to.y);
-		if (gapY < minY || gapY > maxY) {
-			for (const g of opts.rowGaps) {
-				if (g >= minY && g <= maxY) {
-					const d = Math.abs(g - midY);
-					if (d < bestDist) {
-						bestDist = d;
-						gapY = g;
-					}
-				}
-			}
-		}
+		const between = opts.rowGaps.filter((g) => g >= minY && g <= maxY);
+		const gapY = (between.length > 0 ? findNearestGap(between, midY) : null) ?? nearest;
 		return [
 			{ x: from.x, y: from.y },
 			{ x: from.x, y: gapY },

@@ -529,8 +529,27 @@ export class RenderPipeline {
 	/** Last frame render duration in milliseconds */
 	lastFrameMs = 0;
 
+	// Cached render thresholds — recomputed only when dirty, not every frame
+	private _cachedRT: Required<import("../types").RenderThresholds> | null = null;
+	private _cachedRTSource: Partial<import("../types").RenderThresholds> | undefined = undefined;
+
 	constructor(host: RenderHost) {
 		this.host = host;
+	}
+
+	/** Return cached merged render thresholds, recomputing only when source changes. */
+	private getCachedRT(): Required<import("../types").RenderThresholds> {
+		const src = this.host.getRenderThresholds?.();
+		if (this._cachedRT === null || src !== this._cachedRTSource) {
+			this._cachedRTSource = src;
+			this._cachedRT = mergeRenderThresholds(src);
+		}
+		return this._cachedRT;
+	}
+
+	/** Invalidate the cached render thresholds (call when settings change). */
+	invalidateRTCache(): void {
+		this._cachedRT = null;
 	}
 
 	// =========================================================================
@@ -538,7 +557,10 @@ export class RenderPipeline {
 	// =========================================================================
 	markDirty(forceFullRedraw = false) {
 		this.needsRedraw = true;
-		if (forceFullRedraw) this.needsFullRedraw = true;
+		if (forceFullRedraw) {
+			this.needsFullRedraw = true;
+			this._cachedRT = null; // Invalidate RT cache on full redraw
+		}
 		this.idleFrames = 0;
 		this.wakeRenderLoop();
 	}
@@ -641,7 +663,7 @@ export class RenderPipeline {
 		this._labelCullCooldown--;
 		if (forceFullRedraw || (zoomRatio > 0.05 && this._labelCullCooldown <= 0)) {
 			this._prevWorldScale = curScale;
-			const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
+			const rt = this.getCachedRT();
 			this._labelCullCooldown = rt.labelCullCooldown;
 			this.host.updateLabelsForZoom?.();
 		}
@@ -677,7 +699,7 @@ export class RenderPipeline {
 			// Match batch rendering's LOD-aware minWorldRadius so highlighted nodes
 			// don't jump in size compared to their batch-rendered appearance.
 			const worldScale = this.host.getWorldContainer()?.scale?.x ?? 1;
-			const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
+			const rt = this.getCachedRT();
 			const nodeScreenPx = pn.radius * worldScale;
 			const isExtremeZoom = nodeScreenPx < rt.cardLODExtremePx;
 			const minWorldRadius = isExtremeZoom
@@ -743,7 +765,7 @@ export class RenderPipeline {
 
 		// Resolve config with defaults
 		const crc = { ...DEFAULT_CARD_RENDER_CONFIG, ...this.host.getCardRenderConfig?.() };
-		const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
+		const rt = this.getCachedRT();
 
 		// Ring chart mode or non-graph viewMode: hide all node graphics
 		if (this.host.isRingChartMode() || this._skipNodeRendering) {
@@ -1666,7 +1688,7 @@ export class RenderPipeline {
 		container.y = n.y;
 
 		const isSuperNode = !!(n.collapsedMembers && n.collapsedMembers.length > 0);
-		const rtNode = mergeRenderThresholds(this.host.getRenderThresholds?.());
+		const rtNode = this.getCachedRT();
 		const maxR = rtNode.maxNodeRadius > 0 ? rtNode.maxNodeRadius : Infinity;
 		const ns = this.host.getNodeSize?.() ?? nodeR(n);
 		const nodeDeg = this.host.getDegrees().get(n.id) || 0;
@@ -1687,7 +1709,7 @@ export class RenderPipeline {
 		let label: CanvasText | null = null;
 		let tagLabel: CanvasText | null = null;
 		if (isSuperNode || deg > this.pendingLabelThreshold) {
-			const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
+			const rt = this.getCachedRT();
 			label = this._createNodeLabel(n, rt, isSuperNode, color, deg, r);
 			container.addChild(label);
 			if (rt.tagLabelShow && n.tags && n.tags.length > 0 && !isSuperNode) {
@@ -1710,7 +1732,7 @@ export class RenderPipeline {
 	}
 
 	private _drawSuperNodeCircle(circle: CanvasGraphics, color: number, r: number) {
-		const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
+		const rt = this.getCachedRT();
 		circle.lineStyle(rt.superNodeOuterStroke, color, 1);
 		circle.drawCircle(0, 0, r);
 		circle.lineStyle(rt.superNodeInnerStroke, color, rt.superNodeInnerAlpha);
@@ -1803,7 +1825,7 @@ export class RenderPipeline {
 		const subLabels: CanvasText[] = [];
 		const subFieldsRaw = this.host.getNodeSubLabelFields?.() ?? "";
 		if (!subFieldsRaw || !label || isSuperNode) return subLabels;
-		const srt = mergeRenderThresholds(this.host.getRenderThresholds?.());
+		const srt = this.getCachedRT();
 		const fields = subFieldsRaw.split(",").map((s) => s.trim()).filter(Boolean);
 		let yOffset = tagLabel
 			? r + srt.tagLabelOffset + srt.tagLabelFontSize + SUB_LABEL_GAP
@@ -1892,7 +1914,7 @@ export class RenderPipeline {
 
 	/** Whether autoLOD is currently active. */
 	isAutoLODActive(): boolean {
-		const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
+		const rt = this.getCachedRT();
 		return rt.autoLOD;
 	}
 
@@ -1914,7 +1936,7 @@ export class RenderPipeline {
 		// In dense layouts (sunburst, cardioid), nearby unlinked nodes in the same arc
 		// can cause AP-6 ambiguity if labels are placed toward them.
 		const angles: number[] = [];
-		const rtZone = mergeRenderThresholds(this.host.getRenderThresholds?.());
+		const rtZone = this.getCachedRT();
 		const proximityFactor = rtZone.labelZoneProximityFactor;
 		const proximityR = (nodeRadius + offset) * proximityFactor;
 		for (const nid of neighbors) {
@@ -1992,7 +2014,7 @@ export class RenderPipeline {
 	// Label overlap culling — hide labels that overlap higher-priority ones
 	// =========================================================================
 	cullOverlappingLabels() {
-		const rt = mergeRenderThresholds(this.host.getRenderThresholds?.());
+		const rt = this.getCachedRT();
 		if (!rt.labelOverlapCulling) {
 			this.host.updateDensityCulledBadge?.(0);
 			this._lastCullStats = { totalLabels: 0, visibleLabels: 0, culledLabels: 0, collisionRate: 0 };
