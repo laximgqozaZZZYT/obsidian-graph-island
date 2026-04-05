@@ -282,6 +282,24 @@ function fuzzyMatch(target: string, query: string): boolean {
 	return false;
 }
 
+/** Match a single string with fuzzy/exact/glob/substring logic */
+function matchSingleString(
+	target: string,
+	val: string,
+	fuzzy: boolean | undefined,
+	exact: boolean | undefined,
+): boolean {
+	if (fuzzy) return fuzzyMatch(target, val);
+	if (exact || val.includes("*")) return matchValue(target, val);
+	return target.includes(val);
+}
+
+/** Match any element of a string array with fuzzy/plain matchValue logic */
+function matchAnyValue(values: string[], val: string, fuzzy: boolean | undefined): boolean {
+	if (fuzzy) return values.some((v) => fuzzyMatch(v.toLowerCase(), val));
+	return values.some((v) => matchValue(v.toLowerCase(), val));
+}
+
 function evaluateLeaf(
 	leaf: QueryLeaf,
 	node: {
@@ -297,43 +315,25 @@ function evaluateLeaf(
 	const val = leaf.value.toLowerCase();
 
 	switch (leaf.field) {
-		case "tag": {
-			const tags = node.tags ?? [];
-			if (leaf.fuzzy) return tags.some((t) => fuzzyMatch(t.toLowerCase(), val));
-			return tags.some((t) => matchValue(t.toLowerCase(), val));
-		}
+		case "tag":
+			return matchAnyValue(node.tags ?? [], val, leaf.fuzzy);
 		case "category": {
 			const cat = (node.category ?? "").toLowerCase();
 			if (cat && matchValue(cat, val)) return true;
-			// Fallback to meta.category (frontmatter)
-			const metaCat = resolveMetaValue(node.meta, "category");
-			return metaCat.some((v) => matchValue(v.toLowerCase(), val));
+			return matchAnyValue(resolveMetaValue(node.meta, "category"), val, leaf.fuzzy);
 		}
 		case "path":
 		case "file":
-		case "folder": {
-			const fp = (node.filePath ?? "").toLowerCase();
-			if (leaf.fuzzy) return fuzzyMatch(fp, val);
-			return leaf.exact ? matchValue(fp, val) : val.includes("*") ? matchValue(fp, val) : fp.includes(val);
-		}
-		case "id": {
-			const id = node.id.toLowerCase();
-			return matchValue(id, val);
-		}
+		case "folder":
+			return matchSingleString((node.filePath ?? "").toLowerCase(), val, leaf.fuzzy, leaf.exact);
+		case "id":
+			return matchValue(node.id.toLowerCase(), val);
 		case "isTag":
 			return String(!!node.isTag) === val;
-		case "label": {
-			const lbl = node.label.toLowerCase();
-			if (leaf.fuzzy) return fuzzyMatch(lbl, val);
-			return leaf.exact ? matchValue(lbl, val) : val.includes("*") ? matchValue(lbl, val) : lbl.includes(val);
-		}
-		default: {
-			// Frontmatter field lookup via node.meta
-			const metaVal = resolveMetaValue(node.meta, leaf.field);
-			if (metaVal.length === 0) return false;
-			if (leaf.fuzzy) return metaVal.some((v) => fuzzyMatch(v.toLowerCase(), val));
-			return metaVal.some((v) => matchValue(v.toLowerCase(), val));
-		}
+		case "label":
+			return matchSingleString(node.label.toLowerCase(), val, leaf.fuzzy, leaf.exact);
+		default:
+			return matchAnyValue(resolveMetaValue(node.meta, leaf.field), val, leaf.fuzzy);
 	}
 }
 
