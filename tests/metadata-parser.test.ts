@@ -1,5 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
-import { classifyRelation, assignNodeColors, buildRelationColorMap, simpleHash, applyMonochromeFallback, collectAllTags } from "../src/parsers/metadata-parser";
+import {
+  classifyRelation,
+  assignNodeColors,
+  buildRelationColorMap,
+  simpleHash,
+  applyMonochromeFallback,
+  collectAllTags,
+  extractBodyInfo,
+  buildSunburstData,
+} from "../src/parsers/metadata-parser";
 import { DEFAULT_COLORS } from "../src/types";
 import type { GraphNode, GraphEdge, OntologyConfig } from "../src/types";
 
@@ -653,8 +662,6 @@ describe("buildRelationColorMap additional tests", () => {
 // Additional tests for uncovered functions — extractBodyInfo
 // ===========================================================================
 
-import { extractBodyInfo } from "../src/parsers/metadata-parser";
-
 describe("extractBodyInfo", () => {
   it("extracts preview and length from plain text", () => {
     const result = extractBodyInfo("Hello world", 5);
@@ -718,8 +725,6 @@ describe("extractBodyInfo", () => {
 // ===========================================================================
 // Additional coverage for buildSunburstData
 // ===========================================================================
-
-import { buildSunburstData } from "../src/parsers/metadata-parser";
 
 describe("buildSunburstData", () => {
   it("creates root with name Vault", () => {
@@ -860,5 +865,185 @@ describe("collectAllTags", () => {
     expect(tags.has("a/b")).toBe(true);
     expect(tags.has("a")).toBe(true);
     expect(tags.size).toBe(4);
+  });
+
+  it("handles single-level tags without expansion", () => {
+    const nodes = [mkNode("a", { tags: ["simple"] })];
+    const tags = collectAllTags(nodes);
+    expect(tags).toEqual(new Set(["simple"]));
+  });
+
+  it("handles multiple tags on same node with expansion", () => {
+    const nodes = [mkNode("a", { tags: ["a/b", "x/y/z"] })];
+    const tags = collectAllTags(nodes);
+    expect(tags).toEqual(new Set(["a/b", "a", "x/y/z", "x/y", "x"]));
+  });
+
+  it("deduplicates across many nodes with overlapping tags", () => {
+    const nodes = [
+      mkNode("a", { tags: ["entity/character", "entity/character/hero"] }),
+      mkNode("b", { tags: ["entity/character/npc"] }),
+      mkNode("c", { tags: ["entity"] }),
+    ];
+    const tags = collectAllTags(nodes);
+    expect(tags).toEqual(
+      new Set(["entity/character", "entity/character/hero", "entity/character/npc", "entity"])
+    );
+  });
+});
+
+// ===========================================================================
+// Integration tests: extractBodyInfo edge cases
+// ===========================================================================
+
+describe("extractBodyInfo comprehensive tests", () => {
+  it("strips multiple YAML blocks (only first is recognized)", () => {
+    const content = "---\ntitle: Test\n---\n--- should not be stripped ---\nContent";
+    const result = extractBodyInfo(content, 100);
+    expect(result.preview).toContain("should");
+  });
+
+  it("handles YAML without proper closing marker", () => {
+    const content = "---\nincomplete yaml\nActual body";
+    const result = extractBodyInfo(content, 100);
+    expect(result.preview).toBeDefined();
+  });
+
+  it("preserves inline formatting after stripping", () => {
+    const content = "---\ntitle: x\n---\n**Bold** text";
+    const result = extractBodyInfo(content, 50);
+    expect(result.preview).toContain("Bold");
+    expect(result.preview).toContain("text");
+  });
+
+  it("collapses tabs and newlines into spaces", () => {
+    const content = "Text\t\twith\n\nmultiple\r\nspaces";
+    const result = extractBodyInfo(content, 100);
+    expect(result.preview).not.toContain("\t");
+    expect(result.preview).not.toContain("\n");
+  });
+
+  it("handles content with only headings", () => {
+    const content = "# Title\n## Subtitle\n### Section";
+    const result = extractBodyInfo(content, 100);
+    // Heading markers stripped at line start, text becomes "Title Subtitle Section"
+    expect(result.preview).toBe("Title Subtitle Section");
+  });
+
+  it("handles special characters in content", () => {
+    const content = "Special chars: !@#$%^&*()";
+    const result = extractBodyInfo(content, 100);
+    expect(result.preview).toContain("Special");
+  });
+
+  it("reports normalized length after whitespace collapse", () => {
+    const content = "One   Two   Three";
+    const result = extractBodyInfo(content, 100);
+    // After collapsing spaces: "One Two Three" = 13 chars
+    expect(result.preview).toBe("One Two Three");
+    expect(result.length).toBe(13);
+  });
+
+  it("handles very long content with truncation", () => {
+    const longText = "a".repeat(1000);
+    const result = extractBodyInfo(longText, 100);
+    expect(result.preview.length).toBe(101); // 100 chars + ellipsis
+    expect(result.preview.endsWith("…")).toBe(true);
+    expect(result.length).toBe(1000);
+  });
+});
+
+// ===========================================================================
+// Boundary tests for simpleHash
+// ===========================================================================
+
+describe("simpleHash comprehensive tests", () => {
+  it("produces consistent hash for repeated inputs", () => {
+    const str = "test";
+    const hashes = [simpleHash(str), simpleHash(str), simpleHash(str)];
+    expect(hashes[0]).toBe(hashes[1]);
+    expect(hashes[1]).toBe(hashes[2]);
+  });
+
+  it("handles very long repeated characters", () => {
+    const long = "x".repeat(10000);
+    const hash = simpleHash(long);
+    expect(Number.isInteger(hash)).toBe(true);
+    expect(hash).toBeGreaterThanOrEqual(0);
+  });
+
+  it("produces different hashes for similar strings", () => {
+    const hashes = new Set([
+      simpleHash("a"),
+      simpleHash("aa"),
+      simpleHash("aaa"),
+      simpleHash("aaaa"),
+    ]);
+    expect(hashes.size).toBeGreaterThan(1);
+  });
+
+  it("handles all ASCII characters", () => {
+    let hashedDifferent = false;
+    const samples = [
+      "abc",
+      "ABC",
+      "123",
+      "!@#",
+      "   ",
+      "\t\n",
+    ];
+    const hashes = samples.map(s => simpleHash(s));
+    // At least some should be different
+    const uniqueHashes = new Set(hashes);
+    expect(uniqueHashes.size).toBeGreaterThan(1);
+  });
+});
+
+// ===========================================================================
+// Boundary tests for applyMonochromeFallback
+// ===========================================================================
+
+describe("applyMonochromeFallback comprehensive tests", () => {
+  it("returns same function when exactly 4 nodes with same color", () => {
+    const nodes = Array.from({ length: 4 }, (_, i) => ({ id: `n${i}` }));
+    const mono = () => 0x123456;
+    const result = applyMonochromeFallback(nodes, mono, [0xff0000]);
+    expect(result).toBe(mono);
+  });
+
+  it("returns wrapped function when exactly 5 nodes with same color", () => {
+    const nodes = Array.from({ length: 5 }, (_, i) => ({ id: `n${i}` }));
+    const mono = () => 0x123456;
+    const result = applyMonochromeFallback(nodes, mono, [0xff0000]);
+    expect(result).not.toBe(mono);
+  });
+
+  it("preserves result consistency with large node counts", () => {
+    const nodes = Array.from({ length: 1000 }, (_, i) => ({ id: `n${i}` }));
+    const mono = () => 0xffffff;
+    const palette = [0xff0000, 0x00ff00, 0x0000ff];
+    const fn = applyMonochromeFallback(nodes, mono, palette);
+    // Each node should get same color on repeated calls
+    const colors = nodes.map(n => fn(n));
+    const colors2 = nodes.map(n => fn(n));
+    expect(colors).toEqual(colors2);
+  });
+
+  it("uses all palette colors for large node count", () => {
+    const nodes = Array.from({ length: 50 }, (_, i) => ({ id: `item${i}` }));
+    const mono = () => 0x999999;
+    const palette = [0x111111, 0x222222, 0x333333, 0x444444, 0x555555];
+    const fn = applyMonochromeFallback(nodes, mono, palette);
+    const colors = new Set(nodes.map(n => fn(n)));
+    expect(colors.size).toBe(palette.length);
+  });
+
+  it("falls back even with color close to monochrome", () => {
+    const nodes = Array.from({ length: 10 }, (_, i) => ({ id: `n${i}` }));
+    const mono = () => 0xaaaaaa;
+    const palette = [0xbbbbbb, 0xcccccc];
+    const fn = applyMonochromeFallback(nodes, mono, palette);
+    // Should have triggered fallback since all 10 nodes get same color
+    expect(fn).not.toBe(mono);
   });
 });
