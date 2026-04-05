@@ -134,7 +134,7 @@ export async function copyGraphToClipboard(host: ExportHost): Promise<void> {
 		const blob = await exportGraphAsPng(host.pixiApp);
 		await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 		showToast(t("toast.copiedToClipboard"));
-	} catch {
+	} catch (_e) {
 		showToast(t("toast.clipboardFailed"), 5000);
 	}
 }
@@ -192,7 +192,7 @@ export async function embedGraphInNote(host: ExportHost): Promise<void> {
 		editor.replaceSelection(`![[${basename}]]\n`);
 
 		showToast(t("toast.embedSuccess"));
-	} catch {
+	} catch (_e) {
 		showToast(t("toast.embedFailed"), 5000);
 	}
 }

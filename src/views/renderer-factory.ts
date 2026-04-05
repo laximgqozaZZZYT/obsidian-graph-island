@@ -26,7 +26,7 @@ export function detectBackend(): RendererBackend {
 			if (ext) ext.loseContext();
 			return "webgl";
 		}
-	} catch {
+	} catch (_e) {
 		// WebGL2 not available
 	}
 	return "canvas2d";
@@ -43,7 +43,7 @@ export function createApp(opts: CanvasAppOptions, backend?: RendererBackend): IA
 	if (b === "webgl") {
 		try {
 			return new WebGLApp(opts);
-		} catch {
+		} catch (_e) {
 			// WebGL init failed — fall back to Canvas 2D
 			return new CanvasApp(opts);
 		}

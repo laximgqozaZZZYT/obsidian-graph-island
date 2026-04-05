@@ -20,7 +20,7 @@ interface EmbedConfig {
 export function parseConfig(source: string): EmbedConfig {
 	try {
 		return JSON.parse(source);
-	} catch {
+	} catch (_e) {
 		return {};
 	}
 }

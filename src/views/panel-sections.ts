@@ -85,7 +85,7 @@ function _buildNodeAdvancedControls(
 		(v) => {
 			try {
 				panel.nodeIconMap = JSON.parse(v);
-			} catch {
+			} catch (_e) {
 				/* ignore invalid JSON */
 			}
 			cb.rebuildNodesInPlace();

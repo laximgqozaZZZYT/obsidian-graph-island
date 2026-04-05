@@ -111,7 +111,7 @@ export function evalTransform(
 					evalExpr(ast, { t: t * n, i, n, v: t, pi: Math.PI, e: Math.E, ...constants }) *
 					(transform.scale ?? 1)
 				);
-			} catch {
+			} catch (_e) {
 				return t;
 			}
 		}

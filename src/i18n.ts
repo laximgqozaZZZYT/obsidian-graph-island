@@ -1858,12 +1858,12 @@ function detectLocale(): string {
 			const loc = m.locale();
 			if (typeof loc === "string" && loc.startsWith("ja")) return "ja";
 		}
-	} catch {
+	} catch (_e) {
 		/* fallback */
 	}
 	try {
 		if (navigator.language.startsWith("ja")) return "ja";
-	} catch {
+	} catch (_e) {
 		/* fallback */
 	}
 	return "en";

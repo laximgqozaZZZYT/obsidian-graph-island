@@ -887,7 +887,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			} else {
 				try {
 					panelClone[k] = JSON.parse(JSON.stringify(v));
-				} catch {
+				} catch (_e) {
 					panelClone[k] = v;
 				}
 			}
@@ -2241,7 +2241,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		for (const lbl of this.enclosureLabels.values()) {
 			try {
 				lbl.destroy();
-			} catch {
+			} catch (_e) {
 				/* already destroyed */
 			}
 		}
@@ -2250,7 +2250,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		for (const lbl of this.groupByLabels.values()) {
 			try {
 				lbl.destroy();
-			} catch {
+			} catch (_e) {
 				/* already destroyed */
 			}
 		}
@@ -2260,7 +2260,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		for (const lbl of this._aggregateLabels) {
 			try {
 				lbl.destroy();
-			} catch {
+			} catch (_e) {
 				/* already destroyed */
 			}
 		}
@@ -2270,7 +2270,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		for (const lbl of this.sunburstLabels.values()) {
 			try {
 				lbl.destroy();
-			} catch {
+			} catch (_e) {
 				/* already destroyed */
 			}
 		}
@@ -2278,7 +2278,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		for (const lbl of this.clusterSunburstLabels.values()) {
 			try {
 				lbl.destroy();
-			} catch {
+			} catch (_e) {
 				/* already destroyed */
 			}
 		}
@@ -2310,7 +2310,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (this.pixiApp) {
 			try {
 				this.pixiApp.destroy();
-			} catch {
+			} catch (_e) {
 				// Canvas app state may already be partially torn down
 			}
 			this.pixiApp = null;
@@ -2340,7 +2340,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this._wireCanvasManagers(canvas, world);
 
 			return app;
-		} catch {
+		} catch (_e) {
 			if (this.canvasWrap) {
 				this.canvasWrap.empty();
 				this.canvasWrap.createEl("div", {
@@ -2363,7 +2363,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (bgStr) {
 			try {
 				bgColor = cssColorToHex(bgStr);
-			} catch {
+			} catch (_e) {
 				/* keep default */
 			}
 		}
@@ -2715,7 +2715,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		let content: string;
 		try {
 			content = await this.app.vault.cachedRead(tf);
-		} catch {
+		} catch (_e) {
 			return;
 		}
 
@@ -2797,7 +2797,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const srcLabel = srcNode.data.label || sourceId;
 			const tgtLabel = tgtNode.data.label || targetId;
 			showToast(t("toast.linkCreated").replace("{source}", srcLabel).replace("{target}", tgtLabel));
-		} catch {
+		} catch (_e) {
 			showToast(t("toast.linkFailed"));
 		}
 	}
@@ -3767,7 +3767,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this.rawData = null;
 			this.doRender();
 			showToast(t("toast.ontologySet").replace("{type}", type));
-		} catch {
+		} catch (_e) {
 			showToast(t("toast.ontologyFailed"));
 		}
 	}
@@ -3789,7 +3789,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			this.rawData = null;
 			this.doRender();
 			showToast(t("toast.relationAdded").replace("{type}", relType));
-		} catch {
+		} catch (_e) {
 			showToast(t("toast.relationFailed"));
 		}
 	}
@@ -3941,7 +3941,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				await this.app.vault.modify(tf, content);
 				this.rawData = null;
 				this.doRender();
-			} catch {
+			} catch (_e) {
 				/* ignore */
 			}
 			editorDiv.remove();
@@ -4919,7 +4919,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			if (bgStr) {
 				try {
 					this.pixiApp.setBackgroundColor(cssColorToHex(bgStr));
-				} catch {
+				} catch (_e) {
 					/* ignore */
 				}
 			}
@@ -6541,7 +6541,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const content = await this.app.vault.read(tf);
 				const newContent = addFrontmatterTag(content, tag);
 				await this.app.vault.modify(tf, newContent);
-			} catch {
+			} catch (_e) {
 				/* ignore individual failures */
 			}
 		}
@@ -6560,7 +6560,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				const content = await this.app.vault.read(tf);
 				const newContent = setFrontmatterField(content, field, value);
 				await this.app.vault.modify(tf, newContent);
-			} catch {
+			} catch (_e) {
 				/* ignore individual failures */
 			}
 		}
@@ -7401,7 +7401,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		let gd: GraphData;
 		try {
 			gd = this.getGraphData();
-		} catch {
+		} catch (_e) {
 			this.setStatus(t("error.graphBuildFailed"));
 			return;
 		}

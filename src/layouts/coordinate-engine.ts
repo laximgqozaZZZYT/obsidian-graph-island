@@ -616,7 +616,7 @@ function transformExpression(
 	let ast: ExprNode;
 	try {
 		ast = parseExpr(expr);
-	} catch {
+	} catch (_e) {
 		// Invalid expression — fallback to linear
 		// Invalid expression — fallback to linear spacing
 		for (const [id, v] of rawValues) {
@@ -1066,7 +1066,7 @@ function resolveExpressionGridPositions(
 		linePositions = [
 			...new Set(linePositions.map((v) => Math.round(v * GRID_DEDUP_PRECISION) / GRID_DEDUP_PRECISION)),
 		].sort((a, b) => a - b);
-	} catch {
+	} catch (_e) {
 		// Invalid expr — fall back to configurable divisions
 		const fallbackDivs = ctx.coordinateGridDivisions ?? DEFAULT_RENDER_THRESHOLDS.coordinateGridDivisions;
 		for (let i = 0; i <= fallbackDivs; i++) {

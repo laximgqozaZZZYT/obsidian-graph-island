@@ -253,7 +253,7 @@ export function buildSamplePresetSelector(
       }
       cb.rebuildPanel();
       showToast(t("preset.sampleLoaded").replace("{name}", name));
-    } catch {
+    } catch (_e) {
       showToast(t("preset.sampleLoadError"));
     }
 

@@ -589,7 +589,7 @@ export function formatSnapshotDate(isoString: string, locale?: string): string {
 			minute: "2-digit",
 			hour12: false,
 		}).format(date);
-	} catch {
+	} catch (_e) {
 		return isoString; // fallback for invalid input
 	}
 }

@@ -476,7 +476,7 @@ export class GuideRenderer {
 					g.lineTo(px, py);
 				}
 			}
-		} catch {
+		} catch (_e) {
 			// Invalid expression -- skip
 		}
 	}

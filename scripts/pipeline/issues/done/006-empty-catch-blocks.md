@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-05
-status: pending
+status: done
 source: auto-discovered
 summary: 44個の空catch — エラーが握りつぶされている
 ---

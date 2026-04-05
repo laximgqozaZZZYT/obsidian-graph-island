@@ -1556,7 +1556,7 @@ function _buildNodeDisplaySection(tabEl: HTMLElement, panel: PanelState, _ctx: P
 					(v) => {
 						try {
 							panel.nodeIconMap = JSON.parse(v);
-						} catch {
+						} catch (_e) {
 							/* ignore invalid JSON */
 						}
 						cb.rebuildNodesInPlace();
@@ -2146,7 +2146,7 @@ function _buildSettingsActionButtons(
 			setTimeout(() => {
 				exportBtn.textContent = t("preset.export");
 			}, 2000);
-		} catch {
+		} catch (_e) {
 			/* clipboard not available */
 		}
 	});
@@ -2162,7 +2162,7 @@ function _buildSettingsActionButtons(
 			setTimeout(() => {
 				diffExportBtn.textContent = t("preset.exportDiff");
 			}, 2000);
-		} catch {
+		} catch (_e) {
 			/* clipboard not available */
 		}
 	});
@@ -2202,7 +2202,7 @@ function _buildSettingsActionButtons(
 					setTimeout(() => cb.setZoom?.(panel.presetZoomLevel), 500);
 				}
 				cb.rebuildPanel();
-			} catch {
+			} catch (_e) {
 				textarea.addClass("ngp-import-error");
 				modal.querySelector(".ngp-import-label")!.textContent = t("preset.importError");
 			}
@@ -2599,7 +2599,7 @@ let _sectionIdCounter = 0;
 function loadSectionStates(): Record<string, boolean> {
 	try {
 		return JSON.parse(localStorage.getItem(SECTION_STATE_KEY) || "{}");
-	} catch {
+	} catch (_e) {
 		return {};
 	}
 }
@@ -2614,7 +2614,7 @@ const NODE_DIR_STATE_KEY = "graph-island-node-dir-state";
 export function _getNodeDirStates(): Record<string, boolean> {
 	try {
 		return JSON.parse(localStorage.getItem(NODE_DIR_STATE_KEY) || "{}");
-	} catch {
+	} catch (_e) {
 		return {};
 	}
 }
@@ -2922,7 +2922,7 @@ function _buildStatsBar(container: HTMLElement, panel: PanelState, ctx: PanelCon
 		try {
 			await navigator.clipboard.writeText(md);
 			showToast(t("stats.copied"));
-		} catch {
+		} catch (_e) {
 			/* clipboard not available */
 		}
 	});
@@ -3018,7 +3018,7 @@ function evalTransform(
 					evalExpr(ast, { t: t * n, i, n, v: t, pi: Math.PI, e: Math.E, ...constants }) *
 					(transform.scale ?? 1)
 				);
-			} catch {
+			} catch (_e) {
 				return t;
 			}
 		}

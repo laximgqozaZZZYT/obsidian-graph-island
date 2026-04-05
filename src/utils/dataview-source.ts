@@ -40,7 +40,7 @@ export function queryDataviewPages(app: App, query: string): Set<string> {
 			});
 		}
 		return paths;
-	} catch {
+	} catch (_e) {
 		// On any error (invalid query, etc.), return empty set — caller shows all nodes
 		return new Set();
 	}

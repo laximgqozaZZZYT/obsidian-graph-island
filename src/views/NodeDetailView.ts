@@ -297,7 +297,7 @@ export class NodeDetailView extends ItemView {
 		let content: string;
 		try {
 			content = await this.app.vault.cachedRead(file);
-		} catch {
+		} catch (_e) {
 			return;
 		}
 		if (!content.trim()) return;
@@ -328,7 +328,7 @@ export class NodeDetailView extends ItemView {
 		let content: string;
 		try {
 			content = await this.app.vault.cachedRead(tf);
-		} catch {
+		} catch (_e) {
 			return;
 		}
 		if (!content.trim()) {

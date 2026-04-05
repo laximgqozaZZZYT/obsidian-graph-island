@@ -144,7 +144,7 @@ export function computeStaticLayout(
 				return { data: ld, shells: s, nodeShellIndex };
 			}
 		}
-	} catch {
+	} catch (_e) {
 		return null;
 	}
 }
