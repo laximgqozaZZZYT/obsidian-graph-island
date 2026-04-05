@@ -683,3 +683,400 @@ describe("Zoom + clamp realistic zoom sequences", () => {
     expect(scale).toBeLessThan(originalScale);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Event handler tests with full integration
+// ---------------------------------------------------------------------------
+describe("InteractionManager event handlers", () => {
+  let canvas: HTMLCanvasElement;
+  let mockHost: InteractionHost;
+  let mockWorld: any;
+  let mockApp: any;
+  let interactionManager: InteractionManager | null = null;
+
+  beforeEach(() => {
+    const mockDoc = (globalThis as any).document || {
+      createElement: vi.fn((tag: string) => {
+        if (tag === "canvas") {
+          return {
+            width: 800,
+            height: 600,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            getBoundingClientRect: vi.fn(() => ({
+              left: 0,
+              top: 0,
+              width: 800,
+              height: 600,
+            })),
+            style: { cursor: "" },
+          } as any;
+        }
+        return {
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        } as any;
+      }),
+    };
+
+    if (!(globalThis as any).document) {
+      (globalThis as any).document = mockDoc;
+    }
+
+    // Mock window.setTimeout/clearTimeout if needed
+    if (!(globalThis as any).window) {
+      (globalThis as any).window = {
+        setTimeout: vi.fn((cb, delay) => {
+          cb();
+          return 1;
+        }),
+        clearTimeout: vi.fn(),
+      };
+    }
+
+    canvas = mockDoc.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+
+    mockApp = {
+      stage: { addChild: vi.fn() },
+    };
+
+    mockWorld = {
+      toLocal: vi.fn((point: any) => ({ x: point.x, y: point.y })),
+      toGlobal: vi.fn((point: any) => ({ x: point.x, y: point.y })),
+      scale: { x: 1, y: 1, set: vi.fn() },
+      x: 0,
+      y: 0,
+    };
+
+    mockHost = {
+      hitTestNode: vi.fn(() => null),
+      markDirty: vi.fn(),
+      applyHover: vi.fn(),
+      getHighlightedNodeId: vi.fn(() => null),
+      setHighlightedNodeId: vi.fn(),
+      getCurrentLayout: vi.fn(() => "force"),
+      getShells: vi.fn(() => []),
+      getNodeShellIndex: vi.fn(() => new Map()),
+      getPixiNodes: vi.fn(() => new Map()),
+      getSimulation: vi.fn(() => null),
+      openFile: vi.fn(),
+      toggleHold: vi.fn(),
+      clearAllHolds: vi.fn(),
+      getAccentColor: vi.fn(() => 0xffffff),
+      zoomToScreenRect: vi.fn(),
+      getPixiApp: vi.fn(() => mockApp),
+      handleSuperNodeDblClick: vi.fn(() => false),
+      setPathfinderNode: vi.fn(),
+      clearPathfinder: vi.fn(),
+      getPathfinderState: vi.fn(() => ({ startId: null, endId: null })),
+      getApp: vi.fn(() => ({
+        workspace: { trigger: vi.fn() },
+      })),
+      getContainerEl: vi.fn(() => mockDoc.createElement("div")),
+      addCompareNode: vi.fn(),
+      clearCompareSelection: vi.fn(),
+      setSearchQuery: vi.fn(),
+      getZoomSensitivity: vi.fn(() => 1.0),
+      applyTextFade: vi.fn(),
+      updateLabelsForZoom: vi.fn(),
+      updateZoomIndicator: vi.fn(),
+      onZoomLayoutUpdate: vi.fn(),
+    } as any;
+  });
+
+  it("handleWheel with negative deltaY should zoom in", () => {
+    interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
+    const wheelEvent = { deltaY: -100, clientX: 400, clientY: 300, preventDefault: vi.fn() } as any;
+    (interactionManager as any).handleWheel(wheelEvent);
+    expect(mockHost.markDirty).toHaveBeenCalled();
+    expect(mockHost.updateZoomIndicator).toHaveBeenCalled();
+  });
+
+  it("handleWheel with positive deltaY should zoom out", () => {
+    interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
+    const wheelEvent = { deltaY: 100, clientX: 400, clientY: 300, preventDefault: vi.fn() } as any;
+    (interactionManager as any).handleWheel(wheelEvent);
+    expect(mockWorld.scale.set).toHaveBeenCalled();
+  });
+
+  it("handlePointerDown on empty space should start panning", () => {
+    mockHost.hitTestNode.mockReturnValue(null);
+    interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
+    const pointerEvent = { type: "pointerdown", clientX: 100, clientY: 100, button: 0 } as any;
+    (interactionManager as any).handlePointerDown(pointerEvent);
+    expect((interactionManager as any).isPanning).toBe(true);
+  });
+
+  it("handlePointerMove should update hover when not dragging", () => {
+    mockHost.hitTestNode.mockReturnValue(null);
+    interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
+    // Move far enough to trigger hover check (>= 9 pixels distance)
+    (interactionManager as any)._lastHoverX = 0;
+    (interactionManager as any)._lastHoverY = 0;
+    const pointerEvent = { type: "pointermove", clientX: 100, clientY: 100 } as any;
+    (interactionManager as any).handlePointerMove(pointerEvent);
+    expect(mockHost.hitTestNode).toHaveBeenCalled();
+  });
+
+  it("handlePointerUp should end panning", () => {
+    interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
+    (interactionManager as any).isPanning = true;
+    const pointerEvent = { type: "pointerup" } as any;
+    (interactionManager as any).handlePointerUp(pointerEvent);
+    expect((interactionManager as any).isPanning).toBe(false);
+  });
+
+  it("handlePointerLeave should clear drag link", () => {
+    interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
+    const mockNode: PixiNode = {
+      data: { id: "test-node", x: 100, y: 100, filePath: "test.md" } as any,
+      gfx: {} as any,
+      circle: {} as any,
+      label: null,
+      tagLabel: null,
+      hoverLabel: null,
+      leaderLine: null,
+      radius: 10,
+      color: 0xff0000,
+      held: false,
+      sortRank: 0,
+      priorityScore: 0,
+      minShowZoom: 0,
+      labelWasVisible: false,
+      hoverForcedLabel: false,
+      subLabels: [],
+    };
+    (interactionManager as any).dragLinkSource = mockNode;
+    mockHost.clearLinkPreview = vi.fn();
+    (interactionManager as any).handlePointerLeave();
+    expect((interactionManager as any).dragLinkSource).toBeNull();
+    expect(mockHost.clearLinkPreview).toHaveBeenCalled();
+  });
+
+  it("marqueeMode toggle works correctly", () => {
+    interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
+    expect(interactionManager.marqueeMode).toBe(false);
+    interactionManager.marqueeMode = true;
+    expect(interactionManager.marqueeMode).toBe(true);
+  });
+
+  it("lassoMode toggle works correctly", () => {
+    interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
+    expect(interactionManager.lassoMode).toBe(false);
+    interactionManager.lassoMode = true;
+    expect(interactionManager.lassoMode).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Private method tests for node interaction
+// ---------------------------------------------------------------------------
+describe("InteractionManager node interaction helpers", () => {
+  let canvas: HTMLCanvasElement;
+  let mockHost: InteractionHost;
+  let mockWorld: any;
+  let mockApp: any;
+  let interactionManager: InteractionManager | null = null;
+
+  beforeEach(() => {
+    const mockDoc = (globalThis as any).document || {
+      createElement: vi.fn((tag: string) => {
+        if (tag === "canvas") {
+          return {
+            width: 800,
+            height: 600,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            getBoundingClientRect: vi.fn(() => ({
+              left: 0,
+              top: 0,
+              width: 800,
+              height: 600,
+            })),
+            style: { cursor: "" },
+          } as any;
+        }
+        return {
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        } as any;
+      }),
+    };
+
+    if (!(globalThis as any).document) {
+      (globalThis as any).document = mockDoc;
+    }
+
+    canvas = mockDoc.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+
+    mockApp = {
+      stage: { addChild: vi.fn() },
+    };
+
+    mockWorld = {
+      toLocal: vi.fn((point: any) => ({ x: point.x, y: point.y })),
+      toGlobal: vi.fn((point: any) => ({ x: point.x, y: point.y })),
+      scale: { x: 1, y: 1, set: vi.fn() },
+      x: 0,
+      y: 0,
+    };
+
+    mockHost = {
+      hitTestNode: vi.fn(() => null),
+      markDirty: vi.fn(),
+      applyHover: vi.fn(),
+      getHighlightedNodeId: vi.fn(() => null),
+      setHighlightedNodeId: vi.fn(),
+      getCurrentLayout: vi.fn(() => "force"),
+      getShells: vi.fn(() => []),
+      getNodeShellIndex: vi.fn(() => new Map()),
+      getPixiNodes: vi.fn(() => new Map()),
+      getSimulation: vi.fn(() => null),
+      openFile: vi.fn(),
+      toggleHold: vi.fn(),
+      clearAllHolds: vi.fn(),
+      getAccentColor: vi.fn(() => 0xffffff),
+      zoomToScreenRect: vi.fn(),
+      getPixiApp: vi.fn(() => mockApp),
+      handleSuperNodeDblClick: vi.fn(() => false),
+      setPathfinderNode: vi.fn(),
+      clearPathfinder: vi.fn(),
+      getPathfinderState: vi.fn(() => ({ startId: null, endId: null })),
+      getApp: vi.fn(() => ({
+        workspace: { trigger: vi.fn() },
+      })),
+      getContainerEl: vi.fn(() => mockDoc.createElement("div")),
+      addCompareNode: vi.fn(),
+      clearCompareSelection: vi.fn(),
+      setSearchQuery: vi.fn(),
+      getZoomSensitivity: vi.fn(() => 1.0),
+      applyTextFade: vi.fn(),
+      updateLabelsForZoom: vi.fn(),
+      updateZoomIndicator: vi.fn(),
+      onZoomLayoutUpdate: vi.fn(),
+      getNeighborIds: vi.fn(() => []),
+      applyFocusOnClick: vi.fn(),
+      toggleMultiSelect: vi.fn(),
+    } as any;
+  });
+
+  it("_upNodeClick with no modifiers should toggle hold", () => {
+    const mockNode: PixiNode = {
+      data: { id: "test-node", x: 100, y: 100, filePath: "test.md" } as any,
+      gfx: {} as any,
+      circle: {} as any,
+      label: null,
+      tagLabel: null,
+      hoverLabel: null,
+      leaderLine: null,
+      radius: 10,
+      color: 0xff0000,
+      held: false,
+      sortRank: 0,
+      priorityScore: 0,
+      minShowZoom: 0,
+      labelWasVisible: false,
+      hoverForcedLabel: false,
+      subLabels: [],
+    };
+    interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
+    const pointerEvent = { type: "pointerup", clientX: 100, clientY: 100, shiftKey: false, altKey: false, ctrlKey: false, metaKey: false } as any;
+    (interactionManager as any)._upNodeClick(pointerEvent, mockNode);
+    expect(mockHost.clearAllHolds).toHaveBeenCalled();
+    expect(mockHost.toggleHold).toHaveBeenCalledWith(mockNode);
+  });
+
+  it("_upNodeClick with shift key should toggle multi-select", () => {
+    const mockNode: PixiNode = {
+      data: { id: "test-node", x: 100, y: 100, filePath: "test.md" } as any,
+      gfx: {} as any,
+      circle: {} as any,
+      label: null,
+      tagLabel: null,
+      hoverLabel: null,
+      leaderLine: null,
+      radius: 10,
+      color: 0xff0000,
+      held: false,
+      sortRank: 0,
+      priorityScore: 0,
+      minShowZoom: 0,
+      labelWasVisible: false,
+      hoverForcedLabel: false,
+      subLabels: [],
+    };
+    interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
+    const pointerEvent = { type: "pointerup", clientX: 100, clientY: 100, shiftKey: true } as any;
+    (interactionManager as any)._upNodeClick(pointerEvent, mockNode);
+    expect(mockHost.toggleMultiSelect).toHaveBeenCalledWith("test-node");
+  });
+
+  it("_upNodeClick with ctrl key should add compare node", () => {
+    const mockNode: PixiNode = {
+      data: { id: "test-node", x: 100, y: 100, filePath: "test.md" } as any,
+      gfx: {} as any,
+      circle: {} as any,
+      label: null,
+      tagLabel: null,
+      hoverLabel: null,
+      leaderLine: null,
+      radius: 10,
+      color: 0xff0000,
+      held: false,
+      sortRank: 0,
+      priorityScore: 0,
+      minShowZoom: 0,
+      labelWasVisible: false,
+      hoverForcedLabel: false,
+      subLabels: [],
+    };
+    interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
+    const pointerEvent = { type: "pointerup", clientX: 100, clientY: 100, ctrlKey: true } as any;
+    (interactionManager as any)._upNodeClick(pointerEvent, mockNode);
+    expect(mockHost.addCompareNode).toHaveBeenCalledWith("test-node");
+  });
+
+  it("_upPathfinderClick cycles through start/end/reset", () => {
+    const mockNode: PixiNode = {
+      data: { id: "test-node", x: 100, y: 100, filePath: "test.md" } as any,
+      gfx: {} as any,
+      circle: {} as any,
+      label: null,
+      tagLabel: null,
+      hoverLabel: null,
+      leaderLine: null,
+      radius: 10,
+      color: 0xff0000,
+      held: false,
+      sortRank: 0,
+      priorityScore: 0,
+      minShowZoom: 0,
+      labelWasVisible: false,
+      hoverForcedLabel: false,
+      subLabels: [],
+    };
+    interactionManager = new InteractionManager(mockHost, canvas, mockWorld);
+
+    // Initial state: start is null, should set start
+    (interactionManager as any)._upPathfinderClick(mockNode);
+    expect(mockHost.setPathfinderNode).toHaveBeenCalledWith("test-node", "start");
+
+    // Next call: start is set, end is null, should set end
+    mockHost.getPathfinderState.mockReturnValue({ startId: "node1", endId: null });
+    mockHost.setPathfinderNode.mockClear();
+    (interactionManager as any)._upPathfinderClick(mockNode);
+    expect(mockHost.setPathfinderNode).toHaveBeenCalledWith("test-node", "end");
+
+    // Final call: both set, should reset and set start
+    mockHost.getPathfinderState.mockReturnValue({ startId: "node1", endId: "node2" });
+    mockHost.clearPathfinder.mockClear();
+    mockHost.setPathfinderNode.mockClear();
+    (interactionManager as any)._upPathfinderClick(mockNode);
+    expect(mockHost.clearPathfinder).toHaveBeenCalled();
+    expect(mockHost.setPathfinderNode).toHaveBeenCalledWith("test-node", "start");
+  });
+});
