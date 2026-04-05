@@ -1,7 +1,7 @@
 ---
 priority: critical
 reported: 2026-04-05
-status: in-progress
+status: done
 source: auto-discovered
 summary: テスト失敗: 
 ---
