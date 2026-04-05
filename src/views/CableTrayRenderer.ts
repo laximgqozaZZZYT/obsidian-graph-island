@@ -910,6 +910,55 @@ export function buildTrunks(
 // Intra-group cable wiring
 // ---------------------------------------------------------------------------
 
+/** Collect resolved target positions for intra-group edges (skip cross-group). */
+function collectIntraTargetPositions(
+	edgeList: GraphEdge[],
+	groupKey: string,
+	resolvePos: (ref: string | object) => Pos | undefined,
+	nodeClusterMap: Map<string, string>,
+): Map<string, { x: number; y: number }> {
+	const targetPositions = new Map<string, { x: number; y: number }>();
+	for (const e of edgeList) {
+		const tid = edgeTargetId(e);
+		const tgtGroup = nodeClusterMap.get(tid);
+		if (tgtGroup && tgtGroup !== groupKey) continue;
+		if (targetPositions.has(tid)) continue;
+		const tgtPos = resolvePos(e.target) ?? resolvePos(tid);
+		if (!tgtPos) continue;
+		targetPositions.set(tid, { x: tgtPos.x, y: tgtPos.y });
+	}
+	return targetPositions;
+}
+
+/** Build a routing function that picks polar, cartesian, or straight-line path. */
+export function createBranchRouter(
+	perimInfo: GroupPerimInfo | null,
+	isPolar: boolean,
+	portForKey: GroupPort | null,
+): (src: { x: number; y: number }, tgt: { x: number; y: number }) => { x: number; y: number }[] {
+	const branchGrid = perimInfo ? filterGridForPortFace(perimInfo.grid, perimInfo.face) : null;
+	let branchPolarGrid: PolarJunctionGrid | null = null;
+	if (isPolar && perimInfo?.polarGrid && portForKey) {
+		const portR = Math.sqrt(
+			(portForKey.x - perimInfo.polarGrid.cx) ** 2 + (portForKey.y - perimInfo.polarGrid.cy) ** 2,
+		);
+		branchPolarGrid = filterPolarGridForPort(perimInfo.polarGrid, portR);
+	}
+
+	return (src, tgt) => {
+		if (branchPolarGrid && branchPolarGrid.ringGaps.length > 0) {
+			return deduplicatePath(routeViaPolarGrid(src, tgt, branchPolarGrid));
+		}
+		if (branchGrid) {
+			return deduplicatePath(routeViaJunctionGrid(src, tgt, branchGrid));
+		}
+		return [
+			{ x: src.x, y: src.y },
+			{ x: tgt.x, y: tgt.y },
+		];
+	};
+}
+
 /**
  * Route a single source node's intra-group cable (branches + group port branch).
  * Extracted from the inner loop of buildIntraGroupCables Step 3.
@@ -930,54 +979,17 @@ export function routeSingleIntraCable(
 	const srcPos = resolvePos(sourceNodeId);
 	if (!srcPos) return null;
 
-	const targetPositions = new Map<string, { x: number; y: number }>();
+	const targetPositions = collectIntraTargetPositions(edgeList, groupKey, resolvePos, nodeClusterMap);
 	const externalEdges = groupExternalMap.get(groupKey)?.get(sourceNodeId) ?? [];
 	const connectsExternal = externalEdges.length > 0;
-
-	for (const e of edgeList) {
-		const tid = edgeTargetId(e);
-		const tgtGroup = nodeClusterMap.get(tid);
-		if (tgtGroup && tgtGroup !== groupKey) continue;
-		if (targetPositions.has(tid)) continue;
-		const tgtPos = resolvePos(e.target) ?? resolvePos(tid);
-		if (!tgtPos) continue;
-		targetPositions.set(tid, { x: tgtPos.x, y: tgtPos.y });
-	}
 
 	if (targetPositions.size === 0 && !connectsExternal) return null;
 
 	const junction = { x: centroid.x, y: centroid.y };
+	const routeBranch = createBranchRouter(perimInfo, isPolar, portForKey);
 
-	// -- Build branches: route via junction grid --
-	// Use a filtered grid that excludes the port-face gap to avoid
-	// branching wires on the same face as the entry port.
+	// Build branches: route via junction grid
 	const branches: IntraGroupCable["branches"] = [];
-
-	// Prepare routing grid (cartesian or polar)
-	const branchGrid = perimInfo ? filterGridForPortFace(perimInfo.grid, perimInfo.face) : null;
-	// Polar: filter ringGap closest to port
-	let branchPolarGrid: PolarJunctionGrid | null = null;
-	if (isPolar && perimInfo?.polarGrid && portForKey) {
-		const portR = Math.sqrt(
-			(portForKey.x - perimInfo.polarGrid.cx) ** 2 + (portForKey.y - perimInfo.polarGrid.cy) ** 2,
-		);
-		branchPolarGrid = filterPolarGridForPort(perimInfo.polarGrid, portR);
-	}
-
-	// Choose routing function based on coordinate system
-	const routeBranch = (src: { x: number; y: number }, tgt: { x: number; y: number }) => {
-		if (branchPolarGrid && branchPolarGrid.ringGaps.length > 0) {
-			return deduplicatePath(routeViaPolarGrid(src, tgt, branchPolarGrid));
-		}
-		if (branchGrid) {
-			return deduplicatePath(routeViaJunctionGrid(src, tgt, branchGrid));
-		}
-		return [
-			{ x: src.x, y: src.y },
-			{ x: tgt.x, y: tgt.y },
-		];
-	};
-
 	for (const e of edgeList) {
 		const tid = edgeTargetId(e);
 		const tgtPos = targetPositions.get(tid);
@@ -997,11 +1009,9 @@ export function routeSingleIntraCable(
 	if (branches.length === 0 && !connectsExternal) return null;
 
 	// Group port branch: route from source node to port.
-	// Uses filtered grid so wire approaches port without branching on port face.
 	let groupPortBranch: IntraGroupCable["groupPortBranch"] = null;
 	if (connectsExternal && portForKey) {
-		let path = routeBranch(srcPos, portForKey);
-		path = deduplicatePath(path);
+		const path = deduplicatePath(routeBranch(srcPos, portForKey));
 		groupPortBranch = { path, edges: [...externalEdges] };
 	}
 
@@ -1027,31 +1037,8 @@ export function routeExternalOnlyNode(
 	if (externalEdges.length === 0) return null;
 
 	const junction = { x: centroid.x, y: centroid.y };
-
-	let path: { x: number; y: number }[];
-	if (isPolar && perimInfo?.polarGrid) {
-		// Polar: route through filtered polar grid
-		const portR = Math.sqrt(
-			(portForKey.x - perimInfo.polarGrid.cx) ** 2 + (portForKey.y - perimInfo.polarGrid.cy) ** 2,
-		);
-		const filteredPolar = filterPolarGridForPort(perimInfo.polarGrid, portR);
-		path =
-			filteredPolar.ringGaps.length > 0
-				? deduplicatePath(routeViaPolarGrid(nodePos, portForKey, filteredPolar))
-				: [
-						{ x: nodePos.x, y: nodePos.y },
-						{ x: portForKey.x, y: portForKey.y },
-					];
-	} else if (perimInfo) {
-		// Cartesian: route through filtered junction grid
-		const filteredGrid = filterGridForPortFace(perimInfo.grid, perimInfo.face);
-		path = deduplicatePath(routeViaJunctionGrid(nodePos, portForKey, filteredGrid));
-	} else {
-		path = [
-			{ x: nodePos.x, y: nodePos.y },
-			{ x: portForKey.x, y: portForKey.y },
-		];
-	}
+	const routeBranch = createBranchRouter(perimInfo, isPolar, portForKey);
+	const path = deduplicatePath(routeBranch(nodePos, portForKey));
 
 	const groupPortBranch: IntraGroupCable["groupPortBranch"] = { path, edges: [...externalEdges] };
 	return { groupKey, junction, branches: [], groupPortBranch };
