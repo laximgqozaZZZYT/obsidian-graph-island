@@ -1711,57 +1711,57 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		});
 		this._helpOverlayEl = overlay;
 
-		overlay.createEl("h3", { text: "Graph Island \u2014 Keyboard Shortcuts" });
+		overlay.createEl("h3", { text: t("help.title") });
 
 		const sections: { title: string; items: [string, string][] }[] = [
 			{
-				title: "Navigation",
+				title: t("help.sectionNavigation"),
 				items: [
-					["Tab / Shift+Tab", "Cycle focus through nodes"],
-					["\u2190\u2191\u2192\u2193", "Pan graph / Navigate neighbors (when node focused)"],
-					["+/= / \u2212", "Zoom in / out"],
-					["0\u20139", "Zoom: 0=100%, 1=10%, ..., 9=90%"],
-					["Z", "Focus-zoom to highlighted node"],
-					["Space / F", "Fit graph to view"],
-					["Scroll", "Zoom in/out"],
+					["Tab / Shift+Tab", t("help.nav.tabCycle")],
+					["\u2190\u2191\u2192\u2193", t("help.nav.arrowKeys")],
+					["+/= / \u2212", t("help.nav.zoomInOut")],
+					["0\u20139", t("help.nav.zoomDigits")],
+					["Z", t("help.nav.focusZoom")],
+					["Space / F", t("help.nav.fitView")],
+					["Scroll", t("help.nav.scroll")],
 				],
 			},
 			{
-				title: "Selection & Comparison",
+				title: t("help.sectionSelection"),
 				items: [
-					["Click / Hover", "Focus node + details"],
-					["Shift+Click / Shift+Enter", "Multi-select toggle"],
-					["Ctrl+A", "Select all visible nodes"],
-					["Ctrl+D", "Deselect all"],
-					["Ctrl+E", "Copy graph to clipboard (PNG)"],
-					["Ctrl+Click / Ctrl+Enter", "Add to compare"],
-					["S (focused)", "Set pathfinder start"],
-					["E (focused)", "Set pathfinder end"],
-					["Enter", "Open focused node's file"],
-					["Double-click", "Open file / Inline edit"],
+					["Click / Hover", t("help.sel.clickHover")],
+					["Shift+Click / Shift+Enter", t("help.sel.shiftClick")],
+					["Ctrl+A", t("help.sel.ctrlA")],
+					["Ctrl+D", t("help.sel.ctrlD")],
+					["Ctrl+E", t("help.sel.ctrlE")],
+					["Ctrl+Click / Ctrl+Enter", t("help.sel.ctrlClick")],
+					["S (focused)", t("help.sel.pathStart")],
+					["E (focused)", t("help.sel.pathEnd")],
+					["Enter", t("help.sel.enter")],
+					["Double-click", t("help.sel.dblClick")],
 				],
 			},
 			{
-				title: "Display",
+				title: t("help.sectionDisplay"),
 				items: [
-					["P", "Toggle settings panel"],
-					["L", "Toggle legend"],
-					["M", "Toggle minimap"],
-					["G", "Toggle dot grid"],
-					["[ / ]", "Decrease / increase hover hops"],
-					["1\u20134", "Switch panel tab"],
+					["P", t("help.disp.panel")],
+					["L", t("help.disp.legend")],
+					["M", t("help.disp.minimap")],
+					["G", t("help.disp.grid")],
+					["[ / ]", t("help.disp.hops")],
+					["1\u20134", t("help.disp.tabSwitch")],
 				],
 			},
 			{
-				title: "Actions",
+				title: t("help.sectionActions"),
 				items: [
-					["Ctrl+F", "Focus search"],
-					["Ctrl+Shift+C", "Copy graph as PNG"],
-					["Right-click", "Context menu"],
-					["Drag node", "Move + pin position"],
-					["Drag canvas", "Pan view"],
-					["Escape", "Close overlay / clear focus"],
-					["?", "Toggle this help"],
+					["Ctrl+F", t("help.act.search")],
+					["Ctrl+Shift+C", t("help.act.copyPng")],
+					["Right-click", t("help.act.contextMenu")],
+					["Drag node", t("help.act.dragNode")],
+					["Drag canvas", t("help.act.dragCanvas")],
+					["Escape", t("help.act.escape")],
+					["?", t("help.act.helpToggle")],
 				],
 			},
 		];
@@ -1780,11 +1780,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			}
 		}
 
-		overlay.createEl("h3", { text: "Thinking Modes", cls: "gi-help-section" });
+		overlay.createEl("h3", { text: t("help.sectionModes"), cls: "gi-help-section" });
 		const modes: [string, string][] = [
-			["Explore", "Active file centered, gap detection, suggestions"],
-			["Analyze", "Full structure: stats, bridges, entropy, communities"],
-			["Write", "Local graph, large nodes, minimal edges"],
+			[t("mode.explore"), t("help.mode.explore")],
+			[t("mode.analyze"), t("help.mode.analyze")],
+			[t("mode.write"), t("help.mode.write")],
 		];
 		for (const [name, desc] of modes) {
 			const row = overlay.createDiv({ cls: "gi-help-mode" });
@@ -3022,7 +3022,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (!this.densityCulledBadgeEl) return;
 		if (count > 0) {
 			// Show culled count + top folder summary at extreme zoom-out
-			let text = `+${count} more hidden`;
+			let text = t("density.moreHidden").replace("{count}", String(count));
 			const zoom = this.worldContainer?.scale?.x ?? 1;
 			if (zoom < 0.15 && this.pixiNodes.size > 0) {
 				const folders = new Map<string, number>();
@@ -3411,7 +3411,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		if (metaLine.length) panel.createEl("div", { cls: "gi-node-expand-meta", text: metaLine.join(" \u00b7 ") });
 
 		// Body preview — read file content async
-		const bodyEl = panel.createEl("div", { cls: "gi-node-expand-body", text: "Loading..." });
+		const bodyEl = panel.createEl("div", { cls: "gi-node-expand-body", text: t("hover.loading") });
 		const tf = this.app.vault.getAbstractFileByPath(pn.data.filePath);
 		if (tf instanceof TFile) {
 			this.app.vault
@@ -3421,7 +3421,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 					bodyEl.textContent = stripped.slice(0, 200) + (stripped.length > 200 ? "..." : "");
 				})
 				.catch(() => {
-					bodyEl.textContent = "(could not read)";
+					bodyEl.textContent = t("hover.couldNotRead");
 				});
 		}
 
@@ -5996,7 +5996,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			return;
 		}
 		el.style.display = "";
-		el.textContent = `${offCount} off-screen`;
+		el.textContent = t("oob.offScreen").replace("{count}", String(offCount));
 	}
 
 	private createPixiNodes(nodes: GraphNode[], nodeR: (n: GraphNode) => number, nodeColor: (n: GraphNode) => number) {

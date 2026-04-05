@@ -9,6 +9,7 @@ import { buildGraphFromVault, assignNodeColors } from "../parsers/metadata-parse
 import { EDGE_TYPE_HAS_TAG } from "../constants";
 import { edgeSourceId, edgeTargetId, buildAdj } from "../utils/graph-helpers";
 import { computeBoundingBox } from "../utils/geometry";
+import { t } from "../i18n";
 
 interface EmbedConfig {
 	center?: string; // file path for local graph center
@@ -139,7 +140,7 @@ function doRender(container: HTMLElement, config: EmbedConfig, app: App, setting
 	}
 
 	if (data.nodes.length === 0) {
-		container.createDiv({ cls: "gi-embed-empty", text: "No nodes found" });
+		container.createDiv({ cls: "gi-embed-empty", text: t("embed.noNodes") });
 		return;
 	}
 

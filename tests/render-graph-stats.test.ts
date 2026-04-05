@@ -3,6 +3,7 @@ import { renderGraphStats, type StatsPanel } from "../src/views/StatsRenderer";
 import type { StatsHost } from "../src/views/GraphViewContainer";
 import type { GraphData, GraphNode, GraphEdge } from "../src/types";
 import { createMockEl, findEl, findAllEl, allText } from "./helpers/mock-dom";
+import { t } from "../src/i18n";
 
 // ---------------------------------------------------------------------------
 // Helper factories
@@ -249,7 +250,7 @@ describe("renderGraphStats", () => {
     renderGraphStats(el as any, gd, makePanel(), host);
 
     const text = allText(el);
-    expect(text).toContain("Quality Dashboard");
+    expect(text).toContain(t("stats.qualityDashboard"));
     expect(text).toContain("85/100");
   });
 
@@ -368,9 +369,10 @@ describe("renderGraphStats", () => {
     expect(dashBody).not.toBeNull();
     expect(dashBody!.style.display).toBe("none");
 
-    // Find the dashboard title (the one with "Quality Dashboard" text and a click listener)
+    // Find the dashboard title (the one with quality dashboard text and a click listener)
     const allTitles = findAllEl(el, ".gi-stats-hub-title");
-    const dashTitle = allTitles.find(t => t.text === "Quality Dashboard" || t.textContent === "Quality Dashboard");
+    const qd = t("stats.qualityDashboard");
+    const dashTitle = allTitles.find(ti => ti.text === qd || ti.textContent === qd);
     expect(dashTitle).toBeDefined();
 
     // Click to toggle

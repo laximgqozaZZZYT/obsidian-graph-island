@@ -177,7 +177,7 @@ export class NodeDetailView extends ItemView {
 		const nameEl = header.createEl("div", { cls: "gi-ni-name" });
 		nameEl.textContent = node.label;
 		if (node.isTag) {
-			nameEl.createEl("span", { cls: "gi-ni-badge", text: "tag" });
+			nameEl.createEl("span", { cls: "gi-ni-badge", text: t("detail.tagBadge") });
 		}
 
 		// === Meta ===
@@ -505,7 +505,7 @@ export class NodeDetailView extends ItemView {
 
 			const link = row.createEl("span", { cls: "gi-ni-link", text: info.label });
 			if (info.isTag) {
-				row.createEl("span", { cls: "gi-ni-badge", text: "tag" });
+				row.createEl("span", { cls: "gi-ni-badge", text: t("detail.tagBadge") });
 			}
 			if (info.filePath) {
 				link.addEventListener("click", () => {
@@ -581,7 +581,7 @@ export class NodeDetailView extends ItemView {
 			li.createEl("span", { text: pn.data.label });
 			li.createEl("span", { cls: "gi-suggest-link-reason", text: s.reason });
 			// Link button
-			const linkBtn = li.createEl("button", { cls: "gi-suggest-link-btn", text: "Link" });
+			const linkBtn = li.createEl("button", { cls: "gi-suggest-link-btn", text: t("detail.linkBtn") });
 			linkBtn.addEventListener("click", () => {
 				// Trigger link creation via workspace event
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- custom workspace event

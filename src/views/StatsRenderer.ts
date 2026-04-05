@@ -55,9 +55,9 @@ export function renderGraphStats(el: HTMLElement, gd: GraphData, panel: StatsPan
 	const title = titleRow.createEl("div", { cls: "gi-stats-title", text: t("stats.title") });
 	title.style.fontWeight = "600";
 
-	const copyBtn = titleRow.createEl("button", { text: "MD", cls: "gi-stats-copy" });
+	const copyBtn = titleRow.createEl("button", { text: t("stats.copyBtn"), cls: "gi-stats-copy" });
 	copyBtn.style.cssText = "font-size:9px;padding:1px 5px;cursor:pointer;border-radius:3px;opacity:0.6;";
-	copyBtn.title = "Copy as Markdown";
+	copyBtn.title = t("stats.copyBtnTitle");
 	copyBtn.addEventListener("click", () => {
 		const lines = [`# ${t("stats.title")}`, ""];
 		lines.push(`| Metric | Value |`, `|---|---|`);
@@ -104,7 +104,7 @@ export function renderGraphStats(el: HTMLElement, gd: GraphData, panel: StatsPan
 	// HI: Edge density warning
 	if (stats.edgeCount > 5000) {
 		const warn = el.createEl("div", { cls: "gi-stats-warn", attr: { role: "alert" } });
-		warn.textContent = `⚠ ${stats.edgeCount} edges — consider enabling edge fade or reducing hops`;
+		warn.textContent = t("stats.edgeWarn").replace("{count}", String(stats.edgeCount));
 		warn.style.cssText =
 			"color:var(--text-warning,#d4a017);font-size:10px;margin:4px 0;padding:2px 4px;border-radius:3px;background:var(--background-modifier-warning,rgba(212,160,23,0.1))";
 	}
@@ -205,7 +205,7 @@ function renderQualityDashboard(el: HTMLElement, host: StatsHost): void {
 	const mem = (performance as PerformanceWithMemory).memory?.usedJSHeapSize;
 	const memMB = mem ? Math.round(mem / (1024 * 1024)) : null;
 
-	const dashTitle = el.createEl("div", { cls: "gi-stats-hub-title", text: "Quality Dashboard" });
+	const dashTitle = el.createEl("div", { cls: "gi-stats-hub-title", text: t("stats.qualityDashboard") });
 	dashTitle.style.cssText = "font-weight:600;margin-top:6px;cursor:pointer;user-select:none;";
 	const dashBody = el.createDiv({ cls: "gi-quality-dashboard" });
 	dashBody.style.display = "none";
@@ -394,7 +394,7 @@ export function renderRelationMatrix(
 	el.style.display = "";
 	el.empty();
 
-	el.createEl("div", { cls: "gi-matrix-title", text: "Relation Matrix" });
+	el.createEl("div", { cls: "gi-matrix-title", text: t("stats.relationMatrix") });
 
 	const degrees = host.getDegrees();
 	const sorted = [...degrees.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);

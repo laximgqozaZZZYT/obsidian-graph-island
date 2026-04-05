@@ -912,7 +912,7 @@ function buildNodeLegendAndExport(tabEl: HTMLElement, entries: NodeTreeEntry[]) 
 	addLegendItem("rgba(59,130,246,0.6)", t("nodes.backlink") ?? "Backlink");
 
 	// EZ: CSV export button
-	const exportBtn = legend.createEl("button", { text: "CSV", cls: "gi-node-export-btn" });
+	const exportBtn = legend.createEl("button", { text: t("export.csvBtn"), cls: "gi-node-export-btn" });
 	exportBtn.style.cssText = "font-size:9px;padding:1px 6px;cursor:pointer;margin-left:auto;border-radius:3px;";
 	exportBtn.addEventListener("click", () => {
 		const rows = ["id,label,path,visible"];

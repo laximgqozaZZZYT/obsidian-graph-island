@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderBreadcrumb, renderRelationMatrix, type BreadcrumbHost } from "../src/views/StatsRenderer";
 import { createMockEl, findEl, findAllEl, allText } from "./helpers/mock-dom";
+import { t } from "../src/i18n";
 
 // ---------------------------------------------------------------------------
 // renderBreadcrumb
@@ -198,7 +199,7 @@ describe("renderRelationMatrix", () => {
     const el = createMockEl();
     renderRelationMatrix(el as any, true, [], makeHost([["a", 1]]), vi.fn());
     const title = findEl(el, ".gi-matrix-title");
-    expect(title?.text).toBe("Relation Matrix");
+    expect(title?.text).toBe(t("stats.relationMatrix"));
   });
 
   it("builds matrix from edges", () => {

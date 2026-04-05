@@ -229,7 +229,7 @@ export class NodeComparisonView extends ItemView {
 		// === ヘッダー: ノードA vs ノードB ===
 		const header = wrap.createEl("div", { cls: "gi-compare-header" });
 		this.renderNodeCard(header, nodeA, "A");
-		header.createEl("span", { cls: "gi-compare-vs", text: "vs" });
+		header.createEl("span", { cls: "gi-compare-vs", text: t("compare.vs") });
 		this.renderNodeCard(header, nodeB, "B");
 
 		// === 最短経路 === (A11y: ARIA landmark for screen readers)
@@ -350,7 +350,7 @@ export class NodeComparisonView extends ItemView {
 			const row = li.createEl("div", { cls: "gi-ni-item-row" });
 			const link = row.createEl("span", { cls: "gi-ni-link", text: label });
 			if (pn?.data.isTag) {
-				row.createEl("span", { cls: "gi-ni-badge", text: "tag" });
+				row.createEl("span", { cls: "gi-ni-badge", text: t("detail.tagBadge") });
 			}
 			this.attachNodeInteraction(link, nodeId, pn);
 		}

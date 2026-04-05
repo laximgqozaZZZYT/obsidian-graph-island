@@ -50,7 +50,7 @@ export default class GraphViewsPlugin extends Plugin {
 					renderEmbeddedGraph(el, source, this.app, this.settings);
 				})
 				.catch(() => {
-					el.createDiv({ cls: "gi-embed-error", text: "Graph Island: render failed" });
+					el.createDiv({ cls: "gi-embed-error", text: t("embed.renderFailed") });
 				});
 		});
 	}

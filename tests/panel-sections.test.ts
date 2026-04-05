@@ -997,7 +997,7 @@ describe("buildNodesTab", () => {
     buildNodesTab(tabEl as any, panel, ctx, cb);
 
     const buttons = tabEl.querySelectorAll("button");
-    const csvBtn = buttons.find((el: any) => el.textContent?.includes("CSV"));
+    const csvBtn = buttons.find((el: any) => el.textContent === "export.csvBtn");
     expect(csvBtn).toBeDefined();
   });
 
