@@ -3986,9 +3986,25 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			else if (gk === keyB) membersB.push(id);
 		}
 
-		// Count inter-cluster edges
+		// Count inter-cluster edges and find bridge nodes
 		const setA = new Set(membersA);
 		const setB = new Set(membersB);
+		const { interEdges, bridgeNodes } = this._countInterClusterEdges(setA, setB);
+
+		// Shared tags
+		const tagsA = this._collectMemberTags(membersA);
+		const tagsB = this._collectMemberTags(membersB);
+		const sharedTags = [...tagsA].filter((t) => tagsB.has(t));
+
+		this.applyEphemeralHighlight(bridgeNodes.size > 0 ? bridgeNodes : null);
+
+		const msg = `Cluster compare: ${keyA} (${membersA.length}) vs ${keyB} (${membersB.length}) — ${interEdges} edges, ${bridgeNodes.size} bridges, ${sharedTags.length} shared tags`;
+		showToast(msg);
+		this._announceA11y(msg);
+	}
+
+	/** Count edges between two cluster sets and collect bridge node IDs. */
+	private _countInterClusterEdges(setA: Set<string>, setB: Set<string>): { interEdges: number; bridgeNodes: Set<string> } {
 		let interEdges = 0;
 		const bridgeNodes = new Set<string>();
 		for (const e of this.graphEdges) {
@@ -3996,33 +4012,21 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const tgt = edgeTargetId(e);
 			if ((setA.has(src) && setB.has(tgt)) || (setB.has(src) && setA.has(tgt))) {
 				interEdges++;
-				if (setA.has(src)) bridgeNodes.add(src);
-				if (setA.has(tgt)) bridgeNodes.add(tgt);
-				if (setB.has(src)) bridgeNodes.add(src);
-				if (setB.has(tgt)) bridgeNodes.add(tgt);
+				bridgeNodes.add(src);
+				bridgeNodes.add(tgt);
 			}
 		}
+		return { interEdges, bridgeNodes };
+	}
 
-		// Shared tags
-		const tagsA = new Set<string>();
-		const tagsB = new Set<string>();
-		for (const id of membersA) {
+	/** Collect all tags from a list of node IDs. */
+	private _collectMemberTags(memberIds: string[]): Set<string> {
+		const tags = new Set<string>();
+		for (const id of memberIds) {
 			const pn = this.pixiNodes.get(id);
-			if (pn?.data.tags) pn.data.tags.forEach((t) => tagsA.add(t));
+			if (pn?.data.tags) pn.data.tags.forEach((t) => tags.add(t));
 		}
-		for (const id of membersB) {
-			const pn = this.pixiNodes.get(id);
-			if (pn?.data.tags) pn.data.tags.forEach((t) => tagsB.add(t));
-		}
-		const sharedTags = [...tagsA].filter((t) => tagsB.has(t));
-
-		// Highlight bridge nodes
-		this.applyEphemeralHighlight(bridgeNodes.size > 0 ? bridgeNodes : null);
-
-		// ID: A11y — use both toast (visual) and announce (screen reader)
-		const msg = `Cluster compare: ${keyA} (${membersA.length}) vs ${keyB} (${membersB.length}) — ${interEdges} edges, ${bridgeNodes.size} bridges, ${sharedTags.length} shared tags`;
-		showToast(msg);
-		this._announceA11y(msg);
+		return tags;
 	}
 
 	// =========================================================================
@@ -5592,44 +5596,41 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const minSweep = rtSb.sunburstMinArcSweep ?? 0.005;
 
 		for (const arc of sunburstArcs) {
-			// Only label depth 0-1 arcs with sufficient width
 			if (arc.depth > 1) continue;
-			const sweep = arc.endAngle - arc.startAngle;
-			if (sweep < minSweep) continue;
+			if (arc.endAngle - arc.startAngle < minSweep) continue;
 
-			const midAngle = (arc.startAngle + arc.endAngle) / 2;
-			const midR = (arc.rInner + arc.rOuter) / 2;
-			const lx = arc.cx + midR * Math.cos(midAngle);
-			const ly = arc.cy + midR * Math.sin(midAngle);
-
-			// Display name: strip "::" suffixes
-			const displayName = arc.groupKey.replace(/::.*$/, "").split("/").pop() || arc.groupKey;
-
-			const text = new CanvasText(displayName, {
-				fontSize: arc.depth === 0 ? fontSize * 1.2 : fontSize,
-				fill: textColor,
-				fontWeight: arc.depth === 0 ? "bold" : "600",
-				align: "center",
-			});
-			text.anchor.set(0.5, 0.5);
-			text.strokeColor = 0x000000;
-			text.strokeWidth = arc.depth === 0 ? 3 : 2;
-			text.x = lx;
-			text.y = ly;
-
-			// Rotate text along arc direction
-			let rotation = midAngle + Math.PI / 2;
-			if (rotation > Math.PI / 2 && rotation < (3 * Math.PI) / 2) {
-				rotation += Math.PI;
-			}
-			text.rotation = rotation;
-
+			const text = this._createSunburstArcLabel(arc, fontSize, textColor);
 			container.addChild(text);
 			this.clusterSunburstLabels.set(`${arc.groupKey}:${arc.depth}`, text);
 		}
 
 		// --- Label collision avoidance for rotated labels ---
 		this.cullOverlappingRotatedLabels(this.clusterSunburstLabels);
+	}
+
+	/** Create a positioned and rotated label for a sunburst arc. */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- sunburstArcs arc shape
+	private _createSunburstArcLabel(arc: any, fontSize: number, textColor: number): CanvasText {
+		const midAngle = (arc.startAngle + arc.endAngle) / 2;
+		const midR = (arc.rInner + arc.rOuter) / 2;
+		const displayName = arc.groupKey.replace(/::.*$/, "").split("/").pop() || arc.groupKey;
+		const text = new CanvasText(displayName, {
+			fontSize: arc.depth === 0 ? fontSize * 1.2 : fontSize,
+			fill: textColor,
+			fontWeight: arc.depth === 0 ? "bold" : "600",
+			align: "center",
+		});
+		text.anchor.set(0.5, 0.5);
+		text.strokeColor = 0x000000;
+		text.strokeWidth = arc.depth === 0 ? 3 : 2;
+		text.x = arc.cx + midR * Math.cos(midAngle);
+		text.y = arc.cy + midR * Math.sin(midAngle);
+		let rotation = midAngle + Math.PI / 2;
+		if (rotation > Math.PI / 2 && rotation < (3 * Math.PI) / 2) {
+			rotation += Math.PI;
+		}
+		text.rotation = rotation;
+		return text;
 	}
 
 	/** Draw an arc line (stroke only, no fill) */
@@ -5857,15 +5858,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		}
 		const rb = this._ensureRoadBuilder();
 		// Build road network if not finalized and not yet built
-		if (!rb.finalized && !rb.trayData && this.pixiNodes.size > 0) {
-			let hasPosition = false;
-			for (const pn of this.pixiNodes.values()) {
-				if (Math.abs(pn.data.x) > 1 || Math.abs(pn.data.y) > 1) {
-					hasPosition = true;
-					break;
-				}
-			}
-			if (hasPosition) rb.rebuild();
+		if (!rb.finalized && !rb.trayData && this._hasPositionedNodes()) {
+			rb.rebuild();
 		}
 
 		const g = this.trayGraphics;
@@ -5873,12 +5867,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		const rt = mergeRenderThresholds(this.panel.renderThresholds);
 		const worldScale = this.worldContainer?.scale.x ?? 1;
-		const roadMinZoom = rt.roadMinZoom;
 
 		// LOD: toggle visibility without clearing draw commands.
 		// Roads are expensive to redraw (~120K cmds), so we keep them cached
 		// and only toggle g.visible for zoom-based LOD.
-		if (!rt.showRoadNetwork || worldScale < roadMinZoom) {
+		if (!rt.showRoadNetwork || worldScale < rt.roadMinZoom) {
 			g.visible = false;
 			return;
 		}
@@ -5925,6 +5918,15 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 
 		rb.roadDrawn = true;
 		rb._lastRoadWidth = effectiveWidth;
+	}
+
+	/** Check if any node has a non-origin position. */
+	private _hasPositionedNodes(): boolean {
+		if (this.pixiNodes.size === 0) return false;
+		for (const pn of this.pixiNodes.values()) {
+			if (Math.abs(pn.data.x) > 1 || Math.abs(pn.data.y) > 1) return true;
+		}
+		return false;
 	}
 
 	/** Get road network for edge routing */
@@ -7203,35 +7205,11 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const cw = this.canvasWrap?.clientWidth ?? DEFAULT_CANVAS_WIDTH;
 		const ch = this.canvasWrap?.clientHeight ?? DEFAULT_CANVAS_HEIGHT;
 
-		// Grid resolution for heatmap (lower = faster, coarser)
 		const CELL = 40;
 		const cols = Math.ceil(cw / CELL);
 		const rows = Math.ceil(ch / CELL);
-		const grid = new Float32Array(cols * rows);
+		const grid = this._accumulateDensityGrid(cols, rows, CELL, wx, wy, ws);
 
-		// Accumulate density: for each node, find its screen position and
-		// add a Gaussian contribution to nearby cells
-		const RADIUS = 3; // cells radius for Gaussian spread
-		for (const [, pn] of this.pixiNodes) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy graphics property fallback
-			const gfx = (pn as any).graphics ?? pn.gfx;
-			if (!gfx || !gfx.visible) continue;
-			const sx = gfx.x * ws + wx;
-			const sy = gfx.y * ws + wy;
-			const ci = Math.floor(sx / CELL);
-			const ri = Math.floor(sy / CELL);
-			for (let dr = -RADIUS; dr <= RADIUS; dr++) {
-				for (let dc = -RADIUS; dc <= RADIUS; dc++) {
-					const r = ri + dr;
-					const c = ci + dc;
-					if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
-					const dist2 = dr * dr + dc * dc;
-					grid[r * cols + c] += Math.exp(-dist2 / (RADIUS * 0.8));
-				}
-			}
-		}
-
-		// Find max density
 		let maxD = 0;
 		for (let i = 0; i < grid.length; i++) {
 			if (grid[i] > maxD) maxD = grid[i];
@@ -7242,14 +7220,37 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		for (let r = 0; r < rows; r++) {
 			for (let c = 0; c < cols; c++) {
 				const v = grid[r * cols + c] / maxD;
-				if (v < 0.05) continue; // skip near-zero cells
-				// Blue (cold) → Cyan → Yellow → Red (hot)
-				const h = (1 - v) * 240; // 240=blue, 0=red
-				const a = v * 0.25; // max 25% opacity
+				if (v < 0.05) continue;
+				const h = (1 - v) * 240;
+				const a = v * 0.25;
 				ctx.fillStyle = `hsla(${h}, 80%, 50%, ${a})`;
 				ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
 			}
 		}
+	}
+
+	/** Accumulate Gaussian density contributions from visible nodes into a grid. */
+	private _accumulateDensityGrid(cols: number, rows: number, cell: number, wx: number, wy: number, ws: number): Float32Array {
+		const grid = new Float32Array(cols * rows);
+		const RADIUS = 3;
+		for (const [, pn] of this.pixiNodes) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy graphics property fallback
+			const gfx = (pn as any).graphics ?? pn.gfx;
+			if (!gfx || !gfx.visible) continue;
+			const sx = gfx.x * ws + wx;
+			const sy = gfx.y * ws + wy;
+			const ci = Math.floor(sx / cell);
+			const ri = Math.floor(sy / cell);
+			for (let dr = -RADIUS; dr <= RADIUS; dr++) {
+				for (let dc = -RADIUS; dc <= RADIUS; dc++) {
+					const r = ri + dr;
+					const c = ci + dc;
+					if (r < 0 || r >= rows || c < 0 || c >= cols) continue;
+					grid[r * cols + c] += Math.exp(-(dr * dr + dc * dc) / (RADIUS * 0.8));
+				}
+			}
+		}
+		return grid;
 	}
 
 	// =========================================================================

@@ -1577,40 +1577,7 @@ function _buildNodeDisplaySection(tabEl: HTMLElement, panel: PanelState, _ctx: P
 					},
 					t("desc.hoverHops"),
 				);
-				// Hover edge type filter — which edge types to follow during hover BFS
-				const het = panel.hoverEdgeTypes ?? {
-					link: true,
-					semantic: false,
-					tag: false,
-					hasTag: false,
-					similar: false,
-					sibling: false,
-					sequence: false,
-					inheritance: true,
-					aggregation: true,
-				};
-				const hoverTypeEntries: [string, string][] = [
-					["link", t("hover.link") ?? "Link"],
-					["semantic", t("hover.semantic") ?? "Semantic"],
-					["tag", t("hover.tag") ?? "Tag"],
-					["hasTag", t("hover.hasTag") ?? "Has-Tag"],
-					["similar", t("hover.similar") ?? "Similar"],
-					["inheritance", t("hover.inheritance") ?? "Inheritance"],
-					["aggregation", t("hover.aggregation") ?? "Aggregation"],
-					["sibling", t("hover.sibling") ?? "Sibling"],
-					["sequence", t("hover.sequence") ?? "Sequence"],
-				];
-				for (const [key, label] of hoverTypeEntries) {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic key access for hover edge types
-					addToggle(adv, label, (het as any)[key] ?? false, (v) => {
-						if (!panel.hoverEdgeTypes) panel.hoverEdgeTypes = { ...het };
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any
-						(panel.hoverEdgeTypes as any)[key] = v;
-						cb.rebuildHoverAdj();
-						cb.applyHover();
-						cb.markDirty();
-					});
-				}
+				_addHoverEdgeTypeToggles(adv, panel, cb);
 				// HR: Max hover neighbor labels
 				const rtHover = mergeRenderThresholds(panel.renderThresholds);
 				addSlider(
@@ -1657,56 +1624,79 @@ function _buildNodeDisplaySection(tabEl: HTMLElement, panel: PanelState, _ctx: P
 				}
 				// R2: highlightMissingNeighbors toggle removed — now controlled via analysisOverlay dropdown
 				// --- ノード形状 ---
-				// GH: Shape preview swatches
-				const shapeIcons: Record<string, string> = {
-					circle: "O",
-					triangle: "^",
-					square: "#",
-					diamond: "<>",
-					pentagon: "5",
-					hexagon: "6",
-					star: "*",
-					cross: "+",
-				};
-				const shapeOptions = ALL_SHAPES.map((s) => ({
-					value: s,
-					label: `${shapeIcons[s] ?? ""} ${t(`shape.${s}`)}`,
-				}));
-				const defaultRule = panel.nodeShapeRules.find((r) => r.match === "default");
-				if (panel.showTagNodes) {
-					const tagRule = panel.nodeShapeRules.find((r) => r.match === "isTag");
-					addSelect(
-						adv,
-						t("display.tagNodeShape"),
-						shapeOptions,
-						tagRule?.shape ?? "triangle",
-						(v) => {
-							const rule = panel.nodeShapeRules.find((r) => r.match === "isTag");
-							if (rule) rule.shape = v as NodeShape;
-							else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
-							cb.rebuildNodesInPlace();
-						},
-						t("desc.tagNodeShape"),
-					);
-				}
-				addSelect(
-					adv,
-					t("display.defaultNodeShape"),
-					shapeOptions,
-					defaultRule?.shape ?? "circle",
-					(v) => {
-						const rule = panel.nodeShapeRules.find((r) => r.match === "default");
-						if (rule) rule.shape = v as NodeShape;
-						else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
-						cb.rebuildNodesInPlace();
-					},
-					t("desc.defaultNodeShape"),
-				);
+				_addNodeShapeSelects(adv, panel, cb);
 			});
 		},
 		tHelp("help.displayNodes"),
 		false,
 		"circle-dot",
+	);
+}
+
+/** Hover edge type filter toggles — extracted to reduce arrow function complexity. */
+function _addHoverEdgeTypeToggles(adv: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
+	const het = panel.hoverEdgeTypes ?? {
+		link: true, semantic: false, tag: false, hasTag: false, similar: false,
+		sibling: false, sequence: false, inheritance: true, aggregation: true,
+	};
+	const hoverTypeEntries: [string, string][] = [
+		["link", t("hover.link") ?? "Link"],
+		["semantic", t("hover.semantic") ?? "Semantic"],
+		["tag", t("hover.tag") ?? "Tag"],
+		["hasTag", t("hover.hasTag") ?? "Has-Tag"],
+		["similar", t("hover.similar") ?? "Similar"],
+		["inheritance", t("hover.inheritance") ?? "Inheritance"],
+		["aggregation", t("hover.aggregation") ?? "Aggregation"],
+		["sibling", t("hover.sibling") ?? "Sibling"],
+		["sequence", t("hover.sequence") ?? "Sequence"],
+	];
+	for (const [key, label] of hoverTypeEntries) {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic key access for hover edge types
+		addToggle(adv, label, (het as any)[key] ?? false, (v) => {
+			if (!panel.hoverEdgeTypes) panel.hoverEdgeTypes = { ...het };
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(panel.hoverEdgeTypes as any)[key] = v;
+			cb.rebuildHoverAdj();
+			cb.applyHover();
+			cb.markDirty();
+		});
+	}
+}
+
+/** Node shape select controls — extracted to reduce arrow function complexity. */
+function _addNodeShapeSelects(adv: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
+	// GH: Shape preview swatches
+	const shapeIcons: Record<string, string> = {
+		circle: "O", triangle: "^", square: "#", diamond: "<>",
+		pentagon: "5", hexagon: "6", star: "*", cross: "+",
+	};
+	const shapeOptions = ALL_SHAPES.map((s) => ({
+		value: s,
+		label: `${shapeIcons[s] ?? ""} ${t(`shape.${s}`)}`,
+	}));
+	const defaultRule = panel.nodeShapeRules.find((r) => r.match === "default");
+	if (panel.showTagNodes) {
+		const tagRule = panel.nodeShapeRules.find((r) => r.match === "isTag");
+		addSelect(
+			adv, t("display.tagNodeShape"), shapeOptions, tagRule?.shape ?? "triangle",
+			(v) => {
+				const rule = panel.nodeShapeRules.find((r) => r.match === "isTag");
+				if (rule) rule.shape = v as NodeShape;
+				else panel.nodeShapeRules.unshift({ match: "isTag", shape: v as NodeShape });
+				cb.rebuildNodesInPlace();
+			},
+			t("desc.tagNodeShape"),
+		);
+	}
+	addSelect(
+		adv, t("display.defaultNodeShape"), shapeOptions, defaultRule?.shape ?? "circle",
+		(v) => {
+			const rule = panel.nodeShapeRules.find((r) => r.match === "default");
+			if (rule) rule.shape = v as NodeShape;
+			else panel.nodeShapeRules.push({ match: "default", shape: v as NodeShape });
+			cb.rebuildNodesInPlace();
+		},
+		t("desc.defaultNodeShape"),
 	);
 }
 

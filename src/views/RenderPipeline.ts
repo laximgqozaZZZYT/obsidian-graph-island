@@ -790,35 +790,8 @@ export class RenderPipeline {
 		// Pass 7: Missing neighbor orange rings
 		passes.push((g, c) => renderMissingNeighborRings(this.host, g, c));
 
-		// Pass 8: Tag badges on node circumference
-		if (this.host.getShowTagBadges?.()) {
-			passes.push((g, c) => renderTagBadges(this.host, g, c));
-		}
-
-		// Pass 9: Importance ring
-		if (this.host.getShowImportanceRing?.()) {
-			passes.push((g, c) => renderImportanceRings(this.host, g, c));
-		}
-
-		// Pass 10: Recency marker
-		if (this.host.getRecencyConfig?.()) {
-			passes.push((g, c) => renderRecencyMarkers(this.host, g, c));
-		}
-
-		// Pass 11: Bridge nodes — gold ring for high betweenness
-		if (this.host.getBridgeNodeIds?.()) {
-			passes.push((g, c) => renderBridgeNodes(this.host, g, c));
-		}
-
-		// Pass 12: Articulation point warning ring
-		if (this.host.getArticulationPointIds?.()) {
-			passes.push((g, c) => renderArticulationPoints(this.host, g, c));
-		}
-
-		// Pass 13: Entropy overlay — knowledge diversity heatmap
-		if (this.host.getShowEntropyOverlay?.()) {
-			passes.push((g, c) => renderEntropyOverlay(this.host, g, c));
-		}
+		// Pass 8-13: Conditional overlay passes
+		this._registerConditionalPasses(passes);
 
 		// Pass 14: Multi-select rings
 		const msIds = this.host.getMultiSelectNodeIds?.();
@@ -838,6 +811,41 @@ export class RenderPipeline {
 
 		// Execute all active passes
 		for (const pass of passes) pass(g, ctx);
+	}
+
+	/** Register conditional overlay passes (tag badges, importance rings, etc.) */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- pass array uses local type alias from caller
+	private _registerConditionalPasses(passes: any[]): void {
+		// Pass 8: Tag badges on node circumference
+		if (this.host.getShowTagBadges?.()) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- BatchCtx type local to caller
+			passes.push((g: CanvasGraphics, c: any) => renderTagBadges(this.host, g, c));
+		}
+		// Pass 9: Importance ring
+		if (this.host.getShowImportanceRing?.()) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			passes.push((g: CanvasGraphics, c: any) => renderImportanceRings(this.host, g, c));
+		}
+		// Pass 10: Recency marker
+		if (this.host.getRecencyConfig?.()) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			passes.push((g: CanvasGraphics, c: any) => renderRecencyMarkers(this.host, g, c));
+		}
+		// Pass 11: Bridge nodes — gold ring for high betweenness
+		if (this.host.getBridgeNodeIds?.()) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			passes.push((g: CanvasGraphics, c: any) => renderBridgeNodes(this.host, g, c));
+		}
+		// Pass 12: Articulation point warning ring
+		if (this.host.getArticulationPointIds?.()) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			passes.push((g: CanvasGraphics, c: any) => renderArticulationPoints(this.host, g, c));
+		}
+		// Pass 13: Entropy overlay — knowledge diversity heatmap
+		if (this.host.getShowEntropyOverlay?.()) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			passes.push((g: CanvasGraphics, c: any) => renderEntropyOverlay(this.host, g, c));
+		}
 	}
 
 	// =========================================================================
@@ -2168,6 +2176,25 @@ export class RenderPipeline {
 		return rects;
 	}
 
+	/** Measure label dimensions in screen space, accounting for scale and padding. */
+	private _measureLabelDims(
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- CanvasText with dynamic label props
+		label: any, fontSize: number, charW: number, zoom: number, maxScreenW: number, maxScreenH: number,
+	): { w: number; h: number } {
+		const scaleX = label.scale?.x ?? 1;
+		const scaleY = label.scale?.y ?? 1;
+		const padX = label.bgPadX ?? 0;
+		const padY = label.bgPadY ?? 0;
+		const measuredW = label.width && label.width > 0 ? label.width : 0;
+		const measuredH = label.height && label.height > 0 ? label.height : 0;
+		const baseW = measuredW > 0 ? measuredW : label.text.length * charW + padX * 2;
+		const baseH = measuredH > 0 ? measuredH : fontSize * LABEL_LINE_HEIGHT_FACTOR + padY * 2;
+		return {
+			w: Math.min(baseW * scaleX * zoom, maxScreenW > 0 ? maxScreenW : Infinity),
+			h: Math.min(baseH * scaleY * zoom, maxScreenH > 0 ? maxScreenH : Infinity),
+		};
+	}
+
 	private _buildLabelRect(
 		pn: PixiNode, degrees: Map<string, number>, zoom: number, maxScreenW: number, maxScreenH: number,
 	): CullLabelRect | null {
@@ -2177,16 +2204,7 @@ export class RenderPipeline {
 		const fontSize = (label.style.fontSize as number) ?? 11;
 		const boldFactor = isHoverLabel ? 1.1 : 1.0;
 		const charW = fontSize * LABEL_CHAR_WIDTH_FACTOR * boldFactor;
-		const scaleX = label.scale?.x ?? 1;
-		const scaleY = label.scale?.y ?? 1;
-		const padX = label.bgPadX ?? 0;
-		const padY = label.bgPadY ?? 0;
-		const measuredW = label.width && label.width > 0 ? label.width : 0;
-		const measuredH = label.height && label.height > 0 ? label.height : 0;
-		const baseW = measuredW > 0 ? measuredW : label.text.length * charW + padX * 2;
-		const baseH = measuredH > 0 ? measuredH : fontSize * LABEL_LINE_HEIGHT_FACTOR + padY * 2;
-		const w = Math.min(baseW * scaleX * zoom, maxScreenW > 0 ? maxScreenW : Infinity);
-		const h = Math.min(baseH * scaleY * zoom, maxScreenH > 0 ? maxScreenH : Infinity);
+		const { w, h } = this._measureLabelDims(label, fontSize, charW, zoom, maxScreenW, maxScreenH);
 		const anchorX = label.anchor?.x ?? 0;
 		const anchorY = label.anchor?.y ?? 0;
 		return {

@@ -1283,6 +1283,40 @@ function drawIntraGroupCables(
 // PortLaneInfo, PortColorLanes, buildPortColorLanes, getPortLaneEndpoint
 // moved to CableTrayRenderer.ts
 
+/** Split wire edges into bright/dim sets based on highlight membership. */
+function _splitHighlightEdges(wireEdges: GraphEdge[], highlightSet: Set<string>): { bright: GraphEdge[]; dim: GraphEdge[] } {
+	const bright: GraphEdge[] = [];
+	const dim: GraphEdge[] = [];
+	for (const e of wireEdges) {
+		if (highlightSet.has(edgeSourceId(e)) || highlightSet.has(edgeTargetId(e))) {
+			bright.push(e);
+		} else {
+			dim.push(e);
+		}
+	}
+	return { bright, dim };
+}
+
+/** Draw highlight-split wire: bright/dim passes for highlighted trunk wires. */
+function _drawHighlightedWire(
+	g: CanvasGraphics, wirePath: { x: number; y: number }[], wireWidth: number,
+	color: number, wireEdges: GraphEdge[], cfg: EdgeDrawConfig,
+	fadeMul: number, densityScale: number, filterHighlight: "bright" | "dim" | "normal" | null,
+): void {
+	const { bright, dim } = _splitHighlightEdges(wireEdges, cfg.highlightSet);
+	if (dim.length > 0 && (filterHighlight === null || filterHighlight === "dim")) {
+		const dimAlpha = Math.max(
+			(cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA) * fadeMul * densityScale,
+			0.05,
+		);
+		_drawSmoothPath(g, wirePath, wireWidth, color, dimAlpha);
+	}
+	if (bright.length > 0 && (filterHighlight === null || filterHighlight === "bright")) {
+		const brightAlpha = (cfg.highlightEdgeAlpha ?? 1.0) * fadeMul;
+		_drawSmoothPath(g, wirePath, wireWidth, color, brightAlpha);
+	}
+}
+
 /**
  * Draw a single trunk's wires with lane offsets and port coupling.
  * Merges same-colored cables into a single wire lane.
@@ -1314,19 +1348,14 @@ function _drawSingleTrunk(
 		}
 	}
 
-	// When highlighting, check per-EDGE (not per-color) to avoid lighting up
-	// unrelated wires that happen to share the same color.
 	const uniqueColors = [...colorMap.keys()];
 	const nUnique = uniqueColors.length;
 
-	// Look up port lane endpoints for coupling with groupPortBranch wires
 	const srcLane = portColorLanes?.get(trunk.srcGroup);
 	const tgtLane = portColorLanes?.get(trunk.tgtGroup);
 
-	// When colorEdgesByRelation is off, flatten all wires to a single neutral color
 	const neutralColor = cfg.isDark ? 0x888888 : 0x666666;
 	const useRelColor = cfg.colorEdgesByRelation;
-	// High contrast: thicken wires
 	const hcMul = cfg.highContrast ? 2 : 1;
 
 	for (let ci = 0; ci < nUnique; ci++) {
@@ -1338,8 +1367,6 @@ function _drawSingleTrunk(
 		const ox = perpX * off,
 			oy = perpY * off;
 
-		// Build wire path: uniform perp offset, but snap first/last to
-		// PortColorLanes endpoints so trunk and groupPortBranch couple.
 		const _buildTrunkWirePath = (): { x: number; y: number }[] => {
 			const wp = trunk.path.map((p) => ({ x: p.x + ox, y: p.y + oy }));
 			const srcEp = srcLane ? getPortLaneEndpoint(srcLane, color, laneSpacing) : null;
@@ -1352,40 +1379,14 @@ function _drawSingleTrunk(
 		const fadeMul = cableFadeByDegree(wireEdges, cfg);
 		const baseWireW = cfg.cableFanWidth ?? WIRE_SCREEN_WIDTH;
 		const baseWireA = cfg.cableFanAlpha ?? WIRE_BASE_ALPHA;
-		// Zoom-adaptive wire thickness: thicken at zoom-out for color visibility
 		const ws = cfg.worldScale ?? 1;
 		const zoomThicken = ws < 0.5 ? Math.min(2.5, 1 / (ws * 2)) : 1;
 		const wireWidth = (baseWireW + cableWeightThickness(wireEdges, cfg)) * zoomThicken * hcMul;
 
 		if (cfg.highlightedNodeId) {
-			// An edge is "bright" when either endpoint is in the highlight set (BFS neighbors).
-			const brightEdges: GraphEdge[] = [];
-			const dimEdges: GraphEdge[] = [];
-			for (const e of wireEdges) {
-				const sid = edgeSourceId(e);
-				const tid = edgeTargetId(e);
-				if (cfg.highlightSet.has(sid) || cfg.highlightSet.has(tid)) {
-					brightEdges.push(e);
-				} else {
-					dimEdges.push(e);
-				}
-			}
-
-			if (dimEdges.length > 0 && (filterHighlight === null || filterHighlight === "dim")) {
-				const dimAlpha = Math.max(
-					(cfg.highlightEdgeNonMatchAlpha ?? FADE_BY_DEGREE_MIN_ALPHA) * fadeMul * densityScale,
-					0.05,
-				);
-				_drawSmoothPath(g, _buildTrunkWirePath(), wireWidth, color, dimAlpha);
-			}
-			if (brightEdges.length > 0 && (filterHighlight === null || filterHighlight === "bright")) {
-				const brightAlpha = (cfg.highlightEdgeAlpha ?? 1.0) * fadeMul;
-				_drawSmoothPath(g, _buildTrunkWirePath(), wireWidth, color, brightAlpha);
-			}
+			_drawHighlightedWire(g, _buildTrunkWirePath(), wireWidth, color, wireEdges, cfg, fadeMul, densityScale, filterHighlight);
 		} else {
 			if (filterHighlight !== null && filterHighlight !== "normal") continue;
-			// Cable-tray wires need higher minimum alpha than regular edges
-			// to maintain color differentiation at high edge counts
 			const wireAlpha = Math.max(baseWireA * fadeMul * densityScale, 0.35);
 			_drawSmoothPath(g, _buildTrunkWirePath(), wireWidth, color, wireAlpha);
 		}
@@ -2314,30 +2315,41 @@ function _drawEdgesSinglePass(
 			continue;
 		}
 
-		let lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
-		const { alpha: _alpha, lineThick: _lineThick, isHighlighted: edgeHL } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
-		let alpha = _alpha;
-		let lineThick = _lineThick;
-
-		// Zoom-out: desaturate edge colors toward gray for visual calm (skip highlighted)
-		if (!edgeHL) lineColor = desaturateAtZoom(lineColor, ws, cfg.isDark);
-		// Brighten highlighted edges for visual emphasis
-		if (edgeHL) lineColor = brightenColor(lineColor, 60);
-
-		// S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
-		if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {
-			lineThick *= cfg.edgeHierarchyThickFactor ?? 2.5;
-			alpha = Math.min(1.0, alpha + (cfg.edgeHierarchyBoost ?? 0.3));
-		}
-
-		g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
-		const hasDash = applyDashPattern(g, e, lineThick);
-
-		drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength, cfg.roadNetwork, cache);
-		drawEdgeDecorations(g, e, src, tgt, lineColor, alpha, cfg, arrowGfx);
-
-		if (hasDash) g.setLineDash([]);
+		_drawNonCabledEdge(g, e, src, tgt, cfg, useRelColor, isArcLayout, densityScale, pairCount, bundles, bundleStrength, ws, arrowGfx, cache);
 	}
+}
+
+/** Render a single non-cabled edge with style resolution, ontology backbone, and dash. */
+function _drawNonCabledEdge(
+	g: CanvasGraphics, e: GraphEdge, src: Pos, tgt: Pos,
+	cfg: EdgeDrawConfig, useRelColor: boolean, isArcLayout: boolean,
+	densityScale: number, pairCount: Map<string, number> | null,
+	bundles: Map<string, BundleGroup> | null, bundleStrength: number,
+	ws: number, arrowGfx?: CanvasGraphics | null, cache: EdgeRenderCache = _cache,
+): void {
+	let lineColor = resolveEdgeColor(e, useRelColor, cfg.relationColors, cfg.isDark);
+	const { alpha: _alpha, lineThick: _lineThick, isHighlighted: edgeHL } = resolveEdgeStyle(e, src, tgt, cfg, densityScale, pairCount);
+	let alpha = _alpha;
+	let lineThick = _lineThick;
+
+	// Zoom-out: desaturate edge colors toward gray for visual calm (skip highlighted)
+	if (!edgeHL) lineColor = desaturateAtZoom(lineColor, ws, cfg.isDark);
+	// Brighten highlighted edges for visual emphasis
+	if (edgeHL) lineColor = brightenColor(lineColor, 60);
+
+	// S6: Ontology backbone — thicken inheritance edges (merged from showHierarchyOverlay)
+	if (cfg.showOntologyBackbone && e.type === EDGE_TYPE_INHERITANCE) {
+		lineThick *= cfg.edgeHierarchyThickFactor ?? 2.5;
+		alpha = Math.min(1.0, alpha + (cfg.edgeHierarchyBoost ?? 0.3));
+	}
+
+	g.lineStyle({ width: lineThick, color: lineColor, alpha, native: true });
+	const hasDash = applyDashPattern(g, e, lineThick);
+
+	drawEdgeSegment(g, src, tgt, e, lineColor, isArcLayout, bundles, bundleStrength, cfg.roadNetwork, cache);
+	drawEdgeDecorations(g, e, src, tgt, lineColor, alpha, cfg, arrowGfx);
+
+	if (hasDash) g.setLineDash([]);
 }
 
 // ---------------------------------------------------------------------------
