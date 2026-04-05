@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { GraphNode, GraphEdge, SortRule, NodeRule } from "../src/types";
-import { LayoutController, type LayoutHost } from "../src/views/LayoutController";
+import { LayoutController, resolveGroupLayoutMode, type LayoutHost } from "../src/views/LayoutController";
 import type { ClusterMetadata } from "../src/layouts/cluster-force";
 import type { PanelState } from "../src/views/PanelBuilder";
 
@@ -533,5 +533,407 @@ describe("LayoutController.applyEnclosureRepulsionForce", () => {
     const ctrl = new LayoutController(host);
     ctrl.applyEnclosureRepulsionForce();
     expect(sim.force("enclosureRepulsion")).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// collideRadius (private, tested indirectly via updateForces)
+// ---------------------------------------------------------------------------
+describe("LayoutController.collideRadius", () => {
+  function createSimMockFull(nodes: GraphNode[] = []) {
+    const forces = new Map<string, any>();
+    const sim: any = {
+      nodes: () => nodes,
+      force: (name: string, f?: any) => {
+        if (f === undefined) return forces.get(name) ?? null;
+        if (f === null) forces.delete(name);
+        else forces.set(name, f);
+        return sim;
+      },
+      alpha: (v?: number) => {
+        if (v !== undefined) return sim;
+        return sim;
+      },
+      restart: () => sim,
+    };
+    return sim;
+  }
+
+  it("computes radius with card mode padding", () => {
+    const nodes = [mkNode("a")];
+    const sim = createSimMockFull(nodes);
+    const host = createMockHost({
+      getSimulation: () => sim,
+      getGraphEdges: () => [],
+      getDegrees: () => new Map([["a", 1]]),
+      getPanel: () => ({
+        nodeDisplayMode: "card",
+        nodeSize: 10,
+        repelForce: 200,
+        linkDistance: 50,
+        linkForce: 0.5,
+        centerForce: 0.1,
+        renderThresholds: {
+          cardCollisionPadding: 20,
+          maxNodeRadius: 100,
+          minNodeRadius: 5,
+          collisionPadding: 5,
+          superNodeCollisionPadding: 15,
+          nodeSizeByDegree: true,
+        },
+        nodeRules: [],
+        sortRules: [],
+        directionalGravityRules: [],
+        tagDisplay: "none",
+        enclosureSpacing: 1.5,
+        clusterArrangement: "spiral",
+        clusterGravity: { interGroupAttraction: 0.5, intraGroupDensity: 1.0 },
+        clusterGroupRules: [],
+        clusterFollowsGroupBy: false,
+        groupBy: "none",
+        autoFit: false,
+        timelineKey: "date",
+        timelineEndKey: "end-date",
+        timelineOrderFields: "",
+        coordinateLayout: null,
+        clusterNodeSpacing: 3,
+        clusterGroupScale: 3,
+        clusterGroupSpacing: 2,
+        clusterGroupArrangement: "auto",
+        orphanClusterField: "",
+      } as any),
+      getPixiNodes: () => new Map(),
+    });
+    const ctrl = new LayoutController(host);
+    ctrl.updateForces();
+    expect(sim.force("collide")).not.toBeNull();
+  });
+
+  it("computes radius with super node collision padding", () => {
+    const nodes = [mkNode("a", { collapsedMembers: ["b", "c"] })];
+    const sim = createSimMockFull(nodes);
+    const host = createMockHost({
+      getSimulation: () => sim,
+      getGraphEdges: () => [],
+      getDegrees: () => new Map([["a", 2]]),
+      getPanel: () => ({
+        nodeDisplayMode: "dot",
+        nodeSize: 10,
+        repelForce: 200,
+        linkDistance: 50,
+        linkForce: 0.5,
+        centerForce: 0.1,
+        renderThresholds: {
+          superNodeCollisionPadding: 30,
+          maxNodeRadius: 100,
+          minNodeRadius: 5,
+          collisionPadding: 5,
+          cardCollisionPadding: 20,
+          nodeSizeByDegree: true,
+        },
+        nodeRules: [],
+        sortRules: [],
+        directionalGravityRules: [],
+        tagDisplay: "none",
+        enclosureSpacing: 1.5,
+        clusterArrangement: "spiral",
+        clusterGravity: { interGroupAttraction: 0.5, intraGroupDensity: 1.0 },
+        clusterGroupRules: [],
+        clusterFollowsGroupBy: false,
+        groupBy: "none",
+        autoFit: false,
+        timelineKey: "date",
+        timelineEndKey: "end-date",
+        timelineOrderFields: "",
+        coordinateLayout: null,
+        clusterNodeSpacing: 3,
+        clusterGroupScale: 3,
+        clusterGroupSpacing: 2,
+        clusterGroupArrangement: "auto",
+        orphanClusterField: "",
+      } as any),
+      getPixiNodes: () => new Map(),
+    });
+    const ctrl = new LayoutController(host);
+    ctrl.updateForces();
+    expect(sim.force("collide")).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createForceSimulation
+// ---------------------------------------------------------------------------
+describe("LayoutController.createForceSimulation", () => {
+  it("creates simulation with force configuration", () => {
+    const nodes = [mkNode("a"), mkNode("b")];
+    const edges = [mkEdge("a", "b")];
+    const host = createMockHost({
+      getPanel: () => ({
+        nodeSize: 10,
+        repelForce: 200,
+        linkDistance: 50,
+        linkForce: 0.5,
+        centerForce: 0.1,
+        nodeDisplayMode: "dot",
+        renderThresholds: {
+          maxNodeRadius: 100,
+          minNodeRadius: 5,
+          collisionPadding: 5,
+          cardCollisionPadding: 20,
+          superNodeCollisionPadding: 15,
+          nodeSizeByDegree: true,
+        },
+        nodeRules: [],
+        sortRules: [],
+        directionalGravityRules: [],
+        tagDisplay: "none",
+        enclosureSpacing: 1.5,
+        clusterArrangement: "spiral",
+        clusterGravity: { interGroupAttraction: 0.5, intraGroupDensity: 1.0 },
+        clusterGroupRules: [],
+        clusterFollowsGroupBy: false,
+        groupBy: "none",
+        autoFit: false,
+        timelineKey: "date",
+        timelineEndKey: "end-date",
+        timelineOrderFields: "",
+        coordinateLayout: null,
+        clusterNodeSpacing: 3,
+        clusterGroupScale: 3,
+        clusterGroupSpacing: 2,
+        clusterGroupArrangement: "auto",
+        orphanClusterField: "",
+      } as any),
+      getDegrees: () => new Map([["a", 1], ["b", 1]]),
+      setSimulation: vi.fn(),
+    });
+    const ctrl = new LayoutController(host);
+    const sim = ctrl.createForceSimulation(nodes, edges, 400, 300);
+    expect(sim).toBeTruthy();
+    expect(host.setSimulation).toHaveBeenCalledWith(sim);
+  });
+
+  it("scales repel force for small graphs (< 20 nodes)", () => {
+    const nodes = [mkNode("a"), mkNode("b"), mkNode("c")];
+    const edges: GraphEdge[] = [];
+    const host = createMockHost({
+      getPanel: () => ({
+        nodeSize: 10,
+        repelForce: 200,
+        linkDistance: 50,
+        linkForce: 0.5,
+        centerForce: 0.1,
+        nodeDisplayMode: "dot",
+        renderThresholds: {
+          maxNodeRadius: 100,
+          minNodeRadius: 5,
+          collisionPadding: 5,
+          cardCollisionPadding: 20,
+          superNodeCollisionPadding: 15,
+          nodeSizeByDegree: true,
+        },
+        nodeRules: [],
+        sortRules: [],
+        directionalGravityRules: [],
+        tagDisplay: "none",
+        enclosureSpacing: 1.5,
+        clusterArrangement: "spiral",
+        clusterGravity: { interGroupAttraction: 0.5, intraGroupDensity: 1.0 },
+        clusterGroupRules: [],
+        clusterFollowsGroupBy: false,
+        groupBy: "none",
+        autoFit: false,
+        timelineKey: "date",
+        timelineEndKey: "end-date",
+        timelineOrderFields: "",
+        coordinateLayout: null,
+        clusterNodeSpacing: 3,
+        clusterGroupScale: 3,
+        clusterGroupSpacing: 2,
+        clusterGroupArrangement: "auto",
+        orphanClusterField: "",
+      } as any),
+      getDegrees: () => new Map([["a", 0], ["b", 0], ["c", 0]]),
+      setSimulation: vi.fn(),
+    });
+    const ctrl = new LayoutController(host);
+    const sim = ctrl.createForceSimulation(nodes, edges, 400, 300);
+    expect(sim).toBeTruthy();
+  });
+
+  it("applies custom center gravity from node rules", () => {
+    const nodes = [mkNode("a", { tags: ["special"] }), mkNode("b")];
+    const edges: GraphEdge[] = [];
+    const host = createMockHost({
+      getPanel: () => ({
+        nodeSize: 10,
+        repelForce: 200,
+        linkDistance: 50,
+        linkForce: 0.5,
+        centerForce: 0.1,
+        nodeDisplayMode: "dot",
+        renderThresholds: {
+          maxNodeRadius: 100,
+          minNodeRadius: 5,
+          collisionPadding: 5,
+          cardCollisionPadding: 20,
+          superNodeCollisionPadding: 15,
+          nodeSizeByDegree: true,
+        },
+        nodeRules: [
+          {
+            query: "tag:special",
+            spacingMultiplier: 1.0,
+            gravityAngle: 0,
+            gravityStrength: 0.2,
+            repelMultiplier: 1.0,
+            centerGravity: 2.0,
+          },
+        ],
+        sortRules: [],
+        directionalGravityRules: [],
+        tagDisplay: "none",
+        enclosureSpacing: 1.5,
+        clusterArrangement: "spiral",
+        clusterGravity: { interGroupAttraction: 0.5, intraGroupDensity: 1.0 },
+        clusterGroupRules: [],
+        clusterFollowsGroupBy: false,
+        groupBy: "none",
+        autoFit: false,
+        timelineKey: "date",
+        timelineEndKey: "end-date",
+        timelineOrderFields: "",
+        coordinateLayout: null,
+        clusterNodeSpacing: 3,
+        clusterGroupScale: 3,
+        clusterGroupSpacing: 2,
+        clusterGroupArrangement: "auto",
+        orphanClusterField: "",
+      } as any),
+      getDegrees: () => new Map([["a", 0], ["b", 0]]),
+      setSimulation: vi.fn(),
+    });
+    const ctrl = new LayoutController(host);
+    const sim = ctrl.createForceSimulation(nodes, edges, 400, 300);
+    expect(sim).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyClusterForce
+// ---------------------------------------------------------------------------
+describe("LayoutController.applyClusterForce", () => {
+  function createSimMockFull(nodes: GraphNode[] = []) {
+    const forces = new Map<string, any>();
+    const sim: any = {
+      nodes: () => nodes,
+      force: (name: string, f?: any) => {
+        if (f === undefined) return forces.get(name) ?? null;
+        if (f === null) forces.delete(name);
+        else forces.set(name, f);
+        return sim;
+      },
+      alpha: (v?: number) => {
+        if (v !== undefined) return sim;
+        return sim;
+      },
+      restart: () => sim,
+    };
+    return sim;
+  }
+
+  it("returns early when no simulation", () => {
+    const host = createMockHost({ getSimulation: () => null });
+    const ctrl = new LayoutController(host);
+    expect(() => ctrl.applyClusterForce()).not.toThrow();
+  });
+
+  it("applies cluster force with default settings", () => {
+    const nodes = [mkNode("a"), mkNode("b")];
+    const sim = createSimMockFull(nodes);
+    const host = createMockHost({
+      getSimulation: () => sim,
+      getCanvasSize: () => ({ width: 800, height: 600 }),
+      getGraphEdges: () => [],
+      getDegrees: () => new Map([["a", 0], ["b", 0]]),
+      getPanel: () => ({
+        clusterArrangement: "spiral",
+        clusterGravity: { interGroupAttraction: 0.5, intraGroupDensity: 1.0 },
+        groupBy: "none",
+        clusterFollowsGroupBy: false,
+        clusterGroupRules: [],
+        autoFit: false,
+        nodeSize: 10,
+        nodeDisplayMode: "dot",
+        renderThresholds: {
+          clusterChargeForce: 400,
+          maxNodeRadius: 100,
+          minNodeRadius: 5,
+          collisionPadding: 5,
+          cardCollisionPadding: 20,
+          superNodeCollisionPadding: 15,
+          nodeSizeByDegree: true,
+        },
+        repelForce: 200,
+        linkDistance: 50,
+        linkForce: 0.5,
+        centerForce: 0.1,
+        sortRules: [],
+        nodeRules: [],
+        directionalGravityRules: [],
+        tagDisplay: "none",
+        enclosureSpacing: 1.5,
+        clusterGroupScale: 3,
+        clusterGroupSpacing: 2,
+        clusterNodeSpacing: 3,
+        clusterGroupArrangement: "auto",
+        timelineKey: "date",
+        timelineEndKey: "end-date",
+        timelineOrderFields: "",
+        coordinateLayout: null,
+        orphanClusterField: "",
+      } as any),
+      getTagMembership: () => new Map(),
+      getPixiNodes: () => new Map(),
+      setClusterMeta: vi.fn(),
+    });
+    const ctrl = new LayoutController(host);
+    ctrl.applyClusterForce(true);
+    expect(host.setClusterMeta).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveGroupLayoutMode (exported function)
+// ---------------------------------------------------------------------------
+describe("resolveGroupLayoutMode", () => {
+  it("returns custom arrangement when specified and not auto", () => {
+    const mode = resolveGroupLayoutMode("vertical", "spiral");
+    expect(mode).toBe("vertical");
+  });
+
+  it("returns auto-resolved mode from clusterArrangement concentric", () => {
+    const mode = resolveGroupLayoutMode(undefined, "concentric");
+    expect(mode).toBe("concentric");
+  });
+
+  it("returns auto-resolved mode from clusterArrangement radial", () => {
+    const mode = resolveGroupLayoutMode(undefined, "radial");
+    expect(mode).toBe("concentric");
+  });
+
+  it("returns vertical for timeline arrangement", () => {
+    const mode = resolveGroupLayoutMode(undefined, "timeline");
+    expect(mode).toBe("vertical");
+  });
+
+  it("returns circle as default", () => {
+    const mode = resolveGroupLayoutMode(undefined, "spiral");
+    expect(mode).toBe("circle");
+  });
+
+  it("respects auto when groupArrangement is explicitly auto", () => {
+    const mode = resolveGroupLayoutMode("auto", "spiral");
+    expect(mode).toBe("circle");
   });
 });

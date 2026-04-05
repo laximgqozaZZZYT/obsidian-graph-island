@@ -40,7 +40,7 @@ import type { PixiNode } from "./InteractionManager";
 // ---------------------------------------------------------------------------
 
 /** Resolve the inter-group layout mode from panel settings and arrangement */
-function resolveGroupLayoutMode(
+export function resolveGroupLayoutMode(
 	groupArrangement: string | undefined,
 	clusterArrangement: string,
 ): "circle" | "horizontal" | "concentric" | "vertical" | "grid" {

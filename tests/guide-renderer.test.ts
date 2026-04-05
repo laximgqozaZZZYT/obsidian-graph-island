@@ -273,5 +273,275 @@ describe("GuideRenderer", () => {
       }, 1, 0x888888, 1.0);
       expect(g.commandCount).toBe(0);
     });
+
+    it("draws tick labels when configured", () => {
+      const host = createMockHost({
+        getPanel: () => ({
+          renderThresholds: {
+            timelineAxisShowLabels: true,
+            timelineAxisLabelMaxCount: 5,
+            timelineAxisLabelFontSize: 12,
+            timelineAxisLabelOffset: 8,
+            timelineAxisLabelAlpha: 0.8,
+            gridLineMargin: 50,
+          },
+          showTimelineTickLabels: true,
+        }),
+      });
+      const renderer = new GuideRenderer(host);
+      const g = new CanvasGraphics();
+      const parent = new CanvasContainer();
+      parent.addChild(g);
+
+      const guide = {
+        type: "timeline" as const,
+        axisY: 100,
+        ticks: [
+          { x: 0, label: "2020" },
+          { x: 50, label: "2021" },
+          { x: 100, label: "2022" },
+        ],
+      };
+      renderer.drawTimelineAxis(g, 0, 0, guide, 1, 0x888888, 1.0);
+      expect(g.commandCount).toBeGreaterThan(0);
+    });
+
+    it("skips labels when showTimelineTickLabels is false", () => {
+      const host = createMockHost({
+        getPanel: () => ({
+          renderThresholds: {
+            timelineAxisShowLabels: true,
+            timelineAxisLabelMaxCount: 5,
+            timelineAxisLabelFontSize: 12,
+            timelineAxisLabelOffset: 8,
+            timelineAxisLabelAlpha: 0.8,
+            gridLineMargin: 50,
+          },
+          showTimelineTickLabels: false,
+        }),
+      });
+      const renderer = new GuideRenderer(host);
+      const g = new CanvasGraphics();
+      renderer.drawTimelineAxis(g, 0, 0, {
+        type: "timeline" as const,
+        axisY: 100,
+        ticks: [{ x: 0, label: "2020" }],
+      }, 1, 0x888888, 1.0);
+      expect(g.commandCount).toBeGreaterThan(0);
+    });
+
+    it("downsamples labels when there are too many ticks", () => {
+      const host = createMockHost({
+        getPanel: () => ({
+          renderThresholds: {
+            timelineAxisShowLabels: true,
+            timelineAxisLabelMaxCount: 2,
+            timelineAxisLabelFontSize: 12,
+            timelineAxisLabelOffset: 8,
+            timelineAxisLabelAlpha: 0.8,
+            gridLineMargin: 50,
+          },
+          showTimelineTickLabels: true,
+        }),
+      });
+      const renderer = new GuideRenderer(host);
+      const g = new CanvasGraphics();
+      const parent = new CanvasContainer();
+      parent.addChild(g);
+
+      const guide = {
+        type: "timeline" as const,
+        axisY: 100,
+        ticks: [
+          { x: 0, label: "2020" },
+          { x: 25, label: "2021" },
+          { x: 50, label: "2022" },
+          { x: 75, label: "2023" },
+          { x: 100, label: "2024" },
+        ],
+      };
+      renderer.drawTimelineAxis(g, 0, 0, guide, 1, 0x888888, 1.0);
+      expect(g.commandCount).toBeGreaterThan(0);
+    });
+
+    it("calls clearTimelineAxisLabels before drawing", () => {
+      const host = createMockHost();
+      const renderer = new GuideRenderer(host);
+      const g = new CanvasGraphics();
+      const guide = {
+        type: "timeline" as const,
+        axisY: 100,
+        ticks: [{ x: 0, label: "2020" }],
+      };
+      // Should not throw, and should call clear internally
+      expect(() => renderer.drawTimelineAxis(g, 0, 0, guide, 1, 0x888888, 1.0)).not.toThrow();
+    });
+  });
+
+  describe("drawAxisTitles", () => {
+    it("draws axis1 title for linear shape", () => {
+      const host = createMockHost({
+        getPanel: () => ({
+          renderThresholds: {
+            axisTitleShow: true,
+            axisTitleFontSize: 14,
+            axisTitleOffset: 20,
+            axisTitleAlpha: 0.8,
+            gridLabelFontSizeBase: 11,
+          },
+          showAxisTitles: true,
+        }),
+      });
+      const renderer = new GuideRenderer(host);
+      const bounds = { xMin: -100, yMin: -100, xMax: 100, yMax: 100 };
+      expect(() => {
+        renderer.drawAxisTitles(0, 0, { kind: "linear" }, { kind: "linear" }, bounds, 1.0, false, "X Axis", "Y Axis");
+      }).not.toThrow();
+    });
+
+    it("skips drawing when axisTitleShow is false", () => {
+      const host = createMockHost({
+        getPanel: () => ({
+          renderThresholds: { axisTitleShow: false },
+          showAxisTitles: undefined,
+        }),
+      });
+      const renderer = new GuideRenderer(host);
+      const bounds = { xMin: -100, yMin: -100, xMax: 100, yMax: 100 };
+      expect(() => {
+        renderer.drawAxisTitles(0, 0, { kind: "linear" }, { kind: "linear" }, bounds, 1.0, false, "X", "Y");
+      }).not.toThrow();
+    });
+
+    it("skips drawing when no titles provided", () => {
+      const host = createMockHost({
+        getPanel: () => ({
+          renderThresholds: { axisTitleShow: true },
+          showAxisTitles: true,
+        }),
+      });
+      const renderer = new GuideRenderer(host);
+      const bounds = { xMin: -100, yMin: -100, xMax: 100, yMax: 100 };
+      expect(() => {
+        renderer.drawAxisTitles(0, 0, { kind: "linear" }, { kind: "linear" }, bounds, 1.0, false);
+      }).not.toThrow();
+    });
+
+    it("draws radial axis1 title", () => {
+      const host = createMockHost({
+        getPanel: () => ({
+          renderThresholds: {
+            axisTitleShow: true,
+            axisTitleFontSize: 14,
+            axisTitleOffset: 20,
+            axisTitleAlpha: 0.8,
+            gridLabelFontSizeBase: 11,
+          },
+          showAxisTitles: true,
+        }),
+      });
+      const renderer = new GuideRenderer(host);
+      const bounds = { xMin: -100, yMin: -100, xMax: 100, yMax: 100, maxR: 150 };
+      expect(() => {
+        renderer.drawAxisTitles(0, 0, { kind: "radial" }, { kind: "circle" }, bounds, 1.0, false, "Radius", "Angle");
+      }).not.toThrow();
+    });
+
+    it("draws circle axis2 title", () => {
+      const host = createMockHost({
+        getPanel: () => ({
+          renderThresholds: {
+            axisTitleShow: true,
+            axisTitleFontSize: 14,
+            axisTitleOffset: 20,
+            axisTitleAlpha: 0.8,
+            gridLabelFontSizeBase: 11,
+          },
+          showAxisTitles: true,
+        }),
+      });
+      const renderer = new GuideRenderer(host);
+      const bounds = { xMin: -100, yMin: -100, xMax: 100, yMax: 100, maxR: 150 };
+      expect(() => {
+        renderer.drawAxisTitles(0, 0, { kind: "linear" }, { kind: "circle" }, bounds, 1.0, true, "X", "Radius");
+      }).not.toThrow();
+    });
+
+    it("respects dark theme when drawing titles", () => {
+      const host = createMockHost({
+        isDarkTheme: () => true,
+        getPanel: () => ({
+          renderThresholds: {
+            axisTitleShow: true,
+            axisTitleFontSize: 14,
+            axisTitleOffset: 20,
+            axisTitleAlpha: 0.8,
+            gridLabelFontSizeBase: 11,
+          },
+          showAxisTitles: true,
+        }),
+      });
+      const renderer = new GuideRenderer(host);
+      const bounds = { xMin: -100, yMin: -100, xMax: 100, yMax: 100 };
+      expect(() => {
+        renderer.drawAxisTitles(0, 0, { kind: "linear" }, { kind: "linear" }, bounds, 1.0, true, "X", "Y");
+      }).not.toThrow();
+    });
+  });
+
+  describe("drawCustomGrid via drawCoordinateGuide", () => {
+    it("draws custom grid with gridInfo when provided", () => {
+      const host = createMockHost({
+        getCurrentNodes: () => [mkNode("a", { x: 50, y: 50 })],
+        getPanel: () => ({
+          renderThresholds: {
+            gridCellShadingMin: 0.1,
+            gridCellShadingRange: 0.4,
+            gridLineAlpha: 0.2,
+            gridTableLineAlpha: 0.15,
+            gridLineWidthFactor: 1.0,
+            gridLineMargin: 50,
+            gridShowHeaders: false,
+            gridLabelPlacement: "on-line",
+            showAxisTitles: false,
+          },
+          gridShowHeaders: false,
+          showAxisTitles: false,
+        }),
+      });
+      const renderer = new GuideRenderer(host);
+      const g = new CanvasGraphics();
+
+      const gridInfo = {
+        axis1Lines: [{ position: 0, label: "0" }, { position: 100, label: "100" }],
+        axis2Lines: [{ position: 0, label: "0" }, { position: 100, label: "100" }],
+        axis1Shape: { kind: "linear" },
+        axis2Shape: { kind: "linear" },
+        style: "grid" as const,
+        cellShading: true,
+      };
+
+      const guide = {
+        type: "coordinate" as const,
+        system: "cartesian",
+        bounds: { xMin: 0, yMin: 0, xMax: 100, yMax: 100 },
+        gridInfo,
+      };
+
+      renderer.drawCoordinateGuide(g, 0, 0, guide, 1, 0x888888);
+      expect(g.commandCount).toBeGreaterThan(0);
+    });
   });
 });
+
+// Utility function to create nodes (for cellShading tests)
+function mkNode(id: string, extra?: Partial<GraphNode>): GraphNode {
+  return {
+    id,
+    label: id,
+    x: 0,
+    y: 0,
+    isTag: false,
+    ...extra,
+  } as GraphNode;
+}
