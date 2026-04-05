@@ -128,9 +128,14 @@ else
 fi
 log "Focus area: $FOCUS (session slot $((ACTIVE_COUNT + 1)))"
 
-# ── CDP check ──
+# ── CDP check (E2E runs via CDP — no display occupation) ──
+# CDP page.screenshot() captures the internal render buffer,
+# not the visible window. This is fully background-compatible.
 CDP_AVAILABLE=false
-curl -sf "http://localhost:9222/json/version" >/dev/null 2>&1 && CDP_AVAILABLE=true
+if curl -sf "http://localhost:9222/json/version" >/dev/null 2>&1; then
+  CDP_AVAILABLE=true
+  log "CDP available — E2E screenshot + readability checks enabled (background, no display occupation)"
+fi
 
 # ============================================================
 # IMPROVEMENT LOOP
@@ -144,7 +149,12 @@ for iter in $(seq 1 "$MAX_ITERATIONS"); do
   GATE_JSON=$(bash scripts/pipeline/enforce-gates.sh --json --skip-e2e 2>/dev/null || echo '{"passed":0}')
   GODOBJ_JSON=$(bash scripts/pipeline/god-object-audit.sh --json 2>&1 || echo '{"passed":0}')
 
+  # Include visual regression feedback from previous iteration
   VISUAL_INFO="CDP unavailable"
+  if [[ -n "${VISUAL_ISSUE:-}" ]]; then
+    VISUAL_INFO="VISUAL REGRESSION: $VISUAL_ISSUE"
+    VISUAL_ISSUE=""  # consume once
+  fi
   if [[ "$CDP_AVAILABLE" == true ]]; then
     npx tsx scripts/pipeline/visual-report.ts 2>/dev/null
     VISUAL_INFO=$(python3 -c "
@@ -218,6 +228,43 @@ focus=$FOCUS の改善を1つ実装せよ:
   if [[ "$VERIFY_OK" != true ]]; then
     log "ABORT: Gates failed after 3 fix attempts"
     break
+  fi
+
+  # ── E2E VISUAL CHECK (background, no display occupation) ──
+  if [[ "$CDP_AVAILABLE" == true ]]; then
+    log "E2E: capturing screenshot + readability analysis (background)..."
+    # Build + deploy first so Obsidian picks up changes
+    node esbuild.config.mjs production >/dev/null 2>&1
+    cp main.js "$PROJECT_DIR/../開発/.obsidian/plugins/graph-island/main.js" 2>/dev/null || true
+    cp main.js "$PROJECT_DIR/../.obsidian/plugins/graph-island/main.js" 2>/dev/null || true
+    sleep 3  # wait for Obsidian to hot-reload
+
+    # Run visual report (CDP screenshot = background, no display needed)
+    VISUAL_OUT=$(npx tsx "$PROJECT_DIR/scripts/pipeline/visual-report.ts" 2>&1 || echo "visual report failed")
+    VISUAL_SCORE=$(python3 -c "
+import json
+r=json.load(open('$PROJECT_DIR/scripts/pipeline/visual-report.json'))
+print(r['overallScore'])
+" 2>/dev/null || echo "0")
+    READABILITY_SCORE=$(python3 -c "
+import json
+r=json.load(open('$PROJECT_DIR/scripts/pipeline/visual-report.json'))
+sr = next((s for s in r['scores'] if s['name']=='screenshotReadability'), None)
+print(sr['score'] if sr else 0)
+" 2>/dev/null || echo "0")
+    SCREENSHOT=$(python3 -c "
+import json
+r=json.load(open('$PROJECT_DIR/scripts/pipeline/visual-report.json'))
+print(r.get('screenshot','none'))
+" 2>/dev/null || echo "none")
+
+    log "E2E: overall=$VISUAL_SCORE/100, readability=$READABILITY_SCORE/100, screenshot=$SCREENSHOT"
+
+    if [[ "$READABILITY_SCORE" -lt 30 ]]; then
+      log "WARN: Readability score $READABILITY_SCORE < 30 — visual regression detected"
+      # Feed back to Claude for the next iteration
+      VISUAL_ISSUE="E2E readability score is $READABILITY_SCORE/100 (critical). Screenshot: $SCREENSHOT. Check visual-report.json for details."
+    fi
   fi
 
   # ── COMMIT in worktree ──

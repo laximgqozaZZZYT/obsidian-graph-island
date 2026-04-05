@@ -175,7 +175,7 @@ async function measureAll(page: Page): Promise<VisualReport> {
     scores.push({ name: "domHealth", score: Math.round(s), status: classify(Math.round(s)), details: domHealth, issues: domHealth.overflowElements > 3 ? ["DOM overflow issues"] : [] });
   }
 
-  // ── 6. Screenshot capture ──
+  // ── 6. Screenshot capture + pixel readability analysis ──
   let screenshotPath: string | null = null;
   try {
     const ssDir = path.join(__dirname, "../../e2e/pipeline-screenshots");
@@ -185,6 +185,120 @@ async function measureAll(page: Page): Promise<VisualReport> {
     await page.screenshot({ path: screenshotPath, fullPage: false });
   } catch {
     screenshotPath = null;
+  }
+
+  // ── 7. Screenshot readability analysis (pixel-level) ──
+  const readability = await page.evaluate(() => {
+    const leaves = (window as any).app.workspace.getLeavesOfType("graph-view");
+    const v = leaves.find((l: any) => "pixiNodes" in l.view)?.view;
+    if (!v) return { canvasVisible: false, colorVariety: 0, emptyRatio: 1, zoomLevel: 0, isZoomedToFit: false };
+
+    // Check if canvas has visible content
+    const canvas = v.pixiApp?.view as HTMLCanvasElement | undefined;
+    if (!canvas) return { canvasVisible: false, colorVariety: 0, emptyRatio: 1, zoomLevel: 0, isZoomedToFit: false };
+
+    // Sample pixels for content analysis
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return { canvasVisible: true, colorVariety: 0, emptyRatio: 0.5, zoomLevel: v._worldScale ?? 1, isZoomedToFit: false };
+
+    const w = canvas.width, h = canvas.height;
+    const step = Math.max(1, Math.floor(Math.min(w, h) / 50));
+    const colors = new Set<string>();
+    let bgCount = 0, totalSampled = 0;
+
+    // Detect background color from corners
+    const cornerPixels = [
+      ctx.getImageData(2, 2, 1, 1).data,
+      ctx.getImageData(w - 3, 2, 1, 1).data,
+      ctx.getImageData(2, h - 3, 1, 1).data,
+      ctx.getImageData(w - 3, h - 3, 1, 1).data,
+    ];
+    const bgR = cornerPixels[0][0], bgG = cornerPixels[0][1], bgB = cornerPixels[0][2];
+
+    for (let y = 0; y < h; y += step) {
+      for (let x = 0; x < w; x += step) {
+        const px = ctx.getImageData(x, y, 1, 1).data;
+        totalSampled++;
+        // Check if pixel is close to background
+        const dr = Math.abs(px[0] - bgR), dg = Math.abs(px[1] - bgG), db = Math.abs(px[2] - bgB);
+        if (dr < 15 && dg < 15 && db < 15) {
+          bgCount++;
+        } else {
+          // Quantize color to reduce noise
+          const qr = Math.round(px[0] / 32) * 32;
+          const qg = Math.round(px[1] / 32) * 32;
+          const qb = Math.round(px[2] / 32) * 32;
+          colors.add(`${qr},${qg},${qb}`);
+        }
+      }
+    }
+
+    const emptyRatio = totalSampled > 0 ? bgCount / totalSampled : 1;
+    const ws = v._worldScale ?? v.worldScale ?? 1;
+
+    // Check if view is zoomed to fit (all nodes visible in viewport)
+    let nodesInView = 0, totalNodes = 0;
+    if (v.pixiNodes) {
+      for (const [, n] of v.pixiNodes.entries()) {
+        totalNodes++;
+        const nx = n.data?.x ?? 0, ny = n.data?.y ?? 0;
+        // Rough check: is node position within canvas bounds after transform
+        if (Number.isFinite(nx) && Number.isFinite(ny)) nodesInView++;
+      }
+    }
+
+    return {
+      canvasVisible: true,
+      colorVariety: colors.size,
+      emptyRatio: Math.round(emptyRatio * 1000) / 1000,
+      zoomLevel: Math.round(ws * 1000) / 1000,
+      isZoomedToFit: emptyRatio < 0.85 && emptyRatio > 0.3,
+      nodesInView,
+      totalNodes,
+      canvasWidth: w,
+      canvasHeight: h,
+    };
+  });
+  {
+    let s = 50; // baseline
+    const issues: string[] = [];
+
+    if (!readability.canvasVisible) {
+      s = 0;
+      issues.push("Canvas not visible");
+    } else {
+      // Empty ratio: too much empty space = not zoomed to fit
+      if (readability.emptyRatio > 0.9) {
+        s -= 30;
+        issues.push(`${Math.round(readability.emptyRatio * 100)}% empty — nodes may not be visible`);
+      } else if (readability.emptyRatio > 0.8) {
+        s -= 10;
+        issues.push(`${Math.round(readability.emptyRatio * 100)}% empty — zoom-to-fit may not be working`);
+      } else {
+        s += 20; // good fill ratio
+      }
+
+      // Color variety: more colors = more readable graph
+      if (readability.colorVariety > 15) s += 20;
+      else if (readability.colorVariety > 5) s += 10;
+      else { s -= 10; issues.push(`Low color variety (${readability.colorVariety} colors)`); }
+
+      // Zoom level check
+      if (readability.zoomLevel < 0.05) {
+        s -= 20;
+        issues.push(`Extreme zoom-out (${readability.zoomLevel}) — labels unreadable`);
+      }
+    }
+
+    s = Math.max(0, Math.min(100, s));
+    if (issues.length > 0) allIssues.push(...issues);
+    scores.push({
+      name: "screenshotReadability",
+      score: Math.round(s),
+      status: classify(Math.round(s)),
+      details: readability,
+      issues,
+    });
   }
 
   // ── Overall Score ──
