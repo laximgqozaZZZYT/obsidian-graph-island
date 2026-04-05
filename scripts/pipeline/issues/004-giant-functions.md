@@ -1,7 +1,7 @@
 ---
 priority: medium
 reported: 2026-04-05
-status: pending
+status: in-progress
 source: auto-discovered
 summary: 10個の巨大関数 (120行以上) が存在
 ---
