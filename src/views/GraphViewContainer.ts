@@ -161,7 +161,6 @@ import {
 	EVENT_HIGHLIGHT_NODES,
 	EVENT_COMPARE_NODES,
 	EVENT_SYNC_PANEL,
-	POLAR_ARRANGEMENTS,
 } from "../constants";
 import {
 	viewModeToLayout,
