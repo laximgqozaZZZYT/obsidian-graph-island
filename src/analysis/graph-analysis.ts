@@ -5,7 +5,7 @@ import { incCounter, buildAdjFromEdges } from "../utils/graph-helpers";
 // Graph Statistics (Feature CX)
 // ---------------------------------------------------------------------------
 
-export interface GraphStats {
+interface GraphStats {
 	nodeCount: number;
 	edgeCount: number;
 	avgDegree: number;

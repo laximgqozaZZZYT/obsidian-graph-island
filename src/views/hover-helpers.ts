@@ -124,13 +124,6 @@ function appendSimilarSuggestions(text: string, nodeId: string, opts: HoverToolt
 // Off-screen link tooltips: neighbor grouping
 // ---------------------------------------------------------------------------
 
-export interface OffScreenNeighborGroup {
-	clusterKey: string;
-	names: string[];
-	avgSx: number;
-	avgSy: number;
-}
-
 export interface OffScreenNodeInfo {
 	id: string;
 	gfxX: number;

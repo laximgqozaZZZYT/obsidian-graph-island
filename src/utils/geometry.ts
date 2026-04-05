@@ -82,7 +82,7 @@ export interface BBox {
 	maxY: number;
 }
 
-export interface BBoxWithCentroid extends BBox {
+interface BBoxWithCentroid extends BBox {
 	cx: number;
 	cy: number;
 	count: number;

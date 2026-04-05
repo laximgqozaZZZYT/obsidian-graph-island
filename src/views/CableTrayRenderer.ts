@@ -148,20 +148,10 @@ export const HIGHLIGHT_CABLE_TRUNK_WIDTH = 3;
 export const CABLE_FAN_CROWD_THRESHOLD = 6.0;
 /** Cable fan crowd min alpha fraction */
 export const CABLE_FAN_CROWD_MIN_FRACTION = 0.4;
-/** Cable fan alpha factor for highlighted (connected) edges */
-export const CABLE_FAN_CONNECTED_FACTOR = 0.8;
-/** Cable fan alpha dampen factor for non-matching edges during hover */
-export const CABLE_FAN_NON_MATCH_DAMPEN = 0.15;
 /** Cable lane spacing in screen pixels — wide enough to distinguish parallel cables */
 export const CABLE_LANE_SPACING = 14;
-/** Cable layout margin from cluster boundary */
-export const CABLE_LAYOUT_MARGIN = 5;
-/** Cable layout overlap start/end fraction */
-export const CABLE_OVERLAP_FRAC = 0.4;
 /** Trunk conduit alpha — semi-transparent so wires show through */
 export const TRUNK_CONDUIT_ALPHA = 0.12;
-/** Cable conduit alpha — semi-transparent so wires show through */
-export const CABLE_CONDUIT_ALPHA = 0;
 /** Wire alpha — most opaque layer, clearly visible */
 export const WIRE_BASE_ALPHA = 0.9;
 /** Wire spacing within a cable (screen pixels between parallel wires) */
@@ -176,10 +166,6 @@ export const CABLE_SCREEN_WIDTH = 6;
 export const WIRE_SCREEN_WIDTH = 2.5;
 /** Default fallback cluster radius */
 export const DEFAULT_CLUSTER_RADIUS = 50;
-/** Node port offset: fraction of node spacing to place port below/beside node */
-export const NODE_PORT_OFFSET_RATIO = 0.5;
-/** Minimum node port offset distance (world units) */
-export const NODE_PORT_MIN_OFFSET = 50;
 
 // ---------------------------------------------------------------------------
 // Zoom fade

@@ -56,18 +56,6 @@ export interface HierarchyTree {
 	children: Map<string, { id: string; storyOrder: number }[]>;
 }
 
-/** 完全な中間表現 */
-export interface TimelineGraph {
-	nodes: Map<string, TimelineNode>;
-	edges: TimelineEdge[];
-	/** 検出されたチェーン (線形シーケンス) */
-	chains: TimelineChain[];
-	/** 検出されたサイクル (バックエッジ) */
-	cycles: CycleBackEdge[];
-	/** 階層ツリー (親→子) */
-	hierarchies: HierarchyTree[];
-}
-
 // ---------------------------------------------------------------------------
 // レーン割り当てモデル
 // ---------------------------------------------------------------------------

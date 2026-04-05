@@ -34,7 +34,7 @@ import {
 import { CURVE_REGISTRY } from "../layouts/coordinate-presets";
 
 /** Result of parsing a transform expression */
-export interface TransformExprResult {
+interface TransformExprResult {
 	source: AxisSource;
 	transform: AxisTransform;
 }
@@ -80,7 +80,7 @@ const TRANSFORM_FUNCTIONS: Record<string, TransformFactory> = {
 };
 
 /** All known function names (for autocomplete) */
-export const TRANSFORM_FUNCTION_NAMES = Object.keys(TRANSFORM_FUNCTIONS);
+const TRANSFORM_FUNCTION_NAMES = Object.keys(TRANSFORM_FUNCTIONS);
 
 // ---------------------------------------------------------------------------
 // Parser

@@ -10,7 +10,7 @@ import type { CanvasAppOptions } from "./canvas2d";
 import type { IApp } from "./canvas2d/interfaces";
 import { WebGLApp } from "./webgl";
 
-export type RendererBackend = "canvas2d" | "webgl";
+type RendererBackend = "canvas2d" | "webgl";
 
 /**
  * Detect whether the current environment supports WebGL2.

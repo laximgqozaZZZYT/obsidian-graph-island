@@ -6,44 +6,42 @@
 // (no PixiJS / Obsidian dependencies) to enable unit testing.
 // ---------------------------------------------------------------------------
 
-import type { App } from "obsidian";
 import type { GraphNode, GraphEdge } from "../types";
 import { evaluateExpr, parseQueryExpr } from "../utils/query-expr";
-import { queryDataviewPages, filterNodesByDataview } from "../utils/dataview-source";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 /** A single parsed hop filter entry, e.g. hop:alice:2 */
-export interface HopFilterEntry {
+interface HopFilterEntry {
 	name: string; // lowercase node-name fragment
 	hops: number; // BFS depth
 }
 
 /** Result of parsing a raw search query for hop filters */
-export interface ParsedSearchQuery {
+interface ParsedSearchQuery {
 	hopFilters: HopFilterEntry[];
 	/** The remaining text after hop:x:n patterns are removed (lowercased, trimmed) */
 	remainingText: string;
 }
 
 /** Result of applying search expression to a node list */
-export interface SearchFilterResult {
+interface SearchFilterResult {
 	nodes: GraphNode[];
 	/** Non-null when searchMode === "highlight" — set of matched node IDs */
 	highlightSet: Set<string> | null;
 }
 
 /** Per-node search match classification */
-export interface SearchMatchResult {
+interface SearchMatchResult {
 	isMatch: boolean;
 	hopMatch: boolean;
 	textMatch: boolean;
 }
 
 /** Card halo geometry for search highlight rendering */
-export interface CardHaloGeometry {
+interface CardHaloGeometry {
 	halfW: number;
 	halfH: number;
 	outset: number;
@@ -164,31 +162,6 @@ export function filterBySearchExpr(
 	};
 }
 
-/**
- * Apply dataview query to filter nodes.
- * Wraps the dataview query call so GVC._filterByQuery can delegate.
- *
- * @param nodes          Current node list
- * @param app            Obsidian App instance (for dataview API)
- * @param dataviewQuery  DQL query string
- * @param showTagNodes   Whether tag nodes are shown
- * @returns Filtered nodes
- */
-export function filterByDataview(
-	nodes: GraphNode[],
-	app: App,
-	dataviewQuery: string,
-	showTagNodes: boolean,
-): GraphNode[] {
-	const trimmed = dataviewQuery.trim();
-	if (!trimmed) return nodes;
-
-	const matchingPaths = queryDataviewPages(app, trimmed);
-	if (matchingPaths.size > 0) {
-		return filterNodesByDataview(nodes, matchingPaths, showTagNodes);
-	}
-	return nodes;
-}
 
 // ---------------------------------------------------------------------------
 // Search match classification
@@ -308,7 +281,7 @@ export function capNodesByDegree(
 // ---------------------------------------------------------------------------
 
 /** Minimal panel shape needed by buildRichStatus */
-export interface StatusPanelInfo {
+interface StatusPanelInfo {
 	localGraphCenter?: string | null;
 	focusLayout?: boolean;
 	collapsedGroups?: { size: number };

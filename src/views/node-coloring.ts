@@ -15,7 +15,7 @@ export const COMMUNITY_PALETTE: readonly number[] = [
 	0xaec7e8, 0xffbb78, 0x98df8a, 0xff9896, 0xc5b0d5, 0xc49c94, 0xf7b6d2, 0xc7c7c7, 0xdbdb8d, 0x9edae5,
 ];
 
-export interface NodeColorContext {
+interface NodeColorContext {
 	groups: GroupRule[];
 	colorMode: string;
 	colorField?: string;

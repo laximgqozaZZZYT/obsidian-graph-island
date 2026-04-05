@@ -15,13 +15,13 @@ import type { GraphNode } from "../types";
 // Data structures
 // ---------------------------------------------------------------------------
 
-export interface RoadIntersection {
+interface RoadIntersection {
 	id: number;
 	x: number;
 	y: number;
 }
 
-export interface RoadSegment {
+interface RoadSegment {
 	from: number;
 	to: number;
 	/** Intermediate waypoints for curved segments (ring arcs) */
@@ -47,7 +47,7 @@ export interface RoadNetwork {
 // Road network generation
 // ---------------------------------------------------------------------------
 
-export interface GridLineInput {
+interface GridLineInput {
 	position: number;
 	label?: string;
 }

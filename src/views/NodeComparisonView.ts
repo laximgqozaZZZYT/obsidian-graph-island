@@ -15,7 +15,7 @@ interface CompareEvent {
 }
 
 /** 比較結果の計算データ */
-export interface ComparisonResult {
+interface ComparisonResult {
 	sharedNeighbors: string[];
 	uniqueToA: string[];
 	uniqueToB: string[];

@@ -44,7 +44,7 @@ export interface TooltipAdjustInput {
 	cardAspectRatio: number;
 }
 
-export interface TooltipAdjustResult {
+interface TooltipAdjustResult {
 	x: number;
 	y: number;
 }

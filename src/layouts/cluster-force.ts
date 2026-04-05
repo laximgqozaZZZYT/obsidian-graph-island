@@ -114,7 +114,7 @@ export interface TimelineRoute {
 
 /** Metadata about cluster assignments, exposed for edge bundling. */
 /** Per-group guide entry — associates arrangement guide data with group center */
-export interface GroupGuideEntry {
+interface GroupGuideEntry {
 	guide: ArrangementGuide;
 	centerX: number;
 	centerY: number;

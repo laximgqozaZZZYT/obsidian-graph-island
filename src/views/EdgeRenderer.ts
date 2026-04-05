@@ -284,7 +284,7 @@ const SEQUENCE_COLOR = 0xef4444; // red-500 — sequential order (directional)
 // ---------------------------------------------------------------------------
 // Edge type specification map — single source of truth for per-type behavior
 // ---------------------------------------------------------------------------
-export interface EdgeTypeSpec {
+interface EdgeTypeSpec {
 	/** Which EdgeDrawConfig field controls visibility */
 	visibilityField: keyof EdgeDrawConfig;
 	/** Fixed color for this edge type, or null to use relation/default color */
@@ -361,11 +361,11 @@ export const DENSITY_GENTLE_THRESHOLD = 500;
 /** Density scale: aggressive fade upper bound */
 export const DENSITY_AGGRESSIVE_THRESHOLD = 2000;
 /** Density scale: gentle fade reduction factor */
-export const DENSITY_GENTLE_REDUCTION = 0.35;
+const DENSITY_GENTLE_REDUCTION = 0.35;
 /** Density scale: aggressive fade mid-alpha */
-export const DENSITY_AGGRESSIVE_MID_ALPHA = 0.65;
+const DENSITY_AGGRESSIVE_MID_ALPHA = 0.65;
 /** Density scale: aggressive fade reduction */
-export const DENSITY_AGGRESSIVE_REDUCTION = 0.35;
+const DENSITY_AGGRESSIVE_REDUCTION = 0.35;
 /** Density scale: floor alpha */
 export const DENSITY_MIN_ALPHA = 0.4;
 /** Zoom fade threshold for extreme zoom-out */
@@ -519,7 +519,7 @@ function buildDirectionBundles(
 // ---------------------------------------------------------------------------
 
 /** 引込口の方向 (将来のグループ内ルーティング用に残す) */
-export type PortDirection = "N" | "S" | "E" | "W";
+type PortDirection = "N" | "S" | "E" | "W";
 
 /** オントロジー型エッジかどうか */
 export function isOntologyEdge(e: GraphEdge): boolean {

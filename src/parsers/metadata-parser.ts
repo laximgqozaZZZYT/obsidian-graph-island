@@ -681,7 +681,7 @@ export function buildRelationColorMap(edges: GraphEdge[]): Map<string, string> {
  * Define `meta` as a live getter that reads from metadataCache on every access.
  * This ensures frontmatter changes are always reflected without manual refresh.
  */
-export function defineLiveMeta(node: GraphNode, app: App): void {
+function defineLiveMeta(node: GraphNode, app: App): void {
 	Object.defineProperty(node, "meta", {
 		get() {
 			if (!node.filePath) return undefined;
