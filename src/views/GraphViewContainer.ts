@@ -79,7 +79,8 @@ import {
 	filterBySubgraph,
 	filterByLocalGraph,
 } from "../utils/graph-filter";
-import { pointInPolygon } from "../utils/geometry";
+import { pointInPolygon, hitTestAggregateRegions, computeGroupMemberBounds } from "../utils/geometry";
+import type { AggregateHitRegion } from "../utils/geometry";
 import {
 	AGGREGATE_ZOOM_THRESHOLD,
 	collectGroupCentroids,
@@ -620,9 +621,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _aggregateGraphics: CanvasGraphics | null = null;
 	/** Zoom-aggregate: folder summary labels */
 	private _aggregateLabels: CanvasText[] = [];
-	/** Zoom-aggregate: label hit regions for click-to-zoom [worldX, worldY, worldW, worldH, centroidX, centroidY, radius] */
-	private _aggregateHitRegions: { x: number; y: number; w: number; h: number; cx: number; cy: number; r: number }[] =
-		[];
+	/** Zoom-aggregate: label hit regions for click-to-zoom */
+	private _aggregateHitRegions: AggregateHitRegion[] = [];
 	/** Graphics for cluster boundary outlines */
 	private clusterBoundaryGraphics: CanvasGraphics | null = null;
 	/** Viewport dirty flag — set by markDirty, consumed by onPostRender */
@@ -5401,18 +5401,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** Hit-test group/aggregate labels and zoom to the matching cluster. */
 	hitTestAndZoomGroupLabel(wx: number, wy: number): boolean {
 		// Check aggregate hit regions (zoom-out folder summaries)
-		for (const hr of this._aggregateHitRegions) {
-			if (wx >= hr.x && wx <= hr.x + hr.w && wy >= hr.y && wy <= hr.y + hr.h) {
-				this._zoomToWorldRect(hr.cx - hr.r, hr.cy - hr.r, hr.r * 2, hr.r * 2);
-				return true;
-			}
-			// Also check the circle area itself
-			const dx = wx - hr.cx,
-				dy = wy - hr.cy;
-			if (dx * dx + dy * dy <= hr.r * hr.r) {
-				this._zoomToWorldRect(hr.cx - hr.r, hr.cy - hr.r, hr.r * 2, hr.r * 2);
-				return true;
-			}
+		const hitRegion = hitTestAggregateRegions(wx, wy, this._aggregateHitRegions);
+		if (hitRegion) {
+			this._zoomToWorldRect(hitRegion.cx - hitRegion.r, hitRegion.cy - hitRegion.r, hitRegion.r * 2, hitRegion.r * 2);
+			return true;
 		}
 		// Check groupBy labels
 		for (const [, txt] of this.groupByLabels) {
@@ -5423,29 +5415,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const lx = txt.x - tw / 2;
 			const ly = txt.y - th / 2;
 			if (wx >= lx && wx <= lx + tw && wy >= ly && wy <= ly + th) {
-				// Find members of this group to compute bounding box
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime property on CanvasText
-				const memberKey = (txt as any)._groupKey;
+				const memberKey = (txt as any)._groupKey as string | undefined;
 				if (memberKey) {
-					const members: { x: number; y: number }[] = [];
-					for (const pn of this.pixiNodes.values()) {
-						if (pn.data.filePath?.startsWith(memberKey) || pn.data.id?.startsWith(memberKey)) {
-							members.push({ x: pn.data.x, y: pn.data.y });
-						}
-					}
-					if (members.length > 0) {
-						let minX = Infinity,
-							minY = Infinity,
-							maxX = -Infinity,
-							maxY = -Infinity;
-						for (const m of members) {
-							if (m.x < minX) minX = m.x;
-							if (m.y < minY) minY = m.y;
-							if (m.x > maxX) maxX = m.x;
-							if (m.y > maxY) maxY = m.y;
-						}
-						const pad = 50;
-						this._zoomToWorldRect(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2);
+					const bounds = computeGroupMemberBounds(this.pixiNodes.values(), memberKey, 50);
+					if (bounds) {
+						this._zoomToWorldRect(bounds.x, bounds.y, bounds.w, bounds.h);
 						return true;
 					}
 				}

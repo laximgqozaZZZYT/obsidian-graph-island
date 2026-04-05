@@ -1,5 +1,67 @@
 export type Pt = { x: number; y: number };
 
+/** Hit region for aggregate group circles (label rect + circle area). */
+export interface AggregateHitRegion {
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+	cx: number;
+	cy: number;
+	r: number;
+}
+
+/**
+ * Hit-test a point against a list of aggregate hit regions.
+ * Each region has both a rectangular label area and a circular area.
+ * Returns the first matching region, or null if none match.
+ */
+export function hitTestAggregateRegions(
+	wx: number,
+	wy: number,
+	regions: readonly AggregateHitRegion[],
+): AggregateHitRegion | null {
+	for (const hr of regions) {
+		// Rectangular label area
+		if (wx >= hr.x && wx <= hr.x + hr.w && wy >= hr.y && wy <= hr.y + hr.h) {
+			return hr;
+		}
+		// Circular area
+		const dx = wx - hr.cx;
+		const dy = wy - hr.cy;
+		if (dx * dx + dy * dy <= hr.r * hr.r) {
+			return hr;
+		}
+	}
+	return null;
+}
+
+/**
+ * Collect positions of nodes whose filePath or id starts with the given key prefix,
+ * then compute the padded bounding rect {x, y, w, h}.
+ * Returns null if no members match.
+ */
+export function computeGroupMemberBounds(
+	nodes: Iterable<{ data: { filePath?: string; id?: string; x: number; y: number } }>,
+	memberKey: string,
+	padding: number,
+): Rect | null {
+	const members: Pt[] = [];
+	for (const pn of nodes) {
+		if (pn.data.filePath?.startsWith(memberKey) || pn.data.id?.startsWith(memberKey)) {
+			members.push({ x: pn.data.x, y: pn.data.y });
+		}
+	}
+	if (members.length === 0) return null;
+	const bb = computeBoundingBox(members);
+	return {
+		x: bb.minX - padding,
+		y: bb.minY - padding,
+		w: bb.maxX - bb.minX + padding * 2,
+		h: bb.maxY - bb.minY + padding * 2,
+	};
+}
+
 /** Axis-aligned rectangle for overlap testing */
 export interface Rect {
 	x: number;
