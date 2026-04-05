@@ -2716,9 +2716,11 @@ function concentricOffsets(p: ArrangementParams): ArrangementResult {
 		}
 		cap = Math.max(1, cap);
 
-		// Extend capacity to include all tied nodes at the boundary
-		// (prefer keeping tied nodes on the same ring over strict capacity)
-		while (cap < n - idx && cmp(sorted[idx + cap - 1], sorted[idx + cap]) === 0) {
+		// Extend capacity to include tied nodes at the boundary, but cap the
+		// extension to avoid stuffing an unbounded number of same-degree nodes
+		// onto a single ring (which causes overlap).
+		const maxCap = Math.max(cap * 2, Math.ceil(circumference / (nodeSize * 2 * groupScale)));
+		while (cap < n - idx && cap < maxCap && cmp(sorted[idx + cap - 1], sorted[idx + cap]) === 0) {
 			cap++;
 		}
 
