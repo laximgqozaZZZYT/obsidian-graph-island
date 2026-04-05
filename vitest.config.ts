@@ -13,10 +13,10 @@ export default defineConfig({
       reportsDirectory: "coverage",
       thresholds: {
         // Ratchet: node-coloring pure-function tests (+23 tests)
-        statements: 46.9,
-        branches: 41.4,
+        statements: 47.0,
+        branches: 41.5,
         functions: 44.2,
-        lines: 47.3,
+        lines: 47.4,
       },
     },
   },
