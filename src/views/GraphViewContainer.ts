@@ -79,7 +79,8 @@ import {
 	filterBySubgraph,
 	filterByLocalGraph,
 } from "../utils/graph-filter";
-import { pointInPolygon } from "../utils/geometry";
+import { pointInPolygon, hitTestAggregateRegions, computeGroupMemberBounds } from "../utils/geometry";
+import type { AggregateHitRegion } from "../utils/geometry";
 import {
 	AGGREGATE_ZOOM_THRESHOLD,
 	collectGroupCentroids,
@@ -132,6 +133,7 @@ import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./Stat
 import { buildPanelCallbacks, type PanelCallbackHost } from "./panel-callbacks";
 import { renderLegend, type LegendHost, type LegendPanel } from "./LegendRenderer";
 import { renderTimelineBars } from "./timeline-bar-renderer";
+import { adjustTooltipPosition, type PanelRect } from "../utils/tooltip-position";
 import { handleShortcutKey, type KeyboardHost } from "./KeyboardHandler";
 import {
 	groupNodesByField,
@@ -619,9 +621,8 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private _aggregateGraphics: CanvasGraphics | null = null;
 	/** Zoom-aggregate: folder summary labels */
 	private _aggregateLabels: CanvasText[] = [];
-	/** Zoom-aggregate: label hit regions for click-to-zoom [worldX, worldY, worldW, worldH, centroidX, centroidY, radius] */
-	private _aggregateHitRegions: { x: number; y: number; w: number; h: number; cx: number; cy: number; r: number }[] =
-		[];
+	/** Zoom-aggregate: label hit regions for click-to-zoom */
+	private _aggregateHitRegions: AggregateHitRegion[] = [];
 	/** Graphics for cluster boundary outlines */
 	private clusterBoundaryGraphics: CanvasGraphics | null = null;
 	/** Viewport dirty flag — set by markDirty, consumed by onPostRender */
@@ -4771,56 +4772,43 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		const canvasRect = canvas.getBoundingClientRect();
 		if (!canvasRect || canvasRect.width === 0) return;
 
-		// Compute tooltip screen position
-		const ws = world.scale.x;
-		const tipWorldX = pn.data.x + hl.x * (1 / gfxScale);
-		const tipWorldY = pn.data.y + hl.y * (1 / gfxScale);
-		const tipScrX = tipWorldX * ws + world.x;
-		const tipScrY = tipWorldY * ws + world.y;
-		const tipW = (hl.width ?? 100) * counterScale * ws;
-		const tipH = (hl.height ?? 30) * counterScale * ws;
-
-		// Check overlap with DOM panels
-		const panels = [".gi-graph-stats", ".gi-legend", ".gi-minimap-wrap", ".gi-node-info"];
-		let needsFlip = false;
-		for (const sel of panels) {
+		// Collect panel rects from DOM
+		const selectors = [".gi-graph-stats", ".gi-legend", ".gi-minimap-wrap", ".gi-node-info"];
+		const panelRects: PanelRect[] = [];
+		for (const sel of selectors) {
 			const el = canvas.querySelector(sel) as HTMLElement | null;
 			if (!el || el.style.display === "none" || !el.offsetParent) continue;
 			const r = el.getBoundingClientRect();
-			const px = r.left - canvasRect.left;
-			const py = r.top - canvasRect.top;
-			// AABB overlap check
-			if (tipScrX < px + r.width && tipScrX + tipW > px && tipScrY < py + r.height && tipScrY + tipH > py) {
-				needsFlip = true;
-				break;
-			}
+			panelRects.push({ x: r.left - canvasRect.left, y: r.top - canvasRect.top, w: r.width, h: r.height });
 		}
 
-		// Also check viewport edge overflow
-		if (tipScrX + tipW > canvasRect.width || tipScrY + tipH > canvasRect.height) {
-			needsFlip = true;
-		}
+		const isCardFlip = (this.panel.nodeDisplayMode ?? "node") === "card";
+		const crcFlip = isCardFlip ? (this.panel.cardRenderConfig ?? {}) : null;
+		const arFlip = crcFlip ? (crcFlip.cardAspectRatio ?? 1.618) : 0;
 
-		if (needsFlip) {
-			// Flip to left side of node (IN: card-aware offset)
-			const estW = (hl.width ?? 100) * counterScale;
-			const isCardFlip = (this.panel.nodeDisplayMode ?? "node") === "card";
-			const crcFlip = isCardFlip ? (this.panel.cardRenderConfig ?? {}) : null;
-			const arFlip = crcFlip ? (crcFlip.cardAspectRatio ?? 1.618) : 0;
-			const cardHW = isCardFlip ? Math.max(pn.radius * 2, (pn.radius * 2 * arFlip) / 2) : 0;
-			const flipOffset = isCardFlip ? cardHW + 8 + estW : pn.radius + 4 + estW;
-			hl.x = -flipOffset * gfxScale;
-			// IL: Check if flipped position overflows left edge
-			const flippedScrX = (pn.data.x + hl.x * (1 / gfxScale)) * ws + world.x;
-			if (flippedScrX < 0) {
-				// Place below node instead
-				hl.x = 0;
-				hl.y = (pn.radius + 4) * gfxScale;
-			}
-			// If still overflowing top, push down
-			if (tipScrY < 0) {
-				hl.y = (pn.radius * 0.4 + 2) * gfxScale;
-			}
+		const result = adjustTooltipPosition({
+			nodeX: pn.data.x,
+			nodeY: pn.data.y,
+			nodeRadius: pn.radius,
+			tipOffsetX: hl.x,
+			tipOffsetY: hl.y,
+			tipWidth: hl.width ?? 100,
+			tipHeight: hl.height ?? 30,
+			worldScale: world.scale.x,
+			worldX: world.x,
+			worldY: world.y,
+			gfxScale,
+			counterScale,
+			canvasWidth: canvasRect.width,
+			canvasHeight: canvasRect.height,
+			panelRects,
+			isCard: isCardFlip,
+			cardAspectRatio: arFlip,
+		});
+
+		if (result) {
+			hl.x = result.x;
+			hl.y = result.y;
 		}
 	}
 
@@ -5413,18 +5401,10 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** Hit-test group/aggregate labels and zoom to the matching cluster. */
 	hitTestAndZoomGroupLabel(wx: number, wy: number): boolean {
 		// Check aggregate hit regions (zoom-out folder summaries)
-		for (const hr of this._aggregateHitRegions) {
-			if (wx >= hr.x && wx <= hr.x + hr.w && wy >= hr.y && wy <= hr.y + hr.h) {
-				this._zoomToWorldRect(hr.cx - hr.r, hr.cy - hr.r, hr.r * 2, hr.r * 2);
-				return true;
-			}
-			// Also check the circle area itself
-			const dx = wx - hr.cx,
-				dy = wy - hr.cy;
-			if (dx * dx + dy * dy <= hr.r * hr.r) {
-				this._zoomToWorldRect(hr.cx - hr.r, hr.cy - hr.r, hr.r * 2, hr.r * 2);
-				return true;
-			}
+		const hitRegion = hitTestAggregateRegions(wx, wy, this._aggregateHitRegions);
+		if (hitRegion) {
+			this._zoomToWorldRect(hitRegion.cx - hitRegion.r, hitRegion.cy - hitRegion.r, hitRegion.r * 2, hitRegion.r * 2);
+			return true;
 		}
 		// Check groupBy labels
 		for (const [, txt] of this.groupByLabels) {
@@ -5435,29 +5415,12 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const lx = txt.x - tw / 2;
 			const ly = txt.y - th / 2;
 			if (wx >= lx && wx <= lx + tw && wy >= ly && wy <= ly + th) {
-				// Find members of this group to compute bounding box
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime property on CanvasText
-				const memberKey = (txt as any)._groupKey;
+				const memberKey = (txt as any)._groupKey as string | undefined;
 				if (memberKey) {
-					const members: { x: number; y: number }[] = [];
-					for (const pn of this.pixiNodes.values()) {
-						if (pn.data.filePath?.startsWith(memberKey) || pn.data.id?.startsWith(memberKey)) {
-							members.push({ x: pn.data.x, y: pn.data.y });
-						}
-					}
-					if (members.length > 0) {
-						let minX = Infinity,
-							minY = Infinity,
-							maxX = -Infinity,
-							maxY = -Infinity;
-						for (const m of members) {
-							if (m.x < minX) minX = m.x;
-							if (m.y < minY) minY = m.y;
-							if (m.x > maxX) maxX = m.x;
-							if (m.y > maxY) maxY = m.y;
-						}
-						const pad = 50;
-						this._zoomToWorldRect(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2);
+					const bounds = computeGroupMemberBounds(this.pixiNodes.values(), memberKey, 50);
+					if (bounds) {
+						this._zoomToWorldRect(bounds.x, bounds.y, bounds.w, bounds.h);
 						return true;
 					}
 				}

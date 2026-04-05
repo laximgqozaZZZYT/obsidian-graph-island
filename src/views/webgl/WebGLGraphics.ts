@@ -48,6 +48,46 @@ function appendColoredVertices(
 	}
 }
 
+/**
+ * Flush accumulated stroke path segments into the vertex buffer.
+ * Extracted from _flushGL to reduce cyclomatic complexity.
+ */
+function flushStrokeVertices(
+	pathPoints: { x: number; y: number }[],
+	strokeWidth: number,
+	strokeColor: number,
+	strokeAlpha: number,
+	effAlpha: number,
+	dashPattern: number[],
+	vertices: number[],
+): void {
+	if (strokeWidth <= 0 || strokeAlpha <= 0 || pathPoints.length < 2) return;
+	const [sr, sg, sb] = hexToFloats(strokeColor);
+	const sa = strokeAlpha * effAlpha;
+	if (dashPattern.length > 0) {
+		const segments = dashifyLineStrip(pathPoints, dashPattern);
+		for (const seg of segments) {
+			appendColoredVertices(vertices, expandLineStrip(seg, strokeWidth), sr, sg, sb, sa);
+		}
+	} else {
+		appendColoredVertices(vertices, expandLineStrip(pathPoints, strokeWidth), sr, sg, sb, sa);
+	}
+}
+
+/** Mutable state threaded through GL command processing. */
+interface GLFlushState {
+	fillColor: number;
+	fillAlpha: number;
+	strokeWidth: number;
+	strokeColor: number;
+	strokeAlpha: number;
+	hasFill: boolean;
+	pathPoints: { x: number; y: number }[];
+	lastX: number;
+	lastY: number;
+	dashPattern: number[];
+}
+
 // ── DrawCmd access ──────────────────────────────────────────────────
 // CanvasGraphics stores commands in a private field. We use a subclass
 // trick: override every mutating method to also push to our own queue,
@@ -366,135 +406,126 @@ export class WebGLGraphics extends CanvasGraphics {
 		}
 
 		const vertices: number[] = [];
-
-		let fillColor = 0x000000;
-		let fillAlpha = 1;
-		let strokeWidth = 0;
-		let strokeColor = 0x000000;
-		let strokeAlpha = 1;
-		let hasFill = false;
-
-		let pathPoints: { x: number; y: number }[] = [];
-		let lastX = 0;
-		let lastY = 0;
-		let dashPattern: number[] = [];
-
-		const flushStroke = () => {
-			if (strokeWidth > 0 && strokeAlpha > 0 && pathPoints.length >= 2) {
-				const [sr, sg, sb] = hexToFloats(strokeColor);
-				const sa = strokeAlpha * effAlpha;
-				if (dashPattern.length > 0) {
-					const segments = dashifyLineStrip(pathPoints, dashPattern);
-					for (const seg of segments) {
-						appendColoredVertices(vertices, expandLineStrip(seg, strokeWidth), sr, sg, sb, sa);
-					}
-				} else {
-					appendColoredVertices(vertices, expandLineStrip(pathPoints, strokeWidth), sr, sg, sb, sa);
-				}
-			}
-			pathPoints = [];
-		};
-
-		const addFillShape = (posData: Float32Array) => {
-			if (!hasFill) return;
-			const [fr, fg, fb] = hexToFloats(fillColor);
-			appendColoredVertices(vertices, posData, fr, fg, fb, fillAlpha * effAlpha);
+		const state: GLFlushState = {
+			fillColor: 0x000000,
+			fillAlpha: 1,
+			strokeWidth: 0,
+			strokeColor: 0x000000,
+			strokeAlpha: 1,
+			hasFill: false,
+			pathPoints: [],
+			lastX: 0,
+			lastY: 0,
+			dashPattern: [],
 		};
 
 		for (const cmd of this.glCmds) {
-			switch (cmd.t) {
-				case "lineStyle":
-					flushStroke();
-					strokeWidth = cmd.width;
-					strokeColor = cmd.color;
-					strokeAlpha = cmd.alpha;
-					break;
-
-				case "beginFill":
-					flushStroke();
-					fillColor = cmd.color;
-					fillAlpha = cmd.alpha;
-					hasFill = true;
-					break;
-
-				case "beginRadialFill":
-					flushStroke();
-					fillColor = cmd.innerColor;
-					fillAlpha = cmd.innerAlpha;
-					hasFill = true;
-					break;
-
-				case "endFill":
-					flushStroke();
-					hasFill = false;
-					break;
-
-				case "moveTo":
-					if (pathPoints.length >= 2) flushStroke();
-					else pathPoints = [];
-					lastX = cmd.x;
-					lastY = cmd.y;
-					pathPoints.push({ x: cmd.x, y: cmd.y });
-					break;
-
-				case "lineTo":
-					lastX = cmd.x;
-					lastY = cmd.y;
-					pathPoints.push({ x: cmd.x, y: cmd.y });
-					break;
-
-				case "drawCircle":
-					this._tessellateCircle(cmd, addFillShape, vertices, strokeWidth, strokeColor, strokeAlpha, effAlpha);
-					break;
-
-				case "drawRect":
-					this._tessellateRect(cmd, addFillShape, vertices, strokeWidth, strokeColor, strokeAlpha, effAlpha);
-					break;
-
-				case "roundedRect":
-					addFillShape(tessellateRoundedRect(cmd.x, cmd.y, cmd.w, cmd.h, cmd.r));
-					break;
-
-				case "arc": {
-					const pos = this._tessellateArc(cmd, addFillShape, pathPoints);
-					lastX = pos.lastX;
-					lastY = pos.lastY;
-					break;
-				}
-
-				case "quadraticCurveTo": {
-					const qPoints = flattenQuadratic(lastX, lastY, cmd.cx, cmd.cy, cmd.x, cmd.y);
-					for (let i = 1; i < qPoints.length; i++) pathPoints.push(qPoints[i]);
-					lastX = cmd.x;
-					lastY = cmd.y;
-					break;
-				}
-
-				case "bezierCurveTo": {
-					const bPoints = flattenBezier(lastX, lastY, cmd.cp1x, cmd.cp1y, cmd.cp2x, cmd.cp2y, cmd.x, cmd.y);
-					for (let i = 1; i < bPoints.length; i++) pathPoints.push(bPoints[i]);
-					lastX = cmd.x;
-					lastY = cmd.y;
-					break;
-				}
-
-				case "closePath":
-					if (pathPoints.length >= 2) {
-						pathPoints.push({ x: pathPoints[0].x, y: pathPoints[0].y });
-					}
-					break;
-
-				case "setLineDash":
-					dashPattern = cmd.segments.length > 0 ? [...cmd.segments] : [];
-					break;
-
-				case "setLineCap":
-				case "setLineJoin":
-					break;
-			}
+			this._processGLCmd(cmd, state, effAlpha, vertices);
 		}
 
-		flushStroke();
+		flushStrokeVertices(state.pathPoints, state.strokeWidth, state.strokeColor, state.strokeAlpha, effAlpha, state.dashPattern, vertices);
 		this._uploadAndDraw(gl, program, localTransform, effAlpha, vertices);
+	}
+
+	private _processGLCmd(cmd: GLDrawCmd, s: GLFlushState, effAlpha: number, vertices: number[]): void {
+		const flush = () => {
+			flushStrokeVertices(s.pathPoints, s.strokeWidth, s.strokeColor, s.strokeAlpha, effAlpha, s.dashPattern, vertices);
+			s.pathPoints = [];
+		};
+		const addFill = (posData: Float32Array) => {
+			if (!s.hasFill) return;
+			const [fr, fg, fb] = hexToFloats(s.fillColor);
+			appendColoredVertices(vertices, posData, fr, fg, fb, s.fillAlpha * effAlpha);
+		};
+
+		switch (cmd.t) {
+			case "lineStyle":
+				flush();
+				s.strokeWidth = cmd.width;
+				s.strokeColor = cmd.color;
+				s.strokeAlpha = cmd.alpha;
+				break;
+
+			case "beginFill":
+				flush();
+				s.fillColor = cmd.color;
+				s.fillAlpha = cmd.alpha;
+				s.hasFill = true;
+				break;
+
+			case "beginRadialFill":
+				flush();
+				s.fillColor = cmd.innerColor;
+				s.fillAlpha = cmd.innerAlpha;
+				s.hasFill = true;
+				break;
+
+			case "endFill":
+				flush();
+				s.hasFill = false;
+				break;
+
+			case "moveTo":
+				if (s.pathPoints.length >= 2) flush();
+				else s.pathPoints = [];
+				s.lastX = cmd.x;
+				s.lastY = cmd.y;
+				s.pathPoints.push({ x: cmd.x, y: cmd.y });
+				break;
+
+			case "lineTo":
+				s.lastX = cmd.x;
+				s.lastY = cmd.y;
+				s.pathPoints.push({ x: cmd.x, y: cmd.y });
+				break;
+
+			case "drawCircle":
+				this._tessellateCircle(cmd, addFill, vertices, s.strokeWidth, s.strokeColor, s.strokeAlpha, effAlpha);
+				break;
+
+			case "drawRect":
+				this._tessellateRect(cmd, addFill, vertices, s.strokeWidth, s.strokeColor, s.strokeAlpha, effAlpha);
+				break;
+
+			case "roundedRect":
+				addFill(tessellateRoundedRect(cmd.x, cmd.y, cmd.w, cmd.h, cmd.r));
+				break;
+
+			case "arc": {
+				const pos = this._tessellateArc(cmd, addFill, s.pathPoints);
+				s.lastX = pos.lastX;
+				s.lastY = pos.lastY;
+				break;
+			}
+
+			case "quadraticCurveTo": {
+				const qPoints = flattenQuadratic(s.lastX, s.lastY, cmd.cx, cmd.cy, cmd.x, cmd.y);
+				for (let i = 1; i < qPoints.length; i++) s.pathPoints.push(qPoints[i]);
+				s.lastX = cmd.x;
+				s.lastY = cmd.y;
+				break;
+			}
+
+			case "bezierCurveTo": {
+				const bPoints = flattenBezier(s.lastX, s.lastY, cmd.cp1x, cmd.cp1y, cmd.cp2x, cmd.cp2y, cmd.x, cmd.y);
+				for (let i = 1; i < bPoints.length; i++) s.pathPoints.push(bPoints[i]);
+				s.lastX = cmd.x;
+				s.lastY = cmd.y;
+				break;
+			}
+
+			case "closePath":
+				if (s.pathPoints.length >= 2) {
+					s.pathPoints.push({ x: s.pathPoints[0].x, y: s.pathPoints[0].y });
+				}
+				break;
+
+			case "setLineDash":
+				s.dashPattern = [...cmd.segments];
+				break;
+
+			default:
+				break;
+		}
 	}
 }

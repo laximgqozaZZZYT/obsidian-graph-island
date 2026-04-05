@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { convexHull, computeBoundingBox, computeBBoxWithCentroid, clamp, rectsOverlap, magnitude } from "../src/utils/geometry";
+import { convexHull, computeBoundingBox, computeBBoxWithCentroid, clamp, rectsOverlap, magnitude, hitTestAggregateRegions, computeGroupMemberBounds } from "../src/utils/geometry";
+import type { AggregateHitRegion } from "../src/utils/geometry";
 
 describe("convexHull", () => {
   it("returns empty for no points", () => {
@@ -378,6 +379,120 @@ describe("rectsOverlap edge cases", () => {
     const a = { x: 0, y: 0, w: 0, h: 10 };
     const b = { x: 1, y: 0, w: 10, h: 10 };
     expect(rectsOverlap(a, b)).toBe(false);
+  });
+});
+
+// =========================================================================
+// hitTestAggregateRegions
+// =========================================================================
+describe("hitTestAggregateRegions", () => {
+  const regions: AggregateHitRegion[] = [
+    { x: 0, y: 0, w: 100, h: 50, cx: 50, cy: 25, r: 30 },
+    { x: 200, y: 200, w: 80, h: 40, cx: 240, cy: 220, r: 25 },
+  ];
+
+  it("returns null for empty regions", () => {
+    expect(hitTestAggregateRegions(50, 25, [])).toBeNull();
+  });
+
+  it("matches point inside rectangular label area", () => {
+    const hit = hitTestAggregateRegions(10, 10, regions);
+    expect(hit).toBe(regions[0]);
+  });
+
+  it("matches point inside circular area but outside rect", () => {
+    // Circle center (50,25) r=30 → point (50, 52) is outside rect (h=50) but inside circle
+    const hit = hitTestAggregateRegions(50, 52, regions);
+    expect(hit).toBe(regions[0]);
+  });
+
+  it("returns null for point outside all regions", () => {
+    expect(hitTestAggregateRegions(150, 150, regions)).toBeNull();
+  });
+
+  it("returns first matching region when multiple could match", () => {
+    const overlapping: AggregateHitRegion[] = [
+      { x: 0, y: 0, w: 100, h: 100, cx: 50, cy: 50, r: 60 },
+      { x: 0, y: 0, w: 100, h: 100, cx: 50, cy: 50, r: 60 },
+    ];
+    const hit = hitTestAggregateRegions(50, 50, overlapping);
+    expect(hit).toBe(overlapping[0]);
+  });
+
+  it("matches second region correctly", () => {
+    const hit = hitTestAggregateRegions(210, 210, regions);
+    expect(hit).toBe(regions[1]);
+  });
+
+  it("point on rect edge is inside", () => {
+    // x=0 is >= hr.x(0) and <= hr.x+hr.w(100), y=0 same
+    const hit = hitTestAggregateRegions(0, 0, regions);
+    expect(hit).toBe(regions[0]);
+  });
+
+  it("point on circle boundary is inside", () => {
+    // cx=50, cy=25, r=30. Point (80,25) → dx=30, dy=0 → 900 <= 900
+    const hit = hitTestAggregateRegions(80, 25, regions);
+    expect(hit).toBe(regions[0]);
+  });
+});
+
+// =========================================================================
+// computeGroupMemberBounds
+// =========================================================================
+describe("computeGroupMemberBounds", () => {
+  const nodes = [
+    { data: { filePath: "folder/a.md", id: "folder/a.md", x: 10, y: 20 } },
+    { data: { filePath: "folder/b.md", id: "folder/b.md", x: 50, y: 60 } },
+    { data: { filePath: "other/c.md", id: "other/c.md", x: 100, y: 200 } },
+    { data: { filePath: "folder/sub/d.md", id: "folder/sub/d.md", x: 30, y: 40 } },
+  ];
+
+  it("returns null when no members match", () => {
+    expect(computeGroupMemberBounds(nodes, "nonexistent/", 50)).toBeNull();
+  });
+
+  it("computes padded bounds for matching members", () => {
+    const bounds = computeGroupMemberBounds(nodes, "folder/", 50);
+    expect(bounds).not.toBeNull();
+    // members: (10,20), (50,60), (30,40) → bbox (10,20)-(50,60) + pad 50
+    expect(bounds!.x).toBe(10 - 50);
+    expect(bounds!.y).toBe(20 - 50);
+    expect(bounds!.w).toBe(50 - 10 + 100);
+    expect(bounds!.h).toBe(60 - 20 + 100);
+  });
+
+  it("single member produces point bbox with padding", () => {
+    const bounds = computeGroupMemberBounds(nodes, "other/", 25);
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBe(100 - 25);
+    expect(bounds!.y).toBe(200 - 25);
+    expect(bounds!.w).toBe(50); // 0 + 2*25
+    expect(bounds!.h).toBe(50);
+  });
+
+  it("matches by id prefix when filePath is undefined", () => {
+    const nodesNoPath = [
+      { data: { id: "tag:foo", x: 5, y: 5 } },
+      { data: { id: "tag:bar", x: 15, y: 15 } },
+    ];
+    const bounds = computeGroupMemberBounds(nodesNoPath, "tag:", 10);
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBe(-5);
+    expect(bounds!.y).toBe(-5);
+  });
+
+  it("zero padding returns exact bounds", () => {
+    const bounds = computeGroupMemberBounds(nodes, "folder/", 0);
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBe(10);
+    expect(bounds!.y).toBe(20);
+    expect(bounds!.w).toBe(40); // 50-10
+    expect(bounds!.h).toBe(40); // 60-20
+  });
+
+  it("handles empty node list", () => {
+    expect(computeGroupMemberBounds([], "folder/", 50)).toBeNull();
   });
 });
 
