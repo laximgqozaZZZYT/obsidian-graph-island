@@ -13,8 +13,8 @@ export default defineConfig({
       reportsDirectory: "coverage",
       thresholds: {
         // Ratchet: render-pipeline-utils pure function tests (+25 tests)
-        statements: 47.35,
-        branches: 41.97,
+        statements: 47.4,
+        branches: 42.0,
         functions: 44.5,
         lines: 47.74,
       },
