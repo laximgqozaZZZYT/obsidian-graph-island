@@ -122,6 +122,50 @@ export function computeLabelColors(
  * Check if a point is too close to any existing point in a spatial density grid.
  * Pure function — no DOM/Canvas dependency.
  */
+// ---------------------------------------------------------------------------
+// Timeline range filtering
+// ---------------------------------------------------------------------------
+
+/** Minimal position data needed for timeline filtering. */
+export interface TimelineNodePos {
+	id: string;
+	x: number;
+}
+
+/**
+ * Compute the set of node IDs that fall outside the active timeline [min, max] range.
+ * Range values are normalized 0–1 fractions of the global X span.
+ * Returns null when no timeline range is active.
+ * Pure function — no DOM/Canvas dependency.
+ */
+export function computeTimelineFilteredSet(
+	allPositions: Iterable<{ x: number }>,
+	visibleNodes: TimelineNodePos[],
+	rangeMin: number,
+	rangeMax: number,
+): Set<string> {
+	let globalMinX = Infinity;
+	let globalMaxX = -Infinity;
+	for (const pos of allPositions) {
+		if (pos.x < globalMinX) globalMinX = pos.x;
+		if (pos.x > globalMaxX) globalMaxX = pos.x;
+	}
+	const xSpan = globalMaxX - globalMinX;
+	const tlMinX = globalMinX + xSpan * rangeMin;
+	const tlMaxX = globalMinX + xSpan * rangeMax;
+	const filtered = new Set<string>();
+	for (const node of visibleNodes) {
+		if (node.x < tlMinX || node.x > tlMaxX) {
+			filtered.add(node.id);
+		}
+	}
+	return filtered;
+}
+
+// ---------------------------------------------------------------------------
+// Density grid proximity check
+// ---------------------------------------------------------------------------
+
 export function isDensityTooClose(
 	cx: number, cy: number, bucketSize: number, minDist2: number,
 	grid: Map<string, { cx: number; cy: number }[]>,
