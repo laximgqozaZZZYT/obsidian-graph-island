@@ -413,13 +413,95 @@ fi
 # ============================================================
 # Summary
 # ============================================================
+# 21. DUPLICATE CODE BLOCKS — DRY violations
+# ============================================================
+DUPE_COUNT=$(python3 -c "
+import glob, hashlib
+blocks = {}
+for f in glob.glob('src/**/*.ts', recursive=True):
+    lines = open(f).readlines()
+    for i in range(len(lines) - 2):
+        chunk = ''.join(lines[i:i+3]).strip()
+        if len(chunk) > 80:
+            h = hashlib.md5(chunk.encode()).hexdigest()
+            if h not in blocks: blocks[h] = []
+            blocks[h].append(1)
+print(sum(1 for v in blocks.values() if len(v) > 1))
+" 2>/dev/null || echo "0")
+DUPE_COUNT=${DUPE_COUNT//[^0-9]/}; DUPE_COUNT=${DUPE_COUNT:-0}
+if [[ $DUPE_COUNT -gt 500 ]]; then
+  file_issue "duplicate-code" "medium" \
+    "${DUPE_COUNT}個の重複コードブロック (3行以上)" \
+    "同一の3行以上コードブロックが${DUPE_COUNT}箇所。DRY原則違反。共通関数への抽出が必要。" \
+    "- [ ] 重複ブロックを 500 個以下に"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
+
+# ============================================================
+# 22. SETTIMEOUT WITHOUT CLEAR — potential memory leaks
+# ============================================================
+SET_COUNT=$(grep -rn "setTimeout(" src/ --include="*.ts" 2>/dev/null | wc -l || echo "0")
+CLEAR_COUNT=$(grep -rn "clearTimeout(" src/ --include="*.ts" 2>/dev/null | wc -l || echo "0")
+SET_COUNT=${SET_COUNT//[^0-9]/}; SET_COUNT=${SET_COUNT:-0}
+CLEAR_COUNT=${CLEAR_COUNT//[^0-9]/}; CLEAR_COUNT=${CLEAR_COUNT:-0}
+LEAK_COUNT=$((SET_COUNT - CLEAR_COUNT))
+if [[ $LEAK_COUNT -gt 10 ]]; then
+  file_issue "settimeout-leaks" "high" \
+    "setTimeout ${SET_COUNT}個 vs clearTimeout ${CLEAR_COUNT}個 — ${LEAK_COUNT}個が未クリア" \
+    "setTimeoutがclearTimeoutより${LEAK_COUNT}個多い。コンポーネント破棄時にメモリリークの原因。" \
+    "- [ ] 未クリアsetTimeoutを 10 個以下に"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
+
+# ============================================================
+# 23. UNUSED RENDER THRESHOLDS — dead settings fields
+# ============================================================
+UNUSED_RT=$(python3 -c "
+import re, glob
+defined = set()
+for line in open('src/types.ts'):
+    m = re.match(r'\s+(\w+)\??\s*:\s*number', line)
+    if m: defined.add(m.group(1))
+used = set()
+for f in glob.glob('src/**/*.ts', recursive=True):
+    if 'types.ts' in f: continue
+    content = open(f).read()
+    for field in defined:
+        if f'.{field}' in content: used.add(field)
+print(len(defined - used))
+" 2>/dev/null || echo "0")
+UNUSED_RT=${UNUSED_RT//[^0-9]/}; UNUSED_RT=${UNUSED_RT:-0}
+if [[ $UNUSED_RT -gt 20 ]]; then
+  file_issue "unused-render-thresholds" "medium" \
+    "${UNUSED_RT}個の未使用RenderThresholdsフィールド" \
+    "types.tsで定義されたRenderThresholdsのうち${UNUSED_RT}個がコード内で参照されていない。\n設定UIに表示されるがコードで使われないフィールドはユーザーを混乱させる。" \
+    "- [ ] 未使用フィールドを 20 個以下に (削除 or 実装)"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
+
+# ============================================================
+# 24. SCATTERED CONSTANTS — not in constants.ts
+# ============================================================
+SCATTERED=$(grep -rn "const [A-Z_]\{3,\}\s*=" src/ --include="*.ts" 2>/dev/null | grep -v "constants.ts\|types.ts\|i18n.ts\|__mocks__\|\.test\." | wc -l || echo "0")
+SCATTERED=${SCATTERED//[^0-9]/}; SCATTERED=${SCATTERED:-0}
+if [[ $SCATTERED -gt 100 ]]; then
+  file_issue "scattered-constants" "low" \
+    "${SCATTERED}個の定数がconstants.ts外に散在" \
+    "SCREAMING_CASE定数が${SCATTERED}個、各ファイルにバラバラに定義されている。\n変更時の影響範囲が不明確になる。" \
+    "- [ ] 散在定数を 100 個以下に (constants.tsに集約 or ファイルローカルに明示)"
+  ISSUES_FOUND=$((ISSUES_FOUND + 1))
+fi
+
+# ============================================================
+# Summary
+# ============================================================
 echo ""
 echo "=== Issue Discovery Complete ==="
 echo "Issues found: $ISSUES_FOUND"
 echo "Pending issues:"
 ls "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
   prio=$(grep -oP 'priority: \K\w+' "$f" || echo "?")
-  src=$(grep -oP 'source: \K\w+' "$f" || echo "user")
+  src=$(grep -oP 'source: \K[\w-]+' "$f" || echo "user")
   summary=$(grep -oP 'summary: \K.*' "$f" || echo "?")
   echo "  [$prio] ($src) $(basename $f) — $summary"
 done
