@@ -8,6 +8,7 @@ import {
   parseGroupByFields,
   computeTimelineFilteredIds,
   computeAutoFitTransform,
+  computeVisibleFraction,
 } from "../src/utils/graph-helpers";
 import type { GraphData, GraphNode, GraphEdge } from "../src/types";
 

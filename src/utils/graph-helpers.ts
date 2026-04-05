@@ -793,6 +793,49 @@ interface AutoFitResult {
 }
 
 /**
+ * Compute the fraction of nodes visible within a viewport centered on (cx, cy)
+ * at the given scale and canvas dimensions.
+ */
+export function computeVisibleFraction(
+	nodes: readonly { x: number; y: number }[],
+	cx: number,
+	cy: number,
+	scale: number,
+	canvasW: number,
+	canvasH: number,
+): number {
+	if (nodes.length === 0) return 0;
+	const halfW = canvasW / (2 * scale);
+	const halfH = canvasH / (2 * scale);
+	let visibleCount = 0;
+	for (const n of nodes) {
+		if (Math.abs(n.x - cx) <= halfW && Math.abs(n.y - cy) <= halfH) visibleCount++;
+	}
+	return visibleCount / nodes.length;
+}
+
+/**
+ * Compute bounding box dimensions for auto-fit nodes, including padding.
+ * Returns null when the bounding box has zero or negative extent.
+ */
+function computeAutoFitBounds(nodes: readonly { x: number; y: number; r: number }[], padding: number) {
+	let minX = Infinity,
+		minY = Infinity,
+		maxX = -Infinity,
+		maxY = -Infinity;
+	for (const n of nodes) {
+		if (n.x - n.r < minX) minX = n.x - n.r;
+		if (n.y - n.r < minY) minY = n.y - n.r;
+		if (n.x + n.r > maxX) maxX = n.x + n.r;
+		if (n.y + n.r > maxY) maxY = n.y + n.r;
+	}
+	const bw = maxX - minX + padding;
+	const bh = maxY - minY + padding;
+	if (bw <= 0 || bh <= 0) return null;
+	return { minX, minY, maxX, maxY, bw, bh };
+}
+
+/**
  * Compute the transform (scale, x, y) that fits all nodes within the canvas.
  * For large graphs where minScale would clip nodes, the minScale is relaxed
  * to ensure at least 80% of nodes are visible.
@@ -805,39 +848,19 @@ export function computeAutoFitTransform(input: AutoFitInput): AutoFitResult | nu
 	const maxScale = input.maxScale ?? 1.5;
 	const configMinScale = input.minScale ?? 0;
 
-	let minX = Infinity,
-		minY = Infinity,
-		maxX = -Infinity,
-		maxY = -Infinity;
-	for (const n of nodes) {
-		if (n.x - n.r < minX) minX = n.x - n.r;
-		if (n.y - n.r < minY) minY = n.y - n.r;
-		if (n.x + n.r > maxX) maxX = n.x + n.r;
-		if (n.y + n.r > maxY) maxY = n.y + n.r;
-	}
+	const bounds = computeAutoFitBounds(nodes, padding);
+	if (!bounds) return null;
 
-	const bw = maxX - minX + padding;
-	const bh = maxY - minY + padding;
-	if (bw <= 0 || bh <= 0) return null;
-
-	// Natural scale to fit all nodes
+	const { minX, minY, maxX, maxY, bw, bh } = bounds;
 	const naturalScale = Math.min(canvasW / bw, canvasH / bh, maxScale);
 
 	// If minScale would cause clipping, relax it for large graphs
 	let scale = naturalScale;
 	if (configMinScale > 0 && naturalScale < configMinScale) {
-		// Check what fraction of nodes would be visible at minScale
-		const halfW = canvasW / (2 * configMinScale);
-		const halfH = canvasH / (2 * configMinScale);
 		const cx0 = (minX + maxX) / 2;
 		const cy0 = (minY + maxY) / 2;
-		let visibleCount = 0;
-		for (const n of nodes) {
-			if (Math.abs(n.x - cx0) <= halfW && Math.abs(n.y - cy0) <= halfH) visibleCount++;
-		}
-		const visibleFraction = visibleCount / nodes.length;
-		// If less than 80% visible at minScale, use natural scale instead
-		scale = visibleFraction < 0.8 ? naturalScale : configMinScale;
+		const fraction = computeVisibleFraction(nodes, cx0, cy0, configMinScale, canvasW, canvasH);
+		scale = fraction < 0.8 ? naturalScale : configMinScale;
 	}
 
 	if (!isFinite(scale) || scale <= 0) return null;
