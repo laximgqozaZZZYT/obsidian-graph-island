@@ -97,10 +97,35 @@ trap cleanup EXIT
 # ── Work in worktree ──
 cd "$WORKTREE_DIR" || exit 1
 
-# ── Choose focus area based on session number to avoid conflicts ──
-FOCUS_AREAS=("coverage" "eslint" "refactor")
-FOCUS_INDEX=$((ACTIVE_COUNT % ${#FOCUS_AREAS[@]}))
-FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
+# ── Check user issue queue (HIGHEST PRIORITY) ──
+ISSUE_DIR="$PROJECT_DIR/scripts/pipeline/issues"
+ISSUE_FILE=""
+ISSUE_CONTENT=""
+if [[ -d "$ISSUE_DIR" ]]; then
+  # Pick highest-priority pending issue (critical > high > medium > low)
+  for prio in critical high medium low; do
+    ISSUE_FILE=$(grep -rl "priority: $prio" "$ISSUE_DIR"/*.md 2>/dev/null | while read f; do
+      grep -q "status: pending" "$f" && echo "$f" && break
+    done)
+    [[ -n "$ISSUE_FILE" ]] && break
+  done
+fi
+
+if [[ -n "$ISSUE_FILE" ]]; then
+  FOCUS="user-issue"
+  ISSUE_CONTENT=$(cat "$ISSUE_FILE")
+  ISSUE_NAME=$(basename "$ISSUE_FILE")
+  log "USER ISSUE: $ISSUE_NAME (priority: $prio)"
+  # Mark as in-progress
+  sed -i 's/status: pending/status: in-progress/' "$ISSUE_FILE"
+  # Also update in main repo (worktree has its own copy)
+  sed -i 's/status: pending/status: in-progress/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null || true
+else
+  # ── Choose focus area based on session number to avoid conflicts ──
+  FOCUS_AREAS=("coverage" "eslint" "refactor")
+  FOCUS_INDEX=$((ACTIVE_COUNT % ${#FOCUS_AREAS[@]}))
+  FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
+fi
 log "Focus area: $FOCUS (session slot $((ACTIVE_COUNT + 1)))"
 
 # ── CDP check ──
@@ -131,11 +156,32 @@ print(f\"overall:{r['overallScore']}/100\")
   # ── IMPLEMENT ──
   log "Claude implementing ($FOCUS)..."
 
-  PROMPT="自律改善サイクル iteration $iter/$MAX_ITERATIONS。focus: $FOCUS
+  GATE_STATUS=$(echo "$GATE_JSON" | python3 -c "import sys,json; g=json.load(sys.stdin).get('gates',{}); print(' '.join(f'{k}:{v}' for k,v in g.items()))" 2>/dev/null || echo "?")
+  GODOBJ_STATUS=$(echo "$GODOBJ_JSON" | python3 -c "import sys,json; [print(f\"{k.split('/')[-1]}:{v['current']}/{v['limit']}\",end=' ') for k,v in json.load(sys.stdin).get('files',{}).items() if v.get('status')=='fail']" 2>/dev/null || echo "all pass")
+
+  if [[ "$FOCUS" == "user-issue" ]]; then
+    PROMPT="ユーザーから報告された課題を修正してください。
+
+## 課題内容
+$ISSUE_CONTENT
+
+## 現在の状態
+- ゲート: $GATE_STATUS
+- God Objects: $GODOBJ_STATUS
+- 視覚品質: $VISUAL_INFO
+
+## ルール
+- CLAUDE.md厳守
+- God Object肥大化禁止
+- テストを壊さない
+- 課題の acceptance criteria を満たすこと
+- 実装後は何もせず終了（検証はシェルが行う）"
+  else
+    PROMPT="自律改善サイクル iteration $iter/$MAX_ITERATIONS。focus: $FOCUS
 
 状態:
-- ゲート: $(echo "$GATE_JSON" | python3 -c "import sys,json; g=json.load(sys.stdin).get('gates',{}); print(' '.join(f'{k}:{v}' for k,v in g.items()))" 2>/dev/null || echo "?")
-- God Objects: $(echo "$GODOBJ_JSON" | python3 -c "import sys,json; [print(f\"{k.split('/')[-1]}:{v['current']}/{v['limit']}\",end=' ') for k,v in json.load(sys.stdin).get('files',{}).items() if v.get('status')=='fail']" 2>/dev/null || echo "all pass")
+- ゲート: $GATE_STATUS
+- God Objects: $GODOBJ_STATUS
 - 視覚品質: $VISUAL_INFO
 
 focus=$FOCUS の改善を1つ実装せよ:
@@ -144,6 +190,7 @@ focus=$FOCUS の改善を1つ実装せよ:
 - refactor: God Object からのロジック抽出
 
 実装後は何もせず終了（検証はシェルが行う）。CLAUDE.md厳守。"
+  fi
 
   claude -p "$PROMPT" \
     --allowedTools "Bash,Read,Write,Edit,Glob,Grep,Agent" \
@@ -176,8 +223,14 @@ focus=$FOCUS の改善を1つ実装せよ:
   # ── COMMIT in worktree ──
   if [[ -n "$(git status --porcelain)" ]]; then
     git add -A
+    COMMIT_PREFIX="chore(auto)"
+    COMMIT_DETAIL="$FOCUS improvement"
+    if [[ "$FOCUS" == "user-issue" && -n "$ISSUE_NAME" ]]; then
+      COMMIT_PREFIX="fix(auto)"
+      COMMIT_DETAIL="resolve $ISSUE_NAME"
+    fi
     git commit -m "$(cat <<COMMITMSG
-chore(auto): $FOCUS improvement (session $SESSION_ID, iter $iter)
+$COMMIT_PREFIX: $COMMIT_DETAIL (session $SESSION_ID, iter $iter)
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 COMMITMSG
@@ -186,6 +239,21 @@ COMMITMSG
     log "Committed (iter $iter)"
   else
     log "No changes (iter $iter)"
+  fi
+
+  # ── Mark user issue as done (if applicable) ──
+  if [[ "$FOCUS" == "user-issue" && -n "$ISSUE_FILE" && $TOTAL_COMMITS -gt 0 ]]; then
+    ISSUE_NAME=$(basename "$ISSUE_FILE")
+    # Update status in main repo
+    sed -i 's/status: in-progress/status: done/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null
+    mv "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" "$PROJECT_DIR/scripts/pipeline/issues/done/$ISSUE_NAME" 2>/dev/null
+    log "Issue $ISSUE_NAME marked as done and moved to done/"
+    # Clear issue for next iteration (fall back to auto-focus)
+    ISSUE_FILE=""
+    FOCUS_AREAS=("coverage" "eslint" "refactor")
+    FOCUS_INDEX=$((ACTIVE_COUNT % ${#FOCUS_AREAS[@]}))
+    FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
+    log "Switching to auto-focus: $FOCUS"
   fi
 
   # ── RATCHET if applicable ──
