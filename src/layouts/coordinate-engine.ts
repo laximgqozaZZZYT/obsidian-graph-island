@@ -328,6 +328,42 @@ function bfsFromHighestDegree(members: GraphNode[], ctx: CoordinateContext): Map
 	return depth;
 }
 
+/** Count directed degree for members along one endpoint of each edge */
+function countDirectedDegree(
+	members: GraphNode[],
+	edges: GraphEdge[],
+	endpoint: "source" | "target",
+): Map<string, number> {
+	const counts = new Map<string, number>();
+	const memberSet = new Set(members.map((m) => m.id));
+	for (const e of edges) {
+		if (memberSet.has(e[endpoint])) {
+			incCounter(counts, e[endpoint]);
+		}
+	}
+	return counts;
+}
+
+/** Assign sibling rank: group nodes by BFS depth, then index within each level */
+function assignSiblingRank(
+	members: GraphNode[],
+	ctx: CoordinateContext,
+	result: Map<string, number>,
+): void {
+	const depth = bfsFromHighestDegree(members, ctx);
+	const byDepth = new Map<number, string[]>();
+	for (const m of members) {
+		const d = depth.get(m.id) ?? BFS_FALLBACK_DEPTH;
+		if (!byDepth.has(d)) byDepth.set(d, []);
+		byDepth.get(d)!.push(m.id);
+	}
+	for (const [, ids] of byDepth) {
+		for (let i = 0; i < ids.length; i++) {
+			result.set(ids[i], i);
+		}
+	}
+}
+
 /** Resolve SOURCE_METRIC: degree, in-degree, out-degree, bfs-depth, sibling-rank */
 function resolveSourceMetric(
 	members: GraphNode[],
@@ -342,56 +378,26 @@ function resolveSourceMetric(
 			}
 			break;
 		}
-		case "in-degree": {
-			const inDeg = new Map<string, number>();
-			const memberSet = new Set(members.map((m) => m.id));
-			for (const e of ctx.edges) {
-				if (memberSet.has(e.target)) {
-					incCounter(inDeg, e.target);
-				}
-			}
-			for (const m of members) {
-				result.set(m.id, inDeg.get(m.id) ?? 0);
-			}
-			break;
-		}
+		case "in-degree":
 		case "out-degree": {
-			const outDeg = new Map<string, number>();
-			const memberSet = new Set(members.map((m) => m.id));
-			for (const e of ctx.edges) {
-				if (memberSet.has(e.source)) {
-					incCounter(outDeg, e.source);
-				}
-			}
+			const endpoint = metric === "in-degree" ? "target" : "source";
+			const deg = countDirectedDegree(members, ctx.edges, endpoint);
 			for (const m of members) {
-				result.set(m.id, outDeg.get(m.id) ?? 0);
+				result.set(m.id, deg.get(m.id) ?? 0);
 			}
 			break;
 		}
 		case "bfs-depth": {
 			result.clear();
 			const depth = bfsFromHighestDegree(members, ctx);
-			const queue = [...depth.entries()];
-			const maxDepthVal = queue.length > 0 ? Math.max(...depth.values()) : 0;
+			const maxDepthVal = depth.size > 0 ? Math.max(...depth.values()) : 0;
 			for (const m of members) {
 				result.set(m.id, depth.get(m.id) ?? maxDepthVal + 1);
 			}
 			break;
 		}
 		case "sibling-rank": {
-			const depth = bfsFromHighestDegree(members, ctx);
-			// Group by depth, assign rank within each level
-			const byDepth = new Map<number, string[]>();
-			for (const m of members) {
-				const d = depth.get(m.id) ?? BFS_FALLBACK_DEPTH;
-				if (!byDepth.has(d)) byDepth.set(d, []);
-				byDepth.get(d)!.push(m.id);
-			}
-			for (const [, ids] of byDepth) {
-				for (let i = 0; i < ids.length; i++) {
-					result.set(ids[i], i);
-				}
-			}
+			assignSiblingRank(members, ctx, result);
 			break;
 		}
 	}
