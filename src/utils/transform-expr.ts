@@ -333,38 +333,6 @@ function curveToFuncName(curve: CurveKind): string {
 	return MAP[curve] ?? curve.toUpperCase();
 }
 
-function _formatCurveParams(curve: CurveKind, params?: Record<string, number>): string {
-	if (!params) return "";
-	const def = CURVE_REGISTRY[curve];
-	if (!def) return "";
-
-	const parts: string[] = [];
-	for (const [key, defaultVal] of Object.entries(def.defaultParams)) {
-		const val = params[key];
-		if (val != null && val !== defaultVal) {
-			parts.push(`${key}=${val}`);
-		}
-	}
-	return parts.join(", ");
-}
-
-/** Try to reverse-map an expression string to a known math function name */
-function _exprToMathFunc(expr: string): string | null {
-	const normalized = expr.replace(/\s+/g, "");
-	const MAP: Record<string, string> = {
-		"sin(t*pi*2)": "SIN",
-		"cos(t*pi*2)": "COS",
-		"tan(t*pi)": "TAN",
-		"sqrt(t)": "SQRT",
-		"abs(t)": "ABS",
-		"log(t+0.01)": "LOG",
-		"exp(t)": "EXP",
-		"floor(t*10)": "FLOOR",
-		"ceil(t*10)": "CEIL",
-	};
-	return MAP[normalized] ?? null;
-}
-
 /**
  * Try to match an expression string against known curve formulas.
  * Returns a curve AxisTransform if matched, null otherwise.

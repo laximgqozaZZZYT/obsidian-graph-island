@@ -1222,7 +1222,6 @@ export function buildPanel(panelEl: HTMLElement, panel: PanelState, ctx: PanelCo
 	ensureTabBuilt(panel.activeTab);
 
 	// Patch tab switch to lazily build on first visit
-	const _origOnSwitch = tabContainers.get(panel.activeTab)!.parentElement;
 	const tabBar = panelEl.querySelector(".gi-tab-bar");
 	if (tabBar) {
 		// Re-wire click handlers to include lazy build
@@ -2769,81 +2768,6 @@ function buildTabBar(
 		});
 		badge.style.cssText =
 			"font-size:10px;background:var(--interactive-accent);color:var(--text-on-accent);border-radius:8px;padding:1px 5px;margin-left:4px;vertical-align:top;";
-	}
-}
-
-function _buildViewModeBar(container: HTMLElement, panel: PanelState, cb: PanelCallbacks): void {
-	const modeBar = container.createDiv({ cls: "gi-view-mode-bar" });
-
-	const modes: { mode: ViewMode; icon: string; labelKey: string }[] = [
-		{ mode: "graph", icon: "git-branch", labelKey: "viewMode.graph" },
-		{ mode: "sunburst", icon: "sun", labelKey: "viewMode.sunburst" },
-		{ mode: "timeline", icon: "calendar", labelKey: "viewMode.timeline" },
-	];
-
-	for (const m of modes) {
-		const btn = modeBar.createEl("button", {
-			cls: `gi-view-mode-btn${panel.viewMode === m.mode ? " is-active" : ""}`,
-			attr: {
-				"aria-label": t(m.labelKey),
-				"aria-pressed": String(panel.viewMode === m.mode),
-				"data-mode": m.mode,
-				role: "radio",
-			},
-		});
-		setIcon(btn.createSpan({ cls: "gi-view-mode-icon" }), m.icon);
-		btn.createSpan({ cls: "gi-view-mode-label", text: t(m.labelKey) });
-		btn.addEventListener("click", () => {
-			if (panel.viewMode === m.mode) return;
-			cb.setViewMode(m.mode);
-			cb.announceA11y?.(`${t("viewMode.switched")}: ${t(m.labelKey)}`);
-		});
-	}
-}
-
-function _buildPresetBar(container: HTMLElement, cb: PanelCallbacks) {
-	// Thinking Mode switcher (M1) — 3 primary modes
-	const modes: { key: string; icon: string; labelKey: string; descKey: string }[] = [
-		{ key: "explore", icon: "compass", labelKey: "mode.explore", descKey: "mode.exploreDesc" },
-		{ key: "analyze", icon: "bar-chart-2", labelKey: "mode.analyze", descKey: "mode.analyzeDesc" },
-		{ key: "write", icon: "pen-tool", labelKey: "mode.write", descKey: "mode.writeDesc" },
-	];
-	const modeBar = container.createDiv({ cls: "gi-mode-bar" });
-	for (const m of modes) {
-		const btn = modeBar.createEl("button", { cls: "gi-mode-btn", text: t(m.labelKey) });
-		setIcon(btn.createSpan({ cls: "gi-mode-icon" }), m.icon);
-		const modeDesc = t(m.descKey);
-		const modeSummary = cb.getPresetSummary?.(m.key) ?? "";
-		btn.setAttribute("aria-label", modeDesc);
-		btn.title = modeSummary ? `${modeDesc}\n\n${modeSummary}` : modeDesc;
-		btn.addEventListener("click", () => {
-			cb.applyPreset(m.key);
-			// Highlight active mode
-			modeBar.querySelectorAll(".gi-mode-btn").forEach((b) => b.removeClass("is-active"));
-			btn.addClass("is-active");
-			showToast(t("toast.modeApplied").replace("{name}", t(m.labelKey)));
-		});
-	}
-
-	// Additional presets dropdown
-	const presets: { key: string; labelKey: string; descKey: string }[] = [
-		{ key: "simple", labelKey: "preset.simple", descKey: "preset.simpleDesc" },
-		{ key: "analysis", labelKey: "preset.analysis", descKey: "preset.analysisDesc" },
-		{ key: "creative", labelKey: "preset.creative", descKey: "preset.creativeDesc" },
-		{ key: "active-focus", labelKey: "preset.activeFocus", descKey: "preset.activeFocusDesc" },
-		{ key: "full-analysis", labelKey: "preset.fullAnalysis", descKey: "preset.fullAnalysisDesc" },
-	];
-	const moreBar = container.createDiv({ cls: "gi-preset-bar" });
-	for (const p of presets) {
-		const btn = moreBar.createEl("button", { cls: "gi-preset-btn", text: t(p.labelKey) });
-		const presetDesc = t(p.descKey);
-		const presetSummary = cb.getPresetSummary?.(p.key) ?? "";
-		btn.setAttribute("aria-label", presetDesc);
-		btn.title = presetSummary ? `${presetDesc}\n\n${presetSummary}` : presetDesc;
-		btn.addEventListener("click", () => {
-			cb.applyPreset(p.key);
-			showToast(t("toast.presetApplied").replace("{name}", t(p.labelKey)));
-		});
 	}
 }
 

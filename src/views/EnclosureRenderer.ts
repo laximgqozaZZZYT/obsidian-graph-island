@@ -104,17 +104,6 @@ const FILL_ALPHA_OVERLAP = 0.04;
 /** Maximum label collision resolution attempts */
 const LABEL_COLLISION_MAX_ATTEMPTS = 6;
 
-/** Label offset beyond hull for placement direction.
- *  HX: Scales with zoom to prevent labels from being too close at extreme zoom-out.
- *  Currently unused (_labelY was removed) but kept for future use. */
-const LABEL_OFFSET_BASE = 8;
-function _labelOffset(ws: number): number {
-	return Math.max(LABEL_OFFSET_BASE, LABEL_OFFSET_BASE * Math.max(1, 0.4 / Math.max(ws, 0.02)));
-}
-
-/** Capsule end-cap curve factor (scales beyond 1.0 for rounder ends) */
-const CAPSULE_CURVE_FACTOR = 1.1;
-
 /** Stroke alpha for non-overlapping enclosures — bold border like map boundaries */
 const STROKE_ALPHA_NO_OVERLAP = 0.85;
 /** Minimum stroke alpha for overlapping enclosures */
@@ -667,10 +656,6 @@ export function drawCapsule(g: CanvasGraphics, p0: Pt, p1: Pt, radius: number) {
 	const b = { x: p1.x + px * r, y: p1.y + py * r };
 	const c = { x: p1.x - px * r, y: p1.y - py * r };
 	const d = { x: p0.x - px * r, y: p0.y - py * r };
-
-	const k = CAPSULE_CURVE_FACTOR;
-	const _p1out = { x: p1.x + ux * r * k, y: p1.y + uy * r * k };
-	const _p0out = { x: p0.x - ux * r * k, y: p0.y - uy * r * k };
 
 	// 直線的な国境スタイル — 角丸なしの矩形カプセル
 	g.moveTo(a.x, a.y);

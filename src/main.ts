@@ -309,12 +309,6 @@ export default class GraphViewsPlugin extends Plugin {
 		}, 100);
 	}
 
-	/** D2: Get the active graph view instance (if any). */
-	private _getGraphView(): GraphViewContainer | null {
-		const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_GRAPH)[0];
-		return leaf ? (leaf.view as GraphViewContainer) : null;
-	}
-
 	private ensureDetailPane() {
 		const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_NODE_DETAIL);
 		if (existing.length > 0) return;

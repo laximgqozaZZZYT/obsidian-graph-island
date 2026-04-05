@@ -14,8 +14,6 @@ import { mat3Multiply } from "./mat3";
 // Pre-allocated scratch matrices to avoid per-frame allocations
 const _scratchTranslate = new Float32Array(9);
 const _scratchScale = new Float32Array(9);
-const _scratchLocal = new Float32Array(9);
-
 /**
  * Build a local affine transform from position and scale.
  * Reuses scratch arrays to avoid allocations.

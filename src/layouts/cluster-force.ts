@@ -21,7 +21,7 @@
  */
 import type { GraphNode, GraphEdge, ClusterArrangement, ClusterGroupRule, CoordinateLayout } from "../types";
 import { getNodeFieldValues } from "../utils/node-grouping";
-import { computeBBoxWithCentroid, magnitude } from "../utils/geometry";
+import { magnitude } from "../utils/geometry";
 import { ARRANGEMENT_PRESETS } from "./coordinate-presets";
 import { coordinateOffsets, type CoordinateGuide, type CoordinateContext } from "./coordinate-engine";
 import {
@@ -3077,72 +3077,6 @@ function randomOffsets(p: ArrangementParams): Map<string, { dx: number; dy: numb
 // ---------------------------------------------------------------------------
 // Enclosure separation — per-tick position nudge (not static target mutation)
 // ---------------------------------------------------------------------------
-
-/**
- * Apply a mild position nudge to separate overlapping enclosure groups.
- * Called each tick AFTER the cluster blend, so the pattern is preserved
- * (blend pulls 85% back to target; nudge creates a small stable offset).
- *
- * Max nudge per node per tick is capped to prevent pattern destruction.
- */
-function _nudgeEnclosureGroups(
-	nodeIdx: Map<string, GraphNode>,
-	tagMembership: Map<string, Set<string>>,
-	nodeSpacing: number,
-	nodeSize: number,
-): void {
-	const tags = [...tagMembership.keys()];
-	if (tags.length < 2) return;
-
-	// Compute centroid + extent per tag from current positions
-	const centroids: { tag: string; cx: number; cy: number; r: number }[] = [];
-	for (const tag of tags) {
-		const ids = tagMembership.get(tag)!;
-		const points = [...ids].map((id) => nodeIdx.get(id)).filter((n): n is GraphNode => !!n);
-		if (points.length === 0) continue;
-		const bb = computeBBoxWithCentroid(points);
-		const r = Math.max(30, Math.hypot(bb.maxX - bb.minX, bb.maxY - bb.minY) / 2);
-		centroids.push({ tag, cx: bb.cx, cy: bb.cy, r });
-	}
-
-	// Cap: maximum position nudge per node per tick
-	const maxNudge = nodeSize * 0.5;
-
-	for (let i = 0; i < centroids.length; i++) {
-		for (let j = i + 1; j < centroids.length; j++) {
-			const a = centroids[i],
-				b = centroids[j];
-			const dx = b.cx - a.cx;
-			const dy = b.cy - a.cy;
-			const dist = magnitude(dx, dy);
-			const desiredDist = (a.r + b.r) * nodeSpacing;
-			if (dist >= desiredDist) continue;
-
-			const nx = dist > 1 ? dx / dist : 1;
-			const ny = dist > 1 ? dy / dist : 0;
-			// Gentle nudge proportional to overlap, capped
-			const rawNudge = (desiredDist - dist) * 0.02;
-			const nudge = Math.min(rawNudge, maxNudge);
-
-			const idsA = tagMembership.get(a.tag)!;
-			const idsB = tagMembership.get(b.tag)!;
-			for (const id of idsA) {
-				const n = nodeIdx.get(id);
-				if (!n) continue;
-				const w = idsB.has(id) ? 0.05 : 1.0;
-				n.x -= nx * nudge * w;
-				n.y -= ny * nudge * w;
-			}
-			for (const id of idsB) {
-				const n = nodeIdx.get(id);
-				if (!n) continue;
-				const w = idsA.has(id) ? 0.05 : 1.0;
-				n.x += nx * nudge * w;
-				n.y += ny * nudge * w;
-			}
-		}
-	}
-}
 
 // ---------------------------------------------------------------------------
 // Auto-fit spacing computation

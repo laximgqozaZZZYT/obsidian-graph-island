@@ -5,7 +5,6 @@ import {
 	TFile,
 	FileView,
 	setIcon,
-	Menu,
 	MarkdownView,
 	Notice,
 	type ViewStateResult,
@@ -26,7 +25,6 @@ import type {
 	GroupPreset,
 	ClusterGroupRule,
 	ClusterArrangement,
-	GraphSnapshot,
 	GraphTemplate,
 } from "../types";
 import { DEFAULT_COLORS, DEFAULT_CARD_RENDER_CONFIG, DEFAULT_ONTOLOGY, mergeRenderThresholds } from "../types";
@@ -118,17 +116,16 @@ import {
 import { t } from "../i18n";
 import { showToast } from "../utils/toast";
 import { drawEnclosures as drawEnclosuresImpl, type OverlapCache, type EnclosureConfig } from "./EnclosureRenderer";
-import type { ClusterMetadata, ArrangementGuide, TimelineRoute } from "../layouts/cluster-force";
+import type { ClusterMetadata, TimelineRoute } from "../layouts/cluster-force";
 import { analyzeOverlap, computeAutoOptimize, effectiveRadius, nodeRadius } from "../layouts/cluster-force";
 import { matchesFilter } from "../layouts/force";
-import type { ResolvedGridInfo } from "../layouts/coordinate-engine";
 import { InteractionManager, type PixiNode, type InteractionHost } from "./InteractionManager";
 import { RenderPipeline, MIN_WORLD_RADIUS_PX, type RenderHost } from "./RenderPipeline";
 import { LayoutController, type LayoutHost } from "./LayoutController";
 import { LabelManager } from "./LabelManager";
 import { Minimap, type MinimapHost } from "./Minimap";
-import { DiffOverlay, buildTimelineEntries, formatDelta, formatSnapshotDate } from "./DiffOverlay";
-import { captureSnapshot, computeSnapshotDiff, computeSnapshotToSnapshotDiff } from "../utils/snapshot";
+import { DiffOverlay } from "./DiffOverlay";
+import { captureSnapshot } from "../utils/snapshot";
 import { GuideRenderer, type GuideRendererHost } from "./GuideRenderer";
 import { LayoutTransition } from "./LayoutTransition";
 import { renderGraphStats, renderBreadcrumb, renderRelationMatrix } from "./StatsRenderer";
@@ -234,8 +231,6 @@ const EXTREME_ZOOM_THRESHOLD = 0.15;
 const MOBILE_NODE_CAP = 200;
 const LARGE_GRAPH_LOCAL_THRESHOLD = 500;
 const TRANSITION_SKIP_THRESHOLD = 500;
-const SNAPSHOT_MAX_COUNT = 10;
-
 // ---- Rendering constants ----
 const BLEND_LABEL_FACTOR = 0.15;
 const GOLDEN_RATIO_FALLBACK = 1.618;
@@ -445,8 +440,6 @@ export function resolveNodeColor(
 
 export const VIEW_TYPE_GRAPH = "graph-view";
 
-const _TICK_SKIP = 4;
-
 /** Fallback canvas dimensions when DOM element is not yet measured */
 const DEFAULT_CANVAS_WIDTH = 600;
 const DEFAULT_CANVAS_HEIGHT = 400;
@@ -648,7 +641,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** Frame counter for pathfinder pulse animation */
 	private _pathfinderFrame = 0;
 	private pixiNodes: Map<string, PixiNode> = new Map();
-	private svgEl: HTMLElement | null = null;
 	private canvasWrap: HTMLElement | null = null;
 	private graphEdges: GraphEdge[] = [];
 	private degrees: Map<string, number> = new Map();
@@ -799,8 +791,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	private hierarchyBreadcrumbEl: HTMLElement | null = null;
 	private _similarCache: Map<string, SimilarNode[]> = new Map();
 
-	// Marquee button reference (for toolbar toggle styling)
-	private marqueeBtnEl: HTMLElement | null = null;
 	private lassoBtnEl: HTMLElement | null = null;
 	private subgraphBackBtnEl: HTMLElement | null = null;
 
@@ -1198,7 +1188,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 				}
 			}
 		});
-		this.marqueeBtnEl = marqueeBtn;
 	}
 
 	// _initActionButtons removed — export, local graph, snapshot moved to command palette
@@ -1207,226 +1196,7 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	// スナップショット操作
 	// =========================================================================
 
-	/** スナップショットメニューを表示する */
-	private _showSnapshotMenu(evt: MouseEvent): void {
-		const menu = new Menu();
-
-		// 保存メニュー項目
-		menu.addItem((item) => {
-			item.setTitle(t("snapshot.save"))
-				.setIcon("plus")
-				.onClick(() => this._saveSnapshot());
-		});
-
-		const snapshots = this.plugin.settings.snapshots ?? [];
-		if (snapshots.length > 0) {
-			menu.addSeparator();
-
-			// 各スナップショットのサブメニュー
-			for (let i = 0; i < snapshots.length; i++) {
-				const snap = snapshots[i];
-				const title = snap.notes ? `${snap.name} — ${snap.notes}` : snap.name;
-				menu.addItem((item) => {
-					item.setTitle(title)
-						.setIcon("bookmark")
-						.onClick(() => this._compareWithSnapshot(snap));
-				});
-			}
-
-			// 削除用サブメニュー
-			menu.addSeparator();
-			for (let i = 0; i < snapshots.length; i++) {
-				const snap = snapshots[i];
-				menu.addItem((item) => {
-					item.setTitle(`${t("snapshot.delete")}: ${snap.name}`)
-						.setIcon("trash")
-						.onClick(() => this._deleteSnapshot(i));
-				});
-			}
-		}
-
-		// Timeline view
-		if (snapshots.length >= 2) {
-			menu.addSeparator();
-			menu.addItem((item) => {
-				item.setTitle("Timeline")
-					.setIcon("clock")
-					.onClick(() => this._showSnapshotTimeline());
-			});
-		}
-
-		// 差分が有効な場合、解除ボタンを表示
-		if (this.diffOverlay.isActive()) {
-			menu.addSeparator();
-			menu.addItem((item) => {
-				item.setTitle(t("snapshot.clearDiff"))
-					.setIcon("x")
-					.onClick(() => this._clearDiffOverlay());
-			});
-		}
-
-		menu.showAtMouseEvent(evt);
-	}
-
 	/** 現在のグラフ状態をスナップショットとして保存する */
-	private _saveSnapshot(): void {
-		const snapshots = this.plugin.settings.snapshots ?? [];
-
-		// 10件制限チェック
-		if (snapshots.length >= SNAPSHOT_MAX_COUNT) {
-			showToast(t("snapshot.limitReached"), TOAST_LONG_MS);
-			return;
-		}
-
-		// 名前入力（簡易プロンプト）
-		const name = window.prompt(t("snapshot.enterName"), `Snapshot ${snapshots.length + 1}`);
-		if (!name) return;
-
-		// オプション: メモ入力
-		const notes = window.prompt(t("snapshot.enterNotes"), "") ?? undefined;
-
-		// 現在のグラフデータを取得してキャプチャ
-		const data = this.getGraphData();
-		const snapshot = captureSnapshot(data, name, {
-			layout: this.currentLayout ?? "force",
-			searchQuery: this.panel.searchQuery ?? "",
-			groupBy: this.panel.clusterGroupRules?.[0]?.groupBy ?? "",
-		});
-		if (notes) snapshot.notes = notes;
-
-		// 設定に保存
-		if (!this.plugin.settings.snapshots) {
-			this.plugin.settings.snapshots = [];
-		}
-		this.plugin.settings.snapshots.push(snapshot);
-		this.plugin.saveSettings();
-
-		showToast(t("snapshot.saved").replace("{name}", name));
-	}
-
-	/** スナップショットと現在のグラフを比較する */
-	private _compareWithSnapshot(snapshot: GraphSnapshot): void {
-		const data = this.getGraphData();
-		const diff = computeSnapshotDiff(data, snapshot);
-		this.diffOverlay.activate(diff, snapshot.name);
-
-		// Build clickable diff list panel
-		const canvasArea = this.containerEl.querySelector<HTMLElement>(".gi-canvas-area");
-		if (canvasArea) {
-			this.diffOverlay.buildDiffList(
-				canvasArea,
-				(id) => this.getNodeLabel(id),
-				(id) => {
-					this.panToNode(id);
-					this.setHighlightedNodeId(id);
-					this.applyHover();
-				},
-				() => this._clearDiffOverlay(),
-			);
-		}
-
-		// 再描画を要求してオーバーレイを表示
-		this.pixiApp?.markNeedsRender();
-		this.wakeRenderLoop();
-	}
-
-	/** スナップショットを削除する */
-	private _deleteSnapshot(index: number): void {
-		const snapshots = this.plugin.settings.snapshots ?? [];
-		if (index < 0 || index >= snapshots.length) return;
-
-		const name = snapshots[index].name;
-		snapshots.splice(index, 1);
-		this.plugin.saveSettings();
-
-		showToast(t("snapshot.deleted").replace("{name}", name));
-	}
-
-	/** Show snapshot timeline panel */
-	private _showSnapshotTimeline(): void {
-		const snapshots = this.plugin.settings.snapshots ?? [];
-		if (snapshots.length < 2) return;
-
-		const entries = buildTimelineEntries(snapshots);
-		const canvasArea = this.containerEl.querySelector<HTMLElement>(".gi-canvas-area");
-		if (!canvasArea) return;
-
-		// Remove existing timeline
-		canvasArea.querySelector(".gi-snapshot-timeline")?.remove();
-
-		const panel = canvasArea.createDiv({ cls: "gi-snapshot-timeline" });
-
-		// Header
-		const header = panel.createDiv({ cls: "gi-snapshot-timeline-header" });
-		header.createEl("span", { text: `Snapshot Timeline (${entries.length})`, cls: "gi-snapshot-timeline-title" });
-		const closeBtn = header.createEl("button", {
-			text: "\u00d7",
-			cls: "gi-snapshot-timeline-close",
-			attr: { "aria-label": "Close timeline" },
-		});
-		closeBtn.addEventListener("click", () => panel.remove());
-
-		// Mini bar chart
-		const maxNodes = Math.max(1, ...entries.map((e) => e.nodeCount));
-		const chartEl = panel.createDiv({ cls: "gi-snapshot-chart" });
-		let _selectedSnap: (typeof snapshots)[0] | null = null;
-		const bars: HTMLElement[] = [];
-		for (const entry of entries) {
-			const bar = chartEl.createDiv({ cls: "gi-snapshot-bar" });
-			bars.push(bar);
-			const h = Math.max(2, (entry.nodeCount / maxNodes) * 36);
-			bar.style.height = `${h}px`;
-			bar.title = `${entry.name}: ${entry.nodeCount}n, ${entry.edgeCount}e — Shift+click to compare two`;
-			bar.addEventListener("click", (ev: MouseEvent) => {
-				const snap = snapshots.find((s) => s.name === entry.name);
-				if (!snap) return;
-				if (ev.shiftKey && _selectedSnap && _selectedSnap !== snap) {
-					// Compare two snapshots
-					const [older, newer] =
-						_selectedSnap.createdAt < snap.createdAt ? [_selectedSnap, snap] : [snap, _selectedSnap];
-					const diff = computeSnapshotToSnapshotDiff(newer, older);
-					this.diffOverlay.activate(diff, `${older.name} → ${newer.name}`);
-					panel.remove();
-					this.pixiApp?.markNeedsRender();
-					this.wakeRenderLoop();
-				} else if (ev.shiftKey) {
-					// First shift-click: select this snapshot
-					_selectedSnap = snap;
-					bars.forEach((b) => (b.style.outline = ""));
-					bar.style.outline = "2px solid var(--text-accent)";
-				} else {
-					// Normal click: compare with current graph
-					panel.remove();
-					this._compareWithSnapshot(snap);
-				}
-			});
-		}
-
-		// Entry list
-		for (const entry of entries) {
-			const row = panel.createDiv({ cls: "gi-snapshot-row" });
-			const displayName = entry.name.replace("[auto] ", "📷 ");
-			const dateStr = formatSnapshotDate(entry.createdAt);
-			row.createEl("span", {
-				text: displayName,
-				cls: "gi-snapshot-row-name",
-				attr: { title: `${entry.name} (${dateStr})` },
-			});
-			row.createEl("span", { text: dateStr, cls: "gi-snapshot-row-date" });
-			const statsEl = row.createDiv({ cls: "gi-snapshot-row-stats" });
-			statsEl.createEl("span", { text: `${entry.nodeCount}n` });
-			if (entry.nodeDelta !== undefined) {
-				const d = formatDelta(entry.nodeDelta);
-				statsEl.createEl("span", {
-					text: d.text,
-					attr: {
-						style: `color:${d.color === "green" ? "var(--text-success,#38a169)" : d.color === "red" ? "var(--text-error,#e53e3e)" : "var(--text-muted)"};`,
-					},
-				});
-			}
-		}
-	}
-
 	/** 差分オーバーレイを解除する */
 	private _clearDiffOverlay(): void {
 		this.diffOverlay.deactivate();
@@ -2375,7 +2145,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		try {
 			this.destroyPixi();
 			if (this.canvasWrap) this.canvasWrap.empty();
-			this.svgEl = null;
 
 			const app = this._createCanvasApp(width, height);
 			const canvas = app.view;
@@ -4869,7 +4638,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	 * When nodeIds is null, the ephemeral highlight is cleared.
 	 */
 	private applyEphemeralHighlight(nodeIds: Set<string> | null) {
-		const _prev = this.ephemeralHighlight;
 		this.ephemeralHighlight = nodeIds;
 
 		// If there's a normal hover active, ephemeral highlight overlays on top
@@ -5842,7 +5610,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 		// Road width adapts to zoom: ensure minimum screen-space visibility.
 		// We must redraw when zoom changes significantly because lineStyle
 		// width is baked into the draw commands.
-		const _isDark = this.isDarkTheme();
 		const roadColor = rt.roadColor;
 		const baseRoadWidth = rt.roadWidth;
 		// Minimum 1px on screen → minWorldWidth = 1/worldScale
@@ -5894,71 +5661,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 	/** Get road network for edge routing */
 	getRoadNetwork(): RoadNetwork | null {
 		return getBestRoadNetwork(this.roadBuilder);
-	}
-
-	// --- Guide drawing (delegated to GuideRenderer) ---
-
-	private drawTimelineAxis(
-		g: CanvasGraphics,
-		cx: number,
-		cy: number,
-		guide: Extract<ArrangementGuide, { type: "timeline" }>,
-		lineW: number,
-		color: number,
-		worldScale: number,
-	) {
-		this.guideRenderer?.drawTimelineAxis(g, cx, cy, guide, lineW, color, worldScale);
-	}
-
-	private drawGridLines(
-		g: CanvasGraphics,
-		cx: number,
-		cy: number,
-		guide: Extract<ArrangementGuide, { type: "grid" }>,
-		lineW: number,
-		color: number,
-	) {
-		this.guideRenderer?.drawGridLines(g, cx, cy, guide, lineW, color);
-	}
-
-	private drawTriangleOutline(
-		g: CanvasGraphics,
-		cx: number,
-		cy: number,
-		guide: Extract<ArrangementGuide, { type: "triangle" }>,
-		lineW: number,
-		color: number,
-	) {
-		this.guideRenderer?.drawTriangleOutline(g, cx, cy, guide, lineW, color);
-	}
-
-	private drawCoordinateGuide(
-		g: CanvasGraphics,
-		cx: number,
-		cy: number,
-		guide: {
-			type: "coordinate";
-			system: string;
-			axis1Label?: string;
-			axis2Label?: string;
-			bounds?: { xMin: number; yMin: number; xMax: number; yMax: number; maxR?: number };
-			gridInfo?: ResolvedGridInfo;
-		},
-		lineW: number,
-		color: number,
-	) {
-		this.guideRenderer?.drawCoordinateGuide(g, cx, cy, guide, lineW, color);
-	}
-
-	private drawConcentricGuide(
-		g: CanvasGraphics,
-		cx: number,
-		cy: number,
-		guide: { type: "concentric"; rings: number[] },
-		lineW: number,
-		color: number,
-	) {
-		this.guideRenderer?.drawConcentricGuide(g, cx, cy, guide, lineW, color);
 	}
 
 	// =========================================================================
@@ -8341,7 +8043,6 @@ export class GraphViewContainer extends ItemView implements InteractionHost, Ren
 			const filename = `graph-island-${ts}.png`;
 
 			// Obsidianの添付ファイルフォルダ設定を尊重してパスを決定
-			const _activeFile = mdView.file;
 			const vault = this.app.vault as ObsidianVaultInternal;
 			const attachPath = vault.getAvailablePath
 				? vault.getAvailablePath(

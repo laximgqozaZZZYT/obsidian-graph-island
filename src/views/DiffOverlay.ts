@@ -14,9 +14,6 @@ import type { PixiNode } from "./InteractionManager";
 
 /** 追加ノードのリング色（緑） */
 const ADDED_COLOR = "#22c55e";
-/** 追加ノードのリングアルファ */
-const _ADDED_ALPHA = 0.7;
-
 /** 削除ノードの色（グレー） */
 const REMOVED_COLOR = "#9ca3af";
 /** 削除ノードのフィルアルファ */
@@ -24,9 +21,6 @@ const REMOVED_ALPHA = 0.3;
 
 /** メタデータ変更ノードのリング色（黄色） */
 const CHANGED_COLOR = "#eab308";
-/** メタデータ変更ノードのリングアルファ */
-const _CHANGED_ALPHA = 0.7;
-
 /** 追加エッジの色（緑） */
 const ADDED_EDGE_COLOR = "#22c55e";
 /** 削除エッジの色（赤） */

@@ -94,12 +94,6 @@ export function computeZoomFadeAlpha(zoom: number, fadeStart = 0.7, fadeEnd = 0.
 	return fadeFloor + ((1 - fadeFloor) * (zoom - fadeEnd)) / (fadeStart - fadeEnd);
 }
 
-/** Maximum number of labels created before dynamically raising degree threshold */
-const _MAX_LABEL_COUNT = 1500;
-
-/** Default minimum degree threshold for showing node labels */
-const _DEFAULT_LABEL_DEGREE_THRESHOLD = 3;
-
 /** Number of nodes created synchronously before deferring the rest */
 const IMMEDIATE_BATCH_SIZE = 50;
 

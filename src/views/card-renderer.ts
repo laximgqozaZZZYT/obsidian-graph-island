@@ -302,7 +302,6 @@ function renderTableCard(
 	// Cap card counter-scale to prevent cards from becoming enormous at extreme zoom-out
 	const cardScale = Math.min(1 / worldScale, CARD_SCALE_CAP);
 	// Sync font size cap with cardScale to prevent text overflow
-	const _cardFontScaleCap = CARD_SCALE_CAP * worldScale; // effective 1/worldScale capped
 	const headerH = crc.tableHeaderHeight * cardScale;
 	const fieldLineH = crc.fieldLineHeight * cardScale;
 	const pad = crc.cardPadding * cardScale;
@@ -466,7 +465,7 @@ function renderPlainCard(
 	cardConfig: CardDisplayConfig,
 	cardMaxW: number,
 ): void {
-	const { visible, tlFilteredOut, alpha, nodeCount, worldScale, minWorldRadius } = ctx;
+	const { visible, tlFilteredOut, alpha, nodeCount, worldScale } = ctx;
 	const cardH = crc.plainCardHeight / worldScale;
 	// IE: Card content respects hover checklist
 	const panelMeta2 = host.getPanel?.()?.hoverShowMeta ?? true;
@@ -478,7 +477,6 @@ function renderPlainCard(
 	const charW = (8 / worldScale) * 0.55;
 
 	for (const pn of visible) {
-		const _effR = Math.max(pn.radius, minWorldRadius);
 		const nodeAlpha = tlFilteredOut && tlFilteredOut.has(pn.data.id) ? alpha * crc.filteredNodeAlpha : alpha;
 		const MIN_PLAIN_HALF_W = 20 / worldScale;
 		// HM: Step 1 — estimate base height (title + optional meta)

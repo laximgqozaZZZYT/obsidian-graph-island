@@ -446,11 +446,6 @@ export class LabelManager {
 		}
 	}
 
-	/** Delegate to the exported pure function. */
-	private _extractInitials(text: string): string {
-		return extractInitials(text);
-	}
-
 	/** AP-5 diversity guarantee (promote non-super nodes) and apply maxVisible cap. */
 	private _applyDiversityAndCap(
 		candidates: { pn: PixiNode; deg: number; isSuper: boolean; isHovered: boolean }[],
@@ -458,10 +453,8 @@ export class LabelManager {
 		degrees: Map<string, number>,
 		baseOpacity: number,
 	): void {
-		const _staticMax = rt.labelMaxVisible ?? 0;
 		// Zoom-based dynamic cap: at zoom-out, show fewer labels to prevent overlap
 		const zoom = this.host.getWorldScale();
-		const _density = Math.max(0.2, Math.min(3.0, rt.labelDensity ?? 1.0));
 		// Small-graph boost: show all labels when few nodes, more labels for medium graphs
 		// Map-style labeling: no maxVisible cap. Show all labels that pass
 		// LOD tier checks. Overlap culling handles density separately.

@@ -148,7 +148,7 @@ function doRender(container: HTMLElement, config: EmbedConfig, app: App, setting
 	layoutConcentric(data.nodes, config.center);
 
 	// Assign colors
-	const _colorMap = assignNodeColors(data.nodes, settings.colorField);
+	assignNodeColors(data.nodes, settings.colorField);
 
 	// Create canvas
 	const canvas = document.createElement("canvas");
@@ -186,9 +186,6 @@ function doRender(container: HTMLElement, config: EmbedConfig, app: App, setting
 		ctx.lineTo(tx(tgt.x), ty(tgt.y));
 		ctx.stroke();
 	}
-
-	// Build node lookup for edge positions
-	const _nodeById = new Map(data.nodes.map((n) => [n.id, n]));
 
 	// Draw nodes
 	const nodeRadius = Math.max(3, Math.min(8, 200 / Math.sqrt(data.nodes.length)));

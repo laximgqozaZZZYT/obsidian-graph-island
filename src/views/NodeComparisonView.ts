@@ -131,7 +131,6 @@ export function computeComparison(nodeA: GraphNode, nodeB: GraphNode, adj: Map<s
  */
 export class NodeComparisonView extends ItemView {
 	private bodyEl: HTMLElement | null = null;
-	private pixiNodes: Map<string, PixiNode> = new Map();
 
 	getViewType() {
 		return VIEW_TYPE_NODE_COMPARE;
@@ -158,7 +157,6 @@ export class NodeComparisonView extends ItemView {
 					this.renderEmpty();
 					return;
 				}
-				this.pixiNodes = data.pixiNodes;
 				this.renderComparison(data);
 			}),
 		);
