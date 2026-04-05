@@ -118,15 +118,16 @@ if [[ -n "$ISSUE_FILE" ]]; then
   log "USER ISSUE: $ISSUE_NAME (priority: $prio)"
   # Mark as in-progress
   sed -i 's/status: pending/status: in-progress/' "$ISSUE_FILE"
-  # Also update in main repo (worktree has its own copy)
   sed -i 's/status: pending/status: in-progress/' "$PROJECT_DIR/scripts/pipeline/issues/$ISSUE_NAME" 2>/dev/null || true
 else
-  # ── Choose focus area based on session number to avoid conflicts ──
+  # ── Choose focus based on time-of-day rotation (not session count) ──
+  # This ensures all 3 focus areas get equal time even with 1 session
+  HOUR=$(date +%-H)
   FOCUS_AREAS=("coverage" "eslint" "refactor")
-  FOCUS_INDEX=$((ACTIVE_COUNT % ${#FOCUS_AREAS[@]}))
+  FOCUS_INDEX=$(( (HOUR / 2) % 3 ))
   FOCUS="${FOCUS_AREAS[$FOCUS_INDEX]}"
 fi
-log "Focus area: $FOCUS (session slot $((ACTIVE_COUNT + 1)))"
+log "Focus area: $FOCUS (hour=$HOUR, slot=$((FOCUS_INDEX + 1)))"
 
 # ── CDP check (E2E runs via CDP — no display occupation) ──
 # CDP page.screenshot() captures the internal render buffer,
@@ -195,9 +196,15 @@ $ISSUE_CONTENT
 - 視覚品質: $VISUAL_INFO
 
 focus=$FOCUS の改善を1つ実装せよ:
-- coverage: 低カバレッジファイルにテスト追加
-- eslint: complexity警告のリファクタ (GVC内は行数を減らす方向で)
+- coverage: 低カバレッジファイルにテスト追加 (純粋関数優先)
+- eslint: complexity警告のリファクタ (閾値25、GVC内は行数を減らす方向で)
 - refactor: God Object からのロジック抽出
+
+禁止事項:
+- ESLint設定ファイル (eslint.config.js) を変更しない
+- カバレッジ閾値 (vitest.config.ts) を下げない
+- 新しいESLint warningを出さない
+- God Object ファイルの行数を増やさない
 
 実装後は何もせず終了（検証はシェルが行う）。CLAUDE.md厳守。"
   fi
